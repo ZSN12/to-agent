@@ -74,6 +74,8 @@ export type ChatStreamEvent =
   | { type: 'steering_queued'; text: string }
   | { type: 'followup_queued'; text: string }
   | { type: 'queue_update'; steering: string[]; followUp: string[] }
+  | { type: 'compaction'; automatic: boolean; summary?: string; tokensBefore?: number | null }
+  | { type: 'retry'; phase: 'start' | 'end'; attempt: number; maxAttempts?: number; delayMs?: number; success?: boolean; message?: string }
   | ({ type: 'tool' } & ToolTraceItem)
 
 export interface ChatSendResult {
@@ -128,6 +130,7 @@ export interface TaskweaverWorkspaceApi {
   getTrust: () => Promise<IpcResult<WorkspaceTrustState>>
   setTrust: (trusted: boolean) => Promise<IpcResult<WorkspaceTrustState>>
   revertDiff: (payload: { path: string; reverseEdits?: Array<{ oldText: string; newText: string }>; originalContent?: string }) => Promise<IpcResult<{ success: boolean; message: string }>>
+  openPath: (relativePath: string) => Promise<IpcResult<{ ok: boolean; error?: string; path?: string; isDirectory?: boolean }>>
   gitStatus: () => Promise<IpcResult<GitStatusResult>>
   gitSuggestCommit: () => Promise<IpcResult<GitCommitSuggestion>>
   createGitCheckpoint: (options?: { summary?: string }) => Promise<IpcResult<{ isRepo: boolean; checkpoint?: GitCheckpoint }>>
@@ -204,6 +207,16 @@ export interface OrchestrationChoicePrompt {
 
 export type WorkMode = 'code' | 'plan' | 'goal'
 
+export type BusyEnterMode = 'steer' | 'followUp'
+
+export type PermissionPromptPayload = {
+  id: string
+  reason: string
+  detail: string
+  tool: string
+  allowAlways?: boolean
+}
+
 export interface TaskweaverChatApi {
   send: (
     text: string,
@@ -215,7 +228,42 @@ export interface TaskweaverChatApi {
   cancel: () => Promise<IpcResult<{ stopped: boolean }>>
   steer: (text: string) => Promise<IpcResult<any>>
   followUp: (text: string) => Promise<IpcResult<any>>
+  queueMutate: (payload: {
+    kind: 'steering' | 'followUp'
+    index: number
+    action: 'remove' | 'update'
+    text?: string
+  }) => Promise<IpcResult<{ ok: boolean; error?: string; steering?: string[]; followUp?: string[] }>>
+  getLiveContext: () => Promise<IpcResult<LiveContextUsage>>
+  getSessionStats: () => Promise<IpcResult<SessionStatsSnapshot | null>>
   onStream: (listener: (event: ChatStreamEvent) => void) => () => void
+}
+
+export interface SessionStatsSnapshot {
+  userMessages: number
+  assistantMessages: number
+  toolCalls: number
+  toolResults: number
+  tokens: {
+    input: number
+    output: number
+    cacheRead: number
+    cacheWrite: number
+    total: number
+  }
+  cost: number
+  contextTokens?: number | null
+  contextWindow?: number | null
+  contextPercent?: number | null
+}
+
+export interface LiveContextUsage {
+  inputTokens: number
+  outputTokens: number
+  cacheReadTokens?: number
+  contextTokens: number | null
+  contextWindow: number | null
+  contextPercent: number | null
 }
 
 export interface TaskweaverTasksApi {
@@ -339,6 +387,8 @@ export interface TaskweaverPermissionApi {
   addRule: (rule: Omit<PermissionRule, 'id' | 'createdAt'> & { id?: string }) => Promise<IpcResult<PermissionRule>>
   removeRule: (id: string) => Promise<IpcResult<boolean>>
   clearRules: (options?: { workspaceOnly?: boolean; globalOnly?: boolean }) => Promise<IpcResult<boolean>>
+  respondPrompt: (id: string, response: { action: 'allow-once' | 'allow-always' | 'deny' }) => Promise<IpcResult<{ ok: boolean }>>
+  onPrompt: (listener: (payload: PermissionPromptPayload) => void) => () => void
 }
 
 export interface TaskweaverBridge {

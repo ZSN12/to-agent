@@ -103,6 +103,8 @@ export interface TaskweaverModelsApi {
   setActive: (modelKey: string) => Promise<IpcResult<string | null>>
   getThinkingLevel: () => Promise<IpcResult<ThinkingLevel>>
   setThinkingLevel: (level: ThinkingLevel) => Promise<IpcResult<ThinkingLevel>>
+  getBusyEnterMode: () => Promise<IpcResult<'steer' | 'followUp'>>
+  setBusyEnterMode: (mode: 'steer' | 'followUp') => Promise<IpcResult<'steer' | 'followUp'>>
   upsertProfile: (
     modelKey: string,
     patch: ModelProfilePatch,

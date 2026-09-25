@@ -6,6 +6,7 @@ const DEFAULT_STATE = {
   addedModelKeys: [],
   activeModelKey: null,
   thinkingLevel: 'high',
+  busyEnterMode: 'steer',
 }
 
 /**
@@ -23,6 +24,7 @@ export function createProfileStore(userDataPath) {
         addedModelKeys: Array.isArray(parsed.addedModelKeys) ? parsed.addedModelKeys : [],
         activeModelKey: parsed.activeModelKey ?? null,
         thinkingLevel: parsed.thinkingLevel ?? 'high',
+        busyEnterMode: parsed.busyEnterMode === 'followUp' ? 'followUp' : 'steer',
       }
     } catch (error) {
       if (error && typeof error === 'object' && error.code === 'ENOENT') {
@@ -77,6 +79,9 @@ export function createProfileStore(userDataPath) {
         enabledForAllocation:
           patch.enabledForAllocation ?? prev.enabledForAllocation ?? true,
         notes: patch.notes ?? prev.notes ?? '',
+        ...(patch.thinkingLevel !== undefined || prev.thinkingLevel
+          ? { thinkingLevel: patch.thinkingLevel ?? prev.thinkingLevel }
+          : {}),
       }
       await writeState(state)
       return state.profiles[modelKey]
@@ -98,15 +103,41 @@ export function createProfileStore(userDataPath) {
       await writeState(state)
       return modelKey
     },
-    async getThinkingLevel() {
+    async getThinkingLevel(modelKey) {
       const state = await readState()
+      const key = modelKey || state.activeModelKey
+      if (key && state.profiles[key]?.thinkingLevel) {
+        return state.profiles[key].thinkingLevel
+      }
       return state.thinkingLevel || 'high'
     },
     async setThinkingLevel(level) {
       const state = await readState()
-      state.thinkingLevel = level || 'high'
+      const normalized = level || 'high'
+      state.thinkingLevel = normalized
+      const key = state.activeModelKey
+      if (key) {
+        const prev = state.profiles[key] ?? {}
+        state.profiles[key] = {
+          tier: prev.tier ?? 'balanced',
+          capabilitySummary: prev.capabilitySummary ?? '',
+          enabledForAllocation: prev.enabledForAllocation ?? true,
+          notes: prev.notes ?? '',
+          thinkingLevel: normalized,
+        }
+      }
       await writeState(state)
-      return state.thinkingLevel
+      return normalized
+    },
+    async getBusyEnterMode() {
+      const state = await readState()
+      return state.busyEnterMode === 'followUp' ? 'followUp' : 'steer'
+    },
+    async setBusyEnterMode(mode) {
+      const state = await readState()
+      state.busyEnterMode = mode === 'followUp' ? 'followUp' : 'steer'
+      await writeState(state)
+      return state.busyEnterMode
     },
   }
 }

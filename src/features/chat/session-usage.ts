@@ -71,6 +71,39 @@ export function summarizeSessionUsage(messages: ChatMessage[]): SessionUsageTota
   return totals
 }
 
+export interface TurnTimingTotals {
+  llmMs: number
+  toolMs: number
+  avgTtftMs: number | null
+}
+
+export function formatWallMs(ms: number): string {
+  if (ms < 1000) return `${Math.round(ms)}ms`
+  const s = ms / 1000
+  if (s < 60) return `${Math.round(s * 10) / 10}s`
+  const whole = Math.round(s)
+  return `${Math.floor(whole / 60)}m${whole % 60}s`
+}
+
+/** 从助手气泡 usage 字段汇总轮次耗时（DSH StatsLine 的轻量对应） */
+export function summarizeTurnTiming(messages: ChatMessage[]): TurnTimingTotals {
+  let llmMs = 0
+  let toolMs = 0
+  let ttftSum = 0
+  let ttftN = 0
+  for (const message of messages) {
+    if (message.author === 'user' || !message.usage) continue
+    const u = message.usage
+    if (typeof u.llmMs === 'number' && u.llmMs > 0) llmMs += u.llmMs
+    if (typeof u.toolMs === 'number' && u.toolMs > 0) toolMs += u.toolMs
+    if (typeof u.ttftMs === 'number' && u.ttftMs > 0) {
+      ttftSum += u.ttftMs
+      ttftN += 1
+    }
+  }
+  return { llmMs, toolMs, avgTtftMs: ttftN > 0 ? ttftSum / ttftN : null }
+}
+
 export function sessionUsageHasData(totals: SessionUsageTotals): boolean {
   return (
     totals.inputTokens > 0 ||

@@ -25,6 +25,7 @@ contextBridge.exposeInMainWorld('taskweaver', {
     getTrust: () => invoke('workspace:getTrust'),
     setTrust: (trusted) => invoke('workspace:setTrust', trusted),
     revertDiff: (payload) => invoke('workspace:revertDiff', payload),
+    openPath: (relativePath) => invoke('workspace:openPath', relativePath),
     gitStatus: () => invoke('workspace:gitStatus'),
     gitSuggestCommit: () => invoke('workspace:gitSuggestCommit'),
     createGitCheckpoint: (options) => invoke('workspace:createGitCheckpoint', options),
@@ -50,6 +51,8 @@ contextBridge.exposeInMainWorld('taskweaver', {
     setActive: (modelKey) => invoke('models:setActive', modelKey),
     getThinkingLevel: () => invoke('models:getThinkingLevel'),
     setThinkingLevel: (level) => invoke('models:setThinkingLevel', level),
+    getBusyEnterMode: () => invoke('models:getBusyEnterMode'),
+    setBusyEnterMode: (mode) => invoke('models:setBusyEnterMode', mode),
     upsertProfile: (modelKey, patch) => invoke('models:upsertProfile', modelKey, patch),
     removeProfile: (modelKey) => invoke('models:removeProfile', modelKey),
     resolve: (modelKey) => invoke('models:resolve', modelKey),
@@ -84,6 +87,9 @@ contextBridge.exposeInMainWorld('taskweaver', {
     steer: (text) => invoke('chat:steer', text),
     followUp: (text) => invoke('chat:followUp', text),
     cancel: () => invoke('chat:cancel'),
+    queueMutate: (payload) => invoke('chat:queueMutate', payload),
+    getLiveContext: () => invoke('chat:getLiveContext'),
+    getSessionStats: () => invoke('chat:getSessionStats'),
     onStream: (listener) => {
       const handler = (_event, payload) => listener(payload)
       ipcRenderer.on('chat:stream', handler)
@@ -98,5 +104,11 @@ contextBridge.exposeInMainWorld('taskweaver', {
     addRule: (rule) => invoke('permission:addRule', rule),
     removeRule: (id) => invoke('permission:removeRule', id),
     clearRules: (options) => invoke('permission:clearRules', options),
+    respondPrompt: (id, response) => invoke('permission:respondPrompt', id, response),
+    onPrompt: (listener) => {
+      const handler = (_event, payload) => listener(payload)
+      ipcRenderer.on('permission:prompt', handler)
+      return () => ipcRenderer.removeListener('permission:prompt', handler)
+    },
   },
 })

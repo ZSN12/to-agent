@@ -1,5 +1,20 @@
-import { useCallback, useEffect, useState } from 'react'
-import type { AppState, ChatStreamEvent, OrchestrationChoicePrompt, PermissionMode, PromptQueueSnapshot, SkillOption, ToolTraceItem, WorkMode, WorkspaceEntry, WorkspaceReference } from '../../shared/app-api'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import type {
+  AppState,
+  BusyEnterMode,
+  ChatStreamEvent,
+  LiveContextUsage,
+  SessionStatsSnapshot,
+  OrchestrationChoicePrompt,
+  PermissionMode,
+  PermissionPromptPayload,
+  PromptQueueSnapshot,
+  SkillOption,
+  ToolTraceItem,
+  WorkMode,
+  WorkspaceEntry,
+  WorkspaceReference,
+} from '../../shared/app-api'
 import type { ChatMessage, TaskNode } from '../../types'
 
 function getBridge() {
@@ -17,10 +32,36 @@ export function useAppBackend() {
   const [toolTraces, setToolTraces] = useState<ToolTraceItem[]>([])
   const [promptQueue, setPromptQueue] = useState<PromptQueueSnapshot>({ steering: [], followUp: [] })
   const [orchestrationChoice, setOrchestrationChoice] = useState<OrchestrationChoicePrompt | null>(null)
+  const [streamStalled, setStreamStalled] = useState(false)
+  const [permissionPrompt, setPermissionPrompt] = useState<PermissionPromptPayload | null>(null)
+  const [liveContext, setLiveContext] = useState<LiveContextUsage | null>(null)
+  const [sessionStats, setSessionStats] = useState<SessionStatsSnapshot | null>(null)
+  const [busyEnterMode, setBusyEnterMode] = useState<BusyEnterMode>('steer')
+  const [retryBanner, setRetryBanner] = useState<{
+    attempt: number
+    maxAttempts?: number
+    delayMs?: number
+    message?: string
+  } | null>(null)
+  const lastStreamActivityRef = useRef(0)
+
+  const STREAM_STALL_MS = 45_000
+
+  const bumpStreamActivity = useCallback(() => {
+    lastStreamActivityRef.current = Date.now()
+    setStreamStalled(false)
+  }, [])
 
   const emptyPromptQueue = (): PromptQueueSnapshot => ({ steering: [], followUp: [] })
 
   const bridgeReady = Boolean(getBridge()?.app)
+
+  const refreshSessionStats = useCallback(async () => {
+    const bridge = getBridge()
+    if (!bridge?.chat?.getSessionStats) return
+    const res = await bridge.chat.getSessionStats()
+    if (res.ok) setSessionStats(res.data)
+  }, [])
 
   const reload = useCallback(async () => {
     const bridge = getBridge()
@@ -42,7 +83,10 @@ export function useAppBackend() {
     setLoading(false)
     const skillResult = await bridge.skills?.list()
     if (skillResult?.ok) setSkills(skillResult.data)
-  }, [])
+    const enterMode = await bridge.models?.getBusyEnterMode?.()
+    if (enterMode?.ok) setBusyEnterMode(enterMode.data)
+    await refreshSessionStats()
+  }, [refreshSessionStats])
 
   useEffect(() => {
     void reload()
@@ -52,6 +96,17 @@ export function useAppBackend() {
     const bridge = getBridge()
     if (!bridge?.chat) return
     return bridge.chat.onStream((event: ChatStreamEvent) => {
+      const activityEvents = new Set([
+        'start',
+        'delta',
+        'thinking_start',
+        'thinking_delta',
+        'thinking_end',
+        'progress',
+        'tool',
+      ])
+      if (activityEvents.has(event.type)) bumpStreamActivity()
+
       if (event.type === 'thinking_start') {
         setStreamThinking({ text: '', durationMs: 0 })
       }
@@ -68,10 +123,13 @@ export function useAppBackend() {
           setStreamThinking((prev) => ({ text: event.fullThinking!, durationMs: prev?.durationMs }))
         }
         setPromptQueue(emptyPromptQueue())
+        setStreamStalled(false)
+        void refreshSessionStats()
       }
       if (event.type === 'error') {
         setError(event.message)
         setPromptQueue(emptyPromptQueue())
+        setStreamStalled(false)
       }
       if (event.type === 'start') {
         setStreamText('')
@@ -108,8 +166,79 @@ export function useAppBackend() {
           return updated
         })
       }
+      if (event.type === 'compaction') {
+        const time = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false })
+        const entry: ChatMessage = {
+          id: `compact-${Date.now()}`,
+          author: 'orchestrator',
+          name: 'TaskWeaver',
+          time,
+          timestamp: Date.now(),
+          text: '',
+          compaction: {
+            automatic: event.automatic,
+            summary: event.summary,
+            tokensBefore: event.tokensBefore ?? null,
+          },
+        }
+        setState((current) => (current ? { ...current, messages: [...current.messages, entry] } : current))
+        void refreshSessionStats()
+      }
+      if (event.type === 'retry') {
+        if (event.phase === 'start') {
+          setRetryBanner({
+            attempt: event.attempt,
+            maxAttempts: event.maxAttempts,
+            delayMs: event.delayMs,
+            message: event.message,
+          })
+        } else {
+          setRetryBanner(null)
+        }
+      }
+    })
+  }, [bumpStreamActivity, refreshSessionStats])
+
+  useEffect(() => {
+    const bridge = getBridge()
+    if (!bridge?.permission?.onPrompt) return
+    return bridge.permission.onPrompt((payload) => {
+      setPermissionPrompt(payload)
     })
   }, [])
+
+  useEffect(() => {
+    if (!sending) {
+      setLiveContext(null)
+      return
+    }
+    const bridge = getBridge()
+    if (!bridge?.chat?.getLiveContext) return
+    const timer = window.setInterval(() => {
+      void bridge.chat.getLiveContext().then((res) => {
+        if (res.ok) setLiveContext(res.data)
+      })
+      void bridge.chat.getSessionStats?.().then((res) => {
+        if (res?.ok) setSessionStats(res.data)
+      })
+    }, 2000)
+    return () => window.clearInterval(timer)
+  }, [sending])
+
+  useEffect(() => {
+    if (!sending) {
+      setStreamStalled(false)
+      return
+    }
+    bumpStreamActivity()
+    const timer = window.setInterval(() => {
+      if (!sending) return
+      if (Date.now() - lastStreamActivityRef.current >= STREAM_STALL_MS) {
+        setStreamStalled(true)
+      }
+    }, 5000)
+    return () => window.clearInterval(timer)
+  }, [bumpStreamActivity, sending])
 
   const sendMessage = useCallback(
     async (
@@ -134,9 +263,11 @@ export function useAppBackend() {
       }
       setState((current) => current ? { ...current, messages: [...current.messages, optimisticMessage] } : current)
       setSending(true)
+      setStreamStalled(false)
       setStreamText(null)
       setStreamThinking(null)
       setToolTraces([])
+      lastStreamActivityRef.current = Date.now()
       setPromptQueue(emptyPromptQueue())
       setError(null)
       const res = await bridge.chat.send(text, modelKey ?? null, skillName ?? null, executionModeOverride ?? null, workMode ?? 'code')
@@ -373,6 +504,47 @@ export function useAppBackend() {
     return res.data
   }, [])
 
+  const respondPermissionPrompt = useCallback(async (action: 'allow-once' | 'allow-always' | 'deny') => {
+    const bridge = getBridge()
+    if (!bridge?.permission?.respondPrompt || !permissionPrompt) return false
+    const res = await bridge.permission.respondPrompt(permissionPrompt.id, { action })
+    setPermissionPrompt(null)
+    return res.ok
+  }, [permissionPrompt])
+
+  const mutateQueue = useCallback(async (payload: {
+    kind: 'steering' | 'followUp'
+    index: number
+    action: 'remove' | 'update'
+    text?: string
+  }) => {
+    const bridge = getBridge()
+    if (!bridge?.chat?.queueMutate) return false
+    const res = await bridge.chat.queueMutate(payload)
+    if (res.ok && res.data.ok) {
+      setPromptQueue({
+        steering: res.data.steering ?? [],
+        followUp: res.data.followUp ?? [],
+      })
+      return true
+    }
+    if (!res.ok) setError(res.error)
+    else if (res.data.error) setError(res.data.error)
+    return false
+  }, [])
+
+  const setBusyEnterModePref = useCallback(async (mode: BusyEnterMode) => {
+    const bridge = getBridge()
+    if (!bridge?.models?.setBusyEnterMode) return false
+    const res = await bridge.models.setBusyEnterMode(mode)
+    if (!res.ok) {
+      setError(res.error)
+      return false
+    }
+    setBusyEnterMode(res.data)
+    return true
+  }, [])
+
   const setPermissionMode = useCallback(async (mode: PermissionMode) => {
     const bridge = getBridge()
     if (!bridge?.app?.setPermissionMode) return false
@@ -410,8 +582,18 @@ export function useAppBackend() {
     loading,
     error,
     sending,
+    streamStalled,
     streamText,
     streamThinking,
+    permissionPrompt,
+    respondPermissionPrompt,
+    liveContext,
+    sessionStats,
+    refreshSessionStats,
+    busyEnterMode,
+    setBusyEnterMode: setBusyEnterModePref,
+    mutateQueue,
+    retryBanner,
     toolTraces,
     promptQueue,
     skills,

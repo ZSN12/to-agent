@@ -1530,6 +1530,65 @@ export class AgentSession {
 		return this._followUpMessages;
 	}
 
+	/** Remove one queued steering or follow-up message by UI index. */
+	removeQueuedMessage(kind: "steering" | "followUp", index: number): boolean {
+		const arr = kind === "steering" ? this._steeringMessages : this._followUpMessages;
+		if (index < 0 || index >= arr.length) return false;
+		arr.splice(index, 1);
+		const removed =
+			kind === "steering" ? this.agent.removeSteeringAt(index) : this.agent.removeFollowUpAt(index);
+		if (!removed) {
+			// Keep UI and agent queues aligned; rebuild agent queue from remaining text rows.
+			this._rebuildAgentQueue(kind);
+		}
+		this._emitQueueUpdate();
+		return true;
+	}
+
+	/** Replace queued message text at index (steering or follow-up). */
+	updateQueuedMessage(kind: "steering" | "followUp", index: number, text: string): boolean {
+		const arr = kind === "steering" ? this._steeringMessages : this._followUpMessages;
+		if (index < 0 || index >= arr.length) return false;
+		arr[index] = text;
+		const message = {
+			role: "user" as const,
+			content: [{ type: "text" as const, text }],
+			timestamp: Date.now(),
+		};
+		const updated =
+			kind === "steering"
+				? this.agent.replaceSteeringAt(index, message)
+				: this.agent.replaceFollowUpAt(index, message);
+		if (!updated) {
+			this._rebuildAgentQueue(kind);
+		}
+		this._emitQueueUpdate();
+		return true;
+	}
+
+	private _rebuildAgentQueue(kind: "steering" | "followUp"): void {
+		const texts = kind === "steering" ? [...this._steeringMessages] : [...this._followUpMessages];
+		if (kind === "steering") {
+			this.agent.clearSteeringQueue();
+			for (const text of texts) {
+				this.agent.steer({
+					role: "user",
+					content: [{ type: "text", text }],
+					timestamp: Date.now(),
+				});
+			}
+			return;
+		}
+		this.agent.clearFollowUpQueue();
+		for (const text of texts) {
+			this.agent.followUp({
+				role: "user",
+				content: [{ type: "text", text }],
+				timestamp: Date.now(),
+			});
+		}
+	}
+
 	get resourceLoader(): ResourceLoader {
 		return this._resourceLoader;
 	}

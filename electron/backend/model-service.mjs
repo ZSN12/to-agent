@@ -1,6 +1,8 @@
+import fs from 'node:fs/promises'
 import path from 'node:path'
 import { ModelRuntime } from '../agent/agent-runtime.mjs'
 import { listModelsFromExport, modelSourceNamespace, syncOpenCodexFromCli } from './opencodex-sync.mjs'
+import { applyOpenCodexDshReasoningOverlay } from './opencodex-reasoning-overlay.mjs'
 import { createCredentialStore } from './credential-store.mjs'
 import { loadPriceRegistry, mergeRegistryCost, registryPriceMeta } from './price-registry.mjs'
 import {
@@ -32,15 +34,33 @@ export function createModelService({ profileStore, appDataPath, safeStorage, pri
     safeStorage,
   })
 
+  async function patchModelsJsonReasoningOverlay(modelsPath) {
+    try {
+      const raw = await fs.readFile(modelsPath, 'utf8')
+      const doc = JSON.parse(raw)
+      const before = JSON.stringify(doc)
+      applyOpenCodexDshReasoningOverlay(doc)
+      if (JSON.stringify(doc) !== before) {
+        await fs.writeFile(modelsPath, `${JSON.stringify(doc, null, 2)}\n`, 'utf8')
+      }
+    } catch {
+      // models.json may not exist yet
+    }
+  }
+
   async function getRuntime() {
     if (runtime) return runtime
     if (!initPromise) {
-      initPromise = ModelRuntime.create({
-        allowModelNetwork: false,
-        credentials,
-        modelsPath: path.join(appDataPath, 'taskweaver', 'models.json'),
-        modelsStorePath: path.join(appDataPath, 'taskweaver', 'models-store.json'),
-      })
+      const modelsPath = path.join(appDataPath, 'taskweaver', 'models.json')
+      initPromise = (async () => {
+        await patchModelsJsonReasoningOverlay(modelsPath)
+        return ModelRuntime.create({
+          allowModelNetwork: false,
+          credentials,
+          modelsPath,
+          modelsStorePath: path.join(appDataPath, 'taskweaver', 'models-store.json'),
+        })
+      })()
     }
     runtime = await initPromise
     return runtime

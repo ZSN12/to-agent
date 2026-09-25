@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { spawn } from 'node:child_process'
+import { applyOpenCodexDshReasoningOverlay } from './opencodex-reasoning-overlay.mjs'
 
 const DEFAULT_TIMEOUT_MS = 120_000
 
@@ -76,6 +77,7 @@ export async function exportPiConfigJson() {
  * @param {Record<string, unknown>} exportDoc
  */
 export async function mergeExportIntoModelsJson(modelsPath, exportDoc) {
+  applyOpenCodexDshReasoningOverlay(exportDoc)
   await fs.mkdir(path.dirname(modelsPath), { recursive: true })
   let current = { providers: {} }
   try {
@@ -128,7 +130,7 @@ export async function syncOpenCodexFromCli(options) {
       // ensure 失败时仍尝试 export（可能 proxy 已在跑）
     }
   }
-  const exportDoc = await exportPiConfigJson()
+  const exportDoc = applyOpenCodexDshReasoningOverlay(await exportPiConfigJson())
   await mergeExportIntoModelsJson(options.modelsPath, exportDoc)
   await applyExportCredentials(options.credentials, exportDoc)
   const opencodex = exportDoc.providers?.opencodex

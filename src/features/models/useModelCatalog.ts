@@ -84,7 +84,15 @@ export function useModelCatalog() {
       setError(res.error)
       return false
     }
-    setCatalog((current) => (current ? { ...current, activeModelKey: res.data } : current))
+    const levelRes = await client.getThinkingLevel?.()
+    setCatalog((current) => {
+      if (!current) return current
+      return {
+        ...current,
+        activeModelKey: res.data,
+        activeThinkingLevel: levelRes?.ok ? levelRes.data : current.activeThinkingLevel,
+      }
+    })
     return true
   }, [])
 

@@ -8,6 +8,7 @@ import { createOrchestrationService } from './orchestration-service.mjs'
 import { createSkillService } from './skill-service.mjs'
 import { decideExecutionMode, resolveExecutionMode } from './orchestration-policy.mjs'
 import { createPermissionService } from './permission-service.mjs'
+import { resolvePermissionPrompt } from './permission-prompt-bridge.mjs'
 import { createPermissionRulesStore } from './permission-rules-store.mjs'
 import { createWorkspaceIndex } from './workspace-index.mjs'
 import { isWorkspacePath } from './workspace-index.mjs'
@@ -291,7 +292,10 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
   ipcHandle(ipcMain, 'models:removeProviderCredentials', async (_event, providerId) => modelService.removeProviderCredentials(providerId))
   ipcHandle(ipcMain, 'models:getActive', () => profileStore.getActiveModelKey())
   ipcHandle(ipcMain, 'models:setActive', async (_event, modelKey) => {
-    return profileStore.setActiveModelKey(modelKey)
+    const key = await profileStore.setActiveModelKey(modelKey)
+    const level = await profileStore.getThinkingLevel(key)
+    await chat.updateThinkingLevel(level)
+    return key
   })
   ipcHandle(ipcMain, 'models:getThinkingLevel', () => modelService.getThinkingLevel())
   ipcHandle(ipcMain, 'models:setThinkingLevel', async (_event, level) => {
@@ -299,6 +303,8 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
     await chat.updateThinkingLevel(level)
     return res
   })
+  ipcHandle(ipcMain, 'models:getBusyEnterMode', () => profileStore.getBusyEnterMode())
+  ipcHandle(ipcMain, 'models:setBusyEnterMode', (_event, mode) => profileStore.setBusyEnterMode(mode))
   ipcHandle(ipcMain, 'usage:getStats', () => usageStore.getStats())
   ipcHandle(ipcMain, 'usage:getReport', (_event, query) => usageStore.getReport(query))
   ipcHandle(ipcMain, 'usage:clear', () => usageStore.clear())
@@ -368,6 +374,21 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
       globalOnly: options?.globalOnly,
     })
   })
+  ipcHandle(ipcMain, 'workspace:openPath', async (_event, relPath) => {
+    if (!relPath || typeof relPath !== 'string') throw new Error('未提供有效的文件路径')
+    await refreshWorkspaceCache()
+    const { shell } = await import('electron')
+    try {
+      const { realPath, isDirectory } = await assertSafeWorkspacePath(cachedWorkspace, relPath, { mustExist: true })
+      const err = await shell.openPath(realPath)
+      if (err) return { ok: false, error: err }
+      return { ok: true, path: relPath, isDirectory: Boolean(isDirectory) }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      return { ok: false, error: message }
+    }
+  })
+
   ipcHandle(ipcMain, 'workspace:revertDiff', async (_event, payload) => {
     assertNotBusy()
     const { path: relPath, reverseEdits, originalContent } = payload || {}
@@ -445,6 +466,35 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
   ipcHandle(ipcMain, 'chat:cancel', async () => {
     const [chatStopped, orchestrationStopped] = await Promise.all([chat.abort(), orchestration.abort()])
     return { stopped: chatStopped || orchestrationStopped }
+  })
+
+  ipcHandle(ipcMain, 'chat:queueMutate', async (event, payload) => {
+    const kind = payload?.kind === 'followUp' ? 'followUp' : 'steering'
+    const index = Number(payload?.index)
+    const action = payload?.action === 'update' ? 'update' : 'remove'
+    const result = chat.mutateQueue(kind, index, action, payload?.text)
+    if (result.ok && event.sender && !event.sender.isDestroyed()) {
+      event.sender.send('chat:stream', {
+        type: 'queue_update',
+        steering: result.steering ?? [],
+        followUp: result.followUp ?? [],
+      })
+    }
+    return result
+  })
+
+  ipcHandle(ipcMain, 'chat:getLiveContext', () => chat.getLiveContextUsage())
+
+  ipcHandle(ipcMain, 'chat:getSessionStats', async () => {
+    const state = await appState.getState()
+    const conversationId = state?.currentThreadId ?? null
+    const stats = await chat.getSessionStatsSnapshot(conversationId)
+    return stats
+  })
+
+  ipcHandle(ipcMain, 'permission:respondPrompt', (_event, id, response) => {
+    const ok = resolvePermissionPrompt(id, response)
+    return { ok }
   })
 
   ipcHandle(ipcMain, 'chat:steer', async (event, text) => {

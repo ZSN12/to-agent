@@ -1,13 +1,18 @@
 import { useMemo, useState } from 'react'
 import { Check, Copy, Filter, Search, Terminal, X, AlertCircle, CheckCircle2, Clock, Ban } from 'lucide-react'
 import type { ToolTraceItem } from '../../shared/app-api'
+import { ToolTraceCard } from '../chat/ToolTraceCard'
 
 export function OutputLogPanel({
   logs,
   onClose,
+  onShowToolDetails,
+  onOpenWorkspacePath,
 }: {
   logs: ToolTraceItem[]
   onClose: () => void
+  onShowToolDetails?: (item: ToolTraceItem) => void
+  onOpenWorkspacePath?: (relativePath: string) => void
 }) {
   const [filterStatus, setFilterStatus] = useState<'all' | 'done' | 'error' | 'blocked' | 'running'>('all')
   const [query, setQuery] = useState('')
@@ -72,11 +77,11 @@ export function OutputLogPanel({
   }
 
   return (
-    <aside className="side-panel dag-panel" aria-label="输出与工具日志面板" style={{ width: 440 }}>
+    <aside className="side-panel dag-panel trajectory-panel" aria-label="Trajectory 工具轨迹" style={{ width: 440 }}>
       <div className="panel-header">
         <div className="panel-header-title">
           <Terminal size={17} style={{ marginRight: 6 }} />
-          <strong>执行日志</strong>
+          <strong>Trajectory</strong>
           <span style={{ fontSize: 12, color: 'var(--text-tertiary)', marginLeft: 6 }}>
             最近 {filteredLogs.length} 条
           </span>
@@ -180,33 +185,42 @@ export function OutputLogPanel({
                     </button>
                   </div>
 
-                  {log.inputSummary && (
-                    <div style={{ fontFamily: 'monospace', fontSize: 11, background: 'rgba(0,0,0,0.03)', padding: '4px 6px', borderRadius: 4, wordBreak: 'break-all' }}>
-                      <span style={{ color: 'var(--text-tertiary)', marginRight: 4 }}>in:</span>
-                      {log.inputSummary}
-                    </div>
+                  {isExpanded ? (
+                    <ToolTraceCard
+                      item={log}
+                      onShowDetails={onShowToolDetails}
+                      onOpenPath={onOpenWorkspacePath}
+                    />
+                  ) : (
+                    log.resultSummary && (
+                      <div
+                        style={{
+                          fontFamily: 'monospace',
+                          fontSize: 11,
+                          color: log.status === 'error' ? '#ef4444' : log.status === 'blocked' ? '#f59e0b' : 'var(--text-secondary)',
+                          wordBreak: 'break-word',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          display: '-webkit-box',
+                          WebkitLineClamp: 3,
+                          WebkitBoxOrient: 'vertical',
+                        }}
+                      >
+                        {log.inputSummary ? `${log.inputSummary} → ` : ''}
+                        {log.resultSummary}
+                      </div>
+                    )
                   )}
 
-                  {log.resultSummary && (
-                    <div
-                      style={{
-                        fontFamily: 'monospace',
-                        fontSize: 11,
-                        color: log.status === 'error' ? '#ef4444' : log.status === 'blocked' ? '#f59e0b' : 'var(--text-secondary)',
-                        wordBreak: 'break-word',
-                        whiteSpace: isExpanded ? 'pre-wrap' : 'normal',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        display: isExpanded ? 'block' : '-webkit-box',
-                        WebkitLineClamp: isExpanded ? undefined : 3,
-                        WebkitBoxOrient: isExpanded ? undefined : 'vertical',
-                      }}
+                  {onShowToolDetails && (
+                    <button
+                      type="button"
+                      className="trajectory-details-link"
+                      onClick={() => onShowToolDetails(log)}
                     >
-                      <span style={{ color: 'var(--text-tertiary)', marginRight: 4 }}>out:</span>
-                      {log.resultSummary}
-                    </div>
+                      在 Details 中查看
+                    </button>
                   )}
-
                   {log.resultSummary && log.resultSummary.length > 100 && (
                     <button
                       type="button"

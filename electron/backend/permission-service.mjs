@@ -2,6 +2,7 @@ import path from 'node:path'
 import fs from 'node:fs/promises'
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { sendToolTrace, summarizeToolInput } from './tool-trace.mjs'
+import { waitForRendererPermissionPrompt } from './permission-prompt-bridge.mjs'
 import { isPathInside, resolveThroughSymlinks } from './security-path.mjs'
 
 export const PERMISSION_MODES = Object.freeze(['ask', 'on-risk', 'full'])
@@ -129,25 +130,18 @@ export function createPermissionService({ dialog, getParentWindow, getWorkspaceP
       const subject = details.tool === 'bash'
         ? String(event.input?.command ?? '').slice(0, 700)
         : String(details.candidate ?? '').slice(0, 500)
-      const parent = getParentWindow(contents)
       const isBash = details.tool === 'bash'
-      const buttons = isBash && rulesStore ? ['拒绝', '批准一次', '总是允许该命令'] : ['拒绝', '批准一次']
-      const options = {
-        type: 'warning',
-        title: 'TaskWeaver 操作确认',
-        message: `TaskWeaver 想要${reason}。`,
+      const uiAnswer = await waitForRendererPermissionPrompt(contents, {
+        reason,
         detail: subject || `工具：${details.tool}`,
-        buttons,
-        defaultId: 0,
-        cancelId: 0,
-        noLink: true,
-      }
-      const answer = parent ? await dialog.showMessageBox(parent, options) : await dialog.showMessageBox(options)
-      if (answer.response === 1) {
+        tool: details.tool,
+        allowAlways: Boolean(isBash && rulesStore),
+      })
+      if (uiAnswer.action === 'allow-once') {
         await triggerPreMutation()
         return undefined
       }
-      if (answer.response === 2 && isBash && rulesStore) {
+      if (uiAnswer.action === 'allow-always' && isBash && rulesStore) {
         const cmd = String(event.input?.command ?? '').trim()
         if (cmd) {
           await rulesStore.addRule({
@@ -157,7 +151,7 @@ export function createPermissionService({ dialog, getParentWindow, getWorkspaceP
             decision: 'allow',
             scope: 'workspace',
             workspacePath,
-            description: '用户通过操作确认弹窗添加的始终允许命令',
+            description: '用户通过 Composer 审批面板添加的始终允许命令',
           })
         }
         await triggerPreMutation()

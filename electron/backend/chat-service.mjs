@@ -3,6 +3,7 @@ import { createTaskWeaverResourceLoader } from '../agent/taskweaver-resources.mj
 import { applySkillInstructions } from './skill-prompt.mjs'
 import { sendToolTrace, summarizeToolInput, summarizeToolResult, extractFileDiff } from './tool-trace.mjs'
 import { getToolsForSingleAgent } from './task-profile.mjs'
+import { aggregateSessionEntries, mapPiSessionStats } from './session-stats.mjs'
 import path from 'node:path'
 
 function applyThinkingLevel(session, level) {
@@ -226,11 +227,16 @@ export function createChatService({ modelService, profileStore, usageStore, appS
     }
     const pushTextDelta = createRedactedThinkingTextHandler({
       onTextDelta: (delta) => {
+        markFirstToken()
         full += delta
         webContents.send('chat:stream', { type: 'delta', delta, full })
       },
-      onThinkingStart: markThinkingStart,
+      onThinkingStart: () => {
+        markFirstToken()
+        markThinkingStart()
+      },
       onThinkingDelta: (delta) => {
+        markFirstToken()
         if (!thinkingStartedAt) thinkingStartedAt = Date.now()
         thinking += delta
         webContents.send('chat:stream', { type: 'thinking_delta', delta, fullThinking: thinking })
@@ -239,6 +245,12 @@ export function createChatService({ modelService, profileStore, usageStore, appS
     })
     const toolStartedAt = new Map()
     const toolArgsMap = new Map()
+    let promptStartedAt = null
+    let firstTokenAt = null
+    let turnToolMs = 0
+    const markFirstToken = () => {
+      if (!firstTokenAt && promptStartedAt) firstTokenAt = Date.now()
+    }
     const trace = (payload) => {
       sendToolTrace(webContents, payload)
       void Promise.resolve(appState?.appendOutputLog(payload)).catch(() => {})
@@ -315,21 +327,53 @@ export function createChatService({ modelService, profileStore, usageStore, appS
           return
         }
         if (event.type === 'compaction_end') {
+          const summary = event.result?.summary?.trim() || ''
           trace({
             id: `compact-${Date.now()}`,
             toolName: 'context-compaction',
             status: 'done',
-            resultSummary: '上下文记忆已自动压缩，保留关键工作上下文',
+            resultSummary: summary
+              ? `上下文已压缩 · ${summary.slice(0, 120)}${summary.length > 120 ? '…' : ''}`
+              : '上下文记忆已自动压缩，保留关键工作上下文',
             durationMs: 300,
+          })
+          webContents.send('chat:stream', {
+            type: 'compaction',
+            automatic: event.reason !== 'manual',
+            summary: summary || undefined,
+            tokensBefore: event.result?.tokensBefore ?? null,
+          })
+          return
+        }
+        if (event.type === 'auto_retry_start') {
+          webContents.send('chat:stream', {
+            type: 'retry',
+            phase: 'start',
+            attempt: event.attempt,
+            maxAttempts: event.maxAttempts,
+            delayMs: event.delayMs,
+            message: event.errorMessage,
+          })
+          return
+        }
+        if (event.type === 'auto_retry_end') {
+          webContents.send('chat:stream', {
+            type: 'retry',
+            phase: 'end',
+            attempt: event.attempt,
+            success: event.success,
+            message: event.finalError,
           })
           return
         }
         if (event.type === 'message_update') {
           const part = event.assistantMessageEvent
           if (part?.type === 'thinking_start') {
+            markFirstToken()
             thinkingStartedAt = Date.now()
             webContents.send('chat:stream', { type: 'thinking_start' })
           } else if (part?.type === 'thinking_delta' && part.delta) {
+            markFirstToken()
             if (!thinkingStartedAt) thinkingStartedAt = Date.now()
             thinking += part.delta
             webContents.send('chat:stream', { type: 'thinking_delta', delta: part.delta, fullThinking: thinking })
@@ -338,6 +382,7 @@ export function createChatService({ modelService, profileStore, usageStore, appS
             if (thinkingStartedAt) thinkingDurationMs = Date.now() - thinkingStartedAt
             webContents.send('chat:stream', { type: 'thinking_end', fullThinking: thinking, durationMs: thinkingDurationMs })
           } else if (part?.type === 'text_delta' && part.delta) {
+            markFirstToken()
             pushTextDelta.push(part.delta)
           }
           if (part?.type === 'error' && part.error) {
@@ -367,12 +412,14 @@ export function createChatService({ modelService, profileStore, usageStore, appS
           const startedAt = toolStartedAt.get(id)
           const args = toolArgsMap.get(id) || event.args
           const fileDiff = extractFileDiff(event.toolName, args, event.result)
+          const durationMs = startedAt ? Date.now() - startedAt : null
+          if (durationMs) turnToolMs += durationMs
           trace({
             id,
             toolName: String(event.toolName ?? 'tool'),
             status: event.isError ? 'error' : 'done',
             resultSummary: summarizeToolResult(event.result, Boolean(event.isError)),
-            durationMs: startedAt ? Date.now() - startedAt : null,
+            durationMs,
             fileDiff,
           })
           toolStartedAt.delete(id)
@@ -382,6 +429,7 @@ export function createChatService({ modelService, profileStore, usageStore, appS
 
       webContents.send('chat:stream', { type: 'start' })
       const prompt = applySkillInstructions(text, skill)
+      promptStartedAt = Date.now()
       await activeSession.prompt(prompt)
 
       if (!thinking) {
@@ -405,7 +453,16 @@ export function createChatService({ modelService, profileStore, usageStore, appS
         }
       }
 
-      const usage = getUsageDelta(statsBefore, activeSession.getSessionStats(), Date.now() - startedAt)
+      const elapsedMs = Date.now() - startedAt
+      const usage = getUsageDelta(statsBefore, activeSession.getSessionStats(), elapsedMs)
+      if (usage) {
+        const ttftMs = firstTokenAt && promptStartedAt ? Math.max(0, firstTokenAt - promptStartedAt) : null
+        const toolMs = turnToolMs > 0 ? turnToolMs : null
+        const llmMs = toolMs != null ? Math.max(0, elapsedMs - toolMs) : elapsedMs
+        usage.ttftMs = ttftMs
+        usage.toolMs = toolMs
+        usage.llmMs = llmMs
+      }
       // 与消息气泡 usage、DSH getReport 同源：pi getSessionStats 差分 → 每条 record
       if (
         usageStore &&
@@ -461,12 +518,80 @@ export function createChatService({ modelService, profileStore, usageStore, appS
     return true
   }
 
+  function mutateQueue(kind, index, action, text) {
+    if (!session || !inFlight) return { ok: false, error: '当前没有运行中的会话' }
+    const lane = kind === 'steering' ? 'steering' : 'followUp'
+    if (action === 'remove') {
+      if (!session.removeQueuedMessage?.(lane, index)) return { ok: false, error: '无法移除队列项' }
+    } else if (action === 'update') {
+      if (!text?.trim()) return { ok: false, error: '内容不能为空' }
+      if (!session.updateQueuedMessage?.(lane, index, text.trim())) return { ok: false, error: '无法更新队列项' }
+    } else {
+      return { ok: false, error: '未知操作' }
+    }
+    return {
+      ok: true,
+      steering: [...(session.getSteeringMessages?.() ?? [])],
+      followUp: [...(session.getFollowUpMessages?.() ?? [])],
+    }
+  }
+
+  async function sendWrapped(options) {
+    return send(options)
+  }
+
+  function getLiveContextUsage() {
+    if (!session || typeof session.getSessionStats !== 'function') {
+      return { inputTokens: 0, outputTokens: 0, contextTokens: null, contextWindow: null, contextPercent: null }
+    }
+    const stats = session.getSessionStats()
+    const ctx = stats?.contextUsage
+    return {
+      inputTokens: stats?.tokens?.input ?? 0,
+      outputTokens: stats?.tokens?.output ?? 0,
+      cacheReadTokens: stats?.tokens?.cacheRead ?? 0,
+      contextTokens: ctx?.tokens ?? null,
+      contextWindow: ctx?.contextWindow ?? null,
+      contextPercent: ctx?.percent ?? null,
+    }
+  }
+
+  async function getSessionStatsSnapshot(conversationId) {
+    if (!conversationId || !/^[a-f\d-]{36}$/i.test(conversationId)) {
+      return null
+    }
+    if (session && sessionConversationId === conversationId && typeof session.getSessionStats === 'function') {
+      return mapPiSessionStats(session.getSessionStats())
+    }
+    try {
+      let cwd = getWorkspacePath()
+      if (!cwd) {
+        cwd = path.join(agentDataPath, 'scratch')
+      }
+      const sessionDir = path.join(agentDataPath, 'conversations')
+      const sessionFile = path.join(sessionDir, `${conversationId}.jsonl`)
+      const sessionManager = SessionManager.open(sessionFile, sessionDir, cwd)
+      const folded = aggregateSessionEntries(sessionManager.getEntries())
+      return {
+        ...folded,
+        contextTokens: null,
+        contextWindow: null,
+        contextPercent: null,
+      }
+    } catch {
+      return null
+    }
+  }
+
   return {
-    send,
+    send: sendWrapped,
     abort,
     isBusy: () => inFlight,
     disposeSession,
     resetSession: disposeSession,
     updateThinkingLevel,
+    mutateQueue,
+    getLiveContextUsage,
+    getSessionStatsSnapshot,
   }
 }

@@ -23,6 +23,11 @@ export interface ChatMessage {
   callout?: string
   usage?: ChatUsage
   behavior?: 'steer' | 'followUp'
+  compaction?: {
+    automatic: boolean
+    summary?: string
+    tokensBefore?: number | null
+  }
 }
 
 export interface ChatUsage {
@@ -36,6 +41,12 @@ export interface ChatUsage {
   contextTokens: number | null
   contextWindow: number | null
   contextPercent: number | null
+  /** 首 token（含 thinking）延迟 */
+  ttftMs?: number | null
+  /** 本轮工具执行累计耗时 */
+  toolMs?: number | null
+  /** 近似 LLM 等待时间（elapsed − tool） */
+  llmMs?: number | null
 }
 
 export interface TaskNode {

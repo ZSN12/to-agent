@@ -154,6 +154,22 @@ class PendingMessageQueue {
 	clear(): void {
 		this.messages = [];
 	}
+
+	removeAt(index: number): boolean {
+		if (index < 0 || index >= this.messages.length) return false;
+		this.messages.splice(index, 1);
+		return true;
+	}
+
+	replaceAt(index: number, message: AgentMessage): boolean {
+		if (index < 0 || index >= this.messages.length) return false;
+		this.messages[index] = message;
+		return true;
+	}
+
+	snapshot(): AgentMessage[] {
+		return this.messages.slice();
+	}
 }
 
 type ActiveRun = {
@@ -296,6 +312,22 @@ export class Agent {
 	clearAllQueues(): void {
 		this.clearSteeringQueue();
 		this.clearFollowUpQueue();
+	}
+
+	removeSteeringAt(index: number): boolean {
+		return this.steeringQueue.removeAt(index);
+	}
+
+	removeFollowUpAt(index: number): boolean {
+		return this.followUpQueue.removeAt(index);
+	}
+
+	replaceSteeringAt(index: number, message: AgentMessage): boolean {
+		return this.steeringQueue.replaceAt(index, message);
+	}
+
+	replaceFollowUpAt(index: number, message: AgentMessage): boolean {
+		return this.followUpQueue.replaceAt(index, message);
 	}
 
 	/** Returns true when either queue still contains pending messages. */

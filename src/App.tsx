@@ -54,7 +54,6 @@ import {
   Coins,
   Cpu,
   ShieldCheck,
-  Atom,
   X,
 } from 'lucide-react'
 import { FormEvent, Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -67,6 +66,16 @@ import { OutputLogPanel } from './features/logs/OutputLogPanel'
 import { GitCheckpointPanel } from './features/git/GitCheckpointPanel'
 import { useModelCatalog } from './features/models/useModelCatalog'
 import { AgentMessageMarkdown } from './features/chat/AgentMessageMarkdown'
+import { DshThinkBlock } from './features/chat/DshThinkBlock'
+import { QueueDock } from './features/chat/QueueDock'
+import { ApprovalPanel } from './features/chat/ApprovalPanel'
+import { CompactionRow } from './features/chat/CompactionRow'
+import { ContextMeter } from './features/chat/ContextMeter'
+import { RetryBanner } from './features/chat/RetryBanner'
+import { SessionStatsLine } from './features/chat/SessionStatsLine'
+import { ToolTraceCard } from './features/chat/ToolTraceCard'
+import { DetailsPanel } from './features/chat/DetailsPanel'
+import type { BusyEnterMode, LiveContextUsage, SessionStatsSnapshot } from './shared/app-api'
 import type { FileDiffData, ModelUsageStats, PermissionMode, PromptQueueSnapshot, SkillOption, ThreadSummary, ToolTraceItem, WorkMode, WorkspaceEntry, WorkspaceReference } from './shared/app-api'
 import type { ChatMessage, ModelOption, TaskNode, TaskStatus, ThinkingLevel } from './types'
 import {
@@ -84,7 +93,7 @@ import {
   type ShortcutItem,
 } from './shared/shortcuts'
 
-type PanelView = 'dag' | 'task' | 'logs' | 'git' | null
+type PanelView = 'dag' | 'task' | 'logs' | 'git' | 'details' | null
 type SettingsSection = 'models' | 'mcp' | 'permissions' | 'shortcuts' | 'usage'
 const SIDEBAR_THREAD_LIMIT = 5
 
@@ -1654,61 +1663,6 @@ function formatMessageTime(time: string, timestamp?: number, id?: string): strin
   return time
 }
 
-function extractThinkSummary(thinking?: string): string {
-  if (!thinking || !thinking.trim()) return '正在深入分析…'
-  const clean = thinking.replace(/<\/?think>/gi, '').trim()
-  const lines = clean
-    .split('\n')
-    .map((l) => l.trim())
-    .filter((l) => l && !l.startsWith('#') && !l.startsWith('```') && !l.startsWith('---'))
-  if (lines.length === 0) return '正在深入分析…'
-  const first = lines[0].replace(/^[\s>*·\-]+/, '').trim()
-  if (first.length > 50) {
-    return first.slice(0, 48) + '…'
-  }
-  return first
-}
-
-function DshThinkBlock({
-  thinking,
-  durationMs,
-  isStreaming = false,
-}: {
-  thinking?: string
-  durationMs?: number
-  isStreaming?: boolean
-}) {
-  const [expanded, setExpanded] = useState(false)
-  const hasThinking = Boolean(thinking && thinking.trim().length > 0)
-
-  if (!hasThinking && !isStreaming) return null
-
-  const summary = extractThinkSummary(thinking)
-
-  return (
-    <div className="dsh-think-container">
-      <div
-        className="dsh-think-row"
-        onClick={() => setExpanded((prev) => !prev)}
-        role="button"
-        tabIndex={0}
-        title={expanded ? '点击收起思考过程' : '点击展开完整思考过程'}
-      >
-        <Atom size={14} className="dsh-think-icon" />
-        <span className="dsh-think-tag">Think</span>
-        <span className="dsh-think-sep">·</span>
-        <span className="dsh-think-summary">{summary}</span>
-        <span className={`dsh-think-chevron ${expanded ? 'open' : ''}`}>▸</span>
-      </div>
-      {expanded && thinking && (
-        <div className="dsh-think-expanded-content">
-          {thinking.replace(/<\/?think>/gi, '').trim()}
-        </div>
-      )}
-    </div>
-  )
-}
-
 function DeepDivingIndicator({ startTime }: { startTime?: number }) {
   const [seconds, setSeconds] = useState(1)
 
@@ -1734,11 +1688,15 @@ function Message({
   toolTraces,
   onFork,
   isStreaming = false,
+  onShowToolDetails,
+  onOpenWorkspacePath,
 }: {
   message: ChatMessage
   toolTraces?: ToolTraceItem[]
   onFork?: (messageId: string) => void
   isStreaming?: boolean
+  onShowToolDetails?: (item: ToolTraceItem) => void
+  onOpenWorkspacePath?: (relativePath: string) => void
 }) {
   const isUser = message.author === 'user'
   const [copied, setCopied] = useState(false)
@@ -1774,28 +1732,27 @@ function Message({
   return (
     <article id={`msg-${message.id}`} className={`message ${isUser ? 'user-message' : 'agent-message'}`}>
       <div className="message-content">
-        {!isUser && (
-          <div className="dsh-injections-container">
-            <div className="dsh-injection-row">
-              <FileText size={13} className="dsh-injection-icon" />
-              <span>上下文注入 · @deepseek-ai/dsh-system-prompt</span>
-            </div>
-            <div className="dsh-injection-row">
-              <FileText size={13} className="dsh-injection-icon" />
-              <span>上下文注入 · skill-catalog</span>
-            </div>
-          </div>
+        {!isUser && message.compaction && (
+          <CompactionRow
+            automatic={message.compaction.automatic}
+            summary={message.compaction.summary}
+            tokensBefore={message.compaction.tokensBefore}
+          />
         )}
-        {!isUser && (
+        {!isUser && !message.compaction && (
           <DshThinkBlock
             thinking={message.thinking}
             durationMs={message.thinkingDurationMs}
-            isStreaming={isStreaming && !message.text}
+            isStreaming={isStreaming}
           />
         )}
         {!isUser && toolTraces && toolTraces.length > 0 && (
           <div className="message-tool-traces">
-            <ToolTraceList items={toolTraces} />
+            <ToolTraceList
+              items={toolTraces}
+              onShowToolDetails={onShowToolDetails}
+              onOpenWorkspacePath={onOpenWorkspacePath}
+            />
           </div>
         )}
         {message.text && (
@@ -1835,6 +1792,7 @@ function Message({
             {duration} · 输入 {formatTokens(message.usage.inputTokens)} / 输出 {formatTokens(message.usage.outputTokens)} tokens
             {formatCacheUsageSuffix(message.usage)}
             {message.usage.tokensPerSecond > 0 && ` · ${message.usage.tokensPerSecond} tok/s`}
+            {typeof message.usage.ttftMs === 'number' && message.usage.ttftMs > 0 && ` · TTFT ${message.usage.ttftMs < 1000 ? `${message.usage.ttftMs}ms` : `${(message.usage.ttftMs / 1000).toFixed(1)}s`}`}
             {message.usage.contextPercent !== null && ` · 上下文 ${Math.round(message.usage.contextPercent)}%`}
           </span>
         )}
@@ -1965,7 +1923,15 @@ function DiffReviewCard({ fileDiff, onReverted, defaultExpanded = false }: { fil
   )
 }
 
-function ToolTraceList({ items }: { items: ToolTraceItem[] }) {
+function ToolTraceList({
+  items,
+  onShowToolDetails,
+  onOpenWorkspacePath,
+}: {
+  items: ToolTraceItem[]
+  onShowToolDetails?: (item: ToolTraceItem) => void
+  onOpenWorkspacePath?: (relativePath: string) => void
+}) {
   const [open, setOpen] = useState(false)
   const [allExpanded, setAllExpanded] = useState(false)
 
@@ -2054,16 +2020,12 @@ function ToolTraceList({ items }: { items: ToolTraceItem[] }) {
       {open && (
         <div className="tool-trace-dropdown">
           {items.map((item) => (
-            <div className={`tool-trace-row ${item.status}`} key={`${item.taskId ?? 'main'}-${item.id}`}>
-              <span className={`tool-trace-dot ${item.status}`} />
-              <strong className="tool-trace-name">{item.toolName}</strong>
-              <span className="tool-trace-summary">{item.inputSummary || item.resultSummary || ''}</span>
-              {typeof item.durationMs === 'number' && (
-                <time className="tool-trace-time">
-                  {item.durationMs < 1000 ? `${item.durationMs}ms` : `${(item.durationMs / 1000).toFixed(1)}s`}
-                </time>
-              )}
-            </div>
+            <ToolTraceCard
+              key={`${item.taskId ?? 'main'}-${item.id}`}
+              item={item}
+              onShowDetails={onShowToolDetails}
+              onOpenPath={onOpenWorkspacePath}
+            />
           ))}
         </div>
       )}
@@ -2552,34 +2514,6 @@ function ProjectSelector({
   )
 }
 
-function PromptQueueBanner({ queue }: { queue: PromptQueueSnapshot }) {
-  const steering = Array.from(new Set(queue.steering || []))
-  const followUp = Array.from(new Set(queue.followUp || []))
-  if (!steering.length && !followUp.length) return null
-  const preview = (text: string) => {
-    const compact = text.trim().replace(/\s+/g, ' ')
-    return compact.length > 72 ? `${compact.slice(0, 72)}…` : compact
-  }
-  return (
-    <div className="prompt-queue-banner" role="status" aria-live="polite">
-      {steering.map((text, index) => (
-        <div className="prompt-queue-item steer" key={`steer-${index}-${text.slice(0, 12)}`}>
-          <CornerDownLeft size={12} aria-hidden="true" />
-          <span className="prompt-queue-label">纠偏队列</span>
-          <span className="prompt-queue-text">{preview(text)}</span>
-        </div>
-      ))}
-      {followUp.map((text, index) => (
-        <div className="prompt-queue-item followup" key={`follow-${index}-${text.slice(0, 12)}`}>
-          <FastForward size={12} aria-hidden="true" />
-          <span className="prompt-queue-label">排队追问</span>
-          <span className="prompt-queue-text">{preview(text)}</span>
-        </div>
-      ))}
-    </div>
-  )
-}
-
 function Composer({
   model,
   modelOptions,
@@ -2606,6 +2540,10 @@ function Composer({
   messages,
   thinkingLevel = 'high',
   onThinkingLevelChange,
+  busyEnterMode = 'steer',
+  onBusyEnterModeChange,
+  onQueueMutate,
+  liveContext,
 }: {
   model: ModelOption | null
   modelOptions: ModelOption[]
@@ -2632,6 +2570,10 @@ function Composer({
   onPickWorkspace: () => void
   onDetachWorkspace: () => void
   shortcuts?: ShortcutItem[]
+  busyEnterMode?: BusyEnterMode
+  onBusyEnterModeChange?: (mode: BusyEnterMode) => void
+  onQueueMutate?: (payload: { kind: 'steering' | 'followUp'; index: number; action: 'remove' | 'update'; text?: string }) => void
+  liveContext?: LiveContextUsage | null
 }) {
   const [value, setValue] = useState('')
   const [workMode, setWorkMode] = useState<WorkMode>('code')
@@ -2824,7 +2766,8 @@ function Composer({
     }
 
     if (sending) {
-      onSteer?.(message)
+      if (busyEnterMode === 'followUp') onFollowUp?.(message)
+      else onSteer?.(message)
       setValue('')
       return
     }
@@ -2847,7 +2790,19 @@ function Composer({
 
   return (
     <div className="composer-shell">
-      {sending && <PromptQueueBanner queue={queue} />}
+      {sending && onBusyEnterModeChange && (
+        <button
+          type="button"
+          className="busy-enter-toggle"
+          title="发送中时按 Enter：纠偏 = 当前工具结束后立即插话；排队 = 等整轮结束后追加"
+          onClick={() => onBusyEnterModeChange(busyEnterMode === 'steer' ? 'followUp' : 'steer')}
+        >
+          Enter → {busyEnterMode === 'steer' ? '纠偏' : '排队'}
+        </button>
+      )}
+      {sending && onQueueMutate && (
+        <QueueDock queue={queue} sending={sending} onMutate={(payload) => { void onQueueMutate(payload) }} />
+      )}
       {!hasMessages && (
         <ProjectSelector
           currentWorkspace={workspacePath}
@@ -2972,7 +2927,15 @@ function Composer({
           }
           if (event.key === 'Enter' && !event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey) {
             event.preventDefault()
-            event.currentTarget.form?.requestSubmit()
+            if (sending) {
+              const text = value.trim()
+              if (!text) return
+              if (busyEnterMode === 'followUp') onFollowUp?.(text)
+              else onSteer?.(text)
+              setValue('')
+            } else {
+              event.currentTarget.form?.requestSubmit()
+            }
           }
         }} />
         {skillQuery && <div className="skill-command-menu" id="skill-command-options" role="listbox" aria-label="斜杠命令与技能">
@@ -3074,6 +3037,7 @@ function Composer({
             {selectedSkillOption && <button type="button" className="selected-skill-chip" onClick={() => setSelectedSkill(null)} title="移除本次 Skill"><Sparkles size={13} /><span>{selectedSkillOption.name}{selectedSkillOption.multiAgent ? ' · 多 Agent' : ''}</span><X size={13} /></button>}
           </div>
           <div className="composer-right">
+            <ContextMeter usage={liveContext ?? null} />
             <ModelSelect
               value={model}
               options={modelOptions}
@@ -3115,8 +3079,17 @@ function Composer({
   )
 }
 
-function ConversationUsageFooter({ messages }: { messages: ChatMessage[] }) {
+function ConversationUsageFooter({
+  messages,
+  sessionStats,
+}: {
+  messages: ChatMessage[]
+  sessionStats?: SessionStatsSnapshot | null
+}) {
   const sessionUsage = useMemo(() => summarizeSessionUsage(messages), [messages])
+  if (sessionStats) {
+    return <SessionStatsLine stats={sessionStats} messages={messages} />
+  }
   if (!sessionUsageHasData(sessionUsage)) return null
   return (
     <footer className="conversation-usage-footer" aria-label="本对话累计 Token 用量">
@@ -3148,8 +3121,15 @@ function MainConversation({
   sending,
   streamText,
   streamThinking,
+  streamStalled,
+  retryBanner,
   toolTraces,
   promptQueue,
+  busyEnterMode,
+  onQueueMutate,
+  onBusyEnterModeChange,
+  liveContext,
+  sessionStats,
   backendError,
   threadTitle,
   taskCount,
@@ -3174,6 +3154,8 @@ function MainConversation({
   onSelectPanel,
   onToggleNav,
   onFork,
+  onShowToolDetails,
+  onOpenWorkspacePath,
   shortcuts,
 }: {
   currentThreadId?: string | null
@@ -3186,8 +3168,20 @@ function MainConversation({
   sending?: boolean
   streamText?: string | null
   streamThinking?: { text: string; durationMs?: number } | null
+  streamStalled?: boolean
+  retryBanner?: {
+    attempt: number
+    maxAttempts?: number
+    delayMs?: number
+    message?: string
+  } | null
   toolTraces: ToolTraceItem[]
   promptQueue?: PromptQueueSnapshot
+  busyEnterMode?: BusyEnterMode
+  onQueueMutate?: (payload: { kind: 'steering' | 'followUp'; index: number; action: 'remove' | 'update'; text?: string }) => void
+  onBusyEnterModeChange?: (mode: BusyEnterMode) => void
+  liveContext?: LiveContextUsage | null
+  sessionStats?: SessionStatsSnapshot | null
   backendError?: string | null
   threadTitle: string
   taskCount: number
@@ -3212,6 +3206,8 @@ function MainConversation({
   onTogglePanel: () => void
   onToggleNav: () => void
   onFork?: (messageId: string) => void
+  onShowToolDetails?: (item: ToolTraceItem) => void
+  onOpenWorkspacePath?: (relativePath: string) => void
   shortcuts?: ShortcutItem[]
 }) {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
@@ -3358,8 +3354,8 @@ function MainConversation({
           <button
             className={`header-icon sidebar-toggle ${activePanel === 'logs' ? 'active' : ''}`}
             onClick={() => onSelectPanel?.(activePanel === 'logs' ? null : 'logs')}
-            aria-label="显示或隐藏执行日志"
-            title="显示或隐藏执行日志面板"
+            aria-label="Trajectory：工具执行轨迹"
+            title="Trajectory · 工具执行轨迹（时间序）"
           >
             <Terminal size={17} />
             {toolTraces.length > 0 && <span style={{ fontSize: 10 }}>{toolTraces.length}</span>}
@@ -3419,9 +3415,24 @@ function MainConversation({
                 message={message}
                 toolTraces={isLatestAgent ? toolTraces : undefined}
                 onFork={onFork}
+                onShowToolDetails={onShowToolDetails}
+                onOpenWorkspacePath={onOpenWorkspacePath}
               />
             )
           })}
+          {retryBanner && (
+            <RetryBanner
+              attempt={retryBanner.attempt}
+              maxAttempts={retryBanner.maxAttempts}
+              delayMs={retryBanner.delayMs}
+              message={retryBanner.message}
+            />
+          )}
+          {sending && streamStalled && (
+            <div className="stream-stall-hint" role="status">
+              已超过 45 秒没有新的输出。可能在等待权限确认（请查看输入框上方的批准条）、OpenCodex/Cursor 上游较慢，或已卡住——可点停止后重试。
+            </div>
+          )}
           {sending && (
             <Message
               message={{
@@ -3435,6 +3446,8 @@ function MainConversation({
               }}
               toolTraces={toolTraces}
               isStreaming={true}
+              onShowToolDetails={onShowToolDetails}
+              onOpenWorkspacePath={onOpenWorkspacePath}
             />
           )}
         </div>
@@ -3477,8 +3490,12 @@ function MainConversation({
           onSelectProject={onSelectProject}
           onPickWorkspace={onPickWorkspace}
           onDetachWorkspace={onDetachWorkspace}
+          busyEnterMode={busyEnterMode}
+          onBusyEnterModeChange={onBusyEnterModeChange}
+          onQueueMutate={onQueueMutate}
+          liveContext={liveContext}
         />
-      <ConversationUsageFooter messages={messages} />
+      <ConversationUsageFooter messages={messages} sessionStats={sessionStats} />
     </main>
   )
 }
@@ -3602,7 +3619,29 @@ export default function App() {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [model, setModel] = useState<ModelOption | null>(null)
   const [deleteTargetThread, setDeleteTargetThread] = useState<ThreadSummary | null>(null)
+  const [detailsTool, setDetailsTool] = useState<ToolTraceItem | null>(null)
   const priorTaskCount = useRef(0)
+
+  const openWorkspacePathForDetails = useCallback(async (relativePath: string) => {
+    const bridge = window.taskweaver
+    if (!bridge?.workspace?.openPath) {
+      return { ok: false, error: '请在 Electron 桌面端打开文件' }
+    }
+    const res = await bridge.workspace.openPath(relativePath)
+    if (!res.ok) return { ok: false, error: res.error }
+    return { ok: res.data.ok, error: res.data.error }
+  }, [])
+
+  const openWorkspacePath = useCallback((relativePath: string) => {
+    void openWorkspacePathForDetails(relativePath).then((out) => {
+      if (!out.ok && out.error) window.alert(out.error)
+    })
+  }, [openWorkspacePathForDetails])
+
+  const showToolDetails = useCallback((item: ToolTraceItem) => {
+    setDetailsTool(item)
+    setPanel('details')
+  }, [])
 
   const handleUpdateShortcuts = (next: ShortcutItem[]) => {
     setShortcuts(next)
@@ -3784,8 +3823,15 @@ export default function App() {
           sending={appBackend.sending}
           streamText={appBackend.streamText}
           streamThinking={appBackend.streamThinking}
+          streamStalled={appBackend.streamStalled}
+          retryBanner={appBackend.retryBanner}
           toolTraces={appBackend.toolTraces}
           promptQueue={appBackend.promptQueue}
+          busyEnterMode={appBackend.busyEnterMode}
+          onQueueMutate={(payload) => { void appBackend.mutateQueue(payload) }}
+          onBusyEnterModeChange={(mode) => { void appBackend.setBusyEnterMode(mode) }}
+          liveContext={appBackend.liveContext}
+          sessionStats={appBackend.sessionStats}
           backendError={appBackend.error}
           threadTitle={appBackend.threadTitle}
           taskCount={tasks.length}
@@ -3810,18 +3856,46 @@ export default function App() {
           onSelectPanel={setPanel}
           onToggleNav={() => setNavCollapsed((current) => !current)}
           onFork={handleForkThread}
+          onShowToolDetails={showToolDetails}
+          onOpenWorkspacePath={openWorkspacePath}
         />
         {panel === 'dag' && <DagPanel tasks={tasks} onTask={openTask} onClose={() => setPanel(null)} />}
         {panel === 'task' && selectedTask && (
           <TaskConversation task={selectedTask} onBack={() => setPanel('dag')} onClose={() => setPanel(null)} onSend={sendTaskMessage} />
         )}
         {panel === 'logs' && (
-          <OutputLogPanel logs={appBackend.toolTraces} onClose={() => setPanel(null)} />
+          <OutputLogPanel
+            logs={appBackend.toolTraces}
+            onClose={() => setPanel(null)}
+            onShowToolDetails={showToolDetails}
+            onOpenWorkspacePath={openWorkspacePath}
+          />
+        )}
+        {panel === 'details' && detailsTool && (
+          <DetailsPanel
+            item={detailsTool}
+            workspacePath={appBackend.workspacePath}
+            onClose={() => {
+              setPanel(null)
+              setDetailsTool(null)
+            }}
+            onOpenPath={openWorkspacePathForDetails}
+            renderDiff={(fileDiff) => <DiffReviewCard fileDiff={fileDiff} defaultExpanded />}
+          />
         )}
         {panel === 'git' && (
           <GitCheckpointPanel workspacePath={appBackend.workspacePath} onClose={() => setPanel(null)} />
         )}
       </div>
+
+      {appBackend.permissionPrompt && (
+        <div className="approval-panel-overlay">
+          <ApprovalPanel
+            prompt={appBackend.permissionPrompt}
+            onRespond={(action) => { void appBackend.respondPermissionPrompt(action) }}
+          />
+        </div>
+      )}
 
       {deleteTargetThread && (
         <ConfirmModal
