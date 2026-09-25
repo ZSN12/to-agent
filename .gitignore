@@ -1,0 +1,10 @@
+node_modules/
+packages/pi/node_modules/
+packages/pi/packages/coding-agent/node_modules/
+dist/
+release/
+TaskWeaver.app
+.DS_Store
+*.log
+.tmp-test-userdata/
+*.tsbuildinfo

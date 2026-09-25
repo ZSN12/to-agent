@@ -1,0 +1,21 @@
+name: Sync model pricing
+
+on:
+  schedule:
+    - cron: '0 16 */2 * *'
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --legacy-peer-deps
+      - run: npm run pricing:sync
+      - name: Commit registry if changed
+        run: |
+          git diff --quiet pricing/ || git commit -am "chore(pricing): auto sync"
+        continue-on-error: true

@@ -1,0 +1,54 @@
+# Pricing changelog (auto)
+
+## 2026-09-24T17:17:21.925Z
+- 变更 1099 条模型价签
+  - `deepseek/deepseek-chat`
+  - `amazon-bedrock/amazon.nova-2-lite-v1:0`
+  - `amazon-bedrock/amazon.nova-lite-v1:0`
+  - `amazon-bedrock/amazon.nova-micro-v1:0`
+  - `amazon-bedrock/amazon.nova-pro-v1:0`
+  - `amazon-bedrock/anthropic.claude-fable-5`
+  - `amazon-bedrock/anthropic.claude-haiku-4-5-20251001-v1:0`
+  - `amazon-bedrock/anthropic.claude-opus-4-1-20250805-v1:0`
+  - `amazon-bedrock/anthropic.claude-opus-4-5-20251101-v1:0`
+  - `amazon-bedrock/anthropic.claude-opus-4-6-v1`
+  - `amazon-bedrock/anthropic.claude-opus-4-7`
+  - `amazon-bedrock/anthropic.claude-opus-4-8`
+  - `amazon-bedrock/anthropic.claude-sonnet-4-5-20250929-v1:0`
+  - `amazon-bedrock/anthropic.claude-sonnet-4-6`
+  - `amazon-bedrock/anthropic.claude-sonnet-5`
+  - `amazon-bedrock/au.anthropic.claude-haiku-4-5-20251001-v1:0`
+  - `amazon-bedrock/au.anthropic.claude-opus-4-6-v1`
+  - `amazon-bedrock/au.anthropic.claude-opus-4-8`
+  - `amazon-bedrock/au.anthropic.claude-sonnet-4-5-20250929-v1:0`
+  - `amazon-bedrock/au.anthropic.claude-sonnet-4-6`
+  - `amazon-bedrock/au.anthropic.claude-sonnet-5`
+  - `amazon-bedrock/deepseek.r1-v1:0`
+  - `amazon-bedrock/deepseek.v3-v1:0`
+  - `amazon-bedrock/deepseek.v3.2`
+  - `amazon-bedrock/eu.anthropic.claude-fable-5`
+  - `amazon-bedrock/eu.anthropic.claude-haiku-4-5-20251001-v1:0`
+  - `amazon-bedrock/eu.anthropic.claude-opus-4-5-20251101-v1:0`
+  - `amazon-bedrock/eu.anthropic.claude-opus-4-6-v1`
+  - `amazon-bedrock/eu.anthropic.claude-opus-4-7`
+  - `amazon-bedrock/eu.anthropic.claude-opus-4-8`
+  - `amazon-bedrock/eu.anthropic.claude-sonnet-4-5-20250929-v1:0`
+  - `amazon-bedrock/eu.anthropic.claude-sonnet-4-6`
+  - `amazon-bedrock/eu.anthropic.claude-sonnet-5`
+  - `amazon-bedrock/global.anthropic.claude-fable-5`
+  - `amazon-bedrock/global.anthropic.claude-haiku-4-5-20251001-v1:0`
+  - `amazon-bedrock/global.anthropic.claude-opus-4-5-20251101-v1:0`
+  - `amazon-bedrock/global.anthropic.claude-opus-4-6-v1`
+  - `amazon-bedrock/global.anthropic.claude-opus-4-7`
+  - `amazon-bedrock/global.anthropic.claude-opus-4-8`
+  - `amazon-bedrock/global.anthropic.claude-sonnet-4-5-20250929-v1:0`
+  - `amazon-bedrock/global.anthropic.claude-sonnet-4-6`
+  - `amazon-bedrock/global.anthropic.claude-sonnet-5`
+  - `amazon-bedrock/google.gemma-3-27b-it`
+  - `amazon-bedrock/google.gemma-3-4b-it`
+  - `amazon-bedrock/jp.anthropic.claude-haiku-4-5-20251001-v1:0`
+  - `amazon-bedrock/jp.anthropic.claude-opus-4-7`
+  - `amazon-bedrock/jp.anthropic.claude-opus-4-8`
+  - `amazon-bedrock/jp.anthropic.claude-sonnet-4-5-20250929-v1:0`
+  - `amazon-bedrock/jp.anthropic.claude-sonnet-4-6`
+  - `amazon-bedrock/jp.anthropic.claude-sonnet-5`
