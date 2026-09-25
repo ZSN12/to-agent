@@ -43,16 +43,27 @@ async function classifyToolCall(event, workspacePath) {
 }
 
 /** TaskWeaver permission policy. Prompts are scoped to the active desktop turn. */
-export function createPermissionService({ dialog, getParentWindow, getWorkspacePath, appState, rulesStore }) {
+export function createPermissionService({ dialog, getParentWindow, getWorkspacePath, appState, rulesStore, onPreMutation }) {
   const controller = {
     withExecution(mode, webContents, fn) {
-      return activeExecution.run({ mode: normalizeMode(mode), webContents }, fn)
+      return activeExecution.run({ mode: normalizeMode(mode), webContents, hasAutoCheckpoint: false }, fn)
     },
     async authorize(event) {
       const active = activeExecution.getStore()
       const mode = normalizeMode(active?.mode)
       const workspacePath = getWorkspacePath()
       const details = await classifyToolCall(event, workspacePath)
+
+      const triggerPreMutation = async () => {
+        if (details.mutation && active && !active.hasAutoCheckpoint && onPreMutation) {
+          active.hasAutoCheckpoint = true
+          try {
+            await onPreMutation(workspacePath)
+          } catch (err) {
+            console.warn('[TaskWeaver] 执行前自动快照创建警告:', err?.message || err)
+          }
+        }
+      }
 
       // 1. 优先判定细粒度规则：deny 规则具有最高优先级（即使 full 模式也严格执行），allow 规则直接放行
       if (rulesStore) {
@@ -71,12 +82,16 @@ export function createPermissionService({ dialog, getParentWindow, getWorkspaceP
             return { block: true, reason: `命中了安全拒绝规则 [${matched.rule.pattern}]` }
           }
           if (matched.decision === 'allow') {
+            await triggerPreMutation()
             return undefined
           }
         }
       }
 
-      if (mode === 'full') return undefined
+      if (mode === 'full') {
+        await triggerPreMutation()
+        return undefined
+      }
 
       let reason = null
       if (mode === 'ask') {
@@ -93,7 +108,10 @@ export function createPermissionService({ dialog, getParentWindow, getWorkspaceP
         }
       }
 
-      if (!reason) return undefined
+      if (!reason) {
+        await triggerPreMutation()
+        return undefined
+      }
       const contents = active?.webContents
       if (!contents || contents.isDestroyed()) {
         const trace = {
@@ -125,7 +143,10 @@ export function createPermissionService({ dialog, getParentWindow, getWorkspaceP
         noLink: true,
       }
       const answer = parent ? await dialog.showMessageBox(parent, options) : await dialog.showMessageBox(options)
-      if (answer.response === 1) return undefined
+      if (answer.response === 1) {
+        await triggerPreMutation()
+        return undefined
+      }
       if (answer.response === 2 && isBash && rulesStore) {
         const cmd = String(event.input?.command ?? '').trim()
         if (cmd) {
@@ -139,6 +160,7 @@ export function createPermissionService({ dialog, getParentWindow, getWorkspaceP
             description: '用户通过操作确认弹窗添加的始终允许命令',
           })
         }
+        await triggerPreMutation()
         return undefined
       }
       const trace = {

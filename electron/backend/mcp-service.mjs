@@ -55,15 +55,18 @@ function encryptEnv(env, safeStorage) {
     if (typeof value !== 'string') continue
     if (value.startsWith(ENC_PREFIX)) {
       result[key] = value
-    } else if (safeStorage?.isEncryptionAvailable?.()) {
+    } else if (value.trim()) {
+      if (!safeStorage?.isEncryptionAvailable?.()) {
+        throw new Error('系统安全存储 (safeStorage) 不可用。为防止敏感环境变量凭据明文泄露，已拒绝保存 MCP 服务配置。')
+      }
       try {
         const encrypted = safeStorage.encryptString(value).toString('base64')
         result[key] = `${ENC_PREFIX}${encrypted}`
       } catch {
-        result[key] = value
+        throw new Error('系统安全存储加密敏感环境变量凭据失败。为防止明文泄露，已拒绝保存 MCP 服务配置。')
       }
     } else {
-      result[key] = value
+      result[key] = ''
     }
   }
   return result
@@ -100,7 +103,32 @@ export function createMcpService({ userData, connectClient, safeStorage } = {}) 
   async function configured() {
     const value = await store.read()
     if (!Array.isArray(value?.servers)) throw new Error('MCP 配置格式无效')
-    return value.servers.map(validateServer)
+    const servers = value.servers.map(validateServer)
+
+    // 检测历史明文配置并自动迁移为加密存储
+    let needsMigration = false
+    for (const server of servers) {
+      for (const val of Object.values(server.env || {})) {
+        if (typeof val === 'string' && val && !val.startsWith(ENC_PREFIX)) {
+          needsMigration = true
+          break
+        }
+      }
+      if (needsMigration) break
+    }
+
+    if (needsMigration) {
+      if (safeStorage?.isEncryptionAvailable?.()) {
+        for (const server of servers) {
+          server.env = encryptEnv(server.env, safeStorage)
+        }
+        await store.write({ servers })
+      } else {
+        console.warn('[TaskWeaver-MCP] 检测到历史未加密的环境变量配置，但当前系统 safeStorage 不可用，请在安全环境中运行以完成加密迁移。')
+      }
+    }
+
+    return servers
   }
 
   async function disconnect(id) {

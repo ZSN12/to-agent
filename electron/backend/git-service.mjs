@@ -4,16 +4,17 @@ import path from 'node:path'
 import fs from 'node:fs'
 import fsp from 'node:fs/promises'
 import crypto from 'node:crypto'
+import { assertSafeWorkspacePath, isPathInside } from './security-path.mjs'
 
 const execFileAsync = promisify(execFile)
 
-async function runGit(args, cwd) {
+async function runGit(args, cwd, extraEnv = {}) {
   try {
     const { stdout } = await execFileAsync('git', args, {
       cwd,
       timeout: 10000,
       maxBuffer: 4 * 1024 * 1024,
-      env: { ...process.env, LC_ALL: 'C' },
+      env: { ...process.env, LC_ALL: 'C', ...extraEnv },
     })
     return { ok: true, stdout: stdout.trim() }
   } catch (err) {
@@ -200,7 +201,106 @@ async function saveCheckpoints(file, checkpoints) {
 }
 
 /**
+ * 在独立临时索引中构建工作区完整树对象（包含 staged, unstaged, untracked 所有文件）
+ * 绝不污染用户当前的 .git/index，也不依赖易丢未跟踪文件的 git stash create
+ * @param {string} workspacePath
+ * @param {string} headCommit
+ * @returns {Promise<{ treeSha: string, headTreeSha: string, hasChanges: boolean }>}
+ */
+async function captureWorkspaceTree(workspacePath, headCommit) {
+  const gitDirRes = await runGit(['rev-parse', '--git-dir'], workspacePath)
+  const gitDir = gitDirRes.ok && gitDirRes.stdout ? path.resolve(workspacePath, gitDirRes.stdout) : path.join(workspacePath, '.git')
+  const tempIndex = path.join(gitDir, `tw_idx_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`)
+  const env = { GIT_INDEX_FILE: tempIndex }
+
+  try {
+    // 1. 初始化临时索引为 HEAD
+    await runGit(['read-tree', headCommit], workspacePath, env)
+    // 2. 将当前工作区所有改动（包括未跟踪新文件）全量加进临时索引
+    await runGit(['add', '-A'], workspacePath, env)
+    // 3. 写入并获取当前工作区对应的新树 SHA
+    const writeRes = await runGit(['write-tree'], workspacePath, env)
+    if (!writeRes.ok || !writeRes.stdout) {
+      throw new Error(`生成工作区快照树失败: ${writeRes.error}`)
+    }
+    const treeSha = writeRes.stdout.trim()
+
+    // 4. 获取 HEAD 提交对应的树 SHA 进行比对
+    const headTreeRes = await runGit(['rev-parse', `${headCommit}^{tree}`], workspacePath)
+    const headTreeSha = headTreeRes.ok ? headTreeRes.stdout.trim() : ''
+
+    return {
+      treeSha,
+      headTreeSha,
+      hasChanges: Boolean(treeSha && headTreeSha && treeSha !== headTreeSha),
+    }
+  } finally {
+    try {
+      await fsp.rm(tempIndex, { force: true })
+    } catch {
+      // ignore
+    }
+  }
+}
+
+/**
+ * 计算目标检查点与当前工作区的文件变动影响（willAdd, willOverwrite, willDelete）
+ * @param {string} workspacePath
+ * @param {string} targetCommit
+ * @param {string} currentTreeSha
+ */
+async function calculateCheckpointImpact(workspacePath, targetCommit, currentTreeSha) {
+  // 对比 targetCommit 与 currentTreeSha
+  // diff-tree targetTree currentTree:
+  // A 表示当前存在而目标不存在 -> 还原到目标后会被移除 (willDelete)
+  // D 表示目标存在而当前不存在 -> 还原到目标后会新增 (willAdd)
+  // M 表示两边都存在且内容不同 -> 还原到目标后会被快照覆盖 (willOverwrite)
+  const diffTreeRes = await runGit(
+    ['diff-tree', '-r', '--name-status', `${targetCommit}^{tree}`, currentTreeSha],
+    workspacePath,
+  )
+
+  const willAdd = []
+  const willOverwrite = []
+  const willDelete = []
+
+  if (diffTreeRes.ok && diffTreeRes.stdout) {
+    const lines = diffTreeRes.stdout.split('\n')
+    for (const line of lines) {
+      if (!line) continue
+      const parts = line.split('\t')
+      const status = parts[0]?.[0]
+      const file = parts[1] || parts[0]?.slice(1)?.trim()
+      if (!file) continue
+
+      if (status === 'A') {
+        willDelete.push(file)
+      } else if (status === 'D') {
+        willAdd.push(file)
+      } else {
+        willOverwrite.push(file)
+      }
+    }
+  }
+
+  // 获取可读的差异统计
+  const statRes = await runGit(
+    ['diff', '--stat', `${targetCommit}^{tree}`, currentTreeSha],
+    workspacePath,
+  )
+
+  return {
+    willAdd,
+    willOverwrite,
+    willDelete,
+    stat: statRes.ok ? statRes.stdout : '',
+    totalAffected: willAdd.length + willOverwrite.length + willDelete.length,
+  }
+}
+
+/**
  * 创建 Git 检查点（执行前快照）
+ * 完整包含未跟踪文件与已暂存改动
  */
 export async function createGitCheckpoint(workspacePath, { conversationId, taskId, summary, userDataPath } = {}) {
   const isRepo = await isGitRepository(workspacePath)
@@ -219,9 +319,17 @@ export async function createGitCheckpoint(workspacePath, { conversationId, taskI
   const branchRes = await runGit(['branch', '--show-current'], workspacePath)
   const branch = branchRes.ok ? branchRes.stdout || 'HEAD' : 'HEAD'
 
-  // 3. 检查未提交的改动，使用 git stash create 生成快照 commit（不污染全局 stash 栈）
-  const stashRes = await runGit(['stash', 'create'], workspacePath)
-  const stashCommit = stashRes.ok && stashRes.stdout ? stashRes.stdout : null
+  // 3. 使用临时独立索引精确捕获包含未跟踪文件的完整工作区树
+  const { treeSha, hasChanges } = await captureWorkspaceTree(workspacePath, headCommit)
+
+  let stashCommit = null
+  if (hasChanges) {
+    const commitMsg = summary ? `TaskWeaver Checkpoint: ${summary}` : `TaskWeaver Checkpoint: 工作区改动快照 (${branch})`
+    const commitRes = await runGit(['commit-tree', treeSha, '-p', headCommit, '-m', commitMsg], workspacePath)
+    if (commitRes.ok && commitRes.stdout) {
+      stashCommit = commitRes.stdout.trim()
+    }
+  }
 
   // 4. 获取简要修改文件统计
   const status = await getGitStatus(workspacePath)
@@ -234,9 +342,9 @@ export async function createGitCheckpoint(workspacePath, { conversationId, taskI
     headCommit,
     stashCommit,
     branch,
-    hasDirtyChanges: Boolean(stashCommit),
+    hasDirtyChanges: hasChanges,
     changedFilesCount: status.staged.length + status.unstaged.length + status.untracked.length,
-    summary: summary || (stashCommit ? `包含未提交改动的快照 (${branch})` : `基于 ${headCommit.slice(0, 7)} 的干净快照`),
+    summary: summary || (hasChanges ? `包含未提交改动的快照 (${branch})` : `基于 ${headCommit.slice(0, 7)} 的干净快照`),
   }
 
   const file = getCheckpointsFile(workspacePath, userDataPath)
@@ -244,7 +352,7 @@ export async function createGitCheckpoint(workspacePath, { conversationId, taskI
   const updated = [checkpoint, ...existing].slice(0, 50)
   await saveCheckpoints(file, updated)
 
-  return { isRepo: true, checkpoint }
+  return { ok: true, isRepo: true, checkpoint }
 }
 
 /**
@@ -285,7 +393,11 @@ export async function getGitCheckpointDiff(workspacePath, checkpointId, { userDa
 
 /**
  * 还原 Git 检查点
- * 安全准则：若当前工作区有未保存的改动，必须要求确认且不会静默覆盖（先做还原前备份）。
+ * 安全准则：
+ * 1. 精确计算并呈现将新增、覆盖、删除的文件清单
+ * 2. 还原前强制全量备份当前状态，确保绝不丢失数据
+ * 3. 杜绝无条件执行 git clean -fd，仅安全清理属于还原目标的非快照文件
+ * 4. 出现异常时安全回滚并保留备份记录
  */
 export async function restoreGitCheckpoint(workspacePath, checkpointId, { force = false, userDataPath } = {}) {
   const isRepo = await isGitRepository(workspacePath)
@@ -296,57 +408,77 @@ export async function restoreGitCheckpoint(workspacePath, checkpointId, { force 
   const cp = existing.find((item) => item.id === checkpointId)
   if (!cp) throw new Error('未找到指定检查点')
 
-  // 1. 检查当前是否有未提交改动
-  const currentStatus = await getGitStatus(workspacePath)
-  if (currentStatus.hasChanges && !force) {
+  const targetCommit = cp.stashCommit || cp.headCommit
+
+  // 1. 获取当前工作区的完整树对象（包含未跟踪文件）
+  const headRes = await runGit(['rev-parse', 'HEAD'], workspacePath)
+  const headCommit = headRes.ok ? headRes.stdout.trim() : null
+  if (!headCommit) throw new Error('仓库无有效 HEAD 提交')
+
+  const { treeSha: currentTreeSha, hasChanges } = await captureWorkspaceTree(workspacePath, headCommit)
+
+  // 2. 精确计算还原到目标提交的影响清单
+  const impact = await calculateCheckpointImpact(workspacePath, targetCommit, currentTreeSha)
+
+  // 3. 检查是否有需要确认的改动
+  if (impact.totalAffected > 0 && !force) {
     return {
       success: false,
       requireConfirm: true,
       hasChanges: true,
-      changedFilesCount: currentStatus.staged.length + currentStatus.unstaged.length + currentStatus.untracked.length,
-      stat: currentStatus.stat,
-      message: '当前工作区有未保存的修改，还原将覆盖当前工作区。是否确认还原？',
+      changedFilesCount: impact.totalAffected,
+      willAdd: impact.willAdd,
+      willOverwrite: impact.willOverwrite,
+      willDelete: impact.willDelete,
+      stat: impact.stat,
+      message: `还原将变更工作区：将新增 ${impact.willAdd.length} 个文件，覆盖 ${impact.willOverwrite.length} 个文件，移除 ${impact.willDelete.length} 个文件。是否确认还原？`,
     }
   }
 
-  // 2. 若当前有改动且用户确认了 force，先自动安全备份当前状态，确保绝不丢失代码
-  if (currentStatus.hasChanges) {
-    const backupStash = await runGit(['stash', 'create'], workspacePath)
-    if (backupStash.ok && backupStash.stdout) {
-      const headRes = await runGit(['rev-parse', 'HEAD'], workspacePath)
-      const backupCp = {
-        id: `backup-before-restore-${Date.now()}`,
-        timestamp: Date.now(),
-        headCommit: headRes.stdout || cp.headCommit,
-        stashCommit: backupStash.stdout,
-        branch: currentStatus.branch,
-        hasDirtyChanges: true,
-        summary: '还原前自动安全备份快照',
+  // 4. 若用户已确认（force = true）且当前有改动：先无条件自动安全备份当前状态
+  let backupCheckpoint = null
+  if (hasChanges || impact.totalAffected > 0) {
+    const backupRes = await createGitCheckpoint(workspacePath, {
+      summary: `还原至 [${cp.id}] 前自动备份`,
+      userDataPath,
+    })
+    if (backupRes?.checkpoint) {
+      backupCheckpoint = backupRes.checkpoint
+    }
+  }
+
+  // 5. 执行还原操作
+  try {
+    // 5.1 针对 willDelete 中的文件进行安全受控移除（这些文件已经在前置备份中安全归档！）
+    for (const relFile of impact.willDelete) {
+      try {
+        const { realPath } = await assertSafeWorkspacePath(workspacePath, relFile, { mustExist: true })
+        await fsp.rm(realPath, { recursive: true, force: true })
+      } catch {
+        // 文件可能已经被移动或不存在，忽略
       }
-      await saveCheckpoints(file, [backupCp, ...existing].slice(0, 50))
     }
-  }
 
-  // 3. 执行还原
-  // 先把 HEAD 重置到检查点的 headCommit
-  const resetRes = await runGit(['reset', '--hard', cp.headCommit], workspacePath)
-  if (!resetRes.ok) throw new Error(`Git reset 失败: ${resetRes.error}`)
-
-  // 若快照包含未提交改动（stashCommit），将其还原到工作区
-  if (cp.stashCommit) {
-    const checkoutRes = await runGit(['checkout', cp.stashCommit, '--', '.'], workspacePath)
+    // 5.2 将目标提交中的所有文件全量检出到工作区
+    const checkoutRes = await runGit(['checkout', targetCommit, '--', '.'], workspacePath)
     if (!checkoutRes.ok) {
-      await runGit(['stash', 'apply', '--index', cp.stashCommit], workspacePath)
+      throw new Error(`检出快照文件失败: ${checkoutRes.error}`)
     }
-  }
 
-  // 清除多余未跟踪文件
-  await runGit(['clean', '-fd'], workspacePath)
+    // 5.3 同步重置当前索引，使状态干净
+    await runGit(['reset', 'HEAD'], workspacePath)
 
-  return {
-    success: true,
-    message: `已成功还原至检查点 [${cp.id}]`,
-    checkpoint: cp,
+    return {
+      success: true,
+      message: `已成功还原至检查点 [${cp.id}]`,
+      checkpoint: cp,
+      backupCheckpointId: backupCheckpoint?.id || null,
+      willAdd: impact.willAdd,
+      willOverwrite: impact.willOverwrite,
+      willDelete: impact.willDelete,
+    }
+  } catch (error) {
+    throw new Error(`检查点还原失败: ${error.message}。${backupCheckpoint ? `已在前置备份中保留当前状态快照 [${backupCheckpoint.id}]` : ''}`)
   }
 }
 

@@ -161,6 +161,10 @@ export interface GitRestoreResult {
   requireConfirm?: boolean
   hasChanges?: boolean
   changedFilesCount?: number
+  willAdd?: string[]
+  willOverwrite?: string[]
+  willDelete?: string[]
+  backupCheckpointId?: string | null
   stat?: string
   checkpoint?: GitCheckpoint
 }

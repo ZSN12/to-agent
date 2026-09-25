@@ -111,6 +111,51 @@ try {
   const cp2RestoredContent = await fs.readFile(path.join(repoDir, 'README.md'), 'utf8')
   assert.ok(cp2RestoredContent.includes('Version 1.1'))
 
+  // 10. 高风险用例测试：工作区【仅有纯未跟踪新文件】（未执行 git add）
+  await fs.writeFile(path.join(repoDir, 'pure-untracked.txt'), 'secret untracked content\n')
+  const cp3Res = await createGitCheckpoint(repoDir, {
+    conversationId: 'conv-123',
+    summary: '仅包含纯未跟踪文件的快照',
+    userDataPath: root,
+  })
+  assert.equal(cp3Res.isRepo, true)
+  assert.equal(cp3Res.checkpoint.hasDirtyChanges, true, '仅有未跟踪新文件时必须判定为有变更')
+  assert.ok(cp3Res.checkpoint.stashCommit, '仅有未跟踪文件时必须生成完整 commit 对象')
+  const cp3Id = cp3Res.checkpoint.id
+
+  // 模拟误删该未跟踪文件
+  await fs.rm(path.join(repoDir, 'pure-untracked.txt'))
+
+  // 还原到 CP-3
+  const restoreCp3 = await restoreGitCheckpoint(repoDir, cp3Id, { force: true, userDataPath: root })
+  assert.equal(restoreCp3.success, true)
+  const untrackedRestored = await fs.readFile(path.join(repoDir, 'pure-untracked.txt'), 'utf8')
+  assert.equal(untrackedRestored, 'secret untracked content\n', '快照必须能完美找回纯未跟踪文件！')
+
+  // 11. 测试 impact 精准分析 (willAdd, willOverwrite, willDelete)
+  await fs.writeFile(path.join(repoDir, 'will-be-deleted.txt'), 'temporary scrap file\n')
+  const dryRunRestore = await restoreGitCheckpoint(repoDir, cp1Id, { force: false, userDataPath: root })
+  assert.equal(dryRunRestore.success, false)
+  assert.equal(dryRunRestore.requireConfirm, true)
+  assert.ok(dryRunRestore.willDelete.includes('will-be-deleted.txt'), 'willDelete 必须精准列出多余文件')
+  assert.ok(dryRunRestore.willOverwrite.includes('README.md'), 'willOverwrite 必须精准列出修改文件')
+
+  // 12. 测试还原前自动备份 (backupCheckpointId)
+  const forceWithBackup = await restoreGitCheckpoint(repoDir, cp1Id, { force: true, userDataPath: root })
+  assert.equal(forceWithBackup.success, true)
+  assert.ok(forceWithBackup.backupCheckpointId, '强制还原时必须生成前置备份检查点 ID')
+
+  // 验证前置备份快照已写入检查点列表
+  const updatedCheckpoints = await listGitCheckpoints(repoDir, { userDataPath: root })
+  const backupCp = updatedCheckpoints.find((item) => item.id === forceWithBackup.backupCheckpointId)
+  assert.ok(backupCp, '列表中必须包含前置自动备份快照')
+
+  // 验证通过该备份快照可以再度完美找回刚才被删除的文件
+  const restoreFromBackup = await restoreGitCheckpoint(repoDir, backupCp.id, { force: true, userDataPath: root })
+  assert.equal(restoreFromBackup.success, true)
+  const salvagedContent = await fs.readFile(path.join(repoDir, 'will-be-deleted.txt'), 'utf8')
+  assert.equal(salvagedContent, 'temporary scrap file\n', '通过前置备份快照可找回被还原移除的数据！')
+
   console.log('git-checkpoints tests passed successfully!')
 } finally {
   await fs.rm(root, { recursive: true, force: true })

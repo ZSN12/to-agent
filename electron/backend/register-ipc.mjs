@@ -15,6 +15,7 @@ import { assembleWorkspaceContext } from './context-assembler.mjs'
 import { createWorkspaceTrustService } from './workspace-trust-service.mjs'
 import { createMcpService } from './mcp-service.mjs'
 import {
+  isGitRepository,
   getGitStatus,
   suggestCommitMessage,
   createGitCheckpoint,
@@ -112,6 +113,15 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
     getWorkspaceTrusted: () => cachedWorkspaceTrusted,
     appState,
     rulesStore: permissionRulesStore,
+    onPreMutation: async (ws) => {
+      if (await isGitRepository(ws)) {
+        await createGitCheckpoint(ws, {
+          conversationId: cachedConversationId,
+          summary: 'Agent 执行代码修改前自动快照',
+          userDataPath: userData,
+        })
+      }
+    },
   })
 
   const chat = createChatService({
