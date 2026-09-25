@@ -225,7 +225,7 @@ function AppSidebar({
       {/* 顶部品牌与全局搜索 */}
       <div className="sidebar-brand-row">
         <button className="sidebar-brand" title="TaskWeaver">
-          <span className="sidebar-label brand-text">Codex</span>
+          <span className="sidebar-label brand-text">TaskWeaver</span>
           <ChevronDown className="sidebar-label brand-arrow" size={14} />
         </button>
         <div className="sidebar-quick-actions">

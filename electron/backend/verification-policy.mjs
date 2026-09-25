@@ -42,8 +42,12 @@ export function detectVerificationCommands(workspacePath) {
   const pytestIniPath = path.join(workspacePath, 'pytest.ini')
   const cargoPath = path.join(workspacePath, 'Cargo.toml')
   const goModPath = path.join(workspacePath, 'go.mod')
+  const makefilePath = path.join(workspacePath, 'Makefile')
+  const pomPath = path.join(workspacePath, 'pom.xml')
+  const gradlePath = path.join(workspacePath, 'build.gradle')
+  const gradleKtsPath = path.join(workspacePath, 'build.gradle.kts')
 
-  // 1. Node.js / TypeScript 项目
+  // 1. Node.js / TypeScript 项目（识别 npm / pnpm / yarn / bun）
   if (fs.existsSync(packageJsonPath)) {
     try {
       const pkg = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'))
@@ -54,39 +58,46 @@ export function detectVerificationCommands(workspacePath) {
       const hasLint = Boolean(scripts.lint)
       const hasTypecheck = Boolean(scripts.typecheck || scripts['check:types'])
 
+      // 检测包管理器
+      let pm = 'npm'
+      if (fs.existsSync(path.join(workspacePath, 'pnpm-lock.yaml'))) pm = 'pnpm'
+      else if (fs.existsSync(path.join(workspacePath, 'yarn.lock'))) pm = 'yarn'
+      else if (fs.existsSync(path.join(workspacePath, 'bun.lockb')) || fs.existsSync(path.join(workspacePath, 'bun.lock'))) pm = 'bun'
+
       let primaryCommand = null
       let testCommand = null
       const allCommands = []
 
       if (hasBuild) {
-        primaryCommand = 'npm run build'
-        allCommands.push('npm run build')
+        primaryCommand = `${pm} run build`
+        allCommands.push(`${pm} run build`)
       } else if (hasTypecheck) {
-        primaryCommand = 'npm run typecheck'
-        allCommands.push('npm run typecheck')
+        primaryCommand = `${pm} run typecheck`
+        allCommands.push(`${pm} run typecheck`)
       } else if (fs.existsSync(tsconfigPath)) {
         primaryCommand = 'npx tsc --noEmit'
         allCommands.push('npx tsc --noEmit')
       }
 
       if (hasTestAll) {
-        testCommand = 'npm run test:all'
-        allCommands.push('npm run test:all')
+        testCommand = `${pm} run test:all`
+        allCommands.push(`${pm} run test:all`)
       } else if (hasTest) {
-        testCommand = 'npm test'
-        allCommands.push('npm test')
+        testCommand = `${pm} test`
+        allCommands.push(`${pm} test`)
       }
 
       if (hasLint) {
-        allCommands.push('npm run lint')
+        allCommands.push(`${pm} run lint`)
       }
 
       return {
         projectType: fs.existsSync(tsconfigPath) ? 'typescript-node' : 'node',
+        packageManager: pm,
         primaryCommand,
         testCommand,
         allCommands,
-        description: `Node.js 项目 (${pkg.name || '未命名'})`,
+        description: `Node.js (${pm}) 项目 (${pkg.name || '未命名'})`,
       }
     } catch {
       // package.json 解析失败时兜底
@@ -124,6 +135,38 @@ export function detectVerificationCommands(workspacePath) {
       testCommand: 'go test ./...',
       allCommands: ['go test ./...'],
       description: 'Go 模块项目',
+    }
+  }
+
+  // 5. Java / Kotlin 项目 (Maven / Gradle)
+  if (fs.existsSync(pomPath)) {
+    return {
+      projectType: 'maven',
+      primaryCommand: 'mvn test-compile',
+      testCommand: 'mvn test',
+      allCommands: ['mvn test-compile', 'mvn test'],
+      description: 'Java (Maven) 项目',
+    }
+  }
+  if (fs.existsSync(gradlePath) || fs.existsSync(gradleKtsPath)) {
+    const gradlew = fs.existsSync(path.join(workspacePath, 'gradlew')) ? './gradlew' : 'gradle'
+    return {
+      projectType: 'gradle',
+      primaryCommand: `${gradlew} testClasses`,
+      testCommand: `${gradlew} test`,
+      allCommands: [`${gradlew} testClasses`, `${gradlew} test`],
+      description: 'JVM (Gradle) 项目',
+    }
+  }
+
+  // 6. C/C++ 或通用 Makefile 项目
+  if (fs.existsSync(makefilePath)) {
+    return {
+      projectType: 'make',
+      primaryCommand: 'make',
+      testCommand: 'make test',
+      allCommands: ['make', 'make test'],
+      description: 'Makefile 项目',
     }
   }
 

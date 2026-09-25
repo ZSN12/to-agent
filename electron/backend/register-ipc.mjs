@@ -26,6 +26,8 @@ import {
 import { createUsageStore } from './usage-store.mjs'
 import { createPricingSyncService } from './pricing-sync-service.mjs'
 import { assertSafeWorkspacePath } from './security-path.mjs'
+import { detectVerificationCommands } from './verification-policy.mjs'
+import { analyzeUserIntent, injectIntentGuidelines } from './user-intent.mjs'
 
 function ipcHandle(ipcMain, channel, fn) {
   ipcMain.handle(channel, async (event, ...args) => {
@@ -507,6 +509,11 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
     } else if (workMode === 'plan') {
       effectiveOverride = 'single-agent'
       effectivePrompt = `【系统模式：计划模式 (Plan Mode)】\n请对用户提出的需求进行系统性推演与架构分析，输出严密、详尽、步骤明确的逐步实施计划（Step-by-step Execution Plan），列出涉及的文件路径、接口改动、验证方案与风险点。请注意：在计划模式下专注于生成规划方案，不要修改工作区代码。\n\n需求详情：\n${assembled.prompt}`
+    } else {
+      // 常规单 Agent 代码与问答模式：进行意图与验证自测指引动态增强
+      const intent = analyzeUserIntent(text, workMode)
+      const policy = detectVerificationCommands(cachedWorkspace)
+      effectivePrompt = injectIntentGuidelines(effectivePrompt, intent, policy)
     }
 
     const decision = decideExecutionMode(text, selectedSkill)
