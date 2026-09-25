@@ -66,7 +66,8 @@ export type ChatStreamEvent =
   | { type: 'thinking_delta'; delta: string; fullThinking: string }
   | { type: 'thinking_end'; fullThinking: string; durationMs?: number }
   | { type: 'delta'; delta: string; full: string }
-  | { type: 'done'; full: string; fullThinking?: string }
+  | { type: 'blocks'; segments: Array<{ id: string; kind: 'thinking' | 'text'; text: string }> }
+  | { type: 'done'; full: string; fullThinking?: string; contentBlocks?: Array<{ id: string; kind: 'thinking' | 'text'; text: string }> }
   | { type: 'error'; message: string }
   | { type: 'tasks'; tasks: TaskNode[] }
   | { type: 'orchestration'; mode: 'single-agent' | 'multi-agent'; reason: string }

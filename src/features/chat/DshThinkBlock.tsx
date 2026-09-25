@@ -46,8 +46,6 @@ export function DshThinkBlock({
   const hasThinking = Boolean(thinking && thinking.trim().length > 0)
   const running = Boolean(isStreaming && (hasThinking || !thinking))
 
-  if (!hasThinking && !isStreaming) return null
-
   const summary = extractThinkSummary(thinking, running && hasThinking)
 
   const scheduleSummaryScroll = useThrottledVisualUpdate(() => {
@@ -59,6 +57,8 @@ export function DshThinkBlock({
   useEffect(() => {
     scheduleSummaryScroll()
   }, [running, scheduleSummaryScroll, summary])
+
+  if (!hasThinking && !isStreaming) return null
 
   const body = thinking ? thinking.replace(/<\/?think>/gi, '').trim() : ''
 

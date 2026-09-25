@@ -2,6 +2,8 @@ export type TaskStatus = 'done' | 'running' | 'queued' | 'review'
 
 export type ThinkingLevel = 'off' | 'low' | 'medium' | 'high'
 
+export type AssistantContentBlock = { id: string; kind: 'thinking' | 'text'; text: string }
+
 export interface ModelOption {
   id: string
   name: string
@@ -19,6 +21,8 @@ export interface ChatMessage {
   text: string
   thinking?: string
   thinkingDurationMs?: number
+  /** 一轮内多段 Think / 正文（工具循环后会有多组） */
+  contentBlocks?: AssistantContentBlock[]
   modelKey?: string
   callout?: string
   usage?: ChatUsage

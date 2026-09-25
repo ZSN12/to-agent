@@ -1,6 +1,6 @@
 {
   "name": "taskweaver-desktop",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "description": "任务感知动态模型路由的多智能体编程桌面端",
   "main": "electron/main.cjs",

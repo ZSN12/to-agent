@@ -108,19 +108,32 @@ export function useAppBackend() {
       if (activityEvents.has(event.type)) bumpStreamActivity()
 
       if (event.type === 'thinking_start') {
-        setStreamThinking({ text: '', durationMs: 0 })
+        // 多轮工具循环会重复 thinking_start；勿清空已累积内容
+        setStreamThinking((prev) => {
+          if (prev?.text?.trim()) return { text: prev.text, durationMs: prev.durationMs ?? 0 }
+          return { text: '', durationMs: prev?.durationMs ?? 0 }
+        })
       }
       if (event.type === 'thinking_delta') {
-        setStreamThinking((prev) => ({ text: event.fullThinking, durationMs: prev?.durationMs }))
+        setStreamThinking((prev) => ({
+          text: event.fullThinking || prev?.text || '',
+          durationMs: prev?.durationMs,
+        }))
       }
       if (event.type === 'thinking_end') {
-        setStreamThinking({ text: event.fullThinking, durationMs: event.durationMs })
+        setStreamThinking((prev) => ({
+          text: event.fullThinking || prev?.text || '',
+          durationMs: event.durationMs ?? prev?.durationMs,
+        }))
       }
       if (event.type === 'delta') setStreamText(event.full)
       if (event.type === 'done') {
         setStreamText(event.full)
-        if (event.fullThinking) {
-          setStreamThinking((prev) => ({ text: event.fullThinking!, durationMs: prev?.durationMs }))
+        if (event.fullThinking && String(event.fullThinking).trim()) {
+          setStreamThinking((prev) => ({
+            text: String(event.fullThinking),
+            durationMs: prev?.durationMs,
+          }))
         }
         setPromptQueue(emptyPromptQueue())
         setStreamStalled(false)
@@ -293,6 +306,7 @@ export function useAppBackend() {
       setOrchestrationChoice(null)
       setSending(false)
       setStreamText(null)
+      setStreamThinking(null)
       await reload()
       return true
     },

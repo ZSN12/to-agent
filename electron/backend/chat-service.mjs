@@ -4,6 +4,7 @@ import { applySkillInstructions } from './skill-prompt.mjs'
 import { sendToolTrace, summarizeToolInput, summarizeToolResult, extractFileDiff } from './tool-trace.mjs'
 import { getToolsForSingleAgent } from './task-profile.mjs'
 import { aggregateSessionEntries, mapPiSessionStats } from './session-stats.mjs'
+import { createStreamSegmentCollector } from './stream-segments.mjs'
 import path from 'node:path'
 
 function applyThinkingLevel(session, level) {
@@ -209,16 +210,24 @@ export function createChatService({ modelService, profileStore, usageStore, appS
     cancelRequested = false
     let full = ''
     let thinking = ''
+    const segments = createStreamSegmentCollector()
+    const emitSegments = () => {
+      webContents.send('chat:stream', { type: 'blocks', segments: segments.snapshot() })
+    }
     let thinkingStartedAt = null
     let thinkingDurationMs = 0
+    let thinkingUiOpen = false
     let lastErrorMessage = null
     let unsubscribe = () => {}
     const markThinkingStart = () => {
       if (!thinkingStartedAt) thinkingStartedAt = Date.now()
+      if (thinkingUiOpen) return
+      thinkingUiOpen = true
       webContents.send('chat:stream', { type: 'thinking_start' })
     }
     const markThinkingEnd = () => {
       if (thinkingStartedAt) thinkingDurationMs = Date.now() - thinkingStartedAt
+      thinkingUiOpen = false
       webContents.send('chat:stream', {
         type: 'thinking_end',
         fullThinking: thinking,
@@ -228,20 +237,29 @@ export function createChatService({ modelService, profileStore, usageStore, appS
     const pushTextDelta = createRedactedThinkingTextHandler({
       onTextDelta: (delta) => {
         markFirstToken()
-        full += delta
+        segments.onTextDelta(undefined, delta)
+        full = segments.combinedText()
+        emitSegments()
         webContents.send('chat:stream', { type: 'delta', delta, full })
       },
       onThinkingStart: () => {
         markFirstToken()
+        segments.onThinkingStart()
         markThinkingStart()
+        emitSegments()
       },
       onThinkingDelta: (delta) => {
         markFirstToken()
         if (!thinkingStartedAt) thinkingStartedAt = Date.now()
-        thinking += delta
+        segments.onThinkingDelta(undefined, delta)
+        thinking = segments.combinedThinking()
         webContents.send('chat:stream', { type: 'thinking_delta', delta, fullThinking: thinking })
+        emitSegments()
       },
-      onThinkingEnd: markThinkingEnd,
+      onThinkingEnd: () => {
+        markThinkingEnd()
+        emitSegments()
+      },
     })
     const toolStartedAt = new Map()
     const toolArgsMap = new Map()
@@ -366,24 +384,41 @@ export function createChatService({ modelService, profileStore, usageStore, appS
           })
           return
         }
+        if (event.type === 'message_start' && event.message?.role === 'assistant') {
+          segments.onAssistantMessageStart()
+          emitSegments()
+          return
+        }
         if (event.type === 'message_update') {
           const part = event.assistantMessageEvent
+          const idx = typeof part?.contentIndex === 'number' ? part.contentIndex : undefined
           if (part?.type === 'thinking_start') {
             markFirstToken()
-            thinkingStartedAt = Date.now()
-            webContents.send('chat:stream', { type: 'thinking_start' })
+            segments.onThinkingStart(idx)
+            markThinkingStart()
+            emitSegments()
           } else if (part?.type === 'thinking_delta' && part.delta) {
             markFirstToken()
             if (!thinkingStartedAt) thinkingStartedAt = Date.now()
-            thinking += part.delta
+            if (!thinkingUiOpen) markThinkingStart()
+            segments.onThinkingDelta(idx, part.delta)
+            thinking = segments.combinedThinking()
             webContents.send('chat:stream', { type: 'thinking_delta', delta: part.delta, fullThinking: thinking })
+            emitSegments()
           } else if (part?.type === 'thinking_end') {
-            if (part.content) thinking = part.content
-            if (thinkingStartedAt) thinkingDurationMs = Date.now() - thinkingStartedAt
-            webContents.send('chat:stream', { type: 'thinking_end', fullThinking: thinking, durationMs: thinkingDurationMs })
+            segments.onThinkingEnd(idx, part.content)
+            thinking = segments.combinedThinking()
+            markThinkingEnd()
+            emitSegments()
+          } else if (part?.type === 'text_start') {
+            segments.onTextStart(idx)
+            emitSegments()
           } else if (part?.type === 'text_delta' && part.delta) {
             markFirstToken()
-            pushTextDelta.push(part.delta)
+            segments.onTextDelta(idx, part.delta)
+            full = segments.combinedText()
+            emitSegments()
+            webContents.send('chat:stream', { type: 'delta', delta: part.delta, full })
           }
           if (part?.type === 'error' && part.error) {
             lastErrorMessage = typeof part.error === 'string' ? part.error : (part.error.message || JSON.stringify(part.error))
@@ -487,10 +522,26 @@ export function createChatService({ modelService, profileStore, usageStore, appS
           // ignore usage persistence errors
         }
       }
-      webContents.send('chat:stream', { type: 'done', full, fullThinking: thinking })
+      const contentBlocks = segments.snapshot().filter((s) => s.text.trim())
+      full = segments.combinedText() || full
+      thinking = segments.combinedThinking() || thinking
+      const finalThinking = thinking.trim()
+        ? thinking.trim()
+        : (() => {
+            const lastMsg = activeSession.messages?.at?.(-1)
+            const block = lastMsg?.content?.find?.((b) => b?.type === 'thinking')
+            return typeof block?.thinking === 'string' && block.thinking.trim() ? block.thinking.trim() : undefined
+          })()
+      webContents.send('chat:stream', {
+        type: 'done',
+        full,
+        fullThinking: finalThinking ?? thinking,
+        contentBlocks,
+      })
       return {
         text: full,
-        thinking: thinking.trim() ? thinking.trim() : undefined,
+        thinking: finalThinking,
+        contentBlocks,
         thinkingDurationMs: thinkingDurationMs || undefined,
         usage,
         conversationId,

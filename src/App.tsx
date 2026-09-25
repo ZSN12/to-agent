@@ -54,6 +54,7 @@ import {
   Coins,
   Cpu,
   ShieldCheck,
+  Sun,
   X,
 } from 'lucide-react'
 import { FormEvent, Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -62,6 +63,7 @@ import { useAppBackend } from './features/app/useAppBackend'
 import { ModelSettingsPanel } from './features/models/ModelSettingsPanel'
 import { McpSettingsPanel } from './features/mcp/McpSettingsPanel'
 import { PermissionSettingsPanel } from './features/permissions/PermissionSettingsPanel'
+import { AppearanceSettingsPanel } from './features/appearance/AppearanceSettingsPanel'
 import { OutputLogPanel } from './features/logs/OutputLogPanel'
 import { GitCheckpointPanel } from './features/git/GitCheckpointPanel'
 import { useModelCatalog } from './features/models/useModelCatalog'
@@ -92,9 +94,14 @@ import {
   matchesKeys,
   type ShortcutItem,
 } from './shared/shortcuts'
+import {
+  getStoredThemeMode,
+  getStoredAccentColor,
+  applyTheme,
+} from './shared/theme'
 
 type PanelView = 'dag' | 'task' | 'logs' | 'git' | 'details' | null
-type SettingsSection = 'models' | 'mcp' | 'permissions' | 'shortcuts' | 'usage'
+type SettingsSection = 'appearance' | 'models' | 'mcp' | 'permissions' | 'shortcuts' | 'usage'
 const SIDEBAR_THREAD_LIMIT = 5
 
 function useAutosizeTextarea(value: string, minHeight: number, maxHeight: number) {
@@ -1573,6 +1580,7 @@ function SettingsPage({
       </button>
       <div className="settings-nav-section-title">设置分类</div>
       <nav aria-label="设置导航">
+        <button className={`settings-nav-item ${section === 'appearance' ? 'active' : ''}`} onClick={() => onSectionChange('appearance')}><Sun size={16} /><span>外观</span></button>
         <button className={`settings-nav-item ${section === 'models' ? 'active' : ''}`} onClick={() => onSectionChange('models')}><Database size={16} /><span>模型</span></button>
         <button className={`settings-nav-item ${section === 'mcp' ? 'active' : ''}`} onClick={() => onSectionChange('mcp')}><Cpu size={16} /><span>MCP 服务</span></button>
         <button className={`settings-nav-item ${section === 'permissions' ? 'active' : ''}`} onClick={() => onSectionChange('permissions')}><ShieldCheck size={16} /><span>安全与权限</span></button>
@@ -1589,7 +1597,9 @@ function SettingsPage({
         </button>
       </header>
       <div className="settings-content" key={section}>
-        {section === 'models' ? (
+        {section === 'appearance' ? (
+          <AppearanceSettingsPanel onToast={toast} />
+        ) : section === 'models' ? (
           <ModelSettingsPanel
             auth={modelCatalog.auth}
             models={modelCatalog.catalog?.models ?? []}
@@ -3621,6 +3631,23 @@ export default function App() {
   const [deleteTargetThread, setDeleteTargetThread] = useState<ThreadSummary | null>(null)
   const [detailsTool, setDetailsTool] = useState<ToolTraceItem | null>(null)
   const priorTaskCount = useRef(0)
+
+  useEffect(() => {
+    const currentMode = getStoredThemeMode()
+    const currentAccent = getStoredAccentColor()
+    applyTheme(currentMode, currentAccent)
+
+    if (window.matchMedia) {
+      const media = window.matchMedia('(prefers-color-scheme: dark)')
+      const listener = () => {
+        if (getStoredThemeMode() === 'system') {
+          applyTheme('system', getStoredAccentColor())
+        }
+      }
+      media.addEventListener('change', listener)
+      return () => media.removeEventListener('change', listener)
+    }
+  }, [])
 
   const openWorkspacePathForDetails = useCallback(async (relativePath: string) => {
     const bridge = window.taskweaver
