@@ -54,6 +54,7 @@ import {
   Coins,
   Cpu,
   ShieldCheck,
+  Atom,
   X,
 } from 'lucide-react'
 import { FormEvent, Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -1653,7 +1654,22 @@ function formatMessageTime(time: string, timestamp?: number, id?: string): strin
   return time
 }
 
-function ThinkingBlock({
+function extractThinkSummary(thinking?: string): string {
+  if (!thinking || !thinking.trim()) return '正在深入分析…'
+  const clean = thinking.replace(/<\/?think>/gi, '').trim()
+  const lines = clean
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l && !l.startsWith('#') && !l.startsWith('```') && !l.startsWith('---'))
+  if (lines.length === 0) return '正在深入分析…'
+  const first = lines[0].replace(/^[\s>*·\-]+/, '').trim()
+  if (first.length > 50) {
+    return first.slice(0, 48) + '…'
+  }
+  return first
+}
+
+function DshThinkBlock({
   thinking,
   durationMs,
   isStreaming = false,
@@ -1667,55 +1683,48 @@ function ThinkingBlock({
 
   if (!hasThinking && !isStreaming) return null
 
-  const wordCount = thinking ? thinking.trim().length : 0
-  const durationText = durationMs && durationMs > 0
-    ? (durationMs < 1000 ? `${durationMs}ms` : `${(durationMs / 1000).toFixed(1)}s`)
-    : null
-
-  if (isStreaming) {
-    return (
-      <div className="thinking-streaming-status">
-        <span className="thinking-pulse" />
-        <span className="thinking-status-text">
-          {hasThinking ? `正在思考 (${wordCount} 字)…` : '正在思考…'}
-        </span>
-        {hasThinking && (
-          <button
-            type="button"
-            className="thinking-toggle-btn"
-            onClick={() => setExpanded((prev) => !prev)}
-          >
-            {expanded ? '收起思考' : '查看思考'}
-          </button>
-        )}
-        {expanded && hasThinking && (
-          <div className="thinking-content-stream">
-            {thinking}
-          </div>
-        )}
-      </div>
-    )
-  }
-
-  if (!hasThinking) return null
+  const summary = extractThinkSummary(thinking)
 
   return (
-    <div className="thinking-collapsed-pill">
-      <button
-        type="button"
-        className="thinking-pill-header"
+    <div className="dsh-think-container">
+      <div
+        className="dsh-think-row"
         onClick={() => setExpanded((prev) => !prev)}
-        aria-expanded={expanded}
+        role="button"
+        tabIndex={0}
+        title={expanded ? '点击收起思考过程' : '点击展开完整思考过程'}
       >
-        <span className={`thinking-chevron ${expanded ? 'open' : ''}`}>▸</span>
-        <Sparkles size={12} color="#3b82f6" />
-        <span>思考过程 (约 {wordCount} 字{durationText ? ` · 耗时 ${durationText}` : ''})</span>
-      </button>
-      {expanded && (
-        <div className="thinking-content">
-          {thinking}
+        <Atom size={14} className="dsh-think-icon" />
+        <span className="dsh-think-tag">Think</span>
+        <span className="dsh-think-sep">·</span>
+        <span className="dsh-think-summary">{summary}</span>
+        <span className={`dsh-think-chevron ${expanded ? 'open' : ''}`}>▸</span>
+      </div>
+      {expanded && thinking && (
+        <div className="dsh-think-expanded-content">
+          {thinking.replace(/<\/?think>/gi, '').trim()}
         </div>
       )}
+    </div>
+  )
+}
+
+function DeepDivingIndicator({ startTime }: { startTime?: number }) {
+  const [seconds, setSeconds] = useState(1)
+
+  useEffect(() => {
+    const start = startTime || Date.now()
+    const timer = setInterval(() => {
+      const elapsed = Math.max(1, Math.floor((Date.now() - start) / 1000))
+      setSeconds(elapsed)
+    }, 1000)
+    return () => clearInterval(timer)
+  }, [startTime])
+
+  return (
+    <div className="dsh-deep-diving-row">
+      <span className="dsh-diving-text">Deep diving...</span>
+      <span className="dsh-diving-timer">{seconds}秒</span>
     </div>
   )
 }
@@ -1766,7 +1775,19 @@ function Message({
     <article id={`msg-${message.id}`} className={`message ${isUser ? 'user-message' : 'agent-message'}`}>
       <div className="message-content">
         {!isUser && (
-          <ThinkingBlock
+          <div className="dsh-injections-container">
+            <div className="dsh-injection-row">
+              <FileText size={13} className="dsh-injection-icon" />
+              <span>上下文注入 · @deepseek-ai/dsh-system-prompt</span>
+            </div>
+            <div className="dsh-injection-row">
+              <FileText size={13} className="dsh-injection-icon" />
+              <span>上下文注入 · skill-catalog</span>
+            </div>
+          </div>
+        )}
+        {!isUser && (
+          <DshThinkBlock
             thinking={message.thinking}
             durationMs={message.thinkingDurationMs}
             isStreaming={isStreaming && !message.text}
@@ -1779,6 +1800,9 @@ function Message({
         )}
         {message.text && (
           isUser ? <div className="message-text">{message.text}</div> : <AgentMessageMarkdown text={message.text} />
+        )}
+        {!isUser && isStreaming && (
+          <DeepDivingIndicator startTime={message.timestamp} />
         )}
         {message.callout && <div className="message-callout">{message.callout}</div>}
       </div>

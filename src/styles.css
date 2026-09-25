@@ -4669,103 +4669,119 @@ button:disabled { cursor: default; opacity: 0.45; }
   to { transform: rotate(360deg); }
 }
 
-/* ── Claude Code / Codex 风格思考指示器与思维链折叠 ── */
-.thinking-streaming-status {
+/* ── DSH 风格上下文注入、思考行与 Deep Diving 状态 ── */
+.dsh-injections-container {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  padding: 2px 0 6px;
-  color: var(--text-hint);
-  font-size: 13px;
+  flex-direction: column;
+  gap: 3px;
+  margin-bottom: 6px;
   user-select: none;
 }
-.thinking-status-text {
-  color: #94a3b8;
-  font-size: 13px;
-}
-.thinking-toggle-btn {
-  background: none;
-  border: none;
-  color: #60a5fa;
-  font-size: 12px;
-  cursor: pointer;
-  padding: 1px 6px;
-  border-radius: 4px;
-  transition: background 0.15s ease;
-}
-.thinking-toggle-btn:hover {
-  background: rgba(96, 165, 250, 0.12);
-}
-.thinking-content-stream {
-  width: 100%;
-  margin-top: 6px;
-  padding: 8px 12px;
-  border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  background: rgba(0, 0, 0, 0.2);
-  color: #a1a1aa;
-  font-size: 12px;
-  line-height: 1.6;
-  white-space: pre-wrap;
-  word-break: break-word;
-  max-height: 260px;
-  overflow-y: auto;
-  font-family: var(--font-mono);
-}
-.thinking-pulse {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #3b82f6;
-  animation: pulse-dot 1.4s ease-in-out infinite;
-}
-@keyframes pulse-dot {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.3; transform: scale(0.7); }
-}
-.thinking-collapsed-pill {
-  margin-bottom: 8px;
-}
-.thinking-pill-header {
+.dsh-injection-row {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 6px;
-  padding: 3px 8px;
-  color: #94a3b8;
-  font-size: 11.5px;
+  font-size: 12.5px;
+  color: #71717a;
+  line-height: 1.5;
+}
+.dsh-injection-icon {
+  color: #71717a;
+  flex-shrink: 0;
+}
+.dsh-think-container {
+  margin: 4px 0 8px;
+}
+.dsh-think-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #a1a1aa;
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
+  user-select: none;
+  border-radius: 4px;
+  padding: 1px 4px 1px 0;
+  transition: color 0.15s ease, opacity 0.15s ease;
 }
-.thinking-pill-header:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: #f1f5f9;
+.dsh-think-row:hover {
+  color: #f4f4f5;
 }
-.thinking-chevron {
-  font-size: 11px;
+.dsh-think-icon {
+  color: #a1a1aa;
+  flex-shrink: 0;
   transition: transform 0.2s ease;
-  color: var(--text-muted);
 }
-.thinking-chevron.open {
+.dsh-think-row:hover .dsh-think-icon {
+  color: #60a5fa;
+}
+.dsh-think-tag {
+  font-weight: 500;
+  color: #e4e4e7;
+}
+.dsh-think-sep {
+  color: #71717a;
+}
+.dsh-think-summary {
+  color: #a1a1aa;
+}
+.dsh-think-row:hover .dsh-think-summary {
+  color: #d4d4d8;
+}
+.dsh-think-chevron {
+  font-size: 10px;
+  color: #71717a;
+  margin-left: 4px;
+  transition: transform 0.2s ease;
+}
+.dsh-think-chevron.open {
   transform: rotate(90deg);
 }
-.thinking-content {
+.dsh-think-expanded-content {
   margin-top: 6px;
-  padding: 8px 12px;
+  margin-bottom: 6px;
+  padding: 10px 12px;
   border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.25);
   color: #a1a1aa;
   font-size: 12px;
   line-height: 1.6;
   white-space: pre-wrap;
   word-break: break-word;
-  max-height: 300px;
+  max-height: 360px;
   overflow-y: auto;
   font-family: var(--font-mono);
+}
+.dsh-deep-diving-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  margin-bottom: 2px;
+  font-size: 13px;
+  user-select: none;
+}
+.dsh-diving-text {
+  color: #3b82f6;
+  font-weight: 500;
+  letter-spacing: 0.2px;
+  animation: dsh-diving-pulse 2s infinite ease-in-out;
+}
+.dsh-diving-timer {
+  color: #71717a;
+  font-size: 12px;
+  font-family: var(--font-mono);
+}
+@keyframes dsh-diving-pulse {
+  0%, 100% {
+    opacity: 1;
+    filter: drop-shadow(0 0 2px rgba(59, 130, 246, 0.3));
+  }
+  50% {
+    opacity: 0.55;
+    filter: drop-shadow(0 0 0 transparent);
+  }
 }
 
 /* ── DSH Model Usage 原版仪表盘样式 ── */
