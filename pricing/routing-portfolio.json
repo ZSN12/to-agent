@@ -1,0 +1,201 @@
+{
+  "version": 1,
+  "display_names": {
+    "google-antigravity/gemini-3.8-flash-medium": "Gemini 3.8 Flash",
+    "google-antigravity/gemini-3.8-pro": "Gemini 3.8 Pro",
+    "cursor/composer-2.5": "Composer 2.5",
+    "cursor/grok-4.6": "Grok 4.6",
+    "openai-codex/gpt-5.5": "GPT-5.5 Codex",
+    "openai-codex/gpt-5.3-codex-spark": "Codex Spark",
+    "deepseek/deepseek-chat": "DeepSeek V3",
+    "deepseek/deepseek-reasoner": "DeepSeek R1",
+    "opencodex/cursor/composer-2.5": "Composer 2.5",
+    "opencodex/cursor/grok-4.6": "Grok 4.6"
+  },
+  "subscriptions": [
+    {
+      "id": "antigravity_pack",
+      "label": "反重力订阅",
+      "note": "覆盖 Google Antigravity 通道模型，边际成本为 0",
+      "prefer_models": [
+        "google-antigravity/*",
+        "antigravity/*"
+      ],
+      "marginal_cost": 0
+    },
+    {
+      "id": "cursor_codex",
+      "label": "Cursor / Codex 订阅",
+      "note": "常用 Composer 2.5 与 Grok 4.6，边际成本为 0",
+      "prefer_models": [
+        "cursor/composer-2.5",
+        "cursor/grok-4.6",
+        "opencodex/cursor/composer-2.5",
+        "opencodex/cursor/grok-4.6",
+        "openai-codex/gpt-5.3-codex-spark"
+      ],
+      "deprioritize_models": [
+        "cursor/gpt-6*",
+        "openai-codex/gpt-5.5"
+      ],
+      "marginal_cost": 0
+    }
+  ],
+  "metered_surge": [
+    {
+      "provider": "deepseek",
+      "match_model_keys": [
+        "deepseek/*",
+        "*deepseek*"
+      ],
+      "timezone": "Asia/Shanghai",
+      "windows": [
+        {
+          "days": [
+            "mon",
+            "tue",
+            "wed",
+            "thu",
+            "fri"
+          ],
+          "hours": [
+            9,
+            18
+          ],
+          "surcharge_factor": 1.5
+        }
+      ],
+      "action": "deprioritize"
+    }
+  ],
+  "task_affinity": {
+    "research": {
+      "prefer": [
+        "cheap_search",
+        "subscription_flash"
+      ],
+      "avoid": [
+        "strong_only"
+      ],
+      "reason": "检索型子任务，优先低边际成本与快速推理"
+    },
+    "test": {
+      "prefer": [
+        "balanced_code",
+        "cheap_search"
+      ],
+      "reason": "测试编写与执行，优先实用平衡模型"
+    },
+    "review": {
+      "prefer": [
+        "strong_reasoning"
+      ],
+      "min_capability": "security_review",
+      "reason": "代码审查与验收，抬升推理与安全审查能力"
+    },
+    "implementation": {
+      "prefer": [
+        "balanced_code",
+        "subscription_cursor"
+      ],
+      "reason": "核心代码实现，倾向编程专用订阅模型"
+    },
+    "hard_debug": {
+      "prefer": [
+        "strong_reasoning",
+        "gemini_pro_class"
+      ],
+      "reason": "疑难跨模块调试，倾向深度思考与超长上下文"
+    }
+  },
+  "capabilities": {
+    "subscription_flash": {
+      "match_model_ids": [
+        "*gemini*flash*",
+        "*spark*",
+        "*mini*"
+      ],
+      "tags": [
+        "research",
+        "cheap_search"
+      ]
+    },
+    "subscription_cursor": {
+      "match_model_ids": [
+        "*composer*",
+        "*grok*"
+      ],
+      "tags": [
+        "implementation",
+        "balanced_code"
+      ]
+    },
+    "strong_reasoning": {
+      "match_model_ids": [
+        "*gpt-5.5*",
+        "*deepseek-reasoner*",
+        "*gemini*pro*",
+        "*r1*"
+      ],
+      "tags": [
+        "review",
+        "hard_debug"
+      ]
+    },
+    "balanced_code": {
+      "match_model_ids": [
+        "*composer*",
+        "*deepseek-chat*",
+        "*v3*",
+        "*mimo*"
+      ],
+      "tags": [
+        "implementation"
+      ]
+    },
+    "cheap_search": {
+      "match_model_ids": [
+        "*flash*",
+        "*spark*",
+        "*haiku*"
+      ],
+      "tags": [
+        "research"
+      ]
+    }
+  },
+  "quota_cycles": {
+    "enabled": true,
+    "source": "openusage-local-api",
+    "base_url": "http://127.0.0.1:6736",
+    "schema": "openusage.limits.v1",
+    "max_snapshot_age_ms": 3600000,
+    "reset_within_ms": 172800000,
+    "min_remaining_ratio_for_bonus": 0.4,
+    "scarce_remaining_ratio": 0.12,
+    "bonus_points": 15,
+    "scarce_penalty_points": 20,
+    "policies": [
+      {
+        "provider_id": "codex",
+        "resource_id": "weekly",
+        "match_model_keys": [
+          "openai-codex/*",
+          "opencodex/*"
+        ],
+        "rollover": false,
+        "use_before_reset": true
+      },
+      {
+        "provider_id": "cursor",
+        "resource_id": "totalUsage",
+        "match_model_keys": [
+          "cursor/*",
+          "opencodex/cursor/*"
+        ],
+        "rollover": "unknown",
+        "use_before_reset": false
+      }
+    ]
+  }
+}

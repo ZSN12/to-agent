@@ -1,0 +1,56 @@
+appId: com.taskweaver.desktop
+productName: TaskWeaver
+copyright: Copyright © 2026 TaskWeaver
+
+directories:
+  output: release
+  buildResources: build
+
+electronDist: node_modules/electron/dist
+
+files:
+  - dist/**/*
+  - electron/**/*
+  - pricing/**/*
+  - package.json
+  - "!src/**"
+  - "!scripts/**"
+  - "!release/**"
+  - "!*.md"
+
+extraResources:
+  - from: vendor/taskweaver-dsh-runtime
+    to: taskweaver-dsh-runtime
+    filter:
+      - "**/*"
+  # electron-builder's default node_modules exclusion applies to app files;
+  # copy the standalone DSH production closure as a separate resource root.
+  - from: vendor/taskweaver-dsh-runtime/node_modules
+    to: taskweaver-dsh-runtime/node_modules
+    filter:
+      - "**/*"
+
+compression: store
+npmRebuild: false
+buildDependenciesFromSource: false
+
+asar: true
+asarUnpack:
+  - electron/preload.cjs
+  - electron/backend/pty-shim.py
+  - node_modules/node-pty/**/*
+
+mac:
+  category: public.app-category.developer-tools
+  identity: null
+  target:
+    - dir
+  artifactName: ${productName}-${version}-${arch}.${ext}
+  hardenedRuntime: false
+  gatekeeperAssess: false
+
+dmg:
+  title: TaskWeaver ${version}
+
+extraMetadata:
+  main: electron/main.cjs

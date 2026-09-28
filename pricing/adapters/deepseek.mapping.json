@@ -1,0 +1,10 @@
+{
+  "comment": "官网表格列名 → TaskWeaver model key（provider/id）",
+  "columns": {
+    "flash": "deepseek/deepseek-v4-flash",
+    "pro": "deepseek/deepseek-v4-pro"
+  },
+  "legacy_aliases": {
+    "deepseek/deepseek-chat": "deepseek/deepseek-v4-flash"
+  }
+}

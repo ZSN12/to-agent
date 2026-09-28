@@ -1,0 +1,896 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#f5f7fa" />
+  <title>TaskWeaver · 多智能体编排</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f4f6f9;
+      --surface: #ffffff;
+      --surface-2: #f8fafc;
+      --surface-3: #f1f4f8;
+      --ink: #1c2434;
+      --ink-2: #4f5d71;
+      --muted: #8490a2;
+      --line: #e4e9f0;
+      --line-strong: #d7dee8;
+      --blue: #3269da;
+      --blue-hover: #2458c2;
+      --blue-soft: #edf3ff;
+      --blue-line: #cddcff;
+      --green: #16855e;
+      --green-soft: #eaf7f1;
+      --amber: #ac6a0b;
+      --amber-soft: #fff5e5;
+      --red: #bd4545;
+      --red-soft: #fff0f0;
+      --shadow: 0 1px 2px rgba(21, 35, 58, .04), 0 8px 24px rgba(21, 35, 58, .035);
+      --radius: 10px;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      --sans: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--sans); font-size: 13px; overflow: hidden; }
+    button, input, textarea { font: inherit; }
+    button { color: inherit; }
+    button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 3px solid rgba(50, 105, 218, .28); outline-offset: 2px; }
+    .app { display: grid; grid-template-columns: 64px minmax(0, 1fr); grid-template-rows: 68px minmax(0, 1fr); height: 100dvh; min-width: 0; }
+    .topbar { grid-column: 1 / -1; display: flex; align-items: center; gap: 16px; padding: 0 18px; background: var(--surface); border-bottom: 1px solid var(--line); z-index: 5; }
+    .traffic { display: flex; gap: 7px; padding-right: 4px; }
+    .traffic i { width: 11px; height: 11px; border-radius: 50%; display: block; }
+    .traffic i:nth-child(1) { background: #ff6258; }.traffic i:nth-child(2) { background: #f4bd4f; }.traffic i:nth-child(3) { background: #35c76a; }
+    .brand-mark { width: 27px; height: 27px; display: grid; place-items: center; color: #fff; background: var(--blue); border-radius: 8px; }
+    .brand-mark svg { width: 16px; height: 16px; }
+    .top-brand { font-size: 14px; font-weight: 700; letter-spacing: -.2px; white-space: nowrap; }
+    .top-sep { height: 22px; border-left: 1px solid var(--line); }
+    .project-name { font-weight: 650; font-size: 13px; white-space: nowrap; }
+    .branch { color: var(--ink-2); display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+    .branch svg { color: var(--muted); }
+    .run-state { border: 1px solid #cfe9dc; background: var(--green-soft); color: var(--green); padding: 5px 9px; border-radius: 20px; font-weight: 600; font-size: 11px; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+    .run-state.paused { color: var(--amber); background: var(--amber-soft); border-color: #f2ddb7; }
+    .run-state .dot, .live-dot { width: 7px; height: 7px; background: currentColor; border-radius: 50%; display: inline-block; }
+    .top-spacer { flex: 1; }
+    .budget-summary { display: flex; align-items: center; gap: 9px; min-width: 275px; }
+    .budget-icon { color: var(--ink-2); display: flex; }
+    .budget-label { color: var(--ink-2); font-size: 12px; white-space: nowrap; }
+    .budget-values { font-variant-numeric: tabular-nums; font-size: 12px; white-space: nowrap; }
+    .budget-values strong { color: var(--ink); font-weight: 650; }
+    .budget-track { height: 6px; width: 72px; border-radius: 9px; background: #e9edf3; overflow: hidden; }
+    .budget-track span { display: block; height: 100%; width: 21%; background: var(--blue); border-radius: inherit; transition: width .25s ease; }
+    .save-label { color: var(--green); font-size: 11px; white-space: nowrap; }
+    .top-action { width: 34px; height: 34px; display: grid; place-items: center; border: 0; background: transparent; border-radius: 8px; color: var(--ink-2); cursor: pointer; }
+    .top-action:hover { background: var(--surface-3); }
+    .avatar { width: 27px; height: 27px; border-radius: 50%; background: #e7edf8; color: #42567b; display: grid; place-items: center; font-size: 10px; font-weight: 700; }
+    .user-name { font-size: 12px; color: var(--ink-2); }
+
+    .rail { grid-row: 2; background: #fbfcfd; border-right: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; padding: 12px 8px; gap: 7px; }
+    .rail-btn { width: 42px; height: 42px; display: grid; place-items: center; color: #7b8798; background: transparent; border: 0; border-radius: 9px; cursor: pointer; position: relative; transition: background .18s, color .18s; }
+    .rail-btn:hover { background: var(--surface-3); color: var(--ink); }
+    .rail-btn.active { color: var(--blue); background: var(--blue-soft); }
+    .rail-btn.active::before { content: ""; position: absolute; width: 3px; height: 20px; border-radius: 0 3px 3px 0; left: -8px; background: var(--blue); }
+    .rail-bottom { margin-top: auto; }
+
+    .chat-panel { grid-column: 2; grid-row: 2; min-height: 0; display: flex; flex-direction: column; background: var(--surface); }
+    .chat-head { height: 64px; flex: 0 0 64px; display: flex; align-items: center; justify-content: space-between; padding: 0 15px; border-bottom: 1px solid var(--line); }
+    .chat-head h1 { margin: 0; font-size: 14px; font-weight: 680; }
+    .chat-sub { color: var(--muted); font-size: 11px; margin-top: 4px; }
+    .icon-button { border: 0; background: transparent; color: #7d8998; width: 30px; height: 30px; border-radius: 7px; display: grid; place-items: center; cursor: pointer; }
+    .icon-button:hover { color: var(--ink); background: var(--surface-3); }
+    .assistant-context { margin: 12px 13px 2px; padding: 9px 10px; border: 1px solid #e5ebf5; border-radius: 8px; background: #fbfcff; display: flex; gap: 9px; align-items: center; }
+    .assistant-orb { width: 27px; height: 27px; flex: 0 0 27px; border-radius: 8px; color: var(--blue); background: var(--blue-soft); display: grid; place-items: center; }
+    .assistant-orb svg { width: 15px; height: 15px; }
+    .context-main { min-width: 0; flex: 1; }
+    .context-title { font-size: 11px; font-weight: 650; }
+    .context-copy { color: var(--muted); font-size: 10px; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .online { color: var(--green); font-size: 10px; display: flex; align-items: center; gap: 5px; white-space: nowrap; }
+    .online .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+    .messages { padding: 13px 14px 18px; flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 13px; scroll-behavior: smooth; }
+    .day-divider { color: #9aa4b2; font-size: 10px; text-align: center; display: flex; align-items: center; gap: 9px; margin: 1px 0 0; }
+    .day-divider::before, .day-divider::after { content: ""; height: 1px; background: var(--line); flex: 1; }
+    .message { display: flex; gap: 8px; max-width: 100%; animation: enter .22s ease-out; }
+    .message.user { flex-direction: row-reverse; }
+    .message-avatar { width: 25px; height: 25px; flex: 0 0 25px; border-radius: 8px; display: grid; place-items: center; font-size: 9px; font-weight: 700; color: var(--blue); background: var(--blue-soft); }
+    .message.user .message-avatar { color: #52627a; background: #edf0f4; }
+    .message-body { min-width: 0; max-width: calc(100% - 32px); }
+    .message-meta { display: flex; align-items: center; gap: 7px; margin: 1px 0 5px; color: var(--muted); font-size: 10px; }
+    .message.user .message-meta { justify-content: flex-end; }
+    .message-meta strong { color: #536175; font-weight: 600; }
+    .bubble { border: 1px solid #e8edf4; background: #f8fafc; border-radius: 3px 10px 10px 10px; padding: 9px 10px; color: #344156; font-size: 11.5px; line-height: 1.62; overflow-wrap: anywhere; }
+    .message.user .bubble { background: var(--blue); color: white; border-color: var(--blue); border-radius: 10px 3px 10px 10px; }
+    .bubble strong { color: #202d40; font-weight: 650; }
+    .message.user .bubble strong { color: #fff; }
+    .inline-changes { margin-top: 7px; border-top: 1px solid rgba(130,148,174,.2); padding-top: 7px; color: var(--green); font-size: 10px; display: flex; align-items: center; gap: 5px; }
+    .message.user .inline-changes { color: rgba(255,255,255,.88); }
+    .route-callout { margin-top: 8px; border: 1px solid var(--blue-line); background: #f2f6ff; border-radius: 7px; padding: 7px 8px; color: #425579; font-size: 10px; line-height: 1.5; }
+    .route-callout span { color: var(--blue); font-weight: 650; }
+    .composer-wrap { padding: 0 12px 12px; }
+    .composer { border: 1px solid #dce3ec; border-radius: 10px; background: #fff; box-shadow: 0 2px 7px rgba(20,35,55,.04); padding: 8px 8px 7px; transition: border .18s, box-shadow .18s; }
+    .composer:focus-within { border-color: #96b4f3; box-shadow: 0 0 0 3px rgba(50,105,218,.09); }
+    .composer textarea { width: 100%; height: 47px; min-height: 42px; resize: none; outline: 0; border: 0; padding: 1px 3px; color: var(--ink); background: transparent; font-size: 11.5px; line-height: 1.45; }
+    .composer textarea::placeholder { color: #a1aab7; }
+    .composer-foot { display: flex; align-items: center; gap: 5px; color: #9aa4b1; font-size: 10px; }
+    .composer-foot .spacer { flex: 1; }
+    .tiny-action { width: 26px; height: 25px; display: grid; place-items: center; border: 0; background: transparent; color: #8a97a8; border-radius: 6px; cursor: pointer; }
+    .tiny-action:hover { color: var(--blue); background: var(--blue-soft); }
+    .send-btn { width: 28px; height: 27px; color: white; border: 0; background: var(--blue); border-radius: 7px; display: grid; place-items: center; cursor: pointer; transition: background .16s, transform .16s; }
+    .send-btn:hover { background: var(--blue-hover); }.send-btn:active { transform: scale(.96); }
+    .send-btn:disabled { opacity: .5; cursor: not-allowed; }
+    .composer-hint { text-align: center; color: #a0a9b6; font-size: 9px; margin-top: 7px; }
+    /* Conversation styling: text-first assistant turns and a Codex-like anchored composer. */
+    .assistant-context { margin: 10px 13px 0; padding: 7px 2px 9px; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: transparent; }
+    .assistant-orb { width: 25px; height: 25px; flex-basis: 25px; border-radius: 50%; }
+    .context-title { font-size: 11px; }
+    .context-copy { font-size: 10px; }
+    .messages { padding: 13px 14px 18px; gap: 17px; }
+    .message { display: block; }
+    .message-avatar { display: none; }
+    .message-body { max-width: 100%; }
+    .message-meta { gap: 7px; margin: 0 0 5px; font-size: 10px; }
+    .message-meta strong { color: #344156; font-weight: 650; }
+    .bubble { padding: 0; border: 0; border-radius: 0; background: transparent; color: #293548; font-size: 12px; line-height: 1.68; }
+    .message.user { display: flex; flex-direction: column; align-items: flex-end; }
+    .message.user .message-meta { justify-content: flex-end; }
+    .message.user .bubble { max-width: 94%; padding: 8px 10px; color: #344156; border: 1px solid #e5e9ef; border-radius: 12px; background: #f4f6f8; line-height: 1.55; }
+    .message.user .inline-changes { color: #5d6b7e; }
+    .route-callout { border-color: #e3e8ef; background: #f7f8fa; color: #526176; font-size: 10.5px; }
+    .inline-changes { border-color: #e7ebf0; color: var(--green); font-size: 10.5px; }
+    .composer-wrap { padding: 0 10px 10px; }
+    .composer { border-color: #d9dee6; border-radius: 13px; padding: 9px 9px 7px; box-shadow: 0 2px 8px rgba(20,35,55,.055); }
+    .composer textarea { height: 53px; min-height: 48px; padding: 2px 3px; font-size: 12px; line-height: 1.5; }
+    .composer-foot { gap: 4px; color: #8994a3; }
+    .model-picker { min-height: 27px; display: inline-flex; align-items: center; gap: 4px; border: 0; border-radius: 6px; padding: 0 6px; background: transparent; color: #59677b; font-size: 9.5px; cursor: pointer; white-space: nowrap; }
+    .model-picker:hover { background: #f1f3f6; }
+    .composer-foot .keyboard-hint { flex: 0 0 auto; white-space: nowrap; font-size: 9px; }
+    .send-btn { width: 29px; height: 28px; border-radius: 8px; }
+    .composer-hint { margin-top: 6px; font-size: 9px; }
+
+    .module-view { flex: 1; min-height: 0; overflow: auto; padding: 29px 32px 36px; background: #f8f9fb; display: flex; flex-direction: column; gap: 22px; }
+    .module-view[hidden] { display: none; }
+    .app.module-mode { grid-template-columns: 64px minmax(0,1fr); }
+    .app.module-mode .chat-panel, .app.module-mode .inspector { display: none; }
+    .app.module-mode .main { grid-column: 2; grid-row: 2; display:flex; }
+    .app.module-mode .main-toolbar, .app.module-mode .canvas-scroll, .app.module-mode .bottom-panel { display: none; }
+    .module-heading { display: flex; align-items: flex-end; gap: 18px; }
+    .module-heading-copy { min-width: 0; }
+    .module-eyebrow { margin-bottom: 7px; color: #8793a4; font-size: 10px; font-weight: 650; letter-spacing: .08em; text-transform: uppercase; }
+    .module-heading h1 { margin: 0; color: #202b3b; font-size: 22px; letter-spacing: -.35px; font-weight: 680; }
+    .module-heading p { margin: 7px 0 0; color: #758196; font-size: 12px; line-height: 1.5; }
+    .module-heading-actions { margin-left: auto; display: flex; gap: 8px; }
+    .module-btn { min-height: 34px; padding: 0 12px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: 1px solid #dfe4eb; border-radius: 8px; background: white; color: #455369; font-size: 11px; font-weight: 550; cursor: pointer; }
+    .module-btn:hover { border-color: #bfccdf; background: #fcfdff; }
+    .module-btn.primary { border-color: var(--blue); background: var(--blue); color: white; }
+    .module-btn.primary:hover { background: var(--blue-hover); }
+    .module-btn svg { width: 14px; height: 14px; }
+    .module-stats { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px; }
+    .module-stat, .module-card, .module-panel { border: 1px solid #e4e8ef; border-radius: 11px; background: #fff; box-shadow: 0 1px 2px rgba(25,42,68,.025); }
+    .module-stat { padding: 15px 16px; }
+    .module-stat-label { color: #7e8999; font-size: 10px; }
+    .module-stat-value { margin-top: 7px; color: #273448; font-size: 21px; font-weight: 680; letter-spacing: -.3px; }
+    .module-stat-note { margin-top: 4px; color: #8490a1; font-size: 10px; }
+    .module-section-title { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 11px; }
+    .module-section-title h2 { margin: 0; color: #354258; font-size: 13px; font-weight: 650; }
+    .module-section-title span { color: #8490a1; font-size: 10px; }
+    .module-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; }
+    .module-card { padding: 16px; min-width: 0; }
+    .module-card-top { display: flex; align-items: flex-start; gap: 11px; }
+    .module-icon { width: 36px; height: 36px; flex: 0 0 36px; display: grid; place-items: center; border-radius: 10px; background: #eef3ff; color: #3567c9; font-size: 10px; font-weight: 700; }
+    .module-card-title { color: #2c394d; font-size: 12px; font-weight: 650; }
+    .module-card-sub { margin-top: 4px; color: #8792a2; font-size: 10px; }
+    .module-card-copy { margin: 13px 0; color: #6f7c90; font-size: 10.5px; line-height: 1.6; }
+    .module-card-foot { padding-top: 10px; border-top: 1px solid #eef0f4; display: flex; align-items: center; justify-content: space-between; gap: 8px; color: #788598; font-size: 10px; }
+    .module-badge { display: inline-flex; align-items: center; gap: 5px; border-radius: 20px; padding: 4px 7px; background: #f0f3f7; color: #6d7a8e; font-size: 9px; white-space: nowrap; }
+    .module-badge.green { color: #16805b; background: #eaf7f1; }
+    .module-badge.blue { color: #3767c2; background: #edf3ff; }
+    .module-badge.amber { color: #a66b16; background: #fff5e7; }
+    .module-panel { padding: 17px 18px; }
+    .module-table { width: 100%; border-collapse: collapse; text-align: left; }
+    .module-table th { padding: 9px 8px; color: #8b96a5; font-size: 9px; font-weight: 550; border-bottom: 1px solid #edf0f4; }
+    .module-table td { padding: 11px 8px; color: #526075; font-size: 10.5px; border-bottom: 1px solid #f0f2f5; }
+    .module-table tr:last-child td { border-bottom: 0; }
+    .module-table strong { color: #354258; font-weight: 620; }
+    .module-two-col { display: grid; grid-template-columns: minmax(0,1.35fr) minmax(270px,.8fr); gap: 14px; }
+    .module-list { display: flex; flex-direction: column; }
+    .module-list-row { min-height: 51px; display: flex; align-items: center; gap: 11px; border-bottom: 1px solid #eff1f4; }
+    .module-list-row:last-child { border-bottom: 0; }
+    .module-list-copy { flex: 1; min-width: 0; }
+    .module-list-copy strong { color: #354258; font-size: 10.5px; font-weight: 620; }
+    .module-list-copy small { display: block; margin-top: 4px; color: #8b96a6; font-size: 9px; }
+    .module-switch { width: 30px; height: 17px; display: inline-flex; align-items: center; border: 0; border-radius: 12px; padding: 2px; background: #7fa2e8; cursor: pointer; }
+    .module-switch::after { content: ""; width: 13px; height: 13px; border-radius: 50%; background: white; transform: translateX(13px); transition: transform .18s; }
+    .module-switch.off { background: #c5cbd4; }.module-switch.off::after { transform: translateX(0); }
+    .module-note { padding: 12px 13px; border: 1px solid #e2e9f5; border-radius: 9px; background: #f7f9fd; color: #65738a; font-size: 10px; line-height: 1.6; }
+    .module-empty { min-height: 140px; display: grid; place-items: center; color: #8894a5; font-size: 11px; }
+
+    .main { grid-row: 2; min-width: 0; min-height: 0; display: none; flex-direction: column; background: var(--bg); }
+    .main-toolbar { min-height: 64px; display: flex; align-items: center; padding: 0 18px; border-bottom: 1px solid var(--line); background: #fbfcfd; gap: 12px; }
+    .main-toolbar h2 { font-size: 14px; margin: 0; font-weight: 670; }
+    .toolbar-sub { font-size: 10px; color: var(--muted); margin-top: 4px; }
+    .toolbar-title { min-width: 0; }
+    .toolbar-spacer { flex: 1; }
+    .automation-pill { display: flex; align-items: center; gap: 7px; border: 1px solid #dbe6fb; background: #f5f8ff; color: #4465a3; padding: 7px 9px; border-radius: 8px; font-size: 10px; white-space: nowrap; }
+    .automation-pill strong { color: var(--blue); font-size: 10px; }
+    .switch { display: inline-flex; width: 27px; height: 16px; border: 0; padding: 2px; background: #8fb0f3; border-radius: 10px; cursor: pointer; }
+    .switch::after { content: ""; display: block; width: 12px; height: 12px; background: #fff; border-radius: 50%; transform: translateX(11px); transition: transform .18s; box-shadow: 0 1px 2px #6783b5; }
+    .switch.off { background: #bac3d0; }.switch.off::after { transform: translateX(0); }
+    .toolbar-button { min-height: 31px; border: 1px solid var(--line); background: white; color: var(--ink-2); border-radius: 7px; padding: 0 9px; font-size: 10px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; white-space: nowrap; transition: background .16s, border .16s; }
+    .toolbar-button:hover { border-color: #bec9d8; background: #fafbfd; }
+    .toolbar-button.primary { color: var(--blue); border-color: #cfdbf4; background: white; }
+    .canvas-scroll { flex: 1; overflow: auto; padding: 15px 16px 9px; min-height: 0; }
+    .canvas-meta { display: flex; justify-content: space-between; align-items: center; margin: 0 1px 11px; }
+    .canvas-meta-left { color: #768397; font-size: 10px; display: flex; gap: 8px; align-items: center; }
+    .task-total { color: var(--ink-2); font-weight: 600; }
+    .canvas-controls { display: flex; gap: 5px; }
+    .canvas-controls button { height: 25px; width: 26px; border: 1px solid var(--line); border-radius: 6px; background: #fff; color: #778397; cursor: pointer; display: grid; place-items: center; }
+    .canvas-controls button:hover { color: var(--blue); border-color: #c7d6f2; }
+    .legend { display: flex; gap: 13px; align-items: center; font-size: 9px; color: #758195; }
+    .legend-item { display: flex; gap: 5px; align-items: center; }
+    .legend-dot { width: 7px; height: 7px; border-radius: 50%; background: #aab3c0; }
+    .legend-dot.done { background: #28a476; }.legend-dot.running { background: var(--blue); }.legend-dot.queued { background: #b6bfcb; }
+    .graph-shell { min-height: 492px; height: calc(100% - 40px); min-width: 580px; position: relative; overflow: hidden; border: 1px solid var(--line); border-radius: 10px; background-color: #fbfcfe; background-image: radial-gradient(#d9e0eb .75px, transparent .75px); background-size: 18px 18px; box-shadow: var(--shadow); }
+    .graph { position: relative; height: 100%; min-height: 492px; padding: 25px 18px 18px; display: grid; grid-template-rows: 1fr 1fr .78fr; gap: 15px; }
+    .graph-row { position: relative; z-index: 1; display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 15px; align-items: start; }
+    .graph-row.row-bottom { grid-template-columns: minmax(160px, 1fr) minmax(180px, 1.1fr) minmax(160px, 1fr); align-items: start; }
+    .edge { position: absolute; z-index: 0; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+    .edge path { fill: none; stroke: #bac6d7; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+    .edge path.strong { stroke: #82a0da; }
+    .edge circle { fill: #91a7c9; }
+    .task-card { position: relative; display: flex; flex-direction: column; min-height: 139px; padding: 10px 10px 9px; border: 1px solid #dfe5ed; border-radius: 9px; background: #fff; box-shadow: 0 2px 5px rgba(26,43,68,.035); cursor: pointer; transition: box-shadow .17s, border-color .17s, transform .17s; }
+    .task-card:hover { border-color: #bdcde6; box-shadow: 0 5px 14px rgba(37,66,114,.09); transform: translateY(-1px); }
+    .task-card.selected { border: 1.5px solid #4e80e2; box-shadow: 0 0 0 3px rgba(50,105,218,.08), 0 4px 12px rgba(44,86,159,.07); }
+    .task-card.done { border-color: #d8e9e1; }
+    .task-card.warning { border-color: #edd9b5; }
+    .task-title-line { display: flex; align-items: flex-start; gap: 5px; }
+    .task-num { font-family: var(--mono); color: #8a96a6; font-size: 9px; padding-top: 2px; }
+    .task-title { font-size: 10.5px; line-height: 1.35; font-weight: 650; flex: 1; color: #263348; }
+    .status-chip { height: 19px; display: inline-flex; align-items: center; gap: 4px; padding: 0 6px; border-radius: 5px; font-size: 8.5px; white-space: nowrap; background: #f0f2f5; color: #778397; }
+    .status-chip svg { width: 10px; height: 10px; }
+    .status-chip.done { color: var(--green); background: var(--green-soft); }
+    .status-chip.running { color: var(--blue); background: var(--blue-soft); }
+    .status-chip.queued { color: #768397; background: #f1f3f6; }
+    .status-chip.review { color: var(--amber); background: var(--amber-soft); }
+    .task-separator { margin: 8px 0 7px; height: 1px; background: #edf0f4; }
+    .task-meta-row { display: flex; align-items: center; gap: 5px; min-width: 0; color: #68768a; font-size: 9px; line-height: 1.2; }
+    .task-meta-row + .task-meta-row { margin-top: 6px; }
+    .task-meta-row svg { color: #8793a3; flex: 0 0 12px; }
+    .role-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .model-chip { margin-left: auto; border-radius: 4px; padding: 3px 5px; font-size: 8px; white-space: nowrap; color: #52627b; background: #f0f3f7; }
+    .model-chip.cheap { color: #516d9c; background: #edf3fd; }.model-chip.strong { color: #7656a1; background: #f3effa; }.model-chip.deterministic { color: #667083; background: #f1f2f4; }
+    .task-desc { color: #7e8a9b; font-size: 9px; line-height: 1.42; height: 27px; overflow: hidden; margin-top: 7px; }
+    .task-foot { margin-top: auto; padding-top: 7px; display: flex; align-items: center; justify-content: space-between; color: #8490a0; font-size: 8.5px; border-top: 1px solid #f0f2f5; }
+    .task-foot span { display: flex; align-items: center; gap: 4px; }
+    .task-foot svg { color: #98a3b0; }
+    .change-mark { display: none; color: var(--amber); background: var(--amber-soft); padding: 3px 5px; border-radius: 4px; font-size: 8px; font-weight: 600; }
+    .task-card.changed .change-mark { display: inline-flex; }
+    .task-card.changed .task-desc { color: #705222; }
+    .task-card.integration { grid-column: 2; min-height: 102px; }
+    .empty-slot { min-height: 1px; }
+    .graph-caption { position: absolute; right: 12px; bottom: 10px; color: #a0a9b7; font-size: 9px; }
+
+    .bottom-panel { flex: 0 0 171px; min-height: 145px; border-top: 1px solid var(--line); background: #fff; display: flex; flex-direction: column; }
+    .bottom-tabs { display: flex; align-items: center; gap: 17px; height: 37px; flex: 0 0 37px; padding: 0 17px; border-bottom: 1px solid #edf0f4; }
+    .bottom-tab { height: 100%; border: 0; background: transparent; color: #8490a0; font-size: 10px; padding: 0 1px; cursor: pointer; position: relative; }
+    .bottom-tab.active { color: var(--blue); font-weight: 600; }
+    .bottom-tab.active::after { content: ""; height: 2px; background: var(--blue); position: absolute; bottom: -1px; left: 0; right: 0; border-radius: 2px 2px 0 0; }
+    .bottom-spacer { flex: 1; }
+    .live-label { display: flex; align-items: center; gap: 5px; color: #798698; font-size: 9px; }
+    .live-label .live-dot { width: 6px; height: 6px; color: var(--green); }
+    .log-list { overflow: auto; padding: 8px 16px 9px; display: flex; flex-direction: column; gap: 6px; }
+    .log-row { display: flex; align-items: baseline; gap: 8px; color: #728096; white-space: nowrap; font-size: 9px; }
+    .log-time { font-family: var(--mono); color: #9aa4b2; width: 37px; flex: 0 0 37px; }
+    .log-source { width: 55px; flex: 0 0 55px; color: #6f7d90; }
+    .log-source.router { color: var(--blue); }.log-source.executor { color: #8563a9; }.log-source.tests { color: var(--green); }
+    .log-message { overflow: hidden; text-overflow: ellipsis; }
+
+    .inspector { grid-row: 2; min-width: 0; min-height: 0; background: var(--surface); border-left: 1px solid var(--line); display: none; flex-direction: column; overflow: hidden; }
+    .app.dag-mode .main { display:flex; position:fixed; z-index:8; top:66px; right:14px; bottom:14px; left:auto; width:min(640px,48vw); border:1px solid var(--line); border-radius:14px; overflow:hidden; box-shadow:0 16px 48px rgba(20,32,52,.18); }
+    .app.dag-mode .main-toolbar { gap:7px; padding:0 12px; }
+    .app.dag-mode .toolbar-sub, .app.dag-mode .automation-pill .auto-copy { display:none; }
+    .app.dag-mode .automation-pill { padding:6px; }
+    .app.dag-mode .toolbar-button { padding:0 7px; font-size:9px; }
+    .app.dag-mode .inspector { display:none; }
+    .app.child-mode .chat-panel { display:flex; }
+    .app.child-mode .inspector { display:flex; position:fixed; z-index:8; top:66px; right:14px; bottom:14px; left:auto; width:min(640px,48vw); border:1px solid var(--line); border-radius:14px; overflow:hidden; box-shadow:0 16px 48px rgba(20,32,52,.18); }
+    .app.child-mode .inspector-head { padding:15px 24px 13px; }
+    .app.child-mode .agent-context, .app.child-mode .task-tabs, .app.child-mode .thread-pane, .app.child-mode .route-pane { width:min(100%, 960px); margin-left:auto; margin-right:auto; }
+    .app.child-mode .agent-context { margin-top:15px; }
+    .app.child-mode .thread-pane { flex:1; min-height:0; }
+    .app.child-mode .thread-messages { padding:22px 0; }
+    .app.child-mode .thread-composer-wrap { padding:12px 0 22px; }
+    .app.module-mode .inspector { display:none; }
+    .chat-head { padding:0 max(22px, calc((100% - 960px)/2)); }
+    .chat-head-actions { display:flex; align-items:center; gap:8px; }
+    .dag-open-btn { position:relative; width:42px; min-width:42px; height:42px; padding:0; display:inline-flex; align-items:center; justify-content:center; border:1px solid #e0e5ec; border-radius:9px; background:#fff; color:#56647a; font-size:0; cursor:pointer; transition:background .18s,border-color .18s,color .18s; }
+    .dag-open-btn > span { position:absolute; top:-5px; right:-5px; min-width:16px; height:16px; padding:0 4px; display:grid; place-items:center; border:2px solid #fff; border-radius:10px; background:#5b7fbd; color:#fff; font-size:9px; line-height:1; }
+    .dag-open-btn:hover, .app:is(.dag-mode,.child-mode) .dag-open-btn { border-color:#bdcbea; color:var(--blue); background:#f4f7ff; }
+    .assistant-context, .messages, .composer-wrap { width:min(100% - 48px, 860px); margin-left:auto; margin-right:auto; }
+    .assistant-context { margin-top:14px; }
+    .messages { padding-top:24px; }
+    .composer-wrap { padding:0 0 12px; }
+    .composer textarea { height:68px; }
+    .chat-sub { font-size:11px; }
+    .child-back { margin-bottom:10px; border:0; background:transparent; color:#66758b; padding:0; font-size:11px; cursor:pointer; }
+    .child-back:hover { color:var(--blue); }
+    .inspector-topline { display:flex; align-items:center; gap:9px; }
+    .child-title-group { min-width:0; flex:1; }
+    .inspector-head { padding: 17px 15px 13px; border-bottom: 1px solid var(--line); }
+    .inspector-topline { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .inspector-head h2 { margin: 0; font-size: 13px; font-weight: 680; }
+    .task-id { color: #8a95a4; font-family: var(--mono); font-size: 9px; }
+    .inspector-status { margin-top: 8px; display: flex; align-items: center; gap: 7px; color: #7b8797; font-size: 10px; }
+    .inspector-body { padding: 14px 15px 18px; display: flex; flex-direction: column; gap: 15px; }
+    .task-workspace { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+    .agent-context { min-height: 56px; padding: 10px 14px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 9px; }
+    .agent-avatar { width: 30px; height: 30px; flex: 0 0 30px; display: grid; place-items: center; border-radius: 9px; background: #eef3ff; color: var(--blue); font-size: 9px; font-weight: 750; }
+    .agent-copy { min-width: 0; flex: 1; }
+    .agent-name { color: #35435a; font-size: 11px; font-weight: 650; }
+    .agent-model { margin-top: 3px; overflow: hidden; color: var(--muted); font-size: 10px; white-space: nowrap; text-overflow: ellipsis; }
+    .thread-state { color: var(--green); font-size: 9px; white-space: nowrap; }
+    .task-tabs { height: 38px; flex: 0 0 38px; display: flex; gap: 15px; padding: 0 14px; border-bottom: 1px solid var(--line); }
+    .task-tab { position: relative; border: 0; padding: 0 1px; background: transparent; color: #8390a2; font-size: 10px; cursor: pointer; }
+    .task-tab.active { color: var(--blue); font-weight: 650; }
+    .task-tab.active::after { position: absolute; content: ""; left: 0; right: 0; bottom: -1px; height: 2px; border-radius: 2px; background: var(--blue); }
+    .thread-pane { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+    .thread-messages { flex: 1; min-height: 0; padding: 13px 13px 16px; overflow: auto; display: flex; flex-direction: column; gap: 12px; }
+    .thread-event { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; animation: enter .2s ease-out; }
+    .thread-event.user { align-items: flex-end; }
+    .thread-meta { display: flex; align-items: center; gap: 6px; color: #8a96a6; font-size: 9px; }
+    .thread-meta strong { color: #58677d; font-weight: 650; }
+    .thread-bubble { max-width: 100%; padding: 8px 9px; border: 1px solid #e8edf4; border-radius: 3px 9px 9px 9px; background: #f8fafc; color: #344156; font-size: 10.5px; line-height: 1.55; overflow-wrap: anywhere; }
+    .thread-event.user .thread-bubble { color: white; border-color: var(--blue); background: var(--blue); border-radius: 9px 3px 9px 9px; }
+    .thread-composer-wrap { padding: 9px 11px 10px; border-top: 1px solid var(--line); background: #fcfdff; }
+    .thread-composer { border: 1px solid #dce3ec; border-radius: 9px; padding: 7px; background: white; }
+    .thread-composer:focus-within { border-color: #96b4f3; box-shadow: 0 0 0 3px rgba(50,105,218,.08); }
+    .thread-composer textarea { display: block; width: 100%; height: 42px; resize: none; outline: 0; border: 0; padding: 1px 2px; color: var(--ink); background: transparent; font-size: 10.5px; line-height: 1.45; }
+    .thread-composer textarea::placeholder { color: #9aa5b4; }
+    .thread-composer-foot { display: flex; align-items: center; color: #98a3b1; font-size: 9px; }
+    .thread-composer-foot span { flex: 1; }
+    .thread-send { width: 26px; height: 25px; display: grid; place-items: center; border: 0; border-radius: 6px; color: white; background: var(--blue); cursor: pointer; }
+    .thread-send:hover { background: var(--blue-hover); }
+    .route-pane { flex: 1; min-height: 0; overflow: auto; }
+    .route-pane[hidden], .thread-pane[hidden] { display: none; }
+    .info-list { display: flex; flex-direction: column; gap: 10px; }
+    .info-row { display: grid; grid-template-columns: 70px minmax(0,1fr); gap: 6px; align-items: center; font-size: 10px; }
+    .info-label { color: #8a95a4; }
+    .info-value { color: #405067; display: flex; gap: 6px; align-items: center; min-width: 0; }
+    .info-value strong { font-size: 10px; font-weight: 620; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .info-value svg { color: #77869a; flex: 0 0 13px; }
+    .confidence { display: flex; align-items: center; gap: 7px; }
+    .confidence strong { color: var(--blue); font-size: 17px; letter-spacing: -.4px; }
+    .confidence-track { flex: 1; height: 4px; background: #e9edf3; border-radius: 9px; overflow: hidden; }
+    .confidence-track span { display: block; height: 100%; width: 86%; background: var(--blue); border-radius: 9px; }
+    .section-title { display: flex; align-items: center; justify-content: space-between; font-size: 10px; font-weight: 650; color: #39465b; margin-bottom: 8px; }
+    .section-title .small-muted { color: #97a1af; font-size: 9px; font-weight: 400; }
+    .reason-tags { display: flex; gap: 5px; flex-wrap: wrap; }
+    .reason-tag { color: #66758a; background: #f3f5f8; border: 1px solid #e9edf2; border-radius: 5px; padding: 5px 6px; font-size: 9px; }
+    .reason-tag.risk { color: var(--amber); background: #fff8ee; border-color: #f2e4ca; }
+    .why-button { display: flex; gap: 6px; align-items: center; color: var(--blue); font-size: 9px; background: transparent; border: 0; padding: 8px 0 0; cursor: pointer; }
+    .why-button:hover { color: var(--blue-hover); }
+    .why-detail { display: none; margin-top: 7px; background: #f8faff; border: 1px solid #e0e9fb; border-radius: 7px; padding: 8px; color: #61728f; font-size: 9px; line-height: 1.55; }
+    .why-detail.open { display: block; animation: enter .18s ease-out; }
+    .model-table { width: 100%; border-collapse: separate; border-spacing: 0; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; font-size: 9px; }
+    .model-table th { text-align: left; font-weight: 550; color: #8792a1; background: #f7f9fb; padding: 8px 6px; border-bottom: 1px solid var(--line); }
+    .model-table td { color: #58677c; padding: 8px 6px; border-bottom: 1px solid #edf0f4; font-variant-numeric: tabular-nums; }
+    .model-table tr:last-child td { border-bottom: 0; }
+    .model-table tr.selected td { color: #285ac0; background: #f0f5ff; font-weight: 600; }
+    .model-table .model-name { white-space: nowrap; }
+    .budget-card { border: 1px solid var(--line); border-radius: 8px; padding: 10px; background: #fcfdff; }
+    .budget-card-title { display: flex; align-items: center; gap: 7px; color: #495a73; font-size: 10px; font-weight: 650; }
+    .budget-card-title svg { color: #74839a; }
+    .budget-card .bar { height: 6px; background: #e9edf3; border-radius: 8px; overflow: hidden; margin: 10px 0 6px; }
+    .budget-card .bar span { display: block; height: 100%; width: 21%; background: linear-gradient(90deg, #4f80e0, #71a1f2); border-radius: inherit; transition: width .25s; }
+    .budget-card-stats { display: flex; justify-content: space-between; color: #8290a2; font-size: 9px; font-variant-numeric: tabular-nums; }
+    .budget-card-stats strong { color: #49586e; font-weight: 600; }
+    .saving-row { display: flex; justify-content: space-between; align-items: center; margin-top: 9px; border-top: 1px solid #edf0f4; padding-top: 8px; color: #8692a3; font-size: 9px; }
+    .saving-value { color: var(--green); display: flex; align-items: center; gap: 4px; font-weight: 600; }
+    .inspector-actions { margin-top: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .btn { min-height: 34px; border-radius: 7px; padding: 0 9px; font-size: 10px; font-weight: 570; cursor: pointer; border: 1px solid #d8e1ef; background: #fff; color: var(--blue); transition: background .16s,border .16s,transform .16s; }
+    .btn:hover { background: #f6f8fc; border-color: #bfcde2; }.btn:active { transform: scale(.98); }
+    .btn.primary { color: #fff; border-color: var(--blue); background: var(--blue); }.btn.primary:hover { background: var(--blue-hover); }
+    .toast { position: fixed; z-index: 20; left: 50%; bottom: 24px; transform: translate(-50%, 12px); opacity: 0; pointer-events: none; background: #243146; color: #fff; border-radius: 8px; padding: 10px 14px; font-size: 11px; box-shadow: 0 8px 22px rgba(15,29,53,.18); transition: opacity .2s, transform .2s; }
+    .toast.show { opacity: 1; transform: translate(-50%, 0); }
+    .menu-pop { position: fixed; z-index: 15; right: 17px; top: 49px; display: none; background: #fff; border: 1px solid var(--line); box-shadow: var(--shadow); border-radius: 9px; padding: 6px; min-width: 160px; }
+    .menu-pop.open { display: block; animation: enter .16s ease-out; }
+    .menu-pop button { border: 0; width: 100%; background: transparent; display: flex; align-items: center; gap: 8px; text-align: left; color: #536176; padding: 8px; border-radius: 6px; font-size: 11px; cursor: pointer; }
+    .menu-pop button:hover { background: #f4f6f9; color: var(--blue); }
+    .skip-link { position: fixed; top: 5px; left: 75px; z-index: 30; background: var(--blue); color: white; border-radius: 5px; padding: 8px 10px; transform: translateY(-150%); }.skip-link:focus { transform: translateY(0); }
+    @keyframes enter { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+    @media (max-width: 1280px) {
+      .app { grid-template-columns: 58px minmax(0,1fr); }
+      .budget-summary { min-width: auto; }.save-label { display: none; }
+      .chat-panel .messages { padding-left: 11px; padding-right: 11px; }
+      .graph-row { gap: 10px; }.graph { padding-left: 12px; padding-right: 12px; }.task-card { padding-left: 8px; padding-right: 8px; }
+      .module-view { padding: 23px 24px 30px; }
+    }
+    @media (max-width: 1040px) {
+      body { overflow: auto; }.app { height: auto; min-height: 100dvh; min-width: 0; grid-template-columns: 56px minmax(0,1fr); grid-template-rows: 56px auto; overflow: visible; }
+      .app.module-mode { grid-template-columns: 56px minmax(0,1fr); grid-template-rows: 68px auto; }
+      .topbar { grid-column: 1 / -1; position: sticky; top: 0; }.top-brand,.user-name,.avatar,.top-sep.branch-sep,.branch { display: none; }
+      .rail { grid-column: 1; grid-row: 2; min-height: calc(100dvh - 56px); position: sticky; top: 56px; height: calc(100dvh - 56px); }
+      .chat-panel { grid-column: 2; grid-row: 2; height: 390px; border-right: 0; border-bottom: 1px solid var(--line); }
+      .main { grid-column: 2; grid-row: 3; min-height: 760px; }.inspector { grid-column: 2; grid-row: 4; border-left: 0; border-top: 1px solid var(--line); min-height: 480px; }
+      .app.module-mode .main { grid-column: 2; grid-row: 2; min-height: calc(100dvh - 56px); }
+      .module-stats { grid-template-columns: repeat(2,minmax(0,1fr)); }.module-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }.module-two-col { grid-template-columns: minmax(0,1fr); }
+      .app { grid-template-rows: 56px auto auto auto; }.bottom-panel { flex-basis: 170px; }
+    }
+    @media (max-width: 680px) {
+      .topbar { gap: 9px; padding: 0 10px; }.project-name { font-size: 12px; }.budget-label,.budget-icon,.budget-track { display: none; }.budget-summary { gap: 4px; }.budget-values { font-size: 10px; }
+      .run-state { font-size: 9px; padding: 4px 7px; }.top-action { width: 30px; }
+      .main-toolbar { padding: 0 11px; }.toolbar-sub { display: none; }.automation-pill { padding: 6px; }.automation-pill .auto-copy { display: none; }
+      .canvas-scroll { padding: 10px; overflow-x: auto; }.graph-shell { min-width: 560px; }
+      .chat-panel { height: 420px; }.chat-head { height: 57px; flex-basis: 57px; }
+      .legend { gap: 8px; }.canvas-meta { min-width: 540px; }
+      .bottom-tabs { gap: 12px; padding: 0 11px; }
+      .module-view { padding: 18px 13px 24px; gap: 17px; }.module-heading { align-items: flex-start; flex-direction: column; gap: 12px; }.module-heading-actions { margin-left: 0; flex-wrap: wrap; }.module-grid { grid-template-columns: minmax(0,1fr); }.module-stats { gap: 8px; }.module-stat { padding: 12px; }
+    }
+    @media (max-width: 1040px) {
+      .app:not(.module-mode) { height:100dvh; min-height:0; grid-template-columns:56px minmax(0,1fr); grid-template-rows:68px minmax(0,1fr); overflow:hidden; }
+      .app:not(.module-mode) .topbar { position:relative; }
+      .app:not(.module-mode) .rail { grid-row:2; min-height:0; height:100%; position:relative; top:auto; }
+      .app:not(.module-mode) .chat-panel { grid-column:2; grid-row:2; height:auto; min-height:0; border:0; }
+      .app:not(.module-mode) .main { grid-column:2; grid-row:2; }
+      .app.dag-mode .main { top:64px; right:8px; bottom:8px; width:min(500px,calc(100vw - 72px)); }
+      .app.child-mode .inspector { grid-column:2; grid-row:2; min-height:0; height:100%; }
+      .app.child-mode .inspector-head { padding:13px 16px; }
+      .app.child-mode .agent-context, .app.child-mode .task-tabs, .app.child-mode .thread-pane, .app.child-mode .route-pane { width:calc(100% - 32px); }
+      .app:not(.module-mode) .chat-head { padding:0 18px; }
+      .app:not(.module-mode) .assistant-context, .app:not(.module-mode) .messages, .app:not(.module-mode) .composer-wrap { width:calc(100% - 36px); }
+    }
+    /* Codex-like conversation surface: one project header, open transcript, anchored composer. */
+    .topbar { position:relative; height:68px; gap:8px; padding:0 74px 0 26px; background:#fff; }
+    .traffic, .top-brand, .top-sep, .branch, .avatar, .user-name { display:none; }
+    .brand-mark { width:30px; height:30px; color:#263244; background:transparent; border-radius:6px; }
+    .brand-mark svg { width:23px; height:23px; }
+    .project-name { font-size:19px; font-weight:650; letter-spacing:-.3px; }
+    .run-state { margin-left:2px; padding:5px 9px; font-size:11px; }
+    .budget-summary { min-width:0; gap:7px; }
+    .budget-icon,.budget-label,.budget-track,.save-label { display:none; }
+    .budget-values { font-size:12px; color:#68768a; }
+    .top-action { width:40px; height:40px; }
+    #dag-open-btn { position:absolute; top:13px; right:16px; }
+    .app:not(.module-mode) .chat-panel { background:#fff; }
+    .app:not(.module-mode) .chat-head,
+    .app:not(.module-mode) .assistant-context { display:none; }
+    .app:not(.module-mode) .messages { width:100%; max-width:none; margin:0; padding:30px clamp(24px,3.8vw,68px) 42px; gap:28px; }
+    .app:not(.module-mode) .day-divider { justify-content:flex-start; gap:12px; margin:0 0 2px; color:#737d8a; font-size:13px; }
+    .app:not(.module-mode) .day-divider::before { display:none; }
+    .app:not(.module-mode) .day-divider::after { background:#e6e8eb; }
+    .app:not(.module-mode) .message { width:100%; }
+    .app:not(.module-mode) .message-body { width:100%; max-width:none; }
+    .app:not(.module-mode) .message-meta { gap:9px; margin:0 0 10px; font-size:12px; color:#77808d; }
+    .app:not(.module-mode) .message-meta strong { color:#364152; font-size:13px; }
+    .app:not(.module-mode) .bubble { color:#202733; font-size:15px; line-height:1.78; overflow-wrap:anywhere; }
+    .app:not(.module-mode) .message.user { align-items:flex-end; }
+    .app:not(.module-mode) .message.user .message-body { width:auto; max-width:min(58%,760px); }
+    .app:not(.module-mode) .message.user .bubble { max-width:100%; padding:16px 20px; color:#173658; border:0; border-radius:20px; background:#e8f3ff; font-size:15px; line-height:1.65; }
+    .app:not(.module-mode) .route-callout { margin-top:15px; padding:12px 15px; border-color:#e3e8ef; border-radius:9px; background:#f6f7f8; color:#536177; font-size:13px; line-height:1.6; }
+    .app:not(.module-mode) .inline-changes { margin-top:15px; padding:13px 14px; border:1px solid #e4e7eb; border-radius:12px; background:#fff; box-shadow:0 2px 8px rgba(25,35,48,.035); color:#238255; font-size:13px; }
+    .app:not(.module-mode) .composer-wrap { width:100%; max-width:none; margin:0; padding:0 clamp(20px,3.8vw,68px) 16px; background:#fff; }
+    .app:not(.module-mode) .composer { min-height:158px; display:flex; flex-direction:column; justify-content:space-between; padding:18px 20px 12px; border:1px solid #e1e5e9; border-radius:23px; box-shadow:0 3px 14px rgba(23,35,51,.06); }
+    .app:not(.module-mode) .composer textarea { height:clamp(66px,11vh,112px); min-height:58px; padding:2px 3px; font-size:15px; line-height:1.6; }
+    .app:not(.module-mode) .composer-foot { gap:8px; font-size:12px; }
+    .app:not(.module-mode) .composer-foot { width:100%; justify-content:space-between; }
+    .composer-tools-left, .composer-tools-right { display:flex; align-items:center; gap:9px; min-width:0; }
+    .access-mode { min-height:40px; display:inline-flex; align-items:center; gap:8px; padding:0 8px; border:0; border-radius:9px; background:transparent; color:#d95a24; font-size:14px; cursor:pointer; white-space:nowrap; }
+    .access-mode:hover, .access-mode[aria-pressed="false"] { background:#fff7f2; color:#a85a32; }
+    .model-picker { gap:7px; }
+    .model-name { color:#303b4c; font-size:14px; }
+    .model-quality { color:#8792a1; font-size:13px; }
+    .model-select { position:relative; }
+    .model-menu { position:absolute; z-index:40; right:0; bottom:calc(100% + 12px); width:310px; padding:12px 8px 9px; border:1px solid #d9dde3; border-radius:20px; background:#fff; box-shadow:0 18px 44px rgba(26,34,46,.14); }
+    .model-menu[hidden] { display:none; }
+    .model-menu-title { padding:1px 16px 10px; color:#949aa3; font-size:14px; font-weight:600; }
+    .model-menu-section { display:flex; flex-direction:column; gap:2px; padding:0 16px 10px; }
+    .model-menu-section strong { color:#31353a; font-size:15px; font-weight:650; }
+    .model-menu-section span { color:#9aa0a8; font-size:13px; }
+    .model-option { width:100%; min-height:47px; display:flex; align-items:center; justify-content:space-between; padding:0 16px; border:0; border-radius:15px; background:transparent; color:#24272b; font-size:15px; text-align:left; cursor:pointer; }
+    .model-option:hover, .model-option:focus-visible { background:#f1f1f2; }
+    .model-option[aria-selected="true"] { font-weight:520; }
+    .model-option svg { opacity:0; color:#60656c; }
+    .model-option[aria-selected="true"] svg { opacity:1; }
+    .voice-btn { color:#313b49; }
+    .app:not(.module-mode) .tiny-action { width:40px; height:40px; }
+    .app:not(.module-mode) .model-picker { min-height:38px; padding:0 9px; font-size:12px; }
+    .app:not(.module-mode) .composer-foot .keyboard-hint { font-size:11px; }
+    .app:not(.module-mode) .send-btn { width:48px; height:48px; border-radius:50%; }
+    .app:not(.module-mode) .composer-hint { display:none; }
+    .app.module-mode #dag-open-btn { display:none; }
+    @media (min-width:1041px) {
+      .app:is(.dag-mode,.child-mode) .chat-panel { padding-right:calc(min(640px,48vw) + 30px); }
+    }
+    @media (max-width:1440px) {
+      .topbar .run-state { display:none; }
+    }
+    @media (max-width:1040px) {
+      .app.child-mode .inspector { top:64px; right:8px; bottom:8px; left:auto; width:min(500px,calc(100vw - 72px)); height:auto; }
+    }
+    @media (max-width:680px) {
+      .app:not(.module-mode) { grid-template-rows:58px minmax(0,1fr); }
+      .app.module-mode { grid-template-rows:58px auto; }
+      .topbar { height:58px; padding:0 60px 0 12px; gap:8px; }
+      #dag-open-btn { top:8px; right:8px; }
+      .project-name { max-width:150px; overflow:hidden; text-overflow:ellipsis; font-size:15px; }
+      .run-state { display:none; }
+      .budget-values { font-size:10px; }
+      .dag-open-btn { min-height:36px; padding:0 9px; gap:5px; font-size:11px; }
+      .top-action { width:34px; }
+      .app:not(.module-mode) .messages { padding:20px 18px 28px; gap:22px; }
+      .app:not(.module-mode) .message.user .message-body { max-width:86%; }
+      .app:not(.module-mode) .composer-wrap { padding:0 14px 10px; }
+      .app:not(.module-mode) .composer { min-height:132px; padding:13px 14px 9px; border-radius:18px; }
+      .app:not(.module-mode) .composer textarea { height:70px; font-size:14px; }
+      .app:not(.module-mode) .tiny-action { width:34px; height:34px; }
+      .app:not(.module-mode) .model-picker { max-width:122px; min-width:0; gap:4px; padding:0 3px; overflow:hidden; }
+      .composer-tools-left, .composer-tools-right { gap:3px; }
+      .access-mode { gap:5px; padding:0 4px; font-size:11px; }
+      .access-mode svg { width:15px; height:15px; }
+      .model-picker { max-width:122px; min-width:0; gap:4px; padding:0 3px; overflow:hidden; }
+      .model-name { max-width:92px; overflow:hidden; text-overflow:ellipsis; font-size:11px; }
+      .model-quality { display:none; }
+      .model-menu { right:-42px; width:min(310px,calc(100vw - 82px)); }
+      .app:not(.module-mode) .send-btn { width:36px; height:36px; flex:0 0 36px; }
+    }
+    /* Desktop app shell: no page-level top bar; primary navigation owns the DAG entry. */
+    .app { grid-template-rows:minmax(0,1fr); }
+    .rail { grid-row:1; min-height:0; }
+    .chat-panel, .main, .inspector, .app.module-mode .main { grid-row:1; }
+    .rail #dag-open-btn { position:relative; inset:auto; width:42px; min-width:42px; height:42px; padding:0; border:0; border-radius:9px; background:transparent; color:#7b8798; }
+    .rail #dag-open-btn:hover { color:var(--ink); background:var(--surface-3); }
+    .app:is(.dag-mode,.child-mode) .rail #dag-open-btn { color:var(--blue); background:var(--blue-soft); }
+    .rail #dag-open-btn > span { top:2px; right:2px; min-width:15px; height:15px; border-color:#fbfcfd; font-size:8px; }
+    .app.dag-mode .main, .app.child-mode .inspector { top:14px; }
+    @media (max-width:1040px) {
+      body { overflow:hidden; }
+      .app, .app.module-mode, .app:not(.module-mode) { height:100dvh; min-height:0; grid-template-columns:56px minmax(0,1fr); grid-template-rows:minmax(0,1fr); overflow:hidden; }
+      .rail, .app:not(.module-mode) .rail { grid-column:1; grid-row:1; min-height:0; height:100%; position:relative; top:auto; }
+      .chat-panel, .app:not(.module-mode) .chat-panel { grid-column:2; grid-row:1; height:auto; min-height:0; border:0; }
+      .main, .inspector, .app:not(.module-mode) .main, .app.module-mode .main { grid-column:2; grid-row:1; min-height:0; }
+      .app.dag-mode .main, .app.child-mode .inspector { top:8px; }
+    }
+    @media (max-width:680px) {
+      .app, .app.module-mode, .app:not(.module-mode) { grid-template-rows:minmax(0,1fr); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到任务画布</a>
+  <div class="app">
+    <nav class="rail" aria-label="主导航">
+      <button class="rail-btn" aria-label="项目" title="项目"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3.5 6.5h6l2 2H20a1 1 0 0 1 1 1v8.8a1.2 1.2 0 0 1-1.2 1.2H4.2A1.2 1.2 0 0 1 3 18.3V7a.5.5 0 0 1 .5-.5Z"/><path d="M3.5 10h17"/></svg></button>
+      <button class="rail-btn active" aria-label="运行任务" title="运行任务"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M7 5.5 19 12 7 18.5v-13Z"/></svg></button>
+      <button class="rail-btn dag-open-btn" id="dag-open-btn" aria-label="显示或隐藏任务 DAG" aria-controls="main-content" aria-expanded="false" title="任务 DAG · ⌘B"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="6" cy="6" r="2"/><circle cx="18" cy="6" r="2"/><circle cx="12" cy="18" r="2"/><path d="M8 6h8M7.2 7.6l3.6 8.8m6-8.8-3.6 8.8"/></svg><span>7</span></button>
+      <button class="rail-btn" aria-label="Agent 池" title="Agent 池"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="9" cy="8" r="3"/><path d="M3.5 19c.6-3 2.5-4.5 5.5-4.5 1.4 0 2.6.4 3.5 1.1M16 5.5a2.6 2.6 0 0 1 0 5.1m1 3.2c2.1.5 3.3 2.2 3.6 4.4"/></svg></button>
+      <button class="rail-btn" aria-label="模型注册表" title="模型注册表"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"/><path d="m4.5 7.8 7.5 4.4 7.5-4.4M12 12.2V21"/></svg></button>
+      <button class="rail-btn" aria-label="实验" title="实验"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M9 3h6m-5 0v6L4.5 18a1.8 1.8 0 0 0 1.6 2.7h11.8a1.8 1.8 0 0 0 1.6-2.7L14 9V3"/><path d="M8 15h8"/></svg></button>
+      <div class="rail-bottom"></div>
+      <button class="rail-btn" aria-label="设置" title="设置"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="3"/><path d="m19.4 15 .1.1 1.2 1-.9 1.6-1.5-.5a8 8 0 0 1-1.5.9l-.3 1.6h-1.9l-.3-1.6a8 8 0 0 1-1.7 0l-.9 1.3-1.7-.8.4-1.6a8 8 0 0 1-1.2-1.2l-1.6.4-.8-1.7 1.3-.9a8 8 0 0 1 0-1.7l-1.3-.9.8-1.7 1.6.4a8 8 0 0 1 1.2-1.2l-.4-1.6 1.7-.8.9 1.3a8 8 0 0 1 1.7 0l.3-1.6h1.9l.3 1.6a8 8 0 0 1 1.5.9l1.5-.5.9 1.6-1.2 1-.1.1a8 8 0 0 1 0 1.7Z"/></svg></button>
+      <button class="rail-btn" aria-label="帮助文档" title="帮助文档"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M9.6 9a2.5 2.5 0 1 1 4.2 1.8c-1 .9-1.8 1.3-1.8 2.7m0 3h.01"/></svg></button>
+    </nav>
+
+    <aside class="chat-panel" aria-label="主控 Agent 对话">
+      <div class="chat-head">
+        <div><h1>增加优惠券功能</h1><div class="chat-sub">Shop API · 主控 Agent · 自动调度子任务</div></div>
+        <div class="chat-head-actions"><button class="icon-button" id="chat-menu-btn" aria-label="对话选项" title="对话选项"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></button></div>
+      </div>
+      <div class="assistant-context">
+        <div class="assistant-orb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3.5 13.8 9l5.7 2-5.7 1.8L12 18.5l-1.8-5.7L4.5 11l5.7-2L12 3.5Z"/><path d="m18.5 15.5.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8.8-2.2Z"/></svg></div>
+        <div class="context-main"><div class="context-title">项目主控 · 均衡模式</div><div class="context-copy">全局上下文已同步 7 个子任务</div></div>
+        <div class="online"><i class="dot"></i>在线</div>
+      </div>
+      <div class="messages" id="messages" aria-live="polite" aria-label="对话消息">
+        <div class="day-divider">当前运行 · 14:08</div>
+        <article class="message assistant">
+          <div class="message-avatar" aria-hidden="true">TW</div>
+          <div class="message-body"><div class="message-meta"><strong>TaskWeaver</strong><span>主控 Agent</span><time>14:08</time></div><div class="bubble">我已把“增加优惠券功能”拆成 7 个子任务。代码探索和测试编写分配给低成本模型，结算校验与安全审查使用更强模型。<div class="route-callout">现在正在执行 <span>T3 · 实现领取接口</span>。你可以随时补充规则，我会只调整受影响的任务。</div></div></div>
+        </article>
+        <article class="message user">
+          <div class="message-avatar" aria-hidden="true">JD</div>
+          <div class="message-body"><div class="message-meta"><time>14:10</time><strong>你</strong></div><div class="bubble">领取接口要加上每个用户限领一张。现在开始的实现也按这个规则调整。</div></div>
+        </article>
+        <article class="message assistant">
+          <div class="message-avatar" aria-hidden="true">TW</div>
+          <div class="message-body"><div class="message-meta"><strong>TaskWeaver</strong><span>主控 Agent</span><time>14:10</time></div><div class="bubble">收到。这会影响领取接口、数据约束和对应测试。我已把“每用户限领一张”加入验收条件，并通知正在执行的 Agent；其他无关任务继续运行。<div class="inline-changes"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m5 12 4 4L19 6"/></svg>已更新 3 个任务 · 保留现有进度</div></div></div>
+        </article>
+      </div>
+      <div class="composer-wrap">
+        <form class="composer" id="chat-form">
+          <label for="chat-input" class="visually-hidden" style="position:absolute;left:-9999px">给主控 Agent 发送消息</label>
+          <textarea id="chat-input" placeholder="告诉主控 Agent 你想调整什么…" rows="2"></textarea>
+          <div class="composer-foot">
+            <div class="composer-tools-left"><button type="button" class="tiny-action" id="add-context-btn" aria-label="添加上下文或文件" title="添加上下文或文件"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 5v14M5 12h14"/></svg></button><button type="button" class="access-mode" id="access-mode-btn" aria-label="切换执行权限" aria-pressed="true"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3 20 6v5.5c0 4.4-3.2 7.7-8 9.5-4.8-1.8-8-5.1-8-9.5V6l8-3Z"/><path d="M12 7v5m0 3h.01"/></svg><span>完整访问</span></button></div>
+            <div class="composer-tools-right"><div class="model-select"><button type="button" class="model-picker" id="chat-model-picker" aria-label="选择主控模型，当前 GPT-6 Sol 最高" aria-haspopup="listbox" aria-expanded="false" aria-controls="chat-model-menu"><span class="model-name">GPT-6 Sol</span><span class="model-quality">最高</span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m7 10 5 5 5-5"/></svg></button><div class="model-menu" id="chat-model-menu" role="listbox" aria-label="主控对话模型" hidden><div class="model-menu-title">选择模型</div><div class="model-menu-section"><strong>默认</strong><span>推荐模型集</span></div><button type="button" class="model-option" role="option" aria-selected="false" data-model="GPT-6 Astra" data-quality="最高"><span>GPT-6 Astra</span><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m5 12 4 4L19 6"/></svg></button><button type="button" class="model-option" role="option" aria-selected="true" data-model="GPT-6 Sol" data-quality="最高"><span>GPT-6 Sol</span><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m5 12 4 4L19 6"/></svg></button><button type="button" class="model-option" role="option" aria-selected="false" data-model="GPT-6 Luna" data-quality="高"><span>GPT-6 Luna</span><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m5 12 4 4L19 6"/></svg></button><button type="button" class="model-option" role="option" aria-selected="false" data-model="GPT-5.6 Sol" data-quality="最高"><span>GPT-5.6 Sol</span><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m5 12 4 4L19 6"/></svg></button><button type="button" class="model-option" role="option" aria-selected="false" data-model="GPT-5.6 Terra" data-quality="高"><span>GPT-5.6 Terra</span><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m5 12 4 4L19 6"/></svg></button><button type="button" class="model-option" role="option" aria-selected="false" data-model="GPT-5.6 Luna" data-quality="中"><span>GPT-5.6 Luna</span><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m5 12 4 4L19 6"/></svg></button><button type="button" class="model-option" role="option" aria-selected="false" data-model="GPT-5.5" data-quality="高"><span>GPT-5.5</span><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m5 12 4 4L19 6"/></svg></button></div></div><button type="button" class="tiny-action voice-btn" id="voice-btn" aria-label="语音输入" title="语音输入"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3m-3 0h6"/></svg></button><button class="send-btn" type="submit" aria-label="发送消息"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 19V5m-7 7 7-7 7 7"/></svg></button></div>
+          </div>
+        </form>
+        <div class="composer-hint">主控 Agent 可在执行中理解变更并重新分配任务</div>
+      </div>
+    </aside>
+
+    <main class="main" id="main-content" tabindex="-1">
+      <div class="main-toolbar">
+        <div class="toolbar-title"><h2>任务 DAG</h2><div class="toolbar-sub">7 个子任务 · 3 个可并行 · 自动依赖调度</div></div>
+        <div class="toolbar-spacer"></div>
+        <div class="automation-pill"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3.5 13.8 9l5.7 2-5.7 1.8L12 18.5l-1.8-5.7L4.5 11l5.7-2L12 3.5Z"/></svg><div class="auto-copy"><strong>自动路由</strong><div style="color:#8290a4;margin-top:2px;font-size:9px">按任务动态分配角色与模型</div></div><button class="switch" id="auto-switch" aria-label="切换自动路由" aria-pressed="true"></button></div>
+        <button class="toolbar-button" id="pause-btn"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 5v14m8-14v14"/></svg><span>暂停</span></button>
+        <button class="toolbar-button primary" id="reroute-all-btn"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M5.8 9A7 7 0 0 1 18 6.5L20 12m-2 3a7 7 0 0 1-12.2 2.5L4 12"/></svg>重新评估</button>
+        <button class="toolbar-button" id="dag-close-btn">返回对话</button>
+      </div>
+      <section class="canvas-scroll" aria-label="任务依赖画布">
+        <div class="canvas-meta">
+          <div class="canvas-meta-left"><span class="task-total">优惠券功能</span><span>·</span><span>任务依赖关系</span><span class="legend"><span class="legend-item"><i class="legend-dot done"></i>已完成</span><span class="legend-item"><i class="legend-dot running"></i>执行中</span><span class="legend-item"><i class="legend-dot queued"></i>排队中</span></span></div>
+          <div class="canvas-controls"><button aria-label="缩小画布" title="缩小"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/></svg></button><button aria-label="放大画布" title="放大"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14m-7-7h14"/></svg></button><button aria-label="适配画布" title="适配画布"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M8 3H5a2 2 0 0 0-2 2v3m13-5h3a2 2 0 0 1 2 2v3M3 16v3a2 2 0 0 0 2 2h3m13-5v3a2 2 0 0 1-2 2h-3"/></svg></button></div>
+        </div>
+        <div class="graph-shell">
+          <svg class="edge" viewBox="0 0 900 500" preserveAspectRatio="none" aria-hidden="true">
+            <defs><marker id="arrow" markerWidth="7" markerHeight="7" refX="5.5" refY="3.5" orient="auto"><path d="M0 0 7 3.5 0 7Z" fill="#91a3bc"/></marker></defs>
+            <path d="M160 112 H300" marker-end="url(#arrow)"/><path class="strong" d="M420 112 H560" marker-end="url(#arrow)"/>
+            <path d="M650 168 V220 H160 V267" marker-end="url(#arrow)"/><path d="M650 168 V267" marker-end="url(#arrow)"/><path d="M650 168 V220 H740 V267" marker-end="url(#arrow)"/>
+            <path d="M160 375 V411 H450 V431" marker-end="url(#arrow)"/><path d="M450 375 V431" marker-end="url(#arrow)"/><path d="M740 375 V411 H450" marker-end="url(#arrow)"/>
+            <circle cx="650" cy="220" r="3"/><circle cx="450" cy="411" r="3"/>
+          </svg>
+          <div class="graph">
+            <div class="graph-row">
+              <button class="task-card done" data-task="explore" aria-label="选择任务 T1 代码探索，已完成">
+                <div class="task-title-line"><span class="task-num">T1</span><span class="task-title">探索代码库</span><span class="status-chip done"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="m3 8 3 3 7-7"/></svg>已完成</span></div>
+                <div class="task-separator"></div><div class="task-meta-row"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="9" cy="8" r="3"/><path d="M3.5 19c.6-3 2.5-4.5 5.5-4.5"/></svg><span class="role-label">代码探索</span><span class="model-chip cheap">低成本</span></div>
+                <div class="task-meta-row"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 5h16v14H4zM8 9h8M8 13h5"/></svg><span>定位订单、用户与优惠券模块</span></div>
+                <div class="task-desc">找到现有数据模型、服务层和测试入口。</div><div class="task-foot"><span><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>2m 12s</span><span>$0.02</span></div>
+              </button>
+              <button class="task-card done" data-task="design" aria-label="选择任务 T2 数据模型设计，已完成">
+                <div class="task-title-line"><span class="task-num">T2</span><span class="task-title">设计数据模型</span><span class="status-chip done"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="m3 8 3 3 7-7"/></svg>已完成</span></div>
+                <div class="task-separator"></div><div class="task-meta-row"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="9" cy="8" r="3"/><path d="M3.5 19c.6-3 2.5-4.5 5.5-4.5"/></svg><span class="role-label">方案设计</span><span class="model-chip strong">高能力</span></div>
+                <div class="task-meta-row"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"/></svg><span>定义领取记录与状态字段</span></div>
+                <div class="task-desc">明确领取约束、过期策略与数据库索引。</div><div class="task-foot"><span><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>3m 46s</span><span>$0.08</span></div>
+              </button>
+              <button class="task-card selected" data-task="claim" aria-label="选择任务 T3 实现领取接口，执行中">
+                <div class="task-title-line"><span class="task-num">T3</span><span class="task-title">实现领取接口</span><span class="status-chip running"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M13.5 8A5.5 5.5 0 1 1 8 2.5"/><path d="M8 2.5v4h4"/></svg>执行中</span></div>
+                <div class="task-separator"></div><div class="task-meta-row"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="9" cy="8" r="3"/><path d="M3.5 19c.6-3 2.5-4.5 5.5-4.5"/></svg><span class="role-label">Executor</span><span class="model-chip">均衡</span></div>
+                <div class="task-meta-row"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="m8 7-4 5 4 5m8-10 4 5-4 5m-2-12-4 14"/></svg><span>领取券、校验资格并返回结果</span></div>
+                <div class="task-desc" id="claim-desc">构建领取业务逻辑与重复领取校验。</div><div class="task-foot"><span><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>1m 28s</span><span>$0.12</span><span class="change-mark">需求已更新</span></div>
+              </button>
+            </div>
+            <div class="graph-row">
+              <button class="task-card" data-task="checkout" aria-label="选择任务 T4 结算校验，排队中">
+                <div class="task-title-line"><span class="task-num">T4</span><span class="task-title">结算校验</span><span class="status-chip queued"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="8" cy="8" r="5.5"/></svg>排队中</span></div>
+                <div class="task-separator"></div><div class="task-meta-row"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="9" cy="8" r="3"/><path d="M3.5 19c.6-3 2.5-4.5 5.5-4.5"/></svg><span class="role-label">Executor</span><span class="model-chip strong">高能力</span></div>
+                <div class="task-meta-row"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 5h16v14H4zM8 9h8M8 13h5"/></svg><span>折扣计算与订单金额校验</span></div>
+                <div class="task-desc">关注金额精度、叠加规则和状态一致性。</div><div class="task-foot"><span><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>预计 4m</span><span>$0.08 预计</span></div>
+              </button>
+              <button class="task-card" data-task="tests" aria-label="选择任务 T5 编写测试，排队中">
+                <div class="task-title-line"><span class="task-num">T5</span><span class="task-title">编写测试</span><span class="status-chip queued"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="8" cy="8" r="5.5"/></svg>排队中</span></div>
+                <div class="task-separator"></div><div class="task-meta-row"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="9" cy="8" r="3"/><path d="M3.5 19c.6-3 2.5-4.5 5.5-4.5"/></svg><span class="role-label">Tester</span><span class="model-chip cheap">低成本</span></div>
+                <div class="task-meta-row"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M5 4h14v16H5zM8 8h8M8 12h6m-6 4h4"/></svg><span>正常、过期和重复领取场景</span></div>
+                <div class="task-desc" id="tests-desc">覆盖接口验收条件及边界情况。</div><div class="task-foot"><span><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>预计 2m</span><span>$0.03 预计</span></div>
+              </button>
+              <button class="task-card" data-task="review" aria-label="选择任务 T6 安全审查，排队中">
+                <div class="task-title-line"><span class="task-num">T6</span><span class="task-title">安全审查</span><span class="status-chip queued"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="8" cy="8" r="5.5"/></svg>排队中</span></div>
+                <div class="task-separator"></div><div class="task-meta-row"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="9" cy="8" r="3"/><path d="M3.5 19c.6-3 2.5-4.5 5.5-4.5"/></svg><span class="role-label">Reviewer</span><span class="model-chip strong">高能力</span></div>
+                <div class="task-meta-row"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3 20 6v5c0 5-3.3 8-8 10-4.7-2-8-5-8-10V6l8-3Z"/><path d="m9 12 2 2 4-4"/></svg><span>检查越权、重复提交和竞争条件</span></div>
+                <div class="task-desc">高风险变更由独立 Agent 审查。</div><div class="task-foot"><span><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>预计 2m</span><span>$0.06 预计</span></div>
+              </button>
+            </div>
+            <div class="graph-row row-bottom">
+              <div class="empty-slot"></div>
+              <button class="task-card integration" data-task="integrate" aria-label="选择任务 T7 集成与全量测试，排队中">
+                <div class="task-title-line"><span class="task-num">T7</span><span class="task-title">集成与全量测试</span><span class="status-chip queued"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="8" cy="8" r="5.5"/></svg>排队中</span></div>
+                <div class="task-separator"></div><div class="task-meta-row"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M8 7H4v4m12 6h4v-4M5 11a7 7 0 0 1 12-4l2 2M19 13a7 7 0 0 1-12 4l-2-2"/></svg><span class="role-label">确定性集成</span><span class="model-chip deterministic">程序执行</span></div>
+                <div class="task-meta-row"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M5 4h14v16H5zM8 8h8M8 12h6"/></svg><span>合并分支、运行全量测试并生成报告</span></div>
+                <div class="task-foot"><span>等待上游任务通过</span><span>$0.04 预计</span></div>
+              </button>
+              <div class="empty-slot"></div>
+            </div>
+          </div>
+          <div class="graph-caption">滚轮缩放 · 拖动画布</div>
+        </div>
+      </section>
+      <section class="bottom-panel" aria-label="运行事件">
+        <div class="bottom-tabs"><button class="bottom-tab active" data-tab="log">运行日志</button><button class="bottom-tab" data-tab="agents">Agent 消息</button><button class="bottom-tab" data-tab="tests">测试</button><button class="bottom-tab" data-tab="artifacts">产物</button><span class="bottom-spacer"></span><span class="live-label"><i class="live-dot"></i><span>实时</span></span><button class="icon-button" id="clear-log" aria-label="清空日志" title="清空日志"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 7h16m-10 4v6m4-6v6M6 7l1 14h10l1-14M9 7V4h6v3"/></svg></button></div>
+        <div class="log-list" id="log-list">
+          <div class="log-row"><span class="log-time">14:08</span><span class="log-source router">[路由器]</span><span class="log-message">需求已拆分为 7 个子任务，预计总成本 $0.68</span></div>
+          <div class="log-row"><span class="log-time">14:08</span><span class="log-source router">[路由器]</span><span class="log-message">已按复杂度、风险和模型历史成功率完成自动分配</span></div>
+          <div class="log-row"><span class="log-time">14:09</span><span class="log-source">[系统]</span><span class="log-message">为 T3 创建独立 worktree：runs/042-add-coupon</span></div>
+          <div class="log-row"><span class="log-time">14:10</span><span class="log-source executor">[Executor]</span><span class="log-message">T3 正在实现领取接口并运行单元测试…</span></div>
+        </div>
+      </section>
+      <section class="module-view" id="module-view" aria-live="polite" hidden></section>
+    </main>
+
+    <aside class="inspector" aria-label="选中任务 Agent 对话与路由详情">
+      <div class="inspector-head"><button class="child-back" id="back-parent-btn">← 返回 DAG</button><div class="inspector-topline"><div class="child-title-group"><h2 id="inspector-title">实现领取接口</h2></div><span class="task-id" id="inspector-id">T3</span></div><div class="inspector-status"><span class="status-chip running" id="inspector-chip"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M13.5 8A5.5 5.5 0 1 1 8 2.5"/><path d="M8 2.5v4h4"/></svg>执行中</span><span id="inspector-time">已运行 1m 28s</span></div></div>
+      <div class="agent-context"><div class="agent-avatar" id="thread-avatar">EX</div><div class="agent-copy"><div class="agent-name" id="thread-agent-name">Executor · 任务 Agent</div><div class="agent-model" id="thread-agent-model">GLM-4.5 Air · 均衡</div></div><span class="thread-state" id="thread-state">● 正在工作</span></div>
+      <div class="task-tabs" role="tablist" aria-label="任务信息"><button class="task-tab active" id="thread-tab" role="tab" aria-selected="true">执行对话</button><button class="task-tab" id="route-tab" role="tab" aria-selected="false">路由详情</button></div>
+      <section class="thread-pane" id="thread-pane" role="tabpanel" aria-labelledby="thread-tab">
+        <div class="thread-messages" id="thread-messages" aria-live="polite">
+          <article class="thread-event"><div class="thread-meta"><strong>Executor</strong><time>14:10</time></div><div class="thread-bubble">已定位优惠券领取入口和相关服务。正在实现领取资格校验，并检查重复请求与并发场景。</div></article>
+          <article class="thread-event"><div class="thread-meta"><strong>Executor</strong><time>14:11</time></div><div class="thread-bubble">领取逻辑初版已完成。下一步运行接口测试，重点验证同一用户重复领取会被拒绝。</div></article>
+        </div>
+        <form class="thread-composer-wrap" id="thread-form"><div class="thread-composer"><textarea id="thread-input" aria-label="给当前任务 Agent 发送消息" placeholder="给这个任务补充指令…"></textarea><div class="thread-composer-foot"><span>仅发送给当前选中的 Agent</span><button class="thread-send" type="submit" aria-label="发送给任务 Agent" title="发送"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m4 4 16 8-16 8 3-8-3-8Z"/><path d="M7 12h13"/></svg></button></div></div></form>
+      </section>
+      <div class="route-pane" id="route-pane" role="tabpanel" aria-labelledby="route-tab" hidden><div class="inspector-body">
+        <div class="info-list">
+          <div class="info-row"><span class="info-label">角色</span><span class="info-value"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="8" r="3"/><path d="M5.5 20c.7-3.8 2.8-5.7 6.5-5.7s5.8 1.9 6.5 5.7"/></svg><strong id="inspector-role">Executor</strong></span></div>
+          <div class="info-row"><span class="info-label">模型</span><span class="info-value"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"/><path d="m4.5 7.8 7.5 4.4 7.5-4.4M12 12.2V21"/></svg><strong id="inspector-model">GLM-4.5 Air · 均衡</strong></span></div>
+          <div class="info-row"><span class="info-label">置信度</span><span class="confidence"><strong id="inspector-confidence">0.86</strong><span class="confidence-track"><span id="confidence-bar"></span></span></span></div>
+        </div>
+        <div><div class="section-title"><span>选择依据</span><span class="small-muted">自动分析</span></div><div class="reason-tags" id="reason-tags"><span class="reason-tag">3 个文件</span><span class="reason-tag">验收清晰</span><span class="reason-tag">中等复杂度</span></div><button class="why-button" id="why-btn"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M9.6 9a2.5 2.5 0 1 1 4.2 1.8c-1 .9-1.8 1.3-1.8 2.7m0 3h.01"/></svg>为什么选它？</button><div class="why-detail" id="why-detail">任务影响范围有限，已有明确接口验收条件。该模型在同类业务逻辑任务上成功率与成本较均衡，因此优先分配；测试失败时会携带验证结果重新评估。</div></div>
+        <div><div class="section-title"><span>可选模型对比</span><span class="small-muted">质量 / 预估费用</span></div><table class="model-table" aria-label="候选模型对比"><thead><tr><th>模型</th><th>成功率</th><th>费用</th></tr></thead><tbody id="model-rows"><tr class="selected"><td class="model-name">GLM-4.5 Air</td><td>86%</td><td>$0.12</td></tr><tr><td class="model-name">Claude Sonnet</td><td>91%</td><td>$0.28</td></tr><tr><td class="model-name">DeepSeek V3</td><td>79%</td><td>$0.06</td></tr></tbody></table></div>
+        <div class="budget-card"><div class="budget-card-title"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3 1 0 2-.1 2.8-.2M4 11v6c0 1.7 3.6 3 8 3m8-8v-2m-3 5 3-3 3 3m-3-3v8"/><path d="M20 5v4"/></svg>成本预算</div><div class="bar"><span id="inspector-spend-bar"></span></div><div class="budget-card-stats"><span><strong id="spend-now">$0.42</strong> / $2.00</span><span id="spend-pct">21%</span></div><div class="saving-row"><span>预计总成本</span><strong id="estimated-total">~ $0.68</strong></div><div class="saving-row" style="margin-top:0;padding-top:7px;border-top:0"><span>相对全强模型节省</span><span class="saving-value"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 20V5m-6 6 6-6 6 6"/></svg><span id="saving-pct">62% ($1.05)</span></span></div></div>
+        <div class="inspector-actions"><button class="btn" id="why-action">查看路由理由</button><button class="btn primary" id="reroute-btn">重新分配</button></div>
+      </div></div>
+    </aside>
+  </div>
+  <div class="menu-pop" id="menu-pop" role="menu"><button role="menuitem" id="export-log"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3v12m-5-5 5 5 5-5M5 17v3h14v-3"/></svg>导出本次运行记录</button><button role="menuitem" id="copy-run"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></svg>复制运行链接</button></div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script>
+    const taskData = {
+      explore: { id:'T1', title:'探索代码库', role:'代码探索', model:'DeepSeek V3 · 低成本', status:'已完成', time:'已完成 · 2m 12s', confidence:'0.94', reasons:['只读任务','范围明确','易于验证'], detail:'这是只读的代码定位任务，低成本模型能快速找到相关模块。结果已通过路径和符号检查。', rows:[['DeepSeek V3','94%','$0.02'],['GLM-4.5 Air','96%','$0.08'],['Claude Sonnet','97%','$0.16']] },
+      design: { id:'T2', title:'设计数据模型', role:'方案设计', model:'Claude Sonnet · 高能力', status:'已完成', time:'已完成 · 3m 46s', confidence:'0.91', reasons:['影响多个任务','模型约束','设计已确认'], detail:'该任务位于 DAG 上游，输出会影响领取接口、结算和测试，因此分配了更强模型降低下游返工风险。', rows:[['Claude Sonnet','91%','$0.28'],['GLM-4.5 Air','85%','$0.12'],['DeepSeek V3','73%','$0.06']] },
+      claim: { id:'T3', title:'实现领取接口', role:'Executor', model:'GLM-4.5 Air · 均衡', status:'执行中', time:'已运行 1m 28s', confidence:'0.86', reasons:['3 个文件','验收清晰','中等复杂度'], detail:'任务影响范围有限，已有明确接口验收条件。该模型在同类业务逻辑任务上成功率与成本较均衡，因此优先分配；测试失败时会携带验证结果重新评估。', rows:[['GLM-4.5 Air','86%','$0.12'],['Claude Sonnet','91%','$0.28'],['DeepSeek V3','79%','$0.06']] },
+      checkout: { id:'T4', title:'结算校验', role:'Executor', model:'Claude Sonnet · 高能力', status:'排队中', time:'等待依赖 T3', confidence:'0.89', reasons:['金额逻辑','跨模块','中高风险'], detail:'涉及订单金额、折扣和状态一致性。错误成本较高，因此使用高能力模型直接实现，避免廉价试错带来重复成本。', rows:[['Claude Sonnet','89%','$0.28'],['GLM-4.5 Air','82%','$0.14'],['DeepSeek V3','68%','$0.07']] },
+      tests: { id:'T5', title:'编写测试', role:'Tester', model:'DeepSeek V3 · 低成本', status:'排队中', time:'等待接口定义', confidence:'0.88', reasons:['验收明确','自动判分','低风险'], detail:'验收条件明确且可由测试运行器自动检查，低成本模型适合生成测试初稿；若覆盖检查不通过会补充用例。', rows:[['DeepSeek V3','88%','$0.03'],['GLM-4.5 Air','91%','$0.08'],['Claude Sonnet','92%','$0.16']] },
+      review: { id:'T6', title:'安全审查', role:'Reviewer', model:'Claude Sonnet · 高能力', status:'排队中', time:'等待代码变更', confidence:'0.92', reasons:['安全风险','独立审查','高影响'], detail:'优惠券涉及资格校验和并发领取，审查任务采用较高能力模型，独立检查越权、重复提交和竞争条件。', rows:[['Claude Sonnet','92%','$0.16'],['GLM-4.5 Air','84%','$0.08'],['DeepSeek V3','72%','$0.04']] },
+      integrate: { id:'T7', title:'集成与全量测试', role:'确定性集成', model:'程序执行 · 无模型', status:'排队中', time:'等待上游任务通过', confidence:'—', reasons:['固定流程','可确定执行','无需模型'], detail:'Git 合并、类型检查和全量测试优先由确定性程序执行，只有发生复杂冲突时才升级给 Integrator Agent。', rows:[['Git + 测试','确定性','$0.04'],['Integrator Agent','按需调用','$0.10+'],['—','—','—']] }
+    };
+    const taskChats = {
+      explore: [{who:'代码探索 Agent',time:'14:08',text:'已扫描项目目录，定位到优惠券模块、领取接口和现有测试入口。整理出的依赖关系已交给方案设计 Agent。'}],
+      design: [{who:'方案设计 Agent',time:'14:09',text:'建议将优惠券规则和用户领取记录分开建模，领取接口通过唯一约束保证幂等。方案已同步给实现与测试任务。'}],
+      claim: [{who:'Executor',time:'14:10',text:'已定位优惠券领取入口和相关服务。正在实现领取资格校验，并检查重复请求与并发场景。'},{who:'Executor',time:'14:11',text:'领取逻辑初版已完成。下一步运行接口测试，重点验证同一用户重复领取会被拒绝。'}],
+      checkout: [{who:'Executor',time:'14:09',text:'正在等待 T3 的接口和数据模型确认。开始后会重点核对金额精度、折扣叠加顺序和订单状态。'}],
+      tests: [{who:'Tester',time:'14:09',text:'已根据验收条件准备测试场景：正常领取、已过期、库存不足，以及同一用户重复领取。等待接口实现完成后运行。'}],
+      review: [{who:'Reviewer',time:'14:09',text:'审查任务已排队。我会独立检查越权领取、重复提交、并发竞争和敏感数据暴露，不复用实现 Agent 的结论。'}],
+      integrate: [{who:'集成执行器',time:'14:08',text:'当前等待上游子任务完成。满足依赖条件后将合并变更、运行全量测试并生成集成报告。'}]
+    };
+    const $ = (s, root=document) => root.querySelector(s);
+    const $$ = (s, root=document) => [...root.querySelectorAll(s)];
+    const messages = $('#messages');
+    const logList = $('#log-list');
+    let spend = 0.42;
+    let paused = false;
+    let autoRoute = true;
+    let routeRound = 0;
+    let toastTimer;
+    const timeNow = () => new Intl.DateTimeFormat('zh-CN',{hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date());
+    function toast(message) { const el=$('#toast'); el.textContent=message; el.classList.add('show'); clearTimeout(toastTimer); toastTimer=setTimeout(()=>el.classList.remove('show'),2500); }
+    function addLog(source, message, type='') { const row=document.createElement('div'); row.className='log-row'; row.innerHTML=`<span class="log-time">${timeNow()}</span><span class="log-source ${type}">[${source}]</span><span class="log-message"></span>`; $('.log-message',row).textContent=message; logList.append(row); logList.scrollTop=logList.scrollHeight; }
+    function addMessage(who, text, options={}) {
+      const article=document.createElement('article'); article.className=`message ${who==='你'?'user':'assistant'}`;
+      const avatar=document.createElement('div'); avatar.className='message-avatar'; avatar.setAttribute('aria-hidden','true'); avatar.textContent=who==='你'?'JD':'TW';
+      const body=document.createElement('div'); body.className='message-body';
+      const meta=document.createElement('div'); meta.className='message-meta';
+      const name=document.createElement('strong'); name.textContent=who;
+      const time=document.createElement('time'); time.textContent=timeNow();
+      if(who==='你'){meta.append(time,name)}else{meta.append(name); if(!options.simple){const role=document.createElement('span'); role.textContent='主控 Agent'; meta.append(role)} meta.append(time)}
+      const bubble=document.createElement('div'); bubble.className='bubble'; bubble.textContent=text;
+      if(options.callout){const call=document.createElement('div');call.className='route-callout';call.innerHTML=options.callout; bubble.append(call)}
+      if(options.change){const change=document.createElement('div');change.className='inline-changes';change.innerHTML='<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m5 12 4 4L19 6"/></svg>';const span=document.createElement('span');span.textContent=options.change;change.append(span);bubble.append(change)}
+      body.append(meta,bubble); article.append(avatar,body); messages.append(article); messages.scrollTop=messages.scrollHeight; return article;
+    }
+    function setTask(taskId, markChanged=false) {
+      const data=taskData[taskId]; if(!data) return;
+      showTaskPanel('thread');
+      $$('.task-card').forEach(card=>card.classList.toggle('selected',card.dataset.task===taskId));
+      $('#inspector-title').textContent=data.title; $('#inspector-id').textContent=data.id; $('#inspector-role').textContent=data.role; $('#inspector-model').textContent=data.model; $('#inspector-time').textContent=data.time;
+      $('#thread-agent-name').textContent=`${data.role} · 任务 Agent`;
+      $('#thread-agent-model').textContent=data.model;
+      $('#thread-avatar').textContent=data.role==='Executor'?'EX':data.role==='Reviewer'?'RV':data.role==='Tester'?'TS':data.role==='确定性集成'?'CI':data.role.slice(0,2).toUpperCase();
+      const threadState=$('#thread-state');threadState.className=`thread-state${data.status==='排队中'?' waiting':''}`;threadState.textContent=data.status==='执行中'?'● 正在工作':data.status==='已完成'?'✓ 已完成':data.status==='审查中'?'● 审查中':'○ 等待中';
+      const thread=$('#thread-messages');thread.replaceChildren(...(taskChats[taskId]||[]).map(entry=>{const article=document.createElement('article');article.className=`thread-event${entry.who==='你'?' user':''}`;const meta=document.createElement('div');meta.className='thread-meta';const name=document.createElement('strong');name.textContent=entry.who;const time=document.createElement('time');time.textContent=entry.time;meta.append(name,time);const bubble=document.createElement('div');bubble.className='thread-bubble';bubble.textContent=entry.text;article.append(meta,bubble);return article;}));thread.scrollTop=thread.scrollHeight;
+      $('#inspector-confidence').textContent=data.confidence; $('#confidence-bar').style.width=data.confidence==='—'?'0%':`${parseInt(data.confidence*100)}%`;
+      const chip=$('#inspector-chip'); chip.className=`status-chip ${data.status==='执行中'?'running':data.status==='已完成'?'done':data.status==='审查中'?'review':'queued'}`; chip.textContent=data.status;
+      const tags=$('#reason-tags'); tags.replaceChildren(...data.reasons.map((r,i)=>{const span=document.createElement('span');span.className=`reason-tag${i===data.reasons.length-1&&r.includes('风险')?' risk':''}`;span.textContent=r;return span;}));
+      $('#why-detail').textContent=data.detail;
+      const rows=$('#model-rows'); rows.replaceChildren(...data.rows.map((r,i)=>{const tr=document.createElement('tr');if(i===0)tr.className='selected';r.forEach(v=>{const td=document.createElement('td');td.textContent=v;if(v.includes('Claude')||v.includes('GLM')||v.includes('DeepSeek'))td.className='model-name';tr.append(td)});return tr;}));
+      $('#why-detail').classList.remove('open');
+      if(markChanged){const card=$(`.task-card[data-task="${taskId}"]`); if(card)card.classList.add('changed');}
+    }
+    function setDagVisible(visible) { const app=$('.app'); app.classList.toggle('dag-mode',visible); $('#dag-open-btn').setAttribute('aria-expanded',String(visible)); }
+    $$('.task-card').forEach(card=>card.addEventListener('click',()=>{const app=$('.app');setTask(card.dataset.task);app.classList.remove('dag-mode','module-mode');app.classList.add('child-mode');$('#module-view').hidden=true;$('#dag-open-btn').setAttribute('aria-expanded','true');}));
+    $('#dag-open-btn').addEventListener('click',()=>{const app=$('.app');if(app.classList.contains('child-mode')){app.classList.remove('child-mode');$('#dag-open-btn').setAttribute('aria-expanded','false');return;}app.classList.remove('module-mode');$('#module-view').hidden=true;setDagVisible(!app.classList.contains('dag-mode'));});
+    $('#dag-close-btn').addEventListener('click',()=>setDagVisible(false));
+    document.addEventListener('keydown',event=>{if((event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==='b'&&!event.altKey&&!event.target.closest('input,textarea,[contenteditable="true"]')){event.preventDefault();const app=$('.app');if(app.classList.contains('child-mode')){app.classList.remove('child-mode');$('#dag-open-btn').setAttribute('aria-expanded','false');return;}const willOpen=!app.classList.contains('dag-mode');if(willOpen){app.classList.remove('module-mode');$('#module-view').hidden=true;}setDagVisible(willOpen);}});
+    $('#back-parent-btn').addEventListener('click',()=>{const app=$('.app');app.classList.remove('child-mode');setDagVisible(true);});
+    function showTaskPanel(panel) { const isThread=panel==='thread';$('#thread-pane').hidden=!isThread;$('#route-pane').hidden=isThread;$('#thread-tab').classList.toggle('active',isThread);$('#route-tab').classList.toggle('active',!isThread);$('#thread-tab').setAttribute('aria-selected',String(isThread));$('#route-tab').setAttribute('aria-selected',String(!isThread)); }
+    $('#thread-tab').addEventListener('click',()=>showTaskPanel('thread'));$('#route-tab').addEventListener('click',()=>showTaskPanel('route'));
+    $('#thread-form').addEventListener('submit',event=>{event.preventDefault();const input=$('#thread-input');const value=input.value.trim();if(!value)return;const taskId=$('.task-card.selected')?.dataset.task||'claim';taskChats[taskId].push({who:'你',time:timeNow(),text:value});input.value='';setTask(taskId);addLog('你',`${taskData[taskId].id} 补充指令：${value}`);window.setTimeout(()=>{const data=taskData[taskId];const reply=data.status==='已完成'?'收到。这条补充会记录为任务变更；如果要应用到代码，可以让主控创建后续修订任务。':data.status==='排队中'?'收到。我会在该任务启动时遵循这条补充要求。':'收到，我会按这条补充继续执行，并在完成时说明验证结果。';taskChats[taskId].push({who:data.role==='确定性集成'?'集成执行器':data.role,time:timeNow(),text:reply});if($('.task-card.selected')?.dataset.task===taskId)setTask(taskId);addLog(data.role,`${data.id} 已确认补充指令`,'executor');},420);});
+    function explainRoute() { $('#why-detail').classList.toggle('open'); }
+    $('#why-btn').addEventListener('click',explainRoute); $('#why-action').addEventListener('click',explainRoute);
+    function reroute(taskId='claim') {
+      routeRound++;
+      const opts=[
+        {model:'GLM-4.5 Air · 均衡',confidence:'0.86',price:0.12,estimate:'~ $0.68',save:'62% ($1.05)',label:'保持均衡配置'},
+        {model:'Claude Sonnet · 高能力',confidence:'0.93',price:0.28,estimate:'~ $0.86',save:'49% ($0.83)',label:'已升级到高能力模型'},
+        {model:'DeepSeek V3 · 低成本',confidence:'0.79',price:0.06,estimate:'~ $0.55',save:'69% ($1.17)',label:'已切换到低成本模型'}
+      ];
+      const choice=opts[(routeRound-1)%opts.length]; taskData[taskId].model=choice.model; taskData[taskId].confidence=choice.confidence; taskData[taskId].rows=[[choice.model.split(' · ')[0],`${Math.round(Number(choice.confidence)*100)}%`,`$${choice.price.toFixed(2)}`],['Claude Sonnet','91%','$0.28'],['DeepSeek V3','79%','$0.06']];
+      $('#estimated-total').textContent=choice.estimate; $('#saving-pct').textContent=choice.save; setTask(taskId); addLog('路由器',`${taskData[taskId].id} ${choice.label}，置信度 ${choice.confidence}`,'router'); toast(choice.label);
+    }
+    $('#reroute-btn').addEventListener('click',()=>reroute($('.task-card.selected')?.dataset.task||'claim'));
+    $('#reroute-all-btn').addEventListener('click',()=>{addLog('路由器','已根据当前任务特征重新评估所有未开始任务','router');toast('任务路由已重新评估');});
+    $('#pause-btn').addEventListener('click',()=>{
+      paused=!paused; const btn=$('#pause-btn'), state=$('#run-state');
+      btn.innerHTML=paused?'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m8 5 11 7-11 7V5Z"/></svg><span>继续</span>':'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 5v14m8-14v14"/></svg><span>暂停</span>';
+      if(state){state.classList.toggle('paused',paused); state.querySelector('span').textContent=paused?'已暂停':'运行中';}
+      addLog('系统',paused?'主控已暂停派发；运行中的 Agent 可完成当前步骤':'继续执行并恢复任务调度');toast(paused?'已暂停新的任务派发':'任务执行已继续');
+    });
+    $('#auto-switch').addEventListener('click',e=>{autoRoute=!autoRoute;e.currentTarget.classList.toggle('off',!autoRoute);e.currentTarget.setAttribute('aria-pressed',String(autoRoute));toast(autoRoute?'自动路由已开启':'自动路由已关闭');addLog('路由器',autoRoute?'已启用自动模型与角色分配':'已关闭自动路由，后续任务需手动分配','router');});
+    function submitText(text) {
+      const value=text.trim(); if(!value)return; addMessage('你',value); $('#chat-input').value='';
+      const normalized=value.toLowerCase();
+      const asksWhy=/为什么|解释|理由|选.*模型|分配依据/.test(value);
+      const asksPause=/暂停|停一下/.test(value);
+      const asksCheap=/便宜|低成本|省钱/.test(value);
+      const asksStrong=/强模型|更强|质量优先/.test(value);
+      const correction=/不对|调整|改成|修改|限制|必须|不要|增加|补充|按.*规则|支持/.test(value);
+      window.setTimeout(()=>{
+        if(asksWhy){addMessage('TaskWeaver','我按每个子任务的复杂度、风险、验收清晰度和历史模型表现做分配。T3 的范围较小且测试明确，所以先用均衡模型；金额和安全相关任务会直接用高能力模型，避免先低价试错。',{callout:'当前选中 <span>T3 · 均衡模型</span>；预计费用 $0.12，估计成功率 86%。'});$('#why-detail').classList.add('open');return;}
+        if(asksPause){if(!paused)$('#pause-btn').click();addMessage('TaskWeaver','已经暂停新的任务派发。当前正在执行的 T3 会在安全检查点停下，其他待执行任务保持排队。');return;}
+        if(correction){
+          const affected=/测试|用例/.test(value)?['tests']:['claim','tests','review'];
+          affected.forEach(id=>{const card=$(`.task-card[data-task="${id}"]`);if(card)card.classList.add('changed');});
+          if(/每个用户|每人|限领|一次/.test(value)){$('#claim-desc').textContent='新增每位用户限领一张的校验与并发保护。';$('#tests-desc').textContent='新增同一用户重复领取时应拒绝的测试。';taskData.claim.reasons=['每用户限领','并发安全','验收明确'];taskData.claim.detail='你补充了每个用户限领一张的约束。主控已把它同步到领取逻辑和测试验收，并保留其他任务进度。';}
+          addLog('主控',`收到需求变更：“${value}”`,'');addLog('路由器','已更新相关验收条件并通知受影响 Agent','router');setTask('claim',true);
+          addMessage('TaskWeaver','收到，我会把这条补充作为当前需求的一部分处理。已更新相关任务的验收条件并通知执行 Agent；未受影响的任务继续运行。',{change:'更新任务图与 Agent 上下文',callout:'受影响：<span>T3 领取接口、T5 测试、T6 审查</span>。现有实现进度保留。'});return;
+        }
+        if(asksCheap){addMessage('TaskWeaver','可以。我会优先让低成本模型处理只读探索、清晰的测试编写和机械性修改；涉及金额、安全或复杂跨模块逻辑的任务仍保留高能力模型，避免失败后重复花费。');addLog('路由器','预算偏好已更新：低风险任务优先低成本模型','router');return;}
+        if(asksStrong){reroute('claim');addMessage('TaskWeaver','明白，已把当前领取接口任务提升到高能力模型。原有代码和测试结果会一并交接，后续任务仍按各自风险单独路由。',{change:'T3 已重新分配'});return;}
+        addMessage('TaskWeaver',`明白。我会把“${value}”纳入当前运行上下文，并检查它影响哪些任务。如果会改变验收标准，我会更新对应子任务后再通知执行 Agent。`,{callout:'你可以继续补充具体规则，或让我先给出受影响任务清单。'});
+      },420);
+    }
+    $('#chat-form').addEventListener('submit',e=>{e.preventDefault();submitText($('#chat-input').value);});
+    $('#chat-input').addEventListener('keydown',e=>{if((e.metaKey||e.ctrlKey)&&e.key==='Enter'){e.preventDefault();$('#chat-form').requestSubmit();}});
+    const modulePages = {
+      projects: `<div class="module-heading"><div class="module-heading-copy"><div class="module-eyebrow">WORKSPACE</div><h1>项目</h1><p>管理代码工作区、任务运行和项目级自动化。</p></div><div class="module-heading-actions"><button class="module-btn" data-feedback="导入项目流程 · 原型">导入项目</button><button class="module-btn primary" data-feedback="新建项目向导 · 原型">＋ 新建项目</button></div></div>
+        <div class="module-stats"><div class="module-stat"><div class="module-stat-label">项目总数</div><div class="module-stat-value">08</div><div class="module-stat-note">连接 6 个代码仓库</div></div><div class="module-stat"><div class="module-stat-label">本周任务运行</div><div class="module-stat-value">36</div><div class="module-stat-note">较上周 +12%</div></div><div class="module-stat"><div class="module-stat-label">Agent 执行中</div><div class="module-stat-value">04</div><div class="module-stat-note">分布在 3 个项目</div></div><div class="module-stat"><div class="module-stat-label">本月模型费用</div><div class="module-stat-value">$18.42</div><div class="module-stat-note">低于 $50 月预算</div></div></div>
+        <div class="module-two-col"><div><div class="module-section-title"><h2>最近项目</h2><span>查看全部 →</span></div><div class="module-grid" style="grid-template-columns:repeat(2,minmax(0,1fr))"><article class="module-card"><div class="module-card-top"><div class="module-icon">SA</div><div><div class="module-card-title">Shop API</div><div class="module-card-sub">zsn/shop-api · 更新于 12 分钟前</div></div></div><div class="module-card-copy">优惠券功能正在由 7 个子任务并行推进。当前工作区干净，主分支保护已启用。</div><div class="module-card-foot"><span class="module-badge green">● 运行中</span><span>4 次运行</span></div></article><article class="module-card"><div class="module-card-top"><div class="module-icon" style="background:#eef8f4;color:#238465">NT</div><div><div class="module-card-title">Notero</div><div class="module-card-sub">zsn/notero · 更新于昨天</div></div></div><div class="module-card-copy">桌面端与服务端协同开发。最近一次任务完成了课堂笔记导出流程调整。</div><div class="module-card-foot"><span class="module-badge">空闲</span><span>11 次运行</span></div></article><article class="module-card"><div class="module-card-top"><div class="module-icon" style="background:#fff5e9;color:#a66a17">DW</div><div><div class="module-card-title">Data Worker</div><div class="module-card-sub">zsn/data-worker · 更新于 3 天前</div></div></div><div class="module-card-copy">后台数据处理服务，配置了独立的测试 Agent 与较低成本路由策略。</div><div class="module-card-foot"><span class="module-badge">空闲</span><span>6 次运行</span></div></article></div></div><div class="module-panel"><div class="module-section-title"><h2>最近运行</h2><span>全部运行 →</span></div><table class="module-table"><thead><tr><th>任务</th><th>状态</th><th>耗时</th></tr></thead><tbody><tr><td><strong>增加优惠券功能</strong><br>Shop API · #042</td><td><span class="module-badge green">运行中</span></td><td>1m 28s</td></tr><tr><td><strong>修复笔记导出</strong><br>Notero · #041</td><td><span class="module-badge blue">已完成</span></td><td>6m 14s</td></tr><tr><td><strong>升级队列重试</strong><br>Data Worker · #040</td><td><span class="module-badge blue">已完成</span></td><td>3m 52s</td></tr></tbody></table></div></div>`,
+      agents: `<div class="module-heading"><div class="module-heading-copy"><div class="module-eyebrow">ORCHESTRATION</div><h1>Agent 池</h1><p>定义可承担的任务角色，并查看 Agent 的模型配置与运行状态。</p></div><div class="module-heading-actions"><button class="module-btn" data-feedback="Agent 模板库 · 原型">浏览模板</button><button class="module-btn primary" data-feedback="创建 Agent 向导 · 原型">＋ 创建 Agent</button></div></div>
+        <div class="module-stats"><div class="module-stat"><div class="module-stat-label">已配置角色</div><div class="module-stat-value">06</div><div class="module-stat-note">覆盖编码、测试与审查</div></div><div class="module-stat"><div class="module-stat-label">当前运行</div><div class="module-stat-value">03</div><div class="module-stat-note">并发上限 5</div></div><div class="module-stat"><div class="module-stat-label">平均成功率</div><div class="module-stat-value">91.6%</div><div class="module-stat-note">最近 30 天</div></div><div class="module-stat"><div class="module-stat-label">人工介入</div><div class="module-stat-value">7.8%</div><div class="module-stat-note">低于目标阈值</div></div></div>
+        <div class="module-section-title"><h2>角色与 Agent</h2><span>自动调度开启 · 按任务动态匹配</span></div><div class="module-grid"><article class="module-card"><div class="module-card-top"><div class="module-icon">OR</div><div><div class="module-card-title">编排 Agent</div><div class="module-card-sub">需求澄清 · 子任务拆解 · 汇总</div></div></div><div class="module-card-copy">负责保持全局上下文、构建任务 DAG，并依据风险与成本选择执行策略。</div><div class="module-card-foot"><span class="module-badge green">● 在线</span><span>主控 · 均衡模型</span></div></article><article class="module-card"><div class="module-card-top"><div class="module-icon">EX</div><div><div class="module-card-title">代码执行 Agent</div><div class="module-card-sub">功能实现 · 缺陷修复</div></div></div><div class="module-card-copy">接收范围清晰的编码任务，在独立工作区修改文件并提交验证结果。</div><div class="module-card-foot"><span class="module-badge green">● 运行中 1</span><span>均衡 / 高能力</span></div></article><article class="module-card"><div class="module-card-top"><div class="module-icon">TS</div><div><div class="module-card-title">测试 Agent</div><div class="module-card-sub">测试生成 · 验收验证</div></div></div><div class="module-card-copy">根据验收条件生成测试并调用确定性测试运行器检查结果。</div><div class="module-card-foot"><span class="module-badge">○ 空闲</span><span>低成本优先</span></div></article><article class="module-card"><div class="module-card-top"><div class="module-icon">RV</div><div><div class="module-card-title">代码审查 Agent</div><div class="module-card-sub">安全审查 · 变更检查</div></div></div><div class="module-card-copy">独立检查差异、权限边界与高风险逻辑，避免复用执行者的判断。</div><div class="module-card-foot"><span class="module-badge">○ 空闲</span><span>高能力 · 独立上下文</span></div></article><article class="module-card"><div class="module-card-top"><div class="module-icon">RP</div><div><div class="module-card-title">代码探索 Agent</div><div class="module-card-sub">只读检索 · 依赖定位</div></div></div><div class="module-card-copy">用轻量模型快速定位入口、调用链和相关文件，并向后续任务交接摘要。</div><div class="module-card-foot"><span class="module-badge">○ 空闲</span><span>低成本 · 只读</span></div></article><article class="module-card"><div class="module-card-top"><div class="module-icon">CI</div><div><div class="module-card-title">集成执行器</div><div class="module-card-sub">合并 · 类型检查 · 全量测试</div></div></div><div class="module-card-copy">优先使用确定性工具完成固定流程，遇到复杂冲突再升级到模型。</div><div class="module-card-foot"><span class="module-badge blue">程序执行</span><span>不消耗模型预算</span></div></article></div>`,
+      models: `<div class="module-heading"><div class="module-heading-copy"><div class="module-eyebrow">MODEL ROUTING</div><h1>模型注册表</h1><p>统一管理模型供应商、能力档位、调用状态和任务级路由可用性。</p></div><div class="module-heading-actions"><button class="module-btn" data-feedback="供应商文档 · 原型">查看接入说明</button><button class="module-btn primary" data-feedback="添加供应商流程 · 原型">＋ 添加供应商</button></div></div>
+        <div class="module-stats"><div class="module-stat"><div class="module-stat-label">已配置模型</div><div class="module-stat-value">04</div><div class="module-stat-note">来自 3 个供应商</div></div><div class="module-stat"><div class="module-stat-label">路由可用</div><div class="module-stat-value">03</div><div class="module-stat-note">1 个本地 Agent 接口</div></div><div class="module-stat"><div class="module-stat-label">本月调用</div><div class="module-stat-value">1,284</div><div class="module-stat-note">总计 3.8M tokens</div></div><div class="module-stat"><div class="module-stat-label">供应商健康</div><div class="module-stat-value">正常</div><div class="module-stat-note">最近检查 2 分钟前</div></div></div>
+        <div class="module-section-title"><h2>可路由模型</h2><span>费用与成功率为原型示例数据</span></div><div class="module-grid"><article class="module-card"><div class="module-card-top"><div class="module-icon">GL</div><div><div class="module-card-title">GLM-4.5 Air</div><div class="module-card-sub">智谱 · 均衡档</div></div></div><div class="module-card-copy">适合常规功能实现、代码编辑和任务对话。平均响应 2.4s，近期成功率 89%。</div><div class="module-card-foot"><span class="module-badge green">可用</span><span>成本指数 · 低</span></div></article><article class="module-card"><div class="module-card-top"><div class="module-icon" style="background:#f4efff;color:#7656b3">CS</div><div><div class="module-card-title">Claude Sonnet</div><div class="module-card-sub">Anthropic · 高能力</div></div></div><div class="module-card-copy">适合复杂跨模块实现、架构判断和独立代码审查。平均响应 4.1s，近期成功率 94%。</div><div class="module-card-foot"><span class="module-badge green">可用</span><span>成本指数 · 高</span></div></article><article class="module-card"><div class="module-card-top"><div class="module-icon" style="background:#eaf7f1;color:#16805b">DS</div><div><div class="module-card-title">DeepSeek V3</div><div class="module-card-sub">DeepSeek · 低成本</div></div></div><div class="module-card-copy">适合只读代码探索、清晰测试生成和机械性修改。平均响应 1.8s，近期成功率 84%。</div><div class="module-card-foot"><span class="module-badge green">可用</span><span>成本指数 · 很低</span></div></article><article class="module-card"><div class="module-card-top"><div class="module-icon" style="background:#fff5e9;color:#a66a17">CX</div><div><div class="module-card-title">Codex CLI</div><div class="module-card-sub">本地 Agent 接口 · 工具执行</div></div></div><div class="module-card-copy">用于需要真实仓库操作与终端工具的编码任务。模型与额度由本机 Agent 配置管理。</div><div class="module-card-foot"><span class="module-badge blue">本地连接</span><span>隔离工作区</span></div></article></div>`,
+      experiments: `<div class="module-heading"><div class="module-heading-copy"><div class="module-eyebrow">EVALUATION</div><h1>实验</h1><p>比较自动路由策略与固定模型方案，评估质量、成本和返工情况。</p></div><div class="module-heading-actions"><button class="module-btn" data-feedback="历史实验 · 原型">实验归档</button><button class="module-btn primary" data-feedback="新实验配置 · 原型">＋ 新建实验</button></div></div>
+        <div class="module-stats"><div class="module-stat"><div class="module-stat-label">进行中的实验</div><div class="module-stat-value">01</div><div class="module-stat-note">自动路由策略 v0.3</div></div><div class="module-stat"><div class="module-stat-label">累计任务样本</div><div class="module-stat-value">128</div><div class="module-stat-note">来自 8 个项目</div></div><div class="module-stat"><div class="module-stat-label">平均成本变化</div><div class="module-stat-value" style="color:#16805b">−34%</div><div class="module-stat-note">相对全高能力模型</div></div><div class="module-stat"><div class="module-stat-label">成功率变化</div><div class="module-stat-value">+2.1%</div><div class="module-stat-note">尚需更多样本确认</div></div></div>
+        <div class="module-two-col"><div class="module-panel"><div class="module-section-title"><h2>自动路由策略 v0.3</h2><span class="module-badge green">● 采集中</span></div><p class="module-card-copy" style="margin:0 0 12px">按子任务复杂度、风险、验收清晰度和模型历史表现选择模型；不确定时将整个任务交给高能力模型。</p><table class="module-table"><thead><tr><th>评估指标</th><th>自动路由</th><th>固定高能力</th><th>变化</th></tr></thead><tbody><tr><td>任务完成率</td><td><strong>92.4%</strong></td><td>90.3%</td><td>+2.1%</td></tr><tr><td>平均单任务成本</td><td><strong>$0.31</strong></td><td>$0.47</td><td>−34%</td></tr><tr><td>平均返工轮数</td><td><strong>1.18</strong></td><td>1.25</td><td>−5.6%</td></tr><tr><td>人工接管率</td><td><strong>7.8%</strong></td><td>8.4%</td><td>−0.6%</td></tr></tbody></table><div style="margin-top:13px"><button class="module-btn" data-feedback="实验对照组与样本明细 · 原型">查看样本明细</button></div></div><div class="module-panel"><div class="module-section-title"><h2>下一步建议</h2><span>实验助手</span></div><div class="module-list"><div class="module-list-row"><div class="module-icon">01</div><div class="module-list-copy"><strong>按任务类型分层</strong><small>区分测试、探索、实现与审查任务。</small></div></div><div class="module-list-row"><div class="module-icon">02</div><div class="module-list-copy"><strong>扩大复杂任务样本</strong><small>当前跨模块任务样本仍然偏少。</small></div></div><div class="module-list-row"><div class="module-icon">03</div><div class="module-list-copy"><strong>记录升级原因</strong><small>观察何时低成本模型升级更划算。</small></div></div></div><div class="module-note" style="margin-top:14px">实验数据应基于统一任务集与可复现配置；此处数值仅用于展示模块布局。</div></div></div>`,
+      settings: `<div class="module-heading"><div class="module-heading-copy"><div class="module-eyebrow">PREFERENCES</div><h1>设置</h1><p>配置自动编排、成本边界、执行隔离和人工确认策略。</p></div><div class="module-heading-actions"><span class="module-badge green">所有更改已保存</span></div></div>
+        <div class="module-two-col"><div class="module-panel"><div class="module-section-title"><h2>路由与预算</h2><span>项目级默认值</span></div><div class="module-list"><div class="module-list-row"><div class="module-list-copy"><strong>自动拆解与模型分配</strong><small>由主控 Agent 创建子任务并为每个任务独立选型。</small></div><button class="module-switch" aria-label="自动拆解与模型分配" aria-pressed="true"></button></div><div class="module-list-row"><div class="module-list-copy"><strong>失败后自动升级模型</strong><small>携带错误、日志和已有尝试进行整包交接。</small></div><button class="module-switch" aria-label="失败后自动升级模型" aria-pressed="true"></button></div><div class="module-list-row"><div class="module-list-copy"><strong>单次运行预算</strong><small>超过预算前暂停新任务并询问用户。</small></div><span class="module-badge blue">$2.00 USD</span></div><div class="module-list-row"><div class="module-list-copy"><strong>并行任务上限</strong><small>避免工作区资源争用与费用突增。</small></div><span class="module-badge">5 个 Agent</span></div></div><div style="margin-top:15px"><button class="module-btn primary" data-feedback="项目路由策略已保存 · 原型">保存设置</button></div></div><div class="module-panel"><div class="module-section-title"><h2>执行与安全</h2><span>默认安全策略</span></div><div class="module-list"><div class="module-list-row"><div class="module-list-copy"><strong>每个任务隔离工作区</strong><small>子任务在独立分支或 worktree 中运行。</small></div><button class="module-switch" aria-label="每个任务隔离工作区" aria-pressed="true"></button></div><div class="module-list-row"><div class="module-list-copy"><strong>高影响操作需确认</strong><small>删除文件、联网发布等操作请求人工确认。</small></div><button class="module-switch" aria-label="高影响操作需确认" aria-pressed="true"></button></div><div class="module-list-row"><div class="module-list-copy"><strong>向 Agent 暴露环境变量</strong><small>默认隐藏密钥，仅允许显式配置的变量。</small></div><button class="module-switch off" aria-label="向 Agent 暴露环境变量" aria-pressed="false"></button></div></div><div class="module-note" style="margin-top:15px">密钥应保存在本地安全存储中，不写入任务上下文或模型日志。</div></div></div>`,
+      help: `<div class="module-heading"><div class="module-heading-copy"><div class="module-eyebrow">GETTING STARTED</div><h1>帮助文档</h1><p>快速了解如何把一个自然语言需求变成可观察、可干预的多 Agent 工作流。</p></div><div class="module-heading-actions"><button class="module-btn" data-feedback="文档搜索 · 原型">⌕ 搜索文档</button></div></div>
+        <div class="module-stats"><div class="module-stat"><div class="module-stat-label">快速开始</div><div class="module-stat-value">01</div><div class="module-stat-note">连接仓库并描述目标</div></div><div class="module-stat"><div class="module-stat-label">编排指南</div><div class="module-stat-value">06</div><div class="module-stat-note">任务、角色与路由</div></div><div class="module-stat"><div class="module-stat-label">集成参考</div><div class="module-stat-value">12</div><div class="module-stat-note">CLI 与模型供应商</div></div><div class="module-stat"><div class="module-stat-label">当前版本</div><div class="module-stat-value">0.1</div><div class="module-stat-note">毕业设计原型</div></div></div>
+        <div class="module-section-title"><h2>从这里开始</h2><span>推荐阅读顺序</span></div><div class="module-grid"><article class="module-card"><div class="module-card-top"><div class="module-icon">01</div><div><div class="module-card-title">连接你的项目</div><div class="module-card-sub">约 2 分钟</div></div></div><div class="module-card-copy">选择本地代码仓库，检查工作区权限，并设置默认执行分支。</div><div class="module-card-foot"><span>项目设置</span><button class="module-btn" data-feedback="打开项目设置 · 原型">开始配置 →</button></div></article><article class="module-card"><div class="module-card-top"><div class="module-icon">02</div><div><div class="module-card-title">配置模型与角色</div><div class="module-card-sub">了解自动选型</div></div></div><div class="module-card-copy">为模型设置能力档位与成本，给 Agent 定义角色、工具和访问边界。</div><div class="module-card-foot"><span>模型注册表</span><button class="module-btn" data-feedback="打开模型注册表 · 原型">阅读 →</button></div></article><article class="module-card"><div class="module-card-top"><div class="module-icon">03</div><div><div class="module-card-title">观察一次任务运行</div><div class="module-card-sub">DAG 与子 Agent 对话</div></div></div><div class="module-card-copy">学习如何补充需求、暂停派发、查看子任务上下文和理解升级原因。</div><div class="module-card-foot"><span>运行任务</span><button class="module-btn" data-feedback="返回任务运行 · 原型">打开 →</button></div></article></div>`
+    };
+    function openModule(key) {
+      const app=$('.app'), view=$('#module-view');
+      if(key==='run'){app.classList.remove('module-mode','dag-mode','child-mode');$('#dag-open-btn').setAttribute('aria-expanded','false');view.hidden=true;$('.rail-btn[aria-label="运行任务"]').classList.add('active');$$('.rail-btn').filter(button=>button.getAttribute('aria-label')!=='运行任务').forEach(button=>button.classList.remove('active'));return;}
+      if(!modulePages[key])return;
+      app.classList.remove('dag-mode','child-mode');app.classList.add('module-mode');$('#dag-open-btn').setAttribute('aria-expanded','false');view.hidden=false;view.innerHTML=modulePages[key];
+      $$('.rail-btn').forEach(button=>button.classList.toggle('active',button.dataset.module===key));view.scrollTop=0;
+    }
+    const moduleByLabel={'项目':'projects','Agent 池':'agents','模型注册表':'models','实验':'experiments','设置':'settings','帮助文档':'help'};
+    $$('.rail-btn:not(#dag-open-btn)').forEach(button=>{const key=moduleByLabel[button.getAttribute('aria-label')];if(key)button.dataset.module=key;button.addEventListener('click',()=>openModule(key||'run'));});
+    $('#module-view').addEventListener('click',event=>{const toggle=event.target.closest('.module-switch');if(toggle){const enabled=toggle.classList.toggle('off')===false;toggle.setAttribute('aria-pressed',String(enabled));toast(enabled?'设置已启用 · 原型':'设置已关闭 · 原型');return;}const action=event.target.closest('[data-feedback]');if(action)toast(action.dataset.feedback);});
+    $$('.bottom-tab').forEach(button=>button.addEventListener('click',()=>{ $$('.bottom-tab').forEach(b=>b.classList.toggle('active',b===button)); const labels={log:'当前显示完整运行事件。',agents:'Agent 间任务分配、执行结果与交接消息。',tests:'单元测试、类型检查和验收用例结果。',artifacts:'本次运行产生的 diff、报告与代码分支。'};toast(labels[button.dataset.tab]);}));
+    $('#clear-log').addEventListener('click',()=>{logList.replaceChildren();toast('运行日志已清空');});
+    $('#more-btn')?.addEventListener('click',()=>$('#menu-pop').classList.toggle('open'));
+    document.addEventListener('click',e=>{if(!e.target.closest('#more-btn')&&!e.target.closest('#menu-pop'))$('#menu-pop').classList.remove('open');});
+    $('#export-log').addEventListener('click',()=>{const text=$$('.log-row',logList).map(row=>row.innerText.replaceAll('\n',' ')).join('\n');const blob=new Blob([text],{type:'text/plain;charset=utf-8'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='taskweaver-run-log.txt';a.click();URL.revokeObjectURL(a.href);$('#menu-pop').classList.remove('open');toast('运行日志已导出');});
+    $('#copy-run').addEventListener('click',async()=>{try{await navigator.clipboard.writeText(location.href);toast('运行链接已复制');}catch{toast('当前本地原型没有可分享链接');}$('#menu-pop').classList.remove('open');});
+    $('#chat-menu-btn').addEventListener('click',()=>toast('对话已连接当前运行与 7 个子任务'));
+    const chatModelPicker=$('#chat-model-picker'), chatModelMenu=$('#chat-model-menu');
+    function setModelMenu(open){chatModelMenu.hidden=!open;chatModelPicker.setAttribute('aria-expanded',String(open));}
+    chatModelPicker.addEventListener('click',event=>{event.stopPropagation();setModelMenu(chatModelMenu.hidden);});
+    $$('.model-option',chatModelMenu).forEach(option=>option.addEventListener('click',event=>{event.stopPropagation();$$('.model-option',chatModelMenu).forEach(item=>item.setAttribute('aria-selected',String(item===option)));chatModelPicker.querySelector('.model-name').textContent=option.dataset.model;chatModelPicker.querySelector('.model-quality').textContent=option.dataset.quality;chatModelPicker.setAttribute('aria-label',`选择主控模型，当前 ${option.dataset.model} ${option.dataset.quality}`);setModelMenu(false);chatModelPicker.focus();}));
+    document.addEventListener('click',event=>{if(!event.target.closest('.model-select'))setModelMenu(false);});
+    document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!chatModelMenu.hidden){setModelMenu(false);chatModelPicker.focus();}});
+    $('#access-mode-btn').addEventListener('click',event=>{const button=event.currentTarget,enabled=button.getAttribute('aria-pressed')==='true';button.setAttribute('aria-pressed',String(!enabled));button.querySelector('span').textContent=enabled?'受限访问':'完整访问';toast(`执行权限：${enabled?'受限访问':'完整访问'} · 原型`);});
+    $('#voice-btn').addEventListener('click',()=>toast('语音输入 · 原型'));
+    $('#add-context-btn').addEventListener('click',()=>toast('添加文件或上下文 · 原型'));
+    // Small canvas controls preserve the graph layout while giving the prototype tangible feedback.
+    let zoom=1; $$('.canvas-controls button').forEach((button,index)=>button.addEventListener('click',()=>{if(index===0)zoom=Math.max(.88,zoom-.06);if(index===1)zoom=Math.min(1.12,zoom+.06);if(index===2)zoom=1;$('.graph').style.transform=`scale(${zoom})`;$('.graph').style.transformOrigin='top center';toast(index===2?'画布已适配':`画布缩放 ${Math.round(zoom*100)}%`);}));
+  </script>
+</body>
+</html>
