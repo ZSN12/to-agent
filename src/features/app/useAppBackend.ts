@@ -960,32 +960,6 @@ export function useAppBackend() {
     return true
   }, [])
 
-  const setCurrentThreadModel = useCallback(async (modelKey: string, thinkingLevel?: ThinkingLevel) => {
-    const bridge = getBridge()
-    if (!bridge?.app?.setModelKey) return false
-
-    // Update backend first
-    const modelRes = await bridge.app.setModelKey(modelKey)
-    if (!modelRes.ok) {
-      setError(modelRes.error)
-      return false
-    }
-
-    // Update thinking level if provided
-    if (thinkingLevel && bridge.app.setThinkingLevel) {
-      const thinkingRes = await bridge.app.setThinkingLevel(thinkingLevel)
-      if (!thinkingRes.ok) {
-        setError(thinkingRes.error)
-        return false
-      }
-      setState(thinkingRes.data)
-    } else {
-      setState(modelRes.data)
-    }
-
-    setError(null)
-    return true
-  }, [])
 
   return {
     bridgeReady,
