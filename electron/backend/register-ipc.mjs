@@ -55,7 +55,9 @@ import { getMarketplaceManifest, listMarketplaceEntries, catalogEntryToServerCon
 import { createTaskWorktree, listTaskWorktrees, removeTaskWorktree, getTaskWorktreeDiff } from './worktree-service.mjs'
 import { createMemoryStore } from './memory-store.mjs'
 import { createCustomProviderService } from './custom-provider-service.mjs'
-import { syncOpenCodexFromCli, listModelsFromExport } from './opencodex-sync.mjs'
+import { listModelsFromExport } from './opencodex-sync.mjs'
+import { migrateLegacyModelsJson, resolveTaskWeaverModelsPath } from './taskweaver-models-path.mjs'
+import { ensureModelsJsonSyncedToDshHost } from './sync-models-json-to-host.mjs'
 import { IPC_PLANNER_FALLBACK_HINT_MAX_LENGTH, IPC_ERROR_MESSAGE_MAX_LENGTH } from './config.mjs'
 
 function ipcHandle(ipcMain, channel, fn) {
@@ -115,9 +117,19 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
     userDataPath: userData,
     executable: process.execPath,
   })
-  void hostManager.start().catch((error) => {
-    console.error('Z Host 预启动失败（模型目录将重试）:', error instanceof Error ? error.message : error)
+  void migrateLegacyModelsJson(userData).catch((error) => {
+    console.warn('models.json 迁移失败:', error instanceof Error ? error.message : error)
   })
+  const modelsPath = resolveTaskWeaverModelsPath(userData)
+  void hostManager.start()
+    .then(() => ensureModelsJsonSyncedToDshHost({
+      hostManager,
+      userDataPath: userData,
+      credentialStore,
+    }))
+    .catch((error) => {
+      console.error('Z Host 预启动或 models.json 同步失败（模型目录将重试）:', error instanceof Error ? error.message : error)
+    })
 
   const modelRegistryUpdater = createModelRegistryUpdater({
     userDataPath: userData,
@@ -294,12 +306,15 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
   // No need to recreate - just ensure modelService has reference
 
   const customProviderService = createCustomProviderService({
-    modelsPath: path.join(userData, 'models.json'),
+    modelsPath,
     credentials: credentialStore,
     refreshRuntime: async () => {
-      // Refresh DSH host when custom providers change
       if (hostManager.isRunning()) {
-        await hostManager.restart()
+        await ensureModelsJsonSyncedToDshHost({
+          hostManager,
+          userDataPath: userData,
+          credentialStore,
+        })
       }
     },
   })

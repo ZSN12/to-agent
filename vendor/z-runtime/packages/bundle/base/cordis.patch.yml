@@ -18,8 +18,7 @@
 
     - id: hmr
       name: '@z/cordis-plugin-hmr'
-      config:
-        root: ['.']
+      disabled: true
 
     - id: llm
       name: '@z/dsh-llm'

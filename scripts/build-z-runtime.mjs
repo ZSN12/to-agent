@@ -16,6 +16,7 @@ import {
   TASKWEAVER_Z_RUNTIME_DEPLOY_DIR,
   TASKWEAVER_Z_RUNTIME_CLIENT_DIR,
 } from '../electron/agent/z-host/resolve-runtime.mjs'
+import { patchTaskWeaverRuntimeNoHmr, patchZRuntimeSourceBundlesNoHmr } from './patch-taskweaver-runtime-no-hmr.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const zRuntimeSource = path.join(root, 'vendor', 'z-runtime')
@@ -381,6 +382,8 @@ async function main() {
   } else if (!fs.existsSync(outDir)) {
     throw new Error(`--skip-deploy 但 vendor/${TASKWEAVER_Z_RUNTIME_DEPLOY_DIR} 不存在`)
   }
+  await patchZRuntimeSourceBundlesNoHmr()
+  await patchTaskWeaverRuntimeNoHmr(outDir)
   await ensureRuntimePeerPackages(outDir, monorepoRoot, scope)
   await stageDeployedCliEntry(outDir, monorepoRoot)
   await stageWebFrontendDist(outDir, monorepoRoot, scope)

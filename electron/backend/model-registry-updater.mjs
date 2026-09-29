@@ -219,9 +219,24 @@ export function createModelRegistryUpdater({
     if (!fs.existsSync(previousPath)) throw new Error('没有可回滚的模型目录版本')
     const current = await loadActiveRegistry()
     const previous = await loadRegistryFile(previousPath)
-    await atomicWrite(activePath, `${JSON.stringify(previous, null, 2)}\n`)
-    await atomicWrite(previousPath, `${JSON.stringify(current.registry, null, 2)}\n`)
+    // Validate before touching either file. A runtime that cannot map the
+    // previous registry must not leave the on-disk active pointer half-swapped.
     if (mappingValidator) await mappingValidator(previous)
+    const activeExisted = fs.existsSync(activePath)
+    const previousExisted = fs.existsSync(previousPath)
+    const activeBytes = activeExisted ? await fsp.readFile(activePath) : null
+    const previousBytes = previousExisted ? await fsp.readFile(previousPath) : null
+    try {
+      await atomicWrite(activePath, `${JSON.stringify(previous, null, 2)}\n`)
+      await atomicWrite(previousPath, `${JSON.stringify(current.registry, null, 2)}\n`)
+    } catch (error) {
+      // Best-effort transaction recovery if the second rename fails.
+      if (activeBytes) await atomicWrite(activePath, activeBytes).catch(() => {})
+      else await fsp.unlink(activePath).catch(() => {})
+      if (previousBytes) await atomicWrite(previousPath, previousBytes).catch(() => {})
+      else await fsp.unlink(previousPath).catch(() => {})
+      throw error
+    }
     return persistStatus({
       state: 'rolled-back',
       currentVersion: previous.registryVersion,

@@ -18,7 +18,7 @@
     persona: >-
       You are a coding agent powered by the {{model}} model. Your working directory is {{cwd}}.
 
-# TODO: Re-enable shared HMR for Web after its reload lifecycle is tested.
+# TaskWeaver: Cordis HMR 永久关闭（嵌入式 Host 无 --expose-internals）
 - id: hmr
   disabled: true
 
@@ -147,12 +147,10 @@
         surfaceContext: true
         trustedHosts: !!js ctx.webStartup.trustedHosts
 
-    # The client-plugin reload chain, always mounted: it is idle until a
-    # rebuild watcher (pnpm run dev:web) actually rewrites client bundles. It
-    # is a row rather than a child of web-runtime because its node half is a
-    # client-side package, which a host-side bundle cannot import.
+    # TaskWeaver: client-hmr 已关闭（桌面端不跑 dev:web 热重载）
     - id: client-hmr
       name: '@z/dsh-client-hmr'
+      disabled: true
 
     # ── browser plugin roster (dsh.client rows; node halves are layer-2 hosts) ──
 

@@ -98,6 +98,8 @@ export interface CatalogModel {
   capabilitySummary?: string
   taskTags?: string[]
   verificationStatus?: 'verified' | 'unverified' | 'bundled'
+  /** Whether DSH llm.models has confirmed this model is routable. */
+  routeRegistered?: boolean
 }
 
 export interface ModelCatalog {

@@ -12,6 +12,7 @@ import {
 } from './dsh-pi-ai-credentials.mjs'
 import { discoverModelsFromProviderApi } from './provider-live-discovery.mjs'
 import { loadPriceRegistry, mergeRegistryCost, registryPriceMeta } from './price-registry.mjs'
+import { taskweaverApiKeyEnvRef } from './pi-models-to-dsh-profile.mjs'
 
 /** Providers that use TaskWeaver-native OAuth (written to DSH llm-pi-ai grant records). */
 const TASKWEAVER_NATIVE_OAUTH = {
@@ -133,6 +134,35 @@ export function createModelService({
       profile.reasoningEfforts = model.reasoningEfforts
     }
     return profile
+  }
+
+  function schemaValuesAtPath(schema, pathParts) {
+    const refs = schema?.refs ?? {}
+    let node = refs[String(schema?.uid)]
+    const resolve = (value) => typeof value === 'number' || typeof value === 'string'
+      ? (refs[String(value)] ?? value)
+      : value
+    node = resolve(node)
+    for (const part of pathParts) {
+      node = resolve(node)
+      let child = node?.dict?.[part] ?? node?.fields?.[part]
+      // Provider settings live under a dynamic dictionary keyed by provider id.
+      if (child === undefined && node?.type === 'dict') child = node.inner
+      if (child === undefined) return []
+      node = resolve(child)
+    }
+    const values = new Set()
+    const visit = (current, seen = new Set()) => {
+      current = resolve(current)
+      if (!current || typeof current !== 'object' || seen.has(current)) return
+      seen.add(current)
+      if (current.type === 'const' && typeof current.value === 'string') values.add(current.value)
+      for (const ref of current.list ?? []) visit(ref, seen)
+      for (const ref of Object.values(current.dict ?? {})) visit(ref, seen)
+      if (current.inner !== undefined) visit(current.inner, seen)
+    }
+    visit(node)
+    return [...values]
   }
 
   /** Persist signed catalog additions in DSH itself, then re-read its real routable catalog. */
@@ -313,7 +343,9 @@ export function createModelService({
       return hasPiAiGrant(dshHome(), providerId)
     }
     const { value } = providerSettings(directory, providerRow)
-    const ref = typeof value?.apiKeyEnv === 'string' ? value.apiKeyEnv.trim() : ''
+    const ref = typeof value?.apiKeyEnv === 'string' && value.apiKeyEnv.trim()
+      ? value.apiKeyEnv.trim()
+      : (hasPiAiSettingsNamespace(directory) ? taskweaverApiKeyEnvRef(providerId) : '')
     if (!ref) return false
     const response = dshValue(await directory.api.credentials.describe({ refs: [ref] }), '读取 DSH 凭据状态')
     return Boolean(response.credentials?.[ref]?.configured)
@@ -567,18 +599,48 @@ export function createModelService({
 
   async function validateRegistryMapping(registry) {
     const directory = await fetchDshModelDirectoryOnce()
-    const supportedProviders = new Set((directory.providers ?? []).map((item) => item.provider))
-    const unknownProviders = new Set(registryModels(registry)
-      .filter((model) => !supportedProviders.has(model.provider))
-      .map((model) => model.provider))
-    if (unknownProviders.size) {
-      throw new Error(`当前 DSH Runtime 未注册提供方：${[...unknownProviders].join(', ')}`)
+    const providerRows = new Map((directory.providers ?? []).map((item) => [item.provider, item]))
+    const groups = new Map((directory.groups ?? []).map((group) => [group.id, group]))
+    const namespace = findSettingsNamespace(directory.namespaces, 'llm-pi-ai')
+    const models = registryModels(registry).filter((model) => !model.deprecated)
+    const unsupportedProviders = new Set()
+    const unsupportedMappings = []
+    for (const model of models) {
+      const provider = providerRows.get(model.provider)
+      const group = groups.get(model.provider)
+      if (!provider) {
+        unsupportedProviders.add(model.provider)
+        continue
+      }
+      const alreadyRoutable = (group?.models ?? []).some((item) => item.id === model.id)
+      if (alreadyRoutable) continue
+      const registryProvider = registry.providers?.[model.provider]
+      if (provider.settingsNs !== 'llm-pi-ai' || !namespace || namespace.writable === false) {
+        unsupportedMappings.push(`${model.key}（运行时不支持在线添加模型）`)
+        continue
+      }
+      const protocols = Array.isArray(registryProvider?.protocols) ? registryProvider.protocols : []
+      const supportedProtocols = schemaValuesAtPath(namespace.schema, ['providers', model.provider, 'api'])
+      if (!protocols.length || protocols.some((protocol) => !supportedProtocols.includes(protocol))) {
+        unsupportedMappings.push(`${model.key}（提供方协议与当前 Runtime 不兼容）`)
+        continue
+      }
+      if (!model.api || !protocols.includes(model.api) || !supportedProtocols.includes(model.api)) {
+        unsupportedMappings.push(`${model.key}（缺少受支持的模型协议）`)
+      }
+    }
+    if (unsupportedProviders.size) {
+      throw new Error(`当前 Z Host 未注册提供方：${[...unsupportedProviders].join(', ')}`)
+    }
+    if (unsupportedMappings.length) {
+      throw new Error(`当前 Z Host 无法映射模型目录：${unsupportedMappings.slice(0, 8).join('；')}${unsupportedMappings.length > 8 ? '；…' : ''}`)
     }
     return true
   }
 
   function hasPiAiSettingsNamespace(directory) {
-    return Boolean(findSettingsNamespace(directory.namespaces, 'llm-pi-ai'))
+    if (findSettingsNamespace(directory.namespaces, 'llm-pi-ai')) return true
+    return (directory.providers ?? []).some((row) => row.settingsNs === 'llm-pi-ai')
   }
 
   function defaultPiAiProviderRow(providerId, displayName = providerId) {

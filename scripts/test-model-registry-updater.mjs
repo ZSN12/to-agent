@@ -38,10 +38,15 @@ try {
     requests += 1
     return new Response(url.endsWith('manifest.json') ? JSON.stringify(manifest) : bytes, { status: 200 })
   }
+  let rejectMapping = false
   const updater = createModelRegistryUpdater({
     userDataPath: temp, bundledRegistryPath: bundledPath, runtimeLockPath: runtimePath,
     currentAppVersion: '1.0.0', manifestUrl: 'https://test.invalid/manifest.json',
-    publicKeyDer, fetchImpl, now: () => now, validateMapping: async () => true,
+    publicKeyDer, fetchImpl, now: () => now,
+    validateMapping: async () => {
+      if (rejectMapping) throw new Error('test runtime mapping failure')
+      return true
+    },
   })
   const updated = await updater.checkForUpdates({ force: true })
   assert.equal(updated.state, 'updated')
@@ -50,6 +55,13 @@ try {
   const cached = await updater.checkForUpdates({ force: false })
   assert.equal(cached.state, 'cached')
   assert.equal(requests, 2)
+  const activeBeforeRejectedRollback = await fsp.readFile(path.join(temp, 'model-registry', 'active.json'), 'utf8')
+  const previousBeforeRejectedRollback = await fsp.readFile(path.join(temp, 'model-registry', 'previous.json'), 'utf8')
+  rejectMapping = true
+  await assert.rejects(updater.rollbackRegistry(), /test runtime mapping failure/)
+  assert.equal(await fsp.readFile(path.join(temp, 'model-registry', 'active.json'), 'utf8'), activeBeforeRejectedRollback)
+  assert.equal(await fsp.readFile(path.join(temp, 'model-registry', 'previous.json'), 'utf8'), previousBeforeRejectedRollback)
+  rejectMapping = false
   const rolledBack = await updater.rollbackRegistry()
   assert.equal(rolledBack.state, 'rolled-back')
   assert.equal(rolledBack.currentVersion, '1.0.0')
