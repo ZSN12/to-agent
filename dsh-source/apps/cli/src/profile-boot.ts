@@ -14,7 +14,7 @@
 import { writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { FiberState, type Context } from '@deepseek-ai/cordis'
+import type { Context } from '@deepseek-ai/cordis'
 import type { PatchOptions } from '@deepseek-ai/cordis-plugin-include'
 import type { EntryOptions } from '@deepseek-ai/cordis-plugin-loader'
 import {
@@ -26,7 +26,6 @@ import {
   loadOverlayPatches,
   loadProfile,
   PROFILE_PATCH_FILENAME,
-  watchUserPatches,
   type Profile,
 } from '@deepseek-ai/dsh-app-boot'
 import { resolveDshHome } from '@deepseek-ai/dsh-home-paths'
@@ -39,6 +38,11 @@ import { provideCmdline } from '@deepseek-ai/dsh-cmdline'
 import { createProcessShutdown, type ProcessShutdown } from './process-shutdown.ts'
 
 const NAME = 'dsh'
+
+/** TaskWeaver embeds DSH as a headless API host; skip patch/HMR watchers that need Node internals. */
+function taskweaverEmbedded(): boolean {
+  return (process.env.DSH_TASKWEAVER_EMBEDDED ?? '') !== ''
+}
 
 /**
  * The home-level user patch layer (`$DSH_HOME/cordis.patch.yml`), applied
@@ -144,7 +148,9 @@ function composeProfile(
   patchFiles: readonly string[],
 ): ComposedProfile {
   const profile = prepareProfile(name)
-  const homePatches = loadOptionalPatches(NAME, homePatchPath()) ?? []
+  const homePatches = taskweaverEmbedded()
+    ? []
+    : (loadOptionalPatches(NAME, homePatchPath()) ?? [])
   const overlays = patchFiles.flatMap(file => loadOverlayPatches(NAME, resolve(file)))
   const bundlePatches = profile.layers.flatMap(layer => layer.patches)
   const rows = new Map<string, EntryOptions>()
@@ -183,22 +189,6 @@ export interface RunProfileOptions {
 }
 
 /**
- * Re-throw a watcher-setup failure unless a shutdown already owns the tree:
- * a signal aborted this invocation, or an app requested exit (`ctx.appExit`
- * from a fast one-shot) and the root's disposal rejected the in-flight setup
- * await. Either way the failure describes a tree that is exiting as asked,
- * not a broken watch.
- * @param ctx - the booted root context.
- * @param signal - this invocation's signal-shutdown fact.
- * @param error - the setup failure.
- */
-function suppressShutdownError(ctx: Context, signal: AbortSignal, error: unknown): void {
-  if (signal.aborted) return
-  if (ctx.fiber.state !== FiberState.ACTIVE || ctx.get('loader') === undefined) return
-  throw error
-}
-
-/**
  * Boot one profile invocation end to end and leave process lifetime to the
  * mounted plugins (or to a one-shot runner the composition mounts).
  * @param options - environment snapshot, profile name, overlays, and the booted app's own arguments.
@@ -225,26 +215,6 @@ export async function runProfile(options: RunProfileOptions): Promise<{ ctx: Con
   })
 
   const rootConfig = join(composed.profile.dir, PROFILE_ROOT_FILENAME)
-  // Recomposition for the live user layers: bundle layers below, overlays
-  // above, so a user edit can never displace them. Parsed app arguments are
-  // not in here at all — they live in app-provided services that survive a
-  // recomposition. BOTH
-  // user files are re-read per generation (the HMR watcher hands us only the
-  // changed file's patches, which one of the reads duplicates — fresh reads
-  // keep the two watchers from stitching in each other's stale copy).
-  // Fresh clones per generation: the include pushes `insert` rows into the
-  // mounted tree BY REFERENCE and later id-targeted patches mutate those
-  // objects in place. Reusing one parsed patch object across applications
-  // would bake a user override into the bundle's in-memory insert row, so
-  // removing the override could never revert the row to the bundle default.
-  const composeLive = (): PatchOptions[] => structuredClone([
-    ...composed.bundlePatches,
-    ...loadOptionalPatches(NAME, composed.profile.patchPath) ?? [],
-    ...loadOptionalPatches(NAME, homePatchPath()) ?? [],
-    ...composed.overlays,
-  ])
-  // Cloned for the same insert-aliasing reason as composeLive: the boot
-  // application must not mutate the objects later reloads recompose from.
   const ctx = await boot(NAME, rootConfig, structuredClone(allPatches(composed)), (hostCtx) => {
     app.current = hostCtx
     // Before any config-tree entry mounts, so plugins resolve all launch-time
@@ -258,43 +228,5 @@ export async function runProfile(options: RunProfileOptions): Promise<{ ctx: Con
     })
   })
   app.current = ctx
-  // A surface can dispose the whole tree while boot or this post-boot watcher
-  // setup is still in flight — a signal, or a fast one-shot's appExit. Loader
-  // presence and fiber state own liveness; the initial check skips a tree
-  // that already exited, and the catch below re-checks for an exit that
-  // landed mid-setup. Watching is unconditional: a one-shot surface exits
-  // through its bounded shutdown, which disposes the watchers before the
-  // loop drains.
-  if (!signalShutdown.signal.aborted
-    && ctx.fiber.state === FiberState.ACTIVE
-    && ctx.get('loader') !== undefined) {
-    try {
-      // Config-only HMR for the live profile patch layer: the web bundle
-      // disables the shared module-reload `hmr` row (its reload lifecycle is
-      // untested), so when the composition leaves no HMR service, mount a
-      // watch-only instance with no module roots — cordis.patch.yml edits stay
-      // live on every long-lived surface. A silent skip would break the
-      // documented hot-reload contract. HMR injects the timer service, which a
-      // bare custom profile may not mount either.
-      if (ctx.get('hmr') === undefined) {
-        if (ctx.get('timer') === undefined) {
-          await ctx.loader.create({ name: '@deepseek-ai/cordis-plugin-timer' })
-        }
-        await ctx.loader.create({ name: '@deepseek-ai/cordis-plugin-hmr', config: { root: [] } })
-      }
-      await watchUserPatches(ctx, {
-        binName: NAME,
-        filename: composed.profile.patchPath,
-        compose: composeLive,
-      })
-      await watchUserPatches(ctx, {
-        binName: NAME,
-        filename: homePatchPath(),
-        compose: composeLive,
-      })
-    } catch (error) {
-      suppressShutdownError(ctx, signalShutdown.signal, error)
-    }
-  }
   return { ctx, shutdown }
 }

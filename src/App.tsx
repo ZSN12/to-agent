@@ -89,6 +89,7 @@ import { ChatBehaviorSettingsPanel } from './features/chat/ChatBehaviorSettingsP
 import { SubagentSessionTree } from './features/orchestration/SubagentSessionTree'
 import { ComposerBusyEnterToggle } from './features/chat/ComposerBusyEnterToggle'
 import { ThreadRunningIndicator } from './features/chat/ThreadRunningIndicator'
+import { DshStateDot } from './features/chat/DshStateDot'
 import { ToolTraceCard } from './features/chat/ToolTraceCard'
 import { DetailsPanel } from './features/chat/DetailsPanel'
 import type { BusyEnterMode, LiveContextUsage, PermissionPromptPayload, SessionStatsSnapshot } from './shared/app-api'
@@ -1903,6 +1904,9 @@ function SettingsPage({
             bridgeReady={modelCatalog.bridgeReady}
             error={modelCatalog.error}
             oauthStatus={modelCatalog.oauthStatus}
+            updateStatus={modelCatalog.updateStatus}
+            onCheckForUpdates={modelCatalog.checkForModelUpdates}
+            onRollbackRegistry={modelCatalog.rollbackModelRegistry}
             onRefresh={() => {
               void modelCatalog.refresh().then((result) => {
                 if (!result?.ok || result.error) {
@@ -2272,27 +2276,57 @@ function ToolTraceList({
       : `${Math.round(totalDurationMs / 1000)}s`
     : null
 
-  const summaryLabel = useMemo(() => {
-    if (items.length === 1 && items[0].toolName === 'bash') {
-      const cmd = items[0].inputSummary || '运行命令'
-      return items[0].status === 'running' ? `正在运行 ${cmd}` : `已运行 ${cmd}`
+  const summaryParts = useMemo(() => {
+    const toolTitle = (name: string) => {
+      if (name === 'bash' || name === 'pwsh') return 'Bash'
+      if (name === 'read') return 'Read'
+      if (name === 'write') return 'Write'
+      if (name === 'edit') return 'Edit'
+      if (name === 'grep' || name === 'glob') return 'Search'
+      if (name === 'web_search') return 'Search'
+      return name
+    }
+
+    const hasError = items.some((i) => i.status === 'error')
+
+    if (items.length === 1) {
+      const only = items[0]
+      const title = toolTitle(only.toolName)
+      if (only.toolName === 'bash') {
+        const cmd = only.inputSummary || '…'
+        return {
+          title,
+          summary: cmd,
+          dotState: only.status === 'running' ? 'ongoing' : only.status === 'error' ? 'error' : 'done',
+        } as const
+      }
+      const summary = only.inputSummary || only.resultSummary || (only.status === 'running' ? '…' : '')
+      return {
+        title,
+        summary,
+        dotState: only.status === 'running' ? 'ongoing' : only.status === 'error' ? 'error' : 'done',
+      } as const
     }
 
     const actions: string[] = []
     const hasEdit = items.some((i) => i.toolName === 'edit' || i.toolName === 'write')
     const hasRead = items.some((i) => i.toolName === 'read')
     const hasBash = items.some((i) => i.toolName === 'bash')
-    const hasSearch = items.some((i) => ['grep', 'find', 'ls'].includes(i.toolName))
+    const hasSearch = items.some((i) => ['grep', 'find', 'glob', 'web_search'].includes(i.toolName))
 
-    if (hasEdit) actions.push('编辑了文件')
+    if (hasEdit) actions.push('编辑文件')
     if (hasRead) actions.push('读取文件')
-    if (hasBash) actions.push('运行了命令')
-    if (hasSearch) actions.push('检索代码')
+    if (hasBash) actions.push('运行命令')
+    if (hasSearch) actions.push('检索')
 
-    const actionText = actions.length > 0 ? actions.join(' ') : `执行了 ${items.length} 项操作`
-    if (isRunning) return `正在执行 · ${actionText}`
-    if (durationLabel) return `Worked for ${durationLabel} · ${actionText}`
-    return actionText
+    const actionText = actions.length > 0 ? actions.join(' · ') : `${items.length} 项操作`
+    const durationPrefix = !isRunning && durationLabel ? `${durationLabel} · ` : ''
+    const runningPrefix = isRunning ? '执行中 · ' : ''
+    return {
+      title: '工具调用',
+      summary: `${runningPrefix}${durationPrefix}${actionText}`,
+      dotState: hasError ? 'error' : isRunning ? 'ongoing' : 'done',
+    } as const
   }, [items, isRunning, durationLabel])
 
   const diffItems = useMemo(() => {
@@ -2331,19 +2365,21 @@ function ToolTraceList({
     <div className="tool-trace-compact">
       <button
         type="button"
-        className={`tool-trace-pill ${isRunning ? 'is-running' : ''}`}
+        className={`dsh-tool-summary-row ${isRunning ? 'is-running' : ''} ${open ? 'is-open' : ''}`}
         onClick={() => setOpen((prev) => !prev)}
         aria-expanded={open}
       >
-        <span className="tool-trace-pill-content">
-          {isRunning ? (
-            <span className="tool-trace-pulse" />
-          ) : (
-            <Terminal size={13} className="tool-trace-icon" />
-          )}
-          <span className="tool-trace-text">{summaryLabel}</span>
+        <span className="dsh-tool-summary-leading">
+          <DshStateDot state={summaryParts.dotState} size={10} />
         </span>
-        <ChevronRight size={13} className={`tool-trace-chevron ${open ? 'expanded' : ''}`} />
+        <span className="dsh-tool-summary-title">{summaryParts.title}</span>
+        {summaryParts.summary ? (
+          <>
+            <span className="dsh-tool-summary-sep" aria-hidden />
+            <span className="dsh-tool-summary-text">{summaryParts.summary}</span>
+          </>
+        ) : null}
+        <ChevronRight size={14} className={`dsh-tool-summary-chevron ${open ? 'expanded' : ''}`} aria-hidden />
       </button>
 
       {open && (

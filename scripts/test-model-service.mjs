@@ -31,6 +31,8 @@ const createService = () => createModelService({
   profileStore: createProfileStore(userData),
   priceRegistryPath: path.join(projectRoot, 'pricing/registry.json'),
   dshHostManager: hostManager,
+  userDataPath: userData,
+  dshRuntimeRoot: runtimeRoot,
 })
 
 let service = createService()

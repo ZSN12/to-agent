@@ -1,5 +1,0 @@
-# TaskWeaver DSH Host overlay: enable OAuth flows for pi-ai providers (e.g. openai-codex).
-# Merged into each app's DSH_HOME/cordis.patch.yml on host start.
-- insert:
-    - id: authorization
-      name: '@deepseek-ai/dsh-authorization'

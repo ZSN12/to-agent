@@ -30,16 +30,26 @@ try {
   assert.equal(host.result.ok, true)
   assert.equal(host.result.value.attachedSessions, 0)
 
-  const authorization = await api.authorization.list({})
-  assert.equal(authorization.result.ok, true, authorization.result.error?.message)
-  const codexFlow = authorization.result.value.flows.find((flow) => flow.key.endsWith('/openai-codex'))
-  assert.ok(codexFlow, 'openai-codex OAuth flow should be registered after TaskWeaver host patch')
-  assert.ok(codexFlow.methods?.some((method) => method.id === 'oauth'), 'openai-codex should expose oauth method')
+  const providers = await api.llm.providers({})
+  assert.equal(providers.result.ok, true, providers.result.error?.message)
+  assert.ok(
+    providers.result.value.providers.some((p) => p.provider === 'openai-codex'),
+    'openai-codex should be listed in DSH model providers without mounting dsh-authorization',
+  )
 
   const sessionId = `taskweaver-contract-${crypto.randomUUID()}`
   const created = await api.sessions.create({ sessionId, cwd: projectRoot, agentPreset: 'taskweaver-planner' })
   assert.equal(created.result.ok, true)
   assert.equal(created.result.value.sessionId, sessionId)
+
+  const codeSessionId = `taskweaver-code-preset-${crypto.randomUUID()}`
+  const codeCreated = await api.sessions.create({
+    sessionId: codeSessionId,
+    cwd: projectRoot,
+    agentPreset: 'code',
+  })
+  assert.equal(codeCreated.result.ok, true, codeCreated.result.error?.message ?? 'code preset session create failed')
+  assert.equal(codeCreated.result.value.sessionId, codeSessionId)
 
   const history = await api.sessions.history({ sessionId })
   assert.equal(history.result.ok, true)

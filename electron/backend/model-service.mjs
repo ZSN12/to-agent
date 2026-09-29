@@ -1,12 +1,39 @@
-import { randomUUID } from 'node:crypto'
+import {
+  createTaskWeaverAuthorizationUrl,
+  exchangeAuthorizationCode,
+  parseAuthorizationCodeInput,
+  startTaskWeaverOAuthServer,
+} from './codex-oauth.mjs'
+import {
+  deletePiAiGrant,
+  hasPiAiGrant,
+  resolveDshHome,
+  writePiAiGrant,
+} from './dsh-pi-ai-credentials.mjs'
+import { discoverModelsFromProviderApi } from './provider-live-discovery.mjs'
 import { loadPriceRegistry, mergeRegistryCost, registryPriceMeta } from './price-registry.mjs'
+
+/** Providers that use TaskWeaver-native OAuth (written to DSH llm-pi-ai grant records). */
+const TASKWEAVER_NATIVE_OAUTH = {
+  'openai-codex': {
+    label: 'ChatGPT 订阅 (OAuth)',
+    instructions: '已在浏览器打开 OpenAI 授权页面，完成授权后将自动连接到 TaskWeaver。',
+  },
+}
 
 /** @typedef {'cheap' | 'balanced' | 'strong'} ModelTier */
 
 /**
  * 模型接入层（主进程单例）：目录与鉴权走内置运行时；档位与能力摘要走 profile-store。
  */
-export function createModelService({ profileStore, priceRegistryPath, dshHostManager = null }) {
+export function createModelService({
+  profileStore,
+  priceRegistryPath,
+  dshHostManager = null,
+  userDataPath = null,
+  dshRuntimeRoot = null,
+  modelRegistryUpdater = null,
+}) {
   let priceRegistry = loadPriceRegistry(priceRegistryPath)
   let catalogPriceMeta = registryPriceMeta(priceRegistry)
 
@@ -14,24 +41,18 @@ export function createModelService({ profileStore, priceRegistryPath, dshHostMan
     priceRegistry = loadPriceRegistry(priceRegistryPath)
     catalogPriceMeta = registryPriceMeta(priceRegistry)
   }
-  let activeAuthorization = null
+  /** @type {{ providerId: string, cancel: () => void, submitCode: (value: string) => void } | null} */
+  let pendingNativeOAuth = null
+
+  function dshHome() {
+    if (!userDataPath) throw new Error('TaskWeaver 用户数据目录未配置，无法读写 DSH 凭据')
+    return resolveDshHome(userDataPath)
+  }
 
   function dshValue(response, operation) {
     const result = response?.result ?? response
     if (result?.ok === false) throw new Error(result.error?.message || `${operation}失败`)
     return result?.value ?? result
-  }
-
-  async function readAuthorizationFlows(api) {
-    try {
-      const response = await api.authorization.list({})
-      const result = response?.result ?? response
-      if (result?.ok === false) return []
-      const value = result?.value ?? result
-      return value?.flows ?? []
-    } catch {
-      return []
-    }
   }
 
   function atPath(value, pathParts) {
@@ -77,26 +98,158 @@ export function createModelService({ profileStore, priceRegistryPath, dshHostMan
     throw lastError instanceof Error ? lastError : new Error(String(lastError))
   }
 
+  function normalizeSettingsNs(value) {
+    return String(value ?? '').trim()
+  }
+
+  function findSettingsNamespace(namespaces, settingsNs) {
+    const target = normalizeSettingsNs(settingsNs)
+    if (!target) return undefined
+    return (namespaces ?? []).find((item) => normalizeSettingsNs(item?.ns) === target)
+  }
+
   function providerSettings(directory, provider) {
-    const ns = directory.namespaces.find((item) => item.ns === provider.settingsNs)
+    const ns = findSettingsNamespace(directory.namespaces, provider.settingsNs)
     return { namespace: ns, value: atPath(ns?.value, provider.settingsPath ?? []) }
   }
 
-  function serializeDshModel(provider, model, availableKeys, profile = null) {
+  function registryModels(registry) {
+    return Object.entries(registry?.models ?? {}).flatMap(([key, value]) => {
+      if (!value || typeof value !== 'object') return []
+      const slash = key.indexOf('/')
+      const provider = value.provider || (slash > 0 ? key.slice(0, slash) : '')
+      const id = value.id || (slash > 0 ? key.slice(slash + 1) : '')
+      return provider && id ? [{ ...value, key: `${provider}/${id}`, provider, id }] : []
+    })
+  }
+
+  function registryModelProfile(model) {
+    const profile = { id: model.id, name: model.name || model.id }
+    if (Number.isInteger(model.contextWindow) && model.contextWindow > 0) profile.contextWindow = model.contextWindow
+    if (Number.isInteger(model.maxTokens) && model.maxTokens > 0) profile.maxTokens = model.maxTokens
+    if (Array.isArray(model.input) && model.input.length) profile.input = model.input
+    if (model.reasoningEfforts === false) profile.reasoningEfforts = false
+    else if (model.reasoningEfforts && typeof model.reasoningEfforts === 'object') {
+      profile.reasoningEfforts = model.reasoningEfforts
+    }
+    return profile
+  }
+
+  /** Persist signed catalog additions in DSH itself, then re-read its real routable catalog. */
+  async function applyRegistryAdditions(directory, explicitRegistry = null, requestedKeys = []) {
+    if (!modelRegistryUpdater || !directory?.api) return directory
+    if (!requestedKeys.length) return directory
+    const registry = explicitRegistry ?? (await modelRegistryUpdater.loadActiveRegistry()).registry
+    const requested = new Set(requestedKeys)
+    const remoteRows = registryModels(registry).filter((model) => requested.has(model.key) && !model.deprecated)
+    const opsByNamespace = new Map()
+    const expectedKeys = new Set()
+    const routedKeys = new Set(
+      (directory.groups ?? []).flatMap((group) => (group.models ?? []).map((model) => `${group.id}/${model.id}`)),
+    )
+    for (const providerRow of directory.providers ?? []) {
+      if (providerRow.settingsNs !== 'llm-pi-ai') continue
+      const group = directory.groups.find((item) => item.id === providerRow.provider)
+      const installedIds = new Set(group?.models?.map((model) => model.id) ?? [])
+      const { namespace, value } = providerSettings(directory, providerRow)
+      if (!namespace || namespace.writable === false) continue
+      const current = Array.isArray(value?.modelAdditions) ? value.modelAdditions : []
+      const additions = [...current]
+      const additionIds = new Set(additions.map((model) => model?.id).filter(Boolean))
+      const remoteProvider = registry.providers?.[providerRow.provider] ?? {}
+      for (const model of remoteRows.filter((item) => item.provider === providerRow.provider)) {
+        const modelKey = `${providerRow.provider}/${model.id}`
+        if (installedIds.has(model.id) || additionIds.has(model.id) || routedKeys.has(modelKey)) continue
+        const protocols = Array.isArray(remoteProvider.protocols) ? remoteProvider.protocols : []
+        const configuredApi = typeof value?.api === 'string' ? value.api : null
+        if (model.api && configuredApi && model.api !== configuredApi) continue
+        if (model.api && protocols.length && !protocols.includes(model.api)) continue
+        additions.push(registryModelProfile(model))
+        additionIds.add(model.id)
+        expectedKeys.add(`${providerRow.provider}/${model.id}`)
+      }
+      if (JSON.stringify(additions) === JSON.stringify(current)) continue
+      const bucket = opsByNamespace.get(namespace.ns) ?? { revision: namespace.revision, ops: [], rollbackOps: [] }
+      const settingPath = [...(providerRow.settingsPath ?? []), 'modelAdditions']
+      bucket.ops.push({
+        op: 'set',
+        path: settingPath,
+        value: additions,
+      })
+      bucket.rollbackOps.push({ op: 'set', path: settingPath, value: current })
+      opsByNamespace.set(namespace.ns, bucket)
+    }
+    if (!opsByNamespace.size) return directory
+    for (const [ns, batch] of opsByNamespace) {
+      dshValue(await directory.api.settings.mutate({
+        ns,
+        expectedRevision: batch.revision,
+        ops: batch.ops,
+      }), '注入 TaskWeaver 模型目录')
+    }
+    let refreshed = await fetchDshModelDirectoryOnce()
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      const routed = new Set(refreshed.groups.flatMap((group) => group.models.map((model) => `${group.id}/${model.id}`)))
+      if ([...expectedKeys].every((key) => routed.has(key))) return refreshed
+      await sleep(250 * (attempt + 1))
+      refreshed = await fetchDshModelDirectoryOnce()
+    }
+      // A settings write that did not become routable is not a successful add.
+      // Restore the user's previous DSH settings before returning the failure.
+    for (const [ns, batch] of opsByNamespace) {
+      const latestNs = refreshed.namespaces.find((item) => item.ns === ns)
+      if (!latestNs) continue
+      try {
+        dshValue(await refreshed.api.settings.mutate({
+          ns,
+          expectedRevision: latestNs.revision,
+          ops: batch.rollbackOps,
+        }), '回滚 TaskWeaver 模型目录映射')
+      } catch (error) {
+        console.error('回滚 DSH modelAdditions 失败:', error)
+      }
+    }
+    const routed = new Set(refreshed.groups.flatMap((group) => group.models.map((model) => `${group.id}/${model.id}`)))
+    const missing = [...expectedKeys].filter((key) => !routed.has(key))
+    throw new Error(`DSH 未注册新增模型：${missing.join(', ')}`)
+  }
+
+  function serializeDshModel(
+    provider,
+    model,
+    availableKeys,
+    profile = null,
+    registryEntry = null,
+    source = 'bundled',
+    registryVersion = null,
+    routeRegistered = true,
+  ) {
     const key = `${provider.id}/${model.id}`
     const defaultCost = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }
-    const { cost, priceMeta } = mergeRegistryCost(key, defaultCost, priceRegistry)
+    const remotePricing = registryEntry?.pricing ?? registryEntry?.costPerMillion
+    const bundledPrice = mergeRegistryCost(key, defaultCost, priceRegistry)
+    const cost = remotePricing && typeof remotePricing === 'object'
+      ? {
+          input: Number(remotePricing.input) || 0,
+          output: Number(remotePricing.output) || 0,
+          cacheRead: Number(remotePricing.cacheRead) || 0,
+          cacheWrite: Number(remotePricing.cacheWrite) || 0,
+        }
+      : bundledPrice.cost
+    const priceMeta = remotePricing
+      ? { source: 'taskweaver-remote-registry', synced_at: registryEntry?.updatedAt ?? null, confidence: registryEntry?.confidence ?? 'curated' }
+      : bundledPrice.priceMeta
     const efforts = model.reasoning?.efforts?.map((effort) => String(effort.id).toLowerCase()) ?? []
     const supportedThinkingLevels = ['off', 'low', 'medium', 'high'].filter((level) => level === 'off' || efforts.includes(level))
     return {
       key,
       provider: provider.id,
       id: model.id,
-      name: model.name || model.id,
-      api: 'dsh',
+      name: registryEntry?.name || model.name || model.id,
+      api: registryEntry?.api || 'dsh',
       reasoning: efforts.length > 0,
-      contextWindow: 0,
-      maxTokens: 0,
+      contextWindow: Number(registryEntry?.contextWindow) || 0,
+      maxTokens: Number(registryEntry?.maxTokens) || 0,
       costPerMillion: { input: cost.input, output: cost.output, cacheRead: cost.cacheRead, cacheWrite: cost.cacheWrite },
       priceMeta: priceMeta ?? catalogPriceMeta,
       available: availableKeys.has(key),
@@ -104,22 +257,185 @@ export function createModelService({ profileStore, priceRegistryPath, dshHostMan
       supportedThinkingLevels: efforts.length ? supportedThinkingLevels : undefined,
       defaultThinkingLevel: model.reasoning?.defaultEffort ?? (efforts.includes('high') ? 'high' : 'medium'),
       profile,
+      source,
+      deprecated: Boolean(registryEntry?.deprecated),
+      replacementModelKey: registryEntry?.replacementModel || null,
+      capabilityCompleteness: registryEntry
+        ? ['contextWindow', 'maxTokens', 'api'].filter((field) => registryEntry[field]).length / 3
+        : 0,
+      registryVersion,
+      capabilitySummary: registryEntry?.capabilitySummary || '',
+      taskTags: Array.isArray(registryEntry?.taskTags) ? registryEntry.taskTags : [],
+      verificationStatus: registryEntry ? 'verified' : (source === 'bundled' ? 'bundled' : 'unverified'),
+      routeRegistered,
     }
   }
 
   async function resolveDshCredentialRef(directory, provider) {
-    const { namespace, value } = providerSettings(directory, provider)
-    if (!namespace || !provider.settingsNs) {
-      throw new Error(`${provider.displayName || provider.provider} 没有可写的 DSH 凭据配置入口`)
+    const row = resolveProviderRow(directory, provider.provider ?? provider)
+      ?? (typeof provider === 'object' ? provider : null)
+    if (!row) {
+      throw new Error(`${provider?.provider ?? provider} 没有可写的 DSH 凭据配置入口`)
     }
+    const settingsNs = normalizeSettingsNs(row.settingsNs)
+      || (hasPiAiSettingsNamespace(directory) ? 'llm-pi-ai' : '')
+    if (!settingsNs) {
+      throw new Error(`${row.displayName || row.provider} 没有可写的 DSH 凭据配置入口`)
+    }
+    const settingsPath = row.settingsPath?.length
+      ? row.settingsPath
+      : (settingsNs === 'llm-pi-ai' ? ['providers', row.provider] : [])
+    let activeDirectory = directory
+    let namespace = findSettingsNamespace(activeDirectory.namespaces, settingsNs)
+    for (let attempt = 0; !namespace && attempt < 12; attempt += 1) {
+      await sleep(300 * (attempt + 1))
+      activeDirectory = await fetchDshModelDirectoryOnce()
+      namespace = findSettingsNamespace(activeDirectory.namespaces, settingsNs)
+    }
+    const value = namespace ? atPath(namespace.value, settingsPath ?? []) : undefined
     const configuredRef = value?.apiKeyEnv
     const ref = typeof configuredRef === 'string' && configuredRef.trim()
       ? configuredRef.trim()
-      : `TASKWEAVER_${provider.provider.toUpperCase().replace(/[^A-Z0-9_]/g, '_')}_API_KEY`
-    return { namespace, ref, settingPath: [...provider.settingsPath, 'apiKeyEnv'] }
+      : `TASKWEAVER_${row.provider.toUpperCase().replace(/[^A-Z0-9_]/g, '_')}_API_KEY`
+    return {
+      directory: activeDirectory,
+      namespace,
+      settingsNs,
+      ref,
+      settingPath: [...settingsPath, 'apiKeyEnv'],
+      bootstrapSettings: !namespace,
+    }
   }
 
-  async function buildCatalogFromDirectory(directory) {
+  async function isProviderCredentialConfigured(directory, providerRow) {
+    const providerId = providerRow.provider
+    if (TASKWEAVER_NATIVE_OAUTH[providerId] && userDataPath) {
+      return hasPiAiGrant(dshHome(), providerId)
+    }
+    const { value } = providerSettings(directory, providerRow)
+    const ref = typeof value?.apiKeyEnv === 'string' ? value.apiKeyEnv.trim() : ''
+    if (!ref) return false
+    const response = dshValue(await directory.api.credentials.describe({ refs: [ref] }), '读取 DSH 凭据状态')
+    return Boolean(response.credentials?.[ref]?.configured)
+  }
+
+  /** TaskWeaver 已确认凭据时，与 DSH `provider.active` 对齐可用性（OAuth 写盘后 Host 可能尚未标 active）。 */
+  async function applyCredentialBasedAvailability(directory, providerById, availableKeys, candidateModels, addedModelKeys) {
+    const rows = providerRowsForAuth(directory)
+    for (const row of rows) {
+      let configured = false
+      try {
+        configured = await isProviderCredentialConfigured(directory, row)
+      } catch {
+        configured = false
+      }
+      if (!configured) continue
+      const entry = providerById.get(row.provider) ?? {
+        id: row.provider,
+        name: row.displayName || row.provider,
+        active: false,
+      }
+      entry.active = true
+      providerById.set(row.provider, entry)
+      for (const model of candidateModels) {
+        if (model.provider === row.provider) availableKeys.add(model.key)
+      }
+      for (const key of addedModelKeys) {
+        if (key.startsWith(`${row.provider}/`)) availableKeys.add(key)
+      }
+    }
+    for (const model of candidateModels) model.available = availableKeys.has(model.key)
+  }
+
+  async function reloadDshHostAfterCredentialChange() {
+    if (!dshHostManager) return
+    try {
+      await dshHostManager.stop()
+      await dshHostManager.start()
+    } catch (error) {
+      console.warn('DSH Host 凭据变更后重载失败:', error instanceof Error ? error.message : error)
+    }
+  }
+
+  async function mergeLiveProviderModels(
+    directory,
+    candidateModels,
+    availableKeys,
+    providerById,
+    profiles,
+    registryByKey = new Map(),
+    registryVersion = null,
+  ) {
+    if (!userDataPath || !dshRuntimeRoot) return
+    const home = dshHome()
+    const failures = []
+    for (const providerRow of directory.providers ?? []) {
+      let mayDiscover = providerRow.active
+      if (!mayDiscover) {
+        try {
+          mayDiscover = await isProviderCredentialConfigured(directory, providerRow)
+        } catch {
+          mayDiscover = false
+        }
+      }
+      if (!mayDiscover) continue
+      const settings = providerSettings(directory, providerRow)
+      let described = {}
+      const ref = typeof settings.value?.apiKeyEnv === 'string' ? settings.value.apiKeyEnv.trim() : ''
+      if (ref) {
+        try {
+          const response = dshValue(await directory.api.credentials.describe({ refs: [ref] }), '读取 DSH 凭据状态')
+          described = response.credentials ?? {}
+        } catch (error) {
+          failures.push({ provider: providerRow.provider, error })
+          continue
+        }
+      }
+      let discovered = []
+      try {
+        discovered = await discoverModelsFromProviderApi({
+          api: directory.api,
+          dshValue,
+          dshHome: home,
+          dshRuntimeRoot,
+          providerRow,
+          providerSettings: settings,
+          credentialsDescribe: described,
+        })
+      } catch (error) {
+        failures.push({ provider: providerRow.provider, error })
+        continue
+      }
+      if (!discovered.length) continue
+      const knownIds = new Set(candidateModels.filter((m) => m.provider === providerRow.provider).map((m) => m.id))
+      const provider = providerById.get(providerRow.provider) ?? {
+        id: providerRow.provider,
+        name: providerRow.displayName || providerRow.provider,
+        active: true,
+      }
+      for (const row of discovered) {
+        if (!row?.id || knownIds.has(row.id)) continue
+        knownIds.add(row.id)
+        const key = `${providerRow.provider}/${row.id}`
+        if (provider.active) availableKeys.add(key)
+        candidateModels.push(serializeDshModel(
+          provider,
+          { id: row.id, name: row.name || row.id },
+          availableKeys,
+          profiles[key] ?? null,
+          registryByKey.get(key) ?? null,
+          registryByKey.has(key) ? 'remote' : 'live',
+          registryByKey.has(key) ? registryVersion : null,
+          false,
+        ))
+      }
+    }
+    if (failures.length) {
+      console.warn('部分提供方 API 模型发现失败:', failures.map((f) => `${f.provider}: ${f.error instanceof Error ? f.error.message : f.error}`).join('; '))
+    }
+  }
+
+  async function buildCatalogFromDirectory(directory, { liveDiscovery = false } = {}) {
     const migratedFromAutoRoute = await profileStore.migrateLegacyAutoRouteActiveKey()
     const [profiles, activeModelKey, addedModelKeys, activeThinkingLevel] = await Promise.all([
       profileStore.listProfiles(),
@@ -127,6 +443,16 @@ export function createModelService({ profileStore, priceRegistryPath, dshHostMan
       profileStore.listAddedModelKeys(),
       profileStore.getThinkingLevel(),
     ])
+    const activeRegistry = modelRegistryUpdater
+      ? await modelRegistryUpdater.loadActiveRegistry()
+      : { registry: null, source: 'bundled' }
+    const registryByKey = new Map(registryModels(activeRegistry.registry).map((model) => [model.key, model]))
+    const registryVersion = activeRegistry.registry?.registryVersion ?? null
+    const persistedAdditionKeys = new Set(directory.providers.flatMap((providerRow) => {
+      const value = providerSettings(directory, providerRow).value
+      return (Array.isArray(value?.modelAdditions) ? value.modelAdditions : [])
+        .flatMap((model) => model?.id ? [`${providerRow.provider}/${model.id}`] : [])
+    }))
     const providerById = new Map(directory.providers.map((provider) => [provider.provider, {
       id: provider.provider,
       name: provider.displayName || provider.provider,
@@ -141,19 +467,83 @@ export function createModelService({ profileStore, priceRegistryPath, dshHostMan
       return group.models.map((model) => {
         const key = `${group.id}/${model.id}`
         if (provider.active) availableKeys.add(key)
-        return serializeDshModel(provider, model, availableKeys, profiles[key] ?? null)
+        const registryEntry = registryByKey.get(key) ?? null
+        return serializeDshModel(
+          provider,
+          model,
+          availableKeys,
+          profiles[key] ?? null,
+          registryEntry,
+          registryEntry ? 'remote' : (persistedAdditionKeys.has(key) ? 'remote' : 'bundled'),
+          registryEntry ? registryVersion : null,
+        )
       })
     })
     // Groups are the DSH Host's routable model catalog. Re-serialize after all
     // route keys are known so each row has its final availability flag.
     const catalogByKey = new Map(candidateModels.map((model) => [model.key, model]))
     for (const model of candidateModels) model.available = availableKeys.has(model.key)
-    const models = addedModelKeys.map((key) => catalogByKey.get(key) ?? (() => {
+    if (liveDiscovery) {
+      await mergeLiveProviderModels(
+        directory,
+        candidateModels,
+        availableKeys,
+        providerById,
+        profiles,
+        registryByKey,
+        registryVersion,
+      )
+      for (const model of candidateModels) catalogByKey.set(model.key, model)
+    }
+    // Signed registry rows are visible in the picker even when the bundled
+    // DSH catalog does not know them yet. The exact selection is written into
+    // DSH modelAdditions only when the user adds it, then confirmed through
+    // llm.models before it becomes an available TaskWeaver model.
+    const providerRowsById = new Map((directory.providers ?? []).map((row) => [row.provider, row]))
+    for (const entry of registryModels(activeRegistry.registry)) {
+      if (catalogByKey.has(entry.key) || entry.deprecated) continue
+      const providerRow = providerRowsById.get(entry.provider)
+      if (!providerRow || providerRow.settingsNs !== 'llm-pi-ai') continue
+      const configuredApi = providerSettings(directory, providerRow).value?.api
+      if (typeof configuredApi === 'string' && configuredApi && entry.api !== configuredApi) continue
+      const provider = providerById.get(entry.provider) ?? { id: entry.provider, name: entry.provider, active: false }
+      const model = serializeDshModel(
+        provider,
+        { id: entry.id, name: entry.name || entry.id },
+        availableKeys,
+        profiles[entry.key] ?? null,
+        entry,
+        'remote',
+        registryVersion,
+        false,
+      )
+      candidateModels.push(model)
+      catalogByKey.set(entry.key, model)
+    }
+    await applyCredentialBasedAvailability(directory, providerById, availableKeys, candidateModels, addedModelKeys)
+    const models = addedModelKeys.map((key) => {
+      const fromCatalog = catalogByKey.get(key)
+      if (fromCatalog) {
+        fromCatalog.available = availableKeys.has(key)
+        return fromCatalog
+      }
       const slash = key.indexOf('/')
       const provider = slash > 0 ? key.slice(0, slash) : ''
       const id = slash > 0 ? key.slice(slash + 1) : key
-      return serializeDshModel(providerById.get(provider) ?? { id: provider }, { id, name: id }, availableKeys, profiles[key] ?? null)
-    })())
+      const registryEntry = registryByKey.get(key) ?? null
+      const model = serializeDshModel(
+        providerById.get(provider) ?? { id: provider },
+        { id, name: id },
+        availableKeys,
+        profiles[key] ?? null,
+        registryEntry,
+        registryEntry ? 'remote' : 'user',
+        registryEntry ? registryVersion : null,
+      )
+      if (!registryEntry && persistedAdditionKeys.has(key)) model.verificationStatus = 'unverified'
+      model.available = availableKeys.has(key)
+      return model
+    })
 
     return {
       models,
@@ -167,11 +557,51 @@ export function createModelService({ profileStore, priceRegistryPath, dshHostMan
 
   async function listCatalog() {
     const directory = await getDshModelDirectory()
-    return buildCatalogFromDirectory(directory)
+    return buildCatalogFromDirectory(directory, { liveDiscovery: true })
   }
 
   async function refreshCatalog() {
-    return listCatalog()
+    const directory = await getDshModelDirectory()
+    return buildCatalogFromDirectory(directory, { liveDiscovery: true })
+  }
+
+  async function validateRegistryMapping(registry) {
+    const directory = await fetchDshModelDirectoryOnce()
+    const supportedProviders = new Set((directory.providers ?? []).map((item) => item.provider))
+    const unknownProviders = new Set(registryModels(registry)
+      .filter((model) => !supportedProviders.has(model.provider))
+      .map((model) => model.provider))
+    if (unknownProviders.size) {
+      throw new Error(`当前 DSH Runtime 未注册提供方：${[...unknownProviders].join(', ')}`)
+    }
+    return true
+  }
+
+  function hasPiAiSettingsNamespace(directory) {
+    return Boolean(findSettingsNamespace(directory.namespaces, 'llm-pi-ai'))
+  }
+
+  function defaultPiAiProviderRow(providerId, displayName = providerId) {
+    return {
+      provider: providerId,
+      displayName: displayName || providerId,
+      settingsNs: 'llm-pi-ai',
+      settingsPath: ['providers', providerId],
+      active: false,
+    }
+  }
+
+  function synthesizeProviderRowFromGroup(directory, group) {
+    if (String(group.id).startsWith('custom-') || !hasPiAiSettingsNamespace(directory)) {
+      return {
+        provider: group.id,
+        displayName: group.name || group.id,
+        active: true,
+        settingsNs: undefined,
+        settingsPath: [],
+      }
+    }
+    return { ...defaultPiAiProviderRow(group.id, group.name || group.id), active: true }
   }
 
   function providerRowsForAuth(directory) {
@@ -181,28 +611,39 @@ export function createModelService({ profileStore, priceRegistryPath, dshHostMan
     }
     for (const group of directory.groups ?? []) {
       if (!byId.has(group.id)) {
-        byId.set(group.id, {
-          provider: group.id,
-          displayName: group.name || group.id,
-          active: true,
-          settingsNs: undefined,
-          settingsPath: [],
-        })
+        byId.set(group.id, synthesizeProviderRowFromGroup(directory, group))
       }
     }
     return [...byId.values()]
   }
 
   function resolveProviderRow(directory, providerId) {
-    return directory.providers?.find((item) => item.provider === providerId)
-      ?? providerRowsForAuth(directory).find((item) => item.provider === providerId)
-      ?? null
+    const fromProviders = directory.providers?.find((item) => item.provider === providerId)
+    if (fromProviders) {
+      if (fromProviders.settingsNs || String(providerId).startsWith('custom-')) return fromProviders
+      if (hasPiAiSettingsNamespace(directory)) {
+        return {
+          ...defaultPiAiProviderRow(providerId, fromProviders.displayName || providerId),
+          ...fromProviders,
+          settingsNs: 'llm-pi-ai',
+          settingsPath: fromProviders.settingsPath?.length
+            ? fromProviders.settingsPath
+            : ['providers', providerId],
+        }
+      }
+      return fromProviders
+    }
+    const fromDirectory = providerRowsForAuth(directory).find((item) => item.provider === providerId)
+    if (fromDirectory) return fromDirectory
+    if (!String(providerId).startsWith('custom-') && hasPiAiSettingsNamespace(directory)) {
+      return defaultPiAiProviderRow(providerId)
+    }
+    return null
   }
 
   async function buildProvidersAuthFromDirectory(directory) {
-    const flows = await readAuthorizationFlows(directory.api)
-    const flowByProvider = new Map(flows.map((flow) => [flow.key.split('/').at(-1), flow]))
     const rows = providerRowsForAuth(directory)
+    const home = userDataPath ? dshHome() : null
     return Promise.all(rows.map(async (provider) => {
       const { namespace, value } = providerSettings(directory, provider)
       const configuredRef = value?.apiKeyEnv
@@ -212,17 +653,21 @@ export function createModelService({ profileStore, priceRegistryPath, dshHostMan
         credential = response.credentials?.[configuredRef.trim()] ?? null
       }
       const apiKeyConfigured = Boolean(credential?.configured)
-      const authFlow = flowByProvider.get(provider.provider)
+      const nativeOAuth = TASKWEAVER_NATIVE_OAUTH[provider.provider]
+      const oauthConfigured = nativeOAuth && home
+        ? await hasPiAiGrant(home, provider.provider)
+        : false
+      const configured = apiKeyConfigured || oauthConfigured
       return {
         id: provider.provider,
         name: provider.displayName || provider.provider,
-        configured: apiKeyConfigured || Boolean(authFlow?.configured),
-        authType: authFlow?.configured ? 'oauth' : (apiKeyConfigured ? 'api_key' : null),
+        configured,
+        authType: oauthConfigured ? 'oauth' : (apiKeyConfigured ? 'api_key' : null),
         writable: namespace?.writable !== false && (credential?.writable ?? true),
-        source: authFlow?.configured ? 'DSH account' : (credential?.source ?? null),
-        authorizationMethods: authFlow?.methods ?? [],
-        authorizationKey: authFlow?.key ?? null,
-        authorizationInFlight: Boolean(authFlow?.inFlight),
+        source: oauthConfigured ? 'TaskWeaver OAuth' : (credential?.source ?? null),
+        authorizationMethods: nativeOAuth ? [{ id: 'oauth', label: nativeOAuth.label }] : [],
+        authorizationKey: nativeOAuth ? `llm-pi-ai/${provider.provider}` : null,
+        authorizationInFlight: pendingNativeOAuth?.providerId === provider.provider,
       }
     }))
   }
@@ -235,7 +680,7 @@ export function createModelService({ profileStore, priceRegistryPath, dshHostMan
   async function loadModelBundle() {
     const directory = await getDshModelDirectory()
     const [catalog, auth] = await Promise.all([
-      buildCatalogFromDirectory(directory),
+      buildCatalogFromDirectory(directory, { liveDiscovery: true }),
       buildProvidersAuthFromDirectory(directory),
     ])
     return { catalog, auth, hostReady: true, providerCount: auth.length }
@@ -243,108 +688,122 @@ export function createModelService({ profileStore, priceRegistryPath, dshHostMan
 
   function formatOAuthError(error) {
     const message = error instanceof Error ? error.message : String(error)
-    if (/fetch failed/i.test(message)) {
-      return '无法连接 OpenAI 授权服务器（fetch failed）。请检查网络、系统代理或防火墙后重试；若浏览器能打开 openai.com，可重启 TaskWeaver 后再试。'
+    if (/unsupported_country_region_territory/i.test(message)) {
+      return message
     }
-    if (/authorization service is absent|authorization or credentials service is absent/i.test(message)) {
-      return 'DSH 未加载官方订阅授权插件。请完全退出并重新打开 TaskWeaver（会自动修复 Host 配置）。'
+    if (/fetch failed/i.test(message)) {
+      return '无法连接 OpenAI 授权服务器（fetch failed）。请检查网络、系统代理或防火墙后重试；若浏览器能打开 openai.com，请开启系统代理使 TaskWeaver 与浏览器走同一路径。'
+    }
+    if (/授权兑换失败 \(403\)|授权兑换被拒绝 \(403\)/i.test(message)) {
+      return message
     }
     return message
   }
 
-  async function startProviderAuthorization(providerId, onStatus = () => {}) {
-    const directory = await getDshModelDirectory()
-    const flows = await readAuthorizationFlows(directory.api)
-    const flow = flows.find((item) => item.key.endsWith(`/${providerId}`))
-    const method = flow?.methods?.find((item) => item.id === 'oauth')
-    if (!flow || !method) {
-      throw new Error(
-        `${providerId} 没有可用的 DSH 官方 OAuth 登录方式。请完全退出并重新打开 TaskWeaver，确保 Agent Host 已加载授权插件。`,
-      )
+  async function activateDefaultCodexModel(catalog) {
+    const codexModels = catalog.candidateModels.filter((m) => m.provider === 'openai-codex' && m.available)
+    const defaultModel = codexModels.find((m) => m.id === 'gpt-5.5' || m.id === 'gpt-5.4') ?? codexModels[0]
+    if (!defaultModel) return catalog
+    const added = await profileStore.listAddedModelKeys()
+    if (!added.includes(defaultModel.key)) await profileStore.addModel(defaultModel.key)
+    const active = await profileStore.getActiveModelKey()
+    if (!active) await profileStore.setActiveModelKey(defaultModel.key)
+    return listCatalog()
+  }
+
+  async function loginOpenAiCodexNative(providerId, onStatus = () => {}) {
+    if (pendingNativeOAuth) {
+      pendingNativeOAuth.cancel()
+      pendingNativeOAuth = null
+    }
+    const meta = TASKWEAVER_NATIVE_OAUTH[providerId]
+    if (!meta) throw new Error(`暂不支持 ${providerId} 的 OAuth 登录`)
+
+    const { verifier, state, url } = createTaskWeaverAuthorizationUrl()
+    const server = await startTaskWeaverOAuthServer(state)
+    const abortController = new AbortController()
+
+    let submitCodeResolve = null
+    const submitCodePromise = new Promise((resolve) => {
+      submitCodeResolve = resolve
+    })
+
+    const cancel = () => {
+      abortController.abort()
+      server.close()
     }
 
-    if (activeAuthorization) await cancelProviderAuthorization().catch(() => {})
-    const attemptId = randomUUID()
-    const beginController = new AbortController()
-    const eventsController = new AbortController()
-    const attempt = { providerId, key: flow.key, attemptId, beginController, eventsController, promptId: null }
-    activeAuthorization = attempt
-    let streamOpenedResolve
-    const streamOpened = new Promise((resolve) => { streamOpenedResolve = resolve })
-    const eventTask = (async () => {
-      try {
-        for await (const envelope of directory.api.events.host({}, eventsController.signal, streamOpenedResolve)) {
-          const frame = envelope?.payload
-          if (frame?.type !== 'host/remote-event') continue
-          const args = frame.args ?? []
-          if (frame.event === 'taskweaver/authorization-notice' && args[0] === attemptId) {
-            const notice = args[2] ?? {}
-            onStatus({
-              status: notice.code ? 'device_code' : (notice.url ? 'auth_url' : 'progress'),
-              url: notice.url,
-              userCode: notice.code,
-              instructions: notice.message,
-              providerId,
-              attemptId,
-            })
-          } else if (frame.event === 'taskweaver/authorization-prompt' && args[0] === attemptId) {
-            const promptId = args[1]
-            const prompt = args[3] ?? {}
-            attempt.promptId = promptId
-            onStatus({ status: 'prompt', providerId, attemptId, promptId, prompt })
-          } else if (frame.event === 'authorization/settled' && args[0] === flow.key) {
-            onStatus({ status: 'progress', instructions: args[1] === 'authorized' ? 'DSH 已保存官方订阅授权。' : '授权流程已结束。', providerId, attemptId })
-          }
-        }
-      } catch (error) {
-        if (!eventsController.signal.aborted) onStatus({ status: 'error', error: formatOAuthError(error), providerId, attemptId })
-      }
-    })()
-    await streamOpened
-    attempt.beginTask = (async () => {
-      try {
-        const result = dshValue(await directory.api.authorization.begin({ attemptId, key: flow.key, method: method.id }, beginController.signal), 'DSH 官方订阅登录')
-        onStatus({ status: result.status === 'authorized' ? 'completed' : 'error', instructions: result.status === 'authorized' ? '已完成官方订阅登录。' : '登录已取消。', providerId, attemptId })
-      } catch (error) {
-        if (!beginController.signal.aborted) onStatus({ status: 'error', error: formatOAuthError(error), providerId, attemptId })
-      } finally {
-        eventsController.abort()
-        if (activeAuthorization === attempt) activeAuthorization = null
-      }
-    })()
-    void eventTask
-    return { attemptId, providerId, authorizationKey: flow.key }
+    pendingNativeOAuth = { providerId, cancel, submitCode: submitCodeResolve }
+
+    onStatus({
+      status: 'auth_url',
+      url,
+      instructions: meta.instructions,
+      providerId,
+    })
+
+    try {
+      const raceResult = await Promise.race([
+        server.waitForCode(),
+        submitCodePromise.then((input) => ({ code: parseAuthorizationCodeInput(input) })),
+        new Promise((_, reject) => {
+          abortController.signal.addEventListener('abort', () => reject(new Error('OAuth 授权已取消')))
+        }),
+      ])
+
+      const code = raceResult?.code
+      if (!code) throw new Error('未获取到有效的授权码')
+
+      onStatus({ status: 'progress', instructions: '正在兑换授权码…', providerId })
+      const credential = await exchangeAuthorizationCode(code, verifier)
+      await writePiAiGrant(dshHome(), providerId, credential)
+      await reloadDshHostAfterCredentialChange()
+      onStatus({ status: 'completed', instructions: 'ChatGPT 订阅已绑定至 TaskWeaver。', providerId })
+      const catalog = await refreshCatalog()
+      return activateDefaultCodexModel(catalog)
+    } catch (error) {
+      const message = formatOAuthError(error)
+      onStatus({ status: 'error', error: message, providerId })
+      throw error instanceof Error ? error : new Error(message)
+    } finally {
+      server.close()
+      if (pendingNativeOAuth?.cancel === cancel) pendingNativeOAuth = null
+    }
+  }
+
+  async function startProviderAuthorization(providerId, onStatus = () => {}) {
+    if (TASKWEAVER_NATIVE_OAUTH[providerId]) {
+      await loginOpenAiCodexNative(providerId, onStatus)
+      return { providerId, authorizationKey: `llm-pi-ai/${providerId}` }
+    }
+    throw new Error(`暂不支持 ${providerId} 的 OAuth 登录`)
+  }
+
+  async function submitOAuthCode(code) {
+    if (!pendingNativeOAuth?.submitCode) throw new Error('当前没有进行中的 OAuth 登录')
+    pendingNativeOAuth.submitCode(code)
+    return true
   }
 
   async function submitAuthorizationPrompt(answer) {
-    const attempt = activeAuthorization
-    if (!attempt?.promptId) throw new Error('当前没有等待输入的官方订阅授权问题')
-    const { api } = await dshHostManager.start()
-    dshValue(await api.authorization.answer({ attemptId: attempt.attemptId, promptId: attempt.promptId, answer: String(answer ?? '') }), '提交 DSH 官方订阅授权输入')
-    attempt.promptId = null
-    return true
+    return submitOAuthCode(answer)
   }
 
   async function cancelProviderAuthorization() {
-    const attempt = activeAuthorization
-    if (!attempt) return false
-    activeAuthorization = null
-    attempt.beginController.abort()
-    attempt.eventsController.abort()
-    try {
-      const { api } = await dshHostManager.start()
-      await api.authorization.cancel({ key: attempt.key, attemptId: attempt.attemptId })
-    } catch { /* a disconnected host already withdrew the request */ }
-    return true
+    if (pendingNativeOAuth) {
+      pendingNativeOAuth.cancel()
+      pendingNativeOAuth = null
+      return true
+    }
+    return false
   }
 
   async function logoutProvider(providerId) {
-    const directory = await getDshModelDirectory()
-    const flows = await readAuthorizationFlows(directory.api)
-    const flow = flows.find((item) => item.key.endsWith(`/${providerId}`))
-    if (!flow) throw new Error(`${providerId} 没有可撤销的官方订阅授权`)
-    dshValue(await directory.api.authorization.logout({ key: flow.key }), '退出 DSH 官方订阅授权')
-    return listCatalog()
+    if (TASKWEAVER_NATIVE_OAUTH[providerId]) {
+      await deletePiAiGrant(dshHome(), providerId)
+      return listCatalog()
+    }
+    throw new Error(`${providerId} 没有可撤销的 OAuth 授权`)
   }
 
   async function setProviderApiKey(providerId, apiKey) {
@@ -356,15 +815,31 @@ export function createModelService({ profileStore, priceRegistryPath, dshHostMan
     if (!provider.settingsNs) {
       throw new Error('该提供方未暴露 DSH 凭据配置入口，无法保存 API 密钥。')
     }
-    const { namespace, ref, settingPath } = await resolveDshCredentialRef(directory, provider)
-    if (namespace.writable === false) throw new Error(`${provider.displayName || providerId} 的 DSH 设置为只读，无法保存凭据`)
-    dshValue(await directory.api.credentials.set({ ref, value: normalizedKey }), '保存 DSH 模型凭据')
+    const {
+      directory: writableDirectory,
+      namespace,
+      settingsNs,
+      ref,
+      settingPath,
+      bootstrapSettings,
+    } = await resolveDshCredentialRef(directory, provider)
+    if (namespace?.writable === false) {
+      throw new Error(`${provider.displayName || providerId} 的 DSH 设置为只读，无法保存凭据`)
+    }
+    dshValue(await writableDirectory.api.credentials.set({ ref, value: normalizedKey }), '保存 DSH 模型凭据')
     try {
-      dshValue(await directory.api.settings.mutate({
-        ns: namespace.ns,
-        expectedRevision: namespace.revision,
+      const mutatePayload = {
+        ns: namespace?.ns ?? settingsNs,
         ops: [{ op: 'set', path: settingPath, value: ref }],
-      }), '更新 DSH 提供方设置')
+        ...(namespace ? { expectedRevision: namespace.revision } : {}),
+      }
+      const mutated = dshValue(
+        await writableDirectory.api.settings.mutate(mutatePayload),
+        bootstrapSettings ? '初始化 DSH 提供方设置' : '更新 DSH 提供方设置',
+      )
+      if (bootstrapSettings && mutated?.revision === undefined) {
+        throw new Error(`${provider.displayName || providerId} 的 DSH 设置写入未得到确认`)
+      }
     } catch (error) {
       // Roll back only a newly-created reference; never erase a prior user key.
       const status = dshValue(await directory.api.credentials.describe({ refs: [ref] }), '校验 DSH 凭据')
@@ -374,18 +849,30 @@ export function createModelService({ profileStore, priceRegistryPath, dshHostMan
       }
       throw error
     }
+    await reloadDshHostAfterCredentialChange()
     return listCatalog()
   }
 
   async function addModel(modelKey) {
-    const catalog = await listCatalog()
-    const model = catalog.candidateModels.find((candidate) => candidate.key === modelKey)
+    let catalog = await listCatalog()
+    let model = catalog.candidateModels.find((candidate) => candidate.key === modelKey)
     if (!model) throw new Error('DSH 模型目录中不存在该模型；请先刷新目录')
-    if (!model.available) throw new Error('该模型当前未由 DSH Host 注册为可用路由')
     const auth = await listProvidersAuth()
     if (!auth.find((provider) => provider.id === model.provider)?.configured) {
       throw new Error('请先在 DSH 中配置该模型提供方的凭据')
     }
+    if (!model.routeRegistered) {
+      const { registry } = await modelRegistryUpdater.loadActiveRegistry()
+      const registryEntry = registry.models?.[modelKey]
+      if (!registryEntry || registryEntry.deprecated) {
+        throw new Error('此模型不在受信任的模型目录中，无法写入 DSH Runtime')
+      }
+      const directory = await fetchDshModelDirectoryOnce()
+      await applyRegistryAdditions(directory, registry, [modelKey])
+      catalog = await listCatalog()
+      model = catalog.candidateModels.find((candidate) => candidate.key === modelKey)
+    }
+    if (!model?.routeRegistered || !model.available) throw new Error('DSH Host 尚未确认该模型可路由')
     await profileStore.addModel(modelKey)
     return listCatalog()
   }
@@ -399,7 +886,10 @@ export function createModelService({ profileStore, priceRegistryPath, dshHostMan
     }
     const { namespace, value } = providerSettings(directory, provider)
     const ref = value?.apiKeyEnv
-    if (typeof ref !== 'string' || !ref.trim()) return logoutProvider(providerId)
+    if (typeof ref !== 'string' || !ref.trim()) {
+      if (TASKWEAVER_NATIVE_OAUTH[providerId]) return logoutProvider(providerId)
+      throw new Error('该提供方未配置 API 密钥引用')
+    }
     dshValue(await directory.api.credentials.unset({ ref: ref.trim() }), '移除 DSH 模型凭据')
     if (namespace.writable === false) throw new Error('凭据已移除，但该 DSH 设置为只读，无法清除凭据引用')
     return listCatalog()
@@ -438,6 +928,10 @@ export function createModelService({ profileStore, priceRegistryPath, dshHostMan
   }
 
   async function dispose() {
+    if (pendingNativeOAuth) {
+      pendingNativeOAuth.cancel()
+      pendingNativeOAuth = null
+    }
     await cancelProviderAuthorization().catch(() => {})
   }
 
@@ -447,6 +941,7 @@ export function createModelService({ profileStore, priceRegistryPath, dshHostMan
     loadModelBundle,
     listProvidersAuth,
     startProviderAuthorization,
+    submitOAuthCode,
     submitAuthorizationPrompt,
     cancelProviderAuthorization,
     logoutProvider,
@@ -462,6 +957,7 @@ export function createModelService({ profileStore, priceRegistryPath, dshHostMan
     },
     resolveModel,
     getDshModelConfig,
+    validateRegistryMapping,
     dispose,
     reloadPriceRegistry,
   }

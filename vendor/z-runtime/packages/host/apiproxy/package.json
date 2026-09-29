@@ -1,0 +1,95 @@
+{
+  "name": "@z/dsh-host-apiproxy",
+  "description": "API gateway: the ApiProxy contract (api/), the fetch carrier pair (fetch/), and the host-side gateway plugin providing ctx.apiProxy",
+  "version": "0.1.1-rc.2",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+    "directory": "packages/host/apiproxy"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./invariant": {
+      "types": "./lib/types/invariant.d.ts",
+      "default": "./lib/invariant.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json",
+    "./api": {
+      "types": "./lib/types/api/index.d.ts",
+      "default": "./lib/types/api/index.js"
+    },
+    "./api/*": {
+      "types": "./lib/types/api/*.d.ts",
+      "default": "./lib/types/api/*.js"
+    },
+    "./client": {
+      "types": "./lib/types/fetch/client.d.ts",
+      "default": "./lib/types/fetch/client.js"
+    }
+  },
+  "files": [
+    "lib/index.js",
+    "lib/invariant.js",
+    "lib/types/**/*.js",
+    "lib/types/**/*.d.ts"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@z/dsh-attachment": "workspace:^",
+    "@z/dsh-agent": "workspace:^",
+    "@z/dsh-agent-default-model": "workspace:^",
+    "@z/dsh-api-remotes": "workspace:^",
+    "@z/dsh-brand": "workspace:^",
+    "@z/dsh-commands": "workspace:^",
+    "@z/dsh-credentials": "workspace:^",
+    "@z/dsh-authorization": "workspace:^",
+    "@z/dsh-goal": "workspace:^",
+    "@z/dsh-host-directory-picker": "workspace:^",
+    "@z/dsh-llm": "workspace:^",
+    "@z/dsh-native-command": "workspace:^",
+    "@z/dsh-session": "workspace:^",
+    "@z/dsh-session-persistence": "workspace:^",
+    "@z/dsh-session-projection": "workspace:^",
+    "@z/dsh-session-projection-cache": "workspace:^",
+    "@z/dsh-session-query": "workspace:^",
+    "@z/dsh-session-title": "workspace:^",
+    "@z/dsh-settings": "workspace:^",
+    "@z/dsh-skill": "workspace:^",
+    "@z/dsh-subagent": "workspace:^",
+    "@z/dsh-jobs": "workspace:^",
+    "@z/dsh-tools": "workspace:^",
+    "@z/dsh-user-approval": "workspace:^",
+    "@z/dsh-user-questions": "workspace:^",
+    "@z/dsh-workspace": "workspace:^",
+    "@z/schemastery": "workspace:^",
+    "fflate": "^0.8.2",
+    "zod": "^4.4.3"
+  },
+  "peerDependencies": {
+    "@z/cordis": "workspace:^",
+    "@z/dsh-agent-presets": "workspace:^",
+    "@z/dsh-cordis-host-runner": "workspace:^",
+    "@z/dsh-invariants": "workspace:^"
+  },
+  "devDependencies": {
+    "@z/cordis": "workspace:^",
+    "@z/dsh-agent-presets": "workspace:^",
+    "@z/dsh-cordis-host-runner": "workspace:^",
+    "@z/dsh-invariants": "workspace:^",
+    "@z/dsh-storage": "workspace:^",
+    "@z/dsh-storage-domain": "workspace:^",
+    "@z/dsh-typert-protocol": "workspace:^",
+    "@z/dsh-typert-registry": "workspace:^",
+    "@z/cordis": "workspace:^"
+  }
+}

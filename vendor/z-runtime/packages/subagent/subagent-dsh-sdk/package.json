@@ -1,0 +1,60 @@
+{
+  "name": "@z/dsh-subagent-dsh-sdk",
+  "description": "Out-of-process SDK subagent backend: drives a child DeepSeek Harness runtime subprocess over stdio JSON-RPC through the TypeScript SDK client",
+  "version": "0.1.1-rc.2",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+    "directory": "packages/subagent/subagent-dsh-sdk"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./invariant": {
+      "types": "./lib/types/invariant.d.ts",
+      "default": "./lib/invariant.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/invariant.js",
+    "lib/types/**/*.d.ts"
+  ],
+  "license": "MIT",
+  "peerDependencies": {
+    "@z/dsh-agent": "workspace:^",
+    "@z/dsh-invariants": "workspace:^",
+    "@z/dsh-llm": "workspace:^",
+    "@z/dsh-sdk-client": "workspace:^",
+    "@z/dsh-session": "workspace:^",
+    "@z/dsh-subagent": "workspace:^",
+    "@z/dsh-subprocess": "workspace:^",
+    "@z/cordis": "workspace:^"
+  },
+  "dependencies": {
+    "@z/schemastery": "workspace:^"
+  },
+  "devDependencies": {
+    "@z/cordis-plugin-loader": "workspace:^",
+    "@z/dsh-agent": "workspace:^",
+    "@z/dsh-invariants": "workspace:^",
+    "@z/dsh-llm": "workspace:^",
+    "@z/dsh-loader-smoke": "workspace:^",
+    "@z/dsh-sdk-client": "workspace:^",
+    "@z/dsh-sdk-protocol": "workspace:^",
+    "@z/dsh-session": "workspace:^",
+    "@z/dsh-subagent": "workspace:^",
+    "@z/dsh-subprocess": "workspace:^",
+    "@z/cordis": "workspace:^"
+  }
+}

@@ -1,0 +1,22 @@
+# Research/review composition: filesystem search/read plus web lookup; no
+# shell, write/editor, or subagent-spawn tool is exposed.
+# This is still only a tool-catalog restriction: `tool-web` performs network
+# requests and is not governed by the DSH file sandbox/permission preset.
+- id: persona
+  name: '@z/dsh-persona'
+  config:
+    text: You are a read-only TaskWeaver research/review agent. Inspect evidence, do not change files, and distinguish verified facts from inference.
+
+- id: agent-instructions
+  name: '@z/dsh-agent-instructions'
+  config:
+    maxBytes: 65536
+
+- id: tool-fs-search
+  name: '@z/dsh-tool-fs-search'
+
+- id: tool-web
+  name: '@z/dsh-tool-web'
+
+- id: tool-skill
+  name: '@z/dsh-tool-skill'

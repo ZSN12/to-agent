@@ -26,6 +26,56 @@ export interface ModelCostPerMillion {
   cacheWrite: number
 }
 
+export type ModelCatalogSource = 'user' | 'remote' | 'bundled' | 'live'
+export type ModelUpdateState = 'idle' | 'checking' | 'up-to-date' | 'updated' | 'cached' | 'failed' | 'rolled-back'
+
+export interface ModelUpdateStatus {
+  state: ModelUpdateState
+  currentVersion: string | null
+  previousVersion: string | null
+  source: 'remote' | 'bundled'
+  lastCheckedAt: string | null
+  updatedAt: string | null
+  error: string | null
+  changes: { added: string[]; deprecated: string[]; changed: string[] }
+  runtime?: {
+    dsh?: { version?: string; commit?: string }
+    piAi?: { version?: string }
+    overlayVersion?: number
+    runtimeBuildHash?: string
+  } | null
+}
+
+export interface ModelRegistryManifest {
+  schemaVersion: 1
+  registryVersion: string
+  registryUrl: string
+  sha256: string
+  signature: string
+  keyId: string
+  publishedAt: string
+}
+
+export interface RegistryProvider {
+  id?: string
+  name: string
+  protocols: string[]
+  defaultEndpointRef?: string
+  authTypes?: string[]
+}
+
+export interface RegistryModel {
+  provider: string
+  id: string
+  name: string
+  api: string
+  contextWindow?: number
+  maxTokens?: number
+  input?: string[]
+  deprecated?: boolean
+  replacementModel?: string
+}
+
 export interface CatalogModel {
   key: string
   provider: string
@@ -40,6 +90,14 @@ export interface CatalogModel {
   profile: ModelProfile | null
   supportedThinkingLevels?: ('off' | 'low' | 'medium' | 'high')[]
   defaultThinkingLevel?: 'off' | 'low' | 'medium' | 'high'
+  source?: ModelCatalogSource
+  deprecated?: boolean
+  replacementModelKey?: string | null
+  capabilityCompleteness?: number
+  registryVersion?: string | null
+  capabilitySummary?: string
+  taskTags?: string[]
+  verificationStatus?: 'verified' | 'unverified' | 'bundled'
 }
 
 export interface ModelCatalog {
@@ -109,6 +167,9 @@ export interface TaskweaverModelsApi {
   list: () => Promise<IpcResult<ModelCatalog>>
   loadBundle: () => Promise<IpcResult<ModelLoadBundle>>
   refresh: () => Promise<IpcResult<ModelCatalog>>
+  getUpdateStatus: () => Promise<IpcResult<ModelUpdateStatus>>
+  checkForUpdates: (options?: { force?: boolean }) => Promise<IpcResult<ModelUpdateStatus>>
+  rollbackRegistry: () => Promise<IpcResult<ModelUpdateStatus>>
   scanLocal: () => Promise<IpcResult<ScanLocalModelsResult>>
   listProvidersAuth: () => Promise<IpcResult<ProviderAuthStatus[]>>
   setProviderApiKey: (
@@ -135,6 +196,7 @@ export interface TaskweaverModelsApi {
   submitOAuthCode: (code: string) => Promise<IpcResult<boolean>>
   logoutOAuth: (providerId: string) => Promise<IpcResult<ModelCatalog>>
   onOAuthStatus: (listener: (status: OAuthStatusInfo) => void) => () => void
+  onUpdateStatus: (listener: (status: ModelUpdateStatus) => void) => () => void
   listCustomProviders: () => Promise<IpcResult<CustomProviderEntry[]>>
   upsertCustomProvider: (payload: CustomProviderUpsertPayload) => Promise<
     IpcResult<{ providerId: string; modelKey: string; catalog: ModelCatalog }>

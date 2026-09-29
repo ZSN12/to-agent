@@ -1,0 +1,72 @@
+{
+  "name": "@z/dsh-hooks-codex",
+  "description": "Bridge plugin: run a Codex hooks.json hook config on the DeepSeek Harness interception seams",
+  "version": "0.1.1-rc.2",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+    "directory": "packages/hooks/hooks-codex"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./invariant": {
+      "types": "./lib/types/invariant.d.ts",
+      "default": "./lib/invariant.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/invariant.js",
+    "lib/types/**/*.d.ts"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@z/schemastery": "workspace:^"
+  },
+  "peerDependencies": {
+    "@z/dsh-agent": "workspace:^",
+    "@z/dsh-hook-protocol": "workspace:^",
+    "@z/dsh-invariants": "workspace:^",
+    "@z/dsh-llm": "workspace:^",
+    "@z/dsh-sandbox": "workspace:^",
+    "@z/dsh-sandbox-policy": "workspace:^",
+    "@z/dsh-session": "workspace:^",
+    "@z/dsh-session-persistence": "workspace:^",
+    "@z/dsh-subagent": "workspace:^",
+    "@z/dsh-tools": "workspace:^",
+    "@z/dsh-user-approval": "workspace:^",
+    "@z/cordis": "workspace:^"
+  },
+  "devDependencies": {
+    "@z/dsh-agent": "workspace:^",
+    "@z/dsh-agent-loop": "workspace:^",
+    "@z/dsh-agent-loop-testkit": "workspace:^",
+    "@z/dsh-shell": "workspace:^",
+    "@z/dsh-bash-local": "workspace:^",
+    "@z/dsh-subprocess-local": "workspace:^",
+    "@z/dsh-hook-protocol": "workspace:^",
+    "@z/dsh-invariants": "workspace:^",
+    "@z/dsh-llm": "workspace:^",
+    "@z/dsh-sandbox": "workspace:^",
+    "@z/dsh-sandbox-policy": "workspace:^",
+    "@z/dsh-session": "workspace:^",
+    "@z/dsh-session-persistence": "workspace:^",
+    "@z/dsh-session-persistence-jsonl": "workspace:^",
+    "@z/dsh-scope": "workspace:^",
+    "@z/dsh-subagent": "workspace:^",
+    "@z/dsh-tools": "workspace:^",
+    "@z/dsh-user-approval": "workspace:^",
+    "@z/cordis": "workspace:^"
+  }
+}

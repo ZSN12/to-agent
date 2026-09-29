@@ -1,0 +1,66 @@
+{
+  "name": "@z/dsh-app-boot",
+  "description": "Shared boot glue for the app bins: .env loading, fail-loud Loader guards, snapshot-aware config resolution, and the Loader boot sequence",
+  "version": "0.1.1-rc.2",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+    "directory": "packages/boot/app-boot"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./invariant": {
+      "types": "./lib/types/invariant.d.ts",
+      "default": "./lib/invariant.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/invariant.js",
+    "lib/types/**/*.d.ts"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "js-yaml": "^4.2.0"
+  },
+  "peerDependencies": {
+    "@z/cordis-plugin-group": "workspace:^",
+    "@z/cordis-plugin-hmr": "workspace:^",
+    "@z/cordis-plugin-include": "workspace:^",
+    "@z/cordis-plugin-loader": "workspace:^",
+    "@z/dsh-launch-environment": "workspace:^",
+    "@z/dsh-invariants": "workspace:^",
+    "@z/dsh-home-paths": "workspace:^",
+    "@z/dsh-system-prompt": "workspace:^",
+    "@z/cordis": "workspace:^"
+  },
+  "peerDependenciesMeta": {
+    "@z/cordis-plugin-hmr": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@z/cordis-plugin-group": "workspace:^",
+    "@z/cordis-plugin-hmr": "workspace:^",
+    "@z/cordis-plugin-include": "workspace:^",
+    "@z/cordis-plugin-loader": "workspace:^",
+    "@z/cordis-plugin-timer": "workspace:^",
+    "@z/dsh-launch-environment": "workspace:^",
+    "@z/dsh-invariants": "workspace:^",
+    "@z/dsh-home-paths": "workspace:^",
+    "@z/dsh-system-prompt": "workspace:^",
+    "@types/js-yaml": "^4.0.9",
+    "@z/cordis": "workspace:^"
+  }
+}

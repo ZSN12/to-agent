@@ -146,7 +146,7 @@ if (!hasSingleInstanceLock) {
 
     try {
       const { registerIpc } = await import('./backend/register-ipc.mjs')
-      await registerIpc({ ipcMain, app, dialog, BrowserWindow, safeStorage })
+      await registerIpc({ ipcMain, app, dialog, BrowserWindow, safeStorage, net })
     } catch (error) {
       const message = error instanceof Error ? error.stack || error.message : String(error)
       console.error('[TaskWeaver] registerIpc failed:', message)

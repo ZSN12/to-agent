@@ -105,6 +105,13 @@ export interface PiAiProviderProfile {
    */
   models?: PiAiModelProfile[]
   /**
+   * Models appended to the installed catalog without replacing it. TaskWeaver
+   * uses this for signed registry additions that speak a protocol already
+   * supported by the bundled runtime. Existing ids are rejected; use
+   * `modelOverrides` when correcting an installed model instead.
+   */
+  modelAdditions?: PiAiModelProfile[]
+  /**
    * Installed-catalog customizations by model id: each entry reshapes that
    * one model with the same fields a {@link models} entry takes, while the
    * rest of the catalog keeps serving untouched. Only meaningful on a catalog
@@ -177,7 +184,7 @@ export interface PiAiProviderProfile {
 
 /** Validated profile with its route stamped and every adapter-owned default resolved. */
 export interface ResolvedPiAiProviderProfile
-  extends Omit<PiAiProviderProfile, 'apiKeyEnv' | 'retryPolicy' | 'models' | 'displayName'> {
+  extends Omit<PiAiProviderProfile, 'apiKeyEnv' | 'retryPolicy' | 'models' | 'modelAdditions' | 'displayName'> {
   /** Harness route key and the `Models` collection key (the configuration dict key). */
   provider: string
   /** Resolved display name for selectors and configuration surfaces. */
@@ -310,6 +317,7 @@ const profile = z.object({
   api: z.union(supportedProtocols()),
   baseURL: z.string(),
   models: z.array(modelProfile),
+  modelAdditions: z.array(modelProfile),
   modelOverrides: z.dict(modelOverride),
   compat: compatProfile,
   defaultContextWindow: z.number().step(1).min(1).default(DEFAULT_CONTEXT_WINDOW),
@@ -431,13 +439,21 @@ export function resolveProfiles(
       ...source.api === undefined ? {} : { api: source.api },
       ...source.baseURL === undefined ? {} : { baseURL: source.baseURL },
       ...source.models === undefined ? {} : { models: source.models },
+      ...source.modelAdditions === undefined ? {} : { modelAdditions: source.modelAdditions },
       ...source.modelOverrides === undefined ? {} : { modelOverrides: source.modelOverrides },
       ...source.compat === undefined ? {} : { compat: source.compat },
       defaultInput,
       defaultContextWindow: source.defaultContextWindow ?? DEFAULT_CONTEXT_WINDOW,
       defaultMaxTokens: source.defaultMaxTokens ?? DEFAULT_MAX_TOKENS,
     })
-    const { apiKeyEnv, retryPolicy, models: _models, displayName: _displayName, ...rest } = source
+    const {
+      apiKeyEnv,
+      retryPolicy,
+      models: _models,
+      modelAdditions: _modelAdditions,
+      displayName: _displayName,
+      ...rest
+    } = source
     resolved.set(provider, {
       ...rest,
       provider,

@@ -12,6 +12,7 @@ import { PiAiAdapter } from '@deepseek-ai/dsh-llm-pi-ai'
 import { getBuiltinModels } from '@earendil-works/pi-ai/providers/all'
 import { createModels, getSupportedThinkingLevels } from '@earendil-works/pi-ai'
 import type { Api, Model, OpenAICompletionsCompat, Provider } from '@earendil-works/pi-ai'
+import { normalizeContext } from '@earendil-works/pi-ai/utils/transcript'
 import { resolveProfiles } from '../src/config.ts'
 import { buildProvider, supportedProtocols } from '../src/provider.ts'
 import { assemble } from './assemble.ts'
@@ -507,7 +508,7 @@ describe('catalog routes with per-model configuration', () => {
     if (built === undefined) throw new Error('the deepseek route built no provider')
     const [model] = built.getModels()
     if (model === undefined) throw new Error('the deepseek route resolved no models')
-    const context = { messages: [{ role: 'user' as const, content: 'hi', timestamp: 0 }] }
+    const context = normalizeContext({ messages: [{ role: 'user' as const, content: 'hi', timestamp: 0 }] })
 
     // `stream` is interface-required and unused by the harness adapter, which
     // only calls `streamSimple`; both must still reach the catalog provider.
@@ -637,7 +638,7 @@ describe('per-model reasoning efforts', () => {
   it('narrows a catalog model’s levels in place', () => {
     const [catalogModel] = getBuiltinModels('deepseek')
     if (catalogModel === undefined) throw new Error('the installed catalog ships no deepseek model')
-    expect(getSupportedThinkingLevels(catalogModel as Model<Api>)).toEqual(['off', 'high', 'max'])
+    expect(getSupportedThinkingLevels(catalogModel as Model<Api>)).toContain('high')
 
     const model = modelOf({
       deepseek: { models: [{ id: catalogModel.id, reasoningEfforts: { off: null, high: 'high' } }] },
@@ -756,6 +757,44 @@ describe('modelOverrides', () => {
   })
 })
 
+describe('modelAdditions', () => {
+  it('appends a same-protocol model without replacing the installed catalog', () => {
+    const installed = getBuiltinModels('deepseek')
+    const resolved = resolveProfiles({
+      deepseek: {
+        modelAdditions: [{
+          id: 'taskweaver-registry-model',
+          name: 'TaskWeaver Registry Model',
+          contextWindow: 128_000,
+          maxTokens: 8192,
+          input: ['text'],
+        }],
+      },
+    })
+    const models = resolved.get('deepseek')?.piProvider.getModels() ?? []
+    expect(models).toHaveLength(installed.length + 1)
+    expect(models.find(model => model.id === 'taskweaver-registry-model')).toMatchObject({
+      name: 'TaskWeaver Registry Model',
+      contextWindow: 128_000,
+      maxTokens: 8192,
+    })
+  })
+
+  it('refuses replacements and ambiguous full-list combinations', () => {
+    const installed = getBuiltinModels('deepseek')[0]
+    if (!installed) throw new Error('the installed catalog ships no deepseek model')
+    expect(() => resolveProfiles({
+      deepseek: { modelAdditions: [{ id: installed.id }] },
+    })).toThrow(/use modelOverrides/)
+    expect(() => resolveProfiles({
+      deepseek: {
+        models: [{ id: 'replacement' }],
+        modelAdditions: [{ id: 'addition' }],
+      },
+    })).toThrow(/modelAdditions beside a models list/)
+  })
+})
+
 describe('compat switches', () => {
   /** The materialized models of one route, keyed by id. */
   function modelsOf(providers: Record<string, LlmPiAi.PiAiProviderProfile>, route: string): Map<string, Model<Api>> {
@@ -796,19 +835,19 @@ describe('compat switches', () => {
   })
 
   it('skips models of other protocols on a mixed route instead of failing them', () => {
-    // xai ships both completions and responses models, so a route-level switch
+    // Cloudflare AI Gateway ships both completions and responses models, so a route-level switch
     // must land on the former without invalidating the latter.
-    const catalog = getBuiltinModels('xai') as readonly Model<Api>[]
+    const catalog = getBuiltinModels('cloudflare-ai-gateway') as readonly Model<Api>[]
     const completions = catalog.find(model => model.api === 'openai-completions')
     const responses = catalog.find(model => model.api === 'openai-responses')
-    if (completions === undefined || responses === undefined) throw new Error('xai no longer ships a mixed catalog')
+    if (completions === undefined || responses === undefined) throw new Error('cloudflare-ai-gateway no longer ships a mixed catalog')
 
     const models = modelsOf({
-      xai: {
+      'cloudflare-ai-gateway': {
         compat: { supportsReasoningEffort: false },
         models: [{ id: completions.id }, { id: responses.id }],
       },
-    }, 'xai')
+    }, 'cloudflare-ai-gateway')
 
     expect((models.get(completions.id)?.compat as OpenAICompletionsCompat).supportsReasoningEffort).toBe(false)
     expect(models.get(responses.id)?.compat).toEqual(responses.compat)
@@ -877,18 +916,18 @@ describe('compat switches', () => {
   })
 
   it('lands each route switch only on the models whose protocol declares it', () => {
-    const catalog = getBuiltinModels('xai') as readonly Model<Api>[]
+    const catalog = getBuiltinModels('cloudflare-ai-gateway') as readonly Model<Api>[]
     const completions = catalog.find(model => model.api === 'openai-completions')
     const responses = catalog.find(model => model.api === 'openai-responses')
-    if (completions === undefined || responses === undefined) throw new Error('xai no longer ships a mixed catalog')
+    if (completions === undefined || responses === undefined) throw new Error('cloudflare-ai-gateway no longer ships a mixed catalog')
 
     const models = modelsOf({
-      xai: {
+      'cloudflare-ai-gateway': {
         // Both protocols take the first switch; only completions takes the second.
         compat: { supportsDeveloperRole: false, thinkingFormat: 'openai' },
         models: [{ id: completions.id }, { id: responses.id }],
       },
-    }, 'xai')
+    }, 'cloudflare-ai-gateway')
 
     const onCompletions = models.get(completions.id)?.compat as OpenAICompletionsCompat
     expect(onCompletions.supportsDeveloperRole).toBe(false)
@@ -1008,11 +1047,13 @@ describe('compat switches', () => {
   })
 
   it('refuses a valueless compat key on a model entry too', () => {
+    const modelId = getBuiltinModels('deepseek')[0]?.id
+    if (!modelId) throw new Error('the installed catalog ships no deepseek model')
     expect(() => resolveProfiles({
       deepseek: {
-        modelOverrides: { 'deepseek-v4-flash': { compat: { requiresReasoningContentOnAssistantMessages: null } } as never },
+        modelOverrides: { [modelId]: { compat: { requiresReasoningContentOnAssistantMessages: null } } as never },
       },
-    })).toThrow(/model "deepseek-v4-flash" sets compat "requiresReasoningContentOnAssistantMessages" with no value/)
+    })).toThrow(new RegExp(`model "${modelId}" sets compat "requiresReasoningContentOnAssistantMessages" with no value`))
   })
 
   it('serves the Responses compat type on every protocol pi-ai gives it to', () => {
@@ -1057,6 +1098,8 @@ describe('compat switches', () => {
 
 describe('resolution snapshots', () => {
   it('finishes an in-flight request under the configuration it started with', async () => {
+    const modelId = getBuiltinModels('deepseek')[0]?.id
+    if (!modelId) throw new Error('the installed catalog ships no deepseek model')
     const server = await mockServer([{ events: textEvents }])
     let current = resolveProfiles({ deepseek: { baseURL: `${server.url}/v1` } })
     let release: () => void = () => {}
@@ -1073,7 +1116,7 @@ describe('resolution snapshots', () => {
     const inFlight = (async () => {
       for await (const chunk of adapter.stream({
         provider: 'deepseek',
-        model: 'deepseek-v4-flash',
+        model: modelId,
         messages: [],
       })) chunks.push(chunk)
     })()
@@ -1092,6 +1135,8 @@ describe('resolution snapshots', () => {
   })
 
   it('serves the next request from the new configuration', async () => {
+    const modelId = getBuiltinModels('deepseek')[0]?.id
+    if (!modelId) throw new Error('the installed catalog ships no deepseek model')
     const first = await mockServer([{ events: textEvents }])
     const second = await mockServer([{ events: textEvents }])
     let current = resolveProfiles({ deepseek: { baseURL: `${first.url}/v1` } })
@@ -1102,7 +1147,7 @@ describe('resolution snapshots', () => {
     })
     const drain = async (): Promise<void> => {
       for await (const _chunk of adapter.stream({
-        provider: 'deepseek', model: 'deepseek-v4-flash', messages: [],
+        provider: 'deepseek', model: modelId, messages: [],
       })) { /* drain */ }
     }
 

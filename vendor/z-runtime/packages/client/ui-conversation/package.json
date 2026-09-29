@@ -1,0 +1,116 @@
+{
+  "name": "@z/dsh-client-ui-conversation",
+  "description": "Conversation domain: skeleton, ordered chat flow, composer with the Host-backed busy-Enter preference, and details host",
+  "version": "0.1.1-rc.2",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+    "directory": "packages/client/ui-conversation"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./invariant": {
+      "types": "./lib/types/invariant.d.ts",
+      "default": "./lib/invariant.js"
+    },
+    "./client": {
+      "types": "./lib/types/client/index.d.ts",
+      "default": "./lib/client.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "client": {
+      "inject": [
+        "@z/dsh-client-connection",
+        "@z/dsh-client-locale",
+        "@z/dsh-client-runtime",
+        "@z/dsh-client-ui-settings",
+        "@z/dsh-api-remotes",
+        "@z/dsh-client-ui-layout"
+      ],
+      "platform": "web"
+    }
+  },
+  "scripts": {
+    "bundle": "tsdown",
+    "watch": "tsdown --watch"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "clsx": "^2.0.0",
+    "@z/schemastery": "workspace:^"
+  },
+  "peerDependencies": {
+    "@z/cordis": "workspace:^",
+    "@z/dsh-agent": "workspace:^",
+    "@z/dsh-api-remotes": "workspace:^",
+    "@z/dsh-attachment": "workspace:^",
+    "@z/dsh-brand": "workspace:^",
+    "@z/dsh-client-connection": "workspace:^",
+    "@z/dsh-client-locale": "workspace:^",
+    "@z/dsh-client-runtime": "workspace:^",
+    "@z/dsh-client-ui-settings": "workspace:^",
+    "@z/dsh-client-ui-input-trigger": "workspace:^",
+    "@z/dsh-commands": "workspace:^",
+    "@z/dsh-compaction": "workspace:^",
+    "@z/dsh-invariants": "workspace:^",
+    "@z/dsh-llm-retry": "workspace:^",
+    "@z/dsh-session-stats": "workspace:^",
+    "@z/dsh-token-meter": "workspace:^",
+    "@z/dsh-tools": "workspace:^",
+    "@z/dsh-settings": "workspace:^",
+    "@z/dsh-client-ui-layout": "workspace:^",
+    "@z/dsh-goal": "workspace:^",
+    "@z/dsh-permission-presets": "workspace:^",
+    "@z/dsh-plan-mode": "workspace:^",
+    "@z/dsh-tool-todo": "workspace:^"
+  },
+  "devDependencies": {
+    "@z/cordis": "workspace:^",
+    "@z/dsh-agent": "workspace:^",
+    "@z/dsh-api-remotes": "workspace:^",
+    "@z/dsh-attachment": "workspace:^",
+    "@z/dsh-brand": "workspace:^",
+    "@z/dsh-client-connection": "workspace:^",
+    "@z/dsh-client-locale": "workspace:^",
+    "@z/dsh-client-runtime": "workspace:^",
+    "@z/dsh-client-test-runtime": "workspace:^",
+    "@z/dsh-client-ui-layout": "workspace:^",
+    "@z/dsh-client-ui-primitives": "workspace:^",
+    "@z/dsh-client-ui-settings": "workspace:^",
+    "@z/dsh-client-ui-input-trigger": "workspace:^",
+    "@z/dsh-client-ui-slots": "workspace:^",
+    "@z/dsh-commands": "workspace:^",
+    "@z/dsh-compaction": "workspace:^",
+    "@z/dsh-goal": "workspace:^",
+    "@z/dsh-invariants": "workspace:^",
+    "@z/dsh-llm-retry": "workspace:^",
+    "@z/dsh-permission-presets": "workspace:^",
+    "@z/dsh-plan-mode": "workspace:^",
+    "@z/dsh-session-projection": "workspace:^",
+    "@z/dsh-session-stats": "workspace:^",
+    "@z/dsh-token-meter": "workspace:^",
+    "@z/dsh-tool-todo": "workspace:^",
+    "@z/dsh-tools": "workspace:^",
+    "@types/react": "~18.3.1",
+    "react": "^18.2.0",
+    "@z/dsh-settings": "workspace:^"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/invariant.js",
+    "lib/client.js",
+    "lib/types/**/*.d.ts"
+  ]
+}

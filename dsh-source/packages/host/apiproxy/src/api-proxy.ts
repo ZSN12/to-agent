@@ -3332,6 +3332,7 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
         const active = new Set(registered.map(provider => provider.id))
         const directory = ctx.llm.listConfigurableProviders()
         const declared = new Set(directory.map(entry => entry.provider))
+        const piAiDirectoryMounted = directory.some(entry => String(entry.settingsNs) === 'llm-pi-ai')
         const views: ConfigurableProviderView[] = directory.map(entry => ({
           provider: entry.provider,
           displayName: entry.displayName,
@@ -3345,11 +3346,15 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
         // adapter claimed them, so nothing can say whether they are shipped.
         for (const provider of registered) {
           if (declared.has(provider.id)) continue
+          // When llm-pi-ai is mounted its catalog routes are always configurable
+          // at providers.<id>; exposing an empty settingsNs blocks API clients
+          // from wiring apiKeyEnv before the directory catches up.
+          const piAiFallback = piAiDirectoryMounted && !provider.id.startsWith('custom-')
           views.push({
             provider: provider.id,
             displayName: provider.name,
-            settingsNs: '',
-            settingsPath: [],
+            settingsNs: piAiFallback ? 'llm-pi-ai' : '',
+            settingsPath: piAiFallback ? ['providers', provider.id] : [],
             active: true,
           })
         }

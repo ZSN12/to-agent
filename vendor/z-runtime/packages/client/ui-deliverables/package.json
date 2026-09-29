@@ -1,0 +1,77 @@
+{
+  "name": "@z/dsh-client-ui-deliverables",
+  "description": "Produced-files turn tail and clickable final-response file references for Web",
+  "version": "0.1.1-rc.2",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+    "directory": "packages/client/ui-deliverables"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./invariant": {
+      "types": "./lib/types/invariant.d.ts",
+      "default": "./lib/invariant.js"
+    },
+    "./client": {
+      "types": "./lib/types/client/index.d.ts",
+      "default": "./lib/client.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "client": {
+      "inject": [
+        "@z/dsh-client-connection",
+        "@z/dsh-client-locale",
+        "@z/dsh-client-runtime",
+        "@z/dsh-client-ui-conversation"
+      ],
+      "platform": "web"
+    }
+  },
+  "scripts": {
+    "bundle": "tsdown",
+    "watch": "tsdown --watch"
+  },
+  "license": "MIT",
+  "peerDependencies": {
+    "@z/dsh-client-connection": "workspace:^",
+    "@z/dsh-client-locale": "workspace:^",
+    "@z/dsh-client-runtime": "workspace:^",
+    "@z/dsh-client-ui-conversation": "workspace:^",
+    "@z/dsh-invariants": "workspace:^",
+    "@z/dsh-system-prompt": "workspace:^",
+    "@z/cordis": "workspace:^"
+  },
+  "devDependencies": {
+    "@z/dsh-client-connection": "workspace:^",
+    "@z/dsh-client-locale": "workspace:^",
+    "@z/dsh-client-runtime": "workspace:^",
+    "@z/dsh-client-test-runtime": "workspace:^",
+    "@z/dsh-client-ui-conversation": "workspace:^",
+    "@z/dsh-client-ui-slots": "workspace:^",
+    "@z/dsh-invariants": "workspace:^",
+    "@z/dsh-system-prompt": "workspace:^",
+    "@types/react": "~18.3.1",
+    "@z/cordis": "workspace:^",
+    "react": "^18.2.0",
+    "@z/dsh-client-ui-primitives": "workspace:^"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/invariant.js",
+    "lib/client.js",
+    "lib/types/**/*.d.ts"
+  ]
+}

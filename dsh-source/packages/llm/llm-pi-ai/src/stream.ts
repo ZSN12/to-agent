@@ -89,6 +89,12 @@ export function mapStopReason(message: AssistantMessage, contextWindow?: number)
   }
 
   switch (message.stopReason) {
+    case 'pending':
+    case 'deferred':
+      return {
+        kind: 'error',
+        failure: { message: `model "${message.model}" returned an unresolved deferred response`, code: 'PI_AI_ERROR' },
+      }
     case 'stop':
       // A terminal stop that produced no content blocks is a degenerate
       // provider completion, not a successful (empty) assistant message.

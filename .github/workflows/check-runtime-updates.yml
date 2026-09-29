@@ -1,0 +1,40 @@
+name: Check DSH runtime updates
+
+on:
+  schedule:
+    - cron: '41 4 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  runtime-lock:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Record upstream upgrade candidate
+        shell: bash
+        run: |
+          PI_VERSION=$(npm view @earendil-works/pi-ai version)
+          DSH_COMMIT=$(git ls-remote https://github.com/deepseek-ai/deepseek-harness.git refs/heads/master | cut -f1)
+          node scripts/update-runtime-lock.mjs "$PI_VERSION" "$DSH_COMMIT"
+      - name: Validate application and registry
+        run: |
+          npm ci
+          npm run build
+          npm run test:model-registry
+      - uses: peter-evans/create-pull-request@v7
+        with:
+          branch: automation/runtime-lock-update
+          delete-branch: true
+          title: "chore(runtime): review available DSH and pi-ai upgrade"
+          commit-message: "chore(runtime): record upstream upgrade candidate"
+          body: |
+            Automated runtime upgrade candidate. `runtime-lock.json` is intentionally unchanged until the vendored DSH source and TaskWeaver overlay have been synchronized.
+            Apply the candidate with `node scripts/update-runtime-lock.mjs <pi-ai> <dsh-commit> --apply` only after chat, streaming, tools, permissions, Skill, MCP, OAuth, multi-session and packaged-start tests pass.

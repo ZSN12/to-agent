@@ -12,12 +12,13 @@
   },
   "type": "module",
   "bin": {
-    "dsh": "lib/bin.js"
+    "dsh": "lib/entry.js"
   },
   "files": [
     "lib/*.js",
     "config"
   ],
+  "comments_on_files": "lib/entry.js is the published bin; lib/bin.js is the bundled CLI body",
   "license": "MIT",
   "dependencies": {
     "@deepseek-ai/cordis-plugin-group": "workspace:^",

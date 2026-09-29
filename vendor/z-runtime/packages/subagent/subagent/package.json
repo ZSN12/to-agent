@@ -1,0 +1,106 @@
+{
+  "name": "@z/dsh-subagent",
+  "description": "Abstract subagent seam (ctx.subagents): named-provider registry for delegating to child agents",
+  "version": "0.1.1-rc.2",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+    "directory": "packages/subagent/subagent"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./invariant": {
+      "types": "./lib/types/invariant.d.ts",
+      "default": "./lib/invariant.js"
+    },
+    "./client": {
+      "types": "./lib/types/client.d.ts",
+      "default": "./lib/types/client.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/invariant.js",
+    "lib/types/**/*.js",
+    "lib/types/**/*.d.ts"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "zod": "^4.4.3"
+  },
+  "peerDependencies": {
+    "@z/dsh-agent": "workspace:^",
+    "@z/dsh-agent-presets": "workspace:^",
+    "@z/dsh-brand": "workspace:^",
+    "@z/dsh-invariants": "workspace:^",
+    "@z/dsh-llm": "workspace:^",
+    "@z/dsh-sandbox": "workspace:^",
+    "@z/dsh-sandbox-policy": "workspace:^",
+    "@z/dsh-scope": "workspace:^",
+    "@z/dsh-session": "workspace:^",
+    "@z/dsh-session-persistence": "workspace:^",
+    "@z/dsh-session-projection": "workspace:^",
+    "@z/dsh-session-projection-cache": "workspace:^",
+    "@z/dsh-jobs": "workspace:^",
+    "@z/dsh-tools": "workspace:^",
+    "@z/dsh-user-approval": "workspace:^",
+    "@z/cordis": "workspace:^"
+  },
+  "peerDependenciesMeta": {
+    "@z/dsh-agent-presets": {
+      "optional": true
+    },
+    "@z/dsh-sandbox": {
+      "optional": true
+    },
+    "@z/dsh-sandbox-policy": {
+      "optional": true
+    },
+    "@z/dsh-session-persistence": {
+      "optional": true
+    },
+    "@z/dsh-session-projection": {
+      "optional": true
+    },
+    "@z/dsh-session-projection-cache": {
+      "optional": true
+    },
+    "@z/dsh-jobs": {
+      "optional": true
+    },
+    "@z/dsh-user-approval": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@z/dsh-agent": "workspace:^",
+    "@z/dsh-agent-presets": "workspace:^",
+    "@z/dsh-brand": "workspace:^",
+    "@z/dsh-invariants": "workspace:^",
+    "@z/dsh-llm": "workspace:^",
+    "@z/dsh-sandbox": "workspace:^",
+    "@z/dsh-sandbox-policy": "workspace:^",
+    "@z/dsh-scope": "workspace:^",
+    "@z/dsh-session": "workspace:^",
+    "@z/dsh-session-persistence": "workspace:^",
+    "@z/dsh-session-projection": "workspace:^",
+    "@z/dsh-session-projection-cache": "workspace:^",
+    "@z/dsh-storage": "workspace:^",
+    "@z/dsh-storage-domain": "workspace:^",
+    "@z/dsh-jobs": "workspace:^",
+    "@z/dsh-tools": "workspace:^",
+    "@z/dsh-user-approval": "workspace:^",
+    "@z/cordis": "workspace:^"
+  }
+}

@@ -1,39 +1,77 @@
 import { spawn as nodeSpawn } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { createDshApiClient } from './dsh-api-client.mjs'
-import { resolveDshHostLaunch } from './resolve-runtime.mjs'
-
-const TASKWEAVER_DSH_PATCH_SOURCE = path.join(
-  path.dirname(fileURLToPath(import.meta.url)),
-  'taskweaver-cordis.patch.yml',
-)
-const AUTHORIZATION_PATCH_MARKER = 'id: authorization'
-
-/** Ensure OAuth / official-subscription flows are mounted in the TaskWeaver DSH profile. */
-export function ensureTaskWeaverDshHomePatch(dshHome) {
-  fs.mkdirSync(dshHome, { recursive: true })
-  const dest = path.join(dshHome, 'cordis.patch.yml')
-  const bundled = fs.readFileSync(TASKWEAVER_DSH_PATCH_SOURCE, 'utf8')
-  if (!fs.existsSync(dest)) {
-    fs.writeFileSync(dest, bundled, 'utf8')
-    return { updated: true }
-  }
-  const current = fs.readFileSync(dest, 'utf8')
-  if (current.includes(AUTHORIZATION_PATCH_MARKER) && current.includes('dsh-authorization')) {
-    return { updated: false }
-  }
-  if (current.trim() === '[]' || current.trim() === '') {
-    fs.writeFileSync(dest, bundled, 'utf8')
-    return { updated: true }
-  }
-  fs.writeFileSync(dest, `${current.trimEnd()}\n\n${bundled}`, 'utf8')
-  return { updated: true }
-}
+import {
+  resolveDshHostLaunch,
+  TASKWEAVER_DSH_RUNTIME_PACKAGES,
+} from './resolve-runtime.mjs'
 
 const READY_URL = /dsh web:\s+(https?:\/\/127\.0\.0\.1:\d+)/i
 const START_TIMEOUT_MS = 45_000
+const MODEL_SETTINGS_NS = 'llm-pi-ai'
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+function symlinkDir(target, linkPath) {
+  fs.symlinkSync(target, linkPath, process.platform === 'win32' ? 'junction' : 'dir')
+}
+
+/** Node ESM resolves packages from cwd/node_modules; deploy output uses runtime-packages for packaging. */
+function prepareRuntimeCwd(runtimeRoot, dshHome) {
+  const packagesDir = path.join(runtimeRoot, TASKWEAVER_DSH_RUNTIME_PACKAGES)
+  if (!fs.existsSync(packagesDir)) {
+    return runtimeRoot
+  }
+  const modulesLink = path.join(runtimeRoot, 'node_modules')
+  if (!fs.existsSync(modulesLink)) {
+    try {
+      symlinkDir(TASKWEAVER_DSH_RUNTIME_PACKAGES, modulesLink)
+      return runtimeRoot
+    } catch {
+      /* .app Resources may be read-only — mirror into DSH_HOME */
+    }
+  } else {
+    return runtimeRoot
+  }
+
+  const mirror = path.join(dshHome, 'packaged-runtime')
+  fs.mkdirSync(mirror, { recursive: true })
+  for (const name of ['lib', 'config', TASKWEAVER_DSH_RUNTIME_PACKAGES]) {
+    const src = path.join(runtimeRoot, name)
+    const dest = path.join(mirror, name)
+    if (!fs.existsSync(src) || fs.existsSync(dest)) continue
+    try {
+      fs.symlinkSync(src, dest, process.platform === 'win32' ? 'junction' : 'dir')
+    } catch {
+      /* skip broken mirror piece */
+    }
+  }
+  for (const name of ['package.json', 'taskweaver-runtime-meta.json']) {
+    const src = path.join(runtimeRoot, name)
+    const dest = path.join(mirror, name)
+    if (!fs.existsSync(src) || fs.existsSync(dest)) continue
+    fs.symlinkSync(src, dest)
+  }
+  const mirrorModules = path.join(mirror, 'node_modules')
+  if (!fs.existsSync(mirrorModules)) {
+    symlinkDir(path.join(mirror, TASKWEAVER_DSH_RUNTIME_PACKAGES), mirrorModules)
+  }
+  return mirror
+}
+
+async function waitForModelSettingsNamespace(client, timeoutMs = 45_000) {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    const described = await client.settings.describe({})
+    if (described.result?.ok) {
+      const namespaces = described.result.value?.namespaces ?? []
+      if (namespaces.some((entry) => String(entry.ns) === MODEL_SETTINGS_NS)) return
+    }
+    await sleep(250)
+  }
+  console.warn(`DSH Host 在 ${timeoutMs}ms 内未注册 ${MODEL_SETTINGS_NS} 设置命名空间（模型凭据保存可能需重试）`)
+}
 
 /**
  * Owns one DSH profile process for the lifetime of the Electron main process.
@@ -78,34 +116,31 @@ export function createDshHostManager({
 
   async function start() {
     const dshHome = path.join(userDataPath, 'dsh')
-    let patchUpdated = false
-    try {
-      const patchResult = ensureTaskWeaverDshHomePatch(dshHome)
-      patchUpdated = patchResult.updated
-    } catch (error) {
-      throw new Error(`无法准备 TaskWeaver DSH 配置（${dshHome}）：${error instanceof Error ? error.message : error}`)
-    }
-    if (patchUpdated && api && child && child.exitCode === null && child.signalCode === null) {
-      await stop()
-      startPromise = null
-    }
     if (api && child && child.exitCode === null && child.signalCode === null) return { api, baseUrl: hostUrl }
     if (startPromise) return startPromise
     startPromise = new Promise((resolve, reject) => {
       diagnostics = ''
-      let launch
+      let entrypoint
+      let nodePath
+      let processCwd
       try {
-        launch = resolveDshHostLaunch(runtimeRoot)
+        processCwd = prepareRuntimeCwd(runtimeRoot, dshHome)
+        const launch = resolveDshHostLaunch(processCwd)
+        entrypoint = launch.entrypoint
+        nodePath = launch.nodePath
       } catch (error) {
         reject(error instanceof Error ? error : new Error(String(error)))
         return
       }
-      const { entrypoint, cwd: processCwd } = launch
       const childEnv = {
         ...environment,
         DSH_HOME: dshHome,
         DSH_TELEMETRY_DISABLED: '1',
+        DSH_TASKWEAVER_EMBEDDED: '1',
         ELECTRON_RUN_AS_NODE: '1',
+      }
+      if (nodePath) {
+        childEnv.NODE_PATH = nodePath
       }
       const spawned = spawnProcess(executable, [entrypoint, 'web', '--no-open', '--port', '0'], {
         cwd: processCwd,
@@ -145,6 +180,7 @@ export function createDshHostManager({
             // Fail startup unless this is a real, reachable DSH API host.
             const description = await client.host.describe({})
             if (!description.result.ok) throw new Error(description.result.error.message)
+            await waitForModelSettingsNamespace(client)
             if (settled) return
             settled = true
             clearTimeout(timer)

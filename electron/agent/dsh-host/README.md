@@ -10,9 +10,11 @@ npm run test:dsh-host
 npm run test:dsh-host-deploy
 ```
 
-- 开发/打包解析：`resolve-runtime.mjs`（`vendor/taskweaver-dsh-runtime` → `dsh-source` monorepo）。
+- 开发/打包解析：`resolve-runtime.mjs`（`vendor/taskweaver-dsh-runtime` → `dsh-source` monorepo）。Z Runtime 双路径与 `TASKWEAVER_USE_Z_RUNTIME` 见同文件及 `../z-host/README.md`。
 - 打包：`electron-builder.yml` 将 runtime 放入 `Resources/taskweaver-dsh-runtime`；`DSH_HOME` 在 `userData/dsh`。
-- Api 客户端：`dsh-api-client.mjs` 从部署目录 `node_modules/@deepseek-ai/dsh-client-connection/...` 加载。
+- 部署目录依赖在 `runtime-packages/`（打包用；启动时链到 `node_modules` 供 Node ESM 解析）。
+- Api 客户端：`dsh-api-client.mjs` 从 `runtime-packages/@deepseek-ai/dsh-client-connection/...` 加载。
+- TaskWeaver 专用 Cordis 组态在 `dsh-source`（如 `dsh-web-app` bundle 挂载 `authorization`）；不再写入 `DSH_HOME/cordis.patch.yml`。
 
 ## 模块
 

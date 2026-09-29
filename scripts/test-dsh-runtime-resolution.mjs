@@ -3,7 +3,14 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { resolveDshHostLaunch, resolveDshRuntimeRoot } from '../electron/agent/dsh-host/resolve-runtime.mjs'
+import {
+  resolveDshHostLaunch,
+  resolveDshRuntimeRoot,
+  resolveTaskWeaverRuntimeRoot,
+  resolveZHostLaunch,
+  resolveZRuntimeRoot,
+  useZRuntime,
+} from '../electron/agent/dsh-host/resolve-runtime.mjs'
 
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-dsh-resolution-'))
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -72,10 +79,57 @@ try {
 
   const builderConfig = await fs.readFile(path.join(projectRoot, 'electron-builder.yml'), 'utf8')
   assert.match(builderConfig, /from:\s*vendor\/taskweaver-dsh-runtime[\s\S]*to:\s*taskweaver-dsh-runtime/)
+  assert.match(builderConfig, /runtime-packages\/\*\*\/\*/)
   const buildScript = await fs.readFile(path.join(projectRoot, 'scripts', 'build-dsh-runtime.mjs'), 'utf8')
   assert.match(buildScript, /vendor',\s*'taskweaver-dsh-runtime'/)
   assert.match(buildScript, /taskweaver-dsh-client/)
-  console.log('DSH runtime resolution passed: packaged-only resources, dev override, source layout, runtime cwd, and packaging paths.')
+
+  const zPackaged = await makeRuntime(path.join(resourcesPath, 'taskweaver-dsh-runtime'))
+  const zExternal = await makeRuntime(path.join(tempRoot, 'external-z-runtime'))
+  const appVendorZ = await makeRuntime(path.join(appPath, 'vendor', 'z-runtime'))
+  const appZDeploy = await makeRuntime(path.join(appPath, 'vendor', 'taskweaver-dsh-runtime'))
+  await fs.mkdir(path.join(appZDeploy, 'runtime-packages', '@z', 'dsh-agent'), { recursive: true })
+  await fs.writeFile(path.join(appZDeploy, 'runtime-packages', '@z', 'dsh-agent', 'package.json'), '{}\n')
+
+  assert.equal(resolveZRuntimeRoot({
+    appPath,
+    resourcesPath,
+    isPackaged: true,
+    env: { TASKWEAVER_Z_RUNTIME: zExternal },
+  }), zPackaged, 'packaged Z build must ignore external override')
+  assert.equal(resolveZRuntimeRoot({
+    appPath,
+    resourcesPath: null,
+    isPackaged: false,
+    env: { TASKWEAVER_Z_RUNTIME: zExternal },
+  }), zExternal)
+  assert.equal(resolveZRuntimeRoot({
+    appPath,
+    resourcesPath: null,
+    isPackaged: false,
+    env: {},
+  }), appZDeploy, 'Z deploy under vendor/taskweaver-dsh-runtime wins over monorepo')
+  assert.equal(resolveTaskWeaverRuntimeRoot({
+    appPath,
+    resourcesPath: null,
+    isPackaged: false,
+    env: { TASKWEAVER_USE_Z_RUNTIME: '1' },
+  }), appZDeploy)
+  assert.equal(resolveTaskWeaverRuntimeRoot({
+    appPath,
+    resourcesPath: null,
+    isPackaged: false,
+    env: {},
+  }), appZDeploy, 'auto-detect @z deploy for resolveTaskWeaverRuntimeRoot')
+  assert.equal(useZRuntime({ TASKWEAVER_USE_Z_RUNTIME: '1' }), true)
+  assert.equal(useZRuntime({}, { appPath, isPackaged: false }), true)
+  assert.equal(useZRuntime({}, { appPath: path.join(tempRoot, 'no-z-app'), isPackaged: false }), false)
+
+  const zLaunch = resolveZHostLaunch(zPackaged)
+  assert.equal(zLaunch.entrypoint, path.join(zPackaged, 'lib', 'bin.js'))
+  assert.equal(zLaunch.cwd, zPackaged)
+
+  console.log('DSH runtime resolution passed: packaged-only resources, dev override, source layout, runtime cwd, packaging paths, and Z runtime scaffold.')
 } finally {
   await fs.rm(tempRoot, { recursive: true, force: true })
 }

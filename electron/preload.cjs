@@ -46,6 +46,9 @@ contextBridge.exposeInMainWorld('taskweaver', {
     list: () => invoke('models:list'),
     loadBundle: () => invoke('models:loadBundle'),
     refresh: () => invoke('models:refresh'),
+    getUpdateStatus: () => invoke('models:getUpdateStatus'),
+    checkForUpdates: (options) => invoke('models:checkForUpdates', options ?? {}),
+    rollbackRegistry: () => invoke('models:rollbackRegistry'),
     scanLocal: () => invoke('models:scanLocal'),
     listProvidersAuth: () => invoke('models:providersAuth'),
     setProviderApiKey: (providerId, apiKey) =>
@@ -74,6 +77,11 @@ contextBridge.exposeInMainWorld('taskweaver', {
       const handler = (_event, payload) => listener(payload)
       ipcRenderer.on('models:oauthStatus', handler)
       return () => ipcRenderer.removeListener('models:oauthStatus', handler)
+    },
+    onUpdateStatus: (listener) => {
+      const handler = (_event, payload) => listener(payload)
+      ipcRenderer.on('models:updateStatus', handler)
+      return () => ipcRenderer.removeListener('models:updateStatus', handler)
     },
   },
   usage: {

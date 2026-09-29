@@ -3,6 +3,7 @@ import fsSync from 'node:fs'
 import fs from 'node:fs/promises'
 import { createProfileStore } from './profile-store.mjs'
 import { createModelService } from './model-service.mjs'
+import { createModelRegistryUpdater } from './model-registry-updater.mjs'
 import { createAppStateStore } from './app-state-store.mjs'
 import { createDshChatService } from './dsh-chat-service.mjs'
 import { createOrchestrationService, PlannerFallbackError } from './orchestration-service.mjs'
@@ -72,7 +73,11 @@ function ipcHandle(ipcMain, channel, fn) {
 /**
  * 注册全部主进程 IPC（模型 + 应用状态 + 单 Agent 对话）。
  */
-export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeStorage }) {
+export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeStorage, net }) {
+  const { configureCodexOAuthNetwork } = await import('./codex-oauth.mjs')
+  if (net?.fetch) {
+    configureCodexOAuthNetwork({ fetch: (input, init) => net.fetch(input, init) })
+  }
   const userData = app.getPath('userData')
   const fallbackWorkspace = process.cwd()
 
@@ -100,8 +105,8 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
   })
 
   const { createDshHostManager } = await import('../agent/dsh-host/spawn-host.mjs')
-  const { resolveDshRuntimeRoot } = await import('../agent/dsh-host/resolve-runtime.mjs')
-  const runtimeRoot = resolveDshRuntimeRoot({
+  const { resolveTaskWeaverRuntimeRoot } = await import('../agent/dsh-host/resolve-runtime.mjs')
+  const runtimeRoot = resolveTaskWeaverRuntimeRoot({
     appPath: app.getAppPath(),
     resourcesPath: process.resourcesPath,
     isPackaged: app.isPackaged,
@@ -117,13 +122,39 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
     console.error('DSH Host 预启动失败（模型目录将重试）:', error instanceof Error ? error.message : error)
   }
 
+  const modelRegistryUpdater = createModelRegistryUpdater({
+    userDataPath: userData,
+    bundledRegistryPath: path.join(app.getAppPath(), 'registry', 'model-registry.v1.json'),
+    currentAppVersion: app.getVersion(),
+    runtimeLockPath: path.join(app.getAppPath(), 'runtime-lock.json'),
+    publicKeyDer: fsSync.readFileSync(
+      path.join(app.getAppPath(), 'registry', 'model-registry-public-key.der.b64'),
+      'utf8',
+    ).trim(),
+    fetchImpl: net?.fetch ? (input, init) => net.fetch(input, init) : globalThis.fetch,
+    onStatus: (status) => {
+      for (const win of BrowserWindow?.getAllWindows?.() ?? []) {
+        if (!win.isDestroyed()) win.webContents.send('models:updateStatus', status)
+      }
+    },
+  })
+
   const modelService = createModelService({
     profileStore,
-    appDataPath: userData,
-    safeStorage,
     priceRegistryPath: pricingSync.resolveReadPath(),
     dshHostManager: hostManager,
+    userDataPath: userData,
+    dshRuntimeRoot: runtimeRoot,
+    modelRegistryUpdater,
   })
+  modelRegistryUpdater.setMappingValidator((registry) => modelService.validateRegistryMapping(registry))
+  void modelRegistryUpdater.hydrateStatus()
+    .then(() => modelRegistryUpdater.checkForUpdates({ force: false }))
+    .then((status) => {
+      if (status.state === 'updated' || status.state === 'rolled-back') return modelService.refreshCatalog()
+      return null
+    })
+    .catch((error) => console.warn('模型目录后台更新失败:', error instanceof Error ? error.message : error))
   const appState = createAppStateStore(userData, fallbackWorkspace)
   const usageStore = createUsageStore(userData)
   const workspaceTrust = createWorkspaceTrustService(userData)
@@ -444,9 +475,17 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
 
   ipcHandle(ipcMain, 'models:loadBundle', () => modelService.loadModelBundle())
   ipcHandle(ipcMain, 'models:list', () => modelService.listCatalog())
-  ipcHandle(ipcMain, 'models:refresh', async () => {
-    const bundle = await modelService.loadModelBundle()
-    return bundle.catalog
+  ipcHandle(ipcMain, 'models:refresh', async () => modelService.refreshCatalog())
+  ipcHandle(ipcMain, 'models:getUpdateStatus', () => modelRegistryUpdater.getStatus())
+  ipcHandle(ipcMain, 'models:checkForUpdates', async (_event, options) => {
+    const status = await modelRegistryUpdater.checkForUpdates({ force: options?.force === true })
+    if (status.state === 'updated' || status.state === 'rolled-back') await modelService.refreshCatalog()
+    return status
+  })
+  ipcHandle(ipcMain, 'models:rollbackRegistry', async () => {
+    const status = await modelRegistryUpdater.rollbackRegistry()
+    await modelService.refreshCatalog()
+    return status
   })
   ipcHandle(ipcMain, 'models:scanLocal', async () => {
     // Scan OpenCodex models from local CLI export
@@ -535,7 +574,7 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
     return true
   })
   ipcHandle(ipcMain, 'models:submitOAuthCode', async (_event, code) => {
-    await modelService.submitAuthorizationPrompt(code)
+    await modelService.submitOAuthCode(code)
     return true
   })
   ipcHandle(ipcMain, 'models:logoutOAuth', async (_event, providerId) => modelService.logoutProvider(providerId))

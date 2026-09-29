@@ -1,0 +1,68 @@
+#!/usr/bin/env node
+/**
+ * Replace bundled @earendil-works/pi-ai in vendor/taskweaver-dsh-runtime.
+ * Model catalogs (MiMo, OpenAI, etc.) ship inside pi-ai; "刷新目录" does not call provider APIs for catalog routes.
+ */
+import { spawn } from 'node:child_process'
+import fs from 'node:fs'
+import fsp from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+import {
+  resolveDshRuntimeNodePath,
+  TASKWEAVER_DSH_RUNTIME_PACKAGES,
+} from '../electron/agent/dsh-host/resolve-runtime.mjs'
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+const runtimeDir = path.join(root, 'vendor', 'taskweaver-dsh-runtime')
+const runtimeLock = JSON.parse(fs.readFileSync(path.join(root, 'runtime-lock.json'), 'utf8'))
+const PI_AI_VERSION = String(runtimeLock?.piAi?.version ?? '')
+if (!/^\d+\.\d+\.\d+(?:[-+].+)?$/.test(PI_AI_VERSION)) {
+  throw new Error('runtime-lock.json 缺少有效的 piAi.version')
+}
+function runtimePackagesRoot() {
+  const resolved = resolveDshRuntimeNodePath(runtimeDir)
+  if (!resolved) {
+    throw new Error(`缺少 DSH runtime 依赖目录（${TASKWEAVER_DSH_RUNTIME_PACKAGES} 或 node_modules）`)
+  }
+  return resolved
+}
+
+function run(cmd, args, opts = {}) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(cmd, args, { stdio: 'inherit', ...opts })
+    child.on('error', reject)
+    child.on('close', (code) => (code === 0 ? resolve() : reject(new Error(`${cmd} exited ${code}`))))
+  })
+}
+
+async function main() {
+  if (!fs.existsSync(runtimeDir)) {
+    throw new Error(`缺少 DSH runtime：${runtimeDir}，请先运行 scripts/build-dsh-runtime.mjs`)
+  }
+  const tmp = await fsp.mkdtemp(path.join(os.tmpdir(), 'tw-pi-ai-'))
+  const tgz = path.join(tmp, `pi-ai-${PI_AI_VERSION}.tgz`)
+  try {
+    await run('npm', ['pack', `@earendil-works/pi-ai@${PI_AI_VERSION}`, '--pack-destination', tmp], { cwd: tmp })
+    const packed = (await fsp.readdir(tmp)).find((name) => name.endsWith('.tgz'))
+    if (!packed) throw new Error('npm pack 未生成 tarball')
+    const targetDir = path.join(runtimePackagesRoot(), '@earendil-works', 'pi-ai')
+    await fsp.rm(targetDir, { recursive: true, force: true })
+    await fsp.mkdir(path.dirname(targetDir), { recursive: true })
+    await run('tar', ['-xzf', path.join(tmp, packed), '-C', tmp])
+    await fsp.rename(path.join(tmp, 'package'), targetDir)
+    const pkg = JSON.parse(await fsp.readFile(path.join(targetDir, 'package.json'), 'utf8'))
+    if (pkg.version !== PI_AI_VERSION) {
+      throw new Error(`pi-ai 版本不一致：锁定 ${PI_AI_VERSION}，实际 ${pkg.version}`)
+    }
+    console.log(`upgrade-vendor-pi-ai: @earendil-works/pi-ai@${pkg.version} → ${targetDir}`)
+  } finally {
+    await fsp.rm(tmp, { recursive: true, force: true })
+  }
+}
+
+main().catch((error) => {
+  console.error(error instanceof Error ? error.message : error)
+  process.exit(1)
+})

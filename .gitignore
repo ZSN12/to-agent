@@ -9,4 +9,10 @@ TaskWeaver.app
 .DS_Store
 *.log
 .tmp-test-userdata/
+.taskweaver-signing/
 *.tsbuildinfo
+.pnpm-store/
+# DSH_HOME / deploy 冒烟测试残留
+.taskweaver-deploy-test*/
+.taskweaver-prod-testhome*/
+.taskweaver-test-home*/

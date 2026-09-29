@@ -1,0 +1,94 @@
+{
+  "name": "@z/dsh-client-runtime",
+  "description": "Client core services: SlotRegistry, SessionRuntime (scope tree + object layer)",
+  "version": "0.1.1-rc.2",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+    "directory": "packages/client/runtime"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./invariant": {
+      "types": "./lib/types/invariant.d.ts",
+      "default": "./lib/invariant.js"
+    },
+    "./client": {
+      "types": "./lib/types/client/index.d.ts",
+      "default": "./lib/client.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "client": {
+      "inject": [
+        "@z/dsh-client-connection",
+        "@z/dsh-typert-registry",
+        "@z/dsh-api-remotes"
+      ],
+      "platform": "web",
+      "immediately": true
+    }
+  },
+  "license": "MIT",
+  "dependencies": {
+    "immer": "^10.1.1",
+    "zustand": "~4.4.7"
+  },
+  "peerDependencies": {
+    "@z/cordis": "workspace:^",
+    "@z/dsh-api-remotes": "workspace:^",
+    "@z/dsh-invariants": "workspace:^",
+    "@z/dsh-typert-protocol": "workspace:^",
+    "@z/dsh-typert-registry": "workspace:^",
+    "@z/dsh-agent": "workspace:^",
+    "@z/dsh-attachment": "workspace:^",
+    "@z/dsh-client-connection": "workspace:^",
+    "@z/dsh-commands": "workspace:^",
+    "@z/dsh-host-apiproxy": "workspace:^",
+    "@z/dsh-llm": "workspace:^",
+    "@z/dsh-llm-retry": "workspace:^",
+    "@z/dsh-session": "workspace:^",
+    "@z/dsh-session-projection": "workspace:^",
+    "@z/dsh-session-title": "workspace:^",
+    "@z/dsh-tools": "workspace:^"
+  },
+  "devDependencies": {
+    "@z/cordis": "workspace:^",
+    "@z/dsh-api-remotes": "workspace:^",
+    "@z/dsh-invariants": "workspace:^",
+    "@z/dsh-timeout": "workspace:^",
+    "@z/dsh-typert-protocol": "workspace:^",
+    "@z/dsh-typert-registry": "workspace:^",
+    "@types/react": "~18.3.1",
+    "@z/dsh-client-ui-slots": "workspace:^",
+    "react": "^18.2.0",
+    "@z/dsh-agent": "workspace:^",
+    "@z/dsh-attachment": "workspace:^",
+    "@z/dsh-client-connection": "workspace:^",
+    "@z/dsh-commands": "workspace:^",
+    "@z/dsh-host-apiproxy": "workspace:^",
+    "@z/dsh-llm": "workspace:^",
+    "@z/dsh-llm-retry": "workspace:^",
+    "@z/dsh-session": "workspace:^",
+    "@z/dsh-session-projection": "workspace:^",
+    "@z/dsh-session-title": "workspace:^",
+    "@z/dsh-tools": "workspace:^"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/invariant.js",
+    "lib/client.js",
+    "lib/types/**/*.d.ts"
+  ]
+}

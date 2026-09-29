@@ -12,6 +12,8 @@ files:
   - dist/**/*
   - electron/**/*
   - pricing/**/*
+  - registry/**/*
+  - runtime-lock.json
   - package.json
   - "!src/**"
   - "!scripts/**"
@@ -19,16 +21,17 @@ files:
   - "!*.md"
 
 extraResources:
+  # scripts/build-dsh-runtime.mjs → runtime-packages (electron-builder strips node_modules)
   - from: vendor/taskweaver-dsh-runtime
     to: taskweaver-dsh-runtime
     filter:
-      - "**/*"
-  # electron-builder's default node_modules exclusion applies to app files;
-  # copy the standalone DSH production closure as a separate resource root.
-  - from: vendor/taskweaver-dsh-runtime/node_modules
-    to: taskweaver-dsh-runtime/node_modules
-    filter:
-      - "**/*"
+      - "lib/**/*"
+      - "config/**/*"
+      - "runtime-packages/**/*"
+      - "package.json"
+      - "taskweaver-dsh-client/**/*"
+      - "taskweaver-runtime-meta.json"
+      - "!runtime-packages/.cache/**/*"
 
 compression: store
 npmRebuild: false

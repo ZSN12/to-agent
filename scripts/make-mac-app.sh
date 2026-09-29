@@ -5,8 +5,16 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 npm run build
+node scripts/validate-model-registry.mjs
+if [[ -f vendor/z-runtime/apps/cli/lib/bin.js && "${TASKWEAVER_USE_Z_RUNTIME:-}" != "0" ]]; then
+  export TASKWEAVER_USE_Z_RUNTIME=1
+  echo "make-mac-app: 使用已构建的 vendor/z-runtime"
+elif [[ -d vendor/z-runtime && "${TASKWEAVER_USE_Z_RUNTIME:-}" == "1" ]]; then
+  echo "make-mac-app: vendor/z-runtime 尚未构建 CLI，回退 dsh-source（可先 npm run build:z-runtime）"
+  export TASKWEAVER_USE_Z_RUNTIME=0
+fi
 if ! node scripts/build-dsh-runtime.mjs; then
-  if [[ -f vendor/taskweaver-dsh-runtime/lib/bin.js ]]; then
+  if [[ -f vendor/taskweaver-dsh-runtime/lib/entry.js || -f vendor/taskweaver-dsh-runtime/lib/bin.js ]]; then
     echo "dsh-source 全量构建失败，回退: node scripts/build-dsh-runtime.mjs --skip-build"
     node scripts/build-dsh-runtime.mjs --skip-build
   else

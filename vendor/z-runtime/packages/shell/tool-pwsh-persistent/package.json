@@ -1,0 +1,62 @@
+{
+  "name": "@z/dsh-tool-pwsh-persistent",
+  "description": "Model-facing owner-scoped persistent PowerShell tool backed by the Harness PTY service",
+  "version": "0.1.1-rc.2",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+    "directory": "packages/shell/tool-pwsh-persistent"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./invariant": {
+      "types": "./lib/types/invariant.d.ts",
+      "default": "./lib/invariant.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/invariant.js",
+    "lib/types/**/*.d.ts"
+  ],
+  "license": "MIT",
+  "peerDependencies": {
+    "@z/dsh-agent": "workspace:^",
+    "@z/dsh-invariants": "workspace:^",
+    "@z/dsh-terminal": "workspace:^",
+    "@z/dsh-timeout": "workspace:^",
+    "@z/dsh-tools": "workspace:^",
+    "@z/cordis": "workspace:^"
+  },
+  "dependencies": {
+    "@z/schemastery": "workspace:^"
+  },
+  "devDependencies": {
+    "@z/cordis-plugin-include": "workspace:^",
+    "@z/cordis-plugin-loader": "workspace:^",
+    "@z/dsh-agent": "workspace:^",
+    "@z/dsh-invariants": "workspace:^",
+    "@z/dsh-llm": "workspace:^",
+    "@z/dsh-terminal": "workspace:^",
+    "@z/dsh-terminal-bash": "workspace:^",
+    "@z/dsh-pwsh-local": "workspace:^",
+    "@z/dsh-sandbox": "workspace:^",
+    "@z/dsh-sandbox-policy": "workspace:^",
+    "@z/dsh-session": "workspace:^",
+    "@z/dsh-subprocess-local": "workspace:^",
+    "@z/dsh-system-prompt": "workspace:^",
+    "@z/dsh-timeout": "workspace:^",
+    "@z/dsh-tools": "workspace:^",
+    "@z/cordis": "workspace:^"
+  }
+}

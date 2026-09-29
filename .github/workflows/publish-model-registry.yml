@@ -1,0 +1,43 @@
+name: Publish signed model registry
+
+on:
+  schedule:
+    - cron: '23 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  registry:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Fetch latest stable pi-ai catalog
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/pi-ai"
+          npm pack @earendil-works/pi-ai@latest --pack-destination "$RUNNER_TEMP/pi-ai"
+          tar -xzf "$RUNNER_TEMP/pi-ai/"*.tgz -C "$RUNNER_TEMP/pi-ai"
+          echo "PI_AI_DATA_DIR=$RUNNER_TEMP/pi-ai/package/dist/providers/data" >> "$GITHUB_ENV"
+      - name: Generate and validate
+        run: |
+          node scripts/generate-model-registry.mjs "$RUNNER_TEMP/model-registry.v1.json"
+          node scripts/validate-model-registry.mjs "$RUNNER_TEMP/model-registry.v1.json"
+      - name: Sign release assets
+        env:
+          MODEL_REGISTRY_SIGNING_PRIVATE_KEY_BASE64: ${{ secrets.MODEL_REGISTRY_SIGNING_PRIVATE_KEY_BASE64 }}
+          MODEL_REGISTRY_ASSET_BASE_URL: https://github.com/${{ github.repository }}/releases/download/model-registry
+        run: node scripts/sign-model-registry.mjs "$RUNNER_TEMP/model-registry.v1.json" "$RUNNER_TEMP/registry-assets"
+      - name: Publish fixed-channel release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh release view model-registry >/dev/null 2>&1 || gh release create model-registry --title "TaskWeaver model registry" --notes "Signed hot-update channel for model metadata."
+          gh release upload model-registry "$RUNNER_TEMP/registry-assets/model-registry.v1.json" "$RUNNER_TEMP/registry-assets/model-registry.v1.sig" "$RUNNER_TEMP/registry-assets/model-registry-manifest.v1.json" --clobber

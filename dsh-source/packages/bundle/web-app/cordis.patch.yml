@@ -61,6 +61,10 @@
       config:
         backend: json
 
+    # OAuth / API-key authorization flows for llm-pi-ai (TaskWeaver model settings).
+    - id: authorization
+      name: '@deepseek-ai/dsh-authorization'
+
     - id: message-feedback
       name: '@deepseek-ai/dsh-message-feedback'
       config:

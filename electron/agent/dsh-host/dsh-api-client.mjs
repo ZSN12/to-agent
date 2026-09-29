@@ -1,5 +1,6 @@
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { resolveDshRuntimeNodePath } from './resolve-runtime.mjs'
 
 /**
  * Load DSH's own contract-validating client from the in-repository runtime.
@@ -14,11 +15,13 @@ export async function createDshApiClient({ runtimeRoot, baseUrl }) {
   }
 
   const rel = 'lib/types/client/web-api-client.js'
+  const packagesRoot = resolveDshRuntimeNodePath(runtimeRoot)
   const candidates = [
-    path.join(runtimeRoot, 'node_modules/@deepseek-ai/dsh-client-connection', rel),
-    path.join(runtimeRoot, 'packages/client/connection', rel),
+    packagesRoot ? path.join(packagesRoot, '@z/dsh-client-connection', rel) : null,
+    packagesRoot ? path.join(packagesRoot, '@deepseek-ai/dsh-client-connection', rel) : null,
     path.join(runtimeRoot, 'taskweaver-dsh-client', rel),
-  ]
+    path.join(runtimeRoot, 'packages/client/connection', rel),
+  ].filter(Boolean)
   let WebApiClient
   let lastError
   for (const candidate of candidates) {

@@ -7,6 +7,7 @@ import type {
   OAuthStatusInfo,
   ScanLocalModelsResult,
   ThinkingLevel,
+  ModelUpdateStatus,
 } from '../../shared/model-api'
 import { getModelsClient, isModelsBridgeAvailable } from './client'
 import { catalogModelToOption } from './format'
@@ -16,6 +17,7 @@ export function useModelCatalog() {
   const [auth, setAuth] = useState<ProviderAuthStatus[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [updateStatus, setUpdateStatus] = useState<ModelUpdateStatus | null>(null)
   const bridgeReady = isModelsBridgeAvailable()
 
   const load = useCallback(async () => {
@@ -106,6 +108,42 @@ export function useModelCatalog() {
     void load()
   }, [load])
 
+  useEffect(() => {
+    const client = getModelsClient()
+    if (!client?.getUpdateStatus) return
+    void client.getUpdateStatus().then((result) => {
+      if (result.ok) setUpdateStatus(result.data)
+    })
+    if (!client.onUpdateStatus) return
+    return client.onUpdateStatus(setUpdateStatus)
+  }, [])
+
+  const checkForModelUpdates = useCallback(async (force = true) => {
+    const client = getModelsClient()
+    if (!client?.checkForUpdates) return false
+    const result = await client.checkForUpdates({ force })
+    if (!result.ok) {
+      setError(result.error ?? '检查模型目录更新失败')
+      return false
+    }
+    setUpdateStatus(result.data)
+    if (result.data.state === 'updated' || result.data.state === 'rolled-back') await load()
+    return result.data.state !== 'failed'
+  }, [load])
+
+  const rollbackModelRegistry = useCallback(async () => {
+    const client = getModelsClient()
+    if (!client?.rollbackRegistry) return false
+    const result = await client.rollbackRegistry()
+    if (!result.ok) {
+      setError(result.error ?? '回滚模型目录失败')
+      return false
+    }
+    setUpdateStatus(result.data)
+    await load()
+    return true
+  }, [load])
+
   const availableModels = useMemo(
     () => catalog?.models.filter((m) => m.available) ?? [],
     [catalog],
@@ -152,16 +190,22 @@ export function useModelCatalog() {
 
   const setProviderApiKey = useCallback(async (providerId: string, apiKey: string) => {
     const client = getModelsClient()
-    if (!client) return false
+    if (!client) {
+      const message = '当前环境无法访问模型服务'
+      setError(message)
+      return { ok: false, error: message }
+    }
     const res = await client.setProviderApiKey(providerId, apiKey)
     if (!res.ok) {
-      setError(res.error ?? '设置 API 密钥失败')
-      return false
+      const message = res.error ?? '设置 API 密钥失败'
+      setError(message)
+      return { ok: false, error: message }
     }
+    setError(null)
     setCatalog(res.data ?? null)
     const authRes = await client.listProvidersAuth()
     if (authRes.ok) setAuth(authRes.data ?? [])
-    return true
+    return { ok: true }
   }, [])
 
   const addModel = useCallback(async (modelKey: string) => {
@@ -273,7 +317,7 @@ export function useModelCatalog() {
     const client = getModelsClient()
     if (!client) return false
     setError(null)
-    setOauthStatus({ status: 'progress', providerId, instructions: '正在启动 DSH 官方订阅授权…' })
+    setOauthStatus({ status: 'progress', providerId, instructions: '正在启动 ChatGPT 订阅授权…' })
     const res = await client.startOAuth(providerId)
     if (!res.ok) {
       setError(res.error ?? 'OAuth 登录失败')
@@ -326,8 +370,11 @@ export function useModelCatalog() {
     activeThinkingLevel,
     setThinkingLevel,
     oauthStatus,
+    updateStatus,
     load,
     refresh,
+    checkForModelUpdates,
+    rollbackModelRegistry,
     setActiveModel,
     setProviderApiKey,
     startOAuthLogin,

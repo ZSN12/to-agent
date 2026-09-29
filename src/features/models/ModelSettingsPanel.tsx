@@ -1,6 +1,6 @@
 import { useCallback, useEffect, FormEvent, useMemo, useState } from 'react'
 import { Check, Copy, Database, ExternalLink, KeyRound, Link2, LogOut, Pencil, Plus, RefreshCw, ScanSearch, ShieldAlert, ShieldCheck, Sparkles, Trash2, X } from 'lucide-react'
-import type { CatalogModel, CustomProviderEntry, ModelProfilePatch, ProviderAuthStatus, OAuthStatusInfo, ScanLocalModelsResult } from '../../shared/model-api'
+import type { CatalogModel, CustomProviderEntry, ModelProfilePatch, ProviderAuthStatus, OAuthStatusInfo, ScanLocalModelsResult, ModelUpdateStatus } from '../../shared/model-api'
 import { formatCostPerMillion, getCleanModelName } from './format'
 import { LocalScanModal } from './LocalScanModal'
 import { CustomProviderSection } from './CustomProviderSection'
@@ -128,18 +128,21 @@ function ProviderKeyModal({
 }: {
   provider: ProviderAuthStatus
   onClose: () => void
-  onSave: (apiKey: string) => Promise<boolean>
+  onSave: (apiKey: string) => Promise<{ ok: boolean; error?: string }>
 }) {
   const [apiKey, setApiKey] = useState('')
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
     if (!apiKey.trim()) return
     setSaving(true)
-    const ok = await onSave(apiKey.trim())
+    setSaveError(null)
+    const result = await onSave(apiKey.trim())
     setSaving(false)
-    if (ok) onClose()
+    if (result.ok) onClose()
+    else setSaveError(result.error ?? '保存失败')
   }
 
   return (
@@ -163,11 +166,12 @@ function ProviderKeyModal({
             required
           />
         </label>
+        {saveError && <div className="settings-inline-error" role="alert">{saveError}</div>}
         <div className="model-editor-actions">
           <button type="button" className="settings-secondary-button" onClick={onClose}>
             取消
           </button>
-          <button className="settings-primary-button" disabled={!apiKey.trim() || saving}>
+          <button type="submit" className="settings-primary-button" disabled={!apiKey.trim() || saving}>
             保存
           </button>
         </div>
@@ -186,6 +190,7 @@ function AddModelModal({
   onRefresh,
   onSetProviderApiKey,
   onAddModel,
+  onAddModels,
   onToast,
   initialProviderId,
   initialTab,
@@ -200,8 +205,9 @@ function AddModelModal({
   catalogError?: string | null
   onClose: () => void
   onRefresh: () => void
-  onSetProviderApiKey: (providerId: string, apiKey: string) => Promise<boolean>
+  onSetProviderApiKey: (providerId: string, apiKey: string) => Promise<{ ok: boolean; error?: string }>
   onAddModel: (modelKey: string) => Promise<boolean>
+  onAddModels: (modelKeys: string[]) => Promise<boolean>
   onToast?: (msg: string) => void
   initialProviderId?: string
   initialTab?: 'builtin' | 'custom'
@@ -216,12 +222,13 @@ function AddModelModal({
       : (providers.find((provider) => provider.configured)?.id ?? providers[0]?.id ?? ''),
   )
   const [apiKey, setApiKey] = useState('')
-  const [modelKey, setModelKey] = useState('')
+  const [selectedModelKeys, setSelectedModelKeys] = useState<Set<string>>(() => new Set())
   const [modelQuery, setModelQuery] = useState('')
   const [step, setStep] = useState<'provider' | 'model'>('provider')
   const [providerMenuOpen, setProviderMenuOpen] = useState(false)
   const [providerQuery, setProviderQuery] = useState('')
   const [saving, setSaving] = useState(false)
+  const [localError, setLocalError] = useState<string | null>(null)
   const provider = providers.find((item) => item.id === providerId)
   const providerModels = candidates.filter((model) => model.provider === providerId)
   const matchingModels = providerModels.filter((model) => `${model.name} ${model.id} ${model.key}`.toLowerCase().includes(modelQuery.trim().toLowerCase()))
@@ -238,24 +245,54 @@ function AddModelModal({
 
   const continueToModels = async (event: FormEvent) => {
     event.preventDefault()
-    if (!provider) return
-    setSaving(true)
-    if (needsKey) {
-      if (!apiKey.trim()) { setSaving(false); return }
-      const saved = await onSetProviderApiKey(provider.id, apiKey.trim())
-      if (!saved) { setSaving(false); return }
-      setApiKey('')
+    setLocalError(null)
+    if (!provider) {
+      const message = '请先选择模型提供方'
+      setLocalError(message)
+      onToast?.(message)
+      return
     }
-    setModelKey('')
-    setStep('model')
-    setSaving(false)
+    setSaving(true)
+    try {
+      if (needsKey) {
+        if (!apiKey.trim()) {
+          setSaving(false)
+          return
+        }
+        const saved = await onSetProviderApiKey(provider.id, apiKey.trim())
+        if (!saved.ok) {
+          const message = saved.error || '保存 API 密钥失败，请检查密钥或稍后重试'
+          setLocalError(message)
+          onToast?.(message)
+          setSaving(false)
+          return
+        }
+        setApiKey('')
+      }
+      setSelectedModelKeys(new Set())
+      setStep('model')
+    } finally {
+      setSaving(false)
+    }
   }
 
-  const addSelectedModel = async (event: FormEvent) => {
+  const toggleModelSelection = (key: string) => {
+    setSelectedModelKeys((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+
+  const addSelectedModels = async (event: FormEvent) => {
     event.preventDefault()
-    if (!modelKey) return
+    if (selectedModelKeys.size === 0) return
     setSaving(true)
-    const ok = await onAddModel(modelKey)
+    const keys = [...selectedModelKeys]
+    const ok = keys.length === 1
+      ? await onAddModel(keys[0])
+      : await onAddModels(keys)
     setSaving(false)
     if (ok) onClose()
   }
@@ -437,15 +474,23 @@ function AddModelModal({
                 </p>
               )}
 
+              {localError && (
+                <div className="settings-inline-error" role="alert">{localError}</div>
+              )}
+
               <div className="model-editor-actions" style={{ paddingTop: 4 }}>
                 <button type="button" className="settings-secondary-button" onClick={onClose}>取消</button>
-                <button className="settings-primary-button" disabled={!provider || (needsKey && !apiKey.trim()) || saving}>
+                <button
+                  type="submit"
+                  className="settings-primary-button"
+                  disabled={!provider || (needsKey && !apiKey.trim()) || saving}
+                >
                   {saving ? '正在配置…' : needsKey ? '保存并继续' : '选择模型'}
                 </button>
               </div>
             </form>
           ) : (
-            <form onSubmit={addSelectedModel} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <form onSubmit={addSelectedModels} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div className="model-editor-field" style={{ display: 'flex', flexDirection: 'column' }}>
                 <input
                   type="search"
@@ -455,6 +500,29 @@ function AddModelModal({
                   style={{ width: '100%', marginBottom: 10 }}
                   autoFocus
                 />
+                <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    className="settings-secondary-button"
+                    onClick={() => setSelectedModelKeys(new Set(matchingModels.map((m) => m.key)))}
+                    disabled={matchingModels.length === 0}
+                  >
+                    全选当前列表
+                  </button>
+                  <button
+                    type="button"
+                    className="settings-secondary-button"
+                    onClick={() => setSelectedModelKeys(new Set())}
+                    disabled={selectedModelKeys.size === 0}
+                  >
+                    清空选择
+                  </button>
+                  {selectedModelKeys.size > 0 && (
+                    <span style={{ fontSize: 12, color: 'rgba(255, 255, 255, 0.55)', alignSelf: 'center' }}>
+                      已选 {selectedModelKeys.size} 个
+                    </span>
+                  )}
+                </div>
                 <div
                   style={{
                     maxHeight: 280,
@@ -470,12 +538,20 @@ function AddModelModal({
                 >
                   {matchingModels.length > 0 ? (
                     matchingModels.map((model) => {
-                      const isSelected = model.key === modelKey
+                      const isSelected = selectedModelKeys.has(model.key)
                       return (
                         <div
                           key={model.key}
-                          onClick={() => setModelKey(model.key)}
-                          onDoubleClick={addSelectedModel}
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => toggleModelSelection(model.key)}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault()
+                              toggleModelSelection(model.key)
+                            }
+                          }}
+                          onDoubleClick={addSelectedModels}
                           style={{
                             display: 'flex',
                             alignItems: 'center',
@@ -511,7 +587,7 @@ function AddModelModal({
                     })
                   ) : (
                     <div style={{ padding: '24px 0', textAlign: 'center', color: 'rgba(255, 255, 255, 0.4)', fontSize: 13 }}>
-                      {providerModels.length === 0 ? '该提供方暂无可添加模型。保存凭据后刷新目录。' : '没有匹配的模型'}
+                      {providerModels.length === 0 ? '该提供方暂无可添加模型。保存 API 密钥后点「刷新目录」，将从提供方接口拉取最新模型列表。' : '没有匹配的模型'}
                     </div>
                   )}
                 </div>
@@ -519,7 +595,13 @@ function AddModelModal({
               <div className="model-editor-actions" style={{ paddingTop: 4 }}>
                 <button type="button" className="settings-secondary-button" onClick={() => setStep('provider')}>上一步</button>
                 <button type="button" className="settings-secondary-button" onClick={onRefresh} disabled={loading}><RefreshCw size={14} className={loading ? 'spin-icon' : ''} />刷新目录</button>
-                <button className="settings-primary-button" disabled={!modelKey || saving}>{saving ? '正在添加…' : '添加到模型列表'}</button>
+                <button type="submit" className="settings-primary-button" disabled={selectedModelKeys.size === 0 || saving}>
+                  {saving
+                    ? '正在添加…'
+                    : selectedModelKeys.size > 1
+                      ? `添加 ${selectedModelKeys.size} 个模型`
+                      : '添加到模型列表'}
+                </button>
               </div>
             </form>
           )
@@ -698,7 +780,7 @@ function ProfileModal({
           <button type="button" className="settings-secondary-button" onClick={onClose}>
             取消
           </button>
-          <button className="settings-primary-button" disabled={saving}>保存</button>
+          <button type="submit" className="settings-primary-button" disabled={saving}>保存</button>
         </div>
       </form>
     </div>
@@ -713,7 +795,10 @@ export function ModelSettingsPanel({
   bridgeReady,
   error,
   oauthStatus,
+  updateStatus,
   onRefresh,
+  onCheckForUpdates,
+  onRollbackRegistry,
   onSetProviderApiKey,
   onStartOAuthLogin,
   onCancelOAuthLogin,
@@ -734,8 +819,11 @@ export function ModelSettingsPanel({
   bridgeReady: boolean
   error: string | null
   oauthStatus?: OAuthStatusInfo | null
+  updateStatus?: ModelUpdateStatus | null
   onRefresh: () => void
-  onSetProviderApiKey: (providerId: string, apiKey: string) => Promise<boolean>
+  onCheckForUpdates?: () => Promise<boolean>
+  onRollbackRegistry?: () => Promise<boolean>
+  onSetProviderApiKey: (providerId: string, apiKey: string) => Promise<{ ok: boolean; error?: string }>
   onStartOAuthLogin?: (providerId?: string) => Promise<boolean>
   onCancelOAuthLogin?: () => Promise<boolean>
   onSubmitOAuthCode?: (code: string) => Promise<boolean>
@@ -763,6 +851,7 @@ export function ModelSettingsPanel({
   const [scanLoading, setScanLoading] = useState(false)
   const [scanError, setScanError] = useState<string | null>(null)
   const [scanResult, setScanResult] = useState<ScanLocalModelsResult | null>(null)
+  const [checkingUpdates, setCheckingUpdates] = useState(false)
 
   const isCodexConfigured = auth?.some((p) => p.id === 'openai-codex' && p.configured) ?? false
 
@@ -979,6 +1068,74 @@ export function ModelSettingsPanel({
         </div>
       </div>
 
+      {updateStatus && (
+        <div className={`model-registry-status model-registry-status-${updateStatus.state}`}>
+          <div className="model-registry-status-copy">
+            <div className="model-registry-status-title">
+              <span className="model-registry-status-dot" />
+              模型目录 {updateStatus.currentVersion || '内置版'}
+              <span className="model-registry-status-badge">
+                {{
+                  idle: '就绪',
+                  checking: '检查中',
+                  'up-to-date': '已是最新',
+                  updated: '已更新',
+                  cached: '使用缓存',
+                  failed: '更新失败',
+                  'rolled-back': '已回滚',
+                }[updateStatus.state]}
+              </span>
+            </div>
+            <div className="model-registry-status-meta">
+              {updateStatus.lastCheckedAt
+                ? `上次检查 ${new Date(updateStatus.lastCheckedAt).toLocaleString()}`
+                : '尚未检查远程更新'}
+              {updateStatus.error ? ` · ${updateStatus.error}` : ''}
+            </div>
+            {updateStatus.runtime && (
+              <div className="model-registry-status-meta">
+                DSH {updateStatus.runtime.dsh?.version || '未知'} · pi-ai {updateStatus.runtime.piAi?.version || '未知'} · Overlay v{updateStatus.runtime.overlayVersion ?? '未知'}
+              </div>
+            )}
+            {(updateStatus.changes.added.length > 0
+              || updateStatus.changes.deprecated.length > 0
+              || updateStatus.changes.changed.length > 0) && (
+              <div className="model-registry-status-changes">
+                <div>
+                  新增 {updateStatus.changes.added.length} · 弃用 {updateStatus.changes.deprecated.length} · 能力变化 {updateStatus.changes.changed.length}
+                </div>
+                {updateStatus.changes.added.length > 0 && (
+                  <div className="model-registry-status-change-list" title={updateStatus.changes.added.join('\n')}>
+                    新增模型：{updateStatus.changes.added.slice(0, 6).join('、')}
+                    {updateStatus.changes.added.length > 6 ? ` 等 ${updateStatus.changes.added.length} 项` : ''}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          <div className="model-registry-status-actions">
+            {updateStatus.previousVersion && onRollbackRegistry && (
+              <button type="button" className="settings-secondary-button" onClick={() => void onRollbackRegistry()}>
+                回滚目录
+              </button>
+            )}
+            <button
+              type="button"
+              className="settings-secondary-button"
+              disabled={checkingUpdates || updateStatus.state === 'checking'}
+              onClick={() => {
+                if (!onCheckForUpdates) return
+                setCheckingUpdates(true)
+                void onCheckForUpdates().finally(() => setCheckingUpdates(false))
+              }}
+            >
+              <RefreshCw size={15} className={checkingUpdates || updateStatus.state === 'checking' ? 'spin' : ''} />
+              {checkingUpdates || updateStatus.state === 'checking' ? '检查中…' : '检查模型更新'}
+            </button>
+          </div>
+        </div>
+      )}
+
       {error && <div className="settings-inline-error" role="alert">{error}</div>}
 
       {loading && !models ? (
@@ -1176,6 +1333,8 @@ export function ModelSettingsPanel({
                           <span className={`source-model-tag allocation ${model.profile?.enabledForAllocation === false ? 'disabled' : ''}`}>
                             {model.profile?.enabledForAllocation === false ? '不参与子任务分配' : '可参与子任务分配'}
                           </span>
+                          {model.deprecated && <span className="provider-tag">已弃用</span>}
+                          {model.verificationStatus === 'unverified' && <span className="provider-tag">当前不可验证</span>}
                           {!model.available && <span className="provider-tag">连接不可用</span>}
                         </div>
                         {model.profile?.capabilitySummary && (
@@ -1263,6 +1422,7 @@ export function ModelSettingsPanel({
           }}
           onSetProviderApiKey={onSetProviderApiKey}
           onAddModel={onAddModel}
+          onAddModels={onAddModels}
           onToast={(msg) => onToast?.(msg)}
           onStartOAuth={handleStartOAuth}
         />

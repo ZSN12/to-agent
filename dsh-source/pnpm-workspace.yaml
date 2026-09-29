@@ -24,9 +24,10 @@ packages:
 # builds must resolve those matching names to this workspace's pinned sources.
 linkWorkspacePackages: true
 
-overrides:
-  '@deepseek-ai/cosmokit': 'link:vendor/cosmokit'
-  '@deepseek-ai/schemastery': 'link:vendor/schemastery'
+# TaskWeaver fork: the upstream `overrides` pinning cosmokit/schemastery to
+# `link:vendor/*` were removed. Every consumer already declares them as
+# `workspace:^`, and `link:` specifiers are skipped by `pnpm deploy`, which left
+# both packages out of the packaged runtime closure.
 
 peerDependencyRules:
   allowedVersions:

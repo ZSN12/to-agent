@@ -1,0 +1,57 @@
+{
+  "name": "@z/dsh-spill-policy",
+  "description": "Tool-result spill policy for the DeepSeek Harness — replaces oversized plain-text tool results with a retained preview plus a spill-file path (no service API)",
+  "version": "0.1.1-rc.2",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+    "directory": "packages/spill/spill-policy"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./invariant": {
+      "types": "./lib/types/invariant.d.ts",
+      "default": "./lib/invariant.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/invariant.js",
+    "lib/types/**/*.d.ts"
+  ],
+  "license": "MIT",
+  "peerDependencies": {
+    "@z/dsh-invariants": "workspace:^",
+    "@z/dsh-llm": "workspace:^",
+    "@z/dsh-output-retention": "workspace:^",
+    "@z/dsh-session": "workspace:^",
+    "@z/dsh-spill": "workspace:^",
+    "@z/dsh-tools": "workspace:^",
+    "@z/cordis": "workspace:^"
+  },
+  "dependencies": {
+    "@z/schemastery": "workspace:^"
+  },
+  "devDependencies": {
+    "@z/dsh-agent": "workspace:^",
+    "@z/dsh-code-runtime-worker-thread": "workspace:^",
+    "@z/dsh-invariants": "workspace:^",
+    "@z/dsh-llm": "workspace:^",
+    "@z/dsh-output-retention": "workspace:^",
+    "@z/dsh-session": "workspace:^",
+    "@z/dsh-spill": "workspace:^",
+    "@z/dsh-tools": "workspace:^",
+    "@z/cordis": "workspace:^"
+  }
+}
