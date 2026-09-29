@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Replace bundled @earendil-works/pi-ai in vendor/taskweaver-dsh-runtime.
+ * Replace bundled @earendil-works/pi-ai in vendor/taskweaver-z-runtime.
  * Model catalogs (MiMo, OpenAI, etc.) ship inside pi-ai; "刷新目录" does not call provider APIs for catalog routes.
  */
 import { spawn } from 'node:child_process'
@@ -10,21 +10,21 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
-  resolveDshRuntimeNodePath,
-  TASKWEAVER_DSH_RUNTIME_PACKAGES,
-} from '../electron/agent/dsh-host/resolve-runtime.mjs'
+  resolveRuntimeNodePath,
+  TASKWEAVER_RUNTIME_PACKAGES,
+} from '../electron/agent/z-host/resolve-runtime.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const runtimeDir = path.join(root, 'vendor', 'taskweaver-dsh-runtime')
+const runtimeDir = path.join(root, 'vendor', 'taskweaver-z-runtime')
 const runtimeLock = JSON.parse(fs.readFileSync(path.join(root, 'runtime-lock.json'), 'utf8'))
 const PI_AI_VERSION = String(runtimeLock?.piAi?.version ?? '')
 if (!/^\d+\.\d+\.\d+(?:[-+].+)?$/.test(PI_AI_VERSION)) {
   throw new Error('runtime-lock.json 缺少有效的 piAi.version')
 }
 function runtimePackagesRoot() {
-  const resolved = resolveDshRuntimeNodePath(runtimeDir)
+  const resolved = resolveRuntimeNodePath(runtimeDir)
   if (!resolved) {
-    throw new Error(`缺少 DSH runtime 依赖目录（${TASKWEAVER_DSH_RUNTIME_PACKAGES} 或 node_modules）`)
+    throw new Error(`缺少 runtime 依赖目录（${TASKWEAVER_RUNTIME_PACKAGES} 或 node_modules）`)
   }
   return resolved
 }
@@ -39,7 +39,7 @@ function run(cmd, args, opts = {}) {
 
 async function main() {
   if (!fs.existsSync(runtimeDir)) {
-    throw new Error(`缺少 DSH runtime：${runtimeDir}，请先运行 scripts/build-dsh-runtime.mjs`)
+    throw new Error(`缺少 runtime deploy：${runtimeDir}，请先运行 npm run build:z-runtime`)
   }
   const tmp = await fsp.mkdtemp(path.join(os.tmpdir(), 'tw-pi-ai-'))
   const tgz = path.join(tmp, `pi-ai-${PI_AI_VERSION}.tgz`)

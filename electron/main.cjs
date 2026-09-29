@@ -105,7 +105,8 @@ function createWindow() {
     height: 900,
     minWidth: 1080,
     minHeight: 700,
-    backgroundColor: '#00000000',
+    show: false,
+    backgroundColor: '#1a1a1a',
     title: 'TaskWeaver',
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
     trafficLightPosition: { x: 16, y: 16 },
@@ -115,6 +116,11 @@ function createWindow() {
       sandbox: false,
       preload: preloadPath(),
     },
+  })
+
+  window.once('ready-to-show', () => {
+    window.show()
+    window.focus()
   })
 
   if (process.env.TASKWEAVER_DEVTOOLS === '1') {
@@ -146,7 +152,10 @@ if (!hasSingleInstanceLock) {
 
     try {
       const { registerIpc } = await import('./backend/register-ipc.mjs')
-      await registerIpc({ ipcMain, app, dialog, BrowserWindow, safeStorage, net })
+      await Promise.all([
+        registerIpc({ ipcMain, app, dialog, BrowserWindow, safeStorage, net }),
+        createWindow(),
+      ])
     } catch (error) {
       const message = error instanceof Error ? error.stack || error.message : String(error)
       console.error('[TaskWeaver] registerIpc failed:', message)
@@ -154,8 +163,6 @@ if (!hasSingleInstanceLock) {
       app.quit()
       return
     }
-
-    await createWindow()
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) void createWindow()
     })

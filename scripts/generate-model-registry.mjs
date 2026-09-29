@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url'
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const dataDir = process.env.PI_AI_DATA_DIR
   ? path.resolve(process.env.PI_AI_DATA_DIR)
-  : path.join(root, 'vendor', 'taskweaver-dsh-runtime', 'runtime-packages', '@earendil-works', 'pi-ai', 'dist', 'providers', 'data')
+  : path.join(root, 'vendor', 'taskweaver-z-runtime', 'runtime-packages', '@earendil-works', 'pi-ai', 'dist', 'providers', 'data')
 const output = path.resolve(process.argv[2] || path.join(root, 'registry', 'model-registry.v1.json'))
 const overrides = JSON.parse(await fsp.readFile(path.join(root, 'registry', 'overrides.json'), 'utf8'))
 const runtime = JSON.parse(await fsp.readFile(path.join(root, 'runtime-lock.json'), 'utf8'))

@@ -5,13 +5,21 @@
  * 统一管理便于调整和维护。
  */
 
-// ==================== DSH Chat Service ====================
-export const DSH_INITIAL_RECONNECT_DELAY_MS = 1000
-export const DSH_MAX_RECONNECT_DELAY_MS = 30000
-export const DSH_MAX_RECONNECT_ATTEMPTS = 5
-export const DSH_APPROVAL_PROMPT_TIMEOUT_MS = 300000 // 5 分钟
-export const DSH_APPROVAL_PROMPT_GRACE_PERIOD_MS = 5000
-export const DSH_EVENT_CHANNEL_OPEN_TIMEOUT_MS = 60000
+// ==================== Z Host event stream (chat bridge) ====================
+export const Z_INITIAL_RECONNECT_DELAY_MS = 1000
+export const Z_MAX_RECONNECT_DELAY_MS = 30000
+export const Z_MAX_RECONNECT_ATTEMPTS = 5
+export const Z_APPROVAL_PROMPT_TIMEOUT_MS = 300000 // 5 分钟
+export const Z_APPROVAL_PROMPT_GRACE_PERIOD_MS = 5000
+export const Z_EVENT_CHANNEL_OPEN_TIMEOUT_MS = 60000
+
+/** @deprecated TaskWeaver-side aliases */
+export const DSH_INITIAL_RECONNECT_DELAY_MS = Z_INITIAL_RECONNECT_DELAY_MS
+export const DSH_MAX_RECONNECT_DELAY_MS = Z_MAX_RECONNECT_DELAY_MS
+export const DSH_MAX_RECONNECT_ATTEMPTS = Z_MAX_RECONNECT_ATTEMPTS
+export const DSH_APPROVAL_PROMPT_TIMEOUT_MS = Z_APPROVAL_PROMPT_TIMEOUT_MS
+export const DSH_APPROVAL_PROMPT_GRACE_PERIOD_MS = Z_APPROVAL_PROMPT_GRACE_PERIOD_MS
+export const DSH_EVENT_CHANNEL_OPEN_TIMEOUT_MS = Z_EVENT_CHANNEL_OPEN_TIMEOUT_MS
 
 // ==================== Web Search Service ====================
 export const WEB_SEARCH_DUCKDUCKGO_TIMEOUT_MS = 12000
@@ -52,17 +60,17 @@ export const MILLISECONDS_PER_SECOND = 1000
 
 // ==================== 默认配置对象 ====================
 export const CONFIG = {
-  dsh: {
+  zHost: {
     reconnect: {
-      initialDelayMs: DSH_INITIAL_RECONNECT_DELAY_MS,
-      maxDelayMs: DSH_MAX_RECONNECT_DELAY_MS,
-      maxAttempts: DSH_MAX_RECONNECT_ATTEMPTS,
+      initialDelayMs: Z_INITIAL_RECONNECT_DELAY_MS,
+      maxDelayMs: Z_MAX_RECONNECT_DELAY_MS,
+      maxAttempts: Z_MAX_RECONNECT_ATTEMPTS,
     },
     approval: {
-      timeoutMs: DSH_APPROVAL_PROMPT_TIMEOUT_MS,
-      gracePeriodMs: DSH_APPROVAL_PROMPT_GRACE_PERIOD_MS,
+      timeoutMs: Z_APPROVAL_PROMPT_TIMEOUT_MS,
+      gracePeriodMs: Z_APPROVAL_PROMPT_GRACE_PERIOD_MS,
     },
-    eventChannelOpenTimeoutMs: DSH_EVENT_CHANNEL_OPEN_TIMEOUT_MS,
+    eventChannelOpenTimeoutMs: Z_EVENT_CHANNEL_OPEN_TIMEOUT_MS,
   },
   webSearch: {
     timeout: {

@@ -434,14 +434,14 @@ function AddModelModal({
                     })
                   ) : (
                     <div className="provider-search-empty">
-                      {loading ? (
+                      {loading && providers.length === 0 ? (
                         <span>正在加载提供方目录…</span>
                       ) : providers.length === 0 ? (
                         <>
                           <span>
                             {catalogError
                               ? catalogError
-                              : '暂时无法获取提供方目录。DSH Agent Host 可能仍在启动，请稍候再点刷新。'}
+                              : '暂时无法获取提供方目录。Z Host 可能仍在启动，请稍候再点刷新。'}
                           </span>
                           <button type="button" className="settings-secondary-button" onClick={onRefresh}>刷新目录</button>
                         </>
@@ -1094,7 +1094,7 @@ export function ModelSettingsPanel({
             </div>
             {updateStatus.runtime && (
               <div className="model-registry-status-meta">
-                DSH {updateStatus.runtime.dsh?.version || '未知'} · pi-ai {updateStatus.runtime.piAi?.version || '未知'} · Overlay v{updateStatus.runtime.overlayVersion ?? '未知'}
+                Z {updateStatus.runtime.dsh?.version || '未知'} · pi-ai {updateStatus.runtime.piAi?.version || '未知'} · Overlay v{updateStatus.runtime.overlayVersion ?? '未知'}
               </div>
             )}
             {(updateStatus.changes.added.length > 0

@@ -6,19 +6,16 @@ cd "$ROOT"
 
 npm run build
 node scripts/validate-model-registry.mjs
-if [[ -f vendor/z-runtime/apps/cli/lib/bin.js && "${TASKWEAVER_USE_Z_RUNTIME:-}" != "0" ]]; then
-  export TASKWEAVER_USE_Z_RUNTIME=1
-  echo "make-mac-app: 使用已构建的 vendor/z-runtime"
-elif [[ -d vendor/z-runtime && "${TASKWEAVER_USE_Z_RUNTIME:-}" == "1" ]]; then
-  echo "make-mac-app: vendor/z-runtime 尚未构建 CLI，回退 dsh-source（可先 npm run build:z-runtime）"
-  export TASKWEAVER_USE_Z_RUNTIME=0
+if [[ ! -f vendor/z-runtime/apps/cli/lib/bin.js ]]; then
+  echo "make-mac-app: 需要先构建 Z 运行时 CLI：npm run build:z-runtime"
+  exit 1
 fi
-if ! node scripts/build-dsh-runtime.mjs; then
-  if [[ -f vendor/taskweaver-dsh-runtime/lib/entry.js || -f vendor/taskweaver-dsh-runtime/lib/bin.js ]]; then
-    echo "dsh-source 全量构建失败，回退: node scripts/build-dsh-runtime.mjs --skip-build"
-    node scripts/build-dsh-runtime.mjs --skip-build
+if ! node scripts/build-z-runtime.mjs; then
+  if [[ -f vendor/taskweaver-z-runtime/lib/entry.js || -f vendor/taskweaver-z-runtime/lib/bin.js ]]; then
+    echo "build-z-runtime 全量构建失败，尝试仅打包已有 deploy: node scripts/build-z-runtime.mjs --skip-build"
+    node scripts/build-z-runtime.mjs --skip-build
   else
-    echo "缺少 vendor/taskweaver-dsh-runtime，无法回退。请先在本机成功构建一次 dsh-source 或修复其 pnpm build。"
+    echo "缺少 vendor/taskweaver-z-runtime。请先成功运行 npm run build:z-runtime。"
     exit 1
   fi
 fi

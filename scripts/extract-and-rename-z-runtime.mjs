@@ -9,7 +9,9 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const dshSource = path.join(root, 'dsh-source')
+const dshSource = process.env.DSH_SOURCE_PATH
+  ? path.resolve(process.env.DSH_SOURCE_PATH)
+  : path.join(root, 'dsh-source')
 const zRuntime = path.join(root, 'vendor', 'z-runtime')
 
 const SKIP_DIR_NAMES = new Set([
@@ -81,7 +83,7 @@ async function walkFiles(dir, exts, out = []) {
 
 async function main() {
   if (!fs.existsSync(dshSource)) {
-    throw new Error(`缺少 dsh-source：${dshSource}`)
+    throw new Error(`缺少上游 DSH 源码树：${dshSource}（可设置 DSH_SOURCE_PATH 指向外部克隆）`)
   }
   console.log('步骤 1/5: 复制 dsh-source → vendor/z-runtime（跳过 node_modules / 构建产物）')
   if (fs.existsSync(zRuntime)) {

@@ -10,11 +10,10 @@ import { fileURLToPath } from 'node:url'
 import { createProfileStore } from '../electron/backend/profile-store.mjs'
 import { createModelService } from '../electron/backend/model-service.mjs'
 import { createModelRegistryUpdater } from '../electron/backend/model-registry-updater.mjs'
-import { createDshHostManager } from '../electron/agent/dsh-host/spawn-host.mjs'
-import { resolveDshRuntimeRoot } from '../electron/agent/dsh-host/resolve-runtime.mjs'
+import { createZHostManager, resolveTaskWeaverRuntimeRoot } from '../electron/agent/z-host/index.mjs'
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const runtimeRoot = resolveDshRuntimeRoot({
+const runtimeRoot = resolveTaskWeaverRuntimeRoot({
   appPath: projectRoot,
   resourcesPath: null,
   isPackaged: false,
@@ -28,7 +27,7 @@ const publicKeyDer = (await fs.readFile(
 )).trim()
 
 const userData = await fs.mkdtemp(path.join(os.tmpdir(), 'tw-registry-mapping-'))
-const hostManager = createDshHostManager({
+const hostManager = createZHostManager({
   runtimeRoot,
   userDataPath: userData,
   executable: process.execPath,

@@ -680,7 +680,7 @@ export function createModelService({
   async function loadModelBundle() {
     const directory = await getDshModelDirectory()
     const [catalog, auth] = await Promise.all([
-      buildCatalogFromDirectory(directory, { liveDiscovery: true }),
+      buildCatalogFromDirectory(directory, { liveDiscovery: false }),
       buildProvidersAuthFromDirectory(directory),
     ])
     return { catalog, auth, hostReady: true, providerCount: auth.length }
@@ -872,7 +872,7 @@ export function createModelService({
       catalog = await listCatalog()
       model = catalog.candidateModels.find((candidate) => candidate.key === modelKey)
     }
-    if (!model?.routeRegistered || !model.available) throw new Error('DSH Host 尚未确认该模型可路由')
+    if (!model?.routeRegistered || !model.available) throw new Error('Z Host 尚未确认该模型可路由')
     await profileStore.addModel(modelKey)
     return listCatalog()
   }

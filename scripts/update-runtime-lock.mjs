@@ -36,7 +36,7 @@ lock.runtimeBuildHash = createHash('sha256')
   .update(`${dshCommit}|${piAiVersion}|${lock.dshApiSchemaVersion}|${lock.overlayVersion}`)
   .digest('hex')
 await fsp.writeFile(lockFile, `${JSON.stringify(lock, null, 2)}\n`)
-const adapterPackagePath = path.join(root, 'dsh-source', 'packages', 'llm', 'llm-pi-ai', 'package.json')
+const adapterPackagePath = path.join(root, 'vendor', 'z-runtime', 'packages', 'llm', 'llm-pi-ai', 'package.json')
 const adapterPackage = JSON.parse(await fsp.readFile(adapterPackagePath, 'utf8'))
 adapterPackage.dependencies['@earendil-works/pi-ai'] = piAiVersion
 await fsp.writeFile(adapterPackagePath, `${JSON.stringify(adapterPackage, null, 2)}\n`)

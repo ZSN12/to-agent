@@ -1,6 +1,5 @@
 #!/usr/bin/env node
-import { createDshHostManager } from '../electron/agent/dsh-host/spawn-host.mjs'
-import { resolveDshRuntimeRoot } from '../electron/agent/dsh-host/resolve-runtime.mjs'
+import { createZHostManager, resolveTaskWeaverRuntimeRoot } from '../electron/agent/z-host/index.mjs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -14,13 +13,13 @@ console.log('appPath:', appPath)
 console.log('resourcesPath:', resourcesPath)
 console.log('isPackaged:', isPackaged)
 
-const runtimeRoot = resolveDshRuntimeRoot({ appPath, resourcesPath, isPackaged })
+const runtimeRoot = resolveTaskWeaverRuntimeRoot({ appPath, resourcesPath, isPackaged })
 console.log('runtimeRoot:', runtimeRoot)
 
 const userDataPath = path.join(process.env.HOME, '.taskweaver-dev')
 console.log('userDataPath:', userDataPath)
 
-const hostManager = createDshHostManager({
+const hostManager = createZHostManager({
   runtimeRoot,
   userDataPath,
   executable: process.execPath,

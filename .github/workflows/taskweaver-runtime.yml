@@ -1,0 +1,40 @@
+name: TaskWeaver runtime
+
+on:
+  push:
+    branches: [main, refactor/z-runtime-integration]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  resolution:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: node scripts/test-z-runtime-resolution.mjs
+
+  smoke-macos:
+    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - run: npm ci
+      - name: Build Z runtime deploy
+        run: |
+          cd vendor/z-runtime && CI=true pnpm install --ignore-scripts
+          cd ../..
+          node scripts/build-z-runtime.mjs
+      - run: node scripts/test-z-host.mjs
+      - run: npm run test:models

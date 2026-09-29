@@ -522,7 +522,7 @@ export function McpSettingsPanel({ onToast }: { onToast?: (msg: string) => void 
                     className="settings-secondary-button"
                     onClick={() => handleToggleEnable(server)}
                     disabled={!dshWired}
-                    title={!dshWired ? 'MCP 尚未接入 DSH Host，暂不能作为 Agent 工具启用' : undefined}
+                    title={!dshWired ? 'MCP 尚未接入 Z Host，暂不能作为 Agent 工具启用' : undefined}
                     style={{ minWidth: 64 }}
                   >
                     {dshWired ? (server.enabled ? '停用' : '启用') : '待接入 DSH'}

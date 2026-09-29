@@ -104,23 +104,20 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
     safeStorage,
   })
 
-  const { createDshHostManager } = await import('../agent/dsh-host/spawn-host.mjs')
-  const { resolveTaskWeaverRuntimeRoot } = await import('../agent/dsh-host/resolve-runtime.mjs')
+  const { createZHostManager, resolveTaskWeaverRuntimeRoot } = await import('../agent/z-host/index.mjs')
   const runtimeRoot = resolveTaskWeaverRuntimeRoot({
     appPath: app.getAppPath(),
     resourcesPath: process.resourcesPath,
     isPackaged: app.isPackaged,
   })
-  const hostManager = createDshHostManager({
+  const hostManager = createZHostManager({
     runtimeRoot,
     userDataPath: userData,
     executable: process.execPath,
   })
-  try {
-    await hostManager.start()
-  } catch (error) {
-    console.error('DSH Host 预启动失败（模型目录将重试）:', error instanceof Error ? error.message : error)
-  }
+  void hostManager.start().catch((error) => {
+    console.error('Z Host 预启动失败（模型目录将重试）:', error instanceof Error ? error.message : error)
+  })
 
   const modelRegistryUpdater = createModelRegistryUpdater({
     userDataPath: userData,

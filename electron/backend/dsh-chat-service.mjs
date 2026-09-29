@@ -10,12 +10,12 @@ import {
   resolveDshApprovalBridgeAction,
 } from './dsh-permission-map.mjs'
 import {
-  DSH_APPROVAL_PROMPT_TIMEOUT_MS,
-  DSH_APPROVAL_PROMPT_GRACE_PERIOD_MS,
-  DSH_MAX_RECONNECT_ATTEMPTS,
-  DSH_INITIAL_RECONNECT_DELAY_MS,
-  DSH_MAX_RECONNECT_DELAY_MS,
-  DSH_EVENT_CHANNEL_OPEN_TIMEOUT_MS,
+  Z_APPROVAL_PROMPT_TIMEOUT_MS,
+  Z_APPROVAL_PROMPT_GRACE_PERIOD_MS,
+  Z_MAX_RECONNECT_ATTEMPTS,
+  Z_INITIAL_RECONNECT_DELAY_MS,
+  Z_MAX_RECONNECT_DELAY_MS,
+  Z_EVENT_CHANNEL_OPEN_TIMEOUT_MS,
 } from './config.mjs'
 
 function rpcValue(response, operation) {
@@ -176,7 +176,7 @@ export function createDshChatService({
         pendingApprovals.delete(id)
         if (entry?.timeoutId) clearTimeout(entry.timeoutId)
       }
-    }, DSH_APPROVAL_PROMPT_TIMEOUT_MS + DSH_APPROVAL_PROMPT_GRACE_PERIOD_MS)
+    }, Z_APPROVAL_PROMPT_TIMEOUT_MS + Z_APPROVAL_PROMPT_GRACE_PERIOD_MS)
     cleanupTimeoutId.unref?.()
   }
 
@@ -245,7 +245,7 @@ export function createDshChatService({
     }
     const timeoutId = setTimeout(() => {
       void settleApproval(id, { action: 'deny', reason: 'timeout' })
-    }, DSH_APPROVAL_PROMPT_TIMEOUT_MS)
+    }, Z_APPROVAL_PROMPT_TIMEOUT_MS)
     timeoutId.unref?.()
     registerPendingApproval(id, {
       rpcId: frame.rpcId,
@@ -488,16 +488,16 @@ export function createDshChatService({
   }
 
   async function scheduleReconnect(api) {
-    if (stopped || reconnectAttempt >= DSH_MAX_RECONNECT_ATTEMPTS) {
-      if (reconnectAttempt >= DSH_MAX_RECONNECT_ATTEMPTS) {
-        console.error(`DSH 事件流重连已达到最大尝试次数 (${DSH_MAX_RECONNECT_ATTEMPTS})，停止重连`)
+    if (stopped || reconnectAttempt >= Z_MAX_RECONNECT_ATTEMPTS) {
+      if (reconnectAttempt >= Z_MAX_RECONNECT_ATTEMPTS) {
+        console.error(`Z 事件流重连已达到最大尝试次数 (${Z_MAX_RECONNECT_ATTEMPTS})，停止重连`)
       }
       return
     }
     reconnectAttempt += 1
     const delay = Math.min(
-      DSH_INITIAL_RECONNECT_DELAY_MS * Math.pow(2, reconnectAttempt - 1),
-      DSH_MAX_RECONNECT_DELAY_MS
+      Z_INITIAL_RECONNECT_DELAY_MS * Math.pow(2, reconnectAttempt - 1),
+      Z_MAX_RECONNECT_DELAY_MS
     )
     console.warn(`DSH 事件流将在 ${delay}ms 后进行第 ${reconnectAttempt} 次重连...`)
     await new Promise((resolve) => {
@@ -506,7 +506,7 @@ export function createDshChatService({
     })
     if (stopped) return
     try {
-      console.log(`正在重连 DSH 事件流 (尝试 ${reconnectAttempt}/${DSH_MAX_RECONNECT_ATTEMPTS})...`)
+      console.log(`正在重连 Z 事件流 (尝试 ${reconnectAttempt}/${Z_MAX_RECONNECT_ATTEMPTS})...`)
       await startMuxStream(api)
       console.log('DSH 事件流重连成功')
       const activeSessions = [...sessions.entries()]
@@ -515,7 +515,7 @@ export function createDshChatService({
       }
     } catch (error) {
       console.error(`DSH 事件流重连失败：${error instanceof Error ? error.message : String(error)}`)
-      if (!stopped && reconnectAttempt < DSH_MAX_RECONNECT_ATTEMPTS) {
+      if (!stopped && reconnectAttempt < Z_MAX_RECONNECT_ATTEMPTS) {
         await scheduleReconnect(api)
       }
     }
@@ -780,7 +780,7 @@ export function createDshChatService({
   async function stop() {
     await rejectPendingApprovals({ reason: 'shutdown' })
     stopped = true
-    reconnectAttempt = DSH_MAX_RECONNECT_ATTEMPTS
+    reconnectAttempt = Z_MAX_RECONNECT_ATTEMPTS
     muxAbort?.abort()
     await muxTask?.catch(() => {})
     for (const [id, turn] of running) {

@@ -21,14 +21,15 @@ files:
   - "!*.md"
 
 extraResources:
-  # scripts/build-dsh-runtime.mjs → runtime-packages (electron-builder strips node_modules)
-  - from: vendor/taskweaver-dsh-runtime
-    to: taskweaver-dsh-runtime
+  # scripts/build-z-runtime.mjs → runtime-packages (electron-builder strips node_modules)
+  - from: vendor/taskweaver-z-runtime
+    to: taskweaver-z-runtime
     filter:
       - "lib/**/*"
       - "config/**/*"
       - "runtime-packages/**/*"
       - "package.json"
+      - "taskweaver-z-client/**/*"
       - "taskweaver-dsh-client/**/*"
       - "taskweaver-runtime-meta.json"
       - "!runtime-packages/.cache/**/*"

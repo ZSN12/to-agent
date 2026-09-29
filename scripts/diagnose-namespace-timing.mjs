@@ -1,6 +1,5 @@
 #!/usr/bin/env node
-import { createDshHostManager } from '../electron/agent/dsh-host/spawn-host.mjs'
-import { resolveDshRuntimeRoot } from '../electron/agent/dsh-host/resolve-runtime.mjs'
+import { createZHostManager, resolveTaskWeaverRuntimeRoot } from '../electron/agent/z-host/index.mjs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -11,10 +10,10 @@ const isPackaged = false
 
 console.log('测试命名空间注册时机...')
 
-const runtimeRoot = resolveDshRuntimeRoot({ appPath, resourcesPath, isPackaged })
+const runtimeRoot = resolveTaskWeaverRuntimeRoot({ appPath, resourcesPath, isPackaged })
 const userDataPath = path.join(process.env.HOME, '.taskweaver-dev')
 
-const hostManager = createDshHostManager({
+const hostManager = createZHostManager({
   runtimeRoot,
   userDataPath,
   executable: process.execPath,

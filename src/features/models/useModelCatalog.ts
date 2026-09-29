@@ -27,42 +27,44 @@ export function useModelCatalog() {
       setError('未检测到 Electron 模型桥接，请使用 npm run dev 启动桌面端。')
       return
     }
-    setLoading(true)
+    const showBlockingLoad = auth.length === 0 && catalog === null
+    if (showBlockingLoad) setLoading(true)
     setError(null)
     try {
       const loadBundle = client.loadBundle ?? (async () => {
         const [listRes, authRes] = await Promise.all([client.list(), client.listProvidersAuth()])
         if (!listRes.ok) return { ok: false as const, error: listRes.error ?? '获取模型列表失败' }
         if (!authRes.ok) return { ok: false as const, error: authRes.error ?? '获取认证状态失败' }
-        const auth = authRes.data ?? []
+        const authRows = authRes.data ?? []
         return {
           ok: true as const,
-          data: { catalog: listRes.data!, auth, hostReady: true, providerCount: auth.length },
+          data: { catalog: listRes.data!, auth: authRows, hostReady: true, providerCount: authRows.length },
         }
       })
       const res = await loadBundle()
       if (!res.ok) {
         setError(res.error ?? '加载模型目录失败')
-        setLoading(false)
+        if (showBlockingLoad) setLoading(false)
         return
       }
       const bundle = res.data!
       setCatalog(bundle.catalog ?? null)
       setAuth(bundle.auth ?? [])
       if (bundle.providerCount === 0 && bundle.hostReady) {
-        setError('DSH Host 已连接，但提供方目录为空。请稍候再试或重启应用。')
+        setError('Z Host 已连接，但提供方目录为空。请稍候再试或重启应用。')
       }
-      setLoading(false)
+      if (showBlockingLoad) setLoading(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : '加载模型目录时发生错误')
-      setLoading(false)
+      if (showBlockingLoad) setLoading(false)
     }
-  }, [])
+  }, [auth.length, catalog])
 
   const refresh = useCallback(async (): Promise<{ ok: boolean; providerCount: number; error: string | null }> => {
     const client = getModelsClient()
     if (!client) return { ok: false, providerCount: 0, error: '未检测到 Electron 模型桥接' }
-    setLoading(true)
+    const showBlockingLoad = auth.length === 0
+    if (showBlockingLoad) setLoading(true)
     setError(null)
     try {
       const loadBundle = client.loadBundle ?? (async () => {
@@ -80,17 +82,17 @@ export function useModelCatalog() {
       if (!res.ok) {
         const message = res.error ?? '刷新模型目录失败'
         setError(message)
-        setLoading(false)
+        if (showBlockingLoad) setLoading(false)
         return { ok: false, providerCount: 0, error: message }
       }
       const bundle = res.data!
       setCatalog(bundle.catalog ?? null)
       setAuth(bundle.auth ?? [])
       const emptyMessage = bundle.providerCount === 0
-        ? 'DSH Host 已连接，但提供方目录为空。请稍候再试或重启应用。'
+        ? 'Z Host 已连接，但提供方目录为空。请稍候再试或重启应用。'
         : null
       if (emptyMessage) setError(emptyMessage)
-      setLoading(false)
+      if (showBlockingLoad) setLoading(false)
       return {
         ok: true,
         providerCount: bundle.providerCount,
@@ -99,10 +101,10 @@ export function useModelCatalog() {
     } catch (err) {
       const message = err instanceof Error ? err.message : '刷新模型目录时发生错误'
       setError(message)
-      setLoading(false)
+      if (showBlockingLoad) setLoading(false)
       return { ok: false, providerCount: 0, error: message }
     }
-  }, [])
+  }, [auth.length])
 
   useEffect(() => {
     void load()

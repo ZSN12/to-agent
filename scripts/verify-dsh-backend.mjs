@@ -85,7 +85,7 @@ if (hasExport && hasImport && hasUsage) {
 
 // 检查 5: DSH hostManager 集成
 console.log('\n5️⃣  检查 DSH hostManager 集成')
-const hasHostManagerCreation = registerIpc.includes('const hostManager = createDshHostManager')
+const hasHostManagerCreation = registerIpc.includes('const hostManager = createZHostManager')
 const hasHostManagerAssignment = registerIpc.includes('Object.assign(modelService, { dshHostManager: hostManager })')
 const hasChatServiceIntegration = registerIpc.includes('hostManager,') && registerIpc.includes('const chat = createDshChatService')
 
