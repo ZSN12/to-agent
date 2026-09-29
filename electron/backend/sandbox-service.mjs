@@ -3,7 +3,6 @@ import path from 'node:path'
 import { bwrapProfileArgs, landlockProfileArgs, seatbeltProfileArgs } from '../vendor/dsh-sandbox/profiles.mjs'
 import { launcherPath, probeLandlock } from '../vendor/dsh-sandbox/landlock.mjs'
 import { probeWindowsAclRunner, confineArgvWindows } from '../vendor/dsh-sandbox/windows-acl.mjs'
-import { resolveSandboxPolicy } from './sandbox-policy.mjs'
 
 export const SANDBOX_MODE = Object.freeze({
   OFF: 'off',
@@ -130,44 +129,6 @@ export function wrapBashInvocation(command, cwd, policy) {
   const workspaceRoot = path.resolve(policy.workspaceRoot || cwd)
   const confined = confineArgv(['bash', '-c', command], { ...policy, workspaceRoot })
   return { program: confined[0], args: confined.slice(1), cwd }
-}
-
-const SANDBOX_BRIDGE_KEY = Symbol.for('taskweaver.sandbox')
-
-export function installSandboxBridge({ getWorkspacePath, getBashSandboxPref, getPermissionMode, getSessionSandboxMode }) {
-  const bridge = {
-    probe: probeSandboxSupport,
-    resolvePolicy() {
-      return resolveSandboxPolicy({
-        workspacePath: getWorkspacePath?.() || process.cwd(),
-        bashSandbox: getBashSandboxPref?.() ?? 'auto',
-        permissionMode: getPermissionMode?.() ?? 'ask',
-        sessionSandboxMode: getSessionSandboxMode?.() ?? null,
-      })
-    },
-    getPolicy() {
-      const resolved = bridge.resolvePolicy()
-      const workspaceRoot = resolved.workspaceRoot
-      const mode = resolved.bash.mode
-      if (mode === 'off') return { mode: SANDBOX_MODE.OFF, workspaceRoot }
-      return { mode, workspaceRoot }
-    },
-    wrapBashInvocation,
-    async approveBashEscalation(request) {
-      const { getActivePermissionController } = await import('./permission-service.mjs')
-      const ctrl = getActivePermissionController()
-      if (!ctrl?.approveSandboxEscalation) {
-        throw new Error('sandbox escalation requires approval, but no approval service is composed')
-      }
-      return ctrl.approveSandboxEscalation(request)
-    },
-  }
-  globalThis[SANDBOX_BRIDGE_KEY] = bridge
-  return bridge
-}
-
-export function getSandboxBridge() {
-  return globalThis[SANDBOX_BRIDGE_KEY] || null
 }
 
 export const DENIAL_SIGNATURES = {

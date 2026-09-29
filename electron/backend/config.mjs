@@ -12,6 +12,13 @@ export const Z_MAX_RECONNECT_ATTEMPTS = 5
 export const Z_APPROVAL_PROMPT_TIMEOUT_MS = 300000 // 5 分钟
 export const Z_APPROVAL_PROMPT_GRACE_PERIOD_MS = 5000
 export const Z_EVENT_CHANNEL_OPEN_TIMEOUT_MS = 60000
+/**
+ * dsh-session-map.json 的条目上限。
+ * 映射表没有任何回收路径，而编排会给每个子会话建一条永久条目
+ * （planner / planner-retry / N 个子任务 / synthesis，一次 8 子任务编排 = 11 条）。
+ * 超过上限时按 lastUsedAt 淘汰「可推导」条目（见 dsh-chat-service.evictTrackedSessions）。
+ */
+export const Z_MAX_TRACKED_SESSIONS = 300
 
 /** @deprecated TaskWeaver-side aliases */
 export const DSH_INITIAL_RECONNECT_DELAY_MS = Z_INITIAL_RECONNECT_DELAY_MS

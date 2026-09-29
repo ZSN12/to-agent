@@ -181,8 +181,9 @@ export function createModelRegistryUpdater({
         return persistStatus({ state: 'up-to-date', lastCheckedAt: checkedAt, error: null })
       }
       const changes = catalogChanges(current.registry, registry)
-      if (fs.existsSync(activePath)) await atomicWrite(previousPath, await fsp.readFile(activePath))
-      else await atomicWrite(previousPath, `${JSON.stringify(current.registry, null, 2)}\n`)
+      // Keep a validated effective snapshot, not potentially corrupt bytes
+      // found at activePath, so a failed update always rolls back to usable data.
+      await atomicWrite(previousPath, `${JSON.stringify(current.registry, null, 2)}\n`)
       await atomicWrite(activePath, registryBytes)
       try {
         if (mappingValidator) await mappingValidator(registry)

@@ -67,7 +67,11 @@ export function createSkillService({
       const fsSkill = byName.get(entry.name)
       merged.push({
         name: entry.name,
-        description: entry.description || fsSkill?.description || '',
+        description:
+          entry.description?.trim()
+          || entry.whenToUse?.trim()
+          || fsSkill?.description
+          || '',
         path: fsSkill?.path ?? '',
         baseDir: fsSkill?.baseDir,
         source: fsSkill?.source ?? 'dsh',

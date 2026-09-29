@@ -41,6 +41,7 @@
 - **目标**：对话与工具执行迁到 **DSH Host（Cordis + ApiProxy）**，不再以 Pi `createAgentSession` 为长期方案。
 - **过渡**：当前仍用 `vendor/runtime` Pi；行为向 DSH 收敛，详见 [DSH运行时迁移方案.md](./DSH运行时迁移方案.md)。
 - **保留**：路由作品集、DAG 编排、worktree、Git 检查点、线程 UI。
+- **内嵌而非整站**：对话 UI 走 **mux 事件 + projection** 与 `client-runtime` / `ui-conversation`（TaskWeaver 壳层主权），**不**用 Host 整页 WebView。原则见 [DSH内嵌集成原则.md](./DSH内嵌集成原则.md)。
 
 ## 架构差异（知情即可）
 

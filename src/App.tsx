@@ -74,6 +74,7 @@ import { AppearanceSettingsPanel } from './features/appearance/AppearanceSetting
 import { OutputLogPanel } from './features/logs/OutputLogPanel'
 import { GitCheckpointPanel } from './features/git/GitCheckpointPanel'
 import { SkillSettingsPanel } from './features/skills/SkillSettingsPanel'
+import { skillDescriptionBlurb } from './features/skills/skillDescription'
 import { WorktreeMergeActions } from './features/worktree/WorktreeMergeActions'
 import { TerminalDrawer } from './features/terminal/TerminalDrawer'
 import { useModelCatalog } from './features/models/useModelCatalog'
@@ -87,21 +88,20 @@ import { RetryBanner } from './features/chat/RetryBanner'
 import { ComposerStatsDock } from './features/chat/ComposerStatsDock'
 import { ChatBehaviorSettingsPanel } from './features/chat/ChatBehaviorSettingsPanel'
 import { SubagentSessionTree } from './features/orchestration/SubagentSessionTree'
-import { ComposerBusyEnterToggle } from './features/chat/ComposerBusyEnterToggle'
 import { ThreadRunningIndicator } from './features/chat/ThreadRunningIndicator'
-import { DshStateDot } from './features/chat/DshStateDot'
-import { ToolTraceCard } from './features/chat/ToolTraceCard'
+import { DshToolCallList } from './features/chat/DshToolCallList'
+import { MessageTurnUsageChip } from './features/chat/MessageTurnUsageChip'
+import type { DshProjectedToolCall } from './shared/app-api'
 import { DetailsPanel } from './features/chat/DetailsPanel'
 import type { BusyEnterMode, LiveContextUsage, PermissionPromptPayload, SessionStatsSnapshot } from './shared/app-api'
 import { skillOptionSourceLabel } from './shared/app-api'
 import type { FileDiffData, ModelUsageStats, PermissionMode, PromptQueueSnapshot, SkillOption, ThreadSummary, ToolTraceItem, WorkMode, WorkspaceEntry, WorkspaceReference } from './shared/app-api'
 import type { ChatMessage, ModelOption, TaskNode, TaskStatus, ThinkingLevel } from './types'
 import {
-  formatTokensCompact,
+  formatDshRunDuration,
   sessionUsageHasData,
   summarizeSessionUsage,
 } from './features/chat/session-usage'
-import { formatCacheUsageSuffix } from './features/chat/usage-labels'
 import {
   DEFAULT_SHORTCUTS,
   loadShortcuts,
@@ -175,6 +175,7 @@ function AppSidebar({
   runningConversationIds = [],
   activeMainView = 'chat',
   onSelectMainView,
+  onToggleCollapsed,
 }: {
   collapsed: boolean
   workspacePath: string | null
@@ -192,6 +193,7 @@ function AppSidebar({
   onToggleArchiveThread: (threadId: string) => void
   onDeleteThread: (threadId: string) => void
   onSearchThreads?: (query: string) => Promise<ThreadSummary[]>
+  onToggleCollapsed?: () => void
 }) {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingTitle, setEditingTitle] = useState('')
@@ -306,26 +308,40 @@ function AppSidebar({
     <aside className={`app-sidebar ${collapsed ? 'collapsed' : ''}`} aria-label="应用导航">
       <div className="sidebar-drag-space" />
       
-      {/* 顶部品牌与全局搜索 */}
+      {/* 顶部品牌与全局搜索；折叠时只保留展开按钮，避免列表文字竖排溢出 */}
       <div className="sidebar-brand-row">
-        <button className="sidebar-brand" title="TaskWeaver">
-          <span className="sidebar-label brand-text">TaskWeaver</span>
-          <ChevronDown className="sidebar-label brand-arrow" size={14} />
-        </button>
-        <div className="sidebar-quick-actions">
+        {collapsed ? (
           <button
-            title={searchOpen ? '收起搜索' : '搜索会话'}
-            aria-label="搜索会话"
-            className={searchOpen || searchQuery ? 'active' : ''}
-            onClick={() => {
-              setSearchOpen((prev) => !prev)
-              if (searchOpen) setSearchQuery('')
-            }}
+            type="button"
+            className="sidebar-expand-btn"
+            title="展开侧边栏"
+            aria-label="展开侧边栏"
+            onClick={onToggleCollapsed}
           >
-            <Search size={16} />
+            <PanelLeft size={18} />
           </button>
-          <button title="通知" aria-label="通知"><Bell size={16} /></button>
-        </div>
+        ) : (
+          <>
+            <button className="sidebar-brand" title="TaskWeaver">
+              <span className="sidebar-label brand-text">TaskWeaver</span>
+              <ChevronDown className="sidebar-label brand-arrow" size={14} />
+            </button>
+            <div className="sidebar-quick-actions">
+              <button
+                title={searchOpen ? '收起搜索' : '搜索会话'}
+                aria-label="搜索会话"
+                className={searchOpen || searchQuery ? 'active' : ''}
+                onClick={() => {
+                  setSearchOpen((prev) => !prev)
+                  if (searchOpen) setSearchQuery('')
+                }}
+              >
+                <Search size={16} />
+              </button>
+              <button title="通知" aria-label="通知"><Bell size={16} /></button>
+            </div>
+          </>
+        )}
       </div>
 
       {/* 实时搜索框 */}
@@ -414,8 +430,8 @@ function AppSidebar({
           </button>
         </div>
 
-        {/* 搜索激活模式下展示搜索结果列表 */}
-        {searchQuery.trim() ? (
+        {/* 折叠轨只保留图标导航；会话列表/分类标题全部隐藏 */}
+        {!collapsed && (searchQuery.trim() ? (
           <div className="sidebar-search-results">
             <div className="sidebar-category-header">
               <span className="sidebar-category-title-static">搜索结果 ({searchResults.length})</span>
@@ -854,7 +870,7 @@ function AppSidebar({
               </div>
             )}
           </>
-        )}
+        ))}
       </nav>
 
       {/* 底部账户与设置栏 */}
@@ -1989,40 +2005,49 @@ function formatMessageTime(time: string, timestamp?: number, id?: string): strin
   return time
 }
 
-function DeepDivingIndicator({ startTime }: { startTime?: number }) {
-  const [seconds, setSeconds] = useState(1)
+/** Mirrors DSH ChatView `TurnStatus`: shimmer label + optional tool chip + clock after 15s. */
+function DeepDivingIndicator({ startTime }: { startTime?: number; activity?: string | null }) {
+  const anchor = startTime ?? Date.now()
+  const [elapsedMs, setElapsedMs] = useState(() => Math.max(0, Date.now() - anchor))
 
   useEffect(() => {
-    const start = startTime || Date.now()
-    const timer = setInterval(() => {
-      const elapsed = Math.max(1, Math.floor((Date.now() - start) / 1000))
-      setSeconds(elapsed)
-    }, 1000)
-    return () => clearInterval(timer)
-  }, [startTime])
+    const tick = () => setElapsedMs(Math.max(0, Date.now() - anchor))
+    tick()
+    const id = setInterval(tick, 1000)
+    return () => clearInterval(id)
+  }, [anchor])
+
+  const showClock = elapsedMs >= 15_000
+  const clockLabel = formatDshRunDuration(elapsedMs)
 
   return (
-    <div className="dsh-deep-diving-row">
-      <span className="dsh-diving-text">本轮进行中</span>
-      <span className="dsh-diving-timer">{seconds >= 60 ? `${Math.floor(seconds / 60)} 分 ${seconds % 60} 秒` : `${seconds} 秒`}</span>
+    <div className="dsh-turn-status-row" role="status" aria-live="polite">
+      <span className="dsh-turn-status">Deep diving...</span>
+      {showClock && <span className="dsh-turn-status-clock">{clockLabel}</span>}
     </div>
   )
 }
 
 function Message({
   message,
-  toolTraces,
+  dshToolRows,
+  workspacePath,
   onFork,
   isStreaming = false,
+  streamActivity,
   onShowToolDetails,
   onOpenWorkspacePath,
+  fallbackModelKey,
 }: {
   message: ChatMessage
-  toolTraces?: ToolTraceItem[]
+  dshToolRows?: readonly DshProjectedToolCall[]
+  workspacePath?: string | null
   onFork?: (messageId: string) => void
   isStreaming?: boolean
+  streamActivity?: string | null
   onShowToolDetails?: (item: ToolTraceItem) => void
   onOpenWorkspacePath?: (relativePath: string) => void
+  fallbackModelKey?: string | null
 }) {
   const isUser = message.author === 'user'
   const [copied, setCopied] = useState(false)
@@ -2048,17 +2073,19 @@ function Message({
     }
   }
 
-  const formatTokens = (tokens: number) => new Intl.NumberFormat('zh-CN').format(tokens)
-  const duration = message.usage
-    ? message.usage.elapsedMs < 1000
-      ? `${message.usage.elapsedMs} ms`
-      : `${(message.usage.elapsedMs / 1000).toFixed(1)} s`
-    : null
+  const runMs = !isUser ? message.usage?.elapsedMs : undefined
+  const runLabel =
+    typeof runMs === 'number' && runMs >= 1000 ? `用时 ${formatDshRunDuration(runMs)}` : null
+  const billed =
+    message.usage
+      ? (message.usage.inputTokens ?? 0) + (message.usage.cacheReadTokens ?? 0) + (message.usage.cacheWriteTokens ?? 0)
+      : 0
+  const hasTurnUsage = !isUser && message.usage && (billed > 0 || message.usage.outputTokens > 0)
 
   return (
     <article
       id={`msg-${message.id}`}
-      className={`message ${isUser ? 'user-message' : 'agent-message'}${message.interrupted ? ' interrupted-turn' : ''}`}
+      className={`message dsh-flow-item ${isUser ? 'user-message' : 'agent-message'}${message.interrupted ? ' interrupted-turn' : ''}${isStreaming ? ' message-streaming' : ''}`}
     >
       <div className="message-content">
         {!isUser && message.compaction && (
@@ -2077,57 +2104,72 @@ function Message({
             isStreaming={isStreaming}
           />
         )}
-        {!isUser && toolTraces && toolTraces.length > 0 && (
+        {!isUser && dshToolRows && dshToolRows.length > 0 && (
           <div className="message-tool-traces">
-            <ToolTraceList
-              items={toolTraces}
-              isStreaming={isStreaming}
+            <DshToolCallList
+              rows={dshToolRows}
+              workspacePath={workspacePath}
               onShowToolDetails={onShowToolDetails}
               onOpenWorkspacePath={onOpenWorkspacePath}
             />
           </div>
         )}
-        {isUser && message.text && <div className="message-text">{message.text}</div>}
+        {isUser && message.text && (
+          <div className="user-message-stack">
+            <div className="message-text user-message-bubble">{message.text}</div>
+          </div>
+        )}
         {!isUser && isStreaming && (
-          <DeepDivingIndicator startTime={message.timestamp} />
+          <DeepDivingIndicator startTime={message.timestamp} activity={streamActivity} />
         )}
         {message.interrupted && <div className="message-interrupted-label">已中断</div>}
         {message.callout && <div className="message-callout">{message.callout}</div>}
       </div>
-      <div className="message-footer">
-        <button
-          className="message-action-btn message-copy"
-          type="button"
-          onClick={() => void copyMessage()}
-          aria-label={copied ? '已复制消息' : '复制消息'}
-          data-tooltip={copied ? '已复制' : '复制'}
-          title={copied ? '已复制' : '复制'}
-        >
-          {copied ? <Check size={14} /> : <Copy size={14} />}
-        </button>
-        {!isUser && onFork && message.id !== 'streaming-assistant' && (
-          <button
-            className="message-action-btn message-fork"
-            type="button"
-            onClick={() => onFork(message.id)}
-            aria-label="分支到新聊天"
-            data-tooltip="分支到新聊天"
-            title="分支到新聊天"
-          >
-            <GitFork size={14} />
-          </button>
-        )}
-        <time>{formatMessageTime(message.time, message.timestamp, message.id)}</time>
-        {!isUser && message.usage && (
-          <span className="message-usage">
-            {duration} · 输入 {formatTokens(message.usage.inputTokens)} / 输出 {formatTokens(message.usage.outputTokens)} tokens
-            {formatCacheUsageSuffix(message.usage)}
-            {message.usage.tokensPerSecond > 0 && ` · ${message.usage.tokensPerSecond} tok/s`}
-            {typeof message.usage.ttftMs === 'number' && message.usage.ttftMs > 0 && ` · TTFT ${message.usage.ttftMs < 1000 ? `${message.usage.ttftMs}ms` : `${(message.usage.ttftMs / 1000).toFixed(1)}s`}`}
-            {message.usage.contextPercent !== null && ` · 上下文 ${Math.round(message.usage.contextPercent)}%`}
-          </span>
-        )}
-      </div>
+      {!isStreaming && (
+        <div className="message-footer">
+          <div className="message-footer-toolbar">
+            <button
+              className="message-action-btn message-copy"
+              type="button"
+              onClick={() => void copyMessage()}
+              aria-label={copied ? '已复制消息' : '复制消息'}
+              data-tooltip={copied ? '已复制' : '复制'}
+              title={copied ? '已复制' : '复制'}
+            >
+              {copied ? <Check size={14} /> : <Copy size={14} />}
+            </button>
+            {!isUser && onFork && message.id !== 'streaming-assistant' && (
+              <button
+                className="message-action-btn message-fork"
+                type="button"
+                onClick={() => onFork(message.id)}
+                aria-label="分支到新聊天"
+                data-tooltip="分支到新聊天"
+                title="分支到新聊天"
+              >
+                <GitFork size={14} />
+              </button>
+            )}
+            {!isUser && hasTurnUsage && (
+              <MessageTurnUsageChip
+                usage={message.usage}
+                modelKey={message.modelKey ?? fallbackModelKey}
+              />
+            )}
+            <time className="message-footer-time">
+              {formatMessageTime(message.time, message.timestamp, message.id)}
+              {runLabel && (
+                <>
+                  <span className="message-footer-dot" aria-hidden>
+                    ·
+                  </span>
+                  {runLabel}
+                </>
+              )}
+            </time>
+          </div>
+        </div>
+      )}
     </article>
   )
 }
@@ -2254,177 +2296,6 @@ function DiffReviewCard({ fileDiff, onReverted, defaultExpanded = false }: { fil
   )
 }
 
-function ToolTraceList({
-  items,
-  isStreaming,
-  onShowToolDetails,
-  onOpenWorkspacePath,
-}: {
-  items: ToolTraceItem[]
-  isStreaming?: boolean
-  onShowToolDetails?: (item: ToolTraceItem) => void
-  onOpenWorkspacePath?: (relativePath: string) => void
-}) {
-  const [open, setOpen] = useState(false)
-  const [allExpanded, setAllExpanded] = useState(false)
-
-  const isRunning = Boolean(isStreaming) && items.some((item) => item.status === 'running')
-  const totalDurationMs = items.reduce((acc, item) => acc + (item.durationMs || 0), 0)
-  const durationLabel = totalDurationMs > 0
-    ? totalDurationMs < 1000
-      ? `${totalDurationMs}ms`
-      : `${Math.round(totalDurationMs / 1000)}s`
-    : null
-
-  const summaryParts = useMemo(() => {
-    const toolTitle = (name: string) => {
-      if (name === 'bash' || name === 'pwsh') return 'Bash'
-      if (name === 'read') return 'Read'
-      if (name === 'write') return 'Write'
-      if (name === 'edit') return 'Edit'
-      if (name === 'grep' || name === 'glob') return 'Search'
-      if (name === 'web_search') return 'Search'
-      return name
-    }
-
-    const hasError = items.some((i) => i.status === 'error')
-
-    if (items.length === 1) {
-      const only = items[0]
-      const title = toolTitle(only.toolName)
-      if (only.toolName === 'bash') {
-        const cmd = only.inputSummary || '…'
-        return {
-          title,
-          summary: cmd,
-          dotState: only.status === 'running' ? 'ongoing' : only.status === 'error' ? 'error' : 'done',
-        } as const
-      }
-      const summary = only.inputSummary || only.resultSummary || (only.status === 'running' ? '…' : '')
-      return {
-        title,
-        summary,
-        dotState: only.status === 'running' ? 'ongoing' : only.status === 'error' ? 'error' : 'done',
-      } as const
-    }
-
-    const actions: string[] = []
-    const hasEdit = items.some((i) => i.toolName === 'edit' || i.toolName === 'write')
-    const hasRead = items.some((i) => i.toolName === 'read')
-    const hasBash = items.some((i) => i.toolName === 'bash')
-    const hasSearch = items.some((i) => ['grep', 'find', 'glob', 'web_search'].includes(i.toolName))
-
-    if (hasEdit) actions.push('编辑文件')
-    if (hasRead) actions.push('读取文件')
-    if (hasBash) actions.push('运行命令')
-    if (hasSearch) actions.push('检索')
-
-    const actionText = actions.length > 0 ? actions.join(' · ') : `${items.length} 项操作`
-    const durationPrefix = !isRunning && durationLabel ? `${durationLabel} · ` : ''
-    const runningPrefix = isRunning ? '执行中 · ' : ''
-    return {
-      title: '工具调用',
-      summary: `${runningPrefix}${durationPrefix}${actionText}`,
-      dotState: hasError ? 'error' : isRunning ? 'ongoing' : 'done',
-    } as const
-  }, [items, isRunning, durationLabel])
-
-  const diffItems = useMemo(() => {
-    return items.filter((item) => Boolean(item.fileDiff && item.fileDiff.diff))
-  }, [items])
-
-  const diffSummary = useMemo(() => {
-    if (!diffItems.length) return null
-    const files = new Set<string>()
-    let add = 0
-    let del = 0
-    for (const item of diffItems) {
-      if (item.fileDiff) {
-        files.add(item.fileDiff.path)
-        if (typeof item.fileDiff.addedLines === 'number') {
-          add += item.fileDiff.addedLines
-          del += item.fileDiff.deletedLines || 0
-        } else {
-          for (const line of (item.fileDiff.diff || '').split('\n')) {
-            if (line.startsWith('+') && !line.startsWith('+++')) add++
-            else if (line.startsWith('-') && !line.startsWith('---')) del++
-          }
-        }
-      }
-    }
-    return {
-      fileCount: files.size,
-      totalAdd: add,
-      totalDel: del,
-    }
-  }, [diffItems])
-
-  if (!items.length) return null
-
-  return (
-    <div className="tool-trace-compact">
-      <button
-        type="button"
-        className={`dsh-tool-summary-row ${isRunning ? 'is-running' : ''} ${open ? 'is-open' : ''}`}
-        onClick={() => setOpen((prev) => !prev)}
-        aria-expanded={open}
-      >
-        <span className="dsh-tool-summary-leading">
-          <DshStateDot state={summaryParts.dotState} size={10} />
-        </span>
-        <span className="dsh-tool-summary-title">{summaryParts.title}</span>
-        {summaryParts.summary ? (
-          <>
-            <span className="dsh-tool-summary-sep" aria-hidden />
-            <span className="dsh-tool-summary-text">{summaryParts.summary}</span>
-          </>
-        ) : null}
-        <ChevronRight size={14} className={`dsh-tool-summary-chevron ${open ? 'expanded' : ''}`} aria-hidden />
-      </button>
-
-      {open && (
-        <div className="tool-trace-dropdown">
-          {items.map((item) => (
-            <ToolTraceCard
-              key={`${item.taskId ?? 'main'}-${item.id}`}
-              item={item}
-              onShowDetails={onShowToolDetails}
-              onOpenPath={onOpenWorkspacePath}
-            />
-          ))}
-        </div>
-      )}
-
-      {diffItems.length > 0 && diffSummary && (
-        <div className="diff-reviews-container">
-          <div className="batch-changes-summary">
-            <div className="batch-changes-meta">
-              <FileCode size={13} className="batch-changes-icon" />
-              <strong>本轮修改：{diffSummary.fileCount} 个文件</strong>
-              <span className="diff-badge-add">+{diffSummary.totalAdd}</span>
-              <span className="diff-badge-del">-{diffSummary.totalDel}</span>
-            </div>
-            <button
-              type="button"
-              className="batch-toggle-btn"
-              onClick={() => setAllExpanded((prev) => !prev)}
-            >
-              {allExpanded ? '折叠全部' : '展开全部'}
-            </button>
-          </div>
-          {diffItems.map((item) => (
-            <DiffReviewCard
-              key={`diff-${item.id}`}
-              fileDiff={item.fileDiff!}
-              defaultExpanded={allExpanded}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
 const thinkingLevelLabels: Record<ThinkingLevel, { en: string; zh: string; desc: string }> = {
   off: { en: 'Off', zh: '关闭', desc: '不进行思考推理' },
   low: { en: 'Low', zh: '低', desc: '轻度思考，快速响应' },
@@ -2436,7 +2307,7 @@ function ModelSelect({
   value,
   options,
   onChange,
-  thinkingLevel = 'high',
+  thinkingLevel = 'medium',
   onThinkingLevelChange,
   loading,
 }: {
@@ -2636,7 +2507,7 @@ function findContextQuery(text: string, cursor: number) {
 const permissionOptions: { mode: PermissionMode; title: string; description: string }[] = [
   { mode: 'ask', title: '请求批准', description: '运行终端命令或访问工作区外文件前先询问。' },
   { mode: 'on-risk', title: '仅高风险操作询问', description: '常规工作区操作直接执行；识别到高风险操作时询问。' },
-  { mode: 'full', title: '完整访问', description: '不弹出工具审批；Agent 可通过命令访问本机文件与网络。' },
+  { mode: 'full', title: '完全权限', description: '不弹出工具审批；Agent 可通过命令访问本机文件与网络。' },
 ]
 
 interface SlashCommandItem {
@@ -2705,7 +2576,7 @@ function PermissionSelect({ value, onChange }: { value: PermissionMode; onChange
   }, [open])
 
   return <div className="permission-select" ref={rootRef}>
-    <button type="button" className={`access-button permission-trigger ${value === 'full' ? 'full-access' : ''}`} onClick={() => setOpen((current) => !current)} aria-expanded={open} aria-haspopup="listbox">
+    <button type="button" className="access-button permission-trigger" onClick={() => setOpen((current) => !current)} aria-expanded={open} aria-haspopup="listbox">
       <ShieldAlert size={17} /><span>{selected.title}</span><ChevronDown size={13} />
     </button>
     {open && <div className="permission-menu" role="listbox" aria-label="工具审批模式">
@@ -2911,6 +2782,9 @@ function Composer({
   workspacePath,
   availableProjects,
   hasMessages = false,
+  messages,
+  sessionStats,
+  liveContext,
   onPermissionModeChange,
   onModelChange,
   onSend,
@@ -2923,13 +2797,11 @@ function Composer({
   onPickWorkspace,
   onDetachWorkspace,
   shortcuts,
-  messages,
-  thinkingLevel = 'high',
+  thinkingLevel = 'medium',
   onThinkingLevelChange,
   busyEnterMode = 'followUp',
   onBusyEnterModeChange,
   onQueueMutate,
-  liveContext,
   currentThreadId,
   permissionPrompt,
   onRespondPermission,
@@ -2945,6 +2817,8 @@ function Composer({
   availableProjects: { path: string; name: string }[]
   hasMessages?: boolean
   messages?: ChatMessage[]
+  sessionStats?: SessionStatsSnapshot | null
+  liveContext?: LiveContextUsage | null
   onPermissionModeChange: (mode: PermissionMode) => void
   onModelChange: (model: ModelOption) => void
   thinkingLevel?: ThinkingLevel
@@ -2962,7 +2836,6 @@ function Composer({
   busyEnterMode?: BusyEnterMode
   onBusyEnterModeChange?: (mode: BusyEnterMode) => void
   onQueueMutate?: (payload: { kind: 'steering' | 'followUp'; index: number; action: 'remove' | 'update'; text?: string }) => void
-  liveContext?: LiveContextUsage | null
   currentThreadId?: string | null
   permissionPrompt?: PermissionPromptPayload | null
   onRespondPermission?: (
@@ -3257,7 +3130,7 @@ function Composer({
           updateCommandQuery(nextVal, event.target.selectionStart)
         }} onClick={(event) => updateCommandQuery(event.currentTarget.value, event.currentTarget.selectionStart)} onKeyUp={(event) => {
           if (!['ArrowUp', 'ArrowDown', 'Escape', 'Enter'].includes(event.key)) updateCommandQuery(event.currentTarget.value, event.currentTarget.selectionStart)
-        }} onBlur={() => { setSkillQuery(null); setContextQuery(null) }} placeholder="输入消息，使用 / 选择模式与技能，@ 引用文件" onKeyDown={(event) => {
+        }} onBlur={() => { setSkillQuery(null); setContextQuery(null) }} placeholder="发消息或创建任务, / 调用指令, @ 文件或对话" onKeyDown={(event) => {
           if (event.nativeEvent.isComposing) return
           if (contextQuery && event.key === 'ArrowDown' && contextEntries.length) {
             event.preventDefault(); setActiveContextIndex((index) => (index + 1) % contextEntries.length); return
@@ -3423,7 +3296,7 @@ function Composer({
                     type="button"
                     id={`slash-skill-${itemIndex}`}
                     key={skill.name}
-                    className={`skill-command-option ${isSelected ? 'selected' : ''}`}
+                    className={`skill-command-option skill-command-option--skill ${isSelected ? 'selected' : ''}`}
                     role="option"
                     aria-selected={isSelected}
                     onMouseDown={(event) => event.preventDefault()}
@@ -3432,8 +3305,10 @@ function Composer({
                     <Package className="skill-command-icon" size={16} aria-hidden="true" />
                     <span className="skill-command-name">/{skill.name}</span>
                     {skill.multiAgent && <span className="skill-command-tag">多智能体</span>}
-                    <span className="skill-command-description" title={skill.description}>{skill.description}</span>
                     <span className="skill-command-source">{skillOptionSourceLabel(skill)}</span>
+                    <span className="skill-command-description" title={skill.description}>
+                      {skillDescriptionBlurb(skill.description, 120)}
+                    </span>
                   </button>
                 )
               })}
@@ -3457,9 +3332,6 @@ function Composer({
           <div className="composer-left">
             <button type="button" className="composer-icon" aria-label="添加文件或上下文" title="添加文件或上下文" onClick={openContextMenu}><Plus size={23} /></button>
             <PermissionSelect value={permissionMode} onChange={onPermissionModeChange} />
-            {onBusyEnterModeChange && (
-              <ComposerBusyEnterToggle mode={busyEnterMode} onChange={onBusyEnterModeChange} />
-            )}
             {workMode === 'plan' && (
               <button
                 type="button"
@@ -3495,35 +3367,18 @@ function Composer({
               thinkingLevel={thinkingLevel}
               onThinkingLevelChange={onThinkingLevelChange}
             />
-            {sending && value.trim() && (
-              <>
-                <button
-                  type="button"
-                  className="composer-action-pill steer"
-                  title={`中途插话纠偏：在当前工具完成后立即引导 Agent 转向${steerShortcut.length > 0 ? ` (快捷键: ${steerShortcut.join('')})` : ''}`}
-                  onClick={() => { onSteer?.(value.trim()); setValue('') }}
-                >
-                  <CornerDownLeft size={12} />
-                  <span>{steerShortcut.length > 0 ? `纠偏 ${steerShortcut.join('')}` : '纠偏'}</span>
-                </button>
-                <button
-                  type="button"
-                  className="composer-action-pill followup"
-                  title={`排队追加：等当前任务全部完成后自动连续执行${followUpShortcut.length > 0 ? ` (快捷键: ${followUpShortcut.join('')})` : ''}`}
-                  onClick={() => { onFollowUp?.(value.trim()); setValue('') }}
-                >
-                  <FastForward size={12} />
-                  <span>{followUpShortcut.length > 0 ? `排队 ${followUpShortcut.join('')}` : '排队'}</span>
-                </button>
-              </>
-            )}
-            <button type="button" className="composer-icon mic-button" aria-label="语音输入" title="语音输入"><Mic size={21} /></button>
+            <button type="button" className="composer-icon mic-button" aria-label="语音输入" title="语音输入"><Mic size={18} /></button>
             {sending
               ? <button type="button" className="send-button stop" aria-label="停止生成" title="停止生成" onClick={onCancel}><Square size={17} fill="currentColor" /></button>
               : <button className="send-button" aria-label="发送消息" disabled={!value.trim() || !model}><ArrowUp size={23} /></button>}
           </div>
         </div>
       </form>
+      <ConversationUsageFooter
+        messages={messages ?? []}
+        sessionStats={sessionStats}
+        liveContext={liveContext}
+      />
     </div>
   )
 }
@@ -3541,23 +3396,26 @@ function ConversationUsageFooter({
   if (sessionStats) {
     return <ComposerStatsDock stats={sessionStats} messages={messages} liveContext={liveContext} />
   }
-  if (!sessionUsageHasData(sessionUsage)) return null
+  if (!sessionUsageHasData(sessionUsage) && !liveContext) return null
   return (
-    <footer className="conversation-usage-footer" aria-label="本对话累计 Token 用量">
-      <span>输入 {formatTokensCompact(sessionUsage.inputTokens)} tok</span>
-      <span className="conversation-usage-sep" aria-hidden="true">·</span>
-      <span>输出 {formatTokensCompact(sessionUsage.outputTokens)} tok</span>
-      <>
-        <span className="conversation-usage-sep" aria-hidden="true">·</span>
-        <span title="与设置页 DSH 用量统计同一口径">缓存命中 {formatTokensCompact(sessionUsage.cacheReadTokens)} tok</span>
-      </>
-      {sessionUsage.cacheHitRatePercent !== null && (
-        <>
-          <span className="conversation-usage-sep" aria-hidden="true">·</span>
-          <span title="cacheRead ÷ (input + cacheRead)，与 DSH 一致">命中率 {sessionUsage.cacheHitRatePercent.toFixed(1)}%</span>
-        </>
-      )}
-    </footer>
+    <ComposerStatsDock
+      stats={{
+        userMessages: sessionUsage.rounds,
+        assistantMessages: sessionUsage.rounds,
+        toolCalls: 0,
+        toolResults: 0,
+        tokens: {
+          input: sessionUsage.inputTokens,
+          output: sessionUsage.outputTokens,
+          cacheRead: sessionUsage.cacheReadTokens,
+          cacheWrite: sessionUsage.cacheWriteTokens,
+          total: sessionUsage.inputTokens + sessionUsage.outputTokens + sessionUsage.cacheReadTokens,
+        },
+        cost: 0,
+      }}
+      messages={messages}
+      liveContext={liveContext}
+    />
   )
 }
 
@@ -3572,10 +3430,12 @@ function MainConversation({
   sending,
   streamText,
   streamStartedAt,
+  streamActivity,
   streamThinking,
   streamBlocks,
   retryBanner,
   toolTraces,
+  dshToolRows,
   promptQueue,
   busyEnterMode,
   onQueueMutate,
@@ -3627,6 +3487,7 @@ function MainConversation({
   sending?: boolean
   streamText?: string | null
   streamStartedAt?: number | null
+  streamActivity?: string | null
   streamThinking?: { text: string; durationMs?: number } | null
   streamBlocks?: import('./types').AssistantContentBlock[]
   retryBanner?: {
@@ -3636,6 +3497,7 @@ function MainConversation({
     message?: string
   } | null
   toolTraces: ToolTraceItem[]
+  dshToolRows?: readonly DshProjectedToolCall[]
   promptQueue?: PromptQueueSnapshot
   busyEnterMode?: BusyEnterMode
   onQueueMutate?: (payload: { kind: 'steering' | 'followUp'; index: number; action: 'remove' | 'update'; text?: string }) => void
@@ -3889,7 +3751,7 @@ function MainConversation({
         </div>
       )}
       <div className="conversation-scroll" ref={scrollContainerRef} onScroll={handleScroll}>
-        <div className="transcript">
+        <div className="transcript" data-dsh-chat>
           {messages.length === 0 && !sending && (
             <div className="conversation-empty">
               <div className="empty-brand-icon"><Sparkles size={24} aria-hidden="true" /></div>
@@ -3923,10 +3785,12 @@ function MainConversation({
               <Message
                 key={message.id}
                 message={message}
-                toolTraces={isLatestAgent ? toolTraces : undefined}
+                dshToolRows={isLatestAgent ? dshToolRows : undefined}
+                workspacePath={workspacePath}
                 onFork={canForkHere ? onFork : undefined}
                 onShowToolDetails={onShowToolDetails}
                 onOpenWorkspacePath={onOpenWorkspacePath}
+                fallbackModelKey={model?.id ?? model?.name}
               />
             )
           })}
@@ -3954,8 +3818,10 @@ function MainConversation({
                 thinkingDurationMs: streamThinking?.durationMs,
                 contentBlocks: streamBlocks?.length ? streamBlocks : undefined,
               }}
-              toolTraces={toolTraces}
+              dshToolRows={dshToolRows}
+              workspacePath={workspacePath}
               isStreaming={true}
+              streamActivity={streamActivity}
               onShowToolDetails={onShowToolDetails}
               onOpenWorkspacePath={onOpenWorkspacePath}
             />
@@ -3987,6 +3853,8 @@ function MainConversation({
           workspacePath={workspacePath}
           availableProjects={availableProjects}
           hasMessages={messages.length > 0}
+          sessionStats={sessionStats}
+          liveContext={liveContext}
           onPermissionModeChange={onPermissionModeChange}
           onModelChange={onModelChange}
           thinkingLevel={thinkingLevel}
@@ -4003,12 +3871,10 @@ function MainConversation({
           busyEnterMode={busyEnterMode}
           onBusyEnterModeChange={onBusyEnterModeChange}
           onQueueMutate={onQueueMutate}
-          liveContext={liveContext}
           currentThreadId={currentThreadId}
           permissionPrompt={permissionPrompt}
           onRespondPermission={onRespondPermission}
         />
-      <ConversationUsageFooter messages={messages} sessionStats={sessionStats} liveContext={liveContext} />
       {terminalOpen && onCloseTerminal && (
         <TerminalDrawer
           isOpen={terminalOpen}
@@ -4273,13 +4139,13 @@ export default function App() {
 
   const handleModelChange = (next: ModelOption) => {
     setModel(next)
-    appBackend.setCurrentThreadModel(next.id)
+    void appBackend.setCurrentThreadModel(next.id)
     if (modelCatalog.bridgeReady) void modelCatalog.setActiveModel(next.id)
   }
 
   const handleThinkingLevelChange = (next: ThinkingLevel) => {
     if (appBackend.state?.modelKey) {
-      appBackend.setCurrentThreadModel(appBackend.state.modelKey, next)
+      void appBackend.setCurrentThreadModel(appBackend.state.modelKey, next)
     }
     if (modelCatalog.bridgeReady) void modelCatalog.setThinkingLevel(next)
   }
@@ -4408,8 +4274,35 @@ export default function App() {
     )
   }
 
+  const runningConversations = appBackend.runningConversationIds.filter(
+    id => id !== appBackend.state?.conversationId
+  )
+
   return (
     <div className={`app-shell ${navCollapsed ? 'nav-collapsed' : ''}`}>
+      {/* 顶部全局警告栏：其他对话正在运行 */}
+      {runningConversations.length > 0 && (
+        <div className="app-global-banner running-banner">
+          <ShieldAlert size={14} />
+          <span>
+            有对话正在执行任务，完成或停止后再执行其他工作区操作
+          </span>
+          <button
+            type="button"
+            className="banner-force-clear-btn"
+            title="强制清除运行状态（仅当确认没有实际任务在执行时使用）"
+            onClick={async () => {
+              if (!window.confirm('确定要强制清除所有"正在运行"状态吗？\n\n请仅在确认没有任何对话实际在执行任务、但界面仍显示"正在运行"时使用此功能。\n\n如果有真实任务正在运行，请先停止任务而非强制清除。')) {
+                return
+              }
+              // Force reload to sync with backend state
+              await appBackend.reload()
+            }}
+          >
+            强制清除状态
+          </button>
+        </div>
+      )}
       {appBackend.orchestrationChoice && (
         <div className="orchestration-choice-overlay" role="dialog" aria-modal="true" aria-labelledby="orchestration-choice-title">
           <div className="orchestration-choice-card">
@@ -4432,6 +4325,7 @@ export default function App() {
       <div className="window-drag-region" aria-hidden="true" />
       <AppSidebar
         collapsed={navCollapsed}
+        onToggleCollapsed={() => setNavCollapsed((prev) => !prev)}
         workspacePath={appBackend.workspacePath}
         threads={appBackend.threads}
         currentThreadId={appBackend.currentThreadId}
@@ -4541,10 +4435,12 @@ export default function App() {
           sending={appBackend.sending}
           streamText={appBackend.streamText}
           streamStartedAt={appBackend.streamStartedAt}
+          streamActivity={appBackend.streamActivity}
           streamThinking={appBackend.streamThinking}
           streamBlocks={appBackend.streamBlocks}
           retryBanner={appBackend.retryBanner}
           toolTraces={appBackend.toolTraces}
+          dshToolRows={appBackend.dshToolRows}
           promptQueue={appBackend.promptQueue}
           busyEnterMode={appBackend.busyEnterMode}
           onQueueMutate={(payload) => { void appBackend.mutateQueue(payload) }}

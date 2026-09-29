@@ -1,4 +1,5 @@
 import type { ChatMessage, ChatUsage } from '../../types'
+import type { ContextBreakdownEstimate, LiveContextUsage } from '../../shared/app-api'
 
 export interface SessionUsageTotals {
   rounds: number
@@ -17,6 +18,94 @@ export function formatTokensCompact(count: number): string {
   if (count < 1_000_000) return `${Math.round(count / 1000)}k`
   if (count < 10_000_000) return `${(count / 1_000_000).toFixed(1)}M`
   return `${Math.round(count / 1_000_000)}M`
+}
+
+/** DSH StatsLine `contextOccupancy` over `contextPressure` (view or state). */
+export function contextOccupancyFromPressure(pressure: unknown): {
+  percent: number
+  usedTokens: number
+  contextWindow: number
+} | null {
+  if (!pressure || typeof pressure !== 'object') return null
+  const p = pressure as Record<string, unknown>
+  const contextWindow = p.contextWindow
+  if (typeof contextWindow !== 'number' || !(contextWindow > 0)) return null
+  let usedTokens: number | undefined
+  if (typeof p.projectedTokens === 'number') usedTokens = p.projectedTokens
+  else if (
+    typeof p.pressureTokens === 'number'
+    && typeof p.surfaceTokens === 'number'
+    && typeof p.sampledSurfaceTokens === 'number'
+  ) {
+    usedTokens = Math.max(0, p.pressureTokens + p.surfaceTokens - p.sampledSurfaceTokens)
+  } else if (typeof p.pressureTokens === 'number') {
+    usedTokens = p.pressureTokens
+  }
+  if (typeof usedTokens !== 'number' || !Number.isFinite(usedTokens)) return null
+  return {
+    percent: Math.min(100, Math.round(usedTokens / contextWindow * 100)),
+    usedTokens,
+    contextWindow,
+  }
+}
+
+export function liveContextFromDshProjections(
+  projections: Record<string, unknown> | undefined,
+): LiveContextUsage | null {
+  const occupancy = contextOccupancyFromPressure(projections?.contextPressure)
+  if (!occupancy) return null
+  const raw = projections?.contextBreakdown
+  let contextBreakdown: ContextBreakdownEstimate | undefined
+  if (raw && typeof raw === 'object') {
+    const b = raw as Record<string, unknown>
+    if (
+      typeof b.systemTokens === 'number'
+      && typeof b.toolsTokens === 'number'
+      && typeof b.messageTokens === 'number'
+    ) {
+      contextBreakdown = {
+        systemTokens: b.systemTokens,
+        toolsTokens: b.toolsTokens,
+        messageTokens: b.messageTokens,
+      }
+    }
+  }
+  return {
+    inputTokens: 0,
+    outputTokens: 0,
+    contextTokens: occupancy.usedTokens,
+    contextWindow: occupancy.contextWindow,
+    contextPercent: occupancy.percent,
+    ...(contextBreakdown ? { contextBreakdown } : {}),
+  }
+}
+
+/** DSH StatsLine `formatTokens`: 517 / 12.2K / 517K / 1.2M */
+export function formatDshCatalogTokens(n: number): string {
+  const scaled = (v: number): string =>
+    v >= 100 ? String(Math.round(v)) : String(Math.round(v * 10) / 10)
+  if (!Number.isFinite(n) || n < 0) return '0'
+  if (n < 1_000) return String(n)
+  if (n < 1_000_000) return `${scaled(n / 1_000)}K`
+  return `${scaled(n / 1_000_000)}M`
+}
+
+/** DSH StatsLine `formatDuration`: 45.2s / 2m42s */
+export function formatDshStatsDuration(ms: number): string {
+  const s = Math.max(0, ms) / 1_000
+  if (s < 60) return `${Math.round(s * 10) / 10}s`
+  const whole = Math.round(s)
+  return `${Math.floor(whole / 60)}m${whole % 60}s`
+}
+
+/** DSH `formatRunDuration` + locale：用时 9秒 / 1分08秒 */
+export function formatDshRunDuration(ms: number): string {
+  const total = Math.max(0, Math.floor(ms / 1000))
+  const minutes = Math.floor(total / 60)
+  const seconds = total % 60
+  return minutes > 0
+    ? `${minutes}分${String(seconds).padStart(2, '0')}秒`
+    : `${seconds}秒`
 }
 
 function normalizeUsage(raw: ChatUsage | Record<string, unknown> | undefined): ChatUsage | null {

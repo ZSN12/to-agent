@@ -2,38 +2,60 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 /**
+ * 自动识别工作区类型的验证与构建命令。
+ *
+ * 选取原则：**自检优先用最轻的命令**。
+ * `primaryCommand` 是推荐给 Agent 做自检的命令，应尽量便宜（类型检查 / lint / 语法检查）；
+ * 完整构建（如 `pnpm run build` = tsc -b && vite build）放在 `buildCommand`，
+ * 只有在改动确实需要时才运行——否则在大仓库上每轮自检都会是分钟级。
+ *
+ * @typedef {{
+ *   projectType: string,
+ *   packageManager?: string,
+ *   primaryCommand: string | null,
+ *   testCommand: string | null,
+ *   buildCommand?: string | null,
+ *   allCommands: string[],
+ *   description: string,
+ * }} VerificationPolicy
+ */
+
+/** @returns {any | null} */
+function readTsconfig(tsconfigPath) {
+  try {
+    if (!fs.existsSync(tsconfigPath)) return null
+    return JSON.parse(fs.readFileSync(tsconfigPath, 'utf-8'))
+  } catch {
+    return null
+  }
+}
+
+/** @returns {VerificationPolicy} */
+function unknownPolicy(description) {
+  return {
+    projectType: 'unknown',
+    primaryCommand: null,
+    testCommand: null,
+    buildCommand: null,
+    allCommands: [],
+    description,
+  }
+}
+
+/**
  * 自动识别工作区类型的验证与构建命令
- * @param {string | null} workspacePath 
+ * @param {string | null} workspacePath
+ * @returns {VerificationPolicy}
  */
 export function detectVerificationCommands(workspacePath) {
-  if (!workspacePath) {
-    return {
-      projectType: 'unknown',
-      primaryCommand: null,
-      testCommand: null,
-      allCommands: [],
-      description: '未关联工作区',
-    }
-  }
+  if (!workspacePath) return unknownPolicy('未关联工作区')
 
   try {
     if (!fs.existsSync(workspacePath) || !fs.statSync(workspacePath).isDirectory()) {
-      return {
-        projectType: 'unknown',
-        primaryCommand: null,
-        testCommand: null,
-        allCommands: [],
-        description: '工作区目录不存在',
-      }
+      return unknownPolicy('工作区目录不存在')
     }
   } catch {
-    return {
-      projectType: 'unknown',
-      primaryCommand: null,
-      testCommand: null,
-      allCommands: [],
-      description: '无法访问工作区',
-    }
+    return unknownPolicy('无法访问工作区')
   }
 
   const packageJsonPath = path.join(workspacePath, 'package.json')
@@ -52,11 +74,8 @@ export function detectVerificationCommands(workspacePath) {
     try {
       const pkg = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'))
       const scripts = pkg.scripts || {}
-      const hasBuild = Boolean(scripts.build)
-      const hasTestAll = Boolean(scripts['test:all'])
-      const hasTest = Boolean(scripts.test)
-      const hasLint = Boolean(scripts.lint)
-      const hasTypecheck = Boolean(scripts.typecheck || scripts['check:types'])
+      const hasScript = (name) => typeof scripts[name] === 'string' && scripts[name].trim().length > 0
+      const firstScript = (...names) => names.find(hasScript)
 
       // 检测包管理器
       let pm = 'npm'
@@ -64,31 +83,32 @@ export function detectVerificationCommands(workspacePath) {
       else if (fs.existsSync(path.join(workspacePath, 'yarn.lock'))) pm = 'yarn'
       else if (fs.existsSync(path.join(workspacePath, 'bun.lockb')) || fs.existsSync(path.join(workspacePath, 'bun.lock'))) pm = 'bun'
 
-      let primaryCommand = null
-      let testCommand = null
+      // 轻量优先：类型检查 → lint → tsc（按 tsconfig 形态选）→ 完整构建
+      const typecheckScript = firstScript('typecheck', 'type-check', 'check:types', 'tsc')
+      const lintScript = firstScript('lint', 'lint:check')
+      const buildScript = firstScript('build')
+      // 测试：聚焦的优先，test:all 这类聚合脚本放最后（可能串行跑几十个套件）
+      const testScript = firstScript('test:unit', 'test', 'test:all')
+
+      // solution-style tsconfig（files: [] + references）下 `tsc --noEmit` 什么也不检查，
+      // 必须用 `tsc -b` 才会真正跑各子项目；子项目自带 noEmit，不会产出构建物。
+      const tsconfig = readTsconfig(tsconfigPath)
+      const tscCommand = tsconfig
+        ? (Array.isArray(tsconfig.references) && tsconfig.references.length > 0 ? 'npx tsc -b' : 'npx tsc --noEmit')
+        : null
+
+      const candidates = []
+      if (typecheckScript) candidates.push(`${pm} run ${typecheckScript}`)
+      if (lintScript) candidates.push(`${pm} run ${lintScript}`)
+      if (!typecheckScript && tscCommand) candidates.push(tscCommand)
+      const primaryCommand = candidates[0] ?? (buildScript ? `${pm} run build` : null)
+
+      const testCommand = testScript ? `${pm} run ${testScript}` : null
+      const buildCommand = buildScript ? `${pm} run build` : null
+
       const allCommands = []
-
-      if (hasBuild) {
-        primaryCommand = `${pm} run build`
-        allCommands.push(`${pm} run build`)
-      } else if (hasTypecheck) {
-        primaryCommand = `${pm} run typecheck`
-        allCommands.push(`${pm} run typecheck`)
-      } else if (fs.existsSync(tsconfigPath)) {
-        primaryCommand = 'npx tsc --noEmit'
-        allCommands.push('npx tsc --noEmit')
-      }
-
-      if (hasTestAll) {
-        testCommand = `${pm} run test:all`
-        allCommands.push(`${pm} run test:all`)
-      } else if (hasTest) {
-        testCommand = `${pm} test`
-        allCommands.push(`${pm} test`)
-      }
-
-      if (hasLint) {
-        allCommands.push(`${pm} run lint`)
+      for (const cmd of [primaryCommand, testCommand, buildCommand]) {
+        if (cmd && !allCommands.includes(cmd)) allCommands.push(cmd)
       }
 
       return {
@@ -96,33 +116,37 @@ export function detectVerificationCommands(workspacePath) {
         packageManager: pm,
         primaryCommand,
         testCommand,
+        buildCommand,
         allCommands,
         description: `Node.js (${pm}) 项目 (${pkg.name || '未命名'})`,
       }
     } catch {
-      // package.json 解析失败时兜底
+      // package.json 解析失败时兜底，继续按其他项目类型探测
     }
   }
 
   // 2. Python 项目
   if (fs.existsSync(pytestIniPath) || fs.existsSync(pyprojectPath) || fs.existsSync(path.join(workspacePath, 'requirements.txt')) || fs.existsSync(path.join(workspacePath, 'setup.py'))) {
     const hasPytest = fs.existsSync(pytestIniPath) || fs.existsSync(pyprojectPath)
+    const primaryCommand = hasPytest ? 'pytest -q --maxfail=1' : 'python -m compileall -q .'
     return {
       projectType: 'python',
-      primaryCommand: hasPytest ? 'pytest' : 'python -m unittest',
-      testCommand: hasPytest ? 'pytest' : 'python -m unittest',
-      allCommands: [hasPytest ? 'pytest' : 'python -m unittest'],
+      primaryCommand,
+      testCommand: primaryCommand,
+      buildCommand: null,
+      allCommands: [primaryCommand],
       description: 'Python 项目',
     }
   }
 
-  // 3. Rust 项目
+  // 3. Rust 项目（cargo check 本身就是轻量档）
   if (fs.existsSync(cargoPath)) {
     return {
       projectType: 'rust',
       primaryCommand: 'cargo check',
       testCommand: 'cargo test',
-      allCommands: ['cargo check', 'cargo test'],
+      buildCommand: 'cargo build',
+      allCommands: ['cargo check', 'cargo test', 'cargo build'],
       description: 'Rust (Cargo) 项目',
     }
   }
@@ -131,9 +155,10 @@ export function detectVerificationCommands(workspacePath) {
   if (fs.existsSync(goModPath)) {
     return {
       projectType: 'go',
-      primaryCommand: 'go test ./...',
+      primaryCommand: 'go vet ./...',
       testCommand: 'go test ./...',
-      allCommands: ['go test ./...'],
+      buildCommand: 'go build ./...',
+      allCommands: ['go vet ./...', 'go test ./...', 'go build ./...'],
       description: 'Go 模块项目',
     }
   }
@@ -142,9 +167,10 @@ export function detectVerificationCommands(workspacePath) {
   if (fs.existsSync(pomPath)) {
     return {
       projectType: 'maven',
-      primaryCommand: 'mvn test-compile',
+      primaryCommand: 'mvn -q test-compile',
       testCommand: 'mvn test',
-      allCommands: ['mvn test-compile', 'mvn test'],
+      buildCommand: 'mvn package',
+      allCommands: ['mvn -q test-compile', 'mvn test', 'mvn package'],
       description: 'Java (Maven) 项目',
     }
   }
@@ -154,7 +180,8 @@ export function detectVerificationCommands(workspacePath) {
       projectType: 'gradle',
       primaryCommand: `${gradlew} testClasses`,
       testCommand: `${gradlew} test`,
-      allCommands: [`${gradlew} testClasses`, `${gradlew} test`],
+      buildCommand: `${gradlew} build`,
+      allCommands: [`${gradlew} testClasses`, `${gradlew} test`, `${gradlew} build`],
       description: 'JVM (Gradle) 项目',
     }
   }
@@ -165,6 +192,7 @@ export function detectVerificationCommands(workspacePath) {
       projectType: 'make',
       primaryCommand: 'make',
       testCommand: 'make test',
+      buildCommand: 'make',
       allCommands: ['make', 'make test'],
       description: 'Makefile 项目',
     }
@@ -174,6 +202,7 @@ export function detectVerificationCommands(workspacePath) {
     projectType: 'general',
     primaryCommand: null,
     testCommand: null,
+    buildCommand: null,
     allCommands: [],
     description: '常规工作区',
   }
@@ -181,7 +210,7 @@ export function detectVerificationCommands(workspacePath) {
 
 /**
  * 生成注入给 Agent 的工作区自检指示文本
- * @param {string | null} workspacePath 
+ * @param {string | null} workspacePath
  */
 export function formatVerificationPrompt(workspacePath) {
   const policy = detectVerificationCommands(workspacePath)
@@ -194,17 +223,23 @@ export function formatVerificationPrompt(workspacePath) {
 `.trim()
   }
 
-  const commandsText = policy.allCommands.map((cmd) => `  * \`${cmd}\``).join('\n')
+  const lines = [
+    '【工作区自动识别验证策略】',
+    `项目类型：${policy.description}`,
+    `轻量自检命令（首选）：${policy.primaryCommand ? `\`${policy.primaryCommand}\`` : '无'}`,
+    `测试命令：${policy.testCommand ? `\`${policy.testCommand}\`` : '无'}`,
+  ]
+  if (policy.buildCommand) {
+    lines.push(`完整构建命令（较重，仅在必要时运行）：\`${policy.buildCommand}\``)
+  }
 
-  return `
-【工作区自动识别验证策略】
-项目类型：${policy.description}
-推荐构建/验证命令：${policy.primaryCommand ? `\`${policy.primaryCommand}\`` : '无'}
-推荐测试命令：${policy.testCommand ? `\`${policy.testCommand}\`` : '无'}
-可用验证命令集合：
-${commandsText}
+  lines.push(
+    '',
+    '指令要求：',
+    '修改任何文件后，请优先运行上面的**轻量自检命令**确认没有引入错误；',
+    '只有在改动涉及构建产物、依赖或打包配置时，才运行完整构建命令。',
+    '若本次改动无法被上述命令覆盖，请如实说明未执行验证的原因。',
+  )
 
-指令要求：
-在修改任何文件后，你必须优先调用 \`bash\` 工具运行上述推荐验证命令（例如 \`${policy.primaryCommand || policy.testCommand}\`）。若验证报错，自动阅读 stderr 进入自愈循环。
-`.trim()
+  return lines.join('\n').trim()
 }

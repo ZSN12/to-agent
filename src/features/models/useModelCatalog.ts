@@ -156,7 +156,7 @@ export function useModelCatalog() {
     [availableModels],
   )
 
-  const activeThinkingLevel: ThinkingLevel = catalog?.activeThinkingLevel ?? 'high'
+  const activeThinkingLevel: ThinkingLevel = catalog?.activeThinkingLevel ?? 'medium'
 
   const setActiveModel = useCallback(async (modelKey: string) => {
     const client = getModelsClient()

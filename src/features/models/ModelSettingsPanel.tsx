@@ -821,7 +821,7 @@ export function ModelSettingsPanel({
   oauthStatus?: OAuthStatusInfo | null
   updateStatus?: ModelUpdateStatus | null
   onRefresh: () => void
-  onCheckForUpdates?: () => Promise<boolean>
+  onCheckForUpdates?: (force?: boolean) => Promise<boolean>
   onRollbackRegistry?: () => Promise<boolean>
   onSetProviderApiKey: (providerId: string, apiKey: string) => Promise<{ ok: boolean; error?: string }>
   onStartOAuthLogin?: (providerId?: string) => Promise<boolean>
@@ -1126,7 +1126,7 @@ export function ModelSettingsPanel({
               onClick={() => {
                 if (!onCheckForUpdates) return
                 setCheckingUpdates(true)
-                void onCheckForUpdates().finally(() => setCheckingUpdates(false))
+                void onCheckForUpdates(true).finally(() => setCheckingUpdates(false))
               }}
             >
               <RefreshCw size={15} className={checkingUpdates || updateStatus.state === 'checking' ? 'spin' : ''} />

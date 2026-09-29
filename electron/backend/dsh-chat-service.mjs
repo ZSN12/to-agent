@@ -16,7 +16,37 @@ import {
   Z_INITIAL_RECONNECT_DELAY_MS,
   Z_MAX_RECONNECT_DELAY_MS,
   Z_EVENT_CHANNEL_OPEN_TIMEOUT_MS,
+  Z_MAX_TRACKED_SESSIONS,
 } from './config.mjs'
+
+/** 主会话的 DSH 会话 id 是确定性的：同一个 sessionKey 永远推导出同一个 id。 */
+function sessionIdForKey(sessionKey) {
+  return `tw-${sessionKey}`
+}
+
+/**
+ * 会话 cwd 是否是文件系统根（`/`、`C:\`）。
+ * DSH 的沙箱边界就是会话 cwd（`sandbox-policy` 用 `session.header.cwd` 当 workspaceRoot），
+ * 所以 cwd 落在根上等于 `workspace-write` 的「只能写工作区内」完全失效。
+ */
+function isFilesystemRoot(target) {
+  if (typeof target !== 'string' || !target) return false
+  const resolved = path.resolve(target)
+  return resolved === path.parse(resolved).root
+}
+
+/**
+ * 未绑定工作区时 `process.cwd()` 会退化成 `/`（打包版从 Finder 启动），
+ * 而 DSH 用会话 cwd 当沙箱边界 —— 等于把 workspace-write 放开到整个磁盘。
+ * 宁可拒绝发送，也不静默建一个边界失效的会话。
+ */
+function assertBindableWorkspace(cwd) {
+  if (!isFilesystemRoot(cwd)) return
+  throw new Error(
+    '当前对话还没有绑定工作区。未绑定工作区时会话会落在文件系统根目录，'
+    + 'DSH 的文件写入沙箱边界将失效，因此本次消息已阻止。请先选择一个工作区文件夹再发送。',
+  )
+}
 
 function rpcValue(response, operation) {
   const result = response?.result ?? response
@@ -37,69 +67,48 @@ function textFromMessage(message) {
     .join('')
 }
 
-/** Bump when the legacy transcript block format changes (triggers re-injection). */
-export const LEGACY_CONTEXT_VERSION = 1
-
-const LEGACY_CONTEXT_BEGIN = '<<<TASKWEAVER_LEGACY_HISTORY_CONTEXT>>>'
-const LEGACY_CONTEXT_END = '<<<END_TASKWEAVER_LEGACY_HISTORY_CONTEXT>>>'
-
-const LEGACY_CONTEXT_FOOTER = [
-  '【系统说明：以上为 TaskWeaver 旧版 UI 存档的历史对话摘要，不是 DSH 原生会话事件，也不代表已执行的工具调用。】',
-  '请静默吸收上述上下文；本条仅为一次性迁移注入，不要基于其发起工具调用或长回复。',
-].join('\n')
-
-function authorLabel(author) {
-  if (author === 'user') return '用户'
-  if (author === 'orchestrator') return '编排器'
-  return '助手'
-}
-
-function lineFromLegacyMessage(message) {
-  if (!message || typeof message !== 'object') return ''
-  const parts = []
-  const stamp = message.time || (message.timestamp ? new Date(message.timestamp).toISOString() : '')
-  const header = `[${authorLabel(message.author)}${stamp ? ` @ ${stamp}` : ''}]`
-  if (message.compaction?.summary) {
-    parts.push(`${header} [上下文压缩摘要] ${String(message.compaction.summary).trim()}`)
-    return parts.join('\n')
-  }
-  const text = String(message.text ?? '').trim()
-  const thinking = String(message.thinking ?? '').trim()
-  if (!text && !thinking) return ''
-  if (text) parts.push(`${header}\n${text}`)
-  else parts.push(header)
-  if (thinking) parts.push(`（思考过程摘要）\n${thinking}`)
-  if (message.interrupted) parts.push('（该轮已在 UI 中标记为中断）')
-  return parts.join('\n')
-}
-
-/** Formats thread-store messages as a single labeled legacy context block for one DSH prompt. */
-export function formatLegacyHistoryContext(messages) {
-  const list = Array.isArray(messages) ? messages : []
-  const body = list.map(lineFromLegacyMessage).filter(Boolean).join('\n\n')
-  if (!body) return ''
-  return [
-    LEGACY_CONTEXT_BEGIN,
-    '【历史上下文 — TaskWeaver 线程存档，仅供模型理解背景】',
-    body,
-    LEGACY_CONTEXT_FOOTER,
-    LEGACY_CONTEXT_END,
-  ].join('\n\n')
-}
-
-function usageFromMessage(message) {
-  const usage = message?.usage
+function normalizeTokenUsage(usage) {
   if (!usage || typeof usage !== 'object') return null
   const cost = typeof usage.cost === 'number' ? usage.cost : usage.cost?.total
   return {
-    inputTokens: Number(usage.input ?? 0) || 0,
-    outputTokens: Number(usage.output ?? 0) || 0,
-    cacheReadTokens: Number(usage.cacheRead ?? 0) || 0,
-    cacheWriteTokens: Number(usage.cacheWrite ?? 0) || 0,
+    inputTokens: Number(usage.inputTokens ?? usage.input ?? 0) || 0,
+    outputTokens: Number(usage.outputTokens ?? usage.output ?? 0) || 0,
+    cacheReadTokens: Number(usage.cacheReadTokens ?? usage.cacheRead ?? 0) || 0,
+    cacheWriteTokens: Number(usage.cacheWriteTokens ?? usage.cacheWrite ?? 0) || 0,
     costUsd: Number(cost ?? 0) || 0,
     contextTokens: Number(usage.contextTokens ?? usage.totalTokens ?? 0) || null,
     contextWindow: Number(usage.contextWindow ?? 0) || null,
   }
+}
+
+function usageFromMessage(message) {
+  return normalizeTokenUsage(message?.usage)
+}
+
+function usageFromAssistantEvent(event) {
+  return normalizeTokenUsage(event?.data?.usage) ?? usageFromMessage(event?.data?.message)
+}
+
+/** Pause reasoning clock so tool/model gaps are not shown as “Think 用时”. */
+function pauseThinkingSegment(turn, now = Date.now()) {
+  if (!turn.thinkingStartedAt || turn.thinkingEndedAt) return
+  turn.thinkingEndedAt = now
+  turn.thinkingActiveMs = (turn.thinkingActiveMs ?? 0) + Math.max(0, now - turn.thinkingStartedAt)
+  turn.thinkingStartedAt = null
+}
+
+function activeThinkingDurationMs(turn, now = Date.now()) {
+  let total = turn.thinkingActiveMs ?? 0
+  if (turn.thinkingStartedAt && !turn.thinkingEndedAt) {
+    total += Math.max(0, now - turn.thinkingStartedAt)
+  }
+  return total
+}
+
+function resumeThinkingSegment(turn, now = Date.now()) {
+  if (turn.thinkingStartedAt && !turn.thinkingEndedAt) return
+  turn.thinkingStartedAt = now
+  turn.thinkingEndedAt = null
 }
 
 async function readMap(filePath) {
@@ -121,8 +130,8 @@ export function createDshChatService({
   getWorkspacePath,
   profileStore,
   modelService,
-  getLegacyTranscript,
   getPermissionMode = async () => 'ask',
+  conversationHub = null,
 }) {
   const mapPath = path.join(userDataPath, 'taskweaver', 'dsh-session-map.json')
   const sessions = new Map()
@@ -131,7 +140,8 @@ export function createDshChatService({
   const stats = new Map()
   const queueSnapshots = new Map()
   const running = new Map()
-  const migrationTurnWaiters = new Map()
+  /** @type {Map<string, Set<import('electron').WebContents>>} */
+  const muxWatchers = new Map()
   let mapLoad = null
   let persistenceQueue = Promise.resolve()
   let muxAbort = null
@@ -164,6 +174,94 @@ export function createDshChatService({
   function emit(conversationId, webContents, event) {
     if (!webContents || webContents.isDestroyed?.()) return
     try { webContents.send('chat:stream', { ...event, conversationId }) } catch { /* renderer may be closing */ }
+  }
+
+  function conversationIdForSession(sessionId) {
+    for (const [key, entry] of sessions.entries()) {
+      if (entry.sessionId === sessionId) return entry.ownerConversationId || key
+    }
+    return null
+  }
+
+  /** 清掉某个 sessionKey 在所有内存索引里的痕迹（映射表之外的副作用表）。 */
+  function dropSessionIndexes(sessionKey) {
+    sessions.delete(sessionKey)
+    stats.delete(sessionKey)
+    liveUsage.delete(sessionKey)
+    queueSnapshots.delete(sessionKey)
+    muxWatchers.delete(sessionKey)
+  }
+
+  /**
+   * 映射表回收：只淘汰「可推导」条目。
+   *
+   * 主会话的 DSH 会话 id 恒为 `tw-<sessionKey>`，丢掉条目后下一次 ensureSession 会用
+   * 同一个 id 重新 attach 到磁盘上的会话日志，上下文不丢；而 fork 出来的子会话 id 由
+   * DSH 随机生成（`session-<uuid>`，见 api-proxy 的 `session.fork`），一旦丢掉条目就
+   * 无法重建 —— 那会让分支对话直接失忆，所以永不淘汰。
+   *
+   * 正在运行的会话同样跳过。被淘汰的条目只从映射表移除，**不删磁盘日志**。
+   */
+  function evictTrackedSessions({ protectKey = null } = {}) {
+    if (sessions.size <= Z_MAX_TRACKED_SESSIONS) return []
+    const overflow = sessions.size - Z_MAX_TRACKED_SESSIONS
+    const candidates = [...sessions.entries()]
+      .filter(([key, entry]) => key !== protectKey
+        && entry?.sessionId === sessionIdForKey(key)
+        && !running.has(key))
+      .sort((a, b) => (a[1].lastUsedAt ?? 0) - (b[1].lastUsedAt ?? 0))
+    const evicted = []
+    for (const [key] of candidates) {
+      if (evicted.length >= overflow) break
+      dropSessionIndexes(key)
+      evicted.push(key)
+    }
+    return evicted
+  }
+
+  const MUX_FANOUT_TYPES = new Set([
+    'session/event',
+    'session/projection',
+    'session/queue',
+    'session/subscribed',
+    'session/jobs',
+  ])
+
+  function fanoutMuxFrame(envelope) {
+    const frame = envelope?.payload
+    if (!frame?.sessionId || !MUX_FANOUT_TYPES.has(frame.type)) return
+    const conversationId = conversationIdForSession(frame.sessionId)
+    if (!conversationId) return
+    const watchers = muxWatchers.get(conversationId)
+    if (!watchers?.size) return
+    const payload = { conversationId, rpcId: envelope.rpcId, frame }
+    for (const wc of watchers) {
+      if (wc.isDestroyed?.()) continue
+      try { wc.send('chat:mux', payload) } catch { /* renderer may be closing */ }
+    }
+  }
+
+  function subscribeMux(conversationId, webContents) {
+    if (!conversationId || !webContents || webContents.isDestroyed?.()) return
+    let set = muxWatchers.get(conversationId)
+    if (!set) {
+      set = new Set()
+      muxWatchers.set(conversationId, set)
+    }
+    set.add(webContents)
+    const onDestroyed = () => {
+      set.delete(webContents)
+      if (set.size === 0) muxWatchers.delete(conversationId)
+      webContents.removeListener?.('destroyed', onDestroyed)
+    }
+    webContents.once?.('destroyed', onDestroyed)
+  }
+
+  function unsubscribeMux(conversationId, webContents) {
+    const set = muxWatchers.get(conversationId)
+    if (!set) return
+    set.delete(webContents)
+    if (set.size === 0) muxWatchers.delete(conversationId)
   }
 
   function registerPendingApproval(id, entry) {
@@ -271,6 +369,10 @@ export function createDshChatService({
   async function handleEnvelope(api, envelope) {
     const frame = envelope?.payload
     if (!frame) return
+    fanoutMuxFrame(envelope)
+    if (conversationHub) {
+      void conversationHub.handleMuxEnvelope(envelope)
+    }
     if (frame.type === 'approval/requested') {
       const sessionMatch = [...sessions.entries()].find(([, entry]) => entry.sessionId === frame.sessionId)
       const sessionKey = sessionMatch?.[0]
@@ -305,26 +407,47 @@ export function createDshChatService({
     }
     if (frame.type !== 'session/event') return
     const event = frame.event
-    if (event?.type === 'turn/end') {
-      const migrationDone = migrationTurnWaiters.get(frame.sessionId)
-      if (migrationDone) {
-        migrationTurnWaiters.delete(frame.sessionId)
-        migrationDone()
-        return
-      }
-    }
-    const conversationId = [...sessions.entries()].find(([, entry]) => entry.sessionId === frame.sessionId)?.[0]
-    if (!conversationId) return
-    const turn = running.get(conversationId)
+    const sessionMatch = [...sessions.entries()].find(([, entry]) => entry.sessionId === frame.sessionId)
+    const sessionKey = sessionMatch?.[0]
+    if (!sessionKey) return
+    const turn = running.get(sessionKey)
     if (!turn) return
+    const ownerConversationId = sessionMatch[1]?.ownerConversationId || sessionKey
+    const emitTarget = turn.eventConversationId ?? ownerConversationId
+    turn.lastEventAt = event.time || Date.now()
+    if (event?.type === 'step/start') {
+      // DSH ui-conversation does not surface step numbers in the live status row
+      // (only TurnStatus "Deep diving…" + optional clock). Step timing feeds projection.
+      pauseThinkingSegment(turn, event.time || Date.now())
+      return
+    }
+    if (event?.type === 'request/header') {
+      return
+    }
     if (event?.type === 'assistant/chunk') {
       const chunk = event.data?.chunk
       if (chunk?.type === 'text-delta' && chunk.text) {
+        pauseThinkingSegment(turn, event.time || Date.now())
         turn.text += chunk.text
-        if (!turn.silentText) emit(turn.eventConversationId ?? conversationId, turn.webContents, { type: 'delta', delta: chunk.text, full: turn.text })
+        if (!turn.silentText) emit(emitTarget, turn.webContents, { type: 'delta', delta: chunk.text, full: turn.text })
       } else if (chunk?.type === 'reasoning-delta' && chunk.text) {
+        const now = event.time || Date.now()
+        const wasIdle = !turn.thinkingStartedAt || turn.thinkingEndedAt
+        resumeThinkingSegment(turn, now)
+        if (wasIdle && !turn.silentText) {
+          emit(emitTarget, turn.webContents, { type: 'thinking_start' })
+        }
+        turn.lastReasoningAt = now
         turn.thinking += chunk.text
-        if (!turn.silentText) emit(turn.eventConversationId ?? conversationId, turn.webContents, { type: 'thinking_delta', delta: chunk.text, fullThinking: turn.thinking })
+        const thinkingDurationMs = activeThinkingDurationMs(turn, now)
+        if (!turn.silentText) {
+          emit(emitTarget, turn.webContents, {
+            type: 'thinking_delta',
+            delta: chunk.text,
+            fullThinking: turn.thinking,
+            durationMs: thinkingDurationMs,
+          })
+        }
       }
       return
     }
@@ -332,7 +455,7 @@ export function createDshChatService({
       const message = event.data?.message
       const finalText = textFromMessage(message)
       if (finalText && finalText.length >= turn.text.length) turn.text = finalText
-      const usage = usageFromMessage(message)
+      const usage = usageFromAssistantEvent(event)
       if (usage) {
         turn.usage = {
           ...usage,
@@ -346,6 +469,7 @@ export function createDshChatService({
       return
     }
     if (event?.type === 'tool/call') {
+      pauseThinkingSegment(turn, event.time || Date.now())
       turn.toolCalls += 1
       const input = (() => {
         try { return JSON.parse(event.data?.arguments || '{}') } catch { return {} }
@@ -353,7 +477,12 @@ export function createDshChatService({
       const callId = event.data?.callId
       const toolName = event.data?.name || 'tool'
       turn.toolCallsById.set(callId, { toolName, input, startedAt: event.time || Date.now() })
-      emit(turn.eventConversationId ?? conversationId, turn.webContents, {
+      emit(emitTarget, turn.webContents, {
+        type: 'activity',
+        phase: 'tools',
+        message: `正在执行工具：${toolName}…`,
+      })
+      emit(emitTarget, turn.webContents, {
         type: 'tool',
         id: callId,
         toolName,
@@ -373,7 +502,7 @@ export function createDshChatService({
         ? { content: message.content, isError: Boolean(message.isError), details: message.details }
         : { content: [] }
       if (call) {
-        emit(turn.eventConversationId ?? conversationId, turn.webContents, {
+        emit(emitTarget, turn.webContents, {
           type: 'tool',
           id: callId,
           toolName: call.toolName,
@@ -392,9 +521,12 @@ export function createDshChatService({
       const reason = event.data?.reason?.kind
       const cancelled = reason === 'aborted' || reason === 'cancelled' || reason === 'interrupted'
       const elapsedMs = Math.max(0, Date.now() - turn.startedAt)
+      pauseThinkingSegment(turn, Date.now())
+      const thinkingDurationMs = activeThinkingDurationMs(turn, Date.now())
       const result = {
         text: turn.text,
         thinking: turn.thinking,
+        thinkingDurationMs,
         usage: {
           inputTokens: turn.usage?.inputTokens ?? 0,
           outputTokens: turn.usage?.outputTokens ?? 0,
@@ -411,8 +543,8 @@ export function createDshChatService({
         },
         cancelled,
       }
-      liveUsage.set(conversationId, result.usage)
-      const priorStats = stats.get(conversationId) ?? {
+      liveUsage.set(sessionKey, result.usage)
+      const priorStats = stats.get(sessionKey) ?? {
         userMessages: 0,
         assistantMessages: 0,
         toolCalls: 0,
@@ -433,17 +565,24 @@ export function createDshChatService({
       priorStats.contextTokens = result.usage.contextTokens
       priorStats.contextWindow = result.usage.contextWindow
       priorStats.contextPercent = result.usage.contextPercent
-      stats.set(conversationId, priorStats)
+      stats.set(sessionKey, priorStats)
       if (turn.emitLifecycle !== false) {
-        emit(turn.eventConversationId ?? conversationId, turn.webContents, {
+        if (result.thinking && thinkingDurationMs > 0) {
+          emit(emitTarget, turn.webContents, {
+            type: 'thinking_end',
+            fullThinking: result.thinking,
+            durationMs: thinkingDurationMs,
+          })
+        }
+        emit(emitTarget, turn.webContents, {
           type: 'done',
           full: result.text,
           fullThinking: result.thinking,
-          thinkingDurationMs: 0,
+          thinkingDurationMs,
           ...(turn.taskId ? { taskId: turn.taskId } : {}),
         })
       }
-      running.delete(conversationId)
+      running.delete(sessionKey)
       turn.resolve(result)
     }
   }
@@ -526,6 +665,7 @@ export function createDshChatService({
     if (readyPromise) return readyPromise
     readyPromise = (async () => {
       const { api } = await hostManager.start()
+      conversationHub?.bindApi?.(api)
       if (!muxTask) {
         await startMuxStream(api)
       }
@@ -541,13 +681,16 @@ export function createDshChatService({
     await loadSessions()
     let entry = sessions.get(conversationId)
     const requestedCwd = cwdOverride || getWorkspacePath() || process.cwd()
+    // 未绑定工作区时 `process.cwd()` 会退化成 `/`，而 DSH 用会话 cwd 当沙箱边界。
+    assertBindableWorkspace(requestedCwd)
+    if (entry) assertBindableWorkspace(entry.cwd)
     const mode = normalizePermissionMode(permissionMode ?? await Promise.resolve(getPermissionMode(conversationId)))
     const resolvedPreset = agentPreset || dshAgentPresetForPermissionMode(mode)
     if (entry && entry.cwd !== requestedCwd) {
       throw new Error('此对话绑定的工作区与当前工作区不同。为保持 DSH 会话上下文一致，请在原工作区继续，或新建对话。')
     }
     if (!entry) {
-      const sessionId = `tw-${conversationId}`
+      const sessionId = sessionIdForKey(conversationId)
       const created = rpcValue(await api.sessions.create({
         sessionId,
         cwd: requestedCwd,
@@ -559,8 +702,10 @@ export function createDshChatService({
         agentPreset: created.agentPreset || resolvedPreset,
         ownerConversationId: ownerConversationId || conversationId,
         permissionModeAtCreate: mode,
+        lastUsedAt: Date.now(),
       }
       sessions.set(conversationId, entry)
+      evictTrackedSessions({ protectKey: conversationId })
       await persistSessions()
     } else {
       if (!entry.ownerConversationId) {
@@ -574,69 +719,45 @@ export function createDshChatService({
         cwd: entry.cwd,
         ...(entry.agentPreset ? { agentPreset: entry.agentPreset } : {}),
       }), '恢复 DSH 会话')
+      // LRU 用：只在时间戳明显推进时落盘，避免每轮都写一次映射表。
+      const now = Date.now()
+      if (now - (entry.lastUsedAt ?? 0) > 60_000) {
+        entry.lastUsedAt = now
+        sessions.set(conversationId, entry)
+        await persistSessions()
+      }
+    }
+    if (conversationHub) {
+      const watchers = muxWatchers.get(conversationId)
+      const wc = watchers?.size ? [...watchers].at(-1) : null
+      if (wc) void conversationHub.attach(conversationId, entry.sessionId, wc)
     }
     return entry
   }
 
-  async function markLegacyMigration(entry, sessionKey) {
-    entry.legacyContextVersion = LEGACY_CONTEXT_VERSION
-    entry.migratedAt = new Date().toISOString()
-    sessions.set(sessionKey, entry)
-    await persistSessions()
+  function sessionModelMatches(current, config, explicitReasoningEffort) {
+    if (!current || current.provider !== config.provider || current.model !== config.id) return false
+    if (explicitReasoningEffort == null || explicitReasoningEffort === '') return true
+    // DSH 的 sessions.models.current 只回读 { provider, model }，不返回 reasoningEffort。
+    // 回读值缺失时不能判定为“不匹配”，否则每轮都会调 selectModel：
+    // 既重建会话的模型绑定，又让上游 prompt cache 失效（实测每轮都命中该分支）。
+    if (current.reasoningEffort == null) return true
+    return current.reasoningEffort === explicitReasoningEffort
   }
 
-  async function waitForMigrationTurn(sessionId) {
-    if (migrationTurnWaiters.has(sessionId)) {
-      await new Promise((resolve) => {
-        const prior = migrationTurnWaiters.get(sessionId)
-        migrationTurnWaiters.set(sessionId, () => {
-          prior?.()
-          resolve()
-        })
-      })
-      return
+  /** Align Host session route with Composer; skip selectModel when already matched (DSH Web semantics). */
+  async function ensureSessionModelSelection(api, sessionId, config, explicitReasoningEffort) {
+    const directory = rpcValue(await api.sessions.models({ sessionId }), '读取 DSH 会话模型')
+    const current = directory?.current ?? null
+    if (sessionModelMatches(current, config, explicitReasoningEffort)) return current
+    const payload = {
+      sessionId,
+      provider: config.provider,
+      model: config.id,
+      ...(explicitReasoningEffort ? { reasoningEffort: explicitReasoningEffort } : {}),
     }
-    await new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        migrationTurnWaiters.delete(sessionId)
-        reject(new Error('DSH 历史上下文迁移等待超时'))
-      }, 120_000)
-      timer.unref?.()
-      migrationTurnWaiters.set(sessionId, () => {
-        clearTimeout(timer)
-        resolve()
-      })
-    })
-  }
-
-  async function ensureLegacyContextMigrated(api, sessionKey, conversationId, entry, legacyTranscript) {
-    if (entry.legacyContextVersion === LEGACY_CONTEXT_VERSION) return
-    if (sessionKey !== conversationId) {
-      await markLegacyMigration(entry, sessionKey)
-      return
-    }
-    let messages = Array.isArray(legacyTranscript) ? legacyTranscript : []
-    if (!Array.isArray(legacyTranscript) && typeof getLegacyTranscript === 'function') {
-      try {
-        const transcript = await getLegacyTranscript(conversationId)
-        messages = Array.isArray(transcript) ? transcript : []
-      } catch {
-        messages = []
-      }
-    }
-    const block = formatLegacyHistoryContext(messages)
-    if (!block) {
-      await markLegacyMigration(entry, sessionKey)
-      return
-    }
-    rpcValue(await api.sessions.prompt({
-      sessionId: entry.sessionId,
-      mode: 'queue',
-      content: [{ type: 'text', text: block }],
-      clientTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-    }), '迁移历史上下文')
-    await waitForMigrationTurn(entry.sessionId)
-    await markLegacyMigration(entry, sessionKey)
+    const selected = rpcValue(await api.sessions.selectModel(payload), '选择 DSH 模型')
+    return selected?.selected ?? selected
   }
 
   async function ensurePermissionModeApplied(api, sessionKey, entry, mode) {
@@ -680,7 +801,6 @@ export function createDshChatService({
     cwdOverride,
     agentPreset = 'code',
     skill = null,
-    legacyTranscript,
     taskId,
     silentText = false,
     emitLifecycle = true,
@@ -688,7 +808,10 @@ export function createDshChatService({
     if (!text || typeof text !== 'string') throw new Error('消息不能为空')
     if (!conversationId) throw new Error('当前对话标识无效')
     if (!sessionKey) throw new Error('DSH 会话标识无效')
-    if (running.has(sessionKey)) throw new Error('当前 DSH 会话仍在运行，请停止或等待完成')
+    // steer 模式允许在运行时纠偏，只有 followUp 需要等待
+    if (running.has(sessionKey) && behavior !== 'steer') throw new Error('当前 DSH 会话仍在运行，请停止或等待完成')
+    // 先做工作区校验再启动 Host：无效请求不该把 DSH 拉起来。
+    assertBindableWorkspace(cwdOverride || getWorkspacePath() || process.cwd())
     const api = await ensureReady()
     const permissionMode = normalizePermissionMode(await Promise.resolve(getPermissionMode(conversationId)))
     const entry = await ensureSession(api, sessionKey, {
@@ -700,14 +823,8 @@ export function createDshChatService({
     await ensurePermissionModeApplied(api, sessionKey, entry, permissionMode)
     if (!modelKey) throw new Error('请先选择已配置的模型')
     const config = await configureModel(api, modelKey)
-    const thinkingLevel = await profileStore?.getThinkingLevel?.(modelKey)
-    rpcValue(await api.sessions.selectModel({
-      sessionId: entry.sessionId,
-      provider: config.provider,
-      model: config.id,
-      ...(thinkingLevel ? { reasoningEffort: thinkingLevel } : {}),
-    }), '选择 DSH 模型')
-    await ensureLegacyContextMigrated(api, sessionKey, conversationId, entry, legacyTranscript)
+    const explicitReasoningEffort = await profileStore?.getThinkingLevel?.(modelKey) ?? null
+    await ensureSessionModelSelection(api, entry.sessionId, config, explicitReasoningEffort)
 
     if (emitLifecycle) emit(eventConversationId, webContents, { type: 'start', startedAt: Date.now(), taskId })
     const completed = new Promise((resolve, reject) => {
@@ -720,11 +837,16 @@ export function createDshChatService({
         emitLifecycle,
         text: '',
         thinking: '',
+        thinkingStartedAt: null,
+        thinkingEndedAt: null,
+        thinkingActiveMs: 0,
+        lastReasoningAt: null,
         usage: null,
         toolCalls: 0,
         toolResults: 0,
         toolCallsById: new Map(),
         startedAt: Date.now(),
+        lastEventAt: Date.now(),
         resolve,
         reject,
       })
@@ -768,13 +890,100 @@ export function createDshChatService({
     return settleApproval(id, response)
   }
 
-  /** Mark the persistent DSH session dirty; the next turn applies the selected mode via /permission. */
-  async function syncPermissionMode(conversationId, mode) {
-    const entry = sessions.get(conversationId)
-    if (!entry) return { ok: false, reason: 'no-session' }
-    entry.lastAppliedPermissionMode = null
+  /**
+   * 回收一个对话（及其编排子会话）在映射表里的全部条目。
+   *
+   * 只动映射表与内存索引，**不删磁盘上的 DSH 会话日志** —— 日志保留可用于排查与恢复，
+   * 删除是不可逆操作。返回值里带上被移除的 key，调用方据此断开 hub attachment。
+   */
+  async function forgetConversation(conversationId) {
+    if (!conversationId) return { removed: [] }
+    await loadSessions()
+    await rejectPendingApprovals({ conversationId, reason: 'conversation-removed' }).catch(() => 0)
+    const removed = []
+    for (const [key, entry] of [...sessions.entries()]) {
+      if (key !== conversationId && entry?.ownerConversationId !== conversationId) continue
+      dropSessionIndexes(key)
+      removed.push(key)
+    }
+    if (removed.length) await persistSessions()
+    return { removed }
+  }
+
+  /**
+   * 读出会话日志里所有 `turn/end` 的 seq（升序）。
+   * `session.fork` 的 atSeq 语义是「切在包含该 seq 的那个已完成 turn 的末尾」，
+   * 所以第 N 个 turn/end 的 seq 正好表示「保留前 N 轮」。
+   */
+  async function collectTurnEndSeqs(api, sessionId) {
+    const seqs = []
+    let beforeSeq
+    for (let page = 0; page < 40; page += 1) {
+      const value = rpcValue(await api.sessions.history({
+        sessionId,
+        maxMessages: 500,
+        ...(beforeSeq === undefined ? {} : { beforeSeq }),
+      }), '读取 DSH 会话历史')
+      const events = value?.events ?? []
+      if (!events.length) break
+      for (const item of events) {
+        const event = item?.event
+        if (event?.type === 'turn/end' && Number.isInteger(event.seq)) seqs.push(event.seq)
+      }
+      if (!value?.hasMore) break
+      const firstSeq = events[0]?.event?.seq
+      if (!Number.isInteger(firstSeq) || firstSeq === beforeSeq) break
+      beforeSeq = firstSeq
+    }
+    return seqs.sort((a, b) => a - b)
+  }
+
+  /**
+   * 让新分支继承源对话的 DSH 上下文。
+   *
+   * 不做这一步时，fork 出来的对话是「UI 有消息、模型是空的」：DSH 会话是新建的空会话。
+   * 传入 `completedTurns` 时按「保留前 N 轮」精确切分；无法可靠换算则退化为
+   * 「继承源会话全部已完成轮次」（比失忆好，但会比 UI 多看到内容）。
+   */
+  async function forkConversation({ sourceConversationId, targetConversationId, completedTurns } = {}) {
+    if (!sourceConversationId || !targetConversationId) return { ok: false, reason: 'missing-args' }
+    await loadSessions()
+    const source = sessions.get(sourceConversationId)
+    if (!source?.sessionId) return { ok: false, reason: 'no-source-session' }
+    const api = await ensureReady()
+    let atSeq
+    if (Number.isInteger(completedTurns) && completedTurns > 0) {
+      try {
+        const turnEndSeqs = await collectTurnEndSeqs(api, source.sessionId)
+        if (turnEndSeqs.length >= completedTurns) atSeq = turnEndSeqs[completedTurns - 1]
+      } catch (error) {
+        console.warn('[dsh-chat-service] fork 时读取会话历史失败，退化为整段继承:', error instanceof Error ? error.message : error)
+      }
+    }
+    let childSessionId
+    try {
+      const value = rpcValue(await api.sessions.fork({
+        sessionId: source.sessionId,
+        ...(atSeq === undefined ? {} : { atSeq }),
+      }), '分叉 DSH 会话')
+      childSessionId = value?.sessionId ?? null
+    } catch (error) {
+      return { ok: false, reason: 'fork-failed', error: error instanceof Error ? error.message : String(error) }
+    }
+    if (!childSessionId) return { ok: false, reason: 'fork-failed' }
+    sessions.set(targetConversationId, {
+      sessionId: childSessionId,
+      cwd: source.cwd,
+      ...(source.agentPreset ? { agentPreset: source.agentPreset } : {}),
+      ownerConversationId: targetConversationId,
+      lastAppliedPermissionMode: source.lastAppliedPermissionMode ?? null,
+      forkedFromSessionId: source.sessionId,
+      ...(atSeq === undefined ? {} : { forkedAtSeq: atSeq }),
+      lastUsedAt: Date.now(),
+    })
+    evictTrackedSessions({ protectKey: targetConversationId })
     await persistSessions()
-    return { ok: true, pendingDshPreset: dshPermissionPresetForMode(mode) }
+    return { ok: true, sessionId: childSessionId, atSeq: atSeq ?? null }
   }
 
   async function stop() {
@@ -821,7 +1030,8 @@ export function createDshChatService({
     abort,
     respondApproval,
     rejectPendingApprovals,
-    syncPermissionMode,
+    forgetConversation,
+    forkConversation,
     stop,
     isBusy: (id) => running.has(id),
     isBusyAny: () => running.size > 0,
@@ -829,7 +1039,8 @@ export function createDshChatService({
     listRunningConversationIds: () => [...running.keys()],
     getLiveContextUsage: (id) => liveUsage.get(id) ?? null,
     getSessionStatsSnapshot: (id) => stats.get(id) ?? null,
-    // Switching conversations/workspaces must not destroy DSH's durable history.
+    // 切换对话 / 工作区不能销毁 DSH 的持久历史，所以这里保持无副作用。
+    // 真正的回收走 forgetConversation（删除对话时调用）。
     resetSession: async () => {},
     mutateQueue: async (kind, index, action, text, conversationId) => {
       const entry = sessions.get(conversationId)
@@ -854,6 +1065,18 @@ export function createDshChatService({
         followUp: current.filter((queued) => queued.placement === 'queued').map(toText),
       }
     },
-    updateThinkingLevel: async () => {},
+    async applyComposerModel(conversationId, modelKey) {
+      if (!conversationId || !modelKey) return { ok: false, reason: 'missing-args' }
+      const entry = sessions.get(conversationId)
+      if (!entry) return { ok: false, reason: 'no-session' }
+      const api = await ensureReady()
+      const config = await configureModel(api, modelKey)
+      const explicitReasoningEffort = await profileStore?.getThinkingLevel?.(modelKey) ?? null
+      await ensureSessionModelSelection(api, entry.sessionId, config, explicitReasoningEffort)
+      return { ok: true }
+    },
+    subscribeMux,
+    unsubscribeMux,
+    getSessionId: (conversationId) => sessions.get(conversationId)?.sessionId ?? null,
   }
 }

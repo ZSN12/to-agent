@@ -69,7 +69,7 @@ export type ChatStreamEvent =
   | ({ conversationId?: string } & (
   | { type: 'start'; startedAt?: number }
   | { type: 'thinking_start' }
-  | { type: 'thinking_delta'; delta: string; fullThinking: string }
+  | { type: 'thinking_delta'; delta: string; fullThinking: string; durationMs?: number }
   | { type: 'thinking_end'; fullThinking: string; durationMs?: number }
   | { type: 'delta'; delta: string; full: string }
   | { type: 'blocks'; segments: Array<{ id: string; kind: 'thinking' | 'text'; text: string }> }
@@ -84,6 +84,7 @@ export type ChatStreamEvent =
   | { type: 'tasks'; tasks: TaskNode[] }
   | { type: 'orchestration'; mode: 'single-agent' | 'multi-agent'; reason: string }
   | { type: 'progress'; text: string }
+  | { type: 'activity'; message: string; phase?: 'tools' | 'llm' | 'step' }
   | { type: 'model_route'; taskType?: string; displayName?: string; reason?: string; reasons?: string[] }
   | { type: 'steering_queued'; text: string }
   | { type: 'followup_queued'; text: string }
@@ -137,6 +138,8 @@ export interface TaskweaverAppApi {
   forkThread: (threadId: string, messageId: string) => Promise<IpcResult<AppState>>
   clearConversation: (options?: { workspacePath?: string | null }) => Promise<IpcResult<AppState>>
   setPermissionMode: (mode: PermissionMode) => Promise<IpcResult<AppState>>
+  setModelKey: (modelKey: string) => Promise<IpcResult<AppState>>
+  setThinkingLevel: (thinkingLevel: string) => Promise<IpcResult<AppState>>
 }
 
 export interface WorkspaceEntry {
@@ -316,6 +319,99 @@ export type SandboxEffectivePolicy = {
   standingMode?: string
 }
 
+/** Serialized {@link serializeDshConversationView} payload from main-process Session projection. */
+export interface DshConversationPartialBlock {
+  kind: string
+  preview?: string
+  length?: number
+  name?: string
+  callId?: string
+  argsPreview?: string
+}
+
+export interface DshConversationPartial {
+  turn?: number
+  step?: number
+  blocks: DshConversationPartialBlock[]
+}
+
+export interface DshConversationRunningCall {
+  callId: string
+  toolName: string
+  status: 'running'
+  turn?: number
+  step?: number
+  startedAt?: number | null
+}
+
+/** One root tool-call row from DSH chat projection (`tool-call` node). */
+export interface DshProjectedToolCall {
+  callId: string
+  toolName: string
+  argsRaw: string
+  status: 'running' | 'done' | 'error' | 'stopped'
+  turn: number
+  step: number
+  startedAt?: number
+  durationMs?: number
+  resultPreview?: string
+  isError?: boolean
+}
+
+export interface DshTranscriptRow {
+  dshKey: string
+  role: 'user' | 'assistant' | 'compaction'
+  text?: string
+  thinking?: string
+  interrupted?: boolean
+  behavior?: 'steer' | 'followUp'
+  automatic?: boolean
+  summary?: string
+  tokensBefore?: number | null
+  timestamp?: number
+  usage?: ChatMessage['usage']
+  modelKey?: string
+}
+
+export interface DshConversationView {
+  conversationId: string | null
+  sessionId: string | null
+  running: boolean
+  partial: DshConversationPartial | null
+  runningCalls: DshConversationRunningCall[]
+  /** Current-turn tool rows (DSH ui-conversation tool nodes). */
+  toolRows: DshProjectedToolCall[]
+  /** Full in-flight assistant text from projection partial blocks. */
+  streamingText?: string
+  /** Full in-flight reasoning text from projection partial blocks. */
+  streamingReasoning?: string
+  /** Settled chat rows from DSH projection (user / turn-tail / compaction). */
+  transcript: DshTranscriptRow[]
+  queue: { steering: string[]; followUp: string[] }
+  projections: Record<string, unknown>
+  activityLabel: string | null
+  openState: string
+  hasMore?: boolean
+  blank?: boolean
+}
+
+/** Raw Z Host mux frame forwarded for native DSH conversation projection (see docs/DSH内嵌集成原则.md). */
+export type DshMuxFramePayload = {
+  conversationId: string
+  rpcId?: string
+  frame: {
+    type: string
+    sessionId?: string
+    event?: { type: string; seq?: number; time?: number; data?: unknown }
+    key?: string
+    value?: unknown
+    seq?: number
+    items?: unknown[]
+    jobs?: unknown[]
+    lastSeq?: number
+  }
+}
+
 export interface TaskweaverChatApi {
   send: (
     text: string,
@@ -325,18 +421,24 @@ export interface TaskweaverChatApi {
     workMode?: WorkMode | null,
     conversationId?: string | null,
   ) => Promise<IpcResult<ChatSendResult>>
-  cancel: () => Promise<IpcResult<{ stopped: boolean }>>
-  steer: (text: string) => Promise<IpcResult<any>>
-  followUp: (text: string) => Promise<IpcResult<any>>
+  cancel: (conversationId?: string | null) => Promise<IpcResult<{ stopped: boolean }>>
+  steer: (text: string, conversationId?: string | null) => Promise<IpcResult<any>>
+  followUp: (text: string, conversationId?: string | null) => Promise<IpcResult<any>>
   queueMutate: (payload: {
     kind: 'steering' | 'followUp'
     index: number
     action: 'remove' | 'update'
     text?: string
+    conversationId?: string | null
   }) => Promise<IpcResult<{ ok: boolean; error?: string; steering?: string[]; followUp?: string[] }>>
   getLiveContext: (conversationId?: string | null) => Promise<IpcResult<LiveContextUsage | null>>
   getSessionStats: (conversationId?: string | null) => Promise<IpcResult<SessionStatsSnapshot | null>>
   listRunningConversations: () => Promise<IpcResult<string[]>>
+  subscribeMux?: (conversationId: string) => Promise<IpcResult<{ ok: boolean }>>
+  unsubscribeMux?: (conversationId: string) => Promise<IpcResult<{ ok: boolean }>>
+  onMux?: (listener: (payload: DshMuxFramePayload) => void) => () => void
+  getDshView?: (conversationId?: string | null) => Promise<IpcResult<DshConversationView | null>>
+  onDshView?: (listener: (view: DshConversationView) => void) => () => void
   onStream: (listener: (event: ChatStreamEvent) => void) => () => void
 }
 

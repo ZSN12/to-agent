@@ -6,7 +6,7 @@ const DEFAULT_STATE = {
   profiles: {},
   addedModelKeys: [],
   activeModelKey: null,
-  thinkingLevel: 'high',
+  thinkingLevel: null,
   busyEnterMode: 'followUp',
 }
 
@@ -26,7 +26,7 @@ export function createProfileStore(userDataPath) {
         profiles: parsed.profiles ?? {},
         addedModelKeys: Array.isArray(parsed.addedModelKeys) ? parsed.addedModelKeys : [],
         activeModelKey,
-        thinkingLevel: parsed.thinkingLevel ?? 'high',
+        thinkingLevel: parsed.thinkingLevel ?? null,
         busyEnterMode: parsed.busyEnterMode === 'followUp' ? 'followUp' : 'steer',
       }
     } catch (error) {
@@ -130,7 +130,7 @@ export function createProfileStore(userDataPath) {
         profiles: rawState.profiles ?? {},
         addedModelKeys: Array.isArray(rawState.addedModelKeys) ? rawState.addedModelKeys : [],
         activeModelKey: null,
-        thinkingLevel: rawState.thinkingLevel ?? 'high',
+        thinkingLevel: rawState.thinkingLevel ?? null,
         busyEnterMode: rawState.busyEnterMode === 'followUp' ? 'followUp' : 'steer',
       })
       return true
@@ -141,11 +141,11 @@ export function createProfileStore(userDataPath) {
       if (key && state.profiles[key]?.thinkingLevel) {
         return state.profiles[key].thinkingLevel
       }
-      return state.thinkingLevel || 'high'
+      return state.thinkingLevel ?? null
     },
     async setThinkingLevel(level) {
       const state = await readState()
-      const normalized = level || 'high'
+      const normalized = level || null
       state.thinkingLevel = normalized
       const key = state.activeModelKey
       if (key) {

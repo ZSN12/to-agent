@@ -51,7 +51,7 @@ async function main() {
     console.log('--- 测试 2: profileStore 思考等级 thinkingLevel ---')
     const profileStore = createProfileStore(tmpDir)
     const initialLevel = await profileStore.getThinkingLevel()
-    assert.equal(initialLevel, 'high', '默认思考等级应为 high')
+    assert.equal(initialLevel, null, '默认不覆盖 DSH 思考档（由 Host 目录 defaultEffort 决定）')
 
     await profileStore.setThinkingLevel('medium')
     const updatedLevel = await profileStore.getThinkingLevel()

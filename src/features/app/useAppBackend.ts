@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ThinkingLevel } from '../../shared/model-api'
 import type {
   AppState,
   BusyEnterMode,
   ChatStreamEvent,
+  DshConversationRunningCall,
   LiveContextUsage,
   SessionStatsSnapshot,
   OrchestrationChoicePrompt,
@@ -17,10 +18,52 @@ import type {
   WorkspaceEntry,
   WorkspaceReference,
 } from '../../shared/app-api'
+import { useDshConversationView } from '../dsh-runtime/useDshConversationView'
+import {
+  applyDshProjectionToStreamState,
+  isStreamEventSupersededByProjection,
+  shouldPreferProjectionStream,
+} from '../dsh-runtime/projectionStream'
+import { mergeStoredMessagesWithDshTranscript } from '../dsh-runtime/dshTranscriptMessages'
+import { liveContextFromDshProjections } from '../chat/session-usage'
+import { shortStreamActivityLabel } from '../chat/streamActivityLabel'
 import type { AssistantContentBlock, ChatMessage, TaskNode } from '../../types'
+import {
+  applyStreamEventToSnapshot,
+  emptyConversationStream,
+  type ConversationStreamSnapshot,
+} from '../chat/conversation-stream-buffer'
 
 function getBridge() {
   return window.taskweaver
+}
+
+function mergeDshRunningCallsIntoTraces(
+  current: ToolTraceItem[],
+  runningCalls: readonly DshConversationRunningCall[],
+): ToolTraceItem[] {
+  if (!runningCalls.length) return current
+  const traceKey = (item: ToolTraceItem) => `${item.taskId ?? 'main'}:${item.id}`
+  const updated = [...current]
+  const indexByKey = new Map(updated.map((item, index) => [traceKey(item), index]))
+  for (const call of runningCalls) {
+    const id = call.callId || `dsh-${call.toolName}`
+    const key = `main:${id}`
+    const row: ToolTraceItem = {
+      id,
+      toolName: call.toolName,
+      status: 'running',
+      startedAt: call.startedAt ?? undefined,
+    }
+    const index = indexByKey.get(key)
+    if (index === undefined) {
+      indexByKey.set(key, updated.length)
+      updated.push(row)
+    } else {
+      updated[index] = { ...updated[index], ...row }
+    }
+  }
+  return updated.slice(-80)
 }
 
 export function useAppBackend() {
@@ -31,6 +74,7 @@ export function useAppBackend() {
   const [streamText, setStreamText] = useState<string | null>(null)
   const [streamStartedAt, setStreamStartedAt] = useState<number | null>(null)
   const [streamThinking, setStreamThinking] = useState<{ text: string; durationMs?: number } | null>(null)
+  const [streamActivity, setStreamActivity] = useState<string | null>(null)
   const [streamBlocks, setStreamBlocks] = useState<AssistantContentBlock[]>([])
   const [skills, setSkills] = useState<SkillOption[]>([])
   const [toolTraces, setToolTraces] = useState<ToolTraceItem[]>([])
@@ -48,6 +92,8 @@ export function useAppBackend() {
     setRunningConversationIds([...runningConversationsRef.current])
   }, [])
   const conversationStartedAtRef = useRef(new Map<string, number>())
+  const conversationStreamRef = useRef(new Map<string, ConversationStreamSnapshot>())
+  const dshMuxTapeRef = useRef<import('../../shared/app-api').DshMuxFramePayload[]>([])
   const isConversationRunning = useCallback((conversationId: string | null | undefined) => {
     return Boolean(conversationId && runningConversationsRef.current.has(conversationId))
   }, [])
@@ -62,10 +108,19 @@ export function useAppBackend() {
 
   const emptyPromptQueue = (): PromptQueueSnapshot => ({ steering: [], followUp: [] })
 
+  const applyConversationStreamSnapshot = useCallback((snapshot: ConversationStreamSnapshot) => {
+    setStreamText(snapshot.streamText)
+    setStreamThinking(snapshot.streamThinking)
+    setStreamBlocks(snapshot.streamBlocks)
+    setToolTraces(snapshot.toolTraces)
+    setPromptQueue(snapshot.promptQueue)
+  }, [])
+
   const resetTransientConversationState = useCallback(() => {
     setStreamText(null)
     setStreamStartedAt(null)
     setStreamThinking(null)
+    setStreamActivity(null)
     setStreamBlocks([])
     setLiveContext(null)
     setSessionStats(null)
@@ -76,6 +131,33 @@ export function useAppBackend() {
   }, [])
 
   const bridgeReady = Boolean(getBridge()?.app)
+  const { view: dshView, subscribed: dshProjectionSubscribed } = useDshConversationView(
+    bridgeReady ? state?.conversationId : null,
+  )
+  const projectionStreamActive = shouldPreferProjectionStream(
+    dshProjectionSubscribed,
+    state?.conversationId,
+    dshView,
+  )
+  const dshToolRows = useMemo(() => {
+    if (!dshView?.toolRows?.length) return []
+    if (dshView.conversationId && dshView.conversationId !== state?.conversationId) return []
+    return dshView.toolRows
+  }, [dshView, state?.conversationId])
+  const projectionLiveContext = useMemo(
+    () => liveContextFromDshProjections(dshView?.projections),
+    [dshView?.projections],
+  )
+
+  const displayMessages = useMemo(
+    () => mergeStoredMessagesWithDshTranscript(
+      state?.messages ?? [],
+      dshView?.transcript,
+      projectionStreamActive,
+      sending,
+    ),
+    [state?.messages, dshView?.transcript, projectionStreamActive, sending],
+  )
 
   const refreshSessionStats = useCallback(async (expectedConversationId = activeConversationIdRef.current) => {
     const bridge = getBridge()
@@ -133,12 +215,38 @@ export function useAppBackend() {
     if (!bridgeReady) return
     const bridge = getBridge()
     if (!bridge?.chat?.listRunningConversations) return
+
     const syncFromMain = async () => {
       const res = await bridge.chat.listRunningConversations()
       if (!res.ok || !Array.isArray(res.data)) return
-      runningConversationsRef.current = new Set(res.data)
+
+      // Verify each "running" conversation is actually still busy in backend
+      const backendRunning = new Set(res.data)
+      const localRunning = new Set(runningConversationsRef.current)
+
+      // Find ghost states: conversations we think are running but backend says they're not
+      const ghosts = [...localRunning].filter(id => !backendRunning.has(id))
+
+      if (ghosts.length > 0) {
+        console.warn('[useAppBackend] 检测到幽灵对话状态，自动清理:', ghosts)
+        for (const ghostId of ghosts) {
+          runningConversationsRef.current.delete(ghostId)
+          conversationStartedAtRef.current.delete(ghostId)
+          conversationStreamRef.current.delete(ghostId)
+          if (activeConversationIdRef.current === ghostId) {
+            setSending(false)
+            setStreamStartedAt(null)
+          }
+        }
+      }
+
+      runningConversationsRef.current = backendRunning
       setRunningConversationIds(res.data)
     }
+
+    // Initial sync
+    void syncFromMain()
+
     const intervalId = window.setInterval(() => {
       void syncFromMain()
     }, 5000)
@@ -151,8 +259,47 @@ export function useAppBackend() {
 
   useEffect(() => {
     const bridge = getBridge()
+    const conversationId = state?.conversationId
+    if (!bridge?.chat?.subscribeMux || !conversationId) return
+    void bridge.chat.subscribeMux(conversationId)
+    return () => {
+      void bridge.chat.unsubscribeMux?.(conversationId)
+    }
+  }, [bridgeReady, state?.conversationId])
+
+  useEffect(() => {
+    const bridge = getBridge()
+    if (!bridge?.chat?.onMux) return
+    return bridge.chat.onMux((payload) => {
+      if (payload.conversationId !== activeConversationIdRef.current) return
+      dshMuxTapeRef.current.push(payload)
+      if (dshMuxTapeRef.current.length > 800) dshMuxTapeRef.current.splice(0, dshMuxTapeRef.current.length - 800)
+    })
+  }, [bridgeReady])
+
+  useEffect(() => {
+    if (!projectionStreamActive || !dshView) return
+    applyDshProjectionToStreamState(dshView, {
+      setStreamText,
+      setStreamThinking,
+      setStreamActivity,
+      setPromptQueue,
+    })
+  }, [projectionStreamActive, dshView])
+
+  useEffect(() => {
+    if (projectionStreamActive) return
+    if (dshView?.toolRows?.length) return
+    if (!dshView?.runningCalls?.length) return
+    if (dshView.conversationId !== activeConversationIdRef.current) return
+    setToolTraces((current) => mergeDshRunningCallsIntoTraces(current, dshView.runningCalls))
+  }, [dshView, projectionStreamActive])
+
+  useEffect(() => {
+    const bridge = getBridge()
     if (!bridge?.chat) return
     return bridge.chat.onStream((event: ChatStreamEvent) => {
+      const skipStreamContent = isStreamEventSupersededByProjection(event, projectionStreamActive)
       if (event.type === 'start' && event.conversationId) {
         runningConversationsRef.current.add(event.conversationId)
         syncRunningConversationIds()
@@ -167,12 +314,39 @@ export function useAppBackend() {
         runningConversationsRef.current.delete(event.conversationId)
         syncRunningConversationIds()
         conversationStartedAtRef.current.delete(event.conversationId)
+        conversationStreamRef.current.delete(event.conversationId)
         if (activeConversationIdRef.current === event.conversationId) {
           setSending(false)
           setStreamStartedAt(null)
         }
       }
+      // Fallback cleanup for done/error events without conversationId (should use active conversation)
+      if ((event.type === 'done' || event.type === 'error') && !event.conversationId && activeConversationIdRef.current) {
+        runningConversationsRef.current.delete(activeConversationIdRef.current)
+        syncRunningConversationIds()
+        conversationStartedAtRef.current.delete(activeConversationIdRef.current)
+        conversationStreamRef.current.delete(activeConversationIdRef.current)
+        setSending(false)
+        setStreamStartedAt(null)
+      }
+
+      const bufferable = event.type !== 'compaction'
+        && event.type !== 'retry'
+        && event.type !== 'tasks'
+        && event.type !== 'orchestration'
+        && event.type !== 'model_route'
+      if (event.conversationId && bufferable) {
+        const prev = conversationStreamRef.current.get(event.conversationId) ?? emptyConversationStream()
+        conversationStreamRef.current.set(
+          event.conversationId,
+          applyStreamEventToSnapshot(prev, event),
+        )
+      }
       if (event.conversationId && event.conversationId !== activeConversationIdRef.current) return
+
+      if (skipStreamContent && event.type !== 'start' && event.type !== 'done' && event.type !== 'error') {
+        return
+      }
 
       if (event.type === 'thinking_start') {
         // 多轮工具循环会重复 thinking_start；勿清空已累积内容
@@ -184,7 +358,7 @@ export function useAppBackend() {
       if (event.type === 'thinking_delta') {
         setStreamThinking((prev) => ({
           text: event.fullThinking || prev?.text || '',
-          durationMs: prev?.durationMs,
+          durationMs: event.durationMs ?? prev?.durationMs,
         }))
       }
       if (event.type === 'thinking_end') {
@@ -193,7 +367,11 @@ export function useAppBackend() {
           durationMs: event.durationMs ?? prev?.durationMs,
         }))
       }
-      if (event.type === 'delta') setStreamText(event.full)
+      if (event.type === 'activity') setStreamActivity(shortStreamActivityLabel(event.message ?? null))
+      if (event.type === 'delta') {
+        setStreamActivity(null)
+        setStreamText(event.full)
+      }
       if (event.type === 'done') {
         setStreamText(event.full)
         if (event.fullThinking && String(event.fullThinking).trim()) {
@@ -218,6 +396,7 @@ export function useAppBackend() {
       if (event.type === 'start') {
         setStreamText('')
         setStreamThinking(null)
+        setStreamActivity(null)
         setStreamBlocks([])
         setPromptQueue(emptyPromptQueue())
       }
@@ -287,7 +466,7 @@ export function useAppBackend() {
         }
       }
     })
-  }, [refreshSessionStats, syncRunningConversationIds])
+  }, [refreshSessionStats, syncRunningConversationIds, projectionStreamActive])
 
   useEffect(() => {
     const bridge = getBridge()
@@ -301,17 +480,16 @@ export function useAppBackend() {
 
   useEffect(() => {
     if (!sending) {
-      setLiveContext(null)
       return
     }
     const bridge = getBridge()
     if (!bridge?.chat?.getLiveContext) return
     const timer = window.setInterval(() => {
       const expectedConversationId = activeConversationIdRef.current
-      void bridge.chat.getLiveContext().then((res) => {
+      void bridge.chat.getLiveContext(expectedConversationId).then((res) => {
         if (res.ok && expectedConversationId === activeConversationIdRef.current) setLiveContext(res.data)
       })
-      void bridge.chat.getSessionStats?.().then((res) => {
+      void bridge.chat.getSessionStats?.(expectedConversationId).then((res) => {
         if (res?.ok && expectedConversationId === activeConversationIdRef.current) setSessionStats(res.data)
       })
     }, 2000)
@@ -368,7 +546,10 @@ export function useAppBackend() {
           setStreamText(null)
           setStreamThinking(null)
           setStreamBlocks([])
-          await reload()
+          // Don't reload if there are other running conversations - it would clear their in-flight messages
+          if (runningConversationsRef.current.size === 0) {
+            await reload()
+          }
           setError(res.error)
         }
         return false
@@ -400,7 +581,10 @@ export function useAppBackend() {
         setStreamText(null)
         setStreamThinking(null)
         setStreamBlocks([])
-        await reload()
+        // Don't reload if there are other running conversations - it would clear their in-flight messages
+        if (runningConversationsRef.current.size === 0) {
+          await reload()
+        }
       }
       return true
     },
@@ -410,7 +594,7 @@ export function useAppBackend() {
   const cancelMessage = useCallback(async () => {
     const bridge = getBridge()
     if (!bridge?.chat) return false
-    const res = await bridge.chat.cancel()
+    const res = await bridge.chat.cancel(activeConversationIdRef.current)
     if (!res.ok) {
       setError(res.error)
       return false
@@ -421,6 +605,8 @@ export function useAppBackend() {
   const steerMessage = useCallback(async (text: string) => {
     const bridge = getBridge()
     if (!bridge?.chat) return false
+    const conversationId = activeConversationIdRef.current
+    if (!conversationId) return false
     const time = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false })
     const optimisticMessage: ChatMessage = {
       id: `m-steer-${Date.now()}`,
@@ -431,7 +617,7 @@ export function useAppBackend() {
       behavior: 'steer',
     }
     setState((current) => current ? { ...current, messages: [...current.messages, optimisticMessage] } : current)
-    const res = await bridge.chat.steer(text)
+    const res = await bridge.chat.steer(text, conversationId)
     if (!res.ok) {
       setError(res.error)
       return false
@@ -442,6 +628,8 @@ export function useAppBackend() {
   const followUpMessage = useCallback(async (text: string) => {
     const bridge = getBridge()
     if (!bridge?.chat) return false
+    const conversationId = activeConversationIdRef.current
+    if (!conversationId) return false
     const time = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false })
     const optimisticMessage: ChatMessage = {
       id: `m-followup-${Date.now()}`,
@@ -452,7 +640,7 @@ export function useAppBackend() {
       behavior: 'followUp',
     }
     setState((current) => current ? { ...current, messages: [...current.messages, optimisticMessage] } : current)
-    const res = await bridge.chat.followUp(text)
+    const res = await bridge.chat.followUp(text, conversationId)
     if (!res.ok) {
       setError(res.error)
       return false
@@ -540,14 +728,23 @@ export function useAppBackend() {
     resetTransientConversationState()
     activeConversationIdRef.current = res.data.conversationId
     setState(res.data)
-    setToolTraces(res.data.outputLogs ?? [])
+    const streamSnap = conversationStreamRef.current.get(res.data.conversationId)
+    if (streamSnap) applyConversationStreamSnapshot(streamSnap)
+    else setToolTraces(res.data.outputLogs ?? [])
     setSending(isConversationRunning(res.data.conversationId))
     setStreamStartedAt(conversationStartedAtRef.current.get(res.data.conversationId) ?? null)
     setOrchestrationChoice(orchestrationChoicesRef.current.get(res.data.conversationId) ?? null)
     setPermissionPrompt(permissionPromptsRef.current.get(res.data.conversationId) ?? null)
     setError(null)
+
+    // Clean up ghost state: if backend says this conversation isn't running, don't show it as running
+    if (!isConversationRunning(res.data.conversationId)) {
+      conversationStartedAtRef.current.delete(res.data.conversationId)
+      conversationStreamRef.current.delete(res.data.conversationId)
+    }
+
     return true
-  }, [isConversationRunning, refreshSessionStats, resetTransientConversationState])
+  }, [applyConversationStreamSnapshot, isConversationRunning, refreshSessionStats, resetTransientConversationState])
 
   const renameThread = useCallback(async (threadId: string, title: string) => {
     const bridge = getBridge()
@@ -682,7 +879,9 @@ export function useAppBackend() {
   }) => {
     const bridge = getBridge()
     if (!bridge?.chat?.queueMutate) return false
-    const res = await bridge.chat.queueMutate(payload)
+    const conversationId = activeConversationIdRef.current
+    if (!conversationId) return false
+    const res = await bridge.chat.queueMutate({ ...payload, conversationId })
     if (res.ok && res.data.ok) {
       setPromptQueue({
         steering: res.data.steering ?? [],
@@ -720,6 +919,33 @@ export function useAppBackend() {
     return true
   }, [])
 
+  const setCurrentThreadModel = useCallback(async (modelKey: string, thinkingLevel?: ThinkingLevel) => {
+    const bridge = getBridge()
+    if (!bridge?.app?.setModelKey) return false
+
+    // 先更新后端 modelKey
+    const modelRes = await bridge.app.setModelKey(modelKey)
+    if (!modelRes.ok) {
+      setError(modelRes.error)
+      return false
+    }
+
+    // 更新思考等级（如果提供）
+    if (thinkingLevel && bridge.app.setThinkingLevel) {
+      const thinkingRes = await bridge.app.setThinkingLevel(thinkingLevel)
+      if (!thinkingRes.ok) {
+        setError(thinkingRes.error)
+        return false
+      }
+      setState(thinkingRes.data)
+    } else {
+      setState(modelRes.data)
+    }
+
+    setError(null)
+    return true
+  }, [])
+
   const sendTaskMessage = useCallback(async (taskId: string, text: string) => {
     const bridge = getBridge()
     if (!bridge?.tasks) {
@@ -734,22 +960,38 @@ export function useAppBackend() {
     return true
   }, [])
 
-  const setCurrentThreadModel = useCallback((modelKey: string, thinkingLevel?: ThinkingLevel) => {
-    setState((current) => {
-      if (!current) return current
-      return {
-        ...current,
-        modelKey,
-        ...(thinkingLevel ? { thinkingLevel } : {}),
-        threads: current.threads.map((t) => (t.id === current.currentThreadId ? { ...t, modelKey, ...(thinkingLevel ? { thinkingLevel } : {}) } : t)),
+  const setCurrentThreadModel = useCallback(async (modelKey: string, thinkingLevel?: ThinkingLevel) => {
+    const bridge = getBridge()
+    if (!bridge?.app?.setModelKey) return false
+
+    // Update backend first
+    const modelRes = await bridge.app.setModelKey(modelKey)
+    if (!modelRes.ok) {
+      setError(modelRes.error)
+      return false
+    }
+
+    // Update thinking level if provided
+    if (thinkingLevel && bridge.app.setThinkingLevel) {
+      const thinkingRes = await bridge.app.setThinkingLevel(thinkingLevel)
+      if (!thinkingRes.ok) {
+        setError(thinkingRes.error)
+        return false
       }
-    })
+      setState(thinkingRes.data)
+    } else {
+      setState(modelRes.data)
+    }
+
+    setError(null)
+    return true
   }, [])
 
   return {
     bridgeReady,
     state,
-    messages: state?.messages ?? [],
+    messages: displayMessages,
+    storedMessages: state?.messages ?? [],
     tasks: (state?.tasks ?? []) as TaskNode[],
     threadTitle: state?.threadTitle ?? '新对话',
     workspacePath: state?.workspacePath ?? null,
@@ -759,10 +1001,11 @@ export function useAppBackend() {
     streamText,
     streamStartedAt,
     streamThinking,
+    streamActivity,
     streamBlocks,
     permissionPrompt,
     respondPermissionPrompt,
-    liveContext,
+    liveContext: projectionLiveContext ?? liveContext,
     sessionStats,
     refreshSessionStats,
     busyEnterMode,
@@ -770,6 +1013,7 @@ export function useAppBackend() {
     mutateQueue,
     retryBanner,
     toolTraces,
+    dshToolRows,
     promptQueue,
     skills,
     threads: state?.threads ?? [],

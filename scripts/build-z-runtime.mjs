@@ -303,6 +303,23 @@ async function stageWebFrontendDist(stagingRoot, monorepoRoot, scope) {
   console.log(`build-z-runtime: 已打入 ${scope}dsh-web-frontend/dist`)
 }
 
+/** Node-safe SessionManager (lib/types tree); deploy package omits this in favor of web client.js. */
+async function stageMainProcessSessionManagerLib(stagingRoot, monorepoRoot) {
+  const srcTypes = path.join(monorepoRoot, 'packages/client/runtime/lib/types')
+  const manager = path.join(srcTypes, 'client/sessions/manager.js')
+  if (!fs.existsSync(manager)) {
+    console.warn(
+      'build-z-runtime: packages/client/runtime/lib/types 未构建，主进程 SessionManager 将不可用（请在 z-runtime 内 build client face）',
+    )
+    return
+  }
+  const destRoot = path.join(stagingRoot, 'electron-vendor', 'dsh-client-runtime-lib')
+  const destTypes = path.join(destRoot, 'lib/types')
+  await fsp.rm(destRoot, { recursive: true, force: true })
+  await copyDir(srcTypes, destTypes)
+  console.log('build-z-runtime: 已打入 electron-vendor/dsh-client-runtime-lib（SessionManager）')
+}
+
 async function stageApiClient(stagingRoot, scope) {
   const rel = 'lib/types/client/web-api-client.js'
   const from = path.join(runtimeModulesDir(stagingRoot), `${scope}dsh-client-connection`, rel)
@@ -389,6 +406,7 @@ async function main() {
   await stageWebFrontendDist(outDir, monorepoRoot, scope)
   const url = await repairClosure(outDir, monorepoRoot)
   await stageApiClient(outDir, scope)
+  await stageMainProcessSessionManagerLib(outDir, monorepoRoot)
   console.log('build-z-runtime: 同步 pi-ai 模型目录 …')
   await run(process.execPath, [path.join(root, 'scripts/upgrade-vendor-pi-ai.mjs')])
   const packagesRoot = resolveRuntimeNodePath(outDir) ?? runtimeModulesDir(outDir)

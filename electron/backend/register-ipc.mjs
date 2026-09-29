@@ -46,7 +46,7 @@ import {
 import { resolveModelKeyForChat } from './chat-model-resolver.mjs'
 import { createWebSearchService } from './web-search-service.mjs'
 import { createAppPreferencesStore } from './app-preferences.mjs'
-import { installSandboxBridge, probeSandboxSupport } from './sandbox-service.mjs'
+import { probeSandboxSupport } from './sandbox-service.mjs'
 import { resolveSandboxPolicy, renderFileSandboxContext } from './sandbox-policy.mjs'
 import { createSandboxSessionStore } from './sandbox-session-mode.mjs'
 import { createCredentialStore } from './credential-store.mjs'
@@ -59,6 +59,7 @@ import { listModelsFromExport } from './opencodex-sync.mjs'
 import { migrateLegacyModelsJson, resolveTaskWeaverModelsPath } from './taskweaver-models-path.mjs'
 import { ensureModelsJsonSyncedToDshHost } from './sync-models-json-to-host.mjs'
 import { IPC_PLANNER_FALLBACK_HINT_MAX_LENGTH, IPC_ERROR_MESSAGE_MAX_LENGTH } from './config.mjs'
+import { resolveConversationId } from './conversation-id-routing.mjs'
 
 function ipcHandle(ipcMain, channel, fn) {
   ipcMain.handle(channel, async (event, ...args) => {
@@ -117,6 +118,8 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
     userDataPath: userData,
     executable: process.execPath,
   })
+  const { createZConversationHub } = await import('./z-conversation-hub.mjs')
+  const conversationHub = createZConversationHub({ runtimeRoot })
   void migrateLegacyModelsJson(userData).catch((error) => {
     console.warn('models.json 迁移失败:', error instanceof Error ? error.message : error)
   })
@@ -201,18 +204,27 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
     const state = conversationId && appState.getConversationState
       ? await appState.getConversationState(conversationId)
       : await appState.getState()
-    const workspacePath = state.workspacePath || fallbackWorkspace
+    // 区分「用户没选工作区」和「工作区恰好是某个路径」：只有前者会退化成 process.cwd()。
+    const workspaceBound = typeof state.workspacePath === 'string' && state.workspacePath.length > 0
+    const workspacePath = workspaceBound ? state.workspacePath : fallbackWorkspace
     const prefs = await appPreferences.get()
     const sessionRow = conversationId ? await sandboxSession.get(conversationId) : null
     const trusted = await workspaceTrust.get(workspacePath)
     return {
       conversationId: state.conversationId,
       workspacePath,
+      workspaceBound,
       permissionMode: state.permissionMode || 'ask',
       workspaceTrusted: trusted.trusted === true,
       bashSandbox: prefs.bashSandbox || 'auto',
       sessionSandboxMode: sessionRow?.mode ?? null,
     }
+  }
+  const UNBOUND_WORKSPACE_ERROR = '当前对话还没有绑定工作区。未绑定工作区时 DSH 会话会落在文件系统根目录，'
+    + '文件写入沙箱边界将失效，因此本次消息已阻止。请先选择一个工作区文件夹再发送。'
+  /** 发送前的最后一道闸：没有工作区就不要建立 DSH 会话。 */
+  const assertWorkspaceBound = (context) => {
+    if (!context?.workspaceBound) throw new Error(UNBOUND_WORKSPACE_ERROR)
   }
   const sandboxContextLineForContext = (context) => {
     const resolved = resolveSandboxPolicy({
@@ -224,12 +236,6 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
     if (resolved.file.mode === 'off') return null
     return renderFileSandboxContext(resolved.file, resolved.workspaceRoot)
   }
-  installSandboxBridge({
-    getWorkspacePath: () => cachedWorkspace,
-    getBashSandboxPref: () => cachedBashSandbox,
-    getPermissionMode: () => cachedPermissionMode,
-    getSessionSandboxMode: () => cachedSessionSandboxMode,
-  })
   const skills = createSkillService({
     agentDataPath,
     builtInSkillsPath,
@@ -250,6 +256,14 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
     } finally {
       turnInProgressByConversation.delete(conversationId)
     }
+  }
+
+  const resolveIpcConversationId = async (requestedConversationId) => {
+    const state = requestedConversationId === undefined ? await appState.getState() : null
+    return resolveConversationId(
+      requestedConversationId,
+      state?.conversationId ?? cachedConversationId,
+    )
   }
 
   const assertNotBusy = (targetConversationId) => {
@@ -321,16 +335,11 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
 
   const chat = createDshChatService({
     hostManager,
+    conversationHub,
     userDataPath: userData,
     getWorkspacePath: () => cachedWorkspace,
     profileStore,
     modelService,
-    getLegacyTranscript: async (conversationId) => {
-      const state = appState.getConversationState
-        ? await appState.getConversationState(conversationId)
-        : await appState.getState()
-      return state.messages || []
-    },
     getPermissionMode: async (conversationId) => {
       const state = conversationId && appState.getConversationState
         ? await appState.getConversationState(conversationId)
@@ -407,10 +416,27 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
 
   ipcHandle(ipcMain, 'app:listThreads', () => appState.listThreads())
 
-  ipcHandle(ipcMain, 'app:switchThread', async (_event, threadId) => {
+  ipcHandle(ipcMain, 'app:switchThread', async (event, threadId) => {
+    const prior = await appState.getState()
+    const priorConversationId = prior?.conversationId
+    if (priorConversationId) conversationHub.detachSession(priorConversationId)
     await chat.resetSession()
     const state = await appState.switchThread(threadId)
     await refreshWorkspaceCache()
+    const conversationId = state?.conversationId
+    if (conversationId) {
+      const sessionId = chat.getSessionId(conversationId)
+      if (sessionId) {
+        try {
+          await conversationHub.attachSession(conversationId, sessionId, event.sender)
+        } catch (error) {
+          console.warn(
+            '[register-ipc] conversation hub attach:',
+            error instanceof Error ? error.message : error,
+          )
+        }
+      }
+    }
     return state
   })
 
@@ -426,8 +452,36 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
     if (before.currentThreadId === threadId) await chat.resetSession()
     const state = await appState.deleteThread(threadId)
     await refreshWorkspaceCache()
+    // 回收 DSH 侧：删掉映射条目（含编排子会话）并断开 hub 订阅。
+    // 磁盘上的会话日志保留 —— 删除不可逆，日志仍可用于排查与恢复。
+    if (target?.conversationId) {
+      try {
+        const { removed } = await chat.forgetConversation(target.conversationId)
+        for (const conversationId of removed) conversationHub.detachSession(conversationId)
+      } catch (error) {
+        console.warn('[register-ipc] deleteThread 回收 DSH 会话映射失败:', error instanceof Error ? error.message : error)
+      }
+    }
     return state
   })
+
+  /**
+   * 把 UI 上的分支点换算成「保留前几轮」。
+   * 一个 user 消息对应 DSH 日志里的一个 turn，因此切片里的 user 消息数就是轮数。
+   */
+  const resolveForkCompletedTurns = async (sourceConversationId, messageId) => {
+    if (!sourceConversationId) return undefined
+    const sourceState = await appState.getConversationState(sourceConversationId).catch(() => null)
+    const messages = Array.isArray(sourceState?.messages) ? sourceState.messages : []
+    if (!messages.length) return undefined
+    let slice = messages
+    if (messageId) {
+      const index = messages.findIndex((message) => message.id === messageId)
+      if (index >= 0) slice = messages.slice(0, index + 1)
+    }
+    const userTurns = slice.filter((message) => message.author === 'user').length
+    return userTurns > 0 ? userTurns : undefined
+  }
 
   ipcHandle(ipcMain, 'app:forkThread', async (_event, threadId, messageId) => {
     const source = (await appState.listThreads()).find((thread) => thread.id === threadId)
@@ -435,6 +489,23 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
     await chat.resetSession()
     const state = await appState.forkThread(threadId, messageId)
     await refreshWorkspaceCache()
+    // fork 出来的对话此前是「UI 有消息、模型是空的」：DSH 侧是新建的空会话。
+    // 这里同步 fork 源 DSH 会话，让分支真正继承上下文。
+    if (source?.conversationId && state?.conversationId) {
+      try {
+        const completedTurns = await resolveForkCompletedTurns(source.conversationId, messageId)
+        const result = await chat.forkConversation({
+          sourceConversationId: source.conversationId,
+          targetConversationId: state.conversationId,
+          completedTurns,
+        })
+        if (!result?.ok) {
+          console.warn('[register-ipc] forkThread 未继承 DSH 上下文:', result?.reason, result?.error ?? '')
+        }
+      } catch (error) {
+        console.warn('[register-ipc] forkThread 同步 DSH 会话失败:', error instanceof Error ? error.message : error)
+      }
+    }
     return state
   })
 
@@ -442,6 +513,14 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
     const state = await appState.setPermissionMode(mode)
     await refreshWorkspaceCache()
     return state
+  })
+
+  ipcHandle(ipcMain, 'app:setModelKey', async (_event, modelKey) => {
+    return await appState.setModelKey(modelKey)
+  })
+
+  ipcHandle(ipcMain, 'app:setThinkingLevel', async (_event, thinkingLevel) => {
+    return await appState.setThinkingLevel(thinkingLevel)
   })
 
   ipcHandle(ipcMain, 'workspace:listContext', async (_event, query, limit) => {
@@ -536,14 +615,14 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
   ipcHandle(ipcMain, 'models:getActive', () => profileStore.getActiveModelKey())
   ipcHandle(ipcMain, 'models:setActive', async (_event, modelKey) => {
     const key = await profileStore.setActiveModelKey(modelKey)
-    const level = await profileStore.getThinkingLevel(key)
-    await chat.updateThinkingLevel(level)
+    if (cachedConversationId) await chat.applyComposerModel(cachedConversationId, key)
     return key
   })
   ipcHandle(ipcMain, 'models:getThinkingLevel', () => modelService.getThinkingLevel())
   ipcHandle(ipcMain, 'models:setThinkingLevel', async (_event, level) => {
     const res = await modelService.setThinkingLevel(level)
-    await chat.updateThinkingLevel(level)
+    const activeKey = await profileStore.getActiveModelKey()
+    if (cachedConversationId && activeKey) await chat.applyComposerModel(cachedConversationId, activeKey)
     return res
   })
   ipcHandle(ipcMain, 'models:getBusyEnterMode', () => profileStore.getBusyEnterMode())
@@ -751,9 +830,8 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
     })
   })
 
-  ipcHandle(ipcMain, 'chat:cancel', async () => {
-    const state = await appState.getState()
-    const conversationId = state?.conversationId ?? null
+  ipcHandle(ipcMain, 'chat:cancel', async (_event, requestedConversationId) => {
+    const conversationId = await resolveIpcConversationId(requestedConversationId)
     if (!conversationId) return { stopped: false }
     const chatStopped = await chat.abort(conversationId)
     const orchestrationStopped = await orchestration.abort(conversationId)
@@ -761,8 +839,8 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
   })
 
   ipcHandle(ipcMain, 'chat:queueMutate', async (event, payload) => {
-    const state = await appState.getState()
-    const conversationId = state?.conversationId ?? null
+    const conversationId = await resolveIpcConversationId(payload?.conversationId)
+    if (!conversationId) throw new Error('当前对话标识无效')
     const kind = payload?.kind === 'followUp' ? 'followUp' : 'steering'
     const index = Number(payload?.index)
     const action = payload?.action === 'update' ? 'update' : 'remove'
@@ -770,6 +848,7 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
     if (result.ok && event.sender && !event.sender.isDestroyed()) {
       event.sender.send('chat:stream', {
         type: 'queue_update',
+        conversationId,
         steering: result.steering ?? [],
         followUp: result.followUp ?? [],
       })
@@ -777,15 +856,46 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
     return result
   })
 
-  ipcHandle(ipcMain, 'chat:getLiveContext', async () => {
-    const state = await appState.getState()
-    const conversationId = state?.conversationId ?? null
+  ipcHandle(ipcMain, 'chat:getLiveContext', async (_event, requestedConversationId) => {
+    const conversationId = await resolveIpcConversationId(requestedConversationId)
+    if (!conversationId) return null
     return chat.getLiveContextUsage(conversationId)
   })
 
-  ipcHandle(ipcMain, 'chat:getSessionStats', async () => {
-    const state = await appState.getState()
-    const conversationId = state?.conversationId ?? null
+  ipcHandle(ipcMain, 'chat:subscribeMux', async (event, conversationId) => {
+    if (!conversationId || typeof conversationId !== 'string') throw new Error('缺少会话标识')
+    chat.subscribeMux(conversationId, event.sender)
+    const sessionId = chat.getSessionId(conversationId)
+    if (sessionId) {
+      try {
+        await conversationHub.attachSession(conversationId, sessionId, event.sender)
+        conversationHub.subscribe(conversationId, event.sender)
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        console.warn('[register-ipc] chat:subscribeMux hub:', message)
+        return { ok: false, error: message }
+      }
+    }
+    return { ok: true }
+  })
+
+  ipcHandle(ipcMain, 'chat:unsubscribeMux', async (event, conversationId) => {
+    if (conversationId && typeof conversationId === 'string') {
+      chat.unsubscribeMux(conversationId, event.sender)
+      conversationHub.detachSession(conversationId)
+    }
+    return { ok: true }
+  })
+
+  ipcHandle(ipcMain, 'chat:getDshView', async (_event, requestedConversationId) => {
+    const id = await resolveIpcConversationId(requestedConversationId)
+    if (!id) return null
+    return conversationHub.getView(id)
+  })
+
+  ipcHandle(ipcMain, 'chat:getSessionStats', async (_event, requestedConversationId) => {
+    const conversationId = await resolveIpcConversationId(requestedConversationId)
+    if (!conversationId) return null
     const stats = await chat.getSessionStatsSnapshot(conversationId)
     return stats
   })
@@ -795,12 +905,12 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
     return { ok }
   })
 
-  ipcHandle(ipcMain, 'chat:steer', async (event, text) => {
+  ipcHandle(ipcMain, 'chat:steer', async (event, text, requestedConversationId) => {
     if (!text || typeof text !== 'string') throw new Error('内容不能为空')
-    const state = await appState.getState()
-    const conversationId = state?.conversationId ?? cachedConversationId
+    const conversationId = await resolveIpcConversationId(requestedConversationId)
     if (!conversationId) throw new Error('当前对话标识无效')
     const runtimeContext = await getConversationRuntimeContext(conversationId)
+    assertWorkspaceBound(runtimeContext)
     const time = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false })
     const userEntry = {
       id: `m-steer-${Date.now()}`,
@@ -822,12 +932,12 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
     }), { conversationId })
   })
 
-  ipcHandle(ipcMain, 'chat:followUp', async (event, text) => {
+  ipcHandle(ipcMain, 'chat:followUp', async (event, text, requestedConversationId) => {
     if (!text || typeof text !== 'string') throw new Error('内容不能为空')
-    const state = await appState.getState()
-    const conversationId = state?.conversationId ?? cachedConversationId
+    const conversationId = await resolveIpcConversationId(requestedConversationId)
     if (!conversationId) throw new Error('当前对话标识无效')
     const runtimeContext = await getConversationRuntimeContext(conversationId)
+    assertWorkspaceBound(runtimeContext)
     const time = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false })
     const userEntry = {
       id: `m-followup-${Date.now()}`,
@@ -1024,12 +1134,7 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
   /**
    * 执行多 Agent 协作
    */
-  const executeMultiAgent = async (effectivePrompt, activeKey, selectedSkill, event, workMode, execution, conversationId, runtimeContext) => {
-    event.sender.send('chat:stream', {
-      type: 'orchestration',
-      mode: 'multi-agent',
-      reason: workMode === 'goal' ? '目标模式触发多智能体协作' : execution.reason
-    })
+  const executeMultiAgent = async (effectivePrompt, activeKey, selectedSkill, event, execution, conversationId, runtimeContext) => {
     try {
       const outcome = await orchestration.planAndExecute({
         text: effectivePrompt,
@@ -1051,12 +1156,7 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
     } catch (error) {
       if (error instanceof PlannerFallbackError || error?.code === 'PLANNER_FALLBACK') {
         const hint = error instanceof Error ? error.message : String(error)
-        event.sender.send('chat:stream', {
-          type: 'orchestration',
-          mode: 'single-agent',
-          reason: `多 Agent 规划失败，已自动降级为单 Agent：${hint.slice(0, IPC_PLANNER_FALLBACK_HINT_MAX_LENGTH)}`,
-        })
-        return chat.send({
+        const result = await chat.send({
           text: effectivePrompt,
           modelKey: activeKey,
           conversationId,
@@ -1064,6 +1164,13 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
           webContents: event.sender,
           skill: selectedSkill,
         })
+        // 降级说明挂在最终消息的 callout 上。原来靠 `chat:stream` 的 orchestration 事件传，
+        // 但渲染端没有该分支、且事件不带 conversationId —— 消息会被静默丢弃，用户看不到。
+        // 同时这也修掉了一个误导：降级后 tasks 为空，旧逻辑会写成「拆分并执行 0 个子任务」。
+        return {
+          ...result,
+          callout: `多 Agent 规划失败，已自动降级为单 Agent：${hint.slice(0, IPC_PLANNER_FALLBACK_HINT_MAX_LENGTH)}`,
+        }
       }
       throw error
     }
@@ -1072,12 +1179,7 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
   /**
    * 执行单 Agent 调用
    */
-  const executeSingleAgent = async (effectivePrompt, activeKey, selectedSkill, event, workMode, execution, conversationId, runtimeContext) => {
-    event.sender.send('chat:stream', {
-      type: 'orchestration',
-      mode: 'single-agent',
-      reason: workMode === 'plan' ? '计划模式：生成实施方案' : execution.reason
-    })
+  const executeSingleAgent = async (effectivePrompt, activeKey, selectedSkill, event, execution, conversationId, runtimeContext) => {
     return chat.send({
       text: effectivePrompt,
       modelKey: activeKey,
@@ -1091,12 +1193,12 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
   /**
    * 执行聊天请求（多 Agent 或单 Agent）
    */
-  const executeChatRequest = async (execution, effectivePrompt, activeKey, selectedSkill, event, workMode, conversationId, runtimeContext) => {
+  const executeChatRequest = async (execution, effectivePrompt, activeKey, selectedSkill, event, conversationId, runtimeContext) => {
     return permissions.withExecution(runtimeContext.permissionMode, event.sender, async () => {
       if (execution.mode === 'multi-agent') {
-        return executeMultiAgent(effectivePrompt, activeKey, selectedSkill, event, workMode, execution, conversationId, runtimeContext)
+        return executeMultiAgent(effectivePrompt, activeKey, selectedSkill, event, execution, conversationId, runtimeContext)
       }
-      return executeSingleAgent(effectivePrompt, activeKey, selectedSkill, event, workMode, execution, conversationId, runtimeContext)
+      return executeSingleAgent(effectivePrompt, activeKey, selectedSkill, event, execution, conversationId, runtimeContext)
     }, { conversationId })
   }
 
@@ -1120,6 +1222,11 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
    * 创建并存储助手消息
    */
   const createAssistantMessage = async (result, messageId, time, activeKey, execution, conversationId) => {
+    // 执行层给的 callout 优先（例如多 Agent 降级为单 Agent），否则按执行模式回落到默认说明。
+    const callout = result.callout
+      ?? (execution.mode === 'multi-agent'
+        ? `由 TaskWeaver 拆分并执行 ${(await appState.getConversationState(conversationId)).tasks.length} 个子任务`
+        : undefined)
     const agentEntry = {
       id: `${messageId}-a`,
       author: 'orchestrator',
@@ -1132,9 +1239,7 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
       contentBlocks: Array.isArray(result.contentBlocks) ? result.contentBlocks : undefined,
       modelKey: activeKey,
       usage: result.usage,
-      callout: execution.mode === 'multi-agent'
-        ? `由 TaskWeaver 拆分并执行 ${ (await appState.getConversationState(conversationId)).tasks.length } 个子任务`
-        : undefined,
+      callout,
     }
     await appState.appendMessagesToConversation(conversationId, agentEntry)
     return agentEntry
@@ -1142,12 +1247,12 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
 
   // ========== chat:send main handler ==========
 
-  ipcHandle(ipcMain, 'chat:send', async (event, text, modelKey, skillName, executionModeOverride, workMode = 'code') => {
+  ipcHandle(ipcMain, 'chat:send', async (event, text, modelKey, skillName, executionModeOverride, workMode = 'code', requestedConversationId) => {
     // 先获取当前会话 ID，再用它加锁，避免并发时串会话
-    const state = await appState.getState()
-    const conversationId = state?.conversationId ?? cachedConversationId
+    const conversationId = await resolveIpcConversationId(requestedConversationId)
     if (!conversationId) throw new Error('当前对话标识无效')
     const runtimeContext = await getConversationRuntimeContext(conversationId)
+    assertWorkspaceBound(runtimeContext)
 
     return withTurnLock(conversationId, async () => {
 
@@ -1175,7 +1280,7 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
 
     let result
     try {
-      result = await executeChatRequest(execution, effectivePrompt, activeKey, selectedSkill, event, workMode, conversationId, runtimeContext)
+      result = await executeChatRequest(execution, effectivePrompt, activeKey, selectedSkill, event, conversationId, runtimeContext)
     } catch (error) {
       await handleChatError(error, messageId, time, conversationId)
     }

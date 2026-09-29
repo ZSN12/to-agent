@@ -1,12 +1,12 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
-import { Clock, Database, PieChart } from 'lucide-react'
+import { Clock, Database } from 'lucide-react'
 import type { ChatMessage } from '../../types'
 import type { ContextBreakdownEstimate, LiveContextUsage, SessionStatsSnapshot } from '../../shared/app-api'
 import {
   billedInputTokens,
   cacheHitPercentDisplay,
   formatDurationZh,
-  formatTokensCompact,
+  formatDshCatalogTokens,
   formatTokensFull,
   summarizeDecodeThroughput,
   summarizeTurnTiming,
@@ -143,30 +143,40 @@ export function ComposerStatsDock({
   const totalTok = tokens.total > 0 ? tokens.total : billed + tokens.output
   const cacheHit = cacheHitPercentDisplay(tokens.cacheRead, billed)
 
-  const hasTiming = assistantMessages > 0 || timing.llmMs > 0 || timing.toolMs > 0
+  const hasTiming = userMessages > 0 || assistantMessages > 0 || timing.llmMs > 0 || timing.toolMs > 0
   const hasTokens = billed > 0 || tokens.output > 0
   const ctxPct = liveContext?.contextPercent ?? stats.contextPercent
   const ctxTokens = liveContext?.contextTokens ?? stats.contextTokens
   const ctxWindow = liveContext?.contextWindow ?? stats.contextWindow
-  const hasContext =
-    ctxPct !== null &&
-    ctxPct !== undefined &&
-    ctxWindow !== null &&
-    ctxWindow !== undefined &&
-    ctxWindow > 0
+  const occupancy =
+    typeof ctxWindow === 'number' && ctxWindow > 0 && typeof ctxTokens === 'number'
+      ? {
+          percent: Math.min(100, Math.max(0, Math.round(ctxTokens / ctxWindow * 100))),
+          used: ctxTokens,
+          window: ctxWindow,
+        }
+      : typeof ctxWindow === 'number' && ctxWindow > 0 && typeof ctxPct === 'number'
+        ? {
+            percent: Math.min(100, Math.max(0, Math.round(ctxPct))),
+            used: ctxTokens ?? 0,
+            window: ctxWindow,
+          }
+        : null
+  const hasContext = occupancy !== null
 
   if (!hasTiming && !hasTokens && !hasContext) return null
 
   const breakdown = liveContext?.contextBreakdown
-  const contextPercent = hasContext ? Math.min(100, Math.max(0, Math.round(ctxPct!))) : 0
-  const contextWindow = ctxWindow ?? 0
+  const contextPercent = occupancy?.percent ?? 0
+  const contextWindow = occupancy?.window ?? 0
+  const usedTokens = occupancy?.used ?? 0
 
   return (
     <footer className="composer-stats-dock" aria-label="会话统计与用量">
       {hasTiming && (
         <HoverDockPanel
           title="会话统计"
-          icon={<Clock size={14} aria-hidden />}
+          icon={<Clock size={12} strokeWidth={1.75} aria-hidden />}
           summary={
             <>
               {userMessages > 0 ? `${userMessages} 轮 ` : ''}
@@ -197,12 +207,12 @@ export function ComposerStatsDock({
         <HoverDockPanel
           title="Token 用量"
           titleExtra={
-            <span className="composer-stats-panel-total">{formatTokensFull(totalTok)} tok</span>
+            <span className="composer-stats-panel-total">{formatDshCatalogTokens(totalTok)} tok</span>
           }
-          icon={<Database size={14} aria-hidden />}
+          icon={<Database size={12} strokeWidth={1.75} aria-hidden />}
           summary={
             <>
-              {formatTokensCompact(totalTok)} tok
+              {formatDshCatalogTokens(totalTok)} tok
               {cacheHit !== null ? (
                 <>
                   <span className="composer-stats-dot" aria-hidden> · </span>
@@ -226,7 +236,7 @@ export function ComposerStatsDock({
           align="end"
           titleExtra={
             <span className="composer-stats-panel-total">
-              ~{formatTokensCompact(ctxTokens ?? 0)} / {formatTokensCompact(contextWindow)}
+              ~{formatDshCatalogTokens(usedTokens)} / {formatDshCatalogTokens(contextWindow)}
             </span>
           }
           icon={
@@ -254,17 +264,17 @@ export function ComposerStatsDock({
             <>
               <PanelRow
                 label="系统提示词"
-                value={`~${formatTokensCompact(breakdown.systemTokens)}`}
+                value={`~${formatDshCatalogTokens(breakdown.systemTokens)}`}
                 swatch="swatch-system"
               />
               <PanelRow
                 label="工具定义"
-                value={`~${formatTokensCompact(breakdown.toolsTokens)}`}
+                value={`~${formatDshCatalogTokens(breakdown.toolsTokens)}`}
                 swatch="swatch-tools"
               />
               <PanelRow
                 label="对话消息"
-                value={`~${formatTokensCompact(breakdown.messageTokens)}`}
+                value={`~${formatDshCatalogTokens(breakdown.messageTokens)}`}
                 swatch="swatch-messages"
               />
             </>

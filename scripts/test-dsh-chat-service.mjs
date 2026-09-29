@@ -2,11 +2,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import {
-  createDshChatService,
-  formatLegacyHistoryContext,
-  LEGACY_CONTEXT_VERSION,
-} from '../electron/backend/dsh-chat-service.mjs'
+import { createDshChatService } from '../electron/backend/dsh-chat-service.mjs'
 import { applySkillInstructions } from '../electron/backend/skill-prompt.mjs'
 
 const modelService = {
@@ -17,8 +13,26 @@ const modelService = {
     return [{ id: 'test', configured: true }]
   },
 }
-const profileStore = { async getThinkingLevel() { return 'high' } }
+const profileStore = { async getThinkingLevel() { return null } }
 const webContents = { send() {}, isDestroyed() { return false } }
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+/**
+ * 等待某个条件成立再继续。
+ *
+ * 这里不能用固定 `setTimeout`：`dsh-chat-service` 在会话创建与权限切换时都会
+ * `persistSessions()` 真写盘，磁盘抖动会让 10ms 的固定等待偶发不足，
+ * 于是断言随机落在「还没轮到」的瞬间（表现为 assert 失败或顶层 await 永久挂起）。
+ */
+async function waitFor(predicate, { label = 'condition', timeout = 5000, interval = 5 } = {}) {
+  const deadline = Date.now() + timeout
+  for (;;) {
+    if (predicate()) return
+    if (Date.now() > deadline) throw new Error(`等待超时（${timeout}ms）：${label}`)
+    await sleep(interval)
+  }
+}
 
 assert.equal(
   applySkillInstructions('用户任务', { name: 'dingtalk-chat', nativeInvocation: '/dingtalk-chat', source: 'dsh' }),
@@ -33,6 +47,7 @@ function createMockRuntime({ permissionCommandSupported = true } = {}) {
   const prompts = []
   const permissionCommands = []
   const approvalResponses = []
+  const sessionModels = new Map()
   let cancelCount = 0
 
   function push(frame) {
@@ -66,7 +81,26 @@ function createMockRuntime({ permissionCommandSupported = true } = {}) {
       },
       async selectModel(input) {
         selected.push(input)
-        return { result: { ok: true, value: { selected: input } } }
+        const selectedRoute = {
+          provider: input.provider,
+          model: input.model,
+          ...(input.reasoningEffort ? { reasoningEffort: input.reasoningEffort } : {}),
+        }
+        sessionModels.set(input.sessionId, selectedRoute)
+        return { result: { ok: true, value: { selected: selectedRoute } } }
+      },
+      async models({ sessionId }) {
+        return {
+          result: {
+            ok: true,
+            value: {
+              current: sessionModels.get(sessionId) ?? null,
+              routable: true,
+              groups: [],
+              failures: [],
+            },
+          },
+        }
       },
       async prompt(input) {
         if (input.content?.length === 1 && input.content[0]?.type === 'text' && input.content[0].text.startsWith('/permission ')) {
@@ -140,7 +174,10 @@ try {
   const sendErrors = []
   a.catch((error) => sendErrors.push(error))
   b.catch((error) => sendErrors.push(error))
-  await new Promise((resolve) => setTimeout(resolve, 100))
+  // 必须等到两轮都注册进 running 之后再投喂 turn/end：
+  // 事件是按会话 id 派发的，早于 running.set 到达的 turn/end 会被直接丢弃，
+  // 之后既不会再有结束事件，顶层 await 就会永久挂起。
+  await waitFor(() => service.isBusy('conversation-A') && service.isBusy('conversation-B'), { label: '两轮 send 都已注册为运行中' })
   assert.deepEqual(sendErrors, [])
   const skillPrompt = runtime.prompts.find((prompt) => prompt.sessionId === 'tw-conversation-A')?.content?.[0]?.text
   assert.match(skillPrompt, /必须检查边界条件并报告风险/)
@@ -165,15 +202,16 @@ try {
   assert.equal(service.isBusy('conversation-A'), false)
   assert.equal(service.isBusy('conversation-B'), false)
 
+  // 权限模式变更不需要显式通知：下一轮 ensurePermissionModeApplied 会比对
+  // entry.lastAppliedPermissionMode 并自动下发 /permission（这才是生产路径）。
   currentPermissionMode = 'full'
-  await service.syncPermissionMode('conversation-A', 'full')
   const fullPermissionTurn = service.send({
     text: 'permission change is active',
     modelKey: 'test/model-a',
     conversationId: 'conversation-A',
     webContents: scopedWebContents,
   })
-  await new Promise((resolve) => setTimeout(resolve, 10))
+  await waitFor(() => service.isBusy('conversation-A'), { label: 'full 模式会话已注册为运行中' })
   assert.equal(runtime.permissionCommands[2].content[0].text, '/permission danger-full-access')
   runtime.push({ payload: { type: 'session/event', sessionId: sessionA, event: { type: 'turn/end', data: { reason: { kind: 'completed' } } } } })
   await fullPermissionTurn
@@ -199,7 +237,7 @@ try {
   }
 
   const running = service.send({ text: 'wait-for-cancel', modelKey: 'test/model-c', conversationId: 'conversation-C', webContents: scopedWebContents })
-  await new Promise((resolve) => setTimeout(resolve, 10))
+  await waitFor(() => service.isBusy('conversation-C'), { label: 'conversation-C 已进入运行态' })
   assert.equal(await service.abort('conversation-C'), true)
   const cancelled = await running
   assert.equal(cancelled.cancelled, true)
@@ -215,7 +253,7 @@ try {
     agentPreset: 'code',
     taskId: 'T1',
   })
-  await new Promise((resolve) => setTimeout(resolve, 10))
+  await waitFor(() => service.isBusy('dag-session-1'), { label: 'DAG 任务会话已注册为运行中' })
   const taskSession = runtime.created.find((item) => item.sessionId === 'tw-dag-session-1')
   assert.equal(taskSession.agentPreset, 'code')
   runtime.push({ payload: { type: 'session/event', sessionId: taskSession.sessionId, event: { type: 'tool/call', time: Date.now(), data: { callId: 'task-call-1', name: 'read', arguments: '{"path":"README.md"}' } } } })
@@ -236,77 +274,27 @@ try {
     taskId: 'T2',
     signal: taskAbortController.signal,
   })
-  await new Promise((resolve) => setTimeout(resolve, 15))
+  await waitFor(() => service.isBusy('dag-abort-session'), { label: '可中止任务会话已注册为运行中' })
   taskAbortController.abort()
   await assert.rejects(taskAbortTurn, /任务已停止/)
   assert.equal(runtime.getCancelCount(), 2)
 
   const mapping = JSON.parse(await fs.readFile(path.join(home, 'taskweaver', 'dsh-session-map.json'), 'utf8'))
   assert.equal(mapping.sessions['conversation-A'].sessionId, 'tw-conversation-A')
-  assert.equal(mapping.sessions['conversation-A'].legacyContextVersion, LEGACY_CONTEXT_VERSION)
-  assert.ok(mapping.sessions['conversation-A'].migratedAt)
+
+  const repeatTurn = service.send({
+    text: 'conversation A again',
+    modelKey: 'test/model-a',
+    conversationId: 'conversation-A',
+    webContents: scopedWebContents,
+  })
+  await waitFor(() => service.isBusy('conversation-A'), { label: '重复会话已进入运行态' })
+  const selectCountBeforeRepeat = runtime.selected.length
+  runtime.push({ payload: { type: 'session/event', sessionId: sessionA, event: { type: 'turn/end', data: { reason: { kind: 'completed' } } } } })
+  await repeatTurn
+  assert.equal(runtime.selected.length, selectCountBeforeRepeat, 'same route should not call selectModel again')
 
   await service.stop()
-
-  const legacyHome = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-dsh-legacy-'))
-  const legacyRuntime = createMockRuntime()
-  const legacyService = createDshChatService({
-    hostManager: legacyRuntime.hostManager,
-    userDataPath: legacyHome,
-    getWorkspacePath: () => legacyHome,
-    profileStore,
-    modelService,
-    getLegacyTranscript: async () => ([
-      { author: 'user', time: '09:00', text: '旧线程里的问题' },
-      { author: 'agent', time: '09:01', text: '旧线程里的回答', thinking: '先想再答' },
-    ]),
-  })
-  try {
-    const legacyBlock = formatLegacyHistoryContext([
-      { author: 'user', text: 'hello' },
-      { author: 'agent', text: 'world' },
-    ])
-    assert.match(legacyBlock, /TASKWEAVER_LEGACY_HISTORY_CONTEXT/)
-    assert.match(legacyBlock, /hello/)
-    const migrateTurn = legacyService.send({
-      text: 'first after migration',
-      modelKey: 'test/model-legacy',
-      conversationId: 'legacy-conv',
-      webContents,
-      legacyTranscript: [
-        { author: 'user', time: '09:00', text: '旧线程里的问题' },
-        { author: 'agent', time: '09:01', text: '旧线程里的回答', thinking: '先想再答' },
-      ],
-    })
-    await new Promise((resolve) => setTimeout(resolve, 20))
-    assert.equal(legacyRuntime.prompts.length, 1)
-    assert.match(legacyRuntime.prompts[0].content[0].text, /旧线程里的问题/)
-    assert.doesNotMatch(legacyRuntime.prompts[0].content[0].text, /first after migration/)
-    legacyRuntime.push({ payload: { type: 'session/event', sessionId: 'tw-legacy-conv', event: { type: 'turn/end', data: { reason: { kind: 'completed' } } } } })
-    await new Promise((resolve) => setTimeout(resolve, 20))
-    assert.equal(legacyRuntime.prompts.length, 2)
-    assert.match(legacyRuntime.prompts[1].content[0].text, /first after migration/)
-    legacyRuntime.push({ payload: { type: 'session/event', sessionId: 'tw-legacy-conv', event: { type: 'assistant/chunk', data: { chunk: { type: 'text-delta', text: 'ok' } } } } })
-    legacyRuntime.push({ payload: { type: 'session/event', sessionId: 'tw-legacy-conv', event: { type: 'turn/end', data: { reason: { kind: 'completed' } } } } })
-    await migrateTurn
-    const legacyMap = JSON.parse(await fs.readFile(path.join(legacyHome, 'taskweaver', 'dsh-session-map.json'), 'utf8'))
-    assert.equal(legacyMap.sessions['legacy-conv'].legacyContextVersion, LEGACY_CONTEXT_VERSION)
-    assert.ok(legacyMap.sessions['legacy-conv'].migratedAt)
-    const second = legacyService.send({
-      text: 'second message',
-      modelKey: 'test/model-legacy',
-      conversationId: 'legacy-conv',
-      webContents,
-    })
-    await new Promise((resolve) => setTimeout(resolve, 10))
-    assert.equal(legacyRuntime.prompts.length, 3)
-    assert.equal(legacyRuntime.prompts[2].content[0].text, 'second message')
-    legacyRuntime.push({ payload: { type: 'session/event', sessionId: 'tw-legacy-conv', event: { type: 'turn/end', data: { reason: { kind: 'completed' } } } } })
-    await second
-  } finally {
-    await legacyService.stop()
-    await fs.rm(legacyHome, { recursive: true, force: true })
-  }
 
   const parallelHome = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-dsh-parallel-abort-'))
   const parallelRuntime = createMockRuntime()
@@ -320,7 +308,7 @@ try {
   try {
     const runA = parallelService.send({ text: 'wait-for-cancel', modelKey: 'test/a', conversationId: 'iso-A', webContents })
     const runB = parallelService.send({ text: 'wait-for-cancel', modelKey: 'test/b', conversationId: 'iso-B', webContents })
-    await new Promise((resolve) => setTimeout(resolve, 15))
+    await waitFor(() => parallelService.isBusy('iso-A') && parallelService.isBusy('iso-B'), { label: '两个并行会话都已注册为运行中' })
     assert.equal(parallelService.isBusy('iso-A'), true)
     assert.equal(parallelService.isBusy('iso-B'), true)
     assert.equal(await parallelService.abort('iso-A'), true)
@@ -358,7 +346,7 @@ try {
       conversationId: 'conv-full',
       webContents: approvalWebContents,
     })
-    await new Promise((resolve) => setTimeout(resolve, 15))
+    await waitFor(() => approvalService.isBusy('conv-full'), { label: 'full 模式会话已进入运行态' })
     const sessionId = 'tw-conv-full'
     approvalRuntime.push({
       rpcId: 'rpc-full-1',
@@ -370,7 +358,7 @@ try {
         reason: 'rm -rf /tmp/x',
       },
     })
-    await new Promise((resolve) => setTimeout(resolve, 30))
+    await waitFor(() => approvalOutputs.length === 1, { label: 'full 模式审批请求已上抛到 UI' })
     assert.equal(approvalOutputs.length, 1, 'unexpected DSH approval requests must fail closed in full mode too')
     assert.equal(approvalRuntime.approvalResponses.length, 0, 'approval must wait for an explicit UI decision')
     assert.equal(await approvalService.respondApproval(approvalOutputs[0].id, { action: 'deny' }), true)
@@ -389,7 +377,7 @@ try {
       conversationId: 'conv-ask',
       webContents: approvalWebContents,
     })
-    await new Promise((resolve) => setTimeout(resolve, 15))
+    await waitFor(() => approvalService.isBusy('conv-ask'), { label: 'ask 模式会话已进入运行态' })
     const askSessionId = 'tw-conv-ask'
     approvalRuntime.push({
       rpcId: 'rpc-ask-9',
@@ -401,7 +389,7 @@ try {
         reason: 'npm test',
       },
     })
-    await new Promise((resolve) => setTimeout(resolve, 30))
+    await waitFor(() => approvalOutputs.length === 2, { label: 'ask 模式审批请求已上抛到 UI' })
     assert.equal(approvalOutputs.length, 2)
     const promptId = approvalOutputs[1].id
     assert.match(promptId, /dsh-approval-tw-conv-ask-appr-9/)
@@ -415,7 +403,7 @@ try {
     await fs.rm(approvalHome, { recursive: true, force: true })
   }
 
-  console.log('DSH chat bridge smoke passed: mapping, migration, approvals, isolated streams, and cancellation.')
+  console.log('DSH chat bridge smoke passed: mapping, model selection, approvals, isolated streams, and cancellation.')
 } finally {
   await fs.rm(home, { recursive: true, force: true })
 }

@@ -50,7 +50,7 @@ export function AssistantTurnBody({
               {debugLabel}
               <DshThinkBlock
                 thinking={seg.text}
-                durationMs={streamThisBlock ? undefined : thinkingDurationMs}
+                durationMs={thinkingDurationMs}
                 isStreaming={streamThisBlock}
               />
             </div>

@@ -12,13 +12,21 @@ function compact(value, max = 180) {
 
 export function summarizeToolInput(toolName, args) {
   const input = args && typeof args === 'object' ? args : {}
-  if (toolName === 'bash' && typeof input.command === 'string') return compact(input.command, 220)
-  for (const key of ['file_path', 'path', 'filePath']) {
+  if (toolName === 'run_code' && typeof input.description === 'string') return compact(input.description, 220)
+  if ((toolName === 'bash' || toolName === 'pwsh') && typeof input.description === 'string') {
+    return compact(input.description, 220)
+  }
+  if ((toolName === 'bash' || toolName === 'pwsh') && typeof input.command === 'string') {
+    return compact(input.command, 220)
+  }
+  for (const key of ['file_path', 'path', 'filePath', 'url', 'query', 'pattern']) {
     if (typeof input[key] === 'string') return compact(input[key], 220)
   }
-  if (typeof input.pattern === 'string') return `匹配：${compact(input.pattern, 160)}`
-  const safeKeys = Object.keys(input).filter((key) => !/(key|token|password|secret|auth)/i.test(key))
-  return safeKeys.length ? `参数：${safeKeys.slice(0, 6).join('、')}` : '工具参数已隐藏'
+  if (typeof input.description === 'string') return compact(input.description, 220)
+  for (const value of Object.values(input)) {
+    if (typeof value === 'string' && value.trim()) return compact(value, 220)
+  }
+  return ''
 }
 
 export function summarizeToolResult(result, isError) {

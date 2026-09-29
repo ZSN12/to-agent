@@ -1,3 +1,5 @@
+import fs from 'node:fs'
+import path from 'node:path'
 import {
   createTaskWeaverAuthorizationUrl,
   exchangeAuthorizationCode,
@@ -163,6 +165,30 @@ export function createModelService({
     }
     visit(node)
     return [...values]
+  }
+
+  function piAiProviderModels(providerId) {
+    if (!dshRuntimeRoot) return null
+    const packageSuffix = path.join('@earendil-works', 'pi-ai', 'dist', 'providers', 'data')
+    const candidates = [
+      path.join(dshRuntimeRoot, 'runtime-packages', packageSuffix, `${providerId}.json`),
+      path.join(dshRuntimeRoot, 'node_modules', packageSuffix, `${providerId}.json`),
+      path.join(dshRuntimeRoot, 'node_modules', '.pnpm', 'node_modules', packageSuffix, `${providerId}.json`),
+    ]
+    const pnpmRoot = path.join(dshRuntimeRoot, 'node_modules', '.pnpm')
+    try {
+      for (const entry of fs.readdirSync(pnpmRoot)) {
+        if (entry.startsWith('@earendil-works+pi-ai@')) {
+          candidates.push(path.join(pnpmRoot, entry, 'node_modules', packageSuffix, `${providerId}.json`))
+        }
+      }
+    } catch { /* packed runtime may not use pnpm's virtual store */ }
+    for (const file of candidates) {
+      try {
+        if (fs.existsSync(file)) return JSON.parse(fs.readFileSync(file, 'utf8'))
+      } catch { /* try the next packaged layout */ }
+    }
+    return null
   }
 
   /** Persist signed catalog additions in DSH itself, then re-read its real routable catalog. */
@@ -577,12 +603,17 @@ export function createModelService({
       return model
     })
 
+    const activeModel = models.find((item) => item.key === activeModelKey)
+    const resolvedThinkingLevel = activeThinkingLevel
+      ?? activeModel?.defaultThinkingLevel
+      ?? 'medium'
+
     return {
       models,
       candidateModels,
       providers: [...providerById.keys()].sort(),
       activeModelKey,
-      activeThinkingLevel: activeThinkingLevel || 'high',
+      activeThinkingLevel: resolvedThinkingLevel,
       primaryModelReselectRequired: migratedFromAutoRoute,
     }
   }
@@ -614,6 +645,20 @@ export function createModelService({
       }
       const alreadyRoutable = (group?.models ?? []).some((item) => item.id === model.id)
       if (alreadyRoutable) continue
+      const runtimeProviderModels = provider.settingsNs === 'llm-pi-ai'
+        ? piAiProviderModels(model.provider)
+        : null
+      const knownRuntimeApis = runtimeProviderModels
+        ? Object.entries(runtimeProviderModels)
+          .filter(([, entries]) => entries && Object.hasOwn(entries, model.id))
+          .map(([api]) => api)
+        : []
+      if (knownRuntimeApis.length) {
+        if (model.api && !knownRuntimeApis.includes(model.api)) {
+          unsupportedMappings.push(`${model.key}（协议与 Runtime 内置模型目录不一致）`)
+        }
+        continue
+      }
       const registryProvider = registry.providers?.[model.provider]
       if (provider.settingsNs !== 'llm-pi-ai' || !namespace || namespace.writable === false) {
         unsupportedMappings.push(`${model.key}（运行时不支持在线添加模型）`)
@@ -1012,7 +1057,11 @@ export function createModelService({
     removeModel,
     removeProviderCredentials,
     async getThinkingLevel() {
-      return profileStore.getThinkingLevel()
+      const explicit = await profileStore.getThinkingLevel()
+      if (explicit) return explicit
+      const catalog = await listCatalog()
+      const activeModel = catalog.models.find((item) => item.key === catalog.activeModelKey)
+      return activeModel?.defaultThinkingLevel ?? 'medium'
     },
     async setThinkingLevel(level) {
       return profileStore.setThinkingLevel(level)

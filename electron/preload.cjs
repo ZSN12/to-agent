@@ -19,6 +19,8 @@ contextBridge.exposeInMainWorld('taskweaver', {
     forkThread: (threadId, messageId) => invoke('app:forkThread', threadId, messageId),
     clearConversation: (options) => invoke('app:clearConversation', options),
     setPermissionMode: (mode) => invoke('app:setPermissionMode', mode),
+    setModelKey: (modelKey) => invoke('app:setModelKey', modelKey),
+    setThinkingLevel: (thinkingLevel) => invoke('app:setThinkingLevel', thinkingLevel),
   },
   workspace: {
     listContext: (query, limit) => invoke('workspace:listContext', query ?? '', limit ?? 100),
@@ -109,13 +111,26 @@ contextBridge.exposeInMainWorld('taskweaver', {
   chat: {
     send: (text, modelKey, skillName, executionModeOverride, workMode, conversationId) =>
       invoke('chat:send', text, modelKey ?? null, skillName ?? null, executionModeOverride ?? null, workMode ?? 'code', conversationId ?? null),
-    steer: (text) => invoke('chat:steer', text),
-    followUp: (text) => invoke('chat:followUp', text),
-    cancel: () => invoke('chat:cancel'),
+    steer: (text, conversationId) => invoke('chat:steer', text, conversationId ?? null),
+    followUp: (text, conversationId) => invoke('chat:followUp', text, conversationId ?? null),
+    cancel: (conversationId) => invoke('chat:cancel', conversationId ?? null),
     queueMutate: (payload) => invoke('chat:queueMutate', payload),
     getLiveContext: (conversationId) => invoke('chat:getLiveContext', conversationId ?? null),
     getSessionStats: (conversationId) => invoke('chat:getSessionStats', conversationId ?? null),
     listRunningConversations: () => invoke('chat:listRunningConversations'),
+    subscribeMux: (conversationId) => invoke('chat:subscribeMux', conversationId),
+    unsubscribeMux: (conversationId) => invoke('chat:unsubscribeMux', conversationId),
+    onMux: (listener) => {
+      const handler = (_event, payload) => listener(payload)
+      ipcRenderer.on('chat:mux', handler)
+      return () => ipcRenderer.removeListener('chat:mux', handler)
+    },
+    getDshView: (conversationId) => invoke('chat:getDshView', conversationId ?? null),
+    onDshView: (listener) => {
+      const handler = (_event, payload) => listener(payload)
+      ipcRenderer.on('chat:dshView', handler)
+      return () => ipcRenderer.removeListener('chat:dshView', handler)
+    },
     onStream: (listener) => {
       const handler = (_event, payload) => listener(payload)
       ipcRenderer.on('chat:stream', handler)

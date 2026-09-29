@@ -1,15 +1,14 @@
 import { Atom } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { formatDurationZh } from './session-usage'
 import { firstLine, latestLine } from './reasoning-heuristics'
 import { useThrottledVisualUpdate } from './useThrottledVisualUpdate'
 
 export function DshThinkBlock({
   thinking,
-  durationMs,
   isStreaming = false,
 }: {
   thinking?: string
+  /** @deprecated DSH ReasoningRow does not show wall-clock on the Think row */
   durationMs?: number
   isStreaming?: boolean
 }) {
@@ -55,12 +54,6 @@ export function DshThinkBlock({
       >
         <Atom size={16} className="dsh-think-icon" aria-hidden />
         <span className="dsh-think-tag">Think</span>
-        {!running && typeof durationMs === 'number' && durationMs > 0 && (
-          <>
-            <span className="dsh-think-sep" aria-hidden>·</span>
-            <span className="dsh-think-duration">用时 {formatDurationZh(durationMs)}</span>
-          </>
-        )}
         {showSummary && (
           <>
             <span className="dsh-think-sep" aria-hidden>·</span>
