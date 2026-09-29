@@ -1,4 +1,5 @@
 import path from 'node:path'
+import { homedir } from 'node:os'
 import fsSync from 'node:fs'
 import fs from 'node:fs/promises'
 import { createProfileStore } from './profile-store.mjs'
@@ -82,11 +83,21 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
     configureCodexOAuthNetwork({ fetch: (input, init) => net.fetch(input, init) })
   }
   const userData = app.getPath('userData')
-  const fallbackWorkspace = process.cwd()
+  // 为无项目对话创建默认工作区目录（类似 Codex 的做法）
+  const fallbackWorkspace = path.join(app.getPath('documents'), 'TaskWeaver-Scratch')
+
+  // 确保默认工作区目录存在
+  try {
+    await fs.mkdir(fallbackWorkspace, { recursive: true })
+  } catch (err) {
+    console.warn('Failed to create fallback workspace:', err)
+  }
 
   const profileStore = createProfileStore(userData)
   const agentDataPath = path.join(userData, 'taskweaver-agent')
-  const builtInSkillsPath = path.join(app.getAppPath(), 'electron', 'skills')
+  const dshHomePath = path.join(userData, 'dsh')
+  const agentsHomePath = process.env.DSH_AGENTS_HOME || path.join(homedir(), '.agents')
+  const builtInSkillsPath = path.join(app.getAppPath(), 'vendor', 'z-runtime', '.agents', 'skills')
   const builtInExtensionsPath = path.join(app.getAppPath(), 'electron', 'extensions', 'taskweaver-permissions.ts')
   const extensionsDir = path.join(app.getAppPath(), 'electron', 'extensions')
   const builtInExtensionsPaths = fsSync.existsSync(extensionsDir)
@@ -220,11 +231,14 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
       sessionSandboxMode: sessionRow?.mode ?? null,
     }
   }
-  const UNBOUND_WORKSPACE_ERROR = '当前对话还没有绑定工作区。未绑定工作区时 DSH 会话会落在文件系统根目录，'
-    + '文件写入沙箱边界将失效，因此本次消息已阻止。请先选择一个工作区文件夹再发送。'
-  /** 发送前的最后一道闸：没有工作区就不要建立 DSH 会话。 */
+  // TaskWeaver 改造：允许无工作区对话
+  // DSH 原本强制要求工作区以确保沙箱边界，但 TaskWeaver 放宽此限制：
+  // - 无工作区时使用 fallbackWorkspace (~/Documents/TaskWeaver-Scratch)
+  // - 用户可以随时与 AI 对话，即使没有选择项目
+  // - 沙箱策略仍然生效（基于 fallbackWorkspace）
   const assertWorkspaceBound = (context) => {
-    if (!context?.workspaceBound) throw new Error(UNBOUND_WORKSPACE_ERROR)
+    // 不再强制要求 workspaceBound，允许使用 fallbackWorkspace
+    // if (!context?.workspaceBound) throw new Error('无工作区')
   }
   const sandboxContextLineForContext = (context) => {
     const resolved = resolveSandboxPolicy({
@@ -239,6 +253,7 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
   const skills = createSkillService({
     agentDataPath,
     builtInSkillsPath,
+    globalSkillPaths: [path.join(dshHomePath, 'skills'), path.join(agentsHomePath, 'skills')],
     getWorkspacePath: () => cachedWorkspace,
     getWorkspaceTrusted: () => cachedWorkspaceTrusted,
     hostManager
@@ -267,6 +282,7 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
   }
 
   const assertNotBusy = (targetConversationId) => {
+    // 只检查目标会话是否忙碌，允许其他会话并发运行
     if (targetConversationId && (
       turnInProgressByConversation.get(targetConversationId)
       || chat.isBusy(targetConversationId)
@@ -274,13 +290,7 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
     )) {
       throw new Error('目标会话仍在执行任务，结束后再切换')
     }
-    if (!targetConversationId && (
-      turnInProgressByConversation.size > 0
-      || chat.isBusyAny()
-      || orchestration.isBusy()
-    )) {
-      throw new Error('有对话仍在执行任务，完成或停止后再执行此工作区操作')
-    }
+    // 移除全局忙碌检查以支持多会话并发
   }
   const validateWorkspace = async (workspacePath) => {
     if (!workspacePath || typeof workspacePath !== 'string') throw new Error('工作区路径无效')
@@ -910,7 +920,6 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
     const conversationId = await resolveIpcConversationId(requestedConversationId)
     if (!conversationId) throw new Error('当前对话标识无效')
     const runtimeContext = await getConversationRuntimeContext(conversationId)
-    assertWorkspaceBound(runtimeContext)
     const time = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false })
     const userEntry = {
       id: `m-steer-${Date.now()}`,
@@ -937,7 +946,6 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
     const conversationId = await resolveIpcConversationId(requestedConversationId)
     if (!conversationId) throw new Error('当前对话标识无效')
     const runtimeContext = await getConversationRuntimeContext(conversationId)
-    assertWorkspaceBound(runtimeContext)
     const time = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false })
     const userEntry = {
       id: `m-followup-${Date.now()}`,
@@ -1011,6 +1019,7 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
   ipcHandle(ipcMain, 'models:testCustomProvider', (_event, payload) => customProviderService.testCustomProvider(payload ?? {}))
   ipcHandle(ipcMain, 'webSearch:getConfig', () => webSearch.getConfig())
   ipcHandle(ipcMain, 'webSearch:setConfig', (_event, patch) => webSearch.setConfig(patch ?? {}))
+  ipcHandle(ipcMain, 'webSearch:testSearch', (_event, query) => webSearch.testSearch(query))
   ipcHandle(ipcMain, 'worktree:list', async () => {
     await refreshWorkspaceCache()
     return listTaskWorktrees({ workspacePath: cachedWorkspace, userDataPath: userData })
@@ -1206,7 +1215,14 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
    * 处理执行错误并存储错误消息
    */
   const handleChatError = async (error, messageId, time, conversationId) => {
-    const message = error instanceof Error ? error.message : String(error)
+    let message = error instanceof Error ? error.message : String(error)
+    const cause = error && typeof error === 'object' ? error.cause : null
+    if (cause && typeof cause === 'object') {
+      const code = typeof cause.code === 'string' ? cause.code : null
+      const detail = typeof cause.message === 'string' ? cause.message : null
+      const diagnostic = code ?? detail
+      if (diagnostic && !message.includes(diagnostic)) message = `${message}（底层原因：${diagnostic}）`
+    }
     await appState.appendMessagesToConversation(conversationId, {
       id: `${messageId}-error`,
       author: 'orchestrator',
@@ -1242,6 +1258,27 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
       callout,
     }
     await appState.appendMessagesToConversation(conversationId, agentEntry)
+    // 用量在执行完成处直接落库，不依赖当前 UI 是否仍订阅该会话；后台运行的会话也必须计入。
+    const usage = result.usage
+    if (usage && typeof usage === 'object') {
+      try {
+        await usageStore.record({
+          id: `${messageId}-usage`,
+          timestamp: agentEntry.timestamp,
+          modelKey: activeKey || 'unknown',
+          modelName: activeKey?.split('/')?.pop() || activeKey || 'unknown',
+          conversationId,
+          inputTokens: usage.inputTokens || 0,
+          outputTokens: usage.outputTokens || 0,
+          cacheReadTokens: usage.cacheReadTokens || 0,
+          cacheWriteTokens: usage.cacheWriteTokens || 0,
+          costUsd: usage.costUsd || 0,
+          elapsedMs: usage.elapsedMs || 0,
+        })
+      } catch (error) {
+        console.warn('[register-ipc] 记录本轮模型用量失败:', error instanceof Error ? error.message : error)
+      }
+    }
     return agentEntry
   }
 
@@ -1252,7 +1289,6 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
     const conversationId = await resolveIpcConversationId(requestedConversationId)
     if (!conversationId) throw new Error('当前对话标识无效')
     const runtimeContext = await getConversationRuntimeContext(conversationId)
-    assertWorkspaceBound(runtimeContext)
 
     return withTurnLock(conversationId, async () => {
 

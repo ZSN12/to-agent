@@ -114,6 +114,7 @@
     "@z/dsh-user-questions": "workspace:^",
     "@z/dsh-web": "workspace:^",
     "@z/dsh-web-search-deepseek": "workspace:^",
+    "@z/dsh-web-search-taskweaver": "workspace:^",
     "@z/dsh-workflow": "workspace:^",
     "@z/dsh-workflow-worker-thread": "workspace:^",
     "@z/dsh-agent-instructions": "workspace:^"

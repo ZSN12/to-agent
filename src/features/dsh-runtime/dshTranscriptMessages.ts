@@ -84,6 +84,14 @@ export function mergeStoredMessagesWithDshTranscript(
     }
   }
   const extras = stored.filter((message) => {
+    if (message.interrupted && message.author !== 'user') {
+      return !base.some((candidate) =>
+        candidate.author !== 'user'
+        && candidate.interrupted
+        && candidate.text === message.text
+        && candidate.thinking === message.thinking,
+      )
+    }
     if (message.callout) return true
     if (message.id.includes('-error')) return true
     if (message.author === 'orchestrator' && message.text?.startsWith('执行失败')) return true

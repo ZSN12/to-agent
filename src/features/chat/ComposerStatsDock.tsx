@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Clock, Database } from 'lucide-react'
 import type { ChatMessage } from '../../types'
 import type { ContextBreakdownEstimate, LiveContextUsage, SessionStatsSnapshot } from '../../shared/app-api'
@@ -129,47 +129,90 @@ export function ComposerStatsDock({
   stats,
   messages,
   liveContext,
+  modelContextWindow,
 }: {
   stats: SessionStatsSnapshot | null
   messages: ChatMessage[]
   liveContext?: LiveContextUsage | null
+  modelContextWindow?: number
 }) {
-  if (!stats) return null
+  const computedStats = useMemo(() => {
+    if (!stats) return null
 
-  const { tokens, userMessages, assistantMessages, toolCalls } = stats
-  const timing = summarizeTurnTiming(messages)
-  const tps = summarizeDecodeThroughput(messages)
-  const billed = billedInputTokens(tokens.input, tokens.cacheRead, tokens.cacheWrite)
-  const totalTok = tokens.total > 0 ? tokens.total : billed + tokens.output
-  const cacheHit = cacheHitPercentDisplay(tokens.cacheRead, billed)
+    const { tokens, userMessages, assistantMessages, toolCalls } = stats
+    const timing = summarizeTurnTiming(messages)
+    const tps = summarizeDecodeThroughput(messages)
+    const billed = billedInputTokens(tokens.input, tokens.cacheRead, tokens.cacheWrite)
+    const totalTok = tokens.total > 0 ? tokens.total : billed + tokens.output
+    const cacheHit = cacheHitPercentDisplay(tokens.cacheRead, billed)
 
-  const hasTiming = userMessages > 0 || assistantMessages > 0 || timing.llmMs > 0 || timing.toolMs > 0
-  const hasTokens = billed > 0 || tokens.output > 0
-  const ctxPct = liveContext?.contextPercent ?? stats.contextPercent
-  const ctxTokens = liveContext?.contextTokens ?? stats.contextTokens
-  const ctxWindow = liveContext?.contextWindow ?? stats.contextWindow
-  const occupancy =
-    typeof ctxWindow === 'number' && ctxWindow > 0 && typeof ctxTokens === 'number'
-      ? {
-          percent: Math.min(100, Math.max(0, Math.round(ctxTokens / ctxWindow * 100))),
-          used: ctxTokens,
-          window: ctxWindow,
-        }
-      : typeof ctxWindow === 'number' && ctxWindow > 0 && typeof ctxPct === 'number'
+    const hasTiming = userMessages > 0 || assistantMessages > 0 || timing.llmMs > 0 || timing.toolMs > 0
+    const hasTokens = billed > 0 || tokens.output > 0
+    const ctxPct = liveContext?.contextPercent ?? stats.contextPercent
+    const ctxTokens = liveContext?.contextTokens ?? stats.contextTokens
+    const ctxWindow = liveContext?.contextWindow ?? stats.contextWindow ?? modelContextWindow
+    const occupancy =
+      typeof ctxWindow === 'number' && ctxWindow > 0 && typeof ctxTokens === 'number'
         ? {
-            percent: Math.min(100, Math.max(0, Math.round(ctxPct))),
-            used: ctxTokens ?? 0,
+            percent: Math.min(100, Math.max(0, Math.round(ctxTokens / ctxWindow * 100))),
+            used: ctxTokens,
             window: ctxWindow,
           }
-        : null
-  const hasContext = occupancy !== null
+        : typeof ctxWindow === 'number' && ctxWindow > 0 && typeof ctxPct === 'number'
+          ? {
+              percent: Math.min(100, Math.max(0, Math.round(ctxPct))),
+              used: ctxTokens ?? 0,
+              window: ctxWindow,
+            }
+          : null
+    const hasContext = occupancy !== null
 
-  if (!hasTiming && !hasTokens && !hasContext) return null
+    const breakdown = liveContext?.contextBreakdown
+    const contextPercent = occupancy?.percent ?? 0
+    const contextWindow = occupancy?.window ?? 0
+    const usedTokens = occupancy?.used ?? 0
 
-  const breakdown = liveContext?.contextBreakdown
-  const contextPercent = occupancy?.percent ?? 0
-  const contextWindow = occupancy?.window ?? 0
-  const usedTokens = occupancy?.used ?? 0
+    return {
+      tokens,
+      userMessages,
+      assistantMessages,
+      toolCalls,
+      timing,
+      tps,
+      billed,
+      totalTok,
+      cacheHit,
+      hasTiming,
+      hasTokens,
+      hasContext,
+      breakdown,
+      contextPercent,
+      contextWindow,
+      usedTokens,
+    }
+  }, [stats, messages, liveContext, modelContextWindow])
+
+  if (!computedStats) return null
+  if (!computedStats.hasTiming && !computedStats.hasTokens && !computedStats.hasContext) return null
+
+  const {
+    tokens,
+    userMessages,
+    assistantMessages,
+    toolCalls,
+    timing,
+    tps,
+    billed,
+    totalTok,
+    cacheHit,
+    hasTiming,
+    hasTokens,
+    hasContext,
+    breakdown,
+    contextPercent,
+    contextWindow,
+    usedTokens,
+  } = computedStats
 
   return (
     <footer className="composer-stats-dock" aria-label="会话统计与用量">

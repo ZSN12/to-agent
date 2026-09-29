@@ -17,14 +17,37 @@ export function createCredentialStore({ filePath, safeStorage }) {
     }
   }
 
-  async function writeAll(credentials) {
+  async function writeAll(credentials, retries = 2) {
     if (!safeStorage?.isEncryptionAvailable?.()) throw new Error('系统安全存储当前不可用，未保存模型凭据')
     const encrypted = safeStorage.encryptString(JSON.stringify(credentials)).toString('base64')
     await fs.mkdir(path.dirname(filePath), { recursive: true, mode: 0o700 })
     const temporary = `${filePath}.${process.pid}.tmp`
-    await fs.writeFile(temporary, `${encrypted}\n`, { encoding: 'utf8', mode: 0o600 })
-    await fs.rename(temporary, filePath)
-    await fs.chmod(filePath, 0o600)
+
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      try {
+        await fs.writeFile(temporary, `${encrypted}\n`, { encoding: 'utf8', mode: 0o600 })
+        await fs.rename(temporary, filePath)
+        await fs.chmod(filePath, 0o600)
+        return
+      } catch (error) {
+        const isTransient = error?.code === 'EBUSY' || error?.code === 'EAGAIN' || error?.code === 'EPERM'
+        const isLastAttempt = attempt === retries
+
+        // 清理临时文件
+        try {
+          await fs.unlink(temporary)
+        } catch {}
+
+        if (isTransient && !isLastAttempt) {
+          // 临时错误，等待后重试
+          await new Promise(resolve => setTimeout(resolve, 100 * (attempt + 1)))
+          continue
+        }
+
+        // 永久错误或重试耗尽
+        throw new Error(`无法保存凭据: ${error?.message || String(error)}${isTransient ? ' (重试已耗尽)' : ''}`)
+      }
+    }
   }
 
   function serialize(operation) {

@@ -50,6 +50,7 @@ export function catalogModelToOption(model: CatalogModel): ModelOption {
   return {
     id: model.key,
     name: displayName,
+    contextWindow: model.contextWindow,
     displayName,
     quality: '', // 彻底移除面向用户的低/中/高文案
     reasoning: model.reasoning,

@@ -105,6 +105,9 @@ async function main() {
     assert(report.rows.length >= 1, 'rows 应至少有一行')
     assert(report.allModels.length >= 1, 'allModels 应至少有一项')
     assert(report.daily, '应包含 daily map')
+    const localToday = new Date()
+    const todayKey = `${localToday.getFullYear()}-${String(localToday.getMonth() + 1).padStart(2, '0')}-${String(localToday.getDate()).padStart(2, '0')}`
+    assert(report.daily[todayKey], '今天的用量应按本地日期聚合，不能因为 UTC 时区偏移落到昨天')
     console.log('✓ DSH getReport 报表结构验证通过')
 
     console.log('--- 测试 5: 纠偏队列去重逻辑验证 ---')

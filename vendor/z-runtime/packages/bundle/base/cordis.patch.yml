@@ -392,29 +392,24 @@
         thresholds: [3, 5, 8]
         argumentsPreviewChars: 500
 
-    # Every mode enables the stable model-facing web_search tool. DeepSeek search
-    # resolves the same DEEPSEEK_API_KEY credential the Models page manages for
-    # chat, at each search; its Messages endpoint is separate from the
-    # chat-completions endpoint, so it takes its own base-URL override. Fetch stays
-    # disabled and no fetch provider is mounted: that provider defers SSRF
-    # protection and the model would choose the request target. Search is a full
-    # auxiliary model request with server-side retrieval, so this shipped DeepSeek
-    # route gets 60s while the provider-neutral tool default remains 30s.
+    # Model-facing web_search uses the provider configured in TaskWeaver's Web Search settings.
+    # The provider reads the userData config on each call, so changing the key/endpoint
+    # does not require restarting the DSH Host. Fetch remains disabled.
     - id: web
       name: '@z/dsh-web'
       config:
-        searchProvider: deepseek-official
+        searchProvider: taskweaver-baidu
 
-    - id: web-search-deepseek
-      name: '@z/dsh-web-search-deepseek'
+    - id: web-search-taskweaver
+      name: '@z/dsh-web-search-taskweaver'
       config:
-        apiKeyEnv: DEEPSEEK_API_KEY
+        configPathEnv: TASKWEAVER_WEB_SEARCH_CONFIG_PATH
 
     - id: tool-web
       name: '@z/dsh-tool-web'
       config:
         fetch: false
-        searchTimeoutMs: 60000
+        searchTimeoutMs: 30000
 
     # ── rows every mode mounts, whose values each overlay may state ──────────────
 

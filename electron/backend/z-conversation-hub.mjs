@@ -73,6 +73,11 @@ export function createZConversationHub({ runtimeRoot, fakeRemote = fakeSessionRe
       projections: session.projections,
     })
     emitView(conversationId, view)
+
+    // 通知 register-ipc 记录用量数据
+    if (view?.transcript && typeof entry.onUpdate === 'function') {
+      entry.onUpdate({ type: 'usage-transcript', conversationId, transcript: view.transcript })
+    }
   }
 
   function flushDirty() {
@@ -179,11 +184,23 @@ export function createZConversationHub({ runtimeRoot, fakeRemote = fakeSessionRe
       if (!entry?.sessionId) return null
       const mgr = await ensureManager()
       const session = mgr.get(entry.sessionId)
+      await session.open()
       return serializeDshConversationView(session.getSnapshot(), {
         conversationId,
         sessionId: entry.sessionId,
         projections: session.projections,
       })
+    },
+
+    /** Read durable DSH projections after the session history baseline is loaded. */
+    async getProjections(conversationId, sessionId = null) {
+      const entry = attachments.get(conversationId)
+      const targetSessionId = entry?.sessionId ?? sessionId
+      if (!targetSessionId) return null
+      const mgr = await ensureManager()
+      const session = mgr.get(targetSessionId)
+      await session.open()
+      return session.projections.values()
     },
 
     getSessionIdForConversation(conversationId) {

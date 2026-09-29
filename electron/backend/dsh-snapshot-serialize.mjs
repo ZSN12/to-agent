@@ -183,6 +183,7 @@ function readProjections(projectionStore) {
   if (typeof projectionStore.values === 'function') {
     const values = projectionStore.values()
     if (values?.tokenUsage !== undefined) projections.tokenUsage = values.tokenUsage
+    if (values?.sessionStats !== undefined) projections.sessionStats = values.sessionStats
     if (values?.contextPressure !== undefined) projections.contextPressure = values.contextPressure
     if (values?.contextBreakdown !== undefined) projections.contextBreakdown = values.contextBreakdown
     return projections
@@ -190,6 +191,8 @@ function readProjections(projectionStore) {
   if (typeof projectionStore.get === 'function') {
     const tokenUsage = projectionStore.get('tokenUsage')
     if (tokenUsage !== undefined) projections.tokenUsage = tokenUsage
+    const sessionStats = projectionStore.get('sessionStats')
+    if (sessionStats !== undefined) projections.sessionStats = sessionStats
     const contextPressure = projectionStore.get('contextPressure')
     if (contextPressure !== undefined) projections.contextPressure = contextPressure
     const contextBreakdown = projectionStore.get('contextBreakdown')

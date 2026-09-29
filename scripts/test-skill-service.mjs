@@ -10,9 +10,12 @@ const root = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-skills-'))
 try {
   const workspace = path.join(root, 'workspace')
   const appData = path.join(root, 'app-data')
+  const globalSkills = path.join(root, 'global-agents', 'skills')
   const skillDir = path.join(appData, 'skills', 'agent-teams')
   await fs.mkdir(skillDir, { recursive: true })
   await fs.mkdir(workspace, { recursive: true })
+  const globalSkillDir = path.join(globalSkills, 'global-tool')
+  await fs.mkdir(globalSkillDir, { recursive: true })
   const projectSkillDir = path.join(workspace, '.taskweaver', 'skills', 'workspace-review')
   await fs.mkdir(projectSkillDir, { recursive: true })
   await fs.writeFile(path.join(skillDir, 'SKILL.md'), [
@@ -30,6 +33,14 @@ try {
     '---',
     '',
     'Review the current repository conventions.',
+  ].join('\n'))
+  await fs.writeFile(path.join(globalSkillDir, 'SKILL.md'), [
+    '---',
+    'name: global-tool',
+    'description: 全局可用的 Skill',
+    '---',
+    '',
+    'This skill is available without a selected project.',
   ].join('\n'))
 
   let trusted = false
@@ -69,6 +80,7 @@ try {
   const service = createSkillService({
     agentDataPath: appData,
     builtInSkillsPath: path.resolve('electron/skills'),
+    globalSkillPaths: [globalSkills],
     getWorkspacePath: () => currentWorkspace,
     getWorkspaceTrusted: () => trusted,
     hostManager,
@@ -79,7 +91,11 @@ try {
   assert.equal(skills.find((skill) => skill.name === 'dsh-only-skill')?.sourceLabel, 'DSH')
   assert.equal(skills.find((skill) => skill.name === 'agent-teams')?.multiAgent, true)
   assert.equal(skills.find((skill) => skill.name === 'multi-agent-orchestration')?.multiAgent, true)
+  assert.equal(skills.find((skill) => skill.name === 'global-tool')?.source, 'dsh')
   assert.equal(skills.some((skill) => skill.name === 'workspace-review'), false, 'untrusted workspace skills must stay hidden')
+  const sessionsAfterFirstList = catalogSessions.length
+  await service.list()
+  assert.equal(catalogSessions.length, sessionsAfterFirstList, 'repeat catalog reads should use the short-lived cache')
   trusted = true
   const trustedSkills = await service.list()
   assert.equal(trustedSkills.some((skill) => skill.name === 'workspace-review'), true, 'trusted workspace skills should be discoverable')
@@ -113,11 +129,13 @@ try {
   const localOnly = createSkillService({
     agentDataPath: appData,
     builtInSkillsPath: path.resolve('electron/skills'),
-    getWorkspacePath: () => workspace,
+    globalSkillPaths: [globalSkills],
+    getWorkspacePath: () => null,
     getWorkspaceTrusted: () => trusted,
   })
   const fallback = await localOnly.list()
   assert.ok(fallback.some((skill) => skill.name === 'agent-teams'))
+  assert.ok(fallback.some((skill) => skill.name === 'global-tool'), 'global skills remain discoverable without a project and without DSH')
   console.log('skill service checks passed: DSH list merge, instruction loading/injection, multi-agent routing, safe default')
 } finally {
   await fs.rm(root, { recursive: true, force: true })

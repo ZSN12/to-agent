@@ -26,14 +26,8 @@ const legacyOutDir = path.join(root, 'vendor', 'taskweaver-dsh-runtime')
 /** @returns {{ monorepoRoot: string, cliFilter: string, scope: string, label: string }} */
 function resolveMonorepo() {
   const zReady = fs.existsSync(path.join(zRuntimeSource, 'apps/cli/package.json'))
-  const zCliBuilt = fs.existsSync(path.join(zRuntimeSource, 'apps/cli/lib/bin.js'))
   if (!zReady) {
     throw new Error('缺少 vendor/z-runtime；请确保已检出 Z 运行时源码树')
-  }
-  if (!zCliBuilt) {
-    throw new Error(
-      'vendor/z-runtime/apps/cli/lib/bin.js 不存在；请先运行 npm run build:z-runtime（或在 vendor/z-runtime 内完成 host/client 构建）',
-    )
   }
   return { monorepoRoot: zRuntimeSource, cliFilter: '@z/dsh', scope: '@z/', label: 'Z Runtime' }
 }
@@ -370,14 +364,16 @@ async function main() {
     const hostTsconfig = fs.existsSync(path.join(monorepoRoot, 'tsconfig.host.taskweaver.json'))
       ? 'tsconfig.host.taskweaver.json'
       : 'tsconfig.host.json'
-    await run(pnpmBin(), ['exec', 'tsc', '-b', hostTsconfig], { cwd: monorepoRoot, env: dshBuildEnv })
-    await run(pnpmBin(), ['exec', 'tsdown', '--env.DSH_BUILD_FACE', 'host'], { cwd: monorepoRoot, env: dshBuildEnv })
+    const tscBin = path.join(monorepoRoot, 'node_modules/.bin/tsc')
+    const tsdownBin = path.join(monorepoRoot, 'node_modules/.bin/tsdown')
+    await run(tscBin, ['-b', hostTsconfig], { cwd: monorepoRoot, env: dshBuildEnv })
+    await run(tsdownBin, ['--env.DSH_BUILD_FACE', 'host'], { cwd: monorepoRoot, env: dshBuildEnv })
     console.log('build-z-runtime: client face (UI 包 lib/index.js) …')
     const clientTsconfig = fs.existsSync(path.join(monorepoRoot, 'tsconfig.client.taskweaver.json'))
       ? 'tsconfig.client.taskweaver.json'
       : 'tsconfig.client.json'
-    await run(pnpmBin(), ['exec', 'tsc', '-b', clientTsconfig], { cwd: monorepoRoot, env: dshBuildEnv })
-    await run(pnpmBin(), ['exec', 'tsdown', '--env.DSH_BUILD_FACE', 'client'], { cwd: monorepoRoot, env: dshBuildEnv })
+    await run(tscBin, ['-b', clientTsconfig], { cwd: monorepoRoot, env: dshBuildEnv })
+    await run(tsdownBin, ['--env.DSH_BUILD_FACE', 'client'], { cwd: monorepoRoot, env: dshBuildEnv })
     await assertTaskWeaverProfileBootBundled(monorepoRoot)
   }
   await ensureWebFrontendDist(monorepoRoot, scope, dshBuildEnv)

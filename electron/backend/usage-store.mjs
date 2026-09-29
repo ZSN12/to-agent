@@ -25,6 +25,11 @@ export function createUsageStore(userDataPath) {
     records: [],
   }))
 
+  function localDateKey(timestamp) {
+    const date = new Date(timestamp)
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+  }
+
   async function record(entry) {
     if (!entry) return null
     const inputTokens = Math.max(0, Number(entry.inputTokens) || 0)
@@ -56,6 +61,9 @@ export function createUsageStore(userDataPath) {
 
     await store.update((current) => {
       const records = Array.isArray(current?.records) ? current.records : []
+      // 避免重复记录：检查最近 50 条中是否有相同 id
+      const isDuplicate = records.slice(0, 50).some(r => r.id === item.id)
+      if (isDuplicate) return current
       // 最多保留最近 1000 条调用记录
       const nextRecords = [item, ...records].slice(0, 1000)
       return {
@@ -66,6 +74,22 @@ export function createUsageStore(userDataPath) {
     })
 
     return item
+  }
+
+  async function hasDuplicate(query) {
+    const data = await store.read()
+    const records = Array.isArray(data?.records) ? data.records : []
+    if (!query) return false
+    // 检查是否已存在相同的记录（基于 dshKey 或 conversationId + timestamp + modelKey）
+    return records.some(r => {
+      if (query.dshKey && r.id === query.dshKey) return true
+      if (query.conversationId && query.timestamp && query.modelKey) {
+        return r.conversationId === query.conversationId
+          && Math.abs(r.timestamp - query.timestamp) < 1000
+          && r.modelKey === query.modelKey
+      }
+      return false
+    })
   }
 
   async function getStats() {
@@ -116,7 +140,7 @@ export function createUsageStore(userDataPath) {
       modelMap.set(mk, mStats)
 
       // 按日期聚合 (YYYY-MM-DD)
-      const dateStr = new Date(r.timestamp).toISOString().slice(0, 10)
+      const dateStr = localDateKey(r.timestamp)
       const dStats = dailyMap.get(dateStr) || {
         date: dateStr,
         calls: 0,
@@ -208,8 +232,7 @@ export function createUsageStore(userDataPath) {
 
     for (const r of records) {
       const t = r.totalTokens || (r.inputTokens + r.outputTokens + r.cacheReadTokens + r.cacheWriteTokens)
-      const d = new Date(r.timestamp)
-      const dateKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      const dateKey = localDateKey(r.timestamp)
       allDates.push(dateKey)
       ovTotalTokens += t
       if (t > ovPeakTokens) ovPeakTokens = t
@@ -291,8 +314,7 @@ export function createUsageStore(userDataPath) {
 
     for (const r of inWindowRecords) {
       const t = r.totalTokens || (r.inputTokens + r.outputTokens + r.cacheReadTokens + r.cacheWriteTokens)
-      const d = new Date(r.timestamp)
-      const dateKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      const dateKey = localDateKey(r.timestamp)
 
       if (!daily[dateKey]) daily[dateKey] = { tokens: 0, calls: 0 }
       daily[dateKey].tokens += t
@@ -353,8 +375,7 @@ export function createUsageStore(userDataPath) {
     // 针对 daily 热力图：若没有筛选模型，补充历史 daily 以便热力图呈现全量近 6 个月趋势
     if (!filterModel) {
       for (const r of records) {
-        const d = new Date(r.timestamp)
-        const dateKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+        const dateKey = localDateKey(r.timestamp)
         const t = r.totalTokens || (r.inputTokens + r.outputTokens + r.cacheReadTokens + r.cacheWriteTokens)
         if (!daily[dateKey]) daily[dateKey] = { tokens: 0, calls: 0 }
       }
@@ -432,6 +453,7 @@ export function createUsageStore(userDataPath) {
   return {
     filePath,
     record,
+    hasDuplicate,
     getStats,
     getReport,
     clear,

@@ -24,14 +24,23 @@ function isMultiAgentSkill(name) {
   return /multi[-\s]?agent|agent[-\s]?teams?|多智能体/i.test(name)
 }
 
-function mapFilesystemSkill(skill, { agentDataPath, builtInSkillsPath }) {
+function isWithinDirectory(filePath, directoryPath) {
+  if (!directoryPath) return false
+  const relative = path.relative(path.resolve(directoryPath), path.resolve(filePath))
+  return relative === '' || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative))
+}
+
+function mapFilesystemSkill(skill, { agentDataPath, builtInSkillsPath, globalSkillPaths }) {
   const skillPath = skill.path ?? skill.filePath ?? ''
+  const isAppSkill = isWithinDirectory(skillPath, agentDataPath)
+    || isWithinDirectory(skillPath, builtInSkillsPath)
+  const isGlobalSkill = globalSkillPaths.some((root) => isWithinDirectory(skillPath, root))
   return {
     name: skill.name,
     description: skill.description,
     path: skillPath,
     baseDir: skill.baseDir,
-    source: skillPath.startsWith(agentDataPath) || skillPath.startsWith(builtInSkillsPath) ? 'app' : 'workspace',
+    source: isAppSkill ? 'app' : isGlobalSkill ? 'dsh' : 'workspace',
     multiAgent: isMultiAgentSkill(skill.name),
   }
 }
@@ -43,18 +52,28 @@ function mapFilesystemSkill(skill, { agentDataPath, builtInSkillsPath }) {
 export function createSkillService({
   agentDataPath,
   builtInSkillsPath,
+  globalSkillPaths = [],
   getWorkspacePath,
   getWorkspaceTrusted = () => false,
   hostManager = null,
 }) {
+  const catalogCache = new Map()
+  const catalogRequests = new Map()
+  const CATALOG_TTL_MS = 30_000
+
+  function catalogKey() {
+    const cwd = getWorkspacePath()
+    return `${path.resolve(cwd || agentDataPath)}:${getWorkspaceTrusted() ? 'trusted' : 'untrusted'}`
+  }
+
   async function loadFilesystemCatalog() {
     const cwd = getWorkspacePath()
     const projectSkillsPath = cwd ? path.join(cwd, '.taskweaver', 'skills') : null
-    const paths = [builtInSkillsPath, path.join(agentDataPath, 'skills')].filter(Boolean)
+    const paths = [builtInSkillsPath, path.join(agentDataPath, 'skills'), ...globalSkillPaths].filter(Boolean)
     if (projectSkillsPath && getWorkspaceTrusted()) paths.push(projectSkillsPath)
 
     const result = await loadSkills({ cwd: cwd ?? agentDataPath, agentDir: agentDataPath, skillPaths: paths, includeDefaults: false })
-    return result.skills.map((skill) => mapFilesystemSkill(skill, { agentDataPath, builtInSkillsPath }))
+    return result.skills.map((skill) => mapFilesystemSkill(skill, { agentDataPath, builtInSkillsPath, globalSkillPaths }))
   }
 
   function mergeCatalogs(dshSkills, filesystemSkills) {
@@ -98,14 +117,30 @@ export function createSkillService({
 
   return {
     async list() {
-      const filesystemSkills = await loadFilesystemCatalog()
+      const key = catalogKey()
+      const cached = catalogCache.get(key)
+      if (cached && cached.expiresAt > Date.now()) return cached.skills
+      const pending = catalogRequests.get(key)
+      if (pending) return pending
+
+      const request = (async () => {
+        const filesystemSkills = await loadFilesystemCatalog()
+        let skills = filesystemSkills
+        try {
+          const dshSkills = await listFromDsh()
+          if (dshSkills) skills = mergeCatalogs(dshSkills, filesystemSkills)
+        } catch {
+          // DSH Host 未就绪时回退到 TaskWeaver 本地发现。
+        }
+        catalogCache.set(key, { skills, expiresAt: Date.now() + CATALOG_TTL_MS })
+        return skills
+      })()
+      catalogRequests.set(key, request)
       try {
-        const dshSkills = await listFromDsh()
-        if (dshSkills) return mergeCatalogs(dshSkills, filesystemSkills)
-      } catch {
-        // DSH Host 未就绪时回退到 TaskWeaver 本地发现。
+        return await request
+      } finally {
+        if (catalogRequests.get(key) === request) catalogRequests.delete(key)
       }
-      return filesystemSkills
     },
     async resolve(name) {
       if (!name) return null

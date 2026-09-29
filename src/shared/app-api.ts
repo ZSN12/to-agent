@@ -78,6 +78,8 @@ export type ChatStreamEvent =
     full: string
     fullThinking?: string
     thinkingDurationMs?: number
+    /** True when DSH closed this turn as interrupted/cancelled, not completed. */
+    interrupted?: boolean
     contentBlocks?: Array<{ id: string; kind: 'thinking' | 'text'; text: string }>
   }
   | { type: 'error'; message: string }

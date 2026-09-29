@@ -30,4 +30,8 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
   },
+  // 依赖预构建只扫描应用入口，避免扫进 vendor/release 里的第三方 HTML
+  optimizeDeps: {
+    entries: ['index.html'],
+  },
 })

@@ -8,6 +8,7 @@ const DEFAULT_STATE = {
   activeModelKey: null,
   thinkingLevel: null,
   busyEnterMode: 'followUp',
+  busyEnterModeVersion: 1,
 }
 
 /**
@@ -27,7 +28,13 @@ export function createProfileStore(userDataPath) {
         addedModelKeys: Array.isArray(parsed.addedModelKeys) ? parsed.addedModelKeys : [],
         activeModelKey,
         thinkingLevel: parsed.thinkingLevel ?? null,
-        busyEnterMode: parsed.busyEnterMode === 'followUp' ? 'followUp' : 'steer',
+        // Older builds could persist `steer` as the implicit fallback when the
+        // preference was absent. Migrate those profiles to DSH's queue default;
+        // an explicit choice made by the current settings UI is versioned.
+        busyEnterMode: parsed.busyEnterModeVersion === 1 && parsed.busyEnterMode === 'steer'
+          ? 'steer'
+          : 'followUp',
+        busyEnterModeVersion: 1,
       }
     } catch (error) {
       if (error && typeof error === 'object' && error.code === 'ENOENT') {
@@ -131,7 +138,10 @@ export function createProfileStore(userDataPath) {
         addedModelKeys: Array.isArray(rawState.addedModelKeys) ? rawState.addedModelKeys : [],
         activeModelKey: null,
         thinkingLevel: rawState.thinkingLevel ?? null,
-        busyEnterMode: rawState.busyEnterMode === 'followUp' ? 'followUp' : 'steer',
+        busyEnterMode: rawState.busyEnterModeVersion === 1 && rawState.busyEnterMode === 'steer'
+          ? 'steer'
+          : 'followUp',
+        busyEnterModeVersion: 1,
       })
       return true
     },
@@ -168,6 +178,7 @@ export function createProfileStore(userDataPath) {
     async setBusyEnterMode(mode) {
       const state = await readState()
       state.busyEnterMode = mode === 'followUp' ? 'followUp' : 'steer'
+      state.busyEnterModeVersion = 1
       await writeState(state)
       return state.busyEnterMode
     },

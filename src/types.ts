@@ -7,6 +7,7 @@ export type AssistantContentBlock = { id: string; kind: 'thinking' | 'text'; tex
 export interface ModelOption {
   id: string
   name: string
+  contextWindow?: number
   displayName?: string
   quality?: string
   reasoning?: boolean

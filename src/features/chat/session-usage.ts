@@ -52,8 +52,14 @@ export function contextOccupancyFromPressure(pressure: unknown): {
 export function liveContextFromDshProjections(
   projections: Record<string, unknown> | undefined,
 ): LiveContextUsage | null {
-  const occupancy = contextOccupancyFromPressure(projections?.contextPressure)
-  if (!occupancy) return null
+  const rawPressure = projections?.contextPressure
+  const occupancy = contextOccupancyFromPressure(rawPressure)
+  const pressure = rawPressure && typeof rawPressure === 'object'
+    ? rawPressure as Record<string, unknown>
+    : null
+  const usedTokens = occupancy?.usedTokens
+    ?? (typeof pressure?.projectedTokens === 'number' ? pressure.projectedTokens : pressure?.pressureTokens)
+  if (typeof usedTokens !== 'number' || !Number.isFinite(usedTokens)) return null
   const raw = projections?.contextBreakdown
   let contextBreakdown: ContextBreakdownEstimate | undefined
   if (raw && typeof raw === 'object') {
@@ -73,9 +79,9 @@ export function liveContextFromDshProjections(
   return {
     inputTokens: 0,
     outputTokens: 0,
-    contextTokens: occupancy.usedTokens,
-    contextWindow: occupancy.contextWindow,
-    contextPercent: occupancy.percent,
+    contextTokens: usedTokens,
+    contextWindow: occupancy?.contextWindow ?? null,
+    contextPercent: occupancy?.percent ?? null,
     ...(contextBreakdown ? { contextBreakdown } : {}),
   }
 }

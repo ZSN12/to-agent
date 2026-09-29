@@ -61,6 +61,44 @@ async function run() {
     const disabledTools = await service.getCustomTools()
     assert.equal(disabledTools.length, 0, '未启用时不注入工具')
 
+    // 7. 百度千帆使用 messages 请求格式，并提取 references
+    await service.setConfig({
+      enabled: true,
+      apiKey: 'baidu-test-key',
+      endpoint: 'https://qianfan.baidubce.com/v2/ai_search/web_search',
+      maxResults: 3,
+    })
+    const originalFetch = globalThis.fetch
+    let capturedRequest
+    try {
+      globalThis.fetch = async (url, options) => {
+        capturedRequest = { url, options }
+        return new Response(JSON.stringify({
+          references: [{ title: '官方文档', url: 'https://example.com/docs', content: '搜索摘要' }],
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      }
+      const success = await service.testSearch('TaskWeaver 搜索')
+      assert.equal(success.ok, true, '有效 references 应报告检索成功')
+      assert.match(success.text, /官方文档/)
+      assert.equal(capturedRequest.url, 'https://qianfan.baidubce.com/v2/ai_search/web_search')
+      assert.equal(capturedRequest.options.headers['X-Appbuilder-Authorization'], 'Bearer baidu-test-key')
+      assert.deepEqual(JSON.parse(capturedRequest.options.body).messages, [
+        { role: 'user', content: 'TaskWeaver 搜索' },
+      ])
+
+      // 8. HTTP 200 中的百度业务错误不能被误报为成功
+      globalThis.fetch = async () => new Response(JSON.stringify({
+        request_id: 'test-request',
+        code: 'InvalidArgument',
+        message: 'empty messages',
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      const failure = await service.testSearch('测试查询')
+      assert.equal(failure.ok, false, '业务层错误不能误报检索成功')
+      assert.match(failure.error, /empty messages/)
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+
     console.log('web-search-service 单元测试全部通过！')
   } finally {
     await fs.rm(tmpDir, { recursive: true, force: true })

@@ -265,7 +265,6 @@ export function createDshChatService({
   }
 
   function registerPendingApproval(id, entry) {
-    pendingApprovals.set(id, entry)
     // Add failsafe timeout cleanup to prevent memory leaks
     // This runs only if settleApproval was never called
     const cleanupTimeoutId = setTimeout(() => {
@@ -273,9 +272,14 @@ export function createDshChatService({
         console.error(`Approval ${id} 未在超时时间内处理，强制清理以防止内存泄漏`)
         pendingApprovals.delete(id)
         if (entry?.timeoutId) clearTimeout(entry.timeoutId)
+        if (entry?.cleanupTimeoutId) clearTimeout(entry.cleanupTimeoutId)
       }
     }, Z_APPROVAL_PROMPT_TIMEOUT_MS + Z_APPROVAL_PROMPT_GRACE_PERIOD_MS)
     cleanupTimeoutId.unref?.()
+
+    // Store cleanup timeout in entry so it can be cleared by clearApprovalTimer
+    entry.cleanupTimeoutId = cleanupTimeoutId
+    pendingApprovals.set(id, entry)
   }
 
   async function sendApprovalOutcome(pending, allowed) {
@@ -296,6 +300,7 @@ export function createDshChatService({
 
   function clearApprovalTimer(pending) {
     if (pending?.timeoutId) clearTimeout(pending.timeoutId)
+    if (pending?.cleanupTimeoutId) clearTimeout(pending.cleanupTimeoutId)
   }
 
   async function settleApproval(id, response, { skipMapDelete = false } = {}) {
@@ -579,6 +584,7 @@ export function createDshChatService({
           full: result.text,
           fullThinking: result.thinking,
           thinkingDurationMs,
+          interrupted: cancelled,
           ...(turn.taskId ? { taskId: turn.taskId } : {}),
         })
       }
@@ -646,7 +652,22 @@ export function createDshChatService({
     if (stopped) return
     try {
       console.log(`正在重连 Z 事件流 (尝试 ${reconnectAttempt}/${Z_MAX_RECONNECT_ATTEMPTS})...`)
-      await startMuxStream(api)
+      let reconnectApi = api
+      if (typeof hostManager.isRunning === 'function' && !hostManager.isRunning()) {
+        readyPromise = null
+        reconnectApi = (await hostManager.start()).api
+      } else {
+        reconnectApi = hostManager.getApi?.() ?? api
+        try {
+          rpcValue(await reconnectApi.host.describe({}), '检查 Z Host')
+        } catch {
+          readyPromise = null
+          reconnectApi = (await hostManager.restart()).api
+        }
+      }
+      conversationHub?.bindApi?.(reconnectApi)
+      readyPromise = Promise.resolve(reconnectApi)
+      await startMuxStream(reconnectApi)
       console.log('DSH 事件流重连成功')
       const activeSessions = [...sessions.entries()]
       if (activeSessions.length > 0) {
@@ -662,7 +683,15 @@ export function createDshChatService({
 
   async function ensureReady() {
     if (stopped) throw new Error('DSH 后端已关闭')
-    if (readyPromise) return readyPromise
+    if (readyPromise && (typeof hostManager.isRunning !== 'function' || hostManager.isRunning())) return readyPromise
+    if (readyPromise) {
+      // A fulfilled API promise can outlive the host child it points to.
+      // Discard the dead transport before starting a fresh host/client pair.
+      readyPromise = null
+      muxAbort?.abort()
+      muxAbort = null
+      muxTask = null
+    }
     readyPromise = (async () => {
       const { api } = await hostManager.start()
       conversationHub?.bindApi?.(api)
@@ -1038,7 +1067,68 @@ export function createDshChatService({
     getRunningConversationId: () => running.keys().next().value ?? null,
     listRunningConversationIds: () => [...running.keys()],
     getLiveContextUsage: (id) => liveUsage.get(id) ?? null,
-    getSessionStatsSnapshot: (id) => stats.get(id) ?? null,
+    getSessionStatsSnapshot: async (id) => {
+      // The renderer can request stats before chat:subscribeMux finishes. Load
+      // the persisted session mapping and read its durable DSH projections
+      // directly, instead of silently returning the per-process turn counter.
+      await loadSessions()
+      const current = stats.get(id)
+      const mappedSessionId = sessions.get(id)?.sessionId ?? null
+      let projections = null
+      if (mappedSessionId) {
+        try {
+          const api = await ensureReady()
+          const history = rpcValue(await api.sessions.history({
+            sessionId: mappedSessionId,
+            maxMessages: 1,
+          }), '读取 DSH 会话投影')
+          projections = history?.projections?.values ?? null
+        } catch (error) {
+          console.warn(
+            '[dsh-chat-service] 直接读取 DSH 投影失败，回退到会话 Hub:',
+            error instanceof Error ? error.message : String(error),
+          )
+          projections = await conversationHub?.getProjections?.(id, mappedSessionId) ?? null
+        }
+      } else {
+        projections = await conversationHub?.getProjections?.(id) ?? null
+      }
+      const projectedStats = projections?.sessionStats
+      const projectedUsage = projections?.tokenUsage
+      const contextPressure = projections?.contextPressure
+      if (!projectedStats && !projectedUsage && !contextPressure) return current ?? null
+
+      // Client projection views are normally flat. Accept the persistence
+      // state shape too, so version/runtime differences don't drop totals.
+      const usageTotals = projectedUsage?.totals ?? projectedUsage
+      const input = usageTotals?.uncachedInputTokens ?? current?.tokens.input ?? 0
+      const output = usageTotals?.outputTokens ?? current?.tokens.output ?? 0
+      const cacheRead = usageTotals?.cacheReadTokens ?? current?.tokens.cacheRead ?? 0
+      const cacheWrite = usageTotals?.cacheWriteTokens ?? current?.tokens.cacheWrite ?? 0
+      const projectedContextTokens = contextPressure?.projectedTokens ?? contextPressure?.pressureTokens
+      const contextTokens = projectedContextTokens ?? current?.contextTokens
+      const contextWindow = contextPressure?.contextWindow ?? current?.contextWindow
+      const contextPercent = projectedContextTokens !== undefined && contextPressure?.contextWindow
+        ? Math.round(projectedContextTokens / contextPressure.contextWindow * 100)
+        : current?.contextPercent
+      return {
+        userMessages: projectedStats?.turns ?? current?.userMessages ?? 0,
+        assistantMessages: projectedStats?.steps ?? current?.assistantMessages ?? 0,
+        toolCalls: current?.toolCalls ?? 0,
+        toolResults: current?.toolResults ?? 0,
+        tokens: {
+          input,
+          output,
+          cacheRead,
+          cacheWrite,
+          total: input + output + cacheRead + cacheWrite,
+        },
+        cost: current?.cost ?? 0,
+        ...(contextTokens === undefined ? {} : { contextTokens }),
+        ...(contextWindow === undefined ? {} : { contextWindow }),
+        ...(contextPercent === undefined ? {} : { contextPercent }),
+      }
+    },
     // 切换对话 / 工作区不能销毁 DSH 的持久历史，所以这里保持无副作用。
     // 真正的回收走 forgetConversation（删除对话时调用）。
     resetSession: async () => {},

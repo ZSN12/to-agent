@@ -27,6 +27,7 @@ import {
 import { mergeStoredMessagesWithDshTranscript } from '../dsh-runtime/dshTranscriptMessages'
 import { liveContextFromDshProjections } from '../chat/session-usage'
 import { shortStreamActivityLabel } from '../chat/streamActivityLabel'
+import { readCachedSkillCatalog, writeSkillCatalogCache } from '../skills/useEnabledSkills'
 import type { AssistantContentBlock, ChatMessage, TaskNode } from '../../types'
 import {
   applyStreamEventToSnapshot,
@@ -68,6 +69,8 @@ function mergeDshRunningCallsIntoTraces(
 
 export function useAppBackend() {
   const [state, setState] = useState<AppState | null>(null)
+  const workspacePathRef = useRef<string | null>(null)
+  workspacePathRef.current = state?.workspacePath ?? null
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [sending, setSending] = useState(false)
@@ -77,6 +80,8 @@ export function useAppBackend() {
   const [streamActivity, setStreamActivity] = useState<string | null>(null)
   const [streamBlocks, setStreamBlocks] = useState<AssistantContentBlock[]>([])
   const [skills, setSkills] = useState<SkillOption[]>([])
+  const [skillsLoading, setSkillsLoading] = useState(true)
+  const skillsRequestsRef = useRef(new Map<string, Promise<void>>())
   const [toolTraces, setToolTraces] = useState<ToolTraceItem[]>([])
   const [promptQueue, setPromptQueue] = useState<PromptQueueSnapshot>({ steering: [], followUp: [] })
   const [orchestrationChoice, setOrchestrationChoice] = useState<OrchestrationChoicePrompt | null>(null)
@@ -88,6 +93,7 @@ export function useAppBackend() {
   const activeConversationIdRef = useRef<string | null>(null)
   const runningConversationsRef = useRef(new Set<string>())
   const [runningConversationIds, setRunningConversationIds] = useState<string[]>([])
+  const [completedConversationIds, setCompletedConversationIds] = useState<string[]>([])
   const syncRunningConversationIds = useCallback(() => {
     setRunningConversationIds([...runningConversationsRef.current])
   }, [])
@@ -130,6 +136,45 @@ export function useAppBackend() {
     setRetryBanner(null)
   }, [])
 
+  const refreshSkills = useCallback(async (workspacePathOverride?: string | null) => {
+    const bridge = getBridge()
+    if (!bridge?.skills?.list) {
+      setSkillsLoading(false)
+      return
+    }
+    const workspacePath = workspacePathOverride === undefined ? workspacePathRef.current : workspacePathOverride
+    const requestKey = workspacePath ?? '<no-workspace>'
+    workspacePathRef.current = workspacePath
+    const cachedCatalog = readCachedSkillCatalog(workspacePath)
+    setSkills(cachedCatalog ?? [])
+    const pending = skillsRequestsRef.current.get(requestKey)
+    if (pending) {
+      await pending
+      return
+    }
+    setSkillsLoading(true)
+    const request = (async () => {
+      try {
+        const result = await bridge.skills?.list()
+        if (result?.ok) {
+          const catalog = result.data ?? []
+          writeSkillCatalogCache(catalog, workspacePath)
+          if (workspacePathRef.current === workspacePath) setSkills(catalog)
+        }
+      } catch (err) {
+        console.warn('[useAppBackend] Skill 目录加载失败:', err)
+      } finally {
+        if (workspacePathRef.current === workspacePath) setSkillsLoading(false)
+      }
+    })()
+    skillsRequestsRef.current.set(requestKey, request)
+    try {
+      await request
+    } finally {
+      if (skillsRequestsRef.current.get(requestKey) === request) skillsRequestsRef.current.delete(requestKey)
+    }
+  }, [])
+
   const bridgeReady = Boolean(getBridge()?.app)
   const { view: dshView, subscribed: dshProjectionSubscribed } = useDshConversationView(
     bridgeReady ? state?.conversationId : null,
@@ -148,6 +193,62 @@ export function useAppBackend() {
     () => liveContextFromDshProjections(dshView?.projections),
     [dshView?.projections],
   )
+  const projectedSessionStats = useMemo<SessionStatsSnapshot | null>(() => {
+    if (!dshView || (dshView.conversationId && dshView.conversationId !== state?.conversationId)) return null
+    const projections = dshView.projections
+    const rawSessionStats = projections?.sessionStats
+    const rawTokenUsage = projections?.tokenUsage
+    const isRecord = (value: unknown): value is Record<string, unknown> =>
+      value !== null && typeof value === 'object'
+    const sessionStatsProjection = isRecord(rawSessionStats)
+      && typeof rawSessionStats.turns === 'number'
+      && typeof rawSessionStats.steps === 'number'
+      ? rawSessionStats
+      : null
+    const tokenUsageValues = isRecord(rawTokenUsage) && isRecord(rawTokenUsage.totals)
+      ? rawTokenUsage.totals
+      : rawTokenUsage
+    const tokenUsageProjection = isRecord(tokenUsageValues)
+      && typeof tokenUsageValues.uncachedInputTokens === 'number'
+      && typeof tokenUsageValues.outputTokens === 'number'
+      && typeof tokenUsageValues.cacheReadTokens === 'number'
+      && typeof tokenUsageValues.cacheWriteTokens === 'number'
+      ? tokenUsageValues
+      : null
+    if (!sessionStatsProjection && !tokenUsageProjection) return null
+
+    const fallback: SessionStatsSnapshot = sessionStats ?? {
+      userMessages: 0,
+      assistantMessages: 0,
+      toolCalls: 0,
+      toolResults: 0,
+      tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+      cost: 0,
+    }
+    const input = tokenUsageProjection
+      ? tokenUsageProjection.uncachedInputTokens as number
+      : fallback.tokens.input
+    const output = tokenUsageProjection
+      ? tokenUsageProjection.outputTokens as number
+      : fallback.tokens.output
+    const cacheRead = tokenUsageProjection
+      ? tokenUsageProjection.cacheReadTokens as number
+      : fallback.tokens.cacheRead
+    const cacheWrite = tokenUsageProjection
+      ? tokenUsageProjection.cacheWriteTokens as number
+      : fallback.tokens.cacheWrite
+
+    return {
+      ...fallback,
+      ...(sessionStatsProjection ? {
+        userMessages: sessionStatsProjection.turns as number,
+        assistantMessages: sessionStatsProjection.steps as number,
+      } : {}),
+      tokens: tokenUsageProjection
+        ? { input, output, cacheRead, cacheWrite, total: input + output + cacheRead + cacheWrite }
+        : fallback.tokens,
+    }
+  }, [dshView, sessionStats, state?.conversationId])
 
   const displayMessages = useMemo(
     () => mergeStoredMessagesWithDshTranscript(
@@ -195,8 +296,7 @@ export function useAppBackend() {
     setToolTraces(res.data.outputLogs ?? [])
     setError(null)
     setLoading(false)
-    const skillResult = await bridge.skills?.list()
-    if (skillResult?.ok) setSkills(skillResult.data)
+    void refreshSkills(res.data.workspacePath)
     const enterMode = await bridge.models?.getBusyEnterMode?.()
     if (enterMode?.ok) setBusyEnterMode(enterMode.data)
     await refreshSessionStats()
@@ -205,7 +305,7 @@ export function useAppBackend() {
       runningConversationsRef.current = new Set(runningRes.data)
       setRunningConversationIds(runningRes.data)
     }
-  }, [refreshSessionStats])
+  }, [refreshSessionStats, refreshSkills])
 
   useEffect(() => {
     void reload()
@@ -300,6 +400,55 @@ export function useAppBackend() {
     if (!bridge?.chat) return
     return bridge.chat.onStream((event: ChatStreamEvent) => {
       const skipStreamContent = isStreamEventSupersededByProjection(event, projectionStreamActive)
+      if (event.type === 'done' && event.interrupted && event.conversationId) {
+        const prior = conversationStreamRef.current.get(event.conversationId)
+        const text = event.full.trim() || prior?.streamText?.trim() || ''
+        const thinking = event.fullThinking?.trim() || prior?.streamThinking?.text?.trim() || ''
+        if (text || thinking) {
+          const timestamp = Date.now()
+          const interruptedMessage: ChatMessage = {
+            id: `interrupted-stream-${event.conversationId}-${timestamp}`,
+            author: 'orchestrator',
+            name: 'TaskWeaver',
+            time: new Date(timestamp).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false }),
+            timestamp,
+            text,
+            thinking: thinking || undefined,
+            contentBlocks: event.contentBlocks?.length
+              ? event.contentBlocks
+              : prior?.streamBlocks.length ? prior.streamBlocks : undefined,
+            interrupted: true,
+          }
+          setState((current) => {
+            if (!current || current.conversationId !== event.conversationId) return current
+            return { ...current, messages: [...current.messages, interruptedMessage] }
+          })
+        }
+      }
+      if (event.type === 'start' && event.conversationId) {
+        const previousStream = conversationStreamRef.current.get(event.conversationId)
+        const interruptedText = previousStream?.streamText?.trim() ?? ''
+        const interruptedThinking = previousStream?.streamThinking?.text?.trim() ?? ''
+        if (interruptedText || interruptedThinking) {
+          const timestamp = Date.now()
+          const interruptedMessage: ChatMessage = {
+            id: `interrupted-stream-${event.conversationId}-${timestamp}`,
+            author: 'orchestrator',
+            name: 'TaskWeaver',
+            time: new Date(timestamp).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false }),
+            timestamp,
+            text: interruptedText,
+            thinking: interruptedThinking || undefined,
+            contentBlocks: previousStream?.streamBlocks.length ? previousStream.streamBlocks : undefined,
+            interrupted: true,
+          }
+          setState((current) => {
+            if (!current || current.conversationId !== event.conversationId) return current
+            if (current.messages.some((message) => message.id === interruptedMessage.id)) return current
+            return { ...current, messages: [...current.messages, interruptedMessage] }
+          })
+        }
+      }
       if (event.type === 'start' && event.conversationId) {
         runningConversationsRef.current.add(event.conversationId)
         syncRunningConversationIds()
@@ -313,6 +462,11 @@ export function useAppBackend() {
       if ((event.type === 'done' || event.type === 'error') && event.conversationId) {
         runningConversationsRef.current.delete(event.conversationId)
         syncRunningConversationIds()
+        if (event.type === 'done') {
+          setCompletedConversationIds((current) => current.includes(event.conversationId!)
+            ? current
+            : [...current, event.conversationId!])
+        }
         conversationStartedAtRef.current.delete(event.conversationId)
         conversationStreamRef.current.delete(event.conversationId)
         if (activeConversationIdRef.current === event.conversationId) {
@@ -525,7 +679,23 @@ export function useAppBackend() {
       const optimisticStartedAt = Date.now()
       if (sendConversationId) conversationStartedAtRef.current.set(sendConversationId, optimisticStartedAt)
       setStreamStartedAt(optimisticStartedAt)
-      setState((current) => current ? { ...current, messages: [...current.messages, optimisticMessage] } : current)
+      setState((current) => {
+        if (current) return { ...current, messages: [...current.messages, optimisticMessage] }
+        // New conversation: initialize minimal state with the message
+        return {
+          workspacePath: state?.workspacePath ?? null,
+          conversationId: sendConversationId ?? '',
+          threadTitle: '',
+          currentThreadId: state?.currentThreadId ?? '',
+          threads: state?.threads ?? [],
+          messages: [optimisticMessage],
+          modelKey: modelKey ?? state?.modelKey ?? null,
+          thinkingLevel: state?.thinkingLevel ?? null,
+          permissionMode: state?.permissionMode ?? 'ask',
+          tasks: state?.tasks ?? [],
+          outputLogs: [],
+        }
+      })
       setSending(true)
       setStreamText(null)
       setStreamThinking(null)
@@ -577,14 +747,28 @@ export function useAppBackend() {
       if (sendConversationId) orchestrationChoicesRef.current.delete(sendConversationId)
       if (activeConversationIdRef.current === sendConversationId) {
         setOrchestrationChoice(null)
+        const committedMessages = [res.data.user, res.data.assistant].filter(
+          (message): message is ChatMessage => Boolean(message),
+        )
+        if (committedMessages.length > 0) {
+          setState((current) => {
+            if (!current || current.conversationId !== sendConversationId) return current
+            const committedIds = new Set(committedMessages.map((message) => message.id))
+            const nextMessages = current.messages.filter((message) =>
+              message.id !== optimisticMessage.id && !committedIds.has(message.id),
+            )
+            return { ...current, messages: [...nextMessages, ...committedMessages] }
+          })
+        } else {
+          // Compatibility with older backends that don't return committed
+          // messages: reload the durable conversation after the turn settles.
+          await reload()
+        }
         setSending(false)
         setStreamText(null)
         setStreamThinking(null)
         setStreamBlocks([])
-        // Don't reload if there are other running conversations - it would clear their in-flight messages
-        if (runningConversationsRef.current.size === 0) {
-          await reload()
-        }
+        setStreamActivity(null)
       }
       return true
     },
@@ -675,12 +859,13 @@ export function useAppBackend() {
     resetTransientConversationState()
     activeConversationIdRef.current = res.data.conversationId
     setState(res.data)
+    void refreshSkills(res.data.workspacePath)
     setToolTraces([])
     setSending(isConversationRunning(res.data.conversationId))
     setStreamStartedAt(conversationStartedAtRef.current.get(res.data.conversationId) ?? null)
     setPermissionPrompt(permissionPromptsRef.current.get(res.data.conversationId) ?? null)
     return true
-  }, [isConversationRunning, resetTransientConversationState])
+  }, [isConversationRunning, refreshSkills, resetTransientConversationState])
 
   const setWorkspace = useCallback(async (workspacePath: string | null) => {
     const bridge = getBridge()
@@ -693,9 +878,10 @@ export function useAppBackend() {
     resetTransientConversationState()
     activeConversationIdRef.current = res.data.conversationId
     setState(res.data)
+    void refreshSkills(res.data.workspacePath)
     setToolTraces([])
     return true
-  }, [resetTransientConversationState])
+  }, [refreshSkills, resetTransientConversationState])
 
   const pickWorkspace = useCallback(async () => {
     const bridge = getBridge()
@@ -709,13 +895,14 @@ export function useAppBackend() {
     resetTransientConversationState()
     activeConversationIdRef.current = res.data.state.conversationId
     setState(res.data.state)
+    void refreshSkills(res.data.state.workspacePath)
     setToolTraces(res.data.state.outputLogs ?? [])
     setSending(isConversationRunning(res.data.state.conversationId))
     setStreamStartedAt(conversationStartedAtRef.current.get(res.data.state.conversationId) ?? null)
     setPermissionPrompt(permissionPromptsRef.current.get(res.data.state.conversationId) ?? null)
     setError(null)
     return true
-  }, [isConversationRunning, resetTransientConversationState])
+  }, [isConversationRunning, refreshSkills, resetTransientConversationState])
 
   const switchThread = useCallback(async (threadId: string) => {
     const bridge = getBridge()
@@ -727,7 +914,9 @@ export function useAppBackend() {
     }
     resetTransientConversationState()
     activeConversationIdRef.current = res.data.conversationId
+    setCompletedConversationIds((current) => current.filter((id) => id !== res.data.conversationId))
     setState(res.data)
+    void refreshSkills(res.data.workspacePath)
     const streamSnap = conversationStreamRef.current.get(res.data.conversationId)
     if (streamSnap) applyConversationStreamSnapshot(streamSnap)
     else setToolTraces(res.data.outputLogs ?? [])
@@ -744,7 +933,7 @@ export function useAppBackend() {
     }
 
     return true
-  }, [applyConversationStreamSnapshot, isConversationRunning, refreshSessionStats, resetTransientConversationState])
+  }, [applyConversationStreamSnapshot, isConversationRunning, refreshSessionStats, refreshSkills, resetTransientConversationState])
 
   const renameThread = useCallback(async (threadId: string, title: string) => {
     const bridge = getBridge()
@@ -980,7 +1169,7 @@ export function useAppBackend() {
     permissionPrompt,
     respondPermissionPrompt,
     liveContext: projectionLiveContext ?? liveContext,
-    sessionStats,
+    sessionStats: projectedSessionStats ?? sessionStats,
     refreshSessionStats,
     busyEnterMode,
     setBusyEnterMode: setBusyEnterModePref,
@@ -990,9 +1179,12 @@ export function useAppBackend() {
     dshToolRows,
     promptQueue,
     skills,
+    skillsLoading,
+    refreshSkills,
     threads: state?.threads ?? [],
     currentThreadId: state?.currentThreadId ?? null,
     runningConversationIds,
+    completedConversationIds,
     reload,
     sendMessage,
     cancelMessage,

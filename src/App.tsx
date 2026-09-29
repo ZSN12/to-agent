@@ -75,6 +75,7 @@ import { OutputLogPanel } from './features/logs/OutputLogPanel'
 import { GitCheckpointPanel } from './features/git/GitCheckpointPanel'
 import { SkillSettingsPanel } from './features/skills/SkillSettingsPanel'
 import { skillDescriptionBlurb } from './features/skills/skillDescription'
+import { SKILL_CATALOG_EVENT, useEnabledSkills } from './features/skills/useEnabledSkills'
 import { WorktreeMergeActions } from './features/worktree/WorktreeMergeActions'
 import { TerminalDrawer } from './features/terminal/TerminalDrawer'
 import { useModelCatalog } from './features/models/useModelCatalog'
@@ -173,6 +174,7 @@ function AppSidebar({
   onDeleteThread,
   onSearchThreads,
   runningConversationIds = [],
+  completedConversationIds = [],
   activeMainView = 'chat',
   onSelectMainView,
   onToggleCollapsed,
@@ -182,6 +184,7 @@ function AppSidebar({
   threads: ThreadSummary[]
   currentThreadId: string | null
   runningConversationIds?: string[]
+  completedConversationIds?: string[]
   activeMainView?: string
   onSelectMainView?: (view: 'chat' | 'plugins' | 'pull-requests' | 'schedules' | 'explore') => void
   onOpenSettings: () => void
@@ -226,8 +229,15 @@ function AppSidebar({
     () => new Set(runningConversationIds),
     [runningConversationIds],
   )
-  const isThreadRunningInBackground = (thread: ThreadSummary) =>
-    runningConversationSet.has(thread.conversationId) && thread.id !== currentThreadId
+  const completedConversationSet = useMemo(
+    () => new Set(completedConversationIds),
+    [completedConversationIds],
+  )
+  const threadBackgroundStatus = (thread: ThreadSummary): 'running' | 'done' | null => {
+    if (runningConversationSet.has(thread.conversationId)) return 'running'
+    if (completedConversationSet.has(thread.conversationId)) return 'done'
+    return null
+  }
 
   useEffect(() => {
     const q = searchQuery.trim()
@@ -674,7 +684,7 @@ function AppSidebar({
                                   >
                                     <span className="sidebar-label thread-copy">
                                       <strong>{thread.title}</strong>
-                                      <ThreadRunningIndicator active={isThreadRunningInBackground(thread)} />
+                                      <ThreadRunningIndicator status={threadBackgroundStatus(thread)} />
                                       <span className="thread-time">{threadUpdatedLabel(thread.updatedAt)}</span>
                                     </span>
                                   </button>
@@ -762,7 +772,7 @@ function AppSidebar({
                         >
                           <span className="sidebar-recent-text">
                             {thread.title}
-                            <ThreadRunningIndicator active={isThreadRunningInBackground(thread)} />
+                            <ThreadRunningIndicator status={threadBackgroundStatus(thread)} />
                           </span>
                           <span className="thread-time">{threadUpdatedLabel(thread.updatedAt)}</span>
                         </button>
@@ -1634,27 +1644,29 @@ function UsageSettings() {
   }
   const maxDay = Math.max(1, ...cells.map((c) => (c.future ? 0 : c.t)))
 
-  const monthStartCols: { y: number; m: number; col: number }[] = []
-  for (let i = 0; i < weeks * 7; i++) {
+  // 每个周列只归属一个月份（取周中日期），保证所有月份带宽度之和恰好等于列数。
+  const monthBands: { label: string; startCol: number; span: number }[] = []
+  for (let col = 0; col < weeks; col++) {
     const d = new Date(start)
-    d.setDate(start.getDate() + i)
-    const y = d.getFullYear()
-    const m = d.getMonth()
-    const last = monthStartCols[monthStartCols.length - 1]
-    if (!last || last.y !== y || last.m !== m) {
-      monthStartCols.push({ y, m, col: Math.floor(i / 7) })
+    d.setDate(start.getDate() + col * 7 + 3)
+    const label = `${d.getMonth() + 1}月`
+    const last = monthBands[monthBands.length - 1]
+    if (last?.label === label) {
+      last.span += 1
+    } else {
+      monthBands.push({ label, startCol: col, span: 1 })
     }
   }
-  const monthBands: { label: string; span: number }[] = monthStartCols.map((s, idx) => {
-    const next = monthStartCols[idx + 1]
-    return { label: `${s.m + 1}月`, span: next ? next.col - s.col : weeks - s.col }
-  })
 
   const showTip = (text: string) => (e: React.MouseEvent): void => {
-    setTip({ text, x: e.clientX, y: e.clientY })
+    setTip({ text, x: Math.max(12, Math.min(e.clientX, window.innerWidth - 332)), y: Math.max(12, Math.min(e.clientY, window.innerHeight - 52)) })
   }
   const moveTip = (e: React.MouseEvent): void => {
-    setTip((t) => (t ? { ...t, x: e.clientX, y: e.clientY } : t))
+    setTip((t) => (t ? {
+      ...t,
+      x: Math.max(12, Math.min(e.clientX, window.innerWidth - 332)),
+      y: Math.max(12, Math.min(e.clientY, window.innerHeight - 52)),
+    } : t))
   }
   const hideTip = (): void => setTip(null)
 
@@ -1731,7 +1743,7 @@ function UsageSettings() {
               <div
                 key={i}
                 className="dsh-month-band"
-                style={{ gridColumn: `span ${Math.max(1, b.span)}` }}
+                style={{ gridColumn: `${b.startCol + 1} / span ${b.span}` }}
               >
                 {b.label}
               </div>
@@ -2038,6 +2050,7 @@ function Message({
   onShowToolDetails,
   onOpenWorkspacePath,
   fallbackModelKey,
+  isFocused = false,
 }: {
   message: ChatMessage
   dshToolRows?: readonly DshProjectedToolCall[]
@@ -2048,6 +2061,7 @@ function Message({
   onShowToolDetails?: (item: ToolTraceItem) => void
   onOpenWorkspacePath?: (relativePath: string) => void
   fallbackModelKey?: string | null
+  isFocused?: boolean
 }) {
   const isUser = message.author === 'user'
   const [copied, setCopied] = useState(false)
@@ -2085,7 +2099,7 @@ function Message({
   return (
     <article
       id={`msg-${message.id}`}
-      className={`message dsh-flow-item ${isUser ? 'user-message' : 'agent-message'}${message.interrupted ? ' interrupted-turn' : ''}${isStreaming ? ' message-streaming' : ''}`}
+      className={`message dsh-flow-item ${isUser ? 'user-message' : 'agent-message'}${message.interrupted ? ' interrupted-turn' : ''}${isStreaming ? ' message-streaming' : ''}${isFocused ? ' message-focused' : ''}`}
     >
       <div className="message-content">
         {!isUser && message.compaction && (
@@ -2775,6 +2789,9 @@ function Composer({
   model,
   modelOptions,
   skills,
+  skillCatalogLoading = false,
+  skillCatalogSize = skills.length,
+  onLoadSkills,
   permissionMode,
   modelsLoading,
   sending,
@@ -2809,6 +2826,9 @@ function Composer({
   model: ModelOption | null
   modelOptions: ModelOption[]
   skills: SkillOption[]
+  skillCatalogLoading?: boolean
+  skillCatalogSize?: number
+  onLoadSkills?: () => Promise<void>
   permissionMode: PermissionMode
   modelsLoading?: boolean
   sending?: boolean
@@ -2853,6 +2873,15 @@ function Composer({
   const [activeContextIndex, setActiveContextIndex] = useState(0)
   const [dragging, setDragging] = useState(false)
   const textareaRef = useAutosizeTextarea(value, 38, 132)
+  const slashMenuWasOpenRef = useRef(false)
+
+  useEffect(() => {
+    const isOpen = Boolean(skillQuery)
+    if (isOpen && !slashMenuWasOpenRef.current && skillCatalogSize === 0) {
+      void onLoadSkills?.()
+    }
+    slashMenuWasOpenRef.current = isOpen
+  }, [onLoadSkills, skillCatalogSize, Boolean(skillQuery)])
 
   const draftsMapRef = useRef<Map<string, string>>(new Map())
   const prevThreadIdRef = useRef<string | null>(currentThreadId ?? null)
@@ -2901,6 +2930,9 @@ function Composer({
     return item ? item.keys : ['⇧', '↩']
   }, [shortcuts])
   const selectedSkillOption = skills.find((skill) => skill.name === selectedSkill)
+  useEffect(() => {
+    if (selectedSkill && !selectedSkillOption) setSelectedSkill(null)
+  }, [selectedSkill, selectedSkillOption])
   const matchingCommands = useMemo(() => {
     const query = skillQuery?.query.toLowerCase() ?? ''
     if (!query) return BUILTIN_SLASH_COMMANDS
@@ -3133,20 +3165,58 @@ function Composer({
         }} onBlur={() => { setSkillQuery(null); setContextQuery(null) }} placeholder="发消息或创建任务, / 调用指令, @ 文件或对话" onKeyDown={(event) => {
           if (event.nativeEvent.isComposing) return
           if (contextQuery && event.key === 'ArrowDown' && contextEntries.length) {
-            event.preventDefault(); setActiveContextIndex((index) => (index + 1) % contextEntries.length); return
+            event.preventDefault()
+            setActiveContextIndex((index) => {
+              const next = (index + 1) % contextEntries.length
+              requestAnimationFrame(() => {
+                const elem = document.getElementById(`context-command-${next}`)
+                if (elem) elem.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+              })
+              return next
+            })
+            return
           }
           if (contextQuery && event.key === 'ArrowUp' && contextEntries.length) {
-            event.preventDefault(); setActiveContextIndex((index) => (index - 1 + contextEntries.length) % contextEntries.length); return
+            event.preventDefault()
+            setActiveContextIndex((index) => {
+              const next = (index - 1 + contextEntries.length) % contextEntries.length
+              requestAnimationFrame(() => {
+                const elem = document.getElementById(`context-command-${next}`)
+                if (elem) elem.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+              })
+              return next
+            })
+            return
           }
           const plainEnter = event.key === 'Enter' && !event.shiftKey && !event.altKey && !event.metaKey && !event.ctrlKey
           if (contextQuery && plainEnter && contextEntries.length) {
             event.preventDefault(); insertReference(contextEntries[activeContextIndex] ?? contextEntries[0]); return
           }
           if (skillQuery && event.key === 'ArrowDown' && totalSlashCount) {
-            event.preventDefault(); setActiveSkillIndex((index) => (index + 1) % totalSlashCount); return
+            event.preventDefault()
+            setActiveSkillIndex((index) => {
+              const next = (index + 1) % totalSlashCount
+              requestAnimationFrame(() => {
+                const menu = document.getElementById('skill-command-options')
+                const elem = document.getElementById(next < matchingCommands.length ? `slash-cmd-${next}` : `slash-skill-${next}`)
+                if (menu && elem) elem.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+              })
+              return next
+            })
+            return
           }
           if (skillQuery && event.key === 'ArrowUp' && totalSlashCount) {
-            event.preventDefault(); setActiveSkillIndex((index) => (index - 1 + totalSlashCount) % totalSlashCount); return
+            event.preventDefault()
+            setActiveSkillIndex((index) => {
+              const next = (index - 1 + totalSlashCount) % totalSlashCount
+              requestAnimationFrame(() => {
+                const menu = document.getElementById('skill-command-options')
+                const elem = document.getElementById(next < matchingCommands.length ? `slash-cmd-${next}` : `slash-skill-${next}`)
+                if (menu && elem) elem.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+              })
+              return next
+            })
+            return
           }
           if (skillQuery && plainEnter && totalSlashCount) {
             event.preventDefault()
@@ -3314,7 +3384,13 @@ function Composer({
               })}
             </>
           )}
-          {matchingCommands.length === 0 && matchingSkills.length === 0 && (
+          {skillCatalogLoading && skillCatalogSize === 0 && (
+            <>
+              <div className="skill-command-heading"><span>技能</span><small>正在加载…</small></div>
+              <p className="skill-menu-empty">正在读取当前工作区可用的 Skill。</p>
+            </>
+          )}
+          {!skillCatalogLoading && matchingCommands.length === 0 && matchingSkills.length === 0 && (
             <p className="skill-menu-empty">没有匹配的指令或技能；按 Esc 保留并继续输入普通文本。</p>
           )}
         </div>}
@@ -3378,6 +3454,7 @@ function Composer({
         messages={messages ?? []}
         sessionStats={sessionStats}
         liveContext={liveContext}
+        modelContextWindow={model?.contextWindow}
       />
     </div>
   )
@@ -3387,14 +3464,16 @@ function ConversationUsageFooter({
   messages,
   sessionStats,
   liveContext,
+  modelContextWindow,
 }: {
   messages: ChatMessage[]
   sessionStats?: SessionStatsSnapshot | null
   liveContext?: LiveContextUsage | null
+  modelContextWindow?: number
 }) {
   const sessionUsage = useMemo(() => summarizeSessionUsage(messages), [messages])
   if (sessionStats) {
-    return <ComposerStatsDock stats={sessionStats} messages={messages} liveContext={liveContext} />
+    return <ComposerStatsDock stats={sessionStats} messages={messages} liveContext={liveContext} modelContextWindow={modelContextWindow} />
   }
   if (!sessionUsageHasData(sessionUsage) && !liveContext) return null
   return (
@@ -3415,6 +3494,7 @@ function ConversationUsageFooter({
       }}
       messages={messages}
       liveContext={liveContext}
+      modelContextWindow={modelContextWindow}
     />
   )
 }
@@ -3425,6 +3505,9 @@ function MainConversation({
   model,
   modelOptions,
   skills,
+  skillCatalogLoading,
+  skillCatalogSize,
+  onLoadSkills,
   permissionMode,
   modelsLoading,
   sending,
@@ -3482,6 +3565,9 @@ function MainConversation({
   model: ModelOption | null
   modelOptions: ModelOption[]
   skills: SkillOption[]
+  skillCatalogLoading?: boolean
+  skillCatalogSize?: number
+  onLoadSkills?: () => Promise<void>
   permissionMode: PermissionMode
   modelsLoading?: boolean
   sending?: boolean
@@ -3547,6 +3633,7 @@ function MainConversation({
   const isAtBottomRef = useRef(true)
   const [showScrollBottomBtn, setShowScrollBottomBtn] = useState(false)
   const [turnMenuOpen, setTurnMenuOpen] = useState(false)
+  const [focusedMessageIndex, setFocusedMessageIndex] = useState<number>(-1)
 
   const lastAgentMessageId = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
@@ -3639,6 +3726,54 @@ function MainConversation({
     window.addEventListener('keydown', handleKeyDown, true)
     return () => window.removeEventListener('keydown', handleKeyDown, true)
   }, [shortcuts, currentThreadId])
+
+  useEffect(() => {
+    const handleMessageNavigation = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.isComposing) return
+      const target = event.target instanceof HTMLElement ? event.target : null
+      if (target?.closest('textarea, input, [role="dialog"], [role="listbox"], [role="menu"], [contenteditable="true"]') || document.querySelector('[aria-modal="true"]')) return
+
+      if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+        event.preventDefault()
+        event.stopPropagation()
+
+        setFocusedMessageIndex((currentIndex) => {
+          const messageCount = messages.length
+          if (messageCount === 0) return -1
+
+          let nextIndex: number
+          if (currentIndex === -1) {
+            nextIndex = event.key === 'ArrowUp' ? messageCount - 1 : 0
+          } else {
+            nextIndex = event.key === 'ArrowUp'
+              ? Math.max(0, currentIndex - 1)
+              : Math.min(messageCount - 1, currentIndex + 1)
+          }
+
+          const messageId = messages[nextIndex]?.id
+          if (messageId) {
+            requestAnimationFrame(() => {
+              const element = document.getElementById(`msg-${messageId}`)
+              if (element) {
+                element.scrollIntoView({ block: 'center', behavior: 'smooth' })
+                isAtBottomRef.current = false
+                setShowScrollBottomBtn(nextIndex < messageCount - 1)
+              }
+            })
+          }
+
+          return nextIndex
+        })
+      }
+    }
+
+    window.addEventListener('keydown', handleMessageNavigation, true)
+    return () => window.removeEventListener('keydown', handleMessageNavigation, true)
+  }, [messages])
+
+  useEffect(() => {
+    setFocusedMessageIndex(-1)
+  }, [currentThreadId])
 
   const scrollToTurn = (turnId: string) => {
     setTurnMenuOpen(false)
@@ -3773,7 +3908,7 @@ function MainConversation({
               </div>
             </div>
           )}
-          {messages.map((message) => {
+          {messages.map((message, index) => {
             const isLatestAgent = !sending && message.id === lastAgentMessageId
             const canForkHere =
               Boolean(onFork)
@@ -3781,6 +3916,7 @@ function MainConversation({
               && message.id === lastAgentMessageId
               && message.author !== 'user'
               && (promptQueue?.steering?.length ?? 0) === 0
+            const isFocused = index === focusedMessageIndex
             return (
               <Message
                 key={message.id}
@@ -3791,6 +3927,7 @@ function MainConversation({
                 onShowToolDetails={onShowToolDetails}
                 onOpenWorkspacePath={onOpenWorkspacePath}
                 fallbackModelKey={model?.id ?? model?.name}
+                isFocused={isFocused}
               />
             )
           })}
@@ -3846,6 +3983,9 @@ function MainConversation({
           model={model}
           modelOptions={modelOptions}
           skills={skills}
+          skillCatalogLoading={skillCatalogLoading}
+          skillCatalogSize={skillCatalogSize}
+          onLoadSkills={onLoadSkills}
           permissionMode={permissionMode}
           modelsLoading={modelsLoading}
           sending={sending}
@@ -4017,6 +4157,27 @@ export default function App() {
   const [shortcuts, setShortcuts] = useState<ShortcutItem[]>(() => loadShortcuts())
   const modelCatalog = useModelCatalog()
   const appBackend = useAppBackend()
+  const [skillCatalogOverride, setSkillCatalogOverride] = useState<SkillOption[] | null>(null)
+  useEffect(() => {
+    // Workspace-scoped cache is already applied by useAppBackend. Do not let an
+    // old empty cache permanently mask the live catalog after DSH discovery settles.
+    setSkillCatalogOverride(null)
+  }, [appBackend.workspacePath])
+  useEffect(() => {
+    const handleCatalogLoaded = (event: Event) => {
+      const catalog = (event as CustomEvent<SkillOption[]>).detail
+      if (Array.isArray(catalog)) setSkillCatalogOverride(catalog)
+    }
+    window.addEventListener(SKILL_CATALOG_EVENT, handleCatalogLoaded)
+    return () => window.removeEventListener(SKILL_CATALOG_EVENT, handleCatalogLoaded)
+  }, [])
+  const composerSkills = skillCatalogOverride ?? appBackend.skills
+  const appSkillNames = useMemo(() => composerSkills.map((skill) => skill.name), [composerSkills])
+  const { enabledNames: enabledSkillNames } = useEnabledSkills(appSkillNames)
+  const enabledSkills = useMemo(
+    () => composerSkills.filter((skill) => enabledSkillNames.has(skill.name)),
+    [composerSkills, enabledSkillNames],
+  )
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [model, setModel] = useState<ModelOption | null>(null)
   const [deleteTargetThread, setDeleteTargetThread] = useState<ThreadSummary | null>(null)
@@ -4089,10 +4250,29 @@ export default function App() {
 
   const interruptedTurn = useMemo(() => {
     if (appBackend.sending) return null
-    const last = messages[messages.length - 1]
-    if (!last || last.author !== 'user') return null
-    if (last.id === dismissedInterruptId) return null
-    return { id: last.id, text: last.text }
+
+    // 找到最后一个非 steer/followUp 的 user 消息
+    let lastUserRequest: ChatMessage | null = null
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const msg = messages[i]
+      if (msg.author === 'user' && !msg.behavior) {
+        lastUserRequest = msg
+        break
+      }
+    }
+
+    if (!lastUserRequest) return null
+    if (lastUserRequest.id === dismissedInterruptId) return null
+
+    // 检查该消息后是否有 assistant 回复
+    const requestIndex = messages.findIndex(m => m.id === lastUserRequest.id)
+    const hasResponse = messages.slice(requestIndex + 1).some(m =>
+      m.author === 'orchestrator' || m.author === 'agent'
+    )
+
+    if (hasResponse) return null
+
+    return { id: lastUserRequest.id, text: lastUserRequest.text }
   }, [messages, appBackend.sending, dismissedInterruptId])
 
   useEffect(() => {
@@ -4274,35 +4454,8 @@ export default function App() {
     )
   }
 
-  const runningConversations = appBackend.runningConversationIds.filter(
-    id => id !== appBackend.state?.conversationId
-  )
-
   return (
     <div className={`app-shell ${navCollapsed ? 'nav-collapsed' : ''}`}>
-      {/* 顶部全局警告栏：其他对话正在运行 */}
-      {runningConversations.length > 0 && (
-        <div className="app-global-banner running-banner">
-          <ShieldAlert size={14} />
-          <span>
-            有对话正在执行任务，完成或停止后再执行其他工作区操作
-          </span>
-          <button
-            type="button"
-            className="banner-force-clear-btn"
-            title="强制清除运行状态（仅当确认没有实际任务在执行时使用）"
-            onClick={async () => {
-              if (!window.confirm('确定要强制清除所有"正在运行"状态吗？\n\n请仅在确认没有任何对话实际在执行任务、但界面仍显示"正在运行"时使用此功能。\n\n如果有真实任务正在运行，请先停止任务而非强制清除。')) {
-                return
-              }
-              // Force reload to sync with backend state
-              await appBackend.reload()
-            }}
-          >
-            强制清除状态
-          </button>
-        </div>
-      )}
       {appBackend.orchestrationChoice && (
         <div className="orchestration-choice-overlay" role="dialog" aria-modal="true" aria-labelledby="orchestration-choice-title">
           <div className="orchestration-choice-card">
@@ -4330,6 +4483,7 @@ export default function App() {
         threads={appBackend.threads}
         currentThreadId={appBackend.currentThreadId}
         runningConversationIds={appBackend.runningConversationIds}
+        completedConversationIds={appBackend.completedConversationIds}
         activeMainView={mainView}
         onSelectMainView={(v) => {
           setMainView(v)
@@ -4429,7 +4583,10 @@ export default function App() {
           messages={messages}
           model={model}
           modelOptions={composerModelOptions}
-          skills={appBackend.skills}
+          skills={enabledSkills}
+          skillCatalogLoading={appBackend.skillsLoading && composerSkills.length === 0}
+          skillCatalogSize={composerSkills.length}
+          onLoadSkills={appBackend.refreshSkills}
           permissionMode={appBackend.state?.permissionMode ?? 'ask'}
           modelsLoading={modelCatalog.loading}
           sending={appBackend.sending}

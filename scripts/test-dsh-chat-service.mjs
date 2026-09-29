@@ -242,6 +242,12 @@ try {
   const cancelled = await running
   assert.equal(cancelled.cancelled, true)
   assert.equal(runtime.getCancelCount(), 1)
+  assert.ok(
+    outputs.some((event) => event.type === 'done'
+      && event.conversationId === 'conversation-C'
+      && event.interrupted === true),
+    'cancelled DSH turns must be distinguishable from successful completion in the stream',
+  )
 
   const taskTurn = service.runAgentTurn({
     conversationId: 'conversation-parent',

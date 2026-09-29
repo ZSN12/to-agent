@@ -83,6 +83,49 @@ async function executeWebSearch({ query, maxResults = 5, endpoint = '', apiKey =
   const trimmedKey = String(apiKey || '').trim()
   const limit = Math.min(WEB_SEARCH_MAX_RESULTS, Math.max(1, Number(maxResults) || WEB_SEARCH_DEFAULT_RESULTS))
 
+  // 百度千帆网页搜索不是通用 query/q API：它要求 messages，并以 references 返回网页来源。
+  if (trimmedEndpoint && isBaiduWebSearchEndpoint(trimmedEndpoint)) {
+    if (!trimmedKey) throw new Error('百度搜索 API Key 未配置')
+    const res = await fetch(trimmedEndpoint, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${trimmedKey}`,
+        'X-Appbuilder-Authorization': `Bearer ${trimmedKey}`,
+      },
+      body: JSON.stringify({
+        messages: [{ role: 'user', content: query }],
+        search_source: 'baidu_search_v2',
+        resource_type_filter: [{ type: 'web', top_k: Math.min(50, limit) }],
+      }),
+      signal: AbortSignal.timeout(WEB_SEARCH_GENERIC_TIMEOUT_MS),
+    })
+    const body = await res.text()
+    let data
+    try {
+      data = JSON.parse(body)
+    } catch {
+      throw new Error(`百度搜索返回了无效 JSON (HTTP ${res.status}): ${body.slice(0, WEB_SEARCH_ERROR_MESSAGE_MAX_LENGTH)}`)
+    }
+    if (!res.ok) {
+      throw new Error(`百度搜索 HTTP ${res.status}: ${baiduErrorText(data)}`)
+    }
+    if (data?.code !== undefined && data.code !== 0 && data.code !== '0' && data.code !== 'success') {
+      throw new Error(`百度搜索失败 (${data.code}): ${baiduErrorText(data)}`)
+    }
+    const references = Array.isArray(data?.references) ? data.references : []
+    const items = references
+      .filter((item) => item && typeof item.url === 'string' && item.url.trim())
+      .slice(0, limit)
+      .map((item) => ({
+        title: item.title || item.web_anchor || item.website,
+        url: item.url,
+        content: item.content,
+      }))
+    return formatResults(query, items)
+  }
+
   // 1. Tavily 搜索接口 (当 endpoint 包含 tavily 或未填 endpoint 但有 tvly- 开头的 key)
   if (trimmedEndpoint.includes('tavily') || (!trimmedEndpoint && trimmedKey.startsWith('tvly-'))) {
     const targetUrl = trimmedEndpoint || 'https://api.tavily.com/search'
@@ -239,6 +282,22 @@ async function executeWebSearch({ query, maxResults = 5, endpoint = '', apiKey =
   return searchDuckDuckGo(query, limit)
 }
 
+function isBaiduWebSearchEndpoint(endpoint) {
+  try {
+    const url = new URL(endpoint)
+    return url.hostname === 'qianfan.baidubce.com'
+      && url.pathname.replace(/\/+$/, '').endsWith('/v2/ai_search/web_search')
+  } catch {
+    return false
+  }
+}
+
+function baiduErrorText(data) {
+  const message = typeof data?.message === 'string' ? data.message : ''
+  const requestId = typeof data?.request_id === 'string' ? ` request_id=${data.request_id}` : ''
+  return `${message || JSON.stringify(data)}${requestId}`.slice(0, WEB_SEARCH_ERROR_MESSAGE_MAX_LENGTH)
+}
+
 function createWebSearchTool(config) {
   if (!config?.enabled) return null
   return {
@@ -330,4 +389,3 @@ export function createWebSearchService({ userData }) {
     },
   }
 }
-
