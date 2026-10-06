@@ -1,6 +1,6 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react'
-import { Check, Link2, Plus, Trash2, Zap } from 'lucide-react'
-import type { CustomProviderEntry } from '../../shared/model-api'
+import { Check, Link2, Plus, Radio, Trash2, Zap } from 'lucide-react'
+import type { CustomProviderEntry, ProbedModelItem } from '../../shared/model-api'
 
 type ApiKind = 'openai-completions' | 'openai-responses'
 
@@ -44,6 +44,9 @@ export function CustomProviderSection({
   const [modelName, setModelName] = useState('')
   const [busy, setBusy] = useState(false)
   const [testing, setTesting] = useState(false)
+  const [testingTools, setTestingTools] = useState(false)
+  const [probing, setProbing] = useState(false)
+  const [probedModels, setProbedModels] = useState<ProbedModelItem[]>([])
   const [editingId, setEditingId] = useState<string | null>(null)
 
   const loadList = useCallback(async () => {
@@ -100,17 +103,85 @@ export function CustomProviderSection({
       return
     }
     setTesting(true)
-    const res = await window.taskweaver.models.testCustomProvider({
-      baseUrl: baseUrl.trim(),
-      apiKey: apiKey.trim(),
-      modelId: modelId.trim() || 'default',
-      api,
-    })
-    setTesting(false)
-    if (res?.ok && res.data?.ok) {
-      onToast?.(`连接成功（${res.data.method ?? 'ok'}）`)
-    } else {
-      onToast?.(!res?.ok && 'error' in res ? res.error : '连接失败')
+    try {
+      const res = await window.taskweaver.models.testCustomProvider({
+        baseUrl: baseUrl.trim(),
+        apiKey: apiKey.trim(),
+        modelId: modelId.trim() || 'default',
+        api,
+      })
+      if (res?.ok && res.data?.ok) {
+        onToast?.(`模型生成测试通过（${res.data.method ?? 'ok'}）`)
+      } else {
+        onToast?.(!res?.ok && 'error' in res ? res.error : '模型生成测试失败')
+      }
+    } catch (err: any) {
+      onToast?.(err?.message ?? '模型生成测试失败')
+    } finally {
+      setTesting(false)
+    }
+  }
+
+  const handleToolTest = async () => {
+    if (!window.taskweaver?.models?.testCustomProviderToolCall) return
+    if (!baseUrl.trim() || !apiKey.trim()) {
+      onToast?.('请先填写 API 地址与 API Key 再测试工具调用')
+      return
+    }
+    setTestingTools(true)
+    try {
+      const res = await window.taskweaver.models.testCustomProviderToolCall({
+        baseUrl: baseUrl.trim(),
+        apiKey: apiKey.trim(),
+        modelId: modelId.trim() || 'default',
+        api,
+      })
+      if (res?.ok && res.data?.supported) {
+        onToast?.(`工具调用测试通过（${res.data.method ?? 'ok'}；测试函数未执行任何操作）`)
+      } else if (res?.ok && res.data?.ok) {
+        onToast?.('接口可生成内容，但模型没有发出测试工具调用；当前路由未通过 Agent 工具能力验证')
+      } else {
+        onToast?.(!res?.ok && 'error' in res ? res.error : '工具调用测试失败')
+      }
+    } catch (err: any) {
+      onToast?.(err?.message ?? '工具调用测试失败')
+    } finally {
+      setTestingTools(false)
+    }
+  }
+
+  const handleProbe = async () => {
+    if (!baseUrl.trim()) {
+      onToast?.('请先填写 API 地址再探测')
+      return
+    }
+    if (!editingId && !apiKey.trim()) {
+      onToast?.('新建提供方需要填写 API Key')
+      return
+    }
+    setProbing(true)
+    try {
+      const res = await window.taskweaver?.models?.probeProviderModels({
+        providerId: editingId ?? undefined,
+        baseUrl: baseUrl.trim(),
+        apiKey: apiKey.trim(),
+      })
+      if (!res?.ok) {
+        onToast?.(res?.error ?? '未探测到可用模型，请检查地址或 Key')
+      } else if (res.data?.models?.length) {
+        setProbedModels(res.data.models)
+        onToast?.(`探测成功：发现 ${res.data.total} 个可用模型`)
+        if (!modelId && res.data.models[0]) {
+          setModelId(res.data.models[0].id)
+          setModelName(res.data.models[0].name)
+        }
+      } else {
+        onToast?.('未探测到可用模型，请检查地址或 Key')
+      }
+    } catch (err: any) {
+      onToast?.(err?.message ?? '探测失败')
+    } finally {
+      setProbing(false)
     }
   }
 
@@ -254,12 +325,35 @@ export function CustomProviderSection({
               </label>
               <label>
                 模型 ID
-                <input
-                  type="text"
-                  placeholder="deepseek-chat"
-                  value={modelId}
-                  onChange={(e) => setModelId(e.target.value)}
-                />
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <input
+                    type="text"
+                    placeholder="deepseek-chat"
+                    value={modelId}
+                    onChange={(e) => setModelId(e.target.value)}
+                    style={{ flex: 1 }}
+                  />
+                  {probedModels.length > 0 && (
+                    <select
+                      style={{ maxWidth: 160, fontSize: 12 }}
+                      onChange={(e) => {
+                        const m = probedModels.find((item) => item.id === e.target.value)
+                        if (m) {
+                          setModelId(m.id)
+                          setModelName(m.name)
+                        }
+                      }}
+                      value={modelId}
+                    >
+                      <option value="" disabled>快速选择已探测模型 ({probedModels.length})</option>
+                      {probedModels.map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.name || m.id}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
               </label>
               <label>
                 模型显示名
@@ -272,9 +366,29 @@ export function CustomProviderSection({
               </label>
             </div>
             <div className="custom-provider-form-actions">
+              <button
+                type="button"
+                className="settings-secondary-button"
+                disabled={probing || !bridgeReady}
+                onClick={() => { void handleProbe() }}
+                title="向 API 地址探测所有可用模型并快速选取"
+              >
+                <Radio size={14} />
+                {probing ? '探测中…' : '探测可用模型'}
+              </button>
               <button type="button" className="settings-secondary-button" disabled={testing || !bridgeReady} onClick={() => { void handleTest() }}>
                 <Zap size={14} />
                 {testing ? '测试中…' : '测试连接'}
+              </button>
+              <button
+                type="button"
+                className="settings-secondary-button"
+                disabled={testingTools || !bridgeReady}
+                onClick={() => { void handleToolTest() }}
+                title="发送一次短工具调用请求；测试函数不访问文件或执行外部操作"
+              >
+                <Zap size={14} />
+                {testingTools ? '测试工具中…' : '测试工具调用'}
               </button>
               {editingId && (
                 <button type="button" className="settings-secondary-button" onClick={resetForm}>

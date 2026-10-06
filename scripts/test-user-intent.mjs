@@ -11,6 +11,7 @@ import assert from 'node:assert/strict'
 import path from 'node:path'
 import { analyzeUserIntent, injectIntentGuidelines, USER_INTENTS } from '../electron/backend/user-intent.mjs'
 import { detectVerificationCommands } from '../electron/backend/verification-policy.mjs'
+import { resolvePrimaryAgentPreset } from '../electron/backend/primary-agent-preset.mjs'
 
 const { CODE_MUTATION, READ_ONLY, PLANNING, CONVERSATION } = USER_INTENTS
 
@@ -83,7 +84,11 @@ for (const text of ['你好', '谢谢', '嗯……让我想想', '随便聊聊']
 assert.equal(injectIntentGuidelines('原文', PLANNING, policy), '原文', '计划模式已有专门前缀，不重复注入')
 
 const readOnly = injectIntentGuidelines('原文', READ_ONLY, policy)
-assert.match(readOnly, /技术咨询或代码理解/)
+assert.match(readOnly, /只读咨询或代码理解/)
+assert.match(readOnly, /优先限定在该范围/, '只读任务必须优先尊重用户指定的文件/目录范围')
+assert.match(readOnly, /只有回答确实需要时才扩展/, '必要时允许有理由地扩大只读检查范围')
+assert.match(readOnly, /明确禁止读取范围外内容，必须遵守/, '用户明确禁止越界读取时必须服从并标注未验证项')
+assert.match(readOnly, /证据足够后停止探索/, '只读检查应在证据充分后停止，避免无效探索')
 assert.doesNotMatch(readOnly, /自主闭环要求/, '只读意图不能要求跑自检')
 
 const mutation = injectIntentGuidelines('原文', CODE_MUTATION, policy)
@@ -99,5 +104,17 @@ assert.equal(injectIntentGuidelines('原文', CODE_MUTATION, null), '原文')
 // ===== 端到端：寒暄走完整链路后不应出现构建命令 =====
 const e2e = injectIntentGuidelines('你好', analyzeUserIntent('你好', 'code'), policy)
 assert.doesNotMatch(e2e, /npm run|npx tsc|pnpm run/, '寒暄的最终 prompt 里不能出现任何构建/自检命令')
+
+// ===== 主会话预设由任务形状自动选择，不暴露给用户 =====
+assert.equal(resolvePrimaryAgentPreset('你好'), 'standard', '普通对话沿用 DSH 默认预设')
+assert.equal(resolvePrimaryAgentPreset('读一下 electron/main.cjs，概述启动流程'), 'standard', '单文件检查保持原生工具')
+assert.equal(resolvePrimaryAgentPreset('读一下当前项目结构并简要介绍'), 'standard', '广角仓库概览不要误触发批处理模式')
+assert.equal(
+  resolvePrimaryAgentPreset('只阅读 electron/main.cjs 和 electron/backend/z-conversation-hub.mjs，比较两者的启动与流转职责'),
+  'code',
+  '用户明确列出多个独立文件时自动采用批量工具模式',
+)
+assert.equal(resolvePrimaryAgentPreset('请并行检查多个文件的导入关系'), 'code', '明确的批量只读任务应自动采用批量工具模式')
+assert.equal(resolvePrimaryAgentPreset('修改 electron/main.cjs 和 electron/preload.cjs'), 'standard', '写入任务暂不自动切 Code，避免未经验证改变编辑行为')
 
 console.log(`\nuser-intent 回归测试全部通过（${cases.length} 条意图判定 + 注入行为 + 端到端）。`)

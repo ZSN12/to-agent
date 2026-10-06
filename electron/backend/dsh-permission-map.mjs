@@ -41,7 +41,7 @@ export function normalizePermissionMode(value) {
 
 /** Agent/tool preset at `sessions.create`; permission is set independently. */
 export function dshAgentPresetForPermissionMode(_mode) {
-  return 'code'
+  return 'standard'
 }
 
 

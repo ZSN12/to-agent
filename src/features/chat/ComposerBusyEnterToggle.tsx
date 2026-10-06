@@ -15,7 +15,7 @@ export function ComposerBusyEnterToggle({
         type="button"
         className={`composer-busy-enter-opt ${mode === 'followUp' ? 'active' : ''}`}
         onClick={() => onChange('followUp')}
-        title="排队追问（DSH 默认）"
+        title="排队追问（Z 默认）"
       >
         排队
       </button>

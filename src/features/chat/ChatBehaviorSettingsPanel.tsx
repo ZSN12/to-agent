@@ -27,14 +27,14 @@ export function ChatBehaviorSettingsPanel({ onToast }: { onToast?: (msg: string)
       return
     }
     setBusyEnter(res.data)
-    onToast?.(mode === 'followUp' ? '已设为：忙时 Enter 加入排队追问（与 DSH 默认一致）' : '已设为：忙时 Enter 发送纠偏')
+    onToast?.(mode === 'followUp' ? '已设为：忙时 Enter 加入排队追问（Z 默认）' : '已设为：忙时 Enter 发送纠偏')
   }, [onToast])
 
   return (
     <div className="settings-panel chat-behavior-settings">
       <header className="chat-behavior-header">
         <h2>对话行为</h2>
-        <p>设置 Agent 回复期间按 Enter 时，消息如何发送。</p>
+        <p>配置 Agent 回复期间按 Enter 时的消息行为；工具预设由系统按任务自动选择。</p>
       </header>
       <section className="chat-enter-section">
         <div className="chat-enter-section-heading">

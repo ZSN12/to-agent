@@ -94,7 +94,7 @@ export function createSkillService({
         path: fsSkill?.path ?? '',
         baseDir: fsSkill?.baseDir,
         source: fsSkill?.source ?? 'dsh',
-        sourceLabel: fsSkill ? undefined : 'DSH',
+        sourceLabel: fsSkill ? undefined : 'Z',
         multiAgent: isMultiAgentSkill(entry.name),
       })
     }
@@ -110,8 +110,8 @@ export function createSkillService({
     const { api } = await hostManager.start()
     const cwd = getWorkspacePath() || agentDataPath
     const sessionId = skillsCatalogSessionId(cwd)
-    rpcValue(await api.sessions.create({ sessionId, cwd }), '创建 DSH Skill 目录会话')
-    const value = rpcValue(await api.skills.list({ sessionId }), '读取 DSH Skill 列表')
+    rpcValue(await api.sessions.create({ sessionId, cwd }), '创建 Z Skill 目录会话')
+    const value = rpcValue(await api.skills.list({ sessionId }), '读取 Z Skill 列表')
     return value?.skills ?? []
   }
 

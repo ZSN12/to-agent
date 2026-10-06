@@ -61,8 +61,9 @@ export function createUsageStore(userDataPath) {
 
     await store.update((current) => {
       const records = Array.isArray(current?.records) ? current.records : []
-      // 避免重复记录：检查最近 50 条中是否有相同 id
-      const isDuplicate = records.slice(0, 50).some(r => r.id === item.id)
+      // Delayed IPC/projection delivery can outlive 50 other calls. Search the
+      // bounded retained ledger, not only the most recent entries.
+      const isDuplicate = records.some(r => r.id === item.id)
       if (isDuplicate) return current
       // 最多保留最近 1000 条调用记录
       const nextRecords = [item, ...records].slice(0, 1000)
@@ -421,7 +422,8 @@ export function createUsageStore(userDataPath) {
     if (Array.isArray(conversationsOrMessages)) {
       for (const msg of conversationsOrMessages) {
         if (msg && msg.usage && (msg.usage.inputTokens > 0 || msg.usage.outputTokens > 0)) {
-          const timestamp = msg.time ? new Date(msg.time).getTime() || Date.now() : Date.now()
+          const timestamp = Number.isFinite(msg.timestamp) && msg.timestamp > 0
+            ? msg.timestamp : msg.time ? new Date(msg.time).getTime() || Date.now() : Date.now()
           const inputTokens = msg.usage.inputTokens || 0
           const outputTokens = msg.usage.outputTokens || 0
           const cacheReadTokens = msg.usage.cacheReadTokens || 0
@@ -443,9 +445,10 @@ export function createUsageStore(userDataPath) {
       }
     }
     if (imported.length > 0) {
-      await store.write({
-        version: 1,
-        records: imported,
+      // Check emptiness in the write transaction too: a live call may have
+      // landed since the initial read. Migration must never replace it.
+      await store.update(current => current?.records?.length > 0 ? current : {
+        version: 1, records: imported,
       })
     }
   }

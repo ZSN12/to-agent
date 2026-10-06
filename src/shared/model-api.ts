@@ -126,7 +126,7 @@ export interface ProviderAuthStatus {
 
 export type IpcResult<T> =
   | { ok: true; data: T }
-  | { ok: false; error: string }
+  | { ok: false; error: string; turnId?: string; runContinues?: boolean }
 
 export interface OAuthStatusInfo {
   status: 'auth_url' | 'device_code' | 'prompt' | 'progress' | 'completed' | 'error'
@@ -205,6 +205,37 @@ export interface TaskweaverModelsApi {
   >
   removeCustomProvider: (providerId: string) => Promise<IpcResult<ModelCatalog>>
   testCustomProvider: (payload: CustomProviderTestPayload) => Promise<IpcResult<{ ok: boolean; method?: string; status?: number }>>
+  testCustomProviderToolCall: (payload: CustomProviderTestPayload) => Promise<IpcResult<{ ok: boolean; supported: boolean; method?: string; status?: number }>>
+  probeProviderModels: (payload: { providerId?: string; baseUrl?: string; apiKey?: string }) => Promise<IpcResult<ProbeModelsResult>>
+  batchAddCustomModels: (payload: BatchAddCustomModelsPayload) => Promise<
+    IpcResult<{ ok: boolean; addedCount: number; addedKeys: string[]; catalog: ModelCatalog }>
+  >
+}
+
+export interface ProbedModelItem {
+  id: string
+  name: string
+  contextWindow: number
+  reasoning: boolean
+  installed: boolean
+}
+
+export interface ProbeModelsResult {
+  ok: boolean
+  providerId: string
+  total: number
+  newCount: number
+  models: ProbedModelItem[]
+}
+
+export interface BatchAddCustomModelsPayload {
+  providerId: string
+  models: Array<{
+    id: string
+    name?: string
+    contextWindow?: number
+    reasoning?: boolean
+  }>
 }
 
 export interface CustomProviderEntry {

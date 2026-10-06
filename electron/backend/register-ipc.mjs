@@ -7,6 +7,7 @@ import { createModelService } from './model-service.mjs'
 import { createModelRegistryUpdater } from './model-registry-updater.mjs'
 import { createAppStateStore } from './app-state-store.mjs'
 import { createDshChatService } from './dsh-chat-service.mjs'
+import { createChatTurnPersistence } from './chat-turn-persistence.mjs'
 import { createOrchestrationService, PlannerFallbackError } from './orchestration-service.mjs'
 import { createSkillService } from './skill-service.mjs'
 import { decideExecutionMode, resolveExecutionMode } from './orchestration-policy.mjs'
@@ -35,6 +36,7 @@ import { createPricingSyncService } from './pricing-sync-service.mjs'
 import { assertSafeWorkspacePath } from './security-path.mjs'
 import { detectVerificationCommands } from './verification-policy.mjs'
 import { analyzeUserIntent, injectIntentGuidelines } from './user-intent.mjs'
+import { resolvePrimaryAgentPreset } from './primary-agent-preset.mjs'
 import { createTerminalService } from './terminal-service.mjs'
 import { diagnoseEnvironment, diagnoseTool } from './env-service.mjs'
 import {
@@ -61,6 +63,8 @@ import { migrateLegacyModelsJson, resolveTaskWeaverModelsPath } from './taskweav
 import { ensureModelsJsonSyncedToDshHost } from './sync-models-json-to-host.mjs'
 import { IPC_PLANNER_FALLBACK_HINT_MAX_LENGTH, IPC_ERROR_MESSAGE_MAX_LENGTH } from './config.mjs'
 import { resolveConversationId } from './conversation-id-routing.mjs'
+import { nativeChatCommand } from './native-chat-command.mjs'
+import { createWorkspaceOperationGuard } from './workspace-operation-guard.mjs'
 
 function ipcHandle(ipcMain, channel, fn) {
   ipcMain.handle(channel, async (event, ...args) => {
@@ -69,7 +73,9 @@ function ipcHandle(ipcMain, channel, fn) {
       return { ok: true, data }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
-      return { ok: false, error: message }
+      return { ok: false, error: message,
+        ...(error?.partialResult?.turnId || error?.turnId ? { turnId: error.partialResult?.turnId ?? error.turnId } : {}),
+        ...(error?.runContinues ? { runContinues: true } : {}) }
     }
   })
 }
@@ -118,6 +124,7 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
     safeStorage,
   })
 
+  const mcp = createMcpService({ userData, safeStorage })
   const { createZHostManager, resolveTaskWeaverRuntimeRoot } = await import('../agent/z-host/index.mjs')
   const runtimeRoot = resolveTaskWeaverRuntimeRoot({
     appPath: app.getAppPath(),
@@ -128,6 +135,7 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
     runtimeRoot,
     userDataPath: userData,
     executable: process.execPath,
+    getMcpRuntimeIntegration: () => mcp.prepareRuntimeIntegration(),
   })
   const { createZConversationHub } = await import('./z-conversation-hub.mjs')
   const conversationHub = createZConversationHub({ runtimeRoot })
@@ -181,7 +189,6 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
   const appState = createAppStateStore(userData, fallbackWorkspace)
   const usageStore = createUsageStore(userData)
   const workspaceTrust = createWorkspaceTrustService(userData)
-  const mcp = createMcpService({ userData, safeStorage })
   const webSearch = createWebSearchService({ userData })
   const appPreferences = createAppPreferencesStore(userData)
   const permissionRulesStore = createPermissionRulesStore({ userDataPath: userData })
@@ -261,12 +268,15 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
   const sessionMemory = createMemoryStore({ agentDataPath })
   const workspaceIndex = createWorkspaceIndex({ getWorkspacePath: () => cachedWorkspace })
   const turnInProgressByConversation = new Map()
+  const workspaceOperationGuard = createWorkspaceOperationGuard(getConversationRuntimeContext)
 
   const withTurnLock = async (conversationId, fn) => {
     if (!conversationId) throw new Error('缺少会话标识')
     if (turnInProgressByConversation.get(conversationId)) throw new Error('该会话的上一条任务仍在处理中')
     turnInProgressByConversation.set(conversationId, true)
     try {
+      const runtimeContext = await getConversationRuntimeContext(conversationId)
+      await workspaceOperationGuard.assertConversationCanRun(conversationId, runtimeContext.workspacePath)
       return await fn()
     } finally {
       turnInProgressByConversation.delete(conversationId)
@@ -292,6 +302,11 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
     }
     // 移除全局忙碌检查以支持多会话并发
   }
+  const withWorkspaceOperation = (workspacePath, operation) => workspaceOperationGuard.withWorkspaceOperation(
+    workspacePath,
+    [...turnInProgressByConversation].filter(([, busy]) => busy).map(([conversationId]) => conversationId),
+    operation,
+  )
   const validateWorkspace = async (workspacePath) => {
     if (!workspacePath || typeof workspacePath !== 'string') throw new Error('工作区路径无效')
     const canonical = await fs.realpath(path.resolve(workspacePath))
@@ -343,6 +358,7 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
     },
   })
 
+  const persistNativeTurn = createChatTurnPersistence({ appState, usageStore })
   const chat = createDshChatService({
     hostManager,
     conversationHub,
@@ -350,6 +366,7 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
     getWorkspacePath: () => cachedWorkspace,
     profileStore,
     modelService,
+    onTurnCompleted: persistNativeTurn,
     getPermissionMode: async (conversationId) => {
       const state = conversationId && appState.getConversationState
         ? await appState.getConversationState(conversationId)
@@ -375,6 +392,18 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
     getAppPreferences: () => appPreferences.get(),
     dshRuntime: chat,
   })
+
+  const assertMcpHostRestartSafe = () => {
+    if (turnInProgressByConversation.size > 0 || chat.isBusyAny() || orchestration.isBusy()) {
+      throw new Error('有任务正在执行，不能此时重载 MCP 工具。请等所有会话任务结束后再保存或启用 MCP。')
+    }
+  }
+
+  const reloadMcpRuntime = async () => {
+    await mcp.prepareRuntimeIntegration()
+    await hostManager.restart()
+    await chat.resetSession()
+  }
 
   ipcHandle(ipcMain, 'app:getState', async () => {
     await refreshWorkspaceCache()
@@ -680,18 +709,32 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
   })
   ipcHandle(ipcMain, 'models:logoutOAuth', async (_event, providerId) => modelService.logoutProvider(providerId))
   ipcHandle(ipcMain, 'skills:list', () => skills.list())
+  ipcHandle(ipcMain, 'mcp:getRuntimeBinding', () => mcp.getDshRuntimeBinding())
   ipcHandle(ipcMain, 'mcp:list', () => mcp.listServers())
   ipcHandle(ipcMain, 'mcp:save', async (_event, server) => {
-    assertNotBusy()
+    assertMcpHostRestartSafe()
     const saved = await mcp.saveServer(server)
-    await chat.resetSession()
+    await reloadMcpRuntime()
     return saved
   })
   ipcHandle(ipcMain, 'mcp:remove', async (_event, id) => {
-    assertNotBusy()
+    assertMcpHostRestartSafe()
     const removed = await mcp.removeServer(id)
-    await chat.resetSession()
+    await reloadMcpRuntime()
     return removed
+  })
+  ipcHandle(ipcMain, 'mcp:setEnabled', async (_event, id, enabled) => {
+    assertMcpHostRestartSafe()
+    const saved = await mcp.setEnabled(id, enabled)
+    await reloadMcpRuntime()
+    return saved
+  })
+  ipcHandle(ipcMain, 'mcp:testConnection', (_event, id) => mcp.testConnection(id))
+  ipcHandle(ipcMain, 'mcp:configureGitHub', async (_event, token) => {
+    assertMcpHostRestartSafe()
+    const saved = await mcp.configureGitHub(token)
+    await reloadMcpRuntime()
+    return saved
   })
   ipcHandle(ipcMain, 'mcp:disconnect', async (_event, id) => mcp.disconnect(id))
   ipcHandle(ipcMain, 'mcp:refresh', async () => {
@@ -737,32 +780,34 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
   })
 
   ipcHandle(ipcMain, 'workspace:revertDiff', async (_event, payload) => {
-    assertNotBusy()
-    const { path: relPath, reverseEdits, originalContent } = payload || {}
-    if (!relPath || typeof relPath !== 'string') throw new Error('未提供有效的文件路径')
     await refreshWorkspaceCache()
+    const workspacePath = cachedWorkspace
+    return withWorkspaceOperation(workspacePath, async () => {
+      const { path: relPath, reverseEdits, originalContent } = payload || {}
+      if (!relPath || typeof relPath !== 'string') throw new Error('未提供有效的文件路径')
 
-    const hasReverseEdits = Array.isArray(reverseEdits) && reverseEdits.length > 0
-    // 严格安全路径校验：防范同前缀兄弟目录、.. 相对逃逸与符号链接越界
-    const { realPath, relativePath } = await assertSafeWorkspacePath(cachedWorkspace, relPath, {
-      mustExist: hasReverseEdits,
-    })
+      const hasReverseEdits = Array.isArray(reverseEdits) && reverseEdits.length > 0
+      // 严格安全路径校验：防范同前缀兄弟目录、.. 相对逃逸与符号链接越界
+      const { realPath, relativePath } = await assertSafeWorkspacePath(workspacePath, relPath, {
+        mustExist: hasReverseEdits,
+      })
 
-    if (hasReverseEdits) {
-      let content = await fs.readFile(realPath, 'utf-8')
-      for (const edit of reverseEdits) {
-        if (content.includes(edit.oldText)) {
-          content = content.replace(edit.oldText, edit.newText)
+      if (hasReverseEdits) {
+        let content = await fs.readFile(realPath, 'utf-8')
+        for (const edit of reverseEdits) {
+          if (content.includes(edit.oldText)) {
+            content = content.replace(edit.oldText, edit.newText)
+          }
         }
+        await fs.writeFile(realPath, content, 'utf-8')
+        return { success: true, message: `已还原 ${relativePath}` }
+      } else if (typeof originalContent === 'string') {
+        await fs.mkdir(path.dirname(realPath), { recursive: true })
+        await fs.writeFile(realPath, originalContent, 'utf-8')
+        return { success: true, message: `已还原 ${relativePath}` }
       }
-      await fs.writeFile(realPath, content, 'utf-8')
-      return { success: true, message: `已还原 ${relativePath}` }
-    } else if (typeof originalContent === 'string') {
-      await fs.mkdir(path.dirname(realPath), { recursive: true })
-      await fs.writeFile(realPath, originalContent, 'utf-8')
-      return { success: true, message: `已还原 ${relativePath}` }
-    }
-    throw new Error('缺少还原参数')
+      throw new Error('缺少还原参数')
+    })
   })
 
   ipcHandle(ipcMain, 'workspace:gitStatus', async () => {
@@ -820,23 +865,27 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
   })
 
   ipcHandle(ipcMain, 'workspace:restoreGitCheckpoint', async (_event, payload) => {
-    assertNotBusy()
     await refreshWorkspaceCache()
-    const { checkpointId, force, expectedStateFingerprint } = payload || {}
-    if (!checkpointId) throw new Error('缺少检查点 ID')
-    return restoreGitCheckpoint(cachedWorkspace, checkpointId, {
-      force: Boolean(force),
-      expectedStateFingerprint,
-      userDataPath: userData,
+    const workspacePath = cachedWorkspace
+    return withWorkspaceOperation(workspacePath, async () => {
+      const { checkpointId, force, expectedStateFingerprint } = payload || {}
+      if (!checkpointId) throw new Error('缺少检查点 ID')
+      return restoreGitCheckpoint(workspacePath, checkpointId, {
+        force: Boolean(force),
+        expectedStateFingerprint,
+        userDataPath: userData,
+      })
     })
   })
 
   ipcHandle(ipcMain, 'workspace:deleteGitCheckpoint', async (_event, checkpointId) => {
-    assertNotBusy()
     await refreshWorkspaceCache()
-    if (!checkpointId) throw new Error('缺少检查点 ID')
-    return deleteGitCheckpoint(cachedWorkspace, checkpointId, {
-      userDataPath: userData,
+    const workspacePath = cachedWorkspace
+    return withWorkspaceOperation(workspacePath, async () => {
+      if (!checkpointId) throw new Error('缺少检查点 ID')
+      return deleteGitCheckpoint(workspacePath, checkpointId, {
+        userDataPath: userData,
+      })
     })
   })
 
@@ -914,6 +963,10 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
     const ok = resolvePermissionPrompt(id, response)
     return { ok }
   })
+
+  ipcHandle(ipcMain, 'userQuestions:answer', async (_event, id, answer) => ({
+    ok: await chat.answerUserQuestion(id, answer),
+  }))
 
   ipcHandle(ipcMain, 'chat:steer', async (event, text, requestedConversationId) => {
     if (!text || typeof text !== 'string') throw new Error('内容不能为空')
@@ -1001,10 +1054,12 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
     entries: listMarketplaceEntries(),
   }))
   ipcHandle(ipcMain, 'mcp:installCatalog', async (_event, { id, env } = {}) => {
+    assertMcpHostRestartSafe()
     const config = catalogEntryToServerConfig(id, { env })
-    return mcp.installFromCatalog(config)
+    const saved = await mcp.installFromCatalog(config)
+    await reloadMcpRuntime()
+    return saved
   })
-
   ipcHandle(ipcMain, 'models:listCustomProviders', () => customProviderService.listCustomProviders())
   ipcHandle(ipcMain, 'models:upsertCustomProvider', async (_event, payload) => {
     const result = await customProviderService.upsertCustomProvider(payload ?? {})
@@ -1017,6 +1072,19 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
     return modelService.listCatalog()
   })
   ipcHandle(ipcMain, 'models:testCustomProvider', (_event, payload) => customProviderService.testCustomProvider(payload ?? {}))
+  ipcHandle(ipcMain, 'models:testCustomProviderToolCall', (_event, payload) => customProviderService.testCustomProviderToolCall(payload ?? {}))
+  ipcHandle(ipcMain, 'models:probeProviderModels', (_event, payload) => customProviderService.probeModels(payload ?? {}))
+  ipcHandle(ipcMain, 'models:batchAddCustomModels', async (_event, payload) => {
+    const result = await customProviderService.batchAddCustomModels(payload ?? {})
+    if (Array.isArray(result.addedKeys)) {
+      for (const key of result.addedKeys) {
+        await profileStore.addModel(key).catch(() => {})
+      }
+    }
+    await refreshWorkspaceCache()
+    const catalog = await modelService.listCatalog()
+    return { ...result, catalog }
+  })
   ipcHandle(ipcMain, 'webSearch:getConfig', () => webSearch.getConfig())
   ipcHandle(ipcMain, 'webSearch:setConfig', (_event, patch) => webSearch.setConfig(patch ?? {}))
   ipcHandle(ipcMain, 'webSearch:testSearch', (_event, query) => webSearch.testSearch(query))
@@ -1143,7 +1211,7 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
   /**
    * 执行多 Agent 协作
    */
-  const executeMultiAgent = async (effectivePrompt, activeKey, selectedSkill, event, execution, conversationId, runtimeContext) => {
+  const executeMultiAgent = async (effectivePrompt, primaryAgentPreset, activeKey, selectedSkill, event, execution, conversationId, runtimeContext) => {
     try {
       const outcome = await orchestration.planAndExecute({
         text: effectivePrompt,
@@ -1158,10 +1226,13 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
           conversationId,
           cwdOverride: runtimeContext.workspacePath,
           webContents: event.sender,
+          agentPreset: primaryAgentPreset,
           skill: selectedSkill,
+          // The orchestration result owns aggregate usage and final metadata.
+          persistTerminal: false,
         }),
       })
-      return { text: outcome.assistant.text, usage: outcome.assistant.usage }
+      return { ...outcome.assistant }
     } catch (error) {
       if (error instanceof PlannerFallbackError || error?.code === 'PLANNER_FALLBACK') {
         const hint = error instanceof Error ? error.message : String(error)
@@ -1171,6 +1242,7 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
           conversationId,
           cwdOverride: runtimeContext.workspacePath,
           webContents: event.sender,
+          agentPreset: primaryAgentPreset,
           skill: selectedSkill,
         })
         // 降级说明挂在最终消息的 callout 上。原来靠 `chat:stream` 的 orchestration 事件传，
@@ -1188,13 +1260,14 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
   /**
    * 执行单 Agent 调用
    */
-  const executeSingleAgent = async (effectivePrompt, activeKey, selectedSkill, event, execution, conversationId, runtimeContext) => {
+  const executeSingleAgent = async (effectivePrompt, primaryAgentPreset, activeKey, selectedSkill, event, execution, conversationId, runtimeContext) => {
     return chat.send({
       text: effectivePrompt,
       modelKey: activeKey,
       conversationId,
       cwdOverride: runtimeContext.workspacePath,
       webContents: event.sender,
+      agentPreset: primaryAgentPreset,
       skill: selectedSkill,
     })
   }
@@ -1202,12 +1275,12 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
   /**
    * 执行聊天请求（多 Agent 或单 Agent）
    */
-  const executeChatRequest = async (execution, effectivePrompt, activeKey, selectedSkill, event, conversationId, runtimeContext) => {
+  const executeChatRequest = async (execution, effectivePrompt, primaryAgentPreset, activeKey, selectedSkill, event, conversationId, runtimeContext) => {
     return permissions.withExecution(runtimeContext.permissionMode, event.sender, async () => {
       if (execution.mode === 'multi-agent') {
-        return executeMultiAgent(effectivePrompt, activeKey, selectedSkill, event, execution, conversationId, runtimeContext)
+        return executeMultiAgent(effectivePrompt, primaryAgentPreset, activeKey, selectedSkill, event, execution, conversationId, runtimeContext)
       }
-      return executeSingleAgent(effectivePrompt, activeKey, selectedSkill, event, execution, conversationId, runtimeContext)
+      return executeSingleAgent(effectivePrompt, primaryAgentPreset, activeKey, selectedSkill, event, execution, conversationId, runtimeContext)
     }, { conversationId })
   }
 
@@ -1215,6 +1288,23 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
    * 处理执行错误并存储错误消息
    */
   const handleChatError = async (error, messageId, time, conversationId) => {
+    // Transport uncertainty is not proof the Agent failed. Its native terminal
+    // will own persistence/accounting once the connection can be recovered.
+    if (error?.runContinues) throw error
+    if (error?.partialResult?.turnId) {
+      // Retry a failed terminal commit with the same IDs; never duplicate the
+      // stream/native result or count the failed turn twice in the ledger.
+      if (!error.partialResult.nativePersisted) {
+        try {
+          await persistNativeTurn({ conversationId, modelKey: error.modelKey,
+            result: error.partialResult, errorMessage: error.message })
+        } catch (persistenceError) {
+          error.persistenceError = persistenceError
+          console.error('[register-ipc] 保存失败轮次失败:', persistenceError instanceof Error ? persistenceError.message : persistenceError)
+        }
+      }
+      throw error
+    }
     let message = error instanceof Error ? error.message : String(error)
     const cause = error && typeof error === 'object' ? error.cause : null
     if (cause && typeof cause === 'object') {
@@ -1244,7 +1334,7 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
         ? `由 TaskWeaver 拆分并执行 ${(await appState.getConversationState(conversationId)).tasks.length} 个子任务`
         : undefined)
     const agentEntry = {
-      id: `${messageId}-a`,
+      id: result.turnId ? `z-turn-${result.turnId}` : `${messageId}-a`,
       author: 'orchestrator',
       name: 'TaskWeaver',
       time,
@@ -1256,11 +1346,12 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
       modelKey: activeKey,
       usage: result.usage,
       callout,
+      interrupted: Boolean(result.cancelled),
     }
-    await appState.appendMessagesToConversation(conversationId, agentEntry)
+    await appState.upsertMessagesToConversation(conversationId, agentEntry)
     // 用量在执行完成处直接落库，不依赖当前 UI 是否仍订阅该会话；后台运行的会话也必须计入。
     const usage = result.usage
-    if (usage && typeof usage === 'object') {
+    if (!result.nativePersisted && usage && typeof usage === 'object') {
       try {
         await usageStore.record({
           id: `${messageId}-usage`,
@@ -1293,6 +1384,21 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
     return withTurnLock(conversationId, async () => {
 
     const { modelKey: activeKey } = await validateAndResolveModel(text, modelKey)
+    const command = nativeChatCommand(text)
+    if (command) {
+      // Native maintenance is not a coding task. Do not inject sandbox/task
+      // prose, skill content, snapshots or planner decisions into its syntax.
+      const { messageId, time, userEntry } = await createUserMessage(command, conversationId)
+      let result
+      try {
+        result = await chat.send({ text: command, modelKey: activeKey, conversationId,
+          cwdOverride: runtimeContext.workspacePath, webContents: event.sender,
+          agentPreset: resolvePrimaryAgentPreset(command, workMode) })
+      } catch (error) { await handleChatError(error, messageId, time, conversationId) }
+      const assistant = await createAssistantMessage(result, messageId, time, activeKey,
+        { mode: 'single-agent' }, conversationId)
+      return { user: userEntry, assistant }
+    }
     await tryAutoSnapshot(runtimeContext)
 
     const selectedSkill = skillName ? await skills.resolve(skillName) : null
@@ -1316,11 +1422,12 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
 
     let result
     try {
-      result = await executeChatRequest(execution, effectivePrompt, activeKey, selectedSkill, event, conversationId, runtimeContext)
+      result = await executeChatRequest(execution, effectivePrompt, resolvePrimaryAgentPreset(text, workMode), activeKey, selectedSkill, event, conversationId, runtimeContext)
     } catch (error) {
       await handleChatError(error, messageId, time, conversationId)
     }
 
+    if (result.accepted) return { user: userEntry, accepted: true, queued: result.queued }
     const agentEntry = await createAssistantMessage(result, messageId, time, activeKey, execution, conversationId)
     return { user: userEntry, assistant: agentEntry }
     })

@@ -227,7 +227,7 @@ function McpServerModal({
             style={{ width: 'auto', cursor: 'pointer' }}
           />
           <label htmlFor="mcp-enabled-checkbox" style={{ margin: 0, cursor: 'pointer', fontSize: 13 }}>
-            {dshWired ? '保存后启用' : 'DSH 接入前不可启用 Agent 工具（配置仍可保存）'}
+            {dshWired ? '保存后重载 Z Host 并向 Agent 提供工具' : 'Agent 工具接入不可用'}
           </label>
         </div>
 
@@ -428,7 +428,7 @@ export function McpSettingsPanel({ onToast }: { onToast?: (msg: string) => void 
         <div>
           <h2>MCP 服务</h2>
           <p className="mcp-settings-lead">
-            管理外部 MCP 服务与工具连接。当前 MCP 工具尚未接入 Agent 对话；GitHub 官方集成请前往插件页连接。
+            管理外部 MCP 服务。启用的工具会注册到 Z Runtime，供主对话及相应子任务调用；配置变更会重载运行时，运行中的任务无法变更。
           </p>
           {runtimeBinding && !runtimeBinding.dshWired && (
             <p className="settings-inline-error" style={{ marginTop: 8 }}>
@@ -471,7 +471,7 @@ export function McpSettingsPanel({ onToast }: { onToast?: (msg: string) => void 
                 ? '正在加载…'
                 : dshWired
                   ? `${servers.length} 个配置 · ${connectedCount} 个已连接`
-                  : `${servers.length} 个配置（未接入 DSH，Agent 对话不可用）`}
+                  : `${servers.length} 个配置（Agent 工具接入不可用）`}
             </p>
           </div>
         </div>
@@ -522,10 +522,10 @@ export function McpSettingsPanel({ onToast }: { onToast?: (msg: string) => void 
                     className="settings-secondary-button"
                     onClick={() => handleToggleEnable(server)}
                     disabled={!dshWired}
-                    title={!dshWired ? 'MCP 尚未接入 Z Host，暂不能作为 Agent 工具启用' : undefined}
+                    title={!dshWired ? 'MCP Agent 工具接入不可用' : '变更会重载 Z Host；运行中的任务期间不可操作'}
                     style={{ minWidth: 64 }}
                   >
-                    {dshWired ? (server.enabled ? '停用' : '启用') : '待接入 DSH'}
+                    {dshWired ? (server.enabled ? '停用' : '启用') : '不可用'}
                   </button>
                   {server.status === 'connected' && (
                     <button

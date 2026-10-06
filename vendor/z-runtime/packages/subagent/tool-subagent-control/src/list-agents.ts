@@ -90,10 +90,140 @@ function project(
  */
 export function apply(ctx: Context): void {
   ctx.tools.register(defineTool({
+    name: 'wait_agents',
+    description:
+      'Wait for a real lifecycle change in one of your currently running direct subagents. Use this instead '
+      + 'of repeatedly calling `list_agents`: the call sleeps until at least one child stops running, the '
+      + 'timeout expires, or your turn is cancelled. A child becoming idle can mean it is waiting for its own '
+      + 'children, so inspect the returned snapshot before deciding what to do next. Prefer continuing useful '
+      + 'independent work while background agents run; do not call this in a tight loop.',
+    parameters: {
+      timeout_ms: {
+        type: 'number',
+        description: 'Maximum wait in milliseconds (1,000–120,000; default 30,000).',
+      },
+    },
+    output: {
+      schema: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          changed: { type: 'boolean', required: true },
+          statuses: {
+            type: 'array',
+            required: true,
+            items: {
+              type: 'object',
+              additionalProperties: false,
+              properties: {
+                id: { type: 'string', required: true },
+                status: { type: 'string', required: true, enum: ['running', 'idle', 'ready'] },
+              },
+            },
+          },
+        },
+      },
+      render: (_args, result) => [{
+        type: 'text',
+        text: `${result.changed ? 'A subagent changed state' : 'No subagent state changed before timeout'}.\n`
+          + (result.statuses.length === 0
+            ? '(no continuable subagents)'
+            : result.statuses.map(entry => `${entry.id} [${entry.status}]`).join('\n')),
+      }],
+    },
+    async execute(args, exec) {
+      const parent = exec.agent
+      if (!parent) throw new Error('wait_agents requires a calling agent (exec.agent was undefined)')
+      const timeoutMs = args.timeout_ms ?? 30_000
+      if (!Number.isInteger(timeoutMs) || timeoutMs < 1_000 || timeoutMs > 120_000) {
+        throw new Error('wait_agents timeout_ms must be an integer from 1,000 to 120,000')
+      }
+
+      // Subscribe before taking the snapshot, then re-check live status after
+      // the scan. This closes the event/snapshot race without polling.
+      const childIds = new Set<SessionId>()
+      const runningChildIds = new Set<SessionId>()
+      const observedIdleIds = new Set<SessionId>()
+      let observedChange = false
+      let disposeStatus: (() => void) | undefined
+      let settleWait: ((value: boolean) => void) | undefined
+      const changed = new Promise<boolean>((resolve, reject) => {
+        let settled = false
+        const finish = (value: boolean): void => {
+          if (settled) return
+          settled = true
+          clearTimeout(timer)
+          disposeStatus?.()
+          exec.signal.removeEventListener('abort', onAbort)
+          resolve(value)
+        }
+        const onAbort = (): void => {
+          if (settled) return
+          settled = true
+          clearTimeout(timer)
+          disposeStatus?.()
+          reject(exec.signal.reason instanceof Error ? exec.signal.reason : new Error('wait_agents cancelled'))
+        }
+        const timer = setTimeout(() => { finish(false) }, timeoutMs)
+        settleWait = finish
+        disposeStatus = ctx.on('agent/status', ({ agent, status }) => {
+          if (status === 'idle') {
+            observedIdleIds.add(agent.id)
+            if (childIds.has(agent.id)) {
+              observedChange = true
+              finish(true)
+            }
+          }
+        })
+        if (exec.signal.aborted) onAbort()
+        else exec.signal.addEventListener('abort', onAbort, { once: true })
+      })
+      // The snapshot read can fail or be cancelled before the caller reaches
+      // the final await; attach a rejection observer immediately as well.
+      void changed.catch(() => {})
+
+      let children: SubagentListEntry[]
+      try {
+        children = await ctx.subagents.listChildren(parent.id, exec.signal)
+      } catch (error) {
+        settleWait?.(false)
+        await changed.catch(() => undefined)
+        throw error
+      }
+      for (const entry of children) {
+        if (entry.kind !== 'child' || entry.mode !== 'continuable') continue
+        childIds.add(entry.id)
+        if (ctx.agents.get(entry.id)?.status === 'running') runningChildIds.add(entry.id)
+      }
+      // No active children means there is nothing useful to wait for.
+      if (runningChildIds.size === 0) {
+        observedChange = [...childIds].some(id => observedIdleIds.has(id))
+        settleWait?.(observedChange)
+        observedChange = await changed
+      } else {
+        // A child may have gone idle while the durable child catalog loaded.
+        if ([...runningChildIds].some(id => ctx.agents.get(id)?.status !== 'running')
+          || [...runningChildIds].some(id => observedIdleIds.has(id))) {
+          observedChange = true
+          settleWait?.(true)
+        }
+        observedChange = await changed
+      }
+
+      const statuses = children
+        .filter((entry): entry is Extract<SubagentListEntry, { kind: 'child' }> =>
+          entry.kind === 'child' && entry.mode === 'continuable')
+        .map(entry => ({ id: entry.id, status: statusOf(ctx.agents, entry.id) }))
+      return { changed: observedChange, statuses }
+    },
+  }))
+
+  ctx.tools.register(defineTool({
     name: 'list_agents',
     description:
       'List your continuable background subagents by durable id and label. Use it to recall which ones '
-      + 'you started, not to poll for completion — you are told when one finishes. Status comes from the live '
+      + 'you started, not to poll for completion. When you must wait, call `wait_agents` to sleep until a real '
+      + 'state change instead of repeatedly taking snapshots. Status comes from the live '
       + 'registry: running means the agent is working right now, idle means it is loaded but between turns '
       + '(it may be waiting on agents it started), and ready means it exists only in storage — resumable, not '
       + 'terminal, and not a result waiting to be collected; a `send_message` starts a new turn on the same '

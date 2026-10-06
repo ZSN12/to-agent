@@ -16,7 +16,7 @@ export function applyPolicyToRoute(taskType, routing, catalog) {
     const order = ['strong', 'balanced', 'cheap']
     const candidates = filterModelsForTaskType(
       taskType,
-      (catalog?.models ?? []).filter((m) => m.available && m.profile?.enabledForAllocation !== false),
+      (catalog?.models ?? []).filter((m) => m.available && m.routeRegistered !== false && m.profile?.enabledForAllocation === true),
     )
     candidates.sort((a, b) => order.indexOf(a.profile?.tier ?? 'balanced') - order.indexOf(b.profile?.tier ?? 'balanced'))
     const upgraded = candidates[0]

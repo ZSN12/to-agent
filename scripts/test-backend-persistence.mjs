@@ -3,7 +3,7 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { createAppStateStore } from '../electron/backend/app-state-store.mjs'
-import { SessionManager } from '../electron/agent/agent-runtime.mjs'
+import { MAX_OUTPUT_LOGS } from '../electron/backend/config.mjs'
 
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-backend-'))
 
@@ -67,7 +67,9 @@ try {
   for (let index = 0; index < 160; index += 1) {
     await store.appendOutputLog({ id: `bounded-${index}`, toolName: 'bash', status: index === 159 ? 'error' : 'done', inputSummary: `command-${index}`, resultSummary: 'output' })
   }
-  assert.equal((await store.listOutputLogs()).length, 150, 'output log should stay bounded')
+  assert.equal((await store.listOutputLogs()).length, MAX_OUTPUT_LOGS, 'output log should stay bounded')
+  assert.equal((await store.listOutputLogs())[0].id, 'bounded-159', 'list newest logs first')
+  assert.equal((await store.listOutputLogs()).at(-1).id, `bounded-${160 - MAX_OUTPUT_LOGS}`, 'evict oldest logs at the configured cap')
   assert.equal((await store.listOutputLogs({ status: 'error' })).length, 1)
 
   const restoredFirst = await store.switchThread(firstThread.currentThreadId)
@@ -138,34 +140,18 @@ try {
   assert.equal(backToThread2.modelKey, 'openai-codex/gpt-5-codex')
   assert.equal(backToThread2.thinkingLevel, 'medium')
 
-  const sessionDir = path.join(tempRoot, 'sessions')
-  const sessionFile = path.join(sessionDir, `${firstState.conversationId}.jsonl`)
-  const manager = SessionManager.open(sessionFile, sessionDir, workspace)
-  manager.appendMessage({ role: 'user', content: '执行记录持久化', timestamp: Date.now() })
-  manager.appendMessage({
-    role: 'assistant',
-    content: [{ type: 'text', text: '已保存' }],
-    api: 'openai-completions',
-    provider: 'openai',
-    model: 'test-model',
-    usage: {
-      input: 1,
-      output: 1,
-      cacheRead: 0,
-      cacheWrite: 0,
-      totalTokens: 2,
-      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
-    },
-    stopReason: 'stop',
-    timestamp: Date.now(),
-  })
-  const originalSessionId = manager.getSessionId()
+  // Native execution-history restoration belongs to test-z-host-deploy.mjs:
+  // it stops/restarts the actual deployed Z Host and compares durable events.
+  // This store test must not import the removed Pi SessionManager runtime.
+  await isolatedStore.appendMessagesToConversation(backgroundOriginal.conversationId,
+    { id: 'z-turn-first', author: 'orchestrator', text: 'first queued answer' },
+    { id: 'z-turn-next', author: 'orchestrator', text: 'next queued answer' })
+  const reopenedBackground = createAppStateStore(path.join(tempRoot, 'background-app-data'), workspace)
+  const reopenedHistory = await reopenedBackground.getConversationState(backgroundOriginal.conversationId)
+  assert.deepEqual(reopenedHistory.messages.slice(-2).map(message => message.id), ['z-turn-first', 'z-turn-next'])
+  assert.equal((await reopenedBackground.getState()).conversationId, backgroundSelected.conversationId)
 
-  const restored = SessionManager.open(sessionFile, sessionDir, workspace)
-  assert.equal(restored.getSessionId(), originalSessionId)
-  assert.equal(restored.buildSessionContext().messages[0].content, '执行记录持久化')
-
-  console.log('backend persistence checks passed: legacy migration, isolated workspaces/threads, rename, new-thread flow and session restore')
+  console.log('backend persistence checks passed: legacy migration, isolated workspaces/threads, rename, new-thread flow and completed-turn restore')
 } finally {
   await fs.rm(tempRoot, { recursive: true, force: true })
 }

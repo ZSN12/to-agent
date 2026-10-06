@@ -48,7 +48,7 @@ export function createModelService({
   let pendingNativeOAuth = null
 
   function dshHome() {
-    if (!userDataPath) throw new Error('TaskWeaver 用户数据目录未配置，无法读写 DSH 凭据')
+    if (!userDataPath) throw new Error('TaskWeaver 用户数据目录未配置，无法读写 Z Runtime 凭据')
     return resolveDshHome(userDataPath)
   }
 
@@ -65,7 +65,7 @@ export function createModelService({
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
   async function fetchDshModelDirectoryOnce() {
-    if (!dshHostManager) throw new Error('DSH 模型目录未连接')
+    if (!dshHostManager) throw new Error('Z 模型目录未连接')
     const { api } = await dshHostManager.start()
     const [providerReply, modelReply, settingsReply] = await Promise.all([
       api.llm.providers({}),
@@ -209,10 +209,15 @@ export function createModelService({
       const installedIds = new Set(group?.models?.map((model) => model.id) ?? [])
       const { namespace, value } = providerSettings(directory, providerRow)
       if (!namespace || namespace.writable === false) continue
-      const current = Array.isArray(value?.modelAdditions) ? value.modelAdditions : []
-      const additions = [...current]
+      const currentAdditions = Array.isArray(value?.modelAdditions) ? value.modelAdditions : []
+      const additions = [...currentAdditions]
       const additionIds = new Set(additions.map((model) => model?.id).filter(Boolean))
+      const currentOverrides = value?.modelOverrides && typeof value.modelOverrides === 'object'
+        ? value.modelOverrides
+        : {}
+      const overrides = { ...currentOverrides }
       const remoteProvider = registry.providers?.[providerRow.provider] ?? {}
+      const runtimeProviderModels = piAiProviderModels(providerRow.provider)
       for (const model of remoteRows.filter((item) => item.provider === providerRow.provider)) {
         const modelKey = `${providerRow.provider}/${model.id}`
         if (installedIds.has(model.id) || additionIds.has(model.id) || routedKeys.has(modelKey)) continue
@@ -220,19 +225,41 @@ export function createModelService({
         const configuredApi = typeof value?.api === 'string' ? value.api : null
         if (model.api && configuredApi && model.api !== configuredApi) continue
         if (model.api && protocols.length && !protocols.includes(model.api)) continue
-        additions.push(registryModelProfile(model))
-        additionIds.add(model.id)
+        const installedApis = runtimeProviderModels
+          ? Object.entries(runtimeProviderModels)
+            .filter(([, entries]) => entries && Object.hasOwn(entries, model.id))
+            .map(([api]) => api)
+          : []
+        if (installedApis.length) {
+          // pi-ai rejects modelAdditions that shadow its built-in catalog.
+          // Keep the installed protocol/provider implementation, and apply
+          // only the signed registry's metadata through its supported override.
+          if (!model.api || !installedApis.includes(model.api)) {
+            throw new Error(`模型 ${modelKey} 的协议与 Z Runtime 内置目录不一致`)
+          }
+          const { id: _id, ...override } = registryModelProfile(model)
+          overrides[model.id] = override
+        } else {
+          additions.push(registryModelProfile(model))
+          additionIds.add(model.id)
+        }
         expectedKeys.add(`${providerRow.provider}/${model.id}`)
       }
-      if (JSON.stringify(additions) === JSON.stringify(current)) continue
+      const additionsChanged = JSON.stringify(additions) !== JSON.stringify(currentAdditions)
+      const overridesChanged = JSON.stringify(overrides) !== JSON.stringify(currentOverrides)
+      if (!additionsChanged && !overridesChanged) continue
       const bucket = opsByNamespace.get(namespace.ns) ?? { revision: namespace.revision, ops: [], rollbackOps: [] }
-      const settingPath = [...(providerRow.settingsPath ?? []), 'modelAdditions']
-      bucket.ops.push({
-        op: 'set',
-        path: settingPath,
-        value: additions,
-      })
-      bucket.rollbackOps.push({ op: 'set', path: settingPath, value: current })
+      const settingsPath = providerRow.settingsPath ?? []
+      if (additionsChanged) {
+        const settingPath = [...settingsPath, 'modelAdditions']
+        bucket.ops.push({ op: 'set', path: settingPath, value: additions })
+        bucket.rollbackOps.push({ op: 'set', path: settingPath, value: currentAdditions })
+      }
+      if (overridesChanged) {
+        const settingPath = [...settingsPath, 'modelOverrides']
+        bucket.ops.push({ op: 'set', path: settingPath, value: overrides })
+        bucket.rollbackOps.push({ op: 'set', path: settingPath, value: currentOverrides })
+      }
       opsByNamespace.set(namespace.ns, bucket)
     }
     if (!opsByNamespace.size) return directory
@@ -267,7 +294,7 @@ export function createModelService({
     }
     const routed = new Set(refreshed.groups.flatMap((group) => group.models.map((model) => `${group.id}/${model.id}`)))
     const missing = [...expectedKeys].filter((key) => !routed.has(key))
-    throw new Error(`DSH 未注册新增模型：${missing.join(', ')}`)
+    throw new Error(`Z Runtime 未注册新增模型：${missing.join(', ')}`)
   }
 
   function serializeDshModel(
@@ -311,7 +338,9 @@ export function createModelService({
       available: availableKeys.has(key),
       isTierVariant: false,
       supportedThinkingLevels: efforts.length ? supportedThinkingLevels : undefined,
-      defaultThinkingLevel: model.reasoning?.defaultEffort ?? (efforts.includes('high') ? 'high' : 'medium'),
+      defaultThinkingLevel: efforts.length
+        ? (model.reasoning?.defaultEffort ?? (efforts.includes('high') ? 'high' : 'medium'))
+        : undefined,
       profile,
       source,
       deprecated: Boolean(registryEntry?.deprecated),
@@ -331,12 +360,12 @@ export function createModelService({
     const row = resolveProviderRow(directory, provider.provider ?? provider)
       ?? (typeof provider === 'object' ? provider : null)
     if (!row) {
-      throw new Error(`${provider?.provider ?? provider} 没有可写的 DSH 凭据配置入口`)
+      throw new Error(`${provider?.provider ?? provider} 没有可写的 Z Runtime 凭据配置入口`)
     }
     const settingsNs = normalizeSettingsNs(row.settingsNs)
       || (hasPiAiSettingsNamespace(directory) ? 'llm-pi-ai' : '')
     if (!settingsNs) {
-      throw new Error(`${row.displayName || row.provider} 没有可写的 DSH 凭据配置入口`)
+      throw new Error(`${row.displayName || row.provider} 没有可写的 Z Runtime 凭据配置入口`)
     }
     const settingsPath = row.settingsPath?.length
       ? row.settingsPath
@@ -396,13 +425,17 @@ export function createModelService({
       entry.active = true
       providerById.set(row.provider, entry)
       for (const model of candidateModels) {
-        if (model.provider === row.provider) availableKeys.add(model.key)
+        // Credentials authorize a provider, but only llm.models confirms a
+        // model is actually routable. Registry candidates must stay unavailable
+        // until their signed profile has been installed in the runtime.
+        if (model.provider === row.provider && model.routeRegistered) availableKeys.add(model.key)
       }
       for (const key of addedModelKeys) {
-        if (key.startsWith(`${row.provider}/`)) availableKeys.add(key)
+        const model = candidateModels.find((candidate) => candidate.key === key)
+        if (key.startsWith(`${row.provider}/`) && model?.routeRegistered) availableKeys.add(key)
       }
     }
-    for (const model of candidateModels) model.available = availableKeys.has(model.key)
+    for (const model of candidateModels) model.available = model.routeRegistered && availableKeys.has(model.key)
   }
 
   async function reloadDshHostAfterCredentialChange() {
@@ -597,6 +630,7 @@ export function createModelService({
         registryEntry,
         registryEntry ? 'remote' : 'user',
         registryEntry ? registryVersion : null,
+        false,
       )
       if (!registryEntry && persistedAdditionKeys.has(key)) model.verificationStatus = 'unverified'
       model.available = availableKeys.has(key)
@@ -918,9 +952,9 @@ export function createModelService({
     if (!normalizedKey) throw new Error('API 密钥不能为空')
     const directory = await getDshModelDirectory()
     const provider = resolveProviderRow(directory, providerId)
-    if (!provider) throw new Error('DSH 模型目录中不存在该提供方')
+    if (!provider) throw new Error('Z 模型目录中不存在该提供方')
     if (!provider.settingsNs) {
-      throw new Error('该提供方未暴露 DSH 凭据配置入口，无法保存 API 密钥。')
+      throw new Error('该提供方未暴露 Z Runtime 凭据配置入口，无法保存 API 密钥。')
     }
     const {
       directory: writableDirectory,
@@ -931,7 +965,7 @@ export function createModelService({
       bootstrapSettings,
     } = await resolveDshCredentialRef(directory, provider)
     if (namespace?.writable === false) {
-      throw new Error(`${provider.displayName || providerId} 的 DSH 设置为只读，无法保存凭据`)
+      throw new Error(`${provider.displayName || providerId} 的 Z Runtime 设置为只读，无法保存凭据`)
     }
     dshValue(await writableDirectory.api.credentials.set({ ref, value: normalizedKey }), '保存 DSH 模型凭据')
     try {
@@ -945,7 +979,7 @@ export function createModelService({
         bootstrapSettings ? '初始化 DSH 提供方设置' : '更新 DSH 提供方设置',
       )
       if (bootstrapSettings && mutated?.revision === undefined) {
-        throw new Error(`${provider.displayName || providerId} 的 DSH 设置写入未得到确认`)
+        throw new Error(`${provider.displayName || providerId} 的 Z Runtime 设置写入未得到确认`)
       }
     } catch (error) {
       // Roll back only a newly-created reference; never erase a prior user key.
@@ -963,16 +997,16 @@ export function createModelService({
   async function addModel(modelKey) {
     let catalog = await listCatalog()
     let model = catalog.candidateModels.find((candidate) => candidate.key === modelKey)
-    if (!model) throw new Error('DSH 模型目录中不存在该模型；请先刷新目录')
+    if (!model) throw new Error('Z 模型目录中不存在该模型；请先刷新目录')
     const auth = await listProvidersAuth()
     if (!auth.find((provider) => provider.id === model.provider)?.configured) {
-      throw new Error('请先在 DSH 中配置该模型提供方的凭据')
+      throw new Error('请先在 Z Runtime 中配置该模型提供方的凭据')
     }
     if (!model.routeRegistered) {
       const { registry } = await modelRegistryUpdater.loadActiveRegistry()
       const registryEntry = registry.models?.[modelKey]
       if (!registryEntry || registryEntry.deprecated) {
-        throw new Error('此模型不在受信任的模型目录中，无法写入 DSH Runtime')
+        throw new Error('此模型不在受信任的模型目录中，无法写入 Z Runtime')
       }
       const directory = await fetchDshModelDirectoryOnce()
       await applyRegistryAdditions(directory, registry, [modelKey])
@@ -987,9 +1021,9 @@ export function createModelService({
   async function removeProviderCredentials(providerId) {
     const directory = await getDshModelDirectory()
     const provider = resolveProviderRow(directory, providerId)
-    if (!provider) throw new Error('DSH 模型目录中不存在该提供方')
+    if (!provider) throw new Error('Z Runtime 模型目录中不存在该提供方')
     if (!provider.settingsNs) {
-      throw new Error('该提供方未暴露 DSH 凭据配置入口，无法移除凭据。')
+      throw new Error('该提供方未暴露 Z Runtime 凭据配置入口，无法移除凭据。')
     }
     const { namespace, value } = providerSettings(directory, provider)
     const ref = value?.apiKeyEnv
@@ -998,7 +1032,7 @@ export function createModelService({
       throw new Error('该提供方未配置 API 密钥引用')
     }
     dshValue(await directory.api.credentials.unset({ ref: ref.trim() }), '移除 DSH 模型凭据')
-    if (namespace.writable === false) throw new Error('凭据已移除，但该 DSH 设置为只读，无法清除凭据引用')
+    if (namespace.writable === false) throw new Error('凭据已移除，但该 Z Runtime 设置为只读，无法清除凭据引用')
     return listCatalog()
   }
 
@@ -1010,7 +1044,7 @@ export function createModelService({
   async function resolveModel(modelKey) {
     const catalog = await listCatalog()
     const model = catalog.candidateModels.find((candidate) => candidate.key === modelKey)
-    if (!model) throw new Error(`DSH 模型目录中未找到模型：${modelKey}`)
+    if (!model) throw new Error(`Z 模型目录中未找到模型：${modelKey}`)
     const profile = await profileStore.getProfile(modelKey)
     return {
       ...model,
@@ -1025,12 +1059,21 @@ export function createModelService({
     if (!provider || !id) throw new Error('模型标识无效')
     const group = directory.groups.find((item) => item.id === provider)
     const model = group?.models.find((item) => item.id === id)
-    if (!model) throw new Error(`DSH 模型目录中未找到模型：${modelKey}`)
+    if (!model) throw new Error(`Z 模型目录中未找到模型：${modelKey}`)
+    const reasoningEfforts = model.reasoning?.efforts
+      ?.map((effort) => String(effort.id ?? '').toLowerCase())
+      .filter(Boolean) ?? []
+    const supportedThinkingLevels = [...new Set(['off', ...reasoningEfforts])]
     return {
       provider,
       id,
       name: model.name || id,
-      reasoning: Boolean(model.reasoning?.efforts?.length),
+      reasoning: reasoningEfforts.length > 0,
+      ...(reasoningEfforts.length ? {
+        supportedThinkingLevels,
+        defaultThinkingLevel: model.reasoning?.defaultEffort
+          ?? (reasoningEfforts.includes('high') ? 'high' : reasoningEfforts.includes('medium') ? 'medium' : reasoningEfforts[0]),
+      } : {}),
     }
   }
 

@@ -5,15 +5,54 @@
 - id: persona
   name: '@z/dsh-persona'
   config:
-    text: You are a read-only TaskWeaver research/review agent. Inspect evidence, do not change files, and distinguish verified facts from inference.
+    text: >-
+      You are a read-only TaskWeaver research/review agent. Work only on the assigned subtask and its
+      acceptance criteria. Inspect relevant evidence, do not change files, and distinguish verified facts from
+      inference. Follow the assigned file/directory scope. Prefer exact paths and narrow searches; never repeat
+      an inspection without a specific question it will answer. For a focused subtask, make at most six
+      read/glob/grep/find/ls calls total, then stop and report verified findings plus uncertainty; do not exceed
+      the budget because a new path appeared or to gain confidence. Expand scope only for an explicitly requested
+      comprehensive audit. Never run a workspace-root-wide glob for a focused task.
+      For a brief repository overview, start with the root manifest and three to six representative entrypoints;
+      use limited line ranges for large files, explain verified connections and inspection limits, then answer.
+      Do not read every module or design document unless a comprehensive audit is requested or evidence requires it.
+      When the task names multiple exact files, do not spend calls rediscovering those paths. Use Code Mode to read
+      the independent files in one run_code call, dispatching their bounded read calls concurrently when safe;
+      return only the relevant excerpts and line references, not entire files. Search only when a requested path is
+      missing or the call chain cannot be established from the named files.
 
 - id: agent-instructions
   name: '@z/dsh-agent-instructions'
   config:
     maxBytes: 65536
 
+- id: tool-fs
+  name: '@z/dsh-tool-fs'
+  config:
+    mutations: false
+    readLimit: 600
+
 - id: tool-fs-search
   name: '@z/dsh-tool-fs-search'
+  config:
+    sampleOverCapGlobResults: true
+    excludeDirectories: [node_modules, runtime-packages, dist, release, coverage, .pnpm-store, .taskweaver-build, taskweaver-z-runtime, taskweaver-dsh-runtime]
+
+# Focused read-only tasks need an agent-scoped inspection reminder; the host's
+# broader reminder remains unchanged for ordinary coding and long-form work.
+- id: repeat-tool-reminder
+  name: '@z/dsh-repeat-tool-reminder'
+  config:
+    inspectionTools: [read, glob, grep, find, ls]
+    inspectionThresholds: [4, 6]
+
+# Match the DSH code-agent tool transport while keeping this preset's tool
+# registry read-only. Nested calls are surfaced individually by TaskWeaver's
+# chat bridge and still pass through the inspection reminder/policy pipeline.
+- id: tool-presentation
+  name: '@z/dsh-agent-tool-presentation'
+  config:
+    mode: code
 
 - id: tool-web
   name: '@z/dsh-tool-web'

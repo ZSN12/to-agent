@@ -10,7 +10,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@z/cordis'
 import AgentRegistry from '@z/dsh-agent'
-import type { Agent } from '@z/dsh-agent'
+import type { Agent, AgentFactory } from '@z/dsh-agent'
 import SessionStore from '@z/dsh-session'
 import SystemPrompt from '@z/dsh-system-prompt'
 import ToolRuntime, { defineContentToolFixture } from '@z/dsh-tools'
@@ -103,6 +103,56 @@ async function collect(iterable: AsyncIterable<RpcRequest<MuxFrame>>, count: num
 }
 
 describe('mux live view computation', () => {
+  it('subscribes a session created after the mux stream has opened', async () => {
+    const { ctx } = await harness()
+    const api = createApiProxy(ctx.extend({ apiGateway: true }), { defaultModelSelection: () => ({ provider: 'p', model: 'm' }), cwd: '/tmp' })
+    const factory: AgentFactory = {
+      async createAgent(ownerCtx, options) {
+        const sessionCtx = ctx.extend({ agentScope: options.sessionId })
+        // Model an isolated Agent scope: ordinary listeners outside this
+        // scope cannot observe its events unless they explicitly opt in.
+        sessionCtx[Context.filter] = target => target !== ctx.root
+        const session = sessionCtx.sessions.create(options.sessionId, { meta: options.meta })
+        const agent = { id: session.id, session, status: 'idle', inbox: { hasPending: false } } as unknown as Agent
+        const agentCtx = ownerCtx.extend({ agent })
+        ;(agent as { ctx?: Context }).ctx = agentCtx
+        await options.setup?.(agentCtx)
+        const unregister = ctx.agents.register(agent)
+        return { agent, dispose: () => { unregister(); return Promise.resolve() } }
+      },
+      async resume() { throw new Error('not used') },
+    }
+    ctx.agents.setFactory(factory)
+    const request = (sessionId: string) => ({ rpcId: RpcId(`create-${sessionId}`), payload: { sessionId: sessionId as SessionId, cwd: '/tmp' } })
+    await api.sessions.create(request('session-before-mux'))
+    const existing = ctx.sessions.get('session-before-mux' as SessionId)!
+    const abort = new AbortController()
+    const iterator = api.events.mux({ rpcId: RpcId('t-mux-created-session'), payload: {} }, abort.signal)[Symbol.asyncIterator]()
+    try {
+      const baseline = await iterator.next()
+      expect(baseline.value?.payload).toMatchObject({ type: 'session/subscribed', sessionId: existing.id })
+
+      // Agent-created sessions publish from their own scoped context, not the
+      // Host/API root. The mux must observe cross-scope lifecycle events.
+      await api.sessions.create(request('session-after-mux'))
+      const created = ctx.sessions.get('session-after-mux' as SessionId)!
+      const added = await Promise.race([
+        iterator.next(),
+        new Promise<IteratorResult<RpcRequest<MuxFrame>>>((_, reject) => setTimeout(() => reject(new Error('new session subscription was not published')), 250)),
+      ])
+      expect(added.value?.payload).toMatchObject({ type: 'session/subscribed', sessionId: created.id })
+      created.append('turn/start', { turn: 1 })
+      const event = await Promise.race([
+        iterator.next(),
+        new Promise<IteratorResult<RpcRequest<MuxFrame>>>((_, reject) => setTimeout(() => reject(new Error('new agent events were not forwarded')), 250)),
+      ])
+      expect(event.value?.payload).toMatchObject({ type: 'session/event', sessionId: created.id, event: { type: 'turn/start' } })
+    } finally {
+      abort.abort()
+      await iterator.return?.()
+    }
+  })
+
   it('attaches the three standard card views, omits view without a presenter, soft-falls on throw', async () => {
     const { ctx } = await harness()
     const api = createApiProxy(ctx, { defaultModelSelection: () => ({ provider: 'p', model: 'm' }), cwd: '/tmp' })

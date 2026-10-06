@@ -68,19 +68,14 @@ export function applyStreamEventToSnapshot(
       next.streamBlocks = event.segments
       return next
     case 'done':
-      next.streamText = event.full
-      if (event.fullThinking && String(event.fullThinking).trim()) {
-        next.streamThinking = {
-          text: String(event.fullThinking),
-          durationMs: event.thinkingDurationMs ?? next.streamThinking?.durationMs,
-        }
-      }
-      if (event.contentBlocks?.length) next.streamBlocks = event.contentBlocks
-      next.promptQueue = { steering: [], followUp: [] }
-      return next
+      // This map is a recovery snapshot for an in-flight turn, not transcript
+      // storage. Keeping a completed turn here makes the next `start` look like
+      // an interrupted stream and can duplicate/replace the prior answer.
+      return event.continuing
+        ? { ...emptyConversationStream(), promptQueue: next.promptQueue }
+        : emptyConversationStream()
     case 'error':
-      next.promptQueue = { steering: [], followUp: [] }
-      return next
+      return emptyConversationStream()
     case 'queue_update':
       next.promptQueue = {
         steering: Array.from(new Set(event.steering || [])),

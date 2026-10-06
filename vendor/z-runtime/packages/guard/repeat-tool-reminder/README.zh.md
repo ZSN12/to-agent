@@ -16,7 +16,7 @@
     argumentsPreviewChars: 500   # default; cap on arguments quoted in the detailed reminder
 ```
 
-插件加载时，`thresholds` 会对错误配置快速失败：空列表、非整数、小于 2 的值或重复值都会抛出错误，绝不静默回退到默认值；`argumentsPreviewChars` 同样只接受大于等于 1 的整数。系统会将列表按升序规范化；第一个阈值只发送简短的通用提醒，后续每个阈值都会发送详细版本，列出工具、连续次数和规范参数。参数内容截取前 `argumentsPreviewChars` 个字符，并附带省略字符数标记，避免循环中的 `write`／`edit` 载荷无限制进入下一次请求（链键始终比较完整的规范字符串；此上限只约束提醒，不影响检测）。
+插件加载时，`thresholds` 会对错误配置快速失败：空列表、非整数、小于 2 的值或重复值都会抛出错误，绝不静默回退到默认值；`argumentsPreviewChars` 同样只接受大于等于 1 的整数。系统会将列表按升序规范化；第一个阈值只发送简短的通用提醒，后续阈值发送详细版本，列出工具、连续次数和规范参数。超过最高阈值后，按最后两个阈值的间距周期性重复提醒（只有一个阈值时按该阈值间距重复），避免长循环在提醒几次后重新变成静默。参数内容截取前 `argumentsPreviewChars` 个字符，并附带省略字符数标记，避免循环中的 `write`／`edit` 载荷无限制进入下一次请求（链键始终比较完整的规范字符串；此上限只约束提醒，不影响检测）。
 
 `include`／`exclude` 条目支持 `*` 通配符，并针对调用时实际存在的工具执行谓词判断，而不是引用注册表条目。因此，与当前任何已注册工具都不匹配的模式并非错误（未加载 MCP 工具的部署中，`exclude: [mcp_*]` 仍然有效）；这与 `toolOrder` 的引用目标检查不同。
 
@@ -29,6 +29,15 @@
 - **忽略没有 agent 的调用。** 直接调用 `ctx.tools.execute()` 的调用方没有需要提醒的模型，也没有可作为键的活跃 agent 对象。
 - **按 agent 分键。** 工具注册表位于上下文层级，subagent 会交错通过同一个 waterfall（瀑布式事件），因此每条链使用 `WeakMap<Agent, Chain>`，以活跃 agent 对象为键。一个 agent 的重复调用绝不会触发另一个 agent 的提醒。用户提示词（`agent/pre-step`）会重置提交该提示词的 agent 链；对象生命周期会自然限制弱引用条目的寿命，无需 dispose（资源释放）监听器。
 - **仅驻留内存。** 从持久化恢复的会话会从一条全新的链开始：guard 是启发式提醒，并非有日志记录的不变量；提醒会延后，这是可接受的代价。
+
+## 累计检查预算
+
+可选的 `inspectionTools`／`inspectionThresholds` 配置会累计同一用户任务中的不同检查调用，而不只统计参数完全相同的连续调用。达到阈值后，会提醒模型整理已验证的证据；超过最高阈值后按末两阈值间距继续提醒。它只是建议，不是硬性调用上限，因此有依据的长任务仍可继续。新的用户任务会重置计数；两个字段必须同时配置，留空则关闭此功能。
+
+```yaml
+inspectionTools: [read, glob, grep, run_code]
+inspectionThresholds: [6, 10]
+```
 
 ## 提醒传递
 
@@ -87,4 +96,4 @@ The repeated calls are not making progress. Do not call this tool with these exa
 - **仅提供建议**：尚未实现达到较高阈值后升级为 `block`，但 `PostToolDecision` 已支持阻止调用。
 - **subagent 之间不共享链**：链始终按 agent 隔离；即使父 agent 与其 subagent 重复相同调用，也不会合并计数。
 - **合理的幂等轮询超过阈值后仍会收到提醒**：可通过 `thresholds`／`exclude` 配置释放压力。
-- **超过最高阈值后链不再提醒**：提醒只在精确达到所配置的次数时触发，超过后不会继续发送。
+- **提醒仍是 advisory**：即使超过阈值并周期性收到提醒，模型仍可继续检查；有依据的长任务不会被硬性截断。

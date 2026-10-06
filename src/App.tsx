@@ -62,28 +62,18 @@ import {
   Sun,
   X,
 } from 'lucide-react'
-import { FormEvent, Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { FormEvent, Fragment, Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { useAppBackend } from './features/app/useAppBackend'
-import { ModelSettingsPanel } from './features/models/ModelSettingsPanel'
-import { RoutingPortfolioSettingsPanel } from './features/models/RoutingPortfolioSettingsPanel'
-import { McpSettingsPanel } from './features/mcp/McpSettingsPanel'
-import { PluginsMarketplaceView } from './features/plugins/PluginsMarketplaceView'
-import { PermissionSettingsPanel } from './features/permissions/PermissionSettingsPanel'
-import { AppearanceSettingsPanel } from './features/appearance/AppearanceSettingsPanel'
-import { OutputLogPanel } from './features/logs/OutputLogPanel'
-import { GitCheckpointPanel } from './features/git/GitCheckpointPanel'
-import { SkillSettingsPanel } from './features/skills/SkillSettingsPanel'
 import { skillDescriptionBlurb } from './features/skills/skillDescription'
 import { SKILL_CATALOG_EVENT, useEnabledSkills } from './features/skills/useEnabledSkills'
 import { WorktreeMergeActions } from './features/worktree/WorktreeMergeActions'
-import { TerminalDrawer } from './features/terminal/TerminalDrawer'
 import { useModelCatalog } from './features/models/useModelCatalog'
-import { AgentMessageMarkdown } from './features/chat/AgentMessageMarkdown'
 import { AssistantTurnBody } from './features/chat/AssistantTurnBody'
 import { QueueDock } from './features/chat/QueueDock'
 import { PendingSteeringBubble } from './features/chat/PendingSteeringBubble'
 import { ApprovalPanel } from './features/chat/ApprovalPanel'
+import { UserQuestionPanel } from './features/chat/UserQuestionPanel'
 import { CompactionRow } from './features/chat/CompactionRow'
 import { RetryBanner } from './features/chat/RetryBanner'
 import { ComposerStatsDock } from './features/chat/ComposerStatsDock'
@@ -94,7 +84,7 @@ import { DshToolCallList } from './features/chat/DshToolCallList'
 import { MessageTurnUsageChip } from './features/chat/MessageTurnUsageChip'
 import type { DshProjectedToolCall } from './shared/app-api'
 import { DetailsPanel } from './features/chat/DetailsPanel'
-import type { BusyEnterMode, LiveContextUsage, PermissionPromptPayload, SessionStatsSnapshot } from './shared/app-api'
+import type { BusyEnterMode, LiveContextUsage, PermissionPromptPayload, SessionStatsSnapshot, UserQuestionAnswer, UserQuestionPromptPayload } from './shared/app-api'
 import { skillOptionSourceLabel } from './shared/app-api'
 import type { FileDiffData, ModelUsageStats, PermissionMode, PromptQueueSnapshot, SkillOption, ThreadSummary, ToolTraceItem, WorkMode, WorkspaceEntry, WorkspaceReference } from './shared/app-api'
 import type { ChatMessage, ModelOption, TaskNode, TaskStatus, ThinkingLevel } from './types'
@@ -116,6 +106,17 @@ import {
   getStoredAccentColor,
   applyTheme,
 } from './shared/theme'
+
+const ModelSettingsPanel = lazy(() => import('./features/models/ModelSettingsPanel').then((module) => ({ default: module.ModelSettingsPanel })))
+const RoutingPortfolioSettingsPanel = lazy(() => import('./features/models/RoutingPortfolioSettingsPanel').then((module) => ({ default: module.RoutingPortfolioSettingsPanel })))
+const McpSettingsPanel = lazy(() => import('./features/mcp/McpSettingsPanel').then((module) => ({ default: module.McpSettingsPanel })))
+const PluginsMarketplaceView = lazy(() => import('./features/plugins/PluginsMarketplaceView').then((module) => ({ default: module.PluginsMarketplaceView })))
+const PermissionSettingsPanel = lazy(() => import('./features/permissions/PermissionSettingsPanel').then((module) => ({ default: module.PermissionSettingsPanel })))
+const AppearanceSettingsPanel = lazy(() => import('./features/appearance/AppearanceSettingsPanel').then((module) => ({ default: module.AppearanceSettingsPanel })))
+const OutputLogPanel = lazy(() => import('./features/logs/OutputLogPanel').then((module) => ({ default: module.OutputLogPanel })))
+const GitCheckpointPanel = lazy(() => import('./features/git/GitCheckpointPanel').then((module) => ({ default: module.GitCheckpointPanel })))
+const SkillSettingsPanel = lazy(() => import('./features/skills/SkillSettingsPanel').then((module) => ({ default: module.SkillSettingsPanel })))
+const TerminalDrawer = lazy(() => import('./features/terminal/TerminalDrawer').then((module) => ({ default: module.TerminalDrawer })))
 
 type PanelView = 'dag' | 'task' | 'logs' | 'git' | 'details' | null
 type SettingsSection = 'appearance' | 'chat' | 'models' | 'skills' | 'routing' | 'mcp' | 'permissions' | 'shortcuts' | 'usage'
@@ -1919,6 +1920,7 @@ function SettingsPage({
         </button>
       </header>
       <div className="settings-content" key={section}>
+        <Suspense fallback={<div className="settings-loading" role="status">正在加载设置…</div>}>
         {section === 'appearance' ? (
           <AppearanceSettingsPanel onToast={toast} />
         ) : section === 'chat' ? (
@@ -1942,7 +1944,7 @@ function SettingsPage({
                   return
                 }
                 if (result.providerCount === 0) {
-                  toast('模型目录已刷新，但 DSH 未返回任何提供方。请稍候再试或重启应用（Agent Host 可能仍在启动）。')
+                  toast('模型目录已刷新，但 Z Runtime 未返回任何提供方。请稍候再试或重启应用（Z Host 可能仍在启动）。')
                   return
                 }
                 toast('模型目录已同步。')
@@ -1978,6 +1980,7 @@ function SettingsPage({
         ) : (
           <UsageSettings />
         )}
+        </Suspense>
       </div>
     </main>
     {toastMessage && <div className="settings-toast" role="status" aria-live="polite">{toastMessage}</div>}
@@ -2018,7 +2021,7 @@ function formatMessageTime(time: string, timestamp?: number, id?: string): strin
 }
 
 /** Mirrors DSH ChatView `TurnStatus`: shimmer label + optional tool chip + clock after 15s. */
-function DeepDivingIndicator({ startTime }: { startTime?: number; activity?: string | null }) {
+function DeepDivingIndicator({ startTime, activity }: { startTime?: number; activity?: string | null }) {
   const anchor = startTime ?? Date.now()
   const [elapsedMs, setElapsedMs] = useState(() => Math.max(0, Date.now() - anchor))
 
@@ -2033,9 +2036,10 @@ function DeepDivingIndicator({ startTime }: { startTime?: number; activity?: str
   const clockLabel = formatDshRunDuration(elapsedMs)
 
   return (
-    <div className="dsh-turn-status-row" role="status" aria-live="polite">
-      <span className="dsh-turn-status">Deep diving...</span>
-      {showClock && <span className="dsh-turn-status-clock">{clockLabel}</span>}
+    <div className="dsh-deep-diving-row" role="status" aria-live="polite">
+      <span className="dsh-diving-text">Deep diving...</span>
+      {activity && <span className="dsh-diving-sub">{activity}</span>}
+      {showClock && <span className="dsh-diving-timer">{clockLabel}</span>}
     </div>
   )
 }
@@ -2043,6 +2047,7 @@ function DeepDivingIndicator({ startTime }: { startTime?: number; activity?: str
 function Message({
   message,
   dshToolRows,
+  toolTraceItems,
   workspacePath,
   onFork,
   isStreaming = false,
@@ -2054,6 +2059,7 @@ function Message({
 }: {
   message: ChatMessage
   dshToolRows?: readonly DshProjectedToolCall[]
+  toolTraceItems?: readonly ToolTraceItem[]
   workspacePath?: string | null
   onFork?: (messageId: string) => void
   isStreaming?: boolean
@@ -2118,10 +2124,11 @@ function Message({
             isStreaming={isStreaming}
           />
         )}
-        {!isUser && dshToolRows && dshToolRows.length > 0 && (
+        {!isUser && ((dshToolRows?.length ?? 0) > 0 || (toolTraceItems?.length ?? 0) > 0) && (
           <div className="message-tool-traces">
             <DshToolCallList
               rows={dshToolRows}
+              traces={toolTraceItems}
               workspacePath={workspacePath}
               onShowToolDetails={onShowToolDetails}
               onOpenWorkspacePath={onOpenWorkspacePath}
@@ -2357,14 +2364,15 @@ function ModelSelect({
   }, [])
 
   const supportedLevels = useMemo(() => {
+    if (value?.reasoning === false) return []
     if (value?.supportedThinkingLevels && value.supportedThinkingLevels.length > 0) {
       return value.supportedThinkingLevels
     }
     return ['off', 'low', 'medium', 'high'] as ThinkingLevel[]
-  }, [value?.supportedThinkingLevels])
+  }, [value?.reasoning, value?.supportedThinkingLevels])
 
   useEffect(() => {
-    if (!value) return
+    if (!value || value.reasoning === false) return
     const valid = supportedLevels
     if (valid.length > 0 && !valid.includes(thinkingLevel)) {
       const fallback = value.defaultThinkingLevel && valid.includes(value.defaultThinkingLevel)
@@ -2392,7 +2400,7 @@ function ModelSelect({
         disabled={loading || options.length === 0}
       >
         <span className="model-trigger-name">{value?.name ?? (loading ? '加载模型…' : '无可用模型')}</span>
-        {value && <span className="model-trigger-level">{thinkingLevelLabels[thinkingLevel]?.en || 'High'}</span>}
+        {value && <span className="model-trigger-level">{value.reasoning === false ? 'N/A' : thinkingLevelLabels[thinkingLevel]?.en || 'High'}</span>}
         {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
       </button>
 
@@ -2419,7 +2427,7 @@ function ModelSelect({
               >
                 <span className="model-menu-entry-label">推理等级</span>
                 <span className="model-menu-entry-value">
-                  <span>{thinkingLevelLabels[thinkingLevel]?.en || 'High'}</span>
+                  <span>{value?.reasoning === false ? '不支持' : thinkingLevelLabels[thinkingLevel]?.en || 'High'}</span>
                   <ChevronRight size={14} />
                 </span>
               </button>
@@ -2473,8 +2481,18 @@ function ModelSelect({
                 </button>
                 <span className="model-sub-title">推理等级</span>
               </div>
-              <div className="model-sub-list">
-                {supportedLevels.map((lvl) => {
+              {value?.reasoning === false ? (
+                <div className="model-sub-list">
+                  <div className="model-sub-item" aria-disabled="true">
+                    <div className="model-thinking-item-left">
+                      <span className="model-item-name">该模型不支持可调推理等级</span>
+                      <span className="model-item-desc">模型将使用自身默认设置；你的全局偏好会保留</span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="model-sub-list">
+                  {supportedLevels.map((lvl) => {
                   const meta = thinkingLevelLabels[lvl]
                   const isActive = lvl === thinkingLevel
                   return (
@@ -2494,8 +2512,9 @@ function ModelSelect({
                       {isActive && <Check size={16} className="model-item-check" />}
                     </button>
                   )
-                })}
-              </div>
+                  })}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -2822,6 +2841,8 @@ function Composer({
   currentThreadId,
   permissionPrompt,
   onRespondPermission,
+  userQuestionPrompt,
+  onAnswerUserQuestion,
 }: {
   model: ModelOption | null
   modelOptions: ModelOption[]
@@ -2862,6 +2883,8 @@ function Composer({
     action: 'allow-once' | 'allow-always' | 'deny' | 'escalate-once',
     sandboxMode?: 'workspace-write' | 'danger-full-access',
   ) => void
+  userQuestionPrompt?: UserQuestionPromptPayload | null
+  onAnswerUserQuestion?: (id: string, answer: UserQuestionAnswer) => Promise<boolean>
 }) {
   const [value, setValue] = useState('')
   const [workMode, setWorkMode] = useState<WorkMode>('code')
@@ -3125,6 +3148,11 @@ function Composer({
       {permissionPrompt && onRespondPermission && (
         <div className="composer-approval-slot">
           <ApprovalPanel prompt={permissionPrompt} onRespond={onRespondPermission} />
+        </div>
+      )}
+      {userQuestionPrompt && onAnswerUserQuestion && (
+        <div className="composer-approval-slot">
+          <UserQuestionPanel prompt={userQuestionPrompt} onAnswer={onAnswerUserQuestion} />
         </div>
       )}
       {sending && onQueueMutate && (
@@ -3559,6 +3587,8 @@ function MainConversation({
   onDismissInterrupted,
   permissionPrompt,
   onRespondPermission,
+  userQuestionPrompt,
+  onAnswerUserQuestion,
 }: {
   currentThreadId?: string | null
   messages: ChatMessage[]
@@ -3627,6 +3657,8 @@ function MainConversation({
     action: 'allow-once' | 'allow-always' | 'deny' | 'escalate-once',
     sandboxMode?: 'workspace-write' | 'danger-full-access',
   ) => void
+  userQuestionPrompt?: UserQuestionPromptPayload | null
+  onAnswerUserQuestion?: (id: string, answer: UserQuestionAnswer) => Promise<boolean>
 }) {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const scrollPositionsRef = useRef<Map<string, { top: number; atBottom: boolean }>>(new Map())
@@ -3922,6 +3954,7 @@ function MainConversation({
                 key={message.id}
                 message={message}
                 dshToolRows={isLatestAgent ? dshToolRows : undefined}
+                toolTraceItems={isLatestAgent ? toolTraces : undefined}
                 workspacePath={workspacePath}
                 onFork={canForkHere ? onFork : undefined}
                 onShowToolDetails={onShowToolDetails}
@@ -3956,6 +3989,7 @@ function MainConversation({
                 contentBlocks: streamBlocks?.length ? streamBlocks : undefined,
               }}
               dshToolRows={dshToolRows}
+              toolTraceItems={toolTraces}
               workspacePath={workspacePath}
               isStreaming={true}
               streamActivity={streamActivity}
@@ -4014,13 +4048,17 @@ function MainConversation({
           currentThreadId={currentThreadId}
           permissionPrompt={permissionPrompt}
           onRespondPermission={onRespondPermission}
+          userQuestionPrompt={userQuestionPrompt}
+          onAnswerUserQuestion={onAnswerUserQuestion}
         />
       {terminalOpen && onCloseTerminal && (
+        <Suspense fallback={null}>
         <TerminalDrawer
           isOpen={terminalOpen}
           workspacePath={workspacePath}
           onClose={onCloseTerminal}
         />
+        </Suspense>
       )}
     </main>
   )
@@ -4115,6 +4153,13 @@ function TaskConversation({ task, onBack, onClose, onSend }: { task: TaskNode; o
       <div className="task-summary">
         <StatusChip status={task.status} />
         <div className="task-summary-row"><span>任务目标</span><p>{task.description}</p></div>
+        {task.executionEvidenceSummary && (
+          <div className="task-execution-evidence" role="note">
+            <strong>Host 实际工具记录</strong>
+            <p>{task.executionEvidenceSummary.label}</p>
+            <small>只说明观测到的调用，不代表回答内容已被证明正确。</small>
+          </div>
+        )}
         <div className="task-summary-tags">{task.reasons.map((reason) => <span key={reason}>{reason}</span>)}</div>
         {task.worktreeIsolated && (task.status === 'done' || task.status === 'review') && (
           <div className="task-worktree-panel">
@@ -4516,6 +4561,7 @@ export default function App() {
       />
       <div className={`workspace ${panel ? 'with-panel' : ''}`}>
         {mainView === 'plugins' ? (
+          <Suspense fallback={<div className="codex-marketplace-page" role="status">正在加载插件…</div>}>
           <PluginsMarketplaceView
             onOpenSettings={() => {
               setSettingsSection('mcp')
@@ -4528,6 +4574,7 @@ export default function App() {
             }}
             skills={appBackend.skills}
           />
+          </Suspense>
         ) : mainView === 'pull-requests' ? (
           <div className="codex-marketplace-page" style={{ padding: '40px 24px', alignItems: 'center', justifyContent: 'center' }}>
             <div className="codex-marketplace-hero">
@@ -4604,6 +4651,8 @@ export default function App() {
           onBusyEnterModeChange={(mode) => { void appBackend.setBusyEnterMode(mode) }}
           permissionPrompt={appBackend.permissionPrompt}
           onRespondPermission={(action, sandboxMode) => { void appBackend.respondPermissionPrompt(action, sandboxMode) }}
+          userQuestionPrompt={appBackend.userQuestionPrompt}
+          onAnswerUserQuestion={appBackend.answerUserQuestion}
           liveContext={appBackend.liveContext}
           sessionStats={appBackend.sessionStats}
           backendError={appBackend.error}
@@ -4646,12 +4695,14 @@ export default function App() {
           <TaskConversation task={selectedTask} onBack={() => setPanel('dag')} onClose={() => setPanel(null)} onSend={sendTaskMessage} />
         )}
         {panel === 'logs' && (
+          <Suspense fallback={null}>
           <OutputLogPanel
             logs={appBackend.toolTraces}
             onClose={() => setPanel(null)}
             onShowToolDetails={showToolDetails}
             onOpenWorkspacePath={openWorkspacePath}
           />
+          </Suspense>
         )}
         {panel === 'details' && detailsTool && (
           <DetailsPanel
@@ -4666,7 +4717,9 @@ export default function App() {
           />
         )}
         {panel === 'git' && (
+          <Suspense fallback={null}>
           <GitCheckpointPanel workspacePath={appBackend.workspacePath} onClose={() => setPanel(null)} />
+          </Suspense>
         )}
       </div>
 

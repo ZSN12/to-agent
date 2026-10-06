@@ -192,6 +192,7 @@ describe('sessions domain schemas', () => {
       hasMore: true,
     })).toThrow()
     expect(sessionCreateRequestSchema.parse({ cwd: '/w' }).cwd).toBe('/w')
+    expect(sessionCreateRequestSchema.parse({ sessionId: 's2', parentSessionId: 's1' }).parentSessionId).toBe('s1')
     // The refine's both-sides branch: workspaceId alone passes, workspaceId+cwd rejects.
     expect(sessionCreateRequestSchema.parse({ workspaceId: 'w1', sessionId: 's1' }).sessionId).toBe('s1')
     expect(() => sessionCreateRequestSchema.parse({ workspaceId: 'w1', cwd: '/w' })).toThrow(/not both/)
@@ -262,6 +263,10 @@ describe('sessions domain schemas', () => {
     })
     expect(prompt.mode).toBe('queue')
     expect(prompt.clientTimeZone).toBe('Asia/Shanghai')
+    expect(sessionPromptRequestSchema.parse({
+      sessionId: 's1', mode: 'queue', content: [{ type: 'text', text: '/compact' }], commandOnly: true,
+    }).commandOnly).toBe(true)
+    expect(prompt.commandOnly).toBeUndefined()
     expect(sessionPromptRequestSchema.parse({
       sessionId: 's1', mode: 'queue', content: [],
     }).clientTimeZone).toBeUndefined()

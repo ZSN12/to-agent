@@ -32,6 +32,10 @@ export interface Config {
   include?: string[]
   /** Tool-name patterns transparent to the chain (neither count nor reset). */
   exclude?: string[]
+  /** Inspection tools counted across a task, even when their names/arguments differ. */
+  inspectionTools?: string[]
+  /** Cumulative per-agent inspection counts that trigger synthesis reminders; empty disables this budget. */
+  inspectionThresholds?: number[]
   /**
    * Maximum characters of canonical arguments quoted in the DETAILED reminder
    * (default 500). Large payloads (a `write` body, a long command) would
@@ -46,6 +50,8 @@ export const Config: z<Config> = z.object({
   thresholds: z.array(z.number()).default([3, 5, 8]),
   include: z.array(z.string()).default([]),
   exclude: z.array(z.string()).default([]),
+  inspectionTools: z.array(z.string()).default([]),
+  inspectionThresholds: z.array(z.number()).default([]),
   argumentsPreviewChars: z.number().default(500),
 })
 
@@ -140,6 +146,16 @@ function validateThresholds(values: number[]): number[] {
   return [...values].sort((a, b) => a - b)
 }
 
+/** Keep nudging after configured thresholds, using the final threshold spacing as cadence. */
+function shouldRemindAt(count: number, thresholds: number[], thresholdSet: Set<number>): boolean {
+  if (thresholdSet.has(count)) return true
+  const last = thresholds.at(-1)
+  if (last === undefined || count <= last) return false
+  const previous = thresholds.at(-2)
+  const cadence = previous === undefined ? last : last - previous
+  return cadence > 0 && (count - last) % cadence === 0
+}
+
 /**
  * Prepend the guard's reminder while preserving every downstream context's
  * source and metadata.
@@ -152,6 +168,35 @@ function prependContext(ours: UserMessage, theirs: UserMessage[] | undefined): U
 interface Chain {
   key: string
   count: number
+  kind: 'exact-call' | 'read-target'
+}
+
+/** Consecutive reads of one file are often range-by-range and evade exact-argument repeat detection. */
+function readTarget(exec: ToolExecution): string | undefined {
+  if (exec.name !== 'read' || exec.arguments === null || typeof exec.arguments !== 'object') return undefined
+  const filePath = (exec.arguments as Record<string, unknown>).file_path
+  if (typeof filePath !== 'string' || filePath.trim() === '') return undefined
+  return filePath.trim().normalize('NFC')
+}
+
+/** A distinct reminder for sequential ranges of the same file (advisory only; legitimate long reads remain possible). */
+function readTargetReminder(filePath: string, count: number, detailed: boolean, previewChars: number): string {
+  if (!detailed) {
+    return 'You have read the same file several times, possibly in different line ranges. Reuse the excerpts already gathered; '
+      + 'request another range only when you can name the specific missing information, then synthesize your findings.'
+  }
+  return 'Repeated reads of the same file detected:\n'
+    + `- file_path: ${previewArguments(JSON.stringify(filePath), previewChars)}\n`
+    + `- consecutive_reads: ${count}\n`
+    + 'Avoid overlapping ranges and stop rereading once the relevant evidence is sufficient. Summarize what is known now; '
+    + 'if a necessary section is still missing, request only that concrete, non-overlapping range.'
+}
+
+function inspectionBudgetReminder(count: number, firstThreshold: number): string {
+  if (count === firstThreshold) {
+    return `You have made ${count} repository-inspection/tool calls in this task. Stop broad exploration and synthesize the verified findings now. Continue inspecting only if you can name the specific unresolved fact and choose one targeted call that answers it.`
+  }
+  return `You have continued repository inspection for ${count} calls after the synthesis reminder. Give the user the findings and remaining uncertainty now; make another inspection only when a concrete requirement cannot be answered from the evidence already gathered.`
 }
 
 /**
@@ -165,12 +210,23 @@ export function apply(ctx: Context, config: Config): void {
   const thresholdSet = new Set(thresholds)
   const includePatterns = (config.include as string[]).map(wildcardToRegExp)
   const excludePatterns = (config.exclude as string[]).map(wildcardToRegExp)
+  const inspectionTools = config.inspectionTools as string[]
+  const inspectionThresholdValues = config.inspectionThresholds as number[]
+  const inspectionThresholds = inspectionThresholdValues.length > 0
+    ? validateThresholds(inspectionThresholdValues)
+    : []
+  if ((inspectionTools.length > 0) !== (inspectionThresholds.length > 0)) {
+    throw new Error('repeat-tool-reminder: inspectionTools and inspectionThresholds must be configured together')
+  }
+  const inspectionPatterns = inspectionTools.map(wildcardToRegExp)
+  const inspectionThresholdSet = new Set(inspectionThresholds)
   const argumentsPreviewChars = config.argumentsPreviewChars as number
   if (!Number.isInteger(argumentsPreviewChars) || argumentsPreviewChars < 1) {
     throw new Error(`repeat-tool-reminder: invalid argumentsPreviewChars ${argumentsPreviewChars} — must be an integer >= 1`)
   }
 
   const chains = new WeakMap<Agent, Chain>()
+  const inspectionCounts = new WeakMap<Agent, number>()
 
   /** Whether a tool participates in the chain (untracked calls are transparent: they neither count nor reset). */
   function tracked(toolName: string): boolean {
@@ -190,20 +246,45 @@ export function apply(ctx: Context, config: Config): void {
     // A direct `ctx.tools.execute()` caller has no model to remind and no id
     // to key on; only agent-loop calls participate.
     if (!exec.agent) return undefined
-    if (!tracked(exec.name)) return undefined
-    const canonical = canonicalize(exec.arguments)
-    const key = JSON.stringify([exec.name, canonical])
-    const chain = chains.get(exec.agent)
-    const count = chain !== undefined && chain.key === key ? chain.count + 1 : 1
-    chains.set(exec.agent, { key, count })
-    if (!thresholdSet.has(count)) return undefined
-    const text = count === thresholds[0]
-      ? GENTLE_REMINDER
-      : detailedReminder(exec.name, count, previewArguments(canonical, argumentsPreviewChars))
-    return createUserMessage({
-      content: [{ type: 'text', text }],
-      source: { ...PLUGIN_SOURCE, form: 'notice', summary: `${exec.name} × ${count}` },
-    })
+    let repeatReminder: UserMessage | undefined
+    if (tracked(exec.name)) {
+      const canonical = canonicalize(exec.arguments)
+      const path = readTarget(exec)
+      const kind = path === undefined ? 'exact-call' : 'read-target'
+      const key = path === undefined
+        ? JSON.stringify([exec.name, canonical])
+        : JSON.stringify([exec.name, path])
+      const chain = chains.get(exec.agent)
+      const count = chain !== undefined && chain.key === key && chain.kind === kind ? chain.count + 1 : 1
+      chains.set(exec.agent, { key, count, kind })
+      if (shouldRemindAt(count, thresholds, thresholdSet)) {
+        const text = kind === 'read-target'
+          ? readTargetReminder(path as string, count, count !== thresholds[0], argumentsPreviewChars)
+          : count === thresholds[0]
+            ? GENTLE_REMINDER
+            : detailedReminder(exec.name, count, previewArguments(canonical, argumentsPreviewChars))
+        repeatReminder = createUserMessage({
+          content: [{ type: 'text', text }],
+          source: { ...PLUGIN_SOURCE, form: 'notice', summary: `${exec.name}${path === undefined ? '' : ` ${path}`} × ${count}` },
+        })
+      }
+    }
+
+    let budgetReminder: UserMessage | undefined
+    if (inspectionThresholdSet.size > 0 && inspectionPatterns.some(pattern => pattern.test(exec.name))) {
+      const count = (inspectionCounts.get(exec.agent) ?? 0) + 1
+      inspectionCounts.set(exec.agent, count)
+      if (shouldRemindAt(count, inspectionThresholds, inspectionThresholdSet)) {
+        const text = inspectionBudgetReminder(count, inspectionThresholds[0] as number)
+        budgetReminder = createUserMessage({
+          content: [{ type: 'text', text }],
+          source: { ...PLUGIN_SOURCE, form: 'notice', summary: `repository inspection × ${count}` },
+        })
+      }
+    }
+    // A same-call loop reminder is more specific; don't spend context on two
+    // notices for one tool result when both thresholds happen to coincide.
+    return repeatReminder ?? budgetReminder
   }
 
   // Observe-and-enrich, never veto: count first (state advances regardless of
@@ -227,7 +308,10 @@ export function apply(ctx: Context, config: Config): void {
   // loop. Pure reset hook: always delegates (attaching nothing, vetoing
   // nothing).
   ctx.on('agent/pre-step', ({ agent, messages }, next): Promise<PreStepDecision> => {
-    if (messages.some(message => message.source.kind === 'user')) chains.delete(agent)
+    if (messages.some(message => message.source.kind === 'user')) {
+      chains.delete(agent)
+      inspectionCounts.delete(agent)
+    }
     return next()
   })
 }

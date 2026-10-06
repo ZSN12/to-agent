@@ -431,7 +431,11 @@ export abstract class AbstractApiClient implements IApiClient {
     selectModel: (payload, signal) => this.callUnary('session.selectModel', payload, signal),
     rename: (payload, signal) => this.callUnary('session.rename', payload, signal),
     fork: (payload, signal) => this.callUnary('session.fork', payload, signal),
-    prompt: (payload, signal) => this.callUnary('session.prompt', payload, signal),
+    // Command-only maintenance resolves after actual work (e.g. a large
+    // history summary), not a quick chat admission. Caller/connection abort
+    // still cancels it; the transport health deadline is inappropriate.
+    prompt: (payload, signal) => this.callUnary('session.prompt', payload, signal,
+      payload.commandOnly === true ? 'caller-signal-only' : 'default'),
     attachment: (payload, signal) => this.callUnary('session.attachment', payload, signal),
     updateQueue: (payload, signal) => this.callUnary('session.updateQueue', payload, signal),
     cancel: (payload, signal) => this.callUnary('session.cancel', payload, signal),

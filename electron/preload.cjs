@@ -75,6 +75,9 @@ contextBridge.exposeInMainWorld('taskweaver', {
     upsertCustomProvider: (payload) => invoke('models:upsertCustomProvider', payload),
     removeCustomProvider: (providerId) => invoke('models:removeCustomProvider', providerId),
     testCustomProvider: (payload) => invoke('models:testCustomProvider', payload),
+    testCustomProviderToolCall: (payload) => invoke('models:testCustomProviderToolCall', payload),
+    probeProviderModels: (payload) => invoke('models:probeProviderModels', payload ?? {}),
+    batchAddCustomModels: (payload) => invoke('models:batchAddCustomModels', payload ?? {}),
     onOAuthStatus: (listener) => {
       const handler = (_event, payload) => listener(payload)
       ipcRenderer.on('models:oauthStatus', handler)
@@ -151,6 +154,19 @@ contextBridge.exposeInMainWorld('taskweaver', {
       const handler = (_event, payload) => listener(payload)
       ipcRenderer.on('permission:prompt', handler)
       return () => ipcRenderer.removeListener('permission:prompt', handler)
+    },
+  },
+  userQuestions: {
+    answer: (id, answer) => invoke('userQuestions:answer', id, answer),
+    onPrompt: (listener) => {
+      const handler = (_event, payload) => listener(payload)
+      ipcRenderer.on('user-question:prompt', handler)
+      return () => ipcRenderer.removeListener('user-question:prompt', handler)
+    },
+    onResolved: (listener) => {
+      const handler = (_event, payload) => listener(payload)
+      ipcRenderer.on('user-question:resolved', handler)
+      return () => ipcRenderer.removeListener('user-question:resolved', handler)
     },
   },
   terminal: {

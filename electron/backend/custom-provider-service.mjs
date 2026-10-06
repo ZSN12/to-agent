@@ -147,40 +147,241 @@ export function createCustomProviderService({ modelsPath, credentials, refreshRu
     return { removed: id }
   }
 
-  async function testCustomProvider({ baseUrl, apiKey, modelId, api = 'openai-completions' }) {
+  async function requestCustomProvider({ baseUrl, apiKey, modelId, api = 'openai-completions', toolCall = false }) {
     const root = String(baseUrl ?? '').trim().replace(/\/+$/, '')
     const key = String(apiKey ?? '').trim()
     if (!root || !key) throw new Error('Base URL 与 API Key 均必填')
-
-    const modelsUrl = `${root}/models`
-    const res = await fetch(modelsUrl, {
-      headers: { Authorization: `Bearer ${key}` },
-      signal: AbortSignal.timeout(15000),
-    })
-    if (res.ok) {
-      return { ok: true, method: 'GET /models', status: res.status }
+    const useResponses = api === 'openai-responses'
+    const endpoint = `${root}/${useResponses ? 'responses' : 'chat/completions'}`
+    const probeTool = {
+      type: 'function',
+      name: 'taskweaver_probe',
+      description: 'A harmless capability check. Do not perform any external action.',
+      parameters: {
+        type: 'object',
+        properties: { ok: { type: 'boolean' } },
+        required: ['ok'],
+        additionalProperties: false,
+      },
     }
-
-    const chatUrl = `${root}/chat/completions`
-    const body = {
-      model: modelId || 'default',
-      messages: [{ role: 'user', content: 'ping' }],
-      max_tokens: 1,
-    }
-    const chatRes = await fetch(chatUrl, {
+    const body = useResponses
+      ? {
+        model: modelId || 'default',
+        input: toolCall
+          ? 'Call taskweaver_probe exactly once with {"ok":true}. This is only a capability test.'
+          : 'Reply with OK.',
+        max_output_tokens: toolCall ? 64 : 16,
+        ...(toolCall ? { tools: [probeTool], tool_choice: 'required' } : {}),
+      }
+      : {
+        model: modelId || 'default',
+        messages: [{ role: 'user', content: toolCall
+          ? 'Call taskweaver_probe exactly once with {"ok":true}. This is only a capability test.'
+          : 'Reply with OK.' }],
+        max_tokens: toolCall ? 64 : 16,
+        ...(toolCall ? {
+          tools: [{ type: 'function', function: {
+            name: probeTool.name,
+            description: probeTool.description,
+            parameters: probeTool.parameters,
+          } }],
+          tool_choice: 'required',
+        } : {}),
+      }
+    const response = await fetch(endpoint, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${key}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(20000),
+      signal: AbortSignal.timeout(toolCall ? 30000 : 20000),
     })
-    const text = await chatRes.text()
-    if (chatRes.ok) {
-      return { ok: true, method: 'POST /chat/completions', status: chatRes.status }
+    const text = await response.text()
+    if (!response.ok) {
+      throw new Error(`请求失败 (${response.status}): ${text.slice(0, 280)}`)
     }
-    throw new Error(`连接失败 (${chatRes.status}): ${text.slice(0, 280)}`)
+    let result
+    try { result = JSON.parse(text) } catch { throw new Error('接口返回成功，但响应不是有效 JSON') }
+
+    const method = `POST /${useResponses ? 'responses' : 'chat/completions'}`
+    if (toolCall) {
+      const called = useResponses
+        ? (result.output ?? []).some((item) => item?.type === 'function_call' && item.name === probeTool.name)
+        : (result.choices?.[0]?.message?.tool_calls ?? []).some((item) => item?.function?.name === probeTool.name)
+      return { ok: true, supported: called, method, status: response.status }
+    }
+
+    const hasOutput = useResponses
+      ? (typeof result.output_text === 'string' && result.output_text.length > 0)
+        || (result.output ?? []).some((item) => item?.type === 'message')
+      : typeof result.choices?.[0]?.message?.content === 'string'
+        || (result.choices?.[0]?.message?.tool_calls?.length ?? 0) > 0
+    if (!hasOutput) throw new Error('接口返回成功，但没有可识别的模型输出')
+    return { ok: true, method, status: response.status }
+  }
+
+  async function testCustomProvider(payload) {
+    return requestCustomProvider(payload)
+  }
+
+  async function testCustomProviderToolCall(payload) {
+    return requestCustomProvider({ ...payload, toolCall: true })
+  }
+
+  async function probeModels({ providerId, baseUrl, apiKey }) {
+    let root = String(baseUrl ?? '').trim().replace(/\/+$/, '')
+    let key = String(apiKey ?? '').trim()
+    let existingModels = []
+
+    const doc = await readModelsDoc(modelsPath)
+    if (providerId) {
+      const normalizedId = normalizeProviderId(providerId)
+      const providerConfig = doc.providers[normalizedId]
+      if (providerConfig) {
+        if (!root && providerConfig.baseUrl) root = providerConfig.baseUrl.trim().replace(/\/+$/, '')
+        existingModels = (providerConfig.models || []).map((m) => m.id)
+      }
+      if (!key) {
+        const cred = await credentials.read(normalizedId)
+        if (cred?.key) key = cred.key
+      }
+    }
+
+    if (!root) throw new Error('缺少 API 地址，无法探测模型')
+    if (!key) throw new Error('缺少 API Key 凭据，无法验证并探测模型')
+
+    // 智能尝试 /models 与 /v1/models
+    let modelsRaw = null
+    const candidateUrls = []
+    if (root.endsWith('/v1')) {
+      candidateUrls.push(`${root}/models`)
+      candidateUrls.push(`${root.slice(0, -3)}/models`)
+    } else {
+      candidateUrls.push(`${root}/v1/models`)
+      candidateUrls.push(`${root}/models`)
+    }
+
+    let lastError = null
+    for (const url of candidateUrls) {
+      try {
+        const res = await fetch(url, {
+          headers: {
+            Authorization: `Bearer ${key}`,
+            'x-api-key': key,
+            'anthropic-version': '2023-06-01',
+          },
+          signal: AbortSignal.timeout(15000),
+        })
+        if (res.ok) {
+          const json = await res.json()
+          if (Array.isArray(json)) {
+            modelsRaw = json
+            break
+          } else if (Array.isArray(json?.data)) {
+            modelsRaw = json.data
+            break
+          } else if (Array.isArray(json?.models)) {
+            modelsRaw = json.models
+            break
+          }
+        } else {
+          lastError = new Error(`HTTP ${res.status}: ${await res.text().catch(() => '')}`)
+        }
+      } catch (err) {
+        lastError = err
+      }
+    }
+
+    if (!modelsRaw) {
+      throw new Error(`探测模型列表失败：${lastError?.message || '未能从 API 获取模型列表'}`)
+    }
+
+    const existingSet = new Set(existingModels)
+    const resultModels = modelsRaw
+      .map((item) => {
+        const id = String(item.id || item.name || '').trim()
+        if (!id) return null
+        const name = String(item.name || id).trim()
+        const lower = id.toLowerCase()
+
+        let contextWindow = item.context_length || item.context_window || item.max_context_length
+        if (!contextWindow) {
+          if (lower.includes('1m') || lower.includes('1000k')) contextWindow = 1000000
+          else if (lower.includes('200k') || lower.includes('claude-3') || lower.includes('claude-sonnet') || lower.includes('claude-opus')) contextWindow = 200000
+          else if (lower.includes('128k') || lower.includes('gpt-4o') || lower.includes('deepseek') || lower.includes('qwen')) contextWindow = 128000
+          else if (lower.includes('32k') || lower.includes('glm-4')) contextWindow = 32768
+          else contextWindow = 128000
+        }
+
+        const reasoning = Boolean(
+          lower.includes('r1') ||
+          lower.includes('o1') ||
+          lower.includes('o3') ||
+          lower.includes('reasoner') ||
+          lower.includes('thinking')
+        )
+
+        return {
+          id,
+          name,
+          contextWindow: Number(contextWindow) || 128000,
+          reasoning,
+          installed: existingSet.has(id),
+        }
+      })
+      .filter(Boolean)
+
+    resultModels.sort((a, b) => {
+      if (a.installed !== b.installed) return a.installed ? 1 : -1
+      return a.id.localeCompare(b.id)
+    })
+
+    return {
+      ok: true,
+      providerId: providerId || 'custom-gateway',
+      total: resultModels.length,
+      newCount: resultModels.filter((m) => !m.installed).length,
+      models: resultModels,
+    }
+  }
+
+  async function batchAddCustomModels({ providerId, models }) {
+    const id = normalizeProviderId(providerId)
+    if (!Array.isArray(models) || models.length === 0) throw new Error('未选择要添加的模型')
+
+    const doc = await readModelsDoc(modelsPath)
+    await migrateLegacyApiKeys(doc)
+    const provider = doc.providers[id]
+    if (!provider) throw new Error(`未找到自定义提供方 ${id}`)
+
+    const priorModels = Array.isArray(provider.models) ? provider.models : []
+    const priorMap = new Map(priorModels.map((m) => [m.id, m]))
+
+    for (const m of models) {
+      const mid = String(m.id).trim()
+      if (!mid) continue
+      const existing = priorMap.get(mid)
+      const modelEntry = {
+        id: mid,
+        name: String(m.name || mid).trim(),
+        api: provider.api || 'openai-completions',
+        reasoning: Boolean(m.reasoning),
+        input: ['text'],
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+        contextWindow: m.contextWindow || 128000,
+        maxTokens: m.maxTokens || 8192,
+        compat: { supportsReasoningEffort: Boolean(m.reasoning) },
+      }
+      priorMap.set(mid, { ...(existing || {}), ...modelEntry })
+    }
+
+    provider.models = Array.from(priorMap.values())
+    await writeModelsDoc(modelsPath, doc)
+    await refreshRuntime()
+
+    const addedKeys = models.map((m) => `${id}/${m.id}`)
+    return { ok: true, addedCount: models.length, addedKeys }
   }
 
   return {
@@ -188,5 +389,8 @@ export function createCustomProviderService({ modelsPath, credentials, refreshRu
     upsertCustomProvider,
     removeCustomProvider,
     testCustomProvider,
+    testCustomProviderToolCall,
+    probeModels,
+    batchAddCustomModels,
   }
 }

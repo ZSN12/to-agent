@@ -5,6 +5,9 @@
 
 import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@z/cordis'
+import { createScope } from '@z/dsh-scope'
+import type { Agent } from '@z/dsh-agent'
+import type { SessionId } from '@z/dsh-session'
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve, sep } from 'node:path'
@@ -98,13 +101,13 @@ class FakeFs extends FileSystem {
   }
 }
 
-async function setup() {
+async function setup(toolFsConfig: ToolFs.Config = {}) {
   const ctx = new Context()
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
   await ctx.plugin(FakeFs)
   await ctx.plugin(FsPolicy)
-  await ctx.plugin(ToolFs)
+  await ctx.plugin(ToolFs, toolFsConfig)
   const fs = ctx.fs as FakeFs
   return { ctx, fs }
 }
@@ -154,6 +157,33 @@ describe('registration', () => {
   it('registers read, write, and edit', async () => {
     const { ctx } = await setup()
     expect(ctx.tools.schemas().map(s => s.name).sort()).toEqual(['edit', 'read', 'write'])
+  })
+
+  it('can register a genuinely read-only filesystem catalog without mutation tools', async () => {
+    const { ctx } = await setup({ mutations: false })
+    expect(ctx.tools.schemas().map(s => s.name)).toEqual(['read'])
+    const prompt = renderPrompt(await ctx.systemPrompt.assemble())
+    expect(prompt).toContain('Use the read tool')
+    expect(prompt).not.toContain('Use the write tool')
+    expect(prompt).not.toContain('Use the edit tool')
+  })
+
+  it('masks globally inherited write/edit tools only for a read-only scope', async () => {
+    const { ctx } = await setup()
+    const agent = { id: 'readonly-agent' as SessionId } as Agent
+    let scope!: ReturnType<typeof createScope>
+    await ctx.plugin(Object.assign((inner: Context) => { scope = createScope(inner, agent) }, {
+      inject: ['tools', 'systemPrompt'],
+    }))
+    await scope.ctx.plugin(ToolFs, { mutations: false })
+
+    expect(ctx.tools.schemas(agent).map(schema => schema.name).sort()).toEqual(['read'])
+    expect(ctx.tools.schemas().map(schema => schema.name).sort()).toEqual(['edit', 'read', 'write'])
+    expect(ctx.tools.get('write', agent)).toBeUndefined()
+    expect(ctx.tools.get('edit', agent)).toBeUndefined()
+    const attemptedWrite = await call(ctx, 'write', { file_path: 'blocked.txt', content: 'nope' }, agent)
+    expect(attemptedWrite.isError).toBe(true)
+    expect(text(attemptedWrite)).toContain('unknown tool "write"')
   })
 
   it('declares read parallel-safe while write/edit remain exclusive', async () => {

@@ -391,6 +391,12 @@
       config:
         thresholds: [3, 5, 8]
         argumentsPreviewChars: 500
+        # The persona's five-call guidance alone was not followed consistently
+        # during live repository overviews. Remind the model to synthesize after
+        # a small, configurable number of distinct inspection operations; this
+        # stays advisory so evidence-driven long investigations remain possible.
+        inspectionTools: [read, glob, grep, run_code]
+        inspectionThresholds: [6, 10]
 
     # Model-facing web_search uses the provider configured in TaskWeaver's Web Search settings.
     # The provider reads the userData config on each call, so changing the key/endpoint

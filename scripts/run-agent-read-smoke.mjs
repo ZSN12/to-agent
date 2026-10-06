@@ -1,0 +1,173 @@
+import fs from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { createZApiClient, createZHostManager } from '../electron/agent/z-host/index.mjs'
+import { createDshChatService } from '../electron/backend/dsh-chat-service.mjs'
+import { createModelService } from '../electron/backend/model-service.mjs'
+import { createProfileStore } from '../electron/backend/profile-store.mjs'
+import { resolveTaskWeaverModelsPath } from '../electron/backend/taskweaver-models-path.mjs'
+import { ensureModelsJsonSyncedToDshHost } from '../electron/backend/sync-models-json-to-host.mjs'
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+const arg = (name) => {
+  const index = process.argv.indexOf(name)
+  const value = process.argv[index + 1]
+  if (index < 0 || !value || value.startsWith('--')) throw new Error(`Missing value for ${name}`)
+  return value
+}
+const installed = process.argv.includes('--installed')
+const isolated = installed || process.argv.includes('--local')
+if (!isolated && !process.argv.includes('--base-url')) throw new Error('Pass --installed, --local, or the URL of an existing Z Host with --base-url')
+const thinkingOverride = process.argv.includes('--thinking') ? arg('--thinking') : null
+const textOverride = process.argv.includes('--text') ? arg('--text') : null
+const agentPreset = process.argv.includes('--preset') ? arg('--preset') : 'taskweaver-readonly'
+if (!['standard', 'code', 'taskweaver-code', 'taskweaver-readonly'].includes(agentPreset)) {
+  throw new Error('--preset must be standard, code, taskweaver-code, or taskweaver-readonly')
+}
+const idleTimeoutOverride = process.argv.includes('--idle-timeout') ? Number(arg('--idle-timeout')) : null
+if (thinkingOverride && !['default', 'off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'].includes(thinkingOverride)) {
+  throw new Error('--thinking must be default, off, minimal, low, medium, high, xhigh, or max')
+}
+if (idleTimeoutOverride !== null && (!Number.isInteger(idleTimeoutOverride) || idleTimeoutOverride < 1_000 || idleTimeoutOverride > 300_000)) {
+  throw new Error('--idle-timeout must be an integer from 1000 to 300000 milliseconds')
+}
+const userData = path.join(os.homedir(), 'Library', 'Application Support', 'taskweaver-desktop')
+const runtimeRoot = installed ? '/Applications/TaskWeaver.app/Contents/Resources/taskweaver-z-runtime' : path.join(root, 'vendor', 'taskweaver-z-runtime')
+const reportDir = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-live-read-'))
+let api
+let hostManager
+let modelService
+let chat
+let heartbeat
+let modelsDocForSync
+let metrics = {}
+try {
+  if (isolated) {
+    // Reuse opaque settings/credential files without displaying their contents;
+    // no old profile bundle or conversation history enters the clean test home.
+    await fs.mkdir(path.join(reportDir, 'dsh'), { recursive: true })
+    for (const file of ['settings.yaml', '.credentials.yaml']) {
+      try {
+        const dest = path.join(reportDir, 'dsh', file)
+        await fs.copyFile(path.join(userData, 'dsh', file), dest)
+        await fs.chmod(dest, 0o600)
+      }
+      catch (error) { if (error.code !== 'ENOENT') throw error }
+    }
+    // Reproduce app startup's provider-profile sync without copying plaintext
+    // model API keys into the report directory. Synced credentials already
+    // live in the copied Z credential file.
+    try {
+      const sourceModelsDoc = JSON.parse(await fs.readFile(resolveTaskWeaverModelsPath(userData), 'utf8'))
+      modelsDocForSync = structuredClone(sourceModelsDoc)
+      const modelsDoc = structuredClone(sourceModelsDoc)
+      for (const provider of Object.values(modelsDoc.providers ?? {})) {
+        if (!provider || typeof provider !== 'object') continue
+        delete provider.apiKey
+        if (idleTimeoutOverride !== null) provider.streamIdleTimeoutMs = idleTimeoutOverride
+      }
+      if (idleTimeoutOverride !== null) {
+        for (const provider of Object.values(modelsDocForSync.providers ?? {})) {
+          if (provider && typeof provider === 'object') provider.streamIdleTimeoutMs = idleTimeoutOverride
+        }
+      }
+      const isolatedModelsPath = resolveTaskWeaverModelsPath(reportDir)
+      await fs.mkdir(path.dirname(isolatedModelsPath), { recursive: true })
+      await fs.writeFile(isolatedModelsPath, `${JSON.stringify(modelsDoc, null, 2)}\n`, { mode: 0o600 })
+    } catch (error) { if (error.code !== 'ENOENT') throw error }
+    hostManager = createZHostManager({ runtimeRoot, userDataPath: reportDir, executable: process.execPath })
+    ;({ api } = await hostManager.start())
+    const sync = await ensureModelsJsonSyncedToDshHost({
+      hostManager,
+      userDataPath: reportDir,
+      modelsDocOverride: modelsDocForSync,
+    })
+    if (sync.synced) ({ api } = await hostManager.start())
+  } else {
+    api = await createZApiClient({ runtimeRoot, baseUrl: arg('--base-url') })
+    hostManager = { start: async () => ({ api }), stop: async () => {} }
+  }
+  const profileStore = createProfileStore(userData)
+  if (thinkingOverride) profileStore.getThinkingLevel = async () => thinkingOverride === 'default' ? null : thinkingOverride
+  const modelKey = process.argv.includes('--model') ? arg('--model') : await profileStore.getActiveModelKey()
+  if (!modelKey) throw new Error('No selected model')
+  modelService = createModelService({
+    profileStore,
+    priceRegistryPath: path.join(root, 'pricing', 'registry.json'),
+    dshHostManager: hostManager,
+    userDataPath: isolated ? reportDir : userData,
+    dshRuntimeRoot: runtimeRoot,
+  })
+  const conversationId = `read-smoke-${crypto.randomUUID()}`
+  const startedAt = Date.now()
+  metrics = {
+    modelKey,
+    agentPreset,
+    ...(thinkingOverride ? { thinkingOverride } : {}),
+    ...(idleTimeoutOverride !== null ? { idleTimeoutOverride } : {}),
+    conversationId, cwd: root, runtimeRoot, startedAt,
+    firstThinkingMs: null, firstTextMs: null, reasoningChars: 0, toolEvents: [], retries: [],
+  }
+  chat = createDshChatService({
+    hostManager, userDataPath: reportDir, modelService, profileStore,
+    getWorkspacePath: () => root, getPermissionMode: () => 'ask',
+  })
+  const webContents = {
+    isDestroyed: () => false,
+    send(_channel, event) {
+      const elapsedMs = Date.now() - startedAt
+      if (event.type === 'thinking_delta') {
+        metrics.firstThinkingMs ??= elapsedMs
+        metrics.reasoningChars += event.delta?.length ?? 0
+      }
+      if (event.type === 'delta') metrics.firstTextMs ??= elapsedMs
+      if (event.type === 'tool') {
+        metrics.toolEvents.push({ elapsedMs, ...event })
+        console.log(JSON.stringify({ elapsedMs, tool: event.toolName, status: event.status, input: event.inputSummary, result: event.resultSummary }))
+      }
+      if (event.type === 'retry') metrics.retries.push({ elapsedMs, ...event })
+    },
+  }
+  console.log(JSON.stringify({ status: 'starting', reportDir, ...metrics }))
+  heartbeat = setInterval(() => console.log(JSON.stringify({ status: 'running', elapsedMs: Date.now() - startedAt, reasoningChars: metrics.reasoningChars, toolCalls: metrics.toolEvents.filter(e => e.status === 'running').length, firstTextMs: metrics.firstTextMs })), 20_000)
+  const result = await chat.send({
+    conversationId, modelKey, webContents, cwdOverride: root, agentPreset,
+    text: textOverride || '读一下当前毕设文件夹里的代码，简要说明这个项目做什么、主要模块怎么连接，并列出你实际读取的文件。只阅读，不要修改文件。',
+  })
+  const sessionId = chat.getSessionId(conversationId)
+  const reply = await api.sessions.history({ sessionId })
+  const history = reply.result?.value?.events?.map(row => row.event) ?? []
+  const report = {
+    ...metrics,
+    elapsedMs: Date.now() - startedAt,
+    sessionId,
+    result,
+    requests: history.filter(e => e.type === 'request/header').length,
+    steps: history.filter(e => e.type === 'step/start').length,
+    toolCalls: history.filter(e => e.type === 'tool/call').map(e => ({ name: e.data?.name, arguments: e.data?.arguments })),
+    nestedToolCalls: history.filter(e => e.type === 'tool/code-dispatch-start').map(e => ({ name: e.data?.name, arguments: e.data?.arguments })),
+    turnEnd: history.findLast(e => e.type === 'turn/end')?.data,
+  }
+  await fs.writeFile(path.join(reportDir, 'report.json'), JSON.stringify(report, null, 2))
+  console.log(JSON.stringify({ status: 'completed', reportPath: path.join(reportDir, 'report.json'), agentPreset, elapsedMs: report.elapsedMs, firstThinkingMs: report.firstThinkingMs, firstTextMs: report.firstTextMs, reasoningChars: report.reasoningChars, toolCalls: report.toolCalls, nestedToolCalls: report.nestedToolCalls, requests: report.requests, steps: report.steps, text: result.text }))
+} catch (error) {
+  await fs.writeFile(path.join(reportDir, 'failure.json'), JSON.stringify({ ...metrics, elapsedMs: metrics.startedAt ? Date.now() - metrics.startedAt : null, error: error.message, sessionId: chat?.getSessionId(metrics.conversationId) }, null, 2))
+  console.error(JSON.stringify({ status: 'failed', reportDir, error: error.message }))
+  process.exitCode = 1
+} finally {
+  clearInterval(heartbeat)
+  try {
+    if (chat) await chat.stop()
+    else await hostManager?.stop()
+  } finally {
+    try { await modelService?.dispose() }
+    finally {
+      if (isolated) {
+        for (const file of ['.credentials.yaml', 'settings.yaml']) {
+          await fs.unlink(path.join(reportDir, 'dsh', file)).catch(error => { if (error.code !== 'ENOENT') throw error })
+        }
+      }
+    }
+  }
+}

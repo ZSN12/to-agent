@@ -7,8 +7,8 @@ import {
   normalizePermissionMode,
 } from '../electron/backend/dsh-permission-map.mjs'
 
-assert.equal(dshAgentPresetForPermissionMode('full'), 'code')
-assert.equal(dshAgentPresetForPermissionMode('ask'), 'code', 'agent/tool composition is independent from permission mode')
+assert.equal(dshAgentPresetForPermissionMode('full'), 'standard')
+assert.equal(dshAgentPresetForPermissionMode('ask'), 'standard', 'new interactive sessions should align with DSH Web default regardless of permission mode')
 
 assert.equal(dshPermissionPresetForMode('ask'), 'workspace-write')
 assert.equal(dshPermissionPresetForMode('on-risk'), 'workspace-write')

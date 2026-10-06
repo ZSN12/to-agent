@@ -3,13 +3,83 @@ import { randomUUID } from 'node:crypto'
 import { decideExecutionMode, selectModelForTask, shouldUpgradeFailedTask } from '../electron/backend/orchestration-policy.mjs'
 import { executeDag, validateAndOrderTasks } from '../electron/backend/dag-scheduler.mjs'
 import { getTaskProfile, getToolsForSingleAgent, getToolsForTask } from '../electron/backend/task-profile.mjs'
-import { runWithSubtaskRetries } from '../electron/backend/subtask-retry.mjs'
+import { classifySubtaskFailure, runWithSubtaskRetries } from '../electron/backend/subtask-retry.mjs'
 import {
   createOrchestrationService,
+  assessSubtaskCompletion,
+  collectPlannerPathHints,
+  requiresReadOnlyPlan,
   resolveOrchestrationAgentPreset,
+  summarizeExecutionEvidence,
+  validatePlanForRequest,
 } from '../electron/backend/orchestration-service.mjs'
 
+assert.equal(requiresReadOnlyPlan('只读分析当前代码，不得修改文件。'), true)
+assert.deepEqual(validatePlanForRequest([
+  { id: 'T1', taskType: 'research' },
+  { id: 'T2', taskType: 'review' },
+], '只读分析当前代码，不得修改文件。').map(({ taskType }) => taskType), ['research', 'review'])
+assert.throws(() => validatePlanForRequest([
+  { id: 'T3', taskType: 'implementation' },
+], '只读分析当前代码，不得修改文件。'), /只读请求包含非只读子任务类型/)
+assert.deepEqual(validatePlanForRequest([
+  { id: 'T1', taskType: 'implementation' },
+], '实现一个新功能').map(({ taskType }) => taskType), ['implementation'])
+const explicitParallelResearchRequest = '只读分析当前毕设代码，要求两项独立研究并行完成后交叉汇总。不得修改文件。'
+assert.equal(validatePlanForRequest([
+  { id: 'T1', taskType: 'research', dependsOn: [] },
+  { id: 'T2', taskType: 'research', dependsOn: [] },
+], explicitParallelResearchRequest).length, 2, '明确指定两项独立研究时应接受恰好两个并行研究节点')
+assert.throws(() => validatePlanForRequest([
+  { id: 'T1', taskType: 'research', dependsOn: [] },
+  { id: 'T2', taskType: 'research', dependsOn: [] },
+  { id: 'T3', taskType: 'review', dependsOn: ['T1', 'T2'] },
+], explicitParallelResearchRequest), /并行研究任务数量不匹配/, '不得把编排器最终汇总扩成第三个 Agent')
+assert.throws(() => validatePlanForRequest([
+  { id: 'T1', taskType: 'research', dependsOn: [] },
+  { id: 'T2', taskType: 'research', dependsOn: ['T1'] },
+], explicitParallelResearchRequest), /并行研究任务数量不匹配/, '明确要求独立并行时不能串行依赖')
+
+assert.equal(summarizeExecutionEvidence({ source: 'z-host-tool-events', observedToolCalls: [] }).label, 'Host 未观测到工具调用')
+assert.deepEqual(assessSubtaskCompletion({ taskType: 'research' }, {
+  executionEvidence: { observedToolCalls: [{ toolName: 'grep', status: 'done' }] },
+}), {
+  complete: false,
+  reason: 'Host 未记录到成功的文件读取；搜索结果不足以证明源码或审查依据已被阅读核实。',
+})
+assert.deepEqual(assessSubtaskCompletion({ taskType: 'review' }, {
+  executionEvidence: { observedToolCalls: [{ toolName: 'grep', status: 'done' }] },
+}), {
+  complete: false,
+  reason: 'Host 未记录到成功的文件读取；搜索结果不足以证明源码或审查依据已被阅读核实。',
+})
+assert.deepEqual(assessSubtaskCompletion({ taskType: 'research' }, {
+  executionEvidence: { observedToolCalls: [{ toolName: 'read', status: 'done' }] },
+}), { complete: true, reason: '' })
+const codeModeReadEvidence = {
+  source: 'z-host-tool-events',
+  observedToolCalls: [{ toolName: 'read', status: 'done', inputSummary: 'README.md' }],
+}
+assert.deepEqual(assessSubtaskCompletion({ taskType: 'research' }, { executionEvidence: codeModeReadEvidence }), {
+  complete: true,
+  reason: '',
+}, 'Code Mode nested read events must satisfy the read-only completion evidence gate')
+assert.equal(summarizeExecutionEvidence(codeModeReadEvidence).successfulReadCount, 1)
+assert.deepEqual(assessSubtaskCompletion({ taskType: 'implementation' }, {}), { complete: true, reason: '' })
+assert.equal(summarizeExecutionEvidence({
+  source: 'z-host-tool-events',
+  observedToolCalls: [{ toolName: 'grep', status: 'done' }],
+}).label, 'Host 工具记录：搜索 1', 'grep 不应被误报为已读取文件正文')
+
+const plannerHints = await collectPlannerPathHints(process.cwd(), '检查 agent session 和 dsh chat service', { maxVisited: 1200, limit: 90 })
+assert.ok(plannerHints.paths.includes('package.json'), '路径索引应包含根目录清单')
+assert.ok(plannerHints.paths.includes('electron/backend/dsh-chat-service.mjs'), '路径索引应定位相关后端源码')
+assert.ok(plannerHints.paths.length <= 90, '路径索引必须有严格输出上限')
+assert.ok(!plannerHints.paths.some((candidate) => candidate.startsWith('node_modules/')), '路径索引不得扫描依赖目录')
+
 assert.equal(decideExecutionMode('你好').mode, 'single-agent')
+assert.equal(decideExecutionMode('读一下整个项目的代码，梳理目录和主要模块').mode, 'single-agent', '只读仓库走读不应因为涉及多个领域而自动编排')
+assert.equal(decideExecutionMode('看看当前代码有哪些前端、后端和测试问题').mode, 'single-agent', '跨领域只读审查仍应保持单 Agent')
 assert.equal(decideExecutionMode('修复一个按钮样式').mode, 'single-agent')
 assert.equal(decideExecutionMode('请使用多智能体处理这个任务').mode, 'multi-agent')
 assert.equal(decideExecutionMode('请使用 multi-agent skill').mode, 'multi-agent')
@@ -34,6 +104,23 @@ assert.equal(selectModelForTask('research', catalog, 'balanced').model.key, 'che
 assert.equal(selectModelForTask('implementation', catalog, 'balanced').model.key, 'balanced')
 assert.equal(selectModelForTask('review', catalog, 'balanced').model.key, 'strong')
 assert.notEqual(selectModelForTask('test', catalog, 'disabled').model.key, 'disabled')
+const optInOnlyCatalog = { models: [
+  { key: 'opted-out-primary', name: 'Primary', available: true, profile: { tier: 'strong', enabledForAllocation: false } },
+  { key: 'legacy-unconfigured', name: 'Legacy', available: true, profile: { tier: 'cheap' } },
+] }
+assert.equal(
+  selectModelForTask('research', optInOnlyCatalog, 'opted-out-primary').model,
+  null,
+  'models must be explicitly opted in; do not silently fall back to a costly or unconfigured model',
+)
+const unregisteredRouteCatalog = { models: [
+  { key: 'catalog-only', name: 'Catalog only', available: true, routeRegistered: false, profile: { tier: 'cheap', enabledForAllocation: true } },
+] }
+assert.equal(
+  selectModelForTask('research', unregisteredRouteCatalog, 'catalog-only').model,
+  null,
+  'catalog availability must not make a model routable when the host route is unregistered',
+)
 
 assert.equal(shouldUpgradeFailedTask('test'), true)
 assert.equal(shouldUpgradeFailedTask('research'), false)
@@ -42,11 +129,17 @@ assert.notEqual(upgradePick.model.key, 'strong')
 
 const retriedModels = []
 const retryExclusions = []
+const retryEvidence = []
 const retryOutcome = await runWithSubtaskRetries({
+  task: { id: 'T-retry', taskType: 'test', title: '验证失败升级' },
   initialModelKey: 'model-a',
   maxRetries: 2,
-  run: async (modelKey) => {
+  run: async (modelKey, evidenceBundle) => {
     retriedModels.push(modelKey)
+    if (modelKey !== 'model-a') {
+      assert.equal(evidenceBundle.failure_class, 'execution', 'upgrade attempts must receive L4 failure evidence')
+      retryEvidence.push(evidenceBundle)
+    }
     if (modelKey !== 'model-c') throw new Error(`${modelKey} failed`)
     return { text: 'done' }
   },
@@ -55,11 +148,31 @@ const retryOutcome = await runWithSubtaskRetries({
     const next = ['model-b', 'model-c'].find((key) => !excludeModelKeys.includes(key))
     return next ? { modelKey: next, displayName: next } : null
   },
+  onRetry: async ({ evidenceBundle }) => assert.ok(evidenceBundle.attempted_actions.length > 0),
 })
 assert.deepEqual(retriedModels, ['model-a', 'model-b', 'model-c'])
 assert.equal(retryOutcome.modelKey, 'model-c')
 assert.equal(retryOutcome.attempts, 2)
 assert.deepEqual(retryExclusions, [['model-a'], ['model-a', 'model-b']])
+assert.equal(retryOutcome.evidenceBundle.task_id, 'T-retry')
+assert.match(retryOutcome.evidenceBundle.error_summary, /model-b failed/)
+assert.deepEqual(retryOutcome.evidenceBundle.attempted_actions.map((item) => item.split(':')[0]), ['model-a', 'model-b'])
+assert.equal(retryEvidence.length, 2)
+
+assert.equal(classifySubtaskFailure(Object.assign(new Error('permission denied'), { code: 'EACCES' })).kind, 'environment')
+assert.equal(classifySubtaskFailure(Object.assign(new Error('rate limit'), { status: 429 })).retryable, true)
+assert.equal(classifySubtaskFailure(Object.assign(new Error('invalid api key'), { status: 401 })).kind, 'configuration')
+assert.equal(classifySubtaskFailure(new Error('request aborted'), { signal: { aborted: true } }).retryable, false)
+
+let environmentRetryChoices = 0
+await assert.rejects(runWithSubtaskRetries({
+  task: { id: 'T-env', taskType: 'implementation' },
+  initialModelKey: 'model-a',
+  maxRetries: 2,
+  run: async () => { throw Object.assign(new Error('permission denied'), { code: 'EACCES' }) },
+  chooseModel: async () => { environmentRetryChoices += 1; return { modelKey: 'model-b' } },
+}), (error) => error.evidenceBundle?.failure_class === 'environment')
+assert.equal(environmentRetryChoices, 0, 'environment errors must not trigger model upgrades')
 
 let disabledRetryAttempts = 0
 await assert.rejects(runWithSubtaskRetries({
@@ -224,11 +337,24 @@ try {
             ],
           })
           return opts.text.includes('子任务执行结果')
-            ? { text: '汇总：子任务已全部完成。', usage }
+            ? (() => {
+              assert.match(opts.text, /runtimeObservedActions/, '汇总必须收到 Host 实际观测的工具记录')
+              assert.match(opts.text, /evidenceAssessment/, '汇总必须收到后端按 Host 事件计算的证据摘要')
+              assert.match(opts.text, /README\.md/, '汇总的工具记录应包含实际工具目标')
+              return { text: '汇总：子任务已全部完成。', usage }
+            })()
             : { text: planJson, usage }
         }
       }
       const taskLabel = opts.taskId || 'unknown'
+      opts.webContents.send('chat:stream', {
+        type: 'tool', id: `${taskLabel}-read`, taskId: taskLabel,
+        toolName: 'read', status: 'running', inputSummary: 'README.md',
+      })
+      opts.webContents.send('chat:stream', {
+        type: 'tool', id: `${taskLabel}-read`, taskId: taskLabel,
+        toolName: 'read', status: 'done', inputSummary: 'README.md', resultSummary: 'read ok', durationMs: 12,
+      })
       return {
         text: `在目录 ${opts.cwd} 成功完成 ${taskLabel}（preset=${opts.agentPreset}，model=${opts.modelKey}）`,
         usage,
@@ -268,6 +394,10 @@ try {
 
   const plannerTurn = dshTurns.find((turn) => turn.agentPreset === 'taskweaver-planner' && turn.text.includes('Planner Agent'))
   assert.ok(plannerTurn, '应通过 DSH 调用 planner preset')
+  assert.match(plannerTurn.text, /工作区路径索引：仅路径名，不含文件正文/)
+  assert.match(plannerTurn.text, /不要额外创建只负责.*汇总.*review 子任务/)
+  assert.match(plannerTurn.text, /用户明确给出.*DAG 必须恰好包含 N 个互相独立的 research 节点/)
+  assert.match(plannerTurn.text, /README\.md/)
   assert.match(plannerTurn.sessionKey, /^tw-orchestration-/)
   assert.equal(plannerTurn.conversationId, conversationId)
 
@@ -289,7 +419,63 @@ try {
   assert.equal(stateTasks[1].status, 'done')
   assert.match(stateTasks[0].messages.at(-1).text, /成功完成/)
   assert.match(stateTasks[1].messages.at(-1).text, /成功完成/)
+  assert.deepEqual(stateTasks[0].messages.at(-1).executionEvidence, {
+    source: 'z-host-tool-events',
+    observedToolCalls: [{ toolName: 'read', status: 'done', inputSummary: 'README.md', resultSummary: 'read ok', durationMs: 12 }],
+    omittedToolCalls: 0,
+  }, '子 Agent 消息应携带 Host 实际观测到的工具证据')
+  assert.equal(stateTasks[0].executionEvidenceSummary.label, 'Host 工具记录：读取 1', '任务状态应展示 Host 实际观测到的文件读取次数')
+  assert.equal(stateTasks[0].messages.at(-1).executionEvidenceSummary.successfulReadCount, 1)
   assert.match(result.assistant.text, /汇总/)
+
+  const correctionTurns = []
+  const correctionRuntime = {
+    async runAgentTurn(opts) {
+      correctionTurns.push(opts)
+      const usage = { inputTokens: 1, outputTokens: 1, costUsd: 0, elapsedMs: 1 }
+      if (opts.agentPreset === 'taskweaver-planner') {
+        if (opts.text.includes('子任务执行结果')) return { text: '两个研究结论已汇总。', usage }
+        if (opts.text.includes('请求约束校验拒绝')) {
+          return { text: JSON.stringify({ tasks: [
+            { id: 'T1', title: '启动入口', taskType: 'research', description: '读取入口源码', dependsOn: [] },
+            { id: 'T2', title: 'Agent 请求链路', taskType: 'research', description: '读取 Agent 源码', dependsOn: [] },
+          ] }), usage }
+        }
+        return { text: JSON.stringify({ tasks: [
+          { id: 'T1', title: '启动入口', taskType: 'research', description: '读取入口源码', dependsOn: [] },
+          { id: 'T2', title: 'Agent 请求链路', taskType: 'research', description: '读取 Agent 源码', dependsOn: [] },
+          { id: 'T3', title: '交叉汇总', taskType: 'review', description: '汇总 T1 和 T2', dependsOn: ['T1', 'T2'] },
+        ] }), usage }
+      }
+      opts.webContents.send('chat:stream', {
+        type: 'tool', id: `${opts.taskId}-read`, taskId: opts.taskId,
+        toolName: 'read', status: 'done', inputSummary: 'README.md', resultSummary: 'read ok', durationMs: 1,
+      })
+      return { text: `${opts.taskId} verified`, usage }
+    },
+  }
+  const correctionService = createOrchestrationService({
+    modelService: mockModelService,
+    appState: mockAppState,
+    getWorkspacePath: () => repo,
+    getWorkspaceTrusted: () => true,
+    agentDataPath: agentData,
+    userDataPath: userData,
+    getAppPreferences: async () => ({ worktreeIsolation: false }),
+    dshRuntime: correctionRuntime,
+  })
+  const correctedPlan = await correctionService.planAndExecute({
+    text: explicitParallelResearchRequest,
+    primaryModelKey: 'mock/strong',
+    conversationId: randomUUID(),
+    webContents: mockWebContents,
+  })
+  assert.equal(correctedPlan.tasks.length, 2, '被拒绝的额外汇总 Agent 不得进入实际 DAG')
+  assert.equal(correctionTurns.filter((turn) => turn.taskId).length, 2, '必须先校验并重写计划，再启动两个只读子 Agent')
+  const correctedPlannerTurns = correctionTurns.filter((turn) => turn.agentPreset === 'taskweaver-planner')
+  assert.equal(correctedPlannerTurns.length, 3, '应执行初次规划、一次约束修正和最终汇总')
+  assert.match(correctedPlannerTurns[1].text, /请求约束校验拒绝/)
+  assert.ok(correctedPlan.tasks.every((task) => task.taskType === 'research' && task.status === 'done'))
 
   console.log('orchestration checks passed: preset mapping, DSH-only DAG execution, routing, worktree, and publish')
 } finally {

@@ -59,7 +59,14 @@ try {
   const selected = catalog.candidateModels.find((model) => model.provider === PROVIDER_ID)
   assert.ok(selected)
   const added = await service.addModel(selected.key)
-  assert.ok(added.models.some((model) => model.key === selected.key))
+  const addedModel = added.models.find((model) => model.key === selected.key)
+  assert.ok(addedModel)
+  assert.equal(addedModel.profile?.enabledForAllocation, false, 'new models must start opted out of subagent routing')
+  const profiles = createProfileStore(userData)
+  await profiles.upsertProfile(selected.key, { enabledForAllocation: true })
+  assert.equal((await profiles.getProfile(selected.key))?.enabledForAllocation, true, 'the inline toggle opt-in must persist')
+  await profiles.upsertProfile(selected.key, { enabledForAllocation: false })
+  assert.equal((await profiles.getProfile(selected.key))?.enabledForAllocation, false, 'the inline toggle opt-out must persist')
   await service.removeModel(selected.key)
   const removed = await service.listCatalog()
   assert.equal(removed.models.some((model) => model.key === selected.key), false)
@@ -67,6 +74,7 @@ try {
   await service.removeProviderCredentials(PROVIDER_ID)
   const finalAuth = await service.listProvidersAuth()
   assert.equal(finalAuth.find((provider) => provider.id === PROVIDER_ID)?.configured, false)
+
   console.log('model service checks passed: DSH directory, encrypted credential persistence, candidate separation, explicit add/remove and credential deletion')
 } finally {
   await service.dispose()

@@ -54,9 +54,9 @@ async function mergeProfilesIntoHost(api, providers) {
 
 /**
  * Repair broken DSH settings, sync `taskweaver/models.json` into `llm-pi-ai`, refresh routes.
- * @param {{ hostManager: import('../agent/z-host/index.mjs').ZHostManager, userDataPath: string, credentialStore?: import('./credential-store.mjs').CredentialStore }} options
+ * @param {{ hostManager: import('../agent/z-host/index.mjs').ZHostManager, userDataPath: string, credentialStore?: import('./credential-store.mjs').CredentialStore, modelsDocOverride?: { providers?: Record<string, unknown> } }} options
  */
-export async function ensureModelsJsonSyncedToDshHost({ hostManager, userDataPath, credentialStore }) {
+export async function ensureModelsJsonSyncedToDshHost({ hostManager, userDataPath, credentialStore, modelsDocOverride }) {
   if (!hostManager || !userDataPath) return { synced: false, reason: 'missing-context' }
 
   let restarted = false
@@ -75,7 +75,8 @@ export async function ensureModelsJsonSyncedToDshHost({ hostManager, userDataPat
   }
 
   const modelsPath = resolveTaskWeaverModelsPath(userDataPath)
-  const modelsDoc = applyOpenCodexDshReasoningOverlay(structuredClone(await readModelsDoc(modelsPath)))
+  const sourceModelsDoc = modelsDocOverride ?? await readModelsDoc(modelsPath)
+  const modelsDoc = applyOpenCodexDshReasoningOverlay(structuredClone(sourceModelsDoc))
   const jsonProviderIds = Object.keys(modelsDoc.providers ?? {}).filter((id) => {
     const block = modelsDoc.providers[id]
     if (!block || typeof block !== 'object') return false

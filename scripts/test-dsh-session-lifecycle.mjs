@@ -43,7 +43,7 @@ async function readMapFile(home) {
  * 最小可用 mock：只需要 create / prompt / models / selectModel / fork / history / mux。
  * `turnEndSeqs` 用来模拟会话日志里的 turn/end seq 序列。
  */
-function createMockRuntime({ turnEndSeqs = [], forkImpl = null } = {}) {
+function createMockRuntime({ turnEndSeqs = [], forkImpl = null, existingSessions = {} } = {}) {
   const frames = []
   const created = []
   const forkCalls = []
@@ -77,7 +77,13 @@ function createMockRuntime({ turnEndSeqs = [], forkImpl = null } = {}) {
     sessions: {
       async create({ sessionId, cwd, agentPreset }) {
         created.push({ sessionId, cwd, agentPreset })
-        return { result: { ok: true, value: { sessionId, agentPreset } } }
+        const existingPreset = existingSessions[sessionId]
+        if (existingPreset && agentPreset && existingPreset !== agentPreset) {
+          return { result: { ok: false, error: { code: 'agent-preset-conflict', message: 'session preset cannot be changed' } } }
+        }
+        const actualPreset = existingPreset || agentPreset || 'standard'
+        existingSessions[sessionId] = actualPreset
+        return { result: { ok: true, value: { sessionId, agentPreset: actualPreset } } }
       },
       async selectModel(input) {
         const route = { provider: input.provider, model: input.model }
@@ -293,6 +299,30 @@ try {
     assert.ok(after['bulk-304'], '最新的条目必须保留')
     await service.stop()
     console.log(`✓ 映射表超过 ${Z_MAX_TRACKED_SESSIONS} 条时按 LRU 淘汰可推导条目，保留 fork 条目`)
+  }
+
+  // ============ 5. 映射丢失后附着旧 Host 会话，不能套用新会话预设 ============
+  {
+    const home = await fs.mkdtemp(path.join(os.tmpdir(), 'tw-lifecycle-preset-rebind-'))
+    cleanup.push(home)
+    const sessionId = 'tw-old-conversation'
+    const runtime = createMockRuntime({ existingSessions: { [sessionId]: 'standard' } })
+    const service = makeService(home, runtime, home)
+    const turn = service.send({
+      text: '继续旧会话',
+      modelKey: 'test/m1',
+      conversationId: 'old-conversation',
+      agentPreset: 'code',
+      webContents,
+    })
+    await waitFor(() => service.isBusy('old-conversation'), { label: '旧会话重新绑定后进入运行态' })
+    runtime.push({ payload: { type: 'session/event', sessionId, event: { type: 'turn/end', data: { reason: { kind: 'completed' } } } } })
+    await turn
+    const entry = (await readMapFile(home))['old-conversation']
+    assert.equal(entry.agentPreset, 'standard', 'Host 的旧预设是权威值，新会话预设不能覆盖它')
+    assert.deepEqual(runtime.created.map((item) => item.agentPreset), ['code', undefined], '检测到 Host 预设冲突后应省略预设并重试附着')
+    await service.stop()
+    console.log('✓ 映射丢失时通过 Host 的 preset conflict 安全附着旧会话，并保留 Host 预设')
   }
 
   console.log('\nDSH 会话生命周期测试全部通过！')

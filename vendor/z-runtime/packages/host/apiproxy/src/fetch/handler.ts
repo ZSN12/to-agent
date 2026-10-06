@@ -210,6 +210,11 @@ function sseResponse(frames: AsyncIterable<RpcRequest<MuxFrame | HostFrame>>): R
   const encoder = new TextEncoder()
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
+      const heartbeat = setInterval(() => {
+        try { controller.enqueue(encoder.encode(': keepalive\n\n')) }
+        catch { /* stream was cancelled or closed */ }
+      }, 15_000)
+      heartbeat.unref?.()
       try {
         // Send an SSE comment line on open so clients/proxies see a live channel (the host
         // stream has no baseline frames and would otherwise emit zero bytes while idle;
@@ -230,6 +235,7 @@ function sseResponse(frames: AsyncIterable<RpcRequest<MuxFrame | HostFrame>>): R
           // only reachable error, and there is no one left to tell.
         }
       } finally {
+        clearInterval(heartbeat)
         try {
           controller.close()
         } catch { /* already cancelled by the consumer: a double close is the only reachable error */ }

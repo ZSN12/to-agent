@@ -66,6 +66,17 @@ async function runOneTask(task, { execute, onTaskChange, signal, results, failed
       await onTaskChange?.({ ...running, status: 'cancelled', statusLabel: '已停止' })
       return
     }
+    if (result?.completionAssessment?.complete === false) {
+      failed.add(task.id)
+      const reason = String(result.completionAssessment.reason || '执行证据不足')
+      await onTaskChange?.({
+        ...running,
+        status: 'review',
+        statusLabel: `证据不足：${reason}`,
+        error: reason,
+      }, { result, incomplete: true })
+      return
+    }
     results.set(task.id, result)
     await onTaskChange?.({ ...running, status: 'done', statusLabel: '已完成' }, { result })
   } catch (error) {

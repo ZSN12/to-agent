@@ -30,6 +30,7 @@ export interface ChatMessage {
   modelKey?: string
   callout?: string
   usage?: ChatUsage
+  executionEvidenceSummary?: TaskExecutionEvidenceSummary
   behavior?: 'steer' | 'followUp'
   /** 用户停止或中断的轮次（DSH interrupted 语义） */
   interrupted?: boolean
@@ -38,6 +39,17 @@ export interface ChatMessage {
     summary?: string
     tokensBefore?: number | null
   }
+}
+
+export interface TaskExecutionEvidenceSummary {
+  source: 'z-host-tool-events' | 'unknown'
+  observedCallCount: number
+  successfulReadCount: number
+  successfulSearchCount: number
+  failedCallCount: number
+  runningCallCount: number
+  omittedToolCalls: number
+  label: string
 }
 
 export interface ChatUsage {
@@ -80,6 +92,8 @@ export interface TaskNode {
   modelKey?: string
   routeReason?: string
   toolProfile?: 'read-only' | 'verification' | 'workspace-write'
+  /** Deterministic summary of Host-observed calls; does not certify answer correctness. */
+  executionEvidenceSummary?: TaskExecutionEvidenceSummary
   /** 子任务在独立 git worktree 中执行，改动未自动合并 */
   worktreeIsolated?: boolean
   error?: string

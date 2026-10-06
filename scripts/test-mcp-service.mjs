@@ -76,6 +76,12 @@ try {
     (await service.getCustomTools({ taskType: 'research' })).tools.map((tool) => tool.name).sort(),
     ['mcp__local__lookup', 'mcp_local_lookup'].sort(),
   )
+  const runtimeConfig = await service.prepareRuntimeIntegration()
+  const runtimePatch = await fs.readFile(runtimeConfig.patchPath, 'utf8')
+  assert.ok(runtimePatch.includes('@z/dsh-mcp-client'), 'enabled servers must be mounted through Z Runtime MCP plugin')
+  assert.ok(runtimePatch.includes('process.env.TASKWEAVER_MCP_'), 'the runtime patch must reference injected credentials')
+  assert.equal(runtimePatch.includes('secret'), false, 'the generated runtime patch must not contain decrypted credentials')
+  assert.ok(Object.values(runtimeConfig.environment).includes('secret'), 'decrypted credentials are injected only into the Z Host child environment')
   await service.removeServer('local')
   assert.equal(closes, 1)
   assert.deepEqual(await service.listServers(), [])
@@ -91,6 +97,12 @@ try {
   assert.equal(githubStatus.status, 'connected')
   assert.equal(lastConfig.env.GITHUB_PERSONAL_ACCESS_TOKEN, 'ghp_test_token')
   assert.equal(lastConfig.url, 'https://api.githubcopilot.com/mcp/')
+  const githubRuntime = await service.prepareRuntimeIntegration()
+  const githubPatch = await fs.readFile(githubRuntime.patchPath, 'utf8')
+  assert.ok(githubPatch.includes('transport: streamable-http'))
+  assert.ok(githubPatch.includes('Authorization: !!js'))
+  assert.equal(githubPatch.includes('ghp_test_token'), false, 'HTTP authorization must not be written to the overlay')
+  assert.ok(Object.values(githubRuntime.environment).includes('ghp_test_token'))
   await service.configureGitHub('')
   assert.equal((await service.listServers())[0].envKeys.includes('GITHUB_PERSONAL_ACCESS_TOKEN'), true, '空 token 应保留已有凭据')
   await service.setEnabled('github', false)
@@ -151,12 +163,11 @@ try {
 }
 
 const binding = getMcpDshRuntimeBinding()
-assert.equal(binding.dshWired, false)
-assert.match(binding.executionNote, /DSH Host/)
-assert.match(binding.executionNote, /旧 Pi 回退执行链/)
-assert.match(binding.executionNote, /不会加载这些工具/)
+assert.equal(binding.dshWired, true)
+assert.match(binding.executionNote, /Z Host/)
+assert.match(binding.executionNote, /主对话及启用工具的子任务/)
 
 const runtimeBinding = service.getDshRuntimeBinding()
 assert.deepEqual(runtimeBinding, binding)
 
-console.log('MCP service checks passed: disabled default, explicit config, local Pi tool bridge, read-only filtering, secret hiding, and explicit non-DSH binding metadata')
+console.log('MCP service checks passed: encrypted config, host runtime overlay generation, secret-safe environment injection, tool discovery, and Z Host binding metadata')

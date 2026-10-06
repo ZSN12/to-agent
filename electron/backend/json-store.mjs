@@ -2,8 +2,25 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { randomUUID } from 'node:crypto'
 
+// Atomic rename prevents partial files, but not lost read-modify-write updates.
+// Share admission order across instances for the same file in this process.
+// This is not a cross-process filesystem lock.
+const mutationQueues = new Map()
+
 export function createJsonStore(filePath, defaultValue) {
-  async function read() {
+  const queueKey = path.resolve(filePath)
+  function enqueue(operation) {
+    const previous = mutationQueues.get(queueKey) ?? Promise.resolve()
+    const result = previous.then(operation)
+    const tail = result.catch(() => {})
+    mutationQueues.set(queueKey, tail)
+    void tail.then(() => {
+      if (mutationQueues.get(queueKey) === tail) mutationQueues.delete(queueKey)
+    })
+    return result
+  }
+
+  async function readFile() {
     try {
       const raw = await fs.readFile(filePath, 'utf8')
       return JSON.parse(raw)
@@ -15,7 +32,7 @@ export function createJsonStore(filePath, defaultValue) {
     }
   }
 
-  async function write(value) {
+  async function writeFile(value) {
     await fs.mkdir(path.dirname(filePath), { recursive: true })
     const temporaryPath = `${filePath}.${process.pid}.${randomUUID()}.tmp`
     try {
@@ -29,11 +46,18 @@ export function createJsonStore(filePath, defaultValue) {
   }
 
   async function update(mutator) {
-    const current = await read()
-    const next = await mutator(current)
-    await write(next)
-    return next
+    return enqueue(async () => {
+      const current = await readFile()
+      const next = await mutator(current)
+      await writeFile(next)
+      return next
+    })
   }
 
-  return { filePath, read, write, update }
+  return {
+    filePath,
+    async read() { await mutationQueues.get(queueKey); return readFile() },
+    write: value => enqueue(() => writeFile(value)),
+    update,
+  }
 }

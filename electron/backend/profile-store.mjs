@@ -67,7 +67,7 @@ export function createProfileStore(userDataPath) {
       const state = await readState()
       if (!state.addedModelKeys.includes(modelKey)) state.addedModelKeys.push(modelKey)
       if (!state.profiles[modelKey]) {
-        state.profiles[modelKey] = { tier: 'balanced', capabilitySummary: '', enabledForAllocation: true, notes: '' }
+        state.profiles[modelKey] = { tier: 'balanced', capabilitySummary: '', enabledForAllocation: false, notes: '' }
       }
       await writeState(state)
       return state.addedModelKeys
@@ -87,7 +87,7 @@ export function createProfileStore(userDataPath) {
         tier: patch.tier ?? prev.tier ?? 'balanced',
         capabilitySummary: patch.capabilitySummary ?? prev.capabilitySummary ?? '',
         enabledForAllocation:
-          patch.enabledForAllocation ?? prev.enabledForAllocation ?? true,
+          patch.enabledForAllocation ?? prev.enabledForAllocation ?? false,
         notes: patch.notes ?? prev.notes ?? '',
         ...(patch.thinkingLevel !== undefined || prev.thinkingLevel
           ? { thinkingLevel: patch.thinkingLevel ?? prev.thinkingLevel }
@@ -163,7 +163,7 @@ export function createProfileStore(userDataPath) {
         state.profiles[key] = {
           tier: prev.tier ?? 'balanced',
           capabilitySummary: prev.capabilitySummary ?? '',
-          enabledForAllocation: prev.enabledForAllocation ?? true,
+          enabledForAllocation: prev.enabledForAllocation ?? false,
           notes: prev.notes ?? '',
           thinkingLevel: normalized,
         }

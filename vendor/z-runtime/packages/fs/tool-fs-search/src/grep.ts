@@ -21,6 +21,7 @@ import type { GrepMatch } from './search-core.ts'
 import { SearchError, previewLine, retainGrepMatches, runRipgrep, toWorkdirRelative, trySaveFormattedResult } from './search-core.ts'
 import { grepSearchMeta, searchViewFromMeta } from './presentation.ts'
 import { acceptedDirectCallValue } from './direct-call.ts'
+import { VCS_DIRECTORIES, searchExclusionArgs, searchScopeGuidance } from './search-scope.ts'
 
 /**
  * Default cap on flat matches retained inline by one `grep` call (the
@@ -37,6 +38,7 @@ export const GREP_MAX_LINE_BYTES = 2000
 
 /** Resolved grep-tool caps — plugin config after defaulting (see `Config` in index.ts). */
 export interface GrepToolCaps {
+  excludeDirectories?: readonly string[]
   /** Max flat matches retained inline; later matches go to the formatted spill file. */
   maxMatches: number
   /** Max bytes retained per matched-line preview. */
@@ -58,6 +60,7 @@ export interface GrepInput {
   pattern: string
   path?: string
   include?: string
+  includeExcluded?: boolean
 }
 
 /**
@@ -87,7 +90,7 @@ function validateInclude(include: string): void {
  * @param args - the schema-validated `grep` arguments.
  * @returns the accepted input, unchanged.
  */
-export function parseGrepArgs(args: { pattern: string; path?: string; include?: string }): GrepInput {
+export function parseGrepArgs(args: { pattern: string; path?: string; include?: string; includeExcluded?: boolean }): GrepInput {
   if (args.pattern.length === 0) throw new Error('pattern must be a non-empty string')
   if (args.path !== undefined && args.path.trim().length === 0) throw new Error('path must be a non-empty string when given')
   if (args.include !== undefined) validateInclude(args.include)
@@ -95,6 +98,7 @@ export function parseGrepArgs(args: { pattern: string; path?: string; include?: 
     pattern: args.pattern,
     ...args.path !== undefined ? { path: args.path } : {},
     ...args.include !== undefined ? { include: args.include } : {},
+    ...args.includeExcluded !== undefined ? { includeExcluded: args.includeExcluded } : {},
   }
 }
 
@@ -109,9 +113,13 @@ export function parseGrepArgs(args: { pattern: string; path?: string; include?: 
  * @param input - the validated arguments.
  * @returns the complete ripgrep argument vector (excluding the binary itself).
  */
-export function buildGrepCommand(input: GrepInput): string[] {
+export function buildGrepCommand(input: GrepInput, excludeDirectories: readonly string[] = []): string[] {
   const parts = ['--json', `--regexp=${input.pattern}`]
   if (input.include !== undefined) parts.push(`--glob=${input.include}`)
+  if (input.includeExcluded && excludeDirectories.length) {
+    parts.push('--no-ignore', '--hidden', ...searchExclusionArgs(VCS_DIRECTORIES))
+  }
+  parts.push(...searchExclusionArgs(excludeDirectories, input.includeExcluded))
   if (input.path !== undefined) parts.push('--', input.path)
   return parts
 }
@@ -273,21 +281,23 @@ export function presentGrepResult(
  * @param caps - the deployment's resolved grep caps (plugin config after defaulting).
  */
 export function applyGrepTool(ctx: Context, caps: GrepToolCaps): void {
+  const scopeGuidance = searchScopeGuidance(caps.excludeDirectories ?? [])
   ctx.systemPrompt.section({
     name: 'tool:grep',
     order: 104,
-    text: 'Use the grep tool — not shell grep or rg — to search file contents. Use read on a matched file when you need surrounding context.',
+    text: 'Use the grep tool — not shell grep or rg — to search file contents. Use read on a matched file when you need surrounding context.' + scopeGuidance,
   })
 
   const tool = defineTool({
     name: 'grep',
     description: 'Search file contents with a ripgrep regular expression. Returns matching lines with line numbers, grouped by file. '
       + `Returns the first ${caps.maxMatches} matches inline; a capped result reports where the complete match list was saved. `
-      + 'Use read on a matched file for surrounding context.',
+      + 'Use read on a matched file for surrounding context.' + scopeGuidance,
     parameters: {
       pattern: { type: 'string', required: true, description: 'Regular expression to search for (ripgrep syntax).' },
       path: { type: 'string', description: 'File or directory to search. Defaults to the session workspace; a relative path resolves against it.' },
       include: { type: 'string', description: 'One glob filter for which files to search (e.g. "*.ts", "*.{js,jsx}"). Not a list; negation is not supported.' },
+      includeExcluded: { type: 'boolean', description: 'Include deployment-excluded dependency/build directories. Use only with a narrow path when inspecting those files intentionally.' },
     },
     timeoutMs: caps.timeoutMs,
     output: {
@@ -319,7 +329,7 @@ export function applyGrepTool(ctx: Context, caps: GrepToolCaps): void {
     },
     async execute(args, exec) {
       const input = parseGrepArgs(args)
-      const run = await runRipgrep(ctx, exec, 'grep', buildGrepCommand(input), caps.rawOutputMaxBytes, caps.graceMs, caps.stderrMaxBytes)
+      const run = await runRipgrep(ctx, exec, 'grep', buildGrepCommand(input, caps.excludeDirectories), caps.rawOutputMaxBytes, caps.graceMs, caps.stderrMaxBytes)
       if (run.noMatches) return { matches: [] }
 
       const all: GrepMatch[] = []

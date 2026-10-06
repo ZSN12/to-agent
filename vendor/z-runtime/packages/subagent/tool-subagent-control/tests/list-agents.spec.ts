@@ -101,6 +101,45 @@ async function waitNoActivation(ctx: Context, childId: SessionId): Promise<void>
 }
 
 describe('dsh-tool-subagent-control/list-agents', () => {
+  it('registers wait_agents as a bounded wait rather than another status poll', async () => {
+    const { ctx } = await setup([])
+    const schema = ctx.tools.schemas().find(item => item.name === 'wait_agents')
+    expect(schema).toBeDefined()
+    expect(schema?.description).toContain('repeatedly calling `list_agents`')
+    expect((schema?.parameters as { properties?: Record<string, unknown> }).properties)
+      .toHaveProperty('timeout_ms')
+  })
+
+  it('returns immediately when there are no running children', async () => {
+    const { ctx, parent } = await setup([])
+    const result = await callTool(ctx, 'wait_agents', {}, parent)
+    expect(result.isError).toBe(false)
+    expect(text(result)).toContain('No subagent state changed before timeout')
+    expect(text(result)).toContain('(no continuable subagents)')
+  })
+
+  it('waits for a running child to transition without polling and returns the refreshed state', async () => {
+    let releaseChild!: () => void
+    const gate = new Promise<undefined>(resolve => { releaseChild = () => { resolve(undefined) } })
+    const { ctx, parent } = await setupWith(new GatedAdapter([{ chunks: [textResponse('child done')], gate }]))
+    const started = await ctx.subagents.startContinuable({
+      provider: 'spawn',
+      label: 'gated child',
+      request: { prompt: [{ type: 'text', text: 'finish when released' }], parent },
+      signal: testToolSignal,
+    })
+    await vi.waitFor(() => { expect(ctx.agents.get(started.childId)?.status).toBe('running') })
+
+    const waiting = callTool(ctx, 'wait_agents', { timeout_ms: 5_000 }, parent)
+    await Promise.resolve()
+    releaseChild()
+    const result = await waiting
+
+    expect(result.isError).toBe(false)
+    expect(text(result)).toContain('A subagent changed state')
+    expect(text(result)).toContain(`${started.childId} [idle]`)
+  })
+
   it('registers list_agents once, globally, with only the optional scope parameter', async () => {
     const { ctx } = await setup([])
     const schemas = ctx.tools.schemas().filter(schema => schema.name === 'list_agents')
@@ -227,7 +266,7 @@ describe('dsh-tool-subagent-control/list-agents', () => {
     const schema = ctx.tools.schemas().find(candidate => candidate.name === 'list_agents')
     // Completion reaches the parent through its notice; listing is discovery,
     // so its inactive status must not send the model looking for a result.
-    expect(schema?.description).toContain('you are told when one finishes')
+    expect(schema?.description).toContain('wait_agents')
     expect(schema?.description).toContain('resumable, not terminal')
     // The enum is the closed vocabulary the model renders, so pin it rather than
     // scanning prose that legitimately reads "not to poll for completion".

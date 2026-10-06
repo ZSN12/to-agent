@@ -1,6 +1,7 @@
 import { ChevronDown, ChevronRight, Layers } from 'lucide-react'
-import { useState } from 'react'
-import { AgentMessageMarkdown } from './AgentMessageMarkdown'
+import { lazy, Suspense, useState } from 'react'
+
+const AgentMessageMarkdown = lazy(() => import('./AgentMessageMarkdown').then((module) => ({ default: module.AgentMessageMarkdown })))
 
 export function CompactionRow({
   automatic,
@@ -33,7 +34,9 @@ export function CompactionRow({
       </button>
       {open && summary && (
         <div className="compaction-body">
-          <AgentMessageMarkdown text={summary} />
+          <Suspense fallback={<div className="message-text message-markdown">{summary}</div>}>
+            <AgentMessageMarkdown text={summary} />
+          </Suspense>
         </div>
       )}
     </div>

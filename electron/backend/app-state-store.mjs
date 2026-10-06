@@ -166,6 +166,18 @@ export function createAppStateStore(userDataPath, fallbackWorkspace) {
         return { messages, title }
       }))
     },
+    async upsertMessagesToConversation(conversationId, ...entries) {
+      await ensureInitialized()
+      return toAppState(await threadStore.updateConversation(conversationId, (thread) => {
+        const messages = [...thread.messages]
+        for (const entry of entries) {
+          const index = messages.findIndex(message => message.id === entry.id)
+          if (index < 0) messages.push(entry)
+          else messages[index] = { ...messages[index], ...entry }
+        }
+        return { messages }
+      }))
+    },
     async setTasks(tasks) {
       await ensureInitialized()
       return toAppState(await threadStore.setCurrent({ tasks }))

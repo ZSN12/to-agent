@@ -14,6 +14,8 @@ import type {
   SkillOption,
   ThreadSummary,
   ToolTraceItem,
+  UserQuestionAnswer,
+  UserQuestionPromptPayload,
   WorkMode,
   WorkspaceEntry,
   WorkspaceReference,
@@ -34,6 +36,7 @@ import {
   emptyConversationStream,
   type ConversationStreamSnapshot,
 } from '../chat/conversation-stream-buffer'
+import { completedStreamMessage, endsConversationRun, mayResetStreamAfterReply } from '../chat/conversation-run-lifecycle'
 
 function getBridge() {
   return window.taskweaver
@@ -87,6 +90,8 @@ export function useAppBackend() {
   const [orchestrationChoice, setOrchestrationChoice] = useState<OrchestrationChoicePrompt | null>(null)
   const orchestrationChoicesRef = useRef(new Map<string, OrchestrationChoicePrompt>())
   const [permissionPrompt, setPermissionPrompt] = useState<PermissionPromptPayload | null>(null)
+  const [userQuestionPrompt, setUserQuestionPrompt] = useState<UserQuestionPromptPayload | null>(null)
+  const userQuestionPromptsRef = useRef(new Map<string, UserQuestionPromptPayload[]>())
   const [liveContext, setLiveContext] = useState<LiveContextUsage | null>(null)
   const [sessionStats, setSessionStats] = useState<SessionStatsSnapshot | null>(null)
   const [busyEnterMode, setBusyEnterMode] = useState<BusyEnterMode>('followUp')
@@ -98,6 +103,7 @@ export function useAppBackend() {
     setRunningConversationIds([...runningConversationsRef.current])
   }, [])
   const conversationStartedAtRef = useRef(new Map<string, number>())
+  const conversationTurnIdRef = useRef(new Map<string, string>())
   const conversationStreamRef = useRef(new Map<string, ConversationStreamSnapshot>())
   const dshMuxTapeRef = useRef<import('../../shared/app-api').DshMuxFramePayload[]>([])
   const isConversationRunning = useCallback((conversationId: string | null | undefined) => {
@@ -133,6 +139,7 @@ export function useAppBackend() {
     setPromptQueue(emptyPromptQueue())
     setOrchestrationChoice(null)
     setPermissionPrompt(null)
+    setUserQuestionPrompt(null)
     setRetryBanner(null)
   }, [])
 
@@ -332,6 +339,7 @@ export function useAppBackend() {
         for (const ghostId of ghosts) {
           runningConversationsRef.current.delete(ghostId)
           conversationStartedAtRef.current.delete(ghostId)
+          conversationTurnIdRef.current.delete(ghostId)
           conversationStreamRef.current.delete(ghostId)
           if (activeConversationIdRef.current === ghostId) {
             setSending(false)
@@ -399,8 +407,19 @@ export function useAppBackend() {
     const bridge = getBridge()
     if (!bridge?.chat) return
     return bridge.chat.onStream((event: ChatStreamEvent) => {
+      // Child lifecycle belongs to its task panel, never the parent's stream
+      // buffer, inbox or error banner. Tool traces still flow through below.
+      if ('taskId' in event && event.taskId && event.type !== 'tool') return
       const skipStreamContent = isStreamEventSupersededByProjection(event, projectionStreamActive)
-      if (event.type === 'done' && event.interrupted && event.conversationId) {
+      const completedMessage = completedStreamMessage(event)
+      if (completedMessage) {
+        setState((current) => {
+          if (!current || current.conversationId !== event.conversationId) return current
+          if (current.messages.some(message => message.id === completedMessage.id)) return current
+          return { ...current, messages: [...current.messages, completedMessage] }
+        })
+      }
+      if (event.type === 'done' && event.interrupted && !event.turnId && event.conversationId) {
         const prior = conversationStreamRef.current.get(event.conversationId)
         const text = event.full.trim() || prior?.streamText?.trim() || ''
         const thinking = event.fullThinking?.trim() || prior?.streamThinking?.text?.trim() || ''
@@ -451,6 +470,8 @@ export function useAppBackend() {
       }
       if (event.type === 'start' && event.conversationId) {
         runningConversationsRef.current.add(event.conversationId)
+        if (event.turnId) conversationTurnIdRef.current.set(event.conversationId, event.turnId)
+        else conversationTurnIdRef.current.delete(event.conversationId)
         syncRunningConversationIds()
         const startedAt = event.startedAt ?? Date.now()
         conversationStartedAtRef.current.set(event.conversationId, startedAt)
@@ -459,7 +480,7 @@ export function useAppBackend() {
           setStreamStartedAt(startedAt)
         }
       }
-      if ((event.type === 'done' || event.type === 'error') && event.conversationId) {
+      if (endsConversationRun(event) && event.conversationId) {
         runningConversationsRef.current.delete(event.conversationId)
         syncRunningConversationIds()
         if (event.type === 'done') {
@@ -468,6 +489,7 @@ export function useAppBackend() {
             : [...current, event.conversationId!])
         }
         conversationStartedAtRef.current.delete(event.conversationId)
+        conversationTurnIdRef.current.delete(event.conversationId)
         conversationStreamRef.current.delete(event.conversationId)
         if (activeConversationIdRef.current === event.conversationId) {
           setSending(false)
@@ -475,10 +497,11 @@ export function useAppBackend() {
         }
       }
       // Fallback cleanup for done/error events without conversationId (should use active conversation)
-      if ((event.type === 'done' || event.type === 'error') && !event.conversationId && activeConversationIdRef.current) {
+      if (endsConversationRun(event) && !event.conversationId && activeConversationIdRef.current) {
         runningConversationsRef.current.delete(activeConversationIdRef.current)
         syncRunningConversationIds()
         conversationStartedAtRef.current.delete(activeConversationIdRef.current)
+        conversationTurnIdRef.current.delete(activeConversationIdRef.current)
         conversationStreamRef.current.delete(activeConversationIdRef.current)
         setSending(false)
         setStreamStartedAt(null)
@@ -522,26 +545,41 @@ export function useAppBackend() {
         }))
       }
       if (event.type === 'activity') setStreamActivity(shortStreamActivityLabel(event.message ?? null))
+      if (event.type === 'connection') {
+        setStreamActivity(shortStreamActivityLabel(event.message))
+        if (event.state === 'restored') setError(null)
+        else if (event.state === 'unavailable') setError(event.message)
+      }
       if (event.type === 'delta') {
         setStreamActivity(null)
         setStreamText(event.full)
       }
       if (event.type === 'done') {
-        setStreamText(event.full)
-        if (event.fullThinking && String(event.fullThinking).trim()) {
+        setStreamText(completedMessage ? null : event.full)
+        if (completedMessage) {
+          setStreamThinking(null)
+          setStreamBlocks([])
+          setStreamActivity(null)
+        } else if (event.fullThinking && String(event.fullThinking).trim()) {
           setStreamThinking((prev) => ({
             text: String(event.fullThinking),
             durationMs: event.thinkingDurationMs ?? prev?.durationMs,
           }))
         }
-        if (event.contentBlocks?.length) {
+        if (!completedMessage && event.contentBlocks?.length) {
           setStreamBlocks(event.contentBlocks)
         }
-        setPromptQueue(emptyPromptQueue())
+        if (!event.continuing) setPromptQueue(emptyPromptQueue())
         void refreshSessionStats()
       }
       if (event.type === 'error') {
         setError(event.message)
+        if (completedMessage) {
+          setStreamText(null)
+          setStreamThinking(null)
+          setStreamBlocks([])
+          setStreamActivity(null)
+        }
         setPromptQueue(emptyPromptQueue())
       }
       if (event.type === 'blocks') {
@@ -633,6 +671,25 @@ export function useAppBackend() {
   }, [])
 
   useEffect(() => {
+    const questions = getBridge()?.userQuestions
+    if (!questions?.onPrompt) return
+    const unsubscribePrompt = questions.onPrompt(payload => {
+      const pending = userQuestionPromptsRef.current.get(payload.conversationId) ?? []
+      if (!pending.some(item => item.id === payload.id)) pending.push(payload)
+      userQuestionPromptsRef.current.set(payload.conversationId, pending)
+      if (payload.conversationId === activeConversationIdRef.current) setUserQuestionPrompt(pending[0] ?? null)
+    })
+    const unsubscribeResolved = questions.onResolved?.(payload => {
+      const pending = userQuestionPromptsRef.current.get(payload.conversationId) ?? []
+      const remaining = pending.filter(item => item.id !== payload.id)
+      if (remaining.length) userQuestionPromptsRef.current.set(payload.conversationId, remaining)
+      else userQuestionPromptsRef.current.delete(payload.conversationId)
+      if (payload.conversationId === activeConversationIdRef.current) setUserQuestionPrompt(remaining[0] ?? null)
+    })
+    return () => { unsubscribePrompt(); unsubscribeResolved?.() }
+  }, [])
+
+  useEffect(() => {
     if (!sending) {
       return
     }
@@ -672,11 +729,12 @@ export function useAppBackend() {
         time,
         text,
       }
+      const runAlreadyActive = Boolean(sendConversationId && runningConversationsRef.current.has(sendConversationId))
       if (sendConversationId) {
         runningConversationsRef.current.add(sendConversationId)
         syncRunningConversationIds()
       }
-      const optimisticStartedAt = Date.now()
+      const optimisticStartedAt = (sendConversationId && sending ? conversationStartedAtRef.current.get(sendConversationId) : null) ?? Date.now()
       if (sendConversationId) conversationStartedAtRef.current.set(sendConversationId, optimisticStartedAt)
       setStreamStartedAt(optimisticStartedAt)
       setState((current) => {
@@ -697,14 +755,26 @@ export function useAppBackend() {
         }
       })
       setSending(true)
-      setStreamText(null)
-      setStreamThinking(null)
-      setStreamBlocks([])
-      setToolTraces([])
-      setPromptQueue(emptyPromptQueue())
+      // A busy send may be accepted as a follow-up; do not erase its active turn.
+      if (!sending) {
+        setStreamText(null)
+        setStreamThinking(null)
+        setStreamBlocks([])
+        setToolTraces([])
+        setPromptQueue(emptyPromptQueue())
+      }
       setError(null)
       const res = await bridge.chat.send(text, modelKey ?? null, skillName ?? null, executionModeOverride ?? null, workMode ?? 'code', sendConversationId)
       if (!res.ok) {
+        const stillRunning = Boolean(sendConversationId && runningConversationsRef.current.has(sendConversationId))
+        const newerTurn = res.turnId && stillRunning && conversationTurnIdRef.current.get(sendConversationId!) !== res.turnId
+        const rejectedAdmission = !res.turnId && runAlreadyActive && stillRunning
+        if (newerTurn || rejectedAdmission || res.runContinues) {
+          // An old terminal commit or a rejected busy admission must not erase
+          // the independent newer/current native turn's output and queue.
+          if ((rejectedAdmission || res.runContinues) && activeConversationIdRef.current === sendConversationId) setError(res.error)
+          return false
+        }
         if (sendConversationId) {
           runningConversationsRef.current.delete(sendConversationId)
           syncRunningConversationIds()
@@ -759,20 +829,22 @@ export function useAppBackend() {
             )
             return { ...current, messages: [...nextMessages, ...committedMessages] }
           })
-        } else {
+        } else if (!res.data.accepted) {
           // Compatibility with older backends that don't return committed
           // messages: reload the durable conversation after the turn settles.
           await reload()
         }
-        setSending(false)
-        setStreamText(null)
-        setStreamThinking(null)
-        setStreamBlocks([])
-        setStreamActivity(null)
+        if (mayResetStreamAfterReply(res.data.accepted, Boolean(sendConversationId && runningConversationsRef.current.has(sendConversationId)))) {
+          setSending(false)
+          setStreamText(null)
+          setStreamThinking(null)
+          setStreamBlocks([])
+          setStreamActivity(null)
+        }
       }
       return true
     },
-    [reload, syncRunningConversationIds],
+    [reload, syncRunningConversationIds, sending],
   )
 
   const cancelMessage = useCallback(async () => {
@@ -864,6 +936,7 @@ export function useAppBackend() {
     setSending(isConversationRunning(res.data.conversationId))
     setStreamStartedAt(conversationStartedAtRef.current.get(res.data.conversationId) ?? null)
     setPermissionPrompt(permissionPromptsRef.current.get(res.data.conversationId) ?? null)
+    setUserQuestionPrompt(userQuestionPromptsRef.current.get(res.data.conversationId)?.[0] ?? null)
     return true
   }, [isConversationRunning, refreshSkills, resetTransientConversationState])
 
@@ -900,6 +973,7 @@ export function useAppBackend() {
     setSending(isConversationRunning(res.data.state.conversationId))
     setStreamStartedAt(conversationStartedAtRef.current.get(res.data.state.conversationId) ?? null)
     setPermissionPrompt(permissionPromptsRef.current.get(res.data.state.conversationId) ?? null)
+    setUserQuestionPrompt(userQuestionPromptsRef.current.get(res.data.state.conversationId)?.[0] ?? null)
     setError(null)
     return true
   }, [isConversationRunning, refreshSkills, resetTransientConversationState])
@@ -924,6 +998,7 @@ export function useAppBackend() {
     setStreamStartedAt(conversationStartedAtRef.current.get(res.data.conversationId) ?? null)
     setOrchestrationChoice(orchestrationChoicesRef.current.get(res.data.conversationId) ?? null)
     setPermissionPrompt(permissionPromptsRef.current.get(res.data.conversationId) ?? null)
+    setUserQuestionPrompt(userQuestionPromptsRef.current.get(res.data.conversationId)?.[0] ?? null)
     setError(null)
 
     // Clean up ghost state: if backend says this conversation isn't running, don't show it as running
@@ -1060,6 +1135,22 @@ export function useAppBackend() {
     return res.ok
   }, [permissionPrompt])
 
+  const answerUserQuestion = useCallback(async (id: string, answer: UserQuestionAnswer) => {
+    const bridge = getBridge()
+    if (!bridge?.userQuestions?.answer) return false
+    const res = await bridge.userQuestions.answer(id, answer)
+    if (!res.ok || !res.data.ok) return false
+    const conversationId = activeConversationIdRef.current
+    if (conversationId) {
+      const pending = userQuestionPromptsRef.current.get(conversationId) ?? []
+      const remaining = pending.filter(item => item.id !== id)
+      if (remaining.length) userQuestionPromptsRef.current.set(conversationId, remaining)
+      else userQuestionPromptsRef.current.delete(conversationId)
+      setUserQuestionPrompt(remaining[0] ?? null)
+    }
+    return true
+  }, [])
+
   const mutateQueue = useCallback(async (payload: {
     kind: 'steering' | 'followUp'
     index: number
@@ -1168,6 +1259,8 @@ export function useAppBackend() {
     streamBlocks,
     permissionPrompt,
     respondPermissionPrompt,
+    userQuestionPrompt,
+    answerUserQuestion,
     liveContext: projectionLiveContext ?? liveContext,
     sessionStats: projectedSessionStats ?? sessionStats,
     refreshSessionStats,

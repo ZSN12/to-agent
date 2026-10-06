@@ -28,6 +28,17 @@ export function DshStatsLine({
     const tps = summarizeDecodeThroughput(messages)
     const line: string[] = []
 
+    if (stats?.agentPreset) {
+      const presetNames: Record<string, string> = {
+        standard: '标准',
+        code: 'Code',
+        'taskweaver-readonly': '只读研究',
+        'taskweaver-code': '编码',
+        'taskweaver-planner': '规划',
+      }
+      line.push(`Agent ${presetNames[stats.agentPreset] ?? stats.agentPreset}`)
+    }
+
     if (steps > 0 || turns > 0) {
       line.push(`${turns} 轮 · ${steps} 步`)
       const durations: string[] = []

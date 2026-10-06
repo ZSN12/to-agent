@@ -14,7 +14,7 @@
 export async function fetchDshCatalogPrices(options = {}) {
   const getDshDirectory = options.getDshDirectory
   if (!getDshDirectory) {
-    throw new Error('DSH 目录获取函数未提供（需要 dshHostManager.start()）')
+    throw new Error('Z Runtime 目录获取函数未提供（请先启动 Z Host）')
   }
 
   try {
@@ -46,7 +46,7 @@ export async function fetchDshCatalogPrices(options = {}) {
 
     return models
   } catch (error) {
-    throw new Error(`DSH 目录读取失败: ${error.message}`)
+    throw new Error(`Z Runtime 目录读取失败: ${error.message}`)
   }
 }
 

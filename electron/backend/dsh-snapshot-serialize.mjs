@@ -208,11 +208,15 @@ function activityLabel(snapshot) {
     return `正在执行工具：${first?.name ?? 'tool'}…`
   }
   if (snapshot.partial?.blocks?.length) {
-    const tool = snapshot.partial.blocks.find((b) => b?.kind === 'tool-call')
+    const tool = snapshot.partial.blocks.find((block) => block?.kind === 'tool-call')
     if (tool) return `正在执行工具：${tool.name ?? 'tool'}…`
-    const reasoning = snapshot.partial.blocks.find((b) => b?.kind === 'reasoning')
-    if (reasoning?.text?.trim()) return '正在思考…'
-    return '正在生成回复…'
+    const reasoning = snapshot.partial.blocks.find((block) => block?.kind === 'reasoning' && block.text?.trim())
+    if (reasoning) return '正在思考…'
+    const text = snapshot.partial.blocks.find((block) => block?.kind === 'text' && block.text?.trim())
+    if (text) return '正在生成回复…'
+  }
+  if (Number.isInteger(snapshot.partial?.step) && snapshot.partial.step > 0) {
+    return `等待模型响应 · 第 ${snapshot.partial.step} 步`
   }
   if (snapshot.running) return null
   return null

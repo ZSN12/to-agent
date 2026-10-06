@@ -5,6 +5,8 @@
 > 产品归属：**TaskWeaver 自有桌面应用**。模型会话当前由随项目交付的运行时实现承载；Skill 选择/装载、门控、DAG、模型分配与产品交互由 TaskWeaver 控制。运行时不是产品品牌，也不应在界面中作为功能提供方出现。  
 > 本文目的：说明「Coding Agent 标配能力」与「毕设贡献（门控 + 分配 + DAG）」如何分阶段落地，便于第三方（如 GPT）评审范围与优先级。
 
+> **实现状态校准（2026-09-29）**：本文早期章节中关于 pi / `createAgentSession` 的内容属于初始方案，已被后续实现替代；当前产品将运行时称为 **Z Runtime / Z Host**，单 Agent 与 DAG 子任务由 `vendor/z-runtime` 承载。MCP 服务与桥接作为 TaskWeaver 的产品扩展保留，不是论文核心创新；当前 MCP 连接配置与 Agent 工具注入状态需区分展示，连接成功不等于已接入 Agent。当前 ProjectMemory 已实现 L0–L2，并已补充失败分类与最小 L4 EvidenceBundle 持久化/升级注入；L3 事实抽取、失败文件/diff/测试证据仍未完成。源码中的历史 API、包名和第三方来源说明保留原名；除明确列为当前状态的段落外，旧阶段描述应视为历史计划，不代表现状。
+
 ---
 
 ## 1. 产品定位（一句话）
@@ -15,7 +17,7 @@
 
 - **门控（Policy Gate）**：发送前规则特征 → `SINGLE_AGENT` / `ASK_USER` / `MULTI_AGENT`，**不为门控多调 LLM**。
 - **分配（Allocator）**：仅多智能体路径上，按子任务类型 + 用户维护的模型价签/能力卡选模型（可选历史反馈升级）。
-- **执行（Runtime）**：统一走 pi `createAgentSession`，不另起 Claude Agent SDK / Codex SDK 作为主循环。
+- **执行（Runtime）**：当前统一走 Z Runtime 会话运行时；不另起 Claude Agent SDK / Codex SDK 作为主循环。
 
 ### 1.1 主模型 vs 子任务路由（产品硬规则）
 
@@ -42,11 +44,11 @@
 |------|------|------|
 | 桌面壳 | `electron/main.cjs`, `preload.cjs` | 可用：`npm start` / `npm run app` |
 | 模型目录与凭据 | `electron/backend/model-service.mjs`, `profile-store.mjs`, `credential-store.mjs` | TaskWeaver 自有加密凭据存储；仅显式添加的模型进入主列表；候选目录仍由随项目提供的模型运行时枚举 |
-| 单 Agent 对话 | `electron/backend/dsh-chat-service.mjs` | 主聊天已切换到 DSH-backed 会话与流式事件 |
+| 单 Agent 对话 | `electron/backend/dsh-chat-service.mjs` | 主聊天通过 Z Host 会话与流式事件运行（文件名为历史内部标识） |
 | 入口门控 + 编排 | `orchestration-policy.mjs`, `orchestration-service.mjs`, `dag-scheduler.mjs` | 已有：`chat:send` 按门控走单 Agent 或 `planAndExecute` |
 | Skill 目录与调用 | `electron/backend/skill-service.mjs`, `skill-prompt.mjs` | 已有：发现内置/应用/受信任工作区 Skill；用户选中后由 TaskWeaver 读取正文并注入当前任务；选中多 Agent Skill 才强制进入 DAG |
 | 前端 | `src/App.tsx`, `useAppBackend.ts` | 真实对话与模型设置；`/Skill` 补全、权限档位、模型添加/删除界面；DAG/任务 UI 部分具备 |
-| 执行层依赖 | `@earendil-works/pi-coding-agent@0.81.1` | npm 包，仓库内无 pi 源码 |
+| 执行层依赖 | `vendor/z-runtime`（Z Runtime，`@z/dsh-*` 历史 workspace 包名） | 当前实际运行时；不是 pi npm 依赖 |
 
 **已知缺口（相对「完整 Coding Agent」）：**
 
@@ -156,7 +158,7 @@
 | P0 | 工作区 + 多会话/项目 | 线程存储、原生目录选择 IPC、会话切换/隔离 | **已完成**：侧栏UI、新建/切换/Pin/删除/Fork、工作区绑定隔离均已闭环 |
 | P0 | @ 上下文 | @file / @dir 候选、拖拽引用、大小限制 | **已完成**：模糊匹配菜单、拖拽生成Token、上下文配额限制（单文件32KB/总量120KB）已闭环 |
 | P0 | 安全路径与边界 | 拒绝目录穿越、符号链接逃逸、相邻前缀目录攻击 | **已完成 (Phase 1.1)**：独立 `security-path.mjs`，`workspace:revertDiff` 与协议彻底阻断逃逸 |
-| P1 | 上下文可见性 | 消息 usage 与会话 context meter；接近阈值提示 | **已完成**：DSH 风格用量仪表盘、实时 Token 与耗时统计、/compact 手动与自动压缩已落地 |
+| P1 | 上下文可见性 | 消息 usage 与会话 context meter；接近阈值提示 | **已完成**：Z Runtime 风格用量仪表盘、实时 Token 与耗时统计、/compact 手动与自动压缩已落地 |
 | P1 | 输出面板 | 最近工具/Bash/编排输出的有界日志、筛选、错误状态 | **已完成 (Phase 2)**：后端 150 条有界日志，右侧抽屉面板支持状态筛选、关键词搜索与一键复制 |
 | P1 | 细粒度权限 | 可持久化的 tool/路径/Bash 规则、会话批准、始终允许/拒绝管理 | **已完成 (Phase 1.2~1.4)**：Deny 优先拦截、模式通配、弹窗“总是允许”持久化、设置面板管理 |
 | P1 | MCP 服务与UI | TaskWeaver 自有配置/连接/工具桥接/错误状态/安全凭据 | **已完成 (Phase 7.1 & 1.4)**：safeStorage 敏感加密、设置面板 Stdio 服务管理、启停开关与错误显示 |

@@ -478,6 +478,33 @@ describe('unary round trip (handler ⇄ client, no network)', () => {
     }
   })
 
+  it('lets command-only maintenance pass the unary deadline while preserving caller cancellation', async () => {
+    vi.useFakeTimers()
+    const timeoutSpy = vi.spyOn(AbortSignal, 'timeout')
+    try {
+      const api = fakeApi()
+      api.sessions.prompt = async (request) => {
+        await new Promise(resolve => setTimeout(resolve, 30_001))
+        return { rpcId: request.rpcId, result: { ok: true, value: { accepted: true as const,
+          command: { kind: 'success' as const, text: 'Compacted' } } } }
+      }
+      const payload = { sessionId: 's' as never, mode: 'queue' as const,
+        content: [{ type: 'text' as const, text: '/compact' }], commandOnly: true }
+      const execution = client(api).sessions.prompt(payload)
+      const assertion = expect(execution).resolves.toMatchObject({ result: { ok: true,
+        value: { command: { text: 'Compacted' } } } })
+      await Promise.all([vi.advanceTimersByTimeAsync(30_001), assertion])
+      expect(timeoutSpy).not.toHaveBeenCalled()
+
+      const controller = new AbortController()
+      const aborted = client(api).sessions.prompt(payload, controller.signal)
+      const rejection = expect(aborted).rejects.toThrow('stop maintenance')
+      controller.abort(new Error('stop maintenance'))
+      await rejection
+      expect(timeoutSpy).not.toHaveBeenCalled()
+    } finally { timeoutSpy.mockRestore(); vi.useRealTimers() }
+  })
+
   it('round-trips the subagent domain through the wire form', async () => {
     const c = client()
     expect((await c.subagents.list({ parentSessionId: 'parent' as never })).result)

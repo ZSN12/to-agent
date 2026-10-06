@@ -57,6 +57,22 @@ export function piProviderBlockToDshProfile(providerId, block) {
   const profile = {
     displayName,
     apiKeyEnv: taskweaverApiKeyEnvRef(providerId),
+    // Match Z Runtime's pi-ai default so long reasoning turns are not cut off
+    // by an application-only shorter timeout. Explicit per-provider values in
+    // models.json still win; TIMEOUT remains excluded from automatic retries.
+    streamIdleTimeoutMs: Number.isFinite(block.streamIdleTimeoutMs) && block.streamIdleTimeoutMs > 0
+      ? block.streamIdleTimeoutMs
+      : 300_000,
+    retryPolicy: block.retryPolicy && typeof block.retryPolicy === 'object'
+      ? block.retryPolicy
+      : {
+        mode: 'normal',
+        maxRetries: 1,
+        // A stream-idle timeout often follows a long partial reasoning stream.
+        // Replaying the whole request spends another full idle window and can
+        // duplicate billed work; let the user explicitly retry after diagnosis.
+        retryableCodes: ['EMPTY_RESPONSE', 'RATE_LIMIT', 'SERVER', 'TRANSPORT'],
+      },
   }
   if (api) profile.api = api
   if (baseUrl) profile.baseURL = baseUrl.replace(/\/+$/, '')

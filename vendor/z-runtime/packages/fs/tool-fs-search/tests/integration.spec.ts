@@ -64,7 +64,7 @@ describe('search tools over the real subprocess service + the packaged rg', () =
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
     await ctx.plugin(LocalSubprocessRuntime)
-    await ctx.plugin(ToolFsSearch, { sampleOverCapGlobResults: true })
+    await ctx.plugin(ToolFsSearch, { sampleOverCapGlobResults: true, excludeDirectories: ['node_modules', 'dist'] })
   })
 
   afterEach(async () => {
@@ -72,6 +72,29 @@ describe('search tools over the real subprocess service + the packaged rg', () =
   })
 
   describe('glob', () => {
+    it('keeps dependency/build scans opt-in without hiding runtime source', async () => {
+      for (const path of ['node_modules/pkg', 'nested/node_modules/pkg', 'dist', 'vendor/runtime/src']) {
+        await mkdir(join(dir, path), { recursive: true })
+        await writeFile(join(dir, path, 'fixture.ts'), 'const dependencyMarker = true\n')
+      }
+      const listed = text(await call('glob', { pattern: '*' }, agent()))
+      expect(listed).not.toContain('node_modules')
+      expect(listed).not.toContain(join('dist', 'fixture.ts'))
+      expect(listed).toContain(join('vendor/runtime/src', 'fixture.ts'))
+      expect(text(await call('glob', { pattern: '*', path: 'node_modules' }, agent()))).toBe('No files found')
+      expect(text(await call('glob', { pattern: '*', path: join(dir, 'node_modules/pkg'), includeExcluded: true }, agent())))
+        .toContain(join('node_modules/pkg', 'fixture.ts'))
+      expect(text(await call('grep', { pattern: 'dependencyMarker', include: '*.ts' }, agent())))
+        .not.toContain('node_modules')
+      expect(text(await call('grep', { pattern: 'dependencyMarker', path: 'node_modules/pkg', includeExcluded: true }, agent())))
+        .toContain('fixture.ts')
+      // Opting into dependencies must never opt into VCS metadata.
+      expect(text(await call('glob', { pattern: '*', path: '.git', includeExcluded: true }, agent())))
+        .toBe('No files found')
+      expect(text(await call('grep', { pattern: 'never listed', path: '.git', includeExcluded: true }, agent())))
+        .toBe('No matches found')
+    })
+
     it('discovers files by pattern, sorted by modification time, hidden included, .git excluded', async () => {
       const result = await call('glob', { pattern: '**/*.ts' }, agent())
       expect(result.isError).toBe(false)

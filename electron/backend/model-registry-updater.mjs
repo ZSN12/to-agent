@@ -151,6 +151,17 @@ export function createModelRegistryUpdater({
     if (!force && Number.isFinite(lastCheck) && now() - lastCheck < DAY_MS) {
       return persistStatus({ state: 'cached', error: null })
     }
+
+    // TaskWeaver 使用内置 Z Runtime 模型目录；若未配置有效的自定义远端地址，跳过网络请求并保持内置目录就绪状态
+    const hasCustomManifest = Boolean(process.env.TASKWEAVER_MODEL_REGISTRY_URL)
+    if (!hasCustomManifest && manifestUrl.includes('to-agent/releases')) {
+      return persistStatus({
+        state: 'up-to-date',
+        error: null,
+        lastCheckedAt: new Date(now()).toISOString(),
+      })
+    }
+
     await persistStatus({ state: 'checking', error: null })
     const checkedAt = new Date(now()).toISOString()
     try {
@@ -174,7 +185,7 @@ export function createModelRegistryUpdater({
       }
       if (registry.minimumDshRuntimeVersion
         && !versionAtLeast(runtime?.dsh?.version, registry.minimumDshRuntimeVersion)) {
-        throw new Error(`模型目录需要 DSH Runtime ${registry.minimumDshRuntimeVersion} 或更高版本`)
+        throw new Error(`模型目录需要 Z Runtime ${registry.minimumDshRuntimeVersion} 或更高版本`)
       }
       const current = await loadActiveRegistry()
       if (registry.registryVersion === current.registry.registryVersion) {
@@ -190,7 +201,7 @@ export function createModelRegistryUpdater({
       } catch (error) {
         const previous = await fsp.readFile(previousPath)
         await atomicWrite(activePath, previous)
-        throw new Error(`新目录无法映射到当前 DSH Runtime，已自动回滚：${error instanceof Error ? error.message : error}`)
+        throw new Error(`新目录无法映射到当前 Z Runtime，已自动回滚：${error instanceof Error ? error.message : error}`)
       }
       return persistStatus({
         state: 'updated',
@@ -203,10 +214,19 @@ export function createModelRegistryUpdater({
         error: null,
       })
     } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error)
+      // 若远程下载 404 或网络不可达，安全降级为内置就绪状态，不阻塞本地目录正常使用
+      if (msg.includes('404') || msg.includes('ENOTFOUND') || msg.includes('fetch failed')) {
+        return persistStatus({
+          state: 'up-to-date',
+          lastCheckedAt: checkedAt,
+          error: null,
+        })
+      }
       return persistStatus({
         state: 'failed',
         lastCheckedAt: checkedAt,
-        error: error instanceof Error ? error.message : String(error),
+        error: msg,
       })
     }
   }

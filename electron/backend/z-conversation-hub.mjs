@@ -33,7 +33,7 @@ export function createZConversationHub({ runtimeRoot, fakeRemote = fakeSessionRe
     if (manager) return manager
     if (initPromise) return initPromise
     initPromise = (async () => {
-      if (!apiRef) throw new Error('Z API 未绑定（需先启动 DSH Host）')
+      if (!apiRef) throw new Error('Z API 未绑定（Z Host 尚未启动）')
       const SessionManager = await loadSessionManagerClass(runtimeRoot)
       const conversation = await createTaskWeaverConversationRuntime(runtimeRoot)
       const remoteFactory = typeof fakeRemote === 'function' ? fakeRemote : fakeSessionRemotes

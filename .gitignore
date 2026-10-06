@@ -17,3 +17,6 @@ TaskWeaver.app
 .taskweaver-deploy-test*/
 .taskweaver-prod-testhome*/
 .taskweaver-test-home*/
+dsh-source/
+.workbuddy-ai/
+.test-worktree-diff/

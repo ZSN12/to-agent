@@ -268,6 +268,7 @@ export function createZHostManager({
   executable = process.execPath,
   spawnProcess = nodeSpawn,
   environment = process.env,
+  getMcpRuntimeIntegration,
   startTimeoutMs = START_TIMEOUT_MS,
 }) {
   let child = null
@@ -311,7 +312,9 @@ export function createZHostManager({
     }
     if (api && child && child.exitCode === null && child.signalCode === null) return { api, baseUrl: hostUrl }
     if (startPromise) return startPromise
-    startPromise = new Promise((resolve, reject) => {
+    startPromise = (async () => {
+      const mcpIntegration = await getMcpRuntimeIntegration?.()
+      return new Promise((resolve, reject) => {
       diagnostics = ''
       let entrypoint
       let nodePath
@@ -327,6 +330,7 @@ export function createZHostManager({
       }
       const childEnv = {
         ...environment,
+        ...(mcpIntegration?.environment ?? {}),
         DSH_HOME: dshHome,
         DSH_TELEMETRY_DISABLED: '1',
         DSH_TASKWEAVER_EMBEDDED: '1',
@@ -361,7 +365,12 @@ export function createZHostManager({
       if (nodePath) {
         childEnv.NODE_PATH = nodePath
       }
-      const spawned = spawnProcess(executable, [entrypoint, 'web', '--no-open', '--port', '0'], {
+      // Launcher options must precede the profile command; after `web`,
+      // --patch would be forwarded to the web app and rejected as unknown.
+      const args = [entrypoint]
+      if (mcpIntegration?.patchPath) args.push('--patch', mcpIntegration.patchPath)
+      args.push('--profile', 'web', '--no-open', '--port', '0')
+      const spawned = spawnProcess(executable, args, {
         cwd: processCwd,
         env: childEnv,
         stdio: ['ignore', 'pipe', 'pipe'],
@@ -424,7 +433,8 @@ export function createZHostManager({
           fail(new Error(`Z Host 启动失败（${signal ?? `退出码 ${code}`}）。${diagnostics ? `\n${diagnostics}` : ''}`))
         }
       })
-    }).finally(() => {
+      })
+    })().finally(() => {
       startPromise = null
     })
     return startPromise

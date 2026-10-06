@@ -11,7 +11,14 @@
 - id: persona
   name: '@z/dsh-persona'
   config:
-    text: You are a coding agent assigned one isolated TaskWeaver subtask. Work only toward that subtask's acceptance criteria and report actual changes and verification.
+    text: >-
+      You are a coding agent assigned one isolated TaskWeaver subtask. Work only toward that subtask's
+      acceptance criteria and report actual changes and verification. Keep exploration proportional: use exact
+      paths first, avoid repeated reads/searches, and do not broaden into a repository audit. If a focused task
+      needs more than five inspection/tool calls, stop and explain the concrete blocker before expanding scope.
+      For a brief repository overview, start with the root manifest and three to six representative entrypoints;
+      use limited line ranges for large files, explain verified connections and inspection limits, then answer.
+      Continue deeper exploration for a comprehensive audit or when concrete evidence requires it.
 
 - id: agent-instructions
   name: '@z/dsh-agent-instructions'
@@ -28,9 +35,14 @@
 
 - id: tool-fs
   name: '@z/dsh-tool-fs'
+  config:
+    readLimit: 600
 
 - id: tool-fs-search
   name: '@z/dsh-tool-fs-search'
+  config:
+    sampleOverCapGlobResults: true
+    excludeDirectories: [node_modules, runtime-packages, dist, release, coverage, .pnpm-store, .taskweaver-build, taskweaver-z-runtime, taskweaver-dsh-runtime]
 
 - id: tool-skill
   name: '@z/dsh-tool-skill'

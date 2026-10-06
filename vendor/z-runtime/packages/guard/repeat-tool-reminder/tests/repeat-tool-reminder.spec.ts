@@ -92,9 +92,68 @@ describe('threshold escalation', () => {
     expect(found[0]!.text).toContain('repeating the exact same tool call') // gentle at 2
     expect(found[1]!.text).toContain('consecutive_calls: 4') // detailed at 4
   })
+
+  it('nudges a broad inspection task across different calls, then resets on the next user task', async () => {
+    const ctx = await harness({ inspectionTools: ['probe', 'other'], inspectionThresholds: [3, 5] })
+    const adapter = new MockAdapter([
+      toolCallResponse('c1', 'probe', { q: 1 }),
+      toolCallResponse('c2', 'other', { q: 2 }),
+      toolCallResponse('c3', 'probe', { q: 3 }),
+      toolCallResponse('c4', 'other', { q: 4 }),
+      toolCallResponse('c5', 'probe', { q: 5 }),
+      toolCallResponse('c6', 'other', { q: 6 }),
+      toolCallResponse('c7', 'probe', { q: 7 }),
+      textResponse('summary'),
+      toolCallResponse('c8', 'probe', { q: 8 }),
+      textResponse('second summary'),
+    ])
+    ctx.llm.registerAdapter(['mock'], adapter)
+    const agent = ctx.agentLoop.create(SessionId('inspection-budget'), { provider: 'mock', model: 'mock' })
+    agent.followup(createUserMessage({ content: [{ type: 'text', text: 'inspect' }], source: { kind: 'user' } }))
+    await waitForIdle(ctx, agent)
+
+    const firstTaskReminders = reminders(agent)
+    expect(firstTaskReminders).toHaveLength(3)
+    expect(firstTaskReminders[0]!.text).toContain('3 repository-inspection/tool calls')
+    expect(firstTaskReminders[1]!.text).toContain('continued repository inspection for 5 calls')
+    expect(firstTaskReminders[2]!.text).toContain('continued repository inspection for 7 calls')
+
+    agent.followup(createUserMessage({ content: [{ type: 'text', text: 'new task' }], source: { kind: 'user' } }))
+    await waitForIdle(ctx, agent)
+    expect(reminders(agent)).toHaveLength(3)
+  })
 })
 
 describe('chain semantics', () => {
+  it('reminds when consecutive reads target the same file with different ranges', async () => {
+    const ctx = await harness()
+    ctx.tools.register(defineContentToolFixture({
+      name: 'read',
+      description: 'read a file range',
+      parameters: { file_path: { type: 'string' }, offset: { type: 'number' } },
+      async execute() { return [{ type: 'text', text: 'excerpt' }] },
+    }))
+    const adapter = new MockAdapter([
+      ...Array.from({ length: 11 }, (_, index) => toolCallResponse(
+        `c${index + 1}`, 'read', { file_path: 'src/large.ts', offset: index * 100 + 1 },
+      )),
+      textResponse('done'),
+    ])
+    ctx.llm.registerAdapter(['mock'], adapter)
+    const agent = ctx.agentLoop.create(SessionId('read-target'), { provider: 'mock', model: 'mock' })
+    agent.followup(createUserMessage({ content: [{ type: 'text', text: 'review the file' }], source: { kind: 'user' } }))
+    await waitForIdle(ctx, agent)
+
+    const found = reminders(agent)
+    expect(found).toHaveLength(4)
+    expect(found[0]!.text).toContain('read the same file several times')
+    expect(found[1]!.text).toContain('consecutive_reads: 5')
+    expect(found[1]!.text).toContain('src/large.ts')
+    expect(found[1]!.text).toContain('Summarize what is known now')
+    expect(found[2]!.text).toContain('consecutive_reads: 8')
+    expect(found[3]!.text).toContain('consecutive_reads: 11')
+  })
+
   it('caps the detailed reminder arguments at argumentsPreviewChars (detection still keys on the full string)', async () => {
     const ctx = await harness({ thresholds: [2, 3], argumentsPreviewChars: 24 })
     const bigPayload = 'x'.repeat(400)
@@ -392,6 +451,13 @@ describe('config validation fails loud', () => {
   it('rejects duplicate thresholds', async () => {
     const ctx = await spine()
     await expect(ctx.plugin(RepeatToolGuard, { thresholds: [3, 3] })).rejects.toThrow(/duplicates/)
+  })
+
+  it('requires inspection tools and thresholds to be configured together', async () => {
+    const ctx = await spine()
+    await expect(ctx.plugin(RepeatToolGuard, { inspectionTools: ['read'] })).rejects.toThrow(/configured together/)
+    const ctx2 = await spine()
+    await expect(ctx2.plugin(RepeatToolGuard, { inspectionThresholds: [5] })).rejects.toThrow(/configured together/)
   })
 
   it('rejects a non-positive or fractional argumentsPreviewChars', async () => {

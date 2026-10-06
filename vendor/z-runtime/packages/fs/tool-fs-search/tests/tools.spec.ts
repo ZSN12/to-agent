@@ -289,6 +289,15 @@ describe('registration', () => {
 })
 
 describe('config validation', () => {
+  it.each(['.', '..', 'node_modules/**', '-flag=value', 'dir/name'])('rejects a non-literal excluded directory %s', async (entry) => {
+    const ctx = new Context()
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRuntime)
+    await ctx.plugin(FakeSubprocess)
+    await expect(ctx.plugin(ToolFsSearch, { ...DEFAULT_CONFIG, excludeDirectories: [entry] }))
+      .rejects.toThrow(/literal directory names/)
+  })
+
   it('requires an explicit over-cap glob sampling choice', () => {
     expect(() => new ToolFsSearch.Config()).toThrow(/sampleOverCapGlobResults/)
     expect(new ToolFsSearch.Config({ sampleOverCapGlobResults: false })).toMatchObject({

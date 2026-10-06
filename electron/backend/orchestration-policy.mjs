@@ -90,13 +90,13 @@ export function selectModelForTask(taskType, catalog, fallbackModelKey, options 
 
   // 1. 硬约束过滤 (PolicyGate)
   const availableModels = (catalog?.models ?? []).filter(
-    (model) => model.available && model.profile?.enabledForAllocation !== false && !excludeKeys.has(model.key),
+    (model) => model.available && model.routeRegistered !== false && model.profile?.enabledForAllocation === true && !excludeKeys.has(model.key),
   )
   const allowedModels = filterModelsForTaskType(taskType, availableModels)
 
   if (allowedModels.length === 0) {
     const fallback = catalog?.models?.find(
-      (model) => model.key === fallbackModelKey && model.available && model.profile?.enabledForAllocation !== false,
+      (model) => model.key === fallbackModelKey && model.available && model.routeRegistered !== false && model.profile?.enabledForAllocation === true,
     )
     if (fallback) {
       return {

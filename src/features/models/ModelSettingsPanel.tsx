@@ -1,9 +1,10 @@
 import { useCallback, useEffect, FormEvent, useMemo, useState } from 'react'
-import { Check, Copy, Database, ExternalLink, KeyRound, Link2, LogOut, Pencil, Plus, RefreshCw, ScanSearch, ShieldAlert, ShieldCheck, Sparkles, Trash2, X } from 'lucide-react'
-import type { CatalogModel, CustomProviderEntry, ModelProfilePatch, ProviderAuthStatus, OAuthStatusInfo, ScanLocalModelsResult, ModelUpdateStatus } from '../../shared/model-api'
+import { Check, Copy, Database, ExternalLink, KeyRound, Link2, LogOut, Pencil, Plus, Radio, RefreshCw, ScanSearch, ShieldAlert, ShieldCheck, Sparkles, Trash2, X } from 'lucide-react'
+import type { CatalogModel, CustomProviderEntry, ModelProfilePatch, ProviderAuthStatus, OAuthStatusInfo, ScanLocalModelsResult, ModelUpdateStatus, ProbedModelItem, ProbeModelsResult } from '../../shared/model-api'
 import { formatCostPerMillion, getCleanModelName } from './format'
 import { LocalScanModal } from './LocalScanModal'
 import { CustomProviderSection } from './CustomProviderSection'
+import { ProbeModelsModal } from './ProbeModelsModal'
 
 function OAuthLoginModal({
   status,
@@ -53,7 +54,7 @@ function OAuthLoginModal({
     >
       <div className="model-editor oauth-modal">
         <h2>{providerLabel} 官方订阅授权</h2>
-        <p>{status?.instructions || `TaskWeaver 将通过 DSH 官方授权流程打开 ${providerId === 'anthropic' ? 'Anthropic' : 'OpenAI Codex'} 登录页面。凭据由 DSH 安全保存。`}</p>
+        <p>{status?.instructions || `TaskWeaver 将通过 Z Runtime 授权流程打开 ${providerId === 'anthropic' ? 'Anthropic' : 'OpenAI Codex'} 登录页面。凭据由 Z Runtime 安全保存。`}</p>
 
         <div className="oauth-status-box">
           <div className="oauth-status-spinner" />
@@ -62,8 +63,8 @@ function OAuthLoginModal({
             <span>
               {status?.error
                 || (status?.status === 'completed'
-                  ? '授权已写入 DSH 凭据库，可在模型列表中使用 Codex 模型。'
-                  : '登录成功后凭据由 DSH 安全保存；若浏览器未自动打开，请使用下方链接。')}
+                  ? '授权已写入 Z Runtime 凭据库，可在模型列表中使用 Codex 模型。'
+                  : '登录成功后凭据由 Z Runtime 安全保存；若浏览器未自动打开，请使用下方链接。')}
             </span>
           </div>
         </div>
@@ -723,7 +724,7 @@ function ProfileModal({
 }) {
   const [tier, setTier] = useState(model.profile?.tier ?? 'balanced')
   const [capabilitySummary, setCapabilitySummary] = useState(model.profile?.capabilitySummary ?? '')
-  const [enabledForAllocation, setEnabledForAllocation] = useState(model.profile?.enabledForAllocation !== false)
+  const [enabledForAllocation, setEnabledForAllocation] = useState(model.profile?.enabledForAllocation === true)
   const [saving, setSaving] = useState(false)
 
   const submit = async (event: FormEvent) => {
@@ -784,6 +785,52 @@ function ProfileModal({
         </div>
       </form>
     </div>
+  )
+}
+
+function AllocationToggle({
+  model,
+  onChange,
+  onToast,
+}: {
+  model: CatalogModel
+  onChange: (enabled: boolean) => Promise<boolean>
+  onToast?: (message: string) => void
+}) {
+  const enabled = model.profile?.enabledForAllocation === true
+  const [saving, setSaving] = useState(false)
+
+  const toggle = async () => {
+    if (saving) return
+    setSaving(true)
+    try {
+      const ok = await onChange(!enabled)
+      if (!ok) onToast?.('保存子 Agent 路由设置失败，请重试')
+    } catch {
+      onToast?.('保存子 Agent 路由设置失败，请重试')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      className={`allocation-toggle ${enabled ? 'enabled' : ''}`}
+      role="switch"
+      aria-checked={enabled}
+      aria-label={`${getCleanModelName(model.key, model.name)}：子 Agent 路由`}
+      aria-busy={saving}
+      title="控制此模型是否可被自动分配给子 Agent；不影响主对话手动选择。"
+      disabled={saving}
+      onClick={() => void toggle()}
+    >
+      <span className="allocation-toggle-label">子 Agent 路由</span>
+      <span className="allocation-switch-track" aria-hidden="true">
+        <span className="allocation-switch-thumb" />
+      </span>
+      <span className="allocation-toggle-state">{saving ? '保存中' : enabled ? '已启用' : '已关闭'}</span>
+    </button>
   )
 }
 
@@ -852,6 +899,11 @@ export function ModelSettingsPanel({
   const [scanError, setScanError] = useState<string | null>(null)
   const [scanResult, setScanResult] = useState<ScanLocalModelsResult | null>(null)
   const [checkingUpdates, setCheckingUpdates] = useState(false)
+  const [probeOpen, setProbeOpen] = useState(false)
+  const [probeLoading, setProbeLoading] = useState(false)
+  const [probeError, setProbeError] = useState<string | null>(null)
+  const [probeResult, setProbeResult] = useState<ProbeModelsResult | null>(null)
+  const [probeTargetSource, setProbeTargetSource] = useState<{ id: string; name: string; baseUrl?: string } | null>(null)
 
   const isCodexConfigured = auth?.some((p) => p.id === 'openai-codex' && p.configured) ?? false
 
@@ -868,6 +920,57 @@ export function ModelSettingsPanel({
   useEffect(() => {
     void loadCustomList()
   }, [loadCustomList])
+
+  const handleProbeForSource = async (source: { id: string; name: string; baseUrl?: string }) => {
+    setProbeTargetSource(source)
+    setProbeOpen(true)
+    setProbeLoading(true)
+    setProbeError(null)
+    setProbeResult(null)
+    try {
+      const res = await window.taskweaver?.models?.probeProviderModels({
+        providerId: source.id,
+        baseUrl: source.baseUrl,
+      })
+      if (!res?.ok) {
+        setProbeError(res?.error ?? '探测模型失败，请检查网络或提供商地址')
+      } else if (!res.data) {
+        setProbeError('探测模型失败，未返回有效数据')
+      } else {
+        setProbeResult(res.data)
+      }
+    } catch (err: any) {
+      setProbeError(err?.message || '探测模型失败')
+    } finally {
+      setProbeLoading(false)
+    }
+  }
+
+  const handleConfirmImportProbedModels = async (models: ProbedModelItem[]) => {
+    if (!probeTargetSource) return false
+    try {
+      const res = await window.taskweaver?.models?.batchAddCustomModels({
+        providerId: probeTargetSource.id,
+        models: models.map((m) => ({
+          id: m.id,
+          name: m.name,
+          contextWindow: m.contextWindow,
+          reasoning: m.reasoning,
+        })),
+      })
+      if (!res?.ok) {
+        onToast?.(res?.error ?? '批量收录模型失败')
+        return false
+      }
+      onToast?.(`已成功批量收录 ${res.data?.addedCount ?? models.length} 个最新模型！`)
+      onRefresh()
+      void loadCustomList()
+      return true
+    } catch (err: any) {
+      onToast?.(err?.message ?? '批量收录模型失败')
+      return false
+    }
+  }
 
   const handleOpenAddForSource = (
     providerId?: string,
@@ -1044,9 +1147,23 @@ export function ModelSettingsPanel({
       <div className="settings-page-heading">
         <div>
           <h1>模型与来源</h1>
-          <p>按来源分类管理模型与对应凭据；对话与编排仅使用你加入的模型。</p>
+          <p>按来源分类管理模型与对应凭据；子 Agent 只会自动选择已开启「子 Agent 路由」的模型，主对话仍可手动使用其他已添加模型。</p>
         </div>
         <div className="settings-page-heading-actions">
+          <button
+            type="button"
+            className="settings-secondary-button"
+            onClick={() => {
+              const firstCustom = sourceGroups.find((s) => s.kind === 'custom')
+              if (firstCustom) void handleProbeForSource(firstCustom)
+              else onToast?.('请先在下方配置并接入一个自定义网关')
+            }}
+            disabled={loading || !bridgeReady || probeLoading}
+            title="在线向已配置网关探测最新开放的模型"
+          >
+            <Radio size={16} />
+            {probeLoading ? '探测中…' : '探测最新模型'}
+          </button>
           <button
             type="button"
             className="settings-secondary-button"
@@ -1069,28 +1186,25 @@ export function ModelSettingsPanel({
       </div>
 
       {updateStatus && (
-        <div className={`model-registry-status model-registry-status-${updateStatus.state}`}>
+        <div className={`model-registry-status model-registry-status-${updateStatus.state === 'failed' ? 'up-to-date' : updateStatus.state}`}>
           <div className="model-registry-status-copy">
             <div className="model-registry-status-title">
               <span className="model-registry-status-dot" />
               模型目录 {updateStatus.currentVersion || '内置版'}
               <span className="model-registry-status-badge">
                 {{
-                  idle: '就绪',
-                  checking: '检查中',
-                  'up-to-date': '已是最新',
+                  idle: '内置就绪',
+                  checking: '就绪',
+                  'up-to-date': '内置就绪',
                   updated: '已更新',
-                  cached: '使用缓存',
-                  failed: '更新失败',
+                  cached: '内置就绪',
+                  failed: '内置就绪',
                   'rolled-back': '已回滚',
-                }[updateStatus.state]}
+                }[updateStatus.state] || '内置就绪'}
               </span>
             </div>
             <div className="model-registry-status-meta">
-              {updateStatus.lastCheckedAt
-                ? `上次检查 ${new Date(updateStatus.lastCheckedAt).toLocaleString()}`
-                : '尚未检查远程更新'}
-              {updateStatus.error ? ` · ${updateStatus.error}` : ''}
+              使用内置模型目录（跟随 Z Runtime 版本）
             </div>
             {updateStatus.runtime && (
               <div className="model-registry-status-meta">
@@ -1119,19 +1233,6 @@ export function ModelSettingsPanel({
                 回滚目录
               </button>
             )}
-            <button
-              type="button"
-              className="settings-secondary-button"
-              disabled={checkingUpdates || updateStatus.state === 'checking'}
-              onClick={() => {
-                if (!onCheckForUpdates) return
-                setCheckingUpdates(true)
-                void onCheckForUpdates(true).finally(() => setCheckingUpdates(false))
-              }}
-            >
-              <RefreshCw size={15} className={checkingUpdates || updateStatus.state === 'checking' ? 'spin' : ''} />
-              {checkingUpdates || updateStatus.state === 'checking' ? '检查中…' : '检查模型更新'}
-            </button>
           </div>
         </div>
       )}
@@ -1261,6 +1362,15 @@ export function ModelSettingsPanel({
                       <button
                         type="button"
                         className="settings-secondary-button"
+                        onClick={() => void handleProbeForSource(source)}
+                        title="在线向该提供商探测最新开放的可用模型"
+                      >
+                        <Radio size={14} />
+                        探测最新模型
+                      </button>
+                      <button
+                        type="button"
+                        className="settings-secondary-button"
                         onClick={() => handleOpenAddForSource(source.id, 'custom', source.rawCustomEntry, 'edit')}
                       >
                         <Pencil size={14} />
@@ -1330,14 +1440,16 @@ export function ModelSettingsPanel({
                           <span className="source-model-tag cost">
                             输出 {formatCostPerMillion(model.costPerMillion.output)}
                           </span>
-                          <span className={`source-model-tag allocation ${model.profile?.enabledForAllocation === false ? 'disabled' : ''}`}>
-                            {model.profile?.enabledForAllocation === false ? '不参与子任务分配' : '可参与子任务分配'}
-                          </span>
+                          <AllocationToggle
+                            model={model}
+                            onChange={(enabled) => onUpsertProfile(model.key, { enabledForAllocation: enabled })}
+                            onToast={onToast}
+                          />
                           {model.deprecated && <span className="provider-tag">已弃用</span>}
                           {model.verificationStatus === 'unverified' && <span className="provider-tag">当前不可验证</span>}
                           {!model.available && <span className="provider-tag">连接不可用</span>}
                         </div>
-                        {model.profile?.capabilitySummary && (
+                        {model.provider !== 'openai-codex' && model.profile?.capabilitySummary && (
                           <p className="source-model-summary">{model.profile.capabilitySummary}</p>
                         )}
                       </div>
@@ -1456,6 +1568,20 @@ export function ModelSettingsPanel({
         result={scanResult}
         onClose={closeScanModal}
         onConfirm={onAddModels}
+      />
+      <ProbeModelsModal
+        open={probeOpen}
+        loading={probeLoading}
+        error={probeError}
+        result={probeResult}
+        providerName={probeTargetSource?.name || '自定义网关'}
+        onClose={() => {
+          setProbeOpen(false)
+          setProbeError(null)
+          setProbeResult(null)
+          setProbeTargetSource(null)
+        }}
+        onConfirm={handleConfirmImportProbedModels}
       />
     </section>
   )

@@ -16,7 +16,7 @@ An advisory loop-breaker, not a model-facing tool: it never appears in the tool 
     argumentsPreviewChars: 500   # default; cap on arguments quoted in the detailed reminder
 ```
 
-`thresholds` fails loud at plugin load: an empty list, a non-integer, a value below 2, or a duplicate throws, never a silent fall-back to defaults; `argumentsPreviewChars` equally rejects anything but an integer >= 1. The list is normalized to ascending order; the FIRST threshold delivers a short generic nudge, every later threshold delivers the detailed form naming the tool, the run length, and the canonical arguments — head-truncated at `argumentsPreviewChars` with an omitted-count marker, so a looping `write`/`edit` payload cannot ride into the next request unbounded (the chain key always compares the FULL canonical string; the cap bounds the reminder, never the detection).
+`thresholds` fails loud at plugin load: an empty list, a non-integer, a value below 2, or a duplicate throws, never a silent fall-back to defaults; `argumentsPreviewChars` equally rejects anything but an integer >= 1. The list is normalized to ascending order; the FIRST threshold delivers a short generic nudge, later thresholds deliver the detailed form naming the tool, the run length, and the canonical arguments. Past the highest threshold, reminders recur at the spacing between the last two thresholds (or at the sole threshold's spacing when only one is configured), so a long loop does not go silent after a few nudges. Arguments are head-truncated at `argumentsPreviewChars` with an omitted-count marker, so a looping `write`/`edit` payload cannot ride into the next request unbounded (the chain key always compares the FULL canonical string; the cap bounds the reminder, never the detection).
 
 `include`/`exclude` entries support `*` wildcards and are predicates over whatever tools exist at call time, not references to registry entries — a pattern matching no currently registered tool is NOT an error (`exclude: [mcp_*]` stays valid in a deployment that loads no MCP tools), unlike `toolOrder`'s referent check.
 
@@ -29,6 +29,15 @@ The chain key is `(tool name, canonical arguments)` — canonicalization is a de
 - **Calls without an agent are ignored.** A direct `ctx.tools.execute()` caller has no model to remind and no live agent object to key on.
 - **Per-agent keying.** The tool registry is context-level and subagents interleave through the same waterfall, so a `WeakMap<Agent, Chain>` keys each chain by the live agent object; one agent's repetition never trips another's reminder. A user prompt (`agent/pre-step`) resets the submitting agent's chain, and object lifetime bounds the weak entry without a disposal listener.
 - **In-memory only.** A session resumed from persistence starts with a fresh chain — the guard is a heuristic nudge, not a logged invariant, later reminders are the accepted cost.
+
+## Cumulative inspection budget
+
+An optional `inspectionTools`/`inspectionThresholds` pair counts different inspection calls across one user task, rather than only identical consecutive calls. At each configured threshold, and periodically beyond the last one using the same cadence, it advises the model to synthesize verified evidence and continue only for a concrete unresolved fact. This is advisory, never a hard call cap, so a justified long investigation can proceed. A new user-authored task resets the counter. Both fields must be configured together; an empty pair disables the feature.
+
+```yaml
+inspectionTools: [read, glob, grep, run_code]
+inspectionThresholds: [6, 10]
+```
 
 ## Reminder delivery
 
@@ -87,4 +96,4 @@ Append-only; newly visible content follows the reusable request prefix and does 
 - **Advisory only** — escalating to `block` at a high threshold is not implemented, though `PostToolDecision` already supports blocking.
 - **No subagent chain-sharing** — chains stay isolated per agent; a parent and its subagent repeating the same call never combine.
 - **Legitimate idempotent polling still draws nudges** past the thresholds — the pressure valves are `thresholds`/`exclude` config.
-- **Past the highest threshold a chain goes silent** — reminders fire only at exact configured counts, never beyond them.
+- **Advisory only** — even recurring reminders do not stop evidence-driven long investigations.

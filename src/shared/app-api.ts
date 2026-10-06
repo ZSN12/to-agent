@@ -1,4 +1,4 @@
-import type { ChatMessage, TaskNode } from '../types'
+import type { ChatMessage, ChatUsage, TaskNode } from '../types'
 import type { TaskweaverModelsApi, IpcResult, ThinkingLevel } from './model-api'
 
 export interface AppState {
@@ -67,7 +67,7 @@ export interface PromptQueueSnapshot {
 
 export type ChatStreamEvent =
   | ({ conversationId?: string } & (
-  | { type: 'start'; startedAt?: number }
+  | { type: 'start'; startedAt?: number; turnId?: string }
   | { type: 'thinking_start' }
   | { type: 'thinking_delta'; delta: string; fullThinking: string; durationMs?: number }
   | { type: 'thinking_end'; fullThinking: string; durationMs?: number }
@@ -76,17 +76,25 @@ export type ChatStreamEvent =
   | {
     type: 'done'
     full: string
+    /** Stable identity shared by the completed stream and IPC assistant. */
+    turnId?: string
+    startedAt?: number
+    /** The turn ended, but accepted follow-up turns still belong to this run. */
+    continuing?: boolean
     fullThinking?: string
     thinkingDurationMs?: number
     /** True when DSH closed this turn as interrupted/cancelled, not completed. */
     interrupted?: boolean
     contentBlocks?: Array<{ id: string; kind: 'thinking' | 'text'; text: string }>
   }
-  | { type: 'error'; message: string }
+  | { type: 'error'; message: string; turnId?: string; startedAt?: number;
+      full?: string; fullThinking?: string; thinkingDurationMs?: number; usage?: ChatUsage;
+      contentBlocks?: Array<{ id: string; kind: 'thinking' | 'text'; text: string }> }
   | { type: 'tasks'; tasks: TaskNode[] }
   | { type: 'orchestration'; mode: 'single-agent' | 'multi-agent'; reason: string }
   | { type: 'progress'; text: string }
   | { type: 'activity'; message: string; phase?: 'tools' | 'llm' | 'step' }
+  | { type: 'connection'; state: 'reconnecting' | 'restored' | 'unavailable'; message: string }
   | { type: 'model_route'; taskType?: string; displayName?: string; reason?: string; reasons?: string[] }
   | { type: 'steering_queued'; text: string }
   | { type: 'followup_queued'; text: string }
@@ -96,6 +104,8 @@ export type ChatStreamEvent =
   | ({ type: 'tool' } & ToolTraceItem)))
 
 export interface ChatSendResult {
+  accepted?: boolean
+  queued?: boolean
   user?: ChatMessage
   assistant?: ChatMessage
   needsOrchestrationChoice?: boolean
@@ -116,7 +126,7 @@ export interface SkillOption {
 export function skillOptionSourceLabel(skill: SkillOption): string {
   if (skill.sourceLabel) return skill.sourceLabel
   if (skill.source === 'workspace') return '工作区'
-  if (skill.source === 'dsh') return 'DSH'
+  if (skill.source === 'dsh') return 'Z'
   return '应用'
 }
 
@@ -308,6 +318,26 @@ export type PermissionPromptPayload = {
   }
 }
 
+export type UserQuestionItem = {
+  id: string
+  question: string
+  header?: string
+  detail?: string
+  options?: Array<{ label: string; description?: string }>
+  multiSelect?: boolean
+  intent?: { kind: 'plan-review'; approve: string }
+}
+
+export type UserQuestionAnswer = {
+  answers: Array<{ id: string; selected: string[]; custom?: string }>
+}
+
+export type UserQuestionPromptPayload = {
+  id: string
+  conversationId: string
+  questions: UserQuestionItem[]
+}
+
 export type SandboxModeEvent = {
   type: 'sandbox/mode'
   time: number
@@ -445,6 +475,8 @@ export interface TaskweaverChatApi {
 }
 
 export interface SessionStatsSnapshot {
+  /** Durable Host composition bound to this conversation's native session. */
+  agentPreset?: string | null
   userMessages: number
   assistantMessages: number
   toolCalls: number
@@ -650,6 +682,12 @@ export interface TaskweaverPermissionApi {
   ) => Promise<IpcResult<{ ok: boolean }>>
   onPrompt: (listener: (payload: PermissionPromptPayload) => void) => () => void
   listApprovalAudit: (conversationId?: string | null) => Promise<IpcResult<ApprovalAuditEntry[]>>
+}
+
+export interface TaskweaverUserQuestionsApi {
+  answer: (id: string, answer: UserQuestionAnswer) => Promise<IpcResult<{ ok: boolean }>>
+  onPrompt: (listener: (payload: UserQuestionPromptPayload) => void) => () => void
+  onResolved: (listener: (payload: { id: string; conversationId: string }) => void) => () => void
 }
 
 export interface ApprovalAuditEntry {
@@ -872,6 +910,7 @@ export interface TaskweaverBridge {
   skills: TaskweaverSkillsApi
   mcp: TaskweaverMcpApi
   permission?: TaskweaverPermissionApi
+  userQuestions?: TaskweaverUserQuestionsApi
   chat: TaskweaverChatApi
   tasks: TaskweaverTasksApi
   usage?: TaskweaverUsageApi

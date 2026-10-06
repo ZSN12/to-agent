@@ -12,6 +12,9 @@ function compact(value, max = 180) {
 
 export function summarizeToolInput(toolName, args) {
   const input = args && typeof args === 'object' ? args : {}
+  if ((toolName === 'glob' || toolName === 'grep') && typeof input.pattern === 'string') {
+    return compact(`${input.pattern}${input.path ? ` · ${input.path}` : ''}`, 220)
+  }
   if (toolName === 'run_code' && typeof input.description === 'string') return compact(input.description, 220)
   if ((toolName === 'bash' || toolName === 'pwsh') && typeof input.description === 'string') {
     return compact(input.description, 220)
@@ -29,8 +32,30 @@ export function summarizeToolInput(toolName, args) {
   return ''
 }
 
+// Z messages wrap model-facing blocks in tool-result; older adapters return
+// flat blocks. Normalize only this known wrapper, without interpreting text.
+export function normalizeToolResult(result) {
+  const content = []
+  let isError = Boolean(result?.isError)
+  let details = result?.details
+  function collect(blocks) {
+    for (const block of Array.isArray(blocks) ? blocks : []) {
+      if (block?.type === 'tool-result') {
+        isError ||= Boolean(block.isError)
+        details ??= block.details
+        collect(block.content)
+      } else {
+        content.push(block)
+      }
+    }
+  }
+  collect(result?.content)
+  return { ...result, content, isError, details }
+}
+
 export function summarizeToolResult(result, isError) {
-  if (isError) {
+  result = normalizeToolResult(result)
+  if (isError || result.isError) {
     const textOutput = Array.isArray(result?.content)
       ? result.content.filter((item) => item?.type === 'text' && typeof item.text === 'string').map((item) => item.text).join('\n')
       : ''
@@ -44,6 +69,7 @@ export function summarizeToolResult(result, isError) {
 }
 
 export function extractFileDiff(toolName, args, result) {
+  if (result) result = normalizeToolResult(result)
   if (!result || result.isError) return null
   const input = args && typeof args === 'object' ? args : {}
   const targetPath = input.path || input.file_path || input.filePath || ''
@@ -97,4 +123,3 @@ export function sendToolTrace(webContents, payload) {
   if (typeof webContents.isDestroyed === 'function' && webContents.isDestroyed()) return
   webContents.send('chat:stream', { type: 'tool', ...payload })
 }
-

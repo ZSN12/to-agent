@@ -124,7 +124,7 @@ export function injectIntentGuidelines(prompt, intent, policy) {
   if (intent === USER_INTENTS.CONVERSATION) return prompt
 
   if (intent === USER_INTENTS.READ_ONLY) {
-    return `${prompt}\n\n> [!NOTE]\n> 当前请求属于技术咨询或代码理解，请直接提供清晰严谨的解答。在没有用户明确要求的情况下，无需修改工作区文件或执行测试。`
+    return `${prompt}\n\n> [!NOTE]\n> 当前请求属于只读咨询或代码理解，请直接依据证据回答，不要修改文件或执行测试。若用户指定了文件/目录范围，优先限定在该范围；只有回答确实需要时才扩展，并简要说明原因。若用户明确禁止读取范围外内容，必须遵守，并把因此无法验证的部分明确标为未验证。避免重复读取，证据足够后停止探索。`
   }
 
   if (intent === USER_INTENTS.CODE_MUTATION && policy) {

@@ -15,9 +15,10 @@ function rowIcon(variant: string) {
   return Terminal
 }
 
-function dotState(status: DshProjectedToolCall['status']): 'ongoing' | 'done' | 'error' {
+function dotState(status: DshProjectedToolCall['status']): 'ongoing' | 'done' | 'error' | 'warning' {
   if (status === 'running') return 'ongoing'
   if (status === 'error') return 'error'
+  if (status === 'stopped') return 'warning'
   return 'done'
 }
 
@@ -35,11 +36,13 @@ function toTraceItem(row: DshProjectedToolCall, inputSummary: string, resultSumm
 
 export function DshToolCallList({
   rows,
+  traces,
   workspacePath,
   onShowToolDetails,
   onOpenWorkspacePath,
 }: {
-  rows: readonly DshProjectedToolCall[]
+  rows?: readonly DshProjectedToolCall[]
+  traces?: readonly ToolTraceItem[]
   workspacePath?: string | null
   onShowToolDetails?: (item: ToolTraceItem) => void
   onOpenWorkspacePath?: (relativePath: string) => void
@@ -47,23 +50,57 @@ export function DshToolCallList({
   const [openId, setOpenId] = useState<string | null>(null)
 
   const prepared = useMemo(
-    () =>
-      rows.map((row) => {
+    () => {
+      // DSH projections provide the canonical call ordering and full arguments.
+      // The IPC trace stream fills the gap while a projection is unavailable
+      // (and contributes final result/status data as tool calls settle).
+      const byId = new Map<string, DshProjectedToolCall>()
+      for (const row of rows ?? []) byId.set(row.callId, row)
+      for (const trace of traces ?? []) {
+        const existing = byId.get(trace.id)
+        const args = JSON.stringify({
+          description: trace.inputSummary ?? '',
+          command: trace.inputSummary ?? '',
+          path: trace.inputSummary ?? '',
+          query: trace.inputSummary ?? '',
+        })
+        const status: DshProjectedToolCall['status'] =
+          trace.status === 'running' ? 'running'
+            : trace.status === 'error' ? 'error'
+              : trace.status === 'blocked' || trace.status === 'cancelled' ? 'stopped'
+                : 'done'
+        byId.set(trace.id, {
+          callId: trace.id,
+          toolName: trace.toolName,
+          argsRaw: existing?.argsRaw || args,
+          status,
+          turn: existing?.turn ?? 0,
+          step: existing?.step ?? 0,
+          startedAt: trace.startedAt ?? existing?.startedAt,
+          durationMs: trace.durationMs ?? existing?.durationMs,
+          resultPreview: trace.resultSummary ?? existing?.resultPreview,
+          isError: trace.status === 'error' || existing?.isError,
+        })
+      }
+      return Array.from(byId.values()).map((row) => {
         const { title, summary, variant } = dshToolRowPresentation(row.toolName, row.argsRaw, workspacePath)
-        return { row, title, summary, variant }
-      }),
-    [rows, workspacePath],
+        const trace = traces?.find((item) => item.id === row.callId)
+        return { row, title, summary: trace?.inputSummary || summary, variant, trace }
+      })
+    },
+    [rows, traces, workspacePath],
   )
 
   if (!prepared.length) return null
 
   return (
     <div className="tool-trace-compact dsh-tool-call-list">
-      {prepared.map(({ row, title, summary, variant }) => {
+      {prepared.map(({ row, title, summary, variant, trace: sourceTrace }) => {
         const open = openId === row.callId
         const Icon = rowIcon(variant)
         const isRunning = row.status === 'running'
         const trace = toTraceItem(row, summary, row.resultPreview)
+        const detailTrace = sourceTrace ?? trace
         return (
           <div key={row.callId} className="dsh-tool-call-list-item">
             <button
@@ -96,7 +133,7 @@ export function DshToolCallList({
             {open && (
               <div className="tool-trace-dropdown dsh-tool-call-expanded">
                 <ToolTraceCard
-                  item={trace}
+                  item={detailTrace}
                   onShowDetails={onShowToolDetails}
                   onOpenPath={onOpenWorkspacePath}
                 />

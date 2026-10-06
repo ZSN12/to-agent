@@ -1,4 +1,6 @@
 import path from 'node:path'
+import fs from 'node:fs/promises'
+import crypto from 'node:crypto'
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client'
 import { StdioClientTransport, getDefaultEnvironment } from '@modelcontextprotocol/client/stdio'
 import { createJsonStore } from './json-store.mjs'
@@ -114,14 +116,30 @@ function decryptEnv(env, safeStorage) {
 /** Describes whether TaskWeaver MCP configs are injected into the DSH Host Cordis runtime. */
 export function getMcpDshRuntimeBinding() {
   return {
-    dshWired: false,
-    executionNote: 'MCP 尚未接入 DSH Host：主对话和 DSH 子任务不会加载这些工具。当前 getCustomTools 仅供旧 Pi 回退执行链使用；本页的连接状态不代表 DSH Agent 可调用。',
+    dshWired: true,
+    executionNote: 'MCP 工具已通过 Z Runtime 原生工具目录提供给主对话及启用工具的子任务。变更服务器配置后需重启 Z Host；服务器进程仍按其配置在本机运行。',
   }
+}
+
+function yamlString(value) {
+  return JSON.stringify(String(value))
+}
+
+function runtimeServerName(id) {
+  if (id.length <= 32) return id
+  const suffix = crypto.createHash('sha256').update(id).digest('hex').slice(0, 8)
+  return `${id.slice(0, 23)}_${suffix}`
+}
+
+function runtimeEnvName(serverId, key) {
+  const suffix = crypto.createHash('sha256').update(`${serverId}:${key}`).digest('hex').slice(0, 10).toUpperCase()
+  return `TASKWEAVER_MCP_${suffix}`
 }
 
 /** TaskWeaver-owned, opt-in MCP bridge for local stdio and the GitHub remote HTTP server. */
 export function createMcpService({ userData, connectClient, safeStorage } = {}) {
   const store = createJsonStore(path.join(userData, 'taskweaver-mcp.json'), { servers: [] })
+  const runtimePatchPath = path.join(userData, 'dsh', 'taskweaver-mcp.cordis.patch.yml')
   const connections = new Map()
 
   async function configured() {
@@ -309,6 +327,70 @@ export function createMcpService({ userData, connectClient, safeStorage } = {}) 
     return { tools: definitions, statuses }
   }
 
+  async function prepareRuntimeIntegration() {
+    const environment = {}
+    const patches = []
+    for (const server of await configured()) {
+      if (!server.enabled) continue
+      const envRefs = {}
+      for (const [key, storedValue] of Object.entries(server.env ?? {})) {
+        const value = decryptEnv({ [key]: storedValue }, safeStorage)[key] ?? ''
+        if (!value) {
+          envRefs[key] = ''
+          continue
+        }
+        const envName = runtimeEnvName(server.id, key)
+        environment[envName] = value
+        envRefs[key] = `!!js process.env.${envName}`
+      }
+
+      const serverName = runtimeServerName(server.id)
+      const row = [
+        `    - id: ${yamlString(`taskweaver-mcp-${server.id}`)}`,
+        `      name: ${yamlString('@z/dsh-mcp-client')}`,
+        '      config:',
+        `        serverName: ${yamlString(serverName)}`,
+      ]
+      if (server.transport === 'http') {
+        const tokenKey = 'GITHUB_PERSONAL_ACCESS_TOKEN'
+        if (!decryptEnv({ [tokenKey]: server.env?.[tokenKey] ?? '' }, safeStorage)[tokenKey]) continue
+        const tokenEnvName = runtimeEnvName(server.id, tokenKey)
+        const headerExpression = `\`Bearer \${process.env.${tokenEnvName}}\``
+        row.push(
+          '        transport: streamable-http',
+          `        url: ${yamlString(server.url)}`,
+          '        headers:',
+          `          Authorization: !!js ${yamlString(headerExpression)}`,
+        )
+      } else {
+        row.push(
+          '        transport: stdio',
+          `        command: ${yamlString(server.command)}`,
+          `        args: ${JSON.stringify(server.args)}`,
+        )
+        const entries = Object.entries(envRefs)
+        if (!entries.length) {
+          row.push('        env: {}')
+        } else {
+          row.push('        env:')
+          for (const [key, ref] of entries) {
+            row.push(`          ${key}: ${ref.startsWith('!!js ') ? ref : yamlString(ref)}`)
+          }
+        }
+        row.push('        cwd: !!js process.cwd()')
+      }
+      row.push('        failOnStartupError: false', '        toolCallTimeoutMs: 60000')
+      patches.push(...row)
+    }
+
+    const content = patches.length ? `- insert:\n${patches.join('\n')}\n` : '[]\n'
+    await fs.mkdir(path.dirname(runtimePatchPath), { recursive: true })
+    const tempPath = `${runtimePatchPath}.${process.pid}.${crypto.randomUUID()}.tmp`
+    await fs.writeFile(tempPath, content, { mode: 0o600 })
+    await fs.rename(tempPath, runtimePatchPath)
+    return { patchPath: runtimePatchPath, environment }
+  }
+
   async function stopAll() {
     await Promise.all([...connections.keys()].map(disconnect))
   }
@@ -323,6 +405,7 @@ export function createMcpService({ userData, connectClient, safeStorage } = {}) 
     removeServer,
     setEnabled,
     getCustomTools,
+    prepareRuntimeIntegration,
     testConnection,
     configureGitHub,
     disconnect,

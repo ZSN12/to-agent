@@ -187,6 +187,24 @@ describe('Web session model selection', () => {
     await ctx.fiber.dispose()
   })
 
+  it('never admits a command-only request when its preset lacks that command', async () => {
+    const { ctx, agent, sessionId } = await harness()
+    const execute = vi.fn(async () => undefined)
+    ctx.provide('commands', { execute } as never)
+    const followup = vi.fn()
+    Object.assign(agent, { followup })
+    const api = createApiProxy(ctx, {
+      defaultModelSelection: () => ({ provider: 'deepseek-official', model: 'deepseek-chat' }), cwd: '/tmp',
+    })
+    for (const text of ['/compact', 'ordinary text', '/dingtalk-chat\nuser task']) {
+      const response = await api.sessions.prompt(request({ sessionId, mode: 'queue' as const,
+        commandOnly: true, content: [{ type: 'text' as const, text }] }))
+      expect(response.result).toMatchObject({ ok: false, error: { code: 'unknown-command' } })
+    }
+    expect(followup).not.toHaveBeenCalled()
+    await ctx.fiber.dispose()
+  })
+
   it('validates an ordered image batch before persisting any member', async () => {
     const { ctx, agent, sessionId } = await harness()
     const validateImage = vi.fn((_input: { data: Uint8Array }) => Promise.resolve())

@@ -161,6 +161,27 @@ describe('session.create with an agent preset', () => {
     expect(ctx.sessions.get(SessionId('s2'))?.header.agentPreset).toBe('standard')
   })
 
+  it('records ordinary parent lineage only when creating a new session', async () => {
+    const { api, ctx } = await harness(['standard'])
+    const parentId = SessionId('lineage-parent')
+    const childId = SessionId('lineage-child')
+
+    await api.sessions.create(request({ sessionId: parentId, agentPreset: 'standard' }))
+    const created = await api.sessions.create(request({
+      sessionId: childId,
+      agentPreset: 'standard',
+      parentSessionId: parentId,
+    }))
+    const child = ctx.sessions.get(childId)
+    if (child === undefined) throw new Error('unreachable')
+    expect(created.result.ok).toBe(true)
+    expect(child.header.parentSession).toBe(parentId)
+
+    // Re-adopting with a different parent cannot rewrite durable history.
+    await api.sessions.create(request({ sessionId: childId, parentSessionId: SessionId('other-parent') }))
+    expect(child.header.parentSession).toBe(parentId)
+  })
+
   it('rejects an unknown preset and names the ones that exist', async () => {
     const { api } = await harness(['standard'])
 

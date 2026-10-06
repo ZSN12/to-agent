@@ -47,7 +47,7 @@ export function SessionStatsLine({
       {tokens.cacheRead > 0 && (
         <>
           <span className="conversation-usage-sep" aria-hidden="true">·</span>
-          <span title="与 DSH 一致：含压缩折叠的累计缓存读取">缓存 {formatTokensCompact(tokens.cacheRead)} tok</span>
+          <span title="Z 会话统计：含压缩折叠的累计缓存读取">缓存 {formatTokensCompact(tokens.cacheRead)} tok</span>
         </>
       )}
       {cacheHit !== null && (

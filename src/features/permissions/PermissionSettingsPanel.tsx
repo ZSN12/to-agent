@@ -311,7 +311,7 @@ export function PermissionSettingsPanel({
               不对常规工具调用弹窗。注：显式配置的 Deny 安全阻止规则仍将无条件严格拦截。
             </p>
             <p style={{ fontSize: 10, color: 'var(--text-secondary)', margin: '6px 0 0 0', lineHeight: 1.4, opacity: 0.9 }}>
-              DSH 执行层：Host 仍可能发出审批 RPC，由桌面端桥接自动批准；无法将 DSH 会话 preset 切换为 danger-full-access，OS/文件沙箱仍以本页与沙箱设置为准。
+              Z Runtime 执行层：Host 仍可能发出审批 RPC，由桌面端桥接自动批准；无法将会话 preset 切换为 danger-full-access，OS/文件沙箱仍以本页与沙箱设置为准。
             </p>
           </div>
         </div>
@@ -328,7 +328,7 @@ export function PermissionSettingsPanel({
           <span>
             <strong>自动放行工作区内只读工具</strong>
             <span style={{ display: 'block', color: 'var(--text-secondary)', fontSize: 11, marginTop: 4, lineHeight: 1.45 }}>
-              在「严格询问」模式下，对工作区内的 read / grep / find / ls 等只读操作免弹窗（DSH auto-review 轻量版）。Deny 规则仍优先拦截。
+              在「严格询问」模式下，对工作区内的 read / grep / find / ls 等只读操作免弹窗（Z Runtime 自动审查）。Deny 规则仍优先拦截。
             </span>
           </span>
         </label>

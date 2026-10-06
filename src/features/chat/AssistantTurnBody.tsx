@@ -1,9 +1,11 @@
 import type { AssistantContentBlock } from '../../types'
-import { AgentMessageMarkdown } from './AgentMessageMarkdown'
+import { lazy, Suspense } from 'react'
 import { DshThinkBlock } from './DshThinkBlock'
 import { coalesceContentBlocks } from './coalesceContentBlocks'
 import { isDebugBlocksEnabled } from './debug-blocks'
 import { shouldPresentTextAsThinking } from './reasoning-heuristics'
+
+const AgentMessageMarkdown = lazy(() => import('./AgentMessageMarkdown').then((module) => ({ default: module.AgentMessageMarkdown })))
 
 export function AssistantTurnBody({
   blocks,
@@ -60,7 +62,9 @@ export function AssistantTurnBody({
           <div key={seg.id} className="assistant-block-wrap">
             {debugLabel}
             <div className="assistant-text-block">
-              <AgentMessageMarkdown text={seg.text} />
+              <Suspense fallback={<div className="message-text message-markdown">{seg.text}</div>}>
+                <AgentMessageMarkdown text={seg.text} />
+              </Suspense>
             </div>
           </div>
         )

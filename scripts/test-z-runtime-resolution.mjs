@@ -98,6 +98,8 @@ try {
   const buildScript = await fs.readFile(path.join(projectRoot, 'scripts', 'build-z-runtime.mjs'), 'utf8')
   assert.match(buildScript, /TASKWEAVER_Z_RUNTIME_DEPLOY_DIR/)
   assert.match(buildScript, /TASKWEAVER_Z_RUNTIME_CLIENT_DIR/)
+  const hostBuildConfig = JSON.parse(await fs.readFile(path.join(projectRoot, 'vendor/z-runtime/tsconfig.host.taskweaver.json'), 'utf8'))
+  assert.ok(hostBuildConfig.references.some((entry) => entry.path === './packages/fs/tool-fs-search'), 'preset-only search plugin must be typecompiled before bundling, not deployed from stale lib/types')
   assert.match(buildScript, /TASKWEAVER_RUNTIME_PACKAGES|runtime-packages/)
 
   console.log(`Z runtime resolution passed: packaged resources, dev override, monorepo fallback (${TASKWEAVER_RUNTIME_PACKAGES}), host cwd, packaging paths.`)

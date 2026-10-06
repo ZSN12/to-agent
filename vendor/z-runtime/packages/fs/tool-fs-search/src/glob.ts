@@ -18,6 +18,7 @@ import type {} from '@z/dsh-system-prompt'
 import { runRipgrep, toWorkdirRelative, trySaveFormattedResult } from './search-core.ts'
 import { globSearchMeta, searchViewFromMeta } from './presentation.ts'
 import { acceptedDirectCallValue } from './direct-call.ts'
+import { VCS_DIRECTORIES, searchExclusionArgs, searchScopeGuidance } from './search-scope.ts'
 
 /**
  * Default cap on paths retained inline by one `glob` call (the `globMaxResults`
@@ -35,10 +36,11 @@ export const GLOB_MAX_RESULTS = 100
  * directory (an explicit `path` of `.git` or `sub/.git`), where the prune glob
  * alone never matches.
  */
-export const GLOB_VCS_EXCLUDES: readonly string[] = ['.git', '.svn', '.hg', '.bzr', '.jj', '.sl']
+export const GLOB_VCS_EXCLUDES: readonly string[] = VCS_DIRECTORIES
 
 /** Resolved glob-tool caps — plugin config after defaulting (see `Config` in index.ts). */
 export interface GlobToolCaps {
+  excludeDirectories?: readonly string[]
   /** Whether over-cap pages are sampled across top-level entries instead of taking the modification-time head. */
   sampleOverCapGlobResults: boolean
   /** Max paths retained inline; later paths go to the formatted spill file. */
@@ -59,6 +61,7 @@ export interface GlobToolCaps {
 export interface GlobInput {
   pattern: string
   path?: string
+  includeExcluded?: boolean
 }
 
 /**
@@ -69,10 +72,11 @@ export interface GlobInput {
  * @param args - the schema-validated `glob` arguments.
  * @returns the accepted input, unchanged.
  */
-export function parseGlobArgs(args: { pattern: string; path?: string }): GlobInput {
+export function parseGlobArgs(args: { pattern: string; path?: string; includeExcluded?: boolean }): GlobInput {
   if (args.pattern.trim().length === 0) throw new Error('pattern must be a non-empty string')
   if (args.path !== undefined && args.path.trim().length === 0) throw new Error('path must be a non-empty string when given')
-  return { pattern: args.pattern, ...args.path !== undefined ? { path: args.path } : {} }
+  return { pattern: args.pattern, ...args.path !== undefined ? { path: args.path } : {},
+    ...args.includeExcluded !== undefined ? { includeExcluded: args.includeExcluded } : {} }
 }
 
 /**
@@ -87,7 +91,7 @@ export function parseGlobArgs(args: { pattern: string; path?: string }): GlobInp
  * @param input - the validated arguments.
  * @returns the complete ripgrep argument vector (excluding the binary itself).
  */
-export function buildGlobCommand(input: GlobInput): string[] {
+export function buildGlobCommand(input: GlobInput, excludeDirectories: readonly string[] = []): string[] {
   const parts = [
     '--files',
     `--glob=${input.pattern}`,
@@ -102,6 +106,7 @@ export function buildGlobCommand(input: GlobInput): string[] {
       `--glob=!**/${name}`,
       `--glob=!**/${name}/**`,
     ]),
+    ...searchExclusionArgs(excludeDirectories, input.includeExcluded),
   ]
   if (input.path !== undefined) parts.push('--', input.path)
   return parts
@@ -295,6 +300,7 @@ export function presentGlobResult(_args: { pattern: string; path?: string }, res
  * @param caps - the deployment's resolved glob caps (plugin config after defaulting).
  */
 export function applyGlobTool(ctx: Context, caps: GlobToolCaps): void {
+  const scopeGuidance = searchScopeGuidance(caps.excludeDirectories ?? [])
   const overCapGuidance = caps.sampleOverCapGlobResults
     ? 'while a larger one is sampled across top-level entries, so it spans the tree instead of one subtree.'
     : 'while a larger one keeps the modification-time-ordered head.'
@@ -302,7 +308,7 @@ export function applyGlobTool(ctx: Context, caps: GlobToolCaps): void {
     name: 'tool:glob',
     order: 103,
     text: 'Use the glob tool — not shell find — to discover files by path pattern. A pattern with no "/" matches basenames at any depth, so "*" matches every file in the tree rather than its top level. '
-      + `Results are files only, never directories, and include hidden and ignored files: a result that fits comes back in modification-time order, ${overCapGuidance}`,
+      + `Results are files only, never directories, and include hidden and ignored files: a result that fits comes back in modification-time order, ${overCapGuidance}` + scopeGuidance,
   })
 
   const overCapDescription = caps.sampleOverCapGlobResults
@@ -313,7 +319,7 @@ export function applyGlobTool(ctx: Context, caps: GlobToolCaps): void {
     description: 'Find files whose paths match a glob pattern. Returns matching file paths — never directories — '
       + 'including hidden and ignored files (VCS metadata directories are excluded). '
       + `Up to ${caps.maxResults} paths come back in modification-time order; ${overCapDescription}, `
-      + 'says so, and reports where the complete sorted list was saved. This tool does not enumerate directory entries.',
+      + 'says so, and reports where the complete sorted list was saved. This tool does not enumerate directory entries.' + scopeGuidance,
     parameters: {
       pattern: {
         type: 'string',
@@ -322,6 +328,7 @@ export function applyGlobTool(ctx: Context, caps: GlobToolCaps): void {
           + 'A pattern with no "/" matches the basename at any depth, so "*" and "*.ts" both search the whole tree; include a separator to anchor the depth.',
       },
       path: { type: 'string', description: 'Directory to search in. Defaults to the session workspace; a relative path resolves against it.' },
+      includeExcluded: { type: 'boolean', description: 'Include deployment-excluded dependency/build directories. Use only with a narrow path when inspecting those files intentionally.' },
     },
     timeoutMs: caps.timeoutMs,
     output: {
@@ -341,7 +348,7 @@ export function applyGlobTool(ctx: Context, caps: GlobToolCaps): void {
     },
     async execute(args, exec) {
       const input = parseGlobArgs(args)
-      const run = await runRipgrep(ctx, exec, 'glob', buildGlobCommand(input), caps.rawOutputMaxBytes, caps.graceMs, caps.stderrMaxBytes)
+      const run = await runRipgrep(ctx, exec, 'glob', buildGlobCommand(input, caps.excludeDirectories), caps.rawOutputMaxBytes, caps.graceMs, caps.stderrMaxBytes)
       const root = input.path === undefined ? '.' : toWorkdirRelative(input.path, run.workdir)
       if (run.noMatches) return { root, paths: [] }
 

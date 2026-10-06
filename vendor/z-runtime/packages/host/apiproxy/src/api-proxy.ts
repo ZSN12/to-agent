@@ -1310,12 +1310,12 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
     ]
   }
 
-  ctx.on('session/event', (session, event) => {
+  ctx.root.on('session/event', (session, event) => {
     if (event.type !== 'agent/inbox/spliced') return
     const agent = ctx.agents.get(session.id)
     if (agent?.session !== session) return
     broadcast({ type: 'session/queue', sessionId: session.id, items: queueItems(agent, event.data) })
-  })
+  }, { global: true })
 
   /** Remove a wait before settling it: synchronous deletion makes the first claimant win. */
   function claimQuestion(pending: PendingQuestion, outcome: 'answered' | 'cancelled'): void {
@@ -1583,6 +1583,7 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
     cwd: string,
     checkPersistedIdentity: boolean,
     presetId?: string,
+    parentSessionId?: SessionId,
   ): Promise<Agent> {
     let creation = sessionCreations.get(sessionId)
     if (creation === undefined) {
@@ -1635,6 +1636,7 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
           agentOptions: agentOptions(),
           meta: {
             cwd,
+            ...parentSessionId === undefined ? {} : { parentSession: parentSessionId },
             ...composition.agentPreset === undefined ? {} : { agentPreset: composition.agentPreset },
           },
           setup: composition.setup,
@@ -2114,7 +2116,7 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
         const cwd = workspace?.path ?? request.payload.cwd ?? defaults.cwd
         const requestedPreset = request.payload.agentPreset
         try {
-          await ensureSession(sessionId, cwd, request.payload.sessionId !== undefined, requestedPreset)
+          await ensureSession(sessionId, cwd, request.payload.sessionId !== undefined, requestedPreset, request.payload.parentSessionId)
         } catch (error: unknown) {
           if (error instanceof AgentPresetConflict) {
             return err(request, {
@@ -2433,6 +2435,9 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
               })
             }
           }
+        }
+        if (request.payload.commandOnly === true) {
+          return err(request, { code: 'unknown-command', message: 'No native command handles this input for the current agent preset.', details: {} })
         }
         // Request identity and optional browser zone ride the exact durable user message.
         const source: MessageSource = {
@@ -3548,7 +3553,7 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
         // opened mid-turn) backscans the session's in-memory events instead.
         const openCalls = new Map<SessionId, Map<string, { name: string; args: unknown }>>()
         const disposers = [
-          ctx.on('session/event', (session: Session, event: SessionEvent) => {
+          ctx.root.on('session/event', (session: Session, event: SessionEvent) => {
             if (event.type === 'tool/call') {
               const data = event.data as ToolCallData
               try {
@@ -3567,8 +3572,8 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
               ctx.agents.get(session.id),
             )
             queue.push(frame({ type: 'session/event', sessionId: session.id, event, ...view === undefined ? {} : { view } }))
-          }),
-          ctx.on('session/created', (session: Session) => {
+          }, { global: true }),
+          ctx.root.on('session/created', (session: Session) => {
             subscribeSession(queue, session)
             // The subscribe frame clears the client's task mirror, and a
             // session born after the stream opened missed the baseline loop.
@@ -3578,10 +3583,10 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
             if (views.length > 0) {
               queue.push(frame({ type: 'session/jobs', sessionId: session.id, jobs: views }))
             }
-          }),
-          ctx.on('session/disposed', (session: Session) => {
+          }, { global: true }),
+          ctx.root.on('session/disposed', (session: Session) => {
             openCalls.delete(session.id)
-          }),
+          }, { global: true }),
           ...jobs === undefined ? [] : [jobs.onJobsChanged((owner) => {
             if (owner !== undefined) {
               // The exact owner instance the fence compares against, so the
@@ -3619,7 +3624,7 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
         // reconnecting clients, so only later changes need frames.
         let archivedSessionIds = ctx.workspaceRegistry.archivedSessionIds
         const disposers = [
-          ctx.on('session/created', (session: Session) => {
+          ctx.root.on('session/created', (session: Session) => {
             queue.push(frame({
               type: 'host/session-added',
               sessionId: session.id,
@@ -3629,16 +3634,16 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
               // Including cwd lets the client group the new session without refreshing the list.
               ...sessionListFields(session.header, session.events),
             }))
-          }),
-          ctx.on('session/disposed', (session: Session) => {
+          }, { global: true }),
+          ctx.root.on('session/disposed', (session: Session) => {
             queue.push(frame({ type: 'host/session-removed', sessionId: session.id }))
-          }),
-          ctx.on('agent/status', ({ agent, status }: { agent: Agent; status: AgentStatus }) => {
+          }, { global: true }),
+          ctx.root.on('agent/status', ({ agent, status }: { agent: Agent; status: AgentStatus }) => {
             queue.push(frame({ type: 'host/session-status', sessionId: agent.id, running: status === 'running' }))
-          }),
-          ctx.on('agent/error', ({ agent, error }: { agent: Agent; error: unknown }) => {
+          }, { global: true }),
+          ctx.root.on('agent/error', ({ agent, error }: { agent: Agent; error: unknown }) => {
             queue.push(frame({ type: 'host/agent-error', sessionId: agent.id, message: errorChain(error) }))
-          }),
+          }, { global: true }),
           ctx.on('domain/changed', (change) => {
             if (change.domain !== 'workspace') return
             if (change.table === '') {

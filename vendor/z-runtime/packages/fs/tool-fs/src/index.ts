@@ -23,6 +23,8 @@ export const inject = ['tools', 'fs', 'systemPrompt']
 
 /** Plugin config (all optional — `Config` supplies the defaults). */
 export interface Config {
+  /** Register write/edit tools. Disable for genuinely read-only agent compositions. */
+  mutations?: boolean
   /** Default and maximum number of lines returned by one `read` call. */
   readLimit?: number
   /** Maximum characters returned for a single line before truncation. */
@@ -34,6 +36,7 @@ export interface Config {
 }
 
 export const Config: z<Config> = z.object({
+  mutations: z.boolean().default(true),
   readLimit: z.number().default(READ_LIMIT),
   readMaxLineLength: z.number().default(READ_MAX_LINE_LENGTH),
   readMaxBytes: z.number().default(READ_MAX_BYTES),
@@ -64,16 +67,28 @@ export function apply(ctx: Context, config: Config): void {
     maxBytes: resolved.readMaxBytes,
     streamMinSize: resolved.readStreamMinSize,
   })
+  if (!resolved.mutations) {
+    // A read-only preset can be mounted beneath a deployment that already
+    // registered the mutating filesystem tools globally. Omitting our own
+    // write/edit registrations is not enough in that case: the scoped tool
+    // view inherits those global definitions. Mask only the inherited
+    // capabilities that actually exist; standalone read-only compositions
+    // have nothing to restrict.
+    const inheritedMutations = ['write', 'edit'].filter(name => ctx.tools.get(name) !== undefined)
+    if (inheritedMutations.length > 0) ctx.tools.restrict({ deny: inheritedMutations })
+  }
   // read_image is composition-conditional: without a mounted attachment store
   // the deployment cannot durably commit image bytes, so the tool never
   // registers; the execute body keeps a defensive re-check for direct callers.
   ctx.inject(['attachments'], (imageCtx) => {
     applyReadImageTool(imageCtx)
   })
-  // One escalation API shared by both mutating tools: advertisement gating,
-  // per-call policy resolution, and denial-marker mapping, all keyed off whether
-  // the mounted ctx.fs confines (ctx.fs.sandboxMode).
-  const sandbox = new FsSandboxController(ctx)
-  applyWriteTool(ctx, sandbox)
-  applyEditTool(ctx, sandbox)
+  if (resolved.mutations) {
+    // One escalation API shared by both mutating tools: advertisement gating,
+    // per-call policy resolution, and denial-marker mapping, all keyed off whether
+    // the mounted ctx.fs confines (ctx.fs.sandboxMode).
+    const sandbox = new FsSandboxController(ctx)
+    applyWriteTool(ctx, sandbox)
+    applyEditTool(ctx, sandbox)
+  }
 }

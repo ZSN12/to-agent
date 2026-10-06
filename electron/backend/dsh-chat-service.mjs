@@ -1,8 +1,9 @@
 import crypto from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { extractFileDiff, summarizeToolInput, summarizeToolResult } from './tool-trace.mjs'
+import { extractFileDiff, normalizeToolResult, summarizeToolInput, summarizeToolResult } from './tool-trace.mjs'
 import { applySkillInstructions } from './skill-prompt.mjs'
+import { nativeChatCommand } from './native-chat-command.mjs'
 import {
   dshAgentPresetForPermissionMode,
   dshPermissionPresetForMode,
@@ -18,6 +19,9 @@ import {
   Z_EVENT_CHANNEL_OPEN_TIMEOUT_MS,
   Z_MAX_TRACKED_SESSIONS,
 } from './config.mjs'
+
+const Z_IDLE_HISTORY_RECONCILE_MS = 10_000
+const Z_MAX_HISTORY_RECONCILE_MS = 30_000
 
 /** 主会话的 DSH 会话 id 是确定性的：同一个 sessionKey 永远推导出同一个 id。 */
 function sessionIdForKey(sessionKey) {
@@ -44,7 +48,7 @@ function assertBindableWorkspace(cwd) {
   if (!isFilesystemRoot(cwd)) return
   throw new Error(
     '当前对话还没有绑定工作区。未绑定工作区时会话会落在文件系统根目录，'
-    + 'DSH 的文件写入沙箱边界将失效，因此本次消息已阻止。请先选择一个工作区文件夹再发送。',
+    + 'Z Runtime 的文件写入沙箱边界将失效，因此本次消息已阻止。请先选择一个工作区文件夹再发送。',
   )
 }
 
@@ -52,7 +56,9 @@ function rpcValue(response, operation) {
   const result = response?.result ?? response
   if (result?.ok === false) {
     const error = result.error ?? {}
-    throw new Error(error.message || `${operation} failed`)
+    const failure = new Error(error.message || `${operation} failed`)
+    if (error.code) failure.code = error.code
+    throw failure
   }
   return result?.value ?? result
 }
@@ -119,7 +125,7 @@ async function readMap(filePath) {
       : {}
   } catch (error) {
     if (error?.code === 'ENOENT') return {}
-    throw new Error(`读取 DSH 会话映射失败：${error instanceof Error ? error.message : String(error)}`)
+    throw new Error(`读取 Z 会话映射失败：${error instanceof Error ? error.message : String(error)}`)
   }
 }
 
@@ -132,6 +138,7 @@ export function createDshChatService({
   modelService,
   getPermissionMode = async () => 'ask',
   conversationHub = null,
+  onTurnCompleted = null,
 }) {
   const mapPath = path.join(userDataPath, 'taskweaver', 'dsh-session-map.json')
   const sessions = new Map()
@@ -139,14 +146,20 @@ export function createDshChatService({
   const liveUsage = new Map()
   const stats = new Map()
   const queueSnapshots = new Map()
+  const observedSequences = new Map()
   const running = new Map()
+  const pendingQuestions = new Map()
+  const cancellingSessions = new Set()
   /** @type {Map<string, Set<import('electron').WebContents>>} */
   const muxWatchers = new Map()
   let mapLoad = null
   let persistenceQueue = Promise.resolve()
   let muxAbort = null
   let muxTask = null
+  let muxGeneration = 0
+  let reconnectTask = null
   let readyPromise = null
+  let establishingReady = false
   let stopped = false
   let reconnectAttempt = 0
 
@@ -185,6 +198,7 @@ export function createDshChatService({
 
   /** 清掉某个 sessionKey 在所有内存索引里的痕迹（映射表之外的副作用表）。 */
   function dropSessionIndexes(sessionKey) {
+    observedSequences.delete(sessions.get(sessionKey)?.sessionId)
     sessions.delete(sessionKey)
     stats.delete(sessionKey)
     liveUsage.delete(sessionKey)
@@ -265,10 +279,16 @@ export function createDshChatService({
   }
 
   function registerPendingApproval(id, entry) {
+    // The Host replays still-pending server requests on mux reconnect with the
+    // same rpcId. Keep the original prompt/timers so a replay cannot duplicate
+    // the UI request or extend its approval window indefinitely.
+    if (pendingApprovals.has(id)) return false
+
     // Add failsafe timeout cleanup to prevent memory leaks
     // This runs only if settleApproval was never called
     const cleanupTimeoutId = setTimeout(() => {
-      if (pendingApprovals.has(id)) {
+      // A stale timer must never delete a newer request that reused this id.
+      if (pendingApprovals.get(id) === entry) {
         console.error(`Approval ${id} 未在超时时间内处理，强制清理以防止内存泄漏`)
         pendingApprovals.delete(id)
         if (entry?.timeoutId) clearTimeout(entry.timeoutId)
@@ -280,6 +300,7 @@ export function createDshChatService({
     // Store cleanup timeout in entry so it can be cleared by clearApprovalTimer
     entry.cleanupTimeoutId = cleanupTimeoutId
     pendingApprovals.set(id, entry)
+    return true
   }
 
   async function sendApprovalOutcome(pending, allowed) {
@@ -327,22 +348,24 @@ export function createDshChatService({
     const id = `dsh-approval-${frame.sessionId}-${frame.approvalId}`
     const bridgeAction = resolveDshApprovalBridgeAction(permissionMode, frame)
     if (bridgeAction === 'allow') {
-      registerPendingApproval(id, {
+      const registered = registerPendingApproval(id, {
         rpcId: frame.rpcId,
         sessionId: frame.sessionId,
         approvalId: frame.approvalId,
         conversationId,
       })
+      if (!registered) return
       void settleApproval(id, { action: 'allow-once' })
       return
     }
     if (!webContents || webContents.isDestroyed?.()) {
-      registerPendingApproval(id, {
+      const registered = registerPendingApproval(id, {
         rpcId: frame.rpcId,
         sessionId: frame.sessionId,
         approvalId: frame.approvalId,
         conversationId,
       })
+      if (!registered) return
       void settleApproval(id, { action: 'deny' })
       return
     }
@@ -350,20 +373,24 @@ export function createDshChatService({
       void settleApproval(id, { action: 'deny', reason: 'timeout' })
     }, Z_APPROVAL_PROMPT_TIMEOUT_MS)
     timeoutId.unref?.()
-    registerPendingApproval(id, {
+    const registered = registerPendingApproval(id, {
       rpcId: frame.rpcId,
       sessionId: frame.sessionId,
       approvalId: frame.approvalId,
       conversationId,
       timeoutId,
     })
+    if (!registered) {
+      clearTimeout(timeoutId)
+      return
+    }
     try {
       webContents.send('permission:prompt', {
         id,
         conversationId,
-        tool: frame.toolName || 'DSH 工具',
+        tool: frame.toolName || 'Z 工具',
         reason: frame.reason || '该操作需要权限确认。',
-        detail: frame.reason || 'DSH 请求执行需要授权的操作。',
+        detail: frame.reason || 'Z 请求执行需要授权的操作。',
         allowAlways: false,
       })
     } catch {
@@ -371,12 +398,87 @@ export function createDshChatService({
     }
   }
 
+  function emitUserQuestion(conversationId, webContents, envelope) {
+    const id = envelope.rpcId
+    if (typeof id !== 'string' || !id) return
+    const existing = pendingQuestions.get(id)
+    if (existing) {
+      // Replayed requests are the same logical question. Re-send only when a
+      // different live renderer takes over after a window reload.
+      if (webContents && !webContents.isDestroyed?.() && existing.webContents !== webContents) {
+        existing.webContents = webContents
+        webContents.send('user-question:prompt', {
+          id, conversationId, questions: existing.questions,
+        })
+      }
+      return
+    }
+    if (!conversationId) {
+      void Promise.resolve(hostManager.getApi?.() ?? readyPromise).then(api => api?.respond({
+        type: 'client-response', rpcId: id,
+        result: { ok: false, error: { code: 'cancelled', message: 'Conversation is unavailable.' } },
+      })).catch(() => {})
+      return
+    }
+    const entry = {
+      rpcId: id,
+      sessionId: envelope.payload.sessionId,
+      conversationId,
+      questions: envelope.payload.questions,
+      webContents,
+    }
+    pendingQuestions.set(id, entry)
+    if (!webContents || webContents.isDestroyed?.()) return
+    try {
+      webContents.send('user-question:prompt', {
+        id, conversationId, questions: entry.questions,
+      })
+    } catch (error) {
+      console.error('发送用户问题提示失败：', error)
+    }
+  }
+
+  async function answerUserQuestion(id, answer) {
+    const pending = pendingQuestions.get(id)
+    if (!pending) return false
+    const api = await ensureReady()
+    const receipt = await api.respond({
+      type: 'client-response',
+      rpcId: pending.rpcId,
+      result: { ok: true, value: { sessionId: pending.sessionId, answer } },
+    })
+    if (receipt?.accepted === false) return false
+    pendingQuestions.delete(id)
+    return true
+  }
+
   async function handleEnvelope(api, envelope) {
     const frame = envelope?.payload
     if (!frame) return
+    if (frame.type === 'stream/error') throw new Error(frame.error?.message || 'Z 事件通道返回错误')
+    if (frame.type === 'session/event' && Number.isInteger(frame.event?.seq)) {
+      const previous = observedSequences.get(frame.sessionId) ?? -1
+      // History replay and live frames can overlap. Sequence, not text or
+      // arrival time, is the native identity for exactly-once bridge folding.
+      if (frame.event.seq <= previous) return
+      observedSequences.set(frame.sessionId, frame.event.seq)
+    }
     fanoutMuxFrame(envelope)
     if (conversationHub) {
       void conversationHub.handleMuxEnvelope(envelope)
+    }
+    if (frame.type === 'session/subscribed') {
+      const previous = observedSequences.get(frame.sessionId)
+      if (previous === undefined) observedSequences.set(frame.sessionId, frame.lastSeq ?? -1)
+      const match = [...sessions.entries()].find(([, entry]) => entry.sessionId === frame.sessionId)
+      if (match) {
+        const turn = running.get(match[0])
+        // Empty queues have no baseline frame. Discard the old generation's
+        // mirror, but retain its accepted count while stitching missed turns.
+        queueSnapshots.delete(match[0])
+        if (turn?.recovering && !turn.command) await recoverSession(api, match[0], turn, frame.lastSeq)
+      }
+      return
     }
     if (frame.type === 'approval/requested') {
       const sessionMatch = [...sessions.entries()].find(([, entry]) => entry.sessionId === frame.sessionId)
@@ -387,12 +489,13 @@ export function createDshChatService({
         conversationId ? await Promise.resolve(getPermissionMode(conversationId)) : 'ask',
       )
       if (!conversationId) {
-        registerPendingApproval(id, {
+        const registered = registerPendingApproval(id, {
           rpcId: envelope.rpcId,
           sessionId: frame.sessionId,
           approvalId: frame.approvalId,
           conversationId: null,
         })
+        if (!registered) return
         await settleApproval(id, { action: 'deny' })
         return
       }
@@ -405,9 +508,42 @@ export function createDshChatService({
       )
       return
     }
+    if (frame.type === 'question/requested') {
+      const sessionMatch = [...sessions.entries()].find(([, entry]) => entry.sessionId === frame.sessionId)
+      const sessionKey = sessionMatch?.[0]
+      const conversationId = sessionMatch?.[1]?.ownerConversationId || sessionKey
+      const turn = running.get(sessionKey)
+      emitUserQuestion(turn?.eventConversationId ?? conversationId, turn?.webContents, {
+        rpcId: envelope.rpcId,
+        payload: frame,
+      })
+      return
+    }
+    if (frame.type === 'question/resolved') {
+      const pending = pendingQuestions.get(frame.questionRpcId)
+      if (pending) {
+        pendingQuestions.delete(frame.questionRpcId)
+        try {
+          pending.webContents?.send('user-question:resolved', {
+            id: frame.questionRpcId, conversationId: pending.conversationId,
+          })
+        } catch {}
+      }
+      return
+    }
     if (frame.type === 'session/queue') {
       const conversationId = [...sessions.entries()].find(([, entry]) => entry.sessionId === frame.sessionId)?.[0]
-      if (conversationId) queueSnapshots.set(conversationId, frame.items ?? [])
+      if (conversationId) {
+        const items = frame.items ?? []
+        queueSnapshots.set(conversationId, items)
+        const turn = running.get(conversationId)
+        if (turn) {
+          // Native inbox mutations include removal, replacement and claiming.
+          // Counting accepted sends alone leaves phantom work after deletion.
+          turn.queueAuthoritative = true
+          turn.pendingQueuedTurns = items.filter(item => item.placement === 'queued').length
+        }
+      }
       return
     }
     if (frame.type !== 'session/event') return
@@ -420,13 +556,76 @@ export function createDshChatService({
     const ownerConversationId = sessionMatch[1]?.ownerConversationId || sessionKey
     const emitTarget = turn.eventConversationId ?? ownerConversationId
     turn.lastEventAt = event.time || Date.now()
+    if (turn.command) {
+      // Manual maintenance has compaction/command brackets, not chat turns.
+      // The prompt RPC owns settlement; never consume a chat turn/end here.
+      if (event?.type === 'compaction/summary') turn.usage = normalizeTokenUsage(event.data?.usage)
+      return
+    }
+    if (event?.type === 'turn/start' && turn.awaitingQueuedTurn) {
+      turn.awaitingQueuedTurn = false
+      // With a native queue stream, the subsequent inbox claim supplies the
+      // exact count. Decrement only for old transports without queue frames.
+      if (!turn.queueAuthoritative) turn.pendingQueuedTurns = Math.max(0, turn.pendingQueuedTurns - 1)
+      turn.turnId = crypto.randomUUID()
+      turn.text = ''
+      turn.thinking = ''
+      turn.thinkingStartedAt = null
+      turn.thinkingEndedAt = null
+      turn.thinkingActiveMs = 0
+      turn.lastReasoningAt = null
+      turn.usage = null
+      turn.toolCalls = 0
+      turn.toolResults = 0
+      turn.toolCallsById.clear()
+      turn.startedAt = event.time || Date.now()
+      if (turn.emitLifecycle !== false) {
+        emit(emitTarget, turn.webContents, { type: 'start', startedAt: turn.startedAt, turnId: turn.turnId, taskId: turn.taskId })
+      }
+      return
+    }
     if (event?.type === 'step/start') {
-      // DSH ui-conversation does not surface step numbers in the live status row
-      // (only TurnStatus "Deep diving…" + optional clock). Step timing feeds projection.
       pauseThinkingSegment(turn, event.time || Date.now())
+      if (!turn.silentText) {
+        emit(emitTarget, turn.webContents, {
+          type: 'activity',
+          phase: 'llm',
+          message: `模型第 ${event.data?.step ?? '?'} 步`,
+          ...(turn.taskId ? { taskId: turn.taskId } : {}),
+        })
+      }
       return
     }
     if (event?.type === 'request/header') {
+      return
+    }
+    if (event?.type === 'llm/retry') {
+      const retry = event.data ?? {}
+      const failureLabels = {
+        TIMEOUT: '模型响应超时',
+        TRANSPORT: '模型连接中断',
+        RATE_LIMIT: '模型服务限流',
+        SERVER: '模型服务端暂时不可用',
+        EMPTY_RESPONSE: '模型未返回有效内容',
+      }
+      const failureLabel = failureLabels[retry.failure?.code] ?? '模型请求失败'
+      const retryMessage = `${turn.taskId ? `子任务 ${turn.taskId}：` : ''}${failureLabel}`
+      emit(emitTarget, turn.webContents, {
+        type: 'retry',
+        phase: 'start',
+        attempt: retry.retry,
+        maxAttempts: retry.maxRetries,
+        delayMs: retry.delayMs,
+        message: retryMessage,
+      })
+      return
+    }
+    if (event?.type === 'llm/retry-started') {
+      emit(emitTarget, turn.webContents, {
+        type: 'retry',
+        phase: 'end',
+        attempt: event.data?.retry,
+      })
       return
     }
     if (event?.type === 'assistant/chunk') {
@@ -502,18 +701,22 @@ export function createDshChatService({
       turn.toolResults += 1
       const message = event.data?.message
       const callId = message?.source?.callId
+        ?? message?.content?.find((block) => block?.type === 'tool-result')?.toolCallId
       const call = turn.toolCallsById.get(callId)
-      const result = message?.content
-        ? { content: message.content, isError: Boolean(message.isError), details: message.details }
-        : { content: [] }
+      const result = normalizeToolResult({
+        content: message?.content ?? [],
+        isError: Boolean(event.data?.error || message?.isError),
+        details: message?.details,
+        error: event.data?.error?.message || event.data?.error?.code,
+      })
       if (call) {
         emit(emitTarget, turn.webContents, {
           type: 'tool',
           id: callId,
           toolName: call.toolName,
-          status: event.data?.error || message?.isError ? 'error' : 'done',
+          status: result.isError ? 'error' : 'done',
           inputSummary: summarizeToolInput(call.toolName, call.input),
-          resultSummary: summarizeToolResult(result, Boolean(event.data?.error || message?.isError)),
+          resultSummary: summarizeToolResult(result, result.isError),
           durationMs: Math.max(0, (event.time || Date.now()) - call.startedAt),
           fileDiff: extractFileDiff(call.toolName, call.input, result),
           ...(turn.taskId ? { taskId: turn.taskId } : {}),
@@ -522,65 +725,265 @@ export function createDshChatService({
       }
       return
     }
+    if (event?.type === 'tool/code-dispatch-start') {
+      const data = event.data ?? {}
+      const callId = data.subCallId
+      if (typeof callId !== 'string' || !callId) return
+      const input = data.arguments && typeof data.arguments === 'object' ? data.arguments : {}
+      const toolName = typeof data.name === 'string' && data.name ? data.name : 'tool'
+      turn.toolCalls += 1
+      turn.toolCallsById.set(callId, {
+        toolName,
+        input,
+        startedAt: event.time || Date.now(),
+        parentCallId: data.parentCallId ?? null,
+      })
+      emit(emitTarget, turn.webContents, {
+        type: 'activity',
+        phase: 'tools',
+        message: `正在执行工具：${toolName}（批量调用）…`,
+        ...(turn.taskId ? { taskId: turn.taskId } : {}),
+      })
+      emit(emitTarget, turn.webContents, {
+        type: 'tool',
+        id: callId,
+        parentCallId: data.parentCallId ?? null,
+        toolName,
+        status: 'running',
+        inputSummary: summarizeToolInput(toolName, input),
+        startedAt: event.time || Date.now(),
+        ...(turn.taskId ? { taskId: turn.taskId } : {}),
+      })
+      return
+    }
+    if (event?.type === 'tool/code-dispatch') {
+      const data = event.data ?? {}
+      const callId = data.subCallId
+      if (typeof callId !== 'string' || !callId) return
+      const call = turn.toolCallsById.get(callId)
+      const toolName = typeof data.name === 'string' && data.name ? data.name : call?.toolName ?? 'tool'
+      const input = data.arguments && typeof data.arguments === 'object' ? data.arguments : call?.input ?? {}
+      const result = normalizeToolResult({
+        content: Array.isArray(data.content) ? data.content : [],
+        isError: Boolean(data.isError),
+      })
+      turn.toolResults += 1
+      if (call) {
+        emit(emitTarget, turn.webContents, {
+          type: 'tool',
+          id: callId,
+          parentCallId: data.parentCallId ?? call.parentCallId ?? null,
+          toolName,
+          status: result.isError ? 'error' : 'done',
+          inputSummary: summarizeToolInput(toolName, input),
+          resultSummary: summarizeToolResult(result, result.isError),
+          durationMs: Math.max(0, (event.time || Date.now()) - call.startedAt),
+          fileDiff: extractFileDiff(toolName, input, result),
+          ...(turn.taskId ? { taskId: turn.taskId } : {}),
+        })
+        turn.toolCallsById.delete(callId)
+      }
+      return
+    }
     if (event?.type === 'turn/end') {
-      const reason = event.data?.reason?.kind
-      const cancelled = reason === 'aborted' || reason === 'cancelled' || reason === 'interrupted'
-      const elapsedMs = Math.max(0, Date.now() - turn.startedAt)
-      pauseThinkingSegment(turn, Date.now())
-      const thinkingDurationMs = activeThinkingDurationMs(turn, Date.now())
-      const result = {
-        text: turn.text,
-        thinking: turn.thinking,
-        thinkingDurationMs,
-        usage: {
-          inputTokens: turn.usage?.inputTokens ?? 0,
-          outputTokens: turn.usage?.outputTokens ?? 0,
-          cacheReadTokens: turn.usage?.cacheReadTokens ?? 0,
-          cacheWriteTokens: turn.usage?.cacheWriteTokens ?? 0,
-          costUsd: turn.usage?.costUsd ?? 0,
-          elapsedMs,
-          tokensPerSecond: elapsedMs > 0 ? Math.round((turn.usage?.outputTokens ?? 0) * 1000 / elapsedMs) : 0,
-          contextTokens: turn.usage?.contextTokens ?? null,
-          contextWindow: turn.usage?.contextWindow ?? null,
-          contextPercent: turn.usage?.contextTokens && turn.usage?.contextWindow
-            ? Math.round(turn.usage.contextTokens / turn.usage.contextWindow * 100)
-            : null,
-        },
-        cancelled,
+      finishTurn(sessionKey, turn, emitTarget, {
+        reason: event.data?.reason?.kind,
+        error: event.data?.reason?.error ?? event.data?.error,
+        continuing: turn.recoveryContinuing,
+        endedAt: event.time,
+      })
+    }
+  }
+
+  async function readMissingEvents(api, sessionId, afterSeq) {
+    const pages = []
+    let beforeSeq
+    for (;;) {
+      const page = rpcValue(await api.sessions.history({ sessionId, maxMessages: 80,
+        ...(beforeSeq === undefined ? {} : { beforeSeq }) }), '补齐 Z 会话历史')
+      const rows = page.events ?? []
+      pages.push(rows)
+      const firstSeq = rows.reduce((min, row) => Number.isInteger(row.event?.seq) ? Math.min(min, row.event.seq) : min, Infinity)
+      if (!page.hasMore || firstSeq <= afterSeq) break
+      if (!Number.isFinite(firstSeq) || (beforeSeq !== undefined && firstSeq >= beforeSeq)) {
+        throw new Error('Z 历史分页未前进，无法确认遗漏事件；未重新发送任务')
       }
-      liveUsage.set(sessionKey, result.usage)
-      const priorStats = stats.get(sessionKey) ?? {
-        userMessages: 0,
-        assistantMessages: 0,
-        toolCalls: 0,
-        toolResults: 0,
-        toolCallsById: new Map(),
-        tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
-        cost: 0,
+      beforeSeq = firstSeq
+    }
+    const entries = new Map()
+    for (const row of pages.flat()) {
+      if (Number.isInteger(row.event?.seq) && row.event.seq > afterSeq) entries.set(row.event.seq, row)
+    }
+    return [...entries.values()].sort((a, b) => a.event.seq - b.event.seq)
+  }
+
+  async function recoverSession(api, sessionKey, turn, subscribedSeq) {
+    const sessionId = turn.sessionId
+    const emitTarget = turn.eventConversationId ?? sessionKey
+    const before = observedSequences.get(sessionId) ?? -1
+    let missing = await readMissingEvents(api, sessionId, before)
+    const list = rpcValue(await api.sessions.list({}), '确认 Z Agent 运行状态')
+    if (!Array.isArray(list.items)) throw new Error('Z 会话列表格式无效，无法确认任务状态')
+    const nativeRunning = list.items?.some(item => item.sessionId === sessionId && item.running)
+    // The Agent can close after the history snapshot and before list(). Pull
+    // once more before declaring a stopped Host/session without a terminal.
+    if (!nativeRunning) missing = await readMissingEvents(api, sessionId, before)
+    if (!turn.silentText) emit(emitTarget, turn.webContents, { type: 'connection', state: 'restored',
+      message: nativeRunning ? '连接已恢复，任务仍在执行…' : '会话连接已恢复。' })
+    const acceptedBeforeGap = turn.pendingQueuedTurns
+    turn.pendingQueuedTurns = 0
+    turn.queueAuthoritative = false
+    for (let index = 0; index < missing.length; index++) {
+      const row = missing[index]
+      if (row.event.type === 'turn/end') {
+        turn.recoveryContinuing = !['error', 'aborted', 'cancelled', 'interrupted'].includes(row.event.data?.reason?.kind)
+          && (missing.slice(index + 1).some(next => next.event.type === 'turn/start')
+            || Boolean(nativeRunning && acceptedBeforeGap > 0))
       }
-      priorStats.assistantMessages += result.text ? 1 : 0
-      priorStats.toolCalls += turn.toolCalls
-      priorStats.toolResults += turn.toolResults
-      priorStats.tokens.input += result.usage.inputTokens
-      priorStats.tokens.output += result.usage.outputTokens
-      priorStats.tokens.cacheRead += result.usage.cacheReadTokens
-      priorStats.tokens.cacheWrite += result.usage.cacheWriteTokens
-      priorStats.tokens.total = priorStats.tokens.input + priorStats.tokens.output + priorStats.tokens.cacheRead + priorStats.tokens.cacheWrite
-      priorStats.cost += result.usage.costUsd
-      priorStats.contextTokens = result.usage.contextTokens
-      priorStats.contextWindow = result.usage.contextWindow
-      priorStats.contextPercent = result.usage.contextPercent
-      stats.set(sessionKey, priorStats)
-      if (turn.emitLifecycle !== false) {
-        if (result.thinking && thinkingDurationMs > 0) {
-          emit(emitTarget, turn.webContents, {
-            type: 'thinking_end',
-            fullThinking: result.thinking,
-            durationMs: thinkingDurationMs,
-          })
+      await handleEnvelope(api, { payload: { type: 'session/event', sessionId, ...row } })
+      delete turn.recoveryContinuing
+    }
+    turn.recovering = false
+    turn.connectionFailed = false
+    if (![...running.values()].some(record => record.recovering)) reconnectAttempt = 0
+    if (running.get(sessionKey) !== turn) return
+    if (!nativeRunning) {
+      // Native list is authoritative: only a proven stopped Agent may be
+      // released. A lost mux alone never cancels work or reissues the prompt.
+      if (Number.isInteger(subscribedSeq) && subscribedSeq < before) observedSequences.set(sessionId, subscribedSeq)
+      finishTurn(sessionKey, turn, emitTarget, { reason: 'error', error: {
+        message: 'Z Agent 已停止，未找到完整结束事件；已保留此前输出，未自动重新执行任务。',
+        code: 'HOST_INTERRUPTED',
+      } })
+    }
+  }
+
+  function scheduleIdleHistoryReconciliation(api, sessionKey, turn) {
+    if (turn.command || typeof api.sessions.history !== 'function' || stopped || running.get(sessionKey) !== turn || turn.reconcileTimer) return
+    const delay = turn.reconcileDelayMs ?? Z_IDLE_HISTORY_RECONCILE_MS
+    turn.reconcileTimer = setTimeout(async () => {
+      turn.reconcileTimer = null
+      if (stopped || running.get(sessionKey) !== turn) return
+      if (Date.now() - turn.lastEventAt >= delay) {
+        try {
+          const afterSeq = observedSequences.get(turn.sessionId) ?? turn.historyBaselineSeq
+          if (Number.isInteger(afterSeq)) {
+            const missing = await readMissingEvents(api, turn.sessionId, afterSeq)
+            for (const row of missing) {
+              await handleEnvelope(api, { payload: { type: 'session/event', sessionId: turn.sessionId, ...row } })
+              if (running.get(sessionKey) !== turn) break
+            }
+          }
+        } catch (error) {
+          console.warn(`Z 会话 ${turn.sessionId} 的静默历史对账失败：${error instanceof Error ? error.message : String(error)}`)
         }
+        turn.reconcileDelayMs = Math.min(delay * 2, Z_MAX_HISTORY_RECONCILE_MS)
+      }
+      scheduleIdleHistoryReconciliation(api, sessionKey, turn)
+    }, delay)
+    turn.reconcileTimer.unref?.()
+  }
+
+  function finishTurn(sessionKey, turn, emitTarget, ending = {}) {
+    if (turn.reconcileTimer) clearTimeout(turn.reconcileTimer)
+    turn.reconcileTimer = null
+    const reason = ending.reason
+    const cancelled = reason === 'aborted' || reason === 'cancelled' || reason === 'interrupted'
+    const turnFailure = reason === 'error'
+      ? (ending.error ?? { message: 'Z Agent 执行失败' })
+      : null
+    const continuing = ending.continuing ?? (!turnFailure && !cancelled && turn.pendingQueuedTurns > 0)
+    // Replayed terminals may arrive seconds after the Agent actually ended.
+    // Transport backoff must not train routing/stats to think the model took
+    // that extra time, or inflate a finished reasoning segment.
+    const endedAt = Number.isFinite(ending.endedAt) ? ending.endedAt : Date.now()
+    const elapsedMs = Math.max(0, endedAt - turn.startedAt)
+    pauseThinkingSegment(turn, endedAt)
+    const thinkingDurationMs = activeThinkingDurationMs(turn, endedAt)
+    const result = {
+      turnId: turn.turnId,
+      startedAt: turn.startedAt,
+      text: turn.text,
+      thinking: turn.thinking,
+      thinkingDurationMs,
+      usage: {
+        inputTokens: turn.usage?.inputTokens ?? 0,
+        outputTokens: turn.usage?.outputTokens ?? 0,
+        cacheReadTokens: turn.usage?.cacheReadTokens ?? 0,
+        cacheWriteTokens: turn.usage?.cacheWriteTokens ?? 0,
+        costUsd: turn.usage?.costUsd ?? 0,
+        elapsedMs,
+        tokensPerSecond: elapsedMs > 0 ? Math.round((turn.usage?.outputTokens ?? 0) * 1000 / elapsedMs) : 0,
+        contextTokens: turn.usage?.contextTokens ?? null,
+        contextWindow: turn.usage?.contextWindow ?? null,
+        contextPercent: turn.usage?.contextTokens && turn.usage?.contextWindow
+          ? Math.round(turn.usage.contextTokens / turn.usage.contextWindow * 100)
+          : null,
+      },
+      cancelled,
+    }
+    liveUsage.set(sessionKey, result.usage)
+    const priorStats = stats.get(sessionKey) ?? {
+      userMessages: 0,
+      assistantMessages: 0,
+      toolCalls: 0,
+      toolResults: 0,
+      toolCallsById: new Map(),
+      tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+      cost: 0,
+    }
+    priorStats.assistantMessages += result.text ? 1 : 0
+    priorStats.toolCalls += turn.toolCalls
+    priorStats.toolResults += turn.toolResults
+    priorStats.tokens.input += result.usage.inputTokens
+    priorStats.tokens.output += result.usage.outputTokens
+    priorStats.tokens.cacheRead += result.usage.cacheReadTokens
+    priorStats.tokens.cacheWrite += result.usage.cacheWriteTokens
+    priorStats.tokens.total = priorStats.tokens.input + priorStats.tokens.output + priorStats.tokens.cacheRead + priorStats.tokens.cacheWrite
+    priorStats.cost += result.usage.costUsd
+    priorStats.contextTokens = result.usage.contextTokens
+    priorStats.contextWindow = result.usage.contextWindow
+    priorStats.contextPercent = result.usage.contextPercent
+    stats.set(sessionKey, priorStats)
+    // A queued turn has no outstanding IPC caller. Persist at the native
+    // terminal boundary, not only when the first send promise resolves.
+    // Do not await disk IO on the shared mux: it must keep consuming queue
+    // claims and other sessions while this turn's commit finishes.
+    const persisted = turn.persistTerminal && onTurnCompleted
+      ? Promise.resolve().then(() => onTurnCompleted({
+        conversationId: emitTarget, modelKey: turn.modelKey, result,
+        errorMessage: turnFailure ? (turnFailure.message || 'Z Agent 执行失败') : null,
+      })).then(() => { result.nativePersisted = true })
+      : Promise.resolve()
+    // The first IPC caller also observes commit failures below; later queued
+    // commits have no caller, so keep diagnostics without breaking the mux.
+    void persisted.catch(error => console.error('[chat] 保存本轮结果失败:', error instanceof Error ? error.message : error))
+    if (turn.emitLifecycle !== false) {
+      if (result.thinking && thinkingDurationMs > 0) {
+        emit(emitTarget, turn.webContents, {
+          type: 'thinking_end',
+          fullThinking: result.thinking,
+          durationMs: thinkingDurationMs,
+        })
+      }
+      if (turnFailure) {
+        emit(emitTarget, turn.webContents, {
+          type: 'error',
+          message: turnFailure.message || 'Z Agent 执行失败',
+          turnId: turn.turnId,
+          startedAt: turn.startedAt,
+          full: result.text,
+          fullThinking: result.thinking,
+          thinkingDurationMs,
+          usage: result.usage,
+          ...(turn.taskId ? { taskId: turn.taskId } : {}),
+        })
+      } else {
         emit(emitTarget, turn.webContents, {
           type: 'done',
+          turnId: turn.turnId,
+          startedAt: turn.startedAt,
+          continuing,
           full: result.text,
           fullThinking: result.thinking,
           thinkingDurationMs,
@@ -588,21 +991,53 @@ export function createDshChatService({
           ...(turn.taskId ? { taskId: turn.taskId } : {}),
         })
       }
+    }
+    if (!turn.initialResolved) {
+      turn.initialResolved = true
+      if (turnFailure) {
+        const error = new Error(turnFailure.message || 'Z Agent 执行失败')
+        if (turnFailure.code) error.code = turnFailure.code
+        error.partialResult = result
+        error.modelKey = turn.modelKey
+        void persisted.then(() => turn.reject(error), persistenceError => {
+          error.persistenceError = persistenceError
+          turn.reject(error)
+        })
+      } else {
+        void persisted.then(() => turn.resolve(result), error => {
+          error.partialResult = result
+          error.modelKey = turn.modelKey
+          turn.reject(error)
+        })
+      }
+    }
+    if (continuing) {
+      // Keep the conversation busy across DSH's queued next-turn work. The
+      // next turn/start rotates the visible per-turn stream, and its turn/end
+      // is the only point at which the busy entry is finally released.
+      turn.awaitingQueuedTurn = true
+    } else {
+      turn.pendingQueuedTurns = 0
       running.delete(sessionKey)
-      turn.resolve(result)
     }
   }
 
   async function startMuxStream(api) {
+    const generation = ++muxGeneration
     muxAbort = new AbortController()
+    const activeController = muxAbort
     const activeSignal = muxAbort.signal
+    let connected = false
     let markMuxOpen
     let rejectMuxOpen
     const muxOpened = new Promise((resolve, reject) => {
-      markMuxOpen = resolve
+      markMuxOpen = () => { connected = true; resolve() }
       rejectMuxOpen = reject
     })
-    const openTimer = setTimeout(() => rejectMuxOpen(new Error('DSH 事件通道连接超时')), 8_000)
+    const openTimer = setTimeout(() => {
+      rejectMuxOpen(new Error('Z 事件通道连接超时'))
+      activeController.abort()
+    }, 8_000)
     openTimer.unref?.()
     muxTask = (async () => {
       try {
@@ -610,32 +1045,71 @@ export function createDshChatService({
           markMuxOpen()
           await handleEnvelope(api, envelope)
         }
-        if (!activeSignal.aborted) throw new Error('DSH 事件流意外关闭')
+        if (!activeSignal.aborted) throw new Error('Z 事件流意外关闭')
       } catch (error) {
         rejectMuxOpen(error)
-        if (!activeSignal.aborted && !stopped) {
-          const message = `DSH 事件流中断：${error instanceof Error ? error.message : String(error)}`
+        if (!activeSignal.aborted && !stopped && generation === muxGeneration) {
           for (const [conversationId, turn] of running) {
-            emit(conversationId, turn.webContents, { type: 'error', message })
-            running.delete(conversationId)
-            turn.reject(new Error(message))
+            turn.recovering = true
+            if (!turn.silentText) emit(turn.eventConversationId ?? conversationId, turn.webContents,
+              { type: 'connection', state: 'reconnecting', message: '正在恢复会话连接，任务未被自动停止…' })
           }
           muxTask = null
           muxAbort = null
-          await scheduleReconnect(api)
+          // A pre-open failure belongs to startMuxStream's awaiting caller.
+          // Scheduling here as well would open two competing generations.
+          if (connected) {
+            const retry = scheduleReconnect(api)
+            reconnectTask = retry
+            await retry
+            if (reconnectTask === retry) reconnectTask = null
+          }
         }
       } finally {
         clearTimeout(openTimer)
+        if (!connected && generation === muxGeneration) {
+          muxTask = null
+          muxAbort = null
+        }
       }
     })()
-    await muxOpened
-    reconnectAttempt = 0
+    try {
+      await muxOpened
+    } finally {
+      // This timeout only bounds the initial handshake. Leaving it armed after
+      // the SSE stream opens silently aborts every healthy mux after 8 seconds;
+      // because the abort then looks intentional, the reconnect path is skipped.
+      clearTimeout(openTimer)
+    }
+    if (![...running.values()].some(turn => turn.recovering)) reconnectAttempt = 0
+  }
+
+  function reportUnconfirmedRuns(message) {
+    for (const [sessionKey, turn] of running) {
+      const target = turn.eventConversationId ?? sessionKey
+      if (typeof hostManager.isRunning === 'function' && !hostManager.isRunning()) {
+        finishTurn(sessionKey, turn, target, { reason: 'error', error: { message: 'Z Host 已停止；已保留此前输出，未自动重复执行。', code: 'HOST_INTERRUPTED' } })
+        continue
+      }
+      turn.connectionFailed = true
+      if (!turn.silentText) emit(target, turn.webContents, { type: 'connection', state: 'unavailable', message })
+      if (!turn.initialResolved) {
+        turn.initialResolved = true
+        const error = new Error(message)
+        // Unknown remote state is not a terminal. The UI must retain its run
+        // and partial stream; do not account a partial as a completed call.
+        error.runContinues = true
+        error.turnId = turn.turnId
+        turn.reject(error)
+      }
+    }
   }
 
   async function scheduleReconnect(api) {
     if (stopped || reconnectAttempt >= Z_MAX_RECONNECT_ATTEMPTS) {
       if (reconnectAttempt >= Z_MAX_RECONNECT_ATTEMPTS) {
         console.error(`Z 事件流重连已达到最大尝试次数 (${Z_MAX_RECONNECT_ATTEMPTS})，停止重连`)
+        reportUnconfirmedRuns('会话连接暂不可用，后台任务状态尚未确认；未自动停止或重复执行，请检查连接后再同步。')
       }
       return
     }
@@ -658,12 +1132,9 @@ export function createDshChatService({
         reconnectApi = (await hostManager.start()).api
       } else {
         reconnectApi = hostManager.getApi?.() ?? api
-        try {
-          rpcValue(await reconnectApi.host.describe({}), '检查 Z Host')
-        } catch {
-          readyPromise = null
-          reconnectApi = (await hostManager.restart()).api
-        }
+        // A failed health RPC is not proof the child died. Do not destroy all
+        // live Agents because one connection/health check failed transiently.
+        rpcValue(await reconnectApi.host.describe({}), '检查 Z Host')
       }
       conversationHub?.bindApi?.(reconnectApi)
       readyPromise = Promise.resolve(reconnectApi)
@@ -677,13 +1148,31 @@ export function createDshChatService({
       console.error(`DSH 事件流重连失败：${error instanceof Error ? error.message : String(error)}`)
       if (!stopped && reconnectAttempt < Z_MAX_RECONNECT_ATTEMPTS) {
         await scheduleReconnect(api)
+      } else if (!stopped) {
+        reportUnconfirmedRuns('会话连接暂不可用，后台任务状态尚未确认；未自动停止或重复执行，请检查连接后再同步。')
       }
     }
   }
 
   async function ensureReady() {
-    if (stopped) throw new Error('DSH 后端已关闭')
-    if (readyPromise && (typeof hostManager.isRunning !== 'function' || hostManager.isRunning())) return readyPromise
+    if (stopped) throw new Error('Z Host 已关闭')
+    // Both a not-yet-running child and an already-running child with a pending
+    // first mux handshake share this promise. Never install a second opener
+    // merely because the first caller has not reached startMuxStream yet.
+    if (readyPromise && establishingReady) return readyPromise
+    if (readyPromise && (typeof hostManager.isRunning !== 'function' || hostManager.isRunning())) {
+      if (reconnectTask && [...running.values()].some(turn => turn.connectionFailed)) await reconnectTask
+      // After retry exhaustion, a new explicit read/send may re-establish the
+      // stream. During backoff, do not create a competing mux consumer.
+      if (!muxTask && !reconnectTask) {
+        establishingReady = true
+        readyPromise = readyPromise.then(async api => { await startMuxStream(api); return api }).catch(error => {
+          readyPromise = null
+          throw error
+        }).finally(() => { establishingReady = false })
+      }
+      return readyPromise
+    }
     if (readyPromise) {
       // A fulfilled API promise can outlive the host child it points to.
       // Discard the dead transport before starting a fresh host/client pair.
@@ -692,6 +1181,7 @@ export function createDshChatService({
       muxAbort = null
       muxTask = null
     }
+    establishingReady = true
     readyPromise = (async () => {
       const { api } = await hostManager.start()
       conversationHub?.bindApi?.(api)
@@ -702,11 +1192,11 @@ export function createDshChatService({
     })().catch((error) => {
       readyPromise = null
       throw error
-    })
+    }).finally(() => { establishingReady = false })
     return readyPromise
   }
 
-  async function ensureSession(api, conversationId, { cwdOverride, agentPreset, permissionMode, ownerConversationId } = {}) {
+  async function ensureSession(api, conversationId, { cwdOverride, agentPreset, permissionMode, ownerConversationId, parentSessionId } = {}) {
     await loadSessions()
     let entry = sessions.get(conversationId)
     const requestedCwd = cwdOverride || getWorkspacePath() || process.cwd()
@@ -716,19 +1206,34 @@ export function createDshChatService({
     const mode = normalizePermissionMode(permissionMode ?? await Promise.resolve(getPermissionMode(conversationId)))
     const resolvedPreset = agentPreset || dshAgentPresetForPermissionMode(mode)
     if (entry && entry.cwd !== requestedCwd) {
-      throw new Error('此对话绑定的工作区与当前工作区不同。为保持 DSH 会话上下文一致，请在原工作区继续，或新建对话。')
+      throw new Error('此对话绑定的工作区与当前工作区不同。为保持 Z 会话上下文一致，请在原工作区继续，或新建对话。')
     }
     if (!entry) {
       const sessionId = sessionIdForKey(conversationId)
-      const created = rpcValue(await api.sessions.create({
-        sessionId,
-        cwd: requestedCwd,
-        agentPreset: resolvedPreset,
-      }), '创建 DSH 会话')
+      let created
+      try {
+        created = rpcValue(await api.sessions.create({
+          sessionId,
+          cwd: requestedCwd,
+          agentPreset: resolvedPreset,
+          ...(parentSessionId ? { parentSessionId } : {}),
+        }), '创建 Z 会话')
+      } catch (error) {
+        // 映射表可能因 LRU/恢复丢失，但确定性 sessionId 对应的 Host 日志仍在。
+        // Host 用 agent-preset-conflict 明确表示“这是旧会话，预设不可覆盖”；
+        // 去掉 agentPreset 重试会采用日志中真实预设，不改写历史会话配置。
+        if (error?.code !== 'agent-preset-conflict') throw error
+        created = rpcValue(await api.sessions.create({
+          sessionId,
+          cwd: requestedCwd,
+          ...(parentSessionId ? { parentSessionId } : {}),
+        }), '恢复已有 Z 会话')
+      }
       entry = {
         sessionId: created.sessionId || sessionId,
         cwd: requestedCwd,
         agentPreset: created.agentPreset || resolvedPreset,
+        ...(parentSessionId ? { parentSessionId } : {}),
         ownerConversationId: ownerConversationId || conversationId,
         permissionModeAtCreate: mode,
         lastUsedAt: Date.now(),
@@ -747,7 +1252,7 @@ export function createDshChatService({
         sessionId: entry.sessionId,
         cwd: entry.cwd,
         ...(entry.agentPreset ? { agentPreset: entry.agentPreset } : {}),
-      }), '恢复 DSH 会话')
+      }), '恢复 Z 会话')
       // LRU 用：只在时间戳明显推进时落盘，避免每轮都写一次映射表。
       const now = Date.now()
       if (now - (entry.lastUsedAt ?? 0) > 60_000) {
@@ -776,7 +1281,7 @@ export function createDshChatService({
 
   /** Align Host session route with Composer; skip selectModel when already matched (DSH Web semantics). */
   async function ensureSessionModelSelection(api, sessionId, config, explicitReasoningEffort) {
-    const directory = rpcValue(await api.sessions.models({ sessionId }), '读取 DSH 会话模型')
+    const directory = rpcValue(await api.sessions.models({ sessionId }), '读取 Z 会话模型')
     const current = directory?.current ?? null
     if (sessionModelMatches(current, config, explicitReasoningEffort)) return current
     const payload = {
@@ -785,8 +1290,22 @@ export function createDshChatService({
       model: config.id,
       ...(explicitReasoningEffort ? { reasoningEffort: explicitReasoningEffort } : {}),
     }
-    const selected = rpcValue(await api.sessions.selectModel(payload), '选择 DSH 模型')
+    const selected = rpcValue(await api.sessions.selectModel(payload), '选择 Z 模型')
     return selected?.selected ?? selected
+  }
+
+  async function selectedReasoningEffort(config, modelKey) {
+    // A global Composer preference must not be sent to routes that explicitly
+    // declare no reasoning support; some OpenAI-compatible gateways reject
+    // the request before generation when an effort is present.
+    if (config?.reasoning === false) return null
+    const requested = await profileStore?.getThinkingLevel?.(modelKey) ?? null
+    if (!requested) return null
+    const supported = config?.supportedThinkingLevels
+    if (Array.isArray(supported) && !supported.includes(requested)) {
+      return supported.includes(config.defaultThinkingLevel) ? config.defaultThinkingLevel : null
+    }
+    return requested
   }
 
   async function ensurePermissionModeApplied(api, sessionKey, entry, mode) {
@@ -798,9 +1317,9 @@ export function createDshChatService({
       mode: 'queue',
       content: [{ type: 'text', text: `/permission ${preset}` }],
       clientTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-    }), '应用 DSH 权限模式')
+    }), '应用 Z 权限模式')
     if (response.command?.kind !== 'success') {
-      throw new Error('DSH 未确认应用权限模式；为避免以错误权限执行，本次消息已阻止。请检查 DSH 权限命令是否可用。')
+      throw new Error('Z Host 未确认应用权限模式；为避免以错误权限执行，本次消息已阻止。请检查权限设置后重试。')
     }
     entry.lastAppliedPermissionMode = normalizedMode
     sessions.set(sessionKey, entry)
@@ -809,9 +1328,9 @@ export function createDshChatService({
 
   async function configureModel(api, modelKey) {
     const config = await modelService.getDshModelConfig(modelKey)
-    const providerList = rpcValue(await api.llm.providers({}), '读取 DSH 提供方目录')
+    const providerList = rpcValue(await api.llm.providers({}), '读取 Z 提供方目录')
     const route = providerList.providers?.find((item) => item.provider === config.provider)
-    if (!route?.active) throw new Error(`DSH 当前没有启用模型提供方 ${config.provider}；请先检查 DSH 模型设置。`)
+    if (!route?.active) throw new Error(`Z Runtime 当前没有启用模型提供方 ${config.provider}；请先检查 TaskWeaver 模型设置。`)
     const auth = await modelService.listProvidersAuth()
     if (!auth.some((item) => item.id === config.provider && item.configured)) {
       throw new Error(`模型提供方 ${config.provider} 尚未完成 API Key 或官方订阅授权。请先在模型设置中连接账号。`)
@@ -828,17 +1347,19 @@ export function createDshChatService({
     sessionKey = conversationId,
     eventConversationId = conversationId,
     cwdOverride,
-    agentPreset = 'code',
+    agentPreset = 'standard',
     skill = null,
     taskId,
     silentText = false,
     emitLifecycle = true,
+    persistTerminal = true,
+    parentSessionId,
   }) {
     if (!text || typeof text !== 'string') throw new Error('消息不能为空')
     if (!conversationId) throw new Error('当前对话标识无效')
-    if (!sessionKey) throw new Error('DSH 会话标识无效')
-    // steer 模式允许在运行时纠偏，只有 followUp 需要等待
-    if (running.has(sessionKey) && behavior !== 'steer') throw new Error('当前 DSH 会话仍在运行，请停止或等待完成')
+    if (!sessionKey) throw new Error('Z 会话标识无效')
+    const command = nativeChatCommand(text)
+    if (cancellingSessions.has(sessionKey)) throw new Error('当前会话正在停止，请稍后再发送')
     // 先做工作区校验再启动 Host：无效请求不该把 DSH 拉起来。
     assertBindableWorkspace(cwdOverride || getWorkspacePath() || process.cwd())
     const api = await ensureReady()
@@ -848,17 +1369,70 @@ export function createDshChatService({
       agentPreset,
       permissionMode,
       ownerConversationId: conversationId,
+      parentSessionId,
     })
+
+    const activeTurn = running.get(sessionKey)
+    if (cancellingSessions.has(sessionKey)) throw new Error('当前会话正在停止，请稍后再发送')
+    if (activeTurn?.command || (activeTurn && command)) throw new Error('当前会话正在执行任务或压缩命令，请稍后再发送')
+    if (activeTurn) {
+      // DSH owns queue/steer delivery for a live Agent. Do not reconfigure or
+      // replace its lifecycle record: turn/end must still settle the original
+      // send and release the caller's per-conversation lock.
+      if (behavior !== 'steer') activeTurn.pendingQueuedTurns += 1
+      const admission = Promise.resolve().then(() => api.sessions.prompt({
+        sessionId: entry.sessionId,
+        mode: behavior === 'steer' ? 'steer' : 'queue',
+        content: [{ type: 'text', text: applySkillInstructions(text, skill) }],
+        clientTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      }))
+      activeTurn.pendingPromptAdmissions.add(admission)
+      try {
+        rpcValue(await admission, '发送消息')
+      } catch (error) {
+        if (behavior !== 'steer') activeTurn.pendingQueuedTurns = Math.max(0, activeTurn.pendingQueuedTurns - 1)
+        throw error
+      } finally {
+        activeTurn.pendingPromptAdmissions.delete(admission)
+      }
+      const currentStats = stats.get(sessionKey)
+      if (currentStats) currentStats.userMessages += 1
+      return { accepted: true, queued: behavior !== 'steer' }
+    }
+
     await ensurePermissionModeApplied(api, sessionKey, entry, permissionMode)
     if (!modelKey) throw new Error('请先选择已配置的模型')
     const config = await configureModel(api, modelKey)
-    const explicitReasoningEffort = await profileStore?.getThinkingLevel?.(modelKey) ?? null
+    const explicitReasoningEffort = await selectedReasoningEffort(config, modelKey)
     await ensureSessionModelSelection(api, entry.sessionId, config, explicitReasoningEffort)
+    let historyBaselineSeq = observedSequences.get(entry.sessionId)
+    if (historyBaselineSeq === undefined && typeof api.sessions.history === 'function') {
+      try {
+        const history = rpcValue(await api.sessions.history({ sessionId: entry.sessionId, maxMessages: 1 }), '读取 Z 会话事件基线')
+        historyBaselineSeq = history.events?.reduce((max, row) => Math.max(max, row.event?.seq ?? -1), -1) ?? -1
+        observedSequences.set(entry.sessionId, historyBaselineSeq)
+      } catch (error) {
+        // A baseline is only for the recovery fallback; its failure must not
+        // block the user prompt or cause an unsafe replay from sequence zero.
+        console.warn(`读取 Z 会话事件基线失败，继续正常发送：${error instanceof Error ? error.message : String(error)}`)
+      }
+    }
 
-    if (emitLifecycle) emit(eventConversationId, webContents, { type: 'start', startedAt: Date.now(), taskId })
+    const turnId = crypto.randomUUID()
+    if (emitLifecycle) emit(eventConversationId, webContents, { type: 'start', startedAt: Date.now(), ...(command ? {} : { turnId }), taskId })
+    let resolveTurn
+    let rejectTurn
     const completed = new Promise((resolve, reject) => {
-      running.set(sessionKey, {
+      resolveTurn = resolve
+      rejectTurn = reject
+    })
+    running.set(sessionKey, {
+        turnId,
+        modelKey,
+        persistTerminal: persistTerminal && sessionKey === eventConversationId && !taskId && !silentText,
+        command: Boolean(command),
         sessionId: entry.sessionId,
+        historyBaselineSeq,
         webContents,
         eventConversationId,
         taskId,
@@ -874,19 +1448,46 @@ export function createDshChatService({
         toolCalls: 0,
         toolResults: 0,
         toolCallsById: new Map(),
+        pendingQueuedTurns: 0,
+        queueAuthoritative: false,
+        pendingPromptAdmissions: new Set(),
+        awaitingQueuedTurn: false,
+        initialResolved: false,
         startedAt: Date.now(),
         lastEventAt: Date.now(),
-        resolve,
-        reject,
+        resolve: resolveTurn,
+        reject: rejectTurn,
+        completion: completed,
       })
-    })
+    scheduleIdleHistoryReconciliation(api, sessionKey, running.get(sessionKey))
     try {
-      rpcValue(await api.sessions.prompt({
+      const reply = rpcValue(await api.sessions.prompt({
         sessionId: entry.sessionId,
         mode: behavior === 'steer' ? 'steer' : 'queue',
-        content: [{ type: 'text', text: applySkillInstructions(text, skill) }],
+        content: [{ type: 'text', text: command || applySkillInstructions(text, skill) }],
+        ...(command ? { commandOnly: true } : {}),
         clientTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       }), '发送消息')
+      if (command) {
+        if (reply.command?.kind !== 'success') throw new Error('Z Host 未确认执行原生压缩命令')
+        const record = running.get(sessionKey)
+        // RPC acknowledgement and mux delivery use independent transports.
+        // Read the durable tail if the summary's usage has not arrived yet;
+        // never borrow usage from a previous maintenance operation.
+        if (record && !record.usage) {
+          try {
+            const history = rpcValue(await api.sessions.history({ sessionId: entry.sessionId, maxMessages: 10 }), '读取压缩用量')
+            const summary = history?.events?.map(row => row.event).findLast(event =>
+              event.type === 'compaction/summary' && event.time >= record.startedAt)
+            if (summary) record.usage = normalizeTokenUsage(summary.data?.usage)
+          } catch { /* Successful maintenance must not fail on optional accounting. */ }
+        }
+        const usage = record?.usage ? { ...record.usage, elapsedMs: Date.now() - record.startedAt } : null
+        running.delete(sessionKey)
+        if (emitLifecycle) emit(eventConversationId, webContents, { type: 'done', full: '', continuing: false })
+        resolveTurn({ text: reply.command.text || '命令已执行。', thinking: '', usage, cancelled: false, command: true })
+        return completed
+      }
       const currentStats = stats.get(sessionKey) ?? {
         userMessages: 0, assistantMessages: 0, toolCalls: 0, toolResults: 0,
         tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }, cost: 0,
@@ -896,6 +1497,7 @@ export function createDshChatService({
     } catch (error) {
       const turn = running.get(sessionKey)
       if (turn) running.delete(sessionKey)
+      if (command && emitLifecycle) emit(eventConversationId, webContents, { type: 'error', message: error.message || '压缩命令失败' })
       throw error
     }
     return completed
@@ -910,7 +1512,26 @@ export function createDshChatService({
       const turn = running.get(id)
       if (!turn) continue
       stoppedAny = true
-      try { rpcValue(await api.sessions.cancel({ sessionId: turn.sessionId }), '停止 DSH 会话') } catch { /* turn may finish between lookup and cancel */ }
+      cancellingSessions.add(id)
+      try {
+        try { rpcValue(await api.sessions.cancel({ sessionId: turn.sessionId }), '停止 Z 会话') }
+        catch (error) { if (error.code !== 'session-not-found') throw error }
+        // Z's ordinary cancel keeps its durable inbox. TaskWeaver's Stop UI
+        // clears pending input, so remove that input too, before another send
+        // can wake the Agent and unexpectedly replay cancelled follow-ups.
+        await Promise.allSettled([...turn.pendingPromptAdmissions])
+        const pending = (queueSnapshots.get(id) ?? []).filter(item => ['queued', 'steering'].includes(item.placement))
+        for (const item of pending) {
+          try {
+            rpcValue(await api.sessions.updateQueue({ sessionId: turn.sessionId, itemId: item.id, action: { kind: 'remove' } }), '取消待处理消息')
+          } catch (error) {
+            // An already claimed/removed occurrence is no longer queued.
+            if (!['queue-item-not-found', 'session-not-found'].includes(error.code)) throw error
+          }
+        }
+      } finally {
+        cancellingSessions.delete(id)
+      }
     }
     return stoppedAny
   }
@@ -952,7 +1573,7 @@ export function createDshChatService({
         sessionId,
         maxMessages: 500,
         ...(beforeSeq === undefined ? {} : { beforeSeq }),
-      }), '读取 DSH 会话历史')
+      }), '读取 Z 会话历史')
       const events = value?.events ?? []
       if (!events.length) break
       for (const item of events) {
@@ -994,7 +1615,7 @@ export function createDshChatService({
       const value = rpcValue(await api.sessions.fork({
         sessionId: source.sessionId,
         ...(atSeq === undefined ? {} : { atSeq }),
-      }), '分叉 DSH 会话')
+      }), '分叉 Z 会话')
       childSessionId = value?.sessionId ?? null
     } catch (error) {
       return { ok: false, reason: 'fork-failed', error: error instanceof Error ? error.message : String(error) }
@@ -1022,6 +1643,7 @@ export function createDshChatService({
     muxAbort?.abort()
     await muxTask?.catch(() => {})
     for (const [id, turn] of running) {
+      if (turn.reconcileTimer) clearTimeout(turn.reconcileTimer)
       emit(id, turn.webContents, { type: 'done', full: turn.text, fullThinking: turn.thinking })
       turn.resolve({ text: turn.text, thinking: turn.thinking, usage: null, cancelled: true })
       running.delete(id)
@@ -1031,9 +1653,17 @@ export function createDshChatService({
 
   return {
     send,
-    async runAgentTurn({ conversationId, sessionKey, text, modelKey, webContents, cwd, agentPreset = 'code', taskId, signal }) {
+    async runAgentTurn({ conversationId, sessionKey, text, modelKey, webContents, cwd, agentPreset = 'standard', taskId, signal, parentSessionId }) {
       if (signal?.aborted) throw new Error('任务已停止')
-      const onAbort = () => { void abort(sessionKey) }
+      const onAbort = () => {
+        void abort(sessionKey).catch((error) => {
+          emit(conversationId, webContents, {
+            type: 'connection',
+            state: 'reconnecting',
+            message: `已收到停止请求，但 Host 暂未确认取消：${error instanceof Error ? error.message : String(error)}`,
+          })
+        })
+      }
       signal?.addEventListener('abort', onAbort, { once: true })
       try {
         const result = await send({
@@ -1045,6 +1675,7 @@ export function createDshChatService({
           webContents,
           cwdOverride: cwd,
           agentPreset,
+          parentSessionId,
           taskId,
           silentText: true,
           emitLifecycle: false,
@@ -1058,6 +1689,7 @@ export function createDshChatService({
     },
     abort,
     respondApproval,
+    answerUserQuestion,
     rejectPendingApprovals,
     forgetConversation,
     forkConversation,
@@ -1073,7 +1705,9 @@ export function createDshChatService({
       // directly, instead of silently returning the per-process turn counter.
       await loadSessions()
       const current = stats.get(id)
-      const mappedSessionId = sessions.get(id)?.sessionId ?? null
+      const mappedSession = sessions.get(id)
+      const mappedSessionId = mappedSession?.sessionId ?? null
+      const agentPreset = mappedSession?.agentPreset ?? null
       let projections = null
       if (mappedSessionId) {
         try {
@@ -1081,7 +1715,7 @@ export function createDshChatService({
           const history = rpcValue(await api.sessions.history({
             sessionId: mappedSessionId,
             maxMessages: 1,
-          }), '读取 DSH 会话投影')
+          }), '读取 Z 会话投影')
           projections = history?.projections?.values ?? null
         } catch (error) {
           console.warn(
@@ -1096,7 +1730,20 @@ export function createDshChatService({
       const projectedStats = projections?.sessionStats
       const projectedUsage = projections?.tokenUsage
       const contextPressure = projections?.contextPressure
-      if (!projectedStats && !projectedUsage && !contextPressure) return current ?? null
+      if (!projectedStats && !projectedUsage && !contextPressure) {
+        if (!current && !agentPreset) return null
+        return {
+          ...(current ?? {
+            userMessages: 0,
+            assistantMessages: 0,
+            toolCalls: 0,
+            toolResults: 0,
+            tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+            cost: 0,
+          }),
+          ...(agentPreset ? { agentPreset } : {}),
+        }
+      }
 
       // Client projection views are normally flat. Accept the persistence
       // state shape too, so version/runtime differences don't drop totals.
@@ -1124,6 +1771,7 @@ export function createDshChatService({
           total: input + output + cacheRead + cacheWrite,
         },
         cost: current?.cost ?? 0,
+        ...(agentPreset ? { agentPreset } : {}),
         ...(contextTokens === undefined ? {} : { contextTokens }),
         ...(contextWindow === undefined ? {} : { contextWindow }),
         ...(contextPercent === undefined ? {} : { contextPercent }),
@@ -1146,7 +1794,7 @@ export function createDshChatService({
           : null
       if (!operation) return { ok: false, error: '内容不能为空' }
       const api = await ensureReady()
-      rpcValue(await api.sessions.updateQueue({ sessionId: entry.sessionId, itemId: item.id, action: operation }), '更新 DSH 队列')
+      rpcValue(await api.sessions.updateQueue({ sessionId: entry.sessionId, itemId: item.id, action: operation }), '更新 Z 队列')
       const current = queueSnapshots.get(conversationId) ?? []
       const toText = (queued) => queued.message?.content?.map((part) => part.text ?? '').join('') ?? ''
       return {
@@ -1161,7 +1809,7 @@ export function createDshChatService({
       if (!entry) return { ok: false, reason: 'no-session' }
       const api = await ensureReady()
       const config = await configureModel(api, modelKey)
-      const explicitReasoningEffort = await profileStore?.getThinkingLevel?.(modelKey) ?? null
+      const explicitReasoningEffort = await selectedReasoningEffort(config, modelKey)
       await ensureSessionModelSelection(api, entry.sessionId, config, explicitReasoningEffort)
       return { ok: true }
     },

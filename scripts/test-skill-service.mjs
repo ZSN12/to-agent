@@ -88,7 +88,7 @@ try {
   const skills = await service.list()
   assert.equal(skills.find((skill) => skill.name === 'agent-teams')?.description, 'DSH catalog description')
   assert.equal(skills.find((skill) => skill.name === 'dsh-only-skill')?.source, 'dsh')
-  assert.equal(skills.find((skill) => skill.name === 'dsh-only-skill')?.sourceLabel, 'DSH')
+  assert.equal(skills.find((skill) => skill.name === 'dsh-only-skill')?.sourceLabel, 'Z')
   assert.equal(skills.find((skill) => skill.name === 'agent-teams')?.multiAgent, true)
   assert.equal(skills.find((skill) => skill.name === 'multi-agent-orchestration')?.multiAgent, true)
   assert.equal(skills.find((skill) => skill.name === 'global-tool')?.source, 'dsh')
@@ -136,7 +136,7 @@ try {
   const fallback = await localOnly.list()
   assert.ok(fallback.some((skill) => skill.name === 'agent-teams'))
   assert.ok(fallback.some((skill) => skill.name === 'global-tool'), 'global skills remain discoverable without a project and without DSH')
-  console.log('skill service checks passed: DSH list merge, instruction loading/injection, multi-agent routing, safe default')
+  console.log('skill service checks passed: Z list merge, instruction loading/injection, multi-agent routing, safe default')
 } finally {
   await fs.rm(root, { recursive: true, force: true })
 }
