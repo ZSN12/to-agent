@@ -1,14 +1,19 @@
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import type { UserQuestionAnswer, UserQuestionPromptPayload } from '../../shared/app-api'
+import { makePlanReviewAnswer, readPlanReviewQuestion, type PlanReviewQuestion } from './planReviewQuestion'
+
+const AgentMessageMarkdown = lazy(() => import('./AgentMessageMarkdown').then(module => ({ default: module.AgentMessageMarkdown })))
 
 type DraftAnswer = { selected: string[]; custom: string }
 
 export function UserQuestionPanel({
   prompt,
   onAnswer,
+  onDiscuss,
 }: {
   prompt: UserQuestionPromptPayload
   onAnswer: (id: string, answer: UserQuestionAnswer) => Promise<boolean>
+  onDiscuss?: (id: string) => Promise<boolean>
 }) {
   const [drafts, setDrafts] = useState<Record<string, DraftAnswer>>({})
   const [submitting, setSubmitting] = useState(false)
@@ -41,6 +46,11 @@ export function UserQuestionPanel({
       }),
     }
     if (!await onAnswer(prompt.id, answer)) setSubmitting(false)
+  }
+
+  const planReview = readPlanReviewQuestion(prompt.questions)
+  if (planReview) {
+    return <PlanReviewCard prompt={prompt} review={planReview} onAnswer={onAnswer} onDiscuss={onDiscuss} />
   }
 
   return (
@@ -100,6 +110,107 @@ export function UserQuestionPanel({
       <footer className="user-question-actions">
         <button type="button" className="approval-btn allow" disabled={!complete || submitting} onClick={() => void submit()}>
           {submitting ? '正在提交…' : '提交回答并继续'}
+        </button>
+      </footer>
+    </section>
+  )
+}
+
+function PlanReviewCard({
+  prompt,
+  review,
+  onAnswer,
+  onDiscuss,
+}: {
+  prompt: UserQuestionPromptPayload
+  review: PlanReviewQuestion
+  onAnswer: (id: string, answer: UserQuestionAnswer) => Promise<boolean>
+  onDiscuss?: (id: string) => Promise<boolean>
+}) {
+  const [feedback, setFeedback] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const discuss = async () => {
+    if (!onDiscuss || submitting) return
+    setSubmitting(true)
+    setError(null)
+    try {
+      if (await onDiscuss(prompt.id)) return
+      setError('暂时无法返回对话，请重试。')
+    } catch (cause) {
+      setError(cause instanceof Error ? `暂时无法返回对话：${cause.message}` : '暂时无法返回对话，请重试。')
+    }
+    setSubmitting(false)
+  }
+
+  const decide = async (decision: 'approve' | 'keep-planning') => {
+    if (submitting) return
+    setSubmitting(true)
+    setError(null)
+    try {
+      const accepted = await onAnswer(prompt.id, makePlanReviewAnswer(review, decision, feedback))
+      if (accepted) return
+      setError('提交失败，请重试。')
+    } catch (cause) {
+      setError(cause instanceof Error ? `提交失败：${cause.message}` : '提交失败，请重试。')
+    }
+    setSubmitting(false)
+  }
+
+  return (
+    <section className="user-question-panel plan-review-panel" role="dialog" aria-labelledby="plan-review-title">
+      <header className="user-question-panel-head plan-review-head">
+        <strong id="plan-review-title">请审阅执行计划</strong>
+        <span>批准后 Agent 才会开始执行</span>
+      </header>
+      <p className="plan-review-question">{review.question}</p>
+      <div className="plan-review-body" aria-label="待审阅的计划">
+        <Suspense fallback={<pre className="plan-review-plain-fallback">{review.plan}</pre>}>
+          <AgentMessageMarkdown text={review.plan} />
+        </Suspense>
+      </div>
+      <label className="plan-review-feedback-label" htmlFor={`plan-review-feedback-${prompt.id}`}>
+        需要调整？写下意见后选择“继续规划”
+      </label>
+      <textarea
+        id={`plan-review-feedback-${prompt.id}`}
+        className="plan-review-feedback"
+        value={feedback}
+        disabled={submitting}
+        onChange={event => setFeedback(event.target.value)}
+        placeholder="可选：指出需要修改的内容"
+        rows={2}
+      />
+      {error && <p className="plan-review-error" role="alert">{error}</p>}
+      <footer className="plan-review-actions">
+        {onDiscuss && (
+          <button
+            type="button"
+            className="approval-btn always"
+            disabled={submitting}
+            onClick={() => void discuss()}
+          >
+            讨论
+          </button>
+        )}
+        <button
+          type="button"
+          className="approval-btn deny"
+          disabled={submitting}
+          title={review.keepPlanning.description}
+          onClick={() => void decide('keep-planning')}
+        >
+          {submitting ? '正在提交…' : '继续规划'}
+        </button>
+        <button
+          type="button"
+          className="approval-btn allow"
+          disabled={submitting}
+          title={review.approve.description}
+          onClick={() => void decide('approve')}
+        >
+          {submitting ? '正在提交…' : '批准并执行'}
         </button>
       </footer>
     </section>

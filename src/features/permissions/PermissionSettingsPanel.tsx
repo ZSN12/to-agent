@@ -2,6 +2,10 @@ import { FormEvent, useEffect, useState } from 'react'
 import { Check, Plus, Shield, ShieldCheck, Trash2, X } from 'lucide-react'
 import type { PermissionMode, PermissionRule } from '../../shared/app-api'
 
+const PROMPT_INJECTION_LIMIT_MIN_KIB = 1
+const PROMPT_INJECTION_LIMIT_MAX_KIB = 128
+const PROMPT_INJECTION_LIMIT_DEFAULT_KIB = 32
+
 function AddRuleModal({
   onClose,
   onSave,
@@ -154,6 +158,8 @@ export function PermissionSettingsPanel({
   const [modalOpen, setModalOpen] = useState(false)
   const [autoReviewReads, setAutoReviewReads] = useState(true)
   const [autoVerifyAfterMutation, setAutoVerifyAfterMutation] = useState(false)
+  const [promptInjectionLimitKiB, setPromptInjectionLimitKiB] = useState(String(PROMPT_INJECTION_LIMIT_DEFAULT_KIB))
+  const [savedPromptInjectionLimitKiB, setSavedPromptInjectionLimitKiB] = useState(PROMPT_INJECTION_LIMIT_DEFAULT_KIB)
 
   const loadRules = async () => {
     if (!window.taskweaver?.permission) {
@@ -173,6 +179,12 @@ export function PermissionSettingsPanel({
       if (res?.ok && res.data) {
         setAutoReviewReads(res.data.autoReviewReads !== false)
         setAutoVerifyAfterMutation(res.data.autoVerifyAfterMutation === true)
+        const limitKiB = Number.isFinite(res.data.promptInjectionLimitBytes)
+          ? Math.round((res.data.promptInjectionLimitBytes ?? PROMPT_INJECTION_LIMIT_DEFAULT_KIB * 1024) / 1024)
+          : PROMPT_INJECTION_LIMIT_DEFAULT_KIB
+        const boundedLimitKiB = Math.max(PROMPT_INJECTION_LIMIT_MIN_KIB, Math.min(PROMPT_INJECTION_LIMIT_MAX_KIB, limitKiB))
+        setPromptInjectionLimitKiB(String(boundedLimitKiB))
+        setSavedPromptInjectionLimitKiB(boundedLimitKiB)
       }
     })
   }, [])
@@ -195,6 +207,24 @@ export function PermissionSettingsPanel({
       return
     }
     onToast?.(enabled ? '已开启：工作区内只读工具免确认' : '已关闭：只读工具也将弹窗确认')
+  }
+
+  const handlePromptInjectionLimitCommit = async () => {
+    const parsedLimitKiB = Number(promptInjectionLimitKiB)
+    const nextLimitKiB = Number.isFinite(parsedLimitKiB)
+      ? Math.max(PROMPT_INJECTION_LIMIT_MIN_KIB, Math.min(PROMPT_INJECTION_LIMIT_MAX_KIB, Math.round(parsedLimitKiB)))
+      : savedPromptInjectionLimitKiB
+    setPromptInjectionLimitKiB(String(nextLimitKiB))
+    if (nextLimitKiB === savedPromptInjectionLimitKiB) return
+
+    const res = await window.taskweaver?.preferences?.set?.({ promptInjectionLimitBytes: nextLimitKiB * 1024 })
+    if (!res?.ok) {
+      setPromptInjectionLimitKiB(String(savedPromptInjectionLimitKiB))
+      onToast?.(res?.error || '保存失败')
+      return
+    }
+    setSavedPromptInjectionLimitKiB(nextLimitKiB)
+    onToast?.(`每轮系统上下文上限已保存为 ${nextLimitKiB} KiB`)
   }
 
   const handleModeSelect = async (nextMode: PermissionMode) => {
@@ -361,6 +391,29 @@ export function PermissionSettingsPanel({
             </span>
           </span>
         </label>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginTop: 14, fontSize: 12 }}>
+          <label htmlFor="prompt-injection-limit-kib" style={{ display: 'flex', flexDirection: 'column', gap: 4, cursor: 'pointer' }}>
+            <strong>每轮系统上下文上限</strong>
+            <span style={{ color: 'var(--text-secondary)', fontSize: 11, lineHeight: 1.45 }}>
+              每轮发送前，Prompt Pipeline 注入的系统上下文总字节上限；默认 32 KiB，范围 1–128 KiB。
+            </span>
+          </label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+            <input
+              id="prompt-injection-limit-kib"
+              type="number"
+              min={PROMPT_INJECTION_LIMIT_MIN_KIB}
+              max={PROMPT_INJECTION_LIMIT_MAX_KIB}
+              step={1}
+              value={promptInjectionLimitKiB}
+              onChange={(e) => setPromptInjectionLimitKiB(e.target.value)}
+              onBlur={() => { void handlePromptInjectionLimitCommit() }}
+              aria-label="每轮系统上下文上限，单位 KiB"
+              style={{ width: 76, padding: '6px 8px', borderRadius: 6, border: '1px solid var(--border-color)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 12 }}
+            />
+            <span style={{ color: 'var(--text-secondary)', fontSize: 11 }}>KiB</span>
+          </div>
+        </div>
       </div>
 
       {/* 细粒度规则列表 */}

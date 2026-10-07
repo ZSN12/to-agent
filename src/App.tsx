@@ -83,12 +83,14 @@ import { ThreadRunningIndicator } from './features/chat/ThreadRunningIndicator'
 import { DshToolCallList } from './features/chat/DshToolCallList'
 import { ChangedFilesSummary } from './features/chat/ChangedFilesSummary'
 import { MessageTurnUsageChip } from './features/chat/MessageTurnUsageChip'
+import { ComposerContextMeter } from './features/chat/ComposerContextMeter'
+import { visibleStreamStatusLabel } from './features/chat/streamActivityLabel'
 import { HostTodoProjection } from './features/chat/HostTodoProjection'
 import { ContextInjectionRow } from './features/chat/ContextInjectionRow'
 import { isDshContextMessage } from './features/dsh-runtime/dshTranscriptMessages'
 import type { DshProjectedToolCall, HostTodoItem } from './shared/app-api'
 import { DetailsPanel } from './features/chat/DetailsPanel'
-import type { BusyEnterMode, LiveContextUsage, PermissionPromptPayload, SessionStatsSnapshot, UserQuestionAnswer, UserQuestionPromptPayload } from './shared/app-api'
+import type { BusyEnterMode, LiveContextUsage, PermissionPromptPayload, PromptBudgetSnapshot, SessionStatsSnapshot, UserQuestionAnswer, UserQuestionPromptPayload } from './shared/app-api'
 import { skillOptionSourceLabel } from './shared/app-api'
 import type { FileDiffData, ModelUsageStats, PermissionMode, PromptQueueSnapshot, SkillOption, ThreadSummary, ToolTraceItem, WorkMode, WorkspaceEntry, WorkspaceReference } from './shared/app-api'
 import type { ChatMessage, ModelOption, TaskNode, TaskStatus, ThinkingLevel } from './types'
@@ -2031,10 +2033,14 @@ function DeepDivingIndicator({
   startTime,
   activity,
   completedToolCount = 0,
+  isThinking = false,
+  hasVisibleText = false,
 }: {
   startTime?: number
   activity?: string | null
   completedToolCount?: number
+  isThinking?: boolean
+  hasVisibleText?: boolean
 }) {
   const anchor = startTime ?? Date.now()
   const [elapsedMs, setElapsedMs] = useState(() => Math.max(0, Date.now() - anchor))
@@ -2048,14 +2054,13 @@ function DeepDivingIndicator({
 
   const showClock = elapsedMs >= 15_000
   const clockLabel = formatDshRunDuration(elapsedMs)
-  const progressLabel = elapsedMs >= 15_000 && completedToolCount > 0
-    ? `已完成 ${completedToolCount} 次工具调用`
-    : null
+  const statusLabel = visibleStreamStatusLabel({ activity, isThinking, hasVisibleText, completedToolCount })
+  const progressLabel = completedToolCount > 0 ? `已完成 ${completedToolCount} 次工具调用` : null
 
   return (
     <div className="dsh-deep-diving-row" role="status" aria-live="polite">
-      <span className="dsh-diving-text">Deep diving...</span>
-      {activity && <span className="dsh-diving-sub">{activity}</span>}
+      <span className="dsh-diving-text">本轮运行中</span>
+      <span className="dsh-diving-sub" aria-live="polite">{statusLabel}</span>
       {progressLabel && <span className="dsh-diving-sub">{progressLabel}</span>}
       {showClock && <span className="dsh-diving-timer" aria-live="off">{clockLabel}</span>}
     </div>
@@ -2095,6 +2100,7 @@ function Message({
   workspacePath,
   onFork,
   isStreaming = false,
+  thinkingIsStreaming,
   streamActivity,
   onShowToolDetails,
   onOpenWorkspacePath,
@@ -2107,6 +2113,7 @@ function Message({
   workspacePath?: string | null
   onFork?: (messageId: string) => void
   isStreaming?: boolean
+  thinkingIsStreaming?: boolean
   streamActivity?: string | null
   onShowToolDetails?: (item: ToolTraceItem) => void
   onOpenWorkspacePath?: (relativePath: string) => void
@@ -2168,6 +2175,8 @@ function Message({
             startTime={message.timestamp}
             activity={visibleActivity}
             completedToolCount={(toolTraceItems ?? []).filter((item) => item.status !== 'running').length}
+            isThinking={thinkingIsStreaming}
+            hasVisibleText={Boolean(message.text.trim())}
           />
         )}
         {!isUser && !message.compaction && (
@@ -2176,6 +2185,7 @@ function Message({
             fallbackThinking={message.thinking}
             fallbackText={message.text}
             thinkingDurationMs={message.thinkingDurationMs ?? message.usage?.elapsedMs}
+            thinkingIsStreaming={thinkingIsStreaming}
             isStreaming={isStreaming}
           />
         )}
@@ -2185,6 +2195,7 @@ function Message({
               rows={dshToolRows}
               traces={toolTraceItems}
               workspacePath={workspacePath}
+              isActive={isStreaming}
               onShowToolDetails={onShowToolDetails}
               onOpenWorkspacePath={onOpenWorkspacePath}
             />
@@ -2909,6 +2920,7 @@ function Composer({
   messages,
   sessionStats,
   liveContext,
+  promptBudget,
   hostPlanModeActive,
   hostTodos,
   onPermissionModeChange,
@@ -2933,6 +2945,7 @@ function Composer({
   onRespondPermission,
   userQuestionPrompt,
   onAnswerUserQuestion,
+  onDiscussPlanReview,
 }: {
   model: ModelOption | null
   modelOptions: ModelOption[]
@@ -2950,6 +2963,7 @@ function Composer({
   messages?: ChatMessage[]
   sessionStats?: SessionStatsSnapshot | null
   liveContext?: LiveContextUsage | null
+  promptBudget?: PromptBudgetSnapshot | null
   hostPlanModeActive?: boolean | null
   hostTodos?: HostTodoItem[] | null
   onPermissionModeChange: (mode: PermissionMode) => void
@@ -2977,6 +2991,7 @@ function Composer({
   ) => void
   userQuestionPrompt?: UserQuestionPromptPayload | null
   onAnswerUserQuestion?: (id: string, answer: UserQuestionAnswer) => Promise<boolean>
+  onDiscussPlanReview?: (id: string) => Promise<boolean>
 }) {
   const [value, setValue] = useState('')
   const [workMode, setWorkMode] = useState<WorkMode>('code')
@@ -3247,7 +3262,7 @@ function Composer({
       )}
       {userQuestionPrompt && onAnswerUserQuestion && (
         <div className="composer-approval-slot">
-          <UserQuestionPanel prompt={userQuestionPrompt} onAnswer={onAnswerUserQuestion} />
+          <UserQuestionPanel prompt={userQuestionPrompt} onAnswer={onAnswerUserQuestion} onDiscuss={onDiscussPlanReview} />
         </div>
       )}
       {sending && onQueueMutate && (
@@ -3567,6 +3582,11 @@ function Composer({
               thinkingLevel={thinkingLevel}
               onThinkingLevelChange={onThinkingLevelChange}
             />
+            <ComposerContextMeter
+              liveContext={liveContext}
+              sessionStats={sessionStats}
+              promptBudget={promptBudget}
+            />
             <button type="button" className="composer-icon mic-button" aria-label="语音输入" title="语音输入"><Mic size={18} /></button>
             {sending
               ? <button type="button" className="send-button stop" aria-label="停止生成" title="停止生成" onClick={onCancel}><Square size={17} fill="currentColor" /></button>
@@ -3648,6 +3668,7 @@ function MainConversation({
   onQueueMutate,
   onBusyEnterModeChange,
   liveContext,
+  promptBudget,
   sessionStats,
   hostPlanModeActive,
   hostTodos,
@@ -3687,6 +3708,7 @@ function MainConversation({
   onRespondPermission,
   userQuestionPrompt,
   onAnswerUserQuestion,
+  onDiscussPlanReview,
 }: {
   currentThreadId?: string | null
   messages: ChatMessage[]
@@ -3702,7 +3724,7 @@ function MainConversation({
   streamText?: string | null
   streamStartedAt?: number | null
   streamActivity?: string | null
-  streamThinking?: { text: string; durationMs?: number } | null
+  streamThinking?: { text: string; durationMs?: number; isActive?: boolean } | null
   streamBlocks?: import('./types').AssistantContentBlock[]
   retryBanner?: {
     attempt: number
@@ -3717,6 +3739,7 @@ function MainConversation({
   onQueueMutate?: (payload: { kind: 'steering' | 'followUp'; index: number; action: 'remove' | 'update'; text?: string }) => void
   onBusyEnterModeChange?: (mode: BusyEnterMode) => void
   liveContext?: LiveContextUsage | null
+  promptBudget?: PromptBudgetSnapshot | null
   sessionStats?: SessionStatsSnapshot | null
   hostPlanModeActive?: boolean | null
   hostTodos?: HostTodoItem[] | null
@@ -3759,6 +3782,7 @@ function MainConversation({
   ) => void
   userQuestionPrompt?: UserQuestionPromptPayload | null
   onAnswerUserQuestion?: (id: string, answer: UserQuestionAnswer) => Promise<boolean>
+  onDiscussPlanReview?: (id: string) => Promise<boolean>
 }) {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const scrollPositionsRef = useRef<Map<string, { top: number; atBottom: boolean }>>(new Map())
@@ -4112,6 +4136,7 @@ function MainConversation({
               toolTraceItems={toolTraces}
               workspacePath={workspacePath}
               isStreaming={true}
+              thinkingIsStreaming={streamThinking?.isActive}
               streamActivity={streamActivity}
               onShowToolDetails={onShowToolDetails}
               onOpenWorkspacePath={onOpenWorkspacePath}
@@ -4149,6 +4174,7 @@ function MainConversation({
           hasMessages={messages.length > 0}
           sessionStats={sessionStats}
           liveContext={liveContext}
+          promptBudget={promptBudget}
           hostPlanModeActive={hostPlanModeActive}
           hostTodos={hostTodos}
           onPermissionModeChange={onPermissionModeChange}
@@ -4172,6 +4198,7 @@ function MainConversation({
           onRespondPermission={onRespondPermission}
           userQuestionPrompt={userQuestionPrompt}
           onAnswerUserQuestion={onAnswerUserQuestion}
+          onDiscussPlanReview={onDiscussPlanReview}
         />
       {terminalOpen && onCloseTerminal && (
         <Suspense fallback={null}>
@@ -4775,7 +4802,9 @@ export default function App() {
           onRespondPermission={(action, sandboxMode) => { void appBackend.respondPermissionPrompt(action, sandboxMode) }}
           userQuestionPrompt={appBackend.userQuestionPrompt}
           onAnswerUserQuestion={appBackend.answerUserQuestion}
+          onDiscussPlanReview={appBackend.cancelUserQuestion}
           liveContext={appBackend.liveContext}
+          promptBudget={appBackend.promptBudget}
           sessionStats={appBackend.sessionStats}
           hostPlanModeActive={appBackend.hostPlanModeActive}
           hostTodos={appBackend.hostTodos}

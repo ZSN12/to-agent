@@ -1157,6 +1157,10 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
     ok: await chat.answerUserQuestion(id, answer),
   }))
 
+  ipcHandle(ipcMain, 'userQuestions:cancel', async (_event, id) => ({
+    ok: await chat.cancelUserQuestion(id),
+  }))
+
   ipcHandle(ipcMain, 'chat:steer', async (event, text, requestedConversationId) => {
     if (!text || typeof text !== 'string') throw new Error('内容不能为空')
     const conversationId = await resolveIpcConversationId(requestedConversationId)

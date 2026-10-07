@@ -3,7 +3,7 @@ import type { AssistantContentBlock } from '../../types'
 
 export interface ConversationStreamSnapshot {
   streamText: string | null
-  streamThinking: { text: string; durationMs?: number } | null
+  streamThinking: { text: string; durationMs?: number; isActive?: boolean } | null
   streamBlocks: AssistantContentBlock[]
   toolTraces: ToolTraceItem[]
   promptQueue: PromptQueueSnapshot
@@ -43,23 +43,26 @@ export function applyStreamEventToSnapshot(
       return emptyConversationStream()
     case 'thinking_start':
       next.streamThinking = next.streamThinking?.text?.trim()
-        ? { text: next.streamThinking.text, durationMs: next.streamThinking.durationMs ?? 0 }
-        : { text: '', durationMs: next.streamThinking?.durationMs ?? 0 }
+        ? { text: next.streamThinking.text, durationMs: next.streamThinking.durationMs ?? 0, isActive: true }
+        : { text: '', durationMs: next.streamThinking?.durationMs ?? 0, isActive: true }
       return next
     case 'thinking_delta':
       next.streamThinking = {
         text: event.fullThinking ?? `${next.streamThinking?.text ?? ''}${event.delta ?? ''}`,
         durationMs: event.durationMs ?? next.streamThinking?.durationMs,
+        isActive: true,
       }
       return next
     case 'thinking_end':
       next.streamThinking = {
         text: event.fullThinking ?? next.streamThinking?.text ?? '',
         durationMs: event.durationMs ?? next.streamThinking?.durationMs,
+        isActive: false,
       }
       return next
     case 'delta':
       next.streamText = event.full ?? `${snapshot.streamText ?? ''}${event.delta ?? ''}`
+      if (next.streamThinking) next.streamThinking = { ...next.streamThinking, isActive: false }
       return next
     case 'progress':
       next.streamText = event.text
@@ -89,6 +92,9 @@ export function applyStreamEventToSnapshot(
       next.promptQueue.followUp = Array.from(new Set([...next.promptQueue.followUp, event.text]))
       return next
     case 'tool': {
+      if (event.status === 'running' && next.streamThinking) {
+        next.streamThinking = { ...next.streamThinking, isActive: false }
+      }
       const index = next.toolTraces.findIndex((item) => toolTraceKey(item) === toolTraceKey(event))
       if (index < 0) next.toolTraces = [...next.toolTraces, event].slice(-80)
       else {

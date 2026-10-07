@@ -6,12 +6,82 @@ export interface DshToolCallTreeNode {
   children: DshToolCallTreeNode[]
 }
 
-/** By default, show live calls during execution and collapse the batch at end. */
+export interface DshToolCallStepGroup {
+  key: string
+  turn: number | null
+  step: number | null
+  nodes: DshToolCallTreeNode[]
+  callCount: number
+  runningCount: number
+  startedAt: number | null
+}
+
+/** Keep live tool activity inline; collapse the completed history by default. */
 export function isDshToolCallBatchExpanded(
   userOverride: boolean | null,
-  hasRunningCall: boolean,
+  isActive: boolean,
 ): boolean {
-  return userOverride ?? hasRunningCall
+  return userOverride ?? isActive
+}
+
+/** Expand the active step, or the latest completed step, unless the user overrides it. */
+export function isDshToolCallStepExpanded(
+  userOverride: boolean | undefined,
+  hasRunningCall: boolean,
+  isLatestStep: boolean,
+): boolean {
+  return userOverride ?? (hasRunningCall || isLatestStep)
+}
+
+function countCalls(nodes: readonly DshToolCallTreeNode[]): { callCount: number; runningCount: number; startedAt: number | null } {
+  let callCount = 0
+  let runningCount = 0
+  let startedAt: number | null = null
+  const visit = (node: DshToolCallTreeNode) => {
+    callCount += 1
+    if (node.row.status === 'running') runningCount += 1
+    const time = node.row.startedAt
+    if (typeof time === 'number' && Number.isFinite(time)) {
+      startedAt = startedAt === null ? time : Math.min(startedAt, time)
+    }
+    node.children.forEach(visit)
+  }
+  nodes.forEach(visit)
+  return { callCount, runningCount, startedAt }
+}
+
+/** Group root calls by their projected DSH turn/step while keeping child calls attached. */
+export function groupDshToolCallTree(nodes: readonly DshToolCallTreeNode[]): DshToolCallStepGroup[] {
+  const groups: DshToolCallStepGroup[] = []
+  const groupByKey = new Map<string, DshToolCallStepGroup>()
+
+  for (const node of nodes) {
+    const turn = node.row.turn > 0 ? node.row.turn : null
+    const step = node.row.step > 0 ? node.row.step : null
+    const hasStep = turn !== null || step !== null
+    // Live stream traces normally include Host turn/step. Older projections
+    // may not; keep those calls together per task rather than rendering a flat
+    // stack of one-call groups.
+    const taskKey = node.trace.taskId ?? 'main'
+    const key = hasStep
+      ? `task:${taskKey}:turn:${turn ?? 0}:step:${step ?? 0}`
+      : `task:${taskKey}:unsequenced`
+    let group = groupByKey.get(key)
+    if (!group) {
+      group = { key, turn, step, nodes: [], callCount: 0, runningCount: 0, startedAt: null }
+      groupByKey.set(key, group)
+      groups.push(group)
+    }
+    group.nodes.push(node)
+    const counts = countCalls([node])
+    group.callCount += counts.callCount
+    group.runningCount += counts.runningCount
+    if (counts.startedAt !== null) {
+      group.startedAt = group.startedAt === null ? counts.startedAt : Math.min(group.startedAt, counts.startedAt)
+    }
+  }
+
+  return groups
 }
 
 interface MergedCall {
@@ -37,6 +107,8 @@ function projectedRowToTrace(row: DshProjectedToolCall): ToolTraceItem {
   return {
     id: row.callId,
     parentCallId: row.parentCallId,
+    turn: row.turn > 0 ? row.turn : undefined,
+    step: row.step > 0 ? row.step : undefined,
     toolName: row.toolName,
     status: rowStatusToTraceStatus(row.status),
     resultSummary: row.resultPreview,
@@ -59,8 +131,8 @@ function traceToProjectedRow(trace: ToolTraceItem): DshProjectedToolCall {
     toolName: trace.toolName,
     argsRaw,
     status,
-    turn: 0,
-    step: 0,
+    turn: trace.turn ?? 0,
+    step: trace.step ?? 0,
     startedAt: trace.startedAt,
     durationMs: trace.durationMs ?? undefined,
     resultPreview: trace.resultSummary,
@@ -80,6 +152,8 @@ function mergeCall(row: DshProjectedToolCall, trace: ToolTraceItem): MergedCall 
   const mergedRow: DshProjectedToolCall = {
     ...row,
     parentCallId,
+    turn: trace.turn ?? row.turn,
+    step: trace.step ?? row.step,
     toolName: trace.toolName || row.toolName,
     status,
     startedAt: trace.startedAt ?? row.startedAt,
@@ -128,8 +202,9 @@ function findCycleMembers(parentById: ReadonlyMap<string, string | null | undefi
 
 /**
  * Merge DSH projection rows with live traces, then build a safe parent/child
- * tree. Projection order is authoritative; trace-only calls append in trace
- * order. Missing parents and every member of a parent cycle become roots.
+ * tree. Timestamped calls are ordered chronologically; projection order is the
+ * fallback when any timestamp is missing. Missing parents and every member of
+ * a parent cycle become roots.
  */
 export function buildDshToolCallTree(
   rows: readonly DshProjectedToolCall[] = [],
@@ -159,6 +234,16 @@ export function buildDshToolCallTree(
       const current = orderedCalls[index]
       orderedCalls[index] = mergeCall(current.row, { ...current.trace, ...trace })
     }
+  }
+
+  // Projection order is the reliable fallback. When every merged call has a
+  // timestamp, use it to interleave trace-only events with projected rows.
+  // Avoid partially sorting incomparable entries when a source omitted time.
+  const allCallsHaveTimestamps = orderedCalls.every(({ row }) =>
+    typeof row.startedAt === 'number' && Number.isFinite(row.startedAt),
+  )
+  if (allCallsHaveTimestamps) {
+    orderedCalls.sort((left, right) => (left.row.startedAt! - right.row.startedAt!))
   }
 
   const nodeById = new Map<string, DshToolCallTreeNode>()

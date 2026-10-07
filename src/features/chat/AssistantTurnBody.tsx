@@ -12,12 +12,14 @@ export function AssistantTurnBody({
   fallbackThinking,
   fallbackText,
   thinkingDurationMs,
+  thinkingIsStreaming,
   isStreaming = false,
 }: {
   blocks?: AssistantContentBlock[] | null
   fallbackThinking?: string
   fallbackText?: string
   thinkingDurationMs?: number
+  thinkingIsStreaming?: boolean
   isStreaming?: boolean
 }) {
   const rawSegments =
@@ -40,7 +42,10 @@ export function AssistantTurnBody({
     <div className="assistant-turn-body">
       {segments.map((seg, index) => {
         const isLast = index === segments.length - 1
-        const streamThisBlock = isStreaming && isLast && lastRaw?.kind === seg.kind
+        const streamThisBlock = isStreaming
+          && isLast
+          && lastRaw?.kind === seg.kind
+          && (seg.kind !== 'thinking' || thinkingIsStreaming !== false)
         const debugLabel = debug ? (
           <span className="block-debug-chip" title="stream segment id (pass:index:kind)">
             {seg.kind} · {seg.id}

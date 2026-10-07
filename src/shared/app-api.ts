@@ -52,6 +52,9 @@ export interface ToolTraceItem {
   id: string
   /** Parent run_code call for host-dispatched child tools. */
   parentCallId?: string | null
+  /** Host model turn/step used to group live calls like the native transcript. */
+  turn?: number
+  step?: number
   toolName: string
   status: 'running' | 'done' | 'error' | 'blocked' | 'cancelled'
   inputSummary?: string
@@ -502,6 +505,7 @@ export interface TaskweaverChatApi {
   }) => Promise<IpcResult<{ ok: boolean; error?: string; steering?: string[]; followUp?: string[] }>>
   getLiveContext: (conversationId?: string | null) => Promise<IpcResult<LiveContextUsage | null>>
   getSessionStats: (conversationId?: string | null) => Promise<IpcResult<SessionStatsSnapshot | null>>
+  onPromptBudget: (listener: (snapshot: PromptBudgetSnapshot) => void) => () => void
   listRunningConversations: () => Promise<IpcResult<string[]>>
   subscribeMux?: (conversationId: string) => Promise<IpcResult<{ ok: boolean }>>
   unsubscribeMux?: (conversationId: string) => Promise<IpcResult<{ ok: boolean }>>
@@ -509,6 +513,22 @@ export interface TaskweaverChatApi {
   getDshView?: (conversationId?: string | null) => Promise<IpcResult<DshConversationView | null>>
   onDshView?: (listener: (view: DshConversationView) => void) => () => void
   onStream: (listener: (event: ChatStreamEvent) => void) => () => void
+}
+
+/** Estimated prompt-injection budget for the latest turn in one conversation. */
+export interface PromptBudgetSnapshot {
+  conversationId: string
+  budgetBytes: number
+  injectedBytes: number
+  injectedEstimatedTokens: number
+  estimatedTokens: number
+  remainingBudgetBytes: number
+  /** 0–1，本轮 TaskWeaver 显式注入占预算比例（不含 Host 历史）。 */
+  utilization?: number
+  /** 工作区预载是否因预算被截断。 */
+  contextTruncated?: boolean
+  layerBytes: Record<string, number>
+  droppedLayers: string[]
 }
 
 export interface SessionStatsSnapshot {
@@ -742,6 +762,7 @@ export interface TaskweaverPermissionApi {
 
 export interface TaskweaverUserQuestionsApi {
   answer: (id: string, answer: UserQuestionAnswer) => Promise<IpcResult<{ ok: boolean }>>
+  cancel: (id: string) => Promise<IpcResult<{ ok: boolean }>>
   onPrompt: (listener: (payload: UserQuestionPromptPayload) => void) => () => void
   onResolved: (listener: (payload: { id: string; conversationId: string }) => void) => () => void
 }
@@ -867,6 +888,8 @@ export interface AppPreferences {
   autoReviewReads?: boolean
   /** 改代码时在 Host 外追加验证命令指引；默认关闭。 */
   autoVerifyAfterMutation?: boolean
+  /** 每轮 Prompt Pipeline 注入的系统上下文上限，单位为字节；默认 32 KiB。 */
+  promptInjectionLimitBytes?: number
 }
 
 export interface SessionMemorySnapshot {

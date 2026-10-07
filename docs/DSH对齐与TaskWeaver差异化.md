@@ -3,6 +3,13 @@
 对照参考实现：`/Users/zsn/Documents/deepseek/dsh-source`（DeepSeek Host / DSH）。  
 本文说明**已对齐**、**刻意保留的个性化能力**，以及**后续可继续收敛**的项。
 
+## v1.2.0 收口（2026-10-07）
+
+- **执行层**：TaskWeaver 已以仓库内 `vendor/z-runtime` 的 DSH Host 为会话执行基线；桌面端通过 `dsh-chat-service.mjs` 维护 conversation/session 映射，并以 Host 事件与 projection 驱动流式状态。UI thread store 仍承担线程元数据和可恢复展示状态，单源迁移审计继续进行中。
+- **模型入口**：OpenCodex 以 optional dependency 接入；设置卡检查代理健康与最低版本，代理未就绪时阻止 Cursor 系模型请求。Cursor 专属工具使用提示只对识别出的 Cursor/OpenCodex 模型注入。
+- **上下文预算**：每轮额外注入默认硬顶 32 KiB（暂定防护上限，非宣称最优；设置可调 1–128 KiB），Composer 展示字节数与近似 token 数。普通问候不触发业务指引；代码库地图只在首轮工程请求（或首轮 plan/goal）生成，显式 `@file` / `@dir` 内容仍走工作区边界与字节限制。
+- **发布边界**：当前工作区的 `taskweaver-optimized` preset 已通过本地 Z Host + 确定性 fake-provider 的原生 grep smoke，但 preset 与测试仍是未提交实验，未纳入 v1.2.0；生产路由继续使用 Host 的 `standard`。真实 MiMo 样本仍出现 ripgrep 启动失败，不能据确定性 smoke 宣称真实任务已无问题。此版本不代表 parity-bench 已进入 CI，也不代表已达到 Host 开销 +15% 的性能目标；配对性能数据仍需补齐。
+
 ## 已对齐（行为 / UI）
 
 | 领域 | DSH | TaskWeaver |
@@ -36,10 +43,10 @@
 - **插件市场占位**：`PluginsMarketplaceView.tsx`
 - **毕设 / 中文产品文案**
 
-## 执行层路线（2026-09 决策）
+## 执行层路线（2026-10-07）
 
 - **目标**：对话与工具执行迁到 **DSH Host（Cordis + ApiProxy）**，不再以 Pi `createAgentSession` 为长期方案。
-- **过渡**：当前仍用 `vendor/runtime` Pi；行为向 DSH 收敛，详见 [DSH运行时迁移方案.md](./DSH运行时迁移方案.md)。
+- **当前**：主聊天、工具执行、会话历史与 fork 已走仓库内 `vendor/z-runtime` 的 DSH Host/API；TaskWeaver 保留 Electron 壳、线程元数据与桥接层。读写单源和旧数据迁移仍需继续审计。
 - **保留**：路由作品集、DAG 编排、worktree、Git 检查点、线程 UI。
 - **内嵌而非整站**：对话 UI 走 **mux 事件 + projection** 与 `client-runtime` / `ui-conversation`（TaskWeaver 壳层主权），**不**用 Host 整页 WebView。原则见 [DSH内嵌集成原则.md](./DSH内嵌集成原则.md)。
 
@@ -47,10 +54,10 @@
 
 | 项 | DSH | TaskWeaver（现状 → 目标） |
 |----|-----|---------------------------|
-| 持久化 | 版本化 Session 事件日志 + coordinator | 现状：UI json + Pi jsonl → **目标：DSH session 事件** |
-| Fork 模型 | `atSeq` 事件边界 | 产品内分支走 DSH `session.fork` / 聊天 UI 资格校验；旧 `session-fork.mjs` 已移除 |
-| 扩展 | Cordis 插件 | Pi `DefaultResourceLoader` + `electron/extensions` |
-| 多 Agent | Subagent 子会话、interrupt、树形 UI | Planner + DAG + 子任务 jsonl |
+| 持久化 | 版本化 Session 事件日志 + coordinator | Host 事件历史驱动聊天投影；thread store 保留线程元数据和展示状态，双读比对/迁移仍在推进 |
+| Fork 模型 | `atSeq` 事件边界 | `session.fork` 按已完成 Host turn 的末尾 seq 分支；旧 `session-fork.mjs` 已移除 |
+| 扩展 | Cordis 插件 | 使用 DSH Host runtime、MCP 和 TaskWeaver 桥接；沙箱等桌面能力仍由 Electron 层接入 |
+| 多 Agent | Subagent 子会话、interrupt、树形 UI | Planner + DAG + 独立 DSH 子任务会话，保留 TaskWeaver 任务树与路由策略 |
 | Auto-review | `dsh-auto-review` | 轻量版 + `autoReviewReads` 偏好（非完整审计事件） |
 
 ## P1 已落地（2026-09）
@@ -78,16 +85,16 @@
 ## P3 已落地（2026-09，本轮「全部开始」）
 
 1. **Compaction 持久化**：`compaction_end` 与 `/compact` 写入 `taskweaver-threads` 消息（`compaction` 行）；流事件带 `id` 防重复。
-2. **审批审计**：`approval-audit.mjs` → `conversations/<id>.approval.jsonl`（`approval/asked`、`approval/decided`、`approval/review`）；IPC `permission:listApprovalAudit`。
-3. **MCP 旧名**：`mcp_<server>_<tool>` 与 `mcp__<server>__<tool>` 双注册。
-4. **Git 检查点忙检查**：`assertNotBusy(conversationId)`；restore/delete 可传 `conversationId`（仅阻塞该会话 lane）。
-5. **Windows ACL**：`windows-acl.mjs` + `npm run sync:dsh-windows-acl`；`sandbox-service` 在 win32 探测到 runner 时启用。
-6. **Subagent 树 UI**：`SubagentSessionTree` 在 DAG 侧栏展示依赖树（与 DSH 独立 subagent jsonl 差异化并存）。
+2. **MCP 旧名**：`mcp_<server>_<tool>` 与 `mcp__<server>__<tool>` 双注册。
+3. **Git 检查点忙检查**：`assertNotBusy(conversationId)`；restore/delete 可传 `conversationId`（仅阻塞该会话 lane）。
+4. **Windows ACL**：`windows-acl.mjs` + `npm run sync:dsh-windows-acl`；`sandbox-service` 在 win32 探测到 runner 时启用。
+5. **Subagent 树 UI**：`SubagentSessionTree` 在 DAG 侧栏展示依赖树（与 DSH 独立 subagent jsonl 差异化并存）。
 
 ## 仍可继续（非阻塞）
 
-- Pi jsonl 与 UI 消息的完全双向单源（compaction 摘要字段级对齐 Pi branch_summary）
+- Host 事件历史与 UI thread 展示状态的完全单源（compaction 摘要字段级对齐 Host projection）
 - DSH 完整 `dsh-auto-review` 模型审查链（非规则/轻量 auto-review）
+- 审批决策审计 JSONL 与设置页导出；当前 `scripts/test-approval-audit.mjs` 引用了尚不存在的 `approval-audit.mjs`，不能视为已交付
 - Windows runner 纳入 `make-mac-app` / CI 预同步（当前需本机 sync）
 - 子任务独立 jsonl 子会话（与 DAG 编排二选一或混合）
 

@@ -6,6 +6,7 @@ import type {
   ChatStreamEvent,
   DshConversationRunningCall,
   LiveContextUsage,
+  PromptBudgetSnapshot,
   SessionStatsSnapshot,
   OrchestrationChoicePrompt,
   PermissionMode,
@@ -81,7 +82,7 @@ export function useAppBackend() {
   const [sending, setSending] = useState(false)
   const [streamText, setStreamText] = useState<string | null>(null)
   const [streamStartedAt, setStreamStartedAt] = useState<number | null>(null)
-  const [streamThinking, setStreamThinking] = useState<{ text: string; durationMs?: number } | null>(null)
+  const [streamThinking, setStreamThinking] = useState<{ text: string; durationMs?: number; isActive?: boolean } | null>(null)
   const [streamActivity, setStreamActivity] = useState<string | null>(null)
   const [streamBlocks, setStreamBlocks] = useState<AssistantContentBlock[]>([])
   const [skills, setSkills] = useState<SkillOption[]>([])
@@ -95,6 +96,7 @@ export function useAppBackend() {
   const [userQuestionPrompt, setUserQuestionPrompt] = useState<UserQuestionPromptPayload | null>(null)
   const userQuestionPromptsRef = useRef(new Map<string, UserQuestionPromptPayload[]>())
   const [liveContext, setLiveContext] = useState<LiveContextUsage | null>(null)
+  const [promptBudget, setPromptBudget] = useState<PromptBudgetSnapshot | null>(null)
   const [sessionStats, setSessionStats] = useState<SessionStatsSnapshot | null>(null)
   const [busyEnterMode, setBusyEnterMode] = useState<BusyEnterMode>('followUp')
   const activeConversationIdRef = useRef<string | null>(null)
@@ -137,6 +139,7 @@ export function useAppBackend() {
     setStreamActivity(null)
     setStreamBlocks([])
     setLiveContext(null)
+    setPromptBudget(null)
     setSessionStats(null)
     setPromptQueue(emptyPromptQueue())
     setOrchestrationChoice(null)
@@ -533,22 +536,26 @@ export function useAppBackend() {
       if (event.conversationId && event.conversationId !== activeConversationIdRef.current) return
 
       if (event.type === 'thinking_start') {
+        setStreamActivity(null)
         // 多轮工具循环会重复 thinking_start；勿清空已累积内容
         setStreamThinking((prev) => {
-          if (prev?.text?.trim()) return { text: prev.text, durationMs: prev.durationMs ?? 0 }
-          return { text: '', durationMs: prev?.durationMs ?? 0 }
+          if (prev?.text?.trim()) return { text: prev.text, durationMs: prev.durationMs ?? 0, isActive: true }
+          return { text: '', durationMs: prev?.durationMs ?? 0, isActive: true }
         })
       }
       if (event.type === 'thinking_delta') {
+        setStreamActivity(null)
         setStreamThinking((prev) => ({
           text: event.fullThinking ?? `${prev?.text ?? ''}${event.delta ?? ''}`,
           durationMs: event.durationMs ?? prev?.durationMs,
+          isActive: true,
         }))
       }
       if (event.type === 'thinking_end') {
         setStreamThinking((prev) => ({
           text: event.fullThinking ?? prev?.text ?? '',
           durationMs: event.durationMs ?? prev?.durationMs,
+          isActive: false,
         }))
       }
       if (event.type === 'activity') setStreamActivity(shortStreamActivityLabel(event.message ?? null))
@@ -560,6 +567,7 @@ export function useAppBackend() {
       if (event.type === 'delta') {
         setStreamActivity(null)
         setStreamText((prev) => event.full ?? `${prev ?? ''}${event.delta ?? ''}`)
+        setStreamThinking((prev) => prev ? { ...prev, isActive: false } : prev)
       }
       if (event.type === 'done') {
         setStreamText(completedMessage ? null : event.full)
@@ -620,6 +628,12 @@ export function useAppBackend() {
       if (event.type === 'tasks') setState((current) => current ? { ...current, tasks: event.tasks } : current)
       if (event.type === 'progress') setStreamText(event.text)
       if (event.type === 'tool') {
+        if (event.status === 'running') {
+          setStreamActivity(null)
+          setStreamThinking((prev) => prev ? { ...prev, isActive: false } : prev)
+        } else {
+          setStreamActivity('工具已返回，模型正在继续')
+        }
         setToolTraces((current) => {
           const key = (item: ToolTraceItem) => `${item.taskId ?? 'main'}:${item.id}`
           const index = current.findIndex((item) => key(item) === key(event))
@@ -674,6 +688,15 @@ export function useAppBackend() {
       const conversationId = payload.conversationId ?? activeConversationIdRef.current
       if (conversationId) permissionPromptsRef.current.set(conversationId, payload)
       if (!conversationId || conversationId === activeConversationIdRef.current) setPermissionPrompt(payload)
+    })
+  }, [])
+
+  useEffect(() => {
+    const chat = getBridge()?.chat
+    if (!chat?.onPromptBudget) return
+    return chat.onPromptBudget((snapshot) => {
+      if (snapshot.conversationId !== activeConversationIdRef.current) return
+      setPromptBudget(snapshot)
     })
   }, [])
 
@@ -836,6 +859,9 @@ export function useAppBackend() {
             )
             return { ...current, messages: [...nextMessages, ...committedMessages] }
           })
+          if (res.data.assistant?.compaction || res.data.assistant?.usageKind === 'compaction') {
+            void refreshSessionStats(sendConversationId)
+          }
         } else if (!res.data.accepted) {
           // Compatibility with older backends that don't return committed
           // messages: reload the durable conversation after the turn settles.
@@ -851,7 +877,7 @@ export function useAppBackend() {
       }
       return true
     },
-    [reload, syncRunningConversationIds, sending],
+    [reload, refreshSessionStats, syncRunningConversationIds, sending],
   )
 
   const cancelMessage = useCallback(async () => {
@@ -1159,6 +1185,22 @@ export function useAppBackend() {
     return true
   }, [])
 
+  const cancelUserQuestion = useCallback(async (id: string) => {
+    const bridge = getBridge()
+    if (!bridge?.userQuestions?.cancel) return false
+    const res = await bridge.userQuestions.cancel(id)
+    if (!res.ok || !res.data.ok) return false
+    for (const [conversationId, pending] of userQuestionPromptsRef.current) {
+      const remaining = pending.filter(item => item.id !== id)
+      if (remaining.length === pending.length) continue
+      if (remaining.length) userQuestionPromptsRef.current.set(conversationId, remaining)
+      else userQuestionPromptsRef.current.delete(conversationId)
+      if (conversationId === activeConversationIdRef.current) setUserQuestionPrompt(remaining[0] ?? null)
+      break
+    }
+    return true
+  }, [])
+
   const mutateQueue = useCallback(async (payload: {
     kind: 'steering' | 'followUp'
     index: number
@@ -1269,7 +1311,9 @@ export function useAppBackend() {
     respondPermissionPrompt,
     userQuestionPrompt,
     answerUserQuestion,
+    cancelUserQuestion,
     liveContext: projectionLiveContext ?? liveContext,
+    promptBudget,
     sessionStats: projectedSessionStats ?? sessionStats,
     hostPlanModeActive,
     hostTodos,

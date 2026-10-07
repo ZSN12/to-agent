@@ -3544,6 +3544,72 @@ button:disabled { cursor: default; opacity: 0.45; }
   .model-registry-status-actions { width: 100%; }
 }
 
+.opencodex-setup-card {
+  margin: 16px 0 20px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-surface-elevated);
+}
+.opencodex-setup-head {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.opencodex-setup-head strong { font-size: 13px; }
+.opencodex-setup-sub {
+  margin: 4px 0 0;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+.opencodex-setup-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 10px;
+  font-size: 11.5px;
+}
+.opencodex-setup-status .ok { color: var(--accent-green); }
+.opencodex-setup-status .warn { color: #e8a84a; }
+.opencodex-setup-status .muted { color: var(--text-muted); }
+.opencodex-setup-hint {
+  margin: 8px 0 0;
+  font-size: 11.5px;
+  color: var(--accent-blue, #70a8ff);
+}
+.opencodex-setup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.opencodex-setup-actions .settings-secondary-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  font-size: 11.5px;
+}
+
+.settings-inline-error-dismissible {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.settings-inline-error-dismiss {
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+}
+.settings-inline-error-dismiss:hover { color: var(--text-primary); }
+
 .local-scan-modal {
   width: min(96vw, 560px);
   max-height: min(88vh, 720px);

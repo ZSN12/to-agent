@@ -18,7 +18,8 @@
 
 以下是已完成工作，不应在后续计划里重复排期：
 
-> 2026-10-07 更新：排队入队与 Stop 的竞态已用真实本地 Z Host + mock provider 回归；测试暂停 prompt admission、先触发 Stop、再接收入队，并延迟 mux 队列快照。当前 Host 原子清理测试通过。未覆盖真实工具进程执行中取消；详见验收记录与优化日志 OPT-2026-10-07-24。
+> 2026-10-07 更新：排队入队与 Stop 的竞态已用真实本地 Z Host + mock provider 回归；测试暂停 prompt admission、先触发 Stop、再接收入队，并延迟 mux 队列快照。另新增真实 Z Host + mock provider + stdio MCP 子进程的挂起工具取消回归：Host 发出的取消通知带有与待处理 `tools/call` 相同的 requestId，Host turn 以 `aborted` 收尾且同会话可恢复。真实 Host Bash 集成回归还启动了临时 Node 子进程，Stop 后收到 SIGTERM、写入退出 marker；Code Mode 集成回归让 `run_code` 完成一项嵌套 read 后进入无限循环，再经 Stop 结束为 aborted，保留父子工具结果且同会话可恢复。MCP 协议通知不代表任意第三方 handler 都会停止副作用。详见优化日志 OPT-2026-10-07-42。
+> 2026-10-07 阶段 3 更新：源码审计确认 `/plan` 与 `plan` Host projection、`todos` Host projection 和会话隔离读取此前已接线；原来的 `exit_plan_mode` 请求也能通过通用问答提交 Host 选项，但视觉上不像批准流程且没有 DSH 的“讨论”取消入口。本轮加入专用 Markdown 计划审阅卡（“批准并执行 / 继续规划 / 讨论”）、保留 Host 原始答案标签及可选修改意见，并把“讨论”接入 question-cancel IPC/Host 协议；Host Plan mode 是提示引导，不等于只读权限。TaskWeaver 桥接与本地 UI 构建测试通过，尚未完成安装版视觉验收、多会话/历史恢复组合验收及 Todo 全生命周期验收。详见优化日志 OPT-2026-10-07-43。
 
 - `test:user-intent`、`test:orchestration`、`test:dsh-chat`、`test:task-profile`、`test:dag-scheduler`、`test:workspace-context`、`test:z-host-deploy`、`test:z-runtime-build-atomic` 与 `npm run build` 已通过。
 - `CI=true npm run build:z-runtime` 已在修复 staging 命名前缀校验后通过；fresh deploy 的 Host/MCP/只读工具/DAG/排队生命周期测试通过。安装版没有被覆盖。
@@ -27,7 +28,7 @@
 - 新增真实 Planner 样本 `taskweaver-live-dag-yNyfA9/report.json`：总耗时 135.605 秒、Planner runtime 报告时间 16.984 秒；两个子 Agent 真实 turn 重叠 78.744 秒，均完成。T1 有 28 次工具调用（7 glob、12 grep、9 read），T2 有 36 次（19 grep、17 read），64 次文件工具共 789ms。部署 preset/Planner 描述加入“大源码窄搜后范围读取”后，本样本没有整文件读取，但调用量仍高，不能据单次较快结果声称优化有效；`taskHistories` 保留 36 项而摘要 evidence 缺 6 项，报告需同时显示两种口径。
 - 2026-10-07 最新真实 Planner 窄任务样本 `taskweaver-live-dag-44xsBe/report.json`：Planner Host 原生请求证据 verified（1 turn/1 step），计划进度 10.233 秒可见；T1/T2 两个独立只读会话均完成，route 与工具审计 verified，实际 Agent turn 重叠 13.798 秒，总墙钟 41.404 秒。更新后的结果明确标记固定 fixture/fixed-T2 检查为 `not-applicable`。该单样本闭合实时规划与并发执行链路，不构成 5 次 Planner 质量复验或串/并行配对提速结论。
 - 先前真实 Planner 样本约 91.5–260.8 秒；有样本显示 Planner 约 76.9 秒、较慢子任务约 138.7 秒、汇总约 45 秒。范围门槛曾正确阻止缺证据任务误报完成，但真实规划和汇总仍需优化。
-- `scripts/run-parity-bench.mjs` 已有 schema v2 的 read-smoke、生命周期/排队与 DAG 汇总；仅导出白名单聚合字段，fixture 覆盖缺失值、终态、continuing/队列标志和隐私脱敏。只读 runner 已记录每个 Host step 的首 chunk、首文本、结束和 retry 时序；真实 provider dispatch 起点没有 Host 事件，因此请求尝试数明确标为 `step starts + 已启动 retries` 估算，不能冒充精确网络请求数。2026-10-07 已用真实 MiMo/Z Host 串行完成 3 轮生命周期验收，每轮 5/5 通过，覆盖两个独立会话并行及运行中排队追问；另有 1 次真实 MiMo 取消样本保留了 18/18 可见字符、形成 Host `aborted` 并在同会话恢复成功。另有受控 mock endpoint + 真实本地 Host 的取消用例：成功读取文件后挂起下一次 provider stream，再 Stop；验证 Host `aborted`、工具结果与可见文本保留、provider stream 关闭、无重放、busy 释放及同会话恢复。排队与停止同时竞态、真实工具仍运行中的取消仍待验证，详见验收记录。
+- `scripts/run-parity-bench.mjs` 已有 schema v2 的 read-smoke、生命周期/排队与 DAG 汇总；仅导出白名单聚合字段，fixture 覆盖缺失值、终态、continuing/队列标志和隐私脱敏。只读 runner 已记录每个 Host step 的首 chunk、首文本、结束和 retry 时序；真实 provider dispatch 起点没有 Host 事件，因此请求尝试数明确标为 `step starts + 已启动 retries` 估算，不能冒充精确网络请求数。2026-10-07 已用真实 MiMo/Z Host 串行完成 3 轮生命周期验收，每轮 5/5 通过，覆盖两个独立会话并行及运行中排队追问；另有 1 次真实 MiMo 取消样本保留了 18/18 可见字符、形成 Host `aborted` 并在同会话恢复成功。受控 mock endpoint + 真实本地 Host 的取消用例覆盖了“成功读取文件后挂起下一次 provider stream”和“stdio MCP `tools/call` 实际挂起时取消”；另有 Host 实际启动长时 Bash 子进程并在 Stop 后确认其响应 SIGTERM 退出，以及 Code Mode Worker 在嵌套 read 完成后循环时经 Stop 中止。相应用例验证 Host `aborted`、工具 call/result 配对、无重放、busy 释放及同会话恢复。MCP 测试只证明取消通知送达，不保证不合作的第三方 handler 停止副作用。详见验收记录与优化日志。
 
 详细逐次数据见 [acceptance-2026-10-06.md](acceptance-2026-10-06.md) 和 [agent-preset-live-ab-2026-10-06.md](agent-preset-live-ab-2026-10-06.md)。
 
@@ -54,6 +55,8 @@
 **通过条件：**重复运行无失联/空白丢历史；普通请求确实单 Agent；重试次数有上界；没有任务预算式截断；既有 Host 会话 preset 被准确展示。
 
 ## 阶段 3：Host 原生 Plan 与 Todo 投影接入（P1）
+
+**当前状态（2026-10-07）：**Host 原生 `/plan`/`/plan off` 命令、`plan`/`todos` projection 到桌面端 hook/Composer 的源码路径已存在；新补的是明确的 Plan 审阅卡和“讨论”取消通路。尚未据此宣称阶段验收完成：安装版视觉验收、同一 Host 多会话切换/冷历史恢复、Todo 创建-清空-重载连续验收仍待补齐。
 
 先按 Host 当前源码/API 做小型接口验证，再实现；不复制一套 TaskWeaver 本地状态来模拟 Host 状态。
 
