@@ -9,6 +9,8 @@
 
 ## 发版前清单
 
+一键打印下列步骤并跑 roadmap-gate：`npm run release:prepare`（`VERSION=1.2.1` 或 `npm run release:prepare -- 1.2.1` 可改版本号）。
+
 1. `npm run build:z-runtime` 后重装或 `npm run install:app`
 2. `node scripts/roadmap-gate.mjs`
 3. `npm run test:z-host-deploy`（非 Cursor 沙箱）

@@ -1441,18 +1441,11 @@ export function createDshChatService({
     if (entry) assertBindableWorkspace(entry.cwd)
     const mode = normalizePermissionMode(permissionMode ?? await Promise.resolve(getPermissionMode(conversationId)))
     const resolvedPreset = agentPreset || dshAgentPresetForPermissionMode(mode)
-    if (
-      entry
-      && isCursorFamilyModelKey(modelKey)
-      && entry.agentPreset === 'code'
-      && resolvedPreset === 'standard'
-    ) {
-      // Composer on Code Mode only sees run_code; it then hunts for Cursor-only tools and appears hung.
-      sessions.delete(conversationId)
-      entry = null
-    }
     if (entry && entry.cwd !== requestedCwd) {
       throw new Error('此对话绑定的工作区与当前工作区不同。为保持 Z 会话上下文一致，请在原工作区继续，或新建对话。')
+    }
+    if (entry) {
+      entry = await alignLegacyComposerPreset(api, conversationId, entry, resolvedPreset, modelKey)
     }
     if (!entry) {
       const sessionId = sessionIdForKey(conversationId)
@@ -1484,6 +1477,7 @@ export function createDshChatService({
         permissionModeAtCreate: mode,
         lastUsedAt: Date.now(),
       }
+      entry = await alignLegacyComposerPreset(api, conversationId, entry, resolvedPreset, modelKey)
       sessions.set(conversationId, entry)
       evictTrackedSessions({ protectKey: conversationId })
       await persistSessions()

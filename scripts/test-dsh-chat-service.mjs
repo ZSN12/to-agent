@@ -51,6 +51,8 @@ function createMockRuntime({
   promptFailure = null,
   modelsOmitReasoningOnRead = false,
   initialModelSelection = null,
+  existingSessionPresets = {},
+  lockedPresetSessions = [],
 } = {}) {
   const waiters = []
   const frames = []
@@ -60,8 +62,11 @@ function createMockRuntime({
   const nativeCommands = []
   const permissionCommands = []
   const approvalResponses = []
+  const presetSelections = []
   const sessionModels = new Map()
   const sessionPermissions = new Map()
+  const sessionPresets = new Map(Object.entries(existingSessionPresets))
+  const lockedPresets = new Set(lockedPresetSessions)
   let cancelCount = 0
 
   function push(frame) {
@@ -106,10 +111,18 @@ function createMockRuntime({
     sessions: {
       async create({ sessionId, cwd, agentPreset }) {
         created.push({ sessionId, cwd, agentPreset })
+        const existingPreset = sessionPresets.get(sessionId)
+        if (existingPreset && agentPreset && existingPreset !== agentPreset) {
+          return { result: { ok: false, error: {
+            code: 'agent-preset-conflict',
+            message: `session "${sessionId}" already uses "${existingPreset}"`,
+          } } }
+        }
+        if (!existingPreset && agentPreset) sessionPresets.set(sessionId, agentPreset)
         if (initialModelSelection && !sessionModels.has(sessionId)) {
           sessionModels.set(sessionId, { ...initialModelSelection })
         }
-        return { result: { ok: true, value: { sessionId, agentPreset } } }
+        return { result: { ok: true, value: { sessionId, agentPreset: sessionPresets.get(sessionId) ?? agentPreset } } }
       },
       async selectModel(input) {
         selected.push(input)
@@ -166,6 +179,19 @@ function createMockRuntime({
       },
       async updateQueue() { return { result: { ok: true, value: { accepted: true } } } },
     },
+    agentPresets: {
+      async select({ sessionId, agentPreset }) {
+        presetSelections.push({ sessionId, agentPreset })
+        if (lockedPresets.has(sessionId)) {
+          return { result: { ok: false, error: {
+            code: 'agent-preset-locked',
+            message: `session "${sessionId}" has already started; its agent preset is fixed`,
+          } } }
+        }
+        sessionPresets.set(sessionId, agentPreset)
+        return { result: { ok: true, value: { agentPreset } } }
+      },
+    },
     llm: {
       async providers() {
         return { result: { ok: true, value: { providers: [{ provider: 'test', active: true, settingsNs: 'llm-pi-ai', settingsPath: ['providers', 'test'] }] } } }
@@ -192,6 +218,7 @@ function createMockRuntime({
     permissionCommands,
     created,
     selected,
+    presetSelections,
     approvalResponses,
     getCancelCount: () => cancelCount,
   }
@@ -1070,6 +1097,94 @@ try {
   }
 
   await service.stop()
+
+  const blankLegacyHome = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-composer-preset-blank-'))
+  const blankLegacySessionId = 'tw-legacy-composer-blank'
+  await fs.mkdir(path.join(blankLegacyHome, 'taskweaver'), { recursive: true })
+  await fs.writeFile(path.join(blankLegacyHome, 'taskweaver', 'dsh-session-map.json'), JSON.stringify({
+    version: 1,
+    sessions: {
+      'legacy-composer-blank': {
+        sessionId: blankLegacySessionId,
+        cwd: blankLegacyHome,
+        agentPreset: 'code',
+      },
+    },
+  }))
+  const blankLegacyRuntime = createMockRuntime({ existingSessionPresets: { [blankLegacySessionId]: 'code' } })
+  const blankLegacyService = createDshChatService({
+    hostManager: blankLegacyRuntime.hostManager,
+    userDataPath: blankLegacyHome,
+    getWorkspacePath: () => blankLegacyHome,
+    profileStore,
+    modelService,
+  })
+  try {
+    const blankLegacyTurn = blankLegacyService.send({
+      text: 'quick Composer smoke',
+      modelKey: 'opencodex/cursor/composer-2.5',
+      conversationId: 'legacy-composer-blank',
+      webContents,
+    })
+    await waitFor(() => blankLegacyService.isBusy('legacy-composer-blank'), { label: '空的旧 Composer 会话已完成安全预设切换' })
+    assert.deepEqual(blankLegacyRuntime.presetSelections, [{ sessionId: blankLegacySessionId, agentPreset: 'standard' }])
+    assert.equal(blankLegacyRuntime.created.at(-1)?.agentPreset, 'standard')
+    pushAssistantText(blankLegacyRuntime, blankLegacySessionId, 'Composer standard ok')
+    blankLegacyRuntime.push({ payload: {
+      type: 'session/event', sessionId: blankLegacySessionId,
+      event: { type: 'turn/end', data: { reason: { kind: 'completed' } } },
+    } })
+    await blankLegacyTurn
+    const migratedMap = JSON.parse(await fs.readFile(path.join(blankLegacyHome, 'taskweaver', 'dsh-session-map.json'), 'utf8'))
+    assert.equal(migratedMap.sessions['legacy-composer-blank'].agentPreset, 'standard',
+      'blank Host sessions may be migrated and persisted after Host confirms the preset switch')
+  } finally {
+    await blankLegacyService.stop()
+    await fs.rm(blankLegacyHome, { recursive: true, force: true })
+  }
+
+  const startedLegacyHome = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-composer-preset-locked-'))
+  const startedLegacySessionId = 'tw-legacy-composer-started'
+  await fs.mkdir(path.join(startedLegacyHome, 'taskweaver'), { recursive: true })
+  await fs.writeFile(path.join(startedLegacyHome, 'taskweaver', 'dsh-session-map.json'), JSON.stringify({
+    version: 1,
+    sessions: {
+      'legacy-composer-started': {
+        sessionId: startedLegacySessionId,
+        cwd: startedLegacyHome,
+        agentPreset: 'code',
+      },
+    },
+  }))
+  const startedLegacyRuntime = createMockRuntime({
+    existingSessionPresets: { [startedLegacySessionId]: 'code' },
+    lockedPresetSessions: [startedLegacySessionId],
+  })
+  const startedLegacyService = createDshChatService({
+    hostManager: startedLegacyRuntime.hostManager,
+    userDataPath: startedLegacyHome,
+    getWorkspacePath: () => startedLegacyHome,
+    profileStore,
+    modelService,
+  })
+  try {
+    await assert.rejects(startedLegacyService.send({
+      text: 'continue old Composer chat',
+      modelKey: 'opencodex/cursor/composer-2.5',
+      conversationId: 'legacy-composer-started',
+      webContents,
+    }), (error) => error.code === 'COMPOSER_PRESET_MIGRATION_REQUIRED'
+      && /新建一个对话/.test(error.message)
+      && /历史已保留/.test(error.message))
+    assert.equal(startedLegacyRuntime.prompts.length, 0, 'a locked legacy Code session must not silently run Composer with incompatible tools')
+    assert.deepEqual(startedLegacyRuntime.presetSelections, [{ sessionId: startedLegacySessionId, agentPreset: 'standard' }])
+    const preservedMap = JSON.parse(await fs.readFile(path.join(startedLegacyHome, 'taskweaver', 'dsh-session-map.json'), 'utf8'))
+    assert.equal(preservedMap.sessions['legacy-composer-started'].agentPreset, 'code',
+      'a locked session must remain mapped to its real Host preset')
+  } finally {
+    await startedLegacyService.stop()
+    await fs.rm(startedLegacyHome, { recursive: true, force: true })
+  }
 
   const parallelHome = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-dsh-parallel-abort-'))
   const parallelRuntime = createMockRuntime()

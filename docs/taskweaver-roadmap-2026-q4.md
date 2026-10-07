@@ -2,15 +2,17 @@
 
 执行版索引；当前版本焦点：**v1.2.0 发版一致性 + 上下文成本 + 编排产品化**。
 
+**可执行计划：**[`taskweaver-execution-plan-2026-10.md`](taskweaver-execution-plan-2026-10.md)（任务 ID、验收标准、本周最小包）。
+
 ## 阶段与状态
 
 | 阶段 | 目标 | 状态（2026-10-07） |
 |------|------|-------------------|
-| **A** 发版止血 | 双路径共用 pipeline、32KiB、测试门禁 | **完成** — `test:roadmap-gate` + 本机 `test:z-host-deploy` |
+| **A** 发版止血 | 双路径共用 pipeline、32KiB、测试门禁 | **代码完成** — Release `v1.2.0` 已发；本机 `test:z-host-deploy` + 安装包 smoke 待闭合 |
 | **B** 上下文与成本 | 折叠、compact 产品化、按 step 用量 | **基本完成** — 压缩建议条、用量 chip 耗时字段 |
 | **C** 会话单源 + fork | DSH projection 为准 | **基本完成** — `preferDshTranscript`、shadow 对比 IPC、`fork` 测试 |
 | **D** Agent 对齐 | Plan/Job/headless | **MVP+** — 定时任务 + **macOS LaunchAgent**、`run-scheduled-job-cli` |
-| **E** 生态与发布节奏 | Hook、E2E、版本节奏 | **MVP+** — **探索页**、Hook、`release:prepare-v1.2.0` |
+| **E** 生态与发布节奏 | Hook、E2E、版本节奏 | **MVP+** — **探索页**、Hook、`npm run release:prepare` |
 
 ## 门禁
 
@@ -18,6 +20,8 @@
 npm run test:roadmap-gate    # 核心自动化
 npm run test:z-host-deploy   # 本机终端（沙箱外）
 ```
+
+`npm run test:all` 已纳入 roadmap-gate 中的 v1.2 增量项（hooks、scheduled-jobs、transcript-policy、github-pull-requests、launchd-scheduler、fork-thread-smoke）；全量仍不含 `tsc -b` 与 `test:z-host-deploy`（后者需本机终端）。
 
 ## 关键模块
 
