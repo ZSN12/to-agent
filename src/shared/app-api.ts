@@ -1,4 +1,4 @@
-import type { ChatMessage, ChatUsage, TaskNode } from '../types'
+import type { ChatMessage, ChatUsage, ModifiedFileSummary, TaskNode } from '../types'
 import type { TaskweaverModelsApi, IpcResult, ThinkingLevel } from './model-api'
 
 export interface AppState {
@@ -35,7 +35,7 @@ export interface OutputLogEntry extends ToolTraceItem {
   resultSummary: string
 }
 
-export type PermissionMode = 'ask' | 'on-risk' | 'full'
+export type PermissionMode = 'readonly' | 'ask' | 'on-risk' | 'full'
 
 export interface FileDiffData {
   path: string
@@ -69,9 +69,9 @@ export type ChatStreamEvent =
   | ({ conversationId?: string } & (
   | { type: 'start'; startedAt?: number; turnId?: string }
   | { type: 'thinking_start' }
-  | { type: 'thinking_delta'; delta: string; fullThinking: string; durationMs?: number }
-  | { type: 'thinking_end'; fullThinking: string; durationMs?: number }
-  | { type: 'delta'; delta: string; full: string }
+  | { type: 'thinking_delta'; delta: string; fullThinking?: string; durationMs?: number }
+  | { type: 'thinking_end'; fullThinking?: string; durationMs?: number }
+  | { type: 'delta'; delta: string; full?: string }
   | { type: 'blocks'; segments: Array<{ id: string; kind: 'thinking' | 'text'; text: string }> }
   | {
     type: 'done'
@@ -86,10 +86,11 @@ export type ChatStreamEvent =
     /** True when DSH closed this turn as interrupted/cancelled, not completed. */
     interrupted?: boolean
     contentBlocks?: Array<{ id: string; kind: 'thinking' | 'text'; text: string }>
+    fileChanges?: ModifiedFileSummary[]
   }
   | { type: 'error'; message: string; turnId?: string; startedAt?: number;
       full?: string; fullThinking?: string; thinkingDurationMs?: number; usage?: ChatUsage;
-      contentBlocks?: Array<{ id: string; kind: 'thinking' | 'text'; text: string }> }
+      contentBlocks?: Array<{ id: string; kind: 'thinking' | 'text'; text: string }>; fileChanges?: ModifiedFileSummary[] }
   | { type: 'tasks'; tasks: TaskNode[] }
   | { type: 'orchestration'; mode: 'single-agent' | 'multi-agent'; reason: string }
   | { type: 'progress'; text: string }
@@ -312,6 +313,8 @@ export type PermissionPromptPayload = {
   detail: string
   tool: string
   allowAlways?: boolean
+  /** 仅当前会话记忆，不写盘。 */
+  allowAlwaysSession?: boolean
   sandboxEscalation?: {
     effectiveMode: string
     targets: Array<'workspace-write' | 'danger-full-access'>
@@ -392,7 +395,7 @@ export interface DshProjectedToolCall {
 
 export interface DshTranscriptRow {
   dshKey: string
-  role: 'user' | 'assistant' | 'compaction'
+  role: 'user' | 'assistant' | 'compaction' | 'context'
   text?: string
   thinking?: string
   interrupted?: boolean
@@ -403,6 +406,35 @@ export interface DshTranscriptRow {
   timestamp?: number
   usage?: ChatMessage['usage']
   modelKey?: string
+  /** Restricted provenance copied only from source.kind === 'plugin'. */
+  plugin?: string
+  /** Producer-declared context form; unknown values remain opaque display labels. */
+  form?: string
+}
+
+/** Display-only metadata present on projected Host context rows, never assistant turns. */
+export type DshTranscriptChatMessage = ChatMessage & {
+  dshContext?: {
+    plugin: string
+    form?: string
+  }
+}
+
+export type HostPlanProjection = {
+  /** Plan state committed to the Host session log. */
+  active: boolean
+  /** A logged Host command is waiting for its next accepted in-turn step. */
+  pending: boolean
+}
+
+export type HostTodoItem = {
+  content: string
+  status: 'pending' | 'in_progress' | 'completed'
+}
+
+export type HostConversationProjections = Record<string, unknown> & {
+  plan?: HostPlanProjection
+  todos?: HostTodoItem[] | null
 }
 
 export interface DshConversationView {
@@ -420,7 +452,7 @@ export interface DshConversationView {
   /** Settled chat rows from DSH projection (user / turn-tail / compaction). */
   transcript: DshTranscriptRow[]
   queue: { steering: string[]; followUp: string[] }
-  projections: Record<string, unknown>
+  projections: HostConversationProjections
   activityLabel: string | null
   openState: string
   hasMore?: boolean
@@ -676,7 +708,7 @@ export interface TaskweaverPermissionApi {
   respondPrompt: (
     id: string,
     response: {
-      action: 'allow-once' | 'allow-always' | 'deny' | 'escalate-once'
+      action: 'allow-once' | 'allow-always' | 'allow-always-session' | 'deny' | 'escalate-once'
       sandboxMode?: 'workspace-write' | 'danger-full-access'
     },
   ) => Promise<IpcResult<{ ok: boolean }>>
@@ -809,6 +841,8 @@ export interface AppPreferences {
   autoSnapshotOnTurn?: boolean
   subtaskUpgradeMax?: number
   autoReviewReads?: boolean
+  /** 改代码时在 Host 外追加验证命令指引；默认关闭。 */
+  autoVerifyAfterMutation?: boolean
 }
 
 export interface SessionMemorySnapshot {

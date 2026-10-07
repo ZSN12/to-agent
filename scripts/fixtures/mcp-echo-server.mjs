@@ -1,7 +1,8 @@
 import { createInterface } from 'node:readline'
+import { appendFile } from 'node:fs/promises'
 
 const input = createInterface({ input: process.stdin })
-input.on('line', (line) => {
+input.on('line', async (line) => {
   let message
   try { message = JSON.parse(line) } catch { return }
   if (message.id === undefined) return
@@ -11,7 +12,13 @@ input.on('line', (line) => {
   } else if (message.method === 'tools/list') {
     result = { tools: [{ name: 'echo', description: 'Echo text', inputSchema: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'] }, annotations: { readOnlyHint: true } }] }
   } else if (message.method === 'tools/call') {
-    result = { content: [{ type: 'text', text: String(message.params?.arguments?.text ?? '') }] }
+    const text = String(message.params?.arguments?.text ?? '')
+    if (process.env.TASKWEAVER_MCP_SMOKE_LOG) {
+      await appendFile(process.env.TASKWEAVER_MCP_SMOKE_LOG, `${text}\n`, 'utf8')
+    }
+    result = text === 'mcp-fail-marker'
+      ? { content: [{ type: 'text', text: 'synthetic MCP tool failure' }], isError: true }
+      : { content: [{ type: 'text', text }] }
   } else {
     process.stdout.write(`${JSON.stringify({ jsonrpc: '2.0', id: message.id, error: { code: -32601, message: 'Method not found' } })}\n`)
     return

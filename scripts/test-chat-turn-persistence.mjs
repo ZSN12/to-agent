@@ -28,12 +28,15 @@ try {
     'IPC_ERROR_MESSAGE_MAX_LENGTH', `${source.slice(start, end)}\nreturn {handleChatError,createAssistantMessage}`)(
     appState, usageStore, persistNativeTurn, IPC_ERROR_MESSAGE_MAX_LENGTH)
   const result = { turnId: 'first', startedAt: Date.now(), text: 'completed turn', thinking: 'reasoning',
+    fileChanges: [{ path: 'src/main.ts', addedLines: 2, deletedLines: 1 }],
     usage: { inputTokens: 10, outputTokens: 2, elapsedMs: 50 } }
   await persistNativeTurn({ conversationId, modelKey: activeKey, result })
   result.nativePersisted = true
   await createAssistantMessage(result, 'ipc-first', '12:00', activeKey, { mode: 'single-agent' }, conversationId)
   await createAssistantMessage(result, 'ipc-first', '12:00', activeKey, { mode: 'single-agent' }, conversationId)
   assert.equal((await appState.getConversationState(conversationId)).messages.length, 1)
+  assert.deepEqual((await appState.getConversationState(conversationId)).messages[0].fileChanges, result.fileChanges,
+    'file change summaries must survive native persistence and delayed IPC reconciliation')
   const readLedger = async () => JSON.parse(await fs.readFile(path.join(home, 'taskweaver-model-usage.json'), 'utf8')).records
   assert.equal((await readLedger()).length, 1, 'delayed IPC must not duplicate native ledger record')
 
@@ -57,6 +60,8 @@ try {
   assert.equal(messages.filter(message => message.id === 'z-turn-failed-error').length, 1)
   assert.equal((await readLedger()).length, 2)
   assert.equal(messages.find(message => message.id === 'z-turn-failed').interrupted, true)
+  assert.deepEqual(messages.find(message => message.id === 'z-turn-failed').fileChanges, result.fileChanges,
+    'partial output after a failed run retains file change summaries')
   const persistenceFailure = new Error('controlled disk failure')
   const originalErrorLog = console.error
   try {
@@ -70,6 +75,14 @@ try {
   await handleChatError(new Error('before native start'), 'early', '12:02', conversationId).catch(() => {})
   assert.equal((await appState.getConversationState(conversationId)).messages.at(-1).text, '执行失败：before native start')
   assert.equal((await readLedger()).length, 2, 'early errors invent no model usage')
+
+  await persistNativeTurn({ conversationId, modelKey: activeKey, result: {
+    turnId: 'files-only', startedAt: Date.now(), text: '', thinking: '',
+    fileChanges: [{ path: 'src/created.ts', addedLines: 4, deletedLines: 0, isNewFile: true }],
+  } })
+  assert.deepEqual((await appState.getConversationState(conversationId)).messages.find(message => message.id === 'z-turn-files-only').fileChanges,
+    [{ path: 'src/created.ts', addedLines: 4, deletedLines: 0, isNewFile: true }],
+  'file-only terminal evidence must not be dropped from history')
 
   // A synthesis caller opts out of terminal accounting: aggregate DAG usage is
   // still recorded once at the IPC boundary, not aggregate + synthesis twice.

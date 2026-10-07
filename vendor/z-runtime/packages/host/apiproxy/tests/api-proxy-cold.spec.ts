@@ -214,6 +214,66 @@ describe('sessions.list cold merge', () => {
   })
 })
 
+describe('sessions.cancel queue semantics', () => {
+  it('atomically discards queued user input while preserving non-user context', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SessionStore)
+    await ctx.plugin(AgentRegistry)
+    await ctx.plugin(UserQuestionService)
+    const session = ctx.sessions.create(sid('session-cancel-clears-input'), { meta: { cwd: '/proj' } })
+    const queued = createUserMessage({ content: [{ type: 'text', text: 'queued follow-up' }], source: { kind: 'user' } })
+    const steering = createUserMessage({ content: [{ type: 'text', text: 'steering input' }], source: { kind: 'user' } })
+    const context = createUserMessage({ content: [{ type: 'text', text: 'runtime context' }], source: { kind: 'plugin', plugin: 'taskweaver-test' } })
+    const nextTurn = [queued]
+    const nextStep = [steering, context]
+    const removed: string[] = []
+    const remove = vi.fn((id: string) => {
+      const lists = [nextTurn, nextStep]
+      for (const list of lists) {
+        const index = list.findIndex(message => message.id === id)
+        if (index >= 0) {
+          removed.push(id)
+          list.splice(index, 1)
+          return true
+        }
+      }
+      return false
+    })
+    const inbox = { nextTurn, nextStep, remove }
+    const cancel = vi.fn()
+    ctx.agents.register({ id: session.id, session, status: 'running', ctx, inbox, cancel } as unknown as Agent)
+    const api = createApiProxy(ctx, { defaultModelSelection: () => ({ provider: 'p', model: 'm' }), cwd: '/tmp' })
+
+    const stopped = await api.sessions.cancel(request({ sessionId: session.id, clearPendingUserInput: true }))
+    expect(stopped.result.ok).toBe(true)
+    expect(removed).toEqual([queued.id, steering.id])
+    expect(nextTurn).toEqual([])
+    expect(nextStep).toEqual([context])
+    expect(cancel).toHaveBeenCalledWith({ kind: 'user' }, { keepInbox: true })
+  })
+
+  it('preserves the existing inbox behavior unless the client opts in', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SessionStore)
+    await ctx.plugin(AgentRegistry)
+    await ctx.plugin(UserQuestionService)
+    const session = ctx.sessions.create(sid('session-cancel-preserves-input'), { meta: { cwd: '/proj' } })
+    const queued = createUserMessage({ content: [{ type: 'text', text: 'keep queued' }], source: { kind: 'user' } })
+    const remove = vi.fn()
+    const cancel = vi.fn()
+    ctx.agents.register({
+      id: session.id, session, status: 'running', ctx,
+      inbox: { nextTurn: [queued], nextStep: [], remove }, cancel,
+    } as unknown as Agent)
+    const api = createApiProxy(ctx, { defaultModelSelection: () => ({ provider: 'p', model: 'm' }), cwd: '/tmp' })
+
+    const stopped = await api.sessions.cancel(request({ sessionId: session.id }))
+    expect(stopped.result.ok).toBe(true)
+    expect(remove).not.toHaveBeenCalled()
+    expect(cancel).toHaveBeenCalledWith({ kind: 'user' }, { keepInbox: true })
+  })
+})
+
 describe('attached updatedAt tracks human prompts', () => {
   it('ignores pickup and non-prompt work after the latest human message', async () => {
     const ctx = new Context()

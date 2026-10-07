@@ -10,6 +10,7 @@ import {
 assert.equal(dshAgentPresetForPermissionMode('full'), 'standard')
 assert.equal(dshAgentPresetForPermissionMode('ask'), 'standard', 'new interactive sessions should align with DSH Web default regardless of permission mode')
 
+assert.equal(dshPermissionPresetForMode('readonly'), 'read-only')
 assert.equal(dshPermissionPresetForMode('ask'), 'workspace-write')
 assert.equal(dshPermissionPresetForMode('on-risk'), 'workspace-write')
 assert.equal(dshPermissionPresetForMode('full'), 'danger-full-access')

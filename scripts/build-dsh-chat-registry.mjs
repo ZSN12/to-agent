@@ -38,8 +38,8 @@ await new Promise((resolve, reject) => {
     '--bundle',
     '--platform=node',
     '--format=esm',
+    '--minify',
     `--outfile=${outfile}`,
-    '--external:@z/*',
     ...(fs.existsSync(tsconfig) ? [`--tsconfig=${tsconfig}`] : []),
   ]
   const spawnArgs = useNpx ? ['--yes', 'esbuild@0.25.0', ...args] : args

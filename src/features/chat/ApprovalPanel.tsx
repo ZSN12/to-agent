@@ -7,7 +7,7 @@ export function ApprovalPanel({
 }: {
   prompt: PermissionPromptPayload
   onRespond: (
-    action: 'allow-once' | 'allow-always' | 'deny' | 'escalate-once',
+    action: 'allow-once' | 'allow-always' | 'allow-always-session' | 'deny' | 'escalate-once',
     sandboxMode?: 'workspace-write' | 'danger-full-access',
   ) => void
 }) {
@@ -22,9 +22,14 @@ export function ApprovalPanel({
       <div className="approval-panel-actions">
         <button type="button" className="approval-btn deny" onClick={() => onRespond('deny')}>拒绝</button>
         <button type="button" className="approval-btn allow" onClick={() => onRespond('allow-once')}>批准一次</button>
+        {prompt.allowAlwaysSession && (
+          <button type="button" className="approval-btn always" onClick={() => onRespond('allow-always-session')}>
+            本会话总是允许
+          </button>
+        )}
         {prompt.allowAlways && (
           <button type="button" className="approval-btn always" onClick={() => onRespond('allow-always')}>
-            总是允许该命令
+            保存为规则（工作区）
           </button>
         )}
         {prompt.sandboxEscalation?.targets?.includes('workspace-write') && (

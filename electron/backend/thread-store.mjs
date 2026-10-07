@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { createJsonStore } from './json-store.mjs'
 import { searchSessionTranscripts } from './session-transcript-search.mjs'
 
-const VALID_PERMISSION_MODES = new Set(['ask', 'on-risk', 'full'])
+const VALID_PERMISSION_MODES = new Set(['readonly', 'ask', 'on-risk', 'full'])
 const DEFAULT_TITLE = '新对话'
 
 function makeThread({ workspacePath, permissionMode = 'ask', title = DEFAULT_TITLE, pinned = false, archived = false, modelKey = null, thinkingLevel = null, now = Date.now() }) {

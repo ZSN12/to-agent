@@ -13,8 +13,57 @@ import {
   approveEscalation,
 } from '../vendor/dsh-sandbox/escalation.mjs'
 import { consumeOneShotSandboxMode, withSandboxEscalation } from './sandbox-escalation-runtime.mjs'
+import { matchPattern } from './permission-rules-store.mjs'
 
-export const PERMISSION_MODES = Object.freeze(['ask', 'on-risk', 'full'])
+export const PERMISSION_MODES = Object.freeze(['readonly', 'ask', 'on-risk', 'full'])
+
+/** @type {Map<string, Array<{ tool: string, type: 'command' | 'path', pattern: string }>>} */
+const sessionPermissionGrants = new Map()
+
+export function clearSessionPermissionGrants(conversationId) {
+  if (!conversationId) return
+  sessionPermissionGrants.delete(conversationId)
+}
+
+function buildPersistentGrant(details, event, workspacePath) {
+  if (details.tool === 'bash') {
+    const pattern = String(event.input?.command ?? '').trim()
+    if (!pattern) return null
+    return { tool: 'bash', type: 'command', pattern }
+  }
+  if (details.mutation && details.candidate) {
+    const absolute = path.isAbsolute(details.candidate)
+      ? details.candidate
+      : path.resolve(workspacePath, details.candidate)
+    const rel = path.relative(workspacePath, absolute).replace(/\\/g, '/')
+    if (!rel || rel.startsWith('..')) return null
+    return { tool: details.tool, type: 'path', pattern: rel }
+  }
+  return null
+}
+
+function matchesSessionGrant(conversationId, details, event) {
+  const grants = sessionPermissionGrants.get(conversationId)
+  if (!grants?.length) return false
+  const command = details.tool === 'bash' ? String(event.input?.command ?? '').trim() : ''
+  const candidatePath = details.candidate
+    ? String(details.candidate).replace(/\\/g, '/')
+    : ''
+  for (const grant of grants) {
+    if (grant.tool !== '*' && grant.tool !== details.tool) continue
+    if (grant.type === 'command' && command && matchPattern(grant.pattern, command)) return true
+    if (grant.type === 'path' && candidatePath && matchPattern(grant.pattern, candidatePath)) return true
+  }
+  return false
+}
+
+function rememberSessionGrant(conversationId, grant) {
+  if (!conversationId || !grant?.pattern) return
+  const list = sessionPermissionGrants.get(conversationId) ?? []
+  const exists = list.some((item) => item.tool === grant.tool && item.type === grant.type && item.pattern === grant.pattern)
+  if (!exists) list.push(grant)
+  sessionPermissionGrants.set(conversationId, list)
+}
 const CONTROLLER_KEY = Symbol.for('taskweaver.permission-controller')
 const activeExecution = new AsyncLocalStorage()
 
@@ -98,6 +147,7 @@ export function createPermissionService({
 
   const mapUiActionToOutcome = (action) => {
     if (action === 'allow-once' || action === 'escalate-once') return 'allowed-once'
+    if (action === 'allow-always-session') return 'allowed-session'
     if (action === 'allow-always') return 'allowed-always'
     if (action === 'deny') return 'rejected'
     return 'unavailable'
@@ -125,6 +175,9 @@ export function createPermissionService({
       const active = activeExecution.getStore()
       const mode = normalizeMode(active?.mode)
       if (mode === 'full') return requestedMode === 'danger-full-access' ? 'danger-full-access' : requestedMode
+      if (mode === 'readonly') {
+        throw new Error('sandbox escalation is disabled in read-only permission mode')
+      }
       if (mode !== 'ask') {
         throw new Error('sandbox escalation requires ask permission mode when not in full access')
       }
@@ -243,6 +296,19 @@ export function createPermissionService({
         }
       }
 
+      if (active?.conversationId && matchesSessionGrant(active.conversationId, details, event)) {
+        await recordApproval(active.conversationId, 'approval/review', {
+          toolName: details.tool,
+          risk: 'low',
+          decision: 'allow',
+          verdict: 'allow',
+          reason: 'session-grant',
+        })
+        const pre = await runPreMutationSafely()
+        if (!pre.ok) return pre
+        return undefined
+      }
+
       // 1. 优先判定细粒度规则：deny 规则具有最高优先级（即使 full 模式也严格执行），allow 规则直接放行
       if (rulesStore) {
         const matched = await rulesStore.matchRule({ tool: details.tool, input: event.input, workspacePath })
@@ -286,6 +352,18 @@ export function createPermissionService({
         return undefined
       }
 
+      if (mode === 'readonly' && details.mutation) {
+        const trace = {
+          id: String(event.toolCallId ?? `${details.tool}-${Date.now()}`),
+          toolName: details.tool || 'tool',
+          status: 'blocked',
+          inputSummary: summarizeToolInput(details.tool, event.input),
+          resultSummary: '当前为只读权限模式，无法修改文件。',
+        }
+        await emitPermissionTrace(active, active?.webContents, trace)
+        return { block: true, reason: trace.resultSummary }
+      }
+
       const autoReview = await Promise.resolve(getAutoReviewReads())
       if (autoReview && isAutoApprovedRead(details)) {
         await recordApproval(active?.conversationId, 'approval/review', {
@@ -301,7 +379,9 @@ export function createPermissionService({
       }
 
       let reason = null
-      if (mode === 'ask') {
+      if (mode === 'readonly' && details.tool === 'bash') {
+        reason = '只读权限模式下运行终端命令'
+      } else if (mode === 'ask') {
         if (details.mcp) reason = `调用外部 MCP 工具 ${details.tool}`
         else if (details.tool === 'bash') reason = '运行终端命令'
         else if (details.outsideWorkspace) reason = `${details.tool === 'read' ? '读取' : '修改'}工作区以外的文件`
@@ -337,6 +417,8 @@ export function createPermissionService({
         ? String(event.input?.command ?? '').slice(0, 700)
         : String(details.candidate ?? '').slice(0, 500)
       const isBash = details.tool === 'bash'
+      const canPersistRule = Boolean(rulesStore && buildPersistentGrant(details, event, workspacePath))
+      const canSessionGrant = canPersistRule || (details.fileAccess && details.outsideWorkspace)
 
       let action = 'deny'
       const approvalId = `appr-${event.toolCallId ?? Date.now()}`
@@ -352,12 +434,15 @@ export function createPermissionService({
           detail: subject || `工具：${details.tool}`,
           tool: details.tool,
           conversationId: active?.conversationId ?? undefined,
-          allowAlways: Boolean(isBash && rulesStore),
+          allowAlwaysSession: canSessionGrant,
+          allowAlways: canPersistRule,
         })
         action = uiAnswer.action
       } else if (dialog?.showMessageBox) {
         const parent = getParentWindow?.(contents)
-        const buttons = isBash && rulesStore ? ['拒绝', '批准一次', '总是允许该命令'] : ['拒绝', '批准一次']
+        const buttons = ['拒绝', '批准一次']
+        if (canSessionGrant) buttons.push('本会话总是允许')
+        if (canPersistRule) buttons.push('保存为规则（工作区）')
         const options = {
           type: 'warning',
           title: 'TaskWeaver 操作确认',
@@ -370,7 +455,8 @@ export function createPermissionService({
         }
         const answer = parent ? await dialog.showMessageBox(parent, options) : await dialog.showMessageBox(options)
         if (answer.response === 1) action = 'allow-once'
-        else if (answer.response === 2 && isBash && rulesStore) action = 'allow-always'
+        else if (canSessionGrant && answer.response === 2) action = 'allow-always-session'
+        else if (canPersistRule && answer.response === (canSessionGrant ? 3 : 2)) action = 'allow-always'
         else action = 'deny'
       }
 
@@ -384,17 +470,29 @@ export function createPermissionService({
         if (!pre.ok) return pre
         return undefined
       }
-      if (action === 'allow-always' && isBash && rulesStore) {
-        const cmd = String(event.input?.command ?? '').trim()
-        if (cmd) {
+      if (action === 'allow-always-session' && canSessionGrant) {
+        const grant = buildPersistentGrant(details, event, workspacePath)
+          ?? (details.fileAccess && details.candidate
+            ? { tool: details.tool, type: 'path', pattern: String(details.candidate).replace(/\\/g, '/') }
+            : null)
+        rememberSessionGrant(active?.conversationId, grant)
+        const pre = await runPreMutationSafely()
+        if (!pre.ok) return pre
+        return undefined
+      }
+      if (action === 'allow-always' && canPersistRule && rulesStore) {
+        const grant = buildPersistentGrant(details, event, workspacePath)
+        if (grant) {
           await rulesStore.addRule({
-            tool: 'bash',
-            type: 'command',
-            pattern: cmd,
+            tool: grant.tool,
+            type: grant.type,
+            pattern: grant.pattern,
             decision: 'allow',
             scope: 'workspace',
             workspacePath,
-            description: '用户通过 Composer 审批面板添加的始终允许命令',
+            description: grant.type === 'command'
+              ? '用户通过 Composer 审批面板添加的始终允许命令'
+              : '用户通过 Composer 审批面板添加的始终允许路径',
           })
         }
         const pre = await runPreMutationSafely()

@@ -23,6 +23,7 @@ const cases = [
 
   // ===== 寒暄 / 致谢 / 确认：绝不能判成要改代码 =====
   ['你好', CONVERSATION, '寒暄'],
+  ['你好，帮我修复这个 bug', CODE_MUTATION, '寒暄前缀 + 修改动词仍判 mutation'],
   ['您好', CONVERSATION, '寒暄'],
   ['hi', CONVERSATION, '英文寒暄'],
   ['早上好', CONVERSATION, '问候'],
@@ -48,6 +49,8 @@ const cases = [
   ['为什么删除了这个文件？', READ_ONLY, '「为什么…删除」是提问'],
   ['更新是什么意思', READ_ONLY, '「X 是什么意思」是问词义'],
   ['查看一下 src 目录', READ_ONLY, '只读查看'],
+  ['看看当前代码有哪些问题', READ_ONLY, '看看代码默认只读'],
+  ['检查当前代码有什么问题', READ_ONLY, '检查代码默认只读'],
   ['解释一下这个报错', READ_ONLY, '要求解释'],
   ['这样做对吗？', READ_ONLY, '问句结尾'],
 
@@ -84,14 +87,16 @@ for (const text of ['你好', '谢谢', '嗯……让我想想', '随便聊聊']
 assert.equal(injectIntentGuidelines('原文', PLANNING, policy), '原文', '计划模式已有专门前缀，不重复注入')
 
 const readOnly = injectIntentGuidelines('原文', READ_ONLY, policy)
-assert.match(readOnly, /只读咨询或代码理解/)
-assert.match(readOnly, /优先限定在该范围/, '只读任务必须优先尊重用户指定的文件/目录范围')
-assert.match(readOnly, /只有回答确实需要时才扩展/, '必要时允许有理由地扩大只读检查范围')
-assert.match(readOnly, /明确禁止读取范围外内容，必须遵守/, '用户明确禁止越界读取时必须服从并标注未验证项')
-assert.match(readOnly, /证据足够后停止探索/, '只读检查应在证据充分后停止，避免无效探索')
-assert.doesNotMatch(readOnly, /自主闭环要求/, '只读意图不能要求跑自检')
+assert.equal(readOnly, '原文', '只读消息应与 DSH 一致，不追加 Host 外的 prompt 指引')
+assert.equal(
+  injectIntentGuidelines('读一下 electron/main.cjs', READ_ONLY, policy),
+  '读一下 electron/main.cjs',
+  '指定文件的只读消息应原样进入 Host',
+)
 
-const mutation = injectIntentGuidelines('原文', CODE_MUTATION, policy)
+assert.equal(injectIntentGuidelines('原文', CODE_MUTATION, policy), '原文', '默认不向改代码请求注入验证指引')
+
+const mutation = injectIntentGuidelines('原文', CODE_MUTATION, policy, { autoVerifyAfterMutation: true })
 assert.match(mutation, /自主闭环要求/)
 assert.match(mutation, new RegExp(policy.primaryCommand.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
 assert.match(mutation, /若验证失败，请根据错误日志自行修正/)

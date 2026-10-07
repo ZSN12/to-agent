@@ -34,20 +34,34 @@ async function waitFor(predicate, { label = 'condition', timeout = 5000, interva
   }
 }
 
+function pushAssistantText(runtime, sessionId, text = 'ok') {
+  runtime.push({ payload: { type: 'session/event', sessionId, event: {
+    type: 'assistant/chunk', data: { chunk: { type: 'text-delta', text } },
+  } } })
+}
+
 assert.equal(
   applySkillInstructions('用户任务', { name: 'dingtalk-chat', nativeInvocation: '/dingtalk-chat', source: 'dsh' }),
   '/dingtalk-chat\n用户任务',
 )
 
-function createMockRuntime({ permissionCommandSupported = true } = {}) {
+function createMockRuntime({
+  permissionCommandSupported = true,
+  permissionProjectionMismatch = false,
+  promptFailure = null,
+  modelsOmitReasoningOnRead = false,
+  initialModelSelection = null,
+} = {}) {
   const waiters = []
   const frames = []
   const created = []
   const selected = []
   const prompts = []
+  const nativeCommands = []
   const permissionCommands = []
   const approvalResponses = []
   const sessionModels = new Map()
+  const sessionPermissions = new Map()
   let cancelCount = 0
 
   function push(frame) {
@@ -65,11 +79,26 @@ function createMockRuntime({ permissionCommandSupported = true } = {}) {
             yield frames.shift()
             continue
           }
+          let resolveFrame
+          const frame = new Promise((resolve) => {
+            resolveFrame = resolve
+            waiters.push(resolve)
+          })
+          let onAbort
+          const aborted = new Promise((resolve) => {
+            onAbort = () => resolve({ done: true })
+            signal.addEventListener('abort', onAbort, { once: true })
+          })
           const next = await Promise.race([
-            new Promise((resolve) => { waiters.push(resolve) }),
-            new Promise((resolve) => signal.addEventListener('abort', () => resolve({ done: true }), { once: true })),
+            frame,
+            aborted,
           ])
-          if (signal.aborted) return
+          signal.removeEventListener('abort', onAbort)
+          if (signal.aborted) {
+            const staleWaiter = waiters.indexOf(resolveFrame)
+            if (staleWaiter >= 0) waiters.splice(staleWaiter, 1)
+            return
+          }
           if (!next.done) yield next.value
         }
       },
@@ -77,6 +106,9 @@ function createMockRuntime({ permissionCommandSupported = true } = {}) {
     sessions: {
       async create({ sessionId, cwd, agentPreset }) {
         created.push({ sessionId, cwd, agentPreset })
+        if (initialModelSelection && !sessionModels.has(sessionId)) {
+          sessionModels.set(sessionId, { ...initialModelSelection })
+        }
         return { result: { ok: true, value: { sessionId, agentPreset } } }
       },
       async selectModel(input) {
@@ -90,11 +122,15 @@ function createMockRuntime({ permissionCommandSupported = true } = {}) {
         return { result: { ok: true, value: { selected: selectedRoute } } }
       },
       async models({ sessionId }) {
+        const current = sessionModels.get(sessionId) ?? null
+        const exposed = current && modelsOmitReasoningOnRead
+          ? { provider: current.provider, model: current.model }
+          : current
         return {
           result: {
             ok: true,
             value: {
-              current: sessionModels.get(sessionId) ?? null,
+              current: exposed,
               routable: true,
               groups: [],
               failures: [],
@@ -106,10 +142,22 @@ function createMockRuntime({ permissionCommandSupported = true } = {}) {
         if (input.content?.length === 1 && input.content[0]?.type === 'text' && input.content[0].text.startsWith('/permission ')) {
           permissionCommands.push(input)
           if (!permissionCommandSupported) return { result: { ok: true, value: { accepted: true } } }
+          sessionPermissions.set(input.sessionId, input.content[0].text.slice('/permission '.length))
           return { result: { ok: true, value: { accepted: true, command: { kind: 'success', text: input.content[0].text } } } }
         }
+        if (input.commandOnly === true) {
+          nativeCommands.push(input)
+          return { result: { ok: true, value: {
+            accepted: true,
+            command: { kind: 'success', text: `Host handled ${input.content[0].text}` },
+          } } }
+        }
         prompts.push(input)
+        if (promptFailure) throw promptFailure(input)
         return { result: { ok: true, value: { accepted: true } } }
+      },
+      async history({ sessionId }) {
+        return { result: { ok: true, value: { events: [], projections: { values: { permissions: { currentValue: permissionProjectionMismatch ? 'read-only' : sessionPermissions.get(sessionId) } } } } } }
       },
       async cancel({ sessionId }) {
         cancelCount += 1
@@ -140,6 +188,7 @@ function createMockRuntime({ permissionCommandSupported = true } = {}) {
     hostManager,
     push,
     prompts,
+    nativeCommands,
     permissionCommands,
     created,
     selected,
@@ -173,6 +222,7 @@ try {
   const selection = noReasoningRuntime.selected.find((row) => row.model === 'plain')
   assert.ok(selection, 'model route should be selected')
   assert.equal('reasoningEffort' in selection, false, 'global medium reasoning preference must not be sent to a model that rejects reasoning')
+  pushAssistantText(noReasoningRuntime, 'tw-no-reasoning')
   noReasoningRuntime.push({ payload: {
     type: 'session/event', sessionId: 'tw-no-reasoning',
     event: { type: 'turn/end', data: { reason: { kind: 'completed' } } },
@@ -207,6 +257,7 @@ try {
   await waitFor(() => limitedReasoningService.isBusy('limited-reasoning'), { label: 'limited-reasoning model turn is registered' })
   const selection = limitedReasoningRuntime.selected.find((row) => row.model === 'limited')
   assert.equal(selection?.reasoningEffort, 'low', 'unsupported global medium effort should fall back to the model-declared low default')
+  pushAssistantText(limitedReasoningRuntime, 'tw-limited-reasoning')
   limitedReasoningRuntime.push({ payload: {
     type: 'session/event', sessionId: 'tw-limited-reasoning',
     event: { type: 'turn/end', data: { reason: { kind: 'completed' } } },
@@ -220,6 +271,7 @@ try {
 const home = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-dsh-chat-'))
 const runtime = createMockRuntime()
 const outputs = []
+const promptByteMetrics = []
 let currentPermissionMode = 'ask'
 const scopedWebContents = { send(_channel, event) { outputs.push(event) }, isDestroyed() { return false } }
 const service = createDshChatService({
@@ -229,11 +281,15 @@ const service = createDshChatService({
   profileStore,
   modelService,
   getPermissionMode: () => currentPermissionMode,
+  logger: { debug(message, data) {
+    if (message === '[prompt-pipeline] Host user-message payload bytes') promptByteMetrics.push(data)
+  } },
 })
 
 try {
+  const skillInput = '读取中文文件'
   const a = service.send({
-    text: 'conversation A',
+    text: skillInput,
     modelKey: 'test/model-a',
     conversationId: 'conversation-A',
     skill: { name: 'review', baseDir: home, instructions: '必须检查边界条件并报告风险。' },
@@ -250,7 +306,17 @@ try {
   assert.deepEqual(sendErrors, [])
   const skillPrompt = runtime.prompts.find((prompt) => prompt.sessionId === 'tw-conversation-A')?.content?.[0]?.text
   assert.match(skillPrompt, /必须检查边界条件并报告风险/)
-  assert.match(skillPrompt, /conversation A/)
+  assert.match(skillPrompt, new RegExp(skillInput))
+  const skillMetric = promptByteMetrics.find((item) => item.conversationId === 'conversation-A')
+  assert.equal(skillMetric.inputUtf8Bytes, Buffer.byteLength(skillInput, 'utf8'))
+  assert.equal(skillMetric.submittedUtf8Bytes, Buffer.byteLength(skillPrompt, 'utf8'))
+  assert.equal(skillMetric.skillEnvelopeAddedUtf8Bytes,
+    Buffer.byteLength(skillPrompt, 'utf8') - Buffer.byteLength(skillInput, 'utf8'))
+  assert.equal(skillMetric.skillMode, 'filesystem')
+  assert.equal(JSON.stringify(skillMetric).includes(skillInput), false, 'prompt byte telemetry must never contain prompt text')
+  const plainMetric = promptByteMetrics.find((item) => item.conversationId === 'conversation-B')
+  assert.equal(plainMetric.submittedUtf8Bytes, Buffer.byteLength('conversation B', 'utf8'))
+  assert.equal(plainMetric.skillEnvelopeAddedUtf8Bytes, 0)
   assert.equal(service.isBusy('conversation-A'), true)
   assert.equal(service.isBusy('conversation-B'), true)
   assert.notEqual(runtime.created[0].sessionId, runtime.created[1].sessionId)
@@ -273,6 +339,39 @@ try {
   assert.equal(service.isBusy('conversation-A'), false)
   assert.equal(service.isBusy('conversation-B'), false)
 
+  const nativeSkillInput = '查找群消息'
+  const nativeSkillTurn = service.send({
+    text: nativeSkillInput,
+    modelKey: 'test/model-a',
+    conversationId: 'skill-native',
+    skill: { name: 'dingtalk-chat', source: 'dsh', nativeInvocation: '/dingtalk-chat' },
+    webContents: scopedWebContents,
+  })
+  await waitFor(() => service.isBusy('skill-native'), { label: 'DSH-native Skill 会话已注册为运行中' })
+  const nativeSkillSession = runtime.created.find((item) => item.sessionId === 'tw-skill-native')
+  const nativeSkillPrompt = runtime.prompts.find((prompt) => prompt.sessionId === nativeSkillSession.sessionId)?.content?.[0]?.text
+  const expectedNativeSkillPrompt = `/dingtalk-chat\n${nativeSkillInput}`
+  assert.equal(nativeSkillPrompt, expectedNativeSkillPrompt)
+  const nativeSkillMetric = promptByteMetrics.find((item) => item.conversationId === 'skill-native')
+  assert.equal(nativeSkillMetric.submittedUtf8Bytes, Buffer.byteLength(expectedNativeSkillPrompt, 'utf8'))
+  assert.equal(nativeSkillMetric.skillMode, 'host-native')
+  pushAssistantText(runtime, nativeSkillSession.sessionId)
+  runtime.push({ payload: { type: 'session/event', sessionId: nativeSkillSession.sessionId, event: { type: 'turn/end', data: { reason: { kind: 'completed' } } } } })
+  await nativeSkillTurn
+
+  const planEnabled = await service.send({
+    text: '/plan', modelKey: 'test/model-a', conversationId: 'plan-native', webContents: scopedWebContents,
+  })
+  const planDisabled = await service.send({
+    text: '/plan off', modelKey: 'test/model-a', conversationId: 'plan-native', webContents: scopedWebContents,
+  })
+  assert.equal(planEnabled.command, true)
+  assert.equal(planDisabled.command, true)
+  assert.deepEqual(runtime.nativeCommands.map((input) => input.content[0].text), ['/plan', '/plan off'])
+  assert.ok(runtime.nativeCommands.every((input) => input.commandOnly === true), 'Plan toggles must use Host command-only dispatch')
+  assert.equal(runtime.prompts.some((input) => input.content?.[0]?.text === '/plan' || input.content?.[0]?.text === '/plan off'), false,
+    'Plan toggles must not become normal model prompts')
+
   // 权限模式变更不需要显式通知：下一轮 ensurePermissionModeApplied 会比对
   // entry.lastAppliedPermissionMode 并自动下发 /permission（这才是生产路径）。
   currentPermissionMode = 'full'
@@ -283,7 +382,9 @@ try {
     webContents: scopedWebContents,
   })
   await waitFor(() => service.isBusy('conversation-A'), { label: 'full 模式会话已注册为运行中' })
-  assert.equal(runtime.permissionCommands[2].content[0].text, '/permission danger-full-access')
+  assert.ok(runtime.permissionCommands.some((input) => input.sessionId === sessionA
+    && input.content[0].text === '/permission danger-full-access'))
+  pushAssistantText(runtime, sessionA)
   runtime.push({ payload: { type: 'session/event', sessionId: sessionA, event: { type: 'turn/end', data: { reason: { kind: 'completed' } } } } })
   await fullPermissionTurn
 
@@ -313,11 +414,16 @@ try {
   })
   assert.equal(queued.queued, true)
   assert.equal(service.isBusy('conversation-queued'), true)
+  for (const [text, delivery] of [
+    ['keep running while accepting a queue', 'new-turn'],
+    ['steer without replacing the active lifecycle', 'steer'],
+    ['run this after the active turn', 'queue'],
+  ]) {
+    const metric = promptByteMetrics.findLast((item) => item.conversationId === 'conversation-queued' && item.delivery === delivery)
+    const payload = runtime.prompts.findLast((item) => item.content?.[0]?.text === text)
+    assert.equal(metric.submittedUtf8Bytes, Buffer.byteLength(payload.content[0].text, 'utf8'), `${delivery} byte metric must match the exact Host payload`)
+  }
   runtime.push({ payload: { type: 'session/event', sessionId: queuedSession, event: { type: 'step/start', time: Date.now(), data: { turn: 1, step: 3 } } } })
-  await waitFor(
-    () => outputs.some((event) => event.type === 'activity' && event.phase === 'llm' && event.message === '模型第 3 步'),
-    { label: '模型步骤状态已发送到会话 UI' },
-  )
   runtime.push({ payload: { type: 'session/event', sessionId: queuedSession, event: {
     type: 'llm/retry',
     data: { turn: 1, step: 3, retry: 1, maxRetries: 2, delayMs: 750, failure: { code: 'TIMEOUT' } },
@@ -326,6 +432,8 @@ try {
     () => outputs.some((event) => event.type === 'retry' && event.phase === 'start' && event.attempt === 1),
     { label: '模型请求超时重试状态已发送到会话 UI' },
   )
+  assert.equal(outputs.some((event) => event.type === 'activity' && /模型第\s*\d+\s*步/.test(event.message ?? '')), false,
+    'internal model-step counters should not be sent as visible chat activity')
   const retryNotice = outputs.findLast((event) => event.type === 'retry' && event.phase === 'start')
   assert.equal(retryNotice.maxAttempts, 2)
   assert.equal(retryNotice.delayMs, 750)
@@ -377,6 +485,26 @@ try {
     await fs.rm(unsupportedHome, { recursive: true, force: true })
   }
 
+  const mismatchHome = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-permission-mismatch-'))
+  const mismatchRuntime = createMockRuntime({ permissionProjectionMismatch: true })
+  const mismatchService = createDshChatService({
+    hostManager: mismatchRuntime.hostManager,
+    userDataPath: mismatchHome,
+    getWorkspacePath: () => mismatchHome,
+    profileStore,
+    modelService,
+  })
+  try {
+    await assert.rejects(
+      mismatchService.send({ text: 'blocked despite command success', modelKey: 'test/model', conversationId: 'mismatch', webContents }),
+      /权限投影未确认/,
+    )
+    assert.equal(mismatchRuntime.prompts.length, 0, 'command success without matching Host projection must block execution')
+  } finally {
+    await mismatchService.stop()
+    await fs.rm(mismatchHome, { recursive: true, force: true })
+  }
+
   const running = service.send({ text: 'wait-for-cancel', modelKey: 'test/model-c', conversationId: 'conversation-C', webContents: scopedWebContents })
   await waitFor(() => service.isBusy('conversation-C'), { label: 'conversation-C 已进入运行态' })
   assert.equal(await service.abort('conversation-C'), true)
@@ -390,6 +518,7 @@ try {
     'cancelled DSH turns must be distinguishable from successful completion in the stream',
   )
 
+  const taskTurnOutputStart = outputs.length
   const taskTurn = service.runAgentTurn({
     conversationId: 'conversation-parent',
     sessionKey: 'dag-session-1',
@@ -408,6 +537,16 @@ try {
     source: { callId: 'task-call-1' },
     content: [{ type: 'tool-result', toolCallId: 'task-call-1', content: [{ type: 'text', text: 'file body' }] }],
   } } } } })
+  runtime.push({ payload: { type: 'session/event', sessionId: taskSession.sessionId, event: { type: 'tool/call', data: {
+    callId: 'task-call-edit', name: 'edit', arguments: '{"file_path":"README.md","old_string":"old line","new_string":"new line"}',
+  } } } })
+  runtime.push({ payload: { type: 'session/event', sessionId: taskSession.sessionId, event: { type: 'tool/result', data: {
+    message: {
+      source: { callId: 'task-call-edit' },
+      content: [{ type: 'tool-result', toolCallId: 'task-call-edit', content: [{ type: 'text', text: 'file updated' }] }],
+    },
+    meta: { diffs: [{ path: 'README.md', oldText: 'keep\nold line\nend', newText: 'keep\nnew line\nend' }] },
+  } } } })
   runtime.push({ payload: { type: 'session/event', sessionId: taskSession.sessionId, event: { type: 'tool/call', data: { callId: 'task-call-error', name: 'glob', arguments: '{"pattern":"*"}' } } } })
   runtime.push({ payload: { type: 'session/event', sessionId: taskSession.sessionId, event: { type: 'tool/result', data: { message: {
     content: [{ type: 'tool-result', toolCallId: 'task-call-error', isError: true, content: [{ type: 'text', text: 'SEARCH_RAW_OUTPUT_OVERFLOW token=hidden-fixture-secret' }] }],
@@ -416,10 +555,52 @@ try {
   runtime.push({ payload: { type: 'session/event', sessionId: taskSession.sessionId, event: { type: 'turn/end', data: { reason: { kind: 'completed' } } } } })
   const taskResult = await taskTurn
   assert.equal(taskResult.text, 'task reply')
+  assert.equal(outputs.slice(taskTurnOutputStart).some((event) => event.type === 'planner_phase'), false,
+    'ordinary silent subagent turns must not emit planner-only phase events')
   assert.equal(outputs.find((event) => event.type === 'tool' && event.id === 'task-call-1' && event.status === 'done')?.resultSummary, '执行完成 · 1 个结果块，约 9 字符')
+  const editTrace = outputs.find((event) => event.type === 'tool' && event.id === 'task-call-edit' && event.status === 'done')
+  assert.deepEqual({ path: editTrace?.fileDiff?.path, added: editTrace?.fileDiff?.addedLines, deleted: editTrace?.fileDiff?.deletedLines }, {
+    path: 'README.md', added: 1, deleted: 1,
+  }, 'Host tool/result.meta diff metadata must reach the renderer trace')
+  assert.deepEqual(taskResult.fileChanges, [{ path: 'README.md', addedLines: 1, deletedLines: 1 }],
+    'file changes must be aggregated into the turn result for durable history')
   const toolFailure = outputs.find((event) => event.type === 'tool' && event.id === 'task-call-error' && event.status === 'error')
   assert.match(toolFailure?.resultSummary, /SEARCH_RAW_OUTPUT_OVERFLOW/)
   assert.equal(toolFailure.resultSummary.includes('hidden-fixture-secret'), false)
+
+  const plannerProgressTurn = service.runAgentTurn({
+    conversationId: 'conversation-parent',
+    sessionKey: 'dag-planner-progress',
+    text: 'plan a small DAG',
+    modelKey: 'test/model-planner',
+    webContents: scopedWebContents,
+    cwd: home,
+    agentPreset: 'taskweaver-planner',
+    progressOnly: true,
+  })
+  await waitFor(() => service.isBusy('dag-planner-progress'), { label: 'Planner progress-only turn is registered' })
+  const plannerProgressSession = runtime.created.find((item) => item.sessionId === 'tw-dag-planner-progress')
+  runtime.push({ payload: { type: 'session/event', sessionId: plannerProgressSession.sessionId, event: {
+    type: 'assistant/chunk', data: { chunk: { type: 'reasoning-delta', text: 'PRIVATE_PLANNER_REASONING' } },
+  } } })
+  runtime.push({ payload: { type: 'session/event', sessionId: plannerProgressSession.sessionId, event: {
+    type: 'assistant/chunk', data: { chunk: { type: 'text-delta', text: '__UNVALIDATED_PLAN_JSON__' } },
+  } } })
+  runtime.push({ payload: { type: 'session/event', sessionId: plannerProgressSession.sessionId, event: {
+    type: 'turn/end', data: { reason: { kind: 'completed' } },
+  } } })
+  const plannerProgressResult = await plannerProgressTurn
+  assert.equal(plannerProgressResult.text, '__UNVALIDATED_PLAN_JSON__', 'silent planner result must remain available to the orchestrator')
+  const plannerPhases = outputs.filter((event) => event.type === 'planner_phase'
+    && event.conversationId === 'conversation-parent')
+  assert.deepEqual(plannerPhases.map((event) => event.phase), ['reasoning', 'text'],
+    'progress-only planner mode should emit coarse phase transitions')
+  assert.equal(JSON.stringify(plannerPhases).includes('PRIVATE_PLANNER_REASONING'), false)
+  assert.equal(JSON.stringify(plannerPhases).includes('__UNVALIDATED_PLAN_JSON__'), false)
+  assert.equal(outputs.some((event) => event.type === 'delta' && event.delta === '__UNVALIDATED_PLAN_JSON__'), false,
+    'progress-only planner output must never be projected as a user-visible partial answer')
+  assert.equal(outputs.some((event) => event.type === 'thinking_delta' && event.delta === 'PRIVATE_PLANNER_REASONING'), false,
+    'private planner reasoning must remain hidden')
 
   const batchedTaskTurn = service.runAgentTurn({
     conversationId: 'conversation-parent',
@@ -451,6 +632,19 @@ try {
     },
   } } })
   runtime.push({ payload: { type: 'session/event', sessionId: codeModeSession.sessionId, event: {
+    type: 'tool/code-dispatch-start', time: nestedReadStartedAt + 16, data: {
+      rootCallId: 'task-call-code', parentCallId: 'task-call-code', subCallId: 'task-call-code:code:2',
+      name: 'write', arguments: { path: 'nested-update.md', content: 'new nested content' },
+    },
+  } } })
+  runtime.push({ payload: { type: 'session/event', sessionId: codeModeSession.sessionId, event: {
+    type: 'tool/code-dispatch', time: nestedReadStartedAt + 17, data: {
+      rootCallId: 'task-call-code', parentCallId: 'task-call-code', subCallId: 'task-call-code:code:2',
+      name: 'write', arguments: { path: 'nested-update.md', content: 'new nested content' }, isError: false,
+      content: [{ type: 'text', text: 'Updated file' }],
+    },
+  } } })
+  runtime.push({ payload: { type: 'session/event', sessionId: codeModeSession.sessionId, event: {
     type: 'tool/result', data: { message: {
       source: { callId: 'task-call-code' },
       content: [{ type: 'tool-result', toolCallId: 'task-call-code', content: [{ type: 'text', text: 'batch complete' }] }],
@@ -462,7 +656,10 @@ try {
   runtime.push({ payload: { type: 'session/event', sessionId: codeModeSession.sessionId, event: {
     type: 'turn/end', data: { reason: { kind: 'completed' } },
   } } })
-  await batchedTaskTurn
+  const batchedTaskResult = await batchedTaskTurn
+  assert.deepEqual(batchedTaskResult.fileChanges, [
+    { path: 'nested-update.md' },
+  ], 'code-dispatch writes without native diff metadata should be visible with unknown counts')
   const nestedReadStart = outputs.find((event) => event.type === 'tool'
     && event.id === 'task-call-code:code:1' && event.status === 'running')
   const nestedReadResult = outputs.find((event) => event.type === 'tool'
@@ -491,6 +688,85 @@ try {
   } } })
   await assert.rejects(failedTaskTurn, /Provider error 404: model not found/)
   assert.equal(service.isBusy('dag-session-failed'), false, 'failed turns must release their running-session entry')
+
+  const promptFailureHome = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-dsh-prompt-rejection-'))
+  const rejectedPromptRuntime = createMockRuntime({
+    promptFailure: () => Object.assign(new Error('Provider rejected prompt (HTTP 402)'), { code: 'HTTP_402' }),
+  })
+  const rejectedPromptEvents = []
+  const rejectedPromptService = createDshChatService({
+    hostManager: rejectedPromptRuntime.hostManager,
+    userDataPath: promptFailureHome,
+    getWorkspacePath: () => promptFailureHome,
+    profileStore,
+    modelService,
+  })
+  try {
+    const rejectedPrompt = rejectedPromptService.send({
+      text: 'this request is rejected before the Agent can answer',
+      modelKey: 'test/model-billing',
+      conversationId: 'prompt-rejected',
+      webContents: { send(_channel, event) { rejectedPromptEvents.push(event) }, isDestroyed() { return false } },
+    })
+    await assert.rejects(rejectedPrompt, (error) => error.code === 'HTTP_402')
+    assert.equal(rejectedPromptService.isBusy('prompt-rejected'), false, 'an immediate prompt RPC failure must release the busy state')
+    const lifecycle = rejectedPromptEvents.filter((event) => ['start', 'error', 'done'].includes(event.type))
+    assert.deepEqual(lifecycle.map((event) => event.type), ['start', 'error'],
+      'a prompt rejected before any Agent output must close the started lifecycle with an error, never a missing terminal or success')
+    assert.equal(lifecycle[1].turnId, lifecycle[0].turnId, 'the terminal failure must refer to the started turn')
+    assert.equal(lifecycle[1].message, 'Provider rejected prompt (HTTP 402)')
+  } finally {
+    await rejectedPromptService.stop()
+    await fs.rm(promptFailureHome, { recursive: true, force: true })
+  }
+
+  const blockedTurn = service.send({
+    text: 'this turn must not be reported as successful',
+    modelKey: 'test/model-task',
+    conversationId: 'conversation-blocked',
+    webContents: scopedWebContents,
+  })
+  await waitFor(() => service.isBusy('conversation-blocked'), { label: '被工具策略阻止的会话已进入运行态' })
+  const blockedSession = runtime.created.find((item) => item.sessionId === 'tw-conversation-blocked')
+  runtime.push({ payload: { type: 'session/event', sessionId: blockedSession.sessionId, event: {
+    type: 'tool/call', data: { callId: 'blocked-search', name: 'grep', arguments: '{"path":".","pattern":"different query"}' },
+  } } })
+  await waitFor(() => outputs.some((event) => event.type === 'tool' && event.id === 'blocked-search' && event.status === 'running'), {
+    label: '被阻止的搜索调用已记录',
+  })
+  runtime.push({ payload: { type: 'session/event', sessionId: blockedSession.sessionId, event: {
+    type: 'tool/result', data: { message: {
+      source: { callId: 'blocked-search' },
+      content: [{ type: 'tool-result', toolCallId: 'blocked-search', isError: true, content: [{
+        type: 'text', text: 'Repeated filesystem-search cycle detected: scope . is latched.',
+      }] }],
+    } },
+  } } })
+  runtime.push({ payload: { type: 'session/event', sessionId: blockedSession.sessionId, event: {
+    type: 'turn/end', data: { reason: { kind: 'blocked' } },
+  } } })
+  await assert.rejects(blockedTurn, (error) => error.code === 'AGENT_BLOCKED' && /重复的文件搜索循环/.test(error.message))
+  const blockedNotice = outputs.find((event) => event.type === 'error' && event.conversationId === 'conversation-blocked')
+  assert.match(blockedNotice?.message ?? '', /重复的文件搜索循环/)
+  assert.equal(outputs.some((event) => event.type === 'done' && event.conversationId === 'conversation-blocked'), false,
+    'a policy-blocked turn must not be projected as a successful completion')
+  assert.equal(service.isBusy('conversation-blocked'), false, 'blocked turns must release their running-session entry')
+
+  const emptyTurn = service.send({
+    text: 'empty responses must be visible failures',
+    modelKey: 'test/model-task',
+    conversationId: 'conversation-empty',
+    webContents: scopedWebContents,
+  })
+  await waitFor(() => service.isBusy('conversation-empty'), { label: '空响应测试会话已进入运行态' })
+  const emptySession = runtime.created.find((item) => item.sessionId === 'tw-conversation-empty')
+  runtime.push({ payload: { type: 'session/event', sessionId: emptySession.sessionId, event: {
+    type: 'turn/end', data: { reason: { kind: 'completed' } },
+  } } })
+  await assert.rejects(emptyTurn, (error) => error.code === 'AGENT_EMPTY_RESPONSE' && /没有生成最终文本/.test(error.message))
+  assert.equal(outputs.some((event) => event.type === 'done' && event.conversationId === 'conversation-empty'), false,
+    'an empty completed turn must not be projected as a successful completion')
+  assert.equal(outputs.some((event) => event.type === 'error' && event.conversationId === 'conversation-empty'), true)
 
   const taskAbortController = new AbortController()
   const taskAbortTurn = service.runAgentTurn({
@@ -523,9 +799,116 @@ try {
   assert.equal(runtime.created.filter((item) => item.sessionId === 'tw-conversation-A').at(-1)?.agentPreset, 'standard',
     'changing the new-session preference must not mutate the preset of an existing Host session')
   const selectCountBeforeRepeat = runtime.selected.length
+  pushAssistantText(runtime, sessionA)
   runtime.push({ payload: { type: 'session/event', sessionId: sessionA, event: { type: 'turn/end', data: { reason: { kind: 'completed' } } } } })
   await repeatTurn
   assert.equal(runtime.selected.length, selectCountBeforeRepeat, 'same route should not call selectModel again')
+
+  const reasoningHome = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-dsh-reasoning-'))
+  const reasoningRuntime = createMockRuntime({
+    modelsOmitReasoningOnRead: true,
+    // Reproduce a real default-route shape: same provider/model, no explicit
+    // effort. The selected Composer effort still has to be applied once.
+    initialModelSelection: { provider: 'test', model: 'reason-model' },
+  })
+  let reasoningLevel = 'high'
+  const reasoningProfile = { async getThinkingLevel() { return reasoningLevel } }
+  const reasoningModelService = {
+    async getDshModelConfig(modelKey) {
+      return {
+        provider: 'test',
+        id: modelKey.split('/')[1],
+        apiKey: 'secret',
+        name: 'Test',
+        contextWindow: 16_000,
+        maxTokens: 2_000,
+        active: true,
+        reasoning: true,
+        supportedThinkingLevels: ['low', 'medium', 'high'],
+        defaultThinkingLevel: 'medium',
+      }
+    },
+    async listProvidersAuth() {
+      return [{ id: 'test', configured: true }]
+    },
+  }
+  let reasoningService = createDshChatService({
+    hostManager: reasoningRuntime.hostManager,
+    userDataPath: reasoningHome,
+    getWorkspacePath: () => reasoningHome,
+    profileStore: reasoningProfile,
+    modelService: reasoningModelService,
+  })
+  try {
+    const reasoningConv = 'conversation-reasoning'
+    const reasoningSession = `tw-${reasoningConv}`
+    const firstReasoning = reasoningService.send({
+      text: 'reasoning route first',
+      modelKey: 'test/reason-model',
+      conversationId: reasoningConv,
+      agentPreset: 'standard',
+      webContents: scopedWebContents,
+    })
+    await waitFor(() => reasoningService.isBusy(reasoningConv), { label: 'reasoning 会话首轮运行' })
+    assert.equal(reasoningRuntime.selected.length, 1)
+    assert.equal(reasoningRuntime.selected[0].reasoningEffort, 'high')
+    pushAssistantText(reasoningRuntime, reasoningSession, 'ok')
+    reasoningRuntime.push({ payload: { type: 'session/event', sessionId: reasoningSession, event: { type: 'turn/end', data: { reason: { kind: 'completed' } } } } })
+    await firstReasoning
+    const secondReasoning = reasoningService.send({
+      text: 'reasoning route second',
+      modelKey: 'test/reason-model',
+      conversationId: reasoningConv,
+      agentPreset: 'standard',
+      webContents: scopedWebContents,
+    })
+    await waitFor(() => reasoningService.isBusy(reasoningConv), { label: 'reasoning 会话第二轮运行' })
+    pushAssistantText(reasoningRuntime, reasoningSession, 'ok2')
+    reasoningRuntime.push({ payload: { type: 'session/event', sessionId: reasoningSession, event: { type: 'turn/end', data: { reason: { kind: 'completed' } } } } })
+    await secondReasoning
+    assert.equal(reasoningRuntime.selected.length, 1,
+      'Host 未回读 reasoningEffort 时，同会话第二轮不得重复 selectModel')
+
+    await reasoningService.stop()
+    reasoningService = createDshChatService({
+      hostManager: reasoningRuntime.hostManager,
+      userDataPath: reasoningHome,
+      getWorkspacePath: () => reasoningHome,
+      profileStore: reasoningProfile,
+      modelService: reasoningModelService,
+    })
+    const afterRestart = reasoningService.send({
+      text: 'reasoning route after restart',
+      modelKey: 'test/reason-model',
+      conversationId: reasoningConv,
+      agentPreset: 'standard',
+      webContents: scopedWebContents,
+    })
+    await waitFor(() => reasoningService.isBusy(reasoningConv), { label: 'reasoning 映射恢复后第三轮运行' })
+    pushAssistantText(reasoningRuntime, reasoningSession, 'ok3')
+    reasoningRuntime.push({ payload: { type: 'session/event', sessionId: reasoningSession, event: { type: 'turn/end', data: { reason: { kind: 'completed' } } } } })
+    await afterRestart
+    assert.equal(reasoningRuntime.selected.length, 1,
+      'Host 不回读档位时，持久化的成功选择应避免应用重启后重复 selectModel')
+
+    reasoningLevel = 'low'
+    const changedEffort = reasoningService.send({
+      text: 'reasoning route changed to low',
+      modelKey: 'test/reason-model',
+      conversationId: reasoningConv,
+      agentPreset: 'standard',
+      webContents: scopedWebContents,
+    })
+    await waitFor(() => reasoningService.isBusy(reasoningConv), { label: '推理档位变更后的第四轮运行' })
+    assert.equal(reasoningRuntime.selected.length, 2, '更改 Composer 推理档位后应重新应用一次')
+    assert.equal(reasoningRuntime.selected[1].reasoningEffort, 'low')
+    pushAssistantText(reasoningRuntime, reasoningSession, 'ok4')
+    reasoningRuntime.push({ payload: { type: 'session/event', sessionId: reasoningSession, event: { type: 'turn/end', data: { reason: { kind: 'completed' } } } } })
+    await changedEffort
+  } finally {
+    await reasoningService.stop()
+    await fs.rm(reasoningHome, { recursive: true, force: true })
+  }
 
   await service.stop()
 
@@ -603,6 +986,7 @@ try {
       approvalId: 'appr-1',
       outcome: 'rejected',
     })
+    pushAssistantText(approvalRuntime, sessionId)
     approvalRuntime.push({ payload: { type: 'session/event', sessionId, event: { type: 'turn/end', data: { reason: { kind: 'completed' } } } } })
     await fullTurn
 
@@ -642,9 +1026,15 @@ try {
     })
     await sleep(20)
     assert.equal(approvalOutputs.length, 2, 'replayed pending approval must not open duplicate UI prompts')
-    assert.equal(await approvalService.respondApproval(promptId, { action: 'deny' }), true)
-    assert.equal(approvalRuntime.approvalResponses.at(-1).result.value.outcome, 'rejected')
+    const responseCountBeforeInvalidDecision = approvalRuntime.approvalResponses.length
+    assert.equal(await approvalService.respondApproval(promptId, { action: 'allow-always' }), false,
+      'Host approval bridge must reject unsupported persistent grants')
+    assert.equal(approvalRuntime.approvalResponses.length, responseCountBeforeInvalidDecision,
+      'invalid decisions must leave the request pending instead of approving it')
+    assert.equal(await approvalService.respondApproval(promptId, { action: 'allow-once' }), true)
+    assert.equal(approvalRuntime.approvalResponses.at(-1).result.value.outcome, 'allowed-once')
     assert.equal(await approvalService.rejectPendingApprovals(), 0)
+    pushAssistantText(approvalRuntime, askSessionId)
     approvalRuntime.push({ payload: { type: 'session/event', sessionId: askSessionId, event: { type: 'turn/end', data: { reason: { kind: 'completed' } } } } })
     await askTurn
 
@@ -684,6 +1074,7 @@ try {
     assert.equal(await approvalService.answerUserQuestion('question-rpc-1', {
       answers: [{ id: 'choice', selected: ['A'] }],
     }), false, 'a settled question cannot be answered twice')
+    pushAssistantText(approvalRuntime, questionSessionId)
     approvalRuntime.push({ payload: { type: 'session/event', sessionId: questionSessionId, event: { type: 'turn/end', data: { reason: { kind: 'completed' } } } } })
     await questionTurn
   } finally {

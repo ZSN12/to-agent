@@ -10,6 +10,15 @@ export function classifySubtaskFailure(error, { signal } = {}) {
   const code = typeof error?.code === 'string' ? error.code.toUpperCase() : ''
   const status = Number(error?.status ?? error?.statusCode)
   const message = safeErrorSummary(error).toLowerCase()
+  if (code === 'AGENT_BLOCKED' || code === 'AGENT_EMPTY_RESPONSE') {
+    return {
+      kind: code === 'AGENT_BLOCKED' ? 'policy-blocked' : 'empty-response',
+      retryable: false,
+      reason: code === 'AGENT_BLOCKED'
+        ? '工具或安全策略已阻止本轮；更换模型重试可能重复触发相同阻止，不自动重试'
+        : 'Agent 本轮没有返回最终文本；避免自动升级模型重复消耗，需人工决定是否继续',
+    }
+  }
   if (signal?.aborted || code === 'ABORT_ERR' || code === 'ERR_CANCELED' || /\b(aborted|cancelled|canceled)\b/.test(message)) {
     return { kind: 'cancelled', retryable: false, reason: '任务已取消' }
   }

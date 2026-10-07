@@ -292,13 +292,13 @@ function assertNonEmptyString(name: string, value: unknown): asserts value is st
 }
 
 function assertPositiveInteger(name: string, value: unknown): asserts value is number {
-  if (typeof value !== 'number' || !Number.isInteger(value) || value <= 0) {
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value <= 0) {
     throw new Error(`${name} (${String(value)}) must be a positive integer`)
   }
 }
 
 function assertNonNegativeInteger(name: string, value: unknown): asserts value is number {
-  if (typeof value !== 'number' || !Number.isInteger(value) || value < 0) {
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) {
     throw new Error(`${name} (${String(value)}) must be a non-negative integer`)
   }
 }

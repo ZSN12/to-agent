@@ -217,6 +217,7 @@ export function createMcpService({ userData, connectClient, safeStorage } = {}) 
           await client.connect(transport, { timeout: 10_000 })
         }
         const listing = await client.listTools()
+        if (listing?.error || !Array.isArray(listing?.tools)) throw new Error('invalid MCP tool listing')
         state.client = client
         state.tools = (listing.tools ?? []).filter((tool) => TOOL_NAME.test(tool.name ?? ''))
         state.status = 'connected'
@@ -224,7 +225,9 @@ export function createMcpService({ userData, connectClient, safeStorage } = {}) 
       } catch (error) {
         await client?.close().catch(() => {})
         state.status = 'error'
-        state.error = error instanceof Error ? error.message.slice(0, 300) : String(error).slice(0, 300)
+        // Transport/provider errors can echo headers, environment values or URLs.
+        // Never publish raw errors across the renderer boundary.
+        state.error = 'MCP 连接或工具发现失败，请检查服务配置与授权。'
         return state
       } finally {
         state.pending = null
@@ -306,9 +309,14 @@ export function createMcpService({ userData, connectClient, safeStorage } = {}) 
           if (signal?.aborted) throw new Error('MCP 工具调用已停止')
           const current = connections.get(server.id)
           if (current?.status !== 'connected') throw new Error(`MCP 服务 ${server.id} 已断开`)
-          const result = await current.client.callTool({ name: tool.name, arguments: params }, signal ? { signal } : undefined)
+          let result
+          try {
+            result = await current.client.callTool({ name: tool.name, arguments: params }, signal ? { signal } : undefined)
+          } catch {
+            throw new Error('MCP 工具调用失败，请检查服务状态与授权。')
+          }
+          if (result?.isError || result?.error) throw new Error('MCP 服务返回工具错误。')
           const text = mcpResultToText(result)
-          if (result.isError) throw new Error(text)
           return { content: [{ type: 'text', text }] }
         }
         const def = {

@@ -302,6 +302,36 @@ describe('compact configuration and defaults', () => {
     expect(Object.isFrozen(resolved)).toBe(true)
   })
 
+  it('caps only embedded TaskWeaver compaction retries and preserves ordinary DSH settings', () => {
+    const config = {
+      auto: false,
+      compactionRetries: 8,
+      maxOverflowRetries: 9,
+      modelPolicies: [{
+        provider: 'retry-provider',
+        model: 'retry-model',
+        compactionRetries: 7,
+        maxOverflowRetries: 6,
+      }],
+    }
+    const dsh = service(config)
+    expect(dsh.config).toMatchObject({ compactionRetries: 8, maxOverflowRetries: 9 })
+    expect(dsh.config.modelPolicies[0]).toMatchObject({ compactionRetries: 7, maxOverflowRetries: 6 })
+
+    vi.stubEnv('DSH_TASKWEAVER_EMBEDDED', '1')
+    try {
+      const taskweaver = service(config)
+      expect(taskweaver.config).toMatchObject({ compactionRetries: 1, maxOverflowRetries: 1 })
+      expect(taskweaver.config.modelPolicies[0]).toMatchObject({ compactionRetries: 1, maxOverflowRetries: 1 })
+      expect(resolveTargetPolicy(taskweaver.config, {
+        provider: 'retry-provider',
+        model: 'retry-model',
+      })).toMatchObject({ compactionRetries: 1, maxOverflowRetries: 1 })
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
   it('resolves threshold and retention overrides independently', () => {
     const thresholdOnly = resolveConfig({
       thresholdRatio: 0.5,
@@ -413,8 +443,11 @@ describe('compact configuration and defaults', () => {
   it('validates common values and pressure-policy invariants', () => {
     const bad = [
       [{ maxTokens: 0 }, /maxTokens/],
+      [{ maxTokens: 1e308 }, /maxTokens/],
       [{ compactionRetries: -1 }, /compactionRetries/],
+      [{ compactionRetries: 1e308 }, /compactionRetries/],
       [{ maxOverflowRetries: -1 }, /maxOverflowRetries/],
+      [{ maxOverflowRetries: 1e308 }, /maxOverflowRetries/],
       [{ auto: 'yes' }, /auto must be a boolean/],
       [{ summarizationProvider: 1 }, /summarizationProvider must be a string/],
       [{ summarizationModel: 1 }, /summarizationModel must be a string/],

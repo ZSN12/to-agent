@@ -20,7 +20,17 @@ import { patchTaskWeaverRuntimeNoHmr, patchZRuntimeSourceBundlesNoHmr } from './
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const zRuntimeSource = path.join(root, 'vendor', 'z-runtime')
-const outDir = path.join(root, 'vendor', TASKWEAVER_Z_RUNTIME_DEPLOY_DIR)
+const customOutDir = process.env.TASKWEAVER_Z_RUNTIME_OUTPUT_DIR
+  ? path.resolve(process.env.TASKWEAVER_Z_RUNTIME_OUTPUT_DIR)
+  : null
+if (customOutDir) {
+  const tempRoot = path.resolve(os.tmpdir())
+  const safeBasename = /^taskweaver-z-runtime-build-[A-Za-z0-9._-]+$/
+  if (path.dirname(customOutDir) !== tempRoot || !safeBasename.test(path.basename(customOutDir))) {
+    throw new Error(`TASKWEAVER_Z_RUNTIME_OUTPUT_DIR must be a dedicated taskweaver-z-runtime-build-* child of ${tempRoot}`)
+  }
+}
+const targetOutDir = customOutDir ?? path.join(root, 'vendor', TASKWEAVER_Z_RUNTIME_DEPLOY_DIR)
 const legacyOutDir = path.join(root, 'vendor', 'taskweaver-dsh-runtime')
 
 /** @returns {{ monorepoRoot: string, cliFilter: string, scope: string, label: string }} */
@@ -31,9 +41,18 @@ function resolveMonorepo() {
   }
   return { monorepoRoot: zRuntimeSource, cliFilter: '@z/dsh', scope: '@z/', label: 'Z Runtime' }
 }
-const clientOut = path.join(outDir, TASKWEAVER_Z_RUNTIME_CLIENT_DIR)
 const skipBuild = process.argv.includes('--skip-build')
 const skipDeploy = process.argv.includes('--skip-deploy')
+// Build and patch a sibling staging tree. Keep the last known-good deploy in
+// place until pnpm deploy, runtime repair, and all packaging checks succeed.
+const outDir = skipDeploy
+  ? targetOutDir
+  : path.join(
+      path.dirname(targetOutDir),
+      `taskweaver-z-runtime-build-${path.basename(targetOutDir)}-${process.pid}-${Date.now()}`,
+    )
+const clientOut = path.join(outDir, TASKWEAVER_Z_RUNTIME_CLIENT_DIR)
+let stagingOutputOwned = false
 const maxRepair = 80
 const runtimeLockPath = path.join(root, 'runtime-lock.json')
 
@@ -55,6 +74,33 @@ function run(cmd, args, opts = {}) {
 
 function pnpmBin() {
   return process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm'
+}
+
+async function publishRuntimeBuild(stagingDir, targetDir) {
+  const previousDir = path.join(
+    path.dirname(targetDir),
+    `.${path.basename(targetDir)}.previous-${process.pid}-${Date.now()}`,
+  )
+  let movedPrevious = false
+
+  if (fs.existsSync(targetDir)) {
+    await fsp.rename(targetDir, previousDir)
+    movedPrevious = true
+  }
+  try {
+    await fsp.rename(stagingDir, targetDir)
+  } catch (error) {
+    if (movedPrevious && !fs.existsSync(targetDir)) {
+      await fsp.rename(previousDir, targetDir)
+    }
+    throw error
+  }
+
+  if (movedPrevious) {
+    await fsp.rm(previousDir, { recursive: true, force: true }).catch((error) => {
+      console.warn(`build-z-runtime: 新 deploy 已发布，但旧备份清理失败：${previousDir}`, error)
+    })
+  }
 }
 
 async function copyDir(from, to, filter) {
@@ -338,9 +384,9 @@ async function stageApiClient(stagingRoot, scope) {
 }
 
 async function main() {
-  if (!fs.existsSync(outDir) && fs.existsSync(legacyOutDir)) {
-    console.log(`build-z-runtime: 迁移 ${legacyOutDir} → ${outDir}`)
-    await fsp.rename(legacyOutDir, outDir)
+  if (!customOutDir && !fs.existsSync(targetOutDir) && fs.existsSync(legacyOutDir)) {
+    console.log(`build-z-runtime: 迁移 ${legacyOutDir} → ${targetOutDir}`)
+    await fsp.rename(legacyOutDir, targetOutDir)
   }
   const runtimeLock = await readRuntimeLock()
   const { monorepoRoot, cliFilter, scope, label } = resolveMonorepo()
@@ -379,7 +425,8 @@ async function main() {
   await ensureWebFrontendDist(monorepoRoot, scope, dshBuildEnv)
   if (!skipDeploy) {
     console.log(`build-z-runtime: pnpm deploy → ${outDir}`)
-    await fsp.rm(outDir, { recursive: true, force: true })
+    if (fs.existsSync(outDir)) throw new Error(`Runtime staging path already exists; refusing to overwrite: ${outDir}`)
+    stagingOutputOwned = true
     await run(pnpmBin(), [
       '--filter', cliFilter, 'deploy',
       '--legacy', '--prod',
@@ -404,7 +451,9 @@ async function main() {
   await stageApiClient(outDir, scope)
   await stageMainProcessSessionManagerLib(outDir, monorepoRoot)
   console.log('build-z-runtime: 同步 pi-ai 模型目录 …')
-  await run(process.execPath, [path.join(root, 'scripts/upgrade-vendor-pi-ai.mjs')])
+  await run(process.execPath, [path.join(root, 'scripts/upgrade-vendor-pi-ai.mjs')], {
+    env: { ...process.env, TASKWEAVER_Z_RUNTIME: outDir },
+  })
   const packagesRoot = resolveRuntimeNodePath(outDir) ?? runtimeModulesDir(outDir)
   const piPackage = JSON.parse(await fsp.readFile(path.join(
     packagesRoot,
@@ -420,10 +469,19 @@ async function main() {
     path.join(outDir, 'taskweaver-runtime-meta.json'),
     `${JSON.stringify({ ...runtimeLock, builtAt: new Date().toISOString() }, null, 2)}\n`,
   )
+  if (!skipDeploy) {
+    await publishRuntimeBuild(outDir, targetOutDir)
+    stagingOutputOwned = false
+  }
   console.log(`build-z-runtime: 完成（冒烟 ${url}）`)
 }
 
-main().catch((error) => {
+main().catch(async (error) => {
+  if (stagingOutputOwned) {
+    await fsp.rm(outDir, { recursive: true, force: true }).catch((cleanupError) => {
+      console.warn(`build-z-runtime: staging 清理失败：${outDir}`, cleanupError)
+    })
+  }
   console.error(error instanceof Error ? error.message : error)
   process.exit(1)
 })

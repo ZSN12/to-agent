@@ -253,11 +253,11 @@ function statusPillClass(status: McpServerStatus['status']) {
 
 function statusPillLabel(server: McpServerStatus, dshWired: boolean) {
   if (!dshWired && server.status === 'connected') return `已探测连接 · ${server.toolCount} 个工具暂不可供 Agent 使用`
-  if (server.status === 'connected') return `已连接 · ${server.toolCount} 个工具`
-  if (server.status === 'connecting') return '正在连接…'
-  if (server.status === 'error') return '连接异常'
+  if (server.status === 'connected') return `设置探测成功 · ${server.toolCount} 个工具`
+  if (server.status === 'connecting') return '正在探测…'
+  if (server.status === 'error') return '探测失败'
   if (!dshWired) return server.enabled ? '已保存启用意向 · Agent 尚不可用' : '已保存 · Agent 尚不可用'
-  return server.enabled ? '已启用 · 未连接' : '未启用'
+  return server.enabled ? '已启用 · 尚未探测' : '已停用'
 }
 
 export function McpSettingsPanel({ onToast }: { onToast?: (msg: string) => void }) {
@@ -275,7 +275,7 @@ export function McpSettingsPanel({ onToast }: { onToast?: (msg: string) => void 
 
   const installedIds = useMemo(() => new Set(servers.map((s) => s.id)), [servers])
   const dshWired = runtimeBinding?.dshWired === true
-  const connectedCount = useMemo(() => servers.filter((s) => s.status === 'connected').length, [servers])
+  const probeConnectedCount = useMemo(() => servers.filter((s) => s.status === 'connected').length, [servers])
 
   const filteredCatalog = useMemo(() => {
     const q = templateQuery.trim().toLowerCase()
@@ -347,7 +347,7 @@ export function McpSettingsPanel({ onToast }: { onToast?: (msg: string) => void 
     setInstallingId(null)
     if (res.ok) {
       await loadServers()
-      onToast?.(`已添加 MCP：${id}，可在下方编辑路径或环境变量后刷新连接。`)
+      onToast?.(`已添加 MCP：${id}，可在下方编辑路径或环境变量后重新探测。`)
     } else {
       onToast?.(`安装失败: ${res.error || '未知错误'}`)
     }
@@ -371,7 +371,7 @@ export function McpSettingsPanel({ onToast }: { onToast?: (msg: string) => void 
     const res = await window.taskweaver.mcp.refresh()
     if (res.ok && res.data) {
       setServers(res.data)
-      onToast?.('MCP 工具列表与连接状态已更新。')
+      onToast?.('设置页 MCP 探测结果已更新。')
     } else {
       await loadServers()
       onToast?.('MCP 状态已更新。')
@@ -428,7 +428,7 @@ export function McpSettingsPanel({ onToast }: { onToast?: (msg: string) => void 
         <div>
           <h2>MCP 服务</h2>
           <p className="mcp-settings-lead">
-            管理外部 MCP 服务。启用的工具会注册到 Z Runtime，供主对话及相应子任务调用；配置变更会重载运行时，运行中的任务无法变更。
+            管理外部 MCP 服务。设置页状态只表示这里探测到的服务与工具，不代表当前对话的 Z Host 已加载或模型已调用；请以对话中的实际工具调用记录为准。配置变更会重载运行时，运行中的任务无法变更。
           </p>
           {runtimeBinding && !runtimeBinding.dshWired && (
             <p className="settings-inline-error" style={{ marginTop: 8 }}>
@@ -445,7 +445,7 @@ export function McpSettingsPanel({ onToast }: { onToast?: (msg: string) => void 
               disabled={loading || refreshing}
             >
               <RefreshCw size={14} className={refreshing ? 'spinning' : ''} />
-              {refreshing ? '连接中…' : '刷新连接'}
+              {refreshing ? '探测中…' : '重新探测'}
             </button>
           )}
           <button
@@ -470,7 +470,7 @@ export function McpSettingsPanel({ onToast }: { onToast?: (msg: string) => void 
               {loading
                 ? '正在加载…'
                 : dshWired
-                  ? `${servers.length} 个配置 · ${connectedCount} 个已连接`
+                  ? `${servers.length} 个配置 · ${probeConnectedCount} 个设置探测可用`
                   : `${servers.length} 个配置（Agent 工具接入不可用）`}
             </p>
           </div>

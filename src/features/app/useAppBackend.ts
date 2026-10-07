@@ -21,6 +21,7 @@ import type {
   WorkspaceReference,
 } from '../../shared/app-api'
 import { useDshConversationView } from '../dsh-runtime/useDshConversationView'
+import { matchDshConversationView } from '../dsh-runtime/matchDshConversationView'
 import {
   applyDshProjectionToStreamState,
   isStreamEventSupersededByProjection,
@@ -28,6 +29,7 @@ import {
 } from '../dsh-runtime/projectionStream'
 import { mergeStoredMessagesWithDshTranscript } from '../dsh-runtime/dshTranscriptMessages'
 import { liveContextFromDshProjections } from '../chat/session-usage'
+import { readHostPlanMode, readHostTodos } from '../chat/hostPlanTodoProjection'
 import { shortStreamActivityLabel } from '../chat/streamActivityLabel'
 import { readCachedSkillCatalog, writeSkillCatalogCache } from '../skills/useEnabledSkills'
 import type { AssistantContentBlock, ChatMessage, TaskNode } from '../../types'
@@ -186,23 +188,23 @@ export function useAppBackend() {
   const { view: dshView, subscribed: dshProjectionSubscribed } = useDshConversationView(
     bridgeReady ? state?.conversationId : null,
   )
+  const activeDshView = matchDshConversationView(dshView, state?.conversationId)
   const projectionStreamActive = shouldPreferProjectionStream(
     dshProjectionSubscribed,
     state?.conversationId,
-    dshView,
+    activeDshView,
   )
   const dshToolRows = useMemo(() => {
-    if (!dshView?.toolRows?.length) return []
-    if (dshView.conversationId && dshView.conversationId !== state?.conversationId) return []
-    return dshView.toolRows
-  }, [dshView, state?.conversationId])
+    if (!activeDshView?.toolRows?.length) return []
+    return activeDshView.toolRows
+  }, [activeDshView])
   const projectionLiveContext = useMemo(
-    () => liveContextFromDshProjections(dshView?.projections),
-    [dshView?.projections],
+    () => liveContextFromDshProjections(activeDshView?.projections),
+    [activeDshView?.projections],
   )
   const projectedSessionStats = useMemo<SessionStatsSnapshot | null>(() => {
-    if (!dshView || (dshView.conversationId && dshView.conversationId !== state?.conversationId)) return null
-    const projections = dshView.projections
+    if (!activeDshView) return null
+    const projections = activeDshView.projections
     const rawSessionStats = projections?.sessionStats
     const rawTokenUsage = projections?.tokenUsage
     const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -255,16 +257,24 @@ export function useAppBackend() {
         ? { input, output, cacheRead, cacheWrite, total: input + output + cacheRead + cacheWrite }
         : fallback.tokens,
     }
-  }, [dshView, sessionStats, state?.conversationId])
+  }, [activeDshView, sessionStats])
+  const hostPlanModeActive = useMemo(
+    () => readHostPlanMode(activeDshView?.projections),
+    [activeDshView?.projections],
+  )
+  const hostTodos = useMemo(
+    () => readHostTodos(activeDshView?.projections),
+    [activeDshView?.projections],
+  )
 
   const displayMessages = useMemo(
     () => mergeStoredMessagesWithDshTranscript(
       state?.messages ?? [],
-      dshView?.transcript,
+      activeDshView?.transcript,
       projectionStreamActive,
       sending,
     ),
-    [state?.messages, dshView?.transcript, projectionStreamActive, sending],
+    [state?.messages, activeDshView?.transcript, projectionStreamActive, sending],
   )
 
   const refreshSessionStats = useCallback(async (expectedConversationId = activeConversationIdRef.current) => {
@@ -386,22 +396,22 @@ export function useAppBackend() {
   }, [bridgeReady])
 
   useEffect(() => {
-    if (!projectionStreamActive || !dshView) return
-    applyDshProjectionToStreamState(dshView, {
+    if (!projectionStreamActive || !activeDshView) return
+    applyDshProjectionToStreamState(activeDshView, {
       setStreamText,
       setStreamThinking,
       setStreamActivity,
       setPromptQueue,
     })
-  }, [projectionStreamActive, dshView])
+  }, [projectionStreamActive, activeDshView])
 
   useEffect(() => {
     if (projectionStreamActive) return
-    if (dshView?.toolRows?.length) return
-    if (!dshView?.runningCalls?.length) return
-    if (dshView.conversationId !== activeConversationIdRef.current) return
-    setToolTraces((current) => mergeDshRunningCallsIntoTraces(current, dshView.runningCalls))
-  }, [dshView, projectionStreamActive])
+    if (activeDshView?.toolRows?.length) return
+    if (!activeDshView?.runningCalls?.length) return
+    if (activeDshView.conversationId !== activeConversationIdRef.current) return
+    setToolTraces((current) => mergeDshRunningCallsIntoTraces(current, activeDshView.runningCalls))
+  }, [activeDshView, projectionStreamActive])
 
   useEffect(() => {
     const bridge = getBridge()
@@ -534,13 +544,13 @@ export function useAppBackend() {
       }
       if (event.type === 'thinking_delta') {
         setStreamThinking((prev) => ({
-          text: event.fullThinking || prev?.text || '',
+          text: event.fullThinking ?? `${prev?.text ?? ''}${event.delta ?? ''}`,
           durationMs: event.durationMs ?? prev?.durationMs,
         }))
       }
       if (event.type === 'thinking_end') {
         setStreamThinking((prev) => ({
-          text: event.fullThinking || prev?.text || '',
+          text: event.fullThinking ?? prev?.text ?? '',
           durationMs: event.durationMs ?? prev?.durationMs,
         }))
       }
@@ -552,7 +562,7 @@ export function useAppBackend() {
       }
       if (event.type === 'delta') {
         setStreamActivity(null)
-        setStreamText(event.full)
+        setStreamText((prev) => event.full ?? `${prev ?? ''}${event.delta ?? ''}`)
       }
       if (event.type === 'done') {
         setStreamText(completedMessage ? null : event.full)
@@ -1119,7 +1129,7 @@ export function useAppBackend() {
   }, [])
 
   const respondPermissionPrompt = useCallback(async (
-    action: 'allow-once' | 'allow-always' | 'deny' | 'escalate-once',
+    action: 'allow-once' | 'allow-always' | 'allow-always-session' | 'deny' | 'escalate-once',
     sandboxMode?: 'workspace-write' | 'danger-full-access',
   ) => {
     const bridge = getBridge()
@@ -1128,11 +1138,12 @@ export function useAppBackend() {
       action,
       ...(sandboxMode ? { sandboxMode } : {}),
     })
+    if (!res.ok || !res.data?.ok) return false
     for (const [conversationId, prompt] of permissionPromptsRef.current) {
       if (prompt.id === permissionPrompt.id) permissionPromptsRef.current.delete(conversationId)
     }
     setPermissionPrompt(null)
-    return res.ok
+    return true
   }, [permissionPrompt])
 
   const answerUserQuestion = useCallback(async (id: string, answer: UserQuestionAnswer) => {
@@ -1263,6 +1274,8 @@ export function useAppBackend() {
     answerUserQuestion,
     liveContext: projectionLiveContext ?? liveContext,
     sessionStats: projectedSessionStats ?? sessionStats,
+    hostPlanModeActive,
+    hostTodos,
     refreshSessionStats,
     busyEnterMode,
     setBusyEnterMode: setBusyEnterModePref,

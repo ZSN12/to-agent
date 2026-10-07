@@ -413,6 +413,24 @@ describe('tool execution', () => {
     )
   })
 
+  it.each(['taskweaver-readonly', 'taskweaver-planner'])('denies MCP execution for the %s preset even when the tool is registered globally', async (agentPreset) => {
+    const client = createMockClient([
+      { name: 'mutate', inputSchema: { type: 'object' } },
+    ])
+    await syncTools(client as never, ctx, defaultOpts, new Map())
+    const definition = ctx.tools.get('mcp__srv__mutate')
+    expect(definition).toBeDefined()
+
+    await expect(definition!.execute({}, {
+      callId: CallId('readonly-mcp-call'),
+      name: 'mcp__srv__mutate',
+      arguments: {},
+      signal: testToolSignal,
+      agent: { session: { header: { agentPreset } } },
+    } as never)).rejects.toThrow('MCP tools are unavailable to read-only and planner agents')
+    expect(client.callTool).not.toHaveBeenCalled()
+  })
+
   it('sends the raw name for normalized public names', async () => {
     const client = createMockClient(
       [{ name: 'admin.reset', inputSchema: { type: 'object' } }],

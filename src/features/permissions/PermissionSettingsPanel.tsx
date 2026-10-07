@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react'
-import { Check, Plus, Shield, ShieldAlert, ShieldCheck, Trash2, X } from 'lucide-react'
+import { Check, Plus, Shield, ShieldCheck, Trash2, X } from 'lucide-react'
 import type { PermissionMode, PermissionRule } from '../../shared/app-api'
 
 function AddRuleModal({
@@ -153,6 +153,7 @@ export function PermissionSettingsPanel({
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
   const [autoReviewReads, setAutoReviewReads] = useState(true)
+  const [autoVerifyAfterMutation, setAutoVerifyAfterMutation] = useState(false)
 
   const loadRules = async () => {
     if (!window.taskweaver?.permission) {
@@ -169,9 +170,22 @@ export function PermissionSettingsPanel({
   useEffect(() => {
     void loadRules()
     void window.taskweaver?.preferences?.get?.().then((res) => {
-      if (res?.ok && res.data) setAutoReviewReads(res.data.autoReviewReads !== false)
+      if (res?.ok && res.data) {
+        setAutoReviewReads(res.data.autoReviewReads !== false)
+        setAutoVerifyAfterMutation(res.data.autoVerifyAfterMutation === true)
+      }
     })
   }, [])
+
+  const handleAutoVerifyAfterMutation = async (enabled: boolean) => {
+    setAutoVerifyAfterMutation(enabled)
+    const res = await window.taskweaver?.preferences?.set?.({ autoVerifyAfterMutation: enabled })
+    if (!res?.ok) {
+      onToast?.(res?.error || '保存失败')
+      return
+    }
+    onToast?.(enabled ? '已开启：改代码请求将追加验证指引' : '已关闭：改代码请求不再追加 Host 外验证指引')
+  }
 
   const handleAutoReviewReads = async (enabled: boolean) => {
     setAutoReviewReads(enabled)
@@ -184,17 +198,18 @@ export function PermissionSettingsPanel({
   }
 
   const handleModeSelect = async (nextMode: PermissionMode) => {
-    setMode(nextMode)
-    onModeChange?.(nextMode)
-    if (window.taskweaver?.app) {
-      await window.taskweaver.app.setPermissionMode(nextMode)
-      onToast?.(
-        nextMode === 'ask'
-          ? '已切换为严格询问模式 (默认)'
-          : nextMode === 'on-risk'
-            ? '已切换为高风险拦截模式'
-            : '已切换为完全放行模式',
-      )
+    if (!window.taskweaver?.app) return
+    try {
+      const result = await window.taskweaver.app.setPermissionMode(nextMode)
+      if (!result.ok) {
+        onToast?.('权限设置保存失败，请重试。')
+        return
+      }
+      setMode(nextMode)
+      onModeChange?.(nextMode)
+      onToast?.('权限偏好已保存；下一条消息由 Host 确认应用。')
+    } catch {
+      onToast?.('权限设置保存失败，请重试。')
     }
   }
 
@@ -244,12 +259,35 @@ export function PermissionSettingsPanel({
         <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>全局权限模式</h3>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
           <div
+            onClick={() => handleModeSelect('readonly')}
+            style={{
+              padding: 14,
+              borderRadius: 8,
+              border: `1.5px solid ${mode === 'readonly' ? 'var(--accent-primary, #3b82f6)' : 'var(--border-color, #e5e7eb)'}`,
+              background: mode === 'readonly' ? 'rgba(59, 130, 246, 0.05)' : 'var(--bg-secondary)',
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, fontSize: 13 }}>
+                <Shield size={16} color="#64748b" />
+                只读
+              </div>
+              {mode === 'readonly' && <Check size={16} color="#3b82f6" />}
+            </div>
+            <p style={{ fontSize: 11, color: 'var(--text-secondary)', margin: '6px 0 0 0', lineHeight: 1.4 }}>
+              Host read-only：文件写入工具不可用；适合计划审阅与纯理解任务。
+            </p>
+          </div>
+
+          <div
             onClick={() => handleModeSelect('ask')}
             style={{
               padding: 14,
               borderRadius: 8,
-              border: `1.5px solid ${mode === 'ask' ? 'var(--accent-primary, #3b82f6)' : 'var(--border-color, #e5e7eb)'}`,
-              background: mode === 'ask' ? 'rgba(59, 130, 246, 0.05)' : 'var(--bg-secondary)',
+              border: `1.5px solid ${mode === 'ask' || mode === 'on-risk' ? 'var(--accent-primary, #3b82f6)' : 'var(--border-color, #e5e7eb)'}`,
+              background: mode === 'ask' || mode === 'on-risk' ? 'rgba(59, 130, 246, 0.05)' : 'var(--bg-secondary)',
               cursor: 'pointer',
               transition: 'all 0.15s ease',
             }}
@@ -257,35 +295,12 @@ export function PermissionSettingsPanel({
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, fontSize: 13 }}>
                 <Shield size={16} color="#3b82f6" />
-                严格询问 (默认)
+                工作区可写 (默认)
               </div>
-              {mode === 'ask' && <Check size={16} color="#3b82f6" />}
+              {(mode === 'ask' || mode === 'on-risk') && <Check size={16} color="#3b82f6" />}
             </div>
             <p style={{ fontSize: 11, color: 'var(--text-secondary)', margin: '6px 0 0 0', lineHeight: 1.4 }}>
-              运行任何终端命令、外部 MCP 工具或读写工作区以外的文件前，均弹窗征求用户同意。
-            </p>
-          </div>
-
-          <div
-            onClick={() => handleModeSelect('on-risk')}
-            style={{
-              padding: 14,
-              borderRadius: 8,
-              border: `1.5px solid ${mode === 'on-risk' ? 'var(--accent-primary, #3b82f6)' : 'var(--border-color, #e5e7eb)'}`,
-              background: mode === 'on-risk' ? 'rgba(59, 130, 246, 0.05)' : 'var(--bg-secondary)',
-              cursor: 'pointer',
-              transition: 'all 0.15s ease',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, fontSize: 13 }}>
-                <ShieldAlert size={16} color="#f59e0b" />
-                高风险拦截
-              </div>
-              {mode === 'on-risk' && <Check size={16} color="#3b82f6" />}
-            </div>
-            <p style={{ fontSize: 11, color: 'var(--text-secondary)', margin: '6px 0 0 0', lineHeight: 1.4 }}>
-              自动放行安全的编译、查询等只读与常规命令；仅对删除、特权提升、联网或工作区越界时弹窗确认。
+              Host workspace-write：允许工作区内文件修改与命令；需要扩大沙箱范围时请求审批。
             </p>
           </div>
 
@@ -303,20 +318,20 @@ export function PermissionSettingsPanel({
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, fontSize: 13 }}>
                 <ShieldCheck size={16} color="#22c55e" />
-                完全放行
+                完全访问
               </div>
               {mode === 'full' && <Check size={16} color="#3b82f6" />}
             </div>
             <p style={{ fontSize: 11, color: 'var(--text-secondary)', margin: '6px 0 0 0', lineHeight: 1.4 }}>
-              不对常规工具调用弹窗。注：显式配置的 Deny 安全阻止规则仍将无条件严格拦截。
+              Host 使用 danger-full-access：关闭文件与命令沙箱约束，默认审批策略为 never。
             </p>
             <p style={{ fontSize: 10, color: 'var(--text-secondary)', margin: '6px 0 0 0', lineHeight: 1.4, opacity: 0.9 }}>
-              Z Runtime 执行层：Host 仍可能发出审批 RPC，由桌面端桥接自动批准；无法将会话 preset 切换为 danger-full-access，OS/文件沙箱仍以本页与沙箱设置为准。
+              若 Host 仍发出审批请求，桌面端会显示给用户。设置在下一次发送消息时应用；成功回执前不代表 Host 已生效。
             </p>
           </div>
         </div>
         <div style={{ marginTop: 10, padding: '8px 12px', borderRadius: 6, background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-          <strong>安全边界说明：</strong>权限模式与细粒度规则控制的是 TaskWeaver 应用层确认行为（Application Level Approval），并非操作系统级的强制进程隔离沙箱（OS Sandbox）。被允许执行的命令将以当前系统登录用户的本地权限运行，请审慎配置始终允许规则。
+          <strong>安全边界说明：</strong>on-risk 为旧配置，与 ask 同为 workspace-write。细粒度规则属于应用层；Host 文件沙箱不等同于网络隔离。
         </div>
         <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginTop: 14, fontSize: 12, cursor: 'pointer' }}>
           <input
@@ -328,7 +343,21 @@ export function PermissionSettingsPanel({
           <span>
             <strong>自动放行工作区内只读工具</strong>
             <span style={{ display: 'block', color: 'var(--text-secondary)', fontSize: 11, marginTop: 4, lineHeight: 1.45 }}>
-              在「严格询问」模式下，对工作区内的 read / grep / find / ls 等只读操作免弹窗（Z Runtime 自动审查）。Deny 规则仍优先拦截。
+              应用层只读工具确认偏好；Z Host 使用其自身审批策略，此开关不改变 Host 的沙箱权限。
+            </span>
+          </span>
+        </label>
+        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginTop: 10, fontSize: 12, cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={autoVerifyAfterMutation}
+            onChange={(e) => { void handleAutoVerifyAfterMutation(e.target.checked) }}
+            style={{ marginTop: 2 }}
+          />
+          <span>
+            <strong>改代码后追加验证指引（Host 外）</strong>
+            <span style={{ display: 'block', color: 'var(--text-secondary)', fontSize: 11, marginTop: 4, lineHeight: 1.45 }}>
+              默认关闭以对齐 DSH Web；开启后会在修改类请求上提示运行项目验证命令。
             </span>
           </span>
         </label>

@@ -23,9 +23,11 @@ import { createTaskWorktree } from './worktree-service.mjs'
 
 const TASK_TYPES = new Set(['research', 'implementation', 'test', 'review'])
 const READ_ONLY_TASK_TYPES = new Set(['research', 'review'])
+const MAX_READ_ONLY_SCOPE_PATHS = 12
 const PLANNER_INDEX_IGNORES = new Set([
   '.git', '.svn', '.hg', 'node_modules', 'dist', 'build', 'release', '.next', '.nuxt',
-  '.turbo', '.cache', 'coverage', 'target', 'out',
+  '.turbo', '.cache', 'coverage', 'target', 'out', 'vendor', 'runtime-packages',
+  '.pnpm-store', '.taskweaver-build', 'taskweaver-z-runtime', 'taskweaver-dsh-runtime',
 ])
 const PLANNER_SOURCE_DIR_PRIORITY = new Map([
   ['electron', 0], ['src', 1], ['app', 2], ['server', 3], ['backend', 4],
@@ -63,8 +65,100 @@ function nowLabel() {
   return new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false })
 }
 
+export function createPlannerProgressRelay(webContents, conversationId, {
+  now = Date.now,
+  heartbeatMs = 10_000,
+} = {}) {
+  const startedAt = now()
+  let stage = '正在分析任务并生成 DAG'
+  let lastText = ''
+
+  const publish = (force = false) => {
+    if (!webContents || webContents.isDestroyed?.()) return
+    const seconds = Math.max(0, Math.floor((now() - startedAt) / 1_000))
+    const waited = seconds < 60
+      ? `已等待 ${seconds} 秒`
+      : `已等待 ${Math.floor(seconds / 60)} 分 ${seconds % 60} 秒`
+    const text = `${stage}（${waited}）…`
+    if (!force && text === lastText) return
+    lastText = text
+    try {
+      webContents.send('chat:stream', { type: 'progress', text, conversationId })
+    } catch { /* renderer may be closing */ }
+  }
+  const setStage = (nextStage) => {
+    if (stage === nextStage) return
+    stage = nextStage
+    publish(true)
+  }
+
+  publish(true)
+  const timer = setInterval(() => publish(true), Math.max(1_000, heartbeatMs))
+  timer.unref?.()
+
+  return {
+    webContents: {
+      isDestroyed: () => Boolean(webContents?.isDestroyed?.()),
+      send(channel, event) {
+        if (channel !== 'chat:stream') return
+        if (event?.type === 'planner_phase' && event.phase === 'reasoning') {
+          setStage('Planner 正在分析任务关系')
+        } else if (event?.type === 'planner_phase' && event.phase === 'text') {
+          setStage('Planner 正在整理任务计划')
+        } else if (event?.type === 'thinking_start' || event?.type === 'thinking_delta') {
+          setStage('Planner 正在分析任务关系')
+        } else if (event?.type === 'delta') {
+          setStage('Planner 正在整理任务计划')
+        } else if (event?.type === 'retry' && event.phase === 'start') {
+          setStage('计划未通过校验，正在进行一次有限修正')
+        } else if (event?.type === 'error') {
+          setStage('Planner 请求失败，正在准备安全回退')
+        } else {
+          return
+        }
+      },
+    },
+    update(nextStage) {
+      if (typeof nextStage !== 'string' || !nextStage.trim()) return
+      setStage(nextStage.trim())
+    },
+    dispose() {
+      clearInterval(timer)
+    },
+  }
+}
+
 function messageId() {
   return `m-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+}
+
+function mergeFileChanges(...collections) {
+  const files = new Map()
+  for (const change of collections.flat(2)) {
+    if (typeof change?.path !== 'string' || !change.path) continue
+    const key = change.path.replace(/\\/g, '/').toLocaleLowerCase()
+    const current = files.get(key)
+    const hasCounts = Number.isFinite(change.addedLines) && Number.isFinite(change.deletedLines)
+    if (!current) {
+      files.set(key, {
+        path: change.path,
+        ...(hasCounts ? { addedLines: Math.max(0, change.addedLines), deletedLines: Math.max(0, change.deletedLines) } : {}),
+        ...(change.isNewFile ? { isNewFile: true } : {}),
+        statsComplete: hasCounts,
+      })
+      continue
+    }
+    if (hasCounts && current.statsComplete) {
+      current.addedLines += Math.max(0, change.addedLines)
+      current.deletedLines += Math.max(0, change.deletedLines)
+    } else {
+      current.statsComplete = false
+      delete current.addedLines
+      delete current.deletedLines
+    }
+    current.isNewFile ||= change.isNewFile === true
+  }
+  return Array.from(files.values(), ({ statsComplete, ...file }) => file)
 }
 
 function parsePlan(text) {
@@ -84,7 +178,41 @@ function parsePlan(text) {
     taskType: TASK_TYPES.has(task.taskType) ? task.taskType : 'implementation',
     dependsOn: Array.isArray(task.dependsOn) ? task.dependsOn : [],
     reasons: Array.isArray(task.reasons) ? task.reasons : [],
+    scopePaths: task.scopePaths,
   }))
+}
+
+function normalizeReadOnlyScopePaths(scopePaths, taskId) {
+  if (!Array.isArray(scopePaths)) {
+    throw new Error(`只读子任务范围无效：${taskId} 缺少 scopePaths 数组`)
+  }
+  if (scopePaths.length === 0 || scopePaths.length > MAX_READ_ONLY_SCOPE_PATHS) {
+    throw new Error(`只读子任务范围无效：${taskId} 必须指定 1 到 ${MAX_READ_ONLY_SCOPE_PATHS} 个明确的工作区相对路径`)
+  }
+
+  const normalized = []
+  for (const rawPath of scopePaths) {
+    if (typeof rawPath !== 'string' || rawPath.trim() === '') {
+      throw new Error(`只读子任务范围无效：${taskId} 的 scopePaths 只能包含非空路径`)
+    }
+    const candidate = rawPath.trim().normalize('NFC').replaceAll('\\', '/')
+    const segments = candidate.split('/')
+    if (
+      candidate.startsWith('/')
+      || /^[a-z]:/i.test(candidate)
+      || /[\u0000-\u001f\u007f]/.test(candidate)
+      || /[*?{}\[\]]/.test(candidate)
+      || segments.includes('..')
+    ) {
+      throw new Error(`只读子任务范围无效：${taskId} 的路径必须是字面量工作区相对路径，不能包含绝对路径、通配符或 ..`)
+    }
+    const relativePath = segments.filter((segment) => segment && segment !== '.').join('/')
+    if (!relativePath) {
+      throw new Error(`只读子任务范围无效：${taskId} 不能把整个工作区作为单个搜索范围`)
+    }
+    if (!normalized.includes(relativePath)) normalized.push(relativePath)
+  }
+  return normalized
 }
 
 export function requiresReadOnlyPlan(text) {
@@ -101,24 +229,79 @@ function explicitParallelResearchCount(text) {
 }
 
 export function validatePlanForRequest(tasks, requestText) {
+  const normalizedTasks = tasks.map((task) => READ_ONLY_TASK_TYPES.has(task.taskType)
+    ? { ...task, scopePaths: normalizeReadOnlyScopePaths(task.scopePaths, task.id) }
+    : task)
   if (requiresReadOnlyPlan(requestText)) {
-    const unsafe = tasks.filter((task) => !READ_ONLY_TASK_TYPES.has(task.taskType))
+    const unsafe = normalizedTasks.filter((task) => !READ_ONLY_TASK_TYPES.has(task.taskType))
     if (unsafe.length) {
       throw new Error(`只读请求包含非只读子任务类型：${unsafe.map((task) => `${task.id}=${task.taskType}`).join(', ')}；只允许 research/review`)
     }
   }
   const requestedResearchCount = explicitParallelResearchCount(requestText)
   if (requestedResearchCount !== null) {
-    const researchTasks = tasks.filter((task) => task.taskType === 'research')
+    const researchTasks = normalizedTasks.filter((task) => task.taskType === 'research')
     if (researchTasks.length !== requestedResearchCount
-      || tasks.length !== requestedResearchCount
+      || normalizedTasks.length !== requestedResearchCount
       || researchTasks.some((task) => task.dependsOn?.length)) {
       throw new Error(
-        `并行研究任务数量不匹配：用户明确要求 ${requestedResearchCount} 项相互独立的研究任务，计划却包含 ${researchTasks.length} 项 research、共 ${tasks.length} 个节点，或研究任务存在依赖；最终交叉汇总由编排器负责，不应额外创建汇总节点。`,
+        `并行研究任务数量不匹配：用户明确要求 ${requestedResearchCount} 项相互独立的研究任务，计划却包含 ${researchTasks.length} 项 research、共 ${normalizedTasks.length} 个节点，或研究任务存在依赖；最终交叉汇总由编排器负责，不应额外创建汇总节点。`,
       )
     }
   }
-  return tasks
+  return normalizedTasks
+}
+
+/** Close predictable entrypoint and request-chain gaps using only indexed, existing paths. */
+export function completeReadOnlyPlanScopes(tasks, requestText, indexedPaths) {
+  const request = String(requestText ?? '')
+  const available = new Set(Array.isArray(indexedPaths) ? indexedPaths : [])
+  const needsStartupCoverage = /应用启动|启动入口|启动链路|初始化顺序/.test(request)
+  const needsAgentChainCoverage = /(?:agent|请求|调用|聊天).{0,24}(?:链路|调用|端到端)|(?:链路|端到端).{0,24}(?:agent|请求|调用|聊天)/i.test(request)
+
+  return tasks.map((task) => {
+    if (!READ_ONLY_TASK_TYPES.has(task.taskType)) return task
+    const taskText = `${task.title ?? ''} ${task.role ?? ''} ${task.description ?? ''}`
+    // A planner may intentionally provide a closed evidence boundary. In that
+    // case, augmenting it with predictable "missing" files contradicts the
+    // assigned scope and encourages the agent to keep exploring after its stop
+    // condition. Trust the explicit scopePaths and let completion evidence
+    // report a genuine gap instead.
+    const hasExplicitScopeBoundary = /(?:范围\s*(?:仅限|只限|限定)|(?:仅限|只限)(?:于)?(?:读取|检查|查看|研究)\s*(?:以下|这些)|只(?:读取|检查|查看)(?:以下|这些))/i.test(taskText)
+      || /(?:不要|不得|禁止)\s*(?:继续|扩展).{0,60}(?:范围|旁支|其他文件|host)/i.test(taskText)
+    if (hasExplicitScopeBoundary) return task
+    const explicitlyExcludesAgent = /(?:不|勿|无需|不要|不得).{0,12}(?:深入|检查|涉及|追查|分析|读取).{0,20}(?:agent|智能体)/i.test(taskText)
+    const explicitlyExcludesStartup = /(?:不|勿|无需|不要|不得).{0,12}(?:深入|检查|涉及|追查|分析|读取).{0,16}(?:应用)?启动/i.test(taskText)
+    const taskFocusesStartup = /(?:应用|electron).{0,12}(?:启动入口|启动链路|启动顺序)|(?:应用启动|启动入口|启动链路|启动顺序)/i.test(taskText)
+    const taskFocusesAgentChain = /(?:agent|智能体).{0,24}(?:请求|调用).{0,12}(?:链路|路径|流程)|(?:请求|调用).{0,12}(?:agent|智能体).{0,12}(?:链路|路径|流程)|chat:send|sessions\.prompt|从前端.{0,32}(?:host|后端)/i.test(taskText)
+    const required = []
+    if (needsStartupCoverage && taskFocusesStartup && !explicitlyExcludesStartup) {
+      required.push('package.json', 'index.html')
+    }
+    if (needsAgentChainCoverage && taskFocusesAgentChain && !explicitlyExcludesAgent) {
+      required.push(
+        'src/features/app/useAppBackend.ts',
+        'electron/preload.cjs',
+        'electron/backend/register-ipc.mjs',
+        'electron/backend/dsh-chat-service.mjs',
+        'electron/backend/orchestration-service.mjs',
+        'electron/agent/z-host/index.mjs',
+        'electron/agent/z-host/z-api-client.mjs',
+        'electron/agent/z-host/spawn-host.mjs',
+      )
+    }
+    const additions = required.filter((candidate) => available.has(candidate) && !task.scopePaths.includes(candidate))
+    if (task.scopePaths.length + additions.length > MAX_READ_ONLY_SCOPE_PATHS) {
+      throw new Error(`只读子任务范围闭环补全失败：${task.id} 补齐入口/调用链证据将超过 ${MAX_READ_ONLY_SCOPE_PATHS} 个路径，请先缩小原始范围`)
+    }
+    if (additions.length === 0) return task
+    const scopePaths = [...task.scopePaths, ...additions]
+    return {
+      ...task,
+      scopePaths,
+      description: `${task.description ?? ''}\n为闭合所请求的源码链路，允许读取的补充范围：${additions.join('、')}。这些是精确入口/桥接范围，不要再做工作区级目录发现；必要时可直接读取这些路径。`,
+    }
+  })
 }
 
 /** Build a bounded paths-only workspace hint for planning; never reads file contents or follows symlinks. */
@@ -159,22 +342,51 @@ export async function collectPlannerPathHints(workspacePath, query, { maxVisited
     }
   }
 
+  const asksForCallChain = /调用链|请求链|端到端|从前端|从渲染端|renderer|preload|ipc|调用顺序|链路/i.test(String(query ?? ''))
+  const callChainPathBonus = (candidate) => {
+    if (!asksForCallChain) return 0
+    const normalized = candidate.toLocaleLowerCase()
+    if (normalized === 'electron/agent/z-host') return 20
+    if (/^src\/features\/app\/useappbackend\.(ts|tsx|js|jsx)$/.test(normalized)) return 24
+    if (/^electron\/preload\.(cjs|mjs|js)$/.test(normalized)) return 22
+    if (/^electron\/backend\/register-ipc\.(mjs|cjs|js)$/.test(normalized)) return 22
+    if (/^electron\/backend\/(dsh-chat-service|orchestration-service)\.(mjs|cjs|js)$/.test(normalized)) return 18
+    if (/^electron\/agent\/z-host\/(z-api-client|spawn-host)\.(mjs|cjs|js)$/.test(normalized)) return 16
+    return 0
+  }
   const rankPath = (candidate) => {
     const depth = candidate.split('/').length
     const rootFileBonus = depth === 1 ? 3 : 0
     const rootManifestBonus = depth === 1 && /^(package\.json|pnpm-lock\.yaml|package-lock\.json|tsconfig\.json|README(?:\.md)?)$/i.test(candidate) ? 12 : 0
     const codePathBonus = /(^|\/)(main|index|app|server|register-ipc|dsh-chat-service|orchestration-service)(\.[^.]+)?$/i.test(candidate) ? 5 : 0
     const sourceExtensionBonus = /\.(c|m)?(js|jsx|ts|tsx|mjs|cjs|json|py|go|rs)$/i.test(candidate) ? 1 : 0
-    return scoreTextRelevance(query, '', { pathText: candidate }) + rootFileBonus + rootManifestBonus + codePathBonus + sourceExtensionBonus
+    return scoreTextRelevance(query, '', { pathText: candidate })
+      + rootFileBonus
+      + rootManifestBonus
+      + codePathBonus
+      + sourceExtensionBonus
+      + callChainPathBonus(candidate)
   }
   const rankedFiles = files
     .map((candidate) => ({ candidate, score: rankPath(candidate) }))
     .sort((a, b) => b.score - a.score || a.candidate.localeCompare(b.candidate))
   const preferredDirectories = directories
-    .filter((candidate) => candidate.split('/').length <= 2)
+    .filter((candidate) => candidate.split('/').length <= 2 || (asksForCallChain && candidate.toLocaleLowerCase() === 'electron/agent/z-host'))
     .sort((a, b) => rankPath(b) - rankPath(a) || a.localeCompare(b))
+  const highValueCallChainPaths = asksForCallChain
+    ? [
+      'src/features/app/useAppBackend.ts',
+      'electron/preload.cjs',
+      'electron/backend/register-ipc.mjs',
+      'electron/backend/dsh-chat-service.mjs',
+      'electron/backend/orchestration-service.mjs',
+      'electron/agent/z-host/z-api-client.mjs',
+      'electron/agent/z-host/spawn-host.mjs',
+      'electron/agent/z-host',
+    ].filter((candidate) => files.includes(candidate) || directories.includes(candidate))
+    : []
   const selected = []
-  for (const candidate of [...rankedFiles.map(({ candidate }) => candidate), ...preferredDirectories]) {
+  for (const candidate of [...highValueCallChainPaths, ...rankedFiles.map(({ candidate }) => candidate), ...preferredDirectories]) {
     if (!selected.includes(candidate)) selected.push(candidate)
     if (selected.length >= outputLimit) break
   }
@@ -220,10 +432,12 @@ export function summarizeExecutionEvidence(evidence) {
   const searches = successful.filter((call) => ['glob', 'grep', 'find', 'ls'].includes(call.toolName)).length
   const failed = calls.filter((call) => ['error', 'failed', 'blocked', 'cancelled'].includes(call.status)).length
   const running = calls.filter((call) => call.status === 'running').length
+  const scopeDeniedToolCalls = Math.max(0, Number(evidence?.scopeDeniedToolCalls) || 0)
   const parts = []
   if (reads) parts.push(`读取 ${reads}`)
   if (searches) parts.push(`搜索 ${searches}`)
   if (failed) parts.push(`失败 ${failed}`)
+  if (scopeDeniedToolCalls) parts.push(`越界拒绝 ${scopeDeniedToolCalls}`)
   if (running) parts.push(`未结束 ${running}`)
   if (evidence?.omittedToolCalls) parts.push(`另有 ${evidence.omittedToolCalls} 次未纳入明细`)
   const label = parts.length
@@ -235,17 +449,35 @@ export function summarizeExecutionEvidence(evidence) {
     successfulReadCount: reads,
     successfulSearchCount: searches,
     failedCallCount: failed,
+    scopeDeniedToolCalls,
     runningCallCount: running,
     omittedToolCalls: Math.max(0, Number(evidence?.omittedToolCalls) || 0),
     label,
   }
 }
 
+function explicitlyReportsEvidenceGap(text) {
+  return /(?:范围不足|待复核)|(?:本任务|任务(?:要求|目标|验收点)?|(?:核心|关键|部分)?(?:调用|请求|端到端)?链(?:路)?|验收点)[^。；\n]{0,32}(?:未(?:闭合|核实|完成)|尚未(?:核实|完成)|无法(?:证明|完成)|仍有(?:关键)?证据缺口|不完整)|未能从源码读取核实[^。；\n]{0,48}(?:超出允许文件范围|范围不足|证据缺口)/i.test(String(text ?? ''))
+}
+
 export function assessSubtaskCompletion(task, result) {
+  if (typeof result?.text !== 'string' || !result.text.trim()) {
+    return {
+      complete: false,
+      reason: 'Agent 未返回最终文本；不能仅凭工具调用将子任务标记为完成。',
+    }
+  }
   const calls = Array.isArray(result?.executionEvidence?.observedToolCalls)
     ? result.executionEvidence.observedToolCalls
     : []
   if (task?.taskType === 'research' || task?.taskType === 'review') {
+    const scopeDeniedToolCalls = Math.max(0, Number(result?.executionEvidence?.scopeDeniedToolCalls) || 0)
+    if (scopeDeniedToolCalls > 0 && explicitlyReportsEvidenceGap(result.text)) {
+      return {
+        complete: false,
+        reason: `Host 拒绝了 ${scopeDeniedToolCalls} 次超出只读子任务范围的工具调用；当前路径计划可能缺少必要证据，需补足范围后再标记完成。`,
+      }
+    }
     const reads = calls.filter((call) => call.toolName === 'read' && call.status === 'done').length
     if (reads === 0) {
       return {
@@ -272,6 +504,7 @@ export function createOrchestrationService({
   getAppPreferences,
   webSearchService,
   dshRuntime = null,
+  maxSubtaskConcurrency = null,
 }) {
   /** @type {Map<string, { inFlight: boolean, abortController: AbortController | null }>} */
   const runs = new Map()
@@ -299,12 +532,16 @@ export function createOrchestrationService({
     const agentPreset = resolveOrchestrationAgentPreset({ noTools, taskType })
     const observedToolCalls = new Map()
     let omittedToolCalls = 0
+    let scopeDeniedToolCalls = 0
     const tracedWebContents = taskId ? {
       isDestroyed: () => webContents?.isDestroyed?.() ?? false,
       send(channel, payload) {
         if (channel === 'chat:stream' && payload?.type === 'tool' && payload.taskId === taskId) {
           const id = String(payload.id ?? `${payload.toolName ?? 'tool'}-${observedToolCalls.size}`)
           const previous = observedToolCalls.get(id) ?? {}
+          if (payload.status === 'error' && /TaskWeaver read-only scope denied/i.test(String(payload.resultSummary ?? ''))) {
+            scopeDeniedToolCalls += 1
+          }
           if (previous.toolName || observedToolCalls.size < 30) {
             observedToolCalls.set(id, {
               toolName: String(payload.toolName ?? previous.toolName ?? 'tool').slice(0, 80),
@@ -320,18 +557,32 @@ export function createOrchestrationService({
         if (!webContents?.isDestroyed?.()) webContents?.send(channel, payload)
       },
     } : webContents
-    const result = await dshRuntime.runAgentTurn({
-      conversationId,
-      sessionKey: sessionKey || `tw-orchestration-${conversationId}-${path.basename(sessionFile, path.extname(sessionFile))}`,
-      modelKey,
-      text: applySkillInstructions(text, skill),
-      webContents: tracedWebContents,
-      cwd,
-      agentPreset,
-      parentSessionId,
-      taskId,
-      signal,
-    })
+    let result
+    try {
+      result = await dshRuntime.runAgentTurn({
+        conversationId,
+        sessionKey: sessionKey || `tw-orchestration-${conversationId}-${path.basename(sessionFile, path.extname(sessionFile))}`,
+        modelKey,
+        text: applySkillInstructions(text, skill),
+        webContents: tracedWebContents,
+        cwd,
+        agentPreset,
+        parentSessionId,
+        taskId,
+        signal,
+        progressOnly: noTools,
+      })
+    } catch (error) {
+      if (taskId && error && typeof error === 'object') {
+        error.executionEvidence = {
+          source: 'z-host-tool-events',
+          observedToolCalls: [...observedToolCalls.values()],
+          omittedToolCalls,
+          scopeDeniedToolCalls,
+        }
+      }
+      throw error
+    }
     if (!taskId) return result
     return {
       ...result,
@@ -339,6 +590,7 @@ export function createOrchestrationService({
         source: 'z-host-tool-events',
         observedToolCalls: [...observedToolCalls.values()],
         omittedToolCalls,
+        scopeDeniedToolCalls,
       },
     }
   }
@@ -390,9 +642,10 @@ export function createOrchestrationService({
           '【只读请求强制约束】用户明确要求只读/禁止修改。本次所有子任务只能使用 research 或 review；即使是交叉汇总、复核、总结，也必须标为 review 或 research，绝不能标为 implementation/test。每项描述必须明确“只读，不修改文件、不运行写入命令”。',
         ] : []),
         '请根据任务规模拆分为 2 到 5 个职责明确的子任务；如果用户明确给出“ N 项独立研究/调研并行”数量，DAG 必须恰好包含 N 个互相独立的 research 节点，不得增加 review 或汇总节点，也不得让这些 research 节点相互依赖。编排器会在所有子任务结束后自动调用最终汇总，因此不要额外创建只负责“汇总/总结/交叉汇总/综合各研究结果”的 review 子任务；review 只用于有独立审查对象和验收标准的实际审查（例如基于具体 diff 检查风险），不要重复读取 research 已覆盖的文件来代替最终汇总。',
-        '研究/审查任务必须有明确边界：每项只回答一个问题，在 description 中列出允许检查的文件或最多一个窄目录、验收点和停止条件；不要分配“通读整个项目/检查所有代码”这类开放任务。回答函数实现、调用顺序或配置细节必须读取源码文件；grep/glob 只能定位，不能作为代码已核实的证据。每个需要解释代码或交叉核验事实的 research/review 任务，应优先指定少量直接可读文件或明确“先最多搜索 2 次、再 read 已定位文件”，预留检查预算用于读取。focused 只读子任务最多进行 6 次 read/glob/grep/find/ls 检查调用，到达上限就提交已验证结论与未确认项；不得因发现新路径而突破预算。多个只读任务应尽量检查不同范围，避免重复探索。',
-        `【工作区路径索引：仅路径名，不含文件正文，也不代表已读取】扫描 ${plannerPathHints.visitedEntries} 个目录项${plannerPathHints.truncated ? '（达到扫描/展示上限，结果不完整）' : ''}。只从下列真实存在的路径中挑选候选文件；不得仅凭路径推断其内容。规划时尽量直接指定少量候选文件，并要求子 Agent 读取它们；只有索引不足时才安排少量搜索：\n${plannerPathHints.paths.map((item) => `- ${item}`).join('\n') || '(没有发现路径；任务需先用有限搜索定位，再实际读取文件)'}`,
-        '只输出纯 JSON，不加 Markdown 代码块。格式：{"tasks":[{"id":"T1","title":"短标题","taskType":"research|implementation|test|review","role":"职责名","description":"目标与验收标准","dependsOn":[],"reasons":["规划原因"]}]}',
+        '研究/审查任务必须有明确边界：每项只回答一个问题，在 description 中列出允许检查的文件或最多一个窄目录、验收点和停止条件；不要分配“通读整个项目/检查所有代码”这类开放任务。回答函数实现、调用顺序或配置细节必须读取源码文件；grep/glob 只能定位，不能作为代码已核实的证据。优先指定直接相关的文件；路径未知时可先搜索定位，再读取实际源码。对于端到端链路/跨文件调用关系问题，scopePaths 必须覆盖闭合结论所需的每个环节（例如 UI 状态/发送入口、preload、IPC、服务与 Host 调用端），不能只授权入口后再尝试越界读取；若现有候选文件不足，应在规划时纳入必要文件或窄目录。独立任务表示彼此无依赖，不要求文件范围完全不重叠；调用链闭合、证据完整优先于零重叠，必要时允许多个任务读取同一个桥接文件。子任务 description 必须写明按给定文件顺序逐跳核实；大源码文件先对目标符号做一次窄搜索，再读取相关 offset/limit 行段，禁止先整文件读取或反复扩大搜索；已给行号/符号时直接从该位置检查。避免重复探索，只有发现尚未解决的具体事实时才扩大检查。',
+        '每个 research/review 节点还必须输出 scopePaths 字符串数组，至少 1 项、最多 12 项，只能使用工作区路径索引中的字面量相对路径；不能写绝对路径、通配符、.. 或工作区根目录。scopePaths 是工具层强制执行的读文件/搜索边界，范围外调用会被 Host 拒绝。',
+        `【工作区路径索引：仅路径名，不含文件正文，也不代表已读取】扫描 ${plannerPathHints.visitedEntries} 个目录项${plannerPathHints.truncated ? '（达到扫描/展示上限，结果不完整）' : ''}。只从下列真实存在的路径中挑选候选文件；不得仅凭路径推断其内容。规划时尽量直接指定少量候选文件，并要求子 Agent 读取它们；只有索引不足时才安排必要的搜索：\n${plannerPathHints.paths.map((item) => `- ${item}`).join('\n') || '(没有发现路径；任务需先搜索定位，再实际读取文件)'}`,
+        '只输出纯 JSON，不加 Markdown 代码块。格式：{"tasks":[{"id":"T1","title":"短标题","taskType":"research|implementation|test|review","role":"职责名","description":"目标、允许检查的文件/目录、验收点与停止条件","scopePaths":["electron/main.cjs"],"dependsOn":[],"reasons":["规划原因"]}]}',
         `工作区：${cwd}`,
         `用户原始请求：\n${text}`,
       ].join('\n\n')
@@ -400,30 +653,12 @@ export function createOrchestrationService({
       let planResult
       let planned
       let plannerSessionKey = `tw-orchestration-${conversationId}-${runId}-planner`
+      const plannerProgress = createPlannerProgressRelay(webContents, conversationId)
       try {
-        planResult = await runPrompt({
-          modelKey: primaryModelKey,
-          text: plannerPrompt,
-          sessionFile: plannerFile,
-          noTools: true,
-          skill,
-          signal: abortController.signal,
-          conversationId,
-          cwdOverride: cwd,
-          sessionKey: plannerSessionKey,
-        })
-        planned = validatePlanForRequest(validateAndOrderTasks(parsePlan(planResult.text)), text)
-      } catch (firstError) {
-        if (firstError?.message?.includes('只读请求包含非只读子任务类型')) {
-          plannerSuffixRetry = `\n\n上次计划被安全校验拒绝：${firstError.message}。这是只读任务；请把所有 implementation/test 子任务改为 research/review。汇总和交叉核验请标为 review。不得输出任何非 research/review 类型。只输出纯 JSON。`
-        } else if (firstError?.message?.startsWith('并行研究任务数量不匹配：')) {
-          plannerSuffixRetry = `\n\n上次计划被请求约束校验拒绝：${firstError.message}。请严格按用户明确指定的独立并行研究数量重写计划：只创建恰好对应数量的 research 节点，彼此无依赖；不要创建 review 或汇总节点，最终综合由编排器完成。只输出纯 JSON。`
-        }
         try {
-          plannerSessionKey = `tw-orchestration-${conversationId}-${runId}-planner-retry`
           planResult = await runPrompt({
             modelKey: primaryModelKey,
-            text: plannerPrompt + plannerSuffixRetry,
+            text: plannerPrompt,
             sessionFile: plannerFile,
             noTools: true,
             skill,
@@ -431,12 +666,48 @@ export function createOrchestrationService({
             conversationId,
             cwdOverride: cwd,
             sessionKey: plannerSessionKey,
+            webContents: plannerProgress.webContents,
           })
-          planned = validatePlanForRequest(validateAndOrderTasks(parsePlan(planResult.text)), text)
-        } catch (secondError) {
-          const message = secondError instanceof Error ? secondError.message : String(secondError)
-          throw new PlannerFallbackError(message, { partialUsage: planResult?.usage ?? null })
+          planned = completeReadOnlyPlanScopes(
+            validatePlanForRequest(validateAndOrderTasks(parsePlan(planResult.text)), text),
+            text,
+            plannerPathHints.paths,
+          )
+        } catch (firstError) {
+          if (firstError?.message?.startsWith('只读子任务范围无效：')) {
+            plannerSuffixRetry = `\n\n上次计划被范围校验拒绝：${firstError.message}。为每个 research/review 节点补齐 scopePaths 字符串数组，只能使用工作区路径索引里的字面量相对文件或窄目录路径，至少 1 项，不得使用绝对路径、通配符、.. 或工作区根目录。description 也必须写清允许范围、验收点和停止条件。只输出纯 JSON。`
+          } else if (firstError?.message?.includes('只读请求包含非只读子任务类型')) {
+            plannerSuffixRetry = `\n\n上次计划被安全校验拒绝：${firstError.message}。这是只读任务；请把所有 implementation/test 子任务改为 research/review。汇总和交叉核验请标为 review。不得输出任何非 research/review 类型。只输出纯 JSON。`
+          } else if (firstError?.message?.startsWith('并行研究任务数量不匹配：')) {
+            plannerSuffixRetry = `\n\n上次计划被请求约束校验拒绝：${firstError.message}。请严格按用户明确指定的独立并行研究数量重写计划：只创建恰好对应数量的 research 节点，彼此无依赖；不要创建 review 或汇总节点，最终综合由编排器完成。只输出纯 JSON。`
+          }
+          plannerProgress.update('计划未通过校验，正在进行一次有限修正')
+          try {
+            plannerSessionKey = `tw-orchestration-${conversationId}-${runId}-planner-retry`
+            planResult = await runPrompt({
+              modelKey: primaryModelKey,
+              text: plannerPrompt + plannerSuffixRetry,
+              sessionFile: plannerFile,
+              noTools: true,
+              skill,
+              signal: abortController.signal,
+              conversationId,
+              cwdOverride: cwd,
+              sessionKey: plannerSessionKey,
+              webContents: plannerProgress.webContents,
+            })
+            planned = completeReadOnlyPlanScopes(
+              validatePlanForRequest(validateAndOrderTasks(parsePlan(planResult.text)), text),
+              text,
+              plannerPathHints.paths,
+            )
+          } catch (secondError) {
+            const message = secondError instanceof Error ? secondError.message : String(secondError)
+            throw new PlannerFallbackError(message, { partialUsage: planResult?.usage ?? null })
+          }
         }
+      } finally {
+        plannerProgress.dispose()
       }
       const plannerSessionId = dshRuntime.getSessionId?.(plannerSessionKey) || undefined
       const usage = [planResult.usage]
@@ -487,6 +758,7 @@ export function createOrchestrationService({
 
       const execution = await executeDag(tasks, {
         signal: abortController.signal,
+        maxConcurrency: maxSubtaskConcurrency,
         onTaskChange: async (changed, meta) => {
           if (changed.status === 'running' && !webContents.isDestroyed()) {
             webContents.send('chat:stream', { type: 'progress', text: `正在执行 ${changed.id} · ${changed.title}（${changed.model}）…`, conversationId })
@@ -514,11 +786,37 @@ export function createOrchestrationService({
                   author: 'agent',
                   name: changed.role,
                   time: nowLabel(),
-                  text: (meta.result.text || '（Agent 未返回文本）') + upgradeNote,
+                  text: meta.result.completionAssessment?.complete === false
+                    ? `未完成：${meta.result.completionAssessment.reason || '证据不足。'}${meta.result.text ? `\n\n${meta.result.text}` : ''}${upgradeNote}`
+                    : meta.result.text
+                      ? meta.result.text + upgradeNote
+                      : `未完成：${meta.result.completionAssessment?.reason || 'Agent 未返回最终文本。'}`,
                   modelKey: upgradedTo ?? changed.modelKey,
                   usage: meta.result.usage,
+                  fileChanges: meta.result.fileChanges,
                   executionEvidence: meta.result.executionEvidence ?? null,
                   executionEvidenceSummary: summarizeExecutionEvidence(meta.result.executionEvidence),
+                }],
+              }
+            }
+            if (meta?.error) {
+              const partial = meta.error.partialResult ?? {}
+              const evidence = meta.error.executionEvidence ?? partial.executionEvidence ?? null
+              const reason = meta.error.message || '子任务未能生成最终结果'
+              return {
+                ...changed,
+                executionEvidenceSummary: summarizeExecutionEvidence(evidence),
+                messages: [...task.messages, {
+                  id: `${changed.id}-assistant`,
+                  author: 'agent',
+                  name: changed.role,
+                  time: nowLabel(),
+                  text: partial.text || `未完成：${reason}`,
+                  modelKey: changed.modelKey,
+                  usage: partial.usage,
+                  fileChanges: partial.fileChanges,
+                  executionEvidence: evidence,
+                  executionEvidenceSummary: summarizeExecutionEvidence(evidence),
                 }],
               }
             }
@@ -575,6 +873,10 @@ export function createOrchestrationService({
               }
             }
             parts.push('完成后简要说明做了什么、修改了哪些文件、验证结果和仍存在的问题。不要声称未实际执行的验证已经通过。')
+            if (READ_ONLY_TASK_TYPES.has(task.taskType)) {
+              parts.push('只读范围执行规则：scopePaths 是执行层强制白名单且已覆盖本任务验收点。所有文件工具路径必须使用工作区相对路径，禁止传绝对路径。对其中列出的字面文件路径，不要用 glob/ls 再确认是否存在，直接 read；若需定位未给出的符号，只对该文件 grep 一次。只有直接读取报告路径不存在时，才在已授权范围内搜索替代路径。不要对父目录或工作区执行 glob/ls。被拒绝的范围外探索不代表本任务缺少证据；只有任务明确要求的验收点无法由授权文件证明时，才报告任务未完成。不要把未要求的相邻模块或内部实现列为证据缺口。')
+              parts.push(`<taskweaver-readonly-scope-v1>${JSON.stringify({ paths: task.scopePaths })}</taskweaver-readonly-scope-v1>`)
+            }
             return parts.filter(Boolean).join('\n\n')
           }
 
@@ -668,28 +970,37 @@ export function createOrchestrationService({
 
       if (execution.cancelled) {
         return {
-          assistant: { text: '多 Agent 任务已停止；已完成的子任务进度保留。', usage: combineUsage(usage), cancelled: true },
+          assistant: {
+            text: '多 Agent 任务已停止；已完成的子任务进度保留。',
+            usage: combineUsage(usage),
+            fileChanges: mergeFileChanges(...tasks.map((task) => task.messages.map((message) => message.fileChanges))),
+            cancelled: true,
+          },
           tasks,
           failedTaskIds: [...execution.failed],
         }
       }
 
-      const outcomes = tasks.map((task) => ({
-        id: task.id,
-        title: task.title,
-        status: task.statusLabel,
-        result: task.messages.at(-1)?.text ?? '（任务未生成结果）',
-        runtimeObservedActions: task.messages.at(-1)?.executionEvidence ?? {
-          source: 'z-host-tool-events',
-          observedToolCalls: [],
-        },
-        evidenceAssessment: task.executionEvidenceSummary
-          ?? summarizeExecutionEvidence(task.messages.at(-1)?.executionEvidence),
-      }))
+      const outcomes = tasks.map((task) => {
+        const agentResult = task.messages.findLast((message) => message.author === 'agent')
+        return {
+          id: task.id,
+          title: task.title,
+          status: task.statusLabel,
+          result: agentResult?.text ?? '（任务未生成结果）',
+          runtimeObservedActions: agentResult?.executionEvidence ?? {
+            source: 'z-host-tool-events',
+            observedToolCalls: [],
+          },
+          evidenceAssessment: task.executionEvidenceSummary
+            ?? summarizeExecutionEvidence(agentResult?.executionEvidence),
+        }
+      })
       const projectMemory = await memory.load(conversationId)
       const synthesis = [
         '请根据下列子任务执行结果，面向用户总结本次工作的最终进展。不要再次执行工具，不要重复改代码。',
         '明确区分已完成、受阻和未完成的工作，并列出真实验证结果。若某子任务失败或被依赖阻塞，要明确说明。',
+        '最终回复保持精炼：先给总体结论，再按子任务各列结论与最必要的源码/工具证据，最后说明交叉结果和关键未验证项；不要逐条复述工具过程或重复子任务原文，通常控制在约 800–1500 个中文字符，只有必要信息较多时才超出。失败、证据缺口和未执行的验证必须如实保留。',
         '【证据规则】每个子任务附带的 runtimeObservedActions 是 Z Host 实际观测到的工具调用记录，优先级高于子 Agent 的自述；evidenceAssessment 是后端根据该记录计算的摘要。只能声称调用了记录中出现的工具；没有 read 工具记录就不能声称实际读取并核验了文件，没有测试/构建命令记录就不能声称测试/构建已运行或通过。若子 Agent 自述与记录不符，明确标为“未能从工具记录核实”，不要补造调用、文件或验证结果。无工具记录的依赖汇总可以作为汇总输出，但不得描述成独立核验。',
         projectMemory?.rolling_summary ? `【项目进展摘要】\n${projectMemory.rolling_summary}` : '',
         `用户原始请求：\n${text}`,
@@ -713,7 +1024,14 @@ export function createOrchestrationService({
       const assistant = await synthesizeFn(synthesis)
       usage.push(assistant.usage)
       return {
-        assistant: { ...assistant, usage: combineUsage(usage) },
+        assistant: {
+          ...assistant,
+          usage: combineUsage(usage),
+          fileChanges: mergeFileChanges(
+            assistant.fileChanges,
+            ...tasks.map((task) => task.messages.map((message) => message.fileChanges)),
+          ),
+        },
         tasks,
         failedTaskIds: [...execution.failed],
       }

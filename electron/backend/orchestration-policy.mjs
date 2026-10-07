@@ -16,7 +16,7 @@ const TASK_TIER_ORDER = {
   hard_debug: ['strong', 'balanced', 'cheap'],
 }
 
-/** Single-agent remains the default. Auto mode only activates for cross-cutting requests. */
+/** Single-agent is the default. DAG execution requires an explicit user choice. */
 export function decideExecutionMode(text, selectedSkill = null) {
   if (selectedSkill?.multiAgent) {
     return { mode: 'multi-agent', reason: `已选择多 Agent Skill：${selectedSkill.name}` }
@@ -26,28 +26,7 @@ export function decideExecutionMode(text, selectedSkill = null) {
   if (denied.test(text)) return { mode: 'single-agent', reason: '用户明确要求不启用多 Agent' }
   const explicit = new RegExp(`(?:使用|启用|开启|调用|采用)\\s*${target}|${target}\\s*(?:skill|技能)|(?:任务|请求)\\s*.*${target}`, 'i').test(text)
   if (explicit) return { mode: 'multi-agent', reason: '用户明确要求多 Agent 编排' }
-
-  const categories = [
-    /前端|界面|页面|组件/.test(text),
-    /后端|服务端|接口|API|数据库|存储/.test(text),
-    /测试|验证|回归/.test(text),
-    /安全|权限|鉴权/.test(text),
-    /文档|迁移|部署|构建/.test(text),
-  ].filter(Boolean).length
-  const isAction = /实现|开发|添加|修改|重构|接入|支持|构建|修复/.test(text)
-  const isBroadProject = /系统|平台|完整功能|端到端/.test(text)
-  const parallelCue = /同时|并且|以及|并完成/.test(text)
-  if (isAction && categories >= 3 && (isBroadProject || parallelCue)) {
-    return { mode: 'multi-agent', reason: '跨多个工程领域的复杂任务' }
-  }
-  if (isAction && categories === 2 && isBroadProject && !parallelCue) {
-    return {
-      mode: 'ask-user',
-      reason: '任务横跨多个领域但复杂度处于灰区，建议确认是否启用多 Agent 编排',
-      suggestedMode: 'multi-agent',
-    }
-  }
-  return { mode: 'single-agent', reason: '常规任务，保持单 Agent 执行' }
+  return { mode: 'single-agent', reason: '未显式选择多 Agent，保持单 Agent 执行' }
 }
 
 export function resolveExecutionMode(decision, override) {
@@ -56,6 +35,13 @@ export function resolveExecutionMode(decision, override) {
   }
   if (decision.mode === 'ask-user') return decision
   return decision
+}
+
+/** Explicit composer modes override task heuristics; ordinary code mode has no override. */
+export function workModeExecutionOverride(workMode) {
+  if (workMode === 'goal') return 'multi-agent'
+  if (workMode === 'plan') return 'single-agent'
+  return null
 }
 
 /**

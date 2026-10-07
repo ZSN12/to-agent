@@ -349,6 +349,8 @@ export const sessionUpdateQueueValueSchema = z.object({
 /** session.cancel request payload. */
 export const sessionCancelRequestSchema = z.object({
   sessionId: sessionIdSchema,
+  /** Atomically discard queued user work before aborting the active activity. */
+  clearPendingUserInput: z.boolean().optional(),
 }) satisfies z.ZodType<Wire<RequestPayload<'session.cancel'>>>
 
 /** session.cancel response value. */

@@ -206,5 +206,11 @@ export function createZConversationHub({ runtimeRoot, fakeRemote = fakeSessionRe
     getSessionIdForConversation(conversationId) {
       return attachments.get(conversationId)?.sessionId ?? null
     },
+
+    /** True when a live DSH session projection is attached (streaming copy comes from chat:dshView). */
+    hasLiveProjection(conversationId) {
+      const entry = attachments.get(conversationId)
+      return Boolean(entry?.sessionId && entry.unsub)
+    },
   }
 }

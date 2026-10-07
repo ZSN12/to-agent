@@ -10,8 +10,10 @@ export function inferSingleAgentTaskType(text, workMode = 'code') {
   const clean = String(text ?? '').trim()
   const intent = analyzeUserIntent(clean, workMode)
   if (workMode === 'plan' || intent === USER_INTENTS.PLANNING) return 'research'
-  if (intent === USER_INTENTS.READ_ONLY) return 'research'
+  // Explicit review wording carries a task role even though its underlying
+  // operation is read-only; evaluate it before the generic read-only fallback.
   if (/审查|review|代码评审|安全审计|漏洞|鉴权风险/i.test(clean)) return 'review'
+  if (intent === USER_INTENTS.READ_ONLY) return 'research'
   if (/单元测试|集成测试|跑测试|test suite|npm test|pytest/i.test(clean)) return 'test'
   if (/疑难|调试|debug|卡死|竞态|内存泄漏|跨模块/i.test(clean)) return 'hard_debug'
   return 'implementation'

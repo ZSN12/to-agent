@@ -86,14 +86,17 @@ async function runOneTask(task, { execute, onTaskChange, signal, results, failed
       return
     }
     const message = error instanceof Error ? error.message : String(error)
-    await onTaskChange?.({ ...running, status: 'review', statusLabel: '需要处理', error: message })
+    await onTaskChange?.({ ...running, status: 'review', statusLabel: '需要处理', error: message }, { error })
   }
 }
 
 /**
  * 波次调度：同一波中若全是 research/review 则并行；含 implementation/test 则串行，避免写冲突。
  */
-export async function executeDag(tasks, { execute, onTaskChange, signal }) {
+export async function executeDag(tasks, { execute, onTaskChange, signal, maxConcurrency = null }) {
+  if (maxConcurrency !== null && (!Number.isInteger(maxConcurrency) || maxConcurrency < 1)) {
+    throw new Error('DAG 并发上限必须是正整数')
+  }
   const ordered = validateAndOrderTasks(tasks)
   const byId = new Map(ordered.map((task) => [task.id, task]))
   const pending = new Set(ordered.map((task) => task.id))
@@ -139,7 +142,10 @@ export async function executeDag(tasks, { execute, onTaskChange, signal }) {
     }
 
     if (canRunSubtasksInParallel(batch)) {
-      await Promise.all(batch.map((task) => runner(task)))
+      const concurrency = maxConcurrency ?? batch.length
+      for (let offset = 0; offset < batch.length; offset += concurrency) {
+        await Promise.all(batch.slice(offset, offset + concurrency).map((task) => runner(task)))
+      }
     } else {
       for (const task of batch) {
         await runner(task)

@@ -3,7 +3,7 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { createPermissionRulesStore } from '../electron/backend/permission-rules-store.mjs'
-import { createPermissionService } from '../electron/backend/permission-service.mjs'
+import { createPermissionService, clearSessionPermissionGrants } from '../electron/backend/permission-service.mjs'
 import { createMcpService } from '../electron/backend/mcp-service.mjs'
 
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-permrules-test-'))
@@ -107,12 +107,12 @@ try {
   const testInB = await permissions.withExecution('ask', contents, () => permissions.authorize(testCall))
   assert.equal(testInB, undefined)
   assert.equal(pendingDialogs.length, 1, 'workspaceB 无 allow 规则，在 ask 模式下必须触发弹窗询问')
-  assert.equal(pendingDialogs[0][0].buttons.length, 3, 'bash 工具应提供 3 个选项：拒绝、批准一次、总是允许该命令')
+  assert.equal(pendingDialogs[0][0].buttons.length, 4, 'bash 应提供：拒绝、批准一次、本会话总是允许、保存为规则')
 
-  // 2.5 “总是允许该命令”弹窗选项联动
+  // 2.5 “保存为规则”弹窗选项联动
   currentWorkspace = workspaceB
   pendingDialogs.length = 0
-  dialogResponse = 2 // 点击“总是允许该命令”
+  dialogResponse = 3 // 点击“保存为规则（工作区）”
   const gitStatusCall = { toolName: 'bash', input: { command: 'git status' } }
   const alwaysAllowed = await permissions.withExecution('ask', contents, () => permissions.authorize(gitStatusCall))
   assert.equal(alwaysAllowed, undefined)
@@ -130,6 +130,23 @@ try {
   const repeatAllowed = await permissions.withExecution('ask', contents, () => permissions.authorize(gitStatusCall))
   assert.equal(repeatAllowed, undefined)
   assert.equal(pendingDialogs.length, 0, '已持久化为总是允许，后续调用直接放行')
+
+  // 2.6 本会话总是允许：不写盘，删除会话后失效
+  clearSessionPermissionGrants('conv-session-grant')
+  pendingDialogs.length = 0
+  dialogResponse = 2 // 本会话总是允许
+  const curlCall = { toolName: 'bash', input: { command: 'curl https://example.com' } }
+  const sessionGranted = await permissions.withExecution('ask', contents, () => permissions.authorize(curlCall), { conversationId: 'conv-session-grant' })
+  assert.equal(sessionGranted, undefined)
+  pendingDialogs.length = 0
+  const curlAgain = await permissions.withExecution('ask', contents, () => permissions.authorize(curlCall), { conversationId: 'conv-session-grant' })
+  assert.equal(curlAgain, undefined)
+  assert.equal(pendingDialogs.length, 0, '会话级放行应复用，不再弹窗')
+  clearSessionPermissionGrants('conv-session-grant')
+  dialogResponse = 1
+  const curlAfterClear = await permissions.withExecution('ask', contents, () => permissions.authorize(curlCall), { conversationId: 'conv-session-grant' })
+  assert.equal(curlAfterClear, undefined)
+  assert.equal(pendingDialogs.length, 1, '清理会话放行后应再次询问')
 
   // ==========================================
   // 3. MCP 敏感环境变量安全加密存储测试

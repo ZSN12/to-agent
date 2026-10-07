@@ -1,5 +1,14 @@
-import type { DshTranscriptRow } from '../../shared/app-api'
+import type { DshTranscriptChatMessage, DshTranscriptRow } from '../../shared/app-api'
 import type { ChatMessage } from '../../types'
+
+type DshContextMessage = DshTranscriptChatMessage & {
+  dshContext: { plugin: string; form?: string }
+}
+
+export function isDshContextMessage(message: ChatMessage): message is DshContextMessage {
+  const context = (message as DshTranscriptChatMessage).dshContext
+  return typeof context?.plugin === 'string' && context.plugin.trim().length > 0
+}
 
 function formatMessageTime(timestamp?: number): string {
   if (!timestamp) {
@@ -11,7 +20,7 @@ function formatMessageTime(timestamp?: number): string {
 export function chatMessagesFromDshTranscript(
   transcript: readonly DshTranscriptRow[],
   names: { user: string; agent: string },
-): ChatMessage[] {
+): DshTranscriptChatMessage[] {
   return transcript.map((row) => {
     if (row.role === 'compaction') {
       return {
@@ -39,6 +48,21 @@ export function chatMessagesFromDshTranscript(
         behavior: row.behavior,
       }
     }
+    if (row.role === 'context') {
+      const plugin = row.plugin?.trim().slice(0, 128) || '未知插件'
+      const form = row.form?.trim().slice(0, 64) || undefined
+      return {
+        id: `dsh-context-${row.dshKey}`,
+        // ChatMessage has no context author in the legacy UI type. The explicit
+        // dshContext discriminant keeps this row out of every assistant path.
+        author: 'agent',
+        name: plugin,
+        time: formatMessageTime(row.timestamp),
+        timestamp: row.timestamp,
+        text: row.text ?? '',
+        dshContext: { plugin, form },
+      }
+    }
     return {
       id: `dsh-asst-${row.dshKey}`,
       author: 'orchestrator',
@@ -63,12 +87,15 @@ export function mergeStoredMessagesWithDshTranscript(
 ): ChatMessage[] {
   if (!preferDsh || !transcript?.length) return [...stored]
   let base = chatMessagesFromDshTranscript(transcript, { user: '你', agent: 'TaskWeaver' })
-  const storedAssistants = stored.filter((message) => message.author !== 'user' && (message.usage || message.callout || message.interrupted))
+  const storedAssistants = stored.filter((message) => !isDshContextMessage(message)
+    && message.author !== 'user'
+    && (message.usage || message.callout || message.interrupted || message.fileChanges?.length))
   if (storedAssistants.length) {
     const matchedMetadata = new Set<number>()
     base = base.map((message) => {
-      if (message.author === 'user') return message
+      if (message.author === 'user' || isDshContextMessage(message)) return message
       const index = storedAssistants.findIndex((candidate, index) => !matchedMetadata.has(index)
+        && !isDshContextMessage(candidate)
         && candidate.text === message.text
         && (candidate.thinking ?? '').trim() === (message.thinking ?? '').trim())
       if (index < 0) return message
@@ -80,6 +107,7 @@ export function mergeStoredMessagesWithDshTranscript(
         modelKey: message.modelKey ?? match.modelKey,
         callout: message.callout ?? match.callout,
         interrupted: message.interrupted || match.interrupted,
+        fileChanges: message.fileChanges ?? match.fileChanges,
       }
     })
   }
@@ -98,6 +126,7 @@ export function mergeStoredMessagesWithDshTranscript(
       // rather than globally dropping repeated identical short answers.
       const index = base.findIndex((candidate, index) => !matchedCompletedRows.has(index)
         && candidate.author !== 'user'
+        && !isDshContextMessage(candidate)
         && candidate.text === message.text
         && (candidate.thinking ?? '').trim() === (message.thinking ?? '').trim())
       if (index < 0) return true
@@ -107,6 +136,7 @@ export function mergeStoredMessagesWithDshTranscript(
     if (message.interrupted && message.author !== 'user') {
       return !base.some((candidate) =>
         candidate.author !== 'user'
+        && !isDshContextMessage(candidate)
         && candidate.interrupted
         && candidate.text === message.text
         && candidate.thinking === message.thinking,

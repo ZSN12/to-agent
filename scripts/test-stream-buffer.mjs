@@ -24,6 +24,14 @@ const partial = applyStreamEventToSnapshot(inFlight, {
 })
 assert.equal(partial.streamText, 'partial answer', 'in-flight content must remain recoverable')
 
+const incremental = applyStreamEventToSnapshot(inFlight, {
+  type: 'delta', conversationId: 'c1', delta: 'hel',
+})
+const incremental2 = applyStreamEventToSnapshot(incremental, {
+  type: 'delta', conversationId: 'c1', delta: 'lo',
+})
+assert.equal(incremental2.streamText, 'hello', 'delta without full must append incrementally')
+
 const completed = applyStreamEventToSnapshot(partial, {
   type: 'done', conversationId: 'c1', full: 'complete answer',
 })

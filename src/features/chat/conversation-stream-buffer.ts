@@ -48,18 +48,18 @@ export function applyStreamEventToSnapshot(
       return next
     case 'thinking_delta':
       next.streamThinking = {
-        text: event.fullThinking || next.streamThinking?.text || '',
+        text: event.fullThinking ?? `${next.streamThinking?.text ?? ''}${event.delta ?? ''}`,
         durationMs: event.durationMs ?? next.streamThinking?.durationMs,
       }
       return next
     case 'thinking_end':
       next.streamThinking = {
-        text: event.fullThinking || next.streamThinking?.text || '',
+        text: event.fullThinking ?? next.streamThinking?.text ?? '',
         durationMs: event.durationMs ?? next.streamThinking?.durationMs,
       }
       return next
     case 'delta':
-      next.streamText = event.full
+      next.streamText = event.full ?? `${snapshot.streamText ?? ''}${event.delta ?? ''}`
       return next
     case 'progress':
       next.streamText = event.text

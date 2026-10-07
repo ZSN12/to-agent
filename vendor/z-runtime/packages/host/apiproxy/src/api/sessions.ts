@@ -374,9 +374,11 @@ export interface SessionsApi {
 
   /**
    * Stops an ordinary session's active turn, preserving pending inbox work
-   * that resumes in FIFO order after cancellation settles. Session-backed
+   * that resumes in FIFO order after cancellation settles. When requested,
+   * queued user follow-ups and steering are discarded atomically with Stop,
+   * while non-user context inbox items are preserved. Session-backed
    * subagents reject with `agent-busy`.
    */
-  cancel(request: RpcRequest<{ sessionId: SessionId }>): Promise<RpcResponse<{ accepted: true }>>
+  cancel(request: RpcRequest<{ sessionId: SessionId; clearPendingUserInput?: boolean }>): Promise<RpcResponse<{ accepted: true }>>
 
 }

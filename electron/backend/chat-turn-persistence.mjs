@@ -6,12 +6,12 @@ export function createChatTurnPersistence({ appState, usageStore }) {
     const timestamp = result.startedAt ?? Date.now()
     const id = `z-turn-${result.turnId}`
     const time = new Date(timestamp).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false })
-    if (result.text?.trim() || result.thinking?.trim()) {
+    if (result.text?.trim() || result.thinking?.trim() || result.fileChanges?.length) {
       await appState.upsertMessagesToConversation(conversationId, {
         id, author: 'orchestrator', name: 'TaskWeaver', time, timestamp,
         text: result.text || '', thinking: result.thinking,
         thinkingDurationMs: result.thinkingDurationMs,
-        contentBlocks: result.contentBlocks, modelKey, usage: result.usage,
+        contentBlocks: result.contentBlocks, fileChanges: result.fileChanges, modelKey, usage: result.usage,
         interrupted: Boolean(errorMessage || result.cancelled),
         ...(errorMessage ? { callout: '执行失败，已保留此前输出。' } : {}),
       })

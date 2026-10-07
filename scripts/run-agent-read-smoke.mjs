@@ -8,6 +8,8 @@ import { createModelService } from '../electron/backend/model-service.mjs'
 import { createProfileStore } from '../electron/backend/profile-store.mjs'
 import { resolveTaskWeaverModelsPath } from '../electron/backend/taskweaver-models-path.mjs'
 import { ensureModelsJsonSyncedToDshHost } from '../electron/backend/sync-models-json-to-host.mjs'
+import { summarizeHostStepTimings } from './host-step-timings.mjs'
+import { assembleWorkspaceContext } from '../electron/backend/context-assembler.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const arg = (name) => {
@@ -21,9 +23,10 @@ const isolated = installed || process.argv.includes('--local')
 if (!isolated && !process.argv.includes('--base-url')) throw new Error('Pass --installed, --local, or the URL of an existing Z Host with --base-url')
 const thinkingOverride = process.argv.includes('--thinking') ? arg('--thinking') : null
 const textOverride = process.argv.includes('--text') ? arg('--text') : null
+const contextBudgetOverride = process.argv.includes('--context-budget') ? Number(arg('--context-budget')) : null
 const agentPreset = process.argv.includes('--preset') ? arg('--preset') : 'taskweaver-readonly'
-if (!['standard', 'code', 'taskweaver-code', 'taskweaver-readonly'].includes(agentPreset)) {
-  throw new Error('--preset must be standard, code, taskweaver-code, or taskweaver-readonly')
+if (!['standard', 'code', 'minimal', 'cordis', 'taskweaver-code', 'taskweaver-readonly'].includes(agentPreset)) {
+  throw new Error('--preset must be standard, code, minimal, cordis, taskweaver-code, or taskweaver-readonly')
 }
 const idleTimeoutOverride = process.argv.includes('--idle-timeout') ? Number(arg('--idle-timeout')) : null
 if (thinkingOverride && !['default', 'off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'].includes(thinkingOverride)) {
@@ -32,8 +35,13 @@ if (thinkingOverride && !['default', 'off', 'minimal', 'low', 'medium', 'high', 
 if (idleTimeoutOverride !== null && (!Number.isInteger(idleTimeoutOverride) || idleTimeoutOverride < 1_000 || idleTimeoutOverride > 300_000)) {
   throw new Error('--idle-timeout must be an integer from 1000 to 300000 milliseconds')
 }
+if (contextBudgetOverride !== null && (!Number.isInteger(contextBudgetOverride) || contextBudgetOverride < 1024 || contextBudgetOverride > 1024 * 1024)) {
+  throw new Error('--context-budget must be an integer from 1024 to 1048576 bytes')
+}
 const userData = path.join(os.homedir(), 'Library', 'Application Support', 'taskweaver-desktop')
-const runtimeRoot = installed ? '/Applications/TaskWeaver.app/Contents/Resources/taskweaver-z-runtime' : path.join(root, 'vendor', 'taskweaver-z-runtime')
+const runtimeRoot = process.env.TASKWEAVER_Z_RUNTIME
+  ? path.resolve(process.env.TASKWEAVER_Z_RUNTIME)
+  : installed ? '/Applications/TaskWeaver.app/Contents/Resources/taskweaver-z-runtime' : path.join(root, 'vendor', 'taskweaver-z-runtime')
 const reportDir = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-live-read-'))
 let api
 let hostManager
@@ -42,6 +50,7 @@ let chat
 let heartbeat
 let modelsDocForSync
 let metrics = {}
+
 try {
   if (isolated) {
     // Reuse opaque settings/credential files without displaying their contents;
@@ -101,11 +110,23 @@ try {
   })
   const conversationId = `read-smoke-${crypto.randomUUID()}`
   const startedAt = Date.now()
+  const userText = textOverride || '读一下当前毕设文件夹里的代码，简要说明这个项目做什么、主要模块怎么连接，并列出你实际读取的文件。只阅读，不要修改文件。'
+  const assembledContext = contextBudgetOverride === null
+    ? null
+    : await assembleWorkspaceContext(userText, root, { maxInjectionBytes: contextBudgetOverride })
+  const promptText = assembledContext?.prompt ?? userText
   metrics = {
     modelKey,
     agentPreset,
     ...(thinkingOverride ? { thinkingOverride } : {}),
     ...(idleTimeoutOverride !== null ? { idleTimeoutOverride } : {}),
+    ...(contextBudgetOverride !== null ? {
+      contextBudgetBytes: contextBudgetOverride,
+      contextInjectedBytes: assembledContext.injectedBytes,
+      contextTruncated: assembledContext.contextTruncated,
+      contextReferences: assembledContext.references,
+      userTextBytes: Buffer.byteLength(userText, 'utf8'),
+    } : {}),
     conversationId, cwd: root, runtimeRoot, startedAt,
     firstThinkingMs: null, firstTextMs: null, reasoningChars: 0, toolEvents: [], retries: [],
   }
@@ -133,24 +154,42 @@ try {
   heartbeat = setInterval(() => console.log(JSON.stringify({ status: 'running', elapsedMs: Date.now() - startedAt, reasoningChars: metrics.reasoningChars, toolCalls: metrics.toolEvents.filter(e => e.status === 'running').length, firstTextMs: metrics.firstTextMs })), 20_000)
   const result = await chat.send({
     conversationId, modelKey, webContents, cwdOverride: root, agentPreset,
-    text: textOverride || '读一下当前毕设文件夹里的代码，简要说明这个项目做什么、主要模块怎么连接，并列出你实际读取的文件。只阅读，不要修改文件。',
+    text: promptText,
   })
   const sessionId = chat.getSessionId(conversationId)
   const reply = await api.sessions.history({ sessionId })
   const history = reply.result?.value?.events?.map(row => row.event) ?? []
+  const requestHeaders = history.filter(e => e.type === 'request/header').map((event) => {
+    const config = event.data?.header?.config ?? {}
+    return {
+      seq: Number.isInteger(event.seq) ? event.seq : null,
+      reason: typeof event.data?.reason === 'string' ? event.data.reason : null,
+      ...(typeof config.provider === 'string' ? { provider: config.provider } : {}),
+      ...(typeof config.model === 'string' ? { model: config.model } : {}),
+      ...(typeof config.reasoningEffort === 'string' ? { reasoningEffort: config.reasoningEffort } : {}),
+    }
+  })
   const report = {
     ...metrics,
     elapsedMs: Date.now() - startedAt,
     sessionId,
     result,
-    requests: history.filter(e => e.type === 'request/header').length,
+    requestHeaderSnapshots: history.filter(e => e.type === 'request/header').length,
     steps: history.filter(e => e.type === 'step/start').length,
+    retryScheduledCount: history.filter(e => e.type === 'llm/retry').length,
+    retryStartedCount: history.filter(e => e.type === 'llm/retry-started').length,
+    // Deliberately retain only route/effort metadata. Never persist the full
+    // request/header snapshot, which contains system text and tool schemas.
+    requestHeaders,
+    requestAttemptEstimate: history.filter(e => e.type === 'step/start').length
+      + history.filter(e => e.type === 'llm/retry-started').length,
+    hostStepTimings: summarizeHostStepTimings(history, startedAt),
     toolCalls: history.filter(e => e.type === 'tool/call').map(e => ({ name: e.data?.name, arguments: e.data?.arguments })),
     nestedToolCalls: history.filter(e => e.type === 'tool/code-dispatch-start').map(e => ({ name: e.data?.name, arguments: e.data?.arguments })),
     turnEnd: history.findLast(e => e.type === 'turn/end')?.data,
   }
   await fs.writeFile(path.join(reportDir, 'report.json'), JSON.stringify(report, null, 2))
-  console.log(JSON.stringify({ status: 'completed', reportPath: path.join(reportDir, 'report.json'), agentPreset, elapsedMs: report.elapsedMs, firstThinkingMs: report.firstThinkingMs, firstTextMs: report.firstTextMs, reasoningChars: report.reasoningChars, toolCalls: report.toolCalls, nestedToolCalls: report.nestedToolCalls, requests: report.requests, steps: report.steps, text: result.text }))
+  console.log(JSON.stringify({ status: 'completed', reportPath: path.join(reportDir, 'report.json'), agentPreset, elapsedMs: report.elapsedMs, firstThinkingMs: report.firstThinkingMs, firstTextMs: report.firstTextMs, reasoningChars: report.reasoningChars, toolCalls: report.toolCalls, nestedToolCalls: report.nestedToolCalls, requestAttemptEstimate: report.requestAttemptEstimate, requestHeaderSnapshots: report.requestHeaderSnapshots, requestHeaders: report.requestHeaders, steps: report.steps, text: result.text }))
 } catch (error) {
   await fs.writeFile(path.join(reportDir, 'failure.json'), JSON.stringify({ ...metrics, elapsedMs: metrics.startedAt ? Date.now() - metrics.startedAt : null, error: error.message, sessionId: chat?.getSessionId(metrics.conversationId) }, null, 2))
   console.error(JSON.stringify({ status: 'failed', reportDir, error: error.message }))

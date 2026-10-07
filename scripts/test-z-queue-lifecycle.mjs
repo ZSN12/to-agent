@@ -23,12 +23,21 @@ const runtimeRoot = resolveTaskWeaverRuntimeRoot({ appPath: root, resourcesPath:
 const requests = []
 const events = []
 const queues = new Map()
+const cancelRace = {
+  delayText: null,
+  promptEntered: null,
+  admissionGate: null,
+  holdQueueText: null,
+  queueFrameHeld: null,
+  queueFrameGate: null,
+  cancelRequests: [],
+}
 const server = createServer((request, response) => {
   let raw = ''
   request.on('data', chunk => { raw += chunk.toString() })
   request.on('end', () => {
     const body = JSON.parse(raw)
-    const match = [...JSON.stringify(body.messages).matchAll(/\[Q:(multi|remove|edit|abort|fail):([123])\]/g)].at(-1)
+    const match = [...JSON.stringify(body.messages).matchAll(/\[Q:(multi|remove|edit|abort|abort-race|fail):([123])\]/g)].at(-1)
     if (!match) { response.writeHead(400); response.end('missing scenario marker'); return }
     const [, scenario, turn] = match
     if (scenario === 'fail' && turn === '2' && body.messages.some(message => message.role === 'tool')) {
@@ -54,8 +63,75 @@ const server = createServer((request, response) => {
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
 const manager = createZHostManager({ runtimeRoot, userDataPath: home, executable: process.execPath,
   environment: { ...process.env, TASKWEAVER_QUEUE_TEST_KEY: 'opaque-local-test-key' } })
+let wrappedApi = null
+function wrapApi(api) {
+  const sessionApi = new Proxy(api.sessions, {
+    get(target, key) {
+      const value = Reflect.get(target, key, target)
+      if (key === 'prompt') return async (payload, ...args) => {
+        const text = payload.content?.map(part => part.text ?? '').join('') ?? ''
+        if (cancelRace.delayText && text.includes(cancelRace.delayText)) {
+          cancelRace.promptEntered.resolve()
+          await cancelRace.admissionGate.promise
+        }
+        return value.call(target, payload, ...args)
+      }
+      if (key === 'cancel') return async (payload, ...args) => {
+        cancelRace.cancelRequests.push(payload)
+        return value.call(target, payload, ...args)
+      }
+      return typeof value === 'function' ? value.bind(target) : value
+    },
+  })
+  const eventApi = new Proxy(api.events, {
+    get(target, key) {
+      const value = Reflect.get(target, key, target)
+      if (key === 'mux') return (...args) => {
+        const source = value.apply(target, args)
+        return {
+          async *[Symbol.asyncIterator]() {
+            for await (const envelope of source) {
+              const frame = envelope?.payload
+              const containsDelayedQueueItem = frame?.type === 'session/queue'
+                && (frame.items ?? []).some(item => item.message?.content
+                  ?.some(part => String(part.text ?? '').includes(cancelRace.holdQueueText ?? '\u0000')))
+              if (cancelRace.holdQueueText && containsDelayedQueueItem) {
+                cancelRace.queueFrameHeld.resolve()
+                await cancelRace.queueFrameGate.promise
+              }
+              yield envelope
+            }
+          },
+        }
+      }
+      return typeof value === 'function' ? value.bind(target) : value
+    },
+  })
+  return new Proxy(api, {
+    get(target, key) {
+      if (key === 'sessions') return sessionApi
+      if (key === 'events') return eventApi
+      return Reflect.get(target, key, target)
+    },
+  })
+}
+const serviceHostManager = {
+  async start() {
+    const started = await manager.start()
+    wrappedApi = wrapApi(started.api)
+    return { ...started, api: wrappedApi }
+  },
+  stop: () => manager.stop(),
+  isRunning: () => manager.isRunning(),
+  getApi: () => wrappedApi,
+}
 let chat
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
+function deferred() {
+  let resolve
+  const promise = new Promise(r => { resolve = r })
+  return { promise, resolve }
+}
 async function waitFor(fn, label) {
   const deadline = Date.now() + 20_000
   while (!fn()) {
@@ -87,7 +163,7 @@ try {
       models: [{ id: 'mock-model', contextWindow: 8192, maxTokens: 128 }] },
   } } })
   assert.equal(configured.result.ok, true)
-  chat = createDshChatService({ hostManager: manager, userDataPath: home, getWorkspacePath: () => root,
+  chat = createDshChatService({ hostManager: serviceHostManager, userDataPath: home, getWorkspacePath: () => root,
     getPermissionMode: () => 'ask', profileStore: { getThinkingLevel: async () => null },
     onTurnCompleted: async turn => { await persist(turn); commits.push(turn) },
     modelService: { getDshModelConfig: async () => ({ provider: 'queue-test', id: 'mock-model', name: 'Mock', contextWindow: 8192, maxTokens: 128 }),
@@ -159,6 +235,56 @@ try {
     'a fresh send must never awaken the follow-up that Stop cancelled')
   console.log('real Host: abort cancels the live turn and pending follow-up without background execution')
 
+  const abortRace = await begin('abort-race')
+  const delayedPromptText = '[Q:abort-race:2]'
+  const promptEntered = deferred()
+  const admissionGate = deferred()
+  const queueFrameHeld = deferred()
+  const queueFrameGate = deferred()
+  cancelRace.delayText = delayedPromptText
+  cancelRace.promptEntered = promptEntered
+  cancelRace.admissionGate = admissionGate
+  cancelRace.holdQueueText = delayedPromptText
+  cancelRace.queueFrameHeld = queueFrameHeld
+  cancelRace.queueFrameGate = queueFrameGate
+  const queuedDuringStop = chat.send(opts(abortRace.id, `${delayedPromptText} Must not execute after Stop.`))
+  queuedDuringStop.catch(() => {})
+  await Promise.race([
+    promptEntered.promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('stop-race prompt admission did not pause')), 10_000)),
+  ])
+  const cancelRaceStart = cancelRace.cancelRequests.length
+  const abortRacePromise = chat.abort(abortRace.id)
+  await sleep(80)
+  const cancelledBeforeAdmissionSettled = cancelRace.cancelRequests.length > cancelRaceStart
+  admissionGate.resolve()
+  assert.equal((await queuedDuringStop).queued, true, 'the queued prompt admission must settle during Stop')
+  assert.equal(await abortRacePromise, true)
+  await Promise.race([
+    queueFrameHeld.promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('stop-race queue snapshot was not observed')), 10_000)),
+  ])
+  queueFrameGate.resolve()
+  assert.equal((await abortRace.promise).cancelled, true)
+  await waitFor(() => done(abortRace.id).some(event => event.interrupted), 'stop-race active turn terminal')
+  await waitFor(() => pending(abortRace.id).length === 0, 'stop-race inbox cleanup reaches the mux')
+  await sleep(150)
+  assert.equal(cancelledBeforeAdmissionSettled, false,
+    'Stop must drain in-flight prompt admissions before asking Host to cancel')
+  assert.ok(cancelRace.cancelRequests.slice(cancelRaceStart).some(payload =>
+    payload.sessionId === chat.getSessionId(abortRace.id) && payload.clearPendingUserInput === true),
+  'Stop must request atomic Host inbox cleanup, not depend on a possibly stale mux snapshot')
+  assert.equal(requests.filter(row => row.scenario === 'abort-race' && row.turn !== '1').length, 0,
+    'a prompt admitted while Stop starts must not wake a post-cancel model turn')
+  const abortRaceHistory = await api.sessions.history({ sessionId: chat.getSessionId(abortRace.id) })
+  assert.equal(abortRaceHistory.result.value.events.filter(row => row.event.type === 'user/message'
+    && JSON.stringify(row.event.data.content).includes(delayedPromptText)).length, 0,
+  'atomically cancelled queued user input must not become durable conversation history')
+  const abortRaceRecovery = await chat.send(opts(abortRace.id, '[Q:abort-race:3] Recovery after Stop.'))
+  assert.equal(abortRaceRecovery.text, 'abort-race-answer-3', 'same session must recover after raced cancellation')
+  assert.equal(chat.isBusy(abortRace.id), false)
+  console.log('real Host: Stop drains concurrent prompt admission and atomically clears inbox despite a delayed mux snapshot')
+
   const failure = await begin('fail')
   await chat.send(opts(failure.id, '[Q:fail:2] Read the fixture then summarize it.'))
   await waitFor(() => pending(failure.id).length === 1, 'queued failure accepted')
@@ -182,6 +308,8 @@ try {
   assert.equal(await fs.readFile(fixture, 'utf8'), 'QUEUED_FAILURE_READ_FIXTURE\n')
   console.log('real Host: queued failure persists partial output, error and reported usage in the background and survives app-state restart')
 } finally {
+  cancelRace.admissionGate?.resolve()
+  cancelRace.queueFrameGate?.resolve()
   await chat?.stop().catch(() => {})
   await manager.stop().catch(() => {})
   server.closeAllConnections()

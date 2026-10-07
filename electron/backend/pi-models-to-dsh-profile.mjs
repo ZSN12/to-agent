@@ -2,6 +2,38 @@
  * Map pi `models.json` provider blocks to DSH `llm-pi-ai.providers.<id>` profiles.
  */
 
+const DEFAULT_RETRYABLE_CODES = Object.freeze(['EMPTY_RESPONSE', 'RATE_LIMIT', 'SERVER', 'TRANSPORT'])
+const DEFAULT_MAX_PROVIDER_RETRIES = 1
+const MAX_PROVIDER_RETRIES = 3
+
+function boundedProviderRetryPolicy(policy) {
+  if (!policy || typeof policy !== 'object') {
+    return {
+      mode: 'normal',
+      maxRetries: DEFAULT_MAX_PROVIDER_RETRIES,
+      retryableCodes: [...DEFAULT_RETRYABLE_CODES],
+    }
+  }
+
+  // The shared Z Runtime supports `always`, which retries billable model
+  // failures without an attempt limit. TaskWeaver intentionally keeps every
+  // provider route finite, even when an imported models.json requests it.
+  const mode = policy.mode === 'always' ? 'normal' : policy.mode
+  const requestedRetries = policy.maxRetries ?? DEFAULT_MAX_PROVIDER_RETRIES
+  const maxRetries = Number.isSafeInteger(requestedRetries) && requestedRetries >= 0
+    ? Math.min(MAX_PROVIDER_RETRIES, requestedRetries)
+    : requestedRetries
+
+  return {
+    ...policy,
+    mode,
+    maxRetries,
+    retryableCodes: Array.isArray(policy.retryableCodes)
+      ? policy.retryableCodes
+      : [...DEFAULT_RETRYABLE_CODES],
+  }
+}
+
 export function taskweaverApiKeyEnvRef(providerId) {
   return `TASKWEAVER_${String(providerId).toUpperCase().replace(/[^A-Z0-9_]/g, '_')}_API_KEY`
 }
@@ -58,21 +90,15 @@ export function piProviderBlockToDshProfile(providerId, block) {
     displayName,
     apiKeyEnv: taskweaverApiKeyEnvRef(providerId),
     // Match Z Runtime's pi-ai default so long reasoning turns are not cut off
-    // by an application-only shorter timeout. Explicit per-provider values in
-    // models.json still win; TIMEOUT remains excluded from automatic retries.
+    // by an application-only shorter timeout. Explicit per-provider timeouts
+    // in models.json still win; the default retryable codes exclude TIMEOUT.
     streamIdleTimeoutMs: Number.isFinite(block.streamIdleTimeoutMs) && block.streamIdleTimeoutMs > 0
       ? block.streamIdleTimeoutMs
       : 300_000,
-    retryPolicy: block.retryPolicy && typeof block.retryPolicy === 'object'
-      ? block.retryPolicy
-      : {
-        mode: 'normal',
-        maxRetries: 1,
-        // A stream-idle timeout often follows a long partial reasoning stream.
-        // Replaying the whole request spends another full idle window and can
-        // duplicate billed work; let the user explicitly retry after diagnosis.
-        retryableCodes: ['EMPTY_RESPONSE', 'RATE_LIMIT', 'SERVER', 'TRANSPORT'],
-      },
+    // Keep billable provider retries bounded. The default is one retry; an
+    // explicit normal policy may request up to three. `always` is normalized
+    // to normal so a provider config cannot create an unbounded retry loop.
+    retryPolicy: boundedProviderRetryPolicy(block.retryPolicy),
   }
   if (api) profile.api = api
   if (baseUrl) profile.baseURL = baseUrl.replace(/\/+$/, '')

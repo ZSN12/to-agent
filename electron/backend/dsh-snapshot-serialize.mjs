@@ -177,26 +177,25 @@ function queueTexts(queue) {
   }
 }
 
+const SERIALIZED_PROJECTION_KEYS = [
+  'tokenUsage', 'sessionStats', 'contextPressure', 'contextBreakdown', 'plan', 'todos',
+]
+
 function readProjections(projectionStore) {
   const projections = {}
   if (!projectionStore || typeof projectionStore !== 'object') return projections
   if (typeof projectionStore.values === 'function') {
     const values = projectionStore.values()
-    if (values?.tokenUsage !== undefined) projections.tokenUsage = values.tokenUsage
-    if (values?.sessionStats !== undefined) projections.sessionStats = values.sessionStats
-    if (values?.contextPressure !== undefined) projections.contextPressure = values.contextPressure
-    if (values?.contextBreakdown !== undefined) projections.contextBreakdown = values.contextBreakdown
+    for (const key of SERIALIZED_PROJECTION_KEYS) {
+      if (values?.[key] !== undefined) projections[key] = values[key]
+    }
     return projections
   }
   if (typeof projectionStore.get === 'function') {
-    const tokenUsage = projectionStore.get('tokenUsage')
-    if (tokenUsage !== undefined) projections.tokenUsage = tokenUsage
-    const sessionStats = projectionStore.get('sessionStats')
-    if (sessionStats !== undefined) projections.sessionStats = sessionStats
-    const contextPressure = projectionStore.get('contextPressure')
-    if (contextPressure !== undefined) projections.contextPressure = contextPressure
-    const contextBreakdown = projectionStore.get('contextBreakdown')
-    if (contextBreakdown !== undefined) projections.contextBreakdown = contextBreakdown
+    for (const key of SERIALIZED_PROJECTION_KEYS) {
+      const value = projectionStore.get(key)
+      if (value !== undefined) projections[key] = value
+    }
   }
   return projections
 }
@@ -216,7 +215,7 @@ function activityLabel(snapshot) {
     if (text) return '正在生成回复…'
   }
   if (Number.isInteger(snapshot.partial?.step) && snapshot.partial.step > 0) {
-    return `等待模型响应 · 第 ${snapshot.partial.step} 步`
+    return '等待模型响应'
   }
   if (snapshot.running) return null
   return null

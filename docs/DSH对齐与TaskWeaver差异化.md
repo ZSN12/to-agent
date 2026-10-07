@@ -48,14 +48,14 @@
 | 项 | DSH | TaskWeaver（现状 → 目标） |
 |----|-----|---------------------------|
 | 持久化 | 版本化 Session 事件日志 + coordinator | 现状：UI json + Pi jsonl → **目标：DSH session 事件** |
-| Fork 模型 | `atSeq` 事件边界 | UI 切片 + `session-fork.mjs` 按 UI 消息条数截断 jsonl |
+| Fork 模型 | `atSeq` 事件边界 | 产品内分支走 DSH `session.fork` / 聊天 UI 资格校验；旧 `session-fork.mjs` 已移除 |
 | 扩展 | Cordis 插件 | Pi `DefaultResourceLoader` + `electron/extensions` |
 | 多 Agent | Subagent 子会话、interrupt、树形 UI | Planner + DAG + 子任务 jsonl |
 | Auto-review | `dsh-auto-review` | 轻量版 + `autoReviewReads` 偏好（非完整审计事件） |
 
 ## P1 已落地（2026-09）
 
-1. **Fork**：`session-fork.mjs` 按 UI assistant 轮次对齐 `getBranch(cutLeafId)`；`scripts/test-session-fork.mjs`。
+1. **Fork**：消息/会话行分支与 DSH Host `fork` API 对齐；断链的 `scripts/test-session-fork.mjs` 已删除（原 Pi jsonl 切片模块不再存在）。
 2. **中断轮次修复**：`session-repair.mjs` 修剪末尾空 assistant；启动时 `repairAllConversationSessions` + `ensureSession` 单次修复。
 3. **审批 UX**：`ApprovalPanel` 嵌入 Composer（`composer-approval-slot`），去掉全屏遮罩。
 4. **Auto-review 轻量**：`permission-service.mjs` 工作区内 `read/grep/find/ls` 在 ask 模式免弹窗。

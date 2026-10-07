@@ -3,6 +3,8 @@
  */
 import { useEffect, useState } from 'react'
 import type { DshConversationView } from '../../shared/app-api'
+import { matchDshConversationView } from './matchDshConversationView'
+export { matchDshConversationView } from './matchDshConversationView'
 
 function getBridge() {
   return window.taskweaver
@@ -24,14 +26,23 @@ export function useDshConversationView(conversationId: string | null | undefined
       setSubscribed(false)
       return
     }
+    let active = true
+    setView(null)
     setSubscribed(true)
     void bridge.chat.getDshView?.(conversationId)?.then((res) => {
-      if (res?.ok) setView(res.data ?? null)
+      if (!active || !res?.ok) return
+      const currentView = matchDshConversationView(res.data, conversationId)
+      if (currentView) setView(currentView)
     })
-    return bridge.chat.onDshView((payload) => {
-      if (payload.conversationId && payload.conversationId !== conversationId) return
-      setView(payload)
+    const unsubscribe = bridge.chat.onDshView((payload) => {
+      if (!active) return
+      const currentView = matchDshConversationView(payload, conversationId)
+      if (currentView) setView(currentView)
     })
+    return () => {
+      active = false
+      unsubscribe()
+    }
   }, [conversationId])
 
   return { view, subscribed }

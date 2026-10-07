@@ -7,6 +7,7 @@ import { createZHostManager } from '../electron/agent/z-host/index.mjs'
 import { createDshChatService } from '../electron/backend/dsh-chat-service.mjs'
 import { createModelService } from '../electron/backend/model-service.mjs'
 import { createProfileStore } from '../electron/backend/profile-store.mjs'
+import { classifyLifecycleSmokeError, summarizeLifecycleSmokeFailure } from './lifecycle-smoke-diagnostics.mjs'
 
 // Real provider requests: invoke explicitly; never attach to user-owned sessions.
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -14,6 +15,7 @@ if (!process.argv.includes('--installed') && !process.argv.includes('--local')) 
   throw new Error('Pass --installed or --local; this test makes real model requests')
 }
 const focusedOnly = process.argv.includes('--focused-only')
+const cancelOnly = process.argv.includes('--cancel-only')
 const modelArgIndex = process.argv.indexOf('--model')
 const requestedModelKey = modelArgIndex < 0 ? null : process.argv[modelArgIndex + 1]
 if (modelArgIndex >= 0 && (!requestedModelKey || requestedModelKey.startsWith('--'))) {
@@ -73,7 +75,8 @@ function metrics(id, since) {
   return { elapsedMs: Date.now() - since,
     firstTextMs: stream.find(event => event.type === 'delta')?.time - since || null,
     tools: stream.filter(event => event.type === 'tool' && event.status === 'running').map(event => event.toolName),
-    errors: stream.filter(event => event.type === 'error' || (event.type === 'tool' && event.status === 'error')).map(event => event.message || event.resultSummary),
+    errors: stream.filter(event => event.type === 'error' || (event.type === 'tool' && event.status === 'error'))
+      .map(event => classifyLifecycleSmokeError(event.message || event.resultSummary).errorCategory),
     retries: stream.filter(event => event.type === 'retry').length,
     misroutedEvents: stream.filter(event => event.conversationId !== id).length }
 }
@@ -84,13 +87,15 @@ async function history(id) {
 }
 async function runCase(name, run) {
   const startedAt = Date.now()
+  const eventStartIndex = events.length
   try {
     const data = await run(startedAt)
     const row = { name, status: 'passed', ...data }
     report.cases.push(row)
     console.log(JSON.stringify({ case: name, ...row }))
   } catch (error) {
-    const row = { name, status: 'failed', elapsedMs: Date.now() - startedAt, error: error.message }
+    const failure = summarizeLifecycleSmokeFailure(error, events.slice(eventStartIndex))
+    const row = { name, status: 'failed', elapsedMs: Date.now() - startedAt, ...failure }
     report.cases.push(row)
     console.log(JSON.stringify(row))
     await chat.abort()
@@ -125,6 +130,59 @@ try {
   heartbeat = setInterval(() => console.log(JSON.stringify({ status: 'running', elapsedMs: Date.now() - report.startedAt,
     completedCases: report.cases.length, toolCalls: events.filter(event => event.type === 'tool' && event.status === 'running').length })), 20_000)
 
+  if (cancelOnly) {
+    await runCase('cancel-in-flight-and-recover', async since => {
+      const id = `cancel-${crypto.randomUUID()}`
+      const marker = `CANCEL_RECOVERY_${crypto.randomUUID()}`
+      const pending = bounded(chat.send(options(id,
+        '先在任何工具调用之前向我输出一句“我开始只读检查并梳理调用关系。”，然后只读检查 package.json、src/App.tsx、electron/backend/register-ipc.mjs、electron/backend/dsh-chat-service.mjs 和 vendor/z-runtime/apps/cli/config/agent-presets/standard/agent.cordis.yml，指出它们之间的调用关系。请先逐个读取再总结；不要修改文件、不要运行命令。')), 'cancelled inspection')
+      pending.catch(() => {})
+      await waitFor(() => chat.isBusy(id) && caseEvents(id, since).some(event => event.type === 'delta'),
+        'visible partial text before cancellation', 120_000)
+
+      const cancelStartedAt = Date.now()
+      const cancelAccepted = await chat.abort(id)
+      assert.equal(cancelAccepted, true, 'a live Host turn must accept cancellation')
+      const cancelled = await bounded(pending, 'cancelled turn terminal')
+      assert.equal(cancelled.cancelled, true, 'the stopped turn must not be reported as completed')
+      await waitFor(() => !chat.isBusy(id), 'cancelled turn leaves busy state')
+
+      const cancelledEvents = caseEvents(id, since)
+      const terminal = cancelledEvents.findLast(event => event.type === 'done' || event.type === 'error')
+      assert.ok(terminal, 'cancelled turn must emit a terminal stream event')
+      assert.equal(terminal.interrupted, true, 'the terminal projection must preserve interrupted state')
+      const visibleDelta = cancelledEvents.filter(event => event.type === 'delta').map(event => event.delta || '').join('')
+      assert.ok(visibleDelta.length > 0, 'the turn must have emitted visible partial text before being stopped')
+      assert.ok(terminal.full?.includes(visibleDelta), 'the terminal event must retain all visible partial text')
+      const nativeAfterCancel = await history(id)
+      const cancelledHostTurn = nativeAfterCancel.filter(event => event.type === 'turn/end').at(-1)
+      assert.equal(cancelledHostTurn?.data?.reason?.kind, 'aborted', 'Host history must record an aborted terminal')
+      const cancelFinishedAt = Date.now()
+
+      const recovery = await bounded(chat.send(options(id,
+        `不需要读取文件，只回复这一行：${marker}`)), 'post-cancel recovery')
+      assert.ok(recovery.text.includes(marker), 'the same conversation must accept a new turn after cancellation')
+      const nativeAfterRecovery = await history(id)
+      assert.equal(nativeAfterRecovery.filter(event => event.type === 'turn/end').length, 2,
+        'the aborted turn and its recovery turn must both remain in Host history')
+      assert.equal(nativeAfterRecovery.filter(event => event.type === 'turn/end').at(-1)?.data?.reason?.kind, 'completed')
+
+      return {
+        elapsedMs: Date.now() - since,
+        cancelLatencyMs: cancelFinishedAt - cancelStartedAt,
+        cancelAccepted,
+        interruptedTerminal: terminal.interrupted === true,
+        visibleDeltaCharsBeforeCancel: visibleDelta.length,
+        generatedTextCharsRetained: typeof terminal.full === 'string' ? terminal.full.length : 0,
+        completedToolCallsBeforeCancel: cancelledEvents.filter(event => event.type === 'tool' && event.status === 'done').length,
+        hostTurnEndReasons: nativeAfterRecovery.filter(event => event.type === 'turn/end').map(event => event.data?.reason?.kind ?? 'unknown'),
+        recoveryMarkerReceived: recovery.text.includes(marker),
+        ...metrics(id, since),
+      }
+    })
+  }
+
+  if (!cancelOnly) {
   if (!focusedOnly) {
     await runCase('greeting-without-tools', async since => {
       const id = `greeting-${crypto.randomUUID()}`
@@ -213,13 +271,14 @@ try {
     return { ...metrics(id, since), accepted, completedTurns: completed.map(event => ({ text: event.full, turnId: event.turnId, busyAtEmission: event.busyAtEmission, continuing: event.continuing ?? null })) }
   })
   }
+  }
   report.elapsedMs = Date.now() - report.startedAt
   console.log(JSON.stringify({ status: 'completed', reportPath: path.join(reportDir, 'report.json'), elapsedMs: report.elapsedMs,
     cases: report.cases.map(({ name, status, elapsedMs }) => ({ name, status, elapsedMs })), observations: report.observations }))
 } catch (error) {
-  report.failure = error.message
+  report.failure = { stage: 'smoke-harness-setup', ...summarizeLifecycleSmokeFailure(error) }
   process.exitCode = 1
-  console.error(JSON.stringify({ status: 'failed', reportDir, error: error.message }))
+  console.error(JSON.stringify({ status: 'failed', reportDir, ...report.failure }))
 } finally {
   clearInterval(heartbeat)
   try {

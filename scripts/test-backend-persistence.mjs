@@ -36,12 +36,19 @@ try {
 
   await store.appendMessages({ id: 'message-1', author: 'user', text: '持久化检查' })
   await store.appendOutputLog({ id: 'trace-1', toolName: 'read', status: 'done', inputSummary: 'src/main.ts', resultSummary: '读取完成', startedAt: 100 })
+  await store.appendOutputLog({ id: 'trace-edit', toolName: 'edit', status: 'done', inputSummary: 'src/main.ts', resultSummary: '执行完成', startedAt: 101,
+    fileDiff: { path: '/workspace/src/main.ts', diff: '+private source code', type: 'edit', addedLines: 2, deletedLines: 1 } })
   await store.appendOutputLog({ id: 'trace-cancelled', toolName: 'bash', status: 'cancelled', resultSummary: '本轮已取消' })
   const firstThread = await store.getState()
   assert.equal(firstThread.messages.length, 1)
   assert.equal(firstThread.threadTitle, '持久化检查')
   assert.equal(firstThread.outputLogs[0].id, 'trace-1')
-  assert.equal((await store.listOutputLogs({ query: 'main.ts' })).length, 1)
+  const compactDiff = firstThread.outputLogs.find((entry) => entry.id === 'trace-edit').fileDiff
+  assert.equal(compactDiff.path, '/workspace/src/main.ts')
+  assert.equal(compactDiff.addedLines, 2)
+  assert.equal(compactDiff.deletedLines, 1)
+  assert.equal(compactDiff.diff, '', 'persistent output logs retain only compact file summary metadata')
+  assert.equal((await store.listOutputLogs({ query: 'main.ts' })).length, 2)
   assert.equal((await store.listOutputLogs({ status: 'cancelled' })).length, 1, '取消状态应可持久化并筛选')
 
   const otherWorkspace = path.join(tempRoot, 'other-workspace')

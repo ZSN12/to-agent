@@ -29,12 +29,18 @@ export async function createTaskWeaverConversationRuntime(runtimeRoot) {
     path.join(runtimeRoot, 'electron-vendor', 'dsh-chat-registry.mjs'),
   ]
   let bundled
+  const loadErrors = []
   for (const candidate of registryCandidates) {
+    try {
+      await fs.promises.access(candidate, fs.constants.R_OK)
+    } catch {
+      continue
+    }
     try {
       bundled = await import(pathToFileURL(candidate).href)
       break
-    } catch {
-      /* try next */
+    } catch (error) {
+      loadErrors.push(`${candidate}: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
 
@@ -45,6 +51,10 @@ export async function createTaskWeaverConversationRuntime(runtimeRoot) {
     )
     const views = createInMemoryRegistry([...(bundled.TASKWEAVER_CHAT_VIEW_DEFINITIONS ?? [])])
     return { events, views }
+  }
+
+  if (loadErrors.length > 0) {
+    throw new Error(`DSH 对话投影 registry 存在但无法加载：${loadErrors.join('；')}`)
   }
 
   console.warn(
@@ -78,8 +88,6 @@ function runtimePackageBases(runtimeRoot) {
   if (fs.existsSync(monorepoRuntime)) bases.push(monorepoRuntime)
   const siblingZRuntime = path.join(runtimeRoot, '..', 'z-runtime', 'packages/client/runtime')
   if (fs.existsSync(siblingZRuntime)) bases.push(siblingZRuntime)
-  const staged = path.join(runtimeRoot, '..', 'dsh-source/packages/client/runtime')
-  if (fs.existsSync(staged)) bases.push(staged)
   return { packages, bases }
 }
 

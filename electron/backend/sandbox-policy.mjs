@@ -13,6 +13,15 @@ export function resolveSandboxPolicy(input = {}) {
   const permissionMode = input.permissionMode ?? 'ask'
   const sessionMode = input.sessionSandboxMode || null
 
+  if (permissionMode === 'readonly') {
+    return {
+      workspaceRoot,
+      file: { mode: 'read-only' },
+      bash: { mode: 'read-only' },
+      standingMode: 'read-only',
+    }
+  }
+
   if (permissionMode === 'full' || sessionMode === 'danger-full-access') {
     return {
       workspaceRoot,

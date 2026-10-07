@@ -39,7 +39,8 @@ globalThis.__taskweaverLifecycleHooks = hooks
 globalThis.__taskweaverLifecycleProjection = () => ({ view, subscribed: Boolean(view) })
 const result = await build({
   stdin: { contents: `export { useAppBackend } from './src/features/app/useAppBackend';
-    export { mergeStoredMessagesWithDshTranscript } from './src/features/dsh-runtime/dshTranscriptMessages';`, resolveDir: process.cwd(), loader: 'ts' },
+    export { mergeStoredMessagesWithDshTranscript } from './src/features/dsh-runtime/dshTranscriptMessages';
+    export { completedStreamMessage } from './src/features/chat/conversation-run-lifecycle';`, resolveDir: process.cwd(), loader: 'ts' },
   bundle: true, write: false, format: 'esm', platform: 'node',
   plugins: [{ name: 'headless-hooks', setup(api) {
     api.onResolve({ filter: /^react$/ }, () => ({ path: 'hooks', namespace: 'lifecycle-test' }))
@@ -51,7 +52,7 @@ const result = await build({
     }))
   } }],
 })
-const { useAppBackend, mergeStoredMessagesWithDshTranscript } = await import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString('base64')}`)
+const { useAppBackend, mergeStoredMessagesWithDshTranscript, completedStreamMessage } = await import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString('base64')}`)
 let onStream
 let reply
 let backendRunning = []
@@ -145,6 +146,14 @@ try {
   ], [{ role: 'assistant', dshKey: 'summary', text: 'summary' }], true)
   assert.equal(withCallout.length, 1)
   assert.equal(withCallout[0].callout, 'completed 2 subtasks', 'native transcript takeover must preserve orchestration metadata')
+  const fileChange = { path: 'src/main.ts', addedLines: 1, deletedLines: 1 }
+  const withFiles = mergeStoredMessagesWithDshTranscript([
+    { id: 'z-turn-file-change', author: 'orchestrator', text: 'summary', fileChanges: [fileChange] },
+  ], [{ role: 'assistant', dshKey: 'file-change', text: 'summary' }], true)
+  assert.deepEqual(withFiles[0].fileChanges, [fileChange], 'DSH transcript projection must preserve stored file summaries')
+  assert.deepEqual(completedStreamMessage({ type: 'done', turnId: 'files-only', conversationId: 'c1',
+    full: '', fullThinking: '', fileChanges: [fileChange] })?.fileChanges, [fileChange],
+  'a terminal message with only file-change evidence must still be rendered')
   const repeat = [1, 2].map(n => ({ id: `z-turn-repeat-${n}`, author: 'orchestrator', text: '你好', timestamp: n }))
   assert.equal(mergeStoredMessagesWithDshTranscript(repeat,
     [{ role: 'assistant', dshKey: 'repeat', text: '你好', timestamp: 1 }], true).length, 2,

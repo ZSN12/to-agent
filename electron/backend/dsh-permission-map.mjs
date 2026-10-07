@@ -24,19 +24,19 @@
 
 export const DSH_APPROVAL_PROMPT_TIMEOUT_MS = 300_000
 
-export const PERMISSION_MODES = Object.freeze(['ask', 'on-risk', 'full'])
+export const PERMISSION_MODES = Object.freeze(['readonly', 'ask', 'on-risk', 'full'])
 
 const DSH_PERMISSION_PRESETS = Object.freeze({
+  readonly: 'read-only',
   ask: 'workspace-write',
-  // DSH has no native "ask only for classified risks" policy. Keep normal
-  // workspace coding usable, while prompting for every DSH escalation.
-  // This remains a conservative approximation, not a full semantic match.
+  // Legacy alias; same Host preset as ask.
   'on-risk': 'workspace-write',
   full: 'danger-full-access',
 })
 
 export function normalizePermissionMode(value) {
-  return PERMISSION_MODES.includes(value) ? value : 'ask'
+  if (PERMISSION_MODES.includes(value)) return value
+  return 'ask'
 }
 
 /** Agent/tool preset at `sessions.create`; permission is set independently. */

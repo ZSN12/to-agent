@@ -121,6 +121,7 @@ export function createMemoryStore({ agentDataPath }) {
             durationMs: Number.isFinite(call.durationMs) ? call.durationMs : null,
           })),
           omittedToolCalls: Math.max(0, Number(result.executionEvidence.omittedToolCalls) || 0),
+          scopeDeniedToolCalls: Math.max(0, Number(result.executionEvidence.scopeDeniedToolCalls) || 0),
         } : null,
       }
       const line = `${task.id}（${task.title}）：${snippet.slice(0, 280)}`

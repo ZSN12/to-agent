@@ -9,6 +9,12 @@ function textFromContent(content) {
     .trim()
 }
 
+function safeProvenanceString(value, maxLength) {
+  if (typeof value !== 'string') return undefined
+  const normalized = value.trim().replace(/[\u0000-\u001f\u007f]/g, '').slice(0, maxLength)
+  return normalized || undefined
+}
+
 function partsFromBlocks(blocks) {
   if (!Array.isArray(blocks)) return { text: '', thinking: '' }
   let text = ''
@@ -50,30 +56,52 @@ function modelKeyFromClosing(closing) {
   return model || undefined
 }
 
-function collectTurnUsage(chat, turnNumber, closing) {
+function collectTurnUsage(snapshot, turnNumber, closing) {
   let combined = null
+  const chat = snapshot?.chat
+  const turn = chat?.timeline?.turns?.get?.(turnNumber)
+  // A paged snapshot can contain only part of a closed turn. Trust the
+  // timeline aggregate only when both turn boundaries are present.
+  if (turn?.start && turn?.end) {
+    for (const step of turn.steps ?? []) {
+      const assistant = step?.data?.get?.('assistant-step')
+      if (!assistant) continue
+      const usage = normalizeUsage(assistant.usage ?? assistant.finalNode?.usage)
+      if (usage) combined = sumUsage(combined, usage)
+    }
+  }
+  // The timeline includes hidden tool-only model steps; older Host snapshots
+  // may not expose it, so preserve the visible-node fallback for compatibility.
   const order = chat?.order
   const store = chat?.nodes
-  if (Array.isArray(order) && store && typeof store.get === 'function') {
+  if (!combined && Array.isArray(order) && store && typeof store.get === 'function') {
     for (const key of order) {
       const node = store.get(key)
       if (node?.kind !== 'assistant-step' || node.data?.turn !== turnNumber) continue
-      combined = sumUsage(combined, normalizeUsage(node.data.usage ?? node.data.finalNode?.usage))
+      const usage = normalizeUsage(node.data.usage ?? node.data.finalNode?.usage)
+      if (usage) combined = sumUsage(combined, usage)
     }
   }
   const result = combined ?? normalizeUsage(closing?.usage ?? closing?.finalNode?.usage)
-
-  // 诊断日志：缓存命中率为 0 的问题
-  if (!result || (result.cacheReadTokens === 0 && result.cacheWriteTokens === 0)) {
-    console.log('[CACHE DEBUG] Turn', turnNumber, {
-      hasClosingUsage: !!closing?.usage,
-      hasFinalNodeUsage: !!closing?.finalNode?.usage,
-      rawUsage: closing?.usage ?? closing?.finalNode?.usage,
-      normalized: result
-    })
-  }
-
   return result
+}
+
+function collectTurnThinking(snapshot, turnNumber, closing) {
+  const turn = snapshot?.chat?.timeline?.turns?.get?.(turnNumber)
+  // A paged snapshot can contain only part of a closed turn. Aggregate all
+  // reasoning blocks only when both boundaries prove the timeline is complete.
+  if (turn?.start && turn?.end) {
+    let thinking = ''
+    for (const step of turn.steps ?? []) {
+      const assistant = step?.data?.get?.('assistant-step')
+      if (!Array.isArray(assistant?.blocks)) continue
+      for (const block of assistant.blocks) {
+        if (block?.kind === 'reasoning' && typeof block.text === 'string') thinking += block.text
+      }
+    }
+    return thinking.trim()
+  }
+  return partsFromBlocks(closing?.blocks).thinking
 }
 
 function normalizeUsage(usage) {
@@ -127,6 +155,21 @@ export function extractDshChatTranscript(snapshot) {
         })
         break
       }
+      case 'context': {
+        const source = data?.source
+        if (source?.kind !== 'plugin') break
+        const plugin = safeProvenanceString(source.plugin, 128)
+        if (!plugin) break
+        rows.push({
+          dshKey: String(key),
+          role: 'context',
+          text: textFromContent(data?.content),
+          timestamp: typeof data?.time === 'number' ? data.time : undefined,
+          plugin,
+          form: safeProvenanceString(source.form, 64),
+        })
+        break
+      }
       case 'turn-tail': {
         const closing = data?.closing
         if (!closing) break
@@ -136,10 +179,10 @@ export function extractDshChatTranscript(snapshot) {
           dshKey: String(key),
           role: 'assistant',
           text: parts.text || (status === 'interrupted' ? '（已中断）' : ''),
-          thinking: parts.thinking || undefined,
+          thinking: collectTurnThinking(snapshot, data?.turn ?? closing.turn, closing) || undefined,
           interrupted: status === 'interrupted',
           timestamp: typeof (closing.time ?? data?.time) === 'number' ? (closing.time ?? data.time) : undefined,
-          usage: collectTurnUsage(chat, data?.turn ?? closing.turn, closing),
+          usage: collectTurnUsage(snapshot, data?.turn ?? closing.turn, closing),
           modelKey: modelKeyFromClosing(closing),
         })
         break

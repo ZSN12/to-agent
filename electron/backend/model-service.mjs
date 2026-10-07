@@ -84,7 +84,25 @@ export function createModelService({
     }
   }
 
-  async function getDshModelDirectory() {
+  /**
+   * DSH 模型目录 TTL 缓存。
+   * 同一次 chat:send 内 listCatalog / listProvidersAuth / getDshModelConfig 会连读多遍目录，
+   * 每遍都是 3 个 Host 请求（llm.providers + llm.models + settings.describe）。
+   * TTL 内复用同一份结果，并发读共享同一个 in-flight Promise；
+   * refreshCatalog() 强制绕过缓存，凭据变更（reloadDshHostAfterCredentialChange）主动失效。
+   */
+  const MODEL_DIRECTORY_TTL_MS = 5000
+  /** @type {{ value: Awaited<ReturnType<typeof fetchDshModelDirectoryOnce>>, expiresAt: number } | null} */
+  let modelDirectoryCache = null
+  /** @type {Promise<Awaited<ReturnType<typeof fetchDshModelDirectoryOnce>>> | null} */
+  let modelDirectoryInflight = null
+
+  function invalidateModelDirectoryCache() {
+    modelDirectoryCache = null
+    modelDirectoryInflight = null
+  }
+
+  async function fetchDshModelDirectoryWithRetry() {
     let lastError
     for (let attempt = 0; attempt < 6; attempt += 1) {
       try {
@@ -99,6 +117,28 @@ export function createModelService({
       }
     }
     throw lastError instanceof Error ? lastError : new Error(String(lastError))
+  }
+
+  function getDshModelDirectory({ force = false } = {}) {
+    if (!force) {
+      if (modelDirectoryCache && Date.now() < modelDirectoryCache.expiresAt) {
+        return Promise.resolve(modelDirectoryCache.value)
+      }
+      if (modelDirectoryInflight) return modelDirectoryInflight
+    }
+    const pending = fetchDshModelDirectoryWithRetry().then(
+      (directory) => {
+        modelDirectoryCache = { value: directory, expiresAt: Date.now() + MODEL_DIRECTORY_TTL_MS }
+        if (modelDirectoryInflight === pending) modelDirectoryInflight = null
+        return directory
+      },
+      (error) => {
+        if (modelDirectoryInflight === pending) modelDirectoryInflight = null
+        throw error
+      },
+    )
+    modelDirectoryInflight = pending
+    return pending
   }
 
   function normalizeSettingsNs(value) {
@@ -439,6 +479,8 @@ export function createModelService({
   }
 
   async function reloadDshHostAfterCredentialChange() {
+    // Host 重启意味着 provider/凭据已变，目录缓存必须失效，否则 UI 会读到旧配置。
+    invalidateModelDirectoryCache()
     if (!dshHostManager) return
     try {
       await dshHostManager.stop()
@@ -658,7 +700,7 @@ export function createModelService({
   }
 
   async function refreshCatalog() {
-    const directory = await getDshModelDirectory()
+    const directory = await getDshModelDirectory({ force: true })
     return buildCatalogFromDirectory(directory, { liveDiscovery: true })
   }
 

@@ -68,6 +68,81 @@ export function summarizeToolResult(result, isError) {
   return blocks ? `执行完成 · ${blocks} 个结果块，约 ${chars} 字符` : '执行完成'
 }
 
+function fileLines(text) {
+  if (text === '') return []
+  const lines = text.split('\n')
+  if (lines.at(-1) === '') lines.pop()
+  return lines
+}
+
+// Diff the small contextual hunks persisted by Z's write/edit presentation
+// metadata. A bounded LCS avoids claiming inaccurate counts for very large
+// hunks, while still producing a normal +/- patch for the UI.
+function diffFileText(oldText, newText) {
+  const before = fileLines(oldText ?? '')
+  const after = fileLines(newText)
+  const width = after.length + 1
+  const cells = (before.length + 1) * width
+  if (cells > 400_000) return null
+  const lcs = new Uint32Array(cells)
+  for (let i = before.length - 1; i >= 0; i--) {
+    for (let j = after.length - 1; j >= 0; j--) {
+      const at = i * width + j
+      lcs[at] = before[i] === after[j]
+        ? lcs[(i + 1) * width + j + 1] + 1
+        : Math.max(lcs[(i + 1) * width + j], lcs[at + 1])
+    }
+  }
+
+  const patch = [`@@ -1,${before.length} +1,${after.length} @@`]
+  let addedLines = 0
+  let deletedLines = 0
+  let i = 0
+  let j = 0
+  while (i < before.length || j < after.length) {
+    if (i < before.length && j < after.length && before[i] === after[j]) {
+      patch.push(` ${before[i]}`)
+      i++
+      j++
+    } else if (i < before.length && (j >= after.length || lcs[(i + 1) * width + j] >= lcs[i * width + j + 1])) {
+      patch.push(`-${before[i++]}`)
+      deletedLines++
+    } else {
+      patch.push(`+${after[j++]}`)
+      addedLines++
+    }
+  }
+  return { diff: patch.join('\n'), addedLines, deletedLines }
+}
+
+function fileDiffFromMeta(toolName, targetPath, meta, isNewFile = false) {
+  const hunks = Array.isArray(meta?.diffs) ? meta.diffs : []
+  if (hunks.length === 0) return null
+  const rendered = []
+  let addedLines = 0
+  let deletedLines = 0
+  let changed = false
+  for (const hunk of hunks) {
+    if (typeof hunk?.newText !== 'string' || !(hunk.oldText === null || typeof hunk.oldText === 'string')) return null
+    if (!(hunk.oldText === null && isNewFile) && hunk.oldText === hunk.newText) continue
+    changed = true
+    const result = diffFileText(hunk.oldText ?? '', hunk.newText)
+    if (!result) return { path: targetPath, diff: '', type: toolName }
+    rendered.push(result.diff)
+    addedLines += result.addedLines
+    deletedLines += result.deletedLines
+  }
+  if (!changed) return null
+  return {
+    path: targetPath,
+    diff: rendered.join('\n'),
+    type: toolName,
+    addedLines,
+    deletedLines,
+    ...(isNewFile ? { isNewFile: true } : {}),
+  }
+}
+
 export function extractFileDiff(toolName, args, result) {
   if (result) result = normalizeToolResult(result)
   if (!result || result.isError) return null
@@ -75,44 +150,91 @@ export function extractFileDiff(toolName, args, result) {
   const targetPath = input.path || input.file_path || input.filePath || ''
   if (!targetPath) return null
 
+  const resultText = (result.content ?? [])
+    .filter((block) => block?.type === 'text' && typeof block.text === 'string')
+    .map((block) => block.text)
+    .join('\n')
+  const created = /(?:Created file|New file created successfully)/i.test(resultText)
+  const updated = /Updated file/i.test(resultText)
+  const fromMeta = fileDiffFromMeta(toolName, targetPath, result.meta, created)
+  if (fromMeta) return fromMeta
+  if (Array.isArray(result.meta?.diffs) && result.meta.diffs.length === 0 && !created) return null
+
   if (toolName === 'edit') {
     const diff = result.details?.diff || result.details?.patch || ''
     if (diff) {
-      const lines = diff.split('\n')
       let added = 0
       let deleted = 0
-      for (const line of lines) {
+      for (const line of diff.split('\n')) {
         if (line.startsWith('+') && !line.startsWith('+++')) added++
         else if (line.startsWith('-') && !line.startsWith('---')) deleted++
       }
-      const edits = Array.isArray(input.edits) ? input.edits : []
-      const reverseEdits = edits
-        .filter((e) => typeof e?.oldText === 'string' && typeof e?.newText === 'string')
-        .map((e) => ({ oldText: e.newText, newText: e.oldText }))
-      return {
-        path: targetPath,
-        diff,
-        type: 'edit',
-        firstChangedLine: result.details?.firstChangedLine,
-        reverseEdits,
-        addedLines: added,
-        deletedLines: deleted,
-      }
+      return { path: targetPath, diff, type: 'edit', addedLines: added, deletedLines: deleted }
     }
+    if (typeof input.old_string === 'string' && typeof input.new_string === 'string' && !input.replace_all) {
+      if (input.old_string === input.new_string) return null
+      const resultDiff = diffFileText(input.old_string, input.new_string)
+      return resultDiff
+        ? { path: targetPath, diff: resultDiff.diff, type: 'edit', addedLines: resultDiff.addedLines, deletedLines: resultDiff.deletedLines }
+        : { path: targetPath, diff: '', type: 'edit' }
+    }
+    return { path: targetPath, diff: '', type: 'edit' }
   }
 
   if (toolName === 'write') {
     const content = typeof input.content === 'string' ? input.content : ''
-    const lines = content.split('\n')
-    const diffFormatted = lines.map((l) => `+${l}`).join('\n')
+    if (updated) {
+      // Native Host writes provide an empty diffs array when the content did
+      // not change. Nested code-dispatch results do not carry that metadata,
+      // so retain the file with unknown line counts instead of hiding it.
+      if (Array.isArray(result.meta?.diffs) && result.meta.diffs.length === 0) return null
+      return { path: targetPath, diff: '', type: 'write' }
+    }
+    if (!created) return { path: targetPath, diff: '', type: 'write' }
+    const lines = fileLines(content)
+    const diffFormatted = lines.map((line) => `+${line}`).join('\n')
     return {
       path: targetPath,
       diff: diffFormatted,
       type: 'write',
       addedLines: lines.length,
       deletedLines: 0,
-      isNewFile: Boolean(result.details?.created || !result.details?.overwritten),
+      isNewFile: true,
     }
+  }
+
+  if (toolName === 'str_replace_editor') {
+    const command = input.command
+    if (command === 'view') return null
+    if (command === 'create') {
+      if (!created) return null
+      const content = typeof input.file_text === 'string' ? input.file_text : ''
+      const lines = fileLines(content)
+      return {
+        path: targetPath,
+        diff: lines.map((line) => `+${line}`).join('\n'),
+        type: 'str_replace_editor',
+        addedLines: lines.length,
+        deletedLines: 0,
+        isNewFile: true,
+      }
+    }
+    if (command === 'str_replace' && typeof input.old_str === 'string') {
+      const newText = typeof input.new_str === 'string' ? input.new_str : ''
+      if (input.old_str === newText) return null
+      const changedText = diffFileText(input.old_str, newText)
+      return changedText
+        ? { path: targetPath, diff: changedText.diff, type: 'str_replace_editor', addedLines: changedText.addedLines, deletedLines: changedText.deletedLines }
+        : { path: targetPath, diff: '', type: 'str_replace_editor' }
+    }
+    if (command === 'insert' && typeof input.new_str === 'string') {
+      if (!input.new_str) return null
+      const changedText = diffFileText('', input.new_str)
+      return changedText
+        ? { path: targetPath, diff: changedText.diff, type: 'str_replace_editor', addedLines: changedText.addedLines, deletedLines: 0 }
+        : { path: targetPath, diff: '', type: 'str_replace_editor' }
+    }
+    return { path: targetPath, diff: '', type: 'str_replace_editor' }
   }
 
   return null

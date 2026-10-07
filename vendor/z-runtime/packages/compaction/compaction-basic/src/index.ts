@@ -79,6 +79,28 @@ const maxTokensSchema = z.number().step(1).min(1)
 const compactionRetriesSchema = z.number().step(1).min(0)
 const maxOverflowRetriesSchema = z.number().step(1).min(0)
 
+/** App-specific recovery stays deliberately finite without changing shared DSH behavior. */
+const TASKWEAVER_MAX_COMPACTION_RETRIES = 1
+const TASKWEAVER_MAX_OVERFLOW_RETRIES = 1
+
+function taskweaverBoundedRetryConfig(config: ResolvedConfig): ResolvedConfig {
+  const modelPolicies = Object.freeze(config.modelPolicies.map((policy) => Object.freeze({
+    ...policy,
+    ...(policy.compactionRetries === undefined ? {} : {
+      compactionRetries: Math.min(policy.compactionRetries, TASKWEAVER_MAX_COMPACTION_RETRIES),
+    }),
+    ...(policy.maxOverflowRetries === undefined ? {} : {
+      maxOverflowRetries: Math.min(policy.maxOverflowRetries, TASKWEAVER_MAX_OVERFLOW_RETRIES),
+    }),
+  })))
+  return Object.freeze({
+    ...config,
+    compactionRetries: Math.min(config.compactionRetries, TASKWEAVER_MAX_COMPACTION_RETRIES),
+    maxOverflowRetries: Math.min(config.maxOverflowRetries, TASKWEAVER_MAX_OVERFLOW_RETRIES),
+    modelPolicies,
+  })
+}
+
 const modelPolicy: z<ModelCompactPolicyConfig> = z.object({
   provider: z.string().required(),
   model: z.string().required(),
@@ -125,7 +147,10 @@ export class BasicCompactionEngine extends CompactionEngine {
 
   constructor(ctx: Context, config: BasicCompactionConfig = {}) {
     super(ctx)
-    this.config = resolveConfig(config)
+    const resolved = resolveConfig(config)
+    this.config = process.env.DSH_TASKWEAVER_EMBEDDED === '1'
+      ? taskweaverBoundedRetryConfig(resolved)
+      : resolved
     if (this.config.auto) this._registerAutomaticCompaction()
   }
 

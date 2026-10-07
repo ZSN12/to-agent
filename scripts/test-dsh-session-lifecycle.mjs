@@ -49,6 +49,7 @@ function createMockRuntime({ turnEndSeqs = [], forkImpl = null, existingSessions
   const forkCalls = []
   const historyCalls = []
   const waiters = []
+  let currentPermissionPreset = 'workspace-write'
 
   function push(frame) {
     const waiter = waiters.shift()
@@ -92,7 +93,12 @@ function createMockRuntime({ turnEndSeqs = [], forkImpl = null, existingSessions
       async models() {
         return { result: { ok: true, value: { current: null, routable: true, groups: [], failures: [] } } }
       },
-      async prompt() {
+      async prompt(payload) {
+        const promptText = payload?.content?.find((part) => part.type === 'text')?.text
+        const permissionMatch = typeof promptText === 'string'
+          ? promptText.match(/^\/permission\s+(\S+)$/)
+          : null
+        if (permissionMatch) currentPermissionPreset = permissionMatch[1]
         return { result: { ok: true, value: { accepted: true, command: { kind: 'success' } } } }
       },
       async cancel() { return { result: { ok: true, value: { cancelled: true } } } },
@@ -105,7 +111,35 @@ function createMockRuntime({ turnEndSeqs = [], forkImpl = null, existingSessions
       async history(payload) {
         historyCalls.push(payload)
         const events = turnEndSeqs.map((seq) => ({ event: { type: 'turn/end', seq } }))
-        return { result: { ok: true, value: { events, hasMore: false } } }
+        return {
+          result: {
+            ok: true,
+            value: {
+              events,
+              hasMore: false,
+              projections: {
+                asOfSeq: events.at(-1)?.event.seq ?? 0,
+                values: {
+                  permissions: {
+                    options: [
+                      {
+                        value: 'workspace-write',
+                        name: 'workspace-write',
+                        description: 'Write inside the workspace and permitted temporary directories; wider retries require approval.',
+                      },
+                      {
+                        value: 'danger-full-access',
+                        name: 'danger-full-access',
+                        description: 'Full file access without approval prompts.',
+                      },
+                    ],
+                    currentValue: currentPermissionPreset,
+                  },
+                },
+              },
+            },
+          },
+        }
       },
     },
     llm: {
@@ -134,11 +168,18 @@ function makeService(home, runtime, workspace) {
   })
 }
 
+function pushAssistantText(runtime, sessionId, text = 'ok') {
+  runtime.push({ payload: { type: 'session/event', sessionId, event: {
+    type: 'assistant/chunk', data: { chunk: { type: 'text-delta', text } },
+  } } })
+}
+
 /** 跑一轮完整对话（send + turn/end）。 */
 async function runTurn(service, runtime, { conversationId, modelKey = 'test/m1' }) {
   const turn = service.send({ text: 'hi', modelKey, conversationId, webContents })
   await waitFor(() => service.isBusy(conversationId), { label: `${conversationId} 已进入运行态` })
   const sessionId = `tw-${conversationId}`
+  pushAssistantText(runtime, sessionId)
   runtime.push({ payload: { type: 'session/event', sessionId, event: { type: 'turn/end', data: { reason: { kind: 'completed' } } } } })
   await turn
 }
@@ -228,15 +269,15 @@ try {
     assert.equal(childEntry.forkedFromSessionId, 'tw-conv-src')
     assert.equal(childEntry.forkedAtSeq, 9)
 
-    // 轮数超出日志长度 → 退化为整段继承（不带 atSeq），而不是切在错误的轮次
+    // UI 分支点没有对应的 Host 已完成轮次时必须失败，不能静默继承分支点之后的上下文
     const over = await service.forkConversation({
       sourceConversationId: 'conv-src',
       targetConversationId: 'conv-child-over',
       completedTurns: 99,
     })
-    assert.equal(over.ok, true)
-    assert.equal(over.atSeq, null)
-    assert.deepEqual(runtime.forkCalls[1], { sessionId: 'tw-conv-src' })
+    assert.deepEqual(over, { ok: false, reason: 'fork-point-unavailable' })
+    assert.equal(service.getSessionId('conv-child-over'), null)
+    assert.equal(runtime.forkCalls.length, 1, '无效分支点不得调用 Host fork')
 
     // 源会话不在映射表里 → 明确失败，而不是造一个空会话
     const missing = await service.forkConversation({
@@ -248,7 +289,7 @@ try {
 
     await service.stop()
 
-    // DSH 侧拒绝 fork（例如没有已完成的 turn）时不得写入半成品映射
+    // Z Host 拒绝 fork（例如没有已完成的 turn）时不得写入半成品映射
     const failHome = await fs.mkdtemp(path.join(os.tmpdir(), 'tw-lifecycle-fork-fail-'))
     cleanup.push(failHome)
     const failRuntime = createMockRuntime({
@@ -265,7 +306,31 @@ try {
     assert.equal(failService.getSessionId('conv-child-fail'), null)
     assert.equal((await readMapFile(failHome))['conv-child-fail'], undefined)
     await failService.stop()
-    console.log('✓ forkConversation 继承上下文、精确切分、失败时不写半成品映射')
+
+    // Host fork 成功但映射文件提交失败时也必须撤回内存映射，不能报告成功。
+    const persistHome = await fs.mkdtemp(path.join(os.tmpdir(), 'tw-lifecycle-fork-persist-'))
+    cleanup.push(persistHome)
+    const persistRuntime = createMockRuntime()
+    const persistService = makeService(persistHome, persistRuntime, persistHome)
+    await runTurn(persistService, persistRuntime, { conversationId: 'conv-src-persist' })
+    const mapPath = mapPathFor(persistHome)
+    const backupPath = `${mapPath}.backup`
+    await fs.rename(mapPath, backupPath)
+    await fs.mkdir(mapPath)
+    const persistenceFailed = await persistService.forkConversation({
+      sourceConversationId: 'conv-src-persist',
+      targetConversationId: 'conv-child-persist',
+    })
+    assert.equal(persistenceFailed.ok, false)
+    assert.equal(persistenceFailed.reason, 'mapping-persist-failed')
+    assert.equal(persistService.getSessionId('conv-child-persist'), null)
+    assert.equal(persistRuntime.forkCalls.length, 1, 'Host fork occurred, but failed mapping persistence must not be exposed as success')
+    await fs.rm(mapPath, { recursive: true, force: true })
+    await fs.rename(backupPath, mapPath)
+    assert.equal((await readMapFile(persistHome))['conv-child-persist'], undefined)
+    await persistService.stop()
+
+    console.log('✓ forkConversation 精确切分、拒绝无效分支点、映射落盘失败回滚')
   }
 
   // ============ 4. 映射表 LRU：只淘汰可推导条目 ============
@@ -316,6 +381,7 @@ try {
       webContents,
     })
     await waitFor(() => service.isBusy('old-conversation'), { label: '旧会话重新绑定后进入运行态' })
+    pushAssistantText(runtime, sessionId)
     runtime.push({ payload: { type: 'session/event', sessionId, event: { type: 'turn/end', data: { reason: { kind: 'completed' } } } } })
     await turn
     const entry = (await readMapFile(home))['old-conversation']

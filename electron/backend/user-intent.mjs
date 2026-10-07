@@ -20,7 +20,7 @@ export const USER_INTENTS = Object.freeze({
 const READ_ONLY_PATTERNS = [
   /^(请问|为什么|怎么理解|解释一下|说明一下|分析一下|介绍一下|什么是|如何看待|有什么区别)/i,
   /(什么意思|怎么回事|有什么用|怎么用|用法是|原理是|时间复杂度|空间复杂度|优缺点|哪里定义|在何处)\??$/i,
-  /^(查看|查一下|查找|找一下|搜一下|搜索|定位|阅读|帮我看|看下|看一下|帮我找|帮我搜|帮我查|走读|请教|读下|读一下)/i,
+  /^(查看|查一下|查找|找一下|搜一下|搜索|定位|阅读|检查|审查|帮我看|看下|看看|看一下|帮我找|帮我搜|帮我查|走读|请教|读下|读一下)/i,
   /(解释|分析|介绍|说明|总结|走读|梳理|理解|含义|作用)/i,
   // 中文常见疑问句式（注意：mutation 关键词优先判定，因此不会吞掉“修复这个并解释原因”）
   /(是干什么的|干什么用的|是干嘛的|怎么实现|如何实现|谁调用|被谁调用|在哪(里|儿)|什么区别|哪个更好|是否支持)/,
@@ -34,6 +34,9 @@ const CONVERSATION_PATTERNS = [
 ]
 
 /** 明确的代码修改动词。命中这里才认定为代码修改任务。 */
+/** 超长粘贴时只扫描前段，避免 40×全文 indexOf。 */
+const MUTATION_SCAN_MAX_CHARS = 12_000
+
 const MUTATION_KEYWORDS = [
   '修改', '修复', 'fix', 'bug', '实现', '新增', '添加', '增加', '重构', '编写', '写一个', '创建',
   '优化', '改动', '替换', '删除', '更新', '补充', '接入', '对齐', '解决', '补全',
@@ -55,13 +58,14 @@ const INTERROGATIVE_AFTER = /^(是什么意思|是啥意思|是什么|指什么|
  * @param {string} text
  */
 function hasMutationIntent(text) {
+  const scanText = text.length > MUTATION_SCAN_MAX_CHARS ? text.slice(0, MUTATION_SCAN_MAX_CHARS) : text
   for (const keyword of MUTATION_KEYWORDS) {
     let from = 0
     while (true) {
-      const index = text.indexOf(keyword, from)
+      const index = scanText.indexOf(keyword, from)
       if (index < 0) break
-      const before = text.slice(Math.max(0, index - 3), index)
-      const after = text.slice(index + keyword.length)
+      const before = scanText.slice(Math.max(0, index - 3), index)
+      const after = scanText.slice(index + keyword.length)
       if (!INTERROGATIVE_BEFORE.test(before) && !INTERROGATIVE_AFTER.test(after)) return true
       from = index + keyword.length
     }
@@ -86,8 +90,9 @@ export function analyzeUserIntent(text, workMode = 'code') {
     return USER_INTENTS.PLANNING
   }
 
-  // 2. 寒暄 / 确认 / 致谢
+  // 2. 寒暄 / 确认 / 致谢（但若同句含明确修改动词，仍判为 mutation）
   if (CONVERSATION_PATTERNS.some((regex) => regex.test(clean))) {
+    if (hasMutationIntent(clean)) return USER_INTENTS.CODE_MUTATION
     return USER_INTENTS.CONVERSATION
   }
 
@@ -116,7 +121,10 @@ export function analyzeUserIntent(text, workMode = 'code') {
  * @param {string} intent 意图类型
  * @param {import('./verification-policy.mjs').VerificationPolicy | null} policy 验证策略
  */
-export function injectIntentGuidelines(prompt, intent, policy) {
+/**
+ * @param {{ autoVerifyAfterMutation?: boolean }} [options]
+ */
+export function injectIntentGuidelines(prompt, intent, policy, options = {}) {
   // 计划模式已有专门的前缀提示
   if (intent === USER_INTENTS.PLANNING) return prompt
 
@@ -124,10 +132,13 @@ export function injectIntentGuidelines(prompt, intent, policy) {
   if (intent === USER_INTENTS.CONVERSATION) return prompt
 
   if (intent === USER_INTENTS.READ_ONLY) {
-    return `${prompt}\n\n> [!NOTE]\n> 当前请求属于只读咨询或代码理解，请直接依据证据回答，不要修改文件或执行测试。若用户指定了文件/目录范围，优先限定在该范围；只有回答确实需要时才扩展，并简要说明原因。若用户明确禁止读取范围外内容，必须遵守，并把因此无法验证的部分明确标为未验证。避免重复读取，证据足够后停止探索。`
+    // Match DSH Web: preserve the user message/context without adding another
+    // host-external instruction block. The user's read-only request and the
+    // selected permission mode already define the scope.
+    return prompt
   }
 
-  if (intent === USER_INTENTS.CODE_MUTATION && policy) {
+  if (intent === USER_INTENTS.CODE_MUTATION && policy && options.autoVerifyAfterMutation === true) {
     const verifyCmd = policy.primaryCommand || policy.testCommand
     if (verifyCmd) {
       return `${prompt}\n\n> [!IMPORTANT]\n> **自主闭环要求**：本次修改完成后，请调用 \`bash\` 工具运行轻量验证命令 \`${verifyCmd}\` 自检。若验证失败，请根据错误日志自行修正；验证通过后，请在最终回复末尾附带自检结果总结。\n> 若本次改动属于纯文案/注释或无法被该命令覆盖，可跳过验证并在回复中说明原因。`

@@ -2,7 +2,9 @@
 
 English | [中文](README.zh.md)
 
-An advisory loop-breaker, not a model-facing tool: it never appears in the tool list, never vetoes or rewrites a call, and adds exactly one behavior — it watches each agent's stream of tool calls, counts runs of consecutive calls to the same tool with identical canonicalized arguments, and at configured run lengths injects an escalating advisory reminder telling the model to stop repeating itself, re-read the last result, and either change approach or conclude. The decision (retry differently, gather more evidence, or finish) stays entirely with the model: a legitimately repeated call is delayed by nothing and blocked by nothing. Decision record: [the repeat-tool-reminder Agent Note](../../../.agents/notes/archived/feature/2026-07-08-repeat-tool-guard.md).
+Not a model-facing tool: it never appears in the tool list or rewrites a call. It watches each agent's tool stream, sends escalating reminders for consecutive identical calls and repeated reads of the same file, and detects a repeated `glob`/`grep` sequence of 2–8 calls using the normalized scope and canonical query/options. For TaskWeaver read-only subagents, it nudges after two and four searches without a source read, and gives a stronger progress reminder at six searches in an assigned scope. To prevent endless retries, it allows at most ten search attempts in one assigned scope, eight reads of one file, and three executions of an identical read; the next matching call is denied, with one model recovery response before another retry ends that agent turn. A read clears only the two/four-search nudge counter, not the repeated-search guard. Different paths and scopes remain available; distinct ranges of one file are allowed up to its per-turn read limit. Same-file read counts survive intervening searches and reads of other files; they reset on a new user turn. After an identical search sequence runs twice, it also denies the next matching search and latches that scope for the rest of the agent turn. A new user turn clears these latches. These are narrow loop/retry guards, not a task-wide limit on total calls, duration, or tokens. Decision record: [the repeat-tool-reminder Agent Note](../../../.agents/notes/archived/feature/2026-07-08-repeat-tool-guard.md).
+
+When the current user turn carries a TaskWeaver read-only subtask scope marker, the plugin also enforces workspace-relative paths before `read`/`read_image`/`glob`/`grep`/`find`/`ls` execute. Ordinary DSH sessions without the marker are unchanged; a malformed marker fails closed for filesystem reads/searches. An out-of-scope call is denied with guidance to use gathered evidence, continue within scope, or report the evidence gap. Bounded retries for repeated searches/reads apply only inside this TaskWeaver read-only scope; they do not cap the task as a whole.
 
 ## Config
 
@@ -10,7 +12,7 @@ An advisory loop-breaker, not a model-facing tool: it never appears in the tool 
 - id: repeat-tool-reminder
   name: '@z/dsh-repeat-tool-reminder'
   config:
-    thresholds: [3, 5, 8]        # default; consecutive counts that trigger a reminder
+    thresholds: [3, 5, 8]        # default; repeated-call / same-file-read reminder counts
     include: []                  # tool-name patterns to track; empty ⇒ all tools
     exclude: [todo_write]        # tool-name patterns transparent to the chain
     argumentsPreviewChars: 500   # default; cap on arguments quoted in the detailed reminder
@@ -22,26 +24,20 @@ An advisory loop-breaker, not a model-facing tool: it never appears in the tool 
 
 ## Chain semantics
 
-The chain key is `(tool name, canonical arguments)` — canonicalization is a deep key-sort plus `JSON.stringify`, so argument objects differing only in property order count as identical. A call identical to the previous tracked call increments the agent's consecutive counter; a different tracked call resets it to 1.
+The exact-call chain key is `(tool name, canonical arguments)` — canonicalization is a deep key-sort plus `JSON.stringify`, so argument objects differing only in property order count as identical. A call identical to the previous tracked call increments the agent's consecutive counter; a different tracked call resets it to 1. Separately, reads are counted by normalized file path for the current user turn, regardless of searches or reads of other paths between them; these counters are advisory only and do not block reading another needed range.
 
 - **Untracked calls are transparent to the chain.** A call excluded by `include`/`exclude` neither increments nor resets the counter, so `grep X → todo_write → grep X` still counts as two consecutive `grep X` when `todo_write` is excluded. This is what makes exclusion useful: bookkeeping tools interleaved into a loop must not launder it.
 - **Denied calls count.** Detection sits on `tools/post-execute`, which also runs for calls a `tools/pre-execute` listener denied — a model hammering a denied call is exactly the loop worth breaking.
 - **Calls without an agent are ignored.** A direct `ctx.tools.execute()` caller has no model to remind and no live agent object to key on.
-- **Per-agent keying.** The tool registry is context-level and subagents interleave through the same waterfall, so a `WeakMap<Agent, Chain>` keys each chain by the live agent object; one agent's repetition never trips another's reminder. A user prompt (`agent/pre-step`) resets the submitting agent's chain, and object lifetime bounds the weak entry without a disposal listener.
+- **Per-agent keying.** The tool registry is context-level and subagents interleave through the same waterfall, so `WeakMap<Agent, …>` keys exact-call and per-file read counts by the live agent object; one agent's repetition never trips another's reminder. A user prompt (`agent/pre-step`) resets the submitting agent's counters, and object lifetime bounds the weak entries without a disposal listener.
+- **Repeated search-cycle breaker.** The guard remembers only the recent suffix of tracked `glob`/`grep` calls as tool, normalized scope, and canonical query/options triples; different patterns at the same directory do not count as the same call. A non-search call resets that suffix. If the same 2–8 triple sequence repeats twice, the next matching call is denied before filesystem search runs, and that scope is latched for the remainder of the agent turn. The denial directs the one recovery response to use gathered evidence and answer rather than restart broad discovery; direct reads of already-known paths remain available. Retrying the blocked scope ends the turn at the next step boundary, before another LLM request. A new user turn clears the latch. This is a bounded recovery for a detected exact cycle, not a cumulative per-task call limit.
+- **TaskWeaver read-only loop guard.** Within each literal assigned search scope, ten varied `glob`/`grep`/`find`/`ls` attempts are allowed; a progress reminder arrives at six. Reads do not reset this counter. The next search is denied, one model recovery response may switch to reading, another scope, or a final answer, and retrying that denied scope ends the turn before another LLM request. An identical `read`/`read_image` call can execute three times; the fourth is denied. Reads of one file are capped at eight per agent turn even when the model keeps varying line ranges; after the first denial, one recovery response may use a different authorized file or finish, while retrying the blocked file ends the turn before another LLM request. Other authorized files and scopes, and remaining task work stay available. These counters reset on a new user-authored turn; they are not task-wide call, duration, or token budgets.
+- **TaskWeaver read-only path scope.** It activates only when the current user turn contains `<taskweaver-readonly-scope-v1>{"paths":[...]}</taskweaver-readonly-scope-v1>`. Each entry must be a literal workspace-relative path; absolute paths, the workspace root, wildcards, and `..` are rejected. Listed files/directories and descendant paths are accessible; other reads/searches are denied before execution. A `glob` call rooted at `.` is allowed only when its pattern is itself a literal path inside the assigned scope; wildcard/root-wide searches remain denied. A new user turn without a marker does not inherit the previous turn's scope. For marked TaskWeaver subagents, valid in-scope reads are additionally limited to eight attempts per file per agent turn, with one recovery response; ordinary Host sessions without the marker have no per-file read cap.
 - **In-memory only.** A session resumed from persistence starts with a fresh chain — the guard is a heuristic nudge, not a logged invariant, later reminders are the accepted cost.
-
-## Cumulative inspection budget
-
-An optional `inspectionTools`/`inspectionThresholds` pair counts different inspection calls across one user task, rather than only identical consecutive calls. At each configured threshold, and periodically beyond the last one using the same cadence, it advises the model to synthesize verified evidence and continue only for a concrete unresolved fact. This is advisory, never a hard call cap, so a justified long investigation can proceed. A new user-authored task resets the counter. Both fields must be configured together; an empty pair disables the feature.
-
-```yaml
-inspectionTools: [read, glob, grep, run_code]
-inspectionThresholds: [6, 10]
-```
 
 ## Reminder delivery
 
-Reminders ride the post-execute decision's `additionalContexts` (source `{kind: 'plugin', plugin: 'repeat-tool-reminder'}`), never a `content` replacement: the `tool/result` event stays the tool's own output for audit. The loop buffers the context and appends it as an injected `user/message` after the step's tool results, which the session renders as a plain synthetic user message — so the reminder is model-visible, source-attributed, and reconstructable from the session log with no new session event. The guard always delegates via `next()` and prepends its reminder to the downstream decision's context array (both variants — a blocked call still gets the nudge); every entry retains its own source and metadata.
+Reminders ride the post-execute decision's `additionalContexts` (source `{kind: 'plugin', plugin: 'repeat-tool-reminder'}`), never a `content` replacement: the `tool/result` event stays the tool's own output for audit. The loop buffers the context and appends it as an injected `user/message` after the step's tool results, which the session renders as a plain synthetic user message — so the reminder is model-visible, source-attributed, and reconstructable from the session log with no new session event. The reminder listener delegates via `next()` and prepends its context to the downstream decision's context array (both variants — a blocked call still gets the nudge); the separate search-cycle breaker denies before dispatch and explains why in the tool result.
 
 ## Model Experience
 
@@ -91,9 +87,8 @@ Append-only; newly visible content follows the reusable request prefix and does 
 
 ## Known Limitations and Deferred Work
 
-- **Exact-match detection only** — canonicalization is a deep key-sort, so near-identical variants (a tweaked path, extra whitespace inside a value) evade the chain; fuzzy matching is rejected pending evidence of need.
+- **Exact-cycle trigger** — cycle activation requires an exact canonical sequence, so changed queries or options may delay the initial latch; once triggered, all `glob`/`grep` calls at that scope are denied for the rest of the turn.
 - **Compaction does not reset chains** — a chain spanning a compaction checkpoint keeps counting.
-- **Advisory only** — escalating to `block` at a high threshold is not implemented, though `PostToolDecision` already supports blocking.
+- **No cross-turn persistence** — repeat chains reset for a new user-authored task and are not persisted across process restart.
 - **No subagent chain-sharing** — chains stay isolated per agent; a parent and its subagent repeating the same call never combine.
 - **Legitimate idempotent polling still draws nudges** past the thresholds — the pressure valves are `thresholds`/`exclude` config.
-- **Advisory only** — even recurring reminders do not stop evidence-driven long investigations.

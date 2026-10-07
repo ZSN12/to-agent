@@ -9,6 +9,7 @@ import { randomUUID } from 'node:crypto'
 import type { Context, Events } from '@z/cordis'
 import z from '@z/schemastery'
 import type { Agent, RequestErrorAction } from '@z/dsh-agent'
+import { EMPTY_RESPONSE_CODE } from '@z/dsh-llm'
 import type { LlmFailure, ResolvedRetryPolicy } from '@z/dsh-llm'
 import type { SessionEvent } from '@z/dsh-session'
 import { RetryId } from './brand.ts'
@@ -39,6 +40,33 @@ function validateConfig(config: Config): void {
 export interface RetryInternals {
   /** Random sample in the inclusive zero-to-one range used for jitter. */
   random?: () => number
+  /** Test seam for TaskWeaver's finite provider retry ceiling. */
+  taskweaverEmbedded?: boolean
+}
+
+const TASKWEAVER_MAX_PROVIDER_RETRIES = 3
+const TASKWEAVER_ALWAYS_RETRY_LIMIT = 1
+const TASKWEAVER_ALWAYS_RETRYABLE_CODES = Object.freeze([
+  EMPTY_RESPONSE_CODE,
+  'RATE_LIMIT',
+  'SERVER',
+  'TRANSPORT',
+])
+
+function taskweaverBoundedPolicy(policy: ResolvedRetryPolicy): ResolvedRetryPolicy {
+  const retryableCodes = policy.mode === 'always'
+    ? [...TASKWEAVER_ALWAYS_RETRYABLE_CODES]
+    : policy.retryableCodes.filter((code) => code !== 'TIMEOUT')
+  return {
+    mode: 'normal',
+    maxRetries: policy.mode === 'always'
+      ? TASKWEAVER_ALWAYS_RETRY_LIMIT
+      : Math.min(policy.maxRetries, TASKWEAVER_MAX_PROVIDER_RETRIES),
+    retryableCodes,
+    initialDelayMs: policy.initialDelayMs,
+    maxDelayMs: policy.maxDelayMs,
+    jitterRatio: policy.jitterRatio,
+  }
 }
 
 type DownstreamOutcome =
@@ -99,6 +127,8 @@ function cancellableDelay(delayMs: number, signal: AbortSignal): Promise<boolean
 export function apply(ctx: Context, config: Config = {}, internals: RetryInternals = {}): void {
   validateConfig(config)
   const random = internals.random ?? Math.random
+  const taskweaverEmbedded = internals.taskweaverEmbedded
+    ?? process.env.DSH_TASKWEAVER_EMBEDDED === '1'
   const lifetime = new AbortController()
   const active = new Set<Promise<RequestErrorAction>>()
 
@@ -154,10 +184,17 @@ export function apply(ctx: Context, config: Config = {}, internals: RetryInterna
   }
 
   async function recover(
-    { agent, turn, step, provider, failure, retryPolicy: policy, signal }: Parameters<Events['agent/request-error']>[0],
+    { agent, turn, step, provider, failure, retryPolicy: registeredPolicy, signal }: Parameters<Events['agent/request-error']>[0],
     next: () => Promise<RequestErrorAction>,
   ): Promise<RequestErrorAction> {
-    if (policy === undefined) return next()
+    if (registeredPolicy === undefined) return next()
+    // DSH keeps its provider-owned policy semantics. TaskWeaver embeds the same
+    // Host but must never let an imported/user `always` policy create an
+    // unbounded billable retry loop. This central clamp also covers native
+    // providers that do not pass through TaskWeaver's models.json mapper.
+    const policy = taskweaverEmbedded
+      ? taskweaverBoundedPolicy(registeredPolicy)
+      : registeredPolicy
     if (policy.mode === 'always') {
       if (signal.aborted || lifetime.signal.aborted) return
       const fusedSignal = AbortSignal.any([signal, lifetime.signal])

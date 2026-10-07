@@ -3,6 +3,10 @@ const STOP_WORDS = new Set([
   '请帮', '帮我', '一下', '怎么', '如何', '以及', '然后', '并且', '查看', '读取', '分析',
 ])
 
+export function precomputeQueryTerms(value) {
+  return terms(value)
+}
+
 function terms(value) {
   const normalized = String(value ?? '').toLocaleLowerCase()
   const result = new Set(normalized.match(/[\p{L}\p{N}_]{2,}/gu) ?? [])
@@ -16,8 +20,8 @@ function terms(value) {
 }
 
 /** Deterministic lexical relevance score; deliberately local and dependency-free. */
-export function scoreTextRelevance(query, text, { pathText = '', titleText = '' } = {}) {
-  const queryTerms = terms(query)
+export function scoreTextRelevance(query, text, { pathText = '', titleText = '', precomputedTerms = null } = {}) {
+  const queryTerms = precomputedTerms ?? terms(query)
   if (!queryTerms.length) return 0
   const body = String(text ?? '').toLocaleLowerCase()
   const filePath = `${pathText} ${titleText}`.toLocaleLowerCase()

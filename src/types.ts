@@ -4,6 +4,13 @@ export type ThinkingLevel = 'off' | 'low' | 'medium' | 'high'
 
 export type AssistantContentBlock = { id: string; kind: 'thinking' | 'text'; text: string }
 
+export interface ModifiedFileSummary {
+  path: string
+  addedLines?: number
+  deletedLines?: number
+  isNewFile?: boolean
+}
+
 export interface ModelOption {
   id: string
   name: string
@@ -27,6 +34,8 @@ export interface ChatMessage {
   thinkingDurationMs?: number
   /** 一轮内多段 Think / 正文（工具循环后会有多组） */
   contentBlocks?: AssistantContentBlock[]
+  /** 本轮 Host edit/write 结果的轻量文件摘要，不包含源码 diff 正文。 */
+  fileChanges?: ModifiedFileSummary[]
   modelKey?: string
   callout?: string
   usage?: ChatUsage

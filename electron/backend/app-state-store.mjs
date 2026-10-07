@@ -132,7 +132,7 @@ export function createAppStateStore(userDataPath, fallbackWorkspace) {
       return getState()
     },
     async setPermissionMode(permissionMode) {
-      if (!['ask', 'on-risk', 'full'].includes(permissionMode)) throw new Error('权限模式无效')
+      if (!['readonly', 'ask', 'on-risk', 'full'].includes(permissionMode)) throw new Error('权限模式无效')
       await ensureInitialized()
       return toAppState(await threadStore.setCurrent({ permissionMode }))
     },
@@ -197,6 +197,18 @@ export function createAppStateStore(userDataPath, fallbackWorkspace) {
         taskId: entry?.taskId ? String(entry.taskId).slice(0, TASK_ID_MAX_LENGTH) : undefined,
         startedAt: Number.isFinite(entry?.startedAt) ? entry.startedAt : Date.now(),
         durationMs: Number.isFinite(entry?.durationMs) ? Math.max(0, entry.durationMs) : null,
+        ...(entry?.fileDiff && typeof entry.fileDiff.path === 'string' ? {
+          // Keep only the compact summary needed after reload. Full source diffs
+          // stay in the live event/UI path and are not duplicated in app logs.
+          fileDiff: {
+            path: entry.fileDiff.path.slice(0, 4096),
+            diff: '',
+            type: String(entry.fileDiff.type ?? entry.toolName ?? 'edit').slice(0, 32),
+            ...(Number.isFinite(entry.fileDiff.addedLines) ? { addedLines: Math.max(0, entry.fileDiff.addedLines) } : {}),
+            ...(Number.isFinite(entry.fileDiff.deletedLines) ? { deletedLines: Math.max(0, entry.fileDiff.deletedLines) } : {}),
+            ...(entry.fileDiff.isNewFile === true ? { isNewFile: true } : {}),
+          },
+        } : {}),
       }
       return toAppState(await threadStore.updateCurrent((thread) => ({
         outputLogs: [...thread.outputLogs.filter((item) => item.id !== safe.id), safe].slice(-MAX_OUTPUT_LOGS),
@@ -213,6 +225,16 @@ export function createAppStateStore(userDataPath, fallbackWorkspace) {
         taskId: entry?.taskId ? String(entry.taskId).slice(0, TASK_ID_MAX_LENGTH) : undefined,
         startedAt: Number.isFinite(entry?.startedAt) ? entry.startedAt : Date.now(),
         durationMs: Number.isFinite(entry?.durationMs) ? Math.max(0, entry.durationMs) : null,
+        ...(entry?.fileDiff && typeof entry.fileDiff.path === 'string' ? {
+          fileDiff: {
+            path: entry.fileDiff.path.slice(0, 4096),
+            diff: '',
+            type: String(entry.fileDiff.type ?? entry.toolName ?? 'edit').slice(0, 32),
+            ...(Number.isFinite(entry.fileDiff.addedLines) ? { addedLines: Math.max(0, entry.fileDiff.addedLines) } : {}),
+            ...(Number.isFinite(entry.fileDiff.deletedLines) ? { deletedLines: Math.max(0, entry.fileDiff.deletedLines) } : {}),
+            ...(entry.fileDiff.isNewFile === true ? { isNewFile: true } : {}),
+          },
+        } : {}),
       }
       return toAppState(await threadStore.updateConversation(conversationId, (thread) => ({
         outputLogs: [...thread.outputLogs.filter((item) => item.id !== safe.id), safe].slice(-MAX_OUTPUT_LOGS),

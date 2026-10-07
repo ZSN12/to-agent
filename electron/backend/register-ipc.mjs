@@ -10,13 +10,14 @@ import { createDshChatService } from './dsh-chat-service.mjs'
 import { createChatTurnPersistence } from './chat-turn-persistence.mjs'
 import { createOrchestrationService, PlannerFallbackError } from './orchestration-service.mjs'
 import { createSkillService } from './skill-service.mjs'
-import { decideExecutionMode, resolveExecutionMode } from './orchestration-policy.mjs'
-import { createPermissionService } from './permission-service.mjs'
-import { resolvePermissionPrompt } from './permission-prompt-bridge.mjs'
+import { decideExecutionMode, resolveExecutionMode, workModeExecutionOverride } from './orchestration-policy.mjs'
+import { createPermissionService, clearSessionPermissionGrants } from './permission-service.mjs'
+import { routePermissionPromptResponse } from './permission-prompt-bridge.mjs'
 import { createPermissionRulesStore } from './permission-rules-store.mjs'
 import { createWorkspaceIndex } from './workspace-index.mjs'
 import { isWorkspacePath } from './workspace-index.mjs'
-import { assembleWorkspaceContext } from './context-assembler.mjs'
+import { assembleWorkspaceContext, workspaceContextLimits } from './context-assembler.mjs'
+import { composePromptPipeline } from './prompt-pipeline.mjs'
 import { createWorkspaceTrustService } from './workspace-trust-service.mjs'
 import { createMcpService } from './mcp-service.mjs'
 import {
@@ -35,7 +36,7 @@ import { createUsageStore } from './usage-store.mjs'
 import { createPricingSyncService } from './pricing-sync-service.mjs'
 import { assertSafeWorkspacePath } from './security-path.mjs'
 import { detectVerificationCommands } from './verification-policy.mjs'
-import { analyzeUserIntent, injectIntentGuidelines } from './user-intent.mjs'
+import { analyzeUserIntent, injectIntentGuidelines, USER_INTENTS } from './user-intent.mjs'
 import { resolvePrimaryAgentPreset } from './primary-agent-preset.mjs'
 import { createTerminalService } from './terminal-service.mjs'
 import { diagnoseEnvironment, diagnoseTool } from './env-service.mjs'
@@ -367,6 +368,7 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
     profileStore,
     modelService,
     onTurnCompleted: persistNativeTurn,
+    logger: console,
     getPermissionMode: async (conversationId) => {
       const state = conversationId && appState.getConversationState
         ? await appState.getConversationState(conversationId)
@@ -494,9 +496,13 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
     // 回收 DSH 侧：删掉映射条目（含编排子会话）并断开 hub 订阅。
     // 磁盘上的会话日志保留 —— 删除不可逆，日志仍可用于排查与恢复。
     if (target?.conversationId) {
+      clearSessionPermissionGrants(target.conversationId)
       try {
         const { removed } = await chat.forgetConversation(target.conversationId)
-        for (const conversationId of removed) conversationHub.detachSession(conversationId)
+        for (const conversationId of removed) {
+          clearSessionPermissionGrants(conversationId)
+          conversationHub.detachSession(conversationId)
+        }
       } catch (error) {
         console.warn('[register-ipc] deleteThread 回收 DSH 会话映射失败:', error instanceof Error ? error.message : error)
       }
@@ -524,28 +530,61 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
 
   ipcHandle(ipcMain, 'app:forkThread', async (_event, threadId, messageId) => {
     const source = (await appState.listThreads()).find((thread) => thread.id === threadId)
-    if (source?.conversationId) assertNotBusy(source.conversationId)
+    if (!source) throw new Error('找不到要分支的会话')
+    if (!source.conversationId) throw new Error('源会话没有可继承的 Z Host 上下文，无法安全创建分支')
+    assertNotBusy(source.conversationId)
+    const previousState = await appState.getState()
     await chat.resetSession()
     const state = await appState.forkThread(threadId, messageId)
-    await refreshWorkspaceCache()
-    // fork 出来的对话此前是「UI 有消息、模型是空的」：DSH 侧是新建的空会话。
+    // fork 出来的对话此前是「UI 有消息、模型是空的」：Z Host 侧是新建的空会话。
     // 这里同步 fork 源 DSH 会话，让分支真正继承上下文。
-    if (source?.conversationId && state?.conversationId) {
-      try {
-        const completedTurns = await resolveForkCompletedTurns(source.conversationId, messageId)
-        const result = await chat.forkConversation({
-          sourceConversationId: source.conversationId,
-          targetConversationId: state.conversationId,
-          completedTurns,
-        })
-        if (!result?.ok) {
-          console.warn('[register-ipc] forkThread 未继承 DSH 上下文:', result?.reason, result?.error ?? '')
-        }
-      } catch (error) {
-        console.warn('[register-ipc] forkThread 同步 DSH 会话失败:', error instanceof Error ? error.message : error)
+    try {
+      if (!state?.conversationId) throw new Error('本地分支记录未生成 conversationId')
+      const completedTurns = await resolveForkCompletedTurns(source.conversationId, messageId)
+      const result = await chat.forkConversation({
+        sourceConversationId: source.conversationId,
+        targetConversationId: state.conversationId,
+        completedTurns,
+      })
+      if (!result?.ok) {
+        const detail = [result?.reason, result?.error].filter(Boolean).join(': ')
+        throw new Error(`Z Host 未能继承源会话上下文${detail ? `（${detail}）` : ''}`)
       }
+      await refreshWorkspaceCache()
+      return state
+    } catch (error) {
+      // appState.forkThread writes the visible branch before the Host can
+      // create/persist its non-derivable child session ID. Roll the UI branch
+      // back on any Host failure so users never see inherited messages paired
+      // with an empty model session.
+      const cleanupErrors = []
+      if (state?.conversationId) {
+        try {
+          await chat.forgetConversation(state.conversationId)
+          conversationHub.detachSession(state.conversationId)
+        } catch (cleanupError) {
+          cleanupErrors.push(cleanupError instanceof Error ? cleanupError.message : String(cleanupError))
+        }
+      }
+      try {
+        const beforeRollback = state?.currentThreadId ? await appState.getState() : null
+        const branchWasCurrent = beforeRollback?.currentThreadId === state?.currentThreadId
+        if (state?.currentThreadId) await appState.deleteThread(state.currentThreadId)
+        const remaining = await appState.listThreads()
+        if (branchWasCurrent && previousState?.currentThreadId
+          && remaining.some((thread) => thread.id === previousState.currentThreadId)) {
+          await appState.switchThread(previousState.currentThreadId)
+        }
+        await refreshWorkspaceCache()
+      } catch (cleanupError) {
+        cleanupErrors.push(cleanupError instanceof Error ? cleanupError.message : String(cleanupError))
+      }
+      const message = error instanceof Error ? error.message : String(error)
+      const cleanupNote = cleanupErrors.length
+        ? `；清理未完成：${cleanupErrors.join('；')}`
+        : '；未完成的分支记录已回滚'
+      throw new Error(`创建会话分支失败：${message}${cleanupNote}`)
     }
-    return state
   })
 
   ipcHandle(ipcMain, 'app:setPermissionMode', async (_event, mode) => {
@@ -959,8 +998,10 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
     return stats
   })
 
-  ipcHandle(ipcMain, 'permission:respondPrompt', (_event, id, response) => {
-    const ok = resolvePermissionPrompt(id, response)
+  ipcHandle(ipcMain, 'permission:respondPrompt', async (_event, id, response) => {
+    const ok = await routePermissionPromptResponse(id, response, {
+      respondHostApproval: (approvalId, decision) => chat.respondApproval(approvalId, decision),
+    })
     return { ok }
   })
 
@@ -1171,22 +1212,60 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
   /**
    * 根据工作模式准备提示词
    */
-  const preparePromptByWorkMode = (text, workMode, assembled) => {
-    let effectiveOverride = null
-    let effectivePrompt = assembled.prompt
+  const preparePromptByWorkMode = async (text, workMode, assembled) => {
+    const effectiveOverride = workModeExecutionOverride(workMode)
+    const intent = workMode === 'goal' ? null : analyzeUserIntent(text, workMode)
+    let guidanceText = ''
 
-    if (workMode === 'goal') {
-      effectiveOverride = 'multi-agent'
-    } else if (workMode === 'plan') {
-      effectiveOverride = 'single-agent'
-      effectivePrompt = `【系统模式：计划模式 (Plan Mode)】\n请对用户提出的需求进行系统性推演与架构分析，输出严密、详尽、步骤明确的逐步实施计划（Step-by-step Execution Plan），列出涉及的文件路径、接口改动、验证方案与风险点。请注意：在计划模式下专注于生成规划方案，不要修改工作区代码。\n\n需求详情：\n${assembled.prompt}`
-    } else {
-      const intent = analyzeUserIntent(text, workMode)
+    if (workMode !== 'goal') {
+      // Goal explicitly selects the multi-agent execution mode. Ordinary code
+      // mode remains single-agent unless the user chooses otherwise. Plan mode
+      // is Host-owned; its state/guidance comes from Host projections and is
+      // not simulated with a local prompt prefix or read-only claim.
       const policy = detectVerificationCommands(cachedWorkspace)
-      effectivePrompt = injectIntentGuidelines(effectivePrompt, intent, policy)
+      const prefs = await appPreferences.get()
+      const guidedPrompt = injectIntentGuidelines(assembled.prompt, intent, policy, {
+        autoVerifyAfterMutation: prefs.autoVerifyAfterMutation === true,
+      })
+      if (!guidedPrompt.startsWith(assembled.prompt)) {
+        throw new Error('意图指引必须以可单独记账的后缀形式追加')
+      }
+      guidanceText = guidedPrompt.slice(assembled.prompt.length)
     }
 
-    return { effectiveOverride, effectivePrompt }
+    const injectedLayers = assembled.layers
+    if (!injectedLayers || !Array.isArray(injectedLayers.prefix) || !Array.isArray(injectedLayers.suffix)) {
+      throw new Error('工作区上下文缺少可审计的注入层明细，已阻止发送')
+    }
+    const guidanceLayerId = intent === USER_INTENTS.CODE_MUTATION
+      ? 'verification-guidance'
+      : 'intent-guidance'
+    const suffixLayers = [...injectedLayers.suffix]
+    if (guidanceText) {
+      suffixLayers.push({ id: guidanceLayerId, text: guidanceText, required: false, priority: 0 })
+    }
+    const composed = composePromptPipeline({
+      userText: text,
+      prefixLayers: injectedLayers.prefix,
+      suffixLayers,
+      maxInjectedBytes: workspaceContextLimits.MAX_CONTEXT_INJECTION_BYTES,
+    })
+    const effectivePrompt = composed.prompt
+    const userBytes = Buffer.byteLength(text, 'utf8')
+    const sourceBytes = assembled.sourceBytes ?? { context: Math.max(0, Buffer.byteLength(assembled.prompt, 'utf8') - userBytes), sandboxPolicy: 0 }
+    return {
+      effectiveOverride,
+      effectivePrompt,
+      promptStats: {
+        userBytes,
+        contextBytes: sourceBytes.context ?? 0,
+        sandboxPolicyBytes: sourceBytes.sandboxPolicy ?? 0,
+        intentGuidanceBytes: composed.layerBytes['intent-guidance'] ?? 0,
+        verificationGuidanceBytes: composed.layerBytes['verification-guidance'] ?? 0,
+        totalInjectedBytes: composed.injectedBytes,
+        droppedLayers: composed.droppedLayers,
+      },
+    }
   }
 
   /**
@@ -1345,6 +1424,7 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
       contentBlocks: Array.isArray(result.contentBlocks) ? result.contentBlocks : undefined,
       modelKey: activeKey,
       usage: result.usage,
+      fileChanges: result.fileChanges,
       callout,
       interrupted: Boolean(result.cancelled),
     }
@@ -1386,7 +1466,7 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
     const { modelKey: activeKey } = await validateAndResolveModel(text, modelKey)
     const command = nativeChatCommand(text)
     if (command) {
-      // Native maintenance is not a coding task. Do not inject sandbox/task
+      // Native Host commands are not coding tasks. Do not inject sandbox/task
       // prose, skill content, snapshots or planner decisions into its syntax.
       const { messageId, time, userEntry } = await createUserMessage(command, conversationId)
       let result
@@ -1406,17 +1486,18 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
       sandboxContextLine: sandboxContextLineForContext(runtimeContext),
     })
 
-    const { effectiveOverride, effectivePrompt } = preparePromptByWorkMode(text, workMode, assembled)
+    const { effectiveOverride, effectivePrompt, promptStats } = await preparePromptByWorkMode(text, workMode, assembled)
+    console.debug('[prompt-pipeline] injection byte accounting', {
+      conversationId,
+      scope: 'workspace context, sandbox policy, intent and verification; explicitly selected Skill is accounted by the chat service',
+      maxInjectedBytes: workspaceContextLimits.MAX_CONTEXT_INJECTION_BYTES,
+      ...promptStats,
+      ratioToUserText: promptStats.userBytes ? Number((promptStats.totalInjectedBytes / promptStats.userBytes).toFixed(2)) : null,
+      contextTruncated: assembled.contextTruncated === true,
+    })
 
     const decision = decideExecutionMode(text, selectedSkill)
     const execution = resolveExecutionMode(decision, effectiveOverride || executionModeOverride)
-    if (execution.mode === 'ask-user') {
-      return {
-        needsOrchestrationChoice: true,
-        reason: decision.reason,
-        suggestedMode: decision.suggestedMode ?? 'multi-agent',
-      }
-    }
 
     const { messageId, time, userEntry } = await createUserMessage(text, conversationId)
 
@@ -1443,9 +1524,15 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
       const assembled = await assembleWorkspaceContext(text, runtimeContext.workspacePath, {
         sandboxContextLine: sandboxContextLineForContext(runtimeContext),
       })
+      const composed = composePromptPipeline({
+        userText: text,
+        prefixLayers: assembled.layers.prefix,
+        suffixLayers: assembled.layers.suffix,
+        maxInjectedBytes: workspaceContextLimits.MAX_CONTEXT_INJECTION_BYTES,
+      })
       return permissions.withExecution(runtimeContext.permissionMode, event.sender, () => orchestration.sendTaskMessage({
         taskId,
-        text: assembled.prompt,
+        text: composed.prompt,
         conversationId,
         webContents: event.sender,
         workspacePath: runtimeContext.workspacePath,

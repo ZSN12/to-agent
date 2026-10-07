@@ -8,6 +8,8 @@
   "references": [
     { "path": "./packages/fs/tool-fs-search" },
     { "path": "./packages/guard/repeat-tool-reminder" },
+    { "path": "./packages/llm/llm-retry" },
+    { "path": "./packages/compaction/compaction-basic" },
     { "path": "./packages/subagent/tool-subagent-control" },
     { "path": "./apps/cli" }
   ]

@@ -309,6 +309,14 @@ function createExecutor(
   projections: WeakMap<ToolExecution, PreparedProjection>,
 ): ToolDefinition['execute'] {
   return async (args: unknown, exec: ToolExecution) => {
+    const agentPreset = exec.agent?.session?.header?.agentPreset
+    if (agentPreset === 'taskweaver-readonly' || agentPreset === 'taskweaver-planner') {
+      // MCP servers are external capability providers; their annotations are
+      // untrusted and cannot make a tool safe for a read-only/planner agent.
+      // Keep this check in the executor so a model call cannot bypass it by
+      // invoking a schema that was already present in the Host-wide catalog.
+      throw new Error('MCP tools are unavailable to read-only and planner agents')
+    }
     if (taskRequired) {
       throw new Error(`Tool "${rawName}" requires task-based execution, which this bridge does not support`)
     }

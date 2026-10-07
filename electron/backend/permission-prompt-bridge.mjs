@@ -51,3 +51,10 @@ export function resolvePermissionPrompt(id, response) {
   settle(response)
   return true
 }
+
+/** Route UI decisions to either the in-process permission fence or the Z Host approval RPC. */
+export async function routePermissionPromptResponse(id, response, { respondHostApproval } = {}) {
+  if (resolvePermissionPrompt(id, response)) return true
+  if (typeof respondHostApproval !== 'function') return false
+  return (await respondHostApproval(id, response)) === true
+}

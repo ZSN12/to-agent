@@ -70,7 +70,7 @@ try {
   assert.ok(failure && /402|balance/i.test(failure.message), 'provider error must propagate, not fabricate success')
   assert.equal(chat.isBusy(id), false)
   assert.equal(modelRequests, 2, 'one tool step, one failed model step; no retry')
-  assert.ok(events.some(event => event.type === 'delta' && event.full.includes('PARTIAL_BEFORE_FAILURE')))
+  assert.ok(events.some(event => event.type === 'delta' && (event.full ?? event.delta ?? '').includes('PARTIAL_BEFORE_FAILURE')))
   assert.ok(events.some(event => event.type === 'tool' && event.status === 'done' && event.toolName === 'read'))
   const terminal = events.findLast(event => event.type === 'error')
   assert.equal(terminal.full, 'PARTIAL_BEFORE_FAILURE', 'failure event must retain visible partial output')

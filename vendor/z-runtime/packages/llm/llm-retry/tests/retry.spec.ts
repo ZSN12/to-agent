@@ -691,6 +691,80 @@ describe('provider-routed retry policy', () => {
     ])
   })
 
+  it('bounds every provider policy in embedded TaskWeaver mode without imposing a turn budget', async () => {
+    vi.useFakeTimers()
+    const adapter = new ScriptedAdapter([
+      new LlmError('provider busy one', 'RATE_LIMIT'),
+      new LlmError('provider busy two', 'RATE_LIMIT'),
+      textResponse('this third request must not happen'),
+    ])
+    ;({ ctx: context } = await harness(adapter, {
+      mock: alwaysConfig({ initialDelayMs: 1, maxDelayMs: 1, jitterRatio: 0 }),
+    }, undefined, { random: () => 0.5, taskweaverEmbedded: true }))
+    const agent = context.agentLoop.create(SessionId('retry-taskweaver-always-cap'), {
+      provider: 'mock',
+      model: 'mock',
+    })
+    const scheduled = waitForRetry(context, agent, 1)
+    agent.followup(createUserMessage({ content: [{ type: 'text', text: 'retry this request once' }], source: { kind: 'user' } }))
+
+    const retryEvent = await scheduled
+    expect(retryEvent.data).toMatchObject({
+      mode: 'normal',
+      retry: 1,
+      maxRetries: 1,
+      failure: { code: 'RATE_LIMIT' },
+    })
+    const idle = waitForIdle(context, agent)
+    await vi.advanceTimersByTimeAsync(1)
+    await idle
+
+    expect(adapter.requests).toHaveLength(2)
+    expect(agent.session.events.filter(event => event.type === 'llm/retry')).toHaveLength(1)
+    expect(agent.session.events.at(-1)).toMatchObject({
+      type: 'turn/end',
+      data: { reason: { kind: 'error', error: { code: 'RATE_LIMIT' } } },
+    })
+  })
+
+  it('caps large finite provider policies at three retries and never replays a timed-out stream in TaskWeaver mode', async () => {
+    vi.useFakeTimers()
+    const adapter = new ScriptedAdapter([
+      new LlmError('busy one', 'SERVER'),
+      new LlmError('busy two', 'SERVER'),
+      new LlmError('busy three', 'SERVER'),
+      new LlmError('busy four', 'SERVER'),
+      textResponse('this fifth request must not happen'),
+    ])
+    ;({ ctx: context } = await harness(adapter, {
+      mock: normalConfig({
+        maxRetries: 9,
+        retryableCodes: ['SERVER', 'TIMEOUT'],
+        backoff: { initialDelayMs: 1, maxDelayMs: 1, jitterRatio: 0 },
+      }),
+    }, undefined, { random: () => 0.5, taskweaverEmbedded: true }))
+    const agent = context.agentLoop.create(SessionId('retry-taskweaver-finite-cap'), {
+      provider: 'mock',
+      model: 'mock',
+    })
+    const firstRetry = waitForRetry(context, agent, 1)
+    agent.followup(createUserMessage({ content: [{ type: 'text', text: 'keep provider retries finite' }], source: { kind: 'user' } }))
+    const firstEvent = await firstRetry
+    expect(firstEvent.data).toMatchObject({ mode: 'normal', maxRetries: 3 })
+    expect(firstEvent.data.policyKey).not.toContain('TIMEOUT')
+
+    const idle = waitForIdle(context, agent)
+    await vi.runAllTimersAsync()
+    await idle
+
+    expect(adapter.requests).toHaveLength(4)
+    expect(agent.session.events.filter(event => event.type === 'llm/retry')).toHaveLength(3)
+    expect(agent.session.events.at(-1)).toMatchObject({
+      type: 'turn/end',
+      data: { reason: { kind: 'error', error: { code: 'SERVER' } } },
+    })
+  })
+
   it('keeps failed error text and partial output out of every retried model context', async () => {
     vi.useFakeTimers()
     const diagnostic = 'private provider diagnostic must not enter context'

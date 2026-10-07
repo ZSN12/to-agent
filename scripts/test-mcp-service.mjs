@@ -162,6 +162,43 @@ try {
   await fs.rm(userData, { recursive: true, force: true })
 }
 
+// Provider success envelopes must contain a valid tool listing, and raw errors
+// must never cross the renderer/model boundary (including echoed test secrets).
+for (const failure of ['throw', 'payload', 'malformed']) {
+  const failed = createMcpService({
+    userData: path.join(await fs.mkdtemp(path.join(os.tmpdir(), 'mcp-error-')), 'config'),
+    connectClient: async () => ({
+      listTools: async () => {
+        if (failure === 'throw') throw new Error('Authorization: Bearer synthetic-secret')
+        return failure === 'payload' ? { error: { message: 'synthetic-secret' }, tools: [] } : {}
+      },
+      close: async () => {},
+    }),
+  })
+  await failed.saveServer({ id: 'failed', command: 'node', enabled: true })
+  const status = await failed.testConnection('failed')
+  assert.equal(status.status, 'error')
+  assert.doesNotMatch(JSON.stringify(status), /synthetic-secret|Authorization/)
+  await failed.stopAll()
+}
+const failingCalls = createMcpService({
+  userData: path.join(os.tmpdir(), `mcp-calls-${process.pid}`),
+  connectClient: async () => ({
+    listTools: async () => ({ tools: [{ name: 'fail', inputSchema: { type: 'object' } }] }),
+    callTool: async ({ arguments: args }) => {
+      if (args.kind === 'throw') throw new Error('synthetic-secret')
+      return args.kind === 'payload' ? { error: { message: 'synthetic-secret' } } : { isError: true, content: [{ type: 'text', text: 'synthetic-secret' }] }
+    },
+    close: async () => {},
+  }),
+})
+await failingCalls.saveServer({ id: 'failure', command: 'node', enabled: true })
+const failureTool = (await failingCalls.getCustomTools()).tools[0]
+for (const kind of ['throw', 'payload', 'isError']) {
+  await assert.rejects(() => failureTool.execute('error-call', { kind }), (error) => /MCP/.test(error.message) && !error.message.includes('synthetic-secret'))
+}
+await failingCalls.stopAll()
+
 const binding = getMcpDshRuntimeBinding()
 assert.equal(binding.dshWired, true)
 assert.match(binding.executionNote, /Z Host/)

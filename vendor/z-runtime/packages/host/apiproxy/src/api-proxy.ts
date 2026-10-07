@@ -2582,7 +2582,7 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
       },
 
       cancel(request) {
-        const { sessionId } = request.payload
+        const { sessionId, clearPendingUserInput = false } = request.payload
         const agent = ctx.agents.get(sessionId)
         if (agent === undefined) {
           return Promise.resolve(err(request, {
@@ -2593,6 +2593,18 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
         }
         if (hasSubagentOwner(agent.session, agent)) {
           return Promise.resolve(err(request, subagentOwnershipError(sessionId)))
+        }
+        if (clearPendingUserInput) {
+          // Stop + inbox cleanup is one Host-side synchronous transition. A
+          // client-side queue snapshot can lag this RPC on the separate mux
+          // transport, so clearing by a stale snapshot is not race-safe.
+          // Match the browser's queue semantics: every next-turn item is a
+          // queued follow-up, while only user-origin next-step items are
+          // steering. Preserve plugin/context messages in next-step.
+          for (const message of [...agent.inbox.nextTurn]) agent.inbox.remove(message.id)
+          for (const message of [...agent.inbox.nextStep]) {
+            if (message.source.kind === 'user') agent.inbox.remove(message.id)
+          }
         }
         agent.cancel({ kind: 'user' }, { keepInbox: true })
         return Promise.resolve(ok(request, { accepted: true as const }))

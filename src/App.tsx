@@ -81,8 +81,12 @@ import { ChatBehaviorSettingsPanel } from './features/chat/ChatBehaviorSettingsP
 import { SubagentSessionTree } from './features/orchestration/SubagentSessionTree'
 import { ThreadRunningIndicator } from './features/chat/ThreadRunningIndicator'
 import { DshToolCallList } from './features/chat/DshToolCallList'
+import { ChangedFilesSummary } from './features/chat/ChangedFilesSummary'
 import { MessageTurnUsageChip } from './features/chat/MessageTurnUsageChip'
-import type { DshProjectedToolCall } from './shared/app-api'
+import { HostTodoProjection } from './features/chat/HostTodoProjection'
+import { ContextInjectionRow } from './features/chat/ContextInjectionRow'
+import { isDshContextMessage } from './features/dsh-runtime/dshTranscriptMessages'
+import type { DshProjectedToolCall, HostTodoItem } from './shared/app-api'
 import { DetailsPanel } from './features/chat/DetailsPanel'
 import type { BusyEnterMode, LiveContextUsage, PermissionPromptPayload, SessionStatsSnapshot, UserQuestionAnswer, UserQuestionPromptPayload } from './shared/app-api'
 import { skillOptionSourceLabel } from './shared/app-api'
@@ -2039,9 +2043,32 @@ function DeepDivingIndicator({ startTime, activity }: { startTime?: number; acti
     <div className="dsh-deep-diving-row" role="status" aria-live="polite">
       <span className="dsh-diving-text">Deep diving...</span>
       {activity && <span className="dsh-diving-sub">{activity}</span>}
-      {showClock && <span className="dsh-diving-timer">{clockLabel}</span>}
+      {showClock && <span className="dsh-diving-timer" aria-live="off">{clockLabel}</span>}
     </div>
   )
+}
+
+function visibleToolActivity(item: ToolTraceItem, workspacePath?: string | null): string {
+  const verbs: Record<string, string> = {
+    edit: '正在修改',
+    write: '正在写入',
+    read: '正在读取',
+    grep: '正在搜索',
+    find: '正在查找',
+    glob: '正在查找',
+    bash: '正在运行命令',
+    run_code: '正在执行代码',
+  }
+  const filePath = item.inputSummary || item.fileDiff?.path || ''
+  const root = workspacePath?.replace(/\\/g, '/').replace(/\/$/, '')
+  const normalized = filePath.replace(/\\/g, '/')
+  const displayPath = root && normalized.toLocaleLowerCase().startsWith(`${root}/`.toLocaleLowerCase())
+    ? normalized.slice(root.length + 1)
+    : normalized
+  const verb = verbs[item.toolName] ?? `正在执行 ${item.toolName}`
+  return displayPath && ['edit', 'write', 'read'].includes(item.toolName)
+    ? `${verb} · ${displayPath}`
+    : verb
 }
 
 function Message({
@@ -2101,6 +2128,10 @@ function Message({
       ? (message.usage.inputTokens ?? 0) + (message.usage.cacheReadTokens ?? 0) + (message.usage.cacheWriteTokens ?? 0)
       : 0
   const hasTurnUsage = !isUser && message.usage && (billed > 0 || message.usage.outputTokens > 0)
+  const activeToolTrace = [...(toolTraceItems ?? [])].reverse().find((item) => item.status === 'running')
+  const visibleActivity = activeToolTrace
+    ? visibleToolActivity(activeToolTrace, workspacePath)
+    : streamActivity
 
   return (
     <article
@@ -2114,6 +2145,9 @@ function Message({
             summary={message.compaction.summary}
             tokensBefore={message.compaction.tokensBefore}
           />
+        )}
+        {!isUser && isStreaming && (
+          <DeepDivingIndicator startTime={message.timestamp} activity={visibleActivity} />
         )}
         {!isUser && !message.compaction && (
           <AssistantTurnBody
@@ -2135,13 +2169,18 @@ function Message({
             />
           </div>
         )}
+        {!isUser && (
+          <ChangedFilesSummary
+            traces={toolTraceItems}
+            fileChanges={message.fileChanges}
+            workspacePath={workspacePath}
+            onOpenWorkspacePath={onOpenWorkspacePath}
+          />
+        )}
         {isUser && message.text && (
           <div className="user-message-stack">
             <div className="message-text user-message-bubble">{message.text}</div>
           </div>
-        )}
-        {!isUser && isStreaming && (
-          <DeepDivingIndicator startTime={message.timestamp} activity={streamActivity} />
         )}
         {message.interrupted && <div className="message-interrupted-label">已中断</div>}
         {message.callout && <div className="message-callout">{message.callout}</div>}
@@ -2538,9 +2577,9 @@ function findContextQuery(text: string, cursor: number) {
 }
 
 const permissionOptions: { mode: PermissionMode; title: string; description: string }[] = [
-  { mode: 'ask', title: '请求批准', description: '运行终端命令或访问工作区外文件前先询问。' },
-  { mode: 'on-risk', title: '仅高风险操作询问', description: '常规工作区操作直接执行；识别到高风险操作时询问。' },
-  { mode: 'full', title: '完全权限', description: '不弹出工具审批；Agent 可通过命令访问本机文件与网络。' },
+  { mode: 'readonly', title: '只读', description: 'Host read-only：禁止修改文件；计划审阅或纯理解任务可用。' },
+  { mode: 'ask', title: '工作区可写', description: 'Host workspace-write：工作区内可改；越界时请求审批。' },
+  { mode: 'full', title: '完全访问', description: 'Host danger-full-access：关闭沙箱；意外审批仍会显示。' },
 ]
 
 interface SlashCommandItem {
@@ -2567,13 +2606,12 @@ const BUILTIN_SLASH_COMMANDS: SlashCommandItem[] = [
   },
   {
     id: 'plan',
-    kind: 'mode',
+    kind: 'action',
     command: 'plan',
     title: '计划模式',
-    description: '开启只读规划与架构推演，输出分步实施计划，不修改文件',
+    description: '执行 Host 原生 /plan 命令；状态来自当前会话投影，不代表只读权限',
     icon: ListTodo,
-    badge: '只读',
-    mode: 'plan',
+    badge: 'Host',
   },
   {
     id: 'code',
@@ -2598,7 +2636,9 @@ const BUILTIN_SLASH_COMMANDS: SlashCommandItem[] = [
 function PermissionSelect({ value, onChange }: { value: PermissionMode; onChange: (mode: PermissionMode) => void }) {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
-  const selected = permissionOptions.find((option) => option.mode === value) ?? permissionOptions[0]
+  const selected = permissionOptions.find((option) => option.mode === value)
+    ?? (value === 'on-risk' ? permissionOptions.find((option) => option.mode === 'ask') : undefined)
+    ?? permissionOptions[1]
   useEffect(() => {
     if (!open) return
     const dismiss = (event: MouseEvent) => {
@@ -2821,6 +2861,8 @@ function Composer({
   messages,
   sessionStats,
   liveContext,
+  hostPlanModeActive,
+  hostTodos,
   onPermissionModeChange,
   onModelChange,
   onSend,
@@ -2860,6 +2902,8 @@ function Composer({
   messages?: ChatMessage[]
   sessionStats?: SessionStatsSnapshot | null
   liveContext?: LiveContextUsage | null
+  hostPlanModeActive?: boolean | null
+  hostTodos?: HostTodoItem[] | null
   onPermissionModeChange: (mode: PermissionMode) => void
   onModelChange: (model: ModelOption) => void
   thinkingLevel?: ThinkingLevel
@@ -2880,7 +2924,7 @@ function Composer({
   currentThreadId?: string | null
   permissionPrompt?: PermissionPromptPayload | null
   onRespondPermission?: (
-    action: 'allow-once' | 'allow-always' | 'deny' | 'escalate-once',
+    action: 'allow-once' | 'allow-always' | 'allow-always-session' | 'deny' | 'escalate-once',
     sandboxMode?: 'workspace-write' | 'danger-full-access',
   ) => void
   userQuestionPrompt?: UserQuestionPromptPayload | null
@@ -3001,12 +3045,13 @@ function Composer({
 
   const chooseCommand = (cmd: SlashCommandItem) => {
     if (!skillQuery) return
-    if (cmd.id === 'compact') {
-      setValue('/compact')
+    if (cmd.id === 'compact' || cmd.id === 'plan') {
+      const commandText = `/${cmd.command}`
+      setValue(commandText)
       setSkillQuery(null)
       requestAnimationFrame(() => {
         textareaRef.current?.focus()
-        textareaRef.current?.setSelectionRange(8, 8)
+        textareaRef.current?.setSelectionRange(commandText.length, commandText.length)
       })
       return
     }
@@ -3087,14 +3132,19 @@ function Composer({
       return
     }
 
+    const planLower = raw.toLowerCase()
+    if (planLower === '/plan' || planLower === '/plan off' || planLower.startsWith('/plan ')) {
+      onSend(raw, null, 'code')
+      setValue('')
+      setSelectedSkill(null)
+      setSkillQuery(null)
+      setContextQuery(null)
+      return
+    }
+
     let effectiveMode = workMode
     let message = raw
 
-    if (raw.toLowerCase() === '/plan') {
-      setWorkMode('plan')
-      setValue('')
-      return
-    }
     if (raw.toLowerCase() === '/goal') {
       setWorkMode('goal')
       setValue('')
@@ -3106,11 +3156,7 @@ function Composer({
       return
     }
 
-    if (raw.toLowerCase().startsWith('/plan ')) {
-      effectiveMode = 'plan'
-      message = raw.slice(6).trim()
-      setWorkMode('plan')
-    } else if (raw.toLowerCase().startsWith('/goal ')) {
+    if (raw.toLowerCase().startsWith('/goal ')) {
       effectiveMode = 'goal'
       message = raw.slice(6).trim()
       setWorkMode('goal')
@@ -3145,6 +3191,7 @@ function Composer({
 
   return (
     <div className="composer-shell">
+      <HostTodoProjection items={hostTodos ?? null} />
       {permissionPrompt && onRespondPermission && (
         <div className="composer-approval-slot">
           <ApprovalPanel prompt={permissionPrompt} onRespond={onRespondPermission} />
@@ -3436,15 +3483,16 @@ function Composer({
           <div className="composer-left">
             <button type="button" className="composer-icon" aria-label="添加文件或上下文" title="添加文件或上下文" onClick={openContextMenu}><Plus size={23} /></button>
             <PermissionSelect value={permissionMode} onChange={onPermissionModeChange} />
-            {workMode === 'plan' && (
+            {hostPlanModeActive === true && (
               <button
                 type="button"
                 className="selected-skill-chip mode-chip plan"
-                onClick={() => setWorkMode('code')}
-                title="当前为计划模式（只读）。点击恢复常规执行。"
+                disabled={sending}
+                onClick={() => onSend('/plan off', null, 'code')}
+                title="Host 当前会话投影显示 Plan mode。它不代表文件只读权限。点击发送 Host 原生 /plan off。"
               >
                 <ListTodo size={13} />
-                <span>计划模式 (只读)</span>
+                <span>Plan mode · Host</span>
                 <X size={13} />
               </button>
             )}
@@ -3553,6 +3601,8 @@ function MainConversation({
   onBusyEnterModeChange,
   liveContext,
   sessionStats,
+  hostPlanModeActive,
+  hostTodos,
   backendError,
   threadTitle,
   taskCount,
@@ -3620,6 +3670,8 @@ function MainConversation({
   onBusyEnterModeChange?: (mode: BusyEnterMode) => void
   liveContext?: LiveContextUsage | null
   sessionStats?: SessionStatsSnapshot | null
+  hostPlanModeActive?: boolean | null
+  hostTodos?: HostTodoItem[] | null
   backendError?: string | null
   threadTitle: string
   taskCount: number
@@ -3654,7 +3706,7 @@ function MainConversation({
   onDismissInterrupted?: () => void
   permissionPrompt?: PermissionPromptPayload | null
   onRespondPermission?: (
-    action: 'allow-once' | 'allow-always' | 'deny' | 'escalate-once',
+    action: 'allow-once' | 'allow-always' | 'allow-always-session' | 'deny' | 'escalate-once',
     sandboxMode?: 'workspace-write' | 'danger-full-access',
   ) => void
   userQuestionPrompt?: UserQuestionPromptPayload | null
@@ -3663,16 +3715,22 @@ function MainConversation({
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const scrollPositionsRef = useRef<Map<string, { top: number; atBottom: boolean }>>(new Map())
   const isAtBottomRef = useRef(true)
+  const scrollFollowRafRef = useRef<number | null>(null)
   const [showScrollBottomBtn, setShowScrollBottomBtn] = useState(false)
   const [turnMenuOpen, setTurnMenuOpen] = useState(false)
   const [focusedMessageIndex, setFocusedMessageIndex] = useState<number>(-1)
 
   const lastAgentMessageId = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
-      if (messages[i].author !== 'user') return messages[i].id
+      if (messages[i].author !== 'user' && !isDshContextMessage(messages[i])) return messages[i].id
     }
     return null
   }, [messages])
+
+  const streamFollowKey = useMemo(() => {
+    const traceTail = toolTraces.length ? toolTraces[toolTraces.length - 1]?.id ?? '' : ''
+    return `${messages.length}:${lastAgentMessageId ?? ''}:${streamText?.length ?? 0}:${sending ? 1 : 0}:${traceTail}`
+  }, [messages.length, lastAgentMessageId, streamText, sending, toolTraces])
 
   const userTurns = useMemo(() => {
     return messages
@@ -3720,16 +3778,19 @@ function MainConversation({
     })
   }, [currentThreadId])
 
-  // 流式生成与消息更新：仅当用户处于最底部时自动吸附跟随；若正在向上阅读历史，绝不强行自动滚动打扰！
+  // 流式生成：仅在贴底时跟随；合并到每帧一次，避免每个 stream 事件都触发布局。
   useEffect(() => {
-    if (!isAtBottomRef.current) {
-      return
+    if (!isAtBottomRef.current) return
+    if (scrollFollowRafRef.current !== null) cancelAnimationFrame(scrollFollowRafRef.current)
+    scrollFollowRafRef.current = requestAnimationFrame(() => {
+      scrollFollowRafRef.current = null
+      const el = scrollContainerRef.current
+      if (el) el.scrollTop = el.scrollHeight
+    })
+    return () => {
+      if (scrollFollowRafRef.current !== null) cancelAnimationFrame(scrollFollowRafRef.current)
     }
-    const el = scrollContainerRef.current
-    if (el) {
-      el.scrollTop = el.scrollHeight
-    }
-  }, [messages, streamText, sending, toolTraces])
+  }, [streamFollowKey])
 
   const scrollToLatest = () => {
     const el = scrollContainerRef.current
@@ -3923,7 +3984,7 @@ function MainConversation({
             <div className="conversation-empty">
               <div className="empty-brand-icon"><Sparkles size={24} aria-hidden="true" /></div>
               <strong>{workspacePath ? `我们应该在${workspaceLabel(workspacePath)}中做些什么？` : '我们今天要做些什么？'}</strong>
-              <span>基于任务感知动态模型路由 · 在成本与质量约束下自动编排 Coding Agent</span>
+              <span>普通请求由单 Agent 直接执行 · 需要并行协作时可主动启用多智能体模式</span>
               <div className="empty-hints-grid">
                 <div className="empty-hint-card">
                   <code>单 Agent 直达</code>
@@ -3931,7 +3992,7 @@ function MainConversation({
                 </div>
                 <div className="empty-hint-card">
                   <code>/ 技能命令</code>
-                  <p>输入 / 显式选择多智能体 Skill，或由门控自适应拆分</p>
+                  <p>输入 / 选择多智能体 Skill，或在模式菜单中主动切换到目标模式</p>
                 </div>
                 <div className="empty-hint-card">
                   <code>@ 文件上下文</code>
@@ -3941,6 +4002,17 @@ function MainConversation({
             </div>
           )}
           {messages.map((message, index) => {
+            if (isDshContextMessage(message)) {
+              return (
+                <ContextInjectionRow
+                  key={message.id}
+                  plugin={message.dshContext.plugin}
+                  form={message.dshContext.form}
+                  text={message.text}
+                  timestamp={message.timestamp}
+                />
+              )
+            }
             const isLatestAgent = !sending && message.id === lastAgentMessageId
             const canForkHere =
               Boolean(onFork)
@@ -4029,6 +4101,8 @@ function MainConversation({
           hasMessages={messages.length > 0}
           sessionStats={sessionStats}
           liveContext={liveContext}
+          hostPlanModeActive={hostPlanModeActive}
+          hostTodos={hostTodos}
           onPermissionModeChange={onPermissionModeChange}
           onModelChange={onModelChange}
           thinkingLevel={thinkingLevel}
@@ -4312,7 +4386,7 @@ export default function App() {
     // 检查该消息后是否有 assistant 回复
     const requestIndex = messages.findIndex(m => m.id === lastUserRequest.id)
     const hasResponse = messages.slice(requestIndex + 1).some(m =>
-      m.author === 'orchestrator' || m.author === 'agent'
+      (m.author === 'orchestrator' || m.author === 'agent') && !isDshContextMessage(m)
     )
 
     if (hasResponse) return null
@@ -4655,6 +4729,8 @@ export default function App() {
           onAnswerUserQuestion={appBackend.answerUserQuestion}
           liveContext={appBackend.liveContext}
           sessionStats={appBackend.sessionStats}
+          hostPlanModeActive={appBackend.hostPlanModeActive}
+          hostTodos={appBackend.hostTodos}
           backendError={appBackend.error}
           threadTitle={appBackend.threadTitle}
           taskCount={tasks.length}

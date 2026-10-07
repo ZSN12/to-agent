@@ -6,12 +6,17 @@ release/
 .taskweaver-build/
 vendor/taskweaver-z-runtime/
 vendor/taskweaver-dsh-runtime/
+vendor/.taskweaver-z-runtime.build-*/
+vendor/.taskweaver-z-runtime.previous-*/
 TaskWeaver.app
 .DS_Store
 *.log
 .tmp-test-userdata/
 .taskweaver-signing/
 *.tsbuildinfo
+vite.config.js
+vite.config.d.ts
+prototype.html
 .pnpm-store/
 # DSH_HOME / deploy 冒烟测试残留
 .taskweaver-deploy-test*/

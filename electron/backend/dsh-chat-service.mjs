@@ -19,6 +19,7 @@ import {
   Z_EVENT_CHANNEL_OPEN_TIMEOUT_MS,
   Z_MAX_TRACKED_SESSIONS,
 } from './config.mjs'
+import { sessionModelMatches } from './dsh-session-model.mjs'
 
 const Z_IDLE_HISTORY_RECONCILE_MS = 10_000
 const Z_MAX_HISTORY_RECONCILE_MS = 30_000
@@ -73,6 +74,29 @@ function textFromMessage(message) {
     .join('')
 }
 
+function logHostUserMessageBytes(logger, {
+  conversationId,
+  sessionKey,
+  taskId,
+  delivery,
+  inputText,
+  submittedText,
+  skill,
+}) {
+  const inputUtf8Bytes = Buffer.byteLength(inputText, 'utf8')
+  const submittedUtf8Bytes = Buffer.byteLength(submittedText, 'utf8')
+  logger?.debug?.('[prompt-pipeline] Host user-message payload bytes', {
+    conversationId,
+    sessionKey,
+    taskId: taskId ?? null,
+    delivery,
+    inputUtf8Bytes,
+    submittedUtf8Bytes,
+    skillEnvelopeAddedUtf8Bytes: Math.max(0, submittedUtf8Bytes - inputUtf8Bytes),
+    skillMode: !skill ? 'none' : skill.nativeInvocation ? 'host-native' : 'filesystem',
+  })
+}
+
 function normalizeTokenUsage(usage) {
   if (!usage || typeof usage !== 'object') return null
   const cost = typeof usage.cost === 'number' ? usage.cost : usage.cost?.total
@@ -111,6 +135,31 @@ function activeThinkingDurationMs(turn, now = Date.now()) {
   return total
 }
 
+function recordFileChange(turn, fileDiff) {
+  if (!turn.fileChanges || typeof fileDiff?.path !== 'string' || !fileDiff.path) return
+  const normalizedPath = fileDiff.path.replace(/\\/g, '/')
+  const key = normalizedPath.toLocaleLowerCase()
+  const hasCounts = Number.isFinite(fileDiff.addedLines) && Number.isFinite(fileDiff.deletedLines)
+  const existing = turn.fileChanges.get(key)
+  if (!existing) {
+    turn.fileChanges.set(key, {
+      path: fileDiff.path,
+      addedLines: hasCounts ? Math.max(0, fileDiff.addedLines) : 0,
+      deletedLines: hasCounts ? Math.max(0, fileDiff.deletedLines) : 0,
+      statsComplete: hasCounts,
+      isNewFile: fileDiff.isNewFile === true,
+    })
+    return
+  }
+  if (hasCounts) {
+    existing.addedLines += Math.max(0, fileDiff.addedLines)
+    existing.deletedLines += Math.max(0, fileDiff.deletedLines)
+  } else {
+    existing.statsComplete = false
+  }
+  existing.isNewFile ||= fileDiff.isNewFile === true
+}
+
 function resumeThinkingSegment(turn, now = Date.now()) {
   if (turn.thinkingStartedAt && !turn.thinkingEndedAt) return
   turn.thinkingStartedAt = now
@@ -139,6 +188,7 @@ export function createDshChatService({
   getPermissionMode = async () => 'ask',
   conversationHub = null,
   onTurnCompleted = null,
+  logger = null,
 }) {
   const mapPath = path.join(userDataPath, 'taskweaver', 'dsh-session-map.json')
   const sessions = new Map()
@@ -187,6 +237,11 @@ export function createDshChatService({
   function emit(conversationId, webContents, event) {
     if (!webContents || webContents.isDestroyed?.()) return
     try { webContents.send('chat:stream', { ...event, conversationId }) } catch { /* renderer may be closing */ }
+  }
+
+  /** Main-lane assistant copy is driven by hub projection when attached; skip duplicate stream IPC. */
+  function projectionOwnsMainStream(conversationId) {
+    return Boolean(conversationId && conversationHub?.hasLiveProjection?.(conversationId))
   }
 
   function conversationIdForSession(sessionId) {
@@ -313,7 +368,7 @@ export function createDshChatService({
         value: {
           sessionId: pending.sessionId,
           approvalId: pending.approvalId,
-          outcome: allowed ? 'allowed-once' : 'rejected',
+          outcome: allowed === true ? 'allowed-once' : 'rejected',
         },
       },
     })
@@ -329,7 +384,7 @@ export function createDshChatService({
     if (!pending) return false
     if (!skipMapDelete) pendingApprovals.delete(id)
     clearApprovalTimer(pending)
-    const allowed = response?.action !== 'deny'
+    const allowed = response?.action === 'allow-once' || response?.action === 'allow'
     await sendApprovalOutcome(pending, allowed)
     return true
   }
@@ -578,6 +633,8 @@ export function createDshChatService({
       turn.toolCalls = 0
       turn.toolResults = 0
       turn.toolCallsById.clear()
+      turn.fileChanges.clear()
+      turn.searchCycleBlocked = false
       turn.startedAt = event.time || Date.now()
       if (turn.emitLifecycle !== false) {
         emit(emitTarget, turn.webContents, { type: 'start', startedAt: turn.startedAt, turnId: turn.turnId, taskId: turn.taskId })
@@ -586,14 +643,6 @@ export function createDshChatService({
     }
     if (event?.type === 'step/start') {
       pauseThinkingSegment(turn, event.time || Date.now())
-      if (!turn.silentText) {
-        emit(emitTarget, turn.webContents, {
-          type: 'activity',
-          phase: 'llm',
-          message: `模型第 ${event.data?.step ?? '?'} 步`,
-          ...(turn.taskId ? { taskId: turn.taskId } : {}),
-        })
-      }
       return
     }
     if (event?.type === 'request/header') {
@@ -633,22 +682,31 @@ export function createDshChatService({
       if (chunk?.type === 'text-delta' && chunk.text) {
         pauseThinkingSegment(turn, event.time || Date.now())
         turn.text += chunk.text
-        if (!turn.silentText) emit(emitTarget, turn.webContents, { type: 'delta', delta: chunk.text, full: turn.text })
+        if (turn.progressOnly && turn.plannerPhase !== 'text') {
+          turn.plannerPhase = 'text'
+          emit(emitTarget, turn.webContents, { type: 'planner_phase', phase: 'text' })
+        }
+        if (!turn.silentText && !projectionOwnsMainStream(emitTarget)) {
+          emit(emitTarget, turn.webContents, { type: 'delta', delta: chunk.text })
+        }
       } else if (chunk?.type === 'reasoning-delta' && chunk.text) {
         const now = event.time || Date.now()
         const wasIdle = !turn.thinkingStartedAt || turn.thinkingEndedAt
         resumeThinkingSegment(turn, now)
-        if (wasIdle && !turn.silentText) {
+        if (turn.progressOnly && turn.plannerPhase !== 'reasoning') {
+          turn.plannerPhase = 'reasoning'
+          emit(emitTarget, turn.webContents, { type: 'planner_phase', phase: 'reasoning' })
+        }
+        if (wasIdle && !turn.silentText && !projectionOwnsMainStream(emitTarget)) {
           emit(emitTarget, turn.webContents, { type: 'thinking_start' })
         }
         turn.lastReasoningAt = now
         turn.thinking += chunk.text
         const thinkingDurationMs = activeThinkingDurationMs(turn, now)
-        if (!turn.silentText) {
+        if (!turn.silentText && !projectionOwnsMainStream(emitTarget)) {
           emit(emitTarget, turn.webContents, {
             type: 'thinking_delta',
             delta: chunk.text,
-            fullThinking: turn.thinking,
             durationMs: thinkingDurationMs,
           })
         }
@@ -707,9 +765,21 @@ export function createDshChatService({
         content: message?.content ?? [],
         isError: Boolean(event.data?.error || message?.isError),
         details: message?.details,
+        meta: event.data?.meta,
         error: event.data?.error?.message || event.data?.error?.code,
       })
+      if (result.isError) {
+        const resultText = result.content
+          .filter((block) => block?.type === 'text' && typeof block.text === 'string')
+          .map((block) => block.text)
+          .join('\n')
+        if (/Repeated filesystem-search cycle detected|Filesystem search at scope .+ was disabled/i.test(resultText)) {
+          turn.searchCycleBlocked = true
+        }
+      }
       if (call) {
+        const fileDiff = extractFileDiff(call.toolName, call.input, result)
+        if (fileDiff) recordFileChange(turn, fileDiff)
         emit(emitTarget, turn.webContents, {
           type: 'tool',
           id: callId,
@@ -718,7 +788,7 @@ export function createDshChatService({
           inputSummary: summarizeToolInput(call.toolName, call.input),
           resultSummary: summarizeToolResult(result, result.isError),
           durationMs: Math.max(0, (event.time || Date.now()) - call.startedAt),
-          fileDiff: extractFileDiff(call.toolName, call.input, result),
+          fileDiff,
           ...(turn.taskId ? { taskId: turn.taskId } : {}),
         })
         turn.toolCallsById.delete(callId)
@@ -769,6 +839,8 @@ export function createDshChatService({
       })
       turn.toolResults += 1
       if (call) {
+        const fileDiff = extractFileDiff(toolName, input, result)
+        if (fileDiff) recordFileChange(turn, fileDiff)
         emit(emitTarget, turn.webContents, {
           type: 'tool',
           id: callId,
@@ -778,7 +850,7 @@ export function createDshChatService({
           inputSummary: summarizeToolInput(toolName, input),
           resultSummary: summarizeToolResult(result, result.isError),
           durationMs: Math.max(0, (event.time || Date.now()) - call.startedAt),
-          fileDiff: extractFileDiff(toolName, input, result),
+          fileDiff,
           ...(turn.taskId ? { taskId: turn.taskId } : {}),
         })
         turn.toolCallsById.delete(callId)
@@ -891,7 +963,19 @@ export function createDshChatService({
     const cancelled = reason === 'aborted' || reason === 'cancelled' || reason === 'interrupted'
     const turnFailure = reason === 'error'
       ? (ending.error ?? { message: 'Z Agent 执行失败' })
-      : null
+      : reason === 'blocked'
+        ? {
+          code: 'AGENT_BLOCKED',
+          message: turn.searchCycleBlocked
+            ? '检测到重复的文件搜索循环，已停止本轮以避免继续消耗；本轮没有生成最终答案。请基于已读取内容总结，或在新消息中指定更窄的搜索范围。'
+            : 'Z Agent 本轮被工具或安全策略阻止，未生成最终答案。请检查工具调用记录后重试。',
+        }
+        : reason === 'completed' && !turn.text.trim()
+          ? {
+            code: 'AGENT_EMPTY_RESPONSE',
+            message: 'Z Agent 本轮结束但没有生成最终文本；不会将空响应记为成功。请查看工具记录后再决定是否继续。',
+          }
+        : null
     const continuing = ending.continuing ?? (!turnFailure && !cancelled && turn.pendingQueuedTurns > 0)
     // Replayed terminals may arrive seconds after the Agent actually ended.
     // Transport backoff must not train routing/stats to think the model took
@@ -906,6 +990,11 @@ export function createDshChatService({
       text: turn.text,
       thinking: turn.thinking,
       thinkingDurationMs,
+      fileChanges: Array.from(turn.fileChanges.values()).map((file) => ({
+        path: file.path,
+        ...(file.statsComplete ? { addedLines: file.addedLines, deletedLines: file.deletedLines } : {}),
+        ...(file.isNewFile ? { isNewFile: true } : {}),
+      })),
       usage: {
         inputTokens: turn.usage?.inputTokens ?? 0,
         outputTokens: turn.usage?.outputTokens ?? 0,
@@ -959,7 +1048,7 @@ export function createDshChatService({
     // commits have no caller, so keep diagnostics without breaking the mux.
     void persisted.catch(error => console.error('[chat] 保存本轮结果失败:', error instanceof Error ? error.message : error))
     if (turn.emitLifecycle !== false) {
-      if (result.thinking && thinkingDurationMs > 0) {
+      if (result.thinking && thinkingDurationMs > 0 && !projectionOwnsMainStream(emitTarget)) {
         emit(emitTarget, turn.webContents, {
           type: 'thinking_end',
           fullThinking: result.thinking,
@@ -975,6 +1064,7 @@ export function createDshChatService({
           full: result.text,
           fullThinking: result.thinking,
           thinkingDurationMs,
+          fileChanges: result.fileChanges,
           usage: result.usage,
           ...(turn.taskId ? { taskId: turn.taskId } : {}),
         })
@@ -987,6 +1077,7 @@ export function createDshChatService({
           full: result.text,
           fullThinking: result.thinking,
           thinkingDurationMs,
+          fileChanges: result.fileChanges,
           interrupted: cancelled,
           ...(turn.taskId ? { taskId: turn.taskId } : {}),
         })
@@ -1269,21 +1360,12 @@ export function createDshChatService({
     return entry
   }
 
-  function sessionModelMatches(current, config, explicitReasoningEffort) {
-    if (!current || current.provider !== config.provider || current.model !== config.id) return false
-    if (explicitReasoningEffort == null || explicitReasoningEffort === '') return true
-    // DSH 的 sessions.models.current 只回读 { provider, model }，不返回 reasoningEffort。
-    // 回读值缺失时不能判定为“不匹配”，否则每轮都会调 selectModel：
-    // 既重建会话的模型绑定，又让上游 prompt cache 失效（实测每轮都命中该分支）。
-    if (current.reasoningEffort == null) return true
-    return current.reasoningEffort === explicitReasoningEffort
-  }
-
-  /** Align Host session route with Composer; skip selectModel when already matched (DSH Web semantics). */
-  async function ensureSessionModelSelection(api, sessionId, config, explicitReasoningEffort) {
+  /** Align Host session route with Composer; persist successful selections when Host readback omits effort. */
+  async function ensureSessionModelSelection(api, sessionKey, entry, config, explicitReasoningEffort) {
+    const sessionId = entry.sessionId
     const directory = rpcValue(await api.sessions.models({ sessionId }), '读取 Z 会话模型')
     const current = directory?.current ?? null
-    if (sessionModelMatches(current, config, explicitReasoningEffort)) return current
+    if (sessionModelMatches(current, config, explicitReasoningEffort, entry.lastAppliedModelSelection)) return current
     const payload = {
       sessionId,
       provider: config.provider,
@@ -1291,6 +1373,13 @@ export function createDshChatService({
       ...(explicitReasoningEffort ? { reasoningEffort: explicitReasoningEffort } : {}),
     }
     const selected = rpcValue(await api.sessions.selectModel(payload), '选择 Z 模型')
+    entry.lastAppliedModelSelection = {
+      provider: config.provider,
+      model: config.id,
+      ...(explicitReasoningEffort ? { reasoningEffort: explicitReasoningEffort } : {}),
+    }
+    sessions.set(sessionKey, entry)
+    await persistSessions()
     return selected?.selected ?? selected
   }
 
@@ -1320,6 +1409,13 @@ export function createDshChatService({
     }), '应用 Z 权限模式')
     if (response.command?.kind !== 'success') {
       throw new Error('Z Host 未确认应用权限模式；为避免以错误权限执行，本次消息已阻止。请检查权限设置后重试。')
+    }
+    const history = rpcValue(await api.sessions.history({
+      sessionId: entry.sessionId,
+      maxMessages: 1,
+    }), '核对 Z 权限投影')
+    if (history?.projections?.values?.permissions?.currentValue !== preset) {
+      throw new Error('Z Host 权限投影未确认目标权限；为避免以错误权限执行，本次消息已阻止。')
     }
     entry.lastAppliedPermissionMode = normalizedMode
     sessions.set(sessionKey, entry)
@@ -1351,6 +1447,7 @@ export function createDshChatService({
     skill = null,
     taskId,
     silentText = false,
+    progressOnly = false,
     emitLifecycle = true,
     persistTerminal = true,
     parentSessionId,
@@ -1380,10 +1477,20 @@ export function createDshChatService({
       // replace its lifecycle record: turn/end must still settle the original
       // send and release the caller's per-conversation lock.
       if (behavior !== 'steer') activeTurn.pendingQueuedTurns += 1
+      const submittedText = applySkillInstructions(text, skill)
+      logHostUserMessageBytes(logger, {
+        conversationId,
+        sessionKey,
+        taskId,
+        delivery: behavior === 'steer' ? 'steer' : 'queue',
+        inputText: text,
+        submittedText,
+        skill,
+      })
       const admission = Promise.resolve().then(() => api.sessions.prompt({
         sessionId: entry.sessionId,
         mode: behavior === 'steer' ? 'steer' : 'queue',
-        content: [{ type: 'text', text: applySkillInstructions(text, skill) }],
+        content: [{ type: 'text', text: submittedText }],
         clientTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       }))
       activeTurn.pendingPromptAdmissions.add(admission)
@@ -1404,7 +1511,7 @@ export function createDshChatService({
     if (!modelKey) throw new Error('请先选择已配置的模型')
     const config = await configureModel(api, modelKey)
     const explicitReasoningEffort = await selectedReasoningEffort(config, modelKey)
-    await ensureSessionModelSelection(api, entry.sessionId, config, explicitReasoningEffort)
+    await ensureSessionModelSelection(api, sessionKey, entry, config, explicitReasoningEffort)
     let historyBaselineSeq = observedSequences.get(entry.sessionId)
     if (historyBaselineSeq === undefined && typeof api.sessions.history === 'function') {
       try {
@@ -1437,6 +1544,8 @@ export function createDshChatService({
         eventConversationId,
         taskId,
         silentText,
+        progressOnly: Boolean(progressOnly && silentText),
+        plannerPhase: null,
         emitLifecycle,
         text: '',
         thinking: '',
@@ -1448,6 +1557,7 @@ export function createDshChatService({
         toolCalls: 0,
         toolResults: 0,
         toolCallsById: new Map(),
+        fileChanges: new Map(),
         pendingQueuedTurns: 0,
         queueAuthoritative: false,
         pendingPromptAdmissions: new Set(),
@@ -1461,15 +1571,27 @@ export function createDshChatService({
       })
     scheduleIdleHistoryReconciliation(api, sessionKey, running.get(sessionKey))
     try {
+      const submittedText = command || applySkillInstructions(text, skill)
+      if (!command) {
+        logHostUserMessageBytes(logger, {
+          conversationId,
+          sessionKey,
+          taskId,
+          delivery: 'new-turn',
+          inputText: text,
+          submittedText,
+          skill,
+        })
+      }
       const reply = rpcValue(await api.sessions.prompt({
         sessionId: entry.sessionId,
         mode: behavior === 'steer' ? 'steer' : 'queue',
-        content: [{ type: 'text', text: command || applySkillInstructions(text, skill) }],
+        content: [{ type: 'text', text: submittedText }],
         ...(command ? { commandOnly: true } : {}),
         clientTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       }), '发送消息')
       if (command) {
-        if (reply.command?.kind !== 'success') throw new Error('Z Host 未确认执行原生压缩命令')
+        if (reply.command?.kind !== 'success') throw new Error('Z Host 未确认执行原生命令')
         const record = running.get(sessionKey)
         // RPC acknowledgement and mux delivery use independent transports.
         // Read the durable tail if the summary's usage has not arrived yet;
@@ -1496,8 +1618,39 @@ export function createDshChatService({
       stats.set(sessionKey, currentStats)
     } catch (error) {
       const turn = running.get(sessionKey)
-      if (turn) running.delete(sessionKey)
-      if (command && emitLifecycle) emit(eventConversationId, webContents, { type: 'error', message: error.message || '压缩命令失败' })
+      if (turn) {
+        if (turn.reconcileTimer) clearTimeout(turn.reconcileTimer)
+        running.delete(sessionKey)
+        const partialResult = {
+          turnId: turn.turnId,
+          startedAt: turn.startedAt,
+          text: turn.text,
+          thinking: turn.thinking,
+          fileChanges: Array.from(turn.fileChanges.values()).map((file) => ({
+            path: file.path,
+            ...(file.statsComplete ? { addedLines: file.addedLines, deletedLines: file.deletedLines } : {}),
+            ...(file.isNewFile ? { isNewFile: true } : {}),
+          })),
+          usage: turn.usage,
+        }
+        if (error && typeof error === 'object') {
+          error.partialResult ??= partialResult
+          error.modelKey ??= turn.modelKey
+        }
+        if (emitLifecycle) emit(eventConversationId, webContents, {
+          type: 'error',
+          message: error.message || 'Z Host 未能接收本轮消息',
+          turnId: turn.turnId,
+          startedAt: turn.startedAt,
+          full: turn.text,
+          fullThinking: turn.thinking,
+          fileChanges: partialResult.fileChanges,
+          ...(turn.taskId ? { taskId: turn.taskId } : {}),
+        })
+      }
+      if (command && !turn && emitLifecycle) {
+        emit(eventConversationId, webContents, { type: 'error', message: error.message || 'Z Host 原生命令执行失败' })
+      }
       throw error
     }
     return completed
@@ -1514,12 +1667,20 @@ export function createDshChatService({
       stoppedAny = true
       cancellingSessions.add(id)
       try {
-        try { rpcValue(await api.sessions.cancel({ sessionId: turn.sessionId }), '停止 Z 会话') }
-        catch (error) { if (error.code !== 'session-not-found') throw error }
-        // Z's ordinary cancel keeps its durable inbox. TaskWeaver's Stop UI
-        // clears pending input, so remove that input too, before another send
-        // can wake the Agent and unexpectedly replay cancelled follow-ups.
+        // Drain every prompt admission that passed the send-side stopping
+        // guard before issuing the Host's atomic clear+cancel. Otherwise a
+        // queued prompt can be admitted just after cancel and wake a new turn.
         await Promise.allSettled([...turn.pendingPromptAdmissions])
+        try {
+          rpcValue(await api.sessions.cancel({
+            sessionId: turn.sessionId,
+            clearPendingUserInput: true,
+          }), '停止 Z 会话')
+        }
+        catch (error) { if (error.code !== 'session-not-found') throw error }
+        // Keep the queue-snapshot cleanup as a compatibility fallback for
+        // older Hosts that may ignore clearPendingUserInput. The bundled Host
+        // already cleared the user input atomically above.
         const pending = (queueSnapshots.get(id) ?? []).filter(item => ['queued', 'steering'].includes(item.placement))
         for (const item of pending) {
           try {
@@ -1537,7 +1698,11 @@ export function createDshChatService({
   }
 
   async function respondApproval(id, response) {
-    return settleApproval(id, response)
+    if (response?.action === 'deny') return settleApproval(id, { action: 'deny' })
+    if (response?.action === 'allow-once' || response?.action === 'allow') {
+      return settleApproval(id, { action: 'allow-once' })
+    }
+    return false
   }
 
   /**
@@ -1592,8 +1757,8 @@ export function createDshChatService({
    * 让新分支继承源对话的 DSH 上下文。
    *
    * 不做这一步时，fork 出来的对话是「UI 有消息、模型是空的」：DSH 会话是新建的空会话。
-   * 传入 `completedTurns` 时按「保留前 N 轮」精确切分；无法可靠换算则退化为
-   * 「继承源会话全部已完成轮次」（比失忆好，但会比 UI 多看到内容）。
+   * 传入 `completedTurns` 时按「保留前 N 轮」精确切分；无法可靠换算就失败，
+   * 不能退化为继承全部历史，否则模型会看到 UI 分支点之后的内容。
    */
   async function forkConversation({ sourceConversationId, targetConversationId, completedTurns } = {}) {
     if (!sourceConversationId || !targetConversationId) return { ok: false, reason: 'missing-args' }
@@ -1605,9 +1770,16 @@ export function createDshChatService({
     if (Number.isInteger(completedTurns) && completedTurns > 0) {
       try {
         const turnEndSeqs = await collectTurnEndSeqs(api, source.sessionId)
-        if (turnEndSeqs.length >= completedTurns) atSeq = turnEndSeqs[completedTurns - 1]
+        if (turnEndSeqs.length < completedTurns) {
+          return { ok: false, reason: 'fork-point-unavailable' }
+        }
+        atSeq = turnEndSeqs[completedTurns - 1]
       } catch (error) {
-        console.warn('[dsh-chat-service] fork 时读取会话历史失败，退化为整段继承:', error instanceof Error ? error.message : error)
+        return {
+          ok: false,
+          reason: 'fork-history-unavailable',
+          error: error instanceof Error ? error.message : String(error),
+        }
       }
     }
     let childSessionId
@@ -1621,6 +1793,7 @@ export function createDshChatService({
       return { ok: false, reason: 'fork-failed', error: error instanceof Error ? error.message : String(error) }
     }
     if (!childSessionId) return { ok: false, reason: 'fork-failed' }
+    const previousTarget = sessions.get(targetConversationId)
     sessions.set(targetConversationId, {
       sessionId: childSessionId,
       cwd: source.cwd,
@@ -1631,8 +1804,29 @@ export function createDshChatService({
       ...(atSeq === undefined ? {} : { forkedAtSeq: atSeq }),
       lastUsedAt: Date.now(),
     })
-    evictTrackedSessions({ protectKey: targetConversationId })
-    await persistSessions()
+    try {
+      // Persist the non-derivable child session mapping before reporting fork
+      // success. If this write fails, the UI must not retain a branch whose
+      // random Host session ID cannot be recovered after restart.
+      await persistSessions()
+    } catch (error) {
+      if (previousTarget) sessions.set(targetConversationId, previousTarget)
+      else dropSessionIndexes(targetConversationId)
+      return {
+        ok: false,
+        reason: 'mapping-persist-failed',
+        error: error instanceof Error ? error.message : String(error),
+      }
+    }
+    const evicted = evictTrackedSessions({ protectKey: targetConversationId })
+    if (evicted.length) {
+      try { await persistSessions() }
+      catch (error) {
+        // Eviction is only a size optimization. Keep the successful fork and
+        // its durable mapping even if pruning older derivable entries fails.
+        console.warn('[dsh-chat-service] fork 后清理旧会话映射失败:', error instanceof Error ? error.message : error)
+      }
+    }
     return { ok: true, sessionId: childSessionId, atSeq: atSeq ?? null }
   }
 
@@ -1643,17 +1837,14 @@ export function createDshChatService({
     muxAbort?.abort()
     await muxTask?.catch(() => {})
     for (const [id, turn] of running) {
-      if (turn.reconcileTimer) clearTimeout(turn.reconcileTimer)
-      emit(id, turn.webContents, { type: 'done', full: turn.text, fullThinking: turn.thinking })
-      turn.resolve({ text: turn.text, thinking: turn.thinking, usage: null, cancelled: true })
-      running.delete(id)
+      finishTurn(id, turn, turn.eventConversationId ?? id, { reason: 'cancelled', continuing: false })
     }
     await hostManager.stop()
   }
 
   return {
     send,
-    async runAgentTurn({ conversationId, sessionKey, text, modelKey, webContents, cwd, agentPreset = 'standard', taskId, signal, parentSessionId }) {
+    async runAgentTurn({ conversationId, sessionKey, text, modelKey, webContents, cwd, agentPreset = 'standard', taskId, signal, parentSessionId, progressOnly = false }) {
       if (signal?.aborted) throw new Error('任务已停止')
       const onAbort = () => {
         void abort(sessionKey).catch((error) => {
@@ -1678,6 +1869,7 @@ export function createDshChatService({
           parentSessionId,
           taskId,
           silentText: true,
+          progressOnly,
           emitLifecycle: false,
           behavior: 'followUp',
         })
@@ -1810,7 +2002,7 @@ export function createDshChatService({
       const api = await ensureReady()
       const config = await configureModel(api, modelKey)
       const explicitReasoningEffort = await selectedReasoningEffort(config, modelKey)
-      await ensureSessionModelSelection(api, entry.sessionId, config, explicitReasoningEffort)
+      await ensureSessionModelSelection(api, conversationId, entry, config, explicitReasoningEffort)
       return { ok: true }
     },
     subscribeMux,

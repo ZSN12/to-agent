@@ -2,6 +2,10 @@ import assert from 'node:assert/strict'
 import { resolveSandboxPolicy, renderFileSandboxContext } from '../electron/backend/sandbox-policy.mjs'
 
 const ws = '/tmp/taskweaver-ws'
+const ro = resolveSandboxPolicy({ bashSandbox: 'auto', permissionMode: 'readonly', workspacePath: ws })
+assert.equal(ro.file.mode, 'read-only')
+assert.equal(ro.standingMode, 'read-only')
+
 const full = resolveSandboxPolicy({ bashSandbox: 'read-only', permissionMode: 'full', workspacePath: ws })
 assert.equal(full.file.mode, 'off')
 assert.equal(full.bash.mode, 'off')
