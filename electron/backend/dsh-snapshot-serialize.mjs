@@ -49,7 +49,7 @@ function flattenResultContent(content) {
   return parts.join('\n').slice(0, 800)
 }
 
-function serializeToolRoot(root) {
+function serializeToolRoot(root, parentCallId = null) {
   if (!root || typeof root !== 'object') return null
   const settled = root.kind === 'tool-result'
   const toolName = settled ? (root.call?.name ?? 'tool') : (root.name ?? 'tool')
@@ -70,6 +70,7 @@ function serializeToolRoot(root) {
   const resultPreview = settled ? flattenResultContent(root.content) : undefined
   return {
     callId,
+    ...((root.parentCallId ?? parentCallId) ? { parentCallId: root.parentCallId ?? parentCallId } : {}),
     toolName,
     argsRaw: typeof argsRaw === 'string' ? argsRaw : '',
     status,
@@ -101,14 +102,14 @@ function extractToolRows(snapshot) {
   const seen = new Set()
   const rows = []
 
-  const pushRoot = (root) => {
-    const serialized = serializeToolRoot(root)
+  const pushRoot = (root, parentCallId = null) => {
+    const serialized = serializeToolRoot(root, parentCallId)
     if (!serialized || seen.has(serialized.callId)) return
     seen.add(serialized.callId)
     rows.push(serialized)
     const children = root?.subCalls
     if (Array.isArray(children)) {
-      for (const child of children) pushRoot(child)
+      for (const child of children) pushRoot(child, serialized.callId)
     }
   }
 

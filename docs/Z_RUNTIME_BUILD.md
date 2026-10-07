@@ -2,6 +2,8 @@
 
 ## 依赖安装
 
+**TaskWeaver 仓库根目录**只用 npm：克隆后执行 `npm ci`（锁文件为 `package-lock.json`）。不要在根目录运行 `pnpm install`。
+
 Z Runtime 使用 pnpm workspace，必须在其目录下用 CI 模式安装以避免交互式提示和副作用：
 
 ```bash

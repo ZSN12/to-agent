@@ -61,4 +61,15 @@ assert.match(codePreset, /name: '@z\/dsh-tool-fs'/, 'coding Z preset must mount 
 assert.match(codePreset, /sampleOverCapGlobResults: true/, 'coding search must sample over-cap results instead of repeatedly showing only the same newest files')
 assert.doesNotMatch(codePreset, /(?:at most|more than) five inspection\/tool calls/, 'coding subtasks must not stop at a total call-count cap')
 
+const standardPresetPath = path.resolve('vendor/z-runtime/apps/cli/config/agent-presets/standard/agent.cordis.yml')
+const standardPreset = await fs.readFile(standardPresetPath, 'utf8')
+const primaryCodePresetPath = path.resolve('vendor/z-runtime/apps/cli/config/agent-presets/code/agent.cordis.yml')
+const primaryCodePreset = await fs.readFile(primaryCodePresetPath, 'utf8')
+for (const [name, preset] of [['standard', standardPreset], ['code', primaryCodePreset]]) {
+  assert.match(preset, /user-visible progress sentence in normal assistant text/, `${name} primary preset should emit visible progress before multi-step tool work`)
+  assert.match(preset, /Do not perform more than three tool (?:calls|operations) in a row/, `${name} primary preset should report intermediate checkpoints instead of waiting until final`)
+  assert.match(preset, /checkpoint before continuing|after a batch, report what completed/, `${name} primary preset should report progress between tool batches`)
+  assert.match(preset, /Never expose private reasoning/, `${name} primary preset must not expose private reasoning as progress`)
+}
+
 console.log('task-profile 测试通过')

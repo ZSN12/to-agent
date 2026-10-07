@@ -50,6 +50,8 @@ export interface FileDiffData {
 
 export interface ToolTraceItem {
   id: string
+  /** Parent run_code call for host-dispatched child tools. */
+  parentCallId?: string | null
   toolName: string
   status: 'running' | 'done' | 'error' | 'blocked' | 'cancelled'
   inputSummary?: string
@@ -372,6 +374,7 @@ export interface DshConversationPartial {
 
 export interface DshConversationRunningCall {
   callId: string
+  parentCallId?: string | null
   toolName: string
   status: 'running'
   turn?: number
@@ -382,6 +385,8 @@ export interface DshConversationRunningCall {
 /** One root tool-call row from DSH chat projection (`tool-call` node). */
 export interface DshProjectedToolCall {
   callId: string
+  /** Parent run_code call for host-dispatched child tools. */
+  parentCallId?: string | null
   toolName: string
   argsRaw: string
   status: 'running' | 'done' | 'error' | 'stopped'

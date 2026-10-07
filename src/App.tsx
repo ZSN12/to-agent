@@ -2025,7 +2025,15 @@ function formatMessageTime(time: string, timestamp?: number, id?: string): strin
 }
 
 /** Mirrors DSH ChatView `TurnStatus`: shimmer label + optional tool chip + clock after 15s. */
-function DeepDivingIndicator({ startTime, activity }: { startTime?: number; activity?: string | null }) {
+function DeepDivingIndicator({
+  startTime,
+  activity,
+  completedToolCount = 0,
+}: {
+  startTime?: number
+  activity?: string | null
+  completedToolCount?: number
+}) {
   const anchor = startTime ?? Date.now()
   const [elapsedMs, setElapsedMs] = useState(() => Math.max(0, Date.now() - anchor))
 
@@ -2038,11 +2046,15 @@ function DeepDivingIndicator({ startTime, activity }: { startTime?: number; acti
 
   const showClock = elapsedMs >= 15_000
   const clockLabel = formatDshRunDuration(elapsedMs)
+  const progressLabel = elapsedMs >= 15_000 && completedToolCount > 0
+    ? `已完成 ${completedToolCount} 次工具调用`
+    : null
 
   return (
     <div className="dsh-deep-diving-row" role="status" aria-live="polite">
       <span className="dsh-diving-text">Deep diving...</span>
       {activity && <span className="dsh-diving-sub">{activity}</span>}
+      {progressLabel && <span className="dsh-diving-sub">{progressLabel}</span>}
       {showClock && <span className="dsh-diving-timer" aria-live="off">{clockLabel}</span>}
     </div>
   )
@@ -2066,9 +2078,12 @@ function visibleToolActivity(item: ToolTraceItem, workspacePath?: string | null)
     ? normalized.slice(root.length + 1)
     : normalized
   const verb = verbs[item.toolName] ?? `正在执行 ${item.toolName}`
+  const safeSummary = (item.inputSummary ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 88)
   return displayPath && ['edit', 'write', 'read'].includes(item.toolName)
     ? `${verb} · ${displayPath}`
-    : verb
+    : safeSummary && ['run_code', 'bash', 'pwsh'].includes(item.toolName)
+      ? `${verb} · ${safeSummary}`
+      : verb
 }
 
 function Message({
@@ -2147,7 +2162,11 @@ function Message({
           />
         )}
         {!isUser && isStreaming && (
-          <DeepDivingIndicator startTime={message.timestamp} activity={visibleActivity} />
+          <DeepDivingIndicator
+            startTime={message.timestamp}
+            activity={visibleActivity}
+            completedToolCount={(toolTraceItems ?? []).filter((item) => item.status !== 'running').length}
+          />
         )}
         {!isUser && !message.compaction && (
           <AssistantTurnBody

@@ -57,6 +57,7 @@ function mergeDshRunningCallsIntoTraces(
     const key = `main:${id}`
     const row: ToolTraceItem = {
       id,
+      parentCallId: call.parentCallId ?? null,
       toolName: call.toolName,
       status: 'running',
       startedAt: call.startedAt ?? undefined,

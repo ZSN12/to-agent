@@ -63,7 +63,26 @@ const withTools = serializeDshConversationView({
     step: 1,
     time: Date.now(),
     callView: null,
-    subCalls: [],
+    subCalls: [{
+      kind: 'tool-result',
+      callId: 'c1:code:1',
+      call: { name: 'read', argsRaw: JSON.stringify({ path: 'src/App.tsx' }) },
+      turn: 2,
+      step: 1,
+      callTime: Date.now() - 20,
+      time: Date.now(),
+      content: [{ type: 'text', text: 'source' }],
+      subCalls: [{
+        kind: 'tool-call',
+        callId: 'c1:code:1:nested',
+        name: 'grep',
+        argsRaw: JSON.stringify({ pattern: 'AssistantTurnBody', path: 'src/App.tsx' }),
+        turn: 2,
+        step: 1,
+        time: Date.now(),
+        subCalls: [],
+      }],
+    }],
   }],
   queue: [],
 }, {
@@ -77,8 +96,10 @@ const withTools = serializeDshConversationView({
     },
   },
 })
-assert.equal(withTools.toolRows.length, 1)
+assert.equal(withTools.toolRows.length, 3)
 assert.equal(withTools.toolRows[0].toolName, 'run_code')
+assert.equal(withTools.toolRows[1].parentCallId, 'c1', 'a dispatched tool is linked to its run_code parent')
+assert.equal(withTools.toolRows[2].parentCallId, 'c1:code:1', 'nested dispatched tools keep their immediate parent')
 assert.match(withTools.activityLabel, /run_code/, 'active tool should take precedence over model-step status')
 assert.equal(shortStreamActivityLabel(withTools.activityLabel), 'run_code')
 assert.match(withTools.toolRows[0].argsRaw, /read workspace layout/)
