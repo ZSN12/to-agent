@@ -2,6 +2,7 @@ import path from 'node:path'
 import { homedir } from 'node:os'
 import fsSync from 'node:fs'
 import fs from 'node:fs/promises'
+import { resolveForkCompletedTurns as countForkCompletedTurns } from './fork-turns.mjs'
 import { createProfileStore } from './profile-store.mjs'
 import { createModelService } from './model-service.mjs'
 import { createModelRegistryUpdater } from './model-registry-updater.mjs'
@@ -619,19 +620,12 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
   /**
    * 把 UI 上的分支点换算成「保留前几轮」。
    * 一个 user 消息对应 DSH 日志里的一个 turn，因此切片里的 user 消息数就是轮数。
+   * 在 user 消息上分支时，该消息所在整轮（含回答）都保留，详见 fork-turns.mjs。
    */
   const resolveForkCompletedTurns = async (sourceConversationId, messageId) => {
     if (!sourceConversationId) return undefined
     const sourceState = await appState.getConversationState(sourceConversationId).catch(() => null)
-    const messages = Array.isArray(sourceState?.messages) ? sourceState.messages : []
-    if (!messages.length) return undefined
-    let slice = messages
-    if (messageId) {
-      const index = messages.findIndex((message) => message.id === messageId)
-      if (index >= 0) slice = messages.slice(0, index + 1)
-    }
-    const userTurns = slice.filter((message) => message.author === 'user').length
-    return userTurns > 0 ? userTurns : undefined
+    return countForkCompletedTurns(sourceState?.messages, messageId)
   }
 
   ipcHandle(ipcMain, 'app:forkThread', async (_event, threadId, messageId) => {
@@ -657,7 +651,11 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
         throw new Error(`Z Host 未能继承源会话上下文${detail ? `（${detail}）` : ''}`)
       }
       await refreshWorkspaceCache()
-      return state
+      return {
+        state,
+        completedTurns: completedTurns ?? null,
+        atSeq: Number.isInteger(result.atSeq) ? result.atSeq : null,
+      }
     } catch (error) {
       // appState.forkThread writes the visible branch before the Host can
       // create/persist its non-derivable child session ID. Roll the UI branch

@@ -3,14 +3,22 @@
 export const COMPACTION_SUGGEST_CONTEXT_PERCENT = 85
 export const COMPACTION_SUGGEST_CLEAR_PERCENT = 72
 
+/** Same shape nativeChatCommand() treats as a Host `/compact`. */
+export function isCompactCommandText(text) {
+  return typeof text === 'string' && /^\/compact(?:[ \t]+[^\r\n]*)?$/i.test(text.trim())
+}
+
 /**
  * @param {{
  *   contextPercent?: number | null
  *   dismissedForConversation?: boolean
  *   sending?: boolean
+ *   compacting?: boolean
  * }} input
  */
 export function shouldSuggestContextCompaction(input) {
+  // In-flight /compact keeps the banner visible (disabled) instead of hiding it as "busy".
+  if (input.compacting) return { suggest: true, reason: 'compacting', message: '正在压缩上下文…' }
   if (input.sending) return { suggest: false, reason: 'busy' }
   if (input.dismissedForConversation) return { suggest: false, reason: 'dismissed' }
   const pct = input.contextPercent

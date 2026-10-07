@@ -52,7 +52,7 @@
 | 多 Agent | `orchestration-gate`、orchestration 测试 | D 🟡 |
 | 定时任务 | `scheduled-jobs-*`、`launchd-scheduler`、`run-scheduled-job-cli` | D 🟡 |
 | Hook | `taskweaver-hook-runner.mjs` | E 🟡 |
-| Headless | `scripts/taskweaver-headless.mjs` | D/E 🟡 |
+| Headless | `scripts/taskweaver-headless.mjs`、[`docs/taskweaver-headless.md`](taskweaver-headless.md) | D/E 🟡 |
 | PR | `github-pull-requests` + UI | D 🟡 |
 | Tool-cache | `vendor/.../tool-cache` + `test:tool-cache` | B/D 🟡 |
 | Plan UI | plan review + 工具进度 | D 🟡 |
@@ -66,7 +66,7 @@
 | A 完成 | 本机 `test:z-host-deploy`、安装包 asar 与 tag 行为一致 |
 | B 基本完成 | Compact 建议 → Host `/compact` 端到端；`VERIFICATION-CHECKLIST.md` 功能项 |
 | C 基本完成 | 双源停写、fork **UI + atSeq**、多会话审计文档更新 |
-| D/E MVP+ | headless 协议文档、Hook 默认 preset、定时任务生命周期与权限 |
+| D/E MVP+ | Hook 默认 preset、定时任务生命周期与权限（headless 协议见 [taskweaver-headless.md](taskweaver-headless.md)） |
 | **v1.2.0 已发布** | 对外试用 ≠ 验收闭合；按本计划 A/B 手工项继续 |
 
 ### 1.3 已知技术债（优先级）
@@ -136,6 +136,10 @@ v1.2.0（GitHub Release） → v1.2.1（验收闭合 + tool-cache 可选默认�
 
 （D-01～D-16：Plan、Job、headless、MCP 裁剪、定时任务、PR。）
 
+| ID | 任务 | 交付 / 验收 |
+|----|------|-------------|
+| D-08 | 无头 stdin/stdout 与 CLI 契约文档化 | [`docs/taskweaver-headless.md`](taskweaver-headless.md)；`npm run test:headless-doc` |
+
 **里程碑 v1.4.0** ≈ D-03、D-08、D-09 必达。
 
 ---
@@ -195,7 +199,11 @@ OpenCodex 缓存≈0、路线图标「基本完成」未 E2E、`register-ipc` �
 - [ ] 合入：`dsh-chat-service.mjs`、`test-dsh-chat-service.mjs`（Composer preset 对齐）
 - [ ] `npm run test:roadmap-gate` + `npx tsc -b`
 - [ ] `npm run test:z-host-deploy`（本机）
-- [ ] 手工：CompactSuggestBanner → compact 一条链路
+- [x] B-07：Compact 横幅压缩中状态 + 完成后 dismiss（`test-compaction-reply`）；[ ] 仍需 Host 手工验收
+- [x] C-05：用户/助手消息分叉 + `fork-turns.mjs` + 轮次 toast
+- [x] D-08：`docs/taskweaver-headless.md`、`--json-summary`、`test:headless-doc`
+- [ ] 手工：CompactSuggestBanner → compact 一条链路（真实 Host）
+  - 自动化已覆盖（B-07）：`test-compaction-reply.mjs`（`/compact` 原生命令路由 + banner 压缩中策略）；横幅进行中态 / 压缩完成自动收起仍需真机 Host 手测
 - [ ] 手工：tasks 发消息，DevTools 看 `chat:promptBudget`
 - [ ] 优化日志：32KiB 默认、共用组装模块
 

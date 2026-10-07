@@ -5,6 +5,7 @@ import type {
   BusyEnterMode,
   ChatStreamEvent,
   DshConversationRunningCall,
+  ForkThreadResult,
   LiveContextUsage,
   PromptBudgetSnapshot,
   SessionStatsSnapshot,
@@ -39,6 +40,7 @@ import {
   type ConversationStreamSnapshot,
 } from '../chat/conversation-stream-buffer'
 import { completedStreamMessage, endsConversationRun, mayResetStreamAfterReply } from '../chat/conversation-run-lifecycle'
+import { isCompactCommandText } from '../../shared/context-compaction-policy'
 
 function getBridge() {
   return window.taskweaver
@@ -80,6 +82,19 @@ export function useAppBackend() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [sending, setSending] = useState(false)
+  // Host `/compact` in flight per conversation; cleared on compaction event, reply, or turn end.
+  const [pendingCompactionIds, setPendingCompactionIds] = useState<string[]>([])
+  // Bumped per conversation whenever a compaction lands (stream event or committed reply).
+  const [compactedSeqById, setCompactedSeqById] = useState<Record<string, number>>({})
+  const clearPendingCompaction = useCallback((conversationId?: string | null) => {
+    if (!conversationId) return
+    setPendingCompactionIds((current) => current.includes(conversationId) ? current.filter((id) => id !== conversationId) : current)
+  }, [])
+  const markCompacted = useCallback((conversationId?: string | null) => {
+    if (!conversationId) return
+    setCompactedSeqById((current) => ({ ...current, [conversationId]: (current[conversationId] ?? 0) + 1 }))
+    clearPendingCompaction(conversationId)
+  }, [clearPendingCompaction])
   const [streamText, setStreamText] = useState<string | null>(null)
   const [streamStartedAt, setStreamStartedAt] = useState<number | null>(null)
   const [streamThinking, setStreamThinking] = useState<{ text: string; durationMs?: number; isActive?: boolean } | null>(null)
@@ -497,6 +512,7 @@ export function useAppBackend() {
           setStreamStartedAt(startedAt)
         }
       }
+      if (endsConversationRun(event)) clearPendingCompaction(event.conversationId ?? activeConversationIdRef.current)
       if (endsConversationRun(event) && event.conversationId) {
         runningConversationsRef.current.delete(event.conversationId)
         syncRunningConversationIds()
@@ -651,6 +667,7 @@ export function useAppBackend() {
         })
       }
       if (event.type === 'compaction') {
+        markCompacted(event.conversationId ?? activeConversationIdRef.current)
         const compactId = event.id ?? `compact-${Date.now()}`
         const time = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false })
         const entry: ChatMessage = {
@@ -686,7 +703,7 @@ export function useAppBackend() {
         }
       }
     })
-  }, [refreshSessionStats, syncRunningConversationIds, preferDshTranscript])
+  }, [refreshSessionStats, syncRunningConversationIds, preferDshTranscript, markCompacted, clearPendingCompaction])
 
   useEffect(() => {
     const bridge = getBridge()
@@ -801,7 +818,13 @@ export function useAppBackend() {
         setPromptQueue(emptyPromptQueue())
       }
       setError(null)
+      const isCompact = !runAlreadyActive && isCompactCommandText(text)
+      if (isCompact && sendConversationId) {
+        setPendingCompactionIds((current) => current.includes(sendConversationId) ? current : [...current, sendConversationId])
+      }
       const res = await bridge.chat.send(text, modelKey ?? null, skillName ?? null, executionModeOverride ?? null, workMode ?? 'code', sendConversationId)
+      // chat.send resolves only after the Host command settled; never leave the banner stuck.
+      if (isCompact) clearPendingCompaction(sendConversationId)
       if (!res.ok) {
         const stillRunning = Boolean(sendConversationId && runningConversationsRef.current.has(sendConversationId))
         const newerTurn = res.turnId && stillRunning && conversationTurnIdRef.current.get(sendConversationId!) !== res.turnId
@@ -867,6 +890,7 @@ export function useAppBackend() {
             return { ...current, messages: [...nextMessages, ...committedMessages] }
           })
           if (res.data.assistant?.compaction || res.data.assistant?.usageKind === 'compaction') {
+            markCompacted(sendConversationId)
             void refreshSessionStats(sendConversationId)
           }
         } else if (!res.data.accepted) {
@@ -884,7 +908,7 @@ export function useAppBackend() {
       }
       return true
     },
-    [reload, refreshSessionStats, syncRunningConversationIds, sending],
+    [reload, refreshSessionStats, syncRunningConversationIds, sending, markCompacted, clearPendingCompaction],
   )
 
   const cancelMessage = useCallback(async () => {
@@ -1116,22 +1140,22 @@ export function useAppBackend() {
     return true
   }, [refreshSessionStats, resetTransientConversationState])
 
-  const forkThread = useCallback(async (messageId: string) => {
+  const forkThread = useCallback(async (messageId: string): Promise<ForkThreadResult | null> => {
     const bridge = getBridge()
-    if (!bridge?.app) return false
+    if (!bridge?.app) return null
     const currentThreadId = state?.currentThreadId
-    if (!currentThreadId) return false
+    if (!currentThreadId) return null
     const res = await bridge.app.forkThread(currentThreadId, messageId)
     if (!res.ok) {
       setError(res.error)
-      return false
+      return null
     }
     resetTransientConversationState()
-    setState(res.data)
+    setState(res.data.state)
     setToolTraces([])
     setError(null)
     void refreshSessionStats()
-    return true
+    return res.data
   }, [refreshSessionStats, resetTransientConversationState, state?.currentThreadId])
 
   const searchWorkspaceContext = useCallback(async (query: string): Promise<WorkspaceEntry[]> => {
@@ -1309,6 +1333,8 @@ export function useAppBackend() {
     loading,
     error,
     sending,
+    compacting: Boolean(state?.conversationId && pendingCompactionIds.includes(state.conversationId)),
+    compactedSeq: state?.conversationId ? compactedSeqById[state.conversationId] ?? 0 : 0,
     streamText,
     streamStartedAt,
     streamThinking,

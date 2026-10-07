@@ -2,6 +2,7 @@ import path from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { createJsonStore } from './json-store.mjs'
 import { searchSessionTranscripts } from './session-transcript-search.mjs'
+import { sliceForkMessages } from './fork-turns.mjs'
 
 const VALID_PERMISSION_MODES = new Set(['readonly', 'ask', 'on-risk', 'full'])
 const DEFAULT_TITLE = '新对话'
@@ -265,17 +266,7 @@ export function createThreadStore(userDataPath, fallbackWorkspace) {
         const source = state.threads.find((t) => t.id === threadId)
         if (!source) throw new Error('找不到要分支的会话')
 
-        let slicedMessages = []
-        if (messageId) {
-          const idx = source.messages.findIndex((m) => m.id === messageId)
-          if (idx >= 0) {
-            slicedMessages = source.messages.slice(0, idx + 1)
-          } else {
-            slicedMessages = [...source.messages]
-          }
-        } else {
-          slicedMessages = [...source.messages]
-        }
+        const slicedMessages = sliceForkMessages(source.messages, messageId)
 
         const now = Date.now()
         const baseTitle = (source.title || DEFAULT_TITLE).replace(/\s*\(分支\s*\d*\)$/, '')

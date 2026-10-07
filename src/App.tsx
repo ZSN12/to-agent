@@ -2235,7 +2235,7 @@ function Message({
             >
               {copied ? <Check size={14} /> : <Copy size={14} />}
             </button>
-            {!isUser && onFork && message.id !== 'streaming-assistant' && (
+            {onFork && message.id !== 'streaming-assistant' && (
               <button
                 className="message-action-btn message-fork"
                 type="button"
@@ -2937,6 +2937,8 @@ function Composer({
   permissionMode,
   modelsLoading,
   sending,
+  compacting,
+  compactedSeq,
   promptQueue,
   workspacePath,
   availableProjects,
@@ -2983,6 +2985,8 @@ function Composer({
   permissionMode: PermissionMode
   modelsLoading?: boolean
   sending?: boolean
+  compacting?: boolean
+  compactedSeq?: number
   promptQueue?: PromptQueueSnapshot
   workspacePath: string | null
   availableProjects: { path: string; name: string }[]
@@ -3320,6 +3324,8 @@ function Composer({
         conversationKey={conversationId ?? currentThreadId ?? null}
         contextPercent={contextPercent}
         sending={sending}
+        compacting={compacting}
+        compactedSeq={compactedSeq}
         onCompact={() => onSend('/compact', null, 'code')}
       />
       <HostTodoProjection items={hostTodos ?? null} />
@@ -3735,6 +3741,8 @@ function MainConversation({
   permissionMode,
   modelsLoading,
   sending,
+  compacting,
+  compactedSeq,
   streamText,
   streamStartedAt,
   streamActivity,
@@ -3805,6 +3813,8 @@ function MainConversation({
   permissionMode: PermissionMode
   modelsLoading?: boolean
   sending?: boolean
+  compacting?: boolean
+  compactedSeq?: number
   streamText?: string | null
   streamStartedAt?: number | null
   streamActivity?: string | null
@@ -4180,8 +4190,8 @@ function MainConversation({
             const canForkHere =
               Boolean(onFork)
               && !sending
-              && message.id === lastAgentMessageId
-              && message.author !== 'user'
+              // 助手消息仅允许最新一条；用户消息可在任意一轮上分支（保留该轮及其回答）。
+              && (message.author === 'user' || message.id === lastAgentMessageId)
               && (promptQueue?.steering?.length ?? 0) === 0
             const isFocused = index === focusedMessageIndex
             return (
@@ -4259,6 +4269,8 @@ function MainConversation({
           permissionMode={permissionMode}
           modelsLoading={modelsLoading}
           sending={sending}
+          compacting={compacting}
+          compactedSeq={compactedSeq}
           promptQueue={promptQueue}
           workspacePath={workspacePath}
           availableProjects={availableProjects}
@@ -4488,6 +4500,19 @@ export default function App() {
   }, [])
   const primaryModelMigrationNotified = useRef(false)
   const [dismissedInterruptId, setDismissedInterruptId] = useState<string | null>(null)
+  const [forkNotice, setForkNotice] = useState('')
+  const forkNoticeTimer = useRef<number | null>(null)
+  const showForkNotice = useCallback((message: string) => {
+    if (forkNoticeTimer.current !== null) window.clearTimeout(forkNoticeTimer.current)
+    setForkNotice(message)
+    forkNoticeTimer.current = window.setTimeout(() => {
+      forkNoticeTimer.current = null
+      setForkNotice('')
+    }, 2600)
+  }, [])
+  useEffect(() => () => {
+    if (forkNoticeTimer.current !== null) window.clearTimeout(forkNoticeTimer.current)
+  }, [])
 
   useEffect(() => {
     if (
@@ -4721,8 +4746,11 @@ export default function App() {
   }
 
   const handleForkThread = (messageId: string) => {
-    void appBackend.forkThread(messageId).then((success) => {
-      if (success) setPanel(null)
+    void appBackend.forkThread(messageId).then((result) => {
+      if (!result) return
+      setPanel(null)
+      const turns = result.completedTurns
+      showForkNotice(turns ? `已从第 ${turns} 轮分支` : '已创建分支')
     })
   }
 
@@ -4781,6 +4809,7 @@ export default function App() {
         </div>
       )}
       <div className="window-drag-region" aria-hidden="true" />
+      {forkNotice && <div className="settings-toast" role="status" aria-live="polite">{forkNotice}</div>}
       <AppSidebar
         collapsed={navCollapsed}
         onToggleCollapsed={() => setNavCollapsed((prev) => !prev)}
@@ -4875,6 +4904,8 @@ export default function App() {
           permissionMode={appBackend.state?.permissionMode ?? 'ask'}
           modelsLoading={modelCatalog.loading}
           sending={appBackend.sending}
+          compacting={appBackend.compacting}
+          compactedSeq={appBackend.compactedSeq}
           streamText={appBackend.streamText}
           streamStartedAt={appBackend.streamStartedAt}
           streamActivity={appBackend.streamActivity}

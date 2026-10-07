@@ -16,6 +16,7 @@ const steps = [
   ['node scripts/test-taskweaver-hooks.mjs', 'E hooks'],
   ['node scripts/test-launchd-scheduler.mjs', 'D launchd plist'],
   ['node scripts/test-github-pull-requests.mjs', 'PR remote parse'],
+  ['npm run test:headless-doc', 'D headless CLI doc'],
   ['node --test tests/fork-thread-smoke.test.mjs', 'C fork smoke'],
   ['npx tsc -b', 'TypeScript build'],
 ]

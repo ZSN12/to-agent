@@ -140,6 +140,14 @@ export interface TaskweaverSkillsApi {
   list: () => Promise<IpcResult<SkillOption[]>>
 }
 
+export interface ForkThreadResult {
+  state: AppState
+  /** 分支保留的轮数（用户轮次）；无法换算时为 null。 */
+  completedTurns: number | null
+  /** DSH `sessions.fork` 实际使用的 atSeq；全量继承时为 null。 */
+  atSeq: number | null
+}
+
 export interface TaskweaverAppApi {
   getState: () => Promise<IpcResult<AppState>>
   listOutputLogs: (options?: { query?: string; status?: ToolTraceItem['status']; limit?: number }) => Promise<IpcResult<OutputLogEntry[]>>
@@ -153,7 +161,7 @@ export interface TaskweaverAppApi {
   toggleArchiveThread: (threadId: string) => Promise<IpcResult<ThreadSummary[]>>
   searchThreads: (query: string, options?: { workspacePath?: string | null }) => Promise<IpcResult<ThreadSummary[]>>
   deleteThread: (threadId: string) => Promise<IpcResult<AppState>>
-  forkThread: (threadId: string, messageId: string) => Promise<IpcResult<AppState>>
+  forkThread: (threadId: string, messageId: string) => Promise<IpcResult<ForkThreadResult>>
   clearConversation: (options?: { workspacePath?: string | null }) => Promise<IpcResult<AppState>>
   setPermissionMode: (mode: PermissionMode) => Promise<IpcResult<AppState>>
   setModelKey: (modelKey: string) => Promise<IpcResult<AppState>>

@@ -1819,6 +1819,18 @@ button:disabled { cursor: default; opacity: 0.45; }
   filter: brightness(1.05);
 }
 
+.compact-suggest-primary:disabled,
+.compact-suggest-ghost:disabled {
+  opacity: 0.55;
+  cursor: default;
+  filter: none;
+}
+
+.compact-suggest-spin {
+  flex-shrink: 0;
+  animation: spin 1s linear infinite;
+}
+
 .compact-suggest-ghost {
   flex-shrink: 0;
   display: flex;

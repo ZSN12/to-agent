@@ -1,20 +1,20 @@
 import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import ts from 'typescript'
+import { build } from 'esbuild'
 
 const projectionPath = path.resolve('src/features/dsh-runtime/projectionStream.ts')
-const source = await fs.readFile(projectionPath, 'utf8')
-const { outputText } = ts.transpileModule(source, {
-  compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
+const { outputFiles } = await build({
+  entryPoints: [projectionPath],
+  bundle: true,
+  write: false,
+  platform: 'node',
+  format: 'esm',
+  target: 'node22',
 })
-const runnable = outputText.replace(
-  /^import \{ shortStreamActivityLabel \} from ["'][^"']+["'];?$/m,
-  'const shortStreamActivityLabel = (value) => value ?? null',
-)
-assert.notEqual(runnable, outputText, 'the test should replace the one UI-only helper import')
+assert.equal(outputFiles.length, 1, 'the projection entry and its real relative dependencies should bundle together')
 const { applyDshProjectionMetadata, shouldPreferDshTranscript } = await import(
-  `data:text/javascript;base64,${Buffer.from(runnable).toString('base64')}`,
+  `data:text/javascript;base64,${Buffer.from(outputFiles[0].text).toString('base64')}`,
 )
 
 assert.equal(shouldPreferDshTranscript(true, 'conversation-a', { conversationId: 'conversation-a' }), true)

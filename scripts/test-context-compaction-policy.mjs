@@ -15,4 +15,6 @@ const hot = shouldSuggestContextCompaction({ contextPercent: 88 })
 assert.equal(hot.suggest, true)
 assert.match(hot.message ?? '', /88%/)
 
+assert.equal(shouldSuggestContextCompaction({ contextPercent: 90, sending: true, compacting: true }).reason, 'compacting')
+
 console.log('context-compaction-policy tests passed')
