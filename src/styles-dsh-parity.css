@@ -552,12 +552,13 @@
   align-items: center;
   justify-content: center;
   flex-wrap: wrap;
-  gap: 4px 18px;
+  gap: 2px 14px;
   width: 100%;
   max-width: var(--dsh-composer-card-max-width, 768px);
   margin: 0;
-  padding: 2px 0 4px;
+  padding: 0 0 2px;
   user-select: none;
+  opacity: 0.88;
 }
 
 .composer-stats-chip-wrap {

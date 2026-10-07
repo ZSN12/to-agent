@@ -2,7 +2,9 @@
 
 执行版索引；当前版本焦点：**v1.2.0 发版一致性 + 上下文成本 + 编排产品化**。
 
-**可执行计划：**[`taskweaver-execution-plan-2026-10.md`](taskweaver-execution-plan-2026-10.md)（任务 ID、验收标准、本周最小包）。
+**可执行计划：**[`taskweaver-execution-plan-2026-10.md`](taskweaver-execution-plan-2026-10.md)（**2026-10-07 修订版**：Done/缺口、v1.2.1→v1.4、本周 Issue 清单）。
+
+**发布注意：**GitHub Release `v1.2.0` 不含本地 **ahead 2**（`f7218cf6`、`17d53cea`）；下一里程碑建议 **v1.2.1**（见执行计划 §2、§12）。
 
 ## 阶段与状态
 

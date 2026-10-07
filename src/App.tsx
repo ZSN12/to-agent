@@ -3364,6 +3364,7 @@ function Composer({
           }
         })()
       }}>
+        <div className="composer-input-wrap">
         <label className="sr-only" htmlFor="main-message">给主控 Agent 发送消息</label>
         <textarea ref={textareaRef} rows={1} id="main-message" value={value} role="combobox" aria-autocomplete="list" aria-expanded={commandOpen} aria-controls={skillQuery ? 'skill-command-options' : contextQuery ? 'context-command-options' : undefined} aria-activedescendant={activeOptionId} onChange={(event) => {
           const nextVal = event.target.value
@@ -3374,7 +3375,7 @@ function Composer({
           updateCommandQuery(nextVal, event.target.selectionStart)
         }} onClick={(event) => updateCommandQuery(event.currentTarget.value, event.currentTarget.selectionStart)} onKeyUp={(event) => {
           if (!['ArrowUp', 'ArrowDown', 'Escape', 'Enter'].includes(event.key)) updateCommandQuery(event.currentTarget.value, event.currentTarget.selectionStart)
-        }} onBlur={() => { setSkillQuery(null); setContextQuery(null) }} placeholder="发消息或创建任务, / 调用指令, @ 文件或对话" onKeyDown={(event) => {
+        }} onBlur={() => { setSkillQuery(null); setContextQuery(null) }} placeholder="发消息，/ 指令，@ 引用文件" onKeyDown={(event) => {
           if (event.nativeEvent.isComposing) return
           if (contextQuery && event.key === 'ArrowDown' && contextEntries.length) {
             event.preventDefault()
@@ -3540,6 +3541,7 @@ function Composer({
             }
           }
         }} />
+        </div>
         {skillQuery && <div className="skill-command-menu" id="skill-command-options" role="listbox" aria-label="斜杠命令与技能">
           {matchingCommands.length > 0 && (
             <>
