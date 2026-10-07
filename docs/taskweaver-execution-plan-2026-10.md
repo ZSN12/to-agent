@@ -66,7 +66,7 @@
 
 | 项 | 缺口 |
 |----|------|
-| **发版** | 本地 **ahead 2 未 push**；tag **v1.2.0 未含** 17d53cea / f7218cf6 |
+| **发版** | **v1.2.1** 已 push + tag（`7d462bd2`）；v1.2.0 仍为较早快照 |
 | **本机门禁** | `roadmap-gate`、`z-host-deploy`、`tsc` 需本机跑绿 |
 | **B-07 E2E** | Banner → Host `/compact` 真压历史：需手工 + 可选自动化 |
 | **C-05 产品** | fork 后端在库；**UI「从该轮分叉」** 需点验全链 |
@@ -334,9 +334,10 @@ npm run install:app
 
 ## 12. 本周执行包（复制到 Issue）
 
-- [ ] `git push origin codex/taskweaver-v1.2.0`  
-- [ ] `npm run test:roadmap-gate` && `npx tsc -b`  
-- [ ] `npm run test:z-host-deploy`  
+- [x] `git push origin codex/taskweaver-v1.2.0`  
+- [x] `npm run test:roadmap-gate` && `npx tsc -b`  
+- [x] `npm run test:z-host-deploy`  
+- [x] `git tag v1.2.1` + GitHub Release  
 - [ ] 手工：**CompactSuggestBanner** → compact 一条会话  
 - [ ] 手工：**从某轮 fork** 新线程，核对历史截断  
 - [ ] `git tag v1.2.1`（或更新 CHANGELOG 后打 tag）  
