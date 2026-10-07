@@ -1,3 +1,14 @@
+import { compactToolOutput, COMPACTION_LIMITS } from './context-compactor.mjs'
+
+let toolOutputMaxChars = COMPACTION_LIMITS.MAX_TOOL_OUTPUT_CHARS
+
+/** 与每轮 `calculateDynamicContextBudget` 对齐（由 register-ipc 在发消息前设置）。 */
+export function setToolTraceCompactionLimits({ maxChars } = {}) {
+  if (Number.isFinite(maxChars) && maxChars > 500) {
+    toolOutputMaxChars = Math.floor(maxChars)
+  }
+}
+
 function redact(text) {
   return String(text)
     .replace(/\b(Bearer\s+)[A-Za-z0-9._~+\/-]+=*/gi, '$1[已隐藏]')
@@ -44,6 +55,24 @@ export function normalizeToolResult(result) {
         isError ||= Boolean(block.isError)
         details ??= block.details
         collect(block.content)
+      } else if (block?.type === 'text' && typeof block.text === 'string') {
+        const lineCount = block.text.split('\n').length
+        const overBudget = block.text.length > toolOutputMaxChars
+          || lineCount > COMPACTION_LIMITS.MAX_TOOL_OUTPUT_LINES
+        if (!overBudget) {
+          content.push(block)
+          continue
+        }
+        const compacted = compactToolOutput(block.text, {
+          maxChars: toolOutputMaxChars,
+          maxLines: COMPACTION_LIMITS.MAX_TOOL_OUTPUT_LINES,
+        })
+        content.push({
+          ...block,
+          text: compacted.text,
+          compacted: compacted.compacted,
+          originalLength: compacted.originalLength,
+        })
       } else {
         content.push(block)
       }

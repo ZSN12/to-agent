@@ -16,8 +16,9 @@ import { routePermissionPromptResponse } from './permission-prompt-bridge.mjs'
 import { createPermissionRulesStore } from './permission-rules-store.mjs'
 import { createWorkspaceIndex } from './workspace-index.mjs'
 import { isWorkspacePath } from './workspace-index.mjs'
-import { assembleWorkspaceContext, workspaceContextLimits } from './context-assembler.mjs'
+import { assembleWorkspaceContext, isFirstConversationTurn, shouldAttachRepoMap, workspaceContextLimits } from './context-assembler.mjs'
 import { composePromptPipeline } from './prompt-pipeline.mjs'
+import { buildSkillPromptPrefix } from './skill-prompt.mjs'
 import { createWorkspaceTrustService } from './workspace-trust-service.mjs'
 import { createMcpService } from './mcp-service.mjs'
 import {
@@ -36,8 +37,15 @@ import { createUsageStore } from './usage-store.mjs'
 import { createPricingSyncService } from './pricing-sync-service.mjs'
 import { assertSafeWorkspacePath } from './security-path.mjs'
 import { detectVerificationCommands } from './verification-policy.mjs'
-import { analyzeUserIntent, injectIntentGuidelines, USER_INTENTS } from './user-intent.mjs'
+import { calculateDynamicContextBudget } from './context-compactor.mjs'
+import {
+  analyzeUserIntent,
+  injectIntentGuidelines,
+  USER_INTENTS,
+} from './user-intent.mjs'
 import { resolvePrimaryAgentPreset } from './primary-agent-preset.mjs'
+import { setToolTraceCompactionLimits } from './tool-trace.mjs'
+import { CURSOR_TOOL_GUIDANCE_TEXT, shouldInjectCursorToolGuidance } from './cursor-tool-guidance.mjs'
 import { humanizeOpenCodexTransportError } from './opencodex-health.mjs'
 import { createTerminalService } from './terminal-service.mjs'
 import { diagnoseEnvironment, diagnoseTool } from './env-service.mjs'
@@ -1352,7 +1360,7 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
   /**
    * 根据工作模式准备提示词
    */
-  const preparePromptByWorkMode = async (text, workMode, assembled) => {
+  const preparePromptByWorkMode = async (text, workMode, assembled, modelKey = null, injectionByteCap = workspaceContextLimits.MAX_CONTEXT_INJECTION_BYTES, selectedSkill = null) => {
     const effectiveOverride = workModeExecutionOverride(workMode)
     const intent = workMode === 'goal' ? null : analyzeUserIntent(text, workMode)
     let guidanceText = ''
@@ -1380,31 +1388,60 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
     const guidanceLayerId = intent === USER_INTENTS.CODE_MUTATION
       ? 'verification-guidance'
       : 'intent-guidance'
+    const prefixLayers = [...injectedLayers.prefix]
     const suffixLayers = [...injectedLayers.suffix]
+    const skillPrefix = buildSkillPromptPrefix(selectedSkill)
+    if (skillPrefix) {
+      prefixLayers.push({ id: 'selected-skill', text: skillPrefix, required: true })
+    }
+    if (shouldInjectCursorToolGuidance(modelKey)) {
+      prefixLayers.push({
+        id: 'cursor-tool-guidance',
+        text: CURSOR_TOOL_GUIDANCE_TEXT,
+        required: false,
+        priority: 20,
+      })
+    }
     if (guidanceText) {
-      suffixLayers.push({ id: guidanceLayerId, text: guidanceText, required: false, priority: 0 })
+      suffixLayers.push({
+        id: guidanceLayerId,
+        text: guidanceText,
+        required: false,
+        priority: intent === USER_INTENTS.CODE_MUTATION ? 10 : 30,
+      })
     }
     const composed = composePromptPipeline({
       userText: text,
-      prefixLayers: injectedLayers.prefix,
+      prefixLayers,
       suffixLayers,
-      maxInjectedBytes: workspaceContextLimits.MAX_CONTEXT_INJECTION_BYTES,
+      maxInjectedBytes: injectionByteCap,
     })
     const effectivePrompt = composed.prompt
     const userBytes = Buffer.byteLength(text, 'utf8')
-    const sourceBytes = assembled.sourceBytes ?? { context: Math.max(0, Buffer.byteLength(assembled.prompt, 'utf8') - userBytes), sandboxPolicy: 0 }
+    const layerBytes = composed.layerBytes
+    const contextBytes = (layerBytes['workspace-context'] ?? 0) + (layerBytes['repo-map'] ?? 0)
+    const guidanceBytes = (layerBytes['intent-guidance'] ?? 0) + (layerBytes['cursor-tool-guidance'] ?? 0)
     return {
       effectiveOverride,
       effectivePrompt,
       promptStats: {
         userBytes,
-        contextBytes: sourceBytes.context ?? 0,
-        sandboxPolicyBytes: sourceBytes.sandboxPolicy ?? 0,
-        intentGuidanceBytes: composed.layerBytes['intent-guidance'] ?? 0,
-        verificationGuidanceBytes: composed.layerBytes['verification-guidance'] ?? 0,
+        contextBytes,
+        sandboxPolicyBytes: layerBytes['sandbox-policy'] ?? 0,
+        guidanceBytes,
+        skillInstructionBytes: layerBytes['selected-skill'] ?? 0,
+        intentGuidanceBytes: layerBytes['intent-guidance'] ?? 0,
+        cursorGuidanceBytes: layerBytes['cursor-tool-guidance'] ?? 0,
+        verificationGuidanceBytes: layerBytes['verification-guidance'] ?? 0,
         totalInjectedBytes: composed.injectedBytes,
+        budgetBytes: composed.diagnostics.budgetBytes,
+        injectedEstimatedTokens: composed.diagnostics.injectedEstimatedTokens,
+        estimatedTokens: composed.diagnostics.estimatedTokens,
+        remainingBudgetBytes: composed.diagnostics.remainingBudgetBytes,
+        layerBytes,
         droppedLayers: composed.droppedLayers,
       },
+      injectionByteCap,
     }
   }
 
@@ -1439,6 +1476,7 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
         workspacePath: runtimeContext.workspacePath,
         webContents: event.sender,
         skill: selectedSkill,
+        skillAlreadyApplied: true,
         synthesize: async (prompt) => chat.send({
           text: prompt,
           modelKey: activeKey,
@@ -1446,7 +1484,7 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
           cwdOverride: runtimeContext.workspacePath,
           webContents: event.sender,
           agentPreset: primaryAgentPreset,
-          skill: selectedSkill,
+          skill: null,
           // The orchestration result owns aggregate usage and final metadata.
           persistTerminal: false,
         }),
@@ -1462,7 +1500,7 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
           cwdOverride: runtimeContext.workspacePath,
           webContents: event.sender,
           agentPreset: primaryAgentPreset,
-          skill: selectedSkill,
+          skill: null,
         })
         // 降级说明挂在最终消息的 callout 上。原来靠 `chat:stream` 的 orchestration 事件传，
         // 但渲染端没有该分支、且事件不带 conversationId —— 消息会被静默丢弃，用户看不到。
@@ -1487,7 +1525,8 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
       cwdOverride: runtimeContext.workspacePath,
       webContents: event.sender,
       agentPreset: primaryAgentPreset,
-      skill: selectedSkill,
+      // The selected Skill is already included and counted by preparePromptByWorkMode.
+      skill: null,
     })
   }
 
@@ -1623,19 +1662,67 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
     await tryAutoSnapshot(runtimeContext)
 
     const selectedSkill = skillName ? await skills.resolve(skillName) : null
+    const prefs = await appPreferences.get()
+    const dynamicBudget = calculateDynamicContextBudget(workMode)
+    const injectionByteCap = prefs.promptInjectionLimitBytes ?? dynamicBudget.workspaceContextBytes
+    const conversationState = appState.getConversationState
+      ? await appState.getConversationState(conversationId)
+      : await appState.getState()
+    const isFirstTurn = isFirstConversationTurn(conversationState?.messages)
+    const hasNonConversationIntent = analyzeUserIntent(text, workMode) !== USER_INTENTS.CONVERSATION
+    setToolTraceCompactionLimits({ maxChars: dynamicBudget.toolOutputMaxChars })
     const assembled = await assembleWorkspaceContext(text, runtimeContext.workspacePath, {
       sandboxContextLine: sandboxContextLineForContext(runtimeContext),
+      maxInjectionBytes: injectionByteCap,
+      includeRepoMap: shouldAttachRepoMap(text, workMode, {
+        enableRepoMap: prefs.enableRepoMap !== false,
+        isFirstTurn,
+        hasNonConversationIntent,
+      }),
+      repoMapTokens: dynamicBudget.repoMapTokens,
     })
 
-    const { effectiveOverride, effectivePrompt, promptStats } = await preparePromptByWorkMode(text, workMode, assembled)
+    const { effectiveOverride, effectivePrompt, promptStats, injectionByteCap: capUsed } = await preparePromptByWorkMode(
+      text,
+      workMode,
+      assembled,
+      activeKey,
+      injectionByteCap,
+      selectedSkill,
+    )
     console.debug('[prompt-pipeline] injection byte accounting', {
       conversationId,
-      scope: 'workspace context, sandbox policy, intent and verification; explicitly selected Skill is accounted by the chat service',
-      maxInjectedBytes: workspaceContextLimits.MAX_CONTEXT_INJECTION_BYTES,
+      scope: 'workspace context, sandbox policy, selected Skill, intent, verification and visible progress guidance',
+      maxInjectedBytes: capUsed ?? injectionByteCap,
       ...promptStats,
       ratioToUserText: promptStats.userBytes ? Number((promptStats.totalInjectedBytes / promptStats.userBytes).toFixed(2)) : null,
       contextTruncated: assembled.contextTruncated === true,
     })
+    const injectionUtilization = promptStats.budgetBytes > 0
+      ? Number((promptStats.totalInjectedBytes / promptStats.budgetBytes).toFixed(4))
+      : 0
+    if (injectionUtilization >= 0.9) {
+      console.warn('[prompt-pipeline] 本轮注入接近预算上限', {
+        conversationId,
+        utilization: injectionUtilization,
+        droppedLayers: promptStats.droppedLayers,
+        contextTruncated: assembled.contextTruncated === true,
+      })
+    }
+    if (event.sender && !event.sender.isDestroyed?.() && typeof event.sender.send === 'function') {
+      event.sender.send('chat:promptBudget', {
+        conversationId,
+        budgetBytes: promptStats.budgetBytes,
+        injectedBytes: promptStats.totalInjectedBytes,
+        injectedEstimatedTokens: promptStats.injectedEstimatedTokens,
+        estimatedTokens: promptStats.estimatedTokens,
+        remainingBudgetBytes: promptStats.remainingBudgetBytes,
+        utilization: injectionUtilization,
+        contextTruncated: assembled.contextTruncated === true,
+        layerBytes: promptStats.layerBytes,
+        droppedLayers: promptStats.droppedLayers,
+      })
+    }
 
     const decision = decideExecutionMode(text, selectedSkill)
     const execution = resolveExecutionMode(decision, effectiveOverride || executionModeOverride)
@@ -1646,7 +1733,7 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
     try {
       result = await executeChatRequest(execution, effectivePrompt, resolvePrimaryAgentPreset(text, workMode, activeKey), activeKey, selectedSkill, event, conversationId, runtimeContext)
     } catch (error) {
-      await handleChatError(error, messageId, time, conversationId)
+      await handleChatError(error, messageId, time, conversationId, activeKey)
     }
 
     if (result.accepted) return { user: userEntry, accepted: true, queued: result.queued }
@@ -1662,14 +1749,17 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
     const runtimeContext = await getConversationRuntimeContext(conversationId)
     return withTurnLock(conversationId, async () => {
       if (!text || typeof text !== 'string') throw new Error('消息不能为空')
+      const prefs = await appPreferences.get()
+      const injectionByteCap = prefs.promptInjectionLimitBytes ?? workspaceContextLimits.MAX_CONTEXT_INJECTION_BYTES
       const assembled = await assembleWorkspaceContext(text, runtimeContext.workspacePath, {
         sandboxContextLine: sandboxContextLineForContext(runtimeContext),
+        maxInjectionBytes: injectionByteCap,
       })
       const composed = composePromptPipeline({
         userText: text,
         prefixLayers: assembled.layers.prefix,
         suffixLayers: assembled.layers.suffix,
-        maxInjectedBytes: workspaceContextLimits.MAX_CONTEXT_INJECTION_BYTES,
+        maxInjectedBytes: injectionByteCap,
       })
       return permissions.withExecution(runtimeContext.permissionMode, event.sender, () => orchestration.sendTaskMessage({
         taskId,

@@ -617,13 +617,14 @@ export function createOrchestrationService({
     return false
   }
 
-  async function planAndExecute({ text, primaryModelKey, conversationId, webContents, skill, workspacePath }) {
+  async function planAndExecute({ text, primaryModelKey, conversationId, webContents, skill, skillAlreadyApplied = false, workspacePath }) {
     if (!conversationId) throw new Error('当前对话标识无效')
     if (getRun(conversationId)?.inFlight) throw new Error('该对话的上一条多 Agent 任务仍在处理中')
     const abortController = new AbortController()
     const run = { inFlight: true, abortController }
     runs.set(conversationId, run)
     const runId = crypto.randomUUID()
+    const plannerSkill = skillAlreadyApplied ? null : skill
     try {
       if (!webContents.isDestroyed()) webContents.send('chat:stream', { type: 'progress', text: '正在分析任务并生成 DAG…', conversationId })
       const cwd = workspacePath || getWorkspacePath()
@@ -661,7 +662,7 @@ export function createOrchestrationService({
             text: plannerPrompt,
             sessionFile: plannerFile,
             noTools: true,
-            skill,
+            skill: plannerSkill,
             signal: abortController.signal,
             conversationId,
             cwdOverride: cwd,
@@ -689,7 +690,7 @@ export function createOrchestrationService({
               text: plannerPrompt + plannerSuffixRetry,
               sessionFile: plannerFile,
               noTools: true,
-              skill,
+              skill: plannerSkill,
               signal: abortController.signal,
               conversationId,
               cwdOverride: cwd,
@@ -1013,7 +1014,7 @@ export function createOrchestrationService({
           conversationId,
           sessionKey: `tw-orchestration-${conversationId}-${runId}-synthesis`,
           modelKey: primaryModelKey,
-          text: applySkillInstructions(prompt, skill),
+          text: applySkillInstructions(prompt, plannerSkill),
           webContents,
           cwd,
           agentPreset: resolveOrchestrationAgentPreset({ noTools: true }),

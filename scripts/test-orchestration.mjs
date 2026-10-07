@@ -542,11 +542,14 @@ try {
     dshRuntime: mockDshRuntime,
   })
 
+  const selectedSkill = { name: 'mock-review', baseDir: '/skills/mock-review', instructions: 'Skill guidance marker.' }
   const result = await orchestration.planAndExecute({
-    text: '帮我重构项目并实现新功能',
+    text: '<taskweaver_skill_instructions>Skill guidance marker.</taskweaver_skill_instructions>\n\n帮我重构项目并实现新功能',
     primaryModelKey: 'mock/strong',
     conversationId,
     webContents: mockWebContents,
+    skill: selectedSkill,
+    skillAlreadyApplied: true,
   })
 
   assert.equal(result.tasks.length, 2, 'DAG 应成功规划 2 个子任务')
@@ -570,6 +573,8 @@ try {
   assert.match(plannerTurn.text, /独立任务表示彼此无依赖，不要求文件范围完全不重叠/,
     'independent DAG tasks may share a necessary bridge file to close a call chain')
   assert.match(plannerTurn.text, /README\.md/)
+  assert.equal(plannerTurn.text.split('Skill guidance marker.').length - 1, 1,
+    'a Skill already included by the user-facing prompt pipeline is not injected a second time into planning')
   assert.match(plannerTurn.sessionKey, /^tw-orchestration-/)
   assert.equal(plannerTurn.conversationId, conversationId)
   assert.equal(plannerTurn.progressOnly, true, 'the planner should opt into safe phase-only progress forwarding')
@@ -587,6 +592,8 @@ try {
   assert.match(t1Turn.text, /scopePaths 是执行层强制白名单.*不要对父目录或工作区执行 glob\/ls/,
     '只读子 Agent 必须知道精确文件已授权，避免宽泛目录搜索与无关范围缺口')
   assert.equal(t2Turn.agentPreset, 'taskweaver-code')
+  assert.match(t2Turn.text, /<taskweaver_skill_instructions>/,
+    'selected Skill guidance remains available to eligible implementation subtasks')
 
   const progressMsgs = streamEvents.filter((e) => e.payload.type === 'progress')
   const taskMsgs = streamEvents.filter((e) => e.payload.type === 'tasks')

@@ -2,8 +2,10 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { isWorkspacePath } from './workspace-index.mjs'
 import { precomputeQueryTerms, scoreTextRelevance } from './text-relevance.mjs'
+import { generateRepoMap } from './repo-map-service.mjs'
 
 const MAX_FILE_BYTES = 32 * 1024
+/** Workspace assembler fallback cap; chat sends use the configurable Prompt Pipeline cap. */
 const MAX_CONTEXT_INJECTION_BYTES = 32 * 1024
 const MAX_CONTEXT_BUDGET_OVERRIDE_BYTES = 1024 * 1024
 const MAX_TOTAL_BYTES = MAX_CONTEXT_INJECTION_BYTES
@@ -119,6 +121,21 @@ function boundWorkspaceContext(blocks, maxBytes = MAX_CONTEXT_INJECTION_BYTES) {
     throw new Error('工作区上下文组装超过单次注入上限')
   }
   return { text, bytes: actualBytes, truncated }
+}
+
+async function buildBoundedRepoMapText(workspacePath, query, repoMapTokens, maxBytes) {
+  if (!workspacePath || !Number.isInteger(maxBytes) || maxBytes <= 0) return ''
+  const tokenBudget = Math.min(repoMapTokens, Math.floor(maxBytes / 4))
+  if (!Number.isFinite(tokenBudget) || tokenBudget < 1) return ''
+  try {
+    const map = await generateRepoMap(workspacePath, { query, maxTokens: tokenBudget })
+    if (!map?.trim()) return ''
+    const text = `\n\n> [!NOTE]\n> **代码库结构地图 (Repo Map)**：\n\`\`\`text\n${map.trim()}\n\`\`\``
+    return utf8Bytes(text) <= maxBytes ? text : ''
+  } catch {
+    // Repo Map is optional and must not block explicit references or chat.
+    return ''
+  }
 }
 
 async function resolveInsideWorkspace(root, relativePath) {
@@ -255,12 +272,34 @@ function relevanceQueryWithoutReferences(text) {
   return [query, ...aliases].filter(Boolean).join(' ')
 }
 
+/**
+ * Repo Map 仅在首轮计划/目标或工程任务中注入；显式引用单独解析，不重复生成全局地图。
+ * @param {string} text
+ * @param {string} [workMode]
+ * @param {{ enableRepoMap?: boolean, isFirstTurn?: boolean, hasNonConversationIntent?: boolean }} [options]
+ */
+export function shouldAttachRepoMap(text, workMode = 'code', options = {}) {
+  if (options.enableRepoMap === false) return false
+  if (options.isFirstTurn !== true) return false
+  if (workMode === 'plan' || workMode === 'goal') return true
+  return options.hasNonConversationIntent === true
+}
+
+/** Conversation messages may use either the persisted `author` or API `role` shape. */
+export function isFirstConversationTurn(messages) {
+  return !(Array.isArray(messages) ? messages : []).some((message) =>
+    message?.author === 'user' || message?.role === 'user',
+  )
+}
+
 /** Resolve explicit @file:path and @dir:path references into bounded prompt context.
  * maxInjectionBytes is an internal benchmark/test override; production callers use the default cap.
  */
 export async function assembleWorkspaceContext(text, workspacePath, {
   sandboxContextLine,
   maxInjectionBytes = MAX_CONTEXT_INJECTION_BYTES,
+  includeRepoMap = false,
+  repoMapTokens = 1200,
 } = {}) {
   if (!Number.isInteger(maxInjectionBytes) || maxInjectionBytes < 0 || maxInjectionBytes > MAX_CONTEXT_BUDGET_OVERRIDE_BYTES) {
     throw new Error(`maxInjectionBytes must be an integer from 0 to ${MAX_CONTEXT_BUDGET_OVERRIDE_BYTES}`)
@@ -275,21 +314,39 @@ export async function assembleWorkspaceContext(text, workspacePath, {
       contextTruncated: false,
     }
   }
-  const root = await fs.realpath(workspacePath)
+  const inputText = String(text)
+  const pattern = /@(file|dir):("([^"\n]+)"|'([^'\n]+)'|[^\s"']+)/g
+  const hasExplicitReferences = /@(file|dir):("[^"\n]+"|'[^'\n]+'|[^\s"']+)/.test(inputText)
+  // Ordinary messages need no workspace traversal. Explicit @ references and
+  // an intentionally requested Repo Map still resolve the workspace below.
+  const root = hasExplicitReferences || includeRepoMap ? await fs.realpath(workspacePath) : null
   const policyPrefix = sandboxContextLine ? `${sandboxContextLine}\n\n` : ''
   const sandboxPolicyBytes = utf8Bytes(policyPrefix)
   if (sandboxPolicyBytes > maxInjectionBytes) {
     throw new Error('工作区安全策略说明超过单次上下文注入上限；为避免丢失安全边界，本次请求已阻止。')
   }
   const contextBudgetBytes = maxInjectionBytes - sandboxPolicyBytes
-  const pattern = /@(file|dir):("([^"\n]+)"|'([^'\n]+)'|[^\s"']+)/g
+  if (!hasExplicitReferences && !includeRepoMap) {
+    return {
+      prompt: `${policyPrefix}${text}`,
+      references: [],
+      injectedBytes: sandboxPolicyBytes,
+      sourceBytes: { context: 0, sandboxPolicy: sandboxPolicyBytes },
+      layers: {
+        prefix: policyPrefix ? [{ id: 'sandbox-policy', text: policyPrefix, required: true }] : [],
+        suffix: [],
+      },
+      contextTruncated: false,
+    }
+  }
+
   const references = []
   const blocks = []
   let consumedBytes = 0
   let sourceTruncated = false
   let match
 
-  while ((match = pattern.exec(String(text))) !== null) {
+  while ((match = pattern.exec(inputText)) !== null) {
     const kind = match[1]
     const rawPath = match[3] ?? match[4] ?? match[2]
     const resolved = await resolveInsideWorkspace(root, rawPath)
@@ -348,31 +405,57 @@ export async function assembleWorkspaceContext(text, workspacePath, {
   }
 
   if (!blocks.length) {
+    const repoMapText = includeRepoMap
+      ? await buildBoundedRepoMapText(workspacePath, text, repoMapTokens, contextBudgetBytes)
+      : ''
+    const repoMapBytes = utf8Bytes(repoMapText)
+    const finalInjectedBytes = sandboxPolicyBytes + repoMapBytes
+    const finalPrompt = `${policyPrefix}${text}${repoMapText}`
+    const suffixLayers = []
+    if (repoMapText) {
+      suffixLayers.push({ id: 'repo-map', text: repoMapText, required: false, priority: 40 })
+    }
     return {
-      prompt: sandboxContextLine ? `${policyPrefix}${text}` : text,
+      prompt: finalPrompt,
       references,
-      injectedBytes: sandboxPolicyBytes,
-      sourceBytes: { context: 0, sandboxPolicy: sandboxPolicyBytes },
+      injectedBytes: finalInjectedBytes,
+      sourceBytes: { context: repoMapBytes, sandboxPolicy: sandboxPolicyBytes },
       layers: {
         prefix: policyPrefix ? [{ id: 'sandbox-policy', text: policyPrefix, required: true }] : [],
-        suffix: [],
+        suffix: suffixLayers,
       },
       contextTruncated: false,
     }
   }
+
+  // Explicitly referenced files outrank a generated Repo Map. Fill the
+  // required context first, then use only the true remaining bytes for the map.
   const boundedContext = boundWorkspaceContext(blocks, contextBudgetBytes)
-  const injectedBytes = boundedContext.bytes + sandboxPolicyBytes
+  const mapRemainingBytes = Math.max(0, contextBudgetBytes - boundedContext.bytes)
+  const repoMapText = includeRepoMap
+    ? await buildBoundedRepoMapText(workspacePath, text, repoMapTokens, mapRemainingBytes)
+    : ''
+  const repoMapBytes = utf8Bytes(repoMapText)
+  const injectedBytes = boundedContext.bytes + sandboxPolicyBytes + repoMapBytes
   if (injectedBytes > maxInjectionBytes) {
     throw new Error('工作区上下文组装超过单次注入上限')
   }
+
+  const suffixLayers = [
+    { id: 'workspace-context', text: boundedContext.text, required: true },
+  ]
+  if (repoMapText) {
+    suffixLayers.push({ id: 'repo-map', text: repoMapText, required: false, priority: 40 })
+  }
+
   return {
-    prompt: `${policyPrefix}${text}${boundedContext.text}`,
+    prompt: `${policyPrefix}${text}${boundedContext.text}${repoMapText}`,
     references,
     injectedBytes,
-    sourceBytes: { context: boundedContext.bytes, sandboxPolicy: sandboxPolicyBytes },
+    sourceBytes: { context: boundedContext.bytes + repoMapBytes, sandboxPolicy: sandboxPolicyBytes },
     layers: {
       prefix: policyPrefix ? [{ id: 'sandbox-policy', text: policyPrefix, required: true }] : [],
-      suffix: [{ id: 'workspace-context', text: boundedContext.text, required: true }],
+      suffix: suffixLayers,
     },
     contextTruncated: sourceTruncated || boundedContext.truncated,
   }

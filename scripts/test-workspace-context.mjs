@@ -2,13 +2,28 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { assembleWorkspaceContext, workspaceContextLimits } from '../electron/backend/context-assembler.mjs'
+import { assembleWorkspaceContext, isFirstConversationTurn, shouldAttachRepoMap, workspaceContextLimits } from '../electron/backend/context-assembler.mjs'
 import { composePromptPipeline } from '../electron/backend/prompt-pipeline.mjs'
 import { createWorkspaceIndex } from '../electron/backend/workspace-index.mjs'
 
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-context-'))
 
 try {
+  assert.equal(shouldAttachRepoMap('你好', 'code', { isFirstTurn: true, hasNonConversationIntent: false }), false,
+    'first-turn greetings must not trigger repository indexing')
+  assert.equal(shouldAttachRepoMap('分析这个仓库的结构', 'code', { isFirstTurn: true, hasNonConversationIntent: true }), true,
+    'the first engineering request may receive the bounded repository map')
+  assert.equal(shouldAttachRepoMap('分析这个仓库的结构', 'code', { isFirstTurn: false, hasNonConversationIntent: true }), false,
+    'later turns do not re-inject the default repository map')
+  assert.equal(shouldAttachRepoMap('读 @file:src/main.ts', 'code', { isFirstTurn: false, hasNonConversationIntent: true }), false,
+    'later explicit references resolve only the requested context without rebuilding the default repository map')
+  assert.equal(isFirstConversationTurn([]), true)
+  assert.equal(isFirstConversationTurn([{ author: 'user', text: 'previous turn' }]), false,
+    'persisted app messages mark a conversation as no longer on its first turn')
+  assert.equal(isFirstConversationTurn([{ role: 'user', content: 'API-shaped prior turn' }]), false,
+    'API role-shaped messages also mark a conversation as no longer on its first turn')
+  assert.equal(isFirstConversationTurn([{ author: 'assistant', text: 'hello' }]), true)
+
   const workspace = path.join(root, 'workspace')
   const outside = path.join(root, 'secret.txt')
   await fs.mkdir(path.join(workspace, 'src'), { recursive: true })
@@ -44,6 +59,24 @@ try {
   assert.equal(unchanged.injectedBytes, 0)
   assert.deepEqual(unchanged.sourceBytes, { context: 0, sandboxPolicy: 0 })
   assert.deepEqual(unchanged.layers, { prefix: [], suffix: [] })
+
+  const defaultWithoutWorkspace = await assembleWorkspaceContext(
+    '普通问题',
+    path.join(root, 'workspace-that-does-not-exist'),
+  )
+  assert.equal(defaultWithoutWorkspace.prompt, '普通问题', 'requests without explicit references must not traverse or resolve the workspace')
+  assert.deepEqual(defaultWithoutWorkspace.references, [])
+  assert.equal(defaultWithoutWorkspace.injectedBytes, 0)
+
+  const referenceWithMapBudget = await assembleWorkspaceContext('@file:src/main.ts', workspace, {
+    maxInjectionBytes: 4 * 1024,
+    includeRepoMap: true,
+    repoMapTokens: 10_000,
+  })
+  assert.ok(referenceWithMapBudget.injectedBytes <= 4 * 1024,
+    'explicit context and any optional Repo Map must share the configured hard cap')
+  assert.match(referenceWithMapBudget.prompt, /export const answer = 42/,
+    'explicit references stay ahead of a generated Repo Map when the budget is tight')
 
   await assert.rejects(() => assembleWorkspaceContext('读 @file:../secret.txt', workspace), /不能离开当前工作区/)
   await assert.rejects(() => assembleWorkspaceContext('读 @file:outside-link.txt', workspace), /工作区以外/)

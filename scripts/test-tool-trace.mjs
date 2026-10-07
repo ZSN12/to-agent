@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { extractFileDiff, normalizeToolResult, summarizeToolInput, summarizeToolResult } from '../electron/backend/tool-trace.mjs'
+import { extractFileDiff, normalizeToolResult, setToolTraceCompactionLimits, summarizeToolInput, summarizeToolResult } from '../electron/backend/tool-trace.mjs'
 
 const command = summarizeToolInput('bash', { command: 'curl -H "Authorization: Bearer abcdefghijklmnop12345" https://example.invalid' })
 assert.equal(command.includes('abcdefghijklmnop12345'), false)
@@ -68,5 +68,9 @@ const editorInsert = extractFileDiff('str_replace_editor', {
 assert.equal(editorInsert.addedLines, 2)
 assert.equal(editorInsert.deletedLines, 0)
 assert.equal(normalizeToolResult({ content: [{ type: 'image', data: 'opaque' }] }).content[0].type, 'image')
+setToolTraceCompactionLimits({ maxChars: 8000 })
+const manyLines = Array.from({ length: 80 }, (_, i) => `trace line ${i}`).join('\n')
+const lineCompacted = normalizeToolResult({ content: [{ type: 'text', text: manyLines }] })
+assert.equal(lineCompacted.content[0].compacted, true, 'long line-count tool output should compact for UI traces')
 assert.equal(summarizeToolInput('glob', { path: '/project', pattern: '*.ts' }), '*.ts · /project')
 console.log('tool trace checks passed: secret redaction, Host diff metadata and safe file change counts')

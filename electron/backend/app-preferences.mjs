@@ -13,9 +13,23 @@ const DEFAULT = {
   autoReviewReads: true,
   /** 改代码请求是否在 Host 外追加「运行验证命令」指引；默认关闭以对齐 DSH Web。 */
   autoVerifyAfterMutation: false,
+  /** 启用基于 AST 与 PageRank 的全局代码地图感知 (Repo Map) */
+  enableRepoMap: true,
+  /** Prompt Pipeline 注入系统上下文的最大字节数（默认 32 KiB，暂定防护上限而非最优值） */
+  promptInjectionLimitBytes: 32 * 1024,
 }
 
 const VALID_BASH_SANDBOX = new Set(['auto', 'workspace-write', 'read-only', 'off'])
+const PROMPT_INJECTION_LIMIT_MIN_BYTES = 1024
+const PROMPT_INJECTION_LIMIT_MAX_BYTES = 128 * 1024
+
+function normalizePromptInjectionLimitBytes(value, fallback = DEFAULT.promptInjectionLimitBytes) {
+  if (!Number.isFinite(value)) return fallback
+  return Math.max(
+    PROMPT_INJECTION_LIMIT_MIN_BYTES,
+    Math.min(PROMPT_INJECTION_LIMIT_MAX_BYTES, Math.round(value)),
+  )
+}
 
 export function createAppPreferencesStore(userDataPath) {
   const store = createJsonStore(path.join(userDataPath, 'taskweaver-preferences.json'), DEFAULT)
@@ -29,6 +43,8 @@ export function createAppPreferencesStore(userDataPath) {
         subtaskUpgradeMax: Number.isFinite(raw.subtaskUpgradeMax) ? Math.max(0, Math.min(3, raw.subtaskUpgradeMax)) : DEFAULT.subtaskUpgradeMax,
         autoReviewReads: raw.autoReviewReads !== false,
         autoVerifyAfterMutation: raw.autoVerifyAfterMutation === true,
+        enableRepoMap: raw.enableRepoMap !== false,
+        promptInjectionLimitBytes: normalizePromptInjectionLimitBytes(raw.promptInjectionLimitBytes),
       }
     },
     async set(patch) {
@@ -48,6 +64,12 @@ export function createAppPreferencesStore(userDataPath) {
         autoVerifyAfterMutation: patch.autoVerifyAfterMutation !== undefined
           ? patch.autoVerifyAfterMutation === true
           : (prev.autoVerifyAfterMutation === true),
+        enableRepoMap: patch.enableRepoMap !== undefined
+          ? patch.enableRepoMap === true
+          : (prev.enableRepoMap !== false),
+        promptInjectionLimitBytes: patch.promptInjectionLimitBytes !== undefined
+          ? normalizePromptInjectionLimitBytes(patch.promptInjectionLimitBytes, normalizePromptInjectionLimitBytes(prev.promptInjectionLimitBytes))
+          : normalizePromptInjectionLimitBytes(prev.promptInjectionLimitBytes),
       }
       await store.write(next)
       return next
