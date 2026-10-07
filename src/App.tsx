@@ -1966,6 +1966,7 @@ function SettingsPage({
             onScanLocalOpenCodex={modelCatalog.scanLocalOpenCodex}
             onRemoveModel={modelCatalog.removeModel}
             onRemoveProviderCredentials={modelCatalog.removeProviderCredentials}
+            onClearCatalogError={modelCatalog.clearError}
             onToast={toast}
           />
         ) : section === 'skills' ? (

@@ -200,45 +200,96 @@ function symlinkDir(target, linkPath) {
   fs.symlinkSync(target, linkPath, process.platform === 'win32' ? 'junction' : 'dir')
 }
 
-/** Node ESM resolves packages from cwd/node_modules; deploy output uses runtime-packages for packaging. */
-function prepareRuntimeCwd(runtimeRoot, dshHome) {
+/** @param {string} runtimeRoot */
+export function runtimePackagesResolveSmoke(runtimeRoot) {
+  const marker = path.join(runtimeRoot, 'node_modules', '@z', 'dsh-persona', 'package.json')
+  return fs.existsSync(marker)
+}
+
+function removeNodeModulesLink(runtimeRoot) {
+  const modulesLink = path.join(runtimeRoot, 'node_modules')
+  if (!fs.existsSync(modulesLink)) return
+  try {
+    const stat = fs.lstatSync(modulesLink)
+    if (stat.isSymbolicLink()) {
+      fs.unlinkSync(modulesLink)
+      return
+    }
+    if (stat.isDirectory() && !runtimePackagesResolveSmoke(runtimeRoot)) {
+      fs.rmSync(modulesLink, { recursive: true, force: true })
+    }
+  } catch {
+    /* best-effort */
+  }
+}
+
+/**
+ * Ensure `<root>/node_modules` → `runtime-packages` so ESM can import `@z/dsh-persona` etc.
+ * @returns {boolean}
+ */
+function ensureNodeModulesLink(runtimeRoot) {
+  const packagesDir = path.join(runtimeRoot, TASKWEAVER_RUNTIME_PACKAGES)
+  if (!fs.existsSync(packagesDir)) return false
+  if (runtimePackagesResolveSmoke(runtimeRoot)) return true
+  removeNodeModulesLink(runtimeRoot)
+  const modulesLink = path.join(runtimeRoot, 'node_modules')
+  try {
+    symlinkDir(TASKWEAVER_RUNTIME_PACKAGES, modulesLink)
+  } catch {
+    try {
+      symlinkDir(packagesDir, modulesLink)
+    } catch {
+      return false
+    }
+  }
+  return runtimePackagesResolveSmoke(runtimeRoot)
+}
+
+function linkMirrorPiece(src, dest) {
+  if (!fs.existsSync(src)) return
+  try {
+    if (fs.existsSync(dest)) fs.rmSync(dest, { recursive: true, force: true })
+    fs.symlinkSync(src, dest, process.platform === 'win32' ? 'junction' : 'dir')
+  } catch {
+    /* skip */
+  }
+}
+
+/**
+ * Node ESM resolves from cwd/node_modules; deploy output uses runtime-packages (electron-builder strips node_modules).
+ * Packaged .app Resources are often read-only — mirror into DSH_HOME when needed.
+ */
+export function prepareRuntimeCwd(runtimeRoot, dshHome, { preferWritableMirror = false } = {}) {
   const packagesDir = path.join(runtimeRoot, TASKWEAVER_RUNTIME_PACKAGES)
   if (!fs.existsSync(packagesDir)) {
     return runtimeRoot
   }
-  const modulesLink = path.join(runtimeRoot, 'node_modules')
-  if (!fs.existsSync(modulesLink)) {
-    try {
-      symlinkDir(TASKWEAVER_RUNTIME_PACKAGES, modulesLink)
-      return runtimeRoot
-    } catch {
-      /* .app Resources may be read-only — mirror into DSH_HOME */
-    }
-  } else {
+
+  if (!preferWritableMirror && ensureNodeModulesLink(runtimeRoot)) {
     return runtimeRoot
   }
 
   const mirror = path.join(dshHome, 'packaged-runtime')
   fs.mkdirSync(mirror, { recursive: true })
   for (const name of ['lib', 'config', TASKWEAVER_RUNTIME_PACKAGES]) {
-    const src = path.join(runtimeRoot, name)
-    const dest = path.join(mirror, name)
-    if (!fs.existsSync(src) || fs.existsSync(dest)) continue
-    try {
-      fs.symlinkSync(src, dest, process.platform === 'win32' ? 'junction' : 'dir')
-    } catch {
-      /* skip broken mirror piece */
-    }
+    linkMirrorPiece(path.join(runtimeRoot, name), path.join(mirror, name))
   }
   for (const name of ['package.json', 'taskweaver-runtime-meta.json']) {
     const src = path.join(runtimeRoot, name)
     const dest = path.join(mirror, name)
-    if (!fs.existsSync(src) || fs.existsSync(dest)) continue
-    fs.symlinkSync(src, dest)
+    if (!fs.existsSync(src)) continue
+    try {
+      if (fs.existsSync(dest)) fs.rmSync(dest, { force: true })
+      fs.symlinkSync(src, dest)
+    } catch {
+      /* skip */
+    }
   }
-  const mirrorModules = path.join(mirror, 'node_modules')
-  if (!fs.existsSync(mirrorModules)) {
-    symlinkDir(path.join(mirror, TASKWEAVER_RUNTIME_PACKAGES), mirrorModules)
+  if (!ensureNodeModulesLink(mirror)) {
+    throw new Error(
+      'Z Host 无法在打包运行时下解析 @z/* 依赖（缺少 node_modules → runtime-packages）。'
+      + ' 请重启 TaskWeaver；若仍失败请重新安装最新版本。',
+    )
   }
   return mirror
 }
@@ -270,6 +321,7 @@ export function createZHostManager({
   environment = process.env,
   getMcpRuntimeIntegration,
   startTimeoutMs = START_TIMEOUT_MS,
+  isPackaged = false,
 }) {
   let child = null
   let startPromise = null
@@ -320,7 +372,7 @@ export function createZHostManager({
       let nodePath
       let processCwd
       try {
-        processCwd = prepareRuntimeCwd(runtimeRoot, dshHome)
+        processCwd = prepareRuntimeCwd(runtimeRoot, dshHome, { preferWritableMirror: isPackaged })
         const launch = resolveTaskWeaverHostLaunch(processCwd)
         entrypoint = launch.entrypoint
         nodePath = launch.nodePath

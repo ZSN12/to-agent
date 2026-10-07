@@ -52,6 +52,10 @@ contextBridge.exposeInMainWorld('taskweaver', {
     checkForUpdates: (options) => invoke('models:checkForUpdates', options ?? {}),
     rollbackRegistry: () => invoke('models:rollbackRegistry'),
     scanLocal: () => invoke('models:scanLocal'),
+    openCodexGetSetupStatus: () => invoke('opencodex:getSetupStatus'),
+    openCodexEnsure: () => invoke('opencodex:ensure'),
+    openCodexLoginCursor: () => invoke('opencodex:loginCursor'),
+    openCodexOpenDashboard: () => invoke('opencodex:openDashboard'),
     listProvidersAuth: () => invoke('models:providersAuth'),
     setProviderApiKey: (providerId, apiKey) =>
       invoke('models:setProviderApiKey', providerId, apiKey),
@@ -147,6 +151,11 @@ contextBridge.exposeInMainWorld('taskweaver', {
       ipcRenderer.on('chat:stream', handler)
       return () => ipcRenderer.removeListener('chat:stream', handler)
     },
+    onPromptBudget: (listener) => {
+      const handler = (_event, payload) => listener(payload)
+      ipcRenderer.on('chat:promptBudget', handler)
+      return () => ipcRenderer.removeListener('chat:promptBudget', handler)
+    },
   },
   tasks: {
     sendMessage: (taskId, text, conversationId) => invoke('tasks:sendMessage', taskId, text, conversationId ?? null),
@@ -166,6 +175,7 @@ contextBridge.exposeInMainWorld('taskweaver', {
   },
   userQuestions: {
     answer: (id, answer) => invoke('userQuestions:answer', id, answer),
+    cancel: (id) => invoke('userQuestions:cancel', id),
     onPrompt: (listener) => {
       const handler = (_event, payload) => listener(payload)
       ipcRenderer.on('user-question:prompt', handler)

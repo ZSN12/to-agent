@@ -126,8 +126,9 @@ try {
     id: modelId,
     name: 'DeepSeek V4 Pro',
     reasoning: true,
-    supportedThinkingLevels: ['off', 'minimal', 'low', 'medium', 'high', 'max'],
-    defaultThinkingLevel: 'high',
+    supportedThinkingLevels: ['minimal', 'low', 'medium', 'high', 'max'],
+    reasoningEfforts: ['minimal', 'low', 'medium', 'high', 'max'].map((id) => ({ id })),
+    defaultThinkingLevel: 'minimal',
   })
   console.log('model override registration passed: bundled pi-ai model is overridden, route-confirmed, and resolvable')
 } finally {

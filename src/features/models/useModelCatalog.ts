@@ -243,14 +243,17 @@ export function useModelCatalog() {
     setError(null)
     const res = await client.scanLocal()
     if (!res.ok) {
-      setError(res.error ?? '扫描本地模型失败')
       throw new Error(res.error ?? '扫描本地模型失败')
+    }
+    const payload = res.data
+    if (payload?.error) {
+      throw new Error(payload.error)
     }
     const listRes = await client.list()
     if (listRes.ok) setCatalog(listRes.data ?? null)
     const authRes = await client.listProvidersAuth()
     if (authRes.ok) setAuth(authRes.data ?? [])
-    return res.data
+    return payload
   }, [])
 
   const removeModel = useCallback(async (modelKey: string) => {
@@ -361,12 +364,15 @@ export function useModelCatalog() {
     return true
   }, [])
 
+  const clearError = useCallback(() => setError(null), [])
+
   return {
     bridgeReady,
     catalog,
     auth,
     loading,
     error,
+    clearError,
     availableModels,
     composerOptions,
     activeThinkingLevel,

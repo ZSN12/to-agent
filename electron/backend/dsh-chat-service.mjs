@@ -20,6 +20,9 @@ import {
   Z_MAX_TRACKED_SESSIONS,
 } from './config.mjs'
 import { sessionModelMatches } from './dsh-session-model.mjs'
+import { isCursorFamilyModelKey } from './cursor-model-route.mjs'
+import { ensureOpenCodexProxyReachable, isOpenCodexModelKey } from './opencodex-health.mjs'
+import { resolveTaskWeaverModelsPath } from './taskweaver-models-path.mjs'
 
 const Z_IDLE_HISTORY_RECONCILE_MS = 10_000
 const Z_MAX_HISTORY_RECONCILE_MS = 30_000
@@ -142,6 +145,18 @@ function pauseThinkingSegment(turn, now = Date.now()) {
   turn.thinkingEndedAt = now
   turn.thinkingActiveMs = (turn.thinkingActiveMs ?? 0) + Math.max(0, now - turn.thinkingStartedAt)
   turn.thinkingStartedAt = null
+}
+
+function endThinkingSegment(turn, emitFn, emitTarget, now = Date.now()) {
+  const wasActive = Boolean(turn.thinkingStartedAt && !turn.thinkingEndedAt)
+  pauseThinkingSegment(turn, now)
+  if (wasActive && !turn.silentText) {
+    emitFn(emitTarget, turn.webContents, {
+      type: 'thinking_end',
+      fullThinking: turn.thinking,
+      durationMs: activeThinkingDurationMs(turn, now),
+    })
+  }
 }
 
 function activeThinkingDurationMs(turn, now = Date.now()) {
@@ -519,6 +534,27 @@ export function createDshChatService({
     return true
   }
 
+  async function cancelUserQuestion(id) {
+    const pending = pendingQuestions.get(id)
+    if (!pending) return false
+    const api = await ensureReady()
+    const receipt = await api.respond({
+      type: 'client-response',
+      rpcId: pending.rpcId,
+      result: {
+        ok: false,
+        error: {
+          code: 'cancelled',
+          message: 'the user dismissed the question to speak instead',
+          details: {},
+        },
+      },
+    })
+    if (receipt?.accepted === false) return false
+    pendingQuestions.delete(id)
+    return true
+  }
+
   async function handleEnvelope(api, envelope) {
     const frame = envelope?.payload
     if (!frame) return
@@ -656,7 +692,7 @@ export function createDshChatService({
       return
     }
     if (event?.type === 'step/start') {
-      pauseThinkingSegment(turn, event.time || Date.now())
+      endThinkingSegment(turn, emit, emitTarget, event.time || Date.now())
       return
     }
     if (event?.type === 'request/header') {
@@ -694,7 +730,7 @@ export function createDshChatService({
     if (event?.type === 'assistant/chunk') {
       const chunk = event.data?.chunk
       if (chunk?.type === 'text-delta' && chunk.text) {
-        pauseThinkingSegment(turn, event.time || Date.now())
+        endThinkingSegment(turn, emit, emitTarget, event.time || Date.now())
         const stepKey = assistantTextStepKey(turn, event)
         const stepText = turn.textByStep?.get(stepKey) ?? ''
         setAssistantStepText(turn, stepKey, stepText + chunk.text)
@@ -740,7 +776,7 @@ export function createDshChatService({
         const stepKey = assistantTextStepKey(turn, event)
         const streamedStepText = turn.textByStep?.get(stepKey) ?? ''
         if (finalText !== streamedStepText) {
-          pauseThinkingSegment(turn, event.time || Date.now())
+          endThinkingSegment(turn, emit, emitTarget, event.time || Date.now())
           setAssistantStepText(turn, stepKey, finalText)
           if (turn.progressOnly && turn.plannerPhase !== 'text') {
             turn.plannerPhase = 'text'
@@ -775,14 +811,18 @@ export function createDshChatService({
       return
     }
     if (event?.type === 'tool/call') {
-      pauseThinkingSegment(turn, event.time || Date.now())
+      endThinkingSegment(turn, emit, emitTarget, event.time || Date.now())
       turn.toolCalls += 1
+      const hostTurn = Number.isInteger(event.data?.turn) ? event.data.turn : undefined
+      const hostStep = Number.isInteger(event.data?.step) ? event.data.step : undefined
       const input = (() => {
         try { return JSON.parse(event.data?.arguments || '{}') } catch { return {} }
       })()
       const callId = event.data?.callId
       const toolName = event.data?.name || 'tool'
-      turn.toolCallsById.set(callId, { toolName, input, startedAt: event.time || Date.now() })
+      turn.toolCallsById.set(callId, {
+        toolName, input, startedAt: event.time || Date.now(), turn: hostTurn, step: hostStep,
+      })
       emit(emitTarget, turn.webContents, {
         type: 'activity',
         phase: 'tools',
@@ -791,6 +831,8 @@ export function createDshChatService({
       emit(emitTarget, turn.webContents, {
         type: 'tool',
         id: callId,
+        ...(hostTurn !== undefined ? { turn: hostTurn } : {}),
+        ...(hostStep !== undefined ? { step: hostStep } : {}),
         toolName,
         status: 'running',
         inputSummary: summarizeToolInput(toolName, input),
@@ -827,6 +869,8 @@ export function createDshChatService({
         emit(emitTarget, turn.webContents, {
           type: 'tool',
           id: callId,
+          ...(call.turn !== undefined ? { turn: call.turn } : {}),
+          ...(call.step !== undefined ? { step: call.step } : {}),
           toolName: call.toolName,
           status: result.isError ? 'error' : 'done',
           inputSummary: summarizeToolInput(call.toolName, call.input),
@@ -840,17 +884,23 @@ export function createDshChatService({
       return
     }
     if (event?.type === 'tool/code-dispatch-start') {
+      endThinkingSegment(turn, emit, emitTarget, event.time || Date.now())
       const data = event.data ?? {}
       const callId = data.subCallId
       if (typeof callId !== 'string' || !callId) return
       const input = data.arguments && typeof data.arguments === 'object' ? data.arguments : {}
       const toolName = typeof data.name === 'string' && data.name ? data.name : 'tool'
+      const parentCall = turn.toolCallsById.get(data.parentCallId)
+      const hostTurn = Number.isInteger(data.turn) ? data.turn : parentCall?.turn
+      const hostStep = Number.isInteger(data.step) ? data.step : parentCall?.step
       turn.toolCalls += 1
       turn.toolCallsById.set(callId, {
         toolName,
         input,
         startedAt: event.time || Date.now(),
         parentCallId: data.parentCallId ?? null,
+        turn: hostTurn,
+        step: hostStep,
       })
       emit(emitTarget, turn.webContents, {
         type: 'activity',
@@ -862,6 +912,8 @@ export function createDshChatService({
         type: 'tool',
         id: callId,
         parentCallId: data.parentCallId ?? null,
+        ...(hostTurn !== undefined ? { turn: hostTurn } : {}),
+        ...(hostStep !== undefined ? { step: hostStep } : {}),
         toolName,
         status: 'running',
         inputSummary: summarizeToolInput(toolName, input),
@@ -889,6 +941,8 @@ export function createDshChatService({
           type: 'tool',
           id: callId,
           parentCallId: data.parentCallId ?? call.parentCallId ?? null,
+          ...(Number.isInteger(data.turn) ? { turn: data.turn } : call.turn !== undefined ? { turn: call.turn } : {}),
+          ...(Number.isInteger(data.step) ? { step: data.step } : call.step !== undefined ? { step: call.step } : {}),
           toolName,
           status: result.isError ? 'error' : 'done',
           inputSummary: summarizeToolInput(toolName, input),
@@ -1331,7 +1385,14 @@ export function createDshChatService({
     return readyPromise
   }
 
-  async function ensureSession(api, conversationId, { cwdOverride, agentPreset, permissionMode, ownerConversationId, parentSessionId } = {}) {
+  async function ensureSession(api, conversationId, {
+    cwdOverride,
+    agentPreset,
+    permissionMode,
+    ownerConversationId,
+    parentSessionId,
+    modelKey = null,
+  } = {}) {
     await loadSessions()
     let entry = sessions.get(conversationId)
     const requestedCwd = cwdOverride || getWorkspacePath() || process.cwd()
@@ -1340,6 +1401,16 @@ export function createDshChatService({
     if (entry) assertBindableWorkspace(entry.cwd)
     const mode = normalizePermissionMode(permissionMode ?? await Promise.resolve(getPermissionMode(conversationId)))
     const resolvedPreset = agentPreset || dshAgentPresetForPermissionMode(mode)
+    if (
+      entry
+      && isCursorFamilyModelKey(modelKey)
+      && entry.agentPreset === 'code'
+      && resolvedPreset === 'standard'
+    ) {
+      // Composer on Code Mode only sees run_code; it then hunts for Cursor-only tools and appears hung.
+      sessions.delete(conversationId)
+      entry = null
+    }
     if (entry && entry.cwd !== requestedCwd) {
       throw new Error('此对话绑定的工作区与当前工作区不同。为保持 Z 会话上下文一致，请在原工作区继续，或新建对话。')
     }
@@ -1475,6 +1546,17 @@ export function createDshChatService({
     if (!auth.some((item) => item.id === config.provider && item.configured)) {
       throw new Error(`模型提供方 ${config.provider} 尚未完成 API Key 或官方订阅授权。请先在模型设置中连接账号。`)
     }
+    if (config.provider === 'opencodex' || isOpenCodexModelKey(modelKey)) {
+      const modelsPath = resolveTaskWeaverModelsPath(userDataPath)
+      const { up, baseUrl } = await ensureOpenCodexProxyReachable(modelsPath)
+      if (!up) {
+        throw new Error(
+          `无法连接本机 OpenCodex 代理（${baseUrl}）。`
+          + '请在「模型与来源」打开 OpenCodex 卡片，点击「启动 OpenCodex」并完成 Cursor 登录，再重试。'
+          + 'Composer 等 Cursor 模型必须经 ocx 转发；小米 MiMo 等官方 API 模型不经过 ocx。',
+        )
+      }
+    }
     return config
   }
 
@@ -1511,6 +1593,7 @@ export function createDshChatService({
       permissionMode,
       ownerConversationId: conversationId,
       parentSessionId,
+      modelKey,
     })
 
     const activeTurn = running.get(sessionKey)
@@ -1928,6 +2011,7 @@ export function createDshChatService({
     abort,
     respondApproval,
     answerUserQuestion,
+    cancelUserQuestion,
     rejectPendingApprovals,
     forgetConversation,
     forkConversation,

@@ -164,6 +164,26 @@ export interface ScanLocalModelsResult {
   providerIds: string[]
   syncedAt: string
   models: ScannedLocalModel[]
+  /** 扫描未完成时的说明（IPC 仍可能 ok: true） */
+  error?: string
+  cursorLoginStarted?: boolean
+}
+
+export interface OpenCodexSetupStatus {
+  proxyUp?: boolean
+  cursorLoggedIn?: boolean
+  baseUrl?: string | null
+  bundled?: boolean
+  /** TaskWeaver 调用的 ocx CLI 版本 */
+  version?: string | null
+  cliVersion?: string | null
+  /** 10100 上实际运行的代理版本（healthz） */
+  proxyVersion?: string | null
+  composerContinuationOk?: boolean
+  cliSupportsComposer?: boolean
+  composerContinuationMinVersion?: string
+  upgradeAttempted?: boolean
+  upgradeError?: string | null
 }
 
 export interface ModelLoadBundle {
@@ -181,6 +201,10 @@ export interface TaskweaverModelsApi {
   checkForUpdates: (options?: { force?: boolean }) => Promise<IpcResult<ModelUpdateStatus>>
   rollbackRegistry: () => Promise<IpcResult<ModelUpdateStatus>>
   scanLocal: () => Promise<IpcResult<ScanLocalModelsResult>>
+  openCodexGetSetupStatus: () => Promise<IpcResult<OpenCodexSetupStatus>>
+  openCodexEnsure: () => Promise<IpcResult<OpenCodexSetupStatus>>
+  openCodexLoginCursor: () => Promise<IpcResult<{ ok: boolean; message?: string }>>
+  openCodexOpenDashboard: () => Promise<IpcResult<{ url: string }>>
   listProvidersAuth: () => Promise<IpcResult<ProviderAuthStatus[]>>
   setProviderApiKey: (
     providerId: string,

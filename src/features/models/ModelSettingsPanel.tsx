@@ -3,6 +3,7 @@ import { Check, Copy, Database, ExternalLink, KeyRound, Link2, LogOut, Pencil, P
 import type { CatalogModel, CustomProviderEntry, ModelProfilePatch, ProviderAuthStatus, OAuthStatusInfo, ScanLocalModelsResult, ModelUpdateStatus, ProbedModelItem, ProbeModelsResult } from '../../shared/model-api'
 import { formatCostPerMillion, getCleanModelName } from './format'
 import { LocalScanModal } from './LocalScanModal'
+import { OpenCodexSetupCard } from './OpenCodexSetupCard'
 import { CustomProviderSection } from './CustomProviderSection'
 import { ProbeModelsModal } from './ProbeModelsModal'
 
@@ -858,6 +859,7 @@ export function ModelSettingsPanel({
   onRemoveModel,
   onRemoveProviderCredentials,
   onToast,
+  onClearCatalogError,
 }: {
   auth: ProviderAuthStatus[]
   models: CatalogModel[]
@@ -882,6 +884,7 @@ export function ModelSettingsPanel({
   onRemoveModel: (modelKey: string) => Promise<boolean>
   onRemoveProviderCredentials: (providerId: string) => Promise<boolean>
   onToast?: (message: string) => void
+  onClearCatalogError?: () => void
 }) {
   const [query, setQuery] = useState('')
   const [keyProvider, setKeyProvider] = useState<ProviderAuthStatus | null>(null)
@@ -1185,6 +1188,10 @@ export function ModelSettingsPanel({
         </div>
       </div>
 
+      {bridgeReady && (
+        <OpenCodexSetupCard bridgeReady={bridgeReady} onClearGlobalError={onClearCatalogError} />
+      )}
+
       {updateStatus && (
         <div className={`model-registry-status model-registry-status-${updateStatus.state === 'failed' ? 'up-to-date' : updateStatus.state}`}>
           <div className="model-registry-status-copy">
@@ -1237,7 +1244,20 @@ export function ModelSettingsPanel({
         </div>
       )}
 
-      {error && <div className="settings-inline-error" role="alert">{error}</div>}
+      {error && (
+        <div className="settings-inline-error settings-inline-error-dismissible" role="alert">
+          <span>
+            {/^fetch failed$/i.test(error.trim())
+              ? '网络请求失败（fetch failed）。多为此前扫描 OpenCodex 或 ChatGPT 授权时的旧提示；若上方 OpenCodex 已显示就绪，可关闭本条后重试扫描，或在 ChatGPT 订阅区重新授权。'
+              : error}
+          </span>
+          {onClearCatalogError && (
+            <button type="button" className="settings-inline-error-dismiss" onClick={onClearCatalogError}>
+              关闭
+            </button>
+          )}
+        </div>
+      )}
 
       {loading && !models ? (
         <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--text-secondary)' }}>

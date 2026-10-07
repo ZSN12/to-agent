@@ -2,10 +2,11 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { spawn } from 'node:child_process'
 import { applyOpenCodexDshReasoningOverlay } from './opencodex-reasoning-overlay.mjs'
+import { resolveOcxExecutable } from './opencodex-binary.mjs'
 
 const DEFAULT_TIMEOUT_MS = 120_000
 
-function expandedPath() {
+export function expandedPath() {
   const home = process.env.HOME || process.env.USERPROFILE || ''
   const extra = home ? `${path.join(home, '.local', 'bin')}` : ''
   return extra ? `${extra}${path.delimiter}${process.env.PATH || ''}` : process.env.PATH || ''
@@ -18,7 +19,8 @@ function expandedPath() {
 export function runOcx(args, options = {}) {
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
   return new Promise((resolve, reject) => {
-    const child = spawn('ocx', args, {
+    const ocx = resolveOcxExecutable()
+    const child = spawn(ocx, args, {
       env: { ...process.env, PATH: expandedPath() },
       stdio: ['ignore', 'pipe', 'pipe'],
     })

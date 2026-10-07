@@ -25,8 +25,9 @@ try {
   const end = source.indexOf('  // ========== chat:send main handler', start)
   assert.ok(start >= 0 && end > start)
   const { handleChatError, createAssistantMessage } = new Function('appState', 'usageStore', 'persistNativeTurn',
-    'IPC_ERROR_MESSAGE_MAX_LENGTH', `${source.slice(start, end)}\nreturn {handleChatError,createAssistantMessage}`)(
-    appState, usageStore, persistNativeTurn, IPC_ERROR_MESSAGE_MAX_LENGTH)
+    'IPC_ERROR_MESSAGE_MAX_LENGTH', 'humanizeOpenCodexTransportError',
+    `${source.slice(start, end)}\nreturn {handleChatError,createAssistantMessage}`)(
+    appState, usageStore, persistNativeTurn, IPC_ERROR_MESSAGE_MAX_LENGTH, (message) => message)
   const result = { turnId: 'first', startedAt: Date.now(), text: 'completed turn', thinking: 'reasoning',
     fileChanges: [{ path: 'src/main.ts', addedLines: 2, deletedLines: 1 }],
     usage: { inputTokens: 10, outputTokens: 2, elapsedMs: 50 } }
@@ -67,8 +68,8 @@ try {
   try {
     console.error = () => {}
     const broken = new Function('appState', 'usageStore', 'persistNativeTurn', 'IPC_ERROR_MESSAGE_MAX_LENGTH',
-      `${source.slice(start, end)}\nreturn {handleChatError}`)(appState, usageStore,
-      async () => { throw persistenceFailure }, IPC_ERROR_MESSAGE_MAX_LENGTH)
+      'humanizeOpenCodexTransportError', `${source.slice(start, end)}\nreturn {handleChatError}`)(appState, usageStore,
+      async () => { throw persistenceFailure }, IPC_ERROR_MESSAGE_MAX_LENGTH, (message) => message)
     await assert.rejects(broken.handleChatError(error, 'disk-failed', '12:01', conversationId), candidate => candidate === error)
     assert.equal(error.persistenceError, persistenceFailure, 'commit failures must not replace the provider error')
   } finally { console.error = originalErrorLog }

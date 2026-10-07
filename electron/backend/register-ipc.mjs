@@ -38,6 +38,7 @@ import { assertSafeWorkspacePath } from './security-path.mjs'
 import { detectVerificationCommands } from './verification-policy.mjs'
 import { analyzeUserIntent, injectIntentGuidelines, USER_INTENTS } from './user-intent.mjs'
 import { resolvePrimaryAgentPreset } from './primary-agent-preset.mjs'
+import { humanizeOpenCodexTransportError } from './opencodex-health.mjs'
 import { createTerminalService } from './terminal-service.mjs'
 import { diagnoseEnvironment, diagnoseTool } from './env-service.mjs'
 import {
@@ -59,7 +60,15 @@ import { getMarketplaceManifest, listMarketplaceEntries, catalogEntryToServerCon
 import { createTaskWorktree, listTaskWorktrees, removeTaskWorktree, getTaskWorktreeDiff } from './worktree-service.mjs'
 import { createMemoryStore } from './memory-store.mjs'
 import { createCustomProviderService } from './custom-provider-service.mjs'
-import { listModelsFromExport } from './opencodex-sync.mjs'
+import { listModelsFromExport, syncOpenCodexFromCli } from './opencodex-sync.mjs'
+import { resolveOcxExecutable, setOcxRuntimeContext } from './opencodex-binary.mjs'
+import { autoStartOpenCodexIfNeeded, writeOpenCodexExportSnapshot } from './opencodex-lifecycle.mjs'
+import {
+  ensureOpenCodexProxy,
+  getOpenCodexSetupStatus,
+  openOpenCodexDashboard,
+  startOpenCodexProviderLogin,
+} from './opencodex-service.mjs'
 import { migrateLegacyModelsJson, resolveTaskWeaverModelsPath } from './taskweaver-models-path.mjs'
 import { ensureModelsJsonSyncedToDshHost } from './sync-models-json-to-host.mjs'
 import { IPC_PLANNER_FALLBACK_HINT_MAX_LENGTH, IPC_ERROR_MESSAGE_MAX_LENGTH } from './config.mjs'
@@ -135,10 +144,17 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
     resourcesPath: process.resourcesPath,
     isPackaged: app.isPackaged,
   })
+  setOcxRuntimeContext({
+    appPath: app.getAppPath(),
+    resourcesPath: process.resourcesPath,
+    isPackaged: app.isPackaged,
+  })
+
   const hostManager = createZHostManager({
     runtimeRoot,
     userDataPath: userData,
     executable: process.execPath,
+    isPackaged: app.isPackaged,
     getMcpRuntimeIntegration: () => mcp.prepareRuntimeIntegration(),
   })
   const { createZConversationHub } = await import('./z-conversation-hub.mjs')
@@ -183,6 +199,23 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
     modelRegistryUpdater,
   })
   modelRegistryUpdater.setMappingValidator((registry) => modelService.validateRegistryMapping(registry))
+  void modelService.listCatalog()
+    .then((catalog) => autoStartOpenCodexIfNeeded({ userDataPath: userData, catalog }))
+    .then((status) => {
+      if (status?.started) {
+        console.info('[opencodex] 已自动确保本机代理就绪', status.baseUrl, status.bundled ? '(bundled ocx)' : status.ocx)
+      }
+      if (status?.started && status.composerContinuationOk === false) {
+        console.warn(
+          '[opencodex] 代理版本过旧（',
+          status.proxyVersion ?? 'unknown',
+          '），Composer 2.5 工具续写可能卡住。请在「模型与来源」点击「启动 OpenCodex」升级。',
+        )
+      }
+    })
+    .catch((error) => {
+      console.warn('[opencodex] 自动启动检查失败:', error instanceof Error ? error.message : error)
+    })
   void modelRegistryUpdater.hydrateStatus()
     .then(() => modelRegistryUpdater.checkForUpdates({ force: false }))
     .then((status) => {
@@ -659,25 +692,110 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
     await modelService.refreshCatalog()
     return status
   })
+  async function enrichScannedOpenCodexModels(exportDoc, providerIds) {
+    const catalog = await modelService.listCatalog()
+    const added = new Set((catalog?.models ?? []).map((row) => row.key))
+    return listModelsFromExport(exportDoc, providerIds).map((row) => ({
+      key: row.key,
+      name: row.name,
+      id: row.id,
+      provider: row.provider,
+      source: row.source,
+      available: true,
+      alreadyAdded: added.has(row.key),
+    }))
+  }
+
+  ipcHandle(ipcMain, 'opencodex:getSetupStatus', async () => {
+    const modelsPath = resolveTaskWeaverModelsPath(userData)
+    return getOpenCodexSetupStatus(modelsPath)
+  })
+  ipcHandle(ipcMain, 'opencodex:ensure', async () => {
+    const modelsPath = resolveTaskWeaverModelsPath(userData)
+    const result = await ensureOpenCodexProxy(modelsPath)
+    return { ...result, ...(await getOpenCodexSetupStatus(modelsPath)) }
+  })
+  ipcHandle(ipcMain, 'opencodex:loginCursor', async () => {
+    startOpenCodexProviderLogin('cursor')
+    return { ok: true, message: '已在系统浏览器打开 Cursor 登录；完成后回到此处点击「扫描本地模型」。' }
+  })
+  ipcHandle(ipcMain, 'opencodex:openDashboard', async () => {
+    const modelsPath = resolveTaskWeaverModelsPath(userData)
+    const status = await getOpenCodexSetupStatus(modelsPath)
+    const url = await openOpenCodexDashboard(status.baseUrl)
+    return { url }
+  })
+
   ipcHandle(ipcMain, 'models:scanLocal', async () => {
-    // Scan OpenCodex models from local CLI export
-    const openCodexPath = path.join(userData, 'opencodex-export.json')
-    if (!fsSync.existsSync(openCodexPath)) {
-      return { models: [], source: null, syncedAt: null }
-    }
+    const modelsPath = resolveTaskWeaverModelsPath(userData)
     try {
-      const raw = await fs.readFile(openCodexPath, 'utf8')
-      const exportDoc = JSON.parse(raw)
-      const models = listModelsFromExport(exportDoc)
-      const stats = await fs.stat(openCodexPath)
+      const ensureResult = await ensureOpenCodexProxy(modelsPath)
+      const { up } = ensureResult
+      if (!up) {
+        return {
+          models: [],
+          proxyUrl: null,
+          providerIds: [],
+          syncedAt: new Date().toISOString(),
+          error: '本机 OpenCodex 代理未启动。请点击下方「启动 OpenCodex」或重启 TaskWeaver（已内置 ocx 时会自动尝试）。',
+        }
+      }
+      let setup = await getOpenCodexSetupStatus(modelsPath)
+      if (!setup.composerContinuationOk) {
+        return {
+          models: [],
+          proxyUrl: setup.baseUrl,
+          providerIds: [],
+          syncedAt: new Date().toISOString(),
+          error: [
+            `本机 OpenCodex 代理版本过旧（${setup.proxyVersion ?? '未知'}，需要 ≥ ${setup.composerContinuationMinVersion ?? '2.79.0'}）。`,
+            'Composer 2.5 工具调用会卡住。请点击「启动 OpenCodex」自动升级并重启服务。',
+            ensureResult.upgradeError ? `升级尝试：${ensureResult.upgradeError}` : '',
+          ].filter(Boolean).join(' '),
+        }
+      }
+      if (!setup.cursorLoggedIn) {
+        startOpenCodexProviderLogin('cursor')
+        return {
+          models: [],
+          proxyUrl: setup.baseUrl,
+          providerIds: [],
+          syncedAt: new Date().toISOString(),
+          error: '需要登录 Cursor：已在浏览器打开授权页。完成登录后请再次点击「扫描本地模型」（无需打开终端）。',
+          cursorLoginStarted: true,
+        }
+      }
+      const { exportDoc, baseUrl, providerIds } = await syncOpenCodexFromCli({
+        modelsPath,
+        credentials: credentialStore,
+        ensureProxy: false,
+      })
+      await writeOpenCodexExportSnapshot(userData, exportDoc)
+      await hostManager.start()
+      await ensureModelsJsonSyncedToDshHost({
+        hostManager,
+        userDataPath: userData,
+        credentialStore,
+      })
+      await modelService.refreshCatalog()
+      const models = await enrichScannedOpenCodexModels(exportDoc, providerIds)
       return {
         models,
-        source: openCodexPath,
-        syncedAt: stats.mtime.toISOString(),
+        proxyUrl: baseUrl ?? setup.baseUrl,
+        providerIds,
+        syncedAt: new Date().toISOString(),
       }
     } catch (err) {
-      console.error('扫描本地 OpenCodex 模型失败:', err)
-      return { models: [], source: null, syncedAt: null, error: err.message }
+      console.error('同步 OpenCodex 模型失败:', err)
+      const raw = err instanceof Error ? err.message : String(err)
+      const message = humanizeOpenCodexTransportError(raw, 'opencodex/cursor/composer-2.5')
+      return {
+        models: [],
+        proxyUrl: null,
+        providerIds: [],
+        syncedAt: new Date().toISOString(),
+        error: message,
+      }
     }
   })
   ipcHandle(ipcMain, 'pricing:getStatus', () => pricingSync.getStatus())
@@ -1388,7 +1506,7 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
   /**
    * 处理执行错误并存储错误消息
    */
-  const handleChatError = async (error, messageId, time, conversationId) => {
+  const handleChatError = async (error, messageId, time, conversationId, modelKey = null) => {
     // Transport uncertainty is not proof the Agent failed. Its native terminal
     // will own persistence/accounting once the connection can be recovered.
     if (error?.runContinues) throw error
@@ -1414,6 +1532,7 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
       const diagnostic = code ?? detail
       if (diagnostic && !message.includes(diagnostic)) message = `${message}（底层原因：${diagnostic}）`
     }
+    message = humanizeOpenCodexTransportError(message, modelKey ?? error?.modelKey)
     await appState.appendMessagesToConversation(conversationId, {
       id: `${messageId}-error`,
       author: 'orchestrator',
@@ -1496,7 +1615,7 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
         result = await chat.send({ text: command, modelKey: activeKey, conversationId,
           cwdOverride: runtimeContext.workspacePath, webContents: event.sender,
           agentPreset: resolvePrimaryAgentPreset(command, workMode, activeKey) })
-      } catch (error) { await handleChatError(error, messageId, time, conversationId) }
+      } catch (error) { await handleChatError(error, messageId, time, conversationId, activeKey) }
       const assistant = await createAssistantMessage(result, messageId, time, activeKey,
         { mode: 'single-agent' }, conversationId)
       return { user: userEntry, assistant }

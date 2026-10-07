@@ -43,6 +43,7 @@ asarUnpack:
   - electron/preload.cjs
   - electron/backend/pty-shim.py
   - node_modules/node-pty/**/*
+  - node_modules/@bitkyc08/opencodex/**/*
 
 mac:
   category: public.app-category.developer-tools

@@ -312,6 +312,11 @@ try {
   await waitFor(() => projectedEvents.some((event) => event.type === 'delta'), { label: 'direct delta despite live projection' })
   assert.ok(projectedEvents.some((event) => event.type === 'thinking_delta' && event.delta === 'reasoning first'))
   assert.ok(projectedEvents.some((event) => event.type === 'delta' && event.delta === 'visible answer now'))
+  const projectedThinkingEndIndex = projectedEvents.findIndex((event) => event.type === 'thinking_end')
+  const projectedTextIndex = projectedEvents.findIndex((event) => event.type === 'delta')
+  assert.ok(projectedThinkingEndIndex >= 0, 'the reasoning segment should have an explicit end event')
+  assert.ok(projectedThinkingEndIndex < projectedTextIndex,
+  'the visible Think segment must settle before answer text begins')
   projectedRuntime.push({ payload: { type: 'session/event', sessionId: projectedSessionId, event: {
     type: 'assistant/message',
     data: { turn: 1, step: 1, message: { role: 'assistant', content: [{ type: 'text', text: 'visible answer now' }] } },
@@ -324,6 +329,48 @@ try {
   await projectedTurn
   assert.equal(projectedEvents.filter((event) => event.type === 'delta').length, 1,
     'assistant/message must not duplicate text already emitted as chunks')
+
+  const toolBoundaryEvents = []
+  const toolBoundaryWebContents = { send(_channel, event) { toolBoundaryEvents.push(event) }, isDestroyed() { return false } }
+  const toolBoundaryTurn = projectedService.send({
+    text: 'reasoning followed by a tool and then visible text',
+    modelKey: 'test/model-tool-boundary',
+    conversationId: 'projection-tool-boundary',
+    webContents: toolBoundaryWebContents,
+  })
+  await waitFor(() => projectedService.isBusy('projection-tool-boundary'), { label: 'tool-boundary turn started' })
+  const toolBoundarySessionId = projectedRuntime.created.find((item) => item.sessionId.endsWith('projection-tool-boundary')).sessionId
+  projectedRuntime.push({ payload: { type: 'session/event', sessionId: toolBoundarySessionId, event: {
+    type: 'assistant/chunk', data: { turn: 1, step: 1, chunk: { type: 'reasoning-delta', text: 'checking before the tool' } },
+  } } })
+  projectedRuntime.push({ payload: { type: 'session/event', sessionId: toolBoundarySessionId, event: {
+    type: 'tool/call', data: { turn: 1, step: 1, callId: 'boundary-read', name: 'read', arguments: '{"file_path":"package.json"}' },
+  } } })
+  await waitFor(() => toolBoundaryEvents.some((event) => event.type === 'tool' && event.id === 'boundary-read' && event.status === 'running'),
+    { label: 'tool-boundary read started' })
+  const toolThinkingEndIndex = toolBoundaryEvents.findIndex((event) => event.type === 'thinking_end')
+  const toolStartIndex = toolBoundaryEvents.findIndex((event) => event.type === 'tool' && event.id === 'boundary-read' && event.status === 'running')
+  assert.ok(toolThinkingEndIndex >= 0, 'the tool boundary should close an active Think segment')
+  assert.ok(toolThinkingEndIndex < toolStartIndex,
+  'Think must stop before a tool starts, not remain presented as active through tool execution')
+  projectedRuntime.push({ payload: { type: 'session/event', sessionId: toolBoundarySessionId, event: {
+    type: 'tool/result', data: { message: {
+      role: 'tool', source: { callId: 'boundary-read' }, content: [{ type: 'text', text: 'package metadata read' }],
+    } },
+  } } })
+  await waitFor(() => toolBoundaryEvents.some((event) => event.type === 'tool' && event.id === 'boundary-read' && event.status === 'done'),
+    { label: 'tool-boundary read completed' })
+  projectedRuntime.push({ payload: { type: 'session/event', sessionId: toolBoundarySessionId, event: {
+    type: 'assistant/chunk', data: { turn: 1, step: 2, chunk: { type: 'text-delta', text: 'I read the file.' } },
+  } } })
+  await waitFor(() => toolBoundaryEvents.some((event) => event.type === 'delta' && event.delta === 'I read the file.'),
+    { label: 'assistant text appears after tool result' })
+  assert.equal(toolBoundaryEvents.some((event) => event.type === 'done'), false,
+    'the post-tool assistant text must still reach the UI before terminal completion')
+  projectedRuntime.push({ payload: { type: 'session/event', sessionId: toolBoundarySessionId, event: {
+    type: 'turn/end', data: { reason: { kind: 'completed' } },
+  } } })
+  await toolBoundaryTurn
 
   const messageOnlyEvents = []
   const messageOnlyWebContents = { send(_channel, event) { messageOnlyEvents.push(event) }, isDestroyed() { return false } }
@@ -723,7 +770,9 @@ try {
   await waitFor(() => service.isBusy('dag-session-code-mode'), { label: 'Code Mode 子任务会话已注册为运行中' })
   const codeModeSession = runtime.created.find((item) => item.sessionId === 'tw-dag-session-code-mode')
   runtime.push({ payload: { type: 'session/event', sessionId: codeModeSession.sessionId, event: {
-    type: 'tool/call', time: Date.now(), data: { callId: 'task-call-code', name: 'run_code', arguments: '{"description":"read files"}' },
+    type: 'tool/call', time: Date.now(), data: {
+      turn: 3, step: 4, callId: 'task-call-code', name: 'run_code', arguments: '{"description":"read files"}',
+    },
   } } })
   const nestedReadStartedAt = Date.now()
   runtime.push({ payload: { type: 'session/event', sessionId: codeModeSession.sessionId, event: {
@@ -774,6 +823,8 @@ try {
     && event.id === 'task-call-code:code:1' && event.status === 'done')
   assert.equal(nestedReadStart?.toolName, 'read', 'Code Mode subcalls must be visible as native tool events')
   assert.equal(nestedReadStart?.parentCallId, 'task-call-code', 'Code Mode events retain their parent tool call')
+  assert.equal(nestedReadStart?.turn, 3, 'nested Code Mode calls inherit their Host turn')
+  assert.equal(nestedReadStart?.step, 4, 'nested Code Mode calls inherit their Host step')
   assert.match(nestedReadStart?.inputSummary ?? '', /README\.md/)
   assert.equal(nestedReadResult?.toolName, 'read')
   assert.match(nestedReadResult?.resultSummary ?? '', /14 字符/)
@@ -1185,6 +1236,48 @@ try {
     pushAssistantText(approvalRuntime, questionSessionId)
     approvalRuntime.push({ payload: { type: 'session/event', sessionId: questionSessionId, event: { type: 'turn/end', data: { reason: { kind: 'completed' } } } } })
     await questionTurn
+
+    const planReviewTurn = approvalService.send({
+      text: 'review this plan',
+      modelKey: 'test/model-question',
+      conversationId: 'conv-question',
+      webContents: approvalWebContents,
+    })
+    await waitFor(() => approvalService.isBusy('conv-question'), { label: 'plan review session running' })
+    const planReviewFrame = {
+      rpcId: 'question-rpc-plan-review',
+      payload: {
+        type: 'question/requested',
+        sessionId: questionSessionId,
+        questions: [{
+          id: 'plan-review',
+          question: 'Approve this plan and leave plan mode?',
+          detail: '# Plan\n\n1. Inspect\n2. Implement',
+          options: [{ label: 'Approve' }, { label: 'Keep planning' }],
+          intent: { kind: 'plan-review', approve: 'Approve' },
+        }],
+      },
+    }
+    approvalRuntime.push(planReviewFrame)
+    await waitFor(() => userQuestionOutputs.length === 2, { label: 'plan review forwarded to UI' })
+    assert.deepEqual(userQuestionOutputs.at(-1).questions[0].intent, { kind: 'plan-review', approve: 'Approve' },
+      'the presentation intent must reach the renderer intact')
+    assert.equal(await approvalService.cancelUserQuestion('question-rpc-plan-review'), true)
+    const cancelReply = approvalRuntime.approvalResponses.at(-1)
+    assert.equal(cancelReply.rpcId, 'question-rpc-plan-review')
+    assert.deepEqual(cancelReply.result, {
+      ok: false,
+      error: {
+        code: 'cancelled',
+        message: 'the user dismissed the question to speak instead',
+        details: {},
+      },
+    }, 'discussion must cancel the Host review request rather than submit an approval option')
+    assert.equal(await approvalService.cancelUserQuestion('question-rpc-plan-review'), false,
+      'a dismissed plan review cannot be cancelled twice')
+    pushAssistantText(approvalRuntime, questionSessionId)
+    approvalRuntime.push({ payload: { type: 'session/event', sessionId: questionSessionId, event: { type: 'turn/end', data: { reason: { kind: 'completed' } } } } })
+    await planReviewTurn
   } finally {
     await approvalService.stop()
     await fs.rm(approvalHome, { recursive: true, force: true })

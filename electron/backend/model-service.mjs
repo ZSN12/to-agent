@@ -312,10 +312,17 @@ export function createModelService({
         ops: batch.ops,
       }), '注入 TaskWeaver 模型目录')
     }
+    // The successful route check below reads the Host directly. Clear the
+    // cached directory as well so the caller's next catalog read sees the
+    // same confirmed model routes instead of the pre-mutation snapshot.
+    invalidateModelDirectoryCache()
     let refreshed = await fetchDshModelDirectoryOnce()
     for (let attempt = 0; attempt < 6; attempt += 1) {
       const routed = new Set(refreshed.groups.flatMap((group) => group.models.map((model) => `${group.id}/${model.id}`)))
-      if ([...expectedKeys].every((key) => routed.has(key))) return refreshed
+      if ([...expectedKeys].every((key) => routed.has(key))) {
+        modelDirectoryCache = { value: refreshed, expiresAt: Date.now() + MODEL_DIRECTORY_TTL_MS }
+        return refreshed
+      }
       await sleep(250 * (attempt + 1))
       refreshed = await fetchDshModelDirectoryOnce()
     }
@@ -334,6 +341,7 @@ export function createModelService({
         console.error('回滚 DSH modelAdditions 失败:', error)
       }
     }
+    invalidateModelDirectoryCache()
     const routed = new Set(refreshed.groups.flatMap((group) => group.models.map((model) => `${group.id}/${model.id}`)))
     const missing = [...expectedKeys].filter((key) => !routed.has(key))
     throw new Error(`Z Runtime 未注册新增模型：${missing.join(', ')}`)
@@ -696,13 +704,38 @@ export function createModelService({
     }
   }
 
+  async function reconcileDirectoryRoutesForAddedModels(directory) {
+    if (!modelRegistryUpdater || !directory?.api) return directory
+    const addedModelKeys = await profileStore.listAddedModelKeys()
+    if (!addedModelKeys.length) return directory
+    const routed = new Set(
+      (directory.groups ?? []).flatMap((group) => (group.models ?? []).map((model) => `${group.id}/${model.id}`)),
+    )
+    const missing = addedModelKeys.filter((key) => !routed.has(key))
+    if (!missing.length) return directory
+    try {
+      const refreshed = await applyRegistryAdditions(directory, null, missing)
+      invalidateModelDirectoryCache()
+      modelDirectoryCache = { value: refreshed, expiresAt: Date.now() + MODEL_DIRECTORY_TTL_MS }
+      return refreshed
+    } catch (error) {
+      console.warn(
+        '已添加模型自动注入 Z Host 路由失败:',
+        error instanceof Error ? error.message : error,
+      )
+      return directory
+    }
+  }
+
   async function listCatalog() {
-    const directory = await getDshModelDirectory()
+    const directory = await reconcileDirectoryRoutesForAddedModels(await getDshModelDirectory())
     return buildCatalogFromDirectory(directory, { liveDiscovery: true })
   }
 
   async function refreshCatalog() {
-    const directory = await getDshModelDirectory({ force: true })
+    const directory = await reconcileDirectoryRoutesForAddedModels(
+      await getDshModelDirectory({ force: true }),
+    )
     return buildCatalogFromDirectory(directory, { liveDiscovery: true })
   }
 
@@ -863,7 +896,7 @@ export function createModelService({
   }
 
   async function loadModelBundle() {
-    const directory = await getDshModelDirectory()
+    const directory = await reconcileDirectoryRoutesForAddedModels(await getDshModelDirectory())
     const [catalog, auth] = await Promise.all([
       buildCatalogFromDirectory(directory, { liveDiscovery: false }),
       buildProvidersAuthFromDirectory(directory),
@@ -949,7 +982,7 @@ export function createModelService({
     } catch (error) {
       const message = formatOAuthError(error)
       onStatus({ status: 'error', error: message, providerId })
-      throw error instanceof Error ? error : new Error(message)
+      throw new Error(message)
     } finally {
       server.close()
       if (pendingNativeOAuth?.cancel === cancel) pendingNativeOAuth = null
