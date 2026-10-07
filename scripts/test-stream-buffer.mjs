@@ -19,6 +19,15 @@ const moduleUrl = `data:text/javascript;base64,${Buffer.from(outputText).toStrin
 const { applyStreamEventToSnapshot, emptyConversationStream } = await import(moduleUrl)
 
 const inFlight = applyStreamEventToSnapshot(emptyConversationStream(), { type: 'start', conversationId: 'c1' })
+const withToolTrace = applyStreamEventToSnapshot(inFlight, {
+  type: 'tool', conversationId: 'c1', id: 'tool-1', toolName: 'read', status: 'done',
+})
+assert.equal(withToolTrace.toolTraces.length, 1, 'tool calls should be captured in the conversation snapshot')
+assert.deepEqual(
+  applyStreamEventToSnapshot(withToolTrace, { type: 'start', conversationId: 'c1' }).toolTraces,
+  [],
+  'a new turn must not carry the previous turn tool rows into its batch',
+)
 const partial = applyStreamEventToSnapshot(inFlight, {
   type: 'delta', conversationId: 'c1', delta: 'partial answer', full: 'partial answer',
 })

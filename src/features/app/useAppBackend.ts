@@ -23,9 +23,8 @@ import type {
 import { useDshConversationView } from '../dsh-runtime/useDshConversationView'
 import { matchDshConversationView } from '../dsh-runtime/matchDshConversationView'
 import {
-  applyDshProjectionToStreamState,
-  isStreamEventSupersededByProjection,
-  shouldPreferProjectionStream,
+  applyDshProjectionMetadata,
+  shouldPreferDshTranscript,
 } from '../dsh-runtime/projectionStream'
 import { mergeStoredMessagesWithDshTranscript } from '../dsh-runtime/dshTranscriptMessages'
 import { liveContextFromDshProjections } from '../chat/session-usage'
@@ -190,7 +189,7 @@ export function useAppBackend() {
     bridgeReady ? state?.conversationId : null,
   )
   const activeDshView = matchDshConversationView(dshView, state?.conversationId)
-  const projectionStreamActive = shouldPreferProjectionStream(
+  const preferDshTranscript = shouldPreferDshTranscript(
     dshProjectionSubscribed,
     state?.conversationId,
     activeDshView,
@@ -272,10 +271,10 @@ export function useAppBackend() {
     () => mergeStoredMessagesWithDshTranscript(
       state?.messages ?? [],
       activeDshView?.transcript,
-      projectionStreamActive,
+      preferDshTranscript,
       sending,
     ),
-    [state?.messages, activeDshView?.transcript, projectionStreamActive, sending],
+    [state?.messages, activeDshView?.transcript, preferDshTranscript, sending],
   )
 
   const refreshSessionStats = useCallback(async (expectedConversationId = activeConversationIdRef.current) => {
@@ -397,22 +396,20 @@ export function useAppBackend() {
   }, [bridgeReady])
 
   useEffect(() => {
-    if (!projectionStreamActive || !activeDshView) return
-    applyDshProjectionToStreamState(activeDshView, {
-      setStreamText,
-      setStreamThinking,
+    if (!preferDshTranscript || !activeDshView) return
+    applyDshProjectionMetadata(activeDshView, {
       setStreamActivity,
       setPromptQueue,
     })
-  }, [projectionStreamActive, activeDshView])
+  }, [preferDshTranscript, activeDshView])
 
   useEffect(() => {
-    if (projectionStreamActive) return
+    if (preferDshTranscript) return
     if (activeDshView?.toolRows?.length) return
     if (!activeDshView?.runningCalls?.length) return
     if (activeDshView.conversationId !== activeConversationIdRef.current) return
     setToolTraces((current) => mergeDshRunningCallsIntoTraces(current, activeDshView.runningCalls))
-  }, [activeDshView, projectionStreamActive])
+  }, [activeDshView, preferDshTranscript])
 
   useEffect(() => {
     const bridge = getBridge()
@@ -421,7 +418,6 @@ export function useAppBackend() {
       // Child lifecycle belongs to its task panel, never the parent's stream
       // buffer, inbox or error banner. Tool traces still flow through below.
       if ('taskId' in event && event.taskId && event.type !== 'tool') return
-      const skipStreamContent = isStreamEventSupersededByProjection(event, projectionStreamActive)
       const completedMessage = completedStreamMessage(event)
       if (completedMessage) {
         setState((current) => {
@@ -525,16 +521,16 @@ export function useAppBackend() {
         && event.type !== 'model_route'
       if (event.conversationId && bufferable) {
         const prev = conversationStreamRef.current.get(event.conversationId) ?? emptyConversationStream()
-        conversationStreamRef.current.set(
-          event.conversationId,
-          applyStreamEventToSnapshot(prev, event),
-        )
+        const next = applyStreamEventToSnapshot(prev, event)
+        conversationStreamRef.current.set(event.conversationId, next)
+        // The transcript's tool-call batch is rendered from this visible state.
+        // Reset it at the same turn boundary as the per-conversation snapshot,
+        // otherwise the next turn repeats all calls from the previous one.
+        if (event.type === 'start' && event.conversationId === activeConversationIdRef.current) {
+          setToolTraces(next.toolTraces)
+        }
       }
       if (event.conversationId && event.conversationId !== activeConversationIdRef.current) return
-
-      if (skipStreamContent && event.type !== 'start' && event.type !== 'done' && event.type !== 'error') {
-        return
-      }
 
       if (event.type === 'thinking_start') {
         // 多轮工具循环会重复 thinking_start；勿清空已累积内容
@@ -669,7 +665,7 @@ export function useAppBackend() {
         }
       }
     })
-  }, [refreshSessionStats, syncRunningConversationIds, projectionStreamActive])
+  }, [refreshSessionStats, syncRunningConversationIds, preferDshTranscript])
 
   useEffect(() => {
     const bridge = getBridge()

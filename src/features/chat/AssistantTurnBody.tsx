@@ -3,7 +3,7 @@ import { lazy, Suspense } from 'react'
 import { DshThinkBlock } from './DshThinkBlock'
 import { coalesceContentBlocks } from './coalesceContentBlocks'
 import { isDebugBlocksEnabled } from './debug-blocks'
-import { shouldPresentTextAsThinking } from './reasoning-heuristics'
+import { isStructuredThinkingBlock } from './reasoning-heuristics'
 
 const AgentMessageMarkdown = lazy(() => import('./AgentMessageMarkdown').then((module) => ({ default: module.AgentMessageMarkdown })))
 
@@ -46,7 +46,7 @@ export function AssistantTurnBody({
             {seg.kind} · {seg.id}
           </span>
         ) : null
-        if (seg.kind === 'thinking' || shouldPresentTextAsThinking(seg.text, streamThisBlock)) {
+        if (isStructuredThinkingBlock(seg)) {
           return (
             <div key={seg.id} className="assistant-block-wrap">
               {debugLabel}

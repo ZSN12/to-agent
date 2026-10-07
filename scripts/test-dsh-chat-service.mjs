@@ -274,6 +274,114 @@ const outputs = []
 const promptByteMetrics = []
 let currentPermissionMode = 'ask'
 const scopedWebContents = { send(_channel, event) { outputs.push(event) }, isDestroyed() { return false } }
+
+// A mounted DSH projection is not proof that its snapshot stream is ready:
+// session.open() or mux gap repair can delay projection updates. The direct
+// chat stream must still deliver text/reasoning while that projection exists.
+const projectedHome = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-projected-stream-'))
+const projectedRuntime = createMockRuntime()
+const projectedEvents = []
+const projectedWebContents = { send(_channel, event) { projectedEvents.push(event) }, isDestroyed() { return false } }
+const projectedService = createDshChatService({
+  hostManager: projectedRuntime.hostManager,
+  userDataPath: projectedHome,
+  getWorkspacePath: () => projectedHome,
+  profileStore,
+  modelService,
+  conversationHub: {
+    hasLiveProjection: () => true,
+    bindApi() {},
+    handleMuxEnvelope() {},
+  },
+})
+try {
+  const projectedTurn = projectedService.send({
+    text: 'stream even when projection is attached',
+    modelKey: 'test/model-projection',
+    conversationId: 'projection-stream',
+    webContents: projectedWebContents,
+  })
+  await waitFor(() => projectedService.isBusy('projection-stream'), { label: 'projection stream turn started' })
+  const projectedSessionId = projectedRuntime.created.find((item) => item.sessionId.endsWith('projection-stream')).sessionId
+  projectedRuntime.push({ payload: { type: 'session/event', sessionId: projectedSessionId, event: {
+    type: 'assistant/chunk', data: { turn: 1, step: 1, chunk: { type: 'reasoning-delta', text: 'reasoning first' } },
+  } } })
+  projectedRuntime.push({ payload: { type: 'session/event', sessionId: projectedSessionId, event: {
+    type: 'assistant/chunk', data: { turn: 1, step: 1, chunk: { type: 'text-delta', text: 'visible answer now' } },
+  } } })
+  await waitFor(() => projectedEvents.some((event) => event.type === 'delta'), { label: 'direct delta despite live projection' })
+  assert.ok(projectedEvents.some((event) => event.type === 'thinking_delta' && event.delta === 'reasoning first'))
+  assert.ok(projectedEvents.some((event) => event.type === 'delta' && event.delta === 'visible answer now'))
+  projectedRuntime.push({ payload: { type: 'session/event', sessionId: projectedSessionId, event: {
+    type: 'assistant/message',
+    data: { turn: 1, step: 1, message: { role: 'assistant', content: [{ type: 'text', text: 'visible answer now' }] } },
+  } } })
+  assert.equal(projectedEvents.some((event) => event.type === 'done'), false,
+    'visible text must arrive before the terminal done event')
+  projectedRuntime.push({ payload: { type: 'session/event', sessionId: projectedSessionId, event: {
+    type: 'turn/end', data: { reason: { kind: 'completed' } },
+  } } })
+  await projectedTurn
+  assert.equal(projectedEvents.filter((event) => event.type === 'delta').length, 1,
+    'assistant/message must not duplicate text already emitted as chunks')
+
+  const messageOnlyEvents = []
+  const messageOnlyWebContents = { send(_channel, event) { messageOnlyEvents.push(event) }, isDestroyed() { return false } }
+  const messageOnlyTurn = projectedService.send({
+    text: 'adapter without token chunks',
+    modelKey: 'test/model-message-only',
+    conversationId: 'projection-message-only',
+    webContents: messageOnlyWebContents,
+  })
+  await waitFor(() => projectedService.isBusy('projection-message-only'), { label: 'message-only turn started' })
+  const messageOnlySessionId = projectedRuntime.created.find((item) => item.sessionId.endsWith('projection-message-only')).sessionId
+  projectedRuntime.push({ payload: { type: 'session/event', sessionId: messageOnlySessionId, event: {
+    type: 'assistant/chunk', data: { turn: 1, step: 1, chunk: { type: 'reasoning-delta', text: 'reasoning before assembled answer' } },
+  } } })
+  projectedRuntime.push({ payload: { type: 'session/event', sessionId: messageOnlySessionId, event: {
+    type: 'assistant/message', sourceEventSeqs: [],
+    data: { turn: 1, step: 1, message: { role: 'assistant', content: [{ type: 'text', text: 'answer without chunks' }] } },
+  } } })
+  await waitFor(() => messageOnlyEvents.some((event) => event.type === 'delta' && event.full === 'answer without chunks'),
+    { label: 'assembled assistant message streams before turn end' })
+  assert.equal(messageOnlyEvents.some((event) => event.type === 'done'), false,
+    'message-only adapters must publish visible text before terminal completion')
+  projectedRuntime.push({ payload: { type: 'session/event', sessionId: messageOnlySessionId, event: {
+    type: 'turn/end', data: { reason: { kind: 'completed' } },
+  } } })
+  const messageOnlyResult = await messageOnlyTurn
+  assert.equal(messageOnlyResult.text, 'answer without chunks')
+
+  const correctedEvents = []
+  const correctedWebContents = { send(_channel, event) { correctedEvents.push(event) }, isDestroyed() { return false } }
+  const correctedTurn = projectedService.send({
+    text: 'reconcile streamed prefix',
+    modelKey: 'test/model-corrected-message',
+    conversationId: 'projection-corrected-message',
+    webContents: correctedWebContents,
+  })
+  await waitFor(() => projectedService.isBusy('projection-corrected-message'), { label: 'corrected-message turn started' })
+  const correctedSessionId = projectedRuntime.created.find((item) => item.sessionId.endsWith('projection-corrected-message')).sessionId
+  projectedRuntime.push({ payload: { type: 'session/event', sessionId: correctedSessionId, event: {
+    type: 'assistant/chunk', data: { turn: 1, step: 1, chunk: { type: 'text-delta', text: 'partial ' } },
+  } } })
+  await waitFor(() => correctedEvents.some((event) => event.type === 'delta'), { label: 'partial text delta emitted' })
+  projectedRuntime.push({ payload: { type: 'session/event', sessionId: correctedSessionId, event: {
+    type: 'assistant/message',
+    data: { turn: 1, step: 1, message: { role: 'assistant', content: [{ type: 'text', text: 'partial answer' }] } },
+  } } })
+  await waitFor(() => correctedEvents.some((event) => event.type === 'delta' && event.full === 'partial answer'),
+    { label: 'assembled message reconciles streamed prefix' })
+  projectedRuntime.push({ payload: { type: 'session/event', sessionId: correctedSessionId, event: {
+    type: 'turn/end', data: { reason: { kind: 'completed' } },
+  } } })
+  const correctedResult = await correctedTurn
+  assert.equal(correctedResult.text, 'partial answer')
+} finally {
+  await projectedService.stop()
+  await fs.rm(projectedHome, { recursive: true, force: true })
+}
+
 const service = createDshChatService({
   hostManager: runtime.hostManager,
   userDataPath: home,

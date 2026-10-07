@@ -7,9 +7,14 @@ const source = await fs.readFile(path.resolve('src/features/chat/dshToolCallTree
 const { outputText } = ts.transpileModule(source, {
   compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
 })
-const { buildDshToolCallTree } = await import(
+const { buildDshToolCallTree, isDshToolCallBatchExpanded } = await import(
   `data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`,
 )
+
+assert.equal(isDshToolCallBatchExpanded(null, true), true, 'live tool calls expand by default')
+assert.equal(isDshToolCallBatchExpanded(null, false), false, 'completed tool batches collapse by default')
+assert.equal(isDshToolCallBatchExpanded(false, true), false, 'user can collapse a running batch')
+assert.equal(isDshToolCallBatchExpanded(true, false), true, 'user can keep completed details expanded')
 
 function row(callId, { parentCallId, status = 'done', resultPreview } = {}) {
   return {

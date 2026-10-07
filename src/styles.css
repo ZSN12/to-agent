@@ -6296,11 +6296,11 @@ button:disabled { cursor: default; opacity: 0.45; }
   }
 }
 
-/* ── DSH Model Usage 原版仪表盘样式 ── */
+/* ── DSH Model Usage 仪表盘样式 ── */
 .dsh-root {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
   width: 100%;
   min-width: 0;
 }
@@ -6308,9 +6308,9 @@ button:disabled { cursor: default; opacity: 0.45; }
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 14px;
-  background: #16171d;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  border-radius: 12px;
+  background: #181920;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
   overflow: hidden;
 }
 .dsh-stat {
@@ -6319,12 +6319,12 @@ button:disabled { cursor: default; opacity: 0.45; }
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 5px;
-  padding: 15px 12px 14px;
+  gap: 4px;
+  padding: 16px 14px 15px;
   text-align: center;
 }
 .dsh-stat + .dsh-stat {
-  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  border-left: 1px solid rgba(255, 255, 255, 0.07);
 }
 .dsh-stat-label {
   font-size: 11px;
@@ -6337,7 +6337,7 @@ button:disabled { cursor: default; opacity: 0.45; }
 }
 .dsh-stat-val {
   font-size: 20px;
-  font-weight: 750;
+  font-weight: 700;
   letter-spacing: -0.3px;
   line-height: 1.2;
   font-variant-numeric: tabular-nums;
@@ -6362,10 +6362,10 @@ button:disabled { cursor: default; opacity: 0.45; }
 
 .dsh-panel {
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 14px;
-  background: #16171d;
-  padding: 16px 18px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  border-radius: 12px;
+  background: #181920;
+  padding: 18px 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
   min-width: 0;
 }
 .dsh-panel-head {
@@ -6378,21 +6378,28 @@ button:disabled { cursor: default; opacity: 0.45; }
 }
 .dsh-panel-head h3 {
   margin: 0;
-  font-size: 15px;
-  font-weight: 700;
+  font-size: 14.5px;
+  font-weight: 650;
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 8px;
   color: #f3f4f6;
 }
 .dsh-dot-blue, .dsh-dot-green {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   display: inline-block;
+  flex-shrink: 0;
 }
-.dsh-dot-blue { background: #3b82f6; }
-.dsh-dot-green { background: #10a37f; }
+.dsh-dot-blue {
+  background: #3b82f6;
+  box-shadow: 0 0 6px rgba(59, 130, 246, 0.4);
+}
+.dsh-dot-green {
+  background: #10a37f;
+  box-shadow: 0 0 6px rgba(16, 163, 127, 0.4);
+}
 
 .dsh-tools {
   display: flex;
@@ -6401,12 +6408,22 @@ button:disabled { cursor: default; opacity: 0.45; }
   flex-wrap: wrap;
 }
 .dsh-sel {
-  background: #1c1e26;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: #f3f4f6;
-  border-radius: 8px;
-  padding: 5px 10px;
+  appearance: none;
+  -webkit-appearance: none;
+  background: #20222b url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='14' viewBox='0 0 10 14' fill='none'%3E%3Cpath d='M2 5L5 2L8 5' stroke='%239ca3af' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M2 9L5 12L8 9' stroke='%239ca3af' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat calc(100% - 9px) center;
+  background-size: 10px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #e5e7eb;
+  border-radius: 7px;
+  padding: 5px 26px 5px 10px;
   font-size: 12px;
+  outline: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.dsh-sel:hover, .dsh-sel:focus {
+  background-color: #272935;
+  border-color: rgba(255, 255, 255, 0.2);
 }
 .dsh-dropdown {
   position: relative;
@@ -6415,37 +6432,39 @@ button:disabled { cursor: default; opacity: 0.45; }
 .dsh-drop-btn {
   display: inline-flex;
   align-items: center;
+  justify-content: space-between;
   gap: 6px;
-  background: #1c1e26;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: #f3f4f6;
-  border-radius: 8px;
-  padding: 5px 12px;
+  background: #20222b;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #e5e7eb;
+  border-radius: 7px;
+  padding: 5px 10px;
   font-size: 12px;
   cursor: pointer;
   white-space: nowrap;
   max-width: 260px;
   overflow: hidden;
   text-overflow: ellipsis;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition: all 0.15s ease;
 }
 .dsh-drop-btn:hover {
-  border-color: #4f8cff;
-  background: rgba(255, 255, 255, 0.05);
+  background: #272935;
+  border-color: rgba(255, 255, 255, 0.2);
 }
 .dsh-drop-btn.open {
   border-color: #3b82f6;
-  box-shadow: 0 0 0 2px rgba(65, 118, 230, 0.18);
+  background: #272935;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
 }
 .dsh-drop-menu {
   position: absolute;
   top: calc(100% + 4px);
   left: 0;
   min-width: 100%;
-  background: #1e212b;
+  background: #20222b;
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 10px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
   padding: 4px;
   z-index: 30;
   max-height: 260px;
@@ -6459,20 +6478,20 @@ button:disabled { cursor: default; opacity: 0.45; }
   width: 100%;
   border: 0;
   background: transparent;
-  color: #f3f4f6;
+  color: #e5e7eb;
   font-size: 12px;
-  padding: 7px 10px;
-  border-radius: 7px;
+  padding: 6px 10px;
+  border-radius: 6px;
   cursor: pointer;
   text-align: left;
   white-space: nowrap;
 }
 .dsh-drop-item:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.07);
 }
 .dsh-drop-item.picked {
   background: rgba(59, 130, 246, 0.15);
-  color: #3b82f6;
+  color: #60a5fa;
   font-weight: 600;
 }
 .dsh-drop-text {
@@ -6480,26 +6499,43 @@ button:disabled { cursor: default; opacity: 0.45; }
   text-overflow: ellipsis;
 }
 .dsh-drop-check {
-  color: #4f8cff;
+  color: #60a5fa;
   font-size: 12px;
   flex-shrink: 0;
 }
 
 .dsh-btn {
-  background: #1c1e26;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: #f3f4f6;
-  border-radius: 8px;
-  padding: 5px 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  background: #20222b;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #e5e7eb;
+  border-radius: 7px;
+  padding: 5px 11px;
   font-size: 12px;
   cursor: pointer;
+  transition: all 0.15s ease;
 }
 .dsh-btn:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: #272935;
+  border-color: rgba(255, 255, 255, 0.2);
 }
-.dsh-btn.on {
-  border-color: #10a37f;
-  color: #10a37f;
+.dsh-btn.dsh-btn-on {
+  border-color: rgba(16, 163, 127, 0.4);
+  color: #34d399;
+  background: rgba(16, 163, 127, 0.1);
+}
+.dsh-btn-subtle {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #9ca3af;
+}
+.dsh-btn-subtle:hover {
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #f87171;
+  background: rgba(239, 68, 68, 0.08);
 }
 .dsh-auto {
   display: inline-flex;
@@ -6507,27 +6543,30 @@ button:disabled { cursor: default; opacity: 0.45; }
   gap: 6px;
 }
 .dsh-pulse {
-  width: 7px;
-  height: 7px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   background: #10a37f;
+  box-shadow: 0 0 6px rgba(16, 163, 127, 0.6);
   animation: pulse 1.6s ease-in-out infinite;
 }
 
 .dsh-drop-chevron {
   font-size: 10px;
-  color: #6b7280;
+  color: #9ca3af;
   flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
 }
 .dsh-range-menu {
   position: absolute;
   top: calc(100% + 4px);
   left: 0;
   min-width: 320px;
-  background: #1e212b;
+  background: #20222b;
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 12px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
   padding: 12px;
   z-index: 40;
 }
@@ -6537,23 +6576,23 @@ button:disabled { cursor: default; opacity: 0.45; }
   gap: 6px;
 }
 .dsh-chip {
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: #1c1e26;
-  color: #f3f4f6;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #181920;
+  color: #e5e7eb;
   border-radius: 999px;
   padding: 4px 12px;
   font-size: 12px;
   cursor: pointer;
-  transition: border-color 0.15s ease, background 0.15s ease;
+  transition: all 0.15s ease;
 }
 .dsh-chip:hover {
-  border-color: #4f8cff;
-  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.2);
+  background: #242631;
 }
 .dsh-chip-on {
   border-color: #3b82f6;
   background: rgba(59, 130, 246, 0.15);
-  color: #3b82f6;
+  color: #60a5fa;
   font-weight: 600;
 }
 .dsh-range-divider {
@@ -6568,7 +6607,7 @@ button:disabled { cursor: default; opacity: 0.45; }
 }
 .dsh-range-hint {
   font-size: 11px;
-  color: #6b7280;
+  color: #9ca3af;
 }
 .dsh-range-field {
   display: flex;
@@ -6607,11 +6646,12 @@ button:disabled { cursor: default; opacity: 0.45; }
   background: #2563eb;
   color: #fff;
   border: 0;
-  border-radius: 8px;
+  border-radius: 7px;
   padding: 5px 14px;
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
+  transition: background 0.15s ease;
 }
 .dsh-btn-primary:hover {
   background: #1d4ed8;
@@ -6623,57 +6663,65 @@ button:disabled { cursor: default; opacity: 0.45; }
   gap: 8px;
   flex-wrap: wrap;
   font-size: 12px;
-  color: #6b7280;
-  margin-bottom: 10px;
+  color: #9ca3af;
+  margin-bottom: 14px;
 }
 .dsh-range-info-strong {
   color: #f3f4f6;
   font-weight: 600;
 }
 .dsh-range-info-dim {
-  color: #6b7280;
+  color: #9ca3af;
 }
 
+/* 热力图 */
 .dsh-heat-wrap {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  width: 100%;
   min-width: 0;
 }
 .dsh-heat {
   display: grid;
-  grid-template-columns: repeat(var(--weeks, 13), minmax(0, 1fr));
-  gap: 3px;
-  min-width: 100%;
+  grid-template-columns: repeat(var(--weeks, 26), minmax(0, 1fr));
+  gap: 4px;
+  width: 100%;
   align-items: center;
   margin-top: 4px;
 }
 .dsh-month-bar {
   display: grid;
-  grid-template-columns: repeat(var(--weeks, 13), minmax(0, 1fr));
-  gap: 3px;
+  grid-template-columns: repeat(var(--weeks, 26), minmax(0, 1fr));
+  gap: 4px;
+  width: 100%;
   margin-top: 4px;
 }
 .dsh-month-band {
-  font-size: 10px;
-  color: #6b7280;
+  font-size: 11px;
+  color: #9ca3af;
   text-align: left;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   padding-left: 1px;
-  min-width: 0;
 }
 .dsh-cell {
+  width: 100%;
   aspect-ratio: 1;
   border-radius: 3px;
   min-width: 0;
+  transition: transform 0.12s ease, filter 0.12s ease;
 }
-.dsh-cell0 { background: rgba(255, 255, 255, 0.06); }
-.dsh-cell1 { background: rgba(103, 158, 254, 0.22); }
-.dsh-cell2 { background: rgba(103, 158, 254, 0.38); }
-.dsh-cell3 { background: rgba(86, 134, 254, 0.6); }
-.dsh-cell4 { background: rgb(65, 118, 230); }
+.dsh-cell:hover {
+  transform: scale(1.15);
+  z-index: 2;
+}
+.dsh-cell0 { background: #22242f; }
+.dsh-cell1 { background: #1e3a6a; }
+.dsh-cell2 { background: #21549e; }
+.dsh-cell3 { background: #256ee6; }
+.dsh-cell4 { background: #3b82f6; box-shadow: 0 0 4px rgba(59, 130, 246, 0.45); }
 .dsh-cell-future { background: transparent; }
 
 .dsh-tooltip {
@@ -6687,30 +6735,30 @@ button:disabled { cursor: default; opacity: 0.45; }
   pointer-events: none;
   white-space: nowrap;
   max-width: min(320px, calc(100vw - 24px));
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.12);
 }
 
 .dsh-kpis {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
+  gap: 10px;
   margin-bottom: 14px;
 }
 .dsh-kpi {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 3px;
+  gap: 4px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 10px;
-  padding: 10px 12px;
-  background: #1c1e26;
+  padding: 12px 14px;
+  background: #1e202a;
   min-width: 0;
   overflow: hidden;
 }
 .dsh-kpi-l {
-  font-size: 10.5px;
+  font-size: 11px;
   color: #9ca3af;
   white-space: nowrap;
   overflow: hidden;
@@ -6718,8 +6766,8 @@ button:disabled { cursor: default; opacity: 0.45; }
   max-width: 100%;
 }
 .dsh-kpi-v {
-  font-size: 15px;
-  font-weight: 750;
+  font-size: 16px;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
   line-height: 1.25;
   white-space: nowrap;
@@ -6729,7 +6777,7 @@ button:disabled { cursor: default; opacity: 0.45; }
   color: #f3f4f6;
 }
 .dsh-kpi-d {
-  font-size: 9.5px;
+  font-size: 10px;
   color: #6b7280;
   white-space: nowrap;
   overflow: hidden;
@@ -6740,12 +6788,12 @@ button:disabled { cursor: default; opacity: 0.45; }
 .dsh-rate-wrap {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
   margin-bottom: 16px;
-  padding: 10px 14px;
+  padding: 12px 16px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 10px;
-  background: #1c1e26;
+  background: #1e202a;
 }
 .dsh-rate-row {
   display: flex;
@@ -6758,22 +6806,22 @@ button:disabled { cursor: default; opacity: 0.45; }
   color: #9ca3af;
 }
 .dsh-rate-v {
-  font-weight: 750;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
   font-size: 13px;
   color: #f3f4f6;
 }
 .dsh-rate-bar {
   flex: 1;
-  height: 8px;
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.06);
+  height: 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
   overflow: hidden;
 }
 .dsh-rate-fill {
   height: 100%;
-  border-radius: 4px;
-  background: linear-gradient(90deg, #059669, #10a37f);
+  border-radius: 999px;
+  background: linear-gradient(90deg, #10b981, #059669);
   transition: width 0.4s ease;
 }
 
@@ -6793,29 +6841,25 @@ button:disabled { cursor: default; opacity: 0.45; }
   gap: 8px;
   width: 100%;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 10px;
-  padding: 9px 12px;
-  background: #1c1e26;
+  border-radius: 9px;
+  padding: 10px 14px;
+  background: #1e202a;
   color: #f3f4f6;
   font-size: 13px;
-  font-weight: 650;
+  font-weight: 600;
   cursor: pointer;
   text-align: left;
-  transition: background 0.15s ease, border-color 0.15s ease;
+  transition: all 0.15s ease;
 }
 .dsh-group-head:hover {
-  background: rgba(255, 255, 255, 0.05);
-  border-color: rgba(255, 255, 255, 0.2);
+  background: #252834;
+  border-color: rgba(255, 255, 255, 0.16);
 }
 .dsh-group-chevron {
   font-size: 11px;
   color: #9ca3af;
-  transform: rotate(0deg);
-  transition: transform 0.15s ease;
+  display: inline-block;
   flex-shrink: 0;
-}
-.dsh-group-chevron.open {
-  transform: rotate(90deg);
 }
 .dsh-group-name {
   flex-shrink: 0;
@@ -6825,7 +6869,7 @@ button:disabled { cursor: default; opacity: 0.45; }
   min-width: 0;
   font-size: 11px;
   font-weight: 500;
-  color: #6b7280;
+  color: #9ca3af;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -6840,27 +6884,29 @@ button:disabled { cursor: default; opacity: 0.45; }
   display: flex;
   align-items: center;
   gap: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 9px;
   padding: 11px 14px;
-  background: #1c1e26;
-  transition: border-color 0.15s ease;
+  background: #1b1c24;
+  transition: border-color 0.15s ease, background 0.15s ease;
 }
 .dsh-row:hover {
-  border-color: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.18);
+  background: #21232e;
 }
 .dsh-nm {
   flex: 1;
   min-width: 0;
 }
 .dsh-nm > div:first-child {
-  font-weight: 650;
-  font-size: 13.5px;
+  font-weight: 600;
+  font-size: 13px;
   color: #f3f4f6;
 }
 .dsh-pv {
   font-size: 11px;
   color: #9ca3af;
+  margin-top: 2px;
 }
 .dsh-nums {
   display: flex;
@@ -6897,14 +6943,14 @@ button:disabled { cursor: default; opacity: 0.45; }
   min-width: 58px;
 }
 .dsh-num b {
-  font-size: 14px;
+  font-size: 13.5px;
   font-variant-numeric: tabular-nums;
   line-height: 1.1;
   color: #f3f4f6;
 }
 .dsh-num span {
   font-size: 10px;
-  color: #6b7280;
+  color: #9ca3af;
 }
 
 .dsh-empty {
@@ -9010,6 +9056,60 @@ button:disabled { cursor: default; opacity: 0.45; }
 
 .codex-modal-card input::placeholder {
   color: var(--text-tertiary);
+}
+
+.github-connect-modal .github-oauth-primary {
+  width: 100%;
+  justify-content: center;
+  min-height: 44px;
+}
+
+.github-oauth-setup-hint,
+.github-oauth-status-hint,
+.github-pat-note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+
+.github-oauth-setup-hint code,
+.github-device-code strong {
+  font-family: var(--font-mono);
+}
+
+.github-device-code {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(59, 130, 246, 0.08);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  font-size: 13px;
+}
+
+.github-pat-advanced {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.github-pat-advanced summary {
+  cursor: pointer;
+  color: var(--text);
+  font-weight: 500;
+  padding: 8px 0;
+}
+
+.github-connect-error {
+  color: var(--danger, #ef4444);
+  font-size: 12px;
+  margin: 0;
+}
+
+.github-modal-footer {
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .codex-modal-actions {

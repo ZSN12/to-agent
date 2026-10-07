@@ -6,6 +6,14 @@ export interface DshToolCallTreeNode {
   children: DshToolCallTreeNode[]
 }
 
+/** By default, show live calls during execution and collapse the batch at end. */
+export function isDshToolCallBatchExpanded(
+  userOverride: boolean | null,
+  hasRunningCall: boolean,
+): boolean {
+  return userOverride ?? hasRunningCall
+}
+
 interface MergedCall {
   row: DshProjectedToolCall
   trace: ToolTraceItem

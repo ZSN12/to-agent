@@ -28,6 +28,7 @@ assert.equal(ocx.compat.supportsReasoningEffort, true)
 const composer = ocx.models.find((m) => m.id === 'cursor/composer-2.5')
 assert.equal(composer.reasoning, true)
 assert.equal(composer.thinkingLevelMap.high, 'high')
+assert.equal(composer.defaultThinkingLevel, 'low')
 
 const fast = ocx.models.find((m) => m.id === 'cursor/composer-2.5-fast')
 assert.equal(fast.reasoning, undefined)

@@ -59,7 +59,13 @@ function mapModelEntry(entry) {
       }
       efforts[level] = String(wire)
     }
-    if (Object.keys(efforts).length) row.reasoningEfforts = efforts
+    if (Object.keys(efforts).length) {
+      row.reasoningEfforts = efforts
+      const defaultLevel = entry.defaultThinkingLevel
+      if (typeof defaultLevel === 'string' && defaultLevel.trim()) {
+        row.reasoning = { ...(row.reasoning ?? {}), defaultEffort: defaultLevel.trim() }
+      }
+    }
   } else if (entry.reasoning === false) {
     row.reasoningEfforts = false
   }

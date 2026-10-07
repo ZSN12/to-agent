@@ -1328,7 +1328,8 @@ function DshModelSelect(props: {
         className={`dsh-drop-btn ${open ? 'open' : ''}`}
         onClick={() => setOpen(!open)}
       >
-        {label}
+        <span>{label}</span>
+        <span className="dsh-drop-chevron">▾</span>
       </button>
       {open && (
         <div className="dsh-drop-menu">
@@ -1778,7 +1779,7 @@ function UsageSettings() {
             <button className={`dsh-btn ${auto ? 'dsh-btn-on' : ''}`} onClick={() => setAuto(!auto)}>
               {auto ? <span className="dsh-auto"><span className="dsh-pulse" />5s 自动刷新</span> : '自动刷新关闭'}
             </button>
-            <button className="dsh-btn" onClick={() => void handleClear()} title="清空全部用量数据">
+            <button className="dsh-btn dsh-btn-subtle" onClick={() => void handleClear()} title="清空全部用量数据">
               清空记录
             </button>
           </div>
@@ -1791,9 +1792,9 @@ function UsageSettings() {
             {range.start != null ? fmtDT(range.start) : '全部时间'}
             {range.end != null ? ' ~ ' + fmtDT(range.end) : ''}
           </span>
-          <span className="dsh-range-info-dim">
-            {report.debug?.version ? '· host ' + report.debug.version : ''}
-          </span>
+          {report.debug?.version ? (
+            <span className="dsh-range-info-dim">· host {report.debug.version}</span>
+          ) : null}
         </div>
 
         {/* 4 张 KPI 卡 (无图标，简洁文字) */}
@@ -1830,7 +1831,7 @@ function UsageSettings() {
                     onClick={() => toggle(g.provider)}
                     aria-expanded={open}
                   >
-                    <span className={`dsh-group-chevron ${open ? 'open' : ''}`}>▸</span>
+                    <span className="dsh-group-chevron">{open ? '▾' : '▸'}</span>
                     <span className="dsh-group-name">{g.providerDisplayName || g.provider}</span>
                     <span className="dsh-group-meta">
                       {g.rows.length} 个模型 · 共 {fc(g.totalTokens)} · {g.calls} 次调用
@@ -2375,11 +2376,27 @@ function DiffReviewCard({ fileDiff, onReverted, defaultExpanded = false }: { fil
   )
 }
 
-const thinkingLevelLabels: Record<ThinkingLevel, { en: string; zh: string; desc: string }> = {
+const thinkingLevelLabels: Record<string, { en: string; zh: string; desc: string }> = {
   off: { en: 'Off', zh: '关闭', desc: '不进行思考推理' },
+  minimal: { en: 'Minimal', zh: '极低', desc: '最少推理开销' },
   low: { en: 'Low', zh: '低', desc: '轻度思考，快速响应' },
   medium: { en: 'Medium', zh: '中', desc: '适中推理深度' },
-  high: { en: 'High', zh: '高', desc: '深度思考，最强代码与逻辑' },
+  high: { en: 'High', zh: '高', desc: '深度思考' },
+  xhigh: { en: 'Extra High', zh: '极高', desc: '更深推理' },
+  max: { en: 'Max', zh: '最大', desc: '最高推理强度' },
+}
+
+function effortDisplayMeta(
+  id: string,
+  options?: { id: string; name?: string; description?: string }[],
+) {
+  const row = options?.find((option) => option.id === id)
+  if (row?.name) {
+    return { en: row.name, zh: row.name, desc: row.description ?? '' }
+  }
+  const fallback = thinkingLevelLabels[id]
+  if (fallback) return fallback
+  return { en: id, zh: id, desc: '' }
 }
 
 function ModelSelect({
@@ -2423,22 +2440,22 @@ function ModelSelect({
 
   const supportedLevels = useMemo(() => {
     if (value?.reasoning === false) return []
-    if (value?.supportedThinkingLevels && value.supportedThinkingLevels.length > 0) {
-      return value.supportedThinkingLevels
-    }
-    return ['off', 'low', 'medium', 'high'] as ThinkingLevel[]
-  }, [value?.reasoning, value?.supportedThinkingLevels])
+    if (value?.reasoningEfforts?.length) return value.reasoningEfforts.map((effort) => effort.id)
+    if (value?.supportedThinkingLevels?.length) return value.supportedThinkingLevels
+    return []
+  }, [value?.reasoning, value?.reasoningEfforts, value?.supportedThinkingLevels])
+
+  const thinkingConfigurable = supportedLevels.length > 0
 
   useEffect(() => {
-    if (!value || value.reasoning === false) return
-    const valid = supportedLevels
-    if (valid.length > 0 && !valid.includes(thinkingLevel)) {
-      const fallback = value.defaultThinkingLevel && valid.includes(value.defaultThinkingLevel)
+    if (!value || !thinkingConfigurable) return
+    if (!supportedLevels.includes(thinkingLevel)) {
+      const fallback = value.defaultThinkingLevel && supportedLevels.includes(value.defaultThinkingLevel)
         ? value.defaultThinkingLevel
-        : valid.includes('medium') ? 'medium' : (valid.includes('high') ? 'high' : valid[0])
-      onThinkingLevelChange?.(fallback)
+        : supportedLevels[0]
+      onThinkingLevelChange?.(fallback as ThinkingLevel)
     }
-  }, [value, supportedLevels, thinkingLevel, onThinkingLevelChange])
+  }, [value, supportedLevels, thinkingLevel, thinkingConfigurable, onThinkingLevelChange])
 
   return (
     <div className="model-select" ref={rootRef}>
@@ -2458,7 +2475,9 @@ function ModelSelect({
         disabled={loading || options.length === 0}
       >
         <span className="model-trigger-name">{value?.name ?? (loading ? '加载模型…' : '无可用模型')}</span>
-        {value && <span className="model-trigger-level">{value.reasoning === false ? 'N/A' : thinkingLevelLabels[thinkingLevel]?.en || 'High'}</span>}
+        {value && thinkingConfigurable && (
+          <span className="model-trigger-level">{effortDisplayMeta(thinkingLevel, value.reasoningEfforts).en}</span>
+        )}
         {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
       </button>
 
@@ -2478,17 +2497,26 @@ function ModelSelect({
                 </span>
               </button>
 
-              <button
-                type="button"
-                className="model-menu-entry"
-                onClick={() => setView('thinking')}
-              >
-                <span className="model-menu-entry-label">推理等级</span>
-                <span className="model-menu-entry-value">
-                  <span>{value?.reasoning === false ? '不支持' : thinkingLevelLabels[thinkingLevel]?.en || 'High'}</span>
-                  <ChevronRight size={14} />
-                </span>
-              </button>
+              {thinkingConfigurable ? (
+                <button
+                  type="button"
+                  className="model-menu-entry"
+                  onClick={() => setView('thinking')}
+                >
+                  <span className="model-menu-entry-label">推理等级</span>
+                  <span className="model-menu-entry-value">
+                    <span>{effortDisplayMeta(thinkingLevel, value?.reasoningEfforts).en}</span>
+                    <ChevronRight size={14} />
+                  </span>
+                </button>
+              ) : (
+                <div className="model-menu-entry model-menu-entry-static" aria-disabled="true">
+                  <span className="model-menu-entry-label">推理等级</span>
+                  <span className="model-menu-entry-value">
+                    <span className="model-item-desc">该模型未在目录中声明可调档位</span>
+                  </span>
+                </div>
+              )}
             </div>
           )}
 
@@ -2539,19 +2567,19 @@ function ModelSelect({
                 </button>
                 <span className="model-sub-title">推理等级</span>
               </div>
-              {value?.reasoning === false ? (
+              {!thinkingConfigurable ? (
                 <div className="model-sub-list">
                   <div className="model-sub-item" aria-disabled="true">
                     <div className="model-thinking-item-left">
-                      <span className="model-item-name">该模型不支持可调推理等级</span>
-                      <span className="model-item-desc">模型将使用自身默认设置；你的全局偏好会保留</span>
+                      <span className="model-item-name">无可选推理档位</span>
+                      <span className="model-item-desc">仅展示 Host 模型目录声明的 efforts；未声明时不使用固定四档兜底</span>
                     </div>
                   </div>
                 </div>
               ) : (
                 <div className="model-sub-list">
                   {supportedLevels.map((lvl) => {
-                  const meta = thinkingLevelLabels[lvl]
+                  const meta = effortDisplayMeta(lvl, value?.reasoningEfforts)
                   const isActive = lvl === thinkingLevel
                   return (
                     <button

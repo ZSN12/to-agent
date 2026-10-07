@@ -1,7 +1,14 @@
 /** 与 electron/preload 暴露的模型 API 对齐，供前端类型检查 */
 
 export type ModelTier = 'cheap' | 'balanced' | 'strong'
-export type ThinkingLevel = 'off' | 'low' | 'medium' | 'high'
+/** Host-advertised reasoning effort id (provider-specific; not a fixed four-level enum). */
+export type ThinkingLevel = string
+
+export type ReasoningEffortOption = {
+  id: ThinkingLevel
+  name?: string
+  description?: string
+}
 
 export interface ModelProfilePatch {
   tier?: ModelTier
@@ -88,8 +95,9 @@ export interface CatalogModel {
   costPerMillion: ModelCostPerMillion
   available: boolean
   profile: ModelProfile | null
-  supportedThinkingLevels?: ('off' | 'low' | 'medium' | 'high')[]
-  defaultThinkingLevel?: 'off' | 'low' | 'medium' | 'high'
+  supportedThinkingLevels?: ThinkingLevel[]
+  reasoningEfforts?: ReasoningEffortOption[]
+  defaultThinkingLevel?: ThinkingLevel
   source?: ModelCatalogSource
   deprecated?: boolean
   replacementModelKey?: string | null

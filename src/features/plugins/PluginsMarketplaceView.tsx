@@ -46,6 +46,10 @@ export function PluginsMarketplaceView({
   const [githubModalOpen, setGithubModalOpen] = useState(false)
   const [githubToken, setGithubToken] = useState('')
   const [githubBusy, setGithubBusy] = useState(false)
+  const [githubOAuthAppConfigured, setGithubOAuthAppConfigured] = useState(false)
+  const [githubOAuthHint, setGithubOAuthHint] = useState<string | null>(null)
+  const [githubDeviceCode, setGithubDeviceCode] = useState<string | null>(null)
+  const [githubPatAdvancedOpen, setGithubPatAdvancedOpen] = useState(false)
 
   // 网页搜索 (Web Search) 插件状态
   const [webSearchConfig, setWebSearchConfig] = useState<{
@@ -213,6 +217,40 @@ export function PluginsMarketplaceView({
       notify(`添加 MCP「${entry.title}」异常: ${err instanceof Error ? err.message : String(err)}`, 'error')
     } finally {
       setInstallingId(null)
+    }
+  }
+
+  useEffect(() => {
+    if (!githubModalOpen) return
+    void window.taskweaver?.mcp?.getGitHubOAuthAvailability?.().then((res) => {
+      if (res?.ok) setGithubOAuthAppConfigured(res.data.configured)
+    })
+    const unsub = window.taskweaver?.mcp?.onGitHubOAuthStatus?.((status) => {
+      if (status.instructions) setGithubOAuthHint(status.instructions)
+      if (status.userCode) setGithubDeviceCode(status.userCode)
+      if (status.status === 'error' && status.error) setGithubOAuthHint(status.error)
+    })
+    return () => unsub?.()
+  }, [githubModalOpen])
+
+  const handleGitHubBrowserLogin = async () => {
+    setGithubBusy(true)
+    setGithubOAuthHint(null)
+    setGithubDeviceCode(null)
+    try {
+      const result = await window.taskweaver?.mcp?.startGitHubOAuth?.()
+      if (!result?.ok) throw new Error(result?.error || 'GitHub 浏览器登录失败')
+      setInstalledIds((current) => new Set([...current, 'github']))
+      setGithubStatus(result.data.connection)
+      setGithubModalOpen(false)
+      notify(`GitHub 已连接（OAuth），可用工具 ${result.data.connection.toolCount} 个`, 'success')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      setGithubOAuthHint(message)
+      notify(message, 'error')
+    } finally {
+      setGithubBusy(false)
+      setGithubDeviceCode(null)
     }
   }
 
@@ -988,41 +1026,74 @@ export function PluginsMarketplaceView({
 
       {githubModalOpen && (
         <div className="settings-modal-backdrop" role="presentation" onClick={() => !githubBusy && setGithubModalOpen(false)}>
-          <div className="codex-modal-card" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
+          <div className="codex-modal-card github-connect-modal" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
             <h2>连接 GitHub</h2>
-            <p>通过 GitHub 官方托管 MCP 连接。Token 只保存在本机系统安全存储中，不会写入项目文件。</p>
-            <form onSubmit={handleSaveGitHub}>
-              <label>
-                Personal Access Token
-                <input
-                  type="password"
-                  value={githubToken}
-                  onChange={(event) => setGithubToken(event.target.value)}
-                  placeholder={installedIds.has('github') ? '已保存；留空以继续使用现有 Token' : '粘贴 GitHub Token'}
-                  autoComplete="new-password"
-                  spellCheck={false}
-                />
-              </label>
-              <p style={{ margin: '8px 0 0', color: 'var(--text-secondary)', fontSize: '12px', lineHeight: 1.5 }}>
-                建议使用细粒度 Token，只选择需要访问的仓库和权限。TaskWeaver 连接测试成功后才会显示“已连接”；写入类工具仍受应用权限确认控制。
+            <p>通过 GitHub 官方托管 MCP（<code>api.githubcopilot.com/mcp</code>）连接。凭据只保存在本机安全存储，不会写入项目文件。</p>
+
+            <button
+              type="button"
+              className="settings-primary-button github-oauth-primary"
+              disabled={githubBusy}
+              onClick={() => void handleGitHubBrowserLogin()}
+            >
+              {githubBusy ? <><RefreshCw size={14} className="spin-icon" /> 正在登录…</> : '连接 GitHub'}
+            </button>
+            <p className="github-oauth-setup-hint" role="note">
+              {githubOAuthAppConfigured
+                ? '将打开浏览器完成 GitHub 授权（OAuth）。'
+                : '优先使用本机 GitHub CLI：若尚未登录，请在终端执行 gh auth login 后点此按钮；也可配置 OAuth 应用或改用下方 Token。'}
+            </p>
+            {githubOAuthHint && (
+              <p className="github-oauth-status-hint" role="status">{githubOAuthHint}</p>
+            )}
+            {githubDeviceCode && (
+              <p className="github-device-code" role="status">
+                设备码：<strong>{githubDeviceCode}</strong>（在 GitHub 页面输入）
               </p>
-              {githubStatus?.status === 'error' && githubStatus.error && (
-                <p role="alert" style={{ color: 'var(--danger, #ef4444)', fontSize: '12px' }}>{githubStatus.error}</p>
-              )}
-              <div className="codex-modal-actions">
-                {installedIds.has('github') && (
-                  <button type="button" className="settings-secondary-button" onClick={() => void handleDisconnectGitHub()} disabled={githubBusy}>
-                    断开并删除
+            )}
+
+            <details
+              className="github-pat-advanced"
+              open={githubPatAdvancedOpen}
+              onToggle={(e) => setGithubPatAdvancedOpen((e.target as HTMLDetailsElement).open)}
+            >
+              <summary>高级：使用 Personal Access Token</summary>
+              <form onSubmit={handleSaveGitHub}>
+                <label>
+                  Personal Access Token
+                  <input
+                    type="password"
+                    value={githubToken}
+                    onChange={(event) => setGithubToken(event.target.value)}
+                    placeholder={installedIds.has('github') ? '已保存；留空以继续使用现有 Token' : '粘贴 GitHub Token'}
+                    autoComplete="new-password"
+                    spellCheck={false}
+                  />
+                </label>
+                <p className="github-pat-note">
+                  建议使用细粒度 Token，只选择需要访问的仓库和权限。写入类工具仍受应用权限确认控制。
+                </p>
+                <div className="codex-modal-actions">
+                  <button type="submit" className="settings-secondary-button" disabled={githubBusy || (!githubToken.trim() && !installedIds.has('github'))}>
+                    {githubBusy ? '正在测试…' : '保存 Token 并测试'}
                   </button>
-                )}
-                <button type="button" className="settings-secondary-button" onClick={() => setGithubModalOpen(false)} disabled={githubBusy}>
-                  取消
+                </div>
+              </form>
+            </details>
+
+            {githubStatus?.status === 'error' && githubStatus.error && (
+              <p role="alert" className="github-connect-error">{githubStatus.error}</p>
+            )}
+            <div className="codex-modal-actions github-modal-footer">
+              {installedIds.has('github') && (
+                <button type="button" className="settings-secondary-button" onClick={() => void handleDisconnectGitHub()} disabled={githubBusy}>
+                  断开并删除
                 </button>
-                <button type="submit" className="settings-primary-button" disabled={githubBusy || (!githubToken.trim() && !installedIds.has('github'))}>
-                  {githubBusy ? <><RefreshCw size={14} className="spin-icon" /> 正在测试…</> : '保存并测试连接'}
-                </button>
-              </div>
-            </form>
+              )}
+              <button type="button" className="settings-secondary-button" onClick={() => { void window.taskweaver?.mcp?.cancelGitHubOAuth?.(); setGithubModalOpen(false) }} disabled={githubBusy}>
+                取消
+              </button>
+            </div>
           </div>
         </div>
       )}

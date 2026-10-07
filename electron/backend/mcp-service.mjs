@@ -4,6 +4,8 @@ import crypto from 'node:crypto'
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client'
 import { StdioClientTransport, getDefaultEnvironment } from '@modelcontextprotocol/client/stdio'
 import { createJsonStore } from './json-store.mjs'
+import { canStartGitHubBrowserLogin, isGitHubMcpOAuthConfigured } from './github-mcp-oauth-app.mjs'
+import { probeGitHubCliAuth, readGitHubTokenFromEnv } from './github-mcp-auth-bridge.mjs'
 
 const SERVER_ID = /^[a-z][a-z0-9_-]{0,39}$/
 const TOOL_NAME = /^[A-Za-z0-9_-]{1,80}$/
@@ -22,7 +24,9 @@ function validateServer(value) {
     if (value.id !== 'github' || url.protocol !== 'https:' || url.hostname !== 'api.githubcopilot.com' || url.pathname !== '/mcp/') {
       throw new Error('当前仅允许连接 GitHub 官方 MCP 地址')
     }
-    if (!value.env?.GITHUB_PERSONAL_ACCESS_TOKEN?.trim()) throw new Error('请先配置 GitHub Personal Access Token')
+    if (!value.env?.GITHUB_PERSONAL_ACCESS_TOKEN?.trim()) {
+      throw new Error('请先通过浏览器登录 GitHub 或配置 Personal Access Token')
+    }
   }
   const args = value.args ?? []
   if (!Array.isArray(args) || !args.every((arg) => typeof arg === 'string')) throw new Error('MCP 参数必须是字符串数组')
@@ -36,6 +40,7 @@ function validateServer(value) {
     args,
     env: value.env ?? {},
     enabled: value.enabled === true,
+    authMethod: value.authMethod === 'oauth' ? 'oauth' : (value.authMethod === 'pat' ? 'pat' : undefined),
   }
 }
 
@@ -50,6 +55,7 @@ function exposedServer(server, state) {
     status: state?.status ?? 'disconnected',
     toolCount: state?.tools?.length ?? 0,
     error: state?.error ?? null,
+    authMethod: server.authMethod ?? null,
   }
 }
 
@@ -141,6 +147,8 @@ export function createMcpService({ userData, connectClient, safeStorage } = {}) 
   const store = createJsonStore(path.join(userData, 'taskweaver-mcp.json'), { servers: [] })
   const runtimePatchPath = path.join(userData, 'dsh', 'taskweaver-mcp.cordis.patch.yml')
   const connections = new Map()
+  /** @type {AbortController | null} */
+  let githubOAuthAbort = null
 
   async function configured() {
     const value = await store.read()
@@ -263,7 +271,77 @@ export function createMcpService({ userData, connectClient, safeStorage } = {}) 
       args: [],
       env,
       enabled: true,
+      authMethod: 'pat',
     })
+  }
+
+  async function saveGitHubAccessToken(accessToken, authMethod) {
+    const saved = await saveServer({
+      id: 'github',
+      transport: 'http',
+      url: 'https://api.githubcopilot.com/mcp/',
+      args: [],
+      env: { GITHUB_PERSONAL_ACCESS_TOKEN: accessToken },
+      enabled: true,
+      authMethod,
+    })
+    const tested = await testConnection('github')
+    return { server: saved, connection: tested }
+  }
+
+  async function loginGitHubWithOAuth({ onStatus, openExternal } = {}) {
+    if (githubOAuthAbort) githubOAuthAbort.abort()
+    githubOAuthAbort = new AbortController()
+    try {
+      if (isGitHubMcpOAuthConfigured()) {
+        const { runGitHubMcpOAuthLogin } = await import('./github-mcp-oauth.mjs')
+        const token = await runGitHubMcpOAuthLogin({
+          onStatus,
+          openExternal,
+          signal: githubOAuthAbort.signal,
+        })
+        return saveGitHubAccessToken(token.accessToken, 'oauth')
+      }
+
+      onStatus?.({ status: 'progress', instructions: '未配置 OAuth 应用，正在尝试 GitHub CLI (gh) 登录态…' })
+      const gh = await probeGitHubCliAuth()
+      if (gh.ok && gh.token) {
+        onStatus?.({ status: 'progress', instructions: '已使用 gh 凭据连接 GitHub MCP…' })
+        return saveGitHubAccessToken(gh.token, 'pat')
+      }
+
+      const envToken = readGitHubTokenFromEnv()
+      if (envToken) {
+        onStatus?.({ status: 'progress', instructions: '已使用环境变量 GH_TOKEN / GITHUB_TOKEN 连接…' })
+        return saveGitHubAccessToken(envToken, 'pat')
+      }
+
+      throw new Error(
+        '无法自动登录：请在本机终端运行 gh auth login 后重试，'
+        + '或设置 TASKWEAVER_GITHUB_OAUTH_CLIENT_ID 以使用浏览器 OAuth（见 docs/GITHUB_MCP_OAUTH.md），'
+        + '或在「高级」中粘贴 Personal Access Token。',
+      )
+    } finally {
+      githubOAuthAbort = null
+    }
+  }
+
+  function cancelGitHubOAuth() {
+    githubOAuthAbort?.abort()
+    githubOAuthAbort = null
+    return true
+  }
+
+  function getGitHubOAuthAvailability() {
+    return {
+      configured: isGitHubMcpOAuthConfigured(),
+      canLogin: canStartGitHubBrowserLogin(),
+      hints: {
+        oauthApp: isGitHubMcpOAuthConfigured(),
+        ghCli: 'try_on_login',
+        envToken: Boolean(readGitHubTokenFromEnv()),
+      },
+    }
   }
 
   async function saveServer(input) {
@@ -416,6 +494,9 @@ export function createMcpService({ userData, connectClient, safeStorage } = {}) 
     prepareRuntimeIntegration,
     testConnection,
     configureGitHub,
+    loginGitHubWithOAuth,
+    cancelGitHubOAuth,
+    getGitHubOAuthAvailability,
     disconnect,
     stopAll,
     installFromCatalog,

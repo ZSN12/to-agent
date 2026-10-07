@@ -15,6 +15,8 @@ import {
 import { discoverModelsFromProviderApi } from './provider-live-discovery.mjs'
 import { loadPriceRegistry, mergeRegistryCost, registryPriceMeta } from './price-registry.mjs'
 import { taskweaverApiKeyEnvRef } from './pi-models-to-dsh-profile.mjs'
+import { isCursorFamilyRoute, isCursorFamilyModelKey } from './cursor-model-route.mjs'
+import { reasoningCatalogFromHostModel } from './reasoning-effort-catalog.mjs'
 
 /** Providers that use TaskWeaver-native OAuth (written to DSH llm-pi-ai grant records). */
 const TASKWEAVER_NATIVE_OAUTH = {
@@ -362,25 +364,25 @@ export function createModelService({
     const priceMeta = remotePricing
       ? { source: 'taskweaver-remote-registry', synced_at: registryEntry?.updatedAt ?? null, confidence: registryEntry?.confidence ?? 'curated' }
       : bundledPrice.priceMeta
-    const efforts = model.reasoning?.efforts?.map((effort) => String(effort.id).toLowerCase()) ?? []
-    const supportedThinkingLevels = ['off', 'low', 'medium', 'high'].filter((level) => level === 'off' || efforts.includes(level))
+    const reasoningCatalog = reasoningCatalogFromHostModel(model)
     return {
       key,
       provider: provider.id,
       id: model.id,
       name: registryEntry?.name || model.name || model.id,
       api: registryEntry?.api || 'dsh',
-      reasoning: efforts.length > 0,
+      reasoning: reasoningCatalog.reasoning,
+      reasoningEfforts: reasoningCatalog.reasoningEfforts,
+      supportedThinkingLevels: reasoningCatalog.supportedThinkingLevels.length
+        ? reasoningCatalog.supportedThinkingLevels
+        : undefined,
       contextWindow: Number(registryEntry?.contextWindow) || 0,
       maxTokens: Number(registryEntry?.maxTokens) || 0,
       costPerMillion: { input: cost.input, output: cost.output, cacheRead: cost.cacheRead, cacheWrite: cost.cacheWrite },
       priceMeta: priceMeta ?? catalogPriceMeta,
       available: availableKeys.has(key),
       isTierVariant: false,
-      supportedThinkingLevels: efforts.length ? supportedThinkingLevels : undefined,
-      defaultThinkingLevel: efforts.length
-        ? (model.reasoning?.defaultEffort ?? (efforts.includes('high') ? 'high' : 'medium'))
-        : undefined,
+      defaultThinkingLevel: reasoningCatalog.defaultThinkingLevel,
       profile,
       source,
       deprecated: Boolean(registryEntry?.deprecated),
@@ -682,7 +684,7 @@ export function createModelService({
     const activeModel = models.find((item) => item.key === activeModelKey)
     const resolvedThinkingLevel = activeThinkingLevel
       ?? activeModel?.defaultThinkingLevel
-      ?? 'medium'
+      ?? (isCursorFamilyModelKey(activeModelKey) ? 'low' : 'medium')
 
     return {
       models,
@@ -1102,19 +1104,16 @@ export function createModelService({
     const group = directory.groups.find((item) => item.id === provider)
     const model = group?.models.find((item) => item.id === id)
     if (!model) throw new Error(`Z 模型目录中未找到模型：${modelKey}`)
-    const reasoningEfforts = model.reasoning?.efforts
-      ?.map((effort) => String(effort.id ?? '').toLowerCase())
-      .filter(Boolean) ?? []
-    const supportedThinkingLevels = [...new Set(['off', ...reasoningEfforts])]
+    const reasoningCatalog = reasoningCatalogFromHostModel(model)
     return {
       provider,
       id,
       name: model.name || id,
-      reasoning: reasoningEfforts.length > 0,
-      ...(reasoningEfforts.length ? {
-        supportedThinkingLevels,
-        defaultThinkingLevel: model.reasoning?.defaultEffort
-          ?? (reasoningEfforts.includes('high') ? 'high' : reasoningEfforts.includes('medium') ? 'medium' : reasoningEfforts[0]),
+      reasoning: reasoningCatalog.reasoning,
+      ...(reasoningCatalog.supportedThinkingLevels.length ? {
+        supportedThinkingLevels: reasoningCatalog.supportedThinkingLevels,
+        reasoningEfforts: reasoningCatalog.reasoningEfforts,
+        defaultThinkingLevel: reasoningCatalog.defaultThinkingLevel,
       } : {}),
     }
   }
@@ -1146,7 +1145,8 @@ export function createModelService({
       if (explicit) return explicit
       const catalog = await listCatalog()
       const activeModel = catalog.models.find((item) => item.key === catalog.activeModelKey)
-      return activeModel?.defaultThinkingLevel ?? 'medium'
+      if (activeModel?.defaultThinkingLevel) return activeModel.defaultThinkingLevel
+      return isCursorFamilyModelKey(catalog.activeModelKey) ? 'low' : 'medium'
     },
     async setThinkingLevel(level) {
       return profileStore.setThinkingLevel(level)

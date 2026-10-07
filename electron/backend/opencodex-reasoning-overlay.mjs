@@ -48,6 +48,8 @@ function applyModelReasoningOverlay(model) {
   if (!model?.id || !DSH_EXPLICIT_REASONING_MODEL_IDS.has(model.id)) return
   model.reasoning = true
   model.thinkingLevelMap = cloneEffortMap()
+  // DSH cursor-ocx profile defaults to lighter effort; Medium adds long Think loops via ocx.
+  model.defaultThinkingLevel = 'low'
 }
 
 const TIER_SUFFIX_REGEX = /^(.+)-(minimal|low|medium|high|xhigh|max)$/i
@@ -126,6 +128,7 @@ export function normalizeTierSuffixModels(models) {
       reasoning: true,
       thinkingLevelMap,
       tierVariants,
+      defaultThinkingLevel: 'low',
     }
     result.push(consolidated)
 

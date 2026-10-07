@@ -68,6 +68,9 @@ const cancelAfterToolRequests = []
 const cancelAfterToolDebugRequests = []
 let cancelAfterToolResultObserved = false
 let cancelAfterToolStreamClosed = false
+const mcpCancelRequests = []
+let mcpCancelToolCallRequested = false
+let mcpCancelScenarioActive = false
 let mcpMainResultObserved = false
 let mcpReadonlyGuardObserved = false
 let mcpFailureObserved = false
@@ -231,8 +234,9 @@ const mockLlm = createServer((request, response) => {
     }
     const mcpScenario = serialized.includes('[MCP_MAIN_SMOKE]')
       ? 'main'
-      : serialized.includes('[MCP_READONLY_SMOKE]') ? 'readonly'
-        : serialized.includes('[MCP_FAILURE_SMOKE]') ? 'failure' : null
+        : serialized.includes('[MCP_READONLY_SMOKE]') ? 'readonly'
+        : serialized.includes('[MCP_FAILURE_SMOKE]') ? 'failure'
+          : mcpCancelScenarioActive && serialized.includes('[MCP_CANCEL_SMOKE]') ? 'cancel' : null
     if (mcpScenario && isTitleRequest) {
       respond('MCP echo smoke')
       return
@@ -282,6 +286,25 @@ const mockLlm = createServer((request, response) => {
         else respondWithToolCall('mcp-failure-tool-call', toolName, { text: 'mcp-fail-marker' })
       } else {
         respond('mcp-failure-result-not-observed')
+      }
+      return
+    }
+    if (mcpScenario === 'cancel') {
+      const toolNames = (parsedBody.tools ?? []).map((tool) => tool.function?.name ?? tool.name)
+      mcpCancelRequests.push(parsedBody)
+      const hasCancelledToolResult = (parsedBody.messages ?? []).some((message) =>
+        message.role === 'tool' && JSON.stringify(message).includes('Request cancelled'))
+      if (hasCancelledToolResult) {
+        respond('mcp-cancel-result-observed')
+      } else if (!mcpCancelToolCallRequested) {
+        const toolName = toolNames.find((name) => name === 'mcp__smoke__echo')
+        if (!toolName) respond('mcp-cancel-tool-not-advertised')
+        else {
+          mcpCancelToolCallRequested = true
+          respondWithToolCall('mcp-cancel-tool-call', toolName, { text: 'mcp-cancel-marker' })
+        }
+      } else {
+        respond('mcp-cancel-unexpected-provider-retry')
       }
       return
     }
@@ -436,6 +459,7 @@ const deployedRuntimePatch = await fs.readFile(path.join(runtimeRoot, runtimePac
 assert.doesNotMatch(deployedRuntimePatch, /inspection(?:Tools|Thresholds|Limit)/, 'deployed base patch must not configure a cumulative inspection budget')
 const mcpFixturePath = path.join(projectRoot, 'scripts', 'fixtures', 'mcp-echo-server.mjs')
 const mcpSmokeLogPath = path.join(testHome, 'mcp-tool-calls.log')
+const mcpCancelLogPath = path.join(testHome, 'mcp-cancel-notifications.log')
 const testSafeStorage = {
   isEncryptionAvailable: () => true,
   encryptString: value => Buffer.from(`test-encrypted:${value}`, 'utf8'),
@@ -451,7 +475,10 @@ await mcpService.saveServer({
   transport: 'stdio',
   command: process.execPath,
   args: [mcpFixturePath],
-  env: { TASKWEAVER_MCP_SMOKE_LOG: mcpSmokeLogPath },
+  env: {
+    TASKWEAVER_MCP_SMOKE_LOG: mcpSmokeLogPath,
+    TASKWEAVER_MCP_CANCEL_LOG: mcpCancelLogPath,
+  },
   enabled: true,
 })
 const initialMcpIntegration = await mcpService.prepareRuntimeIntegration()
@@ -892,9 +919,83 @@ try {
   })
   assert.equal(mcpFailureTurn.text, 'mcp-failure-observed', 'the model should receive an MCP tool failure and complete with a clear response')
   assert.equal(mcpFailureObserved, true, 'the MCP tool error must be returned to the model instead of treated as success')
+
+  const mcpCancelConversationId = `taskweaver-mcp-cancel-${crypto.randomUUID()}`
+  const mcpCancelEvents = []
+  const mcpCancelWebContents = {
+    send(channel, event) {
+      if (channel === 'chat:stream') mcpCancelEvents.push(event)
+    },
+    isDestroyed: () => false,
+  }
+  mcpCancelScenarioActive = true
+  const mcpCancelPending = deployedChatService.send({
+    conversationId: mcpCancelConversationId,
+    text: '[MCP_CANCEL_SMOKE] Call the local MCP tool that remains pending until cancelled.',
+    modelKey: `${route}/mock-readonly`,
+    webContents: mcpCancelWebContents,
+    cwdOverride: projectRoot,
+  })
+  let mcpCancelRunError = null
+  mcpCancelPending.catch(error => { mcpCancelRunError = error })
+  const mcpCancelCallDeadline = Date.now() + 10_000
+  let mcpCancelCallLog = ''
+  do {
+    mcpCancelCallLog = await fs.readFile(mcpSmokeLogPath, 'utf8').catch(() => '')
+    if (mcpCancelCallLog.split('\n').includes('mcp-cancel-marker')) break
+    await new Promise(resolve => setTimeout(resolve, 25))
+  } while (Date.now() < mcpCancelCallDeadline)
+  assert.ok(mcpCancelCallLog.split('\n').includes('mcp-cancel-marker'),
+    `the local MCP fixture must receive the hanging call before Stop; error=${mcpCancelRunError?.message ?? ''}; events=${JSON.stringify(mcpCancelEvents)}; requests=${JSON.stringify(mockRequests.filter(row => JSON.stringify(row.body).includes('[MCP_CANCEL_SMOKE]')).slice(-3).map(row => ({ users: row.body.messages?.filter(message => message.role === 'user').slice(-2).map(message => String(message.content).slice(0, 180)), tools: row.body.tools?.map(tool => tool.function?.name ?? tool.name) })))}`)
+  assert.equal(deployedChatService.isBusy(mcpCancelConversationId), true,
+    'the turn must remain active while the MCP request is deliberately pending')
+  const mcpCancelAccepted = await deployedChatService.abort(mcpCancelConversationId)
+  assert.equal(mcpCancelAccepted, true, 'Stop must be accepted while the MCP tool call is still pending')
+  const mcpCancelledTurn = await Promise.race([
+    mcpCancelPending,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('in-flight MCP cancellation terminal timeout')), 5_000)),
+  ])
+  assert.equal(mcpCancelledTurn.cancelled, true, 'the pending MCP tool turn must terminate as cancelled')
+  mcpCancelScenarioActive = false
+  assert.equal(deployedChatService.isBusy(mcpCancelConversationId), false,
+    'cancelling the pending MCP tool must release the conversation busy state')
+  assert.equal(mcpCancelEvents.findLast(event => event.type === 'done')?.interrupted, true,
+    'the user-facing terminal event must mark the in-flight MCP turn interrupted')
+  const mcpCancelNotifications = await fs.readFile(mcpCancelLogPath, 'utf8').catch(() => '')
+  const mcpCancelNotification = mcpCancelNotifications.split('\n').filter(Boolean)
+    .map(line => JSON.parse(line)).find(row => row.method === 'notifications/cancelled')
+  assert.ok(mcpCancelNotification, 'the MCP server must receive the protocol cancellation notification')
+  assert.notEqual(mcpCancelNotification.params?.requestId, undefined,
+    'the MCP cancellation notification must identify the pending tool request')
+  assert.equal(mcpCancelRequests.length, 1,
+    'cancellation during MCP execution must not replay the interrupted model request')
+  const mcpCancelSessionId = deployedChatService.getSessionId(mcpCancelConversationId)
+  const mcpCancelHistoryDeadline = Date.now() + 5_000
+  let mcpCancelHistory = []
+  do {
+    const history = await api.sessions.history({ sessionId: mcpCancelSessionId })
+    assert.equal(history.result.ok, true)
+    mcpCancelHistory = history.result.value.events.map(row => row.event)
+    if (mcpCancelHistory.some(event => event.type === 'turn/end' && event.data.reason?.kind === 'aborted')) break
+    await new Promise(resolve => setTimeout(resolve, 25))
+  } while (Date.now() < mcpCancelHistoryDeadline)
+  assert.ok(mcpCancelHistory.some(event => event.type === 'tool/call' && event.data.name === 'mcp__smoke__echo'),
+    'the Host history must retain the MCP tool invocation that was active at Stop')
+  assert.equal(mcpCancelHistory.findLast(event => event.type === 'turn/end')?.data.reason?.kind, 'aborted',
+    'the native Host turn must settle with an aborted terminal after MCP cancellation')
+  const mcpCancelRecovery = await deployedChatService.send({
+    conversationId: mcpCancelConversationId,
+    text: '[MCP_CANCEL_RECOVERY] Confirm the same conversation is usable again.',
+    modelKey: `${route}/mock-readonly`,
+    webContents: mcpCancelWebContents,
+    cwdOverride: projectRoot,
+  })
+  assert.equal(mcpCancelRecovery.cancelled, false, 'the same conversation must accept a fresh turn after MCP cancellation')
+  assert.equal(mcpCancelRecovery.text, 'readonly-smoke-ok', 'the recovered conversation must produce a fresh response')
+
   const mcpCallLog = await fs.readFile(mcpSmokeLogPath, 'utf8')
-  assert.deepEqual(mcpCallLog.trim().split('\n'), ['mcp-main-marker', 'mcp-fail-marker'],
-    'the main Agent may invoke the server; the read-only sub-agent must not invoke it')
+  assert.deepEqual(mcpCallLog.trim().split('\n'), ['mcp-main-marker', 'mcp-fail-marker', 'mcp-cancel-marker'],
+    'the main Agent may invoke the server; read-only sub-agents must not, and Stop must reach the pending MCP call')
 
   const mcpDagConversationId = `taskweaver-mcp-dag-${crypto.randomUUID()}`
   const mcpDagTasks = []
@@ -939,7 +1040,7 @@ try {
   assert.ok(mcpDagEntries.every((entry) => entry?.agentPreset === 'taskweaver-code'),
     'implementation DAG children must persist the TaskWeaver Code Mode preset')
   const mcpCallLogAfterDag = await fs.readFile(mcpSmokeLogPath, 'utf8')
-  assert.deepEqual(mcpCallLogAfterDag.trim().split('\n'), ['mcp-main-marker', 'mcp-fail-marker', 'mcp-dag-code-marker'],
+  assert.deepEqual(mcpCallLogAfterDag.trim().split('\n'), ['mcp-main-marker', 'mcp-fail-marker', 'mcp-cancel-marker', 'mcp-dag-code-marker'],
     'the configured MCP server must observe exactly one successful call from the implementation DAG child')
   const focusedConversationId = `taskweaver-focused-turn-${crypto.randomUUID()}`
   const focusedTurn = await deployedChatService.runAgentTurn({

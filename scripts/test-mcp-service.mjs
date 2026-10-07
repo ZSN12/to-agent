@@ -87,7 +87,7 @@ try {
   assert.deepEqual(await service.listServers(), [])
   await assert.rejects(() => service.saveServer({ id: '../escape', command: 'node', args: [], enabled: true }), /ID 无效/)
 
-  await assert.rejects(() => service.configureGitHub(''), /请输入 GitHub Personal Access Token/)
+  await assert.rejects(() => service.configureGitHub(''), /Personal Access Token/)
   const githubConfig = await service.configureGitHub('ghp_test_token')
   assert.equal(githubConfig.transport, 'http')
   assert.equal(githubConfig.url, 'https://api.githubcopilot.com/mcp/')

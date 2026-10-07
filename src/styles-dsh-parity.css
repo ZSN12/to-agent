@@ -1307,6 +1307,78 @@
 .dsh-tool-call-list {
   gap: 2px;
 }
+.dsh-tool-batch-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  min-height: 38px;
+  padding: 5px 10px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  text-align: left;
+  cursor: pointer;
+  transition: background 160ms ease-out;
+}
+.dsh-tool-batch-toggle:hover {
+  background: var(--bg-elevated, var(--bg-surface));
+}
+.dsh-tool-batch-toggle:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+.dsh-tool-batch-icon,
+.dsh-tool-batch-chevron {
+  flex: none;
+  color: var(--text-muted);
+}
+.dsh-tool-batch-label {
+  flex: none;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 550;
+}
+.dsh-tool-batch-status {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dsh-tool-batch-count {
+  flex: none;
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: var(--bg-elevated, var(--bg-surface));
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.dsh-tool-batch-chevron {
+  transition: transform 160ms ease-out;
+}
+.dsh-tool-batch-chevron.expanded {
+  transform: rotate(90deg);
+}
+.dsh-tool-call-batch-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 5px 0 0 8px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .dsh-tool-batch-toggle,
+  .dsh-tool-batch-chevron {
+    transition: none;
+  }
+}
 
 .context-message {
   min-width: 0;
@@ -1401,6 +1473,24 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+.dsh-tool-call-list-item.is-root > .dsh-tool-summary-row {
+  font-weight: 500;
+}
+.dsh-tool-call-children {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 2px 0 3px 10px;
+  padding-left: 10px;
+  border-left: 1px solid var(--line);
+}
+.dsh-tool-call-children > .dsh-tool-call-list-item {
+  min-width: 0;
+}
+.dsh-tool-call-children .dsh-tool-call-children {
+  margin-left: 8px;
+  padding-left: 9px;
 }
 .dsh-tool-summary-icon {
   color: var(--text-muted);

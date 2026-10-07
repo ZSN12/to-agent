@@ -86,8 +86,11 @@ function ipcHandle(ipcMain, channel, fn) {
  */
 export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeStorage, net }) {
   const { configureCodexOAuthNetwork } = await import('./codex-oauth.mjs')
+  const { configureGitHubMcpOAuthNetwork } = await import('./github-mcp-oauth.mjs')
   if (net?.fetch) {
-    configureCodexOAuthNetwork({ fetch: (input, init) => net.fetch(input, init) })
+    const electronFetch = (input, init) => net.fetch(input, init)
+    configureCodexOAuthNetwork({ fetch: electronFetch })
+    configureGitHubMcpOAuthNetwork({ fetch: electronFetch })
   }
   const userData = app.getPath('userData')
   // 为无项目对话创建默认工作区目录（类似 Codex 的做法）
@@ -775,6 +778,25 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
     await reloadMcpRuntime()
     return saved
   })
+  ipcHandle(ipcMain, 'mcp:getGitHubOAuthAvailability', () => mcp.getGitHubOAuthAvailability())
+  ipcHandle(ipcMain, 'mcp:startGitHubOAuth', async (event) => {
+    assertMcpHostRestartSafe()
+    const { shell } = await import('electron')
+    const result = await mcp.loginGitHubWithOAuth({
+      onStatus: (statusInfo) => {
+        try {
+          if (statusInfo?.url) shell.openExternal(statusInfo.url).catch(() => {})
+          event.sender.send('mcp:githubOAuthStatus', statusInfo)
+        } catch (err) {
+          console.error('GitHub OAuth 状态推送失败:', err)
+        }
+      },
+      openExternal: (url) => shell.openExternal(url),
+    })
+    await reloadMcpRuntime()
+    return result
+  })
+  ipcHandle(ipcMain, 'mcp:cancelGitHubOAuth', () => mcp.cancelGitHubOAuth())
   ipcHandle(ipcMain, 'mcp:disconnect', async (_event, id) => mcp.disconnect(id))
   ipcHandle(ipcMain, 'mcp:refresh', async () => {
     assertNotBusy()
@@ -1473,7 +1495,7 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
       try {
         result = await chat.send({ text: command, modelKey: activeKey, conversationId,
           cwdOverride: runtimeContext.workspacePath, webContents: event.sender,
-          agentPreset: resolvePrimaryAgentPreset(command, workMode) })
+          agentPreset: resolvePrimaryAgentPreset(command, workMode, activeKey) })
       } catch (error) { await handleChatError(error, messageId, time, conversationId) }
       const assistant = await createAssistantMessage(result, messageId, time, activeKey,
         { mode: 'single-agent' }, conversationId)
@@ -1503,7 +1525,7 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
 
     let result
     try {
-      result = await executeChatRequest(execution, effectivePrompt, resolvePrimaryAgentPreset(text, workMode), activeKey, selectedSkill, event, conversationId, runtimeContext)
+      result = await executeChatRequest(execution, effectivePrompt, resolvePrimaryAgentPreset(text, workMode, activeKey), activeKey, selectedSkill, event, conversationId, runtimeContext)
     } catch (error) {
       await handleChatError(error, messageId, time, conversationId)
     }

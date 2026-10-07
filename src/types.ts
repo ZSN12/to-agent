@@ -1,6 +1,6 @@
 export type TaskStatus = 'done' | 'running' | 'queued' | 'review'
 
-export type ThinkingLevel = 'off' | 'low' | 'medium' | 'high'
+export type ThinkingLevel = string
 
 export type AssistantContentBlock = { id: string; kind: 'thinking' | 'text'; text: string }
 
@@ -20,6 +20,7 @@ export interface ModelOption {
   reasoning?: boolean
   thinkingLevel?: ThinkingLevel
   supportedThinkingLevels?: ThinkingLevel[]
+  reasoningEfforts?: { id: ThinkingLevel; name?: string; description?: string }[]
   defaultThinkingLevel?: ThinkingLevel
 }
 

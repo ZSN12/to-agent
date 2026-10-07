@@ -74,6 +74,23 @@ function textFromMessage(message) {
     .join('')
 }
 
+function assistantTextStepKey(turn, event) {
+  const eventTurn = event?.data?.turn
+  const eventStep = event?.data?.step
+  if (Number.isInteger(eventTurn) && Number.isInteger(eventStep)) {
+    const key = String(eventTurn) + ':' + String(eventStep)
+    turn.currentTextStepKey = key
+    return key
+  }
+  return turn.currentTextStepKey ?? 'unsequenced'
+}
+
+function setAssistantStepText(turn, stepKey, text) {
+  turn.textByStep ??= new Map()
+  turn.textByStep.set(stepKey, text)
+  turn.text = [...turn.textByStep.values()].join('')
+}
+
 function logHostUserMessageBytes(logger, {
   conversationId,
   sessionKey,
@@ -237,11 +254,6 @@ export function createDshChatService({
   function emit(conversationId, webContents, event) {
     if (!webContents || webContents.isDestroyed?.()) return
     try { webContents.send('chat:stream', { ...event, conversationId }) } catch { /* renderer may be closing */ }
-  }
-
-  /** Main-lane assistant copy is driven by hub projection when attached; skip duplicate stream IPC. */
-  function projectionOwnsMainStream(conversationId) {
-    return Boolean(conversationId && conversationHub?.hasLiveProjection?.(conversationId))
   }
 
   function conversationIdForSession(sessionId) {
@@ -624,6 +636,8 @@ export function createDshChatService({
       if (!turn.queueAuthoritative) turn.pendingQueuedTurns = Math.max(0, turn.pendingQueuedTurns - 1)
       turn.turnId = crypto.randomUUID()
       turn.text = ''
+      turn.textByStep?.clear()
+      turn.currentTextStepKey = null
       turn.thinking = ''
       turn.thinkingStartedAt = null
       turn.thinkingEndedAt = null
@@ -681,12 +695,18 @@ export function createDshChatService({
       const chunk = event.data?.chunk
       if (chunk?.type === 'text-delta' && chunk.text) {
         pauseThinkingSegment(turn, event.time || Date.now())
-        turn.text += chunk.text
+        const stepKey = assistantTextStepKey(turn, event)
+        const stepText = turn.textByStep?.get(stepKey) ?? ''
+        setAssistantStepText(turn, stepKey, stepText + chunk.text)
         if (turn.progressOnly && turn.plannerPhase !== 'text') {
           turn.plannerPhase = 'text'
           emit(emitTarget, turn.webContents, { type: 'planner_phase', phase: 'text' })
         }
-        if (!turn.silentText && !projectionOwnsMainStream(emitTarget)) {
+        // Keep the incremental chat stream as the authoritative live-text path.
+        // A DSH projection can be attached while its session is still opening or
+        // repairing a mux gap; suppressing these deltas merely because a view is
+        // attached makes the answer appear all at once in the terminal `done`.
+        if (!turn.silentText) {
           emit(emitTarget, turn.webContents, { type: 'delta', delta: chunk.text })
         }
       } else if (chunk?.type === 'reasoning-delta' && chunk.text) {
@@ -697,13 +717,13 @@ export function createDshChatService({
           turn.plannerPhase = 'reasoning'
           emit(emitTarget, turn.webContents, { type: 'planner_phase', phase: 'reasoning' })
         }
-        if (wasIdle && !turn.silentText && !projectionOwnsMainStream(emitTarget)) {
+        if (wasIdle && !turn.silentText) {
           emit(emitTarget, turn.webContents, { type: 'thinking_start' })
         }
         turn.lastReasoningAt = now
         turn.thinking += chunk.text
         const thinkingDurationMs = activeThinkingDurationMs(turn, now)
-        if (!turn.silentText && !projectionOwnsMainStream(emitTarget)) {
+        if (!turn.silentText) {
           emit(emitTarget, turn.webContents, {
             type: 'thinking_delta',
             delta: chunk.text,
@@ -716,7 +736,31 @@ export function createDshChatService({
     if (event?.type === 'assistant/message') {
       const message = event.data?.message
       const finalText = textFromMessage(message)
-      if (finalText && finalText.length >= turn.text.length) turn.text = finalText
+      if (finalText) {
+        const stepKey = assistantTextStepKey(turn, event)
+        const streamedStepText = turn.textByStep?.get(stepKey) ?? ''
+        if (finalText !== streamedStepText) {
+          pauseThinkingSegment(turn, event.time || Date.now())
+          setAssistantStepText(turn, stepKey, finalText)
+          if (turn.progressOnly && turn.plannerPhase !== 'text') {
+            turn.plannerPhase = 'text'
+            emit(emitTarget, turn.webContents, { type: 'planner_phase', phase: 'text' })
+          }
+          // Some adapters expose no token chunks (sourceEventSeqs: []). Their
+          // assembled assistant/message is still available before turn/end, so
+          // publish it now. The full snapshot also reconciles a streamed prefix
+          // without duplicating text or corrupting earlier assistant steps.
+          if (!turn.silentText) {
+            emit(emitTarget, turn.webContents, {
+              type: 'delta',
+              delta: finalText,
+              full: turn.text,
+            })
+          }
+        } else {
+          turn.text = [...(turn.textByStep?.values() ?? [])].join('')
+        }
+      }
       const usage = usageFromAssistantEvent(event)
       if (usage) {
         turn.usage = {
@@ -1048,7 +1092,7 @@ export function createDshChatService({
     // commits have no caller, so keep diagnostics without breaking the mux.
     void persisted.catch(error => console.error('[chat] 保存本轮结果失败:', error instanceof Error ? error.message : error))
     if (turn.emitLifecycle !== false) {
-      if (result.thinking && thinkingDurationMs > 0 && !projectionOwnsMainStream(emitTarget)) {
+      if (result.thinking && thinkingDurationMs > 0) {
         emit(emitTarget, turn.webContents, {
           type: 'thinking_end',
           fullThinking: result.thinking,
@@ -1548,6 +1592,8 @@ export function createDshChatService({
         plannerPhase: null,
         emitLifecycle,
         text: '',
+        textByStep: new Map(),
+        currentTextStepKey: null,
         thinking: '',
         thinkingStartedAt: null,
         thinkingEndedAt: null,

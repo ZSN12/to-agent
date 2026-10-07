@@ -120,6 +120,11 @@ assert.equal(
   '用户明确列出多个独立文件时自动采用批量工具模式',
 )
 assert.equal(resolvePrimaryAgentPreset('请并行检查多个文件的导入关系'), 'code', '明确的批量只读任务应自动采用批量工具模式')
+assert.equal(
+  resolvePrimaryAgentPreset('请并行检查多个文件的导入关系', 'code', 'opencodex/cursor/composer-2.5'),
+  'standard',
+  'Composer 路线与 DSH 一致，不自动切 Code Mode',
+)
 assert.equal(resolvePrimaryAgentPreset('修改 electron/main.cjs 和 electron/preload.cjs'), 'standard', '写入任务暂不自动切 Code，避免未经验证改变编辑行为')
 
 console.log(`\nuser-intent 回归测试全部通过（${cases.length} 条意图判定 + 注入行为 + 端到端）。`)

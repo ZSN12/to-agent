@@ -94,6 +94,8 @@ try {
   await flush()
   await emit({ type: 'start', conversationId: 'c1', turnId: 'first', startedAt: 1000 })
   await emit({ type: 'delta', conversationId: 'c1', delta: 'first answer', full: 'first answer' })
+  await emit({ type: 'tool', conversationId: 'c1', id: 'first-read', toolName: 'read', status: 'done' })
+  assert.equal(app.toolTraces.length, 1, 'active turn tool calls should be visible in the current tool batch')
   await app.followUpMessage('a queued question')
   await flush()
   await emit({ type: 'done', conversationId: 'c1', turnId: 'first', startedAt: 1000,
@@ -103,6 +105,7 @@ try {
   assert.ok(!app.completedConversationIds.includes('c1'))
   assert.equal(app.messages.filter(message => message.text === 'first answer').length, 1)
   await emit({ type: 'start', conversationId: 'c1', turnId: 'next', startedAt: 2000 })
+  assert.equal(app.toolTraces.length, 0, 'the next queued turn must not inherit the prior turn tool batch')
   await emit({ type: 'delta', conversationId: 'c1', delta: 'next partial', full: 'next partial' })
   reply({ ok: true, data: { user: { id: 'u1', author: 'user', text: 'read the entrypoint', time: '' },
     assistant: { id: 'z-turn-first', author: 'orchestrator', text: 'first answer', thinking: 'first reasoning', time: '', timestamp: 1000 } } })

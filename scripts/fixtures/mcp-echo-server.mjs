@@ -2,10 +2,23 @@ import { createInterface } from 'node:readline'
 import { appendFile } from 'node:fs/promises'
 
 const input = createInterface({ input: process.stdin })
+const pendingToolCalls = new Map()
 input.on('line', async (line) => {
   let message
   try { message = JSON.parse(line) } catch { return }
-  if (message.id === undefined) return
+  if (message.id === undefined) {
+    if (message.method === 'notifications/cancelled') {
+      if (process.env.TASKWEAVER_MCP_CANCEL_LOG) {
+        await appendFile(process.env.TASKWEAVER_MCP_CANCEL_LOG, `${JSON.stringify({ method: message.method, params: message.params })}\n`, 'utf8')
+      }
+      const requestId = message.params?.requestId
+      if (pendingToolCalls.has(requestId)) {
+        pendingToolCalls.delete(requestId)
+        process.stdout.write(`${JSON.stringify({ jsonrpc: '2.0', id: requestId, error: { code: -32800, message: 'Request cancelled' } })}\n`)
+      }
+    }
+    return
+  }
   let result
   if (message.method === 'initialize') {
     result = { protocolVersion: '2025-03-26', capabilities: { tools: {} }, serverInfo: { name: 'test-echo', version: '1.0.0' } }
@@ -15,6 +28,10 @@ input.on('line', async (line) => {
     const text = String(message.params?.arguments?.text ?? '')
     if (process.env.TASKWEAVER_MCP_SMOKE_LOG) {
       await appendFile(process.env.TASKWEAVER_MCP_SMOKE_LOG, `${text}\n`, 'utf8')
+    }
+    if (text === 'mcp-cancel-marker') {
+      pendingToolCalls.set(message.id, true)
+      return
     }
     result = text === 'mcp-fail-marker'
       ? { content: [{ type: 'text', text: 'synthetic MCP tool failure' }], isError: true }

@@ -572,6 +572,21 @@ export interface McpServerStatus {
   status: 'disconnected' | 'connecting' | 'connected' | 'error'
   toolCount: number
   error: string | null
+  authMethod?: 'oauth' | 'pat' | null
+}
+
+export interface GitHubMcpOAuthStatus {
+  status: 'auth_url' | 'device_flow' | 'device_code' | 'progress' | 'completed' | 'error'
+  url?: string
+  userCode?: string
+  verificationUri?: string
+  instructions?: string
+  error?: string
+}
+
+export interface GitHubMcpOAuthLoginResult {
+  server: McpServerStatus
+  connection: McpServerStatus
 }
 
 export interface McpCatalogEntry {
@@ -617,6 +632,10 @@ export interface TaskweaverMcpApi {
   disconnect: (id: string) => Promise<IpcResult<void>>
   testConnection: (id: string) => Promise<IpcResult<McpServerStatus>>
   configureGitHub: (token: string) => Promise<IpcResult<McpServerStatus>>
+  getGitHubOAuthAvailability: () => Promise<IpcResult<{ configured: boolean }>>
+  startGitHubOAuth: () => Promise<IpcResult<GitHubMcpOAuthLoginResult>>
+  cancelGitHubOAuth: () => Promise<IpcResult<boolean>>
+  onGitHubOAuthStatus?: (listener: (status: GitHubMcpOAuthStatus) => void) => () => void
   refresh: () => Promise<IpcResult<McpServerStatus[]>>
 }
 

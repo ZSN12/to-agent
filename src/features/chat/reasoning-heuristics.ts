@@ -11,23 +11,10 @@ export function latestLine(text: string): string {
 }
 
 /**
- * 部分中转/API 把 extended thinking 打进 text 块而非 thinking 块。
- * 启发式折叠为 Think 行，避免整段推理铺满气泡（对齐 DSH 默认折叠）。
+ * Think/正文应由 Host 的结构化 content block 类型决定；不能从普通正文的
+ * 语言、长度或首字母推断成 reasoning。否则流式文本可能被折叠，结束后又
+ * 因启发式条件变化而突然展开。
  */
-export function shouldPresentTextAsThinking(text: string, isStreaming = false): boolean {
-  const body = text.replace(/<\/?think>/gi, '').trim()
-  if (body.length < 100) return false
-  const line = firstLine(body)
-  if (/^(#{1,3}\s|[-*]\s+\S|>\s)/.test(line)) return false
-  if (/```/.test(body) && body.indexOf('```') < 400) return false
-  const enPlanner =
-    /^(I |I'm |I've |I'll |Let me |I need to |I should |I want to |I will |Looking at |Checking |Searching |The user )/i.test(
-      line,
-    )
-  const zhPlanner = /^(我需要|我应该|让我|我来|先看|接下来|首先|用户)/.test(line)
-  if (enPlanner || zhPlanner) return true
-  if (isStreaming && body.length >= 280 && !body.includes('```')) {
-    return enPlanner || zhPlanner || /^(\*\*)?[A-Z]/.test(line)
-  }
-  return false
+export function isStructuredThinkingBlock(block: { kind: 'thinking' | 'text' }): boolean {
+  return block.kind === 'thinking'
 }

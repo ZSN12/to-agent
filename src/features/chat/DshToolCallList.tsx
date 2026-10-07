@@ -1,6 +1,6 @@
 import { ChevronRight, FileText, Search, Terminal, Pencil, Code2 } from 'lucide-react'
 import { useMemo, useState } from 'react'
-import { buildDshToolCallTree } from './dshToolCallTree'
+import { buildDshToolCallTree, isDshToolCallBatchExpanded } from './dshToolCallTree'
 import { DshStateDot } from './DshStateDot'
 import { dshToolRowPresentation } from './dshToolRowModel'
 import { ToolTraceCard } from './ToolTraceCard'
@@ -36,10 +36,32 @@ export function DshToolCallList({
   onOpenWorkspacePath?: (relativePath: string) => void
 }) {
   const [openId, setOpenId] = useState<string | null>(null)
+  const [batchExpandedOverride, setBatchExpandedOverride] = useState<boolean | null>(null)
 
   const tree = useMemo(() => buildDshToolCallTree(rows, traces), [rows, traces])
+  const calls = useMemo(() => {
+    const flattened: DshProjectedToolCall[] = []
+    const visit = (nodes: typeof tree) => {
+      for (const node of nodes) {
+        flattened.push(node.row)
+        visit(node.children)
+      }
+    }
+    visit(tree)
+    return flattened
+  }, [tree])
 
-  if (!tree.length) return null
+  if (!calls.length) return null
+
+  const runningCall = [...calls].reverse().find((row) => row.status === 'running')
+  const batchExpanded = isDshToolCallBatchExpanded(batchExpandedOverride, Boolean(runningCall))
+  const failedCount = calls.filter((row) => row.status === 'error' || row.status === 'stopped').length
+  const runningPresentation = runningCall
+    ? dshToolRowPresentation(runningCall.toolName, runningCall.argsRaw, workspacePath)
+    : null
+  const batchStatus = runningCall
+    ? `运行中 · ${[runningPresentation?.title, runningPresentation?.summary].filter(Boolean).join(' · ') || '等待工具结果'}`
+    : `共 ${calls.length} 次调用${failedCount ? ` · ${failedCount} 次未成功` : ' · 已完成'}`
 
   const renderNode = (node: ReturnType<typeof buildDshToolCallTree>[number], depth = 0) => {
     const { row, trace: sourceTrace } = node
@@ -49,10 +71,9 @@ export function DshToolCallList({
     const Icon = rowIcon(variant)
     const isRunning = row.status === 'running'
     const detailTrace: ToolTraceItem = { ...sourceTrace, inputSummary: summary }
-    const indentation = Math.min(depth * 18, 90)
 
     return (
-      <div key={row.callId} className="dsh-tool-call-list-item" style={indentation ? { marginLeft: indentation } : undefined}>
+      <div key={row.callId} className={`dsh-tool-call-list-item${depth === 0 ? ' is-root' : ' is-nested'}`}>
         <button
           type="button"
           className={`dsh-tool-summary-row ${isRunning ? 'is-running' : ''} ${open ? 'is-open' : ''}`}
@@ -90,7 +111,7 @@ export function DshToolCallList({
           </div>
         )}
         {node.children.length > 0 && (
-          <div className="dsh-tool-call-children">
+          <div className="dsh-tool-call-children" aria-label={`${node.children.length} 个嵌套工具调用`}>
             {node.children.map((child) => renderNode(child, depth + 1))}
           </div>
         )}
@@ -99,8 +120,25 @@ export function DshToolCallList({
   }
 
   return (
-    <div className="tool-trace-compact dsh-tool-call-list">
-      {tree.map((node) => renderNode(node))}
+    <div className={`tool-trace-compact dsh-tool-call-list dsh-tool-call-batch${batchExpanded ? ' is-expanded' : ''}`}>
+      <button
+        type="button"
+        className="dsh-tool-batch-toggle"
+        aria-expanded={batchExpanded}
+        aria-label={`${batchExpanded ? '收起' : '展开'} ${calls.length} 次工具调用详情`}
+        onClick={() => setBatchExpandedOverride((override) => !isDshToolCallBatchExpanded(override, Boolean(runningCall)))}
+      >
+        <Terminal size={15} aria-hidden className="dsh-tool-batch-icon" />
+        <span className="dsh-tool-batch-label">工具调用</span>
+        <span className="dsh-tool-batch-status">{batchStatus}</span>
+        <span className="dsh-tool-batch-count">{calls.length}</span>
+        <ChevronRight size={14} aria-hidden className={`dsh-tool-batch-chevron${batchExpanded ? ' expanded' : ''}`} />
+      </button>
+      {batchExpanded && (
+        <div className="dsh-tool-call-batch-body">
+          {tree.map((node) => renderNode(node))}
+        </div>
+      )}
     </div>
   )
 }

@@ -109,6 +109,14 @@ contextBridge.exposeInMainWorld('taskweaver', {
     disconnect: (id) => invoke('mcp:disconnect', id),
     testConnection: (id) => invoke('mcp:testConnection', id),
     configureGitHub: (token) => invoke('mcp:configureGitHub', token),
+    getGitHubOAuthAvailability: () => invoke('mcp:getGitHubOAuthAvailability'),
+    startGitHubOAuth: () => invoke('mcp:startGitHubOAuth'),
+    cancelGitHubOAuth: () => invoke('mcp:cancelGitHubOAuth'),
+    onGitHubOAuthStatus: (listener) => {
+      const handler = (_event, payload) => listener(payload)
+      ipcRenderer.on('mcp:githubOAuthStatus', handler)
+      return () => ipcRenderer.removeListener('mcp:githubOAuthStatus', handler)
+    },
     refresh: () => invoke('mcp:refresh'),
   },
   chat: {

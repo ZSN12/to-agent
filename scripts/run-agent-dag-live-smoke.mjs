@@ -302,13 +302,34 @@ function runOfflineEvidenceSelfTest() {
     ['electron/backend/register-ipc.mjs', 'chat:send|executeChatRequest|executeSingleAgent|createDshChatService|chat\\.send'],
     ['electron/backend/dsh-chat-service.mjs', 'async function send|api\\.sessions\\.prompt'],
   ].map(([path, pattern]) => ({ name: 'grep', arguments: JSON.stringify({ path, pattern }) }))
+  const readCoveringAnchors = (filePath, patterns, padding = 4) => {
+    const absolutePath = path.resolve(root, filePath)
+    if (!absolutePath.startsWith(`${root}${path.sep}`)) throw new Error(`fixed T2 fixture escaped workspace: ${filePath}`)
+    const lines = fsSync.readFileSync(absolutePath, 'utf8').split(/\r?\n/)
+    const lineNumbers = patterns.map((pattern) => lines.findIndex((line) => pattern.test(line)) + 1)
+    assertCase(lineNumbers.every((lineNumber) => lineNumber > 0), `fixed T2 fixture anchors exist in ${filePath}`)
+    const offset = Math.max(1, Math.min(...lineNumbers) - padding)
+    const endLine = Math.max(...lineNumbers) + padding
+    return {
+      name: 'read',
+      arguments: JSON.stringify({ file_path: filePath, offset, limit: endLine - offset + 1 }),
+    }
+  }
   const expectedReads = [
-    ['src/features/app/useAppBackend.ts', 765, 25],
-    ['electron/preload.cjs', 105, 22],
-    ['electron/backend/register-ipc.mjs', 355, 20],
-    ['electron/backend/register-ipc.mjs', 1330, 180],
-    ['electron/backend/dsh-chat-service.mjs', 1437, 180],
-  ].map(([file_path, offset, limit]) => ({ name: 'read', arguments: JSON.stringify({ file_path, offset, limit }) }))
+    readCoveringAnchors('src/features/app/useAppBackend.ts', [/bridge\.chat\.send/]),
+    readCoveringAnchors('electron/preload.cjs', [/invoke\(['"]chat:send['"]/]),
+    readCoveringAnchors('electron/backend/register-ipc.mjs', [/const chat = createDshChatService\(/]),
+    readCoveringAnchors('electron/backend/register-ipc.mjs', [
+      /const executeSingleAgent = async/,
+      /const executeChatRequest = async/,
+      /ipcHandle\(ipcMain, ['"]chat:send['"]/,
+      /result = await executeChatRequest\(/,
+    ], 6),
+    readCoveringAnchors('electron/backend/dsh-chat-service.mjs', [
+      /async function send\(\{/,
+      /const reply = rpcValue\(await api\.sessions\.prompt\(/,
+    ], 6),
+  ]
   const compliantCalls = [...exactSearches, ...expectedReads]
   const serviceRead = expectedReads.at(-1)
   assertCase(auditFixedT2ToolDiscipline(compliantCalls).status === 'verified', 'fixed T2 exact searches and scoped reads pass')
