@@ -8,6 +8,8 @@ const root = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-preferences-'))
 try {
   const store = createAppPreferencesStore(root)
   assert.equal((await store.get()).promptInjectionLimitBytes, 32 * 1024, 'prompt injection cap defaults to 32 KiB')
+  assert.equal((await store.get()).adaptiveOrchestrationGate, true, 'adaptive gate defaults on')
+  assert.equal((await store.get()).preferMultiAgent, true, 'prefer multi-agent defaults on')
 
   await store.set({ bashSandbox: 'read-only', promptInjectionLimitBytes: 24 * 1024 })
   const merged = await store.get()
@@ -30,11 +32,13 @@ try {
   // when the new preference is first written.
   await fs.writeFile(path.join(root, 'taskweaver-preferences.json'), JSON.stringify({
     bashSandbox: 'off',
+    selfHealingLoop: false,
   }))
   assert.equal((await store.get()).promptInjectionLimitBytes, 32 * 1024, 'legacy preferences use the default cap')
   const upgraded = await store.set({ promptInjectionLimitBytes: 8192 })
   assert.equal(upgraded.promptInjectionLimitBytes, 8192)
   assert.equal(upgraded.bashSandbox, 'off', 'setting the new cap preserves existing preferences')
+  assert.equal(upgraded.selfHealingLoop, false, 'setting the new cap preserves newer existing preferences')
 } finally {
   await fs.rm(root, { recursive: true, force: true })
 }

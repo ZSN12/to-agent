@@ -746,6 +746,109 @@ export async function readTextForDiff(
 }
 
 /**
+ * Fuzzy helper: normalize trailing whitespace on each line.
+ */
+function normalizeTrailingSpaces(str: string): string {
+  return str.split('\n').map((line) => line.trimEnd()).join('\n')
+}
+
+/**
+ * Fuzzy helper: find replacement using trimmed lines comparison and indentation alignment.
+ */
+function fuzzyFindAndReplace(
+  content: string,
+  oldNorm: string,
+  newNorm: string,
+): { content: string; replacements: number } | null {
+  // Strategy 1: Ignore line-trailing whitespace differences
+  const contentNoTrailing = normalizeTrailingSpaces(content)
+  const oldNoTrailing = normalizeTrailingSpaces(oldNorm)
+  if (contentNoTrailing.includes(oldNoTrailing)) {
+    const count = countOccurrences(contentNoTrailing, oldNoTrailing)
+    if (count === 1) {
+      // Find actual character indices in original content
+      const cLines = content.split('\n')
+      const oLines = oldNorm.split('\n')
+      for (let i = 0; i <= cLines.length - oLines.length; i++) {
+        let match = true
+        for (let j = 0; j < oLines.length; j++) {
+          if (cLines[i + j]?.trimEnd() !== oLines[j]?.trimEnd()) {
+            match = false
+            break
+          }
+        }
+        if (match) {
+          const before = cLines.slice(0, i)
+          const after = cLines.slice(i + oLines.length)
+          const newLines = newNorm.split('\n')
+          return {
+            content: [...before, ...newLines, ...after].join('\n'),
+            replacements: 1,
+          }
+        }
+      }
+    }
+  }
+
+  // Strategy 2: Trim leading/trailing blank lines in old_string
+  const oldTrimmed = oldNorm.replace(/^\n+|\n+$/g, '')
+  if (oldTrimmed && oldTrimmed !== oldNorm && content.includes(oldTrimmed)) {
+    const count = countOccurrences(content, oldTrimmed)
+    if (count === 1) {
+      const newTrimmed = newNorm.replace(/^\n+|\n+$/g, '')
+      return { content: content.replace(oldTrimmed, newTrimmed), replacements: 1 }
+    }
+  }
+
+  // Strategy 3: Indentation adjustment (all lines shifted by uniform spaces)
+  const contentLines = content.split('\n')
+  const oldLines = oldNorm.split('\n')
+  if (oldLines.length > 0) {
+    const strippedOldLines = oldLines.map((l) => l.trimStart())
+    const matches: number[] = []
+    for (let i = 0; i <= contentLines.length - oldLines.length; i++) {
+      let match = true
+      for (let j = 0; j < oldLines.length; j++) {
+        if (contentLines[i + j]?.trim() !== strippedOldLines[j]?.trim()) {
+          match = false
+          break
+        }
+      }
+      if (match) matches.push(i)
+    }
+
+    if (matches.length === 1) {
+      const matchStart = matches[0]!
+      // Calculate indentation delta from first non-empty line
+      const firstTargetLine = contentLines[matchStart] || ''
+      const firstOldLine = oldLines[0] || ''
+      const targetIndent = firstTargetLine.match(/^\s*/)?.[0] ?? ''
+      const oldIndent = firstOldLine.match(/^\s*/)?.[0] ?? ''
+      const indentDelta = targetIndent.length - oldIndent.length
+
+      const adjustedNewLines = newNorm.split('\n').map((l) => {
+        if (!l.trim()) return l
+        if (indentDelta > 0) return ' '.repeat(indentDelta) + l
+        if (indentDelta < 0) {
+          const removeCount = Math.min(-indentDelta, l.match(/^\s*/)?.[0].length ?? 0)
+          return l.slice(removeCount)
+        }
+        return l
+      })
+
+      const before = contentLines.slice(0, matchStart)
+      const after = contentLines.slice(matchStart + oldLines.length)
+      return {
+        content: [...before, ...adjustedNewLines, ...after].join('\n'),
+        replacements: 1,
+      }
+    }
+  }
+
+  return null
+}
+
+/**
  * Apply a literal replacement to LF-normalized content. Empty or missing search text throws
  * `FS_EDIT_NOT_FOUND`; multiple matches throw `FS_AMBIGUOUS_EDIT` unless `replaceAll` is true.
  * @param content - the current file content, already LF-normalized.
@@ -769,7 +872,13 @@ export function applyLiteralEdit(
   }
   const newNorm = normalizeLineEndings(newString)
   const replacements = countOccurrences(content, oldNorm)
+
   if (replacements === 0) {
+    // Attempt multi-stage fuzzy fallback if not replaceAll
+    if (!replaceAll) {
+      const fuzzyResult = fuzzyFindAndReplace(content, oldNorm, newNorm)
+      if (fuzzyResult) return fuzzyResult
+    }
     throw new FsError(`old_string was not found in "${displayPath}"`, 'FS_EDIT_NOT_FOUND')
   }
   if (!replaceAll && replacements > 1) {

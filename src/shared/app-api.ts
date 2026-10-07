@@ -890,6 +890,70 @@ export interface AppPreferences {
   autoVerifyAfterMutation?: boolean
   /** 每轮 Prompt Pipeline 注入的系统上下文上限，单位为字节；默认 32 KiB。 */
   promptInjectionLimitBytes?: number
+  /** 规则门控：灰区是否询问启用多 Agent（不调用模型）。 */
+  adaptiveOrchestrationGate?: boolean
+  /** 常规模式下默认走多 Agent DAG。 */
+  preferMultiAgent?: boolean
+  /** 消息列表优先 DSH transcript 投影。 */
+  preferDshTranscript?: boolean
+}
+
+export interface ScheduledJob {
+  id: string
+  title: string
+  prompt: string
+  workspacePath: string | null
+  intervalMinutes: number
+  enabled: boolean
+  multiAgent: boolean
+  createdAt: number
+  updatedAt: number
+  lastRunAt: number | null
+  lastError: string | null
+}
+
+export interface GithubPullRequestSummary {
+  number: number
+  title: string
+  state: string
+  url: string
+  branch?: string | null
+  updatedAt?: string
+  draft?: boolean
+  author?: string | null
+}
+
+export type GithubListPullRequestsResult =
+  | {
+      ok: true
+      owner: string
+      repo: string
+      source: 'gh-cli' | 'github-api'
+      pullRequests: GithubPullRequestSummary[]
+    }
+  | {
+      ok: false
+      reason: string
+      owner?: string
+      repo?: string
+      hint?: string
+      error?: string
+      detail?: string
+      remote?: string
+    }
+
+export interface TaskweaverGithubApi {
+  listPullRequests: (workspacePath: string | null) => Promise<IpcResult<GithubListPullRequestsResult>>
+}
+
+export interface TaskweaverJobsApi {
+  list: () => Promise<IpcResult<ScheduledJob[]>>
+  upsert: (job: Partial<ScheduledJob> & { prompt: string }) => Promise<IpcResult<ScheduledJob>>
+  remove: (jobId: string) => Promise<IpcResult<{ removed: boolean }>>
+  runNow: (jobId: string) => Promise<IpcResult<{ ok: boolean }>>
+  installLaunchAgent?: (jobId: string) => Promise<IpcResult<{ ok: boolean; label?: string; plistPath?: string; reason?: string }>>
+  removeLaunchAgent?: (jobId: string) => Promise<IpcResult<{ ok: boolean; reason?: string }>>
+  launchAgentInstalled?: (jobId: string) => Promise<IpcResult<{ installed: boolean; platform: string }>>
 }
 
 export interface SessionMemorySnapshot {
@@ -1003,6 +1067,8 @@ export interface TaskweaverBridge {
   webSearch?: TaskweaverWebSearchApi
   worktree?: TaskweaverWorktreeApi
   memory?: TaskweaverMemoryApi
+  jobs?: TaskweaverJobsApi
+  github?: TaskweaverGithubApi
 }
 
 declare global {

@@ -13,10 +13,20 @@ const DEFAULT = {
   autoReviewReads: true,
   /** 改代码请求是否在 Host 外追加「运行验证命令」指引；默认关闭以对齐 DSH Web。 */
   autoVerifyAfterMutation: false,
+  /** 代码变更后自动静默运行轻量验证，出错时驱动模型闭环自愈（Self-Healing Loop） */
+  selfHealingLoop: true,
+  /** 闭环自愈的最大自动修复重试轮次（1-3，默认 2） */
+  selfHealingMaxRetries: 2,
   /** 启用基于 AST 与 PageRank 的全局代码地图感知 (Repo Map) */
   enableRepoMap: true,
   /** Prompt Pipeline 注入系统上下文的最大字节数（默认 32 KiB，暂定防护上限而非最优值） */
   promptInjectionLimitBytes: 32 * 1024,
+  /** 灰区任务弹出「是否启用多 Agent」（规则门控，不调用模型） */
+  adaptiveOrchestrationGate: true,
+  /** 常规模式下默认走多 Agent DAG（等同常驻开启目标模式编排） */
+  preferMultiAgent: true,
+  /** 聊天列表以 DSH session transcript 为准（线程库只保留编排扩展行） */
+  preferDshTranscript: true,
 }
 
 const VALID_BASH_SANDBOX = new Set(['auto', 'workspace-write', 'read-only', 'off'])
@@ -43,8 +53,13 @@ export function createAppPreferencesStore(userDataPath) {
         subtaskUpgradeMax: Number.isFinite(raw.subtaskUpgradeMax) ? Math.max(0, Math.min(3, raw.subtaskUpgradeMax)) : DEFAULT.subtaskUpgradeMax,
         autoReviewReads: raw.autoReviewReads !== false,
         autoVerifyAfterMutation: raw.autoVerifyAfterMutation === true,
+        selfHealingLoop: raw.selfHealingLoop !== false,
+        selfHealingMaxRetries: Number.isFinite(raw.selfHealingMaxRetries) ? Math.max(1, Math.min(3, raw.selfHealingMaxRetries)) : DEFAULT.selfHealingMaxRetries,
         enableRepoMap: raw.enableRepoMap !== false,
         promptInjectionLimitBytes: normalizePromptInjectionLimitBytes(raw.promptInjectionLimitBytes),
+        adaptiveOrchestrationGate: raw.adaptiveOrchestrationGate !== false,
+        preferMultiAgent: raw.preferMultiAgent !== false,
+        preferDshTranscript: raw.preferDshTranscript !== false,
       }
     },
     async set(patch) {
@@ -64,12 +79,27 @@ export function createAppPreferencesStore(userDataPath) {
         autoVerifyAfterMutation: patch.autoVerifyAfterMutation !== undefined
           ? patch.autoVerifyAfterMutation === true
           : (prev.autoVerifyAfterMutation === true),
+        selfHealingLoop: patch.selfHealingLoop !== undefined
+          ? patch.selfHealingLoop === true
+          : (prev.selfHealingLoop !== false),
+        selfHealingMaxRetries: patch.selfHealingMaxRetries !== undefined
+          ? Math.max(1, Math.min(3, Number(patch.selfHealingMaxRetries)))
+          : (Number.isFinite(prev.selfHealingMaxRetries) ? prev.selfHealingMaxRetries : DEFAULT.selfHealingMaxRetries),
         enableRepoMap: patch.enableRepoMap !== undefined
           ? patch.enableRepoMap === true
           : (prev.enableRepoMap !== false),
         promptInjectionLimitBytes: patch.promptInjectionLimitBytes !== undefined
           ? normalizePromptInjectionLimitBytes(patch.promptInjectionLimitBytes, normalizePromptInjectionLimitBytes(prev.promptInjectionLimitBytes))
           : normalizePromptInjectionLimitBytes(prev.promptInjectionLimitBytes),
+        adaptiveOrchestrationGate: patch.adaptiveOrchestrationGate !== undefined
+          ? patch.adaptiveOrchestrationGate === true
+          : (prev.adaptiveOrchestrationGate !== false),
+        preferMultiAgent: patch.preferMultiAgent !== undefined
+          ? patch.preferMultiAgent === true
+          : (prev.preferMultiAgent !== false),
+        preferDshTranscript: patch.preferDshTranscript !== undefined
+          ? patch.preferDshTranscript === true
+          : (prev.preferDshTranscript !== false),
       }
       await store.write(next)
       return next

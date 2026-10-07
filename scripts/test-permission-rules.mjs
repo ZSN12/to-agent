@@ -113,21 +113,21 @@ try {
   currentWorkspace = workspaceB
   pendingDialogs.length = 0
   dialogResponse = 3 // 点击“保存为规则（工作区）”
-  const gitStatusCall = { toolName: 'bash', input: { command: 'git status' } }
-  const alwaysAllowed = await permissions.withExecution('ask', contents, () => permissions.authorize(gitStatusCall))
+  const lintCall = { toolName: 'bash', input: { command: 'npm run lint' } }
+  const alwaysAllowed = await permissions.withExecution('ask', contents, () => permissions.authorize(lintCall))
   assert.equal(alwaysAllowed, undefined)
   assert.equal(pendingDialogs.length, 1)
 
   // 验证规则表是否自动添加了 git status 的 allow 规则
   const bRulesUpdated = await rulesStore.listRules({ workspacePath: workspaceB })
-  const autoRule = bRulesUpdated.find((r) => r.pattern === 'git status')
+  const autoRule = bRulesUpdated.find((r) => r.pattern === 'npm run lint')
   assert.ok(autoRule, '点击总是允许后应持久化该命令的规则')
   assert.equal(autoRule.decision, 'allow')
   assert.equal(autoRule.workspacePath, workspaceB)
 
   // 再次执行 git status，应直接放行不弹窗
   pendingDialogs.length = 0
-  const repeatAllowed = await permissions.withExecution('ask', contents, () => permissions.authorize(gitStatusCall))
+  const repeatAllowed = await permissions.withExecution('ask', contents, () => permissions.authorize(lintCall))
   assert.equal(repeatAllowed, undefined)
   assert.equal(pendingDialogs.length, 0, '已持久化为总是允许，后续调用直接放行')
 

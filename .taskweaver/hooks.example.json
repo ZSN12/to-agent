@@ -1,0 +1,14 @@
+{
+  "beforeTurn": [
+    {
+      "command": "echo \"[TaskWeaver] beforeTurn conversation=$TASKWEAVER_CONVERSATION_ID\"",
+      "failClosed": false
+    }
+  ],
+  "afterTurn": [
+    {
+      "command": "echo \"[TaskWeaver] afterTurn done\"",
+      "failClosed": false
+    }
+  ]
+}

@@ -18,6 +18,12 @@ const contents = { isDestroyed: () => false }
 const permissions = createPermissionService({ dialog, getParentWindow: () => null, getWorkspacePath: () => workspace })
 
 try {
+  const gitStatus = await permissions.withExecution('ask', contents, () => permissions.authorize({
+    toolName: 'bash',
+    input: { command: 'git status -sb' },
+  }))
+  assert.equal(gitStatus, undefined, 'read-only git status should auto-approve in ask mode')
+
   const bashCall = { toolName: 'bash', input: { command: 'npm test' } }
   const allowed = await permissions.withExecution('ask', contents, () => permissions.authorize(bashCall))
   assert.deepEqual(allowed, undefined)

@@ -563,6 +563,9 @@ importers:
       '@z/dsh-tool-bash-persistent':
         specifier: workspace:^
         version: link:../../packages/shell/tool-bash-persistent
+      '@z/dsh-tool-cache':
+        specifier: workspace:^
+        version: link:../../packages/core/tool-cache
       '@z/dsh-tool-call-timeout-policy':
         specifier: workspace:^
         version: link:../../packages/guard/timeout-policy
@@ -4102,6 +4105,21 @@ importers:
       '@z/dsh-scope':
         specifier: workspace:^
         version: link:../scope
+
+  packages/core/tool-cache:
+    dependencies:
+      '@z/cordis':
+        specifier: workspace:^
+        version: link:../../../vendor/cordis
+      '@z/dsh-brand':
+        specifier: workspace:^
+        version: link:../../util/brand
+      '@z/dsh-session':
+        specifier: workspace:^
+        version: link:../session
+      '@z/dsh-tools':
+        specifier: workspace:^
+        version: link:../tools
 
   packages/core/tools:
     dependencies:

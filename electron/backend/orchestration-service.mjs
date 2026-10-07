@@ -2,7 +2,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import crypto from 'node:crypto'
 import { applySkillInstructions, resolveSkillForSubtask } from './skill-prompt.mjs'
-import { detectVerificationCommands } from './verification-policy.mjs'
+import { detectVerificationCommands, executeVerificationRunner } from './verification-policy.mjs'
 import { executeDag, validateAndOrderTasks } from './dag-scheduler.mjs'
 import { selectModelForTask, shouldUpgradeFailedTask } from './orchestration-policy.mjs'
 import { buildRoutingOptions } from './routing-portfolio-service.mjs'
@@ -950,11 +950,43 @@ export function createOrchestrationService({
 
           if (worktreeNote && result.text) result.text += worktreeNote
           result.worktreeIsolated = execCwd !== workspaceRoot
+
+          // implementation / test 类型子任务产生文件修改时，自动运行静默自检
+          if (
+            prefs.selfHealingLoop !== false &&
+            (task.taskType === 'implementation' || task.taskType === 'test') &&
+            Array.isArray(result.fileChanges) &&
+            result.fileChanges.length > 0 &&
+            execCwd
+          ) {
+            try {
+              const verifyRes = await executeVerificationRunner(execCwd, { timeoutMs: 25_000 })
+              result.verification = {
+                command: verifyRes.command,
+                passed: verifyRes.passed,
+                exitCode: verifyRes.exitCode,
+                durationMs: verifyRes.durationMs,
+              }
+              if (verifyRes.executed && !verifyRes.passed) {
+                if (result.text) {
+                  result.text += `\n\n> [!WARNING]\n> **轻量自检未通过**（\`${verifyRes.command}\`，退出码 ${verifyRes.exitCode}）：\n\`\`\`\n${(verifyRes.errorSummary || verifyRes.stderr || verifyRes.stdout).slice(0, 1000)}\n\`\`\``
+                }
+              }
+            } catch (err) {
+              // ignore verification error
+            }
+          }
+
           result.completionAssessment = assessSubtaskCompletion(task, result)
+          if (result.verification && !result.verification.passed) {
+            result.completionAssessment.complete = false
+            result.completionAssessment.reason = `自检命令 ${result.verification.command} 退出码非零 (${result.verification.exitCode})`
+          }
+
           usage.push(result.usage)
           await memory.recordTaskResult(conversationId, {
             ...task,
-            statusLabel: result.completionAssessment.complete ? '已完成' : '证据不足',
+            statusLabel: result.completionAssessment.complete ? '已完成' : '验证未通过',
             modelKey,
           }, result)
           return result

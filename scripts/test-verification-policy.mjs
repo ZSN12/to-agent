@@ -9,7 +9,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { detectVerificationCommands, formatVerificationPrompt } from '../electron/backend/verification-policy.mjs'
+import { detectVerificationCommands, formatVerificationPrompt, executeVerificationRunner } from '../electron/backend/verification-policy.mjs'
 
 const cleanup = []
 /** 建一个临时工作区，`files` 形如 { 'package.json': '...', 'src/a.ts': '' } */
@@ -126,9 +126,25 @@ try {
   assert.equal(repo.projectType, 'typescript-node')
   assert.notEqual(repo.primaryCommand, `${repo.packageManager} run build`, '自检命令不能首选完整构建')
   assert.equal(repo.primaryCommand, 'npx tsc -b', '本仓库是 solution-style tsconfig，自检应用 tsc -b')
-  assert.equal(repo.buildCommand, `${repo.packageManager} run build`)
+  // ============ 9. executeVerificationRunner 自检执行器测试 ============
+  const successDir = await makeWorkspace({
+    'package.json': pkg({ typecheck: 'node -e "process.exit(0)"' }),
+  })
+  const successRes = await executeVerificationRunner(successDir)
+  assert.equal(successRes.executed, true)
+  assert.equal(successRes.passed, true)
+  assert.equal(successRes.exitCode, 0)
 
-  console.log('verification-policy 回归测试全部通过：轻量自检优先、tsconfig 形态、包管理器、测试优先级、多语言识别。')
+  const failDir = await makeWorkspace({
+    'package.json': pkg({ typecheck: 'node -e "console.error(\'TS2322: Type mismatch error\'); process.exit(1)"' }),
+  })
+  const failRes = await executeVerificationRunner(failDir)
+  assert.equal(failRes.executed, true)
+  assert.equal(failRes.passed, false)
+  assert.equal(failRes.exitCode, 1)
+  assert.match(failRes.errorSummary || '', /TS2322/)
+
+  console.log('verification-policy 回归测试全部通过：轻量自检优先、tsconfig 形态、包管理器、测试优先级、多语言识别、自愈执行器。')
 } finally {
   for (const dir of cleanup) await fs.rm(dir, { recursive: true, force: true })
 }

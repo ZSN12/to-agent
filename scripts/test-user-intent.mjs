@@ -9,7 +9,11 @@
  */
 import assert from 'node:assert/strict'
 import path from 'node:path'
-import { analyzeUserIntent, injectIntentGuidelines, USER_INTENTS } from '../electron/backend/user-intent.mjs'
+import {
+  analyzeUserIntent,
+  injectIntentGuidelines,
+  USER_INTENTS,
+} from '../electron/backend/user-intent.mjs'
 import { detectVerificationCommands } from '../electron/backend/verification-policy.mjs'
 import { resolvePrimaryAgentPreset } from '../electron/backend/primary-agent-preset.mjs'
 

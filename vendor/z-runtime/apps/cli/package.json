@@ -175,6 +175,7 @@
     "@z/dsh-tool-goal": "workspace:^",
     "@z/dsh-tool-pwsh": "workspace:^",
     "@z/dsh-tool-call-timeout-policy": "workspace:^",
+    "@z/dsh-tool-cache": "workspace:^",
     "@z/dsh-tool-ralph": "workspace:^",
     "@z/dsh-schedule": "workspace:^",
     "@z/dsh-tool-skill": "workspace:^",

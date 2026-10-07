@@ -15,7 +15,9 @@ export function CompactionRow({
   const [open, setOpen] = useState(false)
   const expandable = Boolean(summary?.trim())
   const title = automatic ? '上下文已自动压缩' : '上下文已手动压缩'
-  const meta = tokensBefore ? `约 ${tokensBefore.toLocaleString('zh-CN')} tok 已折叠` : '较早消息已折叠'
+  const meta = tokensBefore
+    ? `约 ${tokensBefore.toLocaleString('zh-CN')} tok 已从历史移除`
+    : '较早消息已折叠'
 
   return (
     <div className="compaction-row">

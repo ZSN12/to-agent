@@ -266,6 +266,40 @@ export function createDshChatService({
     return write
   }
 
+  function composerPresetMigrationRequiredError(cause) {
+    return Object.assign(new Error(
+      '这个 Composer 会话仍绑定旧的 code 工具预设。Z Host 为保护已有对话历史，会锁定已经运行过的会话预设，不能安全地原地切换。'
+      + '请新建一个对话再使用 Composer；旧对话和历史已保留，可继续用原模型打开。',
+      { cause },
+    ), { code: 'COMPOSER_PRESET_MIGRATION_REQUIRED' })
+  }
+
+  async function alignLegacyComposerPreset(api, conversationId, entry, resolvedPreset, modelKey) {
+    if (!isCursorFamilyModelKey(modelKey) || entry?.agentPreset !== 'code' || resolvedPreset !== 'standard') {
+      return entry
+    }
+    if (typeof api.agentPresets?.select !== 'function') {
+      throw composerPresetMigrationRequiredError(new Error('当前 Host 未提供空会话预设切换接口'))
+    }
+    try {
+      const selected = rpcValue(await api.agentPresets.select({
+        sessionId: entry.sessionId,
+        agentPreset: resolvedPreset,
+      }), '切换 Composer 会话预设')
+      // Host accepts this only for a blank session; its own event log remains
+      // authoritative, while the local map is updated only after that commit.
+      entry.agentPreset = selected?.agentPreset || resolvedPreset
+      sessions.set(conversationId, entry)
+      await persistSessions()
+      return entry
+    } catch (error) {
+      if (error?.code === 'agent-preset-locked') {
+        throw composerPresetMigrationRequiredError(error)
+      }
+      throw error
+    }
+  }
+
   function emit(conversationId, webContents, event) {
     if (!webContents || webContents.isDestroyed?.()) return
     try { webContents.send('chat:stream', { ...event, conversationId }) } catch { /* renderer may be closing */ }
@@ -662,7 +696,13 @@ export function createDshChatService({
     if (turn.command) {
       // Manual maintenance has compaction/command brackets, not chat turns.
       // The prompt RPC owns settlement; never consume a chat turn/end here.
-      if (event?.type === 'compaction/summary') turn.usage = normalizeTokenUsage(event.data?.usage)
+      if (event?.type === 'compaction/summary') {
+        turn.usage = normalizeTokenUsage(event.data?.usage)
+        turn.compactionMeta = {
+          tokensShadowed: Number(event.data?.shadowedTokenCount) || 0,
+          historyItems: Array.isArray(event.data?.shadowedSeqs) ? event.data.shadowedSeqs.length : null,
+        }
+      }
       return
     }
     if (event?.type === 'turn/start' && turn.awaitingQueuedTurn) {
@@ -1730,13 +1770,26 @@ export function createDshChatService({
             const history = rpcValue(await api.sessions.history({ sessionId: entry.sessionId, maxMessages: 10 }), '读取压缩用量')
             const summary = history?.events?.map(row => row.event).findLast(event =>
               event.type === 'compaction/summary' && event.time >= record.startedAt)
-            if (summary) record.usage = normalizeTokenUsage(summary.data?.usage)
+            if (summary) {
+              record.usage = normalizeTokenUsage(summary.data?.usage)
+              record.compactionMeta = {
+                tokensShadowed: Number(summary.data?.shadowedTokenCount) || 0,
+                historyItems: Array.isArray(summary.data?.shadowedSeqs) ? summary.data.shadowedSeqs.length : null,
+              }
+            }
           } catch { /* Successful maintenance must not fail on optional accounting. */ }
         }
         const usage = record?.usage ? { ...record.usage, elapsedMs: Date.now() - record.startedAt } : null
         running.delete(sessionKey)
         if (emitLifecycle) emit(eventConversationId, webContents, { type: 'done', full: '', continuing: false })
-        resolveTurn({ text: reply.command.text || '命令已执行。', thinking: '', usage, cancelled: false, command: true })
+        resolveTurn({
+          text: reply.command.text || '命令已执行。',
+          thinking: '',
+          usage,
+          cancelled: false,
+          command: true,
+          compactionMeta: record?.compactionMeta ?? null,
+        })
         return completed
       }
       const currentStats = stats.get(sessionKey) ?? {

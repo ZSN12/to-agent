@@ -1,0 +1,33 @@
+{
+  "name": "@z/dsh-tool-cache",
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Tool result cache for DAG subtask deduplication",
+  "keywords": ["dsh", "agent", "tool", "cache", "performance"],
+  "main": "./lib/index.js",
+  "types": "./lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": ["lib"],
+  "scripts": {
+    "build": "tsdown",
+    "dev": "tsdown --watch"
+  },
+  "dependencies": {
+    "@z/cordis": "workspace:^",
+    "@z/dsh-brand": "workspace:^",
+    "@z/dsh-session": "workspace:^",
+    "@z/dsh-tools": "workspace:^"
+  },
+  "devDependencies": {
+    "@z/cordis": "workspace:^"
+  },
+  "peerDependencies": {
+    "@z/cordis": "workspace:^"
+  }
+}

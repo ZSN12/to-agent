@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { decideExecutionMode, resolveExecutionMode, selectModelForTask, shouldUpgradeFailedTask, workModeExecutionOverride } from '../electron/backend/orchestration-policy.mjs'
+import { evaluateOrchestrationGate } from '../electron/backend/orchestration-gate.mjs'
 import { executeDag, validateAndOrderTasks } from '../electron/backend/dag-scheduler.mjs'
 import { getTaskProfile, getToolsForSingleAgent, getToolsForTask } from '../electron/backend/task-profile.mjs'
 import { classifySubtaskFailure, runWithSubtaskRetries } from '../electron/backend/subtask-retry.mjs'
@@ -227,6 +228,17 @@ assert.equal(resolveExecutionMode(readOnlyDecision, workModeExecutionOverride('g
 const complexCodeDecision = decideExecutionMode('实现一个完整平台，同时涵盖前端、后端 API、测试、安全和部署')
 assert.equal(resolveExecutionMode(complexCodeDecision, workModeExecutionOverride('code')).mode, 'single-agent')
 assert.equal(resolveExecutionMode(complexCodeDecision, workModeExecutionOverride('goal')).mode, 'multi-agent')
+
+assert.equal(evaluateOrchestrationGate('修复按钮颜色').mode, 'single-agent')
+assert.equal(evaluateOrchestrationGate('只读分析前端与后端目录，不要修改').mode, 'single-agent')
+assert.equal(
+  evaluateOrchestrationGate('实现前端页面与后端 API，要求两项独立并行完成后汇总').mode,
+  'ask-user',
+)
+assert.equal(
+  evaluateOrchestrationGate('为完整平台实现前端页面与后端 API').mode,
+  'ask-user',
+)
 
 assert.equal(resolveOrchestrationAgentPreset({ noTools: true }), 'taskweaver-planner')
 assert.equal(resolveOrchestrationAgentPreset({ taskType: 'research' }), 'taskweaver-readonly')

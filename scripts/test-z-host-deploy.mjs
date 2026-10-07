@@ -30,6 +30,10 @@ assert.equal(runtimeRoot, expectedRuntimeRoot, explicitRuntimeOverride
   ? 'deployment smoke must preserve the explicit TASKWEAVER_Z_RUNTIME override'
   : 'deployment smoke without an override must exercise the repository-bundled Z runtime')
 const testHome = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-dsh-deploy-'))
+const bashCancelWorkspace = path.join(testHome, 'bash-cancel-workspace')
+const bashCancelPidPath = path.join(bashCancelWorkspace, 'started.pid')
+const bashCancelStoppedPath = path.join(bashCancelWorkspace, 'stopped.marker')
+const codeCancelWorkspace = path.join(testHome, 'code-cancel-workspace')
 const mockApiKey = 'taskweaver-readonly-smoke-key'
 const appDefaults = piProviderBlockToDshProfile('test-provider', { models: [{ id: 'test-model' }] })
 assert.equal(appDefaults.streamIdleTimeoutMs, 300_000, 'TaskWeaver-synced providers should match the Z Runtime five-minute stream-idle default')
@@ -71,6 +75,12 @@ let cancelAfterToolStreamClosed = false
 const mcpCancelRequests = []
 let mcpCancelToolCallRequested = false
 let mcpCancelScenarioActive = false
+const bashCancelRequests = []
+let bashCancelToolCallRequested = false
+let bashCancelScenarioActive = false
+const codeCancelRequests = []
+let codeCancelToolCallRequested = false
+let codeCancelScenarioActive = false
 let mcpMainResultObserved = false
 let mcpReadonlyGuardObserved = false
 let mcpFailureObserved = false
@@ -90,6 +100,8 @@ let dagMaxInFlight = 0
 let readonlyScopeDeniedReadRequested = false
 let readonlyScopeLiteralGlobRequested = false
 let readonlyScopeConversationActive = false
+const optimizedSearchRequests = []
+let optimizedSearchToolResult = null
 const mockLlm = createServer((request, response) => {
   let body = ''
   request.on('data', (chunk) => { body += chunk.toString('utf8') })
@@ -155,6 +167,26 @@ const mockLlm = createServer((request, response) => {
         'data: {"choices":[{"delta":{},"index":0,"finish_reason":"tool_calls"}]}\n\n',
         'data: [DONE]\n\n',
       ].join(''))
+    }
+    if (serialized.includes('[OPTIMIZED_GREP_SMOKE]') && !isTitleRequest) {
+      optimizedSearchRequests.push(parsedBody)
+      const toolResult = (parsedBody.messages ?? []).find(message =>
+        message.role === 'tool' && JSON.stringify(message).includes('optimized-grep-marker-20261007'))
+      if (toolResult) {
+        optimizedSearchToolResult = JSON.stringify(toolResult)
+        respond('optimized-grep-smoke-ok')
+      } else {
+        const toolNames = (parsedBody.tools ?? []).map(tool => tool.function?.name ?? tool.name)
+        if (toolNames.includes('grep')) {
+          respondWithToolCall('optimized-grep-smoke-call', 'grep', {
+            path: '.',
+            pattern: 'optimized-grep-marker-20261007',
+          })
+        } else {
+          respond('optimized-grep-not-advertised')
+        }
+      }
+      return
     }
     const cancelAfterToolTurn = !isTitleRequest
       && JSON.stringify(latestUserMessage ?? {}).includes('[CANCEL_AFTER_TOOL]')
@@ -305,6 +337,39 @@ const mockLlm = createServer((request, response) => {
         }
       } else {
         respond('mcp-cancel-unexpected-provider-retry')
+      }
+      return
+    }
+    if (bashCancelScenarioActive && !isTitleRequest && serialized.includes('[BASH_CANCEL_SMOKE]')) {
+      bashCancelRequests.push(parsedBody)
+      const toolNames = (parsedBody.tools ?? []).map((tool) => tool.function?.name ?? tool.name)
+      const toolName = toolNames.find((name) => name === 'bash')
+      if (!toolName) respond('bash-cancel-tool-not-advertised')
+      else if (!bashCancelToolCallRequested) {
+        bashCancelToolCallRequested = true
+        const code = `const fs=require('node:fs');fs.writeFileSync(${JSON.stringify(bashCancelPidPath)},String(process.pid));process.on('SIGTERM',()=>{fs.writeFileSync(${JSON.stringify(bashCancelStoppedPath)},'stopped');process.exit(0)});setInterval(()=>{},1000);`
+        respondWithToolCall('bash-cancel-tool-call', toolName, {
+          command: `exec ${JSON.stringify(process.execPath)} -e ${JSON.stringify(code)}`,
+          description: 'Start a temporary process to verify in-flight Stop behavior.',
+          timeoutMs: 60_000,
+        })
+      } else {
+        respond('bash-cancel-unexpected-provider-retry')
+      }
+      return
+    }
+    if (codeCancelScenarioActive && !isTitleRequest && serialized.includes('[CODE_CANCEL_SMOKE]')) {
+      codeCancelRequests.push(parsedBody)
+      const toolNames = (parsedBody.tools ?? []).map((tool) => tool.function?.name ?? tool.name)
+      if (!toolNames.includes('run_code')) respond('code-cancel-tool-not-advertised')
+      else if (!codeCancelToolCallRequested) {
+        codeCancelToolCallRequested = true
+        respondWithToolCall('run-code-cancel-call', 'run_code', {
+          description: 'Read the test marker, then remain in an active worker until Stop.',
+          code: 'await tools.read({ file_path: "run-code-input.txt", limit: 1 }); for (;;) {}',
+        })
+      } else {
+        respond('code-cancel-unexpected-provider-retry')
       }
       return
     }
@@ -524,7 +589,7 @@ try {
   })
   assert.equal(created.result.ok, true)
 
-  for (const agentPreset of ['taskweaver-readonly', 'taskweaver-code']) {
+  for (const agentPreset of ['taskweaver-optimized', 'taskweaver-readonly', 'taskweaver-code']) {
     const presetSessionId = `taskweaver-${agentPreset}-${crypto.randomUUID()}`
     const presetCreated = await api.sessions.create({
       sessionId: presetSessionId,
@@ -555,6 +620,46 @@ try {
     },
   })
   assert.equal(configured.result.ok, true, configured.result.error?.message ?? 'mock provider settings rejected')
+  const optimizedSessionId = `taskweaver-optimized-search-${crypto.randomUUID()}`
+  const optimizedCreated = await api.sessions.create({
+    sessionId: optimizedSessionId,
+    cwd: projectRoot,
+    agentPreset: 'taskweaver-optimized',
+  })
+  assert.equal(optimizedCreated.result.ok, true, optimizedCreated.result.error?.message ?? 'optimized preset session creation failed')
+  const optimizedSelection = await api.sessions.selectModel({
+    sessionId: optimizedSessionId,
+    provider: route,
+    model: 'mock-readonly',
+  })
+  assert.equal(optimizedSelection.result.ok, true, optimizedSelection.result.error?.message ?? 'optimized preset model selection failed')
+  const optimizedPrompt = await api.sessions.prompt({
+    sessionId: optimizedSessionId,
+    mode: 'queue',
+    content: [{ type: 'text', text: '[OPTIMIZED_GREP_SMOKE] Run the focused search and report its result.' }],
+  })
+  assert.equal(optimizedPrompt.result.ok, true, optimizedPrompt.result.error?.message ?? 'optimized preset search prompt rejected')
+  let optimizedHistory = []
+  const optimizedDeadline = Date.now() + 15_000
+  do {
+    const history = await api.sessions.history({ sessionId: optimizedSessionId })
+    assert.equal(history.result.ok, true)
+    optimizedHistory = history.result.value.events.map(row => row.event)
+    if (optimizedHistory.some(event => event.type === 'turn/end')) break
+    await new Promise(resolve => setTimeout(resolve, 25))
+  } while (Date.now() < optimizedDeadline)
+  assert.ok(optimizedHistory.some(event => event.type === 'turn/end'), 'optimized preset grep turn should settle')
+  const optimizedGrepCall = optimizedHistory.find(event => event.type === 'tool/call' && event.data.name === 'grep')
+  assert.ok(optimizedGrepCall, 'the model should invoke native grep in the optimized preset')
+  const optimizedGrepResult = optimizedHistory.find(event => event.type === 'tool/result'
+    && event.data.message?.source?.callId === optimizedGrepCall.data.callId)
+  assert.ok(optimizedGrepResult, 'the optimized preset Host should return the grep result')
+  assert.notEqual(optimizedGrepResult.data.message.content?.[0]?.isError, true,
+    `the optimized preset must successfully spawn packaged ripgrep: ${JSON.stringify(optimizedGrepResult.data.message.content?.[0])}`)
+  assert.ok(JSON.stringify(optimizedGrepResult.data.message.content).includes('optimized-grep-marker-20261007'),
+    `the optimized preset grep must return the requested marker from the workspace: ${JSON.stringify(optimizedGrepResult.data.message.content)}`)
+  assert.ok(optimizedSearchRequests.length >= 2 && optimizedSearchToolResult?.includes('optimized-grep-marker-20261007'),
+    'the local model fixture must observe the successful optimized grep result before completing')
   const readonlySessionId = `taskweaver-readonly-${crypto.randomUUID()}`
   const readonlyCreated = await api.sessions.create({
     sessionId: readonlySessionId,
@@ -594,7 +699,8 @@ try {
     assert.ok(!exposedTools.includes(forbidden), `readonly model request must not expose ${forbidden}: ${exposedTools.join(', ')}`)
   }
   assert.ok(mockRequests.length >= 1, 'the controlled model request should reach the local mock provider')
-  const requestsWithTools = mockRequests.filter((request) => Array.isArray(request.body.tools))
+  const requestsWithTools = mockRequests.filter((request) => Array.isArray(request.body.tools)
+    && JSON.stringify(request.body).includes('Reply with the short acknowledgement.'))
   assert.ok(requestsWithTools.length >= 1, 'a model request with the deployed tool catalog should reach the mock provider')
   const readonlyWireRequest = requestsWithTools.find((request) => JSON.stringify(request.body).includes('Reply with the short acknowledgement.'))
   assert.ok(readonlyWireRequest, 'the deployed read-only turn should reach the model provider')
@@ -962,11 +1068,13 @@ try {
   assert.equal(mcpCancelEvents.findLast(event => event.type === 'done')?.interrupted, true,
     'the user-facing terminal event must mark the in-flight MCP turn interrupted')
   const mcpCancelNotifications = await fs.readFile(mcpCancelLogPath, 'utf8').catch(() => '')
-  const mcpCancelNotification = mcpCancelNotifications.split('\n').filter(Boolean)
-    .map(line => JSON.parse(line)).find(row => row.method === 'notifications/cancelled')
+  const mcpCancelLogEntries = mcpCancelNotifications.split('\n').filter(Boolean).map(line => JSON.parse(line))
+  const mcpPendingCall = mcpCancelLogEntries.find(row => row.kind === 'pending-call' && row.marker === 'mcp-cancel-marker')
+  const mcpCancelNotification = mcpCancelLogEntries.find(row => row.kind === 'cancelled' && row.method === 'notifications/cancelled')
+  assert.ok(mcpPendingCall, 'the MCP fixture must record the outstanding protocol request before Stop')
   assert.ok(mcpCancelNotification, 'the MCP server must receive the protocol cancellation notification')
-  assert.notEqual(mcpCancelNotification.params?.requestId, undefined,
-    'the MCP cancellation notification must identify the pending tool request')
+  assert.equal(mcpCancelNotification.params?.requestId, mcpPendingCall.requestId,
+    'the MCP cancellation notification must identify this exact pending tool request')
   assert.equal(mcpCancelRequests.length, 1,
     'cancellation during MCP execution must not replay the interrupted model request')
   const mcpCancelSessionId = deployedChatService.getSessionId(mcpCancelConversationId)
@@ -979,8 +1087,13 @@ try {
     if (mcpCancelHistory.some(event => event.type === 'turn/end' && event.data.reason?.kind === 'aborted')) break
     await new Promise(resolve => setTimeout(resolve, 25))
   } while (Date.now() < mcpCancelHistoryDeadline)
-  assert.ok(mcpCancelHistory.some(event => event.type === 'tool/call' && event.data.name === 'mcp__smoke__echo'),
-    'the Host history must retain the MCP tool invocation that was active at Stop')
+  const mcpPendingHostCall = mcpCancelHistory.find(event => event.type === 'tool/call'
+    && event.data.name === 'mcp__smoke__echo' && event.data.callId === 'mcp-cancel-tool-call')
+  assert.ok(mcpPendingHostCall, 'the Host history must retain the MCP tool invocation that was active at Stop')
+  const mcpPendingHostResult = mcpCancelHistory.find(event => event.type === 'tool/result'
+    && event.data.message?.source?.callId === mcpPendingHostCall.data.callId)
+  assert.ok(mcpPendingHostResult,
+    'the Host history must close the active MCP call with its cancellation result before the aborted terminal')
   assert.equal(mcpCancelHistory.findLast(event => event.type === 'turn/end')?.data.reason?.kind, 'aborted',
     'the native Host turn must settle with an aborted terminal after MCP cancellation')
   const mcpCancelRecovery = await deployedChatService.send({
@@ -992,6 +1105,159 @@ try {
   })
   assert.equal(mcpCancelRecovery.cancelled, false, 'the same conversation must accept a fresh turn after MCP cancellation')
   assert.equal(mcpCancelRecovery.text, 'readonly-smoke-ok', 'the recovered conversation must produce a fresh response')
+
+  await fs.mkdir(bashCancelWorkspace, { recursive: true })
+  const bashCancelConversationId = `taskweaver-bash-cancel-${crypto.randomUUID()}`
+  const bashCancelEvents = []
+  const bashCancelWebContents = {
+    send(channel, event) {
+      if (channel === 'chat:stream') bashCancelEvents.push(event)
+    },
+    isDestroyed: () => false,
+  }
+  bashCancelScenarioActive = true
+  const bashCancelPending = deployedChatService.send({
+    conversationId: bashCancelConversationId,
+    text: '[BASH_CANCEL_SMOKE] Run the temporary long-lived command and wait for it to finish.',
+    modelKey: `${route}/mock-readonly`,
+    webContents: bashCancelWebContents,
+    cwdOverride: bashCancelWorkspace,
+  })
+  let bashCancelRunError = null
+  bashCancelPending.catch(error => { bashCancelRunError = error })
+  const bashStartedDeadline = Date.now() + 10_000
+  let bashPidText = ''
+  do {
+    bashPidText = await fs.readFile(bashCancelPidPath, 'utf8').catch(() => '')
+    if (bashPidText) break
+    await new Promise(resolve => setTimeout(resolve, 25))
+  } while (Date.now() < bashStartedDeadline)
+  assert.match(bashPidText, /^\d+$/,
+    `the temporary child process must actually start before Stop; error=${bashCancelRunError?.message ?? ''}; events=${JSON.stringify(bashCancelEvents)}; requests=${bashCancelRequests.length}`)
+  assert.equal(deployedChatService.isBusy(bashCancelConversationId), true,
+    'the turn must remain active while the local Bash process is running')
+  const bashCancelAccepted = await deployedChatService.abort(bashCancelConversationId)
+  assert.equal(bashCancelAccepted, true, 'Stop must be accepted while the Bash child process is running')
+  const bashCancelledTurn = await Promise.race([
+    bashCancelPending,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('in-flight Bash cancellation terminal timeout')), 5_000)),
+  ])
+  assert.equal(bashCancelledTurn.cancelled, true, 'the running Bash tool turn must terminate as cancelled')
+  bashCancelScenarioActive = false
+  assert.equal(bashCancelEvents.findLast(event => event.type === 'done')?.interrupted, true,
+    'the user-facing terminal event must mark the active Bash turn interrupted')
+  assert.equal(deployedChatService.isBusy(bashCancelConversationId), false,
+    'cancelling a running Bash process must release the conversation busy state')
+  assert.equal(bashCancelRequests.length, 1, 'Stop during Bash execution must not replay the provider request')
+  const stoppedMarkerDeadline = Date.now() + 3_000
+  let stoppedMarker = ''
+  do {
+    stoppedMarker = await fs.readFile(bashCancelStoppedPath, 'utf8').catch(() => '')
+    if (stoppedMarker) break
+    await new Promise(resolve => setTimeout(resolve, 25))
+  } while (Date.now() < stoppedMarkerDeadline)
+  assert.equal(stoppedMarker, 'stopped',
+    'the active child process must receive termination and exit, not merely mark the Host turn aborted')
+  const bashCancelSessionId = deployedChatService.getSessionId(bashCancelConversationId)
+  const bashCancelHistory = await api.sessions.history({ sessionId: bashCancelSessionId })
+  assert.equal(bashCancelHistory.result.ok, true)
+  const bashCancelEventsHistory = bashCancelHistory.result.value.events.map(row => row.event)
+  const bashCancelHostCall = bashCancelEventsHistory.find(event => event.type === 'tool/call'
+    && event.data.name === 'bash' && event.data.callId === 'bash-cancel-tool-call')
+  assert.ok(bashCancelHostCall, 'Host history must preserve the active Bash call')
+  assert.ok(bashCancelEventsHistory.some(event => event.type === 'tool/result'
+    && event.data.message?.source?.callId === bashCancelHostCall.data.callId),
+  'Host history must preserve the terminal result paired with the cancelled Bash call')
+  assert.equal(bashCancelEventsHistory.findLast(event => event.type === 'turn/end')?.data.reason?.kind, 'aborted',
+    'the native Host turn must terminate as aborted after the process exits')
+  const bashCancelRecovery = await deployedChatService.send({
+    conversationId: bashCancelConversationId,
+    text: '[BASH_CANCEL_RECOVERY] Confirm the session can continue after process cancellation.',
+    modelKey: `${route}/mock-readonly`,
+    webContents: bashCancelWebContents,
+    cwdOverride: bashCancelWorkspace,
+  })
+  assert.equal(bashCancelRecovery.cancelled, false, 'the same conversation must recover after cancelling Bash')
+  assert.equal(bashCancelRecovery.text, 'readonly-smoke-ok')
+
+  await fs.mkdir(codeCancelWorkspace, { recursive: true })
+  await fs.writeFile(path.join(codeCancelWorkspace, 'run-code-input.txt'), 'worker-started\n', 'utf8')
+  const codeCancelConversationId = `taskweaver-code-cancel-${crypto.randomUUID()}`
+  const codeCancelEvents = []
+  const codeCancelWebContents = {
+    send(channel, event) {
+      if (channel === 'chat:stream') codeCancelEvents.push(event)
+    },
+    isDestroyed: () => false,
+  }
+  codeCancelScenarioActive = true
+  const codeCancelPending = deployedChatService.send({
+    conversationId: codeCancelConversationId,
+    text: '[CODE_CANCEL_SMOKE] Start Code Mode, read the marker, then keep working until I stop you.',
+    modelKey: `${route}/mock-readonly`,
+    webContents: codeCancelWebContents,
+    cwdOverride: codeCancelWorkspace,
+    agentPreset: 'code',
+  })
+  let codeCancelRunError = null
+  codeCancelPending.catch(error => { codeCancelRunError = error })
+  const codeWorkerStartedDeadline = Date.now() + 10_000
+  let codeWorkerReadDone = false
+  do {
+    codeWorkerReadDone = codeCancelEvents.some(event => event.type === 'tool'
+      && event.id === 'run-code-cancel-call:code:1'
+      && event.toolName === 'read'
+      && event.status === 'done')
+    if (codeWorkerReadDone) break
+    await new Promise(resolve => setTimeout(resolve, 25))
+  } while (Date.now() < codeWorkerStartedDeadline)
+  assert.equal(codeWorkerReadDone, true,
+    `the Code Mode worker must complete its nested read before Stop; error=${codeCancelRunError?.message ?? ''}; events=${JSON.stringify(codeCancelEvents)}; requests=${codeCancelRequests.length}`)
+  assert.ok(codeCancelEvents.some(event => event.type === 'tool'
+    && event.id === 'run-code-cancel-call' && event.toolName === 'run_code' && event.status === 'running'),
+  'the outer run_code call must still be active after its nested read and before Stop')
+  assert.equal(deployedChatService.isBusy(codeCancelConversationId), true,
+    'the Host turn must remain active while the Code Mode worker is in its infinite loop')
+  const codeCancelAccepted = await deployedChatService.abort(codeCancelConversationId)
+  assert.equal(codeCancelAccepted, true, 'Stop must be accepted while the Code Mode worker is active')
+  const codeCancelledTurn = await Promise.race([
+    codeCancelPending,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('in-flight Code Mode cancellation terminal timeout')), 5_000)),
+  ])
+  assert.equal(codeCancelledTurn.cancelled, true, 'the active Code Mode worker turn must terminate as cancelled')
+  codeCancelScenarioActive = false
+  assert.equal(codeCancelEvents.findLast(event => event.type === 'done')?.interrupted, true,
+    'the user-facing terminal event must mark the Code Mode worker turn interrupted')
+  assert.equal(deployedChatService.isBusy(codeCancelConversationId), false,
+    'cancelling the Code Mode worker must release the conversation busy state')
+  assert.equal(codeCancelRequests.length, 1, 'Stop during Code Mode execution must not replay the provider request')
+  assert.ok(codeCancelEvents.some(event => event.type === 'tool'
+    && event.id === 'run-code-cancel-call' && event.toolName === 'run_code' && event.status === 'error'),
+  'the cancelled worker must settle its outer run_code tool call with an error terminal')
+  assert.ok(codeCancelEvents.some(event => event.type === 'tool'
+    && event.id === 'run-code-cancel-call:code:1' && event.parentCallId === 'run-code-cancel-call' && event.status === 'done'),
+  'the completed nested read must remain associated with its run_code parent after cancellation')
+  const codeCancelSessionId = deployedChatService.getSessionId(codeCancelConversationId)
+  const codeCancelHistoryResult = await api.sessions.history({ sessionId: codeCancelSessionId })
+  assert.equal(codeCancelHistoryResult.result.ok, true)
+  const codeCancelHistory = codeCancelHistoryResult.result.value.events.map(row => row.event)
+  const codeCancelHostCall = codeCancelHistory.find(event => event.type === 'tool/call'
+    && event.data.name === 'run_code' && event.data.callId === 'run-code-cancel-call')
+  assert.ok(codeCancelHostCall, 'Host history must preserve the active run_code invocation')
+  assert.ok(codeCancelHistory.some(event => event.type === 'tool/result'
+    && event.data.message?.source?.callId === codeCancelHostCall.data.callId),
+  'Host history must preserve the terminal result paired with the cancelled run_code invocation')
+  assert.equal(codeCancelHistory.findLast(event => event.type === 'turn/end')?.data.reason?.kind, 'aborted',
+    'the native Host turn must terminate as aborted after stopping the Code Mode worker')
+  const codeCancelRecovery = await deployedChatService.send({
+    conversationId: codeCancelConversationId,
+    text: '[CODE_CANCEL_RECOVERY] Confirm the Code Mode session recovers after Stop.',
+    modelKey: `${route}/mock-readonly`,
+    webContents: codeCancelWebContents,
+    cwdOverride: codeCancelWorkspace,
+  })
+  assert.equal(codeCancelRecovery.cancelled, false, 'the same conversation must recover after Code Mode cancellation')
+  assert.equal(codeCancelRecovery.text, 'readonly-smoke-ok')
 
   const mcpCallLog = await fs.readFile(mcpSmokeLogPath, 'utf8')
   assert.deepEqual(mcpCallLog.trim().split('\n'), ['mcp-main-marker', 'mcp-fail-marker', 'mcp-cancel-marker'],
@@ -1282,7 +1548,7 @@ try {
   const restoredSessionMap = JSON.parse(await fs.readFile(
     path.join(testHome, 'agent-chat', 'taskweaver', 'dsh-session-map.json'), 'utf8'))
   assert.deepEqual(restoredSessionMap, deployedSessionMap, 'Host restart must not discard task/session identity mapping')
-  console.log(`Z Host deployed runtime + native MCP + implementation-DAG MCP call + read-only model-tool + concurrent DAG + native history restart smoke passed (runtimeSource=${runtimeSource}, runtimeRoot=${runtimeRoot})`)
+  console.log(`Z Host deployed runtime + in-flight MCP/Bash/run_code cancellation + implementation-DAG MCP call + read-only model-tool + concurrent DAG + native history restart smoke passed (runtimeSource=${runtimeSource}, runtimeRoot=${runtimeRoot})`)
 } finally {
   await deployedChatService?.stop().catch(() => {})
   await manager.stop().catch(() => {})

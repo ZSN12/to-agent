@@ -160,6 +160,9 @@ export function PermissionSettingsPanel({
   const [autoVerifyAfterMutation, setAutoVerifyAfterMutation] = useState(false)
   const [promptInjectionLimitKiB, setPromptInjectionLimitKiB] = useState(String(PROMPT_INJECTION_LIMIT_DEFAULT_KIB))
   const [savedPromptInjectionLimitKiB, setSavedPromptInjectionLimitKiB] = useState(PROMPT_INJECTION_LIMIT_DEFAULT_KIB)
+  const [adaptiveOrchestrationGate, setAdaptiveOrchestrationGate] = useState(true)
+  const [preferMultiAgent, setPreferMultiAgent] = useState(false)
+  const [preferDshTranscript, setPreferDshTranscript] = useState(true)
 
   const loadRules = async () => {
     if (!window.taskweaver?.permission) {
@@ -185,9 +188,53 @@ export function PermissionSettingsPanel({
         const boundedLimitKiB = Math.max(PROMPT_INJECTION_LIMIT_MIN_KIB, Math.min(PROMPT_INJECTION_LIMIT_MAX_KIB, limitKiB))
         setPromptInjectionLimitKiB(String(boundedLimitKiB))
         setSavedPromptInjectionLimitKiB(boundedLimitKiB)
+        setAdaptiveOrchestrationGate(res.data.adaptiveOrchestrationGate !== false)
+        setPreferMultiAgent(res.data.preferMultiAgent !== false)
+        setPreferDshTranscript(res.data.preferDshTranscript !== false)
       }
     })
   }, [])
+
+  const handlePreferDshTranscript = async (enabled: boolean) => {
+    setPreferDshTranscript(enabled)
+    const res = await window.taskweaver?.preferences?.set?.({ preferDshTranscript: enabled })
+    if (!res?.ok) {
+      onToast?.(res?.error || '保存失败')
+      return
+    }
+    onToast?.(enabled ? '已开启：聊天列表以 DSH 会话为准' : '已关闭：仅使用本地线程消息（不推荐）')
+  }
+
+  const handleAdaptiveOrchestrationGate = async (enabled: boolean) => {
+    setAdaptiveOrchestrationGate(enabled)
+    const res = await window.taskweaver?.preferences?.set?.({ adaptiveOrchestrationGate: enabled })
+    if (!res?.ok) {
+      onToast?.(res?.error || '保存失败')
+      return
+    }
+    onToast?.(enabled ? '已开启：灰区任务将询问是否启用多 Agent' : '已关闭：不再弹出多 Agent 确认')
+  }
+
+  const handlePreferMultiAgent = async (enabled: boolean) => {
+    setPreferMultiAgent(enabled)
+    const res = await window.taskweaver?.preferences?.set?.({ preferMultiAgent: enabled })
+    if (!res?.ok) {
+      onToast?.(res?.error || '保存失败')
+      return
+    }
+    onToast?.(enabled ? '已开启：常规消息默认走多 Agent DAG' : '已恢复：常规消息默认单 Agent')
+  }
+
+  const applyInjectionPresetKiB = async (presetKiB: number) => {
+    setPromptInjectionLimitKiB(String(presetKiB))
+    const res = await window.taskweaver?.preferences?.set?.({ promptInjectionLimitBytes: presetKiB * 1024 })
+    if (!res?.ok) {
+      onToast?.(res?.error || '保存失败')
+      return
+    }
+    setSavedPromptInjectionLimitKiB(presetKiB)
+    onToast?.(`每轮系统上下文上限已设为 ${presetKiB} KiB`)
+  }
 
   const handleAutoVerifyAfterMutation = async (enabled: boolean) => {
     setAutoVerifyAfterMutation(enabled)
@@ -414,6 +461,61 @@ export function PermissionSettingsPanel({
             <span style={{ color: 'var(--text-secondary)', fontSize: 11 }}>KiB</span>
           </div>
         </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
+          {([16, 32, 48] as const).map((preset) => (
+            <button
+              key={preset}
+              type="button"
+              className={savedPromptInjectionLimitKiB === preset ? 'settings-primary-button' : 'settings-secondary-button'}
+              style={{ fontSize: 12, padding: '6px 12px' }}
+              onClick={() => { void applyInjectionPresetKiB(preset) }}
+            >
+              {preset} KiB{preset === 16 ? ' · 省钱' : preset === 32 ? ' · 默认' : ' · 宽裕'}
+            </button>
+          ))}
+        </div>
+        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginTop: 16, fontSize: 12, cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={preferMultiAgent}
+            onChange={(e) => { void handlePreferMultiAgent(e.target.checked) }}
+            style={{ marginTop: 2 }}
+          />
+          <span>
+            <strong>默认启用多 Agent 编排</strong>
+            <span style={{ display: 'block', color: 'var(--text-secondary)', fontSize: 11, marginTop: 4, lineHeight: 1.45 }}>
+              常规模式下每条消息走 DAG 规划与子任务；也可在输入框旁单独开关。目标模式 (/goal) 始终多 Agent。
+            </span>
+          </span>
+        </label>
+        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginTop: 10, fontSize: 12, cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={preferDshTranscript}
+            onChange={(e) => { void handlePreferDshTranscript(e.target.checked) }}
+            style={{ marginTop: 2 }}
+          />
+          <span>
+            <strong>聊天以 DSH 会话 transcript 为准（阶段 C）</strong>
+            <span style={{ display: 'block', color: 'var(--text-secondary)', fontSize: 11, marginTop: 4, lineHeight: 1.45 }}>
+              开启后列表与 Host 投影对齐；线程库只保留多 Agent callout、错误等扩展行。
+            </span>
+          </span>
+        </label>
+        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginTop: 10, fontSize: 12, cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={adaptiveOrchestrationGate}
+            onChange={(e) => { void handleAdaptiveOrchestrationGate(e.target.checked) }}
+            style={{ marginTop: 2 }}
+          />
+          <span>
+            <strong>灰区询问多 Agent（规则门控）</strong>
+            <span style={{ display: 'block', color: 'var(--text-secondary)', fontSize: 11, marginTop: 4, lineHeight: 1.45 }}>
+              多模块实现类请求弹出确认；不调用模型做门控，复杂任务也不会自动强开。
+            </span>
+          </span>
+        </label>
       </div>
 
       {/* 细粒度规则列表 */}

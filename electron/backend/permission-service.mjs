@@ -101,6 +101,7 @@ async function classifyToolCall(event, workspacePath) {
   const webSearch = tool === 'web_search'
   return {
     tool,
+    command,
     candidate,
     outsideWorkspace,
     network: network || webSearch,
@@ -111,6 +112,16 @@ async function classifyToolCall(event, workspacePath) {
     mcp,
     webSearch,
   }
+}
+
+/** 只读 bash（git status / git log 等）在 ask 模式下免弹窗，避免「Deep diving」长时间等批准。 */
+function isAutoApprovedBashReadonly(details) {
+  if (details.tool !== 'bash') return false
+  const cmd = String(details.command ?? '').trim()
+  if (!cmd) return false
+  if (details.network || details.destructive || details.privileged) return false
+  if (/[;|&`$()<>]/.test(cmd)) return false
+  return /^(git\s+(status|log|diff|show|branch|rev-parse|describe)\b|pwd|ls(?:\s|$)|wc\s+-l\b)/i.test(cmd)
 }
 
 /** DSH auto-review 轻量版：工作区内只读类工具在 ask 模式下免弹窗。 */
@@ -365,13 +376,13 @@ export function createPermissionService({
       }
 
       const autoReview = await Promise.resolve(getAutoReviewReads())
-      if (autoReview && isAutoApprovedRead(details)) {
+      if (autoReview && (isAutoApprovedRead(details) || isAutoApprovedBashReadonly(details))) {
         await recordApproval(active?.conversationId, 'approval/review', {
           toolName: details.tool,
           risk: 'low',
           decision: 'allow',
           verdict: 'allow',
-          reason: 'auto-review-read',
+          reason: isAutoApprovedBashReadonly(details) ? 'auto-review-bash-readonly' : 'auto-review-read',
         })
         const pre = await runPreMutationSafely()
         if (!pre.ok) return pre

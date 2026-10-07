@@ -29,7 +29,6 @@ function readTsconfig(tsconfigPath) {
     return null
   }
 }
-
 /** @returns {VerificationPolicy} */
 function unknownPolicy(description) {
   return {
@@ -242,4 +241,170 @@ export function formatVerificationPrompt(workspacePath) {
   )
 
   return lines.join('\n').trim()
+}
+
+/**
+ * 执行轻量自检验证命令，返回结构化执行结果。
+ * 供自愈闭环（Self-Healing Loop）在代码修改后进行静默验证使用。
+ *
+ * @param {string} workspacePath 工作区根目录
+ * @param {{
+ *   commandOverride?: string | null,
+ *   timeoutMs?: number,
+ *   maxOutputBytes?: number,
+ * }} [options]
+ * @returns {Promise<{
+ *   executed: boolean,
+ *   command: string | null,
+ *   exitCode: number,
+ *   passed: boolean,
+ *   stdout: string,
+ *   stderr: string,
+ *   errorSummary: string | null,
+ *   durationMs: number,
+ *   timedOut: boolean,
+ * }>}
+ */
+export async function executeVerificationRunner(workspacePath, options = {}) {
+  const timeoutMs = options.timeoutMs ?? 30_000
+  const maxOutputBytes = options.maxOutputBytes ?? 64 * 1024
+  const policy = detectVerificationCommands(workspacePath)
+  const command = options.commandOverride || policy.primaryCommand
+
+  if (!command || !workspacePath) {
+    return {
+      executed: false,
+      command: null,
+      exitCode: 0,
+      passed: true,
+      stdout: '',
+      stderr: '',
+      errorSummary: null,
+      durationMs: 0,
+      timedOut: false,
+    }
+  }
+
+  const { spawn } = await import('node:child_process')
+  const startTime = Date.now()
+
+  return new Promise((resolve) => {
+    let child = null
+    let stdoutBuffer = ''
+    let stderrBuffer = ''
+    let timedOut = false
+    let timer = null
+
+    try {
+      const shell = process.env.SHELL || (process.platform === 'win32' ? process.env.ComSpec || 'powershell.exe' : '/bin/bash')
+      const shellArgs = process.platform === 'win32' ? ['/d', '/s', '/c', command] : ['-c', command]
+
+      child = spawn(shell, shellArgs, {
+        cwd: workspacePath,
+        env: {
+          ...process.env,
+          CI: '1',
+          FORCE_COLOR: '0',
+          PAGER: 'cat',
+        },
+        stdio: ['ignore', 'pipe', 'pipe'],
+      })
+
+      timer = setTimeout(() => {
+        timedOut = true
+        if (child && !child.killed) {
+          try {
+            child.kill('SIGTERM')
+            setTimeout(() => {
+              if (child && !child.killed) child.kill('SIGKILL')
+            }, 2000).unref?.()
+          } catch {
+            // ignore kill error
+          }
+        }
+      }, timeoutMs)
+      timer.unref?.()
+
+      child.stdout?.on('data', (chunk) => {
+        if (stdoutBuffer.length < maxOutputBytes) {
+          stdoutBuffer += chunk.toString('utf-8')
+          if (stdoutBuffer.length > maxOutputBytes) {
+            stdoutBuffer = stdoutBuffer.slice(0, maxOutputBytes) + '\n... [输出截断]'
+          }
+        }
+      })
+
+      child.stderr?.on('data', (chunk) => {
+        if (stderrBuffer.length < maxOutputBytes) {
+          stderrBuffer += chunk.toString('utf-8')
+          if (stderrBuffer.length > maxOutputBytes) {
+            stderrBuffer = stderrBuffer.slice(0, maxOutputBytes) + '\n... [输出截断]'
+          }
+        }
+      })
+
+      child.on('error', (err) => {
+        if (timer) clearTimeout(timer)
+        const durationMs = Date.now() - startTime
+        resolve({
+          executed: true,
+          command,
+          exitCode: 1,
+          passed: false,
+          stdout: stdoutBuffer,
+          stderr: (stderrBuffer ? `${stderrBuffer}\n` : '') + String(err.message || err),
+          errorSummary: `启动验证命令失败: ${err.message || err}`,
+          durationMs,
+          timedOut: false,
+        })
+      })
+
+      child.on('close', (code) => {
+        if (timer) clearTimeout(timer)
+        const durationMs = Date.now() - startTime
+        const exitCode = typeof code === 'number' ? code : (timedOut ? 124 : 1)
+        const passed = exitCode === 0 && !timedOut
+
+        let errorSummary = null
+        if (!passed) {
+          if (timedOut) {
+            errorSummary = `验证命令运行超时（超过 ${Math.round(timeoutMs / 1000)} 秒）`
+          } else {
+            // 提取关键错误行（优先 stderr，若 stderr 为空则提取 stdout 中含 error/TS/fail 的行）
+            const errLines = (stderrBuffer || stdoutBuffer)
+              .split('\n')
+              .filter((line) => line.trim().length > 0)
+            const matchedLines = errLines.filter((l) => /error|fail|ts\d+|syntax|cannot find/i.test(l))
+            errorSummary = (matchedLines.length > 0 ? matchedLines.slice(0, 8) : errLines.slice(-8)).join('\n')
+          }
+        }
+
+        resolve({
+          executed: true,
+          command,
+          exitCode,
+          passed,
+          stdout: stdoutBuffer,
+          stderr: stderrBuffer,
+          errorSummary,
+          durationMs,
+          timedOut,
+        })
+      })
+    } catch (err) {
+      if (timer) clearTimeout(timer)
+      const durationMs = Date.now() - startTime
+      resolve({
+        executed: true,
+        command,
+        exitCode: 1,
+        passed: false,
+        stdout: '',
+        stderr: String(err.message || err),
+        errorSummary: `执行验证抛出异常: ${err.message || err}`,
+        durationMs,
+        timedOut: false,
+      })
+    }
+  })
 }

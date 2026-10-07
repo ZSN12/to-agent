@@ -9,7 +9,7 @@ input.on('line', async (line) => {
   if (message.id === undefined) {
     if (message.method === 'notifications/cancelled') {
       if (process.env.TASKWEAVER_MCP_CANCEL_LOG) {
-        await appendFile(process.env.TASKWEAVER_MCP_CANCEL_LOG, `${JSON.stringify({ method: message.method, params: message.params })}\n`, 'utf8')
+        await appendFile(process.env.TASKWEAVER_MCP_CANCEL_LOG, `${JSON.stringify({ kind: 'cancelled', method: message.method, params: message.params })}\n`, 'utf8')
       }
       const requestId = message.params?.requestId
       if (pendingToolCalls.has(requestId)) {
@@ -31,6 +31,9 @@ input.on('line', async (line) => {
     }
     if (text === 'mcp-cancel-marker') {
       pendingToolCalls.set(message.id, true)
+      if (process.env.TASKWEAVER_MCP_CANCEL_LOG) {
+        await appendFile(process.env.TASKWEAVER_MCP_CANCEL_LOG, `${JSON.stringify({ kind: 'pending-call', requestId: message.id, marker: text })}\n`, 'utf8')
+      }
       return
     }
     result = text === 'mcp-fail-marker'

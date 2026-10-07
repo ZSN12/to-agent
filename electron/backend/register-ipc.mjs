@@ -10,15 +10,18 @@ import { createDshChatService } from './dsh-chat-service.mjs'
 import { createChatTurnPersistence } from './chat-turn-persistence.mjs'
 import { createOrchestrationService, PlannerFallbackError } from './orchestration-service.mjs'
 import { createSkillService } from './skill-service.mjs'
-import { decideExecutionMode, resolveExecutionMode, workModeExecutionOverride } from './orchestration-policy.mjs'
+import { decideExecutionMode, resolveExecutionMode } from './orchestration-policy.mjs'
+import { evaluateOrchestrationGate } from './orchestration-gate.mjs'
 import { createPermissionService, clearSessionPermissionGrants } from './permission-service.mjs'
 import { routePermissionPromptResponse } from './permission-prompt-bridge.mjs'
 import { createPermissionRulesStore } from './permission-rules-store.mjs'
 import { createWorkspaceIndex } from './workspace-index.mjs'
 import { isWorkspacePath } from './workspace-index.mjs'
-import { assembleWorkspaceContext, isFirstConversationTurn, shouldAttachRepoMap, workspaceContextLimits } from './context-assembler.mjs'
-import { composePromptPipeline } from './prompt-pipeline.mjs'
-import { buildSkillPromptPrefix } from './skill-prompt.mjs'
+import {
+  assembleAndComposeUserPrompt,
+  logPromptPipelineAccounting,
+  promptBudgetSnapshotFromStats,
+} from './assemble-and-compose-user-prompt.mjs'
 import { createWorkspaceTrustService } from './workspace-trust-service.mjs'
 import { createMcpService } from './mcp-service.mjs'
 import {
@@ -36,16 +39,8 @@ import {
 import { createUsageStore } from './usage-store.mjs'
 import { createPricingSyncService } from './pricing-sync-service.mjs'
 import { assertSafeWorkspacePath } from './security-path.mjs'
-import { detectVerificationCommands } from './verification-policy.mjs'
-import { calculateDynamicContextBudget } from './context-compactor.mjs'
-import {
-  analyzeUserIntent,
-  injectIntentGuidelines,
-  USER_INTENTS,
-} from './user-intent.mjs'
+import { detectVerificationCommands, executeVerificationRunner } from './verification-policy.mjs'
 import { resolvePrimaryAgentPreset } from './primary-agent-preset.mjs'
-import { setToolTraceCompactionLimits } from './tool-trace.mjs'
-import { CURSOR_TOOL_GUIDANCE_TEXT, shouldInjectCursorToolGuidance } from './cursor-tool-guidance.mjs'
 import { humanizeOpenCodexTransportError } from './opencodex-health.mjs'
 import { createTerminalService } from './terminal-service.mjs'
 import { diagnoseEnvironment, diagnoseTool } from './env-service.mjs'
@@ -59,11 +54,21 @@ import {
 import { resolveModelKeyForChat } from './chat-model-resolver.mjs'
 import { createWebSearchService } from './web-search-service.mjs'
 import { createAppPreferencesStore } from './app-preferences.mjs'
+import { compareConversationTranscripts } from './conversation-shadow-compare.mjs'
+import { createScheduledJobsStore } from './scheduled-jobs-store.mjs'
+import { createScheduledJobsRunner } from './scheduled-jobs-runner.mjs'
+import { loadTaskweaverHooks, runTaskweaverHooks } from './taskweaver-hook-runner.mjs'
+import {
+  installJobLaunchAgent,
+  isJobLaunchAgentInstalled,
+  removeJobLaunchAgent,
+} from './launchd-scheduler.mjs'
 import { probeSandboxSupport } from './sandbox-service.mjs'
 import { resolveSandboxPolicy, renderFileSandboxContext } from './sandbox-policy.mjs'
 import { createSandboxSessionStore } from './sandbox-session-mode.mjs'
 import { createCredentialStore } from './credential-store.mjs'
 import { listMcpCatalog } from './mcp-catalog.mjs'
+import { listGithubPullRequests } from './github-pull-requests.mjs'
 import { getMarketplaceManifest, listMarketplaceEntries, catalogEntryToServerConfig } from './mcp-marketplace.mjs'
 import { createTaskWorktree, listTaskWorktrees, removeTaskWorktree, getTaskWorktreeDiff } from './worktree-service.mjs'
 import { createMemoryStore } from './memory-store.mjs'
@@ -422,6 +427,8 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
   })
 
   app.on('before-quit', () => { void chat.stop() })
+  const scheduledJobsStore = createScheduledJobsStore(userData)
+
   const orchestration = createOrchestrationService({
     modelService,
     profileStore,
@@ -438,6 +445,61 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
     getAppPreferences: () => appPreferences.get(),
     dshRuntime: chat,
   })
+
+  const scheduledJobsRunner = createScheduledJobsRunner({
+    store: scheduledJobsStore,
+    runJob: async (job) => {
+      const modelKey = await profileStore.getActiveModelKey()
+      const workspacePath = job.workspacePath || cachedWorkspace
+      const conversationId = `scheduled-job-${job.id}`
+      const executionMode = job.multiAgent ? 'multi-agent' : 'single-agent'
+      const hooks = await loadTaskweaverHooks(userData, workspacePath)
+      await runTaskweaverHooks('beforeTurn', hooks, {
+        workspacePath,
+        conversationId,
+        text: job.prompt,
+        executionMode,
+      })
+      if (job.multiAgent) {
+        await orchestration.planAndExecute({
+          text: job.prompt,
+          primaryModelKey: modelKey,
+          conversationId,
+          workspacePath,
+          webContents: null,
+          skill: null,
+          skillAlreadyApplied: false,
+          synthesize: async (prompt) => chat.send({
+            text: prompt,
+            modelKey,
+            conversationId,
+            cwdOverride: workspacePath,
+            webContents: null,
+            agentPreset: resolvePrimaryAgentPreset(job.prompt, 'code', modelKey),
+            skill: null,
+            persistTerminal: false,
+          }),
+        })
+      } else {
+        await chat.send({
+          text: job.prompt,
+          modelKey,
+          conversationId,
+          cwdOverride: workspacePath,
+          webContents: null,
+          agentPreset: resolvePrimaryAgentPreset(job.prompt, 'code', modelKey),
+          skill: null,
+        })
+      }
+      await runTaskweaverHooks('afterTurn', hooks, {
+        workspacePath,
+        conversationId,
+        text: job.prompt,
+        executionMode,
+      })
+    },
+  })
+  scheduledJobsRunner.start()
 
   const assertMcpHostRestartSafe = () => {
     if (turnInProgressByConversation.size > 0 || chat.isBusyAny() || orchestration.isBusy()) {
@@ -1216,6 +1278,46 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
   ipcHandle(ipcMain, 'preferences:get', () => appPreferences.get())
   ipcHandle(ipcMain, 'preferences:set', (_event, patch) => appPreferences.set(patch ?? {}))
 
+  ipcHandle(ipcMain, 'jobs:list', () => scheduledJobsStore.list())
+  ipcHandle(ipcMain, 'jobs:upsert', (_event, job) => scheduledJobsStore.upsert(job ?? {}))
+  ipcHandle(ipcMain, 'jobs:remove', async (_event, jobId) => {
+    await removeJobLaunchAgent(jobId)
+    return { removed: await scheduledJobsStore.remove(jobId) }
+  })
+  ipcHandle(ipcMain, 'jobs:runNow', async (_event, jobId) => {
+    await scheduledJobsRunner.runNow(jobId)
+    return { ok: true }
+  })
+
+  ipcHandle(ipcMain, 'jobs:installLaunchAgent', async (_event, jobId) => {
+    const jobs = await scheduledJobsStore.list()
+    const job = jobs.find((row) => row.id === jobId)
+    if (!job) throw new Error('找不到定时任务')
+    return installJobLaunchAgent(job, userData)
+  })
+
+  ipcHandle(ipcMain, 'jobs:removeLaunchAgent', async (_event, jobId) => removeJobLaunchAgent(jobId))
+
+  ipcHandle(ipcMain, 'jobs:launchAgentInstalled', async (_event, jobId) => ({
+    installed: await isJobLaunchAgentInstalled(jobId),
+    platform: process.platform,
+  }))
+
+  ipcHandle(ipcMain, 'github:listPullRequests', async (_event, workspacePath) =>
+    listGithubPullRequests(workspacePath ?? null, () => mcp.getGitHubPersonalAccessToken()),
+  )
+
+  ipcHandle(ipcMain, 'debug:shadowTranscript', async (_event, requestedConversationId) => {
+    const conversationId = await resolveIpcConversationId(requestedConversationId)
+    if (!conversationId) return null
+    const threadState = appState.getConversationState
+      ? await appState.getConversationState(conversationId)
+      : await appState.getState()
+    const view = conversationHub.getView(conversationId)
+    const hostRows = view?.transcript ?? []
+    return compareConversationTranscripts(threadState?.messages ?? [], hostRows)
+  })
+
   ipcHandle(ipcMain, 'sandbox:probe', () => probeSandboxSupport())
   ipcHandle(ipcMain, 'sandbox:getEffective', async () => {
     await refreshWorkspaceCache()
@@ -1361,92 +1463,9 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
     }
   }
 
-  /**
-   * 根据工作模式准备提示词
-   */
-  const preparePromptByWorkMode = async (text, workMode, assembled, modelKey = null, injectionByteCap = workspaceContextLimits.MAX_CONTEXT_INJECTION_BYTES, selectedSkill = null) => {
-    const effectiveOverride = workModeExecutionOverride(workMode)
-    const intent = workMode === 'goal' ? null : analyzeUserIntent(text, workMode)
-    let guidanceText = ''
-
-    if (workMode !== 'goal') {
-      // Goal explicitly selects the multi-agent execution mode. Ordinary code
-      // mode remains single-agent unless the user chooses otherwise. Plan mode
-      // is Host-owned; its state/guidance comes from Host projections and is
-      // not simulated with a local prompt prefix or read-only claim.
-      const policy = detectVerificationCommands(cachedWorkspace)
-      const prefs = await appPreferences.get()
-      const guidedPrompt = injectIntentGuidelines(assembled.prompt, intent, policy, {
-        autoVerifyAfterMutation: prefs.autoVerifyAfterMutation === true,
-      })
-      if (!guidedPrompt.startsWith(assembled.prompt)) {
-        throw new Error('意图指引必须以可单独记账的后缀形式追加')
-      }
-      guidanceText = guidedPrompt.slice(assembled.prompt.length)
-    }
-
-    const injectedLayers = assembled.layers
-    if (!injectedLayers || !Array.isArray(injectedLayers.prefix) || !Array.isArray(injectedLayers.suffix)) {
-      throw new Error('工作区上下文缺少可审计的注入层明细，已阻止发送')
-    }
-    const guidanceLayerId = intent === USER_INTENTS.CODE_MUTATION
-      ? 'verification-guidance'
-      : 'intent-guidance'
-    const prefixLayers = [...injectedLayers.prefix]
-    const suffixLayers = [...injectedLayers.suffix]
-    const skillPrefix = buildSkillPromptPrefix(selectedSkill)
-    if (skillPrefix) {
-      prefixLayers.push({ id: 'selected-skill', text: skillPrefix, required: true })
-    }
-    if (shouldInjectCursorToolGuidance(modelKey)) {
-      prefixLayers.push({
-        id: 'cursor-tool-guidance',
-        text: CURSOR_TOOL_GUIDANCE_TEXT,
-        required: false,
-        priority: 20,
-      })
-    }
-    if (guidanceText) {
-      suffixLayers.push({
-        id: guidanceLayerId,
-        text: guidanceText,
-        required: false,
-        priority: intent === USER_INTENTS.CODE_MUTATION ? 10 : 30,
-      })
-    }
-    const composed = composePromptPipeline({
-      userText: text,
-      prefixLayers,
-      suffixLayers,
-      maxInjectedBytes: injectionByteCap,
-    })
-    const effectivePrompt = composed.prompt
-    const userBytes = Buffer.byteLength(text, 'utf8')
-    const layerBytes = composed.layerBytes
-    const contextBytes = (layerBytes['workspace-context'] ?? 0) + (layerBytes['repo-map'] ?? 0)
-    const guidanceBytes = (layerBytes['intent-guidance'] ?? 0) + (layerBytes['cursor-tool-guidance'] ?? 0)
-    return {
-      effectiveOverride,
-      effectivePrompt,
-      promptStats: {
-        userBytes,
-        contextBytes,
-        sandboxPolicyBytes: layerBytes['sandbox-policy'] ?? 0,
-        guidanceBytes,
-        skillInstructionBytes: layerBytes['selected-skill'] ?? 0,
-        intentGuidanceBytes: layerBytes['intent-guidance'] ?? 0,
-        cursorGuidanceBytes: layerBytes['cursor-tool-guidance'] ?? 0,
-        verificationGuidanceBytes: layerBytes['verification-guidance'] ?? 0,
-        totalInjectedBytes: composed.injectedBytes,
-        budgetBytes: composed.diagnostics.budgetBytes,
-        injectedEstimatedTokens: composed.diagnostics.injectedEstimatedTokens,
-        estimatedTokens: composed.diagnostics.estimatedTokens,
-        remainingBudgetBytes: composed.diagnostics.remainingBudgetBytes,
-        layerBytes,
-        droppedLayers: composed.droppedLayers,
-      },
-      injectionByteCap,
-    }
+  function emitPromptBudget(webContents, snapshot) {
+    if (!webContents || webContents.isDestroyed?.() || typeof webContents.send !== 'function') return
+    webContents.send('chat:promptBudget', snapshot)
   }
 
   /**
@@ -1609,6 +1628,7 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
       modelKey: activeKey,
       usage: result.usage,
       fileChanges: result.fileChanges,
+      verification: result.verification,
       callout,
       interrupted: Boolean(result.cancelled),
     }
@@ -1667,69 +1687,58 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
 
     const selectedSkill = skillName ? await skills.resolve(skillName) : null
     const prefs = await appPreferences.get()
-    const dynamicBudget = calculateDynamicContextBudget(workMode)
-    const injectionByteCap = prefs.promptInjectionLimitBytes ?? dynamicBudget.workspaceContextBytes
     const conversationState = appState.getConversationState
       ? await appState.getConversationState(conversationId)
       : await appState.getState()
-    const isFirstTurn = isFirstConversationTurn(conversationState?.messages)
-    const hasNonConversationIntent = analyzeUserIntent(text, workMode) !== USER_INTENTS.CONVERSATION
-    setToolTraceCompactionLimits({ maxChars: dynamicBudget.toolOutputMaxChars })
-    const assembled = await assembleWorkspaceContext(text, runtimeContext.workspacePath, {
-      sandboxContextLine: sandboxContextLineForContext(runtimeContext),
-      maxInjectionBytes: injectionByteCap,
-      includeRepoMap: shouldAttachRepoMap(text, workMode, {
-        enableRepoMap: prefs.enableRepoMap !== false,
-        isFirstTurn,
-        hasNonConversationIntent,
-      }),
-      repoMapTokens: dynamicBudget.repoMapTokens,
-    })
-
-    const { effectiveOverride, effectivePrompt, promptStats, injectionByteCap: capUsed } = await preparePromptByWorkMode(
+    const {
+      effectiveOverride,
+      effectivePrompt,
+      promptStats,
+      assembled,
+      injectionByteCap: capUsed,
+    } = await assembleAndComposeUserPrompt({
       text,
       workMode,
-      assembled,
-      activeKey,
-      injectionByteCap,
+      workspacePath: runtimeContext.workspacePath,
+      sandboxContextLine: sandboxContextLineForContext(runtimeContext),
+      modelKey: activeKey,
       selectedSkill,
-    )
-    console.debug('[prompt-pipeline] injection byte accounting', {
-      conversationId,
-      scope: 'workspace context, sandbox policy, selected Skill, intent, verification and visible progress guidance',
-      maxInjectedBytes: capUsed ?? injectionByteCap,
-      ...promptStats,
-      ratioToUserText: promptStats.userBytes ? Number((promptStats.totalInjectedBytes / promptStats.userBytes).toFixed(2)) : null,
-      contextTruncated: assembled.contextTruncated === true,
+      conversationMessages: conversationState?.messages ?? [],
+      preferences: prefs,
     })
-    const injectionUtilization = promptStats.budgetBytes > 0
-      ? Number((promptStats.totalInjectedBytes / promptStats.budgetBytes).toFixed(4))
-      : 0
-    if (injectionUtilization >= 0.9) {
-      console.warn('[prompt-pipeline] 本轮注入接近预算上限', {
-        conversationId,
-        utilization: injectionUtilization,
-        droppedLayers: promptStats.droppedLayers,
-        contextTruncated: assembled.contextTruncated === true,
-      })
-    }
-    if (event.sender && !event.sender.isDestroyed?.() && typeof event.sender.send === 'function') {
-      event.sender.send('chat:promptBudget', {
-        conversationId,
-        budgetBytes: promptStats.budgetBytes,
-        injectedBytes: promptStats.totalInjectedBytes,
-        injectedEstimatedTokens: promptStats.injectedEstimatedTokens,
-        estimatedTokens: promptStats.estimatedTokens,
-        remainingBudgetBytes: promptStats.remainingBudgetBytes,
-        utilization: injectionUtilization,
-        contextTruncated: assembled.contextTruncated === true,
-        layerBytes: promptStats.layerBytes,
-        droppedLayers: promptStats.droppedLayers,
-      })
-    }
+    logPromptPipelineAccounting(conversationId, promptStats, assembled, { scope: 'chat:send' })
+    emitPromptBudget(event.sender, promptBudgetSnapshotFromStats(conversationId, promptStats, assembled, 'chat:send'))
 
     const decision = decideExecutionMode(text, selectedSkill)
-    const execution = resolveExecutionMode(decision, effectiveOverride || executionModeOverride)
+    const preferMulti = prefs.preferMultiAgent
+      && !effectiveOverride
+      && !executionModeOverride
+      && !/不要|不需要|无需|禁止|别用|不启用|禁用|关闭/i.test(text)
+    const modeOverride = effectiveOverride || executionModeOverride || (preferMulti ? 'multi-agent' : null)
+    const execution = resolveExecutionMode(decision, modeOverride)
+    if (
+      execution.mode === 'single-agent'
+      && prefs.adaptiveOrchestrationGate
+      && !modeOverride
+      && !selectedSkill?.multiAgent
+    ) {
+      const gate = evaluateOrchestrationGate(text)
+      if (gate.mode === 'ask-user') {
+        return {
+          needsOrchestrationChoice: true,
+          reason: gate.reason,
+          suggestedMode: 'multi-agent',
+        }
+      }
+    }
+
+    const turnHooks = await loadTaskweaverHooks(userData, runtimeContext.workspacePath)
+    await runTaskweaverHooks('beforeTurn', turnHooks, {
+      workspacePath: runtimeContext.workspacePath,
+      conversationId,
+      text: effectivePrompt,
+      executionMode: execution.mode,
+    })
 
     const { messageId, time, userEntry } = await createUserMessage(text, conversationId)
 
@@ -1741,7 +1750,124 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
     }
 
     if (result.accepted) return { user: userEntry, accepted: true, queued: result.queued }
+
+    // ============ 自动验证与静默自愈闭环 (Self-Healing Loop) ============
+    const shouldSelfHeal = prefs.selfHealingLoop !== false
+      && !result.cancelled
+      && Array.isArray(result.fileChanges)
+      && result.fileChanges.length > 0
+      && runtimeContext.workspacePath
+      && workMode !== 'plan'
+
+    if (shouldSelfHeal) {
+      const maxSelfHealingAttempts = Math.max(1, Math.min(3, Number(prefs.selfHealingMaxRetries) || 2))
+      let healAttempt = 0
+      let lastVerification = null
+
+      while (healAttempt < maxSelfHealingAttempts) {
+        if (event.sender && !event.sender.isDestroyed()) {
+          event.sender.send('chat:stream', {
+            type: 'activity',
+            phase: 'verification',
+            message: healAttempt === 0
+              ? '正在对变更代码执行静默轻量自检…'
+              : `第 ${healAttempt} 次修复完成，正在复检…`,
+            conversationId,
+          })
+        }
+
+        const verifyRes = await executeVerificationRunner(runtimeContext.workspacePath, {
+          timeoutMs: 30_000,
+        })
+        lastVerification = verifyRes
+
+        if (!verifyRes.executed || verifyRes.passed) {
+          if (verifyRes.executed && verifyRes.passed && event.sender && !event.sender.isDestroyed()) {
+            event.sender.send('chat:stream', {
+              type: 'activity',
+              phase: 'verification',
+              message: `轻量自检通过（${verifyRes.command}，耗时 ${verifyRes.durationMs}ms）。`,
+              conversationId,
+            })
+          }
+          break
+        }
+
+        // 验证失败，构造自愈指令通知模型直接修复
+        healAttempt += 1
+        const errorDetail = verifyRes.errorSummary || verifyRes.stderr || verifyRes.stdout || '命令执行返回非零状态码'
+        const healPrompt = [
+          `【自动代码自检失败 - 自愈修复请求 (第 ${healAttempt}/${maxSelfHealingAttempts} 次尝试)】`,
+          `刚刚的代码修改在运行轻量验证命令 \`${verifyRes.command}\` 时未通过，退出码为 ${verifyRes.exitCode}。`,
+          `错误摘要如下：\n\`\`\`\n${errorDetail.slice(0, 1500)}\n\`\`\``,
+          `请立即检查并修复上述错误，不要停止在报错状态。直接使用工具修改引发错误的代码文件。`,
+        ].join('\n\n')
+
+        if (event.sender && !event.sender.isDestroyed()) {
+          event.sender.send('chat:stream', {
+            type: 'activity',
+            phase: 'healing',
+            message: `自检发现错误（退出码 ${verifyRes.exitCode}），正在启动静默自愈（${healAttempt}/${maxSelfHealingAttempts}）…`,
+            conversationId,
+          })
+        }
+
+        try {
+          const healResult = await executeChatRequest(
+            execution,
+            healPrompt,
+            resolvePrimaryAgentPreset(healPrompt, workMode, activeKey),
+            activeKey,
+            selectedSkill,
+            event,
+            conversationId,
+            runtimeContext,
+          )
+
+          if (healResult && !healResult.accepted) {
+            // 合并自愈轮次的输出与文件变更
+            if (healResult.text) {
+              result.text = `${result.text}\n\n---\n**[自愈修复第 ${healAttempt} 轮]**\n${healResult.text}`
+            }
+            if (Array.isArray(healResult.fileChanges) && healResult.fileChanges.length > 0) {
+              const existingPaths = new Set(result.fileChanges.map((f) => f.path))
+              for (const fc of healResult.fileChanges) {
+                if (!existingPaths.has(fc.path)) {
+                  result.fileChanges.push(fc)
+                }
+              }
+            }
+            if (healResult.usage && result.usage) {
+              result.usage.inputTokens = (result.usage.inputTokens || 0) + (healResult.usage.inputTokens || 0)
+              result.usage.outputTokens = (result.usage.outputTokens || 0) + (healResult.usage.outputTokens || 0)
+              result.usage.costUsd = (result.usage.costUsd || 0) + (healResult.usage.costUsd || 0)
+            }
+          }
+        } catch (healError) {
+          console.warn(`[register-ipc] 自愈修复执行轮次 ${healAttempt} 异常:`, healError instanceof Error ? healError.message : healError)
+          break
+        }
+      }
+
+      if (lastVerification && lastVerification.executed) {
+        result.verification = {
+          command: lastVerification.command,
+          passed: lastVerification.passed,
+          exitCode: lastVerification.exitCode,
+          durationMs: lastVerification.durationMs,
+          healed: healAttempt > 0 && lastVerification.passed,
+          healAttempts: healAttempt,
+        }
+      }
+    }
+
     const agentEntry = await createAssistantMessage(result, messageId, time, activeKey, execution, conversationId)
+    await runTaskweaverHooks('afterTurn', turnHooks, {
+      workspacePath: runtimeContext.workspacePath,
+      conversationId,
+      text: effectivePrompt,
+      executionMode: execution.mode,
+    })
     return { user: userEntry, assistant: agentEntry }
     })
   })
@@ -1754,20 +1880,27 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
     return withTurnLock(conversationId, async () => {
       if (!text || typeof text !== 'string') throw new Error('消息不能为空')
       const prefs = await appPreferences.get()
-      const injectionByteCap = prefs.promptInjectionLimitBytes ?? workspaceContextLimits.MAX_CONTEXT_INJECTION_BYTES
-      const assembled = await assembleWorkspaceContext(text, runtimeContext.workspacePath, {
+      const task = state.tasks?.find((item) => item.id === taskId)
+      const taskModelKey = task?.modelKey ?? state.modelKey ?? null
+      const {
+        effectivePrompt,
+        promptStats,
+        assembled,
+      } = await assembleAndComposeUserPrompt({
+        text,
+        workMode: 'code',
+        workspacePath: runtimeContext.workspacePath,
         sandboxContextLine: sandboxContextLineForContext(runtimeContext),
-        maxInjectionBytes: injectionByteCap,
+        modelKey: taskModelKey,
+        selectedSkill: null,
+        conversationMessages: state.messages ?? [],
+        preferences: prefs,
       })
-      const composed = composePromptPipeline({
-        userText: text,
-        prefixLayers: assembled.layers.prefix,
-        suffixLayers: assembled.layers.suffix,
-        maxInjectedBytes: injectionByteCap,
-      })
+      logPromptPipelineAccounting(conversationId, promptStats, assembled, { scope: 'tasks:sendMessage' })
+      emitPromptBudget(event.sender, promptBudgetSnapshotFromStats(conversationId, promptStats, assembled, 'tasks:sendMessage'))
       return permissions.withExecution(runtimeContext.permissionMode, event.sender, () => orchestration.sendTaskMessage({
         taskId,
-        text: composed.prompt,
+        text: effectivePrompt,
         conversationId,
         webContents: event.sender,
         workspacePath: runtimeContext.workspacePath,
@@ -1830,6 +1963,7 @@ export async function registerIpc({ ipcMain, app, dialog, BrowserWindow, safeSto
   })
 
   app.on('before-quit', () => {
+    scheduledJobsRunner.stop()
     terminalService.dispose()
   })
 

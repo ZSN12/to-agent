@@ -258,6 +258,14 @@ export function createMcpService({ userData, connectClient, safeStorage } = {}) 
     return exposedServer(server, state)
   }
 
+  async function getGitHubPersonalAccessToken() {
+    const server = (await configured()).find((item) => item.id === 'github')
+    if (!server?.env?.GITHUB_PERSONAL_ACCESS_TOKEN) return null
+    const decrypted = decryptEnv(server.env, safeStorage)
+    const token = String(decrypted.GITHUB_PERSONAL_ACCESS_TOKEN ?? '').trim()
+    return token || null
+  }
+
   async function configureGitHub(token) {
     if (typeof token !== 'string') throw new Error('GitHub Token 格式无效')
     const previous = (await configured()).find((server) => server.id === 'github')
@@ -494,6 +502,7 @@ export function createMcpService({ userData, connectClient, safeStorage } = {}) 
     prepareRuntimeIntegration,
     testConnection,
     configureGitHub,
+    getGitHubPersonalAccessToken,
     loginGitHubWithOAuth,
     cancelGitHubOAuth,
     getGitHubOAuthAvailability,

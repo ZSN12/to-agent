@@ -27,6 +27,14 @@ function dotState(status: DshProjectedToolCall['status']): 'ongoing' | 'done' | 
   return 'done'
 }
 
+function failureHint(status: DshProjectedToolCall['status'], preview?: string): string | null {
+  if (status === 'stopped') return '已中断或未返回结果'
+  if (status !== 'error') return null
+  if (!preview?.trim()) return '工具执行失败（展开查看详情）'
+  const oneLine = preview.replace(/\s+/g, ' ').trim()
+  return oneLine.length > 120 ? `${oneLine.slice(0, 120)}…` : oneLine
+}
+
 export function DshToolCallList({
   rows,
   traces,
@@ -64,14 +72,20 @@ export function DshToolCallList({
 
   const runningCall = [...calls].reverse().find((row) => row.status === 'running')
   const batchExpanded = isDshToolCallBatchExpanded(batchExpandedOverride, isActive || Boolean(runningCall))
-  const failedCount = calls.filter((row) => row.status === 'error' || row.status === 'stopped').length
+  const errorCount = calls.filter((row) => row.status === 'error').length
+  const stoppedCount = calls.filter((row) => row.status === 'stopped').length
+  const failedCount = errorCount + stoppedCount
   const runningPresentation = runningCall
     ? dshToolRowPresentation(runningCall.toolName, runningCall.argsRaw, workspacePath)
     : null
   const batchMeta = runningCall
     ? [runningPresentation?.title, runningPresentation?.summary].filter(Boolean).join(' · ') || '等待工具结果'
     : failedCount > 0
-      ? `${failedCount} 未成功`
+      ? (stoppedCount > 0 && errorCount > 0
+        ? `${errorCount} 失败 · ${stoppedCount} 中断`
+        : stoppedCount > 0
+          ? `${stoppedCount} 次中断`
+          : `${errorCount} 次失败`)
       : null
   const latestStepKey = stepGroups.at(-1)?.key
 
@@ -79,6 +93,7 @@ export function DshToolCallList({
     const { row, trace: sourceTrace } = node
     const { title, summary: rowSummary, variant } = dshToolRowPresentation(row.toolName, row.argsRaw, workspacePath)
     const summary = sourceTrace.inputSummary || rowSummary
+    const failure = failureHint(row.status, row.resultPreview ?? sourceTrace.resultSummary)
     const open = openId === row.callId
     const Icon = rowIcon(variant)
     const isRunning = row.status === 'running'
@@ -100,7 +115,12 @@ export function DshToolCallList({
             )}
           </span>
           <span className="dsh-tool-summary-title">{title}</span>
-          {summary ? (
+          {failure ? (
+            <>
+              <span className="dsh-tool-summary-sep" aria-hidden />
+              <span className="dsh-tool-summary-text dsh-tool-summary-failure" title={failure}>{failure}</span>
+            </>
+          ) : summary ? (
             <>
               <span className="dsh-tool-summary-sep" aria-hidden />
               <span className="dsh-tool-summary-text">{summary}</span>

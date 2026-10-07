@@ -49,6 +49,8 @@ export interface ChatMessage {
     summary?: string
     tokensBefore?: number | null
   }
+  /** 压缩命令等维护操作的用量展示口径（非普通聊天轮次）。 */
+  usageKind?: 'compaction'
 }
 
 export interface TaskExecutionEvidenceSummary {

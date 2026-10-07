@@ -192,10 +192,17 @@ export function useAppBackend() {
     bridgeReady ? state?.conversationId : null,
   )
   const activeDshView = matchDshConversationView(dshView, state?.conversationId)
+  const [preferDshTranscriptPref, setPreferDshTranscriptPref] = useState(true)
+  useEffect(() => {
+    void window.taskweaver?.preferences?.get?.().then((res) => {
+      if (res?.ok && res.data) setPreferDshTranscriptPref(res.data.preferDshTranscript !== false)
+    })
+  }, [])
   const preferDshTranscript = shouldPreferDshTranscript(
     dshProjectionSubscribed,
     state?.conversationId,
     activeDshView,
+    preferDshTranscriptPref,
   )
   const dshToolRows = useMemo(() => {
     if (!activeDshView?.toolRows?.length) return []

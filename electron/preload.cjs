@@ -219,6 +219,18 @@ contextBridge.exposeInMainWorld('taskweaver', {
     get: () => invoke('preferences:get'),
     set: (patch) => invoke('preferences:set', patch),
   },
+  github: {
+    listPullRequests: (workspacePath) => invoke('github:listPullRequests', workspacePath ?? null),
+  },
+  jobs: {
+    list: () => invoke('jobs:list'),
+    upsert: (job) => invoke('jobs:upsert', job),
+    remove: (jobId) => invoke('jobs:remove', jobId),
+    runNow: (jobId) => invoke('jobs:runNow', jobId),
+    installLaunchAgent: (jobId) => invoke('jobs:installLaunchAgent', jobId),
+    removeLaunchAgent: (jobId) => invoke('jobs:removeLaunchAgent', jobId),
+    launchAgentInstalled: (jobId) => invoke('jobs:launchAgentInstalled', jobId),
+  },
   sandbox: {
     probe: () => invoke('sandbox:probe'),
     getEffective: () => invoke('sandbox:getEffective'),

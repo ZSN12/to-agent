@@ -185,9 +185,9 @@
     - id: tool-result-pruner
       name: '@z/dsh-compaction-tool-result-pruner'
       config:
-        thresholdChars: 8192
-        headChars: 4096
-        tailChars: 1024
+        thresholdChars: 4096
+        headChars: 2048
+        tailChars: 768
 
 # ── delegation and workflows ────────────────────────────────────────────────
 

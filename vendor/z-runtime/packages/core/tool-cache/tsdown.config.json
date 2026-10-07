@@ -1,0 +1,16 @@
+{
+  "entry": ["./src/index.ts"],
+  "format": ["esm"],
+  "target": "node22",
+  "clean": true,
+  "dts": false,
+  "bundle": true,
+  "platform": "node",
+  "treeshake": true,
+  "external": [
+    "@z/cordis",
+    "@z/dsh-agent",
+    "@z/dsh-tools",
+    "@z/dsh-session"
+  ]
+}

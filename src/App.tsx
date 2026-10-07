@@ -52,6 +52,7 @@ import {
   RefreshCw,
   Terminal,
   Target,
+  Users,
   ListTodo,
   Code2,
   CornerDownLeft,
@@ -75,6 +76,10 @@ import { PendingSteeringBubble } from './features/chat/PendingSteeringBubble'
 import { ApprovalPanel } from './features/chat/ApprovalPanel'
 import { UserQuestionPanel } from './features/chat/UserQuestionPanel'
 import { CompactionRow } from './features/chat/CompactionRow'
+import { CompactSuggestBanner } from './features/chat/CompactSuggestBanner'
+import { SchedulesPanel } from './features/schedules/SchedulesPanel'
+import { ExploreView } from './features/explore/ExploreView'
+import { PullRequestsPanel } from './features/pull-requests/PullRequestsPanel'
 import { RetryBanner } from './features/chat/RetryBanner'
 import { ComposerStatsDock } from './features/chat/ComposerStatsDock'
 import { ChatBehaviorSettingsPanel } from './features/chat/ChatBehaviorSettingsPanel'
@@ -2246,6 +2251,8 @@ function Message({
               <MessageTurnUsageChip
                 usage={message.usage}
                 modelKey={message.modelKey ?? fallbackModelKey}
+                usageKind={message.usageKind}
+                tokensShadowed={message.compaction?.tokensBefore ?? null}
               />
             )}
             <time className="message-footer-time">
@@ -2682,6 +2689,23 @@ const BUILTIN_SLASH_COMMANDS: SlashCommandItem[] = [
     mode: 'code',
   },
   {
+    id: 'multi-on',
+    kind: 'action',
+    command: 'multi on',
+    title: '开启多 Agent',
+    description: '常规模式下本条及后续消息走 DAG 多智能体（可在输入框旁关闭）',
+    icon: Users,
+    badge: '编排',
+  },
+  {
+    id: 'multi-off',
+    kind: 'action',
+    command: 'multi off',
+    title: '关闭多 Agent',
+    description: '恢复常规单 Agent，保留目标模式 (/goal) 不变',
+    icon: Users,
+  },
+  {
     id: 'compact',
     kind: 'action',
     command: 'compact',
@@ -2941,11 +2965,14 @@ function Composer({
   onBusyEnterModeChange,
   onQueueMutate,
   currentThreadId,
+  conversationId,
   permissionPrompt,
   onRespondPermission,
   userQuestionPrompt,
   onAnswerUserQuestion,
   onDiscussPlanReview,
+  multiAgentOrchestration = false,
+  onMultiAgentOrchestrationChange,
 }: {
   model: ModelOption | null
   modelOptions: ModelOption[]
@@ -2970,7 +2997,12 @@ function Composer({
   onModelChange: (model: ModelOption) => void
   thinkingLevel?: ThinkingLevel
   onThinkingLevelChange?: (level: ThinkingLevel) => void
-  onSend: (message: string, skillName: string | null, workMode?: WorkMode) => void
+  onSend: (
+    message: string,
+    skillName: string | null,
+    workMode?: WorkMode,
+    executionModeOverride?: 'single-agent' | 'multi-agent',
+  ) => void
   onCancel: () => void
   onSteer?: (text: string) => void
   onFollowUp?: (text: string) => void
@@ -2984,6 +3016,7 @@ function Composer({
   onBusyEnterModeChange?: (mode: BusyEnterMode) => void
   onQueueMutate?: (payload: { kind: 'steering' | 'followUp'; index: number; action: 'remove' | 'update'; text?: string }) => void
   currentThreadId?: string | null
+  conversationId?: string | null
   permissionPrompt?: PermissionPromptPayload | null
   onRespondPermission?: (
     action: 'allow-once' | 'allow-always' | 'allow-always-session' | 'deny' | 'escalate-once',
@@ -2992,9 +3025,12 @@ function Composer({
   userQuestionPrompt?: UserQuestionPromptPayload | null
   onAnswerUserQuestion?: (id: string, answer: UserQuestionAnswer) => Promise<boolean>
   onDiscussPlanReview?: (id: string) => Promise<boolean>
+  multiAgentOrchestration?: boolean
+  onMultiAgentOrchestrationChange?: (enabled: boolean) => void
 }) {
   const [value, setValue] = useState('')
   const [workMode, setWorkMode] = useState<WorkMode>('code')
+  const contextPercent = liveContext?.contextPercent ?? sessionStats?.contextPercent ?? null
   const [selectedSkill, setSelectedSkill] = useState<string | null>(null)
   const [skillQuery, setSkillQuery] = useState<{ start: number; query: string } | null>(null)
   const [contextQuery, setContextQuery] = useState<{ start: number; query: string } | null>(null)
@@ -3108,6 +3144,18 @@ function Composer({
 
   const chooseCommand = (cmd: SlashCommandItem) => {
     if (!skillQuery) return
+    if (cmd.id === 'multi-on') {
+      onMultiAgentOrchestrationChange?.(true)
+      setSkillQuery(null)
+      setValue('')
+      return
+    }
+    if (cmd.id === 'multi-off') {
+      onMultiAgentOrchestrationChange?.(false)
+      setSkillQuery(null)
+      setValue('')
+      return
+    }
     if (cmd.id === 'compact' || cmd.id === 'plan') {
       const commandText = `/${cmd.command}`
       setValue(commandText)
@@ -3219,6 +3267,18 @@ function Composer({
       return
     }
 
+    const multiLower = raw.toLowerCase()
+    if (multiLower === '/multi' || multiLower === '/multi on') {
+      onMultiAgentOrchestrationChange?.(true)
+      setValue('')
+      return
+    }
+    if (multiLower === '/multi off') {
+      onMultiAgentOrchestrationChange?.(false)
+      setValue('')
+      return
+    }
+
     if (raw.toLowerCase().startsWith('/goal ')) {
       effectiveMode = 'goal'
       message = raw.slice(6).trim()
@@ -3236,7 +3296,9 @@ function Composer({
       return
     }
 
-    onSend(message, selectedSkill, effectiveMode)
+    const executionOverride =
+      effectiveMode === 'goal' || multiAgentOrchestration ? 'multi-agent' : undefined
+    onSend(message, selectedSkill, effectiveMode, executionOverride)
     setValue('')
     setSelectedSkill(null)
     setSkillQuery(null)
@@ -3254,6 +3316,12 @@ function Composer({
 
   return (
     <div className="composer-shell">
+      <CompactSuggestBanner
+        conversationKey={conversationId ?? currentThreadId ?? null}
+        contextPercent={contextPercent}
+        sending={sending}
+        onCompact={() => onSend('/compact', null, 'code')}
+      />
       <HostTodoProjection items={hostTodos ?? null} />
       {permissionPrompt && onRespondPermission && (
         <div className="composer-approval-slot">
@@ -3571,6 +3639,18 @@ function Composer({
                 <X size={13} />
               </button>
             )}
+            {workMode !== 'goal' && multiAgentOrchestration && (
+              <button
+                type="button"
+                className="selected-skill-chip mode-chip goal"
+                onClick={() => onMultiAgentOrchestrationChange?.(false)}
+                title="当前为常规多 Agent 编排。点击恢复单 Agent。"
+              >
+                <Users size={13} />
+                <span>多 Agent</span>
+                <X size={13} />
+              </button>
+            )}
             {selectedSkillOption && <button type="button" className="selected-skill-chip" onClick={() => setSelectedSkill(null)} title="移除本次 Skill"><Sparkles size={13} /><span>{selectedSkillOption.name}{selectedSkillOption.multiAgent ? ' · 多 Agent' : ''}</span><X size={13} /></button>}
           </div>
           <div className="composer-right">
@@ -3709,8 +3789,12 @@ function MainConversation({
   userQuestionPrompt,
   onAnswerUserQuestion,
   onDiscussPlanReview,
+  multiAgentOrchestration,
+  onMultiAgentOrchestrationChange,
+  conversationId,
 }: {
   currentThreadId?: string | null
+  conversationId?: string | null
   messages: ChatMessage[]
   model: ModelOption | null
   modelOptions: ModelOption[]
@@ -3758,7 +3842,12 @@ function MainConversation({
   thinkingLevel?: ThinkingLevel
   onThinkingLevelChange?: (level: ThinkingLevel) => void
   onPermissionModeChange: (mode: PermissionMode) => void
-  onSend: (message: string, skillName: string | null, workMode?: WorkMode) => void
+  onSend: (
+    message: string,
+    skillName: string | null,
+    workMode?: WorkMode,
+    executionModeOverride?: 'single-agent' | 'multi-agent',
+  ) => void
   onCancel: () => void
   onSteer?: (text: string) => void
   onFollowUp?: (text: string) => void
@@ -3783,6 +3872,8 @@ function MainConversation({
   userQuestionPrompt?: UserQuestionPromptPayload | null
   onAnswerUserQuestion?: (id: string, answer: UserQuestionAnswer) => Promise<boolean>
   onDiscussPlanReview?: (id: string) => Promise<boolean>
+  multiAgentOrchestration?: boolean
+  onMultiAgentOrchestrationChange?: (enabled: boolean) => void
 }) {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const scrollPositionsRef = useRef<Map<string, { top: number; atBottom: boolean }>>(new Map())
@@ -4199,6 +4290,9 @@ function MainConversation({
           userQuestionPrompt={userQuestionPrompt}
           onAnswerUserQuestion={onAnswerUserQuestion}
           onDiscussPlanReview={onDiscussPlanReview}
+          multiAgentOrchestration={multiAgentOrchestration}
+          onMultiAgentOrchestrationChange={onMultiAgentOrchestrationChange}
+          conversationId={conversationId}
         />
       {terminalOpen && onCloseTerminal && (
         <Suspense fallback={null}>
@@ -4380,6 +4474,18 @@ export default function App() {
   const toggleTerminal = useCallback(() => setTerminalOpen((prev) => !prev), [])
   const closeTerminal = useCallback(() => setTerminalOpen(false), [])
   const priorTaskCount = useRef(0)
+  const [multiAgentOrchestration, setMultiAgentOrchestration] = useState(true)
+
+  useEffect(() => {
+    void window.taskweaver?.preferences?.get?.().then((res) => {
+      if (res?.ok && res.data?.preferMultiAgent) setMultiAgentOrchestration(true)
+    })
+  }, [])
+
+  const handleMultiAgentOrchestrationChange = useCallback((enabled: boolean) => {
+    setMultiAgentOrchestration(enabled)
+    void window.taskweaver?.preferences?.set?.({ preferMultiAgent: enabled })
+  }, [])
   const primaryModelMigrationNotified = useRef(false)
   const [dismissedInterruptId, setDismissedInterruptId] = useState<string | null>(null)
 
@@ -4620,8 +4726,13 @@ export default function App() {
     })
   }
 
-  const sendMainMessage = (text: string, skillName: string | null, workMode?: WorkMode) => {
-    void appBackend.sendMessage(text, model?.id, skillName ?? undefined, undefined, workMode)
+  const sendMainMessage = (
+    text: string,
+    skillName: string | null,
+    workMode?: WorkMode,
+    executionModeOverride?: 'single-agent' | 'multi-agent',
+  ) => {
+    void appBackend.sendMessage(text, model?.id, skillName ?? undefined, executionModeOverride, workMode)
   }
 
   const sendTaskMessage = (text: string) => {
@@ -4725,53 +4836,31 @@ export default function App() {
           />
           </Suspense>
         ) : mainView === 'pull-requests' ? (
-          <div className="codex-marketplace-page" style={{ padding: '40px 24px', alignItems: 'center', justifyContent: 'center' }}>
-            <div className="codex-marketplace-hero">
-              <GitPullRequest size={48} style={{ color: 'var(--text-secondary)', marginBottom: 16 }} />
-              <h1>Pull Requests</h1>
-              <p>关联 GitHub / GitLab 仓库以审查、合并与自动化 PR 工作流。</p>
-              <button
-                type="button"
-                className="codex-btn-primary"
-                style={{ marginTop: 20 }}
-                onClick={() => setMainView('chat')}
-              >
-                返回对话
-              </button>
-            </div>
-          </div>
+          <PullRequestsPanel
+            workspacePath={appBackend.workspacePath}
+            onBack={() => setMainView('chat')}
+            onOpenIntegrations={() => {
+              setMainView('plugins')
+            }}
+            onReviewWithAgent={(text) => {
+              setMainView('chat')
+              void appBackend.sendMessage(text, model?.id, undefined, undefined, 'code')
+            }}
+          />
         ) : mainView === 'schedules' ? (
-          <div className="codex-marketplace-page" style={{ padding: '40px 24px', alignItems: 'center', justifyContent: 'center' }}>
-            <div className="codex-marketplace-hero">
-              <Clock size={48} style={{ color: 'var(--text-secondary)', marginBottom: 16 }} />
-              <h1>定时任务</h1>
-              <p>配置自动化后台执行脚本、每日代码巡检与定时报告。</p>
-              <button
-                type="button"
-                className="codex-btn-primary"
-                style={{ marginTop: 20 }}
-                onClick={() => setMainView('chat')}
-              >
-                返回对话
-              </button>
-            </div>
-          </div>
+          <SchedulesPanel
+            workspacePath={appBackend.workspacePath}
+            onBack={() => setMainView('chat')}
+          />
         ) : mainView === 'explore' ? (
-          <div className="codex-marketplace-page" style={{ padding: '40px 24px', alignItems: 'center', justifyContent: 'center' }}>
-            <div className="codex-marketplace-hero">
-              <Compass size={48} style={{ color: 'var(--text-secondary)', marginBottom: 16 }} />
-              <h1>探索</h1>
-              <p>浏览推荐 Agent 工作流、社区技能模版与最佳实践。</p>
-              <button
-                type="button"
-                className="codex-btn-primary"
-                style={{ marginTop: 20 }}
-                onClick={() => setMainView('chat')}
-              >
-                返回对话
-              </button>
-            </div>
-          </div>
+          <ExploreView
+            skills={enabledSkills}
+            onNavigate={setMainView}
+            onTryPrompt={(text) => {
+              setMainView('chat')
+              void appBackend.sendMessage(text, model?.id, undefined, undefined, 'code')
+            }}
+          />
         ) : (
           <MainConversation
           shortcuts={shortcuts}
@@ -4822,6 +4911,9 @@ export default function App() {
           onThinkingLevelChange={handleThinkingLevelChange}
           onPermissionModeChange={handlePermissionModeChange}
           onSend={sendMainMessage}
+          multiAgentOrchestration={multiAgentOrchestration}
+          onMultiAgentOrchestrationChange={handleMultiAgentOrchestrationChange}
+          conversationId={appBackend.state?.conversationId ?? null}
           onCancel={() => { void appBackend.cancelMessage() }}
           onSteer={(text) => { void appBackend.steerMessage(text) }}
           onFollowUp={(text) => { void appBackend.followUpMessage(text) }}

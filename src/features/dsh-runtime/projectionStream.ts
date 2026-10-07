@@ -1,4 +1,5 @@
 import type { DshConversationView, PromptQueueSnapshot } from '../../shared/app-api'
+import { resolvePreferDshTranscript } from '../../shared/transcript-display-policy'
 import { shortStreamActivityLabel } from '../chat/streamActivityLabel'
 
 /** Prompt queue currently present in the main-process DSH projection. */
@@ -14,10 +15,14 @@ export function shouldPreferDshTranscript(
   subscribed: boolean,
   conversationId: string | null | undefined,
   view: DshConversationView | null,
+  preferDshTranscript = true,
 ): boolean {
-  if (!subscribed || !conversationId || !view) return false
-  if (view.conversationId && view.conversationId !== conversationId) return false
-  return true
+  return resolvePreferDshTranscript({
+    subscribed,
+    conversationId,
+    view,
+    preferDshTranscript,
+  })
 }
 
 export function applyDshProjectionMetadata(

@@ -6,13 +6,14 @@ const BATCH_READ = /(?:并行|批量|分别|同时).{0,12}(?:读取|查看|检�
 
 /**
  * Choose the primary session's tool presentation before its Host session is created.
- * DSH's standard preset remains the default; Code Mode is reserved for clearly
+ * DSH's native standard preset is the default. Code Mode is reserved for clearly
  * batch-shaped read-only requests where grouped/parallel tool calls have evidence
  * of reducing round trips. Host-bound sessions keep their original preset.
  */
 export function resolvePrimaryAgentPreset(text, workMode = 'code', modelKey = null) {
-  // DSH Web keeps Composer on the `standard` preset (read/grep/bash). TaskWeaver's
-  // auto Code Mode (`run_code` only) confuses Cursor-trained models and adds rounds.
+  // Keep the ordinary single-agent path on Z/DSH's native `standard` preset.
+  // Code Mode is useful only for explicitly batch-shaped read-only work; it
+  // wraps file tools in run_code and should not be the default for simple turns.
   if (isCursorFamilyModelKey(modelKey)) return 'standard'
 
   const intent = analyzeUserIntent(text, workMode)

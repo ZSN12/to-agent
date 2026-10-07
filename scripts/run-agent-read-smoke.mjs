@@ -25,8 +25,8 @@ const thinkingOverride = process.argv.includes('--thinking') ? arg('--thinking')
 const textOverride = process.argv.includes('--text') ? arg('--text') : null
 const contextBudgetOverride = process.argv.includes('--context-budget') ? Number(arg('--context-budget')) : null
 const agentPreset = process.argv.includes('--preset') ? arg('--preset') : 'taskweaver-readonly'
-if (!['standard', 'code', 'minimal', 'cordis', 'taskweaver-code', 'taskweaver-readonly'].includes(agentPreset)) {
-  throw new Error('--preset must be standard, code, minimal, cordis, taskweaver-code, or taskweaver-readonly')
+if (!['standard', 'code', 'minimal', 'cordis', 'taskweaver-code', 'taskweaver-readonly', 'taskweaver-optimized'].includes(agentPreset)) {
+  throw new Error('--preset must be standard, code, minimal, cordis, taskweaver-code, taskweaver-readonly, or taskweaver-optimized')
 }
 const idleTimeoutOverride = process.argv.includes('--idle-timeout') ? Number(arg('--idle-timeout')) : null
 if (thinkingOverride && !['default', 'off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'].includes(thinkingOverride)) {
