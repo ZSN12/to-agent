@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { pathToFileURL } from 'node:url'
 import ts from 'typescript'
 
 const sourcePath = path.resolve('src/features/chat/conversation-stream-buffer.ts')

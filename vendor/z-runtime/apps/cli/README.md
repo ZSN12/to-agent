@@ -1,47 +1,30 @@
 # `@z/dsh`
 
-English | [中文](README.zh.md)
+The `dsh` command boots a named profile: an ordered stack of plugin-bundle patch layers under the user's own overrides. [`src/args.ts`](src/args.ts) parses launcher flags and forwards remaining arguments to the selected profile. [`src/bin.ts`](src/bin.ts) loads only the requested runner.
 
-The `dsh` command is the product launcher for profiles: ordered stacks of plugin-bundle patch layers under the user's own overrides. [`src/args.ts`](src/args.ts) owns the command grammar, and [`src/bin.ts`](src/bin.ts) loads only the selected runner. Invalid commands, options from another mode, configuration errors, and boot failures exit nonzero.
-
-## Entry modes
+## Commands
 
 | Command | Purpose |
 |---|---|
-| `dsh --profile <name>` | Boot the named profile under `$DSH_HOME/profiles/<name>`. |
-| `dsh --profile headless "job"` | Run one fresh persisted session, print the final answer, and exit. |
-| `dsh web` | Alias of `--profile web`. |
-| `dsh plugin --profile <name> <pnpm args>` | Manage a profile's plugins by forwarding to pnpm in the profile directory. |
+| `dsh --profile <name>` | Boot an installed profile under `$DSH_HOME/profiles/<name>`. |
+| `dsh --profile <name> --patch <path>` | Apply an additional patch overlay after the profile layers. Repeatable. |
+| `dsh --profile <name> --dump-config` | Print the composed profile tree and exit. |
+| `dsh --profile <name> --dump-default-config` | Print bundle layers without user overlays and exit. |
+| `dsh plugin --profile <name> <pnpm args>` | Manage a profile's plugin dependencies and bundle layers. |
 
-The invoking directory is the default workspace root. The `web` and `headless` profiles auto-initialize on first use from shipped templates; any other profile must be created through `dsh plugin`.
-
-## App arguments
-
-The launcher parses only its own flags and hands everything after them to the booted profile, where any injected app plugin may parse the shared immutable snapshot ([`dsh-cmdline`](../../packages/boot/cmdline/README.md)). Launcher flags therefore come first, and the first token the launcher does not recognize starts the app's arguments:
-
-```sh
-dsh --profile web --port 8080       # --port belongs to the web app
-dsh --profile tui --resume <id>     # example, assuming the tui profile is installed; --resume belongs to the terminal app
-dsh --profile headless "run the tests"
-dsh --profile web --help            # the web app's flags, not the launcher's
-dsh --help                          # the launcher's own help
-```
+The invoking directory is the default workspace root. Launcher flags come first; once the launcher reaches an unknown option or positional argument, the rest belongs to the profile's app. Use `dsh --help` for launcher help and `dsh --profile <name> --help` for that profile's app help.
 
 ## Profiles
 
-A profile directory holds a `package.json` (out-of-tree plugin dependencies plus the profile manifest `dsh.profile` with its ordered `bundles` list) and a `cordis.patch.yml` (the user's own patch layer).
+A profile directory holds a `package.json` with its ordered `dsh.profile.bundles` list, plus `cordis.patch.yml` for user overrides. The tree is composed over an empty root:
 
-The tree composes over an empty root:
-- each bundle's patch in `dsh.profile.bundles` order
-- then the profile's `cordis.patch.yml`, then the home-level `$DSH_HOME/cordis.patch.yml`
-- then `--patch` overlays
+- bundle patches, in manifest order;
+- the profile's `cordis.patch.yml`;
+- the home-level `$DSH_HOME/cordis.patch.yml`;
+- any `--patch` overlays, in argument order.
 
-Bundles named in `dsh.profile.bundles` resolve from the dsh installation first (`@z/dsh-base`, `@z/dsh-web-app`, `@z/dsh-headless`), then from the profile's own `node_modules`, where pnpm installs out-of-tree plugins.
-
-Use `--dump-default-config` and `--dump-config` to inspect the composed tree without booting it.
-
-The [CLI behavior reference](reference/README.md) owns exact layer precedence, flags, shutdown behavior, deployment defaults, and source execution.
+Bundle packages resolve from the dsh installation first, then from the profile's `node_modules`. The [CLI behavior reference](reference/README.md) documents precedence, plugin management, shutdown, and source execution.
 
 ## Development
 
-Production runs require built package and frontend artifacts. From the repository root, run `pnpm run build` separately, then use `pnpm dsh <args...>` to run the TypeScript entry and forward every argument; the [source-execution reference](reference/README.md#source-execution) owns the module-resolution contract.
+Production runs require built package artifacts. From the repository root, run `pnpm run build`, then use `pnpm dsh <args...>` to run the TypeScript entry. The source-execution reference documents its module-resolution contract.

@@ -6,6 +6,9 @@
 
 import type { Context } from '@z/cordis'
 import { HarnessError } from '@z/dsh-llm'
+import { execFile } from 'node:child_process'
+import { realpath } from 'node:fs/promises'
+import path from 'node:path'
 import {
   SessionId,
   type SessionEvent,
@@ -23,6 +26,7 @@ interface Caller {
   readonly id: SessionIdValue
   readonly header: SessionHeader
   readonly events: readonly SessionEvent[]
+  readonly repositoryIdentity: (cwd: string) => Promise<string | null>
 }
 
 interface TitleView {
@@ -59,10 +63,19 @@ function callerOf(exec: ToolRunContext): Caller {
       'SESSION_QUERY_TOOL_MISSING_AGENT',
     )
   }
+  const identities = new Map<string, Promise<string | null>>()
   return {
     id: agent.session.id,
     header: agent.session.header,
     events: agent.session.events,
+    repositoryIdentity(cwd) {
+      let pending = identities.get(cwd)
+      if (pending === undefined) {
+        pending = resolveRepositoryIdentity(cwd)
+        identities.set(cwd, pending)
+      }
+      return pending
+    },
   }
 }
 
@@ -77,33 +90,41 @@ async function authorizeTarget(
   signal: AbortSignal,
 ): Promise<void> {
   if (target === caller.id) return
-  const cwd = caller.header.cwd
-  if (cwd === undefined) throw serviceBoundary.unauthorizedTarget()
   const records = await serviceBoundary.call(ctx, signal, 'target authorization', () =>
-    ctx.sessionQuery.filterSessions([
-      { kind: 'id', values: [target] },
-      { kind: 'cwd', values: [cwd] },
-    ], signal))
-  if (records.length !== 1) throw serviceBoundary.unauthorizedTarget()
+    ctx.sessionQuery.filterSessions([{ kind: 'id', values: [target] }], signal))
+  if (records.length !== 1 || !(await recordAuthorized(records[0]!, caller))) {
+    throw serviceBoundary.unauthorizedTarget()
+  }
 }
 
-function recordAuthorized(record: SessionRecord, caller: Caller): boolean {
+function recordAuthorized(record: SessionRecord, caller: Caller): Promise<boolean> {
   return headerAuthorized(record.header, caller)
 }
 
-function headerAuthorized(header: SessionHeader, caller: Caller): boolean {
-  if (header.id === caller.id) return header.cwd === caller.header.cwd
-  return caller.header.cwd !== undefined && header.cwd === caller.header.cwd
+async function headerAuthorized(header: SessionHeader, caller: Caller): Promise<boolean> {
+  const callerCwd = caller.header.cwd
+  const targetCwd = header.cwd
+  // A session cannot become a different workspace merely by reusing its id.
+  if (header.id === caller.id) return targetCwd === callerCwd
+  if (callerCwd === undefined || targetCwd === undefined) return false
+  if (targetCwd === callerCwd) return true
+  const [callerRoot, targetRoot] = await Promise.all([
+    caller.repositoryIdentity(callerCwd),
+    caller.repositoryIdentity(targetCwd),
+  ])
+  return callerRoot !== null && callerRoot === targetRoot
 }
 
 function assertObservedTargetAuthorized(
   caller: Caller,
   target: SessionIdValue,
   observed: SessionHeader,
-): void {
-  if (observed.id !== target || !headerAuthorized(observed, caller)) {
-    throw serviceBoundary.unauthorizedTarget()
-  }
+): Promise<void> {
+  return (async () => {
+    if (observed.id !== target || !(await headerAuthorized(observed, caller))) {
+      throw serviceBoundary.unauthorizedTarget()
+    }
+  })()
 }
 
 async function authorizeSessionIds(
@@ -115,21 +136,49 @@ async function authorizeSessionIds(
   const unique = [...new Set(ids)]
   const authorized = new Set<SessionIdValue>()
   if (unique.includes(caller.id)) authorized.add(caller.id)
-  const cwd = caller.header.cwd
   const other = unique.filter(id => id !== caller.id)
-  if (cwd === undefined || other.length === 0) return authorized
+  if (other.length === 0) return authorized
   const records = await serviceBoundary.call(ctx, signal, 'session-id authorization', () =>
-    ctx.sessionQuery.filterSessions([
-      { kind: 'id', values: other },
-      { kind: 'cwd', values: [cwd] },
-    ], signal))
+    ctx.sessionQuery.filterSessions([{ kind: 'id', values: other }], signal))
   const requested = new Set(other)
   for (const record of records) {
-    if (requested.has(record.header.id) && recordAuthorized(record, caller)) {
+    if (requested.has(record.header.id) && await recordAuthorized(record, caller)) {
       authorized.add(record.header.id)
     }
   }
   return authorized
+}
+
+async function resolveRepositoryIdentity(cwd: string): Promise<string | null> {
+  let physicalCwd: string
+  try {
+    physicalCwd = await realpath(cwd)
+  } catch {
+    physicalCwd = path.resolve(cwd)
+  }
+  const commonDirectory = await readGitCommonDirectory(cwd)
+  if (commonDirectory === null) return `directory:${physicalCwd}`
+  let physicalCommonDirectory: string
+  try {
+    physicalCommonDirectory = await realpath(path.resolve(cwd, commonDirectory))
+  } catch {
+    physicalCommonDirectory = path.resolve(cwd, commonDirectory)
+  }
+  return `git:${physicalCommonDirectory}`
+}
+
+function readGitCommonDirectory(cwd: string): Promise<string | null> {
+  return new Promise(resolve => {
+    execFile(
+      'git',
+      ['rev-parse', '--path-format=absolute', '--git-common-dir'],
+      { cwd, timeout: 1_500, windowsHide: true, encoding: 'utf8' },
+      (error, stdout) => {
+        const value = typeof stdout === 'string' ? stdout.trim() : ''
+        resolve(error === null && value.length > 0 ? value : null)
+      },
+    )
+  })
 }
 
 async function readTitles(
@@ -146,7 +195,7 @@ async function readTitles(
       result.set(observation.sessionId, unavailableTitle(ctx, observation.reason))
       continue
     }
-    assertObservedTargetAuthorized(caller, observation.sessionId, observation.value.session)
+    await assertObservedTargetAuthorized(caller, observation.sessionId, observation.value.session)
     result.set(observation.sessionId, { text: observation.value.title?.title ?? 'untitled' })
   }
   return result as CompleteTitleMap
@@ -170,10 +219,10 @@ function unavailableTitle(
   return { text: 'untitled', unavailableCode: sanitized.code }
 }
 
-function authorizeDescendants(
+async function authorizeDescendants(
   nodes: readonly SessionLineageNode[],
   caller: Caller,
-): Array<AuthorizedDescendant | null> {
+): Promise<Array<AuthorizedDescendant | null>> {
   const result: Array<AuthorizedDescendant | null> = []
   let pending: DescendantProjectionFrame | undefined
   for (const node of [...nodes].reverse()) {
@@ -182,7 +231,7 @@ function authorizeDescendants(
   while (pending !== undefined) {
     const current = pending
     pending = current.next
-    if (!recordAuthorized(current.node.session, caller)) {
+    if (!(await recordAuthorized(current.node.session, caller))) {
       current.target.push(null)
       continue
     }

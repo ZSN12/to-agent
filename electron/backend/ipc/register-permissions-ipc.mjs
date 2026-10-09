@@ -4,8 +4,7 @@ import { routePermissionPromptResponse } from '../permission-prompt-bridge.mjs'
 /**
  * @param {{
  *   ipcMain: import('electron').IpcMain,
- *   refreshWorkspaceCache: () => Promise<void>,
- *   getCachedWorkspace: () => string | null,
+ *   resolveActiveRuntime: (requestedConversationId?: string | null) => Promise<{ workspacePath: string | null }>,
  *   permissionRulesStore: {
  *     listRules: (opts: { workspacePath: string | null }) => Promise<unknown>,
  *     addRule: (rule: unknown) => Promise<unknown>,
@@ -20,8 +19,7 @@ import { routePermissionPromptResponse } from '../permission-prompt-bridge.mjs'
 export function registerPermissionsIpc(ctx) {
   const {
     ipcMain,
-    refreshWorkspaceCache,
-    getCachedWorkspace,
+    resolveActiveRuntime,
     permissionRulesStore,
     approvalAudit,
     resolveIpcConversationId,
@@ -29,16 +27,15 @@ export function registerPermissionsIpc(ctx) {
   } = ctx
 
   ipcHandle(ipcMain, 'permission:listRules', async () => {
-    await refreshWorkspaceCache()
-    return permissionRulesStore.listRules({ workspacePath: getCachedWorkspace() })
+    const { workspacePath } = await resolveActiveRuntime()
+    return permissionRulesStore.listRules({ workspacePath })
   })
 
   ipcHandle(ipcMain, 'permission:addRule', async (_event, rule) => {
-    await refreshWorkspaceCache()
-    const cachedWorkspace = getCachedWorkspace()
+    const { workspacePath } = await resolveActiveRuntime()
     const enriched = {
       ...rule,
-      workspacePath: rule?.scope === 'workspace' ? (rule.workspacePath || cachedWorkspace) : null,
+      workspacePath: rule?.scope === 'workspace' ? (rule.workspacePath || workspacePath) : null,
     }
     return permissionRulesStore.addRule(enriched)
   })
@@ -48,9 +45,9 @@ export function registerPermissionsIpc(ctx) {
   })
 
   ipcHandle(ipcMain, 'permission:clearRules', async (_event, options) => {
-    await refreshWorkspaceCache()
+    const { workspacePath } = options?.workspaceOnly ? await resolveActiveRuntime() : { workspacePath: undefined }
     return permissionRulesStore.clearRules({
-      workspacePath: options?.workspaceOnly ? getCachedWorkspace() : undefined,
+      workspacePath: options?.workspaceOnly ? workspacePath : undefined,
       globalOnly: options?.globalOnly,
     })
   })

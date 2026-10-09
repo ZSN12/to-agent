@@ -13,7 +13,7 @@ const INDEX_CACHE_TTL_MS = 5_000
  * Workspace-only path index used by @-context pickers. It never follows a
  * symlink outside the project and bounds traversal for large repositories.
  */
-export function createWorkspaceIndex({ getWorkspacePath, maxEntries = DEFAULT_LIMIT } = {}) {
+export function createWorkspaceIndex({ getWorkspacePath = null, maxEntries = DEFAULT_LIMIT } = {}) {
   let cachedRoot = null
   let cachedEntries = null
   let cachedAt = 0
@@ -56,8 +56,8 @@ export function createWorkspaceIndex({ getWorkspacePath, maxEntries = DEFAULT_LI
     return entries
   }
 
-  async function walk({ query = '', limit = 100, includeDirectories = true } = {}) {
-    const workspacePath = getWorkspacePath?.()
+  async function walk({ query = '', limit = 100, includeDirectories = true, workspacePath: rootOverride } = {}) {
+    const workspacePath = rootOverride ?? getWorkspacePath?.()
     if (!workspacePath) {
       cachedRoot = null
       cachedEntries = null

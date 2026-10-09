@@ -4,22 +4,32 @@ import path from 'node:path'
 import fs from 'node:fs'
 import fsp from 'node:fs/promises'
 import crypto from 'node:crypto'
+import { createJsonStore } from './json-store.mjs'
 const execFileAsync = promisify(execFile)
 
-async function runGit(args, cwd, extraEnv = {}) {
+async function runGit(args, cwd, extraEnv = {}, { timeout = 10000, trimOutput = true } = {}) {
   try {
     const { stdout } = await execFileAsync('git', args, {
       cwd,
-      timeout: 10000,
+      timeout,
       maxBuffer: 4 * 1024 * 1024,
       env: { ...process.env, LC_ALL: 'C', ...extraEnv },
     })
-    return { ok: true, stdout: stdout.trim() }
+    return { ok: true, stdout: trimOutput ? stdout.trim() : stdout }
   } catch (err) {
     const stderr = err?.stderr ? String(err.stderr).trim() : ''
     const msg = stderr || err.message || String(err)
     return { ok: false, error: msg, stdout: (err.stdout || '').trim() }
   }
+}
+
+function checkpointGitTimeoutMs() {
+  const requested = Number(process.env.TASKWEAVER_CHECKPOINT_GIT_TIMEOUT_MS ?? 120000)
+  return Number.isInteger(requested) && requested >= 1000 && requested <= 600000 ? requested : 120000
+}
+
+function runCheckpointGit(args, cwd, extraEnv = {}, options = {}) {
+  return runGit(args, cwd, extraEnv, { timeout: checkpointGitTimeoutMs(), ...options })
 }
 
 export const CHECKPOINT_KIND = Object.freeze({
@@ -30,6 +40,7 @@ export const CHECKPOINT_KIND = Object.freeze({
 export const DEFAULT_MANUAL_COMMIT_MESSAGE = 'chore(taskweaver): create workspace snapshot'
 
 const workspaceCommitLocks = new Map()
+const checkpointStores = new Map()
 
 async function withWorkspaceCommitLock(workspacePath, fn) {
   const key = path.resolve(workspacePath)
@@ -50,6 +61,65 @@ async function withWorkspaceCommitLock(workspacePath, fn) {
     if (workspaceCommitLocks.get(key) === current) {
       workspaceCommitLocks.delete(key)
     }
+  }
+}
+
+async function withCheckpointFileLock(workspacePath, fn) {
+  const gitDirRes = await runCheckpointGit(['rev-parse', '--git-dir'], workspacePath)
+  if (!gitDirRes.ok || !gitDirRes.stdout) throw new Error(`无法定位 Git 元数据目录: ${gitDirRes.error || 'git rev-parse 失败'}`)
+  const gitDir = path.resolve(workspacePath, gitDirRes.stdout)
+  const lockPath = path.join(gitDir, 'taskweaver-checkpoint.lock')
+  const configuredWaitMs = Number(process.env.TASKWEAVER_CHECKPOINT_LOCK_TIMEOUT_MS ?? 120000)
+  const waitMs = Number.isInteger(configuredWaitMs) && configuredWaitMs >= 1000 && configuredWaitMs <= 600000
+    ? configuredWaitMs
+    : 120000
+  const configuredStaleMs = Number(process.env.TASKWEAVER_CHECKPOINT_LOCK_STALE_MS ?? 600000)
+  const staleMs = Number.isInteger(configuredStaleMs) && configuredStaleMs >= 30000 && configuredStaleMs <= 3600000
+    ? configuredStaleMs
+    : 600000
+  const startedAt = Date.now()
+  let handle = null
+
+  while (!handle) {
+    try {
+      handle = await fsp.open(lockPath, 'wx', 0o600)
+      await handle.writeFile(JSON.stringify({ pid: process.pid, createdAt: Date.now() }))
+    } catch (error) {
+      if (handle) {
+        await handle.close().catch(() => {})
+        handle = null
+        await fsp.rm(lockPath, { force: true }).catch(() => {})
+      }
+      if (error?.code !== 'EEXIST') throw error
+
+      let stale = false
+      try {
+        const [raw, stat] = await Promise.all([
+          fsp.readFile(lockPath, 'utf8'),
+          fsp.stat(lockPath),
+        ])
+        const owner = JSON.parse(raw)
+        if (Number.isInteger(owner.pid) && owner.pid > 0) {
+          try { process.kill(owner.pid, 0) } catch (probeError) { stale = probeError?.code === 'ESRCH' }
+        }
+        if (!stale && Date.now() - stat.mtimeMs > staleMs) stale = true
+      } catch (readError) {
+        stale = readError?.code === 'ENOENT' || readError instanceof SyntaxError
+      }
+      if (stale) {
+        await fsp.rm(lockPath, { force: true }).catch(() => {})
+        continue
+      }
+      if (Date.now() - startedAt >= waitMs) throw new Error(`等待检查点文件锁超时（${waitMs} ms）`)
+      await new Promise((resolve) => setTimeout(resolve, 50))
+    }
+  }
+
+  try {
+    return await fn()
+  } finally {
+    await handle.close().catch(() => {})
+    await fsp.rm(lockPath, { force: true }).catch(() => {})
   }
 }
 
@@ -293,11 +363,11 @@ export async function createManualGitCommitSnapshot(
  * 检查当前工作区是否是 Git 仓库
  * @param {string} workspacePath 
  */
-export async function isGitRepository(workspacePath) {
+export async function isGitRepository(workspacePath, { checkpoint = false } = {}) {
   if (!workspacePath) return false
   try {
     if (!fs.existsSync(workspacePath)) return false
-    const res = await runGit(['rev-parse', '--is-inside-work-tree'], workspacePath)
+    const res = await (checkpoint ? runCheckpointGit : runGit)(['rev-parse', '--is-inside-work-tree'], workspacePath)
     return res.ok && res.stdout === 'true'
   } catch {
     return false
@@ -308,8 +378,9 @@ export async function isGitRepository(workspacePath) {
  * 获取 Git 状态与变更统计
  * @param {string} workspacePath 
  */
-export async function getGitStatus(workspacePath) {
-  const isRepo = await isGitRepository(workspacePath)
+export async function getGitStatus(workspacePath, { checkpoint = false } = {}) {
+  const run = checkpoint ? runCheckpointGit : runGit
+  const isRepo = await isGitRepository(workspacePath, { checkpoint })
   if (!isRepo) {
     return {
       isRepo: false,
@@ -323,11 +394,13 @@ export async function getGitStatus(workspacePath) {
   }
 
   // 1. 获取当前分支
-  const branchRes = await runGit(['branch', '--show-current'], workspacePath)
+  const branchRes = await run(['branch', '--show-current'], workspacePath)
+  if (checkpoint && !branchRes.ok) throw new Error(`读取检查点分支失败: ${branchRes.error}`)
   const branch = branchRes.ok ? branchRes.stdout || 'HEAD (detached)' : 'main'
 
   // 2. 获取 status --porcelain
-  const statusRes = await runGit(['status', '--porcelain=v1'], workspacePath)
+  const statusRes = await run(['status', '--porcelain=v1'], workspacePath)
+  if (checkpoint && !statusRes.ok) throw new Error(`读取检查点工作区状态失败: ${statusRes.error}`)
   const staged = []
   const unstaged = []
   const untracked = []
@@ -354,7 +427,8 @@ export async function getGitStatus(workspacePath) {
   }
 
   // 3. 获取 diff --stat
-  const statRes = await runGit(['diff', '--stat'], workspacePath)
+  const statRes = await run(['diff', '--stat'], workspacePath)
+  if (checkpoint && !statRes.ok) throw new Error(`读取检查点工作区统计失败: ${statRes.error}`)
   const stat = statRes.ok ? statRes.stdout : ''
 
   return {
@@ -453,18 +527,38 @@ function getCheckpointsFile(workspacePath, userDataPath) {
 }
 
 async function loadCheckpoints(file) {
+  let store = checkpointStores.get(path.resolve(file))
+  if (!store) {
+    store = createJsonStore(file, { checkpoints: [] })
+    checkpointStores.set(path.resolve(file), store)
+  }
+  const isolateIndex = async () => {
+    const isolatedPath = `${file}.corrupt-${Date.now()}-${crypto.randomBytes(3).toString('hex')}.json`
+    try {
+      await fsp.rename(file, isolatedPath)
+    } catch (renameError) {
+      if (renameError?.code !== 'ENOENT') throw renameError
+    }
+  }
   try {
-    const raw = await fsp.readFile(file, 'utf8')
-    const parsed = JSON.parse(raw)
-    return Array.isArray(parsed?.checkpoints) ? parsed.checkpoints : []
-  } catch {
+    const parsed = await store.read()
+    if (Array.isArray(parsed?.checkpoints)) return parsed.checkpoints
+    await isolateIndex()
+    return []
+  } catch (error) {
+    if (!(error instanceof SyntaxError)) throw error
+    await isolateIndex()
     return []
   }
 }
 
 async function saveCheckpoints(file, checkpoints) {
-  await fsp.mkdir(path.dirname(file), { recursive: true })
-  await fsp.writeFile(file, JSON.stringify({ checkpoints }, null, 2), 'utf8')
+  let store = checkpointStores.get(path.resolve(file))
+  if (!store) {
+    store = createJsonStore(file, { checkpoints: [] })
+    checkpointStores.set(path.resolve(file), store)
+  }
+  await store.write({ checkpoints })
 }
 
 const EMPTY_TREE_SHA = '4b825dc642cb6eb9a060e54bf8d69288fbee4904'
@@ -478,20 +572,25 @@ const EMPTY_TREE_SHA = '4b825dc642cb6eb9a060e54bf8d69288fbee4904'
  * @returns {Promise<{ treeSha: string, headTreeSha: string, hasChanges: boolean }>}
  */
 async function captureWorkspaceTree(workspacePath, headCommit) {
-  const gitDirRes = await runGit(['rev-parse', '--git-dir'], workspacePath)
-  const gitDir = gitDirRes.ok && gitDirRes.stdout ? path.resolve(workspacePath, gitDirRes.stdout) : path.join(workspacePath, '.git')
+  const gitDirRes = await runCheckpointGit(['rev-parse', '--git-dir'], workspacePath)
+  if (!gitDirRes.ok || !gitDirRes.stdout) {
+    throw new Error(`无法定位 Git 元数据目录: ${gitDirRes.error || 'git rev-parse 失败'}`)
+  }
+  const gitDir = path.resolve(workspacePath, gitDirRes.stdout)
   const tempIndex = path.join(gitDir, `tw_idx_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`)
   const env = { GIT_INDEX_FILE: tempIndex }
 
   try {
     if (headCommit) {
       // 1. 初始化临时索引为 HEAD
-      await runGit(['read-tree', headCommit], workspacePath, env)
+      const readRes = await runCheckpointGit(['read-tree', headCommit], workspacePath, env)
+      if (!readRes.ok) throw new Error(`初始化快照索引失败: ${readRes.error}`)
     }
     // 2. 将当前工作区所有改动（包括未跟踪新文件、符号链接、权限变更）全量加进临时索引
-    await runGit(['add', '-A'], workspacePath, env)
+    const addRes = await runCheckpointGit(['add', '-A'], workspacePath, env)
+    if (!addRes.ok) throw new Error(`收集工作区文件失败: ${addRes.error}`)
     // 3. 写入并获取当前工作区对应的新树 SHA
-    const writeRes = await runGit(['write-tree'], workspacePath, env)
+    const writeRes = await runCheckpointGit(['write-tree'], workspacePath, env)
     if (!writeRes.ok || !writeRes.stdout) {
       throw new Error(`生成工作区快照树失败: ${writeRes.error}`)
     }
@@ -500,8 +599,11 @@ async function captureWorkspaceTree(workspacePath, headCommit) {
     // 4. 获取基准树 SHA 进行比对
     let headTreeSha = EMPTY_TREE_SHA
     if (headCommit) {
-      const headTreeRes = await runGit(['rev-parse', `${headCommit}^{tree}`], workspacePath)
-      headTreeSha = headTreeRes.ok ? headTreeRes.stdout.trim() : EMPTY_TREE_SHA
+      const headTreeRes = await runCheckpointGit(['rev-parse', `${headCommit}^{tree}`], workspacePath)
+      if (!headTreeRes.ok || !headTreeRes.stdout) {
+        throw new Error(`读取 HEAD 快照树失败: ${headTreeRes.error || 'git rev-parse 失败'}`)
+      }
+      headTreeSha = headTreeRes.stdout.trim()
     }
 
     return {
@@ -510,11 +612,10 @@ async function captureWorkspaceTree(workspacePath, headCommit) {
       hasChanges: Boolean(treeSha && treeSha !== headTreeSha),
     }
   } finally {
-    try {
-      await fsp.rm(tempIndex, { force: true })
-    } catch {
-      // ignore
-    }
+    await Promise.all([
+      fsp.rm(tempIndex, { force: true }).catch(() => {}),
+      fsp.rm(`${tempIndex}.lock`, { force: true }).catch(() => {}),
+    ])
   }
 }
 
@@ -529,45 +630,53 @@ async function calculateCheckpointImpact(workspacePath, targetTreeOrCommit, curr
     ? targetTreeOrCommit
     : `${targetTreeOrCommit}^{tree}`
 
-  const diffTreeRes = await runGit(
-    ['diff-tree', '-r', '--name-status', treeRef, currentTreeSha],
+  const diffTreeRes = await runCheckpointGit(
+    ['diff-tree', '-r', '--name-status', '-z', '-M', treeRef, currentTreeSha],
     workspacePath,
+    {},
+    { trimOutput: false },
   )
+  if (!diffTreeRes.ok) throw new Error(`计算检查点文件影响失败: ${diffTreeRes.error}`)
 
   const willAdd = []
   const willOverwrite = []
   const willDelete = []
 
-  if (diffTreeRes.ok && diffTreeRes.stdout) {
-    const lines = diffTreeRes.stdout.split('\n')
-    for (const line of lines) {
-      if (!line) continue
-      const parts = line.split('\t')
-      const status = parts[0]?.[0]
-      const file = parts[1] || parts[0]?.slice(1)?.trim()
-      if (!file) continue
-
-      if (status === 'A') {
-        willDelete.push(file)
-      } else if (status === 'D') {
-        willAdd.push(file)
-      } else {
-        willOverwrite.push(file)
+  if (diffTreeRes.stdout) {
+    const fields = diffTreeRes.stdout.split('\0')
+    if (fields.at(-1) === '') fields.pop()
+    for (let index = 0; index < fields.length;) {
+      const status = fields[index++]
+      if (!status) continue
+      const kind = status[0]
+      if (kind === 'R' || kind === 'C') {
+        const oldPath = fields[index++]
+        const newPath = fields[index++]
+        if (!oldPath || !newPath) throw new Error('Git 返回了不完整的重命名检查点差异')
+        willAdd.push(oldPath)
+        willDelete.push(newPath)
+        continue
       }
+      const file = fields[index++]
+      if (!file) throw new Error('Git 返回了不完整的检查点文件差异')
+      if (kind === 'A') willDelete.push(file)
+      else if (kind === 'D') willAdd.push(file)
+      else willOverwrite.push(file)
     }
   }
 
   // 获取可读的差异统计
-  const statRes = await runGit(
+  const statRes = await runCheckpointGit(
     ['diff', '--stat', treeRef, currentTreeSha],
     workspacePath,
   )
+  if (!statRes.ok) throw new Error(`读取检查点差异统计失败: ${statRes.error}`)
 
   return {
     willAdd,
     willOverwrite,
     willDelete,
-    stat: statRes.ok ? statRes.stdout : '',
+    stat: statRes.stdout,
     totalAffected: willAdd.length + willOverwrite.length + willDelete.length,
   }
 }
@@ -576,21 +685,33 @@ async function calculateCheckpointImpact(workspacePath, targetTreeOrCommit, curr
  * 创建 Git 检查点（执行前快照）
  * 完整包含未跟踪文件、符号链接与已暂存改动，支持未提交的初始空仓库
  */
-export async function createGitCheckpoint(workspacePath, { conversationId, taskId, summary, userDataPath } = {}) {
-  const isRepo = await isGitRepository(workspacePath)
+export async function createGitCheckpoint(workspacePath, options = {}) {
+  const isRepo = await isGitRepository(workspacePath, { checkpoint: true })
+  if (!isRepo) return { ok: false, isRepo: false, error: '当前工作区不是 Git 仓库' }
+  return withWorkspaceCommitLock(workspacePath, () => withCheckpointFileLock(
+    workspacePath,
+    () => createGitCheckpointUnlocked(workspacePath, options),
+  ))
+}
+
+async function createGitCheckpointUnlocked(workspacePath, { conversationId, taskId, summary, userDataPath } = {}) {
+  const isRepo = await isGitRepository(workspacePath, { checkpoint: true })
   if (!isRepo) {
     return { ok: false, isRepo: false, error: '当前工作区不是 Git 仓库' }
   }
 
-  const status = await getGitStatus(workspacePath)
+  const status = await getGitStatus(workspacePath, { checkpoint: true })
 
   // 1. 获取 HEAD commit（允许为空仓库）
-  const headRes = await runGit(['rev-parse', 'HEAD'], workspacePath)
+  const headRes = await runCheckpointGit(['rev-parse', 'HEAD'], workspacePath)
+  const isEmptyRepository = !headRes.ok && /(?:Needed a single revision|ambiguous argument 'HEAD'|unknown revision.*HEAD)/i.test(headRes.error)
+  if (!headRes.ok && !isEmptyRepository) throw new Error(`读取检查点 HEAD 失败: ${headRes.error}`)
   const headCommit = headRes.ok ? headRes.stdout.trim() : null
 
   // 2. 获取当前分支
-  const branchRes = await runGit(['branch', '--show-current'], workspacePath)
-  const branch = branchRes.ok ? branchRes.stdout || 'HEAD' : 'HEAD'
+  const branchRes = await runCheckpointGit(['branch', '--show-current'], workspacePath)
+  if (!branchRes.ok) throw new Error(`读取检查点分支失败: ${branchRes.error}`)
+  const branch = branchRes.stdout || 'HEAD'
 
   // 3. 使用临时独立索引精确捕获包含未跟踪文件的完整工作区树
   let treeSha, hasChanges
@@ -608,7 +729,7 @@ export async function createGitCheckpoint(workspacePath, { conversationId, taskI
     const commitArgs = headCommit
       ? ['commit-tree', treeSha, '-p', headCommit, '-m', commitMsg]
       : ['commit-tree', treeSha, '-m', commitMsg]
-    const commitRes = await runGit(commitArgs, workspacePath)
+    const commitRes = await runCheckpointGit(commitArgs, workspacePath)
     if (commitRes.ok && commitRes.stdout) {
       stashCommit = commitRes.stdout.trim()
     } else {
@@ -637,7 +758,7 @@ export async function createGitCheckpoint(workspacePath, { conversationId, taskI
   // 为快照提交创建持久稳定的 Git 引用，彻底避免 git gc / git prune 误删
   const targetRefSha = stashCommit || headCommit
   if (targetRefSha && targetRefSha !== 'EMPTY_REPO') {
-    const refRes = await runGit(['update-ref', gitRef, targetRefSha], workspacePath)
+    const refRes = await runCheckpointGit(['update-ref', gitRef, targetRefSha], workspacePath)
     if (!refRes.ok) {
       return {
         ok: false,
@@ -658,7 +779,7 @@ export async function createGitCheckpoint(workspacePath, { conversationId, taskI
   for (const oldCp of evicted) {
     if (oldCp?.kind === CHECKPOINT_KIND.GIT_COMMIT) continue
     if (oldCp?.id) {
-      await runGit(['update-ref', '-d', `refs/taskweaver/checkpoints/${oldCp.id}`], workspacePath).catch(() => {})
+      await runCheckpointGit(['update-ref', '-d', `refs/taskweaver/checkpoints/${oldCp.id}`], workspacePath).catch(() => {})
     }
   }
 
@@ -1034,4 +1155,3 @@ export async function restoreGitCheckpoint(workspacePath, checkpointId, { force 
     }
   }
 }
-

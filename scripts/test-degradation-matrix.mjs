@@ -13,10 +13,6 @@
  */
 
 import assert from 'node:assert/strict'
-import fs from 'node:fs/promises'
-import os from 'node:os'
-import path from 'node:path'
-
 import {
   humanizeBridgeTransportError,
   isCursorBridgeTransportRoute,
@@ -27,7 +23,6 @@ import {
   OCX_COMPOSER_CONTINUATION_MIN_VERSION,
 } from '../electron/backend/opencodex-binary.mjs'
 import { selectModelForTask } from '../electron/backend/orchestration-policy.mjs'
-import { createMcpService } from '../electron/backend/mcp-service.mjs'
 
 console.log('🧪 开始降级路径自动化验证矩阵 (test-degradation-matrix)...\n')
 
@@ -101,64 +96,9 @@ assert.equal(directHumanized, directNetworkError)
 console.log('  ✓ 场景 B 自动化断言通过\n')
 
 // =========================================================================
-// 场景 C: 第三方 MCP 服务器失联
+// 场景 C: 某模型厂商 OAuth 或 API Key 失效
 // =========================================================================
-console.log('--- 场景 C: 第三方 MCP 服务器失联自动摘除验证 ---')
-
-const mcpTempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'tw-matrix-mcp-'))
-try {
-  let stableConnects = 0
-  const mcpTestService = createMcpService({
-    userData: mcpTempDir,
-    safeStorage: {
-      isEncryptionAvailable: () => true,
-      encryptString: (s) => Buffer.from(s),
-      decryptString: (b) => b.toString(),
-    },
-    connectClient: async (srv) => {
-      if (srv.id === 'stable-db') {
-        stableConnects += 1
-        return {
-          listTools: async () => ({
-            tools: [{ name: 'query_records', description: '查询数据库', inputSchema: { type: 'object' } }],
-          }),
-          callTool: async () => ({ content: [{ type: 'text', text: 'query-success' }] }),
-          close: async () => {},
-        }
-      }
-      if (srv.id === 'flaky-thirdparty') {
-        throw new Error('Connection refused by third-party MCP host')
-      }
-      throw new Error(`Unexpected server: ${srv.id}`)
-    },
-  })
-
-  await mcpTestService.saveServer({ id: 'stable-db', command: 'node', enabled: true })
-  await mcpTestService.saveServer({ id: 'flaky-thirdparty', command: 'node', enabled: true })
-
-  const mcpResult = await mcpTestService.getCustomTools()
-  const customNames = mcpResult.tools.map((t) => t.name)
-  assert.ok(customNames.includes('mcp__stable-db__query_records'))
-  assert.equal(customNames.some((n) => n.includes('flaky-thirdparty')), false)
-
-  assert.ok(mcpResult.evictedServers?.length >= 1)
-  const evicted = mcpResult.evictedServers.find((s) => s.id === 'flaky-thirdparty')
-  assert.ok(evicted)
-  assert.ok(evicted.backoffUntil > Date.now())
-
-  const stableTool = mcpResult.tools.find((t) => t.name === 'mcp__stable-db__query_records')
-  const executionResult = await stableTool.execute('call-1', {})
-  assert.deepEqual(executionResult, { content: [{ type: 'text', text: 'query-success' }] })
-
-  console.log('  ✓ 场景 C 自动化断言通过\n')
-} finally {
-  await fs.rm(mcpTempDir, { recursive: true, force: true }).catch(() => {})
-}
-
-// =========================================================================
-// 场景 D: 某模型厂商 OAuth 或 API Key 失效
-// =========================================================================
-console.log('--- 场景 D: 厂商 OAuth/Key 失效与作品集绕开 Fallback 验证 ---')
+console.log('--- 场景 C: 厂商 OAuth/Key 失效与作品集绕开 Fallback 验证 ---')
 
 const portfolioCatalog = {
   models: [
@@ -229,8 +169,8 @@ assert.equal(allBrokenResult.strategy, 'none')
 assert.equal(allBrokenResult.model, null)
 assert.equal(allBrokenResult.displayName, '无可用模型')
 assert.ok(allBrokenResult.reason.includes('没有可用且已鉴权的模型'))
-console.log('  ✓ 场景 D 自动化断言通过\n')
+console.log('  ✓ 场景 C 自动化断言通过\n')
 
 console.log('========================================================')
-console.log('🎉 降级矩阵全部 4 大场景测试 100% 通过！(test-degradation-matrix OK)')
+console.log('🎉 降级矩阵全部 3 大场景测试 100% 通过！(test-degradation-matrix OK)')
 console.log('========================================================\n')

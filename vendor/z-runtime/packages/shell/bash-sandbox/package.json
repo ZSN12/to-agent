@@ -47,7 +47,6 @@
     "@z/dsh-sandbox": "workspace:^",
     "@z/dsh-sandbox-local": "workspace:^",
     "@z/dsh-sandbox-policy": "workspace:^",
-    "@z/cordis": "workspace:^",
-    "@z/node-addon-landlock-run": "workspace:^"
+    "@z/cordis": "workspace:^"
   }
 }

@@ -10,8 +10,8 @@ import { LocalSandboxProvider } from '@z/dsh-sandbox-local'
 import { bwrapProfileArgs } from '../src/profiles.ts'
 
 /**
- * Keyless backend integration through `confine()` and a real bwrap process. With no rung forced,
- * a passing probe must select the first rung. Tests assert world effects, wrap shape, and that the
+ * Keyless backend integration through `confine()` and a real bwrap process. On Linux the sole
+ * bwrap rung is selected directly. Tests assert world effects, wrap shape, and that the
  * kernel denial matches the advertised dialect; consumer coverage lives in dsh-bash-sandbox.
  * Skips when bwrap or user namespaces are unavailable. HOME-based workspaces avoid bwrap's
  * ephemeral `/tmp`, so workspace-write actually proves the workspace-root rebind.
@@ -131,9 +131,8 @@ describe.skipIf(!bwrapUsable)('sandbox-local: real bwrap confinement', () => {
   })
 
   it('workspace-write mounts an EPHEMERAL /tmp: the write succeeds inside, the host /tmp stays untouched', async () => {
-    // The documented bwrap-profile difference: Landlock and Seatbelt grant
-    // the HOST temp areas, bwrap swaps in a fresh tmpfs that dies with the
-    // process — the strongest of the three temp semantics.
+    // bwrap swaps in a fresh tmpfs that dies with the process; Seatbelt grants
+    // the host temp areas instead.
     const workdir = await tempDir(homedir())
     const target = `/tmp/dsh-bwrap-e2e-ephemeral-${process.pid}.txt`
     tempFiles.push(target)

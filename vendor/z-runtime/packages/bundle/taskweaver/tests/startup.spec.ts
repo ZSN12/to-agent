@@ -1,7 +1,4 @@
-/**
- * The Web command-line provider over a real Loader tree: its ordinary service
- * releases a consumer whose config reads `ctx.webStartup` directly.
- */
+/** The API Host command-line provider over a real Loader tree. */
 
 import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -38,7 +35,7 @@ async function bootProvider(args: string[]): Promise<{
   values: WebStartupValues | undefined
   observed: Observed
 }> {
-  const dir = mkdtempSync(join(tmpdir(), 'dsh-web-startup-'))
+  const dir = mkdtempSync(join(tmpdir(), 'dsh-api-startup-'))
   const observed: Observed = { exits: [], out: '' }
   writeFileSync(join(dir, 'reader.mjs'), `
 export function apply(_ctx, config) { globalThis.__webStartupObserved.readerConfig = config }
@@ -56,7 +53,6 @@ export const apply = ctx => globalThis.__webStartupApply(ctx)
     `  inject: [${WEB_STARTUP_SERVICE}]`,
     '  config:',
     "    host: !!js ctx.webStartup.host ?? '127.0.0.1'",
-    '    openBrowser: !!js ctx.webStartup.openBrowser',
     '    port: !!js ctx.webStartup.port ?? 3080',
     '    trustedHosts: !!js ctx.webStartup.trustedHosts',
     '- id: provider',
@@ -86,18 +82,16 @@ export const apply = ctx => globalThis.__webStartupApply(ctx)
   }
 }
 
-describe('web command-line provider', () => {
+describe('API Host command-line provider', () => {
   it('publishes each flag and releases direct service expressions', async () => {
     const { values, observed } = await bootProvider([
       '--host', '127.0.0.1',
-      '--no-open',
       '--port', '8080',
       '--trusted-host', 'lab.internal', 'lab-2.internal',
       '--trusted-host', '10.0.0.9',
     ])
     expect(values).toEqual({
       host: '127.0.0.1',
-      openBrowser: false,
       port: 8080,
       trustedHosts: ['lab.internal', 'lab-2.internal', '10.0.0.9'],
     })
@@ -107,10 +101,9 @@ describe('web command-line provider', () => {
 
   it('leaves deployment values to each consumer when flags omit them', async () => {
     const { values, observed } = await bootProvider([])
-    expect(values).toEqual({ openBrowser: true, trustedHosts: [] })
+    expect(values).toEqual({ trustedHosts: [] })
     expect(observed.readerConfig).toEqual({
       host: '127.0.0.1',
-      openBrowser: true,
       port: 3080,
       trustedHosts: [],
     })
@@ -119,8 +112,10 @@ describe('web command-line provider', () => {
   it('prints its own help and leaves the consumer pending', async () => {
     const { values, observed } = await bootProvider(['--help'])
     expect(observed.out).toContain('dsh --profile web')
-    expect(observed.out).toContain('--no-open')
+    expect(observed.out).toContain('--host')
+    expect(observed.out).toContain('--port')
     expect(observed.out).toContain('--trusted-host')
+    expect(observed.out).not.toContain('--no-open')
     expect(values).toBeUndefined()
     expect(observed.readerConfig).toBeUndefined()
     expect(observed.exits).toEqual([0])
@@ -136,7 +131,7 @@ describe('web command-line provider', () => {
 
   it('rejects the intentionally unsupported all-interfaces host before the consumer activates', async () => {
     const { values, observed } = await bootProvider(['--host', '0.0.0.0'])
-    expect(observed.out).toContain('--host 0.0.0.0 is intentionally not supported yet for safety: it would expose remote code execution to the network; use 127.0.0.1 instead')
+    expect(observed.out).toContain('--host 0.0.0.0 is intentionally not supported yet for safety; use 127.0.0.1 instead')
     expect(values).toBeUndefined()
     expect(observed.readerConfig).toBeUndefined()
     expect(observed.exits).toEqual([1])

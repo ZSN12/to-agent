@@ -29,5 +29,6 @@ assert.equal(p1, p2, 'bootstrap.start should return the same promise')
 await p1.catch(() => {
   // Expected: migrate/host paths invalid in this stub test — still proves dedupe.
 })
+assert.equal(startCalls, 1, 'bootstrap.start should invoke the host once for concurrent callers')
 
 console.log('test-bootstrap: ok (start deduplication)')

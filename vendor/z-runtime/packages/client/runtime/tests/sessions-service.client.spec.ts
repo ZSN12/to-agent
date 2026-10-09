@@ -352,29 +352,20 @@ describe('cell (render-layer session kit)', () => {
   })
 })
 
-describe('slot-store scope prune hook', () => {
-  it('notifies ctx.slots.pruneStoreScope when a scope dies (both teardown paths)', async () => {
+describe('session scope teardown', () => {
+  it('drops off-stage scopes immediately and staged scopes when the stage moves', async () => {
     const b = bench()
-    const pruneStoreScope = vi.fn()
-    b.ctx.reflect.provide('slots', { pruneStoreScope })
     await feedList(b, [{ id: 's1' }, { id: 's2' }])
     b.svc.scope(sid('s1'))
     b.svc.scope(sid('s2'))
     b.svc.open(sid('s2')) // s2 staged
     await feedList(b, []) // s1 off stage → immediate drop; s2 staged → deferred
-    expect(pruneStoreScope).toHaveBeenCalledWith('s1')
-    expect(pruneStoreScope).not.toHaveBeenCalledWith('s2')
+    expect(b.svc.scope(sid('s1'))).toBeUndefined()
+    expect(b.svc.scope(sid('s2'))).toBeDefined()
     await feedList(b, [{ id: 's3' }])
     b.svc.open(sid('s3')) // stage moves → deferred sweep drops s2
-    expect(pruneStoreScope).toHaveBeenCalledWith('s2')
-  })
-
-  it('tolerates a slots-less boot (object-layer benches carry no slot service)', async () => {
-    const b = bench()
-    await feedList(b, [{ id: 's1' }])
-    b.svc.scope(sid('s1'))
-    await feedList(b, []) // teardown without ctx.slots must not throw
     expect(b.svc.scope(sid('s1'))).toBeUndefined()
+    expect(b.svc.scope(sid('s2'))).toBeUndefined()
   })
 })
 

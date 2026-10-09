@@ -319,6 +319,7 @@ export async function assembleWorkspaceContext(text, workspacePath, {
   includeRepoMap = false,
   repoMapTokens = 1200,
   includeRules = true,
+  rulesTaskWeaverOnly = false,
   rulesBudgetBytes,
 } = {}) {
   if (!Number.isInteger(maxInjectionBytes) || maxInjectionBytes < 0 || maxInjectionBytes > MAX_CONTEXT_BUDGET_OVERRIDE_BYTES) {
@@ -350,7 +351,7 @@ export async function assembleWorkspaceContext(text, workspacePath, {
   // 尝试探测工作区项目指令文件 (TASKWEAVER.md / AGENTS.md / CLAUDE.md / .cursorrules 等)
   const rulesBudget = rulesBudgetBytes ?? Math.min(12 * 1024, contextBudgetBytes)
   const rules = (includeRules && workspacePath && rulesBudget > 0)
-    ? await loadWorkspaceRules(workspacePath, { budgetBytes: rulesBudget })
+    ? await loadWorkspaceRules(workspacePath, { budgetBytes: rulesBudget, taskWeaverOnly: rulesTaskWeaverOnly })
     : { text: '', files: [], bytes: 0 }
   const rulesText = rules.text
   const rulesBytes = utf8Bytes(rulesText)

@@ -52,6 +52,20 @@ async function collect<F>(stream: AsyncIterable<RpcRequest<F>>, abort: AbortCont
 }
 
 describe('createFixtureApi', () => {
+  it('keeps the host-owned MCP surface explicit in the fixture', async () => {
+    const api = createFixtureApi()
+    const listed = await api.mcp.list(req({}))
+    expect(listed.result).toEqual({ ok: true, value: { tools: [] } })
+
+    const called = await api.mcp.call(req({
+      sessionId: sid('fx-alpha'), name: 'fixture-tool', arguments: {},
+    }))
+    expect(called.result).toMatchObject({
+      ok: false,
+      error: { code: 'internal', message: 'MCP execution is unavailable in the fixture API' },
+    })
+  })
+
   it('serves the session list sorted by updatedAt desc and echoes rpcIds on every unary', async () => {
     const api = createFixtureApi()
     const request = req({})
@@ -166,7 +180,7 @@ describe('createFixtureApi', () => {
         },
         // Session-stats unit composed: no figure accrues on the empty log.
         sessionStats: {
-          turns: 0, steps: 0, llmMs: 0, toolMs: 0, ttftMs: 0, ttftSteps: 0, decodeMs: 0, decodeTokens: 0,
+          turns: 0, steps: 0, toolCalls: 0, llmMs: 0, toolMs: 0, ttftMs: 0, ttftSteps: 0, decodeMs: 0, decodeTokens: 0,
         },
         imageLimits: {
           maxImageBytes: 5 * 1024 * 1024,

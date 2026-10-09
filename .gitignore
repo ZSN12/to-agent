@@ -19,6 +19,9 @@ vite.config.js
 vite.config.d.ts
 prototype.html
 .pnpm-store/
+# Local build output left by the retired vendored docs site.
+vendor/z-runtime/website/.dist/
+vendor/z-runtime/website/.generated/
 # DSH_HOME / deploy 冒烟测试残留
 .taskweaver-deploy-test*/
 .taskweaver-prod-testhome*/

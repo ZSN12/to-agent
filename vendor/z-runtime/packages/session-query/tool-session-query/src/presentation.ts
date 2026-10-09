@@ -22,7 +22,7 @@ import { workspaceAccess } from './workspace-access.ts'
 
 type TitleView = Awaited<ReturnType<typeof workspaceAccess.readTitle>>
 type CompleteTitleMap = Awaited<ReturnType<typeof workspaceAccess.readTitles>>
-type AuthorizedDescendants = ReturnType<typeof workspaceAccess.authorizeDescendants>
+type AuthorizedDescendants = Awaited<ReturnType<typeof workspaceAccess.authorizeDescendants>>
 
 interface SearchCollection<T> {
   readonly items: T[]

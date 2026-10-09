@@ -21,9 +21,8 @@ import type {
 // Value import from the inline-safe wire layer (not the connection plugin):
 // plugin-to-plugin value imports are a bundle purity error.
 import { SESSION_SEARCH_RESULT_LIMIT } from '@z/dsh-host-apiproxy/api'
-import type {
-  HostObservable, SessionMaybeProvideInfo, SessionProvideInfo,
-} from '@z/dsh-client-ui-slots'
+import type { SessionMaybeProvideInfo, SessionProvideInfo } from '../contract/session-provide.ts'
+import type { ObservableSnapshot } from '../contract/store.ts'
 import type { SessionProjectionMap } from '@z/dsh-session-projection/types'
 import type { SnapshotStore } from '../contract/store.ts'
 import { createSnapshotStore } from '../contract/store.ts'
@@ -206,7 +205,7 @@ interface ScopeRecord {
 /** One plugin's per-session standard-props contribution (see {@link SessionRuntime.provide}). */
 export interface SessionProvideContribution {
   /** Bare observable sources, keyed by hook base name ('input' → useInput). */
-  hooks?: Record<string, HostObservable<unknown>>
+  hooks?: Record<string, ObservableSnapshot<unknown>>
   /** Stable plain members (action callbacks etc.), spread into standard props verbatim. */
   props?: Record<string, unknown>
 }
@@ -244,7 +243,7 @@ export class SessionRuntime implements ISessions {
    * host's `sessions.provide` feed), so a roster change under a stable
    * current id republishes the bundle instead of stranding mounted entries.
    */
-  readonly currentProvideInfo: HostObservable<SessionMaybeProvideInfo>
+  readonly currentProvideInfo: ObservableSnapshot<SessionMaybeProvideInfo>
 
   /**
    * Persisted selection cell (the durable half of `list.current`). Private on
@@ -750,18 +749,15 @@ export class SessionRuntime implements ISessions {
   /**
    * One teardown for the whole per-session axis: the scope
    * fiber (cascading every actx-registered effect: input shell, slash
-   * controller, popup, plugin stores, listeners), the session-keyed slot
-   * stores, and the Session instance itself — the host session log is the
-   * durable truth, a reopen lazily rebuilds and backfills via open().
+   * controller, popup, plugin stores, listeners), and the Session instance.
+   * The host session log is durable truth; reopening lazily rebuilds and
+   * backfills via open().
    */
   private dropScope(id: SessionId, record: ScopeRecord): void {
     void record.fiber.dispose()
     // Release the Session's dispatch point with the scope it belongs to (a
     // surviving instance — the live Intent — rebinds when resolve re-mints).
     record.session.unbindScope()
-    // Optional lookup: slots and sessions are sibling services with no
-    // declared dependency; a slots-less boot (object-layer tests) skips.
-    this.rootCtx.get('slots')?.pruneStoreScope(id)
     this.manager.drop(id)
   }
 

@@ -51,7 +51,6 @@
     "@z/dsh-invariants": "workspace:^",
     "@z/dsh-session": "workspace:^",
     "@z/dsh-session-persistence": "workspace:^",
-    "@z/dsh-session-persistence-sqlite": "workspace:^",
     "@z/dsh-session-query": "workspace:^",
     "@z/cordis": "workspace:^"
   }

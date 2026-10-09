@@ -12,7 +12,6 @@
 | `verify-dsh-backend.mjs` | DSH 后端迁移静态检查 |
 | `run-conversation-shadow-compare.mjs` | UI transcript 与 Host 投影对拍 |
 | `bridge-smoke.mjs` | Bridge transport mock 单轮 |
-| `verify-tool-cache.sh` | tool-cache 基准辅助 |
 
 ## Agent smoke（真实/隔离 Host，可能产生模型费用）
 

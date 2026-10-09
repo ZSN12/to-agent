@@ -30,11 +30,39 @@ function emptyMemory(conversationId, workspacePath, userGoal) {
     workspace_path: workspacePath ?? null,
     user_goal: userGoal ?? '',
     rolling_summary: '',
-    dependency_outputs: {},
+    runs: {},
+    run_order: [],
     facts: [],
     evidence_bundles: [],
     updated_at: new Date().toISOString(),
   }
+}
+
+function ensureRunHistory(memory) {
+  if (!memory.runs || typeof memory.runs !== 'object' || Array.isArray(memory.runs)) memory.runs = {}
+  if (!Array.isArray(memory.run_order)) memory.run_order = Object.keys(memory.runs)
+
+  // Preserve summaries and outputs written by older versions, but isolate them
+  // under a legacy run so they can never be mistaken for this run's dependency.
+  if (memory.dependency_outputs && typeof memory.dependency_outputs === 'object') {
+    const legacyOutputs = memory.dependency_outputs
+    if (Object.keys(legacyOutputs).length && !memory.runs.legacy) {
+      memory.runs.legacy = legacyOutputs
+      memory.run_order.unshift('legacy')
+      memory.rolling_summary = String(memory.rolling_summary ?? '')
+        .split('\n')
+        .filter(Boolean)
+        .map((line) => line.startsWith('[run:') ? line : `[run:legacy] ${line}`)
+        .join('\n')
+    }
+    delete memory.dependency_outputs
+  }
+  return memory
+}
+
+function ensureRunId(runId) {
+  if (typeof runId !== 'string' || !runId.trim()) throw new Error('DAG runId 无效')
+  return runId.trim()
 }
 
 export function createMemoryStore({ agentDataPath }) {
@@ -100,11 +128,24 @@ export function createMemoryStore({ agentDataPath }) {
     })
   }
 
-  async function recordTaskResult(conversationId, task, result) {
+  async function beginRun(conversationId, runId) {
+    const id = ensureRunId(runId)
     return enqueueWrite(conversationId, async () => {
-      const memory = (await load(conversationId)) ?? emptyMemory(conversationId, null, '')
+      const memory = ensureRunHistory((await load(conversationId)) ?? emptyMemory(conversationId, null, ''))
+      if (!memory.run_order.includes(id)) memory.run_order.push(id)
+      memory.runs[id] ??= {}
+      return writeSnapshot(conversationId, memory)
+    })
+  }
+
+  async function recordTaskResult(conversationId, task, result) {
+    const runId = ensureRunId(task.runId)
+    return enqueueWrite(conversationId, async () => {
+      const memory = ensureRunHistory((await load(conversationId)) ?? emptyMemory(conversationId, null, ''))
+      if (!memory.run_order.includes(runId)) memory.run_order.push(runId)
+      memory.runs[runId] ??= {}
       const snippet = (result?.text || '').trim().slice(0, 4000)
-      memory.dependency_outputs[task.id] = {
+      memory.runs[runId][task.id] = {
         text: snippet,
         title: task.title,
         taskType: task.taskType,
@@ -124,7 +165,7 @@ export function createMemoryStore({ agentDataPath }) {
           scopeDeniedToolCalls: Math.max(0, Number(result.executionEvidence.scopeDeniedToolCalls) || 0),
         } : null,
       }
-      const line = `${task.id}（${task.title}）：${snippet.slice(0, 280)}`
+      const line = `[run:${runId}] ${task.id}（${task.title}）：${snippet.slice(0, 280)}`
       memory.rolling_summary = memory.rolling_summary
         ? `${memory.rolling_summary}\n${line}`.trim().slice(-6000)
         : line
@@ -141,7 +182,7 @@ export function createMemoryStore({ agentDataPath }) {
     })
   }
 
-  return { load, save, init, recordTaskResult, recordEvidenceBundle }
+  return { load, save, init, beginRun, recordTaskResult, recordEvidenceBundle }
 }
 
 /** Build L0–L2 blocks for sub-task prompts (see 设计方案 §5.6). */
@@ -152,18 +193,28 @@ export function buildMemoryPromptSections(memory, task, dependencyResults = {}, 
   }
   const relevanceQuery = [memory?.user_goal, task?.title, task?.description].filter(Boolean).join(' ')
   if (memory?.rolling_summary) {
-    const summary = relevantSummary(memory.rolling_summary, relevanceQuery)
-    if (summary) sections.push(`【进展摘要 L1｜按当前任务相关性选取，保留原任务编号】\n${summary}`)
+    const runOrder = Array.isArray(memory.run_order) ? memory.run_order : []
+    const currentRunId = task?.runId
+    const currentIndex = runOrder.indexOf(currentRunId)
+    const visibleRunIds = new Set(currentIndex >= 0
+      ? runOrder.slice(Math.max(0, currentIndex - 1), currentIndex + 1)
+      : runOrder.slice(-2))
+    const summaryLines = String(memory.rolling_summary).split('\n').filter(Boolean)
+    const scopedLines = currentRunId
+      ? summaryLines.filter((line) => {
+        const match = line.match(/^\[run:([^\]]+)\]/)
+        return match ? visibleRunIds.has(match[1]) : false
+      })
+      : summaryLines
+    const summary = relevantSummary(scopedLines.join('\n'), relevanceQuery)
+    if (summary) sections.push(`【进展摘要 L1｜本轮及上一轮，按任务相关性选取】\n${summary}`)
   }
   const depIds = task?.dependsOn?.length ? task.dependsOn : Object.keys(dependencyResults)
   const depBlocks = []
   for (const id of depIds) {
-    const fromMemory = memory?.dependency_outputs?.[id]
     const fromRun = dependencyResults[id]
-    // This execution's result is authoritative; persisted memory is only a
-    // fallback for dependencies not present in the current DAG run.
-    const text = fromRun?.text || fromMemory?.text
-    const title = fromRun?.title ?? fromMemory?.title ?? id
+    const text = fromRun?.text
+    const title = fromRun?.title ?? id
     if (text) {
       depBlocks.push({
         id,

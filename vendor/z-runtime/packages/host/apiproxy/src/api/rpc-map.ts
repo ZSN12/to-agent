@@ -15,6 +15,7 @@ import type { CredentialsApi } from './credentials.ts'
 import type { LlmApi } from './llm.ts'
 import type { AuthorizationApi } from './authorization.ts'
 import type { SubagentsApi } from './subagents.ts'
+import type { McpApi } from './mcp.ts'
 import type { RpcResponse } from './rpc.ts'
 
 /**
@@ -75,6 +76,8 @@ export interface RpcMethodMap {
   'llm.providers': LlmApi['providers']
   'llm.models': LlmApi['models']
   'llm.discoverModels': LlmApi['discoverModels']
+  'mcp.list': McpApi['list']
+  'mcp.call': McpApi['call']
   'authorization.list': AuthorizationApi['list']
   'authorization.begin': AuthorizationApi['begin']
   'authorization.cancel': AuthorizationApi['cancel']

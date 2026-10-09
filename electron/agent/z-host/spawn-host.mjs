@@ -15,6 +15,12 @@ const READY_URL = /(?:z|dsh) web:\s+(https?:\/\/127\.0\.0\.1:\d+)/i
 const START_TIMEOUT_MS = 45_000
 const LEGACY_PI_AI_SETTINGS_NS = 'llm-pi-ai'
 const MODEL_SETTINGS_READY_MS = 2_500
+const WEB_SEARCH_RUNTIME_ENV = [
+  'TASKWEAVER_WEB_SEARCH_ENABLED',
+  'TASKWEAVER_WEB_SEARCH_ENDPOINT',
+  'TASKWEAVER_WEB_SEARCH_MAX_RESULTS',
+  'TASKWEAVER_WEB_SEARCH_API_KEY_SECRET',
+]
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -372,6 +378,7 @@ export function createZHostManager({
   spawnProcess = nodeSpawn,
   environment = process.env,
   getMcpRuntimeIntegration,
+  getWebSearchRuntimeIntegration,
   startTimeoutMs = START_TIMEOUT_MS,
 }) {
   let child = null
@@ -417,7 +424,10 @@ export function createZHostManager({
     if (api && child && child.exitCode === null && child.signalCode === null) return { api, baseUrl: hostUrl }
     if (startPromise) return startPromise
     startPromise = (async () => {
-      const mcpIntegration = await getMcpRuntimeIntegration?.()
+      const [mcpIntegration, webSearchIntegration] = await Promise.all([
+        getMcpRuntimeIntegration?.(),
+        getWebSearchRuntimeIntegration?.(),
+      ])
       const compactionEnv = await readCompactionSummarizationEnv(userDataPath)
       return new Promise((resolve, reject) => {
       diagnostics = ''
@@ -438,6 +448,7 @@ export function createZHostManager({
       const childEnv = {
         ...environment,
         ...(mcpIntegration?.environment ?? {}),
+        ...(webSearchIntegration?.environment ?? {}),
         ...compactionEnv,
         ...bridgeTransportChildEnv(processCwd, opencodexPackageRoot, runtimeRoot),
         Z_HOME: effectiveHome,
@@ -446,8 +457,11 @@ export function createZHostManager({
         DSH_TELEMETRY_DISABLED: '1',
         Z_TASKWEAVER_EMBEDDED: '1',
         DSH_TASKWEAVER_EMBEDDED: '1',
-        TASKWEAVER_WEB_SEARCH_CONFIG_PATH: path.join(userDataPath, 'taskweaver-web-search.json'),
         ELECTRON_RUN_AS_NODE: '1',
+      }
+      const webSearchEnv = webSearchIntegration?.environment ?? {}
+      for (const name of WEB_SEARCH_RUNTIME_ENV) {
+        if (!Object.hasOwn(webSearchEnv, name)) delete childEnv[name]
       }
       // macOS 系统代理不会自动传入环境变量，需手动注入。
       // 若环境变量已有代理配置则保留（优先级最高）；否则从系统读取。
@@ -478,11 +492,11 @@ export function createZHostManager({
       if (nodePath) {
         childEnv.NODE_PATH = nodePath
       }
-      // Launcher options must precede the profile command; after `web`,
-      // --patch would be forwarded to the web app and rejected as unknown.
+      // Launcher options must precede profile selection; --patch is an entry
+      // option, while the web profile accepts only its host/port options here.
       const args = [entrypoint]
       if (mcpIntegration?.patchPath) args.push('--patch', mcpIntegration.patchPath)
-      args.push('--profile', 'web', '--no-open', '--port', '0')
+      args.push('--profile', 'web', '--host', '127.0.0.1', '--port', '0')
       const spawned = spawnProcess(executable, args, {
         cwd: processCwd,
         env: childEnv,
@@ -530,7 +544,8 @@ export function createZHostManager({
           })
           .catch((error) => {
             void stop()
-            fail(error)
+            const message = error instanceof Error ? error.message : String(error)
+            fail(new Error(`Z Host API 不可访问（${hostUrl}）：${message}${diagnostics ? `\n${diagnostics}` : ''}`))
           })
       }
       spawned.stdout?.on('data', inspectOutput)
@@ -572,4 +587,3 @@ export function createZHostManager({
     getDiagnostics: () => diagnostics,
   }
 }
-

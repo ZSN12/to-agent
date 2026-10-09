@@ -32,7 +32,7 @@ Its Loader row carries no launcher marker or special kind:
 
 ```yaml
 - id: web-startup
-  name: '@z/dsh-web-app/startup'
+  name: '@z/dsh-taskweaver/startup'
 ```
 
 Every row configured from those values uses ordinary service injection and direct lazy config access:

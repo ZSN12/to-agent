@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
-import { decideExecutionMode, resolveExecutionMode, selectModelForTask, shouldUpgradeFailedTask, workModeExecutionOverride } from '../electron/backend/orchestration-policy.mjs'
+import { decideExecutionMode, explicitlyDisablesMultiAgent, resolveExecutionMode, selectModelForTask, shouldUpgradeFailedTask, workModeExecutionOverride } from '../electron/backend/orchestration-policy.mjs'
 import { evaluateOrchestrationGate } from '../electron/backend/orchestration-gate.mjs'
 import { executeDag, validateAndOrderTasks } from '../electron/backend/dag-scheduler.mjs'
 import { getTaskProfile, getToolsForSingleAgent, getToolsForTask } from '../electron/backend/task-profile.mjs'
 import { classifySubtaskFailure, runWithSubtaskRetries } from '../electron/backend/subtask-retry.mjs'
+import { listTaskWorktrees } from '../electron/backend/worktree-service.mjs'
 import {
   createOrchestrationService,
   assessSubtaskCompletion,
@@ -38,6 +39,14 @@ import {
 }
 
 assert.equal(requiresReadOnlyPlan('只读分析当前代码，不得修改文件。'), true)
+assert.equal(requiresReadOnlyPlan('不要修改 electron/main.cjs，但请修复 src/App.tsx 的空状态。'), false,
+  'a scoped no-edit constraint must not turn a separate fix request into a read-only DAG')
+assert.equal(requiresReadOnlyPlan('不要修改 electron/main.cjs，只检查 src/App.tsx 的空状态。'), true,
+  'a scoped no-edit constraint plus an inspection request remains read-only')
+assert.equal(requiresReadOnlyPlan('不要修改 electron/main.cjs'), false,
+  'a constraint against one target alone must not force the entire request into read-only mode')
+assert.equal(requiresReadOnlyPlan('本轮不要修改任何文件。'), true,
+  'whole-workspace no-write instructions remain read-only')
 assert.deepEqual(validatePlanForRequest([
   { id: 'T1', taskType: 'research', scopePaths: ['src/App.tsx'] },
   { id: 'T2', taskType: 'review', scopePaths: ['electron/backend'] },
@@ -212,6 +221,9 @@ assert.equal(decideExecutionMode('修复一个按钮样式').mode, 'single-agent
 assert.equal(decideExecutionMode('请使用多智能体处理这个任务').mode, 'multi-agent')
 assert.equal(decideExecutionMode('请使用 multi-agent skill').mode, 'multi-agent')
 assert.equal(decideExecutionMode('不要启用多智能体，即使要实现完整前后端平台和安全、测试、部署').mode, 'single-agent')
+assert.equal(explicitlyDisablesMultiAgent('不要修改 package.json，但修复启动错误'), false,
+  'unrelated negation must not disable a user’s prefer-multi-agent setting')
+assert.equal(explicitlyDisablesMultiAgent('不要启用多智能体，先由单 Agent 修改 package.json'), true)
 assert.equal(decideExecutionMode('实现一个完整平台，同时涵盖前端、后端 API、测试、安全和部署').mode, 'single-agent',
   '任务复杂度本身不应在用户未选择多 Agent 时启动 DAG')
 assert.equal(decideExecutionMode('实现一个前端页面和后端接口').mode, 'single-agent')
@@ -519,6 +531,9 @@ try {
   }
 
   const dshTurns = []
+  let mainPlannerRuns = 0
+  let concurrentTaskCalls = 0
+  let peakConcurrentTaskCalls = 0
   const mockDshRuntime = {
     async runAgentTurn(opts) {
       dshTurns.push(opts)
@@ -551,10 +566,14 @@ try {
           }
         }
         if (opts.text.includes('Planner Agent') || opts.text.includes('子任务执行结果')) {
-          const planJson = JSON.stringify({
-            tasks: [
+          if (opts.text.includes('Planner Agent')) mainPlannerRuns += 1
+          const planJson = JSON.stringify({ tasks: mainPlannerRuns < 2 ? [
               { id: 'T1', title: '架构分析', taskType: 'research', role: 'Architect', description: '探索分析代码架构', scopePaths: ['README.md'], dependsOn: [] },
               { id: 'T2', title: '功能实现', taskType: 'implementation', role: 'Developer', description: '编写特性实现', dependsOn: ['T1'] },
+            ] : [
+              { id: 'T1', title: '架构分析', taskType: 'research', role: 'Architect', description: '探索分析代码架构', scopePaths: ['README.md'], dependsOn: [] },
+              { id: 'T2', title: '功能实现', taskType: 'implementation', role: 'Developer', description: '编写特性实现', writeScopes: ['src/a.ts'], dependsOn: ['T1'] },
+              { id: 'T3', title: '辅助实现', taskType: 'implementation', role: 'Developer', description: '实现互不冲突的辅助功能', writeScopes: ['src/b.ts'], dependsOn: ['T1'] },
             ],
           })
           return opts.text.includes('子任务执行结果')
@@ -569,6 +588,8 @@ try {
         }
       }
       const taskLabel = opts.taskId || 'unknown'
+      concurrentTaskCalls += 1
+      peakConcurrentTaskCalls = Math.max(peakConcurrentTaskCalls, concurrentTaskCalls)
       opts.webContents.send('chat:stream', {
         type: 'tool', id: `${taskLabel}-read`, taskId: taskLabel,
         toolName: 'read', status: 'running', inputSummary: 'README.md',
@@ -577,8 +598,10 @@ try {
         type: 'tool', id: `${taskLabel}-read`, taskId: taskLabel,
         toolName: 'read', status: 'done', inputSummary: 'README.md', resultSummary: 'read ok', durationMs: 12,
       })
+      await new Promise((resolve) => setTimeout(resolve, 10))
+      concurrentTaskCalls -= 1
       return {
-        text: `在目录 ${opts.cwd} 成功完成 ${taskLabel}（preset=${opts.agentPreset}，model=${opts.modelKey}）`,
+        text: `在目录 ${opts.cwd} 成功完成 ${taskLabel}（preset=${opts.agentPreset}，model=${opts.modelKey}，session=${opts.sessionKey}）`,
         ...(taskLabel === 'T2' ? { fileChanges: [{ path: 'src/changed.ts', addedLines: 3, deletedLines: 1 }] } : {}),
         usage,
       }
@@ -675,6 +698,35 @@ try {
   assert.deepEqual(result.assistant.fileChanges, [{ path: 'src/changed.ts', addedLines: 3, deletedLines: 1 }],
     'DAG file summaries should reach the synthesized assistant message')
   assert.match(result.assistant.text, /汇总/)
+
+  const firstRunId = result.tasks[0].runId
+  assert.ok(firstRunId && result.tasks.every((task) => task.runId === firstRunId), 'every task in a DAG carries its runId')
+  const firstRunT1 = dshTurns.find((turn) => turn.taskId === 'T1' && turn.sessionKey.includes(firstRunId))
+  const secondResult = await orchestration.planAndExecute({
+    text: '<taskweaver_skill_instructions>Skill guidance marker.</taskweaver_skill_instructions>\n\n帮我重构项目并实现新功能',
+    primaryModelKey: 'mock/strong',
+    conversationId,
+    webContents: mockWebContents,
+    skill: selectedSkill,
+    skillAlreadyApplied: true,
+  })
+  const secondRunId = secondResult.tasks[0].runId
+  assert.ok(secondRunId && secondRunId !== firstRunId, 'a second run in the same conversation receives a fresh runId')
+  assert.ok(secondResult.tasks.every((task) => task.runId === secondRunId))
+  assert.equal(secondResult.tasks.length, 3)
+  assert.ok(peakConcurrentTaskCalls >= 2, 'the second run’s disjoint implementation tasks execute in parallel')
+  const secondRunT1 = dshTurns.find((turn) => turn.taskId === 'T1' && turn.sessionKey.includes(secondRunId))
+  const secondRunT2 = dshTurns.find((turn) => turn.taskId === 'T2' && turn.sessionKey.includes(secondRunId))
+  const secondRunT3 = dshTurns.find((turn) => turn.taskId === 'T3' && turn.sessionKey.includes(secondRunId))
+  assert.ok(firstRunT1 && secondRunT1 && secondRunT2 && secondRunT3)
+  const secondRunDependencyBlock = secondRunT2.text.split('【依赖任务输出 L2')[1]
+  assert.match(secondRunDependencyBlock, new RegExp(secondRunT1.sessionKey), 'the second run receives its current T1 result')
+  assert.doesNotMatch(secondRunDependencyBlock, new RegExp(firstRunT1.sessionKey), 'the second run cannot use the first run’s T1 output as a dependency')
+  const conversationWorktrees = await listTaskWorktrees({ workspacePath: repo, conversationId, userDataPath: userData })
+  const implementationWorktrees = conversationWorktrees.filter((entry) => entry.taskId === 'T2')
+  assert.deepEqual(new Set(implementationWorktrees.map((entry) => entry.runId)), new Set([firstRunId, secondRunId]),
+    'same task IDs from consecutive DAG runs occupy separate worktrees')
+  assert.ok(conversationWorktrees.some((entry) => entry.taskId === 'T3' && entry.runId === secondRunId))
 
   const correctionTurns = []
   const correctionRuntime = {

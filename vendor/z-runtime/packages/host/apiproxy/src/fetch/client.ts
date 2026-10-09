@@ -61,6 +61,7 @@ import {
   credentialsDescribeValueSchema, credentialsSetValueSchema, credentialsUnsetValueSchema,
 } from '../api/credentials.schema.ts'
 import { llmDiscoverModelsValueSchema, llmModelsValueSchema, llmProvidersValueSchema } from '../api/llm.schema.ts'
+import { mcpCallValueSchema, mcpListValueSchema } from '../api/mcp.schema.ts'
 import { authorizationAnswerValueSchema, authorizationBeginValueSchema, authorizationCancelValueSchema, authorizationListValueSchema, authorizationLogoutValueSchema } from '../api/authorization.schema.ts'
 import {
   subagentHistoryValueSchema,
@@ -162,6 +163,10 @@ export interface IApiClient {
     models(payload: RequestPayload<'llm.models'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'llm.models'>>>
     discoverModels(payload: RequestPayload<'llm.discoverModels'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'llm.discoverModels'>>>
   }
+  mcp: {
+    list(payload: RequestPayload<'mcp.list'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'mcp.list'>>>
+    call(payload: RequestPayload<'mcp.call'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'mcp.call'>>>
+  }
   authorization: {
     list(payload: RequestPayload<'authorization.list'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'authorization.list'>>>
     begin(payload: RequestPayload<'authorization.begin'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'authorization.begin'>>>
@@ -230,6 +235,8 @@ const UNARY_VALUE_SCHEMAS: { [K in keyof RpcMethodMap]: z.ZodType<Wire<ResponseV
   'llm.providers': llmProvidersValueSchema,
   'llm.models': llmModelsValueSchema,
   'llm.discoverModels': llmDiscoverModelsValueSchema,
+  'mcp.list': mcpListValueSchema,
+  'mcp.call': mcpCallValueSchema,
   'authorization.list': authorizationListValueSchema,
   'authorization.begin': authorizationBeginValueSchema,
   'authorization.cancel': authorizationCancelValueSchema,
@@ -515,6 +522,11 @@ export abstract class AbstractApiClient implements IApiClient {
     providers: (payload, signal) => this.callUnary('llm.providers', payload, signal),
     models: (payload, signal) => this.callUnary('llm.models', payload, signal),
     discoverModels: (payload, signal) => this.callUnary('llm.discoverModels', payload, signal),
+  }
+
+  readonly mcp: IApiClient['mcp'] = {
+    list: (payload, signal) => this.callUnary('mcp.list', payload, signal),
+    call: (payload, signal) => this.callUnary('mcp.call', payload, signal),
   }
 
   readonly authorization: IApiClient['authorization'] = {

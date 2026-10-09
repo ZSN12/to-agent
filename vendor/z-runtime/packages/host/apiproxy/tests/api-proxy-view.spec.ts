@@ -421,4 +421,36 @@ describe('mux live view computation', () => {
     const result = frames.find(f => f.type === 'session/event' && f.event.type === 'tool/result')
     expect(result?.type === 'session/event' && result.view).toEqual({ for: 'result', view: { card: 'terminal', output: 'done' } })
   })
+
+  it('lists and invokes MCP tools through the Host registry for a live session', async () => {
+    const { ctx } = await harness()
+    const name = 'mcp__fixture__echo'
+    ctx.tools.register(tool(name, {}))
+    const api = createApiProxy(ctx, { defaultModelSelection: () => ({ provider: 'p', model: 'm' }), cwd: '/tmp' })
+
+    const listed = await api.mcp.list({ rpcId: RpcId('mcp-list'), payload: {} })
+    expect(listed.result).toMatchObject({ ok: true, value: { tools: [{ name, description: `tool ${name}` }] } })
+
+    const session = ctx.sessions.create('mcp-api-session' as SessionId)
+    const agent = {
+      id: session.id,
+      session,
+      status: 'idle',
+      inbox: { hasPending: false },
+      ctx,
+    } as unknown as Agent
+    const dispose = ctx.agents.register(agent)
+    try {
+      const called = await api.mcp.call({
+        rpcId: RpcId('mcp-call'),
+        payload: { sessionId: session.id, name, arguments: {} },
+      })
+      expect(called.result).toMatchObject({
+        ok: true,
+        value: { isError: false, content: [`ran:${name}`] },
+      })
+    } finally {
+      dispose()
+    }
+  })
 })

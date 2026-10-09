@@ -27,7 +27,6 @@ function optionalStringArray(subject: string, field: string, value: unknown): st
 
 const PLATFORM_MODULES = [
   'react', 'react/jsx-runtime', 'react-dom', 'react-dom/client', '@z/cordis',
-  '@z/dsh-client-ui-slots',
 ] as const
 
 const PRELOADED_CLIENT_EXTERNALS = [

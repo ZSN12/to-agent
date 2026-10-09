@@ -15,17 +15,14 @@ import { ipcHandle } from './ipc-utils.mjs'
 
 export function registerWorkspaceGitIpc({
   ipcMain,
-  appState,
   userDataPath,
-  refreshWorkspaceCache,
-  getWorkspacePath,
+  resolveActiveRuntime,
   withWorkspaceOperation,
 }) {
   ipcHandle(ipcMain, 'workspace:openPath', async (_event, relPath) => {
     if (!relPath || typeof relPath !== 'string') throw new Error('未提供有效的文件路径')
-    await refreshWorkspaceCache()
     const { shell } = await import('electron')
-    const workspacePath = getWorkspacePath()
+    const { workspacePath } = await resolveActiveRuntime()
     try {
       const { realPath, isDirectory } = await assertSafeWorkspacePath(workspacePath, relPath, { mustExist: true })
       const error = await shell.openPath(realPath)
@@ -37,8 +34,7 @@ export function registerWorkspaceGitIpc({
   })
 
   ipcHandle(ipcMain, 'workspace:revertDiff', async (_event, payload) => {
-    await refreshWorkspaceCache()
-    const workspacePath = getWorkspacePath()
+    const { workspacePath } = await resolveActiveRuntime()
     return withWorkspaceOperation(workspacePath, async () => {
       const { path: relPath, reverseEdits, originalContent } = payload || {}
       if (!relPath || typeof relPath !== 'string') throw new Error('未提供有效的文件路径')
@@ -65,65 +61,58 @@ export function registerWorkspaceGitIpc({
   })
 
   ipcHandle(ipcMain, 'workspace:gitStatus', async () => {
-    await refreshWorkspaceCache()
-    return getGitStatus(getWorkspacePath())
+    const { workspacePath } = await resolveActiveRuntime()
+    return getGitStatus(workspacePath)
   })
   ipcHandle(ipcMain, 'workspace:gitSuggestCommit', async () => {
-    await refreshWorkspaceCache()
-    return suggestCommitMessage(getWorkspacePath())
+    const { workspacePath } = await resolveActiveRuntime()
+    return suggestCommitMessage(workspacePath)
   })
   ipcHandle(ipcMain, 'workspace:previewManualGitCommit', async () => {
-    await refreshWorkspaceCache()
-    return previewManualGitCommit(getWorkspacePath())
+    const { workspacePath } = await resolveActiveRuntime()
+    return previewManualGitCommit(workspacePath)
   })
   ipcHandle(ipcMain, 'workspace:createManualGitCommit', async (_event, options) => {
-    await refreshWorkspaceCache()
-    const state = await appState.getState()
-    return createManualGitCommitSnapshot(getWorkspacePath(), {
+    const { workspacePath, conversationId } = await resolveActiveRuntime()
+    return createManualGitCommitSnapshot(workspacePath, {
       ...options,
-      conversationId: state?.conversationId,
+      conversationId,
       userDataPath,
     })
   })
   ipcHandle(ipcMain, 'workspace:listGitCheckpoints', async () => {
-    await refreshWorkspaceCache()
-    const state = await appState.getState()
-    return listGitCheckpoints(getWorkspacePath(), {
-      conversationId: state?.conversationId,
+    const { workspacePath, conversationId } = await resolveActiveRuntime()
+    return listGitCheckpoints(workspacePath, {
+      conversationId,
       userDataPath,
     })
   })
   ipcHandle(ipcMain, 'workspace:getGitCheckpointDiff', async (_event, checkpointId) => {
-    await refreshWorkspaceCache()
-    const state = await appState.getState()
-    return getGitCheckpointDiff(getWorkspacePath(), checkpointId, {
-      conversationId: state?.conversationId,
+    const { workspacePath, conversationId } = await resolveActiveRuntime()
+    return getGitCheckpointDiff(workspacePath, checkpointId, {
+      conversationId,
       userDataPath,
     })
   })
   ipcHandle(ipcMain, 'workspace:restoreGitCheckpoint', async (_event, payload) => {
-    await refreshWorkspaceCache()
-    const workspacePath = getWorkspacePath()
-    const state = await appState.getState()
+    const { workspacePath, conversationId } = await resolveActiveRuntime()
     return withWorkspaceOperation(workspacePath, async () => {
       const { checkpointId, force, expectedStateFingerprint } = payload || {}
       if (!checkpointId) throw new Error('缺少检查点 ID')
       return restoreGitCheckpoint(workspacePath, checkpointId, {
         force: Boolean(force),
         expectedStateFingerprint,
-        conversationId: state?.conversationId,
+        conversationId,
         userDataPath,
       })
     })
   })
   ipcHandle(ipcMain, 'workspace:deleteGitCheckpoint', async (_event, checkpointId) => {
-    await refreshWorkspaceCache()
-    const workspacePath = getWorkspacePath()
-    const state = await appState.getState()
+    const { workspacePath, conversationId } = await resolveActiveRuntime()
     return withWorkspaceOperation(workspacePath, async () => {
       if (!checkpointId) throw new Error('缺少检查点 ID')
       return deleteGitCheckpoint(workspacePath, checkpointId, {
-        conversationId: state?.conversationId,
+        conversationId,
         userDataPath,
       })
     })

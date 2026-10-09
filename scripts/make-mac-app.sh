@@ -19,7 +19,6 @@ if ! node scripts/build-z-runtime.mjs; then
     exit 1
   fi
 fi
-node scripts/sync-dsh-sandbox.mjs
 export ELECTRON_MIRROR="https://npmmirror.com/mirrors/electron/"
 ELECTRON_BUILDER_REQUEST_TIMEOUT=1800000 ./node_modules/.bin/electron-builder --mac --dir
 

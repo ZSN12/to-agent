@@ -1,7 +1,7 @@
 /**
  * Consumer-side `SandboxBashExecutor` tests. A fake Cordis sandbox service makes wrapping,
  * policy hand-off, fail-closed propagation, classification, and fact stamping deterministic;
- * real-provider integration lives in `tests/landlock.e2e.ts`. A mode-0555 directory supplies
+ * real-provider integration lives in `tests/bwrap.e2e.ts` and `tests/seatbelt.e2e.ts`. A mode-0555 directory supplies
  * the Unix denial signature used by the classifier without requiring a real sandbox runner.
  */
 
@@ -453,49 +453,49 @@ describe('isRunnerSpawnFailure', () => {
 
 describe('classifyRunnerFailure', () => {
   it('ignores empty and whitespace-only fatal signatures instead of treating exit status or notice text as evidence', () => {
-    const notice = 'landlock-run: partial enforcement (older Landlock ABI)'
+    const notice = 'custom-runner: partial enforcement notice'
     const emptyRule = [{ allowedExitCodes: [125], fatalSignatures: ['', ' ', '\t'] }]
     expect(classifyRunnerFailure(125, '', emptyRule)).toBeUndefined()
     expect(classifyRunnerFailure(125, notice, emptyRule)).toBeUndefined()
   })
 
   it('keeps valid fatal signatures active beside an ignored empty entry', () => {
-    const notice = 'landlock-run: partial enforcement (older Landlock ABI)'
-    const fatal = 'landlock-run: ruleset creation failed'
+    const notice = 'custom-runner: partial enforcement notice'
+    const fatal = 'custom-runner: runner setup failed'
     const rules = [{
       allowedExitCodes: [125],
-      fatalSignatures: ['', ' ', 'landlock-run: '],
+      fatalSignatures: ['', ' ', 'custom-runner: '],
       informationalLines: [notice],
     }]
     expect(classifyRunnerFailure(125, `${notice}\nchild diagnostic\n${fatal}`, rules)).toEqual({ detail: fatal })
   })
 
-  it('requires Landlock exit 125 plus a non-notice fatal line and returns that original line', () => {
-    const notice = 'landlock-run: partial enforcement (older Landlock ABI)'
-    const rules = [{ allowedExitCodes: [125], fatalSignatures: ['landlock-run: '], informationalLines: [notice] }]
+  it('requires the configured exit code plus a non-notice fatal line and returns that original line', () => {
+    const notice = 'custom-runner: informational startup notice'
+    const rules = [{ allowedExitCodes: [125], fatalSignatures: ['custom-runner: '], informationalLines: [notice] }]
     expect(classifyRunnerFailure(1, notice, rules)).toBeUndefined()
     expect(classifyRunnerFailure(2, notice, rules)).toBeUndefined()
     expect(classifyRunnerFailure(125, notice, rules)).toBeUndefined()
     expect(classifyRunnerFailure(125, notice.toUpperCase(), rules)).toBeUndefined()
     expect(classifyRunnerFailure(125, `${notice}: extra detail`, rules))
       .toEqual({ detail: `${notice}: extra detail` })
-    expect(classifyRunnerFailure(125, `${notice}\nlandlock-run: exec failed: No such file or directory`, rules))
-      .toEqual({ detail: 'landlock-run: exec failed: No such file or directory' })
+    expect(classifyRunnerFailure(125, `${notice}\ncustom-runner: exec failed: No such file or directory`, rules))
+      .toEqual({ detail: 'custom-runner: exec failed: No such file or directory' })
   })
 
   it.each([
-    'landlock-run: usage error: missing `-- <argv>...` command',
-    'landlock-run: landlock is not enforced by this kernel (ABI unsupported or disabled)',
-    'landlock-run: cannot open rule path: /gone: No such file or directory',
-    'landlock-run: landlock ruleset error: Invalid argument',
-    'landlock-run: exec failed: Permission denied',
-    'landlock-run: out of memory',
-    'landlock-run: future fatal diagnostic',
-  ])('keeps known and future Landlock fatal diagnostics fail-closed: %s', (fatal) => {
+    'custom-runner: usage error',
+    'custom-runner: failed to load its policy',
+    'custom-runner: cannot open rule path: /gone',
+    'custom-runner: invalid policy',
+    'custom-runner: exec failed: Permission denied',
+    'custom-runner: out of memory',
+    'custom-runner: future fatal diagnostic',
+  ])('keeps known and future configured-runner fatal diagnostics fail-closed: %s', (fatal) => {
     const rules = [{
       allowedExitCodes: [125],
-      fatalSignatures: ['landlock-run: '],
-      informationalLines: ['landlock-run: partial enforcement (older Landlock ABI)'],
+      fatalSignatures: ['custom-runner: '],
+      informationalLines: ['custom-runner: informational startup notice'],
     }]
     expect(classifyRunnerFailure(125, fatal, rules)).toEqual({ detail: fatal })
   })

@@ -25,15 +25,11 @@ export async function patchTaskWeaverRuntimeNoHmr(runtimeRoot) {
   if (!packagesDir) {
     throw new Error(`patch-taskweaver-runtime-no-hmr: 缺少 ${path.join(runtimeRoot, TASKWEAVER_RUNTIME_PACKAGES)} 或 node_modules`)
   }
-  const targets = [
-    path.join(packagesDir, '@z/dsh-base/cordis.patch.yml'),
-    path.join(packagesDir, '@z/dsh-web-app/cordis.patch.yml'),
-    path.join(packagesDir, '@z/dsh-headless/cordis.patch.yml'),
-  ]
+  const targets = [path.join(packagesDir, '@z/dsh-base/cordis.patch.yml')]
   for (const file of targets) {
     if (!fs.existsSync(file)) continue
     const before = await fsp.readFile(file, 'utf8')
-    const next = patchCordisPatchYaml(before, path.basename(path.dirname(file)))
+    const next = patchCordisPatchYaml(before)
     if (next !== before) {
       await fsp.writeFile(file, next, 'utf8')
       console.log(`patch-taskweaver-runtime-no-hmr: ${path.relative(runtimeRoot, file)}`)
@@ -41,8 +37,8 @@ export async function patchTaskWeaverRuntimeNoHmr(runtimeRoot) {
   }
 }
 
-/** @param {string} text @param {string} bundleLabel */
-function patchCordisPatchYaml(text, bundleLabel) {
+/** @param {string} text */
+function patchCordisPatchYaml(text) {
   let out = text
   out = out.replace(
     /(\n    - id: hmr\n      name: '@z\/cordis-plugin-hmr'\n)(?:      (?:config:\n        root: \['\.'\]\n|disabled: true\n))*/g,
@@ -58,14 +54,10 @@ function patchCordisPatchYaml(text, bundleLabel) {
 /** 同步 vendor/z-runtime 源码 bundle（pnpm deploy 会复制这些 patch） */
 export async function patchZRuntimeSourceBundlesNoHmr() {
   const base = path.join(root, 'vendor/z-runtime/packages/bundle/base/cordis.patch.yml')
-  const web = path.join(root, 'vendor/z-runtime/packages/bundle/web-app/cordis.patch.yml')
-  for (const file of [base, web]) {
-    if (!fs.existsSync(file)) return
-    const label = file.includes('web-app') ? '@z/dsh-web-app' : '@z/dsh-base'
-    const before = await fsp.readFile(file, 'utf8')
-    const next = patchCordisPatchYaml(before, label)
-    if (next !== before) await fsp.writeFile(file, next, 'utf8')
-  }
+  if (!fs.existsSync(base)) return
+  const before = await fsp.readFile(base, 'utf8')
+  const next = patchCordisPatchYaml(before)
+  if (next !== before) await fsp.writeFile(base, next, 'utf8')
 }
 
 const runtimeArg = process.argv.find((a) => a.startsWith('--runtime='))?.slice('--runtime='.length)

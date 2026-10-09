@@ -5,7 +5,7 @@ import { mkdir, open } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 
 /** Current derived-index schema version. Incompatible versions reset in place. */
-export const SESSION_QUERY_SQLITE_SCHEMA_VERSION = 8
+export const SESSION_QUERY_SQLITE_SCHEMA_VERSION = 9
 
 /** SQLite application id protecting unrelated databases from derived resets. */
 export const SESSION_QUERY_SQLITE_APPLICATION_ID = 0x44534851
@@ -132,7 +132,7 @@ function ensurePersistentSchema(db: DatabaseSync): void {
       time UNINDEXED,
       surface UNINDEXED,
       codepoint_length UNINDEXED,
-      tokenize = 'unicode61'
+      tokenize = 'trigram remove_diacritics 1'
     )
   `)
   db.exec(`PRAGMA user_version = ${SESSION_QUERY_SQLITE_SCHEMA_VERSION}`)
@@ -163,7 +163,7 @@ function ensureTemporarySchema(db: DatabaseSync): void {
       time UNINDEXED,
       surface UNINDEXED,
       codepoint_length UNINDEXED,
-      tokenize = 'unicode61'
+      tokenize = 'trigram remove_diacritics 1'
     )
   `)
 }

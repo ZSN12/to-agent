@@ -64,7 +64,6 @@ async function main() {
     // Missing or unreadable deployed package: fall back to the locked registry tarball.
   }
   const tmp = await fsp.mkdtemp(path.join(os.tmpdir(), 'tw-pi-ai-'))
-  const tgz = path.join(tmp, `pi-ai-${PI_AI_VERSION}.tgz`)
   try {
     await run('npm', ['pack', `@earendil-works/pi-ai@${PI_AI_VERSION}`, '--pack-destination', tmp], { cwd: tmp })
     const packed = (await fsp.readdir(tmp)).find((name) => name.endsWith('.tgz'))

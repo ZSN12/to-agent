@@ -72,7 +72,14 @@
 | 5.3 回合流水线 | ✅ `runTurn` / `handleChatError` / 自愈；定时任务经 `withTurnLock` + `runTurn`（用户消息走 `message-factory`） |
 | 5.5 消息工厂 | ✅ `appendUserChatEntry`；steer/followUp/子任务消息经 `chat-turn-pipeline` |
 | 5.7 拆 `App.tsx` | ✅ 壳层 ~549 行；`MainConversation` / `AppSidebar` / 快捷键与编排浮层 |
-| 5.4、5.6、5.8–5.14 | ⏳ 见 `docs/archive/optimization-plan-phase5-remaining.md` |
+| 5.2 续 `ipc/context.mjs` | ✅ `createIpcRuntimeContext` 抽离 cached* / runtime |
+| 5.6 thread-store | ✅ `json-store.update` + `test-thread-store-concurrency` |
+| 5.8 拆 useAppBackend | ✅ `useThreadActions`（含 clearConversation）+ `useWorkspaceActions` + `useConversationRun`（stream/mux/发送）+ `usePrompts` + `useTaskActions` + `useSkills`；`useAppBackend` ~600 行级组合层 |
+| 5.4 去 cached* | ✅ 业务 IPC 经 `resolveActiveRuntime`；UI 快照改名为 `refreshUiSnapshot` / `getUi*`（`rg cachedWorkspace electron` → 0） |
+| 5.5 续 time-label | ✅ `clockLabelZh`：`message-factory.mjs` + `src/shared/time-label.ts`（前端/持久化/编排去重） |
+| 5.9 拆 dsh-chat | ✅ 主文件 ~385 行；`dsh-chat/*` 模块（envelope/mux/registry/send 等） |
+| 5.10 拆 model/orchestration | ✅ `model-service.mjs` ~108 行 + `model/{directory-client,catalog,credentials,host-sync,live-discovery,...}`；`orchestration/plan-and-execute.mjs` + `planner`/`evidence`；`orchestration-service` ~305 行 |
+| 5.12–5.14 | ⏳ 见 `docs/archive/optimization-plan-phase5-remaining.md` |
 
 ## 验收命令
 

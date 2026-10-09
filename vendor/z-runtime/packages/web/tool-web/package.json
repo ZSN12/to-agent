@@ -57,7 +57,6 @@
     "@z/dsh-tools": "workspace:^",
     "@z/dsh-web": "workspace:^",
     "@z/dsh-web-fetch-http": "workspace:^",
-    "@z/dsh-web-search-exa": "workspace:^",
     "@z/cordis": "workspace:^"
   }
 }

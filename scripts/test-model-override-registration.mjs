@@ -10,7 +10,6 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createModelService } from '../electron/backend/model-service.mjs'
 import { createModelRegistryUpdater } from '../electron/backend/model-registry-updater.mjs'
-import { createProfileStore } from '../electron/backend/profile-store.mjs'
 import { resolveTaskWeaverRuntimeRoot } from '../electron/agent/z-host/index.mjs'
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')

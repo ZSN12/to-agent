@@ -158,12 +158,6 @@ export function summarizeSessionUsage(messages: ChatMessage[]): SessionUsageTota
   return totals
 }
 
-export interface TurnTimingTotals {
-  llmMs: number
-  toolMs: number
-  avgTtftMs: number | null
-}
-
 /** DSH 会话统计面板用的中文时长（如 8 分 50 秒、3.4 秒） */
 export function formatDurationZh(ms: number): string {
   if (!Number.isFinite(ms) || ms <= 0) return '0 秒'
@@ -198,44 +192,6 @@ export function dshCacheHitRate(inputTokens: number, cacheReadTokens: number): n
 export function cacheHitPercentDisplay(cacheRead: number, billedInput: number): number | null {
   if (billedInput <= 0) return null
   return Math.min(100, Math.round((cacheRead / billedInput) * 100))
-}
-
-/** 从助手气泡 usage 字段汇总轮次耗时（DSH StatsLine 的轻量对应） */
-export function summarizeTurnTiming(messages: ChatMessage[]): TurnTimingTotals {
-  let llmMs = 0
-  let toolMs = 0
-  let ttftSum = 0
-  let ttftN = 0
-  for (const message of messages) {
-    if (message.author === 'user' || !message.usage) continue
-    const u = message.usage
-    if (typeof u.llmMs === 'number' && u.llmMs > 0) llmMs += u.llmMs
-    if (typeof u.toolMs === 'number' && u.toolMs > 0) toolMs += u.toolMs
-    if (typeof u.ttftMs === 'number' && u.ttftMs > 0) {
-      ttftSum += u.ttftMs
-      ttftN += 1
-    }
-  }
-  return { llmMs, toolMs, avgTtftMs: ttftN > 0 ? ttftSum / ttftN : null }
-}
-
-/** 会话级解码吞吐（输出 token / 解码时长），与 DSH sessionStats 解码分组一致 */
-export function summarizeDecodeThroughput(messages: ChatMessage[]): number | null {
-  let decodeMs = 0
-  let decodeTokens = 0
-  for (const message of messages) {
-    if (message.author === 'user' || !message.usage) continue
-    const u = message.usage
-    const out = u.outputTokens ?? 0
-    const elapsed = u.elapsedMs ?? 0
-    const tps = u.tokensPerSecond ?? 0
-    if (out > 0 && elapsed > 0 && tps > 0) {
-      decodeTokens += out
-      decodeMs += elapsed
-    }
-  }
-  if (decodeMs <= 0 || decodeTokens <= 0) return null
-  return Math.round(decodeTokens / (decodeMs / 1000))
 }
 
 export function sessionUsageHasData(totals: SessionUsageTotals): boolean {

@@ -226,7 +226,7 @@ async function tryBootSmoke(stagingRoot, homeDir) {
   const launch = resolveTaskWeaverHostLaunch(stagingRoot)
   const nodePath = resolveRuntimeNodePath(stagingRoot)
   return new Promise((resolve) => {
-    const child = spawn(process.execPath, [launch.entrypoint, 'web', '--no-open', '--port', '0'], {
+    const child = spawn(process.execPath, [launch.entrypoint, '--profile', 'web', '--host', '127.0.0.1', '--port', '0'], {
       cwd: launch.cwd,
       env: {
         ...process.env,

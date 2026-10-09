@@ -7,9 +7,9 @@ const SYNC_INTERVAL_MS = 48 * 60 * 60 * 1000
 const STALE_MS = 48 * 60 * 60 * 1000
 
 /**
- * @param {{ userDataPath: string, bundledRegistryPath: string, onStatus?: (status: object) => void }} options
+ * @param {{ userDataPath: string, bundledRegistryPath: string, getDshDirectory?: () => Promise<object>, onStatus?: (status: object) => void }} options
  */
-export function createPricingSyncService({ userDataPath, bundledRegistryPath, onStatus }) {
+export function createPricingSyncService({ userDataPath, bundledRegistryPath, getDshDirectory, onStatus }) {
   const userRegistryPath = path.join(userDataPath, 'taskweaver', 'pricing-registry.json')
   let timer = null
   let lastResult = null
@@ -37,6 +37,7 @@ export function createPricingSyncService({ userDataPath, bundledRegistryPath, on
       registryPath: userRegistryPath,
       dryRun,
       allowNetwork: true,
+      getDshDirectory,
     })
     if (!dryRun) {
       lastResult = { ...result, at: new Date().toISOString() }

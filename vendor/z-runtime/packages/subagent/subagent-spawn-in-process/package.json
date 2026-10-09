@@ -49,7 +49,7 @@
     "@z/dsh-subprocess-local": "workspace:^",
     "@z/dsh-invariants": "workspace:^",
     "@z/dsh-llm": "workspace:^",
-    "@z/dsh-llm-deepseek": "workspace:^",
+    "@z/dsh-llm-pi-ai": "workspace:^",
     "@z/dsh-session": "workspace:^",
     "@z/dsh-subagent": "workspace:^",
     "@z/dsh-subagent-in-process-driver": "workspace:^",

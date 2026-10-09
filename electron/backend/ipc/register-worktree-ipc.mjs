@@ -35,38 +35,41 @@ export function registerWorktreeIpc(ctx) {
     })
   })
 
-  ipcHandle(ipcMain, 'worktree:remove', async (_event, taskId, force, requestedConversationId) => {
+  ipcHandle(ipcMain, 'worktree:remove', async (_event, taskId, force, requestedConversationId, runId) => {
     const { conversationId, workspacePath } = await resolveWorktreeContext(requestedConversationId)
     return removeTaskWorktree({
       workspacePath,
       conversationId,
+      runId: runId ?? null,
       taskId,
       userDataPath,
       force: force === true,
     })
   })
 
-  ipcHandle(ipcMain, 'worktree:diff', async (_event, taskId, requestedConversationId) => {
+  ipcHandle(ipcMain, 'worktree:diff', async (_event, taskId, requestedConversationId, runId) => {
     const { conversationId, workspacePath } = await resolveWorktreeContext(requestedConversationId)
     return getTaskWorktreeDiff({
       workspacePath,
       conversationId,
+      runId: runId ?? null,
       taskId,
       userDataPath,
     })
   })
 
-  ipcHandle(ipcMain, 'worktree:previewMerge', async (_event, taskId, requestedConversationId) => {
+  ipcHandle(ipcMain, 'worktree:previewMerge', async (_event, taskId, requestedConversationId, runId) => {
     const { conversationId, workspacePath } = await resolveWorktreeContext(requestedConversationId)
     return previewTaskWorktreeMerge({
       workspacePath,
       conversationId,
+      runId: runId ?? null,
       taskId,
       userDataPath,
     })
   })
 
-  ipcHandle(ipcMain, 'worktree:applyMerge', async (_event, taskId, options, requestedConversationId) => {
+  ipcHandle(ipcMain, 'worktree:applyMerge', async (_event, taskId, options, requestedConversationId, runId) => {
     const { conversationId, workspacePath } = await resolveWorktreeContext(requestedConversationId)
     assertNotBusy(conversationId)
     return withWorkspaceOperation(workspacePath, async () => {
@@ -80,6 +83,7 @@ export function registerWorktreeIpc(ctx) {
       return applyTaskWorktreeMerge({
         workspacePath,
         conversationId,
+        runId: runId ?? null,
         taskId,
         userDataPath,
         removeAfter: options?.removeAfter === true,

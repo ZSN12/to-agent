@@ -46,7 +46,6 @@
   },
   "devDependencies": {
     "@z/dsh-invariants": "workspace:^",
-    "@z/dsh-tool-cordis": "workspace:^",
     "@z/dsh-typert-registry": "workspace:^",
     "@z/cordis": "workspace:^",
     "zod": "^4.4.3"

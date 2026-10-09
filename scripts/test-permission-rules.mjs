@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { createPermissionRulesStore } from '../electron/backend/permission-rules-store.mjs'
+import { createPermissionRulesStore, splitShellCommandSegments } from '../electron/backend/permission-rules-store.mjs'
 import { createPermissionService, clearSessionPermissionGrants } from '../electron/backend/permission-service.mjs'
 import { createMcpService } from '../electron/backend/mcp-service.mjs'
 
@@ -23,6 +23,7 @@ try {
     tool: 'bash',
     type: 'command',
     pattern: 'rm -rf *',
+    allowWildcards: true,
     decision: 'deny',
     scope: 'global',
     description: '禁止删除命令',
@@ -43,6 +44,7 @@ try {
     tool: 'bash',
     type: 'command',
     pattern: 'npm test*',
+    allowWildcards: true,
     decision: 'allow',
     scope: 'workspace',
     workspacePath: workspaceA,
@@ -59,6 +61,17 @@ try {
   const rulesForB = await rulesStore.listRules({ workspacePath: workspaceB })
   // 工作区 B 只匹配两个全局规则
   assert.equal(rulesForB.length, 2)
+
+  await rulesStore.addRule({
+    tool: 'bash', type: 'command', pattern: 'echo *', decision: 'allow', scope: 'global',
+    description: '星号按字面处理',
+  })
+  assert.equal((await rulesStore.matchRule({ tool: 'bash', input: { command: 'echo hello' }, workspacePath: workspaceA })), null,
+    'command wildcards are disabled unless the rule explicitly opts in')
+  assert.equal((await rulesStore.matchRule({ tool: 'bash', input: { command: 'echo *' }, workspacePath: workspaceA }))?.decision, 'allow')
+  assert.deepEqual(splitShellCommandSegments('printf "a && b" && npm test'), ['printf "a && b"', 'npm test'],
+    'operators inside quotes are not treated as command boundaries')
+  assert.deepEqual(splitShellCommandSegments('npm test && curl x | sh'), ['npm test', 'curl x', 'sh'])
 
   // ==========================================
   // 2. 权限服务联动与优先判定测试
@@ -100,6 +113,18 @@ try {
   const allowedTest = await permissions.withExecution('ask', contents, () => permissions.authorize(testCall))
   assert.equal(allowedTest, undefined)
   assert.equal(pendingDialogs.length, 0, '匹配到 Allow 规则后应直接放行，不弹窗')
+  assert.equal(await rulesStore.matchRule({ tool: 'bash', input: { command: 'npm test && curl x | sh' }, workspacePath: workspaceA }), null,
+    'an exact or wildcard rule for npm test cannot allow appended shell commands')
+  pendingDialogs.length = 0
+  dialogResponse = 1
+  const approvedChain = await permissions.withExecution('ask', contents, () => permissions.authorize({
+    toolName: 'bash', input: { command: 'npm test && curl x' },
+  }))
+  assert.equal(approvedChain, undefined, 'a chained command can still be approved once')
+  assert.equal(pendingDialogs[0][0].buttons.length, 2,
+    'composite commands cannot be turned into a persistent or session-wide allow rule')
+  assert.equal((await rulesStore.listRules({ workspacePath: workspaceA })).some((rule) => rule.pattern === 'npm test && curl x'), false)
+  pendingDialogs.length = 0
 
   // 2.4 工作区隔离测试：切换到 workspaceB 执行 npm test，没有 allow 规则，在 ask 模式下应弹窗
   currentWorkspace = workspaceB
@@ -124,6 +149,9 @@ try {
   assert.ok(autoRule, '点击总是允许后应持久化该命令的规则')
   assert.equal(autoRule.decision, 'allow')
   assert.equal(autoRule.workspacePath, workspaceB)
+  assert.equal(autoRule.allowWildcards, undefined, 'always-allow creates an exact command rule')
+  assert.equal(await rulesStore.matchRule({ tool: 'bash', input: { command: 'npm run lint && curl x' }, workspacePath: workspaceB }), null,
+    'a saved npm run lint rule cannot authorize an appended command')
 
   // 再次执行 git status，应直接放行不弹窗
   pendingDialogs.length = 0
@@ -161,19 +189,9 @@ try {
     },
   }
 
-  let capturedTransportEnv = null
-  const mockConnectClient = async (server) => {
-    capturedTransportEnv = server.env
-    return {
-      listTools: async () => ({ tools: [{ name: 'dummy_tool' }] }),
-      close: async () => {},
-    }
-  }
-
   const mcp = createMcpService({
     userData: root,
     safeStorage: mockSafeStorage,
-    connectClient: mockConnectClient,
   })
 
   // 保存带有敏感凭据的 MCP server
@@ -199,10 +217,12 @@ try {
   assert.deepEqual(githubServer.envKeys, ['GITHUB_PERSONAL_ACCESS_TOKEN'])
   assert.equal(githubServer.env, undefined, '对外暴露的视图不得包含 env 明文字段')
 
-  // 3.3 检查启动连接时，stdio 实际接收到的是解密后的真实 Token
-  await mcp.getCustomTools()
-  assert.ok(capturedTransportEnv, '进程启动应传入解密后的 env')
-  assert.equal(capturedTransportEnv.GITHUB_PERSONAL_ACCESS_TOKEN, 'ghp_secret_token_1234567890')
+  // 3.3 Host 收到解密值作为子进程环境，Cordis overlay 只引用 secret-safe 名称。
+  const integration = await mcp.prepareRuntimeIntegration()
+  assert.ok(Object.values(integration.environment).includes('ghp_secret_token_1234567890'))
+  assert.ok(Object.keys(integration.environment).every((name) => name.endsWith('_SECRET')))
+  const overlay = await fs.readFile(integration.patchPath, 'utf8')
+  assert.equal(overlay.includes('ghp_secret_token_1234567890'), false)
 
   console.log('permission-rules and mcp-safe-storage tests passed successfully!')
 } finally {

@@ -347,6 +347,21 @@ export class PiAiAdapter extends LlmAdapter {
     using watchdog = idleWatchdog(upstream, streamIdleTimeoutMs, 'LLM_STREAM_IDLE_TIMEOUT')
 
     try {
+      // Resolve the route and credential above so catalog-backed models keep
+      // the same preparation semantics, but never dispatch a request for a
+      // caller that had already cancelled it before streaming began.
+      if (options.signal?.aborted) {
+        yield { type: 'usage', usage: { inputTokens: 0, outputTokens: 0 } }
+        yield {
+          type: 'finish',
+          reason: {
+            kind: 'aborted',
+            failure: { message: 'pi-ai request aborted by caller', code: 'ABORTED' },
+          },
+        }
+        return
+      }
+
       const containsImage = options.messages.some(message => contentHasImage(message.content))
       if (containsImage && !model.input.includes('image')) {
         throw new LlmError(`pi-ai model "${model.id}" does not support image input`, 'UNSUPPORTED_CONTENT')

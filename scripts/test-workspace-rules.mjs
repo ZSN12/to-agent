@@ -6,8 +6,6 @@ import {
   discoverWorkspaceRuleFiles,
   loadWorkspaceRules,
   clearWorkspaceRulesCache,
-  DEFAULT_FILE_RULE_LIMIT_BYTES,
-  DEFAULT_TOTAL_RULES_BUDGET_BYTES,
 } from '../electron/backend/workspace-rules-service.mjs'
 import { assembleWorkspaceContext } from '../electron/backend/context-assembler.mjs'
 

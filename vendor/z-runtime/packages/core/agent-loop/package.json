@@ -34,6 +34,7 @@
     "@z/dsh-agent": "workspace:^",
     "@z/dsh-invariants": "workspace:^",
     "@z/dsh-llm": "workspace:^",
+    "@z/dsh-llm-pi-ai": "workspace:^",
     "@z/dsh-scope": "workspace:^",
     "@z/dsh-session": "workspace:^",
     "@z/dsh-session-persistence": "workspace:^",

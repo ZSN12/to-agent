@@ -9,8 +9,7 @@
     "noEmit": true,
     "rewriteRelativeImportExtensions": false,
     // Tests execute under vitest on node (e2e files spawn processes); browser
-    // purity of package src is each package's own tsconfig plus
-    // scripts/client-bundle-purity.spec.ts.
+    // purity of package src is enforced by each package's own tsconfig.
     "types": ["node"]
   },
   "include": [
@@ -25,10 +24,7 @@
     "packages/*/*/tests/**/*.client.ts",
     // Client package outside packages/client with a local CSS module face.
     "packages/client/tsdown.client.ts",
-    "scripts/client-build-environment.ts",
-    "scripts/*.client.spec.ts",
-    "scripts/client-bundle-css.spec.ts",
-    "scripts/client-bundle-purity.spec.ts"
+    "scripts/client-build-environment.ts"
   ],
   // A `*.host.spec.ts` covers the Host half of a split client package and
   // belongs to the host aggregate, which excludes this program's `*.client.*`
@@ -39,13 +35,11 @@
   "references": [
     { "path": "./packages/host/webserver" },
     { "path": "./packages/compaction/compaction" },
-    { "path": "./packages/client/ui-slots" },
     { "path": "./packages/client/connection/tsconfig.client.json" },
     { "path": "./packages/typert/registry" },
     { "path": "./packages/api/gateway/tsconfig.client.json" },
     { "path": "./packages/api/remotes/tsconfig.client.json" },
     { "path": "./packages/client/runtime" },
-    { "path": "./packages/test-support/client-runtime" },
     { "path": "./packages/session-query/session-log-export" }
   ]
 }

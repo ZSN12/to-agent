@@ -17,6 +17,9 @@ import {
 import { migrateLegacyOpenCodexRoutes } from '../model-sync/migrate-legacy-routes.mjs'
 import { resolveTaskWeaverModelsPath } from '../taskweaver-models-path.mjs'
 import { ensureModelsJsonSyncedToDshHost } from '../sync-models-json-to-host.mjs'
+import startupTrace from '../../startup-trace.cjs'
+
+const { traceStartup } = startupTrace
 
 /**
  * @param {{
@@ -32,9 +35,8 @@ import { ensureModelsJsonSyncedToDshHost } from '../sync-models-json-to-host.mjs
  *   usageStore: ReturnType<typeof import('../usage-store.mjs').createUsageStore>,
  *   appPreferences: { get: () => Promise<{ openUsageBaseUrl?: string }> },
  *   chat: { applyComposerModel: (conversationId: string, key: string) => Promise<unknown> },
- *   getCachedConversationId: () => string | null,
+ *   getUiConversationId: () => string | null,
  *   customProviderService: ReturnType<typeof import('../custom-provider-service.mjs').createCustomProviderService>,
- *   refreshWorkspaceCache: () => Promise<void>,
  * }} ctx
  */
 export function registerModelsIpc(ctx) {
@@ -51,14 +53,16 @@ export function registerModelsIpc(ctx) {
     usageStore,
     appPreferences,
     chat,
-    getCachedConversationId,
+    getUiConversationId,
     customProviderService,
-    refreshWorkspaceCache,
   } = ctx
 
   ipcHandle(ipcMain, 'models:loadBundle', async () => {
+    traceStartup('models:loadBundle-start')
     await appBootstrap.start()
-    return modelService.loadModelBundle()
+    const bundle = await modelService.loadModelBundle()
+    traceStartup('models:loadBundle-end', { providerCount: bundle?.providerCount ?? null })
+    return bundle
   })
   ipcHandle(ipcMain, 'models:list', () => modelService.listCatalog())
   ipcHandle(ipcMain, 'models:refresh', async () => modelService.refreshCatalog())
@@ -156,16 +160,16 @@ export function registerModelsIpc(ctx) {
   )
   ipcHandle(ipcMain, 'models:setActive', async (_event, modelKey) => {
     const key = await profileStore.setActiveModelKey(modelKey)
-    const cachedConversationId = getCachedConversationId()
-    if (cachedConversationId) await chat.applyComposerModel(cachedConversationId, key)
+    const uiConversationId = getUiConversationId()
+    if (uiConversationId) await chat.applyComposerModel(uiConversationId, key)
     return key
   })
   ipcHandle(ipcMain, 'models:getThinkingLevel', () => modelService.getThinkingLevel())
   ipcHandle(ipcMain, 'models:setThinkingLevel', async (_event, level) => {
     const res = await modelService.setThinkingLevel(level)
     const activeKey = await profileStore.getActiveModelKey()
-    const cachedConversationId = getCachedConversationId()
-    if (cachedConversationId && activeKey) await chat.applyComposerModel(cachedConversationId, activeKey)
+    const uiConversationId = getUiConversationId()
+    if (uiConversationId && activeKey) await chat.applyComposerModel(uiConversationId, activeKey)
     return res
   })
   ipcHandle(ipcMain, 'models:getBusyEnterMode', () => profileStore.getBusyEnterMode())
@@ -215,7 +219,6 @@ export function registerModelsIpc(ctx) {
   ipcHandle(ipcMain, 'models:listCustomProviders', () => customProviderService.listCustomProviders())
   ipcHandle(ipcMain, 'models:upsertCustomProvider', async (_event, payload) => {
     const result = await customProviderService.upsertCustomProvider(payload ?? {})
-    await refreshWorkspaceCache()
     const catalog = await modelService.listCatalog()
     return { ...result, catalog }
   })
@@ -239,7 +242,6 @@ export function registerModelsIpc(ctx) {
         await profileStore.addModel(key).catch(() => {})
       }
     }
-    await refreshWorkspaceCache()
     const catalog = await modelService.listCatalog()
     return { ...result, catalog }
   })

@@ -65,6 +65,7 @@ import {
   credentialsDescribeRequestSchema, credentialsSetRequestSchema, credentialsUnsetRequestSchema,
 } from '../api/credentials.schema.ts'
 import { llmDiscoverModelsRequestSchema, llmModelsRequestSchema, llmProvidersRequestSchema } from '../api/llm.schema.ts'
+import { mcpCallRequestSchema, mcpListRequestSchema } from '../api/mcp.schema.ts'
 import {
   subagentHistoryRequestSchema,
   subagentInterruptRequestSchema,
@@ -141,6 +142,8 @@ const UNARY_ROUTES: UnaryRoutes = {
   'llm.providers': { schema: llmProvidersRequestSchema, invoke: (api, r) => api.llm.providers(r) },
   'llm.models': { schema: llmModelsRequestSchema, invoke: (api, r) => api.llm.models(r) },
   'llm.discoverModels': { schema: llmDiscoverModelsRequestSchema, invoke: (api, r, signal) => api.llm.discoverModels(r, signal) },
+  'mcp.list': { schema: mcpListRequestSchema, invoke: (api, r) => api.mcp.list(r) },
+  'mcp.call': { schema: mcpCallRequestSchema, invoke: (api, r, signal) => api.mcp.call(r, signal) },
   'authorization.list': { schema: authorizationListRequestSchema, invoke: (api, r) => api.authorization.list(r) },
   'authorization.begin': { schema: authorizationBeginRequestSchema, invoke: (api, r, signal) => api.authorization.begin(r, signal) },
   'authorization.cancel': { schema: authorizationCancelRequestSchema, invoke: (api, r) => api.authorization.cancel(r) },

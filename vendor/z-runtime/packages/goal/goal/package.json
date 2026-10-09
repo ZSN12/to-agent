@@ -73,7 +73,6 @@
     "@z/dsh-brand": "workspace:^",
     "@z/dsh-invariants": "workspace:^",
     "@z/dsh-llm": "workspace:^",
-    "@z/dsh-loader-smoke": "workspace:^",
     "@z/dsh-scope": "workspace:^",
     "@z/dsh-session": "workspace:^",
     "@z/dsh-typert-protocol": "workspace:^",

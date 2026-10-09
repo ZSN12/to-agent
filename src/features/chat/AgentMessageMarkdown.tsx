@@ -1,12 +1,14 @@
 import { memo, type MouseEvent } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { normalizeMarkdownUrl } from '../../shared/markdown-url.mjs'
 
 const FILE_NAME_OR_PATH_REGEX = /^(?:[a-zA-Z0-9_.-]+\/)*[a-zA-Z0-9_.-]+\.(?:json|js|jsx|ts|tsx|css|scss|less|html|md|mdx|py|sh|bash|zsh|yaml|yml|toml|rs|go|java|c|cpp|h|hpp|sql|env|lock|xml|svg|vue|graphql)$/i
 
 function openExternalLink(href: string | undefined, event: MouseEvent<HTMLAnchorElement>) {
   event.preventDefault()
-  if (href && /^https?:/i.test(href)) window.open(href)
+  const safeUrl = href ? normalizeMarkdownUrl(href) : ''
+  if (safeUrl) window.open(safeUrl)
 }
 
 function isFileMention(text: string): boolean {
@@ -21,6 +23,7 @@ export const AgentMessageMarkdown = memo(function AgentMessageMarkdown({ text }:
     <div className="message-text message-markdown dsh-markdown-flow">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
+        urlTransform={normalizeMarkdownUrl}
         components={{
           a({ href, children, ...props }) {
             return (

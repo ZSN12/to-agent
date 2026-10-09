@@ -5,7 +5,9 @@ export function registerTerminalIpc({ ipcMain, getWorkspacePath, fallbackWorkspa
   const terminalService = createTerminalService()
 
   ipcHandle(ipcMain, 'terminal:create', async (event, options = {}) => {
-    const targetCwd = options.cwd || getWorkspacePath() || fallbackWorkspace
+    const cwdOverride = options.cwd
+    const workspacePath = cwdOverride || await Promise.resolve(getWorkspacePath(options.conversationId)) || fallbackWorkspace
+    const targetCwd = workspacePath
     const sessionId = options.id || `term-${Date.now()}`
 
     event.sender.once('destroyed', () => {

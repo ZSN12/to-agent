@@ -58,7 +58,6 @@
     "@z/dsh-llm": "workspace:^",
     "@z/dsh-session": "workspace:^",
     "@z/dsh-session-persistence-jsonl": "workspace:^",
-    "@z/dsh-session-persistence-sqlite": "workspace:^",
     "@z/dsh-session-projection": "workspace:^",
     "@z/cordis": "workspace:^"
   }

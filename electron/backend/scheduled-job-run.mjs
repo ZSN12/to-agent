@@ -6,7 +6,7 @@ import { clockLabelZh } from './message-factory.mjs'
 /**
  * @param {{
  *   profileStore: { getActiveModelKey: () => Promise<string> },
- *   getCachedWorkspace: () => string | null,
+ *   getWorkspacePathForJob: (conversationId: string | null | undefined) => Promise<string | null>,
  *   appState: import('./app-state-store.mjs').AppStateStore,
  *   permissions: { withExecution: Function },
  *   getConversationRuntimeContext: (conversationId: string) => Promise<unknown>,
@@ -17,7 +17,7 @@ import { clockLabelZh } from './message-factory.mjs'
 export function createScheduledJobRunHandler(deps) {
   const {
     profileStore,
-    getCachedWorkspace,
+    getWorkspacePathForJob,
     appState,
     permissions,
     getConversationRuntimeContext,
@@ -27,7 +27,7 @@ export function createScheduledJobRunHandler(deps) {
 
   return async function runScheduledJob(job) {
     const modelKey = await profileStore.getActiveModelKey()
-    const requestedWorkspacePath = job.workspacePath || getCachedWorkspace()
+    const requestedWorkspacePath = job.workspacePath || await getWorkspacePathForJob(job.conversationId)
     if (!requestedWorkspacePath) throw new Error('定时任务没有绑定工作区，请先选择工作区并重新保存任务')
     const workspacePath = await fs.realpath(path.resolve(requestedWorkspacePath))
     const workspaceStat = await fs.stat(workspacePath)

@@ -13,6 +13,7 @@ assert.match(sanitizeClipboardAttachmentFilename(undefined, '.jpg'), /^pasted-im
 
 const dir = path.join('/tmp', 'tw-attach-test')
 const inside = path.join(dir, 'ok.png')
+assert.doesNotThrow(() => assertAttachmentInsideDir(dir, inside))
 assert.throws(() => assertAttachmentInsideDir(dir, path.join(dir, '..', 'escape.png')))
 
 console.log('test-clipboard-image-name: ok')

@@ -42,7 +42,7 @@
     "@z/cordis-plugin-loader": "workspace:^",
     "@z/dsh-invariants": "workspace:^",
     "@z/dsh-llm": "workspace:^",
-    "@z/dsh-llm-deepseek": "workspace:^",
+    "@z/dsh-llm-pi-ai": "workspace:^",
     "@z/dsh-session": "workspace:^",
     "@z/dsh-session-title": "workspace:^",
     "@z/dsh-session-title-llm": "workspace:^",

@@ -4,6 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
+import crypto from 'node:crypto'
 import {
   isGitRepository,
   createGitCheckpoint,
@@ -56,6 +57,8 @@ try {
   assert.equal(cp1Res.checkpoint.stashCommit, null)
   assert.equal(cp1Res.checkpoint.kind, CHECKPOINT_KIND.INTERNAL)
   const cp1Id = cp1Res.checkpoint.id
+  assert.equal(await fs.access(path.join(repoDir, '.git', 'taskweaver-checkpoint.lock')).then(() => true).catch(() => false), false,
+    'checkpoint lock file must be removed after snapshot creation')
 
   // 4. 修改工作区文件并新增文件（未提交状态）
   await fs.writeFile(path.join(repoDir, 'README.md'), '# Initial Project\nVersion 1.1 with draft changes\n')
@@ -141,6 +144,17 @@ try {
   assert.equal(restoreCp3.success, true)
   const untrackedRestored = await fs.readFile(path.join(repoDir, 'pure-untracked.txt'), 'utf8')
   assert.equal(untrackedRestored, 'secret untracked content\n', '快照必须能完美找回纯未跟踪文件！')
+
+  const unicodeFilename = '中文 空格 文件.txt'
+  const unicodeBytes = Buffer.from('二进制与 UTF-8 内容\n\0保留字节\n', 'utf8')
+  await fs.writeFile(path.join(repoDir, unicodeFilename), unicodeBytes)
+  const unicodeCheckpoint = await createGitCheckpoint(repoDir, { userDataPath: root, summary: 'NUL 文件名快照' })
+  assert.equal(unicodeCheckpoint.ok, true)
+  await fs.rm(path.join(repoDir, unicodeFilename))
+  const restoreUnicode = await restoreGitCheckpoint(repoDir, unicodeCheckpoint.checkpoint.id, { force: true, userDataPath: root })
+  assert.equal(restoreUnicode.success, true)
+  assert.deepEqual(await fs.readFile(path.join(repoDir, unicodeFilename)), unicodeBytes,
+    'NUL-delimited impact parsing must restore Unicode and space-containing filenames byte-for-byte')
 
   // 11. 测试 impact 精准分析 (willAdd, willOverwrite, willDelete)
   await fs.writeFile(path.join(repoDir, 'will-be-deleted.txt'), 'temporary scrap file\n')
@@ -502,6 +516,58 @@ try {
   assert.equal(hookFail.ok, false)
   const hookStatus = await runGit(['status', '--porcelain'], hookRepo)
   assert.ok(hookStatus.stdout.includes('change.txt'), '提交失败后工作区改动应保留')
+
+  const checkpointFailRepo = path.join(root, 'checkpoint-add-fail-repo')
+  await fs.mkdir(checkpointFailRepo, { recursive: true })
+  await runGit(['init', '-b', 'main'], checkpointFailRepo)
+  await runGit(['config', 'user.name', 'TaskWeaver Test'], checkpointFailRepo)
+  await runGit(['config', 'user.email', 'test@taskweaver.local'], checkpointFailRepo)
+  await fs.writeFile(path.join(checkpointFailRepo, 'tracked.txt'), 'base\n')
+  await runGit(['add', 'tracked.txt'], checkpointFailRepo)
+  await runGit(['commit', '-m', 'base'], checkpointFailRepo)
+  await fs.writeFile(path.join(checkpointFailRepo, 'new-file.txt'), 'must not be silently omitted\n')
+  const gitPath = (await execFileAsync('which', ['git'])).stdout.trim()
+  const wrapperDir = path.join(root, 'git-wrapper')
+  await fs.mkdir(wrapperDir, { recursive: true })
+  const quoteShell = (value) => `'${String(value).replaceAll("'", "'\\''")}'`
+  await fs.writeFile(path.join(wrapperDir, 'git'), [
+    '#!/bin/sh',
+    'if [ "$1" = "add" ]; then case "$GIT_INDEX_FILE" in *tw_idx_*) echo "injected add failure" >&2; exit 42;; esac; fi',
+    `exec ${quoteShell(gitPath)} "$@"`,
+    '',
+  ].join('\n'), { mode: 0o755 })
+  const originalPath = process.env.PATH
+  let failedSnapshot
+  try {
+    process.env.PATH = `${wrapperDir}${path.delimiter}${originalPath ?? ''}`
+    failedSnapshot = await createGitCheckpoint(checkpointFailRepo, { userDataPath: root })
+  } finally {
+    if (originalPath === undefined) delete process.env.PATH
+    else process.env.PATH = originalPath
+  }
+  assert.equal(failedSnapshot.ok, false, 'a failed git add must abort checkpoint creation')
+  assert.match(failedSnapshot.error, /收集工作区文件失败/)
+  assert.equal((await listGitCheckpoints(checkpointFailRepo, { userDataPath: root })).length, 0,
+    'a partial index must never be recorded as a usable checkpoint')
+
+  const corruptRepo = path.join(root, 'corrupt-checkpoint-index-repo')
+  await fs.mkdir(corruptRepo, { recursive: true })
+  await runGit(['init', '-b', 'main'], corruptRepo)
+  await runGit(['config', 'user.name', 'TaskWeaver Test'], corruptRepo)
+  await runGit(['config', 'user.email', 'test@taskweaver.local'], corruptRepo)
+  await fs.writeFile(path.join(corruptRepo, 'base.txt'), 'base\n')
+  await runGit(['add', 'base.txt'], corruptRepo)
+  await runGit(['commit', '-m', 'base'], corruptRepo)
+  assert.equal((await createGitCheckpoint(corruptRepo, { userDataPath: root })).ok, true)
+  const corruptIndex = crypto.createHash('sha256').update(path.resolve(corruptRepo)).digest('hex').slice(0, 16)
+  const corruptIndexPath = path.join(root, `checkpoints-${corruptIndex}.json`)
+  await fs.writeFile(corruptIndexPath, '{ broken json')
+  assert.deepEqual(await listGitCheckpoints(corruptRepo, { userDataPath: root }), [],
+    'corrupt checkpoint metadata is isolated rather than exposed as a valid empty index')
+  assert.ok((await fs.readdir(root)).some((name) => name.startsWith(`checkpoints-${corruptIndex}.json.corrupt-`)),
+    'the corrupt index must be retained in an isolated recovery file')
+  assert.equal((await createGitCheckpoint(corruptRepo, { userDataPath: root })).ok, true,
+    'a fresh atomic checkpoint index can be written after corruption isolation')
 
   console.log('git-checkpoints (含手动 Git 提交、状态指纹防篡改、淘汰清理、语义边界与错误处理) 全部测试通过！')
 } finally {

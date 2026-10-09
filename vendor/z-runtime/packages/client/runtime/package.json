@@ -1,6 +1,6 @@
 {
   "name": "@z/dsh-client-runtime",
-  "description": "Client core services: SlotRegistry, SessionRuntime (scope tree + object layer)",
+  "description": "Client session and workspace services with a shared Host connection stream",
   "version": "0.1.1-rc.2",
   "publishConfig": {
     "access": "public"
@@ -17,10 +17,6 @@
     ".": {
       "types": "./lib/types/index.d.ts",
       "default": "./lib/index.js"
-    },
-    "./invariant": {
-      "types": "./lib/types/invariant.d.ts",
-      "default": "./lib/invariant.js"
     },
     "./client": {
       "types": "./lib/types/client/index.d.ts",
@@ -48,7 +44,6 @@
   "peerDependencies": {
     "@z/cordis": "workspace:^",
     "@z/dsh-api-remotes": "workspace:^",
-    "@z/dsh-invariants": "workspace:^",
     "@z/dsh-typert-protocol": "workspace:^",
     "@z/dsh-typert-registry": "workspace:^",
     "@z/dsh-agent": "workspace:^",
@@ -66,13 +61,9 @@
   "devDependencies": {
     "@z/cordis": "workspace:^",
     "@z/dsh-api-remotes": "workspace:^",
-    "@z/dsh-invariants": "workspace:^",
     "@z/dsh-timeout": "workspace:^",
     "@z/dsh-typert-protocol": "workspace:^",
     "@z/dsh-typert-registry": "workspace:^",
-    "@types/react": "~18.3.1",
-    "@z/dsh-client-ui-slots": "workspace:^",
-    "react": "^18.2.0",
     "@z/dsh-agent": "workspace:^",
     "@z/dsh-attachment": "workspace:^",
     "@z/dsh-client-connection": "workspace:^",
@@ -87,7 +78,6 @@
   },
   "files": [
     "lib/index.js",
-    "lib/invariant.js",
     "lib/client.js",
     "lib/types/**/*.d.ts"
   ]

@@ -1,4 +1,5 @@
 import { ChevronRight, Puzzle } from 'lucide-react'
+import { clockLabelZh } from '../../shared/time-label'
 
 export function ContextInjectionRow({
   plugin,
@@ -12,9 +13,7 @@ export function ContextInjectionRow({
   timestamp?: number
 }) {
   const formLabel = form?.trim() || '未声明形式'
-  const timeLabel = typeof timestamp === 'number'
-    ? new Date(timestamp).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false })
-    : null
+  const timeLabel = typeof timestamp === 'number' ? clockLabelZh(timestamp) : null
 
   return (
     <article className="message dsh-flow-item context-message" data-context-message>

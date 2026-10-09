@@ -33,6 +33,7 @@ function worktreeRoot(userDataPath, workspacePath) {
 
 const TASK_ID_RE = /^[A-Za-z0-9_-]{1,24}$/
 const CONVERSATION_ID_RE = /^[a-f\d-]{36}$/i
+const RUN_ID_RE = /^[a-f\d-]{36}$/i
 
 export function assertValidTaskId(taskId) {
   if (!taskId || !TASK_ID_RE.test(taskId)) throw new Error('无效的任务 ID')
@@ -42,13 +43,18 @@ export function assertValidConversationId(conversationId) {
   if (!CONVERSATION_ID_RE.test(conversationId ?? '')) throw new Error('无效的对话 ID')
 }
 
-/** 解析任务 worktree 目录：<hash>/<conversationId>/<taskId>，拒绝路径穿越。 */
-export function resolveTaskWorktreeDir(userDataPath, workspacePath, conversationId, taskId) {
+export function assertValidRunId(runId) {
+  if (!RUN_ID_RE.test(runId ?? '')) throw new Error('无效的运行 ID')
+}
+
+/** Resolve a run-scoped path, or the pre-runId path for an older saved task. */
+export function resolveTaskWorktreeDir(userDataPath, workspacePath, conversationId, taskId, runId = null) {
   assertValidConversationId(conversationId)
   assertValidTaskId(taskId)
   const root = path.resolve(worktreeRoot(userDataPath, workspacePath))
   const conversationRoot = path.resolve(root, conversationId)
-  const target = path.resolve(conversationRoot, taskId)
+  if (runId !== null) assertValidRunId(runId)
+  const target = path.resolve(conversationRoot, ...(runId ? [runId] : []), taskId)
   if (!isPathInside(root, target) || !isPathInside(conversationRoot, target)) {
     throw new Error('无效的任务 ID')
   }
@@ -58,9 +64,10 @@ export function resolveTaskWorktreeDir(userDataPath, workspacePath, conversation
 /**
  * 为子任务创建独立 git worktree（不自动合并，仅隔离写入）。
  */
-export async function createTaskWorktree({ workspacePath, conversationId, taskId, userDataPath }) {
+export async function createTaskWorktree({ workspacePath, conversationId, runId, taskId, userDataPath }) {
   await assertWorkspaceRoot(workspacePath)
-  const target = resolveTaskWorktreeDir(userDataPath, workspacePath, conversationId, taskId)
+  assertValidRunId(runId)
+  const target = resolveTaskWorktreeDir(userDataPath, workspacePath, conversationId, taskId, runId)
   if (!(await isGitRepository(workspacePath))) {
     throw new Error('当前工作区不是 Git 仓库，无法创建 worktree')
   }
@@ -86,9 +93,9 @@ export async function isCleanGitWorkspace(workspacePath) {
   }
 }
 
-export async function removeTaskWorktree({ workspacePath, conversationId, taskId, userDataPath, force = false }) {
+export async function removeTaskWorktree({ workspacePath, conversationId, runId = null, taskId, userDataPath, force = false }) {
   await assertWorkspaceRoot(workspacePath)
-  const target = resolveTaskWorktreeDir(userDataPath, workspacePath, conversationId, taskId)
+  const target = resolveTaskWorktreeDir(userDataPath, workspacePath, conversationId, taskId, runId)
   if (!fs.existsSync(target)) return { removed: false }
   const args = ['worktree', 'remove', target]
   if (force) args.push('--force')
@@ -103,20 +110,32 @@ export async function listTaskWorktrees({ workspacePath, conversationId, userDat
   try {
     const names = await fsp.readdir(conversationRoot)
     const entries = []
-    for (const name of names) {
-      if (!TASK_ID_RE.test(name)) continue
-      const full = path.join(conversationRoot, name)
-      let stat
+    const addWorktree = async (taskId, runId, full) => {
+      if (!TASK_ID_RE.test(taskId)) return
       try {
-        stat = await fsp.stat(full)
+        if ((await fsp.stat(full)).isDirectory()) {
+          entries.push({ taskId, conversationId, ...(runId ? { runId } : {}), path: full })
+        }
+      } catch {
+        // The worktree may have been removed while listing it.
+      }
+    }
+    for (const name of names) {
+      const full = path.join(conversationRoot, name)
+      if (TASK_ID_RE.test(name)) {
+        await addWorktree(name, null, full)
+        continue
+      }
+      if (!RUN_ID_RE.test(name)) continue
+      let taskIds
+      try {
+        taskIds = await fsp.readdir(full)
       } catch {
         continue
       }
-      if (stat.isDirectory()) {
-        entries.push({ taskId: name, conversationId, path: full })
-      }
+      for (const taskId of taskIds) await addWorktree(taskId, name, path.join(full, taskId))
     }
-    return entries
+    return entries.sort((a, b) => (a.runId ?? '').localeCompare(b.runId ?? '') || a.taskId.localeCompare(b.taskId))
   } catch (error) {
     if (error && error.code === 'ENOENT') return []
     throw error
@@ -126,9 +145,9 @@ export async function listTaskWorktrees({ workspacePath, conversationId, userDat
 /**
  * 对比 worktree 相对其检出 HEAD 的改动（未自动合并到主工作区）。
  */
-export async function getTaskWorktreeDiff({ workspacePath, conversationId, taskId, userDataPath, maxPatchChars = 400_000 }) {
+export async function getTaskWorktreeDiff({ workspacePath, conversationId, runId = null, taskId, userDataPath, maxPatchChars = 400_000 }) {
   await assertWorkspaceRoot(workspacePath)
-  const target = resolveTaskWorktreeDir(userDataPath, workspacePath, conversationId, taskId)
+  const target = resolveTaskWorktreeDir(userDataPath, workspacePath, conversationId, taskId, runId)
   if (!fs.existsSync(target)) {
     throw new Error(`未找到任务 ${taskId} 的 worktree`)
   }
@@ -231,9 +250,9 @@ async function readHeadFile(cwd, relativePath) {
 /**
  * 检查 worktree 改动能否合并到主工作区（不写入）。
  */
-export async function previewTaskWorktreeMerge({ workspacePath, conversationId, taskId, userDataPath }) {
-  const diff = await getTaskWorktreeDiff({ workspacePath, conversationId, taskId, userDataPath, maxPatchChars: 2_000_000 })
-  const wtPath = resolveTaskWorktreeDir(userDataPath, workspacePath, conversationId, taskId)
+export async function previewTaskWorktreeMerge({ workspacePath, conversationId, runId = null, taskId, userDataPath }) {
+  const diff = await getTaskWorktreeDiff({ workspacePath, conversationId, runId, taskId, userDataPath, maxPatchChars: 2_000_000 })
+  const wtPath = resolveTaskWorktreeDir(userDataPath, workspacePath, conversationId, taskId, runId)
   const changes = await listWorktreeDetailedChanges(wtPath)
   const files = changes.map((c) => c.file)
   if (!files.length) {
@@ -334,16 +353,17 @@ export async function previewTaskWorktreeMerge({ workspacePath, conversationId, 
 export async function applyTaskWorktreeMerge({
   workspacePath,
   conversationId,
+  runId = null,
   taskId,
   userDataPath,
   removeAfter = false,
   files: onlyFiles = null,
 }) {
-  const preview = await previewTaskWorktreeMerge({ workspacePath, conversationId, taskId, userDataPath })
+  const preview = await previewTaskWorktreeMerge({ workspacePath, conversationId, runId, taskId, userDataPath })
   if (!preview.canApply) {
     throw new Error(preview.reason || '无法合并：主工作区与 worktree 改动冲突或无可合并内容')
   }
-  const wtPath = resolveTaskWorktreeDir(userDataPath, workspacePath, conversationId, taskId)
+  const wtPath = resolveTaskWorktreeDir(userDataPath, workspacePath, conversationId, taskId, runId)
   const changes = preview.changes || []
   const targetChanges = Array.isArray(onlyFiles) && onlyFiles.length
     ? changes.filter((c) => onlyFiles.includes(c.file))
@@ -401,7 +421,7 @@ export async function applyTaskWorktreeMerge({
   let cleanupError = null
   if (removeAfter) {
     try {
-      const removed = await removeTaskWorktree({ workspacePath, conversationId, taskId, userDataPath, force: true })
+      const removed = await removeTaskWorktree({ workspacePath, conversationId, runId, taskId, userDataPath, force: true })
       worktreeRemoved = removed.removed
     } catch (err) {
       cleanupError = err instanceof Error ? err.message : String(err)
@@ -417,4 +437,3 @@ export async function applyTaskWorktreeMerge({
     cleanupError,
   }
 }
-

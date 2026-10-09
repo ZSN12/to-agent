@@ -24,6 +24,8 @@ export interface SessionStatsProjection {
   turns: number
   /** Closed steps (`step/end` events) — completed, failed, and cancelled steps alike. */
   steps: number
+  /** Top-level tool calls and nested Code Mode dispatches started in the durable log. */
+  toolCalls: number
   /** Summed model wall time (`step/start` → `assistant/message`) over steps that assembled a message. */
   llmMs: number
   /** Summed tool wall time over `tool/call` → `tool/result` pairs matched by callId. */
@@ -40,7 +42,7 @@ export interface SessionStatsProjection {
 
 declare module '@z/dsh-session-projection/types' {
   interface SessionProjectionMap {
-    /** Whole-log turn/step counts and wall times; see {@link SessionStatsProjection}. */
+    /** Whole-log turn/step/tool-call counts and wall times; see {@link SessionStatsProjection}. */
     sessionStats: SessionStatsProjection
   }
 }

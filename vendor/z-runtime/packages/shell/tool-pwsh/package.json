@@ -54,7 +54,6 @@
     "@z/dsh-shell-env": "workspace:^",
     "@z/dsh-invariants": "workspace:^",
     "@z/dsh-llm": "workspace:^",
-    "@z/dsh-loader-smoke": "workspace:^",
     "@z/dsh-pwsh-local": "workspace:^",
     "@z/dsh-sandbox": "workspace:^",
     "@z/dsh-sandbox-policy": "workspace:^",

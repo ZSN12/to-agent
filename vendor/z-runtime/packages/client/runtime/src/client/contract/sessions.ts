@@ -11,7 +11,7 @@ import type { Context } from '@z/cordis'
 import type {
   RpcResult, SessionId, SubagentAddress,
 } from '@z/dsh-api-remotes/client'
-import type { HostObservable, SessionMaybeProvideInfo } from '@z/dsh-client-ui-slots'
+import type { SessionMaybeProvideInfo } from './session-provide.ts'
 import type { AgentContext } from '../agents/scope.ts'
 import type { SessionSearchResultItem } from '../sessions/manager.ts'
 import type {
@@ -27,7 +27,7 @@ export interface ISessions {
   /** The useSessions standard feed (list rows + current selection; read face — writes stay inside the domain). */
   readonly list: ObservableSnapshot<SessionListState>
   /** Atomic current-session provide projection (the renderer host's `sessions.provideInfo` feed). */
-  readonly currentProvideInfo: HostObservable<SessionMaybeProvideInfo>
+  readonly currentProvideInfo: ObservableSnapshot<SessionMaybeProvideInfo>
   /**
    * The `session.search` result bound the wire schema fixes, exposed to
    * presentation as injected data. Not per-connection state: every transport

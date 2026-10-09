@@ -42,5 +42,6 @@ const codeBudget = calculateDynamicContextBudget('code', { modelContextWindow: 1
 assert.equal(codeBudget.workspaceContextBytes, 32 * 1024, '代码模式工作区注入默认 32KiB')
 assert.equal(codeBudget.repoMapTokens, 1200, '代码编写模式应分配适中 Repo Map tokens')
 assert.ok(codeBudget.toolOutputMaxChars > planBudget.toolOutputMaxChars, '代码模式应保留更多工具输出空间')
+assert.equal(COMPACTION_LIMITS.MAX_TOOL_OUTPUT_CHARS, 3000, '默认工具输出折叠阈值应保持稳定')
 
 console.log('✓ context-compactor 测试用例 100% 通过！')

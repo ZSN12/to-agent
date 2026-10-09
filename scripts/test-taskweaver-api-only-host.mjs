@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * API-only Z Host：嵌入式启动不依赖 @z/dsh-web-frontend，且 deploy 中应已 prune 该包。
+ * TaskWeaver API-only Host：deploy 不含 browser UI package，readiness 后 `/api` 已接通。
  */
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
@@ -38,21 +38,39 @@ if (fs.existsSync(zPkgs)) {
 const hostBundleLib = path.join(runtimeRoot, 'runtime-packages', '@z', 'dsh-taskweaver', 'lib', 'index.js')
 assert.ok(fs.existsSync(hostBundleLib), 'deploy 应包含 @z/dsh-taskweaver')
 const hostBundleText = await fsp.readFile(hostBundleLib, 'utf8')
-assert.match(hostBundleText, /taskweaverEmbedded/, 'dsh-taskweaver 需包含嵌入式 API-only 分支')
-assert.equal(
-  fs.existsSync(path.join(zPkgs, 'dsh-web')),
-  false,
-  'TaskWeaver deploy 不应包含 in-host @z/dsh-web（web_search 未在 Host 挂载）',
+assert.match(hostBundleText, /z web:/, 'dsh-taskweaver 需发布 API Host readiness')
+assert.doesNotMatch(hostBundleText, /taskweaverEmbedded|frontend-static|openBrowser|surfaceContext|DSH_WEB_URL/)
+for (const name of ['dsh-web', 'dsh-web-search-taskweaver', 'dsh-tool-web', 'dsh-host-directory-picker-native']) {
+  assert.ok(fs.existsSync(path.join(zPkgs, name)), `TaskWeaver Host 组合应包含 @z/${name}`)
+}
+const hostBundleManifest = JSON.parse(await fsp.readFile(
+  path.join(runtimeRoot, 'runtime-packages', '@z', 'dsh-taskweaver', 'package.json'),
+  'utf8',
+))
+for (const name of ['@z/dsh-web', '@z/dsh-web-search-taskweaver', '@z/dsh-tool-web', '@z/dsh-host-directory-picker-native']) {
+  assert.ok(hostBundleManifest.dependencies?.[name], `TaskWeaver bundle should own dependency ${name}`)
+}
+for (const name of ['@z/dsh-host-directory-picker-auto', '@z/dsh-host-directory-picker-browse']) {
+  assert.equal(hostBundleManifest.dependencies?.[name], undefined, `TaskWeaver bundle must not mount ${name}`)
+}
+const taskWeaverPatch = await fsp.readFile(
+  path.join(runtimeRoot, 'runtime-packages', '@z', 'dsh-taskweaver', 'cordis.patch.yml'),
+  'utf8',
 )
+assert.match(taskWeaverPatch, /id: directory-picker\s+name: '@z\/dsh-host-directory-picker-native'/)
+assert.doesNotMatch(taskWeaverPatch, /dsh-host-directory-picker-(?:auto|browse)/)
+assert.match(taskWeaverPatch, /id: web\s+name: '@z\/dsh-web'/)
+assert.match(taskWeaverPatch, /id: web-search-taskweaver\s+name: '@z\/dsh-web-search-taskweaver'/)
+assert.match(taskWeaverPatch, /id: tool-web\s+name: '@z\/dsh-tool-web'/)
 
 const entry = path.join(runtimeRoot, 'lib', 'entry.js')
 assert.ok(fs.existsSync(entry), `缺少 runtime entry：${entry}`)
 
 const home = await fsp.mkdtemp(path.join(os.tmpdir(), 'tw-api-only-host-'))
-const READY = /(?:z|dsh) web:\s+https?:\/\/127\.0\.0\.1:\d+/i
+const READY = /(?:z|dsh) web:\s+(https?:\/\/127\.0\.0\.1:\d+)/i
 
 await new Promise((resolve, reject) => {
-  const child = spawn(process.execPath, [entry, 'web', '--no-open', '--port', '0'], {
+  const child = spawn(process.execPath, [entry, '--profile', 'web', '--host', '127.0.0.1', '--port', '0'], {
     cwd: runtimeRoot,
     env: {
       ...process.env,
@@ -66,22 +84,40 @@ await new Promise((resolve, reject) => {
     stdio: ['ignore', 'pipe', 'pipe'],
   })
   let buf = ''
+  let apiProbeStarted = false
+  let completed = false
   const timer = setTimeout(() => {
+    completed = true
     child.kill('SIGTERM')
     reject(new Error(`Host 未在 45s 内就绪\n${buf.slice(-3000)}`))
   }, 45_000)
   const onData = (chunk) => {
     buf = `${buf}${chunk}`.slice(-32_000)
-    if (READY.test(buf)) {
-      clearTimeout(timer)
-      child.kill('SIGTERM')
-      resolve()
-    }
+    const match = buf.match(READY)
+    if (!match || apiProbeStarted) return
+    apiProbeStarted = true
+    void (async () => {
+      try {
+        const response = await fetch(`${match[1]}/api/__taskweaver_readiness_probe__`)
+        assert.equal(response.status, 404, '/api probe should reach the Host route registry')
+        assert.equal(await response.text(), 'not found', '/api probe should be handled by the Host API route')
+        completed = true
+        clearTimeout(timer)
+        child.kill('SIGTERM')
+        resolve()
+      } catch (error) {
+        completed = true
+        clearTimeout(timer)
+        child.kill('SIGTERM')
+        reject(error)
+      }
+    })()
   }
   child.stdout?.on('data', onData)
   child.stderr?.on('data', onData)
   child.once('close', (code) => {
-    if (READY.test(buf)) return
+    if (completed) return
+    completed = true
     clearTimeout(timer)
     reject(new Error(`Host 退出 code=${code}\n${buf.slice(-3000)}`))
   })

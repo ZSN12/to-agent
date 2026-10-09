@@ -36,8 +36,6 @@
       "@z/cordis-plugin-group": ["./vendor/group/src"],
       "@z/cordis-plugin-timer": ["./vendor/timer/src"],
       "@z/cordis-plugin-hmr": ["./vendor/hmr/src"],
-      "@z/cordis-plugin-logger-console": ["./vendor/logger-console/src"],
-      "@z/node-addon-landlock-run": ["./native/landlock-run/packages/entry/src/index.ts"],
       "@z/dsh-invariants": ["./packages/runtime-diagnostics/invariants/src/index.ts"],
       "@z/dsh-tool-call-timeout-policy": ["./packages/guard/timeout-policy/src"],
       "@z/dsh-tool-call-timeout-policy/invariant": ["./packages/guard/timeout-policy/src/invariant.ts"],
@@ -102,8 +100,6 @@
       "@z/dsh-agent/invariant": ["./packages/core/agent/src/invariant.ts"],
       "@z/dsh-scope/invariant": ["./packages/core/scope/src/invariant.ts"],
       "@z/dsh-agent-loop/invariant": ["./packages/core/agent-loop/src/invariant.ts"],
-      "@z/dsh-experimental-agent-team/invariant": ["./packages/experimental/agent-team/src/invariant.ts"],
-      "@z/dsh-experimental-tool-agent-team/invariant": ["./packages/experimental/tool-agent-team/src/invariant.ts"],
       "@z/dsh-*/invariant": [
         "./packages/core/*/src/invariant.ts",
         "./packages/prompt/*/src/invariant.ts",
@@ -155,8 +151,6 @@
       // group prefix with a dedicated wildcard per group instead.
       "@z/dsh-host-*/invariant": ["./packages/host/*/src/invariant.ts"],
       "@z/dsh-client-*/invariant": ["./packages/client/*/src/invariant.ts"],
-      "@z/dsh-headless/startup": ["./packages/bundle/headless/src/startup.ts"],
-      "@z/dsh-web-app/startup": ["./packages/bundle/web-app/src/startup.ts"],
       "@z/dsh-taskweaver/startup": ["./packages/bundle/taskweaver/src/startup.ts"],
       "@z/dsh-client-*/client": ["./packages/client/*/src/client"],
        // One wildcard maps every @z/dsh-<name> to its source. Package
@@ -180,7 +174,6 @@
       "@z/dsh-host-frontend-static": ["./packages/host/frontend-static/src"],
       "@z/dsh-host-plugin-inventory": ["./packages/host/plugin-inventory/src"],
       "@z/dsh-host-plugin-inventory/types": ["./packages/host/plugin-inventory/src/types.ts"],
-      "@z/dsh-client-ui-slots": ["./packages/client/ui-slots/src"],
       "@z/dsh-client-ui-attachment": ["./packages/client/ui-attachment/src"],
       "@z/dsh-client-ui-primitives": ["./packages/client/ui-primitives/src"],
       "@z/dsh-client-ui-renderer": ["./packages/client/ui-renderer/src"],
@@ -199,8 +192,6 @@
       "@z/dsh-client-ui-cordis": ["./packages/extensions/ui-cordis/src"],
       "@z/dsh-client-ui-cordis/client": ["./packages/extensions/ui-cordis/src/client"],
       "@z/dsh-client-ui-cordis/invariant": ["./packages/extensions/ui-cordis/src/invariant.ts"],
-      "@z/dsh-client-test-runtime": ["./packages/test-support/client-runtime/src"],
-      "@z/dsh-client-test-runtime/invariant": ["./packages/test-support/client-runtime/src/invariant.ts"],
       "@z/dsh-client-ui-layout": ["./packages/client/ui-layout/src"],
       "@z/dsh-client-ui-sidebar": ["./packages/client/ui-sidebar/src"],
       "@z/dsh-client-ui-brand-official": ["./packages/client/ui-brand-official/src"],
@@ -233,11 +224,6 @@
       "@z/dsh-client-web": ["./packages/client/web/src"],
       // sdk/ folders are role-named without their npm-side sdk/jsonrpc prefixes,
       // so the generic wildcard cannot map these three package names.
-      "@z/dsh-sdk-client": ["./packages/sdk/client/src"],
-      "@z/dsh-sdk-protocol": ["./packages/sdk/protocol/src"],
-      "@z/dsh-sdk-jsonrpc-server": ["./packages/sdk/server/src"],
-      "@z/dsh-experimental-agent-team": ["./packages/experimental/agent-team/src"],
-      "@z/dsh-experimental-tool-agent-team": ["./packages/experimental/tool-agent-team/src"],
       "@z/dsh-*": [
         "./packages/core/*/src",
         "./packages/prompt/*/src",

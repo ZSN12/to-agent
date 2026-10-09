@@ -1,16 +1,15 @@
-# TaskWeaver-owned bundle (@z/dsh-taskweaver): API host over dsh-base — no browser
-# roster, no in-host web_search (web / web-search-taskweaver disabled below).
+# TaskWeaver-owned bundle (@z/dsh-taskweaver): API host over dsh-base; Electron
+# owns the desktop UI while the Host supplies native directory selection and web search.
 # Applied after dsh-base's insert; rows here override base rows by id, with
 # the profile's own cordis.patch.yml and any --patch overlays still to come.
 #
 # A patch replaces the targeted row's whole `config`, so each row below
 # restates every key it owns.
 #
-# The web-startup plugin injects `cmdlineArgs` and provides `webStartup` as an
-# ordinary Cordis service. Rows configured from flags inject that service, so
-# Loader resolves their expressions only after it exists. The web runtime then
-# provides bind-dependent `webRuntime` values to the trust fence.
-# `dsh --profile web --help` provides neither service, so no server binds.
+# The web-startup plugin injects `cmdlineArgs` and provides only `webStartup`
+# host, port, and trusted-host values. Rows configured from flags inject that
+# service, so Loader resolves their expressions before the server binds.
+# `dsh --profile web --help` provides no startup service, so no server binds.
 
 # ── surface-specific values the base deliberately omits ─────────────────────
 
@@ -23,15 +22,13 @@
 - id: hmr
   disabled: true
 
-# Full-text session search is opt-in (the base row's `openAt: never`). This
-# restatement keeps the Web values on one ephemeral in-memory index; a
-# deployment enabling content search overrides `openAt` to `first-search` in a
-# later patch layer, which defers the node:sqlite import and in-memory handle
-# to the first search so Node 22 startup stays quiet.
+# TaskWeaver keeps the derived search index on disk, but defers loading
+# node:sqlite and opening the database until the first model-facing search.
+# The index can be rebuilt from session history and is scoped to this user home.
 - id: session-query-sqlite
   config:
-    path: ':memory:'
-    openAt: never
+    path: !!js dshHomePath('session-query/index.sqlite')
+    openAt: first-search
 
 - id: tools
   config:
@@ -66,11 +63,6 @@
     - id: authorization
       name: '@z/dsh-authorization'
 
-    - id: message-feedback
-      name: '@z/dsh-message-feedback'
-      config:
-        maxNoteBytes: 8192
-
     # Browser Session export: `/export` command plus the shared download dialog.
     - id: session-log-download
       name: '@z/dsh-session-log-export'
@@ -95,11 +87,10 @@
     - id: session-stats
       name: '@z/dsh-session-stats'
 
-    # Resolve bind host, SSH launch, and display once at boot, then mount the
-    # matching dual-face directory picker. Mount -native or -browse directly in
-    # an overlay to pin the interaction.
+    # Desktop TaskWeaver uses one native OS directory picker. Electron owns the
+    # user interface; no Host browser picker surface is mounted.
     - id: directory-picker
-      name: '@z/dsh-host-directory-picker-auto'
+      name: '@z/dsh-host-directory-picker-native'
 
     # Read-only projection of current Loader entries for trusted client RPCs.
     - id: plugin-inventory
@@ -113,16 +104,15 @@
     - id: cordis-host-runner
       name: '@z/dsh-cordis-host-runner'
 
-    # Ordinary provider for the parsed Web flags. Its plugin-level injection
-    # waits for cmdlineArgs; no launcher metadata or special row kind is needed.
+    # Ordinary provider for the parsed API Host flags. Its plugin-level
+    # injection waits for cmdlineArgs; no launcher metadata is needed.
     - id: web-startup
       name: '@z/dsh-taskweaver/startup'
 
     # ── layer 2: transport/service ──────────────────────────────────────────────
 
-    # Plain route-registration carrier; host and port come from the app's
-    # webStartup provider, with these deployment fallbacks. The dist is served by
-    # the web-runtime row below through the fallback seat.
+    # API route-registration carrier; host and port come from the CLI provider,
+    # with loopback defaults for direct profile launches.
     - id: webserver
       name: '@z/dsh-host-webserver'
       inject: [webStartup]
@@ -130,15 +120,12 @@
         host: !!js ctx.webStartup.host ?? '127.0.0.1'
         port: !!js ctx.webStartup.port ?? 3080
 
-    # API host glue: embedded TaskWeaver skips browser dist; prints URL and
-    # provides `webRuntime` for connection /api trust after bind.
+    # API-only Host glue: forwards the explicit `/api` trust list and prints
+    # the existing readiness URL after every Loader row has mounted.
     - id: web-runtime
       name: '@z/dsh-taskweaver'
       inject: [webStartup]
       config:
-        openBrowser: !!js ctx.webStartup.openBrowser
-        printUrl: true
-        surfaceContext: true
         trustedHosts: !!js ctx.webStartup.trustedHosts
 
     # Owns both ends of the web transport: node half binds the gateway to the
@@ -148,16 +135,13 @@
       name: '@z/dsh-client-connection'
       inject: [webRuntime]
       config:
-        # LAN literals derived from the active bind plus --trusted-host extras.
-        # A deployment adding authorities keeps this expression and concatenates
-        # its literals, for example: ['app.internal', ...ctx.webRuntime.trustedHosts].
+        # Only explicit authorities are trusted; the bind is loopback by
+        # default and no browser UI performs LAN discovery.
         trustedHosts: !!js ctx.webRuntime.trustedHosts
 
     - id: api-remotes
       name: '@z/dsh-api-remotes'
 
-    - id: client-runtime
-      name: '@z/dsh-client-runtime'
 # ── the agent plane moves behind agent presets ─────────────────────────────
 #
 # Every row below composes what ONE agent contributes to the host registries:
@@ -198,9 +182,6 @@
   disabled: true
 
 - id: tool-fs-search
-  disabled: true
-
-- id: tool-str-replace-editor
   disabled: true
 
 # The `skill` REGISTRY stays in the host plane. It is host+per-scope layered
@@ -287,16 +268,6 @@
   disabled: true
 
 - id: tool-todo
-  disabled: true
-
-# In-host web_search is not part of TaskWeaver product surface (tools live in presets / Electron).
-- id: web
-  disabled: true
-
-- id: web-search-taskweaver
-  disabled: true
-
-- id: tool-web
   disabled: true
 
 # The preset roster. `config/agent-presets/` ships with the deployment and is

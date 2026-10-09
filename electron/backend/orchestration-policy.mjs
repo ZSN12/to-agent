@@ -21,15 +21,20 @@ const TASK_TIER_ORDER = {
   hard_debug: ['strong', 'balanced', 'cheap'],
 }
 
+const MULTI_AGENT_TARGET = '(?:多智能体|多\\s*agent|multi[-\\s]?agent|agent[-\\s]?team|任务\\s*DAG)'
+
+export function explicitlyDisablesMultiAgent(text) {
+  const denied = new RegExp(`(?:不要|不需要|无需|禁止|别用|不启用|禁用|关闭|不是|并非)\\s*(?:使用|启用|调用)?\\s*${MULTI_AGENT_TARGET}`, 'i')
+  return denied.test(String(text ?? ''))
+}
+
 /** Single-agent is the default. DAG execution requires an explicit user choice. */
 export function decideExecutionMode(text, selectedSkill = null) {
   if (selectedSkill?.multiAgent) {
     return { mode: 'multi-agent', reason: `已选择多 Agent Skill：${selectedSkill.name}` }
   }
-  const target = '(?:多智能体|多\\s*agent|multi[-\\s]?agent|agent[-\\s]?team|任务\\s*DAG)'
-  const denied = new RegExp(`(?:不要|不需要|无需|禁止|别用|不要再用|不启用|禁用|关闭|不是|并非)\\s*(?:使用|启用|调用)?\\s*${target}`, 'i')
-  if (denied.test(text)) return { mode: 'single-agent', reason: '用户明确要求不启用多 Agent' }
-  const explicit = new RegExp(`(?:使用|启用|开启|调用|采用)\\s*${target}|${target}\\s*(?:skill|技能)|(?:任务|请求)\\s*.*${target}`, 'i').test(text)
+  if (explicitlyDisablesMultiAgent(text)) return { mode: 'single-agent', reason: '用户明确要求不启用多 Agent' }
+  const explicit = new RegExp(`(?:使用|启用|开启|调用|采用)\\s*${MULTI_AGENT_TARGET}|${MULTI_AGENT_TARGET}\\s*(?:skill|技能)|(?:任务|请求)\\s*.*${MULTI_AGENT_TARGET}`, 'i').test(String(text ?? ''))
   if (explicit) return { mode: 'multi-agent', reason: '用户明确要求多 Agent 编排' }
   return { mode: 'single-agent', reason: '未显式选择多 Agent，保持单 Agent 执行' }
 }

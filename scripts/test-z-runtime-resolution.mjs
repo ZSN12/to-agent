@@ -8,7 +8,6 @@ import {
   resolveTaskWeaverRuntimeRoot,
   TASKWEAVER_RUNTIME_PACKAGES,
   TASKWEAVER_Z_RUNTIME_DEPLOY_DIR,
-  TASKWEAVER_Z_RUNTIME_CLIENT_DIR,
 } from '../electron/agent/z-host/index.mjs'
 
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-z-resolution-'))
@@ -113,10 +112,10 @@ try {
   assert.match(buildScript, /TASKWEAVER_Z_RUNTIME_CLIENT_DIR/)
   const hostBuildConfig = JSON.parse(await fs.readFile(path.join(projectRoot, 'vendor/z-runtime/tsconfig.host.taskweaver.json'), 'utf8'))
   assert.ok(hostBuildConfig.references.some((entry) => entry.path === './packages/fs/tool-fs-search'), 'preset-only search plugin must be typecompiled before bundling, not deployed from stale lib/types')
-  for (const forbidden of ['./packages/fs/tool-fs-inline-edit', './packages/fs/tool-fs-semantic-search']) {
+  for (const required of ['./packages/fs/tool-fs-inline-edit', './packages/fs/tool-fs-semantic-search']) {
     assert.ok(
-      !hostBuildConfig.references.some((entry) => entry.path === forbidden),
-      `experimental ${forbidden} must not be in tsconfig.host.taskweaver.json (unfinished; breaks strict tsc)`,
+      hostBuildConfig.references.some((entry) => entry.path === required),
+      `integrated ${required} must be listed in tsconfig.host.taskweaver.json (see build-z-runtime TASKWEAVER_FS_TOOLS)`,
     )
   }
   assert.match(buildScript, /TASKWEAVER_RUNTIME_PACKAGES|runtime-packages/)

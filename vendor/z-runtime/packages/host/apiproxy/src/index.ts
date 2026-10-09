@@ -90,6 +90,7 @@ export class ApiProxyService extends Service implements ApiProxy {
   readonly credentials: ApiProxy['credentials']
   readonly authorization: ApiProxy['authorization']
   readonly llm: ApiProxy['llm']
+  readonly mcp: ApiProxy['mcp']
   readonly events: ApiProxy['events']
   readonly downloads: ApiProxy['downloads']
   readonly respond: ApiProxy['respond']
@@ -119,6 +120,7 @@ export class ApiProxyService extends Service implements ApiProxy {
     this.credentials = api.credentials
     this.authorization = api.authorization
     this.llm = api.llm
+    this.mcp = api.mcp
     this.events = api.events
     this.downloads = api.downloads
     // createApiProxy returns closures (no `this` capture), so the bind is

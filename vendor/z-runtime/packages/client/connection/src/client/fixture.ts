@@ -41,6 +41,20 @@ import { AbstractApiClient, RpcId, SESSION_SEARCH_RESULT_LIMIT } from './api.ts'
 import { randomUuid } from './random-uuid.ts'
 import type { ClientConnectionRpc } from '../rpc.ts'
 
+/** Fixture-only dispatch marker emitted by the TaskWeaver code tool. */
+type FixtureSessionEvent = SessionEvent | {
+  type: 'tool/code-dispatch-start'
+  seq: number
+  time: number
+  data: {
+    rootCallId: string
+    parentCallId: string
+    subCallId: string
+    name: string
+    arguments: unknown
+  }
+}
+
 /** The fake carrier mints like a real one (business code never mints). */
 function rpcRequest<P>(payload: P): RpcRequest<P> {
   return { rpcId: RpcId(randomUuid()), payload }
@@ -889,9 +903,10 @@ function tokenUsageOf(log: readonly SessionEvent[]): FixtureTokenUsageProjection
 }
 
 /** Fixture parallel of session-stats' whole-log counting and wall-time fold. */
-function sessionStatsOf(log: readonly SessionEvent[]): {
+function sessionStatsOf(log: readonly FixtureSessionEvent[]): {
   turns: number
   steps: number
+  toolCalls: number
   llmMs: number
   toolMs: number
   ttftMs: number
@@ -899,7 +914,7 @@ function sessionStatsOf(log: readonly SessionEvent[]): {
   decodeMs: number
   decodeTokens: number
 } {
-  const value = { turns: 0, steps: 0, llmMs: 0, toolMs: 0, ttftMs: 0, ttftSteps: 0, decodeMs: 0, decodeTokens: 0 }
+  const value = { turns: 0, steps: 0, toolCalls: 0, llmMs: 0, toolMs: 0, ttftMs: 0, ttftSteps: 0, decodeMs: 0, decodeTokens: 0 }
   let lastTurn: number | null = null
   let openStep: { turn: number; step: number; startTime: number; firstTokenTime: number | null } | null = null
   const pendingCalls = new Map<string, number>()
@@ -930,7 +945,11 @@ function sessionStatsOf(log: readonly SessionEvent[]): {
         break
       }
       case 'tool/call':
+        value.toolCalls += 1
         pendingCalls.set(event.data.callId, event.time)
+        break
+      case 'tool/code-dispatch-start':
+        value.toolCalls += 1
         break
       case 'tool/result': {
         const callId = event.data.message.source.callId
@@ -2264,6 +2283,14 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
   }
 
   const api: ApiProxy = {
+    mcp: {
+      list: request => ok(request, { tools: [] }),
+      call: request => err(request, {
+        code: 'internal',
+        message: 'MCP execution is unavailable in the fixture API',
+        details: {},
+      }),
+    },
     sessions: {
       list: request => ok(request, { items: [...sessions].sort((a, b) => b.updatedAt - a.updatedAt) }),
       search: (request, signal) => {

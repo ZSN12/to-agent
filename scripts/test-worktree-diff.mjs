@@ -8,8 +8,10 @@ import { promisify } from 'node:util'
 import {
   createTaskWorktree,
   getTaskWorktreeDiff,
+  listTaskWorktrees,
   previewTaskWorktreeMerge,
   applyTaskWorktreeMerge,
+  resolveTaskWorktreeDir,
 } from '../electron/backend/worktree-service.mjs'
 
 const execFileAsync = promisify(execFile)
@@ -23,7 +25,9 @@ await fs.mkdir(base, { recursive: true })
 const userData = await fs.mkdtemp(path.join(base, 'data-'))
 const repo = await fs.mkdtemp(path.join(base, 'repo-'))
 const conversationId = randomUUID()
-const wt = (taskId) => ({ workspacePath: repo, conversationId, taskId, userDataPath: userData })
+const firstRunId = randomUUID()
+const secondRunId = randomUUID()
+const wt = (taskId, runId = firstRunId) => ({ workspacePath: repo, conversationId, runId, taskId, userDataPath: userData })
 try {
   await runGit(['init'], repo)
   await fs.writeFile(path.join(repo, 'README.md'), 'hello\n', 'utf8')
@@ -37,6 +41,8 @@ try {
   )
 
   const { path: wtPath } = await createTaskWorktree(wt('T1'))
+  assert.equal(wtPath, resolveTaskWorktreeDir(userData, repo, conversationId, 'T1', firstRunId))
+  assert.equal(path.basename(path.dirname(wtPath)), firstRunId, 'new worktrees are separated by runId')
   await fs.writeFile(path.join(wtPath, 'README.md'), 'hello world\n', 'utf8')
 
   const diff = await getTaskWorktreeDiff(wt('T1'))
@@ -51,6 +57,11 @@ try {
   await applyTaskWorktreeMerge({ ...wt('T1'), removeAfter: true })
   const mainReadme = await fs.readFile(path.join(repo, 'README.md'), 'utf8')
   assert.match(mainReadme, /hello world/)
+
+  const { path: secondRunWorktree, reused } = await createTaskWorktree(wt('T1', secondRunId))
+  assert.equal(reused, false, 'a later run creates a fresh worktree for the same task ID')
+  assert.notEqual(secondRunWorktree, wtPath)
+  assert.equal(path.basename(path.dirname(secondRunWorktree)), secondRunId)
 
   // 测试 2：测试未跟踪新增文件与删除文件的合并
   await fs.writeFile(path.join(repo, 'to-delete.txt'), 'delete me\n', 'utf8')
@@ -112,9 +123,15 @@ try {
   const preservedCritical = await fs.readFile(path.join(repo, 'critical.txt'), 'utf8')
   assert.equal(preservedCritical, 'base content v1 + user edits\n', '用户修改的文件绝不能被误删')
 
-  console.log('worktree-diff + merge 测试通过（覆盖已跟踪修改、未跟踪新增及删除、未跟踪覆盖冲突拦截、删除修改冲突拦截）')
+  const legacyPath = resolveTaskWorktreeDir(userData, repo, conversationId, 'OLD')
+  await fs.mkdir(path.dirname(legacyPath), { recursive: true })
+  await runGit(['worktree', 'add', '--detach', legacyPath, 'HEAD'], repo)
+  const listed = await listTaskWorktrees({ workspacePath: repo, conversationId, userDataPath: userData })
+  assert.ok(listed.some((entry) => entry.taskId === 'T1' && entry.runId === secondRunId), 'new worktrees expose their runId')
+  assert.ok(listed.some((entry) => entry.taskId === 'OLD' && entry.runId === undefined && entry.path === legacyPath), 'listing continues to include the old conversation/task layout')
+
+  console.log('worktree-diff + merge checks passed: run-scoped paths, legacy listing, tracked/untracked changes, and merge conflict guards')
 } finally {
   await fs.rm(userData, { recursive: true, force: true })
   await fs.rm(repo, { recursive: true, force: true })
 }
-

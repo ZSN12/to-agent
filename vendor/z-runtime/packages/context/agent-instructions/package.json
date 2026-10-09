@@ -52,7 +52,7 @@
     "@z/dsh-fs-local": "workspace:^",
     "@z/dsh-invariants": "workspace:^",
     "@z/dsh-llm": "workspace:^",
-    "@z/dsh-llm-deepseek": "workspace:^",
+    "@z/dsh-llm-pi-ai": "workspace:^",
     "@z/dsh-home-paths": "workspace:^",
     "@z/dsh-session": "workspace:^",
     "@z/dsh-system-prompt": "workspace:^",

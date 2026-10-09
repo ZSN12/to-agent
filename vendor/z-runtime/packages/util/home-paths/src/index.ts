@@ -26,12 +26,6 @@ export const Z_TASKWEAVER_EMBEDDED_ENV = 'Z_TASKWEAVER_EMBEDDED'
 /** Legacy embedded flag; read after {@link Z_TASKWEAVER_EMBEDDED_ENV}. */
 export const DSH_TASKWEAVER_EMBEDDED_ENV = 'DSH_TASKWEAVER_EMBEDDED'
 
-/** Opt out of session telemetry export; any non-empty value disables. */
-export const Z_TELEMETRY_DISABLED_ENV = 'Z_TELEMETRY_DISABLED'
-
-/** Legacy telemetry opt-out; read after {@link Z_TELEMETRY_DISABLED_ENV}. */
-export const DSH_TELEMETRY_DISABLED_ENV = 'DSH_TELEMETRY_DISABLED'
-
 function nonBlankEnv(env: Record<string, string | undefined>, key: string): string | undefined {
   const value = env[key]
   if (value === undefined || value.trim().length === 0) return undefined
@@ -42,12 +36,6 @@ function nonBlankEnv(env: Record<string, string | undefined>, key: string): stri
 export function taskweaverEmbeddedFromEnv(env: Record<string, string | undefined> = process.env): boolean {
   return nonBlankEnv(env, Z_TASKWEAVER_EMBEDDED_ENV) !== undefined
     || nonBlankEnv(env, DSH_TASKWEAVER_EMBEDDED_ENV) !== undefined
-}
-
-/** Whether telemetry export is disabled for this process. */
-export function telemetryDisabledFromEnv(env: Record<string, string | undefined> = process.env): boolean {
-  return nonBlankEnv(env, Z_TELEMETRY_DISABLED_ENV) !== undefined
-    || nonBlankEnv(env, DSH_TELEMETRY_DISABLED_ENV) !== undefined
 }
 
 /**

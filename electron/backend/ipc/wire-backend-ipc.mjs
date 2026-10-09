@@ -47,14 +47,10 @@ export function wireBackendIpc({ ipcMain, app, dialog, BrowserWindow, ctx }) {
     appPreferences,
     permissionRulesStore,
     sandboxSession,
-    getCachedWorkspace,
-    getCachedConversationId,
-    setCachedWorkspaceTrusted,
-    cachedBashSandbox,
-    cachedPermissionMode,
-    cachedSessionSandboxMode,
-    setCachedSessionSandboxMode,
-    refreshWorkspaceCache,
+    getUiConversationId,
+    setUiWorkspaceTrusted,
+    setUiSessionSandboxMode,
+    refreshUiSnapshot,
     getConversationRuntimeContext,
     sandboxContextLineForContext,
     skills,
@@ -78,6 +74,12 @@ export function wireBackendIpc({ ipcMain, app, dialog, BrowserWindow, ctx }) {
     credentialStore,
   } = ctx
 
+  const resolveActiveRuntime = async (requestedConversationId) => {
+    const conversationId = await resolveIpcConversationId(requestedConversationId ?? null)
+    const runtime = await getConversationRuntimeContext(conversationId)
+    return { conversationId, ...runtime }
+  }
+
   const chatTurnPipeline = createChatTurnPipeline({
     appState,
     profileStore,
@@ -100,7 +102,12 @@ export function wireBackendIpc({ ipcMain, app, dialog, BrowserWindow, ctx }) {
     lockDirectory: path.join(userData, 'scheduled-job-locks'),
     runJob: createScheduledJobRunHandler({
       profileStore,
-      getCachedWorkspace,
+      getWorkspacePathForJob: async (conversationId) => {
+        const runtime = await getConversationRuntimeContext(
+          conversationId ?? (await resolveIpcConversationId(null)),
+        )
+        return runtime.workspacePath
+      },
       appState,
       permissions,
       getConversationRuntimeContext,
@@ -131,8 +138,7 @@ export function wireBackendIpc({ ipcMain, app, dialog, BrowserWindow, ctx }) {
     appState,
     chat,
     conversationHub,
-    refreshWorkspaceCache,
-    getCachedWorkspace,
+    refreshUiSnapshot,
     assertNotBusy,
     validateWorkspace,
   })
@@ -140,12 +146,10 @@ export function wireBackendIpc({ ipcMain, app, dialog, BrowserWindow, ctx }) {
   registerWorkspaceIpc({
     ipcMain,
     userDataPath: userData,
-    refreshWorkspaceCache,
-    getCachedWorkspace,
-    setCachedWorkspaceTrusted,
+    resolveActiveRuntime,
+    setUiWorkspaceTrusted,
     workspaceIndex,
     workspaceTrust,
-    appState,
     assertNotBusy,
     chat,
   })
@@ -163,15 +167,13 @@ export function wireBackendIpc({ ipcMain, app, dialog, BrowserWindow, ctx }) {
     usageStore,
     appPreferences,
     chat,
-    getCachedConversationId,
+    getUiConversationId,
     customProviderService,
-    refreshWorkspaceCache,
   })
 
   registerPermissionsIpc({
     ipcMain,
-    refreshWorkspaceCache,
-    getCachedWorkspace,
+    resolveActiveRuntime,
     permissionRulesStore,
     approvalAudit,
     resolveIpcConversationId,
@@ -180,10 +182,8 @@ export function wireBackendIpc({ ipcMain, app, dialog, BrowserWindow, ctx }) {
 
   registerWorkspaceGitIpc({
     ipcMain,
-    appState,
     userDataPath: userData,
-    refreshWorkspaceCache,
-    getWorkspacePath: getCachedWorkspace,
+    resolveActiveRuntime,
     withWorkspaceOperation,
   })
 
@@ -200,7 +200,7 @@ export function wireBackendIpc({ ipcMain, app, dialog, BrowserWindow, ctx }) {
     store: scheduledJobsStore,
     runner: scheduledJobsRunner,
     userDataPath: userData,
-    getWorkspacePath: getCachedWorkspace,
+    getWorkspacePath: async (conversationId) => (await resolveActiveRuntime(conversationId)).workspacePath,
   })
 
   registerDebugIpc({
@@ -215,17 +215,10 @@ export function wireBackendIpc({ ipcMain, app, dialog, BrowserWindow, ctx }) {
   registerSandboxIpc({
     ipcMain,
     probeSandboxSupport,
-    refreshWorkspaceCache,
+    resolveActiveRuntime,
     resolveSandboxPolicy,
-    getCachedSandboxState: () => ({
-      workspacePath: getCachedWorkspace(),
-      bashSandbox: cachedBashSandbox(),
-      permissionMode: cachedPermissionMode(),
-      sessionSandboxMode: cachedSessionSandboxMode(),
-    }),
-    appState,
     sandboxSession,
-    setCachedSessionSandboxMode,
+    setUiSessionSandboxMode,
   })
 
   registerWorktreeIpc({
@@ -238,10 +231,8 @@ export function wireBackendIpc({ ipcMain, app, dialog, BrowserWindow, ctx }) {
 
   registerMemoryIpc({
     ipcMain,
-    refreshWorkspaceCache,
-    appState,
+    resolveActiveRuntime,
     sessionMemory,
-    getCachedWorkspace,
   })
 
   registerChatIpc({
@@ -269,7 +260,7 @@ export function wireBackendIpc({ ipcMain, app, dialog, BrowserWindow, ctx }) {
 
   const terminalService = registerTerminalIpc({
     ipcMain,
-    getWorkspacePath: getCachedWorkspace,
+    getWorkspacePath: async (conversationId) => (await resolveActiveRuntime(conversationId)).workspacePath,
     fallbackWorkspace,
   })
 

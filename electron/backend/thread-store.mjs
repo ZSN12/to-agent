@@ -1,7 +1,6 @@
 import path from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { createJsonStore } from './json-store.mjs'
-import { searchSessionTranscripts } from './session-transcript-search.mjs'
 import { sliceForkMessages } from './fork-turns.mjs'
 
 const VALID_PERMISSION_MODES = new Set(['readonly', 'ask', 'on-risk', 'full'])
@@ -66,24 +65,19 @@ function summary(thread) {
 /** Local per-thread state; each thread owns its workspace, transcript, tasks and session id. */
 export function createThreadStore(userDataPath, fallbackWorkspace) {
   const store = createJsonStore(path.join(userDataPath, 'taskweaver-threads.json'), () => ({ currentThreadId: null, threads: [] }))
-  let queue = Promise.resolve()
+  let searchSessionContent = async () => ({ items: [], hasMore: false })
 
-  function serialize(operation) {
-    const next = queue.then(operation, operation)
-    queue = next.catch(() => {})
-    return next
+  function cloneState(current) {
+    return {
+      currentThreadId: current.currentThreadId ?? null,
+      threads: Array.isArray(current.threads) ? current.threads.map((thread) => normalizeThread(thread, fallbackWorkspace)) : [],
+    }
   }
 
   async function transact(mutator) {
-    return serialize(async () => {
-      const current = await store.read()
-      const state = {
-        currentThreadId: current.currentThreadId ?? null,
-        threads: Array.isArray(current.threads) ? current.threads.map((thread) => normalizeThread(thread, fallbackWorkspace)) : [],
-      }
-      const next = await mutator(state)
-      await store.write(next)
-      return next
+    return store.update(async (current) => {
+      const state = cloneState(current)
+      return await mutator(state)
     })
   }
 
@@ -159,6 +153,11 @@ export function createThreadStore(userDataPath, fallbackWorkspace) {
       const state = await store.read()
       const threads = Array.isArray(state.threads) ? state.threads.map((thread) => normalizeThread(thread, fallbackWorkspace)) : []
       return threads.sort((a, b) => b.updatedAt - a.updatedAt).map((thread) => ({ ...summary(thread), current: thread.id === state.currentThreadId }))
+    },
+    setSessionSearch(search) {
+      searchSessionContent = typeof search === 'function'
+        ? search
+        : async () => ({ items: [], hasMore: false })
     },
     async createThread({ workspacePath, permissionMode, title, modelKey, thinkingLevel } = {}) {
       await transact((state) => {
@@ -255,23 +254,29 @@ export function createThreadStore(userDataPath, fallbackWorkspace) {
           .map((t) => ({ ...summary(t), current: t.id === state.currentThreadId }))
       }
 
-      const conversationsDir = path.join(userDataPath, 'taskweaver-agent', 'conversations')
-      const transcriptHits = await searchSessionTranscripts(conversationsDir, q, { limit: 80 })
-      const transcriptConversationIds = new Set(transcriptHits.map((hit) => hit.conversationId))
+      const contentSearch = await searchSessionContent(String(query || '').trim())
+      const snippetsByConversation = new Map()
+      for (const hit of contentSearch?.items ?? []) {
+        if (typeof hit?.conversationId === 'string' && typeof hit?.snippet === 'string') {
+          snippetsByConversation.set(hit.conversationId, hit.snippet)
+        }
+      }
 
       return threads
-        .filter((t) => {
-          if (workspacePath && t.workspacePath !== workspacePath) return false
-          const titleMatch = t.title.toLowerCase().includes(q)
-          const msgMatch = t.messages.some((m) => {
-            const text = typeof m.text === 'string' ? m.text : (typeof m.content === 'string' ? m.content : '')
-            return text.toLowerCase().includes(q)
-          })
-          const jsonlMatch = transcriptConversationIds.has(t.conversationId)
-          return titleMatch || msgMatch || jsonlMatch
+        .filter((thread) => {
+          if (workspacePath && thread.workspacePath !== workspacePath) return false
+          const titleMatch = thread.title.toLowerCase().includes(q)
+          const pathMatch = (thread.workspacePath ?? '').toLowerCase().includes(q)
+          return titleMatch || pathMatch || snippetsByConversation.has(thread.conversationId)
         })
         .sort((a, b) => b.updatedAt - a.updatedAt)
-        .map((t) => ({ ...summary(t), current: t.id === state.currentThreadId }))
+        .map((thread) => ({
+          ...summary(thread),
+          current: thread.id === state.currentThreadId,
+          ...(snippetsByConversation.has(thread.conversationId)
+            ? { searchSnippet: snippetsByConversation.get(thread.conversationId) }
+            : {}),
+        }))
     },
     async deleteThread(threadId) {
       await transact((state) => {
@@ -332,16 +337,14 @@ export function createThreadStore(userDataPath, fallbackWorkspace) {
       }).then(() => currentState())
     },
     async updateCurrent(mutator) {
-      return serialize(async () => {
-        const state = await store.read()
-        const threads = Array.isArray(state.threads) ? state.threads.map((thread) => normalizeThread(thread, fallbackWorkspace)) : []
-        const index = threads.findIndex((thread) => thread.id === state.currentThreadId)
+      return store.update(async (current) => {
+        const state = cloneState(current)
+        const index = state.threads.findIndex((thread) => thread.id === state.currentThreadId)
         if (index < 0) throw new Error('当前会话不存在')
-        const updated = await mutator(threads[index])
-        threads[index] = normalizeThread({ ...threads[index], ...updated, updatedAt: Date.now() }, fallbackWorkspace)
-        await store.write({ currentThreadId: state.currentThreadId, threads })
-        return currentState()
-      })
+        const updated = await mutator(state.threads[index])
+        state.threads[index] = normalizeThread({ ...state.threads[index], ...updated, updatedAt: Date.now() }, fallbackWorkspace)
+        return state
+      }).then(() => currentState())
     },
   }
 }

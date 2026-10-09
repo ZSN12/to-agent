@@ -26,15 +26,19 @@ export function ConversationUsageFooter({
         userMessages: sessionUsage.rounds,
         assistantMessages: sessionUsage.rounds,
         toolCalls: 0,
-        toolResults: 0,
+        llmMs: 0,
+        toolMs: 0,
+        ttftMs: 0,
+        ttftSteps: 0,
+        decodeMs: 0,
+        decodeTokens: 0,
         tokens: {
           input: sessionUsage.inputTokens,
           output: sessionUsage.outputTokens,
           cacheRead: sessionUsage.cacheReadTokens,
           cacheWrite: sessionUsage.cacheWriteTokens,
-          total: sessionUsage.inputTokens + sessionUsage.outputTokens + sessionUsage.cacheReadTokens,
+          total: sessionUsage.inputTokens + sessionUsage.outputTokens + sessionUsage.cacheReadTokens + sessionUsage.cacheWriteTokens,
         },
-        cost: 0,
       }}
       messages={messages}
       liveContext={liveContext}

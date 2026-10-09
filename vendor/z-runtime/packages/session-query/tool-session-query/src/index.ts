@@ -20,14 +20,14 @@ export const name = 'tool-session-query'
 export const inject = ['tools', 'systemPrompt', 'sessionQuery']
 
 /** Default maximum number of authorized search hits returned by one call. */
-export const DEFAULT_MAX_SEARCH_RESULTS = 100
+export const DEFAULT_MAX_SEARCH_RESULTS = 30
 
 /** Default cooperative deadline for either full-text search tool. */
 export const DEFAULT_SEARCH_TIMEOUT_MS = 30_000
 
 /** Deployment-owned search count and timeout bounds. */
 export interface Config {
-  /** Maximum authorized hits returned by one search call. Defaults to 100. */
+  /** Maximum authorized hits returned by one search call. Defaults to 30. */
   maxSearchResults?: number
   /** Cooperative full-text search deadline in milliseconds. Defaults to 30000. */
   searchTimeoutMs?: number

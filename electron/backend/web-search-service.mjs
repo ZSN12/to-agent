@@ -10,7 +10,14 @@ import {
   WEB_SEARCH_ERROR_MESSAGE_MAX_LENGTH,
 } from './config.mjs'
 
-const DEFAULT = { enabled: false, apiKey: '', endpoint: '', maxResults: WEB_SEARCH_DEFAULT_RESULTS }
+const ENCRYPTED_KEY_PREFIX = 'enc:safe-storage:'
+const DEFAULT = { enabled: false, apiKeyEncrypted: '', endpoint: '', maxResults: WEB_SEARCH_DEFAULT_RESULTS }
+const RUNTIME_ENV = {
+  enabled: 'TASKWEAVER_WEB_SEARCH_ENABLED',
+  endpoint: 'TASKWEAVER_WEB_SEARCH_ENDPOINT',
+  maxResults: 'TASKWEAVER_WEB_SEARCH_MAX_RESULTS',
+  apiKey: 'TASKWEAVER_WEB_SEARCH_API_KEY_SECRET',
+}
 
 /**
  * 格式化搜索结果条目
@@ -328,54 +335,137 @@ function createWebSearchTool(config) {
   }
 }
 
-/** 扩展 Web 搜索服务（支持自定义 API、凭据脱敏保护与连通性测试）。 */
-export function createWebSearchService({ userData }) {
+/** 扩展 Web 搜索服务（安全存储凭据，并为 Host 准备启动期 provider 环境）。 */
+export function createWebSearchService({
+  userData,
+  safeStorage,
+  assertRuntimeConfigChangeSafe,
+  onRuntimeConfigChanged,
+}) {
   const store = createJsonStore(path.join(userData, 'taskweaver-web-search.json'), DEFAULT)
+
+  function encryptApiKey(value) {
+    if (!safeStorage?.isEncryptionAvailable?.()) {
+      throw new Error('系统安全存储不可用，已拒绝保存网页搜索 API Key。')
+    }
+    try {
+      return `${ENCRYPTED_KEY_PREFIX}${safeStorage.encryptString(value).toString('base64')}`
+    } catch {
+      throw new Error('系统安全存储加密网页搜索 API Key 失败，已拒绝保存。')
+    }
+  }
+
+  function decryptApiKey(value) {
+    if (typeof value !== 'string' || !value) return ''
+    if (!value.startsWith(ENCRYPTED_KEY_PREFIX)) {
+      throw new Error('网页搜索 API Key 未加密，已拒绝使用。')
+    }
+    if (!safeStorage?.isEncryptionAvailable?.()) {
+      throw new Error('系统安全存储不可用，无法读取网页搜索 API Key。')
+    }
+    try {
+      return safeStorage.decryptString(Buffer.from(value.slice(ENCRYPTED_KEY_PREFIX.length), 'base64'))
+    } catch {
+      throw new Error('无法解密网页搜索 API Key。')
+    }
+  }
+
+  let migrationPromise = null
+  async function readStoredConfig() {
+    let config = await store.read()
+    if (Object.hasOwn(config ?? {}, 'apiKey')) {
+      migrationPromise ??= store.update((latest) => {
+        const migrated = { ...DEFAULT, ...latest }
+        const oldKey = typeof latest?.apiKey === 'string' ? latest.apiKey.trim() : ''
+        if (oldKey && !migrated.apiKeyEncrypted) {
+          if (safeStorage?.isEncryptionAvailable?.()) migrated.apiKeyEncrypted = encryptApiKey(oldKey)
+          else {
+            migrated.apiKeyEncrypted = ''
+            migrated.enabled = false
+            console.warn('[web-search] 已清除无法安全迁移的历史明文 API Key。')
+          }
+        }
+        delete migrated.apiKey
+        return migrated
+      }).finally(() => { migrationPromise = null })
+      await migrationPromise
+      config = await store.read()
+    }
+    return { ...DEFAULT, ...config }
+  }
+
+  async function notifyRuntimeConfigChanged() {
+    await onRuntimeConfigChanged?.()
+  }
 
   return {
     async getConfig() {
-      const raw = await store.read()
-      const hasKey = Boolean(raw.apiKey && String(raw.apiKey).trim())
+      const raw = await readStoredConfig()
       return {
         enabled: raw.enabled === true,
-        hasKey,
+        hasKey: Boolean(raw.apiKeyEncrypted),
         endpoint: raw.endpoint || '',
         maxResults: Number.isFinite(raw.maxResults) ? raw.maxResults : 5,
       }
     },
     async setConfig(patch) {
-      const prev = await store.read()
-      let nextKey = prev.apiKey ?? ''
+      const prev = await readStoredConfig()
+      let nextKey = prev.apiKeyEncrypted ?? ''
       if (patch.clearKey === true) {
         nextKey = ''
       } else if (typeof patch.apiKey === 'string' && patch.apiKey.trim()) {
-        nextKey = patch.apiKey.trim()
+        const requestedKey = patch.apiKey.trim()
+        let currentKey = null
+        if (nextKey) {
+          try {
+            currentKey = decryptApiKey(nextKey)
+          } catch {
+            // A replacement key can repair a key that can no longer be decrypted.
+          }
+        }
+        if (requestedKey !== currentKey) nextKey = encryptApiKey(requestedKey)
       }
 
       const next = {
         enabled: patch.enabled !== undefined ? patch.enabled === true : prev.enabled ?? false,
-        apiKey: nextKey,
+        apiKeyEncrypted: nextKey,
         endpoint: typeof patch.endpoint === 'string' ? patch.endpoint.trim() : prev.endpoint ?? '',
         maxResults: Number.isFinite(patch.maxResults)
           ? Math.min(20, Math.max(1, patch.maxResults))
           : prev.maxResults ?? 5,
       }
+
+      const changed = next.enabled !== (prev.enabled === true)
+        || next.apiKeyEncrypted !== (prev.apiKeyEncrypted ?? '')
+        || next.endpoint !== (prev.endpoint || '')
+        || next.maxResults !== (Number.isFinite(prev.maxResults) ? prev.maxResults : 5)
+      if (!changed) {
+        return {
+          enabled: next.enabled,
+          hasKey: Boolean(next.apiKeyEncrypted),
+          endpoint: next.endpoint,
+          maxResults: next.maxResults,
+        }
+      }
+
+      await assertRuntimeConfigChangeSafe?.()
       await store.write(next)
+      await notifyRuntimeConfigChanged()
       return {
         enabled: next.enabled,
-        hasKey: Boolean(next.apiKey),
+        hasKey: Boolean(next.apiKeyEncrypted),
         endpoint: next.endpoint,
         maxResults: next.maxResults,
       }
     },
     async testSearch(query = 'test') {
-      const cfg = await store.read()
+      const cfg = await readStoredConfig()
       try {
         const text = await executeWebSearch({
           query,
           maxResults: cfg.maxResults || 3,
           endpoint: cfg.endpoint,
-          apiKey: cfg.apiKey,
+          apiKey: decryptApiKey(cfg.apiKeyEncrypted),
         })
         return { ok: true, text }
       } catch (err) {
@@ -383,9 +473,25 @@ export function createWebSearchService({ userData }) {
       }
     },
     async getCustomTools() {
-      const cfg = await store.read()
+      const stored = await readStoredConfig()
+      const cfg = {
+        ...stored,
+        apiKey: decryptApiKey(stored.apiKeyEncrypted),
+      }
       const tool = createWebSearchTool(cfg)
       return tool ? [tool] : []
+    },
+    async prepareRuntimeIntegration() {
+      const config = await readStoredConfig()
+      const environment = {
+        [RUNTIME_ENV.enabled]: config.enabled === true ? 'true' : 'false',
+        [RUNTIME_ENV.endpoint]: String(config.endpoint ?? ''),
+        [RUNTIME_ENV.maxResults]: String(Number.isFinite(config.maxResults) ? config.maxResults : WEB_SEARCH_DEFAULT_RESULTS),
+      }
+      if (config.enabled === true && config.apiKeyEncrypted) {
+        environment[RUNTIME_ENV.apiKey] = decryptApiKey(config.apiKeyEncrypted)
+      }
+      return { environment }
     },
   }
 }

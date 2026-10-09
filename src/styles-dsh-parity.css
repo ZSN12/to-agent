@@ -2057,6 +2057,72 @@
   color: var(--text-muted, #a1a1aa);
 }
 
+.openusage-quota-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.openusage-quota-card {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.15);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.openusage-quota-card--ok {
+  border-color: rgba(34, 197, 94, 0.25);
+}
+
+.openusage-quota-card--warn {
+  border-color: rgba(245, 158, 11, 0.35);
+}
+
+.openusage-quota-card--danger {
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+.openusage-quota-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.openusage-quota-card-plan {
+  font-size: 11px;
+  color: var(--text-muted, #a1a1aa);
+}
+
+.openusage-quota-resource-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.openusage-quota-resource-list li {
+  display: grid;
+  grid-template-columns: minmax(72px, 28%) 1fr;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.openusage-quota-resource-id {
+  font-size: 11px;
+  color: var(--text-muted, #a1a1aa);
+}
+
+.openusage-quota-resource-text {
+  color: var(--text-muted, #d4d4d8);
+}
+
 .openusage-quota-chips {
   display: flex;
   flex-wrap: wrap;

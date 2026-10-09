@@ -2,7 +2,7 @@ import { createUserMessage } from '@z/dsh-llm'
 import { afterEach, describe, expect, it } from 'vitest'
 import { Context } from '@z/cordis'
 import LlmRuntime from '@z/dsh-llm'
-import * as LlmDeepSeek from '@z/dsh-llm-deepseek'
+import * as LlmPiAi from '@z/dsh-llm-pi-ai'
 import SessionStore, { SessionId } from '@z/dsh-session'
 import SessionTitleService from '@z/dsh-session-title'
 import * as FirstMessageTitleProvider from '@z/dsh-session-title-first-prompt-llm'
@@ -18,7 +18,7 @@ describe.skipIf(!process.env.DEEPSEEK_API_KEY)('first-prompt title provider with
     const ctx = new Context()
     contexts.push(ctx)
     await ctx.plugin(LlmRuntime)
-    await ctx.plugin(LlmDeepSeek, { thinking: 'disabled' })
+    await ctx.plugin(LlmPiAi, { providers: { deepseek: { apiKeyEnv: 'DEEPSEEK_API_KEY' } } })
     await ctx.plugin(SessionStore)
     await ctx.plugin(SessionTitleService, {
       fallbackMaxWords: 5,
@@ -31,8 +31,8 @@ describe.skipIf(!process.env.DEEPSEEK_API_KEY)('first-prompt title provider with
       maxInputBytes: 4_096,
       maxOutputTokens: 64,
       timeoutMs: 60_000,
-      provider: 'deepseek-official',
-      model: 'deepseek-v4-flash',
+      provider: 'deepseek',
+      model: 'deepseek-flash',
     })
     const session = ctx.sessions.create(SessionId('real-title-provider'))
     session.append('turn/start', {
@@ -50,7 +50,7 @@ describe.skipIf(!process.env.DEEPSEEK_API_KEY)('first-prompt title provider with
       source: {
         kind: 'provider',
         provider: 'session-title-first-prompt-llm',
-        model: { provider: 'deepseek-official', model: 'deepseek-v4-flash' },
+        model: { provider: 'deepseek', model: 'deepseek-flash' },
       },
     })
     expect(title?.title.length).toBeGreaterThan(0)

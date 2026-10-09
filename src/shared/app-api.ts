@@ -1,5 +1,5 @@
 import type { ChatMessage, ChatUsage, ModifiedFileSummary, TaskNode, TurnActivitySummary } from '../types'
-import type { TaskweaverModelsApi, IpcResult, ThinkingLevel } from './model-api'
+import type { IpcResult, ThinkingLevel } from './model-api'
 
 export type { InvokeChannel } from './ipc-invoke-channels'
 
@@ -30,6 +30,11 @@ export interface ThreadSummary {
   pinned?: boolean
   archived?: boolean
   current?: boolean
+}
+
+/** Sidebar-only search result with an optional transcript excerpt. */
+export interface ThreadSearchResult extends ThreadSummary {
+  searchSnippet?: string
 }
 
 export interface OutputLogEntry extends ToolTraceItem {
@@ -162,7 +167,7 @@ export interface TaskweaverAppApi {
   renameThread: (threadId: string, title: string) => Promise<IpcResult<ThreadSummary[]>>
   togglePinThread: (threadId: string) => Promise<IpcResult<ThreadSummary[]>>
   toggleArchiveThread: (threadId: string) => Promise<IpcResult<ThreadSummary[]>>
-  searchThreads: (query: string, options?: { workspacePath?: string | null }) => Promise<IpcResult<ThreadSummary[]>>
+  searchThreads: (query: string, options?: { workspacePath?: string | null }) => Promise<IpcResult<ThreadSearchResult[]>>
   deleteThread: (threadId: string) => Promise<IpcResult<AppState>>
   forkThread: (threadId: string, messageId: string) => Promise<IpcResult<ForkThreadResult>>
   clearConversation: (options?: { workspacePath?: string | null }) => Promise<IpcResult<AppState>>
@@ -548,7 +553,13 @@ export interface SessionStatsSnapshot {
   userMessages: number
   assistantMessages: number
   toolCalls: number
-  toolResults: number
+  /** Whole-session fields copied from Host's durable sessionStats projection. */
+  llmMs: number
+  toolMs: number
+  ttftMs: number
+  ttftSteps: number
+  decodeMs: number
+  decodeTokens: number
   tokens: {
     input: number
     output: number
@@ -556,7 +567,6 @@ export interface SessionStatsSnapshot {
     cacheWrite: number
     total: number
   }
-  cost: number
   contextTokens?: number | null
   contextWindow?: number | null
   contextPercent?: number | null
@@ -789,6 +799,8 @@ export interface PermissionRule {
   workspacePath?: string | null
   createdAt: number
   description?: string
+  /** Command `*` is literal unless a user explicitly enables wildcard matching. */
+  allowWildcards?: boolean
 }
 
 export interface TaskweaverPermissionApi {
@@ -1032,7 +1044,8 @@ export interface SessionMemorySnapshot {
   conversation_id: string
   user_goal?: string
   rolling_summary?: string
-  dependency_outputs?: Record<string, unknown>
+  runs?: Record<string, Record<string, unknown>>
+  run_order?: string[]
   updated_at?: string
 }
 
@@ -1105,17 +1118,19 @@ export interface WorktreeEntry {
   taskId: string
   path: string
   conversationId?: string
+  runId?: string
 }
 
 export interface TaskweaverWorktreeApi {
   list: (conversationId?: string | null) => Promise<IpcResult<WorktreeEntry[]>>
-  remove: (taskId: string, force?: boolean, conversationId?: string | null) => Promise<IpcResult<{ removed: boolean }>>
-  diff: (taskId: string, conversationId?: string | null) => Promise<IpcResult<WorktreeDiffResult>>
-  previewMerge: (taskId: string, conversationId?: string | null) => Promise<IpcResult<WorktreeMergePreview>>
+  remove: (taskId: string, force?: boolean, conversationId?: string | null, runId?: string | null) => Promise<IpcResult<{ removed: boolean }>>
+  diff: (taskId: string, conversationId?: string | null, runId?: string | null) => Promise<IpcResult<WorktreeDiffResult>>
+  previewMerge: (taskId: string, conversationId?: string | null, runId?: string | null) => Promise<IpcResult<WorktreeMergePreview>>
   applyMerge: (
     taskId: string,
     options?: { removeAfter?: boolean; files?: string[] },
     conversationId?: string | null,
+    runId?: string | null,
   ) => Promise<IpcResult<WorktreeMergeResult>>
 }
 
@@ -1124,34 +1139,13 @@ export interface TaskweaverMemoryApi {
   clear: () => Promise<IpcResult<{ ok: boolean }>>
 }
 
-export interface TaskweaverBridge {
-  app: TaskweaverAppApi
-  pricing?: TaskweaverPricingApi
-  workspace: TaskweaverWorkspaceApi
-  models: TaskweaverModelsApi
-  skills: TaskweaverSkillsApi
-  mcp: TaskweaverMcpApi
-  permission?: TaskweaverPermissionApi
-  userQuestions?: TaskweaverUserQuestionsApi
-  chat: TaskweaverChatApi
-  tasks: TaskweaverTasksApi
-  usage?: TaskweaverUsageApi
-  openusage?: TaskweaverOpenUsageApi
-  terminal?: TaskweaverTerminalApi
-  portfolio?: TaskweaverPortfolioApi
-  preferences?: TaskweaverPreferencesApi
-  sandbox?: TaskweaverSandboxApi
-  webSearch?: TaskweaverWebSearchApi
-  worktree?: TaskweaverWorktreeApi
-  memory?: TaskweaverMemoryApi
-  jobs?: TaskweaverJobsApi
-  github?: TaskweaverGithubApi
+export interface TaskweaverBackendApi {
+  backendReady: () => Promise<IpcResult<{ ready: boolean; error?: string }>>
 }
 
-declare global {
-  interface Window {
-    taskweaver?: TaskweaverBridge
-  }
+/** Available only in development when TASKWEAVER_DEVTOOLS=1. */
+export interface TaskweaverDebugApi {
+  shadowTranscript: (conversationId?: string | null) => Promise<IpcResult<unknown | null>>
 }
 
 export {}

@@ -6,7 +6,6 @@ import goalsRemote from '@z/dsh-goal/remote'
 import dynamicRemote from '@z/dsh-cordis-host-runner/remote'
 import fileReferencesRemote from '@z/dsh-file-reference/remote'
 import pluginInventoryRemote from '@z/dsh-host-plugin-inventory/remote'
-import messageFeedbackRemote from '@z/dsh-message-feedback/remote'
 import sessionReferencesRemote from '@z/dsh-session-reference/remote'
 import type { TypertClientRemote } from '@z/dsh-typert-protocol'
 
@@ -16,7 +15,6 @@ export type {} from '@z/dsh-commands/remote'
 export type {} from '@z/dsh-file-reference/remote'
 export type {} from '@z/dsh-goal/remote'
 export type {} from '@z/dsh-host-plugin-inventory/remote'
-export type {} from '@z/dsh-message-feedback/remote'
 export type {} from '@z/dsh-session-reference/remote'
 // The forwarded-event allowlist's selection seat: without it in the consumer's
 // compilation face `TypertRemoteEvent` is `never` and every `$on` call fails.
@@ -115,7 +113,7 @@ export async function apply(ctx: Context): Promise<() => Promise<void>> {
   try {
     for (const contribution of [
       commandsRemote, goalsRemote, dynamicRemote, fileReferencesRemote,
-      pluginInventoryRemote, messageFeedbackRemote, sessionReferencesRemote,
+      pluginInventoryRemote, sessionReferencesRemote,
     ]) {
       disposers.push(await ctx.remote.$mount(contribution))
     }

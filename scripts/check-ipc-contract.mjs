@@ -2,84 +2,81 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { INVOKE_CHANNELS } from '../electron/ipc/channels.mjs'
+import { IPC_CHANNELS } from '../electron/ipc/channels.mjs'
+import { checkGeneratedIpcTypes } from './gen-ipc-types.mjs'
+import { isGeneratedPreload } from './gen-preload.mjs'
+import { parsePreloadApi, scanRegisteredHandlers, scanRendererTaskweaverPaths } from './ipc-contract-utils.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const preloadPath = path.join(root, 'electron/preload.cjs')
 const backendDir = path.join(root, 'electron/backend')
+const rendererDir = path.join(root, 'src')
+const preloadSource = fs.readFileSync(preloadPath, 'utf8')
+const { invokeMethods, bridgeMethods, exposedPaths } = parsePreloadApi(preloadSource, 'electron/preload.cjs')
+const registeredHandlers = scanRegisteredHandlers(backendDir, root)
+const rendererPaths = scanRendererTaskweaverPaths(rendererDir)
+export function collectIpcContractIssues({
+  channels = IPC_CHANNELS,
+  handlers = registeredHandlers,
+  invokeMethods: preloadMethods = invokeMethods,
+  bridgeMethods: preloadBridgeMethods = bridgeMethods,
+  exposedPaths: preloadPaths = exposedPaths,
+  rendererPaths: usedRendererPaths = rendererPaths,
+  generatedTypesFresh = checkGeneratedIpcTypes(),
+  generatedPreloadFresh = isGeneratedPreload(preloadSource),
+} = {}) {
+  const tableByName = new Map()
+  const problems = []
 
-function listPreloadInvokeChannels() {
-  const text = fs.readFileSync(preloadPath, 'utf8')
-  return [...new Set([...text.matchAll(/invoke\('([^']+)'/g)].map((match) => match[1]))].sort()
-}
-
-function listRegisteredHandlers() {
-  const channels = new Set()
-  const walk = (dir) => {
-    for (const name of fs.readdirSync(dir)) {
-      const full = path.join(dir, name)
-      const stat = fs.statSync(full)
-      if (stat.isDirectory()) {
-        walk(full)
-        continue
-      }
-      if (!name.endsWith('.mjs')) continue
-      const text = fs.readFileSync(full, 'utf8')
-      for (const match of text.matchAll(/ipcHandle\(\s*ipcMain,\s*'([^']+)'/g)) {
-        channels.add(match[1])
-      }
+  for (const entry of channels) {
+    if (tableByName.has(entry.name)) {
+      problems.push(`duplicate table entry: ${entry.name}`)
+      continue
     }
+    tableByName.set(entry.name, entry)
+    if (entry.direction !== 'renderer-to-main/invoke') problems.push(`${entry.name}: unsupported direction ${entry.direction}`)
+    if (!entry.handlerModule) problems.push(`${entry.name}: handlerModule is missing`)
+    if (!entry.argsSchema?.reference) problems.push(`${entry.name}: argsSchema is missing`)
+    if (!entry.resultSchema?.reference) problems.push(`${entry.name}: resultSchema is missing`)
+    const argsType = entry.argsSchema?.reference?.match(/^Parameters<NonNullable<(.+)>>$/)?.[1]
+    if (!argsType || entry.resultSchema?.reference !== `Awaited<ReturnType<NonNullable<${argsType}>>>`) {
+      problems.push(`${entry.name}: argsSchema and resultSchema must reference the same API method`)
+    }
+    const actualHandler = handlers.get(entry.name)
+    if (!actualHandler) problems.push(`${entry.name}: table entry has no ipcHandle registration`)
+    else if (actualHandler !== entry.handlerModule) problems.push(`${entry.name}: handlerModule=${entry.handlerModule}, registered in ${actualHandler}`)
+    const actualPath = preloadMethods.get(entry.name)
+    if (!actualPath) problems.push(`${entry.name}: table entry is not exposed by preload`)
+    else if (actualPath !== entry.bridgePath) problems.push(`${entry.name}: bridgePath=${entry.bridgePath}, preload exposes ${actualPath}`)
+    if (!preloadBridgeMethods.has(entry.bridgePath)) problems.push(`${entry.name}: bridgePath ${entry.bridgePath} is not a generated preload method`)
   }
-  walk(backendDir)
-  return [...channels].sort()
+
+  for (const [channel, modulePath] of handlers) {
+    if (!tableByName.has(channel)) problems.push(`${channel}: registered in ${modulePath} but absent from the IPC table`)
+  }
+  for (const [channel, bridgePath] of preloadMethods) {
+    if (!tableByName.has(channel)) problems.push(`${channel}: exposed as ${bridgePath} by preload but absent from the IPC table`)
+  }
+
+  const missingRendererPaths = [...usedRendererPaths.keys()]
+    .filter((accessPath) => !preloadPaths.has(accessPath))
+    .sort()
+  if (missingRendererPaths.length) {
+    problems.push(`renderer calls taskweaver APIs not exposed by preload: ${missingRendererPaths.join(', ')}`)
+  }
+
+  if (!generatedTypesFresh) problems.push('generated IPC TypeScript files are stale; run node scripts/gen-ipc-types.mjs')
+  if (!generatedPreloadFresh) problems.push('electron/preload.cjs is stale; run node scripts/gen-preload.mjs')
+  return problems
 }
 
-const preloadChannels = listPreloadInvokeChannels()
-const handlerChannels = listRegisteredHandlers()
-
-const allowHandlerOnly = new Set(['debug:shadowTranscript'])
-const allowPreloadOnly = new Set()
-
-const missingHandlers = preloadChannels.filter(
-  (channel) => !handlerChannels.includes(channel) && !allowPreloadOnly.has(channel),
-)
-const missingPreload = handlerChannels.filter(
-  (channel) => !preloadChannels.includes(channel) && !allowHandlerOnly.has(channel),
-)
-
-if (missingHandlers.length) {
-  console.error('check-ipc-contract: preload 通道缺少主进程 handler:\n', missingHandlers.join('\n'))
-  process.exit(1)
+const invokedPath = process.argv[1] ? path.resolve(process.argv[1]) : ''
+if (invokedPath === fileURLToPath(import.meta.url)) {
+  const problems = collectIpcContractIssues()
+  if (problems.length) {
+    console.error(`check-ipc-contract: failed (${problems.length} issue${problems.length === 1 ? '' : 's'})`)
+    for (const problem of problems) console.error(`- ${problem}`)
+    process.exit(1)
+  }
+  console.log(`check-ipc-contract: ok (${IPC_CHANNELS.length} table entries, ${registeredHandlers.size} registrations, ${rendererPaths.size} renderer API paths)`)
 }
-if (missingPreload.length) {
-  console.error('check-ipc-contract: handler 未暴露到 preload:\n', missingPreload.join('\n'))
-  process.exit(1)
-}
-
-const tableChannels = [...INVOKE_CHANNELS].sort()
-const tableSet = new Set(tableChannels)
-const preloadSet = new Set(preloadChannels)
-const handlerSet = new Set(handlerChannels)
-
-const tableMissingFromPreload = tableChannels.filter((ch) => !preloadSet.has(ch))
-const tableMissingFromHandlers = tableChannels.filter((ch) => !handlerSet.has(ch) && !allowHandlerOnly.has(ch))
-const preloadNotInTable = preloadChannels.filter((ch) => !tableSet.has(ch))
-const handlersNotInTable = handlerChannels.filter((ch) => !tableSet.has(ch) && !allowHandlerOnly.has(ch))
-
-if (tableMissingFromPreload.length || tableMissingFromHandlers.length || preloadNotInTable.length || handlersNotInTable.length) {
-  if (tableMissingFromPreload.length) {
-    console.error('check-ipc-contract: channels.mjs 未出现在 preload:\n', tableMissingFromPreload.join('\n'))
-  }
-  if (tableMissingFromHandlers.length) {
-    console.error('check-ipc-contract: channels.mjs 缺少 handler:\n', tableMissingFromHandlers.join('\n'))
-  }
-  if (preloadNotInTable.length) {
-    console.error('check-ipc-contract: preload 通道未列入 channels.mjs:\n', preloadNotInTable.join('\n'))
-  }
-  if (handlersNotInTable.length) {
-    console.error('check-ipc-contract: handler 未列入 channels.mjs:\n', handlersNotInTable.join('\n'))
-  }
-  process.exit(1)
-}
-
-console.log(`check-ipc-contract: ok (${preloadChannels.length} invoke channels, channels.mjs aligned)`)

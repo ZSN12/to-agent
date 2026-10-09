@@ -5,7 +5,7 @@ import { createServer } from 'node:http'
 import net from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { fileURLToPath } from 'node:url'
 import { createZHostManager } from '../electron/agent/z-host/index.mjs'
 import { resolveTaskWeaverRuntimeRoot } from '../electron/agent/z-host/index.mjs'
 import { createDshChatService } from '../electron/backend/dsh-chat-service.mjs'
@@ -1571,7 +1571,6 @@ try {
 } finally {
   await deployedChatService?.stop().catch(() => {})
   await manager.stop().catch(() => {})
-  await mcpService.stopAll().catch(() => {})
   await new Promise((resolve) => mockLlm.close(resolve))
   await fs.rm(testHome, { recursive: true, force: true })
 }

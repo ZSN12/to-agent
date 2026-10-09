@@ -9,7 +9,6 @@ import SessionStore, { SESSION_FORMAT_VERSION, SessionId } from '@z/dsh-session'
 import type { SessionEvent, SessionHeader, SessionId as SessionIdType } from '@z/dsh-session'
 import SessionPersistence, { SessionPersistenceRevision } from '@z/dsh-session-persistence'
 import type { SessionPersistenceSnapshot } from '@z/dsh-session-persistence'
-import SqliteSessionPersistence from '@z/dsh-session-persistence-sqlite'
 import SqliteSessionQueryEngine, {
   SESSION_QUERY_SQLITE_SCHEMA_VERSION,
 } from '@z/dsh-session-query-sqlite'
@@ -309,7 +308,7 @@ describe('SQLite session search', () => {
     expect(open).toHaveBeenCalledOnce()
   })
 
-  it('searches two-character Unicode61 tokens in live-only sessions', async () => {
+  it('uses a literal LIKE fallback for queries shorter than one trigram', async () => {
     const ctx = await liveContext({ path: ':memory:', snippetChars: 20 })
     const session = ctx.sessions.create(SessionId('live'), {
       // agentPreset rides along: the index rebuilds the header a caller reads,
@@ -332,6 +331,45 @@ describe('SQLite session search', () => {
       })
     await expect(ctx.sessionQuery.searchSessions({ query: 'AI' }))
       .resolves.toMatchObject({ items: [{ header: { ...session.header, seedLength: 1 }, live: true, persisted: false }] })
+  })
+
+  it('searches Chinese, English, and mixed phrases with the trigram index', async () => {
+    const ctx = await liveContext({ path: ':memory:' })
+    const session = ctx.sessions.create(SessionId('trigram'), { meta: { cwd: '/work', createdAt: 10 } })
+    session.append(
+      'user/message',
+      createUserMessage({
+        content: [{ type: 'text', text: '这是一段重构计划 TaskWeaver 重构计划 TaskWeaver v2' }],
+        source: { kind: 'user' },
+      }),
+      { surfaceOp: 'append' },
+    )
+
+    for (const query of ['重构计划', 'TaskWeaver', 'TaskWeaver 重构']) {
+      await expect(ctx.sessionQuery.searchSessions({ query }))
+        .resolves.toMatchObject({ items: [{ header: { id: session.id } }] })
+    }
+  })
+
+  it('treats short-query LIKE wildcards as literal text', async () => {
+    const ctx = await liveContext({ path: ':memory:' })
+    const wildcard = ctx.sessions.create(SessionId('wildcard'), { meta: { createdAt: 10 } })
+    wildcard.append(
+      'user/message',
+      createUserMessage({ content: [{ type: 'text', text: '100% done _today' }], source: { kind: 'user' } }),
+      { surfaceOp: 'append' },
+    )
+    const unrelated = ctx.sessions.create(SessionId('unrelated'), { meta: { createdAt: 11 } })
+    unrelated.append(
+      'user/message',
+      createUserMessage({ content: [{ type: 'text', text: '1000 done xtoday' }], source: { kind: 'user' } }),
+      { surfaceOp: 'append' },
+    )
+
+    await expect(ctx.sessionQuery.searchSessions({ query: '%' }))
+      .resolves.toMatchObject({ items: [{ header: { id: wildcard.id } }] })
+    await expect(ctx.sessionQuery.searchSessions({ query: '_' }))
+      .resolves.toMatchObject({ items: [{ header: { id: wildcard.id } }] })
   })
 
   it('excludes assistant reasoning while indexing visible answer text', async () => {
@@ -481,7 +519,8 @@ describe('SQLite session search', () => {
     const phrase = await ctx.sessionQuery.searchSessions({ query: 'alpha beta' })
     expect(phrase.items.map(item => item.header.id)).toEqual([SessionId('b'), SessionId('d'), SessionId('a')])
     expect(phrase.items.every(item => Array.from(item.bestMatch.snippet).length <= 5)).toBe(true)
-    await expect(ctx.sessionQuery.searchSessions({ query: 'AI' })).resolves.toEqual({ items: [] })
+    await expect(ctx.sessionQuery.searchSessions({ query: 'AI' }))
+      .resolves.toMatchObject({ items: [{ header: { id: SessionId('a') } }] })
     await expect(ctx.sessionQuery.searchSessions({ query: 'needle OR absent' }))
       .resolves.toMatchObject({ items: [{ header: { id: SessionId('operator') } }] })
     await expect(ctx.sessionQuery.searchSessions({ query: 'say "needle"' }))
@@ -1750,70 +1789,4 @@ describe('SQLite schema, cancellation, and real persistence integration', () => 
     await persistence.dispose()
   })
 
-  it('combines the real SQLite persistence backend with the real search service keylessly', async () => {
-    const persistencePath = await temporaryPath('canonical.db')
-    const searchPath = await temporaryPath('derived.db')
-    const ctx = new Context()
-    await ctx.plugin(SessionStore)
-    const persistence = await ctx.plugin(SqliteSessionPersistence, { path: persistencePath })
-    const search = await ctx.plugin(SqliteSessionQueryEngine, { path: searchPath })
-    const meta = header('real', 10, { cwd: '/work' })
-    await ctx.sessionPersistence.create(meta)
-    await ctx.sessionPersistence.append(meta.id, messageEvents('real SQLite needle'))
-
-    await expect(ctx.sessionQuery.searchSessions({ query: 'SQLite needle' }))
-      .resolves.toMatchObject({ items: [{ header: meta, persisted: true, live: false }] })
-    await expect(ctx.sessionQuery.searchEvents({ sessionId: meta.id, query: 'SQLite needle' }))
-      .resolves.toMatchObject({ session: meta, items: [{ sessionId: meta.id, seq: 0 }] })
-    await expect(ctx.sessionQuery.searchEvents({ sessionId: SessionId('absent'), query: 'needle' }))
-      .rejects.toThrow(expectCode('SESSION_QUERY_SESSION_NOT_FOUND'))
-    await search.dispose()
-    await expect(ctx.sessionPersistence.load(meta.id)).resolves.toMatchObject({ meta, events: [{ seq: 0 }] })
-    await persistence.dispose()
-  })
-
-  it('reconciles colliding local revisions when a derived index reopens against another SQLite store', async () => {
-    const persistencePathA = await temporaryPath('canonical-a.db')
-    const persistencePathB = await temporaryPath('canonical-b.db')
-    const searchPath = await temporaryPath('derived-collision.db')
-    const shared = header('same-id', 10)
-
-    const first = new Context()
-    await first.plugin(SessionStore)
-    const persistenceA = await first.plugin(SqliteSessionPersistence, { path: persistencePathA })
-    await first.sessionPersistence.create(shared)
-    await first.sessionPersistence.append(shared.id, messageEvents('alpha source'))
-    const inspectA = vi.spyOn(first.sessionPersistence, 'inspect')
-    const searchA = await first.plugin(SqliteSessionQueryEngine, { path: searchPath })
-    await expect(first.sessionQuery.searchSessions({ query: 'alpha' }))
-      .resolves.toMatchObject({ items: [{ header: shared }] })
-    expect(inspectA).toHaveBeenCalledTimes(1)
-    await searchA.dispose()
-    await persistenceA.dispose()
-
-    const reopened = new Context()
-    await reopened.plugin(SessionStore)
-    const persistenceAAgain = await reopened.plugin(SqliteSessionPersistence, { path: persistencePathA })
-    const reopenedInspect = vi.spyOn(reopened.sessionPersistence, 'inspect')
-    const searchAAgain = await reopened.plugin(SqliteSessionQueryEngine, { path: searchPath })
-    await expect(reopened.sessionQuery.searchSessions({ query: 'alpha' }))
-      .resolves.toMatchObject({ items: [{ header: shared }] })
-    expect(reopenedInspect).not.toHaveBeenCalled()
-    await searchAAgain.dispose()
-    await persistenceAAgain.dispose()
-
-    const second = new Context()
-    await second.plugin(SessionStore)
-    const persistenceB = await second.plugin(SqliteSessionPersistence, { path: persistencePathB })
-    await second.sessionPersistence.create(shared)
-    await second.sessionPersistence.append(shared.id, messageEvents('bravo source'))
-    const inspectB = vi.spyOn(second.sessionPersistence, 'inspect')
-    const searchB = await second.plugin(SqliteSessionQueryEngine, { path: searchPath })
-    await expect(second.sessionQuery.searchSessions({ query: 'bravo' }))
-      .resolves.toMatchObject({ items: [{ header: shared }] })
-    await expect(second.sessionQuery.searchSessions({ query: 'alpha' })).resolves.toEqual({ items: [] })
-    expect(inspectB).toHaveBeenCalledTimes(1)
-    await searchB.dispose()
-    await persistenceB.dispose()
-  })
 })

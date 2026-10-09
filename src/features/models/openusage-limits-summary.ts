@@ -22,6 +22,13 @@ const RESOURCE_PRIORITY: Record<string, number> = {
   creditValue: 2,
 }
 
+export function formatQuotaAmount(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value)) return '—'
+  const rounded = Math.round(value * 10) / 10
+  if (Math.abs(rounded - Math.round(rounded)) < 0.05) return String(Math.round(rounded))
+  return rounded.toFixed(1)
+}
+
 export function formatResetTime(isoString?: string): string {
   if (!isoString) return ''
   const t = Date.parse(isoString)
@@ -53,7 +60,8 @@ export function consumptionRemainingRatio(resource: OpenUsageResourceData): numb
 export function describeResource(resourceId: string, resource: OpenUsageResourceData): string {
   const resetHint = formatResetTime(resource.resetsAt ?? resource.resetAt)
   if (resource.kind === 'balance') {
-    const amount = resource.available ?? resource.remaining
+    const raw = resource.available ?? resource.remaining
+    const amount = typeof raw === 'number' ? formatQuotaAmount(raw) : raw
     const unit = resource.unit ? ` ${resource.unit}` : ''
     const base = `余额 ${amount ?? '—'}${unit}`
     return resetHint ? `${resourceId}: ${base}（${resetHint}）` : `${resourceId}: ${base}`
@@ -63,7 +71,7 @@ export function describeResource(resourceId: string, resource: OpenUsageResource
     const limit = resource.limit ?? resource.max
     const remaining = resource.remaining
     const pct = Math.round(ratio * 100)
-    const base = `${resourceId}: 剩余 ${remaining}/${limit}（${pct}%）`
+    const base = `${resourceId}: 剩余 ${formatQuotaAmount(remaining)}/${formatQuotaAmount(limit)}（${pct}%）`
     return resetHint ? `${base}，${resetHint}` : base
   }
   if (resetHint) return `${resourceId}: ${resetHint}`

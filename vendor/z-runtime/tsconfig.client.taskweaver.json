@@ -9,7 +9,6 @@
   "references": [
     { "path": "./packages/host/webserver" },
     { "path": "./packages/compaction/compaction" },
-    { "path": "./packages/client/ui-slots" },
     { "path": "./packages/client/connection/tsconfig.client.json" },
     { "path": "./packages/typert/registry" },
     { "path": "./packages/api/gateway/tsconfig.client.json" },

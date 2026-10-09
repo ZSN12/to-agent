@@ -3,7 +3,7 @@
 
 # DSH Base Composition
 
-The dsh-base bundle patch every profile applies first; mode bundles (dsh-web-app, dsh-headless) and the user's profile layer patch over it.
+The TaskWeaver profile applies the dsh-base bundle first, then its host bundle and the user's profile layer.
 
 ```mermaid
 flowchart LR
@@ -50,8 +50,6 @@ flowchart LR
   cfg --> plugin_dsh_base_session_query_sqlite
   plugin_dsh_base_session_projection["session-projection<br/>@z/dsh-session-projection"]
   cfg --> plugin_dsh_base_session_projection
-  plugin_dsh_base_session_telemetry_otel["session-telemetry-otel<br/>@z/dsh-session-telemetry-otel"]
-  cfg --> plugin_dsh_base_session_telemetry_otel
   plugin_dsh_base_subprocess["subprocess<br/>@z/dsh-subprocess-local"]
   cfg --> plugin_dsh_base_subprocess
   plugin_dsh_base_sandbox["sandbox<br/>@z/dsh-sandbox-local"]
@@ -86,14 +84,10 @@ flowchart LR
   cfg --> plugin_dsh_base_skill
   plugin_dsh_base_skill_filesystem["skill-filesystem<br/>@z/dsh-skill-filesystem"]
   cfg --> plugin_dsh_base_skill_filesystem
-  plugin_dsh_base_skill_badge["skill-badge<br/>@z/dsh-skill-badge"]
-  cfg --> plugin_dsh_base_skill_badge
   plugin_dsh_base_tool_skill["tool-skill<br/>@z/dsh-tool-skill"]
   cfg --> plugin_dsh_base_tool_skill
   plugin_dsh_base_commands["commands<br/>@z/dsh-commands"]
   cfg --> plugin_dsh_base_commands
-  plugin_dsh_base_command_feedback["command-feedback<br/>@z/dsh-command-feedback"]
-  cfg --> plugin_dsh_base_command_feedback
   plugin_dsh_base_goal["goal<br/>@z/dsh-goal"]
   cfg --> plugin_dsh_base_goal
   plugin_dsh_base_goal_round_driver["goal-round-driver<br/>@z/dsh-goal-round-driver"]
@@ -144,8 +138,6 @@ flowchart LR
   cfg --> plugin_dsh_base_tool_goal
   plugin_dsh_base_tool_ralph["tool-ralph<br/>@z/dsh-tool-ralph"]
   cfg --> plugin_dsh_base_tool_ralph
-  plugin_dsh_base_tool_str_replace_editor["tool-str-replace-editor<br/>@z/dsh-tool-str-replace-editor"]
-  cfg --> plugin_dsh_base_tool_str_replace_editor
   plugin_dsh_base_repeat_tool_reminder["repeat-tool-reminder<br/>@z/dsh-repeat-tool-reminder"]
   cfg --> plugin_dsh_base_repeat_tool_reminder
   plugin_dsh_base_web["web<br/>@z/dsh-web"]
@@ -162,8 +154,6 @@ flowchart LR
   cfg --> plugin_dsh_base_agent_loop
   plugin_dsh_base_fs_sandbox["fs-sandbox<br/>@z/dsh-fs-sandbox"]
   cfg --> plugin_dsh_base_fs_sandbox
-  plugin_dsh_base_llm_deepseek["llm-deepseek<br/>@z/dsh-llm-deepseek"]
-  cfg --> plugin_dsh_base_llm_deepseek
 ```
 
 | Plugin id | Package / module |
@@ -189,7 +179,6 @@ flowchart LR
 | `attachment-local` | `@z/dsh-attachment-local` |
 | `session-query-sqlite` | `@z/dsh-session-query-sqlite` |
 | `session-projection` | `@z/dsh-session-projection` |
-| `session-telemetry-otel` | `@z/dsh-session-telemetry-otel` |
 | `subprocess` | `@z/dsh-subprocess-local` |
 | `sandbox` | `@z/dsh-sandbox-local` |
 | `sandbox-policy` | `@z/dsh-sandbox-policy` |
@@ -207,10 +196,8 @@ flowchart LR
 | `agent-instructions` | `@z/dsh-agent-instructions` |
 | `skill` | `@z/dsh-skill` |
 | `skill-filesystem` | `@z/dsh-skill-filesystem` |
-| `skill-badge` | `@z/dsh-skill-badge` |
 | `tool-skill` | `@z/dsh-tool-skill` |
 | `commands` | `@z/dsh-commands` |
-| `command-feedback` | `@z/dsh-command-feedback` |
 | `goal` | `@z/dsh-goal` |
 | `goal-round-driver` | `@z/dsh-goal-round-driver` |
 | `command-goal` | `@z/dsh-command-goal` |
@@ -236,7 +223,6 @@ flowchart LR
 | `tool-todo` | `@z/dsh-tool-todo` |
 | `tool-goal` | `@z/dsh-tool-goal` |
 | `tool-ralph` | `@z/dsh-tool-ralph` |
-| `tool-str-replace-editor` | `@z/dsh-tool-str-replace-editor` |
 | `repeat-tool-reminder` | `@z/dsh-repeat-tool-reminder` |
 | `web` | `@z/dsh-web` |
 | `web-search-deepseek` | `@z/dsh-web-search-deepseek` |
@@ -245,7 +231,6 @@ flowchart LR
 | `system-prompt` | `@z/dsh-system-prompt` |
 | `agent-loop` | `@z/dsh-agent-loop` |
 | `fs-sandbox` | `@z/dsh-fs-sandbox` |
-| `llm-deepseek` | `@z/dsh-llm-deepseek` |
 
 Source config: [`packages/bundle/base/cordis.patch.yml`](../../packages/bundle/base/cordis.patch.yml).
 

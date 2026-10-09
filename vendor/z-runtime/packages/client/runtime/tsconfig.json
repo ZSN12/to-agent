@@ -15,9 +15,6 @@
       "path": "../../../vendor/cordis"
     },
     {
-      "path": "../ui-slots"
-    },
-    {
       "path": "../../host/apiproxy"
     },
     {

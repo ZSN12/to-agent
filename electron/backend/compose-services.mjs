@@ -25,7 +25,8 @@ import { createWebSearchService } from './web-search-service.mjs'
 import { createAppPreferencesStore } from './app-preferences.mjs'
 import { createScheduledJobsStore } from './scheduled-jobs-store.mjs'
 import { ensureWorkspaceHooksApproved } from './taskweaver-hook-runner.mjs'
-import { resolveSandboxPolicy, renderFileSandboxContext } from './sandbox-policy.mjs'
+import { resolveSandboxPolicy } from './sandbox-policy.mjs'
+import { createIpcRuntimeContext } from './ipc/context.mjs'
 import { createSandboxSessionStore } from './sandbox-session-mode.mjs'
 import { createCredentialStore } from './credential-store.mjs'
 import { createApprovalAuditStore } from './approval-audit.mjs'
@@ -70,15 +71,37 @@ export async function composeBackendServices({ app, dialog, BrowserWindow, safeS
   const pricingSync = createPricingSyncService({
     userDataPath: userData,
     bundledRegistryPath,
+    getDshDirectory: async () => modelService.getDshModelDirectory(),
   })
-  pricingSync.start()
 
   const credentialStore = createCredentialStore({
     filePath: path.join(userData, 'credentials.enc'),
     safeStorage,
   })
 
-  const mcp = createMcpService({ userData, safeStorage })
+  let hostManager
+  let assertRuntimeConfigChangeSafe = () => {
+    throw new Error('应用服务尚未就绪，暂时不能修改 Host runtime 配置。')
+  }
+  const webSearch = createWebSearchService({
+    userData,
+    safeStorage,
+    assertRuntimeConfigChangeSafe: () => assertRuntimeConfigChangeSafe(),
+    onRuntimeConfigChanged: async () => {
+      if (hostManager) await hostManager.restart()
+    },
+  })
+  const mcp = createMcpService({
+    userData,
+    safeStorage,
+    getHostTools: async ({ startHost = false } = {}) => {
+      const api = startHost ? (await hostManager.start()).api : hostManager.getApi()
+      if (!api) return null
+      const response = await api.mcp.list({})
+      if (!response.result.ok) throw new Error(response.result.error.message)
+      return response.result.value.tools
+    },
+  })
   const { createZHostManager, resolveTaskWeaverRuntimeRoot } = await import('../agent/z-host/index.mjs')
   const runtimeRoot = resolveTaskWeaverRuntimeRoot({
     appPath: app.getAppPath(),
@@ -94,12 +117,13 @@ export async function composeBackendServices({ app, dialog, BrowserWindow, safeS
   const { resolveTaskWeaverOpenCodexRoot } = await import('./opencodex-package-root.mjs')
   const opencodexPackageRoot = resolveTaskWeaverOpenCodexRoot(app.getAppPath()) ?? undefined
 
-  const hostManager = createZHostManager({
+  hostManager = createZHostManager({
     runtimeRoot,
     opencodexPackageRoot,
     userDataPath: userData,
     executable: process.execPath,
     getMcpRuntimeIntegration: () => mcp.prepareRuntimeIntegration(),
+    getWebSearchRuntimeIntegration: () => webSearch.prepareRuntimeIntegration(),
   })
   const { createZConversationHub } = await import('./z-conversation-hub.mjs')
   const conversationHub = createZConversationHub({ runtimeRoot })
@@ -128,6 +152,7 @@ export async function composeBackendServices({ app, dialog, BrowserWindow, safeS
     dshRuntimeRoot: runtimeRoot,
     modelRegistryUpdater,
   })
+  pricingSync.start()
   modelRegistryUpdater.setMappingValidator((registry) => modelService.validateRegistryMapping(registry))
   const appBootstrap = createAppBootstrap({
     userData,
@@ -145,81 +170,49 @@ export async function composeBackendServices({ app, dialog, BrowserWindow, safeS
   const appState = createAppStateStore(userData, fallbackWorkspace)
   const usageStore = createUsageStore(userData)
   const workspaceTrust = createWorkspaceTrustService(userData)
-  const webSearch = createWebSearchService({ userData })
   const appPreferences = createAppPreferencesStore(userData)
   const permissionRulesStore = createPermissionRulesStore({ userDataPath: userData })
-  app.on('before-quit', () => { void mcp.stopAll() })
 
-  let cachedWorkspace = fallbackWorkspace
-  let cachedConversationId = null
-  let cachedWorkspaceTrusted = false
-  let cachedPermissionMode = 'ask'
-  let cachedBashSandbox = 'auto'
-  let cachedSessionSandboxMode = null
   const sandboxSession = createSandboxSessionStore(userData)
-  const refreshWorkspaceCache = async () => {
-    const state = await appState.getState()
-    cachedWorkspace = state.workspacePath || fallbackWorkspace
-    cachedConversationId = state.conversationId
-    cachedWorkspaceTrusted = (await workspaceTrust.get(cachedWorkspace)).trusted
-    cachedPermissionMode = state.permissionMode || 'ask'
-    const prefs = await appPreferences.get()
-    cachedBashSandbox = prefs.bashSandbox || 'auto'
-    const sessionRow = cachedConversationId ? await sandboxSession.get(cachedConversationId) : null
-    cachedSessionSandboxMode = sessionRow?.mode ?? null
-    if (state?.messages?.length) {
-      void Promise.resolve(usageStore.importHistoricalIfEmpty(state.messages)).catch((err) => {
-        console.error('导入历史消息失败:', err)
-      })
-    }
-  }
-  await refreshWorkspaceCache()
-  const getConversationRuntimeContext = async (conversationId) => {
-    const state = conversationId && appState.getConversationState
-      ? await appState.getConversationState(conversationId)
-      : await appState.getState()
-    // 区分「用户没选工作区」和「工作区恰好是某个路径」：只有前者会退化成 process.cwd()。
-    const workspaceBound = typeof state.workspacePath === 'string' && state.workspacePath.length > 0
-    const workspacePath = workspaceBound ? state.workspacePath : fallbackWorkspace
-    const prefs = await appPreferences.get()
-    const sessionRow = conversationId ? await sandboxSession.get(conversationId) : null
-    const trusted = await workspaceTrust.get(workspacePath)
-    return {
-      conversationId: state.conversationId,
-      workspacePath,
-      workspaceBound,
-      modelKey: state.modelKey ?? null,
-      permissionMode: state.permissionMode || 'ask',
-      workspaceTrusted: trusted.trusted === true,
-      bashSandbox: prefs.bashSandbox || 'auto',
-      sessionSandboxMode: sessionRow?.mode ?? null,
-    }
-  }
-  // TaskWeaver 改造：允许无工作区对话
-  // DSH 原本强制要求工作区以确保沙箱边界，但 TaskWeaver 放宽此限制：
-  // - 无工作区时使用 fallbackWorkspace (~/Documents/TaskWeaver-Scratch)
-  // - 用户可以随时与 AI 对话，即使没有选择项目
-  // - 沙箱策略仍然生效（基于 fallbackWorkspace）
-  const sandboxContextLineForContext = (context) => {
-    const resolved = resolveSandboxPolicy({
-      workspacePath: context.workspacePath,
-      bashSandbox: context.bashSandbox,
-      permissionMode: context.permissionMode,
-      sessionSandboxMode: context.sessionSandboxMode,
-    })
-    if (resolved.file.mode === 'off') return null
-    return renderFileSandboxContext(resolved.file, resolved.workspaceRoot)
+  const runtimeContext = createIpcRuntimeContext({
+    appState,
+    fallbackWorkspace,
+    workspaceTrust,
+    appPreferences,
+    sandboxSession,
+    usageStore,
+  })
+  const {
+    refreshUiSnapshot,
+    getConversationRuntimeContext,
+    sandboxContextLineForContext,
+    getUiWorkspacePath,
+    getUiConversationId,
+    getUiWorkspaceTrusted,
+    setUiWorkspaceTrusted,
+    getUiBashSandbox,
+    getUiPermissionMode,
+    getUiSessionSandboxMode,
+    setUiSessionSandboxMode,
+  } = runtimeContext
+  await refreshUiSnapshot()
+  const getWorkspacePathForConversation = async (conversationId) => {
+    const ctx = await getConversationRuntimeContext(conversationId ?? getUiConversationId())
+    return ctx.workspacePath
   }
   const skills = createSkillService({
     agentDataPath,
     builtInSkillsPath,
     globalSkillPaths: [path.join(dshHomePath, 'skills'), path.join(agentsHomePath, 'skills')],
-    getWorkspacePath: () => cachedWorkspace,
-    getWorkspaceTrusted: () => cachedWorkspaceTrusted,
+    getWorkspacePath: getWorkspacePathForConversation,
+    getWorkspaceTrusted: async (conversationId) => {
+      const ctx = await getConversationRuntimeContext(conversationId ?? getUiConversationId())
+      return ctx.workspaceTrusted === true
+    },
     hostManager
   })
   const sessionMemory = createMemoryStore({ agentDataPath })
-  const workspaceIndex = createWorkspaceIndex({ getWorkspacePath: () => cachedWorkspace })
+  const workspaceIndex = createWorkspaceIndex()
   const turnInProgressByConversation = new Map()
   const workspaceOperationGuard = createWorkspaceOperationGuard(getConversationRuntimeContext)
 
@@ -254,7 +247,7 @@ export async function composeBackendServices({ app, dialog, BrowserWindow, safeS
     const state = requestedConversationId === undefined ? await appState.getState() : null
     return resolveConversationId(
       requestedConversationId,
-      state?.conversationId ?? cachedConversationId,
+      state?.conversationId ?? getUiConversationId(),
     )
   }
 
@@ -288,7 +281,10 @@ export async function composeBackendServices({ app, dialog, BrowserWindow, safeS
     dialog,
     getParentWindow: (contents) => BrowserWindow?.fromWebContents(contents) ?? null,
     getWorkspacePath: async (conversationId) => (await getConversationRuntimeContext(conversationId)).workspacePath,
-    getWorkspaceTrusted: () => cachedWorkspaceTrusted,
+    getWorkspaceTrusted: async (conversationId) => {
+      const ctx = await getConversationRuntimeContext(conversationId)
+      return ctx.workspaceTrusted === true
+    },
     getFileSandboxPolicy: async (conversationId, workspaceOverride) => {
       const context = await getConversationRuntimeContext(conversationId)
       return resolveSandboxPolicy({
@@ -338,7 +334,7 @@ export async function composeBackendServices({ app, dialog, BrowserWindow, safeS
     hostManager,
     conversationHub,
     userDataPath: userData,
-    getWorkspacePath: () => cachedWorkspace,
+    getWorkspacePath: getWorkspacePathForConversation,
     profileStore,
     modelService,
     appState,
@@ -359,27 +355,33 @@ export async function composeBackendServices({ app, dialog, BrowserWindow, safeS
   const orchestration = createOrchestrationService({
     modelService,
     appState,
-    getWorkspacePath: () => cachedWorkspace,
+    getWorkspacePath: getWorkspacePathForConversation,
     agentDataPath,
     userDataPath: userData,
     getAppPreferences: () => appPreferences.get(),
     dshRuntime: chat,
     permissionService: permissions,
   })
+  assertRuntimeConfigChangeSafe = () => {
+    if (turnInProgressByConversation.size > 0 || chat.isBusyAny() || orchestration.isBusy()) {
+      throw new Error('有任务正在执行，不能此时重载网页搜索工具。请等所有会话任务结束后再保存网页搜索设置。')
+    }
+  }
   return {
     app, dialog, BrowserWindow, safeStorage, net,
     userData, fallbackWorkspace,
     profileStore, approvalAudit, mcp, hostManager, conversationHub,
     modelRegistryUpdater, modelService, appBootstrap, modelsPath, appState, usageStore,
     workspaceTrust, webSearch, appPreferences, permissionRulesStore, sandboxSession,
-    getCachedWorkspace: () => cachedWorkspace,
-    getCachedConversationId: () => cachedConversationId,
-    setCachedWorkspaceTrusted: (trusted) => { cachedWorkspaceTrusted = trusted },
-    cachedBashSandbox: () => cachedBashSandbox,
-    cachedPermissionMode: () => cachedPermissionMode,
-    cachedSessionSandboxMode: () => cachedSessionSandboxMode,
-    setCachedSessionSandboxMode: (mode) => { cachedSessionSandboxMode = mode },
-    refreshWorkspaceCache, getConversationRuntimeContext, sandboxContextLineForContext,
+    getUiWorkspacePath,
+    getUiConversationId,
+    getUiWorkspaceTrusted,
+    setUiWorkspaceTrusted,
+    getUiBashSandbox,
+    getUiPermissionMode,
+    getUiSessionSandboxMode,
+    setUiSessionSandboxMode,
+    refreshUiSnapshot, getConversationRuntimeContext, sandboxContextLineForContext,
     skills, sessionMemory, workspaceIndex, turnInProgressByConversation,
     withTurnLock, resolveWorktreeContext, workspaceHooksTrusted, resolveIpcConversationId,
     assertNotBusy, withWorkspaceOperation, validateWorkspace, permissions,

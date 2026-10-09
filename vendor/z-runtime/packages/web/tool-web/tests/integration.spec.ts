@@ -1,9 +1,6 @@
 /**
- * Integration: the real fetch backend (`dsh-web-fetch-http`) + a real search provider
- * (`dsh-web-search-exa`) + the real seam (`dsh-web`) + the model tool (`dsh-tool-web`) + the
- * tool-call timeout policy (`dsh-tool-call-timeout-policy`), exercised through `ctx.tools.execute()` —
- * nothing bypasses the tool registry. Fetch verifies world effects against loopback HTTP; search
- * uses the real Exa provider with only its network boundary stubbed.
+ * Integration: the real fetch backend, web seam, model tool, and tool-call timeout policy are
+ * exercised through `ctx.tools.execute()` against loopback HTTP.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -15,7 +12,6 @@ import SystemPrompt from '@z/dsh-system-prompt'
 import ToolRuntime, { type ToolExecutionResult } from '@z/dsh-tools'
 import WebRuntime from '@z/dsh-web'
 import * as WebFetchLocal from '@z/dsh-web-fetch-http'
-import * as WebSearchExa from '@z/dsh-web-search-exa'
 import * as ToolWeb from '@z/dsh-tool-web'
 import * as TimeoutPolicy from '@z/dsh-tool-call-timeout-policy'
 
@@ -38,15 +34,14 @@ beforeEach(async () => {
   ctx = new Context()
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
-  await ctx.plugin(WebRuntime, { searchProvider: WebSearchExa.EXA_PROVIDER_ID, fetchProvider: WebFetchLocal.LOCAL_FETCH_PROVIDER_ID })
+  await ctx.plugin(WebRuntime, { fetchProvider: WebFetchLocal.LOCAL_FETCH_PROVIDER_ID })
   await ctx.plugin(WebFetchLocal, {})
-  await ctx.plugin(WebSearchExa, { apiKey: 'exa-key', baseURL: 'https://api.exa.test' })
   // The shipped deployment shape: the tool-call budget is declared by tool-web
   // config (default 30s, attached as ToolDefinition.timeoutMs) and enforced by
   // the zero-config timeout-policy plugin, set above the provider backstop so the
   // policy normally wins.
   await ctx.plugin(TimeoutPolicy)
-  fiber = await ctx.plugin(ToolWeb)
+  fiber = await ctx.plugin(ToolWeb, { search: false })
 })
 
 afterEach(async () => {
@@ -91,27 +86,12 @@ describe('web_fetch integration over the real backend', () => {
   })
 })
 
-describe('web_search integration over the real Exa provider', () => {
-  it('runs web_search end-to-end and formats the provider result', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => new Response(
-      JSON.stringify({ results: [{ url: 'https://result.test', title: 'Result', highlights: ['a highlight'] }] }),
-      { status: 200, headers: { 'content-type': 'application/json' } },
-    )))
-    const out = await call('web_search', { queries: ['deepseek-official'] })
-    expect(out.isError).toBe(false)
-    expect(out.content.map(b => b.type === 'text' ? b.text : '').join('')).toContain('[Result](https://result.test)')
-  })
-})
-
-describe('tool-call timeout policy over the migrated web tools', () => {
-  it('neither model schema exposes a timeout parameter after the migration', () => {
+describe('tool-call timeout policy over the web tools', () => {
+  it('keeps the fetch timeout out of the model schema', () => {
     const byName = new Map(ctx.tools.schemas().map(s => [s.name, s]))
     const fetchParams = byName.get('web_fetch')!.parameters as { properties: Record<string, unknown> }
-    const searchParams = byName.get('web_search')!.parameters as { properties: Record<string, unknown>; required?: string[] }
     expect(Object.keys(fetchParams.properties)).toEqual(['url'])
     expect('timeout_ms' in fetchParams.properties).toBe(false)
-    expect(Object.keys(searchParams.properties)).toEqual(['queries'])
-    expect(searchParams.required).toEqual(['queries'])
   })
 })
 

@@ -2,6 +2,10 @@ const { app, BrowserWindow, ipcMain, dialog, safeStorage, net, protocol, shell }
 const fs = require('node:fs')
 const path = require('node:path')
 const { pathToFileURL } = require('node:url')
+const { configureStartupTrace, traceStartup } = require('./startup-trace.cjs')
+
+configureStartupTrace(app)
+traceStartup('main:module-start')
 
 const SCHEME = 'taskweaver'
 const APP_ROOT = path.join(__dirname, '..')
@@ -119,9 +123,11 @@ function createWindow() {
   })
 
   window.once('ready-to-show', () => {
+    traceStartup('window:ready-to-show')
     window.show()
     window.focus()
   })
+  window.webContents.once('did-finish-load', () => traceStartup('window:did-finish-load'))
 
   if (process.env.TASKWEAVER_DEVTOOLS === '1') {
     window.webContents.openDevTools({ mode: 'detach' })
@@ -140,7 +146,7 @@ function createWindow() {
     return false
   }
   const openSafeExternal = (url) => {
-    if (/^https?:\/\//i.test(url)) void shell.openExternal(url)
+    if (/^(?:https?:\/\/|mailto:)/i.test(url)) void shell.openExternal(url)
   }
   window.webContents.setWindowOpenHandler(({ url }) => {
     openSafeExternal(url)
@@ -157,6 +163,7 @@ function createWindow() {
   })
 
   const load = shouldUseBuiltUi() ? loadBuiltUi(window) : loadDevUi(window)
+  traceStartup('window:load-start', { builtUi: shouldUseBuiltUi() })
   return load.then(() => window)
 }
 
@@ -182,10 +189,13 @@ if (!hasSingleInstanceLock) {
   })
 
   app.whenReady().then(async () => {
+    traceStartup('app:ready')
     registerPackagedProtocol()
 
     try {
+      traceStartup('backend:module-import-start')
       const { registerIpc } = await import('./backend/register-ipc.mjs')
+      traceStartup('backend:module-import-end')
       await Promise.all([
         registerIpc({ ipcMain, app, dialog, BrowserWindow, safeStorage, net }),
         createWindow(),

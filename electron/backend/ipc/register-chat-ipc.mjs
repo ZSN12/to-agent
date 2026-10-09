@@ -9,7 +9,6 @@ export function registerChatIpc(ctx) {
     chat,
     orchestration,
     conversationHub,
-    appState,
     resolveIpcConversationId,
     getConversationRuntimeContext,
     turnInProgressByConversation,
@@ -17,7 +16,14 @@ export function registerChatIpc(ctx) {
     chatTurnPipeline,
   } = ctx
 
-  ipcHandle(ipcMain, 'skills:list', () => skills.list())
+  ipcHandle(ipcMain, 'skills:list', async (_event, requestedConversationId) => {
+    const conversationId = await resolveIpcConversationId(requestedConversationId)
+    const runtimeContext = await getConversationRuntimeContext(conversationId)
+    return skills.list({
+      workspacePath: runtimeContext.workspacePath,
+      workspaceTrusted: runtimeContext.workspaceTrusted,
+    })
+  })
 
   ipcHandle(ipcMain, 'chat:cancel', async (_event, requestedConversationId) => {
     const conversationId = await resolveIpcConversationId(requestedConversationId)

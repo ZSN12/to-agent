@@ -50,16 +50,28 @@ describe('tool-session-query with the real SQLite provider', () => {
       createdAt: 1,
       cwd: '/work',
     })
-    await ctx.sessionPersistence.append(persisted, [{
-      type: 'user/message',
-      seq: 0,
-      time: 2,
-      data: createUserMessage({
-        content: [{ type: 'text', text: 'persisted integration needle' }],
-        source: { kind: 'user' },
-      }),
-      surfaceOp: 'append',
-    }])
+    await ctx.sessionPersistence.append(persisted, [
+      {
+        type: 'user/message',
+        seq: 0,
+        time: 2,
+        data: createUserMessage({
+          content: [{ type: 'text', text: 'persisted integration needle' }],
+          source: { kind: 'user' },
+        }),
+        surfaceOp: 'append',
+      },
+      {
+        type: 'user/message',
+        seq: 1,
+        time: 3,
+        data: createUserMessage({
+          content: [{ type: 'text', text: '上次讨论里确定了重构方案，下一步先验证中文检索。' }],
+          source: { kind: 'user' },
+        }),
+        surfaceOp: 'append',
+      },
+    ])
 
     const caller = ctx.sessions.create(SessionId('caller'), {
       meta: { createdAt: 10, cwd: '/work' },
@@ -87,6 +99,10 @@ describe('tool-session-query with the real SQLite provider', () => {
     expect(sessions.isError).toBe(false)
     expect(sessions.content.map(block => block.type === 'text' ? block.text : '').join('\n'))
       .toContain('Session persisted')
+    const priorDiscussion = await execute('session_search', { query: '重构方案' })
+    expect(priorDiscussion.isError).toBe(false)
+    expect(priorDiscussion.content.map(block => block.type === 'text' ? block.text : '').join('\n'))
+      .toContain('上次讨论里确定了重构方案')
     const persistedEvents = await execute('session_event_search', {
       session_id: persisted,
       query: 'persisted integration needle',

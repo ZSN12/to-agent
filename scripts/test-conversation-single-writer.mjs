@@ -12,8 +12,8 @@ import { fileURLToPath } from 'node:url'
  * - app-state-store -> thread-store -> json-store: durable UI JSON cache;
  *   legacy taskweaver-app-state.json is read/migrated, fork copies UI messages.
  *   This cache contains UI-only/error facts too: it is not wholly rebuildable.
- * - dsh-chat-service: three sessions.prompt admissions (permission command,
- *   active queue/steer, fresh turn). Host owns authoritative session events.
+ * - dsh-chat/chat-send + model-config: three sessions.prompt admissions
+ *   (permission command, active queue/steer, fresh turn). Host owns events.
  *   persistSessions writes routing/model metadata, not a transcript.
  * - z-conversation-hub + serializers: rebuildable in-memory DSH projection.
  * - usage-store.record/import: accounting, not authoritative message history.
@@ -40,9 +40,9 @@ const registry = [
   ['electron/backend/chat-turn-pipeline.mjs', 'upsertMessagesToConversation:conversationId,{', 1, 'handleChatError error patch upsert'],
   ['electron/backend/chat-turn-pipeline.mjs', 'appendMessagesToConversation:conversationId,{', 1, 'handleChatError fallback error message'],
   ['electron/backend/chat-turn-persistence.mjs', 'upsertMessagesToConversation:conversationId,{', 2, 'native terminal projection + error'],
-  ['electron/backend/dsh-chat-service.mjs', 'sessions.prompt:{sessionId:', 3, 'Host prompt admission'],
-  ['electron/backend/thread-store.mjs', 'store.write:next)', 1, 'thread transaction'],
-  ['electron/backend/thread-store.mjs', 'store.write:{currentThreadId:', 1, 'current thread transaction'],
+  ['electron/backend/dsh-chat/chat-send.mjs', 'sessions.prompt:{sessionId:', 2, 'Host prompt admission (queue + turn)'],
+  ['electron/backend/dsh-chat/model-config.mjs', 'sessions.prompt:{sessionId:', 1, 'permission-mode command prompt'],
+  ['electron/backend/thread-store.mjs', 'store.update:async(current', 2, 'thread json-store.update (transact + updateCurrent)'],
   ['electron/backend/json-store.mjs', 'writeFile:temporaryPath,<string>', 1, 'shared atomic JSON sink'],
   ['electron/backend/app-state-store.mjs', 'setCurrent:{messages}', 1, 'replace UI messages'],
   ['electron/backend/app-state-store.mjs', 'updateCurrent:(thread)', 2, 'messages + unrelated output logs'],
@@ -91,7 +91,7 @@ function sites(source, file) {
     else if (member && receiver === 'sessionPersistence' && ['append', 'save', 'create'].includes(method)) key = `sessionPersistence.${method}:${prefix}`
     else if (member && ['setCurrent', 'updateCurrent', 'updateConversation'].includes(method) && receiver === 'threadStore') {
       if (method !== 'setCurrent' || args.some((item) => item.value === 'messages')) key = `${method}:${prefix}`
-    } else if (member && receiver === 'store' && method === 'write' && file.endsWith('/thread-store.mjs')) key = `store.write:${prefix}`
+    } else if (member && receiver === 'store' && method === 'update' && file.endsWith('/thread-store.mjs')) key = `store.update:${prefix}`
     else if (member && diskMethods.has(method) && (file.endsWith('/json-store.mjs') || args.some((item) => item.string && factPath.test(item.value)))) key = `${method}:${prefix}`
     else if (method === 'createJsonStore') {
       const literal = args.find((item) => item.string && factPath.test(item.value))

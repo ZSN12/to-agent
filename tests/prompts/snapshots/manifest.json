@@ -1,0 +1,278 @@
+{
+  "version": 1,
+  "capturedAt": "2026-10-09T08:53:39.215Z",
+  "prefixProbeBytes": 256,
+  "prompts": {
+    "standard": {
+      "file": "standard.prompt.txt",
+      "legacy": {
+        "file": "legacy/standard.prompt.txt",
+        "sha256": "fb7e0fe109f54aac8ab7c1abbcfab63abfd67d36b48592d1f89ad8ed35bf2253",
+        "bytes": 2026,
+        "sourceSha256": "66aec5a6d969464b880fe9468a786f6f892a4145622336cb185d400490a7189f",
+        "capturedAt": "2026-10-09T08:52:36.959Z"
+      },
+      "sourcePath": "vendor/z-runtime/apps/cli/config/agent-presets/standard/agent.cordis.yml",
+      "sourceSha256": "66aec5a6d969464b880fe9468a786f6f892a4145622336cb185d400490a7189f",
+      "sha256": "fb7e0fe109f54aac8ab7c1abbcfab63abfd67d36b48592d1f89ad8ed35bf2253",
+      "bytes": 2026,
+      "estimatedTokens": 507,
+      "staticBytes": 2026,
+      "hanCharacters": 0,
+      "targetMaxBytes": 2048,
+      "targetMaxHanCharacters": null,
+      "maxRegressionBytes": 2128,
+      "knownViolations": [
+        "prefix-unstable-under-dynamic-context",
+        "stable-prefix-under-64-bytes",
+        "dynamic-placeholder-in-static-prefix",
+        "dynamic-value-not-confined-to-tail"
+      ],
+      "stablePrefixBytes": 38,
+      "stablePrefixSha256": "d7e5e361480347bca1c1be540baccc8b3fc8db49e157b743486756dbc249ef03"
+    },
+    "taskweaver-code": {
+      "file": "taskweaver-code.prompt.txt",
+      "legacy": {
+        "file": "legacy/taskweaver-code.prompt.txt",
+        "sha256": "02949c2fb2a8d0d618147212c64773c64d6e9ad7e1af31d925adfc3f91d4715b",
+        "bytes": 683,
+        "sourceSha256": "4e5ce587708edaa5f450b4ef1a0bf8b7ef99a370ff4d288cf5140a1dde01cd00",
+        "capturedAt": "2026-10-09T08:52:36.960Z"
+      },
+      "sourcePath": "vendor/z-runtime/apps/cli/config/agent-presets/taskweaver-code/agent.cordis.yml",
+      "sourceSha256": "4e5ce587708edaa5f450b4ef1a0bf8b7ef99a370ff4d288cf5140a1dde01cd00",
+      "sha256": "02949c2fb2a8d0d618147212c64773c64d6e9ad7e1af31d925adfc3f91d4715b",
+      "bytes": 683,
+      "estimatedTokens": 171,
+      "staticBytes": 683,
+      "hanCharacters": 0,
+      "targetMaxBytes": 1024,
+      "targetMaxHanCharacters": null,
+      "maxRegressionBytes": 718,
+      "knownViolations": [],
+      "stablePrefixBytes": 683,
+      "stablePrefixSha256": "02949c2fb2a8d0d618147212c64773c64d6e9ad7e1af31d925adfc3f91d4715b"
+    },
+    "taskweaver-readonly": {
+      "file": "taskweaver-readonly.prompt.txt",
+      "legacy": {
+        "file": "legacy/taskweaver-readonly.prompt.txt",
+        "sha256": "de4029257a380f7039c652d66dfc6f565f11ae1a305416c15f920b1d78310f24",
+        "bytes": 4301,
+        "sourceSha256": "be13bda57173cfa14e6da062e0c1556b3e8606362ccc7566e4fcb82bc316b117",
+        "capturedAt": "2026-10-09T08:52:36.961Z"
+      },
+      "sourcePath": "vendor/z-runtime/apps/cli/config/agent-presets/taskweaver-readonly/agent.cordis.yml",
+      "sourceSha256": "be13bda57173cfa14e6da062e0c1556b3e8606362ccc7566e4fcb82bc316b117",
+      "sha256": "de4029257a380f7039c652d66dfc6f565f11ae1a305416c15f920b1d78310f24",
+      "bytes": 4301,
+      "estimatedTokens": 1076,
+      "staticBytes": 4301,
+      "hanCharacters": 0,
+      "targetMaxBytes": 1536,
+      "targetMaxHanCharacters": null,
+      "maxRegressionBytes": 4517,
+      "knownViolations": [
+        "target-size-limit-exceeded"
+      ],
+      "stablePrefixBytes": 4301,
+      "stablePrefixSha256": "de4029257a380f7039c652d66dfc6f565f11ae1a305416c15f920b1d78310f24"
+    },
+    "taskweaver-planner": {
+      "file": "taskweaver-planner.prompt.txt",
+      "legacy": {
+        "file": "legacy/taskweaver-planner.prompt.txt",
+        "sha256": "3325e70a8eb7334d8a8ba0d4a882f5b4b682fadb68264a0ce8da8d291d7b9909",
+        "bytes": 120,
+        "sourceSha256": "58fb33f70cf62837d4d36dc8dc57c2218ad01f6060adb382c3ba28fde8aa3471",
+        "capturedAt": "2026-10-09T08:52:36.962Z"
+      },
+      "sourcePath": "vendor/z-runtime/apps/cli/config/agent-presets/taskweaver-planner/agent.cordis.yml",
+      "sourceSha256": "58fb33f70cf62837d4d36dc8dc57c2218ad01f6060adb382c3ba28fde8aa3471",
+      "sha256": "3325e70a8eb7334d8a8ba0d4a882f5b4b682fadb68264a0ce8da8d291d7b9909",
+      "bytes": 120,
+      "estimatedTokens": 30,
+      "staticBytes": 120,
+      "hanCharacters": 0,
+      "targetMaxBytes": 1024,
+      "targetMaxHanCharacters": null,
+      "maxRegressionBytes": 126,
+      "knownViolations": [],
+      "stablePrefixBytes": 120,
+      "stablePrefixSha256": "3325e70a8eb7334d8a8ba0d4a882f5b4b682fadb68264a0ce8da8d291d7b9909"
+    },
+    "taskweaver-pi-lite": {
+      "file": "taskweaver-pi-lite.prompt.txt",
+      "legacy": {
+        "file": "legacy/taskweaver-pi-lite.prompt.txt",
+        "sha256": "48856bf18ec134b997db4a6f85a24907c43cea54252b68b389c551909f5df3f8",
+        "bytes": 999,
+        "sourceSha256": "0fd0246ee4c7cc94a1f061ceedd0fc9a3211f8e3333bd75820ce5329719fc805",
+        "capturedAt": "2026-10-09T08:52:36.962Z"
+      },
+      "sourcePath": "vendor/z-runtime/apps/cli/config/agent-presets/taskweaver-pi-lite/agent.cordis.yml",
+      "sourceSha256": "0fd0246ee4c7cc94a1f061ceedd0fc9a3211f8e3333bd75820ce5329719fc805",
+      "sha256": "48856bf18ec134b997db4a6f85a24907c43cea54252b68b389c551909f5df3f8",
+      "bytes": 999,
+      "estimatedTokens": 250,
+      "staticBytes": 999,
+      "hanCharacters": 0,
+      "targetMaxBytes": 1536,
+      "targetMaxHanCharacters": null,
+      "maxRegressionBytes": 1049,
+      "knownViolations": [
+        "prefix-unstable-under-dynamic-context",
+        "dynamic-placeholder-in-static-prefix",
+        "dynamic-value-not-confined-to-tail"
+      ],
+      "stablePrefixBytes": 174,
+      "stablePrefixSha256": "2eac319ff98f20d315cf9ff274743620d6f9b64ac8c6caefe95425e82e6e139b"
+    },
+    "task-profile.research": {
+      "file": "task-profile.research.prompt.txt",
+      "legacy": {
+        "file": "legacy/task-profile.research.prompt.txt",
+        "sha256": "e9a54af1c1c87cc39519a5e1d468df5755f7af5c40e576ad0e07069d642aea2a",
+        "bytes": 1683,
+        "sourceSha256": "d6b680c419ddc1269cc70c37203021eee8bc1c442895e62be86e609f754557eb",
+        "capturedAt": "2026-10-09T08:52:36.963Z"
+      },
+      "sourcePath": "electron/backend/task-profile.mjs",
+      "sourceSha256": "d6b680c419ddc1269cc70c37203021eee8bc1c442895e62be86e609f754557eb",
+      "sha256": "e9a54af1c1c87cc39519a5e1d468df5755f7af5c40e576ad0e07069d642aea2a",
+      "bytes": 1683,
+      "estimatedTokens": 421,
+      "staticBytes": 1683,
+      "hanCharacters": 484,
+      "targetMaxBytes": null,
+      "targetMaxHanCharacters": 300,
+      "maxRegressionBytes": 1768,
+      "knownViolations": [
+        "target-han-char-limit-exceeded"
+      ],
+      "stablePrefixBytes": 1683,
+      "stablePrefixSha256": "e9a54af1c1c87cc39519a5e1d468df5755f7af5c40e576ad0e07069d642aea2a"
+    },
+    "task-profile.review": {
+      "file": "task-profile.review.prompt.txt",
+      "legacy": {
+        "file": "legacy/task-profile.review.prompt.txt",
+        "sha256": "f389edf124c1ef6e29c9eb9e07c4a1c07b0460b2ee6c91feeb4d1bab8df27761",
+        "bytes": 1409,
+        "sourceSha256": "d6b680c419ddc1269cc70c37203021eee8bc1c442895e62be86e609f754557eb",
+        "capturedAt": "2026-10-09T08:52:36.963Z"
+      },
+      "sourcePath": "electron/backend/task-profile.mjs",
+      "sourceSha256": "d6b680c419ddc1269cc70c37203021eee8bc1c442895e62be86e609f754557eb",
+      "sha256": "f389edf124c1ef6e29c9eb9e07c4a1c07b0460b2ee6c91feeb4d1bab8df27761",
+      "bytes": 1409,
+      "estimatedTokens": 353,
+      "staticBytes": 1409,
+      "hanCharacters": 408,
+      "targetMaxBytes": null,
+      "targetMaxHanCharacters": 300,
+      "maxRegressionBytes": 1480,
+      "knownViolations": [
+        "target-han-char-limit-exceeded"
+      ],
+      "stablePrefixBytes": 1409,
+      "stablePrefixSha256": "f389edf124c1ef6e29c9eb9e07c4a1c07b0460b2ee6c91feeb4d1bab8df27761"
+    },
+    "task-profile.implementation": {
+      "file": "task-profile.implementation.prompt.txt",
+      "legacy": {
+        "file": "legacy/task-profile.implementation.prompt.txt",
+        "sha256": "9f0b1332bd853df6a61aeebc3613c8f8968b37e71d3e27b3996818308420cfa3",
+        "bytes": 141,
+        "sourceSha256": "d6b680c419ddc1269cc70c37203021eee8bc1c442895e62be86e609f754557eb",
+        "capturedAt": "2026-10-09T08:52:36.964Z"
+      },
+      "sourcePath": "electron/backend/task-profile.mjs",
+      "sourceSha256": "d6b680c419ddc1269cc70c37203021eee8bc1c442895e62be86e609f754557eb",
+      "sha256": "9f0b1332bd853df6a61aeebc3613c8f8968b37e71d3e27b3996818308420cfa3",
+      "bytes": 141,
+      "estimatedTokens": 36,
+      "staticBytes": 141,
+      "hanCharacters": 41,
+      "targetMaxBytes": null,
+      "targetMaxHanCharacters": 300,
+      "maxRegressionBytes": 149,
+      "knownViolations": [],
+      "stablePrefixBytes": 141,
+      "stablePrefixSha256": "9f0b1332bd853df6a61aeebc3613c8f8968b37e71d3e27b3996818308420cfa3"
+    },
+    "task-profile.test": {
+      "file": "task-profile.test.prompt.txt",
+      "legacy": {
+        "file": "legacy/task-profile.test.prompt.txt",
+        "sha256": "02120288611fab07788f37c58c939418bb6825a8538975a5bad87593ea7784ec",
+        "bytes": 148,
+        "sourceSha256": "d6b680c419ddc1269cc70c37203021eee8bc1c442895e62be86e609f754557eb",
+        "capturedAt": "2026-10-09T08:52:36.964Z"
+      },
+      "sourcePath": "electron/backend/task-profile.mjs",
+      "sourceSha256": "d6b680c419ddc1269cc70c37203021eee8bc1c442895e62be86e609f754557eb",
+      "sha256": "02120288611fab07788f37c58c939418bb6825a8538975a5bad87593ea7784ec",
+      "bytes": 148,
+      "estimatedTokens": 37,
+      "staticBytes": 148,
+      "hanCharacters": 43,
+      "targetMaxBytes": null,
+      "targetMaxHanCharacters": 300,
+      "maxRegressionBytes": 156,
+      "knownViolations": [],
+      "stablePrefixBytes": 148,
+      "stablePrefixSha256": "02120288611fab07788f37c58c939418bb6825a8538975a5bad87593ea7784ec"
+    },
+    "planner-request": {
+      "file": "planner-request.prompt.txt",
+      "legacy": {
+        "file": "legacy/planner-request.prompt.txt",
+        "sha256": "fbb179306d42af2840bdc34ccb03717a066687212b48abebe3559dcfc71d8671",
+        "bytes": 5451,
+        "sourceSha256": "f413c1b68144b98bf2e42eee8c36b6f2b33202651a0cee6e6b26962a996fe0ab",
+        "capturedAt": "2026-10-09T08:52:36.965Z"
+      },
+      "sourcePath": "electron/backend/orchestration/plan-and-execute.mjs",
+      "sourceSha256": "f413c1b68144b98bf2e42eee8c36b6f2b33202651a0cee6e6b26962a996fe0ab",
+      "sha256": "fbb179306d42af2840bdc34ccb03717a066687212b48abebe3559dcfc71d8671",
+      "bytes": 5451,
+      "estimatedTokens": 1363,
+      "staticBytes": 3834,
+      "hanCharacters": 1343,
+      "targetMaxBytes": 3584,
+      "targetMaxHanCharacters": null,
+      "maxRegressionBytes": 5724,
+      "knownViolations": [
+        "repository-specific-path",
+        "target-size-limit-exceeded"
+      ],
+      "stablePrefixBytes": 921,
+      "stablePrefixSha256": "c493334f46597fd0263b7403bd5f1a1ba46ba12855e60e25866ff36f3268583d"
+    },
+    "planner-synthesis": {
+      "file": "planner-synthesis.prompt.txt",
+      "legacy": {
+        "file": "legacy/planner-synthesis.prompt.txt",
+        "sha256": "0078f451409cf648d9045a2ece8edbee11b222024027ad4b37ed3f5f9b73e1e8",
+        "bytes": 1399,
+        "sourceSha256": "f413c1b68144b98bf2e42eee8c36b6f2b33202651a0cee6e6b26962a996fe0ab",
+        "capturedAt": "2026-10-09T08:52:36.966Z"
+      },
+      "sourcePath": "electron/backend/orchestration/plan-and-execute.mjs",
+      "sourceSha256": "f413c1b68144b98bf2e42eee8c36b6f2b33202651a0cee6e6b26962a996fe0ab",
+      "sha256": "0078f451409cf648d9045a2ece8edbee11b222024027ad4b37ed3f5f9b73e1e8",
+      "bytes": 1399,
+      "estimatedTokens": 350,
+      "staticBytes": 1289,
+      "hanCharacters": 376,
+      "targetMaxBytes": 4096,
+      "targetMaxHanCharacters": null,
+      "maxRegressionBytes": 1469,
+      "knownViolations": [],
+      "stablePrefixBytes": 1289,
+      "stablePrefixSha256": "d310ca6f6393aa162b9cfc852e1fe4ca9054e1814956da084a86a54e15a4c1ea"
+    }
+  }
+}

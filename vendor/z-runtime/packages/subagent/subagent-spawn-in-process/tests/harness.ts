@@ -6,14 +6,14 @@ import { LocalBashExecutor } from '@z/dsh-bash-local'
 import * as BashEnvPlugin from '@z/dsh-shell-env'
 import LocalSubprocessRuntime from '@z/dsh-subprocess-local'
 import * as ToolBash from '@z/dsh-tool-bash'
-import * as LlmDeepSeek from '@z/dsh-llm-deepseek'
+import * as LlmPiAi from '@z/dsh-llm-pi-ai'
 import SubagentRuntime from '@z/dsh-subagent'
 import * as Spawn from '../src/index.ts'
 import * as ToolSubagent from '@z/dsh-tool-subagent'
 
 /**
- * Shared harness for the spawn-backend e2e: the full real stack (DeepSeek
- * adapter + real bash tool + the subagent tool bound to the spawn backend), so
+ * Shared harness for the spawn-backend e2e: a pi-ai DeepSeek route, real bash
+ * tool, and subagent tool bound to the spawn backend, so
  * a real parent agent can delegate to a real in-process child that does real
  * work (writes a file). Lives outside the *.e2e.ts pattern so importing it never
  * re-registers another file's tests.
@@ -28,7 +28,7 @@ export async function spawnHarness(workdir: string): Promise<Context> {
     systemPrompt: { persona: 'You are a coding agent. Report only when the requested work is done.' },
   })
   await ctx.plugin(AgentLoop, { agents: [] })
-  await ctx.plugin(LlmDeepSeek)
+  await ctx.plugin(LlmPiAi, { providers: { deepseek: { apiKeyEnv: 'DEEPSEEK_API_KEY' } } })
   await ctx.plugin(LocalSubprocessRuntime)
   await ctx.plugin(BashEnvPlugin)
   await ctx.plugin(LocalBashExecutor, { cwd: workdir, timeoutMs: 30_000 })

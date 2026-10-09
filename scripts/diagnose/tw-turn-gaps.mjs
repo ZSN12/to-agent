@@ -120,7 +120,7 @@ const dups = [...byCall.entries()].filter(([, v]) => v.length > 1)
 console.log(`\n=== resume 重放核对（${dups.length} 个 callId 有多个 result） ===`)
 let same = 0
 let diff = 0
-for (const [id, v] of dups) {
+for (const [, v] of dups) {
   const sig = v.map((r) => JSON.stringify(r.data?.message?.content ?? r.data?.error ?? null))
   const isSame = sig.every((s) => s === sig[0])
   if (isSame) same += 1

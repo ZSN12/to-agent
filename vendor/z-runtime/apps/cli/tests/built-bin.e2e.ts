@@ -38,6 +38,19 @@ async function runBuiltBin(
   return { stdout: result.stdout, code: result.exitCode ?? -1, stderr: result.stderr }
 }
 
+function createBaseProfile(home: string, name: string): string {
+  const profileDir = join(home, 'profiles', name)
+  mkdirSync(profileDir, { recursive: true })
+  writeFileSync(join(profileDir, 'package.json'), JSON.stringify({
+    name: `dsh-profile-${name}`,
+    private: true,
+    dependencies: { '@z/dsh-base': 'workspace:^' },
+    dsh: { profile: { bundles: ['@z/dsh-base'] } },
+  }))
+  writeFileSync(join(profileDir, 'cordis.patch.yml'), '[]\n')
+  return profileDir
+}
+
 async function waitForFile(file: string): Promise<void> {
   const deadline = Date.now() + 20_000
   while (!existsSync(file)) {
@@ -317,80 +330,13 @@ describe.skipIf(!existsSync(dshBin))('dsh BUILT bin (node lib/bin.js, no tsx)', 
     expect(bare.stderr).toContain('--profile <name> is required')
     const help = await runBuiltBin(['--help'])
     expect(help.code).toBe(0)
-    expect(help.stdout).toContain('dsh --profile web')
+    expect(help.stdout).toContain('dsh --profile taskweaver')
     expect(help.stdout).toContain('dsh plugin --profile')
+    expect(help.stdout).not.toMatch(/web|headless/iu)
     expect(help.stdout).not.toMatch(/^\s+(?:tui|meta|upgrade)\b/mu)
-    for (const removed of [['tui'], ['--config', 'x.yml'], ['-p', 'task'], ['run', 'task']]) {
+    for (const removed of [['tui'], ['web'], ['--config', 'x.yml'], ['-p', 'task'], ['run', 'task']]) {
       const result = await runBuiltBin(removed)
       expect(result.code).toBe(1)
-    }
-  }, 30_000)
-
-  it('routes help and usage errors without activating startup-dependent rows', async () => {
-    const home = mkdtempSync(join(tmpdir(), 'dsh-app-help-'))
-    try {
-      const web = await runBuiltBin(['--profile', 'web', '--help'], {
-        DSH_HOME: home,
-        DSH_TELEMETRY_DISABLED: '1',
-      })
-      expect(web.code).toBe(0)
-      expect(web.stderr).toBe('')
-      expect(web.stdout).toContain('Usage: dsh --profile web')
-      expect(web.stdout).toContain('--port <port>')
-      expect(web.stdout).not.toContain('dsh web: http://')
-
-      const wildcardHost = await runBuiltBin(['web', '--host', '0.0.0.0'], {
-        DSH_HOME: home,
-        DSH_TELEMETRY_DISABLED: '1',
-      })
-      expect(wildcardHost.code).toBe(1)
-      expect(wildcardHost.stdout).toBe('')
-      expect(wildcardHost.stderr).toContain('--host 0.0.0.0 is intentionally not supported yet for safety: it would expose remote code execution to the network; use 127.0.0.1 instead')
-      expect(wildcardHost.stderr).not.toContain('dsh web: http://')
-
-      const headlessHelp = await runBuiltBin(['--profile', 'headless', '--help'], {
-        DSH_HOME: home,
-        DSH_TELEMETRY_DISABLED: '1',
-      })
-      expect(headlessHelp.code).toBe(0)
-      expect(headlessHelp.stderr).toBe('')
-      expect(headlessHelp.stdout).toContain('Usage: dsh --profile headless')
-
-      const missingTask = await runBuiltBin(['--profile', 'headless'], {
-        DSH_HOME: home,
-        DSH_TELEMETRY_DISABLED: '1',
-      })
-      expect(missingTask.code).toBe(1)
-      expect(missingTask.stderr).toContain('a task is required')
-    } finally {
-      rmSync(home, { recursive: true, force: true })
-    }
-  }, 30_000)
-
-  it('runs the headless profile through its app-owned task positional', async () => {
-    const apiKey = 'built-dsh-headless-key'
-    const server = await startMockLlmServer({
-      sequence: ['success'],
-      apiKey,
-      successText: 'published headless profile reached the mock',
-    })
-    const home = mkdtempSync(join(tmpdir(), 'dsh-built-headless-'))
-    try {
-      const result = await runBuiltBin(['--profile', 'headless', 'answer', 'from', 'the', 'published', 'entry'], {
-        DSH_HOME: home,
-        DSH_TELEMETRY_DISABLED: '1',
-        DEEPSEEK_API_KEY: apiKey,
-        DEEPSEEK_BASE_URL: server.baseURL,
-      })
-      expect(result.code, result.stderr).toBe(0)
-      expect(result.stdout).toBe('published headless profile reached the mock')
-      expect(result.stderr).toBe('')
-      expect(server.requests.length).toBeGreaterThan(0)
-      expect(server.requests.every(request => request.path === '/chat/completions')).toBe(true)
-      expect(JSON.stringify(server.requests.map(request => request.body))).toContain('answer from the published entry')
-    } finally {
-      await server.close()
-      rmSync(home, { recursive: true, force: true })
     }
   }, 30_000)
 
@@ -433,7 +379,6 @@ describe.skipIf(!existsSync(dshBin))('dsh BUILT bin (node lib/bin.js, no tsx)', 
         ['--profile', 'environment-probe'],
         {
           DSH_HOME: home,
-          DSH_TELEMETRY_DISABLED: '1',
           DEEPSEEK_API_KEY: undefined,
           DEEPSEEK_BASE_URL: server.baseURL,
         },
@@ -463,11 +408,11 @@ describe.skipIf(!existsSync(dshBin))('dsh BUILT bin (node lib/bin.js, no tsx)', 
     // refresh drain: dsh exited 13 with no diagnostic instead of settling
     // ([Agent Note](../../../.agents/notes/implemented/bug-fix/2026-08-03-hmr-initial-scan-boot-deadlock.md)).
     const home = mkdtempSync(join(tmpdir(), 'dsh-invalid-patch-'))
+    createBaseProfile(home, 'base')
     try {
-      const result = await runBuiltBin(['--profile', 'web', '--patch', invalidProvider], {
+      const result = await runBuiltBin(['--profile', 'base', '--patch', invalidProvider], {
         DSH_HOME: home,
         DEEPSEEK_API_KEY: 'keyless-invalid-config',
-        DSH_TELEMETRY_DISABLED: '1',
       })
       expect(result.code).toBe(1)
       expect(result.stdout).toBe('')
@@ -710,37 +655,23 @@ describe.skipIf(!existsSync(dshBin))('dsh BUILT bin (node lib/bin.js, no tsx)', 
 
   describe('config dump', () => {
     let home: string
-    beforeEach(() => { home = mkdtempSync(join(tmpdir(), 'dsh-dump-bin-')) })
+    beforeEach(() => {
+      home = mkdtempSync(join(tmpdir(), 'dsh-dump-bin-'))
+      createBaseProfile(home, 'base')
+    })
     afterEach(() => { rmSync(home, { recursive: true, force: true }) })
 
-    it('prints the web profile bundle layers without a user layer', async () => {
-      const { stdout, code, stderr } = await runBuiltBin(['--profile', 'web', '--dump-default-config'], { DSH_HOME: home })
+    it('prints the TaskWeaver base bundle layers without a user layer', async () => {
+      const { stdout, code, stderr } = await runBuiltBin(['--profile', 'base', '--dump-default-config'], { DSH_HOME: home })
       expect(code).toBe(0)
       expect(stderr).toBe('')
       expect(stdout).toContain("name: '@z/dsh-agent-loop'")
       expect(stdout).toContain('agents: []')
       expect(stdout).toContain('# == @z/dsh-base')
-      expect(stdout).toContain("name: '@z/dsh-host-webserver'")
-    }, 30_000)
-
-    it('prints the headless profile without Host or browser layers', async () => {
-      const { stdout, code, stderr } = await runBuiltBin(
-        ['--profile', 'headless', '--dump-default-config'],
-        { DSH_HOME: home },
-      )
-      expect(code).toBe(0)
-      expect(stderr).toBe('')
-      expect(stdout).toContain("name: '@z/dsh-headless'")
-      expect(stdout).not.toMatch(/name: '@deepseek-ai\/dsh-host-/)
-      expect(stdout).not.toContain("name: '@z/dsh-web-app'")
-      expect(stdout).not.toMatch(/name: '@deepseek-ai\/dsh-client-/)
     }, 30_000)
 
     it('composes the profile user layer and a --patch overlay in order', async () => {
-      // Auto-init the web profile first, then write its user layer.
-      const init = await runBuiltBin(['--profile', 'web', '--dump-default-config'], { DSH_HOME: home })
-      expect(init.code).toBe(0)
-      const profilePatch = join(home, 'profiles', 'web', 'cordis.patch.yml')
+      const profilePatch = join(home, 'profiles', 'base', 'cordis.patch.yml')
       writeFileSync(profilePatch, [
         '- id: agent-loop',
         '  config:',
@@ -764,7 +695,7 @@ describe.skipIf(!existsSync(dshBin))('dsh BUILT bin (node lib/bin.js, no tsx)', 
         '',
       ].join('\n'))
       const { stdout, code, stderr } = await runBuiltBin(
-        ['--profile', 'web', '--patch', overlay, '--dump-config'],
+        ['--profile', 'base', '--patch', overlay, '--dump-config'],
         { DSH_HOME: home },
       )
       expect(code).toBe(0)

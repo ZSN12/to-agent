@@ -1,3 +1,5 @@
+import { clockLabelZh } from '../../shared/time-label'
+
 export function formatMessageTime(time: string, timestamp?: number, id?: string): string {
   let ts = timestamp
   if (!ts && id) {
@@ -17,13 +19,13 @@ export function formatMessageTime(time: string, timestamp?: number, id?: string)
       msgDate.getDate() === now.getDate()
 
     if (isToday) {
-      return time || msgDate.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false })
+      return time || clockLabelZh(ts)
     }
 
     const year = msgDate.getFullYear()
     const month = String(msgDate.getMonth() + 1).padStart(2, '0')
     const day = String(msgDate.getDate()).padStart(2, '0')
-    const clock = time || msgDate.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false })
+    const clock = time || clockLabelZh(ts)
 
     return `${year}-${month}-${day} ${clock}`
   }

@@ -26,6 +26,8 @@ if (gitDiag.installed) {
 
 const nodeDiag = await diagnoseTool('node', effectivePath)
 assert.ok(nodeDiag.name === 'node')
+const nodePath = findExecutableInPath('node', effectivePath)
+if (nodePath) assert.equal(nodePath, nodeDiag.resolvedPath, 'PATH lookup should agree with the node diagnostic')
 if (nodeDiag.installed) {
   assert.ok(nodeDiag.resolvedPath, '已安装的 node 必须解析出绝对路径')
   assert.ok(gitDiag.version, '已安装的 node 必须包含版本号')

@@ -6,3 +6,9 @@
     text: You are a helpful software engineering planner. Return concise, accurate results and never claim to have executed tools.
     complete: true
     includeRuntimeContext: false
+
+- id: agent-instructions
+  name: '@z/dsh-agent-instructions'
+  config:
+    maxBytes: 65536
+    instructionFileCandidates: [TASKWEAVER.md, AGENTS.md, CLAUDE.md, .cursorrules]

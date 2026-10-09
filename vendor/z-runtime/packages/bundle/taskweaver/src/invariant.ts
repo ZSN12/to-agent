@@ -9,15 +9,13 @@ import type { InvariantInstaller } from '@z/dsh-invariants'
 const PACKAGE_NAME = '@z/dsh-taskweaver'
 
 /** Cordis companion plugin name. */
-export const name = 'web-app-invariant'
+export const name = 'taskweaver-api-host-invariant'
 /** Service required before the companion can register. */
 export const inject = ['invariants']
 
 /**
- * No runtime invariant: every contribution (frontend-static child plugin,
- * prompt section, bashEnv registration) is registry-disposed with the fiber,
- * and each owning registry's package carries that relation's invariant; the
- * package holds no mutable state of its own to audit.
+ * No runtime invariant: the package owns no mutable state. The WebServer and
+ * `/api` route lifecycle invariants belong to their respective packages.
  */
 const install: InvariantInstaller = () => {}
 

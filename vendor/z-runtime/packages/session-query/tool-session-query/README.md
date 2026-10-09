@@ -2,16 +2,16 @@
 
 English | [中文](README.zh.md)
 
-Workspace-authorized model tools over `ctx.sessionQuery`. The opt-in package depends only on the unified interface and registers `session_search`, `session_event_search`, `session_trace`, `session_event_trace`, and `session_event_read`; shipped host compositions do not mount it by default.
+Workspace-authorized model tools over `ctx.sessionQuery`. The preset-scoped package depends only on the unified interface and registers `session_search`, `session_event_search`, `session_trace`, `session_event_trace`, and `session_event_read`; it is available to the shipped standard, code, and TaskWeaver presets without entering the global host tool registry.
 
 ## Configuration
 
 | Key | Default | Meaning |
 |---|---:|---|
-| `maxSearchResults` | `100` | Maximum authorized non-self hits collected across internal provider pages |
+| `maxSearchResults` | `30` | Maximum authorized non-self hits collected across internal provider pages |
 | `searchTimeoutMs` | `30000` | Cooperative deadline attached to both full-text search tools |
 
-The caller comes exclusively from `ToolExecution.exec.agent`. Cross-session access requires exact equality between the target and caller session `cwd` values; a caller without `cwd` can inspect only itself. Search never exposes provider cursors, offsets, page sizes, or a model-controlled limit. Because one search consumes generation-bound provider cursors internally, both search tools execute exclusively with sibling tool calls; the three exact trace/read tools opt into parallel execution. Every exact executor passes its unchanged execution signal through authorization and the service trace/read, so cancellation waits for cooperative persistence cleanup and retains the signal's exact reason. Timestamps at the tool boundary require an explicit `Z` or numeric offset and become inclusive epoch-millisecond filters.
+The caller comes exclusively from `ToolExecution.exec.agent`. Cross-session access requires the same physical Git common directory, including linked worktrees. Outside Git, it requires the same physical workspace directory; a caller without `cwd` can inspect only itself. Search never exposes provider cursors, offsets, page sizes, or a model-controlled limit. Because one search consumes generation-bound provider cursors internally, both search tools execute exclusively with sibling tool calls; the three exact trace/read tools opt into parallel execution. Every exact executor passes its unchanged execution signal through authorization and the service trace/read, so cancellation waits for cooperative persistence cleanup and retains the signal's exact reason. Timestamps at the tool boundary require an explicit `Z` or numeric offset and become inclusive epoch-millisecond filters.
 
 `session_search` always omits the caller session. Requested parent ids are deduplicated and checked against caller-workspace authority before FTS; only authorized ids reach the provider, while missing and cross-workspace guesses behave identically and the root marker remains independently ORed. A current-session `session_event_search` stops immediately before the step that invoked it, so the active assistant output and logged tool call cannot match themselves. Direct targets are authorized before trace, event, or title reads. Lineage output replaces unauthorized ancestor and descendant boundaries with markers that contain no hidden session id.
 
@@ -72,5 +72,5 @@ Append-only result text follows the reusable request prefix and does not invalid
 ## Known Limitations and Deferred Work
 
 - Search returns at most the deployment cap and asks the model to narrow its query when more matches exist; it offers no continuation token.
-- Workspace identity is conservative exact-string `cwd` equality, so symlink-equivalent paths do not share authority.
+- Repository identity is resolved by Git with a bounded subprocess; if Git is unavailable or times out, access falls back to the caller's physical workspace directory.
 - Custom compositions without the generic spill policy accept complete trace and event payloads inline.

@@ -161,31 +161,26 @@ describe('loadProfile', () => {
       .toEqual([...PROFILE_TEMPLATES.web ?? []])
   })
 
-  it('normalizes only the exact installation-owned headless bundle tuple', () => {
+  it('normalizes the retired web surface to the TaskWeaver bundle', () => {
     const anchor = stageInstallation({
       '@z/dsh-base': { patch: '[]\n' },
-      '@z/dsh-web-app': { patch: '[]\n' },
-      '@z/dsh-headless': { patch: '[]\n' },
+      '@legacy/web-app': { patch: '[]\n' },
+      '@z/dsh-taskweaver': { patch: '[]\n' },
       'custom-bundle': { patch: '[]\n' },
     })
     const home = tmp()
-    const stock = resolveProfileDir('headless', home)
-    initProfile(stock, [
-      '@z/dsh-base', '@z/dsh-web-app', '@z/dsh-headless',
-    ])
-    loadProfile('t', 'headless', anchor, home)
+    const stock = resolveProfileDir('web', home)
+    initProfile(stock, ['@z/dsh-base', '@legacy/web-app'])
+    loadProfile('t', 'web', anchor, home)
     expect(readProfileManifest('t', stock).dsh?.profile?.bundles)
-      .toEqual(['@z/dsh-base', '@z/dsh-headless'])
+      .toEqual(['@z/dsh-base', '@z/dsh-taskweaver'])
 
     const customHome = tmp()
-    const custom = resolveProfileDir('headless', customHome)
-    initProfile(custom, [
-      '@z/dsh-base', '@z/dsh-web-app', '@z/dsh-headless', 'custom-bundle',
-    ])
-    loadProfile('t', 'headless', anchor, customHome)
-    expect(readProfileManifest('t', custom).dsh?.profile?.bundles).toEqual([
-      '@z/dsh-base', '@z/dsh-web-app', '@z/dsh-headless', 'custom-bundle',
-    ])
+    const custom = resolveProfileDir('web', customHome)
+    initProfile(custom, ['@z/dsh-base', '@legacy/web-app', 'custom-bundle'])
+    loadProfile('t', 'web', anchor, customHome)
+    expect(readProfileManifest('t', custom).dsh?.profile?.bundles)
+      .toEqual(['@z/dsh-base', '@legacy/web-app', 'custom-bundle'])
   })
 
   it('fails loud when a listed bundle declares no dsh.bundle', () => {

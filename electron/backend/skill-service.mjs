@@ -61,19 +61,23 @@ export function createSkillService({
   const catalogRequests = new Map()
   const CATALOG_TTL_MS = 30_000
 
-  function workspaceContext(options = {}) {
-    const cwd = options.workspacePath !== undefined ? options.workspacePath : getWorkspacePath()
-    const trusted = options.workspaceTrusted !== undefined ? options.workspaceTrusted : getWorkspaceTrusted()
+  async function workspaceContext(options = {}) {
+    const cwd = options.workspacePath !== undefined
+      ? options.workspacePath
+      : await Promise.resolve(getWorkspacePath(options.conversationId))
+    const trusted = options.workspaceTrusted !== undefined
+      ? options.workspaceTrusted
+      : await Promise.resolve(getWorkspaceTrusted(options.conversationId))
     return { cwd, trusted: trusted === true }
   }
 
-  function catalogKey(options = {}) {
-    const { cwd, trusted } = workspaceContext(options)
+  async function catalogKey(options = {}) {
+    const { cwd, trusted } = await workspaceContext(options)
     return `${path.resolve(cwd || agentDataPath)}:${trusted ? 'trusted' : 'untrusted'}`
   }
 
   async function loadFilesystemCatalog(options = {}) {
-    const { cwd, trusted } = workspaceContext(options)
+    const { cwd, trusted } = await workspaceContext(options)
     const projectSkillsPath = cwd ? path.join(cwd, '.taskweaver', 'skills') : null
     const paths = [builtInSkillsPath, path.join(agentDataPath, 'skills'), ...globalSkillPaths].filter(Boolean)
     if (projectSkillsPath && trusted) paths.push(projectSkillsPath)
@@ -114,7 +118,7 @@ export function createSkillService({
   async function listFromDsh(options = {}) {
     if (!hostManager) return null
     const { api } = await hostManager.start()
-    const { cwd: requestedCwd } = workspaceContext(options)
+    const { cwd: requestedCwd } = await workspaceContext(options)
     const cwd = requestedCwd || agentDataPath
     const sessionId = skillsCatalogSessionId(cwd)
     rpcValue(await api.sessions.create({ sessionId, cwd }), '创建 Z Skill 目录会话')
@@ -124,7 +128,7 @@ export function createSkillService({
 
   return {
     async list(options = {}) {
-      const key = catalogKey(options)
+      const key = await catalogKey(options)
       const cached = catalogCache.get(key)
       if (cached && cached.expiresAt > Date.now()) return cached.skills
       const pending = catalogRequests.get(key)

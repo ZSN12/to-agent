@@ -31,6 +31,7 @@
   name: '@z/dsh-agent-instructions'
   config:
     maxBytes: 8192
+    instructionFileCandidates: [TASKWEAVER.md, AGENTS.md, CLAUDE.md, .cursorrules]
 
 - id: tool-bash
   name: '@z/dsh-tool-bash'

@@ -635,13 +635,14 @@ export class SqliteSessionQueryEngine extends SessionQueryEngine {
     offset: number,
     persistenceBinding: PersistenceBinding,
   ): SearchRow[] {
-    const selected = selectedDocumentsSql()
+    const useFts = queryCanUseTrigram(request.query)
+    const selected = selectedDocumentsSql(useFts)
     const sessionWhere = buildSessionWhere(request.sessionFilters)
     const eventWhere = buildEventWhere(request.eventFilters)
     assertFts5OuterPredicateCount(sessionWhere.predicateCount + eventWhere.predicateCount)
     const where = [sessionWhere.sql, eventWhere.sql].filter(Boolean).join(' AND ')
     const bindings = [
-      ...selectedDocumentsParams(request.query, persistenceBinding.service !== undefined),
+      ...selectedDocumentsParams(request.query, persistenceBinding.service !== undefined, useFts),
       ...sessionWhere.params,
       ...eventWhere.params,
       request.limit + 1,
@@ -674,12 +675,13 @@ export class SqliteSessionQueryEngine extends SessionQueryEngine {
     offset: number,
     persistenceBinding: PersistenceBinding,
   ): SearchRow[] {
-    const selected = selectedDocumentsSql()
+    const useFts = queryCanUseTrigram(request.query)
+    const selected = selectedDocumentsSql(useFts)
     const eventWhere = buildEventWhere(request.filters)
     assertFts5OuterPredicateCount(1 + eventWhere.predicateCount)
     const where = ['session_id = ?', eventWhere.sql].filter(Boolean).join(' AND ')
     const bindings = [
-      ...selectedDocumentsParams(request.query, persistenceBinding.service !== undefined),
+      ...selectedDocumentsParams(request.query, persistenceBinding.service !== undefined, useFts),
       request.sessionId,
       ...eventWhere.params,
       request.limit + 1,
@@ -779,7 +781,13 @@ function headerBindings(header: SessionHeader): (string | number | null)[] {
   ]
 }
 
-function selectedDocumentsSql(): { sql: string } {
+function selectedDocumentsSql(useFts: boolean): { sql: string } {
+  const persistedSearch = useFts
+    ? 'persisted_docs MATCH ?'
+    : "pd.text LIKE ? ESCAPE '\\'"
+  const liveSearch = useFts
+    ? 'live_docs MATCH ?'
+    : "ld.text LIKE ? ESCAPE '\\'"
   return {
     sql: `WITH candidates AS (
       SELECT
@@ -801,7 +809,7 @@ function selectedDocumentsSql(): { sql: string } {
         CAST(pd.codepoint_length AS INTEGER) AS document_length
       FROM persisted_docs AS pd
       JOIN persisted_sessions AS ps ON ps.id = pd.session_id
-      WHERE persisted_docs MATCH ?
+      WHERE ${persistedSearch}
         AND ? = 1
         AND NOT EXISTS (SELECT 1 FROM temp.live_sessions AS ls WHERE ls.id = pd.session_id)
       UNION ALL
@@ -824,7 +832,7 @@ function selectedDocumentsSql(): { sql: string } {
         CAST(ld.codepoint_length AS INTEGER) AS document_length
       FROM temp.live_docs AS ld
       JOIN temp.live_sessions AS ls ON ls.id = ld.session_id
-      WHERE live_docs MATCH ?
+      WHERE ${liveSearch}
     ), matched AS (
       SELECT *,
         (
@@ -836,8 +844,12 @@ function selectedDocumentsSql(): { sql: string } {
   }
 }
 
-function selectedDocumentsParams(query: string, persistenceVisible: boolean): Array<string | number> {
-  const expression = quoteFtsData(query)
+function selectedDocumentsParams(
+  query: string,
+  persistenceVisible: boolean,
+  useFts: boolean,
+): Array<string | number> {
+  const expression = useFts ? quoteFtsData(query) : likePattern(query)
   const visible = persistenceVisible ? 1 : 0
   return [
     FTS_HIGHLIGHT_START,
@@ -851,6 +863,14 @@ function selectedDocumentsParams(query: string, persistenceVisible: boolean): Ar
     FTS_HIGHLIGHT_START,
     Buffer.byteLength(FTS_HIGHLIGHT_START, 'utf8'),
   ]
+}
+
+function queryCanUseTrigram(query: string): boolean {
+  return Array.from(query).length >= 3
+}
+
+function likePattern(query: string): string {
+  return `%${query.replace(/[\\%_]/gu, '\\$&')}%`
 }
 
 function observeLive(session: Session): ObservedSession {

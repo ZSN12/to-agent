@@ -66,13 +66,16 @@ async function collectCursorRules(workspaceRoot) {
  * @param {string} workspaceRoot
  * @returns {Promise<string[]>} 相对文件路径列表
  */
-export async function discoverWorkspaceRuleFiles(workspaceRoot) {
+export async function discoverWorkspaceRuleFiles(workspaceRoot, { taskWeaverOnly = false } = {}) {
   if (!workspaceRoot || typeof workspaceRoot !== 'string') return []
   const resolvedRoot = path.resolve(workspaceRoot)
   const matched = []
 
   // 1. 检查根级标准指令文件
-  for (const relPath of RULE_CANDIDATE_PATHS) {
+  const candidatePaths = taskWeaverOnly
+    ? ['.taskweaver/rules.md', '.taskweaver/instructions.md']
+    : RULE_CANDIDATE_PATHS
+  for (const relPath of candidatePaths) {
     const absPath = path.join(resolvedRoot, relPath)
     try {
       const stat = await fs.lstat(absPath)
@@ -105,13 +108,16 @@ export async function discoverWorkspaceRuleFiles(workspaceRoot) {
  * @param {number} [options.budgetBytes=DEFAULT_TOTAL_RULES_BUDGET_BYTES]
  * @returns {Promise<{ text: string, files: Array<{ relativePath: string, bytes: number, truncated: boolean }>, bytes: number }>}
  */
-export async function loadWorkspaceRules(workspaceRoot, { budgetBytes = DEFAULT_TOTAL_RULES_BUDGET_BYTES } = {}) {
+export async function loadWorkspaceRules(workspaceRoot, {
+  budgetBytes = DEFAULT_TOTAL_RULES_BUDGET_BYTES,
+  taskWeaverOnly = false,
+} = {}) {
   if (!workspaceRoot || typeof workspaceRoot !== 'string') {
     return { text: '', files: [], bytes: 0 }
   }
 
   const resolvedRoot = path.resolve(workspaceRoot)
-  const candidateFiles = await discoverWorkspaceRuleFiles(resolvedRoot)
+  const candidateFiles = await discoverWorkspaceRuleFiles(resolvedRoot, { taskWeaverOnly })
   if (!candidateFiles.length) {
     return { text: '', files: [], bytes: 0 }
   }
@@ -130,7 +136,7 @@ export async function loadWorkspaceRules(workspaceRoot, { budgetBytes = DEFAULT_
     }
   }
 
-  const cacheKey = `${resolvedRoot}\0${budgetBytes}`
+  const cacheKey = `${resolvedRoot}\0${budgetBytes}\0${taskWeaverOnly ? 'taskweaver' : 'all'}`
   const cached = rulesCache.get(cacheKey)
   if (cached && cached.mtimeSignature === mtimeSignature && Date.now() - cached.at < CACHE_TTL_MS) {
     return cached.result

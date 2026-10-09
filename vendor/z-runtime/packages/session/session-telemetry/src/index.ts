@@ -96,7 +96,7 @@ export interface SessionTelemetrySink {
    * Hand one record to the backend's pipeline. MUST be a non-blocking
    * enqueue — the coordinator calls this synchronously from the
    * `session/event` hot path or an explicit canonical-log capture, so anything
-   * slower than a queue push would tax the agent loop or feedback handling.
+   * slower than a queue push would tax the agent loop.
    * Errors thrown here are contained by the coordinator and logged; they
    * never reach the loop.
    * @param record - the logical record to report; owned by the backend after the call.
@@ -131,15 +131,6 @@ export interface SessionTelemetrySink {
 }
 
 /**
- * Deployment-selected session-sharing policy disclosed by a mounted
- * {@link SessionTelemetryBackend} backend to human-facing acknowledgement surfaces (the
- * `/feedback` command's confirmation text). The seam owns the vocabulary so
- * any backend can disclose a policy without depending on the OTel package;
- * the values mirror the OTel backend's serialized `SessionTelemetryMode` choices.
- */
-export type SessionTelemetrySharingStatus = 'full' | 'feedback-only' | 'disabled'
-
-/**
  * Loadable form of the backend contract: one implementation per context —
  * the cordis `Service` registration under the `telemetry` key throws on a
  * duplicate, cordis' standard behavior. A backend composes a
@@ -149,15 +140,6 @@ export abstract class SessionTelemetryBackend extends Service implements Session
   constructor(ctx: Context) {
     super(ctx, 'sessionTelemetry')
   }
-
-  /**
-   * Deployment-selected session-sharing policy, disclosed for acknowledgement
-   * surfaces that report whether recorded feedback leaves the process. Every
-   * backend must disclose its policy; a consumer renders "not configured" only
-   * when no telemetry service is mounted. The seam owns this vocabulary so the
-   * disclosure is backend-independent.
-   */
-  abstract readonly sharing: SessionTelemetrySharingStatus
 
   /**
    * See {@link SessionTelemetrySink.emit} — that declaration is the contract's one home.

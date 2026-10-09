@@ -40,7 +40,7 @@ globalThis.__taskweaverLifecycleProjection = () => ({ view, subscribed: Boolean(
 const result = await build({
   stdin: { contents: `export { useAppBackend } from './src/features/app/useAppBackend';
     export { mergeStoredMessagesWithDshTranscript } from './src/features/dsh-runtime/dshTranscriptMessages';
-    export { completedStreamMessage } from './src/features/chat/conversation-run-lifecycle';`, resolveDir: process.cwd(), loader: 'ts' },
+    export { completedStreamMessage, endsConversationRun } from './src/features/chat/conversation-run-lifecycle';`, resolveDir: process.cwd(), loader: 'ts' },
   bundle: true, write: false, format: 'esm', platform: 'node',
   plugins: [{ name: 'headless-hooks', setup(api) {
     api.onResolve({ filter: /^react$/ }, () => ({ path: 'hooks', namespace: 'lifecycle-test' }))
@@ -52,7 +52,7 @@ const result = await build({
     }))
   } }],
 })
-const { useAppBackend, mergeStoredMessagesWithDshTranscript, completedStreamMessage } = await import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString('base64')}`)
+const { useAppBackend, mergeStoredMessagesWithDshTranscript, completedStreamMessage, endsConversationRun } = await import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString('base64')}`)
 let onStream
 let reply
 let backendRunning = []
@@ -85,7 +85,16 @@ async function flush() {
     if (dirty) render()
   }
 }
-async function emit(event) { onStream(event); await flush() }
+async function emit(event) {
+  if (event.type === 'start' && event.conversationId && !backendRunning.includes(event.conversationId)) {
+    backendRunning.push(event.conversationId)
+  }
+  if (endsConversationRun(event) && event.conversationId) {
+    backendRunning = backendRunning.filter((id) => id !== event.conversationId)
+  }
+  onStream(event)
+  await flush()
+}
 try {
   render()
   await flush()

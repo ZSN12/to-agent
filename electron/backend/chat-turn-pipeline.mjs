@@ -5,7 +5,7 @@ import {
   logPromptPipelineAccounting,
   promptBudgetSnapshotFromStats,
 } from './assemble-and-compose-user-prompt.mjs'
-import { decideExecutionMode, resolveExecutionMode } from './orchestration-policy.mjs'
+import { decideExecutionMode, explicitlyDisablesMultiAgent, resolveExecutionMode } from './orchestration-policy.mjs'
 import { evaluateOrchestrationGate } from './orchestration-gate.mjs'
 import { resolvePrimaryAgentPreset } from './primary-agent-preset.mjs'
 import { nativeChatCommand } from './native-chat-command.mjs'
@@ -459,7 +459,7 @@ export function createChatTurnPipeline(deps) {
     const preferMulti = prefs.preferMultiAgent
       && !effectiveOverride
       && !executionModeOverride
-      && !/不要|不需要|无需|禁止|别用|不启用|禁用|关闭/i.test(text)
+      && !explicitlyDisablesMultiAgent(text)
     const modeOverride = effectiveOverride || executionModeOverride || (preferMulti ? 'multi-agent' : null)
     const execution = resolveExecutionMode(decision, modeOverride)
     if (

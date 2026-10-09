@@ -24,8 +24,18 @@ import {
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { ThreadRunningIndicator } from '../chat/ThreadRunningIndicator'
-import type { ThreadSummary } from '../../shared/app-api'
+import type { ThreadSearchResult, ThreadSummary } from '../../shared/app-api'
 import { threadUpdatedLabel, workspaceLabel } from '../../shared/ui-utils'
+
+function highlightSearchTerm(text: string, query: string) {
+  const needle = query.trim()
+  if (!needle) return text
+  const escaped = needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const pieces = text.split(new RegExp(`(${escaped})`, 'giu'))
+  return pieces.map((piece, index) => piece.toLowerCase() === needle.toLowerCase()
+    ? <mark key={index}>{piece}</mark>
+    : <span key={index}>{piece}</span>)
+}
 
 export function AppSidebar({
   collapsed,
@@ -63,14 +73,14 @@ export function AppSidebar({
   onTogglePinThread: (threadId: string) => void
   onToggleArchiveThread: (threadId: string) => void
   onDeleteThread: (threadId: string) => void
-  onSearchThreads?: (query: string) => Promise<ThreadSummary[]>
+  onSearchThreads?: (query: string) => Promise<ThreadSearchResult[]>
   onToggleCollapsed?: () => void
 }) {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingTitle, setEditingTitle] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
-  const [remoteSearchResults, setRemoteSearchResults] = useState<ThreadSummary[] | null>(null)
+  const [remoteSearchResults, setRemoteSearchResults] = useState<ThreadSearchResult[] | null>(null)
   const [projectsCollapsed, setProjectsCollapsed] = useState(false)
   const [pinnedCollapsed, setPinnedCollapsed] = useState(false)
   const [archivedCollapsed, setArchivedCollapsed] = useState(true)
@@ -113,13 +123,20 @@ export function AppSidebar({
       setRemoteSearchResults(null)
       return
     }
+    let current = true
+    setRemoteSearchResults(null)
     const timer = window.setTimeout(() => {
-      void onSearchThreads(q).then((rows) => setRemoteSearchResults(rows))
+      void onSearchThreads(q)
+        .then((rows) => { if (current) setRemoteSearchResults(rows) })
+        .catch(() => { if (current) setRemoteSearchResults([]) })
     }, 280)
-    return () => window.clearTimeout(timer)
+    return () => {
+      current = false
+      window.clearTimeout(timer)
+    }
   }, [searchQuery, onSearchThreads])
 
-  const searchResults = useMemo(() => {
+  const searchResults = useMemo<ThreadSearchResult[]>(() => {
     const q = searchQuery.trim().toLowerCase()
     if (!q) return []
     if (remoteSearchResults) return remoteSearchResults
@@ -333,7 +350,14 @@ export function AppSidebar({
                     }}
                   >
                     <span className="sidebar-label thread-copy">
-                      <strong>{thread.title}</strong>
+                      <span className="thread-copy-main">
+                        <strong>{thread.title}</strong>
+                        {thread.searchSnippet && (
+                          <small className="thread-search-snippet">
+                            {highlightSearchTerm(thread.searchSnippet, searchQuery)}
+                          </small>
+                        )}
+                      </span>
                       {thread.workspacePath && (
                         <small className="thread-badge">{workspaceLabel(thread.workspacePath)}</small>
                       )}

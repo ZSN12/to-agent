@@ -64,6 +64,15 @@ async function scanPresetRoot(root) {
     const rows = await loadPresetRows(filePath)
     const problem = entryListProblem(rows)
     assert.equal(problem, undefined, `${path.relative(projectRoot, filePath)}: ${problem}`)
+    if (['standard', 'taskweaver-code', 'taskweaver-readonly', 'taskweaver-planner', 'taskweaver-pi-lite'].includes(entry.name)) {
+      const instructions = rows.find((row) => row.name === '@z/dsh-agent-instructions')
+      assert.ok(instructions, `${path.relative(projectRoot, filePath)} must mount agent-instructions`)
+      assert.deepEqual(
+        instructions.config?.instructionFileCandidates,
+        ['TASKWEAVER.md', 'AGENTS.md', 'CLAUDE.md', '.cursorrules'],
+        `${path.relative(projectRoot, filePath)} must share the configured root instruction candidates`,
+      )
+    }
   }
 }
 

@@ -4,7 +4,6 @@
  * @module @z/dsh-sandbox-local/profiles
  */
 
-import { grantArgs as landlockGrantArgs } from '@z/node-addon-landlock-run'
 import { writableRoots } from '@z/dsh-sandbox'
 import type { SandboxPolicy } from '@z/dsh-sandbox'
 
@@ -20,19 +19,6 @@ export function bwrapProfileArgs(policy: SandboxPolicy): string[] {
     args.push('--bind', policy.workspaceRoot, policy.workspaceRoot)
   }
   return args
-}
-
-/**
- * Build the Landlock launcher grants for one file-effect policy.
- * @param policy - file-effect policy to express as Landlock allow-list grants.
- * @returns launcher grant arguments before the trailing separator and command argv.
- */
-export function landlockProfileArgs(policy: SandboxPolicy): string[] {
-  const readWrite = ['/dev/null']
-  if (policy.mode === 'workspace-write') {
-    readWrite.push('/tmp', policy.workspaceRoot)
-  }
-  return landlockGrantArgs({ readOnly: ['/'], readWrite })
 }
 
 /** Quote one path as an SBPL string literal. */

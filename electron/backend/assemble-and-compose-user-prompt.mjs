@@ -39,6 +39,8 @@ export async function assembleAndComposeUserPrompt({
   const assembled = await assembleWorkspaceContext(text, workspacePath, {
     sandboxContextLine,
     maxInjectionBytes: injectionByteCap,
+    includeRules: isFirstTurn,
+    rulesTaskWeaverOnly: true,
     includeRepoMap: shouldAttachRepoMap(text, workMode, {
       enableRepoMap: preferences.enableRepoMap !== false,
       isFirstTurn,

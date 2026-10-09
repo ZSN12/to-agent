@@ -86,7 +86,6 @@ async function executeSessionSearch(
     if (parentValues.length === 0) return presentation.formatEmptySessionSearch()
     sessionFilters.push({ kind: 'parent', values: parentValues })
   }
-  sessionFilters.push({ kind: 'cwd', values: [cwd] })
   const collected = await collectPages(
     maxResults,
     exec.signal,
@@ -157,7 +156,7 @@ async function executeEventSearch(
           filters,
           ...cursor === undefined ? {} : { cursor },
         }, { signal: exec.signal }))
-      workspaceAccess.assertObservedTargetAuthorized(caller, sessionId, page.session)
+      await workspaceAccess.assertObservedTargetAuthorized(caller, sessionId, page.session)
       return page
     },
     () => true,
@@ -175,19 +174,19 @@ async function executeSessionTrace(
   await workspaceAccess.authorizeTarget(ctx, caller, sessionId, exec.signal)
   const trace = await serviceBoundary.call(ctx, exec.signal, 'session lineage trace', () =>
     ctx.sessionQuery.traceSession(sessionId, exec.signal))
-  workspaceAccess.assertObservedTargetAuthorized(caller, sessionId, trace.target.header)
+  await workspaceAccess.assertObservedTargetAuthorized(caller, sessionId, trace.target.header)
 
   const ancestors: SessionRecord[] = []
   let ancestorBoundary = false
   for (const ancestor of trace.ancestors) {
-    if (!workspaceAccess.recordAuthorized(ancestor, caller)) {
+    if (!(await workspaceAccess.recordAuthorized(ancestor, caller))) {
       ancestorBoundary = true
       break
     }
     ancestors.push(ancestor)
   }
   if (ancestors.length === trace.ancestors.length && !trace.complete) ancestorBoundary = true
-  const descendants = workspaceAccess.authorizeDescendants(trace.descendants, caller)
+  const descendants = await workspaceAccess.authorizeDescendants(trace.descendants, caller)
   const visibleIds = [
     trace.target.header.id,
     ...ancestors.map(record => record.header.id),
@@ -208,7 +207,7 @@ async function executeEventTrace(
   await workspaceAccess.authorizeTarget(ctx, caller, sessionId, exec.signal)
   const trace = await serviceBoundary.call(ctx, exec.signal, 'event trace', () =>
     ctx.sessionQuery.traceEvent({ sessionId, seq: args.seq }, exec.signal))
-  workspaceAccess.assertObservedTargetAuthorized(caller, sessionId, trace.session)
+  await workspaceAccess.assertObservedTargetAuthorized(caller, sessionId, trace.session)
   const title = await workspaceAccess.readTitle(ctx, caller, sessionId, exec.signal)
   return presentation.formatEventTrace(sessionId, title, trace)
 }
@@ -231,7 +230,7 @@ async function executeEventRead(
       ...args.before === undefined ? {} : { before: args.before },
       ...args.after === undefined ? {} : { after: args.after },
     }, exec.signal))
-  workspaceAccess.assertObservedTargetAuthorized(caller, sessionId, window.session)
+  await workspaceAccess.assertObservedTargetAuthorized(caller, sessionId, window.session)
   const title = await workspaceAccess.readTitle(ctx, caller, sessionId, exec.signal)
   return presentation.formatEventRead(sessionId, title, window)
 }
@@ -243,7 +242,7 @@ async function collectPages<T>(
     readonly items: readonly T[]
     readonly nextCursor?: SessionSearchCursor
   }>,
-  accept: (item: T) => boolean,
+  accept: (item: T) => boolean | Promise<boolean>,
 ): Promise<SearchCollection<T>> {
   const items: T[] = []
   const seen = new Set<SessionSearchCursor>()
@@ -253,7 +252,7 @@ async function collectPages<T>(
     const page = await request(cursor)
     signal.throwIfAborted()
     for (const item of page.items) {
-      if (!accept(item)) continue
+      if (!(await accept(item))) continue
       if (items.length === maxResults) {
         return { items, capped: true }
       }

@@ -1,4 +1,5 @@
 import type { ChatStreamEvent } from '../../shared/app-api'
+import { clockLabelZh } from '../../shared/time-label'
 import type { ChatMessage } from '../../types'
 
 /** A turn may finish while the same run still owns accepted queued prompts. */
@@ -17,7 +18,7 @@ export function completedStreamMessage(event: ChatStreamEvent, timestamp = Date.
     author: 'orchestrator',
     name: 'TaskWeaver',
     timestamp: event.startedAt ?? timestamp,
-    time: new Date(timestamp).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false }),
+    time: clockLabelZh(timestamp),
     text: event.full || '',
     thinking: event.fullThinking,
     thinkingDurationMs: event.thinkingDurationMs,

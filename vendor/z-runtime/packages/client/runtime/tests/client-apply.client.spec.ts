@@ -1,5 +1,5 @@
 /**
- * Runtime plugin browser-half apply: slots + object services mounting over the
+ * Runtime plugin browser-half apply: object services mounting over the
  * connection handle, stream-loop sink wiring into the object layer, and the
  * fiber-scoped loop teardown.
  */
@@ -55,12 +55,8 @@ async function flushMicrotasks(): Promise<void> {
 }
 
 describe('runtime client apply', () => {
-  it('mounts slots, Sessions, and Workspaces and fans host frames into both managers', async () => {
+  it('mounts Sessions and Workspaces and fans host frames into both managers', async () => {
     const bench = await mount()
-    expect(bench.ctx.get('slots') !== undefined).toBe(true)
-    // The built-in 'root' declaration ships with this package's SlotRegistry
-    // (the SlotMap 'root' merge lives here).
-    expect(bench.ctx.slots.spec('root')).toEqual({ kind: 'single', scope: 'root' })
     const sessions = bench.ctx.get('sessions')
     const workspaces = bench.ctx.get('workspaces')
     expect(sessions !== undefined).toBe(true)

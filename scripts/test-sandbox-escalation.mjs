@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { isWiderMode, validateEscalationArgs, sandboxDenialMarker } from '../vendor/dsh-sandbox/escalation.mjs'
+import { isWiderMode, validateEscalationArgs, sandboxDenialMarker } from '../electron/vendor/dsh-sandbox/escalation.mjs'
 import { withSandboxEscalation, consumeOneShotSandboxMode } from '../electron/backend/sandbox-escalation-runtime.mjs'
 
 assert.equal(isWiderMode('read-only', 'workspace-write'), true)

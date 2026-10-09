@@ -85,7 +85,7 @@ export function ensureDeployNodeModules(runtimeRoot: string): void {
 
 /**
  * TaskWeaver ≤0.1 wrote `authorization` into `$DSH_HOME/cordis.patch.yml`. The
- * web bundle now owns that row — drop the legacy home overlay before Cordis loads.
+ * TaskWeaver bundle now owns that row — drop the legacy home overlay before Cordis loads.
  */
 export function migrateLegacyTaskWeaverHomePatch(): void {
   if (!taskweaverEmbedded()) return

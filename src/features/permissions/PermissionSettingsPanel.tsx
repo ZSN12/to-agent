@@ -16,6 +16,7 @@ function AddRuleModal({
   const [tool, setTool] = useState('bash')
   const [type, setType] = useState<'command' | 'path' | 'tool'>('command')
   const [pattern, setPattern] = useState('')
+  const [allowWildcards, setAllowWildcards] = useState(false)
   const [decision, setDecision] = useState<'allow' | 'deny'>('allow')
   const [scope, setScope] = useState<'workspace' | 'global'>('workspace')
   const [description, setDescription] = useState('')
@@ -27,7 +28,7 @@ function AddRuleModal({
     setError(null)
     const trimmedPattern = pattern.trim()
     if (!trimmedPattern && type !== 'tool') {
-      setError('匹配模式不能为空 (支持 * 通配符)')
+      setError('匹配模式不能为空')
       return
     }
 
@@ -36,6 +37,7 @@ function AddRuleModal({
       tool: tool.trim(),
       type,
       pattern: trimmedPattern || '*',
+      ...(type === 'command' && allowWildcards ? { allowWildcards: true } : {}),
       decision,
       scope,
       description: description.trim(),
@@ -56,7 +58,7 @@ function AddRuleModal({
     >
       <form className="model-editor" onSubmit={handleSubmit} style={{ maxWidth: 540 }}>
         <h2>添加细粒度权限规则</h2>
-        <p>配置安全白名单或阻止名单。匹配到拒绝规则时将强制拦截，匹配到允许规则时将免确认执行。</p>
+        <p>配置安全白名单或阻止名单。命令默认按完整文本匹配；只有显式开启通配时，命令中的 * 才匹配任意字符。路径规则仍支持通配。</p>
 
         {error && <div className="settings-error-banner">{error}</div>}
 
@@ -83,7 +85,7 @@ function AddRuleModal({
         <label>
           规则类型
           <select value={type} onChange={(e) => setType(e.target.value as any)}>
-            <option value="command">命令行匹配 (支持通配符 *)</option>
+            <option value="command">命令行匹配 (默认精确匹配)</option>
             <option value="path">文件路径模式 (如 *.env*, dist/**)</option>
             <option value="tool">整个工具</option>
           </select>
@@ -99,6 +101,13 @@ function AddRuleModal({
               onChange={(e) => setPattern(e.target.value)}
               required
             />
+          </label>
+        )}
+
+        {type === 'command' && (
+          <label className="settings-checkbox-row">
+            <input type="checkbox" checked={allowWildcards} onChange={(e) => setAllowWildcards(e.target.checked)} />
+            允许命令中的 * 作为通配符
           </label>
         )}
 

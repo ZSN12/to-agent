@@ -24,6 +24,7 @@
   name: '@z/dsh-agent-instructions'
   config:
     maxBytes: 65536
+    instructionFileCandidates: [TASKWEAVER.md, AGENTS.md, CLAUDE.md, .cursorrules]
 
 - id: tool-bash
   name: '@z/dsh-tool-bash'
@@ -52,6 +53,11 @@
 
 - id: tool-skill
   name: '@z/dsh-tool-skill'
+
+- id: tool-session-query
+  name: '@z/dsh-tool-session-query'
+  config:
+    maxSearchResults: 30
 
 - id: tool-web
   name: '@z/dsh-tool-web'

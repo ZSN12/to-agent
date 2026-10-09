@@ -1,4 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { execFileSync } from 'node:child_process'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { Context, type Fiber } from '@z/cordis'
 import type { Agent } from '@z/dsh-agent'
 import { createUserMessage, CallId, HarnessError , createMessage } from '@z/dsh-llm'
@@ -29,11 +33,15 @@ import ToolRuntime, { type ToolExecutionResult } from '@z/dsh-tools'
 import * as ToolSessionQuery from '@z/dsh-tool-session-query'
 
 const activeContexts: Context[] = []
+const temporaryDirectories: string[] = []
 
 afterEach(async () => {
   vi.useRealTimers()
   vi.restoreAllMocks()
   for (const ctx of activeContexts.splice(0)) await ctx.fiber.dispose()
+  for (const directory of temporaryDirectories.splice(0)) {
+    await rm(directory, { recursive: true, force: true })
+  }
   FakeQuery.reset()
 })
 
@@ -323,7 +331,7 @@ describe('registration and schemas', () => {
 
   it('expresses the complete Node timer range in the Loader config schema', () => {
     expect(new ToolSessionQuery.Config({ searchTimeoutMs: MAX_TIMER_DELAY_MS }))
-      .toEqual({ maxSearchResults: 100, searchTimeoutMs: MAX_TIMER_DELAY_MS })
+      .toEqual({ maxSearchResults: 30, searchTimeoutMs: MAX_TIMER_DELAY_MS })
     expect(() => new ToolSessionQuery.Config({ searchTimeoutMs: 1.5 })).toThrow()
     expect(() => new ToolSessionQuery.Config({ searchTimeoutMs: MAX_TIMER_DELAY_MS + 1 })).toThrow()
   })
@@ -393,7 +401,6 @@ describe('input validation and translation', () => {
         },
         { kind: 'availability', values: ['live'] },
         { kind: 'parent', values: ['parent', null] },
-        { kind: 'cwd', values: ['/work'] },
       ],
       eventFilters: [
         { kind: 'seq', from: 2, to: 9 },
@@ -573,6 +580,35 @@ describe('input validation and translation', () => {
 })
 
 describe('workspace authority and lineage redaction', () => {
+  it('authorizes the same Git repository across linked worktrees but denies another root', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'session-query-worktree-'))
+    temporaryDirectories.push(directory)
+    const repository = join(directory, 'repository')
+    const worktree = join(directory, 'worktree')
+    const outside = join(directory, 'outside')
+    await mkdir(repository, { recursive: true })
+    await mkdir(outside, { recursive: true })
+    execFileSync('git', ['init', '-q', repository])
+    execFileSync('git', ['-C', repository, 'config', 'user.name', 'Session Query Test'])
+    execFileSync('git', ['-C', repository, 'config', 'user.email', 'session-query@example.invalid'])
+    await writeFile(join(repository, 'README.md'), 'fixture')
+    execFileSync('git', ['-C', repository, 'add', 'README.md'])
+    execFileSync('git', ['-C', repository, 'commit', '-q', '-m', 'fixture'])
+    execFileSync('git', ['-C', repository, 'worktree', 'add', '-q', '--detach', worktree, 'HEAD'])
+
+    const mounted = await mount({}, repository)
+    createSession(mounted.ctx, 'linked-worktree-session', worktree, 20)
+    createSession(mounted.ctx, 'other-root-session', outside, 30)
+
+    const allowed = await mounted.call('session_trace', { session_id: 'linked-worktree-session' })
+    expect(allowed.isError).toBe(false)
+    expect(text(allowed)).toContain('Session linked-worktree-session')
+
+    const denied = await mounted.call('session_trace', { session_id: 'other-root-session' })
+    expect(errorCode(denied)).toBe('SESSION_QUERY_TOOL_UNAUTHORIZED')
+    expect(text(denied)).not.toContain('other-root-session')
+  })
+
   it('fails closed without an agent and for direct cross-workspace targets', async () => {
     const mounted = await mount()
     createSession(mounted.ctx, 'outside', '/outside')

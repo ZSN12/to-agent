@@ -113,13 +113,11 @@ export function resolveProfileDir(name: string, home: string = resolveDshHome())
 /** The shipped profile templates auto-initialized on first use, by name. */
 export const PROFILE_TEMPLATES: Record<string, readonly string[]> = {
   web: ['@z/dsh-base', '@z/dsh-taskweaver'],
-  headless: ['@z/dsh-base', '@z/dsh-headless'],
 }
 
 /** Installation-owned bundle tuples normalized to the shipped template. */
 const INSTALLATION_OWNED_PROFILE_TUPLES: Record<string, readonly string[]> = {
-  web: ['@z/dsh-base', '@z/dsh-web-app'],
-  headless: ['@z/dsh-base', '@z/dsh-web-app', '@z/dsh-headless'],
+  web: ['@z/dsh-base', '@z/dsh-taskweaver'],
 }
 
 /** The bundle list a `dsh plugin` init uses for a name with no shipped template. */
@@ -299,8 +297,12 @@ function normalizeShippedProfile(name: string, dir: string, manifest: ProfileMan
   const installationOwned = INSTALLATION_OWNED_PROFILE_TUPLES[name]
   const current = PROFILE_TEMPLATES[name]
   const bundles = manifest.dsh?.profile?.bundles
+  const retiredWebSurface = name === 'web'
+    && bundles?.length === 2
+    && bundles[0] === '@z/dsh-base'
+    && bundles[1]?.split('/').at(-1) === 'web-app'
   if (installationOwned === undefined || current === undefined || bundles === undefined
-    || !sameBundles(bundles, installationOwned)) return manifest
+    || (!sameBundles(bundles, installationOwned) && !retiredWebSurface)) return manifest
   const normalized: ProfileManifest = {
     ...manifest,
     dsh: {

@@ -84,7 +84,7 @@ import type { SettingsDescriptor, SettingsNamespace, SettingsPathOp } from '@z/d
 import { credentialKey, credentialRef } from '@z/dsh-credentials'
 // Value edge: the rename impl narrows the title service's validation failure; the import also resolves `ctx.get('sessionTitle')`.
 import { SessionTitleInvalidError } from '@z/dsh-session-title'
-import type { CallId } from '@z/dsh-llm/brand'
+import { CallId } from '@z/dsh-llm'
 import type { ScopeKey } from '@z/dsh-scope'
 import type { ApprovalOutcome, ApprovalRequestId } from '@z/dsh-user-approval'
 // Side-effect type import: resolves the `approval/request` waterfall and
@@ -3340,6 +3340,38 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
           })
         }
         return ok(request, {})
+      },
+    },
+
+    mcp: {
+      list(request) {
+        const tools = ctx.tools.schemas().filter(tool => tool.name.startsWith('mcp__'))
+        return Promise.resolve(ok(request, { tools }))
+      },
+
+      async call(request, signal) {
+        const found = await agentFor(request.payload.sessionId)
+        if ('error' in found) return err(request, found.error)
+        const { name, arguments: args } = request.payload
+        if (ctx.tools.get(name, found.agent) === undefined) {
+          return err(request, {
+            code: 'internal',
+            message: `MCP tool "${name}" is not available to this session`,
+            details: {},
+          })
+        }
+        const result = await ctx.tools.execute({
+          callId: CallId(`host-mcp-${randomUUID()}`),
+          name,
+          arguments: args,
+          signal: signal ?? new AbortController().signal,
+          agent: found.agent,
+        })
+        return ok(request, {
+          isError: result.isError,
+          content: result.content.flatMap(block => block.type === 'text' ? [block.text] : []),
+          ...result.isError ? {} : { value: result.value },
+        })
       },
     },
 

@@ -1,4 +1,4 @@
-/** Browser runtime services for slots, sessions, workspaces, and connection-stream delivery. */
+/** Browser runtime services for sessions, workspaces, and connection-stream delivery. */
 import type { Context } from '@z/cordis'
 import type { ConnectionHandle, SessionId } from '@z/dsh-api-remotes/client'
 // Type-only: the ctx.remote merge. Deliberately the gateway's Client half rather
@@ -6,19 +6,13 @@ import type { ConnectionHandle, SessionId } from '@z/dsh-api-remotes/client'
 // project sits in the Host build graph.
 import type {} from '@z/dsh-api-remotes/client'
 import type { TypertContext } from '@z/dsh-typert-protocol'
-import type { MaybeSnapshotSelectorHook, SnapshotSelectorHook } from '@z/dsh-client-ui-slots'
-import { SlotRegistry } from './slots.ts'
 import { SessionRuntime } from './sessions/service.ts'
-import type { SessionListState } from './sessions/service.ts'
 import { WorkspaceRuntime } from './workspaces/service.ts'
-import type { ConversationSnapshot } from './sessions/conversation.ts'
-import type { UseProjection } from './sessions/projection-store.ts'
 import { ConversationEventRegistry } from './conversation/event-registry.ts'
 import { ConversationViewRegistry } from './conversation/view-registry.ts'
 
 export { isAppendSurfaceEvent, isReplacementSurfaceEvent } from '@z/dsh-session/surface'
 
-export { SlotRegistry } from './slots.ts'
 export { ConversationEventRegistry } from './conversation/event-registry.ts'
 export { ConversationViewRegistry } from './conversation/view-registry.ts'
 export { ConversationNodeAssembler } from './sessions/conversation-assembler.ts'
@@ -35,12 +29,10 @@ export type {
   ConversationViewSnapshotStore, StepLocation, TurnLocation,
 } from './contract/conversation.ts'
 export type { ConversationRuntime } from './sessions/conversation-assembler.ts'
-export type { RootOwnerProps } from './slots.ts'
 export { SessionCreateError, SessionRuntime, scopeOf, workspaceTitleOf } from './sessions/service.ts'
 export { indexSubagentDescendants } from './sessions/subagent-lineage.ts'
 export type { SubagentDescendantSummary } from './sessions/subagent-lineage.ts'
-// The provide channel is shared with the client test runtime (one
-// materialization/projection implementation; no test-side mirror to drift).
+// The channel owns runtime session-data materialization.
 export { SessionProvideChannel } from './sessions/provide.ts'
 export type { SessionProvideChannelHost } from './sessions/provide.ts'
 export { createScope } from './agents/scope.ts'
@@ -66,11 +58,10 @@ export type { WorkspaceListState } from './workspaces/service.ts'
 export type {
   DirectoryEntry, DirectoryListing, WorkspaceId, WorkspaceView,
 } from '@z/dsh-client-connection/client'
-// Runtime owns the snapshot store; ui-renderer only binds it to React.
-export { createSnapshotStore, defineStore, shallowEqual } from './contract/store.ts'
-export type {
-  EngineStoreHandle, EngineStoreInstance, ObservableSnapshot, SnapshotStore,
-} from './contract/store.ts'
+// Runtime owns the data store and its observable snapshot contract.
+export { createSnapshotStore } from './contract/store.ts'
+export type { ObservableSnapshot, SnapshotStore } from './contract/store.ts'
+export type { SessionMaybeProvideInfo, SessionProvideInfo } from './contract/session-provide.ts'
 export type {
   AssistantBlock, AssistantMessageNode, AssistantProvenanceView, AssistantRequestConfig,
   AssistantTiming, ChatLocationNodeIndex, ChatNodeStore, ChatSnapshot,
@@ -118,46 +109,8 @@ declare module '@z/dsh-typert-protocol' {
   }
 }
 
-/** The conversation-snapshot selector hook supplied to session-scoped UI entries. */
-export type UseConversationSession = SnapshotSelectorHook<ConversationSnapshot>
-
-declare module '@z/dsh-client-ui-slots' {
-  /**
-   * Session standard kit, real members (ui-slots declares the empty seat;
-   * the runtime — where the subjects live — merges the concrete types):
-   * every session-scope slot component receives these from the framework.
-   */
-  interface SessionStandardProps {
-    useSession: SnapshotSelectorHook<ConversationSnapshot>
-    /** The framework-resolved session id (owners never pass it). */
-    sessionId: SessionId
-    /** The fifth framework hook seat: key-addressed projection reader (undefined = capability absent). */
-    useProjection: UseProjection
-  }
-  /** Standard kit for slots that remain mounted while current session changes. */
-  interface SessionMaybeStandardProps {
-    useSession: MaybeSnapshotSelectorHook<ConversationSnapshot>
-    /** Current session id; absent in the no-session state. */
-    sessionId: SessionId | undefined
-    /** Key-addressed projection reader; every key reads absent while no session is current. */
-    useProjection: UseProjection
-  }
-  /** Props injected into every global slot component. */
-  interface GlobalStandardProps {
-    useSessions: SnapshotSelectorHook<SessionListState>
-    /** Selector hook over real Workspaces and their independent baseline lifecycle. */
-    useWorkspaces: SnapshotSelectorHook<import('./workspaces/service.ts').WorkspaceListState>
-  }
-}
-
 declare module '@z/cordis' {
   interface Events {
-    /**
-     * A slot's definition or registration set changed.
-     * @mode emit
-     * @param key - the mutated SlotMap key.
-     */
-    'slots/changed'(key: string): void
     /**
      * A connection generation was (re-)established. Wire-derived caches must
      * treat their state as stale and repull (commands directory; the queue
@@ -167,7 +120,6 @@ declare module '@z/cordis' {
     'connection/reset'(): void
   }
   interface Context {
-    slots: import('./slots.ts').SlotRegistry
     /** Event-to-business-Context Definition registry. */
     conversationEvents: import('./conversation/event-registry.ts').ConversationEventRegistry
     /** Per-target Conversation snapshot builder registry. */
@@ -186,7 +138,6 @@ export const inject = ['connection', 'typert', 'remote', 'remote.commands']
  * @param ctx - Client Cordis context.
  */
 export function apply(ctx: Context): void {
-  ctx.plugin(SlotRegistry)
   const conversation = {
     events: new ConversationEventRegistry(ctx),
     views: new ConversationViewRegistry(ctx),

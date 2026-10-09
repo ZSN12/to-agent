@@ -8,8 +8,6 @@ import {
   formatDurationZh,
   formatDshCatalogTokens,
   formatTokensFull,
-  summarizeDecodeThroughput,
-  summarizeTurnTiming,
 } from './session-usage'
 
 function HoverDockPanel({
@@ -140,8 +138,14 @@ export function ComposerStatsDock({
     if (!stats) return null
 
     const { tokens, userMessages, assistantMessages, toolCalls } = stats
-    const timing = summarizeTurnTiming(messages)
-    const tps = summarizeDecodeThroughput(messages)
+    const timing = {
+      llmMs: stats.llmMs,
+      toolMs: stats.toolMs,
+      avgTtftMs: stats.ttftSteps > 0 ? stats.ttftMs / stats.ttftSteps : null,
+    }
+    const tps = stats.decodeMs > 0 && stats.decodeTokens > 0
+      ? Math.round(stats.decodeTokens / (stats.decodeMs / 1000))
+      : null
     const billed = billedInputTokens(tokens.input, tokens.cacheRead, tokens.cacheWrite)
     const totalTok = tokens.total > 0 ? tokens.total : billed + tokens.output
     const cacheHit = cacheHitPercentDisplay(tokens.cacheRead, billed)
@@ -165,22 +169,22 @@ export function ComposerStatsDock({
       : null
 
     const rawCtxTokens = liveContext?.contextTokens ?? stats.contextTokens
-    const ctxTokens = (typeof rawCtxTokens === 'number' && rawCtxTokens > 0)
+    const ctxTokens = typeof rawCtxTokens === 'number'
       ? rawCtxTokens
       : (fallbackContextTokens ?? rawCtxTokens)
     const ctxWindow = liveContext?.contextWindow ?? stats.contextWindow ?? (typeof lastAssistantUsage?.contextWindow === 'number' ? lastAssistantUsage.contextWindow : null) ?? modelContextWindow
     const rawCtxPct = liveContext?.contextPercent ?? stats.contextPercent
-    const ctxPct = (typeof ctxTokens === 'number' && ctxTokens > 0 && typeof ctxWindow === 'number' && ctxWindow > 0)
+    const ctxPct = (typeof ctxTokens === 'number' && typeof ctxWindow === 'number' && ctxWindow > 0)
       ? Math.round(ctxTokens / ctxWindow * 100)
       : rawCtxPct
     const occupancy =
-      typeof ctxWindow === 'number' && ctxWindow > 0 && typeof ctxTokens === 'number' && ctxTokens > 0
+      typeof ctxWindow === 'number' && ctxWindow > 0 && typeof ctxTokens === 'number' && ctxTokens >= 0
         ? {
             percent: Math.min(100, Math.max(0, Math.round(ctxTokens / ctxWindow * 100))),
             used: ctxTokens,
             window: ctxWindow,
           }
-        : typeof ctxWindow === 'number' && ctxWindow > 0 && typeof ctxPct === 'number' && ctxPct > 0
+        : typeof ctxWindow === 'number' && ctxWindow > 0 && typeof ctxPct === 'number' && ctxPct >= 0
           ? {
               percent: Math.min(100, Math.max(0, Math.round(ctxPct))),
               used: ctxTokens ?? 0,

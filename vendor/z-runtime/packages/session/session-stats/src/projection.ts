@@ -33,6 +33,8 @@ interface SessionStatsTotals {
   turns: number
   /** Closed steps so far. */
   steps: number
+  /** Top-level tool calls and nested Code Mode dispatches started so far. */
+  toolCalls: number
   /** Summed model wall time over message-assembling steps, ms. */
   llmMs: number
   /** Summed matched tool call→result wall time, ms. */
@@ -71,6 +73,7 @@ declare module '@z/dsh-session-projection/types' {
 const sessionStatsSchema = z.object({
   turns: z.number().int().nonnegative(),
   steps: z.number().int().nonnegative(),
+  toolCalls: z.number().int().nonnegative(),
   llmMs: z.number().nonnegative(),
   toolMs: z.number().nonnegative(),
   ttftMs: z.number().nonnegative(),
@@ -111,11 +114,12 @@ function usageOutputTokens(usage: unknown): number | null {
 /** The `sessionStats` unit registered on `ctx.sessionProjections` (exported for the unit spec). */
 export const sessionStatsProjectionDefinition = {
   key: 'sessionStats',
-  stateVersion: 1,
+  stateVersion: 2,
   stateSchema: sessionStatsStateSchema,
   init: () => ({
     turns: 0,
     steps: 0,
+    toolCalls: 0,
     llmMs: 0,
     toolMs: 0,
     ttftMs: 0,
@@ -128,6 +132,11 @@ export const sessionStatsProjectionDefinition = {
   }),
   apply: (state, event) => {
     // Every uninteresting event returns the same reference (Object.is gates the change feed).
+    // Code Mode start events are an optional tool-runtime event augmentation;
+    // count them without making this projection depend on the tool package.
+    if ((event as { type: string }).type === 'tool/code-dispatch-start') {
+      return { ...state, toolCalls: state.toolCalls + 1 }
+    }
     switch (event.type) {
       case 'step/start':
         return {
@@ -162,7 +171,11 @@ export const sessionStatsProjectionDefinition = {
         return next
       }
       case 'tool/call':
-        return { ...state, pendingCalls: { ...state.pendingCalls, [event.data.callId]: event.time } }
+        return {
+          ...state,
+          toolCalls: state.toolCalls + 1,
+          pendingCalls: { ...state.pendingCalls, [event.data.callId]: event.time },
+        }
       case 'tool/result': {
         // Own-key check: callId is provider-minted (model/tool JSON boundary),
         // so a prototype property name ('constructor', 'toString') on a result
@@ -198,6 +211,7 @@ export const sessionStatsProjectionDefinition = {
     view: state => ({
       turns: state.turns,
       steps: state.steps,
+      toolCalls: state.toolCalls,
       llmMs: state.llmMs,
       toolMs: state.toolMs,
       ttftMs: state.ttftMs,

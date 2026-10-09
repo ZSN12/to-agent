@@ -39,7 +39,7 @@ async function provider(): Promise<LocalSandboxProvider> {
   ctx = new Context()
   await ctx.plugin(LocalSandboxProvider, {})
   const sandbox = ctx.sandbox as LocalSandboxProvider
-  sandbox.internals = { probeBwrap: () => false, probeLandlock: () => 'unusable' }
+  sandbox.internals = { chain: ['seatbelt'] }
   return sandbox
 }
 

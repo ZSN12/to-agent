@@ -15,9 +15,6 @@
       "path": "../../../vendor/cordis"
     },
     {
-      "path": "../../../native/landlock-run/packages/entry"
-    },
-    {
       "path": "../../util/brand"
     },
     {

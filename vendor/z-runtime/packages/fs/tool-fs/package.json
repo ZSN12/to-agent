@@ -58,7 +58,7 @@
     "@z/dsh-fs-observation-policy": "workspace:^",
     "@z/dsh-invariants": "workspace:^",
     "@z/dsh-llm": "workspace:^",
-    "@z/dsh-llm-deepseek": "workspace:^",
+    "@z/dsh-llm-pi-ai": "workspace:^",
     "@z/dsh-sandbox": "workspace:^",
     "@z/dsh-sandbox-policy": "workspace:^",
     "@z/dsh-session": "workspace:^",

@@ -1,3 +1,25 @@
-import { clientBundle } from '../../client/tsdown.client.ts'
+import { defineConfig } from 'tsdown'
 
-export default clientBundle('@z/dsh-session-log-export', ['lib/types/index.js', 'lib/types/invariant.js'])
+/** Bundle the Host command and its invariant companion as Node ESM. */
+export default defineConfig([
+  {
+    entry: ['lib/types/index.js'],
+    outDir: 'lib',
+    format: ['esm'],
+    platform: 'node',
+    target: 'es2024',
+    fixedExtension: false,
+    dts: false,
+    clean: false,
+  },
+  {
+    entry: ['lib/types/invariant.js'],
+    outDir: 'lib',
+    format: ['esm'],
+    platform: 'node',
+    target: 'es2024',
+    fixedExtension: false,
+    dts: false,
+    clean: false,
+  },
+])

@@ -1,5 +1,5 @@
 /**
- * The session standard-props provide channel: provider roster, bundle
+ * The session-data provide channel: provider roster, bundle
  * materialization (fail-loud on undeclared/missing/duplicate members), the
  * static no-session projection, and the atomic current-session projection
  * observable. One implementation — SessionRuntime drives it from wire
@@ -7,7 +7,8 @@
  * the materialization rules and the projection semantics cannot drift
  * between production and the test bench.
  */
-import type { HostObservable, SessionMaybeProvideInfo, SessionProvideInfo } from '@z/dsh-client-ui-slots'
+import type { SessionMaybeProvideInfo, SessionProvideInfo } from '../contract/session-provide.ts'
+import type { ObservableSnapshot } from '../contract/store.ts'
 import type { SessionBinding, SessionProvideDescriptor } from './service.ts'
 
 /** The owner-side hooks: how the channel reaches the owner's live bundles and current selection. */
@@ -41,14 +42,13 @@ export class SessionProvideChannel {
    * change under a stable current id republishes the bundle instead of
    * stranding mounted entries.
    */
-  readonly currentProvideInfo: HostObservable<SessionMaybeProvideInfo>
+  readonly currentProvideInfo: ObservableSnapshot<SessionMaybeProvideInfo>
 
   /**
    * @param host - owner-side bundle storage and current-selection resolution.
    */
   constructor(private readonly host: SessionProvideChannelHost) {
-    // The runtime's own contribution comes first: useSession rides the same
-    // provide channel every plugin uses (no renderer special case).
+    // The runtime's own contribution comes first in every session-data bundle.
     this.providers.push({
       hooks: ['session'],
       resolve: binding => ({ hooks: { session: binding.session } }),
@@ -126,7 +126,7 @@ export class SessionProvideChannel {
    * @returns the materialized bundle (identity-stable until the next materialization).
    */
   materializeInfo(binding: SessionBinding): SessionProvideInfo {
-    const hooks: Record<string, HostObservable<unknown>> = {}
+    const hooks: Record<string, ObservableSnapshot<unknown>> = {}
     const props: Record<string, unknown> = {}
     for (const descriptor of this.providers) {
       const contribution = descriptor.resolve(binding)

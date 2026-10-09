@@ -47,9 +47,9 @@
   },
   "devDependencies": {
     "@z/dsh-invariants": "workspace:^",
-    "@z/dsh-loader-smoke": "workspace:^",
     "@z/dsh-subprocess": "workspace:^",
     "@z/dsh-timeout": "workspace:^",
-    "@z/cordis": "workspace:^"
+    "@z/cordis": "workspace:^",
+    "execa": "^10.0.0"
   }
 }

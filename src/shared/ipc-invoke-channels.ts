@@ -18,6 +18,7 @@ export type InvokeChannel =
   | 'app:switchThread'
   | 'app:toggleArchiveThread'
   | 'app:togglePinThread'
+  | 'backend:ready'
   | 'bridge:getStatus'
   | 'bridge:login'
   | 'chat:cancel'
@@ -34,8 +35,8 @@ export type InvokeChannel =
   | 'debug:shadowTranscript'
   | 'github:listPullRequests'
   | 'jobs:installLaunchAgent'
-  | 'jobs:list'
   | 'jobs:launchAgentInstalled'
+  | 'jobs:list'
   | 'jobs:remove'
   | 'jobs:removeLaunchAgent'
   | 'jobs:runNow'
@@ -120,11 +121,6 @@ export type InvokeChannel =
   | 'webSearch:getConfig'
   | 'webSearch:setConfig'
   | 'webSearch:testSearch'
-  | 'worktree:applyMerge'
-  | 'worktree:diff'
-  | 'worktree:list'
-  | 'worktree:previewMerge'
-  | 'worktree:remove'
   | 'workspace:createManualGitCommit'
   | 'workspace:createReference'
   | 'workspace:deleteGitCheckpoint'
@@ -140,6 +136,11 @@ export type InvokeChannel =
   | 'workspace:revertDiff'
   | 'workspace:saveClipboardImage'
   | 'workspace:setTrust'
+  | 'worktree:applyMerge'
+  | 'worktree:diff'
+  | 'worktree:list'
+  | 'worktree:previewMerge'
+  | 'worktree:remove'
 
 export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   'app:clearConversation',
@@ -158,6 +159,7 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   'app:switchThread',
   'app:toggleArchiveThread',
   'app:togglePinThread',
+  'backend:ready',
   'bridge:getStatus',
   'bridge:login',
   'chat:cancel',
@@ -174,8 +176,8 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   'debug:shadowTranscript',
   'github:listPullRequests',
   'jobs:installLaunchAgent',
-  'jobs:list',
   'jobs:launchAgentInstalled',
+  'jobs:list',
   'jobs:remove',
   'jobs:removeLaunchAgent',
   'jobs:runNow',
@@ -260,11 +262,6 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   'webSearch:getConfig',
   'webSearch:setConfig',
   'webSearch:testSearch',
-  'worktree:applyMerge',
-  'worktree:diff',
-  'worktree:list',
-  'worktree:previewMerge',
-  'worktree:remove',
   'workspace:createManualGitCommit',
   'workspace:createReference',
   'workspace:deleteGitCheckpoint',
@@ -280,4 +277,9 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   'workspace:revertDiff',
   'workspace:saveClipboardImage',
   'workspace:setTrust',
-] as const
+  'worktree:applyMerge',
+  'worktree:diff',
+  'worktree:list',
+  'worktree:previewMerge',
+  'worktree:remove',
+]

@@ -6,7 +6,6 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import SessionStore, { SessionId } from '@z/dsh-session'
 import JsonlSessionPersistence from '@z/dsh-session-persistence-jsonl'
-import SqliteSessionPersistence from '@z/dsh-session-persistence-sqlite'
 import SessionTitleService, { foldSessionTitle } from '@z/dsh-session-title'
 
 const CONFIG = {
@@ -69,22 +68,4 @@ describe('session title persistence round trips', () => {
     await reader.fiber.dispose()
   })
 
-  it('round-trips through a remounted SQLite backend', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'dsh-title-sqlite-'))
-    roots.push(root)
-    const path = join(root, 'sessions.db')
-    const id = SessionId('title-sqlite')
-    const writer = new Context()
-    await writer.plugin(SessionStore)
-    await writer.plugin(SqliteSessionPersistence, { path })
-    await writer.plugin(SessionTitleService, CONFIG)
-    await appendPersistedTitle(writer, id)
-    await writer.fiber.dispose()
-
-    const reader = new Context()
-    await reader.plugin(SessionStore)
-    await reader.plugin(SqliteSessionPersistence, { path })
-    await expectPersistedTitle(reader, id)
-    await reader.fiber.dispose()
-  })
 })

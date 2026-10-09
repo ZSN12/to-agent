@@ -107,6 +107,9 @@ export function createAppStateStore(userDataPath, fallbackWorkspace) {
       await ensureInitialized()
       return threadStore.searchThreads(query, options)
     },
+    setSessionSearch(search) {
+      threadStore.setSessionSearch(search)
+    },
     async deleteThread(threadId) {
       await ensureInitialized()
       return toAppState(await threadStore.deleteThread(threadId))

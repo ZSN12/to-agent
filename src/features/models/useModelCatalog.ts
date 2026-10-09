@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type {
   CatalogModel,
   ModelCatalog,
@@ -19,18 +19,21 @@ export function useModelCatalog() {
   const [error, setError] = useState<string | null>(null)
   const [updateStatus, setUpdateStatus] = useState<ModelUpdateStatus | null>(null)
   const bridgeReady = isModelsBridgeAvailable()
+  const loadInFlight = useRef<Promise<void> | null>(null)
+  const hasCompletedInitialLoad = useRef(false)
 
   const load = useCallback(async () => {
-    const client = getModelsClient()
-    if (!client) {
-      setLoading(false)
-      setError('未检测到 Electron 模型桥接，请使用 npm run dev 启动桌面端。')
-      return
-    }
-    const showBlockingLoad = auth.length === 0 && catalog === null
-    if (showBlockingLoad) setLoading(true)
-    setError(null)
-    try {
+    if (loadInFlight.current) return loadInFlight.current
+    const flight = (async () => {
+      if (!hasCompletedInitialLoad.current) setLoading(true)
+      setError(null)
+      const client = getModelsClient()
+      if (!client) throw new Error('未检测到 Electron 模型桥接，请使用 npm run dev 启动桌面端。')
+
+      const ready = await window.taskweaver?.backendReady()
+      if (!ready?.ok) throw new Error(ready?.error ?? '后端 IPC 尚未就绪，请稍后重试。')
+      if (ready.data?.ready !== true) throw new Error(ready.data?.error ?? '后端服务初始化失败，请重试或重启应用。')
+
       const loadBundle = client.loadBundle ?? (async () => {
         const [listRes, authRes] = await Promise.all([client.list(), client.listProvidersAuth()])
         if (!listRes.ok) return { ok: false as const, error: listRes.error ?? '获取模型列表失败' }
@@ -42,23 +45,23 @@ export function useModelCatalog() {
         }
       })
       const res = await loadBundle()
-      if (!res.ok) {
-        setError(res.error ?? '加载模型目录失败')
-        if (showBlockingLoad) setLoading(false)
-        return
-      }
+      if (!res.ok) throw new Error(res.error ?? '加载模型目录失败')
       const bundle = res.data!
       setCatalog(bundle.catalog ?? null)
       setAuth(bundle.auth ?? [])
       if (bundle.providerCount === 0 && bundle.hostReady) {
         setError('Z Host 已连接，但提供方目录为空。请稍候再试或重启应用。')
       }
-      if (showBlockingLoad) setLoading(false)
-    } catch (err) {
+    })().catch((err: unknown) => {
       setError(err instanceof Error ? err.message : '加载模型目录时发生错误')
-      if (showBlockingLoad) setLoading(false)
-    }
-  }, [auth.length, catalog])
+    }).finally(() => {
+      hasCompletedInitialLoad.current = true
+      setLoading(false)
+      loadInFlight.current = null
+    })
+    loadInFlight.current = flight
+    return flight
+  }, [])
 
   const refresh = useCallback(async (): Promise<{ ok: boolean; providerCount: number; error: string | null }> => {
     const client = getModelsClient()

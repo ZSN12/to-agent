@@ -12,7 +12,7 @@
 #
 # This file is an AGENT-PLANE composition. It is mounted under one agent's
 # scope context, so every tool and prompt section it registers belongs to that
-# session alone. The host composition (`base.cordis.yml` + `web.cordis.yml`)
+# session alone. TaskWeaver's host composition
 # keeps everything a preset must not own: the registries themselves, the
 # sandbox and approval stack, persistence, and the model route.
 #
@@ -66,12 +66,10 @@
 
 # ── shell ───────────────────────────────────────────────────────────────────
 
-# `shell-env` stays in the HOST composition: `apps/cli/src/web.ts` injects it to
-# publish `DSH_WEB_URL`/`DSH_WEB_MODE`, and a host row that injects a service is
-# the criterion for host-plane ownership — injection resolves before any session
-# exists, so there is no agent to key by. Behind a preset realm those variables
-# never reached the model's shell at all. Both shell tools consume the host
-# registry from here; their executors (`bash-sandbox`/`pwsh-sandbox`) are
+# `shell-env` stays in the host composition because TaskWeaver's web runtime
+# publishes `DSH_WEB_URL` through it. Host services are injected before any
+# session exists, so there is no agent to key by. Both shell tools consume the
+# host registry from here; their executors (`bash-sandbox`/`pwsh-sandbox`) are
 # host-plane too.
 - id: tool-bash
   name: '@z/dsh-tool-bash'
@@ -120,6 +118,11 @@
 
 - id: tool-skill
   name: '@z/dsh-tool-skill'
+
+- id: tool-session-query
+  name: '@z/dsh-tool-session-query'
+  config:
+    maxSearchResults: 30
 
 # ── goals ───────────────────────────────────────────────────────────────────
 
@@ -225,28 +228,6 @@
         provider: fork
         toolName: subagent_fork
         backgroundMode: continuable
-
-    # Production dsh does not install these optional providers. Install the
-    # matching Bundle in this Profile and restart the Host, then copy this
-    # preset and remove `disabled` from the matching tool row. Host availability
-    # alone grants no tool.
-    - id: tool-subagent-codex
-      name: '@z/dsh-tool-subagent'
-      disabled: true
-      config:
-        provider: codex
-        toolName: subagent_codex
-        backgroundMode: one-shot
-        maxDepth: provider-managed
-
-    - id: tool-subagent-claude-code
-      name: '@z/dsh-tool-subagent'
-      disabled: true
-      config:
-        provider: claude-code
-        toolName: subagent_claude_code
-        backgroundMode: one-shot
-        maxDepth: provider-managed
 
     - id: workflow-worker-thread
       name: '@z/dsh-workflow-worker-thread'

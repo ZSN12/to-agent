@@ -48,12 +48,12 @@ export function ComposerContextMeter({
     : null
 
   const rawCtxTokens = liveContext?.contextTokens ?? sessionStats?.contextTokens
-  const ctxTokens = (typeof rawCtxTokens === 'number' && rawCtxTokens > 0)
+  const ctxTokens = typeof rawCtxTokens === 'number'
     ? rawCtxTokens
     : (fallbackTokens ?? rawCtxTokens)
   const ctxWindow = liveContext?.contextWindow ?? sessionStats?.contextWindow ?? fallbackWindow
   const rawCtxPct = liveContext?.contextPercent ?? sessionStats?.contextPercent
-  const ctxPct = (typeof ctxTokens === 'number' && ctxTokens > 0 && typeof ctxWindow === 'number' && ctxWindow > 0)
+  const ctxPct = (typeof ctxTokens === 'number' && typeof ctxWindow === 'number' && ctxWindow > 0)
     ? Math.round(ctxTokens / ctxWindow * 100)
     : rawCtxPct
   const breakdown = liveContext?.contextBreakdown

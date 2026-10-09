@@ -19,6 +19,90 @@ export function matchPattern(pattern, target) {
   return false
 }
 
+/** Persistent command rules are exact by default; shell metacharacters never act as globs implicitly. */
+export function matchCommandPattern(pattern, target, { allowWildcards = false } = {}) {
+  if (typeof pattern !== 'string' || typeof target !== 'string') return false
+  const expected = pattern.trim()
+  const actual = target.trim()
+  return allowWildcards && expected.includes('*')
+    ? matchPattern(expected, actual)
+    : expected === actual
+}
+
+/** Split shell command lists and pipelines outside quotes for per-segment permission evaluation. */
+export function splitShellCommandSegments(command) {
+  const source = String(command ?? '')
+  const segments = []
+  let buffer = ''
+  let quote = null
+  let escaped = false
+  let commandRequired = false
+
+  const pushSegment = () => {
+    const value = buffer.trim()
+    if (value) segments.push(value)
+    buffer = ''
+    return Boolean(value)
+  }
+
+  for (let i = 0; i < source.length; i += 1) {
+    const char = source[i]
+    if (escaped) {
+      buffer += char
+      escaped = false
+      continue
+    }
+    if (char === '\\' && quote !== "'") {
+      buffer += char
+      escaped = true
+      continue
+    }
+    if (quote) {
+      buffer += char
+      if (char === quote) quote = null
+      continue
+    }
+    if (char === '"' || char === "'" || char === '`') {
+      quote = char
+      buffer += char
+      continue
+    }
+
+    let operator = null
+    let width = 1
+    if (char === '&' && source[i + 1] === '>') {
+      buffer += char
+      continue
+    }
+    if ((char === '&' && source[i + 1] === '&') || (char === '|' && source[i + 1] === '|')) {
+      operator = source.slice(i, i + 2)
+      width = 2
+    } else if (char === '|' && source[i + 1] === '&') {
+      operator = '|&'
+      width = 2
+    } else if (char === '&' || char === '|') {
+      operator = char
+    } else if (char === ';' || char === '\n' || char === '\r') {
+      operator = char
+    }
+
+    if (!operator) {
+      buffer += char
+      continue
+    }
+
+    const hadSegment = pushSegment()
+    if (!hadSegment && commandRequired) return []
+    commandRequired = ['&&', '||', '|', '|&', '&'].includes(operator)
+    i += width - 1
+  }
+
+  if (quote || escaped) return []
+  const hadFinalSegment = pushSegment()
+  if ((commandRequired && !hadFinalSegment) || (!segments.length && !hadFinalSegment)) return []
+  return segments
+}
+
 /**
  * TaskWeaver 细粒度权限规则存储
  * 支持为指定工具（如 bash、read、write、edit 或 MCP 工具）配置命令白名单/黑名单、路径匹配规则。
@@ -56,6 +140,7 @@ export function createPermissionRulesStore({ userDataPath }) {
       workspacePath,
       createdAt: Date.now(),
       description: input.description ? String(input.description).slice(0, 200) : '',
+      ...(type === 'command' && input.allowWildcards === true ? { allowWildcards: true } : {}),
     }
 
     const data = await store.read()
@@ -103,6 +188,7 @@ export function createPermissionRulesStore({ userDataPath }) {
 
     const toolName = String(tool || '').trim()
     const command = toolName === 'bash' ? String(input?.command ?? '').trim() : ''
+    const commandSegments = toolName === 'bash' ? splitShellCommandSegments(command) : []
     const candidatePath = typeof input?.path === 'string'
       ? input.path
       : typeof input?.file_path === 'string'
@@ -111,7 +197,7 @@ export function createPermissionRulesStore({ userDataPath }) {
           ? input.filePath
           : ''
 
-    function testRule(rule) {
+    function testRule(rule, commandTarget = command) {
       // 工具不匹配
       if (rule.tool !== '*' && rule.tool !== toolName) return false
 
@@ -119,10 +205,11 @@ export function createPermissionRulesStore({ userDataPath }) {
         return true
       }
       if (rule.type === 'command') {
-        if (!command) return false
-        return matchPattern(rule.pattern, command)
+        if (!commandTarget) return false
+        return matchCommandPattern(rule.pattern, commandTarget, { allowWildcards: rule.allowWildcards === true })
       }
       if (rule.type === 'path') {
+        if (toolName === 'bash') return false
         if (!candidatePath) return false
         // 对相对工作区的路径与绝对路径均支持通配匹配
         const normalizedCandidate = candidatePath.replace(/\\/g, '/')
@@ -134,16 +221,28 @@ export function createPermissionRulesStore({ userDataPath }) {
 
     // 1. 先查是否有 deny 规则命中（最高优先）
     for (const rule of rules) {
-      if (rule.decision === 'deny' && testRule(rule)) {
+      if (rule.decision !== 'deny') continue
+      if (toolName === 'bash' && rule.type === 'command') {
+        const matchedSegment = commandSegments.find((segment) => testRule(rule, segment))
+        if (matchedSegment) return { matched: true, decision: 'deny', rule }
+      } else if (testRule(rule)) {
         return { matched: true, decision: 'deny', rule }
       }
     }
 
     // 2. 再查是否有 allow 规则命中
-    for (const rule of rules) {
-      if (rule.decision === 'allow' && testRule(rule)) {
-        return { matched: true, decision: 'allow', rule }
+    if (toolName === 'bash' && command) {
+      if (!commandSegments.length) return null
+      const matchedRules = commandSegments.map((segment) => rules.find((rule) =>
+        rule.decision === 'allow' && testRule(rule, segment),
+      ))
+      if (matchedRules.every(Boolean)) {
+        return { matched: true, decision: 'allow', rule: matchedRules[0] }
       }
+      return null
+    }
+    for (const rule of rules) {
+      if (rule.decision === 'allow' && testRule(rule)) return { matched: true, decision: 'allow', rule }
     }
 
     return null

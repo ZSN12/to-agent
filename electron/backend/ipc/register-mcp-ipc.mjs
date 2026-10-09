@@ -60,14 +60,18 @@ export function registerMcpIpc(ctx) {
       openExternal: (url) => shell.openExternal(url),
     })
     await reloadMcpRuntime()
-    return result
+    return { ...result, connection: await mcp.testConnection('github') }
   })
   ipcHandle(ipcMain, 'mcp:cancelGitHubOAuth', () => mcp.cancelGitHubOAuth())
-  ipcHandle(ipcMain, 'mcp:disconnect', async (_event, id) => mcp.disconnect(id))
+  ipcHandle(ipcMain, 'mcp:disconnect', async (_event, id) => {
+    assertMcpHostRestartSafe()
+    const disconnected = await mcp.disconnect(id)
+    await reloadMcpRuntime()
+    return disconnected
+  })
   ipcHandle(ipcMain, 'mcp:refresh', async () => {
     assertMcpHostRestartSafe()
-    return mcp.getCustomTools()
-      .then(({ statuses }) => statuses)
+    return mcp.listServers({ refresh: true })
   })
   ipcHandle(ipcMain, 'mcp:catalog', () => listMcpCatalog())
   ipcHandle(ipcMain, 'mcp:marketplace', () => ({

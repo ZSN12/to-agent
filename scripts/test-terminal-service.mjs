@@ -7,7 +7,6 @@ const terminalService = createTerminalService()
 
 try {
   let receivedData = ''
-  let exitCode = null
 
   // 1. 创建终端会话
   const session = await terminalService.createSession({
@@ -18,9 +17,6 @@ try {
     rows: 24,
     onData: (data) => {
       receivedData += data
-    },
-    onExit: (code) => {
-      exitCode = code
     },
   })
 

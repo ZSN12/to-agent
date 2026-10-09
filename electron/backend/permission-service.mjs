@@ -12,7 +12,7 @@ import {
   approveEscalation,
 } from '../vendor/dsh-sandbox/escalation.mjs'
 import { consumeOneShotSandboxMode, withSandboxEscalation } from './sandbox-escalation-runtime.mjs'
-import { matchPattern } from './permission-rules-store.mjs'
+import { matchPattern, splitShellCommandSegments } from './permission-rules-store.mjs'
 
 export const PERMISSION_MODES = Object.freeze(['readonly', 'ask', 'on-risk', 'full'])
 
@@ -27,7 +27,7 @@ export function clearSessionPermissionGrants(conversationId) {
 function buildPersistentGrant(details, event, workspacePath) {
   if (details.tool === 'bash') {
     const pattern = String(event.input?.command ?? '').trim()
-    if (!pattern) return null
+    if (!pattern || splitShellCommandSegments(pattern).length !== 1) return null
     return { tool: 'bash', type: 'command', pattern }
   }
   if (details.mutation && details.candidate) {
@@ -50,7 +50,7 @@ function matchesSessionGrant(conversationId, details, event) {
     : ''
   for (const grant of grants) {
     if (grant.tool !== '*' && grant.tool !== details.tool) continue
-    if (grant.type === 'command' && command && matchPattern(grant.pattern, command)) return true
+    if (grant.type === 'command' && command && grant.pattern === command) return true
     if (grant.type === 'path' && candidatePath && matchPattern(grant.pattern, candidatePath)) return true
   }
   return false
@@ -563,4 +563,3 @@ export function createPermissionService({
   globalThis[CONTROLLER_KEY] = controller
   return controller
 }
-

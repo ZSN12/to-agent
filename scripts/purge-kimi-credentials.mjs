@@ -7,7 +7,6 @@ import { app, safeStorage } from 'electron'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { createCredentialStore } from '../electron/backend/credential-store.mjs'
 
 const userData = path.join(os.homedir(), 'Library', 'Application Support', 'taskweaver-desktop')

@@ -11,7 +11,7 @@ import ToolRuntime from '@z/dsh-tools'
 import AgentRegistry from '@z/dsh-agent'
 import type { Agent } from '@z/dsh-agent'
 import AgentLoop from '@z/dsh-agent-loop'
-import * as LlmDeepSeek from '@z/dsh-llm-deepseek'
+import * as LlmPiAi from '@z/dsh-llm-pi-ai'
 import * as WorkspaceContext from '@z/dsh-agent-instructions'
 import { candidateScopeKey } from '../src/render.ts'
 import LocalFileSystem from '@z/dsh-fs-local'
@@ -46,11 +46,11 @@ async function harness(): Promise<{ ctx: Context; agent: Agent }> {
   await ctx.plugin(ToolFs)
   await ctx.plugin(WorkspaceContext, { maxBytes: 65536 })
   await ctx.plugin(AgentLoop, { agents: [] })
-  await ctx.plugin(LlmDeepSeek, { models: [{ id: 'deepseek-v4-flash' }] })
+  await ctx.plugin(LlmPiAi, { providers: { deepseek: { apiKeyEnv: 'DEEPSEEK_API_KEY' } } })
   const handle = await ctx.agents.create({
     sessionId: SessionId('workspace-context-e2e-session'),
     meta: { cwd: workdir },
-    agentOptions: { provider: 'deepseek-official', model: 'deepseek-v4-flash' },
+    agentOptions: { provider: 'deepseek', model: 'deepseek-flash' },
   })
   return { ctx, agent: handle.agent }
 }

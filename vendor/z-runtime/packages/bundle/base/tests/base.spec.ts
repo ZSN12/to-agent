@@ -16,10 +16,7 @@ describe('dsh-base bundle', () => {
     const root = fileURLToPath(new URL('..', import.meta.url))
     const manifest = JSON.parse(
       readFileSync(resolve(root, 'package.json'), 'utf8'),
-    ) as {
-      dependencies?: Record<string, string>
-      dsh?: { bundle?: { patch?: string } }
-    }
+    ) as { dsh?: { bundle?: { patch?: string } } }
     expect(manifest.dsh?.bundle?.patch).toBe('./cordis.patch.yml')
     const parsed = yaml.load(
       readFileSync(resolve(root, manifest.dsh!.bundle!.patch!), 'utf8'),
@@ -32,13 +29,12 @@ describe('dsh-base bundle', () => {
     )
     expect(rows.length).toBeGreaterThan(50)
     expect(rows.some(row => row.id === 'agent-loop')).toBe(true)
-    expect(rows.find(row => row.id === 'session-telemetry-otel')?.config?.['mode']).toEqual({
-      __jsExpr: "process.env.DSH_TELEMETRY_MODE || 'DISABLED'",
-    })
+    expect(rows.filter(row => [
+      'session-telemetry-otel', 'skill-badge', 'command-feedback',
+      'tool-str-replace-editor', 'llm-deepseek',
+    ].includes(row.id ?? ''))).toHaveLength(0)
     expect(rows.filter(row => row.id === 'subagent-codex')).toHaveLength(0)
     expect(rows.filter(row => row.id === 'subagent-claude-code')).toHaveLength(0)
-    expect(manifest.dependencies).not.toHaveProperty('@z/dsh-subagent-codex')
-    expect(manifest.dependencies).not.toHaveProperty('@z/dsh-subagent-claude-code')
   })
 
   it('gates each shell stack by platform with a symmetric disabled expression', () => {

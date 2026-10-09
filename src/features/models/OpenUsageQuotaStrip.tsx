@@ -70,7 +70,11 @@ export function OpenUsageQuotaStrip({
       {summaries.length > 0 ? (
         <div className="openusage-quota-chips">
           {summaries.map((item) => (
-            <div key={item.key} className={chipClass(item.worstRatio)} title={item.resources.map((r) => r.line).join('\n')}>
+            <div
+              key={item.key}
+              className={chipClass(item.worstRatio)}
+              title={item.resources.map((r) => r.line).join('\n')}
+            >
               <span className="openusage-quota-chip-name">{item.title}</span>
               <span className="openusage-quota-chip-value">{item.headline}</span>
               {item.stale ? <span className="openusage-quota-chip-tag">缓存</span> : null}

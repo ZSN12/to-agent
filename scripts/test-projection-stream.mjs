@@ -38,10 +38,12 @@ assert.deepEqual(updates.activity, ['正在读取文件'], 'projection contribut
 assert.deepEqual(updates.queues, [{ steering: ['继续检查'], followUp: [] }])
 
 const backendSource = await fs.readFile(path.resolve('src/features/app/useAppBackend.ts'), 'utf8')
+const streamSource = await fs.readFile(path.resolve('src/features/app/hooks/useConversationRun.ts'), 'utf8')
 assert.equal(backendSource.includes('isStreamEventSupersededByProjection'), false,
   'live chat:stream events must not be discarded merely because a transcript projection is mounted')
-assert.match(backendSource, /if \(event\.type === 'delta'\)[\s\S]{0,180}setStreamText/)
-assert.match(backendSource, /event\.type === 'start' && event\.conversationId === activeConversationIdRef\.current\)\s*\{\s*setToolTraces\(next\.toolTraces\)/,
+assert.equal(streamSource.includes('isStreamEventSupersededByProjection'), false)
+assert.match(streamSource, /if \(event\.type === 'delta'\)[\s\S]{0,180}setStreamText/)
+assert.match(streamSource, /event\.type === 'start' && event\.conversationId === activeConversationIdRef\.current\)\s*\{\s*setToolTraces\(next\.toolTraces\)/,
   'the visible tool batch must reset from the clean per-conversation snapshot on each active turn start')
 
 console.log('projection stream ownership tests passed')

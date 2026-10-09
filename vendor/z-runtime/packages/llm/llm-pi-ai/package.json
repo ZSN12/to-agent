@@ -1,6 +1,6 @@
 {
   "name": "@z/dsh-llm-pi-ai",
-  "description": "pi-ai-backed DeepSeek adapter for the DeepSeek Harness LLM seam (design-verification twin of dsh-llm-deepseek)",
+  "description": "pi-ai-backed multi-provider adapter for the DeepSeek Harness LLM seam",
   "version": "0.1.1-rc.2",
   "publishConfig": {
     "access": "public"
@@ -53,7 +53,6 @@
     "@z/dsh-launch-environment": "workspace:^",
     "@z/dsh-invariants": "workspace:^",
     "@z/dsh-llm": "workspace:^",
-    "@z/dsh-llm-deepseek": "workspace:^",
     "@z/dsh-settings": "workspace:^",
     "@z/dsh-timeout": "workspace:^",
     "@z/cordis": "workspace:^"

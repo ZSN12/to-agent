@@ -7,7 +7,7 @@ import ToolRuntime from '@z/dsh-tools'
 import AgentRegistry from '@z/dsh-agent'
 
 import AgentLoop from '@z/dsh-agent-loop'
-import * as LlmDeepSeek from '@z/dsh-llm-deepseek'
+import * as LlmPiAi from '@z/dsh-llm-pi-ai'
 import SubagentRuntime from '@z/dsh-subagent'
 import * as Spawn from '@z/dsh-subagent-spawn-in-process'
 import WorkerThreadWorkflowEngine from '../src/index.ts'
@@ -36,7 +36,7 @@ async function harness(): Promise<Context> {
   await built.plugin(ToolRuntime)
   await built.plugin(AgentRegistry)
   await built.plugin(AgentLoop, { agents: [] })
-  await built.plugin(LlmDeepSeek)
+  await built.plugin(LlmPiAi, { providers: { deepseek: { apiKeyEnv: 'DEEPSEEK_API_KEY' } } })
   await built.plugin(SubagentRuntime)
   await built.plugin(Spawn, { providerName: 'spawn' })
   await built.plugin(WorkerThreadWorkflowEngine, { provider: 'spawn' })
@@ -64,7 +64,7 @@ describe.skipIf(!process.env.DEEPSEEK_API_KEY)('worker workflow engine with-key 
     ctx = await harness()
     const parentHandle = await ctx.agents.create({
       sessionId: 'wf-worker-e2e-session' as never,
-      agentOptions: { provider: 'deepseek-official', model: 'deepseek-v4-flash' },
+      agentOptions: { provider: 'deepseek', model: 'deepseek-flash' },
     })
 
     const events: string[] = []

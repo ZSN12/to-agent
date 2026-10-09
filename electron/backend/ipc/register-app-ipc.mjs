@@ -10,8 +10,7 @@ import { clearSessionPermissionGrants } from '../permission-service.mjs'
  *   appState: import('../app-state-store.mjs').AppStateStore,
  *   chat: ReturnType<typeof import('../dsh-chat-service.mjs').createDshChatService>,
  *   conversationHub: { detachSession: (id: string) => void, attachSession: (conversationId: string, sessionId: string, sender: unknown) => Promise<void>, getView: (id: string) => Promise<{ transcript?: unknown[] } | null> },
- *   refreshWorkspaceCache: () => Promise<void>,
- *   getCachedWorkspace: () => string | null,
+ *   refreshUiSnapshot: () => Promise<void>,
  *   assertNotBusy: (conversationId: string) => void,
  *   validateWorkspace: (workspacePath: string) => Promise<string>,
  * }} ctx
@@ -24,8 +23,7 @@ export function registerAppIpc(ctx) {
     appState,
     chat,
     conversationHub,
-    refreshWorkspaceCache,
-    getCachedWorkspace,
+    refreshUiSnapshot,
     assertNotBusy,
     validateWorkspace,
   } = ctx
@@ -44,7 +42,7 @@ export function registerAppIpc(ctx) {
   }
 
   ipcHandle(ipcMain, 'app:getState', async () => {
-    await refreshWorkspaceCache()
+    await refreshUiSnapshot()
     return appState.getState()
   })
 
@@ -56,13 +54,13 @@ export function registerAppIpc(ctx) {
     if (!workspacePath) {
       await chat.resetSession()
       const state = await appState.setWorkspace(null)
-      await refreshWorkspaceCache()
+      await refreshUiSnapshot()
       return state
     }
     const canonicalWorkspace = await validateWorkspace(workspacePath)
     await chat.resetSession()
     const state = await appState.setWorkspace(canonicalWorkspace)
-    await refreshWorkspaceCache()
+    await refreshUiSnapshot()
     return state
   })
 
@@ -70,10 +68,9 @@ export function registerAppIpc(ctx) {
     const current = await appState.getState()
     assertNotBusy(current.conversationId)
     const parent = BrowserWindow?.getFocusedWindow?.() ?? null
-    const cachedWorkspace = getCachedWorkspace()
     const options = {
       title: '选择 TaskWeaver 工作区',
-      defaultPath: cachedWorkspace,
+      defaultPath: current.workspacePath ?? undefined,
       properties: ['openDirectory', 'createDirectory'],
     }
     const result = parent ? await dialog.showOpenDialog(parent, options) : await dialog.showOpenDialog(options)
@@ -81,7 +78,7 @@ export function registerAppIpc(ctx) {
     const canonicalWorkspace = await validateWorkspace(result.filePaths[0])
     await chat.resetSession()
     const state = await appState.setWorkspace(canonicalWorkspace)
-    await refreshWorkspaceCache()
+    await refreshUiSnapshot()
     return { cancelled: false, state }
   })
 
@@ -93,7 +90,7 @@ export function registerAppIpc(ctx) {
     if (priorConversationId) conversationHub.detachSession(priorConversationId)
     await chat.resetSession()
     const state = await appState.switchThread(threadId)
-    await refreshWorkspaceCache()
+    await refreshUiSnapshot()
     const conversationId = state?.conversationId
     if (conversationId) {
       const sessionId = chat.getSessionId(conversationId)
@@ -122,7 +119,7 @@ export function registerAppIpc(ctx) {
     if (target?.conversationId) assertNotBusy(target.conversationId)
     if (before.currentThreadId === threadId) await chat.resetSession()
     const state = await appState.deleteThread(threadId)
-    await refreshWorkspaceCache()
+    await refreshUiSnapshot()
     if (target?.conversationId) {
       clearSessionPermissionGrants(target.conversationId)
       try {
@@ -160,7 +157,7 @@ export function registerAppIpc(ctx) {
         const detail = [result?.reason, result?.error].filter(Boolean).join(': ')
         throw new Error(`Z Host 未能继承源会话上下文${detail ? `（${detail}）` : ''}`)
       }
-      await refreshWorkspaceCache()
+      await refreshUiSnapshot()
       return {
         state,
         completedTurns: completedTurns ?? null,
@@ -185,7 +182,7 @@ export function registerAppIpc(ctx) {
           && remaining.some((thread) => thread.id === previousState.currentThreadId)) {
           await appState.switchThread(previousState.currentThreadId)
         }
-        await refreshWorkspaceCache()
+        await refreshUiSnapshot()
       } catch (cleanupError) {
         cleanupErrors.push(cleanupError instanceof Error ? cleanupError.message : String(cleanupError))
       }
@@ -199,7 +196,7 @@ export function registerAppIpc(ctx) {
 
   ipcHandle(ipcMain, 'app:setPermissionMode', async (_event, mode) => {
     const state = await appState.setPermissionMode(mode)
-    await refreshWorkspaceCache()
+    await refreshUiSnapshot()
     return state
   })
 
@@ -216,7 +213,7 @@ export function registerAppIpc(ctx) {
     assertNotBusy(current.conversationId)
     await chat.resetSession()
     const state = await appState.createThread(options)
-    await refreshWorkspaceCache()
+    await refreshUiSnapshot()
     return state
   })
 }

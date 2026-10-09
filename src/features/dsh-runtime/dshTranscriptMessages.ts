@@ -1,4 +1,5 @@
 import type { DshTranscriptChatMessage, DshTranscriptRow } from '../../shared/app-api'
+import { clockLabelZh } from '../../shared/time-label'
 import type { ChatMessage } from '../../types'
 
 type DshContextMessage = DshTranscriptChatMessage & {
@@ -11,10 +12,7 @@ export function isDshContextMessage(message: ChatMessage): message is DshContext
 }
 
 function formatMessageTime(timestamp?: number): string {
-  if (!timestamp) {
-    return new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false })
-  }
-  return new Date(timestamp).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false })
+  return clockLabelZh(timestamp ?? Date.now())
 }
 
 export function chatMessagesFromDshTranscript(
