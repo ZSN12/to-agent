@@ -3,6 +3,7 @@ import path from 'node:path'
 import { isWorkspacePath } from './workspace-index.mjs'
 import { precomputeQueryTerms, scoreTextRelevance } from './text-relevance.mjs'
 import { generateRepoMap } from './repo-map-service.mjs'
+import { loadWorkspaceRules } from './workspace-rules-service.mjs'
 
 const MAX_FILE_BYTES = 32 * 1024
 /** Workspace assembler fallback cap; chat sends use the configurable Prompt Pipeline cap. */
@@ -13,21 +14,38 @@ const MAX_DIRECTORY_FILES = 40
 /** 路径排序后仅对 top-N 读正文做内容级打分（其余只靠路径分）。 */
 const MAX_DIRECTORY_CONTENT_SCAN = 20
 const RELEVANCE_CACHE_MAX = 8000
+const RELEVANCE_CACHE_TTL_MS = 5 * 60 * 1000
 
 const pathRelevanceCache = new Map()
 const contentRelevanceCache = new Map()
 
-function relevanceCacheSet(map, key, value) {
-  if (map.size >= RELEVANCE_CACHE_MAX) {
+function relevanceCacheGet(map, key) {
+  const entry = map.get(key)
+  if (!entry) return undefined
+  const now = Date.now()
+  if (now - entry.at >= RELEVANCE_CACHE_TTL_MS) {
+    map.delete(key)
+    return undefined
+  }
+  // Refresh LRU order while retaining the original expiry time.
+  map.delete(key)
+  map.set(key, entry)
+  return entry.score
+}
+
+function relevanceCacheSet(map, key, score) {
+  map.delete(key)
+  map.set(key, { score, at: Date.now() })
+  while (map.size > RELEVANCE_CACHE_MAX) {
     const oldest = map.keys().next().value
+    if (oldest === undefined) break
     map.delete(oldest)
   }
-  map.set(key, value)
 }
 
 function cachedPathRelevance(workspaceRoot, query, precomputedTerms, relative, mtimeMs, size) {
   const key = `${workspaceRoot}\0${query}\0${relative}\0${mtimeMs}\0${size}\0path`
-  const hit = pathRelevanceCache.get(key)
+  const hit = relevanceCacheGet(pathRelevanceCache, key)
   if (hit !== undefined) return hit
   const score = scoreTextRelevance(query, '', { pathText: relative, precomputedTerms })
   relevanceCacheSet(pathRelevanceCache, key, score)
@@ -36,7 +54,7 @@ function cachedPathRelevance(workspaceRoot, query, precomputedTerms, relative, m
 
 function cachedContentRelevance(workspaceRoot, query, precomputedTerms, relative, mtimeMs, size, content) {
   const key = `${workspaceRoot}\0${query}\0${relative}\0${mtimeMs}\0${size}\0body`
-  const hit = contentRelevanceCache.get(key)
+  const hit = relevanceCacheGet(contentRelevanceCache, key)
   if (hit !== undefined) return hit
   const score = scoreTextRelevance(query, content, { pathText: relative, precomputedTerms })
   relevanceCacheSet(contentRelevanceCache, key, score)
@@ -300,6 +318,8 @@ export async function assembleWorkspaceContext(text, workspacePath, {
   maxInjectionBytes = MAX_CONTEXT_INJECTION_BYTES,
   includeRepoMap = false,
   repoMapTokens = 1200,
+  includeRules = true,
+  rulesBudgetBytes,
 } = {}) {
   if (!Number.isInteger(maxInjectionBytes) || maxInjectionBytes < 0 || maxInjectionBytes > MAX_CONTEXT_BUDGET_OVERRIDE_BYTES) {
     throw new Error(`maxInjectionBytes must be an integer from 0 to ${MAX_CONTEXT_BUDGET_OVERRIDE_BYTES}`)
@@ -326,15 +346,36 @@ export async function assembleWorkspaceContext(text, workspacePath, {
     throw new Error('工作区安全策略说明超过单次上下文注入上限；为避免丢失安全边界，本次请求已阻止。')
   }
   const contextBudgetBytes = maxInjectionBytes - sandboxPolicyBytes
+
+  // 尝试探测工作区项目指令文件 (TASKWEAVER.md / AGENTS.md / CLAUDE.md / .cursorrules 等)
+  const rulesBudget = rulesBudgetBytes ?? Math.min(12 * 1024, contextBudgetBytes)
+  const rules = (includeRules && workspacePath && rulesBudget > 0)
+    ? await loadWorkspaceRules(workspacePath, { budgetBytes: rulesBudget })
+    : { text: '', files: [], bytes: 0 }
+  const rulesText = rules.text
+  const rulesBytes = utf8Bytes(rulesText)
+
   if (!hasExplicitReferences && !includeRepoMap) {
+    const finalInjectedBytes = sandboxPolicyBytes + rulesBytes
+    if (finalInjectedBytes > maxInjectionBytes) {
+      throw new Error('工作区安全策略与项目规则说明超过单次上下文注入上限')
+    }
+    const suffixLayers = []
+    if (rulesText) {
+      suffixLayers.push({ id: 'workspace-rules', text: rulesText, required: true, priority: 35 })
+    }
     return {
-      prompt: `${policyPrefix}${text}`,
+      prompt: `${policyPrefix}${text}${rulesText}`,
       references: [],
-      injectedBytes: sandboxPolicyBytes,
-      sourceBytes: { context: 0, sandboxPolicy: sandboxPolicyBytes },
+      injectedBytes: finalInjectedBytes,
+      sourceBytes: {
+        context: 0,
+        sandboxPolicy: sandboxPolicyBytes,
+        ...(rulesBytes > 0 ? { rules: rulesBytes } : {}),
+      },
       layers: {
         prefix: policyPrefix ? [{ id: 'sandbox-policy', text: policyPrefix, required: true }] : [],
-        suffix: [],
+        suffix: suffixLayers,
       },
       contextTruncated: false,
     }
@@ -405,13 +446,17 @@ export async function assembleWorkspaceContext(text, workspacePath, {
   }
 
   if (!blocks.length) {
+    const rulesRemainingBytes = Math.max(0, contextBudgetBytes - rulesBytes)
     const repoMapText = includeRepoMap
-      ? await buildBoundedRepoMapText(workspacePath, text, repoMapTokens, contextBudgetBytes)
+      ? await buildBoundedRepoMapText(workspacePath, text, repoMapTokens, rulesRemainingBytes)
       : ''
     const repoMapBytes = utf8Bytes(repoMapText)
-    const finalInjectedBytes = sandboxPolicyBytes + repoMapBytes
-    const finalPrompt = `${policyPrefix}${text}${repoMapText}`
+    const finalInjectedBytes = sandboxPolicyBytes + rulesBytes + repoMapBytes
+    const finalPrompt = `${policyPrefix}${text}${rulesText}${repoMapText}`
     const suffixLayers = []
+    if (rulesText) {
+      suffixLayers.push({ id: 'workspace-rules', text: rulesText, required: true, priority: 35 })
+    }
     if (repoMapText) {
       suffixLayers.push({ id: 'repo-map', text: repoMapText, required: false, priority: 40 })
     }
@@ -419,7 +464,11 @@ export async function assembleWorkspaceContext(text, workspacePath, {
       prompt: finalPrompt,
       references,
       injectedBytes: finalInjectedBytes,
-      sourceBytes: { context: repoMapBytes, sandboxPolicy: sandboxPolicyBytes },
+      sourceBytes: {
+        context: repoMapBytes,
+        sandboxPolicy: sandboxPolicyBytes,
+        ...(rulesBytes > 0 ? { rules: rulesBytes } : {}),
+      },
       layers: {
         prefix: policyPrefix ? [{ id: 'sandbox-policy', text: policyPrefix, required: true }] : [],
         suffix: suffixLayers,
@@ -428,15 +477,18 @@ export async function assembleWorkspaceContext(text, workspacePath, {
     }
   }
 
-  // Explicitly referenced files outrank a generated Repo Map. Fill the
-  // required context first, then use only the true remaining bytes for the map.
+  // Explicitly referenced files outrank a generated Repo Map and project rules. Fill the
+  // required context first, then use only the true remaining bytes for the rules and map.
   const boundedContext = boundWorkspaceContext(blocks, contextBudgetBytes)
-  const mapRemainingBytes = Math.max(0, contextBudgetBytes - boundedContext.bytes)
+  const afterContextBudget = Math.max(0, contextBudgetBytes - boundedContext.bytes)
+  const effectiveRulesText = rulesBytes <= afterContextBudget ? rulesText : truncateUtf8(rulesText, afterContextBudget)
+  const effectiveRulesBytes = utf8Bytes(effectiveRulesText)
+  const mapRemainingBytes = Math.max(0, afterContextBudget - effectiveRulesBytes)
   const repoMapText = includeRepoMap
     ? await buildBoundedRepoMapText(workspacePath, text, repoMapTokens, mapRemainingBytes)
     : ''
   const repoMapBytes = utf8Bytes(repoMapText)
-  const injectedBytes = boundedContext.bytes + sandboxPolicyBytes + repoMapBytes
+  const injectedBytes = boundedContext.bytes + sandboxPolicyBytes + effectiveRulesBytes + repoMapBytes
   if (injectedBytes > maxInjectionBytes) {
     throw new Error('工作区上下文组装超过单次注入上限')
   }
@@ -444,15 +496,22 @@ export async function assembleWorkspaceContext(text, workspacePath, {
   const suffixLayers = [
     { id: 'workspace-context', text: boundedContext.text, required: true },
   ]
+  if (effectiveRulesText) {
+    suffixLayers.push({ id: 'workspace-rules', text: effectiveRulesText, required: true, priority: 35 })
+  }
   if (repoMapText) {
     suffixLayers.push({ id: 'repo-map', text: repoMapText, required: false, priority: 40 })
   }
 
   return {
-    prompt: `${policyPrefix}${text}${boundedContext.text}${repoMapText}`,
+    prompt: `${policyPrefix}${text}${boundedContext.text}${effectiveRulesText}${repoMapText}`,
     references,
     injectedBytes,
-    sourceBytes: { context: boundedContext.bytes + repoMapBytes, sandboxPolicy: sandboxPolicyBytes },
+    sourceBytes: {
+      context: boundedContext.bytes + repoMapBytes,
+      sandboxPolicy: sandboxPolicyBytes,
+      ...(effectiveRulesBytes > 0 ? { rules: effectiveRulesBytes } : {}),
+    },
     layers: {
       prefix: policyPrefix ? [{ id: 'sandbox-policy', text: policyPrefix, required: true }] : [],
       suffix: suffixLayers,

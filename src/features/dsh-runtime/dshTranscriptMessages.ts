@@ -89,7 +89,7 @@ export function mergeStoredMessagesWithDshTranscript(
   let base = chatMessagesFromDshTranscript(transcript, { user: '你', agent: 'TaskWeaver' })
   const storedAssistants = stored.filter((message) => !isDshContextMessage(message)
     && message.author !== 'user'
-    && (message.usage || message.callout || message.interrupted || message.fileChanges?.length))
+    && (message.usage || message.callout || message.interrupted || message.fileChanges?.length || message.turnActivity))
   if (storedAssistants.length) {
     const matchedMetadata = new Set<number>()
     base = base.map((message) => {
@@ -108,6 +108,7 @@ export function mergeStoredMessagesWithDshTranscript(
         callout: message.callout ?? match.callout,
         interrupted: message.interrupted || match.interrupted,
         fileChanges: message.fileChanges ?? match.fileChanges,
+        turnActivity: message.turnActivity ?? match.turnActivity,
       }
     })
   }

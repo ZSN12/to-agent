@@ -182,5 +182,44 @@ export function createProfileStore(userDataPath) {
       await writeState(state)
       return state.busyEnterMode
     },
+    /**
+     * `opencodex/<modelId>` → `bridge-composer/<modelId>` for added list, profiles, active key.
+     * @returns {Promise<{ changed: boolean, migrated: { from: string, to: string }[] }>}
+     */
+    async migrateOpenCodexRoutesToBridge() {
+      const state = await readState()
+      const migrated = []
+      const nextAdded = []
+      const seen = new Set()
+      for (const key of state.addedModelKeys) {
+        let target = key
+        if (String(key).startsWith('opencodex/')) {
+          const modelId = String(key).slice('opencodex/'.length)
+          if (modelId) {
+            target = `bridge-composer/${modelId}`
+            migrated.push({ from: key, to: target })
+            if (state.profiles[key]) {
+              state.profiles[target] = {
+                ...(state.profiles[target] ?? {}),
+                ...state.profiles[key],
+              }
+              delete state.profiles[key]
+            }
+          }
+        }
+        if (!seen.has(target)) {
+          seen.add(target)
+          nextAdded.push(target)
+        }
+      }
+      if (!migrated.length) return { changed: false, migrated: [] }
+      state.addedModelKeys = nextAdded
+      if (state.activeModelKey && String(state.activeModelKey).startsWith('opencodex/')) {
+        const modelId = String(state.activeModelKey).slice('opencodex/'.length)
+        if (modelId) state.activeModelKey = `bridge-composer/${modelId}`
+      }
+      await writeState(state)
+      return { changed: true, migrated }
+    },
   }
 }

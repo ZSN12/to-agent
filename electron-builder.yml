@@ -21,6 +21,10 @@ files:
   - "!*.md"
 
 extraResources:
+  # OpenCodex is launched as an external Bun process; keep its actual runtime
+  # outside app.asar and point ocx at this stable app-owned path.
+  - from: node_modules/bun/bin/bun.exe
+    to: opencodex-runtime/bun.exe
   # scripts/build-z-runtime.mjs → runtime-packages (electron-builder strips node_modules)
   - from: vendor/taskweaver-z-runtime
     to: taskweaver-z-runtime
@@ -28,6 +32,7 @@ extraResources:
       - "lib/**/*"
       - "config/**/*"
       - "runtime-packages/**/*"
+      - "electron-vendor/**/*"
       - "package.json"
       - "taskweaver-z-client/**/*"
       - "taskweaver-dsh-client/**/*"
@@ -43,7 +48,12 @@ asarUnpack:
   - electron/preload.cjs
   - electron/backend/pty-shim.py
   - node_modules/node-pty/**/*
-  - node_modules/@bitkyc08/opencodex/**/*
+  # ocx is an external Bun process, not part of Electron's ASAR-aware loader.
+  # Its source imports the transitive runtime closure of @taskweaver/opencodex,
+  # so all packaged node_modules must be available on the real filesystem.
+  - node_modules/**/*
+  - node_modules/@taskweaver/opencodex/**/*
+  - vendor/opencodex/**/*
 
 mac:
   category: public.app-category.developer-tools
@@ -59,3 +69,8 @@ dmg:
 
 extraMetadata:
   main: electron/main.cjs
+
+# ESM dependencies imported from the flattened runtime-packages tree resolve
+# through a conventional node_modules ancestor. Add a relocatable self-link
+# after electron-builder has copied resources into the final app bundle.
+afterPack: scripts/after-pack-z-runtime.cjs

@@ -8,7 +8,7 @@ TaskWeaver Agent 后端基于 **Z Runtime**（`vendor/z-runtime/`，`@z/*`）。
 |------|------|
 | `index.mjs` | 对外统一 import |
 | `resolve-runtime.mjs` | `resolveTaskWeaverRuntimeRoot`、`resolveTaskWeaverHostLaunch`、`resolveRuntimeNodePath` |
-| `spawn-host.mjs` | `createZHostManager`（子进程 `dsh web`） |
+| `spawn-host.mjs` | `createZHostManager`（子进程 `dsh web`，`Z_*` 环境变量；就绪行 `z web:`；嵌入式 API-only，Electron 走 `/api`） |
 | `z-api-client.mjs` | `createZApiClient`（`@z/dsh-client-connection`） |
 
 ## 解析顺序（开发）

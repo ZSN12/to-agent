@@ -204,6 +204,12 @@ export function billedInputTokens(input: number, cacheRead: number, cacheWrite: 
   return Math.max(0, input) + Math.max(0, cacheRead) + Math.max(0, cacheWrite)
 }
 
+/** 与 `usage-store.getReport` / 用量看板同一口径（分母为 input + cacheRead） */
+export function dshCacheHitRate(inputTokens: number, cacheReadTokens: number): number {
+  const denom = inputTokens + cacheReadTokens
+  return denom > 0 ? cacheReadTokens / denom : 0
+}
+
 /** 整数缓存命中率（与 DSH StatsLine 展示一致，分母为计费输入） */
 export function cacheHitPercentDisplay(cacheRead: number, billedInput: number): number | null {
   if (billedInput <= 0) return null

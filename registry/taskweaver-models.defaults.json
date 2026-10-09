@@ -1,0 +1,21 @@
+{
+  "providers": {
+    "bridge-composer": {
+      "name": "Composer（内置桥）",
+      "api": "taskweaver-bridge",
+      "bridgeKind": "cursor",
+      "models": [
+        {
+          "id": "cursor/composer-2.5-fast",
+          "name": "Composer Fast",
+          "contextWindow": 200000
+        },
+        {
+          "id": "cursor/composer-2.5",
+          "name": "Composer 2.5",
+          "contextWindow": 200000
+        }
+      ]
+    }
+  }
+}

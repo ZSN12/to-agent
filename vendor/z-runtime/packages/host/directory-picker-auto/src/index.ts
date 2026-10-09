@@ -15,6 +15,7 @@ import type { Context } from '@z/cordis'
 // Empty type imports carry the `loader` and `webServer` Context merges for the reads below.
 import type {} from '@z/cordis-plugin-loader'
 import type {} from '@z/dsh-host-webserver'
+import { taskweaverEmbeddedFromEnv } from '@z/dsh-home-paths'
 import { canExecute, hasLinuxChooserBinary } from './probe.ts'
 import type { DirectoryPickerBackendKind } from './resolve.ts'
 import { resolveDirectoryPickerBackend } from './resolve.ts'
@@ -83,7 +84,12 @@ export async function apply(ctx: Context): Promise<void> {
       }
     }
     try {
-      for (const name of [BACKEND_PACKAGES[backend], SURFACE_PACKAGES[backend]]) {
+      const packages = [BACKEND_PACKAGES[backend]]
+      // TaskWeaver Electron owns the UI; skip DSH browser directory-picker surfaces.
+      if (!taskweaverEmbeddedFromEnv()) {
+        packages.push(SURFACE_PACKAGES[backend])
+      }
+      for (const name of packages) {
         ids.push(await ctx.loader.create({ name }))
       }
     } catch (cause) {

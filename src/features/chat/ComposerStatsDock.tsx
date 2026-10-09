@@ -148,17 +148,39 @@ export function ComposerStatsDock({
 
     const hasTiming = userMessages > 0 || assistantMessages > 0 || timing.llmMs > 0 || timing.toolMs > 0
     const hasTokens = billed > 0 || tokens.output > 0
-    const ctxPct = liveContext?.contextPercent ?? stats.contextPercent
-    const ctxTokens = liveContext?.contextTokens ?? stats.contextTokens
-    const ctxWindow = liveContext?.contextWindow ?? stats.contextWindow ?? modelContextWindow
+    let lastAssistantUsage: Record<string, unknown> | null = null
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const u = messages[i]?.usage as Record<string, unknown> | undefined
+      if (u && ((typeof u.contextTokens === 'number' && u.contextTokens > 0) || (typeof u.inputTokens === 'number' && u.inputTokens > 0))) {
+        lastAssistantUsage = u
+        break
+      }
+    }
+    const fallbackContextTokens = lastAssistantUsage
+      ? (typeof lastAssistantUsage.contextTokens === 'number' && lastAssistantUsage.contextTokens > 0
+          ? lastAssistantUsage.contextTokens
+          : (typeof lastAssistantUsage.inputTokens === 'number' && lastAssistantUsage.inputTokens > 0
+              ? (lastAssistantUsage.inputTokens + (typeof lastAssistantUsage.cacheReadTokens === 'number' ? lastAssistantUsage.cacheReadTokens : 0))
+              : null))
+      : null
+
+    const rawCtxTokens = liveContext?.contextTokens ?? stats.contextTokens
+    const ctxTokens = (typeof rawCtxTokens === 'number' && rawCtxTokens > 0)
+      ? rawCtxTokens
+      : (fallbackContextTokens ?? rawCtxTokens)
+    const ctxWindow = liveContext?.contextWindow ?? stats.contextWindow ?? (typeof lastAssistantUsage?.contextWindow === 'number' ? lastAssistantUsage.contextWindow : null) ?? modelContextWindow
+    const rawCtxPct = liveContext?.contextPercent ?? stats.contextPercent
+    const ctxPct = (typeof ctxTokens === 'number' && ctxTokens > 0 && typeof ctxWindow === 'number' && ctxWindow > 0)
+      ? Math.round(ctxTokens / ctxWindow * 100)
+      : rawCtxPct
     const occupancy =
-      typeof ctxWindow === 'number' && ctxWindow > 0 && typeof ctxTokens === 'number'
+      typeof ctxWindow === 'number' && ctxWindow > 0 && typeof ctxTokens === 'number' && ctxTokens > 0
         ? {
             percent: Math.min(100, Math.max(0, Math.round(ctxTokens / ctxWindow * 100))),
             used: ctxTokens,
             window: ctxWindow,
           }
-        : typeof ctxWindow === 'number' && ctxWindow > 0 && typeof ctxPct === 'number'
+        : typeof ctxWindow === 'number' && ctxWindow > 0 && typeof ctxPct === 'number' && ctxPct > 0
           ? {
               percent: Math.min(100, Math.max(0, Math.round(ctxPct))),
               used: ctxTokens ?? 0,

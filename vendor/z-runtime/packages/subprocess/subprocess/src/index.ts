@@ -9,11 +9,11 @@
  */
 
 import { Context, Service } from '@z/cordis'
-import { DSH_ENV_PREFIX } from './types.ts'
+import { DSH_ENV_PREFIX, Z_ENV_PREFIX } from './types.ts'
 import type { SubprocessHandle, SubprocessSpawnSpec } from './types.ts'
 import type { SubprocessTerminalHandle, SubprocessTerminalSpawnSpec } from './types.ts'
 
-export { DSH_ENV_PREFIX } from './types.ts'
+export { DSH_ENV_PREFIX, Z_ENV_PREFIX } from './types.ts'
 export type {
   CollectedOutput,
   DshEnvironment,
@@ -60,7 +60,9 @@ export const SENSITIVE_ENV_PATTERN = /KEY|PASSWORD|SECRET|TOKEN/i
 export function scrubbedParentEnv(): Record<string, string> {
   const env: Record<string, string> = {}
   for (const [key, value] of Object.entries(process.env)) {
-    if (value !== undefined && !SENSITIVE_ENV_PATTERN.test(key) && !key.toUpperCase().startsWith(DSH_ENV_PREFIX)) env[key] = value
+    const upper = key.toUpperCase()
+    if (value !== undefined && !SENSITIVE_ENV_PATTERN.test(key)
+      && !upper.startsWith(DSH_ENV_PREFIX) && !upper.startsWith(Z_ENV_PREFIX)) env[key] = value
   }
   return env
 }

@@ -68,7 +68,7 @@ export function renderFileSandboxContext(filePolicy, workspaceRoot) {
     case 'read-only':
       return 'Current TaskWeaver file policy: read-only. File write/edit tools cannot modify files in this mode. If denied, you may request sandbox_permissions escalation (user approval). Bash may be OS-confined when a runner is available.'
     case 'workspace-write':
-      return `Current TaskWeaver file policy: workspace-write. File write/edit may modify files under the session workspace ${JSON.stringify(workspaceRoot)} and platform temp areas (/tmp, user temp), matching DSH writableRoots. Escalation to danger-full-access requires user approval via sandbox_permissions + justification.`
+      return `Current TaskWeaver file policy: workspace-write. File write/edit may modify files under the session workspace ${JSON.stringify(workspaceRoot)} and platform temp areas (/tmp, user temp), matching Z sandbox writableRoots. Escalation to danger-full-access requires user approval via sandbox_permissions + justification.`
     default:
       return 'Current TaskWeaver file policy: off (full access at the in-process fence; permission prompts still apply).'
   }

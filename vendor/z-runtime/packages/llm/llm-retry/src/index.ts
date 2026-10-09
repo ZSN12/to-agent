@@ -11,6 +11,7 @@ import z from '@z/schemastery'
 import type { Agent, RequestErrorAction } from '@z/dsh-agent'
 import { EMPTY_RESPONSE_CODE } from '@z/dsh-llm'
 import type { LlmFailure, ResolvedRetryPolicy } from '@z/dsh-llm'
+import { taskweaverEmbeddedFromEnv } from '@z/dsh-home-paths'
 import type { SessionEvent } from '@z/dsh-session'
 import { RetryId } from './brand.ts'
 import type { LlmRetryEventData } from './types.ts'
@@ -128,7 +129,7 @@ export function apply(ctx: Context, config: Config = {}, internals: RetryInterna
   validateConfig(config)
   const random = internals.random ?? Math.random
   const taskweaverEmbedded = internals.taskweaverEmbedded
-    ?? process.env.DSH_TASKWEAVER_EMBEDDED === '1'
+    ?? taskweaverEmbeddedFromEnv()
   const lifetime = new AbortController()
   const active = new Set<Promise<RequestErrorAction>>()
 

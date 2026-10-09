@@ -11,6 +11,8 @@ import {
   dshHomePath,
   expandHomePath,
   resolveDshHome,
+  taskweaverEmbeddedFromEnv,
+  Z_HOME_ENV,
 } from '@z/dsh-home-paths'
 
 afterEach(() => {
@@ -32,12 +34,20 @@ describe('dsh path helpers', () => {
     expect(expandHomePath('~other/.dsh')).toBe('~other/.dsh')
   })
 
-  it('resolves explicit path before DSH_HOME and the default', () => {
+  it('resolves explicit path before Z_HOME, DSH_HOME, and the default', () => {
     const envHome = join(homedir(), 'env-dsh')
+    const zHome = join(homedir(), 'env-z')
 
     expect(resolveDshHome('/tmp/explicit-dsh', { DSH_HOME: '~/env-dsh' })).toBe(resolve('/tmp/explicit-dsh'))
     expect(resolveDshHome(undefined, { DSH_HOME: '~/env-dsh' })).toBe(envHome)
+    expect(resolveDshHome(undefined, { [Z_HOME_ENV]: '~/env-z', DSH_HOME: '~/env-dsh' })).toBe(zHome)
     expect(resolveDshHome(undefined, {})).toBe(defaultDshHome())
+  })
+
+  it('reads TaskWeaver embedded flag from Z_* before DSH_*', () => {
+    expect(taskweaverEmbeddedFromEnv({ Z_TASKWEAVER_EMBEDDED: '1' })).toBe(true)
+    expect(taskweaverEmbeddedFromEnv({ DSH_TASKWEAVER_EMBEDDED: '1' })).toBe(true)
+    expect(taskweaverEmbeddedFromEnv({})).toBe(false)
   })
 
   it('treats an empty or whitespace-only DSH_HOME as unset', () => {

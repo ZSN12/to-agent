@@ -3,7 +3,7 @@ import fs from 'node:fs/promises'
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { sendToolTrace, summarizeToolInput } from './tool-trace.mjs'
 import { waitForRendererPermissionPrompt } from './permission-prompt-bridge.mjs'
-import { isPathInside, resolveThroughSymlinks } from './security-path.mjs'
+import { assertSafeWorkspacePath, isPathInside, resolveThroughSymlinks } from './security-path.mjs'
 import { checkFileMutationAllowed } from './fs-sandbox-fence.mjs'
 import {
   sandboxDenialMarker,
@@ -69,6 +69,21 @@ const activeExecution = new AsyncLocalStorage()
 
 function normalizeMode(value) {
   return PERMISSION_MODES.includes(value) ? value : 'ask'
+}
+
+async function isWithinDeclaredWriteScopes(workspacePath, candidate, writeScopes) {
+  if (!candidate || !Array.isArray(writeScopes)) return false
+  try {
+    const target = await assertSafeWorkspacePath(workspacePath, candidate)
+    for (const scope of writeScopes) {
+      if (typeof scope !== 'string' || !scope.trim()) continue
+      const allowed = await assertSafeWorkspacePath(workspacePath, scope)
+      if (isPathInside(allowed.realPath, target.realPath)) return true
+    }
+  } catch {
+    return false
+  }
+  return false
 }
 
 async function classifyToolCall(event, workspacePath) {
@@ -177,6 +192,9 @@ export function createPermissionService({
         webContents,
         hasAutoCheckpoint: false,
         conversationId: metadata.conversationId ?? null,
+        workspacePath: metadata.workspacePath ?? null,
+        writeScopes: Array.isArray(metadata.writeScopes) ? [...metadata.writeScopes] : null,
+        taskId: metadata.taskId ?? null,
       }, fn)
     },
     async authorize(event) {
@@ -233,12 +251,47 @@ export function createPermissionService({
   async function authorizeInner(event) {
       const active = activeExecution.getStore()
       const mode = normalizeMode(active?.mode)
-      const workspacePath = await Promise.resolve(getWorkspacePath(active?.conversationId))
+      const workspacePath = active?.workspacePath || await Promise.resolve(getWorkspacePath(active?.conversationId))
       const details = await classifyToolCall(event, workspacePath)
+
+      if (mode === 'readonly' && (
+        details.mutation
+        || details.mcp
+        || (details.tool === 'bash' && !isAutoApprovedBashReadonly(details))
+      )) {
+        const reason = details.mcp
+          ? '当前为只读权限模式，无法调用可能产生副作用的 MCP 工具。'
+          : details.tool === 'bash'
+            ? '当前为只读权限模式，只允许已识别的只读终端命令。'
+            : '当前为只读权限模式，无法修改文件。'
+        const trace = {
+          id: String(event.toolCallId ?? `${details.tool}-${Date.now()}`),
+          toolName: details.tool || 'tool',
+          status: 'blocked',
+          inputSummary: summarizeToolInput(details.tool, event.input),
+          resultSummary: reason,
+        }
+        await emitPermissionTrace(active, active?.webContents, trace)
+        return { block: true, reason }
+      }
+
+      if (details.mutation && Array.isArray(active?.writeScopes)
+        && !(await isWithinDeclaredWriteScopes(workspacePath, details.candidate, active.writeScopes))) {
+        const reason = '该实现子任务尝试修改声明的 writeScopes 之外的路径，操作已阻止。'
+        const trace = {
+          id: String(event.toolCallId ?? `${details.tool}-${Date.now()}`),
+          toolName: details.tool || 'tool',
+          status: 'blocked',
+          inputSummary: summarizeToolInput(details.tool, event.input),
+          resultSummary: `${reason}${active.taskId ? `（${active.taskId}）` : ''}`,
+        }
+        await emitPermissionTrace(active, active?.webContents, trace)
+        return { block: true, reason: trace.resultSummary }
+      }
 
       if (details.mutation && getFileSandboxPolicy) {
         const oneShot = consumeOneShotSandboxMode()
-        const basePolicy = await Promise.resolve(getFileSandboxPolicy(active?.conversationId))
+        const basePolicy = await Promise.resolve(getFileSandboxPolicy(active?.conversationId, workspacePath))
         const filePolicy = oneShot
           ? { mode: oneShot === 'danger-full-access' ? 'off' : oneShot }
           : basePolicy
@@ -361,18 +414,6 @@ export function createPermissionService({
         const pre = await runPreMutationSafely()
         if (!pre.ok) return pre
         return undefined
-      }
-
-      if (mode === 'readonly' && details.mutation) {
-        const trace = {
-          id: String(event.toolCallId ?? `${details.tool}-${Date.now()}`),
-          toolName: details.tool || 'tool',
-          status: 'blocked',
-          inputSummary: summarizeToolInput(details.tool, event.input),
-          resultSummary: '当前为只读权限模式，无法修改文件。',
-        }
-        await emitPermissionTrace(active, active?.webContents, trace)
-        return { block: true, reason: trace.resultSummary }
       }
 
       const autoReview = await Promise.resolve(getAutoReviewReads())

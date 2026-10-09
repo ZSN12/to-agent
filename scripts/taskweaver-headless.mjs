@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 无头单轮：复用 run-agent-read-smoke 管线（需已配置模型与 Z Host）。
+ * 无头单轮：复用 run-agent-read-smoke 管线；--fixture 可离线验证 CLI 协议。
  *
  *   node scripts/taskweaver-headless.mjs --text "只读列出根目录" [--preset taskweaver-readonly] [--json-summary]
  */
@@ -17,7 +17,9 @@ Headless wrapper around run-agent-read-smoke.mjs --local (see docs/taskweaver-he
 Options:
   --text <prompt>       User message for this turn (required)
   --preset <name>       Agent preset (default in smoke: taskweaver-readonly)
+  --workspace <path>    Workspace directory to bind the headless session to
   --json-summary        After run, print one JSON summary line on stdout
+  --fixture             Emit deterministic smoke events without starting Host/model
   --help                Show this help
 
 Passthrough to smoke: --model, --thinking, --idle-timeout, --context-budget
@@ -55,6 +57,7 @@ function buildSummary(exitCode, lastCompleted, lastFailed) {
       wrapper: 'taskweaver-headless',
       ok: exitCode === 0,
       exitCode,
+      fixture: lastCompleted.fixture === true,
       elapsedMs: lastCompleted.elapsedMs ?? null,
       agentPreset: lastCompleted.agentPreset ?? null,
       reportPath: lastCompleted.reportPath ?? null,
@@ -67,6 +70,7 @@ function buildSummary(exitCode, lastCompleted, lastFailed) {
       wrapper: 'taskweaver-headless',
       ok: false,
       exitCode,
+      fixture: lastFailed.fixture === true,
       elapsedMs: null,
       agentPreset: null,
       reportPath: lastFailed.reportDir ?? null,
@@ -76,13 +80,14 @@ function buildSummary(exitCode, lastCompleted, lastFailed) {
   }
   return {
     wrapper: 'taskweaver-headless',
-    ok: exitCode === 0,
+    ok: false,
     exitCode,
+    fixture: false,
     elapsedMs: null,
     agentPreset: null,
     reportPath: null,
     text: null,
-    error: exitCode === 0 ? null : 'no smoke status line captured',
+    error: 'no smoke status line captured',
   }
 }
 
@@ -124,7 +129,8 @@ if (!jsonSummary) {
       if (obj?.status === 'completed') lastCompleted = obj
     }
     const exitCode = code ?? 1
-    console.log(JSON.stringify(buildSummary(exitCode, lastCompleted, lastFailed)))
-    process.exit(exitCode)
+    const summary = buildSummary(exitCode, lastCompleted, lastFailed)
+    console.log(JSON.stringify(summary))
+    process.exit(summary.ok ? exitCode : (exitCode || 1))
   })
 }

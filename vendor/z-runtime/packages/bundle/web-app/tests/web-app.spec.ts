@@ -16,7 +16,7 @@ import { Context } from '@z/cordis'
 import { createLaunchEnvironmentSnapshot, DSH_LAUNCH_ENVIRONMENT_KEY } from '@z/dsh-launch-environment'
 import SystemPrompt from '@z/dsh-system-prompt'
 import type { WebServer } from '@z/dsh-host-webserver'
-import { apply, Config, internals } from '../src/index.ts'
+import { apply, Config, internals, taskweaverEmbedded } from '../src/index.ts'
 
 vi.mock('node:child_process', async importOriginal => ({
   ...await importOriginal<typeof import('node:child_process')>(),
@@ -144,6 +144,33 @@ describe('web-app runtime glue', () => {
     expect(section?.text).toContain('pnpm run dev:web')
     const webRuntime = contributions.find(contribution => contribution.name === 'web-runtime')
     expect(webRuntime?.resolve()).toEqual({ DSH_WEB_URL: 'http://127.0.0.1:4567' })
+    await ctx.fiber.dispose()
+  })
+
+  it('skips frontend-static and web-surface context when TaskWeaver embedded', async () => {
+    vi.stubEnv('DSH_TASKWEAVER_EMBEDDED', '1')
+    expect(taskweaverEmbedded()).toBe(true)
+    const ctx = new Context()
+    const { server, seat } = fakeHttpServer()
+    ctx.provide('webServer', server)
+    const contributions: BashContribution[] = []
+    ctx.provide('shellEnv', {
+      register: (contribution: BashContribution) => {
+        contributions.push(contribution)
+        return () => {}
+      },
+    } as never)
+    provideLoader(ctx)
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    apply(ctx, new Config({ openBrowser: false, printUrl: true, surfaceContext: true, trustedHosts: [] }))
+    await ctx.plugin(SystemPrompt, { persona: '' })
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(seat()).toBeUndefined()
+    expect(log).toHaveBeenCalledWith('dsh web: http://127.0.0.1:4567')
+    const assembly = await ctx.systemPrompt.assemble()
+    expect(assembly.sections.find(entry => entry.name === 'app:web-surface')).toBeUndefined()
+    expect(contributions.find(contribution => contribution.name === 'web-runtime')).toBeUndefined()
     await ctx.fiber.dispose()
   })
 

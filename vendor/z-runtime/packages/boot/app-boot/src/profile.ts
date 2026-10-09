@@ -112,12 +112,13 @@ export function resolveProfileDir(name: string, home: string = resolveDshHome())
 
 /** The shipped profile templates auto-initialized on first use, by name. */
 export const PROFILE_TEMPLATES: Record<string, readonly string[]> = {
-  web: ['@z/dsh-base', '@z/dsh-web-app'],
+  web: ['@z/dsh-base', '@z/dsh-taskweaver'],
   headless: ['@z/dsh-base', '@z/dsh-headless'],
 }
 
 /** Installation-owned bundle tuples normalized to the shipped template. */
 const INSTALLATION_OWNED_PROFILE_TUPLES: Record<string, readonly string[]> = {
+  web: ['@z/dsh-base', '@z/dsh-web-app'],
   headless: ['@z/dsh-base', '@z/dsh-web-app', '@z/dsh-headless'],
 }
 

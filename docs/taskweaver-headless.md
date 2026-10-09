@@ -42,7 +42,8 @@ headless 会注入 `--local`（隔离临时 userData + 本机起 Host）。下�
 
 | 标志 | 默认 | 说明 |
 |------|------|------|
-| `--preset` | `taskweaver-readonly` | `standard` \| `code` \| `minimal` \| `cordis` \| `taskweaver-code` \| `taskweaver-readonly` \| `taskweaver-optimized` |
+| `--preset` | `taskweaver-readonly` | `standard` \| `code` \| `minimal` \| `cordis` \| `taskweaver-code` \| `taskweaver-readonly` \| `taskweaver-optimized` \| `taskweaver-pi-lite` |
+| `--workspace` | TaskWeaver 仓库目录 | 绑定会话的工作区；必须是已存在的非根目录。定时任务会显式传入保存的工作区。 |
 | `--model` | 活动模型 | 覆盖 profile 中的模型 key |
 | `--thinking` | profile | `default` \| `off` \| `minimal` \| `low` \| `medium` \| `high` \| `xhigh` \| `max` |
 | `--idle-timeout` | 提供商默认 | 流空闲超时（ms），1000–300000 |
@@ -50,7 +51,8 @@ headless 会注入 `--local`（隔离临时 userData + 本机起 Host）。下�
 | `--base-url` | — | headless **不**使用（仅 smoke 在未 `--local` 时连接已有 Host） |
 | `--installed` | — | headless **不**注入；若手动透传会改变 runtime 解析路径 |
 
-定时任务常用：`--preset taskweaver-readonly`（只读）或 `taskweaver-code`（多 Agent 编码）。
+定时任务常用：`--preset taskweaver-readonly`（只读）。应用内打开时，定时任务可以调用 DAG 编排；关闭应用后的 LaunchAgent 目前只支持单 Agent headless，不会执行 DAG。
+`TASKWEAVER_USER_DATA` 可覆盖默认的用户数据目录，供 LaunchAgent 指向桌面应用实际使用的数据与凭证。
 
 ## stdout / stderr 行为（当前实现）
 

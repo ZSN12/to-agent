@@ -49,3 +49,4 @@
 
 - id: tool-web
   name: '@z/dsh-tool-web'
+  disabled: true

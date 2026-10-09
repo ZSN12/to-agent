@@ -2,7 +2,7 @@
 
 > **索引：**阶段状态见 [`taskweaver-roadmap-2026-q4.md`](taskweaver-roadmap-2026-q4.md)；发版节奏见 [`release-rhythm-v1.2.md`](release-rhythm-v1.2.md)；headless 见 [`taskweaver-headless.md`](taskweaver-headless.md)。
 
-对齐仓库现状：**分支 `codex/taskweaver-v1.2.0`**、**HEAD `17d53cea`**（本地 **ahead 2**）、**tag `v1.2.0`**、已落盘本文档与路线图、**`npm run test:roadmap-gate`**。
+初始修订记录（2026-10-07）：**分支 `main`**、**HEAD `80b3e040`**（与 `origin/main` 一致）、**tag `v1.2.1`**。本轮 BCDE 状态以 §15 为准；工作区改动尚未提交。
 
 本版在「12 周总路线图」基础上，把 **已完成 / 进行中 / 未做** 写清楚，并给出 **版本切割、门禁、周计划、验收表**。
 
@@ -36,7 +36,9 @@
 
 ---
 
-## 1. 当前基线（截至 `17d53cea`）
+## 1. 当前基线记录（历史快照：`17d53cea`）
+
+本节记录计划最初编写时的历史快照，不代表当前完成状态；当前代码核对结果见 §15。
 
 ### 1.1 已交付（可视为 Done）
 
@@ -62,7 +64,7 @@
 | **E-02** | test:all 与 gate 对齐 | `f7218cf6` |
 | **A-07 部分** | 执行计划、优化日志、release-prepare | `f7218cf6` |
 
-### 1.3 仍属「代码在库 ≠ 已交付」
+### 1.3 当时仍属「代码在库 ≠ 已交付」的项目（历史快照）
 
 | 项 | 缺口 |
 |----|------|
@@ -373,4 +375,38 @@ npm run install:app
 
 ---
 
-**总结一句**：**v1.2 能力已基本进库**；完整计划的重心从「写代码」转到 **v1.2.1 发布闭合（A）→ compact/fork E2E（B/C）→ 单源 v1.3 → headless/Job v1.4**。
+**历史总结**：v1.2 能力已基本进库；后续重心转到 v1.2.1 发布闭合、compact/fork E2E、单源迁移与 headless/Job。
+
+---
+
+## 15. BCDE 当前代码复核（2026-10-07）
+
+当前基线为 `main` / `80b3e040`，与 `origin/main` 一致，版本 tag 为 `v1.2.1`。本轮完成的变更仍在工作区，未提交、未推送。本节覆盖前文的历史状态。
+
+### B — 上下文、Token、性能
+
+- **已实现/已有**：工作区 `@` 文件索引 5 秒快照缓存；相关性与 Repo Map 缓存增加过期和容量限制；Skill 解析按目标会话的 workspace/trust 取值；OpenCodex Cursor 工具名引导与错误说明；本轮工具活动摘要（编辑/查看/搜索/命令及可确认的增删行数）接入消息持久化与展示；16/32/48 KiB 预算预设、meter 与 Compact 提示已在基线。
+- **未闭合**：B-06 工具输出写回出口审计；B-07 安装版 Compact 真压历史验收；B-09 Host compaction preset 的实际运行验收；B-13～B-15 tool-cache 命中率、性能及 4 MB 会话压力数据。当前未宣称性能提升数值。
+- **验证**：本轮执行了 `npm run build` 和改动 `.mjs` 文件的 `node --check`；未运行测试套件或性能压测。
+
+### C — 会话单源与 Fork
+
+- **已实现/已有**：`preferDshTranscript` 为默认；Fork UI 行 ID 到本地消息 ID 的映射和失败关闭；多会话运行时上下文包含 model/workspace/permission 与 workspace trust；Fork 与 Git 检查点说明见 `docs/fork-and-git-checkpoints.md`；多会话审计已更新。
+- **未闭合**：C-02/C-03 停写双份正文及旧数据迁移暂缓，原因是本地正文还承担标题、搜索、错误提示及回退职责，需先设计 provenance、备份和回滚；C-04/C-06/C-10 的重连、多窗口及集成测试未运行；Fork 的真实 Host 安装版链路仍待手工验收。
+
+### D — Agent 对齐
+
+- **已实现/已有**：D-03 增加 DAG 单子任务取消；D-09 在 runtime workflow 增加无模型 fixture CLI smoke；D-10 扩展 read smoke；D-13 健康检查优先只读，并补充 OpenCodex 故障提示；其余 Plan、权限、进度、headless、调度能力以现有实现为准。
+- **未闭合**：D-06 需要 Host 提供 session-scoped MCP tools 筛选与持久化 API；当前 Host 公开接口无法可靠地按会话改写全局 MCP catalog。本轮未加入静态伪配置。CI fixture workflow 变更尚未在远端执行。
+
+### E — 生态与工程化
+
+- **已实现/已有**：Hook runner 增加 30 秒超时、进程树终止与每路 64 KiB 输出上限；Git 检查点、定时任务、终端/诊断 IPC 拆分为独立注册模块，公共 IPC 结果封装抽到 `ipc-utils.mjs`；prompt 组装仍由既有独立模块承担；新增安装版 E2E 清单。
+- **未闭合**：安装包 E2E 清单尚未实际执行；Hook 的 workspace 命令以当前用户权限运行，只应对可信 workspace 启用。
+
+### 本轮验证边界
+
+- `npm run build`：早先一次通过；最新一次在 `tsc -b` 失败，错误集中于新增未跟踪的 `src/components/DiffViewer.tsx`（缺少 `diff-match-patch` 依赖、类型定义和 JSX `style` 类型）。该文件归属尚未确认，未擅自改动。
+- `node --check`：已核查的 Electron backend / smoke 脚本通过；`git diff --check` 通过。
+- 未运行任何测试套件、未运行安装版/真实模型 E2E、未做性能压测；CI 尚未验证。
+- 未清理分析文档，也未删除 vendor 下出现的未跟踪 semantic-search / inline-edit 包；它们未纳入本轮 BCDE 交付验收。

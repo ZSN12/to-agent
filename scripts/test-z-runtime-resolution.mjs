@@ -46,6 +46,18 @@ try {
     appPath,
     resourcesPath: null,
     isPackaged: false,
+    env: { TASKWEAVER_DSH_RUNTIME: external },
+  }), external, 'development supports fallback to TASKWEAVER_DSH_RUNTIME')
+  assert.equal(resolveTaskWeaverRuntimeRoot({
+    appPath,
+    resourcesPath: null,
+    isPackaged: false,
+    env: { TASKWEAVER_Z_RUNTIME: external, TASKWEAVER_DSH_RUNTIME: '/other/path' },
+  }), external, 'TASKWEAVER_Z_RUNTIME has precedence over TASKWEAVER_DSH_RUNTIME')
+  assert.equal(resolveTaskWeaverRuntimeRoot({
+    appPath,
+    resourcesPath: null,
+    isPackaged: false,
     env: {},
   }), appDeploy, 'development prefers the deployed in-repo runtime')
   const sourceOnlyApp = path.join(tempRoot, 'source-only-app')
@@ -95,11 +107,18 @@ try {
   const builderConfig = await fs.readFile(path.join(projectRoot, 'electron-builder.yml'), 'utf8')
   assert.match(builderConfig, /from:\s*vendor\/taskweaver-z-runtime[\s\S]*to:\s*taskweaver-z-runtime/)
   assert.match(builderConfig, /runtime-packages\/\*\*\/\*/)
+  assert.match(builderConfig, /electron-vendor\/\*\*\/\*/, 'packaged Z runtime must include in-process bridge transport')
   const buildScript = await fs.readFile(path.join(projectRoot, 'scripts', 'build-z-runtime.mjs'), 'utf8')
   assert.match(buildScript, /TASKWEAVER_Z_RUNTIME_DEPLOY_DIR/)
   assert.match(buildScript, /TASKWEAVER_Z_RUNTIME_CLIENT_DIR/)
   const hostBuildConfig = JSON.parse(await fs.readFile(path.join(projectRoot, 'vendor/z-runtime/tsconfig.host.taskweaver.json'), 'utf8'))
   assert.ok(hostBuildConfig.references.some((entry) => entry.path === './packages/fs/tool-fs-search'), 'preset-only search plugin must be typecompiled before bundling, not deployed from stale lib/types')
+  for (const forbidden of ['./packages/fs/tool-fs-inline-edit', './packages/fs/tool-fs-semantic-search']) {
+    assert.ok(
+      !hostBuildConfig.references.some((entry) => entry.path === forbidden),
+      `experimental ${forbidden} must not be in tsconfig.host.taskweaver.json (unfinished; breaks strict tsc)`,
+    )
+  }
   assert.match(buildScript, /TASKWEAVER_RUNTIME_PACKAGES|runtime-packages/)
 
   console.log(`Z runtime resolution passed: packaged resources, dev override, monorepo fallback (${TASKWEAVER_RUNTIME_PACKAGES}), host cwd, packaging paths.`)

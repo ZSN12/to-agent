@@ -55,6 +55,8 @@ export function mergeRegistryCost(modelKey, piCost, registry) {
     confidence: entry.confidence ?? 'high',
     currency: entry.currency ?? 'USD',
     adapter: entry.source ?? null,
+    hasInputPrice: entry.input_per_million != null && Number.isFinite(Number(entry.input_per_million)),
+    hasOutputPrice: entry.output_per_million != null && Number.isFinite(Number(entry.output_per_million)),
   }
   return { cost, priceMeta: meta }
 }

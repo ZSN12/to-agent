@@ -265,7 +265,7 @@ export function CustomProviderSection({
 
       {!hideTabs && tab === 'builtin' ? (
         <p className="custom-provider-hint">
-          使用页头「添加模型」选择 DeepSeek、Anthropic、OpenRouter 等内置提供方，或「扫描本地模型」接入 OpenCodex / Cursor / 反重力 通道。
+          使用页头「添加模型」选择 DeepSeek、Anthropic、OpenRouter 等内置提供方，或「扫描本地官方 Agent」接入 Cursor Composer、Antigravity 等订阅模型。
         </p>
       ) : showCustom ? (
         <>

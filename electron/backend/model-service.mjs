@@ -370,7 +370,14 @@ export function createModelService({
         }
       : bundledPrice.cost
     const priceMeta = remotePricing
-      ? { source: 'taskweaver-remote-registry', synced_at: registryEntry?.updatedAt ?? null, confidence: registryEntry?.confidence ?? 'curated' }
+      ? {
+          source: 'taskweaver-remote-registry',
+          synced_at: registryEntry?.updatedAt ?? null,
+          confidence: registryEntry?.confidence ?? 'curated',
+          currency: remotePricing.currency ?? 'USD',
+          hasInputPrice: remotePricing.input != null && Number.isFinite(Number(remotePricing.input)),
+          hasOutputPrice: remotePricing.output != null && Number.isFinite(Number(remotePricing.output)),
+        }
       : bundledPrice.priceMeta
     const reasoningCatalog = reasoningCatalogFromHostModel(model)
     return {
@@ -500,6 +507,14 @@ export function createModelService({
     }
   }
 
+  /** Custom gateways are probed on demand (「探测最新模型」); skip idle /v1/models on routine catalog reads. */
+  function shouldLiveDiscoverProvider(providerId, addedModelKeys) {
+    const id = String(providerId ?? '')
+    if (!id.startsWith('custom-')) return true
+    const prefix = `${id}/`
+    return addedModelKeys.some((key) => String(key).startsWith(prefix))
+  }
+
   async function mergeLiveProviderModels(
     directory,
     candidateModels,
@@ -508,11 +523,13 @@ export function createModelService({
     profiles,
     registryByKey = new Map(),
     registryVersion = null,
+    addedModelKeys = [],
   ) {
     if (!userDataPath || !dshRuntimeRoot) return
     const home = dshHome()
     const failures = []
     for (const providerRow of directory.providers ?? []) {
+      if (!shouldLiveDiscoverProvider(providerRow.provider, addedModelKeys)) continue
       let mayDiscover = providerRow.active
       if (!mayDiscover) {
         try {
@@ -635,6 +652,7 @@ export function createModelService({
         profiles,
         registryByKey,
         registryVersion,
+        addedModelKeys,
       )
       for (const model of candidateModels) catalogByKey.set(model.key, model)
     }

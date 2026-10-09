@@ -15,8 +15,25 @@ const modelService = {
 }
 const profileStore = { async getThinkingLevel() { return null } }
 const webContents = { send() {}, isDestroyed() { return false } }
-
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+const bridgeComposerModelService = {
+  async getDshModelConfig(modelKey) {
+    const id = modelKey.replace(/^bridge-composer\//, '')
+    return {
+      provider: 'bridge-composer',
+      id,
+      apiKey: 'secret-for-test-only',
+      name: 'Composer',
+      contextWindow: 200_000,
+      maxTokens: 32_000,
+      active: true,
+    }
+  },
+  async listProvidersAuth() {
+    return [{ id: 'bridge-composer', configured: true }]
+  },
+}
 
 /**
  * 等待某个条件成立再继续。
@@ -194,7 +211,10 @@ function createMockRuntime({
     },
     llm: {
       async providers() {
-        return { result: { ok: true, value: { providers: [{ provider: 'test', active: true, settingsNs: 'llm-pi-ai', settingsPath: ['providers', 'test'] }] } } }
+        return { result: { ok: true, value: { providers: [
+          { provider: 'test', active: true, settingsNs: 'llm-pi-ai', settingsPath: ['providers', 'test'] },
+          { provider: 'bridge-composer', active: true, settingsNs: 'llm-pi-ai', settingsPath: ['providers', 'bridge-composer'] },
+        ] } } }
       },
     },
     credentials: { async set() { return { result: { ok: true, value: {} } } } },
@@ -1117,12 +1137,12 @@ try {
     userDataPath: blankLegacyHome,
     getWorkspacePath: () => blankLegacyHome,
     profileStore,
-    modelService,
+    modelService: bridgeComposerModelService,
   })
   try {
     const blankLegacyTurn = blankLegacyService.send({
       text: 'quick Composer smoke',
-      modelKey: 'opencodex/cursor/composer-2.5',
+      modelKey: 'bridge-composer/cursor/composer-2.5',
       conversationId: 'legacy-composer-blank',
       webContents,
     })
@@ -1165,12 +1185,12 @@ try {
     userDataPath: startedLegacyHome,
     getWorkspacePath: () => startedLegacyHome,
     profileStore,
-    modelService,
+    modelService: bridgeComposerModelService,
   })
   try {
     await assert.rejects(startedLegacyService.send({
       text: 'continue old Composer chat',
-      modelKey: 'opencodex/cursor/composer-2.5',
+      modelKey: 'bridge-composer/cursor/composer-2.5',
       conversationId: 'legacy-composer-started',
       webContents,
     }), (error) => error.code === 'COMPOSER_PRESET_MIGRATION_REQUIRED'

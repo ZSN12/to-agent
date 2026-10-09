@@ -276,6 +276,12 @@ assert.equal(
 
 assert.equal(shouldUpgradeFailedTask('test'), true)
 assert.equal(shouldUpgradeFailedTask('research'), false)
+assert.equal(shouldUpgradeFailedTask('research', { kind: 'transport', retryable: true }), true,
+  'research may fail over once when the selected provider transport fails')
+assert.equal(shouldUpgradeFailedTask('research', { kind: 'transient', retryable: true }), true,
+  'research may fail over once when the provider returns a transient service error')
+assert.equal(shouldUpgradeFailedTask('research', { kind: 'configuration', retryable: false }), false,
+  'research must not retry model configuration errors')
 const upgradePick = selectModelForTask('review', catalog, 'balanced', { excludeModelKeys: ['strong'] })
 assert.notEqual(upgradePick.model.key, 'strong')
 
@@ -311,6 +317,41 @@ assert.match(retryOutcome.evidenceBundle.error_summary, /model-b failed/)
 assert.deepEqual(retryOutcome.evidenceBundle.attempted_actions.map((item) => item.split(':')[0]), ['model-a', 'model-b'])
 assert.equal(retryEvidence.length, 2)
 
+const researchTransportAttempts = []
+const researchTransportOutcome = await runWithSubtaskRetries({
+  task: { id: 'T-research-transport', taskType: 'research', title: '跨路由传输故障恢复' },
+  initialModelKey: 'opencodex/cursor/composer-2.5',
+  maxRetries: 1,
+  canRetry: ({ failure }) => shouldUpgradeFailedTask('research', failure),
+  failureDomainForModel: (modelKey) => modelKey.startsWith('opencodex/cursor/')
+    ? 'opencodex/cursor'
+    : modelKey.split('/')[0],
+  run: async (modelKey) => {
+    researchTransportAttempts.push(modelKey)
+    if (modelKey === 'opencodex/cursor/composer-2.5') throw new Error('fetch failed')
+    return { text: 'verified' }
+  },
+  chooseModel: async ({ excludeFailureDomains }) => {
+    assert.deepEqual(excludeFailureDomains, ['opencodex/cursor'],
+      'Cursor transport failure must exclude that adapter family before research failover')
+    return { modelKey: 'openai-codex/gpt-6-luna', displayName: 'GPT-6 Luna' }
+  },
+})
+assert.deepEqual(researchTransportAttempts, ['opencodex/cursor/composer-2.5', 'openai-codex/gpt-6-luna'])
+assert.equal(researchTransportOutcome.modelKey, 'openai-codex/gpt-6-luna')
+assert.equal(researchTransportOutcome.attempts, 1)
+
+let researchConfigurationRetryChoices = 0
+await assert.rejects(runWithSubtaskRetries({
+  task: { id: 'T-research-config', taskType: 'research' },
+  initialModelKey: 'model-a',
+  maxRetries: 2,
+  canRetry: ({ failure }) => shouldUpgradeFailedTask('research', failure),
+  run: async () => { throw Object.assign(new Error('invalid api key'), { status: 401 }) },
+  chooseModel: async () => { researchConfigurationRetryChoices += 1; return { modelKey: 'model-b' } },
+}), (error) => error.evidenceBundle?.failure_class === 'configuration')
+assert.equal(researchConfigurationRetryChoices, 0, 'research configuration failures remain non-retryable')
+
 assert.equal(classifySubtaskFailure(Object.assign(new Error('permission denied'), { code: 'EACCES' })).kind, 'environment')
 assert.deepEqual(classifySubtaskFailure(Object.assign(new Error('tool policy stopped the turn'), { code: 'AGENT_BLOCKED' })), {
   kind: 'policy-blocked',
@@ -320,6 +361,8 @@ assert.deepEqual(classifySubtaskFailure(Object.assign(new Error('tool policy sto
 assert.equal(classifySubtaskFailure(Object.assign(new Error('no final response'), { code: 'AGENT_EMPTY_RESPONSE' })).retryable, false,
   'empty completed turns must not trigger a potentially costly model upgrade')
 assert.equal(classifySubtaskFailure(Object.assign(new Error('rate limit'), { status: 429 })).retryable, true)
+assert.equal(classifySubtaskFailure(new Error('fetch failed')).kind, 'transport',
+  'fetch failed must be classified as provider transport failure for route-domain failover')
 assert.equal(classifySubtaskFailure(Object.assign(new Error('invalid api key'), { status: 401 })).kind, 'configuration')
 assert.equal(classifySubtaskFailure(new Error('request aborted'), { signal: { aborted: true } }).retryable, false)
 

@@ -1,0 +1,32 @@
+{
+  "name": "@z/dsh-bridge-core",
+  "description": "TaskWeaver in-process model bridge: pluggable backends (Cursor, Antigravity, custom relay)",
+  "version": "0.1.0-taskweaver",
+  "private": true,
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./invariant": {
+      "types": "./lib/types/invariant.d.ts",
+      "default": "./lib/invariant.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/types/**/*.d.ts"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@z/dsh-llm": "workspace:^"
+  },
+  "devDependencies": {
+    "@z/dsh-llm": "workspace:^"
+  }
+}

@@ -6,17 +6,13 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const modelKey = 'xiaomi/mimo-v2.6-flash'
+const modelKey = process.env.TASKWEAVER_LIVE_MODEL_KEY?.trim() || 'xiaomi/mimo-v2.6-flash'
 const livePlannerRequestText = '要求两项彼此独立研究任务并行完成，且不得修改文件或运行命令。T1 只读 package.json，核实 Electron 主进程入口字段及开发启动脚本；T2 只读 electron/backend/dsh-session-model.mjs，核实 sessionModelMatches 在 Host 未回报 reasoningEffort 时如何判定匹配。两项都只回答对应问题，列出实际文件行号，不做目录发现，不扩展范围。'
 const fixedPlan = { tasks: [
   { id: 'T1', title: '梳理应用启动入口', taskType: 'research', role: '项目入口研究', description: '只读研究且范围仅限 package.json、electron/main.cjs、src/main.tsx。仅确认 Electron 的 main 入口、主进程窗口/后端启动边界和 React 渲染入口；不要推断 preload 或 IPC 内部实现，也不要读取其他文件。直接读取这三个已知文件，不做目录发现；每个文件最多读取一次，用文件名和相关行号支持结论，完成后立即汇报。', scopePaths: ['package.json', 'electron/main.cjs', 'src/main.tsx'], dependsOn: [] },
-  { id: 'T2', title: '梳理 Agent 请求链路', taskType: 'research', role: 'Agent 链路研究', description: '只读研究且范围仅限 src/features/app/useAppBackend.ts、electron/preload.cjs、electron/backend/register-ipc.mjs、electron/backend/dsh-chat-service.mjs。所有工具路径参数必须使用工作区相对路径，禁止使用 /Users/... 绝对路径。按调用链核实：useAppBackend.ts 的 bridge.chat.send；preload.cjs 的 chat.send → invoke("chat:send")；register-ipc.mjs 的 chat:send handler → executeChatRequest → executeSingleAgent/chat.send，并核对本文件中的 chat 实例由 createDshChatService(...) 创建；dsh-chat-service.mjs 的 send → 新 turn 的 api.sessions.prompt。每个文件各做一次窄 grep，使用精确搜索项：useAppBackend 只搜 bridge.chat.send；preload 只搜 chat:send，禁止把通用 invoke( 放进 pattern；register-ipc 一次组合搜索 chat:send、executeChatRequest、executeSingleAgent、createDshChatService、chat.send；服务文件一次组合搜索 async function send 与 api.sessions.prompt。然后 read：register-ipc 中 helper 与 handler 用一个连续范围覆盖、绑定位置单独读；服务 send 与新 turn prompt 尽量一次连续范围覆盖，不要拆分相邻范围；useAppBackend/preload 各读一次。不要依赖或猜测行号，不要用同义词二次搜索，不要重读重叠或已经覆盖的范围。grep 命中可支持符号与行号，read 用于确认调用关系。输出四行“文件/函数 → 下一跳”，附实际行号，并指出 createDshChatService 绑定证据。不要搜索 queue、turn lifecycle、权限、审批、响应投影或 Host 旁支；验收项证实后立即汇报。', scopePaths: ['src/features/app/useAppBackend.ts', 'electron/preload.cjs', 'electron/backend/register-ipc.mjs', 'electron/backend/dsh-chat-service.mjs'], dependsOn: [] },
+  { id: 'T2', title: '梳理 Agent 请求链路', taskType: 'research', role: 'Agent 链路研究', description: '只读研究且范围仅限 src/features/app/useAppBackend.ts、electron/preload.cjs、electron/backend/register-ipc.mjs、electron/backend/dsh-chat-service.mjs。所有工具路径参数必须使用工作区相对路径，禁止使用 /Users/... 绝对路径。按调用链核实：useAppBackend.ts 的 bridge.chat.send；preload.cjs 的 chat.send → invoke("chat:send")；register-ipc.mjs 的 chat:send handler → executeChatRequest → executeSingleAgent/chat.send，并核对本文件中的 chat 实例由 createDshChatService(...) 创建；dsh-chat-service.mjs 的 send → 新 turn 的 api.sessions.prompt。每个文件各做一次窄 grep，使用精确搜索项：useAppBackend 只搜 bridge.chat.send；preload 只搜 chat:send，禁止把通用 invoke( 放进 pattern；register-ipc 一次组合搜索 chat:send、executeChatRequest、executeSingleAgent、createDshChatService、chat.send；服务文件只用组合 pattern `async function send\\(\\{|const reply = rpcValue\\(await api\\.sessions\\.prompt\\(`，避免误命中 sendApprovalOutcome 等其他函数。然后 read：register-ipc 中 helper 与 handler 用一个连续范围覆盖、绑定位置单独读；服务文件按 grep 中 `async function send({` 与新回合 `const reply = rpcValue(await api.sessions.prompt(` 的首末行号，offset = 首行 - 5（至少为 1），limit >= 末行 - offset + 10，一次读完整范围，禁止拆成相邻范围；useAppBackend/preload 各读一次。不要依赖或猜测未由 grep 返回的行号，不要用同义词二次搜索，不要重读重叠或已经覆盖的范围。grep 命中可支持符号与行号，read 用于确认调用关系。输出四行“文件/函数 → 下一跳”，附实际行号，并指出 createDshChatService 绑定证据。不要搜索 queue、turn lifecycle、权限、审批、响应投影或 Host 旁支；验收项证实后立即汇报。', scopePaths: ['src/features/app/useAppBackend.ts', 'electron/preload.cjs', 'electron/backend/register-ipc.mjs', 'electron/backend/dsh-chat-service.mjs'], dependsOn: [] },
 ] }
 const fixedChainTask = fixedPlan.tasks.find((task) => task.id === 'T2')
-fixedChainTask.description = fixedChainTask.description.replace(
-  '服务 send 与新 turn prompt 尽量一次连续范围覆盖，不要拆分相邻范围',
-  'dsh-chat-service.mjs 必须恰好一次 read：根据当前 grep 输出的 send/prompt 行号选一个连续范围，覆盖 send 至新 turn sessions.prompt，并将 limit 设到足够大；禁止拆成相邻 read',
-)
 const hashPlan = (plan) => createHash('sha256').update(JSON.stringify(plan)).digest('hex')
 const fixedPlanHash = hashPlan(fixedPlan)
 const READ_ONLY_TOOL_ALLOWLIST = new Set(['read', 'grep', 'glob', 'find', 'ls', 'run_code'])
@@ -79,8 +75,9 @@ function inspectChildRequestHeaders(events, plannedModelKey, expectedReasoningEf
       || normalized(header.model) !== normalized(expectedRoute.model))) {
       mismatches.push(`request/header ${index + 1} route ${header.provider}/${header.model} does not match ${plannedModelKey}`)
     }
-    if (!header.reasoningEffort) reasons.push(`request/header ${index + 1} does not expose reasoningEffort`)
-    else if (expectedReasoningEffort && normalized(header.reasoningEffort) !== normalized(expectedReasoningEffort)) {
+    if (expectedReasoningEffort && !header.reasoningEffort) {
+      reasons.push(`request/header ${index + 1} does not expose the requested reasoningEffort`)
+    } else if (expectedReasoningEffort && normalized(header.reasoningEffort) !== normalized(expectedReasoningEffort)) {
       mismatches.push(`request/header ${index + 1} reasoningEffort ${header.reasoningEffort} does not match ${expectedReasoningEffort}`)
     }
   }
@@ -197,7 +194,7 @@ function auditFixedT2ToolDiscipline(calls) {
     ['src/features/app/useAppBackend.ts', 'bridge\\.chat\\.send'],
     ['electron/preload.cjs', 'chat:send'],
     ['electron/backend/register-ipc.mjs', 'chat:send|executeChatRequest|executeSingleAgent|createDshChatService|chat\\.send'],
-    ['electron/backend/dsh-chat-service.mjs', 'async function send|api\\.sessions\\.prompt'],
+    ['electron/backend/dsh-chat-service.mjs', 'async function send\\(\\{|const reply = rpcValue\\(await api\\.sessions\\.prompt\\('],
   ])
   const expectedReadCounts = new Map([
     ['src/features/app/useAppBackend.ts', 1],
@@ -295,12 +292,12 @@ function runOfflineEvidenceSelfTest() {
   assertCase(!/(?:约第\s*\d+\s*行|around line\s+\d+)/i.test(fixedChainTask.description), 'fixed DAG fixture must not embed stale approximate line numbers')
   assertCase(['bridge.chat.send', 'invoke("chat:send")', 'executeChatRequest', 'createDshChatService', 'api.sessions.prompt'].every((symbol) => fixedChainTask.description.includes(symbol)), 'fixed DAG fixture must name stable call-chain symbols and adapter binding')
   assertCase(/preload 只搜 chat:send[\s\S]*禁止把通用 invoke\(/.test(fixedChainTask.description), 'fixed DAG fixture must avoid broad invoke searches in preload')
-  assertCase(/dsh-chat-service\.mjs 必须恰好一次 read[\s\S]*禁止拆成相邻 read/.test(fixedChainTask.description), 'fixed DAG fixture must require one contiguous service read')
+  assertCase(/服务文件只用组合 pattern[\s\S]*服务文件按 grep 中[\s\S]*一次读完整范围，禁止拆成相邻范围/.test(fixedChainTask.description), 'fixed DAG fixture must require one contiguous service read using the exact method and new-turn prompt anchors')
   const exactSearches = [
     ['src/features/app/useAppBackend.ts', 'bridge\\.chat\\.send'],
     ['electron/preload.cjs', 'chat:send'],
     ['electron/backend/register-ipc.mjs', 'chat:send|executeChatRequest|executeSingleAgent|createDshChatService|chat\\.send'],
-    ['electron/backend/dsh-chat-service.mjs', 'async function send|api\\.sessions\\.prompt'],
+    ['electron/backend/dsh-chat-service.mjs', 'async function send\\(\\{|const reply = rpcValue\\(await api\\.sessions\\.prompt\\('],
   ].map(([path, pattern]) => ({ name: 'grep', arguments: JSON.stringify({ path, pattern }) }))
   const readCoveringAnchors = (filePath, patterns, padding = 4) => {
     const absolutePath = path.resolve(root, filePath)
@@ -362,6 +359,7 @@ function runOfflineEvidenceSelfTest() {
     header: { config: { provider, model, ...(reasoningEffort ? { reasoningEffort } : {}) } },
   }, 1)
   assertCase(inspectChildRequestHeaders([header('xiaomi', 'mimo-v2.6-flash', 'medium')], 'xiaomi/mimo-v2.6-flash', 'medium').status === 'verified', 'matching route and effort verify')
+  assertCase(inspectChildRequestHeaders([header('bridge-composer', 'cursor/composer-2.5', null)], 'bridge-composer/cursor/composer-2.5').status === 'verified', 'providers without reasoning effort verify a matching route')
   assertCase(inspectChildRequestHeaders([], 'xiaomi/mimo-v2.6-flash', 'medium').status === 'unverified', 'missing host header remains unverified')
   assertCase(inspectChildRequestHeaders([header('xiaomi', 'mimo-v2.6-flash', null)], 'xiaomi/mimo-v2.6-flash', 'medium').status === 'unverified', 'missing reasoning effort is not inferred')
   assertCase(inspectChildRequestHeaders([header('other', 'different', 'high')], 'xiaomi/mimo-v2.6-flash', 'medium').status === 'failed', 'route and effort mismatch fail')
@@ -398,6 +396,7 @@ Options:
 Environment:
   TASKWEAVER_LIVE_REAL_PLANNER=1  Equivalent to --real-planner
   TASKWEAVER_LIVE_THINKING=<level> Default reasoning override when --thinking is omitted
+  TASKWEAVER_LIVE_MODEL_KEY=<provider/model> Override the smoke-test route
   TASKWEAVER_Z_RUNTIME=<path>     Runtime deployment to test
 `
 
@@ -631,27 +630,60 @@ try {
 
   const modelsDoc = JSON.parse(await fs.readFile(resolveTaskWeaverModelsPath(userData), 'utf8'))
   const modelsDocForSync = structuredClone(modelsDoc)
-  for (const provider of Object.values(modelsDoc.providers ?? {})) {
+  const bridgeModelPrefix = 'bridge-composer/'
+  const bridgeModelId = modelKey.startsWith(bridgeModelPrefix)
+    ? modelKey.slice(bridgeModelPrefix.length)
+    : null
+  if (bridgeModelId) {
+    const legacyModel = modelsDoc.providers?.opencodex?.models?.find((candidate) => candidate?.id === bridgeModelId)
+    if (!legacyModel) throw new Error(`${modelKey} has no matching model in the saved OpenCodex catalog`)
+    const modelEntry = { id: legacyModel.id, name: legacyModel.name || legacyModel.id }
+    for (const field of ['contextWindow', 'maxTokens', 'input', 'reasoning', 'thinkingLevelMap', 'defaultThinkingLevel', 'compat']) {
+      if (legacyModel[field] !== undefined) modelEntry[field] = structuredClone(legacyModel[field])
+    }
+    modelsDocForSync.providers['bridge-composer'] = {
+      name: 'Composer（隔离烟测）',
+      api: 'taskweaver-bridge',
+      bridgeKind: 'cursor',
+      models: [modelEntry],
+    }
+  }
+  for (const provider of Object.values(modelsDocForSync.providers ?? {})) {
     if (provider && typeof provider === 'object') delete provider.apiKey
   }
   await fs.mkdir(path.dirname(isolatedModelsPath), { recursive: true })
-  await fs.writeFile(isolatedModelsPath, `${JSON.stringify(modelsDoc, null, 2)}\n`, { mode: 0o600 })
+  await fs.writeFile(isolatedModelsPath, `${JSON.stringify(modelsDocForSync, null, 2)}\n`, { mode: 0o600 })
   try {
     await fs.copyFile(
       path.join(userData, 'taskweaver-model-profiles.json'),
       isolatedModelProfilesPath,
     )
     await fs.chmod(isolatedModelProfilesPath, 0o600)
+    if (bridgeModelId) {
+      const isolatedProfiles = JSON.parse(await fs.readFile(isolatedModelProfilesPath, 'utf8'))
+      const legacyKey = `opencodex/${bridgeModelId}`
+      const legacyProfile = isolatedProfiles.profiles?.[legacyKey]
+      if (!legacyProfile) throw new Error(`No saved routing profile exists for ${legacyKey}`)
+      const bridgeKey = `${bridgeModelPrefix}${bridgeModelId}`
+      isolatedProfiles.profiles[bridgeKey] = { ...legacyProfile, enabledForAllocation: true }
+      if (!isolatedProfiles.addedModelKeys.includes(bridgeKey)) isolatedProfiles.addedModelKeys.push(bridgeKey)
+      await fs.writeFile(isolatedModelProfilesPath, `${JSON.stringify(isolatedProfiles, null, 2)}\n`, { mode: 0o600 })
+    }
   } catch (error) {
     if (error.code !== 'ENOENT') throw error
   }
 
-  hostManager = createZHostManager({ runtimeRoot, userDataPath: reportDir, executable: process.execPath })
+  hostManager = createZHostManager({
+    runtimeRoot,
+    opencodexPackageRoot: path.join(root, 'vendor', 'opencodex'),
+    userDataPath: reportDir,
+    executable: process.execPath,
+  })
   let { api } = await hostManager.start()
   const sync = await ensureModelsJsonSyncedToDshHost({ hostManager, userDataPath: reportDir, modelsDocOverride: modelsDocForSync })
   if (sync.synced) ({ api } = await hostManager.start())
 
-  const profileStore = createProfileStore(userData)
+  const profileStore = createProfileStore(reportDir)
   if (thinkingOverride) {
     // Test-only in-memory override. Never writes the user's model profile.
     profileStore.getThinkingLevel = async () => thinkingOverride === 'default' ? null : thinkingOverride
@@ -917,6 +949,8 @@ try {
     && historiesWithSessions.every((history) => history.requestEvidence?.status === 'verified')
   const readOnlyToolCallsVerified = historiesWithSessions.length > 0
     && historiesWithSessions.every((history) => history.readOnlyToolAudit?.status === 'verified')
+  const nativeReadOnlyToolCallsVerified = historiesWithSessions.length > 0
+    && historiesWithSessions.every((history) => !history.readOnlyToolAudit?.observed?.some((call) => call.name === 'run_code'))
   const fixedT2History = histories.find((history) => history.id === 'T2')
   const fixedT2ToolDiscipline = plannerMode === 'fixed-fixture'
     ? auditFixedT2ToolDiscipline(fixedT2History?.calls ?? [])
@@ -935,6 +969,7 @@ try {
     ...(readonlyPresetIntegrity.status === 'verified' ? [] : ['source and deployed read-only preset hashes do not match']),
     ...(readonlyPresetSessionEvidence.status === 'verified' ? [] : [`research/review tasks did not load taskweaver-readonly in distinct Host sessions: ${readonlyPresetSessionEvidence.mismatches.join(', ') || 'no read-only tasks'}`]),
     ...(taskRouteMetadataConsistent ? [] : ['task route metadata does not match the smoke test model']),
+    ...(nativeReadOnlyToolCallsVerified ? [] : ['a read-only DAG child used the Code Mode run_code wrapper instead of native tools']),
     ...(plannerSourceStatus !== 'failed' ? [] : ['live Planner source was not proven by Host events and captured plan hash']),
     ...(fixedPlannerFixtureStatus !== 'failed' ? [] : ['fixed Planner fixture hash or absence of Planner run was not verified']),
     ...(fixedPlanToolDisciplineStatus !== 'failed' ? [] : [`fixed T2 tool-discipline audit failed (${fixedT2ToolDiscipline.issues.join('; ')})`]),
@@ -1043,6 +1078,7 @@ try {
       taskRouteMetadataConsistent,
       childHostRouteEvidenceVerified,
       readOnlyToolCallsVerified,
+      nativeReadOnlyToolCallsVerified,
       distinctSessions: new Set(actualTaskSessions).size === actualTaskSessions.length,
       parallelOverlapVerified,
       concurrentAgentTurnsVerified,
@@ -1064,6 +1100,7 @@ try {
   await fs.writeFile(path.join(reportDir, 'report.json'), JSON.stringify(report, null, 2), { mode: 0o600 })
   const checksPassed = report.checks.allTasksDone && taskRouteMetadataConsistent
     && childHostRouteEvidenceVerified && readOnlyToolCallsVerified
+    && nativeReadOnlyToolCallsVerified
     && report.checks.readOnlyPresets
     && plannerSourceStatus !== 'failed'
     && fixedPlannerFixtureStatus !== 'failed'

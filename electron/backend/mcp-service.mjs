@@ -41,10 +41,15 @@ function validateServer(value) {
     env: value.env ?? {},
     enabled: value.enabled === true,
     authMethod: value.authMethod === 'oauth' ? 'oauth' : (value.authMethod === 'pat' ? 'pat' : undefined),
+    version: typeof value.version === 'string' ? value.version : undefined,
+    pinned: typeof value.pinned === 'boolean' ? value.pinned : undefined,
+    installedAt: typeof value.installedAt === 'string' ? value.installedAt : undefined,
+    marketplaceId: typeof value.marketplaceId === 'string' ? value.marketplaceId : undefined,
   }
 }
 
 function exposedServer(server, state) {
+  const inBackoff = Boolean(state?.backoffUntil && state.backoffUntil > Date.now())
   return {
     id: server.id,
     transport: server.transport,
@@ -56,6 +61,19 @@ function exposedServer(server, state) {
     toolCount: state?.tools?.length ?? 0,
     error: state?.error ?? null,
     authMethod: server.authMethod ?? null,
+    version: server.version ?? null,
+    pinned: server.pinned ?? false,
+    installedAt: server.installedAt ?? null,
+    marketplaceId: server.marketplaceId ?? null,
+    health: {
+      consecutiveFailures: state?.consecutiveFailures ?? 0,
+      lastFailureAt: state?.lastFailureAt ?? null,
+      lastSuccessAt: state?.lastSuccessAt ?? null,
+      backoffUntil: state?.backoffUntil ?? null,
+      inBackoff,
+      evicted: Boolean(state?.evicted),
+      evictionReason: state?.evictionReason ?? null,
+    },
   }
 }
 
@@ -196,12 +214,66 @@ export function createMcpService({ userData, connectClient, safeStorage } = {}) 
     if (state?.client) await state.client.close()
   }
 
-  async function connect(server) {
+  function recordFailure(id, errorMessage = 'MCP 服务异常') {
+    let state = connections.get(id)
+    if (!state) {
+      state = {
+        status: 'error',
+        client: null,
+        tools: [],
+        error: errorMessage,
+        pending: null,
+        consecutiveFailures: 0,
+        lastFailureAt: null,
+        lastSuccessAt: null,
+        backoffUntil: null,
+        evicted: true,
+        evictionReason: errorMessage,
+      }
+      connections.set(id, state)
+    }
+    const failures = (state.consecutiveFailures || 0) + 1
+    state.consecutiveFailures = failures
+    state.lastFailureAt = Date.now()
+    const backoffMs = Math.min(60_000, 5_000 * Math.pow(2, Math.max(0, failures - 1)))
+    state.backoffUntil = Date.now() + backoffMs
+    state.status = 'error'
+    state.error = errorMessage
+    state.evicted = true
+    state.evictionReason = errorMessage
+    if (state.client) {
+      state.client.close().catch(() => {})
+      state.client = null
+    }
+    state.tools = []
+    return state
+  }
+
+  async function connect(server, { force = false } = {}) {
     const existing = connections.get(server.id)
     if (existing?.status === 'connected') return existing
     if (existing?.status === 'connecting') return existing.pending
 
-    const state = { status: 'connecting', client: null, tools: [], error: null, pending: null }
+    if (!force && existing?.backoffUntil && existing.backoffUntil > Date.now()) {
+      existing.status = 'error'
+      existing.evicted = true
+      return existing
+    }
+
+    const state = existing || {
+      status: 'connecting',
+      client: null,
+      tools: [],
+      error: null,
+      pending: null,
+      consecutiveFailures: 0,
+      lastFailureAt: null,
+      lastSuccessAt: null,
+      backoffUntil: null,
+      evicted: false,
+      evictionReason: null,
+    }
+    state.status = 'connecting'
     connections.set(server.id, state)
     state.pending = (async () => {
       let client
@@ -229,14 +301,16 @@ export function createMcpService({ userData, connectClient, safeStorage } = {}) 
         state.client = client
         state.tools = (listing.tools ?? []).filter((tool) => TOOL_NAME.test(tool.name ?? ''))
         state.status = 'connected'
+        state.error = null
+        state.consecutiveFailures = 0
+        state.backoffUntil = null
+        state.evicted = false
+        state.evictionReason = null
+        state.lastSuccessAt = Date.now()
         return state
       } catch (error) {
         await client?.close().catch(() => {})
-        state.status = 'error'
-        // Transport/provider errors can echo headers, environment values or URLs.
-        // Never publish raw errors across the renderer boundary.
-        state.error = 'MCP 连接或工具发现失败，请检查服务配置与授权。'
-        return state
+        return recordFailure(server.id, 'MCP 连接或工具发现失败，请检查服务配置与授权。')
       } finally {
         state.pending = null
       }
@@ -382,11 +456,19 @@ export function createMcpService({ userData, connectClient, safeStorage } = {}) 
   async function getCustomTools({ taskType } = {}) {
     const definitions = []
     const statuses = []
+    const evictedServers = []
     for (const server of await configured()) {
       if (!server.enabled) continue
       const state = await connect(server)
       statuses.push(exposedServer(server, state))
-      if (state.status !== 'connected') continue
+      if (state.status !== 'connected' || state.evicted) {
+        evictedServers.push({
+          id: server.id,
+          reason: state.evictionReason || state.error || 'MCP 服务失联已自动摘除',
+          backoffUntil: state.backoffUntil,
+        })
+        continue
+      }
       for (const tool of state.tools) {
         if (taskType && taskType !== 'implementation' && tool.annotations?.readOnlyHint !== true) continue
         const name = `mcp__${server.id}__${tool.name}`
@@ -394,11 +476,14 @@ export function createMcpService({ userData, connectClient, safeStorage } = {}) 
         const execute = async (_toolCallId, params, signal) => {
           if (signal?.aborted) throw new Error('MCP 工具调用已停止')
           const current = connections.get(server.id)
-          if (current?.status !== 'connected') throw new Error(`MCP 服务 ${server.id} 已断开`)
+          if (current?.status !== 'connected' || !current.client) {
+            throw new Error(`MCP 服务 ${server.id} 已断开或已摘除`)
+          }
           let result
           try {
             result = await current.client.callTool({ name: tool.name, arguments: params }, signal ? { signal } : undefined)
-          } catch {
+          } catch (callError) {
+            recordFailure(server.id, 'MCP 工具调用失败，请检查服务状态与授权。')
             throw new Error('MCP 工具调用失败，请检查服务状态与授权。')
           }
           if (result?.isError || result?.error) throw new Error('MCP 服务返回工具错误。')
@@ -418,7 +503,7 @@ export function createMcpService({ userData, connectClient, safeStorage } = {}) 
         }
       }
     }
-    return { tools: definitions, statuses }
+    return { tools: definitions, statuses, evictedServers }
   }
 
   async function prepareRuntimeIntegration() {
@@ -493,6 +578,38 @@ export function createMcpService({ userData, connectClient, safeStorage } = {}) 
     return saveServer(config)
   }
 
+  async function probeServer(id, { force = false } = {}) {
+    if (!SERVER_ID.test(id ?? '')) throw new Error('MCP 服务 ID 无效')
+    const server = (await configured()).find((item) => item.id === id)
+    if (!server) throw new Error(`未找到 MCP 配置：${id}`)
+    if (!server.enabled) throw new Error(`MCP 服务 ${id} 当前已停用`)
+    const state = await connect(server, { force })
+    return exposedServer(server, state)
+  }
+
+  async function probeAllServers({ force = false } = {}) {
+    const servers = await configured()
+    const results = []
+    for (const server of servers) {
+      if (!server.enabled) continue
+      const state = await connect(server, { force })
+      results.push(exposedServer(server, state))
+    }
+    return results
+  }
+
+  function resetBackoff(id) {
+    const state = connections.get(id)
+    if (state) {
+      state.consecutiveFailures = 0
+      state.backoffUntil = null
+      state.evicted = false
+      state.evictionReason = null
+      if (state.status === 'error') state.status = 'disconnected'
+    }
+    return true
+  }
+
   return {
     listServers,
     saveServer,
@@ -501,6 +618,9 @@ export function createMcpService({ userData, connectClient, safeStorage } = {}) 
     getCustomTools,
     prepareRuntimeIntegration,
     testConnection,
+    probeServer,
+    probeAllServers,
+    resetBackoff,
     configureGitHub,
     getGitHubPersonalAccessToken,
     loginGitHubWithOAuth,

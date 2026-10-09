@@ -34,7 +34,6 @@
   "peerDependencies": {
     "@z/dsh-client-runtime": "workspace:^",
     "@z/dsh-client-ui-slots": "workspace:^",
-    "@z/dsh-client-ui-renderer": "workspace:^",
     "@z/dsh-host-apiproxy": "workspace:^",
     "@z/dsh-invariants": "workspace:^",
     "@z/cordis": "workspace:^",
@@ -44,7 +43,6 @@
   "devDependencies": {
     "@z/dsh-client-runtime": "workspace:^",
     "@z/dsh-client-ui-slots": "workspace:^",
-    "@z/dsh-client-ui-renderer": "workspace:^",
     "@z/dsh-host-apiproxy": "workspace:^",
     "@z/dsh-invariants": "workspace:^",
     "@types/react": "~18.3.1",

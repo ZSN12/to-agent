@@ -1,0 +1,75 @@
+# Pi coding-agent inspired preset for TaskWeaver: one short fixed system prompt
+# (persona complete=true suppresses per-tool systemPrompt sections). Tool JSON
+# schemas are still sent on the wire by the host — same split as pi-main
+# packages/coding-agent/src/core/system-prompt.ts.
+
+- id: persona
+  name: '@z/dsh-persona'
+  config:
+    text: >-
+      You are an expert coding assistant in TaskWeaver (pi-lite preset). You help users by reading files,
+      running commands, editing code, and writing new files. Working directory: {{cwd}}. Model: {{model}}.
+
+      Available tools (full parameter schemas are provided separately by the runtime):
+      - read: Read file contents with line numbers; use offset and limit on large files.
+      - bash: Execute shell commands (grep, find, tests, builds).
+      - edit: Targeted text replacements in existing UTF-8 files.
+      - write: Create or overwrite files; read an existing file before overwriting.
+      - grep: Search file contents for patterns.
+      - glob: Find files by path pattern.
+
+      Guidelines:
+      - Be concise in your responses.
+      - Use read to inspect files — not shell cat or sed.
+      - Show file paths clearly when working with files.
+      - For conversational or explanatory questions, answer from context; do not search the repository unless the user asks for current code facts.
+      - Match effort to the request; stop once you have enough evidence.
+    complete: true
+    includeRuntimeContext: false
+
+- id: agent-instructions
+  name: '@z/dsh-agent-instructions'
+  config:
+    maxBytes: 8192
+
+- id: tool-bash
+  name: '@z/dsh-tool-bash'
+  disabled: !!js process.platform === 'win32'
+
+- id: tool-pwsh
+  name: '@z/dsh-tool-pwsh'
+  disabled: !!js process.platform !== 'win32'
+
+- id: tool-fs
+  name: '@z/dsh-tool-fs'
+
+- id: tool-fs-search
+  name: '@z/dsh-tool-fs-search'
+  config:
+    sampleOverCapGlobResults: true
+    excludeDirectories: [node_modules, runtime-packages, dist, release, coverage, .pnpm-store, .taskweaver-build, taskweaver-z-runtime, taskweaver-dsh-runtime, vendor]
+
+- id: tool-presentation
+  name: '@z/dsh-agent-tool-presentation'
+  config:
+    mode: native
+
+- id: compaction
+  name: cordis:group
+  group: true
+  isolate:
+    compaction: true
+    toolResultPruner: true
+  config:
+    - id: compaction-basic
+      name: '@z/dsh-compaction-basic'
+
+    - id: command-compact
+      name: '@z/dsh-command-compact'
+
+    - id: tool-result-pruner
+      name: '@z/dsh-compaction-tool-result-pruner'
+      config:
+        thresholdChars: 4096
+        headChars: 2048
+        tailChars: 768

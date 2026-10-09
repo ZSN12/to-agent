@@ -2,9 +2,45 @@ import { useCallback, useEffect, useState } from 'react'
 import { ChevronDown, GitBranch, RefreshCw, RotateCcw, Save, Shield } from 'lucide-react'
 import type { BashSandboxPreference, RoutingPortfolio, SandboxProbeResult } from '../../shared/app-api'
 import { WorktreeMergeActions } from '../worktree/WorktreeMergeActions'
+import { RoutingPortfolioForm } from './RoutingPortfolioForm'
 
 function getPortfolioApi() {
   return window.taskweaver?.portfolio ?? null
+}
+
+function validatePortfolioFormShape(value: Record<string, unknown>): string | null {
+  const checkObject = (candidate: unknown, field: string) => {
+    if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return `${field} 必须是对象。`
+    return null
+  }
+  const checkArray = (candidate: unknown, field: string, items: 'strings' | 'objects') => {
+    if (candidate === undefined) return null
+    if (!Array.isArray(candidate)) return `${field} 必须是数组。`
+    if (items === 'strings' && candidate.some((item) => typeof item !== 'string')) return `${field} 只能包含文本。`
+    if (items === 'objects' && candidate.some((item) => !item || typeof item !== 'object' || Array.isArray(item))) return `${field} 中的每一项都必须是对象。`
+    return null
+  }
+
+  for (const [field, items] of [
+    ['subscriptions', 'objects'],
+    ['free_model_patterns', 'strings'],
+    ['balance_policies', 'objects'],
+  ] as const) {
+    const error = checkArray(value[field], field, items)
+    if (error) return error
+  }
+  if (value.usage_source !== undefined) {
+    const error = checkObject(value.usage_source, 'usage_source')
+    if (error) return error
+  }
+  if (value.quota_cycles !== undefined) {
+    const error = checkObject(value.quota_cycles, 'quota_cycles')
+    if (error) return error
+    const policies = (value.quota_cycles as Record<string, unknown>).policies
+    const policyError = checkArray(policies, 'quota_cycles.policies', 'objects')
+    if (policyError) return policyError
+  }
+  return null
 }
 
 function SettingToggle({
@@ -31,6 +67,8 @@ function SettingToggle({
 
 export function RoutingPortfolioSettingsPanel({ onToast }: { onToast: (message: string) => void }) {
   const [raw, setRaw] = useState('')
+  const [portfolio, setPortfolio] = useState<RoutingPortfolio | null>(null)
+  const [portfolioJsonError, setPortfolioJsonError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -95,7 +133,9 @@ export function RoutingPortfolioSettingsPanel({ onToast }: { onToast: (message: 
       setError('加载失败')
       return
     }
+    setPortfolio(res.data)
     setRaw(JSON.stringify(res.data, null, 2))
+    setPortfolioJsonError(null)
     await loadFeatures()
   }, [loadFeatures])
 
@@ -103,25 +143,46 @@ export function RoutingPortfolioSettingsPanel({ onToast }: { onToast: (message: 
     void load()
   }, [load])
 
-  const save = async () => {
+  const persistPortfolio = async (candidate: RoutingPortfolio) => {
     const api = getPortfolioApi()
     if (!api) return
-    let parsed: RoutingPortfolio
+    setSaving(true)
     try {
-      parsed = JSON.parse(raw) as RoutingPortfolio
+      const res = await api.save(candidate)
+      if (!res.ok) {
+        onToast(res.error || ('message' in res ? String(res.message) : '保存失败'))
+        return
+      }
+      setPortfolio(candidate)
+      setRaw(JSON.stringify(candidate, null, 2))
+      setPortfolioJsonError(null)
+      onToast('路由作品集已保存')
+    } catch (saveError) {
+      onToast(saveError instanceof Error ? `保存失败：${saveError.message}` : '保存路由作品集失败')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const save = async () => {
+    if (portfolioJsonError) return
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(raw) as unknown
     } catch {
       onToast('JSON 格式无效，请检查后再保存')
       return
     }
-    setSaving(true)
-    const res = await api.save(parsed)
-    setSaving(false)
-    if (!res.ok) {
-      onToast(!res.ok && 'message' in res ? String(res.message) : '保存失败')
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      setPortfolioJsonError('JSON 顶层必须是对象。')
       return
     }
-    onToast('路由作品集已保存')
-    void load()
+    const shapeError = validatePortfolioFormShape(parsed as Record<string, unknown>)
+    if (shapeError) {
+      setPortfolioJsonError(shapeError)
+      return
+    }
+    await persistPortfolio(parsed as RoutingPortfolio)
   }
 
   const resetToBundled = async () => {
@@ -135,7 +196,9 @@ export function RoutingPortfolioSettingsPanel({ onToast }: { onToast: (message: 
       onToast(!res.ok && 'message' in res ? String(res.message) : '恢复失败')
       return
     }
+    setPortfolio(res.data.portfolio)
     setRaw(JSON.stringify(res.data.portfolio, null, 2))
+    setPortfolioJsonError(null)
     onToast('已恢复默认路由作品集')
   }
 
@@ -276,7 +339,7 @@ export function RoutingPortfolioSettingsPanel({ onToast }: { onToast: (message: 
             <SettingToggle
               checked={worktreeIsolation}
               label="Worktree 隔离（实现 / 测试子任务）"
-              hint="在独立 git worktree 执行，不自动合并到主工作区"
+              hint="启用且 Git 工作区干净时，写入范围互不重叠的实现任务可并行；各自改动需检查后手动合并"
               onChange={(v) => { void toggleWorktree(v) }}
             />
           </div>
@@ -343,6 +406,20 @@ export function RoutingPortfolioSettingsPanel({ onToast }: { onToast: (message: 
         </article>
       </div>
 
+      {loading ? <p className="settings-list-empty">加载路由作品集…</p> : (
+        <RoutingPortfolioForm
+          portfolio={portfolio}
+          saving={saving}
+          disabled={Boolean(portfolioJsonError)}
+          onChange={(next) => {
+            setPortfolio(next)
+            setRaw(JSON.stringify(next, null, 2))
+            setPortfolioJsonError(null)
+          }}
+          onSave={persistPortfolio}
+        />
+      )}
+
       {worktrees.length > 0 && (
         <div className="mcp-section">
           <div className="mcp-section-header">
@@ -381,7 +458,7 @@ export function RoutingPortfolioSettingsPanel({ onToast }: { onToast: (message: 
         <div className="mcp-section-header">
           <div>
             <h3>能力作品集（高级）</h3>
-            <p>订阅偏好、时段加价、OpenUsage 配额周期；默认模板 pricing/routing-portfolio.json</p>
+            <p>路由配置按当前用户单独保存。可配置该用户的订阅模型与免费渠道；订阅余额与刷新周期请在上方「订阅额度」查看。默认模板不假定任何人的订阅。</p>
           </div>
           <button
             type="button"
@@ -401,10 +478,30 @@ export function RoutingPortfolioSettingsPanel({ onToast }: { onToast: (message: 
               <p className="settings-list-empty">加载作品集…</p>
             ) : (
               <>
+                {portfolioJsonError && <p className="settings-inline-error">{portfolioJsonError}</p>}
                 <textarea
                   className="routing-portfolio-editor"
                   value={raw}
-                  onChange={(event) => setRaw(event.target.value)}
+                  onChange={(event) => {
+                    const nextRaw = event.target.value
+                    setRaw(nextRaw)
+                    try {
+                      const parsed = JSON.parse(nextRaw) as unknown
+                      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+                        setPortfolioJsonError('JSON 顶层必须是对象。')
+                        return
+                      }
+                      const shapeError = validatePortfolioFormShape(parsed as Record<string, unknown>)
+                      if (shapeError) {
+                        setPortfolioJsonError(shapeError)
+                        return
+                      }
+                      setPortfolio(parsed as RoutingPortfolio)
+                      setPortfolioJsonError(null)
+                    } catch {
+                      setPortfolioJsonError('JSON 格式无效；修复 JSON 后才能编辑或保存结构化配置。')
+                    }
+                  }}
                   rows={16}
                   spellCheck={false}
                   aria-label="路由作品集 JSON"
@@ -421,7 +518,7 @@ export function RoutingPortfolioSettingsPanel({ onToast }: { onToast: (message: 
                   <button
                     type="button"
                     className="settings-primary-button"
-                    disabled={saving}
+                    disabled={saving || Boolean(portfolioJsonError)}
                     onClick={() => { void save() }}
                   >
                     <Save size={14} />

@@ -6,6 +6,7 @@ import { createAppStateStore } from '../electron/backend/app-state-store.mjs'
 import { createUsageStore } from '../electron/backend/usage-store.mjs'
 import { createChatTurnPersistence } from '../electron/backend/chat-turn-persistence.mjs'
 import { IPC_ERROR_MESSAGE_MAX_LENGTH } from '../electron/backend/config.mjs'
+import { humanizeBridgeTransportError } from '../electron/backend/cursor-tool-guidance.mjs'
 
 // Execute the production IPC persistence helpers with real stores, no Electron
 // or model provider. This checks delayed IPC and aggregate accounting contracts.
@@ -17,17 +18,14 @@ try {
   const conversationId = (await appState.getState()).conversationId
   const activeKey = 'local/test'
   const source = await fs.readFile(new URL('../electron/backend/register-ipc.mjs', import.meta.url), 'utf8')
-  const wrapperStart = source.indexOf('function ipcHandle(')
-  const wrapperEnd = source.indexOf('\n/**', wrapperStart)
-  assert.ok(wrapperStart >= 0 && wrapperEnd > wrapperStart)
-  const ipcHandle = new Function(`${source.slice(wrapperStart, wrapperEnd)}\nreturn ipcHandle`)()
+  const { ipcHandle } = await import('../electron/backend/ipc-utils.mjs')
   const start = source.indexOf('  const handleChatError = async')
   const end = source.indexOf('  // ========== chat:send main handler', start)
   assert.ok(start >= 0 && end > start)
   const { handleChatError, createAssistantMessage } = new Function('appState', 'usageStore', 'persistNativeTurn',
-    'IPC_ERROR_MESSAGE_MAX_LENGTH', 'humanizeOpenCodexTransportError',
+    'IPC_ERROR_MESSAGE_MAX_LENGTH', 'humanizeBridgeTransportError',
     `${source.slice(start, end)}\nreturn {handleChatError,createAssistantMessage}`)(
-    appState, usageStore, persistNativeTurn, IPC_ERROR_MESSAGE_MAX_LENGTH, (message) => message)
+    appState, usageStore, persistNativeTurn, IPC_ERROR_MESSAGE_MAX_LENGTH, humanizeBridgeTransportError)
   const result = { turnId: 'first', startedAt: Date.now(), text: 'completed turn', thinking: 'reasoning',
     fileChanges: [{ path: 'src/main.ts', addedLines: 2, deletedLines: 1 }],
     usage: { inputTokens: 10, outputTokens: 2, elapsedMs: 50 } }
@@ -58,7 +56,9 @@ try {
   await assert.rejects(handleChatError(error, 'ipc-failed', '12:01', conversationId), candidate => candidate === error)
   let messages = (await appState.getConversationState(conversationId)).messages
   assert.equal(messages.filter(message => message.id === 'z-turn-failed').length, 1)
-  assert.equal(messages.filter(message => message.id === 'z-turn-failed-error').length, 1)
+  assert.equal(messages.filter(message => message.id === 'z-turn-failed-error').length, 0,
+    'failed turn with partial output must not create a duplicate error message')
+  assert.match(messages.find(message => message.id === 'z-turn-failed').callout, /执行失败：Controlled failure/)
   assert.equal((await readLedger()).length, 2)
   assert.equal(messages.find(message => message.id === 'z-turn-failed').interrupted, true)
   assert.deepEqual(messages.find(message => message.id === 'z-turn-failed').fileChanges, result.fileChanges,
@@ -68,13 +68,17 @@ try {
   try {
     console.error = () => {}
     const broken = new Function('appState', 'usageStore', 'persistNativeTurn', 'IPC_ERROR_MESSAGE_MAX_LENGTH',
-      'humanizeOpenCodexTransportError', `${source.slice(start, end)}\nreturn {handleChatError}`)(appState, usageStore,
-      async () => { throw persistenceFailure }, IPC_ERROR_MESSAGE_MAX_LENGTH, (message) => message)
+      'humanizeBridgeTransportError', `${source.slice(start, end)}\nreturn {handleChatError}`)(appState, usageStore,
+      async () => { throw persistenceFailure }, IPC_ERROR_MESSAGE_MAX_LENGTH, humanizeBridgeTransportError)
     await assert.rejects(broken.handleChatError(error, 'disk-failed', '12:01', conversationId), candidate => candidate === error)
     assert.equal(error.persistenceError, persistenceFailure, 'commit failures must not replace the provider error')
   } finally { console.error = originalErrorLog }
-  await handleChatError(new Error('before native start'), 'early', '12:02', conversationId).catch(() => {})
-  assert.equal((await appState.getConversationState(conversationId)).messages.at(-1).text, '执行失败：before native start')
+  const earlyConversationId = (await appState.createThread({})).conversationId
+  await handleChatError(new Error('before native start'), 'early', '12:02', earlyConversationId).catch(() => {})
+  assert.equal(
+    (await appState.getConversationState(earlyConversationId)).messages.at(-1).text,
+    '执行失败：before native start',
+  )
   assert.equal((await readLedger()).length, 2, 'early errors invent no model usage')
 
   await persistNativeTurn({ conversationId, modelKey: activeKey, result: {

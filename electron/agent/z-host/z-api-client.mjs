@@ -18,6 +18,7 @@ export async function createZApiClient({ runtimeRoot, baseUrl }) {
   const rel = 'lib/types/client/web-api-client.js'
   const packagesRoot = resolveRuntimeNodePath(runtimeRoot)
   const candidates = [
+    packagesRoot ? path.join(packagesRoot, '@z/client-connection', rel) : null,
     packagesRoot ? path.join(packagesRoot, '@z/dsh-client-connection', rel) : null,
     packagesRoot ? path.join(packagesRoot, '@deepseek-ai/dsh-client-connection', rel) : null,
     path.join(runtimeRoot, TASKWEAVER_Z_RUNTIME_CLIENT_DIR, rel),
@@ -45,5 +46,3 @@ export async function createZApiClient({ runtimeRoot, baseUrl }) {
   })()
 }
 
-/** @deprecated use createZApiClient */
-export const createDshApiClient = createZApiClient

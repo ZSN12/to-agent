@@ -9,13 +9,27 @@ function getBridge() {
 export function ChatBehaviorSettingsPanel({ onToast }: { onToast?: (msg: string) => void }) {
   const [busyEnter, setBusyEnter] = useState<BusyEnterMode>('followUp')
   const [loading, setLoading] = useState(true)
+  const [selfHealingLoop, setSelfHealingLoop] = useState(false)
+  const [preferencesLoading, setPreferencesLoading] = useState(true)
 
   useEffect(() => {
     const bridge = getBridge()
-    void bridge?.models?.getBusyEnterMode?.().then((res) => {
-      if (res?.ok) setBusyEnter(res.data)
+    let cancelled = false
+    void Promise.all([
+      bridge?.models?.getBusyEnterMode?.(),
+      bridge?.preferences?.get?.(),
+    ]).then(([busyEnterResult, preferencesResult]) => {
+      if (cancelled) return
+      if (busyEnterResult?.ok) setBusyEnter(busyEnterResult.data)
+      if (preferencesResult?.ok) setSelfHealingLoop(preferencesResult.data.selfHealingLoop === true)
+    }).catch(() => {
+      // Keep safe defaults if the settings bridge is temporarily unavailable.
+    }).finally(() => {
+      if (cancelled) return
       setLoading(false)
+      setPreferencesLoading(false)
     })
+    return () => { cancelled = true }
   }, [])
 
   const save = useCallback(async (mode: BusyEnterMode) => {
@@ -29,6 +43,19 @@ export function ChatBehaviorSettingsPanel({ onToast }: { onToast?: (msg: string)
     setBusyEnter(res.data)
     onToast?.(mode === 'followUp' ? '已设为：忙时 Enter 加入排队追问（Z 默认）' : '已设为：忙时 Enter 发送纠偏')
   }, [onToast])
+
+  const saveSelfHealingLoop = useCallback(async () => {
+    const next = !selfHealingLoop
+    const bridge = getBridge()
+    if (!bridge?.preferences?.set) return
+    const res = await bridge.preferences.set({ selfHealingLoop: next })
+    if (!res.ok) {
+      onToast?.(res.error || '保存失败')
+      return
+    }
+    setSelfHealingLoop(res.data.selfHealingLoop === true)
+    onToast?.(next ? '已开启：代码修改后自动运行项目验证与修复' : '已关闭自动验证与静默修复')
+  }, [onToast, selfHealingLoop])
 
   return (
     <div className="settings-panel chat-behavior-settings">
@@ -76,6 +103,26 @@ export function ChatBehaviorSettingsPanel({ onToast }: { onToast?: (msg: string)
             <span className="chat-enter-choice-state">{busyEnter === 'steer' && <><Check size={13} /> 当前</>}</span>
           </button>
         </div>
+      </section>
+      <section className="chat-enter-section">
+        <div className="chat-enter-section-heading">
+          <Check size={16} aria-hidden />
+          <div>
+            <h3>自动验证与修复</h3>
+            <p>代码变更后运行项目验证命令；失败时允许 Agent 自动修复重试。命令来自项目配置，默认关闭。</p>
+          </div>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={selfHealingLoop}
+          className={`chat-self-healing-toggle ${selfHealingLoop ? 'is-active' : ''}`}
+          disabled={preferencesLoading}
+          onClick={() => void saveSelfHealingLoop()}
+        >
+          <span>{selfHealingLoop ? '已开启' : '已关闭'}</span>
+          <span className="chat-self-healing-toggle-state">{preferencesLoading ? '读取中…' : '切换设置'}</span>
+        </button>
       </section>
     </div>
   )

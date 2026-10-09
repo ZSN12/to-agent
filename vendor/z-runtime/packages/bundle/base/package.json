@@ -117,7 +117,9 @@
     "@z/dsh-web-search-taskweaver": "workspace:^",
     "@z/dsh-workflow": "workspace:^",
     "@z/dsh-workflow-worker-thread": "workspace:^",
-    "@z/dsh-agent-instructions": "workspace:^"
+    "@z/dsh-agent-instructions": "workspace:^",
+    "@z/dsh-bridge-core": "workspace:^",
+    "@z/dsh-llm-taskweaver-bridge": "workspace:^"
   },
   "peerDependencies": {
     "@z/dsh-invariants": "workspace:^",

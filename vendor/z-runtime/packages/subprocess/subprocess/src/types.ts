@@ -12,6 +12,9 @@ import type { Readable, Writable } from 'node:stream'
 /** Namespace prefix reserved for DeepSeek Harness-managed child environment facts. */
 export const DSH_ENV_PREFIX = 'DSH_' as const
 
+/** TaskWeaver / Z runtime managed child environment facts (`Z_HOME`, `Z_SESSION_ID`, …). */
+export const Z_ENV_PREFIX = 'Z_' as const
+
 /** One environment key inside the managed {@link DSH_ENV_PREFIX} namespace. */
 export type DshEnvironmentKey = `${typeof DSH_ENV_PREFIX}${string}`
 

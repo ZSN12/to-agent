@@ -10,6 +10,7 @@ import type {
   ContentBlock, FinishReason, GenerateOptions, Message, TokenUsage, ToolSchema,
 } from '@z/dsh-llm'
 import type { Agent } from '@z/dsh-agent'
+import { taskweaverEmbeddedFromEnv } from '@z/dsh-home-paths'
 
 interface SummaryConfig {
   readonly summarizationProvider: string
@@ -68,6 +69,17 @@ const COMPACTION_INSTRUCTION = [
 /** Framing that makes the replacement user message established context. */
 const CHECKPOINT_PREAMBLE =
   'This is an automatically generated checkpoint condensing an earlier span of the conversation to free up context. Treat the captured context as established background and build on it without restating it. Continue the task directly from the messages that follow, without acknowledging this checkpoint.'
+
+/** TaskWeaver desktop may inject a summarization route from models.json (overrides preset/chat). */
+function readTaskWeaverCompactionTarget(): { provider: string, model: string } | undefined {
+  if (!taskweaverEmbeddedFromEnv()) return undefined
+  const provider = process.env.TASKWEAVER_COMPACTION_SUMMARIZATION_PROVIDER?.trim()
+  const model = process.env.TASKWEAVER_COMPACTION_SUMMARIZATION_MODEL?.trim()
+  if (provider === undefined || provider.length === 0 || model === undefined || model.length === 0) {
+    return undefined
+  }
+  return { provider, model }
+}
 
 /**
  * The replayed conversation surface the summarizer condenses. Reproducing the
@@ -135,7 +147,7 @@ export async function summarizeWithLlm(
     && agent.options.model.length > 0
     ? { provider: agent.options.provider, model: agent.options.model }
     : undefined
-  const target = configured ?? latest ?? agentTarget
+  const target = readTaskWeaverCompactionTarget() ?? configured ?? latest ?? agentTarget
   if (target === undefined) {
     throw new Error(
       'no provider/model available for summarization: set both BasicCompactionConfig summarization fields, route one request, or set both AgentOptions fields',

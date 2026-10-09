@@ -3,9 +3,10 @@ import { Check, Copy, Database, ExternalLink, KeyRound, Link2, LogOut, Pencil, P
 import type { CatalogModel, CustomProviderEntry, ModelProfilePatch, ProviderAuthStatus, OAuthStatusInfo, ScanLocalModelsResult, ModelUpdateStatus, ProbedModelItem, ProbeModelsResult } from '../../shared/model-api'
 import { formatCostPerMillion, getCleanModelName } from './format'
 import { LocalScanModal } from './LocalScanModal'
-import { OpenCodexSetupCard } from './OpenCodexSetupCard'
 import { CustomProviderSection } from './CustomProviderSection'
 import { ProbeModelsModal } from './ProbeModelsModal'
+import { OpenUsageSection } from './OpenUsageSection'
+import { LocalAgentStatusStrip, useLocalAgentBridgeStatus } from './LocalAgentStatusStrip'
 
 function OAuthLoginModal({
   status,
@@ -907,8 +908,19 @@ export function ModelSettingsPanel({
   const [probeError, setProbeError] = useState<string | null>(null)
   const [probeResult, setProbeResult] = useState<ProbeModelsResult | null>(null)
   const [probeTargetSource, setProbeTargetSource] = useState<{ id: string; name: string; baseUrl?: string } | null>(null)
+  const [migrateLoading, setMigrateLoading] = useState(false)
+  const {
+    status: localAgentStatus,
+    loading: localAgentLoading,
+    refresh: refreshLocalAgentStatus,
+    login: loginLocalAgent,
+  } = useLocalAgentBridgeStatus()
 
   const isCodexConfigured = auth?.some((p) => p.id === 'openai-codex' && p.configured) ?? false
+  const hasLegacyOpenCodexModels = useMemo(
+    () => models.some((m) => m.key.startsWith('opencodex/')),
+    [models],
+  )
 
   const loadCustomList = useCallback(async () => {
     if (!window.taskweaver?.models?.listCustomProviders) return
@@ -944,8 +956,23 @@ export function ModelSettingsPanel({
       }
     } catch (err: any) {
       setProbeError(err?.message || '探测模型失败')
+    }
+  }
+
+  const handleSyncOfficialModels = async () => {
+    setCheckingUpdates(true)
+    try {
+      if (onCheckForUpdates) {
+        const ok = await onCheckForUpdates(true)
+        if (ok) {
+          onToast?.('已成功检查并同步官方模型目录！')
+        }
+      }
+      onRefresh()
+    } catch (err: any) {
+      onToast?.(err?.message || '检查官方模型目录更新失败')
     } finally {
-      setProbeLoading(false)
+      setCheckingUpdates(false)
     }
   }
 
@@ -1063,9 +1090,17 @@ export function ModelSettingsPanel({
       }
     }
 
+    const usesBuiltInBridge =
+      models.some((m) => m.provider === 'bridge-composer' || m.key.startsWith('bridge-'))
+      || auth.some((p) => p.id === 'bridge-composer')
+
     // 3. 已配置或已有模型的官方提供商
     const builtinProviders = auth.filter(
-      (p) => (p.configured || models.some((m) => m.provider === p.id)) && p.id !== 'openai-codex' && p.id !== 'anthropic' && !p.id.startsWith('custom-'),
+      (p) => (p.configured || models.some((m) => m.provider === p.id))
+        && p.id !== 'openai-codex'
+        && p.id !== 'anthropic'
+        && !p.id.startsWith('custom-')
+        && !(p.id === 'opencodex' && usesBuiltInBridge && !models.some((m) => m.provider === 'opencodex')),
     )
     for (const p of builtinProviders) {
       seenProviderIds.add(p.id)
@@ -1131,10 +1166,30 @@ export function ModelSettingsPanel({
     try {
       const result = await onScanLocalOpenCodex()
       setScanResult(result)
+      await refreshLocalAgentStatus()
     } catch (error) {
       setScanError(error instanceof Error ? error.message : String(error))
     } finally {
       setScanLoading(false)
+    }
+  }
+
+  const handleMigrateLegacyOpenCodex = async () => {
+    const client = window.taskweaver?.models
+    if (!client?.migrateLegacyOpenCodexRoutes) return
+    setMigrateLoading(true)
+    try {
+      const res = await client.migrateLegacyOpenCodexRoutes()
+      if (!res.ok) {
+        onToast?.(res.error ?? '迁移失败')
+        return
+      }
+      const count = res.data?.migrated?.length ?? 0
+      onToast?.(count ? `已迁移 ${count} 个模型到内置桥路由` : '没有需要迁移的遗留模型')
+      onRefresh()
+      await refreshLocalAgentStatus()
+    } finally {
+      setMigrateLoading(false)
     }
   }
 
@@ -1156,16 +1211,12 @@ export function ModelSettingsPanel({
           <button
             type="button"
             className="settings-secondary-button"
-            onClick={() => {
-              const firstCustom = sourceGroups.find((s) => s.kind === 'custom')
-              if (firstCustom) void handleProbeForSource(firstCustom)
-              else onToast?.('请先在下方配置并接入一个自定义网关')
-            }}
-            disabled={loading || !bridgeReady || probeLoading}
-            title="在线向已配置网关探测最新开放的模型"
+            onClick={() => void handleSyncOfficialModels()}
+            disabled={loading || !bridgeReady || checkingUpdates}
+            title="在线探测官方厂商最新开放的模型版本并同步至模型目录"
           >
-            <Radio size={16} />
-            {probeLoading ? '探测中…' : '探测最新模型'}
+            <Radio size={16} className={checkingUpdates ? 'animate-spin' : ''} />
+            {checkingUpdates ? '正在探测官方模型…' : '探测官方最新模型'}
           </button>
           <button
             type="button"
@@ -1174,7 +1225,7 @@ export function ModelSettingsPanel({
             disabled={loading || !bridgeReady || scanLoading}
           >
             <ScanSearch size={16} />
-            {scanLoading ? '扫描中…' : '扫描本地模型'}
+            {scanLoading ? '扫描中…' : '扫描本地官方 Agent'}
           </button>
           <button
             type="button"
@@ -1188,9 +1239,17 @@ export function ModelSettingsPanel({
         </div>
       </div>
 
-      {bridgeReady && (
-        <OpenCodexSetupCard bridgeReady={bridgeReady} onClearGlobalError={onClearCatalogError} />
-      )}
+      <OpenUsageSection />
+
+      <LocalAgentStatusStrip
+        status={localAgentStatus}
+        loading={localAgentLoading}
+        onRefresh={refreshLocalAgentStatus}
+        onLogin={loginLocalAgent}
+        legacyOpenCodex={Boolean(localAgentStatus?.legacyOpenCodex || hasLegacyOpenCodexModels)}
+        onMigrateLegacy={handleMigrateLegacyOpenCodex}
+        migrateLoading={migrateLoading}
+      />
 
       {updateStatus && (
         <div className={`model-registry-status model-registry-status-${updateStatus.state === 'failed' ? 'up-to-date' : updateStatus.state}`}>
@@ -1248,7 +1307,7 @@ export function ModelSettingsPanel({
         <div className="settings-inline-error settings-inline-error-dismissible" role="alert">
           <span>
             {/^fetch failed$/i.test(error.trim())
-              ? '网络请求失败（fetch failed）。多为此前扫描 OpenCodex 或 ChatGPT 授权时的旧提示；若上方 OpenCodex 已显示就绪，可关闭本条后重试扫描，或在 ChatGPT 订阅区重新授权。'
+              ? '网络请求失败（fetch failed）。多为本地 Agent 扫描或 ChatGPT 授权时的瞬时错误；可关闭本条后重试「扫描本地官方 Agent」，或在 ChatGPT 订阅区重新授权。'
               : error}
           </span>
           {onClearCatalogError && (
@@ -1310,7 +1369,7 @@ export function ModelSettingsPanel({
                   onClick={() => void handleScanLocal()}
                 >
                   <ScanSearch size={16} />
-                  扫描本地模型
+                  扫描本地官方 Agent
                 </button>
               </div>
             </div>

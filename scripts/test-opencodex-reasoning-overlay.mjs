@@ -6,8 +6,16 @@ const sample = {
     opencodex: {
       baseUrl: 'http://127.0.0.1:10100/v1',
       api: 'openai-completions',
+      compat: {
+        sendSessionAffinityHeaders: true,
+        supportsDeveloperRole: false,
+      },
       models: [
-        { id: 'cursor/composer-2.5', name: 'composer-2.5 (cursor)' },
+        {
+          id: 'cursor/composer-2.5',
+          name: 'composer-2.5 (cursor)',
+          compat: { sendSessionAffinityHeaders: true },
+        },
         { id: 'cursor/composer-2.5-fast', name: 'fast' },
         { id: 'cursor/grok-4.6', name: 'grok' },
       ],
@@ -24,9 +32,11 @@ const ocx = out.providers.opencodex
 
 assert.equal(ocx.compat.thinkingFormat, 'openai')
 assert.equal(ocx.compat.supportsReasoningEffort, true)
+assert.equal(ocx.compat.sendSessionAffinityHeaders, undefined)
 
 const composer = ocx.models.find((m) => m.id === 'cursor/composer-2.5')
 assert.equal(composer.reasoning, true)
+assert.equal(composer.compat.sendSessionAffinityHeaders, undefined)
 assert.equal(composer.thinkingLevelMap.high, 'high')
 assert.equal(composer.defaultThinkingLevel, 'low')
 

@@ -1,0 +1,12 @@
+name: taskweaver-pi-lite
+title: TaskWeaver Pi Lite
+description: Pi-inspired short system prompt; read/bash/edit/write/grep/glob only. Lower token overhead for chat and light tasks.
+category: coding
+minimumThinkingLevel: low
+allowedWorkModes:
+  - code
+  - plan
+features:
+  - filesystem
+  - shell
+  - compaction

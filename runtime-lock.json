@@ -1,14 +1,18 @@
 {
   "schemaVersion": 1,
+  "runtime": {
+    "name": "TaskWeaver Z Runtime",
+    "version": "1.2.1-custom",
+    "autonomous": true
+  },
   "dsh": {
-    "version": "0.1.1-rc.2",
-    "commit": "3e7b933460b31821572678e84bc769337c465408"
+    "version": "1.2.1-taskweaver",
+    "commit": "local-autonomous"
   },
   "piAi": {
     "package": "@earendil-works/pi-ai",
     "version": "0.87.1"
   },
   "dshApiSchemaVersion": 1,
-  "overlayVersion": 1,
-  "runtimeBuildHash": "dc5bd1adfcadd1e36cef5f8411379b259562ee15141aed674e611e8499f380f3"
+  "overlayVersion": 1
 }

@@ -1,11 +1,23 @@
 import fs from 'node:fs'
 import fsp from 'node:fs/promises'
 import path from 'node:path'
-import http from 'node:http'
 import { fileURLToPath } from 'node:url'
-
+import { fetchOpenUsageSnapshot } from './openusage-service.mjs'
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
 const DEFAULT_PORTFOLIO_PATH = path.join(REPO_ROOT, 'pricing', 'routing-portfolio.json')
+
+function createEmptyRoutingPortfolio() {
+  return {
+    version: 2,
+    display_names: {},
+    subscriptions: [],
+    free_model_patterns: [],
+    metered_surge: [],
+    routing_weights: {},
+    task_affinity: {},
+    capabilities: {},
+  }
+}
 
 /**
  * 模式通配符匹配 (如 "google-antigravity/*", "*gemini*flash*")
@@ -38,17 +50,10 @@ export function resolvePortfolioPath(userDataPath) {
  * 加载能力作品集配置
  */
 export function loadRoutingPortfolio({ userDataPath } = {}) {
-  const filePath = resolvePortfolioPath(userDataPath)
-  let defaultPortfolio = {
-    version: 1,
-    display_names: {},
-    subscriptions: [],
-    metered_surge: [],
-    task_affinity: {},
-    capabilities: {},
-    quota_cycles: { enabled: false },
-  }
+  let defaultPortfolio = createEmptyRoutingPortfolio()
 
+  // The bundled portfolio is always neutral. Model and account preferences
+  // belong in the current user's data directory, never in a shared example.
   if (fs.existsSync(DEFAULT_PORTFOLIO_PATH)) {
     try {
       defaultPortfolio = JSON.parse(fs.readFileSync(DEFAULT_PORTFOLIO_PATH, 'utf8'))
@@ -66,8 +71,11 @@ export function loadRoutingPortfolio({ userDataPath } = {}) {
           ...defaultPortfolio,
           ...userOverrides,
           display_names: { ...defaultPortfolio.display_names, ...userOverrides.display_names },
+          routing_weights: { ...defaultPortfolio.routing_weights, ...userOverrides.routing_weights },
           task_affinity: { ...defaultPortfolio.task_affinity, ...userOverrides.task_affinity },
           capabilities: { ...defaultPortfolio.capabilities, ...userOverrides.capabilities },
+          usage_source: { ...defaultPortfolio.usage_source, ...userOverrides.usage_source },
+          quota_cycles: { ...defaultPortfolio.quota_cycles, ...userOverrides.quota_cycles },
         }
       } catch {
         // ignore
@@ -86,12 +94,12 @@ export function loadRoutingPortfolio({ userDataPath } = {}) {
  */
 export function loadBundledRoutingPortfolio() {
   if (!fs.existsSync(DEFAULT_PORTFOLIO_PATH)) {
-    return loadRoutingPortfolio()
+    return createEmptyRoutingPortfolio()
   }
   try {
     return JSON.parse(fs.readFileSync(DEFAULT_PORTFOLIO_PATH, 'utf8'))
   } catch {
-    return loadRoutingPortfolio()
+    return createEmptyRoutingPortfolio()
   }
 }
 
@@ -109,12 +117,207 @@ export async function resetRoutingPortfolioToBundled({ userDataPath } = {}) {
   return { ok: true, portfolio: loadRoutingPortfolio({ userDataPath }) }
 }
 
+function portfolioObject(value, field) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(`路由配置 ${field} 必须是对象`)
+  }
+}
+
+function portfolioString(value, field) {
+  if (typeof value !== 'string' || !value.trim()) {
+    throw new Error(`路由配置 ${field} 必须填写`)
+  }
+}
+
+function portfolioStringList(value, field, { optional = true, minLength = 0 } = {}) {
+  if (value === undefined && optional) return
+  if (!Array.isArray(value) || value.length < minLength
+    || value.some((item) => typeof item !== 'string' || !item.trim())) {
+    throw new Error(`路由配置 ${field} 必须是至少 ${minLength} 项的非空字符串数组`)
+  }
+}
+
+function portfolioNumber(value, field, { min = 0, max = Number.POSITIVE_INFINITY } = {}) {
+  if (value === undefined) return
+  if (!Number.isFinite(value) || value < min || value > max) {
+    throw new Error(`路由配置 ${field} 必须在 ${min} 到 ${max} 之间`)
+  }
+}
+
+/** Validate user-authored route settings before persisting them. */
+export function validateRoutingPortfolio(portfolio) {
+  portfolioObject(portfolio, '根节点')
+  if (!Number.isInteger(portfolio.version) || portfolio.version < 1) {
+    throw new Error('路由配置 version 必须是正整数')
+  }
+
+  portfolioStringList(portfolio.free_model_patterns, 'free_model_patterns')
+  if (portfolio.subscriptions !== undefined) {
+    if (!Array.isArray(portfolio.subscriptions)) throw new Error('路由配置 subscriptions 必须是数组')
+    const ids = new Set()
+    portfolio.subscriptions.forEach((subscription, index) => {
+      const field = `subscriptions[${index}]`
+      portfolioObject(subscription, field)
+      portfolioString(subscription.id, `${field}.id`)
+      portfolioString(subscription.label, `${field}.label`)
+      if (ids.has(subscription.id.trim())) throw new Error(`路由配置 ${field}.id 不能重复`)
+      ids.add(subscription.id.trim())
+      portfolioStringList(subscription.prefer_models, `${field}.prefer_models`, { optional: false, minLength: 1 })
+      portfolioStringList(subscription.deprioritize_models, `${field}.deprioritize_models`)
+      portfolioNumber(subscription.marginal_cost, `${field}.marginal_cost`)
+      if (subscription.note !== undefined && typeof subscription.note !== 'string') {
+        throw new Error(`路由配置 ${field}.note 必须是文本`)
+      }
+    })
+  }
+
+  if (portfolio.display_names !== undefined) {
+    portfolioObject(portfolio.display_names, 'display_names')
+    for (const [key, name] of Object.entries(portfolio.display_names)) {
+      portfolioString(key, 'display_names 模型键')
+      portfolioString(name, `display_names.${key}`)
+    }
+  }
+  if (portfolio.routing_weights !== undefined) {
+    portfolioObject(portfolio.routing_weights, 'routing_weights')
+    for (const [key, value] of Object.entries(portfolio.routing_weights)) {
+      portfolioNumber(value, `routing_weights.${key}`)
+    }
+  }
+
+  if (portfolio.usage_source !== undefined) {
+    portfolioObject(portfolio.usage_source, 'usage_source')
+    if (portfolio.usage_source.provider !== undefined) portfolioString(portfolio.usage_source.provider, 'usage_source.provider')
+    if (portfolio.usage_source.enabled !== undefined && typeof portfolio.usage_source.enabled !== 'boolean') {
+      throw new Error('路由配置 usage_source.enabled 必须是布尔值')
+    }
+    if (portfolio.usage_source.base_url !== undefined) {
+      portfolioString(portfolio.usage_source.base_url, 'usage_source.base_url')
+      let url
+      try { url = new URL(portfolio.usage_source.base_url) } catch { throw new Error('路由配置 usage_source.base_url 不是有效 URL') }
+      if (url.protocol !== 'http:' || !['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname)
+        || url.username || url.password) {
+        throw new Error('路由配置 usage_source.base_url 只能使用本机 OpenUsage HTTP 地址')
+      }
+    }
+    portfolioNumber(portfolio.usage_source.timeout_ms, 'usage_source.timeout_ms', { min: 50, max: 2000 })
+  }
+
+  if (portfolio.quota_cycles !== undefined) {
+    portfolioObject(portfolio.quota_cycles, 'quota_cycles')
+    for (const key of ['enabled', 'auto_discover']) {
+      if (portfolio.quota_cycles[key] !== undefined && typeof portfolio.quota_cycles[key] !== 'boolean') {
+        throw new Error(`路由配置 quota_cycles.${key} 必须是布尔值`)
+      }
+    }
+    for (const key of ['max_snapshot_age_ms', 'reset_within_ms', 'scarce_penalty_points', 'abundance_bonus_points', 'bonus_points', 'scarce_remaining_ratio', 'min_remaining_ratio_for_bonus', 'dag_allocation_penalty_points']) {
+      portfolioNumber(portfolio.quota_cycles[key], `quota_cycles.${key}`, {
+        max: key.includes('ratio') ? 1 : Number.POSITIVE_INFINITY,
+      })
+    }
+    if (portfolio.quota_cycles.policies !== undefined) {
+      if (!Array.isArray(portfolio.quota_cycles.policies)) throw new Error('路由配置 quota_cycles.policies 必须是数组')
+      portfolio.quota_cycles.policies.forEach((policy, index) => {
+        const field = `quota_cycles.policies[${index}]`
+        portfolioObject(policy, field)
+        portfolioString(policy.provider_id, `${field}.provider_id`)
+        portfolioString(policy.resource_id, `${field}.resource_id`)
+        portfolioStringList(policy.match_model_keys, `${field}.match_model_keys`)
+        for (const key of ['enabled', 'use_before_reset']) {
+          if (policy[key] !== undefined && typeof policy[key] !== 'boolean') throw new Error(`路由配置 ${field}.${key} 必须是布尔值`)
+        }
+        if (policy.rollover !== undefined && ![true, false, 'unknown', 'true', 'false'].includes(policy.rollover)) {
+          throw new Error(`路由配置 ${field}.rollover 必须是 true、false 或 unknown`)
+        }
+        if (policy.exhausted_action !== undefined && !['exclude', 'penalize'].includes(policy.exhausted_action)) {
+          throw new Error(`路由配置 ${field}.exhausted_action 必须是 exclude 或 penalize`)
+        }
+        for (const key of ['reset_within_ms', 'scarce_penalty_points', 'bonus_points']) {
+          portfolioNumber(policy[key], `${field}.${key}`)
+        }
+        for (const key of ['min_remaining_ratio_for_bonus', 'scarce_remaining_ratio']) {
+          portfolioNumber(policy[key], `${field}.${key}`, { max: 1 })
+        }
+      })
+    }
+  }
+
+  if (portfolio.balance_policies !== undefined) {
+    if (!Array.isArray(portfolio.balance_policies)) throw new Error('路由配置 balance_policies 必须是数组')
+    portfolio.balance_policies.forEach((policy, index) => {
+      const field = `balance_policies[${index}]`
+      portfolioObject(policy, field)
+      portfolioString(policy.provider_id, `${field}.provider_id`)
+      portfolioString(policy.resource_id, `${field}.resource_id`)
+      portfolioStringList(policy.match_model_keys, `${field}.match_model_keys`, { optional: false, minLength: 1 })
+      portfolioString(policy.unit, `${field}.unit`)
+      for (const key of ['low_balance_threshold', 'low_balance_penalty_points', 'exhausted_penalty_points']) {
+        portfolioNumber(policy[key], `${field}.${key}`)
+      }
+      if (policy.enabled !== undefined && typeof policy.enabled !== 'boolean') throw new Error(`路由配置 ${field}.enabled 必须是布尔值`)
+      if (policy.exhausted_action !== undefined && !['exclude', 'penalize'].includes(policy.exhausted_action)) {
+        throw new Error(`路由配置 ${field}.exhausted_action 必须是 exclude 或 penalize`)
+      }
+    })
+  }
+
+  if (portfolio.metered_surge !== undefined) {
+    if (!Array.isArray(portfolio.metered_surge)) throw new Error('路由配置 metered_surge 必须是数组')
+    for (const [index, rule] of portfolio.metered_surge.entries()) {
+      const field = `metered_surge[${index}]`
+      portfolioObject(rule, field)
+      if (!rule.provider && (!Array.isArray(rule.match_model_keys) || rule.match_model_keys.length === 0)) {
+        throw new Error(`路由配置 ${field} 需要 provider 或 match_model_keys`)
+      }
+      if (rule.provider !== undefined) portfolioString(rule.provider, `${field}.provider`)
+      portfolioStringList(rule.match_model_keys, `${field}.match_model_keys`)
+      if (!Array.isArray(rule.windows) || rule.windows.length === 0) throw new Error(`路由配置 ${field}.windows 不能为空`)
+      if (rule.timezone !== undefined) {
+        portfolioString(rule.timezone, `${field}.timezone`)
+        try { new Intl.DateTimeFormat('en-US', { timeZone: rule.timezone }) } catch { throw new Error(`路由配置 ${field}.timezone 不是有效时区`) }
+      }
+      for (const [windowIndex, window] of rule.windows.entries()) {
+        const windowField = `${field}.windows[${windowIndex}]`
+        portfolioObject(window, windowField)
+        portfolioStringList(window.days, `${windowField}.days`, { optional: false, minLength: 1 })
+        if (window.days.some((day) => !['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'].includes(day.toLowerCase()))) {
+          throw new Error(`路由配置 ${windowField}.days 只能使用 sun 到 sat`)
+        }
+        if (!Array.isArray(window.hours) || window.hours.length !== 2
+          || !window.hours.every((hour) => Number.isInteger(hour) && hour >= 0 && hour <= 24)
+          || window.hours[0] >= window.hours[1]) {
+          throw new Error(`路由配置 ${windowField}.hours 必须是递增的 [开始小时, 结束小时]，范围 0–24`)
+        }
+        portfolioNumber(window.surcharge_factor, `${windowField}.surcharge_factor`, { min: Number.EPSILON })
+      }
+    }
+  }
+
+  for (const field of ['task_affinity', 'capabilities']) {
+    if (portfolio[field] === undefined) continue
+    portfolioObject(portfolio[field], field)
+    for (const [name, entry] of Object.entries(portfolio[field])) {
+      const entryField = `${field}.${name}`
+      portfolioObject(entry, entryField)
+      for (const key of field === 'task_affinity' ? ['prefer', 'avoid'] : ['match_model_ids', 'tags']) {
+        portfolioStringList(entry[key], `${entryField}.${key}`)
+      }
+      for (const key of field === 'task_affinity' ? ['reason', 'min_capability'] : []) {
+        if (entry[key] !== undefined && typeof entry[key] !== 'string') throw new Error(`路由配置 ${entryField}.${key} 必须是文本`)
+      }
+    }
+  }
+
+  return portfolio
+}
+
 export async function saveRoutingPortfolio(portfolio, { userDataPath } = {}) {
   if (!userDataPath) throw new Error('缺少 userDataPath，无法保存用户作品集')
+  const validated = validateRoutingPortfolio(portfolio)
   const dir = path.join(userDataPath, 'taskweaver')
   await fsp.mkdir(dir, { recursive: true })
   const filePath = path.join(dir, 'routing-portfolio.json')
-  await fsp.writeFile(filePath, JSON.stringify(portfolio, null, 2), 'utf8')
+  await fsp.writeFile(filePath, JSON.stringify(validated, null, 2), 'utf8')
   return { ok: true, path: filePath }
 }
 
@@ -164,7 +367,7 @@ export function resolveDisplayName(modelKey, portfolio) {
   const prettyMap = {
     'composer-2.5': 'Composer 2.5',
     'grok-4.6': 'Grok 4.6',
-    'gpt-5.5': 'GPT-5.5',
+    'gpt-5.5': modelKey.includes('codex') ? 'GPT-5.5 Codex' : 'GPT-5.5',
     'gpt-5.3-codex-spark': 'Codex Spark',
     'gemini-3.8-flash-medium': 'Gemini 3.8 Flash',
     'gemini-3.8-pro': 'Gemini 3.8 Pro',
@@ -246,7 +449,8 @@ export function checkMeteredSurge(modelKey, portfolio, now = new Date()) {
     const currentDay = daysMap[dayStr.slice(0, 3)] || 'mon'
 
     for (const win of rule.windows || []) {
-      const dayMatches = (win.days || []).includes(currentDay)
+      const normalizedDays = (win.days || []).map((d) => String(d).toLowerCase())
+      const dayMatches = normalizedDays.includes(currentDay)
       const [startHour, endHour] = win.hours || [0, 24]
       const hourMatches = hour >= startHour && hour < endHour
 
@@ -264,196 +468,272 @@ export function checkMeteredSurge(modelKey, portfolio, now = new Date()) {
   return { inSurge: false, surchargeFactor: 1.0, reason: null }
 }
 
-/**
- * 适配 OpenUsage 本地 HTTP API (GET http://127.0.0.1:6736/v1/limits)
- * 仅由主进程访问 loopback 地址，超时静默失败，过期数据安全降级
- */
-export async function fetchOpenUsageSnapshot({ baseUrl = 'http://127.0.0.1:6736', timeoutMs = 400 } = {}) {
-  return new Promise((resolve) => {
-    let resolved = false
-    const done = (val) => {
-      if (!resolved) {
-        resolved = true
-        resolve(val)
-      }
-    }
-
-    try {
-      const url = new URL('/v1/limits', baseUrl)
-      const req = http.get(url, { timeout: timeoutMs }, (res) => {
-        if (res.statusCode !== 200) {
-          res.resume()
-          return done(null)
-        }
-        let raw = ''
-        res.setEncoding('utf8')
-        res.on('data', (chunk) => {
-          raw += chunk
-          if (raw.length > 256 * 1024) {
-            req.destroy()
-            done(null)
-          }
-        })
-        res.on('end', () => {
-          try {
-            const data = JSON.parse(raw)
-            done(data)
-          } catch {
-            done(null)
-          }
-        })
-      })
-
-      req.on('timeout', () => {
-        req.destroy()
-        done(null)
-      })
-
-      req.on('error', () => {
-        done(null)
-      })
-    } catch {
-      done(null)
-    }
-  })
-}
-
-function quotaCycleDefaults(portfolio) {
+function quotaDefaults(portfolio) {
   const cycles = portfolio?.quota_cycles ?? {}
   return {
-    reset_within_ms: cycles.reset_within_ms ?? 72 * 3600 * 1000,
-    min_remaining_ratio_for_bonus: cycles.min_remaining_ratio_for_bonus ?? 0.4,
+    max_snapshot_age_ms: cycles.max_snapshot_age_ms ?? 60 * 60 * 1000,
+    reset_within_ms: cycles.reset_within_ms ?? 72 * 60 * 60 * 1000,
     scarce_remaining_ratio: cycles.scarce_remaining_ratio ?? 0.12,
-    bonus_points: cycles.bonus_points ?? 15,
+    min_remaining_ratio_for_bonus: cycles.min_remaining_ratio_for_bonus ?? 0.4,
     scarce_penalty_points: cycles.scarce_penalty_points ?? 20,
-    max_snapshot_age_ms: cycles.max_snapshot_age_ms ?? 3600000,
+    abundance_bonus_points: cycles.abundance_bonus_points ?? 0,
+    bonus_points: cycles.bonus_points ?? 15,
   }
 }
 
-function getResetsAtMs(resourceData) {
-  const raw = resourceData?.resetsAt ?? resourceData?.resetAt
-  if (!raw) return null
-  const t = Date.parse(raw)
-  return Number.isNaN(t) ? null : t
+function resourceResetMs(resource) {
+  const value = Date.parse(resource?.resetsAt ?? resource?.resetAt ?? '')
+  return Number.isFinite(value) ? value : null
 }
 
-export function isQuotaResourceFresh(resourceData, defaults, now = Date.now()) {
-  if (!resourceData || resourceData.stale) return false
-  if (resourceData.expiresAt) {
-    const exp = Date.parse(resourceData.expiresAt)
-    if (!Number.isNaN(exp) && exp < now) return false
+function resourceRemainingRatio(resource) {
+  const remaining = Number(resource?.remaining)
+  const limit = Number(resource?.limit ?? resource?.max)
+  if (Number.isFinite(remaining) && Number.isFinite(limit) && limit > 0) {
+    return Math.max(0, Math.min(1, remaining / limit))
   }
-  if (defaults.max_snapshot_age_ms && resourceData.fetchedAt) {
-    const fetched = Date.parse(resourceData.fetchedAt)
-    if (!Number.isNaN(fetched) && now - fetched > defaults.max_snapshot_age_ms) return false
+  const utilization = Number(resource?.utilization)
+  if (Number.isFinite(utilization)) {
+    const normalized = utilization > 1 ? utilization / 100 : utilization
+    return Math.max(0, Math.min(1, 1 - normalized))
   }
+  return null
+}
+
+export function isQuotaResourceFresh(resource, defaults = {}, now = Date.now(), provider = null) {
+  if (!resource || resource.stale === true || provider?.stale === true) return false
+  const expiresAt = Date.parse(resource.expiresAt ?? provider?.expiresAt ?? '')
+  if (Number.isFinite(expiresAt) && expiresAt < now) return false
+  const fetchedAt = Date.parse(resource.fetchedAt ?? provider?.fetchedAt ?? '')
+  const maxAge = Number(defaults.max_snapshot_age_ms)
+  if (!Number.isFinite(fetchedAt)) return false
+  if (Number.isFinite(maxAge) && maxAge > 0 && now - fetchedAt > maxAge) return false
   return true
+}
+
+const AUTO_PROVIDER_PREFIXES = {
+  antigravity: ['google-antigravity/', 'antigravity/', 'opencodex/google-antigravity/', 'opencodex/antigravity/'],
+  codex: ['openai-codex/', 'opencodex/openai-codex/', 'openai/', 'opencodex/openai/'],
+  cursor: ['cursor/', 'opencodex/cursor/'],
+}
+
+function modelMatchesOpenUsageProvider(modelKey, providerId) {
+  const normalizedModel = String(modelKey ?? '').toLowerCase()
+  const normalizedProvider = String(providerId ?? '').toLowerCase()
+  if (!normalizedModel || !normalizedProvider) return false
+  const prefixes = AUTO_PROVIDER_PREFIXES[normalizedProvider] ?? [`${normalizedProvider}/`, `opencodex/${normalizedProvider}/`]
+  return prefixes.some((prefix) => normalizedModel.startsWith(prefix))
+}
+
+function autoResourceFamily(resourceId) {
+  const normalizedResource = String(resourceId ?? '').toLowerCase().replace(/[^a-z0-9]/g, '')
+  if (normalizedResource.includes('nongemini')) return 'non-gemini'
+  if (normalizedResource.includes('gemini')) return 'gemini'
+  if (normalizedResource.includes('grok')) return 'grok'
+  return null
+}
+
+function autoModelFamily(modelKey, resourceEntries) {
+  const normalizedModel = String(modelKey ?? '').toLowerCase()
+  const resourceFamilies = resourceEntries.map(([resourceId]) => autoResourceFamily(resourceId)).filter(Boolean)
+  if (normalizedModel.includes('gemini') && resourceFamilies.includes('gemini')) return 'gemini'
+  if (normalizedModel.includes('grok') && resourceFamilies.includes('grok')) return 'grok'
+  if (!normalizedModel.includes('gemini') && !normalizedModel.includes('grok')
+    && resourceFamilies.includes('non-gemini')) return 'non-gemini'
+  return null
+}
+
+function matchedQuotaResources(modelKey, portfolio, quotaSnapshot, now = Date.now()) {
+  if (!portfolio?.quota_cycles?.enabled || !quotaSnapshot?.providers) return []
+  const defaults = quotaDefaults(portfolio)
+  const policies = (portfolio.quota_cycles.policies ?? []).filter((policy) => policy?.enabled !== false)
+  const explicitResourceKeys = new Set(policies.map((policy) => `${policy.provider_id}/${policy.resource_id}`))
+  const matched = []
+
+  for (const policy of policies) {
+    if (!modelMatchesQuotaPolicy(modelKey, policy)) continue
+    const provider = quotaSnapshot.providers[policy.provider_id]
+    const resource = provider?.resources?.[policy.resource_id]
+    if (resource?.kind !== 'consumption' || !isQuotaResourceFresh(resource, defaults, now, provider)) continue
+    const ratio = resourceRemainingRatio(resource)
+    if (ratio === null) continue
+    matched.push({ providerId: policy.provider_id, resourceId: policy.resource_id, resource, policy, ratio })
+  }
+
+  if (portfolio.quota_cycles.auto_discover === true) {
+    for (const [providerId, provider] of Object.entries(quotaSnapshot.providers)) {
+      if (!modelMatchesOpenUsageProvider(modelKey, providerId)) continue
+      const resourceEntries = Object.entries(provider?.resources ?? {})
+      const targetFamily = autoModelFamily(modelKey, resourceEntries)
+      const hasFamilyResources = resourceEntries.some(([resourceId]) => autoResourceFamily(resourceId) !== null)
+      for (const [resourceId, resource] of resourceEntries) {
+        if (explicitResourceKeys.has(`${providerId}/${resourceId}`)) continue
+        if (resource?.kind !== 'consumption') continue
+        const family = autoResourceFamily(resourceId)
+        if (hasFamilyResources && (targetFamily ? family !== targetFamily : family !== null)) continue
+        if (!isQuotaResourceFresh(resource, defaults, now, provider)) continue
+        const ratio = resourceRemainingRatio(resource)
+        if (ratio === null) continue
+        matched.push({ providerId, resourceId, resource, policy: null, ratio, automatic: true })
+      }
+    }
+  }
+
+  return matched
 }
 
 export function modelMatchesQuotaPolicy(modelKey, policy) {
   if (!modelKey || !policy) return false
   const patterns = policy.match_model_keys
   if (Array.isArray(patterns) && patterns.length > 0) {
-    return patterns.some((pat) => matchPattern(pat, modelKey))
+    return patterns.some((pattern) => matchPattern(pattern, modelKey))
   }
-  const providerId = policy.provider_id
-  if (!providerId) return false
-  if (modelKey.includes(providerId)) return true
-  const prefixAliases = {
-    codex: ['openai-codex/', 'opencodex/'],
-    cursor: ['cursor/', 'opencodex/cursor/'],
-  }
-  const prefixes = prefixAliases[providerId] ?? [`${providerId}/`]
-  return prefixes.some((prefix) => modelKey.startsWith(prefix))
+  return modelMatchesOpenUsageProvider(modelKey, policy.provider_id)
 }
 
-/**
- * 配额周期软调整：刷新前利用加分 + 即将耗尽降权。
- * 仅新鲜快照；可结转 (rollover===true) 不参与刷新前加分；rollover 未知时不做刷新前加分。
- */
-export function calculateQuotaAdjustment(modelKey, portfolio, quotaSnapshot, now = Date.now()) {
-  if (!portfolio?.quota_cycles?.enabled || !quotaSnapshot) {
-    return { bonus: 0, penalty: 0, reason: null, reasons: [] }
-  }
+export function quotaAllocationProviders(modelKey, portfolio, quotaSnapshot, now = Date.now()) {
+  return [...new Set(matchedQuotaResources(modelKey, portfolio, quotaSnapshot, now).map((item) => item.providerId))]
+}
 
-  const defaults = quotaCycleDefaults(portfolio)
-  const policies = portfolio.quota_cycles.policies || []
+export function calculateQuotaAdjustment(modelKey, portfolio, quotaSnapshot, now = Date.now()) {
+  const matched = matchedQuotaResources(modelKey, portfolio, quotaSnapshot, now)
+  const defaults = quotaDefaults(portfolio)
   let bonus = 0
   let penalty = 0
   const reasons = []
 
-  for (const policy of policies) {
-    if (!modelMatchesQuotaPolicy(modelKey, policy)) continue
-
-    const providerData = quotaSnapshot.providers?.[policy.provider_id]
-    const resourceData = providerData?.resources?.[policy.resource_id]
-    if (!isQuotaResourceFresh(resourceData, defaults, now)) continue
-
-    const remaining = Number(resourceData.remaining)
-    const limit = Number(resourceData.limit ?? resourceData.max)
-    if (Number.isNaN(remaining) || Number.isNaN(limit) || limit <= 0) continue
-
-    const remainingRatio = remaining / limit
-    const scarceThreshold = policy.scarce_remaining_ratio ?? defaults.scarce_remaining_ratio
-    if (remainingRatio <= scarceThreshold) {
-      const p = policy.scarce_penalty_points ?? defaults.scarce_penalty_points
-      if (p > penalty) {
-        penalty = p
-        reasons.push(
-          `${policy.provider_id} 配额即将耗尽 (${Math.round(remainingRatio * 100)}%)，降低路由权重`,
-        )
+  for (const item of matched) {
+    const { providerId, resourceId, resource, policy, ratio } = item
+    const scarceThreshold = policy?.scarce_remaining_ratio ?? defaults.scarce_remaining_ratio
+    if (ratio <= scarceThreshold) {
+      const points = policy?.scarce_penalty_points ?? defaults.scarce_penalty_points
+      if (points > penalty) {
+        penalty = points
+        reasons.push(`${providerId}/${resourceId} 配额剩余 ${Math.round(ratio * 100)}%，降低路由权重`)
       }
     }
 
-    if (!policy.use_before_reset) continue
-    if (policy.rollover === true) continue
-    if (policy.rollover !== false && policy.rollover !== 'false') continue
+    const minRatio = policy?.min_remaining_ratio_for_bonus ?? defaults.min_remaining_ratio_for_bonus
+    const abundanceBonus = defaults.abundance_bonus_points
+    if (abundanceBonus > bonus && ratio >= minRatio) {
+      bonus = abundanceBonus
+      reasons.push(`${providerId}/${resourceId} 配额充足（剩余 ${Math.round(ratio * 100)}%），优先使用 +${abundanceBonus}`)
+    }
 
-    const resetsAtMs = getResetsAtMs(resourceData)
-    if (!resetsAtMs) continue
-
-    const msToReset = resetsAtMs - now
-    const resetWithin = policy.reset_within_ms ?? defaults.reset_within_ms
-    if (msToReset <= 0 || msToReset > resetWithin) continue
-
-    const minRatio = policy.min_remaining_ratio_for_bonus ?? defaults.min_remaining_ratio_for_bonus
-    if (remainingRatio < minRatio) continue
-
-    const urgency = 1 - msToReset / resetWithin
-    const maxPoints = policy.bonus_points ?? defaults.bonus_points
-    const candidateBonus = Math.round(maxPoints * urgency * Math.min(1, remainingRatio / minRatio))
-    if (candidateBonus > bonus) {
-      bonus = candidateBonus
-      const hours = Math.max(1, Math.round(msToReset / 3600000))
-      reasons.push(
-        `${policy.provider_id} 配额约 ${hours}h 内刷新且剩余 ${Math.round(remainingRatio * 100)}%（不可结转），刷新前利用 +${candidateBonus}`,
-      )
+    const rollover = policy?.rollover
+    const useBeforeReset = policy?.use_before_reset === true
+    const nonRollover = rollover === false || rollover === 'false'
+    if (!item.automatic && useBeforeReset && nonRollover && ratio >= minRatio) {
+      const resetAt = resourceResetMs(resource)
+      const untilReset = resetAt === null ? null : resetAt - now
+      const resetWithin = policy?.reset_within_ms ?? defaults.reset_within_ms
+      if (untilReset !== null && untilReset > 0 && untilReset <= resetWithin) {
+        const urgency = 1 - untilReset / resetWithin
+        const points = Math.round((policy?.bonus_points ?? defaults.bonus_points) * urgency * Math.min(1, ratio / minRatio))
+        if (points > bonus) {
+          bonus = points
+          const hours = Math.max(1, Math.round(untilReset / 3_600_000))
+          reasons.push(`${providerId}/${resourceId} 约 ${hours} 小时后刷新且不可结转，刷新前利用 +${points}`)
+        }
+      }
     }
   }
 
+  const allocationProviders = [...new Set(matched.map((item) => item.providerId))]
   return {
     bonus,
     penalty,
+    excluded: isModelQuotaExcluded(modelKey, portfolio, quotaSnapshot, now),
+    allocationProviders,
     reason: reasons.length ? reasons.join('；') : null,
     reasons,
   }
 }
 
-/** @deprecated 使用 calculateQuotaAdjustment；保留兼容导出 */
-export function calculateQuotaBonus(modelKey, portfolio, quotaSnapshot, now = Date.now()) {
-  const adj = calculateQuotaAdjustment(modelKey, portfolio, quotaSnapshot, now)
-  return { bonus: adj.bonus, reason: adj.reason }
+export function isModelQuotaExcluded(modelKey, portfolio, quotaSnapshot, now = Date.now()) {
+  const matched = matchedQuotaResources(modelKey, portfolio, quotaSnapshot, now)
+  for (const item of matched) {
+    if (!item.automatic && item.ratio <= 0 && (item.policy?.exhausted_action ?? 'exclude') === 'exclude') return true
+  }
+
+  const automaticByProvider = new Map()
+  for (const item of matched) {
+    if (!item.automatic) continue
+    const ratios = automaticByProvider.get(item.providerId) ?? []
+    ratios.push(item.ratio)
+    automaticByProvider.set(item.providerId, ratios)
+  }
+  return [...automaticByProvider.values()].some((ratios) => ratios.length > 0 && ratios.every((ratio) => ratio <= 0))
 }
 
-/**
- * 加载作品集并（若启用）拉取 OpenUsage 配额快照，供 selectModelForTask 使用。
- */
-export async function buildRoutingOptions({ userDataPath, portfolio } = {}) {
-  const loaded = portfolio || loadRoutingPortfolio({ userDataPath })
+export function calculateBalanceAdjustment(modelKey, portfolio, quotaSnapshot, now = Date.now()) {
+  const policies = (portfolio?.balance_policies ?? []).filter((policy) => policy?.enabled !== false
+    && Array.isArray(policy.match_model_keys)
+    && policy.match_model_keys.some((pattern) => matchPattern(pattern, modelKey)))
+  let penalty = 0
+  let excluded = false
+  const reasons = []
+
+  for (const policy of policies) {
+    const provider = quotaSnapshot?.providers?.[policy.provider_id]
+    const resource = provider?.resources?.[policy.resource_id]
+    if (!resource || resource.kind !== 'balance' || !isQuotaResourceFresh(resource, quotaDefaults(portfolio), now, provider)) continue
+    if (!resource.unit || String(resource.unit).trim().toLowerCase() !== String(policy.unit).trim().toLowerCase()) continue
+    const amount = Number(resource.available ?? resource.remaining)
+    if (!Number.isFinite(amount)) continue
+
+    if (amount <= 0) {
+      const action = policy.exhausted_action ?? 'penalize'
+      if (action === 'exclude') excluded = true
+      else penalty = Math.max(penalty, policy.exhausted_penalty_points ?? 25)
+      reasons.push(`${policy.provider_id}/${policy.resource_id} 余额已耗尽${action === 'exclude' ? '，停止路由' : '，降低路由优先级'}`)
+    } else if (Number.isFinite(policy.low_balance_threshold) && amount <= policy.low_balance_threshold) {
+      const points = policy.low_balance_penalty_points ?? 10
+      penalty = Math.max(penalty, points)
+      reasons.push(`${policy.provider_id}/${policy.resource_id} 余额低于阈值，降低路由优先级 -${points}`)
+    }
+  }
+
+  return { penalty, excluded, reason: reasons.length ? reasons.join('；') : null, reasons }
+}
+
+export function isModelBalanceExcluded(modelKey, portfolio, quotaSnapshot, now = Date.now()) {
+  return calculateBalanceAdjustment(modelKey, portfolio, quotaSnapshot, now).excluded
+}
+
+export function isFreeModel(modelKey, portfolio, model = null) {
+  const configuredPatterns = Array.isArray(portfolio?.free_model_patterns)
+    ? portfolio.free_model_patterns
+    : []
+  if (configuredPatterns.some((pattern) => matchPattern(pattern, modelKey))) return true
+
+  // Only trust a zero price when it came from a per-model price entry with
+  // usable confidence. Missing catalog prices are represented as zero too.
+  const priceMeta = model?.priceMeta
+  if (!priceMeta || priceMeta.stale === true || priceMeta.confidence === 'low') return false
+  if (priceMeta.hasInputPrice === false || priceMeta.hasOutputPrice === false) return false
+  const hasPerModelEvidence = Boolean(priceMeta.adapter)
+    || priceMeta.source === 'taskweaver-remote-registry'
+  if (!hasPerModelEvidence) return false
+  const input = Number(model?.costPerMillion?.input)
+  const output = Number(model?.costPerMillion?.output)
+  return Number.isFinite(input) && Number.isFinite(output) && input === 0 && output === 0
+}
+
+/** 加载当前用户作品集，并按需读取本机 OpenUsage 快照供路由评估。 */
+export async function buildRoutingOptions({ userDataPath, portfolio, openUsageBaseUrl } = {}) {
+  const loaded = portfolio || (userDataPath
+    ? loadRoutingPortfolio({ userDataPath })
+    : loadBundledRoutingPortfolio())
+  const usageEnabled = loaded?.usage_source?.enabled === true
+  const routingEnabled = loaded?.quota_cycles?.enabled === true
+    || (loaded?.balance_policies ?? []).some((policy) => policy?.enabled !== false)
   let quotaSnapshot = null
-  if (loaded?.quota_cycles?.enabled) {
-    const baseUrl = loaded.quota_cycles.base_url || 'http://127.0.0.1:6736'
-    quotaSnapshot = await fetchOpenUsageSnapshot({ baseUrl, timeoutMs: 500 })
+  if (usageEnabled && routingEnabled) {
+    quotaSnapshot = await fetchOpenUsageSnapshot({
+      baseUrl: openUsageBaseUrl || loaded.usage_source.base_url || loaded.quota_cycles?.base_url || 'http://127.0.0.1:6736',
+      timeoutMs: loaded.usage_source.timeout_ms ?? 500,
+    })
   }
   return {
     portfolio: loaded,

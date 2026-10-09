@@ -3,6 +3,8 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 
 const HOOK_TIMEOUT_MS = 30_000
+const HOOK_KILL_GRACE_MS = 2_000
+const HOOK_CAPTURE_LIMIT_BYTES = 64 * 1024
 
 async function readHookFile(filePath) {
   try {
@@ -45,29 +47,95 @@ export async function loadTaskweaverHooks(userDataPath, workspacePath) {
   }
 }
 
+function appendBounded(current, chunk) {
+  const combined = Buffer.concat([Buffer.from(current), Buffer.from(chunk)])
+  if (combined.length <= HOOK_CAPTURE_LIMIT_BYTES) {
+    return { value: combined.toString('utf8'), truncated: false }
+  }
+  return {
+    value: combined.subarray(0, HOOK_CAPTURE_LIMIT_BYTES).toString('utf8'),
+    truncated: true,
+  }
+}
+
+function signalProcessTree(child, signal) {
+  if (!child.pid) return
+  if (process.platform === 'win32') {
+    const args = ['/pid', String(child.pid), '/T']
+    if (signal === 'SIGKILL') args.push('/F')
+    const killer = spawn('taskkill', args, {
+      windowsHide: true,
+      stdio: 'ignore',
+    })
+    killer.on('error', () => {
+      try { child.kill(signal) } catch { /* Child already exited. */ }
+    })
+    killer.on('close', (code) => {
+      if (code !== 0) {
+        try { child.kill(signal) } catch { /* Child already exited. */ }
+      }
+    })
+    return
+  }
+  try {
+    process.kill(-child.pid, signal)
+  } catch (error) {
+    if (error?.code !== 'ESRCH' && error?.code !== 'EPERM') return
+    try { child.kill(signal) } catch { /* Child already exited. */ }
+  }
+}
+
 function runCommand(command, cwd, env) {
   return new Promise((resolve) => {
     const child = spawn(command, {
       shell: true,
       cwd,
+      detached: process.platform !== 'win32',
+      windowsHide: true,
       env: { ...process.env, ...env },
       stdio: ['ignore', 'pipe', 'pipe'],
     })
     let stdout = ''
     let stderr = ''
-    child.stdout?.on('data', (chunk) => { stdout += String(chunk) })
-    child.stderr?.on('data', (chunk) => { stderr += String(chunk) })
-    const timer = setTimeout(() => {
-      child.kill('SIGTERM')
-      resolve({ ok: false, timedOut: true, stdout, stderr })
+    let stdoutTruncated = false
+    let stderrTruncated = false
+    let timedOut = false
+    let settled = false
+    let timer = null
+    let killTimer = null
+    const finish = (result) => {
+      if (settled) return
+      settled = true
+      if (timer) clearTimeout(timer)
+      if (killTimer) clearTimeout(killTimer)
+      resolve({
+        ...result,
+        stdout,
+        stderr,
+        ...(stdoutTruncated ? { stdoutTruncated: true } : {}),
+        ...(stderrTruncated ? { stderrTruncated: true } : {}),
+      })
+    }
+    timer = setTimeout(() => {
+      timedOut = true
+      signalProcessTree(child, 'SIGTERM')
+      killTimer = setTimeout(() => signalProcessTree(child, 'SIGKILL'), HOOK_KILL_GRACE_MS)
     }, HOOK_TIMEOUT_MS)
-    child.on('close', (code) => {
-      clearTimeout(timer)
-      resolve({ ok: code === 0, code, stdout, stderr })
+    child.stdout?.on('data', (chunk) => {
+      const result = appendBounded(stdout, chunk)
+      stdout = result.value
+      stdoutTruncated ||= result.truncated
+    })
+    child.stderr?.on('data', (chunk) => {
+      const result = appendBounded(stderr, chunk)
+      stderr = result.value
+      stderrTruncated ||= result.truncated
+    })
+    child.on('close', (code, signal) => {
+      finish({ ok: !timedOut && code === 0, code, signal, ...(timedOut ? { timedOut: true } : {}) })
     })
     child.on('error', (error) => {
-      clearTimeout(timer)
-      resolve({ ok: false, error: error.message })
+      finish({ ok: false, error: error.message, ...(timedOut ? { timedOut: true } : {}) })
     })
   })
 }

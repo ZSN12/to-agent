@@ -4,10 +4,15 @@ import {
   pickCredentialOnlyProfiles,
   quarantineBrokenLlmPiAiSection,
   readQuarantinedLlmPiAiProviders,
+  isLlmTaskweaverBridgeNamespaceRegistered,
+  quarantineBrokenLlmTaskweaverBridgeSection,
+  readQuarantinedLlmTaskweaverBridgeProviders,
 } from './dsh-settings-repair.mjs'
 import { profilesFromModelsDoc, taskweaverApiKeyEnvRef } from './pi-models-to-dsh-profile.mjs'
+import { bridgeProfilesFromModelsDoc, splitModelsDocProviders } from './taskweaver-bridge-models.mjs'
 import { resolveTaskWeaverModelsPath } from './taskweaver-models-path.mjs'
-import { applyOpenCodexDshReasoningOverlay } from './opencodex-reasoning-overlay.mjs'
+import { applyOpenCodexDshReasoningOverlay } from './model-sync/overlay.mjs'
+import { writeCompactionSummarizationTarget } from './taskweaver-compaction-target.mjs'
 
 function dshValue(response, operation) {
   const result = response?.result ?? response
@@ -52,8 +57,15 @@ async function mergeProfilesIntoHost(api, providers) {
   dshValue(await api.settings.mutate({ ns: 'llm-pi-ai', ops }), '写入 TaskWeaver 模型提供方')
 }
 
+async function mergeBridgeProfilesIntoHost(api, providers) {
+  const ids = Object.keys(providers)
+  if (!ids.length) return
+  const ops = ids.map((id) => ({ op: 'set', path: ['providers', id], value: providers[id] }))
+  dshValue(await api.settings.mutate({ ns: 'llm-taskweaver-bridge', ops }), '写入 TaskWeaver bridge 提供方')
+}
+
 /**
- * Repair broken DSH settings, sync `taskweaver/models.json` into `llm-pi-ai`, refresh routes.
+ * Repair broken DSH settings, dual-write `taskweaver/models.json` into `llm-pi-ai` and `llm-taskweaver-bridge`.
  * @param {{ hostManager: import('../agent/z-host/index.mjs').ZHostManager, userDataPath: string, credentialStore?: import('./credential-store.mjs').CredentialStore, modelsDocOverride?: { providers?: Record<string, unknown> } }} options
  */
 export async function ensureModelsJsonSyncedToDshHost({ hostManager, userDataPath, credentialStore, modelsDocOverride }) {
@@ -77,22 +89,46 @@ export async function ensureModelsJsonSyncedToDshHost({ hostManager, userDataPat
   const modelsPath = resolveTaskWeaverModelsPath(userDataPath)
   const sourceModelsDoc = modelsDocOverride ?? await readModelsDoc(modelsPath)
   const modelsDoc = applyOpenCodexDshReasoningOverlay(structuredClone(sourceModelsDoc))
-  const jsonProviderIds = Object.keys(modelsDoc.providers ?? {}).filter((id) => {
-    const block = modelsDoc.providers[id]
-    if (!block || typeof block !== 'object') return false
-    if (id === 'opencodex' || id === 'custom-gateway' || id.startsWith('custom-')) return true
-    if (typeof block.baseUrl === 'string' && block.baseUrl.trim()) return true
-    return false
-  })
-  const fromJson = profilesFromModelsDoc(modelsDoc, jsonProviderIds)
-  const fromBackup = pickCredentialOnlyProfiles(await readQuarantinedLlmPiAiProviders(userDataPath))
-  const merged = { ...fromBackup, ...fromJson }
-  if (!Object.keys(merged).length) {
+  await writeCompactionSummarizationTarget(userDataPath, modelsDoc, credentialStore)
+  const { bridgeIds, piAiIds } = splitModelsDocProviders(modelsDoc)
+  const bridgeFromJson = bridgeIds.length
+    ? bridgeProfilesFromModelsDoc(modelsDoc, bridgeIds)
+    : {}
+  const piFromJson = piAiIds.length
+    ? profilesFromModelsDoc(modelsDoc, piAiIds)
+    : {}
+  const piFromBackup = pickCredentialOnlyProfiles(await readQuarantinedLlmPiAiProviders(userDataPath))
+  const bridgeFromBackup = await readQuarantinedLlmTaskweaverBridgeProviders(userDataPath)
+  const mergedPi = { ...piFromBackup, ...piFromJson }
+  const mergedBridge = { ...bridgeFromBackup, ...bridgeFromJson }
+  if (!Object.keys(mergedPi).length && !Object.keys(mergedBridge).length) {
     return { synced: false, reason: 'no-providers', restarted }
   }
 
+  if (Object.keys(mergedBridge).length) {
+    if (!(await isLlmTaskweaverBridgeNamespaceRegistered(api))) {
+      const q = await quarantineBrokenLlmTaskweaverBridgeSection(userDataPath)
+      if (q.quarantined) {
+        await hostManager.restart()
+        restarted = true
+        ;({ api } = await hostManager.start())
+      }
+    }
+    if (!(await isLlmTaskweaverBridgeNamespaceRegistered(api))) {
+      console.warn('Z Host: llm-taskweaver-bridge 设置命名空间仍未注册，跳过 bridge 提供方同步')
+      return { synced: false, reason: 'llm-taskweaver-bridge-ns-missing', restarted }
+    }
+  }
+
   await syncProviderSecrets(api, modelsDoc, credentialStore)
-  await mergeProfilesIntoHost(api, merged)
+  if (Object.keys(mergedPi).length) await mergeProfilesIntoHost(api, mergedPi)
+  if (Object.keys(mergedBridge).length) await mergeBridgeProfilesIntoHost(api, mergedBridge)
   await hostManager.restart()
-  return { synced: true, providerCount: Object.keys(merged).length, restarted: true }
+  return {
+    synced: true,
+    providerCount: Object.keys(mergedPi).length + Object.keys(mergedBridge).length,
+    bridgeProviderCount: Object.keys(mergedBridge).length,
+    piProviderCount: Object.keys(mergedPi).length,
+    restarted: true,
+  }
 }

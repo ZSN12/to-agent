@@ -17,6 +17,39 @@ export const DEFAULT_DSH_HOME_DISPLAY = `~/${DSH_HOME_DIR_NAME}`
 /** Environment variable that overrides the default DeepSeek Harness home. */
 export const DSH_HOME_ENV = 'DSH_HOME'
 
+/** TaskWeaver / Z runtime home (`Z_HOME` wins over `DSH_HOME` when both are set). */
+export const Z_HOME_ENV = 'Z_HOME'
+
+/** Embedded TaskWeaver host (Electron owns UI); non-empty value opts in. */
+export const Z_TASKWEAVER_EMBEDDED_ENV = 'Z_TASKWEAVER_EMBEDDED'
+
+/** Legacy embedded flag; read after {@link Z_TASKWEAVER_EMBEDDED_ENV}. */
+export const DSH_TASKWEAVER_EMBEDDED_ENV = 'DSH_TASKWEAVER_EMBEDDED'
+
+/** Opt out of session telemetry export; any non-empty value disables. */
+export const Z_TELEMETRY_DISABLED_ENV = 'Z_TELEMETRY_DISABLED'
+
+/** Legacy telemetry opt-out; read after {@link Z_TELEMETRY_DISABLED_ENV}. */
+export const DSH_TELEMETRY_DISABLED_ENV = 'DSH_TELEMETRY_DISABLED'
+
+function nonBlankEnv(env: Record<string, string | undefined>, key: string): string | undefined {
+  const value = env[key]
+  if (value === undefined || value.trim().length === 0) return undefined
+  return value
+}
+
+/** Whether this process runs as TaskWeaver's embedded Z host (`Z_*` then `DSH_*`). */
+export function taskweaverEmbeddedFromEnv(env: Record<string, string | undefined> = process.env): boolean {
+  return nonBlankEnv(env, Z_TASKWEAVER_EMBEDDED_ENV) !== undefined
+    || nonBlankEnv(env, DSH_TASKWEAVER_EMBEDDED_ENV) !== undefined
+}
+
+/** Whether telemetry export is disabled for this process. */
+export function telemetryDisabledFromEnv(env: Record<string, string | undefined> = process.env): boolean {
+  return nonBlankEnv(env, Z_TELEMETRY_DISABLED_ENV) !== undefined
+    || nonBlankEnv(env, DSH_TELEMETRY_DISABLED_ENV) !== undefined
+}
+
 /**
  * Give a native filesystem watcher one canonical spelling of a path, even
  * when its final components do not exist yet. The deepest existing ancestor
@@ -76,17 +109,18 @@ export function expandHomePath(path: string): string {
 /**
  * Resolve the single-root DeepSeek Harness home.
  *
- * Precedence, highest first: an explicit configured path, `$DSH_HOME`, then
- * `~/.dsh`. The harness keeps all user data under one root. An empty or
- * whitespace-only `$DSH_HOME` is treated as unset, so a blank override never
+ * Precedence, highest first: an explicit configured path, `$Z_HOME`, `$DSH_HOME`,
+ * then `~/.dsh`. The harness keeps all user data under one root. An empty or
+ * whitespace-only override is treated as unset, so a blank value never
  * resolves the home to the current working directory.
  * @param configured - explicit harness-home override, which has highest precedence.
- * @param env - environment mapping used to read `DSH_HOME`.
+ * @param env - environment mapping used to read `Z_HOME` / `DSH_HOME`.
  * @returns the normalized absolute harness home path.
  */
 export function resolveDshHome(configured?: string, env: Record<string, string | undefined> = process.env): string {
-  const fromEnv = env[DSH_HOME_ENV]
-  const selected = configured ?? (fromEnv !== undefined && fromEnv.trim().length > 0 ? fromEnv : defaultDshHome())
+  const fromZ = nonBlankEnv(env, Z_HOME_ENV)
+  const fromDsh = nonBlankEnv(env, DSH_HOME_ENV)
+  const selected = configured ?? fromZ ?? fromDsh ?? defaultDshHome()
   return resolve(expandHomePath(selected))
 }
 

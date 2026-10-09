@@ -115,7 +115,7 @@ const e2e = injectIntentGuidelines('你好', analyzeUserIntent('你好', 'code')
 assert.doesNotMatch(e2e, /npm run|npx tsc|pnpm run/, '寒暄的最终 prompt 里不能出现任何构建/自检命令')
 
 // ===== 主会话预设由任务形状自动选择，不暴露给用户 =====
-assert.equal(resolvePrimaryAgentPreset('你好'), 'standard', '普通对话沿用 DSH 默认预设')
+assert.equal(resolvePrimaryAgentPreset('你好'), 'taskweaver-pi-lite', '寒暄走 Pi 风格短 system 预设')
 assert.equal(resolvePrimaryAgentPreset('读一下 electron/main.cjs，概述启动流程'), 'standard', '单文件检查保持原生工具')
 assert.equal(resolvePrimaryAgentPreset('读一下当前项目结构并简要介绍'), 'standard', '广角仓库概览不要误触发批处理模式')
 assert.equal(

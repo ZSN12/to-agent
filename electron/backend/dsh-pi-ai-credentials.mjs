@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises'
+import fsSync from 'node:fs'
 import path from 'node:path'
 import { Document, parseDocument } from 'yaml'
 
@@ -10,9 +11,18 @@ export function piAiRecordKey(providerId) {
   return `${PI_AI_RECORD_SCOPE}/${providerId}`
 }
 
-export function resolveDshHome(userDataPath) {
-  return path.join(userDataPath, 'dsh')
+export function resolveZHome(userDataPath) {
+  if (process.env.Z_HOME && process.env.Z_HOME.trim()) return path.resolve(process.env.Z_HOME.trim())
+  if (process.env.DSH_HOME && process.env.DSH_HOME.trim()) return path.resolve(process.env.DSH_HOME.trim())
+  if (!userDataPath) return ''
+  const zPath = path.join(userDataPath, 'z')
+  const dshPath = path.join(userDataPath, 'dsh')
+  if (fsSync.existsSync(zPath)) return zPath
+  if (fsSync.existsSync(dshPath)) return dshPath
+  return zPath
 }
+
+export const resolveDshHome = resolveZHome
 
 function credentialsFile(dshHome) {
   return path.join(dshHome, '.credentials.yaml')

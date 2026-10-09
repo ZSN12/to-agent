@@ -117,11 +117,11 @@ export function piProviderBlockToDshProfile(providerId, block) {
 
 /**
  * @param {{ providers?: Record<string, unknown> }} modelsDoc
- * @param {string[]} [providerIds] subset; default all keys in doc
+ * @param {string[]} [providerIds] subset; default all keys in doc when omitted
  */
 export function profilesFromModelsDoc(modelsDoc, providerIds) {
   const providers = modelsDoc?.providers ?? {}
-  const ids = providerIds?.length ? providerIds : Object.keys(providers)
+  const ids = Array.isArray(providerIds) ? providerIds : Object.keys(providers)
   const out = {}
   for (const id of ids) {
     const block = providers[id]

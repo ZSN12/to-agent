@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
-import { dshCacheHitRate } from '../src/features/chat/usage-labels.ts'
 import {
+  dshCacheHitRate,
   formatTokensCompact,
   summarizeSessionUsage,
   sessionUsageHasData,

@@ -13,6 +13,7 @@ import type { Session } from '@z/dsh-session'
 import { CONTEXT_WINDOW_EXCEEDED_CODE, assertNever } from '@z/dsh-llm'
 import type { LlmCallConfig } from '@z/dsh-llm'
 import type { Agent, PreStepDecision } from '@z/dsh-agent'
+import { taskweaverEmbeddedFromEnv } from '@z/dsh-home-paths'
 import type { CommandId } from '@z/dsh-commands/brand'
 // Type-only: makes the optional sibling service available to `ctx.get()`.
 import type {} from '@z/dsh-compaction-tool-result-pruner'
@@ -148,7 +149,7 @@ export class BasicCompactionEngine extends CompactionEngine {
   constructor(ctx: Context, config: BasicCompactionConfig = {}) {
     super(ctx)
     const resolved = resolveConfig(config)
-    this.config = process.env.DSH_TASKWEAVER_EMBEDDED === '1'
+    this.config = taskweaverEmbeddedFromEnv()
       ? taskweaverBoundedRetryConfig(resolved)
       : resolved
     if (this.config.auto) this._registerAutomaticCompaction()

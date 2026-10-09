@@ -672,7 +672,7 @@ pwsh 工具是 Windows 组合中 bash 执行器 seam 的 PowerShell 方言消费
 
 ### `read`
 
-读取 UTF-8 文本文件，并返回带行号的内容。
+读取 UTF-8 文本文件，并返回带行号的内容。优先使用 file_path；path 作为兼容别名也会接受。
 
 ```json
 {
@@ -680,7 +680,11 @@ pwsh 工具是 Windows 组合中 bash 执行器 seam 的 PowerShell 方言消费
   "properties": {
     "file_path": {
       "type": "string",
-      "description": "Path to read, resolved by the filesystem backend."
+      "description": "Canonical path to read, resolved by the filesystem backend."
+    },
+    "path": {
+      "type": "string",
+      "description": "Compatibility alias for file_path; use only when file_path is omitted."
     },
     "offset": {
       "type": "number",
@@ -690,10 +694,7 @@ pwsh 工具是 Windows 组合中 bash 执行器 seam 的 PowerShell 方言消费
       "type": "number",
       "description": "Maximum number of lines to return. Defaults to 2000."
     }
-  },
-  "required": [
-    "file_path"
-  ]
+  }
 }
 ```
 

@@ -52,12 +52,6 @@ function patchCordisPatchYaml(text, bundleLabel) {
     /\n# TODO: Re-enable shared HMR for Web after its reload lifecycle is tested\.\n- id: hmr\n  disabled: true\n/g,
     '\n# TaskWeaver: Cordis HMR 永久关闭\n- id: hmr\n  disabled: true\n',
   )
-  if (bundleLabel === '@z/dsh-web-app') {
-    out = out.replace(
-      /\n    # The client-plugin reload chain[\s\S]*?\n    - id: client-hmr\n      name: '@z\/dsh-client-hmr'\n/g,
-      '\n    # TaskWeaver: client-hmr 已关闭\n    - id: client-hmr\n      name: \'@z/dsh-client-hmr\'\n      disabled: true\n',
-    )
-  }
   return out
 }
 

@@ -46,6 +46,8 @@ export const TEXT_EXTENSIONS = new Set([
  * { mtimeMs, symbols, defs, refs }
  */
 const fileOutlineCache = new Map()
+const FILE_OUTLINE_CACHE_TTL_MS = 5 * 60 * 1000
+const FILE_OUTLINE_CACHE_MAX = 4096
 
 /** 同工作区 + 查询 + token 预算的 Repo Map 文本缓存（避免每轮用户消息全量重算 PageRank）。 */
 const repoMapTextCache = new Map()
@@ -72,6 +74,19 @@ export function clearRepoMapCache() {
 
 export function getRepoMapCacheSize() {
   return fileOutlineCache.size
+}
+
+function touchCacheEntry(cache, key, value) {
+  cache.delete(key)
+  cache.set(key, value)
+}
+
+function trimCache(cache, maxEntries) {
+  while (cache.size > maxEntries) {
+    const oldestKey = cache.keys().next().value
+    if (oldestKey === undefined) break
+    cache.delete(oldestKey)
+  }
 }
 
 /**
@@ -467,6 +482,9 @@ export async function generateRepoMap(workspacePath, {
   const cacheKey = `${workspacePath}\0${maxTokens}\0${String(query).slice(0, 400)}`
   const cachedMap = cacheable ? repoMapTextCache.get(cacheKey) : null
   if (cachedMap && Date.now() - cachedMap.at < REPO_MAP_TEXT_CACHE_TTL_MS) {
+    // Refresh LRU order but keep the generation timestamp so frequent prompts
+    // cannot keep a stale map alive indefinitely.
+    touchCacheEntry(repoMapTextCache, cacheKey, cachedMap)
     return cachedMap.text
   }
 
@@ -496,8 +514,14 @@ export async function generateRepoMap(workspacePath, {
     for (const file of files) {
       const cached = fileOutlineCache.get(file.absolutePath)
       let fileData = cached
+      const now = Date.now()
 
-      if (!fileData || fileData.mtimeMs !== file.mtimeMs) {
+      if (
+        !fileData
+        || fileData.mtimeMs !== file.mtimeMs
+        || fileData.size !== file.size
+        || now - fileData.at >= FILE_OUTLINE_CACHE_TTL_MS
+      ) {
         let content = ''
         try {
           content = await fs.readFile(file.absolutePath, 'utf8')
@@ -519,12 +543,17 @@ export async function generateRepoMap(workspacePath, {
 
         fileData = {
           mtimeMs: file.mtimeMs,
+          size: file.size,
           symbols,
           defs,
           refs,
           content,
+          at: now,
         }
-        fileOutlineCache.set(file.absolutePath, fileData)
+        touchCacheEntry(fileOutlineCache, file.absolutePath, fileData)
+        trimCache(fileOutlineCache, FILE_OUTLINE_CACHE_MAX)
+      } else {
+        touchCacheEntry(fileOutlineCache, file.absolutePath, fileData)
       }
 
       fileNodes.push({
@@ -657,11 +686,8 @@ export async function generateRepoMap(workspacePath, {
   }
 
   if (cacheable) {
-    if (repoMapTextCache.size >= REPO_MAP_TEXT_CACHE_MAX) {
-      const oldest = repoMapTextCache.keys().next().value
-      if (oldest !== undefined) repoMapTextCache.delete(oldest)
-    }
-    repoMapTextCache.set(cacheKey, { text: result, at: Date.now() })
+    touchCacheEntry(repoMapTextCache, cacheKey, { text: result, at: Date.now() })
+    trimCache(repoMapTextCache, REPO_MAP_TEXT_CACHE_MAX)
   }
 
   return result

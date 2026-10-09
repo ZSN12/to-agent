@@ -112,10 +112,10 @@ export function LocalScanModal({
       <form className="model-editor local-scan-modal" onSubmit={submit}>
         <h2>
           <ScanSearch size={18} aria-hidden="true" />
-          扫描本地模型（OpenCodex）
+          扫描本地官方 Agent
         </h2>
         {loading && (
-          <p className="local-scan-status">正在通过本机 OpenCodex 同步模型目录…</p>
+          <p className="local-scan-status">正在发现本机 Cursor / Antigravity 等订阅模型并写入内置反代…</p>
         )}
         {error && !loading && (
           <div className="settings-inline-error" role="alert">{error}</div>
@@ -123,8 +123,8 @@ export function LocalScanModal({
         {result && !loading && (
           <>
             <p className="local-scan-hint">
-              已从本机代理同步 {result.models.length} 个模型
-              {result.proxyUrl ? `（${result.proxyUrl}）` : ''}。默认不勾选，请按需选择后加入「已添加模型」。
+              已发现 {result.models.length} 个可集成模型
+              {result.proxyUrl ? `（遗留代理 ${result.proxyUrl}）` : ''}。默认不勾选，请按需选择后加入「已添加模型」。
             </p>
             <div className="local-scan-toolbar">
               <input

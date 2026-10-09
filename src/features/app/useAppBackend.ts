@@ -619,6 +619,7 @@ export function useAppBackend() {
           setStreamActivity(null)
         }
         setPromptQueue(emptyPromptQueue())
+        void refreshSessionStats()
       }
       if (event.type === 'blocks') {
         setStreamBlocks(event.segments)
@@ -1321,6 +1322,18 @@ export function useAppBackend() {
     return true
   }, [])
 
+  const cancelTask = useCallback(async (taskId: string) => {
+    const bridge = getBridge()
+    if (!bridge?.tasks?.cancel) return false
+    const res = await bridge.tasks.cancel(taskId, activeConversationIdRef.current)
+    if (!res.ok) {
+      setError(res.error)
+      return false
+    }
+    if (!res.data.cancelled) setError('该子任务已结束或无法停止')
+    return res.data.cancelled
+  }, [])
+
 
   return {
     bridgeReady,
@@ -1387,6 +1400,7 @@ export function useAppBackend() {
     createDroppedReference,
     setPermissionMode,
     sendTaskMessage,
+    cancelTask,
     setCurrentThreadModel,
   }
 }

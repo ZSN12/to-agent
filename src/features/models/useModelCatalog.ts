@@ -238,12 +238,12 @@ export function useModelCatalog() {
   const scanLocalOpenCodex = useCallback(async (): Promise<ScanLocalModelsResult> => {
     const client = getModelsClient()
     if (!client?.scanLocal) {
-      throw new Error('当前环境不支持扫描本地模型，请使用桌面端启动。')
+      throw new Error('当前环境不支持扫描本地官方 Agent，请使用桌面端启动。')
     }
     setError(null)
     const res = await client.scanLocal()
     if (!res.ok) {
-      throw new Error(res.error ?? '扫描本地模型失败')
+      throw new Error(res.error ?? '扫描本地官方 Agent 失败')
     }
     const payload = res.data
     if (payload?.error) {

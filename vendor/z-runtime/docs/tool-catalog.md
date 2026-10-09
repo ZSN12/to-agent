@@ -769,7 +769,7 @@ Source: [`packages/fs/tool-fs/src/index.ts`](../packages/fs/tool-fs/src/index.ts
 
 ### `read`
 
-Read a UTF-8 text file and return line-numbered content.
+Read a UTF-8 text file and return line-numbered content. Use file_path; path is accepted as a compatibility alias.
 
 ```json
 {
@@ -777,7 +777,11 @@ Read a UTF-8 text file and return line-numbered content.
   "properties": {
     "file_path": {
       "type": "string",
-      "description": "Path to read, resolved by the filesystem backend."
+      "description": "Canonical path to read, resolved by the filesystem backend."
+    },
+    "path": {
+      "type": "string",
+      "description": "Compatibility alias for file_path; use only when file_path is omitted."
     },
     "offset": {
       "type": "number",
@@ -787,10 +791,7 @@ Read a UTF-8 text file and return line-numbered content.
       "type": "number",
       "description": "Maximum number of lines to return. Defaults to 2000."
     }
-  },
-  "required": [
-    "file_path"
-  ]
+  }
 }
 ```
 

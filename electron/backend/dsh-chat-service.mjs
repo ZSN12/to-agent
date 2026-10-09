@@ -2,6 +2,11 @@ import crypto from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { extractFileDiff, normalizeToolResult, summarizeToolInput, summarizeToolResult } from './tool-trace.mjs'
+import {
+  createEmptyTurnActivity,
+  recordTurnActivity,
+  serializeTurnActivity,
+} from './turn-activity.mjs'
 import { applySkillInstructions } from './skill-prompt.mjs'
 import { nativeChatCommand } from './native-chat-command.mjs'
 import {
@@ -21,11 +26,14 @@ import {
 } from './config.mjs'
 import { sessionModelMatches } from './dsh-session-model.mjs'
 import { isCursorFamilyModelKey } from './cursor-model-route.mjs'
-import { ensureOpenCodexProxyReachable, isOpenCodexModelKey } from './opencodex-health.mjs'
-import { resolveTaskWeaverModelsPath } from './taskweaver-models-path.mjs'
+import {
+  humanizeBridgeTransportError,
+  isDeprecatedOpenCodexChatRoute,
+} from './cursor-tool-guidance.mjs'
 
 const Z_IDLE_HISTORY_RECONCILE_MS = 10_000
 const Z_MAX_HISTORY_RECONCILE_MS = 30_000
+const SUBSCRIPTION_BRIDGE_PROVIDERS = new Set(['bridge-composer', 'bridge-antigravity'])
 
 /** 主会话的 DSH 会话 id 是确定性的：同一个 sessionKey 永远推导出同一个 id。 */
 function sessionIdForKey(sessionKey) {
@@ -120,13 +128,21 @@ function logHostUserMessageBytes(logger, {
 function normalizeTokenUsage(usage) {
   if (!usage || typeof usage !== 'object') return null
   const cost = typeof usage.cost === 'number' ? usage.cost : usage.cost?.total
+  const inputTokens = Number(usage.inputTokens ?? usage.input ?? 0) || 0
+  const outputTokens = Number(usage.outputTokens ?? usage.output ?? 0) || 0
+  const cacheReadTokens = Number(usage.cacheReadTokens ?? usage.cacheRead ?? 0) || 0
+  const cacheWriteTokens = Number(usage.cacheWriteTokens ?? usage.cacheWrite ?? 0) || 0
+  const explicitContext = Number(usage.contextTokens ?? usage.totalTokens ?? 0)
+  const contextTokens = explicitContext > 0
+    ? explicitContext
+    : (inputTokens > 0 ? (inputTokens + cacheReadTokens) : null)
   return {
-    inputTokens: Number(usage.inputTokens ?? usage.input ?? 0) || 0,
-    outputTokens: Number(usage.outputTokens ?? usage.output ?? 0) || 0,
-    cacheReadTokens: Number(usage.cacheReadTokens ?? usage.cacheRead ?? 0) || 0,
-    cacheWriteTokens: Number(usage.cacheWriteTokens ?? usage.cacheWrite ?? 0) || 0,
+    inputTokens,
+    outputTokens,
+    cacheReadTokens,
+    cacheWriteTokens,
     costUsd: Number(cost ?? 0) || 0,
-    contextTokens: Number(usage.contextTokens ?? usage.totalTokens ?? 0) || null,
+    contextTokens,
     contextWindow: Number(usage.contextWindow ?? 0) || null,
   }
 }
@@ -137,6 +153,33 @@ function usageFromMessage(message) {
 
 function usageFromAssistantEvent(event) {
   return normalizeTokenUsage(event?.data?.usage) ?? usageFromMessage(event?.data?.message)
+}
+
+function mergeLastModelFailure(nativeError, lastModelFailure) {
+  if (!lastModelFailure) return nativeError
+  const error = nativeError && typeof nativeError === 'object'
+    ? { ...nativeError }
+    : typeof nativeError === 'string'
+      ? { message: nativeError }
+      : {}
+  const code = typeof error.code === 'string' ? error.code.toUpperCase() : ''
+  if (lastModelFailure.code && ['', 'ERROR', 'UNKNOWN', 'INTERNAL_ERROR', 'AGENT_ERROR'].includes(code)) {
+    error.code = lastModelFailure.code
+  }
+  const message = typeof error.message === 'string' ? error.message.trim() : ''
+  if ((!message || /^(?:z agent )?(?:执行失败|execution failed|internal error|unknown error)\.?$/i.test(message))
+    && lastModelFailure.message) {
+    error.message = lastModelFailure.message
+  }
+  return error
+}
+
+function safeModelFailureMessage(message) {
+  if (typeof message !== 'string') return null
+  return message
+    .replace(/\bBearer\s+\S+/gi, 'Bearer [REDACTED]')
+    .replace(/((?:api[_-]?key|access[_-]?token|secret)\s*[:=]\s*)\S+/gi, '$1[REDACTED]')
+    .slice(0, 600)
 }
 
 /** Pause reasoning clock so tool/model gaps are not shown as “Think 用时”. */
@@ -217,6 +260,7 @@ export function createDshChatService({
   getWorkspacePath,
   profileStore,
   modelService,
+  appState = null,
   getPermissionMode = async () => 'ask',
   conversationHub = null,
   onTurnCompleted = null,
@@ -275,7 +319,9 @@ export function createDshChatService({
   }
 
   async function alignLegacyComposerPreset(api, conversationId, entry, resolvedPreset, modelKey) {
-    if (!isCursorFamilyModelKey(modelKey) || entry?.agentPreset !== 'code' || resolvedPreset !== 'standard') {
+    const key = String(modelKey ?? '')
+    const composerBridgeRoute = key.startsWith('bridge-composer/') || isCursorFamilyModelKey(key)
+    if (!composerBridgeRoute || entry?.agentPreset !== 'code' || resolvedPreset !== 'standard') {
       return entry
     }
     if (typeof api.agentPresets?.select !== 'function') {
@@ -714,6 +760,8 @@ export function createDshChatService({
       turn.text = ''
       turn.textByStep?.clear()
       turn.currentTextStepKey = null
+      turn.currentStep = 1
+      turn.stepBlocks = []
       turn.thinking = ''
       turn.thinkingStartedAt = null
       turn.thinkingEndedAt = null
@@ -725,6 +773,7 @@ export function createDshChatService({
       turn.toolCallsById.clear()
       turn.fileChanges.clear()
       turn.searchCycleBlocked = false
+      turn.lastModelFailure = null
       turn.startedAt = event.time || Date.now()
       if (turn.emitLifecycle !== false) {
         emit(emitTarget, turn.webContents, { type: 'start', startedAt: turn.startedAt, turnId: turn.turnId, taskId: turn.taskId })
@@ -733,6 +782,10 @@ export function createDshChatService({
     }
     if (event?.type === 'step/start') {
       endThinkingSegment(turn, emit, emitTarget, event.time || Date.now())
+      turn.lastModelFailure = null
+      if (Number.isInteger(event.data?.step)) {
+        turn.currentStep = event.data.step
+      }
       return
     }
     if (event?.type === 'request/header') {
@@ -740,6 +793,13 @@ export function createDshChatService({
     }
     if (event?.type === 'llm/retry') {
       const retry = event.data ?? {}
+      if (retry.failure && typeof retry.failure === 'object') {
+        const message = safeModelFailureMessage(retry.failure.message)
+        turn.lastModelFailure = {
+          ...(typeof retry.failure.code === 'string' ? { code: retry.failure.code } : {}),
+          ...(message ? { message } : {}),
+        }
+      }
       const failureLabels = {
         TIMEOUT: '模型响应超时',
         TRANSPORT: '模型连接中断',
@@ -769,6 +829,7 @@ export function createDshChatService({
     }
     if (event?.type === 'assistant/chunk') {
       const chunk = event.data?.chunk
+      const hostStep = Number.isInteger(event.data?.step) ? event.data.step : (turn.currentStep ?? 1)
       if (chunk?.type === 'text-delta' && chunk.text) {
         endThinkingSegment(turn, emit, emitTarget, event.time || Date.now())
         const stepKey = assistantTextStepKey(turn, event)
@@ -778,12 +839,26 @@ export function createDshChatService({
           turn.plannerPhase = 'text'
           emit(emitTarget, turn.webContents, { type: 'planner_phase', phase: 'text' })
         }
+
+        turn.stepBlocks ??= []
+        const textBlockId = `step-${hostStep}-text`
+        let textBlock = turn.stepBlocks.find((b) => b.id === textBlockId)
+        if (!textBlock) {
+          textBlock = { id: textBlockId, step: hostStep, kind: 'text', text: '' }
+          turn.stepBlocks.push(textBlock)
+        }
+        textBlock.text += chunk.text
+
         // Keep the incremental chat stream as the authoritative live-text path.
         // A DSH projection can be attached while its session is still opening or
         // repairing a mux gap; suppressing these deltas merely because a view is
         // attached makes the answer appear all at once in the terminal `done`.
         if (!turn.silentText) {
           emit(emitTarget, turn.webContents, { type: 'delta', delta: chunk.text })
+          emit(emitTarget, turn.webContents, {
+            type: 'blocks',
+            segments: turn.stepBlocks.map((b) => ({ id: b.id, kind: b.kind, text: b.text })),
+          })
         }
       } else if (chunk?.type === 'reasoning-delta' && chunk.text) {
         const now = event.time || Date.now()
@@ -799,11 +874,25 @@ export function createDshChatService({
         turn.lastReasoningAt = now
         turn.thinking += chunk.text
         const thinkingDurationMs = activeThinkingDurationMs(turn, now)
+
+        turn.stepBlocks ??= []
+        const thinkBlockId = `step-${hostStep}-thinking`
+        let thinkBlock = turn.stepBlocks.find((b) => b.id === thinkBlockId)
+        if (!thinkBlock) {
+          thinkBlock = { id: thinkBlockId, step: hostStep, kind: 'thinking', text: '' }
+          turn.stepBlocks.push(thinkBlock)
+        }
+        thinkBlock.text += chunk.text
+
         if (!turn.silentText) {
           emit(emitTarget, turn.webContents, {
             type: 'thinking_delta',
             delta: chunk.text,
             durationMs: thinkingDurationMs,
+          })
+          emit(emitTarget, turn.webContents, {
+            type: 'blocks',
+            segments: turn.stepBlocks.map((b) => ({ id: b.id, kind: b.kind, text: b.text })),
           })
         }
       }
@@ -811,6 +900,7 @@ export function createDshChatService({
     }
     if (event?.type === 'assistant/message') {
       const message = event.data?.message
+      const hostStep = Number.isInteger(event.data?.step) ? event.data.step : (turn.currentStep ?? 1)
       const finalText = textFromMessage(message)
       if (finalText) {
         const stepKey = assistantTextStepKey(turn, event)
@@ -822,6 +912,17 @@ export function createDshChatService({
             turn.plannerPhase = 'text'
             emit(emitTarget, turn.webContents, { type: 'planner_phase', phase: 'text' })
           }
+
+          turn.stepBlocks ??= []
+          const textBlockId = `step-${hostStep}-text`
+          let textBlock = turn.stepBlocks.find((b) => b.id === textBlockId)
+          if (!textBlock) {
+            textBlock = { id: textBlockId, step: hostStep, kind: 'text', text: finalText }
+            turn.stepBlocks.push(textBlock)
+          } else {
+            textBlock.text = finalText
+          }
+
           // Some adapters expose no token chunks (sourceEventSeqs: []). Their
           // assembled assistant/message is still available before turn/end, so
           // publish it now. The full snapshot also reconciles a streamed prefix
@@ -831,6 +932,10 @@ export function createDshChatService({
               type: 'delta',
               delta: finalText,
               full: turn.text,
+            })
+            emit(emitTarget, turn.webContents, {
+              type: 'blocks',
+              segments: turn.stepBlocks.map((b) => ({ id: b.id, kind: b.kind, text: b.text })),
             })
           }
         } else {
@@ -906,6 +1011,7 @@ export function createDshChatService({
       if (call) {
         const fileDiff = extractFileDiff(call.toolName, call.input, result)
         if (fileDiff) recordFileChange(turn, fileDiff)
+        recordTurnActivity(turn.turnActivity, call.toolName, call.input, fileDiff, result.isError)
         emit(emitTarget, turn.webContents, {
           type: 'tool',
           id: callId,
@@ -977,6 +1083,7 @@ export function createDshChatService({
       if (call) {
         const fileDiff = extractFileDiff(toolName, input, result)
         if (fileDiff) recordFileChange(turn, fileDiff)
+        recordTurnActivity(turn.turnActivity, toolName, input, fileDiff, result.isError)
         emit(emitTarget, turn.webContents, {
           type: 'tool',
           id: callId,
@@ -996,9 +1103,12 @@ export function createDshChatService({
       return
     }
     if (event?.type === 'turn/end') {
+      const reason = event.data?.reason
       finishTurn(sessionKey, turn, emitTarget, {
-        reason: event.data?.reason?.kind,
-        error: event.data?.reason?.error ?? event.data?.error,
+        reason: reason?.kind,
+        error: reason?.kind === 'error'
+          ? mergeLastModelFailure(reason.error ?? event.data?.error, turn.lastModelFailure)
+          : reason?.error ?? event.data?.error,
         continuing: turn.recoveryContinuing,
         endedAt: event.time,
       })
@@ -1114,6 +1224,12 @@ export function createDshChatService({
             message: 'Z Agent 本轮结束但没有生成最终文本；不会将空响应记为成功。请查看工具记录后再决定是否继续。',
           }
         : null
+    const turnFailureMessage = turnFailure
+      ? humanizeBridgeTransportError(
+        turnFailure.message || 'Z Agent 执行失败',
+        turn.modelKey,
+      )
+      : null
     const continuing = ending.continuing ?? (!turnFailure && !cancelled && turn.pendingQueuedTurns > 0)
     // Replayed terminals may arrive seconds after the Agent actually ended.
     // Transport backoff must not train routing/stats to think the model took
@@ -1122,17 +1238,29 @@ export function createDshChatService({
     const elapsedMs = Math.max(0, endedAt - turn.startedAt)
     pauseThinkingSegment(turn, endedAt)
     const thinkingDurationMs = activeThinkingDurationMs(turn, endedAt)
+    const modelConfig = turn.modelKey && modelService?.getModelConfig ? modelService.getModelConfig(turn.modelKey) : null
+    const fallbackWindow = modelConfig?.contextWindow || (turn.modelKey && modelService?.getModel ? modelService.getModel(turn.modelKey)?.contextWindow : null) || null
+    const turnContextTokens = turn.usage?.contextTokens
+      ?? (turn.usage?.inputTokens ? (turn.usage.inputTokens + (turn.usage.cacheReadTokens ?? 0)) : null)
+    const turnContextWindow = turn.usage?.contextWindow || fallbackWindow || null
+    const turnContextPercent = turnContextTokens && turnContextWindow
+      ? Math.round(turnContextTokens / turnContextWindow * 100)
+      : null
     const result = {
       turnId: turn.turnId,
       startedAt: turn.startedAt,
       text: turn.text,
       thinking: turn.thinking,
       thinkingDurationMs,
+      contentBlocks: Array.isArray(turn.stepBlocks) && turn.stepBlocks.length > 0
+        ? turn.stepBlocks.map((b) => ({ id: b.id, kind: b.kind, text: b.text }))
+        : undefined,
       fileChanges: Array.from(turn.fileChanges.values()).map((file) => ({
         path: file.path,
         ...(file.statsComplete ? { addedLines: file.addedLines, deletedLines: file.deletedLines } : {}),
         ...(file.isNewFile ? { isNewFile: true } : {}),
       })),
+      turnActivity: serializeTurnActivity(turn.turnActivity, turn.fileChanges),
       usage: {
         inputTokens: turn.usage?.inputTokens ?? 0,
         outputTokens: turn.usage?.outputTokens ?? 0,
@@ -1141,11 +1269,9 @@ export function createDshChatService({
         costUsd: turn.usage?.costUsd ?? 0,
         elapsedMs,
         tokensPerSecond: elapsedMs > 0 ? Math.round((turn.usage?.outputTokens ?? 0) * 1000 / elapsedMs) : 0,
-        contextTokens: turn.usage?.contextTokens ?? null,
-        contextWindow: turn.usage?.contextWindow ?? null,
-        contextPercent: turn.usage?.contextTokens && turn.usage?.contextWindow
-          ? Math.round(turn.usage.contextTokens / turn.usage.contextWindow * 100)
-          : null,
+        contextTokens: turnContextTokens,
+        contextWindow: turnContextWindow,
+        contextPercent: turnContextPercent,
       },
       cancelled,
     }
@@ -1168,9 +1294,9 @@ export function createDshChatService({
     priorStats.tokens.cacheWrite += result.usage.cacheWriteTokens
     priorStats.tokens.total = priorStats.tokens.input + priorStats.tokens.output + priorStats.tokens.cacheRead + priorStats.tokens.cacheWrite
     priorStats.cost += result.usage.costUsd
-    priorStats.contextTokens = result.usage.contextTokens
-    priorStats.contextWindow = result.usage.contextWindow
-    priorStats.contextPercent = result.usage.contextPercent
+    priorStats.contextTokens = result.usage.contextTokens ?? priorStats.contextTokens ?? null
+    priorStats.contextWindow = result.usage.contextWindow ?? priorStats.contextWindow ?? null
+    priorStats.contextPercent = result.usage.contextPercent ?? priorStats.contextPercent ?? null
     stats.set(sessionKey, priorStats)
     // A queued turn has no outstanding IPC caller. Persist at the native
     // terminal boundary, not only when the first send promise resolves.
@@ -1179,7 +1305,7 @@ export function createDshChatService({
     const persisted = turn.persistTerminal && onTurnCompleted
       ? Promise.resolve().then(() => onTurnCompleted({
         conversationId: emitTarget, modelKey: turn.modelKey, result,
-        errorMessage: turnFailure ? (turnFailure.message || 'Z Agent 执行失败') : null,
+        errorMessage: turnFailureMessage,
       })).then(() => { result.nativePersisted = true })
       : Promise.resolve()
     // The first IPC caller also observes commit failures below; later queued
@@ -1196,13 +1322,14 @@ export function createDshChatService({
       if (turnFailure) {
         emit(emitTarget, turn.webContents, {
           type: 'error',
-          message: turnFailure.message || 'Z Agent 执行失败',
+          message: turnFailureMessage,
           turnId: turn.turnId,
           startedAt: turn.startedAt,
           full: result.text,
           fullThinking: result.thinking,
           thinkingDurationMs,
           fileChanges: result.fileChanges,
+          turnActivity: result.turnActivity,
           usage: result.usage,
           ...(turn.taskId ? { taskId: turn.taskId } : {}),
         })
@@ -1216,6 +1343,7 @@ export function createDshChatService({
           fullThinking: result.thinking,
           thinkingDurationMs,
           fileChanges: result.fileChanges,
+          turnActivity: result.turnActivity,
           interrupted: cancelled,
           ...(turn.taskId ? { taskId: turn.taskId } : {}),
         })
@@ -1224,7 +1352,7 @@ export function createDshChatService({
     if (!turn.initialResolved) {
       turn.initialResolved = true
       if (turnFailure) {
-        const error = new Error(turnFailure.message || 'Z Agent 执行失败')
+        const error = new Error(turnFailureMessage)
         if (turnFailure.code) error.code = turnFailure.code
         error.partialResult = result
         error.modelKey = turn.modelKey
@@ -1347,7 +1475,7 @@ export function createDshChatService({
       Z_INITIAL_RECONNECT_DELAY_MS * Math.pow(2, reconnectAttempt - 1),
       Z_MAX_RECONNECT_DELAY_MS
     )
-    console.warn(`DSH 事件流将在 ${delay}ms 后进行第 ${reconnectAttempt} 次重连...`)
+    console.warn(`Z 事件流将在 ${delay}ms 后进行第 ${reconnectAttempt} 次重连...`)
     await new Promise((resolve) => {
       const timer = setTimeout(resolve, delay)
       timer.unref?.()
@@ -1368,13 +1496,13 @@ export function createDshChatService({
       conversationHub?.bindApi?.(reconnectApi)
       readyPromise = Promise.resolve(reconnectApi)
       await startMuxStream(reconnectApi)
-      console.log('DSH 事件流重连成功')
+      console.log('Z 事件流重连成功')
       const activeSessions = [...sessions.entries()]
       if (activeSessions.length > 0) {
         console.log(`正在恢复 ${activeSessions.length} 个活跃会话的监听器...`)
       }
     } catch (error) {
-      console.error(`DSH 事件流重连失败：${error instanceof Error ? error.message : String(error)}`)
+      console.error(`Z 事件流重连失败：${error instanceof Error ? error.message : String(error)}`)
       if (!stopped && reconnectAttempt < Z_MAX_RECONNECT_ATTEMPTS) {
         await scheduleReconnect(api)
       } else if (!stopped) {
@@ -1504,7 +1632,7 @@ export function createDshChatService({
     if (conversationHub) {
       const watchers = muxWatchers.get(conversationId)
       const wc = watchers?.size ? [...watchers].at(-1) : null
-      if (wc) void conversationHub.attach(conversationId, entry.sessionId, wc)
+      if (wc) void conversationHub.attachSession(conversationId, entry.sessionId, wc)
     }
     return entry
   }
@@ -1577,19 +1705,17 @@ export function createDshChatService({
     const route = providerList.providers?.find((item) => item.provider === config.provider)
     if (!route?.active) throw new Error(`Z Runtime 当前没有启用模型提供方 ${config.provider}；请先检查 TaskWeaver 模型设置。`)
     const auth = await modelService.listProvidersAuth()
-    if (!auth.some((item) => item.id === config.provider && item.configured)) {
+    // Built-in bridges resolve their official subscription OAuth inside the
+    // transport. They intentionally have no DSH API-key credential; relay and
+    // custom providers still use the normal API-key authorization check.
+    const usesBridgeSubscriptionOAuth = SUBSCRIPTION_BRIDGE_PROVIDERS.has(config.provider)
+    if (!usesBridgeSubscriptionOAuth && !auth.some((item) => item.id === config.provider && item.configured)) {
       throw new Error(`模型提供方 ${config.provider} 尚未完成 API Key 或官方订阅授权。请先在模型设置中连接账号。`)
     }
-    if (config.provider === 'opencodex' || isOpenCodexModelKey(modelKey)) {
-      const modelsPath = resolveTaskWeaverModelsPath(userDataPath)
-      const { up, baseUrl } = await ensureOpenCodexProxyReachable(modelsPath)
-      if (!up) {
-        throw new Error(
-          `无法连接本机 OpenCodex 代理（${baseUrl}）。`
-          + '请在「模型与来源」打开 OpenCodex 卡片，点击「启动 OpenCodex」并完成 Cursor 登录，再重试。'
-          + 'Composer 等 Cursor 模型必须经 ocx 转发；小米 MiMo 等官方 API 模型不经过 ocx。',
-        )
-      }
+    if (config.provider === 'opencodex' || isDeprecatedOpenCodexChatRoute(modelKey)) {
+      throw new Error(
+        '模型路由 opencodex/* 已废弃。请在「模型与来源」改用 bridge-composer/*（内置桥），或执行迁移到 bridge-composer。',
+      )
     }
     return config
   }
@@ -1611,6 +1737,7 @@ export function createDshChatService({
     emitLifecycle = true,
     persistTerminal = true,
     parentSessionId,
+    permissionMode: requestedPermissionMode,
   }) {
     if (!text || typeof text !== 'string') throw new Error('消息不能为空')
     if (!conversationId) throw new Error('当前对话标识无效')
@@ -1620,7 +1747,9 @@ export function createDshChatService({
     // 先做工作区校验再启动 Host：无效请求不该把 DSH 拉起来。
     assertBindableWorkspace(cwdOverride || getWorkspacePath() || process.cwd())
     const api = await ensureReady()
-    const permissionMode = normalizePermissionMode(await Promise.resolve(getPermissionMode(conversationId)))
+    const permissionMode = normalizePermissionMode(
+      requestedPermissionMode ?? await Promise.resolve(getPermissionMode(conversationId)),
+    )
     const entry = await ensureSession(api, sessionKey, {
       cwdOverride,
       agentPreset,
@@ -1634,6 +1763,9 @@ export function createDshChatService({
     if (cancellingSessions.has(sessionKey)) throw new Error('当前会话正在停止，请稍后再发送')
     if (activeTurn?.command || (activeTurn && command)) throw new Error('当前会话正在执行任务或压缩命令，请稍后再发送')
     if (activeTurn) {
+      if (entry.lastAppliedPermissionMode !== permissionMode) {
+        throw new Error('当前会话正在执行，无法安全切换权限模式；请等待本轮结束后再发送，以确保新消息按所选权限运行。')
+      }
       // DSH owns queue/steer delivery for a live Agent. Do not reconfigure or
       // replace its lifecycle record: turn/end must still settle the original
       // send and release the caller's per-conversation lock.
@@ -1721,8 +1853,10 @@ export function createDshChatService({
         toolResults: 0,
         toolCallsById: new Map(),
         fileChanges: new Map(),
+        turnActivity: createEmptyTurnActivity(),
         pendingQueuedTurns: 0,
         queueAuthoritative: false,
+        lastModelFailure: null,
         pendingPromptAdmissions: new Set(),
         awaitingQueuedTurn: false,
         initialResolved: false,
@@ -2020,7 +2154,7 @@ export function createDshChatService({
 
   return {
     send,
-    async runAgentTurn({ conversationId, sessionKey, text, modelKey, webContents, cwd, agentPreset = 'standard', taskId, signal, parentSessionId, progressOnly = false }) {
+    async runAgentTurn({ conversationId, sessionKey, text, modelKey, webContents, cwd, agentPreset = 'standard', taskId, signal, parentSessionId, progressOnly = false, permissionMode }) {
       if (signal?.aborted) throw new Error('任务已停止')
       const onAbort = () => {
         void abort(sessionKey).catch((error) => {
@@ -2043,6 +2177,7 @@ export function createDshChatService({
           cwdOverride: cwd,
           agentPreset,
           parentSessionId,
+          permissionMode,
           taskId,
           silentText: true,
           progressOnly,
@@ -2121,11 +2256,30 @@ export function createDshChatService({
       const output = usageTotals?.outputTokens ?? current?.tokens.output ?? 0
       const cacheRead = usageTotals?.cacheReadTokens ?? current?.tokens.cacheRead ?? 0
       const cacheWrite = usageTotals?.cacheWriteTokens ?? current?.tokens.cacheWrite ?? 0
-      const projectedContextTokens = contextPressure?.projectedTokens ?? contextPressure?.pressureTokens
-      const contextTokens = projectedContextTokens ?? current?.contextTokens
-      const contextWindow = contextPressure?.contextWindow ?? current?.contextWindow
-      const contextPercent = projectedContextTokens !== undefined && contextPressure?.contextWindow
-        ? Math.round(projectedContextTokens / contextPressure.contextWindow * 100)
+      const rawProjectedTokens = contextPressure?.projectedTokens ?? contextPressure?.pressureTokens
+      const projectedContextTokens = (typeof rawProjectedTokens === 'number' && rawProjectedTokens > 0)
+        ? rawProjectedTokens
+        : (current?.contextTokens && current.contextTokens > 0 ? current.contextTokens : rawProjectedTokens)
+      let contextTokens = (typeof projectedContextTokens === 'number' && projectedContextTokens > 0)
+        ? projectedContextTokens
+        : (current?.contextTokens ?? null)
+      let contextWindow = contextPressure?.contextWindow ?? current?.contextWindow
+      if ((!contextTokens || contextTokens === 0) && appState?.getConversationState) {
+        try {
+          const convState = await appState.getConversationState(id)
+          const lastAssistant = [...(convState?.messages ?? [])].reverse().find(m => m.author === 'orchestrator' && m.usage)
+          if (lastAssistant?.usage) {
+            const u = lastAssistant.usage
+            const fallback = u.contextTokens || ((u.inputTokens ?? 0) + (u.cacheReadTokens ?? 0))
+            if (fallback > 0) {
+              contextTokens = fallback
+              if (!contextWindow && u.contextWindow) contextWindow = u.contextWindow
+            }
+          }
+        } catch { /* ignore */ }
+      }
+      const contextPercent = contextTokens !== null && contextTokens !== undefined && contextWindow
+        ? Math.round(contextTokens / contextWindow * 100)
         : current?.contextPercent
       return {
         userMessages: projectedStats?.turns ?? current?.userMessages ?? 0,

@@ -18,7 +18,6 @@ import { fileURLToPath } from 'node:url'
 import type { Context } from '@z/cordis'
 import z from '@z/schemastery'
 import { addHarnessSourceSection } from '@z/dsh-app-boot'
-import * as FrontendStatic from '@z/dsh-host-frontend-static'
 import { launchEnvironmentOf } from '@z/dsh-launch-environment'
 import { scrubbedParentEnv } from '@z/dsh-subprocess'
 import type {} from '@z/cordis-plugin-loader'
@@ -28,6 +27,11 @@ import type {} from '@z/dsh-shell-env'
 
 /** Stable Cordis plugin name. */
 export const name = 'web-app'
+
+/** TaskWeaver embeds DSH as an API-only host (Electron owns the UI). */
+export function taskweaverEmbedded(): boolean {
+  return (process.env.DSH_TASKWEAVER_EMBEDDED ?? '') !== ''
+}
 
 /** This dsh installation's root, from either this package's source or built entry. */
 const SOURCE_ROOT = fileURLToPath(new URL('../../../..', import.meta.url))
@@ -230,8 +234,11 @@ export function apply(ctx: Context, config: Config): void {
   const handoffBrowser = config.openBrowser && !launchedThroughSsh(ctx)
   // Release dependent rows only after bind-dependent trust has been sampled once.
   ctx.provide(WEB_RUNTIME_SERVICE, runtime)
-  ctx.plugin(FrontendStatic, { distIndex: internals.resolveDistIndex() })
-  if (config.surfaceContext) {
+  if (!taskweaverEmbedded()) {
+    const require = createRequire(import.meta.url)
+    ctx.plugin(require('@z/dsh-host-frontend-static'), { distIndex: internals.resolveDistIndex() })
+  }
+  if (config.surfaceContext && !taskweaverEmbedded()) {
     ctx.inject(['systemPrompt'], (promptCtx) => {
       addHarnessSourceSection(promptCtx, SOURCE_ROOT)
       promptCtx.systemPrompt.section({

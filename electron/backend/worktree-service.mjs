@@ -72,6 +72,20 @@ export async function createTaskWorktree({ workspacePath, conversationId, taskId
   return { path: target, reused: false }
 }
 
+/**
+ * Parallel implementation worktrees must start from the committed workspace
+ * state; otherwise `git worktree add <HEAD>` silently omits local edits.
+ */
+export async function isCleanGitWorkspace(workspacePath) {
+  try {
+    await assertWorkspaceRoot(workspacePath)
+    if (!(await isGitRepository(workspacePath))) return false
+    return (await runGit(['status', '--porcelain', '--untracked-files=all'], workspacePath)) === ''
+  } catch {
+    return false
+  }
+}
+
 export async function removeTaskWorktree({ workspacePath, conversationId, taskId, userDataPath, force = false }) {
   await assertWorkspaceRoot(workspacePath)
   const target = resolveTaskWorktreeDir(userDataPath, workspacePath, conversationId, taskId)

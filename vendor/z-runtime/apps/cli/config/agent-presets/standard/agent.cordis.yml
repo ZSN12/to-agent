@@ -168,32 +168,15 @@
     - id: compaction-basic
       name: '@z/dsh-compaction-basic'
       config:
-        # Keep less recent context so each compact frees more room; summarize with
-        # WorkBuddy deepseek-v4-pro (same OAuth route as chat, no Antigravity hop).
+        # Keep less recent context so each compact frees more room. The summarization
+        # route is deliberately NOT pinned here: under the embedded TaskWeaver runtime
+        # (DSH_TASKWEAVER_EMBEDDED=1) `dsh-compaction-basic` resolves it from
+        # TASKWEAVER_COMPACTION_SUMMARIZATION_{PROVIDER,MODEL}, which the desktop derives
+        # from the user's models.json (electron/backend/taskweaver-compaction-target.mjs).
+        # A pin here would outrank that resolved route in `summarizeWithLlm` and fail
+        # whenever the pinned deployment provider is absent, which is why this preset
+        # ships with none: with neither set, the request's own routed model is used.
         retainRatio: 0.25
-        summarizationProvider: workbuddy-ocx
-        summarizationModel: deepseek-v4-pro
-        modelPolicies:
-          - provider: workbuddy-ocx
-            model: deepseek-v4-flash
-            retainRatio: 0.25
-            summarizationProvider: workbuddy-ocx
-            summarizationModel: deepseek-v4-pro
-          - provider: workbuddy-ocx
-            model: deepseek-v4-pro
-            retainRatio: 0.25
-            summarizationProvider: workbuddy-ocx
-            summarizationModel: deepseek-v4-pro
-          - provider: antigravity-ocx
-            model: gemini-3.7-flash
-            retainRatio: 0.25
-            summarizationProvider: antigravity-ocx
-            summarizationModel: gemini-3.7-flash
-          - provider: antigravity-ocx
-            model: claude-sonnet-4-6
-            retainRatio: 0.25
-            summarizationProvider: antigravity-ocx
-            summarizationModel: gemini-3.7-flash
 
     - id: command-compact
       name: '@z/dsh-command-compact'
@@ -294,10 +277,5 @@
   config:
     allowParallelInProgress: true
 
-# The `web` service and its search provider stay in the host composition; only
-# the model-facing tool is per-session.
-- id: tool-web
-  name: '@z/dsh-tool-web'
-  config:
-    fetch: false
-    searchTimeoutMs: 60000
+# TaskWeaver: in-host web_search / tool-web are not mounted (@z/dsh-taskweaver bundle).
+# Do not add a `- id: tool-web` row with only `disabled: true` — preset health still requires `name`.

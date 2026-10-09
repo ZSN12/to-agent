@@ -7,6 +7,33 @@ import { existsSync, lstatSync, readFileSync, readlinkSync, symlinkSync, writeFi
 import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
 
+/** Bootstrap-only Z/DSH env (no workspace imports — entry loads this before `node_modules` exists). */
+function nonBlankEnv(env: NodeJS.ProcessEnv, key: string): string | undefined {
+  const value = env[key]
+  if (value === undefined || value.trim() === '') return undefined
+  return value
+}
+
+function expandHomePath(path: string): string {
+  if (path === '~') return homedir()
+  if (path.startsWith('~/') || path.startsWith('~\\')) return join(homedir(), path.slice(2))
+  return path
+}
+
+function taskweaverEmbedded(): boolean {
+  const env = process.env
+  return nonBlankEnv(env, 'Z_TASKWEAVER_EMBEDDED') !== undefined
+    || nonBlankEnv(env, 'DSH_TASKWEAVER_EMBEDDED') !== undefined
+}
+
+function resolveHarnessHomeDir(): string {
+  const env = process.env
+  const selected = nonBlankEnv(env, 'Z_HOME')
+    ?? nonBlankEnv(env, 'DSH_HOME')
+    ?? join(homedir(), '.dsh')
+  return resolve(expandHomePath(selected))
+}
+
 export const RUNTIME_PACKAGES_DIR = 'runtime-packages'
 
 function deployPackagesDir(runtimeRoot: string): string {
@@ -56,23 +83,13 @@ export function ensureDeployNodeModules(runtimeRoot: string): void {
   }
 }
 
-function taskweaverEmbedded(): boolean {
-  return (process.env.DSH_TASKWEAVER_EMBEDDED ?? '') !== ''
-}
-
-function resolveDshHomeDir(): string {
-  const fromEnv = process.env.DSH_HOME
-  if (typeof fromEnv === 'string' && fromEnv.trim()) return fromEnv.trim()
-  return join(homedir(), '.dsh')
-}
-
 /**
  * TaskWeaver ≤0.1 wrote `authorization` into `$DSH_HOME/cordis.patch.yml`. The
  * web bundle now owns that row — drop the legacy home overlay before Cordis loads.
  */
 export function migrateLegacyTaskWeaverHomePatch(): void {
   if (!taskweaverEmbedded()) return
-  const patchPath = join(resolveDshHomeDir(), 'cordis.patch.yml')
+  const patchPath = join(resolveHarnessHomeDir(), 'cordis.patch.yml')
   if (!existsSync(patchPath)) return
   const text = readFileSync(patchPath, 'utf8')
   if (!/dsh-authorization/.test(text) && !/\bid:\s*authorization\b/.test(text)) return

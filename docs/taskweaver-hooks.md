@@ -20,4 +20,6 @@
 
 见仓库根目录 [`.taskweaver/hooks.example.json`](../.taskweaver/hooks.example.json)。
 
-单条 Hook 可设 `"failClosed": true`：失败后不再执行后续 Hook（不阻断聊天，除非命令本身抛错）。
+单条 Hook 可设 `"failClosed": true`：该 Hook 失败后停止执行后续 Hook；Hook 失败本身会记录在返回结果中，不会撤销或阻断当前聊天轮次。每个命令最多运行 30 秒，超时会终止整个命令进程树；stdout/stderr 各最多保留 64 KiB，避免 Hook 输出占满主进程内存。
+
+工作区 Hook 会以当前用户权限在工作区目录中运行。只在可信工作区中启用，并避免把密钥写入命令行或 Hook 输出。

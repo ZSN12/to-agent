@@ -79,7 +79,7 @@ export function compareConversationTranscripts(uiMessages, hostRows) {
   const uiUsers = ui.filter((row) => row?.author === 'user')
   const hostUsers = host.filter((row) => row?.role === 'user')
   const uiAssistantCandidates = ui.filter((row) => ['orchestrator', 'agent'].includes(row?.author))
-  const uiErrors = uiAssistantCandidates.filter((row) => normalizedText(row.text).startsWith('执行失败：'))
+  const uiErrors = uiAssistantCandidates.filter((row) => normalizedText(row.text).startsWith('执行失败：') || normalizedText(row.callout).startsWith('执行失败：'))
   const uiPlaceholders = uiAssistantCandidates.filter((row) => normalizedText(row.text) === EMPTY_ASSISTANT_FALLBACK)
   const uiAssistants = uiAssistantCandidates.filter((row) =>
     !uiErrors.includes(row) && !uiPlaceholders.includes(row))

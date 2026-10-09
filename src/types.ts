@@ -1,4 +1,4 @@
-export type TaskStatus = 'done' | 'running' | 'queued' | 'review'
+export type TaskStatus = 'done' | 'running' | 'queued' | 'review' | 'cancelled'
 
 export type ThinkingLevel = string
 
@@ -9,6 +9,17 @@ export interface ModifiedFileSummary {
   addedLines?: number
   deletedLines?: number
   isNewFile?: boolean
+}
+
+/** Cursor-style per-turn tool activity (persisted after Host turn completes). */
+export interface TurnActivitySummary {
+  editedFileCount: number
+  exploredFileCount: number
+  searchCount: number
+  commandCount: number
+  addedLines?: number
+  deletedLines?: number
+  linesComplete?: boolean
 }
 
 export interface ModelOption {
@@ -37,6 +48,7 @@ export interface ChatMessage {
   contentBlocks?: AssistantContentBlock[]
   /** 本轮 Host edit/write 结果的轻量文件摘要，不包含源码 diff 正文。 */
   fileChanges?: ModifiedFileSummary[]
+  turnActivity?: TurnActivitySummary
   modelKey?: string
   callout?: string
   usage?: ChatUsage

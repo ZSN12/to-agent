@@ -7,10 +7,10 @@ import { sliceForkMessages } from './fork-turns.mjs'
 const VALID_PERMISSION_MODES = new Set(['readonly', 'ask', 'on-risk', 'full'])
 const DEFAULT_TITLE = '新对话'
 
-function makeThread({ workspacePath, permissionMode = 'ask', title = DEFAULT_TITLE, pinned = false, archived = false, modelKey = null, thinkingLevel = null, now = Date.now() }) {
+function makeThread({ workspacePath, permissionMode = 'ask', title = DEFAULT_TITLE, pinned = false, archived = false, modelKey = null, thinkingLevel = null, conversationId = randomUUID(), now = Date.now() }) {
   return {
     id: randomUUID(),
-    conversationId: randomUUID(),
+    conversationId,
     workspacePath: workspacePath ?? null,
     title,
     permissionMode: VALID_PERMISSION_MODES.has(permissionMode) ? permissionMode : 'ask',
@@ -175,6 +175,33 @@ export function createThreadStore(userDataPath, fallbackWorkspace) {
         return state
       })
       return currentState()
+    },
+    async createBackgroundThread({ conversationId, workspacePath, permissionMode = 'readonly', title = '后台任务' }) {
+      const id = conversationId || randomUUID()
+      await transact((state) => {
+        const index = state.threads.findIndex((thread) => thread.conversationId === id)
+        if (index >= 0) {
+          const existing = state.threads[index]
+          state.threads[index] = normalizeThread({
+            ...existing,
+            workspacePath: workspacePath ?? null,
+            permissionMode,
+            title,
+            archived: true,
+            updatedAt: Date.now(),
+          }, fallbackWorkspace)
+        } else {
+          state.threads.unshift(makeThread({
+            conversationId: id,
+            workspacePath: workspacePath ?? null,
+            permissionMode,
+            title,
+            archived: true,
+          }))
+        }
+        return state
+      })
+      return this.getByConversationId(id)
     },
     async switchThread(threadId) {
       await transact((state) => {

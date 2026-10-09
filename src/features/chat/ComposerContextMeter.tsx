@@ -1,25 +1,61 @@
+import { Minimize2, Loader2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import type { LiveContextUsage, PromptBudgetSnapshot, SessionStatsSnapshot } from '../../shared/app-api'
+import type { ChatMessage } from '../../types'
 import { formatDshCatalogTokens } from './session-usage'
 
 const RADIUS = 5.5
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS
 
-/** DSH InputBar ContextMeter: 14px ring beside send, occupancy only. */
+/** DSH InputBar ContextMeter: 显式水位计胶囊 (带百分比与色彩等级) */
 export function ComposerContextMeter({
   liveContext,
   sessionStats,
   promptBudget,
+  messages,
+  onCompact,
+  compacting = false,
 }: {
   liveContext?: LiveContextUsage | null
   sessionStats?: SessionStatsSnapshot | null
   promptBudget?: PromptBudgetSnapshot | null
+  messages?: ChatMessage[]
+  onCompact?: () => void
+  compacting?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLSpanElement | null>(null)
-  const ctxPct = liveContext?.contextPercent ?? sessionStats?.contextPercent
-  const ctxTokens = liveContext?.contextTokens ?? sessionStats?.contextTokens
-  const ctxWindow = liveContext?.contextWindow ?? sessionStats?.contextWindow
+
+  let lastAssistantUsage: Record<string, unknown> | null = null
+  if (messages && messages.length > 0) {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const u = messages[i]?.usage as Record<string, unknown> | undefined
+      if (u && ((typeof u.contextTokens === 'number' && u.contextTokens > 0) || (typeof u.inputTokens === 'number' && u.inputTokens > 0))) {
+        lastAssistantUsage = u
+        break
+      }
+    }
+  }
+  const fallbackTokens = lastAssistantUsage
+    ? (typeof lastAssistantUsage.contextTokens === 'number' && lastAssistantUsage.contextTokens > 0
+        ? lastAssistantUsage.contextTokens
+        : (typeof lastAssistantUsage.inputTokens === 'number' && lastAssistantUsage.inputTokens > 0
+            ? (lastAssistantUsage.inputTokens + (typeof lastAssistantUsage.cacheReadTokens === 'number' ? lastAssistantUsage.cacheReadTokens : 0))
+            : null))
+    : null
+  const fallbackWindow = typeof lastAssistantUsage?.contextWindow === 'number' && lastAssistantUsage.contextWindow > 0
+    ? (lastAssistantUsage.contextWindow as number)
+    : null
+
+  const rawCtxTokens = liveContext?.contextTokens ?? sessionStats?.contextTokens
+  const ctxTokens = (typeof rawCtxTokens === 'number' && rawCtxTokens > 0)
+    ? rawCtxTokens
+    : (fallbackTokens ?? rawCtxTokens)
+  const ctxWindow = liveContext?.contextWindow ?? sessionStats?.contextWindow ?? fallbackWindow
+  const rawCtxPct = liveContext?.contextPercent ?? sessionStats?.contextPercent
+  const ctxPct = (typeof ctxTokens === 'number' && ctxTokens > 0 && typeof ctxWindow === 'number' && ctxWindow > 0)
+    ? Math.round(ctxTokens / ctxWindow * 100)
+    : rawCtxPct
   const breakdown = liveContext?.contextBreakdown
 
   const hostUsageAvailable =
@@ -40,6 +76,13 @@ export function ComposerContextMeter({
     promptBudget && (promptBudget.utilization ?? 0) >= 0.85
       || (promptBudget?.budgetBytes && promptBudget.injectedBytes / promptBudget.budgetBytes >= 0.85),
   )
+
+  const levelClass = percent >= 75
+    ? 'is-danger is-pressure'
+    : percent >= 50
+      ? 'is-warning'
+      : 'is-healthy'
+
   const triggerLabel = hostUsageAvailable
     ? `上下文已用 ${percent}%`
     : `本轮注入占预算 ${percent}%`
@@ -69,15 +112,15 @@ export function ComposerContextMeter({
   const dash = (CIRCUMFERENCE * percent) / 100
 
   return (
-    <span className={`dsh-context-meter${hostPressure || budgetPressure ? ' is-pressure' : ''}`} ref={rootRef}>
+    <span className={`dsh-context-meter ${levelClass}`} ref={rootRef}>
       <button
         type="button"
         className="dsh-context-meter-trigger"
         aria-label={triggerLabel}
-        title={triggerLabel}
+        title={`${triggerLabel}（点击查看详情或压缩历史）`}
         onClick={() => setOpen((v) => !v)}
       >
-        <svg viewBox="0 0 14 14" width="14" height="14" aria-hidden>
+        <svg viewBox="0 0 14 14" width="13" height="13" aria-hidden className="dsh-context-meter-svg">
           <circle className="dsh-context-meter-track" cx="7" cy="7" r={RADIUS} />
           <circle
             className="dsh-context-meter-fill"
@@ -88,18 +131,40 @@ export function ComposerContextMeter({
             transform="rotate(-90 7 7)"
           />
         </svg>
+        <span className="dsh-context-meter-text">{percent}%</span>
       </button>
       {open && (
         <div className="dsh-context-meter-panel" role="dialog">
           {hostUsageAvailable && (
             <>
-              <div className="dsh-context-meter-head">上下文已用 {hostPercent}%</div>
-              <div className="dsh-context-meter-sub">
-                ~{formatDshCatalogTokens(ctxTokens ?? 0)} / {formatDshCatalogTokens(ctxWindow ?? 0)} tokens
+              <div className="dsh-context-meter-header-row">
+                <div>
+                  <div className="dsh-context-meter-head">上下文已用 {hostPercent}%</div>
+                  <div className="dsh-context-meter-sub">
+                    ~{formatDshCatalogTokens(ctxTokens ?? 0)} / {formatDshCatalogTokens(ctxWindow ?? 0)} tokens
+                  </div>
+                </div>
+                {onCompact && (
+                  <button
+                    type="button"
+                    className="dsh-context-meter-compact-btn"
+                    disabled={compacting}
+                    onClick={() => {
+                      setOpen(false)
+                      onCompact()
+                    }}
+                  >
+                    {compacting ? (
+                      <><Loader2 size={12} className="spin" /> 压缩中…</>
+                    ) : (
+                      <><Minimize2 size={12} /> 压缩瘦身</>
+                    )}
+                  </button>
+                )}
               </div>
               {hostPressure && (
-                <p className="dsh-context-meter-tip">
-                  未缓存输入主要来自会话历史与工具结果。OpenCodex 缓存命中常为 0；长对话请新开线程或发送 <code>/compact</code>。
+                <p className="dsh-context-meter-tip is-danger">
+                  ⚠️ 上下文占用已达 {hostPercent}%（超过 75% 预警线），系统将自动或建议立即压缩瘦身，避免超出模型上限或增加延迟。
                 </p>
               )}
             </>

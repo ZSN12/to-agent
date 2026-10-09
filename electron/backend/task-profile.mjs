@@ -67,3 +67,38 @@ export function canRunSubtasksInParallel(batch) {
   if (!Array.isArray(batch) || batch.length < 2) return false
   return batch.every((task) => isReadOnlyTaskType(task.taskType))
 }
+
+function scopesOverlap(left, right) {
+  return left === right || left.startsWith(`${right}/`) || right.startsWith(`${left}/`)
+}
+
+/**
+ * Whether implementation tasks have explicit, non-overlapping write scopes.
+ * Callers must also ensure each task runs in an isolated worktree.
+ */
+export function canRunScopedImplementationTasksConcurrently(tasks) {
+  if (!Array.isArray(tasks) || tasks.length < 2) return false
+  const assignedScopes = []
+  for (const task of tasks) {
+    if (task?.taskType !== 'implementation' || !Array.isArray(task.writeScopes) || task.writeScopes.length === 0) {
+      return false
+    }
+    const taskScopes = []
+    for (const scope of task.writeScopes) {
+      if (typeof scope !== 'string' || !scope.trim()) return false
+      const normalized = scope.trim().normalize('NFC').replaceAll('\\', '/').replace(/^\.\//, '').replace(/\/+$/, '')
+      if (
+        !normalized
+        || normalized.startsWith('/')
+        || /^[a-z]:/i.test(normalized)
+        || normalized.split('/').includes('..')
+        || /[*?{}\[\]]/.test(normalized)
+      ) return false
+      const canonical = normalized.toLowerCase()
+      if (assignedScopes.some((owned) => scopesOverlap(canonical, owned))) return false
+      taskScopes.push(canonical)
+    }
+    assignedScopes.push(...taskScopes)
+  }
+  return true
+}

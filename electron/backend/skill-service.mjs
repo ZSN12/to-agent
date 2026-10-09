@@ -61,16 +61,22 @@ export function createSkillService({
   const catalogRequests = new Map()
   const CATALOG_TTL_MS = 30_000
 
-  function catalogKey() {
-    const cwd = getWorkspacePath()
-    return `${path.resolve(cwd || agentDataPath)}:${getWorkspaceTrusted() ? 'trusted' : 'untrusted'}`
+  function workspaceContext(options = {}) {
+    const cwd = options.workspacePath !== undefined ? options.workspacePath : getWorkspacePath()
+    const trusted = options.workspaceTrusted !== undefined ? options.workspaceTrusted : getWorkspaceTrusted()
+    return { cwd, trusted: trusted === true }
   }
 
-  async function loadFilesystemCatalog() {
-    const cwd = getWorkspacePath()
+  function catalogKey(options = {}) {
+    const { cwd, trusted } = workspaceContext(options)
+    return `${path.resolve(cwd || agentDataPath)}:${trusted ? 'trusted' : 'untrusted'}`
+  }
+
+  async function loadFilesystemCatalog(options = {}) {
+    const { cwd, trusted } = workspaceContext(options)
     const projectSkillsPath = cwd ? path.join(cwd, '.taskweaver', 'skills') : null
     const paths = [builtInSkillsPath, path.join(agentDataPath, 'skills'), ...globalSkillPaths].filter(Boolean)
-    if (projectSkillsPath && getWorkspaceTrusted()) paths.push(projectSkillsPath)
+    if (projectSkillsPath && trusted) paths.push(projectSkillsPath)
 
     const result = await loadSkills({ cwd: cwd ?? agentDataPath, agentDir: agentDataPath, skillPaths: paths, includeDefaults: false })
     return result.skills.map((skill) => mapFilesystemSkill(skill, { agentDataPath, builtInSkillsPath, globalSkillPaths }))
@@ -105,10 +111,11 @@ export function createSkillService({
     return merged
   }
 
-  async function listFromDsh() {
+  async function listFromDsh(options = {}) {
     if (!hostManager) return null
     const { api } = await hostManager.start()
-    const cwd = getWorkspacePath() || agentDataPath
+    const { cwd: requestedCwd } = workspaceContext(options)
+    const cwd = requestedCwd || agentDataPath
     const sessionId = skillsCatalogSessionId(cwd)
     rpcValue(await api.sessions.create({ sessionId, cwd }), '创建 Z Skill 目录会话')
     const value = rpcValue(await api.skills.list({ sessionId }), '读取 Z Skill 列表')
@@ -116,18 +123,18 @@ export function createSkillService({
   }
 
   return {
-    async list() {
-      const key = catalogKey()
+    async list(options = {}) {
+      const key = catalogKey(options)
       const cached = catalogCache.get(key)
       if (cached && cached.expiresAt > Date.now()) return cached.skills
       const pending = catalogRequests.get(key)
       if (pending) return pending
 
       const request = (async () => {
-        const filesystemSkills = await loadFilesystemCatalog()
+        const filesystemSkills = await loadFilesystemCatalog(options)
         let skills = filesystemSkills
         try {
-          const dshSkills = await listFromDsh()
+          const dshSkills = await listFromDsh(options)
           if (dshSkills) skills = mergeCatalogs(dshSkills, filesystemSkills)
         } catch {
           // DSH Host 未就绪时回退到 TaskWeaver 本地发现。
@@ -142,9 +149,9 @@ export function createSkillService({
         if (catalogRequests.get(key) === request) catalogRequests.delete(key)
       }
     },
-    async resolve(name) {
+    async resolve(name, options = {}) {
       if (!name) return null
-      const skill = (await this.list()).find((item) => item.name === name)
+      const skill = (await this.list(options)).find((item) => item.name === name)
       if (!skill) throw new Error(`找不到可用的 Skill：${name}`)
       if (!skill.path) {
         // DSH's `skill.list` intentionally exposes no filesystem path or body.

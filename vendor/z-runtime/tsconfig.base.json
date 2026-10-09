@@ -157,6 +157,7 @@
       "@z/dsh-client-*/invariant": ["./packages/client/*/src/invariant.ts"],
       "@z/dsh-headless/startup": ["./packages/bundle/headless/src/startup.ts"],
       "@z/dsh-web-app/startup": ["./packages/bundle/web-app/src/startup.ts"],
+      "@z/dsh-taskweaver/startup": ["./packages/bundle/taskweaver/src/startup.ts"],
       "@z/dsh-client-*/client": ["./packages/client/*/src/client"],
        // One wildcard maps every @z/dsh-<name> to its source. Package
       // dir names are unique across groups, so first-on-disk-wins resolution is
@@ -241,6 +242,7 @@
         "./packages/core/*/src",
         "./packages/prompt/*/src",
         "./packages/llm/*/src",
+        "./packages/bridge/*/src",
         "./packages/shell/*/src",
         "./packages/terminal/*/src",
         "./packages/subprocess/*/src",

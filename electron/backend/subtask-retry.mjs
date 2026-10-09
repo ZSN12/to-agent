@@ -34,9 +34,23 @@ export function classifySubtaskFailure(error, { signal } = {}) {
   ) {
     return { kind: 'configuration', retryable: false, reason: '模型或请求配置错误，不通过更换模型盲目重试' }
   }
+  const tlsHandshakeFailure = /client network socket disconnected|network socket disconnected|tls handshake|secure tls/.test(message)
+  if (
+    code === 'TRANSPORT'
+    || ['ETIMEDOUT', 'ECONNRESET', 'ECONNREFUSED', 'EAI_AGAIN'].includes(code)
+    || tlsHandshakeFailure
+    || /socket hang up|connection reset|fetch failed|network error/.test(message)
+  ) {
+    return {
+      kind: 'transport',
+      retryable: true,
+      failoverScope: 'route-domain',
+      failureStage: tlsHandshakeFailure ? 'tls-handshake' : 'provider-transport',
+      reason: '模型传输连接中断，重试时切换到其他上游路由',
+    }
+  }
   if (
     [408, 425, 429, 500, 502, 503, 504].includes(status)
-    || ['ETIMEDOUT', 'ECONNRESET', 'ECONNREFUSED', 'EAI_AGAIN'].includes(code)
     || /timeout|timed out|rate limit|temporarily unavailable|fetch failed|network error/.test(message)
   ) {
     return { kind: 'transient', retryable: true, reason: '模型服务暂时不可用，可尝试其他已配置模型' }
@@ -60,6 +74,8 @@ function makeEvidenceBundle(task, attempts, error, failure) {
     diff: null,
     failed_tests: [],
     failure_class: failure.kind,
+    failure_scope: failure.failoverScope ?? 'model',
+    failure_stage: failure.failureStage ?? 'model-execution',
     error_summary: safeErrorSummary(error),
     attempted_actions: attempts.map(({ modelKey, outcome, errorSummary }) =>
       `${modelKey}: ${outcome}${errorSummary ? ` — ${errorSummary}` : ''}`),
@@ -67,10 +83,11 @@ function makeEvidenceBundle(task, attempts, error, failure) {
   }
 }
 
-/** Run a subtask once, then optionally retry it on distinct routed models. */
+/** Run a subtask once, then retry eligible failures on models outside failed transport domains. */
 export async function runWithSubtaskRetries({
   task,
   initialModelKey,
+  failureDomainForModel,
   maxRetries = 1,
   canRetry = true,
   run,
@@ -92,7 +109,17 @@ export async function runWithSubtaskRetries({
   const retryLimit = Math.max(0, Math.min(3, Number(maxRetries) || 0))
   let failure = classifySubtaskFailure(lastError, { signal })
   let evidenceBundle = makeEvidenceBundle(task, attempts, lastError, failure)
-  if (!canRetry || retryLimit === 0 || !failure.retryable) {
+  const retryAllowed = (classifiedFailure, error) => typeof canRetry === 'function'
+    ? Boolean(canRetry({ task, failure: classifiedFailure, error }))
+    : Boolean(canRetry)
+  const excludedFailureDomains = new Set()
+  const excludeFailedRouteDomain = (modelKey, classifiedFailure) => {
+    if (classifiedFailure.failoverScope !== 'route-domain' || typeof failureDomainForModel !== 'function') return
+    const domain = failureDomainForModel(modelKey)
+    if (typeof domain === 'string' && domain.trim()) excludedFailureDomains.add(domain)
+  }
+  excludeFailedRouteDomain(initialModelKey, failure)
+  if (!retryAllowed(failure, lastError) || retryLimit === 0 || !failure.retryable) {
     throw attachEvidence(lastError, evidenceBundle)
   }
 
@@ -100,6 +127,7 @@ export async function runWithSubtaskRetries({
     if (signal?.aborted) throw attachEvidence(lastError, evidenceBundle)
     const candidate = await chooseModel({
       excludeModelKeys: [...excludedModelKeys],
+      excludeFailureDomains: [...excludedFailureDomains],
       attempt,
       previousError: lastError,
       failure,
@@ -124,8 +152,9 @@ export async function runWithSubtaskRetries({
       lastError = error
       attempts.push({ modelKey: candidate.modelKey, outcome: 'failed', errorSummary: safeErrorSummary(error) })
       failure = classifySubtaskFailure(error, { signal })
+      excludeFailedRouteDomain(candidate.modelKey, failure)
       evidenceBundle = makeEvidenceBundle(task, attempts, error, failure)
-      if (!failure.retryable) throw attachEvidence(error, evidenceBundle)
+      if (!failure.retryable || !retryAllowed(failure, error)) throw attachEvidence(error, evidenceBundle)
     }
   }
 

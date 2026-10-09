@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Clock, Play, Plus, Trash2, Laptop } from 'lucide-react'
+import { Clock, Play, Plus, Trash2, Laptop, BookOpen } from 'lucide-react'
 import type { ScheduledJob } from '../../shared/app-api'
 
 const INTERVAL_OPTIONS = [
@@ -12,9 +12,11 @@ const INTERVAL_OPTIONS = [
 export function SchedulesPanel({
   workspacePath,
   onBack,
+  onOpenConversation,
 }: {
   workspacePath: string | null
   onBack: () => void
+  onOpenConversation: (conversationId: string) => Promise<boolean>
 }) {
   const [jobs, setJobs] = useState<ScheduledJob[]>([])
   const [loading, setLoading] = useState(true)
@@ -65,6 +67,10 @@ export function SchedulesPanel({
       setError('请填写任务提示词')
       return
     }
+    if (!workspacePath) {
+      setError('请先选择工作区，再创建定时任务')
+      return
+    }
     const res = await bridge.upsert({
       title: title.trim() || '定时任务',
       prompt: prompt.trim(),
@@ -84,6 +90,15 @@ export function SchedulesPanel({
     const res = await window.taskweaver?.jobs?.runNow?.(id)
     if (!res?.ok) setError(res?.error ?? '执行失败')
     else await refresh()
+  }
+
+  const handleOpenResult = async (job: ScheduledJob) => {
+    setError(null)
+    if (!job.conversationId || !job.lastRunAt) {
+      setError('该任务还没有执行记录')
+      return
+    }
+    if (!(await onOpenConversation(job.conversationId))) setError('找不到这条任务的执行记录')
   }
 
   const handleRemove = async (id: string) => {
@@ -117,7 +132,7 @@ export function SchedulesPanel({
         <header className="schedules-header">
           <button type="button" className="ghost-button" onClick={onBack}>返回对话</button>
           <h1><Clock size={22} aria-hidden /> 定时任务</h1>
-          <p>应用打开时由进程内调度；macOS 可安装 LaunchAgent，关闭 TaskWeaver 后仍按间隔调用无头脚本（需本机已配置模型与 Z Host）。</p>
+          <p>应用打开时由进程内调度并支持 DAG；macOS LaunchAgent 可在关闭应用后运行单 Agent headless 任务（需本机已配置模型与 Z Host）。</p>
         </header>
 
         <section className="schedules-form">
@@ -145,7 +160,8 @@ export function SchedulesPanel({
             <input type="checkbox" checked={multiAgent} onChange={(e) => setMultiAgent(e.target.checked)} />
             使用多 Agent DAG
           </label>
-          <button type="button" className="codex-btn-primary" onClick={() => { void handleCreate() }}>
+          {!workspacePath && <p className="schedules-error">请先在主界面选择工作区，定时任务需要绑定明确的项目目录。</p>}
+          <button type="button" className="codex-btn-primary" disabled={!workspacePath} onClick={() => { void handleCreate() }}>
             <Plus size={16} /> 保存任务
           </button>
           {error && <p className="schedules-error">{error}</p>}
@@ -170,12 +186,25 @@ export function SchedulesPanel({
                 )}
               </div>
               <div className="schedules-actions">
+                <button
+                  type="button"
+                  className="settings-secondary-button"
+                  disabled={!job.lastRunAt}
+                  onClick={() => { void handleOpenResult(job) }}
+                  title={job.lastRunAt ? '打开该定时任务的执行记录' : '任务尚未运行'}
+                >
+                  <BookOpen size={14} /> 查看记录
+                </button>
                 <button type="button" className="settings-secondary-button" onClick={() => { void handleRun(job.id) }}>
                   <Play size={14} /> 立即运行
                 </button>
                 {launchAgents[job.id] ? (
                   <button type="button" className="settings-secondary-button" title="移除系统 LaunchAgent" onClick={() => { void handleRemoveLaunchAgent(job.id) }}>
                     <Laptop size={14} /> 已装系统任务
+                  </button>
+                ) : job.multiAgent ? (
+                  <button type="button" className="settings-secondary-button" disabled title="关闭应用后的 LaunchAgent 目前只运行单 Agent">
+                    <Laptop size={14} /> DAG 需保持 App 运行
                   </button>
                 ) : (
                   <button type="button" className="settings-secondary-button" title="安装到 ~/Library/LaunchAgents" onClick={() => { void handleInstallLaunchAgent(job.id) }}>

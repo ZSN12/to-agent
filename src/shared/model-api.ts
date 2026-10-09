@@ -33,6 +33,17 @@ export interface ModelCostPerMillion {
   cacheWrite: number
 }
 
+export interface ModelPriceMeta {
+  source?: string
+  adapter?: string | null
+  confidence?: string
+  currency?: string
+  stale?: boolean
+  synced_at?: string | null
+  hasInputPrice?: boolean
+  hasOutputPrice?: boolean
+}
+
 export type ModelCatalogSource = 'user' | 'remote' | 'bundled' | 'live'
 export type ModelUpdateState = 'idle' | 'checking' | 'up-to-date' | 'updated' | 'cached' | 'failed' | 'rolled-back'
 
@@ -93,6 +104,7 @@ export interface CatalogModel {
   contextWindow: number
   maxTokens: number
   costPerMillion: ModelCostPerMillion
+  priceMeta?: ModelPriceMeta
   available: boolean
   profile: ModelProfile | null
   supportedThinkingLevels?: ThinkingLevel[]
@@ -159,6 +171,27 @@ export interface ScannedLocalModel {
   alreadyAdded: boolean
 }
 
+export interface LocalAgentDiscovery {
+  agentId: string
+  label: string
+  routeId: string
+  bridgeKind: string
+  modelNamespace: string
+  modelCount: number
+  loggedIn: boolean
+  loginRequired: boolean
+  discovered: boolean
+}
+
+export interface LocalAgentBridgeStatus {
+  logins?: Record<string, boolean>
+  localAgents?: LocalAgentDiscovery[]
+  bridgeProviderIds?: string[]
+  legacyOpenCodex?: boolean
+  bridgeModelCount?: number
+  discoveryAdapter?: string
+}
+
 export interface ScanLocalModelsResult {
   proxyUrl: string | null
   providerIds: string[]
@@ -167,23 +200,17 @@ export interface ScanLocalModelsResult {
   /** 扫描未完成时的说明（IPC 仍可能 ok: true） */
   error?: string
   cursorLoginStarted?: boolean
+  antigravityLoginStarted?: boolean
+  /** 默认走内置桥导出（无 10100）；遗留路径为 false */
+  bridgeMode?: boolean
+  localAgents?: LocalAgentDiscovery[]
 }
 
-export interface OpenCodexSetupStatus {
-  proxyUp?: boolean
-  cursorLoggedIn?: boolean
-  baseUrl?: string | null
-  bundled?: boolean
-  /** TaskWeaver 调用的 ocx CLI 版本 */
-  version?: string | null
-  cliVersion?: string | null
-  /** 10100 上实际运行的代理版本（healthz） */
-  proxyVersion?: string | null
-  composerContinuationOk?: boolean
-  cliSupportsComposer?: boolean
-  composerContinuationMinVersion?: string
-  upgradeAttempted?: boolean
-  upgradeError?: string | null
+export interface MigrateLegacyOpenCodexResult {
+  changed: boolean
+  migrated: { from: string; to: string }[]
+  hostRegistered: string[]
+  hostSkipped: { modelKey: string; reason: string }[]
 }
 
 export interface ModelLoadBundle {
@@ -201,10 +228,12 @@ export interface TaskweaverModelsApi {
   checkForUpdates: (options?: { force?: boolean }) => Promise<IpcResult<ModelUpdateStatus>>
   rollbackRegistry: () => Promise<IpcResult<ModelUpdateStatus>>
   scanLocal: () => Promise<IpcResult<ScanLocalModelsResult>>
-  openCodexGetSetupStatus: () => Promise<IpcResult<OpenCodexSetupStatus>>
-  openCodexEnsure: () => Promise<IpcResult<OpenCodexSetupStatus>>
+  bridgeGetStatus: () => Promise<IpcResult<LocalAgentBridgeStatus>>
+  bridgeLogin: (kind: 'cursor' | 'google-antigravity') => Promise<IpcResult<{ ok: boolean; message?: string }>>
+  bridgeRefreshCatalog: () => Promise<IpcResult<ScanLocalModelsResult & { ok?: boolean }>>
+  migrateLegacyOpenCodexRoutes: () => Promise<IpcResult<MigrateLegacyOpenCodexResult>>
+  /** @deprecated use bridgeLogin('cursor') */
   openCodexLoginCursor: () => Promise<IpcResult<{ ok: boolean; message?: string }>>
-  openCodexOpenDashboard: () => Promise<IpcResult<{ url: string }>>
   listProvidersAuth: () => Promise<IpcResult<ProviderAuthStatus[]>>
   setProviderApiKey: (
     providerId: string,

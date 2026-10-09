@@ -4,17 +4,17 @@
 
 **可执行计划：**[`taskweaver-execution-plan-2026-10.md`](taskweaver-execution-plan-2026-10.md)（**2026-10-07 修订版**：Done/缺口、v1.2.1→v1.4、本周 Issue 清单）。
 
-**发布注意：**GitHub Release `v1.2.0` 不含本地 **ahead 2**（`f7218cf6`、`17d53cea`）；下一里程碑建议 **v1.2.1**（见执行计划 §2、§12）。
+**基线（2026-10-07）：**当前 `main` / `80b3e040` 与 `origin/main` 一致，`v1.2.1` tag 已存在。BCDE 本轮工作区改动未提交；详细状态和验证边界见执行计划 §15。
 
 ## 阶段与状态
 
 | 阶段 | 目标 | 状态（2026-10-07） |
 |------|------|-------------------|
-| **A** 发版止血 | 双路径共用 pipeline、32KiB、测试门禁 | **代码完成** — Release `v1.2.0` 已发；本机 `test:z-host-deploy` + 安装包 smoke 待闭合 |
-| **B** 上下文与成本 | 折叠、compact 产品化、按 step 用量 | **基本完成** — 压缩建议条、用量 chip 耗时字段 |
-| **C** 会话单源 + fork | DSH projection 为准 | **基本完成** — `preferDshTranscript`、shadow 对比 IPC、`fork` 测试 |
-| **D** Agent 对齐 | Plan/Job/headless | **MVP+** — 定时任务 + **macOS LaunchAgent**、`run-scheduled-job-cli` |
-| **E** 生态与发布节奏 | Hook、E2E、版本节奏 | **MVP+** — **探索页**、Hook、`npm run release:prepare` |
+| **A** 发版止血 | 双路径共用 pipeline、32KiB、测试门禁 | **v1.2.1 tag 已有**；本轮未重跑发布门禁或安装包验收 |
+| **B** 上下文与成本 | 折叠、compact 产品化、按 step 用量 | **代码增强已落工作区**；工具输出出口、安装版 Compact 和 tool-cache 性能验收未闭 |
+| **C** 会话单源 + fork | DSH projection 为准 | **Fork 映射已补强**；单源迁移暂缓，重连/多窗口与 Host E2E 未验收 |
+| **D** Agent 对齐 | Plan/Job/headless | **子任务取消和 fixture CI smoke 已补**；按会话 MCP 裁剪等待 Host API，CI 未远端验证 |
+| **E** 生态与发布节奏 | Hook、E2E、版本节奏 | **Hook 边界与 IPC 拆分已补**；安装版清单待实际执行 |
 
 ## 门禁
 

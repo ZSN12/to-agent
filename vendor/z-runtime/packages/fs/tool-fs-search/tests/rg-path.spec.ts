@@ -12,8 +12,8 @@ import { CallId } from '@z/dsh-llm'
 import type { ToolExecution } from '@z/dsh-tools'
 import { resolveRgPath, runRipgrep } from '@z/dsh-tool-fs-search'
 
-// Any access to the mocked module's surface throws — the shape a missing
-// platform package produces at module evaluation.
+// Any access throws a fresh error — a missing platform package should be
+// reported per call, without caching the rejected resolution promise.
 vi.mock('@vscode/ripgrep', () => new Proxy({}, {
   get() {
     throw new Error('platform package @vscode/ripgrep-win32-x64 is not installed')
@@ -21,8 +21,13 @@ vi.mock('@vscode/ripgrep', () => new Proxy({}, {
 }))
 
 describe('lazy packaged-ripgrep resolution', () => {
-  it('fails the first search call with SEARCH_FAILED instead of failing module load', async () => {
-    // The resolution rejects before any spawn, so no subprocess service is needed.
+  it('surfaces failures per call without memoizing the rejected promise', async () => {
+    const firstFailure = await resolveRgPath().catch((error: unknown) => error)
+    const secondFailure = await resolveRgPath().catch((error: unknown) => error)
+    expect(firstFailure).toBeInstanceOf(Error)
+    expect(secondFailure).toBeInstanceOf(Error)
+    expect(secondFailure).not.toBe(firstFailure)
+
     const controller = new AbortController()
     const exec = { signal: controller.signal, name: 'glob', callId: CallId('missing-platform-package') } as unknown as ToolExecution
 

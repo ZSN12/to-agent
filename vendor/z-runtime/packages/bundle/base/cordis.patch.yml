@@ -94,6 +94,9 @@
     - id: llm-pi-ai
       name: '@z/dsh-llm-pi-ai'
 
+    - id: llm-taskweaver-bridge
+      name: '@z/dsh-llm-taskweaver-bridge'
+
     - id: session-persistence-jsonl
       name: '@z/dsh-session-persistence-jsonl'
       config:

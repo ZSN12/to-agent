@@ -3,6 +3,57 @@
 对照参考实现：`/Users/zsn/Documents/deepseek/dsh-source`（DeepSeek Host / DSH）。  
 本文说明**已对齐**、**刻意保留的个性化能力**，以及**后续可继续收敛**的项。
 
+## 上游依赖消除与自持基线声明（阶段 1.4）
+
+> **正式声明**：阶段 A 后不再合并上游 DSH，`vendor/z-runtime` 为冻结自有基线，许可证与致谢据实标注。
+
+### 1. 冻结自持决策与背景
+1. **架构解耦要求**：上游 DSH 保持自身单体演进（包含 Web UI、特定 Cordis 插件组织方式及外部上游变动）。TaskWeaver 核心价值在于桌面级多 Agent DAG 编排、成本感知模型路由、Task Worktree 隔离与原生 Electron 工具集成。长期跟随上游合并不仅维护成本极高，且频繁引入破坏性改动。
+2. **源码基线冻结**：完成阶段 A 剔除外部源码目录（`dsh-source`）后，TaskWeaver 彻底转为**单一受控基线**。以 `vendor/z-runtime` 为自持根目录，不再跟踪、拉取或合并上游任何新分支与 commit。
+3. **开源许可与合规致谢**：
+   - 严格保留原始代码中的 MIT License 及作者版权头（`@deepseek-ai` / 原始贡献者）；
+   - 在应用设置页及工程文档中明确据实标注对上游 DeepSeek Harness 原型研究成果的致谢与技术溯源；
+   - TaskWeaver 自身新增与重构模块享有独立著作权与代码治理权。
+
+### 2. 冻结自持与二次开发的架构边界
+
+```mermaid
+flowchart TD
+    subgraph HostLayer["TaskWeaver 宿主层 (独立演进)"]
+        UI["React 前端 UI (ChatView, DAG 看板, 作品集)"]
+        IPC["Electron 主进程 IPC & 路由调度"]
+        ZHost["ZHostManager (生命周期 / 数据目录迁移 / 进程管控)"]
+        ZClient["ZApiClient (类型安全 Typed RPC)"]
+        Portfolio["成本感知动态路由 & 额度追踪"]
+        DAG["DAG 调度器 & Worktree 任务隔离"]
+    end
+
+    subgraph BaselineLayer["z-runtime 冻结基线 (收敛自持)"]
+        direction TB
+        AgentLoop["Agent 执行循环 (agent-loop)"]
+        CordisKernel["Cordis 微内核体系"]
+        SessionLog["Session 事件持久化 & Mux Stream"]
+        Sandbox["原生沙箱 (Seatbelt / Bwrap / Windows-ACL)"]
+        MCP["MCP 协议客户端宿主"]
+    end
+
+    UI --> IPC
+    IPC --> ZHost
+    ZHost -->|进程派生 & 环境变量注入| BaselineLayer
+    IPC --> ZClient
+    ZClient -->|127.0.0.1 Loopback RPC| BaselineLayer
+    Portfolio --> IPC
+    DAG --> IPC
+```
+
+| 层次维度 | 冻结基线 (`vendor/z-runtime`) | TaskWeaver 自研/二次开发层 |
+|---------|------------------------------|--------------------------|
+| **控制主权** | 冻结在可用基线版本，仅做去 DSH 命名收敛与稳定性 Bug 修复 | 拥有完全演进主权，持续扩展新功能 |
+| **会话模型** | 单 Session 的 Agent turn 循环与底层事件持久化 | 多会话树调度、DAG 跨任务协同、Thread 元数据统一持久化 |
+| **模型网关** | 依赖本地 ApiProxy 与统一模型描述 | 成本感知路由作品集、动态加权策略、OpenCodex / 本地退路代理集成 |
+| **沙箱与安全**| 提供 `read-only` / `workspace-write` 等策略接口与原生 Runner | 启发式审批机制 (`on-risk`)、规则表匹配、工作区越界防护拦截 |
+| **环境与存储**| 消费 `Z_HOME`（兼容回退 `DSH_HOME`）单根用户数据目录 | 负责桌面级数据目录原子软链、配置迁移、备份与环境探测 |
+
 ## v1.2.0 收口（2026-10-07）
 
 - **执行层**：TaskWeaver 已以仓库内 `vendor/z-runtime` 的 DSH Host 为会话执行基线；桌面端通过 `dsh-chat-service.mjs` 维护 conversation/session 映射，并以 Host 事件与 projection 驱动流式状态。UI thread store 仍承担线程元数据和可恢复展示状态，单源迁移审计继续进行中。

@@ -66,16 +66,38 @@ export interface GlobInput {
 
 /**
  * Validate value constraints the schema DSL can't express: a non-blank
- * `pattern`, and a non-blank `path` when given. Throws a plain `Error` (an
- * ordinary tool argument error) otherwise.
+ * canonical pattern (or its `glob_pattern` alias), and a non-blank path (or its
+ * `target_directory` alias) when given. Throws a plain `Error` otherwise.
  *
- * @param args - the schema-validated `glob` arguments.
- * @returns the accepted input, unchanged.
+ * @param args - the schema-validated `glob` arguments, including supported provider aliases.
+ * @returns the accepted input with aliases normalized to canonical field names.
  */
-export function parseGlobArgs(args: { pattern: string; path?: string; includeExcluded?: boolean }): GlobInput {
-  if (args.pattern.trim().length === 0) throw new Error('pattern must be a non-empty string')
-  if (args.path !== undefined && args.path.trim().length === 0) throw new Error('path must be a non-empty string when given')
-  return { pattern: args.pattern, ...args.path !== undefined ? { path: args.path } : {},
+export function parseGlobArgs(args: {
+  pattern?: string
+  glob_pattern?: string
+  path?: string
+  target_directory?: string
+  includeExcluded?: boolean
+}): GlobInput {
+  if (args.pattern !== undefined && args.glob_pattern !== undefined && args.pattern !== args.glob_pattern) {
+    throw new Error('pattern and glob_pattern must match when both are given')
+  }
+  if (args.path !== undefined && args.target_directory !== undefined && args.path !== args.target_directory) {
+    throw new Error('path and target_directory must match when both are given')
+  }
+  const pattern = args.pattern ?? args.glob_pattern
+  const path = args.path ?? args.target_directory
+  if (typeof pattern !== 'string' || pattern.trim().length === 0) {
+    throw new Error(args.pattern !== undefined
+      ? 'pattern must be a non-empty string'
+      : 'glob_pattern must be a non-empty string')
+  }
+  if (path !== undefined && path.trim().length === 0) {
+    throw new Error(args.path !== undefined
+      ? 'path must be a non-empty string when given'
+      : 'target_directory must be a non-empty string when given')
+  }
+  return { pattern, ...path !== undefined ? { path } : {},
     ...args.includeExcluded !== undefined ? { includeExcluded: args.includeExcluded } : {} }
 }
 
@@ -316,18 +338,29 @@ export function applyGlobTool(ctx: Context, caps: GlobToolCaps): void {
     : `a larger result returns the first ${caps.maxResults} paths in modification-time order`
   const tool = defineTool({
     name: 'glob',
-    description: 'Find files whose paths match a glob pattern. Returns matching file paths — never directories — '
+    description: 'Provide a non-empty pattern (or the glob_pattern alias). Optional search directory: path (or target_directory). '
+      + 'If both names in a pair are supplied, their values must match. Find files whose paths match the pattern. Returns matching file paths — never directories — '
       + 'including hidden and ignored files (VCS metadata directories are excluded). '
       + `Up to ${caps.maxResults} paths come back in modification-time order; ${overCapDescription}, `
       + 'says so, and reports where the complete sorted list was saved. This tool does not enumerate directory entries.' + scopeGuidance,
     parameters: {
       pattern: {
         type: 'string',
-        required: true,
-        description: 'Glob pattern to match file paths against (e.g. "**/*.ts", "src/**/*.test.js"). '
+        description: 'Preferred glob pattern to match file paths against (e.g. "**/*.ts", "src/**/*.test.js"). '
           + 'A pattern with no "/" matches the basename at any depth, so "*" and "*.ts" both search the whole tree; include a separator to anchor the depth.',
       },
-      path: { type: 'string', description: 'Directory to search in. Defaults to the session workspace; a relative path resolves against it.' },
+      glob_pattern: {
+        type: 'string',
+        description: 'Compatibility alias for pattern. Prefer pattern.',
+      },
+      path: {
+        type: 'string',
+        description: 'Preferred directory to search in. Defaults to the session workspace; a relative path resolves against it.',
+      },
+      target_directory: {
+        type: 'string',
+        description: 'Compatibility alias for path. Prefer path.',
+      },
       includeExcluded: { type: 'boolean', description: 'Include deployment-excluded dependency/build directories. Use only with a narrow path when inspecting those files intentionally.' },
     },
     timeoutMs: caps.timeoutMs,

@@ -15,9 +15,24 @@ import { basename, dirname, isAbsolute, relative, resolve as resolvePath, sep } 
 import { fileURLToPath } from 'node:url'
 import type { UserConfig } from 'tsdown'
 import { transform } from 'lightningcss'
-import { optionalStringArray } from './modules/src/client/manifest.ts'
-import { PLATFORM_MODULES, PRELOADED_CLIENT_EXTERNALS } from './web/src/platform.ts'
 import { clientBuildEnvironmentDefines } from '../../scripts/client-build-environment.ts'
+
+function optionalStringArray(subject: string, field: string, value: unknown): string[] | undefined {
+  if (value === undefined) return undefined
+  if (!Array.isArray(value) || value.some(item => typeof item !== 'string')) {
+    throw new Error(`client-modules: ${subject} ${field} must be a string array`)
+  }
+  return value as string[]
+}
+
+const PLATFORM_MODULES = [
+  'react', 'react/jsx-runtime', 'react-dom', 'react-dom/client', '@z/cordis',
+  '@z/dsh-client-ui-slots',
+] as const
+
+const PRELOADED_CLIENT_EXTERNALS = [
+  '@z/dsh-client-runtime/client',
+] as const
 
 /**
  * Virtual-id wrapper keeping module CSS away from tsdown's own css pipeline

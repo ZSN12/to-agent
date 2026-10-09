@@ -30,16 +30,13 @@
       "path": "../../packages/bundle/headless"
     },
     {
-      "path": "../../packages/bundle/web-app"
+      "path": "../../packages/bundle/taskweaver"
     },
     {
       "path": "../../packages/host/apiproxy"
     },
     {
       "path": "../../packages/host/webserver"
-    },
-    {
-      "path": "../../packages/host/frontend-static"
     },
     {
       "path": "../../packages/core/session"

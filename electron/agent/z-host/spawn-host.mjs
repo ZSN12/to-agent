@@ -2,19 +2,67 @@ import { spawn as nodeSpawn } from 'node:child_process'
 import { execSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { createZApiClient } from './z-api-client.mjs'
-import { migrateLegacyDshProfileBundles } from './migrate-dsh-home.mjs'
+import { migrateLegacyDshProfileBundles, ensureZHomeDirectory } from './migrate-z-home.mjs'
 import {
   resolveTaskWeaverHostLaunch,
   TASKWEAVER_RUNTIME_PACKAGES,
 } from './resolve-runtime.mjs'
+import { readCompactionSummarizationEnv } from '../../backend/taskweaver-compaction-target.mjs'
 
-const READY_URL = /dsh web:\s+(https?:\/\/127\.0\.0\.1:\d+)/i
+const READY_URL = /(?:z|dsh) web:\s+(https?:\/\/127\.0\.0\.1:\d+)/i
 const START_TIMEOUT_MS = 45_000
 const LEGACY_PI_AI_SETTINGS_NS = 'llm-pi-ai'
 const MODEL_SETTINGS_READY_MS = 2_500
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+const BRIDGE_NO_PROXY_HOSTS = [
+  '127.0.0.1',
+  'localhost',
+  '[::1]',
+  'api2.cursor.sh',
+  'cursor.com',
+  'cursor.sh',
+]
+
+/** Keep loopback Z Host + Cursor upstream off a dead system HTTP proxy. */
+function mergeBridgeNoProxy(childEnv) {
+  const existing = String(childEnv.NO_PROXY ?? childEnv.no_proxy ?? '')
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+  const merged = [...new Set([...existing, ...BRIDGE_NO_PROXY_HOSTS])]
+  const value = merged.join(',')
+  childEnv.NO_PROXY = value
+  childEnv.no_proxy = value
+}
+
+/**
+ * In-process bridge transport + OpenCodex adapter root for Z Host (scheme C).
+ * @param {string} runtimeCwd Host cwd (often DSH_HOME packaged-runtime mirror)
+ * @param {string} [opencodexPackageRoot] Resolved @taskweaver/opencodex package dir
+ * @param {string} [runtimeRoot] Deploy tree (Resources/taskweaver-z-runtime); transport lives here
+ */
+export function bridgeTransportChildEnv(runtimeCwd, opencodexPackageRoot, runtimeRoot = runtimeCwd) {
+  const env = {}
+  const transportCandidates = [
+    path.join(runtimeRoot, 'electron-vendor', 'taskweaver-bridge-transport', 'index.mjs'),
+    path.join(runtimeCwd, 'electron-vendor', 'taskweaver-bridge-transport', 'index.mjs'),
+  ]
+  const stagedTransport = transportCandidates.find((candidate) => fs.existsSync(candidate))
+  if (stagedTransport) {
+    env.TASKWEAVER_BRIDGE_TRANSPORT = pathToFileURL(stagedTransport).href
+  }
+  if (runtimeRoot && fs.existsSync(runtimeRoot)) {
+    env.TASKWEAVER_Z_RUNTIME = path.resolve(runtimeRoot)
+  }
+  if (opencodexPackageRoot && fs.existsSync(opencodexPackageRoot)) {
+    env.TASKWEAVER_OPENCODEX_ROOT = opencodexPackageRoot
+  }
+  return env
+}
 
 /**
  * 从系统配置读取代理（macOS scutil，Windows/Linux 可扩展）。
@@ -257,21 +305,24 @@ function linkMirrorPiece(src, dest) {
 
 /**
  * Node ESM resolves from cwd/node_modules; deploy output uses runtime-packages (electron-builder strips node_modules).
- * Packaged .app Resources are often read-only — mirror into DSH_HOME when needed.
+ * Use a stable DSH_HOME mirror for Host cwd. Runtime deploys atomically replace
+ * `runtimeRoot`; a live Node process whose cwd is the renamed/deleted old tree
+ * cannot create Worker threads (`uv_cwd`). The mirror's package symlinks keep
+ * resolving through the stable runtimeRoot path after the swap.
  */
-export function prepareRuntimeCwd(runtimeRoot, dshHome, { preferWritableMirror = false } = {}) {
+export function prepareRuntimeCwd(runtimeRoot, dshHome, { useStableMirror = false } = {}) {
   const packagesDir = path.join(runtimeRoot, TASKWEAVER_RUNTIME_PACKAGES)
   if (!fs.existsSync(packagesDir)) {
     return runtimeRoot
   }
 
-  if (!preferWritableMirror && ensureNodeModulesLink(runtimeRoot)) {
+  if (!useStableMirror && ensureNodeModulesLink(runtimeRoot)) {
     return runtimeRoot
   }
 
   const mirror = path.join(dshHome, 'packaged-runtime')
   fs.mkdirSync(mirror, { recursive: true })
-  for (const name of ['lib', 'config', TASKWEAVER_RUNTIME_PACKAGES]) {
+  for (const name of ['lib', 'config', TASKWEAVER_RUNTIME_PACKAGES, 'electron-vendor']) {
     linkMirrorPiece(path.join(runtimeRoot, name), path.join(mirror, name))
   }
   for (const name of ['package.json', 'taskweaver-runtime-meta.json']) {
@@ -315,13 +366,13 @@ async function waitForModelSettingsReady(client, timeoutMs = MODEL_SETTINGS_READ
  */
 export function createZHostManager({
   runtimeRoot,
+  opencodexPackageRoot,
   userDataPath,
   executable = process.execPath,
   spawnProcess = nodeSpawn,
   environment = process.env,
   getMcpRuntimeIntegration,
   startTimeoutMs = START_TIMEOUT_MS,
-  isPackaged = false,
 }) {
   let child = null
   let startPromise = null
@@ -353,9 +404,10 @@ export function createZHostManager({
   }
 
   async function start() {
-    const dshHome = path.join(userDataPath, 'dsh')
+    const { zHome, dshHome } = ensureZHomeDirectory(userDataPath)
+    const effectiveHome = environment.Z_HOME || environment.DSH_HOME || zHome
     try {
-      const migration = await migrateLegacyDshProfileBundles(dshHome)
+      const migration = await migrateLegacyDshProfileBundles(effectiveHome)
       if (migration.changed) {
         console.log(`Z Host: 已迁移 profile bundles → @z/*（${migration.profiles.join(', ')}）`)
       }
@@ -366,13 +418,16 @@ export function createZHostManager({
     if (startPromise) return startPromise
     startPromise = (async () => {
       const mcpIntegration = await getMcpRuntimeIntegration?.()
+      const compactionEnv = await readCompactionSummarizationEnv(userDataPath)
       return new Promise((resolve, reject) => {
       diagnostics = ''
       let entrypoint
       let nodePath
       let processCwd
       try {
-        processCwd = prepareRuntimeCwd(runtimeRoot, dshHome, { preferWritableMirror: isPackaged })
+        // Worker threads inherit the Host process cwd. Keep it outside the
+        // atomically replaced runtime tree in both dev and packaged builds.
+        processCwd = prepareRuntimeCwd(runtimeRoot, effectiveHome, { useStableMirror: true })
         const launch = resolveTaskWeaverHostLaunch(processCwd)
         entrypoint = launch.entrypoint
         nodePath = launch.nodePath
@@ -383,8 +438,13 @@ export function createZHostManager({
       const childEnv = {
         ...environment,
         ...(mcpIntegration?.environment ?? {}),
-        DSH_HOME: dshHome,
+        ...compactionEnv,
+        ...bridgeTransportChildEnv(processCwd, opencodexPackageRoot, runtimeRoot),
+        Z_HOME: effectiveHome,
+        DSH_HOME: effectiveHome,
+        Z_TELEMETRY_DISABLED: '1',
         DSH_TELEMETRY_DISABLED: '1',
+        Z_TASKWEAVER_EMBEDDED: '1',
         DSH_TASKWEAVER_EMBEDDED: '1',
         TASKWEAVER_WEB_SEARCH_CONFIG_PATH: path.join(userDataPath, 'taskweaver-web-search.json'),
         ELECTRON_RUN_AS_NODE: '1',
@@ -414,6 +474,7 @@ export function createZHostManager({
           }
         }
       }
+      mergeBridgeNoProxy(childEnv)
       if (nodePath) {
         childEnv.NODE_PATH = nodePath
       }
@@ -512,5 +573,3 @@ export function createZHostManager({
   }
 }
 
-/** @deprecated use createZHostManager */
-export const createDshHostManager = createZHostManager

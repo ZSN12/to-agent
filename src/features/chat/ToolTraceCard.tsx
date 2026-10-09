@@ -23,14 +23,15 @@ export function ToolTraceCard({
   const Icon = toolIcon(item.toolName)
   const filePath = resolveToolFilePath(item)
   const pathLike = Boolean(filePath) || (item.inputSummary && !item.inputSummary.startsWith('参数：') && !item.inputSummary.startsWith('匹配：'))
-  const isBash = item.toolName === 'bash'
-  const isRead = item.toolName === 'read'
-  const isSearch = item.toolName === 'grep' || item.toolName === 'find'
+  const isBash = item.toolName === 'bash' || item.toolName === 'pwsh'
+  const isRead = item.toolName === 'read' || item.toolName === 'web_fetch'
+  const isSearch = item.toolName === 'grep' || item.toolName === 'find' || item.toolName === 'glob' || item.toolName === 'web_search'
+  const isCode = item.toolName === 'code' || item.toolName === 'run_code'
 
   return (
     <div className={`tool-trace-card ${item.status}`}>
       <div className="tool-trace-card-head">
-        <Icon size={16} className="tool-trace-card-icon" aria-hidden />
+        <Icon size={14} className="tool-trace-card-icon" aria-hidden />
         <strong className="tool-trace-name">{item.toolName}</strong>
         {typeof item.durationMs === 'number' && (
           <time className="tool-trace-time">
@@ -38,7 +39,7 @@ export function ToolTraceCard({
           </time>
         )}
         {onShowDetails && (
-          <button type="button" className="tool-trace-details-btn" onClick={() => onShowDetails(item)} title="在 Details 面板查看">
+          <button type="button" className="tool-trace-details-btn" onClick={() => onShowDetails(item)} title="在详情面板查看">
             <PanelRightOpen size={14} />
           </button>
         )}
@@ -57,10 +58,10 @@ export function ToolTraceCard({
       {isSearch && item.inputSummary && (
         <div className="tool-trace-card-search">{item.inputSummary}</div>
       )}
-      {isBash && item.inputSummary && (
+      {(isBash || isCode) && item.inputSummary && (
         <pre className="tool-trace-command">{item.inputSummary}</pre>
       )}
-      {!isBash && !isRead && !isSearch && item.inputSummary && !pathLike && (
+      {!isBash && !isRead && !isSearch && !isCode && item.inputSummary && !pathLike && (
         <div className="tool-trace-card-meta">{item.inputSummary}</div>
       )}
       {item.resultSummary && item.toolName !== 'context-compaction' && (

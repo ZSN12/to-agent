@@ -48,6 +48,7 @@
     }
   },
   "dependencies": {
+    "@z/dsh-home-paths": "workspace:^",
     "@z/schemastery": "workspace:^"
   },
   "devDependencies": {

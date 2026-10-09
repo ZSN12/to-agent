@@ -85,7 +85,9 @@ try {
   assert.equal(saved.find(row => row.id === `z-turn-${terminal.turnId}`).text, 'PARTIAL_BEFORE_FAILURE')
   assert.equal(saved.find(row => row.id === `z-turn-${terminal.turnId}`).thinking, 'READ_REASONING_BEFORE_FAILURE')
   assert.equal(saved.find(row => row.id === `z-turn-${terminal.turnId}`).interrupted, true)
-  assert.equal(saved.filter(row => row.id.endsWith('-error')).length, 1)
+  assert.equal(saved.filter(row => row.id.endsWith('-error')).length, 0,
+    'failed turn with partial output must not create a duplicate error message')
+  assert.match(saved.find(row => row.id === `z-turn-${terminal.turnId}`).callout, /执行失败/)
   // Delayed/repeated delivery is idempotent for both transcript and accounting.
   await persist({ conversationId: id, modelKey, result: failure.partialResult, errorMessage: failure.message })
   assert.equal((await appState.getConversationState(id)).messages.length, saved.length)

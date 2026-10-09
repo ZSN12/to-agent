@@ -76,6 +76,7 @@ export async function discoverModelsFromProviderApi({
 
   const reply = await api.llm.discoverModels({
     settingsNs: PI_AI_SETTINGS_NS,
+    provider: providerId,
     baseURL,
     api: 'openai-completions',
     apiKey,

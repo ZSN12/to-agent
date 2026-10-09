@@ -14,11 +14,15 @@ import { createMcpService } from '../electron/backend/mcp-service.mjs'
 import { piProviderBlockToDshProfile } from '../electron/backend/pi-models-to-dsh-profile.mjs'
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const explicitRuntimeOverride = typeof process.env.TASKWEAVER_Z_RUNTIME === 'string'
-  && process.env.TASKWEAVER_Z_RUNTIME.trim().length > 0
+const rawRuntimeOverride = (typeof process.env.TASKWEAVER_Z_RUNTIME === 'string' && process.env.TASKWEAVER_Z_RUNTIME.trim().length > 0)
+  ? process.env.TASKWEAVER_Z_RUNTIME.trim()
+  : ((typeof process.env.TASKWEAVER_DSH_RUNTIME === 'string' && process.env.TASKWEAVER_DSH_RUNTIME.trim().length > 0)
+    ? process.env.TASKWEAVER_DSH_RUNTIME.trim()
+    : null)
+const explicitRuntimeOverride = Boolean(rawRuntimeOverride)
 const runtimeSource = explicitRuntimeOverride ? 'explicit-override' : 'repository-bundle'
 const expectedRuntimeRoot = explicitRuntimeOverride
-  ? path.resolve(process.env.TASKWEAVER_Z_RUNTIME.trim())
+  ? path.resolve(rawRuntimeOverride)
   : path.resolve(projectRoot, 'vendor', 'taskweaver-z-runtime')
 const runtimeRoot = resolveTaskWeaverRuntimeRoot({
   appPath: projectRoot,
@@ -554,6 +558,16 @@ assert.doesNotMatch(generatedMcpPatch, new RegExp(mcpSmokeLogPath.replace(/[.*+?
   'MCP environment values must be passed through the Host environment instead of inlined in its patch')
 assert.ok(Object.values(initialMcpIntegration.environment).includes(mcpSmokeLogPath),
   'the generated Host environment must contain the fixture-only MCP configuration value')
+const userReadonlyOverrideMarker = 'TASKWEAVER_USER_READONLY_PRESET_OVERRIDE_SHOULD_NOT_LOAD'
+const userReadonlyPresetPath = path.join(testHome, 'dsh', '.agent-presets', 'taskweaver-readonly', 'agent.cordis.yml')
+await fs.mkdir(path.dirname(userReadonlyPresetPath), { recursive: true })
+const userReadonlyPreset = readonlyPreset.replace(
+  'You are a read-only TaskWeaver research/review agent',
+  userReadonlyOverrideMarker,
+)
+assert.notEqual(userReadonlyPreset, readonlyPreset, 'user preset collision fixture must change the persona marker')
+await fs.writeFile(userReadonlyPresetPath, userReadonlyPreset)
+
 const manager = createZHostManager({
   runtimeRoot,
   userDataPath: testHome,
@@ -704,6 +718,11 @@ try {
   assert.ok(requestsWithTools.length >= 1, 'a model request with the deployed tool catalog should reach the mock provider')
   const readonlyWireRequest = requestsWithTools.find((request) => JSON.stringify(request.body).includes('Reply with the short acknowledgement.'))
   assert.ok(readonlyWireRequest, 'the deployed read-only turn should reach the model provider')
+  const readonlyWireMessages = JSON.stringify(readonlyWireRequest.body.messages)
+  assert.ok(!readonlyWireMessages.includes(userReadonlyOverrideMarker),
+    'a same-named user preset must not override the deployed system read-only preset')
+  assert.ok(readonlyWireMessages.includes('You are a read-only TaskWeaver research/review agent'),
+    'the provider request must carry the packaged system read-only persona after a user-name collision')
   const readonlyWireTools = readonlyWireRequest.body.tools.map((tool) => tool.function?.name ?? tool.name)
   assert.ok(readonlyWireTools.includes('read') && readonlyWireTools.includes('grep'), 'the provider request must expose native read and search tools')
   assert.ok(!readonlyWireTools.includes('run_code'), 'the provider request must not require a Code Mode wrapper for read-only tasks')

@@ -153,17 +153,8 @@ export function createZConversationHub({ runtimeRoot, fakeRemote = fakeSessionRe
     handleHostEnvelope(_envelope) { /* TaskWeaver mux path only */ },
 
     attachSession,
-    /** @deprecated alias */
-    attach: attachSession,
 
     detachSession(conversationId) {
-      const entry = attachments.get(conversationId)
-      entry?.unsub?.()
-      attachments.delete(conversationId)
-      dropPending(conversationId)
-    },
-
-    detach(conversationId) {
       const entry = attachments.get(conversationId)
       entry?.unsub?.()
       attachments.delete(conversationId)

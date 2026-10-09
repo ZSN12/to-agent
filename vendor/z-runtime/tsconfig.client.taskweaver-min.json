@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.base.client.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rewriteRelativeImportExtensions": false,
+    "types": ["node"]
+  },
+  "files": [],
+  "references": [
+    { "path": "./packages/client/connection/tsconfig.client.json" },
+    { "path": "./packages/client/runtime" },
+    { "path": "./packages/client/ui-slots" },
+    { "path": "./packages/api/remotes/tsconfig.client.json" }
+  ]
+}

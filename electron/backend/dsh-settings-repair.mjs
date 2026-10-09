@@ -73,3 +73,51 @@ export function pickCredentialOnlyProfiles(providers) {
   }
   return out
 }
+
+const BRIDGE_SECTION = 'llm-taskweaver-bridge'
+const BRIDGE_BACKUP_REL = path.join('taskweaver', 'llm-taskweaver-bridge-settings.backup.yaml')
+
+export async function isLlmTaskweaverBridgeNamespaceRegistered(api) {
+  const response = await api.settings.describe({})
+  const result = response?.result ?? response
+  if (result?.ok === false) return false
+  const namespaces = result?.value?.namespaces ?? []
+  return namespaces.some((item) => item?.ns === BRIDGE_SECTION)
+}
+
+export async function quarantineBrokenLlmTaskweaverBridgeSection(userDataPath) {
+  const dshHome = resolveDshHome(userDataPath)
+  const settingsPath = path.join(dshHome, 'settings.yaml')
+  let text
+  try {
+    text = await fs.readFile(settingsPath, 'utf8')
+  } catch (err) {
+    if (err?.code === 'ENOENT') return { quarantined: false }
+    throw err
+  }
+  const document = parseDocument(text)
+  const section = document.get(BRIDGE_SECTION)
+  if (section === undefined || section === null) return { quarantined: false }
+  const backupPath = path.join(userDataPath, BRIDGE_BACKUP_REL)
+  await fs.mkdir(path.dirname(backupPath), { recursive: true })
+  const backupDoc = new Document({ [BRIDGE_SECTION]: section })
+  await fs.writeFile(backupPath, `${String(backupDoc)}
+`, 'utf8')
+  document.delete(BRIDGE_SECTION)
+  await fs.writeFile(settingsPath, `${String(document)}
+`, 'utf8')
+  return { quarantined: true, backupPath }
+}
+
+export async function readQuarantinedLlmTaskweaverBridgeProviders(userDataPath) {
+  const backupPath = path.join(userDataPath, BRIDGE_BACKUP_REL)
+  try {
+    const text = await fs.readFile(backupPath, 'utf8')
+    const doc = parseDocument(text).toJS()
+    const providers = doc?.[BRIDGE_SECTION]?.providers
+    if (providers && typeof providers === 'object' && !Array.isArray(providers)) return { ...providers }
+  } catch (err) {
+    if (err?.code !== 'ENOENT') throw err
+  }
+  return {}
+}

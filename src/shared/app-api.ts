@@ -1,4 +1,4 @@
-import type { ChatMessage, ChatUsage, ModifiedFileSummary, TaskNode } from '../types'
+import type { ChatMessage, ChatUsage, ModifiedFileSummary, TaskNode, TurnActivitySummary } from '../types'
 import type { TaskweaverModelsApi, IpcResult, ThinkingLevel } from './model-api'
 
 export interface AppState {
@@ -92,10 +92,12 @@ export type ChatStreamEvent =
     interrupted?: boolean
     contentBlocks?: Array<{ id: string; kind: 'thinking' | 'text'; text: string }>
     fileChanges?: ModifiedFileSummary[]
+    turnActivity?: TurnActivitySummary
   }
   | { type: 'error'; message: string; turnId?: string; startedAt?: number;
       full?: string; fullThinking?: string; thinkingDurationMs?: number; usage?: ChatUsage;
-      contentBlocks?: Array<{ id: string; kind: 'thinking' | 'text'; text: string }>; fileChanges?: ModifiedFileSummary[] }
+      contentBlocks?: Array<{ id: string; kind: 'thinking' | 'text'; text: string }>; fileChanges?: ModifiedFileSummary[];
+      turnActivity?: TurnActivitySummary }
   | { type: 'tasks'; tasks: TaskNode[] }
   | { type: 'orchestration'; mode: 'single-agent' | 'multi-agent'; reason: string }
   | { type: 'progress'; text: string }
@@ -180,6 +182,7 @@ export interface WorkspaceReference extends WorkspaceEntry {
 export interface TaskweaverWorkspaceApi {
   listContext: (query?: string, limit?: number) => Promise<IpcResult<WorkspaceEntry[]>>
   createReference: (droppedPath: string) => Promise<IpcResult<WorkspaceReference>>
+  saveClipboardImage?: (payload: { base64: string; mimeType: string; filename?: string }) => Promise<IpcResult<WorkspaceReference & { fullPath?: string }>>
   getDroppedFilePath: (file: File) => string
   getTrust: () => Promise<IpcResult<WorkspaceTrustState>>
   setTrust: (trusted: boolean) => Promise<IpcResult<WorkspaceTrustState>>
@@ -577,6 +580,7 @@ export interface LiveContextUsage {
 
 export interface TaskweaverTasksApi {
   sendMessage: (taskId: string, text: string, conversationId?: string | null) => Promise<IpcResult<ChatSendResult>>
+  cancel?: (taskId: string, conversationId?: string | null) => Promise<IpcResult<{ cancelled: boolean }>>
 }
 
 export interface McpServerConfig {
@@ -740,6 +744,41 @@ export interface TaskweaverUsageApi {
   clear: () => Promise<IpcResult<{ ok: boolean }>>
 }
 
+export interface OpenUsageResourceData {
+  kind?: string
+  limit?: number
+  max?: number
+  remaining?: number
+  used?: number
+  utilization?: number
+  unit?: string
+  resetsAt?: string
+  resetAt?: string
+  windowSeconds?: number
+  available?: number
+  expiresAt?: string | string[]
+}
+
+export interface OpenUsageProviderData {
+  displayName?: string
+  plan?: string
+  fetchedAt?: string
+  expiresAt?: string
+  stale?: boolean
+  resources?: Record<string, OpenUsageResourceData>
+}
+
+export interface OpenUsageLimitsSnapshot {
+  schema?: string
+  generatedAt?: string
+  providers?: Record<string, OpenUsageProviderData>
+  errors?: string[]
+}
+
+export interface TaskweaverOpenUsageApi {
+  getLimits: (options?: { force?: boolean }) => Promise<IpcResult<{ ok: boolean; active: boolean; data: OpenUsageLimitsSnapshot | null; baseUrl?: string; error?: string }>>
+}
+
 export interface PermissionRule {
   id: string
   tool: string
@@ -836,6 +875,8 @@ export interface TaskweaverSystemApi {
 export interface RoutingPortfolio {
   version: number
   display_names?: Record<string, string>
+  /** Exact/glob model keys that this user can call through a zero-price route. */
+  free_model_patterns?: string[]
   subscriptions?: Array<{
     id: string
     label: string
@@ -844,6 +885,19 @@ export interface RoutingPortfolio {
     deprioritize_models?: string[]
     marginal_cost?: number
   }>
+  routing_weights?: {
+    subscription_bonus?: number
+    free_model_bonus?: number
+    cost_penalty_per_usd_per_million?: number
+    max_cost_penalty?: number
+    surge_penalty?: number
+  }
+  usage_source?: {
+    provider?: string
+    enabled?: boolean
+    base_url?: string
+    timeout_ms?: number
+  }
   metered_surge?: Array<{
     provider: string
     match_model_keys?: string[]
@@ -867,15 +921,43 @@ export interface RoutingPortfolio {
   }>
   quota_cycles?: {
     enabled: boolean
-    source?: string
+    auto_discover?: boolean
     base_url?: string
+    max_snapshot_age_ms?: number
+    reset_within_ms?: number
+    min_remaining_ratio_for_bonus?: number
+    scarce_remaining_ratio?: number
+    scarce_penalty_points?: number
+    abundance_bonus_points?: number
+    bonus_points?: number
+    dag_allocation_penalty_points?: number
     policies?: Array<{
       provider_id: string
       resource_id: string
-      rollover: boolean | string
-      use_before_reset: boolean
+      enabled?: boolean
+      match_model_keys?: string[]
+      rollover?: boolean | 'true' | 'false' | 'unknown'
+      use_before_reset?: boolean
+      reset_within_ms?: number
+      min_remaining_ratio_for_bonus?: number
+      scarce_remaining_ratio?: number
+      scarce_penalty_points?: number
+      bonus_points?: number
+      exhausted_action?: 'exclude' | 'penalize'
     }>
   }
+  /** API balance routing only activates for explicit user-defined thresholds. */
+  balance_policies?: Array<{
+    provider_id: string
+    resource_id: string
+    enabled?: boolean
+    match_model_keys: string[]
+    unit?: string
+    low_balance_threshold?: number
+    low_balance_penalty_points?: number
+    exhausted_penalty_points?: number
+    exhausted_action?: 'exclude' | 'penalize'
+  }>
 }
 
 export interface TaskweaverPortfolioApi {
@@ -896,18 +978,24 @@ export interface AppPreferences {
   autoReviewReads?: boolean
   /** 改代码时在 Host 外追加验证命令指引；默认关闭。 */
   autoVerifyAfterMutation?: boolean
+  /** 代码变更后自动运行项目验证并尝试静默修复；需显式开启。 */
+  selfHealingLoop?: boolean
   /** 每轮 Prompt Pipeline 注入的系统上下文上限，单位为字节；默认 32 KiB。 */
   promptInjectionLimitBytes?: number
   /** 规则门控：灰区是否询问启用多 Agent（不调用模型）。 */
   adaptiveOrchestrationGate?: boolean
-  /** 常规模式下默认走多 Agent DAG。 */
+  /** 开启后常规消息默认走多 Agent DAG；默认关闭。 */
   preferMultiAgent?: boolean
   /** 消息列表优先 DSH transcript 投影。 */
   preferDshTranscript?: boolean
+  /** 本机 OpenUsage API 根地址（http://127.0.0.1:端口，仅 loopback） */
+  openUsageBaseUrl?: string
 }
 
 export interface ScheduledJob {
   id: string
+  /** 持久化的后台会话，用于恢复任务上下文与执行记录。 */
+  conversationId?: string | null
   title: string
   prompt: string
   workspacePath: string | null
@@ -1067,6 +1155,7 @@ export interface TaskweaverBridge {
   chat: TaskweaverChatApi
   tasks: TaskweaverTasksApi
   usage?: TaskweaverUsageApi
+  openusage?: TaskweaverOpenUsageApi
   terminal?: TaskweaverTerminalApi
   system?: TaskweaverSystemApi
   portfolio?: TaskweaverPortfolioApi

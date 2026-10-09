@@ -53,12 +53,18 @@ function parsePositiveInteger(value: number, name: string): number {
  * @param maxLimit - the configured line cap: both the default `limit` and the largest one accepted.
  * @returns the validated input with `offset` defaulted to 1 and `limit` to `maxLimit`.
  */
-export function parseReadArgs(args: { file_path: string; offset?: number; limit?: number }, maxLimit: number): ReadInput {
-  if (args.file_path.trim().length === 0) throw new Error('file_path must be a non-empty string')
+export function parseReadArgs(args: { file_path?: string; path?: string; offset?: number; limit?: number }, maxLimit: number): ReadInput {
+  if (args.file_path !== undefined && args.path !== undefined && args.file_path !== args.path) {
+    throw new Error('file_path and path must match when both are provided')
+  }
+  const filePath = args.file_path ?? args.path
+  if (typeof filePath !== 'string' || filePath.trim().length === 0) {
+    throw new Error('file_path must be a non-empty string')
+  }
   const offset = args.offset === undefined ? 1 : parsePositiveInteger(args.offset, 'offset')
   const limit = args.limit === undefined ? maxLimit : parsePositiveInteger(args.limit, 'limit')
   if (limit > maxLimit) throw new Error(`limit must be less than or equal to ${maxLimit}`)
-  return { filePath: args.file_path, offset, limit }
+  return { filePath, offset, limit }
 }
 
 /**
@@ -70,14 +76,15 @@ export function applyReadTool(ctx: Context, caps: ReadToolCaps): void {
   ctx.systemPrompt.section({
     name: 'tool:read',
     order: 100,
-    text: 'Use the read tool — not shell commands like cat — to inspect text files. Results include line numbers. Use offset and limit to continue reading large files.',
+    text: 'Use the read tool — not shell commands like cat — to inspect text files. Prefer file_path; path is accepted as a compatibility alias. Results include line numbers. Use offset and limit to continue reading large files.',
   })
 
   ctx.tools.register(defineTool({
     name: 'read',
-    description: 'Read a UTF-8 text file and return line-numbered content.',
+    description: 'Read a UTF-8 text file and return line-numbered content. Use file_path; path is accepted as a compatibility alias.',
     parameters: {
-      file_path: { type: 'string', required: true, description: 'Path to read, resolved by the filesystem backend.' },
+      file_path: { type: 'string', description: 'Canonical path to read, resolved by the filesystem backend.' },
+      path: { type: 'string', description: 'Compatibility alias for file_path; use only when file_path is omitted.' },
       offset: { type: 'number', description: '1-based first line to return. Defaults to 1.' },
       limit: { type: 'number', description: `Maximum number of lines to return. Defaults to ${caps.limit}.` },
     },
@@ -194,15 +201,16 @@ export function applyReadTool(ctx: Context, caps: ReadToolCaps): void {
     // read's offset (defaulting to 1). The window reflects raw args, so an omitted limit keeps
     // the title bare instead of smuggling config into this pure presenter.
     presentCall(args): GenericCallView {
+      const filePath = args.file_path ?? args.path ?? ''
       const { offset, limit } = args
       const window = limit !== undefined && limit > 0
         ? ` (${offset ?? 1} - ${(offset ?? 1) + limit - 1})`
         : offset !== undefined ? ` (from line ${offset})` : ''
       return {
         card: 'generic',
-        title: `Read ${args.file_path}${window}`,
+        title: `Read ${filePath}${window}`,
         kind: 'read',
-        locations: [{ path: args.file_path, line: offset ?? 1 }],
+        locations: [{ path: filePath, line: offset ?? 1 }],
       }
     },
   }))

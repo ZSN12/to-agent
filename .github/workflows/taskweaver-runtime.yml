@@ -16,6 +16,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Headless CLI fixture smoke
+        run: node scripts/taskweaver-headless.mjs --fixture --text "CI fixture" --json-summary
       - run: node scripts/test-z-runtime-resolution.mjs
 
   smoke-macos:

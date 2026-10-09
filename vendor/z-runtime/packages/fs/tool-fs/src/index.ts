@@ -21,6 +21,11 @@ export const name = 'tool-fs'
 /** Services required by the filesystem tool suite. */
 export const inject = ['tools', 'fs', 'systemPrompt']
 
+// Shared by sibling filesystem plugins so mutations use the same policy path.
+export { FsSandboxController } from './sandbox.ts'
+export { sessionCwd, sessionResolveOptions } from './session-cwd.ts'
+export { computeHunkDiffs, diffsFromMeta } from './diff.ts'
+
 /** Plugin config (all optional — `Config` supplies the defaults). */
 export interface Config {
   /** Register write/edit tools. Disable for genuinely read-only agent compositions. */

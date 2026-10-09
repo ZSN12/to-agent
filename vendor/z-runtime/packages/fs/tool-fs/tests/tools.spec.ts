@@ -254,6 +254,34 @@ describe('read tool', () => {
 </content>`)
   })
 
+  it('accepts path as a compatibility alias for Cursor-family clients', async () => {
+    const { ctx, fs } = await setup()
+    fs.files.set('key:a.txt', 'hello')
+    const result = await call(ctx, 'read', { path: 'a.txt' })
+    expect(result.isError).toBe(false)
+    if (result.isError) throw new Error('expected compatibility read success')
+    expect(result.value).toEqual({
+      path: '/abs/a.txt',
+      offset: 1,
+      lines: [{ number: 1, text: 'hello' }],
+      totalLines: 1,
+    })
+  })
+
+  it('rejects conflicting canonical and compatibility paths', async () => {
+    const { ctx } = await setup()
+    const result = await call(ctx, 'read', { file_path: 'a.txt', path: 'b.txt' })
+    expect(result.isError).toBe(true)
+    expect(text(result)).toContain('file_path and path must match')
+  })
+
+  it('requires one non-empty canonical or compatibility path', async () => {
+    const { ctx } = await setup()
+    const result = await call(ctx, 'read', {})
+    expect(result.isError).toBe(true)
+    expect(text(result)).toContain('file_path must be a non-empty string')
+  })
+
   it('returns an explicit empty canonical line window for an empty file', async () => {
     const { ctx, fs } = await setup()
     fs.files.set('key:empty.txt', '')
@@ -523,6 +551,13 @@ describe('tool-owned presentation (pure presentCall)', () => {
   it('read: bare title and line-1 location when offset/limit are unset', async () => {
     expect(await presentCall('read', { file_path: 'a.txt' })).toEqual({
       card: 'generic', title: 'Read a.txt', kind: 'read', locations: [{ path: 'a.txt', line: 1 }],
+    })
+  })
+
+  it('read: compatibility path alias is used in the call presentation', async () => {
+    expect(await presentCall('read', { path: 'a.txt', offset: 3 })).toEqual({
+      card: 'generic', title: 'Read a.txt (from line 3)', kind: 'read',
+      locations: [{ path: 'a.txt', line: 3 }],
     })
   })
 

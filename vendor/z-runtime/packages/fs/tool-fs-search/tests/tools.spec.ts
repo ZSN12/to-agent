@@ -487,9 +487,10 @@ describe('workdir derivation and signal forwarding', () => {
     // failure is the reportable cause with the original error chained.
     const { ctx, subprocess } = await setup()
     const controller = new AbortController()
+    const spawnError = Object.assign(new Error('spawn failed'), { code: 'ENOENT', syscall: 'spawn' })
     subprocess.handler = () => {
       controller.abort('cancel search')
-      return { reject: new Error('spawn ENOENT') }
+      return { reject: spawnError }
     }
 
     const result = await call(ctx, 'grep', { pattern: 'x' }, { signal: controller.signal })
@@ -497,6 +498,7 @@ describe('workdir derivation and signal forwarding', () => {
     expect(result.isError).toBe(true)
     expect(result.error).toMatchObject({ info: { name: 'SearchError', code: 'SEARCH_FAILED' } })
     expect(text(result)).toContain('could not start')
+    expect(text(result)).toContain('ENOENT (spawn)')
   })
 
   it('classifies a synchronous spawn-creation throw as SEARCH_FAILED', async () => {

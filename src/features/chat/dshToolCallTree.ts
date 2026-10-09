@@ -149,12 +149,26 @@ function mergeCall(row: DshProjectedToolCall, trace: ToolTraceItem): MergedCall 
     : traceRowStatus
   const parentCallId = trace.parentCallId !== undefined ? trace.parentCallId : row.parentCallId
   const resultPreview = trace.resultSummary ?? row.resultPreview
+  // 稳固保留有效参数：优先保留已有非空参数，若已有参数为空则用 trace.inputSummary 兜底补充
+  let effectiveArgsRaw = row.argsRaw
+  if (!effectiveArgsRaw || effectiveArgsRaw === '{}') {
+    if (trace.inputSummary) {
+      effectiveArgsRaw = JSON.stringify({
+        command: trace.inputSummary,
+        description: trace.inputSummary,
+        path: trace.inputSummary,
+        query: trace.inputSummary,
+      })
+    }
+  }
+
   const mergedRow: DshProjectedToolCall = {
     ...row,
     parentCallId,
     turn: trace.turn ?? row.turn,
     step: trace.step ?? row.step,
     toolName: trace.toolName || row.toolName,
+    argsRaw: effectiveArgsRaw,
     status,
     startedAt: trace.startedAt ?? row.startedAt,
     durationMs: trace.durationMs ?? row.durationMs,

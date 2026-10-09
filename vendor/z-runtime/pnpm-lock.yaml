@@ -185,117 +185,15 @@ importers:
       '@z/dsh-bash-sandbox':
         specifier: workspace:^
         version: link:../../packages/shell/bash-sandbox
+      '@z/dsh-bridge-core':
+        specifier: workspace:^
+        version: link:../../packages/bridge/bridge-core
       '@z/dsh-client-connection':
         specifier: workspace:^
         version: link:../../packages/client/connection
-      '@z/dsh-client-hmr':
-        specifier: workspace:^
-        version: link:../../packages/client/hmr
-      '@z/dsh-client-locale':
-        specifier: workspace:^
-        version: link:../../packages/client/locale
-      '@z/dsh-client-modules':
-        specifier: workspace:^
-        version: link:../../packages/client/modules
       '@z/dsh-client-runtime':
         specifier: workspace:^
         version: link:../../packages/client/runtime
-      '@z/dsh-client-ui-agent-preset':
-        specifier: workspace:^
-        version: link:../../packages/client/ui-agent-preset
-      '@z/dsh-client-ui-attachment':
-        specifier: workspace:^
-        version: link:../../packages/client/ui-attachment
-      '@z/dsh-client-ui-brand-official':
-        specifier: workspace:^
-        version: link:../../packages/client/ui-brand-official
-      '@z/dsh-client-ui-commands':
-        specifier: workspace:^
-        version: link:../../packages/client/ui-commands
-      '@z/dsh-client-ui-conversation':
-        specifier: workspace:^
-        version: link:../../packages/client/ui-conversation
-      '@z/dsh-client-ui-cordis':
-        specifier: workspace:^
-        version: link:../../packages/extensions/ui-cordis
-      '@z/dsh-client-ui-deliverables':
-        specifier: workspace:^
-        version: link:../../packages/client/ui-deliverables
-      '@z/dsh-client-ui-directory-picker-native':
-        specifier: workspace:^
-        version: link:../../packages/client/ui-directory-picker-native
-      '@z/dsh-client-ui-goal':
-        specifier: workspace:^
-        version: link:../../packages/client/ui-goal
-      '@z/dsh-client-ui-input-trigger':
-        specifier: workspace:^
-        version: link:../../packages/client/ui-input-trigger
-      '@z/dsh-client-ui-jobs':
-        specifier: workspace:^
-        version: link:../../packages/client/ui-jobs
-      '@z/dsh-client-ui-layout':
-        specifier: workspace:^
-        version: link:../../packages/client/ui-layout
-      '@z/dsh-client-ui-message-feedback':
-        specifier: workspace:^
-        version: link:../../packages/client/ui-message-feedback
-      '@z/dsh-client-ui-model-selection':
-        specifier: workspace:^
-        version: link:../../packages/client/ui-model-selection
-      '@z/dsh-client-ui-permission-presets':
-        specifier: workspace:^
-        version: link:../../packages/client/ui-permission-presets
-      '@z/dsh-client-ui-plan':
-        specifier: workspace:^
-        version: link:../../packages/client/ui-plan
-      '@z/dsh-client-ui-reference':
-        specifier: workspace:^
-        version: link:../../packages/client/ui-reference
-      '@z/dsh-client-ui-renderer':
-        specifier: workspace:^
-        version: link:../../packages/client/ui-renderer
-      '@z/dsh-client-ui-settings':
-        specifier: workspace:^
-        version: link:../../packages/client/ui-settings
-      '@z/dsh-client-ui-settings-general':
-        specifier: workspace:^
-        version: link:../../packages/client/ui-settings-general
-      '@z/dsh-client-ui-settings-models':
-        specifier: workspace:^
-        version: link:../../packages/client/ui-settings-models
-      '@z/dsh-client-ui-settings-plugin-inventory':
-        specifier: workspace:^
-        version: link:../../packages/client/ui-settings-plugin-inventory
-      '@z/dsh-client-ui-settings-plugins':
-        specifier: workspace:^
-        version: link:../../packages/client/ui-settings-plugins
-      '@z/dsh-client-ui-sidebar':
-        specifier: workspace:^
-        version: link:../../packages/client/ui-sidebar
-      '@z/dsh-client-ui-skill':
-        specifier: workspace:^
-        version: link:../../packages/client/ui-skill
-      '@z/dsh-client-ui-subagent':
-        specifier: workspace:^
-        version: link:../../packages/client/ui-subagent
-      '@z/dsh-client-ui-theme':
-        specifier: workspace:^
-        version: link:../../packages/client/ui-theme
-      '@z/dsh-client-ui-tool':
-        specifier: workspace:^
-        version: link:../../packages/client/ui-tool
-      '@z/dsh-client-ui-trajectory':
-        specifier: workspace:^
-        version: link:../../packages/client/ui-trajectory
-      '@z/dsh-client-ui-user-questions':
-        specifier: workspace:^
-        version: link:../../packages/client/ui-user-questions
-      '@z/dsh-client-ui-workflow-run':
-        specifier: workspace:^
-        version: link:../../packages/client/ui-workflow-run
-      '@z/dsh-client-ui-workspace':
-        specifier: workspace:^
-        version: link:../../packages/client/ui-workspace
       '@z/dsh-cmdline':
         specifier: workspace:^
         version: link:../../packages/boot/cmdline
@@ -326,9 +224,6 @@ importers:
       '@z/dsh-compaction-tool-result-pruner':
         specifier: workspace:^
         version: link:../../packages/compaction/compaction-tool-result-pruner
-      '@z/dsh-cordis-client-runner':
-        specifier: workspace:^
-        version: link:../../packages/extensions/cordis-client-runner
       '@z/dsh-cordis-host-runner':
         specifier: workspace:^
         version: link:../../packages/extensions/cordis-host-runner
@@ -371,9 +266,6 @@ importers:
       '@z/dsh-host-directory-picker-native':
         specifier: workspace:^
         version: link:../../packages/host/directory-picker-native
-      '@z/dsh-host-frontend-static':
-        specifier: workspace:^
-        version: link:../../packages/host/frontend-static
       '@z/dsh-host-plugin-inventory':
         specifier: workspace:^
         version: link:../../packages/host/plugin-inventory
@@ -401,6 +293,9 @@ importers:
       '@z/dsh-llm-retry':
         specifier: workspace:^
         version: link:../../packages/llm/llm-retry
+      '@z/dsh-llm-taskweaver-bridge':
+        specifier: workspace:^
+        version: link:../../packages/llm/llm-taskweaver-bridge
       '@z/dsh-mcp-client':
         specifier: workspace:^
         version: link:../../packages/mcp/mcp-client
@@ -536,6 +431,9 @@ importers:
       '@z/dsh-system-prompt':
         specifier: workspace:^
         version: link:../../packages/core/system-prompt
+      '@z/dsh-taskweaver':
+        specifier: workspace:^
+        version: link:../../packages/bundle/taskweaver
       '@z/dsh-terminal':
         specifier: workspace:^
         version: link:../../packages/terminal/terminal
@@ -611,9 +509,6 @@ importers:
       '@z/dsh-tool-todo':
         specifier: workspace:^
         version: link:../../packages/todo/tool-todo
-      '@z/dsh-tool-web':
-        specifier: workspace:^
-        version: link:../../packages/web/tool-web
       '@z/dsh-tool-workflow':
         specifier: workspace:^
         version: link:../../packages/workflow/tool-workflow
@@ -632,15 +527,6 @@ importers:
       '@z/dsh-user-questions':
         specifier: workspace:^
         version: link:../../packages/interaction/user-questions
-      '@z/dsh-web':
-        specifier: workspace:^
-        version: link:../../packages/web/web
-      '@z/dsh-web-app':
-        specifier: workspace:^
-        version: link:../../packages/bundle/web-app
-      '@z/dsh-web-search-deepseek':
-        specifier: workspace:^
-        version: link:../../packages/web/web-search-deepseek
       '@z/dsh-workflow-worker-thread':
         specifier: workspace:^
         version: link:../../packages/workflow/workflow-worker-thread
@@ -656,6 +542,9 @@ importers:
       node-addon-require-builtin:
         specifier: ^0.1.4
         version: 0.1.4
+      tsx:
+        specifier: ^4.22.4
+        version: 4.22.4
     devDependencies:
       '@types/js-yaml':
         specifier: ^4.0.9
@@ -672,63 +561,6 @@ importers:
       execa:
         specifier: ^10.0.0
         version: 10.0.0
-
-  apps/web:
-    devDependencies:
-      '@types/node':
-        specifier: ^22.0.0
-        version: 22.20.0
-      '@types/react':
-        specifier: ~18.3.1
-        version: 18.3.31
-      '@types/react-dom':
-        specifier: ~18.3.0
-        version: 18.3.7(@types/react@18.3.31)
-      '@vitejs/plugin-react':
-        specifier: ^4.0.0
-        version: 4.7.0(vite@6.4.3(@types/node@22.20.0)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.4)(yaml@2.9.0))
-      '@z/cordis-plugin-group':
-        specifier: workspace:^
-        version: link:../../vendor/group
-      '@z/dsh-client-modules':
-        specifier: workspace:^
-        version: link:../../packages/client/modules
-      '@z/dsh-client-ui-primitives':
-        specifier: workspace:^
-        version: link:../../packages/client/ui-primitives
-      '@z/dsh-client-ui-slots':
-        specifier: workspace:^
-        version: link:../../packages/client/ui-slots
-      '@z/dsh-client-web':
-        specifier: workspace:^
-        version: link:../../packages/client/web
-      '@z/dsh-cmdline':
-        specifier: workspace:^
-        version: link:../../packages/boot/cmdline
-      '@z/dsh-pwsh-local':
-        specifier: workspace:^
-        version: link:../../packages/shell/pwsh-local
-      fflate:
-        specifier: ^0.8.2
-        version: 0.8.3
-      playwright:
-        specifier: ^1.49.0
-        version: 1.61.1
-      react:
-        specifier: ^18.2.0
-        version: 18.3.1
-      react-dom:
-        specifier: ^18.2.0
-        version: 18.3.1(react@18.3.1)
-      typescript:
-        specifier: ^6.0.3
-        version: 6.0.3
-      vite:
-        specifier: ^6.0.0
-        version: 6.4.3(@types/node@22.20.0)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.4)(yaml@2.9.0)
-      vitest:
-        specifier: ^4.1.8
-        version: 4.1.8(@opentelemetry/api@1.9.1)(@types/node@22.20.0)(@vitest/coverage-v8@4.1.8)(jsdom@29.1.1)(vite@6.4.3(@types/node@22.20.0)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.4)(yaml@2.9.0))
 
   examples:
     dependencies:
@@ -1318,6 +1150,12 @@ importers:
         specifier: ^15.0.0
         version: 15.0.0
 
+  packages/bridge/bridge-core:
+    dependencies:
+      '@z/dsh-llm':
+        specifier: workspace:^
+        version: link:../../llm/llm
+
   packages/bundle/base:
     dependencies:
       '@z/cordis-plugin-hmr':
@@ -1347,6 +1185,9 @@ importers:
       '@z/dsh-bash-sandbox':
         specifier: workspace:^
         version: link:../../shell/bash-sandbox
+      '@z/dsh-bridge-core':
+        specifier: workspace:^
+        version: link:../../bridge/bridge-core
       '@z/dsh-command-compact':
         specifier: workspace:^
         version: link:../../compaction/command-compact
@@ -1398,6 +1239,9 @@ importers:
       '@z/dsh-llm-retry':
         specifier: workspace:^
         version: link:../../llm/llm-retry
+      '@z/dsh-llm-taskweaver-bridge':
+        specifier: workspace:^
+        version: link:../../llm/llm-taskweaver-bridge
       '@z/dsh-permission-presets':
         specifier: workspace:^
         version: link:../../interaction/permission-presets
@@ -1602,7 +1446,7 @@ importers:
         specifier: workspace:^
         version: link:../../core/session
 
-  packages/bundle/web-app:
+  packages/bundle/taskweaver:
     dependencies:
       '@z/dsh-agent-presets':
         specifier: workspace:^
@@ -1619,126 +1463,15 @@ importers:
       '@z/dsh-client-connection':
         specifier: workspace:^
         version: link:../../client/connection
-      '@z/dsh-client-hmr':
-        specifier: workspace:^
-        version: link:../../client/hmr
-      '@z/dsh-client-locale':
-        specifier: workspace:^
-        version: link:../../client/locale
-      '@z/dsh-client-modules':
-        specifier: workspace:^
-        version: link:../../client/modules
       '@z/dsh-client-runtime':
         specifier: workspace:^
         version: link:../../client/runtime
-      '@z/dsh-client-ui-agent-preset':
-        specifier: workspace:^
-        version: link:../../client/ui-agent-preset
-      '@z/dsh-client-ui-attachment':
-        specifier: workspace:^
-        version: link:../../client/ui-attachment
-      '@z/dsh-client-ui-brand-official':
-        specifier: workspace:^
-        version: link:../../client/ui-brand-official
-      '@z/dsh-client-ui-commands':
-        specifier: workspace:^
-        version: link:../../client/ui-commands
-      '@z/dsh-client-ui-conversation':
-        specifier: workspace:^
-        version: link:../../client/ui-conversation
-      '@z/dsh-client-ui-cordis':
-        specifier: workspace:^
-        version: link:../../extensions/ui-cordis
-      '@z/dsh-client-ui-deliverables':
-        specifier: workspace:^
-        version: link:../../client/ui-deliverables
-      '@z/dsh-client-ui-directory-picker-browse':
-        specifier: workspace:^
-        version: link:../../client/ui-directory-picker-browse
-      '@z/dsh-client-ui-directory-picker-native':
-        specifier: workspace:^
-        version: link:../../client/ui-directory-picker-native
-      '@z/dsh-client-ui-goal':
-        specifier: workspace:^
-        version: link:../../client/ui-goal
-      '@z/dsh-client-ui-input-trigger':
-        specifier: workspace:^
-        version: link:../../client/ui-input-trigger
-      '@z/dsh-client-ui-jobs':
-        specifier: workspace:^
-        version: link:../../client/ui-jobs
-      '@z/dsh-client-ui-layout':
-        specifier: workspace:^
-        version: link:../../client/ui-layout
-      '@z/dsh-client-ui-message-feedback':
-        specifier: workspace:^
-        version: link:../../client/ui-message-feedback
-      '@z/dsh-client-ui-model-selection':
-        specifier: workspace:^
-        version: link:../../client/ui-model-selection
-      '@z/dsh-client-ui-permission-presets':
-        specifier: workspace:^
-        version: link:../../client/ui-permission-presets
-      '@z/dsh-client-ui-plan':
-        specifier: workspace:^
-        version: link:../../client/ui-plan
-      '@z/dsh-client-ui-reference':
-        specifier: workspace:^
-        version: link:../../client/ui-reference
-      '@z/dsh-client-ui-renderer':
-        specifier: workspace:^
-        version: link:../../client/ui-renderer
-      '@z/dsh-client-ui-settings':
-        specifier: workspace:^
-        version: link:../../client/ui-settings
-      '@z/dsh-client-ui-settings-general':
-        specifier: workspace:^
-        version: link:../../client/ui-settings-general
-      '@z/dsh-client-ui-settings-models':
-        specifier: workspace:^
-        version: link:../../client/ui-settings-models
-      '@z/dsh-client-ui-settings-plugin-inventory':
-        specifier: workspace:^
-        version: link:../../client/ui-settings-plugin-inventory
-      '@z/dsh-client-ui-settings-plugins':
-        specifier: workspace:^
-        version: link:../../client/ui-settings-plugins
-      '@z/dsh-client-ui-sidebar':
-        specifier: workspace:^
-        version: link:../../client/ui-sidebar
-      '@z/dsh-client-ui-skill':
-        specifier: workspace:^
-        version: link:../../client/ui-skill
-      '@z/dsh-client-ui-subagent':
-        specifier: workspace:^
-        version: link:../../client/ui-subagent
-      '@z/dsh-client-ui-theme':
-        specifier: workspace:^
-        version: link:../../client/ui-theme
-      '@z/dsh-client-ui-tool':
-        specifier: workspace:^
-        version: link:../../client/ui-tool
-      '@z/dsh-client-ui-trajectory':
-        specifier: workspace:^
-        version: link:../../client/ui-trajectory
-      '@z/dsh-client-ui-user-questions':
-        specifier: workspace:^
-        version: link:../../client/ui-user-questions
-      '@z/dsh-client-ui-workflow-run':
-        specifier: workspace:^
-        version: link:../../client/ui-workflow-run
-      '@z/dsh-client-ui-workspace':
-        specifier: workspace:^
-        version: link:../../client/ui-workspace
       '@z/dsh-cmdline':
         specifier: workspace:^
         version: link:../../boot/cmdline
       '@z/dsh-code-runtime-worker-thread':
         specifier: workspace:^
         version: link:../../code-runtime/code-runtime-worker-thread
-      '@z/dsh-cordis-client-runner':
-        specifier: workspace:^
-        version: link:../../extensions/cordis-client-runner
       '@z/dsh-cordis-host-runner':
         specifier: workspace:^
         version: link:../../extensions/cordis-host-runner
@@ -1748,6 +1481,9 @@ importers:
       '@z/dsh-file-reference-local':
         specifier: workspace:^
         version: link:../../context/file-reference-local
+      '@z/dsh-home-paths':
+        specifier: workspace:^
+        version: link:../../util/home-paths
       '@z/dsh-host-apiproxy':
         specifier: workspace:^
         version: link:../../host/apiproxy
@@ -1760,9 +1496,6 @@ importers:
       '@z/dsh-host-directory-picker-native':
         specifier: workspace:^
         version: link:../../host/directory-picker-native
-      '@z/dsh-host-frontend-static':
-        specifier: workspace:^
-        version: link:../../host/frontend-static
       '@z/dsh-host-plugin-inventory':
         specifier: workspace:^
         version: link:../../host/plugin-inventory
@@ -1799,9 +1532,118 @@ importers:
       '@z/dsh-subprocess':
         specifier: workspace:^
         version: link:../../subprocess/subprocess
-      '@z/dsh-web-frontend':
+      '@z/dsh-workspace':
         specifier: workspace:^
-        version: link:../../../apps/web
+        version: link:../../workspace/workspace
+      '@z/schemastery':
+        specifier: workspace:^
+        version: link:../../../vendor/schemastery
+      commander:
+        specifier: ^15.0.0
+        version: 15.0.0
+      open:
+        specifier: ^11.0.0
+        version: 11.0.0
+    devDependencies:
+      '@z/cordis':
+        specifier: workspace:^
+        version: link:../../../vendor/cordis
+      '@z/cordis-plugin-loader':
+        specifier: workspace:^
+        version: link:../../../vendor/loader
+      '@z/dsh-invariants':
+        specifier: workspace:^
+        version: link:../../runtime-diagnostics/invariants
+      '@z/dsh-shell-env':
+        specifier: workspace:^
+        version: link:../../shell/shell-env
+      '@z/dsh-system-prompt':
+        specifier: workspace:^
+        version: link:../../core/system-prompt
+
+  packages/bundle/web-app:
+    dependencies:
+      '@z/dsh-agent-presets':
+        specifier: workspace:^
+        version: link:../../preset/agent-presets
+      '@z/dsh-api-remotes':
+        specifier: workspace:^
+        version: link:../../api/remotes
+      '@z/dsh-app-boot':
+        specifier: workspace:^
+        version: link:../../boot/app-boot
+      '@z/dsh-authorization':
+        specifier: workspace:^
+        version: link:../../credentials/authorization
+      '@z/dsh-client-connection':
+        specifier: workspace:^
+        version: link:../../client/connection
+      '@z/dsh-client-runtime':
+        specifier: workspace:^
+        version: link:../../client/runtime
+      '@z/dsh-cmdline':
+        specifier: workspace:^
+        version: link:../../boot/cmdline
+      '@z/dsh-code-runtime-worker-thread':
+        specifier: workspace:^
+        version: link:../../code-runtime/code-runtime-worker-thread
+      '@z/dsh-cordis-host-runner':
+        specifier: workspace:^
+        version: link:../../extensions/cordis-host-runner
+      '@z/dsh-file-reference':
+        specifier: workspace:^
+        version: link:../../context/file-reference
+      '@z/dsh-file-reference-local':
+        specifier: workspace:^
+        version: link:../../context/file-reference-local
+      '@z/dsh-host-apiproxy':
+        specifier: workspace:^
+        version: link:../../host/apiproxy
+      '@z/dsh-host-directory-picker-auto':
+        specifier: workspace:^
+        version: link:../../host/directory-picker-auto
+      '@z/dsh-host-directory-picker-browse':
+        specifier: workspace:^
+        version: link:../../host/directory-picker-browse
+      '@z/dsh-host-directory-picker-native':
+        specifier: workspace:^
+        version: link:../../host/directory-picker-native
+      '@z/dsh-host-plugin-inventory':
+        specifier: workspace:^
+        version: link:../../host/plugin-inventory
+      '@z/dsh-host-webserver':
+        specifier: workspace:^
+        version: link:../../host/webserver
+      '@z/dsh-launch-environment':
+        specifier: workspace:^
+        version: link:../../util/launch-environment
+      '@z/dsh-message-feedback':
+        specifier: workspace:^
+        version: link:../../feedback/message-feedback
+      '@z/dsh-session-log-export':
+        specifier: workspace:^
+        version: link:../../session-query/session-log-export
+      '@z/dsh-session-projection-cache':
+        specifier: workspace:^
+        version: link:../../session/session-projection-cache
+      '@z/dsh-session-reference':
+        specifier: workspace:^
+        version: link:../../context/session-reference
+      '@z/dsh-session-stats':
+        specifier: workspace:^
+        version: link:../../session/session-stats
+      '@z/dsh-storage':
+        specifier: workspace:^
+        version: link:../../storage/storage
+      '@z/dsh-storage-domain':
+        specifier: workspace:^
+        version: link:../../storage/storage-domain
+      '@z/dsh-storage-json':
+        specifier: workspace:^
+        version: link:../../storage/storage-json
+      '@z/dsh-subprocess':
+        specifier: workspace:^
+        version: link:../../subprocess/subprocess
       '@z/dsh-workspace':
         specifier: workspace:^
         version: link:../../workspace/workspace
@@ -1870,86 +1712,6 @@ importers:
       '@z/dsh-tools':
         specifier: workspace:^
         version: link:../../core/tools
-
-  packages/client/hmr:
-    dependencies:
-      '@z/schemastery':
-        specifier: workspace:^
-        version: link:../../../vendor/schemastery
-    devDependencies:
-      '@z/cordis':
-        specifier: workspace:^
-        version: link:../../../vendor/cordis
-      '@z/cordis-plugin-loader':
-        specifier: workspace:^
-        version: link:../../../vendor/loader
-      '@z/dsh-client-modules':
-        specifier: workspace:^
-        version: link:../modules
-      '@z/dsh-host-webserver':
-        specifier: workspace:^
-        version: link:../../host/webserver
-      '@z/dsh-invariants':
-        specifier: workspace:^
-        version: link:../../runtime-diagnostics/invariants
-
-  packages/client/locale:
-    dependencies:
-      '@z/schemastery':
-        specifier: workspace:^
-        version: link:../../../vendor/schemastery
-    devDependencies:
-      '@types/react':
-        specifier: ~18.3.1
-        version: 18.3.31
-      '@z/cordis':
-        specifier: workspace:^
-        version: link:../../../vendor/cordis
-      '@z/dsh-api-remotes':
-        specifier: workspace:^
-        version: link:../../api/remotes
-      '@z/dsh-client-connection':
-        specifier: workspace:^
-        version: link:../connection
-      '@z/dsh-client-runtime':
-        specifier: workspace:^
-        version: link:../runtime
-      '@z/dsh-client-test-runtime':
-        specifier: workspace:^
-        version: link:../../test-support/client-runtime
-      '@z/dsh-client-ui-primitives':
-        specifier: workspace:^
-        version: link:../ui-primitives
-      '@z/dsh-client-ui-settings':
-        specifier: workspace:^
-        version: link:../ui-settings
-      '@z/dsh-client-ui-slots':
-        specifier: workspace:^
-        version: link:../ui-slots
-      '@z/dsh-invariants':
-        specifier: workspace:^
-        version: link:../../runtime-diagnostics/invariants
-      '@z/dsh-settings':
-        specifier: workspace:^
-        version: link:../../settings/settings
-      react:
-        specifier: ^18.2.0
-        version: 18.3.1
-
-  packages/client/modules:
-    devDependencies:
-      '@z/cordis':
-        specifier: workspace:^
-        version: link:../../../vendor/cordis
-      '@z/cordis-plugin-loader':
-        specifier: workspace:^
-        version: link:../../../vendor/loader
-      '@z/dsh-host-webserver':
-        specifier: workspace:^
-        version: link:../../host/webserver
-      '@z/dsh-invariants':
-        specifier: workspace:^
-        version: link:../../runtime-diagnostics/invariants
 
   packages/client/runtime:
     dependencies:
@@ -2021,1158 +1783,6 @@ importers:
         specifier: ^18.2.0
         version: 18.3.1
 
-  packages/client/ui-agent-preset:
-    devDependencies:
-      '@types/react':
-        specifier: ~18.3.1
-        version: 18.3.31
-      '@z/cordis':
-        specifier: workspace:^
-        version: link:../../../vendor/cordis
-      '@z/dsh-api-remotes':
-        specifier: workspace:^
-        version: link:../../api/remotes
-      '@z/dsh-client-connection':
-        specifier: workspace:^
-        version: link:../connection
-      '@z/dsh-client-locale':
-        specifier: workspace:^
-        version: link:../locale
-      '@z/dsh-client-runtime':
-        specifier: workspace:^
-        version: link:../runtime
-      '@z/dsh-client-test-runtime':
-        specifier: workspace:^
-        version: link:../../test-support/client-runtime
-      '@z/dsh-client-ui-conversation':
-        specifier: workspace:^
-        version: link:../ui-conversation
-      '@z/dsh-client-ui-primitives':
-        specifier: workspace:^
-        version: link:../ui-primitives
-      '@z/dsh-client-ui-settings':
-        specifier: workspace:^
-        version: link:../ui-settings
-      '@z/dsh-client-ui-slots':
-        specifier: workspace:^
-        version: link:../ui-slots
-      '@z/dsh-invariants':
-        specifier: workspace:^
-        version: link:../../runtime-diagnostics/invariants
-      react:
-        specifier: ^18.2.0
-        version: 18.3.1
-
-  packages/client/ui-attachment:
-    dependencies:
-      clsx:
-        specifier: ^2.0.0
-        version: 2.1.1
-    devDependencies:
-      '@types/react':
-        specifier: ~18.3.1
-        version: 18.3.31
-      '@types/react-dom':
-        specifier: ~18.3.0
-        version: 18.3.7(@types/react@18.3.31)
-      '@z/cordis':
-        specifier: workspace:^
-        version: link:../../../vendor/cordis
-      '@z/dsh-attachment':
-        specifier: workspace:^
-        version: link:../../attachment/attachment
-      '@z/dsh-client-runtime':
-        specifier: workspace:^
-        version: link:../runtime
-      '@z/dsh-client-ui-conversation':
-        specifier: workspace:^
-        version: link:../ui-conversation
-      '@z/dsh-client-ui-primitives':
-        specifier: workspace:^
-        version: link:../ui-primitives
-      '@z/dsh-client-ui-slots':
-        specifier: workspace:^
-        version: link:../ui-slots
-      '@z/dsh-invariants':
-        specifier: workspace:^
-        version: link:../../runtime-diagnostics/invariants
-      react:
-        specifier: ^18.2.0
-        version: 18.3.1
-      react-dom:
-        specifier: ^18.2.0
-        version: 18.3.1(react@18.3.1)
-
-  packages/client/ui-brand-official:
-    devDependencies:
-      '@testing-library/react':
-        specifier: ^16.1.0
-        version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@18.3.7(@types/react@18.3.31))(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@types/react':
-        specifier: ~18.3.1
-        version: 18.3.31
-      '@z/cordis':
-        specifier: workspace:^
-        version: link:../../../vendor/cordis
-      '@z/dsh-client-runtime':
-        specifier: workspace:^
-        version: link:../runtime
-      '@z/dsh-client-ui-conversation':
-        specifier: workspace:^
-        version: link:../ui-conversation
-      '@z/dsh-client-ui-primitives':
-        specifier: workspace:^
-        version: link:../ui-primitives
-      '@z/dsh-client-ui-sidebar':
-        specifier: workspace:^
-        version: link:../ui-sidebar
-      '@z/dsh-invariants':
-        specifier: workspace:^
-        version: link:../../runtime-diagnostics/invariants
-      react:
-        specifier: ^18.2.0
-        version: 18.3.1
-      react-dom:
-        specifier: ^18.2.0
-        version: 18.3.1(react@18.3.1)
-
-  packages/client/ui-commands:
-    dependencies:
-      clsx:
-        specifier: ^2.0.0
-        version: 2.1.1
-    devDependencies:
-      '@types/react':
-        specifier: ~18.3.1
-        version: 18.3.31
-      '@z/cordis':
-        specifier: workspace:^
-        version: link:../../../vendor/cordis
-      '@z/dsh-api-remotes':
-        specifier: workspace:^
-        version: link:../../api/remotes
-      '@z/dsh-client-connection':
-        specifier: workspace:^
-        version: link:../connection
-      '@z/dsh-client-locale':
-        specifier: workspace:^
-        version: link:../locale
-      '@z/dsh-client-runtime':
-        specifier: workspace:^
-        version: link:../runtime
-      '@z/dsh-client-test-runtime':
-        specifier: workspace:^
-        version: link:../../test-support/client-runtime
-      '@z/dsh-client-ui-conversation':
-        specifier: workspace:^
-        version: link:../ui-conversation
-      '@z/dsh-client-ui-input-trigger':
-        specifier: workspace:^
-        version: link:../ui-input-trigger
-      '@z/dsh-client-ui-primitives':
-        specifier: workspace:^
-        version: link:../ui-primitives
-      '@z/dsh-client-ui-slots':
-        specifier: workspace:^
-        version: link:../ui-slots
-      '@z/dsh-commands':
-        specifier: workspace:^
-        version: link:../../interaction/commands
-      '@z/dsh-invariants':
-        specifier: workspace:^
-        version: link:../../runtime-diagnostics/invariants
-      react:
-        specifier: ^18.2.0
-        version: 18.3.1
-
-  packages/client/ui-conversation:
-    dependencies:
-      '@z/schemastery':
-        specifier: workspace:^
-        version: link:../../../vendor/schemastery
-      clsx:
-        specifier: ^2.0.0
-        version: 2.1.1
-    devDependencies:
-      '@types/react':
-        specifier: ~18.3.1
-        version: 18.3.31
-      '@z/cordis':
-        specifier: workspace:^
-        version: link:../../../vendor/cordis
-      '@z/dsh-agent':
-        specifier: workspace:^
-        version: link:../../core/agent
-      '@z/dsh-api-remotes':
-        specifier: workspace:^
-        version: link:../../api/remotes
-      '@z/dsh-attachment':
-        specifier: workspace:^
-        version: link:../../attachment/attachment
-      '@z/dsh-brand':
-        specifier: workspace:^
-        version: link:../../util/brand
-      '@z/dsh-client-connection':
-        specifier: workspace:^
-        version: link:../connection
-      '@z/dsh-client-locale':
-        specifier: workspace:^
-        version: link:../locale
-      '@z/dsh-client-runtime':
-        specifier: workspace:^
-        version: link:../runtime
-      '@z/dsh-client-test-runtime':
-        specifier: workspace:^
-        version: link:../../test-support/client-runtime
-      '@z/dsh-client-ui-input-trigger':
-        specifier: workspace:^
-        version: link:../ui-input-trigger
-      '@z/dsh-client-ui-layout':
-        specifier: workspace:^
-        version: link:../ui-layout
-      '@z/dsh-client-ui-primitives':
-        specifier: workspace:^
-        version: link:../ui-primitives
-      '@z/dsh-client-ui-settings':
-        specifier: workspace:^
-        version: link:../ui-settings
-      '@z/dsh-client-ui-slots':
-        specifier: workspace:^
-        version: link:../ui-slots
-      '@z/dsh-commands':
-        specifier: workspace:^
-        version: link:../../interaction/commands
-      '@z/dsh-compaction':
-        specifier: workspace:^
-        version: link:../../compaction/compaction
-      '@z/dsh-goal':
-        specifier: workspace:^
-        version: link:../../goal/goal
-      '@z/dsh-invariants':
-        specifier: workspace:^
-        version: link:../../runtime-diagnostics/invariants
-      '@z/dsh-llm-retry':
-        specifier: workspace:^
-        version: link:../../llm/llm-retry
-      '@z/dsh-permission-presets':
-        specifier: workspace:^
-        version: link:../../interaction/permission-presets
-      '@z/dsh-plan-mode':
-        specifier: workspace:^
-        version: link:../../plan/plan-mode
-      '@z/dsh-session-projection':
-        specifier: workspace:^
-        version: link:../../session/session-projection
-      '@z/dsh-session-stats':
-        specifier: workspace:^
-        version: link:../../session/session-stats
-      '@z/dsh-settings':
-        specifier: workspace:^
-        version: link:../../settings/settings
-      '@z/dsh-token-meter':
-        specifier: workspace:^
-        version: link:../../llm/token-meter
-      '@z/dsh-tool-todo':
-        specifier: workspace:^
-        version: link:../../todo/tool-todo
-      '@z/dsh-tools':
-        specifier: workspace:^
-        version: link:../../core/tools
-      react:
-        specifier: ^18.2.0
-        version: 18.3.1
-
-  packages/client/ui-deliverables:
-    devDependencies:
-      '@types/react':
-        specifier: ~18.3.1
-        version: 18.3.31
-      '@z/cordis':
-        specifier: workspace:^
-        version: link:../../../vendor/cordis
-      '@z/dsh-client-connection':
-        specifier: workspace:^
-        version: link:../connection
-      '@z/dsh-client-locale':
-        specifier: workspace:^
-        version: link:../locale
-      '@z/dsh-client-runtime':
-        specifier: workspace:^
-        version: link:../runtime
-      '@z/dsh-client-test-runtime':
-        specifier: workspace:^
-        version: link:../../test-support/client-runtime
-      '@z/dsh-client-ui-conversation':
-        specifier: workspace:^
-        version: link:../ui-conversation
-      '@z/dsh-client-ui-primitives':
-        specifier: workspace:^
-        version: link:../ui-primitives
-      '@z/dsh-client-ui-slots':
-        specifier: workspace:^
-        version: link:../ui-slots
-      '@z/dsh-invariants':
-        specifier: workspace:^
-        version: link:../../runtime-diagnostics/invariants
-      '@z/dsh-system-prompt':
-        specifier: workspace:^
-        version: link:../../core/system-prompt
-      react:
-        specifier: ^18.2.0
-        version: 18.3.1
-
-  packages/client/ui-directory-picker-browse:
-    dependencies:
-      clsx:
-        specifier: ^2.0.0
-        version: 2.1.1
-    devDependencies:
-      '@testing-library/react':
-        specifier: ^16.1.0
-        version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@18.3.7(@types/react@18.3.31))(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@types/react':
-        specifier: ~18.3.1
-        version: 18.3.31
-      '@z/cordis':
-        specifier: workspace:^
-        version: link:../../../vendor/cordis
-      '@z/dsh-client-locale':
-        specifier: workspace:^
-        version: link:../locale
-      '@z/dsh-client-runtime':
-        specifier: workspace:^
-        version: link:../runtime
-      '@z/dsh-client-test-runtime':
-        specifier: workspace:^
-        version: link:../../test-support/client-runtime
-      '@z/dsh-client-ui-primitives':
-        specifier: workspace:^
-        version: link:../ui-primitives
-      '@z/dsh-client-ui-slots':
-        specifier: workspace:^
-        version: link:../ui-slots
-      '@z/dsh-client-ui-workspace':
-        specifier: workspace:^
-        version: link:../ui-workspace
-      '@z/dsh-invariants':
-        specifier: workspace:^
-        version: link:../../runtime-diagnostics/invariants
-      react:
-        specifier: ^18.2.0
-        version: 18.3.1
-      react-dom:
-        specifier: ^18.2.0
-        version: 18.3.1(react@18.3.1)
-
-  packages/client/ui-directory-picker-native:
-    devDependencies:
-      '@testing-library/react':
-        specifier: ^16.1.0
-        version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@18.3.7(@types/react@18.3.31))(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@types/react':
-        specifier: ~18.3.1
-        version: 18.3.31
-      '@z/cordis':
-        specifier: workspace:^
-        version: link:../../../vendor/cordis
-      '@z/dsh-client-runtime':
-        specifier: workspace:^
-        version: link:../runtime
-      '@z/dsh-client-ui-workspace':
-        specifier: workspace:^
-        version: link:../ui-workspace
-      '@z/dsh-invariants':
-        specifier: workspace:^
-        version: link:../../runtime-diagnostics/invariants
-      react:
-        specifier: ^18.2.0
-        version: 18.3.1
-      react-dom:
-        specifier: ^18.2.0
-        version: 18.3.1(react@18.3.1)
-
-  packages/client/ui-goal:
-    devDependencies:
-      '@testing-library/react':
-        specifier: ^16.1.0
-        version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@18.3.7(@types/react@18.3.31))(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@types/react':
-        specifier: ~18.3.1
-        version: 18.3.31
-      '@z/cordis':
-        specifier: workspace:^
-        version: link:../../../vendor/cordis
-      '@z/dsh-api-remotes':
-        specifier: workspace:^
-        version: link:../../api/remotes
-      '@z/dsh-client-locale':
-        specifier: workspace:^
-        version: link:../locale
-      '@z/dsh-client-runtime':
-        specifier: workspace:^
-        version: link:../runtime
-      '@z/dsh-client-test-runtime':
-        specifier: workspace:^
-        version: link:../../test-support/client-runtime
-      '@z/dsh-client-ui-conversation':
-        specifier: workspace:^
-        version: link:../ui-conversation
-      '@z/dsh-client-ui-primitives':
-        specifier: workspace:^
-        version: link:../ui-primitives
-      '@z/dsh-client-ui-slots':
-        specifier: workspace:^
-        version: link:../ui-slots
-      '@z/dsh-commands':
-        specifier: workspace:^
-        version: link:../../interaction/commands
-      '@z/dsh-goal':
-        specifier: workspace:^
-        version: link:../../goal/goal
-      '@z/dsh-invariants':
-        specifier: workspace:^
-        version: link:../../runtime-diagnostics/invariants
-      '@z/dsh-session':
-        specifier: workspace:^
-        version: link:../../core/session
-      '@z/dsh-typert-protocol':
-        specifier: workspace:^
-        version: link:../../typert/protocol
-      react:
-        specifier: ^18.2.0
-        version: 18.3.1
-      react-dom:
-        specifier: ^18.2.0
-        version: 18.3.1(react@18.3.1)
-
-  packages/client/ui-input-trigger:
-    dependencies:
-      clsx:
-        specifier: ^2.0.0
-        version: 2.1.1
-    devDependencies:
-      '@types/react':
-        specifier: ~18.3.1
-        version: 18.3.31
-      '@z/cordis':
-        specifier: workspace:^
-        version: link:../../../vendor/cordis
-      '@z/dsh-client-locale':
-        specifier: workspace:^
-        version: link:../locale
-      '@z/dsh-client-runtime':
-        specifier: workspace:^
-        version: link:../runtime
-      '@z/dsh-client-test-runtime':
-        specifier: workspace:^
-        version: link:../../test-support/client-runtime
-      '@z/dsh-client-ui-primitives':
-        specifier: workspace:^
-        version: link:../ui-primitives
-      '@z/dsh-client-ui-slots':
-        specifier: workspace:^
-        version: link:../ui-slots
-      '@z/dsh-file-reference':
-        specifier: workspace:^
-        version: link:../../context/file-reference
-      '@z/dsh-invariants':
-        specifier: workspace:^
-        version: link:../../runtime-diagnostics/invariants
-      react:
-        specifier: ^18.2.0
-        version: 18.3.1
-
-  packages/client/ui-jobs:
-    devDependencies:
-      '@types/react':
-        specifier: ~18.3.1
-        version: 18.3.31
-      '@z/cordis':
-        specifier: workspace:^
-        version: link:../../../vendor/cordis
-      '@z/dsh-client-locale':
-        specifier: workspace:^
-        version: link:../locale
-      '@z/dsh-client-runtime':
-        specifier: workspace:^
-        version: link:../runtime
-      '@z/dsh-client-test-runtime':
-        specifier: workspace:^
-        version: link:../../test-support/client-runtime
-      '@z/dsh-client-ui-conversation':
-        specifier: workspace:^
-        version: link:../ui-conversation
-      '@z/dsh-client-ui-primitives':
-        specifier: workspace:^
-        version: link:../ui-primitives
-      '@z/dsh-client-ui-slots':
-        specifier: workspace:^
-        version: link:../ui-slots
-      '@z/dsh-invariants':
-        specifier: workspace:^
-        version: link:../../runtime-diagnostics/invariants
-      react:
-        specifier: ^18.2.0
-        version: 18.3.1
-
-  packages/client/ui-layout:
-    devDependencies:
-      '@types/react':
-        specifier: ~18.3.1
-        version: 18.3.31
-      '@z/cordis':
-        specifier: workspace:^
-        version: link:../../../vendor/cordis
-      '@z/dsh-client-locale':
-        specifier: workspace:^
-        version: link:../locale
-      '@z/dsh-client-runtime':
-        specifier: workspace:^
-        version: link:../runtime
-      '@z/dsh-client-ui-slots':
-        specifier: workspace:^
-        version: link:../ui-slots
-      '@z/dsh-client-ui-theme':
-        specifier: workspace:^
-        version: link:../ui-theme
-      '@z/dsh-invariants':
-        specifier: workspace:^
-        version: link:../../runtime-diagnostics/invariants
-      react:
-        specifier: ^18.2.0
-        version: 18.3.1
-
-  packages/client/ui-message-feedback:
-    devDependencies:
-      '@testing-library/react':
-        specifier: ^16.1.0
-        version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@18.3.7(@types/react@18.3.31))(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@types/react':
-        specifier: ~18.3.1
-        version: 18.3.31
-      '@types/react-dom':
-        specifier: ~18.3.0
-        version: 18.3.7(@types/react@18.3.31)
-      '@z/cordis':
-        specifier: workspace:^
-        version: link:../../../vendor/cordis
-      '@z/dsh-api-remotes':
-        specifier: workspace:^
-        version: link:../../api/remotes
-      '@z/dsh-client-connection':
-        specifier: workspace:^
-        version: link:../connection
-      '@z/dsh-client-locale':
-        specifier: workspace:^
-        version: link:../locale
-      '@z/dsh-client-runtime':
-        specifier: workspace:^
-        version: link:../runtime
-      '@z/dsh-client-test-runtime':
-        specifier: workspace:^
-        version: link:../../test-support/client-runtime
-      '@z/dsh-client-ui-conversation':
-        specifier: workspace:^
-        version: link:../ui-conversation
-      '@z/dsh-client-ui-primitives':
-        specifier: workspace:^
-        version: link:../ui-primitives
-      '@z/dsh-client-ui-slots':
-        specifier: workspace:^
-        version: link:../ui-slots
-      '@z/dsh-invariants':
-        specifier: workspace:^
-        version: link:../../runtime-diagnostics/invariants
-      '@z/dsh-message-feedback':
-        specifier: workspace:^
-        version: link:../../feedback/message-feedback
-      '@z/dsh-typert-protocol':
-        specifier: workspace:^
-        version: link:../../typert/protocol
-      react:
-        specifier: ^18.2.0
-        version: 18.3.1
-      react-dom:
-        specifier: ^18.2.0
-        version: 18.3.1(react@18.3.1)
-
-  packages/client/ui-model-selection:
-    dependencies:
-      clsx:
-        specifier: ^2.1.1
-        version: 2.1.1
-    devDependencies:
-      '@types/react':
-        specifier: ~18.3.1
-        version: 18.3.31
-      '@z/cordis':
-        specifier: workspace:^
-        version: link:../../../vendor/cordis
-      '@z/dsh-api-remotes':
-        specifier: workspace:^
-        version: link:../../api/remotes
-      '@z/dsh-client-connection':
-        specifier: workspace:^
-        version: link:../connection
-      '@z/dsh-client-locale':
-        specifier: workspace:^
-        version: link:../locale
-      '@z/dsh-client-runtime':
-        specifier: workspace:^
-        version: link:../runtime
-      '@z/dsh-client-test-runtime':
-        specifier: workspace:^
-        version: link:../../test-support/client-runtime
-      '@z/dsh-client-ui-commands':
-        specifier: workspace:^
-        version: link:../ui-commands
-      '@z/dsh-client-ui-conversation':
-        specifier: workspace:^
-        version: link:../ui-conversation
-      '@z/dsh-client-ui-input-trigger':
-        specifier: workspace:^
-        version: link:../ui-input-trigger
-      '@z/dsh-client-ui-primitives':
-        specifier: workspace:^
-        version: link:../ui-primitives
-      '@z/dsh-client-ui-slots':
-        specifier: workspace:^
-        version: link:../ui-slots
-      '@z/dsh-invariants':
-        specifier: workspace:^
-        version: link:../../runtime-diagnostics/invariants
-      react:
-        specifier: ^18.2.0
-        version: 18.3.1
-
-  packages/client/ui-permission-presets:
-    devDependencies:
-      '@types/react':
-        specifier: ~18.3.1
-        version: 18.3.31
-      '@z/cordis':
-        specifier: workspace:^
-        version: link:../../../vendor/cordis
-      '@z/dsh-api-remotes':
-        specifier: workspace:^
-        version: link:../../api/remotes
-      '@z/dsh-client-connection':
-        specifier: workspace:^
-        version: link:../connection
-      '@z/dsh-client-locale':
-        specifier: workspace:^
-        version: link:../locale
-      '@z/dsh-client-runtime':
-        specifier: workspace:^
-        version: link:../runtime
-      '@z/dsh-client-test-runtime':
-        specifier: workspace:^
-        version: link:../../test-support/client-runtime
-      '@z/dsh-client-ui-commands':
-        specifier: workspace:^
-        version: link:../ui-commands
-      '@z/dsh-client-ui-input-trigger':
-        specifier: workspace:^
-        version: link:../ui-input-trigger
-      '@z/dsh-client-ui-primitives':
-        specifier: workspace:^
-        version: link:../ui-primitives
-      '@z/dsh-client-ui-settings':
-        specifier: workspace:^
-        version: link:../ui-settings
-      '@z/dsh-client-ui-slots':
-        specifier: workspace:^
-        version: link:../ui-slots
-      '@z/dsh-invariants':
-        specifier: workspace:^
-        version: link:../../runtime-diagnostics/invariants
-      '@z/dsh-permission-presets':
-        specifier: workspace:^
-        version: link:../../interaction/permission-presets
-      react:
-        specifier: ^18.2.0
-        version: 18.3.1
-
-  packages/client/ui-plan:
-    devDependencies:
-      '@types/react':
-        specifier: ~18.3.1
-        version: 18.3.31
-      '@z/cordis':
-        specifier: workspace:^
-        version: link:../../../vendor/cordis
-      '@z/dsh-api-remotes':
-        specifier: workspace:^
-        version: link:../../api/remotes
-      '@z/dsh-client-locale':
-        specifier: workspace:^
-        version: link:../locale
-      '@z/dsh-client-runtime':
-        specifier: workspace:^
-        version: link:../runtime
-      '@z/dsh-client-test-runtime':
-        specifier: workspace:^
-        version: link:../../test-support/client-runtime
-      '@z/dsh-client-ui-conversation':
-        specifier: workspace:^
-        version: link:../ui-conversation
-      '@z/dsh-client-ui-primitives':
-        specifier: workspace:^
-        version: link:../ui-primitives
-      '@z/dsh-client-ui-slots':
-        specifier: workspace:^
-        version: link:../ui-slots
-      '@z/dsh-invariants':
-        specifier: workspace:^
-        version: link:../../runtime-diagnostics/invariants
-      '@z/dsh-plan-mode':
-        specifier: workspace:^
-        version: link:../../plan/plan-mode
-      react:
-        specifier: ^18.2.0
-        version: 18.3.1
-
-  packages/client/ui-primitives:
-    dependencies:
-      '@shikijs/langs':
-        specifier: ^4.3.1
-        version: 4.3.1
-      '@types/mdast':
-        specifier: ^4.0.4
-        version: 4.0.4
-      anser:
-        specifier: ^2.3.5
-        version: 2.3.5
-      clsx:
-        specifier: ^2.0.0
-        version: 2.1.1
-      katex:
-        specifier: ^0.16.47
-        version: 0.16.47
-      mdast-util-from-markdown:
-        specifier: ^2.0.3
-        version: 2.0.3
-      mdast-util-gfm:
-        specifier: ^3.1.0
-        version: 3.1.0
-      mdast-util-math:
-        specifier: ^3.0.0
-        version: 3.0.0
-      micromark-core-commonmark:
-        specifier: ^2.0.3
-        version: 2.0.3
-      micromark-extension-gfm:
-        specifier: ^3.0.0
-        version: 3.0.0
-      micromark-extension-math:
-        specifier: ^3.1.0
-        version: 3.1.0
-      micromark-factory-space:
-        specifier: ^2.0.1
-        version: 2.0.1
-      micromark-util-character:
-        specifier: ^2.1.1
-        version: 2.1.1
-      micromark-util-classify-character:
-        specifier: ^2.0.1
-        version: 2.0.1
-      micromark-util-sanitize-uri:
-        specifier: ^2.0.1
-        version: 2.0.1
-      micromark-util-symbol:
-        specifier: ^2.0.1
-        version: 2.0.1
-      micromark-util-types:
-        specifier: ^2.0.2
-        version: 2.0.2
-      react:
-        specifier: ^18.2.0
-        version: 18.3.1
-      react-dom:
-        specifier: ^18.2.0
-        version: 18.3.1(react@18.3.1)
-      shiki:
-        specifier: ^4.3.1
-        version: 4.3.1
-    devDependencies:
-      '@types/react':
-        specifier: ~18.3.1
-        version: 18.3.31
-      '@types/react-dom':
-        specifier: ~18.3.0
-        version: 18.3.7(@types/react@18.3.31)
-      '@z/cordis':
-        specifier: workspace:^
-        version: link:../../../vendor/cordis
-      '@z/dsh-invariants':
-        specifier: workspace:^
-        version: link:../../runtime-diagnostics/invariants
-
-  packages/client/ui-reference:
-    devDependencies:
-      '@z/cordis':
-        specifier: workspace:^
-        version: link:../../../vendor/cordis
-      '@z/dsh-api-remotes':
-        specifier: workspace:^
-        version: link:../../api/remotes
-      '@z/dsh-client-locale':
-        specifier: workspace:^
-        version: link:../locale
-      '@z/dsh-client-runtime':
-        specifier: workspace:^
-        version: link:../runtime
-      '@z/dsh-client-ui-input-trigger':
-        specifier: workspace:^
-        version: link:../ui-input-trigger
-      '@z/dsh-client-ui-slots':
-        specifier: workspace:^
-        version: link:../ui-slots
-      '@z/dsh-file-reference':
-        specifier: workspace:^
-        version: link:../../context/file-reference
-      '@z/dsh-invariants':
-        specifier: workspace:^
-        version: link:../../runtime-diagnostics/invariants
-      '@z/dsh-session-reference':
-        specifier: workspace:^
-        version: link:../../context/session-reference
-      '@z/dsh-typert-protocol':
-        specifier: workspace:^
-        version: link:../../typert/protocol
-
-  packages/client/ui-renderer:
-    dependencies:
-      use-sync-external-store:
-        specifier: 1.2.0
-        version: 1.2.0(react@18.3.1)
-    devDependencies:
-      '@types/react':
-        specifier: ~18.3.1
-        version: 18.3.31
-      '@types/react-dom':
-        specifier: ~18.3.0
-        version: 18.3.7(@types/react@18.3.31)
-      '@z/cordis':
-        specifier: workspace:^
-        version: link:../../../vendor/cordis
-      '@z/dsh-client-runtime':
-        specifier: workspace:^
-        version: link:../runtime
-      '@z/dsh-client-test-runtime':
-        specifier: workspace:^
-        version: link:../../test-support/client-runtime
-      '@z/dsh-client-ui-slots':
-        specifier: workspace:^
-        version: link:../ui-slots
-      '@z/dsh-invariants':
-        specifier: workspace:^
-        version: link:../../runtime-diagnostics/invariants
-      react:
-        specifier: ^18.2.0
-        version: 18.3.1
-      react-dom:
-        specifier: ^18.2.0
-        version: 18.3.1(react@18.3.1)
-
-  packages/client/ui-settings:
-    dependencies:
-      '@z/schemastery':
-        specifier: workspace:^
-        version: link:../../../vendor/schemastery
-    devDependencies:
-      '@types/react':
-        specifier: ~18.3.1
-        version: 18.3.31
-      '@z/cordis':
-        specifier: workspace:^
-        version: link:../../../vendor/cordis
-      '@z/dsh-api-remotes':
-        specifier: workspace:^
-        version: link:../../api/remotes
-      '@z/dsh-client-connection':
-        specifier: workspace:^
-        version: link:../connection
-      '@z/dsh-client-runtime':
-        specifier: workspace:^
-        version: link:../runtime
-      '@z/dsh-client-test-runtime':
-        specifier: workspace:^
-        version: link:../../test-support/client-runtime
-      '@z/dsh-client-ui-slots':
-        specifier: workspace:^
-        version: link:../ui-slots
-      '@z/dsh-invariants':
-        specifier: workspace:^
-        version: link:../../runtime-diagnostics/invariants
-      '@z/dsh-settings':
-        specifier: workspace:^
-        version: link:../../settings/settings
-      react:
-        specifier: ^18.2.0
-        version: 18.3.1
-
-  packages/client/ui-settings-general:
-    dependencies:
-      '@z/schemastery':
-        specifier: workspace:^
-        version: link:../../../vendor/schemastery
-      clsx:
-        specifier: ^2.0.0
-        version: 2.1.1
-    devDependencies:
-      '@types/react':
-        specifier: ~18.3.1
-        version: 18.3.31
-      '@z/cordis':
-        specifier: workspace:^
-        version: link:../../../vendor/cordis
-      '@z/dsh-api-remotes':
-        specifier: workspace:^
-        version: link:../../api/remotes
-      '@z/dsh-client-connection':
-        specifier: workspace:^
-        version: link:../connection
-      '@z/dsh-client-locale':
-        specifier: workspace:^
-        version: link:../locale
-      '@z/dsh-client-runtime':
-        specifier: workspace:^
-        version: link:../runtime
-      '@z/dsh-client-test-runtime':
-        specifier: workspace:^
-        version: link:../../test-support/client-runtime
-      '@z/dsh-client-ui-primitives':
-        specifier: workspace:^
-        version: link:../ui-primitives
-      '@z/dsh-client-ui-settings':
-        specifier: workspace:^
-        version: link:../ui-settings
-      '@z/dsh-client-ui-sidebar':
-        specifier: workspace:^
-        version: link:../ui-sidebar
-      '@z/dsh-client-ui-slots':
-        specifier: workspace:^
-        version: link:../ui-slots
-      '@z/dsh-invariants':
-        specifier: workspace:^
-        version: link:../../runtime-diagnostics/invariants
-      '@z/dsh-settings':
-        specifier: workspace:^
-        version: link:../../settings/settings
-      react:
-        specifier: ^18.2.0
-        version: 18.3.1
-
-  packages/client/ui-settings-models:
-    devDependencies:
-      '@types/react':
-        specifier: ~18.3.1
-        version: 18.3.31
-      '@z/cordis':
-        specifier: workspace:^
-        version: link:../../../vendor/cordis
-      '@z/dsh-api-remotes':
-        specifier: workspace:^
-        version: link:../../api/remotes
-      '@z/dsh-client-connection':
-        specifier: workspace:^
-        version: link:../connection
-      '@z/dsh-client-locale':
-        specifier: workspace:^
-        version: link:../locale
-      '@z/dsh-client-runtime':
-        specifier: workspace:^
-        version: link:../runtime
-      '@z/dsh-client-test-runtime':
-        specifier: workspace:^
-        version: link:../../test-support/client-runtime
-      '@z/dsh-client-ui-primitives':
-        specifier: workspace:^
-        version: link:../ui-primitives
-      '@z/dsh-client-ui-settings':
-        specifier: workspace:^
-        version: link:../ui-settings
-      '@z/dsh-client-ui-slots':
-        specifier: workspace:^
-        version: link:../ui-slots
-      '@z/dsh-invariants':
-        specifier: workspace:^
-        version: link:../../runtime-diagnostics/invariants
-      react:
-        specifier: ^18.2.0
-        version: 18.3.1
-
-  packages/client/ui-settings-plugin-inventory:
-    devDependencies:
-      '@testing-library/react':
-        specifier: ^16.1.0
-        version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@18.3.7(@types/react@18.3.31))(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@types/react':
-        specifier: ~18.3.1
-        version: 18.3.31
-      '@z/cordis':
-        specifier: workspace:^
-        version: link:../../../vendor/cordis
-      '@z/dsh-api-remotes':
-        specifier: workspace:^
-        version: link:../../api/remotes
-      '@z/dsh-client-locale':
-        specifier: workspace:^
-        version: link:../locale
-      '@z/dsh-client-runtime':
-        specifier: workspace:^
-        version: link:../runtime
-      '@z/dsh-client-test-runtime':
-        specifier: workspace:^
-        version: link:../../test-support/client-runtime
-      '@z/dsh-client-ui-primitives':
-        specifier: workspace:^
-        version: link:../ui-primitives
-      '@z/dsh-client-ui-settings':
-        specifier: workspace:^
-        version: link:../ui-settings
-      '@z/dsh-client-ui-slots':
-        specifier: workspace:^
-        version: link:../ui-slots
-      '@z/dsh-invariants':
-        specifier: workspace:^
-        version: link:../../runtime-diagnostics/invariants
-      react:
-        specifier: ^18.2.0
-        version: 18.3.1
-      react-dom:
-        specifier: ^18.2.0
-        version: 18.3.1(react@18.3.1)
-
-  packages/client/ui-settings-plugins:
-    dependencies:
-      clsx:
-        specifier: ^2.0.0
-        version: 2.1.1
-    devDependencies:
-      '@types/react':
-        specifier: ~18.3.1
-        version: 18.3.31
-      '@z/cordis':
-        specifier: workspace:^
-        version: link:../../../vendor/cordis
-      '@z/dsh-api-remotes':
-        specifier: workspace:^
-        version: link:../../api/remotes
-      '@z/dsh-client-connection':
-        specifier: workspace:^
-        version: link:../connection
-      '@z/dsh-client-locale':
-        specifier: workspace:^
-        version: link:../locale
-      '@z/dsh-client-runtime':
-        specifier: workspace:^
-        version: link:../runtime
-      '@z/dsh-client-test-runtime':
-        specifier: workspace:^
-        version: link:../../test-support/client-runtime
-      '@z/dsh-client-ui-primitives':
-        specifier: workspace:^
-        version: link:../ui-primitives
-      '@z/dsh-client-ui-settings':
-        specifier: workspace:^
-        version: link:../ui-settings
-      '@z/dsh-client-ui-slots':
-        specifier: workspace:^
-        version: link:../ui-slots
-      '@z/dsh-invariants':
-        specifier: workspace:^
-        version: link:../../runtime-diagnostics/invariants
-      react:
-        specifier: ^18.2.0
-        version: 18.3.1
-
-  packages/client/ui-sidebar:
-    dependencies:
-      clsx:
-        specifier: ^2.0.0
-        version: 2.1.1
-    devDependencies:
-      '@types/react':
-        specifier: ~18.3.1
-        version: 18.3.31
-      '@z/cordis':
-        specifier: workspace:^
-        version: link:../../../vendor/cordis
-      '@z/dsh-client-locale':
-        specifier: workspace:^
-        version: link:../locale
-      '@z/dsh-client-runtime':
-        specifier: workspace:^
-        version: link:../runtime
-      '@z/dsh-client-test-runtime':
-        specifier: workspace:^
-        version: link:../../test-support/client-runtime
-      '@z/dsh-client-ui-layout':
-        specifier: workspace:^
-        version: link:../ui-layout
-      '@z/dsh-client-ui-primitives':
-        specifier: workspace:^
-        version: link:../ui-primitives
-      '@z/dsh-client-ui-slots':
-        specifier: workspace:^
-        version: link:../ui-slots
-      '@z/dsh-invariants':
-        specifier: workspace:^
-        version: link:../../runtime-diagnostics/invariants
-      react:
-        specifier: ^18.2.0
-        version: 18.3.1
-
-  packages/client/ui-skill:
-    devDependencies:
-      '@testing-library/react':
-        specifier: ^16.1.0
-        version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@18.3.7(@types/react@18.3.31))(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@types/react':
-        specifier: ~18.3.1
-        version: 18.3.31
-      '@z/cordis':
-        specifier: workspace:^
-        version: link:../../../vendor/cordis
-      '@z/dsh-api-remotes':
-        specifier: workspace:^
-        version: link:../../api/remotes
-      '@z/dsh-client-connection':
-        specifier: workspace:^
-        version: link:../connection
-      '@z/dsh-client-locale':
-        specifier: workspace:^
-        version: link:../locale
-      '@z/dsh-client-runtime':
-        specifier: workspace:^
-        version: link:../runtime
-      '@z/dsh-client-test-runtime':
-        specifier: workspace:^
-        version: link:../../test-support/client-runtime
-      '@z/dsh-client-ui-input-trigger':
-        specifier: workspace:^
-        version: link:../ui-input-trigger
-      '@z/dsh-client-ui-primitives':
-        specifier: workspace:^
-        version: link:../ui-primitives
-      '@z/dsh-client-ui-slots':
-        specifier: workspace:^
-        version: link:../ui-slots
-      '@z/dsh-client-ui-tool':
-        specifier: workspace:^
-        version: link:../ui-tool
-      '@z/dsh-invariants':
-        specifier: workspace:^
-        version: link:../../runtime-diagnostics/invariants
-      react:
-        specifier: ^18.2.0
-        version: 18.3.1
-      react-dom:
-        specifier: ^18.2.0
-        version: 18.3.1(react@18.3.1)
-
   packages/client/ui-slots:
     devDependencies:
       '@types/react':
@@ -3184,386 +1794,6 @@ importers:
       '@z/dsh-invariants':
         specifier: workspace:^
         version: link:../../runtime-diagnostics/invariants
-
-  packages/client/ui-subagent:
-    devDependencies:
-      '@types/react':
-        specifier: ~18.3.1
-        version: 18.3.31
-      '@types/react-dom':
-        specifier: ~18.3.0
-        version: 18.3.7(@types/react@18.3.31)
-      '@z/cordis':
-        specifier: workspace:^
-        version: link:../../../vendor/cordis
-      '@z/dsh-client-locale':
-        specifier: workspace:^
-        version: link:../locale
-      '@z/dsh-client-runtime':
-        specifier: workspace:^
-        version: link:../runtime
-      '@z/dsh-client-test-runtime':
-        specifier: workspace:^
-        version: link:../../test-support/client-runtime
-      '@z/dsh-client-ui-conversation':
-        specifier: workspace:^
-        version: link:../ui-conversation
-      '@z/dsh-client-ui-input-trigger':
-        specifier: workspace:^
-        version: link:../ui-input-trigger
-      '@z/dsh-client-ui-primitives':
-        specifier: workspace:^
-        version: link:../ui-primitives
-      '@z/dsh-client-ui-slots':
-        specifier: workspace:^
-        version: link:../ui-slots
-      '@z/dsh-invariants':
-        specifier: workspace:^
-        version: link:../../runtime-diagnostics/invariants
-      '@z/dsh-subagent':
-        specifier: workspace:^
-        version: link:../../subagent/subagent
-      '@z/dsh-token-meter':
-        specifier: workspace:^
-        version: link:../../llm/token-meter
-      react:
-        specifier: ^18.2.0
-        version: 18.3.1
-      react-dom:
-        specifier: ^18.2.0
-        version: 18.3.1(react@18.3.1)
-
-  packages/client/ui-theme:
-    dependencies:
-      '@z/schemastery':
-        specifier: workspace:^
-        version: link:../../../vendor/schemastery
-      clsx:
-        specifier: ^2.0.0
-        version: 2.1.1
-    devDependencies:
-      '@types/react':
-        specifier: ~18.3.1
-        version: 18.3.31
-      '@z/cordis':
-        specifier: workspace:^
-        version: link:../../../vendor/cordis
-      '@z/dsh-api-remotes':
-        specifier: workspace:^
-        version: link:../../api/remotes
-      '@z/dsh-client-connection':
-        specifier: workspace:^
-        version: link:../connection
-      '@z/dsh-client-locale':
-        specifier: workspace:^
-        version: link:../locale
-      '@z/dsh-client-runtime':
-        specifier: workspace:^
-        version: link:../runtime
-      '@z/dsh-client-test-runtime':
-        specifier: workspace:^
-        version: link:../../test-support/client-runtime
-      '@z/dsh-client-ui-primitives':
-        specifier: workspace:^
-        version: link:../ui-primitives
-      '@z/dsh-client-ui-settings':
-        specifier: workspace:^
-        version: link:../ui-settings
-      '@z/dsh-client-ui-slots':
-        specifier: workspace:^
-        version: link:../ui-slots
-      '@z/dsh-host-webserver':
-        specifier: workspace:^
-        version: link:../../host/webserver
-      '@z/dsh-invariants':
-        specifier: workspace:^
-        version: link:../../runtime-diagnostics/invariants
-      '@z/dsh-settings':
-        specifier: workspace:^
-        version: link:../../settings/settings
-      react:
-        specifier: ^18.2.0
-        version: 18.3.1
-
-  packages/client/ui-tool:
-    dependencies:
-      clsx:
-        specifier: ^2.0.0
-        version: 2.1.1
-    devDependencies:
-      '@testing-library/react':
-        specifier: ^16.1.0
-        version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@18.3.7(@types/react@18.3.31))(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@types/react':
-        specifier: ~18.3.1
-        version: 18.3.31
-      '@z/cordis':
-        specifier: workspace:^
-        version: link:../../../vendor/cordis
-      '@z/dsh-api-remotes':
-        specifier: workspace:^
-        version: link:../../api/remotes
-      '@z/dsh-client-connection':
-        specifier: workspace:^
-        version: link:../connection
-      '@z/dsh-client-locale':
-        specifier: workspace:^
-        version: link:../locale
-      '@z/dsh-client-runtime':
-        specifier: workspace:^
-        version: link:../runtime
-      '@z/dsh-client-test-runtime':
-        specifier: workspace:^
-        version: link:../../test-support/client-runtime
-      '@z/dsh-client-ui-conversation':
-        specifier: workspace:^
-        version: link:../ui-conversation
-      '@z/dsh-client-ui-primitives':
-        specifier: workspace:^
-        version: link:../ui-primitives
-      '@z/dsh-client-ui-slots':
-        specifier: workspace:^
-        version: link:../ui-slots
-      '@z/dsh-invariants':
-        specifier: workspace:^
-        version: link:../../runtime-diagnostics/invariants
-      react:
-        specifier: ^18.2.0
-        version: 18.3.1
-      react-dom:
-        specifier: ^18.2.0
-        version: 18.3.1(react@18.3.1)
-
-  packages/client/ui-trajectory:
-    dependencies:
-      '@tanstack/react-virtual':
-        specifier: ^3.14.9
-        version: 3.14.9(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      diff:
-        specifier: ^9.0.0
-        version: 9.0.0
-    devDependencies:
-      '@types/react':
-        specifier: ~18.3.1
-        version: 18.3.31
-      '@types/react-dom':
-        specifier: ~18.3.0
-        version: 18.3.7(@types/react@18.3.31)
-      '@z/cordis':
-        specifier: workspace:^
-        version: link:../../../vendor/cordis
-      '@z/dsh-agent':
-        specifier: workspace:^
-        version: link:../../core/agent
-      '@z/dsh-client-locale':
-        specifier: workspace:^
-        version: link:../locale
-      '@z/dsh-client-runtime':
-        specifier: workspace:^
-        version: link:../runtime
-      '@z/dsh-client-test-runtime':
-        specifier: workspace:^
-        version: link:../../test-support/client-runtime
-      '@z/dsh-client-ui-conversation':
-        specifier: workspace:^
-        version: link:../ui-conversation
-      '@z/dsh-client-ui-primitives':
-        specifier: workspace:^
-        version: link:../ui-primitives
-      '@z/dsh-client-ui-slots':
-        specifier: workspace:^
-        version: link:../ui-slots
-      '@z/dsh-compaction':
-        specifier: workspace:^
-        version: link:../../compaction/compaction
-      '@z/dsh-invariants':
-        specifier: workspace:^
-        version: link:../../runtime-diagnostics/invariants
-      '@z/dsh-tools':
-        specifier: workspace:^
-        version: link:../../core/tools
-      react:
-        specifier: ^18.2.0
-        version: 18.3.1
-      react-dom:
-        specifier: ^18.2.0
-        version: 18.3.1(react@18.3.1)
-
-  packages/client/ui-user-questions:
-    dependencies:
-      clsx:
-        specifier: ^2.0.0
-        version: 2.1.1
-    devDependencies:
-      '@types/react':
-        specifier: ~18.3.1
-        version: 18.3.31
-      '@z/cordis':
-        specifier: workspace:^
-        version: link:../../../vendor/cordis
-      '@z/dsh-agent':
-        specifier: workspace:^
-        version: link:../../core/agent
-      '@z/dsh-api-remotes':
-        specifier: workspace:^
-        version: link:../../api/remotes
-      '@z/dsh-client-connection':
-        specifier: workspace:^
-        version: link:../connection
-      '@z/dsh-client-locale':
-        specifier: workspace:^
-        version: link:../locale
-      '@z/dsh-client-runtime':
-        specifier: workspace:^
-        version: link:../runtime
-      '@z/dsh-client-ui-conversation':
-        specifier: workspace:^
-        version: link:../ui-conversation
-      '@z/dsh-client-ui-primitives':
-        specifier: workspace:^
-        version: link:../ui-primitives
-      '@z/dsh-client-ui-slots':
-        specifier: workspace:^
-        version: link:../ui-slots
-      '@z/dsh-invariants':
-        specifier: workspace:^
-        version: link:../../runtime-diagnostics/invariants
-      '@z/dsh-system-prompt':
-        specifier: workspace:^
-        version: link:../../core/system-prompt
-      '@z/dsh-tools':
-        specifier: workspace:^
-        version: link:../../core/tools
-      '@z/dsh-user-questions':
-        specifier: workspace:^
-        version: link:../../interaction/user-questions
-      react:
-        specifier: ^18.2.0
-        version: 18.3.1
-
-  packages/client/ui-workflow-run:
-    devDependencies:
-      '@types/react':
-        specifier: ~18.3.1
-        version: 18.3.31
-      '@z/cordis':
-        specifier: workspace:^
-        version: link:../../../vendor/cordis
-      '@z/dsh-client-locale':
-        specifier: workspace:^
-        version: link:../locale
-      '@z/dsh-client-runtime':
-        specifier: workspace:^
-        version: link:../runtime
-      '@z/dsh-client-test-runtime':
-        specifier: workspace:^
-        version: link:../../test-support/client-runtime
-      '@z/dsh-client-ui-conversation':
-        specifier: workspace:^
-        version: link:../ui-conversation
-      '@z/dsh-client-ui-primitives':
-        specifier: workspace:^
-        version: link:../ui-primitives
-      '@z/dsh-client-ui-slots':
-        specifier: workspace:^
-        version: link:../ui-slots
-      '@z/dsh-invariants':
-        specifier: workspace:^
-        version: link:../../runtime-diagnostics/invariants
-      '@z/dsh-session':
-        specifier: workspace:^
-        version: link:../../core/session
-      '@z/dsh-tool-workflow':
-        specifier: workspace:^
-        version: link:../../workflow/tool-workflow
-      '@z/dsh-workflow':
-        specifier: workspace:^
-        version: link:../../workflow/workflow
-      react:
-        specifier: ^18.2.0
-        version: 18.3.1
-
-  packages/client/ui-workspace:
-    dependencies:
-      clsx:
-        specifier: ^2.0.0
-        version: 2.1.1
-    devDependencies:
-      '@types/react':
-        specifier: ~18.3.1
-        version: 18.3.31
-      '@z/cordis':
-        specifier: workspace:^
-        version: link:../../../vendor/cordis
-      '@z/dsh-client-connection':
-        specifier: workspace:^
-        version: link:../connection
-      '@z/dsh-client-locale':
-        specifier: workspace:^
-        version: link:../locale
-      '@z/dsh-client-runtime':
-        specifier: workspace:^
-        version: link:../runtime
-      '@z/dsh-client-test-runtime':
-        specifier: workspace:^
-        version: link:../../test-support/client-runtime
-      '@z/dsh-client-ui-conversation':
-        specifier: workspace:^
-        version: link:../ui-conversation
-      '@z/dsh-client-ui-primitives':
-        specifier: workspace:^
-        version: link:../ui-primitives
-      '@z/dsh-client-ui-sidebar':
-        specifier: workspace:^
-        version: link:../ui-sidebar
-      '@z/dsh-client-ui-slots':
-        specifier: workspace:^
-        version: link:../ui-slots
-      '@z/dsh-invariants':
-        specifier: workspace:^
-        version: link:../../runtime-diagnostics/invariants
-      react:
-        specifier: ^18.2.0
-        version: 18.3.1
-
-  packages/client/web:
-    devDependencies:
-      '@types/react':
-        specifier: ~18.3.1
-        version: 18.3.31
-      '@types/react-dom':
-        specifier: ~18.3.0
-        version: 18.3.7(@types/react@18.3.31)
-      '@z/cordis':
-        specifier: workspace:^
-        version: link:../../../vendor/cordis
-      '@z/cordis-plugin-loader':
-        specifier: workspace:^
-        version: link:../../../vendor/loader
-      '@z/dsh-client-modules':
-        specifier: workspace:^
-        version: link:../modules
-      '@z/dsh-client-ui-primitives':
-        specifier: workspace:^
-        version: link:../ui-primitives
-      '@z/dsh-client-ui-renderer':
-        specifier: workspace:^
-        version: link:../ui-renderer
-      '@z/dsh-client-ui-slots':
-        specifier: workspace:^
-        version: link:../ui-slots
-      '@z/dsh-invariants':
-        specifier: workspace:^
-        version: link:../../runtime-diagnostics/invariants
-      react:
-        specifier: ^18.2.0
-        version: 18.3.1
-      react-dom:
-        specifier: ^18.2.0
-        version: 18.3.1(react@18.3.1)
-      typescript:
-        specifier: ^6.0.3
-        version: 6.0.3
 
   packages/code-runtime/code-runtime:
     devDependencies:
@@ -3658,6 +1888,9 @@ importers:
 
   packages/compaction/compaction-basic:
     dependencies:
+      '@z/dsh-home-paths':
+        specifier: workspace:^
+        version: link:../../util/home-paths
       '@z/schemastery':
         specifier: workspace:^
         version: link:../../../vendor/schemastery
@@ -4552,39 +2785,6 @@ importers:
         specifier: workspace:^
         version: link:../../core/tools
 
-  packages/extensions/cordis-client-runner:
-    devDependencies:
-      '@types/react':
-        specifier: ~18.3.1
-        version: 18.3.31
-      '@z/cordis':
-        specifier: workspace:^
-        version: link:../../../vendor/cordis
-      '@z/cordis-plugin-loader':
-        specifier: workspace:^
-        version: link:../../../vendor/loader
-      '@z/dsh-api-remotes':
-        specifier: workspace:^
-        version: link:../../api/remotes
-      '@z/dsh-client-connection':
-        specifier: workspace:^
-        version: link:../../client/connection
-      '@z/dsh-client-modules':
-        specifier: workspace:^
-        version: link:../../client/modules
-      '@z/dsh-client-runtime':
-        specifier: workspace:^
-        version: link:../../client/runtime
-      '@z/dsh-client-ui-theme':
-        specifier: workspace:^
-        version: link:../../client/ui-theme
-      '@z/dsh-invariants':
-        specifier: workspace:^
-        version: link:../../runtime-diagnostics/invariants
-      react:
-        specifier: ^18.2.0
-        version: 18.3.1
-
   packages/extensions/cordis-host-runner:
     dependencies:
       '@z/schemastery':
@@ -4657,51 +2857,6 @@ importers:
       '@z/dsh-tools':
         specifier: workspace:^
         version: link:../../core/tools
-
-  packages/extensions/ui-cordis:
-    devDependencies:
-      '@types/react':
-        specifier: ~18.3.1
-        version: 18.3.31
-      '@z/cordis':
-        specifier: workspace:^
-        version: link:../../../vendor/cordis
-      '@z/dsh-api-remotes':
-        specifier: workspace:^
-        version: link:../../api/remotes
-      '@z/dsh-client-connection':
-        specifier: workspace:^
-        version: link:../../client/connection
-      '@z/dsh-client-locale':
-        specifier: workspace:^
-        version: link:../../client/locale
-      '@z/dsh-client-runtime':
-        specifier: workspace:^
-        version: link:../../client/runtime
-      '@z/dsh-client-ui-input-trigger':
-        specifier: workspace:^
-        version: link:../../client/ui-input-trigger
-      '@z/dsh-client-ui-primitives':
-        specifier: workspace:^
-        version: link:../../client/ui-primitives
-      '@z/dsh-client-ui-sidebar':
-        specifier: workspace:^
-        version: link:../../client/ui-sidebar
-      '@z/dsh-client-ui-slots':
-        specifier: workspace:^
-        version: link:../../client/ui-slots
-      '@z/dsh-client-ui-tool':
-        specifier: workspace:^
-        version: link:../../client/ui-tool
-      '@z/dsh-cordis-client-runner':
-        specifier: workspace:^
-        version: link:../cordis-client-runner
-      '@z/dsh-invariants':
-        specifier: workspace:^
-        version: link:../../runtime-diagnostics/invariants
-      react:
-        specifier: ^18.2.0
-        version: 18.3.1
 
   packages/feedback/command-feedback:
     devDependencies:
@@ -5453,6 +3608,10 @@ importers:
         version: link:../../runtime-diagnostics/invariants
 
   packages/host/directory-picker-auto:
+    dependencies:
+      '@z/dsh-home-paths':
+        specifier: workspace:^
+        version: link:../../util/home-paths
     devDependencies:
       '@z/cordis':
         specifier: workspace:^
@@ -5463,12 +3622,6 @@ importers:
       '@z/cordis-plugin-loader':
         specifier: workspace:^
         version: link:../../../vendor/loader
-      '@z/dsh-client-ui-directory-picker-browse':
-        specifier: workspace:^
-        version: link:../../client/ui-directory-picker-browse
-      '@z/dsh-client-ui-directory-picker-native':
-        specifier: workspace:^
-        version: link:../../client/ui-directory-picker-native
       '@z/dsh-host-directory-picker':
         specifier: workspace:^
         version: link:../directory-picker
@@ -5522,25 +3675,6 @@ importers:
       tsx:
         specifier: ^4.19.2
         version: 4.22.4
-
-  packages/host/frontend-static:
-    dependencies:
-      '@z/schemastery':
-        specifier: workspace:^
-        version: link:../../../vendor/schemastery
-    devDependencies:
-      '@z/cordis':
-        specifier: workspace:^
-        version: link:../../../vendor/cordis
-      '@z/cordis-plugin-loader':
-        specifier: workspace:^
-        version: link:../../../vendor/loader
-      '@z/dsh-host-webserver':
-        specifier: workspace:^
-        version: link:../webserver
-      '@z/dsh-invariants':
-        specifier: workspace:^
-        version: link:../../runtime-diagnostics/invariants
 
   packages/host/plugin-inventory:
     dependencies:
@@ -6021,6 +4155,9 @@ importers:
 
   packages/llm/llm-retry:
     dependencies:
+      '@z/dsh-home-paths':
+        specifier: workspace:^
+        version: link:../../util/home-paths
       '@z/schemastery':
         specifier: workspace:^
         version: link:../../../vendor/schemastery
@@ -6076,6 +4213,31 @@ importers:
       '@z/dsh-tools':
         specifier: workspace:^
         version: link:../../core/tools
+
+  packages/llm/llm-taskweaver-bridge:
+    dependencies:
+      '@z/dsh-bridge-core':
+        specifier: workspace:^
+        version: link:../../bridge/bridge-core
+      '@z/schemastery':
+        specifier: workspace:^
+        version: link:../../../vendor/schemastery
+    devDependencies:
+      '@z/cordis':
+        specifier: workspace:^
+        version: link:../../../vendor/cordis
+      '@z/dsh-home-paths':
+        specifier: workspace:^
+        version: link:../../util/home-paths
+      '@z/dsh-invariants':
+        specifier: workspace:^
+        version: link:../../runtime-diagnostics/invariants
+      '@z/dsh-llm':
+        specifier: workspace:^
+        version: link:../llm
+      '@z/dsh-settings':
+        specifier: workspace:^
+        version: link:../../settings/settings
 
   packages/llm/token-meter:
     dependencies:
@@ -6601,21 +4763,9 @@ importers:
       '@z/dsh-agent':
         specifier: workspace:^
         version: link:../../core/agent
-      '@z/dsh-client-locale':
-        specifier: workspace:^
-        version: link:../../client/locale
       '@z/dsh-client-runtime':
         specifier: workspace:^
         version: link:../../client/runtime
-      '@z/dsh-client-ui-commands':
-        specifier: workspace:^
-        version: link:../../client/ui-commands
-      '@z/dsh-client-ui-conversation':
-        specifier: workspace:^
-        version: link:../../client/ui-conversation
-      '@z/dsh-client-ui-primitives':
-        specifier: workspace:^
-        version: link:../../client/ui-primitives
       '@z/dsh-client-ui-slots':
         specifier: workspace:^
         version: link:../../client/ui-slots
@@ -8521,9 +6671,6 @@ importers:
       '@z/dsh-client-runtime':
         specifier: workspace:^
         version: link:../../client/runtime
-      '@z/dsh-client-ui-renderer':
-        specifier: workspace:^
-        version: link:../../client/ui-renderer
       '@z/dsh-client-ui-slots':
         specifier: workspace:^
         version: link:../../client/ui-slots
@@ -9899,43 +8046,9 @@ packages:
     resolution: {integrity: sha512-Aup7aUOfpbAUg2ROOJN6Iw5f9DMBlzu0mIkm/malLQFN/YQgO48wCj0Kxa3sEHJvPVFg7siR+qRInwXd2qhQKw==}
     engines: {node: '>=6.9.0'}
 
-  '@babel/compat-data@7.29.7':
-    resolution: {integrity: sha512-locTkQyKvwIEgBzVrn8693ebc97F2U8ZHjbXwDXJ5Fn2TCpNwTlKcaKLkdHop5c/icOFE7qt7Q9JC5hnKNa6Gg==}
-    engines: {node: '>=6.9.0'}
-
-  '@babel/core@7.29.7':
-    resolution: {integrity: sha512-RgHBCvtjbOK2gXSNBNIkNoEc9qoVEtau3hj8gEqKQuL3HZAibKarWFEI3Lfm6EYKkLalOh8eSrj9b+ch9H/VBA==}
-    engines: {node: '>=6.9.0'}
-
-  '@babel/generator@7.29.7':
-    resolution: {integrity: sha512-DkXD5OJQaAQIdZ1bt3UZdEnHAn9Imd3IVBdX03UFe+ony9Ojw5pzr9YVKGDY1jt+Gcn/FnGkNf8r+Vj5NOJWtQ==}
-    engines: {node: '>=6.9.0'}
-
   '@babel/generator@8.0.0-rc.6':
     resolution: {integrity: sha512-6mIzgVK8DgEzvIapoQwhXTMnnkuE4STQmVv9H03i/tZ2ml8oev3TRvZJgTenK2Bsq0YWNtzOrFdTyNzCMFtjJQ==}
     engines: {node: ^22.18.0 || >=24.11.0}
-
-  '@babel/helper-compilation-targets@7.29.7':
-    resolution: {integrity: sha512-wem6WaBj4NaVYVdNhLPPVacES6ZJ+KBBfSkTMD3YZxbP3rm3Di85tJU5ljaUNhaOynt+Aj0xruhYuzQBt8n71g==}
-    engines: {node: '>=6.9.0'}
-
-  '@babel/helper-globals@7.29.7':
-    resolution: {integrity: sha512-3nQVUAtvkKH9zahfWgw96Jc/uFOmjACE1kQz82E2lqWmHBgjzbNlsC22nuQTfahmWeQtTq5nQ/4Nnd2A1wj4zA==}
-    engines: {node: '>=6.9.0'}
-
-  '@babel/helper-module-imports@7.29.7':
-    resolution: {integrity: sha512-ejHwrQQYcm9xnTivShn2IDOlIzInN34AXskvq9QicvCtEzq1Vzclu/tKF8Jq1Cg8JG2GL6/EmjgsCT7lXepE3g==}
-    engines: {node: '>=6.9.0'}
-
-  '@babel/helper-module-transforms@7.29.7':
-    resolution: {integrity: sha512-UPUVSyXbOh627KiCIGQSgwWzGeBKLkaJ9PJEdrngIwMSzxLR4jS4+f1f1jb7VzBbg8nFLaYotvVPFCTqdrmTAg==}
-    engines: {node: '>=6.9.0'}
-    peerDependencies:
-      '@babel/core': ^7.0.0
-
-  '@babel/helper-plugin-utils@7.29.7':
-    resolution: {integrity: sha512-G7sHYigPY17oO5SYWnfD/0MTBwVR781S/JI643e/JhUYgVgWE/61SoW3NH9KWUKyKq5LVh3npif99Wkt6j86Jw==}
-    engines: {node: '>=6.9.0'}
 
   '@babel/helper-string-parser@7.29.7':
     resolution: {integrity: sha512-Pb5ijPrZ89GDH8223L4UP8i6QApWxs04RbPQJTeWDV0/keR2E36MeKnyr6LYmUUvqRRI+Iv87SuF1W6ErINzYw==}
@@ -9953,14 +8066,6 @@ packages:
     resolution: {integrity: sha512-nVJ+1JcCgntv8d78rRo++o2wuODT0Irknx2BF8Np4Ft2CRgjLqIs4qzSZ8b66yGbBdMWGmZBO9WEZv1hhNiSpg==}
     engines: {node: ^22.18.0 || >=24.11.0}
 
-  '@babel/helper-validator-option@7.29.7':
-    resolution: {integrity: sha512-N9ZErrD+yW5geCDtBqnOoxmR8+tNKiGuxKlDpuJxfsqpa2dFcexaziGAE/qoHLiDDreVNMupxGmSoNlyvsA3gw==}
-    engines: {node: '>=6.9.0'}
-
-  '@babel/helpers@7.29.7':
-    resolution: {integrity: sha512-1k2lAGRMfHTcwuNYcCNUmaUffmQv8KWMfh2iJUUeRlwlwH4FdNG7mfPI10NPfLHJFThE4Tyr4mv7kTNZOiPuBg==}
-    engines: {node: '>=6.9.0'}
-
   '@babel/parser@7.29.7':
     resolution: {integrity: sha512-hnORnjP/1P/zFEndoeX+n+t1RwWRJiJpM/jO7FW32Kn9r5+sJB2JWOdYo4L6k78j15eCwY3Gm/7364B1EMwtNg==}
     engines: {node: '>=6.0.0'}
@@ -9971,28 +8076,8 @@ packages:
     engines: {node: ^22.18.0 || >=24.11.0}
     hasBin: true
 
-  '@babel/plugin-transform-react-jsx-self@7.29.7':
-    resolution: {integrity: sha512-TL0hMc9xzy86VD31nUiwzd5otRAcyEPcsegCxolO0PvcXuH1v0kECe/UIznYFihpkvU5wg/jk4v0TTEFfm53fw==}
-    engines: {node: '>=6.9.0'}
-    peerDependencies:
-      '@babel/core': ^7.0.0-0
-
-  '@babel/plugin-transform-react-jsx-source@7.29.7':
-    resolution: {integrity: sha512-06IyK09H3wi4cGbhDBwp5gUGo0IKtnYa8tyTiephirPCK6fbobVGiXMMI5zLQ4aKEYP3wZ3ArU44o+8KMrSG/Q==}
-    engines: {node: '>=6.9.0'}
-    peerDependencies:
-      '@babel/core': ^7.0.0-0
-
   '@babel/runtime@7.29.7':
     resolution: {integrity: sha512-Nq8OhGWiZIZGV6hLHoyAKLLcJihP/xFeBMGJoUrxTX2psI8dCifzLhZISFb+VWS3wFMRDmCGw5R+dOySCqPLhw==}
-    engines: {node: '>=6.9.0'}
-
-  '@babel/template@7.29.7':
-    resolution: {integrity: sha512-puq+Gf35oI24FeN11LkoUQFqv9uwNeWpxXZi/Ji3rRIoKAzKnxRaZ+Gkj0vKS9ZCiTESfng1N9LyOyXvo+m+Gg==}
-    engines: {node: '>=6.9.0'}
-
-  '@babel/traverse@7.29.7':
-    resolution: {integrity: sha512-EhlfNQtZ+NK22w5BM61ciuiq1m58ed33Wr1Xan//ZRTy6hgjnwyCffRYwzsGXdASJSUJ1guZILsErh1eQcl+zw==}
     engines: {node: '>=6.9.0'}
 
   '@babel/types@7.29.7':
@@ -10129,12 +8214,6 @@ packages:
     cpu: [ppc64]
     os: [aix]
 
-  '@esbuild/aix-ppc64@0.25.12':
-    resolution: {integrity: sha512-Hhmwd6CInZ3dwpuGTF8fJG6yoWmsToE+vYgD4nytZVxcu1ulHpUQRAB1UJ8+N1Am3Mz4+xOByoQoSZf4D+CpkA==}
-    engines: {node: '>=18'}
-    cpu: [ppc64]
-    os: [aix]
-
   '@esbuild/aix-ppc64@0.28.1':
     resolution: {integrity: sha512-Svl7tq8k/08+p6CXPpRjQ1fKX+1odH/BQbb48fV6fj3CWHhsoIOoY87w1oHXm0qEpkIK3ZfVgp0hed3XBXzXMQ==}
     engines: {node: '>=18'}
@@ -10144,12 +8223,6 @@ packages:
   '@esbuild/android-arm64@0.21.5':
     resolution: {integrity: sha512-c0uX9VAUBQ7dTDCjq+wdyGLowMdtR/GoC2U5IYk/7D1H1JYC0qseD7+11iMP2mRLN9RcCMRcjC4YMclCzGwS/A==}
     engines: {node: '>=12'}
-    cpu: [arm64]
-    os: [android]
-
-  '@esbuild/android-arm64@0.25.12':
-    resolution: {integrity: sha512-6AAmLG7zwD1Z159jCKPvAxZd4y/VTO0VkprYy+3N2FtJ8+BQWFXU+OxARIwA46c5tdD9SsKGZ/1ocqBS/gAKHg==}
-    engines: {node: '>=18'}
     cpu: [arm64]
     os: [android]
 
@@ -10165,12 +8238,6 @@ packages:
     cpu: [arm]
     os: [android]
 
-  '@esbuild/android-arm@0.25.12':
-    resolution: {integrity: sha512-VJ+sKvNA/GE7Ccacc9Cha7bpS8nyzVv0jdVgwNDaR4gDMC/2TTRc33Ip8qrNYUcpkOHUT5OZ0bUcNNVZQ9RLlg==}
-    engines: {node: '>=18'}
-    cpu: [arm]
-    os: [android]
-
   '@esbuild/android-arm@0.28.1':
     resolution: {integrity: sha512-0k2F129Xdio1TdJfzJ8sy1Q47vUD2NnwdhiAf7drUN1EBTfPf4hsFCtmMgu/6m8JSzsBrlmVjudMBQqOfG8usQ==}
     engines: {node: '>=18'}
@@ -10180,12 +8247,6 @@ packages:
   '@esbuild/android-x64@0.21.5':
     resolution: {integrity: sha512-D7aPRUUNHRBwHxzxRvp856rjUHRFW1SdQATKXH2hqA0kAZb1hKmi02OpYRacl0TxIGz/ZmXWlbZgjwWYaCakTA==}
     engines: {node: '>=12'}
-    cpu: [x64]
-    os: [android]
-
-  '@esbuild/android-x64@0.25.12':
-    resolution: {integrity: sha512-5jbb+2hhDHx5phYR2By8GTWEzn6I9UqR11Kwf22iKbNpYrsmRB18aX/9ivc5cabcUiAT/wM+YIZ6SG9QO6a8kg==}
-    engines: {node: '>=18'}
     cpu: [x64]
     os: [android]
 
@@ -10201,12 +8262,6 @@ packages:
     cpu: [arm64]
     os: [darwin]
 
-  '@esbuild/darwin-arm64@0.25.12':
-    resolution: {integrity: sha512-N3zl+lxHCifgIlcMUP5016ESkeQjLj/959RxxNYIthIg+CQHInujFuXeWbWMgnTo4cp5XVHqFPmpyu9J65C1Yg==}
-    engines: {node: '>=18'}
-    cpu: [arm64]
-    os: [darwin]
-
   '@esbuild/darwin-arm64@0.28.1':
     resolution: {integrity: sha512-TZbWkQY7kvTAXbXUT7uVACR5cMHsDiSz9z7ZKAX/RTq/WJEk3QyRr0wZpNhBDX+/0CtdqUIJlOiodQcta6tY3Q==}
     engines: {node: '>=18'}
@@ -10216,12 +8271,6 @@ packages:
   '@esbuild/darwin-x64@0.21.5':
     resolution: {integrity: sha512-se/JjF8NlmKVG4kNIuyWMV/22ZaerB+qaSi5MdrXtd6R08kvs2qCN4C09miupktDitvh8jRFflwGFBQcxZRjbw==}
     engines: {node: '>=12'}
-    cpu: [x64]
-    os: [darwin]
-
-  '@esbuild/darwin-x64@0.25.12':
-    resolution: {integrity: sha512-HQ9ka4Kx21qHXwtlTUVbKJOAnmG1ipXhdWTmNXiPzPfWKpXqASVcWdnf2bnL73wgjNrFXAa3yYvBSd9pzfEIpA==}
-    engines: {node: '>=18'}
     cpu: [x64]
     os: [darwin]
 
@@ -10237,12 +8286,6 @@ packages:
     cpu: [arm64]
     os: [freebsd]
 
-  '@esbuild/freebsd-arm64@0.25.12':
-    resolution: {integrity: sha512-gA0Bx759+7Jve03K1S0vkOu5Lg/85dou3EseOGUes8flVOGxbhDDh/iZaoek11Y8mtyKPGF3vP8XhnkDEAmzeg==}
-    engines: {node: '>=18'}
-    cpu: [arm64]
-    os: [freebsd]
-
   '@esbuild/freebsd-arm64@0.28.1':
     resolution: {integrity: sha512-wG2EA8ENdEI0qhkSZMjfqrdY+ziCYCPMmtZjjIwOmXFjmyzEHn+UUxk5of+SYsjtfs3VpnlC7QLzSI5hY/rOAw==}
     engines: {node: '>=18'}
@@ -10252,12 +8295,6 @@ packages:
   '@esbuild/freebsd-x64@0.21.5':
     resolution: {integrity: sha512-J95kNBj1zkbMXtHVH29bBriQygMXqoVQOQYA+ISs0/2l3T9/kj42ow2mpqerRBxDJnmkUDCaQT/dfNXWX/ZZCQ==}
     engines: {node: '>=12'}
-    cpu: [x64]
-    os: [freebsd]
-
-  '@esbuild/freebsd-x64@0.25.12':
-    resolution: {integrity: sha512-TGbO26Yw2xsHzxtbVFGEXBFH0FRAP7gtcPE7P5yP7wGy7cXK2oO7RyOhL5NLiqTlBh47XhmIUXuGciXEqYFfBQ==}
-    engines: {node: '>=18'}
     cpu: [x64]
     os: [freebsd]
 
@@ -10273,12 +8310,6 @@ packages:
     cpu: [arm64]
     os: [linux]
 
-  '@esbuild/linux-arm64@0.25.12':
-    resolution: {integrity: sha512-8bwX7a8FghIgrupcxb4aUmYDLp8pX06rGh5HqDT7bB+8Rdells6mHvrFHHW2JAOPZUbnjUpKTLg6ECyzvas2AQ==}
-    engines: {node: '>=18'}
-    cpu: [arm64]
-    os: [linux]
-
   '@esbuild/linux-arm64@0.28.1':
     resolution: {integrity: sha512-yHs+0uc8+nvEAfAfxrWQKK5peSNzBc4PegcMO0EJ2hT71uA7vB8Ihg2e77R2P7SG5uYjPbHlLLmve4LLLRCf0g==}
     engines: {node: '>=18'}
@@ -10288,12 +8319,6 @@ packages:
   '@esbuild/linux-arm@0.21.5':
     resolution: {integrity: sha512-bPb5AHZtbeNGjCKVZ9UGqGwo8EUu4cLq68E95A53KlxAPRmUyYv2D6F0uUI65XisGOL1hBP5mTronbgo+0bFcA==}
     engines: {node: '>=12'}
-    cpu: [arm]
-    os: [linux]
-
-  '@esbuild/linux-arm@0.25.12':
-    resolution: {integrity: sha512-lPDGyC1JPDou8kGcywY0YILzWlhhnRjdof3UlcoqYmS9El818LLfJJc3PXXgZHrHCAKs/Z2SeZtDJr5MrkxtOw==}
-    engines: {node: '>=18'}
     cpu: [arm]
     os: [linux]
 
@@ -10309,12 +8334,6 @@ packages:
     cpu: [ia32]
     os: [linux]
 
-  '@esbuild/linux-ia32@0.25.12':
-    resolution: {integrity: sha512-0y9KrdVnbMM2/vG8KfU0byhUN+EFCny9+8g202gYqSSVMonbsCfLjUO+rCci7pM0WBEtz+oK/PIwHkzxkyharA==}
-    engines: {node: '>=18'}
-    cpu: [ia32]
-    os: [linux]
-
   '@esbuild/linux-ia32@0.28.1':
     resolution: {integrity: sha512-d1z4ZuP0ajrfz/FhGT4vv278rX8KnPPJx8i5+AtK7TYbx9Le9F1hyzurZpkEyjkGa9dUGhQow4C1NmeGvqxN2w==}
     engines: {node: '>=18'}
@@ -10324,12 +8343,6 @@ packages:
   '@esbuild/linux-loong64@0.21.5':
     resolution: {integrity: sha512-uHf1BmMG8qEvzdrzAqg2SIG/02+4/DHB6a9Kbya0XDvwDEKCoC8ZRWI5JJvNdUjtciBGFQ5PuBlpEOXQj+JQSg==}
     engines: {node: '>=12'}
-    cpu: [loong64]
-    os: [linux]
-
-  '@esbuild/linux-loong64@0.25.12':
-    resolution: {integrity: sha512-h///Lr5a9rib/v1GGqXVGzjL4TMvVTv+s1DPoxQdz7l/AYv6LDSxdIwzxkrPW438oUXiDtwM10o9PmwS/6Z0Ng==}
-    engines: {node: '>=18'}
     cpu: [loong64]
     os: [linux]
 
@@ -10345,12 +8358,6 @@ packages:
     cpu: [mips64el]
     os: [linux]
 
-  '@esbuild/linux-mips64el@0.25.12':
-    resolution: {integrity: sha512-iyRrM1Pzy9GFMDLsXn1iHUm18nhKnNMWscjmp4+hpafcZjrr2WbT//d20xaGljXDBYHqRcl8HnxbX6uaA/eGVw==}
-    engines: {node: '>=18'}
-    cpu: [mips64el]
-    os: [linux]
-
   '@esbuild/linux-mips64el@0.28.1':
     resolution: {integrity: sha512-mRObBZeHh2OxcBFPWE/FjylkRgZdYuiTR3vaTozquCGOH14iP9oN4x4Ge81CoIDYQrXmIxpFumJBu5MtZpnQJQ==}
     engines: {node: '>=18'}
@@ -10360,12 +8367,6 @@ packages:
   '@esbuild/linux-ppc64@0.21.5':
     resolution: {integrity: sha512-1hHV/Z4OEfMwpLO8rp7CvlhBDnjsC3CttJXIhBi+5Aj5r+MBvy4egg7wCbe//hSsT+RvDAG7s81tAvpL2XAE4w==}
     engines: {node: '>=12'}
-    cpu: [ppc64]
-    os: [linux]
-
-  '@esbuild/linux-ppc64@0.25.12':
-    resolution: {integrity: sha512-9meM/lRXxMi5PSUqEXRCtVjEZBGwB7P/D4yT8UG/mwIdze2aV4Vo6U5gD3+RsoHXKkHCfSxZKzmDssVlRj1QQA==}
-    engines: {node: '>=18'}
     cpu: [ppc64]
     os: [linux]
 
@@ -10381,12 +8382,6 @@ packages:
     cpu: [riscv64]
     os: [linux]
 
-  '@esbuild/linux-riscv64@0.25.12':
-    resolution: {integrity: sha512-Zr7KR4hgKUpWAwb1f3o5ygT04MzqVrGEGXGLnj15YQDJErYu/BGg+wmFlIDOdJp0PmB0lLvxFIOXZgFRrdjR0w==}
-    engines: {node: '>=18'}
-    cpu: [riscv64]
-    os: [linux]
-
   '@esbuild/linux-riscv64@0.28.1':
     resolution: {integrity: sha512-kw0owk1o0GFETUJyW0jc0G4Yzs0BHZn0JDZ8JRT088vjJYX777BAs1fDGxAC+q831qOs2DTC96mNsG2opdfyyQ==}
     engines: {node: '>=18'}
@@ -10396,12 +8391,6 @@ packages:
   '@esbuild/linux-s390x@0.21.5':
     resolution: {integrity: sha512-zus5sxzqBJD3eXxwvjN1yQkRepANgxE9lgOW2qLnmr8ikMTphkjgXu1HR01K4FJg8h1kEEDAqDcZQtbrRnB41A==}
     engines: {node: '>=12'}
-    cpu: [s390x]
-    os: [linux]
-
-  '@esbuild/linux-s390x@0.25.12':
-    resolution: {integrity: sha512-MsKncOcgTNvdtiISc/jZs/Zf8d0cl/t3gYWX8J9ubBnVOwlk65UIEEvgBORTiljloIWnBzLs4qhzPkJcitIzIg==}
-    engines: {node: '>=18'}
     cpu: [s390x]
     os: [linux]
 
@@ -10417,23 +8406,11 @@ packages:
     cpu: [x64]
     os: [linux]
 
-  '@esbuild/linux-x64@0.25.12':
-    resolution: {integrity: sha512-uqZMTLr/zR/ed4jIGnwSLkaHmPjOjJvnm6TVVitAa08SLS9Z0VM8wIRx7gWbJB5/J54YuIMInDquWyYvQLZkgw==}
-    engines: {node: '>=18'}
-    cpu: [x64]
-    os: [linux]
-
   '@esbuild/linux-x64@0.28.1':
     resolution: {integrity: sha512-u/anNYF2mmVOEDwLtnQ1wOr3EZ9sTNGLWrsYGYwHWzGA3Si84IOkHXlbWTD1NB+9/1lcnweYKO54uhxZydNzfA==}
     engines: {node: '>=18'}
     cpu: [x64]
     os: [linux]
-
-  '@esbuild/netbsd-arm64@0.25.12':
-    resolution: {integrity: sha512-xXwcTq4GhRM7J9A8Gv5boanHhRa/Q9KLVmcyXHCTaM4wKfIpWkdXiMog/KsnxzJ0A1+nD+zoecuzqPmCRyBGjg==}
-    engines: {node: '>=18'}
-    cpu: [arm64]
-    os: [netbsd]
 
   '@esbuild/netbsd-arm64@0.28.1':
     resolution: {integrity: sha512-oks0DYbLwWMmaakTsCb+zL4E+aHRVLom9IJZOAthMQEPiQmydXHkziYEsGYRx0uNV/IjEKGAV941JzH02pflqw==}
@@ -10447,23 +8424,11 @@ packages:
     cpu: [x64]
     os: [netbsd]
 
-  '@esbuild/netbsd-x64@0.25.12':
-    resolution: {integrity: sha512-Ld5pTlzPy3YwGec4OuHh1aCVCRvOXdH8DgRjfDy/oumVovmuSzWfnSJg+VtakB9Cm0gxNO9BzWkj6mtO1FMXkQ==}
-    engines: {node: '>=18'}
-    cpu: [x64]
-    os: [netbsd]
-
   '@esbuild/netbsd-x64@0.28.1':
     resolution: {integrity: sha512-aeL6lAnN89Hz43Mlh1G8ARasbuoYvSITDEx0tHh5b7jJnHcssqgjy9Yx430GDpmCa6OyrKoS0aNRjKundRizGg==}
     engines: {node: '>=18'}
     cpu: [x64]
     os: [netbsd]
-
-  '@esbuild/openbsd-arm64@0.25.12':
-    resolution: {integrity: sha512-fF96T6KsBo/pkQI950FARU9apGNTSlZGsv1jZBAlcLL1MLjLNIWPBkj5NlSz8aAzYKg+eNqknrUJ24QBybeR5A==}
-    engines: {node: '>=18'}
-    cpu: [arm64]
-    os: [openbsd]
 
   '@esbuild/openbsd-arm64@0.28.1':
     resolution: {integrity: sha512-MEFJe5C3R8pwXdZ5Y21oo6m7ePiS0d9pWucn99O/wvyJZChoIQKrQDxKrGeW8F5+T0okTHesAmDeiHDTIq0V/Q==}
@@ -10477,23 +8442,11 @@ packages:
     cpu: [x64]
     os: [openbsd]
 
-  '@esbuild/openbsd-x64@0.25.12':
-    resolution: {integrity: sha512-MZyXUkZHjQxUvzK7rN8DJ3SRmrVrke8ZyRusHlP+kuwqTcfWLyqMOE3sScPPyeIXN/mDJIfGXvcMqCgYKekoQw==}
-    engines: {node: '>=18'}
-    cpu: [x64]
-    os: [openbsd]
-
   '@esbuild/openbsd-x64@0.28.1':
     resolution: {integrity: sha512-i/ZLIOafE0Z8cI/XANJAixoJL/uRAoS2xOA3rb0xN+KK0K177cMAsQYkzHtBrtMXAKuAc7HGgcWiZ/sRC1Nxgw==}
     engines: {node: '>=18'}
     cpu: [x64]
     os: [openbsd]
-
-  '@esbuild/openharmony-arm64@0.25.12':
-    resolution: {integrity: sha512-rm0YWsqUSRrjncSXGA7Zv78Nbnw4XL6/dzr20cyrQf7ZmRcsovpcRBdhD43Nuk3y7XIoW2OxMVvwuRvk9XdASg==}
-    engines: {node: '>=18'}
-    cpu: [arm64]
-    os: [openharmony]
 
   '@esbuild/openharmony-arm64@0.28.1':
     resolution: {integrity: sha512-ge+Z7EXFNt2BO1oAMsVpiQ8EwndV9i1xXerAeTIK7AtPs3bKFXQM7nlRxDSIUIMeueR1CNXxqztLzdNeReKBJg==}
@@ -10504,12 +8457,6 @@ packages:
   '@esbuild/sunos-x64@0.21.5':
     resolution: {integrity: sha512-6+gjmFpfy0BHU5Tpptkuh8+uw3mnrvgs+dSPQXQOv3ekbordwnzTVEb4qnIvQcYXq6gzkyTnoZ9dZG+D4garKg==}
     engines: {node: '>=12'}
-    cpu: [x64]
-    os: [sunos]
-
-  '@esbuild/sunos-x64@0.25.12':
-    resolution: {integrity: sha512-3wGSCDyuTHQUzt0nV7bocDy72r2lI33QL3gkDNGkod22EsYl04sMf0qLb8luNKTOmgF/eDEDP5BFNwoBKH441w==}
-    engines: {node: '>=18'}
     cpu: [x64]
     os: [sunos]
 
@@ -10525,12 +8472,6 @@ packages:
     cpu: [arm64]
     os: [win32]
 
-  '@esbuild/win32-arm64@0.25.12':
-    resolution: {integrity: sha512-rMmLrur64A7+DKlnSuwqUdRKyd3UE7oPJZmnljqEptesKM8wx9J8gx5u0+9Pq0fQQW8vqeKebwNXdfOyP+8Bsg==}
-    engines: {node: '>=18'}
-    cpu: [arm64]
-    os: [win32]
-
   '@esbuild/win32-arm64@0.28.1':
     resolution: {integrity: sha512-lCv9eK/H6ZJWbE7bh2nw54CZ9M2nupBxJcTsdk/QQnWkdSjKGuxmmH8/GWrlT1eMmZfn4dGcCjRte397WqfQXA==}
     engines: {node: '>=18'}
@@ -10543,12 +8484,6 @@ packages:
     cpu: [ia32]
     os: [win32]
 
-  '@esbuild/win32-ia32@0.25.12':
-    resolution: {integrity: sha512-HkqnmmBoCbCwxUKKNPBixiWDGCpQGVsrQfJoVGYLPT41XWF8lHuE5N6WhVia2n4o5QK5M4tYr21827fNhi4byQ==}
-    engines: {node: '>=18'}
-    cpu: [ia32]
-    os: [win32]
-
   '@esbuild/win32-ia32@0.28.1':
     resolution: {integrity: sha512-zvb/mB2bSCoJOpoCBgYKKpX6YM6mJBlBUVUtVj41DlZJVEB6/0CKlRYxP5wWl1C1ILiCoAU5wZZ4q1P3qeS6Eg==}
     engines: {node: '>=18'}
@@ -10558,12 +8493,6 @@ packages:
   '@esbuild/win32-x64@0.21.5':
     resolution: {integrity: sha512-tQd/1efJuzPC6rCFwEvLtci/xNFcTZknmXs98FYDfGE4wP9ClFV98nyKrzJKVPMhdDnjzLhdUyMX4PsQAPjwIw==}
     engines: {node: '>=12'}
-    cpu: [x64]
-    os: [win32]
-
-  '@esbuild/win32-x64@0.25.12':
-    resolution: {integrity: sha512-alJC0uCZpTFrSL0CCDjcgleBXPnCrEAhTBILpeAp7M/OFgoqtAetfBzX0xM00MUsVVPpVjlPuMbREqnZCXaTnA==}
-    engines: {node: '>=18'}
     cpu: [x64]
     os: [win32]
 
@@ -10835,9 +8764,6 @@ packages:
 
   '@jridgewell/gen-mapping@0.3.13':
     resolution: {integrity: sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==}
-
-  '@jridgewell/remapping@2.3.5':
-    resolution: {integrity: sha512-LI9u/+laYG4Ds1TDKSJW2YPrIlcVYOwi2fUC6xB43lueCjgxV4lffOCZCtYFiH6TNOX+tQKXx97T4IKHbhyHEQ==}
 
   '@jridgewell/resolve-uri@3.1.2':
     resolution: {integrity: sha512-bRISgCIjP20/tbWSPWMEi54QVPRZExkuD9lJL+UIxUKtwVJA8wW1Trb1jMs1RFXo1CBTNZ/5hpC9QvmKWdopKw==}
@@ -11686,9 +9612,6 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@rolldown/pluginutils@1.0.0-beta.27':
-    resolution: {integrity: sha512-+d0F4MKMCbeVUJwG96uQ4SgAznZNSq93I3V+9NHA4OpvqG8mRCpGdKmK8l/dl02h2CCDHwW2FqilnTyDcAnqjA==}
-
   '@rolldown/pluginutils@1.0.1':
     resolution: {integrity: sha512-2j9bGt5Jh8hj+vPtgzPtl72j0yRxHAyumoo6TNfAjsLB04UtpSvPbPcDcBMxz7n+9CYB0c1GxQFxYRg2jimqGw==}
 
@@ -11836,51 +9759,23 @@ packages:
   '@shikijs/core@2.5.0':
     resolution: {integrity: sha512-uu/8RExTKtavlpH7XqnVYBrfBkUc20ngXiX9NSrBhOVZYv/7XQRKUyhtkeflY5QsxC0GbJThCerruZfsUaSldg==}
 
-  '@shikijs/core@4.3.1':
-    resolution: {integrity: sha512-ANMDxuaPsNMdDC1m4vfvhlDmJweMwkE5XitTwrq2rWHx5jM+dlm4MmHt2PP6t0uejfR77SuhrhJ0zEijIF/uhA==}
-    engines: {node: '>=20'}
-
   '@shikijs/engine-javascript@2.5.0':
     resolution: {integrity: sha512-VjnOpnQf8WuCEZtNUdjjwGUbtAVKuZkVQ/5cHy/tojVVRIRtlWMYVjyWhxOmIq05AlSOv72z7hRNRGVBgQOl0w==}
-
-  '@shikijs/engine-javascript@4.3.1':
-    resolution: {integrity: sha512-JBItcnPuYq7jVJdZo/vMj94r+szT7XEjHFX+mvFDGSEIbVAXAGyHAHzhbWzpGOwYidCZrErJLLgn2PVeiokHnQ==}
-    engines: {node: '>=20'}
 
   '@shikijs/engine-oniguruma@2.5.0':
     resolution: {integrity: sha512-pGd1wRATzbo/uatrCIILlAdFVKdxImWJGQ5rFiB5VZi2ve5xj3Ax9jny8QvkaV93btQEwR/rSz5ERFpC5mKNIw==}
 
-  '@shikijs/engine-oniguruma@4.3.1':
-    resolution: {integrity: sha512-OXyNMzg0pews+msMj4cHeqT4xiYKKvbnn6VbdAXxfoFl3SSx4fJTc8FadECuc5/H9p3BzhNAoAUXKwAu9rWYhg==}
-    engines: {node: '>=20'}
-
   '@shikijs/langs@2.5.0':
     resolution: {integrity: sha512-Qfrrt5OsNH5R+5tJ/3uYBBZv3SuGmnRPejV9IlIbFH3HTGLDlkqgHymAlzklVmKBjAaVmkPkyikAV/sQ1wSL+w==}
 
-  '@shikijs/langs@4.3.1':
-    resolution: {integrity: sha512-m0l9nsDqgBHvbZbk7A0/kXz/impK3uB/c6rAn6Gpg/uPtdZRQ+alsN/17MU5thb68XTj/4DxkZAotrM0GGSpDQ==}
-    engines: {node: '>=20'}
-
-  '@shikijs/primitive@4.3.1':
-    resolution: {integrity: sha512-CXQRQOYy1leqQ8ceTeJdmXv/bsUY++6QyLpXJ94LZAAYj5X2SKRdc5ipguv4NPyGVKItB2PPwUpRNe0Sjh5S1A==}
-    engines: {node: '>=20'}
-
   '@shikijs/themes@2.5.0':
     resolution: {integrity: sha512-wGrk+R8tJnO0VMzmUExHR+QdSaPUl/NKs+a4cQQRWyoc3YFbUzuLEi/KWK1hj+8BfHRKm2jNhhJck1dfstJpiw==}
-
-  '@shikijs/themes@4.3.1':
-    resolution: {integrity: sha512-dgpoJ4WqNi2yTmizQHBJ5zcX6j2lE6icN/0yt4l1kkf16jrY/pwPLoTb1ETsWMz0OBLf9ZNvwmxft+cH+N9qSA==}
-    engines: {node: '>=20'}
 
   '@shikijs/transformers@2.5.0':
     resolution: {integrity: sha512-SI494W5X60CaUwgi8u4q4m4s3YAFSxln3tzNjOSYqq54wlVgz0/NbbXEb3mdLbqMBztcmS7bVTaEd2w0qMmfeg==}
 
   '@shikijs/types@2.5.0':
     resolution: {integrity: sha512-ygl5yhxki9ZLNuNpPitBWvcy9fsSKKaRuO4BAlMyagszQidxcpLAr0qiW/q43DtSIDxO6hEbtYLiFZNXO/hdGw==}
-
-  '@shikijs/types@4.3.1':
-    resolution: {integrity: sha512-CHFxE0jztBIZRHH6gxXE7DXUCFXjReEGxZ/j0rfSLGKZuwp2xBYycEP14875DSa9KLL/6700oxIq6oO6ef9K2g==}
-    engines: {node: '>=20'}
 
   '@shikijs/vscode-textmate@10.0.2':
     resolution: {integrity: sha512-83yeghZ2xxin3Nj8z1NMd/NCuca+gsYXswywDy5bHvwlWL8tpTQmzGeUuHd9FC3E/SBEMvzJRwWEOz5gGes9Qg==}
@@ -11925,15 +9820,6 @@ packages:
     peerDependencies:
       eslint: ^9.0.0 || ^10.0.0
 
-  '@tanstack/react-virtual@3.14.9':
-    resolution: {integrity: sha512-qZyr0FZDP8rDC4WBhsryIZmAd9bveJvFGUJJtskWaew6/0dTRS6wZxnR6VQ5bY2KwL3LjerrHqQLk3a0GKcPXQ==}
-    peerDependencies:
-      react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
-      react-dom: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
-
-  '@tanstack/virtual-core@3.17.7':
-    resolution: {integrity: sha512-bp+v10y65sp2H7WpWfIMyxTNfl8ZVfxFTLRjPIFRryi6FV/J33z4IS53WO4pTk36KlvJ4iLiQz+oaydDC1xbcA==}
-
   '@testing-library/dom@10.4.1':
     resolution: {integrity: sha512-o4PXJQidqJl82ckFaXUeoAW+XysPLauYI43Abki5hABd853iMhitooc6znOnczgbTYmEP6U6/y1ZyKAIsvMKGg==}
     engines: {node: '>=18'}
@@ -11961,18 +9847,6 @@ packages:
 
   '@types/babel__code-frame@7.27.0':
     resolution: {integrity: sha512-Dwlo+LrxDx/0SpfmJ/BKveHf7QXWvLBLc+x03l5sbzykj3oB9nHygCpSECF1a+s+QIxbghe+KHqC90vGtxLRAA==}
-
-  '@types/babel__core@7.20.5':
-    resolution: {integrity: sha512-qoQprZvz5wQFJwMDqeseRXWv3rqMvhgpbXFfVyWhbx9X47POIA6i/+dXefEmZKoAgOaTdaIgNSMqMIU61yRyzA==}
-
-  '@types/babel__generator@7.27.0':
-    resolution: {integrity: sha512-ufFd2Xi92OAVPYsy+P4n7/U7e68fex0+Ee8gSG9KX7eo084CWiQ4sdxktvdl0bOPupXtVJPY19zk6EwWqUQ8lg==}
-
-  '@types/babel__template@7.4.4':
-    resolution: {integrity: sha512-h/NUaSyG5EyxBIp8YRxo4RMe2/qQgvyowRwVMzhYhBCONbW8PUsg4lkFMrhgZhUe5z3L3MiLDuvyJ/CaPa2A8A==}
-
-  '@types/babel__traverse@7.28.0':
-    resolution: {integrity: sha512-8PvcXf70gTDZBgt9ptxJ8elBeBjcLOAcOtoO/mPJjtji1+CdGbHgm77om1GrsPxsiE+uXIpNSK64UYaIwQXd4Q==}
 
   '@types/chai@5.2.3':
     resolution: {integrity: sha512-Mw558oeA9fFbv65/y4mHtXDs9bPnFMZAL/jxdPFUpOHHIXX91mcgEHbS5Lahr+pwZFR8A7GQleRWeI6cGFC2UA==}
@@ -12100,9 +9974,6 @@ packages:
   '@types/json-schema@7.0.15':
     resolution: {integrity: sha512-5+fP8P8MFNC+AyZCDxrB2pkZFPGzqQWUzpSeuuVLvm8VMcorNYavBqoFcxK8bQz4Qsbn4oUEEem4wDLfcysGHA==}
 
-  '@types/katex@0.16.8':
-    resolution: {integrity: sha512-trgaNyfU+Xh2Tc+ABIb44a5AYUpicB3uwirOioeOkNPPbmgRNtcWyDeeFRzjPZENO9Vq8gvVqfhaaXWLlevVwg==}
-
   '@types/linkify-it@5.0.0':
     resolution: {integrity: sha512-sVDA58zAw4eWAffKOaQH5/5j3XeayukzDk+ewSsnv3p4yJEZHCCzMDiZM8e0OUrRvmpGZ85jf4yDHkHsgBNr9Q==}
 
@@ -12174,12 +10045,6 @@ packages:
 
   '@upsetjs/venn.js@2.0.0':
     resolution: {integrity: sha512-WbBhLrooyePuQ1VZxrJjtLvTc4NVfpOyKx0sKqioq9bX1C1m7Jgykkn8gLrtwumBioXIqam8DLxp88Adbue6Hw==}
-
-  '@vitejs/plugin-react@4.7.0':
-    resolution: {integrity: sha512-gUu9hwfWvvEDBBmgtAowQCojwZmJ5mcLn3aufeCsitijs3+f2NsrPtlAWIR6OPiqljl96GVCUbLe0HyqIpVaoA==}
-    engines: {node: ^14.18.0 || >=16.0.0}
-    peerDependencies:
-      vite: ^4.2.0 || ^5.0.0 || ^6.0.0 || ^7.0.0
 
   '@vitejs/plugin-vue@5.2.4':
     resolution: {integrity: sha512-7Yx/SXSOcQq5HiiV3orevHUFn+pmMB4cgbEkDYgnkUWb0WfeQ/wa2yFv6D5ICiCQOVpjA7vYDXrC7AGO8yjDHA==}
@@ -12422,9 +10287,6 @@ packages:
     resolution: {integrity: sha512-OyacJsaeuLUvGWOynNqYc6sx88XvyoG39wMT8SYqL3l9wwaorDW/LPRbUPfhzw0bWsUWzNCZTnFYOrWFBKsUaw==}
     engines: {node: '>= 14.0.0'}
 
-  anser@2.3.5:
-    resolution: {integrity: sha512-vcZjxvvVoxTeR5XBNJB38oTu/7eDCZlwdz32N1eNgpyPF7j/Z7Idf+CUwQOkKKpJ7RJyjxgLHCM7vdIK0iCNMQ==}
-
   ansi-regex@5.0.1:
     resolution: {integrity: sha512-quJQXlTSUGL2LH9SUXo8VwsY4soanhgo6LNSm84E1LBcE8s3O0wpdiRzyR9z/ZZJMlMWv37qOOb9pdJlMUEKFQ==}
     engines: {node: '>=8'}
@@ -12476,11 +10338,6 @@ packages:
   base64-js@1.5.1:
     resolution: {integrity: sha512-AKpaYlHn8t4SVbOHCy+b5+KKgvR4vrsD8vbvrbiQJps7fKDTkjkDry6ji0rUJjC0kzbNePLwzxq8iypo41qeWA==}
 
-  baseline-browser-mapping@2.10.43:
-    resolution: {integrity: sha512-AjYpR78kDWAY3Efj+cDTFH9t9SCoL7OoTp1BOb0mQV7S+6CiLwnWM3FyxhJtdPufDFKzmCSFoUncKjWgJEZTCQ==}
-    engines: {node: '>=6.0.0'}
-    hasBin: true
-
   bidi-js@1.0.3:
     resolution: {integrity: sha512-RKshQI1R3YQ+n9YJz2QQ147P66ELpa1FQEg20Dk8oW9t2KgLbpDLLp9aGZ7y8WHSshDknG0bknqGw5/tyCs5tw==}
 
@@ -12506,11 +10363,6 @@ packages:
   brace-expansion@5.0.6:
     resolution: {integrity: sha512-kLpxurY4Z4r9sgMsyG0Z9uzsBlgiU/EFKhj/h91/8yHu0edo7XuixOIH3VcJ8kkxs6/jPzoI6U9Vj3WqbMQ94g==}
     engines: {node: 18 || 20 || >=22}
-
-  browserslist@4.28.6:
-    resolution: {integrity: sha512-FQBYNK15VMslhLHpA7+n+n1GOlF1kId2xcCg7/j95f24AOF6VDYMNH4mFxF7KuaTdv627faazpOAjFzMrfJOUw==}
-    engines: {node: ^6 || ^7 || ^8 || ^9 || ^10 || ^11 || ^12 || >=13.7}
-    hasBin: true
 
   buffer-equal-constant-time@1.0.1:
     resolution: {integrity: sha512-zRpUiDwd/xk6ADqPMATG8vc9VPrkck7T07OIx0gnjmJAnHnTVXNQG3vfvWNuiZIkwu9KrKdA1iJKfsfTVxE6NA==}
@@ -12538,9 +10390,6 @@ packages:
   call-bound@1.0.4:
     resolution: {integrity: sha512-+ys997U96po4Kx/ABpBCqhA9EuxJaQWDQg7295H4hBphv3IZg0boBKuwYpt4YXp6MZ5AmZQnU/tyMTlRpaSejg==}
     engines: {node: '>= 0.4'}
-
-  caniuse-lite@1.0.30001806:
-    resolution: {integrity: sha512-72Cuvd95zbSYPKq6Fhg8eDJRlzgWDf7/mtoZv6Qe/DYNCEBdNxoA3+rZAU2ZhGCpZlns3EssFavaZomckT5Uuw==}
 
   ccount@2.0.1:
     resolution: {integrity: sha512-eyrF0jiFpY+3drT6383f1qhkbGsLSifNAjA61IUjZjmLCWjItY6LB9ft9YhoDgwfmclB2zhu51Lc7+95b8NRAg==}
@@ -12573,10 +10422,6 @@ packages:
   chownr@3.0.0:
     resolution: {integrity: sha512-+IxzY9BZOQd/XuYPRmrvEVjF/nqj5kgT4kEq7VofrDoM1MxoRjEWkrCC3EtLi59TVawxTAn+orJwFQcrqEN1+g==}
     engines: {node: '>=18'}
-
-  clsx@2.1.1:
-    resolution: {integrity: sha512-eYm0QWBtUrBWZWG0d386OGAw16Z995PiOVo2B7bjWSbHedGl5e0ZWaq65kOGgUSNesEIDkB9ISbTg/JK9dhCZA==}
-    engines: {node: '>=6'}
 
   color-convert@2.0.1:
     resolution: {integrity: sha512-RRECPsj7iu/xb5oKYcsFHSppFNnsj/52OVTRKb4zP5onXwVF3zVmmToNcOfGC+CRDpfK/U584fMg38ZHCaElKQ==}
@@ -12915,9 +10760,6 @@ packages:
   ee-first@1.1.1:
     resolution: {integrity: sha512-WMwm9LhRUo+WUaRN+vRuETqG89IgZphVSNkdFgeb6sS/E4OrDIN7t48CAewSHXc6C8lefD8KKfr5vY61brQlow==}
 
-  electron-to-chromium@1.5.393:
-    resolution: {integrity: sha512-kiDJdIUawuEIcp9XoICKp1iTYDEbgguIPq526N1Q7jIQDeQ3CqoMx71025PI/7E48Ddtw2HuWsVjY7afEgNxmg==}
-
   emoji-regex-xs@1.0.0:
     resolution: {integrity: sha512-LRlerrMYoIDrT6jgpeZ2YYl/L8EulRTt5hQcYjy5AInh7HWXKimpqx68aknBFpGL2+/IcogTcaydJEgaTmOpDg==}
 
@@ -12966,19 +10808,10 @@ packages:
     engines: {node: '>=12'}
     hasBin: true
 
-  esbuild@0.25.12:
-    resolution: {integrity: sha512-bbPBYYrtZbkt6Os6FiTLCTFxvq4tt3JKall1vRwshA3fdVztsLAatFaZobhkBC8/BrPetoa0oksYoKXoG4ryJg==}
-    engines: {node: '>=18'}
-    hasBin: true
-
   esbuild@0.28.1:
     resolution: {integrity: sha512-HrJrvZv5ayxBzPfwphOoNzkzOIIlifzk0KJrGK2c8R4+LKpMtpYLQeUdjnwjWv/LZlkH2laZk+4w78pi99D4Vw==}
     engines: {node: '>=18'}
     hasBin: true
-
-  escalade@3.2.0:
-    resolution: {integrity: sha512-WUj2qlxaQtO4g6Pq5c29GTcWGDyd8itL8zTlipgECz3JesAiiOKotd8JU6otB3PACgG6xkJUyVhboMS+bje/jA==}
-    engines: {node: '>=6'}
 
   escape-html@1.0.3:
     resolution: {integrity: sha512-NiSupZ4OeuGwr68lGIeym/ksIZMJodUGOSCZ/FSnTxcrekbvqrgdUxlJOMpijaKZVjAJrWrGs/6Jy8OMuyj9ow==}
@@ -13170,11 +11003,6 @@ packages:
     resolution: {integrity: sha512-Rx/WycZ60HOaqLKAi6cHRKKI7zxWbJ31MhntmtwMoaTeF7XFH9hhBp8vITaMidfljRQ6eYWCKkaTK+ykVJHP2A==}
     engines: {node: '>= 0.8'}
 
-  fsevents@2.3.2:
-    resolution: {integrity: sha512-xiqMQR4xAeHTuB9uWm+fFRcIOgKBMiOBP+eXiyT7jsgVCq1bkVygt00oASowB7EdtpOHaaPgKt812P9ab+DDKA==}
-    engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
-    os: [darwin]
-
   fsevents@2.3.3:
     resolution: {integrity: sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw==}
     engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
@@ -13193,10 +11021,6 @@ packages:
   gcp-metadata@8.1.2:
     resolution: {integrity: sha512-zV/5HKTfCeKWnxG0Dmrw51hEWFGfcF2xiXqcA3+J90WDuP0SvoiSO5ORvcBsifmx/FoIjgQN3oNOGaQ5PhLFkg==}
     engines: {node: '>=18'}
-
-  gensync@1.0.0-beta.2:
-    resolution: {integrity: sha512-3hN7NaskYvMDLQY55gnW3NQ+mesEAepTqlg+VEbj7zzqEMBVNhzcGYYeqFo/TlYz6eQiFcp1HcsCZO+nGgS8zg==}
-    engines: {node: '>=6.9.0'}
 
   get-intrinsic@1.3.0:
     resolution: {integrity: sha512-9fSjSaos/fRIVIp+xSJlE6lfwhES7LNtKaCBIamHsjr2na1BiABJPo0mOjjz8GJDURarmCPGqaiVg5mfjb98CQ==}
@@ -13527,11 +11351,6 @@ packages:
   json-stable-stringify-without-jsonify@1.0.1:
     resolution: {integrity: sha512-Bdboy+l7tA3OGW6FjyFHWkP5LuByj1Tk33Ljyq0axyzdk9//JSi2u3fP1QSmd1KNwq6VOKYGlAu87CisVir6Pw==}
 
-  json5@2.2.3:
-    resolution: {integrity: sha512-XmOWe7eyHYH14cLdVPoyg+GOH3rYX++KpzrylJwSW98t3Nk+U8XOl8FWKOgwtzdb8lXGf6zYwDUzeHMWfxasyg==}
-    engines: {node: '>=6'}
-    hasBin: true
-
   jsx-ast-utils-x@0.1.0:
     resolution: {integrity: sha512-eQQBjBnsVtGacsG9uJNB8qOr3yA8rga4wAaGG1qRcBzSIvfhERLrWxMAM1hp5fcS6Abo8M4+bUBTekYR0qTPQw==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
@@ -13731,9 +11550,6 @@ packages:
     resolution: {integrity: sha512-RPimw/7aMdv2oqRrxKwvZXcPfwBrn/JZ2xYcY9Hus/6LaS3VOAKVWKWgNLCFSiOm1ESXinjsDlidVU7JlnCN2A==}
     engines: {node: 20 || >=22}
 
-  lru-cache@5.1.1:
-    resolution: {integrity: sha512-KpNARQA3Iwv+jTA0utUVVbrh+Jlrr1Fv0e56GGzAFOXN7dk/FviaDW8LHmK52DlcH4WP2n6gI8vN1aesBFgo9w==}
-
   lz-string@1.5.0:
     resolution: {integrity: sha512-h5bgJWpxJNswbU7qCrV0tIKQCaS3blPDrqKWx+QxzuzL1zGUzij9XCWLrSLsJPu5t+eWA/ycetzYAO5IOMcWAQ==}
     hasBin: true
@@ -13787,9 +11603,6 @@ packages:
   mdast-util-gfm@3.1.0:
     resolution: {integrity: sha512-0ulfdQOM3ysHhCJ1p06l0b0VKlhU0wuQs3thxZQagjcjPrlFRqY215uZGHHJan9GEAXd9MbfPjFJz+qMkVR6zQ==}
 
-  mdast-util-math@3.0.0:
-    resolution: {integrity: sha512-Tl9GBNeG/AhJnQM221bJR2HPvLOSnLE/T9cJI9tlc6zwQk2nPk/4f0cHkOdEixQPC/j8UtKDdITswvLAy1OZ1w==}
-
   mdast-util-phrasing@4.1.0:
     resolution: {integrity: sha512-TqICwyvJJpBwvGAMZjj4J2n0X8QWp21b9l0o7eXyVJ25YNWYbJDVIyD1bZXE6WtV6RmKJVYmQAKWa0zWOABz2w==}
 
@@ -13839,9 +11652,6 @@ packages:
 
   micromark-extension-gfm@3.0.0:
     resolution: {integrity: sha512-vsKArQsicm7t0z2GugkCKtZehqUm31oeGBV/KVSorWSy8ZlNAv7ytjFhvaryUiCUJYqs+NoE6AFhpQvBTM6Q4w==}
-
-  micromark-extension-math@3.1.0:
-    resolution: {integrity: sha512-lvEqd+fHjATVs+2v/8kg9i5Q0AP2k85H0WUOwpIVvUML8BapsMvh1XAogmQjOCsLpoKRCVQqEkQBB3NhVBcsOg==}
 
   micromark-factory-destination@2.0.1:
     resolution: {integrity: sha512-Xe6rDdJlkmbFRExpTOmRj9N3MaWmbAgdpSrBQvCFqhezUn4AHqJHbaEnfbVYYiexVSs//tqOdY/DxhjdCiJnIA==}
@@ -14019,10 +11829,6 @@ packages:
   node-pty@1.2.0-beta.15:
     resolution: {integrity: sha512-vORSzHXi4Ofl7HemVWpuudLqCPdaQb4LfpRCUpE5HPxhp4JYscl8zZwxh11p26v2wvW24WMwnMfLjhRLixrfxA==}
 
-  node-releases@2.0.51:
-    resolution: {integrity: sha512-wRNIrw4DmVLKQlbgOMdkMx27Wrpzes2hh5Jtbi2bjPd+4wJstWIqP5A+lscnqbm0xxmT5Bpg8Lec5ItEBwx6BQ==}
-    engines: {node: '>=18'}
-
   non-layered-tidy-tree-layout@2.0.2:
     resolution: {integrity: sha512-gkXMxRzUH+PB0ax9dUN0yYF0S25BqeAYqhgMaLUFmpXLEk7Fcu8f4emJuOAY0V8kjDICxROIKsTAKsV/v355xw==}
 
@@ -14049,14 +11855,8 @@ packages:
   once@1.4.0:
     resolution: {integrity: sha512-lNaJgI+2Q5URQBkccEKHTQOPaXdUxnZZElQTZY0MFUAuaEqe1E+Nyvgdz/aIyNi6Z9MzO5dv1H8n58/GELp3+w==}
 
-  oniguruma-parser@0.12.2:
-    resolution: {integrity: sha512-6HVa5oIrgMC6aA6WF6XyyqbhRPJrKR02L20+2+zpDtO5QAzGHAUGw5TKQvwi5vctNnRHkJYmjAhRVQF2EKdTQw==}
-
   oniguruma-to-es@3.1.1:
     resolution: {integrity: sha512-bUH8SDvPkH3ho3dvwJwfonjlQ4R80vjyvrU8YpxuROddv55vAEJrTuCuCVUhhsHbtlD9tGGbaNApGQckXhS8iQ==}
-
-  oniguruma-to-es@4.3.6:
-    resolution: {integrity: sha512-csuQ9x3Yr0cEIs/Zgx/OEt9iBw9vqIunAPQkx19R/fiMq2oGVTgcMqO/V3Ybqefr1TBvosI6jU539ksaBULJyA==}
 
   open@11.0.0:
     resolution: {integrity: sha512-smsWv2LzFjP03xmvFoJ331ss6h+jixfA4UUV/Bsiyuu4YJPfN+FIQGOIiv4w9/+MoHkfkJ22UIaQWRVFRfH6Vw==}
@@ -14188,16 +11988,6 @@ packages:
   platform@1.3.6:
     resolution: {integrity: sha512-fnWVljUchTro6RiCFvCXBbNhJc2NijN7oIQxbwsyL0buWJPG85v81ehlHI9fXrJsMNgTofEoWIQeClKpgxFLrg==}
 
-  playwright-core@1.61.1:
-    resolution: {integrity: sha512-h7Qlt6m4REp25qvIdvbDtVmD4LqVXfpRxhORv9L0jzETM05p4fuPJ3dKyuSXQxDSbXnmS79HAgi9589lGSpLkg==}
-    engines: {node: '>=18'}
-    hasBin: true
-
-  playwright@1.61.1:
-    resolution: {integrity: sha512-DWnY5o3YbLWK4GovuAVwpqL+1VwGNdUGrRr++8j8PtQQzvAVZUIMjKQ90fY689sEJZJBbZVw1rXaOKSTitkzPQ==}
-    engines: {node: '>=18'}
-    hasBin: true
-
   points-on-curve@0.2.0:
     resolution: {integrity: sha512-0mYKnYYe9ZcqMCWhUjItv/oHjvgEsfKvnUTg8sAtnHr3GVy7rGkXCb6d5cSyqrWqL4k81b9CPg3urd+T7aop3A==}
 
@@ -14289,10 +12079,6 @@ packages:
 
   react-is@17.0.2:
     resolution: {integrity: sha512-w2GsyukL62IJnlaff/nRegPQR94C/XXamvMWmSHRJ4y7Ts/4ocGRmTHvOs8PSE6pB3dWOrD/nueuU5sduBsQ4w==}
-
-  react-refresh@0.17.0:
-    resolution: {integrity: sha512-z6F7K9bV85EfseRCp2bzrpyQ0Gkw1uLoCel9XBVWPg/TjRj94SkJzUTGfOa4bs7iJvBWtQG0Wq7wnI0syw3EBQ==}
-    engines: {node: '>=0.10.0'}
 
   react@18.3.1:
     resolution: {integrity: sha512-wS+hAgJShR0KhEvPJArfuPVN1+Hz1t0Y6n5jLrGQbkb4urgPE/0Rve+1kMB1v/oWgHgm4WIcV+i7F2pTVj+2iQ==}
@@ -14418,10 +12204,6 @@ packages:
   search-insights@2.17.3:
     resolution: {integrity: sha512-RQPdCYTa8A68uM2jwxoY842xDhvx3E5LFL1LxvxCNMev4o5mLuokczhzjAgGwUZBAmOKZknArSxLKmXtIi2AxQ==}
 
-  semver@6.3.1:
-    resolution: {integrity: sha512-BR7VvDCVHO+q2xBEWskxS6DJE1qRnb7DxzUrogb71CWoSficBxYsiAGd+Kl0mmq/MprG9yArRkyrQxTO6XjMzA==}
-    hasBin: true
-
   semver@7.8.4:
     resolution: {integrity: sha512-rUCObTnP32Q08R2uuIrt7r9PlEonuTmtuXYcW6s5kjdlj3xbnwe+21yXptAUYcMAABLkYYTtnmzb3w3EDZfueA==}
     engines: {node: '>=10'}
@@ -14465,10 +12247,6 @@ packages:
 
   shiki@2.5.0:
     resolution: {integrity: sha512-mI//trrsaiCIPsja5CNfsyNOqgAZUb6VpJA+340toL42UpzQlXpwRV9nch69X6gaUxrr9kaOOa6e3y3uAkGFxQ==}
-
-  shiki@4.3.1:
-    resolution: {integrity: sha512-oR+qDVi2OjX1tmDpyv+3KviX01KzO6Af+0NNnKnsp9491UEGz2YpxTuJboS/6VhYpTdqzmuJBuiTlrAWWJAssw==}
-    engines: {node: '>=20'}
 
   side-channel-list@1.0.1:
     resolution: {integrity: sha512-mjn/0bi/oUURjc5Xl7IaWi/OJJJumuoJFQJfDDyO46+hBWsfaVM65TBHq2eoZBhzl9EchxOijpkbRC8SVBQU0w==}
@@ -14751,9 +12529,6 @@ packages:
   unist-util-position@5.0.0:
     resolution: {integrity: sha512-fucsC7HjXvkB5R3kTCO7kUjRdrS0BJt3M/FPxmHMBOm8JQi2BsHAHFsy27E0EolP8rp0NzXsJ+jNPyDWvOJZPA==}
 
-  unist-util-remove-position@5.0.0:
-    resolution: {integrity: sha512-Hp5Kh3wLxv0PHj9m2yZhhLt58KzPtEYKQQ4yxfYFEO7EvHwzyDYnduhHnY1mDxoqr7VUwVuHXk9RXKIiYS1N8Q==}
-
   unist-util-stringify-position@4.0.0:
     resolution: {integrity: sha512-0ASV06AAoKCDkS2+xw5RXJywruurpbC4JZSm7nr7MOt1ojAzvyyaO+UxZf18j8FCF6kmzCZKcAgN/yu2gm2XgQ==}
 
@@ -14766,12 +12541,6 @@ packages:
   unpipe@1.0.0:
     resolution: {integrity: sha512-pjy2bYhSsufwWlKwPc+l3cN7+wuJlK6uz0YdJEOlQDbl6jo/YlPi4mb8agUkVC8BF7V8NuzeyPNqRksA3hztKQ==}
     engines: {node: '>= 0.8'}
-
-  update-browserslist-db@1.2.3:
-    resolution: {integrity: sha512-Js0m9cx+qOgDxo0eMiFGEueWztz+d4+M3rGlmKPT+T4IS/jP4ylw3Nwpu6cpTTP8R1MAC1kF4VbdLt3ARf209w==}
-    hasBin: true
-    peerDependencies:
-      browserslist: '>= 4.21.0'
 
   uri-js@4.4.1:
     resolution: {integrity: sha512-7rKUyy33Q1yc98pQ1DAmLtwX109F7TIfWlW1Ydo8Wl1ii1SeHieeh0HHfPeL2fMXK6z0s8ecKs9frCuLJvndBg==}
@@ -14832,46 +12601,6 @@ packages:
       sugarss:
         optional: true
       terser:
-        optional: true
-
-  vite@6.4.3:
-    resolution: {integrity: sha512-NTKlcQjlAK7MlQoyb6LgaqHc8sso/pVyUJYWMws3jg21uTJw/LddqIFPcPqP6PzpgbIcZyKI85sFE4HBrQDA8A==}
-    engines: {node: ^18.0.0 || ^20.0.0 || >=22.0.0}
-    hasBin: true
-    peerDependencies:
-      '@types/node': ^18.0.0 || ^20.0.0 || >=22.0.0
-      jiti: '>=1.21.0'
-      less: '*'
-      lightningcss: ^1.21.0
-      sass: '*'
-      sass-embedded: '*'
-      stylus: '*'
-      sugarss: '*'
-      terser: ^5.16.0
-      tsx: ^4.8.1
-      yaml: ^2.4.2
-    peerDependenciesMeta:
-      '@types/node':
-        optional: true
-      jiti:
-        optional: true
-      less:
-        optional: true
-      lightningcss:
-        optional: true
-      sass:
-        optional: true
-      sass-embedded:
-        optional: true
-      stylus:
-        optional: true
-      sugarss:
-        optional: true
-      terser:
-        optional: true
-      tsx:
-        optional: true
-      yaml:
         optional: true
 
   vite@8.0.16:
@@ -15077,9 +12806,6 @@ packages:
 
   xmlchars@2.2.0:
     resolution: {integrity: sha512-JZnDKK8B0RCDw84FNdDAIpZK+JuJw+s7Lz8nksI7SIuU3UXJJslUthsi+uWBUYOwPFwW7W7PRLRfUKpxjtjFCw==}
-
-  yallist@3.1.1:
-    resolution: {integrity: sha512-a4UGQaWPH59mOXUYnAG2ewncQS4i4F43Tv3JoAM+s2VDAmS9NsK8GpDMLrCHPksFT7h3K6TOoUNn2pb7RoXx4g==}
 
   yallist@5.0.0:
     resolution: {integrity: sha512-YgvUTfwqyc7UXVMrB+SImsVYSmTS8X/tSrtdNZMImM+n7+QTriRXyXim0mBrTXNeqzVF0KWGgHPeiyViFFrNDw==}
@@ -15507,36 +13233,6 @@ snapshots:
       js-tokens: 4.0.0
       picocolors: 1.1.1
 
-  '@babel/compat-data@7.29.7': {}
-
-  '@babel/core@7.29.7':
-    dependencies:
-      '@babel/code-frame': 7.29.7
-      '@babel/generator': 7.29.7
-      '@babel/helper-compilation-targets': 7.29.7
-      '@babel/helper-module-transforms': 7.29.7(@babel/core@7.29.7)
-      '@babel/helpers': 7.29.7
-      '@babel/parser': 7.29.7
-      '@babel/template': 7.29.7
-      '@babel/traverse': 7.29.7
-      '@babel/types': 7.29.7
-      '@jridgewell/remapping': 2.3.5
-      convert-source-map: 2.0.0
-      debug: 4.4.3
-      gensync: 1.0.0-beta.2
-      json5: 2.2.3
-      semver: 6.3.1
-    transitivePeerDependencies:
-      - supports-color
-
-  '@babel/generator@7.29.7':
-    dependencies:
-      '@babel/parser': 7.29.7
-      '@babel/types': 7.29.7
-      '@jridgewell/gen-mapping': 0.3.13
-      '@jridgewell/trace-mapping': 0.3.31
-      jsesc: 3.1.0
-
   '@babel/generator@8.0.0-rc.6':
     dependencies:
       '@babel/parser': 8.0.0-rc.6
@@ -15546,34 +13242,6 @@ snapshots:
       '@types/jsesc': 2.5.1
       jsesc: 3.1.0
 
-  '@babel/helper-compilation-targets@7.29.7':
-    dependencies:
-      '@babel/compat-data': 7.29.7
-      '@babel/helper-validator-option': 7.29.7
-      browserslist: 4.28.6
-      lru-cache: 5.1.1
-      semver: 6.3.1
-
-  '@babel/helper-globals@7.29.7': {}
-
-  '@babel/helper-module-imports@7.29.7':
-    dependencies:
-      '@babel/traverse': 7.29.7
-      '@babel/types': 7.29.7
-    transitivePeerDependencies:
-      - supports-color
-
-  '@babel/helper-module-transforms@7.29.7(@babel/core@7.29.7)':
-    dependencies:
-      '@babel/core': 7.29.7
-      '@babel/helper-module-imports': 7.29.7
-      '@babel/helper-validator-identifier': 7.29.7
-      '@babel/traverse': 7.29.7
-    transitivePeerDependencies:
-      - supports-color
-
-  '@babel/helper-plugin-utils@7.29.7': {}
-
   '@babel/helper-string-parser@7.29.7': {}
 
   '@babel/helper-string-parser@8.0.0-rc.6': {}
@@ -15581,13 +13249,6 @@ snapshots:
   '@babel/helper-validator-identifier@7.29.7': {}
 
   '@babel/helper-validator-identifier@8.0.0-rc.6': {}
-
-  '@babel/helper-validator-option@7.29.7': {}
-
-  '@babel/helpers@7.29.7':
-    dependencies:
-      '@babel/template': 7.29.7
-      '@babel/types': 7.29.7
 
   '@babel/parser@7.29.7':
     dependencies:
@@ -15597,35 +13258,7 @@ snapshots:
     dependencies:
       '@babel/types': 8.0.0-rc.6
 
-  '@babel/plugin-transform-react-jsx-self@7.29.7(@babel/core@7.29.7)':
-    dependencies:
-      '@babel/core': 7.29.7
-      '@babel/helper-plugin-utils': 7.29.7
-
-  '@babel/plugin-transform-react-jsx-source@7.29.7(@babel/core@7.29.7)':
-    dependencies:
-      '@babel/core': 7.29.7
-      '@babel/helper-plugin-utils': 7.29.7
-
   '@babel/runtime@7.29.7': {}
-
-  '@babel/template@7.29.7':
-    dependencies:
-      '@babel/code-frame': 7.29.7
-      '@babel/parser': 7.29.7
-      '@babel/types': 7.29.7
-
-  '@babel/traverse@7.29.7':
-    dependencies:
-      '@babel/code-frame': 7.29.7
-      '@babel/generator': 7.29.7
-      '@babel/helper-globals': 7.29.7
-      '@babel/parser': 7.29.7
-      '@babel/template': 7.29.7
-      '@babel/types': 7.29.7
-      debug: 4.4.3
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/types@7.29.7':
     dependencies:
@@ -15776,16 +13409,10 @@ snapshots:
   '@esbuild/aix-ppc64@0.21.5':
     optional: true
 
-  '@esbuild/aix-ppc64@0.25.12':
-    optional: true
-
   '@esbuild/aix-ppc64@0.28.1':
     optional: true
 
   '@esbuild/android-arm64@0.21.5':
-    optional: true
-
-  '@esbuild/android-arm64@0.25.12':
     optional: true
 
   '@esbuild/android-arm64@0.28.1':
@@ -15794,16 +13421,10 @@ snapshots:
   '@esbuild/android-arm@0.21.5':
     optional: true
 
-  '@esbuild/android-arm@0.25.12':
-    optional: true
-
   '@esbuild/android-arm@0.28.1':
     optional: true
 
   '@esbuild/android-x64@0.21.5':
-    optional: true
-
-  '@esbuild/android-x64@0.25.12':
     optional: true
 
   '@esbuild/android-x64@0.28.1':
@@ -15812,16 +13433,10 @@ snapshots:
   '@esbuild/darwin-arm64@0.21.5':
     optional: true
 
-  '@esbuild/darwin-arm64@0.25.12':
-    optional: true
-
   '@esbuild/darwin-arm64@0.28.1':
     optional: true
 
   '@esbuild/darwin-x64@0.21.5':
-    optional: true
-
-  '@esbuild/darwin-x64@0.25.12':
     optional: true
 
   '@esbuild/darwin-x64@0.28.1':
@@ -15830,16 +13445,10 @@ snapshots:
   '@esbuild/freebsd-arm64@0.21.5':
     optional: true
 
-  '@esbuild/freebsd-arm64@0.25.12':
-    optional: true
-
   '@esbuild/freebsd-arm64@0.28.1':
     optional: true
 
   '@esbuild/freebsd-x64@0.21.5':
-    optional: true
-
-  '@esbuild/freebsd-x64@0.25.12':
     optional: true
 
   '@esbuild/freebsd-x64@0.28.1':
@@ -15848,16 +13457,10 @@ snapshots:
   '@esbuild/linux-arm64@0.21.5':
     optional: true
 
-  '@esbuild/linux-arm64@0.25.12':
-    optional: true
-
   '@esbuild/linux-arm64@0.28.1':
     optional: true
 
   '@esbuild/linux-arm@0.21.5':
-    optional: true
-
-  '@esbuild/linux-arm@0.25.12':
     optional: true
 
   '@esbuild/linux-arm@0.28.1':
@@ -15866,16 +13469,10 @@ snapshots:
   '@esbuild/linux-ia32@0.21.5':
     optional: true
 
-  '@esbuild/linux-ia32@0.25.12':
-    optional: true
-
   '@esbuild/linux-ia32@0.28.1':
     optional: true
 
   '@esbuild/linux-loong64@0.21.5':
-    optional: true
-
-  '@esbuild/linux-loong64@0.25.12':
     optional: true
 
   '@esbuild/linux-loong64@0.28.1':
@@ -15884,16 +13481,10 @@ snapshots:
   '@esbuild/linux-mips64el@0.21.5':
     optional: true
 
-  '@esbuild/linux-mips64el@0.25.12':
-    optional: true
-
   '@esbuild/linux-mips64el@0.28.1':
     optional: true
 
   '@esbuild/linux-ppc64@0.21.5':
-    optional: true
-
-  '@esbuild/linux-ppc64@0.25.12':
     optional: true
 
   '@esbuild/linux-ppc64@0.28.1':
@@ -15902,16 +13493,10 @@ snapshots:
   '@esbuild/linux-riscv64@0.21.5':
     optional: true
 
-  '@esbuild/linux-riscv64@0.25.12':
-    optional: true
-
   '@esbuild/linux-riscv64@0.28.1':
     optional: true
 
   '@esbuild/linux-s390x@0.21.5':
-    optional: true
-
-  '@esbuild/linux-s390x@0.25.12':
     optional: true
 
   '@esbuild/linux-s390x@0.28.1':
@@ -15920,13 +13505,7 @@ snapshots:
   '@esbuild/linux-x64@0.21.5':
     optional: true
 
-  '@esbuild/linux-x64@0.25.12':
-    optional: true
-
   '@esbuild/linux-x64@0.28.1':
-    optional: true
-
-  '@esbuild/netbsd-arm64@0.25.12':
     optional: true
 
   '@esbuild/netbsd-arm64@0.28.1':
@@ -15935,13 +13514,7 @@ snapshots:
   '@esbuild/netbsd-x64@0.21.5':
     optional: true
 
-  '@esbuild/netbsd-x64@0.25.12':
-    optional: true
-
   '@esbuild/netbsd-x64@0.28.1':
-    optional: true
-
-  '@esbuild/openbsd-arm64@0.25.12':
     optional: true
 
   '@esbuild/openbsd-arm64@0.28.1':
@@ -15950,13 +13523,7 @@ snapshots:
   '@esbuild/openbsd-x64@0.21.5':
     optional: true
 
-  '@esbuild/openbsd-x64@0.25.12':
-    optional: true
-
   '@esbuild/openbsd-x64@0.28.1':
-    optional: true
-
-  '@esbuild/openharmony-arm64@0.25.12':
     optional: true
 
   '@esbuild/openharmony-arm64@0.28.1':
@@ -15965,16 +13532,10 @@ snapshots:
   '@esbuild/sunos-x64@0.21.5':
     optional: true
 
-  '@esbuild/sunos-x64@0.25.12':
-    optional: true
-
   '@esbuild/sunos-x64@0.28.1':
     optional: true
 
   '@esbuild/win32-arm64@0.21.5':
-    optional: true
-
-  '@esbuild/win32-arm64@0.25.12':
     optional: true
 
   '@esbuild/win32-arm64@0.28.1':
@@ -15983,16 +13544,10 @@ snapshots:
   '@esbuild/win32-ia32@0.21.5':
     optional: true
 
-  '@esbuild/win32-ia32@0.25.12':
-    optional: true
-
   '@esbuild/win32-ia32@0.28.1':
     optional: true
 
   '@esbuild/win32-x64@0.21.5':
-    optional: true
-
-  '@esbuild/win32-x64@0.25.12':
     optional: true
 
   '@esbuild/win32-x64@0.28.1':
@@ -16201,11 +13756,6 @@ snapshots:
   '@jridgewell/gen-mapping@0.3.13':
     dependencies:
       '@jridgewell/sourcemap-codec': 1.5.5
-      '@jridgewell/trace-mapping': 0.3.31
-
-  '@jridgewell/remapping@2.3.5':
-    dependencies:
-      '@jridgewell/gen-mapping': 0.3.13
       '@jridgewell/trace-mapping': 0.3.31
 
   '@jridgewell/resolve-uri@3.1.2': {}
@@ -16771,8 +14321,6 @@ snapshots:
   '@rolldown/binding-win32-x64-msvc@1.1.1':
     optional: true
 
-  '@rolldown/pluginutils@1.0.0-beta.27': {}
-
   '@rolldown/pluginutils@1.0.1': {}
 
   '@rollup/rollup-android-arm-eabi@4.62.2':
@@ -16861,57 +14409,24 @@ snapshots:
       '@types/hast': 3.0.5
       hast-util-to-html: 9.0.5
 
-  '@shikijs/core@4.3.1':
-    dependencies:
-      '@shikijs/primitive': 4.3.1
-      '@shikijs/types': 4.3.1
-      '@shikijs/vscode-textmate': 10.0.2
-      '@types/hast': 3.0.5
-      hast-util-to-html: 9.0.5
-
   '@shikijs/engine-javascript@2.5.0':
     dependencies:
       '@shikijs/types': 2.5.0
       '@shikijs/vscode-textmate': 10.0.2
       oniguruma-to-es: 3.1.1
 
-  '@shikijs/engine-javascript@4.3.1':
-    dependencies:
-      '@shikijs/types': 4.3.1
-      '@shikijs/vscode-textmate': 10.0.2
-      oniguruma-to-es: 4.3.6
-
   '@shikijs/engine-oniguruma@2.5.0':
     dependencies:
       '@shikijs/types': 2.5.0
-      '@shikijs/vscode-textmate': 10.0.2
-
-  '@shikijs/engine-oniguruma@4.3.1':
-    dependencies:
-      '@shikijs/types': 4.3.1
       '@shikijs/vscode-textmate': 10.0.2
 
   '@shikijs/langs@2.5.0':
     dependencies:
       '@shikijs/types': 2.5.0
 
-  '@shikijs/langs@4.3.1':
-    dependencies:
-      '@shikijs/types': 4.3.1
-
-  '@shikijs/primitive@4.3.1':
-    dependencies:
-      '@shikijs/types': 4.3.1
-      '@shikijs/vscode-textmate': 10.0.2
-      '@types/hast': 3.0.5
-
   '@shikijs/themes@2.5.0':
     dependencies:
       '@shikijs/types': 2.5.0
-
-  '@shikijs/themes@4.3.1':
-    dependencies:
-      '@shikijs/types': 4.3.1
 
   '@shikijs/transformers@2.5.0':
     dependencies:
@@ -16919,11 +14434,6 @@ snapshots:
       '@shikijs/types': 2.5.0
 
   '@shikijs/types@2.5.0':
-    dependencies:
-      '@shikijs/vscode-textmate': 10.0.2
-      '@types/hast': 3.0.5
-
-  '@shikijs/types@4.3.1':
     dependencies:
       '@shikijs/vscode-textmate': 10.0.2
       '@types/hast': 3.0.5
@@ -16979,14 +14489,6 @@ snapshots:
       estraverse: 5.3.0
       picomatch: 4.0.4
 
-  '@tanstack/react-virtual@3.14.9(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
-    dependencies:
-      '@tanstack/virtual-core': 3.17.7
-      react: 18.3.1
-      react-dom: 18.3.1(react@18.3.1)
-
-  '@tanstack/virtual-core@3.17.7': {}
-
   '@testing-library/dom@10.4.1':
     dependencies:
       '@babel/code-frame': 7.29.7
@@ -17016,27 +14518,6 @@ snapshots:
   '@types/aria-query@5.0.4': {}
 
   '@types/babel__code-frame@7.27.0': {}
-
-  '@types/babel__core@7.20.5':
-    dependencies:
-      '@babel/parser': 7.29.7
-      '@babel/types': 7.29.7
-      '@types/babel__generator': 7.27.0
-      '@types/babel__template': 7.4.4
-      '@types/babel__traverse': 7.28.0
-
-  '@types/babel__generator@7.27.0':
-    dependencies:
-      '@babel/types': 7.29.7
-
-  '@types/babel__template@7.4.4':
-    dependencies:
-      '@babel/parser': 7.29.7
-      '@babel/types': 7.29.7
-
-  '@types/babel__traverse@7.28.0':
-    dependencies:
-      '@babel/types': 7.29.7
 
   '@types/chai@5.2.3':
     dependencies:
@@ -17189,8 +14670,6 @@ snapshots:
 
   '@types/json-schema@7.0.15': {}
 
-  '@types/katex@0.16.8': {}
-
   '@types/linkify-it@5.0.0': {}
 
   '@types/markdown-it@14.1.2':
@@ -17259,18 +14738,6 @@ snapshots:
       d3-selection: 3.0.0
       d3-transition: 3.0.1(d3-selection@3.0.0)
 
-  '@vitejs/plugin-react@4.7.0(vite@6.4.3(@types/node@22.20.0)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.4)(yaml@2.9.0))':
-    dependencies:
-      '@babel/core': 7.29.7
-      '@babel/plugin-transform-react-jsx-self': 7.29.7(@babel/core@7.29.7)
-      '@babel/plugin-transform-react-jsx-source': 7.29.7(@babel/core@7.29.7)
-      '@rolldown/pluginutils': 1.0.0-beta.27
-      '@types/babel__core': 7.20.5
-      react-refresh: 0.17.0
-      vite: 6.4.3(@types/node@22.20.0)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.4)(yaml@2.9.0)
-    transitivePeerDependencies:
-      - supports-color
-
   '@vitejs/plugin-vue@5.2.4(vite@5.4.21(@types/node@25.9.3)(lightningcss@1.32.0))(vue@3.5.39(typescript@6.0.3))':
     dependencies:
       vite: 5.4.21(@types/node@25.9.3)(lightningcss@1.32.0)
@@ -17298,14 +14765,6 @@ snapshots:
       '@vitest/utils': 4.1.8
       chai: 6.2.2
       tinyrainbow: 3.1.0
-
-  '@vitest/mocker@4.1.8(vite@6.4.3(@types/node@22.20.0)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.4)(yaml@2.9.0))':
-    dependencies:
-      '@vitest/spy': 4.1.8
-      estree-walker: 3.0.3
-      magic-string: 0.30.21
-    optionalDependencies:
-      vite: 6.4.3(@types/node@22.20.0)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.4)(yaml@2.9.0)
 
   '@vitest/mocker@4.1.8(vite@8.0.16(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))':
     dependencies:
@@ -17549,8 +15008,6 @@ snapshots:
       '@algolia/requester-fetch': 5.55.2
       '@algolia/requester-node-http': 5.55.2
 
-  anser@2.3.5: {}
-
   ansi-regex@5.0.1: {}
 
   ansi-regex@6.2.2: {}
@@ -17591,8 +15048,6 @@ snapshots:
 
   base64-js@1.5.1: {}
 
-  baseline-browser-mapping@2.10.43: {}
-
   bidi-js@1.0.3:
     dependencies:
       require-from-string: 2.0.2
@@ -17627,14 +15082,6 @@ snapshots:
     dependencies:
       balanced-match: 4.0.4
 
-  browserslist@4.28.6:
-    dependencies:
-      baseline-browser-mapping: 2.10.43
-      caniuse-lite: 1.0.30001806
-      electron-to-chromium: 1.5.393
-      node-releases: 2.0.51
-      update-browserslist-db: 1.2.3(browserslist@4.28.6)
-
   buffer-equal-constant-time@1.0.1: {}
 
   builtin-modules@3.3.0: {}
@@ -17657,8 +15104,6 @@ snapshots:
       call-bind-apply-helpers: 1.0.2
       get-intrinsic: 1.3.0
 
-  caniuse-lite@1.0.30001806: {}
-
   ccount@2.0.1: {}
 
   chai@6.2.2: {}
@@ -17680,8 +15125,6 @@ snapshots:
       readdirp: 5.0.0
 
   chownr@3.0.0: {}
-
-  clsx@2.1.1: {}
 
   color-convert@2.0.1:
     dependencies:
@@ -18022,8 +15465,6 @@ snapshots:
 
   ee-first@1.1.1: {}
 
-  electron-to-chromium@1.5.393: {}
-
   emoji-regex-xs@1.0.0: {}
 
   emoji-regex@8.0.0: {}
@@ -18076,35 +15517,6 @@ snapshots:
       '@esbuild/win32-ia32': 0.21.5
       '@esbuild/win32-x64': 0.21.5
 
-  esbuild@0.25.12:
-    optionalDependencies:
-      '@esbuild/aix-ppc64': 0.25.12
-      '@esbuild/android-arm': 0.25.12
-      '@esbuild/android-arm64': 0.25.12
-      '@esbuild/android-x64': 0.25.12
-      '@esbuild/darwin-arm64': 0.25.12
-      '@esbuild/darwin-x64': 0.25.12
-      '@esbuild/freebsd-arm64': 0.25.12
-      '@esbuild/freebsd-x64': 0.25.12
-      '@esbuild/linux-arm': 0.25.12
-      '@esbuild/linux-arm64': 0.25.12
-      '@esbuild/linux-ia32': 0.25.12
-      '@esbuild/linux-loong64': 0.25.12
-      '@esbuild/linux-mips64el': 0.25.12
-      '@esbuild/linux-ppc64': 0.25.12
-      '@esbuild/linux-riscv64': 0.25.12
-      '@esbuild/linux-s390x': 0.25.12
-      '@esbuild/linux-x64': 0.25.12
-      '@esbuild/netbsd-arm64': 0.25.12
-      '@esbuild/netbsd-x64': 0.25.12
-      '@esbuild/openbsd-arm64': 0.25.12
-      '@esbuild/openbsd-x64': 0.25.12
-      '@esbuild/openharmony-arm64': 0.25.12
-      '@esbuild/sunos-x64': 0.25.12
-      '@esbuild/win32-arm64': 0.25.12
-      '@esbuild/win32-ia32': 0.25.12
-      '@esbuild/win32-x64': 0.25.12
-
   esbuild@0.28.1:
     optionalDependencies:
       '@esbuild/aix-ppc64': 0.28.1
@@ -18133,8 +15545,6 @@ snapshots:
       '@esbuild/win32-arm64': 0.28.1
       '@esbuild/win32-ia32': 0.28.1
       '@esbuild/win32-x64': 0.28.1
-
-  escalade@3.2.0: {}
 
   escape-html@1.0.3: {}
 
@@ -18386,9 +15796,6 @@ snapshots:
 
   fresh@2.0.0: {}
 
-  fsevents@2.3.2:
-    optional: true
-
   fsevents@2.3.3:
     optional: true
 
@@ -18411,8 +15818,6 @@ snapshots:
       json-bigint: 1.0.0
     transitivePeerDependencies:
       - supports-color
-
-  gensync@1.0.0-beta.2: {}
 
   get-intrinsic@1.3.0:
     dependencies:
@@ -18740,8 +16145,6 @@ snapshots:
 
   json-stable-stringify-without-jsonify@1.0.1: {}
 
-  json5@2.2.3: {}
-
   jsx-ast-utils-x@0.1.0: {}
 
   jszip@3.10.1:
@@ -18931,10 +16334,6 @@ snapshots:
 
   lru-cache@11.5.1: {}
 
-  lru-cache@5.1.1:
-    dependencies:
-      yallist: 3.1.1
-
   lz-string@1.5.0: {}
 
   magic-string@0.30.21:
@@ -19037,18 +16436,6 @@ snapshots:
       mdast-util-gfm-table: 2.0.0
       mdast-util-gfm-task-list-item: 2.0.0
       mdast-util-to-markdown: 2.1.2
-    transitivePeerDependencies:
-      - supports-color
-
-  mdast-util-math@3.0.0:
-    dependencies:
-      '@types/hast': 3.0.5
-      '@types/mdast': 4.0.4
-      devlop: 1.1.0
-      longest-streak: 3.1.0
-      mdast-util-from-markdown: 2.0.3
-      mdast-util-to-markdown: 2.1.2
-      unist-util-remove-position: 5.0.0
     transitivePeerDependencies:
       - supports-color
 
@@ -19190,16 +16577,6 @@ snapshots:
       micromark-extension-gfm-tagfilter: 2.0.0
       micromark-extension-gfm-task-list-item: 2.1.0
       micromark-util-combine-extensions: 2.0.1
-      micromark-util-types: 2.0.2
-
-  micromark-extension-math@3.1.0:
-    dependencies:
-      '@types/katex': 0.16.8
-      devlop: 1.1.0
-      katex: 0.16.47
-      micromark-factory-space: 2.0.1
-      micromark-util-character: 2.1.1
-      micromark-util-symbol: 2.0.1
       micromark-util-types: 2.0.2
 
   micromark-factory-destination@2.0.1:
@@ -19413,8 +16790,6 @@ snapshots:
     dependencies:
       node-addon-api: 7.1.1
 
-  node-releases@2.0.51: {}
-
   non-layered-tidy-tree-layout@2.0.2:
     optional: true
 
@@ -19437,17 +16812,9 @@ snapshots:
     dependencies:
       wrappy: 1.0.2
 
-  oniguruma-parser@0.12.2: {}
-
   oniguruma-to-es@3.1.1:
     dependencies:
       emoji-regex-xs: 1.0.0
-      regex: 6.1.0
-      regex-recursion: 6.0.2
-
-  oniguruma-to-es@4.3.6:
-    dependencies:
-      oniguruma-parser: 0.12.2
       regex: 6.1.0
       regex-recursion: 6.0.2
 
@@ -19620,14 +16987,6 @@ snapshots:
 
   platform@1.3.6: {}
 
-  playwright-core@1.61.1: {}
-
-  playwright@1.61.1:
-    dependencies:
-      playwright-core: 1.61.1
-    optionalDependencies:
-      fsevents: 2.3.2
-
   points-on-curve@0.2.0: {}
 
   points-on-path@0.2.1:
@@ -19672,7 +17031,7 @@ snapshots:
       '@protobufjs/path': 1.1.2
       '@protobufjs/pool': 1.1.0
       '@protobufjs/utf8': 1.1.1
-      '@types/node': 22.20.0
+      '@types/node': 26.1.2
       long: 5.3.2
 
   proxy-addr@2.0.7:
@@ -19716,8 +17075,6 @@ snapshots:
       scheduler: 0.23.2
 
   react-is@17.0.2: {}
-
-  react-refresh@0.17.0: {}
 
   react@18.3.1:
     dependencies:
@@ -19902,8 +17259,6 @@ snapshots:
 
   search-insights@2.17.3: {}
 
-  semver@6.3.1: {}
-
   semver@7.8.4: {}
 
   semver@7.8.5: {}
@@ -19984,17 +17339,6 @@ snapshots:
       '@shikijs/langs': 2.5.0
       '@shikijs/themes': 2.5.0
       '@shikijs/types': 2.5.0
-      '@shikijs/vscode-textmate': 10.0.2
-      '@types/hast': 3.0.5
-
-  shiki@4.3.1:
-    dependencies:
-      '@shikijs/core': 4.3.1
-      '@shikijs/engine-javascript': 4.3.1
-      '@shikijs/engine-oniguruma': 4.3.1
-      '@shikijs/langs': 4.3.1
-      '@shikijs/themes': 4.3.1
-      '@shikijs/types': 4.3.1
       '@shikijs/vscode-textmate': 10.0.2
       '@types/hast': 3.0.5
 
@@ -20243,11 +17587,6 @@ snapshots:
     dependencies:
       '@types/unist': 3.0.3
 
-  unist-util-remove-position@5.0.0:
-    dependencies:
-      '@types/unist': 3.0.3
-      unist-util-visit: 5.1.0
-
   unist-util-stringify-position@4.0.0:
     dependencies:
       '@types/unist': 3.0.3
@@ -20264,12 +17603,6 @@ snapshots:
       unist-util-visit-parents: 6.0.2
 
   unpipe@1.0.0: {}
-
-  update-browserslist-db@1.2.3(browserslist@4.28.6):
-    dependencies:
-      browserslist: 4.28.6
-      escalade: 3.2.0
-      picocolors: 1.1.1
 
   uri-js@4.4.1:
     dependencies:
@@ -20314,22 +17647,6 @@ snapshots:
       '@types/node': 25.9.3
       fsevents: 2.3.3
       lightningcss: 1.32.0
-
-  vite@6.4.3(@types/node@22.20.0)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.4)(yaml@2.9.0):
-    dependencies:
-      esbuild: 0.25.12
-      fdir: 6.5.0(picomatch@4.0.4)
-      picomatch: 4.0.4
-      postcss: 8.5.15
-      rollup: 4.62.2
-      tinyglobby: 0.2.17
-    optionalDependencies:
-      '@types/node': 22.20.0
-      fsevents: 2.3.3
-      jiti: 2.7.0
-      lightningcss: 1.32.0
-      tsx: 4.22.4
-      yaml: 2.9.0
 
   vite@8.0.16(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0):
     dependencies:
@@ -20417,36 +17734,6 @@ snapshots:
       - terser
       - typescript
       - universal-cookie
-
-  vitest@4.1.8(@opentelemetry/api@1.9.1)(@types/node@22.20.0)(@vitest/coverage-v8@4.1.8)(jsdom@29.1.1)(vite@6.4.3(@types/node@22.20.0)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.4)(yaml@2.9.0)):
-    dependencies:
-      '@vitest/expect': 4.1.8
-      '@vitest/mocker': 4.1.8(vite@6.4.3(@types/node@22.20.0)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.4)(yaml@2.9.0))
-      '@vitest/pretty-format': 4.1.8
-      '@vitest/runner': 4.1.8
-      '@vitest/snapshot': 4.1.8
-      '@vitest/spy': 4.1.8
-      '@vitest/utils': 4.1.8
-      es-module-lexer: 2.1.0
-      expect-type: 1.3.0
-      magic-string: 0.30.21
-      obug: 2.1.3
-      pathe: 2.0.3
-      picomatch: 4.0.4
-      std-env: 4.1.0
-      tinybench: 2.9.0
-      tinyexec: 1.2.4
-      tinyglobby: 0.2.17
-      tinyrainbow: 3.1.0
-      vite: 6.4.3(@types/node@22.20.0)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.4)(yaml@2.9.0)
-      why-is-node-running: 2.3.0
-    optionalDependencies:
-      '@opentelemetry/api': 1.9.1
-      '@types/node': 22.20.0
-      '@vitest/coverage-v8': 4.1.8(vitest@4.1.8)
-      jsdom: 29.1.1
-    transitivePeerDependencies:
-      - msw
 
   vitest@4.1.8(@opentelemetry/api@1.9.1)(@types/node@22.20.0)(@vitest/coverage-v8@4.1.8)(jsdom@29.1.1)(vite@8.0.16(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0)):
     dependencies:
@@ -20588,8 +17875,6 @@ snapshots:
   xml-name-validator@5.0.0: {}
 
   xmlchars@2.2.0: {}
-
-  yallist@3.1.1: {}
 
   yallist@5.0.0: {}
 

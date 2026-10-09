@@ -1,5 +1,4 @@
 import { useEffect, useId, useRef, useState } from 'react'
-import { Database } from 'lucide-react'
 import type { ChatUsage } from '../../types'
 import {
   billedInputTokens,
@@ -70,8 +69,7 @@ export function MessageTurnUsageChip({
           ? `压缩操作计费 ${formatDshCatalogTokens(total)} tok`
           : `本轮用量 ${formatDshCatalogTokens(total)} tok`}
       >
-        <Database size={12} strokeWidth={1.75} aria-hidden />
-        <span>{usageKind === 'compaction' ? '压缩计费' : '用量'} {formatDshCatalogTokens(total)} tok</span>
+        <span>{usageKind === 'compaction' ? '压缩计费' : ''} {formatDshCatalogTokens(total)} tok</span>
       </button>
       {open && (
         <div
@@ -83,7 +81,6 @@ export function MessageTurnUsageChip({
         >
           <div className="message-turn-usage-head">
             <span className="message-turn-usage-title">
-              <Database size={14} strokeWidth={1.75} aria-hidden />
               {usageKind === 'compaction' ? '压缩操作计费' : '本轮用量'}
             </span>
             <span className="message-turn-usage-total">{formatTokensFull(total)} tok</span>

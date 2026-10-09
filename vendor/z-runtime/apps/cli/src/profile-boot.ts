@@ -11,9 +11,9 @@
  * @module @z/dsh/profile-boot
  */
 
-import { writeFileSync } from 'node:fs'
+import { existsSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import type { Context } from '@z/cordis'
 import type { PatchOptions } from '@z/cordis-plugin-include'
 import type { EntryOptions } from '@z/cordis-plugin-loader'
@@ -28,7 +28,7 @@ import {
   PROFILE_PATCH_FILENAME,
   type Profile,
 } from '@z/dsh-app-boot'
-import { resolveDshHome } from '@z/dsh-home-paths'
+import { resolveDshHome, taskweaverEmbeddedFromEnv } from '@z/dsh-home-paths'
 
 /** Shipped agent-preset root: beside this app's own config, in both source and built layouts. */
 const SHIPPED_PRESET_ROOT = fileURLToPath(new URL('../config/agent-presets/', import.meta.url))
@@ -36,12 +36,27 @@ const SHIPPED_PRESET_ROOT = fileURLToPath(new URL('../config/agent-presets/', im
 import { DSH_LAUNCH_ENVIRONMENT_KEY, type LaunchEnvironmentSnapshot } from '@z/dsh-launch-environment'
 import { provideCmdline } from '@z/dsh-cmdline'
 import { createProcessShutdown, type ProcessShutdown } from './process-shutdown.ts'
+import { ensureDeployNodeModules } from './deploy-layout.ts'
 
 const NAME = 'dsh'
 
-/** TaskWeaver embeds DSH as a headless API host; skip patch/HMR watchers that need Node internals. */
+/** TaskWeaver embeds Z as a headless API host; skip patch/HMR watchers that need Node internals. */
 function taskweaverEmbedded(): boolean {
-  return (process.env.DSH_TASKWEAVER_EMBEDDED ?? '') !== ''
+  return taskweaverEmbeddedFromEnv()
+}
+
+/**
+ * Packaged TaskWeaver runs the host with `cwd` at the deploy root (or its stable
+ * mirror). Bare `@z/*` imports must resolve from there, not from `$DSH_HOME/profiles/*`.
+ */
+export function resolveTaskWeaverBareModuleBaseUrl(): string | undefined {
+  if (!taskweaverEmbedded()) return undefined
+  const runtimeRoot = process.cwd()
+  ensureDeployNodeModules(runtimeRoot)
+  const hasPackages = existsSync(join(runtimeRoot, 'runtime-packages'))
+    || existsSync(join(runtimeRoot, 'node_modules'))
+  if (!hasPackages) return undefined
+  return `${pathToFileURL(runtimeRoot).href}/`
 }
 
 /**
@@ -215,6 +230,7 @@ export async function runProfile(options: RunProfileOptions): Promise<{ ctx: Con
   })
 
   const rootConfig = join(composed.profile.dir, PROFILE_ROOT_FILENAME)
+  const bareModuleBaseUrl = resolveTaskWeaverBareModuleBaseUrl()
   const ctx = await boot(NAME, rootConfig, structuredClone(allPatches(composed)), (hostCtx) => {
     app.current = hostCtx
     // Before any config-tree entry mounts, so plugins resolve all launch-time
@@ -226,7 +242,7 @@ export async function runProfile(options: RunProfileOptions): Promise<{ ctx: Con
       args: options.args,
       exit: code => void shutdown.shutdown(code),
     })
-  })
+  }, bareModuleBaseUrl)
   app.current = ctx
   return { ctx, shutdown }
 }

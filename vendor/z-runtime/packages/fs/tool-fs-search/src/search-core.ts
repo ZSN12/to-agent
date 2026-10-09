@@ -165,16 +165,41 @@ let rgPathPromise: Promise<string> | undefined
  * at the call boundary keeps a missing or corrupt binary at the first search
  * call as `SEARCH_FAILED`, rather than failing the Loader composition.
  *
- * @returns the packaged binary's absolute path; the memoized promise rejects
- *   when the platform package cannot be resolved.
+ * @returns the packaged binary's absolute path; successful resolutions are
+ *   memoized, while a rejected resolution is cleared so a later search can retry.
  */
 export function resolveRgPath(): Promise<string> {
-  rgPathPromise ??= Promise.resolve().then(async () => {
-    const executableSidecar = `${process.execPath}-rg`
-    if ('pkg' in process && existsSync(executableSidecar)) return executableSidecar
-    return (await import('@vscode/ripgrep')).rgPath
-  })
+  if (rgPathPromise === undefined) {
+    const pending = Promise.resolve().then(async () => {
+      const executableSidecar = `${process.execPath}-rg`
+      if ('pkg' in process && existsSync(executableSidecar)) return executableSidecar
+      return (await import('@vscode/ripgrep')).rgPath
+    })
+    rgPathPromise = pending
+    // A rejected lazy import is not a usable cache entry. In particular, a
+    // transient deploy/optional-package resolution race must not poison every
+    // later grep/glob call for the lifetime of the Host process.
+    void pending.catch(() => {
+      if (rgPathPromise === pending) rgPathPromise = undefined
+    })
+  }
   return rgPathPromise
+}
+
+/** Add only stable, path-free OS diagnostics to a model-facing launch error. */
+function launchFailureMessage(toolName: string, error: unknown): string {
+  const diagnostic = (() => {
+    if (typeof error !== 'object' || error === null) return ''
+    const value = error as { code?: unknown; syscall?: unknown }
+    const code = typeof value.code === 'string' && /^[A-Z][A-Z0-9_]{0,39}$/.test(value.code)
+      ? value.code
+      : ''
+    const syscall = typeof value.syscall === 'string' && /^[a-z][a-z0-9_-]{0,39}$/i.test(value.syscall)
+      ? value.syscall
+      : ''
+    return code ? `${code}${syscall ? ` (${syscall})` : ''}` : ''
+  })()
+  return `${toolName} could not start its search command (ripgrep launch failed${diagnostic ? `: ${diagnostic}` : ''})`
 }
 
 /**
@@ -249,13 +274,13 @@ export async function runRipgrep(
     if (exec.signal.aborted) {
       throw new SearchError(`${toolName} was aborted before completion (tool timeout or caller cancellation)`, 'SEARCH_ABORTED')
     }
-    throw new SearchError(`${toolName} could not start its search command (ripgrep launch failed)`, 'SEARCH_FAILED', { cause: error })
+    throw new SearchError(launchFailureMessage(toolName, error), 'SEARCH_FAILED', { cause: error })
   }
   let outcome: SubprocessOutcome
   try {
     outcome = await handle.done
   } catch (error: unknown) {
-    throw new SearchError(`${toolName} could not start its search command (ripgrep launch failed)`, 'SEARCH_FAILED', { cause: error })
+    throw new SearchError(launchFailureMessage(toolName, error), 'SEARCH_FAILED', { cause: error })
   }
   const stdout = handle.collected.stdout?.readFrom(0)
   const stderr = handle.collected.stderr?.readFrom(0)

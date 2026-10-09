@@ -2,6 +2,7 @@ import { Loader2, Minimize2, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import {
   COMPACTION_SUGGEST_CLEAR_PERCENT,
+  shouldAutoCompact,
   shouldSuggestContextCompaction,
 } from '../../shared/context-compaction-policy'
 
@@ -12,6 +13,7 @@ export function CompactSuggestBanner({
   compacting,
   compactedSeq,
   onCompact,
+  autoCompact = true,
 }: {
   conversationKey?: string | null
   contextPercent?: number | null
@@ -21,10 +23,13 @@ export function CompactSuggestBanner({
   /** Increments when a compaction landed for this conversation. */
   compactedSeq?: number
   onCompact: () => void
+  /** 水位达到 75% 时是否自动触发压缩（默认启用） */
+  autoCompact?: boolean
 }) {
   const storageKey = conversationKey ? `tw-compact-suggest-dismiss:${conversationKey}` : null
   const [dismissed, setDismissed] = useState(false)
   const seenSeqRef = useRef<{ key: string | null; seq: number }>({ key: storageKey, seq: compactedSeq ?? 0 })
+  const autoTriggeredRef = useRef<{ key: string | null; seq: number }>({ key: null, seq: -1 })
 
   const persistDismiss = () => {
     setDismissed(true)
@@ -69,6 +74,19 @@ export function CompactSuggestBanner({
     if (seen.key === storageKey && seq > seen.seq) persistDismiss()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [compactedSeq, storageKey])
+
+  // 超过 75% 水位时，自动弹出并触发压缩瘦身 (Auto-Compaction)
+  useEffect(() => {
+    if (!autoCompact || !onCompact || sending || compacting) return
+    const currentSeq = compactedSeq ?? 0
+    if (autoTriggeredRef.current.key === storageKey && autoTriggeredRef.current.seq === currentSeq) return
+
+    if (shouldAutoCompact({ contextPercent, sending, compacting })) {
+      autoTriggeredRef.current = { key: storageKey, seq: currentSeq }
+      // 触发自动压缩
+      onCompact()
+    }
+  }, [autoCompact, contextPercent, sending, compacting, compactedSeq, onCompact, storageKey])
 
   const decision = shouldSuggestContextCompaction({
     contextPercent,

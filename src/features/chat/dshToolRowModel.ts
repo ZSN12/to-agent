@@ -15,23 +15,28 @@ const TOOL_VARIANTS: Record<string, DshToolRowVariant> = {
   run_code: 'code',
 }
 
-const VARIANT_TITLES: Record<DshToolRowVariant, string> = {
-  search: 'Search',
-  read: 'Read',
-  bash: 'Bash',
-  write: 'Write',
-  edit: 'Edit',
-  code: 'Code',
-  others: 'Tool call',
+export interface DshToolTitlePair {
+  running: string
+  settled: string
+}
+
+const VARIANT_TITLES: Record<DshToolRowVariant, DshToolTitlePair> = {
+  bash: { running: '运行命令', settled: '执行了命令' },
+  read: { running: '正在读取', settled: '查看了文件' },
+  write: { running: '正在修改', settled: '修改了文件' },
+  edit: { running: '正在修改', settled: '修改了文件' },
+  search: { running: '正在搜索', settled: '搜索了文件' },
+  code: { running: '正在执行代码', settled: '执行了代码' },
+  others: { running: '调用工具', settled: '调用了工具' },
 }
 
 const SUMMARY_KEYS: Record<DshToolRowVariant, readonly string[]> = {
-  bash: ['description', 'command'],
+  bash: ['command', 'cmd', 'description'],
   read: ['path', 'file_path', 'url'],
   search: ['query', 'pattern', 'url'],
   write: ['path', 'file_path'],
   edit: ['path', 'file_path'],
-  code: ['description'],
+  code: ['description', 'code'],
   others: [],
 }
 
@@ -40,8 +45,8 @@ function firstLine(text: string): string {
   return nl === -1 ? text : text.slice(0, nl)
 }
 
-function parseArgs(argsRaw: string): Record<string, unknown> | null {
-  if (!argsRaw.trim()) return null
+export function parseToolArgs(argsRaw: string): Record<string, unknown> | null {
+  if (!argsRaw || !argsRaw.trim()) return null
   try {
     const parsed = JSON.parse(argsRaw) as unknown
     return typeof parsed === 'object' && parsed !== null ? (parsed as Record<string, unknown>) : null
@@ -58,8 +63,8 @@ function pickString(args: Record<string, unknown>, keys: readonly string[]): str
   return undefined
 }
 
-function deriveSummary(variant: DshToolRowVariant, argsRaw: string): string {
-  const parsed = parseArgs(argsRaw)
+export function deriveSummary(variant: DshToolRowVariant, argsRaw: string): string {
+  const parsed = parseToolArgs(argsRaw)
   if (!parsed) return firstLine(argsRaw)
   if (variant === 'search' && Array.isArray(parsed.queries)) {
     const queries = parsed.queries.filter((q): q is string => typeof q === 'string' && q !== '')
@@ -77,12 +82,22 @@ export function classifyDshTool(toolName: string): DshToolRowVariant {
   return TOOL_VARIANTS[toolName] ?? 'others'
 }
 
-export function dshToolRowPresentation(toolName: string, argsRaw: string, workspacePath?: string | null) {
+export function dshToolRowPresentation(
+  toolName: string,
+  argsRaw: string,
+  workspacePath?: string | null,
+  status: 'running' | 'done' | 'error' | 'stopped' = 'done',
+) {
   const variant = classifyDshTool(toolName)
   let summary = deriveSummary(variant, argsRaw)
   if (workspacePath && summary.startsWith(workspacePath)) {
     summary = summary.slice(workspacePath.length).replace(/^[/\\]+/, '') || summary
   }
-  const title = variant === 'others' && toolName ? toolName : VARIANT_TITLES[variant]
+  const titlePair = VARIANT_TITLES[variant]
+  const title = titlePair
+    ? (status === 'running' ? titlePair.running : titlePair.settled)
+    : (variant === 'others' && toolName ? toolName : '执行了工具')
+
   return { variant, title, summary }
 }
+

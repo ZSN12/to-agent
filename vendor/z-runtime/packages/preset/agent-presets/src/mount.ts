@@ -19,6 +19,7 @@ import { pathToFileURL } from 'node:url'
 import { Context, type Fiber } from '@z/cordis'
 import { Include } from '@z/cordis-plugin-include'
 import type { EntryTree } from '@z/cordis-plugin-loader'
+import { taskweaverEmbeddedFromEnv } from '@z/dsh-home-paths'
 import { scopeOf, scopeParentOf, type ScopeKey } from '@z/dsh-scope'
 import { PresetMountError, type AgentPreset } from './preset.ts'
 
@@ -49,6 +50,18 @@ const mounted = new WeakMap<object, MountedTree>()
  * pre-mount value is the only handle on where the harness itself lives.
  */
 const harnessBase = new WeakMap<object, string>()
+
+function taskweaverEmbedded(): boolean {
+  return taskweaverEmbeddedFromEnv()
+}
+
+/** Where preset rows resolve bare package names from. */
+function presetHarnessBaseUrl(agentCtx: Context): string | undefined {
+  if (taskweaverEmbedded()) {
+    return `${pathToFileURL(process.cwd()).href}/`
+  }
+  return agentCtx.baseUrl
+}
 
 /**
  * Include subclass that publishes its tree and fiber for the audit, and never
@@ -338,11 +351,12 @@ export async function mountPreset(agentCtx: Context, preset: AgentPreset): Promi
     )
   }
   const config: Include.Config = { path: pathToFileURL(preset.path).href }
-  // Captured before the subtree exists: the standing scope context still
-  // carries the host composition's base, which is inside the installed
-  // harness and is therefore where a row's package name has to resolve from.
+  // Captured before the subtree exists: bare `@z/*` rows must resolve from the
+  // installed runtime root. TaskWeaver embeds with `cwd` at that root while
+  // `agentCtx.baseUrl` still points at `$DSH_HOME/profiles/*`.
+  const harnessBaseUrl = presetHarnessBaseUrl(agentCtx)
   /* v8 ignore next -- the Loader sets `baseUrl` on the root before any scoped context derives from it */
-  if (agentCtx.baseUrl !== undefined) harnessBase.set(config, agentCtx.baseUrl)
+  if (harnessBaseUrl !== undefined) harnessBase.set(config, harnessBaseUrl)
   // Before the record this mount is about to add: standing mounts are one per
   // preset and live until whole-tree teardown, so pruning here only sweeps
   // records of torn-down runtimes (tests; an HMR reload of the roster).

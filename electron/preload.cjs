@@ -25,6 +25,7 @@ contextBridge.exposeInMainWorld('taskweaver', {
   workspace: {
     listContext: (query, limit) => invoke('workspace:listContext', query ?? '', limit ?? 100),
     createReference: (droppedPath) => invoke('workspace:createReference', droppedPath),
+    saveClipboardImage: (payload) => invoke('workspace:saveClipboardImage', payload),
     getDroppedFilePath: (file) => webUtils.getPathForFile(file),
     getTrust: () => invoke('workspace:getTrust'),
     setTrust: (trusted) => invoke('workspace:setTrust', trusted),
@@ -52,10 +53,11 @@ contextBridge.exposeInMainWorld('taskweaver', {
     checkForUpdates: (options) => invoke('models:checkForUpdates', options ?? {}),
     rollbackRegistry: () => invoke('models:rollbackRegistry'),
     scanLocal: () => invoke('models:scanLocal'),
-    openCodexGetSetupStatus: () => invoke('opencodex:getSetupStatus'),
-    openCodexEnsure: () => invoke('opencodex:ensure'),
+    bridgeGetStatus: () => invoke('bridge:getStatus'),
+    bridgeLogin: (kind) => invoke('bridge:login', kind),
+    bridgeRefreshCatalog: () => invoke('bridge:refreshCatalog'),
+    migrateLegacyOpenCodexRoutes: () => invoke('models:migrateLegacyOpenCodexRoutes'),
     openCodexLoginCursor: () => invoke('opencodex:loginCursor'),
-    openCodexOpenDashboard: () => invoke('opencodex:openDashboard'),
     listProvidersAuth: () => invoke('models:providersAuth'),
     setProviderApiKey: (providerId, apiKey) =>
       invoke('models:setProviderApiKey', providerId, apiKey),
@@ -97,6 +99,9 @@ contextBridge.exposeInMainWorld('taskweaver', {
     getStats: () => invoke('usage:getStats'),
     getReport: (query) => invoke('usage:getReport', query),
     clear: () => invoke('usage:clear'),
+  },
+  openusage: {
+    getLimits: (options) => invoke('openusage:getLimits', options),
   },
   skills: {
     list: () => invoke('skills:list'),
@@ -159,6 +164,7 @@ contextBridge.exposeInMainWorld('taskweaver', {
   },
   tasks: {
     sendMessage: (taskId, text, conversationId) => invoke('tasks:sendMessage', taskId, text, conversationId ?? null),
+    cancel: (taskId, conversationId) => invoke('tasks:cancel', taskId, conversationId ?? null),
   },
   permission: {
     listRules: () => invoke('permission:listRules'),

@@ -31,11 +31,14 @@ export function ChangedFilesSummary({
   fileChanges,
   workspacePath,
   onOpenWorkspacePath,
+  compactListOnly = false,
 }: {
   traces?: readonly ToolTraceItem[]
   fileChanges?: readonly ModifiedFileSummary[]
   workspacePath?: string | null
   onOpenWorkspacePath?: (relativePath: string) => void
+  /** When true, hide the summary chip (TurnActivitySummaryRow owns the one-liner). */
+  compactListOnly?: boolean
 }) {
   const files = useMemo(() => {
     const byPath = new Map<string, ChangedFile>()
@@ -88,6 +91,41 @@ export function ChangedFilesSummary({
   const summaryLabel = complete
     ? `本轮修改 ${files.length} 个文件，增加 ${totalAdded} 行，删除 ${totalDeleted} 行`
     : `本轮修改 ${files.length} 个文件，部分行数暂不可用`
+
+  if (compactListOnly) {
+    return (
+      <details className="changed-files-summary changed-files-summary--list-only">
+        <summary aria-label={summaryLabel}>
+          <FileCode size={15} aria-hidden />
+          <span>查看 {files.length} 个已改文件</span>
+          <span className="changed-files-hint">展开</span>
+        </summary>
+        <div className="changed-files-list">
+          {files.map((file) => (
+            <div className="changed-files-item" key={file.path}>
+              <button
+                type="button"
+                className="changed-files-path"
+                disabled={!file.openPath || !onOpenWorkspacePath}
+                title={file.path}
+                onClick={() => file.openPath && onOpenWorkspacePath?.(file.openPath)}
+              >
+                {file.path}
+              </button>
+              <div className="changed-files-item-stats">
+                {file.isNewFile && <span className="changed-files-new">新建</span>}
+                {file.statsComplete ? <>
+                  <span className="changed-files-added">+{file.addedLines}</span>
+                  <span className="changed-files-deleted">−{file.deletedLines}</span>
+                </> : <span className="changed-files-unavailable">行数未知</span>}
+              </div>
+            </div>
+          ))}
+          <p className="changed-files-note">行数按本轮 edit/write 工具返回的 diff 累计；不等同于 Git 工作区净差异。</p>
+        </div>
+      </details>
+    )
+  }
 
   return (
     <details className="changed-files-summary">

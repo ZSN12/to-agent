@@ -55,7 +55,7 @@ export function resolveTaskWeaverRuntimeRoot({
   }
 
   const candidates = []
-  const override = env.TASKWEAVER_Z_RUNTIME
+  const override = env.TASKWEAVER_Z_RUNTIME || env.TASKWEAVER_DSH_RUNTIME
   if (typeof override === 'string' && override.trim()) {
     candidates.push(path.resolve(override.trim()))
   }
@@ -71,12 +71,10 @@ export function resolveTaskWeaverRuntimeRoot({
     if (runtimeLooksUsable(root)) return root
   }
   throw new Error(
-    `找不到可运行的 Z runtime。已检查：${candidates.length ? candidates.join(', ') : '无候选路径'}。开发/测试可设置 TASKWEAVER_Z_RUNTIME。`,
+    `找不到可运行的 Z runtime。已检查：${candidates.length ? candidates.join(', ') : '无候选路径'}。开发/测试可设置 TASKWEAVER_Z_RUNTIME（兼容 TASKWEAVER_DSH_RUNTIME）。`,
   )
 }
 
-/** @deprecated use resolveTaskWeaverRuntimeRoot */
-export const resolveZRuntimeRoot = resolveTaskWeaverRuntimeRoot
 
 /** Entry script + process cwd for Node module resolution. */
 export function resolveTaskWeaverHostLaunch(runtimeRoot) {
@@ -100,6 +98,3 @@ export function resolveTaskWeaverHostLaunch(runtimeRoot) {
   }
   throw new Error(`缺少 Z Host 构建产物（${runtimeRoot} 下无 lib/bin.js 或 apps/cli/lib/bin.js）`)
 }
-
-/** @deprecated use resolveTaskWeaverHostLaunch */
-export const resolveZHostLaunch = resolveTaskWeaverHostLaunch

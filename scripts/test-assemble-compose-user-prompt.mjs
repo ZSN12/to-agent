@@ -34,6 +34,25 @@ assert.ok(result.effectivePrompt.includes('sandbox: read-only'))
 assert.equal(result.promptStats.budgetBytes, 32 * 1024)
 assert.ok(result.promptStats.totalInjectedBytes > 0)
 
+const composerResult = await assembleAndComposeUserPrompt({
+  text: '只读检查一个文件。',
+  workMode: 'code',
+  workspacePath,
+  sandboxContextLine: 'sandbox: read-only',
+  modelKey: 'opencodex/cursor/composer-2.5',
+  selectedSkill: null,
+  conversationMessages: [],
+  preferences: {
+    promptInjectionLimitBytes: 32 * 1024,
+    enableRepoMap: false,
+    autoVerifyAfterMutation: false,
+  },
+})
+assert.match(composerResult.effectivePrompt, /read 优先用 file_path/)
+assert.match(composerResult.effectivePrompt, /grep 用必填 pattern/)
+assert.match(composerResult.effectivePrompt, /工具返回参数校验错误时.*最多重试一次/)
+assert.doesNotMatch(result.effectivePrompt, /read 优先用 file_path/)
+
 const snapshot = promptBudgetSnapshotFromStats('conv-1', result.promptStats, result.assembled, 'test')
 assert.equal(snapshot.conversationId, 'conv-1')
 assert.equal(snapshot.scope, 'test')

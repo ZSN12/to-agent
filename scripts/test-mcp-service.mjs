@@ -207,4 +207,20 @@ assert.match(binding.executionNote, /主对话及启用工具的子任务/)
 const runtimeBinding = service.getDshRuntimeBinding()
 assert.deepEqual(runtimeBinding, binding)
 
-console.log('MCP service checks passed: encrypted config, host runtime overlay generation, secret-safe environment injection, tool discovery, and Z Host binding metadata')
+console.log('MCP service checks passed: encrypted config, host runtime overlay generation, secret-safe environment injection, tool discovery, and Z Host binding metadata\n')
+
+// 运行新增的 MCP 韧性治理测试
+await import('./test-mcp-resilience.mjs')
+
+// 运行 MCP 市场版本锁定测试
+await import('./test-mcp-marketplace.mjs')
+
+// 运行模型抽象护栏自测与全库扫描
+const { runSelfTest, runBoundaryCheck } = await import('./check-model-boundary.mjs')
+await runSelfTest()
+const boundary = await runBoundaryCheck()
+assert.equal(boundary.violations.length, 0, '模型抽象护栏扫描应无违规')
+console.log('check-model-boundary: 全库扫描确认 0 违规\n')
+
+// 运行 4 大核心降级矩阵验证
+await import('./test-degradation-matrix.mjs')

@@ -85,9 +85,11 @@ import { ComposerStatsDock } from './features/chat/ComposerStatsDock'
 import { ChatBehaviorSettingsPanel } from './features/chat/ChatBehaviorSettingsPanel'
 import { SubagentSessionTree } from './features/orchestration/SubagentSessionTree'
 import { ThreadRunningIndicator } from './features/chat/ThreadRunningIndicator'
-import { DshToolCallList } from './features/chat/DshToolCallList'
 import { ChangedFilesSummary } from './features/chat/ChangedFilesSummary'
+import { TurnActivitySummaryRow } from './features/chat/TurnActivitySummary'
 import { MessageTurnUsageChip } from './features/chat/MessageTurnUsageChip'
+import { DshStateDot } from './features/chat/DshStateDot'
+import { IconBranchOutline16, IconCheckOutline16, IconCopyOutline16 } from './features/chat/DshIcons'
 import { ComposerContextMeter } from './features/chat/ComposerContextMeter'
 import { visibleStreamStatusLabel } from './features/chat/streamActivityLabel'
 import { HostTodoProjection } from './features/chat/HostTodoProjection'
@@ -128,7 +130,6 @@ const OutputLogPanel = lazy(() => import('./features/logs/OutputLogPanel').then(
 const GitCheckpointPanel = lazy(() => import('./features/git/GitCheckpointPanel').then((module) => ({ default: module.GitCheckpointPanel })))
 const SkillSettingsPanel = lazy(() => import('./features/skills/SkillSettingsPanel').then((module) => ({ default: module.SkillSettingsPanel })))
 const TerminalDrawer = lazy(() => import('./features/terminal/TerminalDrawer').then((module) => ({ default: module.TerminalDrawer })))
-
 type PanelView = 'dag' | 'task' | 'logs' | 'git' | 'details' | null
 type SettingsSection = 'appearance' | 'chat' | 'models' | 'skills' | 'routing' | 'mcp' | 'permissions' | 'shortcuts' | 'usage'
 const SIDEBAR_THREAD_LIMIT = 5
@@ -153,6 +154,7 @@ const statusMeta: Record<TaskStatus, { label: string; className: string }> = {
   running: { label: '执行中', className: 'running' },
   queued: { label: '排队中', className: 'queued' },
   review: { label: '审查中', className: 'review' },
+  cancelled: { label: '已停止', className: 'cancelled' },
 }
 
 function workspaceLabel(path: string | null) {
@@ -2057,16 +2059,16 @@ function DeepDivingIndicator({
     return () => clearInterval(id)
   }, [anchor])
 
-  const showClock = elapsedMs >= 15_000
+  const showClock = elapsedMs >= 1000
   const clockLabel = formatDshRunDuration(elapsedMs)
   const statusLabel = visibleStreamStatusLabel({ activity, isThinking, hasVisibleText, completedToolCount })
   const progressLabel = completedToolCount > 0 ? `已完成 ${completedToolCount} 次工具调用` : null
 
   return (
     <div className="dsh-deep-diving-row" role="status" aria-live="polite">
-      <span className="dsh-diving-text">本轮运行中</span>
+      <span className="dsh-diving-badge">本轮运行中</span>
       <span className="dsh-diving-sub" aria-live="polite">{statusLabel}</span>
-      {progressLabel && <span className="dsh-diving-sub">{progressLabel}</span>}
+      {progressLabel && <span className="dsh-diving-progress">{progressLabel}</span>}
       {showClock && <span className="dsh-diving-timer" aria-live="off">{clockLabel}</span>}
     </div>
   )
@@ -2166,6 +2168,7 @@ function Message({
     <article
       id={`msg-${message.id}`}
       className={`message dsh-flow-item ${isUser ? 'user-message' : 'agent-message'}${message.interrupted ? ' interrupted-turn' : ''}${isStreaming ? ' message-streaming' : ''}${isFocused ? ' message-focused' : ''}`}
+      data-time-hover-root
     >
       <div className="message-content">
         {!isUser && message.compaction && (
@@ -2189,22 +2192,15 @@ function Message({
             blocks={message.contentBlocks}
             fallbackThinking={message.thinking}
             fallbackText={message.text}
-            thinkingDurationMs={message.thinkingDurationMs ?? message.usage?.elapsedMs}
             thinkingIsStreaming={thinkingIsStreaming}
             isStreaming={isStreaming}
+            dshToolRows={dshToolRows}
+            toolTraceItems={toolTraceItems}
+            turnActivity={message.turnActivity}
+            workspacePath={workspacePath}
+            onShowToolDetails={onShowToolDetails}
+            onOpenWorkspacePath={onOpenWorkspacePath}
           />
-        )}
-        {!isUser && ((dshToolRows?.length ?? 0) > 0 || (toolTraceItems?.length ?? 0) > 0) && (
-          <div className="message-tool-traces">
-            <DshToolCallList
-              rows={dshToolRows}
-              traces={toolTraceItems}
-              workspacePath={workspacePath}
-              isActive={isStreaming}
-              onShowToolDetails={onShowToolDetails}
-              onOpenWorkspacePath={onOpenWorkspacePath}
-            />
-          </div>
         )}
         {!isUser && (
           <ChangedFilesSummary
@@ -2212,6 +2208,15 @@ function Message({
             fileChanges={message.fileChanges}
             workspacePath={workspacePath}
             onOpenWorkspacePath={onOpenWorkspacePath}
+            compactListOnly
+          />
+        )}
+        {!isUser && ((dshToolRows?.length ?? 0) === 0 && (toolTraceItems?.length ?? 0) === 0) && (isStreaming ? message.id === 'streaming-assistant' : true) && (
+          <TurnActivitySummaryRow
+            persisted={message.turnActivity}
+            traces={toolTraceItems}
+            fileChanges={message.fileChanges}
+            isStreaming={isStreaming}
           />
         )}
         {isUser && message.text && (
@@ -2219,8 +2224,17 @@ function Message({
             <div className="message-text user-message-bubble">{message.text}</div>
           </div>
         )}
-        {message.interrupted && <div className="message-interrupted-label">已中断</div>}
-        {message.callout && <div className="message-callout">{message.callout}</div>}
+        {message.callout ? (
+          <div className="dsh-turn-error-row" role="status">
+            <DshStateDot state="error" size={8} className="dsh-turn-error-dot" />
+            <div className="dsh-turn-error-copy">
+              <span className="dsh-turn-error-title">本轮运行失败</span>
+              <span className="dsh-turn-error-message">{message.callout}</span>
+            </div>
+          </div>
+        ) : message.interrupted ? (
+          <span className="dsh-turn-stopped-badge">已停止</span>
+        ) : null}
       </div>
       {!isStreaming && (
         <div className="message-footer">
@@ -2233,7 +2247,7 @@ function Message({
               data-tooltip={copied ? '已复制' : '复制'}
               title={copied ? '已复制' : '复制'}
             >
-              {copied ? <Check size={14} /> : <Copy size={14} />}
+              {copied ? <IconCheckOutline16 size={14} /> : <IconCopyOutline16 size={14} />}
             </button>
             {onFork && message.id !== 'streaming-assistant' && (
               <button
@@ -2244,19 +2258,24 @@ function Message({
                 data-tooltip="分支到新聊天"
                 title="分支到新聊天"
               >
-                <GitFork size={14} />
+                <IconBranchOutline16 size={14} />
               </button>
-            )}
-            {!isUser && hasTurnUsage && (
-              <MessageTurnUsageChip
-                usage={message.usage}
-                modelKey={message.modelKey ?? fallbackModelKey}
-                usageKind={message.usageKind}
-                tokensShadowed={message.compaction?.tokensBefore ?? null}
-              />
             )}
             <time className="message-footer-time">
               {formatMessageTime(message.time, message.timestamp, message.id)}
+              {!isUser && hasTurnUsage && (
+                <>
+                  <span className="message-footer-dot" aria-hidden>
+                    ·
+                  </span>
+                  <MessageTurnUsageChip
+                    usage={message.usage}
+                    modelKey={message.modelKey ?? fallbackModelKey}
+                    usageKind={message.usageKind}
+                    tokensShadowed={message.compaction?.tokensBefore ?? null}
+                  />
+                </>
+              )}
               {runLabel && (
                 <>
                   <span className="message-footer-dot" aria-hidden>
@@ -3316,6 +3335,56 @@ function Composer({
       ? `context-command-${activeContextIndex}`
       : undefined
 
+  const handlePaste = (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = event.clipboardData?.items
+    if (!items || items.length === 0) return
+    const imageFiles: File[] = []
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i]
+      if (item.type.startsWith('image/')) {
+        const file = item.getAsFile()
+        if (file) imageFiles.push(file)
+      }
+    }
+    if (imageFiles.length === 0) return
+
+    event.preventDefault()
+    void (async () => {
+      for (const file of imageFiles) {
+        let reference = await onCreateDroppedReference(file)
+        if (!reference && window.taskweaver?.workspace?.saveClipboardImage) {
+          try {
+            const reader = new FileReader()
+            const base64 = await new Promise<string>((resolve, reject) => {
+              reader.onload = () => {
+                const res = reader.result as string
+                const b64 = res.split(',')[1] || ''
+                resolve(b64)
+              }
+              reader.onerror = reject
+              reader.readAsDataURL(file)
+            })
+            if (base64) {
+              const ext = file.type === 'image/jpeg' ? '.jpg' : file.type === 'image/webp' ? '.webp' : '.png'
+              const filename = `paste-${Date.now()}-${Math.random().toString(36).slice(2, 6)}${ext}`
+              const saved = await window.taskweaver.workspace.saveClipboardImage({
+                base64,
+                mimeType: file.type || 'image/png',
+                filename,
+              })
+              if (saved?.ok && saved.data) {
+                reference = saved.data
+              }
+            }
+          } catch (err) {
+            console.error('[Composer] 保存剪贴板图片失败:', err)
+          }
+        }
+        if (reference) insertReference(reference)
+      }
+    })()
+  }
+
   const queue = promptQueue ?? { steering: [], followUp: [] }
 
   return (
@@ -3366,7 +3435,7 @@ function Composer({
       }}>
         <div className="composer-input-wrap">
         <label className="sr-only" htmlFor="main-message">给主控 Agent 发送消息</label>
-        <textarea ref={textareaRef} rows={1} id="main-message" value={value} role="combobox" aria-autocomplete="list" aria-expanded={commandOpen} aria-controls={skillQuery ? 'skill-command-options' : contextQuery ? 'context-command-options' : undefined} aria-activedescendant={activeOptionId} onChange={(event) => {
+        <textarea ref={textareaRef} rows={1} id="main-message" value={value} onPaste={handlePaste} role="combobox" aria-autocomplete="list" aria-expanded={commandOpen} aria-controls={skillQuery ? 'skill-command-options' : contextQuery ? 'context-command-options' : undefined} aria-activedescendant={activeOptionId} onChange={(event) => {
           const nextVal = event.target.value
           setValue(nextVal)
           if (historyIndexRef.current >= 0) {
@@ -3674,6 +3743,9 @@ function Composer({
               liveContext={liveContext}
               sessionStats={sessionStats}
               promptBudget={promptBudget}
+              messages={messages}
+              onCompact={() => onSend('/compact', null, 'code')}
+              compacting={compacting}
             />
             <button type="button" className="composer-icon mic-button" aria-label="语音输入" title="语音输入"><Mic size={18} /></button>
             {sending
@@ -4100,15 +4172,7 @@ function MainConversation({
               )}
             </div>
           )}
-          <button
-            className={`header-icon sidebar-toggle ${activePanel === 'logs' ? 'active' : ''}`}
-            onClick={() => onSelectPanel?.(activePanel === 'logs' ? null : 'logs')}
-            aria-label="Trajectory：工具执行轨迹"
-            title="Trajectory · 工具执行轨迹（时间序）"
-          >
-            <Terminal size={17} />
-            {toolTraces.length > 0 && <span style={{ fontSize: 10 }}>{toolTraces.length}</span>}
-          </button>
+
           {workspacePath && (
             <button
               className={`header-icon sidebar-toggle ${activePanel === 'git' ? 'active' : ''}`}
@@ -4192,6 +4256,8 @@ function MainConversation({
             const canForkHere =
               Boolean(onFork)
               && !sending
+              && !message.compaction
+              && !message.id.includes('-error')
               // 助手消息仅允许最新一条；用户消息可在任意一轮上分支（保留该轮及其回答）。
               && (message.author === 'user' || message.id === lastAgentMessageId)
               && (promptQueue?.steering?.length ?? 0) === 0
@@ -4392,7 +4458,7 @@ function DagPanel({ tasks, onTask, onClose }: { tasks: TaskNode[]; onTask: (task
   )
 }
 
-function TaskConversation({ task, onBack, onClose, onSend }: { task: TaskNode; onBack: () => void; onClose: () => void; onSend: (message: string) => void }) {
+function TaskConversation({ task, onBack, onClose, onSend, onCancel }: { task: TaskNode; onBack: () => void; onClose: () => void; onSend: (message: string) => void; onCancel: () => void }) {
   const [value, setValue] = useState('')
   const [activeTab, setActiveTab] = useState<'execution' | 'route'>('execution')
   const textareaRef = useAutosizeTextarea(value, 34, 96)
@@ -4409,6 +4475,9 @@ function TaskConversation({ task, onBack, onClose, onSend }: { task: TaskNode; o
       <PanelHeader title={`${task.id} · ${task.title}`} subtitle={`${task.role} · ${task.model}`} onClose={onClose} back={onBack} />
       <div className="task-summary">
         <StatusChip status={task.status} />
+        {(task.status === 'running' || task.status === 'queued') && (
+          <button className="task-cancel-button" type="button" onClick={onCancel}>停止此子任务</button>
+        )}
         <div className="task-summary-row"><span>任务目标</span><p>{task.description}</p></div>
         {task.executionEvidenceSummary && (
           <div className="task-execution-evidence" role="note">
@@ -4769,6 +4838,10 @@ export default function App() {
     if (selectedTask) void appBackend.sendTaskMessage(selectedTask.id, text)
   }
 
+  const cancelTask = () => {
+    if (selectedTask) void appBackend.cancelTask(selectedTask.id)
+  }
+
   const openTask = (task: TaskNode) => {
     setSelectedTaskId(task.id)
     setPanel('task')
@@ -4882,6 +4955,19 @@ export default function App() {
           <SchedulesPanel
             workspacePath={appBackend.workspacePath}
             onBack={() => setMainView('chat')}
+            onOpenConversation={async (conversationId) => {
+              const listed = await window.taskweaver?.app?.listThreads()
+              if (!listed?.ok) return false
+              const thread = listed.data.find((candidate) => candidate.conversationId === conversationId)
+              if (!thread) return false
+              if (thread.archived && !(await appBackend.toggleArchiveThread(thread.id))) return false
+              const switched = await appBackend.switchThread(thread.id)
+              if (switched) {
+                setPanel(null)
+                setMainView('chat')
+              }
+              return switched
+            }}
           />
         ) : mainView === 'explore' ? (
           <ExploreView
@@ -4970,18 +5056,9 @@ export default function App() {
         )}
         {panel === 'dag' && <DagPanel tasks={tasks} onTask={openTask} onClose={() => setPanel(null)} />}
         {panel === 'task' && selectedTask && (
-          <TaskConversation task={selectedTask} onBack={() => setPanel('dag')} onClose={() => setPanel(null)} onSend={sendTaskMessage} />
+          <TaskConversation task={selectedTask} onBack={() => setPanel('dag')} onClose={() => setPanel(null)} onSend={sendTaskMessage} onCancel={cancelTask} />
         )}
-        {panel === 'logs' && (
-          <Suspense fallback={null}>
-          <OutputLogPanel
-            logs={appBackend.toolTraces}
-            onClose={() => setPanel(null)}
-            onShowToolDetails={showToolDetails}
-            onOpenWorkspacePath={openWorkspacePath}
-          />
-          </Suspense>
-        )}
+
         {panel === 'details' && detailsTool && (
           <DetailsPanel
             item={detailsTool}

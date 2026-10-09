@@ -83,6 +83,10 @@ export function createAppStateStore(userDataPath, fallbackWorkspace) {
       await ensureInitialized()
       return toAppState(await threadStore.createThread(options))
     },
+    async createBackgroundConversation(options) {
+      await ensureInitialized()
+      return toAppState(await threadStore.createBackgroundThread(options))
+    },
     async switchThread(threadId) {
       await ensureInitialized()
       return toAppState(await threadStore.switchThread(threadId))

@@ -1,5 +1,5 @@
-import { Atom } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import { IconChevronDownOutline14, IconThinkOutline14 } from './DshIcons'
 import { firstLine, latestLine } from './reasoning-heuristics'
 import { useThrottledVisualUpdate } from './useThrottledVisualUpdate'
 
@@ -8,8 +8,6 @@ export function DshThinkBlock({
   isStreaming = false,
 }: {
   thinking?: string
-  /** @deprecated DSH ReasoningRow does not show wall-clock on the Think row */
-  durationMs?: number
   isStreaming?: boolean
 }) {
   const [expanded, setExpanded] = useState(false)
@@ -36,10 +34,11 @@ export function DshThinkBlock({
   const toggle = () => setExpanded((prev) => !prev)
 
   return (
-    <div className="dsh-think-container" data-variant="think" data-state={running ? 'running' : 'ok'}>
+    <div className="dsh-think-container" data-variant="think" data-state={running ? 'running' : 'ok'} data-open={expanded || undefined}>
       {running && <span className="dsh-think-a11y-running">正在思考</span>}
       <div
         className="dsh-think-row"
+        data-expandable="true"
         onClick={toggle}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
@@ -52,11 +51,20 @@ export function DshThinkBlock({
         aria-expanded={expanded}
         title={expanded ? '点击收起思考过程' : '点击展开完整思考过程'}
       >
-        <Atom size={16} className="dsh-think-icon" aria-hidden />
-        <span className="dsh-think-tag">Think</span>
+        <span className="dsh-think-leading">
+          {expanded ? (
+            <IconChevronDownOutline14 size={14} className="dsh-think-chevron-open" />
+          ) : (
+            <>
+              <IconThinkOutline14 size={14} className="dsh-think-icon-idle" />
+              <IconChevronDownOutline14 size={14} className="dsh-think-chevron-hover" />
+            </>
+          )}
+        </span>
+        <span className="dsh-think-title">思考</span>
         {showSummary && (
           <>
-            <span className="dsh-think-sep" aria-hidden>·</span>
+            <span className="dsh-think-separator" aria-hidden />
             <span
               ref={summaryRef}
               className="dsh-think-summary"
@@ -66,10 +74,9 @@ export function DshThinkBlock({
             </span>
           </>
         )}
-        <span className={`dsh-think-chevron ${expanded ? 'open' : ''}`} aria-hidden>▸</span>
       </div>
       {expanded && body && (
-        <div className="dsh-think-expanded-content dsh-think-body-plain">{body}</div>
+        <div className="dsh-think-body" role="region" aria-label="完整思考过程">{body}</div>
       )}
     </div>
   )
