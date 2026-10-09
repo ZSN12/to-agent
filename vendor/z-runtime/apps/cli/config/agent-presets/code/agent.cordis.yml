@@ -276,9 +276,7 @@
 # the model-facing tool is per-session.
 - id: tool-web
   name: '@z/dsh-tool-web'
-  config:
-    fetch: false
-    searchTimeoutMs: 60000
+  disabled: true
 
 # ── presentation ────────────────────────────────────────────────────────────
 

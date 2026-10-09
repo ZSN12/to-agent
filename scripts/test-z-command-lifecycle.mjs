@@ -50,7 +50,7 @@ const wc = { isDestroyed: () => false, send(channel, event) {
   if (channel === 'chat:mux') muxFrames.push(event)
 } }
 const opts = (id, text) => ({ conversationId: id, text, modelKey: 'command-test/mock-model', cwdOverride: home,
-  agentPreset: 'code', webContents: wc })
+  agentPreset: 'standard', webContents: wc })
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 async function waitFor(predicate, label) {
   const end = Date.now() + 15_000

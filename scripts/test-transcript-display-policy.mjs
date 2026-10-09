@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { resolvePreferDshTranscript } from '../electron/backend/transcript-display-policy.mjs'
+import { resolvePreferDshTranscript } from '../src/shared/transcript-display-policy.ts'
 
 assert.equal(resolvePreferDshTranscript({
   subscribed: true,

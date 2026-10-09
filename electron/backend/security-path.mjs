@@ -1,6 +1,5 @@
 import path from 'node:path'
 import fs from 'node:fs/promises'
-import fsSync from 'node:fs'
 
 /**
  * 严格判断 target 是否位于 root 目录内部（或等于 root）
@@ -30,30 +29,6 @@ export async function resolveThroughSymlinks(targetPath) {
   while (true) {
     try {
       const real = await fs.realpath(cursor)
-      return path.join(real, ...suffix.reverse())
-    } catch (error) {
-      if (error?.code !== 'ENOENT' && error?.code !== 'ENOTDIR') throw error
-      const parent = path.dirname(cursor)
-      if (parent === cursor) return resolved
-      suffix.push(path.basename(cursor))
-      cursor = parent
-    }
-  }
-}
-
-/**
- * 同步版本的 resolveThroughSymlinks
- * @param {string} targetPath
- * @returns {string}
- */
-export function resolveThroughSymlinksSync(targetPath) {
-  const resolved = path.resolve(targetPath)
-  let cursor = resolved
-  const suffix = []
-
-  while (true) {
-    try {
-      const real = fsSync.realpathSync(cursor)
       return path.join(real, ...suffix.reverse())
     } catch (error) {
       if (error?.code !== 'ENOENT' && error?.code !== 'ENOTDIR') throw error

@@ -65,7 +65,13 @@ function SettingToggle({
   )
 }
 
-export function RoutingPortfolioSettingsPanel({ onToast }: { onToast: (message: string) => void }) {
+export function RoutingPortfolioSettingsPanel({
+  onToast,
+  conversationId = null,
+}: {
+  onToast: (message: string) => void
+  conversationId?: string | null
+}) {
   const [raw, setRaw] = useState('')
   const [portfolio, setPortfolio] = useState<RoutingPortfolio | null>(null)
   const [portfolioJsonError, setPortfolioJsonError] = useState<string | null>(null)
@@ -110,9 +116,9 @@ export function RoutingPortfolioSettingsPanel({ onToast }: { onToast: (message: 
     }
     const ws = await window.taskweaver?.webSearch?.getConfig()
     if (ws?.ok && ws.data) setWebSearchEnabled(ws.data.enabled)
-    const list = await window.taskweaver?.worktree?.list()
+    const list = await window.taskweaver?.worktree?.list(conversationId)
     if (list?.ok && list.data) setWorktrees(list.data)
-  }, [])
+  }, [conversationId])
 
   const load = useCallback(async () => {
     const api = getPortfolioApi()
@@ -245,7 +251,7 @@ export function RoutingPortfolioSettingsPanel({ onToast }: { onToast: (message: 
 
   const removeWorktree = async (taskId: string) => {
     if (!window.confirm(`删除子任务 ${taskId} 的 worktree？`)) return
-    const res = await window.taskweaver?.worktree?.remove(taskId, true)
+    const res = await window.taskweaver?.worktree?.remove(taskId, true, conversationId)
     if (!res?.ok) {
       onToast('删除 worktree 失败')
       return
@@ -439,7 +445,12 @@ export function RoutingPortfolioSettingsPanel({ onToast }: { onToast: (message: 
                   <span className="routing-worktree-path">{wt.path}</span>
                 </div>
                 <div className="routing-worktree-card-actions">
-                  <WorktreeMergeActions taskId={wt.taskId} compact onDone={() => { void loadFeatures() }} />
+                  <WorktreeMergeActions
+                    taskId={wt.taskId}
+                    conversationId={conversationId}
+                    compact
+                    onDone={() => { void loadFeatures() }}
+                  />
                   <button
                     type="button"
                     className="settings-danger-button"

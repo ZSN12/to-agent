@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, safeStorage, net, protocol } = require('electron')
+const { app, BrowserWindow, ipcMain, dialog, safeStorage, net, protocol, shell } = require('electron')
 const fs = require('node:fs')
 const path = require('node:path')
 const { pathToFileURL } = require('node:url')
@@ -113,7 +113,7 @@ function createWindow() {
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      sandbox: true,
       preload: preloadPath(),
     },
   })
@@ -132,8 +132,38 @@ function createWindow() {
     dialog.showErrorBox('TaskWeaver', `预加载脚本失败：${error?.message ?? error}`)
   })
 
+  const isAppUrl = (url) => {
+    if (!url || typeof url !== 'string') return false
+    if (url.startsWith(`${SCHEME}://`)) return true
+    if (url.startsWith(DEV_URL)) return true
+    if (url.startsWith('data:text/html')) return true
+    return false
+  }
+  const openSafeExternal = (url) => {
+    if (/^https?:\/\//i.test(url)) void shell.openExternal(url)
+  }
+  window.webContents.setWindowOpenHandler(({ url }) => {
+    openSafeExternal(url)
+    return { action: 'deny' }
+  })
+  window.webContents.on('will-navigate', (event, url) => {
+    if (!isAppUrl(url)) {
+      event.preventDefault()
+      openSafeExternal(url)
+    }
+  })
+  window.webContents.on('will-redirect', (event, url) => {
+    if (!isAppUrl(url)) event.preventDefault()
+  })
+
   const load = shouldUseBuiltUi() ? loadBuiltUi(window) : loadDevUi(window)
   return load.then(() => window)
+}
+
+function hardenWebContents(contents) {
+  contents.on('will-attach-webview', (event) => {
+    event.preventDefault()
+  })
 }
 
 if (!hasSingleInstanceLock) {
@@ -145,6 +175,10 @@ if (!hasSingleInstanceLock) {
     if (window.isMinimized()) window.restore()
     window.show()
     window.focus()
+  })
+
+  app.on('web-contents-created', (_event, contents) => {
+    hardenWebContents(contents)
   })
 
   app.whenReady().then(async () => {

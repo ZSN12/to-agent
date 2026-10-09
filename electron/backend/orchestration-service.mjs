@@ -600,18 +600,11 @@ export function assessSubtaskCompletion(task, result) {
 
 export function createOrchestrationService({
   modelService,
-  profileStore,
   appState,
-  mcpService,
   getWorkspacePath,
-  getWorkspaceTrusted = () => false,
   agentDataPath,
-  builtInSkillsPath,
-  builtInExtensionsPath,
-  builtInExtensionsPaths,
   userDataPath,
   getAppPreferences,
-  webSearchService,
   permissionService = null,
   dshRuntime = null,
   maxSubtaskConcurrency = null,

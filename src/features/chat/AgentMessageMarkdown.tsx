@@ -1,8 +1,13 @@
-import { memo } from 'react'
+import { memo, type MouseEvent } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
 const FILE_NAME_OR_PATH_REGEX = /^(?:[a-zA-Z0-9_.-]+\/)*[a-zA-Z0-9_.-]+\.(?:json|js|jsx|ts|tsx|css|scss|less|html|md|mdx|py|sh|bash|zsh|yaml|yml|toml|rs|go|java|c|cpp|h|hpp|sql|env|lock|xml|svg|vue|graphql)$/i
+
+function openExternalLink(href: string | undefined, event: MouseEvent<HTMLAnchorElement>) {
+  event.preventDefault()
+  if (href && /^https?:/i.test(href)) window.open(href)
+}
 
 function isFileMention(text: string): boolean {
   const trimmed = text.trim()
@@ -17,6 +22,13 @@ export const AgentMessageMarkdown = memo(function AgentMessageMarkdown({ text }:
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
+          a({ href, children, ...props }) {
+            return (
+              <a {...props} href={href} rel="noreferrer" onClick={(e) => openExternalLink(href, e)}>
+                {children}
+              </a>
+            )
+          },
           code({ node, className, children, ...props }) {
             const codeString = String(children)
             const isBlock = Boolean(className && /language-/.test(className)) || codeString.includes('\n')

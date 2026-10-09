@@ -64,36 +64,6 @@ export interface ModelUpdateStatus {
   } | null
 }
 
-export interface ModelRegistryManifest {
-  schemaVersion: 1
-  registryVersion: string
-  registryUrl: string
-  sha256: string
-  signature: string
-  keyId: string
-  publishedAt: string
-}
-
-export interface RegistryProvider {
-  id?: string
-  name: string
-  protocols: string[]
-  defaultEndpointRef?: string
-  authTypes?: string[]
-}
-
-export interface RegistryModel {
-  provider: string
-  id: string
-  name: string
-  api: string
-  contextWindow?: number
-  maxTokens?: number
-  input?: string[]
-  deprecated?: boolean
-  replacementModel?: string
-}
-
 export interface CatalogModel {
   key: string
   provider: string
@@ -230,10 +200,7 @@ export interface TaskweaverModelsApi {
   scanLocal: () => Promise<IpcResult<ScanLocalModelsResult>>
   bridgeGetStatus: () => Promise<IpcResult<LocalAgentBridgeStatus>>
   bridgeLogin: (kind: 'cursor' | 'google-antigravity') => Promise<IpcResult<{ ok: boolean; message?: string }>>
-  bridgeRefreshCatalog: () => Promise<IpcResult<ScanLocalModelsResult & { ok?: boolean }>>
   migrateLegacyOpenCodexRoutes: () => Promise<IpcResult<MigrateLegacyOpenCodexResult>>
-  /** @deprecated use bridgeLogin('cursor') */
-  openCodexLoginCursor: () => Promise<IpcResult<{ ok: boolean; message?: string }>>
   listProvidersAuth: () => Promise<IpcResult<ProviderAuthStatus[]>>
   setProviderApiKey: (
     providerId: string,
@@ -242,7 +209,6 @@ export interface TaskweaverModelsApi {
   add: (modelKey: string) => Promise<IpcResult<ModelCatalog>>
   remove: (modelKey: string) => Promise<IpcResult<ModelCatalog>>
   removeProviderCredentials: (providerId: string) => Promise<IpcResult<ModelCatalog>>
-  getActive: () => Promise<IpcResult<string | null>>
   setActive: (modelKey: string) => Promise<IpcResult<string | null>>
   getThinkingLevel: () => Promise<IpcResult<ThinkingLevel>>
   setThinkingLevel: (level: ThinkingLevel) => Promise<IpcResult<ThinkingLevel>>
@@ -252,8 +218,6 @@ export interface TaskweaverModelsApi {
     modelKey: string,
     patch: ModelProfilePatch,
   ) => Promise<IpcResult<ModelProfile>>
-  removeProfile: (modelKey: string) => Promise<IpcResult<void>>
-  resolve: (modelKey: string) => Promise<IpcResult<unknown>>
   startOAuth: (providerId?: string) => Promise<IpcResult<ModelCatalog>>
   cancelOAuth: () => Promise<IpcResult<boolean>>
   submitOAuthCode: (code: string) => Promise<IpcResult<boolean>>

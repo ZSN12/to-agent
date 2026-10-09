@@ -23,10 +23,12 @@ function createInMemoryRegistry(entries, fallback = undefined) {
  * @param {string} runtimeRoot
  */
 export async function createTaskWeaverConversationRuntime(runtimeRoot) {
-  const repoRoot = path.resolve(runtimeRoot, '..', '..')
+  const resourcesPath = path.resolve(runtimeRoot, '..')
+  const repoRoot = path.resolve(resourcesPath, '..')
   const registryCandidates = [
-    path.join(repoRoot, 'electron', 'vendor', 'dsh-chat-registry.mjs'),
     path.join(runtimeRoot, 'electron-vendor', 'dsh-chat-registry.mjs'),
+    path.join(resourcesPath, 'app.asar', 'electron', 'vendor', 'dsh-chat-registry.mjs'),
+    path.join(repoRoot, 'electron', 'vendor', 'dsh-chat-registry.mjs'),
   ]
   let bundled
   const loadErrors = []

@@ -224,7 +224,6 @@ export function ComposerStatsDock({
     toolCalls,
     timing,
     tps,
-    billed,
     totalTok,
     cacheHit,
     hasTiming,

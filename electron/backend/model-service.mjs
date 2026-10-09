@@ -15,7 +15,7 @@ import {
 import { discoverModelsFromProviderApi } from './provider-live-discovery.mjs'
 import { loadPriceRegistry, mergeRegistryCost, registryPriceMeta } from './price-registry.mjs'
 import { taskweaverApiKeyEnvRef } from './pi-models-to-dsh-profile.mjs'
-import { isCursorFamilyRoute, isCursorFamilyModelKey } from './cursor-model-route.mjs'
+import { isCursorFamilyModelKey } from './cursor-model-route.mjs'
 import { reasoningCatalogFromHostModel } from './reasoning-effort-catalog.mjs'
 
 /** Providers that use TaskWeaver-native OAuth (written to DSH llm-pi-ai grant records). */
@@ -279,7 +279,8 @@ export function createModelService({
           if (!model.api || !installedApis.includes(model.api)) {
             throw new Error(`模型 ${modelKey} 的协议与 Z Runtime 内置目录不一致`)
           }
-          const { id: _id, ...override } = registryModelProfile(model)
+          const override = { ...registryModelProfile(model) }
+          delete override.id
           overrides[model.id] = override
         } else {
           additions.push(registryModelProfile(model))

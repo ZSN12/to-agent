@@ -1,14 +1,9 @@
 import assert from 'node:assert/strict'
-import { parseCompactionCommandText } from '../electron/backend/compaction-reply.mjs'
 import { nativeChatCommand } from '../electron/backend/native-chat-command.mjs'
 import {
   isCompactCommandText,
   shouldSuggestContextCompaction,
-} from '../electron/backend/context-compaction-policy.mjs'
-
-const parsed = parseCompactionCommandText('Compacted 172 history items (~125556 tokens).')
-assert.deepEqual(parsed, { historyItems: 172, tokensShadowed: 125556 })
-assert.equal(parseCompactionCommandText('hello'), null)
+} from '../src/shared/context-compaction-policy.ts'
 
 // chat:send routes /compact as a native Host command (no prompt pipeline).
 assert.equal(nativeChatCommand('/compact'), '/compact')

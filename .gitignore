@@ -12,6 +12,7 @@ TaskWeaver.app
 .DS_Store
 *.log
 .tmp-test-userdata/
+.tmp-packaged-launch-smoke/
 .taskweaver-signing/
 *.tsbuildinfo
 vite.config.js

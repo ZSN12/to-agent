@@ -10,10 +10,6 @@ export function withSandboxEscalation(mode, fn) {
   return storage.run({ oneShotMode: mode }, fn)
 }
 
-export function getOneShotSandboxMode() {
-  return storage.getStore()?.oneShotMode ?? null
-}
-
 export function consumeOneShotSandboxMode() {
   const store = storage.getStore()
   if (!store?.oneShotMode) return null

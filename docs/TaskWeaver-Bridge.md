@@ -53,7 +53,7 @@ fork 已从 `vendor/z-runtime` 删除 DSH 浏览器源码（`apps/web`、`packag
 
 - `node scripts/test-taskweaver-bridge-models.mjs` — JSON → bridge profile 形状
 - `npm run test:taskweaver-bridge-sync` — 默认 models.json + Host `settings.yaml` 双写（需 `build:z-runtime`）
-- `node scripts/bridge-smoke.mjs --kind cursor` — 单轮无工具 mock stream（`BRIDGE_SMOKE_MOCK=1`）
+- `node scripts/diagnose/bridge-smoke.mjs --kind cursor` — 单轮无工具 mock stream（`BRIDGE_SMOKE_MOCK=1`）
 - `npm run build:z-runtime` — 含 bridge 包与 transport 打入 staging
 
 ## 阶段 0 验收说明

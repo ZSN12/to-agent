@@ -34,19 +34,6 @@ export function matchPattern(pattern, str) {
 }
 
 /**
- * 获取作品集配置文件路径 (用户数据目录优先，回退到仓库默认)
- */
-export function resolvePortfolioPath(userDataPath) {
-  if (userDataPath) {
-    const userPortfolio = path.join(userDataPath, 'taskweaver', 'routing-portfolio.json')
-    if (fs.existsSync(userPortfolio)) {
-      return userPortfolio
-    }
-  }
-  return DEFAULT_PORTFOLIO_PATH
-}
-
-/**
  * 加载能力作品集配置
  */
 export function loadRoutingPortfolio({ userDataPath } = {}) {
@@ -589,10 +576,6 @@ export function modelMatchesQuotaPolicy(modelKey, policy) {
     return patterns.some((pattern) => matchPattern(pattern, modelKey))
   }
   return modelMatchesOpenUsageProvider(modelKey, policy.provider_id)
-}
-
-export function quotaAllocationProviders(modelKey, portfolio, quotaSnapshot, now = Date.now()) {
-  return [...new Set(matchedQuotaResources(modelKey, portfolio, quotaSnapshot, now).map((item) => item.providerId))]
 }
 
 export function calculateQuotaAdjustment(modelKey, portfolio, quotaSnapshot, now = Date.now()) {

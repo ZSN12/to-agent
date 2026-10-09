@@ -8,6 +8,8 @@
   "references": [
     { "path": "./packages/fs/tool-fs" },
     { "path": "./packages/fs/tool-fs-search" },
+    { "path": "./packages/fs/tool-fs-inline-edit" },
+    { "path": "./packages/fs/tool-fs-semantic-search" },
     { "path": "./packages/guard/repeat-tool-reminder" },
     { "path": "./packages/llm/llm-retry" },
     { "path": "./packages/bridge/bridge-core" },

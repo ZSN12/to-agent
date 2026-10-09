@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process'
+import crypto from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
@@ -25,10 +26,12 @@ function normalizeHookList(value) {
 /**
  * @param {string} userDataPath
  * @param {string | null} workspacePath
+ * @param {{ workspaceTrusted?: boolean }} [options]
  */
-export async function loadTaskweaverHooks(userDataPath, workspacePath) {
+export async function loadTaskweaverHooks(userDataPath, workspacePath, options = {}) {
+  const workspaceTrusted = options.workspaceTrusted === true
   const globalPath = path.join(userDataPath, 'taskweaver-hooks.json')
-  const workspacePathFile = workspacePath
+  const workspacePathFile = workspacePath && workspaceTrusted
     ? path.join(workspacePath, '.taskweaver', 'hooks.json')
     : null
   const [globalHooks, workspaceHooks] = await Promise.all([
@@ -45,6 +48,73 @@ export async function loadTaskweaverHooks(userDataPath, workspacePath) {
       ...normalizeHookList(workspaceHooks?.afterTurn),
     ],
   }
+}
+
+function hashWorkspaceHooksFile(parsed) {
+  return crypto.createHash('sha256').update(JSON.stringify(parsed ?? {})).digest('hex')
+}
+
+/**
+ * 工作区 hooks 内容变更后需用户确认一次（hash 存于 userData/hook-approvals.json）。
+ * @returns {Promise<boolean>} 是否允许加载工作区 hooks
+ */
+export async function ensureWorkspaceHooksApproved(userDataPath, workspacePath, { dialog, parentWindow } = {}) {
+  if (!workspacePath || !userDataPath) return false
+  const hooksFile = path.join(workspacePath, '.taskweaver', 'hooks.json')
+  const workspaceHooks = await readHookFile(hooksFile)
+  if (!workspaceHooks) return true
+  const commands = [
+    ...normalizeHookList(workspaceHooks.beforeTurn),
+    ...normalizeHookList(workspaceHooks.afterTurn),
+  ]
+  if (!commands.length) return true
+
+  const hash = hashWorkspaceHooksFile(workspaceHooks)
+  const approvalsPath = path.join(userDataPath, 'hook-approvals.json')
+  let approvals = {}
+  try {
+    approvals = JSON.parse(await fs.readFile(approvalsPath, 'utf8'))
+  } catch (error) {
+    if (error?.code !== 'ENOENT') throw error
+  }
+  const key = path.resolve(workspacePath)
+  if (approvals[key]?.hash === hash) return true
+
+  if (process.env.TASKWEAVER_AUTO_APPROVE_HOOKS === '1') {
+    approvals[key] = { hash, approvedAt: Date.now() }
+    await fs.mkdir(path.dirname(approvalsPath), { recursive: true })
+    await fs.writeFile(approvalsPath, `${JSON.stringify(approvals, null, 2)}\n`, 'utf8')
+    return true
+  }
+
+  const detail = commands.map((entry, index) => `${index + 1}. ${entry.command}`).join('\n')
+  if (!dialog?.showMessageBox) return false
+  const answer = parentWindow
+    ? await dialog.showMessageBox(parentWindow, {
+      type: 'warning',
+      title: '工作区 hooks 需要确认',
+      message: '该工作区配置了 TaskWeaver hooks，执行前需要您确认。',
+      detail,
+      buttons: ['拒绝', '允许并记住'],
+      defaultId: 1,
+      cancelId: 0,
+      noLink: true,
+    })
+    : await dialog.showMessageBox({
+      type: 'warning',
+      title: '工作区 hooks 需要确认',
+      message: '该工作区配置了 TaskWeaver hooks，执行前需要您确认。',
+      detail,
+      buttons: ['拒绝', '允许并记住'],
+      defaultId: 1,
+      cancelId: 0,
+      noLink: true,
+    })
+  if (answer.response !== 1) return false
+  approvals[key] = { hash, approvedAt: Date.now() }
+  await fs.mkdir(path.dirname(approvalsPath), { recursive: true })
+  await fs.writeFile(approvalsPath, `${JSON.stringify(approvals, null, 2)}\n`, 'utf8')
+  return true
 }
 
 function appendBounded(current, chunk) {

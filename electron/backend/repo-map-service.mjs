@@ -54,10 +54,6 @@ const repoMapTextCache = new Map()
 const REPO_MAP_TEXT_CACHE_TTL_MS = 120_000
 const REPO_MAP_TEXT_CACHE_MAX = 48
 
-export function clearRepoMapTextCache() {
-  repoMapTextCache.clear()
-}
-
 /**
  * 允许外部注入或重置符号提取器
  */

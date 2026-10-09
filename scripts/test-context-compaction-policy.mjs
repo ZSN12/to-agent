@@ -4,7 +4,7 @@ import {
   COMPACTION_SUGGEST_CONTEXT_PERCENT,
   shouldAutoCompact,
   shouldSuggestContextCompaction,
-} from '../electron/backend/context-compaction-policy.mjs'
+} from '../src/shared/context-compaction-policy.ts'
 
 assert.equal(COMPACTION_SUGGEST_CONTEXT_PERCENT, 75)
 assert.equal(COMPACTION_SUGGEST_CLEAR_PERCENT, 60)

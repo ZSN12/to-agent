@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
+import { createAppStateStore } from '../electron/backend/app-state-store.mjs'
+import { createUsageStore } from '../electron/backend/usage-store.mjs'
+import { createChatTurnPersistence } from '../electron/backend/chat-turn-persistence.mjs'
+import { createChatTurnPipeline } from '../electron/backend/chat-turn-pipeline.mjs'
 import { nativeChatCommand } from '../electron/backend/native-chat-command.mjs'
-import { resolvePrimaryAgentPreset } from '../electron/backend/primary-agent-preset.mjs'
 
 for (const [input, expected] of [
   ['/compact', '/compact'], [' /COMPACT  ', '/compact'],
@@ -14,49 +19,110 @@ for (const [input, expected] of [
   ['/dingtalk-chat\n用户任务', null], ['请解释 /compact', null], [null, null],
 ]) assert.equal(nativeChatCommand(input), expected)
 
-// Execute the actual IPC handler closure without initializing Electron, user
-// settings, or the Host. Only its collaborators are substituted. This checks
-// routing, not Electron transport or visual rendering.
-const source = await fs.readFile(new URL('../electron/backend/register-ipc.mjs', import.meta.url), 'utf8')
-assert.equal(source.includes('【系统模式：计划模式 (Plan Mode)】'), false,
+const registerIpc = await fs.readFile(new URL('../electron/backend/register-ipc.mjs', import.meta.url), 'utf8')
+const sendIpc = await fs.readFile(new URL('../electron/backend/ipc/register-chat-send-ipc.mjs', import.meta.url), 'utf8')
+assert.equal(registerIpc.includes('【系统模式：计划模式 (Plan Mode)】'), false,
   'Plan guidance must come from the Host mode, not a hand-built local prompt prefix')
-const start = source.indexOf("  ipcHandle(ipcMain, 'chat:send',")
-const end = source.indexOf("  ipcHandle(ipcMain, 'tasks:sendMessage',", start)
-assert.ok(start >= 0 && end > start)
-let handler
-let sent
-const calls = []
-const forbidden = name => () => { throw new Error(`unexpected task preparation: ${name}`) }
-const dependencies = {
-  ipcMain: {}, ipcHandle(_ipc, channel, fn) { assert.equal(channel, 'chat:send'); handler = fn },
-  nativeChatCommand,
-  resolvePrimaryAgentPreset,
-  resolveIpcConversationId: async id => id,
-  getConversationRuntimeContext: async () => ({ workspacePath: '/test/workspace' }),
-  withTurnLock: async (id, fn) => { calls.push(`lock:${id}`); return fn() },
-  validateAndResolveModel: async () => ({ modelKey: 'test/model' }),
-  createUserMessage: async text => ({ messageId: 'u1', time: 1, userEntry: { text } }),
-  chat: { async send(options) { sent = options; return { text: 'Compacted', command: true } } },
-  handleChatError: async error => { throw error },
-  createAssistantMessage: async result => { calls.push('persist-result'); return result },
-  tryAutoSnapshot: forbidden('snapshot'), skills: { resolve: forbidden('skill') },
-  assembleWorkspaceContext: forbidden('context'), sandboxContextLineForContext: forbidden('sandbox'),
-  preparePromptByWorkMode: forbidden('work mode'), decideExecutionMode: forbidden('policy'),
-  resolveExecutionMode: forbidden('orchestration'), executeChatRequest: forbidden('agent'),
+assert.match(sendIpc, /ipcHandle\(ipcMain, 'chat:send'/)
+assert.match(sendIpc, /chatTurnPipeline\.runTurn/)
+
+const home = await fs.mkdtemp(path.join(os.tmpdir(), 'tw-native-cmd-'))
+try {
+  const appState = createAppStateStore(home, home)
+  const usageStore = createUsageStore(home)
+  const persistNativeTurn = createChatTurnPersistence({ appState, usageStore })
+  const conversationId = (await appState.getState()).conversationId
+  const forbidden = (name) => () => { throw new Error(`unexpected task preparation: ${name}`) }
+  let sent
+  const chatTurnPipeline = createChatTurnPipeline({
+    appState,
+    usageStore,
+    profileStore: {},
+    resolveModelKeyForChat: async () => ({ modelKey: 'test/model' }),
+    appPreferences: { get: async () => ({}) },
+    createGitCheckpoint: forbidden('snapshot'),
+    userDataPath: home,
+    chat: {
+      async send(options) {
+        sent = options
+        return { text: 'Compacted', command: true }
+      },
+    },
+    orchestration: {},
+    permissions: { withExecution: async (_mode, _sender, fn) => fn() },
+    skills: { resolve: forbidden('skill') },
+    persistNativeTurn,
+    workspaceHooksTrusted: async () => false,
+    sandboxContextLineForContext: forbidden('sandbox'),
+  })
+
+  const sender = { test: true }
+  const result = await chatTurnPipeline.runTurn({
+    webContents: sender,
+    text: ' /COMPACT ',
+    modelKey: 'test/model',
+    skillName: 'dingtalk-chat',
+    executionModeOverride: 'multi-agent',
+    workMode: 'goal',
+    conversationId,
+    runtimeContext: { workspacePath: '/test/workspace', permissionMode: 'ask' },
+  })
+  assert.deepEqual(sent, {
+    text: '/compact',
+    modelKey: 'test/model',
+    conversationId,
+    cwdOverride: '/test/workspace',
+    webContents: sender,
+    agentPreset: 'standard',
+  })
+  assert.equal(result.assistant.text, 'Compacted')
+  assert.equal(result.user.text, '/compact')
+
+  sent = undefined
+  const planResult = await chatTurnPipeline.runTurn({
+    webContents: sender,
+    text: ' /PLAN OFF ',
+    modelKey: 'test/model',
+    skillName: 'dingtalk-chat',
+    executionModeOverride: 'multi-agent',
+    workMode: 'goal',
+    conversationId,
+    runtimeContext: { workspacePath: '/test/workspace', permissionMode: 'ask' },
+  })
+  assert.deepEqual(sent?.text, '/plan off')
+  assert.equal(planResult.user.text, '/plan off')
+
+  const pipelineOnly = createChatTurnPipeline({
+    appState,
+    usageStore,
+    profileStore: {},
+    resolveModelKeyForChat: async () => ({ modelKey: 'test/model' }),
+    appPreferences: { get: async () => ({}) },
+    createGitCheckpoint: forbidden('snapshot'),
+    userDataPath: home,
+    chat: { send: forbidden('chat') },
+    orchestration: {},
+    permissions: {},
+    skills: { resolve: forbidden('skill') },
+    persistNativeTurn,
+    workspaceHooksTrusted: async () => false,
+    sandboxContextLineForContext: forbidden('sandbox'),
+  })
+  await assert.rejects(
+    pipelineOnly.runTurn({
+      webContents: sender,
+      text: '/compact\nuser task',
+      modelKey: null,
+      skillName: null,
+      executionModeOverride: null,
+      workMode: 'code',
+      conversationId,
+      runtimeContext: { workspacePath: '/test/workspace', permissionMode: 'ask' },
+    }),
+    /sandbox/,
+  )
+
+  console.log('native command parser and production IPC routing pass: no injected task/skill/context prose')
+} finally {
+  await fs.rm(home, { recursive: true, force: true })
 }
-new Function(...Object.keys(dependencies), source.slice(start, end))(...Object.values(dependencies))
-const sender = { test: true }
-const result = await handler({ sender }, ' /COMPACT ', 'test/model', 'dingtalk-chat', 'multi-agent', 'goal', 'c1')
-assert.deepEqual(sent, { text: '/compact', modelKey: 'test/model', conversationId: 'c1',
-  cwdOverride: '/test/workspace', webContents: sender, agentPreset: 'standard' })
-assert.equal(result.assistant.command, true)
-assert.equal(result.user.text, '/compact')
-assert.deepEqual(calls, ['lock:c1', 'persist-result'])
-sent = undefined
-const planResult = await handler({ sender }, ' /PLAN OFF ', 'test/model', 'dingtalk-chat', 'multi-agent', 'goal', 'c1')
-assert.deepEqual(sent, { text: '/plan off', modelKey: 'test/model', conversationId: 'c1',
-  cwdOverride: '/test/workspace', webContents: sender, agentPreset: 'standard' })
-assert.equal(planResult.user.text, '/plan off')
-assert.deepEqual(calls, ['lock:c1', 'persist-result', 'lock:c1', 'persist-result'])
-await assert.rejects(handler({ sender }, '/compact\nuser task', null, null, null, 'code', 'c1'), /snapshot/)
-console.log('native command parser and production IPC routing pass: no injected task/skill/context prose')

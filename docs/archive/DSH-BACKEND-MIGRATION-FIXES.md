@@ -102,7 +102,7 @@ chat = createDshChatService({ hostManager })
 
 ### 自动验证脚本
 ```bash
-node scripts/verify-dsh-backend.mjs
+node scripts/diagnose/verify-dsh-backend.mjs
 ```
 
 ### 手动验证检查点
@@ -123,7 +123,7 @@ node scripts/verify-dsh-backend.mjs
 - ✅ `electron/preload.cjs` - IPC 桥接已验证正确
 
 ### 新增验证脚本
-- ✅ `scripts/verify-dsh-backend.mjs` - 自动化验证脚本
+- ✅ `scripts/diagnose/verify-dsh-backend.mjs` - 自动化验证脚本
 
 ---
 
@@ -163,7 +163,7 @@ npm start
 npm run test:all
 
 # 验证后端修复
-node scripts/verify-dsh-backend.mjs
+node scripts/diagnose/verify-dsh-backend.mjs
 ```
 
 ---
@@ -172,7 +172,7 @@ node scripts/verify-dsh-backend.mjs
 
 - [DSH 架构文档](dsh-source/docs/architecture.md)
 - [DSH 开发指南](dsh-source/docs/development.md)
-- [TaskWeaver 实施计划](TaskWeaver实施计划.md)
+- [TaskWeaver 实施计划](TaskWeaver实施计划.md)（同目录）
 - [成本感知模型路由作品集](docs/成本感知模型路由与能力作品集.md)
 
 ---

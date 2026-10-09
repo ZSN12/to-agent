@@ -21,7 +21,6 @@ import {
   Z_MAX_RECONNECT_ATTEMPTS,
   Z_INITIAL_RECONNECT_DELAY_MS,
   Z_MAX_RECONNECT_DELAY_MS,
-  Z_EVENT_CHANNEL_OPEN_TIMEOUT_MS,
   Z_MAX_TRACKED_SESSIONS,
 } from './config.mjs'
 import { sessionModelMatches } from './dsh-session-model.mjs'
@@ -265,6 +264,7 @@ export function createDshChatService({
   conversationHub = null,
   onTurnCompleted = null,
   logger = null,
+  logApprovalEvent = null,
 }) {
   const mapPath = path.join(userDataPath, 'taskweaver', 'dsh-session-map.json')
   const sessions = new Map()
@@ -492,6 +492,16 @@ export function createDshChatService({
     if (!skipMapDelete) pendingApprovals.delete(id)
     clearApprovalTimer(pending)
     const allowed = response?.action === 'allow-once' || response?.action === 'allow'
+    if (logApprovalEvent && pending.conversationId) {
+      const outcome = allowed
+        ? 'allowed-once'
+        : (response?.reason === 'timeout' ? 'timeout' : 'denied')
+      void Promise.resolve(logApprovalEvent(pending.conversationId, 'approval/decided', {
+        id,
+        outcome,
+        reason: response?.reason,
+      })).catch(() => {})
+    }
     await sendApprovalOutcome(pending, allowed)
     return true
   }
@@ -547,6 +557,13 @@ export function createDshChatService({
       return
     }
     try {
+      if (logApprovalEvent && conversationId) {
+        void Promise.resolve(logApprovalEvent(conversationId, 'approval/asked', {
+          id,
+          toolName: frame.toolName || 'Z 工具',
+          reason: frame.reason || '该操作需要权限确认。',
+        })).catch(() => {})
+      }
       webContents.send('permission:prompt', {
         id,
         conversationId,
@@ -2200,7 +2217,6 @@ export function createDshChatService({
     stop,
     isBusy: (id) => running.has(id),
     isBusyAny: () => running.size > 0,
-    getRunningConversationId: () => running.keys().next().value ?? null,
     listRunningConversationIds: () => [...running.keys()],
     getLiveContextUsage: (id) => liveUsage.get(id) ?? null,
     getSessionStatsSnapshot: async (id) => {
@@ -2257,10 +2273,10 @@ export function createDshChatService({
       const cacheRead = usageTotals?.cacheReadTokens ?? current?.tokens.cacheRead ?? 0
       const cacheWrite = usageTotals?.cacheWriteTokens ?? current?.tokens.cacheWrite ?? 0
       const rawProjectedTokens = contextPressure?.projectedTokens ?? contextPressure?.pressureTokens
-      const projectedContextTokens = (typeof rawProjectedTokens === 'number' && rawProjectedTokens > 0)
+      const projectedContextTokens = typeof rawProjectedTokens === 'number'
         ? rawProjectedTokens
-        : (current?.contextTokens && current.contextTokens > 0 ? current.contextTokens : rawProjectedTokens)
-      let contextTokens = (typeof projectedContextTokens === 'number' && projectedContextTokens > 0)
+        : (typeof current?.contextTokens === 'number' ? current.contextTokens : rawProjectedTokens)
+      let contextTokens = typeof projectedContextTokens === 'number'
         ? projectedContextTokens
         : (current?.contextTokens ?? null)
       let contextWindow = contextPressure?.contextWindow ?? current?.contextWindow

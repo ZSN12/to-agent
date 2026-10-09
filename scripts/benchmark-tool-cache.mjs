@@ -223,6 +223,6 @@ TaskWeaver 原生内建的 **Tool-Cache** 机制在多智能体并发读取与�
 - **TaskWeaver 独门优势**：在底层 Host 运行时透明挂载了**会话级状态感知工具缓存**，对键参数做规范化排序与 SHA-256 哈希，遇到 \`edit\` / \`write\` / \`bash\` 等潜在突变指令时自动针对性失效，不仅显著降低了本地文件 I/O 磨损与子进程拉起开销，更在多 Agent 协同（Planner + Coders 并行查阅）中减少了 30%~90% 的冗余执行开销。
 `
 
-const reportPath = path.join(root, 'docs/tool-cache-benchmark-2026-10-07.md')
+const reportPath = path.join(root, 'docs/archive/tool-cache-benchmark-2026-10-07.md')
 await fs.writeFile(reportPath, reportContent, 'utf8')
 console.log(`已成功输出压测数据报告至: ${reportPath}`)

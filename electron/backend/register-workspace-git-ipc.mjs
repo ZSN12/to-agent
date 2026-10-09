@@ -1,7 +1,6 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import {
-  createGitCheckpoint,
   createManualGitCommitSnapshot,
   deleteGitCheckpoint,
   getGitCheckpointDiff,
@@ -72,15 +71,6 @@ export function registerWorkspaceGitIpc({
   ipcHandle(ipcMain, 'workspace:gitSuggestCommit', async () => {
     await refreshWorkspaceCache()
     return suggestCommitMessage(getWorkspacePath())
-  })
-  ipcHandle(ipcMain, 'workspace:createGitCheckpoint', async (_event, options) => {
-    await refreshWorkspaceCache()
-    const state = await appState.getState()
-    return createGitCheckpoint(getWorkspacePath(), {
-      ...options,
-      conversationId: state?.conversationId,
-      userDataPath,
-    })
   })
   ipcHandle(ipcMain, 'workspace:previewManualGitCommit', async () => {
     await refreshWorkspaceCache()

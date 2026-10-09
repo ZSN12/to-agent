@@ -1,4 +1,4 @@
-import { startOcxProviderLogin, runOcx } from './model-sync/ocx-cli.mjs'
+import { runOcx } from './model-sync/ocx-cli.mjs'
 
 /**
  * Parse `ocx status` text for provider login lines like `cursor     ✓ logged in`.
@@ -22,7 +22,3 @@ export async function fetchOpenCodexProviderLogins() {
   }
 }
 
-/** @deprecated use `bridge:login` or `startOcxProviderLogin` */
-export function startOpenCodexProviderLogin(provider = 'cursor') {
-  return startOcxProviderLogin(provider)
-}

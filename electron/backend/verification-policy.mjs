@@ -1,6 +1,39 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+const VERIFICATION_ENV_ALLOWLIST = new Set([
+  'PATH',
+  'HOME',
+  'USER',
+  'LOGNAME',
+  'SHELL',
+  'LANG',
+  'LC_ALL',
+  'LC_CTYPE',
+  'TMPDIR',
+  'TEMP',
+  'TMP',
+  'SYSTEMROOT',
+  'WINDIR',
+  'ComSpec',
+  'PATHEXT',
+  'NODE_PATH',
+])
+
+/** Env passed to verification subprocesses — no API keys or tokens. */
+export function buildVerificationChildEnv() {
+  const env = {
+    CI: '1',
+    FORCE_COLOR: '0',
+    PAGER: 'cat',
+  }
+  for (const key of VERIFICATION_ENV_ALLOWLIST) {
+    const value = process.env[key]
+    if (value !== undefined && value !== '') env[key] = value
+  }
+  return env
+}
+
 /**
  * 自动识别工作区类型的验证与构建命令。
  *
@@ -301,12 +334,7 @@ export async function executeVerificationRunner(workspacePath, options = {}) {
 
       child = spawn(shell, shellArgs, {
         cwd: workspacePath,
-        env: {
-          ...process.env,
-          CI: '1',
-          FORCE_COLOR: '0',
-          PAGER: 'cat',
-        },
+        env: buildVerificationChildEnv(),
         stdio: ['ignore', 'pipe', 'pipe'],
       })
 

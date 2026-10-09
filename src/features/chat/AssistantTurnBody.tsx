@@ -1,4 +1,4 @@
-import type { AssistantContentBlock, TurnActivitySummary } from '../../types'
+import type { AssistantContentBlock } from '../../types'
 import type { DshProjectedToolCall, ToolTraceItem } from '../../shared/app-api'
 import { lazy, Suspense, useMemo } from 'react'
 import { DshThinkBlock } from './DshThinkBlock'
@@ -31,7 +31,6 @@ export function AssistantTurnBody({
   isStreaming = false,
   dshToolRows,
   toolTraceItems,
-  turnActivity,
   workspacePath,
   onShowToolDetails,
   onOpenWorkspacePath,
@@ -43,7 +42,6 @@ export function AssistantTurnBody({
   isStreaming?: boolean
   dshToolRows?: readonly DshProjectedToolCall[]
   toolTraceItems?: readonly ToolTraceItem[]
-  turnActivity?: TurnActivitySummary
   workspacePath?: string | null
   onShowToolDetails?: (item: ToolTraceItem) => void
   onOpenWorkspacePath?: (relativePath: string) => void
@@ -262,7 +260,6 @@ export function AssistantTurnBody({
               <DshToolCallList
                 rows={stepRows}
                 traces={stepTraces}
-                turnActivity={turnActivity}
                 workspacePath={workspacePath}
                 isActive={isStreaming}
                 onShowToolDetails={onShowToolDetails}

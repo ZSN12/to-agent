@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react'
-import { Check, Plus, Shield, ShieldCheck, Trash2, X } from 'lucide-react'
-import type { PermissionMode, PermissionRule } from '../../shared/app-api'
+import { Check, Plus, Shield, ShieldCheck, Trash2 } from 'lucide-react'
+import type { ApprovalAuditEntry, PermissionMode, PermissionRule } from '../../shared/app-api'
 
 const PROMPT_INJECTION_LIMIT_MIN_KIB = 1
 const PROMPT_INJECTION_LIMIT_MAX_KIB = 128
@@ -147,10 +147,12 @@ export function PermissionSettingsPanel({
   currentMode = 'ask',
   onModeChange,
   onToast,
+  conversationId = null,
 }: {
   currentMode?: PermissionMode
   onModeChange?: (mode: PermissionMode) => void
   onToast?: (msg: string) => void
+  conversationId?: string | null
 }) {
   const [mode, setMode] = useState<PermissionMode>(currentMode)
   const [rules, setRules] = useState<PermissionRule[]>([])
@@ -163,6 +165,7 @@ export function PermissionSettingsPanel({
   const [adaptiveOrchestrationGate, setAdaptiveOrchestrationGate] = useState(true)
   const [preferMultiAgent, setPreferMultiAgent] = useState(false)
   const [preferDshTranscript, setPreferDshTranscript] = useState(true)
+  const [approvalAudit, setApprovalAudit] = useState<ApprovalAuditEntry[]>([])
 
   const loadRules = async () => {
     if (!window.taskweaver?.permission) {
@@ -194,6 +197,17 @@ export function PermissionSettingsPanel({
       }
     })
   }, [])
+
+  useEffect(() => {
+    if (!conversationId || !window.taskweaver?.permission?.listApprovalAudit) {
+      setApprovalAudit([])
+      return
+    }
+    void window.taskweaver.permission.listApprovalAudit(conversationId).then((res) => {
+      if (res?.ok && res.data) setApprovalAudit(res.data)
+      else setApprovalAudit([])
+    })
+  }, [conversationId])
 
   const handlePreferDshTranscript = async (enabled: boolean) => {
     setPreferDshTranscript(enabled)
@@ -610,6 +624,34 @@ export function PermissionSettingsPanel({
           )}
         </div>
       </div>
+
+      {conversationId && (
+        <div style={{ marginTop: 24 }}>
+          <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 8px 0' }}>当前会话审批记录</h3>
+          <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 10px 0' }}>
+            最近 30 条应用层与 Host 审批事件（JSONL 落盘于会话目录）。
+          </p>
+          {approvalAudit.length === 0 ? (
+            <p className="settings-list-empty" style={{ margin: 0 }}>暂无审批审计记录。</p>
+          ) : (
+            <ul className="provider-list model-catalog-list" style={{ margin: 0 }}>
+              {approvalAudit.slice().reverse().map((row, index) => (
+                <li key={`${row.time}-${row.id ?? index}`} className="provider-row" style={{ fontSize: 12 }}>
+                  <span style={{ fontFamily: 'monospace', color: 'var(--text-secondary)', flexShrink: 0 }}>
+                    {row.time ? new Date(row.time).toLocaleString('zh-CN') : '—'}
+                  </span>
+                  <span style={{ fontWeight: 600 }}>{row.type}</span>
+                  <span style={{ color: 'var(--text-secondary)' }}>
+                    {row.toolName ? ` · ${row.toolName}` : ''}
+                    {row.outcome ? ` · ${row.outcome}` : ''}
+                    {row.reason ? ` · ${row.reason}` : ''}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       <div className="settings-footnote" style={{ marginTop: 24 }}>
         <ShieldCheck size={15} />

@@ -48,9 +48,9 @@ try {
   const codeCreated = await api.sessions.create({
     sessionId: codeSessionId,
     cwd: projectRoot,
-    agentPreset: 'code',
+    agentPreset: 'taskweaver-code',
   })
-  assert.equal(codeCreated.result.ok, true, codeCreated.result.error?.message ?? 'code preset session create failed')
+  assert.equal(codeCreated.result.ok, true, codeCreated.result.error?.message ?? 'taskweaver-code preset session create failed')
   assert.equal(codeCreated.result.value.sessionId, codeSessionId)
 
   const readonlySessionId = `taskweaver-readonly-preset-${crypto.randomUUID()}`

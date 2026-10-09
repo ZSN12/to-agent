@@ -30,7 +30,7 @@
 - 先前真实 Planner 样本约 91.5–260.8 秒；有样本显示 Planner 约 76.9 秒、较慢子任务约 138.7 秒、汇总约 45 秒。范围门槛曾正确阻止缺证据任务误报完成，但真实规划和汇总仍需优化。
 - `scripts/run-parity-bench.mjs` 已有 schema v2 的 read-smoke、生命周期/排队与 DAG 汇总；仅导出白名单聚合字段，fixture 覆盖缺失值、终态、continuing/队列标志和隐私脱敏。只读 runner 已记录每个 Host step 的首 chunk、首文本、结束和 retry 时序；真实 provider dispatch 起点没有 Host 事件，因此请求尝试数明确标为 `step starts + 已启动 retries` 估算，不能冒充精确网络请求数。2026-10-07 已用真实 MiMo/Z Host 串行完成 3 轮生命周期验收，每轮 5/5 通过，覆盖两个独立会话并行及运行中排队追问；另有 1 次真实 MiMo 取消样本保留了 18/18 可见字符、形成 Host `aborted` 并在同会话恢复成功。受控 mock endpoint + 真实本地 Host 的取消用例覆盖了“成功读取文件后挂起下一次 provider stream”和“stdio MCP `tools/call` 实际挂起时取消”；另有 Host 实际启动长时 Bash 子进程并在 Stop 后确认其响应 SIGTERM 退出，以及 Code Mode Worker 在嵌套 read 完成后循环时经 Stop 中止。相应用例验证 Host `aborted`、工具 call/result 配对、无重放、busy 释放及同会话恢复。MCP 测试只证明取消通知送达，不保证不合作的第三方 handler 停止副作用。详见验收记录与优化日志。
 
-详细逐次数据见 [acceptance-2026-10-06.md](acceptance-2026-10-06.md) 和 [agent-preset-live-ab-2026-10-06.md](agent-preset-live-ab-2026-10-06.md)。
+详细逐次数据见 [acceptance-2026-10-06.md](archive/acceptance-2026-10-06.md) 和 [agent-preset-live-ab-2026-10-06.md](archive/agent-preset-live-ab-2026-10-06.md)。
 
 ## 阶段 1：建立可信的单 Agent 对照基线（P0）
 
@@ -111,7 +111,7 @@
 
 当前继续顺序：**阶段 1 基线 → 阶段 2 单 Agent/会话可靠性 → 阶段 3 Plan/Todo → 阶段 4 权限/MCP/上下文 → 阶段 6 DAG → 阶段 5 Hooks/审阅 → 阶段 7 维护发布与论文**。若阶段 1 证明主要耗时在模型服务生成，不再把 RPC/文件系统重构列为性能优化；若工具调用路径明显多于 Host 基线，优先针对具体多余 prompt、搜索或重试修正。
 
-**2026-10-07 基线进展：**已完成一次同 Host 的 TaskWeaver `chat.send` 服务适配层 vs Host 原生 API 真实 MiMo 配对试跑，两侧均完成同一只读文件任务，路由/preset/权限/工作区和实际工具调用有 Host 原生记录；但 `n=1`，且不覆盖 `register-ipc` 完整 prompt pipeline，也不是 DSH Web 对照，因此只算 runner pilot，不能视为阶段 1 验收。工作区上限随后对 16/32/64 KiB 各完成三次交错真实 MiMo Agent 样本；基于同一任务覆盖相同、32 KiB 的调用/Token 中位数较低，当前暂用 32 KiB，但样本仅一个任务且耗时波动大，不能称为普遍最优。完整记录见 `docs/acceptance-2026-10-06.md` 与 `docs/修改与优化日志.md` OPT-2026-10-07-33。
+**2026-10-07 基线进展：**已完成一次同 Host 的 TaskWeaver `chat.send` 服务适配层 vs Host 原生 API 真实 MiMo 配对试跑，两侧均完成同一只读文件任务，路由/preset/权限/工作区和实际工具调用有 Host 原生记录；但 `n=1`，且不覆盖 `register-ipc` 完整 prompt pipeline，也不是 DSH Web 对照，因此只算 runner pilot，不能视为阶段 1 验收。工作区上限随后对 16/32/64 KiB 各完成三次交错真实 MiMo Agent 样本；基于同一任务覆盖相同、32 KiB 的调用/Token 中位数较低，当前暂用 32 KiB，但样本仅一个任务且耗时波动大，不能称为普遍最优。完整记录见 `docs/archive/acceptance-2026-10-06.md` 与 `docs/修改与优化日志.md` OPT-2026-10-07-33。
 
 **2026-10-07 只读子 Agent / DAG 进展：**同一真实 Planner 请求、MiMo Medium 的 5 轮中，5/5 两项 research 均完成；每轮两个 Host session 独立且实际加载 `taskweaver-readonly`，路由/工具历史校验通过，Host turn overlap 为 7.700–44.556 秒。同步强化了 DAG smoke：调用模型前核验只读 preset 源码/deploy SHA-256，完成后再按 Host session 元数据核对每个只读子任务的 preset。门禁开启后的真实复跑亦通过。该结果满足固定用例的实时 Planner 与并发执行功能验收，但耗时没有串行配对，不能声称 DAG 提速；详细报告见验收记录及 OPT-2026-10-07-31。阶段 1 的 DSH 同条件基线和阶段 6 的串行/并行配对门槛仍未通过。
 

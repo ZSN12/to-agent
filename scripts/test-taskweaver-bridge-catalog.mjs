@@ -4,7 +4,7 @@ import {
   legacyOpenCodexKeyToBridge,
   listModelsFromBridgeDoc,
   mergeBridgeBlocksIntoModelsDoc,
-} from '../electron/backend/taskweaver-bridge-catalog.mjs'
+} from '../electron/backend/model-sync/bridge-catalog.mjs'
 
 const exportDoc = {
   providers: {

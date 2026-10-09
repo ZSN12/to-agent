@@ -1,4 +1,4 @@
-import type { OpenUsageLimitsSnapshot, OpenUsageProviderData, OpenUsageResourceData } from '../../shared/app-api'
+import type { OpenUsageLimitsSnapshot, OpenUsageResourceData } from '../../shared/app-api'
 
 export const DEFAULT_OPENUSAGE_URL = 'http://127.0.0.1:6736'
 

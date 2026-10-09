@@ -10,9 +10,6 @@ import { DshStateDot } from './DshStateDot'
 import { dshToolRowPresentation } from './dshToolRowModel'
 import { ToolTraceCard } from './ToolTraceCard'
 import type { DshProjectedToolCall, ToolTraceItem } from '../../shared/app-api'
-import type { TurnActivitySummary } from '../../types'
-import { formatTurnActivityLabel } from './turn-activity-stats'
-
 function rowIcon(variant: string) {
   if (variant === 'bash') return Terminal
   if (variant === 'read') return FileText
@@ -40,7 +37,6 @@ function failureHint(status: DshProjectedToolCall['status'], preview?: string): 
 export function DshToolCallList({
   rows,
   traces,
-  turnActivity,
   workspacePath,
   isActive = false,
   onShowToolDetails,
@@ -48,7 +44,6 @@ export function DshToolCallList({
 }: {
   rows?: readonly DshProjectedToolCall[]
   traces?: readonly ToolTraceItem[]
-  turnActivity?: TurnActivitySummary
   workspacePath?: string | null
   isActive?: boolean
   onShowToolDetails?: (item: ToolTraceItem) => void
@@ -83,20 +78,6 @@ export function DshToolCallList({
     ? dshToolRowPresentation(runningCall.toolName, runningCall.argsRaw, workspacePath, 'running')
     : null
 
-  const activityLabel = turnActivity ? formatTurnActivityLabel(turnActivity) : null
-  const showDiff = turnActivity && turnActivity.editedFileCount > 0 && turnActivity.linesComplete
-    && typeof turnActivity.addedLines === 'number'
-    && typeof turnActivity.deletedLines === 'number'
-
-  const batchMeta = runningCall
-    ? [runningPresentation?.title, runningPresentation?.summary].filter(Boolean).join(' · ') || '等待工具结果'
-    : failedCount > 0
-      ? (stoppedCount > 0 && errorCount > 0
-        ? `${errorCount} 失败 · ${stoppedCount} 中断`
-        : stoppedCount > 0
-          ? `${stoppedCount} 次中断`
-          : `${errorCount} 次失败`)
-      : (activityLabel || null)
   const latestStepKey = stepGroups.at(-1)?.key
 
   const renderNode = (node: ReturnType<typeof buildDshToolCallTree>[number], depth = 0) => {

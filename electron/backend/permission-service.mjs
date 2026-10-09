@@ -1,5 +1,4 @@
 import path from 'node:path'
-import fs from 'node:fs/promises'
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { sendToolTrace, summarizeToolInput } from './tool-trace.mjs'
 import { waitForRendererPermissionPrompt } from './permission-prompt-bridge.mjs'
@@ -468,7 +467,6 @@ export function createPermissionService({
       const subject = details.tool === 'bash'
         ? String(event.input?.command ?? '').slice(0, 700)
         : String(details.candidate ?? '').slice(0, 500)
-      const isBash = details.tool === 'bash'
       const canPersistRule = Boolean(rulesStore && buildPersistentGrant(details, event, workspacePath))
       const canSessionGrant = canPersistRule || (details.fileAccess && details.outsideWorkspace)
 
@@ -566,6 +564,3 @@ export function createPermissionService({
   return controller
 }
 
-export function getActivePermissionController() {
-  return globalThis[CONTROLLER_KEY]
-}

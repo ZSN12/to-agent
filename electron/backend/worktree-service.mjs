@@ -145,19 +145,6 @@ export async function getTaskWorktreeDiff({ workspacePath, conversationId, taskI
   return { taskId, path: target, stat: stat || '（无文件变更）', patch }
 }
 
-async function hasWorkingTreeDiffFromHead(cwd, relativePath) {
-  try {
-    await execFileAsync('git', ['diff', '--quiet', 'HEAD', '--', relativePath], {
-      cwd,
-      timeout: 30_000,
-      env: { ...process.env, LC_ALL: 'C' },
-    })
-    return false
-  } catch (error) {
-    return error && typeof error === 'object' && error.code === 1
-  }
-}
-
 /**
  * 完整列出 worktree 内相对于主分支的所有改动：
  * 包含已跟踪文件的修改/删除/新增，以及未跟踪的新文件 (??)
@@ -431,9 +418,3 @@ export async function applyTaskWorktreeMerge({
   }
 }
 
-export function assertWorktreeInsideUserData(worktreePath, userDataPath, workspacePath) {
-  const root = worktreeRoot(userDataPath, workspacePath)
-  if (!isPathInside(root, worktreePath)) {
-    throw new Error('worktree 路径不在 TaskWeaver 托管目录内')
-  }
-}

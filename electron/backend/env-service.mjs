@@ -2,7 +2,6 @@ import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import path from 'node:path'
 import fs from 'node:fs'
-import fsp from 'node:fs/promises'
 import os from 'node:os'
 
 const execFileAsync = promisify(execFile)

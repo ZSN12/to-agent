@@ -1,5 +1,3 @@
-import { estimateTokens } from './repo-map-service.mjs'
-
 /**
  * 默认折叠阈值常量（字节与行数）
  */

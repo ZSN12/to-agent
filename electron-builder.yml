@@ -54,6 +54,7 @@ asarUnpack:
   - node_modules/**/*
   - node_modules/@taskweaver/opencodex/**/*
   - vendor/opencodex/**/*
+  - "!vendor/opencodex/assets/**"
 
 mac:
   category: public.app-category.developer-tools

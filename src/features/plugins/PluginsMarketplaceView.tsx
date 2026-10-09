@@ -11,7 +11,6 @@ import {
   Terminal,
   Folder,
   Brain,
-  Share2,
   Mail,
   HardDrive,
   Layers,
@@ -24,13 +23,11 @@ import type { McpMarketplaceEntry, McpServerStatus } from '../../shared/app-api'
 
 interface PluginsMarketplaceViewProps {
   onOpenSettings?: () => void
-  onNewChat?: () => void
   skills?: Array<{ name: string; description: string; path?: string }>
 }
 
 export function PluginsMarketplaceView({
   onOpenSettings,
-  onNewChat,
   skills = [],
 }: PluginsMarketplaceViewProps) {
   const [activeTab, setActiveTab] = useState<'plugins' | 'skills'>('plugins')

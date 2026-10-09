@@ -21,6 +21,7 @@ import type {
   WorkMode,
   WorkspaceEntry,
   WorkspaceReference,
+  WorkspaceTrustState,
 } from '../../shared/app-api'
 import { useDshConversationView } from '../dsh-runtime/useDshConversationView'
 import { matchDshConversationView } from '../dsh-runtime/matchDshConversationView'
@@ -81,6 +82,7 @@ export function useAppBackend() {
   workspacePathRef.current = state?.workspacePath ?? null
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [workspaceTrust, setWorkspaceTrustState] = useState<WorkspaceTrustState | null>(null)
   const [sending, setSending] = useState(false)
   // Host `/compact` in flight per conversation; cleared on compaction event, reply, or turn end.
   const [pendingCompactionIds, setPendingCompactionIds] = useState<string[]>([])
@@ -124,7 +126,6 @@ export function useAppBackend() {
   const conversationStartedAtRef = useRef(new Map<string, number>())
   const conversationTurnIdRef = useRef(new Map<string, string>())
   const conversationStreamRef = useRef(new Map<string, ConversationStreamSnapshot>())
-  const dshMuxTapeRef = useRef<import('../../shared/app-api').DshMuxFramePayload[]>([])
   const isConversationRunning = useCallback((conversationId: string | null | undefined) => {
     return Boolean(conversationId && runningConversationsRef.current.has(conversationId))
   }, [])
@@ -314,6 +315,13 @@ export function useAppBackend() {
     if (contextRes?.ok) setLiveContext(contextRes.data)
   }, [])
 
+  const refreshWorkspaceTrust = useCallback(async () => {
+    const bridge = getBridge()
+    if (!bridge?.workspace?.getTrust) return
+    const res = await bridge.workspace.getTrust()
+    if (res.ok) setWorkspaceTrustState(res.data)
+  }, [])
+
   const reload = useCallback(async () => {
     const bridge = getBridge()
     if (!bridge?.app) {
@@ -339,6 +347,7 @@ export function useAppBackend() {
     setError(null)
     setLoading(false)
     void refreshSkills(res.data.workspacePath)
+    void refreshWorkspaceTrust()
     const enterMode = await bridge.models?.getBusyEnterMode?.()
     if (enterMode?.ok) setBusyEnterMode(enterMode.data)
     await refreshSessionStats()
@@ -347,7 +356,7 @@ export function useAppBackend() {
       runningConversationsRef.current = new Set(runningRes.data)
       setRunningConversationIds(runningRes.data)
     }
-  }, [refreshSessionStats, refreshSkills])
+  }, [refreshSessionStats, refreshSkills, refreshWorkspaceTrust])
 
   useEffect(() => {
     void reload()
@@ -409,16 +418,6 @@ export function useAppBackend() {
       void bridge.chat.unsubscribeMux?.(conversationId)
     }
   }, [bridgeReady, state?.conversationId])
-
-  useEffect(() => {
-    const bridge = getBridge()
-    if (!bridge?.chat?.onMux) return
-    return bridge.chat.onMux((payload) => {
-      if (payload.conversationId !== activeConversationIdRef.current) return
-      dshMuxTapeRef.current.push(payload)
-      if (dshMuxTapeRef.current.length > 800) dshMuxTapeRef.current.splice(0, dshMuxTapeRef.current.length - 800)
-    })
-  }, [bridgeReady])
 
   useEffect(() => {
     if (!preferDshTranscript || !activeDshView) return
@@ -1005,6 +1004,18 @@ export function useAppBackend() {
     return true
   }, [isConversationRunning, refreshSkills, resetTransientConversationState])
 
+  const setWorkspaceTrust = useCallback(async (trusted: boolean): Promise<void> => {
+    const bridge = getBridge()
+    if (!bridge?.workspace?.setTrust) return
+    const res = await bridge.workspace.setTrust(trusted)
+    if (!res.ok) {
+      setError(res.error)
+      return
+    }
+    setWorkspaceTrustState(res.data)
+    void refreshSkills(workspacePathRef.current)
+  }, [refreshSkills])
+
   const setWorkspace = useCallback(async (workspacePath: string | null) => {
     const bridge = getBridge()
     if (!bridge?.app) return false
@@ -1017,9 +1028,10 @@ export function useAppBackend() {
     activeConversationIdRef.current = res.data.conversationId
     setState(res.data)
     void refreshSkills(res.data.workspacePath)
+    void refreshWorkspaceTrust()
     setToolTraces([])
     return true
-  }, [refreshSkills, resetTransientConversationState])
+  }, [refreshSkills, refreshWorkspaceTrust, resetTransientConversationState])
 
   const pickWorkspace = useCallback(async () => {
     const bridge = getBridge()
@@ -1034,6 +1046,7 @@ export function useAppBackend() {
     activeConversationIdRef.current = res.data.state.conversationId
     setState(res.data.state)
     void refreshSkills(res.data.state.workspacePath)
+    void refreshWorkspaceTrust()
     setToolTraces(res.data.state.outputLogs ?? [])
     setSending(isConversationRunning(res.data.state.conversationId))
     setStreamStartedAt(conversationStartedAtRef.current.get(res.data.state.conversationId) ?? null)
@@ -1041,7 +1054,7 @@ export function useAppBackend() {
     setUserQuestionPrompt(userQuestionPromptsRef.current.get(res.data.state.conversationId)?.[0] ?? null)
     setError(null)
     return true
-  }, [isConversationRunning, refreshSkills, resetTransientConversationState])
+  }, [isConversationRunning, refreshSkills, refreshWorkspaceTrust, resetTransientConversationState])
 
   const switchThread = useCallback(async (threadId: string) => {
     const bridge = getBridge()
@@ -1343,6 +1356,8 @@ export function useAppBackend() {
     tasks: (state?.tasks ?? []) as TaskNode[],
     threadTitle: state?.threadTitle ?? '新对话',
     workspacePath: state?.workspacePath ?? null,
+    workspaceTrust,
+    setWorkspaceTrust,
     loading,
     error,
     sending,

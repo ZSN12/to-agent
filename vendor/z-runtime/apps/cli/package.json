@@ -135,6 +135,8 @@
     "@z/dsh-tool-cordis": "workspace:^",
     "@z/dsh-tool-fs": "workspace:^",
     "@z/dsh-tool-fs-search": "workspace:^",
+    "@z/dsh-tool-fs-inline-edit": "workspace:^",
+    "@z/dsh-tool-fs-semantic-search": "workspace:^",
     "@z/dsh-tool-goal": "workspace:^",
     "@z/dsh-tool-pwsh": "workspace:^",
     "@z/dsh-tool-call-timeout-policy": "workspace:^",

@@ -85,6 +85,12 @@
     sampleOverCapGlobResults: true
     excludeDirectories: [node_modules, runtime-packages, dist, release, coverage, .pnpm-store, .taskweaver-build, taskweaver-z-runtime, taskweaver-dsh-runtime]
 
+- id: tool-fs-inline-edit
+  name: '@z/dsh-tool-fs-inline-edit'
+
+- id: tool-fs-semantic-search
+  name: '@z/dsh-tool-fs-semantic-search'
+
 # ── background jobs ────────────────────────────────────────────────────────
 
 # Only the model-facing controls. The task REGISTRY stays on the host plane:

@@ -141,7 +141,7 @@ export async function loadWorkspaceRules(workspaceRoot, { budgetBytes = DEFAULT_
   const blocks = []
 
   // 按优先级顺序装载，直到消耗完总预算
-  for (const { rel, abs, stat } of fileStats) {
+  for (const { rel, abs } of fileStats) {
     if (consumedBytes >= budgetBytes) break
 
     let content = ''

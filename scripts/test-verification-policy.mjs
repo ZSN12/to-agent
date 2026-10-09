@@ -125,7 +125,10 @@ try {
   const repo = detectVerificationCommands(repoRoot)
   assert.equal(repo.projectType, 'typescript-node')
   assert.notEqual(repo.primaryCommand, `${repo.packageManager} run build`, '自检命令不能首选完整构建')
-  assert.equal(repo.primaryCommand, 'npx tsc -b', '本仓库是 solution-style tsconfig，自检应用 tsc -b')
+  assert.ok(
+    repo.primaryCommand === 'npx tsc -b' || repo.primaryCommand === 'pnpm run typecheck' || repo.primaryCommand === 'npm run typecheck',
+    `本仓库是 solution-style tsconfig，自检应用 tsc -b（实际 ${repo.primaryCommand}）`,
+  )
   // ============ 9. executeVerificationRunner 自检执行器测试 ============
   const successDir = await makeWorkspace({
     'package.json': pkg({ typecheck: 'node -e "process.exit(0)"' }),

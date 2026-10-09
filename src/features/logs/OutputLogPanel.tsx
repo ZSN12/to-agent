@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Check, Copy, Filter, Search, Terminal, X, AlertCircle, CheckCircle2, Clock, Ban } from 'lucide-react'
+import { Check, Copy, Search, Terminal, X, AlertCircle, CheckCircle2, Clock, Ban } from 'lucide-react'
 import type { ToolTraceItem } from '../../shared/app-api'
 import { ToolTraceCard } from '../chat/ToolTraceCard'
 

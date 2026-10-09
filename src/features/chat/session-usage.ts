@@ -96,14 +96,6 @@ export function formatDshCatalogTokens(n: number): string {
   return `${scaled(n / 1_000_000)}M`
 }
 
-/** DSH StatsLine `formatDuration`: 45.2s / 2m42s */
-export function formatDshStatsDuration(ms: number): string {
-  const s = Math.max(0, ms) / 1_000
-  if (s < 60) return `${Math.round(s * 10) / 10}s`
-  const whole = Math.round(s)
-  return `${Math.floor(whole / 60)}m${whole % 60}s`
-}
-
 /** DSH `formatRunDuration` + locale：用时 9秒 / 1分08秒 */
 export function formatDshRunDuration(ms: number): string {
   const total = Math.max(0, Math.floor(ms / 1000))
@@ -170,14 +162,6 @@ export interface TurnTimingTotals {
   llmMs: number
   toolMs: number
   avgTtftMs: number | null
-}
-
-export function formatWallMs(ms: number): string {
-  if (ms < 1000) return `${Math.round(ms)}ms`
-  const s = ms / 1000
-  if (s < 60) return `${Math.round(s * 10) / 10}s`
-  const whole = Math.round(s)
-  return `${Math.floor(whole / 60)}m${whole % 60}s`
 }
 
 /** DSH 会话统计面板用的中文时长（如 8 分 50 秒、3.4 秒） */

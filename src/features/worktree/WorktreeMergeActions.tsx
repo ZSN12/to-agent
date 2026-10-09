@@ -2,10 +2,12 @@ import { useState } from 'react'
 
 export function WorktreeMergeActions({
   taskId,
+  conversationId = null,
   compact = false,
   onDone,
 }: {
   taskId: string
+  conversationId?: string | null
   compact?: boolean
   onDone?: () => void
 }) {
@@ -13,7 +15,7 @@ export function WorktreeMergeActions({
 
   const preview = async () => {
     setBusy(true)
-    const res = await window.taskweaver?.worktree?.previewMerge(taskId)
+    const res = await window.taskweaver?.worktree?.previewMerge(taskId, conversationId)
     setBusy(false)
     if (!res?.ok) {
       window.alert(res?.error ?? '检测合并失败')
@@ -32,7 +34,7 @@ export function WorktreeMergeActions({
 
   const diff = async () => {
     setBusy(true)
-    const res = await window.taskweaver?.worktree?.diff(taskId)
+    const res = await window.taskweaver?.worktree?.diff(taskId, conversationId)
     setBusy(false)
     if (!res?.ok) {
       window.alert(res?.error ?? '无法读取差异')
@@ -43,7 +45,7 @@ export function WorktreeMergeActions({
 
   const merge = async () => {
     setBusy(true)
-    const previewRes = await window.taskweaver?.worktree?.previewMerge(taskId)
+    const previewRes = await window.taskweaver?.worktree?.previewMerge(taskId, conversationId)
     setBusy(false)
     if (!previewRes?.ok) {
       window.alert(previewRes?.error ?? '预览失败')
@@ -62,7 +64,7 @@ export function WorktreeMergeActions({
     }
     const removeAfter = window.confirm('合并成功后删除该 worktree？选「取消」则保留。')
     setBusy(true)
-    const res = await window.taskweaver?.worktree?.applyMerge(taskId, { removeAfter })
+    const res = await window.taskweaver?.worktree?.applyMerge(taskId, { removeAfter }, conversationId)
     setBusy(false)
     if (!res?.ok) {
       window.alert(res?.error ?? '合并失败')

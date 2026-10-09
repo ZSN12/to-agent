@@ -4,8 +4,6 @@ import path from 'node:path'
 import fs from 'node:fs'
 import fsp from 'node:fs/promises'
 import crypto from 'node:crypto'
-import { assertSafeWorkspacePath, isPathInside } from './security-path.mjs'
-
 const execFileAsync = promisify(execFile)
 
 async function runGit(args, cwd, extraEnv = {}) {

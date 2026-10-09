@@ -658,9 +658,12 @@ export function McpSettingsPanel({ onToast }: { onToast?: (msg: string) => void 
                           <a
                             className="settings-secondary-button"
                             href={entry.docsUrl}
-                            target="_blank"
                             rel="noreferrer"
                             title="打开文档"
+                            onClick={(e) => {
+                              e.preventDefault()
+                              if (entry.docsUrl) window.open(entry.docsUrl)
+                            }}
                           >
                             <ExternalLink size={14} />
                           </a>

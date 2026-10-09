@@ -377,7 +377,6 @@ export function createUsageStore(userDataPath) {
     if (!filterModel) {
       for (const r of records) {
         const dateKey = localDateKey(r.timestamp)
-        const t = r.totalTokens || (r.inputTokens + r.outputTokens + r.cacheReadTokens + r.cacheWriteTokens)
         if (!daily[dateKey]) daily[dateKey] = { tokens: 0, calls: 0 }
       }
     }

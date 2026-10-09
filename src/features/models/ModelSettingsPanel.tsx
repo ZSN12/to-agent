@@ -1,5 +1,5 @@
 import { useCallback, useEffect, FormEvent, useMemo, useState } from 'react'
-import { Check, Copy, Database, ExternalLink, KeyRound, Link2, LogOut, Pencil, Plus, Radio, RefreshCw, ScanSearch, ShieldAlert, ShieldCheck, Sparkles, Trash2, X } from 'lucide-react'
+import { Check, Copy, Database, ExternalLink, KeyRound, Link2, LogOut, Pencil, Plus, Radio, RefreshCw, ScanSearch, ShieldAlert, Sparkles, Trash2, X } from 'lucide-react'
 import type { CatalogModel, CustomProviderEntry, ModelProfilePatch, ProviderAuthStatus, OAuthStatusInfo, ScanLocalModelsResult, ModelUpdateStatus, ProbedModelItem, ProbeModelsResult } from '../../shared/model-api'
 import { formatCostPerMillion, getCleanModelName } from './format'
 import { LocalScanModal } from './LocalScanModal'
@@ -228,7 +228,6 @@ function AddModelModal({
   const [selectedModelKeys, setSelectedModelKeys] = useState<Set<string>>(() => new Set())
   const [modelQuery, setModelQuery] = useState('')
   const [step, setStep] = useState<'provider' | 'model'>('provider')
-  const [providerMenuOpen, setProviderMenuOpen] = useState(false)
   const [providerQuery, setProviderQuery] = useState('')
   const [saving, setSaving] = useState(false)
   const [localError, setLocalError] = useState<string | null>(null)

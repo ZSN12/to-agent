@@ -10,6 +10,8 @@ export function ChatBehaviorSettingsPanel({ onToast }: { onToast?: (msg: string)
   const [busyEnter, setBusyEnter] = useState<BusyEnterMode>('followUp')
   const [loading, setLoading] = useState(true)
   const [selfHealingLoop, setSelfHealingLoop] = useState(false)
+  const [enableRepoMap, setEnableRepoMap] = useState(true)
+  const [selfHealingMaxRetries, setSelfHealingMaxRetries] = useState(2)
   const [preferencesLoading, setPreferencesLoading] = useState(true)
 
   useEffect(() => {
@@ -21,7 +23,12 @@ export function ChatBehaviorSettingsPanel({ onToast }: { onToast?: (msg: string)
     ]).then(([busyEnterResult, preferencesResult]) => {
       if (cancelled) return
       if (busyEnterResult?.ok) setBusyEnter(busyEnterResult.data)
-      if (preferencesResult?.ok) setSelfHealingLoop(preferencesResult.data.selfHealingLoop === true)
+      if (preferencesResult?.ok) {
+        setSelfHealingLoop(preferencesResult.data.selfHealingLoop === true)
+        setEnableRepoMap(preferencesResult.data.enableRepoMap !== false)
+        const retries = Number(preferencesResult.data.selfHealingMaxRetries)
+        setSelfHealingMaxRetries(Number.isFinite(retries) ? Math.max(1, Math.min(3, retries)) : 2)
+      }
     }).catch(() => {
       // Keep safe defaults if the settings bridge is temporarily unavailable.
     }).finally(() => {
@@ -56,6 +63,32 @@ export function ChatBehaviorSettingsPanel({ onToast }: { onToast?: (msg: string)
     setSelfHealingLoop(res.data.selfHealingLoop === true)
     onToast?.(next ? '已开启：代码修改后自动运行项目验证与修复' : '已关闭自动验证与静默修复')
   }, [onToast, selfHealingLoop])
+
+  const saveEnableRepoMap = useCallback(async () => {
+    const next = !enableRepoMap
+    const bridge = getBridge()
+    if (!bridge?.preferences?.set) return
+    const res = await bridge.preferences.set({ enableRepoMap: next })
+    if (!res.ok) {
+      onToast?.(res.error || '保存失败')
+      return
+    }
+    setEnableRepoMap(res.data.enableRepoMap !== false)
+    onToast?.(next ? '已开启：首轮注入仓库结构图' : '已关闭仓库结构图注入')
+  }, [enableRepoMap, onToast])
+
+  const saveSelfHealingMaxRetries = useCallback(async (value: number) => {
+    const next = Math.max(1, Math.min(3, Math.round(value)))
+    const bridge = getBridge()
+    if (!bridge?.preferences?.set) return
+    const res = await bridge.preferences.set({ selfHealingMaxRetries: next })
+    if (!res.ok) {
+      onToast?.(res.error || '保存失败')
+      return
+    }
+    setSelfHealingMaxRetries(next)
+    onToast?.(`自动修复最多重试次数：${next}`)
+  }, [onToast])
 
   return (
     <div className="settings-panel chat-behavior-settings">
@@ -123,6 +156,42 @@ export function ChatBehaviorSettingsPanel({ onToast }: { onToast?: (msg: string)
           <span>{selfHealingLoop ? '已开启' : '已关闭'}</span>
           <span className="chat-self-healing-toggle-state">{preferencesLoading ? '读取中…' : '切换设置'}</span>
         </button>
+      </section>
+      <section className="chat-enter-section">
+        <div className="chat-enter-section-heading">
+          <Check size={16} aria-hidden />
+          <div>
+            <h3>上下文与自愈</h3>
+            <p>控制 Prompt Pipeline 是否注入仓库结构图，以及验证失败后的重试上限。</p>
+          </div>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={enableRepoMap}
+          className={`chat-self-healing-toggle ${enableRepoMap ? 'is-active' : ''}`}
+          disabled={preferencesLoading}
+          onClick={() => void saveEnableRepoMap()}
+        >
+          <span>{enableRepoMap ? '仓库结构图：开' : '仓库结构图：关'}</span>
+        </button>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 12, fontSize: 12 }}>
+          <span>自愈最多重试（1–3）</span>
+          <input
+            type="number"
+            min={1}
+            max={3}
+            step={1}
+            value={selfHealingMaxRetries}
+            disabled={preferencesLoading}
+            onChange={(e) => {
+              const parsed = Number(e.target.value)
+              if (Number.isFinite(parsed)) setSelfHealingMaxRetries(parsed)
+            }}
+            onBlur={() => { void saveSelfHealingMaxRetries(selfHealingMaxRetries) }}
+            style={{ width: 56, padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border-color)' }}
+          />
+        </label>
       </section>
     </div>
   )

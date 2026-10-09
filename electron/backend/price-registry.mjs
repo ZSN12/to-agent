@@ -6,10 +6,6 @@ const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..
 const DEFAULT_REGISTRY_PATH = path.join(REPO_ROOT, 'pricing', 'registry.json')
 const STALE_AFTER_MS = 48 * 60 * 60 * 1000
 
-export function resolveRegistryPath(customPath) {
-  return customPath || DEFAULT_REGISTRY_PATH
-}
-
 export function loadPriceRegistry(registryPath = DEFAULT_REGISTRY_PATH) {
   if (!fs.existsSync(registryPath)) {
     return { version: 1, synced_at: null, models: {} }

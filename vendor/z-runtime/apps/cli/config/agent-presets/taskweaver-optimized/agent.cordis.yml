@@ -196,6 +196,4 @@
 # only enables the model-facing tool. Keep fetch disabled to match the Host.
 - id: tool-web
   name: '@z/dsh-tool-web'
-  config:
-    fetch: false
-    searchTimeoutMs: 60000
+  disabled: true

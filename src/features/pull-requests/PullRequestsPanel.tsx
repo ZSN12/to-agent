@@ -135,7 +135,15 @@ export function PullRequestsPanel({
                   Agent 审查
                 </button>
               )}
-              <a className="settings-secondary-button" href={pr.url} target="_blank" rel="noreferrer">
+              <a
+                className="settings-secondary-button"
+                href={pr.url}
+                rel="noreferrer"
+                onClick={(e) => {
+                  e.preventDefault()
+                  if (pr.url) window.open(pr.url)
+                }}
+              >
                 <ExternalLink size={14} /> 打开
               </a>
             </div>

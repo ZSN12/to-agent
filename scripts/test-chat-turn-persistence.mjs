@@ -5,8 +5,7 @@ import path from 'node:path'
 import { createAppStateStore } from '../electron/backend/app-state-store.mjs'
 import { createUsageStore } from '../electron/backend/usage-store.mjs'
 import { createChatTurnPersistence } from '../electron/backend/chat-turn-persistence.mjs'
-import { IPC_ERROR_MESSAGE_MAX_LENGTH } from '../electron/backend/config.mjs'
-import { humanizeBridgeTransportError } from '../electron/backend/cursor-tool-guidance.mjs'
+import { createChatTurnPipeline } from '../electron/backend/chat-turn-pipeline.mjs'
 
 // Execute the production IPC persistence helpers with real stores, no Electron
 // or model provider. This checks delayed IPC and aggregate accounting contracts.
@@ -17,15 +16,41 @@ try {
   const persistNativeTurn = createChatTurnPersistence({ appState, usageStore })
   const conversationId = (await appState.getState()).conversationId
   const activeKey = 'local/test'
-  const source = await fs.readFile(new URL('../electron/backend/register-ipc.mjs', import.meta.url), 'utf8')
-  const { ipcHandle } = await import('../electron/backend/ipc-utils.mjs')
-  const start = source.indexOf('  const handleChatError = async')
-  const end = source.indexOf('  // ========== chat:send main handler', start)
-  assert.ok(start >= 0 && end > start)
-  const { handleChatError, createAssistantMessage } = new Function('appState', 'usageStore', 'persistNativeTurn',
-    'IPC_ERROR_MESSAGE_MAX_LENGTH', 'humanizeBridgeTransportError',
-    `${source.slice(start, end)}\nreturn {handleChatError,createAssistantMessage}`)(
-    appState, usageStore, persistNativeTurn, IPC_ERROR_MESSAGE_MAX_LENGTH, humanizeBridgeTransportError)
+  const ipcHandle = (ipcMain, channel, fn) => {
+    ipcMain.handle(channel, async (event, ...args) => {
+      try {
+        const data = await fn(event, ...args)
+        return { ok: true, data }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        return {
+          ok: false,
+          error: message,
+          ...(error?.partialResult?.turnId || error?.turnId
+            ? { turnId: error.partialResult?.turnId ?? error.turnId }
+            : {}),
+          ...(error?.runContinues ? { runContinues: true } : {}),
+        }
+      }
+    })
+  }
+  const pipeline = createChatTurnPipeline({
+    appState,
+    usageStore,
+    profileStore: { resolve: async () => ({}) },
+    resolveModelKeyForChat: async () => ({ modelKey: activeKey }),
+    appPreferences: { get: async () => ({}) },
+    createGitCheckpoint: async () => {},
+    userDataPath: home,
+    chat: {},
+    orchestration: {},
+    permissions: { withExecution: async (_mode, _sender, fn) => fn() },
+    skills: { resolve: async () => null },
+    persistNativeTurn,
+    workspaceHooksTrusted: async () => false,
+    sandboxContextLineForContext: () => '',
+  })
+  const { createAssistantMessage, handleChatError } = pipeline
   const result = { turnId: 'first', startedAt: Date.now(), text: 'completed turn', thinking: 'reasoning',
     fileChanges: [{ path: 'src/main.ts', addedLines: 2, deletedLines: 1 }],
     usage: { inputTokens: 10, outputTokens: 2, elapsedMs: 50 } }
@@ -67,10 +92,23 @@ try {
   const originalErrorLog = console.error
   try {
     console.error = () => {}
-    const broken = new Function('appState', 'usageStore', 'persistNativeTurn', 'IPC_ERROR_MESSAGE_MAX_LENGTH',
-      'humanizeBridgeTransportError', `${source.slice(start, end)}\nreturn {handleChatError}`)(appState, usageStore,
-      async () => { throw persistenceFailure }, IPC_ERROR_MESSAGE_MAX_LENGTH, humanizeBridgeTransportError)
-    await assert.rejects(broken.handleChatError(error, 'disk-failed', '12:01', conversationId), candidate => candidate === error)
+    const brokenPipeline = createChatTurnPipeline({
+      appState,
+      usageStore,
+      profileStore: { resolve: async () => ({}) },
+      resolveModelKeyForChat: async () => ({ modelKey: activeKey }),
+      appPreferences: { get: async () => ({}) },
+      createGitCheckpoint: async () => {},
+      userDataPath: home,
+      chat: {},
+      orchestration: {},
+      permissions: { withExecution: async (_mode, _sender, fn) => fn() },
+      skills: { resolve: async () => null },
+      persistNativeTurn: async () => { throw persistenceFailure },
+      workspaceHooksTrusted: async () => false,
+      sandboxContextLineForContext: () => '',
+    })
+    await assert.rejects(brokenPipeline.handleChatError(error, 'disk-failed', '12:01', conversationId), candidate => candidate === error)
     assert.equal(error.persistenceError, persistenceFailure, 'commit failures must not replace the provider error')
   } finally { console.error = originalErrorLog }
   const earlyConversationId = (await appState.createThread({})).conversationId

@@ -18,8 +18,3 @@ export function skillDescriptionBlurb(description: string, maxLen = 160, skillNa
   if (firstSentence.length <= maxLen) return firstSentence
   return `${firstSentence.slice(0, maxLen).trim()}…`
 }
-
-export function skillCommandPrefix(description: string): string | null {
-  const match = description.match(/命令前缀[：:]\s*([^\s。；;]+)/)
-  return match?.[1]?.trim() ?? null
-}

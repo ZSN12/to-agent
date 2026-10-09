@@ -40,7 +40,7 @@ if (!passthrough.includes('--text')) {
   process.exit(1)
 }
 
-const smokeScript = path.join(root, 'scripts/run-agent-read-smoke.mjs')
+const smokeScript = path.join(root, 'scripts/diagnose/run-agent-read-smoke.mjs')
 const childArgs = [smokeScript, '--local', ...passthrough]
 
 function parseSmokeLine(line) {

@@ -22,8 +22,6 @@
  * Never auto-approve an approval frame based on its incomplete reason text.
  */
 
-export const DSH_APPROVAL_PROMPT_TIMEOUT_MS = 300_000
-
 export const PERMISSION_MODES = Object.freeze(['readonly', 'ask', 'on-risk', 'full'])
 
 const DSH_PERMISSION_PRESETS = Object.freeze({

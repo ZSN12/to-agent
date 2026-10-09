@@ -429,6 +429,17 @@ async function stageTaskWeaverBridgeTransport(stagingRoot, taskweaverRepoRoot) {
   console.log('build-z-runtime: 已打入 electron-vendor/taskweaver-bridge-transport')
 }
 
+async function stageDshChatRegistry(stagingRoot) {
+  const from = path.join(root, 'electron', 'vendor', 'dsh-chat-registry.mjs')
+  if (!fs.existsSync(from)) {
+    throw new Error('缺少 electron/vendor/dsh-chat-registry.mjs；请先运行 scripts/build-dsh-chat-registry.mjs')
+  }
+  const destRoot = path.join(stagingRoot, 'electron-vendor')
+  await fsp.mkdir(destRoot, { recursive: true })
+  await fsp.copyFile(from, path.join(destRoot, 'dsh-chat-registry.mjs'))
+  console.log('build-z-runtime: 已打入 electron-vendor/dsh-chat-registry.mjs')
+}
+
 async function stageMainProcessSessionManagerLib(stagingRoot, monorepoRoot) {
   const srcTypes = path.join(monorepoRoot, 'packages/client/runtime/lib/types')
   const manager = path.join(srcTypes, 'client/sessions/manager.js')
@@ -468,20 +479,33 @@ async function stageApiClient(stagingRoot, scope) {
   }
 }
 
-const EXPERIMENTAL_FS_TOOL_REFS = ['./packages/fs/tool-fs-inline-edit', './packages/fs/tool-fs-semantic-search']
+const TASKWEAVER_FS_TOOLS = [
+  { ref: './packages/fs/tool-fs-inline-edit', name: '@z/dsh-tool-fs-inline-edit', id: 'tool-fs-inline-edit' },
+  { ref: './packages/fs/tool-fs-semantic-search', name: '@z/dsh-tool-fs-semantic-search', id: 'tool-fs-semantic-search' },
+]
 
-function assertTaskWeaverHostTsconfigExcludesExperimentalFsTools(monorepoRoot) {
+function assertTaskWeaverFsToolsIntegrated(monorepoRoot) {
   const hostTsconfigPath = path.join(monorepoRoot, 'tsconfig.host.taskweaver.json')
-  if (!fs.existsSync(hostTsconfigPath)) return
+  if (!fs.existsSync(hostTsconfigPath)) throw new Error('缺少 TaskWeaver Host TypeScript 配置')
   const hostTsconfig = JSON.parse(fs.readFileSync(hostTsconfigPath, 'utf8'))
   const refs = hostTsconfig.references ?? []
-  for (const forbidden of EXPERIMENTAL_FS_TOOL_REFS) {
-    if (refs.some((entry) => entry.path === forbidden)) {
+  const cliPackage = JSON.parse(fs.readFileSync(path.join(monorepoRoot, 'apps', 'cli', 'package.json'), 'utf8'))
+  const cliDependencies = cliPackage.dependencies ?? {}
+  for (const tool of TASKWEAVER_FS_TOOLS) {
+    if (!refs.some((entry) => entry.path === tool.ref)) {
       throw new Error(
-        `tsconfig.host.taskweaver.json 仍引用未集成的实验包 ${forbidden}。`
-        + ' 请从 tsconfig、apps/cli/package.json 与各 agent preset 移除 tool-fs-inline-edit / tool-fs-semantic-search，'
-        + ' 并删除 packages/fs 下对应目录后再构建。',
+        `tsconfig.host.taskweaver.json 缺少已启用文件系统能力 ${tool.ref}`,
       )
+    }
+    if (!cliDependencies[tool.name]) throw new Error(`apps/cli/package.json 缺少运行时依赖 ${tool.name}`)
+    const packageJson = path.join(monorepoRoot, 'packages', 'fs', tool.ref.split('/').at(-1), 'package.json')
+    if (!fs.existsSync(packageJson)) throw new Error(`缺少已接入插件包：${packageJson}`)
+    for (const preset of ['standard', 'taskweaver-code']) {
+      const presetPath = path.join(monorepoRoot, 'apps', 'cli', 'config', 'agent-presets', preset, 'agent.cordis.yml')
+      const source = fs.readFileSync(presetPath, 'utf8')
+      if (!source.includes(`id: ${tool.id}`) || !source.includes(`name: '${tool.name}'`)) {
+        throw new Error(`${preset} preset 未挂载 ${tool.name}`)
+      }
     }
   }
 }
@@ -497,7 +521,7 @@ async function main() {
     throw new Error(`缺少 runtime monorepo：${monorepoRoot}`)
   }
   console.log(`build-z-runtime: 使用 ${label}（${monorepoRoot}）`)
-  assertTaskWeaverHostTsconfigExcludesExperimentalFsTools(monorepoRoot)
+  assertTaskWeaverFsToolsIntegrated(monorepoRoot)
   const dshBuildEnv = {
     ...process.env,
     CI: 'true',
@@ -563,10 +587,14 @@ async function main() {
   await stageApiClient(outDir, scope)
   await stageTaskWeaverBridgeTransport(outDir, root)
   await stageMainProcessSessionManagerLib(outDir, monorepoRoot)
+  console.log('build-z-runtime: 同步 dsh-chat-registry …')
+  await run(process.execPath, [path.join(root, 'scripts/build-dsh-chat-registry.mjs')])
+  await stageDshChatRegistry(outDir)
   console.log('build-z-runtime: 同步 pi-ai 模型目录 …')
-  await run(process.execPath, [path.join(root, 'scripts/upgrade-vendor-pi-ai.mjs')], {
-    env: { ...process.env, TASKWEAVER_Z_RUNTIME: outDir },
-  })
+  const piAiEnv = { ...process.env }
+  if (skipDeploy) delete piAiEnv.TASKWEAVER_Z_RUNTIME
+  else piAiEnv.TASKWEAVER_Z_RUNTIME = outDir
+  await run(process.execPath, [path.join(root, 'scripts/upgrade-vendor-pi-ai.mjs')], { env: piAiEnv })
   const packagesRoot = resolveRuntimeNodePath(outDir) ?? runtimeModulesDir(outDir)
   const piPackage = JSON.parse(await fsp.readFile(path.join(
     packagesRoot,

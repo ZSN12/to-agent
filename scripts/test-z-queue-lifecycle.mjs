@@ -300,7 +300,9 @@ try {
   const failedMessages = (await restarted.getConversationState(failure.id)).messages
   assert.equal(failedMessages.filter(message => message.text === 'fail-answer-2').length, 1)
   assert.equal(failedMessages.find(message => message.text === 'fail-answer-2').interrupted, true)
-  assert.equal(failedMessages.filter(message => message.id.endsWith('-error')).length, 1)
+  assert.equal(failedMessages.filter(message => message.id.endsWith('-error')).length, 0,
+    'failed queued turn with partial output must not add a duplicate -error row')
+  assert.match(failedMessages.find(message => message.text === 'fail-answer-2')?.callout ?? '', /执行失败|Controlled/)
   const ledger = JSON.parse(await fs.readFile(path.join(home, 'taskweaver-model-usage.json'), 'utf8'))
   const records = ledger.records.filter(row => row.conversationId === failure.id)
   assert.equal(records.length, 2)

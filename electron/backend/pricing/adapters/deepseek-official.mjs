@@ -16,11 +16,6 @@ function loadMapping() {
   return JSON.parse(fs.readFileSync(MAPPING_PATH, 'utf8'))
 }
 
-function parseUsd(cell) {
-  const m = String(cell).match(/\$([0-9.]+)/)
-  return m ? Number(m[1]) : null
-}
-
 /**
  * 解析 DeepSeek 官方定价页 HTML 表格（peak 用 OFF-PEAK 价，偏保守估算）。
  * @param {string} html

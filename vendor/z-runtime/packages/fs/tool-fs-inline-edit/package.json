@@ -1,0 +1,35 @@
+{
+  "name": "@z/dsh-tool-fs-inline-edit",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Inline file editing with diff preview and validation",
+  "author": "TaskWeaver Team",
+  "license": "MIT",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": { ".": { "types": "./lib/types/index.d.ts", "default": "./lib/index.js" }, "./invariant": { "types": "./lib/types/invariant.d.ts", "default": "./lib/invariant.js" } },
+  "files": [
+    "lib"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "@z/cordis": "workspace:*",
+    "@z/dsh-tools": "workspace:^",
+    "@z/dsh-tool-fs": "workspace:^"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^1.0.0"
+  },
+  "peerDependencies": {
+    "@z/cordis": "workspace:^",
+    "@z/dsh-fs": "workspace:^",
+    "@z/dsh-invariants": "workspace:^",
+    "@z/dsh-system-prompt": "workspace:^"
+  }
+}

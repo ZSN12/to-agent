@@ -1,6 +1,8 @@
 import type { ChatMessage, ChatUsage, ModifiedFileSummary, TaskNode, TurnActivitySummary } from '../types'
 import type { TaskweaverModelsApi, IpcResult, ThinkingLevel } from './model-api'
 
+export type { InvokeChannel } from './ipc-invoke-channels'
+
 export interface AppState {
   workspacePath: string | null
   conversationId: string
@@ -155,7 +157,6 @@ export interface TaskweaverAppApi {
   listOutputLogs: (options?: { query?: string; status?: ToolTraceItem['status']; limit?: number }) => Promise<IpcResult<OutputLogEntry[]>>
   setWorkspace: (workspacePath: string | null) => Promise<IpcResult<AppState>>
   pickWorkspace: () => Promise<IpcResult<{ cancelled: boolean; state: AppState }>>
-  createThread: (options?: { workspacePath?: string | null }) => Promise<IpcResult<AppState>>
   listThreads: () => Promise<IpcResult<ThreadSummary[]>>
   switchThread: (threadId: string) => Promise<IpcResult<AppState>>
   renameThread: (threadId: string, title: string) => Promise<IpcResult<ThreadSummary[]>>
@@ -190,7 +191,6 @@ export interface TaskweaverWorkspaceApi {
   openPath: (relativePath: string) => Promise<IpcResult<{ ok: boolean; error?: string; path?: string; isDirectory?: boolean }>>
   gitStatus: () => Promise<IpcResult<GitStatusResult>>
   gitSuggestCommit: () => Promise<IpcResult<GitCommitSuggestion>>
-  createGitCheckpoint: (options?: { summary?: string }) => Promise<IpcResult<{ isRepo: boolean; checkpoint?: GitCheckpoint }>>
   previewManualGitCommit: () => Promise<IpcResult<ManualGitCommitPreview>>
   createManualGitCommit: (options?: {
     message?: string
@@ -846,32 +846,6 @@ export interface TaskweaverTerminalApi {
   onExit: (listener: (payload: { id: string; code: number | null }) => void) => () => void
 }
 
-export interface ToolDiagnosticInfo {
-  name: string
-  installed: boolean
-  resolvedPath: string | null
-  version: string | null
-  error: string | null
-  fixGuide: string | null
-}
-
-export interface EnvDiagnosticsInfo {
-  platform: string
-  arch: string
-  isDockLaunch: boolean
-  rawPath: string
-  effectivePath: string
-  standardToolDirs: string[]
-  tools: Record<string, ToolDiagnosticInfo>
-  launchMode: string
-  summary: string
-}
-
-export interface TaskweaverSystemApi {
-  getEnvDiagnostics: (customDirs?: string[]) => Promise<IpcResult<EnvDiagnosticsInfo>>
-  diagnoseTool: (name: string) => Promise<IpcResult<ToolDiagnosticInfo>>
-}
-
 export interface RoutingPortfolio {
   version: number
   display_names?: Record<string, string>
@@ -964,8 +938,6 @@ export interface TaskweaverPortfolioApi {
   get: () => Promise<IpcResult<RoutingPortfolio>>
   save: (portfolio: RoutingPortfolio) => Promise<IpcResult<{ ok: boolean; path: string }>>
   resetToBundled: () => Promise<IpcResult<{ ok: boolean; portfolio: RoutingPortfolio }>>
-  getBundledTemplate: () => Promise<IpcResult<RoutingPortfolio>>
-  getDisplayName: (modelKey: string) => Promise<IpcResult<string>>
 }
 
 export type BashSandboxPreference = 'auto' | 'workspace-write' | 'read-only' | 'off'
@@ -980,6 +952,10 @@ export interface AppPreferences {
   autoVerifyAfterMutation?: boolean
   /** 代码变更后自动运行项目验证并尝试静默修复；需显式开启。 */
   selfHealingLoop?: boolean
+  /** 自愈循环最多重试次数（1–3）。 */
+  selfHealingMaxRetries?: number
+  /** 首轮是否注入仓库结构图（repo map）。 */
+  enableRepoMap?: boolean
   /** 每轮 Prompt Pipeline 注入的系统上下文上限，单位为字节；默认 32 KiB。 */
   promptInjectionLimitBytes?: number
   /** 规则门控：灰区是否询问启用多 Agent（不调用模型）。 */
@@ -1128,14 +1104,19 @@ export interface TaskweaverWebSearchApi {
 export interface WorktreeEntry {
   taskId: string
   path: string
+  conversationId?: string
 }
 
 export interface TaskweaverWorktreeApi {
-  list: () => Promise<IpcResult<WorktreeEntry[]>>
-  remove: (taskId: string, force?: boolean) => Promise<IpcResult<{ removed: boolean }>>
-  diff: (taskId: string) => Promise<IpcResult<WorktreeDiffResult>>
-  previewMerge: (taskId: string) => Promise<IpcResult<WorktreeMergePreview>>
-  applyMerge: (taskId: string, options?: { removeAfter?: boolean }) => Promise<IpcResult<WorktreeMergeResult>>
+  list: (conversationId?: string | null) => Promise<IpcResult<WorktreeEntry[]>>
+  remove: (taskId: string, force?: boolean, conversationId?: string | null) => Promise<IpcResult<{ removed: boolean }>>
+  diff: (taskId: string, conversationId?: string | null) => Promise<IpcResult<WorktreeDiffResult>>
+  previewMerge: (taskId: string, conversationId?: string | null) => Promise<IpcResult<WorktreeMergePreview>>
+  applyMerge: (
+    taskId: string,
+    options?: { removeAfter?: boolean; files?: string[] },
+    conversationId?: string | null,
+  ) => Promise<IpcResult<WorktreeMergeResult>>
 }
 
 export interface TaskweaverMemoryApi {
@@ -1157,7 +1138,6 @@ export interface TaskweaverBridge {
   usage?: TaskweaverUsageApi
   openusage?: TaskweaverOpenUsageApi
   terminal?: TaskweaverTerminalApi
-  system?: TaskweaverSystemApi
   portfolio?: TaskweaverPortfolioApi
   preferences?: TaskweaverPreferencesApi
   sandbox?: TaskweaverSandboxApi

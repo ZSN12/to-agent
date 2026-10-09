@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { Check, Sun, Moon, Laptop, Palette } from 'lucide-react'
+import { useState } from 'react'
+import { Check } from 'lucide-react'
 import {
   ThemeMode,
   AccentColor,

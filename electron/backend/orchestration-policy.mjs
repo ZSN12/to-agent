@@ -207,15 +207,12 @@ export function selectModelForTask(taskType, catalog, fallbackModelKey, options 
     if (affinity) {
       const preferTags = affinity.prefer || []
       const avoidTags = affinity.avoid || []
-      let matchedPrefer = false
-
       for (const capName of preferTags) {
         const cap = portfolio?.capabilities?.[capName]
         if (cap?.match_model_ids) {
           const matchId = cap.match_model_ids.some((pat) => matchPattern(pat, key))
           if (matchId) {
             score += 35
-            matchedPrefer = true
             reasons.push(affinity.reason || `任务亲和：优先匹配能力 [${capName}]`)
             break
           }

@@ -5,7 +5,9 @@ import { fileURLToPath } from 'node:url'
 
 /* Phase 1: inventory tripwire, NOT proof that there is already one writer.
  * Audited first-party paths:
- * - register-ipc: steer, followUp, createUserMessage, failure, assistant result.
+ * - scheduled-job-run: scheduled job append lines.
+ * - register-ipc: IPC registration only (no direct transcript writes).
+ * - message-factory/chat-turn-pipeline: createUserMessage append.
  * - chat-turn-persistence: native terminal result and failure (same turn ids).
  * - app-state-store -> thread-store -> json-store: durable UI JSON cache;
  *   legacy taskweaver-app-state.json is read/migrated, fork copies UI messages.
@@ -32,9 +34,11 @@ import { fileURLToPath } from 'node:url'
  */
 const root = fileURLToPath(new URL('../', import.meta.url))
 const registry = [
-  ['electron/backend/register-ipc.mjs', 'appendMessagesToConversation:conversationId,userEntry', 3, 'steer/followUp/createUserMessage'],
-  ['electron/backend/register-ipc.mjs', 'appendMessagesToConversation:conversationId,{', 1, 'IPC failure'],
-  ['electron/backend/register-ipc.mjs', 'upsertMessagesToConversation:conversationId,agentEntry', 1, 'IPC assistant projection'],
+  ['electron/backend/message-factory.mjs', 'appendMessagesToConversation:conversationId,userEntry', 1, 'createUserMessage via chat-turn-pipeline'],
+  ['electron/backend/scheduled-job-run.mjs', 'appendMessagesToConversation:conversationId,{', 1, 'scheduled jobs failure append'],
+  ['electron/backend/chat-turn-pipeline.mjs', 'upsertMessagesToConversation:conversationId,agentEntry', 1, 'IPC assistant projection via chat-turn-pipeline'],
+  ['electron/backend/chat-turn-pipeline.mjs', 'upsertMessagesToConversation:conversationId,{', 1, 'handleChatError error patch upsert'],
+  ['electron/backend/chat-turn-pipeline.mjs', 'appendMessagesToConversation:conversationId,{', 1, 'handleChatError fallback error message'],
   ['electron/backend/chat-turn-persistence.mjs', 'upsertMessagesToConversation:conversationId,{', 2, 'native terminal projection + error'],
   ['electron/backend/dsh-chat-service.mjs', 'sessions.prompt:{sessionId:', 3, 'Host prompt admission'],
   ['electron/backend/thread-store.mjs', 'store.write:next)', 1, 'thread transaction'],

@@ -82,12 +82,6 @@ export function resolveOcxBunExecutable() {
   return null
 }
 
-export function isOcxBundled() {
-  if (!runtimeContext?.resourcesPath && !runtimeContext?.isPackaged) return false
-  const resolved = resolveOcxExecutable()
-  return isTaskWeaverOcxPath(resolved)
-}
-
 export function isTaskWeaverOcxPath(executablePath) {
   const normalized = String(executablePath ?? '').replace(/\\/g, '/').toLowerCase()
   return normalized.includes('/@taskweaver/opencodex/')

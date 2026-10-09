@@ -49,7 +49,7 @@
 
 ## IPC
 
-- `models:scanLocal` / `bridge:refreshCatalog`：发现 → 合并 models.json → 同步 Host → 返回可添加模型列表（含可选 `localAgents` 摘要）。
+- `models:scanLocal`：发现 → 合并 models.json → 同步 Host → 返回可添加模型列表（含可选 `localAgents` 摘要）。
 - `bridge:getStatus`：`localAgents` + 登录状态 + `discoveryAdapter: 'ocx-export'`。
 - `bridge:login`：`cursor` | `google-antigravity`（内部仍调 ocx login）。
 - `models:migrateLegacyOpenCodexRoutes`：`opencodex/*` → `bridge-composer/*`（已添加列表、profile、当前模型）；应用启动时自动尝试一次。

@@ -16,7 +16,11 @@ const outDir = path.join(root, 'electron/vendor')
 const outfile = path.join(outDir, 'dsh-chat-registry.mjs')
 
 if (!fs.existsSync(entry)) {
-  console.error('缺少 standalone-bundle.ts，请先同步 vendor/z-runtime')
+  if (fs.existsSync(outfile)) {
+    console.log(`跳过 dsh-chat-registry 重建（ui-conversation 已瘦身）；沿用 ${outfile}`)
+    process.exit(0)
+  }
+  console.error('缺少 standalone-bundle.ts，且 electron/vendor/dsh-chat-registry.mjs 不存在')
   process.exit(1)
 }
 

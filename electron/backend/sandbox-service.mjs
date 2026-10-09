@@ -131,17 +131,3 @@ export function wrapBashInvocation(command, cwd, policy) {
   return { program: confined[0], args: confined.slice(1), cwd }
 }
 
-export const DENIAL_SIGNATURES = {
-  seatbelt: ['operation not permitted'],
-  bwrap: ['read-only file system'],
-  landlock: ['permission denied'],
-  'windows-acl': ['windows-acl-run', 'access is denied'],
-}
-
-/** @param {string} stderr @param {string | null | undefined} runner */
-export function isSandboxDenial(stderr, runner) {
-  if (!stderr || !runner) return false
-  const hay = stderr.toLowerCase()
-  const sigs = DENIAL_SIGNATURES[runner] || []
-  return sigs.some((s) => hay.includes(s.toLowerCase()))
-}

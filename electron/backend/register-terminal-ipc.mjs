@@ -1,5 +1,4 @@
 import { createTerminalService } from './terminal-service.mjs'
-import { diagnoseEnvironment, diagnoseTool } from './env-service.mjs'
 import { ipcHandle } from './ipc-utils.mjs'
 
 export function registerTerminalIpc({ ipcMain, getWorkspacePath, fallbackWorkspace }) {
@@ -35,9 +34,6 @@ export function registerTerminalIpc({ ipcMain, getWorkspacePath, fallbackWorkspa
   ipcHandle(ipcMain, 'terminal:kill', (_event, payload = {}) =>
     terminalService.killSession(payload.id))
   ipcHandle(ipcMain, 'terminal:list', () => terminalService.listSessions())
-  ipcHandle(ipcMain, 'system:getEnvDiagnostics', (_event, customDirs = []) =>
-    diagnoseEnvironment(customDirs))
-  ipcHandle(ipcMain, 'system:diagnoseTool', (_event, name) => diagnoseTool(name))
 
   return terminalService
 }
