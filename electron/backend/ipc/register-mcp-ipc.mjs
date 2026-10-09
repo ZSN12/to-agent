@@ -78,7 +78,7 @@ export function registerMcpIpc(ctx) {
     manifest: getMarketplaceManifest(),
     entries: listMarketplaceEntries(),
   }))
-  ipcHandle(ipcMain, 'mcp:installCatalog', async (_event, { id, env } = {}) => {
+  ipcHandle(ipcMain, 'mcp:installCatalog', async (_event, id, env) => {
     assertMcpHostRestartSafe()
     const config = catalogEntryToServerConfig(id, { env })
     const saved = await mcp.installFromCatalog(config)

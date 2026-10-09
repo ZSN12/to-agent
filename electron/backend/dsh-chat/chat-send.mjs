@@ -42,6 +42,7 @@ export function createDshChatSend(deps) {
     persistTerminal = true,
     parentSessionId,
     permissionMode: requestedPermissionMode,
+    attachments = null,
   }) {
     if (!text || typeof text !== 'string') throw new Error('消息不能为空')
     if (!conversationId) throw new Error('当前对话标识无效')
@@ -87,7 +88,10 @@ export function createDshChatSend(deps) {
       const admission = Promise.resolve().then(() => api.sessions.prompt({
         sessionId: entry.sessionId,
         mode: behavior === 'steer' ? 'steer' : 'queue',
-        content: [{ type: 'text', text: submittedText }],
+        content: [
+          { type: 'text', text: submittedText },
+          ...(attachments || []).map(a => ({ type: 'image', mediaType: a.mediaType, data: a.data, name: a.name }))
+        ],
         clientTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       }))
       activeTurn.pendingPromptAdmissions.add(admission)
@@ -185,7 +189,10 @@ export function createDshChatSend(deps) {
       const reply = rpcValue(await api.sessions.prompt({
         sessionId: entry.sessionId,
         mode: behavior === 'steer' ? 'steer' : 'queue',
-        content: [{ type: 'text', text: submittedText }],
+        content: [
+          { type: 'text', text: submittedText },
+          ...(attachments || []).map(a => ({ type: 'image', mediaType: a.mediaType, data: a.data, name: a.name }))
+        ],
         ...(command ? { commandOnly: true } : {}),
         clientTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       }), '发送消息')

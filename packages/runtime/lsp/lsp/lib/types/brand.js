@@ -1,0 +1,18 @@
+"use strict";
+/**
+ * dsh-lsp's owned branded id: {@link LspProviderId}, the opaque identity a provider reserves on
+ * `ctx.lsp`. The `Branded<B>` primitive lives in `@z/dsh-brand`; keeping the type and its
+ * factory together here lets `index.ts` re-export both under one name.
+ * @module @z/dsh-lsp/brand
+ */
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.LspProviderId = LspProviderId;
+/**
+ * Brand a string as an {@link LspProviderId}. No validation — the registry rejects an empty id at
+ * registration.
+ * @param id - the provider's stable identifier.
+ * @returns the same string, branded.
+ */
+function LspProviderId(id) {
+    return id;
+}

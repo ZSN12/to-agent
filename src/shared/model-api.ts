@@ -71,6 +71,7 @@ export interface CatalogModel {
   name: string
   api: string
   reasoning: boolean
+  vision?: boolean
   contextWindow: number
   maxTokens: number
   costPerMillion: ModelCostPerMillion

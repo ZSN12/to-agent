@@ -29,7 +29,7 @@ export function ToolTraceCard({
   const isCode = item.toolName === 'code' || item.toolName === 'run_code'
 
   return (
-    <div className={`tool-trace-card ${item.status}`}>
+    <div className={`tool-trace-card ${item.status}`} data-testid="tool-card" role="group" aria-label={`工具调用：${item.toolName}`}>
       <div className="tool-trace-card-head">
         <Icon size={14} className="tool-trace-card-icon" aria-hidden />
         <strong className="tool-trace-name">{item.toolName}</strong>

@@ -9,10 +9,10 @@ const BUNDLED_CLIENT_SECRET = String(process.env.TASKWEAVER_GITHUB_OAUTH_CLIENT_
 
 export function resolveGitHubMcpOAuthCredentials() {
   const clientId = String(
-    process.env.TASKWEAVER_GITHUB_OAUTH_CLIENT_ID ?? BUNDLED_CLIENT_ID ?? '',
+    process.env.TASKWEAVER_GITHUB_OAUTH_CLIENT_ID || BUNDLED_CLIENT_ID || '',
   ).trim()
   const clientSecret = String(
-    process.env.TASKWEAVER_GITHUB_OAUTH_CLIENT_SECRET ?? BUNDLED_CLIENT_SECRET ?? '',
+    process.env.TASKWEAVER_GITHUB_OAUTH_CLIENT_SECRET || BUNDLED_CLIENT_SECRET || '',
   ).trim()
   return { clientId, clientSecret }
 }

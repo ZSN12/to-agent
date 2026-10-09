@@ -31,7 +31,7 @@
 - 空会话提示已改为明确说明“普通请求由单 Agent 直接执行”，并引导用户主动选择多智能体 Skill 或目标模式；不再暗示普通请求会被自动拆成 DAG。
 - 既有 Host 会话的 preset 不可原地修改；统计栏显示 Host 实际 preset。新 conversation 独立按首条请求解析 preset，不继承旧对话的 `code`。已由会话绑定冲突与独立 conversation 测试覆盖。
 - 对上述修改已重新运行 `test:user-intent`、`test:orchestration`、`test:dsh-chat`、`test:z-host-deploy`、`test:workspace-context` 与 `npm run build`，全部通过；最新源码打包到临时 `.app` 后，Host 部署/MCP/只读工具/DAG mock 验收也通过。
-- 本次遇到一次 registry 拉取失败后，`build-z-runtime.mjs` 已改为先在同级 staging 目录完整部署、修复并校验，再原子替换正式 deploy；失败会清理 staging 并保留上一个可用版本。原生 Host 部署、并发 DAG、MCP 与排队生命周期在恢复后的 `vendor/taskweaver-z-runtime` 上全部通过。此原子发布路径尚未经历一次完整联网构建。
+- 本次遇到一次 registry 拉取失败后，`build-host-runtime.mjs` 已改为先在同级 staging 目录完整部署、修复并校验，再原子替换正式 deploy；失败会清理 staging 并保留上一个可用版本。原生 Host 部署、并发 DAG、MCP 与排队生命周期在恢复后的 `vendor/taskweaver-z-runtime` 上全部通过。此原子发布路径尚未经历一次完整联网构建。
 - `scripts/run-parity-bench.mjs` schema v2 当前可汇总 read-smoke、生命周期/排队和 DAG 报告；小型 fixture 与真实 DAG 报告回归通过。三份已有 lifecycle 报告都不是源码读取通过：两份 MiMo 是 HTTP 402 计费拒绝、没有文件工具调用；79ms 那份 Host 历史只有 session header，没有 user message/tool event，旧 smoke 没保存可恢复的错误分类，具体原因未知。隐私安全汇总不包含错误正文，也不把它们计为通过；新 runner 改为保存脱敏错误类别、阶段、HTTP 状态及确认工具调用数。read-smoke 现新增 Host step 首 chunk/首文本/结束/retry 时序；`request/header` 单独作为配置快照计数，模型请求尝试数标为 step starts + 已启动 retries 的估算。现有 Host 事件没有 provider dispatch 精确起始事件，不能把该估算写成精确请求数；成功排队生命周期报告仍待补。
 
 ### 真实 MiMo 生命周期与排队复验（2026-10-07）
@@ -152,7 +152,7 @@
 
 ### 2026-10-07 只读子 Agent 与真实 Planner 五轮验收
 
-- source preset `vendor/z-runtime/apps/cli/config/agent-presets/taskweaver-readonly/agent.cordis.yml` 与当前 deploy preset SHA-256 均为 `b0ced271694b60bfca6ae0332a802a8d674e4f7b9e70df0dd5795a1bd31218b3`。每轮实时 Planner 的两条 research 子任务都有独立 Host session，Host session 元数据均为 `taskweaver-readonly`；Host 原生请求头确认 MiMo V2.6 Flash / Medium，工具历史每轮均为 T1 `read(package.json)` 一次、T2 `grep + read(electron/backend/dsh-session-model.mjs)`，无写入、shell、失败或越权调用。
+- source preset `packages/runtime/host-cli/config/agent-presets/taskweaver-readonly/agent.cordis.yml` 与当前 deploy preset SHA-256 均为 `b0ced271694b60bfca6ae0332a802a8d674e4f7b9e70df0dd5795a1bd31218b3`。每轮实时 Planner 的两条 research 子任务都有独立 Host session，Host session 元数据均为 `taskweaver-readonly`；Host 原生请求头确认 MiMo V2.6 Flash / Medium，工具历史每轮均为 T1 `read(package.json)` 一次、T2 `grep + read(electron/backend/dsh-session-model.mjs)`，无写入、shell、失败或越权调用。
 - **质量核对：**5/5 轮两项任务都完成且返回文本；T1 均给出 `electron/main.cjs` 及入口行号，T2 均解释 `sessionModelMatches`、`reasoningEffort` 缺失与 `lastAppliedSelection` 回退判定。每份 Host route、preset、文件工具审计均 verified。
 
   | 报告 | 总墙钟 | Planner 首阶段进度 | Host 子 Agent turn 重叠 | 验收 |

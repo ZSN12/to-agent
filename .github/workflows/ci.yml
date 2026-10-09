@@ -31,3 +31,75 @@ jobs:
         run: npm run test:all
       - name: Live / host deploy tests
         run: npm run test:live
+
+  dsh-unit:
+    name: DSH unit shard ${{ matrix.shard }}/4
+    runs-on: macos-14
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.19.0'
+          cache: pnpm
+          cache-dependency-path: packages/runtime/pnpm-lock.yaml
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
+          run_install: false
+      - name: Install DSH workspace dependencies
+        working-directory: packages/runtime
+        env:
+          CI: 'true'
+        run: pnpm install --frozen-lockfile --prod=false
+      - name: Build retained DSH Host packages
+        working-directory: packages/runtime
+        env:
+          CI: 'true'
+        run: pnpm run build:host
+      - name: Run retained DSH unit tests
+        env:
+          DSH_VITEST_SHARD: ${{ matrix.shard }}/4
+        run: npm run test:dsh-unit:shard
+
+  dsh-e2e:
+    name: DSH keyless and runtime E2E
+    runs-on: macos-14
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.19.0'
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
+          run_install: false
+      - name: Install desktop dependencies
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+        run: npm ci --omit=optional
+      - name: Install DSH workspace dependencies
+        working-directory: packages/runtime
+        env:
+          CI: 'true'
+        run: pnpm install --frozen-lockfile --prod=false
+      - name: Build retained DSH Host packages
+        working-directory: packages/runtime
+        env:
+          CI: 'true'
+        run: pnpm run build:host
+      - name: Build deployed TaskWeaver runtime
+        run: npm run build:z-runtime
+      - name: Check preset integrity and composition
+        run: npm run test:preset-integrity
+      - name: Run DSH E2E (provider-gated cases report as skipped)
+        run: npm run test:dsh-e2e
+      - name: Run mock-provider end-to-end deployment smoke (no API secrets)
+        run: npm run test:keyless-e2e

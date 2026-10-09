@@ -1,3 +1,5 @@
+import { app } from 'electron'
+import { createModelCatalogCache } from './model-catalog-cache.mjs'
 import { loadPriceRegistry, registryPriceMeta } from './price-registry.mjs'
 import { isCursorFamilyModelKey } from './cursor-model-route.mjs'
 import { createModelCatalog } from './model/catalog.mjs'
@@ -75,7 +77,29 @@ export function createModelService({
   }
 
   return {
-    listCatalog: catalog.listCatalog,
+    listCatalog: async (options = {}) => {
+      const { onUpdate } = options
+      const cache = createModelCatalogCache(userDataPath)
+      const appVersion = app?.getVersion?.() ?? 'test-version'
+      const credRefs = [] // 暂时空
+      const cacheContext = { appVersion, credRefs }
+
+      const cached = await cache.readCachedCatalog(cacheContext)
+      if (cached) {
+        // stale-while-revalidate: 触发后台刷新
+        catalog.listCatalog().then(async (latest) => {
+          await cache.writeCachedCatalog(cacheContext, latest).catch(() => {})
+          if (onUpdate && JSON.stringify(cached) !== JSON.stringify(latest)) {
+            onUpdate(latest)
+          }
+        }).catch(() => {})
+        return cached
+      }
+
+      const latest = await catalog.listCatalog()
+      await cache.writeCachedCatalog(cacheContext, latest).catch(() => {})
+      return latest
+    },
     refreshCatalog: catalog.refreshCatalog,
     loadModelBundle: credentials.loadModelBundle,
     listProvidersAuth: credentials.listProvidersAuth,

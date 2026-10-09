@@ -4,6 +4,21 @@ const path = require('node:path')
 const { pathToFileURL } = require('node:url')
 const { configureStartupTrace, traceStartup } = require('./startup-trace.cjs')
 
+// Self-verification always starts a fresh development instance. Set this before
+// any backend service reads app.getPath('userData') so the real profile cannot
+// be opened or modified by an E2E process.
+if (process.env.TASKWEAVER_E2E === '1') {
+  const isolatedUserData = process.env.TASKWEAVER_USER_DATA
+  if (app.isPackaged || process.env.TASKWEAVER_PACKAGED === '1' || process.env.TASKWEAVER_PACKAGED === 'true') {
+    throw new Error('TASKWEAVER_E2E is supported only by the unpackaged development app')
+  }
+  if (!isolatedUserData || !path.isAbsolute(isolatedUserData)) {
+    throw new Error('TASKWEAVER_E2E requires an absolute TASKWEAVER_USER_DATA directory')
+  }
+  fs.mkdirSync(isolatedUserData, { recursive: true })
+  app.setPath('userData', path.resolve(isolatedUserData))
+}
+
 configureStartupTrace(app)
 traceStartup('main:module-start')
 

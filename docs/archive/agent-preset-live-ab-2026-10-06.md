@@ -25,8 +25,8 @@
 
 ## 代码改动与验证
 
-- `vendor/z-runtime/apps/cli/config/agent-presets/code/agent.cordis.yml` 增加明确协议：Code Mode 会话只能直接调用 `run_code`，其他能力必须通过生成的 `tools` SDK 在程序内调用。
-- `vendor/z-runtime/apps/cli/config/agent-presets/standard/agent.cordis.yml` 增加准确路径优先规则：用户给出文件路径时直接 `read`，只有路径不明确才窄范围搜索；部署 Host 集成测试检查该指令已进入模型请求。
+- `packages/runtime/host-cli/config/agent-presets/code/agent.cordis.yml` 增加明确协议：Code Mode 会话只能直接调用 `run_code`，其他能力必须通过生成的 `tools` SDK 在程序内调用。
+- `packages/runtime/host-cli/config/agent-presets/standard/agent.cordis.yml` 增加准确路径优先规则：用户给出文件路径时直接 `read`，只有路径不明确才窄范围搜索；部署 Host 集成测试检查该指令已进入模型请求。
 - `scripts/run-agent-read-smoke.mjs` 允许对 DSH 的 `standard`、`code`、`minimal`、`cordis` 做本地真实 Host 对照，也保留 TaskWeaver 内部预设。
 - 该脚本支持 `TASKWEAVER_Z_RUNTIME` 指向隔离目录，便于真实模型复测而不覆盖仓库内或已安装的 Runtime。
 - `scripts/test-z-host-deploy.mjs` 检查部署后的主 `code` 预设包含该协议，而非仅检查源码模板。

@@ -102,6 +102,13 @@ try {
   const firstSend = app.sendMessage('read the entrypoint')
   await flush()
   await emit({ type: 'start', conversationId: 'c1', turnId: 'first', startedAt: 1000 })
+  await emit({ type: 'start', conversationId: 'c2', turnId: 'parallel', startedAt: 1001 })
+  assert.ok(app.runningConversationIds.includes('c1') && app.runningConversationIds.includes('c2'),
+    'two independent conversations must both show as running')
+  await emit({ type: 'done', conversationId: 'c2', turnId: 'parallel', startedAt: 1001,
+    full: 'parallel answer', continuing: false })
+  assert.ok(app.runningConversationIds.includes('c1') && !app.runningConversationIds.includes('c2'),
+    'completing one conversation must leave the other conversation running')
   await emit({ type: 'delta', conversationId: 'c1', delta: 'first answer', full: 'first answer' })
   await emit({ type: 'tool', conversationId: 'c1', id: 'first-read', toolName: 'read', status: 'done' })
   assert.equal(app.toolTraces.length, 1, 'active turn tool calls should be visible in the current tool batch')

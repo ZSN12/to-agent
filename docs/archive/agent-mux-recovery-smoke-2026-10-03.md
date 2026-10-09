@@ -6,7 +6,7 @@
 
 修复前断流后原生 `sessions.list` 显示 Agent `running=true`，而 TaskWeaver `chat.isBusy` 已是 false，并立即 reject 首条 send。测试实际失败于 `transport loss must not falsely complete the Agent`。原生任务并未停止，接入层却声称结束。
 
-原生接口 `vendor/z-runtime/packages/host/apiproxy/src/api/events.ts` 明确规定 `since` 暂不实现，恢复方式是重新打开 stream 并重新读取 history；原生客户端 Session 使用 seq 拼接历史/实时事件、清理新连接的队列基线。旧 TaskWeaver 桥接只重开连接，没有补齐断流期间的历史。
+原生接口 `packages/runtime/host/apiproxy/src/api/events.ts` 明确规定 `since` 暂不实现，恢复方式是重新打开 stream 并重新读取 history；原生客户端 Session 使用 seq 拼接历史/实时事件、清理新连接的队列基线。旧 TaskWeaver 桥接只重开连接，没有补齐断流期间的历史。
 
 双会话用例加强到断言真实连接数后，还复现首次同时发送开两条 mux：`actual 2 / expected 1`。只检查两份答案会漏掉它，甚至会让第二条连接掩盖第一条断流。初始化现在共享一个尚未完成的 ready/mux handshake；用例要求一次初始连接、一次重连，并要求两会话都收到恢复状态。
 

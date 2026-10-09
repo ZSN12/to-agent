@@ -1,0 +1,10 @@
+{
+  "extends": "../../../../tsconfig.base.json",
+  "compilerOptions": { "rootDir": "src", "outDir": "lib/types", "noUncheckedIndexedAccess": false },
+  "include": ["src"],
+  "references": [
+    { "path": "../../../../vendor/cosmokit" }, { "path": "../../../../vendor/cordis" }, { "path": "../../../../vendor/schemastery" },
+    { "path": "../../core/tools" }, { "path": "../../core/system-prompt" }, { "path": "../fs" }, { "path": "../tool-fs" },
+    { "path": "../../runtime-diagnostics/invariants" }
+  ]
+}

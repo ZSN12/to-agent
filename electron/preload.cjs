@@ -5,58 +5,58 @@ const { contextBridge, ipcRenderer, webUtils } = require('electron')
 const invoke = (channel, ...args) => ipcRenderer.invoke(channel, ...args)
 
 contextBridge.exposeInMainWorld('taskweaver', {
-  backendReady: () => invoke('backend:ready'),
+  backendReady: (...args) => invoke("backend:ready", ...args),
   app: {
-    clearConversation: (options) => invoke('app:clearConversation', options),
-    deleteThread: (threadId) => invoke('app:deleteThread', threadId),
-    forkThread: (threadId, messageId) => invoke('app:forkThread', threadId, messageId),
-    getState: () => invoke('app:getState'),
-    listOutputLogs: (options) => invoke('app:listOutputLogs', options ?? {}),
-    listThreads: () => invoke('app:listThreads'),
-    pickWorkspace: () => invoke('app:pickWorkspace'),
-    renameThread: (threadId, title) => invoke('app:renameThread', threadId, title),
-    searchThreads: (query, options) => invoke('app:searchThreads', query, options),
-    setModelKey: (modelKey) => invoke('app:setModelKey', modelKey),
-    setPermissionMode: (mode) => invoke('app:setPermissionMode', mode),
-    setThinkingLevel: (thinkingLevel) => invoke('app:setThinkingLevel', thinkingLevel),
-    setWorkspace: (workspacePath) => invoke('app:setWorkspace', workspacePath),
-    switchThread: (threadId) => invoke('app:switchThread', threadId),
-    toggleArchiveThread: (threadId) => invoke('app:toggleArchiveThread', threadId),
-    togglePinThread: (threadId) => invoke('app:togglePinThread', threadId)
+    clearConversation: (...args) => invoke("app:clearConversation", ...args),
+    deleteThread: (...args) => invoke("app:deleteThread", ...args),
+    forkThread: (...args) => invoke("app:forkThread", ...args),
+    getState: (...args) => invoke("app:getState", ...args),
+    listOutputLogs: (...args) => invoke("app:listOutputLogs", ...args),
+    listThreads: (...args) => invoke("app:listThreads", ...args),
+    pickWorkspace: (...args) => invoke("app:pickWorkspace", ...args),
+    renameThread: (...args) => invoke("app:renameThread", ...args),
+    searchThreads: (...args) => invoke("app:searchThreads", ...args),
+    setModelKey: (...args) => invoke("app:setModelKey", ...args),
+    setPermissionMode: (...args) => invoke("app:setPermissionMode", ...args),
+    setThinkingLevel: (...args) => invoke("app:setThinkingLevel", ...args),
+    setWorkspace: (...args) => invoke("app:setWorkspace", ...args),
+    switchThread: (...args) => invoke("app:switchThread", ...args),
+    toggleArchiveThread: (...args) => invoke("app:toggleArchiveThread", ...args),
+    togglePinThread: (...args) => invoke("app:togglePinThread", ...args)
   },
   models: {
-    bridgeGetStatus: () => invoke('bridge:getStatus'),
-    bridgeLogin: (kind) => invoke('bridge:login', kind),
-    add: (modelKey) => invoke('models:add', modelKey),
-    batchAddCustomModels: (payload) => invoke('models:batchAddCustomModels', payload ?? {}),
-    cancelOAuth: () => invoke('models:cancelOAuth'),
-    checkForUpdates: (options) => invoke('models:checkForUpdates', options ?? {}),
-    getBusyEnterMode: () => invoke('models:getBusyEnterMode'),
-    getThinkingLevel: () => invoke('models:getThinkingLevel'),
-    getUpdateStatus: () => invoke('models:getUpdateStatus'),
-    list: () => invoke('models:list'),
-    listCustomProviders: () => invoke('models:listCustomProviders'),
-    loadBundle: () => invoke('models:loadBundle'),
-    logoutOAuth: (providerId) => invoke('models:logoutOAuth', providerId),
-    migrateLegacyOpenCodexRoutes: () => invoke('models:migrateLegacyOpenCodexRoutes'),
-    probeProviderModels: (payload) => invoke('models:probeProviderModels', payload ?? {}),
-    listProvidersAuth: () => invoke('models:providersAuth'),
-    refresh: () => invoke('models:refresh'),
-    remove: (modelKey) => invoke('models:remove', modelKey),
-    removeCustomProvider: (providerId) => invoke('models:removeCustomProvider', providerId),
-    removeProviderCredentials: (providerId) => invoke('models:removeProviderCredentials', providerId),
-    rollbackRegistry: () => invoke('models:rollbackRegistry'),
-    scanLocal: () => invoke('models:scanLocal'),
-    setActive: (modelKey) => invoke('models:setActive', modelKey),
-    setBusyEnterMode: (mode) => invoke('models:setBusyEnterMode', mode),
-    setProviderApiKey: (providerId, apiKey) => invoke('models:setProviderApiKey', providerId, apiKey),
-    setThinkingLevel: (level) => invoke('models:setThinkingLevel', level),
-    startOAuth: (providerId) => invoke('models:startOAuth', providerId),
-    submitOAuthCode: (code) => invoke('models:submitOAuthCode', code),
-    testCustomProvider: (payload) => invoke('models:testCustomProvider', payload),
-    testCustomProviderToolCall: (payload) => invoke('models:testCustomProviderToolCall', payload),
-    upsertCustomProvider: (payload) => invoke('models:upsertCustomProvider', payload),
-    upsertProfile: (modelKey, patch) => invoke('models:upsertProfile', modelKey, patch),
+    bridgeGetStatus: (...args) => invoke("bridge:getStatus", ...args),
+    bridgeLogin: (...args) => invoke("bridge:login", ...args),
+    add: (...args) => invoke("models:add", ...args),
+    batchAddCustomModels: (...args) => invoke("models:batchAddCustomModels", ...args),
+    cancelOAuth: (...args) => invoke("models:cancelOAuth", ...args),
+    checkForUpdates: (...args) => invoke("models:checkForUpdates", ...args),
+    getBusyEnterMode: (...args) => invoke("models:getBusyEnterMode", ...args),
+    getThinkingLevel: (...args) => invoke("models:getThinkingLevel", ...args),
+    getUpdateStatus: (...args) => invoke("models:getUpdateStatus", ...args),
+    list: (...args) => invoke("models:list", ...args),
+    listCustomProviders: (...args) => invoke("models:listCustomProviders", ...args),
+    loadBundle: (...args) => invoke("models:loadBundle", ...args),
+    logoutOAuth: (...args) => invoke("models:logoutOAuth", ...args),
+    migrateLegacyOpenCodexRoutes: (...args) => invoke("models:migrateLegacyOpenCodexRoutes", ...args),
+    probeProviderModels: (...args) => invoke("models:probeProviderModels", ...args),
+    listProvidersAuth: (...args) => invoke("models:providersAuth", ...args),
+    refresh: (...args) => invoke("models:refresh", ...args),
+    remove: (...args) => invoke("models:remove", ...args),
+    removeCustomProvider: (...args) => invoke("models:removeCustomProvider", ...args),
+    removeProviderCredentials: (...args) => invoke("models:removeProviderCredentials", ...args),
+    rollbackRegistry: (...args) => invoke("models:rollbackRegistry", ...args),
+    scanLocal: (...args) => invoke("models:scanLocal", ...args),
+    setActive: (...args) => invoke("models:setActive", ...args),
+    setBusyEnterMode: (...args) => invoke("models:setBusyEnterMode", ...args),
+    setProviderApiKey: (...args) => invoke("models:setProviderApiKey", ...args),
+    setThinkingLevel: (...args) => invoke("models:setThinkingLevel", ...args),
+    startOAuth: (...args) => invoke("models:startOAuth", ...args),
+    submitOAuthCode: (...args) => invoke("models:submitOAuthCode", ...args),
+    testCustomProvider: (...args) => invoke("models:testCustomProvider", ...args),
+    testCustomProviderToolCall: (...args) => invoke("models:testCustomProviderToolCall", ...args),
+    upsertCustomProvider: (...args) => invoke("models:upsertCustomProvider", ...args),
+    upsertProfile: (...args) => invoke("models:upsertProfile", ...args),
     onOAuthStatus: (listener) => {
   const handler = (_event, payload) => listener(payload)
   ipcRenderer.on("models:oauthStatus", handler)
@@ -69,34 +69,34 @@ contextBridge.exposeInMainWorld('taskweaver', {
 }
   },
   openusage: {
-    getLimits: (options) => invoke('openusage:getLimits', options)
+    getLimits: (...args) => invoke("openusage:getLimits", ...args)
   },
   portfolio: {
-    get: () => invoke('portfolio:get'),
-    resetToBundled: () => invoke('portfolio:resetToBundled'),
-    save: (portfolio) => invoke('portfolio:save', portfolio)
+    get: (...args) => invoke("portfolio:get", ...args),
+    resetToBundled: (...args) => invoke("portfolio:resetToBundled", ...args),
+    save: (...args) => invoke("portfolio:save", ...args)
   },
   pricing: {
-    getStatus: () => invoke('pricing:getStatus'),
-    sync: () => invoke('pricing:sync')
+    getStatus: (...args) => invoke("pricing:getStatus", ...args),
+    sync: (...args) => invoke("pricing:sync", ...args)
   },
   usage: {
-    clear: () => invoke('usage:clear'),
-    getReport: (query) => invoke('usage:getReport', query),
-    getStats: () => invoke('usage:getStats')
+    clear: (...args) => invoke("usage:clear", ...args),
+    getReport: (...args) => invoke("usage:getReport", ...args),
+    getStats: (...args) => invoke("usage:getStats", ...args)
   },
   chat: {
-    cancel: (conversationId) => invoke('chat:cancel', conversationId ?? null),
-    getDshView: (conversationId) => invoke('chat:getDshView', conversationId ?? null),
-    getLiveContext: (conversationId) => invoke('chat:getLiveContext', conversationId ?? null),
-    getSessionStats: (conversationId) => invoke('chat:getSessionStats', conversationId ?? null),
-    listRunningConversations: () => invoke('chat:listRunningConversations'),
-    queueMutate: (payload) => invoke('chat:queueMutate', payload),
-    subscribeMux: (conversationId) => invoke('chat:subscribeMux', conversationId),
-    unsubscribeMux: (conversationId) => invoke('chat:unsubscribeMux', conversationId),
-    followUp: (text, conversationId) => invoke('chat:followUp', text, conversationId ?? null),
-    send: (text, modelKey, skillName, executionModeOverride, workMode, conversationId) => invoke('chat:send', text, modelKey ?? null, skillName ?? null, executionModeOverride ?? null, workMode ?? 'code', conversationId ?? null),
-    steer: (text, conversationId) => invoke('chat:steer', text, conversationId ?? null),
+    cancel: (...args) => invoke("chat:cancel", ...args),
+    getDshView: (...args) => invoke("chat:getDshView", ...args),
+    getLiveContext: (...args) => invoke("chat:getLiveContext", ...args),
+    getSessionStats: (...args) => invoke("chat:getSessionStats", ...args),
+    listRunningConversations: (...args) => invoke("chat:listRunningConversations", ...args),
+    queueMutate: (...args) => invoke("chat:queueMutate", ...args),
+    subscribeMux: (...args) => invoke("chat:subscribeMux", ...args),
+    unsubscribeMux: (...args) => invoke("chat:unsubscribeMux", ...args),
+    followUp: (...args) => invoke("chat:followUp", ...args),
+    send: (...args) => invoke("chat:send", ...args),
+    steer: (...args) => invoke("chat:steer", ...args),
     onMux: (listener) => {
   const handler = (_event, payload) => listener(payload)
   ipcRenderer.on("chat:mux", handler)
@@ -119,49 +119,49 @@ contextBridge.exposeInMainWorld('taskweaver', {
 }
   },
   skills: {
-    list: () => invoke('skills:list')
+    list: (...args) => invoke("skills:list", ...args)
   },
   tasks: {
-    cancel: (taskId, conversationId) => invoke('tasks:cancel', taskId, conversationId ?? null),
-    sendMessage: (taskId, text, conversationId) => invoke('tasks:sendMessage', taskId, text, conversationId ?? null)
+    cancel: (...args) => invoke("tasks:cancel", ...args),
+    sendMessage: (...args) => invoke("tasks:sendMessage", ...args)
   },
   github: {
-    listPullRequests: (workspacePath) => invoke('github:listPullRequests', workspacePath ?? null)
+    listPullRequests: (...args) => invoke("github:listPullRequests", ...args)
   },
   preferences: {
-    get: () => invoke('preferences:get'),
-    set: (patch) => invoke('preferences:set', patch)
+    get: (...args) => invoke("preferences:get", ...args),
+    set: (...args) => invoke("preferences:set", ...args)
   },
   webSearch: {
-    getConfig: () => invoke('webSearch:getConfig'),
-    setConfig: (patch) => invoke('webSearch:setConfig', patch),
-    testSearch: (query) => invoke('webSearch:testSearch', query)
+    getConfig: (...args) => invoke("webSearch:getConfig", ...args),
+    setConfig: (...args) => invoke("webSearch:setConfig", ...args),
+    testSearch: (...args) => invoke("webSearch:testSearch", ...args)
   },
   jobs: {
-    installLaunchAgent: (jobId) => invoke('jobs:installLaunchAgent', jobId),
-    list: () => invoke('jobs:list'),
-    launchAgentInstalled: (jobId) => invoke('jobs:launchAgentInstalled', jobId),
-    remove: (jobId) => invoke('jobs:remove', jobId),
-    removeLaunchAgent: (jobId) => invoke('jobs:removeLaunchAgent', jobId),
-    runNow: (jobId) => invoke('jobs:runNow', jobId),
-    upsert: (job) => invoke('jobs:upsert', job)
+    installLaunchAgent: (...args) => invoke("jobs:installLaunchAgent", ...args),
+    list: (...args) => invoke("jobs:list", ...args),
+    launchAgentInstalled: (...args) => invoke("jobs:launchAgentInstalled", ...args),
+    remove: (...args) => invoke("jobs:remove", ...args),
+    removeLaunchAgent: (...args) => invoke("jobs:removeLaunchAgent", ...args),
+    runNow: (...args) => invoke("jobs:runNow", ...args),
+    upsert: (...args) => invoke("jobs:upsert", ...args)
   },
   mcp: {
-    cancelGitHubOAuth: () => invoke('mcp:cancelGitHubOAuth'),
-    catalog: () => invoke('mcp:catalog'),
-    configureGitHub: (token) => invoke('mcp:configureGitHub', token),
-    disconnect: (id) => invoke('mcp:disconnect', id),
-    getGitHubOAuthAvailability: () => invoke('mcp:getGitHubOAuthAvailability'),
-    getRuntimeBinding: () => invoke('mcp:getRuntimeBinding'),
-    installCatalog: (id, env) => invoke('mcp:installCatalog', { id, env }),
-    list: () => invoke('mcp:list'),
-    marketplace: () => invoke('mcp:marketplace'),
-    refresh: () => invoke('mcp:refresh'),
-    remove: (id) => invoke('mcp:remove', id),
-    save: (server) => invoke('mcp:save', server),
-    setEnabled: (id, enabled) => invoke('mcp:setEnabled', id, enabled),
-    startGitHubOAuth: () => invoke('mcp:startGitHubOAuth'),
-    testConnection: (id) => invoke('mcp:testConnection', id),
+    cancelGitHubOAuth: (...args) => invoke("mcp:cancelGitHubOAuth", ...args),
+    catalog: (...args) => invoke("mcp:catalog", ...args),
+    configureGitHub: (...args) => invoke("mcp:configureGitHub", ...args),
+    disconnect: (...args) => invoke("mcp:disconnect", ...args),
+    getGitHubOAuthAvailability: (...args) => invoke("mcp:getGitHubOAuthAvailability", ...args),
+    getRuntimeBinding: (...args) => invoke("mcp:getRuntimeBinding", ...args),
+    installCatalog: (...args) => invoke("mcp:installCatalog", ...args),
+    list: (...args) => invoke("mcp:list", ...args),
+    marketplace: (...args) => invoke("mcp:marketplace", ...args),
+    refresh: (...args) => invoke("mcp:refresh", ...args),
+    remove: (...args) => invoke("mcp:remove", ...args),
+    save: (...args) => invoke("mcp:save", ...args),
+    setEnabled: (...args) => invoke("mcp:setEnabled", ...args),
+    startGitHubOAuth: (...args) => invoke("mcp:startGitHubOAuth", ...args),
+    testConnection: (...args) => invoke("mcp:testConnection", ...args),
     onGitHubOAuthStatus: (listener) => {
   const handler = (_event, payload) => listener(payload)
   ipcRenderer.on("mcp:githubOAuthStatus", handler)
@@ -169,16 +169,16 @@ contextBridge.exposeInMainWorld('taskweaver', {
 }
   },
   memory: {
-    clear: () => invoke('memory:clear'),
-    get: () => invoke('memory:get')
+    clear: (...args) => invoke("memory:clear", ...args),
+    get: (...args) => invoke("memory:get", ...args)
   },
   permission: {
-    addRule: (rule) => invoke('permission:addRule', rule),
-    clearRules: (options) => invoke('permission:clearRules', options),
-    listApprovalAudit: (conversationId) => invoke('permission:listApprovalAudit', conversationId ?? null),
-    listRules: () => invoke('permission:listRules'),
-    removeRule: (id) => invoke('permission:removeRule', id),
-    respondPrompt: (id, response) => invoke('permission:respondPrompt', id, response),
+    addRule: (...args) => invoke("permission:addRule", ...args),
+    clearRules: (...args) => invoke("permission:clearRules", ...args),
+    listApprovalAudit: (...args) => invoke("permission:listApprovalAudit", ...args),
+    listRules: (...args) => invoke("permission:listRules", ...args),
+    removeRule: (...args) => invoke("permission:removeRule", ...args),
+    respondPrompt: (...args) => invoke("permission:respondPrompt", ...args),
     onPrompt: (listener) => {
   const handler = (_event, payload) => listener(payload)
   ipcRenderer.on("permission:prompt", handler)
@@ -186,8 +186,8 @@ contextBridge.exposeInMainWorld('taskweaver', {
 }
   },
   userQuestions: {
-    answer: (id, answer) => invoke('userQuestions:answer', id, answer),
-    cancel: (id) => invoke('userQuestions:cancel', id),
+    answer: (...args) => invoke("userQuestions:answer", ...args),
+    cancel: (...args) => invoke("userQuestions:cancel", ...args),
     onPrompt: (listener) => {
   const handler = (_event, payload) => listener(payload)
   ipcRenderer.on("user-question:prompt", handler)
@@ -200,9 +200,9 @@ contextBridge.exposeInMainWorld('taskweaver', {
 }
   },
   sandbox: {
-    getEffective: () => invoke('sandbox:getEffective'),
-    probe: () => invoke('sandbox:probe'),
-    setSessionMode: (mode) => invoke('sandbox:setSessionMode', mode),
+    getEffective: (...args) => invoke("sandbox:getEffective", ...args),
+    probe: (...args) => invoke("sandbox:probe", ...args),
+    setSessionMode: (...args) => invoke("sandbox:setSessionMode", ...args),
     onMode: (listener) => {
   const handler = (_event, payload) => listener(payload)
   ipcRenderer.on("sandbox:mode", handler)
@@ -210,11 +210,11 @@ contextBridge.exposeInMainWorld('taskweaver', {
 }
   },
   terminal: {
-    create: (options) => invoke('terminal:create', options),
-    kill: (id) => invoke('terminal:kill', { id }),
-    list: () => invoke('terminal:list'),
-    resize: (id, cols, rows) => invoke('terminal:resize', { id, cols, rows }),
-    write: (id, data) => invoke('terminal:write', { id, data }),
+    create: (...args) => invoke("terminal:create", ...args),
+    kill: (...args) => invoke("terminal:kill", ...args),
+    list: (...args) => invoke("terminal:list", ...args),
+    resize: (...args) => invoke("terminal:resize", ...args),
+    write: (...args) => invoke("terminal:write", ...args),
     onData: (listener) => {
   const handler = (_event, payload) => listener(payload)
   ipcRenderer.on("terminal:data", handler)
@@ -227,32 +227,32 @@ contextBridge.exposeInMainWorld('taskweaver', {
 }
   },
   worktree: {
-    applyMerge: (taskId, options, conversationId, runId) => invoke('worktree:applyMerge', taskId, options ?? {}, conversationId ?? null, runId ?? null),
-    diff: (taskId, conversationId, runId) => invoke('worktree:diff', taskId, conversationId ?? null, runId ?? null),
-    list: (conversationId) => invoke('worktree:list', conversationId ?? null),
-    previewMerge: (taskId, conversationId, runId) => invoke('worktree:previewMerge', taskId, conversationId ?? null, runId ?? null),
-    remove: (taskId, force, conversationId, runId) => invoke('worktree:remove', taskId, force === true, conversationId ?? null, runId ?? null)
+    applyMerge: (...args) => invoke("worktree:applyMerge", ...args),
+    diff: (...args) => invoke("worktree:diff", ...args),
+    list: (...args) => invoke("worktree:list", ...args),
+    previewMerge: (...args) => invoke("worktree:previewMerge", ...args),
+    remove: (...args) => invoke("worktree:remove", ...args)
   },
   workspace: {
-    createManualGitCommit: (options) => invoke('workspace:createManualGitCommit', options),
-    deleteGitCheckpoint: (checkpointId) => invoke('workspace:deleteGitCheckpoint', checkpointId),
-    getGitCheckpointDiff: (checkpointId) => invoke('workspace:getGitCheckpointDiff', checkpointId),
-    gitStatus: () => invoke('workspace:gitStatus'),
-    gitSuggestCommit: () => invoke('workspace:gitSuggestCommit'),
-    listGitCheckpoints: () => invoke('workspace:listGitCheckpoints'),
-    openPath: (relativePath) => invoke('workspace:openPath', relativePath),
-    previewManualGitCommit: () => invoke('workspace:previewManualGitCommit'),
-    restoreGitCheckpoint: (payload) => invoke('workspace:restoreGitCheckpoint', payload),
-    revertDiff: (payload) => invoke('workspace:revertDiff', payload),
-    createReference: (droppedPath) => invoke('workspace:createReference', droppedPath),
-    getTrust: () => invoke('workspace:getTrust'),
-    listContext: (query, limit) => invoke('workspace:listContext', query ?? '', limit ?? 100),
-    saveClipboardImage: (payload) => invoke('workspace:saveClipboardImage', payload),
-    setTrust: (trusted) => invoke('workspace:setTrust', trusted),
+    createManualGitCommit: (...args) => invoke("workspace:createManualGitCommit", ...args),
+    deleteGitCheckpoint: (...args) => invoke("workspace:deleteGitCheckpoint", ...args),
+    getGitCheckpointDiff: (...args) => invoke("workspace:getGitCheckpointDiff", ...args),
+    gitStatus: (...args) => invoke("workspace:gitStatus", ...args),
+    gitSuggestCommit: (...args) => invoke("workspace:gitSuggestCommit", ...args),
+    listGitCheckpoints: (...args) => invoke("workspace:listGitCheckpoints", ...args),
+    openPath: (...args) => invoke("workspace:openPath", ...args),
+    previewManualGitCommit: (...args) => invoke("workspace:previewManualGitCommit", ...args),
+    restoreGitCheckpoint: (...args) => invoke("workspace:restoreGitCheckpoint", ...args),
+    revertDiff: (...args) => invoke("workspace:revertDiff", ...args),
+    createReference: (...args) => invoke("workspace:createReference", ...args),
+    getTrust: (...args) => invoke("workspace:getTrust", ...args),
+    listContext: (...args) => invoke("workspace:listContext", ...args),
+    saveClipboardImage: (...args) => invoke("workspace:saveClipboardImage", ...args),
+    setTrust: (...args) => invoke("workspace:setTrust", ...args),
     getDroppedFilePath: (file) => webUtils.getPathForFile(file)
   }
 ,
   ...(process.env.TASKWEAVER_DEVTOOLS === '1' ? { debug: {
-      shadowTranscript: (conversationId) => invoke('debug:shadowTranscript', conversationId ?? null)
+      shadowTranscript: (...args) => invoke("debug:shadowTranscript", ...args)
     } } : {})
 })

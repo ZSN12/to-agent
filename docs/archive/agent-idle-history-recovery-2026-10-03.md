@@ -17,7 +17,7 @@ Using the real deployed Z Host with a local deterministic OpenAI-compatible test
 - `node scripts/test-z-command-lifecycle.mjs` — passed, including the 31-second idle gap and cancellation path.
 - `npm run test:dsh-chat` — passed.
 - `npm run test:z-recovery` — passed (parallel Agents, native history recovery, approval/question replay, retry exhaustion, cancellation).
-- `vendor/z-runtime`: `vitest run packages/host/apiproxy/tests/api-proxy-view.spec.ts` — passed, including cross-scope mux subscriptions.
+- `packages/runtime`: `vitest run packages/host/apiproxy/tests/api-proxy-view.spec.ts` — passed, including cross-scope mux subscriptions.
 - `git diff --check` — passed.
 
 ## Remaining limitation

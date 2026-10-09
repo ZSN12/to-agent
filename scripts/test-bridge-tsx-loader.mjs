@@ -9,12 +9,12 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const loader = path.join(root, 'packages/taskweaver-bridge-transport/cursor-adapter-loader.mjs')
+const loader = path.join(root, 'packages/provider-bridge-transport/cursor-adapter-loader.mjs')
 const source = fs.readFileSync(loader, 'utf8')
 assert.match(source, /dist', 'cjs', 'api', 'index\.cjs'/, 'cursor-adapter-loader must prefer tsx CJS register for Electron')
 
 const deployTsx = path.join(root, 'vendor/taskweaver-z-runtime/runtime-packages/tsx')
-const monorepoTsx = path.join(root, 'vendor/z-runtime/node_modules/tsx')
+const monorepoTsx = path.join(root, 'packages/runtime/node_modules/tsx')
 const tsxDir = fs.existsSync(deployTsx) ? deployTsx : monorepoTsx
 assert.ok(fs.existsSync(path.join(tsxDir, 'dist/cjs/api/index.cjs')), `missing tsx package at ${tsxDir}`)
 

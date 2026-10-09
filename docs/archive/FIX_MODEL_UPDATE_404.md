@@ -18,7 +18,7 @@ const DEFAULT_MANIFEST_URL = 'https://github.com/ZSN12/to-agent/releases/downloa
 这个 URL 返回 404，因为：
 1. TaskWeaver 项目的 fork 仓库 `ZSN12/to-agent` 没有发布模型目录
 2. Z Runtime 是独立维护的运行时，不应该从上游 DSH 更新模型目录
-3. TaskWeaver 使用的是 `vendor/z-runtime` 打包的本地运行时
+3. TaskWeaver 使用的是 `packages/runtime` 打包的本地运行时
 
 ### 影响范围
 - **优先级**：P2（不影响核心功能，但影响用户体验）

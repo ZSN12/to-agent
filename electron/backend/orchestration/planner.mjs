@@ -187,6 +187,7 @@ function parsePlan(text) {
     taskType: TASK_TYPES.has(task.taskType) ? task.taskType : 'implementation',
     dependsOn: Array.isArray(task.dependsOn) ? task.dependsOn : [],
     reasons: Array.isArray(task.reasons) ? task.reasons : [],
+    acceptance: Array.isArray(task.acceptance) ? task.acceptance : [],
     scopePaths: task.scopePaths,
     writeScopes: task.taskType === 'implementation'
       ? normalizeImplementationWriteScopes(task.writeScopes, task.id)

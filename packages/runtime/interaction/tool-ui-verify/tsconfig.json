@@ -1,0 +1,18 @@
+{
+  "extends": "../../../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "lib/types"
+  },
+  "include": ["src"],
+  "references": [
+    { "path": "../../../../vendor/cordis" },
+    { "path": "../../attachment/attachment" },
+    { "path": "../../core/agent" },
+    { "path": "../../core/tools" },
+    { "path": "../../llm/llm" },
+    { "path": "../../interaction/user-approval" },
+    { "path": "../../runtime-diagnostics/invariants" },
+    { "path": "../ui-verify" }
+  ]
+}

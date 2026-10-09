@@ -29,7 +29,7 @@ try {
   assert.equal(matching.presets.length, 3)
 
   const repositoryPresets = await assertTaskWeaverPresetDeployMatches(
-    path.join(projectRoot, 'vendor', 'z-runtime', 'apps', 'cli', 'config', 'agent-presets'),
+    path.join(projectRoot, 'packages', 'runtime', 'apps', 'cli', 'config', 'agent-presets'),
     path.join(projectRoot, 'vendor', 'taskweaver-z-runtime', 'config', 'agent-presets'),
   )
   assert.equal(repositoryPresets.status, 'verified', 'checked-in runtime deploy must contain the current TaskWeaver presets')

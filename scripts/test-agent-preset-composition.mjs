@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url'
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const presetRoots = [
-  path.join(projectRoot, 'vendor', 'z-runtime', 'apps', 'cli', 'config', 'agent-presets'),
+  path.join(projectRoot, 'packages', 'runtime', 'apps', 'cli', 'config', 'agent-presets'),
   path.join(projectRoot, 'vendor', 'taskweaver-z-runtime', 'config', 'agent-presets'),
 ]
 
@@ -45,7 +45,7 @@ async function loadPresetRows(filePath) {
   return yaml.load(content, { schema: entryListSchema })
 }
 
-async function scanPresetRoot(root) {
+async function scanPresetRoot(root, { requireWebSearch = false } = {}) {
   let entries
   try {
     entries = await fs.readdir(root, { withFileTypes: true })
@@ -64,6 +64,11 @@ async function scanPresetRoot(root) {
     const rows = await loadPresetRows(filePath)
     const problem = entryListProblem(rows)
     assert.equal(problem, undefined, `${path.relative(projectRoot, filePath)}: ${problem}`)
+    if (requireWebSearch && ['standard', 'code', 'taskweaver-code', 'taskweaver-readonly'].includes(entry.name)) {
+      const webTool = rows.find((row) => row.id === 'tool-web')
+      assert.equal(webTool?.name, '@z/dsh-tool-web', `${path.relative(projectRoot, filePath)} must expose the model-facing web_search tool`)
+      assert.notEqual(webTool?.disabled, true, `${path.relative(projectRoot, filePath)} must not disable web_search`)
+    }
     if (['standard', 'taskweaver-code', 'taskweaver-readonly', 'taskweaver-planner', 'taskweaver-pi-lite'].includes(entry.name)) {
       const instructions = rows.find((row) => row.name === '@z/dsh-agent-instructions')
       assert.ok(instructions, `${path.relative(projectRoot, filePath)} must mount agent-instructions`)
@@ -76,8 +81,8 @@ async function scanPresetRoot(root) {
   }
 }
 
-for (const root of presetRoots) {
-  await scanPresetRoot(root)
+for (const [index, root] of presetRoots.entries()) {
+  await scanPresetRoot(root, { requireWebSearch: index === 0 })
 }
 
 console.log('agent preset composition checks passed (source + deployed)')

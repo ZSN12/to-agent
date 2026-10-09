@@ -10,7 +10,7 @@ import { spawn } from 'node:child_process'
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const entry = path.join(
   root,
-  'vendor/z-runtime/packages/client/ui-conversation/src/client/conversation-nodes/standalone-bundle.ts',
+  'packages/runtime/client/ui-conversation/src/client/conversation-nodes/standalone-bundle.ts',
 )
 const outDir = path.join(root, 'electron/vendor')
 const outfile = path.join(outDir, 'dsh-chat-registry.mjs')
@@ -28,13 +28,13 @@ await fs.promises.mkdir(outDir, { recursive: true })
 
 const esbuildCandidates = [
   path.join(root, 'node_modules', 'esbuild', 'bin', 'esbuild'),
-  path.join(root, 'vendor', 'z-runtime', 'node_modules', 'esbuild', 'bin', 'esbuild'),
+  path.join(root, 'packages', 'runtime', 'node_modules', 'esbuild', 'bin', 'esbuild'),
 ]
 let esbuildBin = esbuildCandidates.find((candidate) => fs.existsSync(candidate))
 const useNpx = !esbuildBin
 if (useNpx) esbuildBin = 'npx'
 
-const tsconfig = path.join(root, 'vendor/z-runtime/tsconfig.base.client.json')
+const tsconfig = path.join(root, 'packages/runtime/tsconfig.base.client.json')
 
 await new Promise((resolve, reject) => {
   const args = [

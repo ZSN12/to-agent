@@ -66,7 +66,7 @@ export async function composeBackendServices({ app, dialog, BrowserWindow, safeS
   const approvalAudit = createApprovalAuditStore({ agentDataPath })
   const dshHomePath = path.join(userData, 'dsh')
   const agentsHomePath = process.env.Z_AGENTS_HOME || process.env.DSH_AGENTS_HOME || path.join(homedir(), '.agents')
-  const builtInSkillsPath = path.join(app.getAppPath(), 'vendor', 'z-runtime', '.agents', 'skills')
+  const builtInSkillsPath = path.join(app.getAppPath(), 'packages', 'runtime', '.agents', 'skills')
   const bundledRegistryPath = path.join(app.getAppPath(), 'pricing', 'registry.json')
   const pricingSync = createPricingSyncService({
     userDataPath: userData,

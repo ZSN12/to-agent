@@ -369,7 +369,7 @@ export function MainConversation({
   }
 
   return (
-    <main className="conversation" aria-label="主控 Agent 对话">
+    <main className="conversation" aria-label="主控 Agent 对话" data-testid="conversation">
       <header className="conversation-header">
         <div className="conversation-title">
           <button className="header-icon nav-toggle" onClick={onToggleNav} title="显示/隐藏导航栏" aria-label="显示或隐藏导航栏"><PanelLeft size={19} /></button>
@@ -461,7 +461,7 @@ export function MainConversation({
         </div>
       )}
       <div className="conversation-scroll" ref={scrollContainerRef} onScroll={handleScroll}>
-        <div className="transcript" data-dsh-chat>
+        <div className="transcript" data-dsh-chat data-testid="message-list" role="log" aria-label="消息列表" aria-relevant="additions text">
           {messages.length === 0 && !sending && (
             <div className="conversation-empty">
               <div className="empty-brand-icon"><Sparkles size={24} aria-hidden="true" /></div>

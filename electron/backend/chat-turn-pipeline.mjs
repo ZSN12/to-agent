@@ -145,7 +145,7 @@ export function createChatTurnPipeline(deps) {
     throw error
   }
 
-  const executeMultiAgent = async (effectivePrompt, primaryAgentPreset, activeKey, selectedSkill, webContents, execution, conversationId, runtimeContext, permissionMode) => {
+  const executeMultiAgent = async (effectivePrompt, primaryAgentPreset, activeKey, selectedSkill, webContents, execution, conversationId, runtimeContext, permissionMode, attachments) => {
     try {
       const outcome = await orchestration.planAndExecute({
         text: effectivePrompt,
@@ -156,6 +156,7 @@ export function createChatTurnPipeline(deps) {
         webContents,
         skill: selectedSkill,
         skillAlreadyApplied: true,
+        attachments,
       })
       return {
         ...outcome.assistant,
@@ -173,6 +174,7 @@ export function createChatTurnPipeline(deps) {
           agentPreset: primaryAgentPreset,
           permissionMode,
           skill: null,
+          attachments,
         })
         return {
           ...result,
@@ -183,7 +185,7 @@ export function createChatTurnPipeline(deps) {
     }
   }
 
-  const executeSingleAgent = async (effectivePrompt, primaryAgentPreset, activeKey, _selectedSkill, webContents, _execution, conversationId, runtimeContext, permissionMode) => {
+  const executeSingleAgent = async (effectivePrompt, primaryAgentPreset, activeKey, _selectedSkill, webContents, _execution, conversationId, runtimeContext, permissionMode, attachments) => {
     return chat.send({
       text: effectivePrompt,
       modelKey: activeKey,
@@ -193,15 +195,16 @@ export function createChatTurnPipeline(deps) {
       agentPreset: primaryAgentPreset,
       permissionMode,
       skill: null,
+      attachments,
     })
   }
 
-  const executeChatRequest = async (execution, effectivePrompt, primaryAgentPreset, activeKey, selectedSkill, webContents, conversationId, runtimeContext, permissionMode = runtimeContext.permissionMode) => {
+  const executeChatRequest = async (execution, effectivePrompt, primaryAgentPreset, activeKey, selectedSkill, webContents, conversationId, runtimeContext, permissionMode = runtimeContext.permissionMode, attachments) => {
     return permissions.withExecution(permissionMode, webContents, async () => {
       if (execution.mode === 'multi-agent') {
-        return executeMultiAgent(effectivePrompt, primaryAgentPreset, activeKey, selectedSkill, webContents, execution, conversationId, runtimeContext, permissionMode)
+        return executeMultiAgent(effectivePrompt, primaryAgentPreset, activeKey, selectedSkill, webContents, execution, conversationId, runtimeContext, permissionMode, attachments)
       }
-      return executeSingleAgent(effectivePrompt, primaryAgentPreset, activeKey, selectedSkill, webContents, execution, conversationId, runtimeContext, permissionMode)
+      return executeSingleAgent(effectivePrompt, primaryAgentPreset, activeKey, selectedSkill, webContents, execution, conversationId, runtimeContext, permissionMode, attachments)
     }, { conversationId })
   }
 
@@ -405,6 +408,7 @@ export function createChatTurnPipeline(deps) {
     workMode = 'code',
     conversationId,
     runtimeContext,
+    attachments,
   }) => {
     const { modelKey: activeKey } = await validateAndResolveModel(text, modelKey, runtimeContext)
     const command = nativeChatCommand(text)
@@ -419,6 +423,7 @@ export function createChatTurnPipeline(deps) {
           cwdOverride: runtimeContext.workspacePath,
           webContents,
           agentPreset: resolvePrimaryAgentPreset(command, workMode, activeKey),
+          attachments,
         })
       } catch (error) {
         await handleChatError(error, messageId, time, conversationId, activeKey)
@@ -505,6 +510,7 @@ export function createChatTurnPipeline(deps) {
         conversationId,
         runtimeContext,
         permissionMode,
+        attachments
       )
     } catch (error) {
       await handleChatError(error, messageId, time, conversationId, activeKey)

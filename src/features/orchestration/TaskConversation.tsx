@@ -7,7 +7,7 @@ import { useAutosizeTextarea } from '../../shared/ui-utils'
 import { PanelHeader } from './PanelHeader'
 import { StatusChip } from './DagPanel'
 
-export function TaskConversation({ task, onBack, onClose, onSend, onCancel }: { task: TaskNode; onBack: () => void; onClose: () => void; onSend: (message: string) => void; onCancel: () => void }) {
+export function TaskConversation({ task, conversationId = null, onBack, onClose, onSend, onCancel }: { task: TaskNode; conversationId?: string | null; onBack: () => void; onClose: () => void; onSend: (message: string) => void; onCancel: () => void }) {
   const [value, setValue] = useState('')
   const [activeTab, setActiveTab] = useState<'execution' | 'route'>('execution')
   const textareaRef = useAutosizeTextarea(value, 34, 96)
@@ -37,11 +37,11 @@ export function TaskConversation({ task, onBack, onClose, onSend, onCancel }: { 
         )}
         <div className="task-summary-tags">{task.reasons.map((reason) => <span key={reason}>{reason}</span>)}</div>
         {task.worktreeIsolated && (task.status === 'done' || task.status === 'review') && (
-          <div className="task-worktree-panel">
+          <div className="task-worktree-panel" data-testid="task-worktree-panel" role="region" aria-label="子任务 worktree">
             <p className="model-editor-note" style={{ margin: '8px 0 4px', fontSize: 12 }}>
               本子任务在独立 worktree 中执行，改动未自动合并到主工作区。
             </p>
-            <WorktreeMergeActions taskId={task.id} />
+            <WorktreeMergeActions taskId={task.id} conversationId={conversationId} runId={task.runId} />
           </div>
         )}
       </div>

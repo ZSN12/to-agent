@@ -210,7 +210,7 @@ export function createDshChatService({
 
   return {
     send,
-    async runAgentTurn({ conversationId, sessionKey, text, modelKey, webContents, cwd, agentPreset = 'standard', taskId, signal, parentSessionId, progressOnly = false, permissionMode }) {
+    async runAgentTurn({ conversationId, sessionKey, text, modelKey, webContents, cwd, agentPreset = 'standard', taskId, signal, parentSessionId, progressOnly = false, permissionMode, attachments }) {
       if (signal?.aborted) throw new Error('任务已停止')
       const onAbort = () => {
         void abort(sessionKey).catch((error) => {
@@ -239,6 +239,7 @@ export function createDshChatService({
           progressOnly,
           emitLifecycle: false,
           behavior: 'followUp',
+          attachments,
         })
         if (result.cancelled) throw new Error('任务已停止')
         return result

@@ -76,25 +76,16 @@ export async function resolveCompactionSummarizationFromModelsDoc(modelsDoc, cre
   return null
 }
 
-/**
- * Persist compaction summarization target for the embedded Z Host process.
- * @returns {{ written: boolean, target?: { provider: string, model: string } }}
- */
 export async function writeCompactionSummarizationTarget(userDataPath, modelsDoc, credentialStore) {
   if (!userDataPath) return { written: false }
   const targetPath = resolveTaskWeaverCompactionTargetPath(userDataPath)
-  const target = await resolveCompactionSummarizationFromModelsDoc(modelsDoc, credentialStore)
-  if (!target) {
-    try {
-      await fs.unlink(targetPath)
-    } catch (err) {
-      if (err?.code !== 'ENOENT') throw err
-    }
-    return { written: false }
+  // Always unlink the file so DSH uses the session's own model for compaction
+  try {
+    await fs.unlink(targetPath)
+  } catch (err) {
+    if (err?.code !== 'ENOENT') throw err
   }
-  await fs.mkdir(path.dirname(targetPath), { recursive: true })
-  await fs.writeFile(targetPath, `${JSON.stringify({ ...target, updatedAt: new Date().toISOString() }, null, 2)}\n`, 'utf8')
-  return { written: true, target }
+  return { written: false }
 }
 
 /**

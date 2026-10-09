@@ -1,0 +1,53 @@
+"use strict";
+/**
+ * Package-owned invariant companion for `@z/dsh-host-webserver`.
+ * @module @z/dsh-host-webserver/invariant
+ */
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.apply = exports.inject = exports.name = void 0;
+var PACKAGE_NAME = '@z/dsh-host-webserver';
+/** Cordis companion plugin name. */
+exports.name = 'host-webserver-invariant';
+/** Service required before the companion can register. */
+exports.inject = ['invariants'];
+/**
+ * Owned relation: HTTP and upgrade route registrations and their disposers must stay
+ * symmetric — after the owning fiber of a registered route unloads, the
+ * route table must no longer answer for its path (a stale route would keep
+ * serving a disposed plugin's handler). Checked on every fiber teardown
+ * (cordis 'internal/plugin'): the service's own registry state is compared
+ * against the set of live fibers' registrations indirectly, by probing that
+ * dispose really removed the entry — the register() disposer contract.
+ */
+var install = function (ctx, fail) {
+    ctx.on('internal/plugin', function () {
+        var server = ctx.get('webServer');
+        if (server === undefined)
+            return; // no webserver row in this composition
+        // Register/dispose probe on a reserved path: if dispose leaves the route
+        // behind, a second register throws the duplicate error — the asymmetry.
+        // Each register(probe)() is one register+dispose cycle, so the probe never
+        // leaves residue; a leftover from the first cycle makes the second throw.
+        var probe = { kind: 'exact', path: '/__dsh_invariant_probe__', handler: function () { } };
+        try {
+            server.register(probe)();
+            server.register(probe)();
+            var upgradeProbe = { path: '/__dsh_invariant_upgrade_probe__', handler: function () { } };
+            server.registerUpgrade(upgradeProbe)();
+            server.registerUpgrade(upgradeProbe)();
+        }
+        catch (_a) {
+            fail('webServer route disposer left a route registered — route tables and fiber lifecycles diverged');
+        }
+    }, { global: true });
+};
+/**
+ * Register this package's invariant companion.
+ * @param ctx - Cordis context carrying the invariant service.
+ * @returns the installed registration's disposer after setup succeeds.
+ */
+var apply = function (ctx) {
+    return Promise.resolve(ctx.invariants.register(PACKAGE_NAME, install));
+};
+exports.apply = apply;
+/* jscpd:ignore-end */

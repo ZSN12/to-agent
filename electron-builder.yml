@@ -25,7 +25,7 @@ extraResources:
   # outside app.asar and point ocx at this stable app-owned path.
   - from: node_modules/bun/bin/bun.exe
     to: opencodex-runtime/bun.exe
-  # scripts/build-z-runtime.mjs → runtime-packages (electron-builder strips node_modules)
+  # scripts/build-host-runtime.mjs → runtime-packages (electron-builder strips node_modules)
   - from: vendor/taskweaver-z-runtime
     to: taskweaver-z-runtime
     filter:

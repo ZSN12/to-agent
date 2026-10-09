@@ -8,7 +8,7 @@
 
 ### 1. 核心缓存插件
 
-**位置**: `vendor/z-runtime/packages/core/tool-cache/`
+**位置**: `packages/runtime/core/tool-cache/`
 
 **功能**:
 - 自动识别并缓存读操作工具（`read`、`grep`、`find_files`、`bash` 只读命令等）
@@ -29,7 +29,7 @@ key = sha256(JSON.stringify({ tool: toolName, args: toolInput }))
 
 ### 2. 配置集成
 
-**文件**: `vendor/z-runtime/apps/cli/config/agent-presets/taskweaver-optimized/agent.cordis.yml`
+**文件**: `packages/runtime/host-cli/config/agent-presets/taskweaver-optimized/agent.cordis.yml`
 
 ```yaml
 - name: '@z/dsh-tool-cache'
@@ -238,16 +238,16 @@ ctx['tool-cache'].clearAll()
 ## 相关文件
 
 ### 核心实现
-- `vendor/z-runtime/packages/core/tool-cache/src/index.ts` - 插件主逻辑
-- `vendor/z-runtime/packages/core/tool-cache/README.md` - 详细文档
-- `vendor/z-runtime/packages/core/tool-cache/package.json` - 包定义
+- `packages/runtime/core/tool-cache/src/index.ts` - 插件主逻辑
+- `packages/runtime/core/tool-cache/README.md` - 详细文档
+- `packages/runtime/core/tool-cache/package.json` - 包定义
 
 ### 配置集成
-- `vendor/z-runtime/apps/cli/config/agent-presets/taskweaver-optimized/agent.cordis.yml` - 预设配置
+- `packages/runtime/host-cli/config/agent-presets/taskweaver-optimized/agent.cordis.yml` - 预设配置
 - `electron/agent/dsh-host/taskweaver-cordis.patch.yml` - DSH Host 补丁（HMR 禁用）
 
 ### 构建脚本
-- `scripts/build-z-runtime.mjs` - Z Runtime 构建脚本
+- `scripts/build-host-runtime.mjs` - Z Runtime 构建脚本
 - `electron-builder.yml` - Electron 打包配置
 
 ## 总结

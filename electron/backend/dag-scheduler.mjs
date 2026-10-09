@@ -117,6 +117,7 @@ export async function executeDag(tasks, {
   getTaskSignal,
   maxConcurrency = null,
   allowParallelImplementation = false,
+  checkBudget = null,
 }) {
   if (maxConcurrency !== null && (!Number.isInteger(maxConcurrency) || maxConcurrency < 1)) {
     throw new Error('DAG 并发上限必须是正整数')
@@ -142,6 +143,12 @@ export async function executeDag(tasks, {
   while (pending.size > 0) {
     if (signal?.aborted) {
       await cancelAllPending()
+    } else if (checkBudget) {
+      const budgetExceededReason = await checkBudget()
+      if (budgetExceededReason) {
+        await cancelAllPending(budgetExceededReason)
+        break
+      }
     }
 
     for (const id of [...pending]) {

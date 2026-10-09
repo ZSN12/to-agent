@@ -2,7 +2,7 @@
 
 ## `dsh-chat-registry.mjs`
 
-Bundled Conversation Node definitions from `vendor/z-runtime` (see `scripts/build-dsh-chat-registry.mjs`).
+Bundled Conversation Node definitions from `packages/runtime` (see `scripts/build-dsh-chat-registry.mjs`).
 
 Generate locally:
 

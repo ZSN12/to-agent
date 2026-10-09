@@ -137,7 +137,7 @@
 如果需要调整缓存参数，可以编辑配置文件：
 
 ```yaml
-# vendor/z-runtime/apps/cli/config/agent-presets/taskweaver-optimized/agent.cordis.yml
+# packages/runtime/host-cli/config/agent-presets/taskweaver-optimized/agent.cordis.yml
 - id: tool-cache
   name: '@z/dsh-tool-cache'
   config:
@@ -203,7 +203,7 @@
 
 1. 编辑配置文件：
 ```yaml
-# vendor/z-runtime/apps/cli/config/agent-presets/taskweaver-optimized/agent.cordis.yml
+# packages/runtime/host-cli/config/agent-presets/taskweaver-optimized/agent.cordis.yml
 - id: tool-cache
   name: '@z/dsh-tool-cache'
   config:

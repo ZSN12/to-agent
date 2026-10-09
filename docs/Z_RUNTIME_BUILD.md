@@ -7,7 +7,7 @@
 Z Runtime 使用 pnpm workspace，必须在其目录下用 CI 模式安装以避免交互式提示和副作用：
 
 ```bash
-cd vendor/z-runtime
+cd packages/runtime
 CI=true pnpm install --ignore-scripts
 ```
 
@@ -20,7 +20,7 @@ CI=true pnpm install --ignore-scripts
 从项目根目录运行：
 
 ```bash
-CI=true node scripts/build-z-runtime.mjs
+CI=true node scripts/build-host-runtime.mjs
 ```
 
 这会：
@@ -34,7 +34,7 @@ CI=true node scripts/build-z-runtime.mjs
 如果已有构建产物，只想重新打包：
 
 ```bash
-node scripts/build-z-runtime.mjs --skip-build
+node scripts/build-host-runtime.mjs --skip-build
 ```
 
 ## 技术细节
@@ -47,7 +47,7 @@ node scripts/build-z-runtime.mjs --skip-build
 - 导致 `node_modules/.bin/tsc` 暂时不可用
 - 可能引入类型冲突（如根项目和 z-runtime 的 commander 类型）
 
-**解决方案**：`build-z-runtime.mjs` 直接调用 `monorepoRoot/node_modules/.bin/tsc` 和 `tsdown`，避免 pnpm exec 的副作用。
+**解决方案**：`build-host-runtime.mjs` 直接调用 `monorepoRoot/node_modules/.bin/tsc` 和 `tsdown`，避免 pnpm exec 的副作用。
 
 ### 类型隔离
 
@@ -68,7 +68,7 @@ z-runtime 使用 pnpm，根项目使用 npm。构建时：
 
 解决：
 ```bash
-cd vendor/z-runtime
+cd packages/runtime
 CI=true pnpm install --ignore-scripts
 ```
 

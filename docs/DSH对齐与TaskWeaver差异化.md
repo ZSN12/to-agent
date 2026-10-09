@@ -5,11 +5,11 @@
 
 ## 上游依赖消除与自持基线声明（阶段 1.4）
 
-> **正式声明**：阶段 A 后不再合并上游 DSH，`vendor/z-runtime` 为冻结自有基线，许可证与致谢据实标注。
+> **正式声明**：阶段 A 后不再合并上游 DSH，`packages/runtime` 为冻结自有基线，许可证与致谢据实标注。
 
 ### 1. 冻结自持决策与背景
 1. **架构解耦要求**：上游 DSH 保持自身单体演进（包含 Web UI、特定 Cordis 插件组织方式及外部上游变动）。TaskWeaver 核心价值在于桌面级多 Agent DAG 编排、成本感知模型路由、Task Worktree 隔离与原生 Electron 工具集成。长期跟随上游合并不仅维护成本极高，且频繁引入破坏性改动。
-2. **源码基线冻结**：完成阶段 A 剔除外部源码目录（`dsh-source`）后，TaskWeaver 彻底转为**单一受控基线**。以 `vendor/z-runtime` 为自持根目录，不再跟踪、拉取或合并上游任何新分支与 commit。
+2. **源码基线冻结**：完成阶段 A 剔除外部源码目录（`dsh-source`）后，TaskWeaver 彻底转为**单一受控基线**。以 `packages/runtime` 为自持根目录，不再跟踪、拉取或合并上游任何新分支与 commit。
 3. **开源许可与合规致谢**：
    - 严格保留原始代码中的 MIT License 及作者版权头（`@deepseek-ai` / 原始贡献者）；
    - 在应用设置页及工程文档中明确据实标注对上游 DeepSeek Harness 原型研究成果的致谢与技术溯源；
@@ -46,7 +46,7 @@ flowchart TD
     DAG --> IPC
 ```
 
-| 层次维度 | 冻结基线 (`vendor/z-runtime`) | TaskWeaver 自研/二次开发层 |
+| 层次维度 | 冻结基线 (`packages/runtime`) | TaskWeaver 自研/二次开发层 |
 |---------|------------------------------|--------------------------|
 | **控制主权** | 冻结在可用基线版本，仅做去 DSH 命名收敛与稳定性 Bug 修复 | 拥有完全演进主权，持续扩展新功能 |
 | **会话模型** | 单 Session 的 Agent turn 循环与底层事件持久化 | 多会话树调度、DAG 跨任务协同、Thread 元数据统一持久化 |
@@ -56,7 +56,7 @@ flowchart TD
 
 ## v1.2.0 收口（2026-10-07）
 
-- **执行层**：TaskWeaver 已以仓库内 `vendor/z-runtime` 的 DSH Host 为会话执行基线；桌面端通过 `dsh-chat-service.mjs` 维护 conversation/session 映射，并以 Host 事件与 projection 驱动流式状态。UI thread store 仍承担线程元数据和可恢复展示状态，单源迁移审计继续进行中。
+- **执行层**：TaskWeaver 已以仓库内 `packages/runtime` 的 DSH Host 为会话执行基线；桌面端通过 `dsh-chat-service.mjs` 维护 conversation/session 映射，并以 Host 事件与 projection 驱动流式状态。UI thread store 仍承担线程元数据和可恢复展示状态，单源迁移审计继续进行中。
 - **模型入口**：OpenCodex 以 optional dependency 接入；设置卡检查代理健康与最低版本，代理未就绪时阻止 Cursor 系模型请求。Cursor 专属工具使用提示只对识别出的 Cursor/OpenCodex 模型注入。
 - **上下文预算**：每轮额外注入默认硬顶 32 KiB（暂定防护上限，非宣称最优；设置可调 1–128 KiB），Composer 展示字节数与近似 token 数。普通问候不触发业务指引；代码库地图只在首轮工程请求（或首轮 plan/goal）生成，显式 `@file` / `@dir` 内容仍走工作区边界与字节限制。
 - **发布边界**：当前工作区的 `taskweaver-optimized` preset 已通过本地 Z Host + 确定性 fake-provider 的原生 grep smoke，但 preset 与测试仍是未提交实验，未纳入 v1.2.0；生产路由继续使用 Host 的 `standard`。真实 MiMo 样本仍出现 ripgrep 启动失败，不能据确定性 smoke 宣称真实任务已无问题。此版本不代表 parity-bench 已进入 CI，也不代表已达到 Host 开销 +15% 的性能目标；配对性能数据仍需补齐。
@@ -97,7 +97,7 @@ flowchart TD
 ## 执行层路线（2026-10-07）
 
 - **目标**：对话与工具执行迁到 **DSH Host（Cordis + ApiProxy）**，不再以 Pi `createAgentSession` 为长期方案。
-- **当前**：主聊天、工具执行、会话历史与 fork 已走仓库内 `vendor/z-runtime` 的 DSH Host/API；TaskWeaver 保留 Electron 壳、线程元数据与桥接层。读写单源和旧数据迁移仍需继续审计。
+- **当前**：主聊天、工具执行、会话历史与 fork 已走仓库内 `packages/runtime` 的 DSH Host/API；TaskWeaver 保留 Electron 壳、线程元数据与桥接层。读写单源和旧数据迁移仍需继续审计。
 - **保留**：路由作品集、DAG 编排、worktree、Git 检查点、线程 UI。
 - **内嵌而非整站**：对话 UI 走 **mux 事件 + projection** 与 `client-runtime` / `ui-conversation`（TaskWeaver 壳层主权），**不**用 Host 整页 WebView。原则见 [DSH内嵌集成原则.md](./DSH内嵌集成原则.md)。
 

@@ -40,7 +40,7 @@ function computeCacheKey(tool: string, args: Record<string, unknown>): string {
 #### Z Runtime 配置
 在 `taskweaver-optimized` preset 中启用缓存插件：
 ```yaml
-# vendor/z-runtime/apps/cli/config/agent-presets/taskweaver-optimized/agent.cordis.yml
+# packages/runtime/host-cli/config/agent-presets/taskweaver-optimized/agent.cordis.yml
 - id: tool-cache
   name: '@z/dsh-tool-cache'
   config:
@@ -63,13 +63,13 @@ const toolCache = new ToolResultCache()
 
 1. **安装依赖**
    ```bash
-   cd vendor/z-runtime/packages/core/tool-cache
+   cd packages/runtime/core/tool-cache
    pnpm install
    ```
 
 2. **构建插件**
    ```bash
-   cd vendor/z-runtime
+   cd packages/runtime
    pnpm run build
    ```
 

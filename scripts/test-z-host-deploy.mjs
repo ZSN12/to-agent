@@ -38,6 +38,10 @@ const bashCancelWorkspace = path.join(testHome, 'bash-cancel-workspace')
 const bashCancelPidPath = path.join(bashCancelWorkspace, 'started.pid')
 const bashCancelStoppedPath = path.join(bashCancelWorkspace, 'stopped.marker')
 const codeCancelWorkspace = path.join(testHome, 'code-cancel-workspace')
+const keylessWorkflowWorkspace = path.join(testHome, 'keyless-workflow-workspace')
+const keylessWorkflowFile = path.join(keylessWorkflowWorkspace, 'note.txt')
+await fs.mkdir(keylessWorkflowWorkspace, { recursive: true })
+await fs.writeFile(keylessWorkflowFile, 'before\n', 'utf8')
 const mockApiKey = 'taskweaver-readonly-smoke-key'
 const appDefaults = piProviderBlockToDshProfile('test-provider', { models: [{ id: 'test-model' }] })
 assert.equal(appDefaults.streamIdleTimeoutMs, 300_000, 'TaskWeaver-synced providers should match the Z Runtime five-minute stream-idle default')
@@ -106,6 +110,9 @@ let readonlyScopeLiteralGlobRequested = false
 let readonlyScopeConversationActive = false
 const optimizedSearchRequests = []
 let optimizedSearchToolResult = null
+const keylessWorkflowRequests = []
+let keylessWorkflowRunCodeRequested = false
+let keylessWorkflowResultObserved = null
 const mockLlm = createServer((request, response) => {
   let body = ''
   request.on('data', (chunk) => { body += chunk.toString('utf8') })
@@ -188,6 +195,34 @@ const mockLlm = createServer((request, response) => {
           })
         } else {
           respond('optimized-grep-not-advertised')
+        }
+      }
+      return
+    }
+    if (serialized.includes('[KEYLESS_WORKFLOW]') && !isTitleRequest) {
+      keylessWorkflowRequests.push(parsedBody)
+      const completedTool = (parsedBody.messages ?? []).find((message) => message.role === 'tool')
+      if (completedTool) {
+        keylessWorkflowResultObserved = JSON.stringify(completedTool)
+        respond('keyless-workflow-complete')
+      } else {
+        const toolNames = (parsedBody.tools ?? []).map((tool) => tool.function?.name ?? tool.name)
+        if (toolNames.includes('run_code')) {
+          keylessWorkflowRunCodeRequested = true
+          const code = [
+            `const readResult = await tools.read({ file_path: 'note.txt', limit: 20 });`,
+            `console.log('workflow-read:', readResult);`,
+            `const editResult = await tools.edit_file_inline({ file_path: 'note.txt', old_string: 'before', new_string: 'after', preview: false });`,
+            `console.log('workflow-edit:', editResult);`,
+            `const commandResult = await tools.bash({ command: "node -e \\\"process.stdout.write(require('node:fs').readFileSync('note.txt', 'utf8'))\\\"", description: 'Verify the edited workflow fixture', workdir: ${JSON.stringify(keylessWorkflowWorkspace)} });`,
+            `console.log('workflow-command:', commandResult);`,
+          ].join('\n')
+          respondWithToolCall('keyless-workflow-run', 'run_code', {
+            description: 'Read the fixture, edit it, then verify it with a shell command.',
+            code,
+          })
+        } else {
+          respond('keyless-workflow-run-code-not-advertised')
         }
       }
       return
@@ -488,7 +523,7 @@ const mockLlmAddress = mockLlm.address()
 assert.ok(mockLlmAddress && typeof mockLlmAddress !== 'string')
 const mockLlmBaseUrl = `http://127.0.0.1:${mockLlmAddress.port}/v1`
 const readonlyPresetPath = path.join(runtimeRoot, 'config', 'agent-presets', 'taskweaver-readonly', 'agent.cordis.yml')
-const readonlyPresetSourcePath = path.join(projectRoot, 'vendor', 'z-runtime', 'apps', 'cli', 'config', 'agent-presets', 'taskweaver-readonly', 'agent.cordis.yml')
+const readonlyPresetSourcePath = path.join(projectRoot, 'packages', 'runtime', 'apps', 'cli', 'config', 'agent-presets', 'taskweaver-readonly', 'agent.cordis.yml')
 const [readonlyPresetBytes, readonlyPresetSourceBytes] = await Promise.all([
   fs.readFile(readonlyPresetPath),
   fs.readFile(readonlyPresetSourcePath),
@@ -925,6 +960,73 @@ try {
       listProvidersAuth: async () => [{ id: route, configured: true }],
     },
   })
+  const keylessWorkflowConversationId = `taskweaver-keyless-workflow-${crypto.randomUUID()}`
+  const keylessWorkflowEvents = []
+  const keylessWorkflowApprovals = []
+  const keylessWorkflowWebContents = {
+    send(channel, event) {
+      if (channel === 'chat:stream') keylessWorkflowEvents.push(event)
+      if (channel === 'permission:prompt') keylessWorkflowApprovals.push(event)
+    },
+    isDestroyed: () => false,
+  }
+  let keylessWorkflowRunError = null
+  const keylessWorkflowPending = deployedChatService.send({
+    conversationId: keylessWorkflowConversationId,
+    text: '[KEYLESS_WORKFLOW] Read note.txt, replace before with after, then run the fixture verification command. Wait for approval when the command is requested.',
+    modelKey: `${route}/mock-readonly`,
+    webContents: keylessWorkflowWebContents,
+    cwdOverride: keylessWorkflowWorkspace,
+    agentPreset: 'taskweaver-code',
+    permissionMode: 'ask',
+  }).catch((error) => {
+    keylessWorkflowRunError = error
+    throw error
+  })
+  let bashApprovalSeen = false
+  let approvalsHandled = 0
+  const keylessWorkflowDeadline = Date.now() + 30_000
+  while (!bashApprovalSeen && Date.now() < keylessWorkflowDeadline) {
+    while (approvalsHandled < keylessWorkflowApprovals.length) {
+      const approval = keylessWorkflowApprovals[approvalsHandled++]
+      const toolName = String(approval.tool ?? '')
+      if (/bash/i.test(toolName)) {
+        bashApprovalSeen = true
+        assert.equal(await fs.readFile(keylessWorkflowFile, 'utf8'), 'after\n',
+          'the approved shell command must be requested only after read and edit completed')
+        assert.ok(keylessWorkflowEvents.some((event) => event.type === 'tool'
+          && event.toolName === 'edit_file_inline' && event.status === 'done'),
+        `the file edit must finish before shell approval; events=${JSON.stringify(keylessWorkflowEvents)}`)
+      }
+      assert.equal(await deployedChatService.respondApproval(approval.id, { action: 'allow-once' }), true,
+        `the keyless E2E approval should be accepted for ${toolName || 'the requested tool'}`)
+    }
+    if (keylessWorkflowRunError) throw keylessWorkflowRunError
+    if (bashApprovalSeen) break
+    await new Promise((resolve) => setTimeout(resolve, 25))
+  }
+  assert.equal(keylessWorkflowRunCodeRequested, true,
+    `the mock endpoint must request a Code Mode run; error=${keylessWorkflowRunError?.message ?? ''}; events=${JSON.stringify(keylessWorkflowEvents)}`)
+  assert.equal(bashApprovalSeen, true,
+    `the shell command must reach the user approval bridge; approvals=${JSON.stringify(keylessWorkflowApprovals)}; error=${keylessWorkflowRunError?.message ?? ''}; events=${JSON.stringify(keylessWorkflowEvents)}`)
+  const keylessWorkflowResult = await Promise.race([
+    keylessWorkflowPending,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('keyless workflow completion timeout')), 15_000)),
+  ])
+  assert.equal(keylessWorkflowResult.cancelled, false)
+  assert.equal(keylessWorkflowResult.text, 'keyless-workflow-complete')
+  assert.equal(await fs.readFile(keylessWorkflowFile, 'utf8'), 'after\n')
+  assert.ok(keylessWorkflowResultObserved?.includes('workflow-read:'),
+    `the run_code tool result must record the file read; result=${keylessWorkflowResultObserved}`)
+  assert.ok(keylessWorkflowResultObserved?.includes('workflow-edit:'),
+    `the run_code tool result must record the inline edit; result=${keylessWorkflowResultObserved}`)
+  assert.ok(keylessWorkflowResultObserved?.includes('workflow-command:'),
+    `the run_code tool result must record the approved shell command; result=${keylessWorkflowResultObserved}`)
+  assert.ok(keylessWorkflowRequests.length >= 2, 'the mock provider must receive the tool result before finalizing the keyless workflow')
+  assert.ok(keylessWorkflowRequests.every((request) =>
+    request.authorization === `Bearer ${mockApiKey}`),
+  'the keyless workflow must use only the synthetic credential against the local mock endpoint')
+
   const cancelAfterToolConversationId = `taskweaver-cancel-after-tool-${crypto.randomUUID()}`
   const cancelAfterToolEvents = []
   const cancelAfterToolWebContents = {

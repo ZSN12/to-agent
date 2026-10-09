@@ -28,6 +28,7 @@ import {
   READ_ONLY_TASK_TYPES,
 } from './planner.mjs'
 import { summarizeExecutionEvidence, assessSubtaskCompletion } from './evidence.mjs'
+import { UsageLedger } from './usage-ledger.mjs'
 
 /** 规划 → DAG 执行 → 汇总 三阶段编排。 */
 export function createPlanAndExecute({
@@ -44,8 +45,10 @@ export function createPlanAndExecute({
   maxSubtaskConcurrency,
   sendChatStreamIfAvailable,
   nowLabel,
+  runStore,
+  pendingApprovals,
 }) {
-  async function planAndExecute({ text, primaryModelKey, conversationId, webContents, skill, skillAlreadyApplied = false, workspacePath, permissionMode }) {
+  async function planAndExecute({ text, rawText, contextLayers, primaryModelKey, conversationId, webContents, skill, skillAlreadyApplied = false, workspacePath, permissionMode, attachments }) {
     if (!conversationId) throw new Error('当前对话标识无效')
     if (runs.get(conversationId)?.inFlight) throw new Error('该对话的上一条多 Agent 任务仍在处理中')
     const abortController = new AbortController()
@@ -58,19 +61,25 @@ export function createPlanAndExecute({
     const run = { inFlight: true, abortController, taskAbortControllers, taskStatuses }
     runs.set(conversationId, run)
     const runId = crypto.randomUUID()
+    const runState = { runId, conversationId, status: 'planning', tasks: [] }
+    await runStore?.saveRun(conversationId, runId, runState)
     const plannerSkill = skillAlreadyApplied ? null : skill
     try {
       sendChatStreamIfAvailable(webContents, { type: 'progress', text: '正在分析任务并生成 DAG…', conversationId })
       const cwd = workspacePath || (await getWorkspacePath(conversationId))
       const prefs = getAppPreferences ? await getAppPreferences() : { worktreeIsolation: false }
+      const ledger = new UsageLedger()
+      const dagBudgetTokens = Number(prefs.dagBudgetTokens) || 2000000
+      const dagBudgetUsd = Number(prefs.dagBudgetUsd) || 2.0
       const parallelWorktreeBaselineReady = Boolean(
         prefs.worktreeIsolation === true && userDataPath && await isCleanGitWorkspace(cwd),
       )
       const parallelImplementationAllowed = parallelWorktreeBaselineReady
-      const readOnlyRequest = requiresReadOnlyPlan(text)
-      const codeMutationRequest = isCodeMutationRequest(text)
-      const plannerPathHints = await collectPlannerPathHints(cwd, text)
-      await memory.init(conversationId, cwd, text)
+      const originalText = rawText || text
+      const readOnlyRequest = requiresReadOnlyPlan(originalText)
+      const codeMutationRequest = isCodeMutationRequest(originalText)
+      const plannerPathHints = await collectPlannerPathHints(cwd, originalText)
+      await memory.init(conversationId, cwd, originalText)
       await memory.beginRun(conversationId, runId)
       const plannerFile = path.join(agentDataPath, 'orchestration', conversationId, 'planner.jsonl')
       const plannerPrompt = [
@@ -101,7 +110,10 @@ export function createPlanAndExecute({
         `【工作区路径索引：仅路径名，不含文件正文，也不代表已读取】扫描 ${plannerPathHints.visitedEntries} 个目录项${plannerPathHints.truncated ? '（达到扫描/展示上限，结果不完整）' : ''}。只从下列真实存在的路径中挑选候选文件；不得仅凭路径推断其内容。规划时尽量直接指定少量候选文件，并要求子 Agent 读取它们；只有索引不足时才安排必要的搜索：\n${plannerPathHints.paths.map((item) => `- ${item}`).join('\n') || '(没有发现路径；任务需先搜索定位，再实际读取文件)'}`,
         '只输出纯 JSON，不加 Markdown 代码块。格式：{"tasks":[{"id":"T1","title":"短标题","taskType":"research|implementation|test|review","role":"职责名","description":"目标、允许检查的文件/目录、验收点与停止条件","scopePaths":["electron/main.cjs"],"writeScopes":["src/features/foo/Bar.tsx"],"dependsOn":[],"reasons":["规划原因"]}]}；writeScopes 只供 implementation 使用，research/review 继续使用 scopePaths。',
         `工作区：${cwd}`,
-        `用户原始请求：\n${text}`,
+        ...(contextLayers && contextLayers.length > 0 ? [
+          '【系统上下文】\n' + contextLayers.map(l => `[${l.id}]\n${l.text}`).join('\n\n')
+        ] : []),
+        `【用户原始请求】\n${originalText}`,
       ].join('\n\n')
       let plannerSuffixRetry = '\n\n上次输出无法解析。请只输出一个 JSON 对象，不要 Markdown 代码块，不要任何解释文字。'
       let planResult
@@ -122,15 +134,20 @@ export function createPlanAndExecute({
             sessionKey: plannerSessionKey,
             webContents: plannerProgress.webContents,
             permissionMode: readOnlyRequest ? 'readonly' : permissionMode,
+            attachments,
           })
+          ledger.record({ runId, taskId: 'planner', attempt: 1, modelKey: primaryModelKey, usage: planResult.usage, outcome: 'success' })
           planned = completeReadOnlyPlanScopes(
-            validatePlanForRequest(validateAndOrderTasks(parsePlan(planResult.text)), text, {
+            validatePlanForRequest(validateAndOrderTasks(parsePlan(planResult.text)), originalText, {
               requireParallelImplementationScopes: parallelImplementationAllowed,
             }),
-            text,
+            originalText,
             plannerPathHints.paths,
           )
         } catch (firstError) {
+          const firstPartialUsage = firstError.partialResult?.usage
+          if (firstPartialUsage) ledger.record({ runId, taskId: 'planner', attempt: 1, modelKey: primaryModelKey, usage: firstPartialUsage, outcome: 'failed' })
+
           if (firstError?.message?.startsWith('实现写入范围无效：')) {
             plannerSuffixRetry = `\n\n上次计划被实现范围校验拒绝：${firstError.message}。每个 implementation 节点的 writeScopes 必须是工作区相对路径字面量数组，不能含绝对路径、通配符、.. 或工作区根目录；彼此并行的实现节点不得使用重叠路径。只输出纯 JSON。`
           } else if (firstError?.message?.startsWith('代码变更请求缺少 implementation 节点：')) {
@@ -162,16 +179,19 @@ export function createPlanAndExecute({
               webContents: plannerProgress.webContents,
               permissionMode: readOnlyRequest ? 'readonly' : permissionMode,
             })
+            ledger.record({ runId, taskId: 'planner', attempt: 2, modelKey: primaryModelKey, usage: planResult.usage, outcome: 'success' })
             planned = completeReadOnlyPlanScopes(
-              validatePlanForRequest(validateAndOrderTasks(parsePlan(planResult.text)), text, {
+              validatePlanForRequest(validateAndOrderTasks(parsePlan(planResult.text)), originalText, {
                 requireParallelImplementationScopes: parallelImplementationAllowed,
               }),
-              text,
+              originalText,
               plannerPathHints.paths,
             )
           } catch (secondError) {
+            const secondPartialUsage = secondError.partialResult?.usage ?? planResult?.usage
+            if (secondPartialUsage) ledger.record({ runId, taskId: 'planner', attempt: 2, modelKey: primaryModelKey, usage: secondPartialUsage, outcome: 'failed' })
             const message = secondError instanceof Error ? secondError.message : String(secondError)
-            throw new PlannerFallbackError(message, { partialUsage: planResult?.usage ?? null })
+            throw new PlannerFallbackError(message, { partialUsage: secondPartialUsage ?? null })
           }
         }
       } finally {
@@ -245,13 +265,53 @@ export function createPlanAndExecute({
       if (abortController.signal.aborted) abortTaskControllers()
       await publishTasks(tasks, webContents, conversationId)
 
+      runState.tasks = tasks
+      runState.status = 'awaiting_approval'
+      await runStore?.saveRun(conversationId, runId, runState)
+
+      const approvalMode = prefs.dagPlanApproval || 'write-only'
+      const requiresApproval = approvalMode === 'always' || (approvalMode === 'write-only' && implementationCount > 0)
+      if (requiresApproval) {
+        sendChatStreamIfAvailable(webContents, { type: 'plan_approval_required', conversationId, runId })
+        try {
+          await new Promise((resolve, reject) => {
+            pendingApprovals.set(runId, { resolve, reject })
+            abortController.signal.addEventListener('abort', () => {
+              pendingApprovals.delete(runId)
+              reject(new Error('任务已取消'))
+            }, { once: true })
+          })
+        } catch (e) {
+          runState.status = 'cancelled'
+          await runStore?.saveRun(conversationId, runId, runState)
+          throw e
+        }
+      }
+
+      runState.status = 'running'
+      await runStore?.saveRun(conversationId, runId, runState)
+
       const worktreeTaskIds = []
 
+      let budgetExceededReason = null
       const execution = await executeDag(tasks, {
         signal: abortController.signal,
         getTaskSignal: (taskId) => taskAbortControllers.get(taskId)?.signal,
         maxConcurrency: maxSubtaskConcurrency,
         allowParallelImplementation: parallelImplementationAllowed,
+        checkBudget: async () => {
+          if (budgetExceededReason) return budgetExceededReason
+          const summary = ledger.getSummary()
+          if (summary.totalTokens > dagBudgetTokens) {
+            budgetExceededReason = `超出预算（> ${dagBudgetTokens} tokens）`
+            return budgetExceededReason
+          }
+          if (summary.totalCostUsd > dagBudgetUsd) {
+            budgetExceededReason = `超出预算（> $${dagBudgetUsd}）`
+            return budgetExceededReason
+          }
+          return null
+        },
         onTaskChange: async (changed, meta) => {
           taskStatuses.set(changed.id, changed.status)
           if (changed.status === 'running') {
@@ -316,6 +376,8 @@ export function createPlanAndExecute({
             }
             return { ...task, ...changed }
           })
+          runState.tasks = tasks
+          await runStore?.saveRun(conversationId, runId, runState)
           await publishTasks(tasks, webContents, conversationId)
         },
         execute: async (task, dependencyResults, taskSignal, executionMode = {}) => {
@@ -394,28 +456,39 @@ export function createPlanAndExecute({
             return parts.filter(Boolean).join('\n\n')
           }
 
-          const runSubtask = async (modelKey, evidenceBundle = null) => runPrompt({
-              modelKey,
-              text: buildPrompt(evidenceBundle),
-              sessionFile: childFile,
-              taskType: task.taskType,
-              skill: subtaskSkill,
-              webContents,
-              taskId: task.id,
-              cwdOverride: execCwd,
-              signal: taskSignal,
-              conversationId,
-              parentSessionId: plannerSessionId,
-              permissionMode: readOnlyRequest ? 'readonly' : permissionMode,
-              ...(task.taskType === 'implementation' && Array.isArray(task.writeScopes)
-                ? { writeScopes: task.writeScopes }
-                : {}),
-              // Escalation gets a clean DSH session: carry only the compact,
-              // verified L4 evidence rather than inheriting failed-turn noise.
-              sessionKey: evidenceBundle
-                ? `${task.dshSessionKey}-escalation-${evidenceBundle.attempted_actions.length}`
-                : task.dshSessionKey,
-            })
+          const runSubtask = async (modelKey, evidenceBundle = null) => {
+            const attemptNo = evidenceBundle ? evidenceBundle.attempted_actions.length + 1 : 1
+            try {
+              const res = await runPrompt({
+                modelKey,
+                text: buildPrompt(evidenceBundle),
+                sessionFile: childFile,
+                taskType: task.taskType,
+                skill: subtaskSkill,
+                webContents,
+                taskId: task.id,
+                cwdOverride: execCwd,
+                signal: taskSignal,
+                conversationId,
+                parentSessionId: plannerSessionId,
+                permissionMode: readOnlyRequest ? 'readonly' : permissionMode,
+                ...(task.taskType === 'implementation' && Array.isArray(task.writeScopes)
+                  ? { writeScopes: task.writeScopes }
+                  : {}),
+                sessionKey: evidenceBundle
+                  ? `${task.dshSessionKey}-escalation-${evidenceBundle.attempted_actions.length}`
+                  : task.dshSessionKey,
+              })
+              ledger.record({ runId, taskId: task.id, attempt: attemptNo, modelKey, usage: res.usage, outcome: 'success' })
+              return res
+            } catch (error) {
+              const partialUsage = error.partialResult?.usage
+              if (partialUsage) {
+                ledger.record({ runId, taskId: task.id, attempt: attemptNo, modelKey, usage: partialUsage, outcome: 'failed' })
+              }
+              throw error
+            }
+          }
 
           const subtaskUpgradeMax = Math.max(0, Math.min(3, Number(prefs.subtaskUpgradeMax ?? 1) || 0))
           let execution
@@ -522,6 +595,8 @@ export function createPlanAndExecute({
       }
 
       if (execution.cancelled) {
+        runState.status = 'cancelled'
+        await runStore?.saveRun(conversationId, runId, runState)
         return {
           assistant: {
             text: '多 Agent 任务已停止；已完成的子任务进度保留。',
@@ -540,24 +615,27 @@ export function createPlanAndExecute({
           id: task.id,
           title: task.title,
           status: task.statusLabel,
+          acceptance: task.acceptance,
+          verification: agentResult?.verification ?? null,
           result: agentResult?.text ?? '（任务未生成结果）',
-          runtimeObservedActions: agentResult?.executionEvidence ?? {
-            source: 'z-host-tool-events',
-            observedToolCalls: [],
-          },
           evidenceAssessment: task.executionEvidenceSummary
             ?? summarizeExecutionEvidence(agentResult?.executionEvidence),
         }
       })
+      let outcomesJson = JSON.stringify(outcomes, null, 2)
+      if (outcomesJson.length > 24000) {
+        outcomesJson = outcomesJson.slice(0, 24000) + '\n... (超出24k字符上限，结果截断)'
+      }
       const projectMemory = await memory.load(conversationId)
       const synthesis = [
         '请根据下列子任务执行结果，面向用户总结本次工作的最终进展。不要再次执行工具，不要重复改代码。',
         '明确区分已完成、受阻和未完成的工作，并列出真实验证结果。若某子任务失败或被依赖阻塞，要明确说明。',
+        budgetExceededReason ? `【注意】DAG 运行由于${budgetExceededReason}已停止启动新节点，部分后续节点被标记为未完成。请在最终回复中如实说明这一点。` : '',
         '最终回复保持精炼：先给总体结论，再按子任务各列结论与最必要的源码/工具证据，最后说明交叉结果和关键未验证项；不要逐条复述工具过程或重复子任务原文，通常控制在约 800–1500 个中文字符，只有必要信息较多时才超出。失败、证据缺口和未执行的验证必须如实保留。',
-        '【证据规则】每个子任务附带的 runtimeObservedActions 是 Z Host 实际观测到的工具调用记录，优先级高于子 Agent 的自述；evidenceAssessment 是后端根据该记录计算的摘要。只能声称调用了记录中出现的工具；没有 read 工具记录就不能声称实际读取并核验了文件，没有测试/构建命令记录就不能声称测试/构建已运行或通过。若子 Agent 自述与记录不符，明确标为“未能从工具记录核实”，不要补造调用、文件或验证结果。无工具记录的依赖汇总可以作为汇总输出，但不得描述成独立核验。',
+        '【证据规则】每个子任务附带的 evidenceAssessment 是后端根据 Z Host 实际观测到的工具调用记录计算的摘要，优先级高于子 Agent 的自述。只能声称调用了记录中出现的工具；没有 read 工具记录就不能声称实际读取并核验了文件，没有测试/构建命令记录就不能声称测试/构建已运行或通过。若子 Agent 自述与记录不符，明确标为“未能从工具记录核实”，不要补造调用、文件或验证结果。无工具记录的依赖汇总可以作为汇总输出，但不得描述成独立核验。',
         projectMemory?.rolling_summary ? `【项目进展摘要】\n${projectMemory.rolling_summary}` : '',
         `用户原始请求：\n${text}`,
-        `子任务结果：\n${JSON.stringify(outcomes, null, 2)}`,
+        `子任务结果：\n${outcomesJson}`,
       ].filter(Boolean).join('\n\n')
       sendChatStreamIfAvailable(webContents, { type: 'progress', text: '子任务已结束，正在汇总执行结果…', conversationId })
       const synthesizeFn = async (prompt) => {
@@ -578,9 +656,12 @@ export function createPlanAndExecute({
       let assistant
       try {
         assistant = await synthesizeFn(synthesis)
+        ledger.record({ runId, taskId: 'synthesis', attempt: 1, modelKey: primaryModelKey, usage: assistant.usage, outcome: 'success' })
       } catch (error) {
         if (abortController.signal.aborted) throw error
         assistant = directExecutionSummary(outcomes, error)
+        const partialUsage = error.partialResult?.usage
+        if (partialUsage) ledger.record({ runId, taskId: 'synthesis', attempt: 1, modelKey: primaryModelKey, usage: partialUsage, outcome: 'failed' })
         sendChatStreamIfAvailable(webContents, {
           type: 'progress',
           text: '汇总模型调用失败，已按后端保存的子任务状态生成直出汇总。',
@@ -588,6 +669,10 @@ export function createPlanAndExecute({
         })
       }
       usage.push(assistant.usage)
+
+      runState.status = 'completed'
+      await runStore?.saveRun(conversationId, runId, runState)
+
       return {
         assistant: {
           ...assistant,
@@ -600,6 +685,12 @@ export function createPlanAndExecute({
         tasks,
         failedTaskIds: [...execution.failed],
       }
+    } catch (e) {
+      if (runState) {
+        runState.status = 'failed'
+        await runStore?.saveRun(conversationId, runId, runState).catch(() => {})
+      }
+      throw e
     } finally {
       abortController.signal.removeEventListener('abort', abortTaskControllers)
       taskAbortControllers.clear()

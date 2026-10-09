@@ -6,7 +6,7 @@
 
 | bridgeKind | 说明 |
 |---|---|
-| `cursor` | Composer / Cursor 进程内传输（`packages/taskweaver-bridge-transport`） |
+| `cursor` | Composer / Cursor 进程内传输（`packages/provider-bridge-transport`） |
 | `google-antigravity` | 进程内 Google CCA（`ocx export` 写入 `baseUrl` / `project`） |
 | `openai-compat-relay` | `relayBaseURL` + `TASKWEAVER_BRIDGE_RELAY_API_KEY`（OpenAI Chat Completions SSE） |
 
@@ -34,9 +34,9 @@
 
 Electron 以 `Z_TASKWEAVER_EMBEDDED=1`（兼容 `DSH_TASKWEAVER_EMBEDDED`）拉起 `dsh web`，Host 就绪日志为 `z web:`：`web` profile 使用自有组合包 **`@z/dsh-taskweaver`**（不再叠 `@z/dsh-web-app`）。嵌入式 **不**挂载 `@z/dsh-web-frontend` / `app:web-surface`；Cordis 上 **关闭** base 的 `web` / `web-search-taskweaver` / `tool-web`，deploy **不**再强依赖 `@z/dsh-web`。Host 只保留 webserver + `/api`（`connection` / `api-remotes` / `client-runtime`），**不挂** `modules` / `ui-*` / `client-hmr`。
 
-`build-z-runtime`：host tsdown + 最小 client 编译（SessionManager / `web-api-client`，保留 `ui-slots`）；冒烟后 prune `dsh-web-frontend` 与 UI roster 包。自检：`pnpm run test:taskweaver-api-only-host`（需先 `node scripts/build-z-runtime.mjs`）。
+`build-host-runtime`：host tsdown + 最小 client 编译（SessionManager / `web-api-client`，保留 `ui-slots`）；冒烟后 prune `dsh-web-frontend` 与 UI roster 包。自检：`pnpm run test:taskweaver-api-only-host`（需先 `node scripts/build-host-runtime.mjs`）。
 
-fork 已从 `vendor/z-runtime` 删除 DSH 浏览器源码（`apps/web`、`packages/client/ui-*` 除 `ui-slots`、`hmr`/`modules`/`locale`/`web` 壳等）。**保留** `packages/web/*` 工具（web_search 等）以及 `packages/client/connection` + `runtime`。
+fork 已从 `packages/runtime` 删除 DSH 浏览器源码（`apps/web`、`packages/client/ui-*` 除 `ui-slots`、`hmr`/`modules`/`locale`/`web` 壳等）。**保留** `packages/web/*` 工具（web_search 等）以及 `packages/client/connection` + `runtime`。
 
 ## 方案 C 完成度（摘要）
 

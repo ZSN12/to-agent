@@ -14,7 +14,7 @@ const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-z-resolutio
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 
 async function makeRuntime(root, layout = 'deployed') {
-  const entry = layout === 'deployed' ? 'lib/bin.js' : 'apps/cli/lib/bin.js'
+  const entry = layout === 'deployed' ? 'lib/bin.js' : 'host-cli/lib/bin.js'
   const entryPath = path.join(root, entry)
   await fs.mkdir(path.dirname(entryPath), { recursive: true })
   await fs.writeFile(entryPath, '// test fixture\n')
@@ -27,7 +27,7 @@ try {
   const packaged = await makeRuntime(path.join(resourcesPath, TASKWEAVER_Z_RUNTIME_DEPLOY_DIR))
   const external = await makeRuntime(path.join(tempRoot, 'external-runtime'))
   const appDeploy = await makeRuntime(path.join(appPath, 'vendor', TASKWEAVER_Z_RUNTIME_DEPLOY_DIR))
-  const repoSource = await makeRuntime(path.join(appPath, 'vendor', 'z-runtime'), 'source')
+  const repoSource = await makeRuntime(path.join(appPath, 'packages', 'runtime'), 'source')
 
   assert.equal(resolveTaskWeaverRuntimeRoot({
     appPath,
@@ -60,7 +60,7 @@ try {
     env: {},
   }), appDeploy, 'development prefers the deployed in-repo runtime')
   const sourceOnlyApp = path.join(tempRoot, 'source-only-app')
-  const monorepoOnly = await makeRuntime(path.join(sourceOnlyApp, 'vendor', 'z-runtime'), 'source')
+  const monorepoOnly = await makeRuntime(path.join(sourceOnlyApp, 'packages', 'runtime'), 'source')
   assert.equal(resolveTaskWeaverRuntimeRoot({
     appPath: sourceOnlyApp,
     resourcesPath: null,
@@ -107,15 +107,15 @@ try {
   assert.match(builderConfig, /from:\s*vendor\/taskweaver-z-runtime[\s\S]*to:\s*taskweaver-z-runtime/)
   assert.match(builderConfig, /runtime-packages\/\*\*\/\*/)
   assert.match(builderConfig, /electron-vendor\/\*\*\/\*/, 'packaged Z runtime must include in-process bridge transport')
-  const buildScript = await fs.readFile(path.join(projectRoot, 'scripts', 'build-z-runtime.mjs'), 'utf8')
+  const buildScript = await fs.readFile(path.join(projectRoot, 'scripts', 'build-host-runtime.mjs'), 'utf8')
   assert.match(buildScript, /TASKWEAVER_Z_RUNTIME_DEPLOY_DIR/)
   assert.match(buildScript, /TASKWEAVER_Z_RUNTIME_CLIENT_DIR/)
-  const hostBuildConfig = JSON.parse(await fs.readFile(path.join(projectRoot, 'vendor/z-runtime/tsconfig.host.taskweaver.json'), 'utf8'))
+  const hostBuildConfig = JSON.parse(await fs.readFile(path.join(projectRoot, 'packages/runtime/tsconfig.host.taskweaver.json'), 'utf8'))
   assert.ok(hostBuildConfig.references.some((entry) => entry.path === './packages/fs/tool-fs-search'), 'preset-only search plugin must be typecompiled before bundling, not deployed from stale lib/types')
   for (const required of ['./packages/fs/tool-fs-inline-edit', './packages/fs/tool-fs-semantic-search']) {
     assert.ok(
       hostBuildConfig.references.some((entry) => entry.path === required),
-      `integrated ${required} must be listed in tsconfig.host.taskweaver.json (see build-z-runtime TASKWEAVER_FS_TOOLS)`,
+      `integrated ${required} must be listed in tsconfig.host.taskweaver.json (see build-host-runtime TASKWEAVER_FS_TOOLS)`,
     )
   }
   assert.match(buildScript, /TASKWEAVER_RUNTIME_PACKAGES|runtime-packages/)

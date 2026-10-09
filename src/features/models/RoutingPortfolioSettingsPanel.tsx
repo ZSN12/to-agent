@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { ChevronDown, GitBranch, RefreshCw, RotateCcw, Save, Shield } from 'lucide-react'
-import type { BashSandboxPreference, RoutingPortfolio, SandboxProbeResult } from '../../shared/app-api'
+import type { BashSandboxPreference, RoutingPortfolio, SandboxProbeResult, WorktreeEntry } from '../../shared/app-api'
 import { WorktreeMergeActions } from '../worktree/WorktreeMergeActions'
 import { RoutingPortfolioForm } from './RoutingPortfolioForm'
 
@@ -83,7 +83,7 @@ export function RoutingPortfolioSettingsPanel({
   const [bashSandbox, setBashSandbox] = useState<BashSandboxPreference>('auto')
   const [sandboxProbe, setSandboxProbe] = useState<SandboxProbeResult | null>(null)
   const [sessionSandboxMode, setSessionSandboxMode] = useState<string>('default')
-  const [worktrees, setWorktrees] = useState<Array<{ taskId: string; path: string }>>([])
+  const [worktrees, setWorktrees] = useState<WorktreeEntry[]>([])
   const [autoSnapshotOnTurn, setAutoSnapshotOnTurn] = useState(false)
   const [subtaskUpgradeMax, setSubtaskUpgradeMax] = useState(1)
   const [memorySummary, setMemorySummary] = useState('')
@@ -249,9 +249,9 @@ export function RoutingPortfolioSettingsPanel({
     void loadFeatures()
   }
 
-  const removeWorktree = async (taskId: string) => {
-    if (!window.confirm(`删除子任务 ${taskId} 的 worktree？`)) return
-    const res = await window.taskweaver?.worktree?.remove(taskId, true, conversationId)
+  const removeWorktree = async (worktree: WorktreeEntry) => {
+    if (!window.confirm(`删除子任务 ${worktree.taskId} 的 worktree？`)) return
+    const res = await window.taskweaver?.worktree?.remove(worktree.taskId, true, conversationId, worktree.runId)
     if (!res?.ok) {
       onToast('删除 worktree 失败')
       return
@@ -427,7 +427,7 @@ export function RoutingPortfolioSettingsPanel({
       )}
 
       {worktrees.length > 0 && (
-        <div className="mcp-section">
+        <div className="mcp-section" data-testid="worktree-panel" role="region" aria-label="活动 worktree">
           <div className="mcp-section-header">
             <div>
               <h3>
@@ -439,22 +439,23 @@ export function RoutingPortfolioSettingsPanel({
           </div>
           <ul className="routing-worktree-cards">
             {worktrees.map((wt) => (
-              <li key={wt.taskId} className="routing-worktree-card">
+              <li key={`${wt.conversationId ?? conversationId ?? 'active'}:${wt.runId ?? 'legacy'}:${wt.taskId}`} className="routing-worktree-card">
                 <div className="routing-worktree-card-head">
-                  <code>{wt.taskId}</code>
+                  <code>{wt.taskId}{wt.runId ? ` · ${wt.runId.slice(0, 8)}` : ''}</code>
                   <span className="routing-worktree-path">{wt.path}</span>
                 </div>
                 <div className="routing-worktree-card-actions">
                   <WorktreeMergeActions
                     taskId={wt.taskId}
                     conversationId={conversationId}
+                    runId={wt.runId}
                     compact
                     onDone={() => { void loadFeatures() }}
                   />
                   <button
                     type="button"
                     className="settings-danger-button"
-                    onClick={() => { void removeWorktree(wt.taskId) }}
+                    onClick={() => { void removeWorktree(wt) }}
                   >
                     删除 worktree
                   </button>

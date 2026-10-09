@@ -29,12 +29,12 @@ export function registerTerminalIpc({ ipcMain, getWorkspacePath, fallbackWorkspa
     })
   })
 
-  ipcHandle(ipcMain, 'terminal:write', (_event, payload = {}) =>
-    terminalService.write(payload.id, payload.data))
-  ipcHandle(ipcMain, 'terminal:resize', (_event, payload = {}) =>
-    terminalService.resize(payload.id, payload.cols, payload.rows))
-  ipcHandle(ipcMain, 'terminal:kill', (_event, payload = {}) =>
-    terminalService.killSession(payload.id))
+  ipcHandle(ipcMain, 'terminal:write', (_event, id, data) =>
+    terminalService.write(id, data))
+  ipcHandle(ipcMain, 'terminal:resize', (_event, id, cols, rows) =>
+    terminalService.resize(id, cols, rows))
+  ipcHandle(ipcMain, 'terminal:kill', (_event, id) =>
+    terminalService.killSession(id))
   ipcHandle(ipcMain, 'terminal:list', () => terminalService.listSessions())
 
   return terminalService

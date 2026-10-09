@@ -23,8 +23,8 @@
 
 ## 文件位置
 
-- `vendor/z-runtime/apps/cli/config/agent-presets/taskweaver-pi-lite/`
-- 打包时随 `build-z-runtime.mjs` 复制到 `vendor/taskweaver-z-runtime/config/agent-presets/`
+- `packages/runtime/host-cli/config/agent-presets/taskweaver-pi-lite/`
+- 打包时随 `build-host-runtime.mjs` 复制到 `vendor/taskweaver-z-runtime/config/agent-presets/`
 
 开发模式若未重建 runtime，需执行 `npm run build:z-runtime`（或 `dsh:runtime`）后重启应用。
 

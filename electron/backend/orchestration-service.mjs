@@ -3,6 +3,7 @@ import path from 'node:path'
 import { applySkillInstructions } from './skill-prompt.mjs'
 import { clockLabelZh } from './message-factory.mjs'
 import { createMemoryStore } from './memory-store.mjs'
+import { RunStore } from './orchestration/run-store.mjs'
 
 export {
   PlannerFallbackError,
@@ -54,6 +55,10 @@ export function createOrchestrationService({
   /** @type {Map<string, { inFlight: boolean, abortController: AbortController | null }>} */
   const runs = new Map()
   const memory = createMemoryStore({ agentDataPath })
+  const runStore = new RunStore({ agentDataPath })
+  const pendingApprovals = new Map()
+
+  runStore.recoverIncompleteRuns().catch(console.error)
 
   async function runPrompt({
     modelKey,
@@ -71,6 +76,7 @@ export function createOrchestrationService({
     parentSessionId,
     permissionMode,
     writeScopes,
+    attachments,
   }) {
     const cwd = cwdOverride || (await getWorkspacePath(conversationId))
     if (!cwd) throw new Error('请先设置工作区目录')
@@ -119,6 +125,7 @@ export function createOrchestrationService({
         signal,
         progressOnly: noTools,
         permissionMode: READ_ONLY_TASK_TYPES.has(taskType) ? 'readonly' : permissionMode,
+        attachments,
       })
       const scopedPermissionMode = READ_ONLY_TASK_TYPES.has(taskType) ? 'readonly' : (permissionMode ?? 'ask')
       result = permissionService?.withExecution
@@ -188,6 +195,8 @@ export function createOrchestrationService({
     maxSubtaskConcurrency,
     sendChatStreamIfAvailable,
     nowLabel,
+    runStore,
+    pendingApprovals,
   })
 
   async function sendTaskMessage({ taskId, text, conversationId, webContents, workspacePath }) {
@@ -280,5 +289,25 @@ export function createOrchestrationService({
     return true
   }
 
-  return { planAndExecute, sendTaskMessage, abort, cancelTask, isBusy, listRunningConversationIds }
+  function approvePlan(conversationId, runId) {
+    const pending = pendingApprovals.get(runId)
+    if (pending) {
+      pending.resolve()
+      pendingApprovals.delete(runId)
+      return true
+    }
+    return false
+  }
+
+  function rejectPlan(conversationId, runId) {
+    const pending = pendingApprovals.get(runId)
+    if (pending) {
+      pending.reject(new Error('用户已拒绝执行该计划'))
+      pendingApprovals.delete(runId)
+      return true
+    }
+    return false
+  }
+
+  return { planAndExecute, sendTaskMessage, abort, cancelTask, isBusy, listRunningConversationIds, approvePlan, rejectPlan }
 }

@@ -7,7 +7,7 @@ import ts from 'typescript'
 import { getTaskProfile } from '../electron/backend/task-profile.mjs'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const PRESET_ROOT = 'vendor/z-runtime/apps/cli/config/agent-presets'
+const PRESET_ROOT = 'packages/runtime/host-cli/config/agent-presets'
 const SNAPSHOT_ROOT = 'tests/prompts/snapshots'
 const DATASET_PATH = 'tests/prompts/cases.json'
 const ACTIVE_PRESETS = ['standard', 'taskweaver-code', 'taskweaver-readonly', 'taskweaver-planner', 'taskweaver-pi-lite']

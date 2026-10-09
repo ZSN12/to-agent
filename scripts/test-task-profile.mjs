@@ -38,7 +38,7 @@ assert.match(getTaskProfile('review').preamble, /严格遵守子任务描述中�
 assert.match(getTaskProfile('review').preamble, /至少成功 read 一个相关源码/)
 assert.match(getTaskProfile('review').preamble, /文件工具路径必须使用工作区相对路径，禁止传绝对路径/)
 
-const readonlyPresetPath = path.resolve('vendor/z-runtime/apps/cli/config/agent-presets/taskweaver-readonly/agent.cordis.yml')
+const readonlyPresetPath = path.resolve('packages/runtime/host-cli/config/agent-presets/taskweaver-readonly/agent.cordis.yml')
 const readonlyPreset = await fs.readFile(readonlyPresetPath, 'utf8')
 assert.match(readonlyPreset, /name: '@z\/dsh-tool-fs'/, 'read-only Z preset must mount the filesystem read tool')
 assert.match(readonlyPreset, /mutations: false/, 'read-only Z preset must disable filesystem mutations')
@@ -55,15 +55,15 @@ assert.match(readonlyPreset, /Approximate line numbers[\s\S]*?hints, not authori
 assert.match(readonlyPreset, /several requested symbols[\s\S]*?one contiguous range covering nearby\/adjacent hops/i, 'read-only subagents should combine nearby symbol reads')
 assert.match(getTaskProfile('research').preamble, /先在该精确文件内 grep，再用 read\(offset, limit\)/, 'research agents should avoid reading large files just to locate symbols')
 
-const codePresetPath = path.resolve('vendor/z-runtime/apps/cli/config/agent-presets/taskweaver-code/agent.cordis.yml')
+const codePresetPath = path.resolve('packages/runtime/host-cli/config/agent-presets/taskweaver-code/agent.cordis.yml')
 const codePreset = await fs.readFile(codePresetPath, 'utf8')
 assert.match(codePreset, /name: '@z\/dsh-tool-fs'/, 'coding Z preset must mount the filesystem tools')
 assert.match(codePreset, /sampleOverCapGlobResults: true/, 'coding search must sample over-cap results instead of repeatedly showing only the same newest files')
 assert.doesNotMatch(codePreset, /(?:at most|more than) five inspection\/tool calls/, 'coding subtasks must not stop at a total call-count cap')
 
-const standardPresetPath = path.resolve('vendor/z-runtime/apps/cli/config/agent-presets/standard/agent.cordis.yml')
+const standardPresetPath = path.resolve('packages/runtime/host-cli/config/agent-presets/standard/agent.cordis.yml')
 const standardPreset = await fs.readFile(standardPresetPath, 'utf8')
-const primaryCodePresetPath = path.resolve('vendor/z-runtime/apps/cli/config/agent-presets/code/agent.cordis.yml')
+const primaryCodePresetPath = path.resolve('packages/runtime/host-cli/config/agent-presets/code/agent.cordis.yml')
 const primaryCodePreset = await fs.readFile(primaryCodePresetPath, 'utf8')
 for (const [name, preset] of [['standard', standardPreset], ['code', primaryCodePreset]]) {
   assert.match(preset, /user-visible progress sentence in normal assistant text/, `${name} primary preset should emit visible progress before multi-step tool work`)

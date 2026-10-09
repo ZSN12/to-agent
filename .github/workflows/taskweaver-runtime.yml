@@ -35,7 +35,7 @@ jobs:
       - run: npm ci
       - name: Build Z runtime deploy
         run: |
-          cd vendor/z-runtime && CI=true pnpm install --ignore-scripts
+          cd packages/runtime && CI=true pnpm install --ignore-scripts
           cd ../..
           node scripts/build-z-runtime.mjs
       - run: node scripts/test-z-host.mjs

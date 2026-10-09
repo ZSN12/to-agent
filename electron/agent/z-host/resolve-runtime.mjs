@@ -14,7 +14,7 @@ function runtimeLooksUsable(root) {
   if (!root || !fs.existsSync(root)) return false
   return (
     fs.existsSync(path.join(root, 'lib', 'bin.js'))
-    || fs.existsSync(path.join(root, 'apps', 'cli', 'lib', 'bin.js'))
+    || fs.existsSync(path.join(root, 'host-cli', 'lib', 'bin.js'))
   )
 }
 
@@ -33,7 +33,7 @@ export function resolveRuntimeNodePath(runtimeRoot) {
 
 /**
  * Resolve Z runtime for TaskWeaver. Packaged builds only use Resources copy;
- * dev may override or use deploy / `vendor/z-runtime` monorepo.
+ * dev may override or use deploy / `packages/runtime` monorepo.
  */
 export function resolveTaskWeaverRuntimeRoot({
   appPath,
@@ -65,7 +65,7 @@ export function resolveTaskWeaverRuntimeRoot({
     if (legacyDeploy !== candidates[candidates.length - 1]) {
       candidates.push(legacyDeploy)
     }
-    candidates.push(path.join(appPath, 'vendor', 'z-runtime'))
+    candidates.push(path.join(appPath, 'packages', 'runtime'))
   }
   for (const root of candidates) {
     if (runtimeLooksUsable(root)) return root
@@ -88,7 +88,7 @@ export function resolveTaskWeaverHostLaunch(runtimeRoot) {
       nodePath: resolveRuntimeNodePath(runtimeRoot),
     }
   }
-  const monorepo = path.join(runtimeRoot, 'apps', 'cli', 'lib', 'bin.js')
+  const monorepo = path.join(runtimeRoot, 'host-cli', 'lib', 'bin.js')
   if (fs.existsSync(monorepo)) {
     return {
       entrypoint: monorepo,
@@ -96,5 +96,5 @@ export function resolveTaskWeaverHostLaunch(runtimeRoot) {
       nodePath: resolveRuntimeNodePath(runtimeRoot),
     }
   }
-  throw new Error(`缺少 Z Host 构建产物（${runtimeRoot} 下无 lib/bin.js 或 apps/cli/lib/bin.js）`)
+  throw new Error(`缺少 Z Host 构建产物（${runtimeRoot} 下无 lib/bin.js 或 host-cli/lib/bin.js）`)
 }

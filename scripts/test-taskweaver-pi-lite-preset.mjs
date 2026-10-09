@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { resolvePrimaryAgentPreset, TASKWEAVER_PI_LITE_PRESET } from '../electron/backend/primary-agent-preset.mjs'
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..')
-const presetDir = path.join(root, 'vendor/z-runtime/apps/cli/config/agent-presets/taskweaver-pi-lite')
+const presetDir = path.join(root, 'packages/runtime/host-cli/config/agent-presets/taskweaver-pi-lite')
 
 assert.equal(TASKWEAVER_PI_LITE_PRESET, 'taskweaver-pi-lite')
 assert.ok(fs.existsSync(path.join(presetDir, 'agent.cordis.yml')))

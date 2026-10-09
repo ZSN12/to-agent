@@ -33,7 +33,7 @@ export function registerChatSendIpc(ctx) {
     })
   }
 
-  ipcHandle(ipcMain, 'chat:send', async (event, text, modelKey, skillName, executionModeOverride, workMode = 'code', requestedConversationId) => {
+  ipcHandle(ipcMain, 'chat:send', async (event, text, modelKey, skillName, executionModeOverride, workMode = 'code', requestedConversationId, attachments) => {
     await appBootstrap.start()
     const conversationId = await resolveIpcConversationId(requestedConversationId)
     if (!conversationId) throw new Error('当前对话标识无效')
@@ -48,6 +48,7 @@ export function registerChatSendIpc(ctx) {
       workMode,
       conversationId,
       runtimeContext,
+      attachments,
     }))
   })
 

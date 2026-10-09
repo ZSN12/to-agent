@@ -3,17 +3,19 @@ import tsPlugin from '@typescript-eslint/eslint-plugin'
 import globals from 'globals'
 import reactHooks from 'eslint-plugin-react-hooks'
 
-const runtimeSource = 'vendor/z-runtime/{apps,packages}/**/*.{ts,tsx}'
+const runtimeSource = 'packages/runtime/{apps,packages,scripts}/**/*.{ts,tsx}'
 
 export default [
   {
     ignores: [
       'electron/vendor/**',
       'release/**',
-      'dist/**',
+      '**/dist/**',
       'vendor/opencodex/**',
       'vendor/taskweaver-z-runtime/**',
-      'vendor/z-runtime/**/lib/**',
+      'packages/runtime/**/lib/**',
+      '**/lib/**',
+      'packages/runtime/cordis/**',
     ],
     // DSH carries upstream oxlint suppressions. ESLint should consume valid
     // local suppressions without warning on directives for oxlint-only rules.

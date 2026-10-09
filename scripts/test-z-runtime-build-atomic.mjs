@@ -18,7 +18,7 @@ try {
   await fs.writeFile(fakePnpm, '#!/bin/sh\nprintf "%s\\n" "$*"\nexit 37\n')
   await fs.chmod(fakePnpm, 0o755)
 
-  const result = spawnSync(process.execPath, [path.join(root, 'scripts/build-z-runtime.mjs'), '--skip-build'], {
+  const result = spawnSync(process.execPath, [path.join(root, 'scripts/build-host-runtime.mjs'), '--skip-build'], {
     cwd: root,
     encoding: 'utf8',
     env: {

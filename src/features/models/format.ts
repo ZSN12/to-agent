@@ -58,6 +58,7 @@ export function catalogModelToOption(model: CatalogModel): ModelOption {
     supportedThinkingLevels: model.supportedThinkingLevels,
     reasoningEfforts: model.reasoningEfforts,
     defaultThinkingLevel: model.defaultThinkingLevel,
+    vision: model.vision,
   }
 }
 

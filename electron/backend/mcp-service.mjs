@@ -272,9 +272,7 @@ export function createMcpService({ userData, safeStorage, getHostTools } = {}) {
       for (const [key, storedValue] of Object.entries(server.env ?? {})) {
         const value = decryptEnv({ [key]: storedValue }, safeStorage)[key] ?? ''
         if (!value) { envRefs[key] = ''; continue }
-        const envName = runtimeEnvName(server.id, key)
-        environment[envName] = value
-        envRefs[key] = `!!js process.env.${envName}`
+        envRefs[key] = value
       }
       const row = [
         `    - id: ${yamlString(`taskweaver-mcp-${server.id}`)}`,
@@ -284,14 +282,14 @@ export function createMcpService({ userData, safeStorage, getHostTools } = {}) {
       ]
       if (server.transport === 'http') {
         const tokenKey = 'GITHUB_PERSONAL_ACCESS_TOKEN'
-        if (!decryptEnv({ [tokenKey]: server.env?.[tokenKey] ?? '' }, safeStorage)[tokenKey]) continue
-        const tokenEnvName = runtimeEnvName(server.id, tokenKey)
-        const headerExpression = `\`Bearer \${process.env.${tokenEnvName}}\``
+        const tokenValue = decryptEnv({ [tokenKey]: server.env?.[tokenKey] ?? '' }, safeStorage)[tokenKey]
+        if (!tokenValue) continue
+        const headerExpression = `Bearer ${tokenValue}`
         row.push(
           '        transport: streamable-http',
           `        url: ${yamlString(server.url)}`,
           '        headers:',
-          `          Authorization: !!js ${yamlString(headerExpression)}`,
+          `          Authorization: ${yamlString(headerExpression)}`,
         )
       } else {
         row.push(
@@ -303,7 +301,7 @@ export function createMcpService({ userData, safeStorage, getHostTools } = {}) {
         if (!entries.length) row.push('        env: {}')
         else {
           row.push('        env:')
-          for (const [key, ref] of entries) row.push(`          ${key}: ${ref.startsWith('!!js ') ? ref : yamlString(ref)}`)
+          for (const [key, ref] of entries) row.push(`          ${key}: ${yamlString(ref)}`)
         }
         row.push('        cwd: !!js process.cwd()')
       }

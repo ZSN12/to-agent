@@ -60,7 +60,7 @@ export function SettingsPage({
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [onClose])
 
-  return <div className="settings-screen">
+  return <div className="settings-screen" data-testid="settings-page">
     <aside className="settings-nav">
       <div className="settings-drag-space" />
       <button type="button" className="settings-back-btn" onClick={onClose} title="返回应用 (Esc)">
@@ -81,7 +81,7 @@ export function SettingsPage({
       </nav>
       <div className="settings-nav-footer"><span>TaskWeaver · v0.1.0</span></div>
     </aside>
-    <main className="settings-main">
+    <main className="settings-main" aria-label="设置内容" data-testid="settings-content">
       <header className="settings-topbar">
         <div className="settings-topbar-drag" />
         <button className="settings-close-btn" onClick={onClose} aria-label="关闭设置" title="返回对话 (Esc)">

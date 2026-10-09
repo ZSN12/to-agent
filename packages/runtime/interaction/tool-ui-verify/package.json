@@ -1,0 +1,49 @@
+{
+  "name": "@taskweaver/tool-ui-verify",
+  "description": "TaskWeaver-only approved UI self-verification tools",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./invariant": {
+      "types": "./lib/types/invariant.d.ts",
+      "default": "./lib/invariant.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": ["lib/index.js", "lib/invariant.js", "lib/types/**/*.d.ts"],
+  "license": "MIT",
+  "peerDependencies": {
+    "@z/cordis": "workspace:^",
+    "@z/dsh-agent": "workspace:^",
+    "@z/dsh-attachment": "workspace:^",
+    "@z/dsh-invariants": "workspace:^",
+    "@z/dsh-llm": "workspace:^",
+    "@z/dsh-session": "workspace:^",
+    "@z/dsh-tools": "workspace:^",
+    "@z/dsh-user-approval": "workspace:^"
+  },
+  "dependencies": {
+    "@taskweaver/ui-verify": "workspace:^",
+    "@z/schemastery": "workspace:^"
+  },
+  "devDependencies": {
+    "@z/cordis": "workspace:^",
+    "@z/dsh-agent": "workspace:^",
+    "@z/dsh-attachment": "workspace:^",
+    "@z/dsh-invariants": "workspace:^",
+    "@z/dsh-llm": "workspace:^",
+    "@z/schemastery": "workspace:^",
+    "@z/dsh-session": "workspace:^",
+    "@z/dsh-tools": "workspace:^",
+    "@z/dsh-user-approval": "workspace:^",
+    "@z/schemastery": "workspace:^"
+  }
+}

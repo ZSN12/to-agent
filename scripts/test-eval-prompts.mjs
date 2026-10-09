@@ -59,7 +59,7 @@ try {
     'electron/backend/task-profile.mjs',
     'electron/backend/orchestration/plan-and-execute.mjs',
     ...['standard', 'taskweaver-code', 'taskweaver-readonly', 'taskweaver-planner', 'taskweaver-pi-lite']
-      .map((id) => 'vendor/z-runtime/apps/cli/config/agent-presets/' + id + '/agent.cordis.yml'),
+      .map((id) => 'packages/runtime/host-cli/config/agent-presets/' + id + '/agent.cordis.yml'),
   ]
   for (const relative of fixturePaths) {
     const destination = path.join(fixtureRoot, relative)
@@ -68,7 +68,7 @@ try {
   }
   const initial = await runStaticEvaluation({ root: fixtureRoot, update: true })
   assert.equal(initial.ok, true, initial.errors.join('\n'))
-  const standardPath = path.join(fixtureRoot, 'vendor/z-runtime/apps/cli/config/agent-presets/standard/agent.cordis.yml')
+  const standardPath = path.join(fixtureRoot, 'packages/runtime/host-cli/config/agent-presets/standard/agent.cordis.yml')
   const originalSource = await fs.readFile(standardPath, 'utf8')
   await fs.writeFile(standardPath, originalSource.replace('You are a coding agent powered by', 'You are a software coding agent powered by'))
   const updated = await runStaticEvaluation({ root: fixtureRoot, update: true })

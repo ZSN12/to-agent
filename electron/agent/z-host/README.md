@@ -1,6 +1,6 @@
 # Z Host
 
-TaskWeaver Agent 后端基于 **Z Runtime**（`vendor/z-runtime/`，`@z/*`）。打包产物在 **`Resources/taskweaver-z-runtime`**（`runtime-packages/@z/*`），与 `electron-builder.yml` 一致。
+TaskWeaver Agent 后端基于 **Z Runtime**（`packages/runtime/`，`@z/*`）。打包产物在 **`Resources/taskweaver-z-runtime`**（`runtime-packages/@z/*`），与 `electron-builder.yml` 一致。
 
 ## 模块
 
@@ -15,7 +15,7 @@ TaskWeaver Agent 后端基于 **Z Runtime**（`vendor/z-runtime/`，`@z/*`）。
 
 1. `TASKWEAVER_Z_RUNTIME` 覆盖
 2. `vendor/taskweaver-z-runtime` deploy（仍可读 legacy `taskweaver-dsh-runtime`）
-3. `vendor/z-runtime` monorepo（需本地 `build:lib:host` + client）
+3. `packages/runtime` monorepo（需本地 `build:lib:host` + client）
 
 ## 验证
 

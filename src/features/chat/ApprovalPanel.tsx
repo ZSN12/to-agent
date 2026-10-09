@@ -12,7 +12,7 @@ export function ApprovalPanel({
   ) => void
 }) {
   return (
-    <div className="approval-panel" role="dialog" aria-labelledby="approval-panel-title">
+    <div className="approval-panel" role="dialog" aria-labelledby="approval-panel-title" data-testid="approval-panel">
       <div className="approval-panel-head">
         <ShieldAlert size={16} />
         <strong id="approval-panel-title">需要你的批准</strong>
@@ -21,7 +21,7 @@ export function ApprovalPanel({
       <pre className="approval-panel-detail">{prompt.detail}</pre>
       <div className="approval-panel-actions">
         <button type="button" className="approval-btn deny" onClick={() => onRespond('deny')}>拒绝</button>
-        <button type="button" className="approval-btn allow" onClick={() => onRespond('allow-once')}>批准一次</button>
+        <button type="button" className="approval-btn allow" data-testid="approval-allow-once" onClick={() => onRespond('allow-once')}>批准一次</button>
         {prompt.allowAlwaysSession && (
           <button type="button" className="approval-btn always" onClick={() => onRespond('allow-always-session')}>
             本会话总是允许

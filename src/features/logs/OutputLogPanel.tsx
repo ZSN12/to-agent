@@ -1,22 +1,63 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Check, Copy, Search, Terminal, X, AlertCircle, CheckCircle2, Clock, Ban } from 'lucide-react'
-import type { ToolTraceItem } from '../../shared/app-api'
+import type { ApprovalAuditEntry, ToolTraceItem } from '../../shared/app-api'
 import { ToolTraceCard } from '../chat/ToolTraceCard'
 
 export function OutputLogPanel({
   logs,
+  conversationId = null,
   onClose,
   onShowToolDetails,
   onOpenWorkspacePath,
 }: {
   logs: ToolTraceItem[]
+  conversationId?: string | null
   onClose: () => void
   onShowToolDetails?: (item: ToolTraceItem) => void
   onOpenWorkspacePath?: (relativePath: string) => void
 }) {
+  const [activeTab, setActiveTab] = useState<'tools' | 'approvals'>('tools')
   const [filterStatus, setFilterStatus] = useState<'all' | 'done' | 'error' | 'blocked' | 'running' | 'cancelled'>('all')
+  const [filterApprovalType, setFilterApprovalType] = useState<'all' | 'approval/asked' | 'approval/decided'>('all')
+  const [filterApprovalOutcome, setFilterApprovalOutcome] = useState('all')
   const [filterTaskId, setFilterTaskId] = useState<string>('all')
   const [query, setQuery] = useState('')
+  const [approvalRows, setApprovalRows] = useState<ApprovalAuditEntry[]>([])
+  const [approvalRowsConversationId, setApprovalRowsConversationId] = useState<string | null>(null)
+  const [approvalLoading, setApprovalLoading] = useState(false)
+  const [approvalError, setApprovalError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (activeTab !== 'approvals' || !conversationId) return
+
+    let current = true
+    const load = async () => {
+      setApprovalLoading(true)
+      setApprovalError(null)
+      try {
+        const result = await window.taskweaver?.permission?.listApprovalAudit(conversationId)
+        if (!current) return
+        if (result?.ok && Array.isArray(result.data)) {
+          setApprovalRows(result.data)
+          setApprovalRowsConversationId(conversationId)
+          setApprovalError(null)
+        } else {
+          setApprovalError(result && !result.ok ? result.error : '无法读取审批审计记录')
+        }
+      } catch (error) {
+        if (current) setApprovalError(error instanceof Error ? error.message : String(error))
+      } finally {
+        if (current) setApprovalLoading(false)
+      }
+    }
+
+    void load()
+    const intervalId = window.setInterval(() => { void load() }, 5000)
+    return () => {
+      current = false
+      window.clearInterval(intervalId)
+    }
+  }, [activeTab, conversationId])
 
   const taskIds = useMemo(() => {
     const ids = new Set<string>()
@@ -44,6 +85,18 @@ export function OutputLogPanel({
       .slice(-150)
       .reverse() // 最新的在前面
   }, [logs, filterStatus, filterTaskId, query])
+
+  const filteredApprovalRows = useMemo(() => {
+    const q = query.trim().toLocaleLowerCase()
+    const rows = approvalRowsConversationId === conversationId ? approvalRows : []
+    return rows
+      .filter((row) => filterApprovalType === 'all' || row.type === filterApprovalType)
+      .filter((row) => filterApprovalOutcome === 'all' || row.outcome === filterApprovalOutcome)
+      .filter((row) => !q || [row.type, row.toolName, row.reason, row.outcome, row.decision, row.verdict]
+        .some((value) => String(value ?? '').toLocaleLowerCase().includes(q)))
+      .slice(-150)
+      .reverse()
+  }, [approvalRows, approvalRowsConversationId, conversationId, filterApprovalType, filterApprovalOutcome, query])
 
   const copyLogText = (log: ToolTraceItem) => {
     const content = `[${log.status.toUpperCase()}] ${log.toolName} (${log.durationMs ? `${log.durationMs}ms` : '未知耗时'})
@@ -97,18 +150,36 @@ export function OutputLogPanel({
   }
 
   return (
-    <aside className="side-panel dag-panel trajectory-panel" aria-label="Trajectory 工具轨迹" style={{ width: 440 }}>
+    <aside className="side-panel dag-panel trajectory-panel" aria-label="日志与审批审计" style={{ width: 440 }}>
       <div className="panel-header">
         <div className="panel-header-title">
           <Terminal size={17} style={{ marginRight: 6 }} />
-          <strong>Trajectory</strong>
+          <strong>{activeTab === 'tools' ? 'Trajectory' : '审批审计'}</strong>
           <span style={{ fontSize: 12, color: 'var(--text-tertiary)', marginLeft: 6 }}>
-            最近 {filteredLogs.length} 条
+            最近 {activeTab === 'tools' ? filteredLogs.length : filteredApprovalRows.length} 条
           </span>
         </div>
         <button className="panel-close-btn" onClick={onClose} aria-label="关闭日志面板">
           <X size={15} />
         </button>
+      </div>
+
+      <div role="tablist" aria-label="日志类型" style={{ display: 'flex', gap: 6, padding: '8px 14px', borderBottom: '1px solid var(--border-color, #e5e7eb)' }}>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'tools'}
+          onClick={() => setActiveTab('tools')}
+          style={{ padding: '5px 10px', borderRadius: 5, border: '1px solid var(--border-color, #e5e7eb)', background: activeTab === 'tools' ? 'var(--accent-primary, #3b82f6)' : 'var(--bg-secondary)', color: activeTab === 'tools' ? '#fff' : 'var(--text-secondary)' }}
+        >工具轨迹</button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'approvals'}
+          disabled={!conversationId}
+          onClick={() => setActiveTab('approvals')}
+          style={{ padding: '5px 10px', borderRadius: 5, border: '1px solid var(--border-color, #e5e7eb)', background: activeTab === 'approvals' ? 'var(--accent-primary, #3b82f6)' : 'var(--bg-secondary)', color: activeTab === 'approvals' ? '#fff' : 'var(--text-secondary)', opacity: conversationId ? 1 : 0.55 }}
+        >审批审计</button>
       </div>
 
       {/* 搜索与过滤工具栏 */}
@@ -117,7 +188,7 @@ export function OutputLogPanel({
           <Search size={13} style={{ position: 'absolute', left: 8, top: 8, color: 'var(--text-tertiary)' }} />
           <input
             type="search"
-            placeholder="搜索工具名、命令或结果…"
+            placeholder={activeTab === 'tools' ? '搜索工具名、命令或结果…' : '搜索审批类型、工具、理由或结果…'}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             style={{
@@ -131,7 +202,7 @@ export function OutputLogPanel({
           />
         </div>
 
-        {taskIds.length > 0 && (
+        {activeTab === 'tools' && taskIds.length > 0 && (
           <select
             value={filterTaskId}
             onChange={(e) => setFilterTaskId(e.target.value)}
@@ -146,7 +217,7 @@ export function OutputLogPanel({
           </select>
         )}
 
-        <div style={{ display: 'flex', gap: 6, fontSize: 11 }}>
+        {activeTab === 'tools' && <div style={{ display: 'flex', gap: 6, fontSize: 11 }}>
           {(['all', 'done', 'error', 'blocked', 'running', 'cancelled'] as const).map((s) => (
             <button
               key={s}
@@ -165,12 +236,40 @@ export function OutputLogPanel({
               {s === 'all' ? '全部' : s === 'done' ? '成功' : s === 'error' ? '错误' : s === 'blocked' ? '已拦截' : s === 'cancelled' ? '已取消' : '运行中'}
             </button>
           ))}
-        </div>
+        </div>}
+        {activeTab === 'approvals' && (
+          <div style={{ display: 'flex', gap: 8 }}>
+            <select
+              value={filterApprovalType}
+              onChange={(event) => setFilterApprovalType(event.target.value as typeof filterApprovalType)}
+              aria-label="按审批事件筛选"
+              style={{ flex: 1, fontSize: 11, padding: '4px 8px', borderRadius: 6 }}
+            >
+              <option value="all">全部审批事件</option>
+              <option value="approval/asked">审批请求</option>
+              <option value="approval/decided">审批结果</option>
+            </select>
+            <select
+              value={filterApprovalOutcome}
+              onChange={(event) => setFilterApprovalOutcome(event.target.value)}
+              aria-label="按审批结果筛选"
+              style={{ flex: 1, fontSize: 11, padding: '4px 8px', borderRadius: 6 }}
+            >
+              <option value="all">全部结果</option>
+              <option value="allowed-once">批准一次</option>
+              <option value="allowed-session">本会话允许</option>
+              <option value="allowed-always">工作区允许</option>
+              <option value="rejected">拒绝</option>
+              <option value="denied">拒绝（Host）</option>
+              <option value="timeout">超时</option>
+            </select>
+          </div>
+        )}
       </div>
 
       {/* 日志条目列表 */}
       <div className="dag-scroll" style={{ padding: 12 }}>
-        {filteredLogs.length === 0 ? (
+        {activeTab === 'tools' && (filteredLogs.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-tertiary)', fontSize: 13 }}>
             暂无匹配的工具执行日志
           </div>
@@ -278,6 +377,46 @@ export function OutputLogPanel({
               )
             })}
           </div>
+        ))}
+        {activeTab === 'approvals' && (
+          !conversationId
+            ? <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-tertiary)', fontSize: 13 }}>请先打开一个会话查看审批审计。</div>
+            : approvalLoading && filteredApprovalRows.length === 0
+            ? <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-tertiary)', fontSize: 13 }}>正在读取审批审计…</div>
+            : approvalError && filteredApprovalRows.length === 0
+              ? <div role="alert" style={{ textAlign: 'center', padding: '24px 20px', color: '#ef4444', fontSize: 13 }}>{approvalError}</div>
+              : filteredApprovalRows.length === 0
+                ? <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-tertiary)', fontSize: 13 }}>暂无匹配的审批审计记录</div>
+                : <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {filteredApprovalRows.map((row, index) => {
+                      const outcome = row.outcome ?? row.decision ?? row.verdict
+                      const time = row.time ? new Date(row.time).toLocaleString('zh-CN') : '时间未知'
+                      const isRequest = row.type === 'approval/asked'
+                      const outcomeLabel: Record<string, string> = {
+                        'allowed-once': '批准一次',
+                        'allowed-session': '本会话允许',
+                        'allowed-always': '工作区允许',
+                        rejected: '已拒绝',
+                        denied: '已拒绝',
+                        timeout: '已超时',
+                      }
+                      return (
+                        <article key={`${row.time}-${row.id ?? index}`} style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: 8, padding: '10px 12px', fontSize: 12 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                            <strong>{isRequest ? '审批请求' : '审批结果'}</strong>
+                            <span style={{ color: 'var(--text-tertiary)', fontSize: 10 }}>{time}</span>
+                          </div>
+                          <div style={{ marginTop: 5, color: 'var(--text-secondary)' }}>
+                            {row.toolName ? `工具：${row.toolName}` : '工具：未知'}
+                            {outcome ? ` · ${outcomeLabel[outcome] ?? outcome}` : ''}
+                            {row.risk ? ` · 风险：${row.risk}` : ''}
+                          </div>
+                          {row.reason && <p style={{ margin: '6px 0 0', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{row.reason}</p>}
+                          {(row.id || row.callId) && <small style={{ display: 'block', marginTop: 6, color: 'var(--text-tertiary)', fontFamily: 'monospace' }}>{[row.id && `审批 ${row.id}`, row.callId && `调用 ${row.callId}`].filter(Boolean).join(' · ')}</small>}
+                        </article>
+                      )
+                    })}
+                  </div>
         )}
       </div>
     </aside>

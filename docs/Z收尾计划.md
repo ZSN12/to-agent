@@ -7,7 +7,7 @@
 
 | 项 | 结论 |
 |---|---|
-| `vendor/z-runtime` | 7943 个受控文件，包名已是 `@z/*`，可构建、可装机 |
+| `packages/runtime` | 7943 个受控文件，包名已是 `@z/*`，可构建、可装机 |
 | `dsh-source` | 7980 个受控文件，192M。另有 `.github` 和 lefthook 两套仓库配置 |
 | 两者差异 | 把 `@deepseek-ai/` 替换成 `@z/` 后比对：**z-runtime 是超集**。dsh-source 独有的只有 `CLAUDE.md`、`.github/`、`install-lefthook.mjs`，都是提取时故意删的。源码没有漏改 |
 | z-runtime 多出的改动 | `tsconfig.{host,client}.taskweaver.json`、`fixture.ts` authorization 桩、apiproxy tsconfig 引用 |
@@ -24,12 +24,12 @@
 
 | 文件 | 改法 |
 |---|---|
-| `scripts/build-dsh-runtime.mjs:20,28-31,228` | 删 `legacyDshSource` 和 `TASKWEAVER_USE_Z_RUNTIME` 分支，源固定为 `vendor/z-runtime` |
+| `scripts/build-dsh-runtime.mjs:20,28-31,228` | 删 `legacyDshSource` 和 `TASKWEAVER_USE_Z_RUNTIME` 分支，源固定为 `packages/runtime` |
 | `scripts/make-mac-app.sh:9-21` | 删回退逻辑。z-runtime 没构建时直接报错，提示运行 `npm run build:z-runtime` |
-| `scripts/update-runtime-lock.mjs:39` | 路径改成 `vendor/z-runtime/packages/llm/llm-pi-ai/package.json` |
-| `scripts/sync-dsh-windows-acl.mjs:12` | 默认源改成 `vendor/z-runtime/packages/sandbox/sandbox-windows-acl` |
+| `scripts/update-runtime-lock.mjs:39` | 路径改成 `packages/runtime/llm/llm-pi-ai/package.json` |
+| `scripts/sync-dsh-windows-acl.mjs:12` | 默认源改成 `packages/runtime/sandbox/sandbox-windows-acl` |
 | `scripts/diagnose-dsh-host.mjs:3,17` | 改用 `resolveZRuntimeRoot` |
-| `package.json` `test:dsh-apiproxy` | `cd vendor/z-runtime && ...` |
+| `package.json` `test:dsh-apiproxy` | `cd packages/runtime && ...` |
 | `electron/agent/dsh-host/resolve-runtime.mjs:~162` | 删 `monorepoFallbackSubpath: 'dsh-source'` |
 
 完成后：
@@ -41,13 +41,13 @@ npm run test:dsh-runtime-resolution && node scripts/test-dsh-host.mjs && node sc
 npm run install:app          # 然后验证 /Applications/TaskWeaver.app 内是 runtime-packages/@z/*
 ```
 
-提交：`chore: 移除 dsh-source，vendor/z-runtime 成为唯一运行时源`
+提交：`chore: 移除 dsh-source，packages/runtime 成为唯一运行时源`
 
 ## 阶段 B：合并双轨代码（低风险，约半天）
 
 1. `resolve-runtime.mjs`：删 `useZRuntime`、`deployedRuntimeHasZPackages`、`resolveDshRuntimeRoot`、`resolveDshHostLaunch`、`resolveDshRuntimeNodePath`，只留一套 `resolveRuntimeRoot / resolveHostLaunch / resolveRuntimeNodePath`
 2. 把 `electron/agent/dsh-host/*` 整体移到 `electron/agent/z-host/`，删除转发壳。更新 `main.cjs`、`register-ipc.mjs`、`model-service.mjs` 等的 import
-3. `scripts/build-dsh-runtime.mjs` 改名为 `build-z-runtime.mjs`（合并现有 wrapper），同步 `package.json` scripts
+3. `scripts/build-dsh-runtime.mjs` 改名为 `build-host-runtime.mjs`（合并现有 wrapper），同步 `package.json` scripts
 4. `test-dsh-runtime-resolution.mjs` 删掉 legacy 用例，只测 Z 路径
 
 提交：`refactor: 运行时解析单一路径，dsh-host → z-host`
@@ -67,7 +67,7 @@ npm run install:app          # 然后验证 /Applications/TaskWeaver.app 内是 
 - TaskWeaver 侧 `@z/dsh-client-connection` 的引用同步改
 
 ### C3 CLI 命令与运行时环境变量（风险：高）
-- `dsh` bin → `z`（`apps/cli/package.json` 的 `bin`，spawn 参数 `web --no-open --port 0` 不变）
+- `dsh` bin → `z`（`host-cli/package.json` 的 `bin`，spawn 参数 `web --no-open --port 0` 不变）
 - 运行时 `DSH_*` → `Z_*`：`DSH_HOME`、`DSH_TELEMETRY_DISABLED`、`DSH_TASKWEAVER_EMBEDDED`、`DSH_SESSION_ID`、`DSH_PERMISSION_MODE` 等
 - 集中改 `DSH_ENV_PREFIX`（已存在的前缀常量，17 处），避免逐个字符串替换
 - 过渡期兼容：读取时先读 `Z_*`，没有再回退 `DSH_*`，保留一个版本后删除
@@ -83,7 +83,7 @@ npm run install:app          # 然后验证 /Applications/TaskWeaver.app 内是 
 
 - [ ] `npm run build:z-runtime` 成功
 - [ ] `test-dsh-runtime-resolution` / `test-dsh-host` / `test-model-service`（阶段 C1 后改名为 `test-z-*`）
-- [ ] `vendor/z-runtime` 内：`build:lib:host`、`build:lib:client`、相关 vitest
+- [ ] `packages/runtime` 内：`build:lib:host`、`build:lib:client`、相关 vitest
 - [ ] `npm run install:app`，启动后：模型列表加载（`llm-pi-ai` namespace 就绪）、发一条消息、工具调用审批
 - [ ] 全仓 `grep -rI 'dsh-source\|@deepseek-ai'` 结果为 0（阶段 A、C2 后）
 - [ ] 阶段 C3 后：旧 `DSH_HOME` 下的数据在新版本中仍可见
@@ -93,7 +93,7 @@ npm run install:app          # 然后验证 /Applications/TaskWeaver.app 内是 
 - 每个阶段一个提交，出问题 `git revert` 对应提交即可。`5d24dba` 是总回退点
 - 阶段 A 之后就不能再从上游 DSH 合并更新了。这是有意的取舍：以后 Z 独立演进
 - C3 是唯一会影响用户数据的步骤，必须先做迁移逻辑，再改默认路径
-- `vendor/z-runtime` 本地有 1.5G（主要是 node_modules 和 lib），不入库；受控文件只有源码
+- `packages/runtime` 本地有 1.5G（主要是 node_modules 和 lib），不入库；受控文件只有源码
 
 ## 需要你拍板的点
 

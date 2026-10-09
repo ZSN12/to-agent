@@ -1,0 +1,23 @@
+//#region lib/types/invariant.js
+/**
+* Package-owned invariant companion for `@z/dsh-pwsh-sandbox`.
+* @module @z/dsh-pwsh-sandbox/invariant
+*/
+const PACKAGE_NAME = "@z/dsh-pwsh-sandbox";
+/** Cordis companion plugin name. */
+const name = "pwsh-sandbox-invariant";
+/** Service required before the companion can reserve package ownership. */
+const inject = ["invariants"];
+/**
+* No runtime invariant: this package exposes no independent event sequence or
+* mutable data relation beyond contracts enforced at its owning seams.
+*/
+const install = () => {};
+/**
+* Register this package's invariant companion.
+* @param ctx - Cordis context carrying the invariant service.
+* @returns the installed registration's disposer after setup succeeds.
+*/
+const apply = (ctx) => Promise.resolve(ctx.invariants.register(PACKAGE_NAME, install));
+//#endregion
+export { apply, inject, name };

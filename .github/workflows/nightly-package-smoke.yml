@@ -1,0 +1,42 @@
+name: Nightly package smoke
+
+on:
+  schedule:
+    - cron: '30 3 * * *'
+  workflow_dispatch:
+
+jobs:
+  macos-package:
+    runs-on: macos-14
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.19.0'
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
+          run_install: false
+      - name: Install desktop dependencies
+        run: npm ci
+      - name: Install DSH workspace dependencies
+        working-directory: packages/runtime
+        env:
+          CI: 'true'
+        run: pnpm install --frozen-lockfile --prod=false
+      - name: Check IPC, lint, typecheck, security, and preset integrity
+        run: |
+          npm run check:ipc
+          npm run lint
+          npm run typecheck
+          npm run test:security-hardening
+          npm run test:preset-integrity
+      - name: Build deployable runtime and macOS app
+        env:
+          CI: 'true'
+        run: |
+          npm run build:z-runtime
+          npm run app:builder

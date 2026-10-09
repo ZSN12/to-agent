@@ -22,7 +22,7 @@
 | Compaction | Pi `session.compact` | DSH `compaction` 包 + Pre/Post 钩子 |
 | MCP | Pi custom tools | Cordis MCP 客户端（`mcp__` 命名已对齐） |
 
-参考实现路径：`/Users/zsn/Documents/deepseek/dsh-source`（`apps/cli` + `packages/host/apiproxy` + `apps/web` 测例）。
+参考实现路径：`/Users/zsn/Documents/deepseek/dsh-source`（`host-cli` + `packages/host/apiproxy` + `apps/web` 测例）。
 
 ---
 

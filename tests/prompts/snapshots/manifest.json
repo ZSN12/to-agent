@@ -12,7 +12,7 @@
         "sourceSha256": "66aec5a6d969464b880fe9468a786f6f892a4145622336cb185d400490a7189f",
         "capturedAt": "2026-10-09T08:52:36.959Z"
       },
-      "sourcePath": "vendor/z-runtime/apps/cli/config/agent-presets/standard/agent.cordis.yml",
+      "sourcePath": "packages/runtime/host-cli/config/agent-presets/standard/agent.cordis.yml",
       "sourceSha256": "66aec5a6d969464b880fe9468a786f6f892a4145622336cb185d400490a7189f",
       "sha256": "fb7e0fe109f54aac8ab7c1abbcfab63abfd67d36b48592d1f89ad8ed35bf2253",
       "bytes": 2026,
@@ -40,7 +40,7 @@
         "sourceSha256": "4e5ce587708edaa5f450b4ef1a0bf8b7ef99a370ff4d288cf5140a1dde01cd00",
         "capturedAt": "2026-10-09T08:52:36.960Z"
       },
-      "sourcePath": "vendor/z-runtime/apps/cli/config/agent-presets/taskweaver-code/agent.cordis.yml",
+      "sourcePath": "packages/runtime/host-cli/config/agent-presets/taskweaver-code/agent.cordis.yml",
       "sourceSha256": "4e5ce587708edaa5f450b4ef1a0bf8b7ef99a370ff4d288cf5140a1dde01cd00",
       "sha256": "02949c2fb2a8d0d618147212c64773c64d6e9ad7e1af31d925adfc3f91d4715b",
       "bytes": 683,
@@ -63,7 +63,7 @@
         "sourceSha256": "be13bda57173cfa14e6da062e0c1556b3e8606362ccc7566e4fcb82bc316b117",
         "capturedAt": "2026-10-09T08:52:36.961Z"
       },
-      "sourcePath": "vendor/z-runtime/apps/cli/config/agent-presets/taskweaver-readonly/agent.cordis.yml",
+      "sourcePath": "packages/runtime/host-cli/config/agent-presets/taskweaver-readonly/agent.cordis.yml",
       "sourceSha256": "be13bda57173cfa14e6da062e0c1556b3e8606362ccc7566e4fcb82bc316b117",
       "sha256": "de4029257a380f7039c652d66dfc6f565f11ae1a305416c15f920b1d78310f24",
       "bytes": 4301,
@@ -88,7 +88,7 @@
         "sourceSha256": "58fb33f70cf62837d4d36dc8dc57c2218ad01f6060adb382c3ba28fde8aa3471",
         "capturedAt": "2026-10-09T08:52:36.962Z"
       },
-      "sourcePath": "vendor/z-runtime/apps/cli/config/agent-presets/taskweaver-planner/agent.cordis.yml",
+      "sourcePath": "packages/runtime/host-cli/config/agent-presets/taskweaver-planner/agent.cordis.yml",
       "sourceSha256": "58fb33f70cf62837d4d36dc8dc57c2218ad01f6060adb382c3ba28fde8aa3471",
       "sha256": "3325e70a8eb7334d8a8ba0d4a882f5b4b682fadb68264a0ce8da8d291d7b9909",
       "bytes": 120,
@@ -111,7 +111,7 @@
         "sourceSha256": "0fd0246ee4c7cc94a1f061ceedd0fc9a3211f8e3333bd75820ce5329719fc805",
         "capturedAt": "2026-10-09T08:52:36.962Z"
       },
-      "sourcePath": "vendor/z-runtime/apps/cli/config/agent-presets/taskweaver-pi-lite/agent.cordis.yml",
+      "sourcePath": "packages/runtime/host-cli/config/agent-presets/taskweaver-pi-lite/agent.cordis.yml",
       "sourceSha256": "0fd0246ee4c7cc94a1f061ceedd0fc9a3211f8e3333bd75820ce5329719fc805",
       "sha256": "48856bf18ec134b997db4a6f85a24907c43cea54252b68b389c551909f5df3f8",
       "bytes": 999,

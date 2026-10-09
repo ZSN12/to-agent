@@ -26,7 +26,7 @@
 | 2.8 价签同步 | ✅ `UsageSettings` |
 | 2.9 repo map / 自愈重试 | ✅ |
 | 2.10 shadowTranscript | ✅ 打包禁用 + DEVTOOLS preload |
-| 2.11 dsh-chat-registry 构建链 | ✅ `build-z-runtime` 打入 `electron-vendor/dsh-chat-registry.mjs`；PKG 解析顺序已修 |
+| 2.11 dsh-chat-registry 构建链 | ✅ `build-host-runtime` 打入 `electron-vendor/dsh-chat-registry.mjs`；PKG 解析顺序已修 |
 | 2.12 打包 layout 测试 | ✅ `test-packaged-runtime-layout.mjs` |
 | 2.13 收尾 | ✅ 2026-10-09（`test:all` + `app:builder` + PKG UI 手测） |
 

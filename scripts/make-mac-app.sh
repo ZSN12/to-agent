@@ -6,14 +6,14 @@ cd "$ROOT"
 
 npm run build
 node scripts/validate-model-registry.mjs
-if [[ ! -f vendor/z-runtime/apps/cli/lib/bin.js ]]; then
+if [[ ! -f packages/runtime/host-cli/lib/bin.js ]]; then
   echo "make-mac-app: 需要先构建 Z 运行时 CLI：npm run build:z-runtime"
   exit 1
 fi
-if ! node scripts/build-z-runtime.mjs; then
+if ! node scripts/build-host-runtime.mjs; then
   if [[ -f vendor/taskweaver-z-runtime/lib/entry.js || -f vendor/taskweaver-z-runtime/lib/bin.js ]]; then
-    echo "build-z-runtime 全量构建失败，尝试仅打包已有 deploy: node scripts/build-z-runtime.mjs --skip-build"
-    node scripts/build-z-runtime.mjs --skip-build
+    echo "build-host-runtime 全量构建失败，尝试仅打包已有 deploy: node scripts/build-host-runtime.mjs --skip-build"
+    node scripts/build-host-runtime.mjs --skip-build
   else
     echo "缺少 vendor/taskweaver-z-runtime。请先成功运行 npm run build:z-runtime。"
     exit 1

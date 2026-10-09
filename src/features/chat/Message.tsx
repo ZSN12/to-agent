@@ -82,6 +82,8 @@ export function Message({
     <article
       id={`msg-${message.id}`}
       className={`message dsh-flow-item ${isUser ? 'user-message' : 'agent-message'}${message.interrupted ? ' interrupted-turn' : ''}${isStreaming ? ' message-streaming' : ''}${isFocused ? ' message-focused' : ''}`}
+      data-testid={isUser ? 'user-message' : 'assistant-message'}
+      aria-label={isUser ? '用户消息' : 'TaskWeaver 回复'}
       data-time-hover-root
     >
       <div className="message-content">

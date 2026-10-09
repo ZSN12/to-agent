@@ -200,7 +200,7 @@ export function AppSidebar({
   }
 
   return (
-    <aside className={`app-sidebar ${collapsed ? 'collapsed' : ''}`} aria-label="应用导航">
+    <aside className={`app-sidebar ${collapsed ? 'collapsed' : ''}`} aria-label="应用导航" data-testid="app-sidebar">
       <div className="sidebar-drag-space" />
       
       {/* 顶部品牌与全局搜索；折叠时只保留展开按钮，避免列表文字竖排溢出 */}
@@ -225,6 +225,7 @@ export function AppSidebar({
               <button
                 title={searchOpen ? '收起搜索' : '搜索会话'}
                 aria-label="搜索会话"
+                data-testid="thread-search-toggle"
                 className={searchOpen || searchQuery ? 'active' : ''}
                 onClick={() => {
                   setSearchOpen((prev) => !prev)
@@ -247,6 +248,8 @@ export function AppSidebar({
             <input
               type="text"
               className="sidebar-search-input"
+              data-testid="thread-search-input"
+              aria-label="搜索会话"
               placeholder="搜索会话、路径..."
               value={searchQuery}
               autoFocus
@@ -279,6 +282,8 @@ export function AppSidebar({
             type="button"
             className={`sidebar-codex-nav-item ${activeMainView === 'chat' && !currentThreadId ? 'active' : ''}`}
             title="新对话"
+            aria-label="新建会话"
+            data-testid="new-chat"
             onClick={() => {
               onNewChat()
               onSelectMainView?.('chat')
@@ -785,7 +790,7 @@ export function AppSidebar({
           <button className="account-tool-btn" title="帮助" aria-label="帮助">
             <HelpCircle size={17} />
           </button>
-          <button className="account-tool-btn" title="设置" aria-label="打开设置" onClick={onOpenSettings}>
+          <button className="account-tool-btn" title="设置" aria-label="打开设置" data-testid="open-settings" onClick={onOpenSettings}>
             <Settings size={17} />
           </button>
         </div>

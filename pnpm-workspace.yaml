@@ -1,0 +1,39 @@
+packages:
+  - 'packages/*'
+  - 'packages/*/*'
+  - 'packages/*/*/*'
+
+linkWorkspacePackages: true
+
+peerDependencyRules:
+  allowedVersions:
+    typescript: '>=5 <7'
+
+allowBuilds:
+  esbuild: true
+  lefthook: true
+  node-pty: true
+  '@google/genai': false
+  protobufjs: false
+  node-addon-require-builtin: false
+  koffi: true
+  '@z/dsh-subprocess-local@file:packages/runtime/subprocess/subprocess-local': true
+  tree-sitter: true
+  tree-sitter-javascript: true
+  tree-sitter-python: true
+  tree-sitter-typescript: true
+
+minimumReleaseAgeExclude:
+  - '@earendil-works/pi-ai@0.82.1'
+  - node-addon-native-custom-loader@0.1.4
+  - node-addon-require-builtin-darwin-arm64@0.1.4
+  - node-addon-require-builtin-darwin-x64@0.1.4
+  - node-addon-require-builtin-linux-arm64-gnu@0.1.4
+  - node-addon-require-builtin-linux-x64-gnu@0.1.4
+  - node-addon-require-builtin-win32-arm64-msvc@0.1.4
+  - node-addon-require-builtin-win32-ia32-msvc@0.1.4
+  - node-addon-require-builtin-win32-x64-msvc@0.1.4
+  - node-addon-require-builtin@0.1.4
+
+patchedDependencies:
+  node-pty@1.2.0-beta.15: patches/node-pty@1.2.0-beta.15.patch

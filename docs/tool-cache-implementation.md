@@ -124,7 +124,7 @@ class ToolResultCache {
 ### 2. @z/dsh-tool-cache Cordis 插件
 
 #### 文件位置
-`/Users/zsn/Documents/毕设/vendor/z-runtime/packages/core/tool-cache/`
+`/Users/zsn/Documents/毕设/packages/runtime/core/tool-cache/`
 
 #### 插件结构
 ```
@@ -331,7 +331,7 @@ interface CacheEntry {
 ### Cordis 预设配置
 
 #### 文件位置
-`vendor/z-runtime/apps/cli/config/agent-presets/taskweaver-optimized/agent.cordis.yml`
+`packages/runtime/host-cli/config/agent-presets/taskweaver-optimized/agent.cordis.yml`
 
 #### 配置内容
 ```yaml

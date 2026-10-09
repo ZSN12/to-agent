@@ -286,8 +286,9 @@ export default function App() {
     skillName: string | null,
     workMode?: WorkMode,
     executionModeOverride?: 'single-agent' | 'multi-agent',
+    attachments?: { id: string, mediaType: string, data: string, name: string }[],
   ) => {
-    void appBackend.sendMessage(text, model?.id, skillName ?? undefined, executionModeOverride, workMode)
+    void appBackend.sendMessage(text, model?.id, skillName ?? undefined, executionModeOverride, workMode, attachments)
   }
 
   const sendTaskMessage = (text: string) => {
@@ -498,7 +499,14 @@ export default function App() {
         )}
         {panel === 'dag' && <DagPanel tasks={tasks} onTask={openTask} onClose={() => setPanel(null)} />}
         {panel === 'task' && selectedTask && (
-          <TaskConversation task={selectedTask} onBack={() => setPanel('dag')} onClose={() => setPanel(null)} onSend={sendTaskMessage} onCancel={cancelTask} />
+          <TaskConversation
+            task={selectedTask}
+            conversationId={appBackend.state?.conversationId ?? null}
+            onBack={() => setPanel('dag')}
+            onClose={() => setPanel(null)}
+            onSend={sendTaskMessage}
+            onCancel={cancelTask}
+          />
         )}
 
         {panel === 'details' && detailsTool && (
@@ -522,6 +530,7 @@ export default function App() {
           <Suspense fallback={null}>
             <OutputLogPanel
               logs={appBackend.toolTraces}
+              conversationId={appBackend.state?.conversationId ?? null}
               onClose={() => setPanel(null)}
               onShowToolDetails={showToolDetails}
               onOpenWorkspacePath={openWorkspacePath}

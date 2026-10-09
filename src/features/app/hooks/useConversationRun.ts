@@ -474,6 +474,7 @@ export function useConversationRun(options: ConversationRunOptions) {
       skillName?: string,
       executionModeOverride?: 'single-agent' | 'multi-agent',
       workMode?: WorkMode,
+      attachments?: { id: string, mediaType: string, data: string, name: string }[],
     ) => {
       const bridge = getBridge()
       if (!bridge?.chat) {
@@ -526,7 +527,8 @@ export function useConversationRun(options: ConversationRunOptions) {
       if (isCompact && sendConversationId) {
         setPendingCompactionIds((current) => (current.includes(sendConversationId) ? current : [...current, sendConversationId]))
       }
-      const res = await bridge.chat.send(text, modelKey ?? null, skillName ?? null, executionModeOverride ?? null, workMode ?? 'code', sendConversationId)
+      const mappedAttachments = attachments ? attachments.map(({ mediaType, data, name }) => ({ mediaType, data, name })) : null
+      const res = await bridge.chat.send(text, modelKey ?? null, skillName ?? null, executionModeOverride ?? null, workMode ?? 'code', sendConversationId, mappedAttachments)
       if (isCompact) clearPendingCompaction(sendConversationId)
       if (!res.ok) {
         const stillRunning = Boolean(sendConversationId && runningConversationsRef.current.has(sendConversationId))

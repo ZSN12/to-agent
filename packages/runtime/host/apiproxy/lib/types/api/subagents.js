@@ -1,0 +1,7 @@
+"use strict";
+/**
+ * Browser-safe subagent domain contract. Persisted transcript reads never
+ * activate an Agent, while continuable prompts route through the exact live
+ * direct parent into the child's Agent inbox.
+ */
+Object.defineProperty(exports, "__esModule", { value: true });

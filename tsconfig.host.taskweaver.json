@@ -1,0 +1,23 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rewriteRelativeImportExtensions": false
+  },
+  "files": [],
+  "references": [
+    { "path": "./packages/fs/tool-fs" },
+    { "path": "./packages/fs/tool-fs-search" },
+    { "path": "./packages/fs/tool-fs-inline-edit" },
+    { "path": "./packages/fs/tool-fs-semantic-search" },
+    { "path": "./packages/guard/repeat-tool-reminder" },
+    { "path": "./packages/llm/llm-retry" },
+    { "path": "./packages/bridge/bridge-core" },
+    { "path": "./packages/llm/llm-taskweaver-bridge" },
+    { "path": "./packages/compaction/compaction-basic" },
+    { "path": "./packages/subagent/tool-subagent-control" },
+    { "path": "./packages/util/home-paths" },
+    { "path": "./packages/bundle/taskweaver" },
+    { "path": "./host-cli" }
+  ]
+}

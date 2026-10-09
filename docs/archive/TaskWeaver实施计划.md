@@ -5,7 +5,7 @@
 > 产品归属：**TaskWeaver 自有桌面应用**。模型会话当前由随项目交付的运行时实现承载；Skill 选择/装载、门控、DAG、模型分配与产品交互由 TaskWeaver 控制。运行时不是产品品牌，也不应在界面中作为功能提供方出现。  
 > 本文目的：说明「Coding Agent 标配能力」与「毕设贡献（门控 + 分配 + DAG）」如何分阶段落地，便于第三方（如 GPT）评审范围与优先级。
 
-> **实现状态校准（2026-09-29）**：本文早期章节中关于 pi / `createAgentSession` 的内容属于初始方案，已被后续实现替代；当前产品将运行时称为 **Z Runtime / Z Host**，单 Agent 与 DAG 子任务由 `vendor/z-runtime` 承载。MCP 服务与桥接作为 TaskWeaver 的产品扩展保留，不是论文核心创新；当前 MCP 连接配置与 Agent 工具注入状态需区分展示，连接成功不等于已接入 Agent。当前 ProjectMemory 已实现 L0–L2，并已补充失败分类与最小 L4 EvidenceBundle 持久化/升级注入；L3 事实抽取、失败文件/diff/测试证据仍未完成。源码中的历史 API、包名和第三方来源说明保留原名；除明确列为当前状态的段落外，旧阶段描述应视为历史计划，不代表现状。
+> **实现状态校准（2026-09-29）**：本文早期章节中关于 pi / `createAgentSession` 的内容属于初始方案，已被后续实现替代；当前产品将运行时称为 **Z Runtime / Z Host**，单 Agent 与 DAG 子任务由 `packages/runtime` 承载。MCP 服务与桥接作为 TaskWeaver 的产品扩展保留，不是论文核心创新；当前 MCP 连接配置与 Agent 工具注入状态需区分展示，连接成功不等于已接入 Agent。当前 ProjectMemory 已实现 L0–L2，并已补充失败分类与最小 L4 EvidenceBundle 持久化/升级注入；L3 事实抽取、失败文件/diff/测试证据仍未完成。源码中的历史 API、包名和第三方来源说明保留原名；除明确列为当前状态的段落外，旧阶段描述应视为历史计划，不代表现状。
 
 ---
 
@@ -48,7 +48,7 @@
 | 入口门控 + 编排 | `orchestration-policy.mjs`, `orchestration-service.mjs`, `dag-scheduler.mjs` | 已有：`chat:send` 按门控走单 Agent 或 `planAndExecute` |
 | Skill 目录与调用 | `electron/backend/skill-service.mjs`, `skill-prompt.mjs` | 已有：发现内置/应用/受信任工作区 Skill；用户选中后由 TaskWeaver 读取正文并注入当前任务；选中多 Agent Skill 才强制进入 DAG |
 | 前端 | `src/App.tsx`, `useAppBackend.ts` | 真实对话与模型设置；`/Skill` 补全、权限档位、模型添加/删除界面；DAG/任务 UI 部分具备 |
-| 执行层依赖 | `vendor/z-runtime`（Z Runtime，`@z/dsh-*` 历史 workspace 包名） | 当前实际运行时；不是 pi npm 依赖 |
+| 执行层依赖 | `packages/runtime`（Z Runtime，`@z/dsh-*` 历史 workspace 包名） | 当前实际运行时；不是 pi npm 依赖 |
 
 **已知缺口（相对「完整 Coding Agent」）：**
 

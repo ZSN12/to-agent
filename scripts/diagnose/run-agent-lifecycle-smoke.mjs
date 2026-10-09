@@ -135,7 +135,7 @@ try {
       const id = `cancel-${crypto.randomUUID()}`
       const marker = `CANCEL_RECOVERY_${crypto.randomUUID()}`
       const pending = bounded(chat.send(options(id,
-        '先在任何工具调用之前向我输出一句“我开始只读检查并梳理调用关系。”，然后只读检查 package.json、src/App.tsx、electron/backend/register-ipc.mjs、electron/backend/dsh-chat-service.mjs 和 vendor/z-runtime/apps/cli/config/agent-presets/standard/agent.cordis.yml，指出它们之间的调用关系。请先逐个读取再总结；不要修改文件、不要运行命令。')), 'cancelled inspection')
+        '先在任何工具调用之前向我输出一句“我开始只读检查并梳理调用关系。”，然后只读检查 package.json、src/App.tsx、electron/backend/register-ipc.mjs、electron/backend/dsh-chat-service.mjs 和 packages/runtime/host-cli/config/agent-presets/standard/agent.cordis.yml，指出它们之间的调用关系。请先逐个读取再总结；不要修改文件、不要运行命令。')), 'cancelled inspection')
       pending.catch(() => {})
       await waitFor(() => chat.isBusy(id) && caseEvents(id, since).some(event => event.type === 'delta'),
         'visible partial text before cancellation', 120_000)

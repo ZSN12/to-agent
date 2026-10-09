@@ -616,7 +616,7 @@ try {
     getWorkspaceTrusted: () => true,
     agentDataPath: agentData,
     userDataPath: userData,
-    getAppPreferences: async () => ({ worktreeIsolation: true, subtaskUpgradeMax: 1 }),
+    getAppPreferences: async () => ({ dagPlanApproval: 'never', worktreeIsolation: true, subtaskUpgradeMax: 1, dagPlanApproval: 'never' }),
     dshRuntime: mockDshRuntime,
   })
 
@@ -761,7 +761,7 @@ try {
     getWorkspaceTrusted: () => true,
     agentDataPath: agentData,
     userDataPath: userData,
-    getAppPreferences: async () => ({ worktreeIsolation: false }),
+    getAppPreferences: async () => ({ dagPlanApproval: 'never', worktreeIsolation: false }),
     dshRuntime: correctionRuntime,
   })
   const correctedPlan = await correctionService.planAndExecute({
@@ -812,7 +812,7 @@ try {
     getWorkspaceTrusted: () => true,
     agentDataPath: agentData,
     userDataPath: userData,
-    getAppPreferences: async () => ({ worktreeIsolation: false, subtaskUpgradeMax: 2 }),
+    getAppPreferences: async () => ({ dagPlanApproval: 'never', worktreeIsolation: false, subtaskUpgradeMax: 2 }),
     dshRuntime: blockedRuntime,
   })
   const blockedPlan = await blockedService.planAndExecute({
@@ -872,7 +872,7 @@ try {
     getWorkspaceTrusted: () => true,
     agentDataPath: agentData,
     userDataPath: userData,
-    getAppPreferences: async () => ({ worktreeIsolation: false, subtaskUpgradeMax: 0 }),
+    getAppPreferences: async () => ({ dagPlanApproval: 'never', worktreeIsolation: false, subtaskUpgradeMax: 0 }),
     dshRuntime: scopeDeniedRuntime,
   })
   const scopeDeniedPlan = await scopeDeniedService.planAndExecute({

@@ -508,6 +508,7 @@ export interface TaskweaverChatApi {
     executionModeOverride?: 'single-agent' | 'multi-agent' | null,
     workMode?: WorkMode | null,
     conversationId?: string | null,
+    attachments?: { mediaType: string, data: string, name: string }[] | null,
   ) => Promise<IpcResult<ChatSendResult>>
   cancel: (conversationId?: string | null) => Promise<IpcResult<{ stopped: boolean }>>
   steer: (text: string, conversationId?: string | null) => Promise<IpcResult<any>>

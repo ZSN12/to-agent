@@ -35,13 +35,13 @@
 ### 对于开发者
 ```bash
 # 1. 查看缓存插件源码
-cd vendor/z-runtime/packages/core/tool-cache
+cd packages/runtime/core/tool-cache
 
 # 2. 运行测试
 pnpm test
 
 # 3. 修改配置
-vim vendor/z-runtime/apps/cli/config/agent-presets/taskweaver-optimized/agent.cordis.yml
+vim packages/runtime/host-cli/config/agent-presets/taskweaver-optimized/agent.cordis.yml
 
 # 4. 重新构建
 npm run build:z-runtime

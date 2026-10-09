@@ -3,7 +3,7 @@
 ## ✅ 核心代码审查（279 行）
 
 ### 文件位置
-`vendor/z-runtime/packages/core/tool-cache/src/index.ts`
+`packages/runtime/core/tool-cache/src/index.ts`
 
 ### 代码质量评估
 

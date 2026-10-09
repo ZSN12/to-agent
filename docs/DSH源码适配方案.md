@@ -3,7 +3,7 @@
 ## 你要的模式（一句话）
 
 **DSH 当引擎 + 投影库，TaskWeaver 当壳。**  
-从 `vendor/z-runtime` **拷逻辑、接数据面**，对话区 **继续用我们的布局/线程/Composer/DAG**；**不**在面板里嵌整站 `dsh web`，也**不**长期靠 `dsh-chat-service` 手搓 `delta/tool/done` 当唯一真相。
+从 `packages/runtime` **拷逻辑、接数据面**，对话区 **继续用我们的布局/线程/Composer/DAG**；**不**在面板里嵌整站 `dsh web`，也**不**长期靠 `dsh-chat-service` 手搓 `delta/tool/done` 当唯一真相。
 
 ## 三层分工
 
@@ -19,7 +19,7 @@ flowchart TB
     Hook[useDshConversationProjection]
     Map[conversationId ↔ sessionId / cwd / preset]
   end
-  subgraph dsh [vendor/z-runtime 可改 fork]
+  subgraph dsh [packages/runtime 可改 fork]
     Host[dsh web 子进程 执行]
     RT[@z/dsh-client-runtime Session 投影]
     UI[@z/dsh-client-ui-conversation 等 组件源码]
@@ -66,7 +66,7 @@ flowchart TB
 
 ## Fork 改造约定
 
-- 改动优先在 **`vendor/z-runtime`** + 本仓库 **`src/features/dsh-runtime`**，不等待上游合并。  
+- 改动优先在 **`packages/runtime`** + 本仓库 **`src/features/dsh-runtime`**，不等待上游合并。
 - 需要 Host 行为时改 **`packages/host/apiproxy`**（已有 TaskWeaver 授权事件先例）。  
 - 不为桌面端开 HMR；嵌入式用 `DSH_TASKWEAVER_EMBEDDED=1`（已用）。
 
@@ -75,4 +75,4 @@ flowchart TB
 - 原则：[DSH内嵌集成原则.md](./DSH内嵌集成原则.md)  
 - mux 扇出：`electron/backend/dsh-chat-service.mjs`  
 - 适配 hook 骨架：`src/features/dsh-runtime/useDshMuxTape.ts`  
-- DSH 参考：`vendor/z-runtime/packages/client/runtime`、`ui-conversation`、`ui-trajectory`
+- DSH 参考：`packages/runtime/client/runtime`、`ui-conversation`、`ui-trajectory`

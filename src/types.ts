@@ -33,6 +33,7 @@ export interface ModelOption {
   supportedThinkingLevels?: ThinkingLevel[]
   reasoningEfforts?: { id: ThinkingLevel; name?: string; description?: string }[]
   defaultThinkingLevel?: ThinkingLevel
+  vision?: boolean
 }
 
 export interface ChatMessage {
@@ -97,6 +98,8 @@ export interface ChatUsage {
 
 export interface TaskNode {
   id: string
+  /** Orchestration run that owns this task's isolated worktree. */
+  runId?: string
   title: string
   role: string
   model: string

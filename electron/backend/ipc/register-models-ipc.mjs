@@ -64,7 +64,19 @@ export function registerModelsIpc(ctx) {
     traceStartup('models:loadBundle-end', { providerCount: bundle?.providerCount ?? null })
     return bundle
   })
-  ipcHandle(ipcMain, 'models:list', () => modelService.listCatalog())
+  ipcHandle(ipcMain, 'models:list', async (event) => {
+    return modelService.listCatalog({
+      onUpdate: (latest) => {
+        try {
+          if (!event.sender.isDestroyed()) {
+            event.sender.send('models:catalogUpdated', latest)
+          }
+        } catch {
+          // ignore
+        }
+      }
+    })
+  })
   ipcHandle(ipcMain, 'models:refresh', async () => modelService.refreshCatalog())
   ipcHandle(ipcMain, 'models:getUpdateStatus', () => modelRegistryUpdater.getStatus())
   ipcHandle(ipcMain, 'models:checkForUpdates', async (_event, options) => {

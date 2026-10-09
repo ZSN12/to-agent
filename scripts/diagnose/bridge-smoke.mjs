@@ -14,7 +14,7 @@ if (!supported.has(kind)) {
 process.env.BRIDGE_SMOKE_MOCK = process.env.BRIDGE_SMOKE_MOCK ?? '1'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
-const transportUrl = pathToFileURL(path.join(root, 'packages/taskweaver-bridge-transport/index.mjs')).href
+const transportUrl = pathToFileURL(path.join(root, 'packages/provider-bridge-transport/index.mjs')).href
 
 const { installBridgeTransportBackends } = await import(transportUrl)
 
@@ -24,7 +24,7 @@ let installDefaultBridgeBackends
 try {
   const core = await import(pathToFileURL(path.join(
     root,
-    'vendor/z-runtime/packages/bridge/bridge-core/src/registry.ts',
+    'packages/runtime/bridge/bridge-core/src/registry.ts',
   )).href)
   registerBridgeBackend = core.registerBridgeBackend
   getBridgeBackend = core.getBridgeBackend

@@ -22,7 +22,7 @@
 ## 已验证并修复的缺陷
 
 1. Z 原生工具结果包在 `tool-result.content` 内；旧桥接只读取外层，导致成功结果显示 0 字符、嵌套错误误判或仅显示泛化错误。现在展开已知包装并保留错误状态，错误摘要仍做凭据脱敏。
-2. glob 默认忽略忽略规则并递归整个树，依赖和打包目录产生超大输出、挤占候选路径。TaskWeaver 预设现在默认排除依赖/构建目录，并对过量候选跨顶层采样；保留 `vendor/z-runtime` 源码。需要调查依赖时可显式设置 `includeExcluded=true` 并缩小路径，直接 read 不受发现过滤影响。
+2. glob 默认忽略忽略规则并递归整个树，依赖和打包目录产生超大输出、挤占候选路径。TaskWeaver 预设现在默认排除依赖/构建目录，并对过量候选跨顶层采样；保留 `packages/runtime` 源码。需要调查依赖时可显式设置 `includeExcluded=true` 并缩小路径，直接 read 不受发现过滤影响。
 3. 精简 Host 编译配置漏掉动态预设使用的搜索插件，导致 tsdown 打包旧 `lib/types`。现在显式编译该插件，并在部署测试中验证实际包的配置能力，防止“源码改了、产物没改”。
 4. 简要概览增加按代表入口、局部行范围阅读的指引；这不是硬超时或全局工具次数限制，不禁止长任务和完整审计。
 
@@ -34,7 +34,7 @@ node scripts/test-tool-trace.mjs
 node scripts/test-dsh-chat-service.mjs
 node scripts/test-z-host-deploy.mjs
 node scripts/test-z-runtime-resolution.mjs
-cd vendor/z-runtime
+cd packages/runtime
 ./node_modules/.bin/vitest run packages/fs/tool-fs-search/tests
 ```
 

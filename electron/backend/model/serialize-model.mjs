@@ -62,6 +62,7 @@ export function createSerializeDshModel({ getPriceRegistry, getCatalogPriceMeta 
         : 0,
       registryVersion,
       capabilitySummary: registryEntry?.capabilitySummary || '',
+      vision: Boolean(registryEntry?.vision || model.vision || (Array.isArray(model.features) && model.features.includes('vision'))),
       taskTags: Array.isArray(registryEntry?.taskTags) ? registryEntry.taskTags : [],
       verificationStatus: registryEntry ? 'verified' : (source === 'bundled' ? 'bundled' : 'unverified'),
       routeRegistered,

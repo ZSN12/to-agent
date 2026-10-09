@@ -479,7 +479,7 @@ const runtimeRoot = runtimeOverride
   : cliArgs.includes('--installed')
     ? '/Applications/TaskWeaver.app/Contents/Resources/taskweaver-z-runtime'
     : path.join(root, 'vendor', 'taskweaver-z-runtime')
-const sourceReadonlyPresetPath = path.join(root, 'vendor', 'z-runtime', 'apps', 'cli', 'config', 'agent-presets', 'taskweaver-readonly', 'agent.cordis.yml')
+const sourceReadonlyPresetPath = path.join(root, 'packages', 'runtime', 'apps', 'cli', 'config', 'agent-presets', 'taskweaver-readonly', 'agent.cordis.yml')
 const runtimeReadonlyPresetPath = path.join(runtimeRoot, READONLY_PRESET_RELATIVE_PATH)
 const reportDir = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-live-dag-'))
 const frozenPlanArtifactPath = path.join(reportDir, 'frozen-plan.json')
@@ -543,7 +543,7 @@ async function hashWorkspaceSnapshot(plan) {
     }
   }
   for (const relativePath of paths) await collect(relativePath)
-  const presetPath = 'vendor/z-runtime/apps/cli/config/agent-presets/taskweaver-readonly/agent.cordis.yml'
+  const presetPath = 'packages/runtime/host-cli/config/agent-presets/taskweaver-readonly/agent.cordis.yml'
   try {
     if ((await fs.stat(path.join(root, presetPath))).isFile()) filePaths.add(presetPath)
   } catch (error) {

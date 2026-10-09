@@ -129,6 +129,7 @@ export function Composer({
     skillName: string | null,
     workMode?: WorkMode,
     executionModeOverride?: 'single-agent' | 'multi-agent',
+    attachments?: { id: string, mediaType: string, data: string, name: string }[],
   ) => void
   onCancel: () => void
   onSteer?: (text: string) => void
@@ -165,6 +166,7 @@ export function Composer({
   const [activeSkillIndex, setActiveSkillIndex] = useState(0)
   const [activeContextIndex, setActiveContextIndex] = useState(0)
   const [dragging, setDragging] = useState(false)
+  const [attachments, setAttachments] = useState<{ id: string, mediaType: string, data: string, name: string }[]>([])
   const textareaRef = useAutosizeTextarea(value, 38, 132)
   const slashMenuWasOpenRef = useRef(false)
 
@@ -425,11 +427,12 @@ export function Composer({
 
     const executionOverride =
       effectiveMode === 'goal' || multiAgentOrchestration ? 'multi-agent' : undefined
-    onSend(message, selectedSkill, effectiveMode, executionOverride)
+    onSend(message, selectedSkill, effectiveMode, executionOverride, attachments)
     setValue('')
     setSelectedSkill(null)
     setSkillQuery(null)
     setContextQuery(null)
+    setAttachments([])
   }
 
   const commandOpen = Boolean(skillQuery || contextQuery)
@@ -456,35 +459,34 @@ export function Composer({
     void (async () => {
       for (const file of imageFiles) {
         let reference = await onCreateDroppedReference(file)
-        if (!reference && window.taskweaver?.workspace?.saveClipboardImage) {
-          try {
-            const reader = new FileReader()
-            const base64 = await new Promise<string>((resolve, reject) => {
-              reader.onload = () => {
-                const res = reader.result as string
-                const b64 = res.split(',')[1] || ''
-                resolve(b64)
-              }
-              reader.onerror = reject
-              reader.readAsDataURL(file)
-            })
-            if (base64) {
-              const ext = file.type === 'image/jpeg' ? '.jpg' : file.type === 'image/webp' ? '.webp' : '.png'
-              const filename = `paste-${Date.now()}-${Math.random().toString(36).slice(2, 6)}${ext}`
-              const saved = await window.taskweaver.workspace.saveClipboardImage({
-                base64,
-                mimeType: file.type || 'image/png',
-                filename,
-              })
-              if (saved?.ok && saved.data) {
-                reference = saved.data
-              }
-            }
-          } catch (err) {
-            console.error('[Composer] 保存剪贴板图片失败:', err)
-          }
+        if (reference) {
+          insertReference(reference)
+          continue
         }
-        if (reference) insertReference(reference)
+        try {
+          const reader = new FileReader()
+          const base64 = await new Promise<string>((resolve, reject) => {
+            reader.onload = () => {
+              const res = reader.result as string
+              const b64 = res.split(',')[1] || ''
+              resolve(b64)
+            }
+            reader.onerror = reject
+            reader.readAsDataURL(file)
+          })
+          if (base64) {
+            const ext = file.type === 'image/jpeg' ? '.jpg' : file.type === 'image/webp' ? '.webp' : '.png'
+            const filename = `paste-${Date.now()}-${Math.random().toString(36).slice(2, 6)}${ext}`
+            setAttachments(prev => [...prev, {
+              id: crypto.randomUUID(),
+              mediaType: file.type || 'image/png',
+              data: base64,
+              name: filename,
+            }])
+          }
+        } catch (err) {
+          console.error('[Composer] 读取剪贴板图片失败:', err)
+        }
       }
     })()
   }
@@ -492,7 +494,7 @@ export function Composer({
   const queue = promptQueue ?? { steering: [], followUp: [] }
 
   return (
-    <div className="composer-shell">
+    <div className="composer-shell" data-testid="composer">
       <CompactSuggestBanner
         conversationKey={conversationId ?? currentThreadId ?? null}
         contextPercent={contextPercent}
@@ -535,13 +537,52 @@ export function Composer({
         void (async () => {
           for (const file of files.slice(0, 8)) {
             const reference = await onCreateDroppedReference(file)
-            if (reference) insertReference(reference)
+            if (reference) {
+              insertReference(reference)
+            } else if (file.type.startsWith('image/')) {
+              try {
+                const reader = new FileReader()
+                const base64 = await new Promise<string>((resolve, reject) => {
+                  reader.onload = () => {
+                    const res = reader.result as string
+                    const b64 = res.split(',')[1] || ''
+                    resolve(b64)
+                  }
+                  reader.onerror = reject
+                  reader.readAsDataURL(file)
+                })
+                if (base64) {
+                  const ext = file.type === 'image/jpeg' ? '.jpg' : file.type === 'image/webp' ? '.webp' : '.png'
+                  const filename = file.name || `drop-${Date.now()}-${Math.random().toString(36).slice(2, 6)}${ext}`
+                  setAttachments(prev => [...prev, {
+                    id: crypto.randomUUID(),
+                    mediaType: file.type || 'image/png',
+                    data: base64,
+                    name: filename,
+                  }])
+                }
+              } catch (err) {
+                console.error('[Composer] 读取拖入图片失败:', err)
+              }
+            }
           }
         })()
       }}>
         <div className="composer-input-wrap">
+          {attachments.length > 0 && (
+            <div className="composer-attachments">
+              {attachments.map(att => (
+                <div key={att.id} className="composer-attachment-item">
+                  <img src={`data:${att.mediaType};base64,${att.data}`} alt={att.name} />
+                  <button type="button" onClick={() => setAttachments(prev => prev.filter(a => a.id !== att.id))} aria-label="移除图片">
+                    <X size={12} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         <label className="sr-only" htmlFor="main-message">给主控 Agent 发送消息</label>
-        <textarea ref={textareaRef} rows={1} id="main-message" value={value} onPaste={handlePaste} role="combobox" aria-autocomplete="list" aria-expanded={commandOpen} aria-controls={skillQuery ? 'skill-command-options' : contextQuery ? 'context-command-options' : undefined} aria-activedescendant={activeOptionId} onChange={(event) => {
+          <textarea ref={textareaRef} rows={1} id="main-message" data-testid="message-input" value={value} onPaste={handlePaste} role="combobox" aria-label="给主控 Agent 发送消息" aria-autocomplete="list" aria-expanded={commandOpen} aria-controls={skillQuery ? 'skill-command-options' : contextQuery ? 'context-command-options' : undefined} aria-activedescendant={activeOptionId} onChange={(event) => {
           const nextVal = event.target.value
           setValue(nextVal)
           if (historyIndexRef.current >= 0) {
@@ -793,6 +834,11 @@ export function Composer({
           {contextEntries.length === 0 && <p className="skill-menu-empty">输入文件名或路径搜索；只显示当前工作区内容。</p>}
         </div>}
         {dragging && <div className="composer-drop-overlay"><FolderOpen size={20} /><span>松开以引用工作区文件</span></div>}
+        {attachments.length > 0 && model && !model.vision && (
+          <div className="composer-vision-warning" style={{ fontSize: '12px', color: 'var(--color-warning)', padding: '4px 12px', background: 'var(--bg-warning-soft)', borderBottom: '1px solid var(--line-light)' }}>
+            当前模型不支持视觉输入。请更换支持视觉的模型，否则图片将被忽略。
+          </div>
+        )}
         <div className="composer-footer">
           <div className="composer-left">
             <button type="button" className="composer-icon" aria-label="添加文件或上下文" title="添加文件或上下文" onClick={openContextMenu}><Plus size={23} /></button>
@@ -856,7 +902,7 @@ export function Composer({
             <button type="button" className="composer-icon mic-button" aria-label="语音输入" title="语音输入"><Mic size={18} /></button>
             {sending
               ? <button type="button" className="send-button stop" aria-label="停止生成" title="停止生成" onClick={onCancel}><Square size={17} fill="currentColor" /></button>
-              : <button className="send-button" aria-label="发送消息" disabled={!value.trim() || !model}><ArrowUp size={23} /></button>}
+              : <button className="send-button" data-testid="send-message" aria-label="发送消息" disabled={!value.trim() || !model}><ArrowUp size={23} /></button>}
           </div>
         </div>
       </form>
