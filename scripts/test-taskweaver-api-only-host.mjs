@@ -9,19 +9,20 @@ import os from 'node:os'
 import path from 'node:path'
 import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { TASKWEAVER_Z_RUNTIME_DEPLOY_DIR } from '../electron/agent/z-host/resolve-runtime.mjs'
+import { TASKWEAVER_RUNTIME_DEPLOY_DIR } from '../desktop/agent/z-host/resolve-runtime.mjs'
+import { scriptHostNodeExecutable } from './lib/host-node-executable.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const runtimeRoot = process.env.TASKWEAVER_Z_RUNTIME
-  ? path.resolve(process.env.TASKWEAVER_Z_RUNTIME)
-  : path.join(root, 'vendor', TASKWEAVER_Z_RUNTIME_DEPLOY_DIR)
+const runtimeRoot = process.env.TASKWEAVER_RUNTIME
+  ? path.resolve(process.env.TASKWEAVER_RUNTIME)
+  : path.join(root, 'vendor', TASKWEAVER_RUNTIME_DEPLOY_DIR)
 
 if (!fs.existsSync(runtimeRoot)) {
   console.log('test-taskweaver-api-only-host: 跳过（无 vendor/taskweaver-z-runtime，先 pnpm run build:z-runtime）')
   process.exit(0)
 }
 
-const zPkgs = path.join(runtimeRoot, 'runtime-packages', '@z')
+const zPkgs = path.join(runtimeRoot, 'runtime-packages', '@taskweaver')
 assert.equal(
   fs.existsSync(path.join(zPkgs, 'dsh-web-frontend')),
   false,
@@ -35,33 +36,38 @@ if (fs.existsSync(zPkgs)) {
   }
 }
 
-const hostBundleLib = path.join(runtimeRoot, 'runtime-packages', '@z', 'dsh-taskweaver', 'lib', 'index.js')
-assert.ok(fs.existsSync(hostBundleLib), 'deploy 应包含 @z/dsh-taskweaver')
+const hostBundleLib = path.join(runtimeRoot, 'runtime-packages', '@taskweaver', 'dsh-taskweaver', 'lib', 'index.js')
+assert.ok(fs.existsSync(hostBundleLib), 'deploy 应包含 @taskweaver/dsh-taskweaver')
 const hostBundleText = await fsp.readFile(hostBundleLib, 'utf8')
 assert.match(hostBundleText, /z web:/, 'dsh-taskweaver 需发布 API Host readiness')
-assert.doesNotMatch(hostBundleText, /taskweaverEmbedded|frontend-static|openBrowser|surfaceContext|DSH_WEB_URL/)
+assert.doesNotMatch(hostBundleText, /taskweaverEmbedded|frontend-static|openBrowser|surfaceContext|TASKWEAVER_WEB_URL/)
 for (const name of ['dsh-web', 'dsh-web-search-taskweaver', 'dsh-tool-web', 'dsh-host-directory-picker-native']) {
-  assert.ok(fs.existsSync(path.join(zPkgs, name)), `TaskWeaver Host 组合应包含 @z/${name}`)
+  assert.ok(fs.existsSync(path.join(zPkgs, name)), `TaskWeaver Host 组合应包含 @taskweaver/${name}`)
 }
 const hostBundleManifest = JSON.parse(await fsp.readFile(
-  path.join(runtimeRoot, 'runtime-packages', '@z', 'dsh-taskweaver', 'package.json'),
+  path.join(runtimeRoot, 'runtime-packages', '@taskweaver', 'dsh-taskweaver', 'package.json'),
   'utf8',
 ))
-for (const name of ['@z/dsh-web', '@z/dsh-web-search-taskweaver', '@z/dsh-tool-web', '@z/dsh-host-directory-picker-native']) {
+for (const name of ['@taskweaver/dsh-web', '@taskweaver/dsh-web-search-taskweaver', '@taskweaver/dsh-tool-web', '@taskweaver/dsh-host-directory-picker-native']) {
   assert.ok(hostBundleManifest.dependencies?.[name], `TaskWeaver bundle should own dependency ${name}`)
 }
-for (const name of ['@z/dsh-host-directory-picker-auto', '@z/dsh-host-directory-picker-browse']) {
+for (const name of ['@taskweaver/dsh-host-directory-picker-auto', '@taskweaver/dsh-host-directory-picker-browse']) {
   assert.equal(hostBundleManifest.dependencies?.[name], undefined, `TaskWeaver bundle must not mount ${name}`)
 }
 const taskWeaverPatch = await fsp.readFile(
-  path.join(runtimeRoot, 'runtime-packages', '@z', 'dsh-taskweaver', 'cordis.patch.yml'),
+  path.join(runtimeRoot, 'runtime-packages', '@taskweaver', 'dsh-taskweaver', 'cordis.patch.yml'),
   'utf8',
 )
-assert.match(taskWeaverPatch, /id: directory-picker\s+name: '@z\/dsh-host-directory-picker-native'/)
+assert.match(taskWeaverPatch, /id: directory-picker\s+name: '@taskweaver\/dsh-host-directory-picker-native'/)
 assert.doesNotMatch(taskWeaverPatch, /dsh-host-directory-picker-(?:auto|browse)/)
-assert.match(taskWeaverPatch, /id: web\s+name: '@z\/dsh-web'/)
-assert.match(taskWeaverPatch, /id: web-search-taskweaver\s+name: '@z\/dsh-web-search-taskweaver'/)
-assert.match(taskWeaverPatch, /id: tool-web\s+name: '@z\/dsh-tool-web'/)
+assert.doesNotMatch(taskWeaverPatch, /id: web\s+name: '@taskweaver\/dsh-web'/, 'web seam rows live in dsh-base, not the TaskWeaver bundle patch')
+
+const basePatchPath = path.join(runtimeRoot, 'runtime-packages', '@taskweaver', 'dsh-base', 'cordis.patch.yml')
+assert.ok(fs.existsSync(basePatchPath), 'deploy 应包含 @taskweaver/dsh-base/cordis.patch.yml')
+const basePatch = await fsp.readFile(basePatchPath, 'utf8')
+assert.match(basePatch, /id: web\s+name: '@taskweaver\/dsh-web'/)
+assert.match(basePatch, /id: web-search-taskweaver\s+name: '@taskweaver\/dsh-web-search-taskweaver'/)
+assert.match(basePatch, /id: tool-web\s+name: '@taskweaver\/dsh-tool-web'/)
 
 const entry = path.join(runtimeRoot, 'lib', 'entry.js')
 assert.ok(fs.existsSync(entry), `缺少 runtime entry：${entry}`)
@@ -70,16 +76,13 @@ const home = await fsp.mkdtemp(path.join(os.tmpdir(), 'tw-api-only-host-'))
 const READY = /(?:z|dsh) web:\s+(https?:\/\/127\.0\.0\.1:\d+)/i
 
 await new Promise((resolve, reject) => {
-  const child = spawn(process.execPath, [entry, '--profile', 'web', '--host', '127.0.0.1', '--port', '0'], {
+  const child = spawn(scriptHostNodeExecutable(), [entry, '--profile', 'web', '--host', '127.0.0.1', '--port', '0'], {
     cwd: runtimeRoot,
     env: {
       ...process.env,
-      Z_HOME: path.join(home, 'z'),
-      Z_TELEMETRY_DISABLED: '1',
-      Z_TASKWEAVER_EMBEDDED: '1',
-      DSH_HOME: path.join(home, 'z'),
-      DSH_TELEMETRY_DISABLED: '1',
-      DSH_TASKWEAVER_EMBEDDED: '1',
+      TASKWEAVER_HOME: path.join(home, 'z'),
+      TASKWEAVER_TELEMETRY_DISABLED: '1',
+      TASKWEAVER_EMBEDDED: '1',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   })

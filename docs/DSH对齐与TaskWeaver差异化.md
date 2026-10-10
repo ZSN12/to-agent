@@ -70,7 +70,7 @@ flowchart TD
 | 纠偏 / 排队 | Enter 忙时默认 **queue**；纠偏在**会话尾**气泡；QueueDock 仅 follow-up | 默认 `followUp`；`PendingSteeringBubble` + `QueueDock` 只显示排队追问 |
 | Think 展示 | ReasoningRow 折叠 | `DshThinkBlock.tsx` + `reasoning-heuristics.ts` |
 | Composer 统计 | StatsLine + ContextMeter | `ComposerStatsDock.tsx` + `context-breakdown.mjs` |
-| 沙箱 | `dsh-sandbox` | `electron/vendor/dsh-sandbox` + `sandbox-service.mjs` |
+| 沙箱 | `dsh-sandbox` | `desktop/vendor/dsh-sandbox` + `sandbox-service.mjs` |
 | MCP 工具名 | `mcp__<server>__<tool>` | `mcp-service.mjs` 已改为双下划线前缀 |
 | 会话 fork 安全 | 仅已完成轮次尾部可分支 | 仅最后一条 assistant、非 streaming、无待处理纠偏时可点分支 |
 | steer/followUp 串扰 | 按 session 校验 | `conversationId` 校验 + `scopedWebContents` |
@@ -117,7 +117,7 @@ flowchart TD
 2. **中断轮次修复**：`session-repair.mjs` 修剪末尾空 assistant；启动时 `repairAllConversationSessions` + `ensureSession` 单次修复。
 3. **审批 UX**：`ApprovalPanel` 嵌入 Composer（`composer-approval-slot`），去掉全屏遮罩。
 4. **Auto-review 轻量**：`permission-service.mjs` 工作区内 `read/grep/find/ls` 在 ask 模式免弹窗。
-5. **Windows 沙箱**：`electron/vendor/dsh-sandbox/WINDOWS.md` 说明；probe 返回 `note`。
+5. **Windows 沙箱**：`desktop/vendor/dsh-sandbox/WINDOWS.md` 说明；probe 返回 `note`。
 6. **Enter 行为**：设置 → **对话** → `ChatBehaviorSettingsPanel`（busyEnter 持久化）。
 7. **P2 对齐（2026-09）**：Composer 忙时 Enter 芯片、侧栏后台运行点、`interrupted` 持久化、只读 auto-review 开关。
 
@@ -129,7 +129,7 @@ flowchart TD
 | `on-risk` | `code` | Host 照常发起 | 启发式自动 `allowed-once`；高风险仍弹窗 |
 | `full` | `code`（见下） | Host 仍可能发起 | 桥接自动 `allowed-once`，不弹窗 |
 
-**已知限制**：ApiProxy 暂无对存活会话追加 `permission/preset` / `approval/policy` 的 RPC；`full` 不能把 DSH agent 重挂为 `danger-full-access`（`approval: never`）。完整访问在 TaskWeaver 侧由 `sandbox-policy`（`permissionMode === 'full'`）与 DSH 桥接自动批准共同体现。实现：`electron/backend/dsh-permission-map.mjs`、`dsh-chat-service.mjs`。
+**已知限制**：ApiProxy 暂无对存活会话追加 `permission/preset` / `approval/policy` 的 RPC；`full` 不能把 DSH agent 重挂为 `danger-full-access`（`approval: never`）。完整访问在 TaskWeaver 侧由 `sandbox-policy`（`permissionMode === 'full'`）与 DSH 桥接自动批准共同体现。实现：`desktop/backend/dsh-permission-map.mjs`、`dsh-chat-service.mjs`。
 
 **生命周期**：切换线程、删除线程、应用退出时 `rejectPendingApprovals` 拒绝悬挂审批（`register-ipc.mjs` + `chat.stop()`）。
 
@@ -151,7 +151,7 @@ flowchart TD
 
 ## 代码索引（TaskWeaver）
 
-- 聊天 / IPC：`electron/backend/dsh-chat-service.mjs`、`register-ipc.mjs`
+- 聊天 / IPC：`desktop/backend/dsh-chat-service.mjs`、`register-ipc.mjs`
 - 前端会话：`src/features/app/useAppBackend.ts`、`src/App.tsx`
 - DSH 样式：`src/styles-dsh-parity.css`
 - 对齐说明维护：本文件

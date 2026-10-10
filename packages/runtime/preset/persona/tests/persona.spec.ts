@@ -1,9 +1,9 @@
-import { Context } from '@z/cordis'
-import SystemPrompt, { renderPrompt } from '@z/dsh-system-prompt'
-import { createScope, type ScopeKey } from '@z/dsh-scope'
+import { Context } from '@taskweaver/cordis'
+import SystemPrompt, { renderPrompt } from '@taskweaver/dsh-system-prompt'
+import { createScope, type ScopeKey } from '@taskweaver/dsh-scope'
 import { describe, expect, it } from 'vitest'
-import * as Persona from '@z/dsh-persona'
-import { PERSONA_SECTION } from '@z/dsh-persona'
+import * as Persona from '@taskweaver/dsh-persona'
+import { PERSONA_SECTION } from '@taskweaver/dsh-persona'
 
 async function harness(deploymentPersona: string): Promise<Context> {
   const ctx = new Context()

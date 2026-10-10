@@ -1,6 +1,6 @@
 /**
  * TaskWeaver model bridge — shared types for in-process provider backends.
- * @module @z/dsh-bridge-core/types
+ * @module @taskweaver/dsh-bridge-core/types
  */
 export const BUILTIN_BRIDGE_KINDS = Object.freeze({
     CURSOR: 'cursor',

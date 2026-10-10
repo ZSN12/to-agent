@@ -1,9 +1,9 @@
 //#region lib/types/invariant.js
 /**
-* Package-owned invariant companion for `@z/dsh-settings-file`.
-* @module @z/dsh-settings-file/invariant
+* Package-owned invariant companion for `@taskweaver/dsh-settings-file`.
+* @module @taskweaver/dsh-settings-file/invariant
 */
-const PACKAGE_NAME = "@z/dsh-settings-file";
+const PACKAGE_NAME = "@taskweaver/dsh-settings-file";
 /** Cordis companion plugin name. */
 const name = "settings-file-invariant";
 /** Service required before the companion can reserve package ownership. */
@@ -11,7 +11,7 @@ const inject = ["invariants"];
 /**
 * No runtime invariant: this provider's contracts are file round-trip,
 * watcher timing, and atomic-write behavior — IO effects proven by package
-* tests; the in-process commit relation is owned by `@z/dsh-settings`.
+* tests; the in-process commit relation is owned by `@taskweaver/dsh-settings`.
 */
 const install = () => {};
 /**

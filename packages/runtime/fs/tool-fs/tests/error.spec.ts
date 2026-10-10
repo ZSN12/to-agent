@@ -4,7 +4,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { FsError } from '@z/dsh-fs'
+import { FsError } from '@taskweaver/dsh-fs'
 import { remediateFsError } from '../src/error.ts'
 
 describe('remediateFsError', () => {

@@ -1,13 +1,13 @@
 /**
- * `@z/dsh-web-fetch-http`: registers an anonymous public HTTP(S)
+ * `@taskweaver/dsh-web-fetch-http`: registers an anonymous public HTTP(S)
  * `WebFetchProvider` with `ctx.web`. A function/namespace plugin (NOT a
  * default-export service): it registers INTO the seam's fetch registry, like the
  * search providers register into the search registry.
  *
- * @module @z/dsh-web-fetch-http
+ * @module @taskweaver/dsh-web-fetch-http
  */
-import type { Context } from '@z/cordis';
-import z from '@z/schemastery';
+import type { Context } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
 export { LOCAL_FETCH_PROVIDER_ID, HttpFetchProvider, } from './provider.ts';
 export type { HttpFetchLimits } from './provider.ts';
 /** Default `User-Agent`: an explicit product agent, never a browser disguise. */

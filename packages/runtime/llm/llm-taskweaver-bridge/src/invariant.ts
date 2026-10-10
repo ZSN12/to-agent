@@ -1,7 +1,7 @@
-import type { Context } from '@z/cordis'
-import type { InvariantInstaller } from '@z/dsh-invariants'
+import type { Context } from '@taskweaver/cordis'
+import type { InvariantInstaller } from '@taskweaver/dsh-invariants'
 
-const PACKAGE_NAME = '@z/dsh-llm-taskweaver-bridge'
+const PACKAGE_NAME = '@taskweaver/dsh-llm-taskweaver-bridge'
 
 export const name = 'llm-taskweaver-bridge-invariant'
 export const inject = ['invariants']

@@ -7,8 +7,17 @@
 import { spawn } from 'node:child_process'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { resolveHostNodeExecutable } from '../desktop/agent/z-host/resolve-host-executable.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+
+function hostNodeExecutable() {
+  return resolveHostNodeExecutable({
+    env: process.env,
+    resourcesPath: process.env.TASKWEAVER_RESOURCES_PATH,
+    isPackaged: process.env.TASKWEAVER_PACKAGED === '1',
+  }).executable
+}
 
 const USAGE = `Usage: node scripts/taskweaver-headless.mjs --text "<prompt>" [options]
 
@@ -92,10 +101,10 @@ function buildSummary(exitCode, lastCompleted, lastFailed) {
 }
 
 if (!jsonSummary) {
-  const child = spawn(process.execPath, childArgs, { cwd: root, stdio: 'inherit', env: process.env })
+  const child = spawn(hostNodeExecutable(), childArgs, { cwd: root, stdio: 'inherit', env: process.env })
   child.on('exit', (code) => process.exit(code ?? 1))
 } else {
-  const child = spawn(process.execPath, childArgs, { cwd: root, stdio: ['inherit', 'pipe', 'pipe'], env: process.env })
+  const child = spawn(hostNodeExecutable(), childArgs, { cwd: root, stdio: ['inherit', 'pipe', 'pipe'], env: process.env })
   let lastCompleted = null
   let lastFailed = null
   let stdoutBuf = ''

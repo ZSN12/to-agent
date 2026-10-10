@@ -7,11 +7,11 @@
  * select the accumulated assistant text. Selection is independent of the
  * run's stop reason.
  *
- * @module @z/dsh-subagent/assistant-output
+ * @module @taskweaver/dsh-subagent/assistant-output
  */
 
-import type { ContentBlock } from '@z/dsh-llm'
-import type { SessionEvent } from '@z/dsh-session'
+import type { ContentBlock } from '@taskweaver/dsh-llm'
+import type { SessionEvent } from '@taskweaver/dsh-session'
 
 /**
  * Incremental fold of the selection rule, for backends that observe a child's

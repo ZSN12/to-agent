@@ -1,5 +1,5 @@
-/** Package-owned durable retry-event invariants. @module @z/dsh-llm-retry/invariant */
-import type { Context } from '@z/cordis';
+/** Package-owned durable retry-event invariants. @module @taskweaver/dsh-llm-retry/invariant */
+import type { Context } from '@taskweaver/cordis';
 /** Cordis companion plugin name. */
 export declare const name = "llm-retry-invariant";
 /** Service required before the companion can reserve package ownership. */

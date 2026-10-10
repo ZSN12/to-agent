@@ -2,7 +2,7 @@
  * Quiescence tracking for emit-shaped hook runs that no extension point awaits. Bridges
  * track the run plus its continuation, pass the tracker signal into execution,
  * and drain on disposal so no process or late callback outlives the fiber.
- * @module @z/dsh-hook-protocol/detached
+ * @module @taskweaver/dsh-hook-protocol/detached
  */
 /**
  * Create a {@link DetachedRuns} tracker (one per bridge `apply()`); settled

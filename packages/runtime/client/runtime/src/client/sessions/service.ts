@@ -14,16 +14,16 @@
  * tears its scope down immediately unless it is the staged one, whose scope
  * survives frozen (read-only view) until the stage moves on.
  */
-import type { Context, Fiber } from '@z/cordis'
+import type { Context, Fiber } from '@taskweaver/cordis'
 import type {
   IApiClient, RpcError, RpcResult, SessionId, SubagentAddress, JobView, WorkspaceId,
-} from '@z/dsh-api-remotes/client'
+} from '@taskweaver/dsh-api-remotes/client'
 // Value import from the inline-safe wire layer (not the connection plugin):
 // plugin-to-plugin value imports are a bundle purity error.
-import { SESSION_SEARCH_RESULT_LIMIT } from '@z/dsh-host-apiproxy/api'
+import { SESSION_SEARCH_RESULT_LIMIT } from '@taskweaver/dsh-host-apiproxy/api'
 import type { SessionMaybeProvideInfo, SessionProvideInfo } from '../contract/session-provide.ts'
 import type { ObservableSnapshot } from '../contract/store.ts'
-import type { SessionProjectionMap } from '@z/dsh-session-projection/types'
+import type { SessionProjectionMap } from '@taskweaver/dsh-session-projection/types'
 import type { SnapshotStore } from '../contract/store.ts'
 import { createSnapshotStore } from '../contract/store.ts'
 import type { SessionFace } from '../contract/session.ts'

@@ -6,14 +6,14 @@
  */
 
 import { z } from 'zod'
-import { canonicalHeader } from '@z/dsh-session'
-import type { ProjectionDefinition } from '@z/dsh-session-projection'
+import { canonicalHeader } from '@taskweaver/dsh-session'
+import type { ProjectionDefinition } from '@taskweaver/dsh-session-projection'
 import { estimateSystemTokens, estimateToolsTokens } from './estimate.ts'
 import { foldSurfaceProjection } from './surface-projection.ts'
 // Import for the `contextBreakdown` SessionProjectionStateMap key merge.
 import type {} from './projection.ts'
 
-declare module '@z/dsh-session-projection/types' {
+declare module '@taskweaver/dsh-session-projection/types' {
   interface SessionProjectionStateMap {
     contextBreakdown: ContextBreakdownState
   }

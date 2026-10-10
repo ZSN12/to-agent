@@ -3,7 +3,7 @@
  * native directory chooser, the open-with-default-application hand-off):
  * utf8 stdio capture, abort propagation, Windows console hide. A library,
  * not a plugin — no ctx, no state, no events.
- * @module @z/dsh-native-command
+ * @module @taskweaver/dsh-native-command
  */
 /** Testable command boundary; native implementations never invoke a shell. */
 export type NativeCommandRunner = (command: string, args: readonly string[], signal: AbortSignal) => Promise<{

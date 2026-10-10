@@ -1,9 +1,9 @@
 /**
  * Load-time validation and routed-model policy resolution for compaction-basic.
  *
- * @module @z/dsh-compaction-basic/config
+ * @module @taskweaver/dsh-compaction-basic/config
  */
-import type { LlmCallConfig } from '@z/dsh-llm';
+import type { LlmCallConfig } from '@taskweaver/dsh-llm';
 import type { BasicCompactionConfig, ResolvedCompactSpec, ResolvedConfig, ResolvedTargetPolicy } from './types.ts';
 /** Target-specific pressure configuration failure eligible for warning suppression. */
 export declare class TargetPressureConfigError extends Error {

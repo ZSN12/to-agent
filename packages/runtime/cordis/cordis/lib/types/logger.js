@@ -1,4 +1,4 @@
-import { defineProperty, hyphenate } from '@z/cosmokit';
+import { defineProperty, hyphenate } from '@taskweaver/cosmokit';
 import { createCallable, joinPrototype, symbols } from "./utils.js";
 /** Built-in placeholder formatters used by `Logger.format()`. */
 export const defaultFormatters = {

@@ -1,6 +1,6 @@
 /**
  * Strict Schedule decoding, replay, time validation, and framing.
- * @module @z/dsh-schedule
+ * @module @taskweaver/dsh-schedule
  */
 /** Durable Schedule protocol version implemented by this package. */
 export const SCHEDULE_CHANGE_VERSION = 1;

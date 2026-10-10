@@ -1,33 +1,33 @@
 /** Platform-neutral assembly of generated Host Remote contributions. */
 
-import type { Context } from '@z/cordis'
-import commandsRemote from '@z/dsh-commands/remote'
-import goalsRemote from '@z/dsh-goal/remote'
-import dynamicRemote from '@z/dsh-cordis-host-runner/remote'
-import fileReferencesRemote from '@z/dsh-file-reference/remote'
-import pluginInventoryRemote from '@z/dsh-host-plugin-inventory/remote'
-import sessionReferencesRemote from '@z/dsh-session-reference/remote'
-import type { TypertClientRemote } from '@z/dsh-typert-protocol'
+import type { Context } from '@taskweaver/cordis'
+import commandsRemote from '@taskweaver/dsh-commands/remote'
+import goalsRemote from '@taskweaver/dsh-goal/remote'
+import dynamicRemote from '@taskweaver/dsh-cordis-host-runner/remote'
+import fileReferencesRemote from '@taskweaver/dsh-file-reference/remote'
+import pluginInventoryRemote from '@taskweaver/dsh-host-plugin-inventory/remote'
+import sessionReferencesRemote from '@taskweaver/dsh-session-reference/remote'
+import type { TypertClientRemote } from '@taskweaver/dsh-typert-protocol'
 
-export type { TypertClientRemote as ClientRemote } from '@z/dsh-typert-protocol'
-export type { PluginInventorySnapshot } from '@z/dsh-host-plugin-inventory/types'
-export type {} from '@z/dsh-commands/remote'
-export type {} from '@z/dsh-file-reference/remote'
-export type {} from '@z/dsh-goal/remote'
-export type {} from '@z/dsh-host-plugin-inventory/remote'
-export type {} from '@z/dsh-session-reference/remote'
+export type { TypertClientRemote as ClientRemote } from '@taskweaver/dsh-typert-protocol'
+export type { PluginInventorySnapshot } from '@taskweaver/dsh-host-plugin-inventory/types'
+export type {} from '@taskweaver/dsh-commands/remote'
+export type {} from '@taskweaver/dsh-file-reference/remote'
+export type {} from '@taskweaver/dsh-goal/remote'
+export type {} from '@taskweaver/dsh-host-plugin-inventory/remote'
+export type {} from '@taskweaver/dsh-session-reference/remote'
 // The forwarded-event allowlist's selection seat: without it in the consumer's
 // compilation face `TypertRemoteEvent` is `never` and every `$on` call fails.
 export type { ApiRemoteForwardedEvent } from '../types.ts'
 // The owner packages' client-safe `./types` exports supply the `Events`
 // signatures `$on` hands to a listener, so a consumer reads the very
 // declaration the Host emits rather than a flattened restatement of it.
-export type {} from '@z/dsh-commands/types'
-export type {} from '@z/dsh-cordis-host-runner/types'
-export type {} from '@z/dsh-credentials/types'
-export type {} from '@z/dsh-llm/types'
-export type {} from '@z/dsh-agent-presets/types'
-export type {} from '@z/dsh-settings/types'
+export type {} from '@taskweaver/dsh-commands/types'
+export type {} from '@taskweaver/dsh-cordis-host-runner/types'
+export type {} from '@taskweaver/dsh-credentials/types'
+export type {} from '@taskweaver/dsh-llm/types'
+export type {} from '@taskweaver/dsh-agent-presets/types'
+export type {} from '@taskweaver/dsh-settings/types'
 
 /**
  * The carrier's Client-facing types, re-exported so a business package names one
@@ -43,9 +43,9 @@ export type {
   SessionSummary, SettingsNamespaceView, SettingsPathOpView, SkillEntry, StreamChunk,
   SubagentAddress, SubagentCatalog, JobView, ToolCallView, ToolEventView, ToolResultView,
   WorkspaceId, WorkspaceView,
-} from '@z/dsh-client-connection/client'
-export type {} from '@z/dsh-api-gateway/client'
-export type {} from '@z/dsh-cordis-host-runner/remote'
+} from '@taskweaver/dsh-client-connection/client'
+export type {} from '@taskweaver/dsh-api-gateway/client'
+export type {} from '@taskweaver/dsh-cordis-host-runner/remote'
 
 // The payload vocabulary of the selected namespaces, re-exported so a Client
 // contribution can name what it sends and receives without importing a Host
@@ -83,17 +83,17 @@ export type {
   DynamicCordisStopResponse,
   DynamicCordisUndefineReceipt,
   RequestRunOutcome,
-} from '@z/dsh-cordis-host-runner/types'
+} from '@taskweaver/dsh-cordis-host-runner/types'
 // The JSON vocabulary those payloads are built from, re-exported for the same
 // reason: a Client contribution names what it sends without importing a Host
 // package, and this assembly is where both planes legitimately meet.
-export type { JsonValue } from '@z/dsh-session/types'
+export type { JsonValue } from '@taskweaver/dsh-session/types'
 // Reference-discovery result vocabulary for the fileReferences and
 // sessionReferenceResolver namespaces.
-export type { FileReferenceCandidate } from '@z/dsh-file-reference/types'
-export type { SessionReferenceMentionCandidate } from '@z/dsh-session-reference/types'
+export type { FileReferenceCandidate } from '@taskweaver/dsh-file-reference/types'
+export type { SessionReferenceMentionCandidate } from '@taskweaver/dsh-session-reference/types'
 
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
   interface Context {
     /** Generated Remote namespaces selected by this Client assembly. */
     remote: TypertClientRemote

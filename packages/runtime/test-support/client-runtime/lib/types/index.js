@@ -8,18 +8,18 @@
  * Not part of the product plugin graph (no `dsh.client`); feature packages
  * depend on it in devDependencies only. It copies no SlotCore/renderer/store
  * machinery — everything mounts the production implementations.
- * @module @z/dsh-client-test-runtime
+ * @module @taskweaver/dsh-client-test-runtime
  */
 /* oxlint-disable typescript/no-redundant-type-constituents --
  * `keyof SlotMap & string` is the declare-merge key pattern (see ui-slots):
  * this compilation unit sees only the runtime's 'root' row, but consumer
  * programs merge their own keys in; the rule fires on the narrow-map view. */
-import { Context, Inject } from '@z/cordis';
+import { Context, Inject } from '@taskweaver/cordis';
 import { createElement, Fragment, useSyncExternalStore } from 'react';
 import { act, render, within } from '@testing-library/react';
-import { ConversationEventRegistry, ConversationViewRegistry, SlotRegistry, } from '@z/dsh-client-runtime/client';
-import { bindSnapshotSelector as bindRendererSnapshotSelector } from '@z/dsh-client-ui-renderer/src/client/bind.ts';
-import { createSlotRenderer as createRenderer } from '@z/dsh-client-ui-renderer/src/client/scoped-slots.tsx';
+import { ConversationEventRegistry, ConversationViewRegistry, SlotRegistry, } from '@taskweaver/dsh-client-runtime/client';
+import { bindSnapshotSelector as bindRendererSnapshotSelector } from '@taskweaver/dsh-client-ui-renderer/src/client/bind.ts';
+import { createSlotRenderer as createRenderer } from '@taskweaver/dsh-client-ui-renderer/src/client/scoped-slots.tsx';
 import { registerDomSnapshotSerializer } from "./snapshot.js";
 import { TestSessions } from "./sessions.js";
 import { TestWorkspaces } from "./workspaces.js";

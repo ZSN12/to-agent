@@ -1,16 +1,16 @@
 /**
  * Safe HTTP(S) retrieval for `ctx.web`: validates URLs, follows only same-origin redirects,
  * enforces time and size limits, classifies and decodes text, and leaves presentation to
- * `@z/dsh-tool-web`. Requests carry no browser cookies or ambient credentials.
+ * `@taskweaver/dsh-tool-web`. Requests carry no browser cookies or ambient credentials.
  *
  * Private-network and SSRF protection is not implemented; do not enable this provider where
  * it can reach sensitive internal targets.
- * @module @z/dsh-web-fetch-http/provider
+ * @module @taskweaver/dsh-web-fetch-http/provider
  */
 
-import { WebError } from '@z/dsh-web'
-import type { WebFetchBody, WebFetchProvider, WebFetchRequest, WebFetchResult } from '@z/dsh-web'
-import { deadline, timeoutOf } from '@z/dsh-timeout'
+import { WebError } from '@taskweaver/dsh-web'
+import type { WebFetchBody, WebFetchProvider, WebFetchRequest, WebFetchResult } from '@taskweaver/dsh-web'
+import { deadline, timeoutOf } from '@taskweaver/dsh-timeout'
 import { classifyContentType, decoderForCharset, isSameOrigin, parseCharset, validateFetchUrl } from './policy.ts'
 
 /** Resolved provider limits (the plugin's schemastery Config supplies defaults). */

@@ -1,7 +1,7 @@
 /**
  * Schema-17 physical chunk-row codec. This package owns the durable tags,
  * validation, and row-size limits independently from other persistence formats.
- * @module @z/dsh-session-persistence-sqlite/codec
+ * @module @taskweaver/dsh-session-persistence-sqlite/codec
  */
 /** Minimum eligible members in a packed physical record. */
 export const MIN_PACKED_ROW_MEMBERS = 3;

@@ -4,7 +4,7 @@
  * sampled fact for the resolver, so an attended Linux host without
  * zenity/kdialog keeps the working `browse` interaction instead of a backend
  * whose every pick fails.
- * @module @z/dsh-host-directory-picker-auto/probe
+ * @module @taskweaver/dsh-host-directory-picker-auto/probe
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.canExecute = canExecute;

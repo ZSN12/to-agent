@@ -1,9 +1,9 @@
 //#region lib/types/invariant.js
 /**
-* Package-owned invariant companion for `@z/dsh-fs-sandbox`.
-* @module @z/dsh-fs-sandbox/invariant
+* Package-owned invariant companion for `@taskweaver/dsh-fs-sandbox`.
+* @module @taskweaver/dsh-fs-sandbox/invariant
 */
-const PACKAGE_NAME = "@z/dsh-fs-sandbox";
+const PACKAGE_NAME = "@taskweaver/dsh-fs-sandbox";
 /** Cordis companion plugin name. */
 const name = "fs-sandbox-invariant";
 /** Services required before the companion can register. */

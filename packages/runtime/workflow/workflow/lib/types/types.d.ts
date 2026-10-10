@@ -3,10 +3,10 @@
  * consumes and produces, plus the fields in the `workflow/*` event payloads.
  * Types only (plus the id-brand factory), per the package convention.
  *
- * @module @z/dsh-workflow/types
+ * @module @taskweaver/dsh-workflow/types
  */
-import type { Branded } from '@z/dsh-brand';
-import type { SessionId } from '@z/dsh-session/types';
+import type { Branded } from '@taskweaver/dsh-brand';
+import type { SessionId } from '@taskweaver/dsh-session/types';
 /** Identifies one workflow run. */
 export type WorkflowRunId = Branded<'WorkflowRunId'>;
 /**

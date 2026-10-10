@@ -1,92 +1,71 @@
-/**
- * Load OpenCodex Cursor adapter in Node (tsx) or Bun without starting ocx/Bun server.
- */
-import { createRequire } from 'node:module'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { existsSync } from 'node:fs'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 
-const here = path.dirname(fileURLToPath(import.meta.url))
+/** Load the built TaskWeaver Cursor adapter package without a runtime TypeScript loader. */
+let bridgePromise
 
-function repoRootFromTransport() {
-  return path.resolve(here, '..', '..')
-}
-
-function resolveOpenCodexRoot() {
-  const fromEnv = process.env.TASKWEAVER_OPENCODEX_ROOT?.trim()
-  if (fromEnv) return path.resolve(fromEnv)
-  return path.join(repoRootFromTransport(), 'vendor', 'opencodex')
-}
-
-function tsxRegisterCandidates() {
-  const root = repoRootFromTransport()
-  const runtimeRoot = path.resolve(here, '..', '..')
-  const fromEnv = process.env.TASKWEAVER_TSX_ROOT?.trim()
-  const zRuntime = process.env.TASKWEAVER_Z_RUNTIME?.trim()
-  const candidates = [
-    fromEnv ? path.resolve(fromEnv) : null,
-    path.join(here, '..', 'tsx'),
-    zRuntime ? path.join(path.resolve(zRuntime), 'runtime-packages', 'tsx') : null,
-    zRuntime ? path.join(path.resolve(zRuntime), 'node_modules', 'tsx') : null,
-    zRuntime ? path.join(path.resolve(zRuntime), 'electron-vendor', 'tsx') : null,
-    path.join(runtimeRoot, 'node_modules', 'tsx'),
-    path.join(runtimeRoot, 'runtime-packages', 'tsx'),
-    path.join(runtimeRoot, 'electron-vendor', 'tsx'),
-    path.join(root, 'packages', 'runtime', 'node_modules', 'tsx'),
-    path.join(root, 'node_modules', 'tsx'),
-    path.join(root, 'vendor', 'opencodex', 'node_modules', 'tsx'),
-  ].filter(Boolean)
-  return candidates
-}
-
-function tsxRegisterModuleCandidates(tsxDir) {
-  return [
-    // Electron's module hooks break tsx's ESM register entry; CJS works in Node + Electron.
-    path.join(tsxDir, 'dist', 'cjs', 'api', 'index.cjs'),
-    path.join(tsxDir, 'dist', 'esm', 'api', 'index.cjs'),
-    path.join(tsxDir, 'esm', 'api.mjs'),
-    path.join(tsxDir, 'esm', 'api.cjs'),
+function stagedProviderBridgeEntry() {
+  const runtime = process.env.TASKWEAVER_RUNTIME?.trim()
+  if (!runtime) return null
+  const root = path.resolve(runtime)
+  const libDirs = [
+    path.join(root, 'runtime-packages', 'node_modules', '@taskweaver', 'provider-bridge', 'lib'),
+    path.join(root, 'runtime-packages', '@taskweaver', 'provider-bridge', 'lib'),
+    path.join(root, 'electron-vendor', 'provider-bridge', 'lib'),
   ]
-}
-
-let tsxRegistered = false
-
-export function ensureNodeTypescriptLoader() {
-  if (tsxRegistered || typeof Bun !== 'undefined') return
-  const require = createRequire(import.meta.url)
-  for (const tsxDir of tsxRegisterCandidates()) {
-    for (const registerModule of tsxRegisterModuleCandidates(tsxDir)) {
-      try {
-        const registerApi = require(registerModule)
-        if (typeof registerApi.register === 'function') {
-          registerApi.register()
-          tsxRegistered = true
-          return
-        }
-      } catch {
-        /* try the next supported package layout */
-      }
+  for (const libDir of libDirs) {
+    for (const name of ['index.mjs', 'index.js']) {
+      const entry = path.join(libDir, name)
+      if (existsSync(entry)) return entry
     }
   }
-  const err = new Error(
-    'Cursor bridge transport requires the tsx loader (packages/runtime node_modules). '
-      + 'Install z-runtime deps or set BRIDGE_SMOKE_MOCK=1 for mock smoke.',
-  )
-  err.code = 'BRIDGE_CURSOR_TSX_MISSING'
-  throw err
+  return null
+}
+
+async function importProviderBridge() {
+  try {
+    return await import('@taskweaver/provider-bridge')
+  } catch (primaryError) {
+    const staged = stagedProviderBridgeEntry()
+    if (staged) {
+      return import(pathToFileURL(staged).href)
+    }
+    throw primaryError
+  }
+}
+
+export async function loadProviderBridge() {
+  if (!bridgePromise) {
+    bridgePromise = importProviderBridge().catch((cause) => {
+      bridgePromise = undefined
+      const error = new Error(
+        'Cursor bridge package is unavailable. Build @taskweaver/provider-bridge before starting the Host.',
+        { cause },
+      )
+      error.code = 'BRIDGE_CURSOR_ADAPTER_UNAVAILABLE'
+      throw error
+    })
+  }
+  return bridgePromise
 }
 
 export async function loadCreateCursorAdapter() {
-  if (typeof Bun !== 'undefined') {
-    const api = await import('@taskweaver/opencodex')
-    if (typeof api.createCursorAdapter === 'function') return api.createCursorAdapter
+  const api = await loadProviderBridge()
+  if (typeof api.createCursorAdapter !== 'function') {
+    const error = new Error('TaskWeaver provider bridge package has no createCursorAdapter export.')
+    error.code = 'BRIDGE_CURSOR_ADAPTER_UNAVAILABLE'
+    throw error
   }
-  ensureNodeTypescriptLoader()
-  const cursorModule = path.join(resolveOpenCodexRoot(), 'src', 'adapters', 'cursor.ts')
-  const mod = await import(pathToFileURL(cursorModule).href)
-  if (typeof mod.createCursorAdapter !== 'function') {
-    const err = new Error(`Cursor adapter module missing createCursorAdapter: ${cursorModule}`)
-    err.code = 'BRIDGE_CURSOR_ADAPTER_UNAVAILABLE'
-    throw err
+  return api.createCursorAdapter
+}
+
+export async function createCursorTranslatorBudget() {
+  const api = await loadProviderBridge()
+  if (typeof api.createTranslatorBudget !== 'function') {
+    const error = new Error('TaskWeaver provider bridge package has no createTranslatorBudget export.')
+    error.code = 'BRIDGE_CURSOR_ADAPTER_UNAVAILABLE'
+    throw error
   }
-  return mod.createCursorAdapter
+  return api.createTranslatorBudget()
 }

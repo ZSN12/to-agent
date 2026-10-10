@@ -1,17 +1,17 @@
 /** Browser runtime services for sessions, workspaces, and connection-stream delivery. */
-import type { Context } from '@z/cordis'
-import type { ConnectionHandle, SessionId } from '@z/dsh-api-remotes/client'
+import type { Context } from '@taskweaver/cordis'
+import type { ConnectionHandle, SessionId } from '@taskweaver/dsh-api-remotes/client'
 // Type-only: the ctx.remote merge. Deliberately the gateway's Client half rather
 // than api-remotes': that face imports a Host-tsdown-generated artifact, and this
 // project sits in the Host build graph.
-import type {} from '@z/dsh-api-remotes/client'
-import type { TypertContext } from '@z/dsh-typert-protocol'
+import type {} from '@taskweaver/dsh-api-remotes/client'
+import type { TypertContext } from '@taskweaver/dsh-typert-protocol'
 import { SessionRuntime } from './sessions/service.ts'
 import { WorkspaceRuntime } from './workspaces/service.ts'
 import { ConversationEventRegistry } from './conversation/event-registry.ts'
 import { ConversationViewRegistry } from './conversation/view-registry.ts'
 
-export { isAppendSurfaceEvent, isReplacementSurfaceEvent } from '@z/dsh-session/surface'
+export { isAppendSurfaceEvent, isReplacementSurfaceEvent } from '@taskweaver/dsh-session/surface'
 
 export { ConversationEventRegistry } from './conversation/event-registry.ts'
 export { ConversationViewRegistry } from './conversation/view-registry.ts'
@@ -37,7 +37,7 @@ export { SessionProvideChannel } from './sessions/provide.ts'
 export type { SessionProvideChannelHost } from './sessions/provide.ts'
 export { createScope } from './agents/scope.ts'
 export type { AgentScopeHandle } from './agents/scope.ts'
-export { DirectoryBrowseError, WorkspaceCreateError, WorkspaceRuntime } from './workspaces/service.ts'
+export { WorkspaceCreateError, WorkspaceRuntime } from './workspaces/service.ts'
 export { abbreviateHomePath, resolveWorkspacePath } from './workspaces/path.ts'
 // Contract only: the scope implementation and its Host transport belong to
 // dsh-client-ui-settings (see that package's settings-scope.ts).
@@ -52,12 +52,10 @@ export type {
   SessionBinding, SessionListState, SessionProvideContribution, SessionProvideDescriptor, SessionSummary,
 } from './sessions/service.ts'
 export type { SessionListPhase, SessionSearchResultItem, SubagentCatalogSnapshot } from './sessions/manager.ts'
-export type { SubagentAddress, JobView } from '@z/dsh-client-connection/client'
+export type { SubagentAddress, JobView } from '@taskweaver/dsh-client-connection/client'
 export type { WorkspaceListPhase } from './workspaces/manager.ts'
 export type { WorkspaceListState } from './workspaces/service.ts'
-export type {
-  DirectoryEntry, DirectoryListing, WorkspaceId, WorkspaceView,
-} from '@z/dsh-client-connection/client'
+export type { WorkspaceId, WorkspaceView } from '@taskweaver/dsh-client-connection/client'
 // Runtime owns the data store and its observable snapshot contract.
 export { createSnapshotStore } from './contract/store.ts'
 export type { ObservableSnapshot, SnapshotStore } from './contract/store.ts'
@@ -97,19 +95,26 @@ export type {
 export type {
   ProjectionsBaseline, ProjectionValueStore, SessionProjectionMap, UseProjection,
 } from './sessions/projection-store.ts'
-export type { SessionId } from '@z/dsh-client-connection/client'
+export type { SessionId } from '@taskweaver/dsh-client-connection/client'
 
-/** Client-side Cordis context after declaration merging. */
-export type ClientContext = Context
+/**
+ * Client-side Cordis context. Host and Client both expose `sessions`, but the
+ * services intentionally have different public faces; keeping the Client face
+ * explicit avoids merging incompatible `Context.sessions` declarations into
+ * one global Cordis interface.
+ */
+export type ClientContext = Omit<Context, 'sessions'> & {
+  sessions: import('./contract/sessions.ts').ISessions
+}
 
-declare module '@z/dsh-typert-protocol' {
+declare module '@taskweaver/dsh-typert-protocol' {
   interface TypertContextMap {
     /** Client Agent scope identity; the agent and session share one wire id. */
     agent: TypertContext<SessionId>
   }
 }
 
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
   interface Events {
     /**
      * A connection generation was (re-)established. Wire-derived caches must
@@ -124,8 +129,6 @@ declare module '@z/cordis' {
     conversationEvents: import('./conversation/event-registry.ts').ConversationEventRegistry
     /** Per-target Conversation snapshot builder registry. */
     conversationViews: import('./conversation/view-registry.ts').ConversationViewRegistry
-    /** The outward face only; the concrete service stays inside the runtime. */
-    sessions: import('./contract/sessions.ts').ISessions
     /** The outward face only; the concrete service stays inside the runtime. */
     workspaces: import('./contract/workspaces.ts').IWorkspaces
   }

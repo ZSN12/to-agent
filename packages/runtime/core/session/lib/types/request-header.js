@@ -1,4 +1,3 @@
-"use strict";
 /**
  * Request-header reconstruction utilities over full `request/header` session
  * events. Anyone holding a session log reconstructs the {@link EpochHeader}
@@ -7,22 +6,7 @@
  *
  * @module dsh-session/request-header
  */
-var __assign = (this && this.__assign) || function () {
-    __assign = Object.assign || function(t) {
-        for (var s, i = 1, n = arguments.length; i < n; i++) {
-            s = arguments[i];
-            for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p))
-                t[p] = s[p];
-        }
-        return t;
-    };
-    return __assign.apply(this, arguments);
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.canonicalHeader = canonicalHeader;
-exports.headerEquals = headerEquals;
-exports.foldRequestHeader = foldRequestHeader;
-var dsh_llm_1 = require("@z/dsh-llm");
+import { callConfigEquals } from '@taskweaver/dsh-llm';
 /**
  * Normalize a header to canonical form: an empty system prompt and empty tool
  * list become absent fields, matching how requests are built. Logging, folding,
@@ -30,11 +14,16 @@ var dsh_llm_1 = require("@z/dsh-llm");
  * @param header - the header to normalize (not mutated).
  * @returns the canonical header.
  */
-function canonicalHeader(header) {
-    var adapterDefaults = header.adapterDefaults;
-    return __assign(__assign(__assign({ config: header.config }, (adapterDefaults === null || adapterDefaults === void 0 ? void 0 : adapterDefaults.reasoningEffort) === true || (adapterDefaults === null || adapterDefaults === void 0 ? void 0 : adapterDefaults.maxTokens) === true
-        ? { adapterDefaults: adapterDefaults }
-        : {}), header.system !== undefined && header.system.length > 0 ? { system: header.system } : {}), header.tools !== undefined && header.tools.length > 0 ? { tools: header.tools } : {});
+export function canonicalHeader(header) {
+    const adapterDefaults = header.adapterDefaults;
+    return {
+        config: header.config,
+        ...adapterDefaults?.reasoningEffort === true || adapterDefaults?.maxTokens === true
+            ? { adapterDefaults }
+            : {},
+        ...header.system !== undefined && header.system.length > 0 ? { system: header.system } : {},
+        ...header.tools !== undefined && header.tools.length > 0 ? { tools: header.tools } : {},
+    };
 }
 /** Canonical JSON equality for tool schemas assembled through the same path. */
 function sameSchema(a, b) {
@@ -46,16 +35,15 @@ function sameSchema(a, b) {
  * @param b - the other.
  * @returns whether config, system, and tools all match.
  */
-function headerEquals(a, b) {
-    var _a, _b, _c, _d, _e, _f;
-    if (!(0, dsh_llm_1.callConfigEquals)(a.config, b.config)
-        || ((_a = a.adapterDefaults) === null || _a === void 0 ? void 0 : _a.reasoningEffort) !== ((_b = b.adapterDefaults) === null || _b === void 0 ? void 0 : _b.reasoningEffort)
-        || ((_c = a.adapterDefaults) === null || _c === void 0 ? void 0 : _c.maxTokens) !== ((_d = b.adapterDefaults) === null || _d === void 0 ? void 0 : _d.maxTokens)
+export function headerEquals(a, b) {
+    if (!callConfigEquals(a.config, b.config)
+        || a.adapterDefaults?.reasoningEffort !== b.adapterDefaults?.reasoningEffort
+        || a.adapterDefaults?.maxTokens !== b.adapterDefaults?.maxTokens
         || a.system !== b.system)
         return false;
-    var at = (_e = a.tools) !== null && _e !== void 0 ? _e : [];
-    var bt = (_f = b.tools) !== null && _f !== void 0 ? _f : [];
-    return at.length === bt.length && at.every(function (tool, i) { return sameSchema(tool, bt[i]); });
+    const at = a.tools ?? [];
+    const bt = b.tools ?? [];
+    return at.length === bt.length && at.every((tool, i) => sameSchema(tool, bt[i]));
 }
 /**
  * Fold the header events of a log (or any prefix) into the
@@ -66,12 +54,12 @@ function headerEquals(a, b) {
  * @param from - a previously folded state to continue from.
  * @returns the latest canonical header, or undefined when none exists yet.
  */
-function foldRequestHeader(events, from) {
-    var state = from;
-    for (var _i = 0, events_1 = events; _i < events_1.length; _i++) {
-        var event_1 = events_1[_i];
-        if (event_1.type === 'request/header')
-            state = canonicalHeader(event_1.data.header);
+export function foldRequestHeader(events, from) {
+    let state = from;
+    for (const event of events) {
+        if (event.type === 'request/header')
+            state = canonicalHeader(event.data.header);
     }
     return state;
 }
+//# sourceMappingURL=request-header.js.map

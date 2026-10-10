@@ -1,9 +1,9 @@
-/** Package-owned invariant companion for the subprocess seam. @module @z/dsh-subprocess/invariant */
+/** Package-owned invariant companion for the subprocess seam. @module @taskweaver/dsh-subprocess/invariant */
 
-import type { Context } from '@z/cordis'
-import type { InvariantInstaller } from '@z/dsh-invariants'
+import type { Context } from '@taskweaver/cordis'
+import type { InvariantInstaller } from '@taskweaver/dsh-invariants'
 
-const PACKAGE_NAME = '@z/dsh-subprocess'
+const PACKAGE_NAME = '@taskweaver/dsh-subprocess'
 
 /** Cordis companion plugin name. */
 export const name = 'subprocess-invariant'

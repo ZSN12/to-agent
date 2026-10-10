@@ -1,8 +1,8 @@
 /**
- * Package-owned invariant companion for `@z/dsh-app-boot`.
- * @module @z/dsh-app-boot/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-app-boot`.
+ * @module @taskweaver/dsh-app-boot/invariant
  */
-import type { Context } from '@z/cordis';
+import type { Context } from '@taskweaver/cordis';
 /** Cordis companion plugin name. */
 export declare const name = "app-boot-invariant";
 /** Service required before the companion can reserve package ownership. */

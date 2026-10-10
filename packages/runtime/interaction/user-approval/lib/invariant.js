@@ -1,14 +1,14 @@
 import { randomUUID } from "node:crypto";
-import { Service } from "@z/cordis";
-import z from "@z/schemastery";
-import { createUserMessage } from "@z/dsh-llm";
-import { scopeTarget } from "@z/dsh-scope";
+import { Service } from "@taskweaver/cordis";
+import z from "@taskweaver/schemastery";
+import { createUserMessage } from "@taskweaver/dsh-llm";
+import { scopeTarget } from "@taskweaver/dsh-scope";
 //#region lib/types/types.js
 /**
 * Wire-safe approval identifiers and outcome vocabulary, free of
 * cordis/service imports so browser type chains (apiproxy api → client) can
 * consume them without loading this package's Context augmentation.
-* @module @z/dsh-user-approval/types
+* @module @taskweaver/dsh-user-approval/types
 */
 /**
 * Brand a string as an {@link ApprovalRequestId}.
@@ -23,7 +23,7 @@ function ApprovalRequestId(id) {
 /**
 * Service Definition for the approval capability seam, covering requests, cancellation, audit, and per-session policy. Missing
 * answerers fail closed; grants apply only to the requested action.
-* @module @z/dsh-user-approval
+* @module @taskweaver/dsh-user-approval
 */
 /** Every {@link ApprovalOutcome}, for runtime normalization of answerer returns. */
 const OUTCOMES = [
@@ -77,7 +77,12 @@ function setApprovalPolicy(session, policy) {
 	if (!APPROVAL_POLICIES.includes(policy)) throw new TypeError("approval policy must be one of \"ask\" or \"never\"");
 	session.append("approval/policy", { policy });
 }
-(class extends Service {
+/**
+* Approval service that applies session policy before answerers and logs every
+* ask/outcome pair to the requesting session. It exposes deterministic policy
+* changes to the model through the runtime-context snapshot and switch notices.
+*/
+var ApprovalService = class extends Service {
 	config;
 	static Config = z.object({ policy: z.union(["ask", "never"]).default("ask") });
 	constructor(ctx, config) {
@@ -195,11 +200,11 @@ function setApprovalPolicy(session, policy) {
 			});
 		});
 	}
-});
+};
 //#endregion
 //#region lib/types/invariant.js
-/** Package-owned approval audit-stream invariants. @module @z/dsh-user-approval/invariant */
-const PACKAGE_NAME = "@z/dsh-user-approval";
+/** Package-owned approval audit-stream invariants. @module @taskweaver/dsh-user-approval/invariant */
+const PACKAGE_NAME = "@taskweaver/dsh-user-approval";
 const APPROVAL_OUTCOMES = [
 	"allowed-once",
 	"rejected",

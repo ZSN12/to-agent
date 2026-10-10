@@ -1,17 +1,17 @@
-import { isReplacementSurfaceEvent } from "@z/dsh-session";
+import { isReplacementSurfaceEvent } from "@taskweaver/dsh-session";
 //#region lib/types/checkpoint.js
 /**
 * Compaction checkpoint provenance: the correlated source constructor and type
 * every backend uses for its replacement user message, plus the predicate that
 * recognizes persisted checkpoints.
 *
-* The seam itself lives in `@z/dsh-compaction`, which re-exports these
+* The seam itself lives in `@taskweaver/dsh-compaction`, which re-exports these
 * contracts; this module is a pure type/value/predicate outlet (no cordis
 * imports, no module augmentation) so client and wire programs can name the
 * checkpoint source without loading the host plugin's Context merges — the
 * `dsh-commands/brand` shape.
 *
-* @module @z/dsh-compaction/checkpoint
+* @module @taskweaver/dsh-compaction/checkpoint
 */
 const COMPACT_CHECKPOINT_MARKER = Object.freeze({
 	kind: "plugin",
@@ -27,8 +27,8 @@ function isCompactCheckpointSource(source) {
 }
 //#endregion
 //#region lib/types/invariant.js
-/** Package-owned compaction log-stream invariants. @module @z/dsh-compaction/invariant */
-const PACKAGE_NAME = "@z/dsh-compaction";
+/** Package-owned compaction log-stream invariants. @module @taskweaver/dsh-compaction/invariant */
+const PACKAGE_NAME = "@taskweaver/dsh-compaction";
 /** Cordis companion plugin name. */
 const name = "compaction-invariant";
 /** Service required before the companion can reserve package ownership. */
@@ -41,6 +41,11 @@ function validateId(value, label, fail) {
 function validateSourceCommandId(eventType, value, expected, fail) {
 	if (value !== void 0) validateId(value, `${eventType} sourceCommandId`, fail);
 	if (value !== expected) fail(`${eventType} sourceCommandId ${String(value)} does not match compaction/start sourceCommandId ${String(expected)}`);
+}
+/** Keep the optional trigger valid and stable across one transaction. */
+function validateTrigger(eventType, value, expected, fail) {
+	if (value !== void 0 && value !== "pressure" && value !== "context-overflow" && value !== "manual") fail(`${eventType} trigger must be pressure, context-overflow, or manual`);
+	if (value !== expected) fail(`${eventType} trigger ${String(value)} does not match compaction/start trigger ${String(expected)}`);
 }
 /** Validate one replacement checkpoint against its open compaction transaction. */
 function validateCheckpoint(trace, event, fail) {
@@ -103,12 +108,14 @@ function validateCompactionEvent(trace, event, fail) {
 	if (event.type === "compaction/start") {
 		validateId(event.data.compactionId, "compaction/start compactionId", fail);
 		if (event.data.sourceCommandId !== void 0) validateId(event.data.sourceCommandId, "compaction/start sourceCommandId", fail);
+		validateTrigger("compaction/start", event.data.trigger, event.data.trigger, fail);
 		if (open !== void 0) fail(`compaction/start while ${open.turn === null ? "standalone compaction" : `turn ${open.turn}`} is still compacting`);
 		validateOwner(event.data.turn, trace.openTurn, event.type, fail);
 		return {
 			kind: "start",
 			compactionId: event.data.compactionId,
 			sourceCommandId: event.data.sourceCommandId,
+			trigger: event.data.trigger,
 			startSeq: event.seq,
 			turn: event.data.turn
 		};
@@ -119,6 +126,7 @@ function validateCompactionEvent(trace, event, fail) {
 		if (open === void 0) fail("compaction/summary has no matching compaction/start");
 		if (event.data.compactionId !== open.compactionId) fail(`compaction/summary id ${event.data.compactionId} does not match compaction/start id ${open.compactionId}`);
 		validateSourceCommandId("compaction/summary", event.data.sourceCommandId, open.sourceCommandId, fail);
+		validateTrigger("compaction/summary", event.data.trigger, open.trigger, fail);
 		validateOwner(open.turn, trace.openTurn, event.type, fail);
 		if (open.summarized) fail("compaction/summary repeated within one compaction");
 		const seqs = event.data.shadowedSeqs;
@@ -129,6 +137,7 @@ function validateCompactionEvent(trace, event, fail) {
 			kind: "summary",
 			compactionId: open.compactionId,
 			sourceCommandId: open.sourceCommandId,
+			trigger: open.trigger,
 			startSeq: open.startSeq,
 			turn: open.turn
 		};
@@ -138,6 +147,7 @@ function validateCompactionEvent(trace, event, fail) {
 	if (open === void 0) fail("compaction/end has no matching compaction/start");
 	if (event.data.compactionId !== open.compactionId) fail(`compaction/end id ${event.data.compactionId} does not match compaction/start id ${open.compactionId}`);
 	validateSourceCommandId("compaction/end", event.data.sourceCommandId, open.sourceCommandId, fail);
+	validateTrigger("compaction/end", event.data.trigger, open.trigger, fail);
 	if (event.data.turn !== open.turn) fail(`compaction/end owner ${String(event.data.turn)} does not match compaction/start owner ${String(open.turn)}`);
 	validateOwner(open.turn, trace.openTurn, event.type, fail);
 	if (event.data.error === void 0 && !open.summarized) fail("successful compaction/end requires one compaction/summary");
@@ -148,6 +158,7 @@ function applyCompactionTransition(transition) {
 	if (transition.kind === "start") return {
 		compactionId: transition.compactionId,
 		sourceCommandId: transition.sourceCommandId,
+		trigger: transition.trigger,
 		startSeq: transition.startSeq,
 		turn: transition.turn,
 		summarized: false
@@ -155,6 +166,7 @@ function applyCompactionTransition(transition) {
 	if (transition.kind === "summary") return {
 		compactionId: transition.compactionId,
 		sourceCommandId: transition.sourceCommandId,
+		trigger: transition.trigger,
 		startSeq: transition.startSeq,
 		turn: transition.turn,
 		summarized: true

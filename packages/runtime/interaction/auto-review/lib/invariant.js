@@ -1,6 +1,6 @@
 //#region lib/types/invariant.js
-/** Package-owned session-event invariants for auto-review. @module @z/dsh-auto-review/invariant */
-const PACKAGE_NAME = "@z/dsh-auto-review";
+/** Package-owned session-event invariants for auto-review. @module @taskweaver/dsh-auto-review/invariant */
+const PACKAGE_NAME = "@taskweaver/dsh-auto-review";
 /** Cordis companion plugin name. */
 const name = "auto-review-invariant";
 /** Service required before the companion can reserve package ownership. */

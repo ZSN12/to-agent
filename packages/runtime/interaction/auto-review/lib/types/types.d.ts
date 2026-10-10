@@ -2,9 +2,9 @@
  * Type-only vocabulary for the auto-review capability: the reviewer's structured
  * outcome, the policy rules that gate it, and the seam contract a reviewer
  * executor must satisfy. No runtime code lives here.
- * @module @z/dsh-auto-review
+ * @module @taskweaver/dsh-auto-review
  */
-import type { Agent } from '@z/dsh-agent';
+import type { Agent } from '@taskweaver/dsh-agent';
 /** Risk grades a reviewer or policy may attach to a reviewed request. */
 export type RiskLevel = 'low' | 'medium' | 'high' | 'critical';
 /** A reviewer's terminal posture toward one approval request. */

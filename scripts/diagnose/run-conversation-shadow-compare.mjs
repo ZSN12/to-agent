@@ -2,17 +2,17 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { createZHostManager } from '../../electron/agent/z-host/index.mjs'
+import { createZHostManager } from '../../desktop/agent/z-host/index.mjs'
 import {
   createTaskWeaverConversationRuntime,
   fakeSessionRemotes,
   loadSessionManagerClass,
-} from '../../electron/backend/dsh-conversation-runtime.mjs'
-import { extractDshChatTranscript } from '../../electron/backend/dsh-transcript-serialize.mjs'
+} from '../../desktop/backend/dsh-conversation-runtime.mjs'
+import { extractDshChatTranscript } from '../../desktop/backend/dsh-transcript-serialize.mjs'
 import {
   compareConversationTranscripts,
   inspectUserPromptEnvelope,
-} from '../../electron/backend/conversation-shadow-compare.mjs'
+} from '../../desktop/backend/conversation-shadow-compare.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const userDataPath = process.argv.find((arg) => arg.startsWith('--user-data='))?.slice('--user-data='.length)
@@ -62,7 +62,6 @@ try {
   hostManager = createZHostManager({
     runtimeRoot: path.join(root, 'vendor/taskweaver-z-runtime'),
     userDataPath: reportDir,
-    executable: process.execPath,
   })
   const { api } = await hostManager.start()
   const historyReply = await api.sessions.history({ sessionId: source.entry.sessionId, maxMessages: 100_000 })

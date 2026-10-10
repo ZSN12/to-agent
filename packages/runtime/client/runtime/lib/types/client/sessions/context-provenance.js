@@ -1,13 +1,8 @@
-"use strict";
 // Context source projection: the role and the human-facing producer name
 // of one logged non-user `user/message`, read from its durable `source` alone.
 // The client keeps no table of known plugin ids — a renamed or newly mounted
 // producer must never need a client release to stay identifiable, and a resumed
 // or foreign log must project the same way as a live one.
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.sessionRecallLabels = sessionRecallLabels;
-exports.contextProvenance = contextProvenance;
-exports.contextForm = contextForm;
 /** One durable source narrowed to the readable-record shape; null for anything else. */
 function asRecord(value) {
     return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -16,19 +11,18 @@ function asRecord(value) {
 }
 /** A record field read as a non-empty string, or null. */
 function readString(record, key) {
-    var value = record[key];
+    const value = record[key];
     return typeof value === 'string' && value.length > 0 ? value : null;
 }
 /** Distinct non-empty `field` values of an array-valued source member, in first-seen order. */
 function collect(source, member, field) {
-    var list = source[member];
+    const list = source[member];
     if (!Array.isArray(list))
         return [];
-    var seen = [];
-    for (var _i = 0, list_1 = list; _i < list_1.length; _i++) {
-        var entry = list_1[_i];
-        var record = asRecord(entry);
-        var value = record === null ? null : readString(record, field);
+    const seen = [];
+    for (const entry of list) {
+        const record = asRecord(entry);
+        const value = record === null ? null : readString(record, field);
         if (value !== null && !seen.includes(value))
             seen.push(value);
     }
@@ -45,8 +39,8 @@ function joined(names) {
  * @param source - the logged `user/message` source, exactly as recorded.
  * @returns distinct non-empty reference labels.
  */
-function sessionRecallLabels(source) {
-    var record = asRecord(source);
+export function sessionRecallLabels(source) {
+    const record = asRecord(source);
     if (record === null || readString(record, 'kind') !== 'session-reference')
         return [];
     return collect(record, 'references', 'label');
@@ -61,26 +55,25 @@ function sessionRecallLabels(source) {
  * @param source - the logged `user/message` source, exactly as recorded.
  * @returns the role and producer name to present for this context.
  */
-function contextProvenance(source) {
-    var _a, _b, _c, _d;
-    var record = asRecord(source);
-    var kind = record === null ? null : readString(record, 'kind');
+export function contextProvenance(source) {
+    const record = asRecord(source);
+    const kind = record === null ? null : readString(record, 'kind');
     if (record === null || kind === null)
         return { role: 'inject', label: null };
     switch (kind) {
         // Cross-session snapshots are the one durable source that carries another
         // session's material; its references name the sessions they were read from.
         case 'session-reference':
-            return { role: 'recall', label: (_a = joined(collect(record, 'references', 'label'))) !== null && _a !== void 0 ? _a : kind };
+            return { role: 'recall', label: joined(collect(record, 'references', 'label')) ?? kind };
         // Workspace instructions name the files they were reconciled from, which
         // identifies the producer far better than the plugin id would.
         case 'agent-instructions':
-            return { role: 'inject', label: (_b = joined(collect(record, 'changes', 'path'))) !== null && _b !== void 0 ? _b : kind };
+            return { role: 'inject', label: joined(collect(record, 'changes', 'path')) ?? kind };
         case 'plugin':
-            return { role: 'inject', label: (_c = readString(record, 'plugin')) !== null && _c !== void 0 ? _c : kind };
+            return { role: 'inject', label: readString(record, 'plugin') ?? kind };
         // A user-explicit skill invocation names the skill it injected.
         case 'skill-invocation':
-            return { role: 'inject', label: (_d = readString(record, 'name')) !== null && _d !== void 0 ? _d : kind };
+            return { role: 'inject', label: readString(record, 'name') ?? kind };
         // Documented default arm of the merge-extensible source map: an unknown
         // producer still identifies itself by its own durable kind.
         default:
@@ -94,16 +87,17 @@ function contextProvenance(source) {
  * dropping the row, so a log written by a newer or foreign producer still
  * renders.
  */
-var KNOWN_FORMS = ['instructions', 'catalog', 'snapshot', 'notice', 'relay', 'recall'];
+const KNOWN_FORMS = ['instructions', 'catalog', 'snapshot', 'notice', 'relay', 'recall'];
 /**
  * Read the producer-declared form off one durable message source.
  * @param source - the logged `user/message` source, exactly as recorded.
  * @returns the form when this UI version presents it, otherwise null (opaque).
  */
-function contextForm(source) {
-    var record = asRecord(source);
-    var form = record === null ? null : readString(record, 'form');
+export function contextForm(source) {
+    const record = asRecord(source);
+    const form = record === null ? null : readString(record, 'form');
     return form !== null && KNOWN_FORMS.includes(form)
         ? form
         : null;
 }
+//# sourceMappingURL=context-provenance.js.map

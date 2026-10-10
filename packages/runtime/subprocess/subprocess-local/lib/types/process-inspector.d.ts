@@ -1,5 +1,5 @@
 /** Platform process-table inspection for terminal readiness, signals, and teardown. */
-import type { SubprocessTerminalSignal } from '@z/dsh-subprocess';
+import type { SubprocessTerminalSignal } from '@taskweaver/dsh-subprocess';
 /** PID plus start identity, preventing teardown escalation after PID reuse. */
 export interface ProcessIdentity {
     pid: number;

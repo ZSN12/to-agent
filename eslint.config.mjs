@@ -8,7 +8,7 @@ const runtimeSource = 'packages/runtime/{apps,packages,scripts}/**/*.{ts,tsx}'
 export default [
   {
     ignores: [
-      'electron/vendor/**',
+      'desktop/vendor/**',
       'release/**',
       '**/dist/**',
       'vendor/opencodex/**',
@@ -17,19 +17,21 @@ export default [
       '**/lib/**',
       'packages/runtime/cordis/**',
     ],
+  },
+  {
     // DSH carries upstream oxlint suppressions. ESLint should consume valid
     // local suppressions without warning on directives for oxlint-only rules.
     linterOptions: { reportUnusedDisableDirectives: 'off' },
   },
   {
-    files: ['electron/**/*.mjs', 'electron/**/*.cjs', 'scripts/**/*.mjs', 'packages/**/*.mjs'],
+    files: ['desktop/**/*.mjs', 'desktop/**/*.cjs', 'scripts/**/*.mjs', 'packages/**/*.mjs'],
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'module',
       globals: { ...globals.node },
     },
     rules: {
-      'no-unused-vars': ['warn', { args: 'none', caughtErrors: 'none' }],
+      'no-unused-vars': ['error', { args: 'none', caughtErrors: 'none' }],
       'no-undef': 'error',
       'no-unreachable': 'error',
     },

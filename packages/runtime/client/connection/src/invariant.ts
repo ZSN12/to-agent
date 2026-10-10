@@ -1,13 +1,13 @@
 /**
- * Package-owned invariant companion for `@z/dsh-client-connection`.
- * @module @z/dsh-client-connection/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-client-connection`.
+ * @module @taskweaver/dsh-client-connection/invariant
  */
 
 /* jscpd:ignore-start */
-import type { Context } from '@z/cordis'
-import type { InvariantInstaller } from '@z/dsh-invariants'
+import type { Context } from '@taskweaver/cordis'
+import type { InvariantInstaller } from '@taskweaver/dsh-invariants'
 
-const PACKAGE_NAME = '@z/dsh-client-connection'
+const PACKAGE_NAME = '@taskweaver/dsh-client-connection'
 
 /** Cordis companion plugin name. */
 export const name = 'client-connection-invariant'

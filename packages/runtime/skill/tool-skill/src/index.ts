@@ -1,16 +1,16 @@
 /**
  * Durable session skill catalog and model-facing `skill` loader tool.
  *
- * @module @z/dsh-tool-skill
+ * @module @taskweaver/dsh-tool-skill
  */
 
 import { createHash } from 'node:crypto'
-import type { Context } from '@z/cordis'
-import z from '@z/schemastery'
-import type { Agent, PreStepDecision } from '@z/dsh-agent'
-import { defineTool } from '@z/dsh-tools'
-import { createUserMessage } from '@z/dsh-llm'
-import type { UserMessage } from '@z/dsh-session'
+import type { Context } from '@taskweaver/cordis'
+import z from '@taskweaver/schemastery'
+import type { Agent, PreStepDecision } from '@taskweaver/dsh-agent'
+import { defineTool } from '@taskweaver/dsh-tools'
+import { createUserMessage } from '@taskweaver/dsh-llm'
+import type { UserMessage } from '@taskweaver/dsh-session'
 import {
   escapeText,
   isModelInvocable,
@@ -19,7 +19,7 @@ import {
   renderSkillContent,
   type SkillInvocationSource,
   type SkillSummary,
-} from '@z/dsh-skill'
+} from '@taskweaver/dsh-skill'
 
 export const name = 'tool-skill'
 export const inject = ['agents', 'tools', 'skills']
@@ -40,7 +40,7 @@ export interface SkillCatalogSource {
   readonly entries: readonly { readonly name: string; readonly description: string }[]
 }
 
-declare module '@z/dsh-llm' {
+declare module '@taskweaver/dsh-llm' {
   interface MessageSourceMap {
     'skill-catalog': SkillCatalogSource
   }

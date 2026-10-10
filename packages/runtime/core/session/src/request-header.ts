@@ -7,8 +7,8 @@
  * @module dsh-session/request-header
  */
 
-import { callConfigEquals } from '@z/dsh-llm'
-import type { ToolSchema } from '@z/dsh-llm'
+import { callConfigEquals } from '@taskweaver/dsh-llm'
+import type { ToolSchema } from '@taskweaver/dsh-llm'
 import type { EpochHeader, SessionEvent } from './types.ts'
 
 /**

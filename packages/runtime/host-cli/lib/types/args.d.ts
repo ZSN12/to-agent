@@ -1,17 +1,17 @@
 /**
- * Commander adapter for the `dsh` command line.
+ * Commander adapter for the `taskweaver-host` command line.
  *
  * The launcher parses only what it owns — which profile to boot, which extra
  * patch overlays to apply, and the config dumps — and hands **everything after
  * its own flags** to the booted tree verbatim, where injected app plugins parse
  * their own flag families and print their own `--help` (see
- * `@z/dsh-cmdline`). Launcher flags therefore come first: the first
+ * `@taskweaver/dsh-cmdline`). Launcher flags therefore come first: the first
  * token this parser does not recognize starts the inner arguments, so
- * `dsh --profile taskweaver --resume abc` boots that profile with
+ * `taskweaver-host --profile taskweaver --resume abc` boots that profile with
  * `--resume abc`.
  *
  * `plugin` manages a profile's plugin dependencies by forwarding to pnpm.
- * @module @z/dsh/args
+ * @module @taskweaver/dsh/args
  */
 /** Boot a named profile and hand it the invocation's inner arguments. */
 interface ProfileInvocation {
@@ -37,7 +37,7 @@ interface PluginInvocation {
     /** Raw pnpm arguments, verbatim. */
     args: string[];
 }
-/** The resolved `dsh` invocation. Help, version, and errors exit inside {@link parseDshArgs}. */
+/** The resolved `taskweaver-host` invocation. */
 export type DshInvocation = ProfileInvocation | DumpConfigInvocation | PluginInvocation;
 /**
  * Resolve argv into one invocation, or print and exit for help, version, or an
@@ -46,6 +46,8 @@ export type DshInvocation = ProfileInvocation | DumpConfigInvocation | PluginInv
  * @param version - version string printed by `--version`.
  * @returns the resolved invocation.
  */
-export declare function parseDshArgs(argv: readonly string[], version: string): DshInvocation;
+export declare function parseTaskWeaverHostArgs(argv: readonly string[], version: string): DshInvocation;
+/** @deprecated Use {@link parseTaskWeaverHostArgs}. */
+export declare const parseDshArgs: typeof parseTaskWeaverHostArgs;
 export {};
 //# sourceMappingURL=args.d.ts.map

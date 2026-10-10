@@ -1,9 +1,9 @@
 //#region lib/types/invariant.js
 /**
-* Package-owned invariant companion for `@z/dsh-output-retention`.
-* @module @z/dsh-output-retention/invariant
+* Package-owned invariant companion for `@taskweaver/dsh-output-retention`.
+* @module @taskweaver/dsh-output-retention/invariant
 */
-const PACKAGE_NAME = "@z/dsh-output-retention";
+const PACKAGE_NAME = "@taskweaver/dsh-output-retention";
 /** Cordis companion plugin name. */
 const name = "output-retention-invariant";
 /** Service required before the companion can reserve package ownership. */

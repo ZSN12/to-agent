@@ -11,39 +11,33 @@
       "types": "./lib/types/index.d.ts",
       "default": "./lib/index.js"
     },
-    "./invariant": {
-      "types": "./lib/types/invariant.d.ts",
-      "default": "./lib/invariant.js"
-    },
     "./src/*": "./src/*",
     "./package.json": "./package.json"
   },
-  "files": ["lib/index.js", "lib/invariant.js", "lib/types/**/*.d.ts"],
+  "files": ["lib/index.js", "lib/types/**/*.d.ts"],
   "license": "MIT",
   "peerDependencies": {
-    "@z/cordis": "workspace:^",
-    "@z/dsh-agent": "workspace:^",
-    "@z/dsh-attachment": "workspace:^",
-    "@z/dsh-invariants": "workspace:^",
-    "@z/dsh-llm": "workspace:^",
-    "@z/dsh-session": "workspace:^",
-    "@z/dsh-tools": "workspace:^",
-    "@z/dsh-user-approval": "workspace:^"
+    "@taskweaver/cordis": "workspace:^",
+    "@taskweaver/dsh-agent": "workspace:^",
+    "@taskweaver/dsh-attachment": "workspace:^",
+    "@taskweaver/dsh-host-apiproxy": "workspace:^",
+    "@taskweaver/dsh-llm": "workspace:^",
+    "@taskweaver/dsh-session": "workspace:^",
+    "@taskweaver/dsh-tools": "workspace:^",
+    "@taskweaver/dsh-user-approval": "workspace:^"
   },
   "dependencies": {
     "@taskweaver/ui-verify": "workspace:^",
-    "@z/schemastery": "workspace:^"
+    "@taskweaver/schemastery": "workspace:^"
   },
   "devDependencies": {
-    "@z/cordis": "workspace:^",
-    "@z/dsh-agent": "workspace:^",
-    "@z/dsh-attachment": "workspace:^",
-    "@z/dsh-invariants": "workspace:^",
-    "@z/dsh-llm": "workspace:^",
-    "@z/schemastery": "workspace:^",
-    "@z/dsh-session": "workspace:^",
-    "@z/dsh-tools": "workspace:^",
-    "@z/dsh-user-approval": "workspace:^",
-    "@z/schemastery": "workspace:^"
+    "@taskweaver/cordis": "workspace:^",
+    "@taskweaver/dsh-agent": "workspace:^",
+    "@taskweaver/dsh-attachment": "workspace:^",
+    "@taskweaver/dsh-host-apiproxy": "workspace:^",
+    "@taskweaver/dsh-llm": "workspace:^",
+    "@taskweaver/dsh-session": "workspace:^",
+    "@taskweaver/dsh-tools": "workspace:^",
+    "@taskweaver/dsh-user-approval": "workspace:^"
   }
 }

@@ -1,13 +1,13 @@
 import { describe, expect, it, vi } from 'vitest'
-import { Context } from '@z/cordis'
-import Loader from '@z/cordis-plugin-loader'
-import AgentRegistry, { Inbox } from '@z/dsh-agent'
-import type { Agent, AgentStatus } from '@z/dsh-agent'
-import CommandRuntime from '@z/dsh-commands'
-import GoalService from '@z/dsh-goal'
-import type { GoalRef } from '@z/dsh-goal'
-import SessionStore, { Session, SessionId } from '@z/dsh-session'
-import * as commandGoal from '@z/dsh-command-goal'
+import { Context } from '@taskweaver/cordis'
+import Loader from '@taskweaver/cordis-plugin-loader'
+import AgentRegistry, { Inbox } from '@taskweaver/dsh-agent'
+import type { Agent, AgentStatus } from '@taskweaver/dsh-agent'
+import CommandRuntime from '@taskweaver/dsh-commands'
+import GoalService from '@taskweaver/dsh-goal'
+import type { GoalRef } from '@taskweaver/dsh-goal'
+import SessionStore, { Session, SessionId } from '@taskweaver/dsh-session'
+import * as commandGoal from '@taskweaver/dsh-command-goal'
 
 interface Harness {
   readonly ctx: Context
@@ -85,7 +85,7 @@ function ref(goal: NonNullable<ReturnType<GoalService['get']>>): GoalRef {
   return { id: goal.id, revision: goal.revision }
 }
 
-describe('@z/dsh-command-goal registration', () => {
+describe('@taskweaver/dsh-command-goal registration', () => {
   it('registers one global command with Loader-safe exports and disposes it', async () => {
     const test = await harness()
     expect(commandGoal.name).toBe('command-goal')

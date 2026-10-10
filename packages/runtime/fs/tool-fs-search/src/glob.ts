@@ -6,15 +6,15 @@
  * argument validation, argv construction, result parsing, inline sampling,
  * and formatting; process concerns (spawn execution, tree termination,
  * environment scrubbing, output capture) stay behind `ctx.subprocess`.
- * @module @z/dsh-tool-fs-search/glob
+ * @module @taskweaver/dsh-tool-fs-search/glob
  */
 
-import type { Context } from '@z/cordis'
+import type { Context } from '@taskweaver/cordis'
 import { sep } from 'node:path'
-import { defineTool } from '@z/dsh-tools'
-import type { GenericCallView, SearchResultView, ToolResult } from '@z/dsh-tools'
-import type { SpillRef } from '@z/dsh-spill'
-import type {} from '@z/dsh-system-prompt'
+import { defineTool } from '@taskweaver/dsh-tools'
+import type { GenericCallView, SearchResultView, ToolResult } from '@taskweaver/dsh-tools'
+import type { SpillRef } from '@taskweaver/dsh-spill'
+import type {} from '@taskweaver/dsh-system-prompt'
 import { runRipgrep, toWorkdirRelative, trySaveFormattedResult } from './search-core.ts'
 import { globSearchMeta, searchViewFromMeta } from './presentation.ts'
 import { acceptedDirectCallValue } from './direct-call.ts'

@@ -20,22 +20,22 @@
  * Agent Note:
  * - .agents/notes/implemented/simplification/2026-07-22-plan-specific-collaboration-state.md
  *
- * @module @z/dsh-plan-mode
+ * @module @taskweaver/dsh-plan-mode
  */
 
-import { Context, Service } from '@z/cordis'
+import { Context, Service } from '@taskweaver/cordis'
 import { z as zod } from 'zod'
 import type { ZodType } from 'zod'
-import type { Agent, PreStepDecision } from '@z/dsh-agent'
-import { createUserMessage } from '@z/dsh-llm'
-import type { Session, SessionEvent, UserMessage } from '@z/dsh-session'
-import { defineTool } from '@z/dsh-tools'
-import type {} from '@z/dsh-system-prompt'
-import { UserQuestionError } from '@z/dsh-user-questions'
+import type { Agent, PreStepDecision } from '@taskweaver/dsh-agent'
+import { createUserMessage } from '@taskweaver/dsh-llm'
+import type { Session, SessionEvent, UserMessage } from '@taskweaver/dsh-session'
+import { defineTool } from '@taskweaver/dsh-tools'
+import type {} from '@taskweaver/dsh-system-prompt'
+import { UserQuestionError } from '@taskweaver/dsh-user-questions'
 // Type-only edge: resolves `ctx.commands` for the optional command child.
-import type { CommandId } from '@z/dsh-commands'
+import type { CommandId } from '@taskweaver/dsh-commands'
 // Type-only: resolves ctx.sessionProjections for the optional unit child.
-import type {} from '@z/dsh-session-projection'
+import type {} from '@taskweaver/dsh-session-projection'
 import type { PlanProjection } from './types.ts'
 // The `plan` projection-key declaration lives in src/types.ts (its one home);
 // this re-export projects the type face onto the package root AND keeps the
@@ -43,7 +43,7 @@ import type { PlanProjection } from './types.ts'
 // declarations still receive the SessionProjectionMap merge.
 export type * from './types.ts'
 
-declare module '@z/dsh-session/types' {
+declare module '@taskweaver/dsh-session/types' {
   interface SessionEventMap {
     /**
      * Whether plan mode is in force from this point on: log-only, non-surface,
@@ -54,7 +54,7 @@ declare module '@z/dsh-session/types' {
   }
 }
 
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
   interface Context {
     planMode: PlanModeController
   }
@@ -151,7 +151,7 @@ interface PlanUnitState {
   running: { commandId: CommandId; wanted: boolean } | null
 }
 
-declare module '@z/dsh-session-projection/types' {
+declare module '@taskweaver/dsh-session-projection/types' {
   interface SessionProjectionStateMap {
     plan: PlanUnitState
   }

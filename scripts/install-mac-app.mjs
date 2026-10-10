@@ -37,7 +37,7 @@ function resolveSourceBundle() {
 
 const bundle = resolveSourceBundle()
 if (!bundle) {
-  console.error('未找到 TaskWeaver.app，请先运行: npm run app')
+  console.error('未找到 TaskWeaver.app，请先运行: pnpm run app')
   process.exit(1)
 }
 

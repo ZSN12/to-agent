@@ -2,10 +2,10 @@
  * Opt-in request clock context. Eligible steps add durable,
  * source-attributed time readings to the request history.
  *
- * @module @z/dsh-time-context
+ * @module @taskweaver/dsh-time-context
  */
-import z from '@z/schemastery';
-import { createUserMessage } from '@z/dsh-llm';
+import z from '@taskweaver/schemastery';
+import { createUserMessage } from '@taskweaver/dsh-llm';
 import { deriveBrowserTimeZoneContext, renderBrowserTimeZoneContext, } from "./request-zone.js";
 import { createTimestampFormatter, formatTimestamp } from "./timestamp.js";
 /** Cordis plugin name used by loader diagnostics. */

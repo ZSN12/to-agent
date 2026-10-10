@@ -1,37 +1,37 @@
 import { describe, expect, it, vi } from 'vitest'
-import { Context } from '@z/cordis'
-import AgentLoop from '@z/dsh-agent-loop'
-import { mountAgentLoopTestDependencies } from '@z/dsh-agent-loop-testkit'
-import InvariantRegistry from '@z/dsh-invariants'
-import { CommandId } from '@z/dsh-commands/brand'
-import * as SessionInvariant from '@z/dsh-session/invariant'
-import * as AgentInvariant from '@z/dsh-agent/invariant'
-import * as AgentLoopInvariant from '@z/dsh-agent-loop/invariant'
-import * as CompactionInvariant from '@z/dsh-compaction/invariant'
-import * as CompactionBasicInvariant from '@z/dsh-compaction-basic/invariant'
-import { BasicCompactionEngine } from '@z/dsh-compaction-basic'
-import { CompactionId, isCompactCheckpointSource, ManualCompactionError } from '@z/dsh-compaction'
-import type { CompactionResult } from '@z/dsh-compaction'
+import { Context } from '@taskweaver/cordis'
+import AgentLoop from '@taskweaver/dsh-agent-loop'
+import { mountAgentLoopTestDependencies } from '@taskweaver/dsh-agent-loop-testkit'
+import InvariantRegistry from '@taskweaver/dsh-invariants'
+import { CommandId } from '@taskweaver/dsh-commands/brand'
+import * as SessionInvariant from '@taskweaver/dsh-session/invariant'
+import * as AgentInvariant from '@taskweaver/dsh-agent/invariant'
+import * as AgentLoopInvariant from '@taskweaver/dsh-agent-loop/invariant'
+import * as CompactionInvariant from '@taskweaver/dsh-compaction/invariant'
+import * as CompactionBasicInvariant from '@taskweaver/dsh-compaction-basic/invariant'
+import { BasicCompactionEngine } from '@taskweaver/dsh-compaction-basic'
+import { CompactionId, isCompactCheckpointSource, ManualCompactionError } from '@taskweaver/dsh-compaction'
+import type { CompactionResult } from '@taskweaver/dsh-compaction'
 import {
   createAssistantMessage,
   createUserMessage,
   LlmAdapter,
-} from '@z/dsh-llm'
+} from '@taskweaver/dsh-llm'
 import type {
   ContentBlock,
   LlmResolvedModelInfo,
   Message,
   StreamChunk,
   TokenUsage,
-} from '@z/dsh-llm'
-import SessionStore, { Session, SessionId, type SessionEvent } from '@z/dsh-session'
-import LlmRuntime from '@z/dsh-llm'
-import TokenMeter from '@z/dsh-token-meter'
-import type { Agent } from '@z/dsh-agent'
+} from '@taskweaver/dsh-llm'
+import SessionStore, { Session, SessionId, type SessionEvent } from '@taskweaver/dsh-session'
+import LlmRuntime from '@taskweaver/dsh-llm'
+import TokenMeter from '@taskweaver/dsh-token-meter'
+import type { Agent } from '@taskweaver/dsh-agent'
 import type {
   SummarizationInput,
   SummaryResult,
-} from '@z/dsh-compaction-basic/src/summarizer.ts'
+} from '@taskweaver/dsh-compaction-basic/src/summarizer.ts'
 
 const MODEL = 'mock'
 const SIGNAL = new AbortController().signal
@@ -411,10 +411,11 @@ describe('compactNow transaction and failure classification', () => {
     )
     const end = session.events.findLast(event => event.type === 'compaction/end')
     const correlated = { compactionId: result?.compactionId, sourceCommandId: commandId }
-    expect(start?.data).toEqual({ ...correlated, turn: null })
+    expect(start?.data).toEqual({ ...correlated, trigger: 'manual', turn: null })
     expect(summaryEvent?.data.sourceCommandId).toBe(commandId)
+    expect(summaryEvent?.data.trigger).toBe('manual')
     expect(checkpoint?.data.source).toMatchObject(correlated)
-    expect(end?.data).toEqual({ ...correlated, turn: null })
+    expect(end?.data).toEqual({ ...correlated, trigger: 'manual', turn: null })
   })
 
   it('reports a live unmatched bracket as busy without summarizing', async () => {
@@ -684,7 +685,7 @@ describe('compactNow transaction and failure classification', () => {
     expect(result).not.toBeNull()
     expect(session.events.some(event => event.type === 'turn/start')).toBe(false)
     expect(session.events.find(event => event.type === 'compaction/start')?.data)
-      .toEqual({ compactionId: result?.compactionId, turn: null })
+      .toEqual({ compactionId: result?.compactionId, trigger: 'manual', turn: null })
   })
 
   it('classifies a durability failure after the standalone bracket committed', async () => {
@@ -698,7 +699,7 @@ describe('compactNow transaction and failure classification', () => {
     expect(session.events.some(event => event.type === 'compaction/summary')).toBe(true)
     const start = session.events.findLast(event => event.type === 'compaction/start')
     const end = session.events.findLast(event => event.type === 'compaction/end')
-    expect(end?.data).toEqual({ compactionId: start?.data.compactionId, turn: null })
+    expect(end?.data).toEqual({ compactionId: start?.data.compactionId, trigger: 'manual', turn: null })
   })
 
   it('lets a pre-aborted signal win before reservation, measurement, or summarization', async () => {

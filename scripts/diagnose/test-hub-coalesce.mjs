@@ -14,7 +14,7 @@ const { createZConversationHub } = await import(path.join(PROJECT, 'electron', '
 
 const runtimeRoot = path.join(PROJECT, 'vendor', 'taskweaver-z-runtime')
 const userDataPath = fs.mkdtempSync(path.join(os.tmpdir(), 'tw-hub-'))
-const host = createZHostManager({ runtimeRoot, userDataPath, executable: process.execPath, startTimeoutMs: 90_000 })
+const host = createZHostManager({ runtimeRoot, userDataPath, startTimeoutMs: 90_000 })
 const { api } = await host.start()
 
 const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'tw-ws-'))

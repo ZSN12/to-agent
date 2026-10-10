@@ -1,10 +1,56 @@
 import { FormEvent, useEffect, useState } from 'react'
+import type { ReactNode } from 'react'
 import { Check, Plus, Shield, ShieldCheck, Trash2 } from 'lucide-react'
 import type { ApprovalAuditEntry, PermissionMode, PermissionRule } from '../../shared/app-api'
 
 const PROMPT_INJECTION_LIMIT_MIN_KIB = 1
 const PROMPT_INJECTION_LIMIT_MAX_KIB = 128
 const PROMPT_INJECTION_LIMIT_DEFAULT_KIB = 32
+
+function PermissionModeCard({
+  active,
+  icon,
+  label,
+  description,
+  onSelect,
+}: {
+  active: boolean
+  icon: ReactNode
+  label: string
+  description: ReactNode
+  onSelect: () => void
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      onClick={onSelect}
+      style={{
+        width: '100%',
+        padding: 14,
+        borderRadius: 8,
+        border: `1.5px solid ${active ? 'var(--accent-primary, #3b82f6)' : 'var(--border-color, #e5e7eb)'}`,
+        background: active ? 'rgba(59, 130, 246, 0.05)' : 'var(--bg-secondary)',
+        color: 'var(--text-primary)',
+        fontFamily: 'inherit',
+        textAlign: 'left',
+        cursor: 'pointer',
+        transition: 'all 0.15s ease',
+      }}
+    >
+      <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 600, fontSize: 13 }}>
+          {icon}
+          {label}
+        </span>
+        {active && <Check size={16} color="#3b82f6" aria-hidden="true" />}
+      </span>
+      <span style={{ display: 'block', fontSize: 11, color: 'var(--text-secondary)', marginTop: 6, lineHeight: 1.4 }}>
+        {description}
+      </span>
+    </button>
+  )
+}
 
 function AddRuleModal({
   onClose,
@@ -168,6 +214,7 @@ export function PermissionSettingsPanel({
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
   const [autoReviewReads, setAutoReviewReads] = useState(true)
+  const [autoAllowUiVerify, setAutoAllowUiVerify] = useState(false)
   const [autoVerifyAfterMutation, setAutoVerifyAfterMutation] = useState(false)
   const [promptInjectionLimitKiB, setPromptInjectionLimitKiB] = useState(String(PROMPT_INJECTION_LIMIT_DEFAULT_KIB))
   const [savedPromptInjectionLimitKiB, setSavedPromptInjectionLimitKiB] = useState(PROMPT_INJECTION_LIMIT_DEFAULT_KIB)
@@ -193,6 +240,7 @@ export function PermissionSettingsPanel({
     void window.taskweaver?.preferences?.get?.().then((res) => {
       if (res?.ok && res.data) {
         setAutoReviewReads(res.data.autoReviewReads !== false)
+        setAutoAllowUiVerify(res.data.autoAllowUiVerify === true)
         setAutoVerifyAfterMutation(res.data.autoVerifyAfterMutation === true)
         const limitKiB = Number.isFinite(res.data.promptInjectionLimitBytes)
           ? Math.round((res.data.promptInjectionLimitBytes ?? PROMPT_INJECTION_LIMIT_DEFAULT_KIB * 1024) / 1024)
@@ -279,6 +327,16 @@ export function PermissionSettingsPanel({
     onToast?.(enabled ? '已开启：工作区内只读工具免确认' : '已关闭：只读工具也将弹窗确认')
   }
 
+  const handleAutoAllowUiVerify = async (enabled: boolean) => {
+    setAutoAllowUiVerify(enabled)
+    const res = await window.taskweaver?.preferences?.set?.({ autoAllowUiVerify: enabled })
+    if (!res?.ok) {
+      onToast?.(res?.error || '保存失败')
+      return
+    }
+    onToast?.(enabled ? '已开启：受信任工作区可自动启动隔离 UI 验证' : '已关闭：UI 验证首次启动需要审批')
+  }
+
   const handlePromptInjectionLimitCommit = async () => {
     const parsedLimitKiB = Number(promptInjectionLimitKiB)
     const nextLimitKiB = Number.isFinite(parsedLimitKiB)
@@ -357,78 +415,35 @@ export function PermissionSettingsPanel({
       {/* 三档模式选择卡片 */}
       <div style={{ marginTop: 12 }}>
         <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>全局权限模式</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-          <div
-            onClick={() => handleModeSelect('readonly')}
-            style={{
-              padding: 14,
-              borderRadius: 8,
-              border: `1.5px solid ${mode === 'readonly' ? 'var(--accent-primary, #3b82f6)' : 'var(--border-color, #e5e7eb)'}`,
-              background: mode === 'readonly' ? 'rgba(59, 130, 246, 0.05)' : 'var(--bg-secondary)',
-              cursor: 'pointer',
-              transition: 'all 0.15s ease',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, fontSize: 13 }}>
-                <Shield size={16} color="#64748b" />
-                只读
-              </div>
-              {mode === 'readonly' && <Check size={16} color="#3b82f6" />}
-            </div>
-            <p style={{ fontSize: 11, color: 'var(--text-secondary)', margin: '6px 0 0 0', lineHeight: 1.4 }}>
-              Host read-only：文件写入工具不可用；适合计划审阅与纯理解任务。
-            </p>
-          </div>
-
-          <div
-            onClick={() => handleModeSelect('ask')}
-            style={{
-              padding: 14,
-              borderRadius: 8,
-              border: `1.5px solid ${mode === 'ask' || mode === 'on-risk' ? 'var(--accent-primary, #3b82f6)' : 'var(--border-color, #e5e7eb)'}`,
-              background: mode === 'ask' || mode === 'on-risk' ? 'rgba(59, 130, 246, 0.05)' : 'var(--bg-secondary)',
-              cursor: 'pointer',
-              transition: 'all 0.15s ease',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, fontSize: 13 }}>
-                <Shield size={16} color="#3b82f6" />
-                工作区可写 (默认)
-              </div>
-              {(mode === 'ask' || mode === 'on-risk') && <Check size={16} color="#3b82f6" />}
-            </div>
-            <p style={{ fontSize: 11, color: 'var(--text-secondary)', margin: '6px 0 0 0', lineHeight: 1.4 }}>
-              Host workspace-write：允许工作区内文件修改与命令；需要扩大沙箱范围时请求审批。
-            </p>
-          </div>
-
-          <div
-            onClick={() => handleModeSelect('full')}
-            style={{
-              padding: 14,
-              borderRadius: 8,
-              border: `1.5px solid ${mode === 'full' ? 'var(--accent-primary, #3b82f6)' : 'var(--border-color, #e5e7eb)'}`,
-              background: mode === 'full' ? 'rgba(59, 130, 246, 0.05)' : 'var(--bg-secondary)',
-              cursor: 'pointer',
-              transition: 'all 0.15s ease',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, fontSize: 13 }}>
-                <ShieldCheck size={16} color="#22c55e" />
-                完全访问
-              </div>
-              {mode === 'full' && <Check size={16} color="#3b82f6" />}
-            </div>
-            <p style={{ fontSize: 11, color: 'var(--text-secondary)', margin: '6px 0 0 0', lineHeight: 1.4 }}>
-              Host 使用 danger-full-access：关闭文件与命令沙箱约束，默认审批策略为 never。
-            </p>
-            <p style={{ fontSize: 10, color: 'var(--text-secondary)', margin: '6px 0 0 0', lineHeight: 1.4, opacity: 0.9 }}>
-              若 Host 仍发出审批请求，桌面端会显示给用户。设置在下一次发送消息时应用；成功回执前不代表 Host 已生效。
-            </p>
-          </div>
+        <div role="group" aria-label="全局权限模式" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+          <PermissionModeCard
+            active={mode === 'readonly'}
+            icon={<Shield size={16} color="#64748b" aria-hidden="true" />}
+            label="只读"
+            description="Host read-only：文件写入工具不可用；适合计划审阅与纯理解任务。"
+            onSelect={() => handleModeSelect('readonly')}
+          />
+          <PermissionModeCard
+            active={mode === 'ask' || mode === 'on-risk'}
+            icon={<Shield size={16} color="#3b82f6" aria-hidden="true" />}
+            label="工作区可写 (默认)"
+            description="Host workspace-write：允许工作区内文件修改与命令；需要扩大沙箱范围时请求审批。"
+            onSelect={() => handleModeSelect('ask')}
+          />
+          <PermissionModeCard
+            active={mode === 'full'}
+            icon={<ShieldCheck size={16} color="#22c55e" aria-hidden="true" />}
+            label="完全访问"
+            description={(
+              <>
+                <span style={{ display: 'block' }}>Host 使用 danger-full-access：关闭文件与命令沙箱约束，默认审批策略为 never。</span>
+                <span style={{ display: 'block', marginTop: 6, fontSize: 10, opacity: 0.9 }}>
+                  若 Host 仍发出审批请求，桌面端会显示给用户。设置在下一次发送消息时应用；成功回执前不代表 Host 已生效。
+                </span>
+              </>
+            )}
+            onSelect={() => handleModeSelect('full')}
+          />
         </div>
         <div style={{ marginTop: 10, padding: '8px 12px', borderRadius: 6, background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
           <strong>安全边界说明：</strong>on-risk 为旧配置，与 ask 同为 workspace-write。细粒度规则属于应用层；Host 文件沙箱不等同于网络隔离。
@@ -444,6 +459,20 @@ export function PermissionSettingsPanel({
             <strong>自动放行工作区内只读工具</strong>
             <span style={{ display: 'block', color: 'var(--text-secondary)', fontSize: 11, marginTop: 4, lineHeight: 1.45 }}>
               应用层只读工具确认偏好；Z Host 使用其自身审批策略，此开关不改变 Host 的沙箱权限。
+            </span>
+          </span>
+        </label>
+        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginTop: 10, fontSize: 12, cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={autoAllowUiVerify}
+            onChange={(e) => { void handleAutoAllowUiVerify(e.target.checked) }}
+            style={{ marginTop: 2 }}
+          />
+          <span>
+            <strong>受信任工作区自动允许 UI 自验证</strong>
+            <span style={{ display: 'block', color: 'var(--text-secondary)', fontSize: 11, marginTop: 4, lineHeight: 1.45 }}>
+              只对已信任的 TaskWeaver 工作区生效；关闭时每个会话首次启动隔离验证实例都需要批准。默认关闭。
             </span>
           </span>
         </label>

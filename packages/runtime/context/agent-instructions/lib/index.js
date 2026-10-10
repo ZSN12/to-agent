@@ -1,8 +1,8 @@
 import { isDeepStrictEqual } from "node:util";
-import { assertNever, createUserMessage } from "@z/dsh-llm";
+import { assertNever, createUserMessage } from "@taskweaver/dsh-llm";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
-import z from "@z/schemastery";
-import { dshHomeDisplay, resolveDshHome } from "@z/dsh-home-paths";
+import z from "@taskweaver/schemastery";
+import { dshHomeDisplay, resolveDshHome } from "@taskweaver/dsh-home-paths";
 import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
 import { createHash } from "node:crypto";
@@ -10,7 +10,7 @@ import { createHash } from "node:crypto";
 /**
 * Configuration normalization for workspace instruction discovery and rendering.
 *
-* @module @z/dsh-agent-instructions/config
+* @module @taskweaver/dsh-agent-instructions/config
 */
 const DEFAULT_PROJECT_ROOT_MARKERS = [".git"];
 const DEFAULT_INSTRUCTION_FILE_CANDIDATES = ["AGENTS.md", "CLAUDE.md"];
@@ -79,7 +79,7 @@ function resolveInstructionFileCandidates(candidates, fallback) {
 /**
 * Content identity for workspace instruction duplicate suppression.
 *
-* @module @z/dsh-agent-instructions/digest
+* @module @taskweaver/dsh-agent-instructions/digest
 */
 /**
 * Compute the content identity used across instruction loading and session state.
@@ -105,7 +105,7 @@ function trimmedInstructionDigest(content) {
 /**
 * Model-facing workspace instruction rendering within an explicit byte budget.
 *
-* @module @z/dsh-agent-instructions/render
+* @module @taskweaver/dsh-agent-instructions/render
 */
 const SYSTEM_REMINDER_OPEN = "<system-reminder>";
 const SYSTEM_REMINDER_CLOSE = "</system-reminder>";
@@ -398,7 +398,7 @@ function renderWorkspaceContext(files, options) {
 /**
 * Instruction-file discovery and bounded, abort-aware provider reads.
 *
-* @module @z/dsh-agent-instructions/files
+* @module @taskweaver/dsh-agent-instructions/files
 */
 function signalOptions(signal) {
 	return signal === void 0 ? void 0 : { signal };
@@ -749,7 +749,7 @@ function userGlobalDisplayPath(dshHome) {
 /**
 * Session-visible workspace instruction state and dynamic reconciliation.
 *
-* @module @z/dsh-agent-instructions/state
+* @module @taskweaver/dsh-agent-instructions/state
 */
 const name = "agent-instructions";
 function workspaceContextHook(text, changes) {
@@ -1055,7 +1055,7 @@ async function reconcileInstructionContext(agent, resolved, versionCache, fileSy
 * Plugin lifecycle reads use the optional `ctx.fs` provider, so providerless products
 * mount it as a no-op.
 *
-* @module @z/dsh-agent-instructions
+* @module @taskweaver/dsh-agent-instructions
 */
 function visibleBaselineSource(agent, authorityMessages) {
 	for (const message of authorityMessages.toReversed()) if (message.source.kind === "agent-instructions" && message.source.baseline === true) return message.source;

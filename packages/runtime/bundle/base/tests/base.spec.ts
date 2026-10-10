@@ -1,5 +1,5 @@
 /**
- * The bundle's substance is its patch file: the `dsh.bundle.patch` manifest
+ * The bundle's substance is its patch file: the `taskweaver.bundle.patch` manifest
  * field must name a real, parseable patch list.
  */
 
@@ -8,18 +8,18 @@ import { fileURLToPath } from 'node:url'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import * as yaml from 'js-yaml'
-import { entryListSchema } from '@z/cordis-plugin-include'
-import { evaluate } from '@z/cordis-plugin-loader'
+import { entryListSchema } from '@taskweaver/cordis-plugin-include'
+import { evaluate } from '@taskweaver/cordis-plugin-loader'
 
 describe('dsh-base bundle', () => {
-  it('declares a parseable patch list through the dsh.bundle.patch manifest field', () => {
+  it('declares a parseable patch list through the taskweaver.bundle.patch manifest field', () => {
     const root = fileURLToPath(new URL('..', import.meta.url))
     const manifest = JSON.parse(
       readFileSync(resolve(root, 'package.json'), 'utf8'),
     ) as { dsh?: { bundle?: { patch?: string } } }
-    expect(manifest.dsh?.bundle?.patch).toBe('./cordis.patch.yml')
+    expect(manifest.taskweaver?.bundle?.patch).toBe('./cordis.patch.yml')
     const parsed = yaml.load(
-      readFileSync(resolve(root, manifest.dsh!.bundle!.patch!), 'utf8'),
+      readFileSync(resolve(root, manifest.taskweaver!.bundle!.patch!), 'utf8'),
       { schema: entryListSchema },
     )
     expect(Array.isArray(parsed)).toBe(true)
@@ -29,6 +29,7 @@ describe('dsh-base bundle', () => {
     )
     expect(rows.length).toBeGreaterThan(50)
     expect(rows.some(row => row.id === 'agent-loop')).toBe(true)
+    expect(rows.some(row => row.id === 'tool-document' && row.name === '@taskweaver/dsh-tool-document')).toBe(true)
     expect(rows.filter(row => [
       'session-telemetry-otel', 'skill-badge', 'command-feedback',
       'tool-str-replace-editor', 'llm-deepseek',

@@ -1,14 +1,14 @@
-import { createUserMessage } from '@z/dsh-llm'
-import { Context } from '@z/cordis'
+import { createUserMessage } from '@taskweaver/dsh-llm'
+import { Context } from '@taskweaver/cordis'
 import { describe, expect, it } from 'vitest'
-import SessionStore, { Session, SessionId } from '@z/dsh-session'
+import SessionStore, { Session, SessionId } from '@taskweaver/dsh-session'
 import SessionTitleService, {
   SessionTitleProviderId,
   fallbackSessionTitle,
   foldSessionTitle,
   normalizeSessionTitle,
   truncateTitleUtf8,
-} from '@z/dsh-session-title'
+} from '@taskweaver/dsh-session-title'
 
 const CONFIG = {
   fallbackMaxWords: 5,

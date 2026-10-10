@@ -1,10 +1,10 @@
 /**
  * Types shared by PTY backends, the owner-scoped registry, and tool consumers.
  * Runtime service code lives in `./index.ts`.
- * @module @z/dsh-terminal/types
+ * @module @taskweaver/dsh-terminal/types
  */
-import type { Branded } from '@z/dsh-brand';
-import type { Agent } from '@z/dsh-agent';
+import type { Branded } from '@taskweaver/dsh-brand';
+import type { Agent } from '@taskweaver/dsh-agent';
 /** Internal exported basis for the public `TerminalSessionId` type/value pair. */
 export type TerminalSessionIdValue = Branded<'TerminalSessionId'>;
 /**
@@ -22,7 +22,7 @@ export type TerminalWaitReason = 'stdin_read' | 'inferred_idle' | 'timeout' | 's
 /**
  * Signals the model-facing PTY surface permits for foreground process groups.
  * Kept member-identical to `SubprocessTerminalSignal` in
- * `@z/dsh-subprocess` without a cross-seam dependency; change both together.
+ * `@taskweaver/dsh-subprocess` without a cross-seam dependency; change both together.
  */
 export type TerminalSignal = 'SIGINT' | 'SIGTERM' | 'SIGKILL' | 'SIGTSTP' | 'SIGHUP';
 /** Top-level PTY process status, independent of a send's wait reason. */

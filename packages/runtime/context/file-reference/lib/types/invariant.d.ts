@@ -1,8 +1,8 @@
 /**
- * Package-owned invariant companion for `@z/dsh-file-reference`.
- * @module @z/dsh-file-reference/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-file-reference`.
+ * @module @taskweaver/dsh-file-reference/invariant
  */
-import type { Context } from '@z/cordis';
+import type { Context } from '@taskweaver/cordis';
 /** Cordis companion plugin name. */
 export declare const name = "file-reference-invariant";
 /** Service required before the companion can reserve package ownership. */

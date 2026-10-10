@@ -4,7 +4,7 @@ import { SCHEMA_REQUIRED_OUTPUT_BUDGET } from "./constants";
 import { expandFastExportModels } from "./fast-models";
 import type { OpencodeCatalogModel, ExportModel, ExportClientId, ManagedContribution } from "./contracts";
 import type { OcxConfig } from "../../types";
-import { shouldInjectApiAuthHeader } from "../../codex/inject";
+import { shouldInjectApiAuthHeader } from "../../codex/loopback-target";
 
 
 /**

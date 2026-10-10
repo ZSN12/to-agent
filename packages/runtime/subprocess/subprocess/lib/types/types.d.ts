@@ -7,14 +7,22 @@
  * @module dsh-subprocess/types
  */
 import type { Readable, Writable } from 'node:stream';
-/** Namespace prefix reserved for DeepSeek Harness-managed child environment facts. */
+/** Namespace prefix reserved for TaskWeaver-managed child environment facts. */
+export declare const TASKWEAVER_ENV_PREFIX: "TASKWEAVER_";
+/** Legacy prefixes are scrubbed so old identities and secrets never leak to child processes. */
+export declare const LEGACY_TASKWEAVER_ENV_PREFIXES: readonly ["DSH_", "Z_"];
+/** @deprecated Use {@link TASKWEAVER_ENV_PREFIX}. */
 export declare const DSH_ENV_PREFIX: "DSH_";
-/** TaskWeaver / Z runtime managed child environment facts (`Z_HOME`, `Z_SESSION_ID`, …). */
+/** @deprecated Use {@link TASKWEAVER_ENV_PREFIX}. */
 export declare const Z_ENV_PREFIX: "Z_";
-/** One environment key inside the managed {@link DSH_ENV_PREFIX} namespace. */
-export type DshEnvironmentKey = `${typeof DSH_ENV_PREFIX}${string}`;
-/** Trusted DeepSeek Harness variables for one child-process execution. */
-export type DshEnvironment = Readonly<Record<DshEnvironmentKey, string>>;
+/** One environment key inside the managed {@link TASKWEAVER_ENV_PREFIX} namespace. */
+export type TaskWeaverEnvironmentKey = `${typeof TASKWEAVER_ENV_PREFIX}${string}`;
+/** Trusted TaskWeaver variables for one child-process execution. */
+export type TaskWeaverEnvironment = Readonly<Record<TaskWeaverEnvironmentKey, string>>;
+/** @deprecated Use {@link TaskWeaverEnvironmentKey}. */
+export type DshEnvironmentKey = TaskWeaverEnvironmentKey;
+/** @deprecated Use {@link TaskWeaverEnvironment}. */
+export type DshEnvironment = TaskWeaverEnvironment;
 /** One captured stream: the (possibly truncated) text plus recovery info. */
 export interface CollectedOutput {
     /** Collected text — the TAIL of the stream when truncated. */
@@ -91,7 +99,7 @@ export interface SubprocessSpawnSpec {
      * Explicit environment entries merged onto the implementation's scrubbed
      * parent base (see `scrubbedParentEnv`), with no namespace validation. A
      * string is a deliberate caller opt-in, so a forwarded credential-shaped
-     * entry or current `DSH_*` fact survives the scrub; `undefined` is a
+     * entry or current `TASKWEAVER_*` fact survives the scrub; `undefined` is a
      * tombstone that removes an ordinary ambient entry from the child.
      */
     env?: NodeJS.ProcessEnv | undefined;

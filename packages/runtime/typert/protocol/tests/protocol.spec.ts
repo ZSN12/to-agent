@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { Context } from '@z/cordis'
+import { Context } from '@taskweaver/cordis'
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import {
   bindTypertRemote,
@@ -11,9 +11,9 @@ import {
   type TypertContext,
   type TypertForwardableEvent,
   type TypertRemoteEvent,
-} from '@z/dsh-typert-protocol'
+} from '@taskweaver/dsh-typert-protocol'
 
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
   interface Events {
     /**
      * Test-only one-way event: bound to no Scope and returning nothing.
@@ -34,7 +34,7 @@ declare module '@z/cordis' {
   }
 }
 
-declare module '@z/dsh-typert-protocol' {
+declare module '@taskweaver/dsh-typert-protocol' {
   interface TypertContextMap {
     metaFixture: TypertContext<string>
   }

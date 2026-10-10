@@ -18,24 +18,24 @@
  * disposed by then, and the release that wakes the parent's own settlement
  * watcher has already run. See {@link SubagentContinuationManager.notifySettlement}.
  *
- * @module @z/dsh-subagent
+ * @module @taskweaver/dsh-subagent
  */
 
 import { randomUUID } from 'node:crypto'
-import type { Context } from '@z/cordis'
+import type { Context } from '@taskweaver/cordis'
 import type {
   Agent,
   AgentHandle,
   AgentOptions,
   AgentSetupCommit,
   CreateAgentOptions,
-} from '@z/dsh-agent'
-import { boundContextSummary, createUserMessage, errorChain } from '@z/dsh-llm'
-import type { ContentBlock, MessageId, MessageSource } from '@z/dsh-llm'
-import { SessionId } from '@z/dsh-session'
-import type { SessionEvent } from '@z/dsh-session'
-import type { SessionPersistence } from '@z/dsh-session-persistence'
-import type { ToolRestriction } from '@z/dsh-tools'
+} from '@taskweaver/dsh-agent'
+import { boundContextSummary, createUserMessage, errorChain } from '@taskweaver/dsh-llm'
+import type { ContentBlock, MessageId, MessageSource } from '@taskweaver/dsh-llm'
+import { SessionId } from '@taskweaver/dsh-session'
+import type { SessionEvent } from '@taskweaver/dsh-session'
+import type { SessionPersistence } from '@taskweaver/dsh-session-persistence'
+import type { ToolRestriction } from '@taskweaver/dsh-tools'
 import { foldSubagentDescriptor, snapshotSubagentDescriptor } from './descriptor.ts'
 import type { SubagentDescriptorData } from './descriptor.ts'
 import {
@@ -89,7 +89,7 @@ export interface SubagentSettledMessageSource {
   readonly senderSessionId: SessionId
 }
 
-declare module '@z/dsh-llm' {
+declare module '@taskweaver/dsh-llm' {
   interface MessageSourceMap {
     coordinator: CoordinatorMessageSource
     'subagent-report': SubagentReportMessageSource

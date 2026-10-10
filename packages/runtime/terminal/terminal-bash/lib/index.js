@@ -1,7 +1,7 @@
-import { TerminalBackendCleanupError, TerminalError } from "@z/dsh-terminal";
-import { effectiveSandboxMode } from "@z/dsh-sandbox-policy";
-import { ENCODING_PREAMBLE, resolvePwshPath } from "@z/dsh-pwsh-local";
-import z from "@z/schemastery";
+import { TerminalBackendCleanupError, TerminalError } from "@taskweaver/dsh-terminal";
+import { effectiveSandboxMode } from "@taskweaver/dsh-sandbox-policy";
+import { ENCODING_PREAMBLE, resolvePwshPath } from "@taskweaver/dsh-pwsh-local";
+import z from "@taskweaver/schemastery";
 import { Buffer } from "node:buffer";
 //#region lib/types/config.js
 /** Validated configuration for the local PTY backend. */
@@ -707,7 +707,7 @@ var LocalPtySession = class {
 /**
 * Persistent shell PTY backend over the subprocess terminal primitive, shared
 * sandbox policy, bounded output, and provider-owned session cleanup.
-* @module @z/dsh-terminal-bash
+* @module @taskweaver/dsh-terminal-bash
 */
 /** Cordis plugin name. */
 const name = "terminal-bash";

@@ -1,4 +1,3 @@
-"use strict";
 /**
  * The per-workspace write identity: a deterministic `S-1-4-x-y` SID derived
  * from the canonical workspace path, whose ACEs form that workspace's write
@@ -22,23 +21,20 @@
  * tree propagation). Renaming the workspace directory derives a new SID —
  * the old standing ACEs are inert residue, and the next session re-propagates
  * once.
- * @module @z/dsh-sandbox-windows-acl/workspace-sid
+ * @module @taskweaver/dsh-sandbox-windows-acl/workspace-sid
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.workspaceWriteSid = workspaceWriteSid;
-exports.tempWriteSid = tempWriteSid;
-var node_crypto_1 = require("node:crypto");
+import { createHash } from 'node:crypto';
 /**
  * Derive the workspace's write SID (`S-1-4-x-y`; subauthorities 30-bit,
  * matching the workspace-capability shape the token and ACE layers carry).
  * @param workspaceRoot - the canonical workspace path.
  * @returns the SDDL string form.
  */
-function workspaceWriteSid(workspaceRoot) {
-    var digest = (0, node_crypto_1.createHash)('sha256').update(workspaceRoot, 'utf8').digest();
-    var first = (digest.readUInt32LE(0) % (Math.pow(2, 30) - 1)) + 1;
-    var second = (digest.readUInt32LE(4) % (Math.pow(2, 30) - 1)) + 1;
-    return "S-1-4-".concat(first, "-").concat(second);
+export function workspaceWriteSid(workspaceRoot) {
+    const digest = createHash('sha256').update(workspaceRoot, 'utf8').digest();
+    const first = (digest.readUInt32LE(0) % (2 ** 30 - 1)) + 1;
+    const second = (digest.readUInt32LE(4) % (2 ** 30 - 1)) + 1;
+    return `S-1-4-${first}-${second}`;
 }
 /**
  * Derive one private temp directory's write SID. The random directory path
@@ -47,9 +43,10 @@ function workspaceWriteSid(workspaceRoot) {
  * @param tempDir - the private temp directory's absolute path.
  * @returns the SDDL string form.
  */
-function tempWriteSid(tempDir) {
-    var digest = (0, node_crypto_1.createHash)('sha256').update('temp\0', 'utf8').update(tempDir, 'utf8').digest();
-    var first = (digest.readUInt32LE(0) % (Math.pow(2, 30) - 1)) + 1;
-    var second = (digest.readUInt32LE(4) % (Math.pow(2, 30) - 1)) + 1;
-    return "S-1-4-".concat(first, "-").concat(second, "-1");
+export function tempWriteSid(tempDir) {
+    const digest = createHash('sha256').update('temp\0', 'utf8').update(tempDir, 'utf8').digest();
+    const first = (digest.readUInt32LE(0) % (2 ** 30 - 1)) + 1;
+    const second = (digest.readUInt32LE(4) % (2 ** 30 - 1)) + 1;
+    return `S-1-4-${first}-${second}-1`;
 }
+//# sourceMappingURL=workspace-sid.js.map

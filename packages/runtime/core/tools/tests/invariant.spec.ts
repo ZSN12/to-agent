@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import { scopeTarget } from '@z/dsh-scope'
-import { CallId } from '@z/dsh-llm'
-import SessionStore, { Session, SessionId } from '@z/dsh-session'
-import type { ToolExecution, ToolExecutionResult, ToolExecutionToken } from '@z/dsh-tools'
-import * as ToolsInvariant from '@z/dsh-tools/invariant'
-import InvariantRegistry from '@z/dsh-invariants'
+import { Context } from '@taskweaver/cordis'
+import { scopeTarget } from '@taskweaver/dsh-scope'
+import { CallId } from '@taskweaver/dsh-llm'
+import SessionStore, { Session, SessionId } from '@taskweaver/dsh-session'
+import type { ToolExecution, ToolExecutionResult, ToolExecutionToken } from '@taskweaver/dsh-tools'
+import * as ToolsInvariant from '@taskweaver/dsh-tools/invariant'
+import InvariantRegistry from '@taskweaver/dsh-invariants'
 
 const testToolSignal = new AbortController().signal
 

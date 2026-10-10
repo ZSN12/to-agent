@@ -15,12 +15,12 @@
  */
 
 import type { CacheRetention, ChatTemplateKwargValue, ModelThinkingLevel, Provider, ThinkingBudgets, Transport } from '@earendil-works/pi-ai'
-import z from '@z/schemastery'
-import { credentialRef } from '@z/dsh-credentials'
-import type { CredentialRef } from '@z/dsh-credentials'
-import { MAX_TIMER_DELAY_MS } from '@z/dsh-timeout'
-import { resolveRetryPolicy, RetryPolicySchema } from '@z/dsh-llm'
-import type { ResolvedRetryPolicy, RetryPolicyConfig } from '@z/dsh-llm'
+import z from '@taskweaver/schemastery'
+import { credentialRef } from '@taskweaver/dsh-credentials'
+import type { CredentialRef } from '@taskweaver/dsh-credentials'
+import { MAX_TIMER_DELAY_MS } from '@taskweaver/dsh-timeout'
+import { resolveRetryPolicy, RetryPolicySchema } from '@taskweaver/dsh-llm'
+import type { ResolvedRetryPolicy, RetryPolicyConfig } from '@taskweaver/dsh-llm'
 import {
   CACHE_CONTROL_FORMATS,
   CHAT_TEMPLATE_VARS,

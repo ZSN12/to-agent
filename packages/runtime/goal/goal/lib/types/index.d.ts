@@ -1,19 +1,19 @@
 /**
  * Same-session goal domain: event-sourced state, compare-and-set mutations,
  * and process-local continuation activation.
- * @module @z/dsh-goal
+ * @module @taskweaver/dsh-goal
  */
-import { Context } from '@z/cordis';
-import z from '@z/schemastery';
-import type { Agent } from '@z/dsh-agent';
-import type { SessionEvent } from '@z/dsh-session';
-import { TypertRemoteService } from '@z/dsh-typert-protocol';
+import { Context } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
+import type { Agent } from '@taskweaver/dsh-agent';
+import type { SessionEvent } from '@taskweaver/dsh-session';
+import { TypertRemoteService } from '@taskweaver/dsh-typert-protocol';
 import type { CreateGoalRequest, CreateGoalResult, EditGoalRequest, GoalBlockReason, GoalProjection, GoalRef, GoalView } from './types.ts';
 export type * from './types.ts';
 export type * from './domain.ts';
 export { GOAL_CHANGE_VERSION, GoalError, GoalId } from './runtime.ts';
 export { decodeGoalChange, foldGoal, goalChangeRef } from './fold.ts';
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
     interface Context {
         goals: GoalService;
     }

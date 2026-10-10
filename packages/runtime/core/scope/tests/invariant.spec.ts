@@ -1,11 +1,11 @@
-import { freezeMessage, MessageId } from '@z/dsh-llm'
+import { freezeMessage, MessageId } from '@taskweaver/dsh-llm'
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import type { Events } from '@z/cordis'
-import type { Agent } from '@z/dsh-agent'
-import { scopeTarget } from '@z/dsh-scope'
-import * as ScopeInvariant from '@z/dsh-scope/invariant'
-import InvariantRegistry from '@z/dsh-invariants'
+import { Context } from '@taskweaver/cordis'
+import type { Events } from '@taskweaver/cordis'
+import type { Agent } from '@taskweaver/dsh-agent'
+import { scopeTarget } from '@taskweaver/dsh-scope'
+import * as ScopeInvariant from '@taskweaver/dsh-scope/invariant'
+import InvariantRegistry from '@taskweaver/dsh-invariants'
 
 async function setup(): Promise<Context> {
   const ctx = new Context()

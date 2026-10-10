@@ -1,5 +1,5 @@
-/** Package-owned durable goal-stream invariants. @module @z/dsh-goal/invariant */
-import type { Context } from '@z/cordis';
+/** Package-owned durable goal-stream invariants. @module @taskweaver/dsh-goal/invariant */
+import type { Context } from '@taskweaver/cordis';
 /** Cordis companion plugin name. */
 export declare const name = "goal-invariant";
 /** Service required before the companion can reserve package ownership. */

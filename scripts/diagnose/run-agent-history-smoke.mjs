@@ -5,10 +5,10 @@ import path from 'node:path'
 import { spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
-import { createZHostManager } from '../../electron/agent/z-host/index.mjs'
-import { createDshChatService } from '../../electron/backend/dsh-chat-service.mjs'
-import { createModelService } from '../../electron/backend/model-service.mjs'
-import { createProfileStore } from '../../electron/backend/profile-store.mjs'
+import { createZHostManager } from '../../desktop/agent/z-host/index.mjs'
+import { createDshChatService } from '../../desktop/backend/dsh-chat-service.mjs'
+import { createModelService } from '../../desktop/backend/model-service.mjs'
+import { createProfileStore } from '../../desktop/backend/profile-store.mjs'
 
 // --inspect reads only a COPIED archive through the native cold-history API.
 // --run makes real provider requests against a fork in the isolated home.
@@ -139,7 +139,7 @@ try {
   }
   const canonicalHome = await fs.realpath(reportDir)
   const profile = `(version 1) (allow default) (deny file-write*) (allow file-write* (subpath ${JSON.stringify(canonicalHome)}) (literal "/dev/null") (literal "/dev/tty"))`
-  manager = createZHostManager({ runtimeRoot, userDataPath: reportDir, executable: process.execPath,
+  manager = createZHostManager({ runtimeRoot, userDataPath: reportDir,
     environment: { ...process.env, TMPDIR: canonicalHome },
     spawnProcess: (executable, args, options) => spawn('/usr/bin/sandbox-exec', ['-p', profile, executable, ...args], options) })
   const { api } = await manager.start()

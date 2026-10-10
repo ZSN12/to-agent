@@ -1,21 +1,21 @@
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import { toolPairingBalancedAfter, toolPairingBalancedBefore } from '@z/dsh-compaction'
-import { createUserMessage, CONTEXT_WINDOW_EXCEEDED_CODE, LlmError, resolveRetryPolicy , createMessage } from '@z/dsh-llm'
-import type { ContentBlock, GenerateOptions, LlmResolvedModelInfo, ResolvedRetryPolicy, StreamChunk } from '@z/dsh-llm'
-import { CallId, LlmAdapter } from '@z/dsh-llm'
-import { defineContentToolFixture } from '@z/dsh-tools'
-import type { Agent } from '@z/dsh-agent'
-import AgentLoop from '@z/dsh-agent-loop'
-import { mountAgentLoopTestDependencies } from '@z/dsh-agent-loop-testkit'
-import InvariantRegistry from '@z/dsh-invariants'
-import * as SessionInvariant from '@z/dsh-session/invariant'
-import * as AgentInvariant from '@z/dsh-agent/invariant'
-import * as AgentLoopInvariant from '@z/dsh-agent-loop/invariant'
-import { BasicCompactionEngine } from '@z/dsh-compaction-basic'
-import TokenMeter from '@z/dsh-token-meter'
-import * as LlmRetry from '@z/dsh-llm-retry'
-import { Session, SessionId, type SessionEvent, type SurfaceEvent } from '@z/dsh-session'
+import { Context } from '@taskweaver/cordis'
+import { toolPairingBalancedAfter, toolPairingBalancedBefore } from '@taskweaver/dsh-compaction'
+import { createUserMessage, CONTEXT_WINDOW_EXCEEDED_CODE, LlmError, resolveRetryPolicy , createMessage } from '@taskweaver/dsh-llm'
+import type { ContentBlock, GenerateOptions, LlmResolvedModelInfo, ResolvedRetryPolicy, StreamChunk } from '@taskweaver/dsh-llm'
+import { CallId, LlmAdapter } from '@taskweaver/dsh-llm'
+import { defineContentToolFixture } from '@taskweaver/dsh-tools'
+import type { Agent } from '@taskweaver/dsh-agent'
+import AgentLoop from '@taskweaver/dsh-agent-loop'
+import { mountAgentLoopTestDependencies } from '@taskweaver/dsh-agent-loop-testkit'
+import InvariantRegistry from '@taskweaver/dsh-invariants'
+import * as SessionInvariant from '@taskweaver/dsh-session/invariant'
+import * as AgentInvariant from '@taskweaver/dsh-agent/invariant'
+import * as AgentLoopInvariant from '@taskweaver/dsh-agent-loop/invariant'
+import { BasicCompactionEngine } from '@taskweaver/dsh-compaction-basic'
+import TokenMeter from '@taskweaver/dsh-token-meter'
+import * as LlmRetry from '@taskweaver/dsh-llm-retry'
+import { Session, SessionId, type SessionEvent, type SurfaceEvent } from '@taskweaver/dsh-session'
 
 /**
  * CBR-001 regression through the real loop. A replacement checkpoint has a high
@@ -249,6 +249,8 @@ describe('CBR-001: a real-loop checkpoint is a valid boundary on both sides', ()
       const events = [...agent.session.events]
       const compactStart = events.find(event => event.type === 'compaction/start')
       expect(compactStart).toBeDefined()
+      expect(compactStart?.data.trigger).toBe('pressure')
+      expect(events.find(event => event.type === 'compaction/summary')?.data.trigger).toBe('pressure')
       const precedingResult = events.findLast(event =>
         event.type === 'tool/result' && event.seq < compactStart!.seq,
       )

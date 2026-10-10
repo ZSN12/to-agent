@@ -1,8 +1,8 @@
 /**
  * Human-facing `/goal` command over the persisted same-session goal domain.
- * @module @z/dsh-command-goal
+ * @module @taskweaver/dsh-command-goal
  */
-import type { Context } from '@z/cordis';
+import type { Context } from '@taskweaver/cordis';
 export declare const name = "command-goal";
 export declare const inject: string[];
 /** Register the Codex-shaped `/goal` command for every composed command adapter. */

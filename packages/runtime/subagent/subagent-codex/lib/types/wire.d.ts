@@ -4,11 +4,11 @@
  * product methods, current thread/turn association, unattended approval
  * responses, and terminal-answer selection.
  *
- * @module @z/dsh-subagent-codex/wire
+ * @module @taskweaver/dsh-subagent-codex/wire
  */
 import type { Readable, Writable } from 'node:stream';
-import type { ContentBlock } from '@z/dsh-llm';
-import type { SubagentResult } from '@z/dsh-subagent';
+import type { ContentBlock } from '@taskweaver/dsh-llm';
+import type { SubagentResult } from '@taskweaver/dsh-subagent';
 import type { CodexPermissionMode } from './run.ts';
 /** Product facts owned by the Codex wire after publication. */
 export interface CodexWireFailureFacts {

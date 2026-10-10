@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import { createScope, scopeOf } from '@z/dsh-scope'
-import type { Scope, ScopeKey } from '@z/dsh-scope'
-import SessionStore from '@z/dsh-session'
-import type { Session } from '@z/dsh-session'
+import { Context } from '@taskweaver/cordis'
+import { createScope, scopeOf } from '@taskweaver/dsh-scope'
+import type { Scope, ScopeKey } from '@taskweaver/dsh-scope'
+import SessionStore from '@taskweaver/dsh-session'
+import type { Session } from '@taskweaver/dsh-session'
 
 async function mount(): Promise<Context> {
   const ctx = new Context()

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { createMemoryStore, buildMemoryPromptSections, memoryPromptLimits } from '../electron/backend/memory-store.mjs'
+import { createMemoryStore, buildMemoryPromptSections, memoryPromptLimits } from '../desktop/backend/memory-store.mjs'
 
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tw-memory-'))
 try {
@@ -140,7 +140,15 @@ try {
   assert.equal(concurrentMemory.evidence_bundles.length, 12, 'concurrent task and evidence writes must share one serialized snapshot queue')
   assert.ok(JSON.parse(await fs.readFile(path.join(root, 'memory', `${concurrentId}.json`), 'utf8')))
 
-  console.log('memory-store checks passed: per-conversation L0-L2 memory, isolated L4 evidence persistence and retry injection')
+  const deletedId = 'conv-deleted'
+  await memory.init(deletedId, '/tmp/deleted-workspace', '删除时一并清理')
+  assert.ok(await memory.load(deletedId), 'memory fixture exists before conversation deletion')
+  assert.deepEqual(await memory.deleteConversation(deletedId), { removed: true })
+  assert.equal(await memory.load(deletedId), null, 'deleting a conversation removes its persisted memory')
+  assert.deepEqual(await memory.deleteConversation(deletedId), { removed: false }, 'deletion is idempotent')
+  await assert.rejects(memory.deleteConversation('../outside'), /会话记忆标识无效/)
+
+  console.log('memory-store checks passed: per-conversation L0-L2 memory, isolated L4 evidence persistence, deletion and retry injection')
 } finally {
   await fs.rm(root, { recursive: true, force: true })
 }

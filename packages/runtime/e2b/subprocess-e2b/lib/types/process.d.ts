@@ -1,7 +1,7 @@
 /** One asynchronously-started E2B command projected onto the subprocess seam. */
 import { PassThrough, Writable } from 'node:stream';
-import type { SubprocessHandle, SubprocessOutcome, SubprocessSpawnSpec } from '@z/dsh-subprocess';
-import type E2BRuntime from '@z/dsh-e2b';
+import type { SubprocessHandle, SubprocessOutcome, SubprocessSpawnSpec } from '@taskweaver/dsh-subprocess';
+import type E2BRuntime from '@taskweaver/dsh-e2b';
 /** E2B-backed subprocess handle with deferred remote PID acquisition. */
 export declare class E2BSubprocessHandle implements SubprocessHandle {
     private readonly runtime;

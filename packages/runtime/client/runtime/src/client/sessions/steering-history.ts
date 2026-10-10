@@ -1,7 +1,7 @@
 /** Reconstruct durable steering identity from the event-sourced agent inbox. */
 
-import type { SessionEvent } from '@z/dsh-session/types'
-import type { InboxTarget } from '@z/dsh-agent/types'
+import type { SessionEvent } from '@taskweaver/dsh-session/types'
+import type { InboxTarget } from '@taskweaver/dsh-agent/types'
 
 /** Minimal pending identity retained while replaying durable inbox splices. */
 interface PendingIdentity {

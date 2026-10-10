@@ -1,5 +1,5 @@
 /** Package-owned relational checks for Agent Teams durable records. */
-import type { Context } from '@z/cordis';
+import type { Context } from '@taskweaver/cordis';
 /** Cordis companion plugin name. */
 export declare const name = "team-invariant";
 /** Invariant registry required by the companion. */

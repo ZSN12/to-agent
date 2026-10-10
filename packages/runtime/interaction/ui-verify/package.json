@@ -11,10 +11,6 @@
       "types": "./lib/types/index.d.ts",
       "default": "./lib/index.js"
     },
-    "./policy": {
-      "types": "./lib/types/policy.d.ts",
-      "default": "./lib/policy.js"
-    },
     "./src/*": "./src/*",
     "./package.json": "./package.json"
   },
@@ -23,16 +19,8 @@
   "dependencies": {
     "playwright-core": "1.64.0"
   },
-  "peerDependencies": {
-    "@z/cordis": "workspace:^",
-    "@z/dsh-agent": "workspace:^",
-    "@z/dsh-session": "workspace:^"
-  },
   "devDependencies": {
     "@types/node": "^22.20.0",
-    "@z/cordis": "workspace:^",
-    "@z/dsh-agent": "workspace:^",
-    "@z/dsh-session": "workspace:^",
     "playwright-core": "1.64.0",
     "vitest": "^4.1.8"
   }

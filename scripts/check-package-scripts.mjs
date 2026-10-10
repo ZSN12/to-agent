@@ -8,6 +8,25 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const manifest = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'))
 const issues = []
 const scripts = manifest.scripts ?? {}
+const workspacePackages = new Map()
+function collectWorkspaceManifests(directory) {
+  if (!fs.existsSync(directory)) return
+  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+    if (!entry.isDirectory() || entry.name === 'node_modules') continue
+    const packageDir = path.join(directory, entry.name)
+    const packageJson = path.join(packageDir, 'package.json')
+    if (fs.existsSync(packageJson)) {
+      try {
+        const pkg = JSON.parse(fs.readFileSync(packageJson, 'utf8'))
+        if (typeof pkg.name === 'string') workspacePackages.set(pkg.name, { dir: packageDir, manifest: pkg })
+      } catch {
+        issues.push(`invalid package manifest: ${path.relative(root, packageJson)}`)
+      }
+    }
+    collectWorkspaceManifests(packageDir)
+  }
+}
+collectWorkspaceManifests(path.join(root, 'packages'))
 const pathExtensions = /\.(?:mjs|cjs|js|mts|cts|ts|tsx)$/u
 const flagsWithValues = new Set(['--import', '--require', '-r', '--loader', '--env-file', '--test-name-pattern', '--test-reporter'])
 
@@ -71,7 +90,7 @@ function assertTarget(target, cwd, fromScript) {
 }
 
 for (const [scriptName, command] of Object.entries(scripts)) {
-  for (const match of command.matchAll(/\bnpm\s+run\s+(?:--if-present\s+)?([\w:-]+)/gu)) {
+  for (const match of command.matchAll(/\b(?:npm|pnpm)\s+run\s+(?:--if-present\s+)?([\w:-]+)/gu)) {
     if (!Object.hasOwn(scripts, match[1])) issues.push(`${scriptName}: npm run references missing script ${match[1]}`)
   }
 
@@ -79,6 +98,46 @@ for (const [scriptName, command] of Object.entries(scripts)) {
   const tokens = shellTokens(command)
   for (let index = 0; index < tokens.length; index += 1) {
     const token = tokens[index]
+    if (token === 'pnpm') {
+      let cursor = index + 1
+      let targetManifest = manifest
+      let targetLabel = 'root'
+      let targetDir = root
+      while (cursor < tokens.length && tokens[cursor].startsWith('--')) {
+        const option = tokens[cursor]
+        const value = tokens[cursor + 1]
+        if (option === '--dir' && value) {
+          targetDir = path.resolve(root, value)
+          const packageJson = path.join(targetDir, 'package.json')
+          if (fs.existsSync(packageJson)) {
+            targetManifest = JSON.parse(fs.readFileSync(packageJson, 'utf8'))
+            targetLabel = path.relative(root, targetDir)
+          } else {
+            issues.push(`${scriptName}: pnpm --dir package manifest does not exist: ${path.relative(root, packageJson)}`)
+          }
+          cursor += 2
+          continue
+        }
+        if (option === '--filter' && value) {
+          const found = workspacePackages.get(value)
+          if (found) {
+            targetManifest = found.manifest
+            targetDir = found.dir
+            targetLabel = value
+          }
+          cursor += 2
+          continue
+        }
+        cursor += value && !value.startsWith('-') ? 2 : 1
+      }
+      const pnpmCommand = tokens[cursor]
+      if (pnpmCommand === 'run' && tokens[cursor + 1]) {
+        const requestedScript = tokens[cursor + 1]
+        if (!Object.hasOwn(targetManifest.scripts ?? {}, requestedScript)) {
+          issues.push(`${scriptName}: pnpm run references missing script ${requestedScript} in ${targetLabel}`)
+        }
+      }
+    }
     if (token === 'cd' && tokens[index + 1]) {
       cwd = path.resolve(cwd, tokens[index + 1])
       index += 1
@@ -111,5 +170,5 @@ if (issues.length) {
   for (const issue of issues) console.error(`- ${issue}`)
   process.exitCode = 1
 } else {
-  console.log(`check-package-scripts: ok (${Object.keys(scripts).length} scripts, all npm run and direct node/tsx file references resolve)`)
+  console.log(`check-package-scripts: ok (${Object.keys(scripts).length} root scripts, pnpm/npm run and direct node/tsx file references resolve)`)
 }

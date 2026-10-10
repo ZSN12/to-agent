@@ -2,15 +2,15 @@
  * The model-facing `workflow` tool: run a JavaScript orchestration script that fans out
  * subagents, and return the script's final value. It owns the model-facing schema and run lifecycle; script
  * parsing, execution, caps, and cancellation live behind `ctx.workflowEngine`
- * (`@z/dsh-workflow`), so a hardened engine swaps in without touching what the model
+ * (`@taskweaver/dsh-workflow`), so a hardened engine swaps in without touching what the model
  * sees. Execution awaits `run.result` and always disposes the run; non-completed reasons become tool
  * errors, and background collection remains deferred. Presentation is an args-only generic card
  * titled from `meta.name`. Explicit-ask usage guidance is registered as the tool's own prompt
  * section rather than deployment persona prose.
- * @module @z/dsh-tool-workflow
+ * @module @taskweaver/dsh-tool-workflow
  */
-import type { Context } from '@z/cordis';
-import z from '@z/schemastery';
+import type { Context } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
 export declare const name = "tool-workflow";
 export declare const inject: string[];
 /** Config: the model-facing tool name plus result rendering caps. */

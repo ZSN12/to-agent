@@ -14,6 +14,6 @@ export default defineConfig({
   dts: false,
   clean: false,
   deps: {
-    alwaysBundle: ['@z/cordis-plugin-include'],
+    alwaysBundle: ['@taskweaver/cordis-plugin-include'],
   },
 })

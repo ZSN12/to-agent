@@ -1,6 +1,6 @@
 //#region lib/types/invariant.js
-/** Package-owned filesystem event-data invariants. @module @z/dsh-fs/invariant */
-const PACKAGE_NAME = "@z/dsh-fs";
+/** Package-owned filesystem event-data invariants. @module @taskweaver/dsh-fs/invariant */
+const PACKAGE_NAME = "@taskweaver/dsh-fs";
 /** Cordis companion plugin name. */
 const name = "fs-invariant";
 /** Service required before the companion can reserve package ownership. */

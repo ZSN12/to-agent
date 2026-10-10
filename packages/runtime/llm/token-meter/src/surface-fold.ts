@@ -8,11 +8,11 @@
  * price is derived from THIS fold's nodes by the replace producer. A
  * projection replacement without a claim deliberately folds with zero delta.
  *
- * @module @z/dsh-token-meter/surface-fold
+ * @module @taskweaver/dsh-token-meter/surface-fold
  */
 
-import { deriveEventMessage } from '@z/dsh-session'
-import type { SurfaceEvent } from '@z/dsh-session'
+import { deriveEventMessage } from '@taskweaver/dsh-session'
+import type { SurfaceEvent } from '@taskweaver/dsh-session'
 import type { TokenSurfaceNode } from './types.ts'
 import { estimateMessage } from './estimate.ts'
 

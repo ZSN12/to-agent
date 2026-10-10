@@ -3,10 +3,10 @@
  * API. Exports the `LlmRuntime` default, the abstract `LlmAdapter` for
  * provider backends, and `BlockAssembler` for chunk assembly.
  *
- * @module @z/dsh-llm
+ * @module @taskweaver/dsh-llm
  */
 
-import { Context, Service } from '@z/cordis'
+import { Context, Service } from '@taskweaver/cordis'
 import type {
   GenerateOptions,
   LlmConfigurableProvider,
@@ -44,7 +44,7 @@ export { BlockAssembler } from './assembler.ts'
 export { callConfigEquals, deepFreeze, isAgentLoopRequest, markAgentLoopRequest } from './call-config.ts'
 export type { LlmCallConfig, LlmCallConfigAdapterDefaults } from './call-config.ts'
 
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
   interface Context {
     llm: LlmRuntime
   }

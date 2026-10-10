@@ -1,10 +1,10 @@
 window.__ModuleLoader__.load({
-	id: "@z/dsh-api-gateway",
+	id: "@taskweaver/dsh-api-gateway",
 	factory: (require) => {
 		var module = { exports: {} };
 		var exports = module.exports;
 		Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
-		let _z_cordis = require("@z/cordis");
+		let _z_cordis = require("@taskweaver/cordis");
 		//#region lib/types/client/index.js
 		/**
 		* Client projection of generated Typert Remote descriptors. Contributions

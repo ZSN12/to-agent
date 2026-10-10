@@ -1,5 +1,5 @@
-/** Package invariant companion for `@z/dsh-session-log-export`. */
-import type { Context } from '@z/cordis';
+/** Package invariant companion for `@taskweaver/dsh-session-log-export`. */
+import type { Context } from '@taskweaver/cordis';
 export declare const name = "session-export-invariant";
 export declare const inject: string[];
 /**

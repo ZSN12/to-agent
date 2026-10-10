@@ -1,11 +1,11 @@
-import { Service } from "@z/cordis";
+import { Service } from "@taskweaver/cordis";
 //#region lib/types/types.js
 /**
 * Vocabulary for the spill storage Service Definition. Types only — the abstract service
 * lives in `./index.ts`, implementations in sibling packages
-* (`@z/dsh-spill-local` first).
+* (`@taskweaver/dsh-spill-local` first).
 *
-* @module @z/dsh-spill/types
+* @module @taskweaver/dsh-spill/types
 */
 /**
 * Brand a string as a {@link SpillLocator}.
@@ -23,15 +23,15 @@ function SpillLocator(locator) {
 * spill backend does — persist a tool's oversized text and return a model-facing
 * locator plus retrieval guidance — without saying HOW. Implementations
 * subclass {@link SpillStore} and register as the `spillStore` service;
-* `@z/dsh-spill-local` (host filesystem) is the first.
+* `@taskweaver/dsh-spill-local` (host filesystem) is the first.
 *
 * The Service Definition is deliberately minimal: `saveText` and nothing else. It owns NO
-* retention policy (that is `@z/dsh-output-retention`), NO tool-result
-* replacement (that is `@z/dsh-spill-policy`), and NO retrieval or
+* retention policy (that is `@taskweaver/dsh-output-retention`), NO tool-result
+* replacement (that is `@taskweaver/dsh-spill-policy`), and NO retrieval or
 * search API. The backend supplies the locator and retrieval hint appropriate
 * for its storage substrate.
 *
-* @module @z/dsh-spill
+* @module @taskweaver/dsh-spill
 */
 /**
 * Abstract spill storage service. Subclass, implement {@link saveText}, and load

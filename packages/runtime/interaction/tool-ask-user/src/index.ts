@@ -3,12 +3,12 @@
  * The tool pauses until a UI provider returns a human answer, then feeds that
  * answer back into the agent loop as an ordinary tool result.
  *
- * @module @z/dsh-tool-ask-user
+ * @module @taskweaver/dsh-tool-ask-user
  */
 
-import type { Context } from '@z/cordis'
-import { defineTool } from '@z/dsh-tools'
-import '@z/dsh-user-questions'
+import type { Context } from '@taskweaver/cordis'
+import { defineTool } from '@taskweaver/dsh-tools'
+import '@taskweaver/dsh-user-questions'
 
 export const name = 'tool-ask-user'
 export const inject = ['tools', 'userQuestions']

@@ -5,7 +5,7 @@
  * (like `dsh-bash-local`'s `run.ts`) so the filesystem behavior is unit-testable
  * without a `ctx` and without the OS temp dir.
  *
- * @module @z/dsh-spill-local/store
+ * @module @taskweaver/dsh-spill-local/store
  */
 /**
  * The default spill root: a private (0700) per-process directory under the OS

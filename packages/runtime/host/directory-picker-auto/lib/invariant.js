@@ -1,9 +1,9 @@
 //#region lib/types/invariant.js
 /**
 * Package-owned invariant companion for the adaptive directory-picker chooser.
-* @module @z/dsh-host-directory-picker-auto/invariant
+* @module @taskweaver/dsh-host-directory-picker-auto/invariant
 */
-const PACKAGE_NAME = "@z/dsh-host-directory-picker-auto";
+const PACKAGE_NAME = "@taskweaver/dsh-host-directory-picker-auto";
 /** Cordis companion plugin name. */
 const name = "host-directory-picker-auto-invariant";
 /** Service required before the companion can reserve package ownership. */

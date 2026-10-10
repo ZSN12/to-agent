@@ -1,44 +1,31 @@
-"use strict";
 /**
  * Model-facing whole-list replacement. Each call appends a `todo/write` snapshot to the calling
  * agent's session; replay is last-write-wins, and UIs render from session events. A non-agent
  * caller has no owning list and is rejected. Named exports preserve loader injection metadata.
- * @module @z/dsh-tool-todo
+ * @module @taskweaver/dsh-tool-todo
  */
-var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
-    if (pack || arguments.length === 2) for (var i = 0, l = from.length, ar; i < l; i++) {
-        if (ar || !(i in from)) {
-            if (!ar) ar = Array.prototype.slice.call(from, 0, i);
-            ar[i] = from[i];
-        }
-    }
-    return to.concat(ar || Array.prototype.slice.call(from));
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.Config = exports.inject = exports.name = void 0;
-exports.apply = apply;
-var schemastery_1 = require("@z/schemastery");
-var zod_1 = require("zod");
-var dsh_tools_1 = require("@z/dsh-tools");
-exports.name = 'tool-todo';
-exports.inject = ['tools'];
+import z from '@taskweaver/schemastery';
+import { z as zod } from 'zod';
+import { defineTool } from '@taskweaver/dsh-tools';
+export const name = 'tool-todo';
+export const inject = ['tools'];
 /** The valid {@link TodoItem} statuses, as a runtime set for input narrowing. */
-var STATUSES = ['pending', 'in_progress', 'completed'];
+const STATUSES = ['pending', 'in_progress', 'completed'];
 /** Schemastery configuration for the todo tool consumer. */
-exports.Config = schemastery_1.default.object({
-    allowParallelInProgress: schemastery_1.default.boolean().required(),
+export const Config = z.object({
+    allowParallelInProgress: z.boolean().required(),
 });
-var DESCRIPTION_HEAD = 'Record and update a structured task list for the current work. Send the ENTIRE '
+const DESCRIPTION_HEAD = 'Record and update a structured task list for the current work. Send the ENTIRE '
     + 'list every call — it REPLACES the previous list (there are no partial updates, '
     + 'no per-item edits). Use it to plan multi-step work and show progress: add one '
     + 'todo per concrete step before you start. ';
-var DESCRIPTION_PARALLEL = 'Mark every todo being actively worked '
+const DESCRIPTION_PARALLEL = 'Mark every todo being actively worked '
     + 'on `in_progress` — several at once when work genuinely runs in parallel (e.g. '
     + 'concurrent subagents or background commands), one for sequential work; while '
     + 'work remains, at least one task should be `in_progress`. ';
-var DESCRIPTION_SINGLE = 'Keep AT MOST ONE todo `in_progress` at a '
+const DESCRIPTION_SINGLE = 'Keep AT MOST ONE todo `in_progress` at a '
     + 'time; while work remains, exactly one active task should be `in_progress`. ';
-var DESCRIPTION_TAIL = 'Mark a todo '
+const DESCRIPTION_TAIL = 'Mark a todo '
     + '`completed` the moment it is done (do not batch completions), and allow no '
     + '`in_progress` item only once all work is complete. Skip the list for trivial '
     + 'single-step tasks. Statuses: `pending` (not started), `in_progress` (being '
@@ -66,35 +53,34 @@ function describe(allowParallel) {
  * @returns the canonical list.
  */
 function toTodoList(raw, allowParallel) {
-    var todos = [];
-    var seen = new Set();
-    var active = 0;
-    for (var _i = 0, raw_1 = raw; _i < raw_1.length; _i++) {
-        var item = raw_1[_i];
-        var content = item.content.trim();
+    const todos = [];
+    const seen = new Set();
+    let active = 0;
+    for (const item of raw) {
+        const content = item.content.trim();
         if (content.length === 0) {
             throw new Error('invalid todo: `content` must be a non-empty string');
         }
         if (seen.has(content)) {
-            throw new Error("invalid todos: duplicate content ".concat(JSON.stringify(content)));
+            throw new Error(`invalid todos: duplicate content ${JSON.stringify(content)}`);
         }
         seen.add(content);
         if (item.status === 'in_progress')
             active++;
-        todos.push({ content: content, status: item.status });
+        todos.push({ content, status: item.status });
     }
     if (!allowParallel && active > 1) {
-        throw new Error("invalid todos: at most one task may be in_progress (got ".concat(active, ")"));
+        throw new Error(`invalid todos: at most one task may be in_progress (got ${active})`);
     }
     return todos;
 }
 /** Wire payload schema of the `todos` projection (whole list or pre-first-write null). */
-var todosProjectionSchema = zod_1.z.union([
-    zod_1.z.array(zod_1.z.object({
-        content: zod_1.z.string(),
-        status: zod_1.z.union([zod_1.z.literal('pending'), zod_1.z.literal('in_progress'), zod_1.z.literal('completed')]),
+const todosProjectionSchema = zod.union([
+    zod.array(zod.object({
+        content: zod.string(),
+        status: zod.union([zod.literal('pending'), zod.literal('in_progress'), zod.literal('completed')]),
     })),
-    zod_1.z.null(),
+    zod.null(),
 ]);
 /**
  * Register the `todo_write` tool on `ctx.tools` and, when the session-projection seam is composed,
@@ -102,30 +88,30 @@ var todosProjectionSchema = zod_1.z.union([
  * @param ctx - registrant context carrying the tool registry.
  * @param config - deployment's explicit todo policy.
  */
-function apply(ctx, config) {
-    var allowParallel = config.allowParallelInProgress;
+export function apply(ctx, config) {
+    const allowParallel = config.allowParallelInProgress;
     // The unit child activates only when a projection registry is composed
     // (headless assemblies without the seam stay unaffected). Standing-plan fold:
     // latest whole todo/write list, cleared by the next turn/start (turn/end keeps
     // the finished checklist visible); null before the first write or after a
     // later turn begins; every other event returns the same state reference.
-    ctx.inject(['sessionProjections'], function (projectionCtx) {
+    ctx.inject(['sessionProjections'], (projectionCtx) => {
         projectionCtx.sessionProjections.register({
             key: 'todos',
             stateSchema: todosProjectionSchema,
-            init: function () { return null; },
-            apply: function (state, event) {
+            init: () => null,
+            apply: (state, event) => {
                 if (event.type === 'todo/write')
                     return event.data.todos;
                 if (event.type === 'turn/start')
                     return null;
                 return state;
             },
-            wire: { viewSchema: todosProjectionSchema, view: function (state) { return state; } },
+            wire: { viewSchema: todosProjectionSchema, view: state => state },
             stateVersion: 2,
         });
     });
-    ctx.tools.register((0, dsh_tools_1.defineTool)({
+    ctx.tools.register(defineTool({
         name: 'todo_write',
         description: describe(allowParallel),
         parameters: {
@@ -141,7 +127,7 @@ function apply(ctx, config) {
                         status: {
                             type: 'string',
                             required: true,
-                            enum: __spreadArray([], STATUSES, true),
+                            enum: [...STATUSES],
                             description: 'pending (not started) | in_progress (now) | completed (done).',
                         },
                     },
@@ -161,7 +147,7 @@ function apply(ctx, config) {
                             additionalProperties: false,
                             properties: {
                                 content: { type: 'string', required: true },
-                                status: { type: 'string', required: true, enum: __spreadArray([], STATUSES, true) },
+                                status: { type: 'string', required: true, enum: [...STATUSES] },
                             },
                         },
                     },
@@ -177,22 +163,22 @@ function apply(ctx, config) {
                     },
                 },
             },
-            render: function (_args, value) { return [{
+            render: (_args, value) => [{
                     type: 'text',
-                    text: "Updated todo list: ".concat(value.counts.pending, " pending, ").concat(value.counts.inProgress, " in progress, ").concat(value.counts.completed, " completed."),
-                }]; },
+                    text: `Updated todo list: ${value.counts.pending} pending, ${value.counts.inProgress} in progress, ${value.counts.completed} completed.`,
+                }],
         },
-        execute: function (args, exec) {
-            var todos = toTodoList(args.todos, allowParallel);
+        execute(args, exec) {
+            const todos = toTodoList(args.todos, allowParallel);
             if (!exec.agent) {
                 // The list is per-agent-session state; a non-agent caller (no owning
                 // session) has nowhere to write it. Reject rather than silently no-op.
                 throw new Error('todo_write requires an owning agent session');
             }
-            exec.agent.session.append('todo/write', { todos: todos });
-            var count = function (status) { return todos.filter(function (t) { return t.status === status; }).length; };
+            exec.agent.session.append('todo/write', { todos });
+            const count = (status) => todos.filter(t => t.status === status).length;
             return Promise.resolve({
-                todos: todos.map(function (todo) { return ({ content: todo.content, status: todo.status }); }),
+                todos: todos.map(todo => ({ content: todo.content, status: todo.status })),
                 counts: {
                     pending: count('pending'),
                     inProgress: count('in_progress'),
@@ -200,6 +186,7 @@ function apply(ctx, config) {
                 },
             });
         },
-        presentCall: function (args) { return ({ card: 'generic', title: 'Update todo list', kind: 'other', rawInput: args.todos }); },
+        presentCall: args => ({ card: 'generic', title: 'Update todo list', kind: 'other', rawInput: args.todos }),
     }));
 }
+//# sourceMappingURL=index.js.map

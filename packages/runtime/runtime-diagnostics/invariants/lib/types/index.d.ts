@@ -3,11 +3,11 @@
  * Every workspace package registers checks from a `./invariant` companion;
  * ordinary package entrypoints stay independent of diagnostics.
  *
- * @module @z/dsh-invariants
+ * @module @taskweaver/dsh-invariants
  */
-import { Context, Service } from '@z/cordis';
-import type { Inject } from '@z/cordis';
-import type Schema from '@z/schemastery';
+import { Context, Service } from '@taskweaver/cordis';
+import type { Inject } from '@taskweaver/cordis';
+import type Schema from '@taskweaver/schemastery';
 /** Runtime invariant selection configured on the service plugin. */
 export interface Config {
     /** Global switch; defaults to `true`. */
@@ -48,7 +48,7 @@ export declare class InvariantError extends Error {
      */
     constructor(packageName: string, message: string);
 }
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
     interface Context {
         invariants: InvariantRegistry;
     }

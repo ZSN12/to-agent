@@ -1,22 +1,4 @@
-"use strict";
 /** Agent-preset vocabulary shared by discovery, mounting, and consumers. */
-var __extends = (this && this.__extends) || (function () {
-    var extendStatics = function (d, b) {
-        extendStatics = Object.setPrototypeOf ||
-            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-            function (d, b) { for (var p in b) if (Object.prototype.hasOwnProperty.call(b, p)) d[p] = b[p]; };
-        return extendStatics(d, b);
-    };
-    return function (d, b) {
-        if (typeof b !== "function" && b !== null)
-            throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
-})();
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.PresetMountError = exports.UnknownPresetError = exports.PRESET_ID = void 0;
 /**
  * Ids a preset directory may use.
  *
@@ -25,7 +7,29 @@ exports.PresetMountError = exports.UnknownPresetError = exports.PRESET_ID = void
  * composition outside the root the deployment authorised. Discovery shares it:
  * a directory whose name no copy could ever claim is not a preset slot.
  */
-exports.PRESET_ID = /^[a-z0-9][a-z0-9-]*$/;
+export const PRESET_ID = /^[a-z0-9][a-z0-9-]*$/;
+/**
+ * Stable TaskWeaver preset ids and the one-release aliases for their former
+ * names. Resolution canonicalizes aliases while discovery only exposes the
+ * new ids, so picker choices and newly persisted sessions use one vocabulary.
+ */
+export const LEGACY_AGENT_PRESET_ALIASES = Object.freeze({
+    standard: 'tw-default',
+    code: 'tw-code',
+    'taskweaver-code': 'tw-taskweaver-code',
+    'taskweaver-readonly': 'tw-taskweaver-readonly',
+    'taskweaver-planner': 'tw-taskweaver-planner',
+    'taskweaver-pi-lite': 'tw-taskweaver-pi-lite',
+});
+const REVERSE_LEGACY_AGENT_PRESET_ALIASES = new Map(Object.entries(LEGACY_AGENT_PRESET_ALIASES).map(([legacy, canonical]) => [canonical, legacy]));
+/** Return a canonical preset id while preserving custom ids. */
+export function canonicalAgentPresetId(id) {
+    return LEGACY_AGENT_PRESET_ALIASES[id] ?? id;
+}
+/** Return the former id for canonical presets that had a compatibility alias. */
+export function legacyAgentPresetId(id) {
+    return REVERSE_LEGACY_AGENT_PRESET_ALIASES.get(id);
+}
 /**
  * No configured root supplies the requested preset.
  *
@@ -33,34 +37,31 @@ exports.PRESET_ID = /^[a-z0-9][a-z0-9-]*$/;
  * caller: an unknown id is a bad request, while an unusable composition is a
  * broken preset the deployment must fix.
  */
-var UnknownPresetError = /** @class */ (function (_super) {
-    __extends(UnknownPresetError, _super);
-    function UnknownPresetError(
+export class UnknownPresetError extends Error {
+    presetId;
+    available;
+    constructor(
     /** The id that was requested. */
     presetId, 
     /** Ids the roster does supply, for the caller to offer instead. */
     available) {
-        var _this = _super.call(this, "agent-presets: preset \"".concat(presetId, "\" not found (available: ").concat(available.join(', ') || 'none', ")")) || this;
-        _this.presetId = presetId;
-        _this.available = available;
-        return _this;
+        super(`agent-presets: preset "${presetId}" not found (available: ${available.join(', ') || 'none'})`);
+        this.presetId = presetId;
+        this.available = available;
     }
-    return UnknownPresetError;
-}(Error));
-exports.UnknownPresetError = UnknownPresetError;
+}
 /** A preset exists but its composition cannot be installed. */
-var PresetMountError = /** @class */ (function (_super) {
-    __extends(PresetMountError, _super);
-    function PresetMountError(
+export class PresetMountError extends Error {
+    presetId;
+    reason;
+    constructor(
     /** The preset whose composition failed. */
     presetId, 
     /** Why it failed, without this package's own message prefix. */
     reason, options) {
-        var _this = _super.call(this, "agent-presets: preset \"".concat(presetId, "\" failed to mount: ").concat(reason), options) || this;
-        _this.presetId = presetId;
-        _this.reason = reason;
-        return _this;
+        super(`agent-presets: preset "${presetId}" failed to mount: ${reason}`, options);
+        this.presetId = presetId;
+        this.reason = reason;
     }
-    return PresetMountError;
-}(Error));
-exports.PresetMountError = PresetMountError;
+}
+//# sourceMappingURL=preset.js.map

@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import LlmRuntime, { CallId, LlmAdapter } from '@z/dsh-llm'
-import type { GenerateOptions, StreamChunk } from '@z/dsh-llm'
-import * as LlmInvariant from '@z/dsh-llm/invariant'
-import InvariantRegistry from '@z/dsh-invariants'
+import { Context } from '@taskweaver/cordis'
+import LlmRuntime, { CallId, LlmAdapter } from '@taskweaver/dsh-llm'
+import type { GenerateOptions, StreamChunk } from '@taskweaver/dsh-llm'
+import * as LlmInvariant from '@taskweaver/dsh-llm/invariant'
+import InvariantRegistry from '@taskweaver/dsh-invariants'
 
 async function setup(): Promise<Context> {
   const ctx = new Context()

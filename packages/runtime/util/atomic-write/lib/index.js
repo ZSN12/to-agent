@@ -11,7 +11,7 @@ import { dirname } from "node:path";
 * writers of one file through a `wx`-created `<file>.lock` sibling, so a
 * read-modify-write cycle can never resurrect a state another writer just
 * replaced; readers stay lock-free because the rename commit is atomic.
-* @module @z/dsh-atomic-write
+* @module @taskweaver/dsh-atomic-write
 */
 /**
 * Replace `filename` with `content` in one atomic step, creating parent

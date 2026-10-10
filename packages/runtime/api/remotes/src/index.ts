@@ -1,18 +1,18 @@
 /** Host BFF entry and Loader shell for the Remote contribution assembly. */
 
-import type { TypertForwardableEvent } from '@z/dsh-typert-protocol'
+import type { TypertForwardableEvent } from '@taskweaver/dsh-typert-protocol'
 import { API_REMOTE_FORWARDED_EVENTS } from './remote-events.ts'
 
 // The owner packages' client-safe `./types` exports carry the cordis `Events`
 // declarations for every allowlisted event. Pulling them into this face is what
 // makes the shape assertion below judge real signatures rather than an empty
 // event vocabulary.
-import type {} from '@z/dsh-commands/types'
-import type {} from '@z/dsh-cordis-host-runner/types'
-import type {} from '@z/dsh-credentials/types'
-import type {} from '@z/dsh-llm/types'
-import type {} from '@z/dsh-agent-presets/types'
-import type {} from '@z/dsh-settings/types'
+import type {} from '@taskweaver/dsh-commands/types'
+import type {} from '@taskweaver/dsh-cordis-host-runner/types'
+import type {} from '@taskweaver/dsh-credentials/types'
+import type {} from '@taskweaver/dsh-llm/types'
+import type {} from '@taskweaver/dsh-agent-presets/types'
+import type {} from '@taskweaver/dsh-settings/types'
 
 export {
   ApiRemoteSessionNotFound,

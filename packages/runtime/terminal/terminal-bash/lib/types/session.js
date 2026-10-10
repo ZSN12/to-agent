@@ -1,6 +1,6 @@
 /** Persistent PTY session over the subprocess seam's terminal primitive. */
 import { Buffer } from 'node:buffer';
-import { TerminalError } from '@z/dsh-terminal';
+import { TerminalError } from '@taskweaver/dsh-terminal';
 import { CONTROLLED_PROMPT, TerminalSanitizer } from "./sanitize.js";
 function utf8Tail(text, maxBytes) {
     if (Buffer.byteLength(text) <= maxBytes)

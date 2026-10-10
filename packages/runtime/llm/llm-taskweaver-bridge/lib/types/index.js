@@ -1,9 +1,9 @@
 /**
  * Register TaskWeaver in-process model bridge routes on `ctx.llm`.
- * @module @z/dsh-llm-taskweaver-bridge
+ * @module @taskweaver/dsh-llm-taskweaver-bridge
  */
-import { deepEqualJson, installSettingsSection, settingsNamespace } from '@z/dsh-settings';
-import { installDefaultBridgeBackends, installTaskWeaverTransportBackends } from '@z/dsh-bridge-core';
+import { deepEqualJson, installSettingsSection, settingsNamespace } from '@taskweaver/dsh-settings';
+import { installDefaultBridgeBackends, installTaskWeaverTransportBackends } from '@taskweaver/dsh-bridge-core';
 import { TaskWeaverBridgeAdapter } from "./adapter.js";
 import { ConfigSchema, resolveBridgeOptions } from "./config.js";
 export const name = 'llm-taskweaver-bridge';
@@ -43,24 +43,14 @@ export const apply = async (ctx) => {
     };
     const adapter = new TaskWeaverBridgeAdapter({ options });
     let registration;
+    let directory;
     let registeredRoutes = [];
+    let registeredDirectoryEntries;
     const ensureRegistration = () => {
-        const routes = [...options().providers.keys()].sort();
-        if (deepEqualJson(routes, registeredRoutes))
-            return;
-        if (registration === undefined) {
-            if (!routes.length) {
-                registeredRoutes = routes;
-                return;
-            }
-            registration = ctx.llm.registerAdapter(routes, adapter);
-        }
-        else {
-            registration.replace(routes);
-        }
-        registeredRoutes = routes;
+        const resolved = options();
+        const routes = [...resolved.providers.keys()].sort();
         const entries = routes.flatMap((id) => {
-            const profile = options().providers.get(id);
+            const profile = resolved.providers.get(id);
             if (!profile)
                 return [];
             return [{
@@ -70,8 +60,28 @@ export const apply = async (ctx) => {
                     settingsPath: ['providers', id],
                 }];
         });
-        if (entries.length)
-            ctx.llm.registerConfigurableProviders(entries);
+        const routesChanged = !deepEqualJson(routes, registeredRoutes);
+        const directoryChanged = !deepEqualJson(entries, registeredDirectoryEntries);
+        if (!routesChanged && !directoryChanged)
+            return;
+        if (routesChanged) {
+            if (registration === undefined && routes.length) {
+                registration = ctx.llm.registerAdapter(routes, adapter);
+            }
+            else if (registration !== undefined) {
+                registration.replace(routes);
+            }
+            registeredRoutes = routes;
+        }
+        if (directoryChanged) {
+            if (directory === undefined && entries.length) {
+                directory = ctx.llm.registerConfigurableProviders(entries);
+            }
+            else if (directory !== undefined) {
+                directory.replace(entries);
+            }
+            registeredDirectoryEntries = entries;
+        }
     };
     options();
     ensureRegistration();

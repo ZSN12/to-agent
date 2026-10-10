@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { prepareRuntimeCwd, runtimePackagesResolveSmoke } from '../electron/agent/z-host/spawn-host.mjs'
+import { prepareRuntimeCwd, runtimePackagesResolveSmoke } from '../desktop/agent/z-host/spawn-host.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const deploy = path.join(root, 'vendor', 'taskweaver-z-runtime')
@@ -14,7 +14,7 @@ if (!fs.existsSync(path.join(deploy, 'lib', 'bin.js'))) {
 
 const home = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'tw-bare-base-'))
 const cwd = prepareRuntimeCwd(deploy, home, { useStableMirror: true })
-assert.equal(runtimePackagesResolveSmoke(cwd), true, 'mirror cwd must resolve @z/dsh-persona')
+assert.equal(runtimePackagesResolveSmoke(cwd), true, 'mirror cwd must resolve @taskweaver/dsh-persona')
 
 const expectedBase = `${pathToFileURL(cwd).href}/`
 assert.ok(expectedBase.includes('packaged-runtime'), 'TaskWeaver host cwd should use the stable mirror')

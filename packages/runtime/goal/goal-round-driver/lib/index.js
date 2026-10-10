@@ -1,5 +1,5 @@
 import { isDeepStrictEqual } from "node:util";
-import { createUserMessage } from "@z/dsh-llm";
+import { createUserMessage } from "@taskweaver/dsh-llm";
 //#region lib/types/prompt.js
 /** Model-visible continuation prompt for one same-session goal round. */
 /**
@@ -20,7 +20,7 @@ Objective: ${JSON.stringify(goal.objective)}\nRound: ${round}/${goal.maxGoalRoun
 //#region lib/types/index.js
 /**
 * Same-session goal-round driver over public agent, session, and goal services.
-* @module @z/dsh-goal-round-driver
+* @module @taskweaver/dsh-goal-round-driver
 */
 const name = "goal-round-driver";
 const inject = [

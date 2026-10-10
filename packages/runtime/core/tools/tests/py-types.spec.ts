@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { jsonSchemaToPy, renderToolsSdkPy } from '@z/dsh-tools/src/py-types.ts'
-import { parameterSchemaSpecToJsonSchema } from '@z/dsh-tools'
-import type { ToolSdkSchema } from '@z/dsh-tools/src/ts-types.ts'
+import { jsonSchemaToPy, renderToolsSdkPy } from '@taskweaver/dsh-tools/src/py-types.ts'
+import { parameterSchemaSpecToJsonSchema } from '@taskweaver/dsh-tools'
+import type { ToolSdkSchema } from '@taskweaver/dsh-tools/src/ts-types.ts'
 
 describe('jsonSchemaToPy', () => {
   it('maps the defineTool DSL subset', () => {

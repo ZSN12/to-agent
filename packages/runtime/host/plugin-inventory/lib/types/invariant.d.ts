@@ -1,5 +1,5 @@
-/** Package-owned invariant companion. @module @z/dsh-host-plugin-inventory/invariant */
-import type { Context } from '@z/cordis';
+/** Package-owned invariant companion. @module @taskweaver/dsh-host-plugin-inventory/invariant */
+import type { Context } from '@taskweaver/cordis';
 /** Cordis companion plugin name. */
 export declare const name = "host-plugin-inventory-invariant";
 /** Service required before the companion can reserve package ownership. */

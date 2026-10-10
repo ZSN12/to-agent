@@ -18,12 +18,12 @@
  * disposed by then, and the release that wakes the parent's own settlement
  * watcher has already run. See {@link SubagentContinuationManager.notifySettlement}.
  *
- * @module @z/dsh-subagent
+ * @module @taskweaver/dsh-subagent
  */
-import type { Context } from '@z/cordis';
-import type { Agent } from '@z/dsh-agent';
-import type { ContentBlock, MessageId, MessageSource } from '@z/dsh-llm';
-import { SessionId } from '@z/dsh-session';
+import type { Context } from '@taskweaver/cordis';
+import type { Agent } from '@taskweaver/dsh-agent';
+import type { ContentBlock, MessageId, MessageSource } from '@taskweaver/dsh-llm';
+import { SessionId } from '@taskweaver/dsh-session';
 import type { SubagentDescriptorData } from './descriptor.ts';
 import type { ContinuableCreateRequest, ContinuableCreateSpec, SubagentStartRequest } from './types.ts';
 import type { ActivationObserver } from './lifecycle.ts';
@@ -60,7 +60,7 @@ export interface SubagentSettledMessageSource {
     /** Session id of the child that settled. */
     readonly senderSessionId: SessionId;
 }
-declare module '@z/dsh-llm' {
+declare module '@taskweaver/dsh-llm' {
     interface MessageSourceMap {
         coordinator: CoordinatorMessageSource;
         'subagent-report': SubagentReportMessageSource;

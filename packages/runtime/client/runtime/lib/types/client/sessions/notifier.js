@@ -1,4 +1,3 @@
-"use strict";
 // Notifier: subscription + batched notification primitive shared by Session and
 // SessionManager. Semantics: N markDirty calls collapse into one microtask flush, while
 // N markFrameDirty calls collapse into one animation-frame flush;
@@ -10,76 +9,73 @@
 // markDirty and the scheduled flush rebuilds the snapshot but must not
 // swallow the notification — push subscribers (object-layer watchers) would
 // otherwise starve whenever any reader pulls first.
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.Notifier = void 0;
 /** Subscription + batched notification primitive (shared by Session and SessionManager). */
-var Notifier = /** @class */ (function () {
+export class Notifier {
+    rebuild;
+    listeners = new Set();
+    dirty = false;
+    notifyPending = false;
+    scheduled = 'none';
+    scheduleGeneration = 0;
     /** @param rebuild - snapshot rebuild function injected by the owner (writes the owner's snapshotCache). */
-    function Notifier(rebuild) {
+    constructor(rebuild) {
         this.rebuild = rebuild;
-        this.listeners = new Set();
-        this.dirty = false;
-        this.notifyPending = false;
-        this.scheduled = 'none';
-        this.scheduleGeneration = 0;
     }
     /**
      * uSES subscription entry.
      * @param listener - change callback.
      * @returns the unsubscribe function.
      */
-    Notifier.prototype.subscribe = function (listener) {
-        var _this = this;
+    subscribe(listener) {
         this.listeners.add(listener);
-        return function () {
-            _this.listeners.delete(listener);
+        return () => {
+            this.listeners.delete(listener);
         };
-    };
+    }
     /** State-change entry: mark dirty and schedule the batched flush. */
-    Notifier.prototype.markDirty = function () {
+    markDirty() {
         this.dirty = true;
         this.notifyPending = true;
         if (this.scheduled === 'microtask')
             return;
         this.schedule('microtask');
-    };
+    }
     /** Stream-change entry: mark dirty and publish the cumulative state at most once per frame. */
-    Notifier.prototype.markFrameDirty = function () {
+    markFrameDirty() {
         this.dirty = true;
         this.notifyPending = true;
         if (this.scheduled !== 'none')
             return;
         this.schedule(typeof globalThis.requestAnimationFrame === 'function' ? 'frame' : 'microtask');
-    };
+    }
     /**
      * Synchronous flush: controlled-input writes must notify in the same tick as
      * onChange, or React rolls the DOM back to the stale value and the caret jumps to the end.
      */
-    Notifier.prototype.notifyNow = function () {
+    notifyNow() {
         this.dirty = true;
         this.notifyPending = true;
         this.invalidateSchedule();
         this.flush();
-    };
+    }
     /**
      * Pre-getSnapshot check: rebuild synchronously when dirty (read path
      * before first subscribe / while unobserved). Notification stays pending.
      */
-    Notifier.prototype.ensureFresh = function () {
+    ensureFresh() {
         if (!this.dirty)
             return;
         this.dirty = false;
         this.rebuild();
-    };
-    Notifier.prototype.schedule = function (kind) {
-        var _this = this;
-        var generation = ++this.scheduleGeneration;
+    }
+    schedule(kind) {
+        const generation = ++this.scheduleGeneration;
         this.scheduled = kind;
-        var publish = function () {
-            if (generation !== _this.scheduleGeneration)
+        const publish = () => {
+            if (generation !== this.scheduleGeneration)
                 return;
-            _this.scheduled = 'none';
-            _this.flush();
+            this.scheduled = 'none';
+            this.flush();
         };
         if (kind === 'frame') {
             globalThis.requestAnimationFrame(publish);
@@ -87,12 +83,12 @@ var Notifier = /** @class */ (function () {
         else {
             queueMicrotask(publish);
         }
-    };
-    Notifier.prototype.invalidateSchedule = function () {
+    }
+    invalidateSchedule() {
         this.scheduleGeneration++;
         this.scheduled = 'none';
-    };
-    Notifier.prototype.flush = function () {
+    }
+    flush() {
         if (!this.notifyPending)
             return;
         if (this.listeners.size === 0)
@@ -102,11 +98,8 @@ var Notifier = /** @class */ (function () {
             this.dirty = false;
             this.rebuild();
         }
-        for (var _i = 0, _a = this.listeners; _i < _a.length; _i++) {
-            var listener = _a[_i];
+        for (const listener of this.listeners)
             listener();
-        }
-    };
-    return Notifier;
-}());
-exports.Notifier = Notifier;
+    }
+}
+//# sourceMappingURL=notifier.js.map

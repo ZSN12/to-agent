@@ -1,19 +1,19 @@
 /**
  * Concrete session-query service with SQLite FTS5 over the live-preferred corpus.
  *
- * @module @z/dsh-session-query-sqlite
+ * @module @taskweaver/dsh-session-query-sqlite
  */
 
 import { createHash, randomUUID } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
-import { Context, Service, type Fiber } from '@z/cordis'
-import z from '@z/schemastery'
-import type { Session, SessionEvent, SessionHeader, SessionId } from '@z/dsh-session'
-import type SessionPersistence from '@z/dsh-session-persistence'
+import { Context, Service, type Fiber } from '@taskweaver/cordis'
+import z from '@taskweaver/schemastery'
+import type { Session, SessionEvent, SessionHeader, SessionId } from '@taskweaver/dsh-session'
+import type SessionPersistence from '@taskweaver/dsh-session-persistence'
 import type {
   SessionPersistenceRevision,
   SessionPersistenceSnapshot,
-} from '@z/dsh-session-persistence'
+} from '@taskweaver/dsh-session-persistence'
 import SessionQueryEngine, {
   SESSION_QUERY_DEFAULT_PERSISTED_INSPECT_CONCURRENCY,
   SESSION_QUERY_READ_WINDOW_MAX,
@@ -21,7 +21,7 @@ import SessionQueryEngine, {
   SessionSearchCursor,
   assertSessionHeadersCompatible,
   buildSessionEventSearchDocuments,
-} from '@z/dsh-session-query'
+} from '@taskweaver/dsh-session-query'
 import type {
   Config as SessionQueryConfig,
   SessionEventSearchDocument,
@@ -33,7 +33,7 @@ import type {
   SessionSearchCursor as SessionSearchCursorValue,
   SessionSearchPage,
   SessionSearchRequest,
-} from '@z/dsh-session-query'
+} from '@taskweaver/dsh-session-query'
 import {
   type JournalMode,
   openSearchDatabase,
@@ -65,7 +65,7 @@ export {
 /** Boot-context slot for a launcher-owned absolute path to this process's derived query index. */
 export const SESSION_QUERY_SQLITE_PATH_KEY = 'launcherSessionQueryPath'
 
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
   interface Context {
     /** Launcher-owned absolute path to this process's disposable derived query index. */
     launcherSessionQueryPath?: string

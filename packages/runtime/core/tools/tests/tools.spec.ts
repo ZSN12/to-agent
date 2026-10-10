@@ -1,15 +1,15 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
-import { Context } from '@z/cordis'
-import { createUserMessage, CallId, HarnessError, type ContentBlock  } from '@z/dsh-llm'
-import SystemPrompt from '@z/dsh-system-prompt'
-import type { Agent } from '@z/dsh-agent'
-import ApprovalService, { type ApprovalOutcome, type ApprovalRequest } from '@z/dsh-user-approval'
+import { Context } from '@taskweaver/cordis'
+import { createUserMessage, CallId, HarnessError, type ContentBlock  } from '@taskweaver/dsh-llm'
+import SystemPrompt from '@taskweaver/dsh-system-prompt'
+import type { Agent } from '@taskweaver/dsh-agent'
+import ApprovalService, { type ApprovalOutcome, type ApprovalRequest } from '@taskweaver/dsh-user-approval'
 import ToolRuntime, {
   defineContentToolFixture, defineTool, JsonSchemaError, parameterSchemaSpecToJsonSchema, validateArgs, ToolArgsError, ToolNotFoundError,
   TOOL_ABORTED, TOOL_ABORTED_BEFORE_DISPATCH,
   type InferArgs, type JsonValue, type ParameterSchemaSpec, type PreToolDecision, type PostToolDecision,
   type JsonSchemaNode, type ToolDefinition, type ToolDispatchExecution, type ToolExecutionResult, type ToolExecutionToken,
-} from '@z/dsh-tools'
+} from '@taskweaver/dsh-tools'
 
 const testToolSignal = new AbortController().signal
 
@@ -665,7 +665,7 @@ describe('ToolRuntime', () => {
   })
 
   it('ToolNotFoundError carries a stable message and code', async () => {
-    const { HarnessError } = await import('@z/dsh-llm')
+    const { HarnessError } = await import('@taskweaver/dsh-llm')
     const err = new ToolNotFoundError('ghost')
     expect(err).toBeInstanceOf(HarnessError)
     expect(err.name).toBe('ToolNotFoundError')
@@ -2631,7 +2631,7 @@ describe('defineTool validation (the runtime-validation Agent Note, part 1)', ()
   })
 
   it('a tool throwing a HarnessError surfaces its name and code', async () => {
-    const { HarnessError } = await import('@z/dsh-llm')
+    const { HarnessError } = await import('@taskweaver/dsh-llm')
     const ctx = await setup()
     ctx.tools.register({
       ...echoTool,

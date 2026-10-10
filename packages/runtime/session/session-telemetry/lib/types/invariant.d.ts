@@ -1,8 +1,8 @@
 /**
- * Package-owned invariant companion for `@z/dsh-session-telemetry`.
- * @module @z/dsh-session-telemetry/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-session-telemetry`.
+ * @module @taskweaver/dsh-session-telemetry/invariant
  */
-import type { Context } from '@z/cordis';
+import type { Context } from '@taskweaver/cordis';
 /** Cordis companion plugin name. */
 export declare const name = "session-telemetry-invariant";
 /** Service required before the companion can reserve package ownership. */

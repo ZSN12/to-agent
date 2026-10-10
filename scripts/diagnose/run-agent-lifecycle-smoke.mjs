@@ -3,10 +3,10 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { createZHostManager } from '../../electron/agent/z-host/index.mjs'
-import { createDshChatService } from '../../electron/backend/dsh-chat-service.mjs'
-import { createModelService } from '../../electron/backend/model-service.mjs'
-import { createProfileStore } from '../../electron/backend/profile-store.mjs'
+import { createZHostManager } from '../../desktop/agent/z-host/index.mjs'
+import { createDshChatService } from '../../desktop/backend/dsh-chat-service.mjs'
+import { createModelService } from '../../desktop/backend/model-service.mjs'
+import { createProfileStore } from '../../desktop/backend/profile-store.mjs'
 import { classifyLifecycleSmokeError, summarizeLifecycleSmokeFailure } from '../lifecycle-smoke-diagnostics.mjs'
 
 // Real provider requests: invoke explicitly; never attach to user-owned sessions.
@@ -113,7 +113,7 @@ try {
       await fs.chmod(target, 0o600)
     } catch (error) { if (error.code !== 'ENOENT') throw error }
   }
-  manager = createZHostManager({ runtimeRoot, userDataPath: reportDir, executable: process.execPath })
+  manager = createZHostManager({ runtimeRoot, userDataPath: reportDir })
   ;({ api } = await manager.start())
   const profileStore = createProfileStore(originalHome)
   report.modelKey = requestedModelKey ?? await profileStore.getActiveModelKey()
@@ -135,7 +135,7 @@ try {
       const id = `cancel-${crypto.randomUUID()}`
       const marker = `CANCEL_RECOVERY_${crypto.randomUUID()}`
       const pending = bounded(chat.send(options(id,
-        '先在任何工具调用之前向我输出一句“我开始只读检查并梳理调用关系。”，然后只读检查 package.json、src/App.tsx、electron/backend/register-ipc.mjs、electron/backend/dsh-chat-service.mjs 和 packages/runtime/host-cli/config/agent-presets/standard/agent.cordis.yml，指出它们之间的调用关系。请先逐个读取再总结；不要修改文件、不要运行命令。')), 'cancelled inspection')
+        '先在任何工具调用之前向我输出一句“我开始只读检查并梳理调用关系。”，然后只读检查 package.json、src/App.tsx、desktop/backend/register-ipc.mjs、desktop/backend/dsh-chat-service.mjs 和 packages/runtime/host-cli/config/agent-presets/standard/agent.cordis.yml，指出它们之间的调用关系。请先逐个读取再总结；不要修改文件、不要运行命令。')), 'cancelled inspection')
       pending.catch(() => {})
       await waitFor(() => chat.isBusy(id) && caseEvents(id, since).some(event => event.type === 'delta'),
         'visible partial text before cancellation', 120_000)
@@ -218,7 +218,7 @@ try {
   await runCase('parallel-independent-sessions', async since => {
     const jobs = [
       { id: `parallel-A-${crypto.randomUUID()}`, marker: `PA_${crypto.randomUUID()}`, file: 'src/main.tsx' },
-      { id: `parallel-B-${crypto.randomUUID()}`, marker: `PB_${crypto.randomUUID()}`, file: 'electron/main.cjs' },
+      { id: `parallel-B-${crypto.randomUUID()}`, marker: `PB_${crypto.randomUUID()}`, file: 'desktop/main.cjs' },
     ]
     const results = await bounded(Promise.all(jobs.map(job => chat.send(options(job.id,
       `只读取 ${job.file} 前80行，用一句中文说明这个入口文件的作用。只读，不检查其他文件。最后另起一行写 ${job.marker}。`)))), 'parallel sessions')
@@ -243,7 +243,7 @@ try {
     const firstMarker = `FIRST_${crypto.randomUUID()}`
     const nextMarker = `NEXT_${crypto.randomUUID()}`
     const firstPromise = bounded(chat.send(options(id,
-      `只读取 src/main.tsx 和 electron/main.cjs 各前80行，用两句话解释各自作用。只读，末尾写 ${firstMarker}。`)), 'queued first turn')
+      `只读取 src/main.tsx 和 desktop/main.cjs 各前80行，用两句话解释各自作用。只读，末尾写 ${firstMarker}。`)), 'queued first turn')
     // Attach a rejection handler before waiting for stream activity.
     firstPromise.catch(() => {})
     await waitFor(() => caseEvents(id, since).some(event => ['activity', 'thinking_delta', 'tool'].includes(event.type)) && chat.isBusy(id), 'first turn activity')

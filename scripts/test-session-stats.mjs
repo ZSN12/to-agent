@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { createDshChatService } from '../electron/backend/dsh-chat-service.mjs'
+import { createDshChatService } from '../desktop/backend/dsh-chat-service.mjs'
 
 // Production bridge, cold persisted mapping, controlled native projections.
 // No model request, user state, or GUI.

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
-import { createCustomProviderService } from '../electron/backend/custom-provider-service.mjs'
+import { createCustomProviderService } from '../desktop/backend/custom-provider-service.mjs'
 
 const requests = []
 let toolSupported = true

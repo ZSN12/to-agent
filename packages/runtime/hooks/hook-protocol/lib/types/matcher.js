@@ -4,7 +4,7 @@
  * treats every non-empty pattern as an unanchored regex. Missing, empty, and
  * `*` match all. Runtime matching contains invalid regexes as non-matches;
  * config parsers use {@link matcherDiagnostic} to reject them with a diagnostic.
- * @module @z/dsh-hook-protocol/matcher
+ * @module @taskweaver/dsh-hook-protocol/matcher
  */
 /** True for an absent / empty / `'*'` pattern — the match-all sentinels. */
 function isMatchAll(matcher) {

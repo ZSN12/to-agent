@@ -6,7 +6,7 @@
 
 通过 `scripts/run-agent-read-smoke.mjs --local` 启动隔离的本地 Z Host，使用已配置的 `xiaomi/mimo-v2.6-flash`，统一 `low` 推理档位，执行同一只读请求：
 
-> 只阅读 `electron/main.cjs`，概括它负责什么，最多五句话。不要读取其他文件，不要搜索，不要修改。
+> 只阅读 `desktop/main.cjs`，概括它负责什么，最多五句话。不要读取其他文件，不要搜索，不要修改。
 
 实验依次为 `standard`、`code`、`minimal`；发现 Code Mode 工具误用后，在 `code` 预设补充显式调用协议并重新构建运行时，再重复 `code`。随后发现 `standard` 人格对所有聚焦代码问题都要求先搜索，于是在用户给出准确路径时改为直接读取，并用更新后的临时 Runtime 再测。耗时属于观测值，不是统计基准。
 
@@ -21,14 +21,14 @@
 | `minimal` | 24.7s | 21.5s | 连续尝试 3 个错误绝对路径，再 `pwd && ls`，最后才读对路径；6 steps | 该 preset 关闭运行时上下文；模型对工作目录无依据，普通任务自动路由风险高 |
 | `code`（修复后） | 11.6s | 8.9s | 首次即 `run_code`，其中嵌套调用 `read`；2 steps | 本样本中无效工具轮次消失，结果符合预期 |
 
-所有试验只读 `electron/main.cjs`，未改工作区文件。隔离 Host 使用项目工作区路径；测试所用凭据文件复制进临时用户目录并在退出时清理。
+所有试验只读 `desktop/main.cjs`，未改工作区文件。隔离 Host 使用项目工作区路径；测试所用凭据文件复制进临时用户目录并在退出时清理。
 
 ## 代码改动与验证
 
 - `packages/runtime/host-cli/config/agent-presets/code/agent.cordis.yml` 增加明确协议：Code Mode 会话只能直接调用 `run_code`，其他能力必须通过生成的 `tools` SDK 在程序内调用。
 - `packages/runtime/host-cli/config/agent-presets/standard/agent.cordis.yml` 增加准确路径优先规则：用户给出文件路径时直接 `read`，只有路径不明确才窄范围搜索；部署 Host 集成测试检查该指令已进入模型请求。
 - `scripts/run-agent-read-smoke.mjs` 允许对 DSH 的 `standard`、`code`、`minimal`、`cordis` 做本地真实 Host 对照，也保留 TaskWeaver 内部预设。
-- 该脚本支持 `TASKWEAVER_Z_RUNTIME` 指向隔离目录，便于真实模型复测而不覆盖仓库内或已安装的 Runtime。
+- 该脚本支持 `TASKWEAVER_RUNTIME` 指向隔离目录，便于真实模型复测而不覆盖仓库内或已安装的 Runtime。
 - `scripts/test-z-host-deploy.mjs` 检查部署后的主 `code` 预设包含该协议，而非仅检查源码模板。
 - `npm run build:z-runtime` 成功；部署目录 Host 冒烟成功。
 - `node scripts/test-z-host-deploy.mjs` 通过，包含部署预设、只读模型工具和模拟并发 DAG 验收。

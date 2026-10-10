@@ -1,5 +1,5 @@
 /**
- * Real-process tests for `@z/dsh-pwsh-local`: the LOCAL subprocess
+ * Real-process tests for `@taskweaver/dsh-pwsh-local`: the LOCAL subprocess
  * service plus a REAL pwsh executable, exercised through the executor seam
  * (`resolve` → `run`/`start`). These verify the world — actual PowerShell
  * runs, output capture, truncation and spill, deadlines, kill escalation, and
@@ -14,13 +14,13 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import { PwshLocalExecutor, ENCODING_PREAMBLE, candidatePwshPaths, resolvePwshPath } from '@z/dsh-pwsh-local'
-import LocalSubprocessRuntime from '@z/dsh-subprocess-local'
-import SubprocessRuntime from '@z/dsh-subprocess'
-import type { SubprocessHandle, SubprocessOutputReader, SubprocessSpawnSpec } from '@z/dsh-subprocess'
-import { MAX_TIMER_DELAY_MS } from '@z/dsh-timeout'
-import type { ShellProcess } from '@z/dsh-shell'
+import { Context } from '@taskweaver/cordis'
+import { PwshLocalExecutor, ENCODING_PREAMBLE, candidatePwshPaths, resolvePwshPath } from '@taskweaver/dsh-pwsh-local'
+import LocalSubprocessRuntime from '@taskweaver/dsh-subprocess-local'
+import SubprocessRuntime from '@taskweaver/dsh-subprocess'
+import type { SubprocessHandle, SubprocessOutputReader, SubprocessSpawnSpec } from '@taskweaver/dsh-subprocess'
+import { MAX_TIMER_DELAY_MS } from '@taskweaver/dsh-timeout'
+import type { ShellProcess } from '@taskweaver/dsh-shell'
 
 const spillDir = mkdtempSync(join(tmpdir(), 'dsh-pwsh-exec-spec-'))
 
@@ -295,15 +295,15 @@ describe.skipIf(!hasPwsh)('PwshLocalExecutor.run', () => {
   it('resolve() carries stdin/env/dshEnv onto the spec, and run() threads them to the command', async () => {
     const { bash } = await setup()
     const spec = bash.resolve({
-      command: '$s = ([Console]::In.ReadToEnd()).TrimEnd(); Write-Output $s; Write-Output "[$env:SEAM_VAR][$env:DSH_SEAM_VAR]"',
+      command: '$s = ([Console]::In.ReadToEnd()).TrimEnd(); Write-Output $s; Write-Output "[$env:SEAM_VAR][$env:TASKWEAVER_SEAM_VAR]"',
       stdin: 'piped\n',
       env: { SEAM_VAR: 'env-ok' },
-      dshEnv: { DSH_SEAM_VAR: 'dsh-ok' },
+      dshEnv: { TASKWEAVER_SEAM_VAR: 'dsh-ok' },
     })
     // resolve() keeps the optional input/environment fields verbatim.
     expect(spec.stdin).toBe('piped\n')
     expect(spec.env).toEqual({ SEAM_VAR: 'env-ok' })
-    expect(spec.dshEnv).toEqual({ DSH_SEAM_VAR: 'dsh-ok' })
+    expect(spec.dshEnv).toEqual({ TASKWEAVER_SEAM_VAR: 'dsh-ok' })
     const result = await bash.run(spec)
     expect(lf(result.stdout.text)).toBe('piped\n[env-ok][dsh-ok]\n')
   })
@@ -334,10 +334,10 @@ describe.skipIf(!hasPwsh)('PwshLocalExecutor.start (background process handles)'
   it('threads stdin and extra env into a background process', async () => {
     const { bash } = await setup()
     const proc = bash.start(bash.resolve({
-      command: '$s = ([Console]::In.ReadToEnd()).TrimEnd(); Write-Output $s; Write-Output "[$env:BG_VAR][$env:DSH_BG_VAR]"',
+      command: '$s = ([Console]::In.ReadToEnd()).TrimEnd(); Write-Output $s; Write-Output "[$env:BG_VAR][$env:TASKWEAVER_BG_VAR]"',
       stdin: 'bg-stdin\n',
       env: { BG_VAR: 'bg-env' },
-      dshEnv: { DSH_BG_VAR: 'bg-dsh-env' },
+      dshEnv: { TASKWEAVER_BG_VAR: 'bg-dsh-env' },
     }))
     const partialOutput = await readUntil(proc, '[bg-env][bg-dsh-env]')
     await proc.done

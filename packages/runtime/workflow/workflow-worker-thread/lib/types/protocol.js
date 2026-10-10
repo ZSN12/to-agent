@@ -1,16 +1,13 @@
-"use strict";
 /**
  * The host⇄worker wire protocol: one string-valued enum of message tags per direction, a
  * payload map giving each tag its parameters (the single source of truth), and the message
  * unions derived from them. Payloads are plain JSON by construction for structured clone. Both
  * directions are closed engine protocols whose receivers use `assertNever`; generic typed senders
  * make tag/payload mismatches compile-time errors rather than silently skipped messages.
- * @module @z/dsh-workflow-worker-thread/protocol
+ * @module @taskweaver/dsh-workflow-worker-thread/protocol
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.HostToWorkerType = exports.WorkerToHostType = void 0;
 /** Message tags the worker sends the host (the wire values are the tag strings). */
-var WorkerToHostType;
+export var WorkerToHostType;
 (function (WorkerToHostType) {
     /** The startup handshake: the session is listening and awaits {@link HostToWorkerType.Go}. */
     WorkerToHostType["Ready"] = "ready";
@@ -28,9 +25,9 @@ var WorkerToHostType;
     WorkerToHostType["ChildDispose"] = "child-dispose";
     /** The run's single terminal result. */
     WorkerToHostType["Result"] = "result";
-})(WorkerToHostType || (exports.WorkerToHostType = WorkerToHostType = {}));
+})(WorkerToHostType || (WorkerToHostType = {}));
 /** Message tags the host sends the worker (the wire values are the tag strings). */
-var HostToWorkerType;
+export var HostToWorkerType;
 (function (HostToWorkerType) {
     /** Releases the startup gate: run the script body. */
     HostToWorkerType["Go"] = "go";
@@ -46,4 +43,5 @@ var HostToWorkerType;
     HostToWorkerType["ChildFailed"] = "child-failed";
     /** Child RPC reply: a requested disposal completed. */
     HostToWorkerType["ChildDisposed"] = "child-disposed";
-})(HostToWorkerType || (exports.HostToWorkerType = HostToWorkerType = {}));
+})(HostToWorkerType || (HostToWorkerType = {}));
+//# sourceMappingURL=protocol.js.map

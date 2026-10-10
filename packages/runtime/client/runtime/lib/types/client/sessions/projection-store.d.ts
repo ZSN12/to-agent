@@ -8,9 +8,9 @@
  * exists: a domain ships projection support with zero client code. Per-key
  * bare observable faces feed the client consumers that subscribe to projections.
  */
-import type { SessionProjectionMap } from '@z/dsh-session-projection/types';
+import type { SessionProjectionMap } from '@taskweaver/dsh-session-projection/types';
 import type { ObservableSnapshot } from '../contract/store.ts';
-export type { SessionProjectionMap } from '@z/dsh-session-projection/types';
+export type { SessionProjectionMap } from '@taskweaver/dsh-session-projection/types';
 /**
  * The fifth framework hook seat (see the session-projection subsystem page,
  * docs/subsystems/session-projection.md): key-addressed

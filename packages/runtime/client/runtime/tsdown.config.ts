@@ -1,3 +1,3 @@
 import { clientBundle } from '../tsdown.client.ts'
 
-export default clientBundle('@z/dsh-client-runtime', ['lib/types/index.js'])
+export default clientBundle('@taskweaver/dsh-client-runtime', ['lib/types/index.js'])

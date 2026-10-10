@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
-import { Context } from '@z/cordis'
-import { bindScopeParent, createScope, scopeOf } from '@z/dsh-scope'
+import { Context } from '@taskweaver/cordis'
+import { bindScopeParent, createScope, scopeOf } from '@taskweaver/dsh-scope'
 import SkillRegistry, {
   isModelInvocable,
   isUserInvocable,
@@ -11,7 +11,7 @@ import SkillRegistry, {
   type SkillLookupOptions,
   type SkillProvider,
   type SkillProviderObservation,
-} from '@z/dsh-skill'
+} from '@taskweaver/dsh-skill'
 
 function memorySkill(name: string, description: string, rank: number, body = `${name} body.`): SkillCandidate {
   return {

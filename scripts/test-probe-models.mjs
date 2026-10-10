@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import os from 'node:os'
-import { createCustomProviderService } from '../electron/backend/custom-provider-service.mjs'
+import { createCustomProviderService } from '../desktop/backend/custom-provider-service.mjs'
 
 async function runTest() {
   const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-probe-test-'))

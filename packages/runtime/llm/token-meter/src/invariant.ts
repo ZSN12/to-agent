@@ -1,13 +1,13 @@
 /**
- * Package-owned invariant companion for `@z/dsh-token-meter`.
- * @module @z/dsh-token-meter/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-token-meter`.
+ * @module @taskweaver/dsh-token-meter/invariant
  */
 
 /* jscpd:ignore-start */
-import type { Context } from '@z/cordis'
-import type { InvariantInstaller } from '@z/dsh-invariants'
+import type { Context } from '@taskweaver/cordis'
+import type { InvariantInstaller } from '@taskweaver/dsh-invariants'
 
-const PACKAGE_NAME = '@z/dsh-token-meter'
+const PACKAGE_NAME = '@taskweaver/dsh-token-meter'
 
 /** Cordis companion plugin name. */
 export const name = 'token-meter-invariant'

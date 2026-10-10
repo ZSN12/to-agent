@@ -1,6 +1,6 @@
 /**
- * Shared profile boot for every `dsh` surface: resolve the profile, stack its
- * patch layers (bundle layers in `dsh.profile.bundles` order, the profile's
+ * Shared profile boot for every `taskweaver-host` surface: resolve the profile, stack its
+ * patch layers (bundle layers in `taskweaver.profile.bundles` order, the profile's
  * own `cordis.patch.yml`, and `--patch` overlays), mount the
  * tree over the profile's empty root config, keep the profile patch layer
  * live, and wire fail-loud plus bounded shutdown.
@@ -8,21 +8,21 @@
  * App flags are not the launcher's business: the invocation's inner arguments
  * are provided to the tree through `ctx.cmdlineArgs`, where any injected app
  * plugin may read the same immutable snapshot.
- * @module @z/dsh/profile-boot
+ * @module @taskweaver/dsh/profile-boot
  */
-import type { Context } from '@z/cordis';
-import { type Profile } from '@z/dsh-app-boot';
-import { type LaunchEnvironmentSnapshot } from '@z/dsh-launch-environment';
+import type { Context } from '@taskweaver/cordis';
+import { type Profile } from '@taskweaver/dsh-app-boot';
+import { type LaunchEnvironmentSnapshot } from '@taskweaver/dsh-launch-environment';
 import { type ProcessShutdown } from './process-shutdown.ts';
 /**
  * Packaged TaskWeaver runs the host with `cwd` at the deploy root (or its stable
- * mirror). Bare `@z/*` imports must resolve from there, not from `$DSH_HOME/profiles/*`.
+ * mirror). Bare `@taskweaver/*` imports must resolve from there, not from `$TASKWEAVER_HOME/profiles/*`.
  */
-export declare function resolveTaskWeaverBareModuleBaseUrl(): string | undefined;
+export declare function resolveTaskWeaverBareModuleBaseUrl(runtimeRoot?: string): string | undefined;
 /**
- * The home-level user patch layer (`$DSH_HOME/cordis.patch.yml`), applied
+ * The home-level user patch layer (`$TASKWEAVER_HOME/cordis.patch.yml`), applied
  * over every profile's own layer. Resolved per call, not at module load:
- * `$DSH_HOME` may be set by the test or launcher after import.
+ * `$TASKWEAVER_HOME` may be set by the test or launcher after import.
  * @returns the absolute patch-file path.
  */
 export declare function homePatchPath(): string;

@@ -6,10 +6,10 @@
  * koffi-driven COM conversation on the child's main thread). Only viable when
  * the operator sits at the host's screen; remote deployments compose the
  * browse backend instead.
- * @module @z/dsh-host-directory-picker-native
+ * @module @taskweaver/dsh-host-directory-picker-native
  */
-import { DirectoryPicker } from '@z/dsh-host-directory-picker';
-import type { DirectoryPickerCapability } from '@z/dsh-host-directory-picker';
+import { DirectoryPicker } from '@taskweaver/dsh-host-directory-picker';
+import type { DirectoryPickerCapability } from '@taskweaver/dsh-host-directory-picker';
 export type { DirectoryPickerInternals, DirectoryPickerRunner } from './native-picker.ts';
 export { pickNativeDirectory } from './native-picker.ts';
 /** The `ctx.directoryPicker` native implementation (stable capability object per service life). */

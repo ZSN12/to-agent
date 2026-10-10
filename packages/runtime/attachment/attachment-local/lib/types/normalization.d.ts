@@ -1,6 +1,6 @@
 /** Deterministic provider-independent image normalization. */
 import { type Sharp } from 'sharp';
-import type { ImageMediaType } from '@z/dsh-attachment';
+import type { ImageMediaType } from '@taskweaver/dsh-attachment';
 import type { DetectedImage } from './image.ts';
 /** Deployment-resolved policy for the persisted normalized attachment. */
 export interface NormalizationPolicy {

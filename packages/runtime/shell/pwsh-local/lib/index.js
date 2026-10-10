@@ -1,7 +1,7 @@
-import z from "@z/schemastery";
-import { SHELL_SETTINGS_NAMESPACE, ShellExecutor } from "@z/dsh-shell";
-import { installSettingsSection } from "@z/dsh-settings";
-import { MAX_TIMER_DELAY_MS, clampTimeout, deadline, timeoutOf } from "@z/dsh-timeout";
+import z from "@taskweaver/schemastery";
+import { SHELL_SETTINGS_NAMESPACE, ShellExecutor } from "@taskweaver/dsh-shell";
+import { installSettingsSection } from "@taskweaver/dsh-settings";
+import { MAX_TIMER_DELAY_MS, clampTimeout, deadline, timeoutOf } from "@taskweaver/dsh-timeout";
 import { lstatSync } from "node:fs";
 import { join } from "node:path";
 //#region lib/types/resolve.js
@@ -12,7 +12,7 @@ import { join } from "node:path";
 * resolved differently from the code under test could exempt a file whose
 * suites actually run.
 *
-* @module @z/dsh-pwsh-local/resolve
+* @module @taskweaver/dsh-pwsh-local/resolve
 */
 /**
 * Well-known Windows PowerShell install locations plus PATH entries, newest
@@ -78,7 +78,7 @@ function resolvePwshPath(configured, env = process.env, platform = process.platf
 * shell-quoting layer to escape (the `bash -c` string domain has no
 * equivalent here). Native Win32 paths (`C:\...`) pass through unchanged.
 *
-* @module @z/dsh-pwsh-local
+* @module @taskweaver/dsh-pwsh-local
 */
 var __addDisposableResource = function(env, value, async) {
 	if (value !== null && value !== void 0) {
@@ -265,7 +265,7 @@ var PwshLocalExecutor = class PwshLocalExecutor extends ShellExecutor {
 	* The pwsh invocation argv for one resolved spec — the argv-level seam a
 	* confining subclass wraps through `ctx.sandbox.confine` (the pwsh twin of
 	* `dsh-bash-local`'s `runArgv`/`startArgv` hooks; see
-	* `@z/dsh-pwsh-sandbox`).
+	* `@taskweaver/dsh-pwsh-sandbox`).
 	*/
 	argv(spec) {
 		return [
@@ -399,7 +399,7 @@ var PwshLocalExecutor = class PwshLocalExecutor extends ShellExecutor {
 	* Settlement hook for subclasses that attach execution facts to a process.
 	* The base implementation is intentionally empty. Mirrored from
 	* `dsh-bash-local` (whose sandboxing subclass consumes the same hook); the
-	* pwsh-confining consumer is `@z/dsh-pwsh-sandbox`.
+	* pwsh-confining consumer is `@taskweaver/dsh-pwsh-sandbox`.
 	* @param _proc - the settled process handle.
 	* @param _stderr - the process's retained stderr tail used by subclasses for settlement classification.
 	* @param _spawnFailed - whether the spawn rejected before any process existed.

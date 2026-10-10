@@ -10,12 +10,12 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import Loader from '@z/cordis-plugin-loader'
-import Include from '@z/cordis-plugin-include'
-import SessionStore, { SessionId } from '@z/dsh-session'
-import SessionProjectionRegistry from '@z/dsh-session-projection'
-import * as SessionStatsPlugin from '@z/dsh-session-stats'
+import { Context } from '@taskweaver/cordis'
+import Loader from '@taskweaver/cordis-plugin-loader'
+import Include from '@taskweaver/cordis-plugin-include'
+import SessionStore, { SessionId } from '@taskweaver/dsh-session'
+import SessionProjectionRegistry from '@taskweaver/dsh-session-projection'
+import * as SessionStatsPlugin from '@taskweaver/dsh-session-stats'
 
 let root: string | undefined
 let context: Context | undefined
@@ -37,9 +37,9 @@ async function loadYaml(lines: readonly string[]): Promise<Context> {
   await context.plugin(Loader)
   context.loader.builtins.include = Include
   const modules = new Map<string, unknown>([
-    ['@z/dsh-session', SessionStore],
-    ['@z/dsh-session-projection', SessionProjectionRegistry],
-    ['@z/dsh-session-stats', SessionStatsPlugin],
+    ['@taskweaver/dsh-session', SessionStore],
+    ['@taskweaver/dsh-session-projection', SessionProjectionRegistry],
+    ['@taskweaver/dsh-session-stats', SessionStatsPlugin],
   ])
   context.loader.internal = {
     version: 'v2',
@@ -59,9 +59,9 @@ async function loadYaml(lines: readonly string[]): Promise<Context> {
 describe('real Loader composition', () => {
   it('loads the shipped session-stats YAML shape and serves whole-log counts', async () => {
     const loaded = await loadYaml([
-      "- name: '@z/dsh-session'",
-      "- name: '@z/dsh-session-projection'",
-      "- name: '@z/dsh-session-stats'",
+      "- name: '@taskweaver/dsh-session'",
+      "- name: '@taskweaver/dsh-session-projection'",
+      "- name: '@taskweaver/dsh-session-stats'",
     ])
 
     const unloaded = [...loaded.loader.entries()]

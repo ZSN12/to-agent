@@ -1,11 +1,11 @@
-import { SandboxUnavailableError } from "@z/dsh-sandbox";
-import { LocalBashExecutor } from "@z/dsh-bash-local";
+import { SandboxUnavailableError } from "@taskweaver/dsh-sandbox";
+import { LocalBashExecutor } from "@taskweaver/dsh-bash-local";
 import { accessSync, constants, statSync } from "node:fs";
 //#region lib/types/helpers.js
 /**
 * Internal sandbox-result classification helpers.
 *
-* @module @z/dsh-bash-sandbox/helpers
+* @module @taskweaver/dsh-bash-sandbox/helpers
 */
 /** Node-local spawn codes proven to identify executable resolution or permission failure. */
 const EXECUTABLE_SPAWN_CODES = new Set(["EACCES", "ENOENT"]);
@@ -98,7 +98,7 @@ function matchesSignature(exitCode, stderr, signatures) {
 * the command never ran: foreground calls throw `SANDBOX_UNAVAILABLE`, while
 * background processes carry `runnerFailed`; other spawn rejections retain
 * local-executor semantics. The tool owns approval and passes a complete per-call policy.
-* @module @z/dsh-bash-sandbox
+* @module @taskweaver/dsh-bash-sandbox
 */
 /**
 * Registers as `ctx.shell` in place of the local executor and requires a

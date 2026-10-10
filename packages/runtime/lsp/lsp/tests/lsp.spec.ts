@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
+import { Context } from '@taskweaver/cordis'
 import Lsp, {
   finalExtension,
   LspError,
@@ -7,7 +7,7 @@ import Lsp, {
   type LspProvider,
   type LspProviderQuery,
   type LspQueryResult,
-} from '@z/dsh-lsp'
+} from '@taskweaver/dsh-lsp'
 
 /** A scripted provider that records the queries it receives. */
 function makeProvider(

@@ -1,27 +1,22 @@
-"use strict";
 /**
- * Package-owned invariant companion for `@z/dsh-tool-bash`.
- * @module @z/dsh-tool-bash/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-tool-bash`.
+ * @module @taskweaver/dsh-tool-bash/invariant
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.apply = exports.inject = exports.name = void 0;
-var PACKAGE_NAME = '@z/dsh-tool-bash';
+const PACKAGE_NAME = '@taskweaver/dsh-tool-bash';
 /** Cordis companion plugin name. */
-exports.name = 'tool-bash-invariant';
+export const name = 'tool-bash-invariant';
 /** Service required before the companion can reserve package ownership. */
-exports.inject = ['invariants'];
+export const inject = ['invariants'];
 /**
  * No runtime invariant: the environment registry validates ownership and collected values at each
  * mutation/read; it publishes no independent snapshot that a companion could cross-check.
  */
-var install = function () { };
+const install = () => { };
 /**
  * Register this package's invariant companion.
  * @param ctx - Cordis context carrying the invariant service.
  * @returns the installed registration's disposer after setup succeeds.
  */
-var apply = function (ctx) {
-    return Promise.resolve(ctx.invariants.register(PACKAGE_NAME, install));
-};
-exports.apply = apply;
+export const apply = (ctx) => Promise.resolve(ctx.invariants.register(PACKAGE_NAME, install));
 /* jscpd:ignore-end */
+//# sourceMappingURL=invariant.js.map

@@ -4,12 +4,12 @@
  * mapped interfaces make the content, source, and finish unions extensible.
  */
 
-import type { Branded } from '@z/dsh-brand'
-import type { ImageAttachmentRef } from '@z/dsh-attachment'
+import type { Branded } from '@taskweaver/dsh-brand'
+import type { ImageAttachmentRef } from '@taskweaver/dsh-attachment'
 import type { CallId, ProviderRequestId, ReasoningEffortId } from './brand.ts'
-import type { Message } from './message.ts'
+import type { Message, StructuredOutputSchema } from './message.ts'
 
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
   interface Events {
     /**
      * The provider topology changed: an adapter registered or unregistered
@@ -31,6 +31,7 @@ export type {
   MessageSource,
   MessageSourceMap,
   ModelMessageSource,
+  StructuredOutputSchema,
   ToolMessageSource,
   ToolResultMessage,
   UserMessage,
@@ -354,6 +355,8 @@ export interface GenerateOptions {
   system?: string
   /** Tool schemas (adapters map to the provider's `tools` field). */
   tools?: ToolSchema[]
+  /** Per-turn object JSON Schema passed only by trusted orchestration. */
+  outputSchema?: StructuredOutputSchema
   temperature?: number
   maxTokens?: number
   /**

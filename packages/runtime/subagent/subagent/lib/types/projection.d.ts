@@ -2,10 +2,10 @@
  * Pure session projections for subagent identity (mode/label) and active-turn
  * duration.
  *
- * @module @z/dsh-subagent/projection
+ * @module @taskweaver/dsh-subagent/projection
  */
 import { z } from 'zod';
-import type { SessionEvent } from '@z/dsh-session';
+import type { SessionEvent } from '@taskweaver/dsh-session';
 import type { SubagentIdentityProjection, SubagentTimingProjection } from './projection-types.ts';
 /** Fold state for a subagent's latest timing snapshot. */
 export interface TimingState {
@@ -21,7 +21,7 @@ export interface TimingState {
     /** Whether the fold has crossed a descriptor in this logical log. */
     descriptorSeen: boolean;
 }
-declare module '@z/dsh-session-projection/types' {
+declare module '@taskweaver/dsh-session-projection/types' {
     interface SessionProjectionStateMap {
         subagentTiming: TimingState;
         subagent: IdentityState;

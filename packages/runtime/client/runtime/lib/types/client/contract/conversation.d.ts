@@ -1,5 +1,5 @@
-import type { SessionEvent } from '@z/dsh-session/types';
-import type { ToolEventView } from '@z/dsh-api-remotes/client';
+import type { SessionEvent } from '@taskweaver/dsh-session/types';
+import type { ToolEventView } from '@taskweaver/dsh-api-remotes/client';
 /** One raw log event plus its optional envelope-level presentation view. */
 export interface ConversationEventInput {
     readonly event: SessionEvent;

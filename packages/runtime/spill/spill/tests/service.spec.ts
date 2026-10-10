@@ -2,15 +2,15 @@
  * Tests for the spill Service Definition: a minimal concrete subclass registers as
  * `ctx.spillStore`, a second load throws (duplicate service), and disposal
  * releases the service. The storage behavior is the implementation's concern
- * (`@z/dsh-spill-local`); here we only pin the seam contract.
+ * (`@taskweaver/dsh-spill-local`); here we only pin the seam contract.
  */
 
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import { CallId } from '@z/dsh-llm'
-import { SessionId } from '@z/dsh-session'
-import { SpillLocator, SpillStore } from '@z/dsh-spill'
-import type { SaveTextSpill, SpillRef } from '@z/dsh-spill'
+import { Context } from '@taskweaver/cordis'
+import { CallId } from '@taskweaver/dsh-llm'
+import { SessionId } from '@taskweaver/dsh-session'
+import { SpillLocator, SpillStore } from '@taskweaver/dsh-spill'
+import type { SaveTextSpill, SpillRef } from '@taskweaver/dsh-spill'
 
 /** Minimal concrete backend: records the last request, returns a fixed ref. */
 class StubStore extends SpillStore {

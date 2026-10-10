@@ -1,8 +1,8 @@
 /**
- * Package-owned invariant companion for `@z/dsh-hooks-claude-code`.
- * @module @z/dsh-hooks-claude-code/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-hooks-claude-code`.
+ * @module @taskweaver/dsh-hooks-claude-code/invariant
  */
-const PACKAGE_NAME = '@z/dsh-hooks-claude-code';
+const PACKAGE_NAME = '@taskweaver/dsh-hooks-claude-code';
 /** Cordis companion plugin name. */
 export const name = 'hooks-claude-code-invariant';
 /** Service required before the companion can reserve package ownership. */

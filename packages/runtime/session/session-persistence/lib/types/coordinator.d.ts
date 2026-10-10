@@ -2,11 +2,11 @@
  * Shared buffering, serialization, adoption, repair, and disposal orchestration
  * for first-party backends. Third-party backends may implement the public
  * persistence seam directly.
- * @module @z/dsh-session-persistence/coordinator
+ * @module @taskweaver/dsh-session-persistence/coordinator
  */
-import { Context } from '@z/cordis';
-import { SessionPreparation } from '@z/dsh-session';
-import type { SessionEvent, SessionId, SessionHeader } from '@z/dsh-session';
+import { Context } from '@taskweaver/cordis';
+import { SessionPreparation } from '@taskweaver/dsh-session';
+import type { SessionEvent, SessionId, SessionHeader } from '@taskweaver/dsh-session';
 import type { SessionInspection, SessionLocation } from './index.ts';
 import type { SessionPersistenceRevision } from './revision.ts';
 /** Default number of detached session preparations retained by a coordinator. */

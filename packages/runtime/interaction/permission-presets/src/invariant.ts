@@ -1,10 +1,10 @@
-/** Package-owned permission-preset event invariants. @module @z/dsh-permission-presets/invariant */
+/** Package-owned permission-preset event invariants. @module @taskweaver/dsh-permission-presets/invariant */
 
-import type { Context } from '@z/cordis'
-import type { Session, SessionEvent } from '@z/dsh-session'
-import type { InvariantFailure, InvariantInstaller } from '@z/dsh-invariants'
+import type { Context } from '@taskweaver/cordis'
+import type { Session, SessionEvent } from '@taskweaver/dsh-session'
+import type { InvariantFailure, InvariantInstaller } from '@taskweaver/dsh-invariants'
 
-const PACKAGE_NAME = '@z/dsh-permission-presets'
+const PACKAGE_NAME = '@taskweaver/dsh-permission-presets'
 
 /** Cordis companion plugin name. */
 export const name = 'permission-presets-invariant'

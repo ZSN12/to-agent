@@ -3,7 +3,7 @@
 * Shared timeout arithmetic, signal fusion, and classification. The library
 * only notifies through abort signals; each capability still owns the mechanism
 * that stops its work and translates timeout reasons into public outcomes.
-* @module @z/dsh-timeout
+* @module @taskweaver/dsh-timeout
 */
 /**
 * Internal abort reason carrying a capability-owned code and elapsed deadline.

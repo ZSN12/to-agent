@@ -1,7 +1,7 @@
 import { resolve } from "node:path";
-import { Service } from "@z/cordis";
-import z from "@z/schemastery";
-import { canonicalPath } from "@z/dsh-sandbox";
+import { Service } from "@taskweaver/cordis";
+import z from "@taskweaver/schemastery";
+import { canonicalPath } from "@taskweaver/dsh-sandbox";
 //#region lib/types/session-mode.js
 /**
 * Per-session sandbox-mode override: the session log as the store. A runtime
@@ -73,7 +73,7 @@ function setSandboxMode(session, mode) {
 * reads session state once at each operation boundary; executors and providers
 * remain session-free.
 *
-* @module @z/dsh-sandbox-policy
+* @module @taskweaver/dsh-sandbox-policy
 */
 /** Resolve filesystem identity before lexical normalization can erase symlink-sensitive components. */
 function resolveWorkspaceRoot(path) {

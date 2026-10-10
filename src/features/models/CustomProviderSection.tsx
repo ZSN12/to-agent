@@ -241,11 +241,10 @@ export function CustomProviderSection({
   return (
     <div className={`custom-provider-section ${hideTabs ? 'custom-provider-section-embedded' : ''}`}>
       {!hideTabs && (
-        <div className="custom-provider-tabs" role="tablist" aria-label="添加模型方式">
+        <div className="custom-provider-tabs" role="group" aria-label="添加模型方式">
           <button
             type="button"
-            role="tab"
-            aria-selected={tab === 'builtin'}
+            aria-pressed={tab === 'builtin'}
             className={tab === 'builtin' ? 'active' : ''}
             onClick={() => setTab('builtin')}
           >
@@ -253,8 +252,7 @@ export function CustomProviderSection({
           </button>
           <button
             type="button"
-            role="tab"
-            aria-selected={tab === 'custom'}
+            aria-pressed={tab === 'custom'}
             className={tab === 'custom' ? 'active' : ''}
             onClick={() => setTab('custom')}
           >

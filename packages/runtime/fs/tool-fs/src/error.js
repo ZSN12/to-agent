@@ -4,9 +4,9 @@
  * not the only correct recovery (re-read / read the file), so this package
  * appends the remedy at the model boundary; provider messages stay
  * machine-oriented and unchanged.
- * @module @z/dsh-tool-fs/src/error
+ * @module @taskweaver/dsh-tool-fs/src/error
  */
-import { FsError } from '@z/dsh-fs';
+import { FsError } from '@taskweaver/dsh-fs';
 /** The remedy appended to each remediable failure code's message. */
 const REMEDIES = {
     FS_STALE_VERSION: 're-read the file, then retry',

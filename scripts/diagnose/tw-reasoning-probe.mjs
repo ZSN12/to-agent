@@ -2,7 +2,7 @@
 /**
  * 探针：DSH 的「模型思考等级（reasoningEffort）」到底是怎么定义、怎么默认、怎么回读的。
  *
- * 做法：用一份**临时 DSH_HOME**，但把用户真实的 settings.yaml / cordis.patch.yml 复制进去，
+ * 做法：用一份**临时 TASKWEAVER_HOME**，但把用户真实的 settings.yaml / cordis.patch.yml 复制进去，
  * 这样模型目录与全局默认与用户实际环境完全一致，而会话写入落在临时目录，不污染真实数据。
  *
  * 只读 + 临时目录写入，不需要真实凭据（模型目录是 advisory 元数据）。
@@ -12,7 +12,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 
 const PROJECT = '/Users/zsn/Documents/毕设'
-const REAL_DSH_HOME = path.join(
+const REAL_TASKWEAVER_HOME = path.join(
   os.homedir(),
   'Library',
   'Application Support',
@@ -31,7 +31,7 @@ fs.mkdirSync(dshHome, { recursive: true })
 
 // 只复制配置，不复制 sessions / storages
 for (const name of ['settings.yaml', 'cordis.patch.yml']) {
-  const src = path.join(REAL_DSH_HOME, name)
+  const src = path.join(REAL_TASKWEAVER_HOME, name)
   if (fs.existsSync(src)) {
     fs.copyFileSync(src, path.join(dshHome, name))
     console.log(`已复用真实配置: ${name}`)
@@ -41,7 +41,6 @@ for (const name of ['settings.yaml', 'cordis.patch.yml']) {
 const host = createZHostManager({
   runtimeRoot,
   userDataPath,
-  executable: process.execPath,
   startTimeoutMs: 90_000,
 })
 const { api } = await host.start()

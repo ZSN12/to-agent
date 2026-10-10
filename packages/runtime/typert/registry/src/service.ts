@@ -2,10 +2,10 @@
  * Runtime registry for generated Typert reflection, Remote invocations, and
  * dependency-inverted lookup/Context providers. It performs no TypeScript
  * analysis or schema generation.
- * @module @z/dsh-typert-registry
+ * @module @taskweaver/dsh-typert-registry
  */
 
-import { Context, Service } from '@z/cordis'
+import { Context, Service } from '@taskweaver/cordis'
 import { z } from 'zod'
 import type {
   InvocationDescriptor,
@@ -29,7 +29,7 @@ import type {
   TypertRegistryChange,
   TypertRegistryListener,
   TypertRegistryContract,
-} from '@z/dsh-typert-protocol'
+} from '@taskweaver/dsh-typert-protocol'
 import type {
   TypertContribution,
   TypertFace,

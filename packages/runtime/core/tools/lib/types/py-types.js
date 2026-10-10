@@ -1,9 +1,8 @@
-"use strict";
 /**
  * Code Mode codegen — Python flavor. The pure projection from registered tool schemas to the
  * Python SDK text the model programs against under `runtime.language === 'python'`. Sibling of
  * {@link ./ts-types.ts | ts-types.ts}; the two files are two projections of the same registry
- * store, keyed by the loaded {@link @z/dsh-code-runtime#CodeRuntime.language | code
+ * store, keyed by the loaded {@link @taskweaver/dsh-code-runtime#CodeRuntime.language | code
  * runtime's language}.
  *
  * Under `mode: 'code'` the native tool schemas are omitted from the request, so this generated
@@ -12,27 +11,15 @@
  * alongside it and it is one of two. Object-shaped arguments and outputs therefore render as one
  * named `TypedDict` per tool (and per nested object), not an opaque `dict[str, Any]`, so the
  * shape survives into the program under the mode that has nothing else to carry it.
- * @module @z/dsh-tools/src/py-types
+ * @module @taskweaver/dsh-tools/src/py-types
  */
-var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
-    if (pack || arguments.length === 2) for (var i = 0, l = from.length, ar; i < l; i++) {
-        if (ar || !(i in from)) {
-            if (!ar) ar = Array.prototype.slice.call(from, 0, i);
-            ar[i] = from[i];
-        }
-    }
-    return to.concat(ar || Array.prototype.slice.call(from));
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.jsonSchemaToPy = jsonSchemaToPy;
-exports.renderToolsSdkPy = renderToolsSdkPy;
-var json_schema_ts_1 = require("./json-schema.ts");
+import { assertSupportedJsonSchema } from "./json-schema.js";
 /**
  * The reference grammar's `xid_start xid_continue*` — the set
  * `str.isidentifier()` accepts on a CPython whose Unicode tables match the
  * engine's. See {@link isBareIdentifier} for what a version skew does.
  */
-var IDENTIFIER = /^[\p{XID_Start}_]\p{XID_Continue}*$/u;
+const IDENTIFIER = /^[\p{XID_Start}_]\p{XID_Continue}*$/u;
 /**
  * Whether a name can be emitted as a bare Python identifier rather than
  * routed to the subscript/`dict[str, Any]` path.
@@ -125,7 +112,7 @@ function isBareIdentifier(name) {
  * ``object``/``type`` resolves before the proxy hook, and implicit
  * special-method lookup bypasses the hook.
  */
-var RESERVED = new Set([
+const RESERVED = new Set([
     'False', 'None', 'True', 'and', 'as', 'assert', 'async', 'await', 'break', 'class',
     'continue', 'def', 'del', 'elif', 'else', 'except', 'finally', 'for', 'from', 'global',
     'if', 'import', 'in', 'is', 'lambda', 'nonlocal', 'not', 'or', 'pass', 'raise',
@@ -136,7 +123,7 @@ var RESERVED = new Set([
     '__debug__',
 ]);
 /** `typing` symbols this module may emit, in the deterministic import order. */
-var TYPING_ORDER = ['Any', 'Literal', 'NotRequired', 'Protocol', 'TypedDict'];
+const TYPING_ORDER = ['Any', 'Literal', 'NotRequired', 'Protocol', 'TypedDict'];
 /** `indent`-deep line prefix (four spaces per level to match PEP 8 output). */
 function pad(indent) {
     return '    '.repeat(indent);
@@ -175,7 +162,7 @@ function pad(indent) {
  * `XID_Continue`. The `description` path escapes NEL under the class above and
  * folds LS and PS in {@link describe}'s `\s+` collapse, both being `\s`.
  */
-var UNPRINTABLE = /[\u0000-\u0008\u000e-\u001f\u007f-\u009f]/g;
+const UNPRINTABLE = /[\u0000-\u0008\u000e-\u001f\u007f-\u009f]/g;
 /**
  * Unpaired surrogate code points, escaped by {@link describe} as `\uNNNN` —
  * its own form, since `\xNN` stops at U+00FF. The `u` flag is what makes this
@@ -189,7 +176,7 @@ var UNPRINTABLE = /[\u0000-\u0008\u000e-\u001f\u007f-\u009f]/g;
  * comment alike. A raw or MCP tool description reaches this: `JSON.parse` on a
  * wire `"\ud800"` escape yields exactly such a code point.
  */
-var LONE_SURROGATE = /[\ud800-\udfff]/gu;
+const LONE_SURROGATE = /[\ud800-\udfff]/gu;
 /**
  * The collapsed one-line `description` of a schema node (byte-stable across
  * formatting churn), or `undefined` when the node carries none. Every caller
@@ -209,13 +196,13 @@ var LONE_SURROGATE = /[\ud800-\udfff]/gu;
  * Python source escape and a `#` comment carries it verbatim.
  */
 function describe(schema) {
-    var description = schema.description;
+    const description = schema.description;
     if (typeof description !== 'string')
         return undefined;
-    var collapsed = description
+    const collapsed = description
         .replace(/\s+/g, ' ')
-        .replace(UNPRINTABLE, function (char) { return "\\x".concat(char.charCodeAt(0).toString(16).padStart(2, '0')); })
-        .replace(LONE_SURROGATE, function (char) { return "\\u".concat(char.charCodeAt(0).toString(16).padStart(4, '0')); })
+        .replace(UNPRINTABLE, char => `\\x${char.charCodeAt(0).toString(16).padStart(2, '0')}`)
+        .replace(LONE_SURROGATE, char => `\\u${char.charCodeAt(0).toString(16).padStart(4, '0')}`)
         .trim();
     return collapsed.length === 0 ? undefined : collapsed;
 }
@@ -227,11 +214,11 @@ function describe(schema) {
  * the generated block — Code Mode's only SDK — syntactically invalid Python.
  */
 function docLines(description, indent) {
-    var collapsed = describe({ description: description });
+    const collapsed = describe({ description });
     if (collapsed === undefined)
         return [];
-    var escaped = collapsed.replaceAll('\\', '\\\\').replaceAll('"', '\\"');
-    return ["".concat(pad(indent), "\"\"\"").concat(escaped, "\"\"\"")];
+    const escaped = collapsed.replaceAll('\\', '\\\\').replaceAll('"', '\\"');
+    return [`${pad(indent)}"""${escaped}"""`];
 }
 /**
  * CamelCase a name into a Python type identifier: non-identifier characters
@@ -263,16 +250,16 @@ function docLines(description, indent) {
  * @returns a class-name segment safe to emit.
  */
 function camelCase(raw) {
-    var joined = raw
+    const joined = raw
         .split(/[^\p{XID_Continue}]+|_+/u)
-        .filter(function (part) { return part.length > 0; })
-        .map(function (part) { return "".concat(part.charAt(0).toUpperCase()).concat(part.slice(1)); })
+        .filter(part => part.length > 0)
+        .map(part => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
         .join('')
         .normalize('NFKC');
-    return (/^\p{XID_Start}/u.test(joined) ? joined : "Tool".concat(joined)).normalize('NFKC');
+    return (/^\p{XID_Start}/u.test(joined) ? joined : `Tool${joined}`).normalize('NFKC');
 }
 /** Class-name base cap keeping each emitted name — and total text — linear in schema depth. */
-var MAX_CLASS_NAME_BASE = 120;
+const MAX_CLASS_NAME_BASE = 120;
 /**
  * Deepest `list[…]` nesting emitted into one annotation before the item type
  * degrades to `Any`. CPython's tokenizer rejects a logical line holding more
@@ -312,7 +299,7 @@ var MAX_CLASS_NAME_BASE = 120;
  * grammatical validity; see the `oneOf` arm in {@link renderType} for the one
  * interpreter limit deliberately left uncapped.
  */
-var MAX_LIST_NESTING = 180;
+const MAX_LIST_NESTING = 180;
 /**
  * Cap a class-name base at {@link MAX_CLASS_NAME_BASE} (see the callers for
  * why capping keeps the render linear). `slice` counts UTF-16 code units, so
@@ -323,7 +310,7 @@ var MAX_LIST_NESTING = 180;
 function capClassNameBase(base) {
     if (base.length <= MAX_CLASS_NAME_BASE)
         return base;
-    var capped = base.slice(0, MAX_CLASS_NAME_BASE);
+    const capped = base.slice(0, MAX_CLASS_NAME_BASE);
     return /[\uD800-\uDBFF]$/.test(capped) ? capped.slice(0, -1) : capped;
 }
 /**
@@ -338,14 +325,13 @@ function capClassNameBase(base) {
  * (amortized) instead of Θ(depth²) in time.
  */
 function allocateClassName(base, state) {
-    var _a;
-    var capped = capClassNameBase(base);
-    var name = capped;
+    const capped = capClassNameBase(base);
+    let name = capped;
     if (state.usedClassNames.has(name)) {
-        var n = (_a = state.nextClassCounter.get(capped)) !== null && _a !== void 0 ? _a : 2;
-        while (state.usedClassNames.has("".concat(capped).concat(n)))
+        let n = state.nextClassCounter.get(capped) ?? 2;
+        while (state.usedClassNames.has(`${capped}${n}`))
             n++;
-        name = "".concat(capped).concat(n);
+        name = `${capped}${n}`;
         state.nextClassCounter.set(capped, n + 1);
     }
     state.usedClassNames.add(name);
@@ -370,7 +356,7 @@ function allocateClassName(base, state) {
  * {@link allocateClassName}'s suffix is digits, none of which compose backwards.
  */
 function childClassName(base, segment) {
-    return capClassNameBase("".concat(base).concat(segment).normalize('NFKC'));
+    return capClassNameBase(`${base}${segment}`.normalize('NFKC'));
 }
 /**
  * Render one validated scalar as Python literal text (`True`/`False`,
@@ -444,11 +430,11 @@ function pyScalar(value) {
 function renderConstrainedScalar(node, broad, state) {
     if (node.const !== undefined) {
         state.typing.add('Literal');
-        return "Literal[".concat(pyScalar(node.const), "]");
+        return `Literal[${pyScalar(node.const)}]`;
     }
     if (node.enum !== undefined) {
         state.typing.add('Literal');
-        return "Literal[".concat(node.enum.map(pyScalar).join(', '), "]");
+        return `Literal[${node.enum.map(pyScalar).join(', ')}]`;
     }
     return broad;
 }
@@ -464,10 +450,7 @@ function renderConstrainedScalar(node, broad, state) {
  * context-free entry point; this is the collecting core.
  */
 function renderType(schema, className, state) {
-    var _a, _b;
-    var newFrame = function (schema, className, listDepth) {
-        return ({ schema: schema, className: className, phase: 'start', listDepth: listDepth, children: [], childIndex: 0, childTypes: [], entries: [] });
-    };
+    const newFrame = (schema, className, listDepth) => ({ schema, className, phase: 'start', listDepth, children: [], childIndex: 0, childTypes: [], entries: [] });
     try {
         // Validate the WHOLE tree once, then trust it — the same contract the
         // sibling ts-types renderer follows at a typed same-process boundary. Every
@@ -475,33 +458,33 @@ function renderType(schema, className, state) {
         // its fields without re-checking. An unsupported or malformed schema throws
         // here (before anything is emitted) and degrades to `Any`, the Python
         // counterpart of the TS flavor's `unknown`.
-        (0, json_schema_ts_1.assertSupportedJsonSchema)(schema);
-        var frames_1 = [newFrame(schema, className, 0)];
-        var result_1;
+        assertSupportedJsonSchema(schema);
+        const frames = [newFrame(schema, className, 0)];
+        let result;
         /* jscpd:ignore-start -- the explicit-stack walk skeleton deliberately parallels
            ts-types.ts's renderSupportedSchema; the two sibling renderers keep symmetric shapes. */
-        var finish = function (type) {
-            frames_1.pop();
-            var parent = frames_1.at(-1);
+        const finish = (type) => {
+            frames.pop();
+            const parent = frames.at(-1);
             if (parent === undefined)
-                result_1 = type;
+                result = type;
             else
                 parent.childTypes.push(type);
         };
-        var _loop_1 = function () {
-            var frame = frames_1.at(-1);
+        while (frames.length > 0) {
+            const frame = frames.at(-1);
             /* v8 ignore next -- the loop condition guarantees a current frame. */
             if (frame === undefined)
-                return "break";
+                break;
             if (frame.phase === 'children') {
                 if (frame.childIndex < frame.children.length) {
-                    var child = frame.children[frame.childIndex];
+                    const child = frame.children[frame.childIndex];
                     /* v8 ignore next -- childIndex is bounded by children.length. */
                     if (child === undefined)
                         throw new Error('missing python render child');
                     frame.childIndex++;
-                    frames_1.push(newFrame(child.schema, child.className, child.listDepth));
-                    return "continue";
+                    frames.push(newFrame(child.schema, child.className, child.listDepth));
+                    continue;
                 }
                 if (frame.kind === 'oneOf') {
                     // Concatenate incrementally (template literal, not `Array.join`): V8
@@ -510,68 +493,67 @@ function renderType(schema, className, state) {
                     // every level (which `join` would, making it Θ(depth²)). This matches
                     // the array arm's template-literal laziness and ts-types' composable-
                     // document approach — the whole walk stays linear in schema depth.
-                    var union = '';
-                    for (var _i = 0, _d = frame.childTypes.entries(); _i < _d.length; _i++) {
-                        var _e = _d[_i], index = _e[0], childType = _e[1];
-                        union = index === 0 ? childType : "".concat(union, " | ").concat(childType);
+                    let union = '';
+                    for (const [index, childType] of frame.childTypes.entries()) {
+                        union = index === 0 ? childType : `${union} | ${childType}`;
                     }
                     finish(union);
-                    return "continue";
+                    continue;
                 }
                 /* jscpd:ignore-end */
                 if (frame.kind === 'array') {
                     // `list[A | B]` needs no parentheses in Python. Array frames always
                     // schedule exactly one child, so its type is present.
                     /* v8 ignore next -- the ?? arm needs a childless array frame, which start never builds. */
-                    finish("list[".concat((_a = frame.childTypes[0]) !== null && _a !== void 0 ? _a : 'Any', "]"));
-                    return "continue";
+                    finish(`list[${frame.childTypes[0] ?? 'Any'}]`);
+                    continue;
                 }
                 // typeddict: assemble AFTER the children so any nested class this one
                 // references is already declared (declaration order = reference order).
-                var node_1 = frame.node;
-                var name_1 = frame.allocated;
+                const node = frame.node;
+                const name = frame.allocated;
                 /* v8 ignore next -- typeddict frames always set node and allocated at start. */
-                if (node_1 === undefined || name_1 === undefined)
+                if (node === undefined || name === undefined)
                     throw new Error('missing typeddict frame state');
-                var required = new Set(node_1.required);
-                var lines = ["class ".concat(name_1, "(TypedDict):")];
-                for (var index = 0; index < frame.entries.length; index++) {
-                    var entry = frame.entries[index];
-                    var fieldType = frame.childTypes[index];
+                const required = new Set(node.required);
+                const lines = [`class ${name}(TypedDict):`];
+                for (let index = 0; index < frame.entries.length; index++) {
+                    const entry = frame.entries[index];
+                    const fieldType = frame.childTypes[index];
                     /* v8 ignore next -- entries and childTypes correspond one-to-one. */
                     if (entry === undefined || fieldType === undefined)
                         throw new Error('missing typeddict field type');
-                    var field = entry[0], fieldSchema = entry[1];
+                    const [field, fieldSchema] = entry;
                     // The parent node passed assertSupportedJsonSchema, so every property
                     // value is a validated schema node.
-                    var description = describe(fieldSchema);
+                    const description = describe(fieldSchema);
                     if (description !== undefined)
-                        lines.push("".concat(pad(1), "# ").concat(description));
+                        lines.push(`${pad(1)}# ${description}`);
                     if (required.has(field)) {
-                        lines.push("".concat(pad(1)).concat(field, ": ").concat(fieldType));
+                        lines.push(`${pad(1)}${field}: ${fieldType}`);
                     }
                     else {
                         state.typing.add('NotRequired');
-                        lines.push("".concat(pad(1)).concat(field, ": NotRequired[").concat(fieldType, "]"));
+                        lines.push(`${pad(1)}${field}: NotRequired[${fieldType}]`);
                     }
                 }
                 // TypedDict syntax cannot express openness, so an open object states it
                 // in-band: the annotation is advisory either way, and `mode: 'code'`
                 // omits the native schemas, making this line the model's only signal
                 // that extra keys are accepted.
-                if (node_1.additionalProperties !== false) {
-                    lines.push("".concat(pad(1), "# Additional keys beyond those declared are allowed."));
+                if (node.additionalProperties !== false) {
+                    lines.push(`${pad(1)}# Additional keys beyond those declared are allowed.`);
                 }
                 // A closed empty object still needs a class body (`pass`) to be valid
                 // Python; the declared emptiness is the information.
                 if (lines.length === 1)
-                    lines.push("".concat(pad(1), "pass"));
+                    lines.push(`${pad(1)}pass`);
                 state.classes.push(lines.join('\n'));
-                finish(name_1);
-                return "continue";
+                finish(name);
+                continue;
             }
             frame.phase = 'children';
-            var node = frame.schema;
+            const node = frame.schema;
             if (node.oneOf !== undefined) {
                 frame.kind = 'oneOf';
                 // A union renders as `A | B` — no brackets of its own, so the branches
@@ -588,13 +570,13 @@ function renderType(schema, className, state) {
                 // pin the walk's linear time and the class-name propagation cap. The
                 // standard this renderer holds is grammatical validity, not
                 // compilability under one interpreter's stack.
-                frame.children = node.oneOf.map(function (branch, index) { return ({ schema: branch, className: childClassName(frame.className, "".concat(index + 1)), listDepth: frame.listDepth }); });
-                return "continue";
+                frame.children = node.oneOf.map((branch, index) => ({ schema: branch, className: childClassName(frame.className, `${index + 1}`), listDepth: frame.listDepth }));
+                continue;
             }
             if (node.type === undefined) {
                 state.typing.add('Any');
                 finish('Any');
-                return "continue";
+                continue;
             }
             switch (node.type) {
                 case 'string':
@@ -638,7 +620,7 @@ function renderType(schema, className, state) {
                     // shape. The openness of the resulting empty object is decided below,
                     // so a closed empty object still declares an empty TypedDict rather
                     // than a permissive `dict[str, Any]`.
-                    var entries = Object.entries((_b = node.properties) !== null && _b !== void 0 ? _b : {});
+                    const entries = Object.entries(node.properties ?? {});
                     // An empty `className` marks the context-free `jsonSchemaToPy` entry:
                     // there is no naming context to declare into, so degrade. This reads
                     // the CALL's className, not `frame.className`: the marker belongs to
@@ -654,10 +636,7 @@ function renderType(schema, className, state) {
                     // NAME-MANGLED inside class syntax (`_ClassName__token`), describing a
                     // different JSON key than the registered schema — degrade like any
                     // other inexpressible field name.
-                    if (className === '' || !entries.every(function (_a) {
-                        var name = _a[0];
-                        return isBareIdentifier(name) && !RESERVED.has(name) && !(name.startsWith('__') && !name.endsWith('__'));
-                    })) {
+                    if (className === '' || !entries.every(([name]) => isBareIdentifier(name) && !RESERVED.has(name) && !(name.startsWith('__') && !name.endsWith('__')))) {
                         state.typing.add('Any');
                         finish('dict[str, Any]');
                         break;
@@ -679,11 +658,7 @@ function renderType(schema, className, state) {
                     // wraps around it. frame.allocated was assigned three statements up;
                     // the ?? arm is for the type system only.
                     /* v8 ignore next -- allocated is always set before children are built. */
-                    frame.children = entries.map(function (_a) {
-                        var _b;
-                        var field = _a[0], child = _a[1];
-                        return ({ schema: child, className: childClassName((_b = frame.allocated) !== null && _b !== void 0 ? _b : '', camelCase(field)), listDepth: 1 });
-                    });
+                    frame.children = entries.map(([field, child]) => ({ schema: child, className: childClassName(frame.allocated ?? '', camelCase(field)), listDepth: 1 }));
                     break;
                 }
                 /* v8 ignore next 4 -- assertSupportedJsonSchema narrowed this closed type union. */
@@ -692,16 +667,11 @@ function renderType(schema, className, state) {
                     finish('Any');
                 }
             }
-        };
-        while (frames_1.length > 0) {
-            var state_1 = _loop_1();
-            if (state_1 === "break")
-                break;
         }
         /* v8 ignore next -- every root frame produces one expression. */
-        return result_1 !== null && result_1 !== void 0 ? result_1 : 'Any';
+        return result ?? 'Any';
     }
-    catch (_c) {
+    catch {
         // An unsupported or malformed schema failed validation (before any
         // emission), or an unreachable internal invariant tripped. Either degrades
         // the node to `Any` rather than crashing prompt assembly — the Python
@@ -722,14 +692,23 @@ function renderType(schema, className, state) {
  * @param schema - the JSON-Schema node.
  * @returns the Python type text.
  */
-function jsonSchemaToPy(schema) {
+export function jsonSchemaToPy(schema) {
     // A throwaway state whose class collector never escapes: an object with
     // properties has nowhere to declare its TypedDict and degrades to
     // dict[str, Any]. renderToolsSdkPy drives the named-TypedDict path.
     return renderType(schema, '', { classes: [], usedClassNames: new Set(), nextClassCounter: new Map(), typing: new Set() });
 }
 /** The fixed model-facing usage contract rendered above the declarations. */
-var SDK_INSTRUCTIONS = "## Writing code for run_code\n\n`run_code` takes two required arguments: `code` \u2014 the body of an async Python function (top-level `await` and `return` both work) \u2014 and `description`, a short summary of what the program does. At run time exactly two of the names declared below are bound: `tools` and `ToolCallError`. Everything else is a STATIC STUB describing argument and return types \u2014 in particular the `TypedDict` classes do NOT exist at run time, so build arguments as plain `dict`/`list` JSON values: `await tools.name({\"field\": 1})`, never `FooArgs(field=1)`, which raises `NameError`. Inside the program:\n\n- Call tools as `await tools.name(args)` \u2014 subscript access for exotic, reserved, or underscore-leading names: `await tools[\"my-tool\"](args)`. Every call resolves to the tool's typed canonical JSON value (each method's return type below). Tool arguments must be lossless JSON.\n- A FAILED tool call raises `ToolCallError`, whose `toolName` identifies the failed tool and whose message is human-readable \u2014 wrap in `try/except` to handle and continue.\n- Independent read-only calls MAY overlap under `asyncio.gather` (safe calls run concurrently; mutating calls run alone, in submission order). Sequence dependent work with `await`.\n- Emit the run's answer with `print(...)` and/or a top-level `return <value>`; the returned value must be lossless JSON. Only what you print and return is program output. A successful tool result containing an image is attached after the run so you can inspect it on the next step; every other intermediate result stays out of the conversation, so extract just what you need.\n\nThe available tools:";
+const SDK_INSTRUCTIONS = `## Writing code for run_code
+
+\`run_code\` takes two required arguments: \`code\` — the body of an async Python function (top-level \`await\` and \`return\` both work) — and \`description\`, a short summary of what the program does. At run time exactly two of the names declared below are bound: \`tools\` and \`ToolCallError\`. Everything else is a STATIC STUB describing argument and return types — in particular the \`TypedDict\` classes do NOT exist at run time, so build arguments as plain \`dict\`/\`list\` JSON values: \`await tools.name({"field": 1})\`, never \`FooArgs(field=1)\`, which raises \`NameError\`. Inside the program:
+
+- Call tools as \`await tools.name(args)\` — subscript access for exotic, reserved, or underscore-leading names: \`await tools["my-tool"](args)\`. Every call resolves to the tool's typed canonical JSON value (each method's return type below). Tool arguments must be lossless JSON.
+- A FAILED tool call raises \`ToolCallError\`, whose \`toolName\` identifies the failed tool and whose message is human-readable — wrap in \`try/except\` to handle and continue.
+- Independent read-only calls MAY overlap under \`asyncio.gather\` (safe calls run concurrently; mutating calls run alone, in submission order). Sequence dependent work with \`await\`.
+- Emit the run's answer with \`print(...)\` and/or a top-level \`return <value>\`; the returned value must be lossless JSON. Only what you print and return is program output. A successful tool result containing an image is attached after the run so you can inspect it on the next step; every other intermediate result stays out of the conversation, so extract just what you need.
+
+The available tools:`;
 /**
  * Render the full `tools:sdk` prompt section under `runtime.language ===
  * 'python'`: the Python-flavored usage instructions plus one named `TypedDict`
@@ -748,20 +727,19 @@ var SDK_INSTRUCTIONS = "## Writing code for run_code\n\n`run_code` takes two req
  *   (the caller excludes `run_code` itself).
  * @returns the complete section text.
  */
-function renderToolsSdkPy(schemas) {
-    var sorted = __spreadArray([], schemas, true).sort(function (a, b) { return a.name < b.name ? -1 : a.name > b.name ? 1 : 0; });
-    var state = { classes: [], usedClassNames: new Set(), nextClassCounter: new Map(), typing: new Set(['Protocol']) };
+export function renderToolsSdkPy(schemas) {
+    const sorted = [...schemas].sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
+    const state = { classes: [], usedClassNames: new Set(), nextClassCounter: new Map(), typing: new Set(['Protocol']) };
     // ONE ordered member stream, matching the documented lexicographic contract
     // and the TypeScript flavor (which quotes exotic keys in place rather than
     // partitioning them out). Interleaving is free here: a comment line between
     // two `async def` lines is not a statement, so it changes nothing about how
     // the class body parses.
-    var members = [];
-    var statements = 0;
-    for (var _i = 0, sorted_1 = sorted; _i < sorted_1.length; _i++) {
-        var schema = sorted_1[_i];
-        var argType = renderType(schema.parameters, "".concat(camelCase(schema.name), "Args"), state);
-        var outputType = renderType(schema.output, "".concat(camelCase(schema.name), "Output"), state);
+    const members = [];
+    let statements = 0;
+    for (const schema of sorted) {
+        const argType = renderType(schema.parameters, `${camelCase(schema.name)}Args`, state);
+        const outputType = renderType(schema.output, `${camelCase(schema.name)}Output`, state);
         if (isBareIdentifier(schema.name) && !RESERVED.has(schema.name) && !schema.name.startsWith('_')) {
             // A docstring only documents its method when it is the FIRST statement
             // of that method's body. Emitted before the `async def` it would instead
@@ -770,11 +748,11 @@ function renderToolsSdkPy(schemas) {
             // and under `mode: 'code'` this SDK is the model's only description of
             // what a tool does. A docstring is a complete body, so the `...` stub is
             // only for the description-less case.
-            var doc = docLines(schema.description, 2);
+            const doc = docLines(schema.description, 2);
             members.push(doc.length > 0
-                ? "".concat(pad(1), "async def ").concat(schema.name, "(self, args: ").concat(argType, ") -> ").concat(outputType, ":")
-                : "".concat(pad(1), "async def ").concat(schema.name, "(self, args: ").concat(argType, ") -> ").concat(outputType, ": ..."));
-            members.push.apply(members, doc);
+                ? `${pad(1)}async def ${schema.name}(self, args: ${argType}) -> ${outputType}:`
+                : `${pad(1)}async def ${schema.name}(self, args: ${argType}) -> ${outputType}: ...`);
+            members.push(...doc);
             statements += 1;
         }
         else {
@@ -790,20 +768,21 @@ function renderToolsSdkPy(schemas) {
             // enumerate them (see {@link RESERVED}). The stub lists it as a subscript comment
             // (referencing the named TypedDicts too) so a reader sees what is
             // accessible; runtime resolution goes through the proxy's __getitem__.
-            members.push("".concat(pad(1), "# tools[").concat(JSON.stringify(schema.name), "](args: ").concat(argType, ") -> ").concat(outputType));
-            var description = describe(schema);
+            members.push(`${pad(1)}# tools[${JSON.stringify(schema.name)}](args: ${argType}) -> ${outputType}`);
+            const description = describe(schema);
             if (description !== undefined)
-                members.push("".concat(pad(1), "#   ").concat(description));
+                members.push(`${pad(1)}#   ${description}`);
         }
     }
     // Subscript entries are COMMENTS, not statements: a class body of only
     // comments fails to parse, so `pass` is required whenever no method was
     // emitted — including the subscript-only tool set.
-    var bodyLines = statements > 0 ? members : __spreadArray(["".concat(pad(1), "pass")], members, true);
-    var body = bodyLines.join('\n');
-    var imports = TYPING_ORDER.filter(function (symbol) { return state.typing.has(symbol); });
-    var classBlock = state.classes.length > 0 ? "".concat(state.classes.join('\n\n'), "\n\n") : '';
-    var errorDeclaration = 'class ToolCallError(Exception):\n    toolName: str';
-    var declaration = "from typing import ".concat(imports.join(', '), "\n\n").concat(errorDeclaration, "\n\n").concat(classBlock, "class Tools(Protocol):\n").concat(body, "\n\ntools: Tools");
-    return "".concat(SDK_INSTRUCTIONS, "\n\n```python\n").concat(declaration, "\n```");
+    const bodyLines = statements > 0 ? members : [`${pad(1)}pass`, ...members];
+    const body = bodyLines.join('\n');
+    const imports = TYPING_ORDER.filter(symbol => state.typing.has(symbol));
+    const classBlock = state.classes.length > 0 ? `${state.classes.join('\n\n')}\n\n` : '';
+    const errorDeclaration = 'class ToolCallError(Exception):\n    toolName: str';
+    const declaration = `from typing import ${imports.join(', ')}\n\n${errorDeclaration}\n\n${classBlock}class Tools(Protocol):\n${body}\n\ntools: Tools`;
+    return `${SDK_INSTRUCTIONS}\n\n\`\`\`python\n${declaration}\n\`\`\``;
 }
+//# sourceMappingURL=py-types.js.map

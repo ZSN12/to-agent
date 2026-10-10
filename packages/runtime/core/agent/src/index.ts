@@ -2,17 +2,17 @@
  * Agent service: live registry, factory delegation, and process-local
  * initiator scope. Concrete creation and driving belong to the loop.
  *
- * @module @z/dsh-agent
+ * @module @taskweaver/dsh-agent
  */
 
-import { Context, FiberState, getTraceable, Service, symbols } from '@z/cordis'
-import type { Fiber } from '@z/cordis'
+import { Context, FiberState, getTraceable, Service, symbols } from '@taskweaver/cordis'
+import type { Fiber } from '@taskweaver/cordis'
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { isPromise } from 'node:util/types'
-import { scopeTarget } from '@z/dsh-scope'
-import type { Scoped } from '@z/dsh-scope'
-import type { SessionEvent, SessionId } from '@z/dsh-session'
-import type { TypertContext, TypertLookup } from '@z/dsh-typert-protocol'
+import { scopeTarget } from '@taskweaver/dsh-scope'
+import type { Scoped } from '@taskweaver/dsh-scope'
+import type { SessionEvent, SessionId } from '@taskweaver/dsh-session'
+import type { TypertContext, TypertLookup } from '@taskweaver/dsh-typert-protocol'
 import type { Agent, AgentOptions } from './runtime-types.ts'
 
 export * from './runtime-types.ts'
@@ -23,7 +23,7 @@ export * from './model-selection.ts'
 export { agentCarrier, agentEvents, assembleContextFor, emitAgentEvent } from './dispatch.ts'
 export type { AgentEventDispatch, AgentSubjectEvent } from './dispatch.ts'
 
-declare module '@z/dsh-typert-protocol' {
+declare module '@taskweaver/dsh-typert-protocol' {
   interface TypertLookupMap {
     agent: TypertLookup<Agent, SessionId>
   }
@@ -33,7 +33,7 @@ declare module '@z/dsh-typert-protocol' {
   }
 }
 
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
   interface Context {
     agents: AgentRegistry
     /**
@@ -245,7 +245,7 @@ interface FactorySlot {
  * Agent service (`ctx.agents`): tracks live agents and carries the initiating
  * Agent through one process-local asynchronous driver chain. Agent *creation*
  * is provided by whichever plugin implements the {@link AgentFactory}
- * (`@z/dsh-agent-loop`), registered via {@link setFactory}.
+ * (`@taskweaver/dsh-agent-loop`), registered via {@link setFactory}.
  *
  * Initiator methods provide same-process causal attribution only. Ambient
  * presence is neither liveness proof nor authorization; subjects and owners
@@ -269,13 +269,13 @@ export class AgentRegistry extends Service {
       typeCtx.typert.lookups.register('agent', {
         parameter: 'agent',
         wire: 'agentId',
-        hostTypeSymbol: '@z/dsh-agent#Agent',
-        wireTypeSymbol: '@z/dsh-session/types#SessionId',
+        hostTypeSymbol: '@taskweaver/dsh-agent#Agent',
+        wireTypeSymbol: '@taskweaver/dsh-session/types#SessionId',
         resolve: sessionId => this.get(sessionId),
       })
       typeCtx.typert.contexts.registerHost('agent', {
         wire: 'agentId',
-        wireTypeSymbol: '@z/dsh-session/types#SessionId',
+        wireTypeSymbol: '@taskweaver/dsh-session/types#SessionId',
         resolve: sessionId => this.get(sessionId)?.ctx,
       })
     })

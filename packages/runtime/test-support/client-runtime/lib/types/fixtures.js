@@ -1,4 +1,4 @@
-import { EMPTY_CHAT_SNAPSHOT, EMPTY_CONVERSATION_VIEWS, } from '@z/dsh-client-runtime/client';
+import { EMPTY_CHAT_SNAPSHOT, EMPTY_CONVERSATION_VIEWS, } from '@taskweaver/dsh-client-runtime/client';
 /**
  * A complete quiescent conversation snapshot (open window, no traffic).
  * @param sessionId - owning session id.

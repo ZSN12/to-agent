@@ -1,4 +1,4 @@
-import type { CallId } from '@z/dsh-llm'
+import type { CallId } from '@taskweaver/dsh-llm'
 
 /** Character-budget policy for deterministic tool-result pruning. */
 export interface ToolResultPruneConfig {

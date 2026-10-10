@@ -10,7 +10,7 @@ export declare const workspaceViewSchema: z.ZodObject<{
     workspaceId: z.ZodType<import("./workspace.ts").WorkspaceId, unknown, z.core.$ZodTypeInternals<import("./workspace.ts").WorkspaceId, unknown>>;
     path: z.ZodString;
     title: z.ZodString;
-    sessionIds: z.ZodArray<z.ZodType<import("@z/dsh-session").SessionId, unknown, z.core.$ZodTypeInternals<import("@z/dsh-session").SessionId, unknown>>>;
+    sessionIds: z.ZodArray<z.ZodType<import("@taskweaver/dsh-session").SessionId, unknown, z.core.$ZodTypeInternals<import("@taskweaver/dsh-session").SessionId, unknown>>>;
     createdAt: z.ZodString;
     updatedAt: z.ZodString;
 }, z.core.$strip>;
@@ -22,11 +22,11 @@ export declare const workspaceListValueSchema: z.ZodObject<{
         workspaceId: z.ZodType<import("./workspace.ts").WorkspaceId, unknown, z.core.$ZodTypeInternals<import("./workspace.ts").WorkspaceId, unknown>>;
         path: z.ZodString;
         title: z.ZodString;
-        sessionIds: z.ZodArray<z.ZodType<import("@z/dsh-session").SessionId, unknown, z.core.$ZodTypeInternals<import("@z/dsh-session").SessionId, unknown>>>;
+        sessionIds: z.ZodArray<z.ZodType<import("@taskweaver/dsh-session").SessionId, unknown, z.core.$ZodTypeInternals<import("@taskweaver/dsh-session").SessionId, unknown>>>;
         createdAt: z.ZodString;
         updatedAt: z.ZodString;
     }, z.core.$strip>>;
-    archivedSessionIds: z.ZodArray<z.ZodType<import("@z/dsh-session").SessionId, unknown, z.core.$ZodTypeInternals<import("@z/dsh-session").SessionId, unknown>>>;
+    archivedSessionIds: z.ZodArray<z.ZodType<import("@taskweaver/dsh-session").SessionId, unknown, z.core.$ZodTypeInternals<import("@taskweaver/dsh-session").SessionId, unknown>>>;
 }, z.core.$strip>;
 /** workspace.create request payload: the existing directory to adopt. */
 export declare const workspaceCreateRequestSchema: z.ZodObject<{
@@ -38,7 +38,7 @@ export declare const workspaceCreateValueSchema: z.ZodObject<{
         workspaceId: z.ZodType<import("./workspace.ts").WorkspaceId, unknown, z.core.$ZodTypeInternals<import("./workspace.ts").WorkspaceId, unknown>>;
         path: z.ZodString;
         title: z.ZodString;
-        sessionIds: z.ZodArray<z.ZodType<import("@z/dsh-session").SessionId, unknown, z.core.$ZodTypeInternals<import("@z/dsh-session").SessionId, unknown>>>;
+        sessionIds: z.ZodArray<z.ZodType<import("@taskweaver/dsh-session").SessionId, unknown, z.core.$ZodTypeInternals<import("@taskweaver/dsh-session").SessionId, unknown>>>;
         createdAt: z.ZodString;
         updatedAt: z.ZodString;
     }, z.core.$strip>;
@@ -55,7 +55,7 @@ export declare const workspaceRenameValueSchema: z.ZodObject<{
         workspaceId: z.ZodType<import("./workspace.ts").WorkspaceId, unknown, z.core.$ZodTypeInternals<import("./workspace.ts").WorkspaceId, unknown>>;
         path: z.ZodString;
         title: z.ZodString;
-        sessionIds: z.ZodArray<z.ZodType<import("@z/dsh-session").SessionId, unknown, z.core.$ZodTypeInternals<import("@z/dsh-session").SessionId, unknown>>>;
+        sessionIds: z.ZodArray<z.ZodType<import("@taskweaver/dsh-session").SessionId, unknown, z.core.$ZodTypeInternals<import("@taskweaver/dsh-session").SessionId, unknown>>>;
         createdAt: z.ZodString;
         updatedAt: z.ZodString;
     }, z.core.$strip>;
@@ -80,8 +80,8 @@ export declare const workspaceInsertBeforeValueSchema: z.ZodObject<{
 /** workspace.insertSessionBefore request payload (anchor omitted = append to end). */
 export declare const workspaceInsertSessionBeforeRequestSchema: z.ZodObject<{
     workspaceId: z.ZodType<import("./workspace.ts").WorkspaceId, unknown, z.core.$ZodTypeInternals<import("./workspace.ts").WorkspaceId, unknown>>;
-    sessionId: z.ZodType<import("@z/dsh-session").SessionId, unknown, z.core.$ZodTypeInternals<import("@z/dsh-session").SessionId, unknown>>;
-    beforeSessionId: z.ZodOptional<z.ZodType<import("@z/dsh-session").SessionId, unknown, z.core.$ZodTypeInternals<import("@z/dsh-session").SessionId, unknown>>>;
+    sessionId: z.ZodType<import("@taskweaver/dsh-session").SessionId, unknown, z.core.$ZodTypeInternals<import("@taskweaver/dsh-session").SessionId, unknown>>;
+    beforeSessionId: z.ZodOptional<z.ZodType<import("@taskweaver/dsh-session").SessionId, unknown, z.core.$ZodTypeInternals<import("@taskweaver/dsh-session").SessionId, unknown>>>;
 }, z.core.$strip>;
 /** workspace.insertSessionBefore response value. */
 export declare const workspaceInsertSessionBeforeValueSchema: z.ZodObject<{
@@ -89,17 +89,17 @@ export declare const workspaceInsertSessionBeforeValueSchema: z.ZodObject<{
         workspaceId: z.ZodType<import("./workspace.ts").WorkspaceId, unknown, z.core.$ZodTypeInternals<import("./workspace.ts").WorkspaceId, unknown>>;
         path: z.ZodString;
         title: z.ZodString;
-        sessionIds: z.ZodArray<z.ZodType<import("@z/dsh-session").SessionId, unknown, z.core.$ZodTypeInternals<import("@z/dsh-session").SessionId, unknown>>>;
+        sessionIds: z.ZodArray<z.ZodType<import("@taskweaver/dsh-session").SessionId, unknown, z.core.$ZodTypeInternals<import("@taskweaver/dsh-session").SessionId, unknown>>>;
         createdAt: z.ZodString;
         updatedAt: z.ZodString;
     }, z.core.$strip>;
 }, z.core.$strip>;
 /** workspace.archiveSession request payload. */
 export declare const workspaceArchiveSessionRequestSchema: z.ZodObject<{
-    sessionId: z.ZodType<import("@z/dsh-session").SessionId, unknown, z.core.$ZodTypeInternals<import("@z/dsh-session").SessionId, unknown>>;
+    sessionId: z.ZodType<import("@taskweaver/dsh-session").SessionId, unknown, z.core.$ZodTypeInternals<import("@taskweaver/dsh-session").SessionId, unknown>>;
 }, z.core.$strip>;
 /** workspace.archiveSession response value: the full updated archive set. */
 export declare const workspaceArchiveSessionValueSchema: z.ZodObject<{
-    archivedSessionIds: z.ZodArray<z.ZodType<import("@z/dsh-session").SessionId, unknown, z.core.$ZodTypeInternals<import("@z/dsh-session").SessionId, unknown>>>;
+    archivedSessionIds: z.ZodArray<z.ZodType<import("@taskweaver/dsh-session").SessionId, unknown, z.core.$ZodTypeInternals<import("@taskweaver/dsh-session").SessionId, unknown>>>;
 }, z.core.$strip>;
 //# sourceMappingURL=workspace.schema.d.ts.map

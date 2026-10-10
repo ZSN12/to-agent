@@ -1,5 +1,5 @@
 {
-  "name": "@z/cordis-plugin-hmr",
+  "name": "@taskweaver/cordis-plugin-hmr",
   "description": "Hot Module Replacement Plugin for Cordis",
   "version": "1.0.16",
   "publishConfig": {
@@ -8,7 +8,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
-    "directory": "vendor/hmr"
+    "directory": "packages/runtime/cordis/hmr"
   },
   "type": "module",
   "main": "lib/index.js",
@@ -29,7 +29,7 @@
   ],
   "author": "Shigma <shigma10826@gmail.com>",
   "license": "MIT",
-  "@z/cordis": {
+  "@taskweaver/cordis": {
     "services": {
       "required": [
         "timer"
@@ -41,15 +41,15 @@
     }
   },
   "peerDependencies": {
-    "@z/cordis-plugin-timer": "workspace:^",
-    "@z/cordis": "workspace:^"
+    "@taskweaver/cordis-plugin-timer": "workspace:^",
+    "@taskweaver/cordis": "workspace:^"
   },
   "dependencies": {
     "@babel/code-frame": "^7.29.0",
     "chokidar": "^4.0.3",
-    "@z/cosmokit": "workspace:^",
+    "@taskweaver/cosmokit": "workspace:^",
     "picomatch": "^4.0.3",
-    "@z/schemastery": "workspace:^"
+    "@taskweaver/schemastery": "workspace:^"
   },
   "devDependencies": {
     "@types/babel__code-frame": "^7.27.0",

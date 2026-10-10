@@ -7,23 +7,23 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { mkdtemp, readFile, realpath, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { Context } from '@z/cordis'
-import type { Agent } from '@z/dsh-agent'
-import AgentLoop from '@z/dsh-agent-loop'
-import { mountAgentLoopTestDependencies } from '@z/dsh-agent-loop-testkit'
-import SandboxedFileSystem from '@z/dsh-fs-sandbox'
-import type { ContentBlock } from '@z/dsh-llm'
-import SandboxPolicyService, { setSandboxMode } from '@z/dsh-sandbox-policy'
-import { SessionId, type SessionEvent } from '@z/dsh-session'
-import * as ToolFs from '@z/dsh-tool-fs'
-import ApprovalService from '@z/dsh-user-approval'
-import { snapshotSubagentDescriptor } from '@z/dsh-subagent'
+import { Context } from '@taskweaver/cordis'
+import type { Agent } from '@taskweaver/dsh-agent'
+import AgentLoop from '@taskweaver/dsh-agent-loop'
+import { mountAgentLoopTestDependencies } from '@taskweaver/dsh-agent-loop-testkit'
+import SandboxedFileSystem from '@taskweaver/dsh-fs-sandbox'
+import type { ContentBlock } from '@taskweaver/dsh-llm'
+import SandboxPolicyService, { setSandboxMode } from '@taskweaver/dsh-sandbox-policy'
+import { SessionId, type SessionEvent } from '@taskweaver/dsh-session'
+import * as ToolFs from '@taskweaver/dsh-tool-fs'
+import ApprovalService from '@taskweaver/dsh-user-approval'
+import { snapshotSubagentDescriptor } from '@taskweaver/dsh-subagent'
 import { MockAdapter, textResponse, toolCallResponse } from '../../../core/agent-loop/tests/mock-adapter.ts'
 import { startInProcessRun } from '../src/index.ts'
 
 type Script = ConstructorParameters<typeof MockAdapter>[0]
 
-const READ_ONLY_DENIAL = '[sandbox: file access denied under read-only mode]'
+const READ_ONLY_DENIAL = 'file access denied under read-only mode'
 const contexts: Context[] = []
 let workspace: string
 
@@ -114,7 +114,7 @@ describe('in-process policy inheritance', () => {
       const runtimeContext = child.session.events.find(
         (event): event is SessionEvent<'user/message'> => event.type === 'user/message'
           && event.data.source.kind === 'plugin'
-          && event.data.source.plugin === '@z/dsh-system-prompt',
+          && event.data.source.plugin === '@taskweaver/dsh-system-prompt',
       )
       if (request === undefined || runtimeContext === undefined) throw new Error('child request lacks its runtime policy context')
       expect(runtimeContext.seq).toBeLessThan(request.seq)

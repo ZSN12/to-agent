@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/** Packaged-app smoke: launch, wait for IPC, read a workspace file through a mock model, exit. */
+/** Packaged-app smoke: shell HTTP backend, mock model reads a workspace file. */
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import fs from 'node:fs'
@@ -16,9 +16,15 @@ const appCandidates = [
   path.join(root, 'release/mac-universal/TaskWeaver.app'),
 ]
 const appPath = appCandidates.find((candidate) => fs.existsSync(candidate))
-assert.ok(appPath, 'TaskWeaver.app is missing; run npm run app:builder first')
-const binary = path.join(appPath, 'Contents/MacOS/TaskWeaver')
-assert.ok(fs.existsSync(binary), `missing binary: ${binary}`)
+assert.ok(appPath, 'TaskWeaver.app is missing; run pnpm run app:builder first')
+
+const resources = path.join(appPath, 'Contents/Resources')
+const hostNode = path.join(resources, 'host-node/bin/node')
+const shellEntry = path.join(resources, 'app/desktop/shell/run.mjs')
+const scheduledRunner = path.join(resources, 'taskweaver-scheduled-runner.mjs')
+assert.ok(fs.existsSync(hostNode), `missing bundled Node: ${hostNode}`)
+assert.ok(fs.existsSync(shellEntry), `missing shell backend: ${shellEntry}`)
+assert.ok(fs.existsSync(scheduledRunner), `missing scheduled-job runner: ${scheduledRunner}`)
 
 const tempRoot = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'taskweaver-packaged-smoke-'))
 const userData = path.join(tempRoot, 'userData')
@@ -96,99 +102,58 @@ const mockServer = http.createServer((request, response) => {
 
 await new Promise((resolve, reject) => mockServer.once('error', reject).listen(0, '127.0.0.1', resolve))
 const mockUrl = `http://127.0.0.1:${mockServer.address().port}/v1`
-const debugPort = await freePort()
-const env = { ...process.env, TASKWEAVER_PACKAGED: '1', TASKWEAVER_STARTUP_TRACE: '1', TASKWEAVER_STARTUP_TRACE_FILE: tracePath }
-delete env.ELECTRON_RUN_AS_NODE
-const child = spawn(binary, [
-  `--user-data-dir=${userData}`,
-  `--remote-debugging-port=${debugPort}`,
-  '--remote-debugging-address=127.0.0.1',
-], { env, stdio: ['ignore', 'pipe', 'pipe'] })
+const shellPort = await freePort()
+const env = {
+  ...process.env,
+  TASKWEAVER_PACKAGED: '1',
+  TASKWEAVER_INSECURE_CREDENTIAL_STORE: '1',
+  TASKWEAVER_STARTUP_TRACE: '1',
+  TASKWEAVER_STARTUP_TRACE_FILE: tracePath,
+  TASKWEAVER_USER_DATA: userData,
+  TASKWEAVER_SHELL_SERVER: '1',
+  TASKWEAVER_SHELL_PORT: String(shellPort),
+  TASKWEAVER_SHELL_HOST: '127.0.0.1',
+  TASKWEAVER_RESOURCES_PATH: resources,
+}
+const child = spawn(hostNode, [shellEntry], {
+  cwd: path.join(resources, 'app'),
+  env,
+  stdio: ['ignore', 'pipe', 'pipe'],
+})
 let logs = ''
 child.stdout?.on('data', (chunk) => { logs = `${logs}${chunk}`.slice(-8000) })
 child.stderr?.on('data', (chunk) => { logs = `${logs}${chunk}`.slice(-8000) })
-let socket = null
 
-async function waitForPage() {
-  const deadline = Date.now() + 90000
+async function waitForHealth() {
+  const deadline = Date.now() + 120_000
   while (Date.now() < deadline) {
-    if (child.exitCode !== null) throw new Error(`TaskWeaver exited during startup (${child.exitCode})\n${logs}`)
+    if (child.exitCode !== null) throw new Error(`Shell backend exited (${child.exitCode})\n${logs}`)
     try {
-      const response = await fetch(`http://127.0.0.1:${debugPort}/json/list`, { signal: AbortSignal.timeout(1000) })
-      const targets = await response.json()
-      const page = targets.find((target) => target.type === 'page' && target.webSocketDebuggerUrl)
-      if (page) return page
-    } catch { /* DevTools endpoint is not ready yet. */ }
+      const response = await fetch(`http://127.0.0.1:${shellPort}/shell/v1/health`, { signal: AbortSignal.timeout(1_500) })
+      if (response.ok) return
+    } catch { /* retry */ }
     await new Promise((resolve) => setTimeout(resolve, 250))
   }
-  throw new Error(`Timed out waiting for TaskWeaver renderer\n${logs}`)
+  throw new Error(`Timed out waiting for shell backend\n${logs}`)
 }
 
-function connectDevTools(url) {
-  return new Promise((resolve, reject) => {
-    const ws = new WebSocket(url)
-    const pending = new Map()
-    let nextId = 0
-    const onOpen = () => resolve({
-      async send(method, params = {}, timeoutMs = 30000) {
-        const id = ++nextId
-        return new Promise((done, fail) => {
-          const timer = setTimeout(() => {
-            pending.delete(id)
-            fail(new Error(`DevTools command timed out: ${method}`))
-          }, timeoutMs)
-          pending.set(id, { done, fail, timer })
-          ws.send(JSON.stringify({ id, method, params }))
-        })
-      },
-      close() { ws.close() },
-      ws,
-      pending,
-    })
-    ws.addEventListener('open', onOpen, { once: true })
-    ws.addEventListener('error', () => reject(new Error('Cannot connect to packaged app DevTools')), { once: true })
-    ws.addEventListener('message', (event) => {
-      const message = JSON.parse(String(event.data))
-      const row = pending.get(message.id)
-      if (!row) return
-      pending.delete(message.id)
-      clearTimeout(row.timer)
-      if (message.error) row.fail(new Error(message.error.message))
-      else row.done(message.result)
-    })
-    ws.addEventListener('close', () => {
-      for (const row of pending.values()) {
-        clearTimeout(row.timer)
-        row.fail(new Error('Packaged app DevTools connection closed'))
-      }
-      pending.clear()
-    })
+async function invoke(channel, args = []) {
+  const response = await fetch(`http://127.0.0.1:${shellPort}/shell/v1/invoke`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ channel, args }),
   })
+  const body = await response.json()
+  if (!response.ok || body.ok === false) throw new Error(`${channel}: ${body.error ?? response.status}`)
+  return body.data
 }
 
-async function evaluate(devtools, expression, timeoutMs = 30000) {
-  const result = await devtools.send('Runtime.evaluate', {
-    expression,
-    awaitPromise: true,
-    returnByValue: true,
-    timeout: timeoutMs,
-  }, timeoutMs + 5000)
-  if (result.exceptionDetails) {
-    throw new Error(result.exceptionDetails.exception?.description ?? result.exceptionDetails.text)
-  }
-  return result.result?.value
-}
-
-async function stopApp() {
-  if (socket) {
-    await socket.send('Browser.close').catch(() => {})
-    socket.close()
-  }
+async function stopBackend() {
   if (child.exitCode === null) {
     child.kill('SIGTERM')
     await Promise.race([
       new Promise((resolve) => child.once('exit', resolve)),
-      new Promise((resolve) => setTimeout(resolve, 5000)),
+      new Promise((resolve) => setTimeout(resolve, 5_000)),
     ])
   }
   if (child.exitCode === null) child.kill('SIGKILL')
@@ -197,64 +162,46 @@ async function stopApp() {
 }
 
 try {
-  const page = await waitForPage()
-  socket = await connectDevTools(page.webSocketDebuggerUrl)
-  await socket.send('Runtime.enable')
-  await evaluate(socket, `(() => {
-    const api = window.taskweaver
-    if (!api) throw new Error('TaskWeaver preload API is unavailable')
-    return true
-  })()`)
-  const expression = `(async () => {
-    const check = async (label, promise) => {
-      const result = await promise
-      if (!result?.ok) throw new Error(label + ': ' + (result?.error || 'unknown failure'))
-      return result.data
-    }
-    const workspace = ${JSON.stringify(workspace)}
-    await check('Host readiness', window.taskweaver.backendReady())
-    await check('model and Host bootstrap', window.taskweaver.models.loadBundle())
-    await check('workspace setup', window.taskweaver.app.setWorkspace(workspace))
-    await check('workspace trust', window.taskweaver.workspace.setTrust(true))
-    const provider = await check('mock provider setup', window.taskweaver.models.upsertCustomProvider({
-      providerId: 'custom-packaged-smoke',
-      name: 'Packaged smoke fixture',
-      baseUrl: ${JSON.stringify(mockUrl)},
-      apiKey: 'packaged-smoke-fixture',
-      modelId: 'smoke-model',
-      api: 'openai-completions',
-    }))
-    await check('mock model directory refresh', window.taskweaver.models.refresh())
-    await check('mock model activation', window.taskweaver.models.add(provider.modelKey))
-    const state = await check('new readonly conversation', window.taskweaver.app.clearConversation({
-      workspacePath: workspace,
-      permissionMode: 'readonly',
-      modelKey: provider.modelKey,
-      title: 'Packaged smoke',
-    }))
-    const conversationId = state.conversationId
-    if (!conversationId) throw new Error('new conversation did not return an ID')
-    await check('mock chat', window.taskweaver.chat.send(
-      ${JSON.stringify(`${promptMarker} Read smoke-input.txt and answer with its exact contents. Do not change any files.`)},
-      provider.modelKey,
-      null,
-      'single-agent',
-      'code',
-      conversationId,
-    ))
-    return conversationId
-  })()`
-  const conversationId = await evaluate(socket, expression, 180000)
-  assert.ok(conversationId, 'packaged smoke did not create a conversation')
+  await waitForHealth()
+  await invoke('backend:ready')
+  await invoke('models:loadBundle')
+  await invoke('app:setWorkspace', [workspace])
+  await invoke('workspace:setTrust', [true])
+  const provider = await invoke('models:upsertCustomProvider', [{
+    providerId: 'custom-packaged-smoke',
+    name: 'Packaged smoke fixture',
+    baseUrl: mockUrl,
+    apiKey: 'packaged-smoke-fixture',
+    modelId: 'smoke-model',
+    api: 'openai-completions',
+  }])
+  await invoke('models:refresh')
+  await invoke('models:add', [provider.modelKey])
+  const state = await invoke('app:clearConversation', [{
+    workspacePath: workspace,
+    permissionMode: 'readonly',
+    modelKey: provider.modelKey,
+    title: 'Packaged smoke',
+  }])
+  const conversationId = state?.conversationId
+  assert.ok(conversationId, 'new conversation did not return an ID')
+  await invoke('chat:send', [
+    `${promptMarker} Read smoke-input.txt and answer with its exact contents. Do not change any files.`,
+    provider.modelKey,
+    null,
+    'single-agent',
+    'code',
+    conversationId,
+  ])
   assert.ok(readResultObserved, 'mock model never received the file-read result')
   assert.ok(finalAnswerObserved, 'mock model did not return a final answer after reading the file')
   const trace = await fs.promises.readFile(tracePath, 'utf8').catch(() => '')
   const startupEvents = trace.split('\n').filter(Boolean).map((line) => JSON.parse(line))
-    .filter((row) => ['main:module-start', 'app:ready', 'window:did-finish-load', 'ipc:registration-end', 'models:loadBundle-end'].includes(row.event))
+    .filter((row) => ['ipc:registration-end', 'models:loadBundle-end'].includes(row.event))
     .map(({ event, elapsedMs }) => `${event}=${elapsedMs}ms`)
-  console.log(`test-packaged-app-launch: ok (${path.basename(appPath)}, file read via mock provider${startupEvents.length ? `; ${startupEvents.join(', ')}` : ''})`)
+  console.log(`test-packaged-app-launch: ok (${path.basename(appPath)}, shell HTTP${startupEvents.length ? `; ${startupEvents.join(', ')}` : ''})`)
 } catch (error) {
   throw new Error(`${error instanceof Error ? error.message : String(error)}\nMock requests: ${mockRequestCount}\n${logs}`)
 } finally {
-  await stopApp()
+  await stopBackend()
 }

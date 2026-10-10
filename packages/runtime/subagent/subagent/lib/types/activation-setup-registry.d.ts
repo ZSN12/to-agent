@@ -8,10 +8,10 @@
  * Activation disposal, so no installation outlives either owner and no removed
  * contribution can be installed after revocation reports completion.
  *
- * @module @z/dsh-subagent/activation-setup-registry
+ * @module @taskweaver/dsh-subagent/activation-setup-registry
  */
-import type { Context } from '@z/cordis';
-import type { AgentSetupCommit } from '@z/dsh-agent';
+import type { Context } from '@taskweaver/cordis';
+import type { AgentSetupCommit } from '@taskweaver/dsh-agent';
 /**
  * One deployment capability installed into a continuable child's unpublished
  * creation context. It composes synchronously before publication and returns

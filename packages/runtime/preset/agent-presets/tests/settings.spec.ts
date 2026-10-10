@@ -8,19 +8,19 @@ import { mkdir, mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { Context } from '@z/cordis'
-import Loader from '@z/cordis-plugin-loader'
-import Include from '@z/cordis-plugin-include'
-import LlmRuntime from '@z/dsh-llm'
-import SessionStore, { SessionId } from '@z/dsh-session'
-import SystemPrompt from '@z/dsh-system-prompt'
-import ToolRuntime from '@z/dsh-tools'
-import AgentRegistry from '@z/dsh-agent'
-import AgentLoop from '@z/dsh-agent-loop'
-import FileSettingsProvider from '@z/dsh-settings-file'
-import { settingsNamespace } from '@z/dsh-settings'
+import { Context } from '@taskweaver/cordis'
+import Loader from '@taskweaver/cordis-plugin-loader'
+import Include from '@taskweaver/cordis-plugin-include'
+import LlmRuntime from '@taskweaver/dsh-llm'
+import SessionStore, { SessionId } from '@taskweaver/dsh-session'
+import SystemPrompt from '@taskweaver/dsh-system-prompt'
+import ToolRuntime from '@taskweaver/dsh-tools'
+import AgentRegistry from '@taskweaver/dsh-agent'
+import AgentLoop from '@taskweaver/dsh-agent-loop'
+import FileSettingsProvider from '@taskweaver/dsh-settings-file'
+import { settingsNamespace } from '@taskweaver/dsh-settings'
 import { describe, expect, it } from 'vitest'
-import AgentPresets, { COMPOSITION_FILE, SETTINGS_NAMESPACE } from '@z/dsh-agent-presets'
+import AgentPresets, { COMPOSITION_FILE, SETTINGS_NAMESPACE } from '@taskweaver/dsh-agent-presets'
 
 const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), 'fixtures')
 const ROOTS = [{ path: join(FIXTURES, 'system'), trust: 'system' as const }]
@@ -60,7 +60,7 @@ describe('the default preset as a user setting', () => {
   it('falls back to the composition default while the user set none', async () => {
     const { ctx } = await harness()
 
-    expect(ctx.agentPresets.defaultId).toBe('standard')
+    expect(ctx.agentPresets.defaultId).toBe('tw-default')
   })
 
   it('takes the user default over the composition default', async () => {
@@ -113,7 +113,7 @@ describe('the default preset as a user setting', () => {
 
     await ctx.settings.replace(NS, {})
 
-    expect(ctx.agentPresets.defaultId).toBe('standard')
+    expect(ctx.agentPresets.defaultId).toBe('tw-default')
   })
 
   it('clears a user default it has just deleted', async () => {
@@ -132,7 +132,7 @@ describe('the default preset as a user setting', () => {
     // Nothing will ever supply that id again, so leaving the setting pointed at
     // it would fail every session created without an explicit pick. Clearing it
     // exposes the deployment's own default underneath.
-    expect(ctx.agentPresets.defaultId).toBe('standard')
+    expect(ctx.agentPresets.defaultId).toBe('tw-default')
     expect((await ctx.agentPresets.resolve()).id).toBe('standard')
   })
 
@@ -158,6 +158,6 @@ describe('a settings provider that goes away', () => {
     // working on its composition default rather than holding a stale override.
     await settingsFiber.dispose()
 
-    expect(ctx.agentPresets.defaultId).toBe('standard')
+    expect(ctx.agentPresets.defaultId).toBe('tw-default')
   })
 })

@@ -1,19 +1,19 @@
 /**
  * Default model selection for an Agent without a session-specific selection.
  *
- * @module @z/dsh-agent-default-model
+ * @module @taskweaver/dsh-agent-default-model
  */
-import { Context, Service } from '@z/cordis';
-import z from '@z/schemastery';
-import type { ModelSelection } from '@z/dsh-agent';
-declare module '@z/cordis' {
+import { Context, Service } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
+import type { ModelSelection } from '@taskweaver/dsh-agent';
+declare module '@taskweaver/cordis' {
     interface Context {
         /** Default model selection for Agents created without an explicit model. */
         agentDefaultModel: AgentDefaultModelConfig;
     }
 }
 /** Settings namespace carrying the default model selection for future Agents. */
-export declare const AGENT_DEFAULT_MODEL_SETTINGS_NAMESPACE: import("@z/dsh-settings").SettingsNamespace;
+export declare const AGENT_DEFAULT_MODEL_SETTINGS_NAMESPACE: import("@taskweaver/dsh-settings").SettingsNamespace;
 /** Stored and composed default model selection. */
 export interface AgentDefaultModelSettings {
     /** Registered provider route. */

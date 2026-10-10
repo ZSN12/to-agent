@@ -1,28 +1,23 @@
-"use strict";
 /**
- * Package-owned invariant companion for `@z/dsh-sandbox-windows-acl`.
- * @module @z/dsh-sandbox-windows-acl/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-sandbox-windows-acl`.
+ * @module @taskweaver/dsh-sandbox-windows-acl/invariant
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.apply = exports.inject = exports.name = void 0;
-var PACKAGE_NAME = '@z/dsh-sandbox-windows-acl';
+const PACKAGE_NAME = '@taskweaver/dsh-sandbox-windows-acl';
 /** Cordis companion plugin name. */
-exports.name = 'sandbox-windows-acl-invariant';
+export const name = 'sandbox-windows-acl-invariant';
 /** Service required before the companion can reserve package ownership. */
-exports.inject = ['invariants'];
+export const inject = ['invariants'];
 /**
  * No runtime invariant: this package exposes no independent event sequence or
  * mutable data relation beyond the fail-closed contracts it enforces at each
  * Win32 call boundary.
  */
-var install = function () { };
+const install = () => { };
 /**
  * Register this package's invariant companion.
  * @param ctx - Cordis context carrying the invariant service.
  * @returns the installed registration's disposer after setup succeeds.
  */
-var apply = function (ctx) {
-    return Promise.resolve(ctx.invariants.register(PACKAGE_NAME, install));
-};
-exports.apply = apply;
+export const apply = (ctx) => Promise.resolve(ctx.invariants.register(PACKAGE_NAME, install));
 /* jscpd:ignore-end */
+//# sourceMappingURL=invariant.js.map

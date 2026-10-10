@@ -2,8 +2,8 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { createAppStateStore } from '../electron/backend/app-state-store.mjs'
-import { MAX_OUTPUT_LOGS } from '../electron/backend/config.mjs'
+import { createAppStateStore } from '../desktop/backend/app-state-store.mjs'
+import { MAX_OUTPUT_LOGS } from '../desktop/backend/config.mjs'
 
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-backend-'))
 

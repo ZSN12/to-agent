@@ -1,8 +1,8 @@
 /**
- * Package-owned invariant companion for `@z/dsh-terminal`.
- * @module @z/dsh-terminal/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-terminal`.
+ * @module @taskweaver/dsh-terminal/invariant
  */
-const PACKAGE_NAME = '@z/dsh-terminal';
+const PACKAGE_NAME = '@taskweaver/dsh-terminal';
 /** Cordis companion plugin name. */
 export const name = 'terminal-invariant';
 /** Service required before the companion can reserve package ownership. */

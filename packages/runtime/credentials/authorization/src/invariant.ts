@@ -1,12 +1,12 @@
 /**
- * Package-owned invariant companion for `@z/dsh-authorization`.
- * @module @z/dsh-authorization/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-authorization`.
+ * @module @taskweaver/dsh-authorization/invariant
  */
 
-import type { Context } from '@z/cordis'
-import type { InvariantFailure, InvariantInstaller } from '@z/dsh-invariants'
+import type { Context } from '@taskweaver/cordis'
+import type { InvariantFailure, InvariantInstaller } from '@taskweaver/dsh-invariants'
 
-const PACKAGE_NAME = '@z/dsh-authorization'
+const PACKAGE_NAME = '@taskweaver/dsh-authorization'
 
 /** Cordis companion plugin name. */
 export const name = 'authorization-invariant'

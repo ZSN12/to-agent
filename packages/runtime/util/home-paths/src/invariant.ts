@@ -1,13 +1,13 @@
 /**
- * Package-owned invariant companion for `@z/dsh-home-paths`.
- * @module @z/dsh-home-paths/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-home-paths`.
+ * @module @taskweaver/dsh-home-paths/invariant
  */
 
 /* jscpd:ignore-start */
-import type { Context } from '@z/cordis'
-import type { InvariantInstaller } from '@z/dsh-invariants'
+import type { Context } from '@taskweaver/cordis'
+import type { InvariantInstaller } from '@taskweaver/dsh-invariants'
 
-const PACKAGE_NAME = '@z/dsh-home-paths'
+const PACKAGE_NAME = '@taskweaver/dsh-home-paths'
 
 /** Cordis companion plugin name. */
 export const name = 'home-paths-invariant'

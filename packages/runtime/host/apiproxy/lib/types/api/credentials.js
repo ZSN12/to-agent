@@ -1,4 +1,3 @@
-"use strict";
 /**
  * credentials domain contract: the web face of the credential-reference seam
  * (`ctx.credentials`). Reads are structurally value-free — a credential view
@@ -7,4 +6,5 @@
  * There is no enumeration method by design: clients learn which references
  * exist from settings schemas and values (`apiKeyEnv` fields).
  */
-Object.defineProperty(exports, "__esModule", { value: true });
+export {};
+//# sourceMappingURL=credentials.js.map

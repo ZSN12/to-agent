@@ -3,9 +3,9 @@
  * contract and rejects every violation by name. Meta arrives as schema-checked
  * JSON data, never evaluated script text; evaluating it on the host could run getters outside the
  * worker timeout that exists to isolate model-written code.
- * @module @z/dsh-workflow-worker-thread/meta
+ * @module @taskweaver/dsh-workflow-worker-thread/meta
  */
-import type { WorkflowMeta } from '@z/dsh-workflow';
+import type { WorkflowMeta } from '@taskweaver/dsh-workflow';
 /**
  * Validate a caller-provided meta value against the {@link WorkflowMeta}
  * contract. Throws `META_INVALID` naming every violation (unknown fields,

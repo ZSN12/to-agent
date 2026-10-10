@@ -11,12 +11,12 @@
  * stop-on-throw) or touch the agent loop. Composed by a backend in its
  * constructor.
  *
- * @module @z/dsh-session-telemetry/coordinator
+ * @module @taskweaver/dsh-session-telemetry/coordinator
  */
 
-import type { Context } from '@z/cordis'
-import type { Session, SessionEvent } from '@z/dsh-session'
-import type { Agent } from '@z/dsh-agent'
+import type { Context } from '@taskweaver/cordis'
+import type { Session, SessionEvent } from '@taskweaver/dsh-session'
+import type { Agent } from '@taskweaver/dsh-agent'
 import type { SessionTelemetrySink, SessionTelemetryRecord, SessionTelemetrySeverity } from './index.ts'
 
 /** Whether capture follows live events or reads the canonical log only when requested. */

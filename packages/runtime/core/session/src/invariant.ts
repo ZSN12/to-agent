@@ -1,18 +1,18 @@
 /**
  * Package-owned relational invariants for the session event log. Load this
- * companion beside `@z/dsh-invariants` to enable the checks.
+ * companion beside `@taskweaver/dsh-invariants` to enable the checks.
  *
- * @module @z/dsh-session/invariant
+ * @module @taskweaver/dsh-session/invariant
  */
 
-import type { Context } from '@z/cordis'
-import { assertNever } from '@z/dsh-llm'
-import type { CallId } from '@z/dsh-llm'
-import type { InvariantFailure, InvariantInstaller } from '@z/dsh-invariants'
-import type { Session, SessionEvent } from '@z/dsh-session'
+import type { Context } from '@taskweaver/cordis'
+import { assertNever } from '@taskweaver/dsh-llm'
+import type { CallId } from '@taskweaver/dsh-llm'
+import type { InvariantFailure, InvariantInstaller } from '@taskweaver/dsh-invariants'
+import type { Session, SessionEvent } from '@taskweaver/dsh-session'
 import { TOOL_NOT_STARTED } from './repair.ts'
 
-const PACKAGE_NAME = '@z/dsh-session'
+const PACKAGE_NAME = '@taskweaver/dsh-session'
 
 /** Cordis companion plugin name. */
 export const name = 'session-invariant'

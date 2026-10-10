@@ -1,9 +1,9 @@
 /** Current-surface projection and byte-bounded rendering. */
 
-import { isCompactCheckpointSource } from '@z/dsh-compaction'
-import type { SessionSurfaceSnapshot } from '@z/dsh-session-query'
-import { assertNever } from '@z/dsh-llm'
-import { TextRetainer } from '@z/dsh-output-retention'
+import { isCompactCheckpointSource } from '@taskweaver/dsh-compaction'
+import type { SessionSurfaceSnapshot } from '@taskweaver/dsh-session-query'
+import { assertNever } from '@taskweaver/dsh-llm'
+import { TextRetainer } from '@taskweaver/dsh-output-retention'
 import { stringifyTagSafeJson } from './serialization.ts'
 import type { ReferencedConversationItem } from './types.ts'
 

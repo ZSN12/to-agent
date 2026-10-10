@@ -2,7 +2,7 @@
  * Public records for exact reads and relationship traces over the
  * live-preferred logical session corpus.
  *
- * @module @z/dsh-session-query/types
+ * @module @taskweaver/dsh-session-query/types
  */
 
 import type {
@@ -11,8 +11,8 @@ import type {
   SessionHeader,
   SessionId,
   SurfaceEvent,
-} from '@z/dsh-session'
-import type { SessionTitleSnapshot } from '@z/dsh-session-title'
+} from '@taskweaver/dsh-session'
+import type { SessionTitleSnapshot } from '@taskweaver/dsh-session-title'
 import type { SessionSearchCursor } from './cursor.ts'
 
 export type { SessionSearchCursor } from './cursor.ts'

@@ -1,0 +1,11 @@
+{
+  // Product build graph: compile the TaskWeaver Host and the minimal Client
+  // runtime needed by the Electron main process. The full Host/Client test
+  // aggregates remain separate so their Cordis Context types never merge.
+  "extends": "./tsconfig.base.json",
+  "files": [],
+  "references": [
+    { "path": "./tsconfig.host.taskweaver.json" },
+    { "path": "./tsconfig.client.taskweaver-min.json" }
+  ]
+}

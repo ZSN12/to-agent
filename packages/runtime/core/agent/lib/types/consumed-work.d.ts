@@ -9,9 +9,9 @@
  * with `removedCount` and marks a cancellation `outcome: 'canceled'`, which
  * separates a turn claiming its input from work being dropped unrun.
  *
- * @module @z/dsh-agent/consumed-work
+ * @module @taskweaver/dsh-agent/consumed-work
  */
-import type { SessionEvent } from '@z/dsh-session';
+import type { SessionEvent } from '@taskweaver/dsh-session';
 /** How one agent log accounts for the work it consumed. */
 export interface ConsumedWork {
     /**

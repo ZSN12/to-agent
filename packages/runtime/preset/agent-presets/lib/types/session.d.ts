@@ -10,10 +10,10 @@
  * preset decides the tool schemas and prompt sections the model sees.
  *
  * Reconstruction reads {@link resolveSessionPreset}, never the header alone.
- * @module @z/dsh-agent-presets/session
+ * @module @taskweaver/dsh-agent-presets/session
  */
-import type { SessionEvent, SessionHeader } from '@z/dsh-session';
-declare module '@z/dsh-session/types' {
+import type { SessionEvent, SessionHeader } from '@taskweaver/dsh-session';
+declare module '@taskweaver/dsh-session/types' {
     interface SessionEventMap {
         /**
          * The session's agent preset was chosen after creation, while the session

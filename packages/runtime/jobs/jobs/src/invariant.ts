@@ -1,11 +1,11 @@
-/** Package-owned background-job snapshot invariants. @module @z/dsh-jobs/invariant */
+/** Package-owned background-job snapshot invariants. @module @taskweaver/dsh-jobs/invariant */
 
-import type { Context } from '@z/cordis'
-import type { Agent } from '@z/dsh-agent'
-import type { InvariantFailure, InvariantInstaller } from '@z/dsh-invariants'
+import type { Context } from '@taskweaver/cordis'
+import type { Agent } from '@taskweaver/dsh-agent'
+import type { InvariantFailure, InvariantInstaller } from '@taskweaver/dsh-invariants'
 import type { JobSnapshot } from './types.ts'
 
-const PACKAGE_NAME = '@z/dsh-jobs'
+const PACKAGE_NAME = '@taskweaver/dsh-jobs'
 const TERMINAL_STATUSES = new Set(['completed', 'killed', 'failed'])
 
 /** Cordis companion plugin name. */

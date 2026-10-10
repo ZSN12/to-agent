@@ -1,10 +1,10 @@
 /**
  * dsh-lsp's owned branded id: {@link LspProviderId}, the opaque identity a provider reserves on
- * `ctx.lsp`. The `Branded<B>` primitive lives in `@z/dsh-brand`; keeping the type and its
+ * `ctx.lsp`. The `Branded<B>` primitive lives in `@taskweaver/dsh-brand`; keeping the type and its
  * factory together here lets `index.ts` re-export both under one name.
- * @module @z/dsh-lsp/brand
+ * @module @taskweaver/dsh-lsp/brand
  */
-import type { Branded } from '@z/dsh-brand';
+import type { Branded } from '@taskweaver/dsh-brand';
 /** Opaque provider identity, reserved atomically with its extension mappings at registration. */
 export type LspProviderId = Branded<'LspProviderId'>;
 /**

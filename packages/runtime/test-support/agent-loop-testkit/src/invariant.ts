@@ -1,13 +1,13 @@
 /**
- * Package-owned invariant companion for `@z/dsh-agent-loop-testkit`.
- * @module @z/dsh-agent-loop-testkit/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-agent-loop-testkit`.
+ * @module @taskweaver/dsh-agent-loop-testkit/invariant
  */
 
 /* jscpd:ignore-start */
-import type { Context } from '@z/cordis'
-import type { InvariantInstaller } from '@z/dsh-invariants'
+import type { Context } from '@taskweaver/cordis'
+import type { InvariantInstaller } from '@taskweaver/dsh-invariants'
 
-const PACKAGE_NAME = '@z/dsh-agent-loop-testkit'
+const PACKAGE_NAME = '@taskweaver/dsh-agent-loop-testkit'
 
 /** Cordis companion plugin name. */
 export const name = 'agent-loop-testkit-invariant'

@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import { createUserMessage } from '@z/dsh-llm'
-import SessionStore, { SessionId } from '@z/dsh-session'
+import { Context } from '@taskweaver/cordis'
+import { createUserMessage } from '@taskweaver/dsh-llm'
+import SessionStore, { SessionId } from '@taskweaver/dsh-session'
 import { RuntimeContextProjection } from '../src/runtime-context.ts'
 
-const SOURCE = '@z/dsh-system-prompt'
+const SOURCE = '@taskweaver/dsh-system-prompt'
 
 function contextMessage(text: string) {
   return createUserMessage({

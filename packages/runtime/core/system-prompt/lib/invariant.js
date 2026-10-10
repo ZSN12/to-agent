@@ -1,6 +1,6 @@
 //#region lib/types/invariant.js
-/** Package-owned prompt-assembly invariants. @module @z/dsh-system-prompt/invariant */
-const PACKAGE_NAME = "@z/dsh-system-prompt";
+/** Package-owned prompt-assembly invariants. @module @taskweaver/dsh-system-prompt/invariant */
+const PACKAGE_NAME = "@taskweaver/dsh-system-prompt";
 const VARIABLE_NAME = /^[a-z][a-z0-9_]*$/;
 /** Cordis companion plugin name. */
 const name = "system-prompt-invariant";

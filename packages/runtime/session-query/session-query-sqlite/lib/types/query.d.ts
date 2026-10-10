@@ -1,5 +1,5 @@
 /** Request normalization, parameterized predicates, and result presentation. */
-import type { SessionEventMetadataFilter, SessionEventSearchRequest, SessionResultFilter, SessionSearchCursor, SessionSearchRequest } from '@z/dsh-session-query';
+import type { SessionEventMetadataFilter, SessionEventSearchRequest, SessionResultFilter, SessionSearchCursor, SessionSearchRequest } from '@taskweaver/dsh-session-query';
 /** Collision-free marker inserted before an FTS5 match by `highlight()`. */
 export declare const FTS_HIGHLIGHT_START = "\uFDD0";
 /** Collision-free marker inserted after an FTS5 match by `highlight()`. */

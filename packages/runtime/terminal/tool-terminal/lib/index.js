@@ -1,7 +1,7 @@
-import z from "@z/schemastery";
-import { TerminalSessionId } from "@z/dsh-terminal";
-import { defineTool } from "@z/dsh-tools";
-import { TextRetainer } from "@z/dsh-output-retention";
+import z from "@taskweaver/schemastery";
+import { TerminalSessionId } from "@taskweaver/dsh-terminal";
+import { defineTool } from "@taskweaver/dsh-tools";
+import { TextRetainer } from "@taskweaver/dsh-output-retention";
 //#region lib/types/render.js
 /** Model and UI rendering for persistent terminal tool results. */
 const encoder = new TextEncoder();
@@ -107,7 +107,7 @@ function renderList(sessions, maxBytes) {
 /**
 * Six model-facing persistent terminal tools. Owner identity comes from the exact
 * tool execution Agent; generic `ctx.jobs` owns background ids and collection.
-* @module @z/dsh-tool-terminal
+* @module @taskweaver/dsh-tool-terminal
 */
 /** Cordis plugin name. */
 const name = "tool-terminal";
@@ -357,7 +357,7 @@ function apply(ctx, config = {}) {
 			if (args.run_in_background === true) {
 				if (!enableRunInBackground) throw new Error("background terminal sends are disabled by tool-terminal configuration");
 				const jobs = ctx.get("jobs");
-				if (jobs === void 0) throw new Error("background terminal sends require @z/dsh-jobs and @z/dsh-tool-jobs");
+				if (jobs === void 0) throw new Error("background terminal sends require @taskweaver/dsh-jobs and @taskweaver/dsh-tool-jobs");
 				let cancelRequested = false;
 				return {
 					kind: "background",

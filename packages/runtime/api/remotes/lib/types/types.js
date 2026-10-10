@@ -1,4 +1,3 @@
-"use strict";
 /**
  * Type face of the forwarded-Host-event allowlist: the consumer key projection
  * and the selection seat it fills. The allowlist VALUE lives in
@@ -7,6 +6,7 @@
  * and the consumer `ctx.remote.$on` key face read one declaration instead of
  * two copies that could drift.
  *
- * @module @z/dsh-api-remotes/types
+ * @module @taskweaver/dsh-api-remotes/types
  */
-Object.defineProperty(exports, "__esModule", { value: true });
+export {};
+//# sourceMappingURL=types.js.map

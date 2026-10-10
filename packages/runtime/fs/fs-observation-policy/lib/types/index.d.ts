@@ -4,9 +4,9 @@
  * guards from that state, and the provider performs the atomic freshness/no-clobber check. Without
  * this plugin, tools retain the bare provider's unconditional mutation behavior. See the package
  * README for composition rules.
- * @module @z/dsh-fs-observation-policy
+ * @module @taskweaver/dsh-fs-observation-policy
  */
-import type { Context } from '@z/cordis';
+import type { Context } from '@taskweaver/cordis';
 export type { FsObservationActor } from './types.ts';
 /** Cordis plugin name used by loader diagnostics. */
 export declare const name = "fs-observation-policy";

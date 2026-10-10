@@ -1,6 +1,6 @@
-import type { ContentBlock } from '@z/dsh-llm/types'
-import type { MuxFrame } from '@z/dsh-api-remotes/client'
-import type { SessionEvent } from '@z/dsh-session/types'
+import type { ContentBlock } from '@taskweaver/dsh-llm/types'
+import type { MuxFrame } from '@taskweaver/dsh-api-remotes/client'
+import type { SessionEvent } from '@taskweaver/dsh-session/types'
 import type { QueuedMessage } from './conversation.ts'
 
 const QUEUE_PREVIEW_CHARS = 200

@@ -1,5 +1,5 @@
 /** Runtime constructors and protocol constants for the goal domain. */
-import { HarnessError } from '@z/dsh-llm';
+import { HarnessError } from '@taskweaver/dsh-llm';
 import type { GoalId as GoalIdType } from './types.ts';
 import type { GoalErrorCode } from './domain.ts';
 /** Version of the goal change embedded in a round-zero message source. */

@@ -9,11 +9,11 @@
  * key -> create/cache, dropped with the last holding entry, session instances
  * cleared (with persisted state) on scope death.
  */
-import { Service } from '@z/cordis';
-import type { Context } from '@z/cordis';
-import { SlotCore } from '@z/dsh-client-ui-slots';
-import type { LiveSlotNode, LocaleFace, OwnerOf, SlotMap, SlotRenderer, SlotSpec, StoredEntry } from '@z/dsh-client-ui-slots';
-declare module '@z/dsh-client-ui-slots' {
+import { Service } from '@taskweaver/cordis';
+import type { Context } from '@taskweaver/cordis';
+import { SlotCore } from '@taskweaver/dsh-client-ui-slots';
+import type { LiveSlotNode, LocaleFace, OwnerOf, SlotMap, SlotRenderer, SlotSpec, StoredEntry } from '@taskweaver/dsh-client-ui-slots';
+declare module '@taskweaver/dsh-client-ui-slots' {
     interface SlotMap {
         /**
          * The built-in render-tree root hole (seeded by SlotCore): the one slot the

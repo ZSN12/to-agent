@@ -1,10 +1,10 @@
 /**
  * Model-facing, workspace-authorized session-history search and read tools.
  *
- * @module @z/dsh-tool-session-query
+ * @module @taskweaver/dsh-tool-session-query
  */
-import type { Context } from '@z/cordis';
-import z from '@z/schemastery';
+import type { Context } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
 /** Cordis plugin name used by Loader diagnostics. */
 export declare const name = "tool-session-query";
 /** Capability services required by the model-facing consumer. */

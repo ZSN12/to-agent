@@ -1,12 +1,12 @@
 /**
  * Shared ownership of one E2B sandbox. Capability adapters await the same SDK
  * handle, so filesystem and process operations inhabit one remote Linux world.
- * @module @z/dsh-e2b
+ * @module @taskweaver/dsh-e2b
  */
 import { randomUUID } from 'node:crypto';
 import { posix } from 'node:path';
-import { Service } from '@z/cordis';
-import z from '@z/schemastery';
+import { Service } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
 import { FileType, Sandbox, SandboxNotFoundError } from 'e2b';
 export { CommandExitError, FileNotFoundError, FileType, Sandbox, SandboxNotFoundError, } from 'e2b';
 /**

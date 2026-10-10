@@ -3,7 +3,7 @@
  * layout version, the database open/configure sequence (permissions, pragmas,
  * version stamp/reject), and the unit metadata tables. Unit record tables are
  * created per descriptor in `unit.ts`.
- * @module @z/dsh-storage-sqlite/schema
+ * @module @taskweaver/dsh-storage-sqlite/schema
  */
 import { DatabaseSync } from 'node:sqlite';
 /**

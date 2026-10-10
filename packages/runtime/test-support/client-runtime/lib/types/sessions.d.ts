@@ -1,8 +1,8 @@
 /** Test-owned sessions face: the SlotRegistry host contract over declarative fixtures. */
-import type { Context } from '@z/cordis';
-import type { AttachmentIdType } from '@z/dsh-attachment';
-import type { AgentContext, ConversationSnapshot, ISessions, ProjectionsFace, SessionFace, SessionId, SessionListState, SessionProvideDescriptor, SessionSearchResultItem, SessionSummary, SnapshotStore, SubagentAddress } from '@z/dsh-client-runtime/client';
-import type { HostObservable, SessionMaybeProvideInfo, SessionProvideInfo } from '@z/dsh-client-ui-slots';
+import type { Context } from '@taskweaver/cordis';
+import type { AttachmentIdType } from '@taskweaver/dsh-attachment';
+import type { AgentContext, ConversationSnapshot, ISessions, ProjectionsFace, SessionFace, SessionId, SessionListState, SessionProvideDescriptor, SessionSearchResultItem, SessionSummary, SnapshotStore, SubagentAddress } from '@taskweaver/dsh-client-runtime/client';
+import type { HostObservable, SessionMaybeProvideInfo, SessionProvideInfo } from '@taskweaver/dsh-client-ui-slots';
 import type { SessionFixture, Stabilizer } from './fixtures.ts';
 /**
  * The fixture-backed session face: conversation reads delegate to the

@@ -1,5 +1,5 @@
-import type { Context } from '@z/cordis'
-import type {} from '@z/dsh-web'
+import type { Context } from '@taskweaver/cordis'
+import type {} from '@taskweaver/dsh-web'
 import { TaskWeaverSearchProvider } from './provider.ts'
 
 export { TaskWeaverSearchProvider } from './provider.ts'

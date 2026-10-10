@@ -1,46 +1,43 @@
-"use strict";
 /**
- * Package-owned invariant companion for `@z/dsh-storage-domain`: every
+ * Package-owned invariant companion for `@taskweaver/dsh-storage-domain`: every
  * `domain/changed` event must agree with the emitting domain's authoritative
  * in-memory state (the owned event-stream ↔ mutable-data relationship of this
  * package). Writes emit strictly after mutating memory and the write chain
  * serializes them, so at emission time the event's snapshot equals the
  * current read — any divergence means a write path skipped the chain or
  * emitted a stale value.
- * @module @z/dsh-storage-domain/invariant
+ * @module @taskweaver/dsh-storage-domain/invariant
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.apply = exports.inject = exports.name = void 0;
-var PACKAGE_NAME = '@z/dsh-storage-domain';
+const PACKAGE_NAME = '@taskweaver/dsh-storage-domain';
 /** Cordis companion plugin name. */
-exports.name = 'storage-domain-invariant';
+export const name = 'storage-domain-invariant';
 /** Service required before the companion can reserve package ownership. */
-exports.inject = ['invariants'];
+export const inject = ['invariants'];
 /** Install the change-event ↔ memory-state agreement check. */
-var install = Object.assign(function (ctx, fail) {
-    ctx.on('domain/changed', function (change) {
-        var domain = ctx.storage.form('domain').get(change.domain);
+const install = Object.assign((ctx, fail) => {
+    ctx.on('domain/changed', (change) => {
+        const domain = ctx.storage.form('domain').get(change.domain);
         if (domain === undefined) {
-            return fail("domain/changed for '".concat(change.domain, "' emitted while that domain is not open"));
+            return fail(`domain/changed for '${change.domain}' emitted while that domain is not open`);
         }
         if (change.table === '') {
             // Global write: the event snapshot must be the current global value.
             if (domain.global.get() !== change.value) {
-                return fail("domain/changed global value for '".concat(change.domain, "' differs from the in-memory global"));
+                return fail(`domain/changed global value for '${change.domain}' differs from the in-memory global`);
             }
             return;
         }
-        var current = domain.table(change.table).get(change.key);
+        const current = domain.table(change.table).get(change.key);
         switch (change.operation) {
             case 'deleted':
                 if (current !== undefined) {
-                    return fail("domain/changed deletion of '".concat(change.domain, "'.'").concat(change.table, "'['").concat(change.key, "'] ")
+                    return fail(`domain/changed deletion of '${change.domain}'.'${change.table}'['${change.key}'] `
                         + 'emitted while the record is still in memory');
                 }
                 return;
             case 'put':
                 if (current !== change.value) {
-                    return fail("domain/changed value for '".concat(change.domain, "'.'").concat(change.table, "'['").concat(change.key, "'] ")
+                    return fail(`domain/changed value for '${change.domain}'.'${change.table}'['${change.key}'] `
                         + 'differs from the in-memory record');
                 }
                 return;
@@ -54,7 +51,5 @@ var install = Object.assign(function (ctx, fail) {
  * @param ctx - Cordis context carrying the invariant service.
  * @returns the installed registration's disposer after setup succeeds.
  */
-var apply = function (ctx) {
-    return Promise.resolve(ctx.invariants.register(PACKAGE_NAME, install));
-};
-exports.apply = apply;
+export const apply = (ctx) => Promise.resolve(ctx.invariants.register(PACKAGE_NAME, install));
+//# sourceMappingURL=invariant.js.map

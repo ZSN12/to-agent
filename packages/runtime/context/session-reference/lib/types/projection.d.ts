@@ -1,5 +1,5 @@
 /** Current-surface projection and byte-bounded rendering. */
-import type { SessionSurfaceSnapshot } from '@z/dsh-session-query';
+import type { SessionSurfaceSnapshot } from '@taskweaver/dsh-session-query';
 import type { ReferencedConversationItem } from './types.ts';
 /** Snapshot data serialized inside the untrusted prompt. */
 export interface ReferencedSessionData {

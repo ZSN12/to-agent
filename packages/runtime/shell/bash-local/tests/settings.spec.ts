@@ -1,13 +1,13 @@
 /** The `bash` settings section layered over the executor's composition entry. */
 
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import type { Fiber } from '@z/cordis'
-import { SettingsProvider } from '@z/dsh-settings'
-import type { SettingsNamespace } from '@z/dsh-settings'
-import LocalSubprocessRuntime from '@z/dsh-subprocess-local'
-import { SHELL_SETTINGS_NAMESPACE } from '@z/dsh-shell'
-import { LocalBashExecutor } from '@z/dsh-bash-local'
+import { Context } from '@taskweaver/cordis'
+import type { Fiber } from '@taskweaver/cordis'
+import { SettingsProvider } from '@taskweaver/dsh-settings'
+import type { SettingsNamespace } from '@taskweaver/dsh-settings'
+import LocalSubprocessRuntime from '@taskweaver/dsh-subprocess-local'
+import { SHELL_SETTINGS_NAMESPACE } from '@taskweaver/dsh-shell'
+import { LocalBashExecutor } from '@taskweaver/dsh-bash-local'
 
 /** The smallest real provider: one in-memory document, always writable. */
 class MemorySettings extends SettingsProvider {

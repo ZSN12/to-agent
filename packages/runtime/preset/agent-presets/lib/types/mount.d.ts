@@ -11,11 +11,11 @@
  * published a service into the ROOT realm is rejected, because such a service
  * is process-global rather than per-session and the second session mounting the
  * same preset collides with the first.
- * @module @z/dsh-agent-presets/mount
+ * @module @taskweaver/dsh-agent-presets/mount
  */
-import { Context, type Fiber } from '@z/cordis';
-import type { EntryTree } from '@z/cordis-plugin-loader';
-import { type ScopeKey } from '@z/dsh-scope';
+import { Context, type Fiber } from '@taskweaver/cordis';
+import type { EntryTree } from '@taskweaver/cordis-plugin-loader';
+import { type ScopeKey } from '@taskweaver/dsh-scope';
 import { type AgentPreset } from './preset.ts';
 /** One preset composition currently installed under some agent. */
 export interface PresetMount {

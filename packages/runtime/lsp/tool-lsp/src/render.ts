@@ -3,11 +3,11 @@
  * conversion, workspace-grouped location rendering with `file:`-URI resolution, complete-result
  * capping, and UI presentation. No I/O — a UI may call the presenter on live streaming and on
  * replay, so it depends only on the tool arguments.
- * @module @z/dsh-tool-lsp/render
+ * @module @taskweaver/dsh-tool-lsp/render
  */
 
-import type { GenericCallView } from '@z/dsh-tools'
-import type { LspHover, LspLocation, LspOperation, LspPosition } from '@z/dsh-lsp'
+import type { GenericCallView } from '@taskweaver/dsh-tools'
+import type { LspHover, LspLocation, LspOperation, LspPosition } from '@taskweaver/dsh-lsp'
 import { posix, win32 } from 'node:path'
 import { fileURLToPath } from 'node:url'
 

@@ -1,5 +1,5 @@
 /** React-free Workspace entity with a client-local materialization lifecycle. */
-import type { IApiClient, RpcResult, WorkspaceView } from '@z/dsh-api-remotes/client';
+import type { IApiClient, RpcResult, WorkspaceView } from '@taskweaver/dsh-api-remotes/client';
 import type { ObservableSnapshot } from '../contract/store.ts';
 /** Host input retained by a local Workspace until materialization succeeds. */
 export type WorkspaceCreateInput = {

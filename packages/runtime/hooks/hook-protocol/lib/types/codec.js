@@ -2,7 +2,7 @@
  * Decode hook process outcomes for both dialects. Exit 0 may carry structured
  * JSON or plain stdout; exit 2 blocks with stderr as the reason; every other
  * exit is a non-blocking error. Bridges decide which recognized fields apply.
- * @module @z/dsh-hook-protocol/codec
+ * @module @taskweaver/dsh-hook-protocol/codec
  */
 /** The exit code a hook uses to signal a blocking error (stderr → model). */
 const BLOCKING_EXIT_CODE = 2;

@@ -2,11 +2,11 @@
  * Scoped-context primitive: mint a Cordis context that tags registrations with
  * an opaque identity and build routing-only event carriers for that identity.
  *
- * @module @z/dsh-scope
+ * @module @taskweaver/dsh-scope
  */
 
-import type { Context, Fiber } from '@z/cordis'
-import { Context as CordisContext } from '@z/cordis'
+import type { Context, Fiber } from '@taskweaver/cordis'
+import { Context as CordisContext } from '@taskweaver/cordis'
 
 export { AnonymousEntries, NamedEntries, ScopedLayers } from './store.ts'
 export type { ScopeLayer } from './store.ts'

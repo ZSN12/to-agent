@@ -1,14 +1,14 @@
 import { randomUUID } from "node:crypto";
-import { Service } from "@z/cordis";
-import z from "@z/schemastery";
-import { createUserMessage } from "@z/dsh-llm";
-import { scopeTarget } from "@z/dsh-scope";
+import { Service } from "@taskweaver/cordis";
+import z from "@taskweaver/schemastery";
+import { createUserMessage } from "@taskweaver/dsh-llm";
+import { scopeTarget } from "@taskweaver/dsh-scope";
 //#region lib/types/types.js
 /**
 * Wire-safe approval identifiers and outcome vocabulary, free of
 * cordis/service imports so browser type chains (apiproxy api → client) can
 * consume them without loading this package's Context augmentation.
-* @module @z/dsh-user-approval/types
+* @module @taskweaver/dsh-user-approval/types
 */
 /**
 * Brand a string as an {@link ApprovalRequestId}.
@@ -23,7 +23,7 @@ function ApprovalRequestId(id) {
 /**
 * Service Definition for the approval capability seam, covering requests, cancellation, audit, and per-session policy. Missing
 * answerers fail closed; grants apply only to the requested action.
-* @module @z/dsh-user-approval
+* @module @taskweaver/dsh-user-approval
 */
 /** Every {@link ApprovalOutcome}, for runtime normalization of answerer returns. */
 const OUTCOMES = [

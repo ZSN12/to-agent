@@ -1,15 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import { scopeTarget } from '@z/dsh-scope'
-import { SessionId } from '@z/dsh-session'
-import SubagentRuntime, { SubagentRunId } from '@z/dsh-subagent'
+import { Context } from '@taskweaver/cordis'
+import { scopeTarget } from '@taskweaver/dsh-scope'
+import { SessionId } from '@taskweaver/dsh-session'
+import SubagentRuntime, { SubagentRunId } from '@taskweaver/dsh-subagent'
 import type {
   SubagentProvider,
   SubagentRunEndInfo,
   SubagentRunInfo,
-} from '@z/dsh-subagent'
-import * as SubagentInvariant from '@z/dsh-subagent/invariant'
-import InvariantRegistry from '@z/dsh-invariants'
+} from '@taskweaver/dsh-subagent'
+import * as SubagentInvariant from '@taskweaver/dsh-subagent/invariant'
+import InvariantRegistry from '@taskweaver/dsh-invariants'
 
 async function setup(): Promise<Context> {
   const ctx = new Context()

@@ -4,18 +4,18 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import { LocalSandboxProvider } from '@z/dsh-sandbox-local'
-import { SandboxPolicyService } from '@z/dsh-sandbox-policy'
-import { seatbeltProfileArgs } from '@z/dsh-sandbox-local/src/profiles.ts'
-import { SandboxBashExecutor } from '@z/dsh-bash-sandbox'
-import LocalSubprocessRuntime from '@z/dsh-subprocess-local'
+import { Context } from '@taskweaver/cordis'
+import { LocalSandboxProvider } from '@taskweaver/dsh-sandbox-local'
+import { SandboxPolicyService } from '@taskweaver/dsh-sandbox-policy'
+import { seatbeltProfileArgs } from '@taskweaver/dsh-sandbox-local/src/profiles.ts'
+import { SandboxBashExecutor } from '@taskweaver/dsh-bash-sandbox'
+import LocalSubprocessRuntime from '@taskweaver/dsh-subprocess-local'
 
 /**
  * Keyless macOS integration of the real provider and executor through public run/start paths.
  * Linux rungs are forced off so Seatbelt is selected. The tests check world effects and stamped
  * facts, including EPERM classification through the wrap-carried dialect; backend-only
- * confinement is covered by `@z/dsh-sandbox-local`. Skips off macOS or when
+ * confinement is covered by `@taskweaver/dsh-sandbox-local`. Skips off macOS or when
  * `sandbox-exec` rejects the profile.
  */
 
@@ -83,8 +83,8 @@ describe.skipIf(!seatbeltUsable)('bash-sandbox: real Seatbelt confinement throug
     const insideProbe = join(workdir, 'hook-ran.txt')
     const outsideProbe = join(outside, 'escaped.txt')
     await writeFile(hook, [
-      'printf hook > "$DSH_BASH_ENV_INSIDE"',
-      'printf escaped > "$DSH_BASH_ENV_OUTSIDE"',
+      'printf hook > "$TASKWEAVER_BASH_ENV_INSIDE"',
+      'printf escaped > "$TASKWEAVER_BASH_ENV_OUTSIDE"',
       '',
     ].join('\n'))
     const bash = await sandboxedBash(workdir, 'workspace-write')
@@ -93,8 +93,8 @@ describe.skipIf(!seatbeltUsable)('bash-sandbox: real Seatbelt confinement throug
       command: 'true',
       env: { BASH_ENV: hook },
       dshEnv: {
-        DSH_BASH_ENV_INSIDE: insideProbe,
-        DSH_BASH_ENV_OUTSIDE: outsideProbe,
+        TASKWEAVER_BASH_ENV_INSIDE: insideProbe,
+        TASKWEAVER_BASH_ENV_OUTSIDE: outsideProbe,
       },
     }))
 

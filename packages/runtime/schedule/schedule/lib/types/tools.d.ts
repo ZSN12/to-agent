@@ -1,9 +1,9 @@
 /**
  * Agent-scoped Schedule management tools over the durable session fold.
- * @module @z/dsh-schedule
+ * @module @taskweaver/dsh-schedule
  */
-import type { Context } from '@z/cordis';
-import type { Agent } from '@z/dsh-agent';
+import type { Context } from '@taskweaver/cordis';
+import type { Agent } from '@taskweaver/dsh-agent';
 /**
  * Register all three Schedule tools in one exact agent scope.
  * @param rootCtx - Global service context owning sessions and durability.

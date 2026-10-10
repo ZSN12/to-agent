@@ -1,13 +1,13 @@
 /** The shared `bash` settings section as the pwsh executor family resolves it. */
 
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import type { Fiber } from '@z/cordis'
-import { SettingsProvider } from '@z/dsh-settings'
-import type { SettingsNamespace } from '@z/dsh-settings'
-import { SHELL_SETTINGS_NAMESPACE } from '@z/dsh-shell'
-import LocalSubprocessRuntime from '@z/dsh-subprocess-local'
-import { PwshLocalExecutor } from '@z/dsh-pwsh-local'
+import { Context } from '@taskweaver/cordis'
+import type { Fiber } from '@taskweaver/cordis'
+import { SettingsProvider } from '@taskweaver/dsh-settings'
+import type { SettingsNamespace } from '@taskweaver/dsh-settings'
+import { SHELL_SETTINGS_NAMESPACE } from '@taskweaver/dsh-shell'
+import LocalSubprocessRuntime from '@taskweaver/dsh-subprocess-local'
+import { PwshLocalExecutor } from '@taskweaver/dsh-pwsh-local'
 
 /** The smallest real provider: one in-memory document, always writable. */
 class MemorySettings extends SettingsProvider {

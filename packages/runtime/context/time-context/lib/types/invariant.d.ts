@@ -1,5 +1,5 @@
-/** Package-owned durable clock-context invariants. @module @z/dsh-time-context/invariant */
-import type { Context } from '@z/cordis';
+/** Package-owned durable clock-context invariants. @module @taskweaver/dsh-time-context/invariant */
+import type { Context } from '@taskweaver/cordis';
 /** Cordis companion plugin name. */
 export declare const name = "time-context-invariant";
 /** Service required before the companion can reserve package ownership. */

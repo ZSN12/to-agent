@@ -1,5 +1,5 @@
 import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-runtime";
-import { IconDownloadOutline16 } from '@z/dsh-client-ui-primitives';
+import { IconDownloadOutline16 } from '@taskweaver/dsh-client-ui-primitives';
 import { SessionLogDownloadDialog } from "./Dialog.js";
 import css from './HeaderAction.module.css';
 /**

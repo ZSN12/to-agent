@@ -1,8 +1,8 @@
 /**
  * Strict Schedule decoding, replay, time validation, and framing.
- * @module @z/dsh-schedule
+ * @module @taskweaver/dsh-schedule
  */
-import type { SessionEvent } from '@z/dsh-session';
+import type { SessionEvent } from '@taskweaver/dsh-session';
 import type { AfterScheduleRecord, AtInput, AtScheduleRecord, EveryScheduleRecord, OneShotScheduleRecord, ScheduleChange, ScheduleId as ScheduleIdType, ScheduleRecord, ScheduleView } from './types.ts';
 /** Durable Schedule protocol version implemented by this package. */
 export declare const SCHEDULE_CHANGE_VERSION: 1;

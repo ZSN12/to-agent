@@ -73,6 +73,6 @@ flowchart TB
 ## 代码索引
 
 - 原则：[DSH内嵌集成原则.md](./DSH内嵌集成原则.md)  
-- mux 扇出：`electron/backend/dsh-chat-service.mjs`  
+- mux 扇出：`desktop/backend/dsh-chat-service.mjs`  
 - 适配 hook 骨架：`src/features/dsh-runtime/useDshMuxTape.ts`  
 - DSH 参考：`packages/runtime/client/runtime`、`ui-conversation`、`ui-trajectory`

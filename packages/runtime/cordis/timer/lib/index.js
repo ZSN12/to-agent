@@ -1,4 +1,4 @@
-import { Service } from "@z/cordis";
+import { Service } from "@taskweaver/cordis";
 //#region lib/types/index.js
 /** Disposable timer helpers mixed into Cordis contexts. */
 var TimerService = class extends Service {

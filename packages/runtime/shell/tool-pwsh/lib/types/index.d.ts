@@ -1,12 +1,12 @@
 /**
  * Model-facing PowerShell Consumer of the `ctx.shell` capability seam. Intended for
  * Windows compositions where a PowerShell executor (e.g.
- * `@z/dsh-pwsh-local`) backs `ctx.shell`; the tool contract is
+ * `@taskweaver/dsh-pwsh-local`) backs `ctx.shell`; the tool contract is
  * PowerShell-dialect: native `C:\...` paths and `$env:NAME` variables.
  *
  * Behavior mirrors `dsh-tool-bash` call-for-call: foreground and
  * `run_in_background` execution (background handles register with the
- * generic `ctx.jobs` runtime), the managed `DSH_*` environment through the
+ * generic `ctx.jobs` runtime), the managed `TASKWEAVER_*` environment through the
  * shared `shell-env` registry, the per-call sandbox policy resolution (the
  * calling session's mode and cwd travel to the confining executor), the
  * sandbox-denial rendering with the same-turn escalation surface
@@ -14,13 +14,13 @@
  * `ctx.approval`), and the bash marker/truncation rendering story. UI
  * presentation mirrors the bash tool's too: a completed foreground call is
  * a terminal card with the parsed exit-status pill, using the shared
- * exit-status parse from `@z/dsh-shell`.
+ * exit-status parse from `@taskweaver/dsh-shell`.
  *
- * @module @z/dsh-tool-pwsh
+ * @module @taskweaver/dsh-tool-pwsh
  */
-import type { Context } from '@z/cordis';
-import z from '@z/schemastery';
-declare module '@z/dsh-jobs' {
+import type { Context } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
+declare module '@taskweaver/dsh-jobs' {
     interface JobKindMap {
         pwsh: 'pwsh';
     }

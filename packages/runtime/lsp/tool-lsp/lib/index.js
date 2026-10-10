@@ -1,8 +1,8 @@
-import z from "@z/schemastery";
-import { defineTool } from "@z/dsh-tools";
-import { assertNever } from "@z/dsh-llm";
-import { LspError } from "@z/dsh-lsp";
-import { MAX_TIMER_DELAY_MS } from "@z/dsh-timeout";
+import z from "@taskweaver/schemastery";
+import { defineTool } from "@taskweaver/dsh-tools";
+import { assertNever } from "@taskweaver/dsh-llm";
+import { LspError } from "@taskweaver/dsh-lsp";
+import { MAX_TIMER_DELAY_MS } from "@taskweaver/dsh-timeout";
 import { posix, win32 } from "node:path";
 import { fileURLToPath } from "node:url";
 //#region lib/types/render.js
@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
 * conversion, workspace-grouped location rendering with `file:`-URI resolution, complete-result
 * capping, and UI presentation. No I/O — a UI may call the presenter on live streaming and on
 * replay, so it depends only on the tool arguments.
-* @module @z/dsh-tool-lsp/render
+* @module @taskweaver/dsh-tool-lsp/render
 */
 /** The four operations the tool exposes, as a runtime tuple for schema enum + validation. */
 const LSP_OPERATIONS = [
@@ -166,7 +166,7 @@ function presentLspCall(args) {
 * Unlike those tools, LSP has NO provider fallback — a missing cwd fails the call as
 * `LSP_WORKSPACE_REQUIRED`, because the local provider must canonicalize a real workspace before it
 * can start a server.
-* @module @z/dsh-tool-lsp/session-cwd
+* @module @taskweaver/dsh-tool-lsp/session-cwd
 */
 /**
 * The session workspace cwd for this call, or `undefined` when none applies.
@@ -187,7 +187,7 @@ function sessionCwd(exec) {
 * imports no provider.
 *
 * Namespace plugin (named exports, no default export).
-* @module @z/dsh-tool-lsp
+* @module @taskweaver/dsh-tool-lsp
 */
 /** Cordis plugin name for loader diagnostics. */
 const name = "tool-lsp";

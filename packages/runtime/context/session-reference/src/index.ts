@@ -2,17 +2,17 @@
  * Cross-session snapshot preparation. Hosts adapt mentions into structured
  * references; this service owns exact reads, projection, budgets, and durable context.
  *
- * @module @z/dsh-session-reference
+ * @module @taskweaver/dsh-session-reference
  */
 
-import { Context } from '@z/cordis'
-import z from '@z/schemastery'
-import type { Agent, PreStepDecision } from '@z/dsh-agent'
-import { Remote, TypertRemoteService } from '@z/dsh-typert-protocol'
-import { createUserMessage, freezeMessage } from '@z/dsh-llm'
-import type { ContentBlock, UserMessage } from '@z/dsh-llm'
-import type { SessionId } from '@z/dsh-session'
-import type { SessionSurfaceSnapshot, SessionTitleObservationResult } from '@z/dsh-session-query'
+import { Context } from '@taskweaver/cordis'
+import z from '@taskweaver/schemastery'
+import type { Agent, PreStepDecision } from '@taskweaver/dsh-agent'
+import { Remote, TypertRemoteService } from '@taskweaver/dsh-typert-protocol'
+import { createUserMessage, freezeMessage } from '@taskweaver/dsh-llm'
+import type { ContentBlock, UserMessage } from '@taskweaver/dsh-llm'
+import type { SessionId } from '@taskweaver/dsh-session'
+import type { SessionSurfaceSnapshot, SessionTitleObservationResult } from '@taskweaver/dsh-session-query'
 import {
   DEFAULT_CANDIDATE_LIMIT,
   DEFAULT_MAX_REFERENCE_BYTES,
@@ -55,7 +55,7 @@ user explicitly repeats them.
 `
 const PROMPT_SUFFIX = '\n</referenced-sessions>'
 
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
   interface Context {
     sessionReferenceResolver: SessionReferenceResolver
   }

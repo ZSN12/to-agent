@@ -1,20 +1,20 @@
 /**
  * The ACP automation server app: the default agent spine
- * ({@link @z/dsh-agent-spine-demo}), JSONL session persistence, and
- * the {@link @z/dsh-acp} bridge. The app owns those plugins through one
+ * ({@link @taskweaver/dsh-agent-spine-demo}), JSONL session persistence, and
+ * the {@link @taskweaver/dsh-acp} bridge. The app owns those plugins through one
  * ordered lifecycle so ACP sessions quiesce before persistence detaches. It
  * writes nothing to stdout.
  * It pre-creates no agents and leaves adapters, executors, and optional tools to
  * the leaf, which must likewise avoid stdout loggers. Named exports are
  * required so Loader retains this plugin's `Config` schema (see
  * docs/postmortem/0001).
- * @module @z/dsh-acp-demo
+ * @module @taskweaver/dsh-acp-demo
  */
-import type { Context } from '@z/cordis';
-import z from '@z/schemastery';
-import * as agentCore from '@z/dsh-agent-spine-demo';
-import { type Config as ToolsConfig } from '@z/dsh-tools';
-import { type JsonlCompression } from '@z/dsh-session-persistence-jsonl';
+import type { Context } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
+import * as agentCore from '@taskweaver/dsh-agent-spine-demo';
+import { type Config as ToolsConfig } from '@taskweaver/dsh-tools';
+import { type JsonlCompression } from '@taskweaver/dsh-session-persistence-jsonl';
 export declare const name = "acp-demo";
 /**
  * App config: the swappable per-deployment values. `provider` and `model` configure

@@ -2,14 +2,14 @@
  * Model-facing literal edit, unique-match by default. It obtains an optional guard from the
  * single intent slot, calls `ctx.fs.editText` without a separate stat, then records the observed
  * version; no policy means an unconditional atomic edit.
- * @module @z/dsh-tool-fs/src/edit
+ * @module @taskweaver/dsh-tool-fs/src/edit
  */
 
-import type { Context } from '@z/cordis'
-import { defineTool } from '@z/dsh-tools'
-import type { DiffCallView, DiffResultView, ToolResult } from '@z/dsh-tools'
-import type {} from '@z/dsh-fs'
-import type {} from '@z/dsh-system-prompt'
+import type { Context } from '@taskweaver/cordis'
+import { defineTool } from '@taskweaver/dsh-tools'
+import type { DiffCallView, DiffResultView, ToolResult } from '@taskweaver/dsh-tools'
+import type {} from '@taskweaver/dsh-fs'
+import type {} from '@taskweaver/dsh-system-prompt'
 import { computeHunkDiffs, diffsFromMeta } from './diff.ts'
 import { remediateFsError } from './error.ts'
 import { sessionResolveOptions } from './session-cwd.ts'

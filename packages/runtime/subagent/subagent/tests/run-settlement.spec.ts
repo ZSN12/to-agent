@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { SessionId } from '@z/dsh-session'
+import { SessionId } from '@taskweaver/dsh-session'
 import {
   settleRun,
   settleRunResult,

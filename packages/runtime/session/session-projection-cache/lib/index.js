@@ -1,8 +1,8 @@
-import { Service } from "@z/cordis";
-import z from "@z/schemastery";
-import { snapshotJsonValue } from "@z/dsh-session";
+import { Service } from "@taskweaver/cordis";
+import z from "@taskweaver/schemastery";
+import { snapshotJsonValue } from "@taskweaver/dsh-session";
 import { z as z$1 } from "zod";
-import { defineDomain, domainTable } from "@z/dsh-storage-domain";
+import { defineDomain, domainTable } from "@taskweaver/dsh-storage-domain";
 //#region lib/types/spec.js
 /**
 * The session-projcache domain declaration: one `sessions` table keyed by
@@ -12,7 +12,7 @@ import { defineDomain, domainTable } from "@z/dsh-storage-domain";
 * the storage-domain routing decides the medium (the shipped composition's
 * json backend lands it at `<root>/session_projcache.json`, beside
 * `workspace.json`).
-* @module @z/dsh-session-projection-cache/src/spec
+* @module @taskweaver/dsh-session-projection-cache/src/spec
 */
 /**
 * One persisted checkpoint row (the RFC's `(sessionId, key, ver, seq, val)`
@@ -73,7 +73,7 @@ const projectionCacheDomainSpec = defineDomain({
 * `ver` mismatch discards the row instead of migrating it. Design
 * authority: the session-projection RFC
 * (.agents/notes/proposed/architecture/2026-07-27-session-projection-and-command-log.md).
-* @module @z/dsh-session-projection-cache
+* @module @taskweaver/dsh-session-projection-cache
 */
 const Config = z.object({
 	writeEveryEvents: z.natural().min(1).required(),

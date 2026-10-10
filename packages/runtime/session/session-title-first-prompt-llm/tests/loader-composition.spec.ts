@@ -1,16 +1,16 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import Loader from '@z/cordis-plugin-loader'
-import Include from '@z/cordis-plugin-include'
+import { Context } from '@taskweaver/cordis'
+import Loader from '@taskweaver/cordis-plugin-loader'
+import Include from '@taskweaver/cordis-plugin-include'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import LlmRuntime, { createUserMessage, LlmAdapter  } from '@z/dsh-llm'
-import type { GenerateOptions, StreamChunk } from '@z/dsh-llm'
-import SessionStore, { SessionId } from '@z/dsh-session'
-import SessionTitleService from '@z/dsh-session-title'
-import * as providerPlugin from '@z/dsh-session-title-first-prompt-llm'
+import LlmRuntime, { createUserMessage, LlmAdapter  } from '@taskweaver/dsh-llm'
+import type { GenerateOptions, StreamChunk } from '@taskweaver/dsh-llm'
+import SessionStore, { SessionId } from '@taskweaver/dsh-session'
+import SessionTitleService from '@taskweaver/dsh-session-title'
+import * as providerPlugin from '@taskweaver/dsh-session-title-first-prompt-llm'
 
 let root: string | undefined
 let context: Context | undefined
@@ -36,14 +36,14 @@ async function loadComposition(): Promise<Context> {
   root = await mkdtemp(join(tmpdir(), 'dsh-title-loader-'))
   const configPath = join(root, 'cordis.yml')
   await writeFile(configPath, [
-    "- name: '@z/dsh-llm'",
-    "- name: '@z/dsh-session'",
-    "- name: '@z/dsh-session-title'",
+    "- name: '@taskweaver/dsh-llm'",
+    "- name: '@taskweaver/dsh-session'",
+    "- name: '@taskweaver/dsh-session-title'",
     '  config:',
     '    fallbackMaxWords: 5',
     '    fallbackMaxBytes: 40',
     '    maxTitleBytes: 80',
-    "- name: '@z/dsh-session-title-first-prompt-llm'",
+    "- name: '@taskweaver/dsh-session-title-first-prompt-llm'",
     '  config:',
     '    targetWords: 5',
     '    targetCjkCharacters: 10',
@@ -60,10 +60,10 @@ async function loadComposition(): Promise<Context> {
   await context.plugin(Loader)
   context.loader.builtins.include = Include
   const modules = new Map<string, unknown>([
-    ['@z/dsh-llm', LlmRuntime],
-    ['@z/dsh-session', SessionStore],
-    ['@z/dsh-session-title', SessionTitleService],
-    ['@z/dsh-session-title-first-prompt-llm', providerPlugin],
+    ['@taskweaver/dsh-llm', LlmRuntime],
+    ['@taskweaver/dsh-session', SessionStore],
+    ['@taskweaver/dsh-session-title', SessionTitleService],
+    ['@taskweaver/dsh-session-title-first-prompt-llm', providerPlugin],
   ])
   context.loader.internal = {
     version: 'v2',

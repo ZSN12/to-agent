@@ -13,10 +13,10 @@
  * error. The module owns no catalog state and does not consult Activation,
  * Agent-registry, continuation-manager, or provider state.
  *
- * @module @z/dsh-subagent
+ * @module @taskweaver/dsh-subagent
  */
-import type { Context } from '@z/cordis';
-import type { SessionId } from '@z/dsh-session';
+import type { Context } from '@taskweaver/cordis';
+import type { SessionId } from '@taskweaver/dsh-session';
 /**
  * One entry of a {@link listChildren} result, ordered by header `createdAt`
  * with ties broken on id. Only a candidate whose durable header has

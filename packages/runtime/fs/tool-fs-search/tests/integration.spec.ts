@@ -14,12 +14,12 @@ import { existsSync } from 'node:fs'
 import { mkdir, mkdtemp, rm, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { Context } from '@z/cordis'
-import { CallId } from '@z/dsh-llm'
-import SystemPrompt from '@z/dsh-system-prompt'
-import ToolRuntime, { TOOL_ABORTED_BEFORE_DISPATCH } from '@z/dsh-tools'
-import LocalSubprocessRuntime from '@z/dsh-subprocess-local'
-import * as ToolFsSearch from '@z/dsh-tool-fs-search'
+import { Context } from '@taskweaver/cordis'
+import { CallId } from '@taskweaver/dsh-llm'
+import SystemPrompt from '@taskweaver/dsh-system-prompt'
+import ToolRuntime, { TOOL_ABORTED_BEFORE_DISPATCH } from '@taskweaver/dsh-tools'
+import LocalSubprocessRuntime from '@taskweaver/dsh-subprocess-local'
+import * as ToolFsSearch from '@taskweaver/dsh-tool-fs-search'
 
 const testToolSignal = new AbortController().signal
 

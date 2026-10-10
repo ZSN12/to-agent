@@ -1,5 +1,5 @@
-import { composeError, Context } from '@z/cordis'
-import { isNonNullable, type Dict } from '@z/cosmokit'
+import { composeError, Context } from '@taskweaver/cordis'
+import { isNonNullable, type Dict } from '@taskweaver/cosmokit'
 import { Entry, type EntryOptions } from './entry.ts'
 import { EntryGroup } from './group.ts'
 

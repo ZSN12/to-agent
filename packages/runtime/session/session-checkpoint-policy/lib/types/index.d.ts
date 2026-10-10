@@ -1,9 +1,9 @@
 /**
  * Semantic durability checkpoints for model requests, top-level tool dispatch,
  * and completed agent steps.
- * @module @z/dsh-session-checkpoint-policy
+ * @module @taskweaver/dsh-session-checkpoint-policy
  */
-import type { Context } from '@z/cordis';
+import type { Context } from '@taskweaver/cordis';
 /** Cordis plugin name used by Loader diagnostics. */
 export declare const name = "session-checkpoint-policy";
 /** Services whose request, tool, session, and persistence boundaries this policy joins. */

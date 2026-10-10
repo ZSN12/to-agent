@@ -1,5 +1,5 @@
 //#region lib/types/invariant.js
-const PACKAGE_NAME = "@z/dsh-llm-taskweaver-bridge";
+const PACKAGE_NAME = "@taskweaver/dsh-llm-taskweaver-bridge";
 const name = "llm-taskweaver-bridge-invariant";
 const inject = ["invariants"];
 const install = () => {};

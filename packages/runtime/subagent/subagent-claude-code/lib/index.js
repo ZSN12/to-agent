@@ -1,17 +1,17 @@
-import z from "@z/schemastery";
-import { MAX_TIMER_DELAY_MS } from "@z/dsh-timeout";
-import { NO_START_CAPABILITIES, assertPositiveFinite, resolveChildCwd, settleRunResult, subprocessRunHandle } from "@z/dsh-subagent";
+import z from "@taskweaver/schemastery";
+import { MAX_TIMER_DELAY_MS } from "@taskweaver/dsh-timeout";
+import { NO_START_CAPABILITIES, assertPositiveFinite, resolveChildCwd, settleRunResult, subprocessRunHandle } from "@taskweaver/dsh-subagent";
 import { randomUUID } from "node:crypto";
 import { query } from "@anthropic-ai/claude-agent-sdk";
-import { SessionId } from "@z/dsh-session";
-import { scrubbedParentEnv } from "@z/dsh-subprocess";
+import { SessionId } from "@taskweaver/dsh-session";
+import { scrubbedParentEnv } from "@taskweaver/dsh-subprocess";
 import { EventEmitter } from "node:events";
 //#region lib/types/process.js
 /**
 * Projection from the shared managed-process handle to the official Claude
 * Agent SDK's custom-spawn process interface.
 *
-* @module @z/dsh-subagent-claude-code/process
+* @module @taskweaver/dsh-subagent-claude-code/process
 */
 function thrown$1(value) {
 	/* v8 ignore next -- the subprocess seam rejects with Error. */
@@ -122,7 +122,7 @@ var ManagedClaudeCodeProcess = class {
 * real CLI process under the shared subprocess owner, map only strict SDK
 * success to completion, and dispose to whole-tree quiescence.
 *
-* @module @z/dsh-subagent-claude-code/run
+* @module @taskweaver/dsh-subagent-claude-code/run
 */
 /** Default POSIX grace between subprocess termination tiers. */
 const DEFAULT_DISPOSE_GRACE_MS = 3e3;
@@ -497,7 +497,7 @@ async function startClaudeCodeRun(request, spec) {
 * invokes the official Agent SDK in the delegating Session's workspace and
 * places the SDK-spawned real CLI under the shared subprocess owner.
 *
-* @module @z/dsh-subagent-claude-code
+* @module @taskweaver/dsh-subagent-claude-code
 */
 const name = "subagent-claude-code";
 const inject = ["subagents", "subprocess"];

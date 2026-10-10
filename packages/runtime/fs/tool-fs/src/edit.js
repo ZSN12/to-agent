@@ -2,9 +2,9 @@
  * Model-facing literal edit, unique-match by default. It obtains an optional guard from the
  * single intent slot, calls `ctx.fs.editText` without a separate stat, then records the observed
  * version; no policy means an unconditional atomic edit.
- * @module @z/dsh-tool-fs/src/edit
+ * @module @taskweaver/dsh-tool-fs/src/edit
  */
-import { defineTool } from '@z/dsh-tools';
+import { defineTool } from '@taskweaver/dsh-tools';
 import { computeHunkDiffs, diffsFromMeta } from "./diff.js";
 import { remediateFsError } from "./error.js";
 import { sessionResolveOptions } from "./session-cwd.js";

@@ -1,7 +1,7 @@
 /** Scoped model-facing tools for the opt-in Agent Teams runtime. */
-import z from '@z/schemastery';
-import { TeamTaskId } from '@z/dsh-experimental-agent-team';
-import { defineTool } from '@z/dsh-tools';
+import z from '@taskweaver/schemastery';
+import { TeamTaskId } from '@taskweaver/dsh-experimental-agent-team';
+import { defineTool } from '@taskweaver/dsh-tools';
 /** Cordis plugin name. */
 export const name = 'tool-agent-team';
 /** Services required by the Team tool plugin. */

@@ -8,7 +8,7 @@ import { GenMapping, addMapping, toEncodedMap } from "@jridgewell/gen-mapping";
 * TypeScript project analyzer for the compiler-independent Typert model.
 * Programs, symbols, and syntax nodes remain extraction-only implementation
 * details; callers receive only the model declared in {@link ./model.ts}.
-* @module @z/dsh-typert-generator/analyzer
+* @module @taskweaver/dsh-typert-generator/analyzer
 */
 /** Analysis failure with a source-oriented diagnostic. */
 var TypertAnalysisError = class extends Error {
@@ -399,7 +399,7 @@ var FaceAnalyzer = class {
 		const services = [];
 		const events = [];
 		for (const sourceFile of reachable) for (const statement of sourceFile.statements) {
-			if (!ts.isModuleDeclaration(statement) || !ts.isStringLiteral(statement.name) || statement.name.text !== "@z/cordis" || statement.body === void 0 || !ts.isModuleBlock(statement.body)) continue;
+			if (!ts.isModuleDeclaration(statement) || !ts.isStringLiteral(statement.name) || statement.name.text !== "@taskweaver/cordis" || statement.body === void 0 || !ts.isModuleBlock(statement.body)) continue;
 			for (const member of statement.body.statements) {
 				if (!ts.isInterfaceDeclaration(member)) continue;
 				if (member.name.text === "Context") services.push(...this.collectServices(member, records));
@@ -873,7 +873,7 @@ var FaceAnalyzer = class {
 	typeMetaMapMembers(name) {
 		const result = [];
 		for (const sourceFile of this.program.getSourceFiles()) for (const statement of sourceFile.statements) {
-			if (!ts.isModuleDeclaration(statement) || !ts.isStringLiteral(statement.name) || statement.name.text !== "@z/dsh-typert-protocol" || statement.body === void 0 || !ts.isModuleBlock(statement.body)) continue;
+			if (!ts.isModuleDeclaration(statement) || !ts.isStringLiteral(statement.name) || statement.name.text !== "@taskweaver/dsh-typert-protocol" || statement.body === void 0 || !ts.isModuleBlock(statement.body)) continue;
 			for (const nested of statement.body.statements) if (ts.isInterfaceDeclaration(nested) && nested.name.text === name) result.push(...nested.members);
 		}
 		return result;
@@ -1276,8 +1276,8 @@ var FaceAnalyzer = class {
 		if (resolved.name !== name) return false;
 		const declaration = preferredDeclaration(resolved);
 		if (declaration === void 0) return false;
-		if (this.registrationForFile(declaration.getSourceFile().fileName)?.name === "@z/dsh-typert-protocol") return true;
-		for (let current = declaration; current !== void 0; current = optionalParent(current)) if (ts.isModuleDeclaration(current) && ts.isStringLiteral(current.name) && current.name.text === "@z/dsh-typert-protocol") return true;
+		if (this.registrationForFile(declaration.getSourceFile().fileName)?.name === "@taskweaver/dsh-typert-protocol") return true;
+		for (let current = declaration; current !== void 0; current = optionalParent(current)) if (ts.isModuleDeclaration(current) && ts.isStringLiteral(current.name) && current.name.text === "@taskweaver/dsh-typert-protocol") return true;
 		return false;
 	}
 	validateInvocationIdentity(packages) {
@@ -1922,7 +1922,7 @@ function sourceFileHasSurface(sourceFile) {
 				if (name === "Remote" || name === "RemoteScope") return true;
 			}
 		}
-		if (!ts.isModuleDeclaration(statement) || !ts.isStringLiteral(statement.name) || statement.name.text !== "@z/cordis" || statement.body === void 0 || !ts.isModuleBlock(statement.body)) continue;
+		if (!ts.isModuleDeclaration(statement) || !ts.isStringLiteral(statement.name) || statement.name.text !== "@taskweaver/cordis" || statement.body === void 0 || !ts.isModuleBlock(statement.body)) continue;
 		if (statement.body.statements.some((member) => ts.isInterfaceDeclaration(member) && (member.name.text === "Context" || member.name.text === "Events") && member.members.length > 0)) return true;
 	}
 	return false;
@@ -2282,7 +2282,7 @@ function compareCrossFaceLinks(left, right) {
 /**
 * Compiler-independent Typert analysis model. TypeScript nodes and checker
 * objects are extraction inputs only; emitters consume this graph.
-* @module @z/dsh-typert-generator/model
+* @module @taskweaver/dsh-typert-generator/model
 */
 /**
 * Return the direct type-expression edges owned by one node.
@@ -2333,7 +2333,7 @@ function assertNever$1(value) {
 /**
 * Rendering and traversal over the compiler-independent TypeGraph. Emitters
 * use this module instead of reaching back into TypeScript AST nodes.
-* @module @z/dsh-typert-generator/renderer
+* @module @taskweaver/dsh-typert-generator/renderer
 */
 /** Failure to render or traverse an internally inconsistent TypeGraph. */
 var TypeGraphRenderError = class extends Error {
@@ -2628,7 +2628,7 @@ function assertNever(value) {
 /**
 * Model-driven Typert artifact emitter. It consumes only FaceModel and
 * TypeGraph data; TypeScript compiler nodes are not part of this boundary.
-* @module @z/dsh-typert-generator/emitter
+* @module @taskweaver/dsh-typert-generator/emitter
 */
 /** Failure to project a modeled construct into an emitted artifact. */
 var TypertEmitError = class extends Error {
@@ -2717,7 +2717,7 @@ var FaceModelEmitter = class {
 		})).sort((left, right) => left.name.localeCompare(right.name));
 	}
 	renderJs(packageModel, schemas, runtimeModel) {
-		const lines = ["/* Generated by @z/dsh-typert-generator from FaceModel — do not edit. */"];
+		const lines = ["/* Generated by @taskweaver/dsh-typert-generator from FaceModel — do not edit. */"];
 		if (schemas.definitions.length > 0) lines.push("import { z } from 'zod'", "");
 		lines.push(...schemas.definitions);
 		if (schemas.definitions.length > 0) lines.push("");
@@ -2745,7 +2745,7 @@ var FaceModelEmitter = class {
 			names.push(`${schema.model.export.name} as ${schema.exportName}$source`);
 			imports.set(specifier, names);
 		}
-		const lines = ["/* Generated by @z/dsh-typert-generator from FaceModel — do not edit. */"];
+		const lines = ["/* Generated by @taskweaver/dsh-typert-generator from FaceModel — do not edit. */"];
 		if (schemas.exports.length > 0) lines.splice(1, 0, "import type { z } from 'zod'");
 		for (const [specifier, names] of [...imports].sort(([left], [right]) => left.localeCompare(right))) lines.push(`import type { ${names.sort().join(", ")} } from ${quote$1(specifier)}`);
 		lines.push("");
@@ -2756,7 +2756,7 @@ var FaceModelEmitter = class {
 	}
 	emitRemote(packageModel) {
 		const schemas = new SchemaEmitter(this.renderer, [], invocationBoundaryRoots(packageModel.invocations)).emit();
-		const lines = ["/* Generated by @z/dsh-typert-generator from the Host FaceModel — do not edit. */"];
+		const lines = ["/* Generated by @taskweaver/dsh-typert-generator from the Host FaceModel — do not edit. */"];
 		if (schemas.definitions.length > 0) lines.push("import { z } from 'zod'", "");
 		lines.push(...schemas.definitions);
 		if (schemas.definitions.length > 0) lines.push("");
@@ -2829,11 +2829,11 @@ var FaceModelEmitter = class {
 			grouped.set(imported.specifier, values);
 		}
 		const lines = [
-			"/* Generated by @z/dsh-typert-generator from the Host FaceModel — do not edit. */",
+			"/* Generated by @taskweaver/dsh-typert-generator from the Host FaceModel — do not edit. */",
 			"import type {",
 			"  RemoteResult,",
 			"  TypertRemoteContribution,",
-			"} from '@z/dsh-typert-protocol'"
+			"} from '@taskweaver/dsh-typert-protocol'"
 		];
 		const sourceMap = new GenMapping({ file: "typert.remote-client.d.ts" });
 		for (const [specifier, values] of [...grouped].sort(([left], [right]) => left.localeCompare(right))) {
@@ -2841,7 +2841,7 @@ var FaceModelEmitter = class {
 			lines.push(`import type { ${names.join(", ")} } from ${quote$1(specifier)}`);
 		}
 		lines.push("");
-		lines.push("declare module '@z/dsh-typert-protocol' {");
+		lines.push("declare module '@taskweaver/dsh-typert-protocol' {");
 		const direct = packageModel.invocations.filter((invocation) => invocation.invocation.kind === "direct");
 		const scoped = packageModel.invocations.filter((invocation) => invocation.invocation.kind === "context" || invocation.scope !== void 0);
 		if (direct.length > 0) {
@@ -3259,7 +3259,7 @@ function indent(value, spaces) {
 * Cordis catalog-specific projection over the compiler-independent Typert
 * model. This module owns Cordis validation and text projection mechanics;
 * callers supply repository-specific type classifications and inherited data.
-* @module @z/dsh-typert-generator
+* @module @taskweaver/dsh-typert-generator
 */
 /** Append fail-closed signature type-link violations from the retained type tree. */
 function checkTypeLinks(where, names, policy, violations) {
@@ -3708,7 +3708,7 @@ function renderRuntimeApi(services, events, types, inheritedServices) {
 		" * the same AST walk as docs/cordis-catalog, so this data and the rendered",
 		" * docs cannot diverge.",
 		" *",
-		" * @module @z/dsh-tool-cordis/api-catalog",
+		" * @module @taskweaver/dsh-tool-cordis/api-catalog",
 		" */",
 		"",
 		"/* jscpd:ignore-start */",
@@ -3967,7 +3967,7 @@ function renderInheritedPage(policy) {
 //#region lib/types/workspace.js
 /**
 * Workspace-level discovery and model-driven Typert generation.
-* @module @z/dsh-typert-generator/workspace
+* @module @taskweaver/dsh-typert-generator/workspace
 */
 /** Discover, analyze, and emit package reflection from independent faces. */
 var WorkspaceTypertGenerator = class {

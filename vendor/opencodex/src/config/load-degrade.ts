@@ -1,5 +1,4 @@
 import { isSubagentModelEntry, rawSubagentModelForce } from "./subagent-models";
-import { chmodSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { compactionRecoveryConfigError } from "./schema/compaction-recovery";
 import { blockedModelRedirectsError } from "./schema/blocked-model-redirects";
@@ -13,7 +12,7 @@ import {
   modelDisplayNamesConfigError,
 } from "./provider-validation";
 import { UPSTREAM_HOST_CIRCUIT_MAX_THRESHOLD } from "../codex/upstream-host-health";
-import { hardenSecretPath } from "../lib/windows-secret-acl";
+import { hardenExistingSecret } from "./file-security";
 import { redactSecretString } from "../lib/redact";
 import { isValidProviderName } from "./provider-name";
 import { MODEL_ALIAS_PATTERN } from "../providers/default-aliases";
@@ -45,14 +44,7 @@ import {
 } from "./schema/leaf-validators";
 import { hasWarnedInheritedFastWireConflict, markWarnedInheritedFastWireConflict } from "./warn-memo";
 
-export function hardenExistingSecret(path: string): void {
-  if (existsSync(path)) {
-    try { chmodSync(path, 0o600); } catch { /* best-effort */ }
-    if (process.platform === "win32") {
-      hardenSecretPath(path, { required: false });
-    }
-  }
-}
+export { hardenExistingSecret } from "./file-security";
 /** Load only: discard invalid optional pins without rewriting the file or losing providers. */
 export function sanitizeReasoningPinsForLoad(parsed: unknown): void {
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return;

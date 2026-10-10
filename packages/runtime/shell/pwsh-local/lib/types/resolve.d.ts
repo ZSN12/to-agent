@@ -5,7 +5,7 @@
  * resolved differently from the code under test could exempt a file whose
  * suites actually run.
  *
- * @module @z/dsh-pwsh-local/resolve
+ * @module @taskweaver/dsh-pwsh-local/resolve
  */
 /**
  * Well-known Windows PowerShell install locations plus PATH entries, newest

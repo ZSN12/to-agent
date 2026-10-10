@@ -11,14 +11,14 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import { createMessage } from '@z/dsh-llm'
-import SessionStore, { SessionId } from '@z/dsh-session'
-import type { Session, SessionEvent } from '@z/dsh-session'
-import SessionProjectionRegistry from '@z/dsh-session-projection'
-import * as SessionStatsPlugin from '@z/dsh-session-stats'
-import { sessionStatsProjectionDefinition } from '@z/dsh-session-stats/src/projection.ts'
-import type { SessionStatsProjection } from '@z/dsh-session-stats/types'
+import { Context } from '@taskweaver/cordis'
+import { createMessage } from '@taskweaver/dsh-llm'
+import SessionStore, { SessionId } from '@taskweaver/dsh-session'
+import type { Session, SessionEvent } from '@taskweaver/dsh-session'
+import SessionProjectionRegistry from '@taskweaver/dsh-session-projection'
+import * as SessionStatsPlugin from '@taskweaver/dsh-session-stats'
+import { sessionStatsProjectionDefinition } from '@taskweaver/dsh-session-stats/src/projection.ts'
+import type { SessionStatsProjection } from '@taskweaver/dsh-session-stats/types'
 
 async function harness(withStatsPlugin: boolean): Promise<{ ctx: Context; session: Session }> {
   const ctx = new Context()

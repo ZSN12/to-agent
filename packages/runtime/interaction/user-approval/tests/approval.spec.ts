@@ -1,13 +1,13 @@
 import { describe, expect, it, vi } from 'vitest'
-import { Context } from '@z/cordis'
-import type { Agent } from '@z/dsh-agent'
-import { CallId } from '@z/dsh-llm'
-import { carrierKeyOf, createScope } from '@z/dsh-scope'
-import type { Scope } from '@z/dsh-scope'
-import SessionStore, { Session, SessionId } from '@z/dsh-session'
-import type { SessionEvent } from '@z/dsh-session'
-import SystemPrompt from '@z/dsh-system-prompt'
-import ApprovalService, { ApprovalOutcome, ApprovalRequest, effectiveApprovalPolicy, setApprovalPolicy } from '@z/dsh-user-approval'
+import { Context } from '@taskweaver/cordis'
+import type { Agent } from '@taskweaver/dsh-agent'
+import { CallId } from '@taskweaver/dsh-llm'
+import { carrierKeyOf, createScope } from '@taskweaver/dsh-scope'
+import type { Scope } from '@taskweaver/dsh-scope'
+import SessionStore, { Session, SessionId } from '@taskweaver/dsh-session'
+import type { SessionEvent } from '@taskweaver/dsh-session'
+import SystemPrompt from '@taskweaver/dsh-system-prompt'
+import ApprovalService, { ApprovalOutcome, ApprovalRequest, effectiveApprovalPolicy, setApprovalPolicy } from '@taskweaver/dsh-user-approval'
 
 /**
  * A minimal Agent stand-in — the service only reaches `agent.session.append`

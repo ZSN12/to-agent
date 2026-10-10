@@ -6,15 +6,15 @@
  * Plugin lifecycle reads use the optional `ctx.fs` provider, so providerless products
  * mount it as a no-op.
  *
- * @module @z/dsh-agent-instructions
+ * @module @taskweaver/dsh-agent-instructions
  */
 
-import type { Context } from '@z/cordis'
+import type { Context } from '@taskweaver/cordis'
 import { isDeepStrictEqual } from 'node:util'
-import type { Agent, PreStepDecision } from '@z/dsh-agent'
-import { createUserMessage } from '@z/dsh-llm'
-import type { Session, UserMessage } from '@z/dsh-session'
-import type { ToolExecution, ToolExecutionResult, ToolExecutionToken } from '@z/dsh-tools'
+import type { Agent, PreStepDecision } from '@taskweaver/dsh-agent'
+import { createUserMessage } from '@taskweaver/dsh-llm'
+import type { Session, UserMessage } from '@taskweaver/dsh-session'
+import type { ToolExecution, ToolExecutionResult, ToolExecutionToken } from '@taskweaver/dsh-tools'
 import { Config, resolveConfig, workspaceBaselineIdentity, type ResolvedConfig } from './config.ts'
 import { findProjectRoot, loadBaselineInstructionSet } from './files.ts'
 import {

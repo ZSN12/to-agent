@@ -5,7 +5,7 @@
  */
 
 import { z } from 'zod'
-import type { AskUserQuestionAnswer } from '@z/dsh-user-questions/types'
+import type { AskUserQuestionAnswer } from '@taskweaver/dsh-user-questions/types'
 import type { QuestionResponsePayload } from './questions.ts'
 import type { Wire } from './rpc.schema.ts'
 import { sessionIdSchema } from './sessions.schema.ts'

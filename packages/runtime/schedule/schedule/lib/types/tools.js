@@ -1,8 +1,8 @@
 /**
  * Agent-scoped Schedule management tools over the durable session fold.
- * @module @z/dsh-schedule
+ * @module @taskweaver/dsh-schedule
  */
-import { defineTool } from '@z/dsh-tools';
+import { defineTool } from '@taskweaver/dsh-tools';
 import { allocateScheduleId, createAfterScheduleRecord, createAtScheduleRecord, createEveryScheduleRecord, foldScheduleEvents, MIN_EVERY_INTERVAL_SECONDS, ScheduleId, ScheduleInputError, ScheduleLogError, scheduleView, } from "./domain.js";
 import { flushSchedulePersistence } from "./persistence.js";
 import { runScheduleTransaction } from "./transaction.js";

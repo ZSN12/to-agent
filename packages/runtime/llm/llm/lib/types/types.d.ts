@@ -3,11 +3,11 @@
  * session log, and plugins. Adapters alone translate provider wire messages;
  * mapped interfaces make the content, source, and finish unions extensible.
  */
-import type { Branded } from '@z/dsh-brand';
-import type { ImageAttachmentRef } from '@z/dsh-attachment';
+import type { Branded } from '@taskweaver/dsh-brand';
+import type { ImageAttachmentRef } from '@taskweaver/dsh-attachment';
 import type { CallId, ProviderRequestId, ReasoningEffortId } from './brand.ts';
-import type { Message } from './message.ts';
-declare module '@z/cordis' {
+import type { Message, StructuredOutputSchema } from './message.ts';
+declare module '@taskweaver/cordis' {
     interface Events {
         /**
          * The provider topology changed: an adapter registered or unregistered
@@ -21,7 +21,7 @@ declare module '@z/cordis' {
         'llm/adapters-updated'(): void;
     }
 }
-export type { AssistantMessage, AssistantProvenance, Message, MessageSource, MessageSourceMap, ModelMessageSource, ToolMessageSource, ToolResultMessage, UserMessage, } from './message.ts';
+export type { AssistantMessage, AssistantProvenance, Message, MessageSource, MessageSourceMap, ModelMessageSource, StructuredOutputSchema, ToolMessageSource, ToolResultMessage, UserMessage, } from './message.ts';
 /** Serializable provider or transport failure facts; policy decides whether they are retryable. */
 export interface LlmFailure {
     /** Human-readable provider or transport failure. */
@@ -345,6 +345,8 @@ export interface GenerateOptions {
     system?: string;
     /** Tool schemas (adapters map to the provider's `tools` field). */
     tools?: ToolSchema[];
+    /** Per-turn object JSON Schema passed only by trusted orchestration. */
+    outputSchema?: StructuredOutputSchema;
     temperature?: number;
     maxTokens?: number;
     /**

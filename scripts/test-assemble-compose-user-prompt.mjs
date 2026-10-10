@@ -5,7 +5,7 @@ import path from 'node:path'
 import {
   assembleAndComposeUserPrompt,
   promptBudgetSnapshotFromStats,
-} from '../electron/backend/assemble-and-compose-user-prompt.mjs'
+} from '../desktop/backend/assemble-and-compose-user-prompt.mjs'
 
 const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'tw-compose-'))
 const workspacePath = path.join(tmp, 'repo')
@@ -17,7 +17,7 @@ await fs.writeFile(path.join(workspacePath, 'TASKWEAVER.md'), 'HOST_ROOT_RULE_MA
 await fs.writeFile(path.join(workspacePath, 'AGENTS.md'), 'HOST_AGENTS_RULE_MARKER\n')
 await fs.writeFile(path.join(workspacePath, '.taskweaver', 'rules.md'), 'TASKWEAVER_LOCAL_RULE_MARKER\n')
 await fs.writeFile(path.join(workspacePath, '.cursor', 'rules', 'local.mdc'), 'CURSOR_LOCAL_RULE_MARKER\n')
-const targetRel = 'electron/backend/register-ipc.mjs'
+const targetRel = 'desktop/backend/register-ipc.mjs'
 await fs.writeFile(path.join(workspacePath, targetRel), '// fixture\n')
 
 const result = await assembleAndComposeUserPrompt({
@@ -35,7 +35,7 @@ const result = await assembleAndComposeUserPrompt({
   },
 })
 
-assert.ok(result.effectivePrompt.includes('解释 @file:electron/backend/register-ipc.mjs'))
+assert.ok(result.effectivePrompt.includes('解释 @file:desktop/backend/register-ipc.mjs'))
 assert.ok(result.effectivePrompt.includes('sandbox: read-only'))
 assert.ok(result.effectivePrompt.includes('TASKWEAVER_LOCAL_RULE_MARKER'))
 assert.ok(result.effectivePrompt.includes('CURSOR_LOCAL_RULE_MARKER'))
@@ -81,8 +81,8 @@ assert.equal(snapshot.conversationId, 'conv-1')
 assert.equal(snapshot.scope, 'test')
 assert.equal(snapshot.contextTruncated, result.assembled.contextTruncated === true)
 
-const pipelineSource = await fs.readFile(new URL('../electron/backend/chat-turn-pipeline.mjs', import.meta.url), 'utf8')
-const chatIpcSource = await fs.readFile(new URL('../electron/backend/ipc/register-chat-ipc.mjs', import.meta.url), 'utf8')
+const pipelineSource = await fs.readFile(new URL('../desktop/backend/chat-turn-pipeline.mjs', import.meta.url), 'utf8')
+const chatIpcSource = await fs.readFile(new URL('../desktop/backend/ipc/register-chat-ipc.mjs', import.meta.url), 'utf8')
 assert.match(pipelineSource, /assembleAndComposeUserPrompt/)
 assert.match(chatIpcSource, /tasks:sendMessage[\s\S]*runTaskMessage/)
 assert.match(pipelineSource, /runTaskMessage[\s\S]*assembleAndComposeUserPrompt/)

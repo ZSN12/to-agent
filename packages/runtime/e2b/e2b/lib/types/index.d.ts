@@ -1,10 +1,10 @@
 /**
  * Shared ownership of one E2B sandbox. Capability adapters await the same SDK
  * handle, so filesystem and process operations inhabit one remote Linux world.
- * @module @z/dsh-e2b
+ * @module @taskweaver/dsh-e2b
  */
-import { Context, Service } from '@z/cordis';
-import z from '@z/schemastery';
+import { Context, Service } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
 import { Sandbox } from 'e2b';
 export { CommandExitError, FileNotFoundError, FileType, Sandbox, SandboxNotFoundError, } from 'e2b';
 export type { CommandHandle, CommandResult, EntryInfo } from 'e2b';
@@ -29,7 +29,7 @@ export interface Config {
     /** E2B sandbox lifetime in milliseconds; expiry always deletes the sandbox. */
     timeoutMs?: number;
 }
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
     interface Context {
         e2b: E2BRuntime;
     }

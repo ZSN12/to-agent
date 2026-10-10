@@ -1,8 +1,8 @@
 /** E2B PTY allocation and process-session ownership for the subprocess seam. */
 import { PassThrough } from 'node:stream';
-import type { CommandHandle, CommandResult, Sandbox } from '@z/dsh-e2b';
-import type { SubprocessOutcome, SubprocessTerminalForeground, SubprocessTerminalHandle, SubprocessTerminalSignal, SubprocessTerminalSpawnSpec } from '@z/dsh-subprocess';
-import type E2BRuntime from '@z/dsh-e2b';
+import type { CommandHandle, CommandResult, Sandbox } from '@taskweaver/dsh-e2b';
+import type { SubprocessOutcome, SubprocessTerminalForeground, SubprocessTerminalHandle, SubprocessTerminalSignal, SubprocessTerminalSpawnSpec } from '@taskweaver/dsh-subprocess';
+import type E2BRuntime from '@taskweaver/dsh-e2b';
 /** One E2B PTY and all process groups in its remote process session. */
 export declare class E2BTerminalHandle implements SubprocessTerminalHandle {
     private readonly sandbox;

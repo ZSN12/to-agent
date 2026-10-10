@@ -1,10 +1,10 @@
-/** Package-owned invariant companion for `@z/dsh-attachment`. @module @z/dsh-attachment/invariant */
+/** Package-owned invariant companion for `@taskweaver/dsh-attachment`. @module @taskweaver/dsh-attachment/invariant */
 
 /* jscpd:ignore-start */
-import type { Context } from '@z/cordis'
-import type { InvariantInstaller } from '@z/dsh-invariants'
+import type { Context } from '@taskweaver/cordis'
+import type { InvariantInstaller } from '@taskweaver/dsh-invariants'
 
-const PACKAGE_NAME = '@z/dsh-attachment'
+const PACKAGE_NAME = '@taskweaver/dsh-attachment'
 /** Cordis companion plugin name. */
 export const name = 'attachment-invariant'
 /** Service required before package ownership can be reserved. */

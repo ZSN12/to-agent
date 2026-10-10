@@ -1,4 +1,3 @@
-"use strict";
 /**
  * Construction of the pi-ai `Provider` that one configured route registers into
  * the adapter's `Models` collection.
@@ -19,25 +18,11 @@
  *
  * @module dsh-llm-pi-ai/provider
  */
-var __assign = (this && this.__assign) || function () {
-    __assign = Object.assign || function(t) {
-        for (var s, i = 1, n = arguments.length; i < n; i++) {
-            s = arguments[i];
-            for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p))
-                t[p] = s[p];
-        }
-        return t;
-    };
-    return __assign.apply(this, arguments);
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.supportedProtocols = supportedProtocols;
-exports.buildProvider = buildProvider;
-var pi_ai_1 = require("@earendil-works/pi-ai");
-var anthropic_messages_lazy_1 = require("@earendil-works/pi-ai/api/anthropic-messages.lazy");
-var openai_completions_lazy_1 = require("@earendil-works/pi-ai/api/openai-completions.lazy");
-var openai_responses_lazy_1 = require("@earendil-works/pi-ai/api/openai-responses.lazy");
-var catalog_ts_1 = require("./catalog.ts");
+import { createProvider } from '@earendil-works/pi-ai';
+import { anthropicMessagesApi } from '@earendil-works/pi-ai/api/anthropic-messages.lazy';
+import { openAICompletionsApi } from '@earendil-works/pi-ai/api/openai-completions.lazy';
+import { openAIResponsesApi } from '@earendil-works/pi-ai/api/openai-responses.lazy';
+import { catalogProvider } from "./catalog.js";
 /**
  * Wire protocols a configured route may name, mapped to pi-ai's lazily loaded
  * implementations. Each entry is the factory that pi-ai's matching provider
@@ -56,10 +41,10 @@ var catalog_ts_1 = require("./catalog.ts");
  * still reach every protocol through their own provider; only an explicit
  * override is refused.
  */
-var PROTOCOLS = {
-    'openai-completions': openai_completions_lazy_1.openAICompletionsApi,
-    'openai-responses': openai_responses_lazy_1.openAIResponsesApi,
-    'anthropic-messages': anthropic_messages_lazy_1.anthropicMessagesApi,
+const PROTOCOLS = {
+    'openai-completions': openAICompletionsApi,
+    'openai-responses': openAIResponsesApi,
+    'anthropic-messages': anthropicMessagesApi,
 };
 /**
  * Every wire protocol a configured route may name, most-reached first. The
@@ -69,7 +54,7 @@ var PROTOCOLS = {
  * can read — leads.
  * @returns the supported protocol identifiers.
  */
-function supportedProtocols() {
+export function supportedProtocols() {
     return Object.keys(PROTOCOLS);
 }
 /**
@@ -86,14 +71,11 @@ function supportedProtocols() {
  */
 function harnessApiKeyAuth(name) {
     return {
-        name: name,
-        resolve: function (_a) {
-            var credential = _a.credential;
-            return Promise.resolve({
-                auth: (credential === null || credential === void 0 ? void 0 : credential.key) === undefined ? {} : { apiKey: credential.key },
-                source: name,
-            });
-        },
+        name,
+        resolve: ({ credential }) => Promise.resolve({
+            auth: credential?.key === undefined ? {} : { apiKey: credential.key },
+            source: name,
+        }),
     };
 }
 /**
@@ -123,7 +105,7 @@ function routeAuth(spec, catalog) {
         return { apiKey: harnessApiKeyAuth(spec.displayName) };
     if (catalog.auth.apiKey !== undefined || !spec.namesCredential)
         return catalog.auth;
-    return __assign(__assign({}, catalog.auth), { apiKey: harnessApiKeyAuth(spec.displayName) });
+    return { ...catalog.auth, apiKey: harnessApiKeyAuth(spec.displayName) };
 }
 /**
  * Reuse an installed catalog provider with this route's models and identity.
@@ -133,14 +115,20 @@ function routeAuth(spec, catalog) {
  * settings document, and a background refresh would contradict it.
  */
 function reuseCatalogProvider(base, spec) {
-    var _a;
     // Provider-level `baseUrl` is display metadata: pi-ai routes every request
     // through `Model.baseUrl`, which model resolution has already overridden.
-    var baseUrl = (_a = spec.baseURL) !== null && _a !== void 0 ? _a : base.baseUrl;
-    return __assign(__assign({ id: spec.provider, name: spec.displayName }, baseUrl === undefined ? {} : { baseUrl: baseUrl }), { auth: routeAuth(spec, base), getModels: function () { return spec.models; }, 
+    const baseUrl = spec.baseURL ?? base.baseUrl;
+    return {
+        id: spec.provider,
+        name: spec.displayName,
+        ...baseUrl === undefined ? {} : { baseUrl },
+        auth: routeAuth(spec, base),
+        getModels: () => spec.models,
         // Delegated rather than copied: the catalog provider stays the receiver, so
         // an implementation holding state on itself keeps working.
-        stream: function (model, context, options) { return base.stream(model, context, options); }, streamSimple: function (model, context, options) { return base.streamSimple(model, context, options); } });
+        stream: (model, context, options) => base.stream(model, context, options),
+        streamSimple: (model, context, options) => base.streamSimple(model, context, options),
+    };
 }
 /**
  * Build the pi-ai provider for one resolved route.
@@ -148,8 +136,8 @@ function reuseCatalogProvider(base, spec) {
  * @returns the provider to register in the adapter's `Models` collection.
  * @throws Error when the route names a wire protocol this build cannot serve.
  */
-function buildProvider(spec) {
-    var catalog = (0, catalog_ts_1.catalogProvider)(spec.provider);
+export function buildProvider(spec) {
+    const catalog = catalogProvider(spec.provider);
     // A catalog route keeping its catalog protocol reuses the catalog provider;
     // an explicit protocol means the deployment is repointing the route at a
     // different wire format, which only the protocol table can serve.
@@ -158,10 +146,18 @@ function buildProvider(spec) {
     // Every model on this path carries the route's protocol: model resolution
     // requires one for a route the catalog cannot default, and an explicit one
     // replaces each catalog model's own. So the route has a single API.
-    var factory = spec.api === undefined ? undefined : PROTOCOLS[spec.api];
+    const factory = spec.api === undefined ? undefined : PROTOCOLS[spec.api];
     if (factory === undefined) {
-        throw new Error("llm-pi-ai: provider \"".concat(spec.provider, "\" names api \"").concat(spec.api, "\", which this build cannot serve;")
-            + " supported protocols are ".concat(supportedProtocols().join(', ')));
+        throw new Error(`llm-pi-ai: provider "${spec.provider}" names api "${spec.api}", which this build cannot serve;`
+            + ` supported protocols are ${supportedProtocols().join(', ')}`);
     }
-    return (0, pi_ai_1.createProvider)(__assign(__assign({ id: spec.provider, name: spec.displayName }, spec.baseURL === undefined ? {} : { baseUrl: spec.baseURL }), { auth: routeAuth(spec, catalog), models: spec.models, api: factory() }));
+    return createProvider({
+        id: spec.provider,
+        name: spec.displayName,
+        ...spec.baseURL === undefined ? {} : { baseUrl: spec.baseURL },
+        auth: routeAuth(spec, catalog),
+        models: spec.models,
+        api: factory(),
+    });
 }
+//# sourceMappingURL=provider.js.map

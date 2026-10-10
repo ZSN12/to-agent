@@ -2,7 +2,7 @@
  * TypeScript project analyzer for the compiler-independent Typert model.
  * Programs, symbols, and syntax nodes remain extraction-only implementation
  * details; callers receive only the model declared in {@link ./model.ts}.
- * @module @z/dsh-typert-generator/analyzer
+ * @module @taskweaver/dsh-typert-generator/analyzer
  */
 import ts from 'typescript';
 import type { SourceDeclarationModel, TypertFace, WorkspaceModel } from './model.ts';

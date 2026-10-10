@@ -10,8 +10,8 @@ import {
   createToolResultMessage,
   createUserMessage,
   isTokenDelta,
-} from '@z/dsh-llm/message'
-import { CallId } from '@z/dsh-llm/brand'
+} from '@taskweaver/dsh-llm/message'
+import { CallId } from '@taskweaver/dsh-llm/brand'
 import type {
   AssistantMessage,
   ContentBlock,
@@ -19,24 +19,24 @@ import type {
   TokenUsage,
   ToolResultMessage,
   UserMessage,
-} from '@z/dsh-llm'
-import type { AttachmentIdType, ImageAttachmentRef } from '@z/dsh-attachment'
+} from '@taskweaver/dsh-llm'
+import type { AttachmentIdType, ImageAttachmentRef } from '@taskweaver/dsh-attachment'
 import type {
   SessionEvent,
   SessionId,
   TodoItem,
-} from '@z/dsh-session/types'
+} from '@taskweaver/dsh-session/types'
 // Type-only: the brand constructor is host-side; the fixture casts at its
 // wire-fabrication boundary (the schema layer's one-cast-point posture).
-import type { CommandId } from '@z/dsh-commands/brand'
-import type { CommandDescriptor, CommandExecution, CommandResult } from '@z/dsh-commands/types'
-import { deriveEventMessage, foldSurface } from '@z/dsh-session/surface'
+import type { CommandId } from '@taskweaver/dsh-commands/brand'
+import type { CommandDescriptor, CommandExecution, CommandResult } from '@taskweaver/dsh-commands/types'
+import { deriveEventMessage, foldSurface } from '@taskweaver/dsh-session/surface'
 import type {
   ApiProxy, ClientRequest, ClientResponse, HistoryEntry, HostFrame, MuxFrame, RpcReceipt,
   ModelProviderGroup, ModelSelection, RpcRequest, RpcResponse, RpcResult, ServerRequest, ServerResponse, SessionSummary,
   ToolCallView, ToolEventView, ToolResultView, WorkspaceId, WorkspaceView,
 } from './api.ts'
-import type { RequestPayload, ResponseValue, RpcMethodMap } from '@z/dsh-host-apiproxy/api'
+import type { RequestPayload, ResponseValue, RpcMethodMap } from '@taskweaver/dsh-host-apiproxy/api'
 import { AbstractApiClient, RpcId, SESSION_SEARCH_RESULT_LIMIT } from './api.ts'
 import { randomUuid } from './random-uuid.ts'
 import type { ClientConnectionRpc } from '../rpc.ts'
@@ -1569,11 +1569,11 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
    * roster a GUI journey sees after writing is the text it wrote.
    */
   const fixturePresets = new Map<string, { trust: 'system' | 'user'; content: string }>([
-    ['standard', { trust: 'system', content: "- id: tool-bash\n  name: '@z/dsh-tool-bash'\n" }],
-    ['minimal', { trust: 'system', content: "- id: tool-web-search\n  name: '@z/dsh-tool-web-search'\n" }],
-    ['my-agent', { trust: 'user', content: "- id: tool-read\n  name: '@z/dsh-tool-read'\n" }],
+    ['tw-default', { trust: 'system', content: "- id: tool-bash\n  name: '@taskweaver/dsh-tool-bash'\n" }],
+    ['minimal', { trust: 'system', content: "- id: tool-web-search\n  name: '@taskweaver/dsh-tool-web-search'\n" }],
+    ['my-agent', { trust: 'user', content: "- id: tool-read\n  name: '@taskweaver/dsh-tool-read'\n" }],
   ])
-  let fixtureDefaultPreset = 'standard'
+  let fixtureDefaultPreset = 'tw-default'
   const nextTurn = new Map<SessionId, number>([[sid('fx-alpha'), 75]])
   let nextSession = 1
   let nextRpc = 1
@@ -1603,35 +1603,6 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
   // their workspace accounting slot and only grouping surfaces hide them.
   const archivedSessionIds: SessionId[] = []
 
-  // In-memory browse tree behind the fixture's `browse` picker capability —
-  // deterministic content mirroring the design mock so assembled Web tests
-  // and snapshots can walk it. Leaves are materialized lazily: a child listed
-  // by its parent lists as empty until something is created inside it.
-  const directoryTree = new Map<string, string[]>([
-    ['/', ['home']],
-    ['/home', ['fixture']],
-    [FIXTURE_HOME, ['Documents', 'Downloads', '.config']],
-    [`${FIXTURE_HOME}/Documents`, [
-      'project', 'deepseek-iOS', 'deepseek-android', 'deepseek-platform',
-      'deepseek-web', 'deepseek-harness', 'deepseek-app', 'deepseek-landing-blog',
-    ]],
-  ])
-  const childrenOf = (path: string): string[] | undefined => {
-    const known = directoryTree.get(path)
-    if (known !== undefined) return known
-    const parent = path.slice(0, path.lastIndexOf('/')) || '/'
-    const name = path.slice(path.lastIndexOf('/') + 1)
-    return directoryTree.get(parent)?.includes(name) === true ? [] : undefined
-  }
-  const crumbsOf = (path: string): { name: string; path: string; hidden: boolean }[] => {
-    const crumbs = [{ name: '/', path: '/', hidden: false }]
-    let acc = ''
-    for (const segment of path.split('/').filter(Boolean)) {
-      acc += `/${segment}`
-      crumbs.push({ name: segment, path: acc, hidden: false })
-    }
-    return crumbs
-  }
   const mint = (): ReturnType<typeof RpcId> => RpcId(`fx-rpc-${nextRpc++}`)
   /** Resident pending approval (stable rpcId: every mux open replays the same id while unanswered, matching host replay semantics). */
   const pendingApprovalRpcId = mint()
@@ -2646,43 +2617,11 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
       describe: request => ok(request, {
         version: '0.0.0-fixture', cwd: '/tmp/fixture', attachedSessions, home: FIXTURE_HOME, canOpenPath: true,
       }),
-      // Deterministic native pick: the keyless lanes drive the full
-      // pick-then-adopt path without an OS chooser (design-mock content,
-      // same tree the browse primitives serve).
+      // Deterministic native pick: keyless lanes drive pick-then-adopt
+      // without opening a real OS chooser.
       pickDirectory: request => ok(request, { path: `${FIXTURE_HOME}/Documents/project` }),
-      listDirectory: (request) => {
-        const target = request.payload.path ?? FIXTURE_HOME
-        const children = childrenOf(target)
-        if (children === undefined) {
-          return err(request, { code: 'directory-unreadable', message: `cannot list ${target}: not in the fixture tree`, details: { path: target } })
-        }
-        return ok(request, {
-          path: target,
-          home: FIXTURE_HOME,
-          crumbs: crumbsOf(target),
-          entries: [...children].sort((a, b) => a.localeCompare(b))
-            .map(name => ({ name, path: target === '/' ? `/${name}` : `${target}/${name}`, hidden: name.startsWith('.') })),
-          // The fixture tree is tiny; no level ever reaches a backend bound.
-          truncated: false,
-        })
-      },
-      createDirectory: (request) => {
-        const parent = request.payload.path
-        const children = childrenOf(parent)
-        if (children === undefined) {
-          return err(request, { code: 'directory-create-failed', message: `missing parent ${parent}`, details: { path: parent } })
-        }
-        // Same root special case as listDirectory's entry paths: a plain join
-        // under '/' would mint '//name' and fork the tree's identity.
-        const target = parent === '/' ? `/${request.payload.name}` : `${parent}/${request.payload.name}`
-        if (children.includes(request.payload.name)) {
-          return err(request, { code: 'directory-exists', message: `${target} already exists`, details: { path: target } })
-        }
-        directoryTree.set(parent, [...children, request.payload.name])
-        directoryTree.set(target, [])
-        return ok(request, { path: target })
-      },
       openPath: request => ok(request, { opened: true as const }),
+      searchWeb: request => ok(request, { sources: [], truncated: false }),
     },
     workspace: {
       list: request => ok(request, {
@@ -3227,8 +3166,6 @@ export class FixtureApiClient extends AbstractApiClient {
       case 'subagent.interrupt': return this.api.subagents.interrupt(request)
       case 'host.describe': return this.api.host.describe(request)
       case 'host.pickDirectory': return this.api.host.pickDirectory(request, new AbortController().signal)
-      case 'host.listDirectory': return this.api.host.listDirectory(request, new AbortController().signal)
-      case 'host.createDirectory': return this.api.host.createDirectory(request)
       case 'host.openPath': return this.api.host.openPath(request, new AbortController().signal)
       case 'workspace.list': return this.api.workspace.list(request)
       case 'workspace.create': return this.api.workspace.create(request)

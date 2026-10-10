@@ -1,7 +1,7 @@
-import { Context, Service, type Plugin } from '@z/cordis';
+import { Context, Service, type Plugin } from '@taskweaver/cordis';
 import { type ChokidarOptions } from 'chokidar';
-import z from '@z/schemastery';
-declare module '@z/cordis' {
+import z from '@taskweaver/schemastery';
+declare module '@taskweaver/cordis' {
     interface Context {
         hmr: Hmr;
     }

@@ -7,11 +7,11 @@
  * must stub); runtime-internal entry points (history staging, wire-frame
  * dispatch) stay on the class, invisible out here.
  */
-import type { AttachmentIdType, ImageAttachmentRef } from '@z/dsh-attachment'
+import type { AttachmentIdType, ImageAttachmentRef } from '@taskweaver/dsh-attachment'
 import type {
   MessageId, PromptContentPart, QueueAction, RpcResult, SessionId,
-} from '@z/dsh-api-remotes/client'
-import type { RemoteResult } from '@z/dsh-typert-protocol'
+} from '@taskweaver/dsh-api-remotes/client'
+import type { RemoteResult } from '@taskweaver/dsh-typert-protocol'
 import type { ConversationSnapshot } from '../sessions/conversation.ts'
 import type { ObservableSnapshot } from './store.ts'
 

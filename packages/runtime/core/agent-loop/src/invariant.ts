@@ -1,14 +1,14 @@
 /**
  * Package-owned request-reconstruction invariant for loop-built LLM calls.
- * @module @z/dsh-agent-loop/invariant
+ * @module @taskweaver/dsh-agent-loop/invariant
  */
 
-import type { Context } from '@z/cordis'
-import { isAgentLoopRequest, type GenerateOptions } from '@z/dsh-llm'
-import type { InvariantFailure, InvariantInstaller } from '@z/dsh-invariants'
-import { foldRequestHeader } from '@z/dsh-session'
+import type { Context } from '@taskweaver/cordis'
+import { isAgentLoopRequest, type GenerateOptions } from '@taskweaver/dsh-llm'
+import type { InvariantFailure, InvariantInstaller } from '@taskweaver/dsh-invariants'
+import { foldRequestHeader } from '@taskweaver/dsh-session'
 
-const PACKAGE_NAME = '@z/dsh-agent-loop'
+const PACKAGE_NAME = '@taskweaver/dsh-agent-loop'
 
 /** Cordis companion plugin name. */
 export const name = 'agent-loop-invariant'

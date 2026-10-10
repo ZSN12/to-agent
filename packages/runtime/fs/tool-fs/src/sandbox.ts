@@ -2,20 +2,20 @@
  * The sandbox-escalation API shared by the `write` and `edit` tools: the
  * per-call policy resolution, the advertised escalation fields, and the denial-marker
  * mapping — all delegating the vocabulary and the fail-closed approval
- * sequence to `@z/dsh-sandbox` (the same pieces `@z/dsh-tool-bash`
+ * sequence to `@taskweaver/dsh-sandbox` (the same pieces `@taskweaver/dsh-tool-bash`
  * uses), so bash and fs escalate identically. Built ONCE per plugin from
  * `ctx.fs.sandboxMode` (the capability fact — is a confining backend mounted?)
  * and shared by both mutating tools.
  *
- * @module @z/dsh-tool-fs/sandbox
+ * @module @taskweaver/dsh-tool-fs/sandbox
  */
 
-import type { Context } from '@z/cordis'
-import type { ToolExecution } from '@z/dsh-tools'
-import type { SandboxExecutionPolicy, SandboxMode } from '@z/dsh-sandbox'
-import { ESCALATION_TARGETS, approveEscalation, escalationHintMarker, sandboxDenialMarker, validateEscalationArgs } from '@z/dsh-sandbox'
-import type { SandboxPolicyService } from '@z/dsh-sandbox-policy'
-import { FsError } from '@z/dsh-fs'
+import type { Context } from '@taskweaver/cordis'
+import type { ToolExecution } from '@taskweaver/dsh-tools'
+import type { SandboxExecutionPolicy, SandboxMode } from '@taskweaver/dsh-sandbox'
+import { ESCALATION_TARGETS, approveEscalation, escalationHintMarker, sandboxDenialMarker, validateEscalationArgs } from '@taskweaver/dsh-sandbox'
+import type { SandboxPolicyService } from '@taskweaver/dsh-sandbox-policy'
+import { FsError } from '@taskweaver/dsh-fs'
 
 /** The two escalation arguments a mutating tool may carry (advertised only under a confining backend). */
 export interface FsEscalationArgs {

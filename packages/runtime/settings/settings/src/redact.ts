@@ -4,10 +4,10 @@
  * each schema-declared secret position and whether it currently holds a value,
  * so a configuration surface can render a write-only input without ever
  * receiving the secret itself.
- * @module @z/dsh-settings/redact
+ * @module @taskweaver/dsh-settings/redact
  */
 
-import type z from '@z/schemastery'
+import type z from '@taskweaver/schemastery'
 
 /**
  * Minimal structural view of a live schemastery node. Only the relations the

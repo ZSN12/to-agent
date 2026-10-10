@@ -10,21 +10,21 @@
  * @module dsh-permission-presets
  */
 
-import { Context, Service } from '@z/cordis'
-import z from '@z/schemastery'
+import { Context, Service } from '@taskweaver/cordis'
+import z from '@taskweaver/schemastery'
 import { z as zod } from 'zod'
-import type { Session, SessionEvent } from '@z/dsh-session'
-import type { SandboxMode } from '@z/dsh-sandbox'
-import { SANDBOX_MODES, effectiveSandboxMode, setSandboxMode } from '@z/dsh-sandbox-policy'
+import type { Session, SessionEvent } from '@taskweaver/dsh-session'
+import type { SandboxMode } from '@taskweaver/dsh-sandbox'
+import { SANDBOX_MODES, effectiveSandboxMode, setSandboxMode } from '@taskweaver/dsh-sandbox-policy'
 // Side-effect type import: declaration-merges `ctx.shell` (the capability fact
 // `sandboxMode` this service reads), without a value dependency on the seam.
-import type {} from '@z/dsh-shell'
-import type { ApprovalPolicy } from '@z/dsh-user-approval'
-import { APPROVAL_POLICIES, effectiveApprovalPolicy, setApprovalPolicy } from '@z/dsh-user-approval'
-import { installSettingsSection, settingsNamespace } from '@z/dsh-settings'
+import type {} from '@taskweaver/dsh-shell'
+import type { ApprovalPolicy } from '@taskweaver/dsh-user-approval'
+import { APPROVAL_POLICIES, effectiveApprovalPolicy, setApprovalPolicy } from '@taskweaver/dsh-user-approval'
+import { installSettingsSection, settingsNamespace } from '@taskweaver/dsh-settings'
 // Type-only: resolves ctx.sessionProjections / ctx.commands for the optional children.
-import type {} from '@z/dsh-session-projection'
-import type {} from '@z/dsh-commands'
+import type {} from '@taskweaver/dsh-session-projection'
+import type {} from '@taskweaver/dsh-commands'
 import type { PermissionSelect, PresetOption } from './types.ts'
 
 // The `permissions` projection-key declaration lives in src/types.ts (its one
@@ -33,13 +33,13 @@ import type { PermissionSelect, PresetOption } from './types.ts'
 // consuming the declarations still receive the SessionProjectionMap merge.
 export type * from './types.ts'
 
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
   interface Context {
     permissionPresets: PermissionPresetService
   }
 }
 
-declare module '@z/dsh-session/types' {
+declare module '@taskweaver/dsh-session/types' {
   interface SessionEventMap {
     /**
      * Records the selected preset as durable, log-only user intent. The knob
@@ -100,7 +100,7 @@ export interface KnobState {
   approval: ApprovalPolicy | null
 }
 
-declare module '@z/dsh-session-projection/types' {
+declare module '@taskweaver/dsh-session-projection/types' {
   interface SessionProjectionStateMap {
     permissions: KnobState
   }

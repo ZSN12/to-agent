@@ -2,14 +2,14 @@ import { chmod, mkdtemp, mkdir, rm, stat, symlink, utimes, writeFile } from 'nod
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
 import { describe, expect, it, vi } from 'vitest'
-import { Context } from '@z/cordis'
-import Loader from '@z/cordis-plugin-loader'
-import * as workspaceContext from '@z/dsh-agent-instructions'
-import LlmRuntime, { createUserMessage, CallId, type Message, type StreamChunk } from '@z/dsh-llm'
-import SessionStore, { Session, SessionId, SESSION_FORMAT_VERSION, type SessionEvent, type UserMessage } from '@z/dsh-session'
-import AgentRegistry, { agentEvents, Inbox, type Agent } from '@z/dsh-agent'
-import AgentLoop from '@z/dsh-agent-loop'
-import { FileSystem, FsTargetKey, FsVersion } from '@z/dsh-fs'
+import { Context } from '@taskweaver/cordis'
+import Loader from '@taskweaver/cordis-plugin-loader'
+import * as workspaceContext from '@taskweaver/dsh-agent-instructions'
+import LlmRuntime, { createUserMessage, CallId, type Message, type StreamChunk } from '@taskweaver/dsh-llm'
+import SessionStore, { Session, SessionId, SESSION_FORMAT_VERSION, type SessionEvent, type UserMessage } from '@taskweaver/dsh-session'
+import AgentRegistry, { agentEvents, Inbox, type Agent } from '@taskweaver/dsh-agent'
+import AgentLoop from '@taskweaver/dsh-agent-loop'
+import { FileSystem, FsTargetKey, FsVersion } from '@taskweaver/dsh-fs'
 import type {
   FsDirEntry,
   FsEditOutcome,
@@ -19,20 +19,20 @@ import type {
   FsTarget,
   FsWriteIntent,
   FsWriteOutcome,
-} from '@z/dsh-fs'
-import LocalFileSystem from '@z/dsh-fs-local'
-import SystemPrompt from '@z/dsh-system-prompt'
-import ToolRuntime, { defineContentToolFixture } from '@z/dsh-tools'
+} from '@taskweaver/dsh-fs'
+import LocalFileSystem from '@taskweaver/dsh-fs-local'
+import SystemPrompt from '@taskweaver/dsh-system-prompt'
+import ToolRuntime, { defineContentToolFixture } from '@taskweaver/dsh-tools'
 import type {
   ToolExecution,
   ToolExecutionToken,
-} from '@z/dsh-tools'
-import * as ToolFs from '@z/dsh-tool-fs'
+} from '@taskweaver/dsh-tools'
+import * as ToolFs from '@taskweaver/dsh-tool-fs'
 import {
   discoverBaselineInstructionFiles,
   loadBaselineInstructions,
   renderWorkspaceContext,
-} from '@z/dsh-agent-instructions'
+} from '@taskweaver/dsh-agent-instructions'
 import {
   applyInstructionVersionUpdates,
   baselineInstructionState,
@@ -321,7 +321,7 @@ describe('workspace context instruction discovery', () => {
       const files = await discoverBaselineInstructionFiles({ cwd, dshHome: home })
 
       expect(files.map(file => file.displayPath)).toEqual([
-        '$DSH_HOME/AGENTS.md',
+        '$TASKWEAVER_HOME/AGENTS.md',
         'AGENTS.md',
         'CLAUDE.md',
         join('packages', 'CLAUDE.md'),
@@ -578,11 +578,11 @@ describe('workspace context instruction discovery', () => {
   it('defaults dshHome and uses cwd itself as root when no project marker exists', async () => {
     const root = await tempRepo()
     const emptyHome = await tempRepo()
-    // Isolate the default-home fallback: blank DSH_HOME is treated as unset, and
-    // the home dirs point at an empty dir so the default ~/.dsh holds no global
+    // Isolate the default-home fallback: blank TASKWEAVER_HOME is treated as unset, and
+    // the home dirs point at an empty dir so the default ~/.taskweaver/runtime holds no global
     // scope. Windows homedir() reads USERPROFILE (not HOME), so both must be
-    // stubbed or a real ~/.dsh/AGENTS.md would otherwise leak in.
-    vi.stubEnv('DSH_HOME', '')
+    // stubbed or a real ~/.taskweaver/runtime/AGENTS.md would otherwise leak in.
+    vi.stubEnv('TASKWEAVER_HOME', '')
     vi.stubEnv('HOME', emptyHome)
     if (process.platform === 'win32') vi.stubEnv('USERPROFILE', emptyHome)
     try {
@@ -602,16 +602,16 @@ describe('workspace context instruction discovery', () => {
     }
   })
 
-  it('honors DSH_HOME when dshHome is not configured explicitly', async () => {
+  it('honors TASKWEAVER_HOME when dshHome is not configured explicitly', async () => {
     const root = await tempRepo()
     const envHome = await tempRepo()
     try {
       await write(join(envHome, 'AGENTS.md'), 'env global rule')
-      vi.stubEnv('DSH_HOME', envHome)
+      vi.stubEnv('TASKWEAVER_HOME', envHome)
 
       const files = await discoverBaselineInstructionFiles({ cwd: root })
 
-      expect(files).toEqual([{ absolutePath: join(envHome, 'AGENTS.md'), displayPath: '$DSH_HOME/AGENTS.md' }])
+      expect(files).toEqual([{ absolutePath: join(envHome, 'AGENTS.md'), displayPath: '$TASKWEAVER_HOME/AGENTS.md' }])
     } finally {
       vi.unstubAllEnvs()
       await rm(root, { recursive: true, force: true })
@@ -619,20 +619,20 @@ describe('workspace context instruction discovery', () => {
     }
   })
 
-  it('labels the default DSH home as ~/.dsh when HOME points at the configured default', async () => {
+  it('labels the default runtime home as ~/.taskweaver/runtime', async () => {
     const root = await tempRepo()
     const home = await tempRepo()
     try {
-      await write(join(home, '.dsh/AGENTS.md'), 'global default rule')
+      await write(join(home, '.taskweaver/runtime/AGENTS.md'), 'global default rule')
 
-      // A set DSH_HOME would override the homedir default and relabel the home.
-      vi.stubEnv('DSH_HOME', '')
+      // A set TASKWEAVER_HOME would override the homedir default and relabel the home.
+      vi.stubEnv('TASKWEAVER_HOME', '')
       vi.resetModules()
       vi.doMock('node:os', () => ({ homedir: () => home }))
-      const isolated = await import('@z/dsh-agent-instructions')
+      const isolated = await import('@taskweaver/dsh-agent-instructions')
       const files = await isolated.discoverBaselineInstructionFiles({ cwd: root })
 
-      expect(files.map(file => file.displayPath)).toEqual(['~/.dsh/AGENTS.md'])
+      expect(files.map(file => file.displayPath)).toEqual(['~/.taskweaver/runtime/AGENTS.md'])
     } finally {
       vi.unstubAllEnvs()
       vi.doUnmock('node:os')
@@ -642,18 +642,18 @@ describe('workspace context instruction discovery', () => {
     }
   })
 
-  it('expands a configured ~/.dsh home to the operating-system home directory', async () => {
+  it('expands a configured ~/.taskweaver/runtime home to the operating-system home directory', async () => {
     const root = await tempRepo()
     const home = await tempRepo()
     try {
-      await write(join(home, '.dsh/AGENTS.md'), 'global tilde rule')
+      await write(join(home, '.taskweaver/runtime/AGENTS.md'), 'global tilde rule')
 
       vi.resetModules()
       vi.doMock('node:os', () => ({ homedir: () => home }))
-      const isolated = await import('@z/dsh-agent-instructions')
-      const files = await isolated.discoverBaselineInstructionFiles({ cwd: root, dshHome: '~/.dsh' })
+      const isolated = await import('@taskweaver/dsh-agent-instructions')
+      const files = await isolated.discoverBaselineInstructionFiles({ cwd: root, dshHome: '~/.taskweaver/runtime' })
 
-      expect(files).toEqual([{ absolutePath: join(home, '.dsh/AGENTS.md'), displayPath: '~/.dsh/AGENTS.md' }])
+      expect(files).toEqual([{ absolutePath: join(home, '.taskweaver/runtime/AGENTS.md'), displayPath: '~/.taskweaver/runtime/AGENTS.md' }])
     } finally {
       vi.doUnmock('node:os')
       vi.resetModules()
@@ -670,7 +670,7 @@ describe('workspace context instruction discovery', () => {
 
       const files = await discoverBaselineInstructionFiles({ cwd: root, dshHome: root })
 
-      expect(files).toEqual([{ absolutePath: join(root, 'AGENTS.md'), displayPath: '$DSH_HOME/AGENTS.md' }])
+      expect(files).toEqual([{ absolutePath: join(root, 'AGENTS.md'), displayPath: '$TASKWEAVER_HOME/AGENTS.md' }])
     } finally {
       await rm(root, { recursive: true, force: true })
     }
@@ -2407,14 +2407,14 @@ describe('workspace context request injection', () => {
     }
   })
 
-  it('labels a custom dshHome as DSH_HOME instead of pretending it is ~/.dsh', async () => {
+  it('labels a custom dshHome as TASKWEAVER_HOME instead of pretending it is ~/.dsh', async () => {
     const root = await tempRepo()
     const home = await tempRepo()
     try {
       await write(join(home, 'AGENTS.md'), 'global custom rule')
       const files = await discoverBaselineInstructionFiles({ cwd: root, dshHome: home })
 
-      expect(files.map(file => file.displayPath)).toEqual(['$DSH_HOME/AGENTS.md'])
+      expect(files.map(file => file.displayPath)).toEqual(['$TASKWEAVER_HOME/AGENTS.md'])
     } finally {
       await rm(root, { recursive: true, force: true })
       await rm(home, { recursive: true, force: true })
@@ -2440,7 +2440,7 @@ describe('workspace context request injection', () => {
           },
         }
       })
-      const isolated = await import('@z/dsh-agent-instructions')
+      const isolated = await import('@taskweaver/dsh-agent-instructions')
       await isolated.loadBaselineInstructions({ cwd: root, dshHome: home, maxBytes: 65536 })
       observedStats.clear()
       await isolated.loadBaselineInstructions({ cwd: root, dshHome: home, maxBytes: 65536 })
@@ -2473,7 +2473,7 @@ describe('workspace context request injection', () => {
           },
         }
       })
-      const isolated = await import('@z/dsh-agent-instructions')
+      const isolated = await import('@taskweaver/dsh-agent-instructions')
 
       const rendered = await isolated.loadBaselineInstructions({ cwd: root, dshHome: home, maxBytes: 65536 })
 

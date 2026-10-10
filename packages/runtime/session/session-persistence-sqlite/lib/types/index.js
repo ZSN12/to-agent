@@ -1,11 +1,11 @@
 /**
  * Opt-in SQLite persistence provider. Logical sessions remain unchanged;
  * the physical backend packs eligible chunk runs into schema-17 rows.
- * @module @z/dsh-session-persistence-sqlite
+ * @module @taskweaver/dsh-session-persistence-sqlite
  */
-import { Service } from '@z/cordis';
-import z from '@z/schemastery';
-import { DEFAULT_PREPARED_SESSION_CACHE_SIZE, DEFAULT_WRITE_BATCH_MAX_DELAY_MS, MAX_WRITE_BATCH_DELAY_MS, PersistenceCoordinator, SessionPersistence, } from '@z/dsh-session-persistence';
+import { Service } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
+import { DEFAULT_PREPARED_SESSION_CACHE_SIZE, DEFAULT_WRITE_BATCH_MAX_DELAY_MS, MAX_WRITE_BATCH_DELAY_MS, PersistenceCoordinator, SessionPersistence, } from '@taskweaver/dsh-session-persistence';
 import { SqliteStore } from "./store.js";
 export { SCHEMA_VERSION } from "./schema.js";
 /** Default wait for another SQLite connection's write reservation. */

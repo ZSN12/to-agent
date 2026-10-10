@@ -3,10 +3,10 @@
  * invokes the official Agent SDK in the delegating Session's workspace and
  * places the SDK-spawned real CLI under the shared subprocess owner.
  *
- * @module @z/dsh-subagent-claude-code
+ * @module @taskweaver/dsh-subagent-claude-code
  */
-import type { Context } from '@z/cordis';
-import z from '@z/schemastery';
+import type { Context } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
 import { type ClaudeCodePermissionMode } from './run.ts';
 export declare const name = "subagent-claude-code";
 export declare const inject: string[];

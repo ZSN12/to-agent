@@ -1,6 +1,6 @@
 import { createRequire } from "node:module";
-import "@z/cordis";
-import z from "@z/schemastery";
+import "@taskweaver/cordis";
+import z from "@taskweaver/schemastery";
 //#region ../../util/timeout/src/index.ts
 /** Largest delay Node schedules without clamping it to one millisecond. */
 const MAX_TIMER_DELAY_MS = 2147483647;
@@ -27,7 +27,7 @@ new RegExp(String.raw`\b(?:input|prompt|request|messages?)\b.{0,40}` + String.ra
 * Adapters expose one resolved policy per registered provider route; the
 * optional dsh-llm-retry plugin executes it on the agent's failed-step extension point.
 *
-* @module @z/dsh-llm/retry-policy
+* @module @taskweaver/dsh-llm/retry-policy
 */
 const DEFAULT_MAX_RETRIES = 5;
 const DEFAULT_INITIAL_DELAY_MS = 500;
@@ -64,7 +64,7 @@ z.union([normalPolicySchema, alwaysPolicySchema]);
 * `.agents/notes/implemented/architecture/2026-06-21-mandatory-app-attribution-headers.md`.
 *
 * App-attribution vocabulary for provider requests.
-* @module @z/dsh-llm/attribution
+* @module @taskweaver/dsh-llm/attribution
 */
 const { version } = createRequire(import.meta.url)("../package.json");
 //#endregion
@@ -74,7 +74,7 @@ const { version } = createRequire(import.meta.url)("../package.json");
 * new variant fails compilation at every required handler. Do not use it for declaration-merged
 * unions such as session events or content blocks: handle known variants and explicitly fall
 * through because plugins may add valid unknown cases.
-* @module @z/dsh-llm/never
+* @module @taskweaver/dsh-llm/never
 */
 /**
 * Mark an unreachable closed-union branch. A newly unhandled typed variant fails at the call site;
@@ -177,8 +177,8 @@ function formatTimestamp(now, formatter, timeZone) {
 }
 //#endregion
 //#region lib/types/invariant.js
-/** Package-owned durable clock-context invariants. @module @z/dsh-time-context/invariant */
-const PACKAGE_NAME = "@z/dsh-time-context";
+/** Package-owned durable clock-context invariants. @module @taskweaver/dsh-time-context/invariant */
+const PACKAGE_NAME = "@taskweaver/dsh-time-context";
 const SOURCE_NAME = "time-context";
 const READING = /* @__PURE__ */ new RegExp("^Time sampled while preparing turn (\\d+), step (\\d+): (\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:Z|[+-]\\d{2}:\\d{2})\\[[^\\]]+\\])\\n(Browser time zone for this request: .+)\\nElapsed since the preceding (model-visible message|step context): (?:unavailable|(?:(?:\\d+d )?(?:\\d+h )?(?:\\d+m )?\\d+s))\\.$");
 /** Cordis companion plugin name. */

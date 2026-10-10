@@ -1,7 +1,7 @@
 /**
  * Low-level JSON-RPC client for a DeepSeek Harness SDK runtime subprocess.
  * {@link HarnessClient} owns the child process: it spawns the runtime, speaks
- * the `@z/dsh-sdk-protocol` wire over the child's stdio, fans
+ * the `@taskweaver/dsh-sdk-protocol` wire over the child's stdio, fans
  * server notifications out to subscriptions, and tears the child down to
  * quiescence through a private EOF → SIGTERM → SIGKILL ladder. The design
  * twin is the Python SDK's `HarnessClient` (`python/sdk`); both drive the
@@ -9,10 +9,10 @@
  * spawns directly rather than through the `dsh-subprocess` service — the
  * seam's documented exception for SDK-managed transports.
  *
- * @module @z/dsh-sdk-client/client
+ * @module @taskweaver/dsh-sdk-client/client
  */
-import { type InitializeParams, type InitializeResult } from '@z/dsh-sdk-protocol';
-import type { ContentBlock } from '@z/dsh-llm';
+import { type InitializeParams, type InitializeResult } from '@taskweaver/dsh-sdk-protocol';
+import type { ContentBlock } from '@taskweaver/dsh-llm';
 import type { HarnessClientOptions, HarnessNotification, NotificationFilter } from './types.ts';
 /**
  * The runtime subprocess is gone or unusable: it exited, its stdio closed, or

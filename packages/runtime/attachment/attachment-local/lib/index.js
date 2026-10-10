@@ -1,7 +1,7 @@
 import { dirname, join, parse, resolve } from "node:path";
-import z from "@z/schemastery";
-import { AttachmentError, AttachmentId, AttachmentStore, ImageVariantId } from "@z/dsh-attachment";
-import { resolveDshHome } from "@z/dsh-home-paths";
+import z from "@taskweaver/schemastery";
+import { AttachmentError, AttachmentId, AttachmentStore, ImageVariantId } from "@taskweaver/dsh-attachment";
+import { resolveDshHome } from "@taskweaver/dsh-home-paths";
 import { createHash, randomUUID } from "node:crypto";
 import { constants } from "node:fs";
 import { chmod, link, mkdir, open, readFile, rename, rm, unlink, writeFile } from "node:fs/promises";
@@ -733,7 +733,7 @@ async function readRequestImageFile(root, attachment, policy, signal) {
 }
 //#endregion
 //#region lib/types/index.js
-/** Local durable attachment backend rooted below `DSH_HOME`. @module @z/dsh-attachment-local */
+/** Local durable attachment backend rooted below `DSH_HOME`. @module @taskweaver/dsh-attachment-local */
 /** Default maximum encoded bytes for one submitted image; oversized sources are refused, not shrunk. */
 const DEFAULT_MAX_IMAGE_BYTES = 20 * 1024 * 1024;
 /** Default maximum images in one prompt. */

@@ -1,15 +1,15 @@
 /**
  * Service Definition for the user-questions capability seam (`ctx.userQuestions`): a UI-backed service for
  * pausing an agent tool call until the human answers a question. The model-
- * facing tool lives in `@z/dsh-tool-ask-user`; UI packages provide
+ * facing tool lives in `@taskweaver/dsh-tool-ask-user`; UI packages provide
  * the single active provider.
  *
- * @module @z/dsh-user-questions
+ * @module @taskweaver/dsh-user-questions
  */
-import { Context, Service } from '@z/cordis';
-import type { Agent } from '@z/dsh-agent';
-import { HarnessError } from '@z/dsh-llm';
-declare module '@z/cordis' {
+import { Context, Service } from '@taskweaver/cordis';
+import type { Agent } from '@taskweaver/dsh-agent';
+import { HarnessError } from '@taskweaver/dsh-llm';
+declare module '@taskweaver/cordis' {
     interface Context {
         userQuestions: UserQuestionService;
     }

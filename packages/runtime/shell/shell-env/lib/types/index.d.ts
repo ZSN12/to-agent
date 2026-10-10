@@ -1,17 +1,17 @@
 /**
  * Tool-independent shell environment plugin: owns the `ctx.shellEnv` registry of
- * trusted, per-execution `DSH_*` variables consumed by the model-facing shell
+ * trusted, per-execution `TASKWEAVER_*` variables consumed by the model-facing shell
  * tools (`dsh-tool-bash`, `dsh-tool-pwsh`). Built-in shell facts are owned by
  * the registry itself while plugins can register additional, enumerable facts
  * with effect-scoped disposal.
  *
- * @module @z/dsh-shell-env
+ * @module @taskweaver/dsh-shell-env
  */
-import { Service, type Context } from '@z/cordis';
-import z from '@z/schemastery';
-import type { DshEnvironment, DshEnvironmentKey } from '@z/dsh-shell';
-import type { ToolExecution } from '@z/dsh-tools';
-declare module '@z/cordis' {
+import { Service, type Context } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
+import type { DshEnvironment, DshEnvironmentKey } from '@taskweaver/dsh-shell';
+import type { ToolExecution } from '@taskweaver/dsh-tools';
+declare module '@taskweaver/cordis' {
     interface Context {
         shellEnv: ShellEnvRegistry;
     }
@@ -20,12 +20,12 @@ export declare const name = "shell-env";
 export declare const inject: string[];
 /** Plugin config (all optional — the built-in facts resolve without defaults). */
 export interface Config {
-    /** DeepSeek Harness home directory exposed as `DSH_HOME`; defaults to `$DSH_HOME` or `~/.dsh`. */
+    /** TaskWeaver runtime home exposed as `TASKWEAVER_HOME`; defaults to `$TASKWEAVER_HOME` or `~/.taskweaver/runtime`. */
     dshHome?: string;
 }
 /** Runtime configuration schema for the shell-env plugin. */
 export declare const Config: z<Config>;
-/** Model-visible metadata for one managed `DSH_*` environment variable. */
+/** Model-visible metadata for one managed `TASKWEAVER_*` environment variable. */
 export interface BashEnvVariable {
     /** Concise description of the environment fact represented by the variable. */
     description: string;
@@ -38,7 +38,7 @@ export interface BashEnvVariable {
 export interface BashEnvContributor {
     /** Stable contributor name used in diagnostics and duplicate detection. */
     name: string;
-    /** Complete set of `DSH_*` keys this contributor may return. */
+    /** Complete set of `TASKWEAVER_*` keys this contributor may return. */
     variables: Readonly<Record<DshEnvironmentKey, BashEnvVariable>>;
     /**
      * Resolve this contributor's available values for one tool execution.
@@ -51,12 +51,12 @@ export interface BashEnvContributor {
 export interface BashEnvVariableInfo extends BashEnvVariable {
     /** Contributor that owns the variable. */
     contributor: string;
-    /** Declared `DSH_*` environment variable name. */
+    /** Declared `TASKWEAVER_*` environment variable name. */
     key: DshEnvironmentKey;
 }
 /**
- * Registry (`ctx.shellEnv`) for trusted, per-execution `DSH_*` variables.
- * The namespace is rebuilt for every model shell call: ambient `DSH_*` values
+ * Registry (`ctx.shellEnv`) for trusted, per-execution `TASKWEAVER_*` variables.
+ * The namespace is rebuilt for every model shell call: ambient `TASKWEAVER_*` values
  * are discarded by the executor, then the registry's current snapshot is
  * injected. Built-in shell facts remain owned by the registry itself while
  * plugins can register additional, enumerable facts with effect-scoped
@@ -80,7 +80,7 @@ export declare class ShellEnvRegistry extends Service {
      */
     register(contributor: BashEnvContributor): () => void;
     /**
-     * Build the trusted `DSH_*` snapshot for one shell tool execution.
+     * Build the trusted `TASKWEAVER_*` snapshot for one shell tool execution.
      * @param execution - the current tool execution.
      * @returns an immutable environment overlay containing built-ins and current contributions.
      */
@@ -93,7 +93,7 @@ export declare class ShellEnvRegistry extends Service {
 }
 /**
  * Load the shell-env plugin: register the `ctx.shellEnv` service and the
- * shell-agnostic persistence contributor (`DSH_SESSION_JSONL`).
+ * shell-agnostic persistence contributor (`TASKWEAVER_SESSION_JSONL`).
  * @param ctx - Cordis context that owns the service and registrations.
  * @param config - home-directory configuration for the built-in variables.
  */

@@ -26,8 +26,8 @@ const SANDBOX_MODES = [
 ];
 //#endregion
 //#region lib/types/invariant.js
-/** Package-owned session-event invariants for sandbox policy. @module @z/dsh-sandbox-policy/invariant */
-const PACKAGE_NAME = "@z/dsh-sandbox-policy";
+/** Package-owned session-event invariants for sandbox policy. @module @taskweaver/dsh-sandbox-policy/invariant */
+const PACKAGE_NAME = "@taskweaver/dsh-sandbox-policy";
 /** Cordis companion plugin name. */
 const name = "sandbox-policy-invariant";
 /** Service required before the companion can reserve package ownership. */

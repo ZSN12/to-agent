@@ -7,10 +7,10 @@
  * `request.parent` is the session's workspace cwd. This plugin uses named
  * exports only; a default would hide its loader metadata (see
  * `docs/postmortem/0001-acp-default-export-drops-inject.md`).
- * @module @z/dsh-subagent-dsh-sdk
+ * @module @taskweaver/dsh-subagent-dsh-sdk
  */
-import z from '@z/schemastery';
-import { assertPositiveFinite, NO_START_CAPABILITIES, resolveChildCwd, validateConfiguredCwd } from '@z/dsh-subagent';
+import z from '@taskweaver/schemastery';
+import { assertPositiveFinite, NO_START_CAPABILITIES, resolveChildCwd, validateConfiguredCwd } from '@taskweaver/dsh-subagent';
 import { DEFAULT_DISPOSE_EOF_GRACE_MS, DEFAULT_DISPOSE_GRACE_MS, DEFAULT_SHUTDOWN_TIMEOUT_MS, startSdkRun, } from "./run.js";
 export const name = 'subagent-dsh-sdk';
 export const inject = ['subagents'];

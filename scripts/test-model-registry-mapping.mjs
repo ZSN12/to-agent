@@ -8,10 +8,10 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { createProfileStore } from '../electron/backend/profile-store.mjs'
-import { createModelService } from '../electron/backend/model-service.mjs'
-import { createModelRegistryUpdater } from '../electron/backend/model-registry-updater.mjs'
-import { createZHostManager, resolveTaskWeaverRuntimeRoot } from '../electron/agent/z-host/index.mjs'
+import { createProfileStore } from '../desktop/backend/profile-store.mjs'
+import { createModelService } from '../desktop/backend/model-service.mjs'
+import { createModelRegistryUpdater } from '../desktop/backend/model-registry-updater.mjs'
+import { createZHostManager, resolveTaskWeaverRuntimeRoot } from '../desktop/agent/z-host/index.mjs'
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const runtimeRoot = resolveTaskWeaverRuntimeRoot({
@@ -23,10 +23,12 @@ const runtimeRoot = resolveTaskWeaverRuntimeRoot({
 const bundledRegistryPath = path.join(projectRoot, 'registry', 'model-registry.v1.json')
 const bundledRegistry = JSON.parse(await fs.readFile(bundledRegistryPath, 'utf8'))
 const userData = await fs.mkdtemp(path.join(os.tmpdir(), 'tw-registry-mapping-'))
+const isolatedRuntimeHome = path.join(userData, 'z')
+const hostEnvironment = { ...process.env, TASKWEAVER_HOME: isolatedRuntimeHome }
 const hostManager = createZHostManager({
   runtimeRoot,
   userDataPath: userData,
-  executable: process.execPath,
+  environment: hostEnvironment,
   startTimeoutMs: 60_000,
 })
 

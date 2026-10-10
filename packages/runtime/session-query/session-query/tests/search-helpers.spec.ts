@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import { createUserMessage, CallId , createMessage, createToolResultMessage } from '@z/dsh-llm'
+import { Context } from '@taskweaver/cordis'
+import { createUserMessage, CallId , createMessage, createToolResultMessage } from '@taskweaver/dsh-llm'
 import SessionStore, {
   SESSION_FORMAT_VERSION,
   SessionId,
-} from '@z/dsh-session'
-import type { SessionEvent, SessionHeader } from '@z/dsh-session'
+} from '@taskweaver/dsh-session'
+import type { SessionEvent, SessionHeader } from '@taskweaver/dsh-session'
 import {
   buildSessionEventRecords,
   buildSessionEventSearchDocuments,
@@ -16,7 +16,7 @@ import {
   materializeSessionEventResultFilters,
   materializeSessionResultFilters,
   type SessionQueryErrorCode,
-} from '@z/dsh-session-query'
+} from '@taskweaver/dsh-session-query'
 import { TestSessionQueryEngine } from './test-service.ts'
 
 const id = SessionId('session')

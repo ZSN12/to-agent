@@ -6,15 +6,15 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import LlmRuntime, { createUserMessage, LlmError, ReasoningEffortId  } from '@z/dsh-llm'
-import type { GenerateOptions, LlmModelReasoningInfo, LlmResolvedModelInfo, StreamChunk } from '@z/dsh-llm'
-import SessionStore, { Session, SessionId, foldRequestHeader } from '@z/dsh-session'
-import SystemPrompt from '@z/dsh-system-prompt'
-import ToolRuntime, { defineContentToolFixture } from '@z/dsh-tools'
-import AgentRegistry, { type Agent } from '@z/dsh-agent'
+import { Context } from '@taskweaver/cordis'
+import LlmRuntime, { createUserMessage, LlmError, ReasoningEffortId  } from '@taskweaver/dsh-llm'
+import type { GenerateOptions, LlmModelReasoningInfo, LlmResolvedModelInfo, StreamChunk } from '@taskweaver/dsh-llm'
+import SessionStore, { Session, SessionId, foldRequestHeader } from '@taskweaver/dsh-session'
+import SystemPrompt from '@taskweaver/dsh-system-prompt'
+import ToolRuntime, { defineContentToolFixture } from '@taskweaver/dsh-tools'
+import AgentRegistry, { type Agent } from '@taskweaver/dsh-agent'
 
-import AgentLoop from '@z/dsh-agent-loop'
+import AgentLoop from '@taskweaver/dsh-agent-loop'
 import { MockAdapter, textResponse, toolCallResponse } from './mock-adapter.ts'
 
 async function harness(adapter: MockAdapter, persona = 'stable base') {

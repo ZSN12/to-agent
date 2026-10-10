@@ -9,25 +9,25 @@
  * `ver` mismatch discards the row instead of migrating it. Design
  * authority: the session-projection RFC
  * (.agents/notes/proposed/architecture/2026-07-27-session-projection-and-command-log.md).
- * @module @z/dsh-session-projection-cache
+ * @module @taskweaver/dsh-session-projection-cache
  */
 
-import { Context, Service } from '@z/cordis'
-import z from '@z/schemastery'
-import { snapshotJsonValue } from '@z/dsh-session'
-import type { Session, SessionEvent, SessionHeader, SessionId } from '@z/dsh-session'
+import { Context, Service } from '@taskweaver/cordis'
+import z from '@taskweaver/schemastery'
+import { snapshotJsonValue } from '@taskweaver/dsh-session'
+import type { Session, SessionEvent, SessionHeader, SessionId } from '@taskweaver/dsh-session'
 // Empty type import: applies the package's cordis Context merge
 // (`ctx.sessionPersistence`), which this service reads on the cold path.
-import type {} from '@z/dsh-session-persistence'
-import type { ProjectionCheckpoint, ProjectionSnapshot } from '@z/dsh-session-projection'
-import type { KvTable } from '@z/dsh-storage-domain'
+import type {} from '@taskweaver/dsh-session-persistence'
+import type { ProjectionCheckpoint, ProjectionSnapshot } from '@taskweaver/dsh-session-projection'
+import type { KvTable } from '@taskweaver/dsh-storage-domain'
 import { projectionCacheDomainSpec } from './spec.ts'
 import type { CheckpointIdentity, CheckpointRecord } from './spec.ts'
 
 export { checkpointIdentity, checkpointRecord, checkpointRow, projectionCacheDomainSpec } from './spec.ts'
 export type { CheckpointIdentity, CheckpointRecord } from './spec.ts'
 
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
   interface Context {
     sessionProjectionCache: SessionProjectionCache
   }

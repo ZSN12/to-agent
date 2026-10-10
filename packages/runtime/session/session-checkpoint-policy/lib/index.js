@@ -1,9 +1,9 @@
-import { TOOL_ABORTED_BEFORE_DISPATCH } from "@z/dsh-tools";
+import { TOOL_ABORTED_BEFORE_DISPATCH } from "@taskweaver/dsh-tools";
 //#region lib/types/index.js
 /**
 * Semantic durability checkpoints for model requests, top-level tool dispatch,
 * and completed agent steps.
-* @module @z/dsh-session-checkpoint-policy
+* @module @taskweaver/dsh-session-checkpoint-policy
 */
 /** Cordis plugin name used by Loader diagnostics. */
 const name = "session-checkpoint-policy";

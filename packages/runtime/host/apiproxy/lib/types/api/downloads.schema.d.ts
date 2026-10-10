@@ -12,13 +12,13 @@ import { z } from 'zod';
  * a misspelled flag cannot silently under-export.
  */
 export declare const sessionLogQuerySchema: z.ZodPipe<z.ZodObject<{
-    sessionId: z.ZodType<import("@z/dsh-session").SessionId, unknown, z.core.$ZodTypeInternals<import("@z/dsh-session").SessionId, unknown>>;
+    sessionId: z.ZodType<import("@taskweaver/dsh-session").SessionId, unknown, z.core.$ZodTypeInternals<import("@taskweaver/dsh-session").SessionId, unknown>>;
     includeDescendants: z.ZodOptional<z.ZodUnion<readonly [z.ZodLiteral<"true">, z.ZodLiteral<"false">]>>;
 }, z.core.$strip>, z.ZodTransform<{
     includeDescendants?: true;
-    sessionId: import("@z/dsh-session").SessionId;
+    sessionId: import("@taskweaver/dsh-session").SessionId;
 }, {
-    sessionId: import("@z/dsh-session").SessionId;
+    sessionId: import("@taskweaver/dsh-session").SessionId;
     includeDescendants?: "true" | "false" | undefined;
 }>>;
 //# sourceMappingURL=downloads.schema.d.ts.map

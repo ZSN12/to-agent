@@ -15,8 +15,8 @@
  * @module
  */
 
-import { StorageError } from '@z/dsh-storage'
-import type { KvFacet, KvUnit, KvUnitDescriptor, StorageBackend } from '@z/dsh-storage'
+import { StorageError } from '@taskweaver/dsh-storage'
+import type { KvFacet, KvUnit, KvUnitDescriptor, StorageBackend } from '@taskweaver/dsh-storage'
 
 /** One unit's medium: tables of records plus the global slot (`null` = never written). */
 export interface MemoryMedium {

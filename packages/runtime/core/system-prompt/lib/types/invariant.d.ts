@@ -1,5 +1,5 @@
-/** Package-owned prompt-assembly invariants. @module @z/dsh-system-prompt/invariant */
-import type { Context } from '@z/cordis';
+/** Package-owned prompt-assembly invariants. @module @taskweaver/dsh-system-prompt/invariant */
+import type { Context } from '@taskweaver/cordis';
 /** Cordis companion plugin name. */
 export declare const name = "system-prompt-invariant";
 /** Service required before the companion can reserve package ownership. */

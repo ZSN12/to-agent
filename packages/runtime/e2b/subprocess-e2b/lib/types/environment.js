@@ -1,8 +1,8 @@
 /** Shared remote-environment scrubbing for E2B process and terminal launchers. */
 import { Buffer } from 'node:buffer';
 import { posix } from 'node:path';
-import { e2bControlEnvs } from '@z/dsh-e2b';
-import { SENSITIVE_ENV_PATTERN } from '@z/dsh-subprocess';
+import { e2bControlEnvs } from '@taskweaver/dsh-e2b';
+import { SENSITIVE_ENV_PATTERN } from '@taskweaver/dsh-subprocess';
 const BASE64 = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
 function remoteEnvironmentEntries(raw) {
     const entries = [];

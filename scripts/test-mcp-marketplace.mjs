@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { getMarketplaceManifest, catalogEntryToServerConfig } from '../electron/backend/mcp-marketplace.mjs'
+import { getMarketplaceManifest, catalogEntryToServerConfig } from '../desktop/backend/mcp-marketplace.mjs'
 
 const manifest = getMarketplaceManifest()
 assert.ok(manifest.entryCount >= 4)

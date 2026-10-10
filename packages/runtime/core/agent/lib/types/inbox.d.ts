@@ -1,10 +1,10 @@
 /**
  * Incremental projection of durable agent inbox events.
  *
- * @module @z/dsh-agent/inbox
+ * @module @taskweaver/dsh-agent/inbox
  */
-import type { MessageId } from '@z/dsh-llm';
-import type { Session, UserMessage } from '@z/dsh-session';
+import type { MessageId } from '@taskweaver/dsh-llm';
+import type { Session, UserMessage } from '@taskweaver/dsh-session';
 import type { InboxTarget } from './types.ts';
 /** Live notifications committed by inbox mutations. */
 export interface InboxNotifications {

@@ -2,9 +2,9 @@
  * Wire-safe approval identifiers and outcome vocabulary, free of
  * cordis/service imports so browser type chains (apiproxy api → client) can
  * consume them without loading this package's Context augmentation.
- * @module @z/dsh-user-approval/types
+ * @module @taskweaver/dsh-user-approval/types
  */
-import type { Branded } from '@z/dsh-brand';
+import type { Branded } from '@taskweaver/dsh-brand';
 /**
  * Pairs one `approval/asked` audit event with its `approval/decided`.
  * Service-issued (one fresh id per {@link ApprovalService.request} call).

@@ -1,9 +1,9 @@
 //#region lib/types/invariant.js
 /**
-* Package-owned invariant companion for `@z/dsh-brand`.
-* @module @z/dsh-brand/invariant
+* Package-owned invariant companion for `@taskweaver/dsh-brand`.
+* @module @taskweaver/dsh-brand/invariant
 */
-const PACKAGE_NAME = "@z/dsh-brand";
+const PACKAGE_NAME = "@taskweaver/dsh-brand";
 /** Cordis companion plugin name. */
 const name = "brand-invariant";
 /** Service required before the companion can reserve package ownership. */

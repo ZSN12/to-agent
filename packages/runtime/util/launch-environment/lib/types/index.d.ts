@@ -3,9 +3,9 @@
  * supplied each value. Harness consumers resolve through it instead of a flattened
  * `process.env`; launchers may still materialize accepted values for config
  * expressions and third-party libraries.
- * @module @z/dsh-launch-environment
+ * @module @taskweaver/dsh-launch-environment
  */
-import type { Context } from '@z/cordis';
+import type { Context } from '@taskweaver/cordis';
 /**
  * Which layer supplied a value, from most to least trusted: the environment
  * this process inherited, the invoking directory's `.env`, the Harness home's
@@ -57,6 +57,8 @@ export interface LaunchEnvironmentLayerInput {
  */
 export declare function createLaunchEnvironmentSnapshot(layers: readonly LaunchEnvironmentLayerInput[]): LaunchEnvironmentSnapshot;
 /** Context slot the launcher fills with this run's snapshot before any config entry mounts. */
+export declare const TASKWEAVER_LAUNCH_ENVIRONMENT_KEY = "launchEnvironment";
+/** @deprecated use TASKWEAVER_LAUNCH_ENVIRONMENT_KEY */
 export declare const DSH_LAUNCH_ENVIRONMENT_KEY = "launchEnvironment";
 /**
  * Return the launcher's snapshot, or the inherited environment as the sole
@@ -65,7 +67,7 @@ export declare const DSH_LAUNCH_ENVIRONMENT_KEY = "launchEnvironment";
  * @returns the snapshot to resolve user-facing values against.
  */
 export declare function launchEnvironmentOf(ctx: Context): LaunchEnvironmentSnapshot;
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
     interface Context {
         /** Launcher-owned snapshot of this run's environment; absent in compositions the product CLI did not boot. */
         launchEnvironment?: LaunchEnvironmentSnapshot;

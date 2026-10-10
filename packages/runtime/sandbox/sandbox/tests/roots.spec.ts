@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os'
 import { mkdtempSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { canonicalPath, writableRoots } from '@z/dsh-sandbox'
+import { canonicalPath, writableRoots } from '@taskweaver/dsh-sandbox'
 
 describe('canonicalPath', () => {
   it('resolves symlinks (an existing path realpaths)', () => {

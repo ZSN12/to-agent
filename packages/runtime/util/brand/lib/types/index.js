@@ -1,4 +1,3 @@
-"use strict";
 /**
  * The `Branded<B>` nominal-typing primitive — a type-only utility (no runtime
  * code, no harness-package dependency) shared by every package that owns a
@@ -19,6 +18,7 @@
  * package can brand its ids without depending on an unrelated capability
  * package.
  *
- * @module @z/dsh-brand
+ * @module @taskweaver/dsh-brand
  */
-Object.defineProperty(exports, "__esModule", { value: true });
+export {};
+//# sourceMappingURL=index.js.map

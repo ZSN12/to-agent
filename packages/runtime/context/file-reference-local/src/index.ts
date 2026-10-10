@@ -1,18 +1,18 @@
 /**
  * Local-filesystem implementation of `ctx.fileReferences`.
  *
- * @module @z/dsh-file-reference-local
+ * @module @taskweaver/dsh-file-reference-local
  */
 
-import { Context } from '@z/cordis'
-import z from '@z/schemastery'
-import type { Agent } from '@z/dsh-agent'
+import { Context } from '@taskweaver/cordis'
+import z from '@taskweaver/schemastery'
+import type { Agent } from '@taskweaver/dsh-agent'
 import FileReferenceService, {
   FILE_REFERENCE_PROMPT,
   type FileReferenceCandidate,
-} from '@z/dsh-file-reference'
-import type {} from '@z/dsh-system-prompt'
-import type {} from '@z/dsh-tools'
+} from '@taskweaver/dsh-file-reference'
+import type {} from '@taskweaver/dsh-system-prompt'
+import type {} from '@taskweaver/dsh-tools'
 import {
   DEFAULT_FILE_SEARCH_EXCLUDED_DIRECTORIES,
   DEFAULT_FILE_SEARCH_MAX_ENTRIES,
@@ -28,8 +28,8 @@ export {
   WorkspaceFileSearch,
 } from './search.ts'
 export type { FileSearchConfig } from './search.ts'
-export { FILE_REFERENCE_PROMPT } from '@z/dsh-file-reference'
-export { activeAtToken, formatFileMention } from '@z/dsh-file-reference/grammar'
+export { FILE_REFERENCE_PROMPT } from '@taskweaver/dsh-file-reference'
+export { activeAtToken, formatFileMention } from '@taskweaver/dsh-file-reference/grammar'
 
 /** Local file-reference discovery configuration. */
 export interface Config {

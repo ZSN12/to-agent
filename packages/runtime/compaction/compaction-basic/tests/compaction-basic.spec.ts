@@ -1,18 +1,18 @@
 import { describe, expect, expectTypeOf, it, vi } from 'vitest'
-import { Context } from '@z/cordis'
-import { AttachmentId } from '@z/dsh-attachment'
-import BasicCompactionEngine from '@z/dsh-compaction-basic'
-import type { BasicCompactionConfig } from '@z/dsh-compaction-basic'
-import { selectCompactableRange } from '@z/dsh-compaction-basic/src/region.ts'
-import type { SummarizationInput, SummaryResult } from '@z/dsh-compaction-basic/src/summarizer.ts'
-import { CompactionId, toolPairingBalancedAfter, toolPairingBalancedBefore } from '@z/dsh-compaction'
+import { Context } from '@taskweaver/cordis'
+import { AttachmentId } from '@taskweaver/dsh-attachment'
+import BasicCompactionEngine from '@taskweaver/dsh-compaction-basic'
+import type { BasicCompactionConfig } from '@taskweaver/dsh-compaction-basic'
+import { selectCompactableRange } from '@taskweaver/dsh-compaction-basic/src/region.ts'
+import type { SummarizationInput, SummaryResult } from '@taskweaver/dsh-compaction-basic/src/summarizer.ts'
+import { CompactionId, toolPairingBalancedAfter, toolPairingBalancedBefore } from '@taskweaver/dsh-compaction'
 import {
   resolveCompactSpec,
   resolveConfig,
   resolveTargetPolicy,
-} from '@z/dsh-compaction-basic/src/config.ts'
-import type { CompactionResult } from '@z/dsh-compaction'
-import LlmRuntime, { createUserMessage, CallId, CONTEXT_WINDOW_EXCEEDED_CODE, createToolResultMessage, LlmAdapter , createMessage } from '@z/dsh-llm'
+} from '@taskweaver/dsh-compaction-basic/src/config.ts'
+import type { CompactionResult } from '@taskweaver/dsh-compaction'
+import LlmRuntime, { createUserMessage, CallId, CONTEXT_WINDOW_EXCEEDED_CODE, createToolResultMessage, LlmAdapter , createMessage } from '@taskweaver/dsh-llm'
 import type {
   ContentBlock,
   GenerateOptions,
@@ -21,11 +21,11 @@ import type {
   Message,
   StreamChunk,
   TokenUsage,
-} from '@z/dsh-llm'
-import SessionStore, { Session, SessionId } from '@z/dsh-session'
-import TokenMeter from '@z/dsh-token-meter'
-import { agentEvents, type Agent, type RequestErrorAction } from '@z/dsh-agent'
-import ToolResultPruner from '@z/dsh-compaction-tool-result-pruner'
+} from '@taskweaver/dsh-llm'
+import SessionStore, { Session, SessionId } from '@taskweaver/dsh-session'
+import TokenMeter from '@taskweaver/dsh-token-meter'
+import { agentEvents, type Agent, type RequestErrorAction } from '@taskweaver/dsh-agent'
+import ToolResultPruner from '@taskweaver/dsh-compaction-tool-result-pruner'
 
 const SIGNAL = new AbortController().signal
 const MODEL = 'test-model'
@@ -318,7 +318,7 @@ describe('compact configuration and defaults', () => {
     expect(dsh.config).toMatchObject({ compactionRetries: 8, maxOverflowRetries: 9 })
     expect(dsh.config.modelPolicies[0]).toMatchObject({ compactionRetries: 7, maxOverflowRetries: 6 })
 
-    vi.stubEnv('DSH_TASKWEAVER_EMBEDDED', '1')
+    vi.stubEnv('TASKWEAVER_EMBEDDED', '1')
     try {
       const taskweaver = service(config)
       expect(taskweaver.config).toMatchObject({ compactionRetries: 1, maxOverflowRetries: 1 })
@@ -327,6 +327,21 @@ describe('compact configuration and defaults', () => {
         provider: 'retry-provider',
         model: 'retry-model',
       })).toMatchObject({ compactionRetries: 1, maxOverflowRetries: 1 })
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it('uses the embedded TaskWeaver threshold override while keeping the DSH default', () => {
+    const dsh = service({ auto: false })
+    expect(dsh.config.thresholdRatio).toBe(0.8)
+
+    vi.stubEnv('TASKWEAVER_EMBEDDED', '1')
+    vi.stubEnv('TASKWEAVER_COMPACTION_THRESHOLD_RATIO', '0.65')
+    try {
+      expect(service({ auto: false }).config.thresholdRatio).toBe(0.65)
+      vi.stubEnv('TASKWEAVER_COMPACTION_THRESHOLD_RATIO', '0.95')
+      expect(service({ auto: false }).config.thresholdRatio).toBe(0.8)
     } finally {
       vi.unstubAllEnvs()
     }
@@ -594,8 +609,10 @@ describe('pressure measurement and retention', () => {
 
     await expect(compactIfNeeded(compact, session, 'pressure'))
       .rejects.toThrow(/no context capacity for unknown-context\/model/)
-    await expect(compactIfNeeded(compact, session, 'context-overflow'))
-      .resolves.not.toBeNull()
+    const overflowResult = await compactIfNeeded(compact, session, 'context-overflow')
+    expect(overflowResult?.trigger).toBe('context-overflow')
+    expect(session.events.find(event => event.type === 'compaction/summary')?.data.trigger)
+      .toBe('context-overflow')
   })
 
   it('declines forced overflow when the whole surface is one indivisible tool pair', async () => {

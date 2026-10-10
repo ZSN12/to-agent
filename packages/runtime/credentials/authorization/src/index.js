@@ -23,10 +23,10 @@
  * })
  * ```
  *
- * @module @z/dsh-authorization
+ * @module @taskweaver/dsh-authorization
  */
-import { Service } from '@z/cordis';
-import { HarnessError } from '@z/dsh-llm';
+import { Service } from '@taskweaver/cordis';
+import { HarnessError } from '@taskweaver/dsh-llm';
 /** Stable error taxonomy for authorization failures. */
 export class AuthorizationError extends HarnessError {
     constructor(message, code, options) {

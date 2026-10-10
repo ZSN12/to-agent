@@ -1,11 +1,11 @@
 window.__ModuleLoader__.load({
-	id: "@z/dsh-client-runtime",
+	id: "@taskweaver/dsh-client-runtime",
 	factory: (require) => {
 		var module = { exports: {} };
 		var exports = module.exports;
 		Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
-		let _z_cordis = require("@z/cordis");
-		let _z_dsh_client_ui_slots = require("@z/dsh-client-ui-slots");
+		let _z_cordis = require("@taskweaver/cordis");
+		let _z_dsh_client_ui_slots = require("@taskweaver/dsh-client-ui-slots");
 		//#region lib/types/client/slots.js
 		/**
 		* SlotRegistry: the cordis Service layer of the slot system over the pure

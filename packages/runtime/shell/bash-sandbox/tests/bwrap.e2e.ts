@@ -4,18 +4,18 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import { LocalSandboxProvider } from '@z/dsh-sandbox-local'
-import { SandboxPolicyService } from '@z/dsh-sandbox-policy'
-import { bwrapProfileArgs } from '@z/dsh-sandbox-local/src/profiles.ts'
-import { SandboxBashExecutor } from '@z/dsh-bash-sandbox'
-import LocalSubprocessRuntime from '@z/dsh-subprocess-local'
+import { Context } from '@taskweaver/cordis'
+import { LocalSandboxProvider } from '@taskweaver/dsh-sandbox-local'
+import { SandboxPolicyService } from '@taskweaver/dsh-sandbox-policy'
+import { bwrapProfileArgs } from '@taskweaver/dsh-sandbox-local/src/profiles.ts'
+import { SandboxBashExecutor } from '@taskweaver/dsh-bash-sandbox'
+import LocalSubprocessRuntime from '@taskweaver/dsh-subprocess-local'
 
 /**
  * Keyless integration of the real provider and executor through public run/start paths. With
  * no rung forced, a passing bwrap probe selects the ladder's first rung. The tests check world
  * effects and stamped facts, including EROFS classification through the wrap-carried dialect;
- * backend-only confinement is covered by `@z/dsh-sandbox-local`.
+ * backend-only confinement is covered by `@taskweaver/dsh-sandbox-local`.
  *
  * Skips when bwrap or unprivileged user namespaces are unavailable. HOME-based paths are
  * intentional because bwrap replaces `/tmp`, which cannot prove the workspace-root boundary.

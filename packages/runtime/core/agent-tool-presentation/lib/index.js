@@ -1,4 +1,4 @@
-import z from "@z/schemastery";
+import z from "@taskweaver/schemastery";
 //#region lib/types/index.js
 /**
 * Agent-plane presentation selector: the row an agent preset carries to say
@@ -17,7 +17,7 @@ import z from "@z/schemastery";
 * This row therefore waits for it rather than assuming it: a preset selecting
 * Code Mode against a deployment that composes no runtime fails at mount, named
 * in the preset's own activation audit, instead of at the first prompt.
-* @module @z/dsh-agent-tool-presentation
+* @module @taskweaver/dsh-agent-tool-presentation
 */
 /** Cordis plugin name. */
 const name = "tool-presentation";

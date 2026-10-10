@@ -1,8 +1,8 @@
 /**
- * Package-owned invariant companion for `@z/dsh-llm-pi-ai`.
- * @module @z/dsh-llm-pi-ai/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-llm-pi-ai`.
+ * @module @taskweaver/dsh-llm-pi-ai/invariant
  */
-import type { Context } from '@z/cordis';
+import type { Context } from '@taskweaver/cordis';
 /** Cordis companion plugin name. */
 export declare const name = "llm-pi-ai-invariant";
 /** Service required before the companion can reserve package ownership. */

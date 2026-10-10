@@ -1,0 +1,31 @@
+{
+  "name": "@taskweaver/provider-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "description": "TaskWeaver-owned Cursor and Antigravity provider adapters and OAuth flows",
+  "type": "module",
+  "main": "./lib/index.mjs",
+  "exports": {
+    ".": "./lib/index.mjs"
+  },
+  "files": [
+    "lib",
+    "README.md",
+    "LICENSE",
+    "NOTICE.md"
+  ],
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "build": "tsdown"
+  },
+  "dependencies": {
+    "@bufbuild/protobuf": "^2.14.0",
+    "@modelcontextprotocol/sdk": "^1.30.0"
+  },
+  "devDependencies": {
+    "tsdown": "^0.22.2"
+  },
+  "license": "MIT"
+}

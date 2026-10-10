@@ -1,12 +1,12 @@
 /** Host registry for model-visible, read-only Cordis capability queries. */
 
-import { Service } from '@z/cordis'
-import type { Context } from '@z/cordis'
-import type { Agent } from '@z/dsh-agent'
-import { snapshotJsonValue } from '@z/dsh-session'
-import type { JsonValue } from '@z/dsh-session/types'
-import { assertSupportedJsonSchema, validateJsonSchemaValue } from '@z/dsh-tools'
-import type { JsonSchemaNode } from '@z/dsh-tools'
+import { Service } from '@taskweaver/cordis'
+import type { Context } from '@taskweaver/cordis'
+import type { Agent } from '@taskweaver/dsh-agent'
+import { snapshotJsonValue } from '@taskweaver/dsh-session'
+import type { JsonValue } from '@taskweaver/dsh-session/types'
+import { assertSupportedJsonSchema, validateJsonSchemaValue } from '@taskweaver/dsh-tools'
+import type { JsonSchemaNode } from '@taskweaver/dsh-tools'
 import type {
   CordisInspectMethodManifest, CordisInspectPlatform, CordisInspectProviderManifest,
   CordisInspectProviderView, CordisInspectQueryRequest, CordisInspectQueryResolution,
@@ -35,7 +35,7 @@ interface PendingClientQuery {
   settle(resolution: CordisInspectQueryResolution): void
 }
 
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
   interface Context {
     /** Host registry for Cordis inspect providers and Client manifest/query routing. */
     cordisInspect: CordisInspectRegistryService

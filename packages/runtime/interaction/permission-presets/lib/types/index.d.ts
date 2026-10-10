@@ -9,19 +9,19 @@
  *
  * @module dsh-permission-presets
  */
-import { Context, Service } from '@z/cordis';
-import z from '@z/schemastery';
-import type { Session, SessionEvent } from '@z/dsh-session';
-import type { SandboxMode } from '@z/dsh-sandbox';
-import type { ApprovalPolicy } from '@z/dsh-user-approval';
+import { Context, Service } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
+import type { Session, SessionEvent } from '@taskweaver/dsh-session';
+import type { SandboxMode } from '@taskweaver/dsh-sandbox';
+import type { ApprovalPolicy } from '@taskweaver/dsh-user-approval';
 import type { PermissionSelect, PresetOption } from './types.ts';
 export type * from './types.ts';
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
     interface Context {
         permissionPresets: PermissionPresetService;
     }
 }
-declare module '@z/dsh-session/types' {
+declare module '@taskweaver/dsh-session/types' {
     interface SessionEventMap {
         /**
          * Records the selected preset as durable, log-only user intent. The knob
@@ -51,7 +51,7 @@ export interface PresetSpec {
  */
 export declare const CUSTOM_PRESET = "custom";
 /** Settings namespace carrying the default for future sessions. */
-export declare const PERMISSION_SETTINGS_NAMESPACE: import("@z/dsh-settings").SettingsNamespace;
+export declare const PERMISSION_SETTINGS_NAMESPACE: import("@taskweaver/dsh-settings").SettingsNamespace;
 /**
  * Fold the last selected preset from the durable log; replay needs no catch-up
  * state.
@@ -72,7 +72,7 @@ export interface KnobState {
     /** Last `approval/policy` payload, or null. */
     approval: ApprovalPolicy | null;
 }
-declare module '@z/dsh-session-projection/types' {
+declare module '@taskweaver/dsh-session-projection/types' {
     interface SessionProjectionStateMap {
         permissions: KnobState;
     }

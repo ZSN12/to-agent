@@ -1,4 +1,3 @@
-"use strict";
 /**
  * Browser-trust fence for every /api request. Defends the two confused-deputy
  * paths a browser opens against a local HTTP API — DNS rebinding (Host names
@@ -13,24 +12,20 @@
  * Network reachability and authentication stay out of scope: binding policy
  * belongs to the webserver config, and this fence is not an auth layer.
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.assertTrustedAuthority = assertTrustedAuthority;
-exports.isTrustedApiRequest = isTrustedApiRequest;
-var loopback_hostname_ts_1 = require("./loopback-hostname.ts");
+import { isLoopbackHostname } from "./loopback-hostname.js";
 function header(headers, name) {
-    var _a;
     if (headers instanceof Headers)
-        return (_a = headers.get(name)) !== null && _a !== void 0 ? _a : undefined;
-    var value = headers[name];
+        return headers.get(name) ?? undefined;
+    const value = headers[name];
     return typeof value === 'string' ? value : undefined;
 }
 /** Normalized URL of a Host-header authority (hostname lowercased, default port stripped, IPv6 bracketed), or undefined when unparsable. */
 function parseAuthority(authority) {
     try {
         // http: is a WHATWG "special scheme": parsing yields a non-empty hostname or throws.
-        return new URL("http://".concat(authority));
+        return new URL(`http://${authority}`);
     }
-    catch (_a) {
+    catch {
         return undefined;
     }
 }
@@ -48,11 +43,11 @@ function parseAuthority(authority) {
  * carries).
  * @param entry - the configured value, verbatim.
  */
-function assertTrustedAuthority(entry) {
-    var entryUrl = parseAuthority(entry);
+export function assertTrustedAuthority(entry) {
+    const entryUrl = parseAuthority(entry);
     if (entryUrl !== undefined && canonicalAuthority(entry, entryUrl) === entry.toLowerCase())
         return;
-    throw new Error("client-connection: trustedHosts entry ".concat(JSON.stringify(entry), " is not a bare host[:port] authority"));
+    throw new Error(`client-connection: trustedHosts entry ${JSON.stringify(entry)} is not a bare host[:port] authority`);
 }
 /**
  * Canonical form of a parsed authority: `hostname` when no port was written,
@@ -63,8 +58,8 @@ function assertTrustedAuthority(entry) {
  */
 function canonicalAuthority(entry, entryUrl) {
     // An authority that parsed under http cannot fail under https.
-    var port = entryUrl.port !== '' ? entryUrl.port : new URL("https://".concat(entry)).port;
-    return port === '' ? entryUrl.hostname : "".concat(entryUrl.hostname, ":").concat(port);
+    const port = entryUrl.port !== '' ? entryUrl.port : new URL(`https://${entry}`).port;
+    return port === '' ? entryUrl.hostname : `${entryUrl.hostname}:${port}`;
 }
 /**
  * Whether the request authority matches a `trustedHosts` entry. An entry with
@@ -74,8 +69,8 @@ function canonicalAuthority(entry, entryUrl) {
  * normalization, so case and a redundant `:80` never decide trust.
  */
 function isTrustedAuthority(hostUrl, trustedHosts) {
-    return trustedHosts.some(function (entry) {
-        var entryUrl = parseAuthority(entry);
+    return trustedHosts.some((entry) => {
+        const entryUrl = parseAuthority(entry);
         if (entryUrl === undefined)
             return false;
         return canonicalAuthority(entry, entryUrl) === entryUrl.hostname
@@ -89,7 +84,7 @@ function isTrustedAuthority(hostUrl, trustedHosts) {
  * @param trustedHosts - non-loopback authorities this deployment serves: exact `host:port`, or port-less `host` matching any port.
  * @returns true when the Host is ours (loopback or trusted) and any attached browser markers are same-origin.
  */
-function isTrustedApiRequest(request, trustedHosts) {
+export function isTrustedApiRequest(request, trustedHosts) {
     // Host fence (DNS-rebinding defense), applied to every request: the browser
     // fills Host from the URL it believes it is talking to, so a rebound page
     // carries the attacker's domain here even though the socket lands on this
@@ -97,13 +92,13 @@ function isTrustedApiRequest(request, trustedHosts) {
     // (images and navigations) arrives with neither Origin nor
     // Fetch-Metadata, indistinguishable from curl, and its response is readable
     // by the rebound page.
-    var host = header(request.headers, 'host');
+    const host = header(request.headers, 'host');
     if (host === undefined)
         return false;
-    var hostUrl = parseAuthority(host);
+    const hostUrl = parseAuthority(host);
     if (hostUrl === undefined)
         return false;
-    if (!(0, loopback_hostname_ts_1.isLoopbackHostname)(hostUrl.hostname) && !isTrustedAuthority(hostUrl, trustedHosts))
+    if (!isLoopbackHostname(hostUrl.hostname) && !isTrustedAuthority(hostUrl, trustedHosts))
         return false;
     // Cross-site fence: modern browsers label the initiator relationship on
     // every fetch; an explicit cross-site marker is refused regardless of Origin.
@@ -113,13 +108,14 @@ function isTrustedApiRequest(request, trustedHosts) {
     // authority (compared through the same normalization as the Host). Absent
     // Origin is fine — the Host fence above already bound the request. The
     // literal "null" (sandboxed iframes, file: pages) is an opaque origin, refused.
-    var origin = header(request.headers, 'origin');
+    const origin = header(request.headers, 'origin');
     if (origin === undefined)
         return true;
     try {
         return new URL(origin).host === hostUrl.host;
     }
-    catch (_a) {
+    catch {
         return false;
     }
 }
+//# sourceMappingURL=api-request-trust.js.map

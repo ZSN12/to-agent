@@ -3,9 +3,9 @@ import {
   createProcessInspector,
   linuxProcessGroupHasLiveMembers,
   parseProcStat,
-} from '@z/dsh-subprocess-local/src/process-inspector.ts'
-import type { ProcessInspectorInternals } from '@z/dsh-subprocess-local/src/process-inspector.ts'
-import { WindowsProcessInspector } from '@z/dsh-subprocess-local/src/windows-inspector.ts'
+} from '@taskweaver/dsh-subprocess-local/src/process-inspector.ts'
+import type { ProcessInspectorInternals } from '@taskweaver/dsh-subprocess-local/src/process-inspector.ts'
+import { WindowsProcessInspector } from '@taskweaver/dsh-subprocess-local/src/windows-inspector.ts'
 
 function stat(pid: number, pgrp: number, session: number, tpgid: number, started: string, parentPid = 1, state = 'S'): string {
   const rest = [state, String(parentPid), String(pgrp), String(session), '99', String(tpgid)]

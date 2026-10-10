@@ -1,10 +1,10 @@
 /**
  * SQLite storage primitives: transactional append-batch packing, physical
  * reads, schema validation, revisions, repair, and lifecycle closure.
- * @module @z/dsh-session-persistence-sqlite/store
+ * @module @taskweaver/dsh-session-persistence-sqlite/store
  */
-import { type SessionEvent, type SessionHeader, type SessionId } from '@z/dsh-session';
-import { type PersistenceBackend, type SessionPersistenceRevision as PersistenceRevision, type SessionPersistenceSnapshot, type StoredPrefix, type StoredSuffix } from '@z/dsh-session-persistence';
+import { type SessionEvent, type SessionHeader, type SessionId } from '@taskweaver/dsh-session';
+import { type PersistenceBackend, type SessionPersistenceRevision as PersistenceRevision, type SessionPersistenceSnapshot, type StoredPrefix, type StoredSuffix } from '@taskweaver/dsh-session-persistence';
 import { type JournalMode } from './schema.ts';
 /** Storage options resolved by the service provider. */
 export interface SqliteStoreOptions {

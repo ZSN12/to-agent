@@ -1,12 +1,12 @@
-import { MessageId, createUserMessage, createMessage } from '@z/dsh-llm'
+import { MessageId, createUserMessage, createMessage } from '@taskweaver/dsh-llm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { Context } from '@z/cordis'
+import { Context } from '@taskweaver/cordis'
 import { appendFile, mkdtemp, mkdir, rm, readFile, writeFile, readdir, stat, symlink } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
-import SessionStore, { SessionId } from '@z/dsh-session'
-import type { Session, SessionEvent, SessionHeader } from '@z/dsh-session'
-import JsonlSessionPersistence from '@z/dsh-session-persistence-jsonl'
+import SessionStore, { SessionId } from '@taskweaver/dsh-session'
+import type { Session, SessionEvent, SessionHeader } from '@taskweaver/dsh-session'
+import JsonlSessionPersistence from '@taskweaver/dsh-session-persistence-jsonl'
 import {
   encodeSegment, eventLines, logPath, projectDir, projectKey, scanLog, sessionDir, SessionLogScanner, toHeaderLine,
 } from '../src/format.ts'
@@ -1157,9 +1157,14 @@ describe('JsonlSessionPersistence: default packed chunk rows', () => {
     expect(scanned.committedBytes).toBe(Buffer.byteLength(headerAndTurn, 'utf8'))
   })
 
-  it('eventLines(packChunks: false) is byte-identical to the pre-packing layout', () => {
+  it('eventLines(packChunks: false) preserves one event per line and compacts provenance ranges', () => {
     const log = chunkRunLog()
-    expect(eventLines(log, false)).toBe(log.map(e => JSON.stringify(e)).join('\n'))
+    const rows = eventLines(log, false).split('\n').map(line => JSON.parse(line) as Record<string, unknown>)
+
+    expect(rows).toHaveLength(log.length)
+    expect(rows.map(row => row['type'])).toEqual(log.map(event => event.type))
+    expect(rows.filter(row => row['type'] === 'assistant/chunk')).toHaveLength(5)
+    expect(rows.find(row => row['type'] === 'assistant/message')?.['sourceEventSeqs']).toEqual([[2, 6]])
   })
 })
 

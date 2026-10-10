@@ -4,7 +4,7 @@
  * the POC's restricting-SID allowlist. Every API call is checked; any failure
  * throws with the API name and the exact Win32 code — the original POC ignored
  * all of these and silently ran children with the FULL, unrestricted token.
- * @module @z/dsh-sandbox-windows-acl/token
+ * @module @taskweaver/dsh-sandbox-windows-acl/token
  */
 import type { NativePtr, Win32Bindings } from './ffi.ts';
 /**

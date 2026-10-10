@@ -7,10 +7,10 @@
  * Capture commits only after the authoritative `tools/result` succeeds; Code Mode capture also
  * waits for the enclosing `run_code` result. The terminal result marker and monotonic tool
  * guard prevent later calls from reopening a completed structured run.
- * @module @z/dsh-subagent-in-process-driver/structured
+ * @module @taskweaver/dsh-subagent-in-process-driver/structured
  */
-import type { Context } from '@z/cordis';
-import { type ObjectJsonSchema } from '@z/dsh-tools';
+import type { Context } from '@taskweaver/cordis';
+import { type ObjectJsonSchema } from '@taskweaver/dsh-tools';
 /** The model-facing tool name a structured child must call to finish. */
 export declare const STRUCTURED_OUTPUT_TOOL = "structured_output";
 /**

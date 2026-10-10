@@ -10,12 +10,13 @@
  * preset decides the tool schemas and prompt sections the model sees.
  *
  * Reconstruction reads {@link resolveSessionPreset}, never the header alone.
- * @module @z/dsh-agent-presets/session
+ * @module @taskweaver/dsh-agent-presets/session
  */
 
-import type { SessionEvent, SessionHeader } from '@z/dsh-session'
+import type { SessionEvent, SessionHeader } from '@taskweaver/dsh-session'
+import { canonicalAgentPresetId } from './preset.ts'
 
-declare module '@z/dsh-session/types' {
+declare module '@taskweaver/dsh-session/types' {
   interface SessionEventMap {
     /**
      * The session's agent preset was chosen after creation, while the session
@@ -48,7 +49,9 @@ export interface PresetBearingSession {
 export function resolveSessionPreset(session: PresetBearingSession): string | undefined {
   for (let index = session.events.length - 1; index >= 0; index -= 1) {
     const event = session.events[index]
-    if (event?.type === 'agent-preset/selected') return event.data.agentPreset
+    if (event?.type === 'agent-preset/selected') return canonicalAgentPresetId(event.data.agentPreset)
   }
-  return session.header.agentPreset
+  return session.header.agentPreset === undefined
+    ? undefined
+    : canonicalAgentPresetId(session.header.agentPreset)
 }

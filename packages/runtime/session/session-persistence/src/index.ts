@@ -2,16 +2,16 @@
  * Durable session-persistence Service Definition (`ctx.sessionPersistence`). Backends store
  * {@link SessionEvent}s as the event-sourced log and carry non-replayable
  * {@link SessionHeader} metadata separately.
- * @module @z/dsh-session-persistence
+ * @module @taskweaver/dsh-session-persistence
  */
 
-import { Context, Service } from '@z/cordis'
-import { SessionPreparation } from '@z/dsh-session'
-import type { SessionEvent, SessionId, SessionHeader } from '@z/dsh-session'
+import { Context, Service } from '@taskweaver/cordis'
+import { SessionPreparation } from '@taskweaver/dsh-session'
+import type { SessionEvent, SessionId, SessionHeader } from '@taskweaver/dsh-session'
 import type { SessionPersistenceRevision } from './revision.ts'
 
 // Re-export the metadata vocabulary so Consumers import it from the Service Definition.
-export type { SessionHeader } from '@z/dsh-session'
+export type { SessionHeader } from '@taskweaver/dsh-session'
 export { SessionPersistenceRevision } from './revision.ts'
 
 /** Lightweight immutable source identity returned without loading a full log. */
@@ -57,7 +57,7 @@ export type {
   StoredSuffix,
 } from './coordinator.ts'
 
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
   interface Context {
     sessionPersistence: SessionPersistence
   }

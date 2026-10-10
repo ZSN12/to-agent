@@ -1,16 +1,16 @@
 /**
  * Same-session goal-round driver over public agent, session, and goal services.
- * @module @z/dsh-goal-round-driver
+ * @module @taskweaver/dsh-goal-round-driver
  */
 
 import { isDeepStrictEqual } from 'node:util'
-import { FiberState } from '@z/cordis'
-import type { Context } from '@z/cordis'
-import type { Agent, PreStepDecision } from '@z/dsh-agent'
-import type { GoalMessageSource, GoalRef, GoalView } from '@z/dsh-goal'
-import { createUserMessage } from '@z/dsh-llm'
-import type { ContentBlock, MessageId, MessageSource } from '@z/dsh-llm'
-import type { Session, SessionEvent, UserMessage } from '@z/dsh-session'
+import { FiberState } from '@taskweaver/cordis'
+import type { Context } from '@taskweaver/cordis'
+import type { Agent, PreStepDecision } from '@taskweaver/dsh-agent'
+import type { GoalMessageSource, GoalRef, GoalView } from '@taskweaver/dsh-goal'
+import { createUserMessage } from '@taskweaver/dsh-llm'
+import type { ContentBlock, MessageId, MessageSource } from '@taskweaver/dsh-llm'
+import type { Session, SessionEvent, UserMessage } from '@taskweaver/dsh-session'
 import { renderGoalRoundPrompt } from './prompt.ts'
 
 export { renderGoalRoundPrompt } from './prompt.ts'

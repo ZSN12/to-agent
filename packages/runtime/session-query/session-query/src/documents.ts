@@ -1,7 +1,7 @@
 /** Shared event metadata and semantic-document projection. */
 
-import { foldSurface } from '@z/dsh-session'
-import type { SessionEvent, SessionId } from '@z/dsh-session'
+import { foldSurface } from '@taskweaver/dsh-session'
+import type { SessionEvent, SessionId } from '@taskweaver/dsh-session'
 import type { SessionEventRecord, SessionEventSearchDocument, SessionEventSurface } from './types.ts'
 import { SessionQueryError } from './config.ts'
 import { extractSessionEventText } from './extraction.ts'

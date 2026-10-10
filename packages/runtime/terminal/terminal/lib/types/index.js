@@ -1,9 +1,9 @@
 /**
  * Owner-scoped persistent PTY registry. Backends own terminal mechanics while
  * this service owns ids, publication, authorization, and awaited cleanup.
- * @module @z/dsh-terminal
+ * @module @taskweaver/dsh-terminal
  */
-import { Service } from '@z/cordis';
+import { Service } from '@taskweaver/cordis';
 import { TerminalBackendCleanupError } from "./types.js";
 export { TerminalBackendCleanupError } from "./types.js";
 /** Error carrying a stable {@link TerminalErrorCode}. */

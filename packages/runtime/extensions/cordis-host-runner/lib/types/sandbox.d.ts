@@ -8,7 +8,7 @@
  *
  * The browser half never reaches this module — it is evaluated by the client-side runner in a
  * closure, with its own facade.
- * @module @z/dsh-cordis-host-runner/sandbox
+ * @module @taskweaver/dsh-cordis-host-runner/sandbox
  */
 /** Exact Host closure symbols exposed by the sandbox and guarded Context. */
 export declare const HOST_BUILTIN_INSPECTION: readonly [{

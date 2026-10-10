@@ -1,11 +1,11 @@
-import z from "@z/schemastery";
+import z from "@taskweaver/schemastery";
 //#region lib/types/policy.js
 /**
 * Policy evaluation for auto-review: classify a reviewer's risk against the
 * configured rules and decide whether the reviewer may authorize on its own, or
 * whether the request must fall back to a human. Enforcement stays with the
 * approval service; this module only recommends.
-* @module @z/dsh-auto-review
+* @module @taskweaver/dsh-auto-review
 */
 /** Order from lowest to highest risk, for floor comparisons. */
 const RISK_ORDER = [
@@ -69,7 +69,7 @@ function classify(toolName, reason) {
 * {@link ApprovalOutcome}, failing closed. Enforcement stays with the approval
 * service — this listener only recommends, and only for requests it is
 * configured to judge.
-* @module @z/dsh-auto-review
+* @module @taskweaver/dsh-auto-review
 */
 /**
 * Build the `approval/request` prepend listener.
@@ -124,7 +124,7 @@ function abortedNever() {
 * with a structured `outputSchema`, so the reviewer returns a validated
 * {@link ReviewOutcome} without inheriting parent context. The child runs with
 * a narrowed tool set so the reviewer cannot itself become an attack surface.
-* @module @z/dsh-auto-review
+* @module @taskweaver/dsh-auto-review
 */
 /**
 * The object-rooted JSON schema the reviewer child must satisfy. Restricted to
@@ -192,7 +192,7 @@ function subagentReviewer(ctx, provider) {
 * {@link ApprovalOutcome} with a fail-closed fallback. Enforcement stays with
 * the approval service; this plugin only recommends, and only for requests the
 * approval service has already determined need asking.
-* @module @z/dsh-auto-review
+* @module @taskweaver/dsh-auto-review
 */
 const name = "auto-review";
 /** Declare the subagent seam the reviewer child needs. */

@@ -1,9 +1,9 @@
-/** Local durable attachment backend rooted below `DSH_HOME`. @module @z/dsh-attachment-local */
+/** Local durable attachment backend rooted below `TASKWEAVER_HOME`. @module @taskweaver/dsh-attachment-local */
 
 import { join, resolve } from 'node:path'
-import { Context } from '@z/cordis'
-import z from '@z/schemastery'
-import { AttachmentStore } from '@z/dsh-attachment'
+import { Context } from '@taskweaver/cordis'
+import z from '@taskweaver/schemastery'
+import { AttachmentStore } from '@taskweaver/dsh-attachment'
 import type {
   ImageAttachmentLimits,
   ImageAttachmentRef,
@@ -11,8 +11,8 @@ import type {
   RequestImageAttachment,
   SaveImageAttachment,
   StoredImageAttachment,
-} from '@z/dsh-attachment'
-import { resolveDshHome } from '@z/dsh-home-paths'
+} from '@taskweaver/dsh-attachment'
+import { resolveRuntimeHome } from '@taskweaver/dsh-home-paths'
 import type { NormalizationPolicy } from './normalization.ts'
 import { CompressionLimiter } from './compression-limiter.ts'
 import { commitPreparedImageFile, prepareImageFile, readImageFile, validateImageFile } from './store.ts'
@@ -49,7 +49,7 @@ export const MAX_IMAGE_COMPRESSION_CONCURRENCY = 8
 
 /** Local attachment backend configuration. */
 export interface Config {
-  /** Explicit harness home; omitted follows `DSH_HOME`, then `~/.dsh`. */
+  /** Explicit runtime home; omitted follows `TASKWEAVER_HOME`, then `~/.taskweaver/runtime`. */
   dshHome?: string
   /** Maximum encoded bytes accepted for one submitted image. Default: 20 MiB. */
   maxImageBytes?: number
@@ -157,7 +157,7 @@ export class LocalAttachmentStore extends AttachmentStore {
 
   constructor(ctx: Context, config: Config) {
     super(ctx)
-    this.root = resolve(join(resolveDshHome(config.dshHome), 'attachments', 'v1'))
+    this.root = resolve(join(resolveRuntimeHome(config.dshHome), 'attachments', 'v1'))
     this.imageLimits = Object.freeze({
       maxImageBytes: config.maxImageBytes ?? DEFAULT_MAX_IMAGE_BYTES,
       maxImagesPerMessage: config.maxImagesPerMessage ?? DEFAULT_MAX_IMAGES_PER_MESSAGE,

@@ -2,17 +2,17 @@ import { describe, expect, it, vi } from 'vitest'
 import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import type { Worker } from 'node:worker_threads'
-import { Context } from '@z/cordis'
-import Loader from '@z/cordis-plugin-loader'
-import type { Agent } from '@z/dsh-agent'
-import SubagentRuntime from '@z/dsh-subagent'
-import type { SubagentCapabilities, SubagentProvider, SubagentResult, SubagentRun, SubagentStartRequest } from '@z/dsh-subagent'
-import type { WorkflowMeta, WorkflowResult, WorkflowResultInfo, WorkflowRun, WorkflowRunInfo } from '@z/dsh-workflow'
+import { Context } from '@taskweaver/cordis'
+import Loader from '@taskweaver/cordis-plugin-loader'
+import type { Agent } from '@taskweaver/dsh-agent'
+import SubagentRuntime from '@taskweaver/dsh-subagent'
+import type { SubagentCapabilities, SubagentProvider, SubagentResult, SubagentRun, SubagentStartRequest } from '@taskweaver/dsh-subagent'
+import type { WorkflowMeta, WorkflowResult, WorkflowResultInfo, WorkflowRun, WorkflowRunInfo } from '@taskweaver/dsh-workflow'
 import * as workerEngineModule from '../src/index.ts'
 import WorkerThreadWorkflowEngine, { type Config } from '../src/index.ts'
 import { workerSpawnEnv } from '../src/host.ts'
 import { HostToWorkerType, WorkerToHostType } from '../src/protocol.ts'
-import { SessionId } from '@z/dsh-session'
+import { SessionId } from '@taskweaver/dsh-session'
 
 /** A minimal parent stand-in: the engine only threads it through to the provider. */
 function fakeParent(): Agent {
@@ -597,7 +597,7 @@ describe('dsh-workflow-worker-thread', () => {
     })
 
     it('workerSpawnEnv forwards TSX_TSCONFIG_PATH when the snapshot harness pins it', () => {
-      const tsconfig = fileURLToPath(new URL('../../../../tsconfig.json', import.meta.url))
+      const tsconfig = fileURLToPath(new URL('../../../tsconfig.json', import.meta.url))
       expect(workerSpawnEnv('linux', tsconfig)).toEqual({ TSX_TSCONFIG_PATH: tsconfig })
       expect(workerSpawnEnv('win32', tsconfig)).toEqual({
         TMP: tmpdir(),
@@ -612,7 +612,7 @@ describe('dsh-workflow-worker-thread', () => {
       // repo and pins the repo tsconfig through this variable; the worker
       // must inherit the pin (or its dsh-* imports silently resolve to
       // unbuilt lib/ bundles) while every other variable stays scrubbed.
-      const tsconfig = fileURLToPath(new URL('../../../../tsconfig.json', import.meta.url))
+      const tsconfig = fileURLToPath(new URL('../../../tsconfig.json', import.meta.url))
       process.env.TSX_TSCONFIG_PATH = tsconfig
       process.env.WORKFLOW_ENV_CANARY = 'leak me'
       try {

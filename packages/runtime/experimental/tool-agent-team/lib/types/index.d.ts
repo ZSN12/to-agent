@@ -1,6 +1,6 @@
 /** Scoped model-facing tools for the opt-in Agent Teams runtime. */
-import type { Context } from '@z/cordis';
-import z from '@z/schemastery';
+import type { Context } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
 /** Cordis plugin name. */
 export declare const name = "tool-agent-team";
 /** Services required by the Team tool plugin. */

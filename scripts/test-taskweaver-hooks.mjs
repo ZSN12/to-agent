@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { loadTaskweaverHooks, runTaskweaverHooks, ensureWorkspaceHooksApproved } from '../electron/backend/taskweaver-hook-runner.mjs'
+import { loadTaskweaverHooks, runTaskweaverHooks, ensureWorkspaceHooksApproved } from '../desktop/backend/taskweaver-hook-runner.mjs'
 
 const home = await fs.mkdtemp(path.join(os.tmpdir(), 'tw-hooks-'))
 await fs.writeFile(path.join(home, 'taskweaver-hooks.json'), JSON.stringify({

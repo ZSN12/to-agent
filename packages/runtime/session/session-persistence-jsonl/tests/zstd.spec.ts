@@ -1,13 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { Context } from '@z/cordis'
+import { Context } from '@taskweaver/cordis'
 import { appendFile, mkdir, mkdtemp, open, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import type { FileHandle } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { performance } from 'node:perf_hooks'
-import SessionStore, { SessionId } from '@z/dsh-session'
-import type { SessionEvent } from '@z/dsh-session'
-import JsonlSessionPersistence from '@z/dsh-session-persistence-jsonl'
+import SessionStore, { SessionId } from '@taskweaver/dsh-session'
+import type { SessionEvent } from '@taskweaver/dsh-session'
+import JsonlSessionPersistence from '@taskweaver/dsh-session-persistence-jsonl'
 import { logPath, scanLog, sessionDir, toHeaderLine, type JsonlCompression } from '../src/format.ts'
 import {
   compressZstdFrame, createZstdFrameDecoder, decompressZstdFrame, decompressZstdPrefix, scanZstdFrames,

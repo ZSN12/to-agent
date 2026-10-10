@@ -2,7 +2,7 @@
  * Pure folds for durable provider-reported token usage and context occupancy.
  */
 import { z } from 'zod';
-import type { SessionEvent } from '@z/dsh-session';
+import type { SessionEvent } from '@taskweaver/dsh-session';
 import type { ContextPressureProjection, TokenUsageProjection } from './projection.ts';
 /**
  * The token-usage unit's state schema — the one definition of the state
@@ -27,7 +27,7 @@ declare const tokenUsageStateSchema: z.ZodObject<{
     }, z.core.$strip>>;
 }, z.core.$strict>;
 type TokenUsageState = z.infer<typeof tokenUsageStateSchema>;
-declare module '@z/dsh-session-projection/types' {
+declare module '@taskweaver/dsh-session-projection/types' {
     interface SessionProjectionStateMap {
         tokenUsage: TokenUsageState;
         contextPressure: ContextPressureState;

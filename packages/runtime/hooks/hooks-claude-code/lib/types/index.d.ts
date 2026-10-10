@@ -6,10 +6,10 @@
  * `updatedInput` is logged and warned but not honored. Bespoke behavior should
  * use typed native plugins on the same extension points; see the
  * [hook-bridges Agent Note](../../../../.agents/notes/implemented/feature/2026-06-30-hook-bridges.md).
- * @module @z/dsh-hooks-claude-code
+ * @module @taskweaver/dsh-hooks-claude-code
  */
-import type { Context } from '@z/cordis';
-import z from '@z/schemastery';
+import type { Context } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
 export declare const name = "hooks-claude-code";
 export declare const inject: string[];
 /** Plugin config: where the CC hook config lives + substitution roots. */

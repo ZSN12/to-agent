@@ -5,17 +5,17 @@
  * the command never ran: foreground calls throw `SANDBOX_UNAVAILABLE`, while
  * background processes carry `runnerFailed`; other spawn rejections retain
  * local-executor semantics. The tool owns approval and passes a complete per-call policy.
- * @module @z/dsh-bash-sandbox
+ * @module @taskweaver/dsh-bash-sandbox
  */
-import { Context } from '@z/cordis';
-import type { ShellExecRequest, ShellExecSpec, ShellProcess, ShellRunResult } from '@z/dsh-shell';
-import type { SandboxMode } from '@z/dsh-sandbox';
-import { LocalBashExecutor } from '@z/dsh-bash-local';
-import type { Config as LocalConfig } from '@z/dsh-bash-local';
+import { Context } from '@taskweaver/cordis';
+import type { ShellExecRequest, ShellExecSpec, ShellProcess, ShellRunResult } from '@taskweaver/dsh-shell';
+import type { SandboxMode } from '@taskweaver/dsh-sandbox';
+import { LocalBashExecutor } from '@taskweaver/dsh-bash-local';
+import type { Config as LocalConfig } from '@taskweaver/dsh-bash-local';
 /**
  * Plugin config: the local executor's knobs, verbatim. The sandbox policy —
  * the default mode and fallback `workspace-write` root — is NOT here: it lives
- * on `ctx.sandboxPolicy` (`@z/dsh-sandbox-policy`), which resolves
+ * on `ctx.sandboxPolicy` (`@taskweaver/dsh-sandbox-policy`), which resolves
  * each calling session's mode and cwd for every enforcing capability. The runner
  * choice is likewise the `ctx.sandbox` provider's config, not this executor's.
  */

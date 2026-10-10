@@ -1,12 +1,12 @@
 /**
  * E2B Service Provider for the subprocess capability seam. Each handle starts through the
  * shared sandbox and retains command output/status paths in that remote world.
- * @module @z/dsh-subprocess-e2b
+ * @module @taskweaver/dsh-subprocess-e2b
  */
-import { Context } from '@z/cordis';
-import z from '@z/schemastery';
-import { SubprocessRuntime } from '@z/dsh-subprocess';
-import type { SubprocessHandle, SubprocessSpawnSpec, SubprocessTerminalHandle, SubprocessTerminalSpawnSpec } from '@z/dsh-subprocess';
+import { Context } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
+import { SubprocessRuntime } from '@taskweaver/dsh-subprocess';
+import type { SubprocessHandle, SubprocessSpawnSpec, SubprocessTerminalHandle, SubprocessTerminalSpawnSpec } from '@taskweaver/dsh-subprocess';
 /** Configuration for the E2B subprocess adapter. */
 export interface Config {
     /** Remote status/liveness poll cadence in milliseconds; each tick is one control-plane request. */

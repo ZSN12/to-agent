@@ -3,12 +3,12 @@
 // neither knows the other's cache, so only the read-modify-write cycle under
 // the `<file>.lock` sibling keeps both namespaces alive on disk.
 import { afterEach, describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import z from '@z/schemastery'
+import { Context } from '@taskweaver/cordis'
+import z from '@taskweaver/schemastery'
 import { chmod, mkdtemp, readFile, rm, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { settingsNamespace } from '@z/dsh-settings'
+import { settingsNamespace } from '@taskweaver/dsh-settings'
 import { FileSettingsProvider } from '../src/index.ts'
 
 const AlphaSchema: z<{ value: number }> = z.object({ value: z.number().default(0) })

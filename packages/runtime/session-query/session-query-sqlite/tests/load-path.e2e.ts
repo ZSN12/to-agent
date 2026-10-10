@@ -1,15 +1,15 @@
 /**
  * Keyless real-Loader-path smoke for the combined SQLite session-query service.
  *
- * @module @z/dsh-session-query-sqlite/tests/load-path
+ * @module @taskweaver/dsh-session-query-sqlite/tests/load-path
  */
 
 import { afterEach, describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import Loader from '@z/cordis-plugin-loader'
-import { SessionId } from '@z/dsh-session'
-import SessionStore from '@z/dsh-session'
-import SqliteSessionQueryEngine, * as queryModule from '@z/dsh-session-query-sqlite'
+import { Context } from '@taskweaver/cordis'
+import Loader from '@taskweaver/cordis-plugin-loader'
+import { SessionId } from '@taskweaver/dsh-session'
+import SessionStore from '@taskweaver/dsh-session'
+import SqliteSessionQueryEngine, * as queryModule from '@taskweaver/dsh-session-query-sqlite'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'

@@ -1,13 +1,13 @@
 /**
  * E2B provider for the filesystem capability seam. Paths, contents, and
  * atomic staging files remain inside the shared remote sandbox.
- * @module @z/dsh-fs-e2b
+ * @module @taskweaver/dsh-fs-e2b
  */
 import { createHash, randomUUID } from 'node:crypto';
 import { Buffer } from 'node:buffer';
 import { posix } from 'node:path';
-import { FileSystem, FsError, FsTargetKey, FsVersion } from '@z/dsh-fs';
-import { CommandExitError, e2bControlEnvs, FileNotFoundError, FileType, quoteE2BShellArg, } from '@z/dsh-e2b';
+import { FileSystem, FsError, FsTargetKey, FsVersion } from '@taskweaver/dsh-fs';
+import { CommandExitError, e2bControlEnvs, FileNotFoundError, FileType, quoteE2BShellArg, } from '@taskweaver/dsh-e2b';
 const VERSION_METADATA_KEY = 'dsh-version';
 const BINARY_SAMPLE_BYTES = 8192;
 const BASE64 = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;

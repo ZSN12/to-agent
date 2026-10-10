@@ -1,5 +1,6 @@
 import { HelpCircle, Trash2 } from 'lucide-react'
-import { useEffect } from 'react'
+import { useId, useRef } from 'react'
+import { useModalFocusTrap } from './useModalFocusTrap'
 
 export function ConfirmModal({
   title,
@@ -18,28 +19,41 @@ export function ConfirmModal({
   onConfirm: () => void
   onCancel: () => void
 }) {
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onCancel()
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [onCancel])
+  const titleId = useId()
+  const descriptionId = useId()
+  const cancelButtonRef = useRef<HTMLButtonElement>(null)
+  const dialogRef = useModalFocusTrap<HTMLElement>({
+    open: true,
+    onEscape: onCancel,
+    getInitialFocus: () => cancelButtonRef.current,
+  })
 
   return (
-    <div className="custom-confirm-backdrop" onClick={onCancel} role="dialog" aria-modal="true">
-      <div className="custom-confirm-card" onClick={(e) => e.stopPropagation()}>
+    <div
+      className="custom-confirm-backdrop"
+      role="presentation"
+      onClick={(event) => { if (event.target === event.currentTarget) onCancel() }}
+    >
+      <section
+        ref={dialogRef}
+        className="custom-confirm-card"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        aria-describedby={descriptionId}
+        tabIndex={-1}
+      >
         <div className="custom-confirm-head">
           <div className={`custom-confirm-icon ${confirmDanger ? 'danger' : ''}`}>
             {confirmDanger ? <Trash2 size={20} /> : <HelpCircle size={20} />}
           </div>
           <div>
-            <h3 className="custom-confirm-title">{title}</h3>
-            <p className="custom-confirm-desc">{description}</p>
+            <h3 className="custom-confirm-title" id={titleId}>{title}</h3>
+            <p className="custom-confirm-desc" id={descriptionId}>{description}</p>
           </div>
         </div>
         <div className="custom-confirm-actions">
-          <button type="button" className="custom-confirm-btn cancel" onClick={onCancel}>
+          <button ref={cancelButtonRef} type="button" className="custom-confirm-btn cancel" onClick={onCancel}>
             {cancelLabel}
           </button>
           <button
@@ -50,7 +64,7 @@ export function ConfirmModal({
             {confirmLabel}
           </button>
         </div>
-      </div>
+      </section>
     </div>
   )
 }

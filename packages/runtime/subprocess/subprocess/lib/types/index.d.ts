@@ -4,14 +4,14 @@
  * collected stdio, and one terminal-process primitive. Command defaulting,
  * shell semantics, deadlines, protocol framing, terminal readiness, and
  * presentation belong to consumers. The local implementation lives in
- * `@z/dsh-subprocess-local`.
- * @module @z/dsh-subprocess
+ * `@taskweaver/dsh-subprocess-local`.
+ * @module @taskweaver/dsh-subprocess
  */
-import { Context, Service } from '@z/cordis';
+import { Context, Service } from '@taskweaver/cordis';
 import type { SubprocessHandle, SubprocessSpawnSpec } from './types.ts';
 import type { SubprocessTerminalHandle, SubprocessTerminalSpawnSpec } from './types.ts';
-export { DSH_ENV_PREFIX, Z_ENV_PREFIX } from './types.ts';
-export type { CollectedOutput, DshEnvironment, DshEnvironmentKey, SubprocessCollect, SubprocessCollectedOutputs, SubprocessHandle, SubprocessOutcome, SubprocessOutputMode, SubprocessOutputRead, SubprocessOutputReader, SubprocessSpawnSpec, SubprocessStdinMode, SubprocessStdio, SubprocessTerminalForeground, SubprocessTerminalHandle, SubprocessTerminalSignal, SubprocessTerminalSpawnSpec, } from './types.ts';
+export { DSH_ENV_PREFIX, LEGACY_TASKWEAVER_ENV_PREFIXES, TASKWEAVER_ENV_PREFIX, Z_ENV_PREFIX, } from './types.ts';
+export type { CollectedOutput, DshEnvironment, DshEnvironmentKey, TaskWeaverEnvironment, TaskWeaverEnvironmentKey, SubprocessCollect, SubprocessCollectedOutputs, SubprocessHandle, SubprocessOutcome, SubprocessOutputMode, SubprocessOutputRead, SubprocessOutputReader, SubprocessSpawnSpec, SubprocessStdinMode, SubprocessStdio, SubprocessTerminalForeground, SubprocessTerminalHandle, SubprocessTerminalSignal, SubprocessTerminalSpawnSpec, } from './types.ts';
 /**
  * Credential-shaped environment names are NOT forwarded to children (the
  * harness's own `DEEPSEEK_API_KEY`/secrets must not leak into a spawned
@@ -21,21 +21,19 @@ export type { CollectedOutput, DshEnvironment, DshEnvironmentKey, SubprocessColl
  */
 export declare const SENSITIVE_ENV_PATTERN: RegExp;
 /**
- * The ambient parent environment minus credential-shaped names and minus all
- * `DSH_*` names — the canonical base every harness child starts from. `PATH`,
+ * The ambient parent environment minus credential-shaped names and all
+ * TaskWeaver-managed names (including legacy aliases) — the canonical base every child starts from. `PATH`,
  * `HOME`, locale, and proxy variables survive, so child CLIs run normally;
  * harness identity never leaks implicitly (a deliberately forwarded
- * credential or current `DSH_*` fact goes through the spec's explicit `env`,
- * which merges after this scrub). Both scrubs match case-insensitively:
- * Windows environment names are case-insensitive, so a parent `dsh_*` entry
- * would otherwise survive and read back as `$env:DSH_*` in the child;
- * deliberate lowercase `dsh_*` names on POSIX are implausible. Exported as a plain function so spawners
+ * credential or current `TASKWEAVER_*` fact goes through the spec's explicit `env`,
+ * which merges after this scrub). Prefix scrubbing matches case-insensitively
+ * because Windows environment names are case-insensitive. Exported as a plain function so spawners
  * that cannot route through the service (node-pty backends, SDK-managed
  * transports) share the one scrub definition.
  * @returns a fresh environment object safe to hand to a child spawn.
  */
 export declare function scrubbedParentEnv(): Record<string, string>;
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
     interface Context {
         subprocess: SubprocessRuntime;
     }

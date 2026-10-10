@@ -7,10 +7,10 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { createProfileStore } from '../electron/backend/profile-store.mjs'
-import { createModelService } from '../electron/backend/model-service.mjs'
-import { createZHostManager } from '../electron/agent/z-host/index.mjs'
-import { resolveTaskWeaverRuntimeRoot } from '../electron/agent/z-host/index.mjs'
+import { createProfileStore } from '../desktop/backend/profile-store.mjs'
+import { createModelService } from '../desktop/backend/model-service.mjs'
+import { createZHostManager } from '../desktop/agent/z-host/index.mjs'
+import { resolveTaskWeaverRuntimeRoot } from '../desktop/agent/z-host/index.mjs'
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const runtimeRoot = resolveTaskWeaverRuntimeRoot({
@@ -20,10 +20,11 @@ const runtimeRoot = resolveTaskWeaverRuntimeRoot({
   env: process.env,
 })
 const userData = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-model-test-'))
+const isolatedRuntimeHome = path.join(userData, 'z')
 const hostManager = createZHostManager({
   runtimeRoot,
   userDataPath: userData,
-  executable: process.execPath,
+  environment: { ...process.env, TASKWEAVER_HOME: isolatedRuntimeHome },
   startTimeoutMs: 60_000,
 })
 
@@ -36,7 +37,7 @@ const createService = () => createModelService({
 })
 
 let service = createService()
-const PROVIDER_ID = 'deepseek-official'
+const PROVIDER_ID = 'deepseek'
 
 try {
   await hostManager.start()

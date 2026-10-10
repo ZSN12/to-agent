@@ -1,17 +1,17 @@
-import { createAssistantMessage, createUserMessage } from '@z/dsh-llm'
+import { createAssistantMessage, createUserMessage } from '@taskweaver/dsh-llm'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { Context, type Fiber } from '@z/cordis'
+import { Context, type Fiber } from '@taskweaver/cordis'
 import { DatabaseSync } from 'node:sqlite'
 import { chmod, mkdtemp, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import SessionStore, { SESSION_FORMAT_VERSION, SessionId } from '@z/dsh-session'
-import type { SessionEvent, SessionHeader, SessionId as SessionIdType } from '@z/dsh-session'
-import SessionPersistence, { SessionPersistenceRevision } from '@z/dsh-session-persistence'
-import type { SessionPersistenceSnapshot } from '@z/dsh-session-persistence'
+import SessionStore, { SESSION_FORMAT_VERSION, SessionId } from '@taskweaver/dsh-session'
+import type { SessionEvent, SessionHeader, SessionId as SessionIdType } from '@taskweaver/dsh-session'
+import SessionPersistence, { SessionPersistenceRevision } from '@taskweaver/dsh-session-persistence'
+import type { SessionPersistenceSnapshot } from '@taskweaver/dsh-session-persistence'
 import SqliteSessionQueryEngine, {
   SESSION_QUERY_SQLITE_SCHEMA_VERSION,
-} from '@z/dsh-session-query-sqlite'
+} from '@taskweaver/dsh-session-query-sqlite'
 import {
   SESSION_QUERY_DEFAULT_PERSISTED_INSPECT_CONCURRENCY,
   SessionQueryError,
@@ -19,7 +19,7 @@ import {
   type SessionAvailability,
   type SessionQueryErrorCode,
   type SessionSearchRequest,
-} from '@z/dsh-session-query'
+} from '@taskweaver/dsh-session-query'
 
 const temporaryDirectories: string[] = []
 

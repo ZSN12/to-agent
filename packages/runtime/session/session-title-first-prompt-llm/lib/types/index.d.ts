@@ -1,7 +1,7 @@
 /** First-human-message model provider for `ctx.sessionTitle`. */
-import type { Context } from '@z/cordis';
-import z from '@z/schemastery';
-import type { SessionTitleLlmConfig } from '@z/dsh-session-title-llm';
+import type { Context } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
+import type { SessionTitleLlmConfig } from '@taskweaver/dsh-session-title-llm';
 export declare const name = "session-title-first-prompt-llm";
 export declare const inject: string[];
 /** Required LLM policy; this plugin adds no defaults. */

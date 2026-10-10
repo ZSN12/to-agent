@@ -1,13 +1,13 @@
 /**
- * Package-owned invariant companion for `@z/dsh-web-search-deepseek`.
- * @module @z/dsh-web-search-deepseek/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-web-search-deepseek`.
+ * @module @taskweaver/dsh-web-search-deepseek/invariant
  */
 
 /* jscpd:ignore-start */
-import type { Context } from '@z/cordis'
-import type { InvariantInstaller } from '@z/dsh-invariants'
+import type { Context } from '@taskweaver/cordis'
+import type { InvariantInstaller } from '@taskweaver/dsh-invariants'
 
-const PACKAGE_NAME = '@z/dsh-web-search-deepseek'
+const PACKAGE_NAME = '@taskweaver/dsh-web-search-deepseek'
 
 /** Cordis companion plugin name. */
 export const name = 'web-search-deepseek-invariant'

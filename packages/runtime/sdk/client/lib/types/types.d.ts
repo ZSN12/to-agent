@@ -2,10 +2,10 @@
  * Types for the TypeScript SDK client: launch options, notification shapes,
  * and owned activity results.
  *
- * @module @z/dsh-sdk-client/types
+ * @module @taskweaver/dsh-sdk-client/types
  */
-import type { ContentBlock } from '@z/dsh-llm';
-import type { SessionEvent } from '@z/dsh-session';
+import type { ContentBlock } from '@taskweaver/dsh-llm';
+import type { SessionEvent } from '@taskweaver/dsh-session';
 /** One server-to-client notification as received off the wire. */
 export interface HarnessNotification {
     /** The JSON-RPC notification method name. */
@@ -26,7 +26,7 @@ export interface HarnessClientOptions {
     /**
      * The complete child environment. `undefined` inherits the parent env
      * verbatim; passing an object replaces it entirely, so callers own
-     * credential policy (see `scrubbedParentEnv` in `@z/dsh-subprocess`
+     * credential policy (see `scrubbedParentEnv` in `@taskweaver/dsh-subprocess`
      * for the shared scrub-then-merge base).
      */
     env?: NodeJS.ProcessEnv;

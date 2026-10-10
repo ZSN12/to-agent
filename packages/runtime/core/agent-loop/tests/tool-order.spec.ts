@@ -1,4 +1,4 @@
-import { createUserMessage } from '@z/dsh-llm'
+import { createUserMessage } from '@taskweaver/dsh-llm'
 /**
  * Loop-level tool-order determinism: the request/header event — and therefore the frozen
  * request the adapter receives — carries the assembly's canonical tool order (system-prompt's
@@ -8,15 +8,15 @@ import { createUserMessage } from '@z/dsh-llm'
  */
 
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import LlmRuntime from '@z/dsh-llm'
-import SessionStore, { SessionId, foldRequestHeader } from '@z/dsh-session'
-import SystemPrompt, { TOOL_ORDER_REST } from '@z/dsh-system-prompt'
-import type { Config as SystemPromptConfig } from '@z/dsh-system-prompt'
-import ToolRuntime, { defineContentToolFixture } from '@z/dsh-tools'
-import AgentRegistry, { type Agent } from '@z/dsh-agent'
+import { Context } from '@taskweaver/cordis'
+import LlmRuntime from '@taskweaver/dsh-llm'
+import SessionStore, { SessionId, foldRequestHeader } from '@taskweaver/dsh-session'
+import SystemPrompt, { TOOL_ORDER_REST } from '@taskweaver/dsh-system-prompt'
+import type { Config as SystemPromptConfig } from '@taskweaver/dsh-system-prompt'
+import ToolRuntime, { defineContentToolFixture } from '@taskweaver/dsh-tools'
+import AgentRegistry, { type Agent } from '@taskweaver/dsh-agent'
 
-import AgentLoop from '@z/dsh-agent-loop'
+import AgentLoop from '@taskweaver/dsh-agent-loop'
 import { MockAdapter, textResponse } from './mock-adapter.ts'
 
 async function harness(adapter: MockAdapter, toolOrder?: SystemPromptConfig['toolOrder']) {

@@ -1,149 +1,47 @@
-"use strict";
 /**
  * Shared boot glue for the app bins (`dsh`, `dsh-acp-demo`): load the gitignored
  * `.env`, install the fail-loud Loader guards, resolve the config path (snapshot-aware), load the
- * optional user patch layers from the Harness home (`~/.dsh`), expose its path resolver to
+ * optional user patch layers from the TaskWeaver runtime home (`~/.taskweaver/runtime`), expose its path resolver to
  * config expressions, and drive the Cordis Loader against a leaf `cordis.yml` until the tree settles.
- * @module @z/dsh-app-boot
+ * @module @taskweaver/dsh-app-boot
  */
-var __extends = (this && this.__extends) || (function () {
-    var extendStatics = function (d, b) {
-        extendStatics = Object.setPrototypeOf ||
-            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-            function (d, b) { for (var p in b) if (Object.prototype.hasOwnProperty.call(b, p)) d[p] = b[p]; };
-        return extendStatics(d, b);
-    };
-    return function (d, b) {
-        if (typeof b !== "function" && b !== null)
-            throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
-})();
-var __assign = (this && this.__assign) || function () {
-    __assign = Object.assign || function(t) {
-        for (var s, i = 1, n = arguments.length; i < n; i++) {
-            s = arguments[i];
-            for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p))
-                t[p] = s[p];
-        }
-        return t;
-    };
-    return __assign.apply(this, arguments);
-};
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
-var __generator = (this && this.__generator) || function (thisArg, body) {
-    var _ = { label: 0, sent: function() { if (t[0] & 1) throw t[1]; return t[1]; }, trys: [], ops: [] }, f, y, t, g = Object.create((typeof Iterator === "function" ? Iterator : Object).prototype);
-    return g.next = verb(0), g["throw"] = verb(1), g["return"] = verb(2), typeof Symbol === "function" && (g[Symbol.iterator] = function() { return this; }), g;
-    function verb(n) { return function (v) { return step([n, v]); }; }
-    function step(op) {
-        if (f) throw new TypeError("Generator is already executing.");
-        while (g && (g = 0, op[0] && (_ = 0)), _) try {
-            if (f = 1, y && (t = op[0] & 2 ? y["return"] : op[0] ? y["throw"] || ((t = y["return"]) && t.call(y), 0) : y.next) && !(t = t.call(y, op[1])).done) return t;
-            if (y = 0, t) op = [op[0] & 2, t.value];
-            switch (op[0]) {
-                case 0: case 1: t = op; break;
-                case 4: _.label++; return { value: op[1], done: false };
-                case 5: _.label++; y = op[1]; op = [0]; continue;
-                case 7: op = _.ops.pop(); _.trys.pop(); continue;
-                default:
-                    if (!(t = _.trys, t = t.length > 0 && t[t.length - 1]) && (op[0] === 6 || op[0] === 2)) { _ = 0; continue; }
-                    if (op[0] === 3 && (!t || (op[1] > t[0] && op[1] < t[3]))) { _.label = op[1]; break; }
-                    if (op[0] === 6 && _.label < t[1]) { _.label = t[1]; t = op; break; }
-                    if (t && _.label < t[2]) { _.label = t[2]; _.ops.push(op); break; }
-                    if (t[2]) _.ops.pop();
-                    _.trys.pop(); continue;
-            }
-            op = body.call(thisArg, _);
-        } catch (e) { op = [6, e]; y = 0; } finally { f = t = 0; }
-        if (op[0] & 5) throw op[1]; return { value: op[0] ? op[1] : void 0, done: true };
+var __rewriteRelativeImportExtension = (this && this.__rewriteRelativeImportExtension) || function (path, preserveJsx) {
+    if (typeof path === "string" && /^\.\.?\//.test(path)) {
+        return path.replace(/\.(tsx)$|((?:\.d)?)((?:\.[^./]+?)?)\.([cm]?)ts$/i, function (m, tsx, d, ext, cm) {
+            return tsx ? preserveJsx ? ".jsx" : ".js" : d && (!ext || !cm) ? m : (d + ext + "." + cm.toLowerCase() + "js");
+        });
     }
+    return path;
 };
-var __rest = (this && this.__rest) || function (s, e) {
-    var t = {};
-    for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p) && e.indexOf(p) < 0)
-        t[p] = s[p];
-    if (s != null && typeof Object.getOwnPropertySymbols === "function")
-        for (var i = 0, p = Object.getOwnPropertySymbols(s); i < p.length; i++) {
-            if (e.indexOf(p[i]) < 0 && Object.prototype.propertyIsEnumerable.call(s, p[i]))
-                t[p[i]] = s[p[i]];
-        }
-    return t;
-};
-var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
-    if (pack || arguments.length === 2) for (var i = 0, l = from.length, ar; i < l; i++) {
-        if (ar || !(i in from)) {
-            if (!ar) ar = Array.prototype.slice.call(from, 0, i);
-            ar[i] = from[i];
-        }
-    }
-    return to.concat(ar || Array.prototype.slice.call(from));
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.HARNESS_SOURCE_SECTION = exports.FAIL_LOUD_RELEASE_TIMEOUT_MS = exports.writeProfileManifest = exports.resolveProfileDir = exports.resolveBundleDir = exports.readProfileManifest = exports.PROFILES_DIR = exports.PROFILE_TEMPLATES = exports.PROFILE_PATCH_FILENAME = exports.loadProfile = exports.initProfile = exports.healProfilesModuleFallback = exports.DEFAULT_PROFILE_BUNDLES = exports.composeEntries = void 0;
-exports.resolveConfigPath = resolveConfigPath;
-exports.loadEnv = loadEnv;
-exports.loadLayeredEnv = loadLayeredEnv;
-exports.watchUserPatches = watchUserPatches;
-exports.loadOptionalPatches = loadOptionalPatches;
-exports.loadOverlayPatches = loadOverlayPatches;
-exports.renderConfigDump = renderConfigDump;
-exports.mountRootInclude = mountRootInclude;
-exports.installFailLoud = installFailLoud;
-exports.assertEntriesLoaded = assertEntriesLoaded;
-exports.assertEntriesActivated = assertEntriesActivated;
-exports.boot = boot;
-exports.addHarnessSourceSection = addHarnessSourceSection;
-var node_url_1 = require("node:url");
-var node_fs_1 = require("node:fs");
-var node_util_1 = require("node:util");
-var node_path_1 = require("node:path");
-var yaml = require("js-yaml");
-var cordis_1 = require("@z/cordis");
-var cordis_plugin_loader_1 = require("@z/cordis-plugin-loader");
-var cordis_plugin_include_1 = require("@z/cordis-plugin-include");
-var cordis_plugin_group_1 = require("@z/cordis-plugin-group");
-var dsh_home_paths_1 = require("@z/dsh-home-paths");
-var dsh_launch_environment_1 = require("@z/dsh-launch-environment");
-var profile_ts_1 = require("./profile.ts");
-Object.defineProperty(exports, "composeEntries", { enumerable: true, get: function () { return profile_ts_1.composeEntries; } });
-Object.defineProperty(exports, "DEFAULT_PROFILE_BUNDLES", { enumerable: true, get: function () { return profile_ts_1.DEFAULT_PROFILE_BUNDLES; } });
-Object.defineProperty(exports, "healProfilesModuleFallback", { enumerable: true, get: function () { return profile_ts_1.healProfilesModuleFallback; } });
-Object.defineProperty(exports, "initProfile", { enumerable: true, get: function () { return profile_ts_1.initProfile; } });
-Object.defineProperty(exports, "loadProfile", { enumerable: true, get: function () { return profile_ts_1.loadProfile; } });
-Object.defineProperty(exports, "PROFILE_PATCH_FILENAME", { enumerable: true, get: function () { return profile_ts_1.PROFILE_PATCH_FILENAME; } });
-Object.defineProperty(exports, "PROFILE_TEMPLATES", { enumerable: true, get: function () { return profile_ts_1.PROFILE_TEMPLATES; } });
-Object.defineProperty(exports, "PROFILES_DIR", { enumerable: true, get: function () { return profile_ts_1.PROFILES_DIR; } });
-Object.defineProperty(exports, "readProfileManifest", { enumerable: true, get: function () { return profile_ts_1.readProfileManifest; } });
-Object.defineProperty(exports, "resolveBundleDir", { enumerable: true, get: function () { return profile_ts_1.resolveBundleDir; } });
-Object.defineProperty(exports, "resolveProfileDir", { enumerable: true, get: function () { return profile_ts_1.resolveProfileDir; } });
-Object.defineProperty(exports, "writeProfileManifest", { enumerable: true, get: function () { return profile_ts_1.writeProfileManifest; } });
+import { createRequire } from 'node:module';
+import { pathToFileURL } from 'node:url';
+import { readFileSync } from 'node:fs';
+import { parseEnv } from 'node:util';
+import { basename, dirname, isAbsolute, resolve } from 'node:path';
+import * as yaml from 'js-yaml';
+import { Context } from '@taskweaver/cordis';
+import Loader from '@taskweaver/cordis-plugin-loader';
+import Include, { applyEntryPatches, entryListSchema } from '@taskweaver/cordis-plugin-include';
+import Group from '@taskweaver/cordis-plugin-group';
+import { runtimeHomePath, resolveRuntimeHome } from '@taskweaver/dsh-home-paths';
+import { createLaunchEnvironmentSnapshot } from '@taskweaver/dsh-launch-environment';
+export { composeEntries, DEFAULT_PROFILE_BUNDLES, healProfilesModuleFallback, initProfile, loadProfile, PROFILE_PATCH_FILENAME, PROFILE_TEMPLATES, PROFILES_DIR, readProfileManifest, resolveBundleDir, resolveProfileDir, writeProfileManifest, } from "./profile.js";
 /**
  * Resolve the config to boot. Replay swaps a `cordis.yml` basename for
  * `cordis.snapshot.yml` in the same directory; every other mode keeps the path.
  * @param configPath - the requested config path (absolute, or relative to `cwd`).
- * @param snapshotMode - the bin's `$DSH_SNAPSHOT` value; only `'replay'` swaps the
+ * @param snapshotMode - the bin's `$TASKWEAVER_SNAPSHOT` value; only `'replay'` swaps the
  *   basename.
  * @param cwd - the base a relative `configPath` resolves against.
  * @returns the absolute path of the config to boot.
  */
-function resolveConfigPath(configPath, snapshotMode, cwd) {
-    if (cwd === void 0) { cwd = process.cwd(); }
-    var absolute = (0, node_path_1.resolve)(cwd, configPath);
+export function resolveConfigPath(configPath, snapshotMode, cwd = process.cwd()) {
+    const absolute = resolve(cwd, configPath);
     if (snapshotMode !== 'replay')
         return absolute;
-    var dir = (0, node_path_1.dirname)(absolute);
-    var replayName = (0, node_path_1.basename)(absolute).replace(/cordis\.ya?ml$/, 'cordis.snapshot.yml');
-    return (0, node_path_1.resolve)(dir, replayName);
+    const dir = dirname(absolute);
+    const replayName = basename(absolute).replace(/cordis\.ya?ml$/, 'cordis.snapshot.yml');
+    return resolve(dir, replayName);
 }
 /**
  * Load the optional gitignored `.env` from `dir`. Missing files fall back to the
@@ -152,21 +50,19 @@ function resolveConfigPath(configPath, snapshotMode, cwd) {
  * @param dir - the directory whose `.env` to load.
  * @param warn - sink for the one-line misconfiguration diagnostic.
  */
-function loadEnv(binName, dir, warn) {
-    if (dir === void 0) { dir = process.cwd(); }
-    if (warn === void 0) { warn = function (line) { return void process.stderr.write(line); }; }
+export function loadEnv(binName, dir = process.cwd(), warn = line => void process.stderr.write(line)) {
     try {
-        process.loadEnvFile((0, node_path_1.resolve)(dir, '.env'));
+        process.loadEnvFile(resolve(dir, '.env'));
     }
     catch (error) {
-        if ((error === null || error === void 0 ? void 0 : error.code) !== 'ENOENT') {
-            warn("".concat(binName, ": failed to load .env: ").concat(String(error), "\n"));
+        if (error?.code !== 'ENOENT') {
+            warn(`${binName}: failed to load .env: ${String(error)}\n`);
         }
         // ENOENT (no .env) is fine — rely on the ambient environment.
     }
 }
 /** Exact names no discovered file may set. */
-var BOOTSTRAP_NAMES = new Set([
+const BOOTSTRAP_NAMES = new Set([
     // Process launch and module resolution.
     'PATH', 'HOME', 'USERPROFILE', 'SHELL',
     'NODE_OPTIONS', 'NODE_PATH', 'NODE_EXTRA_CA_CERTS',
@@ -189,7 +85,7 @@ var BOOTSTRAP_NAMES = new Set([
     'NODE_TLS_REJECT_UNAUTHORIZED',
 ]);
 /** Name prefixes no discovered file may set. */
-var BOOTSTRAP_PREFIXES = ['DSH_', 'XDG_', 'DYLD_', 'BASH_FUNC_'];
+const BOOTSTRAP_PREFIXES = ['TASKWEAVER_', 'XDG_', 'DYLD_', 'BASH_FUNC_'];
 /**
  * Whether a variable may come only from the inherited process environment
  * because it changes process, runtime, VCS, or network bootstrap.
@@ -197,8 +93,8 @@ var BOOTSTRAP_PREFIXES = ['DSH_', 'XDG_', 'DYLD_', 'BASH_FUNC_'];
  * @returns true when only the inherited environment may supply it.
  */
 function isBootstrapOnly(name) {
-    var upper = name.toUpperCase();
-    return BOOTSTRAP_NAMES.has(upper) || BOOTSTRAP_PREFIXES.some(function (prefix) { return upper.startsWith(prefix); });
+    const upper = name.toUpperCase();
+    return BOOTSTRAP_NAMES.has(upper) || BOOTSTRAP_PREFIXES.some(prefix => upper.startsWith(prefix));
 }
 /**
  * Parse one directory's `.env` without applying it, rejecting bootstrap-only
@@ -210,29 +106,28 @@ function isBootstrapOnly(name) {
  * @throws when the file declares a name {@link isBootstrapOnly} rejects.
  */
 function readEnvLayer(binName, dir, warn) {
-    var path = (0, node_path_1.resolve)(dir, '.env');
-    var content;
+    const path = resolve(dir, '.env');
+    let content;
     try {
-        content = (0, node_fs_1.readFileSync)(path, 'utf8');
+        content = readFileSync(path, 'utf8');
     }
     catch (error) {
-        if ((error === null || error === void 0 ? void 0 : error.code) !== 'ENOENT') {
-            warn("".concat(binName, ": failed to load .env: ").concat(String(error), "\n"));
+        if (error?.code !== 'ENOENT') {
+            warn(`${binName}: failed to load .env: ${String(error)}\n`);
         }
         // ENOENT (no .env) is fine — rely on the ambient environment.
         return undefined;
     }
     // Parse once so validation and materialization use exactly the same entries.
-    var values = (0, node_util_1.parseEnv)(content);
-    for (var _i = 0, _a = Object.keys(values); _i < _a.length; _i++) {
-        var name_1 = _a[_i];
-        if (!isBootstrapOnly(name_1))
+    const values = parseEnv(content);
+    for (const name of Object.keys(values)) {
+        if (!isBootstrapOnly(name))
             continue;
-        throw new Error("".concat(binName, ": ").concat(path, " sets \"").concat(name_1, "\", which only the launching environment may set")
+        throw new Error(`${binName}: ${path} sets "${name}", which only the launching environment may set`
             + ' (it decides how this process starts, where its code and instructions load from, or how it'
-            + " reaches the network); export ".concat(name_1, " instead of putting it in a .env file"));
+            + ` reaches the network); export ${name} instead of putting it in a .env file`);
     }
-    return { path: path, values: values };
+    return { path, values };
 }
 /**
  * Load the product CLI's inherited > invoking-directory `.env` > Harness-home
@@ -245,36 +140,34 @@ function readEnvLayer(binName, dir, warn) {
  * @returns this run's frozen environment snapshot.
  * @throws when either file declares a bootstrap-only variable.
  */
-function loadLayeredEnv(binName, cwd, warn) {
-    if (cwd === void 0) { cwd = process.cwd(); }
-    if (warn === void 0) { warn = function (line) { return void process.stderr.write(line); }; }
-    var home = (0, dsh_home_paths_1.resolveDshHome)();
-    var inherited = __assign({}, process.env);
+export function loadLayeredEnv(binName, cwd = process.cwd(), warn = line => void process.stderr.write(line)) {
+    const home = resolveRuntimeHome();
+    const inherited = { ...process.env };
     // Parse both layers first: a rejection must not leave one file applied.
-    var project = readEnvLayer(binName, cwd, warn);
-    var user = home === (0, node_path_1.resolve)(cwd) ? undefined : readEnvLayer(binName, home, warn);
+    const project = readEnvLayer(binName, cwd, warn);
+    const user = home === resolve(cwd) ? undefined : readEnvLayer(binName, home, warn);
     // Apply the checked values without replacing a higher-ranked name.
-    for (var _i = 0, _a = [project, user]; _i < _a.length; _i++) {
-        var layer = _a[_i];
+    for (const layer of [project, user]) {
         if (layer === undefined)
             continue;
-        for (var _b = 0, _c = Object.entries(layer.values); _b < _c.length; _b++) {
-            var _d = _c[_b], name_2 = _d[0], value = _d[1];
-            if (process.env[name_2] === undefined)
-                process.env[name_2] = value;
+        for (const [name, value] of Object.entries(layer.values)) {
+            if (process.env[name] === undefined)
+                process.env[name] = value;
         }
     }
-    return (0, dsh_launch_environment_1.createLaunchEnvironmentSnapshot)(__spreadArray(__spreadArray([
-        { source: 'process', values: inherited }
-    ], project === undefined ? [] : [{ source: 'project-env', path: project.path, values: project.values }], true), user === undefined ? [] : [{ source: 'user-env', path: user.path, values: user.values }], true));
+    return createLaunchEnvironmentSnapshot([
+        { source: 'process', values: inherited },
+        ...project === undefined ? [] : [{ source: 'project-env', path: project.path, values: project.values }],
+        ...user === undefined ? [] : [{ source: 'user-env', path: user.path, values: user.values }],
+    ]);
 }
-var bootstrapIncludes = new WeakMap();
+const bootstrapIncludes = new WeakMap();
 // The include's YAML dialect (`!!js` scalars become expression nodes the
 // Loader interpolates against each entry's injection-ready context), imported
 // from the include itself so patch parsing and config dumping can never drift
 // from what the include mounts. User patch layers share it so they may
 // reference `process.env`.
-var userPatchesSchema = cordis_plugin_include_1.entryListSchema;
+const userPatchesSchema = entryListSchema;
 /**
  * Watch the user patch layer through Cordis HMR and transactionally reapply it to the boot include.
  * @param ctx - settled app context containing the root Include and an active HMR service.
@@ -282,62 +175,44 @@ var userPatchesSchema = cordis_plugin_include_1.entryListSchema;
  * @returns an asynchronous disposer after the exact-path watcher is ready.
  * @throws when HMR or the root Include is absent, watcher setup fails, or initial path resolution fails.
  */
-function watchUserPatches(ctx, options) {
-    return __awaiter(this, void 0, void 0, function () {
-        var binName, filename, _a, compose, hmr, entry, register, error_1;
-        var _this = this;
-        return __generator(this, function (_b) {
-            switch (_b.label) {
-                case 0:
-                    binName = options.binName, filename = options.filename, _a = options.compose, compose = _a === void 0 ? function (patches) { return patches; } : _a;
-                    hmr = ctx.get('hmr');
-                    if (hmr === undefined)
-                        throw new Error("".concat(binName, ": user patch-layer watching requires the Cordis HMR service"));
-                    entry = bootstrapIncludes.get(ctx);
-                    if (entry === undefined)
-                        throw new Error("".concat(binName, ": user patch-layer watching requires the root Include entry"));
-                    register = hmr.registerConfig(filename, function () { return __awaiter(_this, void 0, void 0, function () {
-                        var _a, _previousPatches, includeConfig, userPatches, patches;
-                        var _b;
-                        return __generator(this, function (_c) {
-                            switch (_c.label) {
-                                case 0:
-                                    _a = entry.options.config, _previousPatches = _a.patches, includeConfig = __rest(_a, ["patches"]);
-                                    userPatches = (_b = loadOptionalPatches(binName, filename)) !== null && _b !== void 0 ? _b : [];
-                                    patches = compose(userPatches);
-                                    return [4 /*yield*/, entry.update({
-                                            config: __assign(__assign({}, includeConfig), { patches: patches }),
-                                        })];
-                                case 1:
-                                    _c.sent();
-                                    return [2 /*return*/];
-                            }
-                        });
-                    }); });
-                    _b.label = 1;
-                case 1:
-                    _b.trys.push([1, 3, , 4]);
-                    return [4 /*yield*/, register];
-                case 2: return [2 /*return*/, _b.sent()];
-                case 3:
-                    error_1 = _b.sent();
-                    // A surface can dispose the whole tree while the watcher is still opening;
-                    // the HMR effect registration then fails with INACTIVE_EFFECT. That is the
-                    // app exiting exactly as asked, not a watch failure, so return a no-op
-                    // disposer instead of crashing.
-                    if ((error_1 === null || error_1 === void 0 ? void 0 : error_1.code) === 'INACTIVE_EFFECT')
-                        return [2 /*return*/, function () { return __awaiter(_this, void 0, void 0, function () { return __generator(this, function (_a) {
-                                return [2 /*return*/];
-                            }); }); }];
-                    throw error_1;
-                case 4: return [2 /*return*/];
-            }
+export async function watchUserPatches(ctx, options) {
+    const { binName, filename, compose = (patches) => patches } = options;
+    const hmr = ctx.get('hmr');
+    if (hmr === undefined)
+        throw new Error(`${binName}: user patch-layer watching requires the Cordis HMR service`);
+    const entry = bootstrapIncludes.get(ctx);
+    if (entry === undefined)
+        throw new Error(`${binName}: user patch-layer watching requires the root Include entry`);
+    const register = hmr.registerConfig(filename, async () => {
+        // Re-read the include's non-patch options per refresh: a writer that
+        // updates the root Include's other options between refreshes (none exists
+        // today) must not have them silently reverted by a user-layer reload.
+        const { patches: _previousPatches, ...includeConfig } = entry.options.config;
+        const userPatches = loadOptionalPatches(binName, filename) ?? [];
+        const patches = compose(userPatches);
+        await entry.update({
+            config: {
+                ...includeConfig,
+                patches,
+            },
         });
     });
+    try {
+        return await register;
+    }
+    catch (error) {
+        // A surface can dispose the whole tree while the watcher is still opening;
+        // the HMR effect registration then fails with INACTIVE_EFFECT. That is the
+        // app exiting exactly as asked, not a watch failure, so return a no-op
+        // disposer instead of crashing.
+        if (error?.code === 'INACTIVE_EFFECT')
+            return async () => { };
+        throw error;
+    }
 }
 /**
  * Load an optional patch-list file: a top-level YAML array of loader patch
- * entries (`@z/cordis-plugin-include`'s `PatchOptions`): id-targeted config
+ * entries (`@taskweaver/cordis-plugin-include`'s `PatchOptions`): id-targeted config
  * overrides and `insert` lists, with `!!js` expressions allowed. A missing
  * file means "no layer"; an unreadable, unparsable, or non-array file throws —
  * a present patch file that cannot apply is a misconfiguration and must fail
@@ -346,15 +221,15 @@ function watchUserPatches(ctx, options) {
  * @param file - absolute path of the patch file.
  * @returns the parsed patches, or `undefined` when the file does not exist.
  */
-function loadOptionalPatches(binName, file) {
-    var content;
+export function loadOptionalPatches(binName, file) {
+    let content;
     try {
-        content = (0, node_fs_1.readFileSync)(file, 'utf8');
+        content = readFileSync(file, 'utf8');
     }
     catch (error) {
-        if ((error === null || error === void 0 ? void 0 : error.code) === 'ENOENT')
+        if (error?.code === 'ENOENT')
             return undefined;
-        throw new Error("".concat(binName, ": failed to read patches ").concat(file, ": ").concat(String(error)));
+        throw new Error(`${binName}: failed to read patches ${file}: ${String(error)}`);
     }
     return parsePatchList(binName, file, content, 'patches');
 }
@@ -367,19 +242,19 @@ function loadOptionalPatches(binName, file) {
  * @param file - absolute path of the overlay file.
  * @returns the parsed patch list.
  */
-function loadOverlayPatches(binName, file) {
-    var content;
+export function loadOverlayPatches(binName, file) {
+    let content;
     try {
-        content = (0, node_fs_1.readFileSync)(file, 'utf8');
+        content = readFileSync(file, 'utf8');
     }
     catch (error) {
-        throw new Error("".concat(binName, ": failed to read overlay ").concat(file, ": ").concat(String(error)));
+        throw new Error(`${binName}: failed to read overlay ${file}: ${String(error)}`);
     }
     return parsePatchList(binName, file, content, 'overlay');
 }
 /**
  * Parse one loader patch list: a top-level YAML array of
- * `@z/cordis-plugin-include` `PatchOptions` (id-targeted config overrides and
+ * `@taskweaver/cordis-plugin-include` `PatchOptions` (id-targeted config overrides and
  * `insert` lists, `!!js` expressions allowed). Every invalid field or value throws,
  * because a patch file that cannot be applied at all is a misconfiguration; a
  * single patch whose target row is absent stays a per-entry Loader warning, so
@@ -393,21 +268,21 @@ function loadOverlayPatches(binName, file) {
 function parsePatchList(binName, file, content, label) {
     if (!content.trim())
         return [];
-    var parsed;
+    let parsed;
     try {
         parsed = yaml.load(content, { schema: userPatchesSchema });
     }
     catch (error) {
-        throw new Error("".concat(binName, ": failed to parse ").concat(label, " ").concat(file, ": ").concat(String(error)));
+        throw new Error(`${binName}: failed to parse ${label} ${file}: ${String(error)}`);
     }
     if (parsed === null || parsed === undefined)
         return [];
     if (!Array.isArray(parsed)) {
-        throw new Error("".concat(binName, ": ").concat(label, " ").concat(file, " must be a top-level YAML array of loader patch entries"));
+        throw new Error(`${binName}: ${label} ${file} must be a top-level YAML array of loader patch entries`);
     }
-    parsed.forEach(function (entry, index) {
+    parsed.forEach((entry, index) => {
         if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) {
-            throw new Error("".concat(binName, ": ").concat(label, " entry ").concat(index + 1, " in ").concat(file, " must be a mapping (a loader patch entry)"));
+            throw new Error(`${binName}: ${label} entry ${index + 1} in ${file} must be a mapping (a loader patch entry)`);
         }
     });
     return parsed;
@@ -443,71 +318,64 @@ function parsePatchList(binName, file, content, label) {
  * @returns the composed entry list rendered as a YAML document with
  * source comment separators.
  */
-function renderConfigDump(binName, absoluteConfigPath, layers, warn) {
-    var _a;
-    if (warn === void 0) { warn = function (line) { return void process.stderr.write("".concat(line, "\n")); }; }
-    var content;
+export function renderConfigDump(binName, absoluteConfigPath, layers, warn = line => void process.stderr.write(`${line}\n`)) {
+    let content;
     try {
-        content = (0, node_fs_1.readFileSync)(absoluteConfigPath, 'utf8');
+        content = readFileSync(absoluteConfigPath, 'utf8');
     }
     catch (error) {
-        throw new Error("".concat(binName, ": failed to read config ").concat(absoluteConfigPath, ": ").concat(String(error)));
+        throw new Error(`${binName}: failed to read config ${absoluteConfigPath}: ${String(error)}`);
     }
-    var parsed;
+    let parsed;
     try {
-        parsed = yaml.load(content, { schema: cordis_plugin_include_1.entryListSchema });
+        parsed = yaml.load(content, { schema: entryListSchema });
     }
     catch (error) {
-        throw new Error("".concat(binName, ": failed to parse config ").concat(absoluteConfigPath, ": ").concat(String(error)));
+        throw new Error(`${binName}: failed to parse config ${absoluteConfigPath}: ${String(error)}`);
     }
     if (!Array.isArray(parsed)) {
-        throw new Error("".concat(binName, ": config ").concat(absoluteConfigPath, " must be a top-level YAML array of entries"));
+        throw new Error(`${binName}: config ${absoluteConfigPath} must be a top-level YAML array of entries`);
     }
-    var baseLabel = (0, node_path_1.basename)(absoluteConfigPath);
+    const baseLabel = basename(absoluteConfigPath);
     // YAML parsing yields untyped rows; the include validates each entry
     // at mount, and the dump prints whatever the file holds, so `EntryOptions`
     // here is structural trust in the same file `boot()` would include.
-    var base = parsed;
+    const base = parsed;
     // snapshot_k = ONE application of layers 1..k flattened, using the exact
     // arguments boot passes for that prefix. snapshot_N is the mounted composition.
     // The patches are cloned per call: applyEntryPatches detaches the entry
     // list but pushes `insert` rows by reference from the patch list, so
     // sharing patch objects across snapshot calls would leak a later
     // snapshot's mutations into an earlier one's result.
-    var snapshot = function (count, warnings) {
-        var flattened = structuredClone(layers.slice(0, count).flatMap(function (layer) { return layer.patches; }));
-        return (0, cordis_plugin_include_1.applyEntryPatches)(base, flattened, function (message) {
-            var args = [];
-            for (var _i = 1; _i < arguments.length; _i++) {
-                args[_i - 1] = arguments[_i];
-            }
+    const snapshot = (count, warnings) => {
+        const flattened = structuredClone(layers.slice(0, count).flatMap(layer => layer.patches));
+        return applyEntryPatches(base, flattened, (message, ...args) => {
             // The include logs through cordis's printf-style logger (`%C` = code); a
             // dump has no logger, so substitute inline for a plain line.
-            var index = 0;
-            warnings.push(message.replace(/%C/g, function () { return JSON.stringify(args[index++]); }));
+            let index = 0;
+            warnings.push(message.replace(/%C/g, () => JSON.stringify(args[index++])));
         });
     };
-    var previous = base;
-    var previousWarnings = [];
-    var provenance = base.map(function () { return ({ origin: baseLabel, patchedBy: [] }); });
-    var composed = base;
-    for (var count = 1; count <= layers.length; count += 1) {
-        var layer = layers[count - 1];
+    let previous = base;
+    let previousWarnings = [];
+    const provenance = base.map(() => ({ origin: baseLabel, patchedBy: [] }));
+    let composed = base;
+    for (let count = 1; count <= layers.length; count += 1) {
+        const layer = layers[count - 1];
         /* v8 ignore next -- count iterates 1..length, so the slot exists */
         if (layer === undefined)
             continue;
-        var warnings = [];
+        const warnings = [];
         composed = snapshot(count, warnings);
-        for (var _i = 0, _b = warnings.slice(previousWarnings.length); _i < _b.length; _i++) {
-            var line = _b[_i];
-            warn("".concat(binName, ": [").concat(layer.label, "] ").concat(line));
+        for (const line of warnings.slice(previousWarnings.length)) {
+            warn(`${binName}: [${layer.label}] ${line}`);
         }
-        var before = previous.map(function (entry) { return JSON.stringify(entry); });
-        for (var index = 0; index < composed.length; index += 1) {
+        const before = previous.map(entry => JSON.stringify(entry));
+        for (let index = 0; index < composed.length; index += 1) {
             if (index >= before.length)
                 provenance.push({ origin: layer.label, patchedBy: [] });
             else if (JSON.stringify(composed[index]) !== before[index])
-                (_a = provenance[index]) === null || _a === void 0 ? void 0 : _a.patchedBy.push(layer.label);
+                provenance[index]?.patchedBy.push(layer.label);
         }
         previous = composed;
         previousWarnings = warnings;
@@ -516,24 +384,24 @@ function renderConfigDump(binName, absoluteConfigPath, layers, warn) {
 }
 /** Render the composed rows grouped under one source-and-patches comment per contiguous run. */
 function groupedDump(composed, provenance) {
-    var lines = [];
-    var currentLabel;
-    var group = [];
-    var flush = function () {
+    const lines = [];
+    let currentLabel;
+    let group = [];
+    const flush = () => {
         if (currentLabel === undefined || group.length === 0)
             return;
-        lines.push("# == ".concat(currentLabel));
-        lines.push(yaml.dump(group, { schema: cordis_plugin_include_1.entryListSchema, noRefs: true }).trimEnd());
+        lines.push(`# == ${currentLabel}`);
+        lines.push(yaml.dump(group, { schema: entryListSchema, noRefs: true }).trimEnd());
         group = [];
     };
-    for (var index = 0; index < composed.length; index += 1) {
-        var record = provenance[index];
+    for (let index = 0; index < composed.length; index += 1) {
+        const record = provenance[index];
         /* v8 ignore next -- this array is index-aligned with composed by construction */
         if (record === undefined)
             continue;
-        var label = record.patchedBy.length === 0
+        const label = record.patchedBy.length === 0
             ? record.origin
-            : "".concat(record.origin, ", patched by ").concat(record.patchedBy.join(', '));
+            : `${record.origin}, patched by ${record.patchedBy.join(', ')}`;
         if (label !== currentLabel) {
             flush();
             currentLabel = label;
@@ -554,68 +422,62 @@ function groupedDump(composed, provenance) {
  * disposed the whole tree (taking the Loader service with it) while the
  * transactional create was still settling entry lifecycle.
  */
-function mountRootInclude(ctx_1, absoluteConfigPath_1) {
-    return __awaiter(this, arguments, void 0, function (ctx, absoluteConfigPath, patches, bareModuleBaseUrl) {
-        var includeConfig, rootInclude, includeId, loader, entry;
-        if (patches === void 0) { patches = []; }
-        return __generator(this, function (_a) {
-            switch (_a.label) {
-                case 0:
-                    ctx.loader.builtins.include = bareModuleBaseUrl === undefined
-                        ? cordis_plugin_include_1.default
-                        : /** @class */ (function (_super) {
-                            __extends(HostResolvedRootInclude, _super);
-                            function HostResolvedRootInclude() {
-                                return _super !== null && _super.apply(this, arguments) || this;
-                            }
-                            HostResolvedRootInclude.prototype.import = function (name, getOuterStack) {
-                                var specifier = (0, node_path_1.isAbsolute)(name) ? (0, node_url_1.pathToFileURL)(name).href : name;
-                                if (name.startsWith('.') || name.startsWith('cordis:'))
-                                    return _super.prototype.import.call(this, specifier, getOuterStack);
-                                var internal = this.ctx.loader.internal;
-                                /* v8 ignore next -- Node supplies the internal loader; this preserves the
-                                   original diagnostic for hypothetical embedders without it. */
-                                if (internal === undefined)
-                                    return _super.prototype.import.call(this, specifier, getOuterStack);
-                                return internal.import(specifier, bareModuleBaseUrl, {});
-                            };
-                            return HostResolvedRootInclude;
-                        }(cordis_plugin_include_1.default));
-                    // `cordis:group` alongside it: a group row is how a composition gives one
-                    // `isolate` realm to a provider and its consumers together, and an agent
-                    // preset living outside this workspace cannot resolve `@z/cordis-plugin-group`
-                    // by name. Both builtins load through the ambient module pipeline, so neither
-                    // depends on the included tree's own specifier resolution.
-                    ctx.loader.builtins.group = cordis_plugin_group_1.default;
-                    includeConfig = __assign({ path: (0, node_url_1.pathToFileURL)(absoluteConfigPath).href }, patches.length > 0 ? { patches: __spreadArray([], patches, true) } : {});
-                    rootInclude = {
-                        id: 'include',
-                        name: 'cordis:include',
-                        config: includeConfig,
-                    };
-                    return [4 /*yield*/, ctx.loader.create(rootInclude)];
-                case 1:
-                    includeId = _a.sent();
-                    loader = ctx.get('loader');
-                    if (loader === undefined)
-                        return [2 /*return*/, undefined];
-                    entry = loader.resolve(includeId);
-                    bootstrapIncludes.set(ctx, entry);
-                    return [2 /*return*/, entry];
+export async function mountRootInclude(ctx, absoluteConfigPath, patches = [], bareModuleBaseUrl) {
+    ctx.loader.builtins.include = bareModuleBaseUrl === undefined
+        ? Include
+        : class HostResolvedRootInclude extends Include {
+            import(name, getOuterStack) {
+                const specifier = isAbsolute(name) ? pathToFileURL(name).href : name;
+                if (name.startsWith('.') || name.startsWith('cordis:'))
+                    return super.import(specifier, getOuterStack);
+                if (/^(?:node:|file:|data:|https?:)/.test(specifier))
+                    return super.import(specifier, getOuterStack);
+                const internal = this.ctx.loader.internal;
+                /* v8 ignore next -- Some Electron Node builds do not expose the internal
+                   ESM loader. Resolve from the installed Host root with Node's package
+                   exports rather than importing the bare name relative to this bundle. */
+                if (internal === undefined) {
+                    const resolved = createRequire(bareModuleBaseUrl).resolve(specifier);
+                    return import(__rewriteRelativeImportExtension(resolved.startsWith('node:') ? resolved : pathToFileURL(resolved).href));
+                }
+                return internal.import(specifier, bareModuleBaseUrl, {});
             }
-        });
-    });
+        };
+    // `cordis:group` alongside it: a group row is how a composition gives one
+    // `isolate` realm to a provider and its consumers together, and an agent
+    // preset living outside this workspace cannot resolve `@taskweaver/cordis-plugin-group`
+    // by name. Both builtins load through the ambient module pipeline, so neither
+    // depends on the included tree's own specifier resolution.
+    ctx.loader.builtins.group = Group;
+    // Pinned id: the bootstrap include is app glue, not a config row, and its
+    // id appears in Loader failure chains — a random id would make startup
+    // diagnostics unstable across runs (and snapshot fixtures).
+    const includeConfig = {
+        path: pathToFileURL(absoluteConfigPath).href,
+        ...patches.length > 0 ? { patches: [...patches] } : {},
+    };
+    const rootInclude = {
+        id: 'include',
+        name: 'cordis:include',
+        config: includeConfig,
+    };
+    const includeId = await ctx.loader.create(rootInclude);
+    const loader = ctx.get('loader');
+    if (loader === undefined)
+        return undefined;
+    const entry = loader.resolve(includeId);
+    bootstrapIncludes.set(ctx, entry);
+    return entry;
 }
 // Loader rc.5 derives and drops a rejected promise after a fiber fails. Keep
 // exact reasons already folded into the boot diagnostic visible through the
 // next process rejection checkpoint so the process guard can coalesce them.
-var assembledActivationRejections = new Map();
+const assembledActivationRejections = new Map();
 function retainAssembledRejection(reason) {
-    var _a;
-    assembledActivationRejections.set(reason, ((_a = assembledActivationRejections.get(reason)) !== null && _a !== void 0 ? _a : 0) + 1);
+    assembledActivationRejections.set(reason, (assembledActivationRejections.get(reason) ?? 0) + 1);
 }
 function releaseAssembledRejection(reason) {
-    var count = assembledActivationRejections.get(reason);
+    const count = assembledActivationRejections.get(reason);
     if (count === undefined || count === 1) {
         assembledActivationRejections.delete(reason);
     }
@@ -623,39 +485,22 @@ function releaseAssembledRejection(reason) {
         assembledActivationRejections.set(reason, count - 1);
     }
 }
-function observeLoaderRejectionCheckpoint(reasons) {
-    return __awaiter(this, void 0, void 0, function () {
-        var _i, reasons_1, reason, _a, reasons_2, reason;
-        return __generator(this, function (_b) {
-            switch (_b.label) {
-                case 0:
-                    for (_i = 0, reasons_1 = reasons; _i < reasons_1.length; _i++) {
-                        reason = reasons_1[_i];
-                        retainAssembledRejection(reason);
-                    }
-                    _b.label = 1;
-                case 1:
-                    _b.trys.push([1, , 3, 4]);
-                    return [4 /*yield*/, new Promise(function (resolve) { return setImmediate(resolve); })];
-                case 2:
-                    _b.sent();
-                    return [3 /*break*/, 4];
-                case 3:
-                    for (_a = 0, reasons_2 = reasons; _a < reasons_2.length; _a++) {
-                        reason = reasons_2[_a];
-                        releaseAssembledRejection(reason);
-                    }
-                    return [7 /*endfinally*/];
-                case 4: return [2 /*return*/];
-            }
-        });
-    });
+async function observeLoaderRejectionCheckpoint(reasons) {
+    for (const reason of reasons)
+        retainAssembledRejection(reason);
+    try {
+        await new Promise(resolve => setImmediate(resolve));
+    }
+    finally {
+        for (const reason of reasons)
+            releaseAssembledRejection(reason);
+    }
 }
 /**
  * How long {@link installFailLoud} waits for its `release` hook before exiting
  * anyway. A wedged disposer must delay the fatal exit, never cancel it.
  */
-exports.FAIL_LOUD_RELEASE_TIMEOUT_MS = 2000;
+export const FAIL_LOUD_RELEASE_TIMEOUT_MS = 2_000;
 /**
  * Install before boot to turn a late unhandled plugin-init rejection into one
  * labelled stderr diagnostic and `exit(1)`. A rejection already included by
@@ -685,12 +530,9 @@ exports.FAIL_LOUD_RELEASE_TIMEOUT_MS = 2000;
  *   swallowed because the pending fatal exit already owns the outcome.
  * @returns the uninstaller that removes the rejection handler.
  */
-function installFailLoud(binName, proc, release) {
-    var _this = this;
-    if (proc === void 0) { proc = process; }
-    var exiting = false;
-    var handler = function (err) {
-        var _a;
+export function installFailLoud(binName, proc = process, release) {
+    let exiting = false;
+    const handler = (err) => {
         if (assembledActivationRejections.has(err))
             return;
         // A release in flight already owns the exit. Swallow later rejections
@@ -699,41 +541,32 @@ function installFailLoud(binName, proc, release) {
         if (exiting)
             return;
         exiting = true;
-        proc.stderr.write("".concat(binName, ": fatal load failure: ").concat(err instanceof Error ? (_a = err.stack) !== null && _a !== void 0 ? _a : err.message : String(err), "\n"));
+        proc.stderr.write(`${binName}: fatal load failure: ${err instanceof Error ? err.stack ?? err.message : String(err)}\n`);
         if (release === undefined) {
             proc.exit(1);
             return;
         }
-        void (function () { return __awaiter(_this, void 0, void 0, function () {
-            var timer, _a;
-            var _this = this;
-            return __generator(this, function (_b) {
-                switch (_b.label) {
-                    case 0:
-                        _b.trys.push([0, 2, , 3]);
-                        return [4 /*yield*/, Promise.race([
-                                (function () { return __awaiter(_this, void 0, void 0, function () { return __generator(this, function (_a) {
-                                    return [2 /*return*/, release()];
-                                }); }); })(),
-                                new Promise(function (resolve) {
-                                    timer = setTimeout(resolve, exports.FAIL_LOUD_RELEASE_TIMEOUT_MS);
-                                }),
-                            ])];
-                    case 1:
-                        _b.sent();
-                        return [3 /*break*/, 3];
-                    case 2:
-                        _a = _b.sent();
-                        return [3 /*break*/, 3];
-                    case 3:
-                        clearTimeout(timer);
-                        proc.exit(1);
-                        return [2 /*return*/];
-                }
-            });
-        }); })();
+        void (async () => {
+            // Definitely assigned: the timeout promise's executor runs synchronously
+            // while the race is being constructed, before the first await.
+            let timer;
+            try {
+                await Promise.race([
+                    (async () => release())(),
+                    new Promise((resolve) => {
+                        timer = setTimeout(resolve, FAIL_LOUD_RELEASE_TIMEOUT_MS);
+                    }),
+                ]);
+            }
+            catch {
+                // The terminal release failed; the fatal exit below is the outcome that
+                // matters, and no reporter runs after it.
+            }
+            clearTimeout(timer);
+            proc.exit(1);
+        })();
     };
-    var uninstall = function () { return void proc.off('unhandledRejection', handler); };
+    const uninstall = () => void proc.off('unhandledRejection', handler);
     proc.on('unhandledRejection', handler);
     return uninstall;
 }
@@ -744,11 +577,11 @@ function installFailLoud(binName, proc, release) {
  * @param ctx - the settled context whose loader entries to audit.
  * @param binName - the diagnostic prefix on the thrown error.
  */
-function assertEntriesLoaded(ctx, binName) {
-    var failed = __spreadArray([], ctx.loader.entries(), true).filter(function (entry) { return entry.fiber === undefined && !entry.disabled; });
+export function assertEntriesLoaded(ctx, binName) {
+    const failed = [...ctx.loader.entries()].filter(entry => entry.fiber === undefined && !entry.disabled);
     if (failed.length > 0) {
-        var names = failed.map(function (entry) { return entry.options.name; }).join(', ');
-        throw new Error("".concat(binName, ": plugin(s) failed to load: ").concat(names, "; Cordis startup failed because these plugin(s) could not be resolved (see the error(s) logged above)"));
+        const names = failed.map(entry => entry.options.name).join(', ');
+        throw new Error(`${binName}: plugin(s) failed to load: ${names}; Cordis startup failed because these plugin(s) could not be resolved (see the error(s) logged above)`);
     }
 }
 /**
@@ -756,13 +589,12 @@ function assertEntriesLoaded(ctx, binName) {
  * Keep aligned with `packages/extensions/tool-cordis/src/fiber-state.ts` and
  * `packages/client/web/src/loader-status.ts`.
  */
-var FIBER_PENDING = 0;
-var FIBER_ACTIVE = 2;
-var FIBER_FAILED = 3;
+const FIBER_PENDING = 0;
+const FIBER_ACTIVE = 2;
+const FIBER_FAILED = 3;
 /** Render a thrown plugin value without discarding an Error's original stack. */
 function formatActivationError(error) {
-    var _a;
-    return error instanceof Error ? (_a = error.stack) !== null && _a !== void 0 ? _a : error.message : String(error);
+    return error instanceof Error ? error.stack ?? error.message : String(error);
 }
 /**
  * Reject a settled Loader tree when an enabled entry failed or remains inactive.
@@ -776,79 +608,43 @@ function formatActivationError(error) {
  * @throws after one process rejection checkpoint when an entry failed to
  * import, rejected during activation, or did not become active.
  */
-function assertEntriesActivated(ctx, binName) {
-    return __awaiter(this, void 0, void 0, function () {
-        var failures, rejectionReasons, _loop_1, _i, _a, entry, noun;
-        return __generator(this, function (_b) {
-            switch (_b.label) {
-                case 0:
-                    assertEntriesLoaded(ctx, binName);
-                    failures = [];
-                    rejectionReasons = [];
-                    _loop_1 = function (entry) {
-                        var fiber, state, error_2, missing, subject;
-                        return __generator(this, function (_c) {
-                            switch (_c.label) {
-                                case 0:
-                                    fiber = entry.fiber;
-                                    if (fiber === undefined || entry.disabled)
-                                        return [2 /*return*/, "continue"];
-                                    state = fiber.state;
-                                    if (state === FIBER_ACTIVE)
-                                        return [2 /*return*/, "continue"];
-                                    if (!(state === FIBER_FAILED)) return [3 /*break*/, 5];
-                                    _c.label = 1;
-                                case 1:
-                                    _c.trys.push([1, 3, , 4]);
-                                    return [4 /*yield*/, fiber.await()];
-                                case 2:
-                                    _c.sent();
-                                    return [3 /*break*/, 4];
-                                case 3:
-                                    error_2 = _c.sent();
-                                    rejectionReasons.push(error_2);
-                                    failures.push("".concat(entry.options.name, ": ").concat(formatActivationError(error_2)));
-                                    return [3 /*break*/, 4];
-                                case 4: return [2 /*return*/, "continue"];
-                                case 5:
-                                    if (state === FIBER_PENDING) {
-                                        missing = Object.keys(fiber.inject).filter(function (service) { return fiber.ctx.get(service) === undefined; });
-                                        subject = missing.length === 1 ? 'service' : 'services';
-                                        failures.push("".concat(entry.options.name, ": pending (waiting for ").concat(subject, ": ").concat(missing.join(', ') || 'unknown', ")"));
-                                    }
-                                    else {
-                                        failures.push("".concat(entry.options.name, ": fiber state ").concat(String(state)));
-                                    }
-                                    return [2 /*return*/];
-                            }
-                        });
-                    };
-                    _i = 0, _a = ctx.loader.entries();
-                    _b.label = 1;
-                case 1:
-                    if (!(_i < _a.length)) return [3 /*break*/, 4];
-                    entry = _a[_i];
-                    return [5 /*yield**/, _loop_1(entry)];
-                case 2:
-                    _b.sent();
-                    _b.label = 3;
-                case 3:
-                    _i++;
-                    return [3 /*break*/, 1];
-                case 4:
-                    if (!(failures.length > 0)) return [3 /*break*/, 7];
-                    if (!(rejectionReasons.length > 0)) return [3 /*break*/, 6];
-                    return [4 /*yield*/, observeLoaderRejectionCheckpoint(rejectionReasons)];
-                case 5:
-                    _b.sent();
-                    _b.label = 6;
-                case 6:
-                    noun = failures.length === 1 ? 'entry' : 'entries';
-                    throw new Error("".concat(binName, ": ").concat(String(failures.length), " ").concat(noun, " did not activate\n").concat(failures.join('\n')));
-                case 7: return [2 /*return*/];
+export async function assertEntriesActivated(ctx, binName) {
+    assertEntriesLoaded(ctx, binName);
+    const failures = [];
+    const rejectionReasons = [];
+    for (const entry of ctx.loader.entries()) {
+        const fiber = entry.fiber;
+        if (fiber === undefined || entry.disabled)
+            continue;
+        const state = fiber.state;
+        if (state === FIBER_ACTIVE)
+            continue;
+        if (state === FIBER_FAILED) {
+            try {
+                await fiber.await();
             }
-        });
-    });
+            catch (error) {
+                rejectionReasons.push(error);
+                failures.push(`${entry.options.name}: ${formatActivationError(error)}`);
+            }
+            continue;
+        }
+        if (state === FIBER_PENDING) {
+            const missing = Object.keys(fiber.inject).filter(service => fiber.ctx.get(service) === undefined);
+            const subject = missing.length === 1 ? 'service' : 'services';
+            failures.push(`${entry.options.name}: pending (waiting for ${subject}: ${missing.join(', ') || 'unknown'})`);
+        }
+        else {
+            failures.push(`${entry.options.name}: fiber state ${String(state)}`);
+        }
+    }
+    if (failures.length > 0) {
+        if (rejectionReasons.length > 0) {
+            await observeLoaderRejectionCheckpoint(rejectionReasons);
+        }
+        const noun = failures.length === 1 ? 'entry' : 'entries';
+        throw new Error(`${binName}: ${String(failures.length)} ${noun} did not activate\n${failures.join('\n')}`);
+    }
 }
 /**
  * Boot the Loader against `absoluteConfigPath` and return only after the whole
@@ -880,85 +676,51 @@ function assertEntriesActivated(ctx, binName) {
  * preparation failed` when `prepare` threw before any config-tree entry
  * mounted, `plugin tree failed to load` afterwards.
  */
-function boot(binName, absoluteConfigPath, patches, prepare, bareModuleBaseUrl) {
-    return __awaiter(this, void 0, void 0, function () {
-        var ctx, stage, cause_1, detail, deepest, stack;
-        var _a, _b;
-        return __generator(this, function (_c) {
-            switch (_c.label) {
-                case 0:
-                    ctx = new cordis_1.Context();
-                    stage = 'host preparation failed';
-                    _c.label = 1;
-                case 1:
-                    _c.trys.push([1, 7, , 9]);
-                    ctx.baseUrl = (0, node_url_1.pathToFileURL)((0, node_path_1.dirname)(absoluteConfigPath)).href + '/';
-                    ctx.provide('dshHomePath', dsh_home_paths_1.dshHomePath);
-                    return [4 /*yield*/, ctx.plugin(cordis_plugin_loader_1.default)];
-                case 2:
-                    _c.sent();
-                    return [4 /*yield*/, (prepare === null || prepare === void 0 ? void 0 : prepare(ctx))];
-                case 3:
-                    _c.sent();
-                    stage = 'plugin tree failed to load';
-                    return [4 /*yield*/, mountRootInclude(ctx, absoluteConfigPath, patches, bareModuleBaseUrl)
-                        // A surface can finish and dispose the whole tree while startup is still
-                        // in flight, before the last entry settles. The Loader service goes with
-                        // it, and the activation audit describes a live tree — reading `ctx.loader`
-                        // past this point would throw a TypeError over an app that exited exactly
-                        // as asked. Transactional group updates settle
-                        // lifecycle inside the mount, so the teardown can land before it returns;
-                        // re-check after every await.
-                    ];
-                case 4:
-                    _c.sent();
-                    // A surface can finish and dispose the whole tree while startup is still
-                    // in flight, before the last entry settles. The Loader service goes with
-                    // it, and the activation audit describes a live tree — reading `ctx.loader`
-                    // past this point would throw a TypeError over an app that exited exactly
-                    // as asked. Transactional group updates settle
-                    // lifecycle inside the mount, so the teardown can land before it returns;
-                    // re-check after every await.
-                    return [4 /*yield*/, ((_a = ctx.get('loader')) === null || _a === void 0 ? void 0 : _a.await())];
-                case 5:
-                    // A surface can finish and dispose the whole tree while startup is still
-                    // in flight, before the last entry settles. The Loader service goes with
-                    // it, and the activation audit describes a live tree — reading `ctx.loader`
-                    // past this point would throw a TypeError over an app that exited exactly
-                    // as asked. Transactional group updates settle
-                    // lifecycle inside the mount, so the teardown can land before it returns;
-                    // re-check after every await.
-                    _c.sent();
-                    if (ctx.get('loader') === undefined)
-                        return [2 /*return*/, ctx];
-                    return [4 /*yield*/, assertEntriesActivated(ctx, binName)];
-                case 6:
-                    _c.sent();
-                    return [2 /*return*/, ctx];
-                case 7:
-                    cause_1 = _c.sent();
-                    // Root-fiber disposal contains cleanup failures per observer (Cordis
-                    // fiber.ts hardening) and a repeated call returns the settled single-shot
-                    // result, so this await cannot reject and replace `cause`.
-                    return [4 /*yield*/, ctx.fiber.dispose()];
-                case 8:
-                    // Root-fiber disposal contains cleanup failures per observer (Cordis
-                    // fiber.ts hardening) and a repeated call returns the settled single-shot
-                    // result, so this await cannot reject and replace `cause`.
-                    _c.sent();
-                    detail = cause_1 instanceof Error ? cause_1.message : String(cause_1);
-                    deepest = cause_1;
-                    while (deepest instanceof Error && deepest.cause !== undefined)
-                        deepest = deepest.cause;
-                    stack = deepest instanceof Error && deepest !== cause_1 ? "\n".concat((_b = deepest.stack) !== null && _b !== void 0 ? _b : deepest.message) : '';
-                    throw new Error("".concat(binName, ": ").concat(stage, ": ").concat(detail).concat(stack), { cause: cause_1 });
-                case 9: return [2 /*return*/];
-            }
-        });
-    });
+export async function boot(binName, absoluteConfigPath, patches, prepare, bareModuleBaseUrl) {
+    const ctx = new Context();
+    // Two failure labels: `prepare` runs before any config-tree entry mounts,
+    // so its failure is host setup, not the plugin tree.
+    let stage = 'host preparation failed';
+    try {
+        ctx.baseUrl = pathToFileURL(dirname(absoluteConfigPath)).href + '/';
+        ctx.provide('runtimeHomePath', runtimeHomePath);
+        await ctx.plugin(Loader);
+        await prepare?.(ctx);
+        stage = 'plugin tree failed to load';
+        await mountRootInclude(ctx, absoluteConfigPath, patches, bareModuleBaseUrl);
+        // A surface can finish and dispose the whole tree while startup is still
+        // in flight, before the last entry settles. The Loader service goes with
+        // it, and the activation audit describes a live tree — reading `ctx.loader`
+        // past this point would throw a TypeError over an app that exited exactly
+        // as asked. Transactional group updates settle
+        // lifecycle inside the mount, so the teardown can land before it returns;
+        // re-check after every await.
+        await ctx.get('loader')?.await();
+        if (ctx.get('loader') === undefined)
+            return ctx;
+        await assertEntriesActivated(ctx, binName);
+        return ctx;
+    }
+    catch (cause) {
+        // Root-fiber disposal contains cleanup failures per observer (Cordis
+        // fiber.ts hardening) and a repeated call returns the settled single-shot
+        // result, so this await cannot reject and replace `cause`.
+        await ctx.fiber.dispose();
+        const detail = cause instanceof Error ? cause.message : String(cause);
+        // The transactional Loader wraps a failing entry apply in one message per
+        // tree layer; every layer's message is folded into `detail` above, and the
+        // deepest cause is the plugin's own thrown error, whose stack names the
+        // real failure site — append it so the startup diagnostic preserves the
+        // original activation error instead of only the wrap chain.
+        let deepest = cause;
+        while (deepest instanceof Error && deepest.cause !== undefined)
+            deepest = deepest.cause;
+        const stack = deepest instanceof Error && deepest !== cause ? `\n${deepest.stack ?? deepest.message}` : '';
+        throw new Error(`${binName}: ${stage}: ${detail}${stack}`, { cause });
+    }
 }
 /** Prompt-section name for the harness-source location line an app bin adds after boot. */
-exports.HARNESS_SOURCE_SECTION = 'harness:source';
+export const HARNESS_SOURCE_SECTION = 'harness:source';
 /**
  * Add a global prompt section naming the on-disk harness source checkout while
  * explicitly distinguishing it from the task workspace and current working
@@ -973,13 +735,14 @@ exports.HARNESS_SOURCE_SECTION = 'harness:source';
  * @param sourceRoot - the absolute path to the harness checkout root.
  * @returns the section disposer, or `undefined` when no `systemPrompt` service is mounted.
  */
-function addHarnessSourceSection(ctx, sourceRoot) {
-    var systemPrompt = ctx.get('systemPrompt');
+export function addHarnessSourceSection(ctx, sourceRoot) {
+    const systemPrompt = ctx.get('systemPrompt');
     if (systemPrompt === undefined)
         return undefined;
     return systemPrompt.section({
-        name: exports.HARNESS_SOURCE_SECTION,
+        name: HARNESS_SOURCE_SECTION,
         order: -99,
-        text: "The DeepSeek Harness implementation checkout is at ".concat(sourceRoot, ". The checkout location and current working directory are separate values and may differ; never infer the working directory from this path. Use pwd to determine the current working directory. Use this checkout only to inspect or extend DSH itself."),
+        text: `The DeepSeek Harness implementation checkout is at ${sourceRoot}. The checkout location and current working directory are separate values and may differ; never infer the working directory from this path. Use pwd to determine the current working directory. Use this checkout only to inspect or extend DSH itself.`,
     });
 }
+//# sourceMappingURL=index.js.map

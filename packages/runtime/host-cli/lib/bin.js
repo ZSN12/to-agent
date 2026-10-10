@@ -1,23 +1,23 @@
 #!/usr/bin/env node
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { loadLayeredEnv } from "@z/dsh-app-boot";
+import { loadLayeredEnv } from "@taskweaver/dsh-app-boot";
 import { Command, CommanderError } from "commander";
 //#region lib/types/args.js
 /**
-* Commander adapter for the `dsh` command line.
+* Commander adapter for the `taskweaver-host` command line.
 *
 * The launcher parses only what it owns — which profile to boot, which extra
 * patch overlays to apply, and the config dumps — and hands **everything after
 * its own flags** to the booted tree verbatim, where injected app plugins parse
 * their own flag families and print their own `--help` (see
-* `@z/dsh-cmdline`). Launcher flags therefore come first: the first
+* `@taskweaver/dsh-cmdline`). Launcher flags therefore come first: the first
 * token this parser does not recognize starts the inner arguments, so
-* `dsh --profile taskweaver --resume abc` boots that profile with
+* `taskweaver-host --profile taskweaver --resume abc` boots that profile with
 * `--resume abc`.
 *
 * `plugin` manages a profile's plugin dependencies by forwarding to pnpm.
-* @module @z/dsh/args
+* @module @taskweaver/dsh/args
 */
 /**
 * Repeatable single-value collector: `--patch a.yml --patch b.yml`. Never
@@ -27,12 +27,13 @@ const collect = (value, previous = []) => [...previous, value];
 /** The launcher's own help text; each app prints its own. */
 const HELP_EXAMPLES = `
 Examples:
-  dsh --profile taskweaver                   boot the TaskWeaver profile
-  dsh --profile taskweaver --patch ./extra.yml
+  taskweaver-host --profile taskweaver       boot the TaskWeaver profile
+  taskweaver-host --profile taskweaver --patch ./extra.yml
                                             boot with one extra overlay
-  dsh --profile taskweaver --help            show the profile app's own help
-  dsh plugin --profile taskweaver add <package>
+  taskweaver-host --profile taskweaver --help show the profile app's own help
+  taskweaver-host plugin --profile taskweaver add <package>
                                             install a plugin into the profile
+  dsh --profile taskweaver                   legacy alias for taskweaver-host
 `;
 /**
 * Resolve a boot or dump invocation from the launcher flags and the leftover
@@ -70,10 +71,10 @@ function resolveBoot(program, profile, options, args) {
 * @param version - version string printed by `--version`.
 * @returns the resolved invocation.
 */
-function parseDshArgs(argv, version) {
+function parseTaskWeaverHostArgs(argv, version) {
 	let resolved;
 	const program = new Command();
-	program.name("dsh").version(version, "-V, --version", "output the version number").description("dsh: boot a DeepSeek Harness profile — an ordered stack of plugin-bundle patch layers under your own overrides.").addHelpText("after", HELP_EXAMPLES).exitOverride().helpOption(false).allowUnknownOption().passThroughOptions().enablePositionalOptions().argument("[args...]", "arguments for the booted profile's app (see: dsh --profile <name> --help)").option("--profile <name>", "the profile under $DSH_HOME/profiles to boot").option("--patch <path>", "extra patch-list overlay applied after the profile layer (repeatable)", collect).option("--dump-config", "print the composed profile tree and exit").option("--dump-default-config", "print the profile tree without its user layer or --patch overlays and exit").action((args, options) => {
+	program.name("taskweaver-host").version(version, "-V, --version", "output the version number").description("taskweaver-host: boot a TaskWeaver profile — an ordered stack of plugin-bundle patch layers under your own overrides.").addHelpText("after", HELP_EXAMPLES).exitOverride().helpOption(false).allowUnknownOption().passThroughOptions().enablePositionalOptions().argument("[args...]", "arguments for the booted profile's app (see: taskweaver-host --profile <name> --help)").option("--profile <name>", "the profile under $TASKWEAVER_HOME/profiles to boot").option("--patch <path>", "extra patch-list overlay applied after the profile layer (repeatable)", collect).option("--dump-config", "print the composed profile tree and exit").option("--dump-default-config", "print the profile tree without its user layer or --patch overlays and exit").action((args, options) => {
 		if (options.profile === void 0) {
 			if (args.some((argument) => argument === "-h" || argument === "--help")) program.help();
 			program.error("error: --profile <name> is required");
@@ -103,7 +104,7 @@ function parseDshArgs(argv, version) {
 		return process.exit(error instanceof CommanderError ? error.exitCode : 1);
 	}
 	/* v8 ignore next -- an action resolves or Commander throws */
-	if (resolved === void 0) throw new Error("dsh: no invocation resolved");
+	if (resolved === void 0) throw new Error("taskweaver-host: no invocation resolved");
 	return resolved;
 }
 //#endregion
@@ -112,7 +113,7 @@ function parseDshArgs(argv, version) {
 * dsh — command-line entry. Dynamic imports per mode keep unrelated modes out
 * of each dispatch path; the adapter prints and exits for
 * `--help`/`--version`/a parse error, so only a valid mode reaches the switch.
-* @module @z/dsh/bin
+* @module @taskweaver/dsh/bin
 */
 /* v8 ignore file -- built-bin acceptance exercises this self-executing dispatch. */
 /** This app's version, read from its checked-in package.json. */
@@ -120,12 +121,12 @@ function readVersion() {
 	const manifest = JSON.parse(readFileSync(fileURLToPath(new URL("../package.json", import.meta.url)), "utf8"));
 	return typeof manifest.version === "string" ? manifest.version : "0.0.0";
 }
-const invocation = parseDshArgs(process.argv.slice(2), readVersion());
+const invocation = parseTaskWeaverHostArgs(process.argv.slice(2), readVersion());
 switch (invocation.mode) {
 	case "profile": {
-		const { runProfile } = await import("./profile-boot-BhtlMVnN.js");
+		const { runProfile } = await import("./profile-boot-Cgg0dmpz.js");
 		await runProfile({
-			environment: loadLayeredEnv("dsh"),
+			environment: loadLayeredEnv("taskweaver-host"),
 			profile: invocation.profile,
 			patchFiles: invocation.patches,
 			args: invocation.args
@@ -133,16 +134,16 @@ switch (invocation.mode) {
 		break;
 	}
 	case "plugin": {
-		const { runPlugin } = await import("./plugin-zdIeUCYE.js");
+		const { runPlugin } = await import("./plugin-COx5y7rf.js");
 		process.exit(runPlugin(invocation.profile, invocation.args));
 		break;
 	}
 	case "dump-config": {
-		const { runDumpConfig } = await import("./dump-config-DWj6SoU8.js");
+		const { runDumpConfig } = await import("./dump-config-Dc6SNlJL.js");
 		runDumpConfig(invocation.profile, invocation.defaultOnly, invocation.patches);
 		break;
 	}
-	default: throw new Error(`dsh: unhandled invocation mode ${JSON.stringify(invocation)}`);
+	default: throw new Error(`taskweaver-host: unhandled invocation mode ${JSON.stringify(invocation)}`);
 }
 //#endregion
 export {};

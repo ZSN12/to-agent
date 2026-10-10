@@ -6,11 +6,11 @@
  * user roots, parses YAML frontmatter, and loads bodies through `ctx.fs` when a
  * filesystem service is present.
  *
- * @module @z/dsh-skill-filesystem
+ * @module @taskweaver/dsh-skill-filesystem
  */
-import type { Context } from '@z/cordis';
-import type Schema from '@z/schemastery';
-import { type SkillCandidate, type SkillDefinition, type SkillLookupOptions, type SkillProvider, type SkillProviderControl, type SkillProviderObservation } from '@z/dsh-skill';
+import type { Context } from '@taskweaver/cordis';
+import type Schema from '@taskweaver/schemastery';
+import { type SkillCandidate, type SkillDefinition, type SkillLookupOptions, type SkillProvider, type SkillProviderControl, type SkillProviderObservation } from '@taskweaver/dsh-skill';
 export declare const name = "skill-filesystem";
 export declare const inject: string[];
 /** Local filesystem skill provider configuration. */
@@ -19,9 +19,9 @@ export interface Config {
     providerName?: string;
     /** Whether project and user roots are included around custom roots. */
     includeDefaultRoots?: boolean;
-    /** DeepSeek Harness config root. Defaults to `$DSH_HOME` or `~/.dsh`. */
+    /** TaskWeaver runtime home. Defaults to `$TASKWEAVER_HOME` or `~/.taskweaver/runtime`. */
     dshHome?: string;
-    /** Shared agent config root. Defaults to `$DSH_AGENTS_HOME` or `~/.agents`. */
+    /** Shared agent config root. Defaults to `$TASKWEAVER_AGENTS_HOME` or `~/.agents`. */
     agentsHome?: string;
     /** Additional skill roots scanned after project roots and before user roots. */
     customSkillDirs?: string[];
@@ -37,7 +37,7 @@ export interface Config {
     watchMaxProjects?: number;
     /** Whether watched symbolic links follow their target files. */
     watchFollowSymlinks?: boolean;
-    /** Bundled skill root; defaults to `$DSH_BUNDLED_SKILL_DIR` when default roots are included, otherwise mounts none. */
+    /** Bundled skill root; defaults to `$TASKWEAVER_BUNDLED_SKILL_DIR` when default roots are included, otherwise mounts none. */
     bundledSkillDir?: string;
 }
 export declare const Config: Schema<Config>;

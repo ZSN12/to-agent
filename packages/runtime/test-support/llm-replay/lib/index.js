@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { delimiter } from "node:path";
-import { decodeStorageRecord } from "@z/dsh-session";
-import { LlmAdapter, LlmError, ReasoningEffortId, assertNever, resolveRetryPolicy } from "@z/dsh-llm";
+import { decodeStorageRecord } from "@taskweaver/dsh-session";
+import { LlmAdapter, LlmError, ReasoningEffortId, assertNever, resolveRetryPolicy } from "@taskweaver/dsh-llm";
 //#region lib/types/index.js
 /**
 * Keyless snapshot-test LLM replay. It derives one model-call script per
@@ -9,7 +9,7 @@ import { LlmAdapter, LlmError, ReasoningEffortId, assertNever, resolveRetryPolic
 * compaction calls, then binds fresh live sessions to parent/child scripts by
 * first-call order. Throw and hang cases require an explicit override because
 * a session log cannot reconstruct them alone.
-* @module @z/dsh-llm-replay
+* @module @taskweaver/dsh-llm-replay
 */
 const PACKED_CHUNK_ROW_TYPES = new Set([
 	"text-chunks",

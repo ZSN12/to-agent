@@ -2,12 +2,12 @@ import { closeSync, constants, mkdtempSync, openSync, readFileSync, readSync, re
 import { access, stat } from "node:fs/promises";
 import { delimiter, extname, isAbsolute, join, resolve } from "node:path";
 import * as nodePty from "node-pty";
-import { SubprocessRuntime, scrubbedParentEnv } from "@z/dsh-subprocess";
+import { SubprocessRuntime, scrubbedParentEnv } from "@taskweaver/dsh-subprocess";
 import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { constants as constants$1, homedir, tmpdir } from "node:os";
 import { setTimeout as setTimeout$1 } from "node:timers/promises";
-import { MAX_TIMER_DELAY_MS } from "@z/dsh-timeout";
+import { MAX_TIMER_DELAY_MS } from "@taskweaver/dsh-timeout";
 import koffi from "koffi";
 import { Buffer as Buffer$1 } from "node:buffer";
 import { PassThrough } from "node:stream";
@@ -1230,7 +1230,7 @@ var LocalTerminalHandle = class {
 * any trees the service still owns. It has no config: every disposition and
 * limit arrives on the spec, so the deployment-varying choices stay with the
 * caller's config (the bash executor's, the LSP host's, …).
-* @module @z/dsh-subprocess-local
+* @module @taskweaver/dsh-subprocess-local
 */
 /**
 * Local subprocess service: detached process trees, Node-shaped stdio

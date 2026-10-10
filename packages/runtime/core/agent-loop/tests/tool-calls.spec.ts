@@ -4,17 +4,17 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import { createUserMessage, CallId, StreamChunk  } from '@z/dsh-llm'
-import SessionStore, { SessionEvent, SessionId } from '@z/dsh-session'
-import SystemPrompt from '@z/dsh-system-prompt'
-import LlmRuntime from '@z/dsh-llm'
-import ToolRuntime, { defineContentToolFixture, TOOL_ABORTED_BEFORE_DISPATCH, TOOL_RUNTIME_SCHEDULER, type PostToolDecision, type PreToolDecision } from '@z/dsh-tools'
-import AgentRegistry, { type Agent } from '@z/dsh-agent'
-import AgentLoop, { DEFAULT_MAX_PARALLEL_TOOL_CALLS } from '@z/dsh-agent-loop'
+import { Context } from '@taskweaver/cordis'
+import { createUserMessage, CallId, StreamChunk  } from '@taskweaver/dsh-llm'
+import SessionStore, { SessionEvent, SessionId } from '@taskweaver/dsh-session'
+import SystemPrompt from '@taskweaver/dsh-system-prompt'
+import LlmRuntime from '@taskweaver/dsh-llm'
+import ToolRuntime, { defineContentToolFixture, TOOL_ABORTED_BEFORE_DISPATCH, TOOL_RUNTIME_SCHEDULER, type PostToolDecision, type PreToolDecision } from '@taskweaver/dsh-tools'
+import AgentRegistry, { type Agent } from '@taskweaver/dsh-agent'
+import AgentLoop, { DEFAULT_MAX_PARALLEL_TOOL_CALLS } from '@taskweaver/dsh-agent-loop'
 import { MockAdapter, textResponse } from './mock-adapter.ts'
-import { CodeRuntime } from '@z/dsh-code-runtime'
-import type { CodeRunRequest, CodeRunResult } from '@z/dsh-code-runtime'
+import { CodeRuntime } from '@taskweaver/dsh-code-runtime'
+import type { CodeRunRequest, CodeRunResult } from '@taskweaver/dsh-code-runtime'
 
 async function harness(adapter: MockAdapter, maxParallelToolCalls?: number) {
   const ctx = new Context()

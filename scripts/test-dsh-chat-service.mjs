@@ -2,8 +2,8 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { createDshChatService } from '../electron/backend/dsh-chat-service.mjs'
-import { applySkillInstructions } from '../electron/backend/skill-prompt.mjs'
+import { createDshChatService } from '../desktop/backend/dsh-chat-service.mjs'
+import { applySkillInstructions } from '../desktop/backend/skill-prompt.mjs'
 
 const modelService = {
   async getDshModelConfig(modelKey) {
@@ -522,7 +522,7 @@ try {
   assert.equal(service.isBusy('conversation-A'), true)
   assert.equal(service.isBusy('conversation-B'), true)
   assert.notEqual(runtime.created[0].sessionId, runtime.created[1].sessionId)
-  assert.equal(runtime.created.find((item) => item.sessionId.endsWith('conversation-A'))?.agentPreset, 'standard')
+  assert.equal(runtime.created.find((item) => item.sessionId.endsWith('conversation-A'))?.agentPreset, 'tw-default')
   assert.equal(runtime.created.find((item) => item.sessionId.endsWith('conversation-B'))?.agentPreset, 'code', 'new sessions must honor the selected preset')
   assert.deepEqual(runtime.selected.map((item) => item.model), ['model-a', 'model-b'])
   assert.equal(runtime.permissionCommands.length, 2)
@@ -730,9 +730,21 @@ try {
     cwd: home,
     agentPreset: 'code',
     taskId: 'T1',
+    outputSchema: {
+      type: 'object',
+      properties: { outcome: { type: 'string' } },
+      required: ['outcome'],
+      additionalProperties: false,
+    },
   })
   await waitFor(() => service.isBusy('dag-session-1'), { label: 'DAG 任务会话已注册为运行中' })
   const taskSession = runtime.created.find((item) => item.sessionId === 'tw-dag-session-1')
+  assert.deepEqual(runtime.prompts.find((prompt) => prompt.sessionId === taskSession.sessionId)?.outputSchema, {
+    type: 'object',
+    properties: { outcome: { type: 'string' } },
+    required: ['outcome'],
+    additionalProperties: false,
+  }, 'internal DAG structured-output schema must reach the Host session.prompt payload')
   assert.equal(taskSession.agentPreset, 'code')
   runtime.push({ payload: { type: 'session/event', sessionId: taskSession.sessionId, event: { type: 'tool/call', time: Date.now(), data: { callId: 'task-call-1', name: 'read', arguments: '{"path":"README.md"}' } } } })
   runtime.push({ payload: { type: 'session/event', sessionId: taskSession.sessionId, event: { type: 'tool/result', data: { message: {
@@ -1002,7 +1014,7 @@ try {
     webContents: scopedWebContents,
   })
   await waitFor(() => service.isBusy('conversation-A'), { label: '重复会话已进入运行态' })
-  assert.equal(runtime.created.filter((item) => item.sessionId === 'tw-conversation-A').at(-1)?.agentPreset, 'standard',
+  assert.equal(runtime.created.filter((item) => item.sessionId === 'tw-conversation-A').at(-1)?.agentPreset, 'tw-default',
     'changing the new-session preference must not mutate the preset of an existing Host session')
   const selectCountBeforeRepeat = runtime.selected.length
   pushAssistantText(runtime, sessionA)
@@ -1052,7 +1064,7 @@ try {
       text: 'reasoning route first',
       modelKey: 'test/reason-model',
       conversationId: reasoningConv,
-      agentPreset: 'standard',
+      agentPreset: 'tw-default',
       webContents: scopedWebContents,
     })
     await waitFor(() => reasoningService.isBusy(reasoningConv), { label: 'reasoning 会话首轮运行' })
@@ -1065,7 +1077,7 @@ try {
       text: 'reasoning route second',
       modelKey: 'test/reason-model',
       conversationId: reasoningConv,
-      agentPreset: 'standard',
+      agentPreset: 'tw-default',
       webContents: scopedWebContents,
     })
     await waitFor(() => reasoningService.isBusy(reasoningConv), { label: 'reasoning 会话第二轮运行' })
@@ -1087,7 +1099,7 @@ try {
       text: 'reasoning route after restart',
       modelKey: 'test/reason-model',
       conversationId: reasoningConv,
-      agentPreset: 'standard',
+      agentPreset: 'tw-default',
       webContents: scopedWebContents,
     })
     await waitFor(() => reasoningService.isBusy(reasoningConv), { label: 'reasoning 映射恢复后第三轮运行' })
@@ -1102,7 +1114,7 @@ try {
       text: 'reasoning route changed to low',
       modelKey: 'test/reason-model',
       conversationId: reasoningConv,
-      agentPreset: 'standard',
+      agentPreset: 'tw-default',
       webContents: scopedWebContents,
     })
     await waitFor(() => reasoningService.isBusy(reasoningConv), { label: '推理档位变更后的第四轮运行' })
@@ -1147,8 +1159,8 @@ try {
       webContents,
     })
     await waitFor(() => blankLegacyService.isBusy('legacy-composer-blank'), { label: '空的旧 Composer 会话已完成安全预设切换' })
-    assert.deepEqual(blankLegacyRuntime.presetSelections, [{ sessionId: blankLegacySessionId, agentPreset: 'standard' }])
-    assert.equal(blankLegacyRuntime.created.at(-1)?.agentPreset, 'standard')
+    assert.deepEqual(blankLegacyRuntime.presetSelections, [{ sessionId: blankLegacySessionId, agentPreset: 'tw-default' }])
+    assert.equal(blankLegacyRuntime.created.at(-1)?.agentPreset, 'tw-default')
     pushAssistantText(blankLegacyRuntime, blankLegacySessionId, 'Composer standard ok')
     blankLegacyRuntime.push({ payload: {
       type: 'session/event', sessionId: blankLegacySessionId,
@@ -1156,7 +1168,7 @@ try {
     } })
     await blankLegacyTurn
     const migratedMap = JSON.parse(await fs.readFile(path.join(blankLegacyHome, 'taskweaver', 'dsh-session-map.json'), 'utf8'))
-    assert.equal(migratedMap.sessions['legacy-composer-blank'].agentPreset, 'standard',
+    assert.equal(migratedMap.sessions['legacy-composer-blank'].agentPreset, 'tw-default',
       'blank Host sessions may be migrated and persisted after Host confirms the preset switch')
   } finally {
     await blankLegacyService.stop()
@@ -1197,7 +1209,7 @@ try {
       && /新建一个对话/.test(error.message)
       && /历史已保留/.test(error.message))
     assert.equal(startedLegacyRuntime.prompts.length, 0, 'a locked legacy Code session must not silently run Composer with incompatible tools')
-    assert.deepEqual(startedLegacyRuntime.presetSelections, [{ sessionId: startedLegacySessionId, agentPreset: 'standard' }])
+    assert.deepEqual(startedLegacyRuntime.presetSelections, [{ sessionId: startedLegacySessionId, agentPreset: 'tw-default' }])
     const preservedMap = JSON.parse(await fs.readFile(path.join(startedLegacyHome, 'taskweaver', 'dsh-session-map.json'), 'utf8'))
     assert.equal(preservedMap.sessions['legacy-composer-started'].agentPreset, 'code',
       'a locked session must remain mapped to its real Host preset')

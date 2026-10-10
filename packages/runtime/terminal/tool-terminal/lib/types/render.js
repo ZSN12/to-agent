@@ -1,5 +1,5 @@
 /** Model and UI rendering for persistent terminal tool results. */
-import { TextRetainer } from '@z/dsh-output-retention';
+import { TextRetainer } from '@taskweaver/dsh-output-retention';
 const encoder = new TextEncoder();
 const TRUNCATED = '\n[output truncated]';
 function byteLength(text) {

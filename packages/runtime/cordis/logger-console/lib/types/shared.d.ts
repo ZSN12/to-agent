@@ -1,5 +1,5 @@
-import { Context, Exporter, Formatter, Message } from '@z/cordis';
-import z from '@z/schemastery';
+import { Context, Exporter, Formatter, Message } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
 /** Terminal color support level compatible with supports-color. */
 export type ColorSupportLevel = 0 | 1 | 2 | 3;
 /** Formatting options for the logger name label. */

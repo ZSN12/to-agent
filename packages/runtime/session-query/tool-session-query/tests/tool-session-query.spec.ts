@@ -3,18 +3,18 @@ import { execFileSync } from 'node:child_process'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { Context, type Fiber } from '@z/cordis'
-import type { Agent } from '@z/dsh-agent'
-import { createUserMessage, CallId, HarnessError , createMessage } from '@z/dsh-llm'
-import { MAX_TIMER_DELAY_MS, TimeoutReason } from '@z/dsh-timeout'
-import * as TimeoutPolicy from '@z/dsh-tool-call-timeout-policy'
+import { Context, type Fiber } from '@taskweaver/cordis'
+import type { Agent } from '@taskweaver/dsh-agent'
+import { createUserMessage, CallId, HarnessError , createMessage } from '@taskweaver/dsh-llm'
+import { MAX_TIMER_DELAY_MS, TimeoutReason } from '@taskweaver/dsh-timeout'
+import * as TimeoutPolicy from '@taskweaver/dsh-tool-call-timeout-policy'
 import SessionStore, {
   SESSION_FORMAT_VERSION,
   SessionId,
   type Session,
   type SessionHeader,
   type SessionId as SessionIdValue,
-} from '@z/dsh-session'
+} from '@taskweaver/dsh-session'
 import SessionQueryEngine, {
   SessionQueryError,
   SessionSearchCursor,
@@ -27,10 +27,10 @@ import SessionQueryEngine, {
   type SessionSearchPage,
   type SessionSearchRequest,
   type SessionTitleObservationResult,
-} from '@z/dsh-session-query'
-import SystemPrompt from '@z/dsh-system-prompt'
-import ToolRuntime, { type ToolExecutionResult } from '@z/dsh-tools'
-import * as ToolSessionQuery from '@z/dsh-tool-session-query'
+} from '@taskweaver/dsh-session-query'
+import SystemPrompt from '@taskweaver/dsh-system-prompt'
+import ToolRuntime, { type ToolExecutionResult } from '@taskweaver/dsh-tools'
+import * as ToolSessionQuery from '@taskweaver/dsh-tool-session-query'
 
 const activeContexts: Context[] = []
 const temporaryDirectories: string[] = []

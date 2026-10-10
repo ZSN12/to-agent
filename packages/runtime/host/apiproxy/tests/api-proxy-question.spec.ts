@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import AgentRegistry, { type Agent } from '@z/dsh-agent'
-import SessionStore from '@z/dsh-session'
-import UserQuestionService from '@z/dsh-user-questions'
-import type { ApiProxy, MuxFrame, RpcRequest } from '@z/dsh-host-apiproxy/api'
-import { RpcId } from '@z/dsh-host-apiproxy/api/rpc'
+import { Context } from '@taskweaver/cordis'
+import AgentRegistry, { type Agent } from '@taskweaver/dsh-agent'
+import SessionStore from '@taskweaver/dsh-session'
+import UserQuestionService from '@taskweaver/dsh-user-questions'
+import type { ApiProxy, MuxFrame, RpcRequest } from '@taskweaver/dsh-host-apiproxy/api'
+import { RpcId } from '@taskweaver/dsh-host-apiproxy/api/rpc'
 import { createApiProxy } from '../src/api-proxy.ts'
 
 async function harness(): Promise<{ ctx: Context; api: ApiProxy }> {

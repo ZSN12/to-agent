@@ -1,10 +1,10 @@
-import type { Context } from '@z/cordis';
-import type { AttachmentIdType, ImageAttachmentRef } from '@z/dsh-attachment';
-import type { IApiClient, MessageId, MuxFrame, PromptContentPart, QueueAction, RpcId, RpcResult, SessionId, SubagentAddress } from '@z/dsh-api-remotes/client';
+import type { Context } from '@taskweaver/cordis';
+import type { AttachmentIdType, ImageAttachmentRef } from '@taskweaver/dsh-attachment';
+import type { IApiClient, MessageId, MuxFrame, PromptContentPart, QueueAction, RpcId, RpcResult, SessionId, SubagentAddress } from '@taskweaver/dsh-api-remotes/client';
 import type { SessionFace } from '../contract/session.ts';
 import type { ConversationRuntime } from './conversation-assembler.ts';
 import type { ConversationSnapshot } from './conversation.ts';
-import type { RemoteResult } from '@z/dsh-typert-protocol';
+import type { RemoteResult } from '@taskweaver/dsh-typert-protocol';
 import type { SessionRemotes } from './remotes.ts';
 import { ProjectionValueStore } from './projection-store.ts';
 /** Messages requested per history page. */

@@ -1,5 +1,5 @@
-import { defineTool } from "@z/dsh-tools";
-import { FsSandboxController, computeHunkDiffs, sessionResolveOptions } from "@z/dsh-tool-fs";
+import { defineTool } from "@taskweaver/dsh-tools";
+import { FsSandboxController, computeHunkDiffs, sessionResolveOptions } from "@taskweaver/dsh-tool-fs";
 //#region lib/types/index.js
 const name = "tool-fs-inline-edit";
 const inject = [
@@ -76,7 +76,7 @@ function apply(ctx) {
 			const target = await ctx.fs.resolve(args.file_path, sessionResolveOptions(exec, args.file_path, policy?.workspaceRoot));
 			const info = await ctx.fs.stat(target, exec.signal);
 			if (!info || info.type !== "file") throw new Error(`Not a regular file: ${target.displayPath}`);
-			if ((info.size ?? 0) > 256 * 1024) throw new Error("Inline edit supports files up to 256 KiB");
+			if ((info.size ?? 0) > 262144) throw new Error("Inline edit supports files up to 256 KiB");
 			const before = await ctx.fs.readText(target, exec.signal);
 			ctx.emit("fs/observed", target, {
 				kind: "present",

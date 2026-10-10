@@ -1,15 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import { SessionId } from '@z/dsh-session'
-import { WorkflowRunId } from '@z/dsh-workflow'
+import { Context } from '@taskweaver/cordis'
+import { SessionId } from '@taskweaver/dsh-session'
+import { WorkflowRunId } from '@taskweaver/dsh-workflow'
 import type {
   WorkflowAgentEndInfo,
   WorkflowAgentInfo,
   WorkflowResultInfo,
   WorkflowRunInfo,
-} from '@z/dsh-workflow'
-import * as WorkflowInvariant from '@z/dsh-workflow/invariant'
-import InvariantRegistry from '@z/dsh-invariants'
+} from '@taskweaver/dsh-workflow'
+import * as WorkflowInvariant from '@taskweaver/dsh-workflow/invariant'
+import InvariantRegistry from '@taskweaver/dsh-invariants'
 
 async function setup(): Promise<Context> {
   const ctx = new Context()

@@ -1,8 +1,8 @@
 /**
- * Package-owned invariant companion for `@z/dsh-agent-instructions`.
- * @module @z/dsh-agent-instructions/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-agent-instructions`.
+ * @module @taskweaver/dsh-agent-instructions/invariant
  */
-import type { Context } from '@z/cordis';
+import type { Context } from '@taskweaver/cordis';
 /** Cordis companion plugin name. */
 export declare const name = "workspace-context-invariant";
 /** Service required before the companion can reserve package ownership. */

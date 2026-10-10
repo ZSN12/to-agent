@@ -1,5 +1,5 @@
-/** Package-owned approval audit-stream invariants. @module @z/dsh-user-approval/invariant */
-import type { Context } from '@z/cordis';
+/** Package-owned approval audit-stream invariants. @module @taskweaver/dsh-user-approval/invariant */
+import type { Context } from '@taskweaver/cordis';
 /** Cordis companion plugin name. */
 export declare const name = "user-approval-invariant";
 /** Service required before the companion can reserve package ownership. */

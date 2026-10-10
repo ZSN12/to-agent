@@ -3,10 +3,10 @@
  * provider — the pure, network-free half. The provider's `fetch()` composes
  * these with transport (redirect following, byte caps, decoding).
  *
- * @module @z/dsh-web-fetch-http/policy
+ * @module @taskweaver/dsh-web-fetch-http/policy
  */
 
-import { WebError } from '@z/dsh-web'
+import { WebError } from '@taskweaver/dsh-web'
 
 /** The body kinds this provider decodes. */
 export type FetchableKind = 'html' | 'text'

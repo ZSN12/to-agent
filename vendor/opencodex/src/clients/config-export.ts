@@ -22,11 +22,11 @@
 import { homedir } from "node:os";
 import { existsSync, lstatSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, resolve } from "node:path";
-import { shouldInjectApiAuthHeader, standaloneCodexRoutingTarget } from "../codex/inject";
+import { effectiveLoopbackListenerPort, shouldInjectApiAuthHeader } from "../codex/loopback-target";
 import { FORMAT_MEDIA_TYPE, serializeDocument, type ConfigFormat } from "../integrations/serialize";
 import { canonicalizeReasoningEfforts } from "../reasoning-effort";
 import { expandFastExportModels } from "./config-export/fast-models";
-import { probeHostname } from "../server/proxy-liveness";
+import { probeHostname } from "../lib/probe-hostname";
 import type { OcxConfig } from "../types";
 
 export type { ConfigFormat } from "../integrations/serialize";
@@ -55,8 +55,9 @@ export { buildRaycastClientConfig, summarizeRaycast, buildRaycastContribution } 
 export { droidHomeDir, droidConfigPath, buildDroidClientConfig, summarizeDroid, buildDroidContribution, droidReasoningModels, droidDefaultsFromOwnedRows, validateDroidReasoningDefaults } from "./config-export/droid";
 export type { DroidModelEntry, DroidGeneratedConfig } from "./config-export/droid";
 
-import type { OpencodeLaunchEnv, OpencodeCatalogModel, ExportContext, PiModelEntry, ManagedContribution, ManagedFragment, ExportClientId, ExportClientSpec } from "./config-export/contracts";
-import { OPENCODE_API_KEY_ENV_REF, OPENCODE_PROVIDER_BLOCK_DEFAULT_CONFIG, OPENCODE_CONFIG_SCHEMA, OPENCODE_PROVIDER_ID, PI_API_DIALECT, LOOPBACK_API_KEY_PLACEHOLDER, HERMES_API_KEY_ENV_REF, OPENCLAW_API_KEY_ENV_REF, OPENCODE_API_KEY_ENV, HERMES_API_KEY_ENV, OPENCLAW_API_KEY_ENV, KILO_API_KEY_ENV } from "./config-export/constants";
+import type { OpencodeLaunchEnv, OpencodeCatalogModel, ExportContext, ManagedContribution, ManagedFragment, ExportClientId, ExportClientSpec } from "./config-export/contracts";
+import { buildPiClientConfig, PI_EXPORT_OPTIONS, type PiGeneratedConfig } from "./config-export/pi";
+import { OPENCODE_API_KEY_ENV_REF, OPENCODE_PROVIDER_BLOCK_DEFAULT_CONFIG, OPENCODE_CONFIG_SCHEMA, OPENCODE_PROVIDER_ID, LOOPBACK_API_KEY_PLACEHOLDER, HERMES_API_KEY_ENV_REF, OPENCLAW_API_KEY_ENV_REF, OPENCODE_API_KEY_ENV, HERMES_API_KEY_ENV, OPENCLAW_API_KEY_ENV, KILO_API_KEY_ENV } from "./config-export/constants";
 import { exportModelLabel, authoritativeContextWindow, outputBudgetFor, inputBudgetFor, normalizeExportModels, inputModalitiesForClient, opencodeModelCapabilities, proxyAdmissionHeaders, singleFragment } from "./config-export/model-metadata";
 import { exportReasoningEfforts, exportDefaultReasoningEffort, legacyReasoningMetadata, type LegacyEffortVariant } from "./config-export/reasoning-metadata";
 import { buildOmpClientConfig, summarizeOmp, buildOmpContribution } from "./config-export/omp";
@@ -248,10 +249,8 @@ export function opencodeProxyBaseUrl(
   config?: Pick<OcxConfig, "unauthenticatedLoopbackListener">,
 ): string {
   if (config?.unauthenticatedLoopbackListener?.enabled) {
-    return standaloneCodexRoutingTarget(port, {
-      hostname,
-      unauthenticatedLoopbackListener: config.unauthenticatedLoopbackListener,
-    }).baseUrl;
+    const effectivePort = effectiveLoopbackListenerPort(config, port) ?? port;
+    return `http://127.0.0.1:${effectivePort}/v1`;
   }
   return `http://${probeHostname(hostname)}:${port}/v1`;
 }
@@ -810,41 +809,7 @@ function buildOpencodeClientConfig(ctx: ExportContext): OpencodeGeneratedConfig 
   };
 }
 
-export interface PiProviderBlock {
-  baseUrl: string;
-  api: string;
-  apiKey: string;
-  compat?: PiProviderCompat;
-  models: PiModelEntry[];
-}
-
-/**
- * The subset of Pi's per-provider `compat` block this export writes. Both keys are part of
- * Pi's own model-config schema; an unknown key there would empty the whole config, so nothing
- * outside this set is ever emitted.
- */
-export interface PiProviderCompat {
-  sendSessionAffinityHeaders?: boolean;
-  supportsDeveloperRole?: boolean;
-}
-
-interface PiExportOptions {
-  sendSessionAffinityHeaders?: boolean;
-  /**
-   * Tell Pi to send its system prompt as `system` rather than `developer` (#5664).
-   *
-   * Pi sends `developer` for reasoning models by default. On `/v1/chat/completions` the proxy
-   * forwards the caller's roles verbatim unless a destination has recorded
-   * `foldDeveloperRoleToSystem`, and many OpenAI-compatible upstreams reject `developer` with a
-   * 400. `system` is accepted by every destination behind this one provider block, so the export
-   * states it rather than leaving each user to hand-edit a block the next export rewrites.
-   */
-  foldDeveloperRole?: boolean;
-}
-
-export interface PiGeneratedConfig {
-  providers: Record<string, PiProviderBlock>;
-}
+export type { PiGeneratedConfig, PiProviderBlock, PiProviderCompat, PiExportOptions } from "./config-export/pi";
 
 /**
  * Hermes `~/.hermes/config.yaml`. We emit ONLY the provider entry — never
@@ -974,67 +939,6 @@ export interface GajaeGeneratedConfig {
  * model. The rest of this contract (omitting `cost`) is still ours rather than
  * a claim about Pi's acceptance.
  */
-function buildPiClientConfig(ctx: ExportContext, options: PiExportOptions = {}): PiGeneratedConfig {
-  const models: PiModelEntry[] = [];
-  for (const model of normalizeExportModels(ctx.models)) {
-    // Text is the one modality every routed model supports; anything richer must come
-    // from the catalog rather than an assumption — and must still be inside the enum
-    // Pi accepts, because one rejected value empties the whole config.
-    const input = inputModalitiesForClient("pi", model.inputModalities);
-    // An audio-only model has no honest representation here; claiming `text`
-    // would fail at call time instead, so the row is dropped.
-    if (input === null) continue;
-    const entry: PiModelEntry = {
-      id: model.namespaced,
-      name: exportModelLabel(model),
-      input,
-    };
-    if (Array.isArray(model.reasoningEfforts) && model.reasoningEfforts.length > 0) {
-      entry.reasoning = true;
-      const efforts = model.reasoningEfforts;
-      entry.thinkingLevelMap = {
-        // pi's off level maps to the declared `none` sentinel (the proxy omits the
-        // reasoning parameter for it); hidden when the ladder does not declare none.
-        off: efforts.includes("none") ? "none" : null,
-        minimal: efforts.includes("minimal") ? "minimal" : null,
-        low: efforts.includes("low") ? "low" : null,
-        medium: efforts.includes("medium") ? "medium" : null,
-        high: efforts.includes("high") ? "high" : null,
-        xhigh: efforts.includes("xhigh") ? "xhigh" : null,
-        max: efforts.includes("max") ? "max" : efforts.includes("ultra") ? "ultra" : null,
-      };
-    }
-    const context = authoritativeContextWindow(model.contextWindow);
-    if (context !== undefined) {
-      entry.contextWindow = context;
-      entry.maxTokens = outputBudgetFor(context, model);
-    }
-    models.push(entry);
-  }
-  const compat: PiProviderCompat = {
-    ...(options.sendSessionAffinityHeaders ? { sendSessionAffinityHeaders: true } : {}),
-    ...(options.foldDeveloperRole ? { supportsDeveloperRole: false } : {}),
-  };
-  return {
-    providers: {
-      [OPENCODE_PROVIDER_ID]: {
-        baseUrl: ctx.baseUrl,
-        api: PI_API_DIALECT,
-        apiKey: LOOPBACK_API_KEY_PLACEHOLDER,
-        ...(Object.keys(compat).length > 0 ? { compat } : {}),
-        models,
-      },
-    },
-  };
-}
-
-/**
- * Pi's export options, shared by `ocx export --client pi` and the managed contribution so the two
- * never drift apart at the first refresh. omo uses the same options: senpi documents both keys in
- * its models.json `compat` block (docs/models.md, docs/custom-provider.md).
- */
-const PI_EXPORT_OPTIONS: PiExportOptions = { sendSessionAffinityHeaders: true, foldDeveloperRole: true };
-
 /** Do not let provider-controlled catalog text become an environment lookup. */
 function containsEnvInterpolation(value: string): boolean {
   return value.includes("${");

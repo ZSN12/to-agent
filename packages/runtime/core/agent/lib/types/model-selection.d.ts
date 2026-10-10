@@ -1,9 +1,9 @@
 /**
  * Agent-scoped model selection shared by runtime entry points.
- * @module @z/dsh-agent/model-selection
+ * @module @taskweaver/dsh-agent/model-selection
  */
-import type { Context } from '@z/cordis';
-import type { ReasoningEffortId } from '@z/dsh-llm';
+import type { Context } from '@taskweaver/cordis';
+import type { ReasoningEffortId } from '@taskweaver/dsh-llm';
 /** Complete provider, model, and optional reasoning effort selected for one live Agent. */
 export interface ModelSelection {
     /** Registered provider route. */

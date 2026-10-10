@@ -1,4 +1,3 @@
-"use strict";
 /**
  * Generic pi-ai-backed LLM adapter plugin. One plugin instance owns a dict of
  * provider routes; a route naming an installed pi-ai provider inherits that
@@ -12,7 +11,7 @@
  *
  * ```yaml
  * - id: llm
- *   name: '@z/dsh-llm-pi-ai'
+ *   name: '@taskweaver/dsh-llm-pi-ai'
  *   config:
  *     providers:
  *       # Catalog route: everything but the credential comes from pi-ai.
@@ -53,91 +52,40 @@
  *               max: ultra
  * ```
  *
- * @module @z/dsh-llm-pi-ai
+ * @module @taskweaver/dsh-llm-pi-ai
  */
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
-var __generator = (this && this.__generator) || function (thisArg, body) {
-    var _ = { label: 0, sent: function() { if (t[0] & 1) throw t[1]; return t[1]; }, trys: [], ops: [] }, f, y, t, g = Object.create((typeof Iterator === "function" ? Iterator : Object).prototype);
-    return g.next = verb(0), g["throw"] = verb(1), g["return"] = verb(2), typeof Symbol === "function" && (g[Symbol.iterator] = function() { return this; }), g;
-    function verb(n) { return function (v) { return step([n, v]); }; }
-    function step(op) {
-        if (f) throw new TypeError("Generator is already executing.");
-        while (g && (g = 0, op[0] && (_ = 0)), _) try {
-            if (f = 1, y && (t = op[0] & 2 ? y["return"] : op[0] ? y["throw"] || ((t = y["return"]) && t.call(y), 0) : y.next) && !(t = t.call(y, op[1])).done) return t;
-            if (y = 0, t) op = [op[0] & 2, t.value];
-            switch (op[0]) {
-                case 0: case 1: t = op; break;
-                case 4: _.label++; return { value: op[1], done: false };
-                case 5: _.label++; y = op[1]; op = [0]; continue;
-                case 7: op = _.ops.pop(); _.trys.pop(); continue;
-                default:
-                    if (!(t = _.trys, t = t.length > 0 && t[t.length - 1]) && (op[0] === 6 || op[0] === 2)) { _ = 0; continue; }
-                    if (op[0] === 3 && (!t || (op[1] > t[0] && op[1] < t[3]))) { _.label = op[1]; break; }
-                    if (op[0] === 6 && _.label < t[1]) { _.label = t[1]; t = op; break; }
-                    if (t && _.label < t[2]) { _.label = t[2]; _.ops.push(op); break; }
-                    if (t[2]) _.ops.pop();
-                    _.trys.pop(); continue;
-            }
-            op = body.call(thisArg, _);
-        } catch (e) { op = [6, e]; y = 0; } finally { f = t = 0; }
-        if (op[0] & 5) throw op[1]; return { value: op[0] ? op[1] : void 0, done: true };
-    }
-};
-var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
-    if (pack || arguments.length === 2) for (var i = 0, l = from.length, ar; i < l; i++) {
-        if (ar || !(i in from)) {
-            if (!ar) ar = Array.prototype.slice.call(from, 0, i);
-            ar[i] = from[i];
-        }
-    }
-    return to.concat(ar || Array.prototype.slice.call(from));
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.inject = exports.name = exports.supportedProtocols = exports.recordKeyFor = exports.Config = exports.PiAiAdapter = void 0;
-exports.apply = apply;
-var dsh_launch_environment_1 = require("@z/dsh-launch-environment");
-var dsh_llm_1 = require("@z/dsh-llm");
-var dsh_settings_1 = require("@z/dsh-settings");
-var adapter_ts_1 = require("./adapter.ts");
-var auth_ts_1 = require("./auth.ts");
-var catalog_ts_1 = require("./catalog.ts");
-var config_ts_1 = require("./config.ts");
-var discovery_ts_1 = require("./discovery.ts");
-var login_ts_1 = require("./login.ts");
-var adapter_ts_2 = require("./adapter.ts");
-Object.defineProperty(exports, "PiAiAdapter", { enumerable: true, get: function () { return adapter_ts_2.PiAiAdapter; } });
-var config_ts_2 = require("./config.ts");
-Object.defineProperty(exports, "Config", { enumerable: true, get: function () { return config_ts_2.Config; } });
-var auth_ts_2 = require("./auth.ts");
-Object.defineProperty(exports, "recordKeyFor", { enumerable: true, get: function () { return auth_ts_2.recordKeyFor; } });
-var provider_ts_1 = require("./provider.ts");
-Object.defineProperty(exports, "supportedProtocols", { enumerable: true, get: function () { return provider_ts_1.supportedProtocols; } });
-exports.name = 'llm-pi-ai';
-exports.inject = ['llm'];
-var NS = (0, dsh_settings_1.settingsNamespace)('llm-pi-ai');
+import { launchEnvironmentOf } from '@taskweaver/dsh-launch-environment';
+import { assertUsableApiKey, LlmError } from '@taskweaver/dsh-llm';
+import { deepEqualJson, installSettingsSection, settingsNamespace } from '@taskweaver/dsh-settings';
+import { PiAiAdapter } from "./adapter.js";
+import { authContextFrom, credentialStoreFrom } from "./auth.js";
+import { catalogProviderIds } from "./catalog.js";
+import { assertServiceable, Config, resolveProfiles } from "./config.js";
+import { discoverModels } from "./discovery.js";
+import { registerPiAiFlows } from "./login.js";
+export { PiAiAdapter } from "./adapter.js";
+export { Config } from "./config.js";
+export { recordKeyFor } from "./auth.js";
+export { supportedProtocols } from "./provider.js";
+export const name = 'llm-pi-ai';
+export const inject = ['llm'];
+const NS = settingsNamespace('llm-pi-ai');
 /**
  * The registry captures these per route; a change here must re-register.
  * Sorted by provider so a settings document that merely reorders its keys is
  * not mistaken for a route change.
  */
 function registrationFacts(profiles) {
-    return __spreadArray([], profiles.entries(), true).map(function (_a) {
-        var provider = _a[0], profile = _a[1];
-        return ({
-            provider: provider,
-            displayName: profile.displayName,
-            retryPolicy: profile.retryPolicy,
-        });
-    })
-        .sort(function (left, right) { return left.provider.localeCompare(right.provider); });
+    return [...profiles.entries()]
+        // `displayName` rides along because the registry hands it to every selector
+        // through `providerInfo()`: a rename that did not re-register would leave
+        // the old label showing until some unrelated fact happened to change.
+        .map(([provider, profile]) => ({
+        provider,
+        displayName: profile.displayName,
+        retryPolicy: profile.retryPolicy,
+    }))
+        .sort((left, right) => left.provider.localeCompare(right.provider));
 }
 /**
  * The configurable-provider directory: every installed catalog route, plus
@@ -148,12 +96,12 @@ function registrationFacts(profiles) {
  * @returns the directory entries in catalog order, declared routes last.
  */
 function directoryEntries(profiles) {
-    var catalog = new Set((0, catalog_ts_1.catalogProviderIds)());
-    var entries = new Map();
-    var declare = function (provider, displayName) {
+    const catalog = new Set(catalogProviderIds());
+    const entries = new Map();
+    const declare = (provider, displayName) => {
         entries.set(provider, {
-            provider: provider,
-            displayName: displayName,
+            provider,
+            displayName,
             settingsNs: NS,
             settingsPath: ['providers', provider],
             // Membership of the installed catalog, not of the settings document:
@@ -162,22 +110,17 @@ function directoryEntries(profiles) {
             declared: !catalog.has(provider),
         });
     };
-    for (var _i = 0, catalog_1 = catalog; _i < catalog_1.length; _i++) {
-        var provider = catalog_1[_i];
+    for (const provider of catalog)
         declare(provider, provider);
-    }
-    for (var _a = 0, profiles_1 = profiles; _a < profiles_1.length; _a++) {
-        var _b = profiles_1[_a], provider = _b[0], profile = _b[1];
+    for (const [provider, profile] of profiles)
         declare(provider, profile.displayName);
-    }
-    return __spreadArray([], entries.values(), true);
+    return [...entries.values()];
 }
 /** Register one generic pi-ai adapter for all configured provider routes. */
-function apply(ctx, config) {
-    var _this = this;
-    var current = function () { return config; };
-    var lastRaw;
-    var memoized;
+export function apply(ctx, config) {
+    let current = () => config;
+    let lastRaw;
+    let memoized;
     /**
      * The resolved profiles for the current configuration, memoized by the raw
      * snapshot's identity — which is also what makes the adapter's own snapshot
@@ -189,62 +132,48 @@ function apply(ctx, config) {
      * last good value for a stored section that fails. Anything reaching this
      * point has already resolved once.
      */
-    var profiles = function () {
-        var raw = current();
+    const profiles = () => {
+        const raw = current();
         if (raw === lastRaw && memoized !== undefined)
             return memoized;
-        var next = (0, config_ts_1.resolveProfiles)(raw.providers);
+        const next = resolveProfiles(raw.providers);
         lastRaw = raw;
         memoized = next;
         return next;
     };
     profiles();
-    var resolveApiKey = function (provider, profile) { return __awaiter(_this, void 0, void 0, function () {
-        var ref, credentials, hit, _a;
-        var _b, _c;
-        return __generator(this, function (_d) {
-            switch (_d.label) {
-                case 0:
-                    ref = profile.apiKeyEnv;
-                    // Only a profile that names no credential at all defers to pi-ai's
-                    // provider-native discovery. Once one is named, a miss must fail loud:
-                    // handing pi-ai `undefined` would let it pick up an unrelated ambient key
-                    // (OPENAI_API_KEY and friends), billing another tenant for a request the
-                    // deployment meant to authenticate differently.
-                    if (ref === undefined)
-                        return [2 /*return*/, undefined];
-                    credentials = ctx.get('credentials');
-                    if (!(credentials !== undefined)) return [3 /*break*/, 2];
-                    return [4 /*yield*/, credentials.resolve(ref)];
-                case 1:
-                    _a = (_b = (_d.sent())) === null || _b === void 0 ? void 0 : _b.value;
-                    return [3 /*break*/, 3];
-                case 2:
-                    _a = (_c = (0, dsh_launch_environment_1.launchEnvironmentOf)(ctx).get(ref)) === null || _c === void 0 ? void 0 : _c.value;
-                    _d.label = 3;
-                case 3:
-                    hit = _a;
-                    if (hit !== undefined && hit.length > 0)
-                        return [2 /*return*/, (0, dsh_llm_1.assertUsableApiKey)(hit, 'llm-pi-ai', ref)];
-                    throw new dsh_llm_1.LlmError("llm-pi-ai: no credential for provider route \"".concat(provider, "\"; its profile resolves ").concat(ref, ", which is not")
-                        + " set \u2014 store ".concat(ref, " through the credentials service (the web Models page writes it) or export it,")
-                        + ' and remove apiKeyEnv only if this provider should authenticate from pi-ai\'s own environment discovery', 'MISSING_CREDENTIAL');
-            }
-        });
-    }); };
+    const resolveApiKey = async (provider, profile) => {
+        const ref = profile.apiKeyEnv;
+        // Only a profile that names no credential at all defers to pi-ai's
+        // provider-native discovery. Once one is named, a miss must fail loud:
+        // handing pi-ai `undefined` would let it pick up an unrelated ambient key
+        // (OPENAI_API_KEY and friends), billing another tenant for a request the
+        // deployment meant to authenticate differently.
+        if (ref === undefined)
+            return undefined;
+        const credentials = ctx.get('credentials');
+        const hit = credentials !== undefined
+            ? (await credentials.resolve(ref))?.value
+            // Without the seam the environment is the whole credential plane.
+            : launchEnvironmentOf(ctx).get(ref)?.value;
+        if (hit !== undefined && hit.length > 0)
+            return assertUsableApiKey(hit, 'llm-pi-ai', ref);
+        throw new LlmError(`llm-pi-ai: no credential for provider route "${provider}"; its profile resolves ${ref}, which is not`
+            + ` set — store ${ref} through the credentials service (the web Models page writes it) or export it,`
+            + ' and remove apiKeyEnv only if this provider should authenticate from pi-ai\'s own environment discovery', 'MISSING_CREDENTIAL');
+    };
     // One store and one ambient context for the whole plugin instance: both read
     // through `ctx` per call, so they stay correct across the collection rebuilds
     // a configuration change causes, and a sign-in survives one.
-    var auth = { credentials: (0, auth_ts_1.credentialStoreFrom)(ctx), authContext: (0, auth_ts_1.authContextFrom)(ctx) };
-    var adapter = new adapter_ts_1.PiAiAdapter({
-        profiles: profiles,
-        resolveApiKey: resolveApiKey,
-        auth: auth,
-        resolveAttachments: function () { return ctx.get('attachments'); },
-        onReplayDegrade: function (_a) {
-            var provider = _a.provider, model = _a.model, reason = _a.reason;
-            ctx.logger.warn("llm-pi-ai: unusable replay state on assistant history for route \"".concat(provider, "/").concat(model, "\";")
-                + " sending that message as provider-neutral content (".concat(reason, ")"));
+    const auth = { credentials: credentialStoreFrom(ctx), authContext: authContextFrom(ctx) };
+    const adapter = new PiAiAdapter({
+        profiles,
+        resolveApiKey,
+        auth,
+        resolveAttachments: () => ctx.get('attachments'),
+        onReplayDegrade: ({ provider, model, reason }) => {
+            ctx.logger.warn(`llm-pi-ai: unusable replay state on assistant history for route "${provider}/${model}";`
+                + ` sending that message as provider-neutral content (${reason})`);
         },
     });
     // Independent of the route set: signing in is what makes a route worth
@@ -252,16 +181,16 @@ function apply(ctx, config) {
     // Scoped to the authorization seam rather than injected outright, because a
     // composition without it (headless, ACP) simply has no surface to sign in
     // from, while everything else this plugin does still works.
-    ctx.inject(['authorization'], function (authorized) { (0, login_ts_1.registerPiAiFlows)(authorized, auth); });
+    ctx.inject(['authorization'], (authorized) => { registerPiAiFlows(authorized, auth); });
     // The full installed catalog is configurable from the moment the plugin
     // mounts — dormant or not — so configuration surfaces can offer every
     // pi-ai provider before any route exists. Hand-declared routes join it as
     // profiles appear, and leave with them.
-    var directory;
-    var directoryFacts;
-    var ensureDirectory = function () {
-        var entries = directoryEntries(profiles());
-        if ((0, dsh_settings_1.deepEqualJson)(entries, directoryFacts))
+    let directory;
+    let directoryFacts;
+    const ensureDirectory = () => {
+        const entries = directoryEntries(profiles());
+        if (deepEqualJson(entries, directoryFacts))
             return;
         // Atomic replace, never dispose-then-register: a route another adapter
         // family already declares (a profile keyed `deepseek-official`) would
@@ -284,33 +213,30 @@ function apply(ctx, config) {
      * discovery, so both answer `undefined` and the endpoint is asked
      * unauthenticated — the same posture a request to that route would take.
      */
-    var storedApiKey = function (provider) { return __awaiter(_this, void 0, void 0, function () {
-        var profile;
-        return __generator(this, function (_a) {
-            if (provider === undefined)
-                return [2 /*return*/, undefined];
-            profile = profiles().get(provider);
-            if (profile === undefined)
-                return [2 /*return*/, undefined];
-            return [2 /*return*/, resolveApiKey(provider, profile)];
-        });
-    }); };
+    const storedApiKey = async (provider) => {
+        if (provider === undefined)
+            return undefined;
+        const profile = profiles().get(provider);
+        if (profile === undefined)
+            return undefined;
+        return resolveApiKey(provider, profile);
+    };
     // Interrogating an endpoint is a configuration-time action over a draft, so
     // it is offered for the whole namespace rather than per route: the provider
     // a surface is adding does not exist yet. The draft is the whole request
     // except the credential: a configuration surface edits a redacted descriptor
     // and never holds a stored secret, so an already-configured route supplies
     // its own here rather than being interrogated unauthenticated.
-    ctx.llm.registerModelDiscovery(NS, function (request) { return (0, discovery_ts_1.discoverModels)(request, function () { return storedApiKey(request.provider); }); });
+    ctx.llm.registerModelDiscovery(NS, request => discoverModels(request, () => storedApiKey(request.provider)));
     // Route effects bind to this apply fiber via the stable `ctx` reference,
     // even when a swap runs inside the scoped settings callback below. A bare
     // mount (zero routes) is the dormant posture: nothing registers until a
     // settings section supplies profiles, and routes drop when it empties.
-    var registration;
-    var registeredFacts;
-    var ensureRegistrationFacts = function () {
-        var facts = registrationFacts(profiles());
-        if ((0, dsh_settings_1.deepEqualJson)(facts, registeredFacts))
+    let registration;
+    let registeredFacts;
+    const ensureRegistrationFacts = () => {
+        const facts = registrationFacts(profiles());
+        if (deepEqualJson(facts, registeredFacts))
             return;
         // The registry captures the route set and each route's retry policy at
         // registration, so a change to either must re-register. The swap is
@@ -318,7 +244,7 @@ function apply(ctx, config) {
         // conflicting route leaves the previous routes serving requests, and
         // `registeredFacts` only advances once the registry actually holds the
         // new set — so returning to a working configuration always re-applies.
-        var routes = __spreadArray([], profiles().keys(), true);
+        const routes = [...profiles().keys()];
         if (registration === undefined) {
             // Dormant bare mount: nothing is registered until a section supplies
             // profiles, and an empty section keeps it that way.
@@ -334,15 +260,15 @@ function apply(ctx, config) {
         registeredFacts = facts;
     };
     ensureRegistrationFacts();
-    (0, dsh_settings_1.installSettingsSection)(ctx, NS, config_ts_1.Config, config, {
+    installSettingsSection(ctx, NS, Config, config, {
         // Refuse an unserviceable section where it is written: without this a
         // schema-valid profile the adapter cannot serve would be stored and then
         // silently disable every route in this namespace.
-        validate: config_ts_1.assertServiceable,
-        setSource: function (source) {
+        validate: assertServiceable,
+        setSource: (source) => {
             current = source;
         },
-        onChange: function () {
+        onChange: () => {
             // Named here rather than left to the settings watcher: `assertServiceable`
             // cannot see the llm registry, so a profile claiming a route another
             // adapter family owns is stored successfully and only fails at this swap.
@@ -371,3 +297,4 @@ function apply(ctx, config) {
         },
     });
 }
+//# sourceMappingURL=index.js.map

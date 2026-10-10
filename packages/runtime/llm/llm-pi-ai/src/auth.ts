@@ -12,13 +12,13 @@ import { homedir } from 'node:os'
 import { access } from 'node:fs/promises'
 import { resolve as resolvePath } from 'node:path'
 import type { AuthContext, Credential, CredentialInfo, CredentialStore } from '@earendil-works/pi-ai'
-import type { Context } from '@z/cordis'
+import type { Context } from '@taskweaver/cordis'
 import {
   credentialKey, credentialKeyId, credentialKeyScope, credentialRef, isCredentialKeySegment, isCredentialRefName,
-} from '@z/dsh-credentials'
-import type { CredentialKey, CredentialProvider, CredentialRecord } from '@z/dsh-credentials'
-import { launchEnvironmentOf } from '@z/dsh-launch-environment'
-import { LlmError } from '@z/dsh-llm'
+} from '@taskweaver/dsh-credentials'
+import type { CredentialKey, CredentialProvider, CredentialRecord } from '@taskweaver/dsh-credentials'
+import { launchEnvironmentOf } from '@taskweaver/dsh-launch-environment'
+import { LlmError } from '@taskweaver/dsh-llm'
 
 /**
  * The record scope every credential this adapter family stores is written

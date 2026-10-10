@@ -3,8 +3,8 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { createServer } from 'node:http'
-import { createZHostManager, resolveTaskWeaverRuntimeRoot } from '../electron/agent/z-host/index.mjs'
-import { createDshChatService } from '../electron/backend/dsh-chat-service.mjs'
+import { createZHostManager, resolveTaskWeaverRuntimeRoot } from '../desktop/agent/z-host/index.mjs'
+import { createDshChatService } from '../desktop/backend/dsh-chat-service.mjs'
 
 // Real Host/compaction; deterministic local provider, no user data or external cost.
 const root = process.cwd()
@@ -43,7 +43,7 @@ const server = createServer((request, response) => {
 })
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
 const manager = createZHostManager({ runtimeRoot: resolveTaskWeaverRuntimeRoot({ appPath: root, isPackaged: false }),
-  userDataPath: home, executable: process.execPath, environment: { ...process.env, TASKWEAVER_COMMAND_TEST_KEY: 'local-only' } })
+  userDataPath: home, environment: { ...process.env, TASKWEAVER_COMMAND_TEST_KEY: 'local-only' } })
 let chat
 const wc = { isDestroyed: () => false, send(channel, event) {
   if (channel === 'chat:stream') events.push(event)

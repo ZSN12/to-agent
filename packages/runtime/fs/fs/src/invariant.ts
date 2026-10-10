@@ -1,10 +1,10 @@
-/** Package-owned filesystem event-data invariants. @module @z/dsh-fs/invariant */
+/** Package-owned filesystem event-data invariants. @module @taskweaver/dsh-fs/invariant */
 
-import type { Context } from '@z/cordis'
-import type { InvariantInstaller } from '@z/dsh-invariants'
+import type { Context } from '@taskweaver/cordis'
+import type { InvariantInstaller } from '@taskweaver/dsh-invariants'
 import type { FsObservation, FsTarget } from './types.ts'
 
-const PACKAGE_NAME = '@z/dsh-fs'
+const PACKAGE_NAME = '@taskweaver/dsh-fs'
 
 /** Cordis companion plugin name. */
 export const name = 'fs-invariant'

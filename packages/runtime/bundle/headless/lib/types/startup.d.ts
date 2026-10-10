@@ -2,9 +2,9 @@
  * The one-shot app's command-line provider: it parses the task positional and
  * `--help`, then publishes {@link HEADLESS_STARTUP_SERVICE}. The runner is an
  * ordinary consumer whose lazy config waits for that service.
- * @module @z/dsh-headless/startup
+ * @module @taskweaver/dsh-headless/startup
  */
-import type { Context } from '@z/cordis';
+import type { Context } from '@taskweaver/cordis';
 /** Stable Cordis plugin name. */
 export declare const name = "headless-startup";
 /** Services required before the task can be resolved. */

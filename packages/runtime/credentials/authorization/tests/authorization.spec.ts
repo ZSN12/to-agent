@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
-import { Context } from '@z/cordis'
-import { credentialKey } from '@z/dsh-credentials'
+import { Context } from '@taskweaver/cordis'
+import { credentialKey } from '@taskweaver/dsh-credentials'
 import AuthorizationService, {
   AuthorizationDeclinedError,
   type AuthorizationFlow,
   type AuthorizationInteraction,
   type AuthorizationSession,
-} from '@z/dsh-authorization'
+} from '@taskweaver/dsh-authorization'
 import { MemoryCredentials } from './memory.ts'
 
 const KEY = credentialKey('llm-pi-ai', 'openai-codex')

@@ -1,5 +1,5 @@
 {
-  "name": "@z/dsh-llm-taskweaver-bridge",
+  "name": "@taskweaver/dsh-llm-taskweaver-bridge",
   "description": "TaskWeaver in-process model bridge LLM adapter (Cursor, Antigravity, custom relays)",
   "version": "0.1.0-taskweaver",
   "private": true,
@@ -25,24 +25,24 @@
   ],
   "license": "MIT",
   "peerDependencies": {
-    "@z/cordis": "workspace:^",
-    "@z/dsh-bridge-core": "workspace:^",
-    "@z/dsh-home-paths": "workspace:^",
-    "@z/dsh-invariants": "workspace:^",
-    "@z/dsh-llm": "workspace:^",
-    "@z/dsh-settings": "workspace:^",
-    "@z/schemastery": "workspace:^"
+    "@taskweaver/cordis": "workspace:^",
+    "@taskweaver/dsh-bridge-core": "workspace:^",
+    "@taskweaver/dsh-home-paths": "workspace:^",
+    "@taskweaver/dsh-invariants": "workspace:^",
+    "@taskweaver/dsh-llm": "workspace:^",
+    "@taskweaver/dsh-settings": "workspace:^",
+    "@taskweaver/schemastery": "workspace:^"
   },
   "dependencies": {
-    "@z/dsh-bridge-core": "workspace:^",
-    "@z/schemastery": "workspace:^"
+    "@taskweaver/dsh-bridge-core": "workspace:^",
+    "@taskweaver/schemastery": "workspace:^"
   },
   "devDependencies": {
-    "@z/cordis": "workspace:^",
-    "@z/dsh-bridge-core": "workspace:^",
-    "@z/dsh-home-paths": "workspace:^",
-    "@z/dsh-invariants": "workspace:^",
-    "@z/dsh-llm": "workspace:^",
-    "@z/dsh-settings": "workspace:^"
+    "@taskweaver/cordis": "workspace:^",
+    "@taskweaver/dsh-bridge-core": "workspace:^",
+    "@taskweaver/dsh-home-paths": "workspace:^",
+    "@taskweaver/dsh-invariants": "workspace:^",
+    "@taskweaver/dsh-llm": "workspace:^",
+    "@taskweaver/dsh-settings": "workspace:^"
   }
 }

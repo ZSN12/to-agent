@@ -1,5 +1,5 @@
 /** Filesystem-seam source access for the generic stdio LSP provider. */
-import type { FileSystem, FsTarget } from '@z/dsh-fs';
+import type { FileSystem, FsTarget } from '@taskweaver/dsh-fs';
 /** A canonical workspace in the filesystem/subprocess execution world. */
 export interface HostWorkspace {
     /** Stable filesystem identity used for provider pooling. */

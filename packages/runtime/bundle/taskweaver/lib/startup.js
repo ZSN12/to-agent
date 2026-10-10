@@ -1,12 +1,12 @@
 import { Command } from "commander";
-import { parseCmdline } from "@z/dsh-cmdline";
+import { parseCmdline } from "@taskweaver/dsh-cmdline";
 //#region lib/types/startup.js
 /**
 * The web app's command-line provider: it parses the `dsh --profile web` flag
 * family (`--host`, `--port`, `--trusted-host`, `--no-open`) and its `--help`
 * text, then provides the immutable values as {@link WEB_STARTUP_SERVICE}.
 * Ordinary rows inject that service before reading it from lazy config.
-* @module @z/dsh-web-app/startup
+* @module @taskweaver/dsh-web-app/startup
 */
 /** Stable Cordis plugin name. */
 const name = "web-startup";

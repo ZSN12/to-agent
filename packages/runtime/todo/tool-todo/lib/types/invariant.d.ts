@@ -1,5 +1,5 @@
-/** Package-owned durable todo-snapshot invariants. @module @z/dsh-tool-todo/invariant */
-import type { Context } from '@z/cordis';
+/** Package-owned durable todo-snapshot invariants. @module @taskweaver/dsh-tool-todo/invariant */
+import type { Context } from '@taskweaver/cordis';
 /** Cordis companion plugin name. */
 export declare const name = "tool-todo-invariant";
 /** Service required before the companion can reserve package ownership. */

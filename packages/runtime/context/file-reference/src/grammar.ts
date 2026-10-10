@@ -1,7 +1,7 @@
 /**
  * Browser-safe `@file` token grammar shared by terminal and web clients.
  *
- * @module @z/dsh-file-reference/grammar
+ * @module @taskweaver/dsh-file-reference/grammar
  */
 
 import type { FileReferenceCandidate } from './types.ts'

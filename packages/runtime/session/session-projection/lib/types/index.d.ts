@@ -14,12 +14,12 @@
  * carry the complete post-change state, never a bare delta — it keeps every
  * unit's transition trivially cheap and every served value self-describing.
  *
- * @module @z/dsh-session-projection
+ * @module @taskweaver/dsh-session-projection
  */
-import { Context, Service } from '@z/cordis';
+import { Context, Service } from '@taskweaver/cordis';
 import type { ZodType } from 'zod';
-import type { Session, SessionEvent } from '@z/dsh-session';
-declare module '@z/cordis' {
+import type { Session, SessionEvent } from '@taskweaver/dsh-session';
+declare module '@taskweaver/cordis' {
     interface Context {
         sessionProjections: SessionProjectionRegistry;
     }

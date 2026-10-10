@@ -1,14 +1,34 @@
 /**
- * @module @z/dsh-bridge-core/registry
+ * @module @taskweaver/dsh-bridge-core/registry
  */
 
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import type { StreamChunk } from '@z/dsh-llm'
+import type { StreamChunk } from '@taskweaver/dsh-llm'
 import type { BridgeBackend, BridgeKind, BridgeStreamContext } from './types.ts'
 import { createPendingBridgeBackend } from './backends/pending.ts'
 
 const backends = new Map<BridgeKind, BridgeBackend>()
+const warnedLegacyRuntimeEnv = new Set<string>()
+
+/** Resolve the runtime root while keeping the former env spellings read-only for one release. */
+export function resolveBridgeRuntimeRoot(
+  env: Record<string, string | undefined> = process.env,
+  warn: (message: string) => void = (message) => console.warn(message),
+): string | undefined {
+  const canonical = env.TASKWEAVER_RUNTIME?.trim()
+  let fallback: string | undefined
+  for (const legacyName of ['TASKWEAVER_Z_RUNTIME', 'TASKWEAVER_DSH_RUNTIME']) {
+    const value = env[legacyName]?.trim()
+    if (!value) continue
+    if (!warnedLegacyRuntimeEnv.has(legacyName)) {
+      warnedLegacyRuntimeEnv.add(legacyName)
+      warn(`[TaskWeaver] ${legacyName} 已弃用，请改用 TASKWEAVER_RUNTIME。`)
+    }
+    fallback ??= value
+  }
+  return canonical || fallback
+}
 
 export function registerBridgeBackend(backend: BridgeBackend): void {
   backends.set(backend.kind, backend)
@@ -40,9 +60,9 @@ export function installDefaultBridgeBackends(): void {
 function transportModuleCandidates(): string[] {
   const fromEnv = process.env.TASKWEAVER_BRIDGE_TRANSPORT?.trim()
   if (fromEnv) return [fromEnv]
-  const zRuntime = process.env.TASKWEAVER_Z_RUNTIME?.trim()
-  if (zRuntime) {
-    const staged = join(zRuntime, 'electron-vendor', 'taskweaver-bridge-transport', 'index.mjs')
+  const runtimeRoot = resolveBridgeRuntimeRoot()
+  if (runtimeRoot) {
+    const staged = join(runtimeRoot, 'electron-vendor', 'taskweaver-bridge-transport', 'index.mjs')
     return [pathToFileURL(staged).href]
   }
   return [

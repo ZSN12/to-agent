@@ -1,7 +1,7 @@
-import z from "@z/schemastery";
-import { GoalId } from "@z/dsh-goal";
-import { HarnessError, boundContextSummary, createUserMessage } from "@z/dsh-llm";
-import { defineTool } from "@z/dsh-tools";
+import z from "@taskweaver/schemastery";
+import { GoalId } from "@taskweaver/dsh-goal";
+import { HarnessError, boundContextSummary, createUserMessage } from "@taskweaver/dsh-llm";
+import { defineTool } from "@taskweaver/dsh-tools";
 //#region lib/types/authority.js
 /** Execution-time authority checks for the model-facing goal tools. */
 /** Throw one structured tool-policy failure. */
@@ -96,7 +96,7 @@ function renderWrapupContext(objective, blockedReason) {
 /**
 * Model-facing `get_goal`, `create_goal`, and `update_goal` tools over the
 * persisted same-session goal domain.
-* @module @z/dsh-tool-goal
+* @module @taskweaver/dsh-tool-goal
 */
 const name = "tool-goal";
 const inject = [

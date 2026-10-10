@@ -1,8 +1,8 @@
 /**
  * Agent-scoped durable one-shot and fixed-rate reminders over the session event log.
- * @module @z/dsh-schedule
+ * @module @taskweaver/dsh-schedule
  */
-import type { Context } from '@z/cordis';
+import type { Context } from '@taskweaver/cordis';
 export type * from './types.ts';
 export { SCHEDULE_CHANGE_VERSION, MIN_EVERY_INTERVAL_SECONDS, ScheduleId, ScheduleInputError, ScheduleLogError, allocateScheduleId, createAfterScheduleRecord, createAtScheduleRecord, createEveryScheduleRecord, decodeScheduleChange, foldScheduleEvents, renderReminderFraming, renderEveryReminderBatchFraming, resolveEveryOccurrence, scheduleView, } from './domain.ts';
 export { registerScheduleTools } from './tools.ts';

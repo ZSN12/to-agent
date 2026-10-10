@@ -9,8 +9,8 @@
  * every client through the mux stream carrying the same whole value).
  */
 
-import type { Branded } from '@z/dsh-brand'
-import type { SessionId } from '@z/dsh-session/types'
+import type { Branded } from '@taskweaver/dsh-brand'
+import type { SessionId } from '@taskweaver/dsh-session/types'
 import type { RpcRequest, RpcResponse } from './rpc.ts'
 
 /** Identifies one goal across its durable revisions. */

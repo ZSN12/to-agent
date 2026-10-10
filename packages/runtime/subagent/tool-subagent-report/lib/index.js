@@ -1,12 +1,12 @@
-import z from "@z/schemastery";
-import { defineTool } from "@z/dsh-tools";
+import z from "@taskweaver/schemastery";
+import { defineTool } from "@taskweaver/dsh-tools";
 //#region lib/types/index.js
 /**
 * The child-scoped `report` tool and its usage guidance, installed into every
 * continuable in-process child's unpublished context. Roots, one-shot children,
 * remote providers, and agentless executions never see the registration.
 *
-* @module @z/dsh-tool-subagent-report
+* @module @taskweaver/dsh-tool-subagent-report
 */
 const name = "tool-subagent-report";
 const inject = [

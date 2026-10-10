@@ -9,7 +9,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { detectVerificationCommands, formatVerificationPrompt, executeVerificationRunner } from '../electron/backend/verification-policy.mjs'
+import { detectVerificationCommands, formatVerificationPrompt, executeVerificationRunner } from '../desktop/backend/verification-policy.mjs'
 
 const cleanup = []
 /** 建一个临时工作区，`files` 形如 { 'package.json': '...', 'src/a.ts': '' } */

@@ -3,9 +3,9 @@
  */
 
 import { z } from 'zod'
-import type { TokenUsage } from '@z/dsh-llm'
-import type { SessionEvent } from '@z/dsh-session'
-import type { ProjectionDefinition } from '@z/dsh-session-projection'
+import type { TokenUsage } from '@taskweaver/dsh-llm'
+import type { SessionEvent } from '@taskweaver/dsh-session'
+import type { ProjectionDefinition } from '@taskweaver/dsh-session-projection'
 import type { ContextPressureProjection, TokenUsageProjection } from './projection.ts'
 import { foldSurfaceProjection } from './surface-projection.ts'
 
@@ -84,7 +84,7 @@ const usageOf = (event: SessionEvent): TokenUsage | undefined =>
       ? event.data.usage
       : undefined
 
-declare module '@z/dsh-session-projection/types' {
+declare module '@taskweaver/dsh-session-projection/types' {
   interface SessionProjectionStateMap {
     tokenUsage: TokenUsageState
     contextPressure: ContextPressureState

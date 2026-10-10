@@ -12,9 +12,9 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import Loader from '@z/cordis-plugin-loader'
-import Include from '@z/cordis-plugin-include'
+import { Context } from '@taskweaver/cordis'
+import Loader from '@taskweaver/cordis-plugin-loader'
+import Include from '@taskweaver/cordis-plugin-include'
 import HttpServer, { renderIndexInjections } from '../src/index.ts'
 
 let root: string | undefined
@@ -32,7 +32,7 @@ async function loadComposition(port = 0): Promise<Context> {
   root = await mkdtemp(join(tmpdir(), 'dsh-webserver-loader-'))
   const configPath = join(root, 'cordis.yml')
   await writeFile(configPath, [
-    "- name: '@z/dsh-host-webserver'",
+    "- name: '@taskweaver/dsh-host-webserver'",
     '  config:',
     "    host: '127.0.0.1'",
     `    port: ${String(port)}`,
@@ -44,7 +44,7 @@ async function loadComposition(port = 0): Promise<Context> {
   await context.plugin(Loader)
   context.loader.builtins.include = Include
   const modules = new Map<string, unknown>([
-    ['@z/dsh-host-webserver', HttpServer],
+    ['@taskweaver/dsh-host-webserver', HttpServer],
   ])
   context.loader.internal = {
     version: 'v2',
@@ -208,7 +208,7 @@ describe('real Loader composition', () => {
       table.push(
         { kind: 'script', placement: 'head', text: 'window.__Q__=1' },
         { kind: 'script-src', placement: 'head', src: '/plugins/a.js?rev="1"&x=<y>' },
-        { kind: 'global', name: '__DSH_BOOT__', value: { rev: '</script><b>' } },
+        { kind: 'global', name: '__TASKWEAVER_BOOT__', value: { rev: '</script><b>' } },
         { kind: 'style', text: 'body{margin:0}' },
         { kind: 'html', placement: 'head', html: '<meta name="probe">' },
         { kind: 'script', placement: 'body', text: `window.__P__=${JSON.stringify(flag)}` },
@@ -222,7 +222,7 @@ describe('real Loader composition', () => {
       '<head>',
       '<script>window.__Q__=1</script>',
       '<script src="/plugins/a.js?rev=&quot;1&quot;&amp;x=&lt;y&gt;"></script>',
-      'globalThis["__DSH_BOOT__"] = {"rev":"\\u003c/script>\\u003cb>"}',
+      'globalThis["__TASKWEAVER_BOOT__"] = {"rev":"\\u003c/script>\\u003cb>"}',
       '<style>body{margin:0}</style>',
       '<meta name="probe">',
       '<body>',

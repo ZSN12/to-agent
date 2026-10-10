@@ -9,19 +9,19 @@
  */
 
 import { describe, expect, it, vi } from 'vitest'
-import { Context } from '@z/cordis'
-import Loader from '@z/cordis-plugin-loader'
-import { createUserMessage, CallId } from '@z/dsh-llm'
-import type { ContentBlock } from '@z/dsh-llm'
-import { SessionId } from '@z/dsh-session'
-import SystemPrompt from '@z/dsh-system-prompt'
-import ToolRuntime, { defineContentToolFixture } from '@z/dsh-tools'
-import type { ToolDefinition } from '@z/dsh-tools'
-import type { PostToolDecision, ToolExecution, ToolExecutionToken } from '@z/dsh-tools'
-import { SpillLocator, SpillStore } from '@z/dsh-spill'
-import type { SaveTextSpill, SpillRef } from '@z/dsh-spill'
-import * as SpillPolicy from '@z/dsh-spill-policy'
-import { WorkerThreadCodeRuntime } from '@z/dsh-code-runtime-worker-thread'
+import { Context } from '@taskweaver/cordis'
+import Loader from '@taskweaver/cordis-plugin-loader'
+import { createUserMessage, CallId } from '@taskweaver/dsh-llm'
+import type { ContentBlock } from '@taskweaver/dsh-llm'
+import { SessionId } from '@taskweaver/dsh-session'
+import SystemPrompt from '@taskweaver/dsh-system-prompt'
+import ToolRuntime, { defineContentToolFixture } from '@taskweaver/dsh-tools'
+import type { ToolDefinition } from '@taskweaver/dsh-tools'
+import type { PostToolDecision, ToolExecution, ToolExecutionToken } from '@taskweaver/dsh-tools'
+import { SpillLocator, SpillStore } from '@taskweaver/dsh-spill'
+import type { SaveTextSpill, SpillRef } from '@taskweaver/dsh-spill'
+import * as SpillPolicy from '@taskweaver/dsh-spill-policy'
+import { WorkerThreadCodeRuntime } from '@taskweaver/dsh-code-runtime-worker-thread'
 
 const testToolSignal = new AbortController().signal
 

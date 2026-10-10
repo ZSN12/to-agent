@@ -3,7 +3,6 @@
  */
 
 import { z } from 'zod'
-import type { DirectoryEntry } from './host.ts'
 import type { RequestPayload, ResponseValue } from './rpc-map.ts'
 import type { Wire } from './rpc.schema.ts'
 
@@ -29,41 +28,6 @@ export const hostPickDirectoryValueSchema = z.object({
   path: z.string().nullable(),
 }) satisfies z.ZodType<Wire<ResponseValue<'host.pickDirectory'>>>
 
-/** Directory row shared by listing entries and breadcrumb crumbs. */
-export const directoryEntrySchema = z.object({
-  name: z.string(),
-  path: z.string(),
-  hidden: z.boolean(),
-}) satisfies z.ZodType<Wire<DirectoryEntry>>
-
-/** host.listDirectory request payload; an absent path lists the home directory. */
-export const hostListDirectoryRequestSchema = z.object({
-  path: z.string().optional(),
-}) satisfies z.ZodType<Wire<RequestPayload<'host.listDirectory'>>>
-
-/** host.listDirectory response value. */
-export const hostListDirectoryValueSchema = z.object({
-  path: z.string(),
-  home: z.string(),
-  crumbs: z.array(directoryEntrySchema),
-  entries: z.array(directoryEntrySchema),
-  truncated: z.boolean(),
-}) satisfies z.ZodType<Wire<ResponseValue<'host.listDirectory'>>>
-
-/** host.createDirectory request payload: name must be one plain path segment. */
-export const hostCreateDirectoryRequestSchema = z.object({
-  path: z.string(),
-  name: z.string(),
-}).refine(
-  payload => payload.name.trim() !== '' && payload.name !== '.' && payload.name !== '..'
-    && !/[/\\]/.test(payload.name),
-  { message: 'host.createDirectory requires a single non-blank path segment name' },
-) satisfies z.ZodType<Wire<RequestPayload<'host.createDirectory'>>>
-
-/** host.createDirectory response value: the created directory's absolute path. */
-export const hostCreateDirectoryValueSchema = z.object({
-  path: z.string(),
-}) satisfies z.ZodType<Wire<ResponseValue<'host.createDirectory'>>>
 /** host.openPath request payload. */
 export const hostOpenPathRequestSchema = z.object({
   path: z.string().min(1),
@@ -73,3 +37,21 @@ export const hostOpenPathRequestSchema = z.object({
 export const hostOpenPathValueSchema = z.object({
   opened: z.literal(true),
 }) satisfies z.ZodType<Wire<ResponseValue<'host.openPath'>>>
+
+/** host.searchWeb request payload. */
+export const hostSearchWebRequestSchema = z.object({
+  query: z.string().trim().min(1).max(2_000),
+  maxResults: z.number().int().min(1).max(20).optional(),
+}) satisfies z.ZodType<Wire<RequestPayload<'host.searchWeb'>>>
+
+/** host.searchWeb response value; API keys never cross the Host boundary. */
+export const hostSearchWebValueSchema = z.object({
+  content: z.string().optional(),
+  sources: z.array(z.object({
+    url: z.string().min(1),
+    title: z.string().optional(),
+    snippet: z.string().optional(),
+    publishedAt: z.string().optional(),
+  })),
+  truncated: z.boolean(),
+}) satisfies z.ZodType<Wire<ResponseValue<'host.searchWeb'>>>

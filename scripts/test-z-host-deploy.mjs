@@ -6,19 +6,21 @@ import net from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { createZHostManager } from '../electron/agent/z-host/index.mjs'
-import { resolveTaskWeaverRuntimeRoot } from '../electron/agent/z-host/index.mjs'
-import { createDshChatService } from '../electron/backend/dsh-chat-service.mjs'
-import { createOrchestrationService } from '../electron/backend/orchestration-service.mjs'
-import { createMcpService } from '../electron/backend/mcp-service.mjs'
-import { piProviderBlockToDshProfile } from '../electron/backend/pi-models-to-dsh-profile.mjs'
+import { createZHostManager } from '../desktop/agent/z-host/index.mjs'
+import { resolveTaskWeaverRuntimeRoot } from '../desktop/agent/z-host/index.mjs'
+import { createDshChatService } from '../desktop/backend/dsh-chat-service.mjs'
+import { createOrchestrationService } from '../desktop/backend/orchestration-service.mjs'
+import { createMcpService } from '../desktop/backend/mcp-service.mjs'
+import { piProviderBlockToDshProfile } from '../desktop/backend/pi-models-to-dsh-profile.mjs'
+import { scriptHostNodeExecutable } from './lib/host-node-executable.mjs'
 
+const hostNodeBin = scriptHostNodeExecutable()
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const rawRuntimeOverride = (typeof process.env.TASKWEAVER_Z_RUNTIME === 'string' && process.env.TASKWEAVER_Z_RUNTIME.trim().length > 0)
-  ? process.env.TASKWEAVER_Z_RUNTIME.trim()
-  : ((typeof process.env.TASKWEAVER_DSH_RUNTIME === 'string' && process.env.TASKWEAVER_DSH_RUNTIME.trim().length > 0)
-    ? process.env.TASKWEAVER_DSH_RUNTIME.trim()
-    : null)
+const rawRuntimeOverride = [
+  process.env.TASKWEAVER_RUNTIME,
+  process.env.TASKWEAVER_DSH_RUNTIME,
+  process.env.TASKWEAVER_Z_RUNTIME,
+].find((value) => typeof value === 'string' && value.trim().length > 0)?.trim() ?? null
 const explicitRuntimeOverride = Boolean(rawRuntimeOverride)
 const runtimeSource = explicitRuntimeOverride ? 'explicit-override' : 'repository-bundle'
 const expectedRuntimeRoot = explicitRuntimeOverride
@@ -31,7 +33,7 @@ const runtimeRoot = resolveTaskWeaverRuntimeRoot({
   env: process.env,
 })
 assert.equal(runtimeRoot, expectedRuntimeRoot, explicitRuntimeOverride
-  ? 'deployment smoke must preserve the explicit TASKWEAVER_Z_RUNTIME override'
+  ? 'deployment smoke must preserve the explicit TASKWEAVER_RUNTIME override'
   : 'deployment smoke without an override must exercise the repository-bundled Z runtime')
 const testHome = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-dsh-deploy-'))
 const bashCancelWorkspace = path.join(testHome, 'bash-cancel-workspace')
@@ -110,6 +112,8 @@ let readonlyScopeLiteralGlobRequested = false
 let readonlyScopeConversationActive = false
 const optimizedSearchRequests = []
 let optimizedSearchToolResult = null
+const sessionQueryRequests = []
+let sessionQueryToolResult = null
 const keylessWorkflowRequests = []
 let keylessWorkflowRunCodeRequested = false
 let keylessWorkflowResultObserved = null
@@ -162,6 +166,13 @@ const mockLlm = createServer((request, response) => {
         'data: [DONE]\n\n',
       ].join(''))
     }
+    const acceptanceTaggedText = (text, fallbackCriterion = '结果已由模拟 Host 证据核对') => {
+      const promptText = (parsedBody.messages ?? []).map((message) => String(message.content ?? '')).join('\n')
+      const criterion = promptText.match(/【本节点验收点】\s*\n\d+\. ([^\n]+)/)?.[1] ?? fallbackCriterion
+      return `${text}\n<taskweaver-acceptance-v1>${JSON.stringify({
+        results: [{ criterion, passed: true, evidence: 'mock Host 结果记录' }],
+      })}</taskweaver-acceptance-v1>`
+    }
     const respondWithTextAndReadCall = (callId, content, args) => {
       response.writeHead(200, { 'content-type': 'text/event-stream' })
       response.end([
@@ -178,6 +189,29 @@ const mockLlm = createServer((request, response) => {
         'data: {"choices":[{"delta":{},"index":0,"finish_reason":"tool_calls"}]}\n\n',
         'data: [DONE]\n\n',
       ].join(''))
+    }
+    if (serialized.includes('[SESSION_QUERY_SEED]') && !isTitleRequest) {
+      respond('We recorded the prior discussion marker: previous-discussion-marker-20261009.')
+      return
+    }
+    if (serialized.includes('[SESSION_QUERY_SMOKE]') && !isTitleRequest) {
+      sessionQueryRequests.push(parsedBody)
+      const toolResult = (parsedBody.messages ?? []).find(message =>
+        message.role === 'tool' && JSON.stringify(message).includes('previous-discussion-marker-20261009'))
+      if (toolResult) {
+        sessionQueryToolResult = JSON.stringify(toolResult)
+        respond('session-search-smoke-ok')
+      } else {
+        const toolNames = (parsedBody.tools ?? []).map(tool => tool.function?.name ?? tool.name)
+        if (toolNames.includes('session_search')) {
+          respondWithToolCall('session-search-smoke-call', 'session_search', {
+            query: 'previous-discussion-marker-20261009',
+          })
+        } else {
+          respond('session-search-not-advertised')
+        }
+      }
+      return
     }
     if (serialized.includes('[OPTIMIZED_GREP_SMOKE]') && !isTitleRequest) {
       optimizedSearchRequests.push(parsedBody)
@@ -388,7 +422,7 @@ const mockLlm = createServer((request, response) => {
         bashCancelToolCallRequested = true
         const code = `const fs=require('node:fs');fs.writeFileSync(${JSON.stringify(bashCancelPidPath)},String(process.pid));process.on('SIGTERM',()=>{fs.writeFileSync(${JSON.stringify(bashCancelStoppedPath)},'stopped');process.exit(0)});setInterval(()=>{},1000);`
         respondWithToolCall('bash-cancel-tool-call', toolName, {
-          command: `exec ${JSON.stringify(process.execPath)} -e ${JSON.stringify(code)}`,
+          command: `exec ${JSON.stringify(hostNodeBin)} -e ${JSON.stringify(code)}`,
           description: 'Start a temporary process to verify in-flight Stop behavior.',
           timeoutMs: 60_000,
         })
@@ -419,7 +453,7 @@ const mockLlm = createServer((request, response) => {
         message.role === 'tool' && JSON.stringify(message).includes('mcp-dag-code-marker'))
       if (hasMcpToolResult) {
         mcpDagCodeResultObserved = true
-        respond('mcp-dag-code-ok')
+        respond(acceptanceTaggedText('无需改动，因为此节点只验证 MCP 工具调用并报告返回值。mcp-dag-code-ok'))
       } else if (toolNames.includes('mcp__smoke__echo')) {
         mcpDagCodeCallRequested = true
         respondWithToolCall('mcp-dag-code-call', 'mcp__smoke__echo', { text: 'mcp-dag-code-marker' })
@@ -429,7 +463,7 @@ const mockLlm = createServer((request, response) => {
       return
     }
     if (dagMatch?.[1] === 'T2' && serialized.includes('[MCP_DAG_SMOKE]')) {
-      respond('mcp-dag-secondary-ok')
+      respond(acceptanceTaggedText('无需改动，因为此节点只验证短任务执行链路。mcp-dag-secondary-ok'))
       return
     }
     if (!dagMatch && serialized.includes('[MCP_DAG_SMOKE]') && serialized.includes('子任务结果：')) {
@@ -440,7 +474,7 @@ const mockLlm = createServer((request, response) => {
     if (!isTitleRequest && readonlyScopeConversationActive) {
       if (!readonlyScopeDeniedReadRequested) {
         readonlyScopeDeniedReadRequested = true
-        respondWithReadCall('readonly-scope-denied', { file_path: 'electron/main.cjs' })
+        respondWithReadCall('readonly-scope-denied', { file_path: 'desktop/main.cjs' })
       } else if (!readonlyScopeLiteralGlobRequested) {
         readonlyScopeLiteralGlobRequested = true
         respondWithToolCall('readonly-scope-literal-glob', 'glob', { pattern: 'package.json' })
@@ -472,17 +506,17 @@ const mockLlm = createServer((request, response) => {
       if (serialized.includes('[MCP_DAG_SMOKE]')) {
         respond(JSON.stringify({
           tasks: [
-            { id: 'T1', title: '实现子任务调用 MCP', taskType: 'implementation', description: '[MCP_DAG_CODE] 调用 mcp__smoke__echo，参数 text 必须为 mcp-dag-code-marker；确认返回结果并汇报。不要修改工作区文件。', dependsOn: [] },
-            { id: 'T2', title: '独立实现子任务', taskType: 'implementation', description: '确认代码子 Agent 可独立完成简短的无文件改动验证，并汇报。不要修改工作区文件。', dependsOn: [] },
+            { id: 'T1', title: '实现子任务调用 MCP', taskType: 'implementation', description: '[MCP_DAG_CODE] 调用 mcp__smoke__echo，参数 text 必须为 mcp-dag-code-marker；确认返回结果并汇报。不要修改工作区文件。', acceptance: ['收到 mcp-dag-code-marker 的工具响应'], dependsOn: [] },
+            { id: 'T2', title: '独立实现子任务', taskType: 'implementation', description: '确认代码子 Agent 可独立完成简短的无文件改动验证，并汇报。不要修改工作区文件。', acceptance: ['独立节点返回验证结论'], dependsOn: [] },
           ],
         }))
         return
       }
       respond(JSON.stringify({
         tasks: [
-          { id: 'T1', title: '独立只读任务一', taskType: 'research', description: '并发读取并总结模块一', scopePaths: ['package.json'], dependsOn: [] },
-          { id: 'T2', title: '独立只读任务二', taskType: 'research', description: '并发读取并总结模块二', scopePaths: ['electron/backend/dsh-chat-service.mjs'], dependsOn: [] },
-          { id: 'T3', title: '依赖汇总任务', taskType: 'review', description: '等待前两项完成后汇总', scopePaths: ['electron/main.cjs'], dependsOn: ['T1', 'T2'] },
+          { id: 'T1', title: '独立只读任务一', taskType: 'research', description: '并发读取并总结模块一', acceptance: ['模块一结论有读取证据'], scopePaths: ['package.json'], dependsOn: [] },
+          { id: 'T2', title: '独立只读任务二', taskType: 'research', description: '并发读取并总结模块二', acceptance: ['模块二结论有读取证据'], scopePaths: ['desktop/backend/dsh-chat-service.mjs'], dependsOn: [] },
+          { id: 'T3', title: '依赖汇总任务', taskType: 'review', description: '等待前两项完成后汇总', acceptance: ['复核结论与上游证据一致'], scopePaths: ['desktop/main.cjs'], dependsOn: ['T1', 'T2'] },
         ],
       }))
       return
@@ -503,7 +537,7 @@ const mockLlm = createServer((request, response) => {
         for (const pending of dagPairRequests.splice(0)) {
           dagInFlight -= 1
           pending.respondWithReadCall(`dag-read-${pending.taskId}`, {
-            file_path: pending.taskId === 'T1' ? 'package.json' : 'electron/backend/dsh-chat-service.mjs',
+            file_path: pending.taskId === 'T1' ? 'package.json' : 'desktop/backend/dsh-chat-service.mjs',
             limit: 3,
           })
         }
@@ -512,10 +546,10 @@ const mockLlm = createServer((request, response) => {
     }
     if (taskId === 'T3' && !dagReviewReadRequested) {
       dagReviewReadRequested = true
-      respondWithReadCall('dag-read-T3', { file_path: 'electron/main.cjs', limit: 3 })
+      respondWithReadCall('dag-read-T3', { file_path: 'desktop/main.cjs', limit: 3 })
       return
     }
-    respond(`completed-${taskId}`)
+    respond(acceptanceTaggedText(`completed-${taskId}`))
   })
 })
 await new Promise((resolve) => mockLlm.listen(0, '127.0.0.1', resolve))
@@ -533,8 +567,8 @@ const readonlyPresetSourceHash = createHash('sha256').update(readonlyPresetSourc
 assert.equal(readonlyPresetHash, readonlyPresetSourceHash,
   `deployed taskweaver-readonly preset must match its source (deployed=${readonlyPresetHash}, source=${readonlyPresetSourceHash})`)
 const readonlyPreset = readonlyPresetBytes.toString('utf8')
-assert.match(readonlyPreset, /name: '@z\/dsh-tool-fs'[\s\S]*?mutations: false[\s\S]*?readLimit: 600/, 'deployed readonly preset must mount capped filesystem reads with mutations disabled')
-assert.doesNotMatch(readonlyPreset, /name: '@z\/dsh-tool-bash'/, 'deployed readonly preset must not expose shell execution')
+assert.match(readonlyPreset, /name: '@taskweaver\/dsh-tool-fs'[\s\S]*?mutations: false[\s\S]*?readLimit: 600/, 'deployed readonly preset must mount capped filesystem reads with mutations disabled')
+assert.doesNotMatch(readonlyPreset, /name: '@taskweaver\/dsh-tool-bash'/, 'deployed readonly preset must not expose shell execution')
 assert.doesNotMatch(readonlyPreset, /inspection(?:Tools|Thresholds|Limit)/, 'deployed readonly preset must not configure a cumulative inspection budget')
 assert.doesNotMatch(readonlyPreset, /(?:at most|hard ceiling of) (?:five|six|twelve).*calls? per task/i, 'deployed readonly preset must not cap total inspections')
 assert.match(readonlyPreset, /excludeDirectories:.*node_modules/, 'deployed readonly discovery must exclude dependencies by default')
@@ -549,17 +583,17 @@ assert.match(readonlyPreset, /literal[\s\S]*scope[\s\S]*do not call glob\/ls[\s\
   'deployed readonly persona must not spend a search call confirming an already-named literal file path')
 const codePresetPath = path.join(runtimeRoot, 'config', 'agent-presets', 'taskweaver-code', 'agent.cordis.yml')
 const codePreset = await fs.readFile(codePresetPath, 'utf8')
-assert.match(codePreset, /name: '@z\/dsh-tool-fs'[\s\S]*?readLimit: 600/, 'deployed code preset must cap each filesystem read')
+assert.match(codePreset, /name: '@taskweaver\/dsh-tool-fs'[\s\S]*?readLimit: 600/, 'deployed code preset must cap each filesystem read')
 const mainCodePreset = await fs.readFile(path.join(runtimeRoot, 'config', 'agent-presets', 'code', 'agent.cordis.yml'), 'utf8')
-assert.match(mainCodePreset, /name: '@z\/dsh-tool-fs'[\s\S]*?readLimit: 600/, 'deployed primary code preset must use the bounded filesystem reader')
+assert.match(mainCodePreset, /name: '@taskweaver\/dsh-tool-fs'[\s\S]*?readLimit: 600/, 'deployed primary code preset must use the bounded filesystem reader')
 assert.match(mainCodePreset, /only tool you may call directly is `run_code`[\s\S]*?inside a `run_code` program/, 'deployed primary Code Mode preset must explicitly direct native capabilities through run_code')
 const runtimePackagesDir = await fs.stat(path.join(runtimeRoot, 'runtime-packages')).then(() => 'runtime-packages', () => 'node_modules')
-const deployedSearchPlugin = await fs.readFile(path.join(runtimeRoot, runtimePackagesDir, '@z/dsh-tool-fs-search/lib/index.js'), 'utf8')
+const deployedSearchPlugin = await fs.readFile(path.join(runtimeRoot, runtimePackagesDir, '@taskweaver/dsh-tool-fs-search/lib/index.js'), 'utf8')
 assert.match(deployedSearchPlugin, /excludeDirectories/, 'deployed search plugin must include the current config, not a stale precompiled version')
-const deployedRepeatGuard = await fs.readFile(path.join(runtimeRoot, runtimePackagesDir, '@z/dsh-repeat-tool-reminder/lib/index.js'), 'utf8')
+const deployedRepeatGuard = await fs.readFile(path.join(runtimeRoot, runtimePackagesDir, '@taskweaver/dsh-repeat-tool-reminder/lib/index.js'), 'utf8')
 assert.match(deployedRepeatGuard, /taskweaver-readonly-scope-v1/, 'deployed repeat guard must understand the per-subtask read-only scope marker')
 assert.match(deployedRepeatGuard, /read-only scope denied/, 'deployed repeat guard must enforce the read-only path boundary before tool execution')
-const deployedRuntimePatch = await fs.readFile(path.join(runtimeRoot, runtimePackagesDir, '@z/dsh-base/cordis.patch.yml'), 'utf8')
+const deployedRuntimePatch = await fs.readFile(path.join(runtimeRoot, runtimePackagesDir, '@taskweaver/dsh-base/cordis.patch.yml'), 'utf8')
 assert.doesNotMatch(deployedRuntimePatch, /inspection(?:Tools|Thresholds|Limit)/, 'deployed base patch must not configure a cumulative inspection budget')
 const mcpFixturePath = path.join(projectRoot, 'scripts', 'fixtures', 'mcp-echo-server.mjs')
 const mcpSmokeLogPath = path.join(testHome, 'mcp-tool-calls.log')
@@ -577,7 +611,7 @@ const mcpService = createMcpService({ userData: testHome, safeStorage: testSafeS
 await mcpService.saveServer({
   id: 'smoke',
   transport: 'stdio',
-  command: process.execPath,
+  command: hostNodeBin,
   args: [mcpFixturePath],
   env: {
     TASKWEAVER_MCP_SMOKE_LOG: mcpSmokeLogPath,
@@ -586,9 +620,9 @@ await mcpService.saveServer({
   enabled: true,
 })
 const initialMcpIntegration = await mcpService.prepareRuntimeIntegration()
-assert.equal(initialMcpIntegration.patchPath, path.join(testHome, 'dsh', 'taskweaver-mcp.cordis.patch.yml'))
+assert.equal(initialMcpIntegration.patchPath, path.join(testHome, 'taskweaver-mcp.cordis.patch.yml'))
 const generatedMcpPatch = await fs.readFile(initialMcpIntegration.patchPath, 'utf8')
-assert.match(generatedMcpPatch, /@z\/dsh-mcp-client/)
+assert.match(generatedMcpPatch, /@taskweaver\/dsh-mcp-client/)
 assert.doesNotMatch(generatedMcpPatch, new RegExp(mcpSmokeLogPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
   'MCP environment values must be passed through the Host environment instead of inlined in its patch')
 assert.ok(Object.values(initialMcpIntegration.environment).includes(mcpSmokeLogPath),
@@ -606,7 +640,6 @@ await fs.writeFile(userReadonlyPresetPath, userReadonlyPreset)
 const manager = createZHostManager({
   runtimeRoot,
   userDataPath: testHome,
-  executable: process.execPath,
   environment: { ...process.env, TASKWEAVER_READONLY_SMOKE_KEY: mockApiKey },
   getMcpRuntimeIntegration: async () => mcpService.prepareRuntimeIntegration(),
   startTimeoutMs: 90_000,
@@ -669,6 +702,106 @@ try {
     },
   })
   assert.equal(configured.result.ok, true, configured.result.error?.message ?? 'mock provider settings rejected')
+
+  const previousDiscussionSessionId = `taskweaver-session-query-seed-${crypto.randomUUID()}`
+  const previousDiscussionCreated = await api.sessions.create({
+    sessionId: previousDiscussionSessionId,
+    cwd: projectRoot,
+    agentPreset: 'tw-default',
+  })
+  assert.equal(previousDiscussionCreated.result.ok, true,
+    previousDiscussionCreated.result.error?.message ?? 'session-search seed session creation failed')
+  const previousDiscussionModel = await api.sessions.selectModel({
+    sessionId: previousDiscussionSessionId,
+    provider: route,
+    model: 'mock-readonly',
+  })
+  assert.equal(previousDiscussionModel.result.ok, true,
+    previousDiscussionModel.result.error?.message ?? 'session-search seed model selection failed')
+  const previousDiscussionPrompt = await api.sessions.prompt({
+    sessionId: previousDiscussionSessionId,
+    mode: 'queue',
+    content: [{
+      type: 'text',
+      text: '[SESSION_QUERY_SEED] Record the marker previous-discussion-marker-20261009 in this discussion.',
+    }],
+  })
+  assert.equal(previousDiscussionPrompt.result.ok, true,
+    previousDiscussionPrompt.result.error?.message ?? 'session-search seed prompt rejected')
+  let previousDiscussionHistory = []
+  const previousDiscussionDeadline = Date.now() + 15_000
+  do {
+    const history = await api.sessions.history({ sessionId: previousDiscussionSessionId })
+    assert.equal(history.result.ok, true)
+    previousDiscussionHistory = history.result.value.events.map(row => row.event)
+    if (previousDiscussionHistory.some(event => event.type === 'turn/end')) break
+    await new Promise(resolve => setTimeout(resolve, 25))
+  } while (Date.now() < previousDiscussionDeadline)
+  assert.ok(previousDiscussionHistory.some(event => event.type === 'turn/end'),
+    'mock-backed prior discussion session should finish')
+
+  const sessionQuerySessionId = `taskweaver-session-query-${crypto.randomUUID()}`
+  const sessionQueryCreated = await api.sessions.create({
+    sessionId: sessionQuerySessionId,
+    cwd: projectRoot,
+    agentPreset: 'tw-default',
+  })
+  assert.equal(sessionQueryCreated.result.ok, true,
+    sessionQueryCreated.result.error?.message ?? 'session-query session creation failed')
+  const sessionQueryModel = await api.sessions.selectModel({
+    sessionId: sessionQuerySessionId,
+    provider: route,
+    model: 'mock-readonly',
+  })
+  assert.equal(sessionQueryModel.result.ok, true,
+    sessionQueryModel.result.error?.message ?? 'session-query model selection failed')
+  const sessionQueryPrompt = await api.sessions.prompt({
+    sessionId: sessionQuerySessionId,
+    mode: 'queue',
+    content: [{
+      type: 'text',
+      text: '[SESSION_QUERY_SMOKE] Find my earlier discussion about previous-discussion-marker-20261009.',
+    }],
+  })
+  assert.equal(sessionQueryPrompt.result.ok, true,
+    sessionQueryPrompt.result.error?.message ?? 'session-query prompt rejected')
+  let sessionQueryHistoryPage
+  const sessionQueryDeadline = Date.now() + 15_000
+  do {
+    const history = await api.sessions.history({ sessionId: sessionQuerySessionId })
+    assert.equal(history.result.ok, true)
+    sessionQueryHistoryPage = history.result.value
+    if (sessionQueryHistoryPage.events.some(row => row.event.type === 'turn/end')) break
+    await new Promise(resolve => setTimeout(resolve, 25))
+  } while (Date.now() < sessionQueryDeadline)
+  const sessionQueryHistory = sessionQueryHistoryPage?.events.map(row => row.event) ?? []
+  assert.ok(sessionQueryHistory.some(event => event.type === 'turn/end'),
+    'mock-backed prior-session search turn should finish')
+  const sessionSearchCall = sessionQueryHistory.find(event =>
+    event.type === 'tool/call' && event.data.name === 'session_search')
+  assert.ok(sessionSearchCall, 'the default preset should expose session_search')
+  const sessionSearchCallRow = sessionQueryHistoryPage.events.find(row =>
+    row.event.type === 'tool/call' && row.event.data.callId === sessionSearchCall.data.callId)
+  assert.deepEqual(sessionSearchCallRow?.view, {
+    for: 'call',
+    view: {
+      card: 'generic',
+      kind: 'search',
+      title: 'Search prior sessions',
+      rawInput: 'previous-discussion-marker-20261009',
+    },
+  }, 'the Host should attach the session search card presentation')
+  const sessionSearchResult = sessionQueryHistory.find(event =>
+    event.type === 'tool/result'
+    && event.data.message?.source?.callId === sessionSearchCall.data.callId)
+  assert.ok(sessionSearchResult, 'session_search should return a Host tool result')
+  assert.notEqual(sessionSearchResult.data.message.content?.[0]?.isError, true,
+    `session_search should succeed: ${JSON.stringify(sessionSearchResult.data.message.content?.[0])}`)
+  assert.ok(JSON.stringify(sessionSearchResult.data.message.content).includes('previous-discussion-marker-20261009'),
+    `session_search should find the earlier discussion: ${JSON.stringify(sessionSearchResult.data.message.content)}`)
+  assert.ok(sessionQueryRequests.length >= 2 && sessionQueryToolResult?.includes('previous-discussion-marker-20261009'),
+    'the local model fixture should observe the prior-session search result before completing')
+
   const optimizedSessionId = `taskweaver-optimized-search-${crypto.randomUUID()}`
   const optimizedCreated = await api.sessions.create({
     sessionId: optimizedSessionId,
@@ -832,7 +965,7 @@ try {
   const readonlyScopePrompt = await api.sessions.prompt({
     sessionId: readonlyScopeSessionId,
     mode: 'queue',
-    content: [{ type: 'text', text: `[READONLY_SCOPE_DENY] Try reading electron/main.cjs, then report the tool result.\n${readonlyScopeMarker}` }],
+    content: [{ type: 'text', text: `[READONLY_SCOPE_DENY] Try reading desktop/main.cjs, then report the tool result.\n${readonlyScopeMarker}` }],
   })
   assert.equal(readonlyScopePrompt.result.ok, true)
   let readonlyScopeHistory = []
@@ -847,7 +980,7 @@ try {
   assert.ok(readonlyScopeHistory.some((event) => event.type === 'turn/end'), 'deployed read-only scope turn should settle')
   assert.equal(readonlyScopeDeniedReadRequested, true, 'the mock model should request an out-of-scope read')
   assert.ok(readonlyScopeHistory.some((event) => event.type === 'tool/result'
-    && JSON.stringify(event.data).includes('TaskWeaver read-only scope denied read at electron/main.cjs before execution')),
+    && JSON.stringify(event.data).includes('TaskWeaver read-only scope denied read at desktop/main.cjs before execution')),
   'the deployed Host must deny an out-of-scope file read before it reaches the filesystem')
   assert.equal(readonlyScopeLiteralGlobRequested, true, 'the mock model should request a literal glob for the assigned file')
   const literalGlobCall = readonlyScopeHistory.find((event) => event.type === 'tool/call'

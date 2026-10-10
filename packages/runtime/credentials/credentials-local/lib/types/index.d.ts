@@ -1,12 +1,12 @@
 /**
- * File-backed credentials provider over `$DSH_HOME/.credentials.yaml`, layered
+ * File-backed credentials provider over `$TASKWEAVER_HOME/.credentials.yaml`, layered
  * against the environment by how much each layer is trusted:
  *
  * ```text
  * inherited process environment      (read-only, wins)
- * > $DSH_HOME/.credentials.yaml      (provider-managed, writable)
+ * > $TASKWEAVER_HOME/.credentials.yaml      (provider-managed, writable)
  * > <invocation cwd>/.env            (read-only fallback)
- * > $DSH_HOME/.env                   (read-only fallback)
+ * > $TASKWEAVER_HOME/.env                   (read-only fallback)
  * ```
  *
  * The inherited environment wins because `DEEPSEEK_API_KEY=… dsh`, a CI
@@ -32,19 +32,19 @@
  * as the user's environment layer; a store that doubled as the environment
  * layer would shadow non-secret entries behind its precedence, making them
  * silently unreachable.
- * @module @z/dsh-credentials-local
+ * @module @taskweaver/dsh-credentials-local
  */
-import { Context, Service } from '@z/cordis';
-import z from '@z/schemastery';
-import { CredentialProvider } from '@z/dsh-credentials';
-import type { CredentialInfo, CredentialKey, CredentialRecord, CredentialRecordEntry, CredentialRecordInfo, CredentialRef, ResolvedCredential } from '@z/dsh-credentials';
+import { Context, Service } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
+import { CredentialProvider } from '@taskweaver/dsh-credentials';
+import type { CredentialInfo, CredentialKey, CredentialRecord, CredentialRecordEntry, CredentialRecordInfo, CredentialRef, ResolvedCredential } from '@taskweaver/dsh-credentials';
 /** Basename of the credentials document inside the harness home. */
 export declare const CREDENTIALS_FILENAME = ".credentials.yaml";
 /** Plugin config: file location and hot-reload behavior. */
 export interface Config {
     /** Credentials document path; defaults to `.credentials.yaml` under the harness home. */
     path?: string;
-    /** Harness home used when `path` is omitted; defaults to `$DSH_HOME` or `~/.dsh`. */
+    /** Runtime home used when `path` is omitted; defaults to `$TASKWEAVER_HOME` or `~/.taskweaver/runtime`. */
     dshHome?: string;
     /** Watch the document and hot-publish external edits; defaults to true. */
     watch?: boolean;
@@ -99,7 +99,7 @@ export declare function parseCredentialsDocument(text: string, filename: string)
  * @returns the migrated text, or `undefined` when the text is not the recognized flat layout.
  */
 export declare function renderFlatLayoutMigration(text: string): string | undefined;
-/** File-backed credentials provider (`$DSH_HOME/.credentials.yaml`). */
+/** File-backed credentials provider (`$TASKWEAVER_HOME/.credentials.yaml`). */
 export declare class LocalCredentialProvider extends CredentialProvider {
     config: Config;
     static Config: z<Config>;

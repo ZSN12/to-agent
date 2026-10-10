@@ -1,15 +1,15 @@
 import { describe, expect, expectTypeOf, it, vi } from 'vitest'
-import { Context } from '@z/cordis'
-import type { Events } from '@z/cordis'
-import { bindScopeParent, createScope } from '@z/dsh-scope'
-import type { Scope } from '@z/dsh-scope'
-import SystemPrompt from '@z/dsh-system-prompt'
-import ToolRuntime from '@z/dsh-tools'
-import type { PreToolDecision, ToolDefinition, ToolExecution, ToolExecutionInput, ToolExecutionToken } from '@z/dsh-tools'
-import type { Agent } from '@z/dsh-agent'
+import { Context } from '@taskweaver/cordis'
+import type { Events } from '@taskweaver/cordis'
+import { bindScopeParent, createScope } from '@taskweaver/dsh-scope'
+import type { Scope } from '@taskweaver/dsh-scope'
+import SystemPrompt from '@taskweaver/dsh-system-prompt'
+import ToolRuntime from '@taskweaver/dsh-tools'
+import type { PreToolDecision, ToolDefinition, ToolExecution, ToolExecutionInput, ToolExecutionToken } from '@taskweaver/dsh-tools'
+import type { Agent } from '@taskweaver/dsh-agent'
 
-import { CallId } from '@z/dsh-llm'
-import type { SessionId } from '@z/dsh-session'
+import { CallId } from '@taskweaver/dsh-llm'
+import type { SessionId } from '@taskweaver/dsh-session'
 
 const testToolSignal = new AbortController().signal
 

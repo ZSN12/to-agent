@@ -1,4 +1,4 @@
-import type { DirectoryListing, IWorkspaces, SessionId, SnapshotStore, WorkspaceId, WorkspaceListState, WorkspaceView } from '@z/dsh-client-runtime/client';
+import type { DirectoryListing, IWorkspaces, SessionId, SnapshotStore, WorkspaceId, WorkspaceListState, WorkspaceView } from '@taskweaver/dsh-client-runtime/client';
 import type { Stabilizer } from './fixtures.ts';
 /**
  * Workspaces test double. Implements the same IWorkspaces face features

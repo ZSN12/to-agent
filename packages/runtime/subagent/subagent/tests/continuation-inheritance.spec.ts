@@ -10,18 +10,18 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { Context } from '@z/cordis'
-import type { Agent } from '@z/dsh-agent'
-import AgentLoop from '@z/dsh-agent-loop'
-import { mountAgentLoopTestDependencies } from '@z/dsh-agent-loop-testkit'
-import { createUserMessage } from '@z/dsh-llm'
-import SandboxPolicyService, { effectiveSandboxMode, setSandboxMode } from '@z/dsh-sandbox-policy'
-import { SessionId } from '@z/dsh-session'
-import type { SessionEvent } from '@z/dsh-session'
-import JsonlSessionPersistence from '@z/dsh-session-persistence-jsonl'
-import * as SubagentFork from '@z/dsh-subagent-fork-in-process'
-import * as SubagentSpawn from '@z/dsh-subagent-spawn-in-process'
-import ApprovalService, { effectiveApprovalPolicy } from '@z/dsh-user-approval'
+import { Context } from '@taskweaver/cordis'
+import type { Agent } from '@taskweaver/dsh-agent'
+import AgentLoop from '@taskweaver/dsh-agent-loop'
+import { mountAgentLoopTestDependencies } from '@taskweaver/dsh-agent-loop-testkit'
+import { createUserMessage } from '@taskweaver/dsh-llm'
+import SandboxPolicyService, { effectiveSandboxMode, setSandboxMode } from '@taskweaver/dsh-sandbox-policy'
+import { SessionId } from '@taskweaver/dsh-session'
+import type { SessionEvent } from '@taskweaver/dsh-session'
+import JsonlSessionPersistence from '@taskweaver/dsh-session-persistence-jsonl'
+import * as SubagentFork from '@taskweaver/dsh-subagent-fork-in-process'
+import * as SubagentSpawn from '@taskweaver/dsh-subagent-spawn-in-process'
+import ApprovalService, { effectiveApprovalPolicy } from '@taskweaver/dsh-user-approval'
 import { MockAdapter, textResponse } from '../../../core/agent-loop/tests/mock-adapter.ts'
 import SubagentRuntime from '../src/index.ts'
 
@@ -104,7 +104,7 @@ describe('continuable policy inheritance', () => {
     const runtimeContext = loaded.events.find(
       (event): event is SessionEvent<'user/message'> => event.type === 'user/message'
         && event.data.source.kind === 'plugin'
-        && event.data.source.plugin === '@z/dsh-system-prompt',
+        && event.data.source.plugin === '@taskweaver/dsh-system-prompt',
     )
     const contextText = runtimeContext?.data.content
       .flatMap(block => block.type === 'text' ? [block.text] : [])

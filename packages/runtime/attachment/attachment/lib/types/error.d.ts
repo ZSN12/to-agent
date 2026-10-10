@@ -1,4 +1,4 @@
-/** Attachment failure class. @module @z/dsh-attachment/error */
+/** Attachment failure class. @module @taskweaver/dsh-attachment/error */
 declare const IMAGE_ADMISSION_ERROR_CODES: readonly ["TOO_MANY_IMAGES", "IMAGES_TOO_LARGE", "UNSUPPORTED_IMAGE_TYPE", "INVALID_IMAGE_BASE64", "INVALID_IMAGE", "IMAGE_TYPE_MISMATCH", "IMAGE_TOO_LARGE", "IMAGE_TOO_MANY_PIXELS", "IMAGE_DIMENSION_TOO_LARGE"];
 /** Caller-correctable attachment failure codes raised while admitting image input. */
 export type ImageAdmissionErrorCode = typeof IMAGE_ADMISSION_ERROR_CODES[number];
@@ -8,7 +8,7 @@ export type AttachmentErrorCode = ImageAdmissionErrorCode | 'INVALID_ATTACHMENT_
  * Stable failures suitable for host RPC error mapping.
  *
  * Deliberately re-implements the `HarnessError` shape instead of extending it:
- * the base lives in `@z/dsh-llm`, which itself depends on this
+ * the base lives in `@taskweaver/dsh-llm`, which itself depends on this
  * package (`ImageBlock` references `ImageAttachmentRef`), so sharing the base
  * would create a dependency cycle. Consumers route on `code`, never on the
  * prototype chain, so the shapes stay interchangeable at the wire boundary.

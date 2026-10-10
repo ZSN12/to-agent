@@ -1,31 +1,12 @@
-"use strict";
 /**
  * The background-job Service Definition (`ctx.jobs`). It owns the contract for
  * job ids, session-scoped access, lifecycle state, completion listeners, and
  * owner cleanup while producers retain their execution resources. The
- * process-local registry lives in `@z/dsh-jobs-local`.
- * @module @z/dsh-jobs
+ * process-local registry lives in `@taskweaver/dsh-jobs-local`.
+ * @module @taskweaver/dsh-jobs
  */
-var __extends = (this && this.__extends) || (function () {
-    var extendStatics = function (d, b) {
-        extendStatics = Object.setPrototypeOf ||
-            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-            function (d, b) { for (var p in b) if (Object.prototype.hasOwnProperty.call(b, p)) d[p] = b[p]; };
-        return extendStatics(d, b);
-    };
-    return function (d, b) {
-        if (typeof b !== "function" && b !== null)
-            throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
-})();
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.JobRegistry = exports.JobId = void 0;
-var cordis_1 = require("@z/cordis");
-var types_ts_1 = require("./types.ts");
-Object.defineProperty(exports, "JobId", { enumerable: true, get: function () { return types_ts_1.JobId; } });
+import { Service } from '@taskweaver/cordis';
+export { JobId } from "./types.js";
 /**
  * Abstract background job registry. Subclass, implement the abstract methods,
  * and load the subclass as a plugin — it registers as `ctx.jobs` (one
@@ -53,19 +34,16 @@ Object.defineProperty(exports, "JobId", { enumerable: true, get: function () { r
  *   every owner, and registrations made under an agent composition's scope
  *   serve exactly the agents composed under it.
  */
-var JobRegistry = /** @class */ (function (_super) {
-    __extends(JobRegistry, _super);
-    function JobRegistry(ctx) {
-        var _newTarget = this.constructor;
+export class JobRegistry extends Service {
+    constructor(ctx) {
         // `abstract` erases at runtime, so a composition row naming this package
         // would register a ctx.jobs with no method implementations and fail far
         // from the misconfiguration. Fail loud at load instead.
-        if (_newTarget === JobRegistry) {
-            throw new Error('@z/dsh-jobs is the abstract job registry seam; load an implementation such as @z/dsh-jobs-local instead');
+        if (new.target === JobRegistry) {
+            throw new Error('@taskweaver/dsh-jobs is the abstract job registry seam; load an implementation such as @taskweaver/dsh-jobs-local instead');
         }
-        return _super.call(this, ctx, 'jobs') || this;
+        super(ctx, 'jobs');
     }
-    return JobRegistry;
-}(cordis_1.Service));
-exports.JobRegistry = JobRegistry;
-exports.default = JobRegistry;
+}
+export default JobRegistry;
+//# sourceMappingURL=index.js.map

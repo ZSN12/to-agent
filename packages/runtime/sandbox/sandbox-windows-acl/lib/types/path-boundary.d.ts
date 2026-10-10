@@ -1,7 +1,7 @@
 /**
  * Canonical directory-boundary checks for the Windows ACL workspace and
  * private-temp capabilities.
- * @module @z/dsh-sandbox-windows-acl/path-boundary
+ * @module @taskweaver/dsh-sandbox-windows-acl/path-boundary
  */
 /**
  * Reject a temp parent that is inside the workspace: every child created

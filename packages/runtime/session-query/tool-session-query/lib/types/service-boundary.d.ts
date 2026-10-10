@@ -1,10 +1,10 @@
 /**
  * Session-query service error containment and model-safe translation.
  *
- * @module @z/dsh-tool-session-query/service-boundary
+ * @module @taskweaver/dsh-tool-session-query/service-boundary
  */
-import type { Context } from '@z/cordis';
-import { HarnessError } from '@z/dsh-llm';
+import type { Context } from '@taskweaver/cordis';
+import { HarnessError } from '@taskweaver/dsh-llm';
 declare function unauthorizedTarget(): HarnessError;
 declare function call<Value>(ctx: Context, signal: AbortSignal, operation: string, invoke: () => Promise<Value>): Promise<Value>;
 declare function sanitizeError(ctx: Context, operation: string, error: unknown): HarnessError;

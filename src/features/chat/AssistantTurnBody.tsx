@@ -32,6 +32,7 @@ export function AssistantTurnBody({
   dshToolRows,
   toolTraceItems,
   workspacePath,
+  conversationId,
   onShowToolDetails,
   onOpenWorkspacePath,
 }: {
@@ -43,6 +44,7 @@ export function AssistantTurnBody({
   dshToolRows?: readonly DshProjectedToolCall[]
   toolTraceItems?: readonly ToolTraceItem[]
   workspacePath?: string | null
+  conversationId?: string | null
   onShowToolDetails?: (item: ToolTraceItem) => void
   onOpenWorkspacePath?: (relativePath: string) => void
 }) {
@@ -261,6 +263,7 @@ export function AssistantTurnBody({
                 rows={stepRows}
                 traces={stepTraces}
                 workspacePath={workspacePath}
+                conversationId={conversationId}
                 isActive={isStreaming}
                 onShowToolDetails={onShowToolDetails}
                 onOpenWorkspacePath={onOpenWorkspacePath}
@@ -269,12 +272,20 @@ export function AssistantTurnBody({
           )
         }
 
+        const isStreamingTail = isStreaming
+          && lastRaw?.kind === 'text'
+          && (
+            item.id === lastRaw.id
+            || item.id === `${lastRaw.id}-rest`
+            || item.id.startsWith(`${lastRaw.id}-text-`)
+          )
+
         return (
           <div key={item.id} className="assistant-block-wrap is-text">
             {debug && <span className="block-debug-chip">text · {item.id}</span>}
             <div className="assistant-text-block">
               <Suspense fallback={<div className="message-text message-markdown">{item.text}</div>}>
-                <AgentMessageMarkdown text={item.text} />
+                <AgentMessageMarkdown text={item.text} isStreaming={isStreamingTail} />
               </Suspense>
             </div>
           </div>

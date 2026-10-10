@@ -7,15 +7,15 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import { createScope } from '@z/dsh-scope'
-import SystemPrompt from '@z/dsh-system-prompt'
-import { CodeRuntime } from '@z/dsh-code-runtime'
-import type { CodeRunRequest, CodeRunResult } from '@z/dsh-code-runtime'
-import ToolRuntime, { RUN_CODE_NAME, defineTool } from '@z/dsh-tools'
-import type { Agent } from '@z/dsh-agent'
-import { SessionId } from '@z/dsh-session'
-import { apply, Config, inject, name } from '@z/dsh-agent-tool-presentation'
+import { Context } from '@taskweaver/cordis'
+import { createScope } from '@taskweaver/dsh-scope'
+import SystemPrompt from '@taskweaver/dsh-system-prompt'
+import { CodeRuntime } from '@taskweaver/dsh-code-runtime'
+import type { CodeRunRequest, CodeRunResult } from '@taskweaver/dsh-code-runtime'
+import ToolRuntime, { RUN_CODE_NAME, defineTool } from '@taskweaver/dsh-tools'
+import type { Agent } from '@taskweaver/dsh-agent'
+import { SessionId } from '@taskweaver/dsh-session'
+import { apply, Config, inject, name } from '@taskweaver/dsh-agent-tool-presentation'
 
 /** A runtime that never runs anything: presentation never dispatches. */
 class StubRuntime extends CodeRuntime {

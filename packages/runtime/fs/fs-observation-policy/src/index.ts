@@ -4,12 +4,12 @@
  * guards from that state, and the provider performs the atomic freshness/no-clobber check. Without
  * this plugin, tools retain the bare provider's unconditional mutation behavior. See the package
  * README for composition rules.
- * @module @z/dsh-fs-observation-policy
+ * @module @taskweaver/dsh-fs-observation-policy
  */
 
-import type { Context } from '@z/cordis'
-import { FsError } from '@z/dsh-fs'
-import type { FsObservation, FsTarget, FsVersion, FsWriteIntent } from '@z/dsh-fs'
+import type { Context } from '@taskweaver/cordis'
+import { FsError } from '@taskweaver/dsh-fs'
+import type { FsObservation, FsTarget, FsVersion, FsWriteIntent } from '@taskweaver/dsh-fs'
 import type { FsObservationActor } from './types.ts'
 
 export type { FsObservationActor } from './types.ts'

@@ -5,9 +5,9 @@
  * already validates every mutable value before `currentSelection()` can observe it.
  * The empty installer keeps that absence explicit in composed invariant sets.
  *
- * @module @z/dsh-agent-default-model/invariant
+ * @module @taskweaver/dsh-agent-default-model/invariant
  */
-import type { Context } from '@z/cordis';
+import type { Context } from '@taskweaver/cordis';
 /** Cordis companion plugin name. */
 export declare const name = "agent-default-model-invariant";
 /** Services required before the companion can register. */

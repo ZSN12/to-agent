@@ -1,5 +1,5 @@
-/** Package-owned scoped-dispatch invariants. @module @z/dsh-scope/invariant */
-import type { Context } from '@z/cordis';
+/** Package-owned scoped-dispatch invariants. @module @taskweaver/dsh-scope/invariant */
+import type { Context } from '@taskweaver/cordis';
 /** Cordis companion plugin name. */
 export declare const name = "scope-invariant";
 /** Services required before the companion can register. */

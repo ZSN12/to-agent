@@ -1,27 +1,22 @@
-"use strict";
 /**
- * Package-owned invariant companion for `@z/dsh-app-boot`.
- * @module @z/dsh-app-boot/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-app-boot`.
+ * @module @taskweaver/dsh-app-boot/invariant
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.apply = exports.inject = exports.name = void 0;
-var PACKAGE_NAME = '@z/dsh-app-boot';
+const PACKAGE_NAME = '@taskweaver/dsh-app-boot';
 /** Cordis companion plugin name. */
-exports.name = 'app-boot-invariant';
+export const name = 'app-boot-invariant';
 /** Service required before the companion can reserve package ownership. */
-exports.inject = ['invariants'];
+export const inject = ['invariants'];
 /**
  * No runtime invariant: this presentation adapter owns no durable package-local event stream;
  * boundary and replay tests cover its protocol mapping.
  */
-var install = function () { };
+const install = () => { };
 /**
  * Register this package's invariant companion.
  * @param ctx - Cordis context carrying the invariant service.
  * @returns the installed registration's disposer after setup succeeds.
  */
-var apply = function (ctx) {
-    return Promise.resolve(ctx.invariants.register(PACKAGE_NAME, install));
-};
-exports.apply = apply;
+export const apply = (ctx) => Promise.resolve(ctx.invariants.register(PACKAGE_NAME, install));
 /* jscpd:ignore-end */
+//# sourceMappingURL=invariant.js.map

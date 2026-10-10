@@ -1,16 +1,16 @@
 /**
- * @z/dsh-headless — one-shot direct Agent driver. The bundle patch
+ * @taskweaver/dsh-headless — one-shot direct Agent driver. The bundle patch
  * rides over dsh-base without Host, HTTP, or browser plugins; this runner
  * creates one Agent through the core registry, drives the task to quiescence,
  * flushes its Session, prints the final assistant text, and exits.
  *
- * @module @z/dsh-headless
+ * @module @taskweaver/dsh-headless
  */
 import { randomUUID } from 'node:crypto';
-import z from '@z/schemastery';
-import { installModelSelection } from '@z/dsh-agent';
-import { createUserMessage } from '@z/dsh-llm';
-import { SessionId } from '@z/dsh-session';
+import z from '@taskweaver/schemastery';
+import { installModelSelection } from '@taskweaver/dsh-agent';
+import { createUserMessage } from '@taskweaver/dsh-llm';
+import { SessionId } from '@taskweaver/dsh-session';
 /** Stable Cordis plugin name. */
 export const name = 'headless-runner';
 /** Core services required before the one-shot turn can start. */
@@ -75,7 +75,7 @@ async function run(ctx, task, io) {
     // This bundle composes no preset roster, so the model-facing rows sit in the
     // host plane and the agent reads them from the global layer. A deployment
     // that DOES configure one has to join it here first
-    // (@z/dsh-agent-presets README, "Composing a child agent").
+    // (@taskweaver/dsh-agent-presets README, "Composing a child agent").
     const { agent } = await agents.create({
         sessionId: SessionId(`session-${randomUUID()}`),
         meta: { cwd: process.cwd() },

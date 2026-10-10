@@ -4,16 +4,16 @@
  * through the seam, and every write re-reads the document under a
  * cross-process writer lock before patching it as a comment-preserving
  * leaf-level diff.
- * @module @z/dsh-settings-file
+ * @module @taskweaver/dsh-settings-file
  */
-import { Context, Service } from '@z/cordis';
-import z from '@z/schemastery';
-import { SettingsProvider, type SettingsNamespace } from '@z/dsh-settings';
+import { Context, Service } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
+import { SettingsProvider, type SettingsNamespace } from '@taskweaver/dsh-settings';
 /** Plugin config: file location and hot-reload behavior. */
 export interface Config {
     /** Settings document path; defaults to `settings.yaml` under the harness home. */
     path?: string;
-    /** Harness home used when `path` is omitted; defaults to `$DSH_HOME` or `~/.dsh`. */
+    /** Runtime home used when `path` is omitted; defaults to `$TASKWEAVER_HOME` or `~/.taskweaver/runtime`. */
     dshHome?: string;
     /** Watch the document and hot-publish external edits; defaults to true. */
     watch?: boolean;

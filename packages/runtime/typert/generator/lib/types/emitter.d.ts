@@ -1,7 +1,7 @@
 /**
  * Model-driven Typert artifact emitter. It consumes only FaceModel and
  * TypeGraph data; TypeScript compiler nodes are not part of this boundary.
- * @module @z/dsh-typert-generator/emitter
+ * @module @taskweaver/dsh-typert-generator/emitter
  */
 import type { FaceModel } from './model.ts';
 /** Failure to project a modeled construct into an emitted artifact. */

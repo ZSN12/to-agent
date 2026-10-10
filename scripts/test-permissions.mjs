@@ -2,13 +2,14 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { createPermissionService } from '../electron/backend/permission-service.mjs'
+import { createPermissionService } from '../desktop/backend/permission-service.mjs'
 
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-permissions-'))
 const workspace = path.join(root, 'workspace')
 const outside = path.join(root, 'outside')
 await fs.mkdir(workspace, { recursive: true })
 await fs.mkdir(outside, { recursive: true })
+await fs.writeFile(path.join(workspace, 'README.md'), 'workspace read target')
 await fs.writeFile(path.join(outside, 'private.txt'), 'outside workspace')
 await fs.symlink(outside, path.join(workspace, 'linked-outside'))
 const pendingDialogs = []
@@ -23,6 +24,23 @@ try {
     input: { command: 'git status -sb' },
   }))
   assert.equal(gitStatus, undefined, 'read-only git status should auto-approve in ask mode')
+
+  const reviewDisabled = createPermissionService({
+    dialog,
+    getParentWindow: () => null,
+    getWorkspacePath: () => workspace,
+    getAutoReviewReads: () => false,
+  })
+  const promptsBeforeRead = pendingDialogs.length
+  const explicitlyReviewedRead = await reviewDisabled.withExecution('ask', contents, () => reviewDisabled.authorize({
+    toolName: 'read',
+    input: { path: 'README.md' },
+  }))
+  assert.equal(explicitlyReviewedRead, undefined)
+  assert.equal(pendingDialogs.length, promptsBeforeRead + 1,
+    'turning autoReviewReads off must send even an in-workspace read through approval')
+  assert.match(pendingDialogs.at(-1)[0].message, /读取|权限/)
+  pendingDialogs.length = 0
 
   const bashCall = { toolName: 'bash', input: { command: 'npm test' } }
   const allowed = await permissions.withExecution('ask', contents, () => permissions.authorize(bashCall))

@@ -2,12 +2,12 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { startMockLlmServer } from '@z/dsh-llm-mock-server'
+import { startMockLlmServer } from '@taskweaver/dsh-llm-mock-server'
 import { execa } from 'execa'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 /** Published-entry acceptance for argument errors, profile lifecycle, and boot-free config dumps. */
-const repoRoot = fileURLToPath(new URL('../../../', import.meta.url))
+const repoRoot = fileURLToPath(new URL('../../', import.meta.url))
 // The release version, including a prerelease such as 0.0.1-rc.1: `--version`
 // prints what this manifest carries, so no test may pin it to a literal.
 const cliVersion = (JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string }).version
@@ -44,8 +44,8 @@ function createBaseProfile(home: string, name: string): string {
   writeFileSync(join(profileDir, 'package.json'), JSON.stringify({
     name: `dsh-profile-${name}`,
     private: true,
-    dependencies: { '@z/dsh-base': 'workspace:^' },
-    dsh: { profile: { bundles: ['@z/dsh-base'] } },
+    dependencies: { '@taskweaver/dsh-base': 'workspace:^' },
+    dsh: { profile: { bundles: ['@taskweaver/dsh-base'] } },
   }))
   writeFileSync(join(profileDir, 'cordis.patch.yml'), '[]\n')
   return profileDir
@@ -69,7 +69,7 @@ interface ProfileLifecycleFixture {
 
 /**
  * A minimal custom profile: one lifecycle-marker plugin bundle listed in
- * dsh.profile.bundles, no dsh-base — proving out-of-box composition machinery without
+ * taskweaver.profile.bundles, no dsh-base — proving out-of-box composition machinery without
  * booting the entire product tree.
  */
 function createProfileLifecycleFixture(): ProfileLifecycleFixture {
@@ -96,7 +96,7 @@ function createProfileLifecycleFixture(): ProfileLifecycleFixture {
     '  }, 20)',
     '  // Echo the mounted generation so the hot-reload e2e can assert both an',
     '  // applied override and its removal reverting to this bundle default.',
-    "  writeFileSync(join(process.env.DSH_HOME, 'config-echo'), String(config.generation ?? 'bundle-default'))",
+    "  writeFileSync(join(process.env.TASKWEAVER_HOME, 'config-echo'), String(config.generation ?? 'bundle-default'))",
     "  writeFileSync(process.env.RAW_READY_FILE, 'ready')",
     '  void ctx.loader.await().then(() => {',
     "    if (active) writeFileSync(process.env.RAW_SETTLED_FILE, 'settled')",
@@ -150,7 +150,7 @@ function startProfileLifecycle(fixture: ProfileLifecycleFixture, args: readonly 
     input: '',
     reject: false,
     env: {
-      DSH_HOME: fixture.home,
+      TASKWEAVER_HOME: fixture.home,
       RAW_READY_FILE: fixture.ready,
       RAW_SETTLED_FILE: fixture.settled,
       RAW_DISPOSED_FILE: fixture.disposed,
@@ -199,7 +199,7 @@ function createEnvironmentProbeProfile(home: string, project: string): void {
     name: 'dsh-profile-environment-probe',
     private: true,
     dependencies: {},
-    dsh: { profile: { bundles: ['@z/dsh-base'] } },
+    dsh: { profile: { bundles: ['@taskweaver/dsh-base'] } },
   }, undefined, 2))
   writeFileSync(join(profileDir, 'cordis.patch.yml'), [
     '- insert:',
@@ -222,7 +222,7 @@ interface StartupFixture {
  * A custom profile whose ordinary provider plugin injects `cmdlineArgs`, plus
  * a row that reads its app-owned service through a `!!js` config expression.
  * Both plugin modules resolve
- * `@z/dsh-cmdline` and `commander` through the profile module
+ * `@taskweaver/dsh-cmdline` and `commander` through the profile module
  * fallback, exactly as an installed out-of-tree bundle does.
  */
 function createStartupFixture(): StartupFixture {
@@ -235,7 +235,7 @@ function createStartupFixture(): StartupFixture {
   mkdirSync(bundleDir, { recursive: true })
   writeFileSync(join(bundleDir, 'startup.mjs'), [
     "import { Command } from 'commander'",
-    "import { parseCmdline } from '@z/dsh-cmdline'",
+    "import { parseCmdline } from '@taskweaver/dsh-cmdline'",
     "export const name = 'fixture-startup'",
     "export const inject = ['cmdlineArgs']",
     'export function apply(ctx) {',
@@ -256,7 +256,7 @@ function createStartupFixture(): StartupFixture {
     '    interrupted = true',
     "    process.emit('SIGTERM')",
     '  }, 20)',
-    "  writeFileSync(join(process.env.DSH_HOME, 'config-echo'), String(config.generation ?? 'bundle-default'))",
+    "  writeFileSync(join(process.env.TASKWEAVER_HOME, 'config-echo'), String(config.generation ?? 'bundle-default'))",
     "  writeFileSync(process.env.RAW_READY_FILE, 'ready')",
     '  ctx.effect(() => () => { clearInterval(heartbeat) })',
     '}',
@@ -267,7 +267,7 @@ function createStartupFixture(): StartupFixture {
     "import { join } from 'node:path'",
     "export const name = 'reload-witness'",
     'export function apply(ctx, config = {}) {',
-    "  writeFileSync(join(process.env.DSH_HOME, 'witness'), String(config.generation ?? 'bundle-default'))",
+    "  writeFileSync(join(process.env.TASKWEAVER_HOME, 'witness'), String(config.generation ?? 'bundle-default'))",
     '}',
     '',
   ].join('\n'))
@@ -315,7 +315,7 @@ function startStartupProfile(fixture: StartupFixture, args: readonly string[]) {
     timeout: 25_000,
     killSignal: 'SIGKILL',
     env: {
-      DSH_HOME: fixture.home,
+      TASKWEAVER_HOME: fixture.home,
       RAW_READY_FILE: fixture.ready,
       RAW_INTERRUPT_FILE: fixture.interrupt,
     },
@@ -354,7 +354,7 @@ describe.skipIf(!existsSync(dshBin))('dsh BUILT bin (node lib/bin.js, no tsx)', 
   it('fails loud on a nonexistent profile with the plugin-command hint', async () => {
     const home = mkdtempSync(join(tmpdir(), 'dsh-missing-profile-'))
     try {
-      const result = await runBuiltBin(['--profile', 'nope'], { DSH_HOME: home })
+      const result = await runBuiltBin(['--profile', 'nope'], { TASKWEAVER_HOME: home })
       expect(result.code).toBe(1)
       expect(result.stderr).toContain('profile "nope" does not exist')
       expect(result.stderr).toContain('dsh plugin --profile nope add')
@@ -378,7 +378,7 @@ describe.skipIf(!existsSync(dshBin))('dsh BUILT bin (node lib/bin.js, no tsx)', 
       const result = await runBuiltBin(
         ['--profile', 'environment-probe'],
         {
-          DSH_HOME: home,
+          TASKWEAVER_HOME: home,
           DEEPSEEK_API_KEY: undefined,
           DEEPSEEK_BASE_URL: server.baseURL,
         },
@@ -411,7 +411,7 @@ describe.skipIf(!existsSync(dshBin))('dsh BUILT bin (node lib/bin.js, no tsx)', 
     createBaseProfile(home, 'base')
     try {
       const result = await runBuiltBin(['--profile', 'base', '--patch', invalidProvider], {
-        DSH_HOME: home,
+        TASKWEAVER_HOME: home,
         DEEPSEEK_API_KEY: 'keyless-invalid-config',
       })
       expect(result.code).toBe(1)
@@ -468,7 +468,7 @@ describe.skipIf(!existsSync(dshBin))('dsh BUILT bin (node lib/bin.js, no tsx)', 
       writeFileSync(profilePatch, '[]\n')
       await waitForFile(fixture.ready)
       expect(readFileSync(configFile, 'utf8')).toBe('bundle-default')
-      // The home-level user layer ($DSH_HOME/cordis.patch.yml) is live too
+      // The home-level user layer ($TASKWEAVER_HOME/cordis.patch.yml) is live too
       // and outranks the per-profile layer.
       rmSync(fixture.ready)
       writeFileSync(join(fixture.home, 'cordis.patch.yml'), [
@@ -586,7 +586,7 @@ describe.skipIf(!existsSync(dshBin))('dsh BUILT bin (node lib/bin.js, no tsx)', 
         timeout: 60_000,
         killSignal: 'SIGKILL',
         reject: false,
-        env: { DSH_HOME: home },
+        env: { TASKWEAVER_HOME: home },
       })
       expect(result.exitCode).toBe(0)
       const manifest = JSON.parse(readFileSync(join(home, 'profiles', 'anchor', 'package.json'), 'utf8')) as {
@@ -594,11 +594,11 @@ describe.skipIf(!existsSync(dshBin))('dsh BUILT bin (node lib/bin.js, no tsx)', 
         dsh: { profile: { bundles: string[] } }
       }
       expect(Object.keys(manifest.dependencies)).toEqual(['anchored-bundle'])
-      expect(manifest.dsh.profile.bundles).toContain('anchored-bundle')
+      expect(manifest.taskweaver.profile.bundles).toContain('anchored-bundle')
 
       const removed = await runBuiltBin(
         ['plugin', '--profile', 'anchor', 'remove', 'anchored-bundle'],
-        { DSH_HOME: home },
+        { TASKWEAVER_HOME: home },
         checkout,
       )
       expect(removed.code).toBe(0)
@@ -609,17 +609,17 @@ describe.skipIf(!existsSync(dshBin))('dsh BUILT bin (node lib/bin.js, no tsx)', 
         dsh: { profile: { bundles: string[] } }
       }
       expect(Object.keys(afterRemove.dependencies ?? {})).toEqual([])
-      expect(afterRemove.dsh.profile.bundles).not.toContain('anchored-bundle')
+      expect(afterRemove.taskweaver.profile.bundles).not.toContain('anchored-bundle')
     } finally {
       rmSync(home, { recursive: true, force: true })
       rmSync(checkout, { recursive: true, force: true })
     }
   }, 90_000)
 
-  it('activates a dependency that gained dsh.bundle in a later update', async () => {
+  it('activates a dependency that gained taskweaver.bundle in a later update', async () => {
     // Reconcile runs against the INSTALLED state on every successful pnpm
     // run, so `update` (not only `add`) activates a package whose newer
-    // version declares dsh.bundle. Simulated without a registry: hand-place
+    // version declares taskweaver.bundle. Simulated without a registry: hand-place
     // the installed package, flip its manifest, and run a benign pnpm verb.
     const home = mkdtempSync(join(tmpdir(), 'dsh-plugin-update-'))
     try {
@@ -630,24 +630,24 @@ describe.skipIf(!existsSync(dshBin))('dsh BUILT bin (node lib/bin.js, no tsx)', 
         name: 'dsh-profile-up',
         private: true,
         dependencies: { 'late-bundle': 'file:./late-bundle' },
-        dsh: { profile: { bundles: ['@z/dsh-base'] } },
+        dsh: { profile: { bundles: ['@taskweaver/dsh-base'] } },
       }))
       writeFileSync(join(profileDir, 'cordis.patch.yml'), '[]\n')
       // v1: no dsh manifest — a plain dependency.
       writeFileSync(join(installed, 'package.json'), JSON.stringify({ name: 'late-bundle', version: '1.0.0' }))
-      const first = await runBuiltBin(['plugin', '--profile', 'up', 'root'], { DSH_HOME: home })
+      const first = await runBuiltBin(['plugin', '--profile', 'up', 'root'], { TASKWEAVER_HOME: home })
       expect(first.code).toBe(0)
       let manifest = JSON.parse(readFileSync(join(profileDir, 'package.json'), 'utf8')) as { dsh: { profile: { bundles: string[] } } }
-      expect(manifest.dsh.profile.bundles).toEqual(['@z/dsh-base'])
-      // v2: the installed package now declares dsh.bundle (an update landed).
+      expect(manifest.taskweaver.profile.bundles).toEqual(['@taskweaver/dsh-base'])
+      // v2: the installed package now declares taskweaver.bundle (an update landed).
       writeFileSync(join(installed, 'package.json'), JSON.stringify({
         name: 'late-bundle', version: '2.0.0', dsh: { bundle: { patch: './cordis.patch.yml' } },
       }))
       writeFileSync(join(installed, 'cordis.patch.yml'), '[]\n')
-      const second = await runBuiltBin(['plugin', '--profile', 'up', 'root'], { DSH_HOME: home })
+      const second = await runBuiltBin(['plugin', '--profile', 'up', 'root'], { TASKWEAVER_HOME: home })
       expect(second.code).toBe(0)
       manifest = JSON.parse(readFileSync(join(profileDir, 'package.json'), 'utf8')) as { dsh: { profile: { bundles: string[] } } }
-      expect(manifest.dsh.profile.bundles).toEqual(['@z/dsh-base', 'late-bundle'])
+      expect(manifest.taskweaver.profile.bundles).toEqual(['@taskweaver/dsh-base', 'late-bundle'])
     } finally {
       rmSync(home, { recursive: true, force: true })
     }
@@ -662,12 +662,12 @@ describe.skipIf(!existsSync(dshBin))('dsh BUILT bin (node lib/bin.js, no tsx)', 
     afterEach(() => { rmSync(home, { recursive: true, force: true }) })
 
     it('prints the TaskWeaver base bundle layers without a user layer', async () => {
-      const { stdout, code, stderr } = await runBuiltBin(['--profile', 'base', '--dump-default-config'], { DSH_HOME: home })
+      const { stdout, code, stderr } = await runBuiltBin(['--profile', 'base', '--dump-default-config'], { TASKWEAVER_HOME: home })
       expect(code).toBe(0)
       expect(stderr).toBe('')
-      expect(stdout).toContain("name: '@z/dsh-agent-loop'")
+      expect(stdout).toContain("name: '@taskweaver/dsh-agent-loop'")
       expect(stdout).toContain('agents: []')
-      expect(stdout).toContain('# == @z/dsh-base')
+      expect(stdout).toContain('# == @taskweaver/dsh-base')
     }, 30_000)
 
     it('composes the profile user layer and a --patch overlay in order', async () => {
@@ -696,7 +696,7 @@ describe.skipIf(!existsSync(dshBin))('dsh BUILT bin (node lib/bin.js, no tsx)', 
       ].join('\n'))
       const { stdout, code, stderr } = await runBuiltBin(
         ['--profile', 'base', '--patch', overlay, '--dump-config'],
-        { DSH_HOME: home },
+        { TASKWEAVER_HOME: home },
       )
       expect(code).toBe(0)
       expect(stdout).toContain('provider: configured-provider')

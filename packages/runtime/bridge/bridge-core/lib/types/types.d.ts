@@ -1,8 +1,8 @@
 /**
  * TaskWeaver model bridge — shared types for in-process provider backends.
- * @module @z/dsh-bridge-core/types
+ * @module @taskweaver/dsh-bridge-core/types
  */
-import type { GenerateOptions, StreamChunk } from '@z/dsh-llm';
+import type { GenerateOptions, StreamChunk } from '@taskweaver/dsh-llm';
 /** Wire catalog entry mirrored from TaskWeaver `models.json`. */
 export interface BridgeCatalogModel {
     readonly id: string;
@@ -40,7 +40,7 @@ export interface BridgeStreamContext {
     readonly providerId: string;
     readonly profile: BridgeProviderProfile;
     readonly options: GenerateOptions;
-    /** Harness home (`Z_HOME` / `DSH_HOME`) for OAuth and state stores. */
+    /** Harness home (`TASKWEAVER_HOME` / `TASKWEAVER_HOME`) for OAuth and state stores. */
     readonly harnessHome: string;
 }
 export interface BridgeBackend {

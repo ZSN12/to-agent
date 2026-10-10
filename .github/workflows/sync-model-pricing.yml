@@ -10,11 +10,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
+          run_install: false
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
-      - run: npm ci --legacy-peer-deps
-      - run: npm run pricing:sync
+          node-version: '22.19.0'
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run pricing:sync
       - name: Commit registry if changed
         run: |
           git diff --quiet pricing/ || git commit -am "chore(pricing): auto sync"

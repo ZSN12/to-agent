@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import LlmRuntime, { createUserMessage, CallId, ReasoningEffortId  } from '@z/dsh-llm'
-import type { Message, ToolSchema } from '@z/dsh-llm'
-import * as LlmPiAi from '@z/dsh-llm-pi-ai'
-import type { PiAiProviderProfile } from '@z/dsh-llm-pi-ai'
+import { Context } from '@taskweaver/cordis'
+import LlmRuntime, { createUserMessage, CallId, ReasoningEffortId  } from '@taskweaver/dsh-llm'
+import type { Message, ToolSchema } from '@taskweaver/dsh-llm'
+import * as LlmPiAi from '@taskweaver/dsh-llm-pi-ai'
+import type { PiAiProviderProfile } from '@taskweaver/dsh-llm-pi-ai'
 import { assemble, type AssembledResult } from './assemble.ts'
 
 /**

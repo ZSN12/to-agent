@@ -1,27 +1,22 @@
-"use strict";
 /**
- * Package-owned invariant companion for `@z/dsh-lsp-stdio`.
- * @module @z/dsh-lsp-stdio/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-lsp-stdio`.
+ * @module @taskweaver/dsh-lsp-stdio/invariant
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.apply = exports.inject = exports.name = void 0;
-var PACKAGE_NAME = '@z/dsh-lsp-stdio';
+const PACKAGE_NAME = '@taskweaver/dsh-lsp-stdio';
 /** Cordis companion plugin name. */
-exports.name = 'lsp-stdio-invariant';
+export const name = 'lsp-stdio-invariant';
 /** Service required before the companion can reserve package ownership. */
-exports.inject = ['invariants'];
+export const inject = ['invariants'];
 /**
  * No runtime invariant: process pools and per-workspace queues are private implementation state,
  * and this provider publishes no independent lifecycle event stream or enumerable snapshot.
  */
-var install = function () { };
+const install = () => { };
 /**
  * Register this package's invariant companion.
  * @param ctx - Cordis context carrying the invariant service.
  * @returns the installed registration's disposer after setup succeeds.
  */
-var apply = function (ctx) {
-    return Promise.resolve(ctx.invariants.register(PACKAGE_NAME, install));
-};
-exports.apply = apply;
+export const apply = (ctx) => Promise.resolve(ctx.invariants.register(PACKAGE_NAME, install));
 /* jscpd:ignore-end */
+//# sourceMappingURL=invariant.js.map

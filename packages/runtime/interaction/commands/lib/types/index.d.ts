@@ -1,12 +1,12 @@
 /**
  * Plugin-owned human-command registry shared by interactive UI adapters.
- * @module @z/dsh-commands
+ * @module @taskweaver/dsh-commands
  */
-import { Context } from '@z/cordis';
-import type { Agent } from '@z/dsh-agent';
-import type { EncodedImageAttachment } from '@z/dsh-attachment/types';
-import type { ImageBlock } from '@z/dsh-llm';
-import { TypertRemoteService } from '@z/dsh-typert-protocol';
+import { Context } from '@taskweaver/cordis';
+import type { Agent } from '@taskweaver/dsh-agent';
+import type { EncodedImageAttachment } from '@taskweaver/dsh-attachment/types';
+import type { ImageBlock } from '@taskweaver/dsh-llm';
+import { TypertRemoteService } from '@taskweaver/dsh-typert-protocol';
 import { CommandId } from './brand.ts';
 import type { CommandDescriptor, CommandExecution, CommandInputDescriptor, CommandResult } from './types.ts';
 export { CommandId } from './brand.ts';
@@ -55,7 +55,7 @@ export interface ParsedCommand {
     /** Exact text following the command name. */
     readonly rawInput: string;
 }
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
     interface Context {
         commands: CommandRuntime;
     }

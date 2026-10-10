@@ -1,7 +1,7 @@
 /**
  * The one definition of a well-formed provider API key, shared by every
  * adapter that puts one in an HTTP header.
- * @module @z/dsh-llm/api-key
+ * @module @taskweaver/dsh-llm/api-key
  */
 /** Why a supplied API key cannot be used. */
 export type ApiKeyRejection = 'empty' | 'illegalCharacters';

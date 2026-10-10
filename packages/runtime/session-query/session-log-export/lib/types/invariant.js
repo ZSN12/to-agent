@@ -1,8 +1,8 @@
 "use strict";
-/** Package invariant companion for `@z/dsh-session-log-export`. */
+/** Package invariant companion for `@taskweaver/dsh-session-log-export`. */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.apply = exports.inject = exports.name = void 0;
-var PACKAGE_NAME = '@z/dsh-session-log-export';
+var PACKAGE_NAME = '@taskweaver/dsh-session-log-export';
 exports.name = 'session-export-invariant';
 exports.inject = ['invariants'];
 /** No runtime invariant: the command registry owns lifecycle pairing and ApiProxy owns ZIP integrity. */

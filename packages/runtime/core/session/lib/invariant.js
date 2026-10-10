@@ -1,13 +1,13 @@
-import { assertNever } from "@z/dsh-llm";
+import { assertNever } from "@taskweaver/dsh-llm";
 //#endregion
 //#region lib/types/invariant.js
 /**
 * Package-owned relational invariants for the session event log. Load this
-* companion beside `@z/dsh-invariants` to enable the checks.
+* companion beside `@taskweaver/dsh-invariants` to enable the checks.
 *
-* @module @z/dsh-session/invariant
+* @module @taskweaver/dsh-session/invariant
 */
-const PACKAGE_NAME = "@z/dsh-session";
+const PACKAGE_NAME = "@taskweaver/dsh-session";
 /** Cordis companion plugin name. */
 const name = "session-invariant";
 /** Service required before the companion can reserve package ownership. */
@@ -81,10 +81,7 @@ function validateEvent(trace, event, fail) {
 		case "session/end-seed": break;
 		case "todo/write":
 		case "request/header":
-		case "request/context":
-			if (trace.openTurn === null) fail(`${event.type} appended outside any open turn (core execution events must be turn-enclosed)`);
-			break;
-		default: break;
+		case "request/context": if (trace.openTurn === null) fail(`${event.type} appended outside any open turn (core execution events must be turn-enclosed)`);
 	}
 	return {
 		scalars: {

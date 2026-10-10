@@ -2,10 +2,10 @@
  * Projection from the shared managed-process handle to the official Claude
  * Agent SDK's custom-spawn process interface.
  *
- * @module @z/dsh-subagent-claude-code/process
+ * @module @taskweaver/dsh-subagent-claude-code/process
  */
 import { EventEmitter } from 'node:events';
-import { scrubbedParentEnv, } from '@z/dsh-subprocess';
+import { scrubbedParentEnv, } from '@taskweaver/dsh-subprocess';
 function thrown(value) {
     /* v8 ignore next -- the subprocess seam rejects with Error. */
     return value instanceof Error ? value : new Error(String(value));

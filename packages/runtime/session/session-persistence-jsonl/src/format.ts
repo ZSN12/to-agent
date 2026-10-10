@@ -11,9 +11,9 @@
 import { join } from 'node:path'
 import {
   decodeSeqRanges, decodeStorageRecord, encodeSeqRanges, packChunkRuns, SESSION_FORMAT_VERSION,
-} from '@z/dsh-session'
-import type { SessionEvent, SessionHeader, SessionId, StorageRecord } from '@z/dsh-session'
-import { SessionFormatUnsupportedError, sessionFormatVersionRefusal } from '@z/dsh-session-persistence'
+} from '@taskweaver/dsh-session'
+import type { SessionEvent, SessionHeader, SessionId, StorageRecord } from '@taskweaver/dsh-session'
+import { SessionFormatUnsupportedError, sessionFormatVersionRefusal } from '@taskweaver/dsh-session-persistence'
 
 /** Physical encoding selected for JSONL session artifacts. */
 export type JsonlCompression = 'zstd' | 'none'

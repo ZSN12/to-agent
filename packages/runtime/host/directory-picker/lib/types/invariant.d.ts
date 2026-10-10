@@ -1,5 +1,5 @@
-/** Package-owned invariant companion for the directory-picker seam. @module @z/dsh-host-directory-picker/invariant */
-import type { Context } from '@z/cordis';
+/** Package-owned invariant companion for the directory-picker seam. @module @taskweaver/dsh-host-directory-picker/invariant */
+import type { Context } from '@taskweaver/cordis';
 /** Cordis companion plugin name. */
 export declare const name = "host-directory-picker-invariant";
 /** Service required before the companion can reserve package ownership. */

@@ -1,10 +1,10 @@
-/** Package-owned invariant companion. @module @z/dsh-host-plugin-inventory/invariant */
+/** Package-owned invariant companion. @module @taskweaver/dsh-host-plugin-inventory/invariant */
 
 /* jscpd:ignore-start */
-import type { Context } from '@z/cordis'
-import type { InvariantInstaller } from '@z/dsh-invariants'
+import type { Context } from '@taskweaver/cordis'
+import type { InvariantInstaller } from '@taskweaver/dsh-invariants'
 
-const PACKAGE_NAME = '@z/dsh-host-plugin-inventory'
+const PACKAGE_NAME = '@taskweaver/dsh-host-plugin-inventory'
 
 /** Cordis companion plugin name. */
 export const name = 'host-plugin-inventory-invariant'

@@ -16,9 +16,9 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import yaml from 'js-yaml'
-import { entryListSchema } from '@z/cordis-plugin-include'
-import { evaluate } from '@z/cordis-plugin-loader'
-import { composeEntries, initProfile, loadProfile, PROFILES_DIR } from '@z/dsh-app-boot'
+import { entryListSchema } from '@taskweaver/cordis-plugin-include'
+import { evaluate } from '@taskweaver/cordis-plugin-loader'
+import { composeEntries, initProfile, loadProfile, PROFILES_DIR } from '@taskweaver/dsh-app-boot'
 
 /**
  * The effective disabled state of one row on one platform: a `!!js` expression
@@ -41,7 +41,7 @@ describe('the shipped shell composition (real bundle layers)', () => {
 
   it('base-only profiles carry both stacks with the same platform gating', () => {
     home = mkdtempSync(join(tmpdir(), 'dsh-windows-home-'))
-    initProfile(join(home, PROFILES_DIR, 'base-only'), ['@z/dsh-base'])
+    initProfile(join(home, PROFILES_DIR, 'base-only'), ['@taskweaver/dsh-base'])
     const profile = loadProfile('dsh', 'base-only', anchor, home)
     const warnings: string[] = []
     const rows = composeEntries(
@@ -64,7 +64,7 @@ describe('the shipped shell composition (real bundle layers)', () => {
 describe('shipped agent presets gate both shell tools by platform', () => {
   const presetRoot = resolve(fileURLToPath(new URL('../package.json', import.meta.url)), '..', 'config', 'agent-presets')
 
-  it.each(['standard', 'code', 'taskweaver-pi-lite', 'taskweaver-code'])('preset %s gates its shell tool rows by platform', (preset) => {
+  it.each(['tw-default', 'tw-code', 'tw-taskweaver-pi-lite', 'tw-taskweaver-code'])('preset %s gates its shell tool rows by platform', (preset) => {
     const entries: unknown = yaml.load(
       readFileSync(join(presetRoot, preset, 'agent.cordis.yml'), 'utf8'),
       { schema: entryListSchema },

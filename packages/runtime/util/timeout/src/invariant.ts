@@ -1,13 +1,13 @@
 /**
- * Package-owned invariant companion for `@z/dsh-timeout`.
- * @module @z/dsh-timeout/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-timeout`.
+ * @module @taskweaver/dsh-timeout/invariant
  */
 
 /* jscpd:ignore-start */
-import type { Context } from '@z/cordis'
-import type { InvariantInstaller } from '@z/dsh-invariants'
+import type { Context } from '@taskweaver/cordis'
+import type { InvariantInstaller } from '@taskweaver/dsh-invariants'
 
-const PACKAGE_NAME = '@z/dsh-timeout'
+const PACKAGE_NAME = '@taskweaver/dsh-timeout'
 
 /** Cordis companion plugin name. */
 export const name = 'timeout-invariant'

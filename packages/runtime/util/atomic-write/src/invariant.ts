@@ -1,13 +1,13 @@
 /**
- * Package-owned invariant companion for `@z/dsh-atomic-write`.
- * @module @z/dsh-atomic-write/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-atomic-write`.
+ * @module @taskweaver/dsh-atomic-write/invariant
  */
 
 /* jscpd:ignore-start */
-import type { Context } from '@z/cordis'
-import type { InvariantInstaller } from '@z/dsh-invariants'
+import type { Context } from '@taskweaver/cordis'
+import type { InvariantInstaller } from '@taskweaver/dsh-invariants'
 
-const PACKAGE_NAME = '@z/dsh-atomic-write'
+const PACKAGE_NAME = '@taskweaver/dsh-atomic-write'
 
 /** Cordis companion plugin name. */
 export const name = 'atomic-write-invariant'

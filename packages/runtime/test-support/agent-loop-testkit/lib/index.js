@@ -1,14 +1,14 @@
-import AgentRegistry from "@z/dsh-agent";
-import LlmRuntime from "@z/dsh-llm";
-import SessionStore from "@z/dsh-session";
-import SystemPrompt from "@z/dsh-system-prompt";
-import ToolRuntime from "@z/dsh-tools";
+import AgentRegistry from "@taskweaver/dsh-agent";
+import LlmRuntime from "@taskweaver/dsh-llm";
+import SessionStore from "@taskweaver/dsh-session";
+import SystemPrompt from "@taskweaver/dsh-system-prompt";
+import ToolRuntime from "@taskweaver/dsh-tools";
 //#region lib/types/index.js
 /**
 * Shared mounting for the services required before tests load the concrete
 * agent loop. The caller retains ownership of the context, loop, adapters,
 * optional plugins, and teardown.
-* @module @z/dsh-agent-loop-testkit
+* @module @taskweaver/dsh-agent-loop-testkit
 */
 /**
 * Mount the standard prerequisite services for an AgentLoop test.

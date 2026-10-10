@@ -3,11 +3,11 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { createServer } from 'node:http'
-import { createZHostManager, resolveTaskWeaverRuntimeRoot } from '../electron/agent/z-host/index.mjs'
-import { createDshChatService } from '../electron/backend/dsh-chat-service.mjs'
-import { createAppStateStore } from '../electron/backend/app-state-store.mjs'
-import { createUsageStore } from '../electron/backend/usage-store.mjs'
-import { createChatTurnPersistence } from '../electron/backend/chat-turn-persistence.mjs'
+import { createZHostManager, resolveTaskWeaverRuntimeRoot } from '../desktop/agent/z-host/index.mjs'
+import { createDshChatService } from '../desktop/backend/dsh-chat-service.mjs'
+import { createAppStateStore } from '../desktop/backend/app-state-store.mjs'
+import { createUsageStore } from '../desktop/backend/usage-store.mjs'
+import { createChatTurnPersistence } from '../desktop/backend/chat-turn-persistence.mjs'
 
 // Real Host and Agent. Interrupt only the client mux connection, not the model
 // request/Host process; reconnection may not enqueue the task a second time.
@@ -55,8 +55,10 @@ const server = createServer((request, response) => {
   })
 })
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
+const isolatedRuntimeHome = path.join(home, 'z')
 const manager = createZHostManager({ runtimeRoot: resolveTaskWeaverRuntimeRoot({ appPath: process.cwd(), isPackaged: false }),
-  userDataPath: home, executable: process.execPath, environment: { ...process.env, TASKWEAVER_MUX_TEST_KEY: 'local-only' } })
+  userDataPath: home,
+  environment: { ...process.env, TASKWEAVER_HOME: isolatedRuntimeHome, TASKWEAVER_MUX_TEST_KEY: 'local-only' } })
 let chat
 const waitFor = async (predicate, label) => {
   const deadline = Date.now() + 20_000
@@ -134,8 +136,11 @@ try {
           }
         }
         if (envelope.payload?.type === 'session/event') yield envelope // deliberate at-least-once delivery
-        if (dropNext && envelope.payload?.event?.type === 'assistant/chunk'
-          && envelope.payload.event.data?.chunk?.text?.includes('-BEFORE')) {
+        const frame = envelope.payload
+        const chunk = frame?.type === 'session/event' ? frame.event?.data?.chunk : null
+        const chunkText = chunk?.type === 'text-delta' ? chunk.text : chunk?.text
+        if (dropNext && frame?.type === 'session/event' && frame.event?.type === 'assistant/chunk'
+          && typeof chunkText === 'string' && chunkText.includes('-BEFORE')) {
           if (envelope.payload.sessionId === approvalTargetSessionId && approvalReplayCount === 0) {
             approvalReplayCount++
             yield {
@@ -177,7 +182,7 @@ try {
     modelService: { getDshModelConfig: async () => ({ provider: 'mux-test', id: 'mock', name: 'Mock', contextWindow: 16_000, maxTokens: 1024 }),
       listProvidersAuth: async () => [{ id: 'mux-test', configured: true }] } })
   const options = (id, scenario, turn = '1') => ({ conversationId: id, modelKey: 'mux-test/mock',
-    text: `[M:${scenario}:${turn}] Reply briefly.`, cwdOverride: home, agentPreset: 'taskweaver-readonly', webContents: wc })
+    text: `[M:${scenario}:${turn}] Reply briefly.`, cwdOverride: home, agentPreset: 'tw-taskweaver-readonly', webContents: wc })
   async function begin(scenario, action = () => {}) {
     const id = (await store.createThread({ workspacePath: home })).conversationId
     dropNext = true
@@ -225,9 +230,9 @@ try {
   assert.deepEqual((await store.getConversationState(queued.id)).messages.map(row => row.text),
     ['queued-1-BEFORE-AFTER', 'queued-2-BEFORE-AFTER'])
   assert.equal(requests.filter(row => row.scenario === 'queued').length, 2)
-  const ledger = JSON.parse(await fs.readFile(path.join(home, 'taskweaver-model-usage.json'), 'utf8')).records
-  assert.equal(ledger.length, 4)
-  assert.equal(ledger.reduce((sum, row) => sum + row.totalTokens, 0), 48)
+  const ledger = await usageStore.getStats()
+  assert.equal(ledger.totals.totalCalls, 4)
+  assert.equal(ledger.totals.totalTokens, 48)
   console.log('real Host: native history recovery retains queued answers and usage once')
 
   const open = await begin('open', () => { failOpenOnce = true; requests.find(row => row.scenario === 'open').finish() })
@@ -307,6 +312,7 @@ try {
   console.log('real Host: injected approval and user-question requests replay across mux reconnect with one prompt and one response each')
   }
 
+  const usageBeforeParallel = await usageStore.getStats()
   const parallelA = (await store.createThread({ workspacePath: home })).conversationId
   const parallelB = (await store.createThread({ workspacePath: home })).conversationId
   const expectedParallelOpens = muxOpens || 1
@@ -338,10 +344,9 @@ try {
   assert.deepEqual((await store.getConversationState(parallelB)).messages.map(row => row.text), [resultB.text])
   assert.equal(requests.filter(row => /^parallel/.test(row.scenario)).length, 2)
   for (const id of [parallelA, parallelB]) assert.equal(events.filter(row => row.conversationId === id && row.type === 'done').length, 1)
-  const parallelUsage = JSON.parse(await fs.readFile(path.join(home, 'taskweaver-model-usage.json'), 'utf8')).records
-    .filter(row => row.conversationId === parallelA || row.conversationId === parallelB)
-  assert.equal(parallelUsage.length, 2)
-  assert.equal(parallelUsage.reduce((sum, row) => sum + row.totalTokens, 0), 24)
+  const parallelUsage = await usageStore.getStats()
+  assert.equal(parallelUsage.totals.totalCalls, usageBeforeParallel.totals.totalCalls + 2)
+  assert.equal(parallelUsage.totals.totalTokens, usageBeforeParallel.totals.totalTokens + 24)
   console.log('real Host: one shared mux failure recovers two concurrently running Agents, isolated answers and usage without switching selection')
 } finally {
   await chat?.stop().catch(() => {})

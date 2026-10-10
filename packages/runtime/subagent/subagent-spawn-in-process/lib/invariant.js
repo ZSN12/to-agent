@@ -1,9 +1,9 @@
 //#region lib/types/invariant.js
 /**
-* Package-owned invariant companion for `@z/dsh-subagent-spawn-in-process`.
-* @module @z/dsh-subagent-spawn-in-process/invariant
+* Package-owned invariant companion for `@taskweaver/dsh-subagent-spawn-in-process`.
+* @module @taskweaver/dsh-subagent-spawn-in-process/invariant
 */
-const PACKAGE_NAME = "@z/dsh-subagent-spawn-in-process";
+const PACKAGE_NAME = "@taskweaver/dsh-subagent-spawn-in-process";
 /** Cordis companion plugin name. */
 const name = "subagent-spawn-in-process-invariant";
 /** Service required before the companion can reserve package ownership. */

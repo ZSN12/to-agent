@@ -1,4 +1,4 @@
-import type { SessionEvent } from '@z/dsh-session/types';
+import type { SessionEvent } from '@taskweaver/dsh-session/types';
 import type { ConversationEventInput, ConversationLocation, ConversationLocationData, ConversationTimelineSnapshot } from '../contract/conversation.ts';
 /** One Context's previous and next Location-data publication. */
 export interface ConversationLocationDataChange {

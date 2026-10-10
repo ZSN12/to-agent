@@ -1,7 +1,7 @@
-/** Package-owned workflow lifecycle invariants. @module @z/dsh-workflow/invariant */
+/** Package-owned workflow lifecycle invariants. @module @taskweaver/dsh-workflow/invariant */
 
-import type { Context } from '@z/cordis'
-import type { InvariantFailure, InvariantInstaller } from '@z/dsh-invariants'
+import type { Context } from '@taskweaver/cordis'
+import type { InvariantFailure, InvariantInstaller } from '@taskweaver/dsh-invariants'
 import type {
   WorkflowAgentEndInfo,
   WorkflowAgentInfo,
@@ -9,7 +9,7 @@ import type {
   WorkflowRunInfo,
 } from './types.ts'
 
-const PACKAGE_NAME = '@z/dsh-workflow'
+const PACKAGE_NAME = '@taskweaver/dsh-workflow'
 
 /** Cordis companion plugin name. */
 export const name = 'workflow-invariant'

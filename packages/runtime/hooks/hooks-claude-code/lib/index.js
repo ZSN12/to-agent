@@ -1,14 +1,14 @@
 import { readFileSync } from "node:fs";
-import z from "@z/schemastery";
-import { createUserMessage } from "@z/dsh-llm";
-import { DEFAULT_HOOK_TIMEOUT_MS, DEFAULT_STDERR_SUMMARY_MAX_CHARS, appendHookInvoked, appendHookResult, createDetachedRuns, matcherDiagnostic, matchesMatcher, mergeHookOutputs, runHook } from "@z/dsh-hook-protocol";
+import z from "@taskweaver/schemastery";
+import { createUserMessage } from "@taskweaver/dsh-llm";
+import { DEFAULT_HOOK_TIMEOUT_MS, DEFAULT_STDERR_SUMMARY_MAX_CHARS, appendHookInvoked, appendHookResult, createDetachedRuns, matcherDiagnostic, matchesMatcher, mergeHookOutputs, runHook } from "@taskweaver/dsh-hook-protocol";
 //#region lib/types/config.js
 /**
 * Parse Claude Code's event-to-matcher-group hook format into shared {@link MatcherGroup}s.
 * Only command hooks run; other hook types are returned as skipped so the
 * bridge can warn. Plugin-root and project-directory substitutions are applied
 * to commands at parse time.
-* @module @z/dsh-hooks-claude-code/config
+* @module @taskweaver/dsh-hooks-claude-code/config
 */
 const CLAUDE_EVENTS = [
 	"SessionStart",
@@ -109,7 +109,7 @@ function parseClaudeCodeConfig(raw, vars = {}) {
 * `updatedInput` is logged and warned but not honored. Bespoke behavior should
 * use typed native plugins on the same extension points; see the
 * [hook-bridges Agent Note](../../../../.agents/notes/implemented/feature/2026-06-30-hook-bridges.md).
-* @module @z/dsh-hooks-claude-code
+* @module @taskweaver/dsh-hooks-claude-code
 */
 const name = "hooks-claude-code";
 const inject = ["shell"];

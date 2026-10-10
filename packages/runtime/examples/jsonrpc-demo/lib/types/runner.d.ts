@@ -1,7 +1,7 @@
 /**
  * Shared process lifecycle for the generic and closed-runtime JSON-RPC bins.
  *
- * @module @z/dsh-sdk-jsonrpc-demo/runner
+ * @module @taskweaver/dsh-sdk-jsonrpc-demo/runner
  */
 /**
  * Boot the explicitly selected external configuration and own process exit.

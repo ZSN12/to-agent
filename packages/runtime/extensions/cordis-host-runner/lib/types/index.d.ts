@@ -1,14 +1,14 @@
 /**
  * Dynamic Cordis Plugin service: immutable package definitions, one active run
  * per Plugin, human-approved Client activation, and Host/Client invocation.
- * @module @z/dsh-cordis-host-runner
+ * @module @taskweaver/dsh-cordis-host-runner
  */
-import { Context } from '@z/cordis';
-import type { Fiber } from '@z/cordis';
-import z from '@z/schemastery';
-import type { Agent } from '@z/dsh-agent';
-import type { JsonValue } from '@z/dsh-session/types';
-import { TypertRemoteService } from '@z/dsh-typert-protocol';
+import { Context } from '@taskweaver/cordis';
+import type { Fiber } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
+import type { Agent } from '@taskweaver/dsh-agent';
+import type { JsonValue } from '@taskweaver/dsh-session/types';
+import { TypertRemoteService } from '@taskweaver/dsh-typert-protocol';
 import type { DynamicCordisDefineReceipt, DynamicCordisDefineRequest, DynamicCordisPackageInspection, DynamicCordisPluginInspection, DynamicCordisReference } from './registry.ts';
 import type { ApprovalRequestId, CordisDynamicPackageId, CordisDynamicPluginId, CordisDynamicPluginRunId, CordisErrorDetails, CordisDynamicRunMode, CordisInspectProviderManifest, CordisInspectQueryResolution, CordisInspectRequestId, CordisInspectResolveAck, DynamicCordisClientSource, DynamicCordisHostHalfResult, DynamicCordisInventoryRow, DynamicCordisInvokeResult, DynamicCordisRenderFailure, DynamicCordisResolveAck, DynamicCordisRunAttempt, DynamicCordisRunResolution, DynamicCordisRunResponse, DynamicCordisStopResponse, DynamicCordisUndefineReceipt } from './types.ts';
 export type * from './types.ts';
@@ -40,7 +40,7 @@ export declare function CordisDynamicPluginRunId(id: string): CordisDynamicPlugi
  * @returns the branded approval request identifier.
  */
 export declare function ApprovalRequestId(id: string): ApprovalRequestId;
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
     interface Context {
         /** Process-local dynamic Plugin registry and lifecycle service. */
         dynamicCordisRunner: DynamicCordisRunnerService;

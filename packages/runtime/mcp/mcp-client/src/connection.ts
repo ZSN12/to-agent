@@ -17,8 +17,8 @@
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { ToolListChangedNotificationSchema } from '@modelcontextprotocol/sdk/types.js'
-import type { Context } from '@z/cordis'
-import { MAX_TIMER_DELAY_MS } from '@z/dsh-timeout'
+import type { Context } from '@taskweaver/cordis'
+import { MAX_TIMER_DELAY_MS } from '@taskweaver/dsh-timeout'
 import { createTransport } from './transport.ts'
 import { syncTools } from './tools.ts'
 import type { ToolBridgeOptions, ToolDisposers } from './tools.ts'
@@ -48,6 +48,15 @@ export const RECONNECT_DEFAULTS: Required<ReconnectConfig> = Object.freeze({
 // Keep one additional second for the process-close event that proves the old
 // generation is gone; timing out fails closed instead of overlapping children.
 const GENERATION_CLOSE_TIMEOUT_MS = 5_000
+const DEFAULT_CONNECTION_TIMEOUT_MS = 30_000
+
+function resolveConnectTimeoutMs(config: Config, label: string): number {
+  const timeoutMs = config.connectTimeoutMs ?? DEFAULT_CONNECTION_TIMEOUT_MS
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0 || timeoutMs > MAX_TIMER_DELAY_MS) {
+    throw new Error(`${label}: connectTimeoutMs must be a positive finite number no greater than ${MAX_TIMER_DELAY_MS}`)
+  }
+  return timeoutMs
+}
 
 /** Fully resolved reconnect policy captured at plugin load. */
 export type ResolvedReconnectPolicy = Readonly<Required<ReconnectConfig>>
@@ -122,6 +131,7 @@ export interface ConnectionHandle {
  */
 export function startConnection(ctx: Context, config: Config, policy: ResolvedReconnectPolicy): ConnectionHandle {
   const label = `mcp-client(${config.serverName})`
+  const connectTimeoutMs = resolveConnectTimeoutMs(config, label)
   const opts: ToolBridgeOptions = {
     registrationFailure: 'contain',
     serverName: config.serverName,
@@ -269,7 +279,22 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
       },
     )
     try {
-      await generation.connect(createTransport(config))
+      let connectTimer: NodeJS.Timeout | undefined
+      try {
+        await Promise.race([
+          generation.connect(createTransport(config)),
+          new Promise<never>((_resolve, reject) => {
+            connectTimer = setTimeout(() => {
+              const error = new Error(`${label}: connection timed out after ${connectTimeoutMs}ms`)
+              Object.assign(error, { code: 'MCP_CONNECT_TIMEOUT' })
+              reject(error)
+            }, connectTimeoutMs)
+            connectTimer.unref?.()
+          }),
+        ])
+      } finally {
+        if (connectTimer) clearTimeout(connectTimer)
+      }
       if (hasClosed()) {
         attemptSettled = true
         generationDown(generation)

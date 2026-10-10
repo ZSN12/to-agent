@@ -1,7 +1,7 @@
 /** Serialized Team transactions over the exact live Lead Session log. */
-import type { Agent } from '@z/dsh-agent';
-import type { Context } from '@z/cordis';
-import type { SessionEventMap, SessionId } from '@z/dsh-session';
+import type { Agent } from '@taskweaver/dsh-agent';
+import type { Context } from '@taskweaver/cordis';
+import type { SessionEventMap, SessionId } from '@taskweaver/dsh-session';
 import type { TeamFoldState } from './fold.ts';
 type MutableTeamEventType = 'team/member' | 'team/task' | 'team/message/queued' | 'team/message/delivered';
 /** Owns per-Lead transaction order and committed Team event publication. */

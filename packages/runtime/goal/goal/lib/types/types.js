@@ -1,4 +1,3 @@
-"use strict";
 /**
  * Pure types of the goal domain: the ONE home of the `goal` projection-key
  * declaration plus the durable payload vocabulary it carries, free of this
@@ -8,6 +7,7 @@
  * aggregates — with zero content duplication. Host-coupled domain
  * vocabulary (message sources, events, fold shapes) lives in ./domain.ts.
  *
- * @module @z/dsh-goal/types
+ * @module @taskweaver/dsh-goal/types
  */
-Object.defineProperty(exports, "__esModule", { value: true });
+export {};
+//# sourceMappingURL=types.js.map

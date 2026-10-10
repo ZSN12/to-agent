@@ -1,13 +1,13 @@
 /**
- * Package-owned invariant companion for `@z/dsh-session-stats`.
- * @module @z/dsh-session-stats/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-session-stats`.
+ * @module @taskweaver/dsh-session-stats/invariant
  */
 
 /* jscpd:ignore-start */
-import type { Context } from '@z/cordis'
-import type { InvariantInstaller } from '@z/dsh-invariants'
+import type { Context } from '@taskweaver/cordis'
+import type { InvariantInstaller } from '@taskweaver/dsh-invariants'
 
-const PACKAGE_NAME = '@z/dsh-session-stats'
+const PACKAGE_NAME = '@taskweaver/dsh-session-stats'
 
 /** Cordis companion plugin name. */
 export const name = 'session-stats-invariant'

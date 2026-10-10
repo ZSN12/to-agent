@@ -1,4 +1,4 @@
-import { createUserMessage, createMessage } from '@z/dsh-llm'
+import { createUserMessage, createMessage } from '@taskweaver/dsh-llm'
 /**
  * Derived-message cache contract against a scratch oracle: project new nodes
  * once, rebuild on surface replacements, return fresh arrays over shared
@@ -6,7 +6,7 @@ import { createUserMessage, createMessage } from '@z/dsh-llm'
  */
 
 import { describe, expect, it } from 'vitest'
-import { Session, SessionId } from '@z/dsh-session'
+import { Session, SessionId } from '@taskweaver/dsh-session'
 
 function userText(session: Session, text: string): void {
   session.append('user/message', createUserMessage({

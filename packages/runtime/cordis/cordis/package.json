@@ -1,5 +1,5 @@
 {
-  "name": "@z/cordis",
+  "name": "@taskweaver/cordis",
   "description": "Meta-Framework for Modern JavaScript Applications",
   "version": "4.0.1",
   "publishConfig": {
@@ -8,7 +8,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
-    "directory": "vendor/cordis"
+    "directory": "packages/runtime/cordis/cordis"
   },
   "sideEffects": false,
   "type": "module",
@@ -33,19 +33,19 @@
   "author": "Shigma <shigma10826@gmail.com>",
   "license": "MIT",
   "peerDependencies": {
-    "@z/cordis-plugin-include": "workspace:^",
-    "@z/cordis-plugin-loader": "workspace:^"
+    "@taskweaver/cordis-plugin-include": "workspace:^",
+    "@taskweaver/cordis-plugin-loader": "workspace:^"
   },
   "peerDependenciesMeta": {
-    "@z/cordis-plugin-include": {
+    "@taskweaver/cordis-plugin-include": {
       "optional": true
     },
-    "@z/cordis-plugin-loader": {
+    "@taskweaver/cordis-plugin-loader": {
       "optional": true
     }
   },
   "dependencies": {
     "@standard-schema/spec": "^1.1.0",
-    "@z/cosmokit": "workspace:^"
+    "@taskweaver/cosmokit": "workspace:^"
   }
 }

@@ -3,12 +3,12 @@
  * events in one append-only file per session, and delegates orchestration to
  * {@link PersistenceCoordinator}. Its side-effect-free locator returns the
  * absolute per-session log target before materialization.
- * @module @z/dsh-session-persistence-jsonl
+ * @module @taskweaver/dsh-session-persistence-jsonl
  */
-import { Context } from '@z/cordis';
-import z from '@z/schemastery';
-import { SessionPersistence, type PersistenceBackend, type SessionLocation, type SessionPersistenceSnapshot, type SessionInspection, type SessionPersistenceRevision as PersistenceRevision, type SessionRawArtifact, type StoredPrefix } from '@z/dsh-session-persistence';
-import type { SessionEvent, SessionId, SessionHeader, SessionPreparation } from '@z/dsh-session';
+import { Context } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
+import { SessionPersistence, type PersistenceBackend, type SessionLocation, type SessionPersistenceSnapshot, type SessionInspection, type SessionPersistenceRevision as PersistenceRevision, type SessionRawArtifact, type StoredPrefix } from '@taskweaver/dsh-session-persistence';
+import type { SessionEvent, SessionId, SessionHeader, SessionPreparation } from '@taskweaver/dsh-session';
 import { type JsonlCompression } from './format.ts';
 export type { JsonlCompression } from './format.ts';
 /** Loader schema for the JSONL artifact's physical encoding. */

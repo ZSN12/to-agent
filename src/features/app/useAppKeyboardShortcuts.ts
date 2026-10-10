@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { matchesKeys, type ShortcutItem } from '../../shared/shortcuts'
+import { matchesKeys, PRIMARY_MODIFIER_KEY, type ShortcutItem } from '../../shared/shortcuts'
 
 type Params = {
   shortcuts: ShortcutItem[]
@@ -41,12 +41,12 @@ export function useAppKeyboardShortcuts({
       }
 
       const shortcutKeys = (id: string, fallback: string[]) => shortcuts.find((item) => item.id === id)?.keys ?? fallback
-      if (matchesKeys(event, shortcutKeys('new-chat', ['⌘', 'N']))) {
+      if (matchesKeys(event, shortcutKeys('new-chat', [PRIMARY_MODIFIER_KEY, 'N']))) {
         event.preventDefault()
         onNewChat()
         return
       }
-      if (matchesKeys(event, shortcutKeys('toggle-dag', ['⌘', 'B']))) {
+      if (matchesKeys(event, shortcutKeys('toggle-dag', [PRIMARY_MODIFIER_KEY, 'B']))) {
         event.preventDefault()
         onToggleDagPanel()
         return

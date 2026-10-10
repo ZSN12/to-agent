@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { extractDshChatTranscript } from '../electron/backend/dsh-transcript-serialize.mjs'
+import { extractDshChatTranscript } from '../desktop/backend/dsh-transcript-serialize.mjs'
 
 const nodes = new Map([
   ['u1', { kind: 'user', data: { seq: 1, time: 1_000, content: [{ type: 'text', text: '你好' }] } }],
@@ -14,7 +14,7 @@ const nodes = new Map([
         step: 1,
         time: 2_000,
         blocks: [{ kind: 'text', text: '你好呀' }],
-        usage: { inputTokens: 10, outputTokens: 5 },
+        usage: { inputTokens: 10, outputTokens: 5, reasoningTokens: 2 },
       },
     },
   }],
@@ -30,11 +30,46 @@ assert.equal(rows[0].text, '你好')
 assert.equal(rows[1].role, 'assistant')
 assert.equal(rows[1].text, '你好呀')
 assert.equal(rows[1].usage?.inputTokens, 10)
+assert.equal(rows[1].usage?.reasoningTokens, 2)
+
+const compactionRows = extractDshChatTranscript({ chat: {
+  order: ['compact-pressure', 'compact-overflow', 'compact-manual'],
+  nodes: new Map([
+    ['compact-pressure', { kind: 'compaction', data: { summary: 'pressure summary', trigger: 'pressure' } }],
+    ['compact-overflow', { kind: 'compaction', data: { summary: 'overflow summary', trigger: 'context-overflow' } }],
+    ['compact-manual', { kind: 'compaction', data: { summary: 'manual summary', trigger: 'manual' } }],
+  ]),
+} })
+assert.deepEqual(compactionRows.map((row) => [row.compactionTrigger, row.automatic]), [
+  ['pressure', true],
+  ['context-overflow', true],
+  ['manual', false],
+])
+
+const imageOnlyRef = {
+  attachmentId: `sha256:${'a'.repeat(64)}`,
+  mediaType: 'image/png',
+  bytes: 1024,
+  width: 800,
+  height: 600,
+  name: 'capture.png',
+  originalDimensions: { width: 1600, height: 1200 },
+}
+const imageOnlyRows = extractDshChatTranscript({ chat: {
+  order: ['image-user'],
+  nodes: new Map([['image-user', {
+    kind: 'user',
+    data: { time: 3_000, content: [{ type: 'image', attachment: imageOnlyRef }] },
+  }]]),
+} })
+assert.equal(imageOnlyRows.length, 1)
+assert.equal(imageOnlyRows[0].text, '')
+assert.deepEqual(imageOnlyRows[0].images, [imageOnlyRef])
 
 const hiddenSteps = [
-  { inputTokens: 11, outputTokens: 2, cacheReadTokens: 3 },
-  { inputTokens: 13, outputTokens: 4, cacheReadTokens: 5 },
-  { inputTokens: 17, outputTokens: 6, cacheReadTokens: 7 },
+  { inputTokens: 11, outputTokens: 2, cacheReadTokens: 3, reasoningTokens: 1 },
+  { inputTokens: 13, outputTokens: 4, cacheReadTokens: 5, reasoningTokens: 2 },
+  { inputTokens: 17, outputTokens: 6, cacheReadTokens: 7, reasoningTokens: 3 },
 ].map((usage, index) => ({
   step: index + 1,
   data: { get: key => key === 'assistant-step' ? { turn: 2, usage } : undefined },
@@ -69,6 +104,7 @@ const hiddenStepRows = extractDshChatTranscript(hiddenStepSnapshot)
 assert.equal(hiddenStepRows[1].usage?.inputTokens, 41)
 assert.equal(hiddenStepRows[1].usage?.outputTokens, 12)
 assert.equal(hiddenStepRows[1].usage?.cacheReadTokens, 15)
+assert.equal(hiddenStepRows[1].usage?.reasoningTokens, 6)
 
 const thinkingSteps = ['第一步思考', '第二步思考', '最终思考'].map((text, index) => ({
   step: index + 1,

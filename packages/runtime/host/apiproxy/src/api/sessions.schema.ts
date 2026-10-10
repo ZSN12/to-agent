@@ -6,8 +6,8 @@
  */
 
 import { z } from 'zod'
-import type { SessionEvent, SessionId } from '@z/dsh-session/types'
-import type { MessageId } from '@z/dsh-llm/brand'
+import type { SessionEvent, SessionId } from '@taskweaver/dsh-session/types'
+import type { MessageId } from '@taskweaver/dsh-llm/brand'
 import type { RequestPayload, ResponseValue } from './rpc-map.ts'
 import type { Wire } from './rpc.schema.ts'
 import type {
@@ -15,7 +15,7 @@ import type {
   ModelReasoningEffort, ModelSelection, SessionListMetadata, SessionProjectionsBlock, SessionSearchItem, SessionSummary,
 } from './sessions.ts'
 import type { ToolEventView } from './events.ts'
-import type { AttachmentIdType, ImageAttachmentLimits, ImageAttachmentRef } from '@z/dsh-attachment'
+import type { AttachmentIdType, ImageAttachmentLimits, ImageAttachmentRef } from '@taskweaver/dsh-attachment'
 import type { WorkspaceId } from './workspace.ts'
 import {
   SESSION_SEARCH_RESULT_LIMIT,
@@ -285,7 +285,13 @@ export const imageMediaTypeSchema = z.union([
 export const promptContentPartSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('text'), text: z.string() }),
   z.object({ type: z.literal('image'), mediaType: imageMediaTypeSchema, data: z.string(), name: z.string().optional() }),
+  // 100 MiB PDF expands to at most 139,810,136 base64 characters. The Host
+  // applies the format-specific byte ceiling again after canonical decoding.
+  z.object({ type: z.literal('document'), data: z.string().max(140_000_000), name: z.string().min(1).max(256) }),
 ])
+
+/** The Host validates the complete supported subset before it enters the durable message source. */
+const outputSchemaSchema = z.object({ type: z.literal('object') }).passthrough()
 
 /** session.prompt request payload, including optional browser-local request provenance. */
 export const sessionPromptRequestSchema = z.object({
@@ -293,6 +299,11 @@ export const sessionPromptRequestSchema = z.object({
   mode: z.union([z.literal('queue'), z.literal('steer')]),
   content: z.array(promptContentPartSchema),
   clientTimeZone: z.string().optional(),
+  uiVerifyPolicy: z.object({
+    workspaceTrusted: z.boolean(),
+    autoAllowUiVerify: z.boolean(),
+  }).strict().optional(),
+  outputSchema: outputSchemaSchema.optional(),
   commandOnly: z.boolean().optional(),
 }) as unknown as z.ZodType<RequestPayload<'session.prompt'>>
 

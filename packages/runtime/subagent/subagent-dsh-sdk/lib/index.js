@@ -1,21 +1,21 @@
-import z from "@z/schemastery";
-import { AssistantOutputFold, NO_START_CAPABILITIES, assertPositiveFinite, resolveChildCwd, settleRunResult, subprocessRunHandle, validateConfiguredCwd } from "@z/dsh-subagent";
+import z from "@taskweaver/schemastery";
+import { AssistantOutputFold, NO_START_CAPABILITIES, assertPositiveFinite, resolveChildCwd, settleRunResult, subprocessRunHandle, validateConfiguredCwd } from "@taskweaver/dsh-subagent";
 import { randomUUID } from "node:crypto";
-import { DeepSeekHarness } from "@z/dsh-sdk-client";
-import { SessionId } from "@z/dsh-session";
-import { scrubbedParentEnv } from "@z/dsh-subprocess";
+import { DeepSeekHarness } from "@taskweaver/dsh-sdk-client";
+import { SessionId } from "@taskweaver/dsh-session";
+import { scrubbedParentEnv } from "@taskweaver/dsh-subprocess";
 //#region lib/types/run.js
 /**
 * Fresh-process SDK subagent client. Drives one child DeepSeek Harness
-* runtime over stdio JSON-RPC through `@z/dsh-sdk-client` and owns
+* runtime over stdio JSON-RPC through `@taskweaver/dsh-sdk-client` and owns
 * cancellation and quiescent disposal. Structure mirrors the ACP backend
-* (`@z/dsh-subagent-acp`): publish after the child handshake,
+* (`@taskweaver/dsh-subagent-acp`): publish after the child handshake,
 * flatten child failures into stop reasons, tear down to quiescence. The
 * child is spawned BY the SDK client rather than through `ctx.subprocess` —
 * the subprocess seam's documented exception for SDK-managed transports —
 * so this driver applies the seam's shared env scrub itself.
 *
-* @module @z/dsh-subagent-dsh-sdk/run
+* @module @taskweaver/dsh-subagent-dsh-sdk/run
 */
 /** EOF grace for child flush and nested-process teardown; wider than the signal grace below. */
 const DEFAULT_DISPOSE_EOF_GRACE_MS = 6e3;
@@ -144,7 +144,7 @@ async function startSdkRun(request, spec) {
 * `request.parent` is the session's workspace cwd. This plugin uses named
 * exports only; a default would hide its loader metadata (see
 * `docs/postmortem/0001-acp-default-export-drops-inject.md`).
-* @module @z/dsh-subagent-dsh-sdk
+* @module @taskweaver/dsh-subagent-dsh-sdk
 */
 const name = "subagent-dsh-sdk";
 const inject = ["subagents"];

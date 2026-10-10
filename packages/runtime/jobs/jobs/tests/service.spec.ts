@@ -1,15 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import type { Agent } from '@z/dsh-agent'
-import { JobId, JobRegistry } from '@z/dsh-jobs'
+import { Context } from '@taskweaver/cordis'
+import type { Agent } from '@taskweaver/dsh-agent'
+import { JobId, JobRegistry } from '@taskweaver/dsh-jobs'
 import type {
   JobDoneListener, JobRead, JobSnapshot, JobStart, JobsChangedListener,
-} from '@z/dsh-jobs'
+} from '@taskweaver/dsh-jobs'
 
 /**
  * Minimal concrete registry: one canned record. The Service Definition owns the contract
  * only (ids, snapshots, authorization-shaped signatures); the registry
- * behavior suite lives with `@z/dsh-jobs-local`.
+ * behavior suite lives with `@taskweaver/dsh-jobs-local`.
  */
 class StubJobRegistry extends JobRegistry {
   snapshotOf(id: JobId): JobSnapshot {
@@ -91,6 +91,6 @@ describe('JobRegistry seam', () => {
   it('mounting the abstract seam directly fails loudly at load (stale-composition fence)', async () => {
     const ctx = new Context()
     await expect(ctx.plugin(JobRegistry as unknown as typeof StubJobRegistry))
-      .rejects.toThrow(/abstract job registry seam; load an implementation such as @deepseek-ai\/dsh-jobs-local/)
+      .rejects.toThrow(/abstract job registry seam; load an implementation such as @taskweaver\/dsh-jobs-local/)
   })
 })

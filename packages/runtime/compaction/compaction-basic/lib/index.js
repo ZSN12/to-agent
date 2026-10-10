@@ -1,13 +1,13 @@
-import z from "@z/schemastery";
-import { CompactionEngine, CompactionId, ManualCompactionError, compactCheckpointSource, toolPairingBalancedAfter, toolPairingBalancedBefore } from "@z/dsh-compaction";
-import { BlockAssembler, CONTEXT_WINDOW_EXCEEDED_CODE, LlmError, assertNever, contentHasImage, createUserMessage, deepFreeze, errorChain } from "@z/dsh-llm";
+import z from "@taskweaver/schemastery";
+import { CompactionEngine, CompactionId, ManualCompactionError, compactCheckpointSource, toolPairingBalancedAfter, toolPairingBalancedBefore } from "@taskweaver/dsh-compaction";
+import { BlockAssembler, CONTEXT_WINDOW_EXCEEDED_CODE, LlmError, assertNever, contentHasImage, createUserMessage, deepFreeze, errorChain } from "@taskweaver/dsh-llm";
 import { randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 //#region lib/types/config.js
 /**
 * Load-time validation and routed-model policy resolution for compaction-basic.
 *
-* @module @z/dsh-compaction-basic/config
+* @module @taskweaver/dsh-compaction-basic/config
 */
 /** Default request-pressure fraction for every routed model. */
 const DEFAULT_THRESHOLD_RATIO = .8;
@@ -203,7 +203,7 @@ function assertRatio(name, value) {
 /**
 * Default one-shot summarization and durable checkpoint framing.
 *
-* @module @z/dsh-compaction-basic/summarizer
+* @module @taskweaver/dsh-compaction-basic/summarizer
 */
 /** Tags wrapping the structured summary inside the landed checkpoint node. */
 const SUMMARY_OPEN_TAG = "<compacted-summary>";
@@ -360,7 +360,7 @@ function summaryText(blocks) {
 * Surface retention selection and the shared log-recorded compaction
 * transaction for automatic open-turn and manual idle-session compaction.
 *
-* @module @z/dsh-compaction-basic/region
+* @module @taskweaver/dsh-compaction-basic/region
 */
 /**
 * Rejects a summary whose replacement boundaries are no longer the ones it was
@@ -690,7 +690,7 @@ function inspectCompactionEntryState(events) {
 /**
 * Basic replay-aware compaction backend.
 *
-* @module @z/dsh-compaction-basic
+* @module @taskweaver/dsh-compaction-basic
 */
 /** Resolve the exact provider/model durably routed for the latest request. */
 function routedTarget(session) {

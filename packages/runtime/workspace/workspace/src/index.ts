@@ -2,16 +2,16 @@
  * Workspace entity registry (`ctx.workspaceRegistry`): durable workspace records,
  * stable registry order, and header-validated session membership over the
  * domain data form.
- * @module @z/dsh-workspace
+ * @module @taskweaver/dsh-workspace
  */
 
 import { randomUUID } from 'node:crypto'
 import { stat } from 'node:fs/promises'
 import { basename } from 'node:path'
-import { Context, Service } from '@z/cordis'
-import type { SessionHeader, SessionId } from '@z/dsh-session'
-import type {} from '@z/dsh-session-persistence'
-import type { DomainGlobal, KvTable } from '@z/dsh-storage-domain'
+import { Context, Service } from '@taskweaver/cordis'
+import type { SessionHeader, SessionId } from '@taskweaver/dsh-session'
+import type {} from '@taskweaver/dsh-session-persistence'
+import type { DomainGlobal, KvTable } from '@taskweaver/dsh-storage-domain'
 import { WorkspaceEntity } from './entity.ts'
 import type { WorkspaceEntityHost } from './entity.ts'
 
@@ -64,7 +64,7 @@ export class WorkspaceOrderInvalidError extends Error {
 }
 
 
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
   interface Context {
     workspaceRegistry: WorkspaceRegistry
   }

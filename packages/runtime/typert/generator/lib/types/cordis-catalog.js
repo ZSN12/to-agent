@@ -2,7 +2,7 @@
  * Cordis catalog-specific projection over the compiler-independent Typert
  * model. This module owns Cordis validation and text projection mechanics;
  * callers supply repository-specific type classifications and inherited data.
- * @module @z/dsh-typert-generator
+ * @module @taskweaver/dsh-typert-generator
  */
 import { WorkspaceAnalyzer, WorkspaceCaches } from "./analyzer.js";
 import { childTypeNodeIds } from "./model.js";
@@ -541,7 +541,7 @@ function renderRuntimeApi(services, events, types, inheritedServices) {
         ' * the same AST walk as docs/cordis-catalog, so this data and the rendered',
         ' * docs cannot diverge.',
         ' *',
-        ' * @module @z/dsh-tool-cordis/api-catalog',
+        ' * @module @taskweaver/dsh-tool-cordis/api-catalog',
         ' */',
         '',
         '/* jscpd:ignore-start */',

@@ -1,5 +1,5 @@
-/** Durable request-route lookup for one open model step. @module @z/dsh-llm-retry/history */
-import type { SessionEvent } from '@z/dsh-session';
+/** Durable request-route lookup for one open model step. @module @taskweaver/dsh-llm-retry/history */
+import type { SessionEvent } from '@taskweaver/dsh-session';
 /**
  * Find the provider in force for one currently open step.
  * Request headers remain effective across turn boundaries until a newer full

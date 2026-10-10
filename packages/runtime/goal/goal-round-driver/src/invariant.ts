@@ -1,13 +1,13 @@
-/** Package-owned goal-round prompt invariants. @module @z/dsh-goal-round-driver/invariant */
+/** Package-owned goal-round prompt invariants. @module @taskweaver/dsh-goal-round-driver/invariant */
 
 import { isDeepStrictEqual } from 'node:util'
-import type { Context } from '@z/cordis'
-import { foldGoal, type FoldedGoal, type GoalMessageSource, type GoalView } from '@z/dsh-goal'
-import type { InvariantFailure, InvariantInstaller } from '@z/dsh-invariants'
-import type { Session, SessionEvent } from '@z/dsh-session'
+import type { Context } from '@taskweaver/cordis'
+import { foldGoal, type FoldedGoal, type GoalMessageSource, type GoalView } from '@taskweaver/dsh-goal'
+import type { InvariantFailure, InvariantInstaller } from '@taskweaver/dsh-invariants'
+import type { Session, SessionEvent } from '@taskweaver/dsh-session'
 import { renderGoalRoundPrompt } from './prompt.ts'
 
-const PACKAGE_NAME = '@z/dsh-goal-round-driver'
+const PACKAGE_NAME = '@taskweaver/dsh-goal-round-driver'
 
 /** Cordis companion plugin name. */
 export const name = 'goal-round-driver-invariant'

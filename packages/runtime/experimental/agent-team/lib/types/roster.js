@@ -1,7 +1,7 @@
 /** Team membership, continuable-child provisioning, and roster-owned teardown. */
 import { randomUUID } from 'node:crypto';
-import { SessionId } from '@z/dsh-session';
-import { foldSubagentDescriptor } from '@z/dsh-subagent';
+import { SessionId } from '@taskweaver/dsh-session';
+import { foldSubagentDescriptor } from '@taskweaver/dsh-subagent';
 import { errorMessage, TeamError } from "./error.js";
 import { messageAccepted } from "./session-message.js";
 import { TeamId } from "./types.js";

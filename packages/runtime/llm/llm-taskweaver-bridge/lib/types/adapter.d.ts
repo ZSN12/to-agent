@@ -1,8 +1,8 @@
 /**
- * @module @z/dsh-llm-taskweaver-bridge/adapter
+ * @module @taskweaver/dsh-llm-taskweaver-bridge/adapter
  */
-import { LlmAdapter } from '@z/dsh-llm';
-import type { GenerateOptions, LlmModelInfo, LlmProviderInfo, LlmResolvedModelInfo, PreparedAdapterCall, StreamChunk } from '@z/dsh-llm';
+import { LlmAdapter } from '@taskweaver/dsh-llm';
+import type { GenerateOptions, LlmModelInfo, LlmProviderInfo, LlmResolvedModelInfo, PreparedAdapterCall, StreamChunk } from '@taskweaver/dsh-llm';
 import type { ResolvedBridgeOptions } from './config.ts';
 export interface TaskWeaverBridgeAdapterOptions {
     readonly options: () => ResolvedBridgeOptions;

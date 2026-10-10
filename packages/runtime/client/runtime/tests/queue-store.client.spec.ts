@@ -4,10 +4,10 @@
  * projection, and snapshot reference stability.
  */
 import { describe, expect, it } from 'vitest'
-import { createUserMessage } from '@z/dsh-llm'
-import type { ContentBlock, UserMessage } from '@z/dsh-llm/types'
-import type { SessionEvent } from '@z/dsh-session/types'
-import type { MessageId, MuxFrame, RpcId, SessionId } from '@z/dsh-api-remotes/client'
+import { createUserMessage } from '@taskweaver/dsh-llm'
+import type { ContentBlock, UserMessage } from '@taskweaver/dsh-llm/types'
+import type { SessionEvent } from '@taskweaver/dsh-session/types'
+import type { MessageId, MuxFrame, RpcId, SessionId } from '@taskweaver/dsh-api-remotes/client'
 import { Session } from '../src/client/sessions/session.ts'
 import { SessionManager } from '../src/client/sessions/manager.ts'
 import { FakeApiClient, fakeRemote } from './fake-api.client.ts'

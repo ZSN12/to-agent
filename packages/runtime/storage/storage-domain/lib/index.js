@@ -1,9 +1,9 @@
-import z from "@z/schemastery";
-import { UNIT_NAME_RE, storageBackendServiceKey } from "@z/dsh-storage";
+import z from "@taskweaver/schemastery";
+import { UNIT_NAME_RE, storageBackendServiceKey } from "@taskweaver/dsh-storage";
 //#region lib/types/error.js
 /**
 * Error vocabulary of the domain data form.
-* @module @z/dsh-storage-domain/src/error
+* @module @taskweaver/dsh-storage-domain/src/error
 */
 /**
 * Error thrown by the domain layer. The `code` is the stable contract
@@ -36,7 +36,7 @@ var DomainError = class extends Error {
 * (validation, descriptor projection) derive from it. Record schemas are zod
 * (`z.infer` keeps types un-duplicated and the same schemas later project to
 * RPC wire schemas); plugin `Config` stays schemastery.
-* @module @z/dsh-storage-domain/src/spec
+* @module @taskweaver/dsh-storage-domain/src/spec
 */
 /**
 * Declare one table.
@@ -88,7 +88,7 @@ function descriptorOf(spec) {
 * backend write leaves memory untouched (no divergence between reads and the
 * medium), and events carry values that equal the in-memory state at
 * emission, in write order.
-* @module @z/dsh-storage-domain/src/domain
+* @module @taskweaver/dsh-storage-domain/src/domain
 */
 const noop = () => {};
 /**
@@ -292,7 +292,7 @@ var KvTableImpl = class {
 * layer — consumers depend on this package and never touch backends directly.
 * Plugin `Config` is schemastery; record schemas inside domain specs are zod
 * (see `src/spec.ts` for the split rationale).
-* @module @z/dsh-storage-domain
+* @module @taskweaver/dsh-storage-domain
 */
 /** Cordis plugin name. */
 const name = "storage-domain";

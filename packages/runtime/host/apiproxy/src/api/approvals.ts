@@ -5,8 +5,8 @@
  * RpcReceipt carrier receipt as the HTTP response body; the final outcome arrives in the resolved frame.
  */
 
-import type { ApprovalRequestId } from '@z/dsh-user-approval/types'
-import type { SessionId } from '@z/dsh-session/types'
+import type { ApprovalRequestId } from '@taskweaver/dsh-user-approval/types'
+import type { SessionId } from '@taskweaver/dsh-session/types'
 
 /**
  * Approval answer payload (the result.value slot of a client-response). outcome accepts only

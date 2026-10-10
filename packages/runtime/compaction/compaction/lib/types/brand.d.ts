@@ -1,4 +1,4 @@
-import type { Branded } from '@z/dsh-brand';
+import type { Branded } from '@taskweaver/dsh-brand';
 /** Stable identity shared by one compact start/summary/checkpoint/end transaction. */
 export type CompactionId = Branded<'CompactionId'>;
 /**

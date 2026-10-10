@@ -1,13 +1,13 @@
 /**
  * SQLite storage primitives: transactional append-batch packing, physical
  * reads, schema validation, revisions, repair, and lifecycle closure.
- * @module @z/dsh-session-persistence-sqlite/store
+ * @module @taskweaver/dsh-session-persistence-sqlite/store
  */
 import { randomUUID } from 'node:crypto';
 import { statSync } from 'node:fs';
 import { lstat, mkdir, open } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
-import { SessionPersistenceRevision, } from '@z/dsh-session-persistence';
+import { SessionPersistenceRevision, } from '@taskweaver/dsh-session-persistence';
 import { MAX_PACKED_ROW_MEMBERS, packChunkRuns, } from "./codec.js";
 import { bindRecord, decodeRow, scanRows, } from "./compression.js";
 import { decodeEventRow, decodeSessionRow, decodeStoreIdentity, openDatabase, validateSchemaForMutation, rowToMeta, } from "./schema.js";

@@ -1,6 +1,6 @@
 /** Deterministic cached image versions for model requests. */
-import { ImageVariantId } from '@z/dsh-attachment';
-import type { ImageAttachmentRef, ImageRequestPolicy, RequestImageAttachment, StoredImageAttachment } from '@z/dsh-attachment';
+import { ImageVariantId } from '@taskweaver/dsh-attachment';
+import type { ImageAttachmentRef, ImageRequestPolicy, RequestImageAttachment, StoredImageAttachment } from '@taskweaver/dsh-attachment';
 /** Transform version included in every cache and upload-index identity. */
 export declare const REQUEST_IMAGE_TRANSFORM_VERSION = "request-image-v4";
 /** DeepSeek request versions normally fit at these two preferred qualities. */

@@ -1,13 +1,13 @@
 /**
- * Package-owned invariant companion for `@z/dsh-invariants`.
- * @module @z/dsh-invariants/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-invariants`.
+ * @module @taskweaver/dsh-invariants/invariant
  */
 
 /* jscpd:ignore-start */
-import type { Context } from '@z/cordis'
+import type { Context } from '@taskweaver/cordis'
 import type { InvariantInstaller } from './index.ts'
 
-const PACKAGE_NAME = '@z/dsh-invariants'
+const PACKAGE_NAME = '@taskweaver/dsh-invariants'
 
 /** Cordis companion plugin name. */
 export const name = 'invariants-invariant'

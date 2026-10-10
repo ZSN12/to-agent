@@ -1,11 +1,11 @@
 /**
  * Persistent shell PTY backend over the subprocess terminal primitive, shared
  * sandbox policy, bounded output, and provider-owned session cleanup.
- * @module @z/dsh-terminal-bash
+ * @module @taskweaver/dsh-terminal-bash
  */
-import { TerminalBackendCleanupError } from '@z/dsh-terminal';
-import { effectiveSandboxMode } from '@z/dsh-sandbox-policy';
-import { ENCODING_PREAMBLE } from '@z/dsh-pwsh-local';
+import { TerminalBackendCleanupError } from '@taskweaver/dsh-terminal';
+import { effectiveSandboxMode } from '@taskweaver/dsh-sandbox-policy';
+import { ENCODING_PREAMBLE } from '@taskweaver/dsh-pwsh-local';
 import { resolveConfig, validateConfig } from "./config.js";
 import { LocalPtySession } from "./session.js";
 import { CONTROLLED_PROMPT } from "./sanitize.js";

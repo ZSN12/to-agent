@@ -1,13 +1,13 @@
 /**
- * Package-owned invariant companion for `@z/dsh-command-goal`.
- * @module @z/dsh-command-goal/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-command-goal`.
+ * @module @taskweaver/dsh-command-goal/invariant
  */
 
 /* jscpd:ignore-start */
-import type { Context } from '@z/cordis'
-import type { InvariantInstaller } from '@z/dsh-invariants'
+import type { Context } from '@taskweaver/cordis'
+import type { InvariantInstaller } from '@taskweaver/dsh-invariants'
 
-const PACKAGE_NAME = '@z/dsh-command-goal'
+const PACKAGE_NAME = '@taskweaver/dsh-command-goal'
 
 /** Cordis companion plugin name. */
 export const name = 'command-goal-invariant'

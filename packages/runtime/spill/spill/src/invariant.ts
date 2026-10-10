@@ -1,13 +1,13 @@
 /**
- * Package-owned invariant companion for `@z/dsh-spill`.
- * @module @z/dsh-spill/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-spill`.
+ * @module @taskweaver/dsh-spill/invariant
  */
 
 /* jscpd:ignore-start */
-import type { Context } from '@z/cordis'
-import type { InvariantInstaller } from '@z/dsh-invariants'
+import type { Context } from '@taskweaver/cordis'
+import type { InvariantInstaller } from '@taskweaver/dsh-invariants'
 
-const PACKAGE_NAME = '@z/dsh-spill'
+const PACKAGE_NAME = '@taskweaver/dsh-spill'
 
 /** Cordis companion plugin name. */
 export const name = 'spill-invariant'

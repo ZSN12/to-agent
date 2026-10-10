@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { runNativeCommand } from '@z/dsh-native-command'
+import { runNativeCommand } from '@taskweaver/dsh-native-command'
 
 const node = process.execPath
 

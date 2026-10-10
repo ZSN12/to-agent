@@ -1,4 +1,3 @@
-"use strict";
 /**
  * Pure types of the title domain: the ONE home of the `title` projection-key
  * declaration, free of this package's host-side value imports (cordis
@@ -6,6 +5,7 @@
  * `./types` for host consumers, `./client/types` (the browser half-entry's
  * re-export) for client aggregates — with zero content duplication.
  *
- * @module @z/dsh-session-title/types
+ * @module @taskweaver/dsh-session-title/types
  */
-Object.defineProperty(exports, "__esModule", { value: true });
+export {};
+//# sourceMappingURL=types.js.map

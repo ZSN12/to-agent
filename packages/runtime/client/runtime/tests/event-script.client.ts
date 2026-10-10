@@ -1,8 +1,8 @@
-import { createUserMessage, createMessage, createToolResultMessage, CallId } from '@z/dsh-llm'
+import { createUserMessage, createMessage, createToolResultMessage, CallId } from '@taskweaver/dsh-llm'
 // Minimal SessionEvent builders for orchestration tests (shape mirrors what the
 // host emits; only the fields the object layer reads).
-import type { ContentBlock } from '@z/dsh-llm/types'
-import type { SessionEvent } from '@z/dsh-session/types'
+import type { ContentBlock } from '@taskweaver/dsh-llm/types'
+import type { SessionEvent } from '@taskweaver/dsh-session/types'
 
 /** One text content block (local helper). */
 const text = (t: string): ContentBlock[] => [{ type: 'text', text: t }]

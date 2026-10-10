@@ -1,4 +1,3 @@
-"use strict";
 /**
  * Configuration schema and provider-profile validation for the pi-ai adapter.
  * Profiles are a dict keyed by provider route, so the composition base and a
@@ -14,49 +13,14 @@
  *
  * @module dsh-llm-pi-ai/config
  */
-var __assign = (this && this.__assign) || function () {
-    __assign = Object.assign || function(t) {
-        for (var s, i = 1, n = arguments.length; i < n; i++) {
-            s = arguments[i];
-            for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p))
-                t[p] = s[p];
-        }
-        return t;
-    };
-    return __assign.apply(this, arguments);
-};
-var __rest = (this && this.__rest) || function (s, e) {
-    var t = {};
-    for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p) && e.indexOf(p) < 0)
-        t[p] = s[p];
-    if (s != null && typeof Object.getOwnPropertySymbols === "function")
-        for (var i = 0, p = Object.getOwnPropertySymbols(s); i < p.length; i++) {
-            if (e.indexOf(p[i]) < 0 && Object.prototype.propertyIsEnumerable.call(s, p[i]))
-                t[p[i]] = s[p[i]];
-        }
-    return t;
-};
-var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
-    if (pack || arguments.length === 2) for (var i = 0, l = from.length, ar; i < l; i++) {
-        if (ar || !(i in from)) {
-            if (!ar) ar = Array.prototype.slice.call(from, 0, i);
-            ar[i] = from[i];
-        }
-    }
-    return to.concat(ar || Array.prototype.slice.call(from));
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.Config = exports.DEFAULT_INPUT = exports.DEFAULT_MAX_TOKENS = exports.DEFAULT_CONTEXT_WINDOW = exports.DEFAULT_REQUEST_IMAGE_MAX_BYTES = exports.DEFAULT_REQUEST_IMAGE_PIXEL_BUDGET = exports.DEFAULT_MAX_REQUEST_IMAGE_BYTES = exports.DEFAULT_STREAM_IDLE_TIMEOUT_MS = void 0;
-exports.assertServiceable = assertServiceable;
-exports.resolveProfiles = resolveProfiles;
-var schemastery_1 = require("@z/schemastery");
-var dsh_credentials_1 = require("@z/dsh-credentials");
-var dsh_timeout_1 = require("@z/dsh-timeout");
-var dsh_llm_1 = require("@z/dsh-llm");
-var catalog_ts_1 = require("./catalog.ts");
-var provider_ts_1 = require("./provider.ts");
+import z from '@taskweaver/schemastery';
+import { credentialRef } from '@taskweaver/dsh-credentials';
+import { MAX_TIMER_DELAY_MS } from '@taskweaver/dsh-timeout';
+import { resolveRetryPolicy, RetryPolicySchema } from '@taskweaver/dsh-llm';
+import { CACHE_CONTROL_FORMATS, CHAT_TEMPLATE_VARS, MAX_TOKENS_FIELDS, MODALITIES, resolveRouteModels, SUPPORTED_THINKING_FORMATS, THINKING_LEVELS, } from "./catalog.js";
+import { buildProvider, supportedProtocols } from "./provider.js";
 /** Default maximum idle interval while an adapter stream read is outstanding. */
-exports.DEFAULT_STREAM_IDLE_TIMEOUT_MS = 300000;
+export const DEFAULT_STREAM_IDLE_TIMEOUT_MS = 300_000;
 /**
  * Default request-level bound on base64-encoded image payload. Every image in
  * history is re-encoded into every request body, so an unbounded conversation
@@ -66,15 +30,15 @@ exports.DEFAULT_STREAM_IDLE_TIMEOUT_MS = 300000;
  * system prompts, history, tools, and JSON.
  * Deployments behind stricter gateways lower it per route.
  */
-exports.DEFAULT_MAX_REQUEST_IMAGE_BYTES = 20 * 1024 * 1024;
+export const DEFAULT_MAX_REQUEST_IMAGE_BYTES = 20 * 1024 * 1024;
 /** Default total-pixel budget preserves the complete 2048px normalized attachment. */
-exports.DEFAULT_REQUEST_IMAGE_PIXEL_BUDGET = 2048 * 2048;
+export const DEFAULT_REQUEST_IMAGE_PIXEL_BUDGET = 2048 * 2048;
 /** Default raw encoded-byte cap before inline base64 expansion. */
-exports.DEFAULT_REQUEST_IMAGE_MAX_BYTES = 1024 * 1024;
+export const DEFAULT_REQUEST_IMAGE_MAX_BYTES = 1024 * 1024;
 /** Context capacity assumed for a model neither configuration nor the catalog sizes. */
-exports.DEFAULT_CONTEXT_WINDOW = 262144;
+export const DEFAULT_CONTEXT_WINDOW = 262_144;
 /** Output capability assumed for a model neither configuration nor the catalog sizes. */
-exports.DEFAULT_MAX_TOKENS = 32768;
+export const DEFAULT_MAX_TOKENS = 32_768;
 /**
  * Modalities assumed for a model neither configuration nor the catalog
  * declares. Text is the floor every supported protocol certainly carries, so
@@ -85,49 +49,49 @@ exports.DEFAULT_MAX_TOKENS = 32768;
  * rejects mid-turn, after the message is durable, leaving the session
  * repeating a request that cannot succeed.
  */
-exports.DEFAULT_INPUT = ['text'];
-var thinkingBudgets = schemastery_1.default.object({
-    minimal: schemastery_1.default.number(),
-    low: schemastery_1.default.number(),
-    medium: schemastery_1.default.number(),
-    high: schemastery_1.default.number(),
+export const DEFAULT_INPUT = ['text'];
+const thinkingBudgets = z.object({
+    minimal: z.number(),
+    low: z.number(),
+    medium: z.number(),
+    high: z.number(),
 });
 /**
  * One `chat_template_kwargs` value. The `$var` member is pi-ai's placeholder
  * for a value dispatch fills from the request's thinking state, which is what
  * makes a chat-template gateway configurable without restating its template.
  */
-var chatTemplateKwarg = schemastery_1.default.union([
-    schemastery_1.default.string(),
-    schemastery_1.default.number(),
-    schemastery_1.default.boolean(),
-    schemastery_1.default.const(null),
-    schemastery_1.default.object({
-        $var: schemastery_1.default.union(catalog_ts_1.CHAT_TEMPLATE_VARS).required(),
-        omitWhenOff: schemastery_1.default.boolean(),
+const chatTemplateKwarg = z.union([
+    z.string(),
+    z.number(),
+    z.boolean(),
+    z.const(null),
+    z.object({
+        $var: z.union(CHAT_TEMPLATE_VARS).required(),
+        omitWhenOff: z.boolean(),
     }),
 ]);
-var compatProfile = schemastery_1.default.object({
-    supportsStore: schemastery_1.default.boolean(),
-    supportsDeveloperRole: schemastery_1.default.boolean(),
-    supportsReasoningEffort: schemastery_1.default.boolean(),
-    supportsUsageInStreaming: schemastery_1.default.boolean(),
-    maxTokensField: schemastery_1.default.union(catalog_ts_1.MAX_TOKENS_FIELDS),
-    requiresToolResultName: schemastery_1.default.boolean(),
-    requiresAssistantAfterToolResult: schemastery_1.default.boolean(),
-    requiresThinkingAsText: schemastery_1.default.boolean(),
-    requiresReasoningContentOnAssistantMessages: schemastery_1.default.boolean(),
-    thinkingFormat: schemastery_1.default.union(catalog_ts_1.SUPPORTED_THINKING_FORMATS),
-    chatTemplateKwargs: schemastery_1.default.dict(chatTemplateKwarg),
-    supportsStrictMode: schemastery_1.default.boolean(),
-    cacheControlFormat: schemastery_1.default.union(catalog_ts_1.CACHE_CONTROL_FORMATS),
-    supportsLongCacheRetention: schemastery_1.default.boolean(),
-    supportsEagerToolInputStreaming: schemastery_1.default.boolean(),
-    supportsCacheControlOnTools: schemastery_1.default.boolean(),
-    supportsTemperature: schemastery_1.default.boolean(),
-    forceAdaptiveThinking: schemastery_1.default.boolean(),
-    allowEmptySignature: schemastery_1.default.boolean(),
-    supportsStrictTools: schemastery_1.default.boolean(),
+const compatProfile = z.object({
+    supportsStore: z.boolean(),
+    supportsDeveloperRole: z.boolean(),
+    supportsReasoningEffort: z.boolean(),
+    supportsUsageInStreaming: z.boolean(),
+    maxTokensField: z.union(MAX_TOKENS_FIELDS),
+    requiresToolResultName: z.boolean(),
+    requiresAssistantAfterToolResult: z.boolean(),
+    requiresThinkingAsText: z.boolean(),
+    requiresReasoningContentOnAssistantMessages: z.boolean(),
+    thinkingFormat: z.union(SUPPORTED_THINKING_FORMATS),
+    chatTemplateKwargs: z.dict(chatTemplateKwarg),
+    supportsStrictMode: z.boolean(),
+    cacheControlFormat: z.union(CACHE_CONTROL_FORMATS),
+    supportsLongCacheRetention: z.boolean(),
+    supportsEagerToolInputStreaming: z.boolean(),
+    supportsCacheControlOnTools: z.boolean(),
+    supportsTemperature: z.boolean(),
+    forceAdaptiveThinking: z.boolean(),
+    allowEmptySignature: z.boolean(),
+    supportsStrictTools: z.boolean(),
 });
 /**
  * Keys are the offered levels, values their wire spellings. A valueless key
@@ -139,53 +103,56 @@ var compatProfile = schemastery_1.default.object({
  * schemastery's `Dict`, which types every literal key as required; dict
  * validation checks only present keys, so the runtime value is a partial record.
  */
-var reasoningEfforts = schemastery_1.default.dict(schemastery_1.default.union([schemastery_1.default.string(), schemastery_1.default.const(null)]), schemastery_1.default.union(catalog_ts_1.THINKING_LEVELS));
+const reasoningEfforts = z.dict(z.union([z.string(), z.const(null)]), z.union(THINKING_LEVELS));
 /** The fields a `models` entry and a `modelOverrides` value share; only the id's home differs. */
-var modelFields = {
-    name: schemastery_1.default.string(),
-    contextWindow: schemastery_1.default.number().step(1).min(1),
-    maxTokens: schemastery_1.default.number().step(1).min(1),
+const modelFields = {
+    name: z.string(),
+    contextWindow: z.number().step(1).min(1),
+    maxTokens: z.number().step(1).min(1),
     // No explicit default, unlike the route's `defaultInput`: schemastery
     // materializes `[]` for an absent array, and resolution reads that as "no
     // answer here" so the catalog entry below still applies.
-    input: schemastery_1.default.array(schemastery_1.default.union(catalog_ts_1.MODALITIES)),
+    input: z.array(z.union(MODALITIES)),
     // The union, not a bare dict: schemastery materializes an absent dict as
     // `{}`, and absent must stay distinguishable — it means "inherit the
     // installed catalog's capability", while `false` disables reasoning.
-    reasoningEfforts: schemastery_1.default.union([schemastery_1.default.const(false), reasoningEfforts]),
+    reasoningEfforts: z.union([z.const(false), reasoningEfforts]),
     compat: compatProfile,
 };
-var modelProfile = schemastery_1.default.object(__assign({ id: schemastery_1.default.string().required() }, modelFields));
+const modelProfile = z.object({
+    id: z.string().required(),
+    ...modelFields,
+});
 /** A {@link modelProfile} whose id lives in the `modelOverrides` dict key. */
-var modelOverride = schemastery_1.default.object(modelFields);
-var profile = schemastery_1.default.object({
-    apiKeyEnv: schemastery_1.default.string().role('credential-ref'),
-    displayName: schemastery_1.default.string(),
-    api: schemastery_1.default.union((0, provider_ts_1.supportedProtocols)()),
-    baseURL: schemastery_1.default.string(),
-    models: schemastery_1.default.array(modelProfile),
-    modelAdditions: schemastery_1.default.array(modelProfile),
-    modelOverrides: schemastery_1.default.dict(modelOverride),
+const modelOverride = z.object(modelFields);
+const profile = z.object({
+    apiKeyEnv: z.string().role('credential-ref'),
+    displayName: z.string(),
+    api: z.union(supportedProtocols()),
+    baseURL: z.string(),
+    models: z.array(modelProfile),
+    modelAdditions: z.array(modelProfile),
+    modelOverrides: z.dict(modelOverride),
     compat: compatProfile,
-    defaultContextWindow: schemastery_1.default.number().step(1).min(1).default(exports.DEFAULT_CONTEXT_WINDOW),
-    defaultMaxTokens: schemastery_1.default.number().step(1).min(1).default(exports.DEFAULT_MAX_TOKENS),
-    defaultInput: schemastery_1.default.array(schemastery_1.default.union(catalog_ts_1.MODALITIES)).default(__spreadArray([], exports.DEFAULT_INPUT, true)),
-    headers: schemastery_1.default.dict(schemastery_1.default.string()),
-    reasoning: schemastery_1.default.union(catalog_ts_1.THINKING_LEVELS),
-    thinkingBudgets: thinkingBudgets,
-    cacheRetention: schemastery_1.default.union(['none', 'short', 'long']),
-    transport: schemastery_1.default.union(['sse', 'websocket', 'websocket-cached', 'auto']),
-    timeoutMs: schemastery_1.default.natural(),
-    websocketConnectTimeoutMs: schemastery_1.default.natural(),
-    streamIdleTimeoutMs: schemastery_1.default.number().min(Number.MIN_VALUE).max(dsh_timeout_1.MAX_TIMER_DELAY_MS).default(exports.DEFAULT_STREAM_IDLE_TIMEOUT_MS),
-    maxRequestImageBytes: schemastery_1.default.number().step(1).min(1).default(exports.DEFAULT_MAX_REQUEST_IMAGE_BYTES),
-    requestImagePixelBudget: schemastery_1.default.number().step(1).min(1).default(exports.DEFAULT_REQUEST_IMAGE_PIXEL_BUDGET),
-    requestImageMaxBytes: schemastery_1.default.number().step(1).min(1).default(exports.DEFAULT_REQUEST_IMAGE_MAX_BYTES),
-    retryPolicy: dsh_llm_1.RetryPolicySchema,
+    defaultContextWindow: z.number().step(1).min(1).default(DEFAULT_CONTEXT_WINDOW),
+    defaultMaxTokens: z.number().step(1).min(1).default(DEFAULT_MAX_TOKENS),
+    defaultInput: z.array(z.union(MODALITIES)).default([...DEFAULT_INPUT]),
+    headers: z.dict(z.string()),
+    reasoning: z.union(THINKING_LEVELS),
+    thinkingBudgets,
+    cacheRetention: z.union(['none', 'short', 'long']),
+    transport: z.union(['sse', 'websocket', 'websocket-cached', 'auto']),
+    timeoutMs: z.natural(),
+    websocketConnectTimeoutMs: z.natural(),
+    streamIdleTimeoutMs: z.number().min(Number.MIN_VALUE).max(MAX_TIMER_DELAY_MS).default(DEFAULT_STREAM_IDLE_TIMEOUT_MS),
+    maxRequestImageBytes: z.number().step(1).min(1).default(DEFAULT_MAX_REQUEST_IMAGE_BYTES),
+    requestImagePixelBudget: z.number().step(1).min(1).default(DEFAULT_REQUEST_IMAGE_PIXEL_BUDGET),
+    requestImageMaxBytes: z.number().step(1).min(1).default(DEFAULT_REQUEST_IMAGE_MAX_BYTES),
+    retryPolicy: RetryPolicySchema,
 });
 /** Runtime schema for {@link Config}. */
-exports.Config = schemastery_1.default.object({
-    providers: schemastery_1.default.dict(profile).default({}),
+export const Config = z.object({
+    providers: z.dict(profile).default({}),
 });
 /**
  * Reject a section this adapter could not serve. Registered as the settings
@@ -199,17 +166,17 @@ exports.Config = schemastery_1.default.object({
  * @param config - the resolved section to check.
  * @throws Error naming the route and model that cannot be served.
  */
-function assertServiceable(config) {
+export function assertServiceable(config) {
     resolveProfiles(config.providers);
 }
 /** Reject removed pre-release profile fields and name their replacements. */
 function rejectRemovedFields(provider, source) {
-    var legacy = source;
+    const legacy = source;
     if ('provider' in legacy) {
-        throw new Error("llm-pi-ai: provider \"".concat(provider, "\" sets \"provider\", which moved to the providers dict key"));
+        throw new Error(`llm-pi-ai: provider "${provider}" sets "provider", which moved to the providers dict key`);
     }
     if ('maxRetries' in legacy || 'maxRetryDelayMs' in legacy) {
-        throw new Error("llm-pi-ai: provider \"".concat(provider, "\" sets maxRetries or maxRetryDelayMs, which were removed;")
+        throw new Error(`llm-pi-ai: provider "${provider}" sets maxRetries or maxRetryDelayMs, which were removed;`
             + ' compose agent recovery with dsh-llm-retry');
     }
 }
@@ -221,58 +188,89 @@ function rejectRemovedFields(provider, source) {
  * @param providers - configured provider profiles keyed by route.
  * @returns validated profiles in configuration order.
  */
-function resolveProfiles(providers) {
-    var _a, _b, _c, _d, _e, _f, _g, _h;
+export function resolveProfiles(providers) {
     if (Array.isArray(providers)) {
         throw new Error('llm-pi-ai: providers is now a dict keyed by provider route, not an array of profiles');
     }
-    var entries = Object.entries(providers !== null && providers !== void 0 ? providers : {});
-    var resolved = new Map();
-    for (var _i = 0, entries_1 = entries; _i < entries_1.length; _i++) {
-        var _j = entries_1[_i], provider = _j[0], source = _j[1];
+    const entries = Object.entries(providers ?? {});
+    const resolved = new Map();
+    for (const [provider, source] of entries) {
         rejectRemovedFields(provider, source);
         if (provider.length === 0)
             throw new Error('llm-pi-ai: provider names must be non-empty');
         if (source.baseURL !== undefined && source.baseURL.length === 0) {
-            throw new Error("llm-pi-ai: provider \"".concat(provider, "\" has an empty baseURL"));
+            throw new Error(`llm-pi-ai: provider "${provider}" has an empty baseURL`);
         }
         if (source.displayName !== undefined && source.displayName.length === 0) {
-            throw new Error("llm-pi-ai: provider \"".concat(provider, "\" has an empty displayName"));
+            throw new Error(`llm-pi-ai: provider "${provider}" has an empty displayName`);
         }
-        var streamIdleTimeoutMs = (_a = source.streamIdleTimeoutMs) !== null && _a !== void 0 ? _a : exports.DEFAULT_STREAM_IDLE_TIMEOUT_MS;
+        const streamIdleTimeoutMs = source.streamIdleTimeoutMs ?? DEFAULT_STREAM_IDLE_TIMEOUT_MS;
         if (!Number.isFinite(streamIdleTimeoutMs)
             || streamIdleTimeoutMs <= 0
-            || streamIdleTimeoutMs > dsh_timeout_1.MAX_TIMER_DELAY_MS) {
-            throw new Error("llm-pi-ai: provider \"".concat(provider, "\" streamIdleTimeoutMs must be a positive finite number no greater than ").concat(dsh_timeout_1.MAX_TIMER_DELAY_MS));
+            || streamIdleTimeoutMs > MAX_TIMER_DELAY_MS) {
+            throw new Error(`llm-pi-ai: provider "${provider}" streamIdleTimeoutMs must be a positive finite number no greater than ${MAX_TIMER_DELAY_MS}`);
         }
-        var maxRequestImageBytes = (_b = source.maxRequestImageBytes) !== null && _b !== void 0 ? _b : exports.DEFAULT_MAX_REQUEST_IMAGE_BYTES;
+        const maxRequestImageBytes = source.maxRequestImageBytes ?? DEFAULT_MAX_REQUEST_IMAGE_BYTES;
         if (!Number.isInteger(maxRequestImageBytes) || maxRequestImageBytes <= 0) {
-            throw new Error("llm-pi-ai: provider \"".concat(provider, "\" maxRequestImageBytes must be a positive integer"));
+            throw new Error(`llm-pi-ai: provider "${provider}" maxRequestImageBytes must be a positive integer`);
         }
-        var requestImagePixelBudget = (_c = source.requestImagePixelBudget) !== null && _c !== void 0 ? _c : exports.DEFAULT_REQUEST_IMAGE_PIXEL_BUDGET;
+        const requestImagePixelBudget = source.requestImagePixelBudget ?? DEFAULT_REQUEST_IMAGE_PIXEL_BUDGET;
         if (!Number.isSafeInteger(requestImagePixelBudget) || requestImagePixelBudget <= 0) {
-            throw new Error("llm-pi-ai: provider \"".concat(provider, "\" requestImagePixelBudget must be a positive safe integer"));
+            throw new Error(`llm-pi-ai: provider "${provider}" requestImagePixelBudget must be a positive safe integer`);
         }
-        var requestImageMaxBytes = (_d = source.requestImageMaxBytes) !== null && _d !== void 0 ? _d : exports.DEFAULT_REQUEST_IMAGE_MAX_BYTES;
+        const requestImageMaxBytes = source.requestImageMaxBytes ?? DEFAULT_REQUEST_IMAGE_MAX_BYTES;
         if (!Number.isSafeInteger(requestImageMaxBytes) || requestImageMaxBytes <= 0) {
-            throw new Error("llm-pi-ai: provider \"".concat(provider, "\" requestImageMaxBytes must be a positive safe integer"));
+            throw new Error(`llm-pi-ai: provider "${provider}" requestImageMaxBytes must be a positive safe integer`);
         }
         // Detached from the configuration object because pi-ai types `Model.input`
         // mutable. The schema's explicit default covers an absent key, so an empty
         // list here is always one someone typed — and unlike an entry's, nothing
         // below it can answer instead — so it is refused rather than read as "no
         // answer".
-        var defaultInput = __spreadArray([], (_e = source.defaultInput) !== null && _e !== void 0 ? _e : exports.DEFAULT_INPUT, true);
+        const defaultInput = [...source.defaultInput ?? DEFAULT_INPUT];
         if (defaultInput.length === 0) {
-            throw new Error("llm-pi-ai: provider \"".concat(provider, "\" defaultInput must name at least one modality"));
+            throw new Error(`llm-pi-ai: provider "${provider}" defaultInput must name at least one modality`);
         }
         // The route key, not the installed provider's own name: the directory has
         // always shown route keys, and a catalog route must not silently rename
         // itself on every configuration surface just because it gained a profile.
-        var displayName = (_f = source.displayName) !== null && _f !== void 0 ? _f : provider;
-        var catalog = (0, catalog_ts_1.resolveRouteModels)(__assign(__assign(__assign(__assign(__assign(__assign(__assign({ provider: provider }, source.api === undefined ? {} : { api: source.api }), source.baseURL === undefined ? {} : { baseURL: source.baseURL }), source.models === undefined ? {} : { models: source.models }), source.modelAdditions === undefined ? {} : { modelAdditions: source.modelAdditions }), source.modelOverrides === undefined ? {} : { modelOverrides: source.modelOverrides }), source.compat === undefined ? {} : { compat: source.compat }), { defaultInput: defaultInput, defaultContextWindow: (_g = source.defaultContextWindow) !== null && _g !== void 0 ? _g : exports.DEFAULT_CONTEXT_WINDOW, defaultMaxTokens: (_h = source.defaultMaxTokens) !== null && _h !== void 0 ? _h : exports.DEFAULT_MAX_TOKENS }));
-        var apiKeyEnv = source.apiKeyEnv, retryPolicy = source.retryPolicy, _models = source.models, _modelAdditions = source.modelAdditions, _displayName = source.displayName, rest = __rest(source, ["apiKeyEnv", "retryPolicy", "models", "modelAdditions", "displayName"]);
-        resolved.set(provider, __assign(__assign(__assign(__assign(__assign(__assign(__assign({}, rest), { provider: provider, displayName: displayName }), apiKeyEnv === undefined ? {} : { apiKeyEnv: (0, dsh_credentials_1.credentialRef)(apiKeyEnv) }), { streamIdleTimeoutMs: streamIdleTimeoutMs, maxRequestImageBytes: maxRequestImageBytes, requestImagePixelBudget: requestImagePixelBudget, requestImageMaxBytes: requestImageMaxBytes, retryPolicy: (0, dsh_llm_1.resolveRetryPolicy)(retryPolicy, "llm-pi-ai: provider \"".concat(provider, "\" retryPolicy")) }), rest.headers === undefined ? {} : { headers: __assign({}, rest.headers) }), rest.thinkingBudgets === undefined ? {} : { thinkingBudgets: __assign({}, rest.thinkingBudgets) }), { configuredMaxTokens: catalog.configuredMaxTokens, piProvider: (0, provider_ts_1.buildProvider)(__assign(__assign(__assign({ provider: provider, displayName: displayName }, source.api === undefined ? {} : { api: source.api }), source.baseURL === undefined ? {} : { baseURL: source.baseURL }), { models: catalog.models, namesCredential: apiKeyEnv !== undefined })) }));
+        const displayName = source.displayName ?? provider;
+        const catalog = resolveRouteModels({
+            provider,
+            ...source.api === undefined ? {} : { api: source.api },
+            ...source.baseURL === undefined ? {} : { baseURL: source.baseURL },
+            ...source.models === undefined ? {} : { models: source.models },
+            ...source.modelAdditions === undefined ? {} : { modelAdditions: source.modelAdditions },
+            ...source.modelOverrides === undefined ? {} : { modelOverrides: source.modelOverrides },
+            ...source.compat === undefined ? {} : { compat: source.compat },
+            defaultInput,
+            defaultContextWindow: source.defaultContextWindow ?? DEFAULT_CONTEXT_WINDOW,
+            defaultMaxTokens: source.defaultMaxTokens ?? DEFAULT_MAX_TOKENS,
+        });
+        const { apiKeyEnv, retryPolicy, models: _models, modelAdditions: _modelAdditions, displayName: _displayName, ...rest } = source;
+        resolved.set(provider, {
+            ...rest,
+            provider,
+            displayName,
+            ...apiKeyEnv === undefined ? {} : { apiKeyEnv: credentialRef(apiKeyEnv) },
+            streamIdleTimeoutMs,
+            maxRequestImageBytes,
+            requestImagePixelBudget,
+            requestImageMaxBytes,
+            retryPolicy: resolveRetryPolicy(retryPolicy, `llm-pi-ai: provider "${provider}" retryPolicy`),
+            ...rest.headers === undefined ? {} : { headers: { ...rest.headers } },
+            ...rest.thinkingBudgets === undefined ? {} : { thinkingBudgets: { ...rest.thinkingBudgets } },
+            configuredMaxTokens: catalog.configuredMaxTokens,
+            piProvider: buildProvider({
+                provider,
+                displayName,
+                ...source.api === undefined ? {} : { api: source.api },
+                ...source.baseURL === undefined ? {} : { baseURL: source.baseURL },
+                models: catalog.models,
+                namesCredential: apiKeyEnv !== undefined,
+            }),
+        });
     }
     return resolved;
 }
+//# sourceMappingURL=config.js.map

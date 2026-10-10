@@ -8,34 +8,37 @@ import { mkdir, stat } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { dirname } from 'node:path'
 import { z as zod } from 'zod'
-import type { Context } from '@z/cordis'
-import { installModelSelection } from '@z/dsh-agent'
-import type { Agent, ModelSelection, ModelSelectionRef, AgentOptions, AgentStatus } from '@z/dsh-agent'
-import type {} from '@z/dsh-agent-presets/types'
-import { AttachmentError, admitEncodedImages } from '@z/dsh-attachment'
-import type { ImageAttachmentRef } from '@z/dsh-attachment'
-import { createUserMessage, freezeMessage, ReasoningEffortId } from '@z/dsh-llm'
-import { errorChain } from '@z/dsh-llm'
-import type { ContentBlock, MessageSource } from '@z/dsh-llm'
-import { isAppendSurfaceEvent, isJsonValue } from '@z/dsh-session'
-import type { JsonValue, Session, SessionEvent, SessionEventMap, SessionHeader, SessionId, UserMessage } from '@z/dsh-session'
-import type { SessionPersistence } from '@z/dsh-session-persistence'
-import { SessionQueryError, type SessionSearchCursor } from '@z/dsh-session-query'
-import { SubagentError } from '@z/dsh-subagent'
-import type { SubagentListEntry as CatalogSubagentListEntry } from '@z/dsh-subagent'
-import { isUserInvocable } from '@z/dsh-skill'
-import type { Workspace, WorkspaceRecord } from '@z/dsh-workspace'
+import type { Context } from '@taskweaver/cordis'
+import { installModelSelection } from '@taskweaver/dsh-agent'
+import type { Agent, ModelSelection, ModelSelectionRef, AgentOptions, AgentStatus } from '@taskweaver/dsh-agent'
+import type {} from '@taskweaver/dsh-agent-presets/types'
+import { AttachmentError, admitEncodedImages } from '@taskweaver/dsh-attachment'
+import type { ImageAttachmentRef } from '@taskweaver/dsh-attachment'
+import { createUserMessage, freezeMessage, ReasoningEffortId } from '@taskweaver/dsh-llm'
+import { errorChain } from '@taskweaver/dsh-llm'
+import type { ContentBlock, MessageSource } from '@taskweaver/dsh-llm'
+import { isAppendSurfaceEvent, isJsonValue } from '@taskweaver/dsh-session'
+import type { JsonValue, Session, SessionEvent, SessionEventMap, SessionHeader, SessionId, UserMessage } from '@taskweaver/dsh-session'
+import type { SessionPersistence } from '@taskweaver/dsh-session-persistence'
+import { SessionQueryError, type SessionSearchCursor } from '@taskweaver/dsh-session-query'
+import { SubagentError } from '@taskweaver/dsh-subagent'
+import type { SubagentListEntry as CatalogSubagentListEntry } from '@taskweaver/dsh-subagent'
+import { isUserInvocable } from '@taskweaver/dsh-skill'
+import type { Workspace, WorkspaceRecord } from '@taskweaver/dsh-workspace'
 import {
   workspaceDomainState, workspaceRecord, WorkspaceId as brandWorkspaceId,
   WorkspaceMoveInvalidError, WorkspaceOrderInvalidError, WorkspaceUnknownSessionError,
-} from '@z/dsh-workspace'
+} from '@taskweaver/dsh-workspace'
 // Type-only: brings the `ctx.tools` Context merge into this program (viewFor reads presenters).
 import {
   InvalidPresetIdError, PresetExistsError, PresetMountError,
   PresetNotWritableError, resolveSessionPreset, UnknownPresetError,
-} from '@z/dsh-agent-presets'
-import type { PresetBearingSession } from '@z/dsh-agent-presets'
-import type {} from '@z/dsh-tools'
+} from '@taskweaver/dsh-agent-presets'
+import type { PresetBearingSession } from '@taskweaver/dsh-agent-presets'
+import type {} from '@taskweaver/dsh-tools'
+import { assertObjectJsonSchema } from '@taskweaver/dsh-tools'
+// Type-only: resolves ctx.web to the composed Host search service.
+import type {} from '@taskweaver/dsh-web'
 import type {
   ApiProxy, ConfigurableProviderView, CredentialView, GoalRef, HistoryEntry, HostFrame,
   ModelCatalogFailure, ModelProviderGroup,
@@ -52,44 +55,46 @@ import {
   type SessionLogExportReady,
   type SessionLogCompressionLevel,
 } from './session-export.ts'
-import type { SessionRawArtifact } from '@z/dsh-session-persistence'
+import type { SessionRawArtifact } from '@taskweaver/dsh-session-persistence'
 import {
   SESSION_SEARCH_RESULT_LIMIT,
   SESSION_SEARCH_SNIPPET_MAX_CODE_POINTS,
   truncateUnicodeCodePoints,
 } from './api/session-search.ts'
 // Type-only: resolves `ctx.get('sessionProjections')` to the projection registry.
-import type {} from '@z/dsh-session-projection'
+import type {} from '@taskweaver/dsh-session-projection'
 // Type-only: resolves `ctx.get('tasks')` to the background job registry.
-import type {} from '@z/dsh-jobs'
-import type { JobSnapshot } from '@z/dsh-jobs'
+import type {} from '@taskweaver/dsh-jobs'
+import type { JobSnapshot } from '@taskweaver/dsh-jobs'
 // Type-only: resolves `ctx.get('sessionProjectionCache')` (the cold listing column).
-import type {} from '@z/dsh-session-projection-cache'
+import type {} from '@taskweaver/dsh-session-projection-cache'
+// Type-only: loads the native `ctx.directoryPicker` service merge.
+import type {} from '@taskweaver/dsh-host-directory-picker'
 // GoalError narrows domain rejections to their stable codes at the wire boundary.
-import { GoalError } from '@z/dsh-goal'
-import type { GoalRef as CoreGoalRef } from '@z/dsh-goal'
+import { GoalError } from '@taskweaver/dsh-goal'
+import type { GoalRef as CoreGoalRef } from '@taskweaver/dsh-goal'
 // Type-only edges: resolve the command-change stream and `ctx.get('skills')`.
-import type {} from '@z/dsh-commands'
+import type {} from '@taskweaver/dsh-commands'
 // Type-only: the dynamic-package runner's forwarded-event declarations. Its
 // client-safe `./types` subpath deliberately, not the package root — the root
 // merges `ctx.dynamicCordisRunner`, and a dependency on that package would
 // rebuild the api-remotes cycle this direction exists to avoid.
-import type {} from '@z/dsh-cordis-host-runner/types'
-import type {} from '@z/dsh-skill'
+import type {} from '@taskweaver/dsh-cordis-host-runner/types'
+import type {} from '@taskweaver/dsh-skill'
 // The settings/credentials seams: brand guards run at this wire boundary; the
 // service reads stay optional (`ctx.get`) so a composition without either
 // provider still serves every other domain.
-import { SettingsConflictError, settingsNamespace } from '@z/dsh-settings'
-import type { SettingsDescriptor, SettingsNamespace, SettingsPathOp } from '@z/dsh-settings'
-import { credentialKey, credentialRef } from '@z/dsh-credentials'
+import { SettingsConflictError, settingsNamespace } from '@taskweaver/dsh-settings'
+import type { SettingsDescriptor, SettingsNamespace, SettingsPathOp } from '@taskweaver/dsh-settings'
+import { credentialKey, credentialRef } from '@taskweaver/dsh-credentials'
 // Value edge: the rename impl narrows the title service's validation failure; the import also resolves `ctx.get('sessionTitle')`.
-import { SessionTitleInvalidError } from '@z/dsh-session-title'
-import { CallId } from '@z/dsh-llm'
-import type { ScopeKey } from '@z/dsh-scope'
-import type { ApprovalOutcome, ApprovalRequestId } from '@z/dsh-user-approval'
+import { SessionTitleInvalidError } from '@taskweaver/dsh-session-title'
+import { CallId } from '@taskweaver/dsh-llm'
+import type { ScopeKey } from '@taskweaver/dsh-scope'
+import type { ApprovalOutcome, ApprovalRequestId } from '@taskweaver/dsh-user-approval'
 // Side-effect type import: resolves the `approval/request` waterfall and
 // `ctx.get('approval')` without a value dependency on the seam (optional composition).
-import type {} from '@z/dsh-user-approval'
+import type {} from '@taskweaver/dsh-user-approval'
 import { approvalResponsePayloadSchema } from './api/approvals.schema.ts'
 
 interface ApiProxyAuthorizationService {
@@ -107,7 +112,7 @@ interface ApiProxyAuthorizationService {
   describe(key: ReturnType<typeof credentialKey>): { inFlight: boolean } | undefined
 }
 
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
   interface Context {
     authorization: ApiProxyAuthorizationService
   }
@@ -118,9 +123,8 @@ import type { ClientResponse, RpcError, RpcReceipt, RpcRequest, RpcResponse } fr
 import { RpcId } from './api/rpc.ts'
 import type {
   AskUserQuestionAnswer, AskUserQuestionItem, AskUserQuestionRequest,
-} from '@z/dsh-user-questions'
-import { UserQuestionError } from '@z/dsh-user-questions'
-import { DirectoryPickerError } from '@z/dsh-host-directory-picker'
+} from '@taskweaver/dsh-user-questions'
+import { UserQuestionError } from '@taskweaver/dsh-user-questions'
 import {
   ApiRemoteSessionNotFound as SessionNotFound,
   ApiRemoteSubagentSessionOwnership as SubagentSessionOwnership,
@@ -129,7 +133,7 @@ import {
   createApiRemoteAgentResolver,
   hasApiRemoteSubagentOwner,
   inspectApiRemoteSession,
-} from '@z/dsh-api-remotes'
+} from '@taskweaver/dsh-api-remotes'
 import { canOpenNativePath, openNativePath, openNativeTextFile } from './native-path-opener.ts'
 
 /** Page size when history is called without maxMessages. */
@@ -145,18 +149,82 @@ export const DEFAULT_COLD_BLANK_PROBE_MAX_BYTES = 1024
 
 /** Conversation message event types (the pagination counting unit). */
 const MESSAGE_TYPES = new Set(['user/message', 'assistant/message'])
+const MAX_DOCUMENTS_PER_PROMPT = 8
+const MAX_DOCUMENT_PROMPT_BYTES = 256 * 1024 * 1024
 
-/** Validate one prompt as a batch before publishing any durable image object. */
-async function durablePromptContent(ctx: Context, content: readonly PromptContentPart[]): Promise<ContentBlock[]> {
+type StoreDocumentSnapshot = (
+  bytes: Uint8Array,
+  options: { name: string; sessionId: SessionId },
+) => Promise<{ reference: string; name: string; bytes: number }>
+
+/** Validate prompt document envelopes before admitting durable images or snapshots. */
+async function durablePromptContent(ctx: Context, sessionId: SessionId, content: readonly PromptContentPart[]): Promise<ContentBlock[]> {
   if (content.every(part => part.type === 'text')) {
     return content.map(part => ({ type: 'text', text: part.text }))
   }
-  const refs = await admitEncodedImages(ctx.attachments, content.filter(part => part.type === 'image'))
-  let next = 0
-  return content.map(part => part.type === 'text'
-    ? { type: 'text', text: part.text }
-    // admitEncodedImages returns one reference per image part in order.
-    : { type: 'image', attachment: refs[next++] as ImageAttachmentRef })
+  const documentParts = content.filter((part): part is Extract<PromptContentPart, { type: 'document' }> => part.type === 'document')
+  if (documentParts.length > MAX_DOCUMENTS_PER_PROMPT) {
+    const error = new Error('A prompt can include at most ' + MAX_DOCUMENTS_PER_PROMPT + ' documents.') as Error & { code: string }
+    error.code = 'DOCUMENT_TOO_MANY'
+    throw error
+  }
+  let totalDocumentBytes = 0
+  const documentBytes = new Map<Extract<PromptContentPart, { type: 'document' }>, Uint8Array>()
+  for (const part of documentParts) {
+    const maximumBase64Length = 4 * Math.ceil(100 * 1024 * 1024 / 3)
+    if (part.data.length > maximumBase64Length
+      || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/u.test(part.data)) {
+      const error = new Error('Document upload is not canonical base64.') as Error & { code: string }
+      error.code = 'DOCUMENT_INVALID_BASE64'
+      throw error
+    }
+    const paddingBytes = part.data.endsWith('==') ? 2 : part.data.endsWith('=') ? 1 : 0
+    totalDocumentBytes += part.data.length / 4 * 3 - paddingBytes
+    if (totalDocumentBytes > MAX_DOCUMENT_PROMPT_BYTES) {
+      const error = new Error('Documents in one prompt exceed the 256 MB transfer limit.') as Error & { code: string }
+      error.code = 'DOCUMENT_TOO_LARGE'
+      throw error
+    }
+    const bytes = Buffer.from(part.data, 'base64')
+    if (bytes.toString('base64') !== part.data) {
+      const error = new Error('Document upload is not canonical base64.') as Error & { code: string }
+      error.code = 'DOCUMENT_INVALID_BASE64'
+      throw error
+    }
+    documentBytes.set(part, bytes)
+  }
+  const imageParts = content.filter((part): part is Extract<PromptContentPart, { type: 'image' }> => part.type === 'image')
+  const refs = imageParts.length > 0 ? await admitEncodedImages(ctx.attachments, imageParts) : []
+  let nextImage = 0
+  const durable: ContentBlock[] = []
+  for (const part of content) {
+    if (part.type === 'text') {
+      durable.push({ type: 'text', text: part.text })
+    } else if (part.type === 'image') {
+      // admitEncodedImages returns one reference per image part in order.
+      durable.push({ type: 'image', attachment: refs[nextImage++] as ImageAttachmentRef })
+    } else {
+      try {
+        // Load the owning package lazily: image-only prompts do not acquire the
+        // document parser/storage runtime or its native PDF dependencies.
+        const { storeDocumentSnapshot: store } = await import('@taskweaver/dsh-tool-document') as {
+          storeDocumentSnapshot: StoreDocumentSnapshot
+        }
+        const stored = await store(documentBytes.get(part)!, { name: part.name, sessionId })
+        durable.push({
+          type: 'text',
+          text: `用户附加了文档「${stored.name}」（${stored.bytes} 字节），需要时用 read_document 读取：${stored.reference}`,
+        })
+      } catch (error) {
+        if (error instanceof Error && 'code' in error && typeof error.code === 'string' && error.code.startsWith('DOCUMENT_')) throw error
+        const failure = new Error('Document snapshot could not be stored safely.') as Error & { code: string; cause?: unknown }
+        failure.code = 'DOCUMENT_STORAGE_FAILED'
+        failure.cause = error
+        throw failure
+      }
+    }
+  }
+  return durable
 }
 
 /** Search durable content for an image reference, including nested tool results. */
@@ -586,14 +654,6 @@ async function summarizeCold(
   }
 }
 
-/** Map a browse-primitive failure onto the wire error vocabulary (unknown throws stay internal). */
-function directoryError(error: unknown): RpcError {
-  if (error instanceof DirectoryPickerError) {
-    return { code: error.code, message: error.message, details: { path: error.path } }
-  }
-  return { code: 'internal', message: error instanceof Error ? error.message : String(error), details: {} }
-}
-
 /** Resolved Agent model and project-directory defaults consumed by the API implementation. */
 export interface ApiProxyDefaults {
   /**
@@ -904,7 +964,7 @@ function subagentPromptError(
 function projectionsUnavailableError(): RpcError {
   return {
     code: 'internal',
-    message: 'subagent catalog is unavailable: this deployment does not mount the sessionProjections registry (load @z/dsh-session-projection)',
+    message: 'subagent catalog is unavailable: this deployment does not mount the sessionProjections registry (load @taskweaver/dsh-session-projection)',
     details: {},
   }
 }
@@ -1762,7 +1822,7 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
     const presets = ctx.get('agentPresets')
     const goals = presets?.serviceFor(agent, 'goals') ?? ctx.get('goals')
     if (goals === undefined) {
-      return { error: { code: 'internal', message: 'goal service is absent: neither this session\'s agent preset nor the host composition mounts @z/dsh-goal', details: {} } }
+      return { error: { code: 'internal', message: 'goal service is absent: neither this session\'s agent preset nor the host composition mounts @taskweaver/dsh-goal', details: {} } }
     }
     return goals
   }
@@ -1833,7 +1893,7 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
 
   /** Missing-service report shared by the settings domain (skills-domain stance). */
   function settingsAbsent(): RpcError {
-    return { code: 'internal', message: 'settings service is absent: this deployment does not mount a settings provider (e.g. @z/dsh-settings-file) in its composition', details: {} }
+    return { code: 'internal', message: 'settings service is absent: this deployment does not mount a settings provider (e.g. @taskweaver/dsh-settings-file) in its composition', details: {} }
   }
 
   /** Open one Host-resolved target and map native failures onto the wire vocabulary. */
@@ -1887,7 +1947,7 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
 
   /** Missing-service report shared by the credentials domain. */
   function credentialsAbsent(): RpcError {
-    return { code: 'internal', message: 'credentials service is absent: this deployment does not mount a credential provider (e.g. @z/dsh-credentials-local) in its composition', details: {} }
+    return { code: 'internal', message: 'credentials service is absent: this deployment does not mount a credential provider (e.g. @taskweaver/dsh-credentials-local) in its composition', details: {} }
   }
 
   /** Map one redacted settings descriptor to its wire view. */
@@ -1980,7 +2040,7 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
         if (sessionQuery === undefined) {
           return err(request, {
             code: 'internal',
-            message: 'session search is unavailable: this deployment does not mount @z/dsh-session-query',
+            message: 'session search is unavailable: this deployment does not mount @taskweaver/dsh-session-query',
             details: {},
           })
         }
@@ -2383,7 +2443,8 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
       },
 
       async prompt(request) {
-        const { sessionId, mode, content, clientTimeZone } = request.payload
+        const { sessionId, mode, content, clientTimeZone, uiVerifyPolicy, outputSchema } = request.payload
+        if (outputSchema !== undefined) assertObjectJsonSchema(outputSchema)
         const canonicalTimeZone = clientTimeZone === undefined
           ? undefined
           : canonicalClientTimeZone(clientTimeZone)
@@ -2397,6 +2458,10 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
         const resolved = await turnAgentFor<{ accepted: true }>(request, sessionId)
         if ('refused' in resolved) return resolved.refused
         const agent = resolved.agent
+        // TaskWeaver's Electron caller derives this snapshot from its live
+        // workspace-trust store and app preference. Unknown/omitted fields
+        // clear policy in the service; no agent/tool argument can set it.
+        ctx.get('uiVerifyPolicy')?.update(agent, uiVerifyPolicy)
         // DSH's browser command UI normally dispatches through the command
         // registry before calling this RPC. Thin clients (including
         // TaskWeaver) use the same typed prompt surface, so preserve the
@@ -2444,6 +2509,7 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
           kind: 'user',
           rpcId: request.rpcId,
           ...(canonicalTimeZone === undefined ? {} : { clientTimeZone: canonicalTimeZone }),
+          ...(outputSchema === undefined ? {} : { outputSchema }),
         }
         const hasImage = content.some(part => part.type === 'image')
         const admit = async (): Promise<RpcResponse<{ accepted: true }>> => {
@@ -2459,12 +2525,19 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
                 })
               }
             }
-            const durable = await durablePromptContent(ctx, content)
+            const durable = await durablePromptContent(ctx, sessionId, content)
             const message: UserMessage = createUserMessage({ content: durable, source })
             if (mode === 'steer') agent.steer(message)
             else agent.followup(message)
           } catch (error: unknown) {
             if (error instanceof AttachmentError) {
+              return err(request, {
+                code: 'attachment-error',
+                message: error.message,
+                details: { reason: error.code },
+              })
+            }
+            if (error instanceof Error && 'code' in error && typeof error.code === 'string' && error.code.startsWith('DOCUMENT_')) {
               return err(request, {
                 code: 'attachment-error',
                 message: error.message,
@@ -2918,16 +2991,8 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
       },
 
       async pickDirectory(request, signal) {
-        const capability = ctx.directoryPicker.capability()
-        if (capability.kind !== 'native') {
-          return err(request, {
-            code: 'directory-picker-unavailable',
-            message: `host.pickDirectory needs the native capability; the composed picker serves "${capability.kind}"`,
-            details: { capability: capability.kind },
-          })
-        }
         try {
-          const path = await capability.pick(signal)
+          const path = await ctx.directoryPicker.pick(signal)
           return ok(request, { path })
         } catch (error: unknown) {
           if (signal.aborted) {
@@ -2945,47 +3010,41 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
         }
       },
 
-      async listDirectory(request, signal) {
-        const capability = ctx.directoryPicker.capability()
-        if (capability.kind !== 'browse') {
-          return err(request, {
-            code: 'directory-picker-unavailable',
-            message: `host.listDirectory needs the browse capability; the composed picker serves "${capability.kind}"`,
-            details: { capability: capability.kind },
-          })
-        }
-        try {
-          // The carrier's signal follows the caller: a disconnect or timeout
-          // stops the backend's directory scan instead of outliving it.
-          return ok(request, await capability.list(request.payload.path, signal))
-        } catch (error: unknown) {
-          // An abort is the caller's own timeout/disconnect, not a server
-          // failure — same code pickDirectory and command.execute report.
-          if (signal.aborted) {
-            return err(request, { code: 'cancelled', message: 'directory listing was aborted', details: {} })
-          }
-          return err(request, directoryError(error))
-        }
-      },
-
-      async createDirectory(request) {
-        const capability = ctx.directoryPicker.capability()
-        if (capability.kind !== 'browse') {
-          return err(request, {
-            code: 'directory-picker-unavailable',
-            message: `host.createDirectory needs the browse capability; the composed picker serves "${capability.kind}"`,
-            details: { capability: capability.kind },
-          })
-        }
-        try {
-          return ok(request, { path: await capability.createDirectory(request.payload.path, request.payload.name) })
-        } catch (error: unknown) {
-          return err(request, directoryError(error))
-        }
-      },
-
       async openPath(request, signal) {
         return openPath(request, request.payload.path, signal)
+      },
+
+      async searchWeb(request, signal) {
+        if (signal.aborted) {
+          return err(request, { code: 'cancelled', message: 'web search was aborted', details: {} })
+        }
+        try {
+          const result = await ctx.web.search({
+            query: request.payload.query,
+            ...(request.payload.maxResults === undefined ? {} : { maxResults: request.payload.maxResults }),
+          }, signal)
+          return ok(request, {
+            ...(result.content === undefined ? {} : { content: result.content }),
+            sources: result.sources.map(source => ({
+              url: source.url,
+              ...(source.title === undefined ? {} : { title: source.title }),
+              ...(source.snippet === undefined ? {} : { snippet: source.snippet }),
+              ...(source.publishedAt === undefined ? {} : { publishedAt: source.publishedAt }),
+            })),
+            truncated: result.truncated,
+          })
+        } catch (error: unknown) {
+          if (signal.aborted) {
+            return err(request, { code: 'cancelled', message: 'web search was aborted', details: {} })
+          }
+          const secret = process.env.TASKWEAVER_WEB_SEARCH_API_KEY_SECRET
+          const message = error instanceof Error ? error.message : String(error)
+          return err(request, {
+            code: 'internal',
+            message: (secret ? message.split(secret).join('[redacted]') : message).slice(0, 1_000),
+            details: {},
+          })
+        }
       },
     },
 
@@ -3214,7 +3273,7 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
         // (an undeclared `ctx.skills` property read fails the reflect proxy).
         const skillRegistry = scoped ?? ctx.get('skills')
         if (skillRegistry === undefined) {
-          return err(request, { code: 'internal', message: 'skill registry is absent: neither this session\'s agent preset nor the host composition mounts @z/dsh-skill', details: {} })
+          return err(request, { code: 'internal', message: 'skill registry is absent: neither this session\'s agent preset nor the host composition mounts @taskweaver/dsh-skill', details: {} })
         }
         // The scope presenters resolve in — the live agent, else the recorded
         // preset's standing key, else the global layer — so a cold session's

@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { Context, Service } from '@z/cordis'
-import SessionStore, { type Session, type SessionEvent } from '@z/dsh-session'
-import * as PermissionInvariant from '@z/dsh-permission-presets/invariant'
-import InvariantRegistry from '@z/dsh-invariants'
+import { Context, Service } from '@taskweaver/cordis'
+import SessionStore, { type Session, type SessionEvent } from '@taskweaver/dsh-session'
+import * as PermissionInvariant from '@taskweaver/dsh-permission-presets/invariant'
+import InvariantRegistry from '@taskweaver/dsh-invariants'
 
 class PermissionProbe extends Service {
   readonly names = ['safe', 'trusted']

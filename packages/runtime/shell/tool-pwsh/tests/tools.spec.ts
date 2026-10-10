@@ -4,33 +4,33 @@
  * registry. The fake executor makes every seam outcome scriptable — output
  * text, truncation, timeout, abort, nonzero exits, background handles — so
  * these tests verify the schema, argument validation, workdir derivation,
- * managed `DSH_*` collection, abort translation, canonical result projection,
+ * managed `TASKWEAVER_*` collection, abort translation, canonical result projection,
  * sandbox denial rendering with the escalation surface, rendering,
  * background job wiring, and the UI presenters. Real-pwsh behavior
  * is pinned separately in integration.spec.ts.
  */
 
 import { describe, expect, it, vi } from 'vitest'
-import { Context } from '@z/cordis'
+import { Context } from '@taskweaver/cordis'
 import { mkdtempSync, realpathSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve as resolvePath } from 'node:path'
-import { CallId } from '@z/dsh-llm'
-import SystemPrompt, { renderPrompt } from '@z/dsh-system-prompt'
-import ToolRuntime, { TOOL_ABORTED, TOOL_ABORTED_BEFORE_DISPATCH } from '@z/dsh-tools'
-import LocalJobRegistry from '@z/dsh-jobs-local'
-import * as ToolTasks from '@z/dsh-tool-jobs'
-import AgentRegistry from '@z/dsh-agent'
-import type { Agent } from '@z/dsh-agent'
-import { SessionId } from '@z/dsh-session'
-import ApprovalService from '@z/dsh-user-approval'
-import type { ApprovalOutcome } from '@z/dsh-user-approval'
-import { ShellExecutor } from '@z/dsh-shell'
-import type { ShellExecRequest, ShellExecSpec, ShellProcess, ShellRunResult } from '@z/dsh-shell'
-import SandboxPolicyService from '@z/dsh-sandbox-policy'
-import * as ToolPwsh from '@z/dsh-tool-pwsh'
-import * as BashEnvPlugin from '@z/dsh-shell-env'
-import type { ShellProcessRead } from '@z/dsh-shell'
+import { CallId } from '@taskweaver/dsh-llm'
+import SystemPrompt, { renderPrompt } from '@taskweaver/dsh-system-prompt'
+import ToolRuntime, { TOOL_ABORTED, TOOL_ABORTED_BEFORE_DISPATCH } from '@taskweaver/dsh-tools'
+import LocalJobRegistry from '@taskweaver/dsh-jobs-local'
+import * as ToolTasks from '@taskweaver/dsh-tool-jobs'
+import AgentRegistry from '@taskweaver/dsh-agent'
+import type { Agent } from '@taskweaver/dsh-agent'
+import { SessionId } from '@taskweaver/dsh-session'
+import ApprovalService from '@taskweaver/dsh-user-approval'
+import type { ApprovalOutcome } from '@taskweaver/dsh-user-approval'
+import { ShellExecutor } from '@taskweaver/dsh-shell'
+import type { ShellExecRequest, ShellExecSpec, ShellProcess, ShellRunResult } from '@taskweaver/dsh-shell'
+import SandboxPolicyService from '@taskweaver/dsh-sandbox-policy'
+import * as ToolPwsh from '@taskweaver/dsh-tool-pwsh'
+import * as BashEnvPlugin from '@taskweaver/dsh-shell-env'
+import type { ShellProcessRead } from '@taskweaver/dsh-shell'
 import { processOutcome } from '../src/background.ts'
 import { renderPwshProcessRead, renderPwshResult } from '../src/render.ts'
 
@@ -350,7 +350,7 @@ describe('argument validation', () => {
 })
 
 describe('execution through the bash seam', () => {
-  it('forwards command, session cwd, timeout, and managed DSH_* environment', async () => {
+  it('forwards command, session cwd, timeout, and managed TASKWEAVER_* environment', async () => {
     const dshHome = mkdtempSync(join(tmpdir(), 'dsh-tool-pwsh-home-'))
     const { ctx, bash } = await setup({}, dshHome)
     bash.handler = () => runResult('hi\n')
@@ -367,9 +367,9 @@ describe('execution through the bash seam', () => {
     expect(request?.workdir).toBe('/sessions/s1')
     expect(request?.timeoutMs).toBe(1234)
     expect(request?.dshEnv).toEqual({
-      DSH_HOME: dshHome,
-      DSH_SHELL: '1',
-      DSH_SESSION_ID: 'session-1',
+      TASKWEAVER_HOME: dshHome,
+      TASKWEAVER_SHELL: '1',
+      TASKWEAVER_SESSION_ID: 'session-1',
     })
     expect(bash.specs[0]?.workdir).toBe('/sessions/s1')
   })
@@ -392,9 +392,9 @@ describe('execution through the bash seam', () => {
     expect(bash.requests[0]).not.toHaveProperty('workdir')
     const dshEnv = bash.requests[0]?.dshEnv
     expect(dshEnv).toBeDefined()
-    expect(dshEnv?.['DSH_SHELL']).toBe('1')
-    expect(dshEnv?.['DSH_HOME']).toEqual(expect.any(String))
-    expect(dshEnv).not.toHaveProperty('DSH_SESSION_ID')
+    expect(dshEnv?.['TASKWEAVER_SHELL']).toBe('1')
+    expect(dshEnv?.['TASKWEAVER_HOME']).toEqual(expect.any(String))
+    expect(dshEnv).not.toHaveProperty('TASKWEAVER_SESSION_ID')
   })
 
   it('forwards exec.signal into the resolved request', async () => {
@@ -744,7 +744,7 @@ describe('background execution through the job runtime', () => {
     const { ctx } = await setup() // no LocalJobRegistry / ToolTasks
     const result = await call(ctx, 'pwsh', { command: 'Start-Sleep -Seconds 60', description: 'test command', run_in_background: true })
     expect(result.isError).toBe(true)
-    expect(text(result)).toContain('background jobs unavailable: load @z/dsh-jobs and @z/dsh-tool-jobs')
+    expect(text(result)).toContain('background jobs unavailable: load @taskweaver/dsh-jobs and @taskweaver/dsh-tool-jobs')
   })
 
   it('a pre-aborted call is skipped before the process starts', async () => {

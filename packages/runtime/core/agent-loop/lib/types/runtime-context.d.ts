@@ -1,10 +1,10 @@
 /**
  * Durable projection state for dynamic runtime context.
- * @module @z/dsh-agent-loop/runtime-context
+ * @module @taskweaver/dsh-agent-loop/runtime-context
  */
-import type { ContextSnapshotSection } from '@z/dsh-llm';
-import type { Session, UserMessage } from '@z/dsh-session';
-import type { Context } from '@z/cordis';
+import type { ContextSnapshotSection } from '@taskweaver/dsh-llm';
+import type { Session, UserMessage } from '@taskweaver/dsh-session';
+import type { Context } from '@taskweaver/cordis';
 /** Tracks the last retained runtime-context snapshot without owning its commit. */
 export declare class RuntimeContextProjection {
     /** `undefined` means no snapshot ever existed; `null` means none is retained. */

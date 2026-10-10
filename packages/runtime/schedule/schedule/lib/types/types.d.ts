@@ -1,8 +1,8 @@
 /**
  * Durable and model-facing Schedule value types.
- * @module @z/dsh-schedule
+ * @module @taskweaver/dsh-schedule
  */
-import type { Branded } from '@z/dsh-brand';
+import type { Branded } from '@taskweaver/dsh-brand';
 /** Stable reminder identity that is unique and never reused within one session. */
 export type ScheduleId = Branded<'ScheduleId'>;
 /** Durable one-shot reminder created from a positive delay. */
@@ -169,7 +169,7 @@ export type ScheduleDeleteResult = {
 };
 /** Canonical `schedule_delete` value. */
 export type ScheduleDeleteValue = ScheduleDeleteResult | ScheduleToolError;
-declare module '@z/dsh-session/types' {
+declare module '@taskweaver/dsh-session/types' {
     interface SessionEventMap {
         /**
          * Versioned Schedule mutation. The owning package validates the complete

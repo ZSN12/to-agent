@@ -2,16 +2,16 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { Context } from '@z/cordis'
-import LocalCredentialProvider from '@z/dsh-credentials-local'
-import { credentialKey, credentialRef } from '@z/dsh-credentials'
+import { Context } from '@taskweaver/cordis'
+import LocalCredentialProvider from '@taskweaver/dsh-credentials-local'
+import { credentialKey, credentialRef } from '@taskweaver/dsh-credentials'
 import { authContextFrom, credentialStoreFrom, recordKeyFor } from '../src/auth.ts'
 
 const CODEX = recordKeyFor('openai-codex')
 
 const dirs: string[] = []
 
-/** A context whose credential records live in a throwaway `$DSH_HOME`. */
+/** A context whose credential records live in a throwaway `$TASKWEAVER_HOME`. */
 async function stored(): Promise<Context> {
   const dir = await mkdtemp(join(tmpdir(), 'dsh-pi-auth-'))
   dirs.push(dir)

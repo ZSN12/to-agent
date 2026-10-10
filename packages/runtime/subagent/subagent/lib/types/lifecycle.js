@@ -1,4 +1,3 @@
-"use strict";
 /**
  * Lifecycle-edge publication for both subagent shapes: the contained emitter,
  * the one-shot run observer, and the continuable Activation observer.
@@ -12,27 +11,12 @@
  * between this module and one in-package caller, not something a plugin may
  * depend on.
  *
- * @module @z/dsh-subagent/lifecycle
+ * @module @taskweaver/dsh-subagent/lifecycle
  */
-var __assign = (this && this.__assign) || function () {
-    __assign = Object.assign || function(t) {
-        for (var s, i = 1, n = arguments.length; i < n; i++) {
-            s = arguments[i];
-            for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p))
-                t[p] = s[p];
-        }
-        return t;
-    };
-    return __assign.apply(this, arguments);
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.createLifecycleEmitter = createLifecycleEmitter;
-exports.observeRun = observeRun;
-exports.createActivationObserver = createActivationObserver;
-var node_crypto_1 = require("node:crypto");
-var dsh_agent_1 = require("@z/dsh-agent");
-var assistant_output_ts_1 = require("./assistant-output.ts");
-var types_ts_1 = require("./types.ts");
+import { randomUUID } from 'node:crypto';
+import { foldConsumedWork } from '@taskweaver/dsh-agent';
+import { finalAssistantOutput } from "./assistant-output.js";
+import { SubagentRunId } from "./types.js";
 /**
  * Build the contained lifecycle emitter this seam publishes every edge through.
  * Every listener is independently contained: a synchronous throw or a rejected
@@ -42,21 +26,20 @@ var types_ts_1 = require("./types.ts");
  * @param carrier - resolve the scoped dispatch carrier for one delegating parent.
  * @returns the emitter both observers and the provider registry publish through.
  */
-function createLifecycleEmitter(ctx, carrier) {
-    return function (name, info, parent) {
-        var dispatchArgs = parent === undefined
+export function createLifecycleEmitter(ctx, carrier) {
+    return (name, info, parent) => {
+        const dispatchArgs = parent === undefined
             ? [name, info]
             : [carrier(parent), name, info];
-        for (var _i = 0, _a = ctx.events.dispatch('emit', dispatchArgs); _i < _a.length; _i++) {
-            var callback = _a[_i];
+        for (const callback of ctx.events.dispatch('emit', dispatchArgs)) {
             try {
-                var returned = callback(info);
-                void Promise.resolve(returned).catch(function (error) {
-                    ctx.logger.warn("subagent: ".concat(name, " listener rejected: ").concat(renderThrown(error)));
+                const returned = callback(info);
+                void Promise.resolve(returned).catch((error) => {
+                    ctx.logger.warn(`subagent: ${name} listener rejected: ${renderThrown(error)}`);
                 });
             }
             catch (error) {
-                ctx.logger.warn("subagent: ".concat(name, " listener threw: ").concat(renderThrown(error)));
+                ctx.logger.warn(`subagent: ${name} listener threw: ${renderThrown(error)}`);
             }
         }
     };
@@ -69,19 +52,24 @@ function createLifecycleEmitter(ctx, carrier) {
  * @param run - the published run whose settlement closes the pair.
  * @returns the same run, unchanged.
  */
-function observeRun(emit, provider, parent, run) {
-    var identity = {
-        runId: (0, types_ts_1.SubagentRunId)((0, node_crypto_1.randomUUID)()),
-        provider: provider,
+export function observeRun(emit, provider, parent, run) {
+    const identity = {
+        runId: SubagentRunId(randomUUID()),
+        provider,
         id: run.id,
         local: run.localAgent !== undefined,
     };
     // Attach the terminal observer before dispatching start. Promise reactions
     // still run after this synchronous start emission, preserving start → end.
-    void run.result.then(function (result) {
-        emit('subagent/end', __assign(__assign(__assign({}, identity), { stopReason: result.stopReason }), result.output.length === 0 ? {} : { lastAssistantMessage: result.output }), parent);
-    }, function () {
-        emit('subagent/end', __assign(__assign({}, identity), { stopReason: 'error' }), parent);
+    void run.result.then((result) => {
+        emit('subagent/end', {
+            ...identity,
+            stopReason: result.stopReason,
+            // Omit the field when no output exists, matching continuable epochs.
+            ...result.output.length === 0 ? {} : { lastAssistantMessage: result.output },
+        }, parent);
+    }, () => {
+        emit('subagent/end', { ...identity, stopReason: 'error' }, parent);
     });
     emit('subagent/start', identity, parent);
     return run;
@@ -97,34 +85,41 @@ function observeRun(emit, provider, parent, run) {
  * @param parent - the exact live direct parent keying scoped dispatch.
  * @returns the observer whose edges this epoch publishes.
  */
-function createActivationObserver(emit, provider, childId, parent) {
-    var identity = { runId: (0, types_ts_1.SubagentRunId)((0, node_crypto_1.randomUUID)()), provider: provider, id: childId, local: true };
+export function createActivationObserver(emit, provider, childId, parent) {
+    const identity = { runId: SubagentRunId(randomUUID()), provider, id: childId, local: true };
     // A cold resume replays earlier turns, so this epoch's telemetry must come
     // from the suffix it actually produced — never the whole session, which
     // would report a previous epoch's answer when this one opened no turn.
-    var boundary = 0;
+    let boundary = 0;
     // Assigned by `capture()`, which the disposal path always runs before
     // `settle()`; a resident epoch therefore always has its facts by then.
-    var captured = { stopReason: 'completed' };
+    let captured = { stopReason: 'completed' };
     // Teardown failure overrides the epoch's own outcome and withholds its
     // output: an answer this harness could not durably release is not a result.
-    var terminal = function (failure) { return failure === undefined
+    const terminal = (failure) => failure === undefined
         ? captured
-        : { stopReason: 'error' }; };
+        : { stopReason: 'error' };
     return {
-        start: function (child) {
+        start: (child) => {
             boundary = child.session.events.length;
             emit('subagent/start', identity, parent);
         },
-        capture: function (child) {
-            var own = child.session.events.slice(boundary);
-            var output = (0, assistant_output_ts_1.finalAssistantOutput)(own);
-            captured = __assign({ stopReason: epochStopReason(own) }, output === undefined ? {} : { output: output });
+        capture: (child) => {
+            const own = child.session.events.slice(boundary);
+            const output = finalAssistantOutput(own);
+            captured = {
+                stopReason: epochStopReason(own),
+                ...output === undefined ? {} : { output },
+            };
         },
-        terminal: terminal,
-        settle: function (failure) {
-            var _a = terminal(failure), stopReason = _a.stopReason, output = _a.output;
-            emit('subagent/end', __assign(__assign(__assign({}, identity), { stopReason: stopReason }), output === undefined ? {} : { lastAssistantMessage: output }), parent);
+        terminal,
+        settle: (failure) => {
+            const { stopReason, output } = terminal(failure);
+            emit('subagent/end', {
+                ...identity,
+                stopReason,
+                ...output === undefined ? {} : { lastAssistantMessage: output },
+            }, parent);
         },
     };
 }
@@ -145,8 +140,8 @@ function createActivationObserver(emit, provider, childId, parent) {
  *   closed cleanly and had nothing left to run.
  */
 function epochStopReason(events) {
-    var _a = (0, dsh_agent_1.foldConsumedWork)(events), end = _a.end, droppedUnrun = _a.droppedUnrun;
-    switch (end === null || end === void 0 ? void 0 : end.data.reason.kind) {
+    const { end, droppedUnrun } = foldConsumedWork(events);
+    switch (end?.data.reason.kind) {
         case 'max-tokens':
             return 'max-tokens';
         case 'aborted':
@@ -173,9 +168,10 @@ function epochStopReason(events) {
 /** Render any listener-thrown value without letting coercion escape containment. */
 function renderThrown(value) {
     try {
-        return value instanceof Error ? "".concat(value.name, ": ").concat(value.message) : String(value);
+        return value instanceof Error ? `${value.name}: ${value.message}` : String(value);
     }
-    catch (_a) {
+    catch {
         return '<unrenderable thrown value>';
     }
 }
+//# sourceMappingURL=lifecycle.js.map

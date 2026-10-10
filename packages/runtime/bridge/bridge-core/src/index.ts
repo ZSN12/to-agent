@@ -1,5 +1,5 @@
 /**
- * @module @z/dsh-bridge-core
+ * @module @taskweaver/dsh-bridge-core
  */
 
 export type {

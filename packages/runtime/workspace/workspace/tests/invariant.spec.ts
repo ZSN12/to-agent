@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import InvariantRegistry from '@z/dsh-invariants'
-import type { DomainChanged } from '@z/dsh-storage-domain'
+import { Context } from '@taskweaver/cordis'
+import InvariantRegistry from '@taskweaver/dsh-invariants'
+import type { DomainChanged } from '@taskweaver/dsh-storage-domain'
 import * as WorkspaceInvariant from '../src/invariant.ts'
 import { WorkspaceId } from '../src/index.ts'
 

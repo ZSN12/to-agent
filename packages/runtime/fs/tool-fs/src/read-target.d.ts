@@ -1,10 +1,10 @@
 /**
  * Shared path resolution and regular-file validation for model-facing read tools.
- * @module @z/dsh-tool-fs/src/read-target
+ * @module @taskweaver/dsh-tool-fs/src/read-target
  */
-import type { Context } from '@z/cordis';
-import type { FsInfo, FsTarget } from '@z/dsh-fs';
-import type { ToolExecution } from '@z/dsh-tools';
+import type { Context } from '@taskweaver/cordis';
+import type { FsInfo, FsTarget } from '@taskweaver/dsh-fs';
+import type { ToolExecution } from '@taskweaver/dsh-tools';
 /**
  * Resolve a model-supplied path, observe absence, and require a regular file.
  * @param ctx - the plugin context providing filesystem resolution and observation events.

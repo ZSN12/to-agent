@@ -1,6 +1,6 @@
 //#region lib/types/index.js
 /**
-* @z/dsh-cmdline — the command line a dsh launcher hands to the app
+* @taskweaver/dsh-cmdline — the command line a dsh launcher hands to the app
 * it boots.
 *
 * The launcher parses only its own flags (`--profile`, `--patch`, the config
@@ -14,7 +14,7 @@
 * can inject that service and read it from lazily resolved config —
 * `port: !!js ctx.webStartup.port ?? 3080` — so a flag beats the value written
 * beside it. No row has launcher-level command-line status.
-* @module @z/dsh-cmdline
+* @module @taskweaver/dsh-cmdline
 */
 /**
 * Provide the command line and the exit request on a host context before any

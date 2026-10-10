@@ -1,24 +1,24 @@
 /**
  * The ACP automation server app: the default agent spine
- * ({@link @z/dsh-agent-spine-demo}), JSONL session persistence, and
- * the {@link @z/dsh-acp} bridge. The app owns those plugins through one
+ * ({@link @taskweaver/dsh-agent-spine-demo}), JSONL session persistence, and
+ * the {@link @taskweaver/dsh-acp} bridge. The app owns those plugins through one
  * ordered lifecycle so ACP sessions quiesce before persistence detaches. It
  * writes nothing to stdout.
  * It pre-creates no agents and leaves adapters, executors, and optional tools to
  * the leaf, which must likewise avoid stdout loggers. Named exports are
  * required so Loader retains this plugin's `Config` schema (see
  * docs/postmortem/0001).
- * @module @z/dsh-acp-demo
+ * @module @taskweaver/dsh-acp-demo
  */
 import { join } from 'node:path';
-import z from '@z/schemastery';
-import * as acp from '@z/dsh-acp';
-import * as agentCore from '@z/dsh-agent-spine-demo';
-import * as workspaceContext from '@z/dsh-agent-instructions';
-import ToolRuntime from '@z/dsh-tools';
-import JsonlSessionPersistence, { JsonlCompressionSchema, } from '@z/dsh-session-persistence-jsonl';
-import * as sessionCheckpointPolicy from '@z/dsh-session-checkpoint-policy';
-import SqliteSessionQueryEngine from '@z/dsh-session-query-sqlite';
+import z from '@taskweaver/schemastery';
+import * as acp from '@taskweaver/dsh-acp';
+import * as agentCore from '@taskweaver/dsh-agent-spine-demo';
+import * as workspaceContext from '@taskweaver/dsh-agent-instructions';
+import ToolRuntime from '@taskweaver/dsh-tools';
+import JsonlSessionPersistence, { JsonlCompressionSchema, } from '@taskweaver/dsh-session-persistence-jsonl';
+import * as sessionCheckpointPolicy from '@taskweaver/dsh-session-checkpoint-policy';
+import SqliteSessionQueryEngine from '@taskweaver/dsh-session-query-sqlite';
 export const name = 'acp-demo';
 const DEFAULT_PERSISTENCE_ROOT = './.sessions';
 // Each entry point owns a complete, directly readable config schema; extracting

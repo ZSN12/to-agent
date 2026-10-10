@@ -1,8 +1,8 @@
 /**
  * Package-owned invariant companion for the native directory-picker backend.
- * @module @z/dsh-host-directory-picker-native/invariant
+ * @module @taskweaver/dsh-host-directory-picker-native/invariant
  */
-import type { Context } from '@z/cordis';
+import type { Context } from '@taskweaver/cordis';
 /** Cordis companion plugin name. */
 export declare const name = "host-directory-picker-native-invariant";
 /** Service required before the companion can reserve package ownership. */

@@ -7,7 +7,7 @@
  *
  * @module dsh-llm-pi-ai/replay
  */
-import type { Message, ReplayEnvelope } from '@z/dsh-llm';
+import type { Message, ReplayEnvelope } from '@taskweaver/dsh-llm';
 import type { Api, AssistantMessage } from '@earendil-works/pi-ai';
 /** Per-block half of the pi-ai replay envelope, one entry per content block. */
 export type PiAiReplayBlock = {

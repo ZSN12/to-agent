@@ -7,14 +7,14 @@
 
 import { randomBytes } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
-import { Context } from '@z/cordis'
+import { Context } from '@taskweaver/cordis'
 import { unzipSync, strFromU8 } from 'fflate'
-import type { ImageAttachmentRef } from '@z/dsh-attachment'
-import UserQuestionService from '@z/dsh-user-questions'
-import type { SessionHeader, SessionId } from '@z/dsh-session'
-import type { SessionLineageNode } from '@z/dsh-session-query'
-import type { SessionRawArtifact } from '@z/dsh-session-persistence'
-import ApiProxyService, { createApiProxy, toFetchHandler } from '@z/dsh-host-apiproxy'
+import type { ImageAttachmentRef } from '@taskweaver/dsh-attachment'
+import UserQuestionService from '@taskweaver/dsh-user-questions'
+import type { SessionHeader, SessionId } from '@taskweaver/dsh-session'
+import type { SessionLineageNode } from '@taskweaver/dsh-session-query'
+import type { SessionRawArtifact } from '@taskweaver/dsh-session-persistence'
+import ApiProxyService, { createApiProxy, toFetchHandler } from '@taskweaver/dsh-host-apiproxy'
 
 const sid = (id: string): SessionId => id as SessionId
 

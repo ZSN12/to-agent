@@ -1,21 +1,21 @@
 import { describe, expect, it, vi } from 'vitest'
-import { Context } from '@z/cordis'
-import LlmRuntime, { createUserMessage, CallId  } from '@z/dsh-llm'
+import { Context } from '@taskweaver/cordis'
+import LlmRuntime, { createUserMessage, CallId  } from '@taskweaver/dsh-llm'
 import SessionStore, {
   SessionId,
   type SessionEvent,
   type TurnEndReason,
   type UserMessage,
-} from '@z/dsh-session'
-import SystemPrompt from '@z/dsh-system-prompt'
-import ToolRuntime, { defineContentToolFixture, type PostToolDecision, type PreToolDecision } from '@z/dsh-tools'
+} from '@taskweaver/dsh-session'
+import SystemPrompt from '@taskweaver/dsh-system-prompt'
+import ToolRuntime, { defineContentToolFixture, type PostToolDecision, type PreToolDecision } from '@taskweaver/dsh-tools'
 import AgentRegistry, {
   type Agent,
   type PreStepDecision,
   type SessionStartSource,
-} from '@z/dsh-agent'
+} from '@taskweaver/dsh-agent'
 
-import AgentLoop from '@z/dsh-agent-loop'
+import AgentLoop from '@taskweaver/dsh-agent-loop'
 import { MockAdapter, textResponse, toolCallResponse } from './mock-adapter.ts'
 
 /**

@@ -7,7 +7,7 @@
  *
  * @module dsh-llm-pi-ai/stream
  */
-import type { FinishReason, StreamChunk, TokenUsage } from '@z/dsh-llm';
+import type { FinishReason, StreamChunk, TokenUsage } from '@taskweaver/dsh-llm';
 import type { AssistantMessage, AssistantMessageEvent, Usage as PiUsage } from '@earendil-works/pi-ai';
 /**
  * Map pi-ai usage (reasoning folded into output by pi-ai).

@@ -13,13 +13,13 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { Context } from '@z/cordis'
-import Loader from '@z/cordis-plugin-loader'
-import Include from '@z/cordis-plugin-include'
-import LlmRuntime, { createMessage, createUserMessage } from '@z/dsh-llm'
-import LocalCredentialProvider from '@z/dsh-credentials-local'
-import FileSettingsProvider from '@z/dsh-settings-file'
-import * as LlmPiAi from '@z/dsh-llm-pi-ai'
+import { Context } from '@taskweaver/cordis'
+import Loader from '@taskweaver/cordis-plugin-loader'
+import Include from '@taskweaver/cordis-plugin-include'
+import LlmRuntime, { createMessage, createUserMessage } from '@taskweaver/dsh-llm'
+import LocalCredentialProvider from '@taskweaver/dsh-credentials-local'
+import FileSettingsProvider from '@taskweaver/dsh-settings-file'
+import * as LlmPiAi from '@taskweaver/dsh-llm-pi-ai'
 import { assemble } from './assemble.ts'
 import { closeMockServers, mockServer, textEvents } from './mock-server.ts'
 
@@ -56,17 +56,17 @@ async function loadComposition(): Promise<{ ctx: Context; settingsPath: string }
     '- id: llm',
     "  name: 'test-llm-service'",
     '- id: settings',
-    "  name: '@z/dsh-settings-file'",
+    "  name: '@taskweaver/dsh-settings-file'",
     '  config:',
     `    path: ${JSON.stringify(settingsPath)}`,
     '    debounceMs: 10',
     '- id: credentials',
-    "  name: '@z/dsh-credentials-local'",
+    "  name: '@taskweaver/dsh-credentials-local'",
     '  config:',
     `    path: ${JSON.stringify(join(root, '.credentials.yaml'))}`,
     '    debounceMs: 10',
     '- id: llm-pi-ai',
-    "  name: '@z/dsh-llm-pi-ai'",
+    "  name: '@taskweaver/dsh-llm-pi-ai'",
     '',
   ].join('\n'))
 
@@ -77,9 +77,9 @@ async function loadComposition(): Promise<{ ctx: Context; settingsPath: string }
   ctx.loader.builtins.include = Include
   const modules = new Map<string, unknown>([
     ['test-llm-service', LlmRuntime],
-    ['@z/dsh-settings-file', FileSettingsProvider],
-    ['@z/dsh-credentials-local', LocalCredentialProvider],
-    ['@z/dsh-llm-pi-ai', LlmPiAi],
+    ['@taskweaver/dsh-settings-file', FileSettingsProvider],
+    ['@taskweaver/dsh-credentials-local', LocalCredentialProvider],
+    ['@taskweaver/dsh-llm-pi-ai', LlmPiAi],
   ])
   ctx.loader.internal = {
     version: 'v2',

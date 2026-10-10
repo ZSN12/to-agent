@@ -1,11 +1,10 @@
-"use strict";
 /**
  * The writable-root derivation shared by every enforcement dialect that
  * expresses a mode as a canonical allow-list: `workspace-write` means "the
  * workspace root plus the platform temp areas", and this module is that
  * meaning's one home. The Seatbelt profile
- * (`@z/dsh-sandbox-local`) and the in-process filesystem fence
- * (`@z/dsh-fs-sandbox`) both derive their allow-list here, so "the
+ * (`@taskweaver/dsh-sandbox-local`) and the in-process filesystem fence
+ * (`@taskweaver/dsh-fs-sandbox`) both derive their allow-list here, so "the
  * write tool cannot write /tmp but bash can" asymmetries cannot arise between
  * them. The bwrap and Landlock dialects keep their own grant spellings (an
  * ephemeral `/tmp` mount, launcher-owned flags) — the honest per-runner
@@ -13,20 +12,8 @@
  *
  * @module dsh-sandbox/roots
  */
-var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
-    if (pack || arguments.length === 2) for (var i = 0, l = from.length, ar; i < l; i++) {
-        if (ar || !(i in from)) {
-            if (!ar) ar = Array.prototype.slice.call(from, 0, i);
-            ar[i] = from[i];
-        }
-    }
-    return to.concat(ar || Array.prototype.slice.call(from));
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.canonicalPath = canonicalPath;
-exports.writableRoots = writableRoots;
-var node_fs_1 = require("node:fs");
-var node_os_1 = require("node:os");
+import { realpathSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 /**
  * Resolve a granted root to the path the enforcement layer actually compares:
  * canonical (symlinks resolved), because both Seatbelt filters and the fs
@@ -37,15 +24,15 @@ var node_os_1 = require("node:os");
  *   (a missing root matches nothing until it exists — the conservative
  *   outcome; inventing a fallback would grant a path the caller never named).
  */
-function canonicalPath(path) {
+export function canonicalPath(path) {
     try {
         // Node's JavaScript realpath implementation lexically collapses `..`
         // before resolving a preceding symlink on some platforms. The native
         // implementation follows the filesystem's component-by-component lookup,
         // matching chdir/spawn and the enforcement layers this identity feeds.
-        return node_fs_1.realpathSync.native(path);
+        return realpathSync.native(path);
     }
-    catch (_a) {
+    catch {
         // realpathSync.native failed: the path (or a prefix) is missing or unreadable.
         return path;
     }
@@ -59,8 +46,9 @@ function canonicalPath(path) {
  * @param policy - the file-effect policy to derive the allow-list from.
  * @returns the canonical writable roots; empty exactly under `read-only`.
  */
-function writableRoots(policy) {
+export function writableRoots(policy) {
     if (policy.mode !== 'workspace-write')
         return [];
-    return __spreadArray([], new Set([policy.workspaceRoot, '/tmp', (0, node_os_1.tmpdir)()].map(canonicalPath)), true);
+    return [...new Set([policy.workspaceRoot, '/tmp', tmpdir()].map(canonicalPath))];
 }
+//# sourceMappingURL=roots.js.map

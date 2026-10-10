@@ -1,10 +1,10 @@
-import { carrierKeyOf, isScopeCarrier } from "@z/dsh-scope";
+import { carrierKeyOf, isScopeCarrier } from "@taskweaver/dsh-scope";
 //#region lib/types/scoped-events.generated.js
 /**
 * Generated scoped-event routing-subject resolvers for dsh-scope invariants.
 * Do not edit by hand; run `pnpm run gen-scoped-events`.
 *
-* @module @z/dsh-scope/scoped-events.generated
+* @module @taskweaver/dsh-scope/scoped-events.generated
 */
 const scopedSubjectResolvers = Object.freeze({
 	"agent/created": (args) => args[0]["agent"],
@@ -47,8 +47,8 @@ function scopedSubjectResolverFor(event) {
 }
 //#endregion
 //#region lib/types/invariant.js
-/** Package-owned scoped-dispatch invariants. @module @z/dsh-scope/invariant */
-const PACKAGE_NAME = "@z/dsh-scope";
+/** Package-owned scoped-dispatch invariants. @module @taskweaver/dsh-scope/invariant */
+const PACKAGE_NAME = "@taskweaver/dsh-scope";
 /** Cordis companion plugin name. */
 const name = "scope-invariant";
 /** Services required before the companion can register. */

@@ -1,8 +1,8 @@
 /** Package-local scripted child boundary for deterministic tool-subagent tests. */
 
-import type { Context } from '@z/cordis'
-import type { ContentBlock } from '@z/dsh-llm'
-import { SessionId } from '@z/dsh-session'
+import type { Context } from '@taskweaver/cordis'
+import type { ContentBlock } from '@taskweaver/dsh-llm'
+import { SessionId } from '@taskweaver/dsh-session'
 import type {
   SubagentCapabilities,
   SubagentProvider,
@@ -10,7 +10,7 @@ import type {
   SubagentRun,
   SubagentStartRequest,
   SubagentStopReason,
-} from '@z/dsh-subagent'
+} from '@taskweaver/dsh-subagent'
 
 const DEFAULT_CAPABILITIES: SubagentCapabilities = {
   outputSchema: true,

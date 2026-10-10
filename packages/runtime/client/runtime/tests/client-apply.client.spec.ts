@@ -3,12 +3,12 @@
  * connection handle, stream-loop sink wiring into the object layer, and the
  * fiber-scoped loop teardown.
  */
-import { Context } from '@z/cordis'
+import { Context } from '@taskweaver/cordis'
 import { describe, expect, it, vi } from 'vitest'
-import type { ConnectionHandle } from '@z/dsh-api-remotes/client'
-import type { ConnectionSinks } from '@z/dsh-api-remotes/client'
-import { SESSION_SEARCH_RESULT_LIMIT } from '@z/dsh-host-apiproxy/api'
-import TypertRegistry from '@z/dsh-typert-registry'
+import type { ConnectionHandle } from '@taskweaver/dsh-api-remotes/client'
+import type { ConnectionSinks } from '@taskweaver/dsh-api-remotes/client'
+import { SESSION_SEARCH_RESULT_LIMIT } from '@taskweaver/dsh-host-apiproxy/api'
+import TypertRegistry from '@taskweaver/dsh-typert-registry'
 import * as RuntimeClient from '../src/client/index.ts'
 import type { ConversationNodeDefinition } from '../src/client/contract/conversation.ts'
 import { Session } from '../src/client/sessions/session.ts'

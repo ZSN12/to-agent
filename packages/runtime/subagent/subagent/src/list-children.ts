@@ -13,14 +13,14 @@
  * error. The module owns no catalog state and does not consult Activation,
  * Agent-registry, continuation-manager, or provider state.
  *
- * @module @z/dsh-subagent
+ * @module @taskweaver/dsh-subagent
  */
 
-import type { Context } from '@z/cordis'
-import type { Session, SessionEvent, SessionHeader, SessionId } from '@z/dsh-session'
-import type { SessionPersistence } from '@z/dsh-session-persistence'
-import type { SessionProjectionRegistry } from '@z/dsh-session-projection'
-import type { SessionProjectionCache } from '@z/dsh-session-projection-cache'
+import type { Context } from '@taskweaver/cordis'
+import type { Session, SessionEvent, SessionHeader, SessionId } from '@taskweaver/dsh-session'
+import type { SessionPersistence } from '@taskweaver/dsh-session-persistence'
+import type { SessionProjectionRegistry } from '@taskweaver/dsh-session-projection'
+import type { SessionProjectionCache } from '@taskweaver/dsh-session-projection-cache'
 import { SubagentError } from './error.ts'
 import type { SubagentIdentityProjection } from './projection-types.ts'
 
@@ -191,7 +191,7 @@ async function prepareListing(
   // deployment configuration error, never an empty success.
   if (projections === undefined) {
     throw new SubagentError(
-      'listing subagents requires the sessionProjections registry (load @z/dsh-session-projection)',
+      'listing subagents requires the sessionProjections registry (load @taskweaver/dsh-session-projection)',
       'SUBAGENT_CONTROL_PROJECTIONS_UNAVAILABLE',
     )
   }
@@ -201,7 +201,7 @@ async function prepareListing(
   const sessions = ctx.get('sessions')
   if (sessions === undefined) {
     throw new SubagentError(
-      'listing subagents requires the session store (load @z/dsh-session)',
+      'listing subagents requires the session store (load @taskweaver/dsh-session)',
       'SUBAGENT_CONTROL_SESSION_STORE_UNAVAILABLE',
     )
   }

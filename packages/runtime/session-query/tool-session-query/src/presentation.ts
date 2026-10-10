@@ -1,7 +1,7 @@
 /**
  * Model text rendering and generic tool-call presentation.
  *
- * @module @z/dsh-tool-session-query/presentation
+ * @module @taskweaver/dsh-tool-session-query/presentation
  */
 
 import {
@@ -12,12 +12,12 @@ import {
   type SessionLineageTrace,
   type SessionRecord,
   type SessionSearchHit,
-} from '@z/dsh-session-query'
+} from '@taskweaver/dsh-session-query'
 import type {
   SessionEvent,
   SessionId,
-} from '@z/dsh-session'
-import type { GenericCallView } from '@z/dsh-tools'
+} from '@taskweaver/dsh-session'
+import type { GenericCallView } from '@taskweaver/dsh-tools'
 import { workspaceAccess } from './workspace-access.ts'
 
 type TitleView = Awaited<ReturnType<typeof workspaceAccess.readTitle>>

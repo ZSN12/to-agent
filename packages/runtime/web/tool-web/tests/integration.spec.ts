@@ -6,14 +6,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import { AddressInfo } from 'node:net'
-import { Context } from '@z/cordis'
-import { CallId } from '@z/dsh-llm'
-import SystemPrompt from '@z/dsh-system-prompt'
-import ToolRuntime, { type ToolExecutionResult } from '@z/dsh-tools'
-import WebRuntime from '@z/dsh-web'
-import * as WebFetchLocal from '@z/dsh-web-fetch-http'
-import * as ToolWeb from '@z/dsh-tool-web'
-import * as TimeoutPolicy from '@z/dsh-tool-call-timeout-policy'
+import { Context } from '@taskweaver/cordis'
+import { CallId } from '@taskweaver/dsh-llm'
+import SystemPrompt from '@taskweaver/dsh-system-prompt'
+import ToolRuntime, { type ToolExecutionResult } from '@taskweaver/dsh-tools'
+import WebRuntime from '@taskweaver/dsh-web'
+import * as WebFetchLocal from '@taskweaver/dsh-web-fetch-http'
+import * as ToolWeb from '@taskweaver/dsh-tool-web'
+import * as TimeoutPolicy from '@taskweaver/dsh-tool-call-timeout-policy'
 
 const testToolSignal = new AbortController().signal
 

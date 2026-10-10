@@ -1,10 +1,10 @@
-/** Package invariant companion for `@z/dsh-session-log-export`. */
+/** Package invariant companion for `@taskweaver/dsh-session-log-export`. */
 
 /* jscpd:ignore-start */
-import type { Context } from '@z/cordis'
-import type { InvariantInstaller } from '@z/dsh-invariants'
+import type { Context } from '@taskweaver/cordis'
+import type { InvariantInstaller } from '@taskweaver/dsh-invariants'
 
-const PACKAGE_NAME = '@z/dsh-session-log-export'
+const PACKAGE_NAME = '@taskweaver/dsh-session-log-export'
 
 export const name = 'session-export-invariant'
 export const inject = ['invariants']

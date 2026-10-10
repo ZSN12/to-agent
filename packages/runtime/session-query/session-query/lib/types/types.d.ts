@@ -2,10 +2,10 @@
  * Public records for exact reads and relationship traces over the
  * live-preferred logical session corpus.
  *
- * @module @z/dsh-session-query/types
+ * @module @taskweaver/dsh-session-query/types
  */
-import type { SessionEvent, SessionEventType, SessionHeader, SessionId, SurfaceEvent } from '@z/dsh-session';
-import type { SessionTitleSnapshot } from '@z/dsh-session-title';
+import type { SessionEvent, SessionEventType, SessionHeader, SessionId, SurfaceEvent } from '@taskweaver/dsh-session';
+import type { SessionTitleSnapshot } from '@taskweaver/dsh-session-title';
 import type { SessionSearchCursor } from './cursor.ts';
 export type { SessionSearchCursor } from './cursor.ts';
 /** Whether an event is current model context, replaced context, or raw-log-only. */

@@ -10,6 +10,7 @@ export function ModelSelect({
   thinkingLevel = 'medium',
   onThinkingLevelChange,
   loading,
+  emptyLabel,
 }: {
   value: ModelOption | null
   options: ModelOption[]
@@ -17,6 +18,8 @@ export function ModelSelect({
   thinkingLevel?: ThinkingLevel
   onThinkingLevelChange?: (level: ThinkingLevel) => void
   loading?: boolean
+  /** Shown when not loading and there are no selectable models (e.g. Host down or no credentials). */
+  emptyLabel?: string
 }) {
   const [open, setOpen] = useState(false)
   const [view, setView] = useState<'main' | 'models' | 'thinking'>('main')
@@ -78,7 +81,7 @@ export function ModelSelect({
         aria-expanded={open}
         disabled={loading || options.length === 0}
       >
-        <span className="model-trigger-name">{value?.name ?? (loading ? '加载模型…' : '无可用模型')}</span>
+        <span className="model-trigger-name">{value?.name ?? (loading ? '加载模型…' : (emptyLabel ?? '无可用模型'))}</span>
         {value && thinkingConfigurable && (
           <span className="model-trigger-level">{effortDisplayMeta(thinkingLevel, value.reasoningEfforts).en}</span>
         )}
@@ -150,6 +153,7 @@ export function ModelSelect({
                     }}
                   >
                     <span className="model-item-name">{m.name}</span>
+                    {m.vision === true && <span className="model-item-vision" title="支持图片输入">👁 视觉</span>}
                     {m.id === value?.id && <Check size={16} className="model-item-check" />}
                   </button>
                 ))}

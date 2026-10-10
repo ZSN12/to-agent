@@ -1,13 +1,13 @@
 /**
  * Service Definition for the `ctx.shell` capability seam, covering foreground commands and background process
  * handles. Job ids, ownership, polling, and notices belong to
- * `@z/dsh-jobs`, keeping executors independent of sessions.
- * @module @z/dsh-shell
+ * `@taskweaver/dsh-jobs`, keeping executors independent of sessions.
+ * @module @taskweaver/dsh-shell
  */
 
-import { Context, Service } from '@z/cordis'
-import { settingsNamespace } from '@z/dsh-settings'
-import type { SandboxMode } from '@z/dsh-sandbox'
+import { Context, Service } from '@taskweaver/cordis'
+import { settingsNamespace } from '@taskweaver/dsh-settings'
+import type { SandboxMode } from '@taskweaver/dsh-sandbox'
 import type { ShellExecRequest, ShellExecSpec, ShellProcess, ShellRunResult } from './types.ts'
 
 /**
@@ -21,7 +21,7 @@ import type { ShellExecRequest, ShellExecSpec, ShellProcess, ShellRunResult } fr
  */
 export const SHELL_SETTINGS_NAMESPACE = settingsNamespace('shell')
 
-export { DSH_ENV_PREFIX } from './types.ts'
+export { TASKWEAVER_ENV_PREFIX } from './types.ts'
 export type {
   ShellExecRequest,
   ShellExecSpec,
@@ -37,7 +37,7 @@ export type {
 export { parseExitStatus } from './render.ts'
 export type { ParsedExitStatus } from './render.ts'
 
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
   interface Context {
     shell: ShellExecutor
   }

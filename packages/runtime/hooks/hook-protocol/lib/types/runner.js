@@ -3,7 +3,7 @@
  * process-group cancellation, and timeout machinery. The bridge supplies the
  * trusted stdin payload and dialect environment, then this module decodes the
  * captured outcome.
- * @module @z/dsh-hook-protocol/runner
+ * @module @taskweaver/dsh-hook-protocol/runner
  */
 import { parseHookOutput } from "./codec.js";
 /**

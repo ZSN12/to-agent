@@ -20,14 +20,14 @@
  * Agent Note:
  * - .agents/notes/implemented/simplification/2026-07-22-plan-specific-collaboration-state.md
  *
- * @module @z/dsh-plan-mode
+ * @module @taskweaver/dsh-plan-mode
  */
-import { Context, Service } from '@z/cordis';
-import type { Agent } from '@z/dsh-agent';
-import type { SessionEvent } from '@z/dsh-session';
-import type { CommandId } from '@z/dsh-commands';
+import { Context, Service } from '@taskweaver/cordis';
+import type { Agent } from '@taskweaver/dsh-agent';
+import type { SessionEvent } from '@taskweaver/dsh-session';
+import type { CommandId } from '@taskweaver/dsh-commands';
 export type * from './types.ts';
-declare module '@z/dsh-session/types' {
+declare module '@taskweaver/dsh-session/types' {
     interface SessionEventMap {
         /**
          * Whether plan mode is in force from this point on: log-only, non-surface,
@@ -39,7 +39,7 @@ declare module '@z/dsh-session/types' {
         };
     }
 }
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
     interface Context {
         planMode: PlanModeController;
     }
@@ -87,7 +87,7 @@ interface PlanUnitState {
         wanted: boolean;
     } | null;
 }
-declare module '@z/dsh-session-projection/types' {
+declare module '@taskweaver/dsh-session-projection/types' {
     interface SessionProjectionStateMap {
         plan: PlanUnitState;
     }

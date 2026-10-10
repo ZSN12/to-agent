@@ -1,4 +1,3 @@
-"use strict";
 /**
  * The measurement service's positional surface fold: the per-node priced
  * surface `measure()` serves and compaction plans against. The projection
@@ -9,21 +8,10 @@
  * price is derived from THIS fold's nodes by the replace producer. A
  * projection replacement without a claim deliberately folds with zero delta.
  *
- * @module @z/dsh-token-meter/surface-fold
+ * @module @taskweaver/dsh-token-meter/surface-fold
  */
-var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
-    if (pack || arguments.length === 2) for (var i = 0, l = from.length, ar; i < l; i++) {
-        if (ar || !(i in from)) {
-            if (!ar) ar = Array.prototype.slice.call(from, 0, i);
-            ar[i] = from[i];
-        }
-    }
-    return to.concat(ar || Array.prototype.slice.call(from));
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.foldSurfaceTokens = foldSurfaceTokens;
-var dsh_session_1 = require("@z/dsh-session");
-var estimate_ts_1 = require("./estimate.ts");
+import { deriveEventMessage } from '@taskweaver/dsh-session';
+import { estimateMessage } from "./estimate.js";
 /**
  * Fold one surface event onto a priced surface.
  *
@@ -37,22 +25,23 @@ var estimate_ts_1 = require("./estimate.ts");
  *   logs are surface-validated at append time, so an unresolvable range is log
  *   corruption and must fail loud rather than skip the event.
  */
-function foldSurfaceTokens(nodes, event) {
-    var message = (0, dsh_session_1.deriveEventMessage)(event);
-    var tokens = message === null ? 0 : (0, estimate_ts_1.estimateMessage)(message);
-    var op = event.surfaceOp;
+export function foldSurfaceTokens(nodes, event) {
+    const message = deriveEventMessage(event);
+    const tokens = message === null ? 0 : estimateMessage(message);
+    const op = event.surfaceOp;
     if (op === 'append') {
-        return { tokens: tokens, nodes: __spreadArray(__spreadArray([], nodes, true), [{ seq: event.seq, tokens: tokens }], false), deltaTokens: tokens };
+        return { tokens, nodes: [...nodes, { seq: event.seq, tokens }], deltaTokens: tokens };
     }
-    var startIdx = nodes.findIndex(function (node) { return node.seq === op.start; });
-    var endIdx = nodes.findIndex(function (node) { return node.seq === op.end; });
+    const startIdx = nodes.findIndex(node => node.seq === op.start);
+    const endIdx = nodes.findIndex(node => node.seq === op.end);
     if (startIdx === -1 || endIdx === -1 || startIdx > endIdx) {
-        throw new Error("token surface: replace at seq ".concat(event.seq, " has invalid current range ").concat(op.start, "-").concat(op.end));
+        throw new Error(`token surface: replace at seq ${event.seq} has invalid current range ${op.start}-${op.end}`);
     }
-    var removed = nodes
+    const removed = nodes
         .slice(startIdx, endIdx + 1)
-        .reduce(function (total, node) { return total + node.tokens; }, 0);
-    var next = __spreadArray([], nodes, true);
-    next.splice(startIdx, endIdx - startIdx + 1, { seq: event.seq, tokens: tokens });
-    return { tokens: tokens, nodes: next, deltaTokens: tokens - removed };
+        .reduce((total, node) => total + node.tokens, 0);
+    const next = [...nodes];
+    next.splice(startIdx, endIdx - startIdx + 1, { seq: event.seq, tokens });
+    return { tokens, nodes: next, deltaTokens: tokens - removed };
 }
+//# sourceMappingURL=surface-fold.js.map

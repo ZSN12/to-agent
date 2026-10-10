@@ -3,7 +3,7 @@
  * configured rules and decide whether the reviewer may authorize on its own, or
  * whether the request must fall back to a human. Enforcement stays with the
  * approval service; this module only recommends.
- * @module @z/dsh-auto-review
+ * @module @taskweaver/dsh-auto-review
  */
 /** Order from lowest to highest risk, for floor comparisons. */
 const RISK_ORDER = ['low', 'medium', 'high', 'critical'];

@@ -2,10 +2,10 @@
  * Projection from the shared managed-process handle to the official Claude
  * Agent SDK's custom-spawn process interface.
  *
- * @module @z/dsh-subagent-claude-code/process
+ * @module @taskweaver/dsh-subagent-claude-code/process
  */
 import type { SpawnedProcess, SpawnOptions } from '@anthropic-ai/claude-agent-sdk';
-import { type SubprocessHandle, type SubprocessOutcome, type SubprocessSpawnSpec } from '@z/dsh-subprocess';
+import { type SubprocessHandle, type SubprocessOutcome, type SubprocessSpawnSpec } from '@taskweaver/dsh-subprocess';
 /**
  * Encode the SDK's complete child environment as a subprocess overlay.
  * @param env - SDK-composed child environment after its removals and replacements.

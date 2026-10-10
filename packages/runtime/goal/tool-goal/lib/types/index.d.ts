@@ -1,10 +1,10 @@
 /**
  * Model-facing `get_goal`, `create_goal`, and `update_goal` tools over the
  * persisted same-session goal domain.
- * @module @z/dsh-tool-goal
+ * @module @taskweaver/dsh-tool-goal
  */
-import type { Context } from '@z/cordis';
-import z from '@z/schemastery';
+import type { Context } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
 export declare const name = "tool-goal";
 export declare const inject: string[];
 /** Model policy and hard lower bounds for goal-state updates. */

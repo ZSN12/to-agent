@@ -3,16 +3,16 @@
  * every backend uses for its replacement user message, plus the predicate that
  * recognizes persisted checkpoints.
  *
- * The seam itself lives in `@z/dsh-compaction`, which re-exports these
+ * The seam itself lives in `@taskweaver/dsh-compaction`, which re-exports these
  * contracts; this module is a pure type/value/predicate outlet (no cordis
  * imports, no module augmentation) so client and wire programs can name the
  * checkpoint source without loading the host plugin's Context merges — the
  * `dsh-commands/brand` shape.
  *
- * @module @z/dsh-compaction/checkpoint
+ * @module @taskweaver/dsh-compaction/checkpoint
  */
-import type { MessageSource } from '@z/dsh-llm/message';
-import type { CommandId } from '@z/dsh-commands/brand';
+import type { MessageSource } from '@taskweaver/dsh-llm/message';
+import type { CommandId } from '@taskweaver/dsh-commands/brand';
 import type { CompactionId } from './brand.ts';
 declare const COMPACT_CHECKPOINT_MARKER: Readonly<{
     readonly kind: "plugin";

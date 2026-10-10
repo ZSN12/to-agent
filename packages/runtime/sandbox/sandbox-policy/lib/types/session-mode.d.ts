@@ -17,9 +17,9 @@
  *
  * @module dsh-sandbox-policy/session-mode
  */
-import type { Session, SessionEvent } from '@z/dsh-session';
-import type { SandboxMode } from '@z/dsh-sandbox';
-declare module '@z/dsh-session/types' {
+import type { Session, SessionEvent } from '@taskweaver/dsh-session';
+import type { SandboxMode } from '@taskweaver/dsh-sandbox';
+declare module '@taskweaver/dsh-session/types' {
     interface SessionEventMap {
         /**
          * The session's sandbox mode was switched — log-only (like `approval/*`;

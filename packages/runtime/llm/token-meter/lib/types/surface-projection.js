@@ -1,4 +1,3 @@
-"use strict";
 /**
  * The O(1) surface-token fold shared by the token-meter projection units.
  *
@@ -15,12 +14,10 @@
  * armed claim folds with zero delta because bounded state cannot reconstruct
  * the replaced range; this preserves replay at the cost of possible drift.
  *
- * @module @z/dsh-token-meter/surface-projection
+ * @module @taskweaver/dsh-token-meter/surface-projection
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.foldSurfaceProjection = foldSurfaceProjection;
-var dsh_session_1 = require("@z/dsh-session");
-var estimate_ts_1 = require("./estimate.ts");
+import { deriveEventMessage, isSurfaceEvent } from '@taskweaver/dsh-session';
+import { estimateMessage } from "./estimate.js";
 /**
  * Fold one committed event onto a running surface-token total.
  *
@@ -39,19 +36,19 @@ var estimate_ts_1 = require("./estimate.ts");
  *   shadow-price contract violation, not historical data, and must fail
  *   loud rather than let the total drift.
  */
-function foldSurfaceProjection(claim, event) {
+export function foldSurfaceProjection(claim, event) {
     if (event.type === 'compaction/summary' || event.type === 'compaction/prune') {
-        var _a = event.data, shadowedRange = _a.shadowedRange, shadowedTokenCount = _a.shadowedTokenCount;
+        const { shadowedRange, shadowedTokenCount } = event.data;
         return {
             deltaTokens: 0,
             claim: { start: shadowedRange.start, end: shadowedRange.end, tokens: shadowedTokenCount },
         };
     }
-    if (!(0, dsh_session_1.isSurfaceEvent)(event))
+    if (!isSurfaceEvent(event))
         return { deltaTokens: 0, claim: undefined };
-    var message = (0, dsh_session_1.deriveEventMessage)(event);
-    var tokens = message === null ? 0 : (0, estimate_ts_1.estimateMessage)(message);
-    var op = event.surfaceOp;
+    const message = deriveEventMessage(event);
+    const tokens = message === null ? 0 : estimateMessage(message);
+    const op = event.surfaceOp;
     if (op === 'append')
         return { deltaTokens: tokens, claim: undefined };
     // Sessions recorded before the shadow-price protocol log replacements with
@@ -61,8 +58,9 @@ function foldSurfaceProjection(claim, event) {
     if (claim === undefined)
         return { deltaTokens: 0, claim: undefined };
     if (claim.start !== op.start || claim.end !== op.end) {
-        throw new Error("token surface: replace at seq ".concat(event.seq, " over range ").concat(op.start, "-").concat(op.end, " has no adjacent shadow price")
-            + " (armed claim covers ".concat(claim.start, "-").concat(claim.end, ")"));
+        throw new Error(`token surface: replace at seq ${event.seq} over range ${op.start}-${op.end} has no adjacent shadow price`
+            + ` (armed claim covers ${claim.start}-${claim.end})`);
     }
     return { deltaTokens: tokens - claim.tokens, claim: undefined };
 }
+//# sourceMappingURL=surface-projection.js.map

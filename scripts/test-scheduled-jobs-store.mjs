@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { createScheduledJobsStore } from '../electron/backend/scheduled-jobs-store.mjs'
+import { createScheduledJobsStore } from '../desktop/backend/scheduled-jobs-store.mjs'
 
 const home = await fs.mkdtemp(path.join(os.tmpdir(), 'tw-jobs-'))
 const store = createScheduledJobsStore(home)

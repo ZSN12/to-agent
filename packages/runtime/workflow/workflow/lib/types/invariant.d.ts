@@ -1,5 +1,5 @@
-/** Package-owned workflow lifecycle invariants. @module @z/dsh-workflow/invariant */
-import type { Context } from '@z/cordis';
+/** Package-owned workflow lifecycle invariants. @module @taskweaver/dsh-workflow/invariant */
+import type { Context } from '@taskweaver/cordis';
 /** Cordis companion plugin name. */
 export declare const name = "workflow-invariant";
 /** Service required before the companion can reserve package ownership. */

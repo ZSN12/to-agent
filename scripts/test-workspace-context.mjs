@@ -2,9 +2,9 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { assembleWorkspaceContext, isFirstConversationTurn, shouldAttachRepoMap, workspaceContextLimits } from '../electron/backend/context-assembler.mjs'
-import { composePromptPipeline } from '../electron/backend/prompt-pipeline.mjs'
-import { createWorkspaceIndex } from '../electron/backend/workspace-index.mjs'
+import { assembleWorkspaceContext, isFirstConversationTurn, shouldAttachRepoMap, workspaceContextLimits } from '../desktop/backend/context-assembler.mjs'
+import { composePromptPipeline } from '../desktop/backend/prompt-pipeline.mjs'
+import { createWorkspaceIndex } from '../desktop/backend/workspace-index.mjs'
 
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-context-'))
 

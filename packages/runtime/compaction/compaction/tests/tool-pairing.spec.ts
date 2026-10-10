@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { createUserMessage, CallId , createMessage, createToolResultMessage } from '@z/dsh-llm'
-import { toolPairingBalancedAfter, toolPairingBalancedBefore } from '@z/dsh-compaction'
-import { Session, SessionId } from '@z/dsh-session'
-import type { SessionEvent } from '@z/dsh-session'
+import { createUserMessage, CallId , createMessage, createToolResultMessage } from '@taskweaver/dsh-llm'
+import { toolPairingBalancedAfter, toolPairingBalancedBefore } from '@taskweaver/dsh-compaction'
+import { Session, SessionId } from '@taskweaver/dsh-session'
+import type { SessionEvent } from '@taskweaver/dsh-session'
 
 const SURFACE = { surfaceOp: 'append' as const }
 

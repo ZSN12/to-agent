@@ -7,8 +7,8 @@ import { describe, expect, it, vi } from "vitest";
 import { ClientSideConnection, PROTOCOL_VERSION, ndJsonStream } from "@agentclientprotocol/sdk";
 import { spawn } from "node:child_process";
 import { Readable, Writable } from "node:stream";
-import { resolveExampleLaunch } from "@z/dsh-loader-smoke";
-import { isSurfaceEligibleType } from "@z/dsh-session/surface";
+import { resolveExampleLaunch } from "@taskweaver/dsh-loader-smoke";
+import { isSurfaceEligibleType } from "@taskweaver/dsh-session/surface";
 //#region lib/types/launcher.js
 /**
 * Shared launcher for ACP tests that drive an agent subprocess over JSON-RPC
@@ -16,7 +16,7 @@ import { isSurfaceEligibleType } from "@z/dsh-session/surface";
 * stdout tee, SDK client, update collection, permission fallback, and process
 * shutdown so e2e and snapshot suites do not each reconstruct that boundary.
 *
-* @module @z/dsh-acp-snapshot/launcher
+* @module @taskweaver/dsh-acp-snapshot/launcher
 */
 const EXIT_MARKER_GRACE_MS = 250;
 /**
@@ -218,7 +218,7 @@ function isRunning(child) {
 *
 * See .agents/notes/implemented/testing/2026-06-19-acp-snapshot-tests.md.
 *
-* @module @z/dsh-acp-snapshot/harness
+* @module @taskweaver/dsh-acp-snapshot/harness
 */
 const DEFAULT_WAIT_TIMEOUT_MS = 1e4;
 const WAIT_POLL_INTERVAL_MS = 10;
@@ -672,7 +672,7 @@ async function harvestSessionLogs(root) {
 * timestamps and hook duration while preserving event payloads.
 * Request-header scrubbers stay composable so one scenario per header class can pin prompt and
 * tool-schema sidecars.
-* @module @z/dsh-acp-snapshot/normalize
+* @module @taskweaver/dsh-acp-snapshot/normalize
 */
 const SESSION_ID = "{{sessionId}}";
 const CWD = "{{cwd}}";
@@ -1025,7 +1025,7 @@ function scrubHeaderContent(rawLog, options) {
 * are identical. Every live header is checked against the composed pin, so
 * session-dependent composition must declare a separate class instead of
 * escaping coverage.
-* @module @z/dsh-acp-snapshot/suite
+* @module @taskweaver/dsh-acp-snapshot/suite
 */
 /** The readable system-prompt snapshot beside its owning header pin. */
 const SYSTEM_PROMPT_SNAPSHOT = "system-prompt.expected.md";

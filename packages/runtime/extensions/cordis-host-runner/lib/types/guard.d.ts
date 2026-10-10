@@ -10,11 +10,11 @@
  * VM-realm schemas and canonical values are rebuilt as host objects, while rendered content and
  * presentation metadata are shape-checked before entering the registry. Common JSON-Schema spellings are normalized when they
  * have one meaning; invalid vocabulary fails during registration with a teaching error.
- * @module @z/dsh-cordis-host-runner/guard
+ * @module @taskweaver/dsh-cordis-host-runner/guard
  */
-import { Context } from '@z/cordis';
-import type { Plugin } from '@z/cordis';
-import type { ToolDefinition } from '@z/dsh-tools';
+import { Context } from '@taskweaver/cordis';
+import type { Plugin } from '@taskweaver/cordis';
+import type { ToolDefinition } from '@taskweaver/dsh-tools';
 /**
  * The `harness.defineTool` handed into the sandbox: the real DSL, with `parameters` normalized
  * into a fresh host-realm ParameterSchemaSpec (raw object wrappers unwrapped,

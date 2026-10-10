@@ -1,86 +1,84 @@
-"use strict";
 /**
  * events domain zod schemas: MuxFrame / HostFrame unions (discriminatedUnion('type')).
  * A frame is the payload slot of the ServerRequest full form; the SessionEvent inside
  * a session/event frame reuses sessions.schema's strict-envelope + wide-data passthrough branch.
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.hostFrameSchema = exports.muxFrameSchema = exports.askUserQuestionItemSchema = void 0;
-var zod_1 = require("zod");
-var rpc_schema_ts_1 = require("./rpc.schema.ts");
-var approvals_schema_ts_1 = require("./approvals.schema.ts");
-var sessions_schema_ts_1 = require("./sessions.schema.ts");
-var jobs_schema_ts_1 = require("./jobs.schema.ts");
-var workspace_schema_ts_1 = require("./workspace.schema.ts");
+import { z } from 'zod';
+import { rpcErrorSchema, rpcIdSchema } from "./rpc.schema.js";
+import { approvalRequestIdSchema } from "./approvals.schema.js";
+import { contentBlockSchema, messageIdSchema, sessionEventSchema, sessionIdSchema, toolEventViewSchema, } from "./sessions.schema.js";
+import { taskViewSchema } from "./jobs.schema.js";
+import { workspaceIdSchema, workspaceViewSchema } from "./workspace.schema.js";
 /** Question fields validated strictly against core dsh-user-questions. */
-exports.askUserQuestionItemSchema = zod_1.z.object({
-    id: zod_1.z.string(),
-    question: zod_1.z.string(),
-    header: zod_1.z.string().optional(),
-    detail: zod_1.z.string().optional(),
-    options: zod_1.z.array(zod_1.z.object({ label: zod_1.z.string(), description: zod_1.z.string().optional() })).optional(),
-    multiSelect: zod_1.z.boolean().optional(),
+export const askUserQuestionItemSchema = z.object({
+    id: z.string(),
+    question: z.string(),
+    header: z.string().optional(),
+    detail: z.string().optional(),
+    options: z.array(z.object({ label: z.string(), description: z.string().optional() })).optional(),
+    multiSelect: z.boolean().optional(),
     // Presentation intent: a tagged union on the wire, so an unknown tag is a
     // rejected frame rather than a silently generic render.
-    intent: zod_1.z.discriminatedUnion('kind', [
-        zod_1.z.object({ kind: zod_1.z.literal('plan-review'), approve: zod_1.z.string() }),
+    intent: z.discriminatedUnion('kind', [
+        z.object({ kind: z.literal('plan-review'), approve: z.string() }),
     ]).optional(),
 });
 /** Unified message envelope carried by transient queue frames. */
-var messageSchema = zod_1.z.object({
-    id: zod_1.z.string().min(1),
-    role: zod_1.z.union([zod_1.z.literal('system'), zod_1.z.literal('user'), zod_1.z.literal('assistant')]),
-    content: zod_1.z.array(sessions_schema_ts_1.contentBlockSchema),
-    source: zod_1.z.looseObject({ kind: zod_1.z.string() }),
+const messageSchema = z.object({
+    id: z.string().min(1),
+    role: z.union([z.literal('system'), z.literal('user'), z.literal('assistant')]),
+    content: z.array(contentBlockSchema),
+    source: z.looseObject({ kind: z.string() }),
 });
 /** MuxFrame union (payload slot of a mux-stream ServerRequest). */
-exports.muxFrameSchema = zod_1.z.discriminatedUnion('type', [
-    zod_1.z.object({ type: zod_1.z.literal('session/event'), sessionId: sessions_schema_ts_1.sessionIdSchema, event: sessions_schema_ts_1.sessionEventSchema, view: sessions_schema_ts_1.toolEventViewSchema.optional() }),
-    zod_1.z.object({ type: zod_1.z.literal('session/subscribed'), sessionId: sessions_schema_ts_1.sessionIdSchema, lastSeq: zod_1.z.number().int() }),
-    zod_1.z.object({ type: zod_1.z.literal('approval/requested'), sessionId: sessions_schema_ts_1.sessionIdSchema, approvalId: approvals_schema_ts_1.approvalRequestIdSchema, toolName: zod_1.z.string(), callId: zod_1.z.string().optional(), reason: zod_1.z.string().optional() }),
-    zod_1.z.object({ type: zod_1.z.literal('approval/resolved'), sessionId: sessions_schema_ts_1.sessionIdSchema, approvalId: approvals_schema_ts_1.approvalRequestIdSchema, outcome: zod_1.z.union([zod_1.z.literal('allowed-once'), zod_1.z.literal('rejected'), zod_1.z.literal('cancelled'), zod_1.z.literal('unavailable')]) }),
+export const muxFrameSchema = z.discriminatedUnion('type', [
+    z.object({ type: z.literal('session/event'), sessionId: sessionIdSchema, event: sessionEventSchema, view: toolEventViewSchema.optional() }),
+    z.object({ type: z.literal('session/subscribed'), sessionId: sessionIdSchema, lastSeq: z.number().int() }),
+    z.object({ type: z.literal('approval/requested'), sessionId: sessionIdSchema, approvalId: approvalRequestIdSchema, toolName: z.string(), callId: z.string().optional(), reason: z.string().optional() }),
+    z.object({ type: z.literal('approval/resolved'), sessionId: sessionIdSchema, approvalId: approvalRequestIdSchema, outcome: z.union([z.literal('allowed-once'), z.literal('rejected'), z.literal('cancelled'), z.literal('unavailable')]) }),
     // Non-empty by wire contract: the user-questions service rejects empty
     // batches at ask() (EMPTY_QUESTIONS), so an empty frame is host breakage
     // and must fail loud here, not reach the composer.
-    zod_1.z.object({ type: zod_1.z.literal('question/requested'), sessionId: sessions_schema_ts_1.sessionIdSchema, questions: zod_1.z.array(exports.askUserQuestionItemSchema).min(1) }),
-    zod_1.z.object({ type: zod_1.z.literal('question/resolved'), sessionId: sessions_schema_ts_1.sessionIdSchema, questionRpcId: rpc_schema_ts_1.rpcIdSchema, outcome: zod_1.z.union([zod_1.z.literal('answered'), zod_1.z.literal('cancelled')]) }),
-    zod_1.z.object({
-        type: zod_1.z.literal('session/queue'),
-        sessionId: sessions_schema_ts_1.sessionIdSchema,
-        items: zod_1.z.array(zod_1.z.object({
-            id: sessions_schema_ts_1.messageIdSchema,
-            placement: zod_1.z.union([zod_1.z.literal('queued'), zod_1.z.literal('steering'), zod_1.z.literal('context')]),
+    z.object({ type: z.literal('question/requested'), sessionId: sessionIdSchema, questions: z.array(askUserQuestionItemSchema).min(1) }),
+    z.object({ type: z.literal('question/resolved'), sessionId: sessionIdSchema, questionRpcId: rpcIdSchema, outcome: z.union([z.literal('answered'), z.literal('cancelled')]) }),
+    z.object({
+        type: z.literal('session/queue'),
+        sessionId: sessionIdSchema,
+        items: z.array(z.object({
+            id: messageIdSchema,
+            placement: z.union([z.literal('queued'), z.literal('steering'), z.literal('context')]),
             message: messageSchema,
         })),
     }),
-    zod_1.z.object({ type: zod_1.z.literal('session/jobs'), sessionId: sessions_schema_ts_1.sessionIdSchema, jobs: zod_1.z.array(jobs_schema_ts_1.taskViewSchema) }),
+    z.object({ type: z.literal('session/jobs'), sessionId: sessionIdSchema, jobs: z.array(taskViewSchema) }),
     // value stays wide: it already passed its unit's own schema on the host,
     // and deep-validating here would import every domain's schema into the carrier.
-    zod_1.z.object({ type: zod_1.z.literal('session/projection'), sessionId: sessions_schema_ts_1.sessionIdSchema, key: zod_1.z.string().min(1), value: zod_1.z.unknown(), seq: zod_1.z.number().int().nonnegative() }),
-    zod_1.z.object({ type: zod_1.z.literal('stream/error'), error: rpc_schema_ts_1.rpcErrorSchema }),
+    z.object({ type: z.literal('session/projection'), sessionId: sessionIdSchema, key: z.string().min(1), value: z.unknown(), seq: z.number().int().nonnegative() }),
+    z.object({ type: z.literal('stream/error'), error: rpcErrorSchema }),
 ]);
 /** HostFrame union (payload slot of a host-stream ServerRequest). */
-exports.hostFrameSchema = zod_1.z.discriminatedUnion('type', [
-    zod_1.z.object({
-        type: zod_1.z.literal('host/session-added'),
-        sessionId: sessions_schema_ts_1.sessionIdSchema,
-        blank: zod_1.z.boolean(),
-        parentSessionId: sessions_schema_ts_1.sessionIdSchema.optional(),
-        origin: zod_1.z.literal('subagent').optional(),
-        cwd: zod_1.z.string().optional(),
-        agentPreset: zod_1.z.string().optional(),
+export const hostFrameSchema = z.discriminatedUnion('type', [
+    z.object({
+        type: z.literal('host/session-added'),
+        sessionId: sessionIdSchema,
+        blank: z.boolean(),
+        parentSessionId: sessionIdSchema.optional(),
+        origin: z.literal('subagent').optional(),
+        cwd: z.string().optional(),
+        agentPreset: z.string().optional(),
     }),
-    zod_1.z.object({ type: zod_1.z.literal('host/session-removed'), sessionId: sessions_schema_ts_1.sessionIdSchema }),
-    zod_1.z.object({ type: zod_1.z.literal('host/session-status'), sessionId: sessions_schema_ts_1.sessionIdSchema, running: zod_1.z.boolean() }),
-    zod_1.z.object({ type: zod_1.z.literal('host/agent-error'), sessionId: sessions_schema_ts_1.sessionIdSchema, message: zod_1.z.string() }),
-    zod_1.z.object({ type: zod_1.z.literal('host/workspace-changed'), workspace: workspace_schema_ts_1.workspaceViewSchema }),
-    zod_1.z.object({ type: zod_1.z.literal('host/workspace-removed'), workspaceId: workspace_schema_ts_1.workspaceIdSchema }),
-    zod_1.z.object({ type: zod_1.z.literal('host/workspace-order-changed'), workspaceIds: zod_1.z.array(workspace_schema_ts_1.workspaceIdSchema) }),
-    zod_1.z.object({ type: zod_1.z.literal('host/archived-sessions-changed'), archivedSessionIds: zod_1.z.array(sessions_schema_ts_1.sessionIdSchema) }),
+    z.object({ type: z.literal('host/session-removed'), sessionId: sessionIdSchema }),
+    z.object({ type: z.literal('host/session-status'), sessionId: sessionIdSchema, running: z.boolean() }),
+    z.object({ type: z.literal('host/agent-error'), sessionId: sessionIdSchema, message: z.string() }),
+    z.object({ type: z.literal('host/workspace-changed'), workspace: workspaceViewSchema }),
+    z.object({ type: z.literal('host/workspace-removed'), workspaceId: workspaceIdSchema }),
+    z.object({ type: z.literal('host/workspace-order-changed'), workspaceIds: z.array(workspaceIdSchema) }),
+    z.object({ type: z.literal('host/archived-sessions-changed'), archivedSessionIds: z.array(sessionIdSchema) }),
     // args stays wide, the same posture as session/projection's value: the frame
     // arrives from JSON.parse, so every element is already a JSON value, and the
     // structural contract belongs to the owner package's cordis `Events`
     // declaration — the host validated JSON-safety before forwarding.
-    zod_1.z.object({ type: zod_1.z.literal('host/remote-event'), event: zod_1.z.string().min(1), args: zod_1.z.array(zod_1.z.unknown()) }),
-    zod_1.z.object({ type: zod_1.z.literal('stream/error'), error: rpc_schema_ts_1.rpcErrorSchema }),
+    z.object({ type: z.literal('host/remote-event'), event: z.string().min(1), args: z.array(z.unknown()) }),
+    z.object({ type: z.literal('stream/error'), error: rpcErrorSchema }),
 ]);
+//# sourceMappingURL=events.schema.js.map

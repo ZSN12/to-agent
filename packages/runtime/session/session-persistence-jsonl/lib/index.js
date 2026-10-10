@@ -1,12 +1,12 @@
-import z from "@z/schemastery";
+import z from "@taskweaver/schemastery";
 import { readdirSync } from "node:fs";
 import { link, mkdir, mkdtemp, open, readFile, readdir, realpath, rm, stat, truncate } from "node:fs/promises";
 import { dirname, join, parse, resolve, toNamespacedPath } from "node:path";
 import { performance } from "node:perf_hooks";
 import { scheduler } from "node:timers/promises";
 import { randomBytes } from "node:crypto";
-import { DEFAULT_PREPARED_SESSION_CACHE_SIZE, DEFAULT_WRITE_BATCH_MAX_DELAY_MS, MAX_WRITE_BATCH_DELAY_MS, PersistenceCoordinator, SessionFormatUnsupportedError, SessionPersistence, SessionPersistenceRevision, sessionFormatVersionRefusal } from "@z/dsh-session-persistence";
-import { SESSION_FORMAT_VERSION, decodeSeqRanges, decodeStorageRecord, encodeSeqRanges, packChunkRuns } from "@z/dsh-session";
+import { DEFAULT_PREPARED_SESSION_CACHE_SIZE, DEFAULT_WRITE_BATCH_MAX_DELAY_MS, MAX_WRITE_BATCH_DELAY_MS, PersistenceCoordinator, SessionFormatUnsupportedError, SessionPersistence, SessionPersistenceRevision, sessionFormatVersionRefusal } from "@taskweaver/dsh-session-persistence";
+import { SESSION_FORMAT_VERSION, decodeSeqRanges, decodeStorageRecord, encodeSeqRanges, packChunkRuns } from "@taskweaver/dsh-session";
 import { constants, createZstdDecompress, zstdCompress, zstdDecompress, zstdDecompressSync } from "node:zlib";
 import { promisify } from "node:util";
 import { constants as constants$1 } from "node:buffer";
@@ -758,7 +758,7 @@ async function createLeafDirectoryWin32(parent, target) {
 * events in one append-only file per session, and delegates orchestration to
 * {@link PersistenceCoordinator}. Its side-effect-free locator returns the
 * absolute per-session log target before materialization.
-* @module @z/dsh-session-persistence-jsonl
+* @module @taskweaver/dsh-session-persistence-jsonl
 */
 const DEFAULT_PACK_CHUNKS = true;
 const DEFAULT_COMPRESSION = "zstd";

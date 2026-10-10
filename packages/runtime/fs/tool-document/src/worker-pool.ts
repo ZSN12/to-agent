@@ -1,18 +1,25 @@
 import { Worker } from 'node:worker_threads'
 import type { WorkerOptions } from 'node:worker_threads'
-import type { DocumentOptions, DocumentReadResult, WorkerResponse } from './protocol.ts'
+import type { DocumentOptions, ParsedDocumentResult, WorkerResponse } from './protocol.ts'
 import { DocumentReadError } from './errors.ts'
 
-const POOL_SIZE = 2
-const WORKER_TIMEOUT_MS = 30_000
-const WORKER_MEMORY_MB = 512
+const DEFAULT_POOL_SIZE = 2
+const DEFAULT_WORKER_TIMEOUT_MS = 30_000
+const DEFAULT_WORKER_MEMORY_MB = 512
+
+export interface DocumentWorkerPoolOptions {
+  size?: number
+  timeoutMs?: number
+  memoryMb?: number
+  workerURL?: URL
+}
 
 interface Job {
   id: number
   bytes: Uint8Array
   options: DocumentOptions
   signal?: AbortSignal
-  resolve: (value: DocumentReadResult) => void
+  resolve: (value: ParsedDocumentResult) => void
   reject: (error: Error) => void
   timeout?: NodeJS.Timeout
   abort?: () => void
@@ -27,12 +34,27 @@ function abortError(): Error {
   return new Error('Document reading was cancelled.')
 }
 
-class DocumentWorkerPool {
-  private readonly slots: Slot[] = Array.from({ length: POOL_SIZE }, () => ({ worker: undefined, job: undefined }))
+export class DocumentWorkerPool {
+  private readonly slots: Slot[]
   private readonly queue: Job[] = []
   private nextId = 1
+  private readonly size: number
+  private readonly timeoutMs: number
+  private readonly memoryMb: number
+  private readonly workerURL: URL | undefined
 
-  run(bytes: Uint8Array, options: DocumentOptions, signal?: AbortSignal): Promise<DocumentReadResult> {
+  constructor(options: DocumentWorkerPoolOptions = {}) {
+    this.size = options.size ?? DEFAULT_POOL_SIZE
+    this.timeoutMs = options.timeoutMs ?? DEFAULT_WORKER_TIMEOUT_MS
+    this.memoryMb = options.memoryMb ?? DEFAULT_WORKER_MEMORY_MB
+    this.workerURL = options.workerURL
+    if (!Number.isSafeInteger(this.size) || this.size < 1) throw new Error('document worker pool size must be a positive integer')
+    if (!Number.isSafeInteger(this.timeoutMs) || this.timeoutMs < 1) throw new Error('document worker timeout must be a positive integer')
+    if (!Number.isSafeInteger(this.memoryMb) || this.memoryMb < 64) throw new Error('document worker memory limit must be at least 64 MB')
+    this.slots = Array.from({ length: this.size }, () => ({ worker: undefined, job: undefined }))
+  }
+
+  run(bytes: Uint8Array, options: DocumentOptions, signal?: AbortSignal): Promise<ParsedDocumentResult> {
     if (signal?.aborted) return Promise.reject(abortError())
     return new Promise((resolve, reject) => {
       const job: Job = {
@@ -62,10 +84,10 @@ class DocumentWorkerPool {
   }
 
   private createWorker(): Worker {
-    const source = import.meta.url.endsWith('.ts') ? new URL('./worker.ts', import.meta.url) : new URL('./worker.js', import.meta.url)
+    const source = this.workerURL ?? (import.meta.url.endsWith('.ts') ? new URL('./worker.ts', import.meta.url) : new URL('./worker.js', import.meta.url))
     const options: WorkerOptions = {
       name: 'taskweaver-document-parser',
-      resourceLimits: { maxOldGenerationSizeMb: WORKER_MEMORY_MB },
+      resourceLimits: { maxOldGenerationSizeMb: this.memoryMb },
     }
     return new Worker(source, options)
   }
@@ -111,7 +133,7 @@ class DocumentWorkerPool {
       if (!slot.job && worker.listenerCount('message') === 0) this.attachWorker(slot, worker)
       slot.job = job
       worker.ref()
-      job.timeout = setTimeout(() => this.stop(slot, new Error('Document parsing exceeded the 30 second time limit. Retry with a smaller document.')), WORKER_TIMEOUT_MS)
+      job.timeout = setTimeout(() => this.stop(slot, new Error('Document parsing exceeded the ' + this.timeoutMs + ' ms time limit. Retry with a smaller document.')), this.timeoutMs)
       const transferable = Uint8Array.from(job.bytes)
       worker.postMessage({ id: job.id, bytes: transferable, options: job.options }, [transferable.buffer])
     }
@@ -127,7 +149,7 @@ class DocumentWorkerPool {
     else this.pump()
   }
 
-  private settle(job: Job, error?: Error, value?: DocumentReadResult): void {
+  private settle(job: Job, error?: Error, value?: ParsedDocumentResult): void {
     if (job.timeout) clearTimeout(job.timeout)
     if (job.abort && job.signal) job.signal.removeEventListener('abort', job.abort)
     if (error) job.reject(error)

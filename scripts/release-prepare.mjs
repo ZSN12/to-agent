@@ -13,9 +13,9 @@ const version = process.env.VERSION || process.argv[2] || '1.2.0'
 console.log(`
 TaskWeaver v${version} 发版检查
 ================================
-1. npm run test:roadmap-gate
-2. npm run test:z-host-deploy   # 本机终端
-3. npm run build:z-runtime && npm run install:app  # 可选
+1. pnpm run test:roadmap-gate
+2. pnpm run test:z-host-deploy   # 本机终端
+3. pnpm run build:z-runtime && pnpm run install:app  # 可选
 4. 拆 commit（建议）:
    - feat: prompt pipeline + 32KiB
    - feat: multi-agent gate + schedules + hooks

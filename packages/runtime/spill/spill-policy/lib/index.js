@@ -1,5 +1,5 @@
-import z from "@z/schemastery";
-import { TextRetainer, describeOmitted } from "@z/dsh-output-retention";
+import z from "@taskweaver/schemastery";
+import { TextRetainer, describeOmitted } from "@taskweaver/dsh-output-retention";
 //#region lib/types/index.js
 /**
 * The spill-policy PLUGIN: a `tools/post-execute` result transformer that keeps
@@ -10,7 +10,7 @@ import { TextRetainer, describeOmitted } from "@z/dsh-output-retention";
 * locator and retrieval guidance.
 *
 * It registers NO service and owns NO storage or preview mechanics: preview is
-* `@z/dsh-output-retention` (`TextRetainer`), storage is `ctx.spillStore`.
+* `@taskweaver/dsh-output-retention` (`TextRetainer`), storage is `ctx.spillStore`.
 * The policy only decides WHEN to spill and composes the notice.
 *
 * A second arm applies the SAME cap to the durable log: the
@@ -43,7 +43,7 @@ import { TextRetainer, describeOmitted } from "@z/dsh-output-retention";
 * replaced content still has its replacement bounded, and value replacements
 * and `block` decisions pass through unchanged.
 *
-* @module @z/dsh-spill-policy
+* @module @taskweaver/dsh-spill-policy
 */
 /** Cordis plugin name used by loader diagnostics. */
 const name = "spill-policy";

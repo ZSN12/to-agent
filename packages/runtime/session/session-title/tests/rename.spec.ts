@@ -1,15 +1,15 @@
 // SessionTitleService.rename: user-source acceptance, normalization/rejection
 // boundaries, and the pin (a user-sourced latest title schedules no automatic
 // revision; explicit refresh stays the unpin).
-import { Context } from '@z/cordis'
+import { Context } from '@taskweaver/cordis'
 import { describe, expect, it, vi } from 'vitest'
-import { createUserMessage } from '@z/dsh-llm'
-import SessionStore, { Session, SessionId } from '@z/dsh-session'
+import { createUserMessage } from '@taskweaver/dsh-llm'
+import SessionStore, { Session, SessionId } from '@taskweaver/dsh-session'
 import SessionTitleService, {
   SessionTitleProviderId,
   foldSessionTitle,
   type SessionTitleProviderRequest,
-} from '@z/dsh-session-title'
+} from '@taskweaver/dsh-session-title'
 
 const CONFIG = {
   fallbackMaxWords: 5,

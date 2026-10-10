@@ -1,4 +1,3 @@
-"use strict";
 /**
  * The settings-namespace scope contract. The type lives here, in the common
  * dependency of every feature that owns a preference, while the implementation
@@ -7,4 +6,5 @@
  * `attachSettings` without depending on the surface that binds it, which would
  * otherwise close a reference cycle.
  */
-Object.defineProperty(exports, "__esModule", { value: true });
+export {};
+//# sourceMappingURL=settings-scope.js.map

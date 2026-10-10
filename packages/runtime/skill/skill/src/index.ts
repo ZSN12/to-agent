@@ -3,19 +3,19 @@
  *
  * This package owns the Service Definition role of the skill capability seam.
  * Concrete
- * providers such as `@z/dsh-skill-filesystem` decide where skills come
+ * providers such as `@taskweaver/dsh-skill-filesystem` decide where skills come
  * from; this service only merges provider catalogs, resolves the winning skill
  * for a name, and exposes the winning summaries and definitions to consumers.
  *
- * @module @z/dsh-skill
+ * @module @taskweaver/dsh-skill
  */
 
-import { Context, Service } from '@z/cordis'
-import { assertNever } from '@z/dsh-llm'
-import { NamedEntries, ScopedLayers, scopeChainOf, scopeOf } from '@z/dsh-scope'
-import type { ScopeKey, ScopeLayer } from '@z/dsh-scope'
-import z from '@z/schemastery'
-import type Schema from '@z/schemastery'
+import { Context, Service } from '@taskweaver/cordis'
+import { assertNever } from '@taskweaver/dsh-llm'
+import { NamedEntries, ScopedLayers, scopeChainOf, scopeOf } from '@taskweaver/dsh-scope'
+import type { ScopeKey, ScopeLayer } from '@taskweaver/dsh-scope'
+import z from '@taskweaver/schemastery'
+import type Schema from '@taskweaver/schemastery'
 
 const SKILL_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 const DEFAULT_COLLECT_CACHE_ENTRIES = 128
@@ -152,7 +152,7 @@ export interface SkillInvocationSource {
   readonly form: 'instructions'
 }
 
-declare module '@z/dsh-llm' {
+declare module '@taskweaver/dsh-llm' {
   interface MessageSourceMap {
     /** A user-explicit skill invocation injected by the host. */
     'skill-invocation': SkillInvocationSource
@@ -281,7 +281,7 @@ export interface Config {
   readonly collectCacheMaxEntries?: number
 }
 
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
   interface Context {
     skills: SkillRegistry
   }

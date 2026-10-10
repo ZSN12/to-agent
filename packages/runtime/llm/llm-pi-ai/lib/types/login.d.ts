@@ -6,7 +6,7 @@
  *
  * @module dsh-llm-pi-ai/login
  */
-import type { Context } from '@z/cordis';
+import type { Context } from '@taskweaver/cordis';
 import type { PiAiAuthInjection } from './adapter.ts';
 /**
  * Register one authorization flow per installed provider that ships a login.

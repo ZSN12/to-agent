@@ -8,14 +8,14 @@
  * invalid or conflicting registration publishes nothing, and its disposer releases every
  * reservation together. Selection routes a query by the file's final extension; it never depends on
  * registration order. The seam exposes exactly the four operations and no JSON-RPC escape hatch.
- * @module @z/dsh-lsp
+ * @module @taskweaver/dsh-lsp
  */
-import { Context, Service } from '@z/cordis';
-import { HarnessError } from '@z/dsh-llm';
+import { Context, Service } from '@taskweaver/cordis';
+import { HarnessError } from '@taskweaver/dsh-llm';
 import type { LspProvider, LspQueryRequest, LspQueryResult, LspService } from './types.ts';
 export { LspProviderId } from './brand.ts';
 export type { LspHover, LspLocation, LspOperation, LspPosition, LspProvider, LspProviderQuery, LspQueryRequest, LspQueryResult, LspRange, LspService, } from './types.ts';
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
     interface Context {
         lsp: LspService;
     }

@@ -1,9 +1,9 @@
-import { Context } from "@z/cordis";
+import { Context } from "@taskweaver/cordis";
 //#region lib/types/store.js
 /**
 * Shared insertion-ordered storage and effect ownership for scope-aware registries.
 *
-* @module @z/dsh-scope
+* @module @taskweaver/dsh-scope
 */
 /**
 * Insertion-ordered named entries with caller-owned duplicate diagnostics.
@@ -223,7 +223,7 @@ var ScopedLayers = class {
 * Scoped-context primitive: mint a Cordis context that tags registrations with
 * an opaque identity and build routing-only event carriers for that identity.
 *
-* @module @z/dsh-scope
+* @module @taskweaver/dsh-scope
 */
 /** Context tag written by {@link createScope}. */
 const kScope = Symbol("dsh.scope");

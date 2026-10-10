@@ -1,10 +1,10 @@
-import { Context } from '@z/cordis'
+import { Context } from '@taskweaver/cordis'
 import { describe, expect, it, vi } from 'vitest'
-import LlmRuntime, { createUserMessage, LlmAdapter  } from '@z/dsh-llm'
-import type { GenerateOptions, StreamChunk } from '@z/dsh-llm'
-import SessionStore, { Session, SessionId } from '@z/dsh-session'
-import SessionTitleService, { type SessionTitleProvider } from '@z/dsh-session-title'
-import * as providerPlugin from '@z/dsh-session-title-first-prompt-llm'
+import LlmRuntime, { createUserMessage, LlmAdapter  } from '@taskweaver/dsh-llm'
+import type { GenerateOptions, StreamChunk } from '@taskweaver/dsh-llm'
+import SessionStore, { Session, SessionId } from '@taskweaver/dsh-session'
+import SessionTitleService, { type SessionTitleProvider } from '@taskweaver/dsh-session-title'
+import * as providerPlugin from '@taskweaver/dsh-session-title-first-prompt-llm'
 
 class RecordingAdapter extends LlmAdapter {
   readonly requests: GenerateOptions[] = []

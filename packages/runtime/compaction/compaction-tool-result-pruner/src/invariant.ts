@@ -1,13 +1,13 @@
 /**
- * Package-owned invariant companion for `@z/dsh-compaction-tool-result-pruner`.
- * @module @z/dsh-compaction-tool-result-pruner/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-compaction-tool-result-pruner`.
+ * @module @taskweaver/dsh-compaction-tool-result-pruner/invariant
  */
 
 /* jscpd:ignore-start */
-import type { Context } from '@z/cordis'
-import type { InvariantInstaller } from '@z/dsh-invariants'
+import type { Context } from '@taskweaver/cordis'
+import type { InvariantInstaller } from '@taskweaver/dsh-invariants'
 
-const PACKAGE_NAME = '@z/dsh-compaction-tool-result-pruner'
+const PACKAGE_NAME = '@taskweaver/dsh-compaction-tool-result-pruner'
 
 /** Cordis companion plugin name. */
 export const name = 'compaction-tool-result-pruner-invariant'

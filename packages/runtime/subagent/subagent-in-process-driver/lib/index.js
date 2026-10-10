@@ -1,9 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { foldConsumedWork } from "@z/dsh-agent";
-import { SessionId } from "@z/dsh-session";
-import { createUserMessage } from "@z/dsh-llm";
-import { appendDelegatedPolicyOverrides, applyChildComposition, assertSubagentMaxDepth, captureDelegatedPolicyOverrides, childSessionMeta, finalAssistantOutput, resolveChildAgentOptions, resolveChildDepth } from "@z/dsh-subagent";
-import { ToolArgsError, validateJsonSchemaValue } from "@z/dsh-tools";
+import { foldConsumedWork } from "@taskweaver/dsh-agent";
+import { SessionId } from "@taskweaver/dsh-session";
+import { createUserMessage } from "@taskweaver/dsh-llm";
+import { appendDelegatedPolicyOverrides, applyChildComposition, assertSubagentMaxDepth, captureDelegatedPolicyOverrides, childSessionMeta, finalAssistantOutput, resolveChildAgentOptions, resolveChildDepth } from "@taskweaver/dsh-subagent";
+import { ToolArgsError, validateJsonSchemaValue } from "@taskweaver/dsh-tools";
 //#region lib/types/structured.js
 /**
 * Child-scoped structured-output tool, prompt instruction, terminal guard, and authoritative
@@ -14,7 +14,7 @@ import { ToolArgsError, validateJsonSchemaValue } from "@z/dsh-tools";
 * Capture commits only after the authoritative `tools/result` succeeds; Code Mode capture also
 * waits for the enclosing `run_code` result. The terminal result marker and monotonic tool
 * guard prevent later calls from reopening a completed structured run.
-* @module @z/dsh-subagent-in-process-driver/structured
+* @module @taskweaver/dsh-subagent-in-process-driver/structured
 */
 /** The model-facing tool name a structured child must call to finish. */
 const STRUCTURED_OUTPUT_TOOL = "structured_output";
@@ -118,7 +118,7 @@ function attachStructuredRuntime(childCtx, schema) {
 * composes and drives them directly, so this driver owns exactly one turn with
 * one result.
 *
-* @module @z/dsh-subagent-in-process-driver
+* @module @taskweaver/dsh-subagent-in-process-driver
 */
 /** Map a session turn outcome to the subagent seam's terminal vocabulary. */
 function toStopReason(reason) {

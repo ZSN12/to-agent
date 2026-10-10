@@ -1,10 +1,10 @@
-import { launchEnvironmentOf } from "@z/dsh-launch-environment";
-import { CONTEXT_WINDOW_EXCEEDED_CODE, CallId, EMPTY_RESPONSE_CODE, INVALID_CREDENTIAL_CODE, LlmAdapter, LlmError, QUOTA_EXCEEDED_CODE, ReasoningEffortId, RetryPolicySchema, assertUsableApiKey, attributionHeaders, contentHasImage, isContextWindowExceededError, isQuotaExceededError, normalizeApiKey, offloadRequestImagesWithPolicy, requestImageHandleText, resolveRetryPolicy } from "@z/dsh-llm";
-import { deepEqualJson, installSettingsSection, settingsNamespace } from "@z/dsh-settings";
+import { launchEnvironmentOf } from "@taskweaver/dsh-launch-environment";
+import { CONTEXT_WINDOW_EXCEEDED_CODE, CallId, EMPTY_RESPONSE_CODE, INVALID_CREDENTIAL_CODE, LlmAdapter, LlmError, QUOTA_EXCEEDED_CODE, ReasoningEffortId, RetryPolicySchema, assertUsableApiKey, attributionHeaders, contentHasImage, isContextWindowExceededError, isQuotaExceededError, normalizeApiKey, offloadRequestImagesWithPolicy, requestImageHandleText, resolveRetryPolicy } from "@taskweaver/dsh-llm";
+import { deepEqualJson, installSettingsSection, settingsNamespace } from "@taskweaver/dsh-settings";
 import { createModels, createProvider, getSupportedThinkingLevels, isContextOverflow } from "@earendil-works/pi-ai";
-import { MAX_TIMER_DELAY_MS, idleWatchdog, timeoutOf } from "@z/dsh-timeout";
-import z from "@z/schemastery";
-import { credentialKey, credentialKeyId, credentialKeyScope, credentialRef, isCredentialKeySegment, isCredentialRefName } from "@z/dsh-credentials";
+import { MAX_TIMER_DELAY_MS, idleWatchdog, timeoutOf } from "@taskweaver/dsh-timeout";
+import z from "@taskweaver/schemastery";
+import { credentialKey, credentialKeyId, credentialKeyScope, credentialRef, isCredentialKeySegment, isCredentialRefName } from "@taskweaver/dsh-credentials";
 import { builtinProviders, getBuiltinModels, getBuiltinProviders } from "@earendil-works/pi-ai/providers/all";
 import { anthropicMessagesApi } from "@earendil-works/pi-ai/api/anthropic-messages.lazy";
 import { openAICompletionsApi } from "@earendil-works/pi-ai/api/openai-completions.lazy";
@@ -2330,7 +2330,7 @@ function registerPiAiFlows(ctx, auth) {
 *
 * ```yaml
 * - id: llm
-*   name: '@z/dsh-llm-pi-ai'
+*   name: '@taskweaver/dsh-llm-pi-ai'
 *   config:
 *     providers:
 *       # Catalog route: everything but the credential comes from pi-ai.
@@ -2371,7 +2371,7 @@ function registerPiAiFlows(ctx, auth) {
 *               max: ultra
 * ```
 *
-* @module @z/dsh-llm-pi-ai
+* @module @taskweaver/dsh-llm-pi-ai
 */
 const name = "llm-pi-ai";
 const inject = ["llm"];

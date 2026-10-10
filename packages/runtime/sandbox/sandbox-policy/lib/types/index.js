@@ -1,4 +1,3 @@
-"use strict";
 /**
  * The sandbox POLICY home (`ctx.sandboxPolicy`): the single owner of the
  * deployment's sandbox fallbacks plus per-session resolution: the file-effect
@@ -16,48 +15,17 @@
  * reads session state once at each operation boundary; executors and providers
  * remain session-free.
  *
- * @module @z/dsh-sandbox-policy
+ * @module @taskweaver/dsh-sandbox-policy
  */
-var __extends = (this && this.__extends) || (function () {
-    var extendStatics = function (d, b) {
-        extendStatics = Object.setPrototypeOf ||
-            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-            function (d, b) { for (var p in b) if (Object.prototype.hasOwnProperty.call(b, p)) d[p] = b[p]; };
-        return extendStatics(d, b);
-    };
-    return function (d, b) {
-        if (typeof b !== "function" && b !== null)
-            throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
-})();
-var __assign = (this && this.__assign) || function () {
-    __assign = Object.assign || function(t) {
-        for (var s, i = 1, n = arguments.length; i < n; i++) {
-            s = arguments[i];
-            for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p))
-                t[p] = s[p];
-        }
-        return t;
-    };
-    return __assign.apply(this, arguments);
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.SandboxPolicyService = exports.setSandboxMode = exports.effectiveSandboxMode = exports.SANDBOX_MODES = void 0;
-var node_path_1 = require("node:path");
-var cordis_1 = require("@z/cordis");
-var schemastery_1 = require("@z/schemastery");
-var dsh_sandbox_1 = require("@z/dsh-sandbox");
-var session_mode_ts_1 = require("./session-mode.ts");
-var session_mode_ts_2 = require("./session-mode.ts");
-Object.defineProperty(exports, "SANDBOX_MODES", { enumerable: true, get: function () { return session_mode_ts_2.SANDBOX_MODES; } });
-Object.defineProperty(exports, "effectiveSandboxMode", { enumerable: true, get: function () { return session_mode_ts_2.effectiveSandboxMode; } });
-Object.defineProperty(exports, "setSandboxMode", { enumerable: true, get: function () { return session_mode_ts_2.setSandboxMode; } });
+import { resolve as resolvePath } from 'node:path';
+import { Service } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
+import { canonicalPath } from '@taskweaver/dsh-sandbox';
+import { effectiveSandboxMode } from "./session-mode.js";
+export { SANDBOX_MODES, effectiveSandboxMode, setSandboxMode } from "./session-mode.js";
 /** Resolve filesystem identity before lexical normalization can erase symlink-sensitive components. */
 function resolveWorkspaceRoot(path) {
-    return (0, node_path_1.resolve)((0, dsh_sandbox_1.canonicalPath)(path));
+    return resolvePath(canonicalPath(path));
 }
 /** Render the policy without claiming which capabilities are mounted. */
 function renderPolicyContext(policy) {
@@ -65,13 +33,13 @@ function renderPolicyContext(policy) {
         case 'read-only':
             return 'Current Z file policy: read-only. Any available operation enforced by the Z file sandbox cannot modify files in the standing mode. Do not refuse a required modification from this policy alone: try an available tool normally and follow any denial and escalation guidance it returns.';
         case 'workspace-write':
-            return "Current Z file policy: workspace-write. Any available operation enforced by the Z file sandbox may modify files under the session workspace: ".concat(JSON.stringify(policy.workspaceRoot), ". Some platform temporary areas may also be writable.");
+            return `Current Z file policy: workspace-write. Any available operation enforced by the Z file sandbox may modify files under the session workspace: ${JSON.stringify(policy.workspaceRoot)}. Some platform temporary areas may also be writable.`;
         case 'danger-full-access':
             return 'Current Z file policy: danger-full-access. The Z file sandbox does not restrict file modifications by available operations.';
         /* v8 ignore next 4 -- SandboxMode is a typed same-process closed union; this branch is only the static exhaustiveness guard. */
         default: {
-            var mode = policy.mode;
-            throw new Error("unreachable sandbox mode: ".concat(String(mode)));
+            const mode = policy.mode;
+            throw new Error(`unreachable sandbox mode: ${String(mode)}`);
         }
     }
 }
@@ -81,30 +49,37 @@ function renderPolicyContext(policy) {
  * section. Tool layers call {@link resolve} for each execution so a session's
  * mode log and immutable cwd travel together to every enforcing capability.
  */
-var SandboxPolicyService = /** @class */ (function (_super) {
-    __extends(SandboxPolicyService, _super);
-    function SandboxPolicyService(ctx, config) {
-        var _a;
-        var _this = _super.call(this, ctx, 'sandboxPolicy') || this;
+export class SandboxPolicyService extends Service {
+    // Inline schema call: the config catalog walks `static Config` statically.
+    static Config = z.object({
+        mode: z.union(['read-only', 'workspace-write', 'danger-full-access']).default('read-only'),
+        // No schema default: process.cwd() is resolved in the constructor so the
+        // stored root is always absolute regardless of how it was supplied.
+        workspaceRoot: z.string(),
+    });
+    /** The deployment default mode — the fallback beneath a session override. */
+    defaultMode;
+    /** The absolute `workspace-write` fallback root for calls without a session cwd. */
+    workspaceRoot;
+    constructor(ctx, config) {
+        super(ctx, 'sandboxPolicy');
         // schemastery (static Config) already filled `mode`; the cast records that
         // runtime fact. `workspaceRoot` has NO schema default, so its fallback to
         // the process cwd is real branching, resolved absolute either way.
-        _this.defaultMode = config.mode;
-        _this.workspaceRoot = resolveWorkspaceRoot((_a = config.workspaceRoot) !== null && _a !== void 0 ? _a : process.cwd());
-        ctx.inject(['systemPrompt'], function (scope) {
+        this.defaultMode = config.mode;
+        this.workspaceRoot = resolveWorkspaceRoot(config.workspaceRoot ?? process.cwd());
+        ctx.inject(['systemPrompt'], (scope) => {
             scope.systemPrompt.context({
                 name: 'sandbox:policy',
                 order: 110,
-                text: function (context) {
-                    var _a;
-                    var session = (_a = context.agent) === null || _a === void 0 ? void 0 : _a.session;
+                text: (context) => {
+                    const session = context.agent?.session;
                     return session === undefined
                         ? ''
-                        : renderPolicyContext(_this.resolve({ session: session }));
+                        : renderPolicyContext(this.resolve({ session }));
                 },
             });
         });
-        return _this;
     }
     /**
      * Resolve the complete policy for one capability call. An approved explicit
@@ -115,28 +90,22 @@ var SandboxPolicyService = /** @class */ (function (_super) {
      * @param request - optional session and approved mode override.
      * @returns the fully resolved per-call mode and absolute workspace root.
      */
-    SandboxPolicyService.prototype.resolve = function (request) {
-        var _a, _b, _c;
-        if (request === void 0) { request = {}; }
-        var session = request.session;
-        return __assign({ mode: (_b = (_a = request.mode) !== null && _a !== void 0 ? _a : (session === undefined ? undefined : this.overrideOf(session))) !== null && _b !== void 0 ? _b : this.defaultMode, workspaceRoot: resolveWorkspaceRoot((_c = session === null || session === void 0 ? void 0 : session.header.cwd) !== null && _c !== void 0 ? _c : this.workspaceRoot) }, session === undefined ? {} : { sessionId: session.id });
-    };
+    resolve(request = {}) {
+        const { session } = request;
+        return {
+            mode: request.mode ?? (session === undefined ? undefined : this.overrideOf(session)) ?? this.defaultMode,
+            workspaceRoot: resolveWorkspaceRoot(session?.header.cwd ?? this.workspaceRoot),
+            ...session === undefined ? {} : { sessionId: session.id },
+        };
+    }
     /**
      * Read the session override without applying the deployment default.
      * @param session - session whose log supplies the override.
      * @returns the last logged mode, or `undefined` without one.
      */
-    SandboxPolicyService.prototype.overrideOf = function (session) {
-        return (0, session_mode_ts_1.effectiveSandboxMode)(session.events);
-    };
-    // Inline schema call: the config catalog walks `static Config` statically.
-    SandboxPolicyService.Config = schemastery_1.default.object({
-        mode: schemastery_1.default.union(['read-only', 'workspace-write', 'danger-full-access']).default('read-only'),
-        // No schema default: process.cwd() is resolved in the constructor so the
-        // stored root is always absolute regardless of how it was supplied.
-        workspaceRoot: schemastery_1.default.string(),
-    });
-    return SandboxPolicyService;
-}(cordis_1.Service));
-exports.SandboxPolicyService = SandboxPolicyService;
-exports.default = SandboxPolicyService;
+    overrideOf(session) {
+        return effectiveSandboxMode(session.events);
+    }
+}
+export default SandboxPolicyService;
+//# sourceMappingURL=index.js.map

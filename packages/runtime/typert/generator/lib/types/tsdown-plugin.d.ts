@@ -3,7 +3,7 @@
  * standard decorators in TypeScript dependencies before bundling, then emits
  * model-driven face artifacts at the package output root. Packages without a
  * Typert or Remote export are skipped.
- * @module @z/dsh-typert-generator/tsdown
+ * @module @taskweaver/dsh-typert-generator/tsdown
  */
 import type { TypertFace } from './model.ts';
 /** The subset of the rolldown plugin contract used here (structural; avoids a rolldown type dependency). */

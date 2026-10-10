@@ -1,7 +1,7 @@
 import { createRequire } from 'node:module'
 import { describe, expect, it } from 'vitest'
-import { APP_IDENTITY, attributionHeaders, userAgent } from '@z/dsh-llm'
-import type { AppIdentity } from '@z/dsh-llm'
+import { APP_IDENTITY, attributionHeaders, userAgent } from '@taskweaver/dsh-llm'
+import type { AppIdentity } from '@taskweaver/dsh-llm'
 
 const manifest = createRequire(import.meta.url)('../package.json') as { version: string }
 

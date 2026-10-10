@@ -1,12 +1,9 @@
-"use strict";
-/** Package-owned tool-pipeline invariants. @module @z/dsh-tools/invariant */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.apply = exports.inject = exports.name = void 0;
-var PACKAGE_NAME = '@z/dsh-tools';
+/** Package-owned tool-pipeline invariants. @module @taskweaver/dsh-tools/invariant */
+const PACKAGE_NAME = '@taskweaver/dsh-tools';
 /** Cordis companion plugin name. */
-exports.name = 'tools-invariant';
+export const name = 'tools-invariant';
 /** Service required before the companion can reserve package ownership. */
-exports.inject = ['invariants'];
+export const inject = ['invariants'];
 /** Validate the immutable final execution/result snapshot. */
 function validateResult(exec, result, fail) {
     if (!Object.isFrozen(exec))
@@ -19,60 +16,57 @@ function validateResult(exec, result, fail) {
     }
 }
 /** Install monotonic pipeline, final-snapshot, and code-dispatch enclosure checks. */
-var install = Object.assign(function (ctx, fail) {
-    var stages = new WeakMap();
-    var openTurns = new WeakMap();
-    var dispatchRoots = new WeakMap();
-    var validateDispatch = function (session, event) {
+const install = Object.assign((ctx, fail) => {
+    const stages = new WeakMap();
+    const openTurns = new WeakMap();
+    const dispatchRoots = new WeakMap();
+    const validateDispatch = (session, event) => {
         if (event.type !== 'tool/code-dispatch-start' && event.type !== 'tool/code-dispatch')
             return;
-        var root = String(event.data.rootCallId);
-        var parent = String(event.data.parentCallId);
-        var child = String(event.data.subCallId);
+        const root = String(event.data.rootCallId);
+        const parent = String(event.data.parentCallId);
+        const child = String(event.data.subCallId);
         if (root.length === 0 || parent.length === 0 || child.length === 0) {
-            fail("".concat(event.type, " must carry non-empty rootCallId, parentCallId, and subCallId"));
+            fail(`${event.type} must carry non-empty rootCallId, parentCallId, and subCallId`);
             return;
         }
-        var roots = dispatchRoots.get(session);
-        var known = roots === null || roots === void 0 ? void 0 : roots.get(child);
+        const roots = dispatchRoots.get(session);
+        const known = roots?.get(child);
         if (known !== undefined && known !== root)
-            fail("".concat(event.type, " changed rootCallId for subCallId ").concat(child));
-        if (parent !== root && (roots === null || roots === void 0 ? void 0 : roots.get(parent)) !== root) {
-            fail("".concat(event.type, " parentCallId ").concat(parent, " does not belong to rootCallId ").concat(root));
+            fail(`${event.type} changed rootCallId for subCallId ${child}`);
+        if (parent !== root && roots?.get(parent) !== root) {
+            fail(`${event.type} parentCallId ${parent} does not belong to rootCallId ${root}`);
         }
     };
-    var commitDispatch = function (session, event) {
+    const commitDispatch = (session, event) => {
         if (event.type !== 'tool/code-dispatch-start' && event.type !== 'tool/code-dispatch')
             return;
-        var roots = dispatchRoots.get(session);
+        const roots = dispatchRoots.get(session);
         roots.set(String(event.data.subCallId), String(event.data.rootCallId));
     };
-    var seed = function (session) {
-        var openTurn = null;
+    const seed = (session) => {
+        let openTurn = null;
         dispatchRoots.set(session, new Map());
-        for (var _i = 0, _a = session.events; _i < _a.length; _i++) {
-            var event_1 = _a[_i];
-            validateDispatch(session, event_1);
-            commitDispatch(session, event_1);
-            if (event_1.type === 'turn/start')
-                openTurn = event_1.data.turn;
-            else if (event_1.type === 'turn/end')
+        for (const event of session.events) {
+            validateDispatch(session, event);
+            commitDispatch(session, event);
+            if (event.type === 'turn/start')
+                openTurn = event.data.turn;
+            else if (event.type === 'turn/end')
                 openTurn = null;
-            else if ((event_1.type === 'tool/code-dispatch-start' || event_1.type === 'tool/code-dispatch')
+            else if ((event.type === 'tool/code-dispatch-start' || event.type === 'tool/code-dispatch')
                 && openTurn === null) {
-                fail("".concat(event_1.type, " appended outside any open turn"));
+                fail(`${event.type} appended outside any open turn`);
             }
         }
         openTurns.set(session, openTurn);
         return openTurn;
     };
-    var openTurnFor = function (session) { var _a; return (_a = openTurns.get(session)) !== null && _a !== void 0 ? _a : seed(session); };
-    for (var _i = 0, _a = ctx.sessions.list(); _i < _a.length; _i++) {
-        var session = _a[_i];
+    const openTurnFor = (session) => openTurns.get(session) ?? seed(session);
+    for (const session of ctx.sessions.list())
         seed(session);
-    }
-    ctx.on('session/created', function (session) { seed(session); }, { global: true });
-    ctx.on('session/event', function (session, event) {
+    ctx.on('session/created', (session) => { seed(session); }, { global: true });
+    ctx.on('session/event', (session, event) => {
         validateDispatch(session, event);
         commitDispatch(session, event);
         if (event.type === 'turn/start')
@@ -80,42 +74,42 @@ var install = Object.assign(function (ctx, fail) {
         else if (event.type === 'turn/end')
             openTurns.set(session, null);
     }, { global: true });
-    ctx.on('internal/dispatch', function (_mode, eventName, args) {
+    ctx.on('internal/dispatch', (_mode, eventName, args) => {
         if (eventName === 'session/event') {
-            var _a = args, session = _a[0], event_2 = _a[1];
-            validateDispatch(session, event_2);
-            if ((event_2.type === 'tool/code-dispatch-start' || event_2.type === 'tool/code-dispatch')
+            const [session, event] = args;
+            validateDispatch(session, event);
+            if ((event.type === 'tool/code-dispatch-start' || event.type === 'tool/code-dispatch')
                 && openTurnFor(session) === null) {
-                fail("".concat(event_2.type, " appended outside any open turn"));
+                fail(`${event.type} appended outside any open turn`);
             }
             return;
         }
         if (eventName === 'tools/pre-execute') {
-            var exec_1 = args[0];
-            if (stages.has(exec_1))
+            const exec = args[0];
+            if (stages.has(exec))
                 fail('tools/pre-execute repeated for one execution');
-            stages.set(exec_1, 'pre');
+            stages.set(exec, 'pre');
             return;
         }
         if (eventName === 'tools/execute') {
-            var exec_2 = args[0];
-            if (stages.get(exec_2) !== 'pre')
+            const exec = args[0];
+            if (stages.get(exec) !== 'pre')
                 fail('tools/execute must follow tools/pre-execute');
-            stages.set(exec_2, 'execute');
+            stages.set(exec, 'execute');
             return;
         }
         if (eventName === 'tools/post-execute') {
-            var exec_3 = args[0];
-            var previous = stages.get(exec_3);
+            const exec = args[0];
+            const previous = stages.get(exec);
             if (previous !== 'pre' && previous !== 'execute') {
                 fail('tools/post-execute must follow tools/pre-execute or tools/execute');
             }
-            stages.set(exec_3, 'post');
+            stages.set(exec, 'post');
             return;
         }
         if (eventName !== 'tools/result')
             return;
-        var _b = args, exec = _b[0], result = _b[1];
+        const [exec, result] = args;
         validateResult(exec, result, fail);
         stages.delete(exec);
     }, { global: true });
@@ -125,7 +119,5 @@ var install = Object.assign(function (ctx, fail) {
  * @param ctx - Cordis context carrying the invariant service.
  * @returns the installed registration's disposer after setup succeeds.
  */
-var apply = function (ctx) {
-    return Promise.resolve(ctx.invariants.register(PACKAGE_NAME, install));
-};
-exports.apply = apply;
+export const apply = (ctx) => Promise.resolve(ctx.invariants.register(PACKAGE_NAME, install));
+//# sourceMappingURL=invariant.js.map

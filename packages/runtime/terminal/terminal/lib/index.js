@@ -1,9 +1,9 @@
-import { Service } from "@z/cordis";
+import { Service } from "@taskweaver/cordis";
 //#region lib/types/types.js
 /**
 * Types shared by PTY backends, the owner-scoped registry, and tool consumers.
 * Runtime service code lives in `./index.ts`.
-* @module @z/dsh-terminal/types
+* @module @taskweaver/dsh-terminal/types
 */
 /**
 * Backend-reported failure to clean partial resources after unpublished setup failed.
@@ -25,7 +25,7 @@ var TerminalBackendCleanupError = class extends AggregateError {
 /**
 * Owner-scoped persistent PTY registry. Backends own terminal mechanics while
 * this service owns ids, publication, authorization, and awaited cleanup.
-* @module @z/dsh-terminal
+* @module @taskweaver/dsh-terminal
 */
 /** Error carrying a stable {@link TerminalErrorCode}. */
 var TerminalError = class extends Error {

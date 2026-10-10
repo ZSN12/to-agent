@@ -1,4 +1,3 @@
-"use strict";
 /**
  * Shared execution plumbing for the `glob` / `grep` search tools: the
  * package-owned `SEARCH_*` error vocabulary, one spawn helper that runs the
@@ -17,111 +16,31 @@
  * artifact is the formatted result saved through `ctx.spillStore.saveText()`
  * ({@link trySaveFormattedResult}).
  *
- * @module @z/dsh-tool-fs-search/search-core
+ * @module @taskweaver/dsh-tool-fs-search/search-core
  */
-var __extends = (this && this.__extends) || (function () {
-    var extendStatics = function (d, b) {
-        extendStatics = Object.setPrototypeOf ||
-            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-            function (d, b) { for (var p in b) if (Object.prototype.hasOwnProperty.call(b, p)) d[p] = b[p]; };
-        return extendStatics(d, b);
-    };
-    return function (d, b) {
-        if (typeof b !== "function" && b !== null)
-            throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
-})();
-var __assign = (this && this.__assign) || function () {
-    __assign = Object.assign || function(t) {
-        for (var s, i = 1, n = arguments.length; i < n; i++) {
-            s = arguments[i];
-            for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p))
-                t[p] = s[p];
-        }
-        return t;
-    };
-    return __assign.apply(this, arguments);
-};
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
-var __generator = (this && this.__generator) || function (thisArg, body) {
-    var _ = { label: 0, sent: function() { if (t[0] & 1) throw t[1]; return t[1]; }, trys: [], ops: [] }, f, y, t, g = Object.create((typeof Iterator === "function" ? Iterator : Object).prototype);
-    return g.next = verb(0), g["throw"] = verb(1), g["return"] = verb(2), typeof Symbol === "function" && (g[Symbol.iterator] = function() { return this; }), g;
-    function verb(n) { return function (v) { return step([n, v]); }; }
-    function step(op) {
-        if (f) throw new TypeError("Generator is already executing.");
-        while (g && (g = 0, op[0] && (_ = 0)), _) try {
-            if (f = 1, y && (t = op[0] & 2 ? y["return"] : op[0] ? y["throw"] || ((t = y["return"]) && t.call(y), 0) : y.next) && !(t = t.call(y, op[1])).done) return t;
-            if (y = 0, t) op = [op[0] & 2, t.value];
-            switch (op[0]) {
-                case 0: case 1: t = op; break;
-                case 4: _.label++; return { value: op[1], done: false };
-                case 5: _.label++; y = op[1]; op = [0]; continue;
-                case 7: op = _.ops.pop(); _.trys.pop(); continue;
-                default:
-                    if (!(t = _.trys, t = t.length > 0 && t[t.length - 1]) && (op[0] === 6 || op[0] === 2)) { _ = 0; continue; }
-                    if (op[0] === 3 && (!t || (op[1] > t[0] && op[1] < t[3]))) { _.label = op[1]; break; }
-                    if (op[0] === 6 && _.label < t[1]) { _.label = t[1]; t = op; break; }
-                    if (t && _.label < t[2]) { _.label = t[2]; _.ops.push(op); break; }
-                    if (t[2]) _.ops.pop();
-                    _.trys.pop(); continue;
-            }
-            op = body.call(thisArg, _);
-        } catch (e) { op = [6, e]; y = 0; } finally { f = t = 0; }
-        if (op[0] & 5) throw op[1]; return { value: op[0] ? op[1] : void 0, done: true };
-    }
-};
-var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
-    if (pack || arguments.length === 2) for (var i = 0, l = from.length, ar; i < l; i++) {
-        if (ar || !(i in from)) {
-            if (!ar) ar = Array.prototype.slice.call(from, 0, i);
-            ar[i] = from[i];
-        }
-    }
-    return to.concat(ar || Array.prototype.slice.call(from));
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.SearchError = exports.SEARCH_META_MAX_BYTES = exports.SEARCH_GRACE_MS = exports.SEARCH_STDERR_MAX_BYTES = exports.SEARCH_TIMEOUT_MS = exports.RAW_OUTPUT_MAX_BYTES = void 0;
-exports.resolveRgPath = resolveRgPath;
-exports.runRipgrep = runRipgrep;
-exports.toWorkdirRelative = toWorkdirRelative;
-exports.previewLine = previewLine;
-exports.retainGrepMatches = retainGrepMatches;
-exports.retainGlobPaths = retainGlobPaths;
-exports.trySaveFormattedResult = trySaveFormattedResult;
-var node_fs_1 = require("node:fs");
-var node_path_1 = require("node:path");
-var dsh_llm_1 = require("@z/dsh-llm");
-var dsh_output_retention_1 = require("@z/dsh-output-retention");
+import { existsSync } from 'node:fs';
+import { isAbsolute, relative, sep } from 'node:path';
+import { HarnessError } from '@taskweaver/dsh-llm';
+import { ItemRetainer, TextRetainer } from '@taskweaver/dsh-output-retention';
 /**
  * Default cap on the complete raw `rg` stdout the tools will parse (the
  * `rawOutputMaxBytes` config), matching Claude Code's ripgrep raw buffer.
  */
-exports.RAW_OUTPUT_MAX_BYTES = 20000000;
+export const RAW_OUTPUT_MAX_BYTES = 20_000_000;
 /**
  * Default cooperative tool-call timeout budget in milliseconds (the `timeoutMs`
  * config), attached to both tool definitions for
- * `@z/dsh-tool-call-timeout-policy` to enforce through `exec.signal`.
+ * `@taskweaver/dsh-tool-call-timeout-policy` to enforce through `exec.signal`.
  */
-exports.SEARCH_TIMEOUT_MS = 30000;
+export const SEARCH_TIMEOUT_MS = 30_000;
 /**
  * Default cap in bytes on the retained stderr tail of one search run — a
  * diagnostic excerpt only (the tool never reads a stderr spill path, and the
  * collect disposition requests none).
  */
-exports.SEARCH_STDERR_MAX_BYTES = 64 * 1024;
+export const SEARCH_STDERR_MAX_BYTES = 64 * 1024;
 /** Default terminate grace period for a search process (ms). */
-exports.SEARCH_GRACE_MS = 3000;
+export const SEARCH_GRACE_MS = 3_000;
 /**
  * Default cap in bytes on one search's serialized `presentationMeta` (the
  * `searchMetaMaxBytes` config). The inline match/path caps already bound the item
@@ -132,32 +51,29 @@ exports.SEARCH_GRACE_MS = 3000;
  * projection owns this cap. 64 KiB holds the full default-capped result of a
  * typical search while bounding the pathological one.
  */
-exports.SEARCH_META_MAX_BYTES = 65536;
+export const SEARCH_META_MAX_BYTES = 65_536;
 /**
  * Typed search failure. Extends {@link HarnessError} so it carries a stable
  * {@link SearchErrorCode} and chains `cause`; the tool registry exposes
  * `{ name, code }` on `isError` results so retry/permission/UI layers can
  * branch without parsing messages.
  */
-var SearchError = /** @class */ (function (_super) {
-    __extends(SearchError, _super);
-    function SearchError(message, code, options) {
-        var _this = _super.call(this, message, code, options) || this;
-        _this.code = code;
-        return _this;
+export class SearchError extends HarnessError {
+    code;
+    constructor(message, code, options) {
+        super(message, code, options);
+        this.code = code;
     }
-    return SearchError;
-}(dsh_llm_1.HarnessError));
-exports.SearchError = SearchError;
+}
 /**
  * The retained stderr tail as a diagnostic excerpt, with a truncation note when
  * the subprocess seam dropped bytes.
  */
 function stderrExcerpt(stderrText, truncated) {
-    var text = stderrText.trim();
+    const text = stderrText.trim();
     if (text.length === 0)
         return '';
-    return truncated ? "".concat(text, " [stderr truncated]") : text;
+    return truncated ? `${text} [stderr truncated]` : text;
 }
 /**
  * Classify a nonzero-exit `rg` run into the search error vocabulary. There is
@@ -165,11 +81,11 @@ function stderrExcerpt(stderrText, truncated) {
  * occur — a launch failure rejects at spawn (see {@link runRipgrep}).
  */
 function classifyRunFailure(toolName, exitCode, stderrText, stderrTruncated) {
-    var stderr = stderrExcerpt(stderrText, stderrTruncated);
+    const stderr = stderrExcerpt(stderrText, stderrTruncated);
     if (/regex parse error|error parsing glob/i.test(stderr)) {
-        return new SearchError("".concat(toolName, " pattern rejected by ripgrep: ").concat(stderr), 'SEARCH_INVALID_PATTERN');
+        return new SearchError(`${toolName} pattern rejected by ripgrep: ${stderr}`, 'SEARCH_INVALID_PATTERN');
     }
-    return new SearchError("".concat(toolName, " search failed (exit ").concat(exitCode, ")").concat(stderr.length > 0 ? ": ".concat(stderr) : ''), 'SEARCH_FAILED');
+    return new SearchError(`${toolName} search failed (exit ${exitCode})${stderr.length > 0 ? `: ${stderr}` : ''}`, 'SEARCH_FAILED');
 }
 /**
  * Acquire the COMPLETE raw stdout of a finished run, enforcing
@@ -179,17 +95,17 @@ function classifyRunFailure(toolName, exitCode, stderrText, stderrTruncated) {
  * stream.
  */
 function completeStdout(toolName, stdout, rawOutputMaxBytes) {
-    var narrow = 'narrow pattern, path, or include and retry';
+    const narrow = 'narrow pattern, path, or include and retry';
     if (!stdout.lossy) {
-        var inlineBytes = Buffer.byteLength(stdout.text, 'utf8');
+        const inlineBytes = Buffer.byteLength(stdout.text, 'utf8');
         if (inlineBytes > rawOutputMaxBytes) {
-            throw new SearchError("".concat(toolName, " produced ").concat(inlineBytes, " bytes of raw output, over the ").concat(rawOutputMaxBytes, "-byte cap; ").concat(narrow), 'SEARCH_RAW_OUTPUT_OVERFLOW');
+            throw new SearchError(`${toolName} produced ${inlineBytes} bytes of raw output, over the ${rawOutputMaxBytes}-byte cap; ${narrow}`, 'SEARCH_RAW_OUTPUT_OVERFLOW');
         }
         return stdout.text;
     }
-    throw new SearchError("".concat(toolName, " produced more raw output than the subprocess seam retained within the ").concat(rawOutputMaxBytes, "-byte cap; ").concat(narrow), 'SEARCH_RAW_OUTPUT_OVERFLOW');
+    throw new SearchError(`${toolName} produced more raw output than the subprocess seam retained within the ${rawOutputMaxBytes}-byte cap; ${narrow}`, 'SEARCH_RAW_OUTPUT_OVERFLOW');
 }
-var rgPathPromise;
+let rgPathPromise;
 /**
  * The packaged ripgrep binary path, resolved lazily once per process.
  *
@@ -202,28 +118,20 @@ var rgPathPromise;
  * @returns the packaged binary's absolute path; successful resolutions are
  *   memoized, while a rejected resolution is cleared so a later search can retry.
  */
-function resolveRgPath() {
-    var _this = this;
+export function resolveRgPath() {
     if (rgPathPromise === undefined) {
-        var pending_1 = Promise.resolve().then(function () { return __awaiter(_this, void 0, void 0, function () {
-            var executableSidecar;
-            return __generator(this, function (_a) {
-                switch (_a.label) {
-                    case 0:
-                        executableSidecar = "".concat(process.execPath, "-rg");
-                        if ('pkg' in process && (0, node_fs_1.existsSync)(executableSidecar))
-                            return [2 /*return*/, executableSidecar];
-                        return [4 /*yield*/, Promise.resolve().then(function () { return require('@vscode/ripgrep'); })];
-                    case 1: return [2 /*return*/, (_a.sent()).rgPath];
-                }
-            });
-        }); });
-        rgPathPromise = pending_1;
+        const pending = Promise.resolve().then(async () => {
+            const executableSidecar = `${process.execPath}-rg`;
+            if ('pkg' in process && existsSync(executableSidecar))
+                return executableSidecar;
+            return (await import('@vscode/ripgrep')).rgPath;
+        });
+        rgPathPromise = pending;
         // A rejected lazy import is not a usable cache entry. In particular, a
         // transient deploy/optional-package resolution race must not poison every
         // later grep/glob call for the lifetime of the Host process.
-        void pending_1.catch(function () {
-            if (rgPathPromise === pending_1)
+        void pending.catch(() => {
+            if (rgPathPromise === pending)
                 rgPathPromise = undefined;
         });
     }
@@ -231,26 +139,26 @@ function resolveRgPath() {
 }
 /** Add only stable, path-free OS diagnostics to a model-facing launch error. */
 function launchFailureMessage(toolName, error) {
-    var diagnostic = (function () {
+    const diagnostic = (() => {
         if (typeof error !== 'object' || error === null)
             return '';
-        var value = error;
-        var code = typeof value.code === 'string' && /^[A-Z][A-Z0-9_]{0,39}$/.test(value.code)
+        const value = error;
+        const code = typeof value.code === 'string' && /^[A-Z][A-Z0-9_]{0,39}$/.test(value.code)
             ? value.code
             : '';
-        var syscall = typeof value.syscall === 'string' && /^[a-z][a-z0-9_-]{0,39}$/i.test(value.syscall)
+        const syscall = typeof value.syscall === 'string' && /^[a-z][a-z0-9_-]{0,39}$/i.test(value.syscall)
             ? value.syscall
             : '';
-        return code ? "".concat(code).concat(syscall ? " (".concat(syscall, ")") : '') : '';
+        return code ? `${code}${syscall ? ` (${syscall})` : ''}` : '';
     })();
-    return "".concat(toolName, " could not start its search command (ripgrep launch failed").concat(diagnostic ? ": ".concat(diagnostic) : '', ")");
+    return `${toolName} could not start its search command (ripgrep launch failed${diagnostic ? `: ${diagnostic}` : ''})`;
 }
 /**
  * Run the packaged ripgrep binary with a plain argv vector and return its
  * complete raw stdout. The working directory is the calling agent's session
  * cwd (`exec.agent.session.header.cwd`) when available, else
  * `process.cwd()`. `exec.signal` is forwarded so the cooperative tool timeout
- * (`@z/dsh-tool-call-timeout-policy`) and caller cancellation terminate the
+ * (`@taskweaver/dsh-tool-call-timeout-policy`) and caller cancellation terminate the
  * process tree.
  *
  * The spawn is unconfined (a plain `ctx.subprocess` call), so `--no-config`
@@ -280,81 +188,64 @@ function launchFailureMessage(toolName, error) {
  * @param stderrMaxBytes - cap on the retained stderr diagnostic tail.
  * @returns the complete stdout, the zero-result flag, and the resolved workdir.
  */
-function runRipgrep(ctx, exec, toolName, argv, rawOutputMaxBytes, graceMs, stderrMaxBytes) {
-    return __awaiter(this, void 0, void 0, function () {
-        var cwd, workdir, handle, _a, _b, error_1, outcome, error_2, stdout, stderr, text;
-        var _c;
-        var _d, _e, _f, _g;
-        return __generator(this, function (_h) {
-            switch (_h.label) {
-                case 0:
-                    if (exec.signal.aborted) {
-                        throw new SearchError("".concat(toolName, " was aborted before completion (tool timeout or caller cancellation)"), 'SEARCH_ABORTED');
-                    }
-                    cwd = (_d = exec.agent) === null || _d === void 0 ? void 0 : _d.session.header.cwd;
-                    workdir = cwd !== null && cwd !== void 0 ? cwd : process.cwd();
-                    _h.label = 1;
-                case 1:
-                    _h.trys.push([1, 3, , 4]);
-                    _b = (_a = ctx.subprocess).spawn;
-                    _c = {};
-                    return [4 /*yield*/, resolveRgPath()];
-                case 2:
-                    handle = _b.apply(_a, [(_c.argv = __spreadArray.apply(void 0, [[_h.sent(), '--no-config'], argv, true]),
-                            _c.cwd = workdir,
-                            _c.stdio = {
-                                stdin: 'ignore',
-                                stdout: { maxBytes: rawOutputMaxBytes },
-                                stderr: { maxBytes: stderrMaxBytes },
-                            },
-                            _c.graceMs = graceMs,
-                            _c.signal = exec.signal,
-                            _c)]);
-                    return [3 /*break*/, 4];
-                case 3:
-                    error_1 = _h.sent();
-                    // Node's spawn() throws synchronously for a NUL in argv, and the local
-                    // impl can throw synchronously when the signal aborts between the check
-                    // above and this call (or when the platform-package resolution rejects).
-                    // The static narrowing that proves this re-check "always false" cannot
-                    // see AbortSignal state changes.
-                    // oxlint-disable-next-line typescript/no-unnecessary-condition
-                    if (exec.signal.aborted) {
-                        throw new SearchError("".concat(toolName, " was aborted before completion (tool timeout or caller cancellation)"), 'SEARCH_ABORTED');
-                    }
-                    throw new SearchError(launchFailureMessage(toolName, error_1), 'SEARCH_FAILED', { cause: error_1 });
-                case 4:
-                    _h.trys.push([4, 6, , 7]);
-                    return [4 /*yield*/, handle.done];
-                case 5:
-                    outcome = _h.sent();
-                    return [3 /*break*/, 7];
-                case 6:
-                    error_2 = _h.sent();
-                    throw new SearchError(launchFailureMessage(toolName, error_2), 'SEARCH_FAILED', { cause: error_2 });
-                case 7:
-                    stdout = (_e = handle.collected.stdout) === null || _e === void 0 ? void 0 : _e.readFrom(0);
-                    stderr = (_f = handle.collected.stderr) === null || _f === void 0 ? void 0 : _f.readFrom(0);
-                    if (stdout === undefined || stderr === undefined) {
-                        throw new SearchError("".concat(toolName, " search command produced no collected output streams"), 'SEARCH_FAILED');
-                    }
-                    // The signal can abort while the spawn is awaited; the static narrowing that
-                    // proves this re-check "always false" cannot see AbortSignal state changes.
-                    // oxlint-disable-next-line typescript/no-unnecessary-condition
-                    if (exec.signal.aborted) {
-                        throw new SearchError("".concat(toolName, " was aborted before completion (tool timeout or caller cancellation)"), 'SEARCH_ABORTED');
-                    }
-                    if (outcome.signal !== null || outcome.exitCode === null) {
-                        throw new SearchError("".concat(toolName, " search command was killed by signal ").concat((_g = outcome.signal) !== null && _g !== void 0 ? _g : '(unknown)'), 'SEARCH_FAILED');
-                    }
-                    if (outcome.exitCode !== 0 && outcome.exitCode !== 1) {
-                        throw classifyRunFailure(toolName, outcome.exitCode, stderr.text, stderr.lossy);
-                    }
-                    text = completeStdout(toolName, stdout, rawOutputMaxBytes);
-                    return [2 /*return*/, { stdout: text, noMatches: outcome.exitCode === 1, workdir: workdir }];
-            }
+export async function runRipgrep(ctx, exec, toolName, argv, rawOutputMaxBytes, graceMs, stderrMaxBytes) {
+    if (exec.signal.aborted) {
+        throw new SearchError(`${toolName} was aborted before completion (tool timeout or caller cancellation)`, 'SEARCH_ABORTED');
+    }
+    const cwd = exec.agent?.session.header.cwd;
+    const workdir = cwd ?? process.cwd();
+    let handle;
+    try {
+        handle = ctx.subprocess.spawn({
+            argv: [await resolveRgPath(), '--no-config', ...argv],
+            cwd: workdir,
+            stdio: {
+                stdin: 'ignore',
+                stdout: { maxBytes: rawOutputMaxBytes },
+                stderr: { maxBytes: stderrMaxBytes },
+            },
+            graceMs,
+            signal: exec.signal,
         });
-    });
+    }
+    catch (error) {
+        // Node's spawn() throws synchronously for a NUL in argv, and the local
+        // impl can throw synchronously when the signal aborts between the check
+        // above and this call (or when the platform-package resolution rejects).
+        // The static narrowing that proves this re-check "always false" cannot
+        // see AbortSignal state changes.
+        // oxlint-disable-next-line typescript/no-unnecessary-condition
+        if (exec.signal.aborted) {
+            throw new SearchError(`${toolName} was aborted before completion (tool timeout or caller cancellation)`, 'SEARCH_ABORTED');
+        }
+        throw new SearchError(launchFailureMessage(toolName, error), 'SEARCH_FAILED', { cause: error });
+    }
+    let outcome;
+    try {
+        outcome = await handle.done;
+    }
+    catch (error) {
+        throw new SearchError(launchFailureMessage(toolName, error), 'SEARCH_FAILED', { cause: error });
+    }
+    const stdout = handle.collected.stdout?.readFrom(0);
+    const stderr = handle.collected.stderr?.readFrom(0);
+    if (stdout === undefined || stderr === undefined) {
+        throw new SearchError(`${toolName} search command produced no collected output streams`, 'SEARCH_FAILED');
+    }
+    // The signal can abort while the spawn is awaited; the static narrowing that
+    // proves this re-check "always false" cannot see AbortSignal state changes.
+    // oxlint-disable-next-line typescript/no-unnecessary-condition
+    if (exec.signal.aborted) {
+        throw new SearchError(`${toolName} was aborted before completion (tool timeout or caller cancellation)`, 'SEARCH_ABORTED');
+    }
+    if (outcome.signal !== null || outcome.exitCode === null) {
+        throw new SearchError(`${toolName} search command was killed by signal ${outcome.signal ?? '(unknown)'}`, 'SEARCH_FAILED');
+    }
+    if (outcome.exitCode !== 0 && outcome.exitCode !== 1) {
+        throw classifyRunFailure(toolName, outcome.exitCode, stderr.text, stderr.lossy);
+    }
+    const text = completeStdout(toolName, stdout, rawOutputMaxBytes);
+    return { stdout: text, noMatches: outcome.exitCode === 1, workdir };
 }
 /**
  * Map an `rg` output path to its display form: absolute paths inside the
@@ -368,13 +259,13 @@ function runRipgrep(ctx, exec, toolName, argv, rawOutputMaxBytes, graceMs, stder
  * @param workdir - the resolved workdir the command ran in.
  * @returns the workdir-relative display path when possible, else `path` unchanged.
  */
-function toWorkdirRelative(path, workdir) {
-    if (!(0, node_path_1.isAbsolute)(path))
+export function toWorkdirRelative(path, workdir) {
+    if (!isAbsolute(path))
         return path;
-    var rel = (0, node_path_1.relative)(workdir, path);
+    const rel = relative(workdir, path);
     if (rel.length === 0)
         return '.';
-    if (rel === '..' || rel.startsWith("..".concat(node_path_1.sep)))
+    if (rel === '..' || rel.startsWith(`..${sep}`))
         return path;
     return rel;
 }
@@ -387,18 +278,18 @@ function toWorkdirRelative(path, workdir) {
  * @param maxBytes - the preview budget in bytes.
  * @returns the preview, suffixed with ` (line truncated)` when bytes were cut.
  */
-function previewLine(line, maxBytes) {
-    var retainer = new dsh_output_retention_1.TextRetainer({ kind: 'head', maxBytes: maxBytes });
+export function previewLine(line, maxBytes) {
+    const retainer = new TextRetainer({ kind: 'head', maxBytes });
     retainer.push(line);
-    var kept = retainer.finish();
-    return kept.truncated ? "".concat(kept.text, " (line truncated)") : kept.text;
+    const kept = retainer.finish();
+    return kept.truncated ? `${kept.text} (line truncated)` : kept.text;
 }
 /**
  * Apply the shared inline cap to a canonical `grep` match list: preview each
  * retained line to `maxLineBytes` and keep the first `maxMatches`. The single
- * retention pass both the model-facing render ({@link module:@z/dsh-tool-fs-search/grep}
+ * retention pass both the model-facing render ({@link module:@taskweaver/dsh-tool-fs-search/grep}
  * `formatGrepOutput`) and the search-card projection
- * ({@link module:@z/dsh-tool-fs-search/presentation} `grepSearchMeta`)
+ * ({@link module:@taskweaver/dsh-tool-fs-search/presentation} `grepSearchMeta`)
  * consume, so text and card never disagree about which matches survived.
  *
  * @param matches - every match the search parsed (the canonical value's matches).
@@ -406,12 +297,10 @@ function previewLine(line, maxBytes) {
  * @param maxLineBytes - the per-matched-line preview budget in bytes.
  * @returns the retention outcome over the previewed matches.
  */
-function retainGrepMatches(matches, maxMatches, maxLineBytes) {
-    var retainer = new dsh_output_retention_1.ItemRetainer({ kind: 'head', maxItems: maxMatches });
-    for (var _i = 0, matches_1 = matches; _i < matches_1.length; _i++) {
-        var match = matches_1[_i];
-        retainer.push(__assign(__assign({}, match), { line: previewLine(match.line, maxLineBytes) }));
-    }
+export function retainGrepMatches(matches, maxMatches, maxLineBytes) {
+    const retainer = new ItemRetainer({ kind: 'head', maxItems: maxMatches });
+    for (const match of matches)
+        retainer.push({ ...match, line: previewLine(match.line, maxLineBytes) });
     return retainer.finish();
 }
 /**
@@ -423,12 +312,10 @@ function retainGrepMatches(matches, maxMatches, maxLineBytes) {
  * @param maxResults - the inline path cap (the `globMaxResults` config).
  * @returns the retention outcome over the paths.
  */
-function retainGlobPaths(paths, maxResults) {
-    var retainer = new dsh_output_retention_1.ItemRetainer({ kind: 'head', maxItems: maxResults });
-    for (var _i = 0, paths_1 = paths; _i < paths_1.length; _i++) {
-        var path = paths_1[_i];
+export function retainGlobPaths(paths, maxResults) {
+    const retainer = new ItemRetainer({ kind: 'head', maxItems: maxResults });
+    for (const path of paths)
         retainer.push(path);
-    }
     return retainer.finish();
 }
 /**
@@ -448,42 +335,31 @@ function retainGlobPaths(paths, maxResults) {
  * @param content - the complete formatted result to persist.
  * @returns the saved spill reference, or `undefined` when the result could not be saved.
  */
-function trySaveFormattedResult(ctx, exec, suggestedName, content) {
-    return __awaiter(this, void 0, void 0, function () {
-        var sessionId, spillStore, save, error_3;
-        var _a;
-        return __generator(this, function (_b) {
-            switch (_b.label) {
-                case 0:
-                    sessionId = (_a = exec.agent) === null || _a === void 0 ? void 0 : _a.session.header.id;
-                    if (sessionId === undefined) {
-                        ctx.logger.warn("tool-fs-search: no session owner for ".concat(exec.name, " result; complete result not saved"));
-                        return [2 /*return*/, undefined];
-                    }
-                    spillStore = ctx.get('spillStore');
-                    if (!spillStore) {
-                        ctx.logger.warn("tool-fs-search: no ctx.spillStore backend loaded; complete ".concat(exec.name, " result not saved"));
-                        return [2 /*return*/, undefined];
-                    }
-                    save = {
-                        owner: { sessionId: sessionId },
-                        source: { toolName: exec.name, callId: exec.callId, label: 'result' },
-                        suggestedName: suggestedName,
-                        content: content,
-                    };
-                    _b.label = 1;
-                case 1:
-                    _b.trys.push([1, 3, , 4]);
-                    return [4 /*yield*/, spillStore.saveText(save)];
-                case 2: return [2 /*return*/, _b.sent()];
-                case 3:
-                    error_3 = _b.sent();
-                    // Best-effort: a storage failure must never fail the search or hide the
-                    // inline result — the footer reports the unsaved remainder instead.
-                    ctx.logger.warn("tool-fs-search: saveText failed for ".concat(exec.name, ": ").concat(String(error_3), "; complete result not saved"));
-                    return [2 /*return*/, undefined];
-                case 4: return [2 /*return*/];
-            }
-        });
-    });
+export async function trySaveFormattedResult(ctx, exec, suggestedName, content) {
+    const sessionId = exec.agent?.session.header.id;
+    if (sessionId === undefined) {
+        ctx.logger.warn(`tool-fs-search: no session owner for ${exec.name} result; complete result not saved`);
+        return undefined;
+    }
+    const spillStore = ctx.get('spillStore');
+    if (!spillStore) {
+        ctx.logger.warn(`tool-fs-search: no ctx.spillStore backend loaded; complete ${exec.name} result not saved`);
+        return undefined;
+    }
+    const save = {
+        owner: { sessionId },
+        source: { toolName: exec.name, callId: exec.callId, label: 'result' },
+        suggestedName,
+        content,
+    };
+    try {
+        return await spillStore.saveText(save);
+    }
+    catch (error) {
+        // Best-effort: a storage failure must never fail the search or hide the
+        // inline result — the footer reports the unsaved remainder instead.
+        ctx.logger.warn(`tool-fs-search: saveText failed for ${exec.name}: ${String(error)}; complete result not saved`);
+        return undefined;
+    }
 }
+//# sourceMappingURL=search-core.js.map

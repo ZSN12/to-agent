@@ -1,12 +1,12 @@
 /**
  * SQLite schema ownership and durable-row validation.
- * @module @z/dsh-session-persistence-sqlite/schema
+ * @module @taskweaver/dsh-session-persistence-sqlite/schema
  */
 import { randomUUID } from 'node:crypto';
 import { isAbsolute } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { setTimeout as delay } from 'node:timers/promises';
-import { SessionId, } from '@z/dsh-session';
+import { SessionId, } from '@taskweaver/dsh-session';
 import { sql } from "./sql.js";
 /** Current physical-record schema with packed and compressed event rows. */
 export const SCHEMA_VERSION = 17;

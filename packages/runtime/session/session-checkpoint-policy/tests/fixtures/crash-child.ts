@@ -1,10 +1,10 @@
 import { writeFile } from 'node:fs/promises'
-import { Context } from '@z/cordis'
-import AgentLoop from '@z/dsh-agent-loop'
-import { mountAgentLoopTestDependencies } from '@z/dsh-agent-loop-testkit'
-import { createUserMessage, CallId, type GenerateOptions, LlmAdapter, type StreamChunk  } from '@z/dsh-llm'
-import { SessionId } from '@z/dsh-session'
-import JsonlSessionPersistence from '@z/dsh-session-persistence-jsonl'
+import { Context } from '@taskweaver/cordis'
+import AgentLoop from '@taskweaver/dsh-agent-loop'
+import { mountAgentLoopTestDependencies } from '@taskweaver/dsh-agent-loop-testkit'
+import { createUserMessage, CallId, type GenerateOptions, LlmAdapter, type StreamChunk  } from '@taskweaver/dsh-llm'
+import { SessionId } from '@taskweaver/dsh-session'
+import JsonlSessionPersistence from '@taskweaver/dsh-session-persistence-jsonl'
 import * as checkpointPolicy from '../../src/index.ts'
 
 function waitForCrash(): Promise<never> {

@@ -3,10 +3,10 @@
  * fresh official package-local Codex wrapper with `app-server --stdio` in the
  * delegating Session's workspace and publishes only after an ephemeral thread exists.
  *
- * @module @z/dsh-subagent-codex
+ * @module @taskweaver/dsh-subagent-codex
  */
-import type { Context } from '@z/cordis';
-import z from '@z/schemastery';
+import type { Context } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
 import { type CodexPermissionMode } from './run.ts';
 export declare const name = "subagent-codex";
 export declare const inject: string[];

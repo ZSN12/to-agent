@@ -7,17 +7,17 @@
  * imports no provider.
  *
  * Namespace plugin (named exports, no default export).
- * @module @z/dsh-tool-lsp
+ * @module @taskweaver/dsh-tool-lsp
  */
 
-import type { Context } from '@z/cordis'
-import z from '@z/schemastery'
-import { defineTool } from '@z/dsh-tools'
-import { assertNever } from '@z/dsh-llm'
-import { LspError } from '@z/dsh-lsp'
-import type {} from '@z/dsh-lsp'
-import type {} from '@z/dsh-system-prompt'
-import { MAX_TIMER_DELAY_MS } from '@z/dsh-timeout'
+import type { Context } from '@taskweaver/cordis'
+import z from '@taskweaver/schemastery'
+import { defineTool } from '@taskweaver/dsh-tools'
+import { assertNever } from '@taskweaver/dsh-llm'
+import { LspError } from '@taskweaver/dsh-lsp'
+import type {} from '@taskweaver/dsh-lsp'
+import type {} from '@taskweaver/dsh-system-prompt'
+import { MAX_TIMER_DELAY_MS } from '@taskweaver/dsh-timeout'
 import {
   DEFAULT_MAX_LOCATIONS,
   DEFAULT_MAX_RESULT_CHARS,

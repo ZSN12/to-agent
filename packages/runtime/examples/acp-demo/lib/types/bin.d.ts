@@ -7,7 +7,7 @@
  * `cordis.snapshot.yml` so a stray key cannot trigger a model call. EOF disposes
  * and flushes snapshot runs; the calling automation owns process lifetime. Stdout is
  * reserved for JSON-RPC, so diagnostics go only to stderr.
- * @module @z/dsh-acp-demo/bin
+ * @module @taskweaver/dsh-acp-demo/bin
  */
 export {};
 //# sourceMappingURL=bin.d.ts.map

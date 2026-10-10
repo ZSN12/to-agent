@@ -1,5 +1,5 @@
 /** Pure replay-safe render intents for Cordis tools. */
-import type { GenericCallView } from '@z/dsh-tools';
+import type { GenericCallView } from '@taskweaver/dsh-tools';
 /**
  * Render a runtime-inspection call.
  * @param args - requested runtime category and optional member name.

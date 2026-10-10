@@ -3,9 +3,9 @@
  * Only command hooks run; other hook types are returned as skipped so the
  * bridge can warn. Plugin-root and project-directory substitutions are applied
  * to commands at parse time.
- * @module @z/dsh-hooks-claude-code/config
+ * @module @taskweaver/dsh-hooks-claude-code/config
  */
-import { type MatcherGroup } from '@z/dsh-hook-protocol';
+import { type MatcherGroup } from '@taskweaver/dsh-hook-protocol';
 /** A parsed CC config: event name → its matcher groups (command hooks only). */
 export type ClaudeCodeHookConfig = Record<string, MatcherGroup[]>;
 /** A skipped non-command hook, surfaced so the bridge can warn about it. */

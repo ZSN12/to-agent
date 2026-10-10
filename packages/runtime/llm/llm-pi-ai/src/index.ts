@@ -11,7 +11,7 @@
  *
  * ```yaml
  * - id: llm
- *   name: '@z/dsh-llm-pi-ai'
+ *   name: '@taskweaver/dsh-llm-pi-ai'
  *   config:
  *     providers:
  *       # Catalog route: everything but the credential comes from pi-ai.
@@ -52,14 +52,14 @@
  *               max: ultra
  * ```
  *
- * @module @z/dsh-llm-pi-ai
+ * @module @taskweaver/dsh-llm-pi-ai
  */
 
-import type { Context } from '@z/cordis'
-import { launchEnvironmentOf } from '@z/dsh-launch-environment'
-import { assertUsableApiKey, LlmError } from '@z/dsh-llm'
-import type { AdapterRegistrationHandle, DirectoryRegistrationHandle, LlmConfigurableProvider } from '@z/dsh-llm'
-import { deepEqualJson, installSettingsSection, settingsNamespace } from '@z/dsh-settings'
+import type { Context } from '@taskweaver/cordis'
+import { launchEnvironmentOf } from '@taskweaver/dsh-launch-environment'
+import { assertUsableApiKey, LlmError } from '@taskweaver/dsh-llm'
+import type { AdapterRegistrationHandle, DirectoryRegistrationHandle, LlmConfigurableProvider } from '@taskweaver/dsh-llm'
+import { deepEqualJson, installSettingsSection, settingsNamespace } from '@taskweaver/dsh-settings'
 import { PiAiAdapter } from './adapter.ts'
 import { authContextFrom, credentialStoreFrom } from './auth.ts'
 import { catalogProviderIds } from './catalog.ts'

@@ -1,17 +1,17 @@
-import { Context } from '@z/cordis'
+import { Context } from '@taskweaver/cordis'
 import { describe, expect, it, vi } from 'vitest'
-import LlmRuntime, { createUserMessage, CallId, isAgentLoopRequest, LlmAdapter  } from '@z/dsh-llm'
-import type { FinishReason, GenerateOptions, StreamChunk } from '@z/dsh-llm'
-import SessionStore, { SessionId } from '@z/dsh-session'
-import { SessionTitleProviderId } from '@z/dsh-session-title'
-import type { SessionTitleProviderRequest } from '@z/dsh-session-title'
-import { MAX_TIMER_DELAY_MS } from '@z/dsh-timeout'
+import LlmRuntime, { createUserMessage, CallId, isAgentLoopRequest, LlmAdapter  } from '@taskweaver/dsh-llm'
+import type { FinishReason, GenerateOptions, StreamChunk } from '@taskweaver/dsh-llm'
+import SessionStore, { SessionId } from '@taskweaver/dsh-session'
+import { SessionTitleProviderId } from '@taskweaver/dsh-session-title'
+import type { SessionTitleProviderRequest } from '@taskweaver/dsh-session-title'
+import { MAX_TIMER_DELAY_MS } from '@taskweaver/dsh-timeout'
 import {
   generateSessionTitleWithLlm,
   resolveSessionTitleLlmConfig,
   SESSION_TITLE_TIMEOUT_CODE,
-} from '@z/dsh-session-title-llm'
-import type { SessionTitleLlmConfig } from '@z/dsh-session-title-llm'
+} from '@taskweaver/dsh-session-title-llm'
+import type { SessionTitleLlmConfig } from '@taskweaver/dsh-session-title-llm'
 
 class RecordingAdapter extends LlmAdapter {
   readonly requests: GenerateOptions[] = []

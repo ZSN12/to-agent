@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import InvariantRegistry from '@z/dsh-invariants'
+import { Context } from '@taskweaver/cordis'
+import InvariantRegistry from '@taskweaver/dsh-invariants'
 import * as AtomicWriteInvariant from '../src/invariant.ts'
 
 describe('atomic-write invariant companion', () => {
@@ -10,7 +10,7 @@ describe('atomic-write invariant companion', () => {
     const fiber = await ctx.plugin(AtomicWriteInvariant)
 
     expect(() => {
-      ctx.invariants.register('@z/dsh-atomic-write', () => {})
+      ctx.invariants.register('@taskweaver/dsh-atomic-write', () => {})
     }).toThrow(/already registered/)
     await fiber.dispose()
     await ctx.fiber.dispose()

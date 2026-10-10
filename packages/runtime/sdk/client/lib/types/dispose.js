@@ -5,7 +5,7 @@
  * cannot ride the `dsh-subprocess` service — this module is the seam's
  * documented exception for SDK-managed transports.
  *
- * @module @z/dsh-sdk-client/dispose
+ * @module @taskweaver/dsh-sdk-client/dispose
  */
 /**
  * Race the child's exit against a timer. Neither outcome leaves anything

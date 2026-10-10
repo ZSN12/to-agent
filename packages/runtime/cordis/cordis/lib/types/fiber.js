@@ -1,4 +1,4 @@
-import { defineProperty, isNullable } from '@z/cosmokit';
+import { defineProperty, isNullable } from '@taskweaver/cosmokit';
 import { Context } from "./context.js";
 import { buildOuterStack, composeError, DisposableList, getTraceable, isConstructor, isObject, symbols } from "./utils.js";
 const kValidationError = Symbol.for('ValidationError');

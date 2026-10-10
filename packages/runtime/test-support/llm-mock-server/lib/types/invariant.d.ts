@@ -1,8 +1,8 @@
 /**
- * Package-owned invariant companion for `@z/dsh-llm-mock-server`.
- * @module @z/dsh-llm-mock-server/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-llm-mock-server`.
+ * @module @taskweaver/dsh-llm-mock-server/invariant
  */
-import type { Context } from '@z/cordis';
+import type { Context } from '@taskweaver/cordis';
 /** Cordis companion plugin name. */
 export declare const name = "llm-mock-server-invariant";
 /** Service required before the companion can reserve package ownership. */

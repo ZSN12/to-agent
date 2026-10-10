@@ -3,7 +3,7 @@
  * shaping, poll ticks, and the one tolerant process-group signal used by both
  * the ordinary-process and terminal teardown ladders.
  */
-import { CommandExitError, e2bControlEnvs, SandboxNotFoundError } from '@z/dsh-e2b';
+import { CommandExitError, e2bControlEnvs, SandboxNotFoundError } from '@taskweaver/dsh-e2b';
 /**
  * Normalize an unknown rejection into an Error.
  * @param error - Any thrown or rejected value.

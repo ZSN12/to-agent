@@ -1,7 +1,7 @@
 /**
  * Types shared by PTY backends, the owner-scoped registry, and tool consumers.
  * Runtime service code lives in `./index.ts`.
- * @module @z/dsh-terminal/types
+ * @module @taskweaver/dsh-terminal/types
  */
 /**
  * Backend-reported failure to clean partial resources after unpublished setup failed.

@@ -1,5 +1,5 @@
-/** Attachment identifier brand. @module @z/dsh-attachment/brand */
-import type { Branded } from '@z/dsh-brand';
+/** Attachment identifier brand. @module @taskweaver/dsh-attachment/brand */
+import type { Branded } from '@taskweaver/dsh-brand';
 /** Opaque content-addressed identifier for one immutable attachment object. */
 export type AttachmentId = Branded<'AttachmentId'>;
 /**

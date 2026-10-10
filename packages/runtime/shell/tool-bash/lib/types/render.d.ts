@@ -1,10 +1,10 @@
 /**
  * Model-facing result rendering for the bash tool.
  *
- * @module @z/dsh-tool-bash/render
+ * @module @taskweaver/dsh-tool-bash/render
  */
-import type { ShellProcessRead, ShellRunResult, ShellSandboxInfo } from '@z/dsh-shell';
-import type { SandboxMode } from '@z/dsh-sandbox';
+import type { ShellProcessRead, ShellRunResult, ShellSandboxInfo } from '@taskweaver/dsh-shell';
+import type { SandboxMode } from '@taskweaver/dsh-sandbox';
 /**
  * Shape one finished run into the text the model sees: stdout, then a marked
  * stderr section, then exit-status markers. Non-zero exits are reported, not
@@ -30,9 +30,9 @@ export declare function renderResult(result: ShellRunResult, escalationModes?: r
 export declare function renderProcessRead(read: ShellProcessRead, sandbox?: ShellSandboxInfo, escalationModes?: readonly SandboxMode[]): string;
 /**
  * The exit-status parse is the shared marker-contract half of the shell-tool
- * rendering story, owned by `@z/dsh-shell` so `dsh-tool-pwsh` reuses
+ * rendering story, owned by `@taskweaver/dsh-shell` so `dsh-tool-pwsh` reuses
  * it (its renderer emits the same markers). Re-exported here to keep
  * `../src/render.ts` a single import root for bash-tool consumers.
  */
-export { parseExitStatus, type ParsedExitStatus } from '@z/dsh-shell';
+export { parseExitStatus, type ParsedExitStatus } from '@taskweaver/dsh-shell';
 //# sourceMappingURL=render.d.ts.map

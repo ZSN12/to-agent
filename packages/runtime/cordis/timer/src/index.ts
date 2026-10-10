@@ -1,6 +1,6 @@
-import { Context, Service } from '@z/cordis'
+import { Context, Service } from '@taskweaver/cordis'
 
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
   interface Context extends Pick<TimerService, 'interval' | 'timeout' | 'throttle' | 'debounce' | 'setTimeout' | 'setInterval'> {
     timer: TimerService
   }

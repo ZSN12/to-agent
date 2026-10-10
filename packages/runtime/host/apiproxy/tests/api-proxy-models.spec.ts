@@ -6,22 +6,26 @@
  */
 
 import { describe, expect, it, vi } from 'vitest'
-import { Context } from '@z/cordis'
-import AgentRegistry, { agentEvents } from '@z/dsh-agent'
-import type { Agent } from '@z/dsh-agent'
-import AttachmentStore from '@z/dsh-attachment'
-import LlmRuntime, { LlmAdapter, ReasoningEffortId } from '@z/dsh-llm'
+
+const documentSnapshotStore = vi.hoisted(() => vi.fn())
+vi.mock('@taskweaver/dsh-tool-document', () => ({ storeDocumentSnapshot: documentSnapshotStore }))
+
+import { Context } from '@taskweaver/cordis'
+import AgentRegistry, { agentEvents } from '@taskweaver/dsh-agent'
+import type { Agent } from '@taskweaver/dsh-agent'
+import AttachmentStore from '@taskweaver/dsh-attachment'
+import LlmRuntime, { LlmAdapter, ReasoningEffortId } from '@taskweaver/dsh-llm'
 import type {
   GenerateOptions, LlmCallConfig, LlmModelInfo, LlmModelReasoningInfo, LlmProviderInfo,
   LlmResolvedModelInfo, StreamChunk,
   UserMessage,
-} from '@z/dsh-llm'
-import SessionStore from '@z/dsh-session'
-import type { SessionId } from '@z/dsh-session'
-import SystemPrompt from '@z/dsh-system-prompt'
-import UserQuestionService from '@z/dsh-user-questions'
-import type { RpcRequest } from '@z/dsh-host-apiproxy/api/rpc'
-import { RpcId } from '@z/dsh-host-apiproxy/api/rpc'
+} from '@taskweaver/dsh-llm'
+import SessionStore from '@taskweaver/dsh-session'
+import type { SessionId } from '@taskweaver/dsh-session'
+import SystemPrompt from '@taskweaver/dsh-system-prompt'
+import UserQuestionService from '@taskweaver/dsh-user-questions'
+import type { RpcRequest } from '@taskweaver/dsh-host-apiproxy/api/rpc'
+import { RpcId } from '@taskweaver/dsh-host-apiproxy/api/rpc'
 import { createApiProxy } from '../src/api-proxy.ts'
 
 let nextRpc = 1
@@ -130,6 +134,95 @@ function registerTextOnly(ctx: Context): void {
 }
 
 describe('Web session model selection', () => {
+  it('promotes uploaded document bytes to a session-authorized @doc reference before Agent admission', async () => {
+    documentSnapshotStore.mockReset()
+    const { ctx, agent, sessionId } = await harness()
+    const followup = vi.fn()
+    Object.assign(agent, { followup })
+    documentSnapshotStore.mockResolvedValueOnce({
+      reference: '@doc:' + 'a'.repeat(64),
+      sha256: 'a'.repeat(64),
+      name: 'brief.pdf',
+      kind: 'pdf',
+      bytes: 12,
+    })
+    const api = createApiProxy(ctx, {
+      defaultModelSelection: () => ({ provider: 'deepseek-official', model: 'deepseek-chat' }),
+      cwd: '/tmp',
+    })
+    const bytes = Buffer.from('%PDF-1.7\nfixture')
+
+    const response = await api.sessions.prompt(request({
+      sessionId,
+      mode: 'queue' as const,
+      content: [
+        { type: 'text' as const, text: '请总结附件' },
+        { type: 'document' as const, name: 'brief.pdf', data: bytes.toString('base64') },
+      ],
+    }))
+
+    expect(response.result).toMatchObject({ ok: true, value: { accepted: true } })
+    expect(documentSnapshotStore).toHaveBeenCalledOnce()
+    const storedBytes = documentSnapshotStore.mock.calls[0]?.[0] as Uint8Array
+    expect(Array.from(storedBytes)).toEqual([...bytes])
+    expect(documentSnapshotStore.mock.calls[0]![1]).toMatchObject({ name: 'brief.pdf', sessionId })
+    const content = (followup.mock.calls[0]?.[0] as UserMessage).content
+    expect(content).toEqual([
+      { type: 'text', text: '请总结附件' },
+      { type: 'text', text: `用户附加了文档「brief.pdf」（12 字节），需要时用 read_document 读取：@doc:${'a'.repeat(64)}` },
+    ])
+    expect(JSON.stringify(content)).not.toContain(bytes.toString('base64'))
+    await ctx.fiber.dispose()
+  })
+
+  it('rejects non-canonical document base64 before storing or admitting the prompt', async () => {
+    documentSnapshotStore.mockReset()
+    const { ctx, agent, sessionId } = await harness()
+    const followup = vi.fn()
+    Object.assign(agent, { followup })
+    const api = createApiProxy(ctx, {
+      defaultModelSelection: () => ({ provider: 'deepseek-official', model: 'deepseek-chat' }),
+      cwd: '/tmp',
+    })
+
+    const response = await api.sessions.prompt(request({
+      sessionId,
+      mode: 'queue' as const,
+      content: [{ type: 'document' as const, name: 'brief.pdf', data: 'not base64' }],
+    }))
+
+    expect(response.result).toMatchObject({ ok: false, error: { code: 'attachment-error', details: { reason: 'DOCUMENT_INVALID_BASE64' } } })
+    expect(documentSnapshotStore).not.toHaveBeenCalled()
+    expect(followup).not.toHaveBeenCalled()
+    await ctx.fiber.dispose()
+  })
+
+  it('rejects a prompt that bypasses the composer document count cap', async () => {
+    documentSnapshotStore.mockReset()
+    const { ctx, agent, sessionId } = await harness()
+    const followup = vi.fn()
+    Object.assign(agent, { followup })
+    const api = createApiProxy(ctx, {
+      defaultModelSelection: () => ({ provider: 'deepseek-official', model: 'deepseek-chat' }),
+      cwd: '/tmp',
+    })
+
+    const response = await api.sessions.prompt(request({
+      sessionId,
+      mode: 'queue' as const,
+      content: Array.from({ length: 9 }, (_, index) => ({
+        type: 'document' as const,
+        name: `brief-${index}.pdf`,
+        data: 'AQ==',
+      })),
+    }))
+
+    expect(response.result).toMatchObject({ ok: false, error: { code: 'attachment-error', details: { reason: 'DOCUMENT_TOO_MANY' } } })
+    expect(documentSnapshotStore).not.toHaveBeenCalled()
+    expect(followup).not.toHaveBeenCalled()
+    await ctx.fiber.dispose()
+  })
+
   it('dispatches registered slash commands through prompt without sending them to the model', async () => {
     const { ctx, agent, sessionId } = await harness()
     const execute = vi.fn(async (_agent: unknown, _line: string, _images: readonly unknown[], _signal: AbortSignal) => ({
@@ -184,6 +277,41 @@ describe('Web session model selection', () => {
     expect((followup.mock.calls[0]?.[0] as UserMessage).content).toEqual([
       { type: 'text', text: '/dingtalk-chat\n用户任务' },
     ])
+    await ctx.fiber.dispose()
+  })
+
+  it('binds a validated structured-output schema to the admitted user message', async () => {
+    const { ctx, agent, sessionId } = await harness()
+    const followup = vi.fn()
+    Object.assign(agent, { followup })
+    const api = createApiProxy(ctx, {
+      defaultModelSelection: () => ({ provider: 'deepseek-official', model: 'deepseek-chat' }),
+      cwd: '/tmp',
+    })
+    const outputSchema = {
+      type: 'object' as const,
+      properties: { ok: { type: 'boolean' as const } },
+      required: ['ok'],
+      additionalProperties: false,
+    }
+
+    const response = await api.sessions.prompt(request({
+      sessionId,
+      mode: 'queue' as const,
+      content: [{ type: 'text' as const, text: 'return the plan' }],
+      outputSchema,
+    }))
+
+    expect(response.result).toMatchObject({ ok: true, value: { accepted: true } })
+    expect((followup.mock.calls[0]?.[0] as UserMessage).source).toMatchObject({
+      kind: 'user', outputSchema,
+    })
+    await expect(api.sessions.prompt(request({
+      sessionId,
+      mode: 'queue' as const,
+      content: [{ type: 'text' as const, text: 'invalid schema' }],
+      outputSchema: { type: 'object', unsupportedKeyword: true },
+    }))).rejects.toThrow(/unsupported JSON schema/)
     await ctx.fiber.dispose()
   })
 

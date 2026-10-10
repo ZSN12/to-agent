@@ -1,5 +1,5 @@
 import { jsx as _jsx } from "react/jsx-runtime";
-import { Button, Modal } from '@z/dsh-client-ui-primitives';
+import { Button, Modal } from '@taskweaver/dsh-client-ui-primitives';
 /**
  * Modal shared by the Session Header button and this browser's `/export` command.
  * @param props - Session runtime, bound controller state, actions, and localized copy.

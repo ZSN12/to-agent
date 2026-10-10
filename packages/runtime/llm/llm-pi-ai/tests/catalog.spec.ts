@@ -2,13 +2,13 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { Context } from '@z/cordis'
-import LlmRuntime, { createUserMessage, ReasoningEffortId } from '@z/dsh-llm'
-import type { StreamChunk } from '@z/dsh-llm'
-import FileSettingsProvider from '@z/dsh-settings-file'
-import { settingsNamespace } from '@z/dsh-settings'
-import * as LlmPiAi from '@z/dsh-llm-pi-ai'
-import { PiAiAdapter } from '@z/dsh-llm-pi-ai'
+import { Context } from '@taskweaver/cordis'
+import LlmRuntime, { createUserMessage, ReasoningEffortId } from '@taskweaver/dsh-llm'
+import type { StreamChunk } from '@taskweaver/dsh-llm'
+import FileSettingsProvider from '@taskweaver/dsh-settings-file'
+import { settingsNamespace } from '@taskweaver/dsh-settings'
+import * as LlmPiAi from '@taskweaver/dsh-llm-pi-ai'
+import { PiAiAdapter } from '@taskweaver/dsh-llm-pi-ai'
 import { getBuiltinModels } from '@earendil-works/pi-ai/providers/all'
 import { createModels, getSupportedThinkingLevels } from '@earendil-works/pi-ai'
 import type { Api, Model, OpenAICompletionsCompat, Provider } from '@earendil-works/pi-ai'
@@ -36,7 +36,7 @@ afterEach(async () => {
   await Promise.all(homes.splice(0).map(dir => rm(dir, { recursive: true, force: true })))
 })
 
-/** A throwaway $DSH_HOME with an empty settings document. */
+/** A throwaway $TASKWEAVER_HOME with an empty settings document. */
 async function home(): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), 'dsh-pi-catalog-'))
   homes.push(dir)

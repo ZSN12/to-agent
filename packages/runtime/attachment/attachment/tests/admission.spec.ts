@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { AttachmentStore } from '@z/dsh-attachment'
-import { admitEncodedImages } from '@z/dsh-attachment'
-import type { ImageAttachmentRef, SaveImageAttachment } from '@z/dsh-attachment/types'
+import type { AttachmentStore } from '@taskweaver/dsh-attachment'
+import { admitEncodedImages } from '@taskweaver/dsh-attachment'
+import type { ImageAttachmentRef, SaveImageAttachment } from '@taskweaver/dsh-attachment/types'
 
 const PNG = 'AAAA' // canonical base64, 3 bytes
 

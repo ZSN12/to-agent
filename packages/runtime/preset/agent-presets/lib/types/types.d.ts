@@ -1,6 +1,6 @@
 /** Client-safe event declarations owned by the agent-preset domain. */
-import type { SessionId } from '@z/dsh-session/types';
-declare module '@z/cordis' {
+import type { SessionId } from '@taskweaver/dsh-session/types';
+declare module '@taskweaver/cordis' {
     interface Events {
         /**
          * One session committed a different agent preset to its durable log.

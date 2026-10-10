@@ -1,4 +1,4 @@
-import type { Branded } from '@z/dsh-brand'
+import type { Branded } from '@taskweaver/dsh-brand'
 
 /** Stable Loader-tree identity of one configured plugin entry. */
 export type PluginEntryId = Branded<'PluginEntryId'>

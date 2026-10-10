@@ -26,9 +26,9 @@
  * @module dsh-llm-pi-ai/adapter
  */
 import type { AuthContext, CredentialStore } from '@earendil-works/pi-ai';
-import { LlmAdapter } from '@z/dsh-llm';
-import type { GenerateOptions, LlmModelInfo, LlmProviderInfo, LlmResolvedModelInfo, PreparedAdapterCall, ResolvedRetryPolicy, StreamChunk } from '@z/dsh-llm';
-import type { AttachmentStore } from '@z/dsh-attachment';
+import { LlmAdapter } from '@taskweaver/dsh-llm';
+import type { GenerateOptions, LlmModelInfo, LlmProviderInfo, LlmResolvedModelInfo, PreparedAdapterCall, ResolvedRetryPolicy, StreamChunk } from '@taskweaver/dsh-llm';
+import type { AttachmentStore } from '@taskweaver/dsh-attachment';
 import type { ResolvedPiAiProviderProfile } from './config.ts';
 /** Constructor options for {@link PiAiAdapter}: the two resolution hooks the plugin owns. */
 export interface PiAiAdapterOptions {

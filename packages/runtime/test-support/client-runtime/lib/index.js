@@ -1,11 +1,11 @@
-import { Context, Inject } from "@z/cordis";
+import { Context, Inject } from "@taskweaver/cordis";
 import { Fragment, createElement, useSyncExternalStore } from "react";
 import { act, render, within } from "@testing-library/react";
-import { ConversationEventRegistry, ConversationViewRegistry, EMPTY_CHAT_SNAPSHOT, EMPTY_CONVERSATION_VIEWS, SessionProvideChannel, SlotRegistry, createScope, createSnapshotStore, scopeOf } from "@z/dsh-client-runtime/client";
-import { bindSnapshotSelector as bindSnapshotSelector$1 } from "@z/dsh-client-ui-renderer/src/client/bind.ts";
-import { createSlotRenderer as createSlotRenderer$1 } from "@z/dsh-client-ui-renderer/src/client/scoped-slots.tsx";
+import { ConversationEventRegistry, ConversationViewRegistry, EMPTY_CHAT_SNAPSHOT, EMPTY_CONVERSATION_VIEWS, SessionProvideChannel, SlotRegistry, createScope, createSnapshotStore, scopeOf } from "@taskweaver/dsh-client-runtime/client";
+import { bindSnapshotSelector as bindSnapshotSelector$1 } from "@taskweaver/dsh-client-ui-renderer/src/client/bind.ts";
+import { createSlotRenderer as createSlotRenderer$1 } from "@taskweaver/dsh-client-ui-renderer/src/client/scoped-slots.tsx";
 import { afterEach, beforeEach, expect, vi } from "vitest";
-import { SESSION_SEARCH_RESULT_LIMIT } from "@z/dsh-host-apiproxy/api";
+import { SESSION_SEARCH_RESULT_LIMIT } from "@taskweaver/dsh-host-apiproxy/api";
 //#region lib/types/snapshot.js
 /**
 * DOM snapshot hygiene: a vitest snapshot serializer that keeps `.snap`
@@ -1062,7 +1062,7 @@ function usePinnedBrowserLanguages(primary, ...rest) {
 * Not part of the product plugin graph (no `dsh.client`); feature packages
 * depend on it in devDependencies only. It copies no SlotCore/renderer/store
 * machinery — everything mounts the production implementations.
-* @module @z/dsh-client-test-runtime
+* @module @taskweaver/dsh-client-test-runtime
 */
 /**
 * Bind an observable source to the production renderer's selector hook.

@@ -4,14 +4,14 @@ import { createHash, randomUUID } from 'node:crypto'
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import sharp, { type Sharp } from 'sharp'
-import { AttachmentError, ImageVariantId } from '@z/dsh-attachment'
+import { AttachmentError, ImageVariantId } from '@taskweaver/dsh-attachment'
 import type {
   ImageMediaType,
   ImageAttachmentRef,
   ImageRequestPolicy,
   RequestImageAttachment,
   StoredImageAttachment,
-} from '@z/dsh-attachment'
+} from '@taskweaver/dsh-attachment'
 import { hasLowColourCount } from './normalization.ts'
 import { encodeFirstWithinLimit, isExhaustedEncoding } from './encoding.ts'
 import { detectImage, encodedAlphaIsCompatible, probeImage } from './image.ts'

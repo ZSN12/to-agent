@@ -5,9 +5,9 @@
  * for. Stopping needs no helper — a host half unwinds through an ordinary
  * awaited `fiber.dispose()`, because everything the plugin registered is an
  * effect on its fiber.
- * @module @z/dsh-cordis-host-runner/lifecycle
+ * @module @taskweaver/dsh-cordis-host-runner/lifecycle
  */
-import type { Context, Fiber, Plugin } from '@z/cordis';
+import type { Context, Fiber, Plugin } from '@taskweaver/cordis';
 /**
  * Await the group, start and settle one guarded child, and dispose it before rethrowing any
  * startup failure so a failed run never lingers. A valid unresolved inject may remain pending.

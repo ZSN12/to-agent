@@ -8,7 +8,7 @@
 |----|------|
 | 1.0 基线 | ✅ `docs/baseline-2026-10.md` |
 | 1.1–1.4 导航/CSP/IPC | ✅ |
-| 1.5 `sandbox: true` | ✅ `electron/main.cjs` |
+| 1.5 `sandbox: true` | ✅ `desktop/main.cjs` |
 | 1.6 工作区信任 UI | ✅ |
 | 1.7 hooks 信任 + 首次确认 | ✅ `ensureWorkspaceHooksApproved` + hash |
 | 1.8 自愈门控 | ✅（此前已接） |
@@ -34,7 +34,7 @@
 
 | 项 | 状态 |
 |----|------|
-| 3.1 通道表 | ✅ `electron/ipc/channels.mjs` |
+| 3.1 通道表 | ✅ `desktop/ipc/channels.mjs` |
 | 3.2 生成 preload | ✅ `preload-spec.cjs` + `gen-preload.mjs`（`predev` / `build` / `check:ipc`） |
 | 3.3 注册对照 | ✅ `assertAllChannelsRegistered` + `TASKWEAVER_STRICT_IPC` + channels 四向对齐 |
 | 3.4 check-ipc-contract | ✅ |
@@ -79,7 +79,9 @@
 | 5.5 续 time-label | ✅ `clockLabelZh`：`message-factory.mjs` + `src/shared/time-label.ts`（前端/持久化/编排去重） |
 | 5.9 拆 dsh-chat | ✅ 主文件 ~385 行；`dsh-chat/*` 模块（envelope/mux/registry/send 等） |
 | 5.10 拆 model/orchestration | ✅ `model-service.mjs` ~108 行 + `model/{directory-client,catalog,credentials,host-sync,live-discovery,...}`；`orchestration/plan-and-execute.mjs` + `planner`/`evidence`；`orchestration-service` ~305 行 |
-| 5.12–5.14 | ⏳ 见 `docs/archive/optimization-plan-phase5-remaining.md` |
+| 5.12 CSS 分域 | ⏭️ 可选，未做 |
+| 5.13 checkJs | ⏭️ 可选，未做 |
+| 5.14 回归 / v1.3.0 | 🔶 `test:all` / `test:live` ✅；`build:z-runtime` ✅ 2026-10-10；Bun/ocx 打包修复 + 重打 `.app` 验证中；待 PKG 手测、`v1.3.0` tag |
 
 ## 验收命令
 
@@ -93,7 +95,7 @@
 
 | 项 | 证据 |
 |----|------|
-| 5.1 bootstrap | `electron/backend/bootstrap.mjs`；`chat:send` / `models:loadBundle` 串行 `start()` |
+| 5.1 bootstrap | `desktop/backend/bootstrap.mjs`；`chat:send` / `models:loadBundle` 串行 `start()` |
 | 5.2 IPC 拆分 | 薄 `register-ipc.mjs`、`ipc/wire-backend-ipc.mjs`、`compose-services`、`scheduled-job-run`、各 `register-*-ipc` |
 | 5.3 回合流水线 | `chat-turn-pipeline.mjs` `runTurn`；定时任务同路径（`scheduled-job-run.mjs`） |
 | 5.7 App 壳 | `App.tsx` <600 行；`MainConversation` / `AppSidebar` / 快捷键与编排浮层已拆 |

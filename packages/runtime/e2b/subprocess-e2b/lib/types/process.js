@@ -1,7 +1,7 @@
 /** One asynchronously-started E2B command projected onto the subprocess seam. */
 import { PassThrough, Writable } from 'node:stream';
 import { posix } from 'node:path';
-import { CommandExitError, e2bControlEnvs, FileNotFoundError, SandboxNotFoundError, quoteE2BShellArg, } from '@z/dsh-e2b';
+import { CommandExitError, e2bControlEnvs, FileNotFoundError, SandboxNotFoundError, quoteE2BShellArg, } from '@taskweaver/dsh-e2b';
 import { bootstrapEnvironment, readRemoteEnvironment, serializeRemoteEnvironment } from "./environment.js";
 import { E2BBase64Decoder, E2B_OUTPUT_COMPLETE_FRAME, E2BOutputReader } from "./output.js";
 import { asError, commandOpts, signalRemoteGroups, waitTick } from "./remote.js";

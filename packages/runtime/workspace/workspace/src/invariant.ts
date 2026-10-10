@@ -1,14 +1,14 @@
 /**
- * Package-owned invariant companion for `@z/dsh-workspace`.
- * @module @z/dsh-workspace/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-workspace`.
+ * @module @taskweaver/dsh-workspace/invariant
  */
 
-import type { Context } from '@z/cordis'
-import type { InvariantInstaller } from '@z/dsh-invariants'
-import type { DomainChanged } from '@z/dsh-storage-domain'
-import { WorkspaceId } from '@z/dsh-workspace'
+import type { Context } from '@taskweaver/cordis'
+import type { InvariantInstaller } from '@taskweaver/dsh-invariants'
+import type { DomainChanged } from '@taskweaver/dsh-storage-domain'
+import { WorkspaceId } from '@taskweaver/dsh-workspace'
 
-const PACKAGE_NAME = '@z/dsh-workspace'
+const PACKAGE_NAME = '@taskweaver/dsh-workspace'
 
 /** Cordis companion plugin name. */
 export const name = 'workspace-invariant'

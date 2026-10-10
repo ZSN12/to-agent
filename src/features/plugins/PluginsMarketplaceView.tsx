@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react'
+import React, { useId, useState, useMemo, useEffect } from 'react'
 import {
   Search,
   RefreshCw,
@@ -20,6 +20,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import type { McpMarketplaceEntry, McpServerStatus } from '../../shared/app-api'
+import { useModalFocusTrap } from '../../shared/useModalFocusTrap'
 
 interface PluginsMarketplaceViewProps {
   onOpenSettings?: () => void
@@ -72,6 +73,21 @@ export function PluginsMarketplaceView({
   const [customArgs, setCustomArgs] = useState('')
   const [customEnv, setCustomEnv] = useState('')
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null)
+  const webSearchTitleId = useId()
+  const githubTitleId = useId()
+  const customMcpTitleId = useId()
+  const webSearchDialogRef = useModalFocusTrap<HTMLDivElement>({
+    open: showWebSearchModal,
+    onEscape: () => setShowWebSearchModal(false),
+  })
+  const githubDialogRef = useModalFocusTrap<HTMLDivElement>({
+    open: githubModalOpen,
+    onEscape: !githubBusy ? () => setGithubModalOpen(false) : undefined,
+  })
+  const customMcpDialogRef = useModalFocusTrap<HTMLDivElement>({
+    open: showCustomModal,
+    onEscape: () => setShowCustomModal(false),
+  })
 
   const notify = (text: string, type: 'success' | 'error' = 'success') => {
     setStatusMessage({ text, type })
@@ -236,7 +252,11 @@ export function PluginsMarketplaceView({
     setGithubDeviceCode(null)
     try {
       const result = await window.taskweaver?.mcp?.startGitHubOAuth?.()
-      if (!result?.ok) throw new Error(result?.error || 'GitHub 浏览器登录失败')
+      if (result?.ok !== true) throw new Error(result?.error || 'GitHub 浏览器登录失败')
+      if (result.data.cancelled) {
+        setGithubOAuthHint('已取消使用本机 GitHub 凭据。')
+        return
+      }
       setInstalledIds((current) => new Set([...current, 'github']))
       setGithubStatus(result.data.connection)
       setGithubModalOpen(false)
@@ -663,10 +683,8 @@ export function PluginsMarketplaceView({
                 <div className="codex-plugin-grid">
                   {/* 原生内置：网页搜索插件卡片 */}
                   {showWebSearchCard && (
-                    <div
+                    <article
                       className="codex-plugin-card codex-plugin-card-featured"
-                      onClick={openWebSearchModal}
-                      style={{ cursor: 'pointer' }}
                     >
                       <div className="card-left">
                         <div
@@ -680,9 +698,10 @@ export function PluginsMarketplaceView({
                           <Search size={20} />
                         </div>
                         <div className="card-text">
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <h3 style={{ margin: 0 }}>网页搜索</h3>
+                          <button type="button" className="codex-plugin-card-open" onClick={openWebSearchModal}>
+                            <span className="codex-plugin-card-open-title">网页搜索</span>
                             <span
+                              className="codex-plugin-card-badge"
                               style={{
                                 fontSize: '10px',
                                 padding: '1px 5px',
@@ -694,7 +713,7 @@ export function PluginsMarketplaceView({
                             >
                               内置服务
                             </span>
-                          </div>
+                          </button>
                           <p title="设置 TaskWeaver 的搜索提供方。在对话与子任务中自动检索最新技术文档与报错信息。">
                             设置 TaskWeaver 的搜索提供方。支持自定义接口地址、API Key 与最大搜索次数。
                           </p>
@@ -704,11 +723,11 @@ export function PluginsMarketplaceView({
                       <div
                         className="card-right"
                         style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-                        onClick={(e) => e.stopPropagation()}
                       >
                         <button
                           type="button"
                           className="codex-icon-btn"
+                          aria-label="配置网页搜索"
                           title="配置网页搜索"
                           onClick={openWebSearchModal}
                           style={{ width: '28px', height: '28px' }}
@@ -720,6 +739,7 @@ export function PluginsMarketplaceView({
                           className={
                             webSearchConfig.enabled ? 'installed-tag' : 'install-action-btn'
                           }
+                          aria-label={webSearchConfig.enabled ? '关闭网页搜索' : '启用网页搜索'}
                           title={
                             webSearchConfig.enabled
                               ? '已启用（点击关闭）'
@@ -730,7 +750,7 @@ export function PluginsMarketplaceView({
                           {webSearchConfig.enabled ? <Check size={14} /> : <Plus size={16} />}
                         </button>
                       </div>
-                    </div>
+                    </article>
                   )}
 
                   {filteredPlugins.map((entry) => {
@@ -748,7 +768,7 @@ export function PluginsMarketplaceView({
                           </div>
                         </div>
 
-                        <div className="card-right" onClick={(event) => event.stopPropagation()}>
+                        <div className="card-right">
                           {isInstalled ? (
                             <>
                               <span
@@ -841,12 +861,15 @@ export function PluginsMarketplaceView({
         <div
           className="settings-modal-backdrop"
           role="presentation"
-          onClick={() => setShowWebSearchModal(false)}
+          onClick={(event) => { if (event.target === event.currentTarget) setShowWebSearchModal(false) }}
         >
           <div
+            ref={webSearchDialogRef}
             className="dsh-websearch-modal"
             role="dialog"
-            onClick={(e) => e.stopPropagation()}
+            aria-modal="true"
+            aria-labelledby={webSearchTitleId}
+            tabIndex={-1}
           >
             {/* 顶部图标与标题 */}
             <div className="dsh-ws-header">
@@ -854,7 +877,7 @@ export function PluginsMarketplaceView({
                 <Search size={22} className="dsh-ws-icon" />
               </div>
               <div className="dsh-ws-title-group">
-                <h2>网页搜索</h2>
+                <h2 id={webSearchTitleId}>网页搜索</h2>
                 <p>设置 TaskWeaver 的搜索提供方。</p>
               </div>
               <div className="dsh-ws-switch-wrap">
@@ -1022,9 +1045,9 @@ export function PluginsMarketplaceView({
       )}
 
       {githubModalOpen && (
-        <div className="settings-modal-backdrop" role="presentation" onClick={() => !githubBusy && setGithubModalOpen(false)}>
-          <div className="codex-modal-card github-connect-modal" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
-            <h2>连接 GitHub</h2>
+        <div className="settings-modal-backdrop" role="presentation" onClick={(event) => { if (event.target === event.currentTarget && !githubBusy) setGithubModalOpen(false) }}>
+          <div ref={githubDialogRef} className="codex-modal-card github-connect-modal" role="dialog" aria-modal="true" aria-labelledby={githubTitleId} tabIndex={-1}>
+            <h2 id={githubTitleId}>连接 GitHub</h2>
             <p>通过 GitHub 官方托管 MCP（<code>api.githubcopilot.com/mcp</code>）连接。凭据只保存在本机安全存储，不会写入项目文件。</p>
 
             <button
@@ -1100,14 +1123,17 @@ export function PluginsMarketplaceView({
         <div
           className="settings-modal-backdrop"
           role="presentation"
-          onClick={() => setShowCustomModal(false)}
+          onClick={(event) => { if (event.target === event.currentTarget) setShowCustomModal(false) }}
         >
           <div
+            ref={customMcpDialogRef}
             className="codex-modal-card"
             role="dialog"
-            onClick={(e) => e.stopPropagation()}
+            aria-modal="true"
+            aria-labelledby={customMcpTitleId}
+            tabIndex={-1}
           >
-            <h2>添加自定义 MCP 插件</h2>
+            <h2 id={customMcpTitleId}>添加自定义 MCP 插件</h2>
             <p>连接任意标准 Stdio 协议的 Model Context Protocol 服务器。</p>
             <form onSubmit={handleAddCustom}>
               <label>

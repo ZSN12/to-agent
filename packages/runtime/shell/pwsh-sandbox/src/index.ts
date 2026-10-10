@@ -1,6 +1,6 @@
 /**
  * Sandbox-consuming PowerShell executor — the pwsh twin of
- * `@z/dsh-bash-sandbox`. It wraps the exact local pwsh argv through
+ * `@taskweaver/dsh-bash-sandbox`. It wraps the exact local pwsh argv through
  * `ctx.sandbox` (which on Windows resolves to the ACL restricted-token runner
  * chain), inherits local process mechanics, and reports the selected mode,
  * enforcement, and denial facts. Positive runner-launch evidence means the
@@ -9,12 +9,12 @@
  * local-executor semantics. The tool layer owns the escalation approval flow
  * through `ctx.approval`; this executor reports the sandbox facts the tool
  * renders.
- * @module @z/dsh-pwsh-sandbox
+ * @module @taskweaver/dsh-pwsh-sandbox
  */
 
-import { Context } from '@z/cordis'
-import type { ShellExecRequest, ShellExecSpec, ShellProcess, ShellRunResult } from '@z/dsh-shell'
-import { SandboxUnavailableError } from '@z/dsh-sandbox'
+import { Context } from '@taskweaver/cordis'
+import type { ShellExecRequest, ShellExecSpec, ShellProcess, ShellRunResult } from '@taskweaver/dsh-shell'
+import { SandboxUnavailableError } from '@taskweaver/dsh-sandbox'
 import type {
   ConfinedArgv,
   ConfinedSandboxMode,
@@ -23,16 +23,16 @@ import type {
   SandboxExecutionPolicy,
   SandboxMode,
   SandboxPolicy,
-} from '@z/dsh-sandbox'
-import type {} from '@z/dsh-sandbox-policy'
-import { PwshLocalExecutor } from '@z/dsh-pwsh-local'
-import type { Config as LocalConfig } from '@z/dsh-pwsh-local'
+} from '@taskweaver/dsh-sandbox'
+import type {} from '@taskweaver/dsh-sandbox-policy'
+import { PwshLocalExecutor } from '@taskweaver/dsh-pwsh-local'
+import type { Config as LocalConfig } from '@taskweaver/dsh-pwsh-local'
 import { classifyDenial, classifyRunnerFailure, isRunnerSpawnFailure, matchesSignature } from './helpers.ts'
 
 /**
  * Plugin config: the local executor's knobs, verbatim. The sandbox policy —
  * the default mode and fallback `workspace-write` root — is NOT here: it lives
- * on `ctx.sandboxPolicy` (`@z/dsh-sandbox-policy`), which resolves
+ * on `ctx.sandboxPolicy` (`@taskweaver/dsh-sandbox-policy`), which resolves
  * each calling session's mode and cwd for every enforcing capability. The
  * runner choice is likewise the `ctx.sandbox` provider's config, not this
  * executor's.

@@ -1,9 +1,9 @@
 //#region lib/types/invariant.js
 /**
-* Package-owned invariant companion for `@z/dsh-session-query`.
-* @module @z/dsh-session-query/invariant
+* Package-owned invariant companion for `@taskweaver/dsh-session-query`.
+* @module @taskweaver/dsh-session-query/invariant
 */
-const PACKAGE_NAME = "@z/dsh-session-query";
+const PACKAGE_NAME = "@taskweaver/dsh-session-query";
 /** Cordis companion plugin name. */
 const name = "session-query-invariant";
 /** Service required before the companion can reserve package ownership. */

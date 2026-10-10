@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
-import { Context } from '@z/cordis'
-import { createScope } from '@z/dsh-scope'
-import type { Scope } from '@z/dsh-scope'
-import type { Agent } from '@z/dsh-agent'
-import SessionStore, { SessionId } from '@z/dsh-session'
-import CommandRuntime, { parseCommand, type CommandDefinition } from '@z/dsh-commands'
-import { AttachmentStore } from '@z/dsh-attachment'
+import { Context } from '@taskweaver/cordis'
+import { createScope } from '@taskweaver/dsh-scope'
+import type { Scope } from '@taskweaver/dsh-scope'
+import type { Agent } from '@taskweaver/dsh-agent'
+import SessionStore, { SessionId } from '@taskweaver/dsh-session'
+import CommandRuntime, { parseCommand, type CommandDefinition } from '@taskweaver/dsh-commands'
+import { AttachmentStore } from '@taskweaver/dsh-attachment'
 
 function command(name: string, text = `ran:${name}`): CommandDefinition {
   return {

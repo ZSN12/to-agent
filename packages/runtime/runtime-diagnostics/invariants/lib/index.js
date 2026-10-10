@@ -1,12 +1,12 @@
-import { Service } from "@z/cordis";
-import z from "@z/schemastery";
+import { Service } from "@taskweaver/cordis";
+import z from "@taskweaver/schemastery";
 //#region lib/types/index.js
 /**
 * Configurable registry for package-owned runtime invariant contributions.
 * Every workspace package registers checks from a `./invariant` companion;
 * ordinary package entrypoints stay independent of diagnostics.
 *
-* @module @z/dsh-invariants
+* @module @taskweaver/dsh-invariants
 */
 /** Thrown when a package-owned runtime invariant is violated. */
 var InvariantError = class extends Error {

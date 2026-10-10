@@ -4,16 +4,16 @@
  * and latches a search scope after an exact glob/grep cycle repeats; it never
  * rewrites calls or imposes a total-task tool/time/token budget. Configuration and semantics live in the package
  * README; rationale lives in the repeat-tool-reminder Agent Note.
- * @module @z/dsh-repeat-tool-reminder
+ * @module @taskweaver/dsh-repeat-tool-reminder
  */
 
-import type { Context } from '@z/cordis'
-import z from '@z/schemastery'
-import type { Agent, PreStepDecision } from '@z/dsh-agent'
-import { createUserMessage } from '@z/dsh-llm'
-import type { MessageSource } from '@z/dsh-llm'
-import type { UserMessage } from '@z/dsh-session'
-import type { PostToolDecision, PreToolDecision, ToolExecution } from '@z/dsh-tools'
+import type { Context } from '@taskweaver/cordis'
+import z from '@taskweaver/schemastery'
+import type { Agent, PreStepDecision } from '@taskweaver/dsh-agent'
+import { createUserMessage } from '@taskweaver/dsh-llm'
+import type { MessageSource } from '@taskweaver/dsh-llm'
+import type { UserMessage } from '@taskweaver/dsh-session'
+import type { PostToolDecision, PreToolDecision, ToolExecution } from '@taskweaver/dsh-tools'
 
 export const name = 'repeat-tool-reminder'
 

@@ -1,4 +1,4 @@
-import { defineProperty } from '@z/cosmokit'
+import { defineProperty } from '@taskweaver/cosmokit'
 import type { Context, Service } from './index.ts'
 
 /** Ordered collection of disposable values with O(1) deletion by value. */

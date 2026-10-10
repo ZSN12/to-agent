@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import { type Agent } from '@z/dsh-agent'
-import SubagentRuntime, { type SubagentStartRequest } from '@z/dsh-subagent'
-import { SessionId } from '@z/dsh-session'
+import { Context } from '@taskweaver/cordis'
+import { type Agent } from '@taskweaver/dsh-agent'
+import SubagentRuntime, { type SubagentStartRequest } from '@taskweaver/dsh-subagent'
+import { SessionId } from '@taskweaver/dsh-session'
 import * as scripted from './scripted-provider.ts'
 
 /** A minimal parent; the scripted provider only reads its id. */

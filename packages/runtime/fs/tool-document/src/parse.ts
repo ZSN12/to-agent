@@ -1,8 +1,15 @@
+import { spawn } from 'node:child_process'
+import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { createRequire } from 'node:module'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { getDocument, OPS } from 'pdfjs-dist/legacy/build/pdf.mjs'
 import { DocumentReadError } from './errors.ts'
-import type { DocumentKind, DocumentOptions, DocumentReadResult } from './protocol.ts'
+import type { DocumentImageCandidate, DocumentKind, DocumentOptions, ParsedDocumentResult } from './protocol.ts'
 import { descendants, directChildren, firstDescendant, parseXml, textContent } from './xml.ts'
 import { extractZipEntries, inspectZip, textPart } from './zip.ts'
+import { walkXml } from './xml.ts'
+import { isOleCompoundFile, officeEncryptionMarkersPresent } from './legacy-office.ts'
 
 const PDF_MAX_BYTES = 100 * 1024 * 1024
 const OFFICE_MAX_BYTES = 50 * 1024 * 1024
@@ -11,7 +18,99 @@ const SEGMENT_MAX = 20
 const SHEET_MAX_ROWS = 200
 const SHEET_MAX_COLUMNS = 50
 const CELL_MAX_CHARS = 200
+const XLSX_WORKSHEET_XML_BYTES = 300 * 1024 * 1024
+const IMAGE_MAX_COUNT = 8
+const IMAGE_MAX_BYTES = 10 * 1024 * 1024
+const IMAGE_MAX_TOTAL_BYTES = 25 * 1024 * 1024
 type ZipCatalog = ReturnType<typeof inspectZip>
+const require = createRequire(import.meta.url)
+
+const IMAGE_TYPES: Readonly<Record<string, DocumentImageCandidate['mediaType']>> = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+}
+
+function imageTypeForPath(path: string): DocumentImageCandidate['mediaType'] | undefined {
+  const extension = path.slice(path.lastIndexOf('.')).toLowerCase()
+  return IMAGE_TYPES[extension]
+}
+
+function imageReferences(node: ReturnType<typeof parseXml>): string[] {
+  return descendants(node, 'blip').flatMap(blip => blip.attributes.embed ? [blip.attributes.embed] : [])
+}
+
+function imageDimensions(data: Uint8Array): { width: number; height: number } | undefined {
+  if (data.length >= 24 && data[0] === 137 && data[1] === 80 && data[2] === 78 && data[3] === 71) {
+    const view = new DataView(data.buffer, data.byteOffset, data.byteLength)
+    return { width: view.getUint32(16), height: view.getUint32(20) }
+  }
+  if (data.length >= 10 && data[0] === 0x47 && data[1] === 0x49 && data[2] === 0x46) {
+    return { width: data[6]! | data[7]! << 8, height: data[8]! | data[9]! << 8 }
+  }
+  if (data.length >= 30 && data[0] === 0x52 && data[1] === 0x49 && data[2] === 0x46 && data[3] === 0x46
+    && data[8] === 0x57 && data[9] === 0x45 && data[10] === 0x42 && data[11] === 0x50) {
+    const kind = String.fromCharCode(data[12]!, data[13]!, data[14]!, data[15]!)
+    if (kind === 'VP8X') return {
+      width: 1 + data[24]! + (data[25]! << 8) + (data[26]! << 16),
+      height: 1 + data[27]! + (data[28]! << 8) + (data[29]! << 16),
+    }
+  }
+  if (data.length > 4 && data[0] === 0xff && data[1] === 0xd8) {
+    let offset = 2
+    while (offset + 9 < data.length) {
+      if (data[offset] !== 0xff) { offset += 1; continue }
+      const marker = data[offset + 1]!
+      const size = data[offset + 2]! << 8 | data[offset + 3]!
+      if ([0xc0, 0xc1, 0xc2, 0xc3, 0xc5, 0xc6, 0xc7, 0xc9, 0xca, 0xcb, 0xcd, 0xce, 0xcf].includes(marker)) {
+        return { width: data[offset + 7]! << 8 | data[offset + 8]!, height: data[offset + 5]! << 8 | data[offset + 6]! }
+      }
+      if (size < 2) break
+      offset += 2 + size
+    }
+  }
+  return undefined
+}
+
+function relatedOfficeImages(
+  bytes: Uint8Array,
+  catalog: ZipCatalog,
+  relationshipsPath: string,
+  basePath: string,
+  usedIds: ReadonlySet<string>,
+  location: string,
+  maxCandidates = IMAGE_MAX_COUNT,
+  maxTotalBytes = IMAGE_MAX_TOTAL_BYTES,
+): { candidates: DocumentImageCandidate[]; omitted: number } {
+  if (usedIds.size === 0 || !catalog.has(relationshipsPath)) return { candidates: [], omitted: 0 }
+  const relationships = rootOf(extractZipEntries(bytes, catalog, new Set([relationshipsPath])), relationshipsPath)
+  const candidates: DocumentImageCandidate[] = []
+  let omitted = 0
+  let totalBytes = 0
+  for (const relation of descendants(relationships, 'Relationship')) {
+    const id = relation.attributes.id
+    const target = relation.attributes.target
+    if (!id || !usedIds.has(id) || !target || relation.attributes.targetmode?.toLowerCase() === 'external') continue
+    if (!relation.attributes.type?.endsWith('/image')) continue
+    const targetPath = resolvePartTarget(basePath, target)
+    const mediaType = imageTypeForPath(targetPath)
+    if (!mediaType || !catalog.has(targetPath)) {
+      omitted += 1
+      continue
+    }
+    const data = extractZipEntries(bytes, catalog, new Set([targetPath])).get(targetPath)!
+    if (data.byteLength === 0 || data.byteLength > IMAGE_MAX_BYTES || candidates.length >= maxCandidates
+      || totalBytes + data.byteLength > maxTotalBytes) {
+      omitted += 1
+      continue
+    }
+    candidates.push({ data, mediaType, name: location + '/' + targetPath.slice(targetPath.lastIndexOf('/') + 1) })
+    totalBytes += data.byteLength
+  }
+  return { candidates, omitted }
+}
 
 function resolvePartTarget(base: string, target: string): string {
   if (target.includes('\\')) throw new DocumentReadError('Office relationship contains an unsafe path.', 'DOCUMENT_PART_MISSING')
@@ -29,9 +128,11 @@ function resolvePartTarget(base: string, target: string): string {
 function detectDocument(bytes: Uint8Array): { kind: DocumentKind; catalog?: ZipCatalog } {
   const header = new TextDecoder().decode(bytes.subarray(0, Math.min(bytes.length, 2048)))
   if (header.startsWith('%PDF-')) return { kind: 'pdf' }
-  if (bytes.length >= 8 && bytes[0] === 0xd0 && bytes[1] === 0xcf && bytes[2] === 0x11 && bytes[3] === 0xe0) {
-    if (/\/Encrypt\b/u.test(header)) throw new DocumentReadError('This legacy Office file is encrypted. Save an unencrypted modern Office copy and retry.', 'DOCUMENT_ENCRYPTED')
-    throw new DocumentReadError('Legacy .doc, .ppt, and .xls files must be saved as .docx, .pptx, or .xlsx before reading.', 'DOCUMENT_LEGACY_OFFICE')
+  if (isOleCompoundFile(bytes)) {
+    if (officeEncryptionMarkersPresent(bytes)) {
+      throw new DocumentReadError('This Office document is encrypted. Remove its password and retry.', 'DOCUMENT_ENCRYPTED')
+    }
+    throw new DocumentReadError('This is a legacy .doc, .ppt, or .xls file. To read it, install LibreOffice and approve the isolated conversion, or save it as .docx, .pptx, or .xlsx.', 'DOCUMENT_LEGACY_OFFICE')
   }
   if (bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 0x03 && bytes[3] === 0x04) {
     const catalog = inspectZip(bytes)
@@ -56,9 +157,9 @@ function estimateTokens(value: string): number {
 
 function result(
   value: string,
-  metadata: Partial<Omit<DocumentReadResult, 'content' | 'tokensEstimate'>> = {},
+  metadata: Partial<Omit<ParsedDocumentResult, 'content' | 'tokensEstimate'>> = {},
   maxBytes = 50 * 1024,
-): DocumentReadResult {
+): ParsedDocumentResult {
   const lines = [value]
   const outline: string[] = []
   let clipped = false
@@ -109,7 +210,7 @@ function result(
   }
 }
 
-function bounded(value: string, maxBytes: number, next?: string): DocumentReadResult {
+function bounded(value: string, maxBytes: number, next?: string): ParsedDocumentResult {
   const footerBytes = next ? Buffer.byteLength('\n\nNext: ' + next, 'utf8') : 0
   if (Buffer.byteLength(value, 'utf8') + footerBytes <= maxBytes) return result(value, next ? { next } : {}, maxBytes)
   let excerpt = value
@@ -154,6 +255,8 @@ interface PdfDocumentLike {
   getPage(number: number): Promise<{
     getTextContent(options: { includeMarkedContent: boolean }): Promise<{ items: Array<{ str?: string; transform?: number[] } | { type: string }> }>
     getOperatorList(): Promise<{ fnArray: number[] }>
+    getViewport(options: { scale: number }): { width: number; height: number }
+    render(options: { canvasContext: unknown; viewport: unknown }): { promise: Promise<void> }
     cleanup(): void
   }>
 }
@@ -179,8 +282,88 @@ async function inspectPdfPage(pdf: PdfDocumentLike, pageNumber: number): Promise
   return { text, scanned }
 }
 
-async function readPdf(bytes: Uint8Array, options: DocumentOptions): Promise<DocumentReadResult> {
-  if (bytes.length > PDF_MAX_BYTES) throw new DocumentReadError('PDF exceeds the 100 MB file limit.', 'DOCUMENT_TOO_LARGE')
+/** Render one scanned PDF page with the system Poppler binary when available. */
+async function renderScannedPdfPage(bytes: Uint8Array, pageNumber: number): Promise<Uint8Array | undefined> {
+  let directory: string | undefined
+  try {
+    directory = await mkdtemp(join(tmpdir(), 'taskweaver-document-page-'))
+    const inputPath = join(directory, 'source.pdf')
+    const outputPrefix = join(directory, 'page')
+    const outputPath = outputPrefix + '.png'
+    await writeFile(inputPath, bytes, { flag: 'wx', mode: 0o600 })
+    const code = await new Promise<number | undefined>(resolve => {
+      let child: ReturnType<typeof spawn>
+      let settled = false
+      let timer: NodeJS.Timeout | undefined
+      const finish = (value: number | undefined): void => {
+        if (settled) return
+        settled = true
+        if (timer) clearTimeout(timer)
+        resolve(value)
+      }
+      try {
+        child = spawn('pdftoppm', [
+          '-f', String(pageNumber), '-l', String(pageNumber), '-singlefile',
+          '-scale-to', '1568', '-png', inputPath, outputPrefix,
+        ], { stdio: 'ignore', windowsHide: true })
+      } catch {
+        finish(undefined)
+        return
+      }
+      timer = setTimeout(() => {
+        child.kill('SIGKILL')
+        finish(undefined)
+      }, 18_000)
+      child.on('error', () => finish(undefined))
+      child.on('close', value => finish(value ?? undefined))
+    })
+    if (code !== 0) return undefined
+    const output = await stat(outputPath)
+    if (!output.isFile() || output.size < 8 || output.size > IMAGE_MAX_BYTES) return undefined
+    const data = await readFile(outputPath)
+    if (data.length < 8 || !data.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) return undefined
+    return new Uint8Array(data)
+  } catch {
+    return undefined
+  } finally {
+    if (directory) await rm(directory, { recursive: true, force: true }).catch(() => undefined)
+  }
+}
+
+/** Render through the bundled native canvas when Poppler is not installed. */
+async function renderScannedPdfPageWithCanvas(pdf: PdfDocumentLike, pageNumber: number): Promise<Uint8Array | undefined> {
+  let page: Awaited<ReturnType<PdfDocumentLike['getPage']>> | undefined
+  try {
+    const canvasModule = require('@napi-rs/canvas') as {
+      createCanvas: (width: number, height: number) => {
+        getContext(type: '2d'): unknown
+        toBuffer(mime: 'image/png'): Buffer
+      }
+    }
+    page = await pdf.getPage(pageNumber)
+    const initial = page.getViewport({ scale: 1 })
+    if (!Number.isFinite(initial.width) || initial.width <= 0 || !Number.isFinite(initial.height) || initial.height <= 0) return undefined
+    const viewport = page.getViewport({ scale: 1568 / initial.width })
+    const width = Math.ceil(viewport.width)
+    const height = Math.ceil(viewport.height)
+    if (width <= 0 || height <= 0 || width > 4096 || height > 4096 || width * height > 8_000_000) return undefined
+    const canvas = canvasModule.createCanvas(width, height)
+    const context = canvas.getContext('2d')
+    await page.render({ canvasContext: context, viewport }).promise
+    const data = canvas.toBuffer('image/png')
+    if (data.length === 0 || data.length > IMAGE_MAX_BYTES) return undefined
+    return new Uint8Array(data)
+  } catch {
+    return undefined
+  } finally {
+    page?.cleanup()
+  }
+}
+
+async function readPdf(bytes: Uint8Array, options: DocumentOptions): Promise<ParsedDocumentResult> {
+  if (bytes.length > (options.maxPdfBytes ?? PDF_MAX_BYTES)) {
+    throw new DocumentReadError('PDF exceeds the ' + Math.floor((options.maxPdfBytes ?? PDF_MAX_BYTES) / (1024 * 1024)) + ' MB file limit.', 'DOCUMENT_TOO_LARGE')
+  }
   const loading = getDocument({ data: Uint8Array.from(bytes), isEvalSupported: false, useWorkerFetch: false, verbosity: 0 })
   let pdf
   try {
@@ -214,17 +397,27 @@ async function readPdf(bytes: Uint8Array, options: DocumentOptions): Promise<Doc
     }, options.maxOutputBytes)
     const [start, end] = parseRange(options.pages, total, 'pages')
     const pieces: string[] = []
+    const imageCandidates: DocumentImageCandidate[] = []
     for (let pageNumber = start; pageNumber <= end; pageNumber += 1) {
       const page = previews.get(pageNumber) ?? await inspectPdfPage(pdf, pageNumber)
-      const unavailable = page.scanned
-        ? options.images
-          ? '[Scanned page; image persistence is not connected in this build, so the page image was not attached]'
-          : '[Scanned page; provide a screenshot or a searchable PDF to read this page]'
-        : '[Blank page]'
-      pieces.push('--- Page ' + pageNumber + ' ---\n' + (page.text || unavailable))
+      let fallback = '[Blank page]'
+      if (page.scanned) {
+        const currentImageBytes = imageCandidates.reduce((sum, candidate) => sum + candidate.data.byteLength, 0)
+        if (options.images && imageCandidates.length < IMAGE_MAX_COUNT && currentImageBytes < IMAGE_MAX_TOTAL_BYTES) {
+          const data = await renderScannedPdfPage(bytes, pageNumber)
+            ?? await renderScannedPdfPageWithCanvas(pdf, pageNumber)
+          if (data && data.byteLength + currentImageBytes <= IMAGE_MAX_TOTAL_BYTES) {
+            imageCandidates.push({ data, mediaType: 'image/png', name: 'page-' + pageNumber + '.png' })
+            fallback = '[Scanned page attached as an image.]'
+          } else fallback = '[Scanned page; rendering is unavailable. Install Poppler (pdftoppm) or provide a screenshot.]'
+        } else if (options.images) fallback = '[Scanned page image omitted; each call can attach at most 8 images.]'
+        else fallback = '[Scanned page; provide a screenshot or a searchable PDF to read this page.]'
+      }
+      pieces.push('--- Page ' + pageNumber + ' ---\n' + (page.text || fallback))
     }
     const next = end < total ? 'pages=' + (end + 1) + '-' + Math.min(total, end + SEGMENT_MAX) : undefined
-    return bounded(pieces.join('\n\n'), options.maxOutputBytes, next)
+    const response = bounded(pieces.join('\n\n'), options.maxOutputBytes, next)
+    return imageCandidates.length ? { ...response, imageCandidates } : response
   } finally {
     await loading.destroy()
   }
@@ -268,8 +461,14 @@ function pptxBody(slide: ReturnType<typeof parseXml>): string {
     for (const paragraph of descendants(shape, 'p')) {
       const value = descendants(paragraph, 't').map(nodeText).filter(Boolean).join('')
       if (!value) continue
-      const level = Number(firstDescendant(paragraph, 'pPr')?.attributes.lvl ?? '0')
-      lines.push((level > 0 ? '  '.repeat(Math.min(level, 8)) + '- ' : '') + value)
+      const properties = firstDescendant(paragraph, 'pPr')
+      const level = Math.max(0, Number(properties?.attributes.lvl ?? '0') || 0)
+      const isBullet = properties !== undefined && (
+        properties.attributes.lvl !== undefined
+        || firstDescendant(properties, 'buChar') !== undefined
+        || firstDescendant(properties, 'buAutoNum') !== undefined
+      ) && firstDescendant(properties, 'buNone') === undefined
+      lines.push((isBullet ? '  '.repeat(Math.min(level, 8)) + '- ' : '') + value)
     }
   }
   for (const table of descendants(slide, 'tbl')) {
@@ -308,8 +507,8 @@ function notesForSlide(bytes: Uint8Array, catalog: ZipCatalog, path: string): st
   return text || undefined
 }
 
-async function readPptx(bytes: Uint8Array, options: DocumentOptions, catalog: ZipCatalog): Promise<DocumentReadResult> {
-  if (bytes.length > OFFICE_MAX_BYTES) throw new DocumentReadError('Office file exceeds the 50 MB file limit.', 'DOCUMENT_TOO_LARGE')
+async function readPptx(bytes: Uint8Array, options: DocumentOptions, catalog: ZipCatalog): Promise<ParsedDocumentResult> {
+  if (bytes.length > (options.maxOfficeBytes ?? OFFICE_MAX_BYTES)) throw new DocumentReadError('Office file exceeds the configured file limit.', 'DOCUMENT_TOO_LARGE')
   const basics = extractZipEntries(bytes, catalog, new Set(['ppt/presentation.xml', 'ppt/_rels/presentation.xml.rels']))
   const paths = pptxSlidePaths(rootOf(basics, 'ppt/presentation.xml'), rootOf(basics, 'ppt/_rels/presentation.xml.rels'))
   const titles: string[] = []
@@ -324,6 +523,7 @@ async function readPptx(bytes: Uint8Array, options: DocumentOptions, catalog: Zi
   }, options.maxOutputBytes)
   const [start, end] = parseRange(options.pages, paths.length, 'pages')
   const content: string[] = []
+  const imageCandidates: DocumentImageCandidate[] = []
   for (let page = start; page <= end; page += 1) {
     const path = paths[page - 1]!
     const slide = rootOf(extractZipEntries(bytes, catalog, new Set([path])), path)
@@ -333,16 +533,40 @@ async function readPptx(bytes: Uint8Array, options: DocumentOptions, catalog: Zi
     const relsPath = 'ppt/slides/_rels/' + path.slice(path.lastIndexOf('/') + 1) + '.rels'
     if (catalog.has(relsPath)) {
       const rels = rootOf(extractZipEntries(bytes, catalog, new Set([relsPath])), relsPath)
-      const images = descendants(rels, 'Relationship').filter(rel => rel.attributes.type?.endsWith('/image'))
-      if (images.length) section += '\n\n[' + images.length + ' embedded image(s)' + (options.images ? '; image attachment pipeline is not connected, images omitted' : '') + ']'
+      const ids = new Set(imageReferences(slide))
+      const imageRelations = descendants(rels, 'Relationship').filter(rel => ids.has(rel.attributes.id ?? '') && rel.attributes.type?.endsWith('/image'))
+      const existingImageBytes = imageCandidates.reduce((sum, candidate) => sum + candidate.data.byteLength, 0)
+      const images = relatedOfficeImages(
+        bytes,
+        catalog,
+        relsPath,
+        path.slice(0, path.lastIndexOf('/')),
+        ids,
+        'slide-' + page,
+        IMAGE_MAX_COUNT - imageCandidates.length,
+        IMAGE_MAX_TOTAL_BYTES - existingImageBytes,
+      )
+      if (imageRelations.length) {
+        const labels = images.candidates.map(candidate => {
+          const dimensions = imageDimensions(candidate.data)
+          return candidate.name.slice(candidate.name.lastIndexOf('/') + 1) + (dimensions ? ' ' + dimensions.width + '×' + dimensions.height + ' px' : '')
+        })
+        section += '\n\n[Embedded image(s): ' + (labels.join(', ') || 'unsupported or unavailable format') + ']'
+        if (options.images) {
+          for (const candidate of images.candidates) imageCandidates.push(candidate)
+          const missing = Math.max(0, imageRelations.length - images.candidates.length)
+          if (missing > 0) section += '\n[Some images were omitted because their format, size, or per-call count is unsupported.]'
+        }
+      }
     }
     content.push(section)
   }
   const next = end < paths.length ? 'pages=' + (end + 1) + '-' + Math.min(paths.length, end + SEGMENT_MAX) : undefined
-  return bounded(content.join('\n\n'), options.maxOutputBytes, next)
+  const response = bounded(content.join('\n\n'), options.maxOutputBytes, next)
+  return options.images && imageCandidates.length ? { ...response, imageCandidates } : response
 }
 
-type DocSection = { title: string; level: number; blocks: string[] }
+type DocSection = { title: string; level: number; blocks: string[]; imageIds: string[] }
 
 const DOCX_HIDDEN_REVISION_NODES = new Set([
   'ins', 'del', 'moveFrom', 'moveTo', 'commentRangeStart', 'commentRangeEnd', 'commentReference',
@@ -377,7 +601,7 @@ function docSections(root: ReturnType<typeof parseXml>): DocSection[] {
   const body = firstDescendant(root, 'body')
   if (!body) throw new DocumentReadError('DOCX body is missing.', 'DOCUMENT_XML_INVALID')
   const sections: DocSection[] = []
-  let current: DocSection = { title: 'Document', level: 1, blocks: [] }
+  let current: DocSection = { title: 'Document', level: 1, blocks: [], imageIds: [] }
   const save = (): void => {
     if (current.title !== 'Document' || current.blocks.length) sections.push(current)
   }
@@ -387,10 +611,14 @@ function docSections(root: ReturnType<typeof parseXml>): DocSection[] {
       const level = docHeadingLevel(block)
       if (level !== undefined) {
         save()
-        current = { title: value || '(Untitled)', level, blocks: [] }
-      } else if (value) {
-        const listLevel = firstDescendant(block, 'ilvl')?.attributes.val
-        current.blocks.push((listLevel === undefined ? '' : '  '.repeat(Math.min(Number(listLevel) || 0, 8)) + '- ') + value)
+        current = { title: value || '(Untitled)', level, blocks: [], imageIds: [] }
+        current.imageIds.push(...imageReferences(block))
+      } else {
+        if (value) {
+          const listLevel = firstDescendant(block, 'ilvl')?.attributes.val
+          current.blocks.push((listLevel === undefined ? '' : '  '.repeat(Math.min(Number(listLevel) || 0, 8)) + '- ') + value)
+        }
+        current.imageIds.push(...imageReferences(block))
       }
     } else if (block.name === 'tbl') {
       const rows = descendants(block, 'tr').map(row => descendants(row, 'tc').map(cell =>
@@ -399,6 +627,7 @@ function docSections(root: ReturnType<typeof parseXml>): DocSection[] {
       if (rows.length) {
         current.blocks.push('| ' + rows[0]!.join(' | ') + ' |', '| ' + rows[0]!.map(() => '---').join(' | ') + ' |')
         current.blocks.push(...rows.slice(1).map(row => '| ' + row.join(' | ') + ' |'))
+        current.imageIds.push(...imageReferences(block))
       }
     }
   }
@@ -413,7 +642,7 @@ function docSections(root: ReturnType<typeof parseXml>): DocSection[] {
   let length = 0
   const flush = (): void => {
     if (chunk.length === 0) return
-    chunks.push({ title: 'Document part ' + (chunks.length + 1), level: 1, blocks: chunk })
+    chunks.push({ title: 'Document part ' + (chunks.length + 1), level: 1, blocks: chunk, imageIds: [] })
     chunk = []
     length = 0
   }
@@ -447,8 +676,8 @@ function docSectionRange(value: string, count: number): [number, number] {
   return [start, Math.min(end, count)]
 }
 
-async function readDocx(bytes: Uint8Array, options: DocumentOptions, catalog: ZipCatalog): Promise<DocumentReadResult> {
-  if (bytes.length > OFFICE_MAX_BYTES) throw new DocumentReadError('Office file exceeds the 50 MB file limit.', 'DOCUMENT_TOO_LARGE')
+async function readDocx(bytes: Uint8Array, options: DocumentOptions, catalog: ZipCatalog): Promise<ParsedDocumentResult> {
+  if (bytes.length > (options.maxOfficeBytes ?? OFFICE_MAX_BYTES)) throw new DocumentReadError('Office file exceeds the configured file limit.', 'DOCUMENT_TOO_LARGE')
   const root = rootOf(extractZipEntries(bytes, catalog, new Set(['word/document.xml'])), 'word/document.xml')
   const sections = docSections(root)
   const outline = sections.map((section, index) => (index + 1) + '. ' + '#'.repeat(Math.max(1, Math.min(section.level, 6))) + ' ' + section.title)
@@ -458,9 +687,27 @@ async function readDocx(bytes: Uint8Array, options: DocumentOptions, catalog: Zi
   }, options.maxOutputBytes)
   const [start, end] = options.section ? docSectionRange(options.section, sections.length) : [1, sections.length]
   const selected = sections.slice(start - 1, end)
+  const selectedIds = new Set(selected.flatMap(section => section.imageIds))
+  const imagePart = relatedOfficeImages(
+    bytes,
+    catalog,
+    'word/_rels/document.xml.rels',
+    'word',
+    selectedIds,
+    'docx',
+  )
+  const labels = imagePart.candidates.map(candidate => {
+    const dimensions = imageDimensions(candidate.data)
+    return candidate.name.slice(candidate.name.lastIndexOf('/') + 1) + (dimensions ? ' ' + dimensions.width + '×' + dimensions.height + ' px' : '')
+  })
+  const imageSummary = labels.length > 0
+    ? '\n\n[Embedded image(s): ' + labels.join(', ') + ']'
+    : selectedIds.size > 0 ? '\n\n[Embedded image(s): unsupported or unavailable format]' : ''
   const content = selected.map(section => '#'.repeat(Math.max(1, Math.min(section.level, 6))) + ' ' + section.title + '\n' + section.blocks.join('\n\n'))
+  if (imageSummary) content[content.length - 1] = (content.at(-1) ?? '') + imageSummary
   const next = end < sections.length ? 'section=' + (end + 1) : undefined
-  return bounded(content.join('\n\n'), options.maxOutputBytes, next)
+  const response = bounded(content.join('\n\n'), options.maxOutputBytes, next)
+  return options.images && imagePart.candidates.length > 0 ? { ...response, imageCandidates: imagePart.candidates } : response
 }
 
 function excelColumnToNumber(name: string): number {
@@ -545,26 +792,155 @@ function dateStyleIndexes(root?: ReturnType<typeof parseXml>): Set<number> {
   }))
 }
 
-function formattedCell(cell: ReturnType<typeof parseXml>['children'][number], shared: string[], dateStyles: Set<number>, date1904: boolean): string {
-  const type = cell.attributes.t
-  const raw = firstDescendant(cell, 'v')?.text ?? ''
-  const formula = firstDescendant(cell, 'f')?.text.trim()
+function formatCellValue(
+  type: string | undefined,
+  style: string | undefined,
+  raw: string,
+  formula: string,
+  inlineText: string,
+  shared: string[],
+  dateStyles: Set<number>,
+  date1904: boolean,
+): string {
   let value = raw
   if (type === 's') value = shared[Number(raw)] ?? ''
-  else if (type === 'inlineStr') value = descendants(cell, 't').map(textContent).join('')
+  else if (type === 'inlineStr') value = inlineText
   else if (type === 'b') value = raw === '1' ? 'TRUE' : 'FALSE'
   else if (type === 'e') value = '#ERROR ' + raw
-  else if (raw && dateStyles.has(Number(cell.attributes.s ?? '0')) && Number.isFinite(Number(raw))) value = excelDate(Number(raw), date1904)
+  else if (raw && dateStyles.has(Number(style ?? '0')) && Number.isFinite(Number(raw))) value = excelDate(Number(raw), date1904)
   if (value.length > CELL_MAX_CHARS) value = value.slice(0, CELL_MAX_CHARS) + '…'
-  return formula ? value + (value ? ' ' : '') + '(=' + formula + ')' : value
+  return formula ? value + (value ? ' ' : '') + '(=' + formula.trim() + ')' : value
 }
 
-async function readXlsx(bytes: Uint8Array, options: DocumentOptions, catalog: ZipCatalog): Promise<DocumentReadResult> {
-  if (bytes.length > OFFICE_MAX_BYTES) throw new DocumentReadError('Office file exceeds the 50 MB file limit.', 'DOCUMENT_TOO_LARGE')
+function worksheetDimension(xml: string): string {
+  const match = /<(?:[\w.-]+:)?dimension\b([^>]*)\/?\s*>/iu.exec(xml)
+  const ref = match?.[1] ? /\bref\s*=\s*(?:"([^"]*)"|'([^']*)')/iu.exec(match[1]) : undefined
+  return ref?.[1] ?? ref?.[2] ?? 'A1'
+}
+
+interface WorksheetScan {
+  dimension: string
+  formulas: number
+  rangeFormulas: number
+  merges: string[]
+  mergeCount: number
+  lastRow: number
+  lastColumn: number
+  rows: Map<number, Map<number, string>>
+}
+
+/** Walk a worksheet without materializing a tree containing millions of cell nodes. */
+function scanWorksheet(
+  xml: string,
+  range: CellRange | undefined,
+  shared: string[],
+  dateStyles: Set<number>,
+  date1904: boolean,
+): WorksheetScan {
+  let dimension = worksheetDimension(xml)
+  let formulas = 0
+  let rangeFormulas = 0
+  let mergeCount = 0
+  const merges: string[] = []
+  let lastRow = 1
+  let lastColumn = 1
+  let rowNumber: number | undefined
+  let currentColumn = 0
+  let cell: {
+    row: number
+    column: number
+    capture: boolean
+    type?: string
+    style?: string
+    value: string
+    formula: string
+    inlineText: string
+  } | undefined
+  const elementStack: string[] = []
+  const rows = new Map<number, Map<number, string>>()
+
+  walkXml(xml, {
+    start(name, attributes) {
+      elementStack.push(name)
+      if (name === 'dimension') dimension = attributes.ref ?? dimension
+      else if (name === 'mergeCell') {
+        mergeCount += 1
+        if (merges.length < 12 && attributes.ref) merges.push(attributes.ref)
+      } else if (name === 'row') {
+        const parsed = Number(attributes.r)
+        rowNumber = Number.isSafeInteger(parsed) && parsed > 0 ? parsed : (rowNumber ?? 0) + 1
+        currentColumn = 0
+        lastRow = Math.max(lastRow, rowNumber)
+      } else if (name === 'c') {
+        const address = attributes.r
+        let targetRow = rowNumber
+        let targetColumn: number
+        if (address) {
+          const parsed = parseCellAddress(address)
+          targetRow = parsed.row
+          targetColumn = parsed.column
+        } else targetColumn = currentColumn + 1
+        currentColumn = targetColumn
+        if (targetRow !== undefined) {
+          lastRow = Math.max(lastRow, targetRow)
+          lastColumn = Math.max(lastColumn, targetColumn)
+        }
+        const capture = targetRow !== undefined && range !== undefined
+          && targetRow >= range.r1 && targetRow <= range.r2
+          && targetColumn >= range.c1 && targetColumn <= range.c2
+        cell = {
+          row: targetRow ?? 0,
+          column: targetColumn,
+          capture,
+          ...(attributes.t !== undefined ? { type: attributes.t } : {}),
+          ...(attributes.s !== undefined ? { style: attributes.s } : {}),
+          value: '',
+          formula: '',
+          inlineText: '',
+        }
+      } else if (name === 'f') {
+        formulas += 1
+        if (cell?.capture) rangeFormulas += 1
+      }
+    },
+    text(value) {
+      if (!cell?.capture) return
+      switch (elementStack.at(-1)) {
+        case 'v': cell.value += value; break
+        case 'f': cell.formula += value; break
+        case 't':
+          if (cell.type === 'inlineStr') cell.inlineText += value
+          break
+      }
+    },
+    end(name) {
+      if (name === 'c' && cell) {
+        if (cell.capture) {
+          let values = rows.get(cell.row)
+          if (!values) rows.set(cell.row, values = new Map())
+          values.set(cell.column, formatCellValue(cell.type, cell.style, cell.value, cell.formula, cell.inlineText, shared, dateStyles, date1904))
+        }
+        cell = undefined
+      } else if (name === 'row') rowNumber = undefined
+      elementStack.pop()
+    },
+  })
+
+  // Keep malformed declared extents from hiding actual populated cells.
+  const declared = /^([A-Z]+\d+)(?::([A-Z]+\d+))?$/iu.exec(dimension)
+  if (declared) {
+    const last = parseCellAddress(declared[2] ?? declared[1]!)
+    lastRow = Math.max(lastRow, last.row)
+    lastColumn = Math.max(lastColumn, last.column)
+  }
+  return { dimension, formulas, rangeFormulas, merges, mergeCount, lastRow, lastColumn, rows }
+}
+
+async function readXlsx(bytes: Uint8Array, options: DocumentOptions, catalog: ZipCatalog): Promise<ParsedDocumentResult> {
+  if (bytes.length > (options.maxOfficeBytes ?? OFFICE_MAX_BYTES)) throw new DocumentReadError('Office file exceeds the configured file limit.', 'DOCUMENT_TOO_LARGE')
   const { workbook, sheets } = workbookParts(bytes, catalog)
   if (!sheets.length) throw new DocumentReadError('XLSX workbook has no worksheets.', 'DOCUMENT_XML_INVALID')
-  const metadata = new Map<string, { dimension: string; formulas: number; merges: string[] }>()
-  const worksheets = new Map<string, ReturnType<typeof parseXml>>()
+  const metadata = new Map<string, { dimension: string }>()
   const outline: string[] = []
   let index = 0
   if (options.sheet !== undefined) {
@@ -574,14 +950,13 @@ async function readXlsx(bytes: Uint8Array, options: DocumentOptions, catalog: Zi
   }
   const selected = sheets[index]!
   const inspect = options.sheet === undefined ? sheets : [selected]
+  let selectedWorksheetXml: string | undefined
   for (const sheet of inspect) {
-    const root = rootOf(extractZipEntries(bytes, catalog, new Set([sheet.path])), sheet.path)
-    const dimension = firstDescendant(root, 'dimension')?.attributes.ref ?? 'A1'
-    const formulas = descendants(root, 'f').length
-    const merges = descendants(root, 'mergeCell').flatMap(item => item.attributes.ref ? [item.attributes.ref] : [])
-    metadata.set(sheet.name, { dimension, formulas, merges })
-    worksheets.set(sheet.name, root)
-    if (options.sheet === undefined) outline.push(sheet.name + ' — ' + dimension + ' (' + formulas + ' formulas, ' + merges.length + ' merged ranges)')
+    const xml = textPart(extractZipEntries(bytes, catalog, new Set([sheet.path]), XLSX_WORKSHEET_XML_BYTES), sheet.path, XLSX_WORKSHEET_XML_BYTES)
+    const dimension = worksheetDimension(xml)
+    metadata.set(sheet.name, { dimension })
+    if (sheet.name === selected.name) selectedWorksheetXml = xml
+    if (options.sheet === undefined) outline.push(sheet.name + ' — ' + dimension)
   }
   if (options.sheet === undefined) {
     if (sheets.length > 1) return result('Workbook has ' + sheets.length + ' sheets. First call returns its outline; specify sheet by name or 1-based number.', {
@@ -605,30 +980,20 @@ async function readXlsx(bytes: Uint8Array, options: DocumentOptions, catalog: Zi
   if (catalog.has(sharedPath)) requested.add(sharedPath)
   if (catalog.has(stylesPath)) requested.add(stylesPath)
   const parts = requested.size > 0 ? extractZipEntries(bytes, catalog, requested) : new Map<string, Uint8Array>()
-  const worksheet = worksheets.get(selected.name)!
   const shared = parts.has(sharedPath) ? descendants(rootOf(parts, sharedPath), 'si').map(item => descendants(item, 't').map(textContent).join('')) : []
   const styles = parts.has(stylesPath) ? rootOf(parts, stylesPath) : undefined
   const dateStyles = dateStyleIndexes(styles)
-  const rows = new Map<number, Map<number, string>>()
-  let formulas = 0
-  for (const row of descendants(worksheet, 'row')) {
-    for (const cell of directChildren(row, 'c')) {
-      const address = cell.attributes.r
-      if (!address) continue
-      const { row: rowNumber, column } = parseCellAddress(address)
-      if (rowNumber < range.r1 || rowNumber > range.r2 || column < range.c1 || column > range.c2) continue
-      if (firstDescendant(cell, 'f')) formulas += 1
-      let values = rows.get(rowNumber)
-      if (!values) rows.set(rowNumber, values = new Map())
-      values.set(column, formattedCell(cell, shared, dateStyles, firstDescendant(workbook, 'workbookPr')?.attributes.date1904 === '1'))
-    }
-  }
+  const worksheetXml = selectedWorksheetXml
+  if (!worksheetXml) throw new DocumentReadError('XLSX worksheet is missing.', 'DOCUMENT_PART_MISSING')
+  const sheetScan = scanWorksheet(worksheetXml, range, shared, dateStyles, firstDescendant(workbook, 'workbookPr')?.attributes.date1904 === '1')
+  const rows = sheetScan.rows
+  const actualDimension = sheetScan.dimension
   const columns = Array.from({ length: range.c2 - range.c1 + 1 }, (_, offset) => excelNumberToColumn(range.c1 + offset))
   const header = ['Row', ...columns.map(column => column + ' (' + column + range.r1 + ')')]
   const output = [
-    'Sheet: ' + selected.name + '; dimensions: ' + sheetMeta.dimension + '; merged ranges: ' + sheetMeta.merges.length +
-      (sheetMeta.merges.length ? ' (' + sheetMeta.merges.slice(0, 12).join(', ') + (sheetMeta.merges.length > 12 ? ', …' : '') + ')' : '') +
-      '; formulas on sheet: ' + sheetMeta.formulas + '; formulas in this range: ' + formulas,
+    'Sheet: ' + selected.name + '; dimensions: ' + actualDimension + '; merged ranges: ' + sheetScan.mergeCount +
+      (sheetScan.mergeCount ? ' (' + sheetScan.merges.join(', ') + (sheetScan.mergeCount > sheetScan.merges.length ? ', …' : '') + ')' : '') +
+      '; formulas on sheet: ' + sheetScan.formulas + '; formulas in this range: ' + sheetScan.rangeFormulas,
     '| ' + header.join(' | ') + ' |',
     '| ' + header.map(() => '---').join(' | ') + ' |',
   ]
@@ -637,9 +1002,9 @@ async function readXlsx(bytes: Uint8Array, options: DocumentOptions, catalog: Zi
     const values = columns.map((_column, offset) => (row?.get(range.c1 + offset) ?? '').replace(/\|/gu, '\\|').replace(/\r?\n/gu, '<br>'))
     output.push('| ' + rowNumber + ' | ' + values.join(' | ') + ' |')
   }
-  const dimension = /^([A-Z]+)(\d+)(?::([A-Z]+)(\d+))?$/iu.exec(sheetMeta.dimension)
-  const lastRow = dimension ? Number(dimension[4] ?? dimension[2]) : range.r2
-  const lastColumn = dimension ? excelColumnToNumber(dimension[3] ?? dimension[1]!) : range.c2
+  const dimension = /^([A-Z]+)(\d+)(?::([A-Z]+)(\d+))?$/iu.exec(actualDimension)
+  const lastRow = Math.max(range.r2, sheetScan.lastRow, dimension ? Number(dimension[4] ?? dimension[2]) : range.r2)
+  const lastColumn = Math.max(range.c2, sheetScan.lastColumn, dimension ? excelColumnToNumber(dimension[3] ?? dimension[1]!) : range.c2)
   let next: string | undefined
   if (range.r2 < lastRow) {
     next = 'sheet=' + (index + 1) + '&range=' + excelNumberToColumn(range.c1) + (range.r2 + 1) + ':' + excelNumberToColumn(range.c2) + Math.min(lastRow, range.r2 + SHEET_MAX_ROWS)
@@ -650,10 +1015,10 @@ async function readXlsx(bytes: Uint8Array, options: DocumentOptions, catalog: Zi
   return bounded(output.join('\n'), options.maxOutputBytes, next)
 }
 
-export async function parseDocumentBytes(bytes: Uint8Array, options: DocumentOptions): Promise<DocumentReadResult> {
+export async function parseDocumentBytes(bytes: Uint8Array, options: DocumentOptions): Promise<ParsedDocumentResult> {
   const detected = detectDocument(bytes)
   if (detected.kind === 'pdf') return await readPdf(bytes, options)
-  if (bytes.length > OFFICE_MAX_BYTES) throw new DocumentReadError('Office file exceeds the 50 MB file limit.', 'DOCUMENT_TOO_LARGE')
+  if (bytes.length > (options.maxOfficeBytes ?? OFFICE_MAX_BYTES)) throw new DocumentReadError('Office file exceeds the configured file limit.', 'DOCUMENT_TOO_LARGE')
   if (!detected.catalog) throw new DocumentReadError('Office archive directory is missing.', 'DOCUMENT_ZIP_INVALID')
   if (detected.kind === 'pptx') return await readPptx(bytes, options, detected.catalog)
   if (detected.kind === 'docx') return await readDocx(bytes, options, detected.catalog)

@@ -8,15 +8,15 @@
  * composes and drives them directly, so this driver owns exactly one turn with
  * one result.
  *
- * @module @z/dsh-subagent-in-process-driver
+ * @module @taskweaver/dsh-subagent-in-process-driver
  */
 
 import { randomUUID } from 'node:crypto'
-import type { Context } from '@z/cordis'
-import { foldConsumedWork } from '@z/dsh-agent'
-import type { Agent, AgentHandle } from '@z/dsh-agent'
-import { SessionId, type SessionEvent, type TurnEndReason } from '@z/dsh-session'
-import { createUserMessage, type ContentBlock } from '@z/dsh-llm'
+import type { Context } from '@taskweaver/cordis'
+import { foldConsumedWork } from '@taskweaver/dsh-agent'
+import type { Agent, AgentHandle } from '@taskweaver/dsh-agent'
+import { SessionId, type SessionEvent, type TurnEndReason } from '@taskweaver/dsh-session'
+import { createUserMessage, type ContentBlock } from '@taskweaver/dsh-llm'
 import {
   appendDelegatedPolicyOverrides,
   applyChildComposition,
@@ -26,14 +26,14 @@ import {
   finalAssistantOutput,
   resolveChildAgentOptions,
   resolveChildDepth,
-} from '@z/dsh-subagent'
+} from '@taskweaver/dsh-subagent'
 import type {
   ResolvedSubagentStartRequest,
   SubagentDescriptorData,
   SubagentResult,
   SubagentRun,
   SubagentStopReason,
-} from '@z/dsh-subagent'
+} from '@taskweaver/dsh-subagent'
 import {
   attachStructuredRuntime,
   type StructuredAttachment,

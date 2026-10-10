@@ -1,9 +1,9 @@
 //#region lib/types/invariant.js
 /**
-* Package-owned invariant companion for `@z/dsh-session-title-all-prompts-llm`.
-* @module @z/dsh-session-title-all-prompts-llm/invariant
+* Package-owned invariant companion for `@taskweaver/dsh-session-title-all-prompts-llm`.
+* @module @taskweaver/dsh-session-title-all-prompts-llm/invariant
 */
-const PACKAGE_NAME = "@z/dsh-session-title-all-prompts-llm";
+const PACKAGE_NAME = "@taskweaver/dsh-session-title-all-prompts-llm";
 /** Cordis companion plugin name. */
 const name = "session-title-all-prompts-llm-invariant";
 /** Service required before the companion can reserve package ownership. */

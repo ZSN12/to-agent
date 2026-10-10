@@ -3,11 +3,11 @@
  * is derived from the session log.
  * @module dsh-agent-loop/agent
  */
-import type { Agent, AgentCancelCause, AgentOptions, AgentStatus, CancelOptions, InboxTarget } from '@z/dsh-agent';
-import { Inbox } from '@z/dsh-agent';
-import type { Scope } from '@z/dsh-scope';
-import type { Session, SessionId, UserMessage } from '@z/dsh-session';
-import type { Context } from '@z/cordis';
+import type { Agent, AgentCancelCause, AgentOptions, AgentStatus, CancelOptions, InboxTarget } from '@taskweaver/dsh-agent';
+import { Inbox } from '@taskweaver/dsh-agent';
+import type { Scope } from '@taskweaver/dsh-scope';
+import type { Session, SessionId, UserMessage } from '@taskweaver/dsh-session';
+import type { Context } from '@taskweaver/cordis';
 /** Drives one session through turn and step boundaries. */
 export declare class ReactLoopAgent implements Agent {
     private loopCtx;

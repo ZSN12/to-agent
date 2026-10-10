@@ -1,44 +1,38 @@
 #!/usr/bin/env node
 /**
- * tsx ESM register breaks under Electron; bridge transport must use the CJS entry.
+ * Bridge transport must load compiled provider-bridge without Electron-as-node.
  */
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { scriptHostNodeExecutable } from './lib/host-node-executable.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const loader = path.join(root, 'packages/provider-bridge-transport/cursor-adapter-loader.mjs')
-const source = fs.readFileSync(loader, 'utf8')
-assert.match(source, /dist', 'cjs', 'api', 'index\.cjs'/, 'cursor-adapter-loader must prefer tsx CJS register for Electron')
+const cursorLoader = path.join(root, 'packages/provider-bridge-transport/cursor-adapter-loader.mjs')
+const cursorSource = fs.readFileSync(cursorLoader, 'utf8')
+assert.doesNotMatch(cursorSource, /tsx|TASKWEAVER_OPENCODEX_ROOT/i, 'Cursor adapter loading must not depend on the vendored source or a TS runtime')
+assert.match(cursorSource, /@taskweaver\/provider-bridge/, 'Cursor adapter must load the owned package')
 
-const deployTsx = path.join(root, 'vendor/taskweaver-z-runtime/runtime-packages/tsx')
-const monorepoTsx = path.join(root, 'packages/runtime/node_modules/tsx')
-const tsxDir = fs.existsSync(deployTsx) ? deployTsx : monorepoTsx
-assert.ok(fs.existsSync(path.join(tsxDir, 'dist/cjs/api/index.cjs')), `missing tsx package at ${tsxDir}`)
+const googleLoader = path.join(root, 'packages/provider-bridge-transport/google-adapter-loader.mjs')
+const googleSource = fs.readFileSync(googleLoader, 'utf8')
+assert.match(googleSource, /dist', 'cjs', 'api', 'index\.cjs'/, 'transitional Google adapter loader must prefer tsx CJS register')
 
-const electronCandidates = [
-  path.join(root, 'release/mac-arm64/TaskWeaver.app/Contents/MacOS/TaskWeaver'),
-  path.join(root, 'release/mac/TaskWeaver.app/Contents/MacOS/TaskWeaver'),
-  '/Applications/TaskWeaver.app/Contents/MacOS/TaskWeaver',
-]
-const electron = electronCandidates.find((p) => fs.existsSync(p))
-if (!electron) {
-  console.log('test-bridge-tsx-loader: skip Electron spawn (no TaskWeaver.app); source check passed')
-  process.exit(0)
-}
+const workspaceTsx = path.join(root, 'node_modules/tsx')
+assert.ok(fs.existsSync(path.join(workspaceTsx, 'dist/cjs/api/index.cjs')), `missing root workspace tsx package at ${workspaceTsx}`)
 
+const nodeBin = scriptHostNodeExecutable()
 const snippet = `
-import { ensureNodeTypescriptLoader } from ${JSON.stringify(loader)};
-ensureNodeTypescriptLoader();
+import { ensureGoogleAdapterLoader } from ${JSON.stringify(googleLoader)};
+ensureGoogleAdapterLoader();
 console.log('tsx-loader-ok');
 `
-const result = spawnSync(electron, ['--input-type=module', '-e', snippet], {
-  env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+const result = spawnSync(nodeBin, ['--input-type=module', '-e', snippet], {
+  env: process.env,
   encoding: 'utf8',
 })
-assert.equal(result.status, 0, `Electron tsx loader failed:\n${result.stderr}\n${result.stdout}`)
+assert.equal(result.status, 0, `Host Node tsx loader failed:\n${result.stderr}\n${result.stdout}`)
 assert.match(result.stdout, /tsx-loader-ok/)
 
-console.log('test-bridge-tsx-loader: ok')
+console.log('test-bridge-tsx-loader: Cursor package is loader-free; transitional Google loader ok')

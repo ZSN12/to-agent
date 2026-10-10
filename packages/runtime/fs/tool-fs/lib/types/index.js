@@ -1,55 +1,47 @@
-"use strict";
 /**
  * Model-facing read, read_image, write, and edit tools over `ctx.fs`. This package owns schemas, validation,
  * read windows, formatting, and observation events, never a concrete provider. An optional
  * event policy supplies mutation guards; without one the tools use unconditional provider calls.
- * @module @z/dsh-tool-fs
+ * @module @taskweaver/dsh-tool-fs
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.Config = exports.diffsFromMeta = exports.computeHunkDiffs = exports.sessionResolveOptions = exports.sessionCwd = exports.FsSandboxController = exports.inject = exports.name = void 0;
-exports.apply = apply;
-var schemastery_1 = require("@z/schemastery");
-var read_ts_1 = require("./read.ts");
-var write_ts_1 = require("./write.ts");
-var edit_ts_1 = require("./edit.ts");
-var read_image_ts_1 = require("./read-image.ts");
-var read_render_ts_1 = require("./read-render.ts");
-var sandbox_ts_1 = require("./sandbox.ts");
+import z from '@taskweaver/schemastery';
+import { applyReadTool, READ_LIMIT, STREAM_MIN_SIZE } from "./read.js";
+import { applyWriteTool } from "./write.js";
+import { applyEditTool } from "./edit.js";
+import { applyReadImageTool } from "./read-image.js";
+import { READ_MAX_BYTES, READ_MAX_LINE_LENGTH } from "./read-render.js";
+import { FsSandboxController } from "./sandbox.js";
 /** Cordis plugin name used by loader diagnostics. */
-exports.name = 'tool-fs';
+export const name = 'tool-fs';
 /** Services required by the filesystem tool suite. */
-exports.inject = ['tools', 'fs', 'systemPrompt'];
+export const inject = ['tools', 'fs', 'systemPrompt'];
 // Shared by sibling filesystem plugins so mutations use the same policy path.
-var sandbox_ts_2 = require("./sandbox.ts");
-Object.defineProperty(exports, "FsSandboxController", { enumerable: true, get: function () { return sandbox_ts_2.FsSandboxController; } });
-var session_cwd_ts_1 = require("./session-cwd.ts");
-Object.defineProperty(exports, "sessionCwd", { enumerable: true, get: function () { return session_cwd_ts_1.sessionCwd; } });
-Object.defineProperty(exports, "sessionResolveOptions", { enumerable: true, get: function () { return session_cwd_ts_1.sessionResolveOptions; } });
-var diff_ts_1 = require("./diff.ts");
-Object.defineProperty(exports, "computeHunkDiffs", { enumerable: true, get: function () { return diff_ts_1.computeHunkDiffs; } });
-Object.defineProperty(exports, "diffsFromMeta", { enumerable: true, get: function () { return diff_ts_1.diffsFromMeta; } });
-exports.Config = schemastery_1.default.object({
-    mutations: schemastery_1.default.boolean().default(true),
-    readLimit: schemastery_1.default.number().default(read_ts_1.READ_LIMIT),
-    readMaxLineLength: schemastery_1.default.number().default(read_render_ts_1.READ_MAX_LINE_LENGTH),
-    readMaxBytes: schemastery_1.default.number().default(read_render_ts_1.READ_MAX_BYTES),
-    readStreamMinSize: schemastery_1.default.number().default(read_ts_1.STREAM_MIN_SIZE),
+export { FsSandboxController } from "./sandbox.js";
+export { sessionCwd, sessionResolveOptions } from "./session-cwd.js";
+export { resolveRegularReadTarget } from "./read-target.js";
+export { computeHunkDiffs, diffsFromMeta } from "./diff.js";
+export const Config = z.object({
+    mutations: z.boolean().default(true),
+    readLimit: z.number().default(READ_LIMIT),
+    readMaxLineLength: z.number().default(READ_MAX_LINE_LENGTH),
+    readMaxBytes: z.number().default(READ_MAX_BYTES),
+    readStreamMinSize: z.number().default(STREAM_MIN_SIZE),
 });
 /** Every read cap counts lines/chars/bytes — a positive integer, or windowing arithmetic misbehaves silently. */
 function assertPositiveInteger(name, value) {
     if (!Number.isInteger(value) || value < 1) {
-        throw new Error("tool-fs: ".concat(name, " must be a positive integer"));
+        throw new Error(`tool-fs: ${name} must be a positive integer`);
     }
 }
 /** Register the full `read`/`write`/`edit` filesystem tool suite, plus `read_image` while `attachments` is mounted. */
-function apply(ctx, config) {
+export function apply(ctx, config) {
     // schemastery (Config) has already filled every defaulted field.
-    var resolved = config;
+    const resolved = config;
     assertPositiveInteger('readLimit', resolved.readLimit);
     assertPositiveInteger('readMaxLineLength', resolved.readMaxLineLength);
     assertPositiveInteger('readMaxBytes', resolved.readMaxBytes);
     assertPositiveInteger('readStreamMinSize', resolved.readStreamMinSize);
-    (0, read_ts_1.applyReadTool)(ctx, {
+    applyReadTool(ctx, {
         limit: resolved.readLimit,
         maxLineLength: resolved.readMaxLineLength,
         maxBytes: resolved.readMaxBytes,
@@ -62,22 +54,23 @@ function apply(ctx, config) {
         // view inherits those global definitions. Mask only the inherited
         // capabilities that actually exist; standalone read-only compositions
         // have nothing to restrict.
-        var inheritedMutations = ['write', 'edit'].filter(function (name) { return ctx.tools.get(name) !== undefined; });
+        const inheritedMutations = ['write', 'edit'].filter(name => ctx.tools.get(name) !== undefined);
         if (inheritedMutations.length > 0)
             ctx.tools.restrict({ deny: inheritedMutations });
     }
     // read_image is composition-conditional: without a mounted attachment store
     // the deployment cannot durably commit image bytes, so the tool never
     // registers; the execute body keeps a defensive re-check for direct callers.
-    ctx.inject(['attachments'], function (imageCtx) {
-        (0, read_image_ts_1.applyReadImageTool)(imageCtx);
+    ctx.inject(['attachments'], (imageCtx) => {
+        applyReadImageTool(imageCtx);
     });
     if (resolved.mutations) {
         // One escalation API shared by both mutating tools: advertisement gating,
         // per-call policy resolution, and denial-marker mapping, all keyed off whether
         // the mounted ctx.fs confines (ctx.fs.sandboxMode).
-        var sandbox = new sandbox_ts_1.FsSandboxController(ctx);
-        (0, write_ts_1.applyWriteTool)(ctx, sandbox);
-        (0, edit_ts_1.applyEditTool)(ctx, sandbox);
+        const sandbox = new FsSandboxController(ctx);
+        applyWriteTool(ctx, sandbox);
+        applyEditTool(ctx, sandbox);
     }
 }
+//# sourceMappingURL=index.js.map

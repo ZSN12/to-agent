@@ -8,8 +8,8 @@
  * @module dsh-llm-pi-ai/replay
  */
 
-import { LlmError } from '@z/dsh-llm'
-import type { Message, ModelMessageSource, ReplayEnvelope } from '@z/dsh-llm'
+import { LlmError } from '@taskweaver/dsh-llm'
+import type { Message, ModelMessageSource, ReplayEnvelope } from '@taskweaver/dsh-llm'
 import type { Api, AssistantMessage, JsonObject, Usage as PiUsage } from '@earendil-works/pi-ai'
 
 /** Per-block half of the pi-ai replay envelope, one entry per content block. */

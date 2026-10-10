@@ -2,10 +2,10 @@
  * Cordis-free local filesystem mechanics. This provider layer returns validated UTF-8 text,
  * streams large files, and rejects binary data; line windows belong to `dsh-tool-fs`. Writes
  * stage an exclusive owner-only file in a private sibling directory and atomically publish it.
- * @module @z/dsh-fs-local/fsio
+ * @module @taskweaver/dsh-fs-local/fsio
  */
 import type { BigIntStats } from 'node:fs';
-import { FsTargetKey, FsVersion } from '@z/dsh-fs';
+import { FsTargetKey, FsVersion } from '@taskweaver/dsh-fs';
 /**
  * Test hook: lets specs pin the atomic-write temp names (to prove exclusive-open behavior without
  * a name race), override native boundaries, and observe the staged temp file before publication.

@@ -4,7 +4,7 @@
  * the client never submits a raw path, and skill lookup never creates or
  * resumes an Agent.
  */
-import type { SessionId } from '@z/dsh-session/types';
+import type { SessionId } from '@taskweaver/dsh-session/types';
 import type { RpcRequest, RpcResponse } from './rpc.ts';
 /** Skill catalog row (wire projection of the host SkillSummary; provider/source vocabulary stays host-side). */
 export interface SkillEntry {

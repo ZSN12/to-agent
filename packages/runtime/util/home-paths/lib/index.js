@@ -1,33 +1,60 @@
 /**
- * Shared filesystem path helpers for DeepSeek Harness user data.
+ * Shared filesystem path helpers for TaskWeaver runtime user data.
  *
- * @module @z/dsh-home-paths
+ * @module @taskweaver/dsh-home-paths
  */
 import { opendir, realpath } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { basename, dirname, join, resolve } from 'node:path';
-/** Directory name for the default DeepSeek Harness home under the OS home. */
+import { basename, dirname, join, resolve, sep } from 'node:path';
+/** Directory below the OS home used for TaskWeaver runtime state. */
+export const RUNTIME_HOME_DIR_NAME = 'runtime';
+/** Stable user-facing display form for the default runtime home. */
+export const DEFAULT_RUNTIME_HOME_DISPLAY = '~/.taskweaver/runtime';
+/** Canonical environment variable overriding the runtime home. */
+export const TASKWEAVER_HOME_ENV = 'TASKWEAVER_HOME';
+/** Canonical embedded-host flag. */
+export const TASKWEAVER_EMBEDDED_ENV = 'TASKWEAVER_EMBEDDED';
+/** Legacy environment variables accepted during the one-version migration window. */
+export const LEGACY_HOME_ENV_VARS = ['Z_HOME', 'DSH_HOME'];
+export const LEGACY_EMBEDDED_ENV_VARS = ['Z_TASKWEAVER_EMBEDDED', 'DSH_TASKWEAVER_EMBEDDED'];
+/** @deprecated Use {@link RUNTIME_HOME_DIR_NAME}. */
 export const DSH_HOME_DIR_NAME = '.dsh';
-/** Stable user-facing display form for the default DeepSeek Harness home. */
+/** @deprecated Use {@link DEFAULT_RUNTIME_HOME_DISPLAY}. */
 export const DEFAULT_DSH_HOME_DISPLAY = `~/${DSH_HOME_DIR_NAME}`;
-/** Environment variable that overrides the default DeepSeek Harness home. */
+/** @deprecated Use {@link TASKWEAVER_HOME_ENV}. */
 export const DSH_HOME_ENV = 'DSH_HOME';
-/** TaskWeaver / Z runtime home (`Z_HOME` wins over `DSH_HOME` when both are set). */
+/** @deprecated Use {@link TASKWEAVER_HOME_ENV}. */
 export const Z_HOME_ENV = 'Z_HOME';
-/** Embedded TaskWeaver host (Electron owns UI); non-empty value opts in. */
+/** @deprecated Use {@link TASKWEAVER_EMBEDDED_ENV}. */
 export const Z_TASKWEAVER_EMBEDDED_ENV = 'Z_TASKWEAVER_EMBEDDED';
-/** Legacy embedded flag; read after {@link Z_TASKWEAVER_EMBEDDED_ENV}. */
+/** @deprecated Use {@link TASKWEAVER_EMBEDDED_ENV}. */
 export const DSH_TASKWEAVER_EMBEDDED_ENV = 'DSH_TASKWEAVER_EMBEDDED';
+const warnedLegacyVariables = new Set();
+/**
+ * Read a canonical TaskWeaver environment variable, falling back to legacy
+ * names for one compatibility release. Each legacy name warns once per
+ * process so old launch scripts can be updated without flooding logs.
+ */
+export function readTaskWeaverEnvironment(env, canonicalName, legacyNames = [], warn = (message) => console.warn(message)) {
+    const canonical = nonBlankEnv(env, canonicalName);
+    for (const legacyName of legacyNames) {
+        const legacyValue = nonBlankEnv(env, legacyName);
+        if (legacyValue === undefined)
+            continue;
+        if (!warnedLegacyVariables.has(legacyName)) {
+            warnedLegacyVariables.add(legacyName);
+            warn(`[TaskWeaver] ${legacyName} 已弃用，请改用 ${canonicalName}。旧名称将在一个版本后移除。`);
+        }
+        if (canonical === undefined)
+            return legacyValue;
+    }
+    return canonical;
+}
 function nonBlankEnv(env, key) {
     const value = env[key];
     if (value === undefined || value.trim().length === 0)
         return undefined;
     return value;
-}
-/** Whether this process runs as TaskWeaver's embedded Z host (`Z_*` then `DSH_*`). */
-export function taskweaverEmbeddedFromEnv(env = process.env) {
-    return nonBlankEnv(env, Z_TASKWEAVER_EMBEDDED_ENV) !== undefined
-        || nonBlankEnv(env, DSH_TASKWEAVER_EMBEDDED_ENV) !== undefined;
 }
 /**
  * Give a native filesystem watcher one canonical spelling of a path, even
@@ -68,59 +95,54 @@ export async function canonicalizeWatchPath(path) {
         }
     }
 }
-/**
- * Resolve the default DeepSeek Harness home using Node's platform path rules.
- * @returns the absolute default harness home path.
- */
-export function defaultDshHome() {
-    return join(homedir(), DSH_HOME_DIR_NAME);
+/** Resolve the default TaskWeaver runtime home. */
+export function defaultRuntimeHome() {
+    return join(homedir(), '.taskweaver', RUNTIME_HOME_DIR_NAME);
 }
+/** @deprecated Use {@link defaultRuntimeHome}. */
+export const defaultDshHome = defaultRuntimeHome;
 /**
  * Expand supported tilde prefixes against the operating-system home.
- * @param path - configured path that may begin with `~`, `~/`, or `~\`.
+ * @param path - configured path that may begin with `~`, `~/`, or `~\\`.
  * @returns the expanded path, or the original value when no supported prefix is present.
  */
 export function expandHomePath(path) {
     if (path === '~')
         return homedir();
-    if (path.startsWith('~/') || path.startsWith('~\\'))
-        return join(homedir(), path.slice(2));
+    if (path.startsWith('~/') || path.startsWith('~\\')) {
+        const suffix = sep === '/' ? path.slice(2).replaceAll('\\', '/') : path.slice(2).replaceAll('/', '\\');
+        return join(homedir(), suffix);
+    }
     return path;
 }
 /**
- * Resolve the single-root DeepSeek Harness home.
- *
- * Precedence, highest first: an explicit configured path, `$Z_HOME`, `$DSH_HOME`,
- * then `~/.dsh`. The harness keeps all user data under one root. An empty or
- * whitespace-only override is treated as unset, so a blank value never
- * resolves the home to the current working directory.
- * @param configured - explicit harness-home override, which has highest precedence.
- * @param env - environment mapping used to read `Z_HOME` / `DSH_HOME`.
- * @returns the normalized absolute harness home path.
+ * Resolve the TaskWeaver runtime home. An explicit configured path wins,
+ * followed by `TASKWEAVER_HOME`; old `Z_HOME` and `DSH_HOME` remain readable
+ * during the compatibility window and emit a warning when used.
  */
-export function resolveDshHome(configured, env = process.env) {
-    const fromZ = nonBlankEnv(env, Z_HOME_ENV);
-    const fromDsh = nonBlankEnv(env, DSH_HOME_ENV);
-    const selected = configured ?? fromZ ?? fromDsh ?? defaultDshHome();
+export function resolveRuntimeHome(configured, env = process.env) {
+    const fromEnv = readTaskWeaverEnvironment(env, TASKWEAVER_HOME_ENV, LEGACY_HOME_ENV_VARS);
+    const selected = configured ?? fromEnv ?? defaultRuntimeHome();
     return resolve(expandHomePath(selected));
 }
-/**
- * Join path segments onto the resolved DeepSeek Harness home.
- * @param segments - path segments appended to the Harness home; an empty list returns the home itself.
- * @returns the normalized absolute joined path.
- */
-export function dshHomePath(...segments) {
-    return join(resolveDshHome(), ...segments);
+/** @deprecated Use {@link resolveRuntimeHome}. */
+export const resolveDshHome = resolveRuntimeHome;
+/** Join path segments onto the resolved TaskWeaver runtime home. */
+export function runtimeHomePath(...segments) {
+    return join(resolveRuntimeHome(), ...segments);
 }
-/**
- * Describe a resolved harness home symbolically for user-facing display.
- *
- * It never returns an absolute machine path: the default home is labelled
- * `~/.dsh`, and any configured home is labelled `$DSH_HOME`.
- * @param resolvedHome - the absolute path returned by {@link resolveDshHome}.
- * @returns `~/.dsh` for the default home, otherwise `$DSH_HOME`.
- */
-export function dshHomeDisplay(resolvedHome) {
-    return resolvedHome === resolve(defaultDshHome()) ? DEFAULT_DSH_HOME_DISPLAY : `$${DSH_HOME_ENV}`;
+/** @deprecated Use {@link runtimeHomePath}. */
+export const dshHomePath = runtimeHomePath;
+/** Describe a resolved runtime home without exposing a machine-specific path. */
+export function runtimeHomeDisplay(resolvedHome) {
+    return resolvedHome === resolve(defaultRuntimeHome())
+        ? DEFAULT_RUNTIME_HOME_DISPLAY
+        : `$${TASKWEAVER_HOME_ENV}`;
+}
+/** @deprecated Use {@link runtimeHomeDisplay}. */
+export const dshHomeDisplay = runtimeHomeDisplay;
+/** Whether this process is TaskWeaver's embedded Host. */
+export function taskweaverEmbeddedFromEnv(env = process.env) {
+    return readTaskWeaverEnvironment(env, TASKWEAVER_EMBEDDED_ENV, LEGACY_EMBEDDED_ENV_VARS) !== undefined;
 }
 //# sourceMappingURL=index.js.map

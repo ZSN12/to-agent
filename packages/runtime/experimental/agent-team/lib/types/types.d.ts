@@ -1,7 +1,7 @@
 /** Public Agent Teams identities, durable records, and service request values. */
-import type { Branded } from '@z/dsh-brand';
-import type { ContentBlock } from '@z/dsh-llm';
-import type { SessionId } from '@z/dsh-session';
+import type { Branded } from '@taskweaver/dsh-brand';
+import type { ContentBlock } from '@taskweaver/dsh-llm';
+import type { SessionId } from '@taskweaver/dsh-session';
 /** Identifies the implicit team rooted at one top-level Session. */
 export type TeamId = Branded<'TeamId'>;
 /**
@@ -93,7 +93,7 @@ export interface TeamMessageSource {
     readonly senderId: SessionId;
     readonly senderName: string;
 }
-declare module '@z/dsh-llm' {
+declare module '@taskweaver/dsh-llm' {
     interface MessageSourceMap {
         'team-message': TeamMessageSource;
     }
@@ -160,7 +160,7 @@ export interface UpdateTeamTaskRequest {
 export interface TeamWaitResult {
     readonly timedOut: boolean;
 }
-declare module '@z/dsh-session/types' {
+declare module '@taskweaver/dsh-session/types' {
     interface SessionEventMap {
         /** Whole teammate lifecycle value, stored only in the Team Lead Session. */
         'team/member': {

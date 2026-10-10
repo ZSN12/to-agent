@@ -1,0 +1,45 @@
+{
+  // Client-side typecheck aggregate: client tests (.ts and .tsx).
+  // Split from the host aggregate because both sides merge cordis Context
+  // under the same keys (sessions, loader) with different services; shared
+  // leaves (session/llm/tools/apiproxy/...) build once and are referenced by
+  // both programs through each client package's own references.
+  "extends": "./tsconfig.base.client.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rewriteRelativeImportExtensions": false,
+    // Tests execute under vitest on node (e2e files spawn processes); browser
+    // purity of package src is enforced by each package's own tsconfig.
+    "types": ["node"]
+  },
+  "include": [
+    // Source-subpath test imports can arrive through workspace links whose
+    // realpath semantics vary by host. Load package CSS declarations directly.
+    "./client/*/src/css-modules.d.ts",
+    "./client/*/tests/**/*.ts",
+    "./client/*/tests/**/*.tsx",
+    "./*/*/tests/**/*.client.spec.ts",
+    "./*/*/tests/**/*.client.spec.tsx",
+    "./*/*/tests/**/*.client.tsx",
+    "./*/*/tests/**/*.client.ts",
+    // Client package outside client with a local CSS module face.
+    "./client/tsdown.client.ts",
+    "scripts/client-build-environment.ts"
+  ],
+  // A `*.host.spec.ts` covers the Host half of a split client package and
+  // belongs to the host aggregate, which excludes this program's `*.client.*`
+  // in turn. `exclude` wins over `include`, so the test glob above stays broad.
+  "exclude": [
+    "./client/*/tests/**/*.host.spec.ts"
+  ],
+  "references": [
+    { "path": "./host/webserver" },
+    { "path": "./compaction/compaction" },
+    { "path": "./client/connection/tsconfig.client.json" },
+    { "path": "./typert/registry" },
+    { "path": "./api/gateway/tsconfig.client.json" },
+    { "path": "./api/remotes/tsconfig.client.json" },
+    { "path": "./client/runtime" },
+    { "path": "./session-query/session-log-export" }
+  ]
+}

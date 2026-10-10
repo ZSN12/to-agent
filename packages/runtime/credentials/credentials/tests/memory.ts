@@ -1,4 +1,4 @@
-import type { Context } from '@z/cordis'
+import type { Context } from '@taskweaver/cordis'
 import { CredentialProvider } from '../src/index.ts'
 import type {
   CredentialInfo,

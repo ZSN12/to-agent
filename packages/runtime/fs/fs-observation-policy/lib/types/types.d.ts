@@ -4,14 +4,14 @@
  * actor the `fs/*` events carry.
  *
  * The provider vocabulary (`FsTarget`, `FsVersion`, write/edit request types) is
- * re-used from `@z/dsh-fs`; this package owns only the observed-state
+ * re-used from `@taskweaver/dsh-fs`; this package owns only the observed-state
  * owner structure on top of it.
  *
- * @module @z/dsh-fs-observation-policy/types
+ * @module @taskweaver/dsh-fs-observation-policy/types
  */
 /**
  * Minimal structural view of a tool execution the policy plugin needs to derive
- * an observed-state owner. `@z/dsh-tools`' `ToolExecution` contains
+ * an observed-state owner. `@taskweaver/dsh-tools`' `ToolExecution` contains
  * these fields, so the tool passes its `exec` straight through as the opaque
  * `object` actor on the `fs/*` events; this plugin narrows that actor to
  * `FsObservationActor` without importing `dsh-tools`, `dsh-agent`, or `dsh-session`.

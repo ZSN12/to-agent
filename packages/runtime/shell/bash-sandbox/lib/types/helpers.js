@@ -1,26 +1,20 @@
-"use strict";
 /**
  * Internal sandbox-result classification helpers.
  *
- * @module @z/dsh-bash-sandbox/helpers
+ * @module @taskweaver/dsh-bash-sandbox/helpers
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.isRunnerSpawnFailure = isRunnerSpawnFailure;
-exports.classifyDenial = classifyDenial;
-exports.classifyRunnerFailure = classifyRunnerFailure;
-exports.matchesSignature = matchesSignature;
-var node_fs_1 = require("node:fs");
+import { accessSync, constants, statSync } from 'node:fs';
 /** Node-local spawn codes proven to identify executable resolution or permission failure. */
-var EXECUTABLE_SPAWN_CODES = new Set(['EACCES', 'ENOENT']);
+const EXECUTABLE_SPAWN_CODES = new Set(['EACCES', 'ENOENT']);
 /** Whether the caller-owned spawn cwd can be entered. */
 function isUsableWorkdir(path) {
     try {
-        if (!(0, node_fs_1.statSync)(path).isDirectory())
+        if (!statSync(path).isDirectory())
             return false;
-        (0, node_fs_1.accessSync)(path, node_fs_1.constants.X_OK);
+        accessSync(path, constants.X_OK);
         return true;
     }
-    catch (_a) {
+    catch {
         return false;
     }
 }
@@ -38,17 +32,17 @@ function isUsableWorkdir(path) {
  * @param workdir - the caller-owned spawn cwd, checked independently for usability.
  * @returns whether the rejection has executable-specific runner evidence.
  */
-function isRunnerSpawnFailure(error, runnerProgram, workdir) {
+export function isRunnerSpawnFailure(error, runnerProgram, workdir) {
     if (runnerProgram === undefined || !isUsableWorkdir(workdir))
         return false;
     if (typeof error !== 'object' || error === null)
         return false;
-    var _a = error, code = _a.code, path = _a.path, syscall = _a.syscall;
+    const { code, path, syscall } = error;
     if (typeof code !== 'string' || !EXECUTABLE_SPAWN_CODES.has(code))
         return false;
     if (typeof syscall !== 'string')
         return false;
-    var exactSyscall = "spawn ".concat(runnerProgram);
+    const exactSyscall = `spawn ${runnerProgram}`;
     if (path === undefined)
         return syscall === exactSyscall;
     if (typeof path !== 'string' || path.length === 0 || path !== runnerProgram)
@@ -61,7 +55,7 @@ function isRunnerSpawnFailure(error, runnerProgram, workdir) {
  * @param signatures - case-insensitive denial substrings from the active wrap.
  * @returns whether the failed run matches that denial dialect.
  */
-function classifyDenial(result, signatures) {
+export function classifyDenial(result, signatures) {
     return matchesSignature(result.exitCode, result.stderr.text, signatures);
 }
 /**
@@ -74,33 +68,25 @@ function classifyDenial(result, signatures) {
  * @param rules - structured runner-failure rules from the active wrap.
  * @returns the first matching fatal line, or undefined when evidence is insufficient.
  */
-function classifyRunnerFailure(exitCode, stderr, rules) {
-    var _a;
+export function classifyRunnerFailure(exitCode, stderr, rules) {
     if (exitCode === null || exitCode === 0)
         return undefined;
-    var lines = stderr.split(/\r?\n/);
-    for (var _i = 0, rules_1 = rules; _i < rules_1.length; _i++) {
-        var rule = rules_1[_i];
+    const lines = stderr.split(/\r?\n/);
+    for (const rule of rules) {
         if (rule.allowedExitCodes !== undefined && !rule.allowedExitCodes.includes(exitCode))
             continue;
-        var informationalLines = new Set(((_a = rule.informationalLines) !== null && _a !== void 0 ? _a : []).map(function (line) { return line.toLowerCase(); }));
+        const informationalLines = new Set((rule.informationalLines ?? []).map(line => line.toLowerCase()));
         // An empty or whitespace-only substring is not meaningful runner evidence.
         // Ignore it while keeping any valid signatures beside it active.
-        var fatalSignatures = rule.fatalSignatures
-            .filter(function (signature) { return signature.trim().length > 0; })
-            .map(function (signature) { return signature.toLowerCase(); });
-        var _loop_1 = function (line) {
-            var lowered = line.toLowerCase();
+        const fatalSignatures = rule.fatalSignatures
+            .filter(signature => signature.trim().length > 0)
+            .map(signature => signature.toLowerCase());
+        for (const line of lines) {
+            const lowered = line.toLowerCase();
             if (informationalLines.has(lowered))
-                return "continue";
-            if (fatalSignatures.some(function (signature) { return lowered.includes(signature); }))
-                return { value: { detail: line } };
-        };
-        for (var _b = 0, lines_1 = lines; _b < lines_1.length; _b++) {
-            var line = lines_1[_b];
-            var state_1 = _loop_1(line);
-            if (typeof state_1 === "object")
-                return state_1.value;
+                continue;
+            if (fatalSignatures.some(signature => lowered.includes(signature)))
+                return { detail: line };
         }
     }
     return undefined;
@@ -112,9 +98,10 @@ function classifyRunnerFailure(exitCode, stderr, rules) {
  * @param signatures - substrings identifying the selected backend's dialect.
  * @returns whether this is a non-zero exit whose stderr matches a signature.
  */
-function matchesSignature(exitCode, stderr, signatures) {
+export function matchesSignature(exitCode, stderr, signatures) {
     if (exitCode === null || exitCode === 0)
         return false;
-    var lowered = stderr.toLowerCase();
-    return signatures.some(function (signature) { return lowered.includes(signature.toLowerCase()); });
+    const lowered = stderr.toLowerCase();
+    return signatures.some(signature => lowered.includes(signature.toLowerCase()));
 }
+//# sourceMappingURL=helpers.js.map

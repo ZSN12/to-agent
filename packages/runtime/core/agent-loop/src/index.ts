@@ -2,13 +2,13 @@
  * Concrete agent-loop plugin: creates scoped ReactLoopAgents, publishes them
  * through the agent/session registries, and owns their ordered teardown.
  *
- * @module @z/dsh-agent-loop
+ * @module @taskweaver/dsh-agent-loop
  */
 
-import { Context, FiberState, Service } from '@z/cordis'
+import { Context, FiberState, Service } from '@taskweaver/cordis'
 import { randomUUID } from 'node:crypto'
-import z from '@z/schemastery'
-import { emitAgentEvent } from '@z/dsh-agent'
+import z from '@taskweaver/schemastery'
+import { emitAgentEvent } from '@taskweaver/dsh-agent'
 import type {
   Agent,
   AgentFactory,
@@ -18,14 +18,14 @@ import type {
   CreateAgentOptions,
   ResumeAgentOptions,
   SessionStartSource,
-} from '@z/dsh-agent'
-import { errorChain } from '@z/dsh-llm'
-import { installSettingsSection, settingsNamespace } from '@z/dsh-settings'
-import { SessionId, SessionPreparation } from '@z/dsh-session'
-import type { Session, SessionHeader } from '@z/dsh-session'
-import type {} from '@z/dsh-system-prompt'
-import type {} from '@z/dsh-tools'
-import type { SessionPersistence } from '@z/dsh-session-persistence'
+} from '@taskweaver/dsh-agent'
+import { errorChain } from '@taskweaver/dsh-llm'
+import { installSettingsSection, settingsNamespace } from '@taskweaver/dsh-settings'
+import { SessionId, SessionPreparation } from '@taskweaver/dsh-session'
+import type { Session, SessionHeader } from '@taskweaver/dsh-session'
+import type {} from '@taskweaver/dsh-system-prompt'
+import type {} from '@taskweaver/dsh-tools'
+import type { SessionPersistence } from '@taskweaver/dsh-session-persistence'
 import { ReactLoopAgent } from './agent.ts'
 import { DEFAULT_MAX_PARALLEL_TOOL_CALLS } from './constants.ts'
 
@@ -157,7 +157,7 @@ interface PreparedAgent {
   dispose(): Promise<void>
 }
 
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
   interface Context {
     agentLoop: AgentLoop
     /**

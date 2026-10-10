@@ -1,76 +1,68 @@
-"use strict";
 /**
  * Message-layer zod schemas: the four wire full forms + error body +
  * carrier receipt. The payload slot is unknown in the full-form schemas — business payloads
  * get a second parse dispatched by method (two-level parse discipline).
  * Brand cast point: rpcIdSchema, and only there.
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.rpcReceiptSchema = exports.rpcMessageSchema = exports.clientResponseSchema = exports.serverRequestSchema = exports.serverResponseSchema = exports.clientRequestSchema = exports.rpcErrorSchema = exports.rpcIdSchema = void 0;
-exports.rpcResultSchema = rpcResultSchema;
-var zod_1 = require("zod");
+import { z } from 'zod';
 /**
  * RpcId: one brand cast after schema validation (the only cast point in this
  * file). No min-length: the id is an opaque echo token, and rejecting values
  * here would only turn a correlatable error report into a client-side parse
  * failure (the handler substitutes a sentinel when a request's id is unreadable).
  */
-exports.rpcIdSchema = zod_1.z.string();
+export const rpcIdSchema = z.string();
 /** Error body: discriminated by code, per-branch details aligned to RpcErrorDetailsMap; details is required. */
-exports.rpcErrorSchema = zod_1.z.discriminatedUnion('code', [
-    zod_1.z.object({ code: zod_1.z.literal('bad-request'), message: zod_1.z.string(), details: zod_1.z.object({ issues: zod_1.z.array(zod_1.z.custom()) }) }),
-    zod_1.z.object({ code: zod_1.z.literal('cancelled'), message: zod_1.z.string(), details: zod_1.z.object({}) }),
-    zod_1.z.object({ code: zod_1.z.literal('session-not-found'), message: zod_1.z.string(), details: zod_1.z.object({ sessionId: zod_1.z.string() }) }),
-    zod_1.z.object({ code: zod_1.z.literal('model-unavailable'), message: zod_1.z.string(), details: zod_1.z.object({ provider: zod_1.z.string(), model: zod_1.z.string() }) }),
-    zod_1.z.object({ code: zod_1.z.literal('session-conflict'), message: zod_1.z.string(), details: zod_1.z.object({ sessionId: zod_1.z.string(), requestedCwd: zod_1.z.string(), existingCwd: zod_1.z.string().optional() }) }),
-    zod_1.z.object({ code: zod_1.z.literal('invalid-time-zone'), message: zod_1.z.string(), details: zod_1.z.object({ value: zod_1.z.string() }) }),
-    zod_1.z.object({ code: zod_1.z.literal('workspace-attach-failed'), message: zod_1.z.string(), details: zod_1.z.object({ sessionId: zod_1.z.string(), workspaceId: zod_1.z.string() }) }),
-    zod_1.z.object({ code: zod_1.z.literal('workspace-not-found'), message: zod_1.z.string(), details: zod_1.z.object({ workspaceId: zod_1.z.string() }) }),
-    zod_1.z.object({ code: zod_1.z.literal('workspace-invalid-path'), message: zod_1.z.string(), details: zod_1.z.object({ path: zod_1.z.string() }) }),
-    zod_1.z.object({ code: zod_1.z.literal('workspace-name-conflict'), message: zod_1.z.string(), details: zod_1.z.object({ name: zod_1.z.string() }) }),
-    zod_1.z.object({ code: zod_1.z.literal('workspace-move-invalid'), message: zod_1.z.string(), details: zod_1.z.object({ workspaceId: zod_1.z.string(), sessionId: zod_1.z.string(), beforeSessionId: zod_1.z.string().optional() }) }),
-    zod_1.z.object({ code: zod_1.z.literal('directory-unreadable'), message: zod_1.z.string(), details: zod_1.z.object({ path: zod_1.z.string() }) }),
-    zod_1.z.object({ code: zod_1.z.literal('directory-exists'), message: zod_1.z.string(), details: zod_1.z.object({ path: zod_1.z.string() }) }),
-    zod_1.z.object({ code: zod_1.z.literal('directory-create-failed'), message: zod_1.z.string(), details: zod_1.z.object({ path: zod_1.z.string() }) }),
-    zod_1.z.object({ code: zod_1.z.literal('directory-picker-unavailable'), message: zod_1.z.string(), details: zod_1.z.object({ capability: zod_1.z.string() }) }),
-    zod_1.z.object({ code: zod_1.z.literal('agent-preset-read-only'), message: zod_1.z.string(), details: zod_1.z.object({ agentPreset: zod_1.z.string(), reason: zod_1.z.string() }) }),
-    zod_1.z.object({ code: zod_1.z.literal('agent-preset-locked'), message: zod_1.z.string(), details: zod_1.z.object({ sessionId: zod_1.z.string(), agentPreset: zod_1.z.string() }) }),
-    zod_1.z.object({ code: zod_1.z.literal('agent-preset-conflict'), message: zod_1.z.string(), details: zod_1.z.object({ sessionId: zod_1.z.string(), requestedPreset: zod_1.z.string(), existingPreset: zod_1.z.string().optional() }) }),
-    zod_1.z.object({ code: zod_1.z.literal('agent-preset-not-found'), message: zod_1.z.string(), details: zod_1.z.object({ agentPreset: zod_1.z.string(), available: zod_1.z.array(zod_1.z.string()) }) }),
-    zod_1.z.object({ code: zod_1.z.literal('agent-preset-invalid'), message: zod_1.z.string(), details: zod_1.z.object({ agentPreset: zod_1.z.string(), reason: zod_1.z.string() }) }),
-    zod_1.z.object({ code: zod_1.z.literal('agent-busy'), message: zod_1.z.string(), details: zod_1.z.object({ reason: zod_1.z.string() }) }),
-    zod_1.z.object({ code: zod_1.z.literal('attachment-error'), message: zod_1.z.string(), details: zod_1.z.object({ reason: zod_1.z.string() }) }),
-    zod_1.z.object({ code: zod_1.z.literal('queue-item-not-found'), message: zod_1.z.string(), details: zod_1.z.object({ itemId: zod_1.z.string() }) }),
-    zod_1.z.object({ code: zod_1.z.literal('steer-unavailable'), message: zod_1.z.string(), details: zod_1.z.object({ itemId: zod_1.z.string() }) }),
-    zod_1.z.object({ code: zod_1.z.literal('command-error'), message: zod_1.z.string(), details: zod_1.z.object({}) }),
-    zod_1.z.object({ code: zod_1.z.literal('unknown-command'), message: zod_1.z.string(), details: zod_1.z.object({}) }),
-    zod_1.z.object({ code: zod_1.z.literal('settings-rejected'), message: zod_1.z.string(), details: zod_1.z.object({ ns: zod_1.z.string() }) }),
-    zod_1.z.object({ code: zod_1.z.literal('settings-conflict'), message: zod_1.z.string(), details: zod_1.z.object({ ns: zod_1.z.string(), expected: zod_1.z.number(), actual: zod_1.z.number() }) }),
-    zod_1.z.object({ code: zod_1.z.literal('credential-rejected'), message: zod_1.z.string(), details: zod_1.z.object({ ref: zod_1.z.string() }) }),
-    zod_1.z.object({ code: zod_1.z.literal('model-discovery-failed'), message: zod_1.z.string(), details: zod_1.z.object({ settingsNs: zod_1.z.string(), baseURL: zod_1.z.string().optional() }) }),
-    zod_1.z.object({ code: zod_1.z.literal('title-invalid'), message: zod_1.z.string(), details: zod_1.z.object({ sessionId: zod_1.z.string() }) }),
-    zod_1.z.object({ code: zod_1.z.literal('fork-unavailable'), message: zod_1.z.string(), details: zod_1.z.object({ sessionId: zod_1.z.string() }) }),
-    zod_1.z.object({ code: zod_1.z.literal('subagent-parent-unavailable'), message: zod_1.z.string(), details: zod_1.z.object({ parentSessionId: zod_1.z.string() }) }),
-    zod_1.z.object({ code: zod_1.z.literal('subagent-not-found'), message: zod_1.z.string(), details: zod_1.z.object({ parentSessionId: zod_1.z.string(), childSessionId: zod_1.z.string() }) }),
-    zod_1.z.object({ code: zod_1.z.literal('subagent-catalog-diagnostic'), message: zod_1.z.string(), details: zod_1.z.object({
-            parentSessionId: zod_1.z.string(),
-            childSessionId: zod_1.z.string(),
-            reason: zod_1.z.union([zod_1.z.literal('corrupt'), zod_1.z.literal('unsupported'), zod_1.z.literal('unavailable')]),
+export const rpcErrorSchema = z.discriminatedUnion('code', [
+    z.object({ code: z.literal('bad-request'), message: z.string(), details: z.object({ issues: z.array(z.custom()) }) }),
+    z.object({ code: z.literal('cancelled'), message: z.string(), details: z.object({}) }),
+    z.object({ code: z.literal('session-not-found'), message: z.string(), details: z.object({ sessionId: z.string() }) }),
+    z.object({ code: z.literal('model-unavailable'), message: z.string(), details: z.object({ provider: z.string(), model: z.string() }) }),
+    z.object({ code: z.literal('session-conflict'), message: z.string(), details: z.object({ sessionId: z.string(), requestedCwd: z.string(), existingCwd: z.string().optional() }) }),
+    z.object({ code: z.literal('invalid-time-zone'), message: z.string(), details: z.object({ value: z.string() }) }),
+    z.object({ code: z.literal('workspace-attach-failed'), message: z.string(), details: z.object({ sessionId: z.string(), workspaceId: z.string() }) }),
+    z.object({ code: z.literal('workspace-not-found'), message: z.string(), details: z.object({ workspaceId: z.string() }) }),
+    z.object({ code: z.literal('workspace-invalid-path'), message: z.string(), details: z.object({ path: z.string() }) }),
+    z.object({ code: z.literal('workspace-name-conflict'), message: z.string(), details: z.object({ name: z.string() }) }),
+    z.object({ code: z.literal('workspace-move-invalid'), message: z.string(), details: z.object({ workspaceId: z.string(), sessionId: z.string(), beforeSessionId: z.string().optional() }) }),
+    z.object({ code: z.literal('agent-preset-read-only'), message: z.string(), details: z.object({ agentPreset: z.string(), reason: z.string() }) }),
+    z.object({ code: z.literal('agent-preset-locked'), message: z.string(), details: z.object({ sessionId: z.string(), agentPreset: z.string() }) }),
+    z.object({ code: z.literal('agent-preset-conflict'), message: z.string(), details: z.object({ sessionId: z.string(), requestedPreset: z.string(), existingPreset: z.string().optional() }) }),
+    z.object({ code: z.literal('agent-preset-not-found'), message: z.string(), details: z.object({ agentPreset: z.string(), available: z.array(z.string()) }) }),
+    z.object({ code: z.literal('agent-preset-invalid'), message: z.string(), details: z.object({ agentPreset: z.string(), reason: z.string() }) }),
+    z.object({ code: z.literal('agent-busy'), message: z.string(), details: z.object({ reason: z.string() }) }),
+    z.object({ code: z.literal('attachment-error'), message: z.string(), details: z.object({ reason: z.string() }) }),
+    z.object({ code: z.literal('queue-item-not-found'), message: z.string(), details: z.object({ itemId: z.string() }) }),
+    z.object({ code: z.literal('steer-unavailable'), message: z.string(), details: z.object({ itemId: z.string() }) }),
+    z.object({ code: z.literal('command-error'), message: z.string(), details: z.object({}) }),
+    z.object({ code: z.literal('unknown-command'), message: z.string(), details: z.object({}) }),
+    z.object({ code: z.literal('settings-rejected'), message: z.string(), details: z.object({ ns: z.string() }) }),
+    z.object({ code: z.literal('settings-conflict'), message: z.string(), details: z.object({ ns: z.string(), expected: z.number(), actual: z.number() }) }),
+    z.object({ code: z.literal('credential-rejected'), message: z.string(), details: z.object({ ref: z.string() }) }),
+    z.object({ code: z.literal('model-discovery-failed'), message: z.string(), details: z.object({ settingsNs: z.string(), baseURL: z.string().optional() }) }),
+    z.object({ code: z.literal('title-invalid'), message: z.string(), details: z.object({ sessionId: z.string() }) }),
+    z.object({ code: z.literal('fork-unavailable'), message: z.string(), details: z.object({ sessionId: z.string() }) }),
+    z.object({ code: z.literal('subagent-parent-unavailable'), message: z.string(), details: z.object({ parentSessionId: z.string() }) }),
+    z.object({ code: z.literal('subagent-not-found'), message: z.string(), details: z.object({ parentSessionId: z.string(), childSessionId: z.string() }) }),
+    z.object({ code: z.literal('subagent-catalog-diagnostic'), message: z.string(), details: z.object({
+            parentSessionId: z.string(),
+            childSessionId: z.string(),
+            reason: z.union([z.literal('corrupt'), z.literal('unsupported'), z.literal('unavailable')]),
         }) }),
-    zod_1.z.object({ code: zod_1.z.literal('subagent-not-resumable'), message: zod_1.z.string(), details: zod_1.z.object({ childSessionId: zod_1.z.string() }) }),
-    zod_1.z.object({ code: zod_1.z.literal('subagent-unauthorized'), message: zod_1.z.string(), details: zod_1.z.object({ childSessionId: zod_1.z.string() }) }),
-    zod_1.z.object({ code: zod_1.z.literal('subagent-delivery-unavailable'), message: zod_1.z.string(), details: zod_1.z.object({ childSessionId: zod_1.z.string() }) }),
-    zod_1.z.object({ code: zod_1.z.literal('internal'), message: zod_1.z.string(), details: zod_1.z.object({}) }),
+    z.object({ code: z.literal('subagent-not-resumable'), message: z.string(), details: z.object({ childSessionId: z.string() }) }),
+    z.object({ code: z.literal('subagent-unauthorized'), message: z.string(), details: z.object({ childSessionId: z.string() }) }),
+    z.object({ code: z.literal('subagent-delivery-unavailable'), message: z.string(), details: z.object({ childSessionId: z.string() }) }),
+    z.object({ code: z.literal('internal'), message: z.string(), details: z.object({}) }),
 ]);
 /**
  * Business success/failure result schema (generic, reusable).
  * @param value - Schema for the business value.
  * @returns Schema for RpcResult<T>.
  */
-function rpcResultSchema(value) {
-    return zod_1.z.union([
-        zod_1.z.object({ ok: zod_1.z.literal(true), value: value }),
-        zod_1.z.object({ ok: zod_1.z.literal(false), error: exports.rpcErrorSchema }),
+export function rpcResultSchema(value) {
+    return z.union([
+        z.object({ ok: z.literal(true), value }),
+        z.object({ ok: z.literal(false), error: rpcErrorSchema }),
     ]);
 }
 // ---- The four wire full-form schemas (payload/result.value slots stay wide — business layer does the second parse) ----
@@ -78,40 +70,41 @@ function rpcResultSchema(value) {
 // `value` field at all. Each endpoint's own second parse still requires its
 // declared value, so absence never passes for a method that returns data.
 /** ClientRequest full form (payload stays wide — the business layer runs the second parse). */
-exports.clientRequestSchema = zod_1.z.object({
-    type: zod_1.z.literal('client-request'),
-    rpcId: exports.rpcIdSchema,
-    method: zod_1.z.string(),
-    payload: zod_1.z.unknown(),
+export const clientRequestSchema = z.object({
+    type: z.literal('client-request'),
+    rpcId: rpcIdSchema,
+    method: z.string(),
+    payload: z.unknown(),
 });
 /** ServerResponse full form (result.value stays wide). */
-exports.serverResponseSchema = zod_1.z.object({
-    type: zod_1.z.literal('server-response'),
-    rpcId: exports.rpcIdSchema,
-    result: rpcResultSchema(zod_1.z.unknown().optional()),
+export const serverResponseSchema = z.object({
+    type: z.literal('server-response'),
+    rpcId: rpcIdSchema,
+    result: rpcResultSchema(z.unknown().optional()),
 });
 /** ServerRequest full form (payload stays wide). */
-exports.serverRequestSchema = zod_1.z.object({
-    type: zod_1.z.literal('server-request'),
-    rpcId: exports.rpcIdSchema,
-    method: zod_1.z.string(),
-    payload: zod_1.z.unknown(),
+export const serverRequestSchema = z.object({
+    type: z.literal('server-request'),
+    rpcId: rpcIdSchema,
+    method: z.string(),
+    payload: z.unknown(),
 });
 /** ClientResponse full form (result.value stays wide). */
-exports.clientResponseSchema = zod_1.z.object({
-    type: zod_1.z.literal('client-response'),
-    rpcId: exports.rpcIdSchema,
-    result: rpcResultSchema(zod_1.z.unknown().optional()),
+export const clientResponseSchema = z.object({
+    type: z.literal('client-response'),
+    rpcId: rpcIdSchema,
+    result: rpcResultSchema(z.unknown().optional()),
 });
 /** Wire full-form union (discriminated by type). */
-exports.rpcMessageSchema = zod_1.z.discriminatedUnion('type', [
-    exports.clientRequestSchema,
-    exports.serverResponseSchema,
-    exports.serverRequestSchema,
-    exports.clientResponseSchema,
+export const rpcMessageSchema = z.discriminatedUnion('type', [
+    clientRequestSchema,
+    serverResponseSchema,
+    serverRequestSchema,
+    clientResponseSchema,
 ]);
 /** Carrier receipt schema. */
-exports.rpcReceiptSchema = zod_1.z.union([
-    zod_1.z.object({ accepted: zod_1.z.literal(true) }),
-    zod_1.z.object({ accepted: zod_1.z.literal(false), reason: zod_1.z.union([zod_1.z.literal('not-pending'), zod_1.z.literal('bad-response')]) }),
+export const rpcReceiptSchema = z.union([
+    z.object({ accepted: z.literal(true) }),
+    z.object({ accepted: z.literal(false), reason: z.union([z.literal('not-pending'), z.literal('bad-response')]) }),
 ]);
+//# sourceMappingURL=rpc.schema.js.map

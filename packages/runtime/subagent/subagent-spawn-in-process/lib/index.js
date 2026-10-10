@@ -1,12 +1,12 @@
-import z from "@z/schemastery";
-import { startInProcessRun } from "@z/dsh-subagent-in-process-driver";
+import z from "@taskweaver/schemastery";
+import { startInProcessRun } from "@taskweaver/dsh-subagent-in-process-driver";
 //#region lib/types/index.js
 /**
 * The in-process SPAWN subagent backend: registers a {@link SubagentProvider} on
 * `ctx.subagents` that runs each child as a fresh child {@link Agent} on the same cordis
 * context (its own session, own system prompt, zero parent context). The cheapest transport,
 * reusing the agent factory's quiescent teardown.
-* @module @z/dsh-subagent-spawn-in-process
+* @module @taskweaver/dsh-subagent-spawn-in-process
 */
 const name = "subagent-spawn-in-process";
 const inject = ["subagents"];

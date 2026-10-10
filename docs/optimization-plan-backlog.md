@@ -6,7 +6,7 @@
 
 | 项 | 状态 |
 |----|------|
-| **3.2** gen-preload | ✅ `electron/ipc/preload-spec.cjs` + `scripts/gen-preload.mjs` |
+| **3.2** gen-preload | ✅ `desktop/ipc/preload-spec.cjs` + `scripts/gen-preload.mjs` |
 | **3.5** 通道类型 | ✅ `scripts/gen-ipc-types.mjs` → `src/shared/ipc-invoke-channels.ts` |
 | **3.6** test 分层 | ✅ `test:unit-extra`、`test:live`（CI 跑 `test:all` + `test:live`） |
 | **3.3** channels 对齐 | ✅ `check-ipc-contract` 四向校验 |

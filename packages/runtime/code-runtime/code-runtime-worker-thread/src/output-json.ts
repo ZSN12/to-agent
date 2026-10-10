@@ -1,6 +1,6 @@
-/** JSON string-prefix accounting for the outer-output ledger. @module @z/dsh-code-runtime-worker-thread/output-json */
+/** JSON string-prefix accounting for the outer-output ledger. @module @taskweaver/dsh-code-runtime-worker-thread/output-json */
 
-import type { CodeJsonValue } from '@z/dsh-code-runtime'
+import type { CodeJsonValue } from '@taskweaver/dsh-code-runtime'
 
 type IntrinsicCallable = (this: unknown, ...args: unknown[]) => unknown
 

@@ -1,5 +1,5 @@
 /** First-party Host inspect providers registered by the Cordis tool package. */
-import { HOST_BUILTIN_INSPECTION } from '@z/dsh-cordis-host-runner';
+import { HOST_BUILTIN_INSPECTION } from '@taskweaver/dsh-cordis-host-runner';
 import { EVENT_API, queryEventApi, queryServiceApi } from "./api-catalog.js";
 const EMPTY_INPUT = { type: 'object', properties: {}, additionalProperties: false };
 const ANY_OUTPUT = { description: 'JSON data owned by this inspect provider.' };

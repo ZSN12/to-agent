@@ -5,7 +5,7 @@ import { execFile } from "node:child_process";
 * native directory chooser, the open-with-default-application hand-off):
 * utf8 stdio capture, abort propagation, Windows console hide. A library,
 * not a plugin — no ctx, no state, no events.
-* @module @z/dsh-native-command
+* @module @taskweaver/dsh-native-command
 */
 /**
 * Run a host command with utf8 stdio, abort propagation, and Windows hide.

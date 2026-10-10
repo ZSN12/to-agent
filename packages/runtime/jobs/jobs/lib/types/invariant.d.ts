@@ -1,5 +1,5 @@
-/** Package-owned background-job snapshot invariants. @module @z/dsh-jobs/invariant */
-import type { Context } from '@z/cordis';
+/** Package-owned background-job snapshot invariants. @module @taskweaver/dsh-jobs/invariant */
+import type { Context } from '@taskweaver/cordis';
 /** Cordis companion plugin name. */
 export declare const name = "jobs-invariant";
 /** Service required before the companion can reserve package ownership. */

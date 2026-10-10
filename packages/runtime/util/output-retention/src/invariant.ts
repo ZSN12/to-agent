@@ -1,13 +1,13 @@
 /**
- * Package-owned invariant companion for `@z/dsh-output-retention`.
- * @module @z/dsh-output-retention/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-output-retention`.
+ * @module @taskweaver/dsh-output-retention/invariant
  */
 
 /* jscpd:ignore-start */
-import type { Context } from '@z/cordis'
-import type { InvariantInstaller } from '@z/dsh-invariants'
+import type { Context } from '@taskweaver/cordis'
+import type { InvariantInstaller } from '@taskweaver/dsh-invariants'
 
-const PACKAGE_NAME = '@z/dsh-output-retention'
+const PACKAGE_NAME = '@taskweaver/dsh-output-retention'
 
 /** Cordis companion plugin name. */
 export const name = 'output-retention-invariant'

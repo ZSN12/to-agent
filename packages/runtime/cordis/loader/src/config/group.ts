@@ -1,4 +1,4 @@
-import { Context, Service } from '@z/cordis'
+import { Context, Service } from '@taskweaver/cordis'
 import { Entry, type EntryOptions } from './entry.ts'
 import { EntryTree } from './tree.ts'
 

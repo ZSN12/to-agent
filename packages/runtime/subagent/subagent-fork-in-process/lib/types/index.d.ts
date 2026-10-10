@@ -4,10 +4,10 @@
  * parent's session log — so the child inherits the parent's conversation context instead of
  * starting fresh. The seed ends at the last `turn/end`: the current tool-call turn is
  * unbalanced and cannot be replayed as a valid child session.
- * @module @z/dsh-subagent-fork-in-process
+ * @module @taskweaver/dsh-subagent-fork-in-process
  */
-import type { Context } from '@z/cordis';
-import z from '@z/schemastery';
+import type { Context } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
 export declare const name = "subagent-fork-in-process";
 export declare const inject: string[];
 /** Config: the registry name to register the provider under. */

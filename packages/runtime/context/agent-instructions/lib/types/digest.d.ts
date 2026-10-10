@@ -1,7 +1,7 @@
 /**
  * Content identity for workspace instruction duplicate suppression.
  *
- * @module @z/dsh-agent-instructions/digest
+ * @module @taskweaver/dsh-agent-instructions/digest
  */
 /**
  * Compute the content identity used across instruction loading and session state.

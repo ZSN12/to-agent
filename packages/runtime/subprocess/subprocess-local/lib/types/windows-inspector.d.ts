@@ -8,7 +8,7 @@
  * an injectable internals boundary so suites can pin it on any host.
  * @module dsh-subprocess-local/windows-inspector
  */
-import type { SubprocessTerminalSignal } from '@z/dsh-subprocess';
+import type { SubprocessTerminalSignal } from '@taskweaver/dsh-subprocess';
 import type { ProcessIdentity, ProcessInspector } from './process-inspector.ts';
 /** One Toolhelp32 process-table row. */
 export interface ProcessEntry {

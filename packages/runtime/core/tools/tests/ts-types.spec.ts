@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { jsonSchemaToTs, renderToolsSdk } from '@z/dsh-tools/src/ts-types.ts'
-import type { ToolSdkSchema } from '@z/dsh-tools/src/ts-types.ts'
-import { parameterSchemaSpecToJsonSchema } from '@z/dsh-tools'
+import { jsonSchemaToTs, renderToolsSdk } from '@taskweaver/dsh-tools/src/ts-types.ts'
+import type { ToolSdkSchema } from '@taskweaver/dsh-tools/src/ts-types.ts'
+import { parameterSchemaSpecToJsonSchema } from '@taskweaver/dsh-tools'
 
 describe('jsonSchemaToTs', () => {
   it('maps every unified schema construct', () => {

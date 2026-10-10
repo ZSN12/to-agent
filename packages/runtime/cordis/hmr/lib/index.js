@@ -1,5 +1,5 @@
 import { createRequire } from "node:module";
-import { Service } from "@z/cordis";
+import { Service } from "@taskweaver/cordis";
 import { watch } from "chokidar";
 import { dirname, relative, resolve } from "node:path";
 import { realpath, stat } from "node:fs/promises";
@@ -7,7 +7,7 @@ import { codeFrameColumns } from "@babel/code-frame";
 import { readFileSync } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import picomatch from "picomatch";
-import z from "@z/schemastery";
+import z from "@taskweaver/schemastery";
 //#region lib/types/error.js
 function isBuildFailure(e) {
 	return Array.isArray(e?.errors) && e.errors.every((error) => error.text);

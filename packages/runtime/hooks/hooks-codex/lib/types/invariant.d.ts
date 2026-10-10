@@ -1,8 +1,8 @@
 /**
- * Package-owned invariant companion for `@z/dsh-hooks-codex`.
- * @module @z/dsh-hooks-codex/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-hooks-codex`.
+ * @module @taskweaver/dsh-hooks-codex/invariant
  */
-import type { Context } from '@z/cordis';
+import type { Context } from '@taskweaver/cordis';
 /** Cordis companion plugin name. */
 export declare const name = "hooks-codex-invariant";
 /** Service required before the companion can reserve package ownership. */

@@ -5,11 +5,11 @@
  * never provider selection or network access.
  */
 
-import type { Context } from '@z/cordis'
-import { defineTool } from '@z/dsh-tools'
-import type { GenericCallView, JsonValue, ToolResult, WebSearchResultView, WebSource } from '@z/dsh-tools'
-import type { WebSearchResult, WebSearchSource } from '@z/dsh-web'
-import type {} from '@z/dsh-system-prompt'
+import type { Context } from '@taskweaver/cordis'
+import { defineTool } from '@taskweaver/dsh-tools'
+import type { GenericCallView, JsonValue, ToolResult, WebSearchResultView, WebSource } from '@taskweaver/dsh-tools'
+import type { WebSearchResult, WebSearchSource } from '@taskweaver/dsh-web'
+import type {} from '@taskweaver/dsh-system-prompt'
 
 /**
  * Default upper bound on returned sources (the `searchMaxResults` config).
@@ -302,7 +302,7 @@ function mergeSearchResults(
  *   request's `maxResults`.
  * @param maxQueries - the deployment's query cap enforced before provider calls.
  * @param timeoutMs - the cooperative tool-call budget (ms) attached as the tool's
- *   `ToolDefinition.timeoutMs` for `@z/dsh-tool-call-timeout-policy` to enforce.
+ *   `ToolDefinition.timeoutMs` for `@taskweaver/dsh-tool-call-timeout-policy` to enforce.
  * @param fetchEnabled - whether the same composition exposes `web_fetch`, which
  *   controls whether search guidance may recommend that follow-up tool.
  */

@@ -1,5 +1,5 @@
 /** Browser download state shared by the Session Header button and `/export`. */
-import { type SessionId, type SnapshotStore } from '@z/dsh-client-runtime/client';
+import { type SessionId, type SnapshotStore } from '@taskweaver/dsh-client-runtime/client';
 /** Download phases presented by the shared modal. */
 export type SessionLogDownloadStatus = 'downloading' | 'success' | 'error';
 /** One Session's current download-dialog state. */

@@ -1,8 +1,8 @@
 /**
- * Package-owned invariant companion for `@z/dsh-session-checkpoint-policy`.
- * @module @z/dsh-session-checkpoint-policy/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-session-checkpoint-policy`.
+ * @module @taskweaver/dsh-session-checkpoint-policy/invariant
  */
-import type { Context } from '@z/cordis';
+import type { Context } from '@taskweaver/cordis';
 /** Cordis companion plugin name. */
 export declare const name = "session-checkpoint-policy-invariant";
 /** Service required before the companion can reserve package ownership. */

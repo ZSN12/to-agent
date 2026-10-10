@@ -18,11 +18,11 @@
  * agent factory's `setup(agentCtx)` hook is the one supported call site,
  * because only there is the join installed while the agent is still
  * unpublished, so a rejected composition rolls the whole creation back.
- * @module @z/dsh-agent-presets
+ * @module @taskweaver/dsh-agent-presets
  */
-import { Context, Service } from '@z/cordis';
-import z from '@z/schemastery';
-import { type ScopeKey } from '@z/dsh-scope';
+import { Context, Service } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
+import { type ScopeKey } from '@taskweaver/dsh-scope';
 import { type AgentPreset, type Config, type PresetRoot } from './preset.ts';
 /** Settings namespace carrying the user's chosen default preset. */
 export declare const SETTINGS_NAMESPACE = "agent-presets";
@@ -39,8 +39,9 @@ export { inactiveRows, leakedServices, livePresetMounts, mountPreset, serviceFor
 export { copyComposition, deleteComposition, InvalidPresetIdError, PresetExistsError, PresetNotWritableError, readComposition, writableRoot, } from './authoring.ts';
 export { resolveSessionPreset, type PresetBearingSession } from './session.ts';
 export { PresetMountError, UnknownPresetError } from './preset.ts';
+export { canonicalAgentPresetId, LEGACY_AGENT_PRESET_ALIASES } from './preset.ts';
 export type { AgentPreset, Config, PresetRoot, PresetTrust } from './preset.ts';
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
     interface Context {
         agentPresets: AgentPresets;
     }

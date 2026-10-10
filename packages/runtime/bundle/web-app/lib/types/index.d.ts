@@ -1,5 +1,5 @@
 /**
- * @z/dsh-web-app — the browser-surface bundle's runtime glue plugin
+ * @taskweaver/dsh-web-app — the browser-surface bundle's runtime glue plugin
  * plus the bundle patch (`cordis.patch.yml`, declared by the `dsh.bundle.patch`
  * manifest field). The plugin owns the browser-surface glue: it resolves
  * the built frontend dist (workspace knowledge of this bundle, never user
@@ -8,10 +8,10 @@
  * variable, the URL line, and the default-browser handoff. App command-line
  * values arrive through the `webStartup` service expressions in the bundle
  * patch.
- * @module @z/dsh-web-app
+ * @module @taskweaver/dsh-web-app
  */
-import type { Context } from '@z/cordis';
-import z from '@z/schemastery';
+import type { Context } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
 /** Stable Cordis plugin name. */
 export declare const name = "web-app";
 /** TaskWeaver embeds DSH as an API-only host (Electron owns the UI). */

@@ -4,7 +4,7 @@
  * reaches a Host-only symbol, so a Client compilation face reads the same
  * `commands/change` signature the Host emits.
  *
- * @module @z/dsh-commands/types
+ * @module @taskweaver/dsh-commands/types
  */
 
 import type { CommandId } from './brand.ts'
@@ -69,7 +69,7 @@ export interface CommandSourceMap {
 /** The union over {@link CommandSourceMap} — who issued a command line. */
 export type CommandSource = CommandSourceMap[keyof CommandSourceMap]
 
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
   interface Events {
     /**
      * A command was registered or unregistered. This is an unfiltered registry
@@ -81,7 +81,7 @@ declare module '@z/cordis' {
   }
 }
 
-declare module '@z/dsh-session/types' {
+declare module '@taskweaver/dsh-session/types' {
   interface SessionEventMap {
     /**
      * A resolved slash command entered its handler. Log-only (never model

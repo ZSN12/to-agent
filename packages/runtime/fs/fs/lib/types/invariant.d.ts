@@ -1,5 +1,5 @@
-/** Package-owned filesystem event-data invariants. @module @z/dsh-fs/invariant */
-import type { Context } from '@z/cordis';
+/** Package-owned filesystem event-data invariants. @module @taskweaver/dsh-fs/invariant */
+import type { Context } from '@taskweaver/cordis';
 /** Cordis companion plugin name. */
 export declare const name = "fs-invariant";
 /** Service required before the companion can reserve package ownership. */

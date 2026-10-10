@@ -1,5 +1,5 @@
 /** Web Session-log download command over the host endpoint owned by ApiProxy. */
-import type { Context } from '@z/cordis';
+import type { Context } from '@taskweaver/cordis';
 export declare const name = "session-log-download";
 export declare const inject: string[];
 /**

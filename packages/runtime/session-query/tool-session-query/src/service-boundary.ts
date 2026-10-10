@@ -1,15 +1,15 @@
 /**
  * Session-query service error containment and model-safe translation.
  *
- * @module @z/dsh-tool-session-query/service-boundary
+ * @module @taskweaver/dsh-tool-session-query/service-boundary
  */
 
-import type { Context } from '@z/cordis'
-import { HarnessError } from '@z/dsh-llm'
+import type { Context } from '@taskweaver/cordis'
+import { HarnessError } from '@taskweaver/dsh-llm'
 import {
   SessionQueryError,
   type SessionQueryErrorCode,
-} from '@z/dsh-session-query'
+} from '@taskweaver/dsh-session-query'
 
 interface ModelSafeServiceFailure {
   readonly code: SessionQueryErrorCode | 'SESSION_QUERY_TOOL_FAILED'

@@ -1,13 +1,13 @@
 /**
- * Package-owned invariant companion for `@z/dsh-session-query-sqlite`.
- * @module @z/dsh-session-query-sqlite/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-session-query-sqlite`.
+ * @module @taskweaver/dsh-session-query-sqlite/invariant
  */
 
 /* jscpd:ignore-start */
-import type { Context } from '@z/cordis'
-import type { InvariantInstaller } from '@z/dsh-invariants'
+import type { Context } from '@taskweaver/cordis'
+import type { InvariantInstaller } from '@taskweaver/dsh-invariants'
 
-const PACKAGE_NAME = '@z/dsh-session-query-sqlite'
+const PACKAGE_NAME = '@taskweaver/dsh-session-query-sqlite'
 
 /** Cordis companion plugin name. */
 export const name = 'session-query-sqlite-invariant'

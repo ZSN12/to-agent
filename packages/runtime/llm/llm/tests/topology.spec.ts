@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
-import { Context } from '@z/cordis'
-import LlmRuntime, { LlmAdapter, LlmError } from '@z/dsh-llm'
-import type { GenerateOptions, LlmConfigurableProvider, StreamChunk } from '@z/dsh-llm'
+import { Context } from '@taskweaver/cordis'
+import LlmRuntime, { LlmAdapter, LlmError } from '@taskweaver/dsh-llm'
+import type { GenerateOptions, LlmConfigurableProvider, StreamChunk } from '@taskweaver/dsh-llm'
 
 class NoopAdapter extends LlmAdapter {
 

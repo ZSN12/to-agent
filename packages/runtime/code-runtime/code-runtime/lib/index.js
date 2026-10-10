@@ -1,9 +1,9 @@
-import { Service } from "@z/cordis";
+import { Service } from "@taskweaver/cordis";
 //#region lib/types/index.js
 /**
 * Service Definition for the code-execution capability seam that runs one model-written program against host async bindings.
 * Runtimes know nothing about tools or sessions; consumers own those concerns.
-* @module @z/dsh-code-runtime
+* @module @taskweaver/dsh-code-runtime
 */
 /**
 * Binding globals EVERY backend refuses because SOME backend owns the slot in

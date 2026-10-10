@@ -1,4 +1,3 @@
-"use strict";
 /**
  * Per-session sandbox-mode override: the session log as the store. A runtime
  * switch (a UI policy control or test scenario) is recorded as one
@@ -18,12 +17,8 @@
  *
  * @module dsh-sandbox-policy/session-mode
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.SANDBOX_MODES = void 0;
-exports.effectiveSandboxMode = effectiveSandboxMode;
-exports.setSandboxMode = setSandboxMode;
 /** Every {@link SandboxMode}, for option advertisement and runtime validation of untrusted mode strings. */
-exports.SANDBOX_MODES = ['read-only', 'workspace-write', 'danger-full-access'];
+export const SANDBOX_MODES = ['read-only', 'workspace-write', 'danger-full-access'];
 /**
  * The session's sandbox-mode override: the last `sandbox/mode` event in the
  * log, or undefined when the session never switched (callers apply the
@@ -32,11 +27,11 @@ exports.SANDBOX_MODES = ['read-only', 'workspace-write', 'danger-full-access'];
  * @param events - session events in log order (other event types are skipped).
  * @returns the mode of the last switch event, or undefined without one.
  */
-function effectiveSandboxMode(events) {
-    for (var index = events.length - 1; index >= 0; index -= 1) {
-        var event_1 = events[index];
-        if (event_1.type === 'sandbox/mode')
-            return event_1.data.mode;
+export function effectiveSandboxMode(events) {
+    for (let index = events.length - 1; index >= 0; index -= 1) {
+        const event = events[index];
+        if (event.type === 'sandbox/mode')
+            return event.data.mode;
     }
     return undefined;
 }
@@ -49,6 +44,7 @@ function effectiveSandboxMode(events) {
  * @param mode - the mode every subsequent confined call in this session runs
  *   under (until the next switch).
  */
-function setSandboxMode(session, mode) {
-    session.append('sandbox/mode', { mode: mode });
+export function setSandboxMode(session, mode) {
+    session.append('sandbox/mode', { mode });
 }
+//# sourceMappingURL=session-mode.js.map

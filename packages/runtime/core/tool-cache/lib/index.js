@@ -851,7 +851,7 @@ function isReadOnlyOperation(toolName) {
 * @example
 * ```yaml
 * # In cordis.yml
-* - name: '@z/dsh-tool-cache'
+* - name: '@taskweaver/dsh-tool-cache'
 *   config:
 *     enabled: true
 *     maxEntriesPerSession: 128

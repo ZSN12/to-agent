@@ -1,8 +1,8 @@
 /**
- * Package-owned invariant companion for `@z/dsh-terminal-bash`.
- * @module @z/dsh-terminal-bash/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-terminal-bash`.
+ * @module @taskweaver/dsh-terminal-bash/invariant
  */
-import type { Context } from '@z/cordis';
+import type { Context } from '@taskweaver/cordis';
 /** Cordis companion plugin name. */
 export declare const name = "terminal-bash-invariant";
 /** Service required before the companion can reserve package ownership. */

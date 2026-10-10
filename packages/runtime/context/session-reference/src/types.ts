@@ -2,12 +2,12 @@
  * Public session-reference request, candidate, and preparation records.
  * Imports stay on type-only subpaths so generated Remote clients can consume
  * this module without Host runtime code.
- * @module @z/dsh-session-reference/types
+ * @module @taskweaver/dsh-session-reference/types
  */
 
-import type { UserMessage } from '@z/dsh-llm/message'
-import type { ContentBlock } from '@z/dsh-llm/types'
-import type { SessionId } from '@z/dsh-session/types'
+import type { UserMessage } from '@taskweaver/dsh-llm/message'
+import type { ContentBlock } from '@taskweaver/dsh-llm/types'
+import type { SessionId } from '@taskweaver/dsh-session/types'
 
 /** Durable source session, cited event seqs, and snapshot facts for prepared cross-session context. */
 export interface SessionReferenceSource {
@@ -29,7 +29,7 @@ export interface SessionReferenceSource {
   }[]
 }
 
-declare module '@z/dsh-llm' {
+declare module '@taskweaver/dsh-llm' {
   interface MessageSourceMap {
     'session-reference': SessionReferenceSource
   }

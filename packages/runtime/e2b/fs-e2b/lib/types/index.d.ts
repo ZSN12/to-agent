@@ -1,10 +1,10 @@
 /**
  * E2B provider for the filesystem capability seam. Paths, contents, and
  * atomic staging files remain inside the shared remote sandbox.
- * @module @z/dsh-fs-e2b
+ * @module @taskweaver/dsh-fs-e2b
  */
-import { FileSystem, FsVersion } from '@z/dsh-fs';
-import type { FsDirEntry, FsEditOutcome, FsEditRequest, FsInfo, FsPathInfo, FsTarget, FsWriteIntent, FsWriteOutcome } from '@z/dsh-fs';
+import { FileSystem, FsVersion } from '@taskweaver/dsh-fs';
+import type { FsDirEntry, FsEditOutcome, FsEditRequest, FsInfo, FsPathInfo, FsTarget, FsWriteIntent, FsWriteOutcome } from '@taskweaver/dsh-fs';
 /** Remote filesystem backend sharing the sandbox owned by `ctx.e2b`. */
 export declare class E2BFileSystem extends FileSystem {
     static inject: string[];

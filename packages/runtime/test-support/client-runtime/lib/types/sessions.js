@@ -1,8 +1,8 @@
-import { createScope, scopeOf, SessionProvideChannel } from '@z/dsh-client-runtime/client';
-import { createSnapshotStore } from '@z/dsh-client-runtime/client';
+import { createScope, scopeOf, SessionProvideChannel } from '@taskweaver/dsh-client-runtime/client';
+import { createSnapshotStore } from '@taskweaver/dsh-client-runtime/client';
 // The double reports the wire schema's own search bound, like the production
 // service — a transport-varying limit would be a fiction no client can see.
-import { SESSION_SEARCH_RESULT_LIMIT } from '@z/dsh-host-apiproxy/api';
+import { SESSION_SEARCH_RESULT_LIMIT } from '@taskweaver/dsh-host-apiproxy/api';
 import { conversationSnapshot } from "./fixtures.js";
 /**
  * The fixture-backed session face: conversation reads delegate to the

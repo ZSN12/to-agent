@@ -6,7 +6,7 @@
  * own deadlines, teardown ladders, and cause classification.
  * @module dsh-subprocess-local/spawn
  */
-import type { CollectedOutput, SubprocessHandle, SubprocessSpawnSpec } from '@z/dsh-subprocess';
+import type { CollectedOutput, SubprocessHandle, SubprocessSpawnSpec } from '@taskweaver/dsh-subprocess';
 export declare function childEnv(extra?: Readonly<NodeJS.ProcessEnv>): NodeJS.ProcessEnv;
 /** Injectable knobs so tests can exercise spill and platform behavior deterministically. */
 export interface SpawnInternals {

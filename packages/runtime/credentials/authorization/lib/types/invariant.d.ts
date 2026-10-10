@@ -1,8 +1,8 @@
 /**
- * Package-owned invariant companion for `@z/dsh-authorization`.
- * @module @z/dsh-authorization/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-authorization`.
+ * @module @taskweaver/dsh-authorization/invariant
  */
-import type { Context } from '@z/cordis';
+import type { Context } from '@taskweaver/cordis';
 /** Cordis companion plugin name. */
 export declare const name = "authorization-invariant";
 /** Service required before the companion can reserve package ownership. */

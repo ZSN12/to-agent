@@ -1,8 +1,8 @@
 /** ACP wire-content admission and projection owned by the ACP adapter. @module */
 import type { ContentBlock as AcpContentBlock } from '@agentclientprotocol/sdk';
-import type { Context } from '@z/cordis';
-import type { Agent } from '@z/dsh-agent';
-import type { ContentBlock } from '@z/dsh-llm';
+import type { Context } from '@taskweaver/cordis';
+import type { Agent } from '@taskweaver/dsh-agent';
+import type { ContentBlock } from '@taskweaver/dsh-llm';
 /** Content-admission failure category used by the protocol handler. */
 export type AcpContentFailureKind = 'invalid' | 'internal';
 /** Error with a stable ACP request-failure category and no raw binary payload. */

@@ -1,10 +1,10 @@
 /**
  * Session-event augmentation for auto-review: the `approval/review` log-only
  * audit record appended to the owning session when a reviewer renders a verdict.
- * @module @z/dsh-auto-review
+ * @module @taskweaver/dsh-auto-review
  */
 import type { RiskLevel, ReviewDecision } from './types.ts';
-declare module '@z/dsh-session/types' {
+declare module '@taskweaver/dsh-session/types' {
     interface SessionEventMap {
         /**
          * A reviewer verdict for one approval request — log-only audit (like

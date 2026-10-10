@@ -1,11 +1,11 @@
 /**
  * Log-backed session title service, deterministic fallback, and provider contract.
- * @module @z/dsh-session-title
+ * @module @taskweaver/dsh-session-title
  */
-import { Context, Service } from '@z/cordis';
-import z from '@z/schemastery';
-import type { Branded } from '@z/dsh-brand';
-import type { Session, SessionEvent } from '@z/dsh-session';
+import { Context, Service } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
+import type { Branded } from '@taskweaver/dsh-brand';
+import type { Session, SessionEvent } from '@taskweaver/dsh-session';
 export type * from './types.ts';
 export { fallbackSessionTitle, normalizeSessionTitle, truncateTitleUtf8 } from './normalize.ts';
 /** Identifies one session-title provider registration. */
@@ -59,12 +59,12 @@ export interface Config {
     /** Maximum UTF-8 bytes in any accepted title. */
     readonly maxTitleBytes: number;
 }
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
     interface Context {
         sessionTitle: SessionTitleService;
     }
 }
-declare module '@z/dsh-session/types' {
+declare module '@taskweaver/dsh-session/types' {
     interface SessionEventMap {
         /**
          * Latest-wins session title snapshot. Log-only: it never enters the model

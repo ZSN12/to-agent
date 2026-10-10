@@ -9,9 +9,9 @@
  * per-item nulls. Every returned promise has a rejection consumer so dropped script promises cannot
  * kill the worker. A cancelled script that never settles emits nothing; the host force-settles the
  * run within grace and terminates the thread.
- * @module @z/dsh-workflow-worker-thread/runtime
+ * @module @taskweaver/dsh-workflow-worker-thread/runtime
  */
-import type { WorkflowAgentEndInfo, WorkflowAgentInfo, WorkflowMeta, WorkflowResult } from '@z/dsh-workflow';
+import type { WorkflowAgentEndInfo, WorkflowAgentInfo, WorkflowMeta, WorkflowResult } from '@taskweaver/dsh-workflow';
 import type { ChildPort, WorkerLimits } from './types.ts';
 /** The observers the execution reports progress through (the session posts them to the host). */
 export interface ExecutionObserver {

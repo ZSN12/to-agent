@@ -6,10 +6,10 @@
  * owns EOF and signal exits. Keep named plugin exports with no default export so
  * Loader `unwrapExports` preserves `name`, `inject`, `Config`, and `apply`.
  *
- * @module @z/dsh-sdk-jsonrpc-server
+ * @module @taskweaver/dsh-sdk-jsonrpc-server
  */
-import Schema from '@z/schemastery';
-import { JsonRpcLineTransport } from '@z/dsh-sdk-protocol';
+import Schema from '@taskweaver/schemastery';
+import { JsonRpcLineTransport } from '@taskweaver/dsh-sdk-protocol';
 import { HarnessSdkJsonRpcServer } from "./server.js";
 export * from "./server.js";
 export const name = 'sdk-jsonrpc-server';

@@ -11,7 +11,7 @@
  * path refuses the name while no surface shows anything to delete — and a
  * malformed composition would otherwise read as an ordinary preset until the
  * first session fails to mount it.
- * @module @z/dsh-agent-presets/discovery
+ * @module @taskweaver/dsh-agent-presets/discovery
  */
 import { type AgentPreset, type PresetRoot } from './preset.ts';
 /** The composition file that makes a directory a preset. */

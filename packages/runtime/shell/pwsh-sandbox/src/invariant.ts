@@ -1,13 +1,13 @@
 /**
- * Package-owned invariant companion for `@z/dsh-pwsh-sandbox`.
- * @module @z/dsh-pwsh-sandbox/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-pwsh-sandbox`.
+ * @module @taskweaver/dsh-pwsh-sandbox/invariant
  */
 
 /* jscpd:ignore-start */
-import type { Context } from '@z/cordis'
-import type { InvariantInstaller } from '@z/dsh-invariants'
+import type { Context } from '@taskweaver/cordis'
+import type { InvariantInstaller } from '@taskweaver/dsh-invariants'
 
-const PACKAGE_NAME = '@z/dsh-pwsh-sandbox'
+const PACKAGE_NAME = '@taskweaver/dsh-pwsh-sandbox'
 
 /** Cordis companion plugin name. */
 export const name = 'pwsh-sandbox-invariant'

@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import { CallId } from '@z/dsh-llm'
-import AgentRegistry, { type Agent } from '@z/dsh-agent'
-import SystemPrompt from '@z/dsh-system-prompt'
-import ToolRuntime from '@z/dsh-tools'
-import UserQuestionService, { type AskUserQuestionRequest } from '@z/dsh-user-questions'
-import * as toolAskUser from '@z/dsh-tool-ask-user'
+import { Context } from '@taskweaver/cordis'
+import { CallId } from '@taskweaver/dsh-llm'
+import AgentRegistry, { type Agent } from '@taskweaver/dsh-agent'
+import SystemPrompt from '@taskweaver/dsh-system-prompt'
+import ToolRuntime from '@taskweaver/dsh-tools'
+import UserQuestionService, { type AskUserQuestionRequest } from '@taskweaver/dsh-user-questions'
+import * as toolAskUser from '@taskweaver/dsh-tool-ask-user'
 
 const testToolSignal = new AbortController().signal
 

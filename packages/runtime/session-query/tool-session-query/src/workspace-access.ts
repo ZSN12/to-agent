@@ -1,11 +1,11 @@
 /**
  * Caller identity, workspace authorization, and visible lineage projection.
  *
- * @module @z/dsh-tool-session-query/workspace-access
+ * @module @taskweaver/dsh-tool-session-query/workspace-access
  */
 
-import type { Context } from '@z/cordis'
-import { HarnessError } from '@z/dsh-llm'
+import type { Context } from '@taskweaver/cordis'
+import { HarnessError } from '@taskweaver/dsh-llm'
 import { execFile } from 'node:child_process'
 import { realpath } from 'node:fs/promises'
 import path from 'node:path'
@@ -14,12 +14,12 @@ import {
   type SessionEvent,
   type SessionHeader,
   type SessionId as SessionIdValue,
-} from '@z/dsh-session'
+} from '@taskweaver/dsh-session'
 import type {
   SessionLineageNode,
   SessionRecord,
-} from '@z/dsh-session-query'
-import type { ToolRunContext } from '@z/dsh-tools'
+} from '@taskweaver/dsh-session-query'
+import type { ToolRunContext } from '@taskweaver/dsh-tools'
 import { serviceBoundary } from './service-boundary.ts'
 
 interface Caller {

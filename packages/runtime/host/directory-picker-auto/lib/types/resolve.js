@@ -4,7 +4,7 @@
  * one pure decision from sampled host facts to a concrete backend kind. The
  * caller samples exactly once per boot, so the mounted capability stays
  * stable for the service lifetime as the seam requires.
- * @module @z/dsh-host-directory-picker-auto/resolve
+ * @module @taskweaver/dsh-host-directory-picker-auto/resolve
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.resolveDirectoryPickerBackend = resolveDirectoryPickerBackend;

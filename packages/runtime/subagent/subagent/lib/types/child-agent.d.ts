@@ -5,13 +5,13 @@
  * provider driver and the continuation manager compose children this way, so
  * depth accounting, lineage stamping, and delegation policy have one home.
  *
- * @module @z/dsh-subagent/child-agent
+ * @module @taskweaver/dsh-subagent/child-agent
  */
-import type { Context } from '@z/cordis';
-import type { Agent, AgentOptions, CreateAgentOptions } from '@z/dsh-agent';
-import type { SandboxMode } from '@z/dsh-sandbox';
-import type { Session, SessionId } from '@z/dsh-session';
-import type { ToolRestriction } from '@z/dsh-tools';
+import type { Context } from '@taskweaver/cordis';
+import type { Agent, AgentOptions, CreateAgentOptions } from '@taskweaver/dsh-agent';
+import type { SandboxMode } from '@taskweaver/dsh-sandbox';
+import type { Session, SessionId } from '@taskweaver/dsh-session';
+import type { ToolRestriction } from '@taskweaver/dsh-tools';
 /** Thrown when starting a child would exceed the requested depth cap. */
 export declare class SubagentDepthError extends Error {
     readonly attemptedDepth: number;

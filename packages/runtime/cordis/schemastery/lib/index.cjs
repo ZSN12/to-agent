@@ -1,4 +1,4 @@
-let _z_cosmokit = require("@z/cosmokit");
+let _taskweaver_cosmokit = require("@taskweaver/cosmokit");
 //#region lib/types/index.js
 const kSchema = Symbol.for("schemastery");
 const kValidationError = Symbol.for("ValidationError");
@@ -26,14 +26,14 @@ const Schema = function(options) {
 		return Schema.resolve(data, schema, options)[0];
 	};
 	if (options.refs) {
-		const refs = (0, _z_cosmokit.valueMap)(options.refs, (options) => new Schema(options));
+		const refs = (0, _taskweaver_cosmokit.valueMap)(options.refs, (options) => new Schema(options));
 		const getRef = (uid) => refs[uid];
 		for (const key in refs) {
 			const options = refs[key];
 			options.sKey = getRef(options.sKey);
 			options.inner = getRef(options.inner);
 			options.list = options.list && options.list.map(getRef);
-			options.dict = options.dict && (0, _z_cosmokit.valueMap)(options.dict, getRef);
+			options.dict = options.dict && (0, _taskweaver_cosmokit.valueMap)(options.dict, getRef);
 		}
 		return refs[options.uid];
 	}
@@ -102,27 +102,27 @@ function getInner(value) {
 	return value?.$value ?? value?.$inner;
 }
 function extractKeys(data) {
-	return (0, _z_cosmokit.filterKeys)(data ?? {}, (key) => !key.startsWith("$"));
+	return (0, _taskweaver_cosmokit.filterKeys)(data ?? {}, (key) => !key.startsWith("$"));
 }
 Schema.prototype.i18n = function i18n(messages) {
 	const schema = Schema(this);
 	const desc = mergeDesc(schema.meta.description, messages);
 	if (Object.keys(desc).length) schema.meta.description = desc;
-	if (schema.dict) schema.dict = (0, _z_cosmokit.valueMap)(schema.dict, (inner, key) => {
-		return inner.i18n((0, _z_cosmokit.valueMap)(messages, (data) => getInner(data)?.[key] ?? data?.[key]));
+	if (schema.dict) schema.dict = (0, _taskweaver_cosmokit.valueMap)(schema.dict, (inner, key) => {
+		return inner.i18n((0, _taskweaver_cosmokit.valueMap)(messages, (data) => getInner(data)?.[key] ?? data?.[key]));
 	});
 	if (schema.list) schema.list = schema.list.map((inner, index) => {
-		return inner.i18n((0, _z_cosmokit.valueMap)(messages, (data = {}) => {
+		return inner.i18n((0, _taskweaver_cosmokit.valueMap)(messages, (data = {}) => {
 			if (Array.isArray(getInner(data))) return getInner(data)[index];
 			if (Array.isArray(data)) return data[index];
 			return extractKeys(data);
 		}));
 	});
-	if (schema.inner) schema.inner = schema.inner.i18n((0, _z_cosmokit.valueMap)(messages, (data) => {
+	if (schema.inner) schema.inner = schema.inner.i18n((0, _taskweaver_cosmokit.valueMap)(messages, (data) => {
 		if (getInner(data)) return getInner(data);
 		return extractKeys(data);
 	}));
-	if (schema.sKey) schema.sKey = schema.sKey.i18n((0, _z_cosmokit.valueMap)(messages, (data) => data?.$key));
+	if (schema.sKey) schema.sKey = schema.sKey.i18n((0, _taskweaver_cosmokit.valueMap)(messages, (data) => data?.$key));
 	return schema;
 };
 Schema.prototype.extra = function extra(key, value) {
@@ -167,7 +167,7 @@ Schema.prototype.experimental = function experimental() {
 };
 Schema.prototype.pattern = function pattern(regexp) {
 	const schema = Schema(this);
-	const pattern = (0, _z_cosmokit.pick)(regexp, ["source", "flags"]);
+	const pattern = (0, _taskweaver_cosmokit.pick)(regexp, ["source", "flags"]);
 	schema.meta = {
 		...schema.meta,
 		pattern
@@ -175,15 +175,15 @@ Schema.prototype.pattern = function pattern(regexp) {
 	return schema;
 };
 Schema.prototype.simplify = function simplify(value) {
-	if ((0, _z_cosmokit.deepEqual)(value, this.meta.default, this.type === "dict")) return null;
-	if ((0, _z_cosmokit.isNullable)(value)) return value;
+	if ((0, _taskweaver_cosmokit.deepEqual)(value, this.meta.default, this.type === "dict")) return null;
+	if ((0, _taskweaver_cosmokit.isNullable)(value)) return value;
 	if (this.type === "object" || this.type === "dict") {
 		const result = {};
 		for (const key in value) {
 			const item = (this.type === "object" ? this.dict[key] : this.inner)?.simplify(value[key]);
-			if (this.type === "dict" || !(0, _z_cosmokit.isNullable)(item)) result[key] = item;
+			if (this.type === "dict" || !(0, _taskweaver_cosmokit.isNullable)(item)) result[key] = item;
 		}
-		if ((0, _z_cosmokit.deepEqual)(result, this.meta.default, this.type === "dict")) return null;
+		if ((0, _taskweaver_cosmokit.deepEqual)(result, this.meta.default, this.type === "dict")) return null;
 		return result;
 	} else if (this.type === "array" || this.type === "tuple") {
 		const result = [];
@@ -238,16 +238,16 @@ Schema.extend = function extend(type, resolve) {
 Schema.resolve = function resolve(data, schema, options = {}, strict = false) {
 	if (!schema) return [data];
 	if (options.ignore?.(data, schema)) return [data];
-	if ((0, _z_cosmokit.isNullable)(data) && schema.type !== "lazy") {
+	if ((0, _taskweaver_cosmokit.isNullable)(data) && schema.type !== "lazy") {
 		if (schema.meta.required) throw new ValidationError(`missing required value`, options);
 		let current = schema;
 		let fallback = schema.meta.default;
-		while (current?.type === "intersect" && (0, _z_cosmokit.isNullable)(fallback)) {
+		while (current?.type === "intersect" && (0, _taskweaver_cosmokit.isNullable)(fallback)) {
 			current = current.list[0];
 			fallback = current?.meta.default;
 		}
-		if ((0, _z_cosmokit.isNullable)(fallback)) return [data];
-		data = (0, _z_cosmokit.clone)(fallback);
+		if ((0, _taskweaver_cosmokit.isNullable)(fallback)) return [data];
+		data = (0, _taskweaver_cosmokit.clone)(fallback);
 	}
 	const callback = resolvers[schema.type];
 	if (!callback) throw new ValidationError(`unsupported type "${schema.type}"`, options);
@@ -259,7 +259,7 @@ Schema.resolve = function resolve(data, schema, options = {}, strict = false) {
 	}
 };
 Schema.from = function from(source) {
-	if ((0, _z_cosmokit.isNullable)(source)) return Schema.any();
+	if ((0, _taskweaver_cosmokit.isNullable)(source)) return Schema.any();
 	else if ([
 		"string",
 		"number",
@@ -320,12 +320,12 @@ Schema.arrayBuffer = function arrayBuffer(encoding) {
 		Schema.is(ArrayBuffer),
 		Schema.is(SharedArrayBuffer),
 		Schema.transform(Schema.any(), (value, options) => {
-			if (_z_cosmokit.Binary.isSource(value)) return _z_cosmokit.Binary.fromSource(value);
+			if (_taskweaver_cosmokit.Binary.isSource(value)) return _taskweaver_cosmokit.Binary.fromSource(value);
 			throw new ValidationError(`expected ArrayBufferSource but got ${value}`, options);
 		}, true),
 		...encoding ? [Schema.transform(Schema.string(), (value, options) => {
 			try {
-				return encoding === "base64" ? _z_cosmokit.Binary.fromBase64(value) : _z_cosmokit.Binary.fromHex(value);
+				return encoding === "base64" ? _taskweaver_cosmokit.Binary.fromBase64(value) : _taskweaver_cosmokit.Binary.fromHex(value);
 			} catch (e) {
 				throw new ValidationError(e.message, options);
 			}
@@ -349,7 +349,7 @@ Schema.extend("never", (data, _, options) => {
 	throw new ValidationError(`expected nullable but got ${data}`, options);
 });
 Schema.extend("const", (data, { value }, options) => {
-	if ((0, _z_cosmokit.deepEqual)(data, value)) return [value];
+	if ((0, _taskweaver_cosmokit.deepEqual)(data, value)) return [value];
 	throw new ValidationError(`expected ${value} but got ${data}`, options);
 });
 function checkWithinRange(data, meta, description, options, skipMin = false) {
@@ -418,7 +418,7 @@ Schema.extend("is", (data, { constructor }, options) => {
 		if (data instanceof constructor) return [data];
 		throw new ValidationError(`expected ${constructor.name} but got ${data}`, options);
 	} else {
-		if ((0, _z_cosmokit.isNullable)(data)) throw new ValidationError(`expected ${constructor} but got ${data}`, options);
+		if ((0, _taskweaver_cosmokit.isNullable)(data)) throw new ValidationError(`expected ${constructor} but got ${data}`, options);
 		let prototype = Object.getPrototypeOf(data);
 		while (prototype) {
 			if (prototype.constructor?.name === constructor) return [data];
@@ -443,11 +443,11 @@ function property(data, key, schema, options) {
 }
 Schema.extend("array", (data, { inner, meta }, options) => {
 	if (!Array.isArray(data)) throw new ValidationError(`expected array but got ${data}`, options);
-	checkWithinRange(data.length, meta, "array length", options, !(0, _z_cosmokit.isNullable)(inner.meta.default));
+	checkWithinRange(data.length, meta, "array length", options, !(0, _taskweaver_cosmokit.isNullable)(inner.meta.default));
 	return [data.map((_, index) => property(data, index, inner, options))];
 });
 Schema.extend("dict", (data, { inner, sKey }, options, strict) => {
-	if (!(0, _z_cosmokit.isPlainObject)(data)) throw new ValidationError(`expected object but got ${data}`, options);
+	if (!(0, _taskweaver_cosmokit.isPlainObject)(data)) throw new ValidationError(`expected object but got ${data}`, options);
 	const result = {};
 	for (const key in data) {
 		let rKey;
@@ -477,11 +477,11 @@ function merge(result, data) {
 	}
 }
 Schema.extend("object", (data, { dict }, options, strict) => {
-	if (!(0, _z_cosmokit.isPlainObject)(data)) throw new ValidationError(`expected object but got ${data}`, options);
+	if (!(0, _taskweaver_cosmokit.isPlainObject)(data)) throw new ValidationError(`expected object but got ${data}`, options);
 	const result = {};
 	for (const key in dict) {
 		const value = property(data, key, dict[key], options);
-		if (!(0, _z_cosmokit.isNullable)(value) || key in data) result[key] = value;
+		if (!(0, _taskweaver_cosmokit.isNullable)(value) || key in data) result[key] = value;
 	}
 	if (!strict) merge(result, data);
 	return [result];
@@ -500,13 +500,13 @@ Schema.extend("intersect", (data, { list, toString }, options, strict) => {
 	let result;
 	for (const inner of list) {
 		const value = Schema.resolve(data, inner, options, true)[0];
-		if ((0, _z_cosmokit.isNullable)(value)) continue;
-		if ((0, _z_cosmokit.isNullable)(result)) result = value;
+		if ((0, _taskweaver_cosmokit.isNullable)(value)) continue;
+		if ((0, _taskweaver_cosmokit.isNullable)(result)) result = value;
 		else if (typeof result !== typeof value) throw new ValidationError(`expected ${toString()} but got ${JSON.stringify(data)}`, options);
 		else if (typeof value === "object") merge(result ??= {}, value);
 		else if (result !== value) throw new ValidationError(`expected ${toString()} but got ${JSON.stringify(data)}`, options);
 	}
-	if (!strict && (0, _z_cosmokit.isPlainObject)(data)) merge(result, data);
+	if (!strict && (0, _taskweaver_cosmokit.isPlainObject)(data)) merge(result, data);
 	return [result];
 });
 Schema.extend("transform", (data, { inner, callback, preserve }, options) => {
@@ -531,7 +531,7 @@ function defineMethod(name, keys, format) {
 					schema.list = args[index].map(Schema.from);
 					break;
 				case "dict":
-					schema.dict = (0, _z_cosmokit.valueMap)(args[index], Schema.from);
+					schema.dict = (0, _taskweaver_cosmokit.valueMap)(args[index], Schema.from);
 					break;
 				case "bits":
 					schema.bits = {};

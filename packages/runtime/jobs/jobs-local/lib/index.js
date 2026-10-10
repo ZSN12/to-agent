@@ -1,7 +1,7 @@
-import z from "@z/schemastery";
-import { AnonymousEntries, ScopedLayers, scopeOf } from "@z/dsh-scope";
-import { deadline, timeoutOf } from "@z/dsh-timeout";
-import { JobId, JobRegistry } from "@z/dsh-jobs";
+import z from "@taskweaver/schemastery";
+import { AnonymousEntries, ScopedLayers, scopeOf } from "@taskweaver/dsh-scope";
+import { deadline, timeoutOf } from "@taskweaver/dsh-timeout";
+import { JobId, JobRegistry } from "@taskweaver/dsh-jobs";
 //#region lib/types/index.js
 /**
 * Process-local provider for the background-job capability seam
@@ -11,7 +11,7 @@ import { JobId, JobRegistry } from "@z/dsh-jobs";
 * Registrations outlive producer and controller fibers. Agent or service
 * disposal cancels live work and awaits compliant producers; a throwing
 * teardown cancel force-fails only the record and reports a possible orphan.
-* @module @z/dsh-jobs-local
+* @module @taskweaver/dsh-jobs-local
 */
 var __addDisposableResource = function(env, value, async) {
 	if (value !== null && value !== void 0) {
@@ -95,7 +95,7 @@ var JobLayer = class {
 };
 /**
 * The in-memory `jobs` registry. See the Service Definition contract in
-* `@z/dsh-jobs` for the ownership, isolation, and lifecycle
+* `@taskweaver/dsh-jobs` for the ownership, isolation, and lifecycle
 * semantics this implementation honors.
 */
 var LocalJobRegistry = class extends JobRegistry {
@@ -129,7 +129,7 @@ var LocalJobRegistry = class extends JobRegistry {
 		ctx.effect(() => () => this.disposeAll(), "jobs teardown");
 	}
 	start(spec) {
-		if (!this.servesOwner(spec.owner)) throw new Error("background jobs unavailable: no job controller serves this agent (load @z/dsh-tool-jobs in its composition)");
+		if (!this.servesOwner(spec.owner)) throw new Error("background jobs unavailable: no job controller serves this agent (load @taskweaver/dsh-tool-jobs in its composition)");
 		if (spec.kind.length === 0) throw new Error("invalid job kind: expected a non-empty string");
 		if (spec.label.length === 0) throw new Error("invalid job label: expected a non-empty string");
 		if (spec.outputLimitBytes !== void 0 && (!Number.isSafeInteger(spec.outputLimitBytes) || spec.outputLimitBytes <= 0)) throw new Error(`invalid outputLimitBytes: expected a positive safe integer, got ${JSON.stringify(spec.outputLimitBytes)}`);
@@ -394,7 +394,7 @@ var LocalJobRegistry = class extends JobRegistry {
 	ensureOwnerCleanup(owner) {
 		const ownerId = owner.id;
 		const agents = this.selfCtx.get("agents");
-		if (agents === void 0) throw new Error("background job ownership requires the agent registry (load @z/dsh-agent)");
+		if (agents === void 0) throw new Error("background job ownership requires the agent registry (load @taskweaver/dsh-agent)");
 		if (agents.get(ownerId) !== owner) throw new Error(`agent "${ownerId}" is not the registered agent instance (background job owner must be live)`);
 		if (this.ownerCleanups.has(owner)) return;
 		const detach = owner.ctx.effect(() => async () => {

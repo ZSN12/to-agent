@@ -4,7 +4,7 @@
  * `.agents/notes/implemented/architecture/2026-06-21-mandatory-app-attribution-headers.md`.
  *
  * App-attribution vocabulary for provider requests.
- * @module @z/dsh-llm/attribution
+ * @module @taskweaver/dsh-llm/attribution
  */
 /**
  * Static public application identity sent to LLM providers.

@@ -2,9 +2,9 @@
  * Pure protocol translation for the local host: what the server's capabilities allow, and how its
  * `Location`/`LocationLink`/`Hover` payloads normalize into the seam's closed result unions. No I/O
  * or process state — every function here is a pure transform, which the fake-stdio tests pin exactly.
- * @module @z/dsh-lsp-stdio/translate
+ * @module @taskweaver/dsh-lsp-stdio/translate
  */
-import type { LspHover, LspLocation, LspOperation } from '@z/dsh-lsp';
+import type { LspHover, LspLocation, LspOperation } from '@taskweaver/dsh-lsp';
 import type { WireServerCapabilities } from './protocol.ts';
 /**
  * The `textDocument/*` request method for each LSP operation.

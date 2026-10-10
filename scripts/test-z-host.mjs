@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url'
 import {
   createZHostManager,
   resolveTaskWeaverRuntimeRoot,
-} from '../electron/agent/z-host/index.mjs'
+} from '../desktop/agent/z-host/index.mjs'
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const runtimeRoot = resolveTaskWeaverRuntimeRoot({
@@ -19,7 +19,6 @@ const testHome = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-dsh-host-')
 const manager = createZHostManager({
   runtimeRoot,
   userDataPath: testHome,
-  executable: process.execPath,
   environment: process.env,
   startTimeoutMs: 60_000,
 })
@@ -40,7 +39,7 @@ try {
   )
 
   const sessionId = `taskweaver-contract-${crypto.randomUUID()}`
-  const created = await api.sessions.create({ sessionId, cwd: projectRoot, agentPreset: 'taskweaver-planner' })
+  const created = await api.sessions.create({ sessionId, cwd: projectRoot, agentPreset: 'tw-taskweaver-planner' })
   assert.equal(created.result.ok, true)
   assert.equal(created.result.value.sessionId, sessionId)
 
@@ -48,7 +47,7 @@ try {
   const codeCreated = await api.sessions.create({
     sessionId: codeSessionId,
     cwd: projectRoot,
-    agentPreset: 'taskweaver-code',
+    agentPreset: 'tw-taskweaver-code',
   })
   assert.equal(codeCreated.result.ok, true, codeCreated.result.error?.message ?? 'taskweaver-code preset session create failed')
   assert.equal(codeCreated.result.value.sessionId, codeSessionId)
@@ -57,7 +56,7 @@ try {
   const readonlyCreated = await api.sessions.create({
     sessionId: readonlySessionId,
     cwd: projectRoot,
-    agentPreset: 'taskweaver-readonly',
+    agentPreset: 'tw-taskweaver-readonly',
   })
   assert.equal(readonlyCreated.result.ok, true, readonlyCreated.result.error?.message ?? 'taskweaver-readonly preset session create failed')
   assert.equal(readonlyCreated.result.value.sessionId, readonlySessionId)

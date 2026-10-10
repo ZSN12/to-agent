@@ -6,8 +6,8 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import { FileSystem, FsError, FsTargetKey, FsVersion } from '@z/dsh-fs'
+import { Context } from '@taskweaver/cordis'
+import { FileSystem, FsError, FsTargetKey, FsVersion } from '@taskweaver/dsh-fs'
 import type {
   FsDirEntry,
   FsEditOutcome,
@@ -17,7 +17,7 @@ import type {
   FsTarget,
   FsWriteIntent,
   FsWriteOutcome,
-} from '@z/dsh-fs'
+} from '@taskweaver/dsh-fs'
 
 /** A minimal in-memory fake implementing the provider primitives. */
 class FakeFileSystem extends FileSystem {

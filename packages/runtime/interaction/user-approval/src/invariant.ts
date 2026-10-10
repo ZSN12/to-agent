@@ -1,12 +1,12 @@
-/** Package-owned approval audit-stream invariants. @module @z/dsh-user-approval/invariant */
+/** Package-owned approval audit-stream invariants. @module @taskweaver/dsh-user-approval/invariant */
 
-import type { Context } from '@z/cordis'
-import type { Session, SessionEvent } from '@z/dsh-session'
-import type { InvariantFailure, InvariantInstaller } from '@z/dsh-invariants'
+import type { Context } from '@taskweaver/cordis'
+import type { Session, SessionEvent } from '@taskweaver/dsh-session'
+import type { InvariantFailure, InvariantInstaller } from '@taskweaver/dsh-invariants'
 import type { ApprovalRequestId } from './index.ts'
 import { APPROVAL_POLICIES } from './index.ts'
 
-const PACKAGE_NAME = '@z/dsh-user-approval'
+const PACKAGE_NAME = '@taskweaver/dsh-user-approval'
 const APPROVAL_OUTCOMES = ['allowed-once', 'rejected', 'cancelled', 'unavailable'] as const
 
 /** Cordis companion plugin name. */

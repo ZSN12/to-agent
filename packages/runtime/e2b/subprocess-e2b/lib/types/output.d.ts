@@ -1,6 +1,6 @@
 /** Bounded host-side projection of a complete output file retained in E2B. */
 import { Buffer } from 'node:buffer';
-import type { SubprocessOutputRead, SubprocessOutputReader } from '@z/dsh-subprocess';
+import type { SubprocessOutputRead, SubprocessOutputReader } from '@taskweaver/dsh-subprocess';
 /** Reserved non-base64 frame proving that one remote encoder reached clean EOF. */
 export declare const E2B_OUTPUT_COMPLETE_FRAME = "!dsh-e2b-output-complete!";
 /** Incrementally decode newline-delimited base64 frames emitted by one remote encoder. */

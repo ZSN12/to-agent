@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 import { existsSync } from "node:fs";
-import { boot, installFailLoud, loadEnv, resolveConfigPath } from "@z/dsh-app-boot";
+import { boot, installFailLoud, loadEnv, resolveConfigPath } from "@taskweaver/dsh-app-boot";
 //#region lib/types/runner.js
 /**
 * Shared process lifecycle for the generic and closed-runtime JSON-RPC bins.
 *
-* @module @z/dsh-sdk-jsonrpc-demo/runner
+* @module @taskweaver/dsh-sdk-jsonrpc-demo/runner
 */
 /* v8 ignore start -- composition over tested app-boot/jsonrpc and executable acceptance paths */
 const NAME = "dsh-jsonrpc-agent";
@@ -55,7 +55,7 @@ async function runJsonrpcAgent(bareModuleBaseUrl) {
 * Generic JSON-RPC agent bin. External configurations own their bare plugin
 * packages; the packaged runtime uses `packaged-bin.ts` instead.
 *
-* @module @z/dsh-sdk-jsonrpc-demo/bin
+* @module @taskweaver/dsh-sdk-jsonrpc-demo/bin
 */
 await runJsonrpcAgent();
 //#endregion

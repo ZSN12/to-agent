@@ -2,10 +2,10 @@
  * Opt-in request clock context. Eligible steps add durable,
  * source-attributed time readings to the request history.
  *
- * @module @z/dsh-time-context
+ * @module @taskweaver/dsh-time-context
  */
-import type { Context } from '@z/cordis';
-import z from '@z/schemastery';
+import type { Context } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
 /** Cordis plugin name used by loader diagnostics. */
 export declare const name = "time-context";
 /** The agent registry that owns pre-step processing. */

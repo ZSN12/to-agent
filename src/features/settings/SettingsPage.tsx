@@ -69,15 +69,15 @@ export function SettingsPage({
       </button>
       <div className="settings-nav-section-title">设置分类</div>
       <nav aria-label="设置导航">
-        <button className={`settings-nav-item ${section === 'appearance' ? 'active' : ''}`} onClick={() => onSectionChange('appearance')}><Sun size={16} /><span>外观</span></button>
-        <button className={`settings-nav-item ${section === 'chat' ? 'active' : ''}`} onClick={() => onSectionChange('chat')}><MessageSquare size={16} /><span>对话</span></button>
-        <button className={`settings-nav-item ${section === 'models' ? 'active' : ''}`} onClick={() => onSectionChange('models')}><Database size={16} /><span>模型</span></button>
-        <button className={`settings-nav-item ${section === 'skills' ? 'active' : ''}`} onClick={() => onSectionChange('skills')}><Sparkles size={16} /><span>Skill</span></button>
-        <button className={`settings-nav-item ${section === 'routing' ? 'active' : ''}`} onClick={() => onSectionChange('routing')}><GitBranch size={16} /><span>路由作品集</span></button>
-        <button className={`settings-nav-item ${section === 'mcp' ? 'active' : ''}`} onClick={() => onSectionChange('mcp')}><Cpu size={16} /><span>MCP 服务</span></button>
-        <button className={`settings-nav-item ${section === 'permissions' ? 'active' : ''}`} onClick={() => onSectionChange('permissions')}><ShieldCheck size={16} /><span>安全与权限</span></button>
-        <button className={`settings-nav-item ${section === 'shortcuts' ? 'active' : ''}`} onClick={() => onSectionChange('shortcuts')}><Keyboard size={16} /><span>键盘快捷键</span></button>
-        <button className={`settings-nav-item ${section === 'usage' ? 'active' : ''}`} onClick={() => onSectionChange('usage')}><Activity size={16} /><span>模型用量</span></button>
+        <button type="button" className={`settings-nav-item ${section === 'appearance' ? 'active' : ''}`} aria-current={section === 'appearance' ? 'page' : undefined} aria-controls="settings-content" onClick={() => onSectionChange('appearance')}><Sun size={16} /><span>外观</span></button>
+        <button type="button" className={`settings-nav-item ${section === 'chat' ? 'active' : ''}`} aria-current={section === 'chat' ? 'page' : undefined} aria-controls="settings-content" onClick={() => onSectionChange('chat')}><MessageSquare size={16} /><span>对话</span></button>
+        <button type="button" className={`settings-nav-item ${section === 'models' ? 'active' : ''}`} aria-current={section === 'models' ? 'page' : undefined} aria-controls="settings-content" onClick={() => onSectionChange('models')}><Database size={16} /><span>模型</span></button>
+        <button type="button" className={`settings-nav-item ${section === 'skills' ? 'active' : ''}`} aria-current={section === 'skills' ? 'page' : undefined} aria-controls="settings-content" onClick={() => onSectionChange('skills')}><Sparkles size={16} /><span>Skill</span></button>
+        <button type="button" className={`settings-nav-item ${section === 'routing' ? 'active' : ''}`} aria-current={section === 'routing' ? 'page' : undefined} aria-controls="settings-content" onClick={() => onSectionChange('routing')}><GitBranch size={16} /><span>路由作品集</span></button>
+        <button type="button" className={`settings-nav-item ${section === 'mcp' ? 'active' : ''}`} aria-current={section === 'mcp' ? 'page' : undefined} aria-controls="settings-content" onClick={() => onSectionChange('mcp')}><Cpu size={16} /><span>MCP 服务</span></button>
+        <button type="button" className={`settings-nav-item ${section === 'permissions' ? 'active' : ''}`} aria-current={section === 'permissions' ? 'page' : undefined} aria-controls="settings-content" onClick={() => onSectionChange('permissions')}><ShieldCheck size={16} /><span>安全与权限</span></button>
+        <button type="button" className={`settings-nav-item ${section === 'shortcuts' ? 'active' : ''}`} aria-current={section === 'shortcuts' ? 'page' : undefined} aria-controls="settings-content" onClick={() => onSectionChange('shortcuts')}><Keyboard size={16} /><span>键盘快捷键</span></button>
+        <button type="button" className={`settings-nav-item ${section === 'usage' ? 'active' : ''}`} aria-current={section === 'usage' ? 'page' : undefined} aria-controls="settings-content" onClick={() => onSectionChange('usage')}><Activity size={16} /><span>模型用量</span></button>
       </nav>
       <div className="settings-nav-footer"><span>TaskWeaver · v0.1.0</span></div>
     </aside>
@@ -88,7 +88,7 @@ export function SettingsPage({
           <X size={16} />
         </button>
       </header>
-      <div className="settings-content" key={section}>
+      <div className="settings-content" id="settings-content" key={section}>
         <Suspense fallback={<div className="settings-loading" role="status">正在加载设置…</div>}>
         {section === 'appearance' ? (
           <AppearanceSettingsPanel onToast={toast} />
@@ -101,6 +101,8 @@ export function SettingsPage({
             candidateModels={modelCatalog.catalog?.candidateModels ?? []}
             loading={modelCatalog.loading}
             bridgeReady={modelCatalog.bridgeReady}
+            catalogStale={modelCatalog.catalogStale}
+            capabilityTierStatus={modelCatalog.catalog?.capabilityTierStatus}
             error={modelCatalog.error}
             oauthStatus={modelCatalog.oauthStatus}
             updateStatus={modelCatalog.updateStatus}

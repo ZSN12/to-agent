@@ -7,9 +7,9 @@
  */
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { SessionEvent } from '@z/dsh-session/types'
-import type {} from '@z/dsh-commands/types'
-import type { SessionId } from '@z/dsh-api-remotes/client'
+import type { SessionEvent } from '@taskweaver/dsh-session/types'
+import type {} from '@taskweaver/dsh-commands/types'
+import type { SessionId } from '@taskweaver/dsh-api-remotes/client'
 import { Session } from '../src/client/sessions/session.ts'
 import type {
   ChatConversationViewNode, ChatLocationNodeIndex, ChatNodeStore, ChatSnapshot,

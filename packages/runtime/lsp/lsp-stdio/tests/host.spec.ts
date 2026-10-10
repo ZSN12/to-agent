@@ -6,10 +6,10 @@ import { realpath } from 'node:fs/promises'
 import { execFile } from 'node:child_process'
 import { pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
-import { Context } from '@z/cordis'
-import LocalFileSystem from '@z/dsh-fs-local'
-import { deadline } from '@z/dsh-timeout'
-import { canonicalizeWorkspace, readHostSource } from '@z/dsh-lsp-stdio'
+import { Context } from '@taskweaver/cordis'
+import LocalFileSystem from '@taskweaver/dsh-fs-local'
+import { deadline } from '@taskweaver/dsh-timeout'
+import { canonicalizeWorkspace, readHostSource } from '@taskweaver/dsh-lsp-stdio'
 
 const execFileAsync = promisify(execFile)
 

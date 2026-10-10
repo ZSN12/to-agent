@@ -1,6 +1,6 @@
 /**
  * Durable and model-facing Schedule value types.
- * @module @z/dsh-schedule
+ * @module @taskweaver/dsh-schedule
  */
 export {};
 //# sourceMappingURL=types.js.map

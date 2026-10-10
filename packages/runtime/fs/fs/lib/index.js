@@ -1,11 +1,11 @@
-import { Service } from "@z/cordis";
-import { HarnessError } from "@z/dsh-llm";
+import { Service } from "@taskweaver/cordis";
+import { HarnessError } from "@taskweaver/dsh-llm";
 //#region lib/types/types.js
 /**
 * Vocabulary for the filesystem Service Definition (`ctx.fs`): the opaque target/version
 * identities, the metadata `stat` returns, the write-intent and outcome shapes, the
 * literal-edit request/outcome, and the typed error taxonomy.
-* @module @z/dsh-fs/types
+* @module @taskweaver/dsh-fs/types
 */
 /**
 * Brand a string as an {@link FsTargetKey}. For backend use only — a consumer
@@ -47,7 +47,7 @@ var FsError = class extends HarnessError {
 * observed-state policy stay in consumer and policy plugins; `editText`
 * remains here so version check, literal match, and rewrite share one critical
 * section.
-* @module @z/dsh-fs
+* @module @taskweaver/dsh-fs
 */
 /**
 * Abstract filesystem provider. Targets must preserve identity across aliases;
@@ -64,7 +64,7 @@ var FileSystem = class extends Service {
 	* `undefined` when it does not confine at all — the capability fact the tool
 	* layer reads to advertise the escalation fields honestly (mirrors
 	* `ShellExecutor.sandboxMode`). The base class and the bare local backend
-	* report `undefined`; a sandboxing backend (`@z/dsh-fs-sandbox`)
+	* report `undefined`; a sandboxing backend (`@taskweaver/dsh-fs-sandbox`)
 	* overrides it with the deployment default. A session override may make the
 	* effective mode narrower or wider, so strict escalation widening is checked
 	* per call rather than encoded in this default-relative fact.

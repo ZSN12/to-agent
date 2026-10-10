@@ -1,9 +1,9 @@
 //#region lib/types/invariant.js
 /**
-* Package-owned invariant companion for `@z/dsh-atomic-write`.
-* @module @z/dsh-atomic-write/invariant
+* Package-owned invariant companion for `@taskweaver/dsh-atomic-write`.
+* @module @taskweaver/dsh-atomic-write/invariant
 */
-const PACKAGE_NAME = "@z/dsh-atomic-write";
+const PACKAGE_NAME = "@taskweaver/dsh-atomic-write";
 /** Cordis companion plugin name. */
 const name = "atomic-write-invariant";
 /** Service required before the companion can reserve package ownership. */

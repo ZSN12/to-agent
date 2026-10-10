@@ -1,9 +1,9 @@
 //#region lib/types/invariant.js
 /**
-* Package-owned invariant companion for `@z/dsh-sandbox-windows-acl`.
-* @module @z/dsh-sandbox-windows-acl/invariant
+* Package-owned invariant companion for `@taskweaver/dsh-sandbox-windows-acl`.
+* @module @taskweaver/dsh-sandbox-windows-acl/invariant
 */
-const PACKAGE_NAME = "@z/dsh-sandbox-windows-acl";
+const PACKAGE_NAME = "@taskweaver/dsh-sandbox-windows-acl";
 /** Cordis companion plugin name. */
 const name = "sandbox-windows-acl-invariant";
 /** Service required before the companion can reserve package ownership. */

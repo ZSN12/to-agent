@@ -14,9 +14,9 @@ import type {
   InboxTarget,
   PreStepDecision,
   RequestErrorAction,
-} from '@z/dsh-agent'
-import { Inbox, agentEvents, assembleContextFor } from '@z/dsh-agent'
-import type { GenerateOptions, LlmCallConfig, Message, PreparedLlmCall } from '@z/dsh-llm'
+} from '@taskweaver/dsh-agent'
+import { Inbox, agentEvents, assembleContextFor } from '@taskweaver/dsh-agent'
+import type { GenerateOptions, LlmCallConfig, Message, PreparedLlmCall } from '@taskweaver/dsh-llm'
 import {
   BlockAssembler,
   LlmError,
@@ -24,14 +24,14 @@ import {
   deepFreeze,
   errorChain,
   markAgentLoopRequest,
-} from '@z/dsh-llm'
-import type { Scope } from '@z/dsh-scope'
-import { createScope } from '@z/dsh-scope'
-import type { EpochHeader, RequestContext, Session, SessionId, TurnEndReason, UserMessage } from '@z/dsh-session'
-import { canonicalHeader, headerEquals } from '@z/dsh-session'
-import { joinContextSections, renderContextSections, renderPrompt } from '@z/dsh-system-prompt'
-import type { PromptAssembly } from '@z/dsh-system-prompt'
-import type { Context } from '@z/cordis'
+} from '@taskweaver/dsh-llm'
+import type { Scope } from '@taskweaver/dsh-scope'
+import { createScope } from '@taskweaver/dsh-scope'
+import type { EpochHeader, RequestContext, Session, SessionId, TurnEndReason, UserMessage } from '@taskweaver/dsh-session'
+import { canonicalHeader, headerEquals } from '@taskweaver/dsh-session'
+import { joinContextSections, renderContextSections, renderPrompt } from '@taskweaver/dsh-system-prompt'
+import type { PromptAssembly } from '@taskweaver/dsh-system-prompt'
+import type { Context } from '@taskweaver/cordis'
 import { RuntimeContextProjection } from './runtime-context.ts'
 import { executeToolCalls } from './tool-calls.ts'
 
@@ -43,7 +43,7 @@ type Phase =
     lastTurn: number
     wakeRequested: boolean
   }
-  | { kind: 'running'; abort: AbortController; turn: number; step: number; wakeRequested: boolean }
+  | { kind: 'running'; abort: AbortController; turn: number; step: number; wakeRequested: boolean; outputSchema?: GenerateOptions['outputSchema'] }
 
 type StepEndReason = Extract<TurnEndReason, { kind: 'completed' | 'max-tokens' }>
 
@@ -188,6 +188,7 @@ export class ReactLoopAgent implements Agent {
       turn: this.phase.lastTurn,
       step: 0,
       wakeRequested: false,
+      outputSchema: undefined,
     })
     this.loopCtx.agents.withInitiator(this, () => this.kick()).then(driver.resolve, driver.reject)
   }
@@ -268,6 +269,10 @@ export class ReactLoopAgent implements Agent {
           turnEnds = { kind: 'blocked' }
           return false
         }
+        const userInputs = decision.messages.filter(message => message.source.kind === 'user')
+        if (phase.step === 0 || userInputs.length > 0) {
+          phase.outputSchema = userInputs.find(message => message.source.outputSchema !== undefined)?.source.outputSchema
+        }
         if (turnEnds && decision.messages.length === 0) break
         // A removed waking message or an enter decision rewritten to empty
         // still owns the initial turn boundary, but it spends no model call.
@@ -339,6 +344,7 @@ export class ReactLoopAgent implements Agent {
     while (true) {
       const { request, preparedCall } = await this.buildRequest(
         turn, step, assembly.tools, system, this.session.deriveMessages(), signal,
+        this.phase.kind === 'running' ? this.phase.outputSchema : undefined,
       )
       const assembler = new BlockAssembler()
       const chunkSeqs: number[] = []
@@ -430,6 +436,7 @@ export class ReactLoopAgent implements Agent {
     system: string,
     boundaryMessages: Message[],
     signal: AbortSignal,
+    outputSchema: GenerateOptions['outputSchema'],
   ): Promise<{ request: GenerateOptions; preparedCall?: PreparedLlmCall }> {
     const { session } = this
 
@@ -507,6 +514,7 @@ export class ReactLoopAgent implements Agent {
       messages: boundaryMessages,
       ...header.system !== undefined ? { system: header.system } : {},
       ...header.tools !== undefined ? { tools: header.tools } : {},
+      ...outputSchema !== undefined ? { outputSchema } : {},
       sessionId: this.session.id,
       signal,
     }))

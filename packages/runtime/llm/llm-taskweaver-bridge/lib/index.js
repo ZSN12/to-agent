@@ -1,11 +1,11 @@
-import { deepEqualJson, installSettingsSection, settingsNamespace } from "@z/dsh-settings";
-import { installDefaultBridgeBackends, installTaskWeaverTransportBackends, streamThroughBridge } from "@z/dsh-bridge-core";
-import { LlmAdapter, LlmError } from "@z/dsh-llm";
-import { resolveDshHome } from "@z/dsh-home-paths";
-import z from "@z/schemastery";
+import { deepEqualJson, installSettingsSection, settingsNamespace } from "@taskweaver/dsh-settings";
+import { installDefaultBridgeBackends, installTaskWeaverTransportBackends, streamThroughBridge } from "@taskweaver/dsh-bridge-core";
+import { LlmAdapter, LlmError } from "@taskweaver/dsh-llm";
+import { resolveRuntimeHome } from "@taskweaver/dsh-home-paths";
+import z from "@taskweaver/schemastery";
 //#region lib/types/adapter.js
 /**
-* @module @z/dsh-llm-taskweaver-bridge/adapter
+* @module @taskweaver/dsh-llm-taskweaver-bridge/adapter
 */
 function modelInfo(provider, entry) {
 	return {
@@ -56,18 +56,19 @@ var TaskWeaverBridgeAdapter = class extends LlmAdapter {
 	async *streamFor(provider, options) {
 		const profile = this.config.options().providers.get(provider);
 		if (!profile) throw new LlmError(`taskweaver-bridge: unknown provider route "${provider}"`, "INVALID_PROVIDER");
+		const harnessHome = resolveRuntimeHome();
 		yield* streamThroughBridge({
 			providerId: provider,
 			profile,
 			options,
-			harnessHome: resolveDshHome()
+			harnessHome
 		});
 	}
 };
 //#endregion
 //#region lib/types/config.js
 /**
-* @module @z/dsh-llm-taskweaver-bridge/config
+* @module @taskweaver/dsh-llm-taskweaver-bridge/config
 */
 const catalogModel = z.object({
 	id: z.string().required(),
@@ -99,7 +100,7 @@ function resolveBridgeOptions(raw) {
 //#region lib/types/index.js
 /**
 * Register TaskWeaver in-process model bridge routes on `ctx.llm`.
-* @module @z/dsh-llm-taskweaver-bridge
+* @module @taskweaver/dsh-llm-taskweaver-bridge
 */
 const name = "llm-taskweaver-bridge";
 const inject = ["llm"];
@@ -128,20 +129,14 @@ const apply = async (ctx) => {
 	};
 	const adapter = new TaskWeaverBridgeAdapter({ options });
 	let registration;
+	let directory;
 	let registeredRoutes = [];
+	let registeredDirectoryEntries;
 	const ensureRegistration = () => {
-		const routes = [...options().providers.keys()].sort();
-		if (deepEqualJson(routes, registeredRoutes)) return;
-		if (registration === void 0) {
-			if (!routes.length) {
-				registeredRoutes = routes;
-				return;
-			}
-			registration = ctx.llm.registerAdapter(routes, adapter);
-		} else registration.replace(routes);
-		registeredRoutes = routes;
+		const resolved = options();
+		const routes = [...resolved.providers.keys()].sort();
 		const entries = routes.flatMap((id) => {
-			const profile = options().providers.get(id);
+			const profile = resolved.providers.get(id);
 			if (!profile) return [];
 			return [{
 				provider: id,
@@ -150,7 +145,19 @@ const apply = async (ctx) => {
 				settingsPath: ["providers", id]
 			}];
 		});
-		if (entries.length) ctx.llm.registerConfigurableProviders(entries);
+		const routesChanged = !deepEqualJson(routes, registeredRoutes);
+		const directoryChanged = !deepEqualJson(entries, registeredDirectoryEntries);
+		if (!routesChanged && !directoryChanged) return;
+		if (routesChanged) {
+			if (registration === void 0 && routes.length) registration = ctx.llm.registerAdapter(routes, adapter);
+			else if (registration !== void 0) registration.replace(routes);
+			registeredRoutes = routes;
+		}
+		if (directoryChanged) {
+			if (directory === void 0 && entries.length) directory = ctx.llm.registerConfigurableProviders(entries);
+			else if (directory !== void 0) directory.replace(entries);
+			registeredDirectoryEntries = entries;
+		}
 	};
 	options();
 	ensureRegistration();

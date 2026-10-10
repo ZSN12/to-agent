@@ -3,25 +3,25 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { z } from 'zod'
-import { Context } from '@z/cordis'
-import { createUserMessage } from '@z/dsh-llm'
-import AgentLoop from '@z/dsh-agent-loop'
-import { mountAgentLoopTestDependencies } from '@z/dsh-agent-loop-testkit'
-import SessionStore, { SESSION_FORMAT_VERSION, SessionId } from '@z/dsh-session'
-import type { SessionEvent, SessionHeader } from '@z/dsh-session'
-import JsonlSessionPersistence from '@z/dsh-session-persistence-jsonl'
-import SessionProjectionRegistry from '@z/dsh-session-projection'
-import type { ProjectionDefinition } from '@z/dsh-session-projection'
-import SessionProjectionCache from '@z/dsh-session-projection-cache'
-import Storage from '@z/dsh-storage'
-import { DomainFacility } from '@z/dsh-storage-domain'
+import { Context } from '@taskweaver/cordis'
+import { createUserMessage } from '@taskweaver/dsh-llm'
+import AgentLoop from '@taskweaver/dsh-agent-loop'
+import { mountAgentLoopTestDependencies } from '@taskweaver/dsh-agent-loop-testkit'
+import SessionStore, { SESSION_FORMAT_VERSION, SessionId } from '@taskweaver/dsh-session'
+import type { SessionEvent, SessionHeader } from '@taskweaver/dsh-session'
+import JsonlSessionPersistence from '@taskweaver/dsh-session-persistence-jsonl'
+import SessionProjectionRegistry from '@taskweaver/dsh-session-projection'
+import type { ProjectionDefinition } from '@taskweaver/dsh-session-projection'
+import SessionProjectionCache from '@taskweaver/dsh-session-projection-cache'
+import Storage from '@taskweaver/dsh-storage'
+import { DomainFacility } from '@taskweaver/dsh-storage-domain'
 import { MemoryMediaPool, MemoryStorageBackend } from '../../../storage/storage-domain/tests/helpers/memory-backend.ts'
 import SubagentRuntime, {
   SUBAGENT_DESCRIPTOR_VERSION,
   SubagentError,
-} from '@z/dsh-subagent'
-import * as SubagentSpawn from '@z/dsh-subagent-spawn-in-process'
-import * as SubagentFork from '@z/dsh-subagent-fork-in-process'
+} from '@taskweaver/dsh-subagent'
+import * as SubagentSpawn from '@taskweaver/dsh-subagent-spawn-in-process'
+import * as SubagentFork from '@taskweaver/dsh-subagent-fork-in-process'
 import { MockAdapter, textResponse } from '../../../core/agent-loop/tests/mock-adapter.ts'
 
 type Script = ConstructorParameters<typeof MockAdapter>[0]
@@ -117,7 +117,7 @@ function descriptorPayload(label: string, version = SUBAGENT_DESCRIPTOR_VERSION)
   return { version, mode: 'continuable' as const, provider: 'spawn', label }
 }
 
-declare module '@z/dsh-session-projection/types' {
+declare module '@taskweaver/dsh-session-projection/types' {
   interface SessionProjectionStateMap {
     subagentListHostileProbe: { poisoned?: boolean | undefined }
   }

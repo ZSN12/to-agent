@@ -1,8 +1,5 @@
-"use strict";
 /** Model-visible wrap-up instruction for a terminal autonomous goal update. */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.renderWrapupContext = renderWrapupContext;
-var GROUNDING = 'Report only what earlier rounds and tool results in this session actually establish; '
+const GROUNDING = 'Report only what earlier rounds and tool results in this session actually establish; '
     + 'when a detail is not in the session, say so instead of inventing it. ';
 /**
  * Render the closing-message instruction injected after an autonomous goal
@@ -12,9 +9,9 @@ var GROUNDING = 'Report only what earlier rounds and tool results in this sessio
  * @param blockedReason - the validated report for `blocked`; omitted for `complete`.
  * @returns a fresh one-block context for `ToolRunContext.deferContext()`.
  */
-function renderWrapupContext(objective, blockedReason) {
-    var heading = "Objective: ".concat(JSON.stringify(objective), "\n");
-    var text = blockedReason === undefined
+export function renderWrapupContext(objective, blockedReason) {
+    const heading = `Objective: ${JSON.stringify(objective)}\n`;
+    const text = blockedReason === undefined
         ? '<goal_complete>\n'
             + heading
             + 'The goal is marked complete and this autonomous run is ending. Write the closing '
@@ -26,7 +23,7 @@ function renderWrapupContext(objective, blockedReason) {
             + '</goal_complete>'
         : '<goal_blocked>\n'
             + heading
-            + "Blocked: ".concat(JSON.stringify(blockedReason), "\n")
+            + `Blocked: ${JSON.stringify(blockedReason)}\n`
             + 'The goal is marked blocked and this autonomous run is ending. Write the closing '
             + 'message to the user now: state what has been completed so far, describe the concrete '
             + 'blocking condition and what you tried, and say exactly what you need from the user to '
@@ -35,5 +32,6 @@ function renderWrapupContext(objective, blockedReason) {
             + 'Address the user directly. Do not call any more tools in this run; further work '
             + "waits for the user's next instruction.\n"
             + '</goal_blocked>';
-    return [{ type: 'text', text: text }];
+    return [{ type: 'text', text }];
 }
+//# sourceMappingURL=wrapup.js.map

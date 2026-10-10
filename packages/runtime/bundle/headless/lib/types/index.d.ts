@@ -1,13 +1,13 @@
 /**
- * @z/dsh-headless — one-shot direct Agent driver. The bundle patch
+ * @taskweaver/dsh-headless — one-shot direct Agent driver. The bundle patch
  * rides over dsh-base without Host, HTTP, or browser plugins; this runner
  * creates one Agent through the core registry, drives the task to quiescence,
  * flushes its Session, prints the final assistant text, and exits.
  *
- * @module @z/dsh-headless
+ * @module @taskweaver/dsh-headless
  */
-import type { Context } from '@z/cordis';
-import z from '@z/schemastery';
+import type { Context } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
 /** Stable Cordis plugin name. */
 export declare const name = "headless-runner";
 /** Core services required before the one-shot turn can start. */

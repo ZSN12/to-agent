@@ -21,7 +21,7 @@
  *
  * @module dsh-llm-pi-ai/discovery
  */
-import type { LlmDiscoveredModel, LlmModelDiscoveryRequest } from '@z/dsh-llm';
+import type { LlmDiscoveredModel, LlmModelDiscoveryRequest } from '@taskweaver/dsh-llm';
 /**
  * Interrogate one draft provider endpoint for the models it advertises.
  * @param request - the endpoint, protocol, and one-shot credential to use.

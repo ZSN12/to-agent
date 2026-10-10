@@ -30,7 +30,7 @@
 | `scripts/sync-dsh-windows-acl.mjs:12` | 默认源改成 `packages/runtime/sandbox/sandbox-windows-acl` |
 | `scripts/diagnose-dsh-host.mjs:3,17` | 改用 `resolveZRuntimeRoot` |
 | `package.json` `test:dsh-apiproxy` | `cd packages/runtime && ...` |
-| `electron/agent/dsh-host/resolve-runtime.mjs:~162` | 删 `monorepoFallbackSubpath: 'dsh-source'` |
+| `desktop/agent/dsh-host/resolve-runtime.mjs:~162` | 删 `monorepoFallbackSubpath: 'dsh-source'` |
 
 完成后：
 
@@ -46,7 +46,7 @@ npm run install:app          # 然后验证 /Applications/TaskWeaver.app 内是 
 ## 阶段 B：合并双轨代码（低风险，约半天）
 
 1. `resolve-runtime.mjs`：删 `useZRuntime`、`deployedRuntimeHasZPackages`、`resolveDshRuntimeRoot`、`resolveDshHostLaunch`、`resolveDshRuntimeNodePath`，只留一套 `resolveRuntimeRoot / resolveHostLaunch / resolveRuntimeNodePath`
-2. 把 `electron/agent/dsh-host/*` 整体移到 `electron/agent/z-host/`，删除转发壳。更新 `main.cjs`、`register-ipc.mjs`、`model-service.mjs` 等的 import
+2. 把 `desktop/agent/dsh-host/*` 整体移到 `desktop/agent/z-host/`，删除转发壳。更新 `main.cjs`、`register-ipc.mjs`、`model-service.mjs` 等的 import
 3. `scripts/build-dsh-runtime.mjs` 改名为 `build-host-runtime.mjs`（合并现有 wrapper），同步 `package.json` scripts
 4. `test-dsh-runtime-resolution.mjs` 删掉 legacy 用例，只测 Z 路径
 
@@ -57,7 +57,7 @@ npm run install:app          # 然后验证 /Applications/TaskWeaver.app 内是 
 ### C1 TaskWeaver 侧（风险：低）
 - 目录和文件名：`vendor/taskweaver-dsh-runtime` → `vendor/taskweaver-z-runtime`，Resources 下同名，`electron-builder.yml` 同步
 - 常量名和函数名：`createDshHostManager` → `createZHostManager`，`dsh-api-client.mjs` → `z-api-client.mjs`，`test-dsh-*.mjs` → `test-z-*.mjs`
-- TaskWeaver 自己的环境变量：`TASKWEAVER_DSH_RUNTIME*` → `TASKWEAVER_Z_RUNTIME*`，`DSH_MAX_RECONNECT_*` 等 TaskWeaver 前端/后端常量改成 `Z_*`
+- TaskWeaver 自己的环境变量：`TASKWEAVER_DSH_RUNTIME*` → `TASKWEAVER_RUNTIME*`，`DSH_MAX_RECONNECT_*` 等 TaskWeaver 前端/后端常量改成 `Z_*`
 - IPC 通道名和前端 `src/` 里的 `dsh` 标识
 
 ### C2 包名 `@z/dsh-*` → `@z/*`（风险：中）

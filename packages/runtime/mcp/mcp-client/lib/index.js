@@ -1,15 +1,15 @@
-import z from "@z/schemastery";
-import { MAX_TIMER_DELAY_MS } from "@z/dsh-timeout";
+import z from "@taskweaver/schemastery";
+import { MAX_TIMER_DELAY_MS } from "@taskweaver/dsh-timeout";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { ListToolsResultSchema, ToolListChangedNotificationSchema } from "@modelcontextprotocol/sdk/types.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import { scrubbedParentEnv } from "@z/dsh-subprocess";
+import { scrubbedParentEnv } from "@taskweaver/dsh-subprocess";
 import { createHash } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import { z as z$1 } from "zod";
-import { isImageAdmissionError } from "@z/dsh-attachment";
-import { assertSupportedJsonSchema } from "@z/dsh-tools";
+import { isImageAdmissionError } from "@taskweaver/dsh-attachment";
+import { assertSupportedJsonSchema } from "@taskweaver/dsh-tools";
 //#region lib/types/transport.js
 /**
 * Transport factory: creates the appropriate MCP transport based on the
@@ -472,6 +472,12 @@ const RECONNECT_DEFAULTS = Object.freeze({
 	maxAttempts: 10
 });
 const GENERATION_CLOSE_TIMEOUT_MS = 5e3;
+const DEFAULT_CONNECTION_TIMEOUT_MS = 3e4;
+function resolveConnectTimeoutMs(config, label) {
+	const timeoutMs = config.connectTimeoutMs ?? DEFAULT_CONNECTION_TIMEOUT_MS;
+	if (!Number.isFinite(timeoutMs) || timeoutMs <= 0 || timeoutMs > MAX_TIMER_DELAY_MS) throw new Error(`${label}: connectTimeoutMs must be a positive finite number no greater than ${MAX_TIMER_DELAY_MS}`);
+	return timeoutMs;
+}
 /**
 * The one explicit resolve step from raw reconnect config to the policy the
 * supervisor runs. Programmatic construction may bypass Schemastery
@@ -512,6 +518,7 @@ function resolveReconnectPolicy(config, path) {
 */
 function startConnection(ctx, config, policy) {
 	const label = `mcp-client(${config.serverName})`;
+	const connectTimeoutMs = resolveConnectTimeoutMs(config, label);
 	const opts = {
 		registrationFailure: "contain",
 		serverName: config.serverName,
@@ -635,7 +642,19 @@ function startConnection(ctx, config, policy) {
 			}
 		});
 		try {
-			await generation.connect(createTransport(config));
+			let connectTimer;
+			try {
+				await Promise.race([generation.connect(createTransport(config)), new Promise((_resolve, reject) => {
+					connectTimer = setTimeout(() => {
+						const error = new Error(`${label}: connection timed out after ${connectTimeoutMs}ms`);
+						Object.assign(error, { code: "MCP_CONNECT_TIMEOUT" });
+						reject(error);
+					}, connectTimeoutMs);
+					connectTimer.unref?.();
+				})]);
+			} finally {
+				if (connectTimer) clearTimeout(connectTimer);
+			}
 			if (hasClosed()) {
 				attemptSettled = true;
 				generationDown(generation);
@@ -714,7 +733,7 @@ function startConnection(ctx, config, policy) {
 * disposing the old instance and creating a new one; identical `serverName`
 * reproduces identical public tool names.
 *
-* @module @z/dsh-mcp-client
+* @module @taskweaver/dsh-mcp-client
 */
 /** Cordis plugin name used by loader diagnostics. */
 const name = "mcp-client";
@@ -722,6 +741,8 @@ const name = "mcp-client";
 const inject = ["tools"];
 /** Default timeout for individual MCP tool calls (ms). */
 const DEFAULT_TOOL_CALL_TIMEOUT_MS = 6e4;
+/** Maximum time spent establishing one MCP transport generation. */
+const DEFAULT_CONNECT_TIMEOUT_MS = 3e4;
 /** Valid `serverName`, kept below the public tool-name budget. */
 const SERVER_NAME_PATTERN = /^[A-Za-z0-9_-]{1,32}$/;
 /**
@@ -745,7 +766,9 @@ const Config = z.union([z.object({
 	env: z.dict(String).default({}),
 	cwd: z.string().default(""),
 	toolCallTimeoutMs: z.number().default(DEFAULT_TOOL_CALL_TIMEOUT_MS),
+	connectTimeoutMs: z.number().min(1).max(MAX_TIMER_DELAY_MS).default(DEFAULT_CONNECT_TIMEOUT_MS),
 	failOnStartupError: z.boolean().default(false),
+	startupWaitMs: z.number().min(0).max(MAX_TIMER_DELAY_MS).default(0),
 	reconnect: Reconnect
 }), z.object({
 	transport: z.const("streamable-http"),
@@ -753,7 +776,9 @@ const Config = z.union([z.object({
 	url: z.string().required(),
 	headers: z.dict(String).default({}),
 	toolCallTimeoutMs: z.number().default(DEFAULT_TOOL_CALL_TIMEOUT_MS),
+	connectTimeoutMs: z.number().min(1).max(MAX_TIMER_DELAY_MS).default(DEFAULT_CONNECT_TIMEOUT_MS),
 	failOnStartupError: z.boolean().default(false),
+	startupWaitMs: z.number().min(0).max(MAX_TIMER_DELAY_MS).default(0),
 	reconnect: Reconnect
 })]);
 /**
@@ -780,8 +805,24 @@ async function apply(ctx, config) {
 	ctx.effect(() => {
 		return () => connection.dispose();
 	}, "mcp-client.connection");
-	const outcome = await connection.ready;
-	if (outcome.error !== void 0 && config.failOnStartupError) throw new Error(`mcp-client(${config.serverName}): initial connection or tool synchronization failed`, { cause: outcome.error });
+	if (config.failOnStartupError) {
+		const outcome = await connection.ready;
+		if (outcome.error !== void 0) throw new Error(`mcp-client(${config.serverName}): initial connection or tool synchronization failed`, { cause: outcome.error });
+	} else {
+		const startupWaitMs = config.startupWaitMs ?? 0;
+		if (!Number.isFinite(startupWaitMs) || startupWaitMs < 0 || startupWaitMs > MAX_TIMER_DELAY_MS) throw new Error(`mcp-client(${config.serverName}): startupWaitMs must be between 0 and ${MAX_TIMER_DELAY_MS}`);
+		if (startupWaitMs > 0) {
+			let timer;
+			try {
+				await Promise.race([connection.ready, new Promise((resolve) => {
+					timer = setTimeout(resolve, startupWaitMs);
+					timer.unref?.();
+				})]);
+			} finally {
+				if (timer) clearTimeout(timer);
+			}
+		}
+	}
 }
 //#endregion
 export { Config, apply, inject, name };

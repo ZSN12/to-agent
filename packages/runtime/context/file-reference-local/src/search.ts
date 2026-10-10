@@ -3,14 +3,14 @@
  * only: selected values remain ordinary prompt text and file contents stay
  * behind the model-facing `read` tool.
  *
- * @module @z/dsh-file-reference-local/search
+ * @module @taskweaver/dsh-file-reference-local/search
  */
 
 import { lstat, readdir } from 'node:fs/promises'
 import { isAbsolute, join, relative, resolve, sep } from 'node:path'
-import type { FileReferenceCandidate } from '@z/dsh-file-reference'
+import type { FileReferenceCandidate } from '@taskweaver/dsh-file-reference'
 
-export { activeAtToken, formatFileMention } from '@z/dsh-file-reference/grammar'
+export { activeAtToken, formatFileMention } from '@taskweaver/dsh-file-reference/grammar'
 
 /** Default maximum file and directory candidates rendered for one query. */
 export const DEFAULT_FILE_SEARCH_MAX_RESULTS = 20

@@ -3,11 +3,11 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { createServer } from 'node:http'
-import { createZHostManager, resolveTaskWeaverRuntimeRoot } from '../electron/agent/z-host/index.mjs'
-import { createDshChatService } from '../electron/backend/dsh-chat-service.mjs'
-import { createAppStateStore } from '../electron/backend/app-state-store.mjs'
-import { createUsageStore } from '../electron/backend/usage-store.mjs'
-import { createChatTurnPersistence } from '../electron/backend/chat-turn-persistence.mjs'
+import { createZHostManager, resolveTaskWeaverRuntimeRoot } from '../desktop/agent/z-host/index.mjs'
+import { createDshChatService } from '../desktop/backend/dsh-chat-service.mjs'
+import { createAppStateStore } from '../desktop/backend/app-state-store.mjs'
+import { createUsageStore } from '../desktop/backend/usage-store.mjs'
+import { createChatTurnPersistence } from '../desktop/backend/chat-turn-persistence.mjs'
 
 // Real deployed Host and durable inbox; only the model HTTP endpoint is controlled.
 // No external provider request or user session/config is used.
@@ -61,7 +61,7 @@ const server = createServer((request, response) => {
   })
 })
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
-const manager = createZHostManager({ runtimeRoot, userDataPath: home, executable: process.execPath,
+const manager = createZHostManager({ runtimeRoot, userDataPath: home,
   environment: { ...process.env, TASKWEAVER_QUEUE_TEST_KEY: 'opaque-local-test-key' } })
 let wrappedApi = null
 function wrapApi(api) {
@@ -285,6 +285,7 @@ try {
   assert.equal(chat.isBusy(abortRace.id), false)
   console.log('real Host: Stop drains concurrent prompt admission and atomically clears inbox despite a delayed mux snapshot')
 
+  const usageBeforeFailure = await usageStore.getStats()
   const failure = await begin('fail')
   await chat.send(opts(failure.id, '[Q:fail:2] Read the fixture then summarize it.'))
   await waitFor(() => pending(failure.id).length === 1, 'queued failure accepted')
@@ -303,10 +304,9 @@ try {
   assert.equal(failedMessages.filter(message => message.id.endsWith('-error')).length, 0,
     'failed queued turn with partial output must not add a duplicate -error row')
   assert.match(failedMessages.find(message => message.text === 'fail-answer-2')?.callout ?? '', /执行失败|Controlled/)
-  const ledger = JSON.parse(await fs.readFile(path.join(home, 'taskweaver-model-usage.json'), 'utf8'))
-  const records = ledger.records.filter(row => row.conversationId === failure.id)
-  assert.equal(records.length, 2)
-  assert.equal(records.reduce((sum, row) => sum + row.totalTokens, 0), 24)
+  const usageAfterFailure = await usageStore.getStats()
+  assert.equal(usageAfterFailure.totals.totalCalls - usageBeforeFailure.totals.totalCalls, 2)
+  assert.equal(usageAfterFailure.totals.totalTokens - usageBeforeFailure.totals.totalTokens, 24)
   assert.equal(await fs.readFile(fixture, 'utf8'), 'QUEUED_FAILURE_READ_FIXTURE\n')
   console.log('real Host: queued failure persists partial output, error and reported usage in the background and survives app-state restart')
 } finally {

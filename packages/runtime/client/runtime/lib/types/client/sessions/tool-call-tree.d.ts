@@ -1,4 +1,4 @@
-import type { SessionEvent } from '@z/dsh-session/types';
+import type { SessionEvent } from '@taskweaver/dsh-session/types';
 import type { ConversationNode, RunningToolCall } from './conversation.ts';
 /** Fixed wire-safety ceiling for every recursive Tool call consumer. */
 export declare const MAX_TOOL_CALL_TREE_DEPTH = 256;

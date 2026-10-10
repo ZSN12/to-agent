@@ -2,17 +2,17 @@
  * Shared mounting for the services required before tests load the concrete
  * agent loop. The caller retains ownership of the context, loop, adapters,
  * optional plugins, and teardown.
- * @module @z/dsh-agent-loop-testkit
+ * @module @taskweaver/dsh-agent-loop-testkit
  */
 
-import type { Context } from '@z/cordis'
-import AgentRegistry from '@z/dsh-agent'
-import LlmRuntime from '@z/dsh-llm'
-import SessionStore from '@z/dsh-session'
-import SystemPrompt from '@z/dsh-system-prompt'
-import type { Config as SystemPromptConfig } from '@z/dsh-system-prompt'
-import ToolRuntime from '@z/dsh-tools'
-import type { Config as ToolRuntimeConfig } from '@z/dsh-tools'
+import type { Context } from '@taskweaver/cordis'
+import AgentRegistry from '@taskweaver/dsh-agent'
+import LlmRuntime from '@taskweaver/dsh-llm'
+import SessionStore from '@taskweaver/dsh-session'
+import SystemPrompt from '@taskweaver/dsh-system-prompt'
+import type { Config as SystemPromptConfig } from '@taskweaver/dsh-system-prompt'
+import ToolRuntime from '@taskweaver/dsh-tools'
+import type { Config as ToolRuntimeConfig } from '@taskweaver/dsh-tools'
 
 /** Configuration forwarded to the prerequisite service plugins. */
 export interface AgentLoopTestDependenciesOptions {

@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
-import { Context } from '@z/cordis'
-import AgentRegistry from '@z/dsh-agent'
-import type { Agent } from '@z/dsh-agent'
-import SessionStore from '@z/dsh-session'
-import type { Session, SessionEvent, SessionHeader, SessionId } from '@z/dsh-session'
-import { createApiRemoteAgentResolver } from '@z/dsh-api-remotes'
-import { TypertLookupFailure } from '@z/dsh-typert-protocol'
-import TypertRegistry from '@z/dsh-typert-registry'
+import { Context } from '@taskweaver/cordis'
+import AgentRegistry from '@taskweaver/dsh-agent'
+import type { Agent } from '@taskweaver/dsh-agent'
+import SessionStore from '@taskweaver/dsh-session'
+import type { Session, SessionEvent, SessionHeader, SessionId } from '@taskweaver/dsh-session'
+import { createApiRemoteAgentResolver } from '@taskweaver/dsh-api-remotes'
+import { TypertLookupFailure } from '@taskweaver/dsh-typert-protocol'
+import TypertRegistry from '@taskweaver/dsh-typert-registry'
 
 const sid = (value: string): SessionId => value as SessionId
 

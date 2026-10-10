@@ -1,21 +1,21 @@
-import z from "@z/schemastery";
-import { defineTool } from "@z/dsh-tools";
-import { FsError } from "@z/dsh-fs";
-import { ESCALATION_TARGETS, approveEscalation, canonicalPath, escalationHintMarker, sandboxDenialMarker, validateEscalationArgs } from "@z/dsh-sandbox";
+import z from "@taskweaver/schemastery";
+import { defineTool } from "@taskweaver/dsh-tools";
+import { FsError } from "@taskweaver/dsh-fs";
+import { ESCALATION_TARGETS, approveEscalation, canonicalPath, escalationHintMarker, sandboxDenialMarker, validateEscalationArgs } from "@taskweaver/dsh-sandbox";
 import { structuredPatch } from "diff";
 import { basename, extname } from "node:path";
-import { AttachmentError, AttachmentId } from "@z/dsh-attachment";
+import { AttachmentError, AttachmentId } from "@taskweaver/dsh-attachment";
 //#region lib/types/read-render.js
 /**
 * Pure read presentation: turn provider-decoded text into a bounded, line-numbered window and
 * model-facing envelope. Chunk scanning caps the current line, so even one newline-free giant
 * line cannot grow memory without bound.
-* @module @z/dsh-tool-fs/read-render
+* @module @taskweaver/dsh-tool-fs/read-render
 */
 /** Default maximum characters returned for a single line (the `readMaxLineLength` config). */
 const READ_MAX_LINE_LENGTH = 2e3;
 /** Default maximum bytes returned for selected file lines (the `readMaxBytes` config). */
-const READ_MAX_BYTES = 50 * 1024;
+const READ_MAX_BYTES = 51200;
 function newAccumulator() {
 	return {
 		lines: [],
@@ -228,7 +228,7 @@ function readMetaFromMeta(meta) {
 * `dsh-tool-bash` defaults a bash `workdir` to the session cwd.
 * Non-agent calls return `undefined`, leaving the fallback in the provider rather than reading
 * `process.cwd()` at the tool boundary.
-* @module @z/dsh-tool-fs/session-cwd
+* @module @taskweaver/dsh-tool-fs/session-cwd
 */
 const PARENT_PATH_SEGMENT = /(?:^|[\\/])\.\.(?:[\\/]|$)/;
 /**
@@ -261,7 +261,7 @@ function sessionResolveOptions(exec, requestedPath, policyWorkspaceRoot) {
 //#region lib/types/read-target.js
 /**
 * Shared path resolution and regular-file validation for model-facing read tools.
-* @module @z/dsh-tool-fs/src/read-target
+* @module @taskweaver/dsh-tool-fs/src/read-target
 */
 /**
 * Resolve a model-supplied path, observe absence, and require a regular file.
@@ -288,7 +288,7 @@ async function resolveRegularReadTarget(ctx, exec, requestedPath) {
 /**
 * Model-facing UTF-8 read. It performs one provider stat for type, routing, and observed version,
 * streams large or size-unknown files, renders a bounded window, then emits the observation.
-* @module @z/dsh-tool-fs/src/read
+* @module @taskweaver/dsh-tool-fs/src/read
 */
 /** Default and maximum number of lines returned by one `read` call (the `readLimit` config). */
 const READ_LIMIT = 2e3;
@@ -296,7 +296,7 @@ const READ_LIMIT = 2e3;
 * Default streaming threshold (the `readStreamMinSize` config): files at or
 * above this size stream; smaller files read whole into memory.
 */
-const STREAM_MIN_SIZE = 10 * 1024 * 1024;
+const STREAM_MIN_SIZE = 10485760;
 function parsePositiveInteger(value, name) {
 	if (!Number.isFinite(value) || !Number.isInteger(value) || value < 1) throw new Error(`${name} must be a positive integer`);
 	return value;
@@ -537,7 +537,7 @@ function diffsFromMeta(meta) {
 * not the only correct recovery (re-read / read the file), so this package
 * appends the remedy at the model boundary; provider messages stay
 * machine-oriented and unchanged.
-* @module @z/dsh-tool-fs/src/error
+* @module @taskweaver/dsh-tool-fs/src/error
 */
 /** The remedy appended to each remediable failure code's message. */
 const REMEDIES = {
@@ -566,7 +566,7 @@ function remediateFsError(error) {
 * Model-facing full-file write. It obtains an optional intent from the single policy slot, calls
 * `ctx.fs.writeText` without a stat, then records the resulting version; no policy means an
 * unconditional atomic create-or-overwrite.
-* @module @z/dsh-tool-fs/src/write
+* @module @taskweaver/dsh-tool-fs/src/write
 */
 /**
 * Validate value constraints the schema DSL can't express: only a non-blank
@@ -710,7 +710,7 @@ function applyWriteTool(ctx, sandbox) {
 * Model-facing literal edit, unique-match by default. It obtains an optional guard from the
 * single intent slot, calls `ctx.fs.editText` without a separate stat, then records the observed
 * version; no policy means an unconditional atomic edit.
-* @module @z/dsh-tool-fs/src/edit
+* @module @taskweaver/dsh-tool-fs/src/edit
 */
 /**
 * Validate value constraints the schema DSL can't express: a non-blank
@@ -862,7 +862,7 @@ function applyEditTool(ctx, sandbox) {
 * image-reading tool is useful only when the exact calling route can inspect
 * its result, so unknown capability refuses instead of relying on an adapter
 * failure after filesystem and attachment work.
-* @module @z/dsh-tool-fs/src/read-image
+* @module @taskweaver/dsh-tool-fs/src/read-image
 */
 /** Extensions `read_image` accepts; magic-byte validation at the attachment service stays authoritative. */
 const IMAGE_EXTENSIONS = {
@@ -1092,12 +1092,12 @@ function applyReadImageTool(ctx) {
 * The sandbox-escalation API shared by the `write` and `edit` tools: the
 * per-call policy resolution, the advertised escalation fields, and the denial-marker
 * mapping — all delegating the vocabulary and the fail-closed approval
-* sequence to `@z/dsh-sandbox` (the same pieces `@z/dsh-tool-bash`
+* sequence to `@taskweaver/dsh-sandbox` (the same pieces `@taskweaver/dsh-tool-bash`
 * uses), so bash and fs escalate identically. Built ONCE per plugin from
 * `ctx.fs.sandboxMode` (the capability fact — is a confining backend mounted?)
 * and shared by both mutating tools.
 *
-* @module @z/dsh-tool-fs/sandbox
+* @module @taskweaver/dsh-tool-fs/sandbox
 */
 /**
 * The filesystem escalation API: advertisement gating, per-call policy
@@ -1198,7 +1198,7 @@ var FsSandboxController = class {
 * Model-facing read, read_image, write, and edit tools over `ctx.fs`. This package owns schemas, validation,
 * read windows, formatting, and observation events, never a concrete provider. An optional
 * event policy supplies mutation guards; without one the tools use unconditional provider calls.
-* @module @z/dsh-tool-fs
+* @module @taskweaver/dsh-tool-fs
 */
 /** Cordis plugin name used by loader diagnostics. */
 const name = "tool-fs";
@@ -1246,4 +1246,4 @@ function apply(ctx, config) {
 	}
 }
 //#endregion
-export { Config, FsSandboxController, apply, computeHunkDiffs, diffsFromMeta, inject, name, sessionCwd, sessionResolveOptions };
+export { Config, FsSandboxController, apply, computeHunkDiffs, diffsFromMeta, inject, name, resolveRegularReadTarget, sessionCwd, sessionResolveOptions };

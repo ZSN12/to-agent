@@ -81,7 +81,17 @@ const require = createRequire(import.meta.url);
 const here = dirname(fileURLToPath(import.meta.url));
 const installOwnership = detectInstallOwnershipFromPath(here, { exists: existsSync });
 const installMethod = installOwnership.installer;
-const cliPath = join(here, "..", "src", "cli", "index.ts");
+const TASKWEAVER_CLI = join(here, "..", "src", "cli", "taskweaver.ts");
+const FULL_CLI = join(here, "..", "src", "cli", "index.ts");
+
+/** TaskWeaver ships a trimmed CLI; proxy lifecycle stays on the full Bun entry. */
+function resolveCliEntry(argv) {
+  const cmd = argv[2];
+  if (!cmd) return TASKWEAVER_CLI;
+  if (["start", "stop", "restart", "serve", "daemon"].includes(cmd)) return FULL_CLI;
+  return TASKWEAVER_CLI;
+}
+
 const NODE_LAUNCH_CONTEXT_ENV = "OCX_NODE_LAUNCH_CONTEXT";
 const NODE_LAUNCH_PROOF_PREFIX = "--ocx-internal-launch-proof=";
 
@@ -972,6 +982,11 @@ if (process.argv[2] === "update" && isTaskWeaverDistribution()) {
   process.exit(0);
 }
 
+if (process.argv[2] === "--version" || process.argv[2] === "-V") {
+  console.log(currentPackageVersion());
+  process.exit(0);
+}
+
 if (process.argv[2] === "update" && installMethod === "mise") {
   if (installOwnership.owner) {
     console.error(
@@ -1088,6 +1103,7 @@ if (codexCliUpdateInspection) {
     if (snapshotted.has(name.toLowerCase())) delete inheritedEnv[name];
   }
 }
+const cliPath = resolveCliEntry(process.argv);
 const child = spawn(bun, [cliPath, `${NODE_LAUNCH_PROOF_PREFIX}${launchProof}`, ...process.argv.slice(2)], {
   stdio: "inherit",
   // A headless Windows parent (Task Scheduler, dashboard restart, shortcut) has no

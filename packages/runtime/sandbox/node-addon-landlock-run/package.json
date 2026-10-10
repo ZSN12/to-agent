@@ -1,0 +1,13 @@
+{
+  "name": "@taskweaver/node-addon-landlock-run",
+  "description": "Landlock launcher shim for TaskWeaver Host (macOS/CI uses PATH fallback)",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "index.mjs",
+  "exports": {
+    ".": "./index.mjs",
+    "./package.json": "./package.json"
+  },
+  "license": "MIT"
+}

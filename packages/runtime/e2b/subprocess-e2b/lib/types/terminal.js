@@ -3,7 +3,7 @@ import { Buffer } from 'node:buffer';
 import { randomUUID } from 'node:crypto';
 import { PassThrough } from 'node:stream';
 import { posix } from 'node:path';
-import { CommandExitError, e2bControlEnvs, FileNotFoundError, SandboxNotFoundError, quoteE2BShellArg, } from '@z/dsh-e2b';
+import { CommandExitError, e2bControlEnvs, FileNotFoundError, SandboxNotFoundError, quoteE2BShellArg, } from '@taskweaver/dsh-e2b';
 import { bootstrapEnvironment, readRemoteEnvironment, serializeRemoteEnvironment, } from "./environment.js";
 import { asError, commandOpts, delay, signalOpts, signalRemoteGroups } from "./remote.js";
 const TERMINAL_RUNNER_SOURCE = [

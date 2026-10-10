@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import SessionStore, { SessionId, type Session } from '@z/dsh-session'
-import { createUserMessage, ProviderRequestId } from '@z/dsh-llm'
-import { MAX_TIMER_DELAY_MS } from '@z/dsh-timeout'
-import InvariantRegistry from '@z/dsh-invariants'
-import * as RetryInvariant from '@z/dsh-llm-retry/invariant'
-import { RetryId } from '@z/dsh-llm-retry'
+import { Context } from '@taskweaver/cordis'
+import SessionStore, { SessionId, type Session } from '@taskweaver/dsh-session'
+import { createUserMessage, ProviderRequestId } from '@taskweaver/dsh-llm'
+import { MAX_TIMER_DELAY_MS } from '@taskweaver/dsh-timeout'
+import InvariantRegistry from '@taskweaver/dsh-invariants'
+import * as RetryInvariant from '@taskweaver/dsh-llm-retry/invariant'
+import { RetryId } from '@taskweaver/dsh-llm-retry'
 import { providerForOpenStep } from '../src/history.ts'
 
 async function setup(): Promise<Context> {

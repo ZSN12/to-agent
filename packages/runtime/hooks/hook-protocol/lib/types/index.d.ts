@@ -3,7 +3,7 @@
  * decoding, restrictive outcome merging, durable event helpers, and detached
  * run quiescence. Claude Code and Codex bridges own their distinct payloads,
  * environment rules, matcher mode, and typed extension-point mappings.
- * @module @z/dsh-hook-protocol
+ * @module @taskweaver/dsh-hook-protocol
  */
 export type { CommandHook, HookDialect, HookOutput, MatcherGroup, MatcherMode, } from './types.ts';
 export { matcherDiagnostic, matchesMatcher } from './matcher.ts';

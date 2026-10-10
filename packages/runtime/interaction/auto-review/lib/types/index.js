@@ -4,9 +4,9 @@
  * {@link ApprovalOutcome} with a fail-closed fallback. Enforcement stays with
  * the approval service; this plugin only recommends, and only for requests the
  * approval service has already determined need asking.
- * @module @z/dsh-auto-review
+ * @module @taskweaver/dsh-auto-review
  */
-import z from '@z/schemastery';
+import z from '@taskweaver/schemastery';
 import { answerer } from "./answerer.js";
 import { subagentReviewer } from "./reviewer.js";
 export const name = 'auto-review';

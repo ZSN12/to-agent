@@ -1,6 +1,6 @@
 /** Live/persisted logical-corpus resolution for session-query. */
-import type { Context } from '@z/cordis';
-import type { SessionEvent, SessionHeader, SessionId } from '@z/dsh-session';
+import type { Context } from '@taskweaver/cordis';
+import type { SessionEvent, SessionHeader, SessionId } from '@taskweaver/dsh-session';
 import type { SessionRecord } from './types.ts';
 /** Detached source selected for one exact read. */
 export interface LogicalSession {

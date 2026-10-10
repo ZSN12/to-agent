@@ -1,11 +1,8 @@
-"use strict";
 /**
  * The one definition of a well-formed provider API key, shared by every
  * adapter that puts one in an HTTP header.
- * @module @z/dsh-llm/api-key
+ * @module @taskweaver/dsh-llm/api-key
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.normalizeApiKey = normalizeApiKey;
 /**
  * Characters an HTTP header value carries verbatim and every known provider
  * key uses: printable ASCII, space excluded. A key outside this set cannot
@@ -14,7 +11,7 @@ exports.normalizeApiKey = normalizeApiKey;
  * deliberately: a header could carry it, but no provider issues it, and
  * admitting it trades a local explained refusal for an opaque 401.
  */
-var LEGAL_API_KEY = /^[\x21-\x7E]+$/;
+const LEGAL_API_KEY = /^[\x21-\x7E]+$/;
 /**
  * Judge one *supplied* API key, trimming surrounding whitespace first.
  *
@@ -26,11 +23,12 @@ var LEGAL_API_KEY = /^[\x21-\x7E]+$/;
  * @param raw - the key exactly as configured, stored, or typed.
  * @returns the trimmed key, or why it cannot be used.
  */
-function normalizeApiKey(raw) {
-    var value = raw.trim();
+export function normalizeApiKey(raw) {
+    const value = raw.trim();
     if (value.length === 0)
         return { ok: false, reason: 'empty' };
     if (!LEGAL_API_KEY.test(value))
         return { ok: false, reason: 'illegalCharacters' };
-    return { ok: true, value: value };
+    return { ok: true, value };
 }
+//# sourceMappingURL=api-key.js.map

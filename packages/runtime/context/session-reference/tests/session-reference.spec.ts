@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
-import { Context } from '@z/cordis'
-import { agentEvents, type Agent } from '@z/dsh-agent'
-import { CompactionId, compactCheckpointSource } from '@z/dsh-compaction'
-import { createUserMessage, CallId , createMessage, createToolResultMessage } from '@z/dsh-llm'
-import SessionStore, { Session, SessionId } from '@z/dsh-session'
-import SessionQueryEngine from '@z/dsh-session-query'
+import { Context } from '@taskweaver/cordis'
+import { agentEvents, type Agent } from '@taskweaver/dsh-agent'
+import { CompactionId, compactCheckpointSource } from '@taskweaver/dsh-compaction'
+import { createUserMessage, CallId , createMessage, createToolResultMessage } from '@taskweaver/dsh-llm'
+import SessionStore, { Session, SessionId } from '@taskweaver/dsh-session'
+import SessionQueryEngine from '@taskweaver/dsh-session-query'
 import SessionReferenceResolver, {
   decodeSessionReferenceUri,
   encodeSessionReferenceUri,
@@ -12,7 +12,7 @@ import SessionReferenceResolver, {
   parseSessionReferenceText,
   type Config,
   type SessionReferenceErrorCode,
-} from '@z/dsh-session-reference'
+} from '@taskweaver/dsh-session-reference'
 import { stringifyTagSafeJson } from '../src/serialization.ts'
 
 class TestSessionQueryEngine extends SessionQueryEngine {

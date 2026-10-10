@@ -1,4 +1,4 @@
-import type { Branded } from '@z/dsh-brand'
+import type { Branded } from '@taskweaver/dsh-brand'
 import type {
   AssistantMessage,
   CallId,
@@ -10,7 +10,7 @@ import type {
   ToolResultMessage,
   ToolSchema,
   UserMessage,
-} from '@z/dsh-llm'
+} from '@taskweaver/dsh-llm'
 import type { JsonValue } from './json.ts'
 
 // The lossless-JSON payload type belongs to this client-safe face too: a wire

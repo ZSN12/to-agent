@@ -2,28 +2,54 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { IPC_CHANNELS } from '../electron/ipc/channels.mjs'
+import { IPC_CHANNELS, PRELOAD_EVENTS } from '../desktop/ipc/channels.mjs'
 import { checkGeneratedIpcTypes } from './gen-ipc-types.mjs'
-import { isGeneratedPreload } from './gen-preload.mjs'
-import { parsePreloadApi, scanRegisteredHandlers, scanRendererTaskweaverPaths } from './ipc-contract-utils.mjs'
+import { checkGeneratedShellBridge } from './gen-shell-bridge.mjs'
+import { scanRegisteredHandlers, scanRendererTaskweaverPaths } from './ipc-contract-utils.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const preloadPath = path.join(root, 'electron/preload.cjs')
-const backendDir = path.join(root, 'electron/backend')
+const bridgePath = path.join(root, 'src/shell/taskweaver-shell-bridge.generated.ts')
+const backendDir = path.join(root, 'desktop/backend')
 const rendererDir = path.join(root, 'src')
-const preloadSource = fs.readFileSync(preloadPath, 'utf8')
-const { invokeMethods, bridgeMethods, exposedPaths } = parsePreloadApi(preloadSource, 'electron/preload.cjs')
+const bridgeSource = fs.readFileSync(bridgePath, 'utf8')
+const shellBridge = buildShellBridgeIndex(bridgeSource)
+const { invokeMethods, bridgeMethods, exposedPaths } = shellBridge
+
+function buildShellBridgeIndex(source) {
+  const invokeMethods = new Map()
+  const bridgeMethods = new Map()
+  const exposedPaths = new Set([''])
+  for (const entry of IPC_CHANNELS) {
+    const quoted = `invoke("${entry.name}"`
+    if (!source.includes(quoted)) continue
+    invokeMethods.set(entry.name, entry.bridgePath)
+    bridgeMethods.set(entry.bridgePath, quoted)
+    for (let index = 1; index <= entry.bridgePath.split('.').length; index += 1) {
+      exposedPaths.add(entry.bridgePath.split('.').slice(0, index).join('.'))
+    }
+  }
+  for (const entry of PRELOAD_EVENTS) {
+    const quoted = `subscribe("${entry.event}"`
+    if (!source.includes(quoted)) continue
+    bridgeMethods.set(entry.bridgePath, quoted)
+    for (let index = 1; index <= entry.bridgePath.split('.').length; index += 1) {
+      exposedPaths.add(entry.bridgePath.split('.').slice(0, index).join('.'))
+    }
+  }
+  return { invokeMethods, bridgeMethods, exposedPaths }
+}
 const registeredHandlers = scanRegisteredHandlers(backendDir, root)
 const rendererPaths = scanRendererTaskweaverPaths(rendererDir)
+
 export function collectIpcContractIssues({
   channels = IPC_CHANNELS,
   handlers = registeredHandlers,
-  invokeMethods: preloadMethods = invokeMethods,
-  bridgeMethods: preloadBridgeMethods = bridgeMethods,
-  exposedPaths: preloadPaths = exposedPaths,
+  invokeMethods: bridgeInvokeMethods = invokeMethods,
+  bridgeMethods: shellBridgeMethods = bridgeMethods,
+  exposedPaths: shellPaths = exposedPaths,
   rendererPaths: usedRendererPaths = rendererPaths,
   generatedTypesFresh = checkGeneratedIpcTypes(),
-  generatedPreloadFresh = isGeneratedPreload(preloadSource),
+  generatedShellBridgeFresh = checkGeneratedShellBridge(),
 } = {}) {
   const tableByName = new Map()
   const problems = []
@@ -45,28 +71,28 @@ export function collectIpcContractIssues({
     const actualHandler = handlers.get(entry.name)
     if (!actualHandler) problems.push(`${entry.name}: table entry has no ipcHandle registration`)
     else if (actualHandler !== entry.handlerModule) problems.push(`${entry.name}: handlerModule=${entry.handlerModule}, registered in ${actualHandler}`)
-    const actualPath = preloadMethods.get(entry.name)
-    if (!actualPath) problems.push(`${entry.name}: table entry is not exposed by preload`)
-    else if (actualPath !== entry.bridgePath) problems.push(`${entry.name}: bridgePath=${entry.bridgePath}, preload exposes ${actualPath}`)
-    if (!preloadBridgeMethods.has(entry.bridgePath)) problems.push(`${entry.name}: bridgePath ${entry.bridgePath} is not a generated preload method`)
+    const actualPath = bridgeInvokeMethods.get(entry.name)
+    if (!actualPath) problems.push(`${entry.name}: table entry is not exposed by shell bridge`)
+    else if (actualPath !== entry.bridgePath) problems.push(`${entry.name}: bridgePath=${entry.bridgePath}, shell bridge exposes ${actualPath}`)
+    if (!shellBridgeMethods.has(entry.bridgePath)) problems.push(`${entry.name}: bridgePath ${entry.bridgePath} is not a generated shell bridge method`)
   }
 
   for (const [channel, modulePath] of handlers) {
     if (!tableByName.has(channel)) problems.push(`${channel}: registered in ${modulePath} but absent from the IPC table`)
   }
-  for (const [channel, bridgePath] of preloadMethods) {
-    if (!tableByName.has(channel)) problems.push(`${channel}: exposed as ${bridgePath} by preload but absent from the IPC table`)
+  for (const [channel, bridgePath] of bridgeInvokeMethods) {
+    if (!tableByName.has(channel)) problems.push(`${channel}: exposed as ${bridgePath} by shell bridge but absent from the IPC table`)
   }
 
   const missingRendererPaths = [...usedRendererPaths.keys()]
-    .filter((accessPath) => !preloadPaths.has(accessPath))
+    .filter((accessPath) => !shellPaths.has(accessPath))
     .sort()
   if (missingRendererPaths.length) {
-    problems.push(`renderer calls taskweaver APIs not exposed by preload: ${missingRendererPaths.join(', ')}`)
+    problems.push(`renderer calls taskweaver APIs not exposed by shell bridge: ${missingRendererPaths.join(', ')}`)
   }
 
   if (!generatedTypesFresh) problems.push('generated IPC TypeScript files are stale; run node scripts/gen-ipc-types.mjs')
-  if (!generatedPreloadFresh) problems.push('electron/preload.cjs is stale; run node scripts/gen-preload.mjs')
+  if (!generatedShellBridgeFresh) problems.push('shell bridge is stale; run node scripts/gen-shell-bridge.mjs')
   return problems
 }
 

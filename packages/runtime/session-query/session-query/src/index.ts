@@ -1,13 +1,13 @@
 /**
  * Service Definition for combined session-history reads, traces, filters, and full-text search.
  *
- * @module @z/dsh-session-query
+ * @module @taskweaver/dsh-session-query
  */
 
-import { Context, Service } from '@z/cordis'
-import { Session, snapshotSessionEvent, type SessionId } from '@z/dsh-session'
-import { foldSessionTitle } from '@z/dsh-session-title'
-import type { SessionTitleSnapshot } from '@z/dsh-session-title'
+import { Context, Service } from '@taskweaver/cordis'
+import { Session, snapshotSessionEvent, type SessionId } from '@taskweaver/dsh-session'
+import { foldSessionTitle } from '@taskweaver/dsh-session-title'
+import type { SessionTitleSnapshot } from '@taskweaver/dsh-session-title'
 import type {
   SessionEventResultFilter,
   SessionEventSearchPage,
@@ -65,7 +65,7 @@ export {
 } from './filters.ts'
 export { assertSessionHeadersCompatible } from './sources.ts'
 
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
   interface Context {
     sessionQuery: SessionQueryEngine
   }

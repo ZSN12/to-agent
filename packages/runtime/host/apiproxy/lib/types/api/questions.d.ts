@@ -4,8 +4,8 @@
  * ask(); core user-questions has no request-level id); the answer is a client-response
  * echoing that rpcId, with no resource id in the payload (rpcId suffices).
  */
-import type { AskUserQuestionAnswer } from '@z/dsh-user-questions/types';
-import type { SessionId } from '@z/dsh-session/types';
+import type { AskUserQuestionAnswer } from '@taskweaver/dsh-user-questions/types';
+import type { SessionId } from '@taskweaver/dsh-session/types';
 /**
  * Question answer payload (the result.value slot of a client-response):
  * answers one ask() as a whole batch (core: one ask, many questions, one

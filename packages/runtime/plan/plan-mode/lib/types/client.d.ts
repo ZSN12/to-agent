@@ -4,7 +4,7 @@
  * discipline), so `./client` projects the same single-source content
  * `./types` serves to host consumers — zero duplication.
  *
- * @module @z/dsh-plan-mode/client
+ * @module @taskweaver/dsh-plan-mode/client
  */
 export type * from './types.ts';
 //# sourceMappingURL=client.d.ts.map

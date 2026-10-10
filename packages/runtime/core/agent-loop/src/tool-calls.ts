@@ -11,10 +11,10 @@
  * @module dsh-agent-loop/tool-calls
  */
 
-import type { Context } from '@z/cordis'
-import { assertNever, createToolResultMessage, type ToolCallBlock } from '@z/dsh-llm'
-import type { Session, UserMessage } from '@z/dsh-session'
-import { TOOL_ABORTED_BEFORE_DISPATCH, TOOL_RUNTIME_SCHEDULER, type ToolExecutionInput, type ToolExecutionMode, type ToolExecutionResult, type ToolRunContext } from '@z/dsh-tools'
+import type { Context } from '@taskweaver/cordis'
+import { assertNever, createToolResultMessage, type ToolCallBlock } from '@taskweaver/dsh-llm'
+import type { Session, UserMessage } from '@taskweaver/dsh-session'
+import { TOOL_ABORTED_BEFORE_DISPATCH, TOOL_RUNTIME_SCHEDULER, type ToolExecutionInput, type ToolExecutionMode, type ToolExecutionResult, type ToolRunContext } from '@taskweaver/dsh-tools'
 
 /** One tool call after argument parsing, ready to schedule. */
 interface PlannedCall {

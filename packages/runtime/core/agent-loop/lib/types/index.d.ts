@@ -2,15 +2,15 @@
  * Concrete agent-loop plugin: creates scoped ReactLoopAgents, publishes them
  * through the agent/session registries, and owns their ordered teardown.
  *
- * @module @z/dsh-agent-loop
+ * @module @taskweaver/dsh-agent-loop
  */
-import { Context, Service } from '@z/cordis';
-import z from '@z/schemastery';
-import type { Agent, AgentFactory, AgentHandle, AgentOptions, CreateAgentOptions, ResumeAgentOptions } from '@z/dsh-agent';
-import { SessionId } from '@z/dsh-session';
-import type { SessionHeader } from '@z/dsh-session';
+import { Context, Service } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
+import type { Agent, AgentFactory, AgentHandle, AgentOptions, CreateAgentOptions, ResumeAgentOptions } from '@taskweaver/dsh-agent';
+import { SessionId } from '@taskweaver/dsh-session';
+import type { SessionHeader } from '@taskweaver/dsh-session';
 import { DEFAULT_MAX_PARALLEL_TOOL_CALLS } from './constants.ts';
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
     interface Context {
         agentLoop: AgentLoop;
         /**
@@ -63,7 +63,7 @@ export interface ConfiguredAgentIdentities extends Readonly<Record<string, Launc
  */
 export declare const CONFIGURED_AGENT_IDENTITIES_KEY = "configuredAgentIdentities";
 /** Settings namespace carrying the tool-call parallelism a user owns. */
-export declare const AGENT_LOOP_SETTINGS_NAMESPACE: import("@z/dsh-settings").SettingsNamespace;
+export declare const AGENT_LOOP_SETTINGS_NAMESPACE: import("@taskweaver/dsh-settings").SettingsNamespace;
 /**
  * The agent-loop fields a user owns. Deliberately a strict subset of
  * {@link Config}: `agents` is a boot-time composition array consumed once when

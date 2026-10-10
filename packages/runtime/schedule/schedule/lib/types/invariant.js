@@ -1,9 +1,9 @@
 /**
  * Package-owned strict Schedule stream invariant.
- * @module @z/dsh-schedule/invariant
+ * @module @taskweaver/dsh-schedule/invariant
  */
 import { foldScheduleEvents, ScheduleLogError } from "./domain.js";
-const PACKAGE_NAME = '@z/dsh-schedule';
+const PACKAGE_NAME = '@taskweaver/dsh-schedule';
 /** Cordis invariant-companion plugin name. */
 export const name = 'tool-schedule-invariant';
 /** Service required before reserving this package's invariant ownership. */

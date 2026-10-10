@@ -3,11 +3,11 @@
  * invokes the official Agent SDK in the delegating Session's workspace and
  * places the SDK-spawned real CLI under the shared subprocess owner.
  *
- * @module @z/dsh-subagent-claude-code
+ * @module @taskweaver/dsh-subagent-claude-code
  */
-import z from '@z/schemastery';
-import { MAX_TIMER_DELAY_MS } from '@z/dsh-timeout';
-import { assertPositiveFinite, NO_START_CAPABILITIES, resolveChildCwd, } from '@z/dsh-subagent';
+import z from '@taskweaver/schemastery';
+import { MAX_TIMER_DELAY_MS } from '@taskweaver/dsh-timeout';
+import { assertPositiveFinite, NO_START_CAPABILITIES, resolveChildCwd, } from '@taskweaver/dsh-subagent';
 import { CLAUDE_CODE_PERMISSION_MODES, DEFAULT_CLAUDE_CODE_PERMISSION_MODE, DEFAULT_DISPOSE_GRACE_MS, claudeCodeStartupFailure, startClaudeCodeRun, } from "./run.js";
 export const name = 'subagent-claude-code';
 export const inject = ['subagents', 'subprocess'];

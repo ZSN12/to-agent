@@ -3,7 +3,7 @@
  * {@link ../index.ts | CodeRuntime} and what it gets back. Pure types — no
  * runtime code lives here.
  *
- * @module @z/dsh-code-runtime/src/types
+ * @module @taskweaver/dsh-code-runtime/src/types
  */
 /**
  * One host-side function exposed to the program as an async callable. The
@@ -77,6 +77,8 @@ export interface CodeRunRequest {
     program: string;
     /** Host functions exposed to the program, one global object per namespace. */
     bindings: CodeBindingNamespace[];
+    /** Optional resolved file policy for a process-backed runtime. */
+    sandboxPolicy?: import('@taskweaver/dsh-sandbox').SandboxExecutionPolicy;
     /**
      * Abort the run: the runtime stops the program (hard, even mid-loop) and
      * resolves with a {@link CodeRunFailure} of kind `'abort'`. In-flight

@@ -1,12 +1,12 @@
 /**
  * Configuration normalization for workspace instruction discovery and rendering.
  *
- * @module @z/dsh-agent-instructions/config
+ * @module @taskweaver/dsh-agent-instructions/config
  */
-import z from '@z/schemastery';
+import z from '@taskweaver/schemastery';
 /** User-facing workspace instruction loader configuration. */
 export interface Config {
-    /** Harness home containing the fixed user-global `AGENTS.md`; defaults to `$DSH_HOME` or `~/.dsh`. */
+    /** Runtime home containing the fixed user-global `AGENTS.md`; defaults to `$TASKWEAVER_HOME` or `~/.taskweaver/runtime`. */
     dshHome?: string;
     /** Directory entries that identify the project root while walking upward from the session cwd. */
     projectRootMarkers?: string[];

@@ -1,8 +1,8 @@
 /**
- * Package-owned invariant companion for `@z/dsh-lsp-stdio`.
- * @module @z/dsh-lsp-stdio/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-lsp-stdio`.
+ * @module @taskweaver/dsh-lsp-stdio/invariant
  */
-import type { Context } from '@z/cordis';
+import type { Context } from '@taskweaver/cordis';
 /** Cordis companion plugin name. */
 export declare const name = "lsp-stdio-invariant";
 /** Service required before the companion can reserve package ownership. */

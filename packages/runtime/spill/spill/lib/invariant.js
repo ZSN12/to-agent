@@ -1,9 +1,9 @@
 //#region lib/types/invariant.js
 /**
-* Package-owned invariant companion for `@z/dsh-spill`.
-* @module @z/dsh-spill/invariant
+* Package-owned invariant companion for `@taskweaver/dsh-spill`.
+* @module @taskweaver/dsh-spill/invariant
 */
-const PACKAGE_NAME = "@z/dsh-spill";
+const PACKAGE_NAME = "@taskweaver/dsh-spill";
 /** Cordis companion plugin name. */
 const name = "spill-invariant";
 /** Service required before the companion can reserve package ownership. */

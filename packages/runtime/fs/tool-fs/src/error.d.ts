@@ -4,7 +4,7 @@
  * not the only correct recovery (re-read / read the file), so this package
  * appends the remedy at the model boundary; provider messages stay
  * machine-oriented and unchanged.
- * @module @z/dsh-tool-fs/src/error
+ * @module @taskweaver/dsh-tool-fs/src/error
  */
 /**
  * Append the correct recovery instruction to a guarded-mutation failure's

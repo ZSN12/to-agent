@@ -1,9 +1,9 @@
-import type { LlmFailure } from '@z/dsh-llm/types'
+import type { LlmFailure } from '@taskweaver/dsh-llm/types'
 import type { RetryId } from './brand.ts'
 
 export type { RetryId }
 
-declare module '@z/dsh-session/types' {
+declare module '@taskweaver/dsh-session/types' {
   interface SessionEventMap {
     /** Durable, non-surface record of one provider-routed retry scheduled after a failed request attempt. */
     'llm/retry': LlmRetryEventData

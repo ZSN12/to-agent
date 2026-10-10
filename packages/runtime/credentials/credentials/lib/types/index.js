@@ -1,4 +1,3 @@
-"use strict";
 /**
  * Service Definition for the credential-reference capability seam (`ctx.credentials`). Settings and composition files carry
  * *references* to secrets — environment-variable names — while providers own
@@ -6,44 +5,20 @@
  * operation, so a changed credential reaches the next operation without any
  * plugin restart, and configuration surfaces describe a reference without
  * ever seeing its value.
- * @module @z/dsh-credentials
+ * @module @taskweaver/dsh-credentials
  */
-var __extends = (this && this.__extends) || (function () {
-    var extendStatics = function (d, b) {
-        extendStatics = Object.setPrototypeOf ||
-            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-            function (d, b) { for (var p in b) if (Object.prototype.hasOwnProperty.call(b, p)) d[p] = b[p]; };
-        return extendStatics(d, b);
-    };
-    return function (d, b) {
-        if (typeof b !== "function" && b !== null)
-            throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
-})();
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.CredentialProvider = void 0;
-exports.credentialRef = credentialRef;
-exports.isCredentialRefName = isCredentialRefName;
-exports.isCredentialKeySegment = isCredentialKeySegment;
-exports.credentialKey = credentialKey;
-exports.parseCredentialKey = parseCredentialKey;
-exports.credentialKeyScope = credentialKeyScope;
-exports.credentialKeyId = credentialKeyId;
-var cordis_1 = require("@z/cordis");
-var REF_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
+import { Service } from '@taskweaver/cordis';
+const REF_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 /** Both halves of a {@link CredentialKey}; the `/` between them is what keeps it out of {@link REF_PATTERN}. */
-var KEY_SEGMENT_PATTERN = /^[a-z][a-z0-9-]*$/;
+const KEY_SEGMENT_PATTERN = /^[a-z][a-z0-9-]*$/;
 /**
  * Brand a raw string as a {@link CredentialRef}.
  * @param value - candidate reference; a POSIX shell identifier such as `DEEPSEEK_API_KEY`.
  * @returns the branded reference.
  */
-function credentialRef(value) {
+export function credentialRef(value) {
     if (!isCredentialRefName(value)) {
-        throw new TypeError("credential ref \"".concat(value, "\" must match ").concat(String(REF_PATTERN)));
+        throw new TypeError(`credential ref "${value}" must match ${String(REF_PATTERN)}`);
     }
     return value;
 }
@@ -56,7 +31,7 @@ function credentialRef(value) {
  * @param value - candidate reference.
  * @returns true when {@link credentialRef} would accept it.
  */
-function isCredentialRefName(value) {
+export function isCredentialRefName(value) {
     return REF_PATTERN.test(value);
 }
 /**
@@ -68,7 +43,7 @@ function isCredentialRefName(value) {
  * @param value - candidate segment.
  * @returns true when {@link credentialKey} would accept it as either segment.
  */
-function isCredentialKeySegment(value) {
+export function isCredentialKeySegment(value) {
     return KEY_SEGMENT_PATTERN.test(value);
 }
 /**
@@ -78,14 +53,13 @@ function isCredentialKeySegment(value) {
  * @returns the branded key.
  * @throws TypeError when either segment is not a lowercase hyphenated identifier.
  */
-function credentialKey(scope, id) {
-    for (var _i = 0, _a = [scope, id]; _i < _a.length; _i++) {
-        var segment = _a[_i];
+export function credentialKey(scope, id) {
+    for (const segment of [scope, id]) {
         if (!KEY_SEGMENT_PATTERN.test(segment)) {
-            throw new TypeError("credential key segment \"".concat(segment, "\" must match ").concat(String(KEY_SEGMENT_PATTERN)));
+            throw new TypeError(`credential key segment "${segment}" must match ${String(KEY_SEGMENT_PATTERN)}`);
         }
     }
-    return "".concat(scope, "/").concat(id);
+    return `${scope}/${id}`;
 }
 /**
  * Brand a stored `<scope>/<id>` string as a {@link CredentialKey}. This is the
@@ -94,11 +68,11 @@ function credentialKey(scope, id) {
  * @returns the branded key.
  * @throws TypeError when the value is not exactly two valid segments.
  */
-function parseCredentialKey(value) {
-    var segments = value.split('/');
-    var scope = segments[0], id = segments[1];
+export function parseCredentialKey(value) {
+    const segments = value.split('/');
+    const [scope, id] = segments;
     if (segments.length !== 2 || scope === undefined || id === undefined) {
-        throw new TypeError("credential key \"".concat(value, "\" must be \"<scope>/<id>\""));
+        throw new TypeError(`credential key "${value}" must be "<scope>/<id>"`);
     }
     return credentialKey(scope, id);
 }
@@ -109,7 +83,7 @@ function parseCredentialKey(value) {
  * @param key - the key to read.
  * @returns the scope segment.
  */
-function credentialKeyScope(key) {
+export function credentialKeyScope(key) {
     // The brand's only constructors both validate two segments, so the split
     // cannot come back short here.
     return key.slice(0, key.indexOf('/'));
@@ -120,7 +94,7 @@ function credentialKeyScope(key) {
  * @param key - the key to read.
  * @returns the id segment.
  */
-function credentialKeyId(key) {
+export function credentialKeyId(key) {
     return key.slice(key.indexOf('/') + 1);
 }
 /**
@@ -139,10 +113,9 @@ function credentialKeyId(key) {
  * depends on the current value (a token refresh is read-decide-replace under
  * one lock).
  */
-var CredentialProvider = /** @class */ (function (_super) {
-    __extends(CredentialProvider, _super);
-    function CredentialProvider(ctx) {
-        return _super.call(this, ctx, 'credentials') || this;
+export class CredentialProvider extends Service {
+    constructor(ctx) {
+        super(ctx, 'credentials');
     }
     /**
      * Fan `credentials/reference-updated` out with contained listener failures: every
@@ -155,38 +128,36 @@ var CredentialProvider = /** @class */ (function (_super) {
      * change look failed.
      * @param ref - the reference whose stored value changed.
      */
-    CredentialProvider.prototype.notifyUpdated = function (ref) {
+    notifyUpdated(ref) {
         this.fanOut('credentials/reference-updated', ref);
-    };
+    }
     /**
      * Fan `credentials/record-updated` out on exactly the terms
      * {@link notifyUpdated} documents, for the record half of the seam.
      * @param key - the record whose stored value changed.
      */
-    CredentialProvider.prototype.notifyRecordUpdated = function (key) {
+    notifyRecordUpdated(key) {
         this.fanOut('credentials/record-updated', key);
-    };
+    }
     /* jscpd:ignore-start -- deliberate symmetry with the settings seam's commit
        fan-out: the contained-dispatch shape is the reviewed listener-lifecycle
        contract, and extracting it would couple the two seams' event semantics. */
     /** The contained dispatch both notifications run through; see {@link notifyUpdated}. */
-    CredentialProvider.prototype.fanOut = function (event, subject) {
-        var _this = this;
-        var invariantFailure;
-        var args = [event, subject];
-        for (var _i = 0, _a = this.ctx.events.dispatch('emit', args); _i < _a.length; _i++) {
-            var listener = _a[_i];
+    fanOut(event, subject) {
+        let invariantFailure;
+        const args = [event, subject];
+        for (const listener of this.ctx.events.dispatch('emit', args)) {
             try {
-                var returned = listener(subject);
+                const returned = listener(subject);
                 if (returned != null && typeof returned.then === 'function') {
-                    void Promise.resolve(returned).then(undefined, function (error) {
-                        _this.warnListenerFailure(event, subject, error);
+                    void Promise.resolve(returned).then(undefined, (error) => {
+                        this.warnListenerFailure(event, subject, error);
                     });
                 }
             }
             catch (error) {
-                if ((error === null || error === void 0 ? void 0 : error.code) === 'INVARIANT') {
-                    invariantFailure !== null && invariantFailure !== void 0 ? invariantFailure : (invariantFailure = error);
+                if (error?.code === 'INVARIANT') {
+                    invariantFailure ??= error;
                     continue;
                 }
                 this.warnListenerFailure(event, subject, error);
@@ -194,14 +165,13 @@ var CredentialProvider = /** @class */ (function (_super) {
         }
         if (invariantFailure !== undefined)
             throw invariantFailure;
-    };
+    }
     /* jscpd:ignore-end */
     /** Contained-listener diagnostic shared by the sync and async failure paths. */
-    CredentialProvider.prototype.warnListenerFailure = function (event, subject, error) {
+    warnListenerFailure(event, subject, error) {
         this.ctx.logger.warn('credentials: a %s listener for "%s" failed', event, subject);
         this.ctx.logger.warn(error);
-    };
-    return CredentialProvider;
-}(cordis_1.Service));
-exports.CredentialProvider = CredentialProvider;
-exports.default = CredentialProvider;
+    }
+}
+export default CredentialProvider;
+//# sourceMappingURL=index.js.map

@@ -1,25 +1,25 @@
 /**
  * Shared route, framing, timeout, assembly, and validation policy for
  * model-backed session-title providers.
- * @module @z/dsh-session-title-llm
+ * @module @taskweaver/dsh-session-title-llm
  */
 
-import type { Context } from '@z/cordis'
-import z from '@z/schemastery'
-import { createUserMessage, BlockAssembler, deepFreeze } from '@z/dsh-llm'
-import type { FinishReason, GenerateOptions, Message } from '@z/dsh-llm'
-import { deadline, MAX_TIMER_DELAY_MS } from '@z/dsh-timeout'
+import type { Context } from '@taskweaver/cordis'
+import z from '@taskweaver/schemastery'
+import { createUserMessage, BlockAssembler, deepFreeze } from '@taskweaver/dsh-llm'
+import type { FinishReason, GenerateOptions, Message } from '@taskweaver/dsh-llm'
+import { deadline, MAX_TIMER_DELAY_MS } from '@taskweaver/dsh-timeout'
 import {
   normalizeSessionTitle,
   SessionTitleProviderId,
-} from '@z/dsh-session-title'
+} from '@taskweaver/dsh-session-title'
 import type {
   SessionTitleAutomaticMode,
   SessionTitleModelProvenance,
   SessionTitleProviderRequest,
   SessionTitleProviderResult,
   SessionTitleUserMessage,
-} from '@z/dsh-session-title'
+} from '@taskweaver/dsh-session-title'
 
 /** Exact model-visible request recorded before one auxiliary title dispatch. */
 export interface SessionTitleLlmRequestEventData {
@@ -37,7 +37,7 @@ export interface SessionTitleLlmRequestEventData {
   readonly maxTokens: number
 }
 
-declare module '@z/dsh-session/types' {
+declare module '@taskweaver/dsh-session/types' {
   interface SessionEventMap {
     /** Log-only pre-dispatch record of one session-title model request. */
     'session/title-llm-request': SessionTitleLlmRequestEventData

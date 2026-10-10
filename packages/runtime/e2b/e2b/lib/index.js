@@ -1,13 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { posix } from "node:path";
-import { Service } from "@z/cordis";
-import z from "@z/schemastery";
+import { Service } from "@taskweaver/cordis";
+import z from "@taskweaver/schemastery";
 import { CommandExitError, FileNotFoundError, FileType, FileType as FileType$1, Sandbox, Sandbox as Sandbox$1, SandboxNotFoundError, SandboxNotFoundError as SandboxNotFoundError$1 } from "e2b";
 //#region lib/types/index.js
 /**
 * Shared ownership of one E2B sandbox. Capability adapters await the same SDK
 * handle, so filesystem and process operations inhabit one remote Linux world.
-* @module @z/dsh-e2b
+* @module @taskweaver/dsh-e2b
 */
 /**
 * Quote one opaque argument for the SDK's unavoidable `/bin/bash -l -c` layer.

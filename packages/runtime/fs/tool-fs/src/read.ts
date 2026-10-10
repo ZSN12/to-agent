@@ -1,14 +1,14 @@
 /**
  * Model-facing UTF-8 read. It performs one provider stat for type, routing, and observed version,
  * streams large or size-unknown files, renders a bounded window, then emits the observation.
- * @module @z/dsh-tool-fs/src/read
+ * @module @taskweaver/dsh-tool-fs/src/read
  */
 
-import type { Context } from '@z/cordis'
-import { defineTool } from '@z/dsh-tools'
-import type { GenericCallView, ReadResultView, ToolResult } from '@z/dsh-tools'
-import type {} from '@z/dsh-fs'
-import type {} from '@z/dsh-system-prompt'
+import type { Context } from '@taskweaver/cordis'
+import { defineTool } from '@taskweaver/dsh-tools'
+import type { GenericCallView, ReadResultView, ToolResult } from '@taskweaver/dsh-tools'
+import type {} from '@taskweaver/dsh-fs'
+import type {} from '@taskweaver/dsh-system-prompt'
 import { buildWindow, formatReadOutput, langFromPath, readMetaFromMeta } from './read-render.ts'
 import { resolveRegularReadTarget } from './read-target.ts'
 

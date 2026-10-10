@@ -8,19 +8,19 @@
  * Not part of the product plugin graph (no `dsh.client`); feature packages
  * depend on it in devDependencies only. It copies no SlotCore/renderer/store
  * machinery — everything mounts the production implementations.
- * @module @z/dsh-client-test-runtime
+ * @module @taskweaver/dsh-client-test-runtime
  */
-import { Context } from '@z/cordis';
-import type { Fiber, Plugin } from '@z/cordis';
+import { Context } from '@taskweaver/cordis';
+import type { Fiber, Plugin } from '@taskweaver/cordis';
 import type { RenderResult } from '@testing-library/react';
 import type { queries } from '@testing-library/dom';
 import type { BoundFunctions } from '@testing-library/dom';
-import { SlotRegistry } from '@z/dsh-client-runtime/client';
-import type { ChildrenDecl, ComposedProps, HostObservable, OwnerOf, SlotComponent, SlotMap, SlotRenderer, SnapshotSelectorHook, StoreInstanceLike } from '@z/dsh-client-ui-slots';
+import { SlotRegistry } from '@taskweaver/dsh-client-runtime/client';
+import type { ChildrenDecl, ComposedProps, HostObservable, OwnerOf, SlotComponent, SlotMap, SlotRenderer, SnapshotSelectorHook, StoreInstanceLike } from '@taskweaver/dsh-client-ui-slots';
 import { TestSessions } from './sessions.ts';
 import { TestWorkspaces } from './workspaces.ts';
 import type { Stabilizer } from './fixtures.ts';
-export type { UseSession } from '@z/dsh-client-ui-renderer/client';
+export type { UseSession } from '@taskweaver/dsh-client-ui-renderer/client';
 export { domSnapshotSerializer, registerDomSnapshotSerializer } from './snapshot.ts';
 export { FixtureSession, TestSessions } from './sessions.ts';
 export { stubSettingsScope } from './settings-scope.ts';

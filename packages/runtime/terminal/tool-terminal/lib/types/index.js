@@ -1,11 +1,11 @@
 /**
  * Six model-facing persistent terminal tools. Owner identity comes from the exact
  * tool execution Agent; generic `ctx.jobs` owns background ids and collection.
- * @module @z/dsh-tool-terminal
+ * @module @taskweaver/dsh-tool-terminal
  */
-import z from '@z/schemastery';
-import { TerminalSessionId } from '@z/dsh-terminal';
-import { defineTool } from '@z/dsh-tools';
+import z from '@taskweaver/schemastery';
+import { TerminalSessionId } from '@taskweaver/dsh-terminal';
+import { defineTool } from '@taskweaver/dsh-tools';
 import { boundTerminalText, renderList, renderRead, renderSend, renderSendRead, renderSpawn } from "./render.js";
 /** Cordis plugin name. */
 export const name = 'tool-terminal';
@@ -194,7 +194,7 @@ export function apply(ctx, config = {}) {
                     throw new Error('background terminal sends are disabled by tool-terminal configuration');
                 const jobs = ctx.get('jobs');
                 if (jobs === undefined)
-                    throw new Error('background terminal sends require @z/dsh-jobs and @z/dsh-tool-jobs');
+                    throw new Error('background terminal sends require @taskweaver/dsh-jobs and @taskweaver/dsh-tool-jobs');
                 let cancelRequested = false;
                 const jobId = jobs.start({
                     kind: 'pty-send',

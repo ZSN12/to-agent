@@ -1,10 +1,10 @@
 // Title-source invariant: `messageSeqs` is empty iff `source.kind` is `user`.
 // — the durable relationship every appended session/title event must keep.
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import * as SessionTitleInvariantCompanion from '@z/dsh-session-title/invariant'
-import InvariantRegistry, { InvariantError } from '@z/dsh-invariants'
-import SessionStore, { SessionId } from '@z/dsh-session'
+import { Context } from '@taskweaver/cordis'
+import * as SessionTitleInvariantCompanion from '@taskweaver/dsh-session-title/invariant'
+import InvariantRegistry, { InvariantError } from '@taskweaver/dsh-invariants'
+import SessionStore, { SessionId } from '@taskweaver/dsh-session'
 
 async function setup(): Promise<Context> {
   const ctx = new Context()
@@ -31,13 +31,13 @@ describe('session-title source invariant', () => {
       session.append('session/title', { title: 'auto', messageSeqs: [], source: { kind: 'fallback' } })
     }).toThrow(expect.objectContaining<Partial<InvariantError>>({
       code: 'INVARIANT',
-      packageName: '@z/dsh-session-title',
+      packageName: '@taskweaver/dsh-session-title',
     }))
     expect(() => {
       session.append('session/title', { title: 'named', messageSeqs: [1], source: { kind: 'user' } })
     }).toThrow(expect.objectContaining<Partial<InvariantError>>({
       code: 'INVARIANT',
-      packageName: '@z/dsh-session-title',
+      packageName: '@taskweaver/dsh-session-title',
     }))
     expect(session.seq).toBe(0)
   })

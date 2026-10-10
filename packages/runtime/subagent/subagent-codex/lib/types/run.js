@@ -4,14 +4,14 @@
  * creation, flatten post-publication failures, and dispose to whole-tree
  * quiescence.
  *
- * @module @z/dsh-subagent-codex/run
+ * @module @taskweaver/dsh-subagent-codex/run
  */
 import { randomUUID } from 'node:crypto';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, resolve } from 'node:path';
-import { SessionId } from '@z/dsh-session';
-import { settleRunResult, subprocessRunHandle, } from '@z/dsh-subagent';
+import { SessionId } from '@taskweaver/dsh-session';
+import { settleRunResult, subprocessRunHandle, } from '@taskweaver/dsh-subagent';
 import { CodexAppServerWire, } from "./wire.js";
 /** Default POSIX grace between subprocess termination tiers. */
 export const DEFAULT_DISPOSE_GRACE_MS = 3_000;

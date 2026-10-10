@@ -188,7 +188,6 @@ export interface WorkspaceReference extends WorkspaceEntry {
 export interface TaskweaverWorkspaceApi {
   listContext: (query?: string, limit?: number) => Promise<IpcResult<WorkspaceEntry[]>>
   createReference: (droppedPath: string) => Promise<IpcResult<WorkspaceReference>>
-  saveClipboardImage?: (payload: { base64: string; mimeType: string; filename?: string }) => Promise<IpcResult<WorkspaceReference & { fullPath?: string }>>
   getDroppedFilePath: (file: File) => string
   getTrust: () => Promise<IpcResult<WorkspaceTrustState>>
   setTrust: (trusted: boolean) => Promise<IpcResult<WorkspaceTrustState>>
@@ -401,6 +400,41 @@ export interface DshConversationRunningCall {
   startedAt?: number | null
 }
 
+/** Metadata-only image reference projected from a Host tool result. */
+export interface DshProjectedImageRef {
+  attachmentId: string
+  mediaType: string
+  bytes: number | null
+  width: number | null
+  height: number | null
+  name?: string
+  originalDimensions?: { width: number; height: number }
+}
+
+export interface ImageAttachmentLimits {
+  maxImageBytes: number
+  maxImagesPerMessage: number
+  maxMessageImageBytes: number
+  maxImagePixels: number
+  maxImageDimension: number
+  mediaTypes: readonly string[]
+}
+
+export interface ComposerImageAttachment {
+  mediaType: string
+  data: string
+  name: string
+  bytes: number
+}
+
+/** Small renderer-side handle for a main-process staged document snapshot. */
+export interface ComposerDocumentAttachment {
+  id: string
+  name: string
+  kind: 'pdf' | 'pptx' | 'docx' | 'xlsx' | 'ppt' | 'doc' | 'xls'
+  bytes: number
+}
+
 /** One root tool-call row from DSH chat projection (`tool-call` node). */
 export interface DshProjectedToolCall {
   callId: string
@@ -414,17 +448,25 @@ export interface DshProjectedToolCall {
   startedAt?: number
   durationMs?: number
   resultPreview?: string
+  resultImages?: DshProjectedImageRef[]
   isError?: boolean
+}
+
+export interface CodeOutputAttachment {
+  attachment: DshProjectedImageRef & { bytes: number; width: number; height: number }
+  data: string
 }
 
 export interface DshTranscriptRow {
   dshKey: string
   role: 'user' | 'assistant' | 'compaction' | 'context'
   text?: string
+  images?: DshProjectedImageRef[]
   thinking?: string
   interrupted?: boolean
   behavior?: 'steer' | 'followUp'
   automatic?: boolean
+  compactionTrigger?: 'pressure' | 'context-overflow' | 'manual'
   summary?: string
   tokensBefore?: number | null
   timestamp?: number
@@ -509,7 +551,25 @@ export interface TaskweaverChatApi {
     workMode?: WorkMode | null,
     conversationId?: string | null,
     attachments?: { mediaType: string, data: string, name: string }[] | null,
+    documentIds?: string[] | null,
   ) => Promise<IpcResult<ChatSendResult>>
+  getImageLimits?: (conversationId?: string | null) => Promise<IpcResult<ImageAttachmentLimits>>
+  /** Accepts an Electron file dropped by the user; preload resolves its opaque path. */
+  readDroppedImageFile?: (file: File, conversationId?: string | null) => Promise<IpcResult<ComposerImageAttachment>>
+  pickImages?: (conversationId?: string | null) => Promise<IpcResult<{ cancelled: boolean; images: ComposerImageAttachment[] }>>
+  pickAttachments?: (conversationId?: string | null) => Promise<IpcResult<{
+    cancelled: boolean
+    images: ComposerImageAttachment[]
+    documents: ComposerDocumentAttachment[]
+    references: WorkspaceReference[]
+  }>>
+  /** Stage a dropped document in the main process; external bytes never enter the renderer. */
+  stageDroppedDocumentFile?: (file: File, conversationId?: string | null) => Promise<IpcResult<{
+    reference?: WorkspaceReference
+    document?: ComposerDocumentAttachment
+  }>>
+  releaseDocuments?: (ids: string[], conversationId?: string | null) => Promise<IpcResult<{ released: number }>>
+  getImageAttachment?: (payload: { conversationId?: string | null; attachmentId: string }) => Promise<IpcResult<{ attachment: DshProjectedImageRef; data: string }>>
   cancel: (conversationId?: string | null) => Promise<IpcResult<{ stopped: boolean }>>
   steer: (text: string, conversationId?: string | null) => Promise<IpcResult<any>>
   followUp: (text: string, conversationId?: string | null) => Promise<IpcResult<any>>
@@ -528,6 +588,7 @@ export interface TaskweaverChatApi {
   unsubscribeMux?: (conversationId: string) => Promise<IpcResult<{ ok: boolean }>>
   onMux?: (listener: (payload: DshMuxFramePayload) => void) => () => void
   getDshView?: (conversationId?: string | null) => Promise<IpcResult<DshConversationView | null>>
+  getResultAttachment?: (payload: { conversationId?: string | null; attachmentId: string }) => Promise<IpcResult<CodeOutputAttachment>>
   onDshView?: (listener: (view: DshConversationView) => void) => () => void
   onStream: (listener: (event: ChatStreamEvent) => void) => () => void
 }
@@ -590,8 +651,45 @@ export interface LiveContextUsage {
 }
 
 export interface TaskweaverTasksApi {
+  listRuns?: (conversationId?: string | null) => Promise<IpcResult<DagRunHistoryEntry[]>>
+  resumeCheckpoint?: (runId: string, conversationId?: string | null) => Promise<IpcResult<DagReplayResult>>
+  rerunDownstream?: (runId: string, taskId: string, conversationId?: string | null) => Promise<IpcResult<DagReplayResult>>
   sendMessage: (taskId: string, text: string, conversationId?: string | null) => Promise<IpcResult<ChatSendResult>>
   cancel?: (taskId: string, conversationId?: string | null) => Promise<IpcResult<{ cancelled: boolean }>>
+  approvePlan?: (
+    runId: string,
+    changes: DagPlanApprovalChanges,
+    conversationId?: string | null,
+  ) => Promise<IpcResult<{ approved: boolean; error?: string }>>
+  rejectPlan?: (runId: string, conversationId?: string | null) => Promise<IpcResult<{ rejected: boolean }>>
+  pauseRun?: (runId: string, conversationId?: string | null) => Promise<IpcResult<{ paused: boolean }>>
+  resumeRun?: (runId: string, conversationId?: string | null) => Promise<IpcResult<{ resumed: boolean }>>
+}
+
+export interface DagReplayResult {
+  assistant: ChatMessage
+  tasks: TaskNode[]
+  failedTaskIds: string[]
+}
+
+export interface DagRunHistoryEntry {
+  runId: string
+  conversationId: string
+  createdAt: string
+  updatedAt?: string
+  status: string
+  tasks: TaskNode[]
+}
+
+export interface DagPlanApprovalChanges {
+  edits: Array<{
+    id: string
+    description: string
+    acceptance: string[]
+    modelKey: string
+    dependsOn: string[]
+  }>
+  deletedTaskIds: string[]
 }
 
 export interface McpServerConfig {
@@ -627,10 +725,9 @@ export interface GitHubMcpOAuthStatus {
   error?: string
 }
 
-export interface GitHubMcpOAuthLoginResult {
-  server: McpServerStatus
-  connection: McpServerStatus
-}
+export type GitHubMcpOAuthLoginResult =
+  | { cancelled: true; source: 'gh-cli' | 'environment' }
+  | { cancelled: false; server: McpServerStatus; connection: McpServerStatus }
 
 export interface McpCatalogEntry {
   id: string
@@ -696,30 +793,15 @@ export interface TaskweaverPricingApi {
   sync: () => Promise<IpcResult<{ changed: string[]; modelCount: number; status: PricingSyncStatus }>>
 }
 
-export interface UsageRecordItem {
-  id: string
-  timestamp: number
-  modelKey: string
-  modelName?: string
-  conversationId?: string
-  inputTokens: number
-  outputTokens: number
-  cacheReadTokens: number
-  cacheWriteTokens: number
-  totalTokens: number
-  costUsd: number
-  elapsedMs: number
-}
-
 export interface ModelUsageTotals {
   totalCalls: number
   inputTokens: number
   outputTokens: number
   cacheReadTokens: number
   cacheWriteTokens: number
+  reasoningTokens: number
   totalTokens: number
   costUsd: number
-  totalDurationMs: number
 }
 
 export interface ModelUsageByModel {
@@ -729,6 +811,7 @@ export interface ModelUsageByModel {
   inputTokens: number
   outputTokens: number
   cacheReadTokens: number
+  reasoningTokens: number
   totalTokens: number
   costUsd: number
 }
@@ -738,21 +821,26 @@ export interface ModelUsageDaily {
   calls: number
   inputTokens: number
   outputTokens: number
+  cacheReadTokens: number
+  cacheWriteTokens: number
+  reasoningTokens: number
   totalTokens: number
   costUsd: number
 }
 
 export interface ModelUsageStats {
+  enabled: boolean
+  earliestDate: string | null
   totals: ModelUsageTotals
   byModel: ModelUsageByModel[]
   daily: ModelUsageDaily[]
-  recent: UsageRecordItem[]
 }
 
 export interface TaskweaverUsageApi {
   getStats: () => Promise<IpcResult<ModelUsageStats>>
   getReport: (query?: { model?: string; start?: number | null; end?: number | null }) => Promise<IpcResult<any>>
   clear: () => Promise<IpcResult<{ ok: boolean }>>
+  setEnabled: (enabled: boolean) => Promise<IpcResult<{ ok: boolean; enabled: boolean }>>
 }
 
 export interface OpenUsageResourceData {
@@ -957,10 +1045,29 @@ export type BashSandboxPreference = 'auto' | 'workspace-write' | 'read-only' | '
 
 export interface AppPreferences {
   worktreeIsolation: boolean
+  /** DAG 运行前审批策略；默认只审批包含 implementation 的计划。 */
+  dagPlanApproval?: 'always' | 'write-only' | 'never'
+  /** 代码变更 DAG 是否自动追加跨提供方审查；默认关闭。 */
+  dagCrossProviderReview?: boolean
   bashSandbox?: BashSandboxPreference
   autoSnapshotOnTurn?: boolean
   subtaskUpgradeMax?: number
+  /** DAG 只读节点运行时限，单位毫秒。 */
+  dagReadOnlyTimeoutMs?: number
+  /** DAG 写入/测试节点运行时限，单位毫秒。 */
+  dagWriteTimeoutMs?: number
+  /** DAG 节点空闲超时，单位毫秒。 */
+  dagIdleTimeoutMs?: number
+  /** DAG 最大同时运行的子任务数，范围 1–10，默认 3。 */
+  maxSubtaskConcurrency?: number
+  /** DAG 单轮 token 预算，范围 1,000–100,000,000，默认 2,000,000。 */
+  dagBudgetTokens?: number
+  /** DAG 单轮美元预算，范围 $0.01–$10,000，默认 $2。 */
+  dagBudgetUsd?: number
+  /** DSH 自动压缩阈值，占当前会话模型上下文窗口的 0.6–0.9，默认 0.8。 */
+  compactionThresholdRatio?: number
   autoReviewReads?: boolean
+  autoAllowUiVerify?: boolean
   /** 改代码时在 Host 外追加验证命令指引；默认关闭。 */
   autoVerifyAfterMutation?: boolean
   /** 代码变更后自动运行项目验证并尝试静默修复；需显式开启。 */

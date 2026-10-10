@@ -1,12 +1,12 @@
-import z from "@z/schemastery";
-import { BlockAssembler, createUserMessage, deepFreeze } from "@z/dsh-llm";
-import { MAX_TIMER_DELAY_MS, deadline } from "@z/dsh-timeout";
-import { SessionTitleProviderId, normalizeSessionTitle } from "@z/dsh-session-title";
+import z from "@taskweaver/schemastery";
+import { BlockAssembler, createUserMessage, deepFreeze } from "@taskweaver/dsh-llm";
+import { MAX_TIMER_DELAY_MS, deadline } from "@taskweaver/dsh-timeout";
+import { SessionTitleProviderId, normalizeSessionTitle } from "@taskweaver/dsh-session-title";
 //#region lib/types/index.js
 /**
 * Shared route, framing, timeout, assembly, and validation policy for
 * model-backed session-title providers.
-* @module @z/dsh-session-title-llm
+* @module @taskweaver/dsh-session-title-llm
 */
 var __addDisposableResource = function(env, value, async) {
 	if (value !== null && value !== void 0) {

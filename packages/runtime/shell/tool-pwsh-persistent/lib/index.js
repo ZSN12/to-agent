@@ -1,11 +1,11 @@
 import { randomUUID } from "node:crypto";
-import z from "@z/schemastery";
-import { deadline, timeoutOf } from "@z/dsh-timeout";
-import { defineTool } from "@z/dsh-tools";
+import z from "@taskweaver/schemastery";
+import { deadline, timeoutOf } from "@taskweaver/dsh-timeout";
+import { defineTool } from "@taskweaver/dsh-tools";
 //#region lib/types/index.js
 /**
 * Model-facing persistent `pwsh` tool over the owner-scoped PTY seam.
-* @module @z/dsh-tool-pwsh-persistent
+* @module @taskweaver/dsh-tool-pwsh-persistent
 */
 var __addDisposableResource = function(env, value, async) {
 	if (value !== null && value !== void 0) {

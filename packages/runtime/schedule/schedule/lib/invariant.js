@@ -251,9 +251,9 @@ function foldScheduleEvents(events, seedLength = 0) {
 //#region lib/types/invariant.js
 /**
 * Package-owned strict Schedule stream invariant.
-* @module @z/dsh-schedule/invariant
+* @module @taskweaver/dsh-schedule/invariant
 */
-const PACKAGE_NAME = "@z/dsh-schedule";
+const PACKAGE_NAME = "@taskweaver/dsh-schedule";
 /** Cordis invariant-companion plugin name. */
 const name = "tool-schedule-invariant";
 /** Service required before reserving this package's invariant ownership. */

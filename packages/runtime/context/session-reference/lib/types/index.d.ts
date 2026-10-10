@@ -2,20 +2,20 @@
  * Cross-session snapshot preparation. Hosts adapt mentions into structured
  * references; this service owns exact reads, projection, budgets, and durable context.
  *
- * @module @z/dsh-session-reference
+ * @module @taskweaver/dsh-session-reference
  */
-import { Context } from '@z/cordis';
-import z from '@z/schemastery';
-import type { Agent } from '@z/dsh-agent';
-import { TypertRemoteService } from '@z/dsh-typert-protocol';
-import type { ContentBlock } from '@z/dsh-llm';
+import { Context } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
+import type { Agent } from '@taskweaver/dsh-agent';
+import { TypertRemoteService } from '@taskweaver/dsh-typert-protocol';
+import type { ContentBlock } from '@taskweaver/dsh-llm';
 import { type Config } from './config.ts';
 import type { PreparedReferencedMessage, SessionReferenceCandidate, SessionReferenceInput, SessionReferenceMentionCandidate } from './types.ts';
 export type * from './types.ts';
 export type { Config, SessionReferenceErrorCode } from './config.ts';
 export { DEFAULT_CANDIDATE_LIMIT, DEFAULT_MAX_REFERENCE_BYTES, MAX_REFERENCES, SessionReferenceError, } from './config.ts';
 export { SESSION_REFERENCE_SCHEME, decodeSessionReferenceUri, encodeSessionReferenceUri, formatSessionReferenceMention, parseSessionReferenceText, } from './uri.ts';
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
     interface Context {
         sessionReferenceResolver: SessionReferenceResolver;
     }

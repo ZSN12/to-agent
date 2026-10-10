@@ -1,13 +1,13 @@
 /**
- * Package-owned invariant companion for `@z/dsh-tool-web`.
- * @module @z/dsh-tool-web/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-tool-web`.
+ * @module @taskweaver/dsh-tool-web/invariant
  */
 
 /* jscpd:ignore-start */
-import type { Context } from '@z/cordis'
-import type { InvariantInstaller } from '@z/dsh-invariants'
+import type { Context } from '@taskweaver/cordis'
+import type { InvariantInstaller } from '@taskweaver/dsh-invariants'
 
-const PACKAGE_NAME = '@z/dsh-tool-web'
+const PACKAGE_NAME = '@taskweaver/dsh-tool-web'
 
 /** Cordis companion plugin name. */
 export const name = 'tool-web-invariant'

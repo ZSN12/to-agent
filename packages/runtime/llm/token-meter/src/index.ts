@@ -1,17 +1,17 @@
 /**
  * Single replay-aware token-meter service for request and surface pressure.
  *
- * @module @z/dsh-token-meter
+ * @module @taskweaver/dsh-token-meter
  */
 
-import { Context, Service } from '@z/cordis'
-import z from '@z/schemastery'
-import { BlockAssembler, deepFreeze } from '@z/dsh-llm'
-import type { Message, TokenUsage } from '@z/dsh-llm'
-import type { EpochHeader, Session, SessionEvent } from '@z/dsh-session'
-import { canonicalHeader, headerEquals, isSurfaceEvent } from '@z/dsh-session'
+import { Context, Service } from '@taskweaver/cordis'
+import z from '@taskweaver/schemastery'
+import { BlockAssembler, deepFreeze } from '@taskweaver/dsh-llm'
+import type { Message, TokenUsage } from '@taskweaver/dsh-llm'
+import type { EpochHeader, Session, SessionEvent } from '@taskweaver/dsh-session'
+import { canonicalHeader, headerEquals, isSurfaceEvent } from '@taskweaver/dsh-session'
 // Type-only: resolves the optional projection registry Context declaration.
-import type {} from '@z/dsh-session-projection'
+import type {} from '@taskweaver/dsh-session-projection'
 import type {
   TokenMeasurement,
   TokenMeasurementBaseline,
@@ -64,7 +64,7 @@ function validateConfigKeys(config: TokenMeterConfig): void {
   }
 }
 
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
   interface Context {
     tokenMeter: TokenMeter
   }

@@ -1,4 +1,4 @@
-import SessionQueryEngine from '@z/dsh-session-query'
+import SessionQueryEngine from '@taskweaver/dsh-session-query'
 import type {
   SessionEventSearchPage,
   SessionEventSearchRequest,
@@ -6,7 +6,7 @@ import type {
   SessionSearchHit,
   SessionSearchPage,
   SessionSearchRequest,
-} from '@z/dsh-session-query'
+} from '@taskweaver/dsh-session-query'
 
 /** Test-only concrete query service for backend-independent behavior. */
 export class TestSessionQueryEngine extends SessionQueryEngine {

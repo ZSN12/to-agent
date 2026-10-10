@@ -1,6 +1,6 @@
 /** Package-owned relational checks for Agent Teams durable records. */
 import { applyTeamEvent, foldTeam, isTeamEvent } from "./fold.js";
-const PACKAGE_NAME = '@z/dsh-experimental-agent-team';
+const PACKAGE_NAME = '@taskweaver/dsh-experimental-agent-team';
 /** Cordis companion plugin name. */
 export const name = 'team-invariant';
 /** Invariant registry required by the companion. */

@@ -1,13 +1,13 @@
 /**
- * Package-owned invariant companion for `@z/dsh-fs-observation-policy`.
- * @module @z/dsh-fs-observation-policy/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-fs-observation-policy`.
+ * @module @taskweaver/dsh-fs-observation-policy/invariant
  */
 
 /* jscpd:ignore-start */
-import type { Context } from '@z/cordis'
-import type { InvariantInstaller } from '@z/dsh-invariants'
+import type { Context } from '@taskweaver/cordis'
+import type { InvariantInstaller } from '@taskweaver/dsh-invariants'
 
-const PACKAGE_NAME = '@z/dsh-fs-observation-policy'
+const PACKAGE_NAME = '@taskweaver/dsh-fs-observation-policy'
 
 /** Cordis companion plugin name. */
 export const name = 'fs-observation-policy-invariant'

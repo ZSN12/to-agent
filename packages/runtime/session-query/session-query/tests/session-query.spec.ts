@@ -1,15 +1,15 @@
-import { createUserMessage, createMessage } from '@z/dsh-llm'
+import { createUserMessage, createMessage } from '@taskweaver/dsh-llm'
 import { describe, expect, it, vi } from 'vitest'
-import { Context, type Fiber } from '@z/cordis'
-import SessionStore, { SESSION_FORMAT_VERSION, SessionId } from '@z/dsh-session'
-import type { SessionEvent, SessionHeader, SessionId as SessionIdType } from '@z/dsh-session'
-import SessionPersistence, { SessionPersistenceCorruptionError, SessionPersistenceRevision } from '@z/dsh-session-persistence'
+import { Context, type Fiber } from '@taskweaver/cordis'
+import SessionStore, { SESSION_FORMAT_VERSION, SessionId } from '@taskweaver/dsh-session'
+import type { SessionEvent, SessionHeader, SessionId as SessionIdType } from '@taskweaver/dsh-session'
+import SessionPersistence, { SessionPersistenceCorruptionError, SessionPersistenceRevision } from '@taskweaver/dsh-session-persistence'
 import SessionQueryEngine, {
   SESSION_QUERY_DEFAULT_PERSISTED_INSPECT_CONCURRENCY,
   type SessionEventSurface,
   type SessionQueryErrorCode,
-} from '@z/dsh-session-query'
-import { SessionTitleProviderId } from '@z/dsh-session-title'
+} from '@taskweaver/dsh-session-query'
+import { SessionTitleProviderId } from '@taskweaver/dsh-session-title'
 import { TestSessionQueryEngine } from './test-service.ts'
 
 function header(id: string, createdAt = 1, extra: Partial<SessionHeader> = {}): SessionHeader {

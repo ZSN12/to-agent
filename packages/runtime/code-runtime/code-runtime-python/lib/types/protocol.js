@@ -1,57 +1,10 @@
-"use strict";
 /**
  * Versionless, JSON-lines wire protocol between the Node host and the CPython subprocess. Frames
  * travel on the child's fd 3 (one JSON object per line), leaving stdout/stderr free for the
  * program's own output. Host treats every inbound frame as hostile because model code can post
  * anything through the same fd; the Python bootstrap trusts host replies.
- * @module @z/dsh-code-runtime-python/src/protocol
+ * @module @taskweaver/dsh-code-runtime-python/src/protocol
  */
-var __assign = (this && this.__assign) || function () {
-    __assign = Object.assign || function(t) {
-        for (var s, i = 1, n = arguments.length; i < n; i++) {
-            s = arguments[i];
-            for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p))
-                t[p] = s[p];
-        }
-        return t;
-    };
-    return __assign.apply(this, arguments);
-};
-var __generator = (this && this.__generator) || function (thisArg, body) {
-    var _ = { label: 0, sent: function() { if (t[0] & 1) throw t[1]; return t[1]; }, trys: [], ops: [] }, f, y, t, g = Object.create((typeof Iterator === "function" ? Iterator : Object).prototype);
-    return g.next = verb(0), g["throw"] = verb(1), g["return"] = verb(2), typeof Symbol === "function" && (g[Symbol.iterator] = function() { return this; }), g;
-    function verb(n) { return function (v) { return step([n, v]); }; }
-    function step(op) {
-        if (f) throw new TypeError("Generator is already executing.");
-        while (g && (g = 0, op[0] && (_ = 0)), _) try {
-            if (f = 1, y && (t = op[0] & 2 ? y["return"] : op[0] ? y["throw"] || ((t = y["return"]) && t.call(y), 0) : y.next) && !(t = t.call(y, op[1])).done) return t;
-            if (y = 0, t) op = [op[0] & 2, t.value];
-            switch (op[0]) {
-                case 0: case 1: t = op; break;
-                case 4: _.label++; return { value: op[1], done: false };
-                case 5: _.label++; y = op[1]; op = [0]; continue;
-                case 7: op = _.ops.pop(); _.trys.pop(); continue;
-                default:
-                    if (!(t = _.trys, t = t.length > 0 && t[t.length - 1]) && (op[0] === 6 || op[0] === 2)) { _ = 0; continue; }
-                    if (op[0] === 3 && (!t || (op[1] > t[0] && op[1] < t[3]))) { _.label = op[1]; break; }
-                    if (op[0] === 6 && _.label < t[1]) { _.label = t[1]; t = op; break; }
-                    if (t && _.label < t[2]) { _.label = t[2]; _.ops.push(op); break; }
-                    if (t[2]) _.ops.pop();
-                    _.trys.pop(); continue;
-            }
-            op = body.call(thisArg, _);
-        } catch (e) { op = [6, e]; y = 0; } finally { f = t = 0; }
-        if (op[0] & 5) throw op[1]; return { value: op[0] ? op[1] : void 0, done: true };
-    }
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.WIRE_FRAME_FIELDS = exports.PROTOCOL_FD = void 0;
-exports.logTruncationMarker = logTruncationMarker;
-exports.encodeJsonPlain = encodeJsonPlain;
-exports.checkDoneValue = checkDoneValue;
-exports.hasUnsafeIntegerToken = hasUnsafeIntegerToken;
-exports.hasNonLosslessNumber = hasNonLosslessNumber;
-exports.validateChildFrame = validateChildFrame;
 /**
  * The framed-JSON channel's file descriptor from the child's perspective. The
  * host pins it positionally when it spawns the child (`stdio` index 3, i.e.
@@ -61,9 +14,9 @@ exports.validateChildFrame = validateChildFrame;
  * Python constant equals it, so a drift on either side breaks the boot channel
  * loudly rather than silently.
  */
-exports.PROTOCOL_FD = 3;
-var _unionSubsetOfRoster = true;
-var _rosterSubsetOfUnion = true;
+export const PROTOCOL_FD = 3;
+const _unionSubsetOfRoster = true;
+const _rosterSubsetOfUnion = true;
 void _unionSubsetOfRoster;
 void _rosterSubsetOfUnion;
 /**
@@ -75,7 +28,7 @@ void _rosterSubsetOfUnion;
  * the JSON key {@link CallMessage} and {@link Namespace} send (a reserved word
  * the Python side carries via a functional `TypedDict`).
  */
-var WIRE_FRAME_FIELD_ROLES = {
+const WIRE_FRAME_FIELD_ROLES = {
     BootMessage: { type: 'required', cpuSeconds: 'required', addressSpaceBytes: 'required', maxLogBytes: 'required', maxValueBytes: 'required', namespaces: 'required' },
     Namespace: { global: 'required', names: 'required', errorClass: 'optional' },
     RunMessage: { type: 'required', program: 'required' },
@@ -97,11 +50,10 @@ var WIRE_FRAME_FIELD_ROLES = {
  * field add, remove, rename, or optionality flip fails typecheck at the roles
  * map, and a Python-side divergence fails the mirror test at runtime.
  */
-exports.WIRE_FRAME_FIELDS = Object.fromEntries(Object.entries(WIRE_FRAME_FIELD_ROLES).map(function (_a) {
-    var frame = _a[0], roles = _a[1];
-    var required = Object.keys(roles).filter(function (key) { return roles[key] === 'required'; }).sort();
-    var optional = Object.keys(roles).filter(function (key) { return roles[key] === 'optional'; }).sort();
-    return [frame, { required: required, optional: optional }];
+export const WIRE_FRAME_FIELDS = Object.fromEntries(Object.entries(WIRE_FRAME_FIELD_ROLES).map(([frame, roles]) => {
+    const required = Object.keys(roles).filter(key => roles[key] === 'required').sort();
+    const optional = Object.keys(roles).filter(key => roles[key] === 'optional').sort();
+    return [frame, { required, optional }];
 }));
 /**
  * The in-band marker text announcing that log capture stopped at the byte
@@ -112,8 +64,8 @@ exports.WIRE_FRAME_FIELDS = Object.fromEntries(Object.entries(WIRE_FRAME_FIELD_R
  * @param maxBytes - the configured `maxLogBytes` the marker names.
  * @returns the marker line.
  */
-function logTruncationMarker(maxBytes) {
-    return "[dsh-code-runtime-python] log capture truncated at ".concat(maxBytes, " bytes");
+export function logTruncationMarker(maxBytes) {
+    return `[dsh-code-runtime-python] log capture truncated at ${maxBytes} bytes`;
 }
 /**
  * Serialize one JSON-parse-produced value without recursion. `JSON.stringify`
@@ -131,38 +83,38 @@ function logTruncationMarker(maxBytes) {
  * @param value - a JSON-plain value (e.g. straight from `JSON.parse`).
  * @returns the compact JSON encoding.
  */
-function encodeJsonPlain(value) {
-    var chunks = [];
-    var tasks = [{ value: value }];
-    for (var task = tasks.pop(); task !== undefined; task = tasks.pop()) {
+export function encodeJsonPlain(value) {
+    const chunks = [];
+    const tasks = [{ value }];
+    for (let task = tasks.pop(); task !== undefined; task = tasks.pop()) {
         if ('text' in task) {
             chunks.push(task.text);
             continue;
         }
-        var current = task.value;
+        const current = task.value;
         if (typeof current === 'string') {
             chunks.push(JSON.stringify(current));
         }
         else if (Array.isArray(current)) {
             chunks.push('[');
             tasks.push({ text: ']' });
-            for (var index = current.length - 1; index >= 0; index--) {
+            for (let index = current.length - 1; index >= 0; index--) {
                 if (index < current.length - 1)
                     tasks.push({ text: ',' });
                 tasks.push({ value: current[index] });
             }
         }
         else if (typeof current === 'object' && current !== null) {
-            var record = current;
+            const record = current;
             chunks.push('{');
             tasks.push({ text: '}' });
-            var keys = Object.keys(record);
-            for (var index = keys.length - 1; index >= 0; index--) {
-                var key = keys[index];
+            const keys = Object.keys(record);
+            for (let index = keys.length - 1; index >= 0; index--) {
+                const key = keys[index];
                 if (index < keys.length - 1)
                     tasks.push({ text: ',' });
                 tasks.push({ value: record[key] });
-                tasks.push({ text: "".concat(JSON.stringify(key), ":") });
+                tasks.push({ text: `${JSON.stringify(key)}:` });
             }
         }
         else {
@@ -203,11 +155,11 @@ function scalarJson(current) {
  * @returns the exact serialized byte length, or `undefined` once it exceeds `maxBytes`.
  */
 function jsonStringBytesUpTo(text, maxBytes) {
-    var bytes = 2; // the two quotes
+    let bytes = 2; // the two quotes
     if (bytes > maxBytes)
         return undefined;
-    for (var index = 0; index < text.length; index++) {
-        var code = text.charCodeAt(index);
+    for (let index = 0; index < text.length; index++) {
+        const code = text.charCodeAt(index);
         if (code === 0x22 || code === 0x5c || code === 0x08 || code === 0x09 || code === 0x0a || code === 0x0c || code === 0x0d) {
             bytes += 2; // `\"` `\\` `\b` `\t` `\n` `\f` `\r`
         }
@@ -221,7 +173,7 @@ function jsonStringBytesUpTo(text, maxBytes) {
             bytes += 2;
         }
         else if (code >= 0xd800 && code <= 0xdbff && index + 1 < text.length) {
-            var next = text.charCodeAt(index + 1);
+            const next = text.charCodeAt(index + 1);
             if (next >= 0xdc00 && next <= 0xdfff) {
                 bytes += 4; // valid high+low pair: one astral code point, raw 4-byte UTF-8
                 index++;
@@ -272,18 +224,18 @@ function jsonStringBytesUpTo(text, maxBytes) {
  * `{ ok: false, reason }` — `over-budget` once the size exceeds `maxBytes`,
  * `non-lossless` on a non-finite or negative-zero number.
  */
-function checkDoneValue(value, maxBytes) {
-    var bytes = 0;
+export function checkDoneValue(value, maxBytes) {
+    let bytes = 0;
     // A non-lossless number is recorded, not returned on sight: over-budget must
     // win regardless of where in the value each violation sits, so the whole
     // metering finishes first. Otherwise `["<huge>", 1e400]` and `[1e400,
     // "<huge>"]` — the same over-budget value in two member orders — would
     // classify differently (non-lossless vs over-budget), and the JSDoc promises
     // an over-budget value is rejected as over-budget regardless.
-    var nonLossless = false;
-    var stack = [value];
+    let nonLossless = false;
+    const stack = [value];
     while (stack.length > 0) {
-        var current = stack.pop();
+        const current = stack.pop();
         if (typeof current === 'number') {
             // Flag a non-lossless number but keep counting its encoded bytes: a value
             // that is BOTH non-lossless and over-budget must classify as over-budget
@@ -299,7 +251,7 @@ function checkDoneValue(value, maxBytes) {
             // and bails the instant the running cost crosses the remaining budget, so
             // a control-heavy forgery (escaped copy up to ~6x) never materializes that
             // copy the way `JSON.stringify` would.
-            var stringBytes = jsonStringBytesUpTo(current, maxBytes - bytes);
+            const stringBytes = jsonStringBytesUpTo(current, maxBytes - bytes);
             if (stringBytes === undefined)
                 return { ok: false, reason: 'over-budget' };
             bytes += stringBytes;
@@ -313,31 +265,29 @@ function checkDoneValue(value, maxBytes) {
             bytes += 2 + (current.length > 1 ? current.length - 1 : 0);
             if (bytes + current.length > maxBytes)
                 return { ok: false, reason: 'over-budget' };
-            for (var _i = 0, current_1 = current; _i < current_1.length; _i++) {
-                var item = current_1[_i];
+            for (const item of current)
                 stack.push(item);
-            }
         }
         else if (typeof current === 'object' && current !== null) {
-            var record = current;
+            const record = current;
             // Count own keys with for...in + hasOwn. This IS O(keys) — JS has no lazy
             // own-key iterator and the parse already built the key set — so the count
             // cannot be sublinear; what the bound below buys is refusing the per-entry
             // work (key escaping, value enqueue) before it runs. Each entry costs at
             // least a quoted key (>= 2 bytes) + colon + >= 1-byte value.
-            var count = 0;
-            for (var key in record)
+            let count = 0;
+            for (const key in record)
                 if (Object.hasOwn(record, key))
                     count += 1;
             bytes += 2 + (count > 1 ? count - 1 : 0);
             if (bytes + count * 4 > maxBytes)
                 return { ok: false, reason: 'over-budget' };
-            for (var key in record) {
+            for (const key in record) {
                 if (!Object.hasOwn(record, key))
                     continue;
                 // Meter the key's escaped form without allocating it (same reason as the
                 // string branch), then add the colon separator. `+ 1` for the `:`.
-                var keyBytes = jsonStringBytesUpTo(key, maxBytes - bytes);
+                const keyBytes = jsonStringBytesUpTo(key, maxBytes - bytes);
                 if (keyBytes === undefined)
                     return { ok: false, reason: 'over-budget' };
                 bytes += keyBytes + 1;
@@ -353,7 +303,7 @@ function checkDoneValue(value, maxBytes) {
     // The whole value fit the budget; a recorded number violation is the verdict.
     if (nonLossless)
         return { ok: false, reason: 'non-lossless' };
-    return { ok: true, bytes: bytes };
+    return { ok: true, bytes };
 }
 /**
  * Whether a raw JSON line contains an integer token that would lose precision
@@ -368,9 +318,9 @@ function checkDoneValue(value, maxBytes) {
  * @param line - the raw UTF-8 text of one JSON-lines frame.
  * @returns true when an unsafe integer token is present outside strings.
  */
-function hasUnsafeIntegerToken(line) {
-    for (var index = 0; index < line.length; index++) {
-        var char = line[index];
+export function hasUnsafeIntegerToken(line) {
+    for (let index = 0; index < line.length; index++) {
+        const char = line[index];
         if (char === '"') {
             // Skip the string literal, honoring backslash escapes.
             for (index++; index < line.length; index++) {
@@ -382,21 +332,21 @@ function hasUnsafeIntegerToken(line) {
             continue;
         }
         if (char === '-' || (char !== undefined && char >= '0' && char <= '9')) {
-            var end = index + 1;
+            let end = index + 1;
             while (end < line.length) {
-                var c = line[end];
+                const c = line[end];
                 if ((c >= '0' && c <= '9') || c === '.' || c === 'e' || c === 'E' || c === '+' || c === '-')
                     end++;
                 else
                     break;
             }
-            var token = line.slice(index, end);
+            const token = line.slice(index, end);
             // Beyond the safe range an integer token is still lossless IFF the
             // double parse round-trips exactly (2**53 does; 2**53+1 rounds) — the
             // canonical boundary accepts every JS-double-exact value, so only a
             // genuinely rounding token marks the frame as forged.
             if (/^-?\d+$/.test(token)) {
-                var parsed = Number(token);
+                const parsed = Number(token);
                 // A token that parses to Infinity is trivially lossy; a finite
                 // beyond-safe-range one is lossy only when the BigInt round-trip
                 // disagrees.
@@ -422,33 +372,11 @@ function hasUnsafeIntegerToken(line) {
  * @param record - a JSON-parse-produced object.
  * @yields each own enumerable property value, in key order.
  */
-function ownValues(record) {
-    var _a, _b, _c, _i, key;
-    return __generator(this, function (_d) {
-        switch (_d.label) {
-            case 0:
-                _a = record;
-                _b = [];
-                for (_c in _a)
-                    _b.push(_c);
-                _i = 0;
-                _d.label = 1;
-            case 1:
-                if (!(_i < _b.length)) return [3 /*break*/, 4];
-                _c = _b[_i];
-                if (!(_c in _a)) return [3 /*break*/, 3];
-                key = _c;
-                if (!Object.hasOwn(record, key)) return [3 /*break*/, 3];
-                return [4 /*yield*/, record[key]];
-            case 2:
-                _d.sent();
-                _d.label = 3;
-            case 3:
-                _i++;
-                return [3 /*break*/, 1];
-            case 4: return [2 /*return*/];
-        }
-    });
+function* ownValues(record) {
+    for (const key in record) {
+        if (Object.hasOwn(record, key))
+            yield record[key];
+    }
 }
 /**
  * Whether a JSON.parse-produced value contains a number outside lossless
@@ -470,17 +398,17 @@ function ownValues(record) {
  * @param value - a JSON-parse-produced value from an fd-3 frame.
  * @returns true when any contained number is non-finite or negative zero.
  */
-function hasNonLosslessNumber(value) {
-    var cursors = [[value].values()];
+export function hasNonLosslessNumber(value) {
+    const cursors = [[value].values()];
     while (cursors.length > 0) {
         // The loop condition guarantees a top cursor.
-        var cursor = cursors.at(-1);
-        var step = cursor.next();
+        const cursor = cursors.at(-1);
+        const step = cursor.next();
         if (step.done === true) {
             cursors.pop();
             continue;
         }
-        var current = step.value;
+        const current = step.value;
         if (typeof current === 'number') {
             if (!Number.isFinite(current) || Object.is(current, -0))
                 return true;
@@ -504,10 +432,10 @@ function hasNonLosslessNumber(value) {
  * @param raw - one JSON-parsed frame from fd 3.
  * @returns the rebuilt frame, or `undefined` to drop it silently.
  */
-function validateChildFrame(raw) {
+export function validateChildFrame(raw) {
     if (typeof raw !== 'object' || raw === null)
         return undefined;
-    var m = raw;
+    const m = raw;
     switch (m.type) {
         case 'boot-ack':
             return { type: 'boot-ack' };
@@ -517,7 +445,7 @@ function validateChildFrame(raw) {
             // Rebuilt, not passed through: a forged `truncated` of any other type
             // would reach the host as a truthy value and silence capture for the
             // rest of the run. Only the literal `true` counts.
-            return __assign({ type: 'log', text: m.text }, m.truncated === true ? { truncated: true } : {});
+            return { type: 'log', text: m.text, ...m.truncated === true ? { truncated: true } : {} };
         case 'call': {
             // The id must be a finite number: it is echoed verbatim into the reply
             // frame, and a forged `1e400` id (Infinity after JSON.parse) would make
@@ -546,22 +474,23 @@ function validateChildFrame(raw) {
             // byte cap runs. The done handler's bounded `checkDoneValue` folds the
             // losslessness check into the metered traversal, rejecting over-budget
             // before it enqueues children.
-            var err = m.error;
+            const err = m.error;
             if (err === undefined) {
                 return m.value === undefined ? { type: 'done' } : { type: 'done', value: m.value };
             }
             if (typeof err !== 'object' || err === null)
                 return undefined;
-            var _a = err, kind = _a.kind, message = _a.message;
+            const { kind, message } = err;
             if (typeof message !== 'string')
                 return undefined;
             if (kind !== 'exception' && kind !== 'invalid-output' && kind !== 'output-limit')
                 return undefined;
             return m.value === undefined
-                ? { type: 'done', error: { kind: kind, message: message } }
-                : { type: 'done', value: m.value, error: { kind: kind, message: message } };
+                ? { type: 'done', error: { kind, message } }
+                : { type: 'done', value: m.value, error: { kind, message } };
         }
         default:
             return undefined;
     }
 }
+//# sourceMappingURL=protocol.js.map

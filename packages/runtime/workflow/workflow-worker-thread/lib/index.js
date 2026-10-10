@@ -1,12 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { availableParallelism, tmpdir } from "node:os";
 import * as vm from "node:vm";
-import z from "@z/schemastery";
-import WorkflowEngine, { WorkflowError, WorkflowRunId } from "@z/dsh-workflow";
+import z from "@taskweaver/schemastery";
+import WorkflowEngine, { WorkflowError, WorkflowRunId } from "@taskweaver/dsh-workflow";
 import { Worker } from "node:worker_threads";
 import { fileURLToPath } from "node:url";
-import { assertNever } from "@z/dsh-llm";
-import { snapshotJsonValue } from "@z/dsh-session";
+import { assertNever } from "@taskweaver/dsh-llm";
+import { snapshotJsonValue } from "@taskweaver/dsh-session";
 //#region lib/types/realm.js
 /**
 * Materializes values leaving the script vm into plain JSON before they cross the worker
@@ -15,7 +15,7 @@ import { snapshotJsonValue } from "@z/dsh-session";
 * run, and the vm is not a security boundary. The worker provides host-loop isolation and
 * forced termination, not hostile-value containment. See
 * .agents/notes/implemented/feature/2026-07-05-dynamic-workflows.md for the isolation rationale.
-* @module @z/dsh-workflow-worker-thread/realm
+* @module @taskweaver/dsh-workflow-worker-thread/realm
 */
 /** Thrown by {@link materializeFromRealm}; the caller wraps it into the right `WorkflowError` code. */
 var MaterializeError = class extends Error {
@@ -91,7 +91,6 @@ function materialize(value, path, seen) {
 		case "function": throw new MaterializeError(path, "functions are not plain JSON data");
 		case "symbol": throw new MaterializeError(path, "symbols are not plain JSON data");
 		case "undefined": throw new MaterializeError(path, "undefined is not JSON data");
-		case "object": break;
 	}
 	if (value === null) return null;
 	const objectValue = value;
@@ -137,7 +136,7 @@ function materializeObject(value, path, seen) {
 * unions derived from them. Payloads are plain JSON by construction for structured clone. Both
 * directions are closed engine protocols whose receivers use `assertNever`; generic typed senders
 * make tag/payload mismatches compile-time errors rather than silently skipped messages.
-* @module @z/dsh-workflow-worker-thread/protocol
+* @module @taskweaver/dsh-workflow-worker-thread/protocol
 */
 /** Message tags the worker sends the host (the wire values are the tag strings). */
 var WorkerToHostType;
@@ -184,7 +183,7 @@ var HostToWorkerType;
 * cancellation-grace expiry owns settlement and closes message admission.
 * Pending starts share one abort signal; published children share idempotent
 * cleanup, and quiescence waits for both while synthesizing any missing end events.
-* @module @z/dsh-workflow-worker-thread/host
+* @module @taskweaver/dsh-workflow-worker-thread/host
 */
 /**
 * The scrubbed worker environment: no ambient credentials, no loader flags.
@@ -641,13 +640,15 @@ var WorkerRun = class {
 			if (!outcomeWasClaimed) this.terminalClaimed = true;
 			if (this.children.size > 0 || this.pendingStarts.size > 0) this.reapChildren("workflow worker gone");
 			this.endStrandedAgents();
-			if (!outcomeWasClaimed) if (cancellationWasRequested) this.settleResult(this.cancelledResult(this.hostStarted));
-			else this.settleResult({
-				value: null,
-				stopReason: "error",
-				error: message,
-				agentsStarted: this.hostStarted
-			});
+			if (!outcomeWasClaimed) {
+				if (cancellationWasRequested) this.settleResult(this.cancelledResult(this.hostStarted));
+				else this.settleResult({
+					value: null,
+					stopReason: "error",
+					error: message,
+					agentsStarted: this.hostStarted
+				});
+			}
 		}
 		if (!isExit) return;
 		for (const [callId, record] of [...this.children]) this.disposeChild(callId, record);
@@ -724,14 +725,14 @@ function sleep(ms) {
 * contract and rejects every violation by name. Meta arrives as schema-checked
 * JSON data, never evaluated script text; evaluating it on the host could run getters outside the
 * worker timeout that exists to isolate model-written code.
-* @module @z/dsh-workflow-worker-thread/meta
+* @module @taskweaver/dsh-workflow-worker-thread/meta
 */
 /** Collect shape violations for a meta value (plain JSON data by the seam contract). */
 function validateMetaShape(meta) {
 	const violations = [];
 	if (typeof meta !== "object" || meta === null || Array.isArray(meta)) return { violations: ["meta must be an object"] };
 	const record = meta;
-	const known = new Set([
+	const known = /* @__PURE__ */ new Set([
 		"name",
 		"description",
 		"whenToUse",
@@ -742,30 +743,32 @@ function validateMetaShape(meta) {
 	if (typeof record.description !== "string" || record.description.length === 0) violations.push("meta.description must be a non-empty string");
 	if (record.whenToUse !== void 0 && typeof record.whenToUse !== "string") violations.push("meta.whenToUse must be a string");
 	const phases = [];
-	if (record.phases !== void 0) if (!Array.isArray(record.phases)) violations.push("meta.phases must be an array");
-	else record.phases.forEach((phase, index) => {
-		if (typeof phase !== "object" || phase === null || Array.isArray(phase)) {
-			violations.push(`meta.phases[${index}] must be an object`);
-			return;
-		}
-		const entry = phase;
-		for (const key of Object.keys(entry)) if (![
-			"title",
-			"detail",
-			"provider",
-			"model"
-		].includes(key)) violations.push(`meta.phases[${index}].${key} is not a recognized field`);
-		if (typeof entry.title !== "string" || entry.title.length === 0) violations.push(`meta.phases[${index}].title must be a non-empty string`);
-		if (entry.detail !== void 0 && typeof entry.detail !== "string") violations.push(`meta.phases[${index}].detail must be a string`);
-		if (entry.provider !== void 0 && typeof entry.provider !== "string") violations.push(`meta.phases[${index}].provider must be a string`);
-		if (entry.model !== void 0 && typeof entry.model !== "string") violations.push(`meta.phases[${index}].model must be a string`);
-		if (violations.length === 0) phases.push({
-			title: entry.title,
-			...entry.detail !== void 0 ? { detail: entry.detail } : {},
-			...entry.provider !== void 0 ? { provider: entry.provider } : {},
-			...entry.model !== void 0 ? { model: entry.model } : {}
+	if (record.phases !== void 0) {
+		if (!Array.isArray(record.phases)) violations.push("meta.phases must be an array");
+		else record.phases.forEach((phase, index) => {
+			if (typeof phase !== "object" || phase === null || Array.isArray(phase)) {
+				violations.push(`meta.phases[${index}] must be an object`);
+				return;
+			}
+			const entry = phase;
+			for (const key of Object.keys(entry)) if (![
+				"title",
+				"detail",
+				"provider",
+				"model"
+			].includes(key)) violations.push(`meta.phases[${index}].${key} is not a recognized field`);
+			if (typeof entry.title !== "string" || entry.title.length === 0) violations.push(`meta.phases[${index}].title must be a non-empty string`);
+			if (entry.detail !== void 0 && typeof entry.detail !== "string") violations.push(`meta.phases[${index}].detail must be a string`);
+			if (entry.provider !== void 0 && typeof entry.provider !== "string") violations.push(`meta.phases[${index}].provider must be a string`);
+			if (entry.model !== void 0 && typeof entry.model !== "string") violations.push(`meta.phases[${index}].model must be a string`);
+			if (violations.length === 0) phases.push({
+				title: entry.title,
+				...entry.detail !== void 0 ? { detail: entry.detail } : {},
+				...entry.provider !== void 0 ? { provider: entry.provider } : {},
+				...entry.model !== void 0 ? { model: entry.model } : {}
+			});
 		});
-	});
+	}
 	if (violations.length > 0) return { violations };
 	return {
 		violations,
@@ -798,7 +801,7 @@ function validateMeta(value) {
 * an escapable vm context on a fresh worker and bridges `agent()` calls to host
 * subagents. The thread prevents synchronous script work from blocking the host
 * and permits forced termination, but it is containment rather than a security boundary.
-* @module @z/dsh-workflow-worker-thread
+* @module @taskweaver/dsh-workflow-worker-thread
 */
 /** A body that still carries the Claude Code-style meta header (meta rides the seam as data here). */
 const META_STATEMENT = /^\s*export\s+const\s+meta\b/;

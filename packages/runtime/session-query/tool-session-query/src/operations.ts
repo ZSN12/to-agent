@@ -1,20 +1,20 @@
 /**
  * Tool operation orchestration over session-query service capabilities.
  *
- * @module @z/dsh-tool-session-query/operations
+ * @module @taskweaver/dsh-tool-session-query/operations
  */
 
-import type { Context } from '@z/cordis'
-import { HarnessError } from '@z/dsh-llm'
-import type { SessionId } from '@z/dsh-session'
+import type { Context } from '@taskweaver/cordis'
+import { HarnessError } from '@taskweaver/dsh-llm'
+import type { SessionId } from '@taskweaver/dsh-session'
 import {
   SessionQueryError,
   type SessionEventSearchPage,
   type SessionEventSurface,
   type SessionRecord,
   type SessionSearchCursor,
-} from '@z/dsh-session-query'
-import type { ToolRunContext } from '@z/dsh-tools'
+} from '@taskweaver/dsh-session-query'
+import type { ToolRunContext } from '@taskweaver/dsh-tools'
 import { toolInput } from './input.ts'
 import { presentation } from './presentation.ts'
 import { serviceBoundary } from './service-boundary.ts'

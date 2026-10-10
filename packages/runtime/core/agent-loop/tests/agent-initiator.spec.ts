@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { Context, type Fiber } from '@z/cordis'
-import AgentRegistry, { type Agent } from '@z/dsh-agent'
-import AgentLoop from '@z/dsh-agent-loop'
-import LlmRuntime, { createUserMessage, CallId, LlmAdapter  } from '@z/dsh-llm'
-import type { GenerateOptions, StreamChunk } from '@z/dsh-llm'
-import SessionStore, { SessionId } from '@z/dsh-session'
-import SystemPrompt from '@z/dsh-system-prompt'
-import ToolRuntime, { defineContentToolFixture } from '@z/dsh-tools'
+import { Context, type Fiber } from '@taskweaver/cordis'
+import AgentRegistry, { type Agent } from '@taskweaver/dsh-agent'
+import AgentLoop from '@taskweaver/dsh-agent-loop'
+import LlmRuntime, { createUserMessage, CallId, LlmAdapter  } from '@taskweaver/dsh-llm'
+import type { GenerateOptions, StreamChunk } from '@taskweaver/dsh-llm'
+import SessionStore, { SessionId } from '@taskweaver/dsh-session'
+import SystemPrompt from '@taskweaver/dsh-system-prompt'
+import ToolRuntime, { defineContentToolFixture } from '@taskweaver/dsh-tools'
 import { MockAdapter, textResponse, toolCallResponse } from './mock-adapter.ts'
 
 const testToolSignal = new AbortController().signal
@@ -116,6 +116,33 @@ class ReloadAdapter extends LlmAdapter {
 }
 
 describe('AgentLoop initiator scope', () => {
+  it('forwards the input schema only through its owning turn', async () => {
+    const adapter = new MockAdapter([textResponse('{"ok":true}'), textResponse('ordinary reply')])
+    const ctx = await harness(adapter)
+    const agent = ctx.ctx.agentLoop.create(SessionId('structured-output'), { provider: 'mock', model: 'mock' })
+    const schema = {
+      type: 'object' as const,
+      properties: { ok: { type: 'boolean' as const } },
+      required: ['ok'],
+      additionalProperties: false,
+    }
+
+    const structuredIdle = waitForIdle(ctx.ctx, agent)
+    agent.followup(createUserMessage({
+      content: [{ type: 'text', text: 'return JSON' }],
+      source: { kind: 'user', outputSchema: schema },
+    }))
+    await structuredIdle
+
+    const ordinaryIdle = waitForIdle(ctx.ctx, agent)
+    send(agent, 'continue normally')
+    await ordinaryIdle
+
+    expect(adapter.requests.map(request => request.outputSchema)).toEqual([schema, undefined])
+    await ctx.loopFiber.dispose()
+    await ctx.agentsFiber.dispose()
+  })
+
   it('keeps overlapping driver continuations bound to their exact Agents', async () => {
     const ctx = new Context()
     const adapter = new OverlapAdapter(ctx)

@@ -9,7 +9,7 @@
  * the same AST walk as docs/cordis-catalog, so this data and the rendered
  * docs cannot diverge.
  *
- * @module @z/dsh-tool-cordis/api-catalog
+ * @module @taskweaver/dsh-tool-cordis/api-catalog
  */
 /** One named parameter in a Service method or Event listener. */
 export interface ApiParameter {

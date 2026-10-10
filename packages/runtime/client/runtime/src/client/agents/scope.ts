@@ -15,10 +15,10 @@
  * — a cold session's host Agent is already disposed while its client actx
  * stays alive for history viewing.
  */
-import { Context as CordisContext } from '@z/cordis'
-import type { Context, Fiber } from '@z/cordis'
-import type { SessionId } from '@z/dsh-api-remotes/client'
-import type { TypertClientRemote, TypertRemoteScopeApi } from '@z/dsh-typert-protocol'
+import { Context as CordisContext } from '@taskweaver/cordis'
+import type { Context, Fiber } from '@taskweaver/cordis'
+import type { SessionId } from '@taskweaver/dsh-api-remotes/client'
+import type { TypertClientRemote, TypertRemoteScopeApi } from '@taskweaver/dsh-typert-protocol'
 
 /** Client Cordis Context carrying one Agent identity and its scoped Remote namespaces. */
 export type AgentContext = Omit<Context, 'remote'> & {

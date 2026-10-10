@@ -1,16 +1,16 @@
-import { Context, Fiber, Inject } from '@z/cordis'
-import { deepEqual, isNullable } from '@z/cosmokit'
+import { Context, Fiber, Inject } from '@taskweaver/cordis'
+import { deepEqual, isNullable } from '@taskweaver/cosmokit'
 import { Loader } from '../index.ts'
 import { EntryGroup } from './group.ts'
 import { EntryTree } from './tree.ts'
-import { evaluate, isJsExpr } from './utils.ts'
+import { evaluate, isJsExpr, type JsExpr } from './utils.ts'
 
 /** Serialized plugin entry options stored in loader config files. */
 export interface EntryOptions {
   /** Stable id inside the containing entry tree. */
   id: string
-  /** Module specifier imported by the entry tree. */
-  name: string
+  /** Module specifier imported by the entry tree (or a `!!js` expression resolving to one). */
+  name: string | JsExpr
   /** Config passed to the plugin. */
   config?: any
   /** Marks this entry as a nested group. */
@@ -21,9 +21,13 @@ export interface EntryOptions {
   inject?: Inject | null
 }
 
+function formatEntryName(name: EntryOptions['name']): string {
+  return isJsExpr(name) ? '!!js' : String(name)
+}
+
 function updateError(stage: 'import' | 'dispose' | 'apply' | 'rollback', options: EntryOptions, cause: unknown) {
   const detail = cause instanceof Error ? cause.message : String(cause)
-  return new Error(`failed to ${stage} loader entry ${options.id} (${options.name}): ${detail}`, { cause })
+  return new Error(`failed to ${stage} loader entry ${options.id} (${formatEntryName(options.name)}): ${detail}`, { cause })
 }
 
 function takeEntries(object: {}, keys: string[]) {
@@ -109,6 +113,14 @@ export class Entry {
 
   evaluate(expr: string) {
     return evaluate(this.ctx, expr)
+  }
+
+  private resolveImportName(name: EntryOptions['name']): string {
+    const resolved = isJsExpr(name) ? evaluate(this.ctx, name.__jsExpr) : name
+    if (typeof resolved !== 'string' || resolved.length === 0) {
+      throw new TypeError(`loader entry ${this.options.id} name must resolve to a non-empty string`)
+    }
+    return resolved
   }
 
   private async _patchContext(diff: string[]) {
@@ -214,7 +226,9 @@ export class Entry {
     let plugin: any
     try {
       plugin = diff.includes('name')
-        ? this.loader.unwrapExports(await this.parent.tree.import(candidate.name, this.getOuterStack))
+        ? this.loader.unwrapExports(
+          await this.parent.tree.import(this.resolveImportName(candidate.name), this.getOuterStack),
+        )
         : previous.runtime!.callback
     } catch (error) {
       throw updateError('import', candidate, error)
@@ -277,7 +291,9 @@ export class Entry {
   private async _init() {
     let plugin: any
     try {
-      plugin = this.loader.unwrapExports(await this.parent.tree.import(this.options.name, this.getOuterStack))
+      plugin = this.loader.unwrapExports(
+        await this.parent.tree.import(this.resolveImportName(this.options.name), this.getOuterStack),
+      )
     } catch (error) {
       throw updateError('import', this.options, error)
     }

@@ -1,6 +1,6 @@
 /** Strict replay fold for Agent Teams log-only events. */
 import { z } from 'zod';
-import { SessionId } from '@z/dsh-session';
+import { SessionId } from '@taskweaver/dsh-session';
 import { TeamId as toTeamId, TeamMessageId as toTeamMessageId, TeamTaskId as toTeamTaskId, } from "./types.js";
 import { assertTaskGraphCandidate } from "./task-graph.js";
 const nonNegativeSafeInteger = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);

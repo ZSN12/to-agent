@@ -2,11 +2,11 @@ import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import { LocalBashExecutor } from '@z/dsh-bash-local'
-import LocalSubprocessRuntime from '@z/dsh-subprocess-local'
-import { MAX_TIMER_DELAY_MS } from '@z/dsh-timeout'
-import type { ShellProcess } from '@z/dsh-shell'
+import { Context } from '@taskweaver/cordis'
+import { LocalBashExecutor } from '@taskweaver/dsh-bash-local'
+import LocalSubprocessRuntime from '@taskweaver/dsh-subprocess-local'
+import { MAX_TIMER_DELAY_MS } from '@taskweaver/dsh-timeout'
+import type { ShellProcess } from '@taskweaver/dsh-shell'
 
 const spillDir = mkdtempSync(join(tmpdir(), 'dsh-bash-exec-spec-'))
 
@@ -136,15 +136,15 @@ describe('LocalBashExecutor.run', () => {
   it('resolve() carries stdin/env/dshEnv onto the spec, and run() threads them to the command', async () => {
     const { bash } = await setup()
     const spec = bash.resolve({
-      command: 'cat; echo "[$SEAM_VAR][$DSH_SEAM_VAR]"',
+      command: 'cat; echo "[$SEAM_VAR][$TASKWEAVER_SEAM_VAR]"',
       stdin: 'piped\n',
       env: { SEAM_VAR: 'env-ok' },
-      dshEnv: { DSH_SEAM_VAR: 'dsh-ok' },
+      dshEnv: { TASKWEAVER_SEAM_VAR: 'dsh-ok' },
     })
     // resolve() keeps the optional input/environment fields verbatim.
     expect(spec.stdin).toBe('piped\n')
     expect(spec.env).toEqual({ SEAM_VAR: 'env-ok' })
-    expect(spec.dshEnv).toEqual({ DSH_SEAM_VAR: 'dsh-ok' })
+    expect(spec.dshEnv).toEqual({ TASKWEAVER_SEAM_VAR: 'dsh-ok' })
     const result = await bash.run(spec)
     expect(result.stdout.text).toBe('piped\n[env-ok][dsh-ok]\n')
   })
@@ -173,10 +173,10 @@ describe('LocalBashExecutor.start (background process handles)', () => {
   it('threads stdin and extra env into a background process', async () => {
     const { bash } = await setup()
     const proc = bash.start(bash.resolve({
-      command: 'cat; echo "[$BG_VAR][$DSH_BG_VAR]"',
+      command: 'cat; echo "[$BG_VAR][$TASKWEAVER_BG_VAR]"',
       stdin: 'bg-stdin\n',
       env: { BG_VAR: 'bg-env' },
-      dshEnv: { DSH_BG_VAR: 'bg-dsh-env' },
+      dshEnv: { TASKWEAVER_BG_VAR: 'bg-dsh-env' },
     }))
     const output = await readUntil(proc, '[bg-env][bg-dsh-env]')
     expect(output).toContain('bg-stdin')

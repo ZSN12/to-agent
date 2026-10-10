@@ -8,9 +8,9 @@
  * the process machinery itself (spawn, env scrub, tree-scoped teardown)
  * belongs to the `dsh-subprocess` seam.
  *
- * @module @z/dsh-subagent/out-of-process
+ * @module @taskweaver/dsh-subagent/out-of-process
  */
-import type { ContentBlock } from '@z/dsh-llm';
+import type { ContentBlock } from '@taskweaver/dsh-llm';
 import type { SubagentCapabilities, SubagentResult, SubagentRun, SubagentStopReason } from './types.ts';
 /**
  * The capability advertisement of an out-of-process backend: NONE. A child in

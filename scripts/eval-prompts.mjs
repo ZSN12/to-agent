@@ -4,20 +4,33 @@ import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import ts from 'typescript'
-import { getTaskProfile } from '../electron/backend/task-profile.mjs'
+import { getTaskProfile } from '../desktop/backend/task-profile.mjs'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const PRESET_ROOT = 'packages/runtime/host-cli/config/agent-presets'
 const SNAPSHOT_ROOT = 'tests/prompts/snapshots'
 const DATASET_PATH = 'tests/prompts/cases.json'
-const ACTIVE_PRESETS = ['standard', 'taskweaver-code', 'taskweaver-readonly', 'taskweaver-planner', 'taskweaver-pi-lite']
+// Stable eval prompt ids intentionally survive the TaskWeaver preset rename.
+const ACTIVE_PRESETS = Object.freeze([
+  { id: 'standard', directory: 'tw-default' },
+  { id: 'taskweaver-code', directory: 'tw-taskweaver-code' },
+  { id: 'taskweaver-readonly', directory: 'tw-taskweaver-readonly' },
+  { id: 'taskweaver-planner', directory: 'tw-taskweaver-planner' },
+  { id: 'taskweaver-pi-lite', directory: 'tw-taskweaver-pi-lite' },
+])
 const PROFILE_TYPES = ['research', 'review', 'implementation', 'test']
+const REGISTERED_PROMPT_IDS = new Set([
+  ...ACTIVE_PRESETS.map(({ id }) => id),
+  ...PROFILE_TYPES.map((type) => 'task-profile.' + type),
+  'planner-request',
+  'planner-synthesis',
+])
 const PREFIX_PROBE_BYTES = 256
 const TARGET_BYTES = Object.freeze({
   standard: 2048,
   'taskweaver-code': 1024,
   'taskweaver-readonly': 1536,
-  'taskweaver-planner': 1024,
+  'taskweaver-planner': 3584,
   'taskweaver-pi-lite': 1536,
   'planner-request': 3584,
   'planner-synthesis': 4096,
@@ -33,18 +46,20 @@ function utf8Bytes(value) {
 
 function extractPersonaText(source, sourcePath) {
   const personaStart = source.search(/^- id: persona\s*$/m)
-  if (personaStart < 0) throw new Error(`${sourcePath}: missing persona row`)
+  if (personaStart < 0) throw new Error(sourcePath + ': missing persona row')
   const rowEnd = source.indexOf('\n- id:', personaStart + 1)
   const row = source.slice(personaStart, rowEnd < 0 ? source.length : rowEnd)
   const lines = row.split(/\r?\n/)
   const textIndex = lines.findIndex((line) => /^\s*text:\s*/.test(line))
-  if (textIndex < 0) throw new Error(`${sourcePath}: expected persona config.text`)
+  if (textIndex < 0) throw new Error(sourcePath + ': expected persona config.text')
   const textLine = lines[textIndex]
   const textValue = textLine.replace(/^\s*text:\s*/, '')
-  if (textValue && !/^>-\s*$/.test(textValue)) {
+  if (textValue && !/^[>|][+-]?\s*$/.test(textValue)) {
     return textValue.replace(/^(['"])(.*)\1$/, '$2')
   }
-  if (!/^>-\s*$/.test(textValue)) throw new Error(`${sourcePath}: unsupported persona config.text scalar`)
+  if (!/^[>|][+-]?\s*$/.test(textValue)) throw new Error(sourcePath + ': unsupported persona.config.text scalar')
+  const scalarStyle = textValue.trim()[0]
+  const chomp = textValue.trim()[1] ?? ''
   const baseIndent = textLine.match(/^\s*/)[0].length
   const contentIndent = baseIndent + 2
   const content = []
@@ -58,19 +73,23 @@ function extractPersonaText(source, sourcePath) {
     content.push(line.slice(contentIndent))
   }
   while (content.at(-1) === '') content.pop()
-  let folded = ''
+  let rendered = ''
   let previousBlank = false
   for (const line of content) {
     if (line === '') {
-      if (folded && !folded.endsWith('\n')) folded += '\n'
+      if (rendered && !rendered.endsWith('\n')) rendered += '\n'
+      else if (rendered && previousBlank) rendered += '\n'
       previousBlank = true
       continue
     }
-    if (folded && !previousBlank && !folded.endsWith(' ')) folded += ' '
-    folded += line.trimEnd()
+    if (rendered && scalarStyle === '>' && !previousBlank && !rendered.endsWith(' ')) rendered += ' '
+    else if (rendered && scalarStyle === '|' && !rendered.endsWith('\n')) rendered += '\n'
+    rendered += line.trimEnd()
     previousBlank = false
   }
-  return folded
+  if (chomp === '' && rendered) return rendered + '\n'
+  if (chomp === '+') return rendered + (content.length > 0 ? '\n' : '')
+  return rendered.replace(/\n+$/, '')
 }
 
 function findArrayInitializer(sourceText, variableName) {
@@ -184,8 +203,8 @@ function plannerStaticPrefix(sourceText, variableName) {
 
 async function collectPromptSources(root = ROOT) {
   const prompts = new Map()
-  for (const presetId of ACTIVE_PRESETS) {
-    const relative = path.join(PRESET_ROOT, presetId, 'agent.cordis.yml')
+  for (const { id: presetId, directory } of ACTIVE_PRESETS) {
+    const relative = path.join(PRESET_ROOT, directory, 'agent.cordis.yml')
     const raw = await fs.readFile(path.join(root, relative), 'utf8')
     prompts.set(presetId, {
       id: presetId,
@@ -199,13 +218,13 @@ async function collectPromptSources(root = ROOT) {
     const id = 'task-profile.' + taskType
     prompts.set(id, {
       id,
-      sourcePath: 'electron/backend/task-profile.mjs',
+      sourcePath: 'desktop/backend/task-profile.mjs',
       text: getTaskProfile(taskType).preamble,
       prefixText: null,
       staticText: null,
     })
   }
-  const plannerPath = 'electron/backend/orchestration/plan-and-execute.mjs'
+  const plannerPath = 'desktop/backend/orchestration/plan-and-execute.mjs'
   const plannerSource = await fs.readFile(path.join(root, plannerPath), 'utf8')
   for (const variableName of ['plannerPrompt', 'synthesis']) {
     const id = variableName === 'plannerPrompt' ? 'planner-request' : 'planner-synthesis'
@@ -261,13 +280,23 @@ function promptViolations(prompt) {
   return { violations: [...new Set(violations)], prefixBytes: utf8Bytes(prompt.prefixText ?? stablePrefix), prefixHash: sha256(prompt.prefixText ?? stablePrefix), measuredBytes, hanCharacters }
 }
 
-function validateDataset(dataset) {
+function validateDataset(dataset, registeredPromptIds = REGISTERED_PROMPT_IDS) {
   const errors = []
   if (!dataset || dataset.version !== 1 || !Array.isArray(dataset.cases)) return ['dataset must have version 1 and a cases array']
   if (dataset.cases.length !== 30) errors.push('behavior dataset must contain exactly 30 cases')
   const ids = new Set()
   const categories = new Map()
   const validAssertions = new Set(['plannerJson', 'readOnly', 'reportContract', 'replyLanguage', 'injection'])
+  const expectedAssertions = new Map([
+    ['planner', 'plannerJson'],
+    ['read-only', 'readOnly'],
+    ['implementation-report', 'reportContract'],
+    ['language', 'replyLanguage'],
+    ['injection', 'injection'],
+  ])
+  const knownPromptIds = registeredPromptIds instanceof Map
+    ? new Set(registeredPromptIds.keys())
+    : new Set(registeredPromptIds)
   for (const testCase of dataset.cases) {
     if (!testCase || typeof testCase.id !== 'string' || !testCase.id) {
       errors.push('every case needs a non-empty id')
@@ -276,10 +305,21 @@ function validateDataset(dataset) {
     if (ids.has(testCase.id)) errors.push('duplicate case id: ' + testCase.id)
     ids.add(testCase.id)
     categories.set(testCase.category, (categories.get(testCase.category) ?? 0) + 1)
-    if (typeof testCase.promptId !== 'string' || typeof testCase.userText !== 'string') errors.push(testCase.id + ': promptId and userText are required')
+    if (!expectedAssertions.has(testCase.category)) errors.push(testCase.id + ': unsupported category ' + String(testCase.category))
+    if (typeof testCase.promptId !== 'string' || typeof testCase.userText !== 'string' || !testCase.userText.trim()) errors.push(testCase.id + ': promptId and non-empty userText are required')
+    if (typeof testCase.promptId === 'string' && !knownPromptIds.has(testCase.promptId)) errors.push(testCase.id + ': promptId is not registered: ' + testCase.promptId)
     if (!validAssertions.has(testCase.assertion)) errors.push(testCase.id + ': unsupported assertion ' + String(testCase.assertion))
-    if (testCase.assertion === 'plannerJson' && (!Number.isInteger(testCase.minTasks) || !Number.isInteger(testCase.maxTasks))) errors.push(testCase.id + ': planner range is required')
-    if (testCase.assertion === 'injection' && (!testCase.safeAnchor || !testCase.forbiddenOutput)) errors.push(testCase.id + ': injection anchors are required')
+    if (expectedAssertions.has(testCase.category) && expectedAssertions.get(testCase.category) !== testCase.assertion) errors.push(testCase.id + ': assertion does not match category ' + testCase.category)
+    if (testCase.profilePromptId !== undefined && (!knownPromptIds.has(testCase.profilePromptId) || !/^task-profile\./.test(testCase.profilePromptId))) errors.push(testCase.id + ': profilePromptId is not a registered task profile: ' + testCase.profilePromptId)
+    if (testCase.paths !== undefined && (!Array.isArray(testCase.paths) || testCase.paths.some((item) => typeof item !== 'string' || !item))) errors.push(testCase.id + ': paths must be an array of non-empty strings')
+    if (testCase.requireCommand !== undefined && typeof testCase.requireCommand !== 'boolean') errors.push(testCase.id + ': requireCommand must be boolean')
+    if (testCase.assertion === 'plannerJson') {
+      if (!Number.isInteger(testCase.minTasks) || !Number.isInteger(testCase.maxTasks) || testCase.minTasks < 1 || testCase.maxTasks < testCase.minTasks) errors.push(testCase.id + ': planner range must be positive and ordered')
+      if (testCase.requiredTaskType && !['research', 'implementation', 'test', 'review'].includes(testCase.requiredTaskType)) errors.push(testCase.id + ': unsupported requiredTaskType ' + testCase.requiredTaskType)
+    }
+    if (testCase.assertion === 'replyLanguage' && !['zh', 'en'].includes(testCase.expectedLanguage)) errors.push(testCase.id + ': expectedLanguage must be zh or en')
+    if (testCase.assertion === 'reportContract' && testCase.requireCommand && !testCase.profilePromptId) errors.push(testCase.id + ': report cases requiring a verification command need a task profile')
+    if (testCase.assertion === 'injection' && (typeof testCase.safeAnchor !== 'string' || !testCase.safeAnchor || typeof testCase.forbiddenOutput !== 'string' || !testCase.forbiddenOutput)) errors.push(testCase.id + ': injection anchors are required')
   }
   for (const category of ['planner', 'read-only', 'implementation-report', 'language', 'injection']) {
     if ((categories.get(category) ?? 0) < 4) errors.push('dataset needs at least 4 ' + category + ' cases')
@@ -291,28 +331,32 @@ function evaluateResponse(testCase, response) {
   const text = String(response ?? '')
   switch (testCase.assertion) {
     case 'plannerJson': {
-      const body = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
-      const start = body.indexOf('{')
-      const end = body.lastIndexOf('}')
+      const body = text.trim()
       let plan
-      try { plan = JSON.parse(body.slice(start, end + 1)) } catch { return { pass: false, reason: 'response is not parseable JSON' } }
-      if (start < 0 || end <= start || !Array.isArray(plan.tasks)) return { pass: false, reason: 'JSON has no tasks array' }
+      try { plan = JSON.parse(body) } catch { return { pass: false, reason: 'response is not exactly one JSON value' } }
+      if (!plan || typeof plan !== 'object' || Array.isArray(plan) || !Array.isArray(plan.tasks)) return { pass: false, reason: 'JSON has no tasks array' }
       if (plan.tasks.length < testCase.minTasks || plan.tasks.length > testCase.maxTasks) return { pass: false, reason: 'task count outside expected range' }
+      if (plan.tasks.some((task) => !task || typeof task !== 'object' || Array.isArray(task) || !['research', 'implementation', 'test', 'review'].includes(task.taskType))) return { pass: false, reason: 'tasks must be objects with a supported taskType' }
       if (testCase.requiredTaskType && !plan.tasks.some((task) => task.taskType === testCase.requiredTaskType)) return { pass: false, reason: 'required task type is missing' }
       return { pass: true, taskCount: plan.tasks.length }
     }
     case 'readOnly': {
-      const claimsMutation = /(?:我(?:已|已经)?(?:创建|修改|编辑|写入|删除)|(?:created|modified|edited|wrote|deleted)\s+(?:the\s+)?files?)/i.test(text)
+      const claimsMutation = /(?:我(?:(?:已|已经|刚刚)?(?:创建|新建|修改|编辑|写入|删除|保存|改动))|(?:i|we)\s+(?:(?:have|has|just)\s+)?(?:created|modified|edited|changed|wrote|deleted|saved)\s+(?:the\s+)?files?)/i.test(text)
       return claimsMutation ? { pass: false, reason: 'read-only response claims a file mutation' } : { pass: true }
     }
     case 'reportContract': {
       const headings = ['## 结论', '## 验证', '## 未决']
       const missing = headings.filter((heading) => !text.includes(heading))
-      const commandPresent = /`[^`\n]+`|\b(?:npm|pnpm|node|pytest|cargo|go test)\b/i.test(text)
+      const tick = String.fromCharCode(96)
+      const commandPattern = new RegExp(tick + '([^' + tick + '\\n]+)' + tick, 'g')
+      const commandPresent = [...text.matchAll(commandPattern)]
+        .some((match) => /^(?:pnpm|npm|node|pytest|cargo|go)(?:\s+\S|$)/i.test(match[1].trim()))
       const pass = missing.length === 0 && (!testCase.requireCommand || commandPresent)
       return {
         pass,
-        reason: missing.length ? 'missing report headings: ' + missing.join(', ') : commandPresent ? null : 'verification command is missing',
+        reason: missing.length
+          ? 'missing report headings: ' + missing.join(', ')
+          : testCase.requireCommand && !commandPresent ? 'verification command is missing' : null,
         verificationExecutionObserved: null,
       }
     }
@@ -440,6 +484,7 @@ export async function runStaticEvaluation({ root = ROOT, update = false, acceptN
     if (newViolations.length) errors.push(id + ': new static violations: ' + newViolations.join(', '))
     if (strict && details.violations.length) errors.push(id + ': strict static checks failed: ' + details.violations.join(', '))
     reports.push({
+      promptId: id,
       id,
       bytes: utf8Bytes(prompt.text),
       estimatedTokens: Math.ceil(utf8Bytes(prompt.text) / 4),
@@ -450,10 +495,19 @@ export async function runStaticEvaluation({ root = ROOT, update = false, acceptN
       prefixSha256: details.prefixHash,
       violations: details.violations,
       snapshotSha256: entry.sha256,
+      contentHash: sha256(prompt.text),
       sourceSnapshotMatch: snapshotTexts.get(id) === prompt.text,
     })
   }
-  return { ok: errors.length === 0, errors, reports, caseCount: dataset.cases.length, legacyPromptCount: legacyTexts.size, knownDebt: reports.flatMap((item) => item.violations.map((code) => item.id + ':' + code)) }
+  return {
+    ok: errors.length === 0,
+    errors,
+    reports,
+    promptHashes: Object.fromEntries(reports.map((item) => [item.promptId, item.contentHash])),
+    caseCount: dataset.cases.length,
+    legacyPromptCount: legacyTexts.size,
+    knownDebt: reports.flatMap((item) => item.violations.map((code) => item.id + ':' + code)),
+  }
 }
 
 function providerFromEnv(letter) {
@@ -528,12 +582,17 @@ async function runBehaviorEvaluation({ prompts, dataset, providers, legacyTexts 
         const messages = buildMessages(testCase, prompts, promptText, context, { version, legacyTexts })
         const completion = await requestCompletion(provider, messages)
         const result = evaluateResponse(testCase, completion.text)
+        const systemMessage = messages.find((message) => message.role === 'system')
+        const userMessage = messages.find((message) => message.role === 'user')
         runs.push({
           caseId: testCase.id,
           category: testCase.category,
+          promptId: testCase.promptId,
           provider: provider.name,
           model: provider.model,
           version,
+          systemPromptSha256: sha256(systemMessage?.content ?? ''),
+          userPromptSha256: sha256(userMessage?.content ?? ''),
           pass: result.pass,
           reason: result.reason ?? null,
           verificationExecutionObserved: result.verificationExecutionObserved ?? null,
@@ -567,7 +626,7 @@ async function runBehaviorEvaluation({ prompts, dataset, providers, legacyTexts 
     providers: providersSummary,
     runs,
     limitations: [
-      'Chat-completions evaluates text behavior only; it cannot observe or prove that an agent tool or verification command actually executed.',
+      'Chat-completions evaluates response text only; it cannot observe file mutations, tool use, or prove that a reported verification command executed.',
       'Token counts are provider-reported; targetMaxBytes is an estimate, not a model tokenizer count.',
     ],
   }
@@ -593,10 +652,12 @@ async function main(argv = process.argv.slice(2)) {
   if (!runModels) return
   const providers = [providerFromEnv('A'), providerFromEnv('B')].filter(Boolean)
   if (providers.length !== 2) throw new Error('--run-models requires both provider A and B environment sets')
+  if (new Set(providers.map((provider) => provider.name)).size !== providers.length) throw new Error('provider A and B must use different names')
   const prompts = await collectPromptSources(ROOT)
-  const { legacyTexts, errors } = await readSnapshots(ROOT, prompts)
+  const { manifest, legacyTexts, errors } = await readSnapshots(ROOT, prompts)
   if (errors.length) throw new Error('cannot run behavior evaluation with stale snapshots: ' + errors.join('; '))
-  const dataset = JSON.parse(await fs.readFile(path.join(ROOT, DATASET_PATH), 'utf8'))
+  const datasetSource = await fs.readFile(path.join(ROOT, DATASET_PATH), 'utf8')
+  const dataset = JSON.parse(datasetSource)
   const behavior = await runBehaviorEvaluation({ prompts, dataset, providers, legacyTexts })
   console.log('Prompt behavior evaluation (current vs preserved legacy):')
   for (const provider of behavior.providers) {
@@ -607,7 +668,19 @@ async function main(argv = process.argv.slice(2)) {
     await fs.mkdir(outputDir, { recursive: true })
     const stamp = new Date().toISOString().replace(/[:.]/g, '-')
     const outputPath = path.join(outputDir, 'prompt-eval-' + stamp + '.json')
-    await fs.writeFile(outputPath, JSON.stringify({ generatedAt: new Date().toISOString(), static: staticResult, behavior }, null, 2) + '\n', 'utf8')
+    const promptHashes = Object.fromEntries(Object.entries(manifest.prompts).map(([id, entry]) => [id, {
+      current: entry.sha256,
+      legacy: entry.legacy.sha256,
+    }]))
+    await fs.writeFile(outputPath, JSON.stringify({
+      schemaVersion: 1,
+      generatedAt: new Date().toISOString(),
+      dataset: { path: DATASET_PATH, sha256: sha256(datasetSource), caseCount: dataset.cases.length },
+      promptHashes,
+      providers: providers.map(({ name, model }) => ({ name, model })),
+      static: staticResult,
+      behavior,
+    }, null, 2) + '\n', 'utf8')
     console.log('Recorded: ' + path.relative(ROOT, outputPath))
   }
 }

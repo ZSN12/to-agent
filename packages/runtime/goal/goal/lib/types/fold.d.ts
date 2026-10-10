@@ -1,5 +1,5 @@
 /** Pure replay fold and strict decoder for durable goal changes. */
-import type { SessionEvent } from '@z/dsh-session';
+import type { SessionEvent } from '@taskweaver/dsh-session';
 import type { GoalRef, GoalSnapshot } from './types.ts';
 import type { FoldedGoal, GoalChangeMeta } from './domain.ts';
 /** Mutable accumulator kept private to the pure fold. */

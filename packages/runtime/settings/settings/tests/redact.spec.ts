@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import z from '@z/schemastery'
+import { Context } from '@taskweaver/cordis'
+import z from '@taskweaver/schemastery'
 import { redactSecrets, settingsNamespace } from '../src/index.ts'
 import { MemorySettings } from './memory.ts'
 

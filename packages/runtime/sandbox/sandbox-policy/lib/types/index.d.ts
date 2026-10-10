@@ -15,14 +15,14 @@
  * reads session state once at each operation boundary; executors and providers
  * remain session-free.
  *
- * @module @z/dsh-sandbox-policy
+ * @module @taskweaver/dsh-sandbox-policy
  */
-import { Context, Service } from '@z/cordis';
-import z from '@z/schemastery';
-import { type SandboxExecutionPolicy, type SandboxMode } from '@z/dsh-sandbox';
-import type { Session } from '@z/dsh-session';
+import { Context, Service } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
+import { type SandboxExecutionPolicy, type SandboxMode } from '@taskweaver/dsh-sandbox';
+import type { Session } from '@taskweaver/dsh-session';
 export { SANDBOX_MODES, effectiveSandboxMode, setSandboxMode } from './session-mode.ts';
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
     interface Context {
         sandboxPolicy: SandboxPolicyService;
     }

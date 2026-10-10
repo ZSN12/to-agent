@@ -1,5 +1,5 @@
 /** Test-owned workspaces face: the renderer standard-kit observable plus recorded actions. */
-import { createSnapshotStore } from '@z/dsh-client-runtime/client';
+import { createSnapshotStore } from '@taskweaver/dsh-client-runtime/client';
 import { workspaceListState } from "./fixtures.js";
 /**
  * Workspaces test double. Implements the same IWorkspaces face features

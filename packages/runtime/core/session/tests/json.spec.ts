@@ -1,6 +1,6 @@
 import { runInNewContext } from 'node:vm'
 import { describe, expect, it } from 'vitest'
-import { isJsonValue, snapshotJsonValue, type JsonValue } from '@z/dsh-session'
+import { isJsonValue, snapshotJsonValue, type JsonValue } from '@taskweaver/dsh-session'
 
 function objectWithForgedIntrinsicPrototype(revoked = false): Record<string, unknown> {
   const prototype = Object.create(null) as Record<string, unknown>

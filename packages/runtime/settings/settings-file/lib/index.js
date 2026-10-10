@@ -1,12 +1,12 @@
-import { Service } from "@z/cordis";
-import z from "@z/schemastery";
+import { Service } from "@taskweaver/cordis";
+import z from "@taskweaver/schemastery";
 import { watch } from "chokidar";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, extname, join, resolve } from "node:path";
 import { Document, parseDocument } from "yaml";
-import { withFileLock, writeFileAtomic } from "@z/dsh-atomic-write";
-import { canonicalizeWatchPath, resolveDshHome } from "@z/dsh-home-paths";
-import { SettingsProvider, deepEqualJson } from "@z/dsh-settings";
+import { withFileLock, writeFileAtomic } from "@taskweaver/dsh-atomic-write";
+import { canonicalizeWatchPath, resolveDshHome } from "@taskweaver/dsh-home-paths";
+import { SettingsProvider, deepEqualJson } from "@taskweaver/dsh-settings";
 //#region lib/types/index.js
 /**
 * File-backed settings provider. One YAML or JSON document under the user's
@@ -14,7 +14,7 @@ import { SettingsProvider, deepEqualJson } from "@z/dsh-settings";
 * through the seam, and every write re-reads the document under a
 * cross-process writer lock before patching it as a comment-preserving
 * leaf-level diff.
-* @module @z/dsh-settings-file
+* @module @taskweaver/dsh-settings-file
 */
 const FORMATS = {
 	".yaml": "yaml",

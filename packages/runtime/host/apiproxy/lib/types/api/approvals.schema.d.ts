@@ -4,12 +4,12 @@
  * ApprovalRequestId brand cast point: one.
  */
 import { z } from 'zod';
-import type { ApprovalRequestId } from '@z/dsh-user-approval/types';
+import type { ApprovalRequestId } from '@taskweaver/dsh-user-approval/types';
 /** ApprovalRequestId: one brand cast after schema validation (the only cast point in this domain). */
 export declare const approvalRequestIdSchema: z.ZodType<ApprovalRequestId>;
 /** Approval answer payload (the result.value slot of a client-response). */
 export declare const approvalResponsePayloadSchema: z.ZodObject<{
-    sessionId: z.ZodType<import("@z/dsh-session").SessionId, unknown, z.core.$ZodTypeInternals<import("@z/dsh-session").SessionId, unknown>>;
+    sessionId: z.ZodType<import("@taskweaver/dsh-session").SessionId, unknown, z.core.$ZodTypeInternals<import("@taskweaver/dsh-session").SessionId, unknown>>;
     approvalId: z.ZodType<ApprovalRequestId, unknown, z.core.$ZodTypeInternals<ApprovalRequestId, unknown>>;
     outcome: z.ZodUnion<readonly [z.ZodLiteral<"allowed-once">, z.ZodLiteral<"rejected">]>;
 }, z.core.$strip>;

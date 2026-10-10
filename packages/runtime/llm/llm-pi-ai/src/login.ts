@@ -9,9 +9,9 @@
 
 import { createModels } from '@earendil-works/pi-ai'
 import type { AuthEvent, AuthPrompt, AuthType, Provider } from '@earendil-works/pi-ai'
-import type { Context } from '@z/cordis'
-import type { AuthorizationMethod, AuthorizationPrompt, AuthorizationSession } from '@z/dsh-authorization'
-import { isCredentialKeySegment } from '@z/dsh-credentials'
+import type { Context } from '@taskweaver/cordis'
+import type { AuthorizationMethod, AuthorizationPrompt, AuthorizationSession } from '@taskweaver/dsh-authorization'
+import { isCredentialKeySegment } from '@taskweaver/dsh-credentials'
 import { catalogProvider, catalogProviderIds } from './catalog.ts'
 import { recordKeyFor } from './auth.ts'
 import type { PiAiAuthInjection } from './adapter.ts'

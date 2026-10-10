@@ -1,13 +1,13 @@
 /**
- * Package-owned invariant companion for `@z/dsh-shell-env`.
- * @module @z/dsh-shell-env/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-shell-env`.
+ * @module @taskweaver/dsh-shell-env/invariant
  */
 
 /* jscpd:ignore-start */
-import type { Context } from '@z/cordis'
-import type { InvariantInstaller } from '@z/dsh-invariants'
+import type { Context } from '@taskweaver/cordis'
+import type { InvariantInstaller } from '@taskweaver/dsh-invariants'
 
-const PACKAGE_NAME = '@z/dsh-shell-env'
+const PACKAGE_NAME = '@taskweaver/dsh-shell-env'
 
 /** Cordis companion plugin name. */
 export const name = 'shell-env-invariant'

@@ -1,12 +1,12 @@
 /**
- * Package-owned invariant companion for the adaptive directory-picker chooser.
- * @module @z/dsh-host-directory-picker-auto/invariant
+ * Package-owned invariant companion for the native directory-picker composer.
+ * @module @taskweaver/dsh-host-directory-picker-auto/invariant
  */
 
-import type { Context } from '@z/cordis'
-import type { InvariantInstaller } from '@z/dsh-invariants'
+import type { Context } from '@taskweaver/cordis'
+import type { InvariantInstaller } from '@taskweaver/dsh-invariants'
 
-const PACKAGE_NAME = '@z/dsh-host-directory-picker-auto'
+const PACKAGE_NAME = '@taskweaver/dsh-host-directory-picker-auto'
 
 /** Cordis companion plugin name. */
 export const name = 'host-directory-picker-auto-invariant'

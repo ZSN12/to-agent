@@ -1,4 +1,3 @@
-"use strict";
 /**
  * The one home of this application's forwarded-Host-event allowlist. Both
  * compiler faces list this file, so the Host forwarding loop and the consumer
@@ -6,9 +5,7 @@
  * could drift; `./types.ts` derives the type projection from it and stays
  * type-only.
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.API_REMOTE_FORWARDED_EVENTS = void 0;
-exports.API_REMOTE_FORWARDED_EVENTS = [
+export const API_REMOTE_FORWARDED_EVENTS = [
     'authorization/settled',
     'taskweaver/authorization-notice',
     'taskweaver/authorization-prompt',
@@ -24,3 +21,4 @@ exports.API_REMOTE_FORWARDED_EVENTS = [
     'llm/adapters-updated',
     'settings/document-updated',
 ];
+//# sourceMappingURL=remote-events.js.map

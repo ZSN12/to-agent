@@ -4,7 +4,7 @@
  * namespace (repo discipline), so `./client` projects the same single-source
  * content `./types` serves to host consumers — zero duplication.
  *
- * @module @z/dsh-session-stats/client
+ * @module @taskweaver/dsh-session-stats/client
  */
 export type * from './types.ts';
 //# sourceMappingURL=client.d.ts.map

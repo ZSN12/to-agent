@@ -10,16 +10,16 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import LlmRuntime from '@z/dsh-llm'
-import { createUserMessage, LlmAdapter } from '@z/dsh-llm'
-import type { GenerateOptions, StreamChunk } from '@z/dsh-llm'
-import SessionStore, { SessionId } from '@z/dsh-session'
-import SystemPrompt from '@z/dsh-system-prompt'
-import ToolRuntime from '@z/dsh-tools'
-import AgentRegistry, { type Agent } from '@z/dsh-agent'
+import { Context } from '@taskweaver/cordis'
+import LlmRuntime from '@taskweaver/dsh-llm'
+import { createUserMessage, LlmAdapter } from '@taskweaver/dsh-llm'
+import type { GenerateOptions, StreamChunk } from '@taskweaver/dsh-llm'
+import SessionStore, { SessionId } from '@taskweaver/dsh-session'
+import SystemPrompt from '@taskweaver/dsh-system-prompt'
+import ToolRuntime from '@taskweaver/dsh-tools'
+import AgentRegistry, { type Agent } from '@taskweaver/dsh-agent'
 
-import AgentLoop from '@z/dsh-agent-loop'
+import AgentLoop from '@taskweaver/dsh-agent-loop'
 import fc from 'fast-check'
 
 /** A never-exhausting adapter: every model call returns the same short reply. */

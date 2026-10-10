@@ -1,9 +1,9 @@
 /**
  * Model-facing UTF-8 read. It performs one provider stat for type, routing, and observed version,
  * streams large or size-unknown files, renders a bounded window, then emits the observation.
- * @module @z/dsh-tool-fs/src/read
+ * @module @taskweaver/dsh-tool-fs/src/read
  */
-import type { Context } from '@z/cordis';
+import type { Context } from '@taskweaver/cordis';
 /** Default and maximum number of lines returned by one `read` call (the `readLimit` config). */
 export declare const READ_LIMIT = 2000;
 /**

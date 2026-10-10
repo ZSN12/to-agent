@@ -1,8 +1,8 @@
 /** Host registry and HTTP adapter for generic Connection RPC channels. */
-import { Context, Service } from '@z/cordis';
+import { Context, Service } from '@taskweaver/cordis';
 import { type FetchHandler } from './http-bridge.ts';
 import type { HostConnectionHandle, HostConnectionRpc } from './rpc.ts';
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
     interface Context {
         /** Host Connection transport and RPC registrations. */
         connection: HostConnectionHandle;

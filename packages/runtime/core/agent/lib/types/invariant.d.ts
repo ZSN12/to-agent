@@ -1,5 +1,5 @@
-/** Package-owned agent lifecycle invariants. @module @z/dsh-agent/invariant */
-import type { Context } from '@z/cordis';
+/** Package-owned agent lifecycle invariants. @module @taskweaver/dsh-agent/invariant */
+import type { Context } from '@taskweaver/cordis';
 /** Cordis companion plugin name. */
 export declare const name = "agent-invariant";
 /** Services required before the companion can register. */

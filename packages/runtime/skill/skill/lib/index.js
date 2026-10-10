@@ -1,18 +1,18 @@
-import { Service } from "@z/cordis";
-import { assertNever } from "@z/dsh-llm";
-import { NamedEntries, ScopedLayers, scopeChainOf, scopeOf } from "@z/dsh-scope";
-import z from "@z/schemastery";
+import { Service } from "@taskweaver/cordis";
+import { assertNever } from "@taskweaver/dsh-llm";
+import { NamedEntries, ScopedLayers, scopeChainOf, scopeOf } from "@taskweaver/dsh-scope";
+import z from "@taskweaver/schemastery";
 //#region lib/types/index.js
 /**
 * Agent skill provider registry.
 *
 * This package owns the Service Definition role of the skill capability seam.
 * Concrete
-* providers such as `@z/dsh-skill-filesystem` decide where skills come
+* providers such as `@taskweaver/dsh-skill-filesystem` decide where skills come
 * from; this service only merges provider catalogs, resolves the winning skill
 * for a name, and exposes the winning summaries and definitions to consumers.
 *
-* @module @z/dsh-skill
+* @module @taskweaver/dsh-skill
 */
 const SKILL_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const DEFAULT_COLLECT_CACHE_ENTRIES = 128;

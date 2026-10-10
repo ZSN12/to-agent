@@ -1,6 +1,6 @@
-import { Context } from '@z/cordis'
+import { Context } from '@taskweaver/cordis'
 import { describe, expect, it } from 'vitest'
-import InvariantService from '@z/dsh-invariants'
+import InvariantService from '@taskweaver/dsh-invariants'
 import * as FileReferenceInvariant from '../src/invariant.ts'
 
 describe('invariant companion', () => {

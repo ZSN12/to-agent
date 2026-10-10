@@ -1,8 +1,8 @@
 /**
- * Package-owned invariant companion for `@z/dsh-host-apiproxy`.
- * @module @z/dsh-host-apiproxy/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-host-apiproxy`.
+ * @module @taskweaver/dsh-host-apiproxy/invariant
  */
-import type { Context } from '@z/cordis';
+import type { Context } from '@taskweaver/cordis';
 /** Cordis companion plugin name. */
 export declare const name = "host-apiproxy-invariant";
 /** Service required before the companion can reserve package ownership. */

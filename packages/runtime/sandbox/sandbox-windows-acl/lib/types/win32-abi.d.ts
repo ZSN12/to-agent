@@ -20,7 +20,7 @@
  *  - Console isolation: under this restriction scheme a hidden console is not
  *    attainable, so children share the host console (stdio redirection is
  *    pipe-based and unaffected).
- * @module @z/dsh-sandbox-windows-acl/win32-abi
+ * @module @taskweaver/dsh-sandbox-windows-acl/win32-abi
  */
 /** TOKEN_ASSIGN_PRIMARY: required to create a process with the token (CreateProcessAsUser). */
 export declare const TOKEN_ASSIGN_PRIMARY = 1;

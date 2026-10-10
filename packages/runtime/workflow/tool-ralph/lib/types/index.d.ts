@@ -2,10 +2,10 @@
  * Model-facing foreground Ralph loop over the workflow and subagent seams. A
  * fixed script starts one fresh structured-output child per round, carrying
  * only the immutable objective and the previous bounded handoff between them.
- * @module @z/dsh-tool-ralph
+ * @module @taskweaver/dsh-tool-ralph
  */
-import type { Context } from '@z/cordis';
-import z from '@z/schemastery';
+import type { Context } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
 export declare const name = "tool-ralph";
 export declare const inject: string[];
 /** Deployment policy for the fixed Ralph workflow. */

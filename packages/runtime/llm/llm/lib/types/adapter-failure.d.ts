@@ -1,7 +1,7 @@
 /**
  * Normalization for values thrown by a final LLM adapter boundary.
  *
- * @module @z/dsh-llm/adapter-failure
+ * @module @taskweaver/dsh-llm/adapter-failure
  */
 import type { LlmFailure } from './types.ts';
 /**

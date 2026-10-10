@@ -1,15 +1,15 @@
 /**
  * Durable projection state for dynamic runtime context.
- * @module @z/dsh-agent-loop/runtime-context
+ * @module @taskweaver/dsh-agent-loop/runtime-context
  */
 
-import { createUserMessage } from '@z/dsh-llm'
-import type { ContextSnapshotSection } from '@z/dsh-llm'
-import type { Session, UserMessage } from '@z/dsh-session'
-import { isReplacementSurfaceEvent } from '@z/dsh-session'
-import type { Context } from '@z/cordis'
+import { createUserMessage } from '@taskweaver/dsh-llm'
+import type { ContextSnapshotSection } from '@taskweaver/dsh-llm'
+import type { Session, UserMessage } from '@taskweaver/dsh-session'
+import { isReplacementSurfaceEvent } from '@taskweaver/dsh-session'
+import type { Context } from '@taskweaver/cordis'
 
-const SOURCE = '@z/dsh-system-prompt'
+const SOURCE = '@taskweaver/dsh-system-prompt'
 const CLEARED = 'Current runtime context: none. Earlier runtime-context snapshots no longer apply.'
 
 function isOwned(message: UserMessage): boolean {

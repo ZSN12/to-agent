@@ -1,5 +1,5 @@
 /** Reconstruct durable steering identity from the event-sourced agent inbox. */
-import type { SessionEvent } from '@z/dsh-session/types';
+import type { SessionEvent } from '@taskweaver/dsh-session/types';
 /**
  * Incrementally identifies `user/message` events claimed from the next-step
  * inbox. The agent loop records all admitted input as `user/message`; the

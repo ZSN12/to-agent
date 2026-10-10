@@ -1,5 +1,5 @@
-import z from "@z/schemastery";
-import { StorageError, UNIT_NAME_RE, storageBackendServiceKey } from "@z/dsh-storage";
+import z from "@taskweaver/schemastery";
+import { StorageError, UNIT_NAME_RE, storageBackendServiceKey } from "@taskweaver/dsh-storage";
 import { DatabaseSync } from "node:sqlite";
 import { mkdir, open } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
@@ -9,7 +9,7 @@ import { dirname, resolve } from "node:path";
 * layout version, the database open/configure sequence (permissions, pragmas,
 * version stamp/reject), and the unit metadata tables. Unit record tables are
 * created per descriptor in `unit.ts`.
-* @module @z/dsh-storage-sqlite/schema
+* @module @taskweaver/dsh-storage-sqlite/schema
 */
 /**
 * The on-disk physical layout version, stored in `PRAGMA user_version`.
@@ -97,7 +97,7 @@ function recordTableName(unit, table) {
 * `unit_globals` table. Each primitive is a single statement, so atomicity
 * comes from SQLite itself — no explicit transactions, and no write queue
 * (write ordering is the caller's responsibility per the KV contract).
-* @module @z/dsh-storage-sqlite/unit
+* @module @taskweaver/dsh-storage-sqlite/unit
 */
 /**
 * The SQLite {@link KvUnit}. Constructed by the backend AFTER the unit's
@@ -207,7 +207,7 @@ var SqliteKvUnit = class {
 * SQLite storage backend for the storage hub: one database file hosts every
 * routed unit, document-per-row (`key TEXT` / `value TEXT` JSON). Registers
 * as backend `sqlite`; the disposer unregisters first, then closes the medium.
-* @module @z/dsh-storage-sqlite
+* @module @taskweaver/dsh-storage-sqlite
 */
 /** Cordis plugin name. */
 const name = "storage-sqlite";

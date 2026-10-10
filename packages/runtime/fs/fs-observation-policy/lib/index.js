@@ -1,4 +1,4 @@
-import { FsError } from "@z/dsh-fs";
+import { FsError } from "@taskweaver/dsh-fs";
 //#region lib/types/index.js
 /**
 * Event-only filesystem observation policy; it registers no service. A weak owner/target map
@@ -6,7 +6,7 @@ import { FsError } from "@z/dsh-fs";
 * guards from that state, and the provider performs the atomic freshness/no-clobber check. Without
 * this plugin, tools retain the bare provider's unconditional mutation behavior. See the package
 * README for composition rules.
-* @module @z/dsh-fs-observation-policy
+* @module @taskweaver/dsh-fs-observation-policy
 */
 /**
 * Per-context observed-file state and the three `fs/*` decisions over it. One

@@ -3,10 +3,10 @@ import { unwatchFile, watchFile } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { homedir } from "node:os";
 import chokidar from "chokidar";
-import z from "@z/schemastery";
+import z from "@taskweaver/schemastery";
 import { parse } from "yaml";
-import { canonicalizeWatchPath, resolveDshHome } from "@z/dsh-home-paths";
-import { BUNDLED_SKILL_RANK, isSkillName } from "@z/dsh-skill";
+import { canonicalizeWatchPath, resolveDshHome } from "@taskweaver/dsh-home-paths";
+import { BUNDLED_SKILL_RANK, isSkillName } from "@taskweaver/dsh-skill";
 //#region lib/types/index.js
 /**
 * Local filesystem skill provider.
@@ -16,7 +16,7 @@ import { BUNDLED_SKILL_RANK, isSkillName } from "@z/dsh-skill";
 * user roots, parses YAML frontmatter, and loads bodies through `ctx.fs` when a
 * filesystem service is present.
 *
-* @module @z/dsh-skill-filesystem
+* @module @taskweaver/dsh-skill-filesystem
 */
 const PROJECT_DSH_RANK = 100;
 const PROJECT_AGENTS_RANK = 200;

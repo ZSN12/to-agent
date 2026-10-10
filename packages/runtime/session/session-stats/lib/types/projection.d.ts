@@ -20,7 +20,7 @@
  * time stays uncounted in every time figure — matching the window, which
  * renders it as an untimed interrupted node.
  *
- * @module @z/dsh-session-stats/projection
+ * @module @taskweaver/dsh-session-stats/projection
  */
 import { z } from 'zod';
 /** Accumulated whole-log figures (the view is exactly these totals). */
@@ -63,7 +63,7 @@ interface SessionStatsState extends SessionStatsTotals {
     /** Dispatch times of tool calls whose result has not landed, by callId. */
     pendingCalls: Record<string, number>;
 }
-declare module '@z/dsh-session-projection/types' {
+declare module '@taskweaver/dsh-session-projection/types' {
     interface SessionProjectionStateMap {
         sessionStats: SessionStatsState;
     }
@@ -105,7 +105,7 @@ export declare const sessionStatsProjectionDefinition: {
         openStep: null;
         pendingCalls: {};
     };
-    apply: (state: NoInfer<SessionStatsState>, event: import("@z/dsh-session").SessionEvent) => SessionStatsState;
+    apply: (state: NoInfer<SessionStatsState>, event: import("@taskweaver/dsh-session").SessionEvent) => SessionStatsState;
     wire: {
         viewSchema: z.ZodObject<{
             turns: z.ZodNumber;

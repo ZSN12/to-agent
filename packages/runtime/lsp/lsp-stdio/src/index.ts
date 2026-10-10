@@ -8,18 +8,18 @@
  *
  * Namespace plugin (named exports, no default export). Lifecycle is effect-scoped: disposal
  * unregisters from `ctx.lsp` and tears down every live server.
- * @module @z/dsh-lsp-stdio
+ * @module @taskweaver/dsh-lsp-stdio
  */
 
-import type { Context } from '@z/cordis'
-import z from '@z/schemastery'
-import { LspError, LspProviderId } from '@z/dsh-lsp'
+import type { Context } from '@taskweaver/cordis'
+import z from '@taskweaver/schemastery'
+import { LspError, LspProviderId } from '@taskweaver/dsh-lsp'
 import type {
   LspProvider,
   LspProviderQuery,
   LspQueryResult,
-} from '@z/dsh-lsp'
-import { MAX_TIMER_DELAY_MS } from '@z/dsh-timeout'
+} from '@taskweaver/dsh-lsp'
+import { MAX_TIMER_DELAY_MS } from '@taskweaver/dsh-timeout'
 import { abortable, abortError } from './abort.ts'
 import { canonicalizeWorkspace, readHostSource } from './host.ts'
 import type { HostWorkspace } from './host.ts'

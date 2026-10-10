@@ -1,4 +1,4 @@
-import { Binary, clone, deepEqual, filterKeys, isNullable, isPlainObject, pick, valueMap } from "@z/cosmokit";
+import { Binary, clone, deepEqual, filterKeys, isNullable, isPlainObject, pick, valueMap } from "@taskweaver/cosmokit";
 //#region lib/types/index.js
 const kSchema = Symbol.for("schemastery");
 const kValidationError = Symbol.for("ValidationError");

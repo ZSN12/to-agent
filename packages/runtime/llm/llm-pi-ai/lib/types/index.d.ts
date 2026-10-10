@@ -11,7 +11,7 @@
  *
  * ```yaml
  * - id: llm
- *   name: '@z/dsh-llm-pi-ai'
+ *   name: '@taskweaver/dsh-llm-pi-ai'
  *   config:
  *     providers:
  *       # Catalog route: everything but the credential comes from pi-ai.
@@ -52,9 +52,9 @@
  *               max: ultra
  * ```
  *
- * @module @z/dsh-llm-pi-ai
+ * @module @taskweaver/dsh-llm-pi-ai
  */
-import type { Context } from '@z/cordis';
+import type { Context } from '@taskweaver/cordis';
 import { Config } from './config.ts';
 export { PiAiAdapter } from './adapter.ts';
 export type { PiAiAdapterOptions } from './adapter.ts';

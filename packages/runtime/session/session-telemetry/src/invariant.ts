@@ -1,13 +1,13 @@
 /**
- * Package-owned invariant companion for `@z/dsh-session-telemetry`.
- * @module @z/dsh-session-telemetry/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-session-telemetry`.
+ * @module @taskweaver/dsh-session-telemetry/invariant
  */
 
 /* jscpd:ignore-start */
-import type { Context } from '@z/cordis'
-import type { InvariantInstaller } from '@z/dsh-invariants'
+import type { Context } from '@taskweaver/cordis'
+import type { InvariantInstaller } from '@taskweaver/dsh-invariants'
 
-const PACKAGE_NAME = '@z/dsh-session-telemetry'
+const PACKAGE_NAME = '@taskweaver/dsh-session-telemetry'
 
 /** Cordis companion plugin name. */
 export const name = 'session-telemetry-invariant'

@@ -1,4 +1,4 @@
-import { Service } from "@z/cordis";
+import { Service } from "@taskweaver/cordis";
 //#region lib/types/coordinator.js
 /**
 * Capture coordinator for the telemetry capability. Live capture subscribes to
@@ -13,7 +13,7 @@ import { Service } from "@z/cordis";
 * stop-on-throw) or touch the agent loop. Composed by a backend in its
 * constructor.
 *
-* @module @z/dsh-session-telemetry/coordinator
+* @module @taskweaver/dsh-session-telemetry/coordinator
 */
 /**
 * The handoff cursor: per session, the highest `seq` handed to a backend.
@@ -279,7 +279,7 @@ function identityOf(session, event) {
 * design and its trade-offs are pinned in
 * .agents/notes/implemented/feature/2026-07-23-session-telemetry-otel-revival.md.
 *
-* @module @z/dsh-session-telemetry
+* @module @taskweaver/dsh-session-telemetry
 */
 /**
 * Loadable form of the backend contract: one implementation per context —

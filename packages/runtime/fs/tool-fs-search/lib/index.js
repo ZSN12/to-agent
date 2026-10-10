@@ -1,10 +1,10 @@
-import z from "@z/schemastery";
-import { MAX_TIMER_DELAY_MS } from "@z/dsh-timeout";
+import z from "@taskweaver/schemastery";
+import { MAX_TIMER_DELAY_MS } from "@taskweaver/dsh-timeout";
 import { isAbsolute, relative, sep } from "node:path";
-import { defineTool } from "@z/dsh-tools";
+import { defineTool } from "@taskweaver/dsh-tools";
 import { existsSync } from "node:fs";
-import { HarnessError } from "@z/dsh-llm";
-import { ItemRetainer, TextRetainer } from "@z/dsh-output-retention";
+import { HarnessError } from "@taskweaver/dsh-llm";
+import { ItemRetainer, TextRetainer } from "@taskweaver/dsh-output-retention";
 //#region lib/types/search-core.js
 /**
 * Shared execution plumbing for the `glob` / `grep` search tools: the
@@ -24,7 +24,7 @@ import { ItemRetainer, TextRetainer } from "@z/dsh-output-retention";
 * artifact is the formatted result saved through `ctx.spillStore.saveText()`
 * ({@link trySaveFormattedResult}).
 *
-* @module @z/dsh-tool-fs-search/search-core
+* @module @taskweaver/dsh-tool-fs-search/search-core
 */
 /**
 * Default cap on the complete raw `rg` stdout the tools will parse (the
@@ -34,7 +34,7 @@ const RAW_OUTPUT_MAX_BYTES = 2e7;
 /**
 * Default cooperative tool-call timeout budget in milliseconds (the `timeoutMs`
 * config), attached to both tool definitions for
-* `@z/dsh-tool-call-timeout-policy` to enforce through `exec.signal`.
+* `@taskweaver/dsh-tool-call-timeout-policy` to enforce through `exec.signal`.
 */
 const SEARCH_TIMEOUT_MS = 3e4;
 /**
@@ -147,7 +147,7 @@ function launchFailureMessage(toolName, error) {
 * complete raw stdout. The working directory is the calling agent's session
 * cwd (`exec.agent.session.header.cwd`) when available, else
 * `process.cwd()`. `exec.signal` is forwarded so the cooperative tool timeout
-* (`@z/dsh-tool-call-timeout-policy`) and caller cancellation terminate the
+* (`@taskweaver/dsh-tool-call-timeout-policy`) and caller cancellation terminate the
 * process tree.
 *
 * The spawn is unconfined (a plain `ctx.subprocess` call), so `--no-config`
@@ -259,9 +259,9 @@ function previewLine(line, maxBytes) {
 /**
 * Apply the shared inline cap to a canonical `grep` match list: preview each
 * retained line to `maxLineBytes` and keep the first `maxMatches`. The single
-* retention pass both the model-facing render ({@link module:@z/dsh-tool-fs-search/grep}
+* retention pass both the model-facing render ({@link module:@taskweaver/dsh-tool-fs-search/grep}
 * `formatGrepOutput`) and the search-card projection
-* ({@link module:@z/dsh-tool-fs-search/presentation} `grepSearchMeta`)
+* ({@link module:@taskweaver/dsh-tool-fs-search/presentation} `grepSearchMeta`)
 * consume, so text and card never disagree about which matches survived.
 *
 * @param matches - every match the search parsed (the canonical value's matches).
@@ -339,7 +339,7 @@ async function trySaveFormattedResult(ctx, exec, suggestedName, content) {
 * The canonical value never crosses the wire — only the model-facing render text
 * and this JSON `meta` do — so the structured shape a UI renders MUST ride in
 * `meta`. Each projection consumes the SAME retained matches/paths the
-* model-facing render consumes ({@link module:@z/dsh-tool-fs-search/search-core}
+* model-facing render consumes ({@link module:@taskweaver/dsh-tool-fs-search/search-core}
 * `retainGrepMatches`/`retainGlobPaths`), so text and card agree about which
 * results survived the inline cap, and reports `total` (every result found) and
 * `truncated`, so a UI never presents a capped result as complete.
@@ -352,13 +352,13 @@ async function trySaveFormattedResult(ctx, exec, suggestedName, content) {
 * final output budget (`dsh-spill-policy`) only shrinks `content`, never `meta`,
 * so this projection owns keeping `meta` bounded.
 *
-* @module @z/dsh-tool-fs-search/presentation
+* @module @taskweaver/dsh-tool-fs-search/presentation
 */
 /**
 * Group flat matches by file (first-seen order) into the structured by-file shape
 * a UI renders as expandable per-file groups. The grouping matches the
 * model-facing text grouping
-* ({@link module:@z/dsh-tool-fs-search/grep} `formatGrepMatches`), so
+* ({@link module:@taskweaver/dsh-tool-fs-search/grep} `formatGrepMatches`), so
 * card and text agree about file order and membership.
 *
 * @param matches - the retained matches to group, in output order.
@@ -563,7 +563,7 @@ function searchScopeGuidance(names) {
 * argument validation, argv construction, result parsing, inline sampling,
 * and formatting; process concerns (spawn execution, tree termination,
 * environment scrubbing, output capture) stay behind `ctx.subprocess`.
-* @module @z/dsh-tool-fs-search/glob
+* @module @taskweaver/dsh-tool-fs-search/glob
 */
 /**
 * Default cap on paths retained inline by one `glob` call (the `globMaxResults`
@@ -910,7 +910,7 @@ function applyGlobTool(ctx, caps) {
 * `--json` record parsing, per-line preview retention, match retention,
 * grouping, and formatting; process concerns stay behind `ctx.subprocess`.
 *
-* @module @z/dsh-tool-fs-search/grep
+* @module @taskweaver/dsh-tool-fs-search/grep
 */
 /**
 * Default cap on flat matches retained inline by one `grep` call (the
@@ -1235,8 +1235,8 @@ function applyGrepTool(ctx, caps) {
 * execute through `ctx.subprocess.spawn()` with fixed ripgrep argv templates —
 * never `ctx.shell`, never `ctx.shell.start()`, never a model-visible background
 * task. The tool layer owns schemas, argument validation, argv construction
-* ({@link module:@z/dsh-tool-fs-search/glob} /
-* {@link module:@z/dsh-tool-fs-search/grep}), result parsing,
+* ({@link module:@taskweaver/dsh-tool-fs-search/glob} /
+* {@link module:@taskweaver/dsh-tool-fs-search/grep}), result parsing,
 * retention, formatted-result spill, and timeout declaration; the subprocess
 * seam owns spawn execution, process-tree termination, environment scrubbing,
 * and raw output capture. The package injects `tools`, `systemPrompt`, and
@@ -1248,7 +1248,7 @@ function applyGrepTool(ctx, caps) {
 * filesystem `read` root are the same workspace — a documented v1 deployment
 * requirement, not runtime-validated.
 *
-* @module @z/dsh-tool-fs-search
+* @module @taskweaver/dsh-tool-fs-search
 */
 /** Cordis plugin name used by loader diagnostics. */
 const name = "tool-fs-search";

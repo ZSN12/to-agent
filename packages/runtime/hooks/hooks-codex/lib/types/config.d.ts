@@ -2,9 +2,9 @@
  * Parse Codex's five-event hook subset into shared {@link MatcherGroup}s. Only synchronous command
  * hooks run; other types and `async: true` commands are recorded as skipped. Codex performs no
  * command substitution.
- * @module @z/dsh-hooks-codex/config
+ * @module @taskweaver/dsh-hooks-codex/config
  */
-import { type MatcherGroup } from '@z/dsh-hook-protocol';
+import { type MatcherGroup } from '@taskweaver/dsh-hook-protocol';
 /** The eight Codex hook points this bridge supports. */
 export declare const CODEX_EVENTS: readonly ["PreToolUse", "PostToolUse", "SessionStart", "UserPromptSubmit", "Stop", "PermissionRequest", "SubagentStart", "SubagentStop"];
 /** A parsed Codex config: event name → its matcher groups (command hooks only). */

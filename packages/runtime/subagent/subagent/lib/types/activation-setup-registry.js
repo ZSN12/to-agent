@@ -1,4 +1,3 @@
-"use strict";
 /**
  * Internal registry of deployment capabilities composed into every continuable
  * child's unpublished creation context.
@@ -9,21 +8,10 @@
  * Activation disposal, so no installation outlives either owner and no removed
  * contribution can be installed after revocation reports completion.
  *
- * @module @z/dsh-subagent/activation-setup-registry
+ * @module @taskweaver/dsh-subagent/activation-setup-registry
  */
-var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
-    if (pack || arguments.length === 2) for (var i = 0, l = from.length, ar; i < l; i++) {
-        if (ar || !(i in from)) {
-            if (!ar) ar = Array.prototype.slice.call(from, 0, i);
-            ar[i] = from[i];
-        }
-    }
-    return to.concat(ar || Array.prototype.slice.call(from));
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.SubagentActivationSetupRegistry = void 0;
-var dsh_llm_1 = require("@z/dsh-llm");
-var error_ts_1 = require("./error.ts");
+import { errorChain } from '@taskweaver/dsh-llm';
+import { SubagentError } from "./error.js";
 /** Re-read mutable removal state after a contribution may have revoked itself. */
 function isRemoved(registration) {
     return registration.removed;
@@ -32,58 +20,53 @@ function isRemoved(registration) {
  * Owns continuable-child setup registrations, installations, rollback, child
  * cleanup, and immediate live revocation.
  */
-var SubagentActivationSetupRegistry = /** @class */ (function () {
-    function SubagentActivationSetupRegistry() {
-        /** Live contributions in installation order. */
-        this.registrations = new Set();
-        /** Child context to its live installations. */
-        this.byChild = new Map();
-    }
+export class SubagentActivationSetupRegistry {
+    /** Live contributions in installation order. */
+    registrations = new Set();
+    /** Child context to its live installations. */
+    byChild = new Map();
     /**
      * Register one contribution.
      * @param contribution - synchronous child-scope installer.
      * @returns an idempotent registration undo.
      * @throws after attempting every installation when any disposer fails.
      */
-    SubagentActivationSetupRegistry.prototype.register = function (contribution) {
-        var _this = this;
-        var registration = { contribution: contribution, removed: false, installations: new Set() };
+    register(contribution) {
+        const registration = { contribution, removed: false, installations: new Set() };
         this.registrations.add(registration);
-        return function () {
+        return () => {
             if (registration.removed)
                 return;
             // Close before disposal so a snapshotted apply() cannot install after
             // revocation reports completion.
             registration.removed = true;
-            _this.registrations.delete(registration);
-            _this.releaseAll(__spreadArray([], registration.installations, true), 'contribution removal');
+            this.registrations.delete(registration);
+            this.releaseAll([...registration.installations], 'contribution removal');
         };
-    };
+    }
     /**
      * Install every live contribution into one unpublished child context.
      * @param childCtx - the child's unpublished scoped context.
      * @returns the provisioning commit consumed at Agent publication.
      */
-    SubagentActivationSetupRegistry.prototype.apply = function (childCtx) {
-        var _this = this;
-        var state = { installations: [], invalidated: false };
+    apply(childCtx) {
+        const state = { installations: [], invalidated: false };
         try {
-            for (var _i = 0, _a = __spreadArray([], this.registrations, true); _i < _a.length; _i++) {
-                var registration = _a[_i];
+            for (const registration of [...this.registrations]) {
                 /* v8 ignore next -- only a synchronous re-entrant revocation of an
                  * already-snapshotted registration reaches this guard. */
                 if (registration.removed)
                     continue;
-                var installation = {
-                    registration: registration,
-                    childCtx: childCtx,
+                const installation = {
+                    registration,
+                    childCtx,
                     dispose: registration.contribution(childCtx),
                     released: false,
                     transaction: state,
                 };
                 registration.installations.add(installation);
                 state.installations.push(installation);
-                var indexed = this.byChild.get(childCtx);
+                let indexed = this.byChild.get(childCtx);
                 if (indexed === undefined) {
                     indexed = new Set();
                     this.byChild.set(childCtx, indexed);
@@ -98,7 +81,7 @@ var SubagentActivationSetupRegistry = /** @class */ (function () {
         catch (error) {
             // Keep the installer failure authoritative, but attempt every rollback.
             try {
-                this.releaseAll(__spreadArray([], state.installations, true), 'setup rollback');
+                this.releaseAll([...state.installations], 'setup rollback');
             }
             catch (releaseFailure) {
                 /* v8 ignore next -- requires independent installer and rollback faults. */
@@ -106,35 +89,31 @@ var SubagentActivationSetupRegistry = /** @class */ (function () {
             }
             throw error;
         }
-        childCtx.effect(function () { return function () { _this.releaseChild(childCtx); }; }, 'subagents.activationSetup()');
+        childCtx.effect(() => () => { this.releaseChild(childCtx); }, 'subagents.activationSetup()');
         return {
-            commit: function () {
+            commit: () => {
                 if (state.invalidated) {
-                    throw new error_ts_1.SubagentError('a continuable-subagent setup contribution was revoked while this child was being built; '
+                    throw new SubagentError('a continuable-subagent setup contribution was revoked while this child was being built; '
                         + 'the child was not established', 'ACTIVATION_SETUP_REVOKED');
                 }
-                for (var _i = 0, _a = state.installations; _i < _a.length; _i++) {
-                    var installation = _a[_i];
+                for (const installation of state.installations)
                     installation.transaction = undefined;
-                }
             },
         };
-    };
+    }
     /** Release every remaining installation owned by one disposed child scope. */
-    SubagentActivationSetupRegistry.prototype.releaseChild = function (childCtx) {
-        var _a;
-        var indexed = (_a = this.byChild.get(childCtx)) !== null && _a !== void 0 ? _a : [];
-        this.releaseAll(__spreadArray([], indexed, true), 'child scope disposal');
-    };
+    releaseChild(childCtx) {
+        const indexed = this.byChild.get(childCtx) ?? [];
+        this.releaseAll([...indexed], 'child scope disposal');
+    }
     /**
      * Release a batch completely before reporting disposer failures.
      * @param installations - records to release.
      * @param during - operation name for diagnostics.
      */
-    SubagentActivationSetupRegistry.prototype.releaseAll = function (installations, during) {
-        var failures = [];
-        for (var _i = 0, installations_1 = installations; _i < installations_1.length; _i++) {
-            var installation = installations_1[_i];
+    releaseAll(installations, during) {
+        const failures = [];
+        for (const installation of installations) {
             try {
                 this.release(installation);
             }
@@ -144,16 +123,16 @@ var SubagentActivationSetupRegistry = /** @class */ (function () {
         }
         if (failures.length === 0)
             return;
-        throw new error_ts_1.SubagentError("continuable-subagent setup ".concat(during, " failed to release ").concat(failures.length, " installation(s): ")
-            + failures.map(function (failure) { return (0, dsh_llm_1.errorChain)(failure); }).join('; '), 'ACTIVATION_SETUP_RELEASE_FAILED');
-    };
+        throw new SubagentError(`continuable-subagent setup ${during} failed to release ${failures.length} installation(s): `
+            + failures.map(failure => errorChain(failure)).join('; '), 'ACTIVATION_SETUP_RELEASE_FAILED');
+    }
     /** Drop one installation from both indices and dispose it exactly once. */
-    SubagentActivationSetupRegistry.prototype.release = function (installation) {
+    release(installation) {
         if (installation.released)
             return;
         installation.released = true;
         installation.registration.installations.delete(installation);
-        var indexed = this.byChild.get(installation.childCtx);
+        const indexed = this.byChild.get(installation.childCtx);
         /* v8 ignore next 4 -- every live installation is indexed until this method removes it. */
         if (indexed !== undefined) {
             indexed.delete(installation);
@@ -163,8 +142,7 @@ var SubagentActivationSetupRegistry = /** @class */ (function () {
         if (installation.transaction !== undefined)
             installation.transaction.invalidated = true;
         installation.dispose();
-    };
-    return SubagentActivationSetupRegistry;
-}());
-exports.SubagentActivationSetupRegistry = SubagentActivationSetupRegistry;
-exports.default = SubagentActivationSetupRegistry;
+    }
+}
+export default SubagentActivationSetupRegistry;
+//# sourceMappingURL=activation-setup-registry.js.map

@@ -5,9 +5,9 @@
  * one-shot convenience method.
  */
 
-import { BlockAssembler } from '@z/dsh-llm'
-import type { Context } from '@z/cordis'
-import type { FinishReason, GenerateOptions, Message, TokenUsage } from '@z/dsh-llm'
+import { BlockAssembler } from '@taskweaver/dsh-llm'
+import type { Context } from '@taskweaver/cordis'
+import type { FinishReason, GenerateOptions, Message, TokenUsage } from '@taskweaver/dsh-llm'
 
 export interface AssembledResult {
   message: Message

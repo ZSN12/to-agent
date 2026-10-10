@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { serializeDshConversationView } from '../electron/backend/dsh-snapshot-serialize.mjs'
+import { serializeDshConversationView } from '../desktop/backend/dsh-snapshot-serialize.mjs'
 import ts from 'typescript'
 
 const activitySource = await fs.readFile(path.resolve('src/features/chat/streamActivityLabel.ts'), 'utf8')
@@ -71,7 +71,14 @@ const withTools = serializeDshConversationView({
       step: 1,
       callTime: Date.now() - 20,
       time: Date.now(),
-      content: [{ type: 'text', text: 'source' }],
+      content: [
+        { type: 'text', text: 'source' },
+        { type: 'image', attachment: {
+          attachmentId: `sha256:${'b'.repeat(64)}`,
+          mediaType: 'image/png', bytes: 128, width: 16, height: 8, name: 'diagram.png',
+          data: 'must-not-cross-projection', path: '/private/image.png',
+        } },
+      ],
       subCalls: [{
         kind: 'tool-call',
         callId: 'c1:code:1:nested',
@@ -100,6 +107,18 @@ assert.equal(withTools.toolRows.length, 3)
 assert.equal(withTools.toolRows[0].toolName, 'run_code')
 assert.equal(withTools.toolRows[1].parentCallId, 'c1', 'a dispatched tool is linked to its run_code parent')
 assert.equal(withTools.toolRows[2].parentCallId, 'c1:code:1', 'nested dispatched tools keep their immediate parent')
+assert.deepEqual(withTools.toolRows[1].resultImages, [{
+  attachmentId: `sha256:${'b'.repeat(64)}`,
+  mediaType: 'image/png',
+  bytes: 128,
+  width: 16,
+  height: 8,
+  name: 'diagram.png',
+}], 'the renderer receives only bounded metadata references for result images')
+assert.equal('data' in withTools.toolRows[1].resultImages[0], false, 'binary payloads are fetched through authorized IPC')
+assert.equal('path' in withTools.toolRows[1].resultImages[0], false, 'local filesystem paths never enter the image projection')
+assert.doesNotMatch(withTools.toolRows[1].resultPreview, /must-not-cross-projection|\/private\/image\.png/,
+  'the compact text summary does not stringify binary payloads or local paths')
 assert.match(withTools.activityLabel, /run_code/, 'active tool should take precedence over model-step status')
 assert.equal(shortStreamActivityLabel(withTools.activityLabel), '正在执行 run_code')
 assert.match(withTools.toolRows[0].argsRaw, /read workspace layout/)

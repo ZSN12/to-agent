@@ -4,7 +4,7 @@
  * stdout tee, SDK client, update collection, permission fallback, and process
  * shutdown so e2e and snapshot suites do not each reconstruct that boundary.
  *
- * @module @z/dsh-acp-snapshot/launcher
+ * @module @taskweaver/dsh-acp-snapshot/launcher
  */
 import { type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { ClientSideConnection, type RequestPermissionRequest, type RequestPermissionResponse, type SessionNotification } from '@agentclientprotocol/sdk';

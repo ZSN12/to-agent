@@ -3,12 +3,12 @@
  * and bridges bindings over its message port. This is containment, not a security boundary:
  * model code has bash-equivalent trust despite an empty environment, a heap cap, measured
  * event-loop busy-time and wall-time budgets, and termination that also stops synchronous loops.
- * @module @z/dsh-code-runtime-worker-thread
+ * @module @taskweaver/dsh-code-runtime-worker-thread
  */
-import { Context } from '@z/cordis';
-import z from '@z/schemastery';
-import { CodeRuntime } from '@z/dsh-code-runtime';
-import type { CodeRunRequest, CodeRunResult } from '@z/dsh-code-runtime';
+import { Context } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
+import { CodeRuntime } from '@taskweaver/dsh-code-runtime';
+import type { CodeRunRequest, CodeRunResult } from '@taskweaver/dsh-code-runtime';
 /** Plugin config: every execution cap, changeable from `cordis.yml` (no hardcoded tunables). */
 export interface Config {
     /**

@@ -1,11 +1,11 @@
-import { Service } from "@z/cordis";
-import z from "@z/schemastery";
-import { AnonymousEntries, NamedEntries, ScopedLayers, scopeTarget } from "@z/dsh-scope";
+import { Service } from "@taskweaver/cordis";
+import z from "@taskweaver/schemastery";
+import { AnonymousEntries, NamedEntries, ScopedLayers, scopeTarget } from "@taskweaver/dsh-scope";
 //#region lib/types/index.js
 /**
 * Registry for ordered system sections, dynamic context, tool schemas, and prompt variables.
 *
-* @module @z/dsh-system-prompt
+* @module @taskweaver/dsh-system-prompt
 */
 /**
 * The deployment persona's section name and order. Exported because a

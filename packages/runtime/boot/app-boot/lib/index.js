@@ -4,14 +4,14 @@ import { existsSync, lstatSync, mkdirSync, readFileSync, readlinkSync, symlinkSy
 import { parseEnv } from "node:util";
 import { basename, dirname, extname, isAbsolute, join, resolve } from "node:path";
 import * as yaml from "js-yaml";
-import { Context, Service } from "@z/cordis";
-import Loader, { EntryGroup, EntryTree, isJsExpr } from "@z/cordis-plugin-loader";
+import { Context, Service } from "@taskweaver/cordis";
+import Loader, { EntryGroup, EntryTree, isJsExpr } from "@taskweaver/cordis-plugin-loader";
 import { access, constants, readFile, rename, writeFile } from "node:fs/promises";
 import { setTimeout as setTimeout$1 } from "node:timers/promises";
-import Group from "@z/cordis-plugin-group";
-import { dshHomePath, resolveDshHome } from "@z/dsh-home-paths";
-import { createLaunchEnvironmentSnapshot } from "@z/dsh-launch-environment";
-//#region ../../../vendor/include/src/index.ts
+import Group from "@taskweaver/cordis-plugin-group";
+import { resolveRuntimeHome, runtimeHomePath } from "@taskweaver/dsh-home-paths";
+import { createLaunchEnvironmentSnapshot } from "@taskweaver/dsh-launch-environment";
+//#region ../../cordis/include/src/index.ts
 const JsExpr = new yaml.Type("tag:yaml.org,2002:js", {
 	kind: "scalar",
 	resolve: (data) => typeof data === "string",
@@ -284,15 +284,15 @@ var Include = class extends EntryTree {
 //#region lib/types/profile.js
 /**
 * Profile discovery, initialization, and patch-layer composition for the
-* `dsh --profile` launcher family.
+* `taskweaver-host --profile` launcher.
 *
-* A profile is a directory under `$DSH_HOME/profiles/<name>` holding a
+* A profile is a directory under `$TASKWEAVER_HOME/profiles/<name>` holding a
 * `package.json` (out-of-tree plugin dependencies plus the profile manifest
-* `dsh.profile` with its ordered `bundles` list) and a `cordis.patch.yml`
+* `taskweaver.profile` with its ordered `bundles` list) and a `cordis.patch.yml`
 * (the user's own patch layer, applied after every bundle layer). Bundles are
 * npm packages whose manifest declares
 * `"dsh": { "bundle": { "patch": "./cordis.patch.yml" } }`; the tree is
-* composed by applying each bundle's patch list in `dsh.profile.bundles` order over
+* composed by applying each bundle's patch list in `taskweaver.profile.bundles` order over
 * an empty entry list, then the profile's own patches, then any launcher
 * layers (`--patch` files and flag-derived patches).
 *
@@ -300,32 +300,50 @@ var Include = class extends EntryTree {
 * first from the dsh installation (the launcher's own package), then from the
 * profile directory. The Loader's `baseUrl` is the profile directory, whose
 * `node_modules` pnpm manages for out-of-tree plugins, while the maintained
-* flat fallback directory `$DSH_HOME/profiles/node_modules` (one symlink per
+* flat fallback directory `$TASKWEAVER_HOME/profiles/node_modules` (one symlink per
 * package the installation's app and bundles depend on) makes every in-box
 * plugin Node-resolvable from any profile through the ordinary parent-walk.
-* @module @z/dsh-app-boot/profile
+* @module @taskweaver/dsh-app-boot/profile
 */
 /** Directory under the Harness home holding every profile. */
 const PROFILES_DIR = "profiles";
 /** The user patch layer inside a profile directory (hot-reloaded on long-lived surfaces). */
 const PROFILE_PATCH_FILENAME = "cordis.patch.yml";
+function mergeBundleManifest(legacy, current) {
+	const patch = current?.patch ?? legacy?.patch;
+	return patch !== void 0 ? { patch } : void 0;
+}
+/** Merge the deprecated namespace under the canonical one without dropping either role. */
+function mergeManifestSections(legacy, current = {}) {
+	const bundle = mergeBundleManifest(legacy.bundle, current.bundle);
+	const profile = legacy.profile !== void 0 || current.profile !== void 0 ? {
+		...legacy.profile,
+		...current.profile
+	} : void 0;
+	return {
+		...legacy,
+		...current,
+		...profile !== void 0 ? { profile } : {},
+		...bundle !== void 0 ? { bundle } : {}
+	};
+}
 /**
 * Resolve a profile's directory under the Harness home.
-* @param name - the profile name (`dsh --profile <name>`).
-* @param home - the Harness home; defaults to {@link resolveDshHome}.
+* @param name - the profile name (`taskweaver-host --profile <name>`).
+* @param home - the Harness home; defaults to {@link resolveRuntimeHome}.
 * @returns the absolute profile directory (which may not exist yet).
 */
-function resolveProfileDir(name, home = resolveDshHome()) {
-	if (name === "" || name.includes("/") || name.includes("\\") || name === "." || name === ".." || name === "node_modules") throw new Error(`dsh: invalid profile name ${JSON.stringify(name)}`);
+function resolveProfileDir(name, home = resolveRuntimeHome()) {
+	if (name === "" || name.includes("/") || name.includes("\\") || name === "." || name === ".." || name === "node_modules") throw new Error(`taskweaver-host: invalid profile name ${JSON.stringify(name)}`);
 	return join(home, PROFILES_DIR, name);
 }
 /** The shipped profile templates auto-initialized on first use, by name. */
-const PROFILE_TEMPLATES = { web: ["@z/dsh-base", "@z/dsh-taskweaver"] };
+const PROFILE_TEMPLATES = { web: ["@taskweaver/dsh-base", "@taskweaver/dsh-taskweaver"] };
 /** Installation-owned bundle tuples normalized to the shipped template. */
-const INSTALLATION_OWNED_PROFILE_TUPLES = { web: ["@z/dsh-base", "@z/dsh-taskweaver"] };
-/** The bundle list a `dsh plugin` init uses for a name with no shipped template. */
-const DEFAULT_PROFILE_BUNDLES = ["@z/dsh-base"];
-const PROFILE_PATCH_TEMPLATE = `# Your patch layer for this dsh profile, applied after every bundle layer:
+const INSTALLATION_OWNED_PROFILE_TUPLES = { web: ["@taskweaver/dsh-base", "@taskweaver/dsh-taskweaver"] };
+/** The bundle list a `taskweaver-host plugin` init uses for a name with no shipped template. */
+const DEFAULT_PROFILE_BUNDLES = ["@taskweaver/dsh-base"];
+const PROFILE_PATCH_TEMPLATE = `# Your patch layer for this TaskWeaver profile, applied after every bundle layer:
 # a top-level YAML array of loader patch entries (id-targeted config
 # overrides, disables, and insert lists; \`!!js\` expressions allowed).
 []
@@ -341,17 +359,17 @@ autoInstallPeers: false
 * pnpm settings out-of-tree plugins need. Existing files are never touched,
 * so re-running is a no-op on an initialized profile.
 * @param dir - the profile directory from {@link resolveProfileDir}.
-* @param bundles - the initial `dsh.profile.bundles` layer list.
+* @param bundles - the initial `taskweaver.profile.bundles` layer list.
 */
 function initProfile(dir, bundles) {
 	mkdirSync(dir, { recursive: true });
 	const manifestPath = join(dir, "package.json");
 	if (!existsSync(manifestPath)) {
 		const manifest = {
-			name: `dsh-profile-${basename(dir)}`,
+			name: `taskweaver-profile-${basename(dir)}`,
 			private: true,
 			dependencies: {},
-			dsh: { profile: { bundles: [...bundles] } }
+			taskweaver: { profile: { bundles: [...bundles] } }
 		};
 		writeFileSync(manifestPath, JSON.stringify(manifest, void 0, 2) + "\n");
 	}
@@ -381,7 +399,7 @@ function ensureSymlink(link, target) {
 	}
 }
 /**
-* Maintain the flat module fallback `$DSH_HOME/profiles/node_modules`: one
+* Maintain the flat module fallback `$TASKWEAVER_HOME/profiles/node_modules`: one
 * symlink per package in the dsh app's resolvable dependency CLOSURE (BFS
 * over `dependencies` from the app manifest), each resolved from its own
 * real location. Node's parent-directory walk from any profile finds this
@@ -397,10 +415,11 @@ function ensureSymlink(link, target) {
 * re-pointed; a stale link to a vanished package stays until its name is
 * reused (dangling links are invisible to resolution).
 * @param installAnchor - absolute path of the dsh app's package.json.
-* @param home - the Harness home; defaults to {@link resolveDshHome}.
+* @param home - the Harness home; defaults to {@link resolveRuntimeHome}.
 */
-function healProfilesModuleFallback(installAnchor, home = resolveDshHome()) {
-	const modulesDir = join(join(home, PROFILES_DIR), "node_modules");
+function healProfilesModuleFallback(installAnchor, home = resolveRuntimeHome()) {
+	const profilesDir = join(home, PROFILES_DIR);
+	const modulesDir = join(profilesDir, "node_modules");
 	mkdirSync(modulesDir, { recursive: true });
 	const appManifest = JSON.parse(readFileSync(installAnchor, "utf8"));
 	const links = /* @__PURE__ */ new Map();
@@ -445,6 +464,10 @@ function readProfileManifest(binName, dir) {
 	}
 	const parsed = JSON.parse(raw);
 	if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error(`${binName}: profile manifest ${path} must hold a JSON object`);
+	if (parsed.dsh !== void 0) {
+		parsed.taskweaver = mergeManifestSections(parsed.dsh, parsed.taskweaver);
+		delete parsed.dsh;
+	}
 	return parsed;
 }
 /**
@@ -453,7 +476,10 @@ function readProfileManifest(binName, dir) {
 * @param manifest - the manifest value to persist.
 */
 function writeProfileManifest(dir, manifest) {
-	writeFileSync(join(dir, "package.json"), JSON.stringify(manifest, void 0, 2) + "\n");
+	const normalized = { ...manifest };
+	if (normalized.dsh !== void 0) normalized.taskweaver = mergeManifestSections(normalized.dsh, normalized.taskweaver);
+	delete normalized.dsh;
+	writeFileSync(join(dir, "package.json"), JSON.stringify(normalized, void 0, 2) + "\n");
 }
 /** Return whether two bundle lists have the same values in the same order. */
 function sameBundles(left, right) {
@@ -466,15 +492,16 @@ function sameBundles(left, right) {
 function normalizeShippedProfile(name, dir, manifest) {
 	const installationOwned = INSTALLATION_OWNED_PROFILE_TUPLES[name];
 	const current = PROFILE_TEMPLATES[name];
-	const bundles = manifest.dsh?.profile?.bundles;
-	const retiredWebSurface = name === "web" && bundles?.length === 2 && bundles[0] === "@z/dsh-base" && bundles[1]?.split("/").at(-1) === "web-app";
+	const section = manifest.taskweaver ?? manifest.dsh;
+	const bundles = section?.profile?.bundles;
+	const retiredWebSurface = name === "web" && bundles?.length === 2 && bundles[0] === "@taskweaver/dsh-base" && bundles[1]?.split("/").at(-1) === "web-app";
 	if (installationOwned === void 0 || current === void 0 || bundles === void 0 || !sameBundles(bundles, installationOwned) && !retiredWebSurface) return manifest;
 	const normalized = {
 		...manifest,
-		dsh: {
-			...manifest.dsh,
+		taskweaver: {
+			...section,
 			profile: {
-				...manifest.dsh?.profile,
+				...section?.profile,
 				bundles: [...current]
 			}
 		}
@@ -500,11 +527,11 @@ function packageDirFromAnchor(anchor, packageName) {
 /**
 * Resolve one bundle package's directory: installation anchor first, then the
 * profile directory. The installation-first order is the contract that
-* `@z/dsh-base` (and every other in-box bundle) always comes from
+* `@taskweaver/dsh-base` (and every other in-box bundle) always comes from
 * the same installation as the running dsh, never from a profile-local copy.
 * Resolution does not require the package to export `./package.json`.
 * @param binName - the diagnostic prefix on the thrown error.
-* @param packageName - the bundle's package name from `dsh.profile.bundles`.
+* @param packageName - the bundle's package name from `taskweaver.profile.bundles`.
 * @param installAnchor - absolute path of a file inside the dsh app package (its package.json).
 * @param profileDir - the profile directory (second anchor).
 * @returns the bundle package's absolute directory.
@@ -517,30 +544,32 @@ function resolveBundleDir(binName, packageName, installAnchor, profileDir) {
 	throw new Error(`${binName}: cannot resolve profile bundle ${JSON.stringify(packageName)} from the dsh installation or ${profileDir}; run 'dsh plugin --profile ${basename(profileDir)} install' if its dependency is not installed`);
 }
 /**
-* Load a profile: resolve every `dsh.profile.bundles` entry to its patch
+* Load a profile: resolve every `taskweaver.profile.bundles` entry to its patch
 * layer and parse the profile's own patch file. A listed bundle without a
-* `dsh.bundle` manifest fails loud — naming a bundle-less package as a layer
+* `taskweaver.bundle` manifest fails loud — naming a bundle-less package as a layer
 * is a misconfiguration, not "no patches".
 * @param binName - the diagnostic prefix on thrown errors.
 * @param name - the profile name.
 * @param installAnchor - absolute path of the dsh app's package.json (first resolution anchor).
-* @param home - the Harness home; defaults to {@link resolveDshHome}.
+* @param home - the Harness home; defaults to {@link resolveRuntimeHome}.
 * @param options - `userLayer: false` skips reading `cordis.patch.yml`, so a
 * bundles-only consumer (`--dump-default-config`, a recovery diagnostic)
 * cannot fail on a broken user layer.
 * @returns the loaded profile (empty `patches` when the user layer is skipped).
 */
-function loadProfile(binName, name, installAnchor, home = resolveDshHome(), options = {}) {
+function loadProfile(binName, name, installAnchor, home = resolveRuntimeHome(), options = {}) {
 	const dir = resolveProfileDir(name, home);
 	if (!existsSync(join(dir, "package.json"))) {
 		const template = PROFILE_TEMPLATES[name];
 		if (template === void 0) throw new Error(`${binName}: profile ${JSON.stringify(name)} does not exist; create it with 'dsh plugin --profile ${name} add <package>'`);
 		initProfile(dir, template);
 	}
-	const layers = (normalizeShippedProfile(name, dir, readProfileManifest(binName, dir)).dsh?.profile?.bundles ?? []).map((packageName) => {
+	const manifest = normalizeShippedProfile(name, dir, readProfileManifest(binName, dir));
+	const layers = ((manifest.taskweaver ?? manifest.dsh)?.profile?.bundles ?? []).map((packageName) => {
 		const packageDir = resolveBundleDir(binName, packageName, installAnchor, dir);
-		const declared = JSON.parse(readFileSync(join(packageDir, "package.json"), "utf8")).dsh?.bundle?.patch;
-		if (declared === void 0) throw new Error(`${binName}: profile bundle ${JSON.stringify(packageName)} declares no dsh.bundle in its package.json`);
+		const bundleManifest = JSON.parse(readFileSync(join(packageDir, "package.json"), "utf8"));
+		const declared = (bundleManifest.taskweaver ?? bundleManifest.dsh)?.bundle?.patch;
+		if (declared === void 0) throw new Error(`${binName}: profile bundle ${JSON.stringify(packageName)} declares no taskweaver.bundle in its package.json`);
 		const patchPath = join(packageDir, declared);
 		return {
 			packageName,
@@ -577,15 +606,21 @@ function composeEntries(layers, warn = () => {}) {
 /**
 * Shared boot glue for the app bins (`dsh`, `dsh-acp-demo`): load the gitignored
 * `.env`, install the fail-loud Loader guards, resolve the config path (snapshot-aware), load the
-* optional user patch layers from the Harness home (`~/.dsh`), expose its path resolver to
+* optional user patch layers from the TaskWeaver runtime home (`~/.taskweaver/runtime`), expose its path resolver to
 * config expressions, and drive the Cordis Loader against a leaf `cordis.yml` until the tree settles.
-* @module @z/dsh-app-boot
+* @module @taskweaver/dsh-app-boot
 */
+var __rewriteRelativeImportExtension = function(path, preserveJsx) {
+	if (typeof path === "string" && /^\.\.?\//.test(path)) return path.replace(/\.(tsx)$|((?:\.d)?)((?:\.[^./]+?)?)\.([cm]?)ts$/i, function(m, tsx, d, ext, cm) {
+		return tsx ? preserveJsx ? ".jsx" : ".js" : d && (!ext || !cm) ? m : d + ext + "." + cm.toLowerCase() + "js";
+	});
+	return path;
+};
 /**
 * Resolve the config to boot. Replay swaps a `cordis.yml` basename for
 * `cordis.snapshot.yml` in the same directory; every other mode keeps the path.
 * @param configPath - the requested config path (absolute, or relative to `cwd`).
-* @param snapshotMode - the bin's `$DSH_SNAPSHOT` value; only `'replay'` swaps the
+* @param snapshotMode - the bin's `$TASKWEAVER_SNAPSHOT` value; only `'replay'` swaps the
 *   basename.
 * @param cwd - the base a relative `configPath` resolves against.
 * @returns the absolute path of the config to boot.
@@ -593,7 +628,9 @@ function composeEntries(layers, warn = () => {}) {
 function resolveConfigPath(configPath, snapshotMode, cwd = process.cwd()) {
 	const absolute = resolve(cwd, configPath);
 	if (snapshotMode !== "replay") return absolute;
-	return resolve(dirname(absolute), basename(absolute).replace(/cordis\.ya?ml$/, "cordis.snapshot.yml"));
+	const dir = dirname(absolute);
+	const replayName = basename(absolute).replace(/cordis\.ya?ml$/, "cordis.snapshot.yml");
+	return resolve(dir, replayName);
 }
 /**
 * Load the optional gitignored `.env` from `dir`. Missing files fall back to the
@@ -610,7 +647,7 @@ function loadEnv(binName, dir = process.cwd(), warn = (line) => void process.std
 	}
 }
 /** Exact names no discovered file may set. */
-const BOOTSTRAP_NAMES = new Set([
+const BOOTSTRAP_NAMES = /* @__PURE__ */ new Set([
 	"PATH",
 	"HOME",
 	"USERPROFILE",
@@ -663,7 +700,7 @@ const BOOTSTRAP_NAMES = new Set([
 ]);
 /** Name prefixes no discovered file may set. */
 const BOOTSTRAP_PREFIXES = [
-	"DSH_",
+	"TASKWEAVER_",
 	"XDG_",
 	"DYLD_",
 	"BASH_FUNC_"
@@ -718,7 +755,7 @@ function readEnvLayer(binName, dir, warn) {
 * @throws when either file declares a bootstrap-only variable.
 */
 function loadLayeredEnv(binName, cwd = process.cwd(), warn = (line) => void process.stderr.write(line)) {
-	const home = resolveDshHome();
+	const home = resolveRuntimeHome();
 	const inherited = { ...process.env };
 	const project = readEnvLayer(binName, cwd, warn);
 	const user = home === resolve(cwd) ? void 0 : readEnvLayer(binName, home, warn);
@@ -760,7 +797,8 @@ async function watchUserPatches(ctx, options) {
 	if (entry === void 0) throw new Error(`${binName}: user patch-layer watching requires the root Include entry`);
 	const register = hmr.registerConfig(filename, async () => {
 		const { patches: _previousPatches, ...includeConfig } = entry.options.config;
-		const patches = compose(loadOptionalPatches(binName, filename) ?? []);
+		const userPatches = loadOptionalPatches(binName, filename) ?? [];
+		const patches = compose(userPatches);
 		await entry.update({ config: {
 			...includeConfig,
 			patches
@@ -775,7 +813,7 @@ async function watchUserPatches(ctx, options) {
 }
 /**
 * Load an optional patch-list file: a top-level YAML array of loader patch
-* entries (`@z/cordis-plugin-include`'s `PatchOptions`): id-targeted config
+* entries (`@taskweaver/cordis-plugin-include`'s `PatchOptions`): id-targeted config
 * overrides and `insert` lists, with `!!js` expressions allowed. A missing
 * file means "no layer"; an unreadable, unparsable, or non-array file throws —
 * a present patch file that cannot apply is a misconfiguration and must fail
@@ -814,7 +852,7 @@ function loadOverlayPatches(binName, file) {
 }
 /**
 * Parse one loader patch list: a top-level YAML array of
-* `@z/cordis-plugin-include` `PatchOptions` (id-targeted config overrides and
+* `@taskweaver/cordis-plugin-include` `PatchOptions` (id-targeted config overrides and
 * `insert` lists, `!!js` expressions allowed). Every invalid field or value throws,
 * because a patch file that cannot be applied at all is a misconfiguration; a
 * single patch whose target row is absent stays a per-entry Loader warning, so
@@ -888,7 +926,8 @@ function renderConfigDump(binName, absoluteConfigPath, layers, warn = (line) => 
 	const baseLabel = basename(absoluteConfigPath);
 	const base = parsed;
 	const snapshot = (count, warnings) => {
-		return applyEntryPatches(base, structuredClone(layers.slice(0, count).flatMap((layer) => layer.patches)), (message, ...args) => {
+		const flattened = structuredClone(layers.slice(0, count).flatMap((layer) => layer.patches));
+		return applyEntryPatches(base, flattened, (message, ...args) => {
 			let index = 0;
 			warnings.push(message.replace(/%C/g, () => JSON.stringify(args[index++])));
 		});
@@ -962,10 +1001,15 @@ async function mountRootInclude(ctx, absoluteConfigPath, patches = [], bareModul
 		import(name, getOuterStack) {
 			const specifier = isAbsolute(name) ? pathToFileURL(name).href : name;
 			if (name.startsWith(".") || name.startsWith("cordis:")) return super.import(specifier, getOuterStack);
+			if (/^(?:node:|file:|data:|https?:)/.test(specifier)) return super.import(specifier, getOuterStack);
 			const internal = this.ctx.loader.internal;
-			/* v8 ignore next -- Node supplies the internal loader; this preserves the
-			original diagnostic for hypothetical embedders without it. */
-			if (internal === void 0) return super.import(specifier, getOuterStack);
+			/* v8 ignore next -- Some Electron Node builds do not expose the internal
+			ESM loader. Resolve from the installed Host root with Node's package
+			exports rather than importing the bare name relative to this bundle. */
+			if (internal === void 0) {
+				const resolved = createRequire(bareModuleBaseUrl).resolve(specifier);
+				return import(__rewriteRelativeImportExtension(resolved.startsWith("node:") ? resolved : pathToFileURL(resolved).href));
+			}
 			return internal.import(specifier, bareModuleBaseUrl, {});
 		}
 	};
@@ -1165,7 +1209,7 @@ async function boot(binName, absoluteConfigPath, patches, prepare, bareModuleBas
 	let stage = "host preparation failed";
 	try {
 		ctx.baseUrl = pathToFileURL(dirname(absoluteConfigPath)).href + "/";
-		ctx.provide("dshHomePath", dshHomePath);
+		ctx.provide("runtimeHomePath", runtimeHomePath);
 		await ctx.plugin(Loader);
 		await prepare?.(ctx);
 		stage = "plugin tree failed to load";

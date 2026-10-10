@@ -1,5 +1,5 @@
 /**
- * @z/dsh-host-apiproxy — the API gateway every client shape shares:
+ * @taskweaver/dsh-host-apiproxy — the API gateway every client shape shares:
  * the ApiProxy contract (api/: types + zod schemas, browser-safe), the fetch
  * carrier pair (fetch/: toFetchHandler on the host side, AbstractApiClient +
  * platform subclasses on the client side), and the host-side implementation
@@ -12,11 +12,12 @@
  * service; sessions that have already logged a selection remain unchanged.
  */
 
-import { Context, Service } from '@z/cordis'
-import z from '@z/schemastery'
-import type {} from '@z/dsh-agent-default-model'
+import { Context, Service } from '@taskweaver/cordis'
+import z from '@taskweaver/schemastery'
+import type {} from '@taskweaver/dsh-agent-default-model'
 import type { ApiProxy } from './api/index.ts'
 import { createApiProxy, DEFAULT_COLD_BLANK_PROBE_MAX_BYTES } from './api-proxy.ts'
+import { createUiVerifyPolicyService } from './ui-verify-policy.ts'
 import {
   DEFAULT_SESSION_LOG_COMPRESSION_LEVEL,
   type SessionLogCompressionLevel,
@@ -30,7 +31,7 @@ export type { IApiClient } from './fetch/client.ts'
 export { createApiProxy } from './api-proxy.ts'
 export type { ApiProxyDefaults } from './api-proxy.ts'
 
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
   interface Context {
     /** The host-side ApiProxy implementation (the transport-agnostic gateway face). */
     apiProxy: ApiProxy
@@ -97,6 +98,7 @@ export class ApiProxyService extends Service implements ApiProxy {
 
   constructor(ctx: Context, config: Config) {
     super(ctx, 'apiProxy')
+    ctx.provide('uiVerifyPolicy', createUiVerifyPolicyService())
     const api = createApiProxy(ctx, {
       defaultModelSelection: () => ctx.agentDefaultModel.currentSelection(),
       saveDefaultModelSelection: selection => ctx.agentDefaultModel.saveSelection(selection),

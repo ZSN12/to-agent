@@ -1,18 +1,18 @@
 /**
  * `LocalSpillStore`: the host-filesystem implementation of the
- * `@z/dsh-spill` storage seam. Persists a tool's oversized text to a
+ * `@taskweaver/dsh-spill` storage seam. Persists a tool's oversized text to a
  * private, session-scoped file (see `./store.ts` for the traversal-safe naming
  * and exclusive owner-only write) and returns a path locator plus local
  * read/grep retrieval guidance.
  *
- * @module @z/dsh-spill-local
+ * @module @taskweaver/dsh-spill-local
  */
 
-import { Context } from '@z/cordis'
+import { Context } from '@taskweaver/cordis'
 import { resolve } from 'node:path'
-import z from '@z/schemastery'
-import { SpillLocator, SpillStore } from '@z/dsh-spill'
-import type { SaveTextSpill, SpillRef } from '@z/dsh-spill'
+import z from '@taskweaver/schemastery'
+import { SpillLocator, SpillStore } from '@taskweaver/dsh-spill'
+import type { SaveTextSpill, SpillRef } from '@taskweaver/dsh-spill'
 import { privateRoot, saveTextFile } from './store.ts'
 
 export { encodeSegment, privateRoot, saveTextFile, sessionDir } from './store.ts'

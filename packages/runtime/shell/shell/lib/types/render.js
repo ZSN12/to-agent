@@ -1,12 +1,9 @@
-"use strict";
 /**
  * Shared rendering helpers for the shell tools (`dsh-tool-bash`,
  * `dsh-tool-pwsh`): the exit-status marker contract the tools' renderers
  * emit and the presentation layer parses back.
- * @module @z/dsh-shell/render
+ * @module @taskweaver/dsh-shell/render
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.parseExitStatus = parseExitStatus;
 /**
  * Split a rendered shell-tool result string into its output body and the
  * structured exit status — the inverse of the `[exit code: N]` /
@@ -27,12 +24,13 @@ exports.parseExitStatus = parseExitStatus;
  * @param text - rendered model-facing shell-tool result.
  * @returns the marker-free body plus the recovered terminal exit code or signal.
  */
-function parseExitStatus(text) {
-    var signal = /\n\[killed by signal: ([^\]\n]+)\]$/.exec(text);
-    if ((signal === null || signal === void 0 ? void 0 : signal[1]) !== undefined)
+export function parseExitStatus(text) {
+    const signal = /\n\[killed by signal: ([^\]\n]+)\]$/.exec(text);
+    if (signal?.[1] !== undefined)
         return { body: text.slice(0, signal.index), signal: signal[1] };
-    var exit = /\n\[exit code: (\d+)\]$/.exec(text);
-    if ((exit === null || exit === void 0 ? void 0 : exit[1]) !== undefined)
+    const exit = /\n\[exit code: (\d+)\]$/.exec(text);
+    if (exit?.[1] !== undefined)
         return { body: text.slice(0, exit.index), exitCode: Number(exit[1]) };
     return { body: text, exitCode: 0 };
 }
+//# sourceMappingURL=render.js.map

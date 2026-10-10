@@ -1,5 +1,5 @@
 {
-  "name": "@z/dsh-workflow",
+  "name": "@taskweaver/dsh-workflow",
   "description": "Workflow capability seam: ctx.workflowEngine service, run vocabulary, and workflow/* events",
   "version": "0.1.1-rc.2",
   "publishConfig": {
@@ -8,7 +8,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
-    "directory": "packages/workflow/workflow"
+    "directory": "packages/runtime/workflow/workflow"
   },
   "type": "module",
   "main": "lib/index.js",
@@ -37,19 +37,19 @@
   ],
   "license": "MIT",
   "peerDependencies": {
-    "@z/dsh-agent": "workspace:^",
-    "@z/dsh-brand": "workspace:^",
-    "@z/dsh-invariants": "workspace:^",
-    "@z/dsh-llm": "workspace:^",
-    "@z/dsh-session": "workspace:^",
-    "@z/cordis": "workspace:^"
+    "@taskweaver/dsh-agent": "workspace:^",
+    "@taskweaver/dsh-brand": "workspace:^",
+    "@taskweaver/dsh-invariants": "workspace:^",
+    "@taskweaver/dsh-llm": "workspace:^",
+    "@taskweaver/dsh-session": "workspace:^",
+    "@taskweaver/cordis": "workspace:^"
   },
   "devDependencies": {
-    "@z/dsh-agent": "workspace:^",
-    "@z/dsh-brand": "workspace:^",
-    "@z/dsh-invariants": "workspace:^",
-    "@z/dsh-llm": "workspace:^",
-    "@z/dsh-session": "workspace:^",
-    "@z/cordis": "workspace:^"
+    "@taskweaver/dsh-agent": "workspace:^",
+    "@taskweaver/dsh-brand": "workspace:^",
+    "@taskweaver/dsh-invariants": "workspace:^",
+    "@taskweaver/dsh-llm": "workspace:^",
+    "@taskweaver/dsh-session": "workspace:^",
+    "@taskweaver/cordis": "workspace:^"
   }
 }

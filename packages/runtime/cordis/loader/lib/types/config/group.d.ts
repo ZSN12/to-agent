@@ -1,4 +1,4 @@
-import { Context, Service } from '@z/cordis';
+import { Context, Service } from '@taskweaver/cordis';
 import { type EntryOptions } from './entry.ts';
 import { EntryTree } from './tree.ts';
 /** Runtime owner for a list of child loader entries. */

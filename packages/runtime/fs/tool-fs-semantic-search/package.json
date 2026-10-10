@@ -1,5 +1,5 @@
 {
-  "name": "@z/dsh-tool-fs-semantic-search",
+  "name": "@taskweaver/dsh-tool-fs-semantic-search",
   "version": "0.1.0",
   "type": "module",
   "description": "Semantic code search tool using vector embeddings",
@@ -17,10 +17,10 @@
     "dev": "tsc --watch"
   },
   "dependencies": {
-    "@z/cordis": "workspace:*",
-    "@z/dsh-tools": "workspace:^",
-    "@z/dsh-tool-fs": "workspace:^",
-    "@z/schemastery": "workspace:^",
+    "@taskweaver/cordis": "workspace:*",
+    "@taskweaver/dsh-tools": "workspace:^",
+    "@taskweaver/dsh-tool-fs": "workspace:^",
+    "@taskweaver/schemastery": "workspace:^",
     "chromadb": "^1.8.1",
     "tree-sitter": "^0.21.0",
     "tree-sitter-typescript": "^0.20.0",
@@ -33,9 +33,9 @@
     "vitest": "^1.0.0"
   },
   "peerDependencies": {
-    "@z/cordis": "workspace:^",
-    "@z/dsh-fs": "workspace:^",
-    "@z/dsh-invariants": "workspace:^",
-    "@z/dsh-system-prompt": "workspace:^"
+    "@taskweaver/cordis": "workspace:^",
+    "@taskweaver/dsh-fs": "workspace:^",
+    "@taskweaver/dsh-invariants": "workspace:^",
+    "@taskweaver/dsh-system-prompt": "workspace:^"
   }
 }

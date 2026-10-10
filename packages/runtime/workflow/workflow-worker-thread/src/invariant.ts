@@ -1,13 +1,13 @@
 /**
- * Package-owned invariant companion for `@z/dsh-workflow-worker-thread`.
- * @module @z/dsh-workflow-worker-thread/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-workflow-worker-thread`.
+ * @module @taskweaver/dsh-workflow-worker-thread/invariant
  */
 
 /* jscpd:ignore-start */
-import type { Context } from '@z/cordis'
-import type { InvariantInstaller } from '@z/dsh-invariants'
+import type { Context } from '@taskweaver/cordis'
+import type { InvariantInstaller } from '@taskweaver/dsh-invariants'
 
-const PACKAGE_NAME = '@z/dsh-workflow-worker-thread'
+const PACKAGE_NAME = '@taskweaver/dsh-workflow-worker-thread'
 
 /** Cordis companion plugin name. */
 export const name = 'workflow-worker-thread-invariant'

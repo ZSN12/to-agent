@@ -1,4 +1,3 @@
-"use strict";
 /**
  * Cross-domain sessions face: the contract surface sibling domains (today:
  * workspaces) consume instead of the sessions implementation. The sessions
@@ -7,4 +6,5 @@
  * widening this face is the explicit act of widening the inter-domain
  * dependency.
  */
-Object.defineProperty(exports, "__esModule", { value: true });
+export {};
+//# sourceMappingURL=sessions-port.js.map

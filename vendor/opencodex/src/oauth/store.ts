@@ -23,8 +23,10 @@ import { normalizeAnthropicIdentity, matchesAnthropicImport, mergeAnthropicIdent
 import { createHash, randomUUID } from "node:crypto";
 import { chmodSync, closeSync, constants as fsConstants, copyFileSync, existsSync, fstatSync, lstatSync, mkdirSync, openSync, readFileSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { getConfigDir, atomicWriteFile, backupInvalidConfig, hardenConfigDir, hardenExistingSecret, withConfigMutationLockSync } from "../config";
-import { atomicWriteFileNoFollowUnclaimed } from "../config/atomic-write";
+import { getConfigDir, hardenConfigDir } from "../config/paths";
+import { atomicWriteFile, atomicWriteFileNoFollowUnclaimed } from "../config/atomic-write";
+import { backupInvalidConfig, hardenExistingSecret } from "../config/file-security";
+import { withConfigMutationLockSync } from "../config/mutation-lock";
 import { assertNotRealHomeUnderTest } from "../lib/test-home-guard";
 import { recordOwnedConfigPath } from "../lib/config-ownership";
 import { MAX_PENDING_OAUTH_MUTATIONS } from "../lib/translator-budget";

@@ -1,6 +1,6 @@
 /** Durable Session-message acceptance checks shared by provisioning and mailbox recovery. */
-import type { UserMessage } from '@z/dsh-llm';
-import type { SessionEvent } from '@z/dsh-session';
+import type { UserMessage } from '@taskweaver/dsh-llm';
+import type { SessionEvent } from '@taskweaver/dsh-session';
 /**
  * Test whether one message is model-visible or still durably pending.
  * @param events - one Session's non-inherited event suffix.

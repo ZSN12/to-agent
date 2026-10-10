@@ -1,15 +1,12 @@
-"use strict";
 /**
- * Package-owned invariant companion for `@z/dsh-session-projection-cache`.
- * @module @z/dsh-session-projection-cache/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-session-projection-cache`.
+ * @module @taskweaver/dsh-session-projection-cache/invariant
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.apply = exports.inject = exports.name = void 0;
-var PACKAGE_NAME = '@z/dsh-session-projection-cache';
+const PACKAGE_NAME = '@taskweaver/dsh-session-projection-cache';
 /** Cordis companion plugin name. */
-exports.name = 'session-projection-cache-invariant';
+export const name = 'session-projection-cache-invariant';
 /** Service required before the companion can reserve package ownership. */
-exports.inject = ['invariants'];
+export const inject = ['invariants'];
 /**
  * No runtime invariant: the cache's correctness relation (a stored row equals
  * the registry fold at its `seq` watermark) is only checkable by re-running the
@@ -19,14 +16,12 @@ exports.inject = ['invariants'];
  * on every reopen, and the read ladder's version/watermark guards are proven
  * by the package spec.
  */
-var install = function () { };
+const install = () => { };
 /**
  * Register this package's invariant companion.
  * @param ctx - Cordis context carrying the invariant service.
  * @returns the installed registration's disposer after setup succeeds.
  */
-var apply = function (ctx) {
-    return Promise.resolve(ctx.invariants.register(PACKAGE_NAME, install));
-};
-exports.apply = apply;
+export const apply = (ctx) => Promise.resolve(ctx.invariants.register(PACKAGE_NAME, install));
 /* jscpd:ignore-end */
+//# sourceMappingURL=invariant.js.map

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "capturedAt": "2026-10-09T08:53:39.215Z",
+  "capturedAt": "2026-10-10T03:31:31.706Z",
   "prefixProbeBytes": 256,
   "prompts": {
     "standard": {
@@ -12,8 +12,8 @@
         "sourceSha256": "66aec5a6d969464b880fe9468a786f6f892a4145622336cb185d400490a7189f",
         "capturedAt": "2026-10-09T08:52:36.959Z"
       },
-      "sourcePath": "packages/runtime/host-cli/config/agent-presets/standard/agent.cordis.yml",
-      "sourceSha256": "66aec5a6d969464b880fe9468a786f6f892a4145622336cb185d400490a7189f",
+      "sourcePath": "packages/runtime/host-cli/config/agent-presets/tw-default/agent.cordis.yml",
+      "sourceSha256": "02702e37e9f9435232d25f603cad788ed7c2a747bdf02ed58212a2bfa69b465d",
       "sha256": "fb7e0fe109f54aac8ab7c1abbcfab63abfd67d36b48592d1f89ad8ed35bf2253",
       "bytes": 2026,
       "estimatedTokens": 507,
@@ -40,8 +40,8 @@
         "sourceSha256": "4e5ce587708edaa5f450b4ef1a0bf8b7ef99a370ff4d288cf5140a1dde01cd00",
         "capturedAt": "2026-10-09T08:52:36.960Z"
       },
-      "sourcePath": "packages/runtime/host-cli/config/agent-presets/taskweaver-code/agent.cordis.yml",
-      "sourceSha256": "4e5ce587708edaa5f450b4ef1a0bf8b7ef99a370ff4d288cf5140a1dde01cd00",
+      "sourcePath": "packages/runtime/host-cli/config/agent-presets/tw-taskweaver-code/agent.cordis.yml",
+      "sourceSha256": "c9cc0e82b1d8d3b4a6aa976eac4cdf017c541c83de459a47b27e94df18c25554",
       "sha256": "02949c2fb2a8d0d618147212c64773c64d6e9ad7e1af31d925adfc3f91d4715b",
       "bytes": 683,
       "estimatedTokens": 171,
@@ -63,8 +63,8 @@
         "sourceSha256": "be13bda57173cfa14e6da062e0c1556b3e8606362ccc7566e4fcb82bc316b117",
         "capturedAt": "2026-10-09T08:52:36.961Z"
       },
-      "sourcePath": "packages/runtime/host-cli/config/agent-presets/taskweaver-readonly/agent.cordis.yml",
-      "sourceSha256": "be13bda57173cfa14e6da062e0c1556b3e8606362ccc7566e4fcb82bc316b117",
+      "sourcePath": "packages/runtime/host-cli/config/agent-presets/tw-taskweaver-readonly/agent.cordis.yml",
+      "sourceSha256": "08e631073501776944e00890c7eac3c5d3ff4779d7f0f6f09a4ffbab651e9a78",
       "sha256": "de4029257a380f7039c652d66dfc6f565f11ae1a305416c15f920b1d78310f24",
       "bytes": 4301,
       "estimatedTokens": 1076,
@@ -86,21 +86,21 @@
         "sha256": "3325e70a8eb7334d8a8ba0d4a882f5b4b682fadb68264a0ce8da8d291d7b9909",
         "bytes": 120,
         "sourceSha256": "58fb33f70cf62837d4d36dc8dc57c2218ad01f6060adb382c3ba28fde8aa3471",
-        "capturedAt": "2026-10-09T08:52:36.962Z"
+        "capturedAt": "2026-10-10T03:31:31.714Z"
       },
-      "sourcePath": "packages/runtime/host-cli/config/agent-presets/taskweaver-planner/agent.cordis.yml",
-      "sourceSha256": "58fb33f70cf62837d4d36dc8dc57c2218ad01f6060adb382c3ba28fde8aa3471",
-      "sha256": "3325e70a8eb7334d8a8ba0d4a882f5b4b682fadb68264a0ce8da8d291d7b9909",
-      "bytes": 120,
-      "estimatedTokens": 30,
-      "staticBytes": 120,
-      "hanCharacters": 0,
-      "targetMaxBytes": 1024,
+      "sourcePath": "packages/runtime/host-cli/config/agent-presets/tw-taskweaver-planner/agent.cordis.yml",
+      "sourceSha256": "618f4382be29891767ffebb53e298021b117bcfa8e0232e2dfd07ce6406e7e62",
+      "sha256": "51e9d1eabbb95cadf9e2c6e2b262b88de11294ecf4ff11bf75799a22a78cc4bb",
+      "bytes": 2685,
+      "estimatedTokens": 672,
+      "staticBytes": 2685,
+      "hanCharacters": 121,
+      "targetMaxBytes": 3584,
       "targetMaxHanCharacters": null,
-      "maxRegressionBytes": 126,
+      "maxRegressionBytes": 2820,
       "knownViolations": [],
-      "stablePrefixBytes": 120,
-      "stablePrefixSha256": "3325e70a8eb7334d8a8ba0d4a882f5b4b682fadb68264a0ce8da8d291d7b9909"
+      "stablePrefixBytes": 2685,
+      "stablePrefixSha256": "51e9d1eabbb95cadf9e2c6e2b262b88de11294ecf4ff11bf75799a22a78cc4bb"
     },
     "taskweaver-pi-lite": {
       "file": "taskweaver-pi-lite.prompt.txt",
@@ -109,18 +109,18 @@
         "sha256": "48856bf18ec134b997db4a6f85a24907c43cea54252b68b389c551909f5df3f8",
         "bytes": 999,
         "sourceSha256": "0fd0246ee4c7cc94a1f061ceedd0fc9a3211f8e3333bd75820ce5329719fc805",
-        "capturedAt": "2026-10-09T08:52:36.962Z"
+        "capturedAt": "2026-10-10T03:31:31.715Z"
       },
-      "sourcePath": "packages/runtime/host-cli/config/agent-presets/taskweaver-pi-lite/agent.cordis.yml",
-      "sourceSha256": "0fd0246ee4c7cc94a1f061ceedd0fc9a3211f8e3333bd75820ce5329719fc805",
-      "sha256": "48856bf18ec134b997db4a6f85a24907c43cea54252b68b389c551909f5df3f8",
-      "bytes": 999,
-      "estimatedTokens": 250,
-      "staticBytes": 999,
+      "sourcePath": "packages/runtime/host-cli/config/agent-presets/tw-taskweaver-pi-lite/agent.cordis.yml",
+      "sourceSha256": "517fc023d308f042b645354ec5233c41ffb6dea8f6c396938c725673cbe0c4b7",
+      "sha256": "49012e27dfab478f201ad69848698ac3e816b7b61f6aa386518b244d9595a039",
+      "bytes": 1106,
+      "estimatedTokens": 277,
+      "staticBytes": 1106,
       "hanCharacters": 0,
       "targetMaxBytes": 1536,
       "targetMaxHanCharacters": null,
-      "maxRegressionBytes": 1049,
+      "maxRegressionBytes": 1162,
       "knownViolations": [
         "prefix-unstable-under-dynamic-context",
         "dynamic-placeholder-in-static-prefix",
@@ -138,7 +138,7 @@
         "sourceSha256": "d6b680c419ddc1269cc70c37203021eee8bc1c442895e62be86e609f754557eb",
         "capturedAt": "2026-10-09T08:52:36.963Z"
       },
-      "sourcePath": "electron/backend/task-profile.mjs",
+      "sourcePath": "desktop/backend/task-profile.mjs",
       "sourceSha256": "d6b680c419ddc1269cc70c37203021eee8bc1c442895e62be86e609f754557eb",
       "sha256": "e9a54af1c1c87cc39519a5e1d468df5755f7af5c40e576ad0e07069d642aea2a",
       "bytes": 1683,
@@ -163,7 +163,7 @@
         "sourceSha256": "d6b680c419ddc1269cc70c37203021eee8bc1c442895e62be86e609f754557eb",
         "capturedAt": "2026-10-09T08:52:36.963Z"
       },
-      "sourcePath": "electron/backend/task-profile.mjs",
+      "sourcePath": "desktop/backend/task-profile.mjs",
       "sourceSha256": "d6b680c419ddc1269cc70c37203021eee8bc1c442895e62be86e609f754557eb",
       "sha256": "f389edf124c1ef6e29c9eb9e07c4a1c07b0460b2ee6c91feeb4d1bab8df27761",
       "bytes": 1409,
@@ -188,7 +188,7 @@
         "sourceSha256": "d6b680c419ddc1269cc70c37203021eee8bc1c442895e62be86e609f754557eb",
         "capturedAt": "2026-10-09T08:52:36.964Z"
       },
-      "sourcePath": "electron/backend/task-profile.mjs",
+      "sourcePath": "desktop/backend/task-profile.mjs",
       "sourceSha256": "d6b680c419ddc1269cc70c37203021eee8bc1c442895e62be86e609f754557eb",
       "sha256": "9f0b1332bd853df6a61aeebc3613c8f8968b37e71d3e27b3996818308420cfa3",
       "bytes": 141,
@@ -211,7 +211,7 @@
         "sourceSha256": "d6b680c419ddc1269cc70c37203021eee8bc1c442895e62be86e609f754557eb",
         "capturedAt": "2026-10-09T08:52:36.964Z"
       },
-      "sourcePath": "electron/backend/task-profile.mjs",
+      "sourcePath": "desktop/backend/task-profile.mjs",
       "sourceSha256": "d6b680c419ddc1269cc70c37203021eee8bc1c442895e62be86e609f754557eb",
       "sha256": "02120288611fab07788f37c58c939418bb6825a8538975a5bad87593ea7784ec",
       "bytes": 148,
@@ -232,24 +232,23 @@
         "sha256": "fbb179306d42af2840bdc34ccb03717a066687212b48abebe3559dcfc71d8671",
         "bytes": 5451,
         "sourceSha256": "f413c1b68144b98bf2e42eee8c36b6f2b33202651a0cee6e6b26962a996fe0ab",
-        "capturedAt": "2026-10-09T08:52:36.965Z"
+        "capturedAt": "2026-10-10T03:31:31.717Z"
       },
-      "sourcePath": "electron/backend/orchestration/plan-and-execute.mjs",
-      "sourceSha256": "f413c1b68144b98bf2e42eee8c36b6f2b33202651a0cee6e6b26962a996fe0ab",
-      "sha256": "fbb179306d42af2840bdc34ccb03717a066687212b48abebe3559dcfc71d8671",
-      "bytes": 5451,
-      "estimatedTokens": 1363,
-      "staticBytes": 3834,
-      "hanCharacters": 1343,
+      "sourcePath": "desktop/backend/orchestration/plan-and-execute.mjs",
+      "sourceSha256": "b83ec149b5c890abac7651ba1d259b75d80e0659a3bcf78987a4f7443ea5ee6e",
+      "sha256": "48cc958ed65e44e062218328707d94e9289fbc595e86823fdb7b42923dfa6987",
+      "bytes": 5945,
+      "estimatedTokens": 1487,
+      "staticBytes": 3556,
+      "hanCharacters": 1452,
       "targetMaxBytes": 3584,
       "targetMaxHanCharacters": null,
-      "maxRegressionBytes": 5724,
+      "maxRegressionBytes": 6243,
       "knownViolations": [
-        "repository-specific-path",
-        "target-size-limit-exceeded"
+        "repository-specific-path"
       ],
-      "stablePrefixBytes": 921,
-      "stablePrefixSha256": "c493334f46597fd0263b7403bd5f1a1ba46ba12855e60e25866ff36f3268583d"
+      "stablePrefixBytes": 1213,
+      "stablePrefixSha256": "d4dab76d99f26044ae28b9ec94669859b3c844b737cf147d89f645ed0facc92c"
     },
     "planner-synthesis": {
       "file": "planner-synthesis.prompt.txt",
@@ -258,21 +257,21 @@
         "sha256": "0078f451409cf648d9045a2ece8edbee11b222024027ad4b37ed3f5f9b73e1e8",
         "bytes": 1399,
         "sourceSha256": "f413c1b68144b98bf2e42eee8c36b6f2b33202651a0cee6e6b26962a996fe0ab",
-        "capturedAt": "2026-10-09T08:52:36.966Z"
+        "capturedAt": "2026-10-10T03:31:31.718Z"
       },
-      "sourcePath": "electron/backend/orchestration/plan-and-execute.mjs",
-      "sourceSha256": "f413c1b68144b98bf2e42eee8c36b6f2b33202651a0cee6e6b26962a996fe0ab",
-      "sha256": "0078f451409cf648d9045a2ece8edbee11b222024027ad4b37ed3f5f9b73e1e8",
-      "bytes": 1399,
-      "estimatedTokens": 350,
-      "staticBytes": 1289,
-      "hanCharacters": 376,
+      "sourcePath": "desktop/backend/orchestration/plan-and-execute.mjs",
+      "sourceSha256": "b83ec149b5c890abac7651ba1d259b75d80e0659a3bcf78987a4f7443ea5ee6e",
+      "sha256": "2c9eba6d6d984b0dd1f59838b9d2a2189bf85cb62820e98ac2959b5deb3952ad",
+      "bytes": 1476,
+      "estimatedTokens": 369,
+      "staticBytes": 1387,
+      "hanCharacters": 407,
       "targetMaxBytes": 4096,
       "targetMaxHanCharacters": null,
-      "maxRegressionBytes": 1469,
+      "maxRegressionBytes": 1550,
       "knownViolations": [],
-      "stablePrefixBytes": 1289,
-      "stablePrefixSha256": "d310ca6f6393aa162b9cfc852e1fe4ca9054e1814956da084a86a54e15a4c1ea"
+      "stablePrefixBytes": 420,
+      "stablePrefixSha256": "e8783243018a9b1d6867dfcfb616fe5732a48036662487452f078e88c8713ae9"
     }
   }
 }

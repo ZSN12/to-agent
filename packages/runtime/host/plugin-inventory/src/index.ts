@@ -1,8 +1,8 @@
 /** Read-only projection of the current Cordis Loader plugin entries. */
 
-import type { Context, FiberState } from '@z/cordis'
-import type {} from '@z/cordis-plugin-loader'
-import { TypertRemoteService, Remote } from '@z/dsh-typert-protocol'
+import type { Context, FiberState } from '@taskweaver/cordis'
+import type {} from '@taskweaver/cordis-plugin-loader'
+import { TypertRemoteService, Remote } from '@taskweaver/dsh-typert-protocol'
 // Typert-generated ./typert and ./remote artifacts import Zod at runtime.
 import type {} from 'zod'
 import type {

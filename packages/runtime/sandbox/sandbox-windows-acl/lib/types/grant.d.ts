@@ -8,7 +8,7 @@
  * Fail-closed: `add` throws on any grant failure and the caller disposes the
  * instance (revoking every path granted so far); `dispose` revokes every
  * standing grant and reports every cleanup failure.
- * @module @z/dsh-sandbox-windows-acl/grant
+ * @module @taskweaver/dsh-sandbox-windows-acl/grant
  */
 import type { Win32Bindings } from './ffi.ts';
 /**

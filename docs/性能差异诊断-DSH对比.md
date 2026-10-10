@@ -374,7 +374,7 @@ async function getDshModelDirectory() {
 
 ```
 /Applications/TaskWeaver.app/Contents/Resources/app.asar   构建于 2026-09-29 12:04
-electron/backend/dsh-chat-service.mjs                      修改于 2026-09-29 12:11
+desktop/backend/dsh-chat-service.mjs                      修改于 2026-09-29 12:11
 ```
 
 - 安装版（12:04）的 asar 里**包含** `formatLegacyHistoryContext` / `TASKWEAVER_LEGACY_HISTORY_CONTEXT`
@@ -446,10 +446,10 @@ DSH Host 本身没被改慢（实测毫秒级）；
 
 | # | 改动 | 文件 | 关键实现 |
 |---|------|------|---------|
-| 1 | 意图判定改为**保守判定**，默认不再落 `CODE_MUTATION` | `electron/backend/user-intent.mjs` | 新增 `CONVERSATION` 意图并作为兜底；修改类关键词**先于**只读模式匹配；新增 `INTERROGATIVE_BEFORE` 回看守卫，使「这段代码**怎么实现**的」不再被判成修改意图 |
-| 2 | 自测命令**不再默认跑 `pnpm run build`** | `electron/backend/verification-policy.mjs` | 优先级改为 `typecheck → lint → tsc → build`；新增 `buildCommand` 字段单独承载重型构建；`readTsconfig()` 识别 solution-style tsconfig（本仓库 `files: []` + `references`，因此选 `npx tsc -b` 而非 `--noEmit`） |
-| 3 | 收紧→放宽 `selectModel` 的比较口径，避免**每轮**重建模型绑定 | `electron/backend/dsh-chat-service.mjs` | `sessionModelMatches()` 在「回读值缺 `reasoningEffort`」或「未设档位」时不再判「不匹配」。**注意：这是一条防御性修复，不是本次慢的主因**——原因见 7.2 |
-| 4 | 对话投影推送**按 16ms 合并** | `electron/backend/z-conversation-hub.mjs` | `publish()` 拆成 `publishNow()`（首帧立即出）+ 脏集合 + 单次 `setTimeout` 冲刷；`detach` 时清理待推送项 |
+| 1 | 意图判定改为**保守判定**，默认不再落 `CODE_MUTATION` | `desktop/backend/user-intent.mjs` | 新增 `CONVERSATION` 意图并作为兜底；修改类关键词**先于**只读模式匹配；新增 `INTERROGATIVE_BEFORE` 回看守卫，使「这段代码**怎么实现**的」不再被判成修改意图 |
+| 2 | 自测命令**不再默认跑 `pnpm run build`** | `desktop/backend/verification-policy.mjs` | 优先级改为 `typecheck → lint → tsc → build`；新增 `buildCommand` 字段单独承载重型构建；`readTsconfig()` 识别 solution-style tsconfig（本仓库 `files: []` + `references`，因此选 `npx tsc -b` 而非 `--noEmit`） |
+| 3 | 收紧→放宽 `selectModel` 的比较口径，避免**每轮**重建模型绑定 | `desktop/backend/dsh-chat-service.mjs` | `sessionModelMatches()` 在「回读值缺 `reasoningEffort`」或「未设档位」时不再判「不匹配」。**注意：这是一条防御性修复，不是本次慢的主因**——原因见 7.2 |
+| 4 | 对话投影推送**按 16ms 合并** | `desktop/backend/z-conversation-hub.mjs` | `publish()` 拆成 `publishNow()`（首帧立即出）+ 脏集合 + 单次 `setTimeout` 冲刷；`detach` 时清理待推送项 |
 
 ### 7.2 验证证据
 

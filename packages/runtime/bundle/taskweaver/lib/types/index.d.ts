@@ -1,10 +1,10 @@
 /**
  * TaskWeaver's API-only Host glue: expose the explicit `/api` trust list and
  * publish `z web:` only after the complete Loader tree is ready.
- * @module @z/dsh-taskweaver
+ * @module @taskweaver/dsh-taskweaver
  */
-import type { Context } from '@z/cordis';
-import z from '@z/schemastery';
+import type { Context } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
 /** Stable Cordis plugin name. */
 export declare const name = "taskweaver-api-host";
 /** Service consumed by the `/api` connection row. */

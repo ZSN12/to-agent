@@ -8,7 +8,7 @@ import {
   confineArgv,
   wrapBashInvocation,
   SANDBOX_MODE,
-} from '../electron/backend/sandbox-service.mjs'
+} from '../desktop/backend/sandbox-service.mjs'
 
 const probe = probeSandboxSupport()
 console.log('sandbox probe:', probe)

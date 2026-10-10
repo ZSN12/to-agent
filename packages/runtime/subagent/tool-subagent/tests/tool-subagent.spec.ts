@@ -2,25 +2,25 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { Context } from '@z/cordis'
-import Loader from '@z/cordis-plugin-loader'
-import { CallId } from '@z/dsh-llm'
-import SystemPrompt from '@z/dsh-system-prompt'
-import ToolRuntime, { TOOL_ABORTED_BEFORE_DISPATCH } from '@z/dsh-tools'
-import { assembleContextFor, type Agent } from '@z/dsh-agent'
-import AgentRegistry from '@z/dsh-agent'
-import AgentLoop from '@z/dsh-agent-loop'
-import { mountAgentLoopTestDependencies } from '@z/dsh-agent-loop-testkit'
-import JsonlSessionPersistence from '@z/dsh-session-persistence-jsonl'
-import SubagentRuntime from '@z/dsh-subagent'
-import type { SubagentStartRequest } from '@z/dsh-subagent'
-import LocalJobRegistry from '@z/dsh-jobs-local'
-import * as SubagentSpawn from '@z/dsh-subagent-spawn-in-process'
-import * as ToolTasks from '@z/dsh-tool-jobs'
+import { Context } from '@taskweaver/cordis'
+import Loader from '@taskweaver/cordis-plugin-loader'
+import { CallId } from '@taskweaver/dsh-llm'
+import SystemPrompt from '@taskweaver/dsh-system-prompt'
+import ToolRuntime, { TOOL_ABORTED_BEFORE_DISPATCH } from '@taskweaver/dsh-tools'
+import { assembleContextFor, type Agent } from '@taskweaver/dsh-agent'
+import AgentRegistry from '@taskweaver/dsh-agent'
+import AgentLoop from '@taskweaver/dsh-agent-loop'
+import { mountAgentLoopTestDependencies } from '@taskweaver/dsh-agent-loop-testkit'
+import JsonlSessionPersistence from '@taskweaver/dsh-session-persistence-jsonl'
+import SubagentRuntime from '@taskweaver/dsh-subagent'
+import type { SubagentStartRequest } from '@taskweaver/dsh-subagent'
+import LocalJobRegistry from '@taskweaver/dsh-jobs-local'
+import * as SubagentSpawn from '@taskweaver/dsh-subagent-spawn-in-process'
+import * as ToolTasks from '@taskweaver/dsh-tool-jobs'
 import { MockAdapter, textResponse } from '../../../core/agent-loop/tests/mock-adapter.ts'
 import * as mock from './scripted-provider.ts'
 import * as tool from '../src/index.ts'
-import { SessionId } from '@z/dsh-session'
+import { SessionId } from '@taskweaver/dsh-session'
 
 const testToolSignal = new AbortController().signal
 
@@ -902,7 +902,7 @@ describe('dsh-tool-subagent background mode', () => {
     const ctx = await setup({ provider: 'mock' })
     const result = await callSubagent(ctx, { description: 'd', prompt: 'p', run_in_background: true })
     expect(result.isError).toBe(true)
-    expect(text(result)).toContain('background jobs unavailable: load @z/dsh-jobs')
+    expect(text(result)).toContain('background jobs unavailable: load @taskweaver/dsh-jobs')
   })
 
   it('skips background startup when the tool signal is already aborted', async () => {

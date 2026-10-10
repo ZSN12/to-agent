@@ -1,109 +1,28 @@
-"use strict";
 /**
  * Agent service: live registry, factory delegation, and process-local
  * initiator scope. Concrete creation and driving belong to the loop.
  *
- * @module @z/dsh-agent
+ * @module @taskweaver/dsh-agent
  */
-var __extends = (this && this.__extends) || (function () {
-    var extendStatics = function (d, b) {
-        extendStatics = Object.setPrototypeOf ||
-            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-            function (d, b) { for (var p in b) if (Object.prototype.hasOwnProperty.call(b, p)) d[p] = b[p]; };
-        return extendStatics(d, b);
-    };
-    return function (d, b) {
-        if (typeof b !== "function" && b !== null)
-            throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
-})();
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __exportStar = (this && this.__exportStar) || function(m, exports) {
-    for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
-};
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
-var __generator = (this && this.__generator) || function (thisArg, body) {
-    var _ = { label: 0, sent: function() { if (t[0] & 1) throw t[1]; return t[1]; }, trys: [], ops: [] }, f, y, t, g = Object.create((typeof Iterator === "function" ? Iterator : Object).prototype);
-    return g.next = verb(0), g["throw"] = verb(1), g["return"] = verb(2), typeof Symbol === "function" && (g[Symbol.iterator] = function() { return this; }), g;
-    function verb(n) { return function (v) { return step([n, v]); }; }
-    function step(op) {
-        if (f) throw new TypeError("Generator is already executing.");
-        while (g && (g = 0, op[0] && (_ = 0)), _) try {
-            if (f = 1, y && (t = op[0] & 2 ? y["return"] : op[0] ? y["throw"] || ((t = y["return"]) && t.call(y), 0) : y.next) && !(t = t.call(y, op[1])).done) return t;
-            if (y = 0, t) op = [op[0] & 2, t.value];
-            switch (op[0]) {
-                case 0: case 1: t = op; break;
-                case 4: _.label++; return { value: op[1], done: false };
-                case 5: _.label++; y = op[1]; op = [0]; continue;
-                case 7: op = _.ops.pop(); _.trys.pop(); continue;
-                default:
-                    if (!(t = _.trys, t = t.length > 0 && t[t.length - 1]) && (op[0] === 6 || op[0] === 2)) { _ = 0; continue; }
-                    if (op[0] === 3 && (!t || (op[1] > t[0] && op[1] < t[3]))) { _.label = op[1]; break; }
-                    if (op[0] === 6 && _.label < t[1]) { _.label = t[1]; t = op; break; }
-                    if (t && _.label < t[2]) { _.label = t[2]; _.ops.push(op); break; }
-                    if (t[2]) _.ops.pop();
-                    _.trys.pop(); continue;
-            }
-            op = body.call(thisArg, _);
-        } catch (e) { op = [6, e]; y = 0; } finally { f = t = 0; }
-        if (op[0] & 5) throw op[1]; return { value: op[0] ? op[1] : void 0, done: true };
-    }
-};
-var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
-    if (pack || arguments.length === 2) for (var i = 0, l = from.length, ar; i < l; i++) {
-        if (ar || !(i in from)) {
-            if (!ar) ar = Array.prototype.slice.call(from, 0, i);
-            ar[i] = from[i];
-        }
-    }
-    return to.concat(ar || Array.prototype.slice.call(from));
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.AgentRegistry = exports.emitAgentEvent = exports.assembleContextFor = exports.agentEvents = exports.agentCarrier = void 0;
-var cordis_1 = require("@z/cordis");
-var node_async_hooks_1 = require("node:async_hooks");
-var types_1 = require("node:util/types");
-var dsh_scope_1 = require("@z/dsh-scope");
-__exportStar(require("./runtime-types.ts"), exports);
-__exportStar(require("./types.ts"), exports);
-__exportStar(require("./inbox.ts"), exports);
-__exportStar(require("./consumed-work.ts"), exports);
-__exportStar(require("./model-selection.ts"), exports);
-var dispatch_ts_1 = require("./dispatch.ts");
-Object.defineProperty(exports, "agentCarrier", { enumerable: true, get: function () { return dispatch_ts_1.agentCarrier; } });
-Object.defineProperty(exports, "agentEvents", { enumerable: true, get: function () { return dispatch_ts_1.agentEvents; } });
-Object.defineProperty(exports, "assembleContextFor", { enumerable: true, get: function () { return dispatch_ts_1.assembleContextFor; } });
-Object.defineProperty(exports, "emitAgentEvent", { enumerable: true, get: function () { return dispatch_ts_1.emitAgentEvent; } });
+import { getTraceable, Service, symbols } from '@taskweaver/cordis';
+import { AsyncLocalStorage } from 'node:async_hooks';
+import { isPromise } from 'node:util/types';
+import { scopeTarget } from '@taskweaver/dsh-scope';
+export * from "./runtime-types.js";
+export * from "./types.js";
+export * from "./inbox.js";
+export * from "./consumed-work.js";
+export * from "./model-selection.js";
+export { agentCarrier, agentEvents, assembleContextFor, emitAgentEvent } from "./dispatch.js";
 /** Thrown when create/resume is called before an agent factory is registered. */
-var NO_FACTORY_MESSAGE = 'no agent factory registered (load an agent-loop plugin)';
-var NO_INITIATOR_MESSAGE = 'no initiating agent is active';
-var DISPOSED_INITIATOR_MESSAGE = 'agent initiator scope is disposed';
+const NO_FACTORY_MESSAGE = 'no agent factory registered (load an agent-loop plugin)';
+const NO_INITIATOR_MESSAGE = 'no initiating agent is active';
+const DISPOSED_INITIATOR_MESSAGE = 'agent initiator scope is disposed';
 /**
  * Agent service (`ctx.agents`): tracks live agents and carries the initiating
  * Agent through one process-local asynchronous driver chain. Agent *creation*
  * is provided by whichever plugin implements the {@link AgentFactory}
- * (`@z/dsh-agent-loop`), registered via {@link setFactory}.
+ * (`@taskweaver/dsh-agent-loop`), registered via {@link setFactory}.
  *
  * Initiator methods provide same-process causal attribution only. Ambient
  * presence is neither liveness proof nor authorization; subjects and owners
@@ -111,27 +30,29 @@ var DISPOSED_INITIATOR_MESSAGE = 'agent initiator scope is disposed';
  * boundaries. Returned Promise boundaries drain during teardown, except a
  * nested lineage that starts an owning-fiber unload is excluded from its own drain.
  */
-var AgentRegistry = /** @class */ (function (_super) {
-    __extends(AgentRegistry, _super);
-    function AgentRegistry(ctx) {
-        var _this = _super.call(this, ctx, 'agents') || this;
-        _this.store = new Map();
-        _this.initiators = new node_async_hooks_1.AsyncLocalStorage();
-        _this.initiatorRuns = new node_async_hooks_1.AsyncLocalStorage();
-        _this.initiatorState = 'active';
-        _this.activeInitiatorRuns = 0;
-        ctx.inject(['typert'], function (typeCtx) {
+export class AgentRegistry extends Service {
+    store = new Map();
+    factory;
+    initiators = new AsyncLocalStorage();
+    initiatorRuns = new AsyncLocalStorage();
+    initiatorState = 'active';
+    activeInitiatorRuns = 0;
+    initiatorDrain;
+    initiatorDisposal;
+    constructor(ctx) {
+        super(ctx, 'agents');
+        ctx.inject(['typert'], (typeCtx) => {
             typeCtx.typert.lookups.register('agent', {
                 parameter: 'agent',
                 wire: 'agentId',
-                hostTypeSymbol: '@z/dsh-agent#Agent',
-                wireTypeSymbol: '@z/dsh-session/types#SessionId',
-                resolve: function (sessionId) { return _this.get(sessionId); },
+                hostTypeSymbol: '@taskweaver/dsh-agent#Agent',
+                wireTypeSymbol: '@taskweaver/dsh-session/types#SessionId',
+                resolve: sessionId => this.get(sessionId),
             });
             typeCtx.typert.contexts.registerHost('agent', {
                 wire: 'agentId',
-                wireTypeSymbol: '@z/dsh-session/types#SessionId',
-                resolve: function (sessionId) { var _a; return (_a = _this.get(sessionId)) === null || _a === void 0 ? void 0 : _a.ctx; },
+                wireTypeSymbol: '@taskweaver/dsh-session/types#SessionId',
+                resolve: sessionId => this.get(sessionId)?.ctx,
             });
         });
         // The `ctx.agent` DX accessor: default `undefined` on every context, so a
@@ -140,27 +61,16 @@ var AgentRegistry = /** @class */ (function (_super) {
         // (own properties resolve before the context proxy is consulted), so the
         // accessor body never needs to resolve a scope itself. Effect-scoped:
         // unwinds with this service's fiber.
-        ctx.accessor('agent', { get: function () { return undefined; } });
-        ctx.on('internal/status', function (fiber) {
-            if (fiber.state === cordis_1.FiberState.UNLOADING && _this.hasLifecycleAncestor(fiber)) {
-                _this.closeInitiators();
+        ctx.accessor('agent', { get: () => undefined });
+        ctx.on('internal/status', (fiber) => {
+            if (fiber.state === 5 /* FiberState.UNLOADING */ && this.hasLifecycleAncestor(fiber)) {
+                this.closeInitiators();
             }
         });
-        ctx.effect(function () {
-            var _this = this;
-            return __generator(this, function (_a) {
-                switch (_a.label) {
-                    case 0: return [4 /*yield*/, function () { return _this.disposeInitiators(); }];
-                    case 1:
-                        _a.sent();
-                        return [4 /*yield*/, function () { _this.closeInitiators(); }];
-                    case 2:
-                        _a.sent();
-                        return [2 /*return*/];
-                }
-            });
-        }.bind(_this), 'agents.initiatorLifecycle()');
-        return _this;
+        ctx.effect(function* () {
+            yield () => this.disposeInitiators();
+            yield () => { this.closeInitiators(); };
+        }.bind(this), 'agents.initiatorLifecycle()');
     }
     /**
      * Read the Agent that initiated the inherited asynchronous driver chain.
@@ -171,10 +81,10 @@ var AgentRegistry = /** @class */ (function (_super) {
      *   and inside an explicit clearing boundary.
      * @throws when this service instance has been disposed.
      */
-    AgentRegistry.prototype.currentInitiator = function () {
+    currentInitiator() {
         this.assertInitiatorsReadable();
         return this.initiators.getStore();
-    };
+    }
     /**
      * Read the initiating Agent and fail when no initiator boundary is active.
      * Use this for private helpers contractually below a driver, or for a
@@ -183,12 +93,12 @@ var AgentRegistry = /** @class */ (function (_super) {
      * @returns the inherited Agent.
      * @throws when no initiator is active or this service instance has been disposed.
      */
-    AgentRegistry.prototype.requireInitiator = function () {
-        var agent = this.currentInitiator();
+    requireInitiator() {
+        const agent = this.currentInitiator();
         if (agent === undefined)
             throw new Error(NO_INITIATOR_MESSAGE);
         return agent;
-    };
+    }
     /**
      * Run an operation with one exact Agent as its process-local initiator. The
      * exact synchronous value or Promise returned by the operation is preserved.
@@ -202,9 +112,9 @@ var AgentRegistry = /** @class */ (function (_super) {
      * @returns the exact value returned by `operation`.
      * @throws when the initiator scope is closing/disposed, or when `operation` throws.
      */
-    AgentRegistry.prototype.withInitiator = function (agent, operation) {
+    withInitiator(agent, operation) {
         return this.runWithInitiator(agent, operation);
-    };
+    }
     /**
      * Run an operation inside a boundary that hides any inherited initiating
      * Agent. The exact synchronous value or Promise is preserved.
@@ -216,9 +126,9 @@ var AgentRegistry = /** @class */ (function (_super) {
      * @returns the exact value returned by `operation`.
      * @throws when the initiator scope is closing/disposed, or when `operation` throws.
      */
-    AgentRegistry.prototype.withoutInitiator = function (operation) {
+    withoutInitiator(operation) {
         return this.runWithInitiator(undefined, operation);
-    };
+    }
     /**
      * Register the agent-creation factory (the loop calls this on construction,
      * effect-scoped). A traced Cordis service is canonicalized to its concrete
@@ -231,18 +141,16 @@ var AgentRegistry = /** @class */ (function (_super) {
      *   Cordis effect disposer (single-shot): composite (generator) effects may
      *   yield it directly — exact identity nests the teardown in order.
      */
-    AgentRegistry.prototype.setFactory = function (factory) {
-        var _this = this;
-        var dispose = this.ctx.effect(function () {
-            var _a;
-            if (_this.factory !== undefined)
+    setFactory(factory) {
+        const dispose = this.ctx.effect(() => {
+            if (this.factory !== undefined)
                 throw new Error('an agent factory is already registered');
             // Avoid stacking two Cordis shadow layers when a caller passes a Service
             // already read through a context. Calls are re-traced through their
             // actual owner context below.
-            var target = (_a = factory[cordis_1.symbols.original]) !== null && _a !== void 0 ? _a : factory;
-            _this.factory = { target: target };
-            return function () { _this.factory = undefined; };
+            const target = factory[symbols.original] ?? factory;
+            this.factory = { target };
+            return () => { this.factory = undefined; };
         }, 'agents.setFactory()');
         // The exact cordis effect disposer (the agents.register() convention): a
         // caller's composite effect can yield it for in-order teardown; the
@@ -250,13 +158,13 @@ var AgentRegistry = /** @class */ (function (_super) {
         // registration under that effect.
         // oxlint-disable-next-line typescript/no-misused-promises -- synchronous cleanup; direct return preserves disposer identity
         return dispose;
-    };
+    }
     /** Return the active creation factory. */
-    AgentRegistry.prototype.requireFactory = function () {
+    requireFactory() {
         if (this.factory === undefined)
             throw new Error(NO_FACTORY_MESSAGE);
         return this.factory;
-    };
+    }
     /**
      * Create and publish a new agent through the registered factory.
      * Distinct from {@link register} (which records an already-constructed
@@ -266,18 +174,17 @@ var AgentRegistry = /** @class */ (function (_super) {
      * @param options - shared identity, session seed/metadata, and agent options.
      * @returns the handle after setup, rollback-covered publication, and loop start complete.
      */
-    AgentRegistry.prototype.create = function (options) {
-        return __awaiter(this, void 0, void 0, function () {
-            var ownerCtx, target, receiver;
-            return __generator(this, function (_a) {
-                ownerCtx = this.ctx;
-                target = this.requireFactory().target;
-                receiver = (0, cordis_1.getTraceable)(ownerCtx, target);
-                // oxlint-disable-next-line typescript/unbound-method -- Reflect.apply intentionally supplies the caller-traced receiver
-                return [2 /*return*/, Reflect.apply(target.createAgent, receiver, [ownerCtx, options])];
-            });
-        });
-    };
+    async create(options) {
+        const ownerCtx = this.ctx;
+        // Re-trace a Service-backed factory through the accessing context
+        // explicitly. This preserves AgentLoop's dependency origin while binding
+        // its effects to ownerCtx; plain factories receive ownerCtx as an explicit
+        // capability and need no Cordis tracker magic.
+        const { target } = this.requireFactory();
+        const receiver = getTraceable(ownerCtx, target);
+        // oxlint-disable-next-line typescript/unbound-method -- Reflect.apply intentionally supplies the caller-traced receiver
+        return Reflect.apply(target.createAgent, receiver, [ownerCtx, options]);
+    }
     /**
      * Load a persisted session and resume an agent on it through the registered
      * factory. Rejects if no factory is registered; the factory rejects if
@@ -285,18 +192,13 @@ var AgentRegistry = /** @class */ (function (_super) {
      * @param options - persisted identity, configuration, and optional setup.
      * @returns the handle after setup, rollback-covered publication, and loop start complete.
      */
-    AgentRegistry.prototype.resume = function (options) {
-        return __awaiter(this, void 0, void 0, function () {
-            var ownerCtx, target, receiver;
-            return __generator(this, function (_a) {
-                ownerCtx = this.ctx;
-                target = this.requireFactory().target;
-                receiver = (0, cordis_1.getTraceable)(ownerCtx, target);
-                // oxlint-disable-next-line typescript/unbound-method -- Reflect.apply intentionally supplies the caller-traced receiver
-                return [2 /*return*/, Reflect.apply(target.resume, receiver, [ownerCtx, options])];
-            });
-        });
-    };
+    async resume(options) {
+        const ownerCtx = this.ctx;
+        const { target } = this.requireFactory();
+        const receiver = getTraceable(ownerCtx, target);
+        // oxlint-disable-next-line typescript/unbound-method -- Reflect.apply intentionally supplies the caller-traced receiver
+        return Reflect.apply(target.resume, receiver, [ownerCtx, options]);
+    }
     /**
      * Register a live agent. Throws if an agent with the same id is already
      * registered. Emits `agent/created` on registration and `agent/disposed`
@@ -315,21 +217,14 @@ var AgentRegistry = /** @class */ (function (_super) {
      *   owner unload, unregistering the agent (and emitting `agent/disposed`)
      *   while its final turn is still draining.
      */
-    AgentRegistry.prototype.register = function (agent) {
-        var dispose = this.ctx.effect(function () {
-            return __generator(this, function (_a) {
-                switch (_a.label) {
-                    case 0: return [4 /*yield*/, this.enter(agent, this.ctx.agent)];
-                    case 1:
-                        _a.sent();
-                        this.announce(agent);
-                        return [2 /*return*/];
-                }
-            });
+    register(agent) {
+        const dispose = this.ctx.effect(function* () {
+            yield this.enter(agent, this.ctx.agent);
+            this.announce(agent);
         }.bind(this), 'agents.register()');
         // oxlint-disable-next-line typescript/no-misused-promises -- synchronous cleanup; direct return preserves disposer identity
         return dispose;
-    };
+    }
     /**
      * Insert an already-constructed agent without announcing it. This is the
      * advanced ordered-lifecycle primitive used by the async agent factory: it
@@ -345,29 +240,28 @@ var AgentRegistry = /** @class */ (function (_super) {
      *   synchronous `agent/created` listener, removal and disposal wait until
      *   that creation dispatch unwinds.
      */
-    AgentRegistry.prototype.enter = function (agent, owner) {
-        var _this = this;
-        var id = agent.id;
+    enter(agent, owner) {
+        const id = agent.id;
         if (id !== agent.session.id) {
-            throw new Error("agent id \"".concat(id, "\" does not match session id \"").concat(agent.session.id, "\""));
+            throw new Error(`agent id "${id}" does not match session id "${agent.session.id}"`);
         }
-        var carrier = (0, dsh_scope_1.scopeTarget)(agent, agent);
+        const carrier = scopeTarget(agent, agent);
         // This is the authoritative collision boundary. Concurrent create/resume
         // operations may both prepare, but only one exact entry can publish.
         if (this.store.has(id))
-            throw new Error("agent \"".concat(id, "\" is already registered"));
-        var entry = {
-            id: id,
-            agent: agent,
-            owner: owner,
-            carrier: carrier,
+            throw new Error(`agent "${id}" is already registered`);
+        const entry = {
+            id,
+            agent,
+            owner,
+            carrier,
             announced: false,
             announcing: false,
             detachRequested: false,
         };
         this.store.set(id, entry);
-        var entered = true;
-        var detach = function () {
+        let entered = true;
+        const detach = () => {
             if (!entered)
                 return;
             entered = false;
@@ -380,12 +274,12 @@ var AgentRegistry = /** @class */ (function (_super) {
                 entry.detachRequested = true;
                 return;
             }
-            _this.detachEntered(entry);
+            this.detachEntered(entry);
         };
         return detach;
-    };
+    }
     /** Remove one exact entered agent and emit its paired disposal when announced. */
-    AgentRegistry.prototype.detachEntered = function (entry) {
+    detachEntered(entry) {
         entry.detachRequested = false;
         // A stale capability can never delete a later same-id lifecycle. The
         // captured entry identity is the final boundary.
@@ -400,24 +294,22 @@ var AgentRegistry = /** @class */ (function (_super) {
         if (!entry.announced)
             return;
         this.emitDisposed(entry);
-    };
+    }
     /** Emit the paired disposal edge through the entry's stable carrier. */
-    AgentRegistry.prototype.emitDisposed = function (entry) {
-        var _this = this;
-        var args = [entry.carrier, 'agent/disposed', { agent: entry.agent }];
-        for (var _i = 0, _a = this.ctx.events.dispatch('emit', args); _i < _a.length; _i++) {
-            var callback = _a[_i];
+    emitDisposed(entry) {
+        const args = [entry.carrier, 'agent/disposed', { agent: entry.agent }];
+        for (const callback of this.ctx.events.dispatch('emit', args)) {
             try {
-                var returned = callback.apply(void 0, args);
-                void Promise.resolve(returned).catch(function (error) {
-                    _this.ctx.logger.warn("agent \"".concat(entry.id, "\": agent/disposed listener rejected: ").concat(String(error)));
+                const returned = callback(...args);
+                void Promise.resolve(returned).catch((error) => {
+                    this.ctx.logger.warn(`agent "${entry.id}": agent/disposed listener rejected: ${String(error)}`);
                 });
             }
             catch (error) {
-                this.ctx.logger.warn("agent \"".concat(entry.id, "\": agent/disposed listener threw: ").concat(String(error)));
+                this.ctx.logger.warn(`agent "${entry.id}": agent/disposed listener threw: ${String(error)}`);
             }
         }
-    };
+    }
     /**
      * Announce an agent previously inserted with {@link enter}.
      * @param agent - the live inserted agent to announce.
@@ -425,29 +317,27 @@ var AgentRegistry = /** @class */ (function (_super) {
      *   creation announcement already began (including a reentrant call from a
      *   creation listener).
      */
-    AgentRegistry.prototype.announce = function (agent) {
-        var _this = this;
-        var entry = this.store.get(agent.id);
+    announce(agent) {
+        const entry = this.store.get(agent.id);
         if (entry === undefined || entry.agent !== agent) {
-            throw new Error("agent \"".concat(agent.id, "\" is not live in this registry"));
+            throw new Error(`agent "${agent.id}" is not live in this registry`);
         }
         if (entry.announced || entry.announcing) {
-            throw new Error("agent \"".concat(entry.id, "\" was already announced"));
+            throw new Error(`agent "${entry.id}" was already announced`);
         }
         // Mark before dispatch so a listener cannot recursively create a second
         // lifecycle edge; detach still pairs a partially delivered first edge.
         entry.announcing = true;
         entry.announced = true;
-        var args = [entry.carrier, 'agent/created', { agent: entry.agent }];
+        const args = [entry.carrier, 'agent/created', { agent: entry.agent }];
         try {
-            for (var _i = 0, _a = this.ctx.events.dispatch('emit', args); _i < _a.length; _i++) {
-                var callback = _a[_i];
+            for (const callback of this.ctx.events.dispatch('emit', args)) {
                 // A synchronous creation failure vetoes publication and rolls back.
                 // Returned-promise rejection happens after this synchronous boundary, so
                 // observe and report it instead of leaking an unhandled rejection.
-                var returned = callback.apply(void 0, args);
-                void Promise.resolve(returned).catch(function (error) {
-                    _this.ctx.logger.warn("agent \"".concat(entry.id, "\": agent/created listener rejected: ").concat(String(error)));
+                const returned = callback(...args);
+                void Promise.resolve(returned).catch((error) => {
+                    this.ctx.logger.warn(`agent "${entry.id}": agent/created listener rejected: ${String(error)}`);
                 });
             }
         }
@@ -456,16 +346,15 @@ var AgentRegistry = /** @class */ (function (_super) {
             if (entry.detachRequested)
                 this.detachEntered(entry);
         }
-    };
+    }
     /**
      * Look up a live agent.
      * @param id - the shared agent/session id to look up.
      * @returns the agent, or undefined when no live agent has that id.
      */
-    AgentRegistry.prototype.get = function (id) {
-        var _a;
-        return (_a = this.store.get(id)) === null || _a === void 0 ? void 0 : _a.agent;
-    };
+    get(id) {
+        return this.store.get(id)?.agent;
+    }
     /**
      * Test whether a live agent was created through one exact parent agent's
      * scoped context. Runtime ownership is independent of durable session
@@ -474,81 +363,68 @@ var AgentRegistry = /** @class */ (function (_super) {
      * @param owner - the expected runtime creator agent.
      * @returns true only while the exact child entry is live under that owner.
      */
-    AgentRegistry.prototype.isOwnedBy = function (id, owner) {
-        var _a;
-        return ((_a = this.store.get(id)) === null || _a === void 0 ? void 0 : _a.owner) === owner;
-    };
+    isOwnedBy(id, owner) {
+        return this.store.get(id)?.owner === owner;
+    }
     /**
      * All live agents, in registration order.
      * @returns a fresh array; mutating it does not affect the registry.
      */
-    AgentRegistry.prototype.list = function () {
-        return __spreadArray([], this.store.values(), true).map(function (entry) { return entry.agent; });
-    };
+    list() {
+        return [...this.store.values()].map(entry => entry.agent);
+    }
     /**
      * All live top-level agents in registration order. A top-level agent was
      * created without an owning agent context; durable session lineage does not
      * affect this runtime relation, so a resumed fork may still be a root.
      * @returns a fresh array; mutating it does not affect the registry.
      */
-    AgentRegistry.prototype.roots = function () {
-        return __spreadArray([], this.store.values(), true).filter(function (entry) { return entry.owner === undefined; })
-            .map(function (entry) { return entry.agent; });
-    };
+    roots() {
+        return [...this.store.values()]
+            .filter(entry => entry.owner === undefined)
+            .map(entry => entry.agent);
+    }
     /** Reject new initiator boundaries while inherited continuations drain. */
-    AgentRegistry.prototype.closeInitiators = function () {
+    closeInitiators() {
         if (this.initiatorState === 'active')
             this.initiatorState = 'closing';
-    };
+    }
     /** Wait for returned-Promise boundaries, then invalidate retained references. */
-    AgentRegistry.prototype.disposeInitiators = function () {
-        var _this = this;
-        var _a;
-        return ((_a = this.initiatorDisposal) !== null && _a !== void 0 ? _a : (this.initiatorDisposal = (function () { return __awaiter(_this, void 0, void 0, function () {
-            var _a;
-            return __generator(this, function (_b) {
-                switch (_b.label) {
-                    case 0:
-                        this.closeInitiators();
-                        this.releaseReentrantInitiatorRuns();
-                        if (!(this.activeInitiatorRuns !== 0)) return [3 /*break*/, 2];
-                        (_a = this.initiatorDrain) !== null && _a !== void 0 ? _a : (this.initiatorDrain = Promise.withResolvers());
-                        return [4 /*yield*/, this.initiatorDrain.promise];
-                    case 1:
-                        _b.sent();
-                        _b.label = 2;
-                    case 2:
-                        this.initiatorState = 'disposed';
-                        this.initiators.disable();
-                        this.initiatorRuns.disable();
-                        return [2 /*return*/];
-                }
-            });
-        }); })()));
-    };
+    disposeInitiators() {
+        return (this.initiatorDisposal ??= (async () => {
+            this.closeInitiators();
+            this.releaseReentrantInitiatorRuns();
+            if (this.activeInitiatorRuns !== 0) {
+                this.initiatorDrain ??= Promise.withResolvers();
+                await this.initiatorDrain.promise;
+            }
+            this.initiatorState = 'disposed';
+            this.initiators.disable();
+            this.initiatorRuns.disable();
+        })());
+    }
     /** Establish one tracked initiator or clearing boundary. */
-    AgentRegistry.prototype.runWithInitiator = function (agent, operation) {
-        var _this = this;
+    runWithInitiator(agent, operation) {
         if (this.initiatorState !== 'active')
             throw new Error(DISPOSED_INITIATOR_MESSAGE);
-        var run = {
+        const run = {
             active: true,
             parent: this.initiatorRuns.getStore(),
         };
         this.activeInitiatorRuns += 1;
-        var result;
+        let result;
         try {
-            result = this.initiatorRuns.run(run, function () { return _this.initiators.run(agent, operation); });
+            result = this.initiatorRuns.run(run, () => this.initiators.run(agent, operation));
         }
         catch (error) {
             this.releaseInitiatorRun(run);
             throw error;
         }
-        if ((0, types_1.isPromise)(result)) {
+        if (isPromise(result)) {
             try {
-                void Promise.prototype.then.call(result, function () { _this.releaseInitiatorRun(run); }, function () { _this.releaseInitiatorRun(run); });
+                void Promise.prototype.then.call(result, () => { this.releaseInitiatorRun(run); }, () => { this.releaseInitiatorRun(run); });
             }
-            catch (_a) {
+            catch {
                 // A branded Promise may expose a failing @@species. Observer setup did
                 // not attach, so preserve the exact return without leaking the run.
                 this.releaseInitiatorRun(run);
@@ -558,43 +434,41 @@ var AgentRegistry = /** @class */ (function (_super) {
             this.releaseInitiatorRun(run);
         }
         return result;
-    };
+    }
     /** Whether one unloading fiber owns this service's lifecycle. */
-    AgentRegistry.prototype.hasLifecycleAncestor = function (candidate) {
-        var fiber = this.ctx.fiber;
+    hasLifecycleAncestor(candidate) {
+        let fiber = this.ctx.fiber;
         while (true) {
             if (fiber === candidate)
                 return true;
-            var parent_1 = fiber.parent.fiber;
-            if (parent_1 === fiber)
+            const parent = fiber.parent.fiber;
+            if (parent === fiber)
                 return false;
-            fiber = parent_1;
+            fiber = parent;
         }
-    };
-    AgentRegistry.prototype.assertInitiatorsReadable = function () {
+    }
+    assertInitiatorsReadable() {
         if (this.initiatorState === 'disposed')
             throw new Error(DISPOSED_INITIATOR_MESSAGE);
-    };
+    }
     /** Exclude the boundary chain that initiated this teardown from its own drain. */
-    AgentRegistry.prototype.releaseReentrantInitiatorRuns = function () {
-        var run = this.initiatorRuns.getStore();
+    releaseReentrantInitiatorRuns() {
+        let run = this.initiatorRuns.getStore();
         while (run !== undefined) {
             this.releaseInitiatorRun(run);
             run = run.parent;
         }
-    };
-    AgentRegistry.prototype.releaseInitiatorRun = function (run) {
-        var _a;
+    }
+    releaseInitiatorRun(run) {
         if (!run.active)
             return;
         run.active = false;
         this.activeInitiatorRuns -= 1;
         if (this.activeInitiatorRuns !== 0)
             return;
-        (_a = this.initiatorDrain) === null || _a === void 0 ? void 0 : _a.resolve();
+        this.initiatorDrain?.resolve();
         this.initiatorDrain = undefined;
-    };
-    return AgentRegistry;
-}(cordis_1.Service));
-exports.AgentRegistry = AgentRegistry;
-exports.default = AgentRegistry;
+    }
+}
+export default AgentRegistry;
+//# sourceMappingURL=index.js.map

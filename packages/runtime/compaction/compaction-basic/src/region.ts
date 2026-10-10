@@ -2,7 +2,7 @@
  * Surface retention selection and the shared log-recorded compaction
  * transaction for automatic open-turn and manual idle-session compaction.
  *
- * @module @z/dsh-compaction-basic/region
+ * @module @taskweaver/dsh-compaction-basic/region
  */
 
 import { randomUUID } from 'node:crypto'
@@ -13,14 +13,14 @@ import {
   compactCheckpointSource,
   toolPairingBalancedAfter,
   toolPairingBalancedBefore,
-} from '@z/dsh-compaction'
-import type { CompactionResult } from '@z/dsh-compaction'
-import type { CommandId } from '@z/dsh-commands/brand'
-import { createUserMessage, errorChain } from '@z/dsh-llm'
-import type { Message, UserMessage } from '@z/dsh-llm'
-import type { TokenMeasurement, TokenMeter } from '@z/dsh-token-meter'
-import type { Session, SessionEvent } from '@z/dsh-session'
-import type { Agent } from '@z/dsh-agent'
+} from '@taskweaver/dsh-compaction'
+import type { CompactionRecordTrigger, CompactionResult } from '@taskweaver/dsh-compaction'
+import type { CommandId } from '@taskweaver/dsh-commands/brand'
+import { createUserMessage, errorChain } from '@taskweaver/dsh-llm'
+import type { Message, UserMessage } from '@taskweaver/dsh-llm'
+import type { TokenMeasurement, TokenMeter } from '@taskweaver/dsh-token-meter'
+import type { Session, SessionEvent } from '@taskweaver/dsh-session'
+import type { Agent } from '@taskweaver/dsh-agent'
 import { frameSummary } from './summarizer.ts'
 import type { SummarizationInput, SummaryResult } from './summarizer.ts'
 
@@ -59,6 +59,7 @@ interface CompactionTransactionOptions {
   readonly flush?: () => Promise<void>
   /** Manual command that initiated this transaction, when present. */
   readonly sourceCommandId?: CommandId
+  readonly trigger?: CompactionRecordTrigger
 }
 
 interface CompactionEntryState {
@@ -184,6 +185,9 @@ export async function compactSurfaceRegion(
   const lifecycle = {
     compactionId,
     ...options.sourceCommandId === undefined ? {} : { sourceCommandId: options.sourceCommandId },
+    ...options.trigger === undefined
+      ? options.owner === null ? { trigger: 'manual' as const } : {}
+      : { trigger: options.trigger },
     turn: owner,
   }
   const startEvent = session.append('compaction/start', lifecycle)
@@ -449,6 +453,7 @@ function commitCompactionBody(
     ...startEvent.data.sourceCommandId === undefined
       ? {}
       : { sourceCommandId: startEvent.data.sourceCommandId },
+    ...startEvent.data.trigger === undefined ? {} : { trigger: startEvent.data.trigger },
     summary,
     ...callProvenance,
     shadowedRange: { start, end },
@@ -468,6 +473,7 @@ function commitCompactionBody(
     ...startEvent.data.sourceCommandId === undefined
       ? {}
       : { sourceCommandId: startEvent.data.sourceCommandId },
+    ...startEvent.data.trigger === undefined ? {} : { trigger: startEvent.data.trigger },
     startSeq: startEvent.seq,
     summarySeq: summaryEvent.seq,
     summary,

@@ -6,9 +6,9 @@
  * Plugin lifecycle reads use the optional `ctx.fs` provider, so providerless products
  * mount it as a no-op.
  *
- * @module @z/dsh-agent-instructions
+ * @module @taskweaver/dsh-agent-instructions
  */
-import type { Context } from '@z/cordis';
+import type { Context } from '@taskweaver/cordis';
 import { Config } from './config.ts';
 import { name } from './state.ts';
 export { Config, name };

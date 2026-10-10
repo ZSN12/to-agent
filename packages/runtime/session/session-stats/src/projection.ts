@@ -20,12 +20,12 @@
  * time stays uncounted in every time figure — matching the window, which
  * renders it as an untimed interrupted node.
  *
- * @module @z/dsh-session-stats/projection
+ * @module @taskweaver/dsh-session-stats/projection
  */
 
 import { z } from 'zod'
-import { isTokenDelta } from '@z/dsh-llm/message'
-import type { ProjectionDefinition } from '@z/dsh-session-projection'
+import { isTokenDelta } from '@taskweaver/dsh-llm/message'
+import type { ProjectionDefinition } from '@taskweaver/dsh-session-projection'
 
 /** Accumulated whole-log figures (the view is exactly these totals). */
 interface SessionStatsTotals {
@@ -64,7 +64,7 @@ interface SessionStatsState extends SessionStatsTotals {
   pendingCalls: Record<string, number>
 }
 
-declare module '@z/dsh-session-projection/types' {
+declare module '@taskweaver/dsh-session-projection/types' {
   interface SessionProjectionStateMap {
     sessionStats: SessionStatsState
   }

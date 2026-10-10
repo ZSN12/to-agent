@@ -3,8 +3,8 @@
  *
  * @module dsh-llm-pi-ai/context
  */
-import type { GenerateOptions } from '@z/dsh-llm';
-import type { AttachmentStore, ImageRequestPolicy } from '@z/dsh-attachment';
+import type { GenerateOptions } from '@taskweaver/dsh-llm';
+import type { AttachmentStore, ImageRequestPolicy } from '@taskweaver/dsh-attachment';
 import type { Context as PiContext } from '@earendil-works/pi-ai';
 /**
  * Convert text-only harness history to a synchronous pi-ai Context. Tool

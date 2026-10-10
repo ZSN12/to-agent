@@ -11,32 +11,31 @@ jobs:
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22.19.0'
-          cache: npm
-          cache-dependency-path: package-lock.json
       - uses: pnpm/action-setup@v4
         with:
           version: 11.7.0
           run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.19.0'
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
       - name: Install desktop dependencies
-        run: npm ci
-      - name: Install DSH workspace dependencies
-        working-directory: packages/runtime
+        run: pnpm install --frozen-lockfile
+      - name: Check IPC, lint, typecheck, and security
+        run: |
+          pnpm run check:ipc
+          pnpm run lint
+          pnpm run typecheck
+          pnpm run test:security-hardening
+      - name: Build deployable runtime
         env:
           CI: 'true'
-        run: pnpm install --frozen-lockfile --prod=false
-      - name: Check IPC, lint, typecheck, security, and preset integrity
-        run: |
-          npm run check:ipc
-          npm run lint
-          npm run typecheck
-          npm run test:security-hardening
-          npm run test:preset-integrity
-      - name: Build deployable runtime and macOS app
+        run: pnpm run build:z-runtime
+      - name: Check deployed Host, preset integrity, and composition
+        run: pnpm run test:runtime-deploy
+      - name: Build and smoke-test macOS app package
         env:
           CI: 'true'
         run: |
-          npm run build:z-runtime
-          npm run app:builder
+          pnpm run app:builder

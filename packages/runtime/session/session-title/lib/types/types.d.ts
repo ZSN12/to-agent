@@ -5,10 +5,10 @@
  * `./types` for host consumers, `./client/types` (the browser half-entry's
  * re-export) for client aggregates — with zero content duplication.
  *
- * @module @z/dsh-session-title/types
+ * @module @taskweaver/dsh-session-title/types
  */
 export {};
-declare module '@z/dsh-session-projection/types' {
+declare module '@taskweaver/dsh-session-projection/types' {
     interface SessionProjectionStateMap {
         title: string | null;
     }

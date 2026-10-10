@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import SessionStore, { Session, SessionId } from '@z/dsh-session'
-import type { SandboxMode } from '@z/dsh-sandbox'
-import type { ApprovalPolicy } from '@z/dsh-user-approval'
+import { Context } from '@taskweaver/cordis'
+import SessionStore, { Session, SessionId } from '@taskweaver/dsh-session'
+import type { SandboxMode } from '@taskweaver/dsh-sandbox'
+import type { ApprovalPolicy } from '@taskweaver/dsh-user-approval'
 import PermissionPresetService, {
   CUSTOM_PRESET, effectivePermissionPreset, PERMISSION_SETTINGS_NAMESPACE,
-} from '@z/dsh-permission-presets'
-import type { Config } from '@z/dsh-permission-presets'
-import { SettingsProvider } from '@z/dsh-settings'
-import type { SettingsNamespace } from '@z/dsh-settings'
+} from '@taskweaver/dsh-permission-presets'
+import type { Config } from '@taskweaver/dsh-permission-presets'
+import { SettingsProvider } from '@taskweaver/dsh-settings'
+import type { SettingsNamespace } from '@taskweaver/dsh-settings'
 
 /** Writable memory provider for the permission/settings lifecycle specs. */
 class MemorySettings extends SettingsProvider {

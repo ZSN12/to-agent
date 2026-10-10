@@ -1,8 +1,8 @@
 /**
- * Package-owned invariant companion for `@z/dsh-tool-fs-search`.
- * @module @z/dsh-tool-fs-search/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-tool-fs-search`.
+ * @module @taskweaver/dsh-tool-fs-search/invariant
  */
-import type { Context } from '@z/cordis';
+import type { Context } from '@taskweaver/cordis';
 /** Cordis companion plugin name. */
 export declare const name = "tool-fs-search-invariant";
 /** Service required before the companion can reserve package ownership. */

@@ -1,11 +1,11 @@
-import { Context } from '@z/cordis'
-import type { Agent } from '@z/dsh-agent'
-import AgentLoop from '@z/dsh-agent-loop'
-import { mountAgentLoopTestDependencies } from '@z/dsh-agent-loop-testkit'
-import LocalFileSystem from '@z/dsh-fs-local'
-import * as FsPolicy from '@z/dsh-fs-observation-policy'
-import * as ToolFs from '@z/dsh-tool-fs'
-import * as LlmPiAi from '@z/dsh-llm-pi-ai'
+import { Context } from '@taskweaver/cordis'
+import type { Agent } from '@taskweaver/dsh-agent'
+import AgentLoop from '@taskweaver/dsh-agent-loop'
+import { mountAgentLoopTestDependencies } from '@taskweaver/dsh-agent-loop-testkit'
+import LocalFileSystem from '@taskweaver/dsh-fs-local'
+import * as FsPolicy from '@taskweaver/dsh-fs-observation-policy'
+import * as ToolFs from '@taskweaver/dsh-tool-fs'
+import * as LlmPiAi from '@taskweaver/dsh-llm-pi-ai'
 
 /**
  * Build the real fs-tool stack for with-key e2e tests. Agents have no session

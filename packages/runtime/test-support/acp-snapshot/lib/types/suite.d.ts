@@ -14,7 +14,7 @@
  * are identical. Every live header is checked against the composed pin, so
  * session-dependent composition must declare a separate class instead of
  * escaping coverage.
- * @module @z/dsh-acp-snapshot/suite
+ * @module @taskweaver/dsh-acp-snapshot/suite
  */
 import { type AgentUnderTest, type HarvestedLog } from './harness.ts';
 import { type CwdPathMode, type NormalizeContext } from './normalize.ts';

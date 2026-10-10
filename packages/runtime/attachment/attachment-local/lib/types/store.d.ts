@@ -1,5 +1,5 @@
 /** Content-addressed, owner-private local attachment storage. */
-import type { ImageAttachmentLimits, ImageAttachmentRef, SaveImageAttachment, StoredImageAttachment } from '@z/dsh-attachment';
+import type { ImageAttachmentLimits, ImageAttachmentRef, SaveImageAttachment, StoredImageAttachment } from '@taskweaver/dsh-attachment';
 import type { NormalizationPolicy } from './normalization.ts';
 /**
  * Run the full admission policy for one image without touching storage,
@@ -28,14 +28,14 @@ export interface PreparedImageFile {
 export declare function prepareImageFile(input: SaveImageAttachment, limits: ImageAttachmentLimits, policy: NormalizationPolicy): Promise<PreparedImageFile>;
 /**
  * Publish one already verified normalized image below a versioned attachment root.
- * @param root - absolute `DSH_HOME/attachments/v1` root.
+ * @param root - absolute `TASKWEAVER_HOME/attachments/v1` root.
  * @param prepared - deterministic normalized bytes and reference.
  * @returns durable content-addressed normalized image reference.
  */
 export declare function commitPreparedImageFile(root: string, prepared: PreparedImageFile): Promise<ImageAttachmentRef>;
 /**
  * Decode and normalize one image once, then publish the prepared object.
- * @param root - absolute `DSH_HOME/attachments/v1` root.
+ * @param root - absolute `TASKWEAVER_HOME/attachments/v1` root.
  * @param input - submitted encoded bytes and declared media type.
  * @param limits - resolved source admission policy.
  * @param policy - resolved normalization policy.
@@ -44,7 +44,7 @@ export declare function commitPreparedImageFile(root: string, prepared: Prepared
 export declare function saveImageFile(root: string, input: SaveImageAttachment, limits: ImageAttachmentLimits, policy: NormalizationPolicy): Promise<ImageAttachmentRef>;
 /**
  * Read and verify one content-addressed image.
- * @param root - absolute `DSH_HOME/attachments/v1` root.
+ * @param root - absolute `TASKWEAVER_HOME/attachments/v1` root.
  * @param ref - reference recorded in the session log.
  * @param signal - optional cancellation for filesystem and verification work.
  * @returns verified bytes and reference.

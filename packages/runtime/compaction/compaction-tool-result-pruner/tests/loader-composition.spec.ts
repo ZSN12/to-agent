@@ -3,11 +3,11 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import Loader from '@z/cordis-plugin-loader'
-import Include from '@z/cordis-plugin-include'
-import TokenMeter from '@z/dsh-token-meter'
-import ToolResultPruner from '@z/dsh-compaction-tool-result-pruner'
+import { Context } from '@taskweaver/cordis'
+import Loader from '@taskweaver/cordis-plugin-loader'
+import Include from '@taskweaver/cordis-plugin-include'
+import TokenMeter from '@taskweaver/dsh-token-meter'
+import ToolResultPruner from '@taskweaver/dsh-compaction-tool-result-pruner'
 
 let root: string | undefined
 let context: Context | undefined
@@ -24,8 +24,8 @@ describe('compaction-tool-result-pruner real Loader composition', () => {
     root = await mkdtemp(join(tmpdir(), 'dsh-compact-tool-result-prune-loader-'))
     const configPath = join(root, 'cordis.yml')
     await writeFile(configPath, [
-      "- name: '@z/dsh-token-meter'",
-      "- name: '@z/dsh-compaction-tool-result-pruner'",
+      "- name: '@taskweaver/dsh-token-meter'",
+      "- name: '@taskweaver/dsh-compaction-tool-result-pruner'",
       '  config:',
       '    thresholdChars: 100',
       '    headChars: 20',
@@ -40,8 +40,8 @@ describe('compaction-tool-result-pruner real Loader composition', () => {
     context.loader.internal = {
       version: 'v2',
       async import(specifier: string) {
-        if (specifier === '@z/dsh-token-meter') return TokenMeter
-        if (specifier === '@z/dsh-compaction-tool-result-pruner') return ToolResultPruner
+        if (specifier === '@taskweaver/dsh-token-meter') return TokenMeter
+        if (specifier === '@taskweaver/dsh-compaction-tool-result-pruner') return ToolResultPruner
         throw new Error(`unexpected Loader import: ${specifier}`)
       },
     } as unknown as NonNullable<typeof context.loader.internal>

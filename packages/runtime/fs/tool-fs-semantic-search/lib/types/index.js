@@ -1,6 +1,6 @@
-import { defineTool } from '@z/dsh-tools';
-import { sessionResolveOptions } from '@z/dsh-tool-fs';
-import z from '@z/schemastery';
+import { defineTool } from '@taskweaver/dsh-tools';
+import { sessionResolveOptions } from '@taskweaver/dsh-tool-fs';
+import z from '@taskweaver/schemastery';
 import { createHash } from 'node:crypto';
 import { CodeChunker } from './chunker';
 import { CachedEmbeddingService, JinaEmbeddingService, OpenAIEmbeddingService } from './embedding';

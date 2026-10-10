@@ -1,11 +1,11 @@
 /** Execution-time authority checks for the model-facing goal tools. */
 
-import type { Context } from '@z/cordis'
-import type { Agent } from '@z/dsh-agent'
-import type { GoalView } from '@z/dsh-goal'
-import { HarnessError } from '@z/dsh-llm'
-import type { SessionEvent } from '@z/dsh-session'
-import type { ToolRunContext } from '@z/dsh-tools'
+import type { Context } from '@taskweaver/cordis'
+import type { Agent } from '@taskweaver/dsh-agent'
+import type { GoalView } from '@taskweaver/dsh-goal'
+import { HarnessError } from '@taskweaver/dsh-llm'
+import type { SessionEvent } from '@taskweaver/dsh-session'
+import type { ToolRunContext } from '@taskweaver/dsh-tools'
 
 type TurnStartEvent = Extract<SessionEvent, { type: 'turn/start' }>
 

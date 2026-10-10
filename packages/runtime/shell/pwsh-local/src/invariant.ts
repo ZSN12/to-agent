@@ -1,13 +1,13 @@
 /**
- * Package-owned invariant companion for `@z/dsh-pwsh-local`.
- * @module @z/dsh-pwsh-local/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-pwsh-local`.
+ * @module @taskweaver/dsh-pwsh-local/invariant
  */
 
 /* jscpd:ignore-start */
-import type { Context } from '@z/cordis'
-import type { InvariantInstaller } from '@z/dsh-invariants'
+import type { Context } from '@taskweaver/cordis'
+import type { InvariantInstaller } from '@taskweaver/dsh-invariants'
 
-const PACKAGE_NAME = '@z/dsh-pwsh-local'
+const PACKAGE_NAME = '@taskweaver/dsh-pwsh-local'
 
 /** Cordis companion plugin name. */
 export const name = 'pwsh-local-invariant'

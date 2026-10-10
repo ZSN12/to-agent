@@ -1,13 +1,13 @@
 /**
- * Package-owned invariant companion for `@z/dsh-file-reference-local`.
- * @module @z/dsh-file-reference-local/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-file-reference-local`.
+ * @module @taskweaver/dsh-file-reference-local/invariant
  */
 
 /* jscpd:ignore-start */
-import type { Context } from '@z/cordis'
-import type { InvariantInstaller } from '@z/dsh-invariants'
+import type { Context } from '@taskweaver/cordis'
+import type { InvariantInstaller } from '@taskweaver/dsh-invariants'
 
-const PACKAGE_NAME = '@z/dsh-file-reference-local'
+const PACKAGE_NAME = '@taskweaver/dsh-file-reference-local'
 
 /** Cordis companion plugin name. */
 export const name = 'file-reference-local-invariant'

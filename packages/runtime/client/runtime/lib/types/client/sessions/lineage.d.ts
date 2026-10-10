@@ -1,5 +1,5 @@
-import type { SessionId, SessionSummary } from '@z/dsh-api-remotes/client';
-import type { SessionProjectionMap } from '@z/dsh-session-projection/types';
+import type { SessionId, SessionSummary } from '@taskweaver/dsh-api-remotes/client';
+import type { SessionProjectionMap } from '@taskweaver/dsh-session-projection/types';
 import type { PendingInteractionStatus } from './pending.ts';
 /** Host list summary enriched with the latest mux-projected durable title. */
 export interface TitledSessionSummary extends SessionSummary {

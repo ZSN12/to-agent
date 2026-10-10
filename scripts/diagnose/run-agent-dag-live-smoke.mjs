@@ -7,10 +7,10 @@ import { fileURLToPath } from 'node:url'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const modelKey = process.env.TASKWEAVER_LIVE_MODEL_KEY?.trim() || 'xiaomi/mimo-v2.6-flash'
-const livePlannerRequestText = '要求两项彼此独立研究任务并行完成，且不得修改文件或运行命令。T1 只读 package.json，核实 Electron 主进程入口字段及开发启动脚本；T2 只读 electron/backend/dsh-session-model.mjs，核实 sessionModelMatches 在 Host 未回报 reasoningEffort 时如何判定匹配。两项都只回答对应问题，列出实际文件行号，不做目录发现，不扩展范围。'
+const livePlannerRequestText = '要求两项彼此独立研究任务并行完成，且不得修改文件或运行命令。T1 只读 package.json，核实 Electron 主进程入口字段及开发启动脚本；T2 只读 desktop/backend/dsh-session-model.mjs，核实 sessionModelMatches 在 Host 未回报 reasoningEffort 时如何判定匹配。两项都只回答对应问题，列出实际文件行号，不做目录发现，不扩展范围。'
 const fixedPlan = { tasks: [
-  { id: 'T1', title: '梳理应用启动入口', taskType: 'research', role: '项目入口研究', description: '只读研究且范围仅限 package.json、electron/main.cjs、src/main.tsx。仅确认 Electron 的 main 入口、主进程窗口/后端启动边界和 React 渲染入口；不要推断 preload 或 IPC 内部实现，也不要读取其他文件。直接读取这三个已知文件，不做目录发现；每个文件最多读取一次，用文件名和相关行号支持结论，完成后立即汇报。', scopePaths: ['package.json', 'electron/main.cjs', 'src/main.tsx'], dependsOn: [] },
-  { id: 'T2', title: '梳理 Agent 请求链路', taskType: 'research', role: 'Agent 链路研究', description: '只读研究且范围仅限 src/features/app/hooks/useConversationRun.ts、electron/preload.cjs、electron/backend/register-ipc.mjs、electron/backend/ipc/wire-backend-ipc.mjs、electron/backend/compose-services.mjs、electron/backend/ipc/register-chat-send-ipc.mjs、electron/backend/chat-turn-pipeline.mjs、electron/backend/dsh-chat/chat-send.mjs。按调用链核实：useConversationRun bridge.chat.send → preload invoke("chat:send") → register-ipc composeBackendServices/wireBackendIpc → wire-backend-ipc registerChatSendIpc → chat-turn-pipeline runTurn/executeChatRequest → compose-services 中 createDshChatService 绑定的 chat.send → dsh-chat/chat-send send → api.sessions.prompt。每个文件一次窄 grep（useAppBackend: bridge\\.chat.send；preload: chat:send；register-ipc: composeBackendServices|wireBackendIpc；wire-backend-ipc: registerChatSendIpc；compose-services: createDshChatService；register-chat-send-ipc: chat:send|runTurn；chat-turn-pipeline: executeChatRequest|runTurn；dsh-chat/chat-send: async function send\\(|const reply = rpcValue\\(await api\\.sessions\\.prompt\\()；各文件 read 一次覆盖锚点行。禁止通用 invoke( 搜索与越界路径。', scopePaths: ['src/features/app/hooks/useConversationRun.ts', 'electron/preload.cjs', 'electron/backend/register-ipc.mjs', 'electron/backend/ipc/wire-backend-ipc.mjs', 'electron/backend/compose-services.mjs', 'electron/backend/ipc/register-chat-send-ipc.mjs', 'electron/backend/chat-turn-pipeline.mjs', 'electron/backend/dsh-chat/chat-send.mjs'], dependsOn: [] },
+  { id: 'T1', title: '梳理应用启动入口', taskType: 'research', role: '项目入口研究', description: '只读研究且范围仅限 package.json、desktop/main.cjs、src/main.tsx。仅确认 Electron 的 main 入口、主进程窗口/后端启动边界和 React 渲染入口；不要推断 preload 或 IPC 内部实现，也不要读取其他文件。直接读取这三个已知文件，不做目录发现；每个文件最多读取一次，用文件名和相关行号支持结论，完成后立即汇报。', scopePaths: ['package.json', 'desktop/main.cjs', 'src/main.tsx'], dependsOn: [] },
+  { id: 'T2', title: '梳理 Agent 请求链路', taskType: 'research', role: 'Agent 链路研究', description: '只读研究且范围仅限 src/features/app/hooks/useConversationRun.ts、desktop/preload.cjs、desktop/backend/register-ipc.mjs、desktop/backend/ipc/wire-backend-ipc.mjs、desktop/backend/compose-services.mjs、desktop/backend/ipc/register-chat-send-ipc.mjs、desktop/backend/chat-turn-pipeline.mjs、desktop/backend/dsh-chat/chat-send.mjs。按调用链核实：useConversationRun bridge.chat.send → preload invoke("chat:send") → register-ipc composeBackendServices/wireBackendIpc → wire-backend-ipc registerChatSendIpc → chat-turn-pipeline runTurn/executeChatRequest → compose-services 中 createDshChatService 绑定的 chat.send → dsh-chat/chat-send send → api.sessions.prompt。每个文件一次窄 grep（useAppBackend: bridge\\.chat.send；preload: chat:send；register-ipc: composeBackendServices|wireBackendIpc；wire-backend-ipc: registerChatSendIpc；compose-services: createDshChatService；register-chat-send-ipc: chat:send|runTurn；chat-turn-pipeline: executeChatRequest|runTurn；dsh-chat/chat-send: async function send\\(|const reply = rpcValue\\(await api\\.sessions\\.prompt\\()；各文件 read 一次覆盖锚点行。禁止通用 invoke( 搜索与越界路径。', scopePaths: ['src/features/app/hooks/useConversationRun.ts', 'desktop/preload.cjs', 'desktop/backend/register-ipc.mjs', 'desktop/backend/ipc/wire-backend-ipc.mjs', 'desktop/backend/compose-services.mjs', 'desktop/backend/ipc/register-chat-send-ipc.mjs', 'desktop/backend/chat-turn-pipeline.mjs', 'desktop/backend/dsh-chat/chat-send.mjs'], dependsOn: [] },
 ] }
 const hashPlan = (plan) => createHash('sha256').update(JSON.stringify(plan)).digest('hex')
 const fixedPlanHash = hashPlan(fixedPlan)
@@ -191,35 +191,35 @@ function auditFixedT2ToolDiscipline(calls) {
   })
   const expectedSearches = new Map([
     ['src/features/app/hooks/useConversationRun.ts', 'bridge\\.chat\\.send'],
-    ['electron/preload.cjs', 'chat:send'],
-    ['electron/backend/register-ipc.mjs', 'composeBackendServices|wireBackendIpc'],
-    ['electron/backend/ipc/wire-backend-ipc.mjs', 'registerChatSendIpc'],
-    ['electron/backend/compose-services.mjs', 'createDshChatService'],
-    ['electron/backend/ipc/register-chat-send-ipc.mjs', 'chat:send|runTurn'],
-    ['electron/backend/chat-turn-pipeline.mjs', 'executeChatRequest|runTurn'],
-    ['electron/backend/dsh-chat/chat-send.mjs', 'async function send\\(\\{|const reply = rpcValue\\(await api\\.sessions\\.prompt\\('],
+    ['desktop/preload.cjs', 'chat:send'],
+    ['desktop/backend/register-ipc.mjs', 'composeBackendServices|wireBackendIpc'],
+    ['desktop/backend/ipc/wire-backend-ipc.mjs', 'registerChatSendIpc'],
+    ['desktop/backend/compose-services.mjs', 'createDshChatService'],
+    ['desktop/backend/ipc/register-chat-send-ipc.mjs', 'chat:send|runTurn'],
+    ['desktop/backend/chat-turn-pipeline.mjs', 'executeChatRequest|runTurn'],
+    ['desktop/backend/dsh-chat/chat-send.mjs', 'async function send\\(\\{|const reply = rpcValue\\(await api\\.sessions\\.prompt\\('],
   ])
   const expectedReadCounts = new Map([
     ['src/features/app/hooks/useConversationRun.ts', 1],
-    ['electron/preload.cjs', 1],
-    ['electron/backend/register-ipc.mjs', 1],
-    ['electron/backend/ipc/wire-backend-ipc.mjs', 1],
-    ['electron/backend/compose-services.mjs', 1],
-    ['electron/backend/ipc/register-chat-send-ipc.mjs', 1],
-    ['electron/backend/chat-turn-pipeline.mjs', 1],
-    ['electron/backend/dsh-chat/chat-send.mjs', 1],
+    ['desktop/preload.cjs', 1],
+    ['desktop/backend/register-ipc.mjs', 1],
+    ['desktop/backend/ipc/wire-backend-ipc.mjs', 1],
+    ['desktop/backend/compose-services.mjs', 1],
+    ['desktop/backend/ipc/register-chat-send-ipc.mjs', 1],
+    ['desktop/backend/chat-turn-pipeline.mjs', 1],
+    ['desktop/backend/dsh-chat/chat-send.mjs', 1],
   ])
   const requiredReadAnchors = [
     ['src/features/app/hooks/useConversationRun.ts', 'bridge.chat.send', /bridge\.chat\.send/],
-    ['electron/preload.cjs', 'chat:send bridge', /invoke\(['"]chat:send['"]/],
-    ['electron/backend/register-ipc.mjs', 'wireBackendIpc', /wireBackendIpc\(/],
-    ['electron/backend/ipc/wire-backend-ipc.mjs', 'registerChatSendIpc', /registerChatSendIpc\(/],
-    ['electron/backend/compose-services.mjs', 'createDshChatService binding', /const chat = createDshChatService\(/],
-    ['electron/backend/ipc/register-chat-send-ipc.mjs', 'chat:send handler', /ipcHandle\(ipcMain, ['"]chat:send['"]/],
-    ['electron/backend/chat-turn-pipeline.mjs', 'executeChatRequest', /const executeChatRequest = async/],
-    ['electron/backend/chat-turn-pipeline.mjs', 'runTurn', /const runTurn = async/],
-    ['electron/backend/dsh-chat/chat-send.mjs', 'send entry', /async function send\(/],
-    ['electron/backend/dsh-chat/chat-send.mjs', 'new-turn sessions.prompt', /const reply = rpcValue\(await api\.sessions\.prompt\(/],
+    ['desktop/preload.cjs', 'chat:send bridge', /invoke\(['"]chat:send['"]/],
+    ['desktop/backend/register-ipc.mjs', 'wireBackendIpc', /wireBackendIpc\(/],
+    ['desktop/backend/ipc/wire-backend-ipc.mjs', 'registerChatSendIpc', /registerChatSendIpc\(/],
+    ['desktop/backend/compose-services.mjs', 'createDshChatService binding', /const chat = createDshChatService\(/],
+    ['desktop/backend/ipc/register-chat-send-ipc.mjs', 'chat:send handler', /ipcHandle\(ipcMain, ['"]chat:send['"]/],
+    ['desktop/backend/chat-turn-pipeline.mjs', 'executeChatRequest', /const executeChatRequest = async/],
+    ['desktop/backend/chat-turn-pipeline.mjs', 'runTurn', /const runTurn = async/],
+    ['desktop/backend/dsh-chat/chat-send.mjs', 'send entry', /async function send\(/],
+    ['desktop/backend/dsh-chat/chat-send.mjs', 'new-turn sessions.prompt', /const reply = rpcValue\(await api\.sessions\.prompt\(/],
   ]
   const sourceLinesByPath = new Map()
   for (const [filePath] of requiredReadAnchors) {
@@ -237,9 +237,9 @@ function auditFixedT2ToolDiscipline(calls) {
   }
   for (const call of searches) if (!expectedPaths.has(call.args.path)) issues.push(`grep used an unexpected or out-of-scope path: ${call.args.path ?? '(missing path)'}`)
   const preloadPatterns = searches
-    .filter((call) => call.args.path === 'electron/preload.cjs')
+    .filter((call) => call.args.path === 'desktop/preload.cjs')
     .map((call) => String(call.args.pattern ?? ''))
-  if (preloadPatterns.some((pattern) => /invoke/i.test(pattern))) issues.push('electron/preload.cjs: search must not include generic invoke')
+  if (preloadPatterns.some((pattern) => /invoke/i.test(pattern))) issues.push('desktop/preload.cjs: search must not include generic invoke')
   const reads = parsedCalls.filter((call) => call.name === 'read')
   const readsByPath = new Map()
   for (const call of reads) {
@@ -273,7 +273,7 @@ function auditFixedT2ToolDiscipline(calls) {
       && call.args.offset <= lineNumber && lineNumber < call.args.offset + call.args.limit)
     if (matchingReads.length !== 1) issues.push(`${filePath}: ${label} line ${lineNumber} must be covered by exactly one read, observed ${matchingReads.length}`)
   }
-  const serviceRead = readsByPath.get('electron/backend/dsh-chat/chat-send.mjs') ?? []
+  const serviceRead = readsByPath.get('desktop/backend/dsh-chat/chat-send.mjs') ?? []
   const expectedSearchPaths = [...expectedSearches.keys()]
   return {
     status: issues.length ? 'failed' : 'verified',
@@ -303,13 +303,13 @@ function runOfflineEvidenceSelfTest() {
   assertCase(/dsh-chat\/chat-send: async function send/.test(fixedChainTask.description), 'fixed DAG fixture must name service-layer grep anchors')
   const exactSearches = [
     ['src/features/app/hooks/useConversationRun.ts', 'bridge\\.chat\\.send'],
-    ['electron/preload.cjs', 'chat:send'],
-    ['electron/backend/register-ipc.mjs', 'composeBackendServices|wireBackendIpc'],
-    ['electron/backend/ipc/wire-backend-ipc.mjs', 'registerChatSendIpc'],
-    ['electron/backend/compose-services.mjs', 'createDshChatService'],
-    ['electron/backend/ipc/register-chat-send-ipc.mjs', 'chat:send|runTurn'],
-    ['electron/backend/chat-turn-pipeline.mjs', 'executeChatRequest|runTurn'],
-    ['electron/backend/dsh-chat/chat-send.mjs', 'async function send\\(\\{|const reply = rpcValue\\(await api\\.sessions\\.prompt\\('],
+    ['desktop/preload.cjs', 'chat:send'],
+    ['desktop/backend/register-ipc.mjs', 'composeBackendServices|wireBackendIpc'],
+    ['desktop/backend/ipc/wire-backend-ipc.mjs', 'registerChatSendIpc'],
+    ['desktop/backend/compose-services.mjs', 'createDshChatService'],
+    ['desktop/backend/ipc/register-chat-send-ipc.mjs', 'chat:send|runTurn'],
+    ['desktop/backend/chat-turn-pipeline.mjs', 'executeChatRequest|runTurn'],
+    ['desktop/backend/dsh-chat/chat-send.mjs', 'async function send\\(\\{|const reply = rpcValue\\(await api\\.sessions\\.prompt\\('],
   ].map(([filePath, pattern]) => ({ name: 'grep', arguments: JSON.stringify({ path: filePath, pattern }) }))
   const readCoveringAnchors = (filePath, patterns, padding = 4) => {
     const absolutePath = path.resolve(root, filePath)
@@ -326,13 +326,13 @@ function runOfflineEvidenceSelfTest() {
   }
   const expectedReads = [
     readCoveringAnchors('src/features/app/hooks/useConversationRun.ts', [/bridge\.chat\.send/]),
-    readCoveringAnchors('electron/preload.cjs', [/invoke\(['"]chat:send['"]/]),
-    readCoveringAnchors('electron/backend/register-ipc.mjs', [/wireBackendIpc\(/]),
-    readCoveringAnchors('electron/backend/ipc/wire-backend-ipc.mjs', [/registerChatSendIpc\(/]),
-    readCoveringAnchors('electron/backend/compose-services.mjs', [/const chat = createDshChatService\(/]),
-    readCoveringAnchors('electron/backend/ipc/register-chat-send-ipc.mjs', [/ipcHandle\(ipcMain, ['"]chat:send['"]/, /chatTurnPipeline\.runTurn/]),
-    readCoveringAnchors('electron/backend/chat-turn-pipeline.mjs', [/const executeChatRequest = async/, /const runTurn = async/], 6),
-    readCoveringAnchors('electron/backend/dsh-chat/chat-send.mjs', [
+    readCoveringAnchors('desktop/preload.cjs', [/invoke\(['"]chat:send['"]/]),
+    readCoveringAnchors('desktop/backend/register-ipc.mjs', [/wireBackendIpc\(/]),
+    readCoveringAnchors('desktop/backend/ipc/wire-backend-ipc.mjs', [/registerChatSendIpc\(/]),
+    readCoveringAnchors('desktop/backend/compose-services.mjs', [/const chat = createDshChatService\(/]),
+    readCoveringAnchors('desktop/backend/ipc/register-chat-send-ipc.mjs', [/ipcHandle\(ipcMain, ['"]chat:send['"]/, /chatTurnPipeline\.runTurn/]),
+    readCoveringAnchors('desktop/backend/chat-turn-pipeline.mjs', [/const executeChatRequest = async/, /const runTurn = async/], 6),
+    readCoveringAnchors('desktop/backend/dsh-chat/chat-send.mjs', [
       /async function send\(/,
       /const reply = rpcValue\(await api\.sessions\.prompt\(/,
     ], 6),
@@ -342,12 +342,12 @@ function runOfflineEvidenceSelfTest() {
   assertCase(auditFixedT2ToolDiscipline(compliantCalls).status === 'verified', 'fixed T2 exact searches and scoped reads pass')
   assertCase(auditFixedT2ToolDiscipline([...compliantCalls, serviceRead]).status === 'failed', 'fixed T2 flags adjacent service rereads')
   const actualAdjacentServiceReads = [
-    { name: 'read', arguments: JSON.stringify({ file_path: 'electron/backend/dsh-chat/chat-send.mjs', offset: 1437, limit: 70 }) },
-    { name: 'read', arguments: JSON.stringify({ file_path: 'electron/backend/dsh-chat/chat-send.mjs', offset: 1507, limit: 104 }) },
+    { name: 'read', arguments: JSON.stringify({ file_path: 'desktop/backend/dsh-chat/chat-send.mjs', offset: 1437, limit: 70 }) },
+    { name: 'read', arguments: JSON.stringify({ file_path: 'desktop/backend/dsh-chat/chat-send.mjs', offset: 1507, limit: 104 }) },
   ]
   assertCase(auditFixedT2ToolDiscipline([...exactSearches, ...expectedReads.slice(0, -1), ...actualAdjacentServiceReads]).status === 'failed', 'fixed T2 rechecks the exact adjacent service ranges from the 9C1Byp report')
-  const broadPreloadSearches = exactSearches.map((call) => call.arguments.includes('electron/preload.cjs')
-    ? { ...call, arguments: JSON.stringify({ path: 'electron/preload.cjs', pattern: 'chat:send|invoke\\(' }) }
+  const broadPreloadSearches = exactSearches.map((call) => call.arguments.includes('desktop/preload.cjs')
+    ? { ...call, arguments: JSON.stringify({ path: 'desktop/preload.cjs', pattern: 'chat:send|invoke\\(' }) }
     : call)
   assertCase(auditFixedT2ToolDiscipline([...broadPreloadSearches, ...expectedReads]).status === 'failed', 'fixed T2 flags broad preload invoke search')
   const outOfScopeCalls = [...compliantCalls,
@@ -356,11 +356,11 @@ function runOfflineEvidenceSelfTest() {
   ]
   assertCase(auditFixedT2ToolDiscipline(outOfScopeCalls).status === 'failed', 'fixed T2 flags extra out-of-scope search and read')
   const broadRegisterSearches = exactSearches.map((call) => call.arguments.includes('register-ipc.mjs')
-    ? { ...call, arguments: JSON.stringify({ path: 'electron/backend/register-ipc.mjs', pattern: '.*' }) }
+    ? { ...call, arguments: JSON.stringify({ path: 'desktop/backend/register-ipc.mjs', pattern: '.*' }) }
     : call)
   assertCase(auditFixedT2ToolDiscipline([...broadRegisterSearches, ...expectedReads]).status === 'failed', 'fixed T2 flags broad register search')
   const shortReads = expectedReads.map((call) => call === serviceRead
-    ? { ...call, arguments: JSON.stringify({ file_path: 'electron/backend/dsh-chat/chat-send.mjs', offset: 1, limit: 1 }) }
+    ? { ...call, arguments: JSON.stringify({ file_path: 'desktop/backend/dsh-chat/chat-send.mjs', offset: 1, limit: 1 }) }
     : call)
   assertCase(auditFixedT2ToolDiscipline([...exactSearches, ...shortReads]).status === 'failed', 'fixed T2 flags insufficient service read range')
   assertCase(auditFixedT2ToolDiscipline([...compliantCalls, { name: 'grep', arguments: '{not-json' }]).status === 'failed', 'fixed T2 flags malformed arguments')
@@ -407,7 +407,7 @@ Environment:
   TASKWEAVER_LIVE_REAL_PLANNER=1  Equivalent to --real-planner
   TASKWEAVER_LIVE_THINKING=<level> Default reasoning override when --thinking is omitted
   TASKWEAVER_LIVE_MODEL_KEY=<provider/model> Override the smoke-test route
-  TASKWEAVER_Z_RUNTIME=<path>     Runtime deployment to test
+  TASKWEAVER_RUNTIME=<path>     Runtime deployment to test
 `
 
 const cliArgs = process.argv.slice(2)
@@ -459,13 +459,13 @@ const [
   { resolveTaskWeaverModelsPath },
   { ensureModelsJsonSyncedToDshHost },
 ] = await Promise.all([
-  import('../../electron/agent/z-host/index.mjs'),
-  import('../../electron/backend/dsh-chat/chat-send.mjs'),
-  import('../../electron/backend/model-service.mjs'),
-  import('../../electron/backend/orchestration-service.mjs'),
-  import('../../electron/backend/profile-store.mjs'),
-  import('../../electron/backend/taskweaver-models-path.mjs'),
-  import('../../electron/backend/sync-models-json-to-host.mjs'),
+  import('../../desktop/agent/z-host/index.mjs'),
+  import('../../desktop/backend/dsh-chat/chat-send.mjs'),
+  import('../../desktop/backend/model-service.mjs'),
+  import('../../desktop/backend/orchestration-service.mjs'),
+  import('../../desktop/backend/profile-store.mjs'),
+  import('../../desktop/backend/taskweaver-models-path.mjs'),
+  import('../../desktop/backend/sync-models-json-to-host.mjs'),
 ])
 const loadedFrozenPlan = frozenPlanPath ? JSON.parse(await fs.readFile(frozenPlanPath, 'utf8')) : null
 if (loadedFrozenPlan && (!Array.isArray(loadedFrozenPlan.tasks) || loadedFrozenPlan.tasks.length === 0)) {
@@ -473,7 +473,7 @@ if (loadedFrozenPlan && (!Array.isArray(loadedFrozenPlan.tasks) || loadedFrozenP
 }
 const plannerMode = realPlanner ? 'live' : loadedFrozenPlan ? 'frozen-replay' : 'fixed-fixture'
 const userData = path.join(os.homedir(), 'Library', 'Application Support', 'taskweaver-desktop')
-const runtimeOverride = process.env.TASKWEAVER_Z_RUNTIME?.trim()
+const runtimeOverride = process.env.TASKWEAVER_RUNTIME?.trim()
 const runtimeRoot = runtimeOverride
   ? path.resolve(runtimeOverride)
   : cliArgs.includes('--installed')
@@ -515,11 +515,11 @@ function parsePlannerJson(text) {
 async function hashWorkspaceSnapshot(plan) {
   const ignoredDirectories = new Set(['.git', 'node_modules', 'vendor', 'dist', 'build', 'release', 'coverage'])
   const paths = new Set([
-    'electron/backend/dag-scheduler.mjs',
-    'electron/backend/orchestration-service.mjs',
-    'electron/backend/dsh-chat/chat-send.mjs',
-    'electron/backend/dsh-permission-map.mjs',
-    'electron/backend/task-profile.mjs',
+    'desktop/backend/dag-scheduler.mjs',
+    'desktop/backend/orchestration-service.mjs',
+    'desktop/backend/dsh-chat/chat-send.mjs',
+    'desktop/backend/dsh-permission-map.mjs',
+    'desktop/backend/task-profile.mjs',
     ...(plan?.tasks ?? []).flatMap((task) => Array.isArray(task.scopePaths) ? task.scopePaths : []),
   ])
   const filePaths = new Set()
@@ -687,7 +687,6 @@ try {
     runtimeRoot,
     opencodexPackageRoot: path.join(root, 'vendor', 'opencodex'),
     userDataPath: reportDir,
-    executable: process.execPath,
   })
   let { api } = await hostManager.start()
   const sync = await ensureModelsJsonSyncedToDshHost({ hostManager, userDataPath: reportDir, modelsDocOverride: modelsDocForSync })

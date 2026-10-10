@@ -1,5 +1,5 @@
-/** Package-owned invariant companion for `@z/dsh-attachment`. @module @z/dsh-attachment/invariant */
-import type { Context } from '@z/cordis';
+/** Package-owned invariant companion for `@taskweaver/dsh-attachment`. @module @taskweaver/dsh-attachment/invariant */
+import type { Context } from '@taskweaver/cordis';
 /** Cordis companion plugin name. */
 export declare const name = "attachment-invariant";
 /** Service required before package ownership can be reserved. */

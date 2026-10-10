@@ -1,16 +1,16 @@
-import { createUserMessage } from '@z/dsh-llm'
+import { createUserMessage } from '@taskweaver/dsh-llm'
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
+import { Context } from '@taskweaver/cordis'
 import {
   CompactionId,
   CompactionEngine,
   compactCheckpointSource,
   isCompactCheckpointSource,
-} from '@z/dsh-compaction'
-import type { CompactionResult, CompactionTrigger } from '@z/dsh-compaction'
-import { Session, SessionId } from '@z/dsh-session'
-import type { CompactionAgentContext } from '@z/dsh-compaction'
-import type { ManualCompactAgentContext } from '@z/dsh-compaction'
+} from '@taskweaver/dsh-compaction'
+import type { CompactionResult, CompactionTrigger } from '@taskweaver/dsh-compaction'
+import { Session, SessionId } from '@taskweaver/dsh-session'
+import type { CompactionAgentContext } from '@taskweaver/dsh-compaction'
+import type { ManualCompactAgentContext } from '@taskweaver/dsh-compaction'
 
 /**
  * A trivial concrete CompactionEngine implementing the abstract contract. The

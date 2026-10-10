@@ -1,4 +1,4 @@
-import type { ClientResponse, MuxFrame, RpcId, RpcReceipt, SessionId } from '@z/dsh-api-remotes/client';
+import type { ClientResponse, MuxFrame, RpcId, RpcReceipt, SessionId } from '@taskweaver/dsh-api-remotes/client';
 /** Kind-keyed payload map: the requested frame's domain fields (envelope fields stripped). */
 export interface PendingPayloads {
     approval: Omit<Extract<MuxFrame, {

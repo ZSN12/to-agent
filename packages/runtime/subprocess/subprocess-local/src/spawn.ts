@@ -14,8 +14,8 @@ import { closeSync, mkdtempSync, openSync, unlinkSync, writeSync } from 'node:fs
 import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { setTimeout as sleepMs } from 'node:timers/promises'
-import { scrubbedParentEnv } from '@z/dsh-subprocess'
-import { MAX_TIMER_DELAY_MS } from '@z/dsh-timeout'
+import { scrubbedParentEnv } from '@taskweaver/dsh-subprocess'
+import { MAX_TIMER_DELAY_MS } from '@taskweaver/dsh-timeout'
 import type {
   CollectedOutput,
   SubprocessCollect,
@@ -23,7 +23,7 @@ import type {
   SubprocessOutcome,
   SubprocessOutputMode,
   SubprocessSpawnSpec,
-} from '@z/dsh-subprocess'
+} from '@taskweaver/dsh-subprocess'
 import { linuxProcessGroupHasLiveMembers } from './process-inspector.ts'
 
 /**

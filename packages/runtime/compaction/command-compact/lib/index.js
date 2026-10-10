@@ -1,8 +1,8 @@
-import { ManualCompactionError } from "@z/dsh-compaction";
+import { ManualCompactionError } from "@taskweaver/dsh-compaction";
 //#region lib/types/index.js
 /**
 * Human-facing `/compact` command over the backend-independent compaction seam.
-* @module @z/dsh-command-compact
+* @module @taskweaver/dsh-command-compact
 */
 const name = "command-compact";
 const inject = ["commands", "compaction"];

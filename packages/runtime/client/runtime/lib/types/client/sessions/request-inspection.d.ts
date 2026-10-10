@@ -1,4 +1,4 @@
-import type { ContentBlock, ToolSchema } from '@z/dsh-llm/types';
+import type { ContentBlock, ToolSchema } from '@taskweaver/dsh-llm/types';
 import type { AssistantProvenanceView, AssistantRequestConfig } from './conversation.ts';
 export type { AssistantProvenanceView, AssistantRequestConfig, } from './conversation.ts';
 /** Complete model-visible request header in force for an ordinary generation. */

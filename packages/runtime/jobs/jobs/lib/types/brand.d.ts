@@ -5,11 +5,11 @@
  * It lives in its own leaf because the package root and `./types` both reach
  * `dsh-agent` through the owner and listener signatures, which a Client program
  * cannot resolve even as a type. A browser-safe consumer imports the id here;
- * `Branded<B>` itself comes from the zero-dependency `@z/dsh-brand`.
+ * `Branded<B>` itself comes from the zero-dependency `@taskweaver/dsh-brand`.
  *
- * @module @z/dsh-jobs/brand
+ * @module @taskweaver/dsh-jobs/brand
  */
-import type { Branded } from '@z/dsh-brand';
+import type { Branded } from '@taskweaver/dsh-brand';
 /**
  * Identifies a background job. The registry generates `<kind>-N`; predictable
  * ids rely on owner authorization rather than secrecy.

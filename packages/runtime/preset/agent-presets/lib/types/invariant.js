@@ -1,19 +1,16 @@
-"use strict";
 /**
- * Package-owned invariant companion for `@z/dsh-agent-presets`.
- * @module @z/dsh-agent-presets/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-agent-presets`.
+ * @module @taskweaver/dsh-agent-presets/invariant
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.apply = exports.inject = exports.name = void 0;
 // Imported through the package name, not `./mount.ts`: a module shared between
 // the two build entry points becomes a third chunk that the published `files`
 // list does not carry, which `verify-built-package-invariants` rejects.
-var dsh_agent_presets_1 = require("@z/dsh-agent-presets");
-var PACKAGE_NAME = '@z/dsh-agent-presets';
+import { leakedServices, livePresetMounts } from '@taskweaver/dsh-agent-presets';
+const PACKAGE_NAME = '@taskweaver/dsh-agent-presets';
 /** Cordis companion plugin name. */
-exports.name = 'agent-presets-invariant';
+export const name = 'agent-presets-invariant';
 /** Service required before the companion can reserve package ownership. */
-exports.inject = ['invariants'];
+export const inject = ['invariants'];
 /**
  * Assert that no installed preset composition reaches the root service realm,
  * and that a deployment configuring a roster composes every agent from it.
@@ -23,15 +20,14 @@ exports.inject = ['invariants'];
  * plugin returned — would escape that one-shot audit, so re-check every live
  * mount whenever a service registration changes.
  */
-var install = function (ctx, fail) {
+const install = (ctx, fail) => {
     ctx.on('internal/service', function (name) {
-        for (var _i = 0, _a = (0, dsh_agent_presets_1.livePresetMounts)(); _i < _a.length; _i++) {
-            var mount = _a[_i];
-            var leaked = (0, dsh_agent_presets_1.leakedServices)(ctx, mount.fiber);
+        for (const mount of livePresetMounts()) {
+            const leaked = leakedServices(ctx, mount.fiber);
             if (leaked.length === 0)
                 continue;
-            fail("preset \"".concat(mount.presetId, "\" published process-global service(s) [").concat(leaked.join(', '), "] ")
-                + "after its mount was audited (observed while notifying \"".concat(name, "\") \u2014 ")
+            fail(`preset "${mount.presetId}" published process-global service(s) [${leaked.join(', ')}] `
+                + `after its mount was audited (observed while notifying "${name}") — `
                 + 'a preset service must sit behind an `isolate` realm or move to the host composition');
         }
     }, { global: true });
@@ -49,12 +45,12 @@ var install = function (ctx, fail) {
     // moment that matters, because an unjoined agent is legal until it addresses
     // a model: `recompose` binds a bare agent as its first link, and that agent
     // is unjoined for its whole life up to the switch.
-    ctx.on('system-prompt/assemble', function (_assembly, context, next) {
-        var presets = ctx.get('agentPresets');
-        var agent = context.agent;
+    ctx.on('system-prompt/assemble', (_assembly, context, next) => {
+        const presets = ctx.get('agentPresets');
+        const agent = context.agent;
         if (presets !== undefined && presets.roots.length > 0
             && agent !== undefined && presets.composedPreset(agent.ctx) === undefined) {
-            fail("agent \"".concat(agent.id, "\" addressed a model without joining any agent preset while a roster is ")
+            fail(`agent "${agent.id}" addressed a model without joining any agent preset while a roster is `
                 + 'composed; its tools, prompt sections, and skill catalog resolve against the empty global layer');
         }
         return next();
@@ -65,7 +61,5 @@ var install = function (ctx, fail) {
  * @param ctx - Cordis context carrying the invariant service.
  * @returns the installed registration's disposer after setup succeeds.
  */
-var apply = function (ctx) {
-    return Promise.resolve(ctx.invariants.register(PACKAGE_NAME, install));
-};
-exports.apply = apply;
+export const apply = (ctx) => Promise.resolve(ctx.invariants.register(PACKAGE_NAME, install));
+//# sourceMappingURL=invariant.js.map

@@ -1,7 +1,7 @@
 /** Local node-pty terminal-process implementation for the subprocess seam. */
 import { PassThrough } from 'node:stream';
 import type { IPty } from 'node-pty';
-import type { SubprocessOutcome, SubprocessTerminalForeground, SubprocessTerminalHandle, SubprocessTerminalSignal } from '@z/dsh-subprocess';
+import type { SubprocessOutcome, SubprocessTerminalForeground, SubprocessTerminalHandle, SubprocessTerminalSignal } from '@taskweaver/dsh-subprocess';
 import type { ProcessInspector } from './process-inspector.ts';
 /**
  * A local terminal whose process-session ownership stays below the PTY backend.

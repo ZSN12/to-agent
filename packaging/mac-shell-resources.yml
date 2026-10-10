@@ -1,0 +1,25 @@
+# TaskWeaver.app Contents/Resources layout (Swift shell, no Electron).
+#
+# Resources/
+#   host-node/bin/node
+#   taskweaver-z-runtime/          # Z Host deploy tree
+#   taskweaver-scheduled-runner.mjs
+#   app/                             # Node backend payload (dist, desktop/, node_modules, …)
+
+host_node:
+  from: vendor/host-node
+  to: host-node
+
+z_runtime:
+  from: vendor/taskweaver-z-runtime
+  to: taskweaver-z-runtime
+
+scheduled_runner:
+  from: scripts/run-scheduled-job-cli.mjs
+  to: taskweaver-scheduled-runner.mjs
+
+headless_scripts:
+  - scripts/taskweaver-headless.mjs
+  - scripts/diagnose/run-agent-read-smoke.mjs
+
+shell_backend_entry: desktop/shell/run.mjs

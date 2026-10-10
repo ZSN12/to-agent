@@ -1,13 +1,13 @@
 /** Browser plugin owning Session export download state and its shared modal. */
-import type { ClientContext } from '@z/dsh-client-runtime/client';
+import type { ClientContext } from '@taskweaver/dsh-client-runtime/client';
 import { SessionLogDownloadController } from './controller.ts';
 import { type SessionLogDownloadKey } from './locales.ts';
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
     interface Context {
         sessionLogDownload: SessionLogDownloadController;
     }
 }
-declare module '@z/dsh-client-ui-slots' {
+declare module '@taskweaver/dsh-client-ui-slots' {
     interface LocaleNamespaceMap {
         'session-log-download': SessionLogDownloadKey;
     }

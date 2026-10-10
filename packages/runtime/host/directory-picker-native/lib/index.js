@@ -1,5 +1,5 @@
-import { DirectoryPicker } from "@z/dsh-host-directory-picker";
-import { runNativeCommand } from "@z/dsh-native-command";
+import { DirectoryPicker } from "@taskweaver/dsh-host-directory-picker";
+import { runNativeCommand } from "@taskweaver/dsh-native-command";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 //#region lib/types/win32-dialog-bindings.js
@@ -73,7 +73,7 @@ async function closeThreadWindows(threadId) {
 function spawnDialogWorker(data) {
 	const env = {
 		...process.env,
-		DSH_DIALOG_TITLE: data.title
+		TASKWEAVER_DIALOG_TITLE: data.title
 	};
 	const stdio = [
 		"ignore",
@@ -279,7 +279,7 @@ async function pickNativeDirectory(signal, internals = {}) {
 * koffi-driven COM conversation on the child's main thread). Only viable when
 * the operator sits at the host's screen; remote deployments compose the
 * browse backend instead.
-* @module @z/dsh-host-directory-picker-native
+* @module @taskweaver/dsh-host-directory-picker-native
 */
 /** The `ctx.directoryPicker` native implementation (stable capability object per service life). */
 var NativeDirectoryPicker = class extends DirectoryPicker {

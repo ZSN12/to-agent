@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { SessionEvent } from '@z/dsh-session/types'
+import type { SessionEvent } from '@taskweaver/dsh-session/types'
 import { ConversationNodeAssembler } from '../src/client/sessions/conversation-assembler.ts'
 import type {
   ConversationEventInput, ConversationMatch, ConversationNodeContext,

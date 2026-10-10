@@ -1,12 +1,12 @@
-import { defineTool } from "@z/dsh-tools";
-import "@z/dsh-user-questions";
+import { defineTool } from "@taskweaver/dsh-tools";
+import "@taskweaver/dsh-user-questions";
 //#region lib/types/index.js
 /**
 * Model-facing Consumer of the `ctx.userQuestions` capability seam.
 * The tool pauses until a UI provider returns a human answer, then feeds that
 * answer back into the agent loop as an ordinary tool result.
 *
-* @module @z/dsh-tool-ask-user
+* @module @taskweaver/dsh-tool-ask-user
 */
 const name = "tool-ask-user";
 const inject = ["tools", "userQuestions"];

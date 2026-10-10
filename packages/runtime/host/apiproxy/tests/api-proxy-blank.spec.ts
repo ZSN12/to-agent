@@ -8,20 +8,20 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import AgentRegistry from '@z/dsh-agent'
-import type { Agent } from '@z/dsh-agent'
-import SessionStore from '@z/dsh-session'
-import type { Session } from '@z/dsh-session'
-import UserQuestionService from '@z/dsh-user-questions'
-import { CommandId } from '@z/dsh-commands/brand'
+import { Context } from '@taskweaver/cordis'
+import AgentRegistry from '@taskweaver/dsh-agent'
+import type { Agent } from '@taskweaver/dsh-agent'
+import SessionStore from '@taskweaver/dsh-session'
+import type { Session } from '@taskweaver/dsh-session'
+import UserQuestionService from '@taskweaver/dsh-user-questions'
+import { CommandId } from '@taskweaver/dsh-commands/brand'
 // Side-effect type imports: the knob-event SessionEventMap merges.
-import type {} from '@z/dsh-permission-presets'
-import type {} from '@z/dsh-sandbox-policy'
-import type {} from '@z/dsh-user-approval'
-import type { ApiProxy, RpcRequest } from '@z/dsh-host-apiproxy/api'
-import { RpcId } from '@z/dsh-host-apiproxy/api/rpc'
-import { createApiProxy } from '@z/dsh-host-apiproxy'
+import type {} from '@taskweaver/dsh-permission-presets'
+import type {} from '@taskweaver/dsh-sandbox-policy'
+import type {} from '@taskweaver/dsh-user-approval'
+import type { ApiProxy, RpcRequest } from '@taskweaver/dsh-host-apiproxy/api'
+import { RpcId } from '@taskweaver/dsh-host-apiproxy/api/rpc'
+import { createApiProxy } from '@taskweaver/dsh-host-apiproxy'
 
 let nextRpc = 1
 function request<P>(payload: P): RpcRequest<P> {

@@ -1,5 +1,7 @@
 import { FileText, Pencil, Search, Terminal, FolderOpen, PanelRightOpen } from 'lucide-react'
 import type { ToolTraceItem } from '../../shared/app-api'
+import { CodeExecutionResultCard } from './CodeExecutionResultCard'
+import type { CodeOutputImage } from './codeOutputPresentation'
 import { resolveToolFilePath } from './tool-path'
 
 function toolIcon(name: string) {
@@ -15,10 +17,20 @@ export function ToolTraceCard({
   item,
   onShowDetails,
   onOpenPath,
+  resultImages,
+  resultImageCount,
+  resultImagesLoading = false,
+  codeModeResult = false,
 }: {
   item: ToolTraceItem
   onShowDetails?: (item: ToolTraceItem) => void
   onOpenPath?: (relativePath: string) => void
+  /** Host-fetched image bytes for attachment references in a code-mode result. */
+  resultImages?: readonly CodeOutputImage[]
+  resultImageCount?: number
+  resultImagesLoading?: boolean
+  /** Nested Host dispatch result produced from a run_code Python/TypeScript program. */
+  codeModeResult?: boolean
 }) {
   const Icon = toolIcon(item.toolName)
   const filePath = resolveToolFilePath(item)
@@ -64,7 +76,14 @@ export function ToolTraceCard({
       {!isBash && !isRead && !isSearch && !isCode && item.inputSummary && !pathLike && (
         <div className="tool-trace-card-meta">{item.inputSummary}</div>
       )}
-      {item.resultSummary && item.toolName !== 'context-compaction' && (
+      {isCode || codeModeResult ? (
+        <CodeExecutionResultCard
+          output={item.resultSummary}
+          images={resultImages}
+          imageCount={resultImageCount}
+          imagesLoading={resultImagesLoading}
+        />
+      ) : item.resultSummary && item.toolName !== 'context-compaction' && (
         <pre className="tool-trace-output">{item.resultSummary}</pre>
       )}
     </div>

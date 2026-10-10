@@ -1,8 +1,8 @@
 /**
- * Package-owned invariant companion for `@z/dsh-fs-sandbox`.
- * @module @z/dsh-fs-sandbox/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-fs-sandbox`.
+ * @module @taskweaver/dsh-fs-sandbox/invariant
  */
-import type { Context } from '@z/cordis';
+import type { Context } from '@taskweaver/cordis';
 /** Cordis companion plugin name. */
 export declare const name = "fs-sandbox-invariant";
 /** Services required before the companion can register. */

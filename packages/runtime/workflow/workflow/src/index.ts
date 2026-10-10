@@ -1,11 +1,11 @@
 /**
  * Service Definition for the workflow capability seam. Service Providers execute orchestration scripts;
  * observe-only lifecycle events never expose run control.
- * @module @z/dsh-workflow
+ * @module @taskweaver/dsh-workflow
  */
 
-import { Context, Service } from '@z/cordis'
-import { HarnessError } from '@z/dsh-llm'
+import { Context, Service } from '@taskweaver/cordis'
+import { HarnessError } from '@taskweaver/dsh-llm'
 import type {
   WorkflowAgentEndInfo,
   WorkflowAgentInfo,
@@ -28,7 +28,7 @@ export type {
 } from './types.ts'
 export type { WorkflowRun, WorkflowStartRequest } from './runtime-types.ts'
 
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
   interface Context {
     workflowEngine: WorkflowEngine
   }

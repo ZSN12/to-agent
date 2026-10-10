@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { SessionId } from "@z/dsh-session";
+import { SessionId } from "@taskweaver/dsh-session";
 //#region lib/types/types.js
 /** Public Agent Teams identities, durable records, and service request values. */
 /**
@@ -328,7 +328,7 @@ function foldTeam(rootId, events) {
 //#endregion
 //#region lib/types/invariant.js
 /** Package-owned relational checks for Agent Teams durable records. */
-const PACKAGE_NAME = "@z/dsh-experimental-agent-team";
+const PACKAGE_NAME = "@taskweaver/dsh-experimental-agent-team";
 /** Cordis companion plugin name. */
 const name = "team-invariant";
 /** Invariant registry required by the companion. */

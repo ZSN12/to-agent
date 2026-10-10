@@ -1,4 +1,3 @@
-"use strict";
 /**
  * The session-projcache domain declaration: one `sessions` table keyed by
  * {@link SessionId}, each record the full projection checkpoint for one
@@ -7,12 +6,10 @@
  * the storage-domain routing decides the medium (the shipped composition's
  * json backend lands it at `<root>/session_projcache.json`, beside
  * `workspace.json`).
- * @module @z/dsh-session-projection-cache/src/spec
+ * @module @taskweaver/dsh-session-projection-cache/src/spec
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.projectionCacheDomainSpec = exports.checkpointRecord = exports.checkpointIdentity = exports.checkpointRow = void 0;
-var zod_1 = require("zod");
-var dsh_storage_domain_1 = require("@z/dsh-storage-domain");
+import { z } from 'zod';
+import { defineDomain, domainTable } from '@taskweaver/dsh-storage-domain';
 /**
  * One persisted checkpoint row (the RFC's `(sessionId, key, ver, seq, val)`
  * minus the two record keys). `val` is the unit's internal state — plain
@@ -21,10 +18,10 @@ var dsh_storage_domain_1 = require("@z/dsh-storage-domain");
  * how stale, and a `ver` mismatch against the live unit's `stateVersion`
  * discards it at read time (never a migration).
  */
-exports.checkpointRow = zod_1.z.object({
-    ver: zod_1.z.number().int().nonnegative(),
-    seq: zod_1.z.number().int().gte(-1),
-    val: zod_1.z.json(),
+export const checkpointRow = z.object({
+    ver: z.number().int().nonnegative(),
+    seq: z.number().int().gte(-1),
+    val: z.json(),
 });
 /**
  * The stored-log identity a record is bound to: the immutable header fields
@@ -35,9 +32,9 @@ exports.checkpointRow = zod_1.z.object({
  * log. Reads validate this against the live header (listing) or the stored
  * header (cold read) before accepting any row.
  */
-exports.checkpointIdentity = zod_1.z.object({
-    createdAt: zod_1.z.number().int().nonnegative(),
-    cwd: zod_1.z.string().optional(),
+export const checkpointIdentity = z.object({
+    createdAt: z.number().int().nonnegative(),
+    cwd: z.string().optional(),
 });
 /**
  * One session's stored record: the log identity it was folded from plus its
@@ -45,17 +42,18 @@ exports.checkpointIdentity = zod_1.z.object({
  * every write (whole-value discipline — the registry checkpoint is always
  * the complete per-session cut).
  */
-exports.checkpointRecord = zod_1.z.object({
-    identity: exports.checkpointIdentity,
-    rows: zod_1.z.record(zod_1.z.string(), exports.checkpointRow),
+export const checkpointRecord = z.object({
+    identity: checkpointIdentity,
+    rows: z.record(z.string(), checkpointRow),
 });
 /**
  * The session-projcache domain spec. Version bumps discard the whole medium
  * (cache semantics: a stale or unreadable cache costs a longer tail replay,
  * never a wrong value).
  */
-exports.projectionCacheDomainSpec = (0, dsh_storage_domain_1.defineDomain)({
+export const projectionCacheDomainSpec = defineDomain({
     name: 'session_projcache',
     version: 3,
-    tables: { sessions: (0, dsh_storage_domain_1.domainTable)(exports.checkpointRecord) },
+    tables: { sessions: domainTable(checkpointRecord) },
 });
+//# sourceMappingURL=spec.js.map

@@ -24,7 +24,7 @@
 
 ## 已落地（数据面第一步）
 
-- `electron/backend/dsh-chat-service.mjs`：对已映射的 DSH `sessionId`，将 mux 上的  
+- `desktop/backend/dsh-chat-service.mjs`：对已映射的 DSH `sessionId`，将 mux 上的  
   `session/event`、`session/projection`、`session/queue`、`session/subscribed`、`session/jobs`  
   **原样**经 IPC `chat:mux` 推到订阅的 renderer（`chat:subscribeMux` / `onMux`）。
 - Renderer：`useAppBackend` 按当前 `conversationId` 订阅，并在内存保留 tape（供下一阶段接 `client-runtime` / ui-conversation）。
@@ -37,8 +37,8 @@
 
 ## 代码索引
 
-- Mux 扇出：`electron/backend/dsh-chat-service.mjs`（`fanoutMuxFrame`、`subscribeMux`）
-- IPC：`electron/backend/register-ipc.mjs`（`chat:subscribeMux`）
-- 预加载：`electron/preload.cjs`（`chat.onMux`）
+- Mux 扇出：`desktop/backend/dsh-chat-service.mjs`（`fanoutMuxFrame`、`subscribeMux`）
+- IPC：`desktop/backend/register-ipc.mjs`（`chat:subscribeMux`）
+- 预加载：`desktop/preload.cjs`（`chat.onMux`）
 - 类型：`src/shared/app-api.ts`（`DshMuxFramePayload`）
 - DSH 参考实现：`packages/runtime/client/runtime`、`ui-conversation`、`ui-trajectory`

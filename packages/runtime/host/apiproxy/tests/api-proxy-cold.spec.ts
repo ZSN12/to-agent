@@ -8,24 +8,24 @@ import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
-import { Context } from '@z/cordis'
-import SessionStore from '@z/dsh-session'
-import AgentRegistry from '@z/dsh-agent'
-import { TypertLookupFailure } from '@z/dsh-typert-protocol'
-import TypertRegistry from '@z/dsh-typert-registry'
-import { createUserMessage, MessageId } from '@z/dsh-llm'
-import type { Agent } from '@z/dsh-agent'
-import UserQuestionService from '@z/dsh-user-questions'
-import type { SessionEvent, SessionHeader, SessionId } from '@z/dsh-session'
+import { Context } from '@taskweaver/cordis'
+import SessionStore from '@taskweaver/dsh-session'
+import AgentRegistry from '@taskweaver/dsh-agent'
+import { TypertLookupFailure } from '@taskweaver/dsh-typert-protocol'
+import TypertRegistry from '@taskweaver/dsh-typert-registry'
+import { createUserMessage, MessageId } from '@taskweaver/dsh-llm'
+import type { Agent } from '@taskweaver/dsh-agent'
+import UserQuestionService from '@taskweaver/dsh-user-questions'
+import type { SessionEvent, SessionHeader, SessionId } from '@taskweaver/dsh-session'
 import {
   PersistenceCoordinator,
   SessionPersistenceRevision,
   type PersistenceBackend,
   type StoredPrefix,
-} from '@z/dsh-session-persistence'
-import type { RpcRequest } from '@z/dsh-host-apiproxy/api/rpc'
-import { RpcId } from '@z/dsh-host-apiproxy/api/rpc'
-import { createApiProxy } from '@z/dsh-host-apiproxy'
+} from '@taskweaver/dsh-session-persistence'
+import type { RpcRequest } from '@taskweaver/dsh-host-apiproxy/api/rpc'
+import { RpcId } from '@taskweaver/dsh-host-apiproxy/api/rpc'
+import { createApiProxy } from '@taskweaver/dsh-host-apiproxy'
 
 const sid = (id: string): SessionId => id as SessionId
 
@@ -399,7 +399,7 @@ describe('Remote Agent and Session lookup policy', () => {
       inspect,
       locate: () => undefined,
     } as never)
-    const resumedSession = { id: sessionId, header: meta, events: [] } as unknown as import('@z/dsh-session').Session
+    const resumedSession = { id: sessionId, header: meta, events: [] } as unknown as import('@taskweaver/dsh-session').Session
     const resumedAgent = { id: sessionId, session: resumedSession, status: 'idle', ctx } as Agent
     const release = Promise.withResolvers<undefined>()
     const resume = vi.spyOn(ctx.agents, 'resume').mockImplementation(async () => {

@@ -1,10 +1,10 @@
 /**
  * Package-owned relational invariants for the session event log. Load this
- * companion beside `@z/dsh-invariants` to enable the checks.
+ * companion beside `@taskweaver/dsh-invariants` to enable the checks.
  *
- * @module @z/dsh-session/invariant
+ * @module @taskweaver/dsh-session/invariant
  */
-import type { Context } from '@z/cordis';
+import type { Context } from '@taskweaver/cordis';
 /** Cordis companion plugin name. */
 export declare const name = "session-invariant";
 /** Service required before the companion can reserve package ownership. */

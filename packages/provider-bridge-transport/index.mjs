@@ -6,7 +6,14 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { createRequire } from 'node:module'
 import { spawn } from 'node:child_process'
 import { existsSync, statSync } from 'node:fs'
-import { loadCreateCursorAdapter, ensureNodeTypescriptLoader } from './cursor-adapter-loader.mjs'
+import {
+  createCursorTranslatorBudget as createPackageCursorTranslatorBudget,
+  loadCreateCursorAdapter,
+} from './cursor-adapter-loader.mjs'
+import { loadCreateGoogleAdapter } from './google-adapter-loader.mjs'
+import { createOAuthTokenCache, isUnauthorizedError } from './oauth-token-cache.mjs'
+
+const oauthTokenCache = createOAuthTokenCache()
 
 function bridgeError(code, message) {
   const err = new Error(message)
@@ -19,10 +26,85 @@ function isMockMode() {
   return v === '1' || v === 'true'
 }
 
+export const UI_VERIFY_APPROVAL_FIXTURE = 'TASKWEAVER_UI_VERIFY_APPROVAL_FIXTURE'
+export const UI_VERIFY_MOCK_REPLY = 'UI_VERIFY_MOCK_REPLY_OK'
+
+function isUiVerifyMockMode(env = process.env) {
+  return env.TASKWEAVER_E2E === '1'
+    && env.TASKWEAVER_UI_VERIFY === '1'
+    && env.TASKWEAVER_UI_VERIFY_MOCK === '1'
+    && env.TASKWEAVER_PACKAGED !== '1'
+    && env.TASKWEAVER_PACKAGED !== 'true'
+}
+
+function latestUserText(context) {
+  const messages = context?.options?.messages ?? []
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index]
+    if (message?.role !== 'user') continue
+    if (typeof message.content === 'string') return message.content
+    if (Array.isArray(message.content)) {
+      return message.content
+        .filter((block) => block?.type === 'text' && typeof block.text === 'string')
+        .map((block) => block.text)
+        .join('')
+    }
+  }
+  return ''
+}
+
+export function isUiVerifyApprovalFixture(context, env = process.env) {
+  return isUiVerifyMockMode(env)
+    && latestUserText(context) === UI_VERIFY_APPROVAL_FIXTURE
+}
+
+function uiVerifyMockStream() {
+  return {
+    kind: 'cursor',
+    async *stream(context) {
+      if (isUiVerifyApprovalFixture(context)) {
+        const id = 'ui-verify-approval-call'
+        const name = 'bash'
+        const args = JSON.stringify({
+          command: 'printf UI_VERIFY_APPROVAL_OK',
+          description: 'Print the UI approval fixture marker',
+          timeoutMs: 5_000,
+        })
+        yield { type: 'block-start', index: 0, blockType: 'tool-call' }
+        yield { type: 'tool-call-delta', index: 0, id, name, argumentsDelta: args }
+        yield { type: 'block-end', index: 0, block: { type: 'tool-call', id, name, arguments: args } }
+        yield { type: 'usage', usage: { inputTokens: 1, outputTokens: 3, totalTokens: 4 } }
+        yield { type: 'finish', reason: { kind: 'tool-calls' } }
+        return
+      }
+      yield { type: 'block-start', index: 0, blockType: 'text' }
+      yield { type: 'text-delta', index: 0, text: UI_VERIFY_MOCK_REPLY }
+      yield { type: 'block-end', index: 0, block: { type: 'text', text: UI_VERIFY_MOCK_REPLY } }
+      yield { type: 'usage', usage: { inputTokens: 1, outputTokens: 3, totalTokens: 4 } }
+      yield { type: 'finish', reason: { kind: 'stop' } }
+    },
+  }
+}
+
 function mockStream() {
   return {
     kind: 'cursor',
-    async *stream() {
+    async *stream(context) {
+      if (isUiVerifyApprovalFixture(context)) {
+        const id = 'ui-verify-approval-call'
+        const name = 'bash'
+        const args = JSON.stringify({
+          command: 'printf UI_VERIFY_APPROVAL_OK',
+          description: 'Print the UI approval fixture marker',
+          timeoutMs: 5_000,
+        })
+        yield { type: 'block-start', index: 0, blockType: 'tool-call' }
+        yield { type: 'tool-call-delta', index: 0, id, name, argumentsDelta: args }
+        yield { type: 'block-end', index: 0, block: { type: 'tool-call', id, name, arguments: args } }
+        yield { type: 'usage', usage: { inputTokens: 1, outputTokens: 3, totalTokens: 4 } }
+        yield { type: 'finish', reason: { kind: 'tool-calls' } }
+        return
+      }
       yield { type: 'block-start', index: 0, blockType: 'text' }
       yield { type: 'text-delta', index: 0, text: 'bridge-smoke-ok' }
       yield { type: 'block-end', index: 0, block: { type: 'text', text: 'bridge-smoke-ok' } }
@@ -47,6 +129,24 @@ function isRealBunBinary(candidate) {
   }
 }
 
+const warnedLegacyRuntimeEnv = new Set()
+
+/** Read the canonical runtime root and warn on the one-release aliases. */
+export function resolveRuntimeRootOverride(env = process.env) {
+  const canonical = env.TASKWEAVER_RUNTIME?.trim()
+  let fallback
+  for (const legacyName of ['TASKWEAVER_Z_RUNTIME', 'TASKWEAVER_DSH_RUNTIME']) {
+    const value = env[legacyName]?.trim()
+    if (!value) continue
+    if (!warnedLegacyRuntimeEnv.has(legacyName)) {
+      warnedLegacyRuntimeEnv.add(legacyName)
+      console.warn(`[TaskWeaver] ${legacyName} 已弃用，请改用 TASKWEAVER_RUNTIME。`)
+    }
+    fallback ??= value
+  }
+  return canonical || fallback
+}
+
 function resolveBunBinary() {
   const openCodexRoot = resolveOpenCodexRoot()
   const binaryNames = ['bun.exe', 'bun']
@@ -54,7 +154,7 @@ function resolveBunBinary() {
     process.env.OPENCODEX_BUN_PATH?.trim(),
     process.env.OCX_BUN_RUNTIME_PATH?.trim(),
   ].filter(Boolean)
-  const runtimeRoot = process.env.TASKWEAVER_Z_RUNTIME?.trim()
+  const runtimeRoot = resolveRuntimeRootOverride()
   if (runtimeRoot) {
     for (const name of binaryNames) {
       candidates.push(path.join(runtimeRoot, 'runtime-packages', 'bun', 'bin', name))
@@ -86,7 +186,10 @@ function openCodexOAuthTokenProgram(provider) {
     `  const {getValidAccessToken}=await import(${JSON.stringify(moduleUrl)})`,
     `  const token=await getValidAccessToken(${JSON.stringify(provider)})`,
     "  if(typeof token!=='string'||!token)throw new Error('empty-token')",
-    "  writeSync(3,Buffer.from('T:'+token))",
+    "  const parts=token.split('.')",
+    "  let expiresAtMs=null",
+    "  if(parts.length===3&&parts[1]){try{const p=JSON.parse(Buffer.from(parts[1],'base64url').toString('utf8'));const exp=Number(p?.exp);if(Number.isFinite(exp)&&exp>0)expiresAtMs=exp<1e12?exp*1000:exp}catch{}}",
+    "  writeSync(3,Buffer.from('T:'+JSON.stringify({accessToken:token,expiresAtMs})))",
     '} catch (error) {',
     "  const kind=error?.name==='OAuthLoginRequiredError'?'missing':error?.name==='OAuthAccountPausedError'?'paused':'unavailable'",
     "  writeSync(3,Buffer.from('E:'+kind))",
@@ -95,7 +198,7 @@ function openCodexOAuthTokenProgram(provider) {
   ].join('\n')
 }
 
-function acquireOpenCodexAccessToken(provider, signal) {
+function acquireOpenCodexAccessTokenUncached(provider, signal) {
   const bun = resolveBunBinary()
   const source = openCodexOAuthTokenProgram(provider)
   return new Promise((resolve, reject) => {
@@ -149,7 +252,11 @@ function acquireOpenCodexAccessToken(provider, signal) {
       }
       const payload = Buffer.concat(tokenChunks).toString('utf8')
       if (code === 0 && payload.startsWith('T:') && payload.length > 2) {
-        finish(resolve, payload.slice(2))
+        try {
+          finish(resolve, JSON.parse(payload.slice(2)))
+        } catch {
+          finish(reject, bridgeError('BRIDGE_CURSOR_STREAM_ERROR', 'OpenCodex returned an invalid OAuth token envelope.'))
+        }
         return
       }
       const reason = payload === 'E:missing'
@@ -165,6 +272,30 @@ function acquireOpenCodexAccessToken(provider, signal) {
       finish(reject, bridgeError(reason, message))
     })
   })
+}
+
+function acquireOpenCodexAccessToken(provider, signal) {
+  return oauthTokenCache.get(provider, () => acquireOpenCodexAccessTokenUncached(provider, signal))
+}
+
+export function invalidateOpenCodexAccessToken(provider) {
+  oauthTokenCache.invalidate(provider)
+}
+
+let cursorAdapterPrewarmScheduled = false
+
+/** Preload the Cursor adapter after the Host's initial work has settled. */
+export function scheduleCursorAdapterPrewarm({
+  delayMs = 1_000,
+  schedule = setTimeout,
+  loadAdapter = loadCreateCursorAdapter,
+  onError = () => {},
+} = {}) {
+  const timer = schedule(() => {
+    Promise.resolve().then(loadAdapter).catch(onError)
+  }, delayMs)
+  timer?.unref?.()
+  return timer
 }
 
 function messageTimestamp() {
@@ -453,16 +584,6 @@ async function acquireCursorProviderApiKey(signal) {
   return acquireOpenCodexAccessToken('cursor', signal)
 }
 
-async function createCursorTranslatorBudget() {
-  ensureNodeTypescriptLoader()
-  const modulePath = path.join(resolveOpenCodexRoot(), 'src', 'lib', 'translator-budget.ts')
-  const mod = await import(pathToFileURL(modulePath).href)
-  if (typeof mod.createTranslatorBudget !== 'function') {
-    throw bridgeError('BRIDGE_CURSOR_ADAPTER_UNAVAILABLE', 'OpenCodex translator budget API is unavailable.')
-  }
-  return mod.createTranslatorBudget()
-}
-
 export function buildCursorParsedRequest(context) {
   const { systemPrompt, messages } = harnessMessagesToOcxContext(
     context.options.messages,
@@ -488,6 +609,7 @@ export function buildCursorParsedRequest(context) {
 }
 
 export function createCursorBackend() {
+  if (isUiVerifyMockMode()) return uiVerifyMockStream()
   if (isMockMode()) return mockStream()
 
   return {
@@ -534,7 +656,7 @@ export function createCursorBackend() {
       const adapter = createCursorAdapter(provider)
       const parsed = buildCursorParsedRequest(context)
       const mapper = createAdapterEventChunkMapper()
-      const translatorBudget = await createCursorTranslatorBudget()
+      const translatorBudget = await createPackageCursorTranslatorBudget()
 
       const pending = []
       let turnError = null
@@ -587,6 +709,7 @@ export function createCursorBackend() {
           await new Promise((resolve) => { wake = resolve })
         }
         if (turnError) {
+          if (isUnauthorizedError(turnError)) invalidateOpenCodexAccessToken('cursor')
           const msg = turnError instanceof Error ? turnError.message : String(turnError)
           if (
             turnError?.code === 'BRIDGE_CURSOR_STREAM_ERROR'
@@ -720,16 +843,6 @@ export function createOpenAiCompatRelayBackend() {
   return { kind: 'openai-compat-relay', stream: streamOpenAiCompatRelay }
 }
 
-async function loadCreateGoogleAdapter() {
-  ensureNodeTypescriptLoader()
-  const googleModule = path.join(resolveOpenCodexRoot(), 'src', 'adapters', 'google.ts')
-  const mod = await import(pathToFileURL(googleModule).href)
-  if (typeof mod.createGoogleAdapter !== 'function') {
-    throw bridgeError('BRIDGE_ANTIGRAVITY_ADAPTER_UNAVAILABLE', 'OpenCodex google adapter missing')
-  }
-  return mod.createGoogleAdapter
-}
-
 async function acquireAntigravityProvider(context) {
   const token = await acquireOpenCodexAccessToken('google-antigravity', context.options.signal)
   const baseUrl = context.profile?.baseUrl?.trim()
@@ -776,6 +889,7 @@ export function createGoogleAntigravityBackend() {
       })
       if (!response.ok) {
         const text = await response.text().catch(() => '')
+        if (response.status === 401) invalidateOpenCodexAccessToken('google-antigravity')
         throw bridgeError('BRIDGE_ANTIGRAVITY_HTTP_ERROR', `antigravity ${response.status}: ${text.slice(0, 400)}`)
       }
       const budget = {}
@@ -791,4 +905,8 @@ export function installBridgeTransportBackends({ registerBridgeBackend }) {
   registerBridgeBackend(createCursorBackend())
   registerBridgeBackend(createGoogleAntigravityBackend())
   registerBridgeBackend(createOpenAiCompatRelayBackend())
+  if (!cursorAdapterPrewarmScheduled && !isMockMode() && !isUiVerifyMockMode()) {
+    cursorAdapterPrewarmScheduled = true
+    scheduleCursorAdapterPrewarm({ onError: () => { cursorAdapterPrewarmScheduled = false } })
+  }
 }

@@ -1,7 +1,7 @@
 /** Team membership, continuable-child provisioning, and roster-owned teardown. */
-import type { Context } from '@z/cordis';
-import type { Agent } from '@z/dsh-agent';
-import { SessionId } from '@z/dsh-session';
+import type { Context } from '@taskweaver/cordis';
+import type { Agent } from '@taskweaver/dsh-agent';
+import { SessionId } from '@taskweaver/dsh-session';
 import type { TeamFoldState } from './fold.ts';
 import type { TeamJournal } from './journal.ts';
 import type { TeamRuntimeLifecycle } from './lifecycle.ts';

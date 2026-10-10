@@ -9,11 +9,11 @@ import { fileURLToPath } from 'node:url'
 import yaml from 'js-yaml'
 import { describe, expect, it } from 'vitest'
 
-const repoRoot = fileURLToPath(new URL('../../../', import.meta.url))
+const repoRoot = fileURLToPath(new URL('../../', import.meta.url))
 const builtBin = join(repoRoot, 'host-cli/lib/bin.js')
 const baseConfigPath = join(repoRoot, 'packages/bundle/base/cordis.patch.yml')
 const taskweaverConfigPath = join(repoRoot, 'packages/bundle/taskweaver/cordis.patch.yml')
-const requireBuiltArtifacts = process.env.DSH_REQUIRE_BUILT_CLI_SMOKE === '1'
+const requireBuiltArtifacts = process.env.TASKWEAVER_REQUIRE_BUILT_CLI_SMOKE === '1'
 
 interface ConfigRow {
   id?: string
@@ -35,7 +35,7 @@ const configSchema = yaml.JSON_SCHEMA.extend(jsExprType)
 function runBuiltTaskWeaver(cwd: string): Promise<{ stdout: string; stderr: string; code: number }> {
   return new Promise((resolveRun, rejectRun) => {
     const home = join(cwd, '.taskweaver')
-    const env: NodeJS.ProcessEnv = { ...process.env, DSH_HOME: home }
+    const env: NodeJS.ProcessEnv = { ...process.env, TASKWEAVER_HOME: home }
     delete env.NODE_OPTIONS
     delete env.NODE_NO_WARNINGS
     const child = spawn(process.execPath, [
@@ -99,10 +99,10 @@ describe.skipIf(!requireBuiltArtifacts)('built TaskWeaver lazy-search startup', 
         name: 'taskweaver-profile',
         private: true,
         dependencies: {
-          '@z/dsh-base': 'workspace:^',
-          '@z/dsh-taskweaver': 'workspace:^',
+          '@taskweaver/dsh-base': 'workspace:^',
+          '@taskweaver/dsh-taskweaver': 'workspace:^',
         },
-        dsh: { profile: { bundles: ['@z/dsh-base', '@z/dsh-taskweaver'] } },
+        dsh: { profile: { bundles: ['@taskweaver/dsh-base', '@taskweaver/dsh-taskweaver'] } },
       }))
       await writeFile(join(profileDir, 'cordis.patch.yml'), '[]\n')
       const result = await runBuiltTaskWeaver(cwd)

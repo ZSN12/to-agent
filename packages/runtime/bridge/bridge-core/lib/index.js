@@ -1,10 +1,10 @@
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { LlmError } from "@z/dsh-llm";
+import { LlmError } from "@taskweaver/dsh-llm";
 //#region lib/types/types.js
 /**
 * TaskWeaver model bridge — shared types for in-process provider backends.
-* @module @z/dsh-bridge-core/types
+* @module @taskweaver/dsh-bridge-core/types
 */
 const BUILTIN_BRIDGE_KINDS = Object.freeze({
 	CURSOR: "cursor",
@@ -15,7 +15,7 @@ const BUILTIN_BRIDGE_KINDS = Object.freeze({
 //#region lib/types/backends/pending.js
 /**
 * Placeholder backend until opencodex transport is wired in-process per kind.
-* @module @z/dsh-bridge-core/backends/pending
+* @module @taskweaver/dsh-bridge-core/backends/pending
 */
 function createPendingBridgeBackend(kind) {
 	return {
@@ -28,7 +28,7 @@ function createPendingBridgeBackend(kind) {
 //#endregion
 //#region lib/types/registry.js
 /**
-* @module @z/dsh-bridge-core/registry
+* @module @taskweaver/dsh-bridge-core/registry
 */
 var __rewriteRelativeImportExtension = function(path, preserveJsx) {
 	if (typeof path === "string" && /^\.\.?\//.test(path)) return path.replace(/\.(tsx)$|((?:\.d)?)((?:\.[^./]+?)?)\.([cm]?)ts$/i, function(m, tsx, d, ext, cm) {
@@ -37,6 +37,22 @@ var __rewriteRelativeImportExtension = function(path, preserveJsx) {
 	return path;
 };
 const backends = /* @__PURE__ */ new Map();
+const warnedLegacyRuntimeEnv = /* @__PURE__ */ new Set();
+/** Resolve the runtime root while keeping the former env spellings read-only for one release. */
+function resolveBridgeRuntimeRoot(env = process.env, warn = (message) => console.warn(message)) {
+	const canonical = env.TASKWEAVER_RUNTIME?.trim();
+	let fallback;
+	for (const legacyName of ["TASKWEAVER_Z_RUNTIME", "TASKWEAVER_DSH_RUNTIME"]) {
+		const value = env[legacyName]?.trim();
+		if (!value) continue;
+		if (!warnedLegacyRuntimeEnv.has(legacyName)) {
+			warnedLegacyRuntimeEnv.add(legacyName);
+			warn(`[TaskWeaver] ${legacyName} 已弃用，请改用 TASKWEAVER_RUNTIME。`);
+		}
+		fallback ??= value;
+	}
+	return canonical || fallback;
+}
 function registerBridgeBackend(backend) {
 	backends.set(backend.kind, backend);
 }
@@ -58,8 +74,11 @@ function installDefaultBridgeBackends() {
 function transportModuleCandidates() {
 	const fromEnv = process.env.TASKWEAVER_BRIDGE_TRANSPORT?.trim();
 	if (fromEnv) return [fromEnv];
-	const zRuntime = process.env.TASKWEAVER_Z_RUNTIME?.trim();
-	if (zRuntime) return [pathToFileURL(join(zRuntime, "electron-vendor", "taskweaver-bridge-transport", "index.mjs")).href];
+	const runtimeRoot = resolveBridgeRuntimeRoot();
+	if (runtimeRoot) {
+		const staged = join(runtimeRoot, "electron-vendor", "taskweaver-bridge-transport", "index.mjs");
+		return [pathToFileURL(staged).href];
+	}
 	return [
 		"../../../../../../packages/provider-bridge-transport/index.mjs",
 		"../../../../../../../packages/provider-bridge-transport/index.mjs",

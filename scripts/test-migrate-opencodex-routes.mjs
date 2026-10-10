@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { createProfileStore } from '../electron/backend/profile-store.mjs'
+import { createProfileStore } from '../desktop/backend/profile-store.mjs'
 
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tw-migrate-'))
 const store = createProfileStore(root)

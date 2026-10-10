@@ -1,6 +1,5 @@
-"use strict";
 /**
- * @z/dsh-cmdline — the command line a dsh launcher hands to the app
+ * @taskweaver/dsh-cmdline — the command line a dsh launcher hands to the app
  * it boots.
  *
  * The launcher parses only its own flags (`--profile`, `--patch`, the config
@@ -14,21 +13,8 @@
  * can inject that service and read it from lazily resolved config —
  * `port: !!js ctx.webStartup.port ?? 3080` — so a flag beats the value written
  * beside it. No row has launcher-level command-line status.
- * @module @z/dsh-cmdline
+ * @module @taskweaver/dsh-cmdline
  */
-var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
-    if (pack || arguments.length === 2) for (var i = 0, l = from.length, ar; i < l; i++) {
-        if (ar || !(i in from)) {
-            if (!ar) ar = Array.prototype.slice.call(from, 0, i);
-            ar[i] = from[i];
-        }
-    }
-    return to.concat(ar || Array.prototype.slice.call(from));
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.internals = void 0;
-exports.provideCmdline = provideCmdline;
-exports.parseCmdline = parseCmdline;
 /**
  * Provide the command line and the exit request on a host context before any
  * tree entry mounts. Both are launcher facts, not config: an embedding host
@@ -36,13 +22,13 @@ exports.parseCmdline = parseCmdline;
  * @param ctx - the host context the tree will mount under.
  * @param host - the invocation's arguments and its exit request.
  */
-function provideCmdline(ctx, host) {
-    var snapshot = Object.freeze(__spreadArray([], host.args, true));
-    ctx.provide('cmdlineArgs', { get: function () { return snapshot; } });
+export function provideCmdline(ctx, host) {
+    const snapshot = Object.freeze([...host.args]);
+    ctx.provide('cmdlineArgs', { get: () => snapshot });
     ctx.provide('appExit', host.exit);
 }
 /** The process streams commander output is written to; production writes to the process. */
-exports.internals = {
+export const internals = {
     stdout: process.stdout,
     stderr: process.stderr,
 };
@@ -64,16 +50,16 @@ exports.internals = {
  * @throws when the launcher did not provide the command line and exit request,
  * or when no command in the program declares an action.
  */
-function parseCmdline(ctx, program) {
+export function parseCmdline(ctx, program) {
     // Read through the global service store, not the property proxy: appExit is
     // an optional host value and the plugin only needs to inject cmdlineArgs.
-    var args = ctx.get('cmdlineArgs');
-    var exit = ctx.get('appExit');
+    const args = ctx.get('cmdlineArgs');
+    const exit = ctx.get('appExit');
     if (args === undefined || exit === undefined) {
-        throw new Error("".concat(program.name(), ": the launcher must provide ctx.cmdlineArgs and ctx.appExit before the tree mounts"));
+        throw new Error(`${program.name()}: the launcher must provide ctx.cmdlineArgs and ctx.appExit before the tree mounts`);
     }
     if (!hasAction(program)) {
-        throw new Error("".concat(program.name(), ": no command in the program declares an action; parseCmdline runs the invoked command's action on a successful parse, and app code there publishes its service"));
+        throw new Error(`${program.name()}: no command in the program declares an action; parseCmdline runs the invoked command's action on a successful parse, and app code there publishes its service`);
     }
     configureExitAndOutput(program);
     try {
@@ -117,13 +103,11 @@ function configureExitAndOutput(command) {
     command
         .exitOverride()
         .configureOutput({
-        writeOut: function (text) { return void exports.internals.stdout.write(text); },
-        writeErr: function (text) { return void exports.internals.stderr.write(text); },
+        writeOut: text => void internals.stdout.write(text),
+        writeErr: text => void internals.stderr.write(text),
     });
-    for (var _i = 0, _a = command.commands; _i < _a.length; _i++) {
-        var child = _a[_i];
+    for (const child of command.commands)
         configureExitAndOutput(child);
-    }
 }
 /**
  * Whether a thrown value is commander's own control-flow error (help, version,
@@ -139,7 +123,8 @@ function configureExitAndOutput(command) {
 function isCommanderError(error) {
     if (typeof error !== 'object' || error === null)
         return false;
-    var candidate = error;
+    const candidate = error;
     return typeof candidate.code === 'string' && candidate.code.startsWith('commander.')
         && typeof candidate.exitCode === 'number';
 }
+//# sourceMappingURL=index.js.map

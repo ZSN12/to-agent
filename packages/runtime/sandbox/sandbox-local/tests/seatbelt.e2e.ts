@@ -4,9 +4,9 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import type { SandboxPolicy } from '@z/dsh-sandbox'
-import { LocalSandboxProvider } from '@z/dsh-sandbox-local'
+import { Context } from '@taskweaver/cordis'
+import type { SandboxPolicy } from '@taskweaver/dsh-sandbox'
+import { LocalSandboxProvider } from '@taskweaver/dsh-sandbox-local'
 import { seatbeltProfileArgs } from '../src/profiles.ts'
 
 /**

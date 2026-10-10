@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest'
 import {
   resolveRetryPolicy,
   RetryPolicySchema,
-} from '@z/dsh-llm'
-import type { RetryPolicyConfig } from '@z/dsh-llm'
-import { MAX_TIMER_DELAY_MS } from '@z/dsh-timeout'
+} from '@taskweaver/dsh-llm'
+import type { RetryPolicyConfig } from '@taskweaver/dsh-llm'
+import { MAX_TIMER_DELAY_MS } from '@taskweaver/dsh-timeout'
 
 describe('provider retry policy', () => {
   it('resolves immutable normal defaults', () => {

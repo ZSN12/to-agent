@@ -1,13 +1,13 @@
-import { SandboxUnavailableError } from "@z/dsh-sandbox";
-import { PwshLocalExecutor } from "@z/dsh-pwsh-local";
+import { SandboxUnavailableError } from "@taskweaver/dsh-sandbox";
+import { PwshLocalExecutor } from "@taskweaver/dsh-pwsh-local";
 import { accessSync, constants, statSync } from "node:fs";
 //#region lib/types/helpers.js
 /**
 * Internal sandbox-result classification helpers — deliberate call-for-call
-* mirror of `@z/dsh-bash-sandbox/src/helpers.ts` (the pwsh twin of
+* mirror of `@taskweaver/dsh-bash-sandbox/src/helpers.ts` (the pwsh twin of
 * the bash consumer shares the identical classification dialect).
 *
-* @module @z/dsh-pwsh-sandbox/helpers
+* @module @taskweaver/dsh-pwsh-sandbox/helpers
 */
 /** Node-local spawn codes proven to identify executable resolution or permission failure. */
 const EXECUTABLE_SPAWN_CODES = new Set(["EACCES", "ENOENT"]);
@@ -95,7 +95,7 @@ function matchesSignature(exitCode, stderr, signatures) {
 //#region lib/types/index.js
 /**
 * Sandbox-consuming PowerShell executor — the pwsh twin of
-* `@z/dsh-bash-sandbox`. It wraps the exact local pwsh argv through
+* `@taskweaver/dsh-bash-sandbox`. It wraps the exact local pwsh argv through
 * `ctx.sandbox` (which on Windows resolves to the ACL restricted-token runner
 * chain), inherits local process mechanics, and reports the selected mode,
 * enforcement, and denial facts. Positive runner-launch evidence means the
@@ -104,7 +104,7 @@ function matchesSignature(exitCode, stderr, signatures) {
 * local-executor semantics. The tool layer owns the escalation approval flow
 * through `ctx.approval`; this executor reports the sandbox facts the tool
 * renders.
-* @module @z/dsh-pwsh-sandbox
+* @module @taskweaver/dsh-pwsh-sandbox
 */
 /**
 * Registers as `ctx.shell` in place of the local pwsh executor and requires a

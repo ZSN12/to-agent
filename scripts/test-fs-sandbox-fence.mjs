@@ -2,10 +2,9 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { checkFileMutationAllowed, isPathUnder } from '../electron/backend/fs-sandbox-fence.mjs'
+import { checkFileMutationAllowed, isPathUnder } from '../desktop/backend/fs-sandbox-fence.mjs'
 
-const root = path.join(os.homedir(), `.tw-fs-fence-${process.pid}`)
-await fs.mkdir(root, { recursive: true })
+const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tw-fs-fence-'))
 const workspace = path.join(root, 'ws')
 await fs.mkdir(workspace, { recursive: true })
 const inside = path.join(workspace, 'a.txt')
@@ -17,7 +16,9 @@ assert.equal(ro.allowed, false)
 const ok = await checkFileMutationAllowed({ mode: 'workspace-write', workspaceRoot: workspace }, workspace, 'a.txt')
 assert.equal(ok.allowed, true)
 
-const outside = path.join(root, 'outside.txt')
+// workspace-write also allows the OS temp dir; on macOS $HOME may live under tmpdir(),
+// so use a system path outside workspace and temp roots.
+const outside = '/private/etc/hosts'
 const bad = await checkFileMutationAllowed({ mode: 'workspace-write', workspaceRoot: workspace }, workspace, outside)
 assert.equal(bad.allowed, false)
 

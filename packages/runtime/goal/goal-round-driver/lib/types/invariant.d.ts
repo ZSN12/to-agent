@@ -1,5 +1,5 @@
-/** Package-owned goal-round prompt invariants. @module @z/dsh-goal-round-driver/invariant */
-import type { Context } from '@z/cordis';
+/** Package-owned goal-round prompt invariants. @module @taskweaver/dsh-goal-round-driver/invariant */
+import type { Context } from '@taskweaver/cordis';
 /** Cordis companion plugin name. */
 export declare const name = "goal-round-driver-invariant";
 /** Service required before the companion can reserve package ownership. */

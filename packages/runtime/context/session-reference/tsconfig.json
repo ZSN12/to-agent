@@ -1,14 +1,14 @@
 {
-  "extends": "../../../../tsconfig.base.json",
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "rootDir": "src",
     "outDir": "lib/types"
   },
   "include": ["src"],
   "references": [
-    { "path": "../../../../vendor/cosmokit" },
-    { "path": "../../../../vendor/cordis" },
-    { "path": "../../../../vendor/schemastery" },
+    { "path": "../../cordis/cosmokit" },
+    { "path": "../../cordis/cordis" },
+    { "path": "../../cordis/schemastery" },
     { "path": "../../util/output-retention" },
     { "path": "../../llm/llm" },
     { "path": "../../core/session" },

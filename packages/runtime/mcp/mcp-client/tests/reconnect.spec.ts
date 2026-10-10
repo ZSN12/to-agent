@@ -5,11 +5,11 @@
  * Isolated file so vi.mock of the MCP SDK doesn't pollute other test suites.
  */
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { Context } from '@z/cordis'
-import SystemPrompt from '@z/dsh-system-prompt'
-import ToolRuntime from '@z/dsh-tools'
-import { CallId } from '@z/dsh-llm'
-import type { Config } from '@z/dsh-mcp-client'
+import { Context } from '@taskweaver/cordis'
+import SystemPrompt from '@taskweaver/dsh-system-prompt'
+import ToolRuntime from '@taskweaver/dsh-tools'
+import { CallId } from '@taskweaver/dsh-llm'
+import type { Config } from '@taskweaver/dsh-mcp-client'
 
 // ---- Mock MCP SDK ----
 
@@ -58,8 +58,8 @@ vi.mock('@modelcontextprotocol/sdk/client/streamableHttp.js', () => ({
 
 // vi.mock is hoisted above static imports, so the modules under test see the
 // mocked SDK even through a static import.
-import { apply } from '@z/dsh-mcp-client/src/index.ts'
-import { RECONNECT_DEFAULTS, resolveReconnectPolicy, startConnection } from '@z/dsh-mcp-client/src/connection.ts'
+import { apply } from '@taskweaver/dsh-mcp-client/src/index.ts'
+import { RECONNECT_DEFAULTS, resolveReconnectPolicy, startConnection } from '@taskweaver/dsh-mcp-client/src/connection.ts'
 
 // ---- Helpers ----
 

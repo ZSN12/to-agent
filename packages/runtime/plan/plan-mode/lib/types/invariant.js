@@ -1,12 +1,9 @@
-"use strict";
-/** Package-owned durable plan-mode invariants. @module @z/dsh-plan-mode/invariant */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.apply = exports.inject = exports.name = void 0;
-var PACKAGE_NAME = '@z/dsh-plan-mode';
+/** Package-owned durable plan-mode invariants. @module @taskweaver/dsh-plan-mode/invariant */
+const PACKAGE_NAME = '@taskweaver/dsh-plan-mode';
 /** Cordis companion plugin name. */
-exports.name = 'plan-mode-invariant';
+export const name = 'plan-mode-invariant';
 /** Service required before the companion can reserve package ownership. */
-exports.inject = ['invariants'];
+export const inject = ['invariants'];
 /**
  * Validate one `plan/mode` event before it reaches the durable log.
  * `plan/mode` is a standalone whole-value event: an idle selection commits
@@ -16,28 +13,24 @@ exports.inject = ['invariants'];
 function validateEvent(event, fail) {
     if (event.type !== 'plan/mode')
         return;
-    var active = event.data.active;
+    const active = event.data.active;
     if (typeof active !== 'boolean') {
-        fail("plan/mode carries invalid active state ".concat(JSON.stringify(active), "; expected a boolean"));
+        fail(`plan/mode carries invalid active state ${JSON.stringify(active)}; expected a boolean`);
     }
 }
 /** Install validation for loaded and newly appended plan-mode state. */
-var install = Object.assign(function (ctx, fail) {
-    var seed = function (session) {
-        for (var _i = 0, _a = session.events; _i < _a.length; _i++) {
-            var event_1 = _a[_i];
-            validateEvent(event_1, fail);
-        }
+const install = Object.assign((ctx, fail) => {
+    const seed = (session) => {
+        for (const event of session.events)
+            validateEvent(event, fail);
     };
-    for (var _i = 0, _a = ctx.sessions.list(); _i < _a.length; _i++) {
-        var session = _a[_i];
+    for (const session of ctx.sessions.list())
         seed(session);
-    }
-    ctx.on('session/created', function (session) { seed(session); }, { global: true });
-    ctx.on('internal/dispatch', function (_mode, eventName, args) {
+    ctx.on('session/created', (session) => { seed(session); }, { global: true });
+    ctx.on('internal/dispatch', (_mode, eventName, args) => {
         if (eventName !== 'session/event')
             return;
-        var _a = args, event = _a[1];
+        const [, event] = args;
         validateEvent(event, fail);
     }, { global: true });
 }, { inject: ['sessions'] });
@@ -46,7 +39,5 @@ var install = Object.assign(function (ctx, fail) {
  * @param ctx - Cordis context carrying the invariant service.
  * @returns the installed registration's disposer after setup succeeds.
  */
-var apply = function (ctx) {
-    return Promise.resolve(ctx.invariants.register(PACKAGE_NAME, install));
-};
-exports.apply = apply;
+export const apply = (ctx) => Promise.resolve(ctx.invariants.register(PACKAGE_NAME, install));
+//# sourceMappingURL=invariant.js.map

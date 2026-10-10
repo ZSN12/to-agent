@@ -6,13 +6,31 @@ export interface ShortcutItem {
   keys: string[]
 }
 
+export function isMacOSPlatform(): boolean {
+  if (typeof navigator === 'undefined') return false
+  return /Mac|iPhone|iPad/i.test(`${navigator.platform} ${navigator.userAgent}`)
+}
+
+export const PRIMARY_MODIFIER_KEY = isMacOSPlatform() ? '⌘' : 'Ctrl'
+export const CONTROL_MODIFIER_KEY = isMacOSPlatform() ? '⌃' : 'Ctrl'
+export const ALT_MODIFIER_KEY = isMacOSPlatform() ? '⌥' : 'Alt'
+
+function normalizeKeysForPlatform(keys: string[]): string[] {
+  if (isMacOSPlatform()) return keys
+  return [...new Set(keys.map((key) => {
+    if (key === '⌘' || key === '⌃') return 'Ctrl'
+    if (key === '⌥') return 'Alt'
+    return key
+  }))]
+}
+
 export const DEFAULT_SHORTCUTS: ShortcutItem[] = [
   {
     id: 'follow-up',
     title: '排队追问 (Follow Up)',
     description: '在任务执行中将当前消息加入排队队列，待本轮任务结束后自动执行',
-    defaultKeys: ['⌥', '↩'],
-    keys: ['⌥', '↩'],
+    defaultKeys: [ALT_MODIFIER_KEY, '↩'],
+    keys: [ALT_MODIFIER_KEY, '↩'],
   },
   {
     id: 'steer',
@@ -39,22 +57,22 @@ export const DEFAULT_SHORTCUTS: ShortcutItem[] = [
     id: 'jump-bottom',
     title: '定位到最新答案',
     description: '向上翻看历史记录时，快速平滑跳至最新输出',
-    defaultKeys: ['⌥', '↓'],
-    keys: ['⌥', '↓'],
+    defaultKeys: [ALT_MODIFIER_KEY, '↓'],
+    keys: [ALT_MODIFIER_KEY, '↓'],
   },
   {
     id: 'new-chat',
     title: '新聊天',
     description: '开始新聊天，重置对话上下文',
-    defaultKeys: ['⌘', 'N'],
-    keys: ['⌘', 'N'],
+    defaultKeys: [PRIMARY_MODIFIER_KEY, 'N'],
+    keys: [PRIMARY_MODIFIER_KEY, 'N'],
   },
   {
     id: 'toggle-dag',
     title: '切换任务 DAG 侧栏',
     description: '在主界面侧边展开或隐藏多智能体任务依赖图',
-    defaultKeys: ['⌘', 'B'],
-    keys: ['⌘', 'B'],
+    defaultKeys: [PRIMARY_MODIFIER_KEY, 'B'],
+    keys: [PRIMARY_MODIFIER_KEY, 'B'],
   },
   {
     id: 'cancel-esc',
@@ -75,7 +93,9 @@ export function loadShortcuts(): ShortcutItem[] {
       // 保持与最新的默认项合并，确保新增项不丢失
       return DEFAULT_SHORTCUTS.map((def) => {
         const found = parsed.find((p) => p.id === def.id)
-        return found ? { ...def, keys: Array.isArray(found.keys) ? found.keys : def.keys } : def
+        return found
+          ? { ...def, keys: normalizeKeysForPlatform(Array.isArray(found.keys) ? found.keys : def.keys) }
+          : def
       })
     }
   } catch {
@@ -107,9 +127,9 @@ export function parseEventToKeys(e: KeyEventLike): string[] | null {
   }
 
   const keys: string[] = []
-  if (e.metaKey) keys.push('⌘')
-  if (e.ctrlKey) keys.push('⌃')
-  if (e.altKey) keys.push('⌥')
+  if (e.metaKey) keys.push(isMacOSPlatform() ? '⌘' : 'Meta')
+  if (e.ctrlKey) keys.push(CONTROL_MODIFIER_KEY)
+  if (e.altKey) keys.push(ALT_MODIFIER_KEY)
   if (e.shiftKey) keys.push('⇧')
 
   const k = e.key

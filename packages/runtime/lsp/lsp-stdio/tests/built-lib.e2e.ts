@@ -7,8 +7,8 @@ import { execa } from 'execa'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 /**
- * Keyless built-artifact smoke: plain Node imports `@z/dsh-lsp` and
- * `@z/dsh-lsp-stdio` by name through their exports maps, spawns the fixture server, runs
+ * Keyless built-artifact smoke: plain Node imports `@taskweaver/dsh-lsp` and
+ * `@taskweaver/dsh-lsp-stdio` by name through their exports maps, spawns the fixture server, runs
  * one query (exercising real `Content-Length` framing over `lib/index.js`), and disposes (exercising
  * subprocess cleanup). Unit tests use `src/`; this pins the downstream `lib/` path. Skips when `lib/`
  * is absent; CI runs it after the build.
@@ -40,11 +40,11 @@ describe.skipIf(!built)('built lib real load path (plain node)', () => {
   it('runs a query through lib/index.js and disposes cleanly, framing over the base protocol', async () => {
     const location = JSON.stringify({ uri: pathToFileURL(join(ws, 'a.ts')).href, range: { start: { line: 0, character: 0 }, end: { line: 0, character: 3 } } })
     const script = `
-      const { Context } = await import('@z/cordis')
-      const { default: Lsp } = await import('@z/dsh-lsp')
-      const LspLocal = await import('@z/dsh-lsp-stdio')
-      const { default: LocalFileSystem } = await import('@z/dsh-fs-local')
-      const { default: LocalSubprocessRuntime } = await import('@z/dsh-subprocess-local')
+      const { Context } = await import('@taskweaver/cordis')
+      const { default: Lsp } = await import('@taskweaver/dsh-lsp')
+      const LspLocal = await import('@taskweaver/dsh-lsp-stdio')
+      const { default: LocalFileSystem } = await import('@taskweaver/dsh-fs-local')
+      const { default: LocalSubprocessRuntime } = await import('@taskweaver/dsh-subprocess-local')
       const ctx = new Context()
       await ctx.plugin(Lsp)
       await ctx.plugin(LocalSubprocessRuntime)

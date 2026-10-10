@@ -1,9 +1,9 @@
 //#region lib/types/invariant.js
 /**
-* Package-owned invariant companion for `@z/dsh-shell-env`.
-* @module @z/dsh-shell-env/invariant
+* Package-owned invariant companion for `@taskweaver/dsh-shell-env`.
+* @module @taskweaver/dsh-shell-env/invariant
 */
-const PACKAGE_NAME = "@z/dsh-shell-env";
+const PACKAGE_NAME = "@taskweaver/dsh-shell-env";
 /** Cordis companion plugin name. */
 const name = "shell-env-invariant";
 /** Service required before the companion can reserve package ownership. */

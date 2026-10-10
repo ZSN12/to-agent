@@ -1,37 +1,24 @@
-"use strict";
 /**
  * Human-facing `/goal` command over the persisted same-session goal domain.
- * @module @z/dsh-command-goal
+ * @module @taskweaver/dsh-command-goal
  */
-var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
-    if (pack || arguments.length === 2) for (var i = 0, l = from.length, ar; i < l; i++) {
-        if (ar || !(i in from)) {
-            if (!ar) ar = Array.prototype.slice.call(from, 0, i);
-            ar[i] = from[i];
-        }
-    }
-    return to.concat(ar || Array.prototype.slice.call(from));
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.inject = exports.name = void 0;
-exports.apply = apply;
-var dsh_goal_1 = require("@z/dsh-goal");
-var dsh_llm_1 = require("@z/dsh-llm");
-exports.name = 'command-goal';
-exports.inject = ['commands', 'goals'];
-var USAGE = 'Usage: /goal [<objective>|clear|edit <objective>|pause|resume]';
+import { GoalError } from '@taskweaver/dsh-goal';
+import { createUserMessage } from '@taskweaver/dsh-llm';
+export const name = 'command-goal';
+export const inject = ['commands', 'goals'];
+const USAGE = 'Usage: /goal [<objective>|clear|edit <objective>|pause|resume]';
 /** Fail loudly if a locally closed union gains an unhandled member. */
 /* v8 ignore start -- closed-union backstop is unreachable without violating the TypeScript contract */
 function assertNever(value, label) {
-    throw new TypeError("unknown ".concat(label, ": ").concat(String(value)));
+    throw new TypeError(`unknown ${label}: ${String(value)}`);
 }
 /* v8 ignore stop */
 /** Parse only the grammar owned by `/goal`; arbitrary other input is an objective. */
 function parseGoalCommand(rawInput) {
-    var input = rawInput.trim();
+    const input = rawInput.trim();
     if (input.length === 0)
         return { kind: 'show' };
-    var control = input.toLowerCase();
+    const control = input.toLowerCase();
     if (control === 'clear')
         return { kind: 'clear' };
     if (control === 'pause')
@@ -74,23 +61,23 @@ function commandHint(goal) {
 }
 /** Render direct UI output without exposing compare-and-set internals. */
 function renderGoal(title, goal) {
-    var reason = goal.phase === 'blocked' ? goal.blockedReason : undefined;
+    const reason = goal.phase === 'blocked' ? goal.blockedReason : undefined;
     /* v8 ignore next -- durable replay guarantees every blocked goal carries its validated reason */
     if (goal.phase === 'blocked' && reason === undefined)
         throw new TypeError('blocked goal is missing its reason');
-    var blocker = reason === undefined ? [] : ["Blocker: ".concat(reason.code, ": ").concat(reason.message)];
+    const blocker = reason === undefined ? [] : [`Blocker: ${reason.code}: ${reason.message}`];
     return {
         kind: 'success',
-        text: __spreadArray(__spreadArray([
+        text: [
             title,
-            "Status: ".concat(phaseLabel(goal.phase))
-        ], blocker, true), [
-            "Objective: ".concat(goal.objective),
-            "Rounds: ".concat(goal.roundsStarted, "/").concat(goal.maxGoalRounds),
-            "Activation: ".concat(goal.activation),
+            `Status: ${phaseLabel(goal.phase)}`,
+            ...blocker,
+            `Objective: ${goal.objective}`,
+            `Rounds: ${goal.roundsStarted}/${goal.maxGoalRounds}`,
+            `Activation: ${goal.activation}`,
             '',
-            "Commands: ".concat(commandHint(goal)),
-        ], false).join('\n'),
+            `Commands: ${commandHint(goal)}`,
+        ].join('\n'),
     };
 }
 /** Exact current compare-and-set ref. */
@@ -101,7 +88,7 @@ function goalRef(goal) {
 function missingGoal(action) {
     return {
         kind: 'error',
-        text: "No goal is currently set; /goal ".concat(action, " requires one. ").concat(USAGE),
+        text: `No goal is currently set; /goal ${action} requires one. ${USAGE}`,
     };
 }
 /**
@@ -113,14 +100,14 @@ function missingGoal(action) {
 function submitObjectiveAttachments(invocation) {
     if (invocation.attachments.length === 0)
         return;
-    invocation.agent.followup((0, dsh_llm_1.createUserMessage)({
-        content: __spreadArray(__spreadArray([], invocation.attachments, true), [{ type: 'text', text: 'Reference images for the goal objective.' }], false),
+    invocation.agent.followup(createUserMessage({
+        content: [...invocation.attachments, { type: 'text', text: 'Reference images for the goal objective.' }],
         source: { kind: 'user' },
     }));
 }
 /** Execute one parsed human command through the domain that owns persistence. */
 function executeGoalCommand(ctx, invocation) {
-    var command = parseGoalCommand(invocation.rawInput);
+    const command = parseGoalCommand(invocation.rawInput);
     if (invocation.attachments.length > 0 && command.kind !== 'create' && command.kind !== 'edit') {
         return {
             kind: 'error',
@@ -128,22 +115,22 @@ function executeGoalCommand(ctx, invocation) {
         };
     }
     try {
-        var current = ctx.goals.get(invocation.agent);
+        const current = ctx.goals.get(invocation.agent);
         switch (command.kind) {
             case 'show':
                 return current === undefined
-                    ? { kind: 'success', text: "No goal is currently set.\n".concat(USAGE) }
+                    ? { kind: 'success', text: `No goal is currently set.\n${USAGE}` }
                     : renderGoal('Goal', current);
             case 'invalid-edit':
-                return { kind: 'error', text: "Goal editing requires a replacement objective.\n".concat(USAGE) };
+                return { kind: 'error', text: `Goal editing requires a replacement objective.\n${USAGE}` };
             case 'create': {
                 if (current !== undefined && current.phase !== 'complete') {
                     return {
                         kind: 'error',
-                        text: "A goal is already ".concat(phaseLabel(current.phase), ". Use /goal edit <objective> to change it or /goal clear before replacing it."),
+                        text: `A goal is already ${phaseLabel(current.phase)}. Use /goal edit <objective> to change it or /goal clear before replacing it.`,
                     };
                 }
-                var created = ctx.goals.create(invocation.agent, { objective: command.objective });
+                const created = ctx.goals.create(invocation.agent, { objective: command.objective });
                 submitObjectiveAttachments(invocation);
                 return renderGoal('Goal created', created);
             }
@@ -151,11 +138,11 @@ function executeGoalCommand(ctx, invocation) {
                 if (current === undefined)
                     return missingGoal('edit');
                 if (current.phase === 'complete') {
-                    var replaced = ctx.goals.create(invocation.agent, { objective: command.objective });
+                    const replaced = ctx.goals.create(invocation.agent, { objective: command.objective });
                     submitObjectiveAttachments(invocation);
                     return renderGoal('Goal created', replaced);
                 }
-                var edited = ctx.goals.edit(invocation.agent, goalRef(current), { objective: command.objective });
+                const edited = ctx.goals.edit(invocation.agent, goalRef(current), { objective: command.objective });
                 submitObjectiveAttachments(invocation);
                 return renderGoal('Goal updated', edited);
             }
@@ -177,7 +164,7 @@ function executeGoalCommand(ctx, invocation) {
         }
     }
     catch (error) {
-        if (error instanceof dsh_goal_1.GoalError) {
+        if (error instanceof GoalError) {
             return {
                 kind: 'error',
                 text: 'The goal command is not valid for the current state. Run /goal to view available commands.',
@@ -187,11 +174,12 @@ function executeGoalCommand(ctx, invocation) {
     }
 }
 /** Register the Codex-shaped `/goal` command for every composed command adapter. */
-function apply(ctx) {
+export function apply(ctx) {
     ctx.commands.register({
         name: 'goal',
         description: 'set or view the goal for a long-running task',
         input: { hint: '[<objective>|clear|edit <objective>|pause|resume]', images: true },
-        handler: function (invocation) { return executeGoalCommand(ctx, invocation); },
+        handler: invocation => executeGoalCommand(ctx, invocation),
     });
 }
+//# sourceMappingURL=index.js.map

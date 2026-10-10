@@ -1,5 +1,5 @@
-import { defineTool } from '@z/dsh-tools';
-import { computeHunkDiffs, FsSandboxController, sessionResolveOptions } from '@z/dsh-tool-fs';
+import { defineTool } from '@taskweaver/dsh-tools';
+import { computeHunkDiffs, FsSandboxController, sessionResolveOptions } from '@taskweaver/dsh-tool-fs';
 export const name = 'tool-fs-inline-edit';
 export const inject = ['tools', 'fs', 'systemPrompt'];
 export function apply(ctx) {

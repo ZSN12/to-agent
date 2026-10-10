@@ -1,9 +1,9 @@
 //#region lib/types/invariant.js
 /**
-* Package-owned invariant companion for `@z/dsh-acp-snapshot`.
-* @module @z/dsh-acp-snapshot/invariant
+* Package-owned invariant companion for `@taskweaver/dsh-acp-snapshot`.
+* @module @taskweaver/dsh-acp-snapshot/invariant
 */
-const PACKAGE_NAME = "@z/dsh-acp-snapshot";
+const PACKAGE_NAME = "@taskweaver/dsh-acp-snapshot";
 /** Cordis companion plugin name. */
 const name = "acp-snapshot-invariant";
 /** Service required before the companion can reserve package ownership. */

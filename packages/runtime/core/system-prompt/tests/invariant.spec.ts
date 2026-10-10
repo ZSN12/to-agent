@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import type { PromptAssembly } from '@z/dsh-system-prompt'
-import * as SystemPromptInvariant from '@z/dsh-system-prompt/invariant'
-import InvariantRegistry from '@z/dsh-invariants'
+import { Context } from '@taskweaver/cordis'
+import type { PromptAssembly } from '@taskweaver/dsh-system-prompt'
+import * as SystemPromptInvariant from '@taskweaver/dsh-system-prompt/invariant'
+import InvariantRegistry from '@taskweaver/dsh-invariants'
 
 async function setup(): Promise<Context> {
   const ctx = new Context()

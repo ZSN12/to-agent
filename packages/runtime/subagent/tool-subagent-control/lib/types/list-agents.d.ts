@@ -4,9 +4,9 @@
  * `descendants` scope, `ctx.subagents.listDescendants()`. It stays separately
  * loadable from the root `send_message` plugin so a deployment can register
  * continuation delivery without exposing discovery.
- * @module @z/dsh-tool-subagent-control/list-agents
+ * @module @taskweaver/dsh-tool-subagent-control/list-agents
  */
-import type { Context } from '@z/cordis';
+import type { Context } from '@taskweaver/cordis';
 export declare const name = "tool-subagent-list-agents";
 export declare const inject: string[];
 /**

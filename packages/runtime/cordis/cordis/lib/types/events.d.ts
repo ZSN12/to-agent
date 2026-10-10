@@ -1,4 +1,4 @@
-import type { Promisify } from '@z/cosmokit';
+import type { Promisify } from '@taskweaver/cosmokit';
 import { Context } from './context.ts';
 import { Fiber, FiberState } from './fiber.ts';
 /**

@@ -3,9 +3,9 @@
  * process-group cancellation, and timeout machinery. The bridge supplies the
  * trusted stdin payload and dialect environment, then this module decodes the
  * captured outcome.
- * @module @z/dsh-hook-protocol/runner
+ * @module @taskweaver/dsh-hook-protocol/runner
  */
-import type { ShellExecutor } from '@z/dsh-shell';
+import type { ShellExecutor } from '@taskweaver/dsh-shell';
 import type { CommandHook, HookOutput } from './types.ts';
 /**
  * The reference default per-hook timeout, in ms (10 minutes) — the value both

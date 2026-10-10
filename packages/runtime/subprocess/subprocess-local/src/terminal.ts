@@ -9,7 +9,7 @@ import type {
   SubprocessTerminalForeground,
   SubprocessTerminalHandle,
   SubprocessTerminalSignal,
-} from '@z/dsh-subprocess'
+} from '@taskweaver/dsh-subprocess'
 import type { ProcessIdentity, ProcessInspector } from './process-inspector.ts'
 
 function delay(ms: number): Promise<void> {

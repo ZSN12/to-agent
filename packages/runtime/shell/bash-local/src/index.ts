@@ -6,16 +6,16 @@
  * classification, the model-friendly terminal environment, and the model-facing
  * stdout/stderr merge for background reads. Execution policy belongs in
  * `tools/pre-execute` or a sandboxing executor.
- * @module @z/dsh-bash-local
+ * @module @taskweaver/dsh-bash-local
  */
 
-import { Context } from '@z/cordis'
-import z from '@z/schemastery'
-import { SHELL_SETTINGS_NAMESPACE, ShellExecutor } from '@z/dsh-shell'
-import type { ShellExecRequest, ShellExecSpec, ShellProcess, ShellProcessRead, ShellRunResult, CollectedOutput } from '@z/dsh-shell'
-import type { SubprocessCollect, SubprocessHandle, SubprocessOutputReader, SubprocessSpawnSpec } from '@z/dsh-subprocess'
-import { installSettingsSection } from '@z/dsh-settings'
-import { clampTimeout, deadline, MAX_TIMER_DELAY_MS, timeoutOf } from '@z/dsh-timeout'
+import { Context } from '@taskweaver/cordis'
+import z from '@taskweaver/schemastery'
+import { SHELL_SETTINGS_NAMESPACE, ShellExecutor } from '@taskweaver/dsh-shell'
+import type { ShellExecRequest, ShellExecSpec, ShellProcess, ShellProcessRead, ShellRunResult, CollectedOutput } from '@taskweaver/dsh-shell'
+import type { SubprocessCollect, SubprocessHandle, SubprocessOutputReader, SubprocessSpawnSpec } from '@taskweaver/dsh-subprocess'
+import { installSettingsSection } from '@taskweaver/dsh-settings'
+import { clampTimeout, deadline, MAX_TIMER_DELAY_MS, timeoutOf } from '@taskweaver/dsh-timeout'
 
 /**
  * Model-friendly environment overrides: disable colors, pagers, and

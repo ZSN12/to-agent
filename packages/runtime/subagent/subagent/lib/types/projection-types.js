@@ -1,7 +1,7 @@
-"use strict";
 /**
  * Pure client-safe subagent projection vocabulary.
  *
- * @module @z/dsh-subagent/projection-types
+ * @module @taskweaver/dsh-subagent/projection-types
  */
-Object.defineProperty(exports, "__esModule", { value: true });
+export {};
+//# sourceMappingURL=projection-types.js.map

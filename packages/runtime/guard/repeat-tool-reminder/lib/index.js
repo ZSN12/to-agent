@@ -1,6 +1,6 @@
 import { createRequire } from "node:module";
-import z from "@z/schemastery";
-import "@z/cordis";
+import z from "@taskweaver/schemastery";
+import "@taskweaver/cordis";
 //#region ../../llm/llm/src/brand.ts
 /**
 * Brand a message identifier.
@@ -117,7 +117,7 @@ new RegExp(String.raw`\b(?:input|prompt|request|messages?)\b.{0,40}` + String.ra
 * Adapters expose one resolved policy per registered provider route; the
 * optional dsh-llm-retry plugin executes it on the agent's failed-step extension point.
 *
-* @module @z/dsh-llm/retry-policy
+* @module @taskweaver/dsh-llm/retry-policy
 */
 const DEFAULT_MAX_RETRIES = 5;
 const DEFAULT_INITIAL_DELAY_MS = 500;
@@ -154,7 +154,7 @@ z.union([normalPolicySchema, alwaysPolicySchema]);
 * `.agents/notes/implemented/architecture/2026-06-21-mandatory-app-attribution-headers.md`.
 *
 * App-attribution vocabulary for provider requests.
-* @module @z/dsh-llm/attribution
+* @module @taskweaver/dsh-llm/attribution
 */
 const { version } = createRequire(import.meta.url)("../package.json");
 //#endregion
@@ -165,7 +165,7 @@ const { version } = createRequire(import.meta.url)("../package.json");
 * and latches a search scope after an exact glob/grep cycle repeats; it never
 * rewrites calls or imposes a total-task tool/time/token budget. Configuration and semantics live in the package
 * README; rationale lives in the repeat-tool-reminder Agent Note.
-* @module @z/dsh-repeat-tool-reminder
+* @module @taskweaver/dsh-repeat-tool-reminder
 */
 const name = "repeat-tool-reminder";
 const Config = z.object({

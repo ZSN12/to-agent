@@ -4,10 +4,10 @@
  * and latches a search scope after an exact glob/grep cycle repeats; it never
  * rewrites calls or imposes a total-task tool/time/token budget. Configuration and semantics live in the package
  * README; rationale lives in the repeat-tool-reminder Agent Note.
- * @module @z/dsh-repeat-tool-reminder
+ * @module @taskweaver/dsh-repeat-tool-reminder
  */
-import type { Context } from '@z/cordis';
-import z from '@z/schemastery';
+import type { Context } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
 export declare const name = "repeat-tool-reminder";
 /**
  * Plugin config, validated by the same-named schemastery schema plus the

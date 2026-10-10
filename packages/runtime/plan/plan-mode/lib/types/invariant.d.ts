@@ -1,5 +1,5 @@
-/** Package-owned durable plan-mode invariants. @module @z/dsh-plan-mode/invariant */
-import type { Context } from '@z/cordis';
+/** Package-owned durable plan-mode invariants. @module @taskweaver/dsh-plan-mode/invariant */
+import type { Context } from '@taskweaver/cordis';
 /** Cordis companion plugin name. */
 export declare const name = "plan-mode-invariant";
 /** Service required before the companion can reserve package ownership. */

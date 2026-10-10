@@ -1,6 +1,6 @@
 //#region lib/types/invariant.js
-/** Package-owned invariant companion for `@z/dsh-attachment-local`. @module @z/dsh-attachment-local/invariant */
-const PACKAGE_NAME = "@z/dsh-attachment-local";
+/** Package-owned invariant companion for `@taskweaver/dsh-attachment-local`. @module @taskweaver/dsh-attachment-local/invariant */
+const PACKAGE_NAME = "@taskweaver/dsh-attachment-local";
 /** Cordis companion plugin name. */
 const name = "attachment-local-invariant";
 /** Services required before package ownership can be reserved. */

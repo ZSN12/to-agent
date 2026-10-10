@@ -8,7 +8,7 @@ import { setTimeout } from "node:timers/promises";
 * semantic-empty LLM recovery tests. Each accepted chat-completions request
 * consumes one behavior; the server never retries or interprets harness policy.
 *
-* @module @z/dsh-llm-mock-server
+* @module @taskweaver/dsh-llm-mock-server
 */
 /** Request-scoped behaviors accepted by {@link startMockLlmServer}. */
 const MOCK_LLM_BEHAVIORS = [

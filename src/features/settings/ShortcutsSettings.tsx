@@ -29,6 +29,11 @@ export function ShortcutsSettings({
     if (!recordingId) return
 
     const handleRecordKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Tab') {
+        setRecordingId(null)
+        e.stopPropagation()
+        return
+      }
       e.preventDefault()
       e.stopPropagation()
 
@@ -131,15 +136,17 @@ export function ShortcutsSettings({
                 </div>
                 <div className="shortcut-actions">
                   {isRecording ? (
-                    <div
+                    <button
+                      type="button"
                       className="shortcut-recording-box"
                       onClick={() => setRecordingId(null)}
-                      title="点击或按 Esc 取消录制"
+                      aria-label="取消按键录制"
+                      title="点击、按 Tab 或按 Esc 取消录制"
                     >
                       <span className="recording-dot" />
-                      <span>请按下键盘按键…</span>
-                      <span className="recording-esc-hint">Esc 取消</span>
-                    </div>
+                      <span role="status" aria-live="polite">请按下键盘按键…</span>
+                      <span className="recording-esc-hint">Tab 或 Esc 取消</span>
+                    </button>
                   ) : hasKeys ? (
                     <button
                       type="button"

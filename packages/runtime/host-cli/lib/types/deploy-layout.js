@@ -1,34 +1,48 @@
 /**
  * TaskWeaver / pnpm-deploy runtime layout: dependencies live in `runtime-packages/`.
- * @module @z/dsh/deploy-layout
+ * @module @taskweaver/dsh/deploy-layout
  */
 import { existsSync, lstatSync, readFileSync, readlinkSync, symlinkSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join, resolve } from 'node:path';
-/** Bootstrap-only Z/DSH env (no workspace imports — entry loads this before `node_modules` exists). */
+import { join, resolve, sep } from 'node:path';
+/** Bootstrap-only env reader (no workspace imports — entry loads before `node_modules` exists). */
+const warnedLegacyEnvironment = new Set();
 function nonBlankEnv(env, key) {
     const value = env[key];
     if (value === undefined || value.trim() === '')
         return undefined;
     return value;
 }
+function readEnvironment(canonical, legacy = []) {
+    const current = nonBlankEnv(process.env, canonical);
+    for (const name of legacy) {
+        const value = nonBlankEnv(process.env, name);
+        if (value === undefined)
+            continue;
+        if (!warnedLegacyEnvironment.has(name)) {
+            warnedLegacyEnvironment.add(name);
+            process.stderr.write(`[TaskWeaver] ${name} 已弃用，请改用 ${canonical}。旧名称将在一个版本后移除。\n`);
+        }
+        if (current === undefined)
+            return value;
+    }
+    return current;
+}
 function expandHomePath(path) {
     if (path === '~')
         return homedir();
-    if (path.startsWith('~/') || path.startsWith('~\\'))
-        return join(homedir(), path.slice(2));
+    if (path.startsWith('~/') || path.startsWith('~\\')) {
+        const suffix = sep === '/' ? path.slice(2).replaceAll('\\', '/') : path.slice(2).replaceAll('/', '\\');
+        return join(homedir(), suffix);
+    }
     return path;
 }
 function taskweaverEmbedded() {
-    const env = process.env;
-    return nonBlankEnv(env, 'Z_TASKWEAVER_EMBEDDED') !== undefined
-        || nonBlankEnv(env, 'DSH_TASKWEAVER_EMBEDDED') !== undefined;
+    return readEnvironment('TASKWEAVER_EMBEDDED', ['Z_TASKWEAVER_EMBEDDED', 'DSH_TASKWEAVER_EMBEDDED']) !== undefined;
 }
 function resolveHarnessHomeDir() {
-    const env = process.env;
-    const selected = nonBlankEnv(env, 'Z_HOME')
-        ?? nonBlankEnv(env, 'DSH_HOME')
-        ?? join(homedir(), '.dsh');
+    const selected = readEnvironment('TASKWEAVER_HOME', ['Z_HOME', 'DSH_HOME'])
+        ?? join(homedir(), '.taskweaver', 'runtime');
     return resolve(expandHomePath(selected));
 }
 export const RUNTIME_PACKAGES_DIR = 'runtime-packages';
@@ -83,7 +97,7 @@ export function ensureDeployNodeModules(runtimeRoot) {
     }
 }
 /**
- * TaskWeaver ≤0.1 wrote `authorization` into `$DSH_HOME/cordis.patch.yml`. The
+ * TaskWeaver ≤0.1 wrote `authorization` into `$TASKWEAVER_HOME/cordis.patch.yml`. The
  * TaskWeaver bundle now owns that row — drop the legacy home overlay before Cordis loads.
  */
 export function migrateLegacyTaskWeaverHomePatch() {

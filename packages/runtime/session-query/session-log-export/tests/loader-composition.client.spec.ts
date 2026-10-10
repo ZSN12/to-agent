@@ -3,13 +3,13 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import Loader from '@z/cordis-plugin-loader'
-import Include from '@z/cordis-plugin-include'
-import type { Agent } from '@z/dsh-agent'
-import CommandRuntime from '@z/dsh-commands'
-import SessionStore, { SessionId } from '@z/dsh-session'
-import * as SessionLogDownload from '@z/dsh-session-log-export'
+import { Context } from '@taskweaver/cordis'
+import Loader from '@taskweaver/cordis-plugin-loader'
+import Include from '@taskweaver/cordis-plugin-include'
+import type { Agent } from '@taskweaver/dsh-agent'
+import CommandRuntime from '@taskweaver/dsh-commands'
+import SessionStore, { SessionId } from '@taskweaver/dsh-session'
+import * as SessionLogDownload from '@taskweaver/dsh-session-log-export'
 
 let root: string | undefined
 let context: Context | undefined
@@ -26,9 +26,9 @@ describe('session-log-download real Loader composition', () => {
     root = await mkdtemp(join(tmpdir(), 'dsh-session-export-loader-'))
     const configPath = join(root, 'cordis.yml')
     await writeFile(configPath, [
-      "- name: '@z/dsh-session'",
-      "- name: '@z/dsh-commands'",
-      "- name: '@z/dsh-session-log-export'",
+      "- name: '@taskweaver/dsh-session'",
+      "- name: '@taskweaver/dsh-commands'",
+      "- name: '@taskweaver/dsh-session-log-export'",
       '',
     ].join('\n'))
 
@@ -37,9 +37,9 @@ describe('session-log-download real Loader composition', () => {
     await context.plugin(Loader)
     context.loader.builtins.include = Include
     const modules = new Map<string, unknown>([
-      ['@z/dsh-session', SessionStore],
-      ['@z/dsh-commands', CommandRuntime],
-      ['@z/dsh-session-log-export', SessionLogDownload],
+      ['@taskweaver/dsh-session', SessionStore],
+      ['@taskweaver/dsh-commands', CommandRuntime],
+      ['@taskweaver/dsh-session-log-export', SessionLogDownload],
     ])
     context.loader.internal = {
       version: 'v2',

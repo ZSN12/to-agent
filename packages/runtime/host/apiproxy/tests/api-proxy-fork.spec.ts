@@ -1,19 +1,19 @@
 /** Session-fork boundaries, lineage, and inherited model routing. */
 
 import { describe, expect, it, vi } from 'vitest'
-import { Context } from '@z/cordis'
-import AgentRegistry, { agentEvents } from '@z/dsh-agent'
-import type { Agent, AgentHandle, CreateAgentOptions } from '@z/dsh-agent'
-import { createUserMessage, ReasoningEffortId } from '@z/dsh-llm'
-import type { LlmCallConfig } from '@z/dsh-llm'
-import SessionStore from '@z/dsh-session'
-import type { Session, SessionEvent, SessionHeader, SessionId } from '@z/dsh-session'
-import SystemPrompt from '@z/dsh-system-prompt'
-import UserQuestionService from '@z/dsh-user-questions'
-import type { Workspace } from '@z/dsh-workspace'
-import type { RpcRequest } from '@z/dsh-host-apiproxy/api/rpc'
-import { RpcId } from '@z/dsh-host-apiproxy/api/rpc'
-import { createApiProxy } from '@z/dsh-host-apiproxy'
+import { Context } from '@taskweaver/cordis'
+import AgentRegistry, { agentEvents } from '@taskweaver/dsh-agent'
+import type { Agent, AgentHandle, CreateAgentOptions } from '@taskweaver/dsh-agent'
+import { createUserMessage, ReasoningEffortId } from '@taskweaver/dsh-llm'
+import type { LlmCallConfig } from '@taskweaver/dsh-llm'
+import SessionStore from '@taskweaver/dsh-session'
+import type { Session, SessionEvent, SessionHeader, SessionId } from '@taskweaver/dsh-session'
+import SystemPrompt from '@taskweaver/dsh-system-prompt'
+import UserQuestionService from '@taskweaver/dsh-user-questions'
+import type { Workspace } from '@taskweaver/dsh-workspace'
+import type { RpcRequest } from '@taskweaver/dsh-host-apiproxy/api/rpc'
+import { RpcId } from '@taskweaver/dsh-host-apiproxy/api/rpc'
+import { createApiProxy } from '@taskweaver/dsh-host-apiproxy'
 
 const sid = (id: string): SessionId => id as SessionId
 

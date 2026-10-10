@@ -1,4 +1,4 @@
-import { createUserMessage } from '@z/dsh-llm'
+import { createUserMessage } from '@taskweaver/dsh-llm'
 /**
  * The `session-telemetry/record` waterfall contract: pass-through when no listener is
  * mounted, listener stacking and replacement, ops-record coverage, the
@@ -6,8 +6,8 @@ import { createUserMessage } from '@z/dsh-llm'
  */
 
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import SessionStore, { SessionId } from '@z/dsh-session'
+import { Context } from '@taskweaver/cordis'
+import SessionStore, { SessionId } from '@taskweaver/dsh-session'
 import {
   SessionTelemetryCoordinator,
   type SessionTelemetrySink,

@@ -1,9 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { posix } from "node:path";
-import z from "@z/schemastery";
-import { SENSITIVE_ENV_PATTERN, SubprocessRuntime } from "@z/dsh-subprocess";
-import { MAX_TIMER_DELAY_MS } from "@z/dsh-timeout";
-import { CommandExitError, FileNotFoundError, SandboxNotFoundError, e2bControlEnvs, quoteE2BShellArg } from "@z/dsh-e2b";
+import z from "@taskweaver/schemastery";
+import { SENSITIVE_ENV_PATTERN, SubprocessRuntime } from "@taskweaver/dsh-subprocess";
+import { MAX_TIMER_DELAY_MS } from "@taskweaver/dsh-timeout";
+import { CommandExitError, FileNotFoundError, SandboxNotFoundError, e2bControlEnvs, quoteE2BShellArg } from "@taskweaver/dsh-e2b";
 import { PassThrough, Writable } from "node:stream";
 import { Buffer } from "node:buffer";
 //#region lib/types/environment.js
@@ -1311,7 +1311,7 @@ async function spawnE2BTerminal(runtime, spec, stateDir, pollMs) {
 /**
 * E2B Service Provider for the subprocess capability seam. Each handle starts through the
 * shared sandbox and retains command output/status paths in that remote world.
-* @module @z/dsh-subprocess-e2b
+* @module @taskweaver/dsh-subprocess-e2b
 */
 /**
 * Enforce the seam's documented grace bound (positive, finite, one Node timer),

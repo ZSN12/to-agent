@@ -1,12 +1,12 @@
-import { Service, getTraceable, symbols } from "@z/cordis";
+import { Service, getTraceable, symbols } from "@taskweaver/cordis";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { isPromise } from "node:util/types";
-import { scopeTarget } from "@z/dsh-scope";
+import { scopeTarget } from "@taskweaver/dsh-scope";
 //#region lib/types/inbox.js
 /**
 * Incremental projection of durable agent inbox events.
 *
-* @module @z/dsh-agent/inbox
+* @module @taskweaver/dsh-agent/inbox
 */
 /** A replay-once projection that incrementally consumes later inbox splices. */
 var Inbox = class {
@@ -195,7 +195,7 @@ var Inbox = class {
 * with `removedCount` and marks a cancellation `outcome: 'canceled'`, which
 * separates a turn claiming its input from work being dropped unrun.
 *
-* @module @z/dsh-agent/consumed-work
+* @module @taskweaver/dsh-agent/consumed-work
 */
 /**
 * Whether a turn that consumed input but never reached a step ends in a way
@@ -257,7 +257,6 @@ function foldConsumedWork(events) {
 			}
 			break;
 		}
-		default: break;
 	}
 	return {
 		...end === void 0 ? {} : { end },
@@ -268,7 +267,7 @@ function foldConsumedWork(events) {
 //#region lib/types/model-selection.js
 /**
 * Agent-scoped model selection shared by runtime entry points.
-* @module @z/dsh-agent/model-selection
+* @module @taskweaver/dsh-agent/model-selection
 */
 /**
 * Couple one mutable selection to Agent-scoped prompt assembly and request routing.
@@ -321,7 +320,7 @@ function installModelSelection(agentCtx, selection) {
 * {@link agentEvents} couples the agent subject to its scope carrier, so the
 * scope key and the payload's `agent` cannot diverge; repeat dispatchers (the
 * loop driver) build it once in the agent's constructor and reuse it.
-* @module @z/dsh-agent/dispatch
+* @module @taskweaver/dsh-agent/dispatch
 */
 /**
 * Build the fused scope carrier for one agent subject.
@@ -407,7 +406,7 @@ function assembleContextFor(agent, signal) {
 * Agent service: live registry, factory delegation, and process-local
 * initiator scope. Concrete creation and driving belong to the loop.
 *
-* @module @z/dsh-agent
+* @module @taskweaver/dsh-agent
 */
 /** Thrown when create/resume is called before an agent factory is registered. */
 const NO_FACTORY_MESSAGE = "no agent factory registered (load an agent-loop plugin)";
@@ -417,7 +416,7 @@ const DISPOSED_INITIATOR_MESSAGE = "agent initiator scope is disposed";
 * Agent service (`ctx.agents`): tracks live agents and carries the initiating
 * Agent through one process-local asynchronous driver chain. Agent *creation*
 * is provided by whichever plugin implements the {@link AgentFactory}
-* (`@z/dsh-agent-loop`), registered via {@link setFactory}.
+* (`@taskweaver/dsh-agent-loop`), registered via {@link setFactory}.
 *
 * Initiator methods provide same-process causal attribution only. Ambient
 * presence is neither liveness proof nor authorization; subjects and owners
@@ -440,13 +439,13 @@ var AgentRegistry = class extends Service {
 			typeCtx.typert.lookups.register("agent", {
 				parameter: "agent",
 				wire: "agentId",
-				hostTypeSymbol: "@z/dsh-agent#Agent",
-				wireTypeSymbol: "@z/dsh-session/types#SessionId",
+				hostTypeSymbol: "@taskweaver/dsh-agent#Agent",
+				wireTypeSymbol: "@taskweaver/dsh-session/types#SessionId",
 				resolve: (sessionId) => this.get(sessionId)
 			});
 			typeCtx.typert.contexts.registerHost("agent", {
 				wire: "agentId",
-				wireTypeSymbol: "@z/dsh-session/types#SessionId",
+				wireTypeSymbol: "@taskweaver/dsh-session/types#SessionId",
 				resolve: (sessionId) => this.get(sessionId)?.ctx
 			});
 		});

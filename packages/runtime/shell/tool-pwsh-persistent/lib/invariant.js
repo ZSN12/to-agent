@@ -1,9 +1,9 @@
 //#region lib/types/invariant.js
 /**
-* Package-owned invariant companion for `@z/dsh-tool-pwsh-persistent`.
-* @module @z/dsh-tool-pwsh-persistent/invariant
+* Package-owned invariant companion for `@taskweaver/dsh-tool-pwsh-persistent`.
+* @module @taskweaver/dsh-tool-pwsh-persistent/invariant
 */
-const PACKAGE_NAME = "@z/dsh-tool-pwsh-persistent";
+const PACKAGE_NAME = "@taskweaver/dsh-tool-pwsh-persistent";
 /** Cordis companion plugin name. */
 const name = "tool-pwsh-persistent-invariant";
 /** Service required before the companion can reserve package ownership. */

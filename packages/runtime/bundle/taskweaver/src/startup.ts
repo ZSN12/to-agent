@@ -1,11 +1,11 @@
 /**
  * Parse the TaskWeaver API Host's WebServer bind and `/api` trust options.
- * @module @z/dsh-taskweaver/startup
+ * @module @taskweaver/dsh-taskweaver/startup
  */
 
 import { Command } from 'commander'
-import type { Context } from '@z/cordis'
-import { parseCmdline } from '@z/dsh-cmdline'
+import type { Context } from '@taskweaver/cordis'
+import { parseCmdline } from '@taskweaver/dsh-cmdline'
 
 /** Stable Cordis plugin name. */
 export const name = 'web-startup'

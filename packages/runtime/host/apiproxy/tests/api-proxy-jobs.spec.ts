@@ -8,17 +8,17 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import AgentRegistry, { Inbox } from '@z/dsh-agent'
-import type { Agent } from '@z/dsh-agent'
-import SessionStore, { SessionId } from '@z/dsh-session'
-import type { Session } from '@z/dsh-session'
-import UserQuestionService from '@z/dsh-user-questions'
-import LocalJobRegistry from '@z/dsh-jobs-local'
-import type { JobOutcome } from '@z/dsh-jobs'
-import type { MuxFrame, RpcRequest } from '@z/dsh-host-apiproxy/api'
-import { RpcId } from '@z/dsh-host-apiproxy/api/rpc'
-import { createApiProxy } from '@z/dsh-host-apiproxy'
+import { Context } from '@taskweaver/cordis'
+import AgentRegistry, { Inbox } from '@taskweaver/dsh-agent'
+import type { Agent } from '@taskweaver/dsh-agent'
+import SessionStore, { SessionId } from '@taskweaver/dsh-session'
+import type { Session } from '@taskweaver/dsh-session'
+import UserQuestionService from '@taskweaver/dsh-user-questions'
+import LocalJobRegistry from '@taskweaver/dsh-jobs-local'
+import type { JobOutcome } from '@taskweaver/dsh-jobs'
+import type { MuxFrame, RpcRequest } from '@taskweaver/dsh-host-apiproxy/api'
+import { RpcId } from '@taskweaver/dsh-host-apiproxy/api/rpc'
+import { createApiProxy } from '@taskweaver/dsh-host-apiproxy'
 
 type JobFrame = Extract<MuxFrame, { type: 'session/jobs' }>
 

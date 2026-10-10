@@ -1,16 +1,16 @@
 import { randomUUID } from "node:crypto";
-import z from "@z/schemastery";
-import { installModelSelection } from "@z/dsh-agent";
-import { createUserMessage } from "@z/dsh-llm";
-import { SessionId } from "@z/dsh-session";
+import z from "@taskweaver/schemastery";
+import { installModelSelection } from "@taskweaver/dsh-agent";
+import { createUserMessage } from "@taskweaver/dsh-llm";
+import { SessionId } from "@taskweaver/dsh-session";
 //#region lib/types/index.js
 /**
-* @z/dsh-headless — one-shot direct Agent driver. The bundle patch
+* @taskweaver/dsh-headless — one-shot direct Agent driver. The bundle patch
 * rides over dsh-base without Host, HTTP, or browser plugins; this runner
 * creates one Agent through the core registry, drives the task to quiescence,
 * flushes its Session, prints the final assistant text, and exits.
 *
-* @module @z/dsh-headless
+* @module @taskweaver/dsh-headless
 */
 /** Stable Cordis plugin name. */
 const name = "headless-runner";

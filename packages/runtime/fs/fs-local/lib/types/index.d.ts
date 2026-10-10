@@ -1,12 +1,12 @@
 /**
  * Host-filesystem implementation of `ctx.fs`. Realpath-derived target identity makes aliases
  * share stale guards, and writes through a symlink update its target without replacing the link.
- * @module @z/dsh-fs-local
+ * @module @taskweaver/dsh-fs-local
  */
-import { Context } from '@z/cordis';
-import z from '@z/schemastery';
-import { FileSystem, FsVersion } from '@z/dsh-fs';
-import type { FsDirEntry, FsEditOutcome, FsEditRequest, FsInfo, FsPathInfo, FsTarget, FsWriteIntent, FsWriteOutcome } from '@z/dsh-fs';
+import { Context } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
+import { FileSystem, FsVersion } from '@taskweaver/dsh-fs';
+import type { FsDirEntry, FsEditOutcome, FsEditRequest, FsInfo, FsPathInfo, FsTarget, FsWriteIntent, FsWriteOutcome } from '@taskweaver/dsh-fs';
 import type { FsIoInternals } from './fsio.ts';
 /** Configuration for the local filesystem backend. */
 export interface Config {

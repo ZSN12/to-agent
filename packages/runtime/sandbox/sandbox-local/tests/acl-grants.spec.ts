@@ -9,10 +9,10 @@ import { existsSync, mkdtempSync, realpathSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { Context } from '@z/cordis'
-import type { SandboxPolicy } from '@z/dsh-sandbox'
-import { SessionId } from '@z/dsh-session'
-import { LocalSandboxProvider } from '@z/dsh-sandbox-local'
+import { Context } from '@taskweaver/cordis'
+import type { SandboxPolicy } from '@taskweaver/dsh-sandbox'
+import { SessionId } from '@taskweaver/dsh-session'
+import { LocalSandboxProvider } from '@taskweaver/dsh-sandbox-local'
 
 /** Cross-file state shared with the vi.mock factory (hoisting contract). */
 const mockState = vi.hoisted(() => ({
@@ -24,7 +24,7 @@ const mockState = vi.hoisted(() => ({
   disposeFailure: undefined as Error | undefined,
 }))
 
-vi.mock('@z/dsh-sandbox-windows-acl', () => {
+vi.mock('@taskweaver/dsh-sandbox-windows-acl', () => {
   class MockAclWriteGrant {
     readonly writeSid: string
     readonly added: Array<{ path: string; standing: boolean }> = []

@@ -1,0 +1,122 @@
+{
+  "version": 1,
+  "sampleRepo": "sample-repo",
+  "tasks": [
+    {
+      "id": "R1",
+      "name": "模块职责概览",
+      "category": "只读调研",
+      "request": "只读概括 math 和 format 模块的导出函数及职责。",
+      "readFiles": ["src/math.mjs", "src/format.mjs"],
+      "criterion": "逐项说明指定文件中导出函数的当前行为",
+      "testFiles": []
+    },
+    {
+      "id": "R2",
+      "name": "边界行为定位",
+      "category": "只读调研",
+      "request": "只读检查 add 与 clamp 的实现，不要修改文件；指出一个可复现的边界行为问题。",
+      "readFiles": ["src/math.mjs", "tests/add.test.mjs"],
+      "criterion": "结论引用实现和对应测试中的可观察事实",
+      "testFiles": []
+    },
+    {
+      "id": "R3",
+      "name": "公共 API 盘点",
+      "category": "只读调研",
+      "request": "只读列出 users 与 invoice 模块的公开函数及参数。",
+      "readFiles": ["src/users.mjs", "src/invoice.mjs"],
+      "criterion": "列出的函数名和参数与源码导出一致",
+      "testFiles": []
+    },
+    {
+      "id": "I4",
+      "name": "修复加法函数",
+      "category": "单文件修复",
+      "request": "修复 add 函数的运算符错误，并通过它的回归测试。",
+      "criterion": "add 对正数和负数执行加法",
+      "testCriterion": "add 回归测试通过",
+      "patches": {
+        "src/math.mjs": "export function add(left, right) {\n  return left + right\n}\n\nexport function clamp(value, min, max) {\n  return Math.min(max, Math.max(min + 1, value))\n}\n",
+        "tests/add.test.mjs": null
+      },
+      "testFiles": ["tests/add.test.mjs"]
+    },
+    {
+      "id": "I5",
+      "name": "空值标签格式化",
+      "category": "单文件修复",
+      "request": "修复 formatLabel 对 null 和 undefined 的处理，保留字符串去空格行为。",
+      "criterion": "空值返回空字符串且字符串两端空白被裁掉",
+      "testCriterion": "formatLabel 回归测试通过",
+      "patches": {
+        "src/format.mjs": "export function formatLabel(value) {\n  return value == null ? '' : String(value).trim()\n}\n",
+        "tests/format.test.mjs": null
+      },
+      "testFiles": ["tests/format.test.mjs"]
+    },
+    {
+      "id": "I6",
+      "name": "分数小数解析",
+      "category": "单文件修复",
+      "request": "修复 parseScore 截断小数的问题，使 8.5 保持为 8.5。",
+      "criterion": "parseScore 保留输入中的有效小数",
+      "testCriterion": "parseScore 小数回归测试通过",
+      "patches": {
+        "src/score.mjs": "export function parseScore(value) {\n  const score = Number(value)\n  return Number.isFinite(score) ? score : 0\n}\n",
+        "tests/score-decimal.test.mjs": null
+      },
+      "testFiles": ["tests/score-decimal.test.mjs"]
+    },
+    {
+      "id": "M7",
+      "name": "用户标识与列表 API",
+      "category": "多文件功能",
+      "request": "实现用户创建时分配递增 ID、返回规范化用户，并提供只读列表接口；补充对应测试。",
+      "criterion": "创建用户返回递增 ID 且列表接口返回已保存用户",
+      "testCriterion": "用户创建和列表测试通过",
+      "patches": {
+        "src/users.mjs": "const users = []\nlet nextId = 1\n\nexport function addUser(user) {\n  const saved = { id: nextId++, ...user }\n  users.push(saved)\n  return saved\n}\n\nexport function listUsers() {\n  return users.map((user) => ({ ...user }))\n}\n",
+        "tests/users.test.mjs": null
+      },
+      "testFiles": ["tests/users.test.mjs"]
+    },
+    {
+      "id": "M8",
+      "name": "发票金额汇总",
+      "category": "多文件功能",
+      "request": "扩展 summarizeInvoice，使其返回 subtotal、tax 和 total，并补充对应测试。",
+      "criterion": "发票汇总按税率计算小计、税额和总额",
+      "testCriterion": "发票汇总测试通过",
+      "patches": {
+        "src/invoice.mjs": "export function summarizeInvoice(lines, taxRate = 0) {\n  const subtotal = lines.reduce((sum, line) => sum + line.quantity * line.unitPrice, 0)\n  const tax = subtotal * taxRate\n  return { subtotal, tax, total: subtotal + tax }\n}\n",
+        "tests/invoice.test.mjs": null
+      },
+      "testFiles": ["tests/invoice.test.mjs"]
+    },
+    {
+      "id": "T9",
+      "name": "半开时间窗口",
+      "category": "带测试的改动",
+      "request": "将时间窗口改为半开区间 [start, end)，并使用已有边界测试验证。",
+      "criterion": "起点包含且终点排除",
+      "testCriterion": "半开时间窗口边界测试通过",
+      "patches": {
+        "src/window.mjs": "export function isWithinWindow(value, start, end) {\n  return value >= start && value < end\n}\n"
+      },
+      "testFiles": ["tests/window.test.mjs"]
+    },
+    {
+      "id": "T10",
+      "name": "分数范围校验",
+      "category": "带测试的改动",
+      "request": "让 parseScore 接受 0–100 范围内的数字，拒绝无效和越界值；保留小数支持并通过已有测试。",
+      "criterion": "parseScore 接受范围内数值并对无效或越界输入返回 null",
+      "testCriterion": "分数范围测试和小数测试均通过",
+      "patches": {
+        "src/score.mjs": "export function parseScore(value) {\n  const score = Number(value)\n  return Number.isFinite(score) && score >= 0 && score <= 100 ? score : null\n}\n"
+      },
+      "testFiles": ["tests/score-range.test.mjs", "tests/score-decimal.test.mjs"]
+    }
+  ]
+}

@@ -1,4 +1,4 @@
-export type TaskStatus = 'done' | 'running' | 'queued' | 'review' | 'cancelled'
+export type TaskStatus = 'done' | 'running' | 'queued' | 'review' | 'cancelled' | 'interrupted'
 
 export type ThinkingLevel = string
 
@@ -54,9 +54,12 @@ export interface ChatMessage {
   callout?: string
   usage?: ChatUsage
   executionEvidenceSummary?: TaskExecutionEvidenceSummary
+  acceptanceAssessment?: TaskAcceptanceAssessment
   behavior?: 'steer' | 'followUp'
   /** 用户停止或中断的轮次（DSH interrupted 语义） */
   interrupted?: boolean
+  /** Metadata-only references to images attached to this user turn. */
+  images?: import('./shared/app-api').DshProjectedImageRef[]
   compaction?: {
     automatic: boolean
     summary?: string
@@ -64,6 +67,13 @@ export interface ChatMessage {
   }
   /** 压缩命令等维护操作的用量展示口径（非普通聊天轮次）。 */
   usageKind?: 'compaction'
+}
+
+export interface TaskAcceptanceAssessment {
+  required: number
+  passed: boolean
+  items: Array<{ criterion: string; passed: boolean | null; evidence: string }>
+  reason?: string
 }
 
 export interface TaskExecutionEvidenceSummary {
@@ -82,6 +92,7 @@ export interface ChatUsage {
   outputTokens: number
   cacheReadTokens: number
   cacheWriteTokens: number
+  reasoningTokens?: number
   costUsd: number
   elapsedMs: number
   tokensPerSecond: number
@@ -100,8 +111,31 @@ export interface TaskNode {
   id: string
   /** Orchestration run that owns this task's isolated worktree. */
   runId?: string
+  runStatus?: 'awaiting_approval' | 'running' | 'paused' | 'finalizing' | 'completed' | 'rejected' | 'cancelled' | 'failed' | 'interrupted'
+  startedAt?: string
+  endedAt?: string
+  durationMs?: number | null
+  usageSummary?: {
+    attempts: number
+    inputTokens: number
+    outputTokens: number
+    cacheReadTokens: number
+    cacheWriteTokens: number
+    costUsd: number
+    byModel: Array<{
+      modelKey: string
+      attempts: number
+      inputTokens: number
+      outputTokens: number
+      cacheReadTokens: number
+      cacheWriteTokens: number
+      costUsd: number
+    }>
+  }
   title: string
   role: string
+  acceptance?: string[]
+  acceptanceAssessment?: TaskAcceptanceAssessment
   model: string
   tier: 'low' | 'balanced' | 'high' | 'deterministic'
   status: TaskStatus

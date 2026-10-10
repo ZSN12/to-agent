@@ -1,5 +1,5 @@
-import { WebError } from '@z/dsh-web'
-import type { WebSearchProvider, WebSearchRequest, WebSearchResult, WebSearchSource } from '@z/dsh-web'
+import { WebError } from '@taskweaver/dsh-web'
+import type { WebSearchProvider, WebSearchRequest, WebSearchResult, WebSearchSource } from '@taskweaver/dsh-web'
 
 const RUNTIME_ENV = {
   enabled: 'TASKWEAVER_WEB_SEARCH_ENABLED',

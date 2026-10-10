@@ -1,13 +1,13 @@
-import { Service } from "@z/cordis";
-import z from "@z/schemastery";
+import { Service } from "@taskweaver/cordis";
+import z from "@taskweaver/schemastery";
 import { watch } from "chokidar";
 import { mkdir, readFile, stat } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { Document, isMap, isScalar, parseDocument } from "yaml";
-import { withFileLock, writeFileAtomic } from "@z/dsh-atomic-write";
-import { canonicalizeWatchPath, resolveDshHome } from "@z/dsh-home-paths";
-import { launchEnvironmentOf } from "@z/dsh-launch-environment";
-import { CredentialProvider, credentialRef, parseCredentialKey } from "@z/dsh-credentials";
+import { withFileLock, writeFileAtomic } from "@taskweaver/dsh-atomic-write";
+import { canonicalizeWatchPath, resolveDshHome } from "@taskweaver/dsh-home-paths";
+import { launchEnvironmentOf } from "@taskweaver/dsh-launch-environment";
+import { CredentialProvider, credentialRef, parseCredentialKey } from "@taskweaver/dsh-credentials";
 //#region lib/types/index.js
 /**
 * File-backed credentials provider over `$DSH_HOME/.credentials.yaml`, layered
@@ -43,7 +43,7 @@ import { CredentialProvider, credentialRef, parseCredentialKey } from "@z/dsh-cr
 * as the user's environment layer; a store that doubled as the environment
 * layer would shadow non-secret entries behind its precedence, making them
 * silently unreachable.
-* @module @z/dsh-credentials-local
+* @module @taskweaver/dsh-credentials-local
 */
 /** Basename of the credentials document inside the harness home. */
 const CREDENTIALS_FILENAME = ".credentials.yaml";

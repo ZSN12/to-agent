@@ -1,6 +1,6 @@
-import { LocalFileSystem } from "@z/dsh-fs-local";
-import { FsError } from "@z/dsh-fs";
-import { writableRoots } from "@z/dsh-sandbox";
+import { LocalFileSystem } from "@taskweaver/dsh-fs-local";
+import { FsError } from "@taskweaver/dsh-fs";
+import { writableRoots } from "@taskweaver/dsh-sandbox";
 import { stat } from "node:fs/promises";
 import { dirname, sep } from "node:path";
 //#region lib/types/containment.js
@@ -8,7 +8,7 @@ import { dirname, sep } from "node:path";
 * Path-containment mechanics for the filesystem sandbox. Canonical spellings
 * take the fast lexical path; filesystem identity supplies the conservative
 * fallback for alias-equivalent roots such as Windows 8.3 names and casing.
-* @module @z/dsh-fs-sandbox/containment
+* @module @taskweaver/dsh-fs-sandbox/containment
 */
 const MISSING_CODES = new Set(["ENOENT", "ENOTDIR"]);
 function isMissing(error) {
@@ -67,7 +67,7 @@ async function isPathUnder(path, root, caseSensitive = process.platform !== "win
 //#region lib/types/index.js
 /**
 * `SandboxedFileSystem`: the sandbox-enforcing implementation of the
-* `@z/dsh-fs` Service Definition. It extends `LocalFileSystem` so all
+* `@taskweaver/dsh-fs` Service Definition. It extends `LocalFileSystem` so all
 * text-storage mechanics — resolve, stat, read/stream, list, the atomic
 * write and the read-match-write edit critical section — are the local
 * implementation's, verbatim; this package adds only the per-call POLICY fence
@@ -78,7 +78,7 @@ async function isPathUnder(path, root, caseSensitive = process.platform !== "win
 * NOT a kernel boundary — the operations are the seam's own (open, rename),
 * and only the target path is untrusted, so canonicalize-then-contain is the
 * complete answer to this surface. Kernel-grade isolation of untrusted CODE
-* stays `ctx.shell`'s job (`@z/dsh-bash-sandbox`). This mirrors the
+* stays `ctx.shell`'s job (`@taskweaver/dsh-bash-sandbox`). This mirrors the
 * `code-runtime` stance: containment, not a security boundary. The residual
 * TOCTOU (an ancestor symlink swapped between the containment re-check and the
 * syscall) is narrowed by re-canonicalizing immediately before delegating and
@@ -91,10 +91,10 @@ async function isPathUnder(path, root, caseSensitive = process.platform !== "win
 * `danger-full-access` delegates unfenced. A denial throws the structured
 * `FS_SANDBOX_DENIED` — no text inference is needed (unlike bash's kernel
 * stderr), because an in-process fence knows exactly what it refused. The
-* escalation retry lives in the tool layer (`@z/dsh-tool-fs`),
+* escalation retry lives in the tool layer (`@taskweaver/dsh-tool-fs`),
 * exactly as bash's does.
 *
-* @module @z/dsh-fs-sandbox
+* @module @taskweaver/dsh-fs-sandbox
 */
 /**
 * Sandbox-enforcing filesystem backend. Registers as `ctx.fs` (loading it

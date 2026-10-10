@@ -1,20 +1,20 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
+import { Context } from '@taskweaver/cordis'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { Agent } from '@z/dsh-agent'
-import { createUserMessage, CallId  } from '@z/dsh-llm'
+import type { Agent } from '@taskweaver/dsh-agent'
+import { createUserMessage, CallId  } from '@taskweaver/dsh-llm'
 import SessionStore, {
   SESSION_FORMAT_VERSION,
   SessionId,
   type Session,
-} from '@z/dsh-session'
-import JsonlSessionPersistence from '@z/dsh-session-persistence-jsonl'
-import SqliteSessionQueryEngine from '@z/dsh-session-query-sqlite'
-import SystemPrompt from '@z/dsh-system-prompt'
-import ToolRuntime from '@z/dsh-tools'
-import * as ToolSessionQuery from '@z/dsh-tool-session-query'
+} from '@taskweaver/dsh-session'
+import JsonlSessionPersistence from '@taskweaver/dsh-session-persistence-jsonl'
+import SqliteSessionQueryEngine from '@taskweaver/dsh-session-query-sqlite'
+import SystemPrompt from '@taskweaver/dsh-system-prompt'
+import ToolRuntime from '@taskweaver/dsh-tools'
+import * as ToolSessionQuery from '@taskweaver/dsh-tool-session-query'
 
 const temporaryDirectories: string[] = []
 const contexts: Context[] = []

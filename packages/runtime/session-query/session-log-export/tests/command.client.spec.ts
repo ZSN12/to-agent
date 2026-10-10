@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import type { CommandDefinition, CommandInvocation } from '@z/dsh-commands'
+import { Context } from '@taskweaver/cordis'
+import type { CommandDefinition, CommandInvocation } from '@taskweaver/dsh-commands'
 import * as SessionLogDownload from '../src/index.ts'
 
 describe('/export Web download command', () => {

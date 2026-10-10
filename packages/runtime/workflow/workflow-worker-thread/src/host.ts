@@ -3,20 +3,20 @@
  * cancellation-grace expiry owns settlement and closes message admission.
  * Pending starts share one abort signal; published children share idempotent
  * cleanup, and quiescence waits for both while synthesizing any missing end events.
- * @module @z/dsh-workflow-worker-thread/host
+ * @module @taskweaver/dsh-workflow-worker-thread/host
  */
 
 import { tmpdir } from 'node:os'
 import { Worker } from 'node:worker_threads'
 import type { WorkerOptions } from 'node:worker_threads'
 import { fileURLToPath } from 'node:url'
-import type { Context } from '@z/cordis'
-import type { Agent } from '@z/dsh-agent'
-import { assertNever } from '@z/dsh-llm'
-import { snapshotJsonValue } from '@z/dsh-session'
-import type SubagentRuntime from '@z/dsh-subagent'
-import type { SubagentRun } from '@z/dsh-subagent'
-import type { WorkflowAgentEndInfo, WorkflowAgentInfo, WorkflowMeta, WorkflowResult, WorkflowRun, WorkflowRunId } from '@z/dsh-workflow'
+import type { Context } from '@taskweaver/cordis'
+import type { Agent } from '@taskweaver/dsh-agent'
+import { assertNever } from '@taskweaver/dsh-llm'
+import { snapshotJsonValue } from '@taskweaver/dsh-session'
+import type SubagentRuntime from '@taskweaver/dsh-subagent'
+import type { SubagentRun } from '@taskweaver/dsh-subagent'
+import type { WorkflowAgentEndInfo, WorkflowAgentInfo, WorkflowMeta, WorkflowResult, WorkflowRun, WorkflowRunId } from '@taskweaver/dsh-workflow'
 import { renderThrown } from './realm.ts'
 import type { ExecutionObserver } from './runtime.ts'
 import { HostToWorkerType, WorkerToHostType } from './protocol.ts'

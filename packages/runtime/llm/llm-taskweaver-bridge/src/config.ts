@@ -1,9 +1,9 @@
 /**
- * @module @z/dsh-llm-taskweaver-bridge/config
+ * @module @taskweaver/dsh-llm-taskweaver-bridge/config
  */
 
-import z from '@z/schemastery'
-import type { BridgeProviderProfile } from '@z/dsh-bridge-core'
+import z from '@taskweaver/schemastery'
+import type { BridgeProviderProfile } from '@taskweaver/dsh-bridge-core'
 
 const catalogModel = z.object({
   id: z.string().required(),

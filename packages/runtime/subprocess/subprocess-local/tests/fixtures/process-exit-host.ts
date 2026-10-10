@@ -1,8 +1,8 @@
 import { access, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { Context } from '@z/cordis'
-import LocalSubprocessRuntime from '@z/dsh-subprocess-local'
+import { Context } from '@taskweaver/cordis'
+import LocalSubprocessRuntime from '@taskweaver/dsh-subprocess-local'
 
 const [kind, trigger, root] = process.argv.slice(2)
 if ((kind !== 'ordinary' && kind !== 'terminal')

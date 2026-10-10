@@ -8,7 +8,7 @@ export declare const mcpListValueSchema: z.ZodObject<{
     }, z.core.$strip>>;
 }, z.core.$strip>;
 export declare const mcpCallRequestSchema: z.ZodObject<{
-    sessionId: z.ZodType<import("@z/dsh-session").SessionId, unknown, z.core.$ZodTypeInternals<import("@z/dsh-session").SessionId, unknown>>;
+    sessionId: z.ZodType<import("@taskweaver/dsh-session").SessionId, unknown, z.core.$ZodTypeInternals<import("@taskweaver/dsh-session").SessionId, unknown>>;
     name: z.ZodString;
     arguments: z.ZodRecord<z.ZodString, z.ZodJSONSchema>;
 }, z.core.$strip>;

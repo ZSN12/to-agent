@@ -1,4 +1,4 @@
-import { Formatter } from '@z/cordis';
+import { Formatter } from '@taskweaver/cordis';
 import { ConsoleExporter as Base } from './shared.ts';
 /** Re-export shared console exporter config and base implementation. */
 export * from './shared.ts';

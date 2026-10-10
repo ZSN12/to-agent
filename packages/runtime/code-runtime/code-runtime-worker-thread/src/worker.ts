@@ -1,7 +1,7 @@
 /**
  * Spawn-only worker entrypoint over {@link runWorkerMain}. Executable logic stays in
  * `bootstrap.ts` for in-process coverage; real-worker tests cover this glue.
- * @module @z/dsh-code-runtime-worker-thread/src/worker
+ * @module @taskweaver/dsh-code-runtime-worker-thread/src/worker
  */
 
 import { parentPort, workerData } from 'node:worker_threads'

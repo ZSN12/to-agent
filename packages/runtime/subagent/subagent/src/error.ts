@@ -1,10 +1,10 @@
 /**
  * Typed failures shared by subagent service and provider operations.
  *
- * @module @z/dsh-subagent
+ * @module @taskweaver/dsh-subagent
  */
 
-import { HarnessError } from '@z/dsh-llm'
+import { HarnessError } from '@taskweaver/dsh-llm'
 
 /** Typed failure for the subagent seam. */
 export class SubagentError extends HarnessError {

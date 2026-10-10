@@ -1,16 +1,4 @@
-"use strict";
-var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
-    if (pack || arguments.length === 2) for (var i = 0, l = from.length, ar; i < l; i++) {
-        if (ar || !(i in from)) {
-            if (!ar) ar = Array.prototype.slice.call(from, 0, i);
-            ar[i] = from[i];
-        }
-    }
-    return to.concat(ar || Array.prototype.slice.call(from));
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.ProjectionValueStore = void 0;
-var notifier_ts_1 = require("./notifier.ts");
+import { Notifier } from "./notifier.js";
 /**
  * One session's projection values. Framework semantics, uniform across every
  * key: a baseline seeds rows at its cut, a push frame updates one row, and in
@@ -21,13 +9,12 @@ var notifier_ts_1 = require("./notifier.ts");
  * once; the store-level channel (`subscribeAny`) serves coarse consumers (the
  * manager's list projection reads the `title` key).
  */
-var ProjectionValueStore = /** @class */ (function () {
-    function ProjectionValueStore() {
-        this.rows = new Map();
-        this.channels = new Map();
-        /** Coarse any-key channel (no snapshot cache to rebuild: reads hit rows directly). */
-        this.anyNotifier = new notifier_ts_1.Notifier(function () { });
-    }
+export class ProjectionValueStore {
+    rows = new Map();
+    channels = new Map();
+    valuesCache;
+    /** Coarse any-key channel (no snapshot cache to rebuild: reads hit rows directly). */
+    anyNotifier = new Notifier(() => { });
     /**
      * Key-addressed bare observable face (the useProjection resolution path).
      * Always defined — absence is an `undefined` snapshot, never a missing
@@ -35,54 +22,50 @@ var ProjectionValueStore = /** @class */ (function () {
      * @param key - projection key.
      * @returns the identity-stable face for this key.
      */
-    ProjectionValueStore.prototype.faceOf = function (key) {
+    faceOf(key) {
         return this.channel(key).face;
-    };
+    }
     /**
      * Current whole value for a key (erased framework read; typed reads go
      * through `useProjection`'s map lookup).
      * @param key - projection key.
      * @returns the value, or undefined while the key is absent.
      */
-    ProjectionValueStore.prototype.get = function (key) {
-        var _a;
-        return (_a = this.rows.get(key)) === null || _a === void 0 ? void 0 : _a.value;
-    };
+    get(key) {
+        return this.rows.get(key)?.value;
+    }
     /**
      * Read every current projection value as one reference-stable snapshot.
      * @returns The same frozen value map until a row changes.
      */
-    ProjectionValueStore.prototype.values = function () {
+    values() {
         if (this.valuesCache === undefined) {
-            this.valuesCache = Object.freeze(Object.fromEntries(__spreadArray([], this.rows, true).map(function (_a) {
-                var key = _a[0], row = _a[1];
-                return [key, row.value];
-            })));
+            this.valuesCache = Object.freeze(Object.fromEntries([...this.rows].map(([key, row]) => [key, row.value])));
         }
         return this.valuesCache;
-    };
+    }
     /**
      * Subscribe to any-key changes (microtask-batched) — the manager's list
      * rebuild channel.
      * @param listener - change callback.
      * @returns the unsubscribe function.
      */
-    ProjectionValueStore.prototype.subscribeAny = function (listener) {
+    subscribeAny(listener) {
         return this.anyNotifier.subscribe(listener);
-    };
+    }
     /**
      * Apply one finished value (the `session/projection` push-frame path).
      * @param key - projection key.
      * @param value - whole value computed by the host unit.
      * @param seq - the unit's watermark at emission.
      */
-    ProjectionValueStore.prototype.apply = function (key, value, seq) {
-        var row = this.rows.get(key);
+    apply(key, value, seq) {
+        const row = this.rows.get(key);
         if (row !== undefined && seq <= row.seq)
             return; // higher seq wins; replays and stale frames drop
-        this.rows.set(key, { value: value, seq: seq });
+        this.rows.set(key, { value, seq });
         this.changed(key);
-    };
+    }
     /**
      * Seed from a history tail page's projections block: every carried key
      * lands under the same seq rule as frames; a key the block omits is
@@ -91,16 +74,13 @@ var ProjectionValueStore = /** @class */ (function () {
      * clear newer values).
      * @param baseline - the response's projections block.
      */
-    ProjectionValueStore.prototype.seed = function (baseline) {
+    seed(baseline) {
         // Erased walk: the framework crosses the open key space; per-key typing
         // is re-established at the consumer (useProjection's map lookup).
-        var values = baseline.values;
-        for (var _i = 0, _a = Object.keys(values); _i < _a.length; _i++) {
-            var key = _a[_i];
+        const values = baseline.values;
+        for (const key of Object.keys(values))
             this.apply(key, values[key], baseline.asOfSeq);
-        }
-        for (var _b = 0, _c = this.rows; _b < _c.length; _b++) {
-            var _d = _c[_b], key = _d[0], row = _d[1];
+        for (const [key, row] of this.rows) {
             if (Object.hasOwn(values, key))
                 continue;
             if (row.seq > baseline.asOfSeq)
@@ -108,7 +88,7 @@ var ProjectionValueStore = /** @class */ (function () {
             this.rows.delete(key);
             this.changed(key);
         }
-    };
+    }
     /**
      * Drop rows past a mux-generation baseline (`session/subscribed.lastSeq`):
      * a row claiming knowledge beyond the host's own durable baseline rode
@@ -118,38 +98,34 @@ var ProjectionValueStore = /** @class */ (function () {
      * generalized).
      * @param lastSeq - the subscribed frame's durable baseline seq.
      */
-    ProjectionValueStore.prototype.truncate = function (lastSeq) {
-        for (var _i = 0, _a = this.rows; _i < _a.length; _i++) {
-            var _b = _a[_i], key = _b[0], row = _b[1];
+    truncate(lastSeq) {
+        for (const [key, row] of this.rows) {
             if (row.seq <= lastSeq)
                 continue;
             this.rows.delete(key);
             this.changed(key);
         }
-    };
-    ProjectionValueStore.prototype.changed = function (key) {
-        var _a;
+    }
+    changed(key) {
         this.valuesCache = undefined;
-        (_a = this.channels.get(key)) === null || _a === void 0 ? void 0 : _a.notifier.markDirty();
+        this.channels.get(key)?.notifier.markDirty();
         this.anyNotifier.markDirty();
-    };
-    ProjectionValueStore.prototype.channel = function (key) {
-        var _this = this;
-        var channel = this.channels.get(key);
+    }
+    channel(key) {
+        let channel = this.channels.get(key);
         if (channel === undefined) {
             // The notifier only batches (no snapshot cache to rebuild: faces read rows directly).
-            var notifier_1 = new notifier_ts_1.Notifier(function () { });
+            const notifier = new Notifier(() => { });
             channel = {
-                notifier: notifier_1,
+                notifier,
                 face: {
-                    getSnapshot: function () { var _a; return (_a = _this.rows.get(key)) === null || _a === void 0 ? void 0 : _a.value; },
-                    subscribe: function (listener) { return notifier_1.subscribe(listener); },
+                    getSnapshot: () => this.rows.get(key)?.value,
+                    subscribe: listener => notifier.subscribe(listener),
                 },
             };
             this.channels.set(key, channel);
         }
         return channel;
-    };
-    return ProjectionValueStore;
-}());
-exports.ProjectionValueStore = ProjectionValueStore;
+    }
+}
+//# sourceMappingURL=projection-store.js.map

@@ -7,9 +7,9 @@
 
 import { describe, expect, it } from 'vitest'
 import fc from 'fast-check'
-import { isJsonValue } from '@z/dsh-session'
-import { parameterSchemaSpecToJsonSchema, validateArgs } from '@z/dsh-tools'
-import type { ParameterPropertySpec, ParameterSchemaSpec, ValueSchemaSpec } from '@z/dsh-tools'
+import { isJsonValue } from '@taskweaver/dsh-session'
+import { parameterSchemaSpecToJsonSchema, validateArgs } from '@taskweaver/dsh-tools'
+import type { ParameterPropertySpec, ParameterSchemaSpec, ValueSchemaSpec } from '@taskweaver/dsh-tools'
 
 /** Remove parameter-only requiredness before nesting a schema as an array item. */
 function asValueSchema(prop: ParameterPropertySpec): ValueSchemaSpec {

@@ -1,8 +1,8 @@
 /**
- * Package-owned invariant companion for `@z/dsh-client-test-runtime`.
- * @module @z/dsh-client-test-runtime/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-client-test-runtime`.
+ * @module @taskweaver/dsh-client-test-runtime/invariant
  */
-import type { Context } from '@z/cordis';
+import type { Context } from '@taskweaver/cordis';
 /** Cordis companion plugin name. */
 export declare const name = "client-test-runtime-invariant";
 /** Service required before the companion can reserve package ownership. */

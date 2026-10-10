@@ -1,36 +1,15 @@
-"use strict";
 /**
  * Service Definition for the subprocess capability seam (`ctx.subprocess`): execution-world executable lookup,
  * fully specified managed process trees with raw or
  * collected stdio, and one terminal-process primitive. Command defaulting,
  * shell semantics, deadlines, protocol framing, terminal readiness, and
  * presentation belong to consumers. The local implementation lives in
- * `@z/dsh-subprocess-local`.
- * @module @z/dsh-subprocess
+ * `@taskweaver/dsh-subprocess-local`.
+ * @module @taskweaver/dsh-subprocess
  */
-var __extends = (this && this.__extends) || (function () {
-    var extendStatics = function (d, b) {
-        extendStatics = Object.setPrototypeOf ||
-            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-            function (d, b) { for (var p in b) if (Object.prototype.hasOwnProperty.call(b, p)) d[p] = b[p]; };
-        return extendStatics(d, b);
-    };
-    return function (d, b) {
-        if (typeof b !== "function" && b !== null)
-            throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
-})();
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.SubprocessRuntime = exports.SENSITIVE_ENV_PATTERN = exports.Z_ENV_PREFIX = exports.DSH_ENV_PREFIX = void 0;
-exports.scrubbedParentEnv = scrubbedParentEnv;
-var cordis_1 = require("@z/cordis");
-var types_ts_1 = require("./types.ts");
-var types_ts_2 = require("./types.ts");
-Object.defineProperty(exports, "DSH_ENV_PREFIX", { enumerable: true, get: function () { return types_ts_2.DSH_ENV_PREFIX; } });
-Object.defineProperty(exports, "Z_ENV_PREFIX", { enumerable: true, get: function () { return types_ts_2.Z_ENV_PREFIX; } });
+import { Service } from '@taskweaver/cordis';
+import { LEGACY_TASKWEAVER_ENV_PREFIXES, TASKWEAVER_ENV_PREFIX } from "./types.js";
+export { DSH_ENV_PREFIX, LEGACY_TASKWEAVER_ENV_PREFIXES, TASKWEAVER_ENV_PREFIX, Z_ENV_PREFIX, } from "./types.js";
 /**
  * Credential-shaped environment names are NOT forwarded to children (the
  * harness's own `DEEPSEEK_API_KEY`/secrets must not leak into a spawned
@@ -38,28 +17,34 @@ Object.defineProperty(exports, "Z_ENV_PREFIX", { enumerable: true, get: function
  * deliberately supplied entry survives because explicit env layers merge
  * after the scrub.
  */
-exports.SENSITIVE_ENV_PATTERN = /KEY|PASSWORD|SECRET|TOKEN/i;
+export const SENSITIVE_ENV_PATTERN = /KEY|PASSWORD|SECRET|TOKEN/i;
+const warnedLegacyPrefixes = new Set();
 /**
- * The ambient parent environment minus credential-shaped names and minus all
- * `DSH_*` names — the canonical base every harness child starts from. `PATH`,
+ * The ambient parent environment minus credential-shaped names and all
+ * TaskWeaver-managed names (including legacy aliases) — the canonical base every child starts from. `PATH`,
  * `HOME`, locale, and proxy variables survive, so child CLIs run normally;
  * harness identity never leaks implicitly (a deliberately forwarded
- * credential or current `DSH_*` fact goes through the spec's explicit `env`,
- * which merges after this scrub). Both scrubs match case-insensitively:
- * Windows environment names are case-insensitive, so a parent `dsh_*` entry
- * would otherwise survive and read back as `$env:DSH_*` in the child;
- * deliberate lowercase `dsh_*` names on POSIX are implausible. Exported as a plain function so spawners
+ * credential or current `TASKWEAVER_*` fact goes through the spec's explicit `env`,
+ * which merges after this scrub). Prefix scrubbing matches case-insensitively
+ * because Windows environment names are case-insensitive. Exported as a plain function so spawners
  * that cannot route through the service (node-pty backends, SDK-managed
  * transports) share the one scrub definition.
  * @returns a fresh environment object safe to hand to a child spawn.
  */
-function scrubbedParentEnv() {
-    var env = {};
-    for (var _i = 0, _a = Object.entries(process.env); _i < _a.length; _i++) {
-        var _b = _a[_i], key = _b[0], value = _b[1];
-        var upper = key.toUpperCase();
-        if (value !== undefined && !exports.SENSITIVE_ENV_PATTERN.test(key)
-            && !upper.startsWith(types_ts_1.DSH_ENV_PREFIX) && !upper.startsWith(types_ts_1.Z_ENV_PREFIX))
+export function scrubbedParentEnv() {
+    const env = {};
+    for (const [key, value] of Object.entries(process.env)) {
+        const upper = key.toUpperCase();
+        const legacyPrefix = LEGACY_TASKWEAVER_ENV_PREFIXES.find((prefix) => upper.startsWith(prefix));
+        if (legacyPrefix !== undefined) {
+            if (!warnedLegacyPrefixes.has(legacyPrefix)) {
+                warnedLegacyPrefixes.add(legacyPrefix);
+                console.warn(`[TaskWeaver] ${legacyPrefix} 子进程环境变量前缀已弃用，请改用 ${TASKWEAVER_ENV_PREFIX}。`);
+            }
+            continue;
+        }
+        if (value !== undefined && !SENSITIVE_ENV_PATTERN.test(key)
+            && !upper.startsWith(TASKWEAVER_ENV_PREFIX))
             env[key] = value;
     }
     return env;
@@ -92,12 +77,10 @@ function scrubbedParentEnv() {
  *   in the PTY consumer. Its output stream ends after queued terminal output
  *   when the top-level process exits.
  */
-var SubprocessRuntime = /** @class */ (function (_super) {
-    __extends(SubprocessRuntime, _super);
-    function SubprocessRuntime(ctx) {
-        return _super.call(this, ctx, 'subprocess') || this;
+export class SubprocessRuntime extends Service {
+    constructor(ctx) {
+        super(ctx, 'subprocess');
     }
-    return SubprocessRuntime;
-}(cordis_1.Service));
-exports.SubprocessRuntime = SubprocessRuntime;
-exports.default = SubprocessRuntime;
+}
+export default SubprocessRuntime;
+//# sourceMappingURL=index.js.map

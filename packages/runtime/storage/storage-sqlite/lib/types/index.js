@@ -2,10 +2,10 @@
  * SQLite storage backend for the storage hub: one database file hosts every
  * routed unit, document-per-row (`key TEXT` / `value TEXT` JSON). Registers
  * as backend `sqlite`; the disposer unregisters first, then closes the medium.
- * @module @z/dsh-storage-sqlite
+ * @module @taskweaver/dsh-storage-sqlite
  */
-import z from '@z/schemastery';
-import { StorageError, UNIT_NAME_RE, storageBackendServiceKey } from '@z/dsh-storage';
+import z from '@taskweaver/schemastery';
+import { StorageError, UNIT_NAME_RE, storageBackendServiceKey } from '@taskweaver/dsh-storage';
 import { openDatabase, recordTableName } from "./schema.js";
 import { SqliteKvUnit } from "./unit.js";
 export { STORAGE_SQLITE_SCHEMA_VERSION } from "./schema.js";

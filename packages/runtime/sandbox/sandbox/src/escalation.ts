@@ -1,6 +1,6 @@
 /**
  * The escalation vocabulary and choreography shared by every sandbox-enforcing
- * tool family (`@z/dsh-tool-bash`, `@z/dsh-tool-fs`): the
+ * tool family (`@taskweaver/dsh-tool-bash`, `@taskweaver/dsh-tool-fs`): the
  * strictly-wider ladder, the argument-pairing validation, the model-facing
  * denial/hint markers, and {@link approveEscalation} — the ordered fail-closed
  * sequence that resolves a `sandbox_permissions` request through a
@@ -16,7 +16,7 @@
  * @module dsh-sandbox/escalation
  */
 
-import { assertNever } from '@z/dsh-llm'
+import { assertNever } from '@taskweaver/dsh-llm'
 import type { SandboxMode } from './index.ts'
 
 /**

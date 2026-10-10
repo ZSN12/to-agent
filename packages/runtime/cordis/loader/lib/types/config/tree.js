@@ -6,8 +6,8 @@ var __rewriteRelativeImportExtension = (this && this.__rewriteRelativeImportExte
     }
     return path;
 };
-import { composeError } from '@z/cordis';
-import { isNonNullable } from '@z/cosmokit';
+import { composeError } from '@taskweaver/cordis';
+import { isNonNullable } from '@taskweaver/cosmokit';
 import { EntryGroup } from "./group.js";
 /** Mutable tree of loader entries. Persistence is supplied by subclasses. */
 export class EntryTree {

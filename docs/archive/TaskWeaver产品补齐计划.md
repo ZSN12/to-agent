@@ -349,7 +349,7 @@ userData/
 ## 文件与模块规划（新增/改动）
 
 ```text
-electron/backend/
+desktop/backend/
   thread-store.mjs          # §1
   workspace-index.mjs       # §2
   context-assembler.mjs     # §2

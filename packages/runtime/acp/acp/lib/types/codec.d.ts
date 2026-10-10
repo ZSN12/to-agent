@@ -1,9 +1,9 @@
 /**
  * Pure translation between the harness lifecycle and the automation-only ACP wire.
- * @module @z/dsh-acp/codec
+ * @module @taskweaver/dsh-acp/codec
  */
 import type { StopReason } from '@agentclientprotocol/sdk';
-import type { TurnEndReason } from '@z/dsh-session';
+import type { TurnEndReason } from '@taskweaver/dsh-session';
 /**
  * Map a harness turn ending to ACP's terminal reason vocabulary.
  * @param reason - harness turn outcome.

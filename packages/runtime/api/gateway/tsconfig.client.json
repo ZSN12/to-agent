@@ -1,5 +1,5 @@
 {
-  "extends": "../../../../tsconfig.base.client.json",
+  "extends": "../../tsconfig.base.client.json",
   "compilerOptions": {
     "rootDir": "src",
     "outDir": "lib/types",
@@ -10,7 +10,7 @@
   ],
   "references": [
     {
-      "path": "../../../../vendor/cordis"
+      "path": "../../cordis/cordis"
     },
     {
       "path": "../../client/connection/tsconfig.client.json"

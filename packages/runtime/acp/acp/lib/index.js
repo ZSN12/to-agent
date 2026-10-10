@@ -1,11 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { isAbsolute } from "node:path";
 import { Readable, Writable } from "node:stream";
-import Schema from "@z/schemastery";
-import { createUserMessage, errorChain } from "@z/dsh-llm";
+import Schema from "@taskweaver/schemastery";
+import { createUserMessage, errorChain } from "@taskweaver/dsh-llm";
 import { AgentSideConnection, PROTOCOL_VERSION, RequestError, ndJsonStream } from "@agentclientprotocol/sdk";
-import { SessionId } from "@z/dsh-session";
-import { isImageAdmissionError } from "@z/dsh-attachment";
+import { SessionId } from "@taskweaver/dsh-session";
+import { isImageAdmissionError } from "@taskweaver/dsh-attachment";
 //#region lib/types/content.js
 /** ACP wire-content admission and projection owned by the ACP adapter. @module */
 /** Raster formats shared by ACP image blocks and the core attachment vocabulary. */
@@ -196,7 +196,7 @@ async function assistantBlockToAcp(ctx, block) {
 //#region lib/types/codec.js
 /**
 * Pure translation between the harness lifecycle and the automation-only ACP wire.
-* @module @z/dsh-acp/codec
+* @module @taskweaver/dsh-acp/codec
 */
 /**
 * Map a harness turn ending to ACP's terminal reason vocabulary.
@@ -225,7 +225,7 @@ function turnEndToStopReason(reason) {
 * and one-shot permission decisions; presentation and human-interaction
 * features stay with the harness's UI modules.
 *
-* @module @z/dsh-acp
+* @module @taskweaver/dsh-acp
 */
 const name = "acp";
 /** The bridge creates and owns agents; every other concern is carried by the agent composition. */

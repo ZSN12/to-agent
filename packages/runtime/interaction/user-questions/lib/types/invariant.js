@@ -1,27 +1,22 @@
-"use strict";
 /**
- * Package-owned invariant companion for `@z/dsh-user-questions`.
- * @module @z/dsh-user-questions/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-user-questions`.
+ * @module @taskweaver/dsh-user-questions/invariant
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.apply = exports.inject = exports.name = void 0;
-var PACKAGE_NAME = '@z/dsh-user-questions';
+const PACKAGE_NAME = '@taskweaver/dsh-user-questions';
 /** Cordis companion plugin name. */
-exports.name = 'user-questions-invariant';
+export const name = 'user-questions-invariant';
 /** Service required before the companion can reserve package ownership. */
-exports.inject = ['invariants'];
+export const inject = ['invariants'];
 /**
  * No runtime invariant: the single provider slot is validated at registration and asks return
  * directly to their caller; the seam publishes no independent request/answer audit stream.
  */
-var install = function () { };
+const install = () => { };
 /**
  * Register this package's invariant companion.
  * @param ctx - Cordis context carrying the invariant service.
  * @returns the installed registration's disposer after setup succeeds.
  */
-var apply = function (ctx) {
-    return Promise.resolve(ctx.invariants.register(PACKAGE_NAME, install));
-};
-exports.apply = apply;
+export const apply = (ctx) => Promise.resolve(ctx.invariants.register(PACKAGE_NAME, install));
 /* jscpd:ignore-end */
+//# sourceMappingURL=invariant.js.map

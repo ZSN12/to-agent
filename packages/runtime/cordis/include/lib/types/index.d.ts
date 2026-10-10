@@ -1,5 +1,5 @@
-import { EntryGroup, EntryTree, type EntryOptions } from '@z/cordis-plugin-loader';
-import { Context, Service } from '@z/cordis';
+import { EntryGroup, EntryTree, type EntryOptions } from '@taskweaver/cordis-plugin-loader';
+import { Context, Service } from '@taskweaver/cordis';
 import * as yaml from 'js-yaml';
 /**
  * The entry-list YAML dialect: `!!js` scalars round-trip as expression nodes

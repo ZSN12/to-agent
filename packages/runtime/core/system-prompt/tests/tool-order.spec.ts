@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import SystemPrompt, { PromptAssembly, TOOL_ORDER_REST } from '@z/dsh-system-prompt'
-import type { ToolSchema } from '@z/dsh-llm'
+import { Context } from '@taskweaver/cordis'
+import SystemPrompt, { PromptAssembly, TOOL_ORDER_REST } from '@taskweaver/dsh-system-prompt'
+import type { ToolSchema } from '@taskweaver/dsh-llm'
 
 function tool(name: string, description = name): ToolSchema {
   return { name, description, parameters: { type: 'object', properties: {} } }

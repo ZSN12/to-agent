@@ -1,8 +1,8 @@
 /**
- * Package-owned invariant companion for `@z/dsh-acp`.
- * @module @z/dsh-acp/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-acp`.
+ * @module @taskweaver/dsh-acp/invariant
  */
-import type { Context } from '@z/cordis';
+import type { Context } from '@taskweaver/cordis';
 /** Cordis companion plugin name. */
 export declare const name = "acp-invariant";
 /** Service required before the companion can reserve package ownership. */

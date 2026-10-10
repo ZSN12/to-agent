@@ -1,10 +1,10 @@
 /**
  * Types shared by job producers, the registry, and controllers. The
  * service implementation lives in `./index.ts`.
- * @module @z/dsh-jobs/types
+ * @module @taskweaver/dsh-jobs/types
  */
-import type { Agent } from '@z/dsh-agent';
-import type { SessionId } from '@z/dsh-session';
+import type { Agent } from '@taskweaver/dsh-agent';
+import type { SessionId } from '@taskweaver/dsh-session';
 import type { JobId } from './brand.ts';
 export { JobId } from './brand.ts';
 /**

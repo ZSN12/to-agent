@@ -15,10 +15,10 @@
  * absent `ctx.shell`, or a failed query is a no-op, never an error: an executor
  * rejection is contained and logged as a warning so the turn continues.
  *
- * @module @z/dsh-tmux-context
+ * @module @taskweaver/dsh-tmux-context
  */
-import z from '@z/schemastery';
-import { createUserMessage } from '@z/dsh-llm';
+import z from '@taskweaver/schemastery';
+import { createUserMessage } from '@taskweaver/dsh-llm';
 /** Cordis plugin name used by loader diagnostics. */
 export const name = 'tmux-context';
 /** The agent registry that owns pre-step processing. */

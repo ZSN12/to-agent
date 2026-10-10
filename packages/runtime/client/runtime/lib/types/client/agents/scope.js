@@ -1,7 +1,3 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.createScope = createScope;
-exports.scopeOf = scopeOf;
 /**
  * Client Agent-scope primitive: mint a Cordis context tagged with the owning
  * Agent's identity. The mechanism mirrors the host `dsh-scope` architecture
@@ -19,9 +15,9 @@ exports.scopeOf = scopeOf;
  * — a cold session's host Agent is already disposed while its client actx
  * stays alive for history viewing.
  */
-var cordis_1 = require("@z/cordis");
+import { Context as CordisContext } from '@taskweaver/cordis';
 /** Context tag written by {@link createScope}. */
-var kScope = Symbol('dsh.client.scope');
+const kScope = Symbol('dsh.client.scope');
 /** Shared no-op plugin backing each Agent scope fiber. */
 function agentScope() { }
 /**
@@ -33,18 +29,17 @@ function agentScope() { }
  * @param key - owning agent identity (the routing tag; agent id === session id).
  * @returns the tagged context and its backing fiber.
  */
-function createScope(ctx, key) {
-    var _a;
-    var fiber = ctx.plugin(agentScope);
-    var scoped = fiber.ctx.extend((_a = {},
-        _a[kScope] = key,
-        _a[cordis_1.Context.filter] = function (listenerCtx) {
-            var tag = scopeOf(listenerCtx);
+export function createScope(ctx, key) {
+    const fiber = ctx.plugin(agentScope);
+    const scoped = fiber.ctx.extend({
+        [kScope]: key,
+        [CordisContext.filter](listenerCtx) {
+            const tag = scopeOf(listenerCtx);
             return tag === undefined || tag === key;
         },
-        _a));
+    });
     return {
-        fiber: fiber,
+        fiber,
         ctx: scoped,
     };
 }
@@ -53,6 +48,7 @@ function createScope(ctx, key) {
  * @param ctx - any client context.
  * @returns its agent identity (the session id), or undefined for root contexts.
  */
-function scopeOf(ctx) {
+export function scopeOf(ctx) {
     return ctx[kScope];
 }
+//# sourceMappingURL=scope.js.map

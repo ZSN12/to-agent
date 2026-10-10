@@ -6,15 +6,15 @@
  * and one-shot permission decisions; presentation and human-interaction
  * features stay with the harness's UI modules.
  *
- * @module @z/dsh-acp
+ * @module @taskweaver/dsh-acp
  */
 import { randomUUID } from 'node:crypto';
 import { isAbsolute } from 'node:path';
 import { Readable, Writable } from 'node:stream';
-import Schema from '@z/schemastery';
-import { createUserMessage, errorChain } from '@z/dsh-llm';
+import Schema from '@taskweaver/schemastery';
+import { createUserMessage, errorChain } from '@taskweaver/dsh-llm';
 import { AgentSideConnection, ndJsonStream, PROTOCOL_VERSION, RequestError, } from '@agentclientprotocol/sdk';
-import { SessionId } from '@z/dsh-session';
+import { SessionId } from '@taskweaver/dsh-session';
 import { AcpContentError, admitAcpPrompt, assistantBlockToAcp, supportsAcpImagePrompts } from "./content.js";
 import { turnEndToStopReason } from "./codec.js";
 export const name = 'acp';
@@ -228,7 +228,7 @@ export function apply(ctx, config) {
                 // No preset composition: the ACP bundle keeps the model-facing rows in
                 // the host plane, so this agent reads them from the global layer. A
                 // deployment that configures a roster has to join one here first
-                // (@z/dsh-agent-presets README, "Composing a child agent").
+                // (@taskweaver/dsh-agent-presets README, "Composing a child agent").
                 const handle = await agents.create({
                     sessionId,
                     meta: { cwd: params.cwd },

@@ -1,5 +1,5 @@
-/** Package-owned permission-preset event invariants. @module @z/dsh-permission-presets/invariant */
-import type { Context } from '@z/cordis';
+/** Package-owned permission-preset event invariants. @module @taskweaver/dsh-permission-presets/invariant */
+import type { Context } from '@taskweaver/cordis';
 /** Cordis companion plugin name. */
 export declare const name = "permission-presets-invariant";
 /** Service required before the companion can reserve package ownership. */

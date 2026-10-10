@@ -1,19 +1,16 @@
-"use strict";
-/** Package-owned invariant companion for `@z/dsh-attachment`. @module @z/dsh-attachment/invariant */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.apply = exports.inject = exports.name = void 0;
-var PACKAGE_NAME = '@z/dsh-attachment';
+/** Package-owned invariant companion for `@taskweaver/dsh-attachment`. @module @taskweaver/dsh-attachment/invariant */
+const PACKAGE_NAME = '@taskweaver/dsh-attachment';
 /** Cordis companion plugin name. */
-exports.name = 'attachment-invariant';
+export const name = 'attachment-invariant';
 /** Service required before package ownership can be reserved. */
-exports.inject = ['invariants'];
+export const inject = ['invariants'];
 /** No runtime invariant: this stateless seam owns types while implementations enforce immutable-store checks. */
-var install = function () { };
+const install = () => { };
 /**
  * Register the package invariant companion.
  * @param ctx - Cordis context carrying the invariant service.
  * @returns the registration disposer.
  */
-var apply = function (ctx) { return Promise.resolve(ctx.invariants.register(PACKAGE_NAME, install)); };
-exports.apply = apply;
+export const apply = (ctx) => Promise.resolve(ctx.invariants.register(PACKAGE_NAME, install));
 /* jscpd:ignore-end */
+//# sourceMappingURL=invariant.js.map

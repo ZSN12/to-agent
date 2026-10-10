@@ -1,5 +1,5 @@
 /** One-shot session-lineage and event-relationship tracing helpers. */
-import type { SessionEvent, SessionId, SurfaceEvent } from '@z/dsh-session';
+import type { SessionEvent, SessionId, SurfaceEvent } from '@taskweaver/dsh-session';
 import type { SessionEventRecord, SessionEventTrace, SessionLineageTrace, SessionRecord } from './types.ts';
 /**
  * Classify a raw event log with one canonical surface fold.

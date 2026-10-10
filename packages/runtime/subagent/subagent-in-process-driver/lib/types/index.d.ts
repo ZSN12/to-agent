@@ -8,10 +8,10 @@
  * composes and drives them directly, so this driver owns exactly one turn with
  * one result.
  *
- * @module @z/dsh-subagent-in-process-driver
+ * @module @taskweaver/dsh-subagent-in-process-driver
  */
-import { type SessionEvent } from '@z/dsh-session';
-import type { ResolvedSubagentStartRequest, SubagentRun } from '@z/dsh-subagent';
+import { type SessionEvent } from '@taskweaver/dsh-session';
+import type { ResolvedSubagentStartRequest, SubagentRun } from '@taskweaver/dsh-subagent';
 export { STRUCTURED_OUTPUT_TOOL, STRUCTURED_OUTPUT_INSTRUCTION, } from './structured.ts';
 /** Extra inputs the spawn and fork providers supply to the shared driver. */
 export interface InProcessRunOptions {

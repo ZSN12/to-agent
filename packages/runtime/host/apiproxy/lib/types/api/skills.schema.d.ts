@@ -12,7 +12,7 @@ export declare const skillEntrySchema: z.ZodObject<{
 }, z.core.$strip>;
 /** skill.list request payload. */
 export declare const skillListRequestSchema: z.ZodObject<{
-    sessionId: z.ZodType<import("@z/dsh-session").SessionId, unknown, z.core.$ZodTypeInternals<import("@z/dsh-session").SessionId, unknown>>;
+    sessionId: z.ZodType<import("@taskweaver/dsh-session").SessionId, unknown, z.core.$ZodTypeInternals<import("@taskweaver/dsh-session").SessionId, unknown>>;
 }, z.core.$strip>;
 /** skill.list response value. */
 export declare const skillListValueSchema: z.ZodObject<{

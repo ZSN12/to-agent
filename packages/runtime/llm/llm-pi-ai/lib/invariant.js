@@ -1,9 +1,9 @@
 //#region lib/types/invariant.js
 /**
-* Package-owned invariant companion for `@z/dsh-llm-pi-ai`.
-* @module @z/dsh-llm-pi-ai/invariant
+* Package-owned invariant companion for `@taskweaver/dsh-llm-pi-ai`.
+* @module @taskweaver/dsh-llm-pi-ai/invariant
 */
-const PACKAGE_NAME = "@z/dsh-llm-pi-ai";
+const PACKAGE_NAME = "@taskweaver/dsh-llm-pi-ai";
 /** Cordis companion plugin name. */
 const name = "llm-pi-ai-invariant";
 /** Service required before the companion can reserve package ownership. */

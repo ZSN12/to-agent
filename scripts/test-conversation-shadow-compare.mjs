@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import {
   compareConversationTranscripts,
   inspectUserPromptEnvelope,
-} from '../electron/backend/conversation-shadow-compare.mjs'
+} from '../desktop/backend/conversation-shadow-compare.mjs'
 
 const exact = compareConversationTranscripts([
   { author: 'user', text: '  看一下代码  ' },

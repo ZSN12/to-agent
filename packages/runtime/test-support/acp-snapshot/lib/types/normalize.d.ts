@@ -3,7 +3,7 @@
  * timestamps and hook duration while preserving event payloads.
  * Request-header scrubbers stay composable so one scenario per header class can pin prompt and
  * tool-schema sidecars.
- * @module @z/dsh-acp-snapshot/normalize
+ * @module @taskweaver/dsh-acp-snapshot/normalize
  */
 /**
  * Extract every snapshot-mode spill path from a session log, keyed by spill

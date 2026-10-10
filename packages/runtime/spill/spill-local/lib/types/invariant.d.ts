@@ -1,8 +1,8 @@
 /**
- * Package-owned invariant companion for `@z/dsh-spill-local`.
- * @module @z/dsh-spill-local/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-spill-local`.
+ * @module @taskweaver/dsh-spill-local/invariant
  */
-import type { Context } from '@z/cordis';
+import type { Context } from '@taskweaver/cordis';
 /** Cordis companion plugin name. */
 export declare const name = "spill-local-invariant";
 /** Service required before the companion can reserve package ownership. */

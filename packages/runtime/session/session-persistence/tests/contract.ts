@@ -5,13 +5,13 @@
  * to the same append-only / contiguous-seq / lazy-materialization / crash
  * semantics. The JSONL backend's own spec adds file-specific tests on top.
  *
- * @module @z/dsh-session-persistence/tests/contract
+ * @module @taskweaver/dsh-session-persistence/tests/contract
  */
 
 import { describe, expect, it } from 'vitest'
-import { SESSION_FORMAT_VERSION, Session, SessionId, TOOL_NOT_STARTED, TOOL_OUTCOME_UNKNOWN } from '@z/dsh-session'
-import type { SessionEvent, SessionHeader, SurfaceEventType, SurfaceIntent } from '@z/dsh-session'
-import { CallId, MessageId, createMessage, freezeMessage } from '@z/dsh-llm'
+import { SESSION_FORMAT_VERSION, Session, SessionId, TOOL_NOT_STARTED, TOOL_OUTCOME_UNKNOWN } from '@taskweaver/dsh-session'
+import type { SessionEvent, SessionHeader, SurfaceEventType, SurfaceIntent } from '@taskweaver/dsh-session'
+import { CallId, MessageId, createMessage, freezeMessage } from '@taskweaver/dsh-llm'
 import type { SessionPersistence } from '../src/index.ts'
 
 /** A backend under test plus its teardown. */

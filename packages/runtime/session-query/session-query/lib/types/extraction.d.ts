@@ -1,5 +1,5 @@
 /** First-party semantic text extraction for session-query consumers. */
-import type { SessionEvent } from '@z/dsh-session';
+import type { SessionEvent } from '@taskweaver/dsh-session';
 /**
  * Extract searchable semantic text from one first-party session event.
  *

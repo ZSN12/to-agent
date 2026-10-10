@@ -5,7 +5,7 @@
  * so the three figures match `measure()`'s heuristic vocabulary exactly.
  */
 import { z } from 'zod';
-declare module '@z/dsh-session-projection/types' {
+declare module '@taskweaver/dsh-session-projection/types' {
     interface SessionProjectionStateMap {
         contextBreakdown: ContextBreakdownState;
     }
@@ -60,7 +60,7 @@ export declare const contextBreakdownProjectionDefinition: {
             end: number;
             tokens: number;
         } | undefined;
-    }>, event: import("@z/dsh-session").SessionEvent) => {
+    }>, event: import("@taskweaver/dsh-session").SessionEvent) => {
         systemTokens: number;
         toolsTokens: number;
         messageTokens: number;

@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.base.client.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rewriteRelativeImportExtensions": false,
+    "types": ["node"]
+  },
+  "files": [],
+  "references": [
+    { "path": "./client/connection/tsconfig.client.json" },
+    { "path": "./client/runtime" },
+    { "path": "./api/remotes/tsconfig.client.json" }
+  ]
+}

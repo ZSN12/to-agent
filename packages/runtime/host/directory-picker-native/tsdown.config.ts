@@ -5,27 +5,30 @@ import { defineConfig } from 'tsdown'
  * (mirroring dsh-workflow-worker-thread's worker): path-loaded by the driver,
  * inlining the dialog logic while koffi stays an external native require.
  */
-export default defineConfig([
-  {
-    entry: ['lib/types/index.js', 'lib/types/invariant.js'],
-    outDir: 'lib',
-    format: ['esm'],
-    platform: 'node',
-    target: 'es2024',
-    fixedExtension: false,
-    dts: false,
-    clean: false,
-  },
-  {
-    // The artifact is lib/worker.cjs (the ./worker export the workspace
-    // constraint keys on), bundled from the descriptive source entry.
-    entry: { worker: 'lib/types/win32-dialog-worker.js' },
-    outDir: 'lib',
-    format: ['cjs'],
-    platform: 'node',
-    target: 'es2024',
-    fixedExtension: false,
-    dts: false,
-    clean: false,
-  },
-])
+const nodeBackend = {
+  entry: ['lib/types/index.js', 'lib/types/invariant.js'],
+  outDir: 'lib',
+  format: ['esm'] as const,
+  platform: 'node' as const,
+  target: 'es2024',
+  fixedExtension: false,
+  dts: false,
+  clean: false,
+}
+
+/** Win32 dialog worker is only built on Windows; macOS Host uses the checked-in lib/worker.cjs. */
+const win32Worker =
+  process.platform === 'win32'
+    ? [{
+        entry: { worker: 'src/win32-dialog-worker.ts' },
+        outDir: 'lib',
+        format: ['cjs'] as const,
+        platform: 'node' as const,
+        target: 'es2024',
+        fixedExtension: false,
+        dts: false,
+        clean: false,
+      }]
+    : []
+
+export default defineConfig([nodeBackend, ...win32Worker])

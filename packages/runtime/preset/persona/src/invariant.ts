@@ -1,13 +1,13 @@
 /**
- * Package-owned invariant companion for `@z/dsh-persona`.
- * @module @z/dsh-persona/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-persona`.
+ * @module @taskweaver/dsh-persona/invariant
  */
 
 /* jscpd:ignore-start */
-import type { Context } from '@z/cordis'
-import type { InvariantInstaller } from '@z/dsh-invariants'
+import type { Context } from '@taskweaver/cordis'
+import type { InvariantInstaller } from '@taskweaver/dsh-invariants'
 
-const PACKAGE_NAME = '@z/dsh-persona'
+const PACKAGE_NAME = '@taskweaver/dsh-persona'
 
 /** Cordis companion plugin name. */
 export const name = 'persona-invariant'

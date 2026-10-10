@@ -1,13 +1,13 @@
 /**
- * Package-owned invariant companion for `@z/dsh-lsp-stdio`.
- * @module @z/dsh-lsp-stdio/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-lsp-stdio`.
+ * @module @taskweaver/dsh-lsp-stdio/invariant
  */
 
 /* jscpd:ignore-start */
-import type { Context } from '@z/cordis'
-import type { InvariantInstaller } from '@z/dsh-invariants'
+import type { Context } from '@taskweaver/cordis'
+import type { InvariantInstaller } from '@taskweaver/dsh-invariants'
 
-const PACKAGE_NAME = '@z/dsh-lsp-stdio'
+const PACKAGE_NAME = '@taskweaver/dsh-lsp-stdio'
 
 /** Cordis companion plugin name. */
 export const name = 'lsp-stdio-invariant'

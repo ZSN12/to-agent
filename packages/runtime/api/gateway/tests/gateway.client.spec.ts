@@ -1,8 +1,8 @@
-import { Context, Service } from '@z/cordis'
-import type { Fiber } from '@z/cordis'
+import { Context, Service } from '@taskweaver/cordis'
+import type { Fiber } from '@taskweaver/cordis'
 import { describe, expect, expectTypeOf, it, vi } from 'vitest'
 import { z } from 'zod'
-import type { ConnectionHandle } from '@z/dsh-client-connection/client'
+import type { ConnectionHandle } from '@taskweaver/dsh-client-connection/client'
 import type {
   InvocationDescriptor,
   RemoteResult,
@@ -10,12 +10,12 @@ import type {
   TypertContext,
   TypertRemoteScopeApi,
   TypertRemoteNamespace,
-} from '@z/dsh-typert-protocol'
-import TypertRegistry from '@z/dsh-typert-registry'
+} from '@taskweaver/dsh-typert-protocol'
+import TypertRegistry from '@taskweaver/dsh-typert-registry'
 import type { ClientRemote } from '../src/client/index.ts'
 import { apply, inject } from '../src/client/index.ts'
 
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
   interface Events {
     /**
      * Test-only forwarded Host event.
@@ -35,7 +35,7 @@ declare module '@z/cordis' {
   }
 }
 
-declare module '@z/dsh-typert-protocol' {
+declare module '@taskweaver/dsh-typert-protocol' {
   interface TypertRemoteEventSelection extends Record<'fixture/changed' | 'fixture/idle', true> {}
 
   interface TypertContextMap {

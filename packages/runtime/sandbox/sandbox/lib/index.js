@@ -1,11 +1,11 @@
-import { Service } from "@z/cordis";
-import { HarnessError, assertNever } from "@z/dsh-llm";
+import { Service } from "@taskweaver/cordis";
+import { HarnessError, assertNever } from "@taskweaver/dsh-llm";
 import { realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 //#region lib/types/escalation.js
 /**
 * The escalation vocabulary and choreography shared by every sandbox-enforcing
-* tool family (`@z/dsh-tool-bash`, `@z/dsh-tool-fs`): the
+* tool family (`@taskweaver/dsh-tool-bash`, `@taskweaver/dsh-tool-fs`): the
 * strictly-wider ladder, the argument-pairing validation, the model-facing
 * denial/hint markers, and {@link approveEscalation} — the ordered fail-closed
 * sequence that resolves a `sandbox_permissions` request through a
@@ -116,8 +116,8 @@ async function approveEscalation(request, approval) {
 * expresses a mode as a canonical allow-list: `workspace-write` means "the
 * workspace root plus the platform temp areas", and this module is that
 * meaning's one home. The Seatbelt profile
-* (`@z/dsh-sandbox-local`) and the in-process filesystem fence
-* (`@z/dsh-fs-sandbox`) both derive their allow-list here, so "the
+* (`@taskweaver/dsh-sandbox-local`) and the in-process filesystem fence
+* (`@taskweaver/dsh-fs-sandbox`) both derive their allow-list here, so "the
 * write tool cannot write /tmp but bash can" asymmetries cannot arise between
 * them. The bwrap and Landlock dialects keep their own grant spellings (an
 * ephemeral `/tmp` mount, launcher-owned flags) — the honest per-runner
@@ -165,7 +165,7 @@ function writableRoots(policy) {
 * Service Definition for the same-world process-confinement capability seam: wrap exact subprocess argv under a
 * host-path file policy. Containers, microVMs, and remote execution replace the
 * surrounding capability seam instead; this service shares the host kernel and filesystem.
-* @module @z/dsh-sandbox
+* @module @taskweaver/dsh-sandbox
 */
 /**
 * Error code for a requested confined mode when no backend is usable. The

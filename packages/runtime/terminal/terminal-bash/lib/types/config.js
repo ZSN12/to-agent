@@ -1,6 +1,6 @@
 /** Validated configuration for the local PTY backend. */
-import z from '@z/schemastery';
-import { resolvePwshPath } from '@z/dsh-pwsh-local';
+import z from '@taskweaver/schemastery';
+import { resolvePwshPath } from '@taskweaver/dsh-pwsh-local';
 /** Bash dialect default executable. */
 export const DEFAULT_BASH_SHELL = '/bin/bash';
 /** Bash dialect default arguments (interactive, profile-free). */

@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import type { Agent } from '@z/dsh-agent'
-import { SessionId } from '@z/dsh-session'
-import JobRegistry, { JobId } from '@z/dsh-jobs'
-import type { JobDoneListener, JobSnapshot } from '@z/dsh-jobs'
-import * as JobsInvariant from '@z/dsh-jobs/invariant'
-import InvariantRegistry from '@z/dsh-invariants'
+import { Context } from '@taskweaver/cordis'
+import type { Agent } from '@taskweaver/dsh-agent'
+import { SessionId } from '@taskweaver/dsh-session'
+import JobRegistry, { JobId } from '@taskweaver/dsh-jobs'
+import type { JobDoneListener, JobSnapshot } from '@taskweaver/dsh-jobs'
+import * as JobsInvariant from '@taskweaver/dsh-jobs/invariant'
+import InvariantRegistry from '@taskweaver/dsh-invariants'
 
 const BASE: JobSnapshot = {
   id: JobId('bash-1'),

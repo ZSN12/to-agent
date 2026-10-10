@@ -1,7 +1,7 @@
-import { Service } from "@z/cordis";
-import { Session, foldSurface, isSurfaceEvent, snapshotSessionEvent } from "@z/dsh-session";
-import { foldSessionTitle } from "@z/dsh-session-title";
-import { HarnessError } from "@z/dsh-llm";
+import { Service } from "@taskweaver/cordis";
+import { Session, foldSurface, isSurfaceEvent, snapshotSessionEvent } from "@taskweaver/dsh-session";
+import { foldSessionTitle } from "@taskweaver/dsh-session-title";
+import { HarnessError } from "@taskweaver/dsh-llm";
 //#region lib/types/config.js
 /** Public configuration and typed failures for the combined session-query service. */
 /** Default maximum `before`/`after` raw-event window. */
@@ -773,7 +773,7 @@ function SessionSearchCursor(value) {
 /**
 * Service Definition for combined session-history reads, traces, filters, and full-text search.
 *
-* @module @z/dsh-session-query
+* @module @taskweaver/dsh-session-query
 */
 /**
 * Unified live-preferred session query service.

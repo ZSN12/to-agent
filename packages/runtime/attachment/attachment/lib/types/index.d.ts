@@ -1,12 +1,12 @@
-/** Durable attachment storage seam (`ctx.attachments`). @module @z/dsh-attachment */
-import { Context, Service } from '@z/cordis';
+/** Durable attachment storage seam (`ctx.attachments`). @module @taskweaver/dsh-attachment */
+import { Context, Service } from '@taskweaver/cordis';
 import type { ImageAttachmentLimits, ImageAttachmentRef, ImageRequestPolicy, RequestImageAttachment, SaveImageAttachment, StoredImageAttachment } from './types.ts';
 export { AttachmentId, ImageVariantId } from './brand.ts';
 export { AttachmentError, isImageAdmissionError } from './error.ts';
 export type { AttachmentErrorCode, ImageAdmissionErrorCode } from './error.ts';
 export { admitEncodedImages } from './admission.ts';
 export type { AttachmentId as AttachmentIdType, EncodedImageAttachment, ImageAttachmentLimits, ImageAttachmentRef, ImageRequestPolicy, ImageMediaType, RequestImageAttachment, SaveImageAttachment, StoredImageAttachment, } from './types.ts';
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
     interface Context {
         attachments: AttachmentStore;
     }

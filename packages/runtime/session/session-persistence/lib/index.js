@@ -1,6 +1,6 @@
-import { Service } from "@z/cordis";
-import { KNOWN_SESSION_EVENT_TYPES, SESSION_FORMAT_VERSION, SessionPreparation, adoptSessionEvent, interruptedTurnClosers, snapshotJsonValue, snapshotSessionEvent } from "@z/dsh-session";
-import { MAX_TIMER_DELAY_MS } from "@z/dsh-timeout";
+import { Service } from "@taskweaver/cordis";
+import { KNOWN_SESSION_EVENT_TYPES, SESSION_FORMAT_VERSION, SessionPreparation, adoptSessionEvent, interruptedTurnClosers, snapshotJsonValue, snapshotSessionEvent } from "@taskweaver/dsh-session";
+import { MAX_TIMER_DELAY_MS } from "@taskweaver/dsh-timeout";
 //#region lib/types/revision.js
 /** Opaque revision identity for lightweight persistence observations. */
 /**
@@ -15,7 +15,7 @@ function SessionPersistenceRevision(value) {
 //#region lib/types/preparations.js
 /**
 * Bounded sharing and exclusive reservation of unpublished Sessions.
-* @module @z/dsh-session-persistence/preparations
+* @module @taskweaver/dsh-session-persistence/preparations
 */
 /** Per-coordinator cold-read sharing, exclusive reservation, and ready-entry LRU. */
 var SessionPreparations = class {
@@ -292,7 +292,7 @@ function rejectObservation(reject, reason) {
 //#region lib/types/write-behind.js
 /**
 * Bounded per-session write batching for the shared persistence coordinator.
-* @module @z/dsh-session-persistence/write-behind
+* @module @taskweaver/dsh-session-persistence/write-behind
 */
 /**
 * Owns one live session's pending events, fixed batching deadline, active write,
@@ -428,7 +428,7 @@ var SessionWriteBehind = class {
 * Shared buffering, serialization, adoption, repair, and disposal orchestration
 * for first-party backends. Third-party backends may implement the public
 * persistence seam directly.
-* @module @z/dsh-session-persistence/coordinator
+* @module @taskweaver/dsh-session-persistence/coordinator
 */
 /** Default number of detached session preparations retained by a coordinator. */
 const DEFAULT_PREPARED_SESSION_CACHE_SIZE = 5;
@@ -1338,7 +1338,7 @@ var PersistenceCoordinator = class {
 * Durable session-persistence Service Definition (`ctx.sessionPersistence`). Backends store
 * {@link SessionEvent}s as the event-sourced log and carry non-replayable
 * {@link SessionHeader} metadata separately.
-* @module @z/dsh-session-persistence
+* @module @taskweaver/dsh-session-persistence
 */
 /**
 * Durable append-only session storage. Implementations preserve contiguous,

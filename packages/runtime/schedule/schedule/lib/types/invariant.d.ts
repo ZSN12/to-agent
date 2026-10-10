@@ -1,8 +1,8 @@
 /**
  * Package-owned strict Schedule stream invariant.
- * @module @z/dsh-schedule/invariant
+ * @module @taskweaver/dsh-schedule/invariant
  */
-import type { Context } from '@z/cordis';
+import type { Context } from '@taskweaver/cordis';
 /** Cordis invariant-companion plugin name. */
 export declare const name = "tool-schedule-invariant";
 /** Service required before reserving this package's invariant ownership. */

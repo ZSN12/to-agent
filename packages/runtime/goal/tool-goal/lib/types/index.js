@@ -1,44 +1,29 @@
-"use strict";
 /**
  * Model-facing `get_goal`, `create_goal`, and `update_goal` tools over the
  * persisted same-session goal domain.
- * @module @z/dsh-tool-goal
+ * @module @taskweaver/dsh-tool-goal
  */
-var __assign = (this && this.__assign) || function () {
-    __assign = Object.assign || function(t) {
-        for (var s, i = 1, n = arguments.length; i < n; i++) {
-            s = arguments[i];
-            for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p))
-                t[p] = s[p];
-        }
-        return t;
-    };
-    return __assign.apply(this, arguments);
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.Config = exports.inject = exports.name = void 0;
-exports.apply = apply;
-var schemastery_1 = require("@z/schemastery");
-var dsh_goal_1 = require("@z/dsh-goal");
-var dsh_llm_1 = require("@z/dsh-llm");
-var dsh_tools_1 = require("@z/dsh-tools");
-var authority_ts_1 = require("./authority.ts");
-var wrapup_ts_1 = require("./wrapup.ts");
-exports.name = 'tool-goal';
-exports.inject = ['agents', 'goals', 'tools', 'systemPrompt'];
+import z from '@taskweaver/schemastery';
+import { GoalId } from '@taskweaver/dsh-goal';
+import { boundContextSummary, createUserMessage, HarnessError } from '@taskweaver/dsh-llm';
+import { defineTool } from '@taskweaver/dsh-tools';
+import { completionAuthority, goalToolExecution, requireDirectHuman, } from "./authority.js";
+import { renderWrapupContext } from "./wrapup.js";
+export const name = 'tool-goal';
+export const inject = ['agents', 'goals', 'tools', 'systemPrompt'];
 /** Schemastery config for the goal-tool policy. */
-exports.Config = schemastery_1.default.object({
-    blockedAfterConsecutiveRounds: schemastery_1.default.number().step(1).min(1).default(3),
+export const Config = z.object({
+    blockedAfterConsecutiveRounds: z.number().step(1).min(1).default(3),
 });
-var UPDATE_ACTIONS = ['edit', 'pause', 'resume', 'complete', 'blocked'];
-var CREATE_DESCRIPTION = 'Create one persisted same-session completion goal when the current direct human request '
+const UPDATE_ACTIONS = ['edit', 'pause', 'resume', 'complete', 'blocked'];
+const CREATE_DESCRIPTION = 'Create one persisted same-session completion goal when the current direct human request '
     + 'is a long-running objective that should continue across autonomous goal rounds. You may '
     + 'infer that intent without requiring the user to say "create a goal". Do not use this for '
     + 'trivial single-turn work. Execution rejects non-human and subagent authority.';
-var GET_DESCRIPTION = 'Read the current same-session goal, including its exact id/revision, objective, phase, completed '
+const GET_DESCRIPTION = 'Read the current same-session goal, including its exact id/revision, objective, phase, completed '
     + 'continuation rounds, round limit, blocker reason when present, and whether another continuation is armed. '
     + 'Call this before updating a goal.';
-var GOAL_VALUE_SCHEMA = {
+const GOAL_VALUE_SCHEMA = {
     oneOf: [
         {
             type: 'object',
@@ -85,14 +70,13 @@ function guidance(blockedAfter) {
         + 'exact goal_id and revision. After session resume or fork, an active goal is disarmed: when '
         + 'a human asks to continue or resume in any wording or language, use update_goal action '
         + 'resume to rearm it. Mark complete only when the objective is actually achieved. Mark '
-        + "blocked only after the same blocking condition persists for at least ".concat(blockedAfter, " ")
+        + `blocked only after the same blocking condition persists for at least ${blockedAfter} `
         + 'consecutive goal rounds, and report that concrete condition in blocked_reason; difficulty, uncertainty, '
         + 'or useful remaining work is not blocked.';
 }
 /** Validate config even when apply is called directly outside Loader normalization. */
 function resolveConfig(config) {
-    var _a;
-    var blockedAfter = (_a = config.blockedAfterConsecutiveRounds) !== null && _a !== void 0 ? _a : 3;
+    const blockedAfter = config.blockedAfterConsecutiveRounds ?? 3;
     if (!Number.isSafeInteger(blockedAfter) || blockedAfter < 1) {
         throw new TypeError('blockedAfterConsecutiveRounds must be a positive safe integer');
     }
@@ -110,50 +94,58 @@ function hasRoundCap(value) {
 function goalRef(goalId, revision) {
     if (goalId.length === 0 || goalId !== goalId.trim()
         || !Number.isSafeInteger(revision) || revision < 1) {
-        throw new dsh_llm_1.HarnessError('goal_id must be non-empty and revision must be a positive safe integer', 'GOAL_TOOL_INVALID_UPDATE');
+        throw new HarnessError('goal_id must be non-empty and revision must be a positive safe integer', 'GOAL_TOOL_INVALID_UPDATE');
     }
-    return { id: (0, dsh_goal_1.GoalId)(goalId), revision: revision };
+    return { id: GoalId(goalId), revision };
 }
 /** Stable compact model result; activation is an observation, not replay state. */
 function goalValue(goal) {
     if (goal === undefined)
         return { goal: null };
     return {
-        goal: __assign({ id: goal.id, revision: goal.revision, objective: goal.objective, phase: goal.phase, roundsStarted: goal.roundsStarted, maxGoalRounds: goal.maxGoalRounds }, goal.blockedReason === undefined ? {} : {
-            blockedReason: { code: goal.blockedReason.code, message: goal.blockedReason.message },
-        }),
+        goal: {
+            id: goal.id,
+            revision: goal.revision,
+            objective: goal.objective,
+            phase: goal.phase,
+            roundsStarted: goal.roundsStarted,
+            maxGoalRounds: goal.maxGoalRounds,
+            ...goal.blockedReason === undefined ? {} : {
+                blockedReason: { code: goal.blockedReason.code, message: goal.blockedReason.message },
+            },
+        },
         activation: goal.activation,
     };
 }
 /** Reusable canonical output declaration for all three goal controls. */
-var GOAL_OUTPUT = {
+const GOAL_OUTPUT = {
     schema: GOAL_VALUE_SCHEMA,
-    render: function (_args, value) { return [{ type: 'text', text: JSON.stringify(value) }]; },
+    render: (_args, value) => [{ type: 'text', text: JSON.stringify(value) }],
 };
 /** Generic, args-only pending presentation shared by the goal tools. */
 function present(title, kind, rawInput) {
-    return __assign({ card: 'generic', title: title, kind: kind }, rawInput === undefined ? {} : { rawInput: rawInput });
+    return { card: 'generic', title, kind, ...rawInput === undefined ? {} : { rawInput } };
 }
 /** Register the three Codex-shaped goal tools and their shared policy section. */
-function apply(ctx, config) {
-    var resolved = resolveConfig(config);
+export function apply(ctx, config) {
+    const resolved = resolveConfig(config);
     ctx.systemPrompt.section({
         name: 'tool:goal',
         order: 114,
         text: guidance(resolved.blockedAfterConsecutiveRounds),
     });
-    ctx.tools.register((0, dsh_tools_1.defineTool)({
+    ctx.tools.register(defineTool({
         name: 'get_goal',
         description: GET_DESCRIPTION,
         parameters: {},
         output: GOAL_OUTPUT,
-        execute: function (_args, exec) {
-            var execution = (0, authority_ts_1.goalToolExecution)(ctx, exec);
+        execute(_args, exec) {
+            const execution = goalToolExecution(ctx, exec);
             return Promise.resolve(goalValue(ctx.goals.get(execution.agent)));
         },
-        presentCall: function () { return present('Read current goal', 'read'); },
+        presentCall: () => present('Read current goal', 'read'),
     }));
-    ctx.tools.register((0, dsh_tools_1.defineTool)({
+    ctx.tools.register(defineTool({
         name: 'create_goal',
         description: CREATE_DESCRIPTION,
         parameters: {
@@ -168,15 +160,18 @@ function apply(ctx, config) {
             },
         },
         output: GOAL_OUTPUT,
-        execute: function (args, exec) {
-            var execution = (0, authority_ts_1.goalToolExecution)(ctx, exec);
-            (0, authority_ts_1.requireDirectHuman)(ctx, execution);
-            var goal = ctx.goals.create(execution.agent, __assign({ objective: args.objective }, args.max_goal_rounds === undefined ? {} : { maxGoalRounds: args.max_goal_rounds }));
+        execute(args, exec) {
+            const execution = goalToolExecution(ctx, exec);
+            requireDirectHuman(ctx, execution);
+            const goal = ctx.goals.create(execution.agent, {
+                objective: args.objective,
+                ...args.max_goal_rounds === undefined ? {} : { maxGoalRounds: args.max_goal_rounds },
+            });
             return Promise.resolve(goalValue(goal));
         },
-        presentCall: function (args) { return present('Create goal', 'other', args.objective); },
+        presentCall: args => present('Create goal', 'other', args.objective),
     }));
-    ctx.tools.register((0, dsh_tools_1.defineTool)({
+    ctx.tools.register(defineTool({
         name: 'update_goal',
         description: 'Update the exact current goal revision. edit, pause, and resume require a direct '
             + 'top-level human request. During an automatic continuation of the current goal, complete '
@@ -199,69 +194,73 @@ function apply(ctx, config) {
             },
         },
         output: GOAL_OUTPUT,
-        execute: function (args, exec) {
-            var execution = (0, authority_ts_1.goalToolExecution)(ctx, exec);
-            var ref = goalRef(args.goal_id, args.revision);
-            var replacements = __assign(__assign({}, hasText(args.objective) ? { objective: args.objective } : {}), hasRoundCap(args.max_goal_rounds) ? { maxGoalRounds: args.max_goal_rounds } : {});
+        execute(args, exec) {
+            const execution = goalToolExecution(ctx, exec);
+            const ref = goalRef(args.goal_id, args.revision);
+            const replacements = {
+                ...hasText(args.objective) ? { objective: args.objective } : {},
+                ...hasRoundCap(args.max_goal_rounds) ? { maxGoalRounds: args.max_goal_rounds } : {},
+            };
             if (args.action === 'edit') {
-                (0, authority_ts_1.requireDirectHuman)(ctx, execution);
+                requireDirectHuman(ctx, execution);
                 if (hasText(args.blocked_reason)) {
-                    throw new dsh_llm_1.HarnessError('blocked_reason is valid only with action blocked', 'GOAL_TOOL_INVALID_UPDATE');
+                    throw new HarnessError('blocked_reason is valid only with action blocked', 'GOAL_TOOL_INVALID_UPDATE');
                 }
-                var goal_1 = ctx.goals.edit(execution.agent, ref, replacements);
-                return Promise.resolve(goalValue(goal_1));
+                const goal = ctx.goals.edit(execution.agent, ref, replacements);
+                return Promise.resolve(goalValue(goal));
             }
             if (args.action === 'pause' || args.action === 'resume') {
-                (0, authority_ts_1.requireDirectHuman)(ctx, execution);
+                requireDirectHuman(ctx, execution);
                 if (hasText(args.objective) || hasRoundCap(args.max_goal_rounds) || hasText(args.blocked_reason)) {
-                    throw new dsh_llm_1.HarnessError('objective and max_goal_rounds are valid only with action edit; blocked_reason is valid only with action blocked', 'GOAL_TOOL_INVALID_UPDATE');
+                    throw new HarnessError('objective and max_goal_rounds are valid only with action edit; blocked_reason is valid only with action blocked', 'GOAL_TOOL_INVALID_UPDATE');
                 }
-                var goal_2 = args.action === 'pause'
+                const goal = args.action === 'pause'
                     ? ctx.goals.pause(execution.agent, ref)
                     : ctx.goals.resume(execution.agent, ref);
-                return Promise.resolve(goalValue(goal_2));
+                return Promise.resolve(goalValue(goal));
             }
-            var authority = (0, authority_ts_1.completionAuthority)(ctx, execution);
+            const authority = completionAuthority(ctx, execution);
             if (hasText(args.objective) || hasRoundCap(args.max_goal_rounds)) {
-                throw new dsh_llm_1.HarnessError('objective and max_goal_rounds are valid only with action edit', 'GOAL_TOOL_INVALID_UPDATE');
+                throw new HarnessError('objective and max_goal_rounds are valid only with action edit', 'GOAL_TOOL_INVALID_UPDATE');
             }
             if (args.action === 'complete' && hasText(args.blocked_reason)) {
-                throw new dsh_llm_1.HarnessError('blocked_reason is valid only with action blocked', 'GOAL_TOOL_INVALID_UPDATE');
+                throw new HarnessError('blocked_reason is valid only with action blocked', 'GOAL_TOOL_INVALID_UPDATE');
             }
             if (args.action === 'blocked'
                 && (args.blocked_reason === undefined || args.blocked_reason.trim().length === 0)) {
-                throw new dsh_llm_1.HarnessError('blocked_reason is required with action blocked', 'GOAL_TOOL_INVALID_UPDATE');
+                throw new HarnessError('blocked_reason is required with action blocked', 'GOAL_TOOL_INVALID_UPDATE');
             }
             if (args.action === 'blocked' && authority.kind === 'goal-round'
                 && authority.goal.roundsStarted < resolved.blockedAfterConsecutiveRounds) {
-                throw new dsh_llm_1.HarnessError("blocked requires at least ".concat(resolved.blockedAfterConsecutiveRounds, " consecutive goal rounds; ")
-                    + "current round is ".concat(authority.goal.roundsStarted), 'GOAL_TOOL_BLOCK_THRESHOLD');
+                throw new HarnessError(`blocked requires at least ${resolved.blockedAfterConsecutiveRounds} consecutive goal rounds; `
+                    + `current round is ${authority.goal.roundsStarted}`, 'GOAL_TOOL_BLOCK_THRESHOLD');
             }
-            var goal = args.action === 'complete'
+            const goal = args.action === 'complete'
                 ? ctx.goals.complete(execution.agent, ref)
                 : ctx.goals.block(execution.agent, ref, {
                     code: 'model-reported',
                     message: args.blocked_reason,
                 });
             if (authority.kind === 'goal-round') {
-                exec.deferContext((0, dsh_llm_1.createUserMessage)({
+                exec.deferContext(createUserMessage({
                     content: args.action === 'complete'
-                        ? (0, wrapup_ts_1.renderWrapupContext)(goal.objective)
-                        : (0, wrapup_ts_1.renderWrapupContext)(goal.objective, args.blocked_reason),
+                        ? renderWrapupContext(goal.objective)
+                        : renderWrapupContext(goal.objective, args.blocked_reason),
                     source: {
                         kind: 'plugin',
                         plugin: 'tool-goal',
                         form: 'notice',
-                        summary: (0, dsh_llm_1.boundContextSummary)("".concat(args.action, ": ").concat(goal.objective)),
+                        summary: boundContextSummary(`${args.action}: ${goal.objective}`),
                     },
                 }));
             }
             return Promise.resolve(goalValue(goal));
         },
-        presentCall: function (args) { return present("".concat(args.action === 'blocked' ? 'Mark' : args.action.charAt(0).toUpperCase() + args.action.slice(1), " goal"), 'other', hasText(args.blocked_reason)
+        presentCall: args => present(`${args.action === 'blocked' ? 'Mark' : args.action.charAt(0).toUpperCase() + args.action.slice(1)} goal`, 'other', hasText(args.blocked_reason)
             ? args.blocked_reason
             : hasText(args.objective)
                 ? args.objective
-                : hasRoundCap(args.max_goal_rounds) ? args.max_goal_rounds : args.goal_id); },
+                : hasRoundCap(args.max_goal_rounds) ? args.max_goal_rounds : args.goal_id),
     }));
 }
+//# sourceMappingURL=index.js.map

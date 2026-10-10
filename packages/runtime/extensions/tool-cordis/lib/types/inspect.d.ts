@@ -4,11 +4,11 @@
  * `api-catalog.ts`. This module owns the join of the two plus presentation: which
  * lines a section prints, how compact the default report stays, and what an exact
  * `name` adds.
- * @module @z/dsh-tool-cordis/inspect
+ * @module @taskweaver/dsh-tool-cordis/inspect
  */
-import type { Context, Fiber } from '@z/cordis';
-import type { ScopeKey } from '@z/dsh-scope';
-import type { Agent } from '@z/dsh-agent';
+import type { Context, Fiber } from '@taskweaver/cordis';
+import type { ScopeKey } from '@taskweaver/dsh-scope';
+import type { Agent } from '@taskweaver/dsh-agent';
 import type { EventApiEntry, InheritedApiEntry, ServiceApiEntry, TypeApiEntry } from './api-catalog.ts';
 /**
  * Whether a fiber is `root` itself or mounted anywhere inside `root`'s subtree.

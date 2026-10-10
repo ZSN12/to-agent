@@ -6,11 +6,11 @@
  * owns EOF and signal exits. Keep named plugin exports with no default export so
  * Loader `unwrapExports` preserves `name`, `inject`, `Config`, and `apply`.
  *
- * @module @z/dsh-sdk-jsonrpc-server
+ * @module @taskweaver/dsh-sdk-jsonrpc-server
  */
-import type { Context } from '@z/cordis';
+import type { Context } from '@taskweaver/cordis';
 import type { Readable, Writable } from 'node:stream';
-import Schema from '@z/schemastery';
+import Schema from '@taskweaver/schemastery';
 export * from './server.ts';
 export declare const name = "sdk-jsonrpc-server";
 export declare const inject: string[];

@@ -2,11 +2,11 @@
  * Public type vocabulary of the workspace entity: the `WorkspaceId` brand and
  * the `Workspace` consumer interface. Types only — the `WorkspaceId` factory
  * lives in `index.ts` (this file carries no runtime code).
- * @module @z/dsh-workspace/src/types
+ * @module @taskweaver/dsh-workspace/src/types
  */
 
-import type { Branded } from '@z/dsh-brand'
-import type { SessionId } from '@z/dsh-session'
+import type { Branded } from '@taskweaver/dsh-brand'
+import type { SessionId } from '@taskweaver/dsh-session'
 
 /**
  * Identifies one workspace record. A generated uuid, never the path: path

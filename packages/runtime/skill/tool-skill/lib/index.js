@@ -1,13 +1,13 @@
 import { createHash } from "node:crypto";
-import z from "@z/schemastery";
-import { defineTool } from "@z/dsh-tools";
-import { createUserMessage } from "@z/dsh-llm";
-import { escapeText, isModelInvocable, isSkillName, isUserInvocable, renderSkillContent } from "@z/dsh-skill";
+import z from "@taskweaver/schemastery";
+import { defineTool } from "@taskweaver/dsh-tools";
+import { createUserMessage } from "@taskweaver/dsh-llm";
+import { escapeText, isModelInvocable, isSkillName, isUserInvocable, renderSkillContent } from "@taskweaver/dsh-skill";
 //#region lib/types/index.js
 /**
 * Durable session skill catalog and model-facing `skill` loader tool.
 *
-* @module @z/dsh-tool-skill
+* @module @taskweaver/dsh-tool-skill
 */
 const name = "tool-skill";
 const inject = [

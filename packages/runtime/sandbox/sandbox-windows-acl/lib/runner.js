@@ -1,4 +1,4 @@
-import { n as tempWriteSid, o as assertTempRootOutsideWorkspace, r as workspaceWriteSid, s as win32, t as AclSandbox } from "./types-BjLqp8Yt.js";
+import { n as tempWriteSid, o as assertTempRootOutsideWorkspace, r as workspaceWriteSid, s as win32, t as AclSandbox } from "./types-CuSXF0MY.js";
 import { existsSync, mkdtempSync, rmSync, statSync } from "node:fs";
 import { join } from "node:path";
 //#region lib/types/runner.js
@@ -45,7 +45,7 @@ import { join } from "node:path";
 * directories, token/grant/spawn errors) prints `windows-acl-run: <detail>`
 * to stderr and exits 127 — the seam's RUNNER_FAILURE_RULES matches that
 * signature. The child is NEVER spawned unrestricted.
-* @module @z/dsh-sandbox-windows-acl/runner
+* @module @taskweaver/dsh-sandbox-windows-acl/runner
 */
 const RUNNER_SIGNATURE = "windows-acl-run";
 const RUNNER_FAILURE_EXIT = 127;

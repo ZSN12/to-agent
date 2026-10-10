@@ -1,13 +1,13 @@
 /**
- * Package-owned invariant companion for `@z/dsh-subagent-spawn-in-process`.
- * @module @z/dsh-subagent-spawn-in-process/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-subagent-spawn-in-process`.
+ * @module @taskweaver/dsh-subagent-spawn-in-process/invariant
  */
 
 /* jscpd:ignore-start */
-import type { Context } from '@z/cordis'
-import type { InvariantInstaller } from '@z/dsh-invariants'
+import type { Context } from '@taskweaver/cordis'
+import type { InvariantInstaller } from '@taskweaver/dsh-invariants'
 
-const PACKAGE_NAME = '@z/dsh-subagent-spawn-in-process'
+const PACKAGE_NAME = '@taskweaver/dsh-subagent-spawn-in-process'
 
 /** Cordis companion plugin name. */
 export const name = 'subagent-spawn-in-process-invariant'

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { reasoningCatalogFromHostModel } from '../electron/backend/reasoning-effort-catalog.mjs'
+import { reasoningCatalogFromHostModel } from '../desktop/backend/reasoning-effort-catalog.mjs'
 
 const xiaomi = reasoningCatalogFromHostModel({
   reasoning: {

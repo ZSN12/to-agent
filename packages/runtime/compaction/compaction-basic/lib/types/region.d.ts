@@ -2,13 +2,13 @@
  * Surface retention selection and the shared log-recorded compaction
  * transaction for automatic open-turn and manual idle-session compaction.
  *
- * @module @z/dsh-compaction-basic/region
+ * @module @taskweaver/dsh-compaction-basic/region
  */
-import type { CompactionResult } from '@z/dsh-compaction';
-import type { CommandId } from '@z/dsh-commands/brand';
-import type { TokenMeasurement, TokenMeter } from '@z/dsh-token-meter';
-import type { Session } from '@z/dsh-session';
-import type { Agent } from '@z/dsh-agent';
+import type { CompactionRecordTrigger, CompactionResult } from '@taskweaver/dsh-compaction';
+import type { CommandId } from '@taskweaver/dsh-commands/brand';
+import type { TokenMeasurement, TokenMeter } from '@taskweaver/dsh-token-meter';
+import type { Session } from '@taskweaver/dsh-session';
+import type { Agent } from '@taskweaver/dsh-agent';
 import type { SummarizationInput, SummaryResult } from './summarizer.ts';
 interface RegionDependencies {
     readonly meter: TokenMeter;
@@ -23,6 +23,7 @@ interface CompactionTransactionOptions {
     readonly flush?: () => Promise<void>;
     /** Manual command that initiated this transaction, when present. */
     readonly sourceCommandId?: CommandId;
+    readonly trigger?: CompactionRecordTrigger;
 }
 /**
  * Resolve the next head-anchored range while retaining a priced recent tail

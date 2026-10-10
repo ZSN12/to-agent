@@ -1,4 +1,4 @@
-import { CallId, createUserMessage } from '@z/dsh-llm'
+import { CallId, createUserMessage } from '@taskweaver/dsh-llm'
 /**
  * Tests for the queue-aware `Agent.cancel()` primitive. The default clears
  * queued and steering work, while `keepInbox` preserves pending input for a
@@ -8,13 +8,13 @@ import { CallId, createUserMessage } from '@z/dsh-llm'
  */
 
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import LlmRuntime from '@z/dsh-llm'
-import SessionStore, { SessionId, TurnEndReason } from '@z/dsh-session'
-import SystemPrompt from '@z/dsh-system-prompt'
-import ToolRuntime, { defineContentToolFixture, TOOL_ABORTED_BEFORE_DISPATCH } from '@z/dsh-tools'
-import AgentRegistry, { type Agent } from '@z/dsh-agent'
-import AgentLoop from '@z/dsh-agent-loop'
+import { Context } from '@taskweaver/cordis'
+import LlmRuntime from '@taskweaver/dsh-llm'
+import SessionStore, { SessionId, TurnEndReason } from '@taskweaver/dsh-session'
+import SystemPrompt from '@taskweaver/dsh-system-prompt'
+import ToolRuntime, { defineContentToolFixture, TOOL_ABORTED_BEFORE_DISPATCH } from '@taskweaver/dsh-tools'
+import AgentRegistry, { type Agent } from '@taskweaver/dsh-agent'
+import AgentLoop from '@taskweaver/dsh-agent-loop'
 import { MockAdapter, textResponse, toolCallResponse } from './mock-adapter.ts'
 
 function driverDone(agent: Agent): Promise<void> {

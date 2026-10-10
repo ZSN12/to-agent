@@ -1,13 +1,13 @@
 /**
- * Package-owned invariant companion for `@z/dsh-typert-generator`.
- * @module @z/dsh-typert-generator/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-typert-generator`.
+ * @module @taskweaver/dsh-typert-generator/invariant
  */
 
 /* jscpd:ignore-start */
-import type { Context } from '@z/cordis'
-import type { InvariantInstaller } from '@z/dsh-invariants'
+import type { Context } from '@taskweaver/cordis'
+import type { InvariantInstaller } from '@taskweaver/dsh-invariants'
 
-const PACKAGE_NAME = '@z/dsh-typert-generator'
+const PACKAGE_NAME = '@taskweaver/dsh-typert-generator'
 
 /** Cordis companion plugin name. */
 export const name = 'typert-generator-invariant'

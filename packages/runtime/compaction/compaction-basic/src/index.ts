@@ -1,22 +1,22 @@
 /**
  * Basic replay-aware compaction backend.
  *
- * @module @z/dsh-compaction-basic
+ * @module @taskweaver/dsh-compaction-basic
  */
 
-import { Context } from '@z/cordis'
-import z from '@z/schemastery'
-import { CompactionEngine, ManualCompactionError } from '@z/dsh-compaction'
-import type { CompactionResult, CompactionTrigger } from '@z/dsh-compaction'
-import type { TokenMeter } from '@z/dsh-token-meter'
-import type { Session } from '@z/dsh-session'
-import { CONTEXT_WINDOW_EXCEEDED_CODE, assertNever } from '@z/dsh-llm'
-import type { LlmCallConfig } from '@z/dsh-llm'
-import type { Agent, PreStepDecision } from '@z/dsh-agent'
-import { taskweaverEmbeddedFromEnv } from '@z/dsh-home-paths'
-import type { CommandId } from '@z/dsh-commands/brand'
+import { Context } from '@taskweaver/cordis'
+import z from '@taskweaver/schemastery'
+import { CompactionEngine, ManualCompactionError } from '@taskweaver/dsh-compaction'
+import type { CompactionResult, CompactionTrigger } from '@taskweaver/dsh-compaction'
+import type { TokenMeter } from '@taskweaver/dsh-token-meter'
+import type { Session } from '@taskweaver/dsh-session'
+import { CONTEXT_WINDOW_EXCEEDED_CODE, assertNever } from '@taskweaver/dsh-llm'
+import type { LlmCallConfig } from '@taskweaver/dsh-llm'
+import type { Agent, PreStepDecision } from '@taskweaver/dsh-agent'
+import { taskweaverEmbeddedFromEnv } from '@taskweaver/dsh-home-paths'
+import type { CommandId } from '@taskweaver/dsh-commands/brand'
 // Type-only: makes the optional sibling service available to `ctx.get()`.
-import type {} from '@z/dsh-compaction-tool-result-pruner'
+import type {} from '@taskweaver/dsh-compaction-tool-result-pruner'
 import {
   resolveCompactSpec,
   resolveConfig,
@@ -102,6 +102,15 @@ function taskweaverBoundedRetryConfig(config: ResolvedConfig): ResolvedConfig {
   })
 }
 
+function taskweaverCompactionThreshold(config: BasicCompactionConfig): BasicCompactionConfig {
+  if (!taskweaverEmbeddedFromEnv()) return config
+  const rawRatio = process.env.TASKWEAVER_COMPACTION_THRESHOLD_RATIO
+  if (rawRatio === undefined || rawRatio.trim() === '') return config
+  const ratio = Number(rawRatio)
+  if (!Number.isFinite(ratio) || ratio < 0.6 || ratio > 0.9) return config
+  return { ...config, thresholdRatio: ratio }
+}
+
 const modelPolicy: z<ModelCompactPolicyConfig> = z.object({
   provider: z.string().required(),
   model: z.string().required(),
@@ -148,8 +157,9 @@ export class BasicCompactionEngine extends CompactionEngine {
 
   constructor(ctx: Context, config: BasicCompactionConfig = {}) {
     super(ctx)
-    const resolved = resolveConfig(config)
-    this.config = taskweaverEmbeddedFromEnv()
+    const embedded = taskweaverEmbeddedFromEnv()
+    const resolved = resolveConfig(embedded ? taskweaverCompactionThreshold(config) : config)
+    this.config = embedded
       ? taskweaverBoundedRetryConfig(resolved)
       : resolved
     if (this.config.auto) this._registerAutomaticCompaction()
@@ -313,7 +323,7 @@ export class BasicCompactionEngine extends CompactionEngine {
       }
       const range = selectCompactableRange(agent.session, measurement, 0)
       if (range === null) return null
-      return this.compactRegion(range.start, range.end, agent, signal)
+      return this.compactRegion(range.start, range.end, agent, signal, trigger)
     }
 
     const context = (await this.ctx.llm.resolveModelInfo(target.provider, target.model, signal)).context
@@ -346,7 +356,7 @@ export class BasicCompactionEngine extends CompactionEngine {
         /* v8 ignore next -- paired with the defensive post-success branch above. */
         break
       }
-      result = await this.compactRegion(range.start, range.end, agent, signal)
+      result = await this.compactRegion(range.start, range.end, agent, signal, trigger)
       measurement = meter.measure(agent.session)
       if (measurement.totalTokens < spec.thresholdTokens) return result
     }
@@ -371,6 +381,7 @@ export class BasicCompactionEngine extends CompactionEngine {
     end: number,
     agent: Agent,
     signal?: AbortSignal,
+    trigger: CompactionTrigger = 'pressure',
   ): Promise<CompactionResult> {
     return compactSurfaceRegion(
       this.regionDependencies(),
@@ -378,7 +389,7 @@ export class BasicCompactionEngine extends CompactionEngine {
       start,
       end,
       agent,
-      { owner: 'current-turn', stability: 'whole-surface' },
+      { owner: 'current-turn', stability: 'whole-surface', trigger },
       signal,
     )
   }
@@ -417,6 +428,7 @@ export class BasicCompactionEngine extends CompactionEngine {
             {
               owner: null,
               stability: 'selected-span',
+              trigger: 'manual',
               ...sourceCommandId === undefined ? {} : { sourceCommandId },
               flush: async () => {
                 await this.ctx.sessions.flush(agent.session)

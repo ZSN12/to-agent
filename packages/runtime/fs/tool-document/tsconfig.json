@@ -1,16 +1,21 @@
 {
-  "extends": "../../../../tsconfig.base.json",
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "rootDir": "src",
     "outDir": "lib/types"
   },
   "include": ["src"],
   "references": [
-    { "path": "../../../../vendor/cordis" },
-    { "path": "../../../../vendor/schemastery" },
+    { "path": "../../cordis/cordis" },
+    { "path": "../../cordis/schemastery" },
+    { "path": "../../util/home-paths" },
+    { "path": "../../llm/llm" },
     { "path": "../fs" },
+    { "path": "../../attachment/attachment" },
     { "path": "../tool-fs" },
     { "path": "../../core/tools" },
-    { "path": "../../core/system-prompt" }
+    { "path": "../../core/system-prompt" },
+    { "path": "../../interaction/user-approval" },
+    { "path": "../../spill/spill" }
   ]
 }

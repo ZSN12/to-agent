@@ -1,13 +1,13 @@
 /**
- * Package-owned invariant companion for `@z/dsh-skill`.
- * @module @z/dsh-skill/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-skill`.
+ * @module @taskweaver/dsh-skill/invariant
  */
 
 /* jscpd:ignore-start */
-import type { Context } from '@z/cordis'
-import type { InvariantInstaller } from '@z/dsh-invariants'
+import type { Context } from '@taskweaver/cordis'
+import type { InvariantInstaller } from '@taskweaver/dsh-invariants'
 
-const PACKAGE_NAME = '@z/dsh-skill'
+const PACKAGE_NAME = '@taskweaver/dsh-skill'
 
 /** Cordis companion plugin name. */
 export const name = 'skill-invariant'

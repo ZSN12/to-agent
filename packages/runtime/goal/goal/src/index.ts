@@ -1,20 +1,20 @@
 /**
  * Same-session goal domain: event-sourced state, compare-and-set mutations,
  * and process-local continuation activation.
- * @module @z/dsh-goal
+ * @module @taskweaver/dsh-goal
  */
 
 import { randomUUID } from 'node:crypto'
-import { Context } from '@z/cordis'
-import z from '@z/schemastery'
+import { Context } from '@taskweaver/cordis'
+import z from '@taskweaver/schemastery'
 import { z as zod } from 'zod'
 import type { ZodType } from 'zod'
-import { agentEvents } from '@z/dsh-agent'
-import type { Agent } from '@z/dsh-agent'
-import type { Session, SessionEvent } from '@z/dsh-session'
-import { TypertRemoteService, Remote } from '@z/dsh-typert-protocol'
+import { agentEvents } from '@taskweaver/dsh-agent'
+import type { Agent } from '@taskweaver/dsh-agent'
+import type { Session, SessionEvent } from '@taskweaver/dsh-session'
+import { TypertRemoteService, Remote } from '@taskweaver/dsh-typert-protocol'
 // Type-only: resolves ctx.sessionProjections for the optional unit child.
-import type {} from '@z/dsh-session-projection'
+import type {} from '@taskweaver/dsh-session-projection'
 import {
   applyGoalEvent,
   decodeGoalChange,
@@ -56,7 +56,7 @@ export type * from './domain.ts'
 export { GOAL_CHANGE_VERSION, GoalError, GoalId } from './runtime.ts'
 export { decodeGoalChange, foldGoal, goalChangeRef } from './fold.ts'
 
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
   interface Context {
     goals: GoalService
   }

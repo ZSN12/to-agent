@@ -15,11 +15,11 @@
  * This row therefore waits for it rather than assuming it: a preset selecting
  * Code Mode against a deployment that composes no runtime fails at mount, named
  * in the preset's own activation audit, instead of at the first prompt.
- * @module @z/dsh-agent-tool-presentation
+ * @module @taskweaver/dsh-agent-tool-presentation
  */
-import type { Context } from '@z/cordis';
-import z from '@z/schemastery';
-import type { ToolPresentationMode } from '@z/dsh-tools';
+import type { Context } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
+import type { ToolPresentationMode } from '@taskweaver/dsh-tools';
 /** Cordis plugin name. */
 export declare const name = "tool-presentation";
 /**

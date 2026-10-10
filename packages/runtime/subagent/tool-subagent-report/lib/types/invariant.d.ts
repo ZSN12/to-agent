@@ -1,8 +1,8 @@
 /**
- * Package-owned invariant companion for `@z/dsh-tool-subagent-report`.
- * @module @z/dsh-tool-subagent-report/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-tool-subagent-report`.
+ * @module @taskweaver/dsh-tool-subagent-report/invariant
  */
-import type { Context } from '@z/cordis';
+import type { Context } from '@taskweaver/cordis';
 /** Cordis companion plugin name. */
 export declare const name = "tool-subagent-report-invariant";
 /** Service required before the companion can reserve package ownership. */

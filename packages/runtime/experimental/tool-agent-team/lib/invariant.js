@@ -1,6 +1,6 @@
 //#region lib/types/invariant.js
 /** Package-owned invariant companion for the Team tool adapter. */
-const PACKAGE_NAME = "@z/dsh-experimental-tool-agent-team";
+const PACKAGE_NAME = "@taskweaver/dsh-experimental-tool-agent-team";
 /** Cordis companion plugin name. */
 const name = "tool-team-invariant";
 /** Invariant registry dependency. */

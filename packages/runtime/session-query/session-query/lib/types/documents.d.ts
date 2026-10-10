@@ -1,5 +1,5 @@
 /** Shared event metadata and semantic-document projection. */
-import type { SessionEvent, SessionId } from '@z/dsh-session';
+import type { SessionEvent, SessionId } from '@taskweaver/dsh-session';
 import type { SessionEventRecord, SessionEventSearchDocument } from './types.ts';
 /**
  * Project a raw log into lightweight surface-aware event records.

@@ -1,15 +1,15 @@
 import { describe, expect, expectTypeOf, it, vi } from 'vitest'
-import { Context } from '@z/cordis'
-import { Session, SessionId } from '@z/dsh-session'
-import AgentRegistry, { Inbox } from '@z/dsh-agent'
-import type { Agent } from '@z/dsh-agent'
-import { bindScopeParent, createScope, scopeOf } from '@z/dsh-scope'
-import type { ScopeKey } from '@z/dsh-scope'
-import { JobId } from '@z/dsh-jobs'
-import type { JobHooks, JobKind, JobOutcome, JobSnapshot, JobStart } from '@z/dsh-jobs'
-import LocalJobRegistry, { type Config as JobsConfig } from '@z/dsh-jobs-local'
+import { Context } from '@taskweaver/cordis'
+import { Session, SessionId } from '@taskweaver/dsh-session'
+import AgentRegistry, { Inbox } from '@taskweaver/dsh-agent'
+import type { Agent } from '@taskweaver/dsh-agent'
+import { bindScopeParent, createScope, scopeOf } from '@taskweaver/dsh-scope'
+import type { ScopeKey } from '@taskweaver/dsh-scope'
+import { JobId } from '@taskweaver/dsh-jobs'
+import type { JobHooks, JobKind, JobOutcome, JobSnapshot, JobStart } from '@taskweaver/dsh-jobs'
+import LocalJobRegistry, { type Config as JobsConfig } from '@taskweaver/dsh-jobs-local'
 
-declare module '@z/dsh-jobs' {
+declare module '@taskweaver/dsh-jobs' {
   interface JobKindMap {
     workflow: 'workflow'
   }
@@ -119,7 +119,7 @@ describe('LocalJobRegistry.start', () => {
     const ctx = new Context()
     await ctx.plugin(LocalJobRegistry)
     expect(() => ctx.jobs.start(producer().spec))
-      .toThrow('background jobs unavailable: no job controller serves this agent (load @z/dsh-tool-jobs in its composition)')
+      .toThrow('background jobs unavailable: no job controller serves this agent (load @taskweaver/dsh-tool-jobs in its composition)')
   })
 
   it('refuses an owner whose own composition attaches no controller', async () => {

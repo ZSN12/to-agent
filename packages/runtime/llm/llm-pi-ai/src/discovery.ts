@@ -22,9 +22,9 @@
  * @module dsh-llm-pi-ai/discovery
  */
 
-import { INVALID_CREDENTIAL_CODE, LlmError, normalizeApiKey } from '@z/dsh-llm'
-import type { LlmDiscoveredModel, LlmModelDiscoveryRequest } from '@z/dsh-llm'
-import { attributionHeaders } from '@z/dsh-llm'
+import { INVALID_CREDENTIAL_CODE, LlmError, normalizeApiKey } from '@taskweaver/dsh-llm'
+import type { LlmDiscoveredModel, LlmModelDiscoveryRequest } from '@taskweaver/dsh-llm'
+import { attributionHeaders } from '@taskweaver/dsh-llm'
 import { catalogModels } from './catalog.ts'
 
 /**

@@ -1,4 +1,3 @@
-"use strict";
 /**
  * goals domain contract. Method signatures are the source of truth:
  * unary methods take the RpcRequest<P> narrow form and the impl echoes rpcId.
@@ -9,4 +8,5 @@
  * ref and never feed client state (the committed goal/change event reaches
  * every client through the mux stream carrying the same whole value).
  */
-Object.defineProperty(exports, "__esModule", { value: true });
+export {};
+//# sourceMappingURL=goals.js.map

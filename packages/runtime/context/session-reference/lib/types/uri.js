@@ -1,41 +1,34 @@
-"use strict";
 /** Canonical session URI and inline mention encoding. */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.SESSION_REFERENCE_SCHEME = void 0;
-exports.encodeSessionReferenceUri = encodeSessionReferenceUri;
-exports.decodeSessionReferenceUri = decodeSessionReferenceUri;
-exports.formatSessionReferenceMention = formatSessionReferenceMention;
-exports.parseSessionReferenceText = parseSessionReferenceText;
-var dsh_session_1 = require("@z/dsh-session");
-var config_ts_1 = require("./config.ts");
+import { SessionId } from '@taskweaver/dsh-session';
+import { SessionReferenceError } from "./config.js";
 /** URI scheme reserved for DeepSeek Harness session snapshots. */
-exports.SESSION_REFERENCE_SCHEME = 'dsh-session:';
+export const SESSION_REFERENCE_SCHEME = 'dsh-session:';
 /**
  * Encode any JavaScript session-id string as a canonical lossless URI.
  * @param sessionId - opaque session id to serialize.
  * @returns canonical `dsh-session:` URI.
  */
-function encodeSessionReferenceUri(sessionId) {
-    var payload = Buffer.from(JSON.stringify(sessionId), 'utf8').toString('base64url');
-    return "".concat(exports.SESSION_REFERENCE_SCHEME).concat(payload);
+export function encodeSessionReferenceUri(sessionId) {
+    const payload = Buffer.from(JSON.stringify(sessionId), 'utf8').toString('base64url');
+    return `${SESSION_REFERENCE_SCHEME}${payload}`;
 }
 /**
  * Decode and canonicalize one session-reference URI.
  * @param uri - complete canonical URI.
  * @returns decoded session id.
  */
-function decodeSessionReferenceUri(uri) {
-    if (!uri.startsWith(exports.SESSION_REFERENCE_SCHEME)) {
+export function decodeSessionReferenceUri(uri) {
+    if (!uri.startsWith(SESSION_REFERENCE_SCHEME)) {
         throw invalidUri(uri);
     }
-    var payload = uri.slice(exports.SESSION_REFERENCE_SCHEME.length);
+    const payload = uri.slice(SESSION_REFERENCE_SCHEME.length);
     if (!/^[A-Za-z0-9_-]+$/.test(payload))
         throw invalidUri(uri);
     try {
-        var parsed = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+        const parsed = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
         if (typeof parsed !== 'string')
             throw new TypeError('decoded session id is not a string');
-        var sessionId = (0, dsh_session_1.SessionId)(parsed);
+        const sessionId = SessionId(parsed);
         if (encodeSessionReferenceUri(sessionId) !== uri)
             throw new TypeError('URI is not canonical');
         return sessionId;
@@ -49,10 +42,9 @@ function decodeSessionReferenceUri(uri) {
  * @param reference - structured id and optional display label.
  * @returns escaped `@[label](uri)` mention.
  */
-function formatSessionReferenceMention(reference) {
-    var _a;
-    var label = escapeLabel((_a = reference.label) !== null && _a !== void 0 ? _a : reference.sessionId);
-    return "@[".concat(label, "](").concat(encodeSessionReferenceUri(reference.sessionId), ")");
+export function formatSessionReferenceMention(reference) {
+    const label = escapeLabel(reference.label ?? reference.sessionId);
+    return `@[${label}](${encodeSessionReferenceUri(reference.sessionId)})`;
 }
 /**
  * Extract Markdown mentions and bare canonical URIs from one text value.
@@ -62,27 +54,28 @@ function formatSessionReferenceMention(reference) {
  * @param text - host text to normalize.
  * @returns readable text and structured references in appearance order.
  */
-function parseSessionReferenceText(text) {
-    var references = [];
-    var pattern = /@\[((?:\\.|[^\\\]])*)\]\((dsh-session:[^\s)]*)\)|(dsh-session:[A-Za-z0-9_-]+)/gu;
-    var rendered = text.replace(pattern, function (_match, rawLabel, markdownUri, bareUri) {
-        var uri = markdownUri !== null && markdownUri !== void 0 ? markdownUri : bareUri;
+export function parseSessionReferenceText(text) {
+    const references = [];
+    const pattern = /@\[((?:\\.|[^\\\]])*)\]\((dsh-session:[^\s)]*)\)|(dsh-session:[A-Za-z0-9_-]+)/gu;
+    const rendered = text.replace(pattern, (_match, rawLabel, markdownUri, bareUri) => {
+        const uri = markdownUri ?? bareUri;
         /* v8 ignore next -- the two-alternative regex always captures exactly one URI group. */
         if (uri === undefined)
-            throw new config_ts_1.SessionReferenceError('session reference URI is missing', 'SESSION_REFERENCE_INVALID_REFERENCE');
-        var sessionId = decodeSessionReferenceUri(uri);
-        var label = rawLabel === undefined ? sessionId : unescapeLabel(rawLabel);
-        references.push({ sessionId: sessionId, label: label });
-        return "@".concat(label);
+            throw new SessionReferenceError('session reference URI is missing', 'SESSION_REFERENCE_INVALID_REFERENCE');
+        const sessionId = decodeSessionReferenceUri(uri);
+        const label = rawLabel === undefined ? sessionId : unescapeLabel(rawLabel);
+        references.push({ sessionId, label });
+        return `@${label}`;
     });
-    return { text: rendered, references: references };
+    return { text: rendered, references };
 }
 function escapeLabel(label) {
-    return label.replace(/[\\\]]/gu, function (match) { return "\\".concat(match); });
+    return label.replace(/[\\\]]/gu, match => `\\${match}`);
 }
 function unescapeLabel(label) {
     return label.replace(/\\(.)/gu, '$1');
 }
 function invalidUri(uri, cause) {
-    return new config_ts_1.SessionReferenceError("invalid session reference URI ".concat(JSON.stringify(uri)), 'SESSION_REFERENCE_INVALID_REFERENCE', cause === undefined ? undefined : { cause: cause });
+    return new SessionReferenceError(`invalid session reference URI ${JSON.stringify(uri)}`, 'SESSION_REFERENCE_INVALID_REFERENCE', cause === undefined ? undefined : { cause });
 }
+//# sourceMappingURL=uri.js.map

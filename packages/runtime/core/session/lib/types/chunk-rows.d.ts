@@ -15,9 +15,9 @@
  * data. The decoder validates before expanding and fails loud on a malformed
  * row-tagged value instead of silently dropping a whole run.
  *
- * @module @z/dsh-session/chunk-rows
+ * @module @taskweaver/dsh-session/chunk-rows
  */
-import { CallId } from '@z/dsh-llm';
+import { CallId } from '@taskweaver/dsh-llm';
 import type { SessionEvent } from './types.ts';
 /**
  * Fields shared by every packed run: placement, block correlation, and member

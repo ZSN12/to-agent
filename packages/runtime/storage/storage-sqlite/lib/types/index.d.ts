@@ -2,11 +2,11 @@
  * SQLite storage backend for the storage hub: one database file hosts every
  * routed unit, document-per-row (`key TEXT` / `value TEXT` JSON). Registers
  * as backend `sqlite`; the disposer unregisters first, then closes the medium.
- * @module @z/dsh-storage-sqlite
+ * @module @taskweaver/dsh-storage-sqlite
  */
-import type { Context } from '@z/cordis';
-import z from '@z/schemastery';
-import type { KvFacet, StorageBackend } from '@z/dsh-storage';
+import type { Context } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
+import type { KvFacet, StorageBackend } from '@taskweaver/dsh-storage';
 import { type JournalMode } from './schema.ts';
 export { STORAGE_SQLITE_SCHEMA_VERSION, type JournalMode } from './schema.ts';
 /** Cordis plugin name. */

@@ -7,7 +7,7 @@
  * locator and retrieval guidance.
  *
  * It registers NO service and owns NO storage or preview mechanics: preview is
- * `@z/dsh-output-retention` (`TextRetainer`), storage is `ctx.spillStore`.
+ * `@taskweaver/dsh-output-retention` (`TextRetainer`), storage is `ctx.spillStore`.
  * The policy only decides WHEN to spill and composes the notice.
  *
  * A second arm applies the SAME cap to the durable log: the
@@ -40,10 +40,10 @@
  * replaced content still has its replacement bounded, and value replacements
  * and `block` decisions pass through unchanged.
  *
- * @module @z/dsh-spill-policy
+ * @module @taskweaver/dsh-spill-policy
  */
-import type { Context } from '@z/cordis';
-import z from '@z/schemastery';
+import type { Context } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
 export type { SpillPolicyExec } from './types.ts';
 /** Plugin config. */
 export interface Config {

@@ -1,7 +1,4 @@
-"use strict";
 /** Shared top-level-call post-policy selection for search result spill. @module dsh-tool-fs-search/direct-call */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.acceptedDirectCallValue = acceptedDirectCallValue;
 /**
  * Return the accepted canonical value only when this tool still owns a direct
  * successful top-level call and no downstream policy replaced either projection.
@@ -12,10 +9,11 @@ exports.acceptedDirectCallValue = acceptedDirectCallValue;
  * @param decision - the composed downstream post-policy decision.
  * @returns the canonical value to project, or `undefined` when spill must defer.
  */
-function acceptedDirectCallValue(ctx, tool, exec, result, decision) {
+export function acceptedDirectCallValue(ctx, tool, exec, result, decision) {
     if (decision.kind !== 'accept' || decision.content !== undefined || Object.hasOwn(decision, 'value')
         || exec.parent !== undefined || exec.name !== tool.name || result.isError
         || ctx.tools.get(exec.name, exec.agent) !== tool)
         return undefined;
     return result.value;
 }
+//# sourceMappingURL=direct-call.js.map

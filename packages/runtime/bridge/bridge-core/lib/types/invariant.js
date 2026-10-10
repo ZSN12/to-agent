@@ -1,4 +1,4 @@
-const PACKAGE_NAME = '@z/dsh-bridge-core';
+const PACKAGE_NAME = '@taskweaver/dsh-bridge-core';
 export const name = 'bridge-core-invariant';
 export const inject = ['invariants'];
 const install = () => { };

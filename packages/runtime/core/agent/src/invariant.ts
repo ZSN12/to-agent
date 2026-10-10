@@ -1,10 +1,10 @@
-/** Package-owned agent lifecycle invariants. @module @z/dsh-agent/invariant */
+/** Package-owned agent lifecycle invariants. @module @taskweaver/dsh-agent/invariant */
 
-import type { Context } from '@z/cordis'
-import type { InvariantInstaller } from '@z/dsh-invariants'
-import type { Agent, AgentStatus } from '@z/dsh-agent'
+import type { Context } from '@taskweaver/cordis'
+import type { InvariantInstaller } from '@taskweaver/dsh-invariants'
+import type { Agent, AgentStatus } from '@taskweaver/dsh-agent'
 
-const PACKAGE_NAME = '@z/dsh-agent'
+const PACKAGE_NAME = '@taskweaver/dsh-agent'
 
 /** Cordis companion plugin name. */
 export const name = 'agent-invariant'

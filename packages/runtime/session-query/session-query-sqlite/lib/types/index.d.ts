@@ -1,17 +1,17 @@
 /**
  * Concrete session-query service with SQLite FTS5 over the live-preferred corpus.
  *
- * @module @z/dsh-session-query-sqlite
+ * @module @taskweaver/dsh-session-query-sqlite
  */
-import { Context, Service } from '@z/cordis';
-import z from '@z/schemastery';
-import SessionQueryEngine from '@z/dsh-session-query';
-import type { Config as SessionQueryConfig, SessionEventSearchPage, SessionEventSearchRequest, SessionSearchExecContext, SessionSearchHit, SessionSearchPage, SessionSearchRequest } from '@z/dsh-session-query';
+import { Context, Service } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
+import SessionQueryEngine from '@taskweaver/dsh-session-query';
+import type { Config as SessionQueryConfig, SessionEventSearchPage, SessionEventSearchRequest, SessionSearchExecContext, SessionSearchHit, SessionSearchPage, SessionSearchRequest } from '@taskweaver/dsh-session-query';
 import { type JournalMode } from './schema.ts';
 export { SESSION_QUERY_SQLITE_APPLICATION_ID, SESSION_QUERY_SQLITE_SCHEMA_VERSION, type JournalMode, } from './schema.ts';
 /** Boot-context slot for a launcher-owned absolute path to this process's derived query index. */
 export declare const SESSION_QUERY_SQLITE_PATH_KEY = "launcherSessionQueryPath";
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
     interface Context {
         /** Launcher-owned absolute path to this process's disposable derived query index. */
         launcherSessionQueryPath?: string;

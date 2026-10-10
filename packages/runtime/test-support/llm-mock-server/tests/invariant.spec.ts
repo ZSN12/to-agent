@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import InvariantRegistry from '@z/dsh-invariants'
+import { Context } from '@taskweaver/cordis'
+import InvariantRegistry from '@taskweaver/dsh-invariants'
 import * as MockServerInvariant from '../src/invariant.ts'
 
 describe('mock LLM server invariant companion', () => {
@@ -10,7 +10,7 @@ describe('mock LLM server invariant companion', () => {
     const fiber = await ctx.plugin(MockServerInvariant)
 
     expect(() => {
-      ctx.invariants.register('@z/dsh-llm-mock-server', () => {})
+      ctx.invariants.register('@taskweaver/dsh-llm-mock-server', () => {})
     }).toThrow(/already registered/)
     await fiber.dispose()
     await ctx.fiber.dispose()

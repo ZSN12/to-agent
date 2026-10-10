@@ -1,9 +1,9 @@
 //#region lib/types/invariant.js
 /**
-* Package-owned invariant companion for `@z/dsh-timeout`.
-* @module @z/dsh-timeout/invariant
+* Package-owned invariant companion for `@taskweaver/dsh-timeout`.
+* @module @taskweaver/dsh-timeout/invariant
 */
-const PACKAGE_NAME = "@z/dsh-timeout";
+const PACKAGE_NAME = "@taskweaver/dsh-timeout";
 /** Cordis companion plugin name. */
 const name = "timeout-invariant";
 /** Service required before the companion can reserve package ownership. */

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { createCredentialStore } from '../electron/backend/credential-store.mjs'
+import { createCredentialStore } from '../desktop/backend/credential-store.mjs'
 
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-credentials-'))
 const filePath = path.join(root, 'private', 'credentials.enc')
@@ -43,6 +43,16 @@ try {
   const unavailable = createCredentialStore({ filePath, safeStorage: { isEncryptionAvailable: () => false } })
   await assert.rejects(unavailable.modify('provider', () => ({ type: 'api-key', key: 'secret' })), /安全存储当前不可用/)
   await assert.rejects(unavailable.read('provider'), /安全存储当前不可用/)
+
+  const insecurePath = path.join(root, 'private', 'credentials-insecure.enc')
+  const previousInsecure = process.env.TASKWEAVER_INSECURE_CREDENTIAL_STORE
+  process.env.TASKWEAVER_INSECURE_CREDENTIAL_STORE = '1'
+  const insecure = createCredentialStore({ filePath: insecurePath, safeStorage: { isEncryptionAvailable: () => false } })
+  await insecure.modify('provider', () => ({ type: 'api-key', key: 'smoke-secret' }))
+  assert.equal((await fs.readFile(insecurePath, 'utf8')).includes('smoke-secret'), false)
+  assert.deepEqual(await insecure.read('provider'), { type: 'api-key', key: 'smoke-secret' })
+  if (previousInsecure === undefined) delete process.env.TASKWEAVER_INSECURE_CREDENTIAL_STORE
+  else process.env.TASKWEAVER_INSECURE_CREDENTIAL_STORE = previousInsecure
 
   console.log('credential store checks passed: encrypted persistence, concurrent updates, provider isolation, restrictive file mode, and fail-closed safeStorage')
 } finally {

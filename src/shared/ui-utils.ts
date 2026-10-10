@@ -22,6 +22,7 @@ export const statusMeta: Record<TaskStatus, { label: string; className: string }
   queued: { label: '排队中', className: 'queued' },
   review: { label: '审查中', className: 'review' },
   cancelled: { label: '已停止', className: 'cancelled' },
+  interrupted: { label: '已中断', className: 'interrupted' },
 }
 
 export function workspaceLabel(path: string | null) {

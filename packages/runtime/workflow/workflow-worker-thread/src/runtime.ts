@@ -9,21 +9,21 @@
  * per-item nulls. Every returned promise has a rejection consumer so dropped script promises cannot
  * kill the worker. A cancelled script that never settles emits nothing; the host force-settles the
  * run within grace and terminates the thread.
- * @module @z/dsh-workflow-worker-thread/runtime
+ * @module @taskweaver/dsh-workflow-worker-thread/runtime
  */
 
 import * as vm from 'node:vm'
-import type { ContentBlock } from '@z/dsh-llm'
-import { SessionId } from '@z/dsh-session'
-import { assertObjectJsonSchema, JsonSchemaError } from '@z/dsh-tools'
-import type { ObjectJsonSchema } from '@z/dsh-tools'
-import { isFatalWorkflowError, WorkflowError } from '@z/dsh-workflow'
+import type { ContentBlock } from '@taskweaver/dsh-llm'
+import { SessionId } from '@taskweaver/dsh-session'
+import { assertObjectJsonSchema, JsonSchemaError } from '@taskweaver/dsh-tools'
+import type { ObjectJsonSchema } from '@taskweaver/dsh-tools'
+import { isFatalWorkflowError, WorkflowError } from '@taskweaver/dsh-workflow'
 import type {
   WorkflowAgentEndInfo,
   WorkflowAgentInfo,
   WorkflowMeta,
   WorkflowResult,
-} from '@z/dsh-workflow'
+} from '@taskweaver/dsh-workflow'
 import { materializeFromRealm, MaterializeError, renderThrown } from './realm.ts'
 import type { ChildHandle, ChildPort, WorkerLimits } from './types.ts'
 

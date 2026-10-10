@@ -1,17 +1,12 @@
-"use strict";
-/** Package-owned invariant companion. @module @z/dsh-host-plugin-inventory/invariant */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.apply = exports.inject = exports.name = void 0;
-var PACKAGE_NAME = '@z/dsh-host-plugin-inventory';
+/** Package-owned invariant companion. @module @taskweaver/dsh-host-plugin-inventory/invariant */
+const PACKAGE_NAME = '@taskweaver/dsh-host-plugin-inventory';
 /** Cordis companion plugin name. */
-exports.name = 'host-plugin-inventory-invariant';
+export const name = 'host-plugin-inventory-invariant';
 /** Service required before the companion can reserve package ownership. */
-exports.inject = ['invariants'];
+export const inject = ['invariants'];
 /** No runtime invariant: every snapshot is projected directly from Loader-owned state. */
-var install = function () { };
+const install = () => { };
 /** Register this package's invariant companion. */
-var apply = function (ctx) {
-    return Promise.resolve(ctx.invariants.register(PACKAGE_NAME, install));
-};
-exports.apply = apply;
+export const apply = (ctx) => Promise.resolve(ctx.invariants.register(PACKAGE_NAME, install));
 /* jscpd:ignore-end */
+//# sourceMappingURL=invariant.js.map

@@ -14,6 +14,16 @@ export type PresetTrust = 'system' | 'user';
  * a directory whose name no copy could ever claim is not a preset slot.
  */
 export declare const PRESET_ID: RegExp;
+/**
+ * Stable TaskWeaver preset ids and the one-release aliases for their former
+ * names. Resolution canonicalizes aliases while discovery only exposes the
+ * new ids, so picker choices and newly persisted sessions use one vocabulary.
+ */
+export declare const LEGACY_AGENT_PRESET_ALIASES: Readonly<Record<string, string>>;
+/** Return a canonical preset id while preserving custom ids. */
+export declare function canonicalAgentPresetId(id: string): string;
+/** Return the former id for canonical presets that had a compatibility alias. */
+export declare function legacyAgentPresetId(id: string): string | undefined;
 /** One preset directory that carries a mountable agent composition. */
 export interface AgentPreset {
     /** Stable identifier; the preset directory's name. */

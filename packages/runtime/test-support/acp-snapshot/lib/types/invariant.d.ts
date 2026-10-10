@@ -1,8 +1,8 @@
 /**
- * Package-owned invariant companion for `@z/dsh-acp-snapshot`.
- * @module @z/dsh-acp-snapshot/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-acp-snapshot`.
+ * @module @taskweaver/dsh-acp-snapshot/invariant
  */
-import type { Context } from '@z/cordis';
+import type { Context } from '@taskweaver/cordis';
 /** Cordis companion plugin name. */
 export declare const name = "acp-snapshot-invariant";
 /** Service required before the companion can reserve package ownership. */

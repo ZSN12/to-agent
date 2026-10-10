@@ -18,22 +18,30 @@
  * agent factory's `setup(agentCtx)` hook is the one supported call site,
  * because only there is the join installed while the agent is still
  * unpublished, so a rejected composition rolls the whole creation back.
- * @module @z/dsh-agent-presets
+ * @module @taskweaver/dsh-agent-presets
  */
 
 import { stat } from 'node:fs/promises'
-import { Context, Service } from '@z/cordis'
-import z from '@z/schemastery'
-import { bindScopeParent, createScope, scopeOf, type Scope, type ScopeKey, type ScopeParentBinding } from '@z/dsh-scope'
+import { Context, Service } from '@taskweaver/cordis'
+import z from '@taskweaver/schemastery'
+import { bindScopeParent, createScope, scopeOf, type Scope, type ScopeKey, type ScopeParentBinding } from '@taskweaver/dsh-scope'
 // Type-only: resolves the `agent/created` lifecycle event this service watches.
-import type {} from '@z/dsh-agent'
-import { settingsNamespace, type SettingsScope, type default as SettingsService } from '@z/dsh-settings'
-import { dshHomePath } from '@z/dsh-home-paths'
+import type {} from '@taskweaver/dsh-agent'
+import { settingsNamespace, type SettingsScope, type default as SettingsService } from '@taskweaver/dsh-settings'
+import { runtimeHomePath } from '@taskweaver/dsh-home-paths'
 import { discoverPresets, USER_PRESET_DIR } from './discovery.ts'
 import { copyComposition, deleteComposition, readComposition } from './authoring.ts'
 import { mountPreset, serviceForAgent, standingMountFor } from './mount.ts'
 import { PresetExistsError } from './authoring.ts'
-import { PresetMountError, UnknownPresetError, type AgentPreset, type Config, type PresetRoot } from './preset.ts'
+import {
+  canonicalAgentPresetId,
+  legacyAgentPresetId,
+  PresetMountError,
+  UnknownPresetError,
+  type AgentPreset,
+  type Config,
+  type PresetRoot,
+} from './preset.ts'
 import type {} from './types.ts'
 
 /** Settings namespace carrying the user's chosen default preset. */
@@ -64,9 +72,10 @@ export {
 } from './authoring.ts'
 export { resolveSessionPreset, type PresetBearingSession } from './session.ts'
 export { PresetMountError, UnknownPresetError } from './preset.ts'
+export { canonicalAgentPresetId, LEGACY_AGENT_PRESET_ALIASES } from './preset.ts'
 export type { AgentPreset, Config, PresetRoot, PresetTrust } from './preset.ts'
 
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
   interface Context {
     agentPresets: AgentPresets
   }
@@ -130,8 +139,9 @@ export class AgentPresets extends Service {
   constructor(ctx: Context, public config: Config) {
     super(ctx, 'agentPresets')
     this.selfCtx = ctx
+    this.config.default = canonicalAgentPresetId(this.config.default)
     this.resolvedRoots = config.includeUserRoot
-      ? [...config.roots, { path: dshHomePath(USER_PRESET_DIR), trust: 'user' }]
+      ? [...config.roots, { path: runtimeHomePath(USER_PRESET_DIR), trust: 'user' }]
       : [...config.roots]
     // Deliberately not `installSettingsSection`: that helper exists to re-judge
     // what a consumer DERIVED from the source — memoized resolutions,
@@ -142,7 +152,7 @@ export class AgentPresets extends Service {
       this.settings = settingsCtx.settings.register(
         settingsNamespace(SETTINGS_NAMESPACE),
         AgentPresetSettingsSchema,
-        { base: { default: config.default } },
+        { base: { default: canonicalAgentPresetId(config.default) } },
       )
       this.settingsService = settingsCtx.settings
       settingsCtx.effect(() => () => {
@@ -189,7 +199,7 @@ export class AgentPresets extends Service {
    * every running session on the preset it was composed from.
    */
   get defaultId(): string {
-    return this.settings?.get().default ?? this.config.default
+    return canonicalAgentPresetId(this.settings?.get().default ?? this.config.default)
   }
 
   /**
@@ -211,9 +221,19 @@ export class AgentPresets extends Service {
    * @throws when no configured root supplies that id.
    */
   async resolve(id?: string): Promise<AgentPreset> {
-    const wanted = id ?? this.defaultId
+    const requested = id ?? this.defaultId
+    const wanted = canonicalAgentPresetId(requested)
     const presets = await this.list()
     const found = presets.find(preset => preset.id === wanted)
+      // Test roots and older locally authored deployments may still contain
+      // the former directory. Keep reading it only when no canonical copy is
+      // present; shipped roots expose just the canonical id.
+      ?? (legacyAgentPresetId(wanted) === requested
+        ? presets.find(preset => preset.id === requested)
+        : undefined)
+      ?? (id === undefined && legacyAgentPresetId(wanted) !== undefined
+        ? presets.find(preset => preset.id === legacyAgentPresetId(wanted))
+        : undefined)
     if (found === undefined) {
       throw new UnknownPresetError(wanted, presets.map(preset => preset.id))
     }
@@ -379,17 +399,18 @@ export class AgentPresets extends Service {
    */
   async copy(from: string, id: string, name?: string): Promise<void> {
     const source = await this.resolve(from)
+    const canonicalId = canonicalAgentPresetId(id)
     // The roster check refuses ids any root supplies — shipped ones included,
     // since a user directory named like a shipped preset is shadowed by it.
     // The disk check inside copyComposition only sees the writable root.
-    if ((await this.list()).some(preset => preset.id === id)) {
-      throw new PresetExistsError(id)
+    if ((await this.list()).some(preset => preset.id === canonicalId || preset.id === id)) {
+      throw new PresetExistsError(canonicalId)
     }
-    await copyComposition(this.resolvedRoots, source, id, name)
+    await copyComposition(this.resolvedRoots, source, canonicalId, name)
     // A settled mount under this id can only be stale (its preset was deleted
     // from disk outside `remove`); the new preset must not inherit it. Every
     // session already joined keeps the generation it runs on regardless.
-    this.standing.delete(id)
+    this.standing.delete(canonicalId)
   }
 
   /**
@@ -398,17 +419,18 @@ export class AgentPresets extends Service {
    * @throws when the preset is unknown or ships with the deployment.
    */
   async remove(id: string): Promise<void> {
-    await deleteComposition(this.resolvedRoots, await this.resolve(id))
+    const preset = await this.resolve(id)
+    await deleteComposition(this.resolvedRoots, preset)
     // Sessions on the deleted preset keep their standing mount; only new
     // sessions see the roster without it.
-    this.standing.delete(id)
+    this.standing.delete(preset.id)
     // Storing a default that does not exist YET is deliberate — the roster is a
     // live directory, so a name absent now may exist by the time a session asks
     // for it, and `resolve` reports it then. A default this call just deleted is
     // not that case: nothing will ever supply it again, and left in place every
     // session created without an explicit pick would fail to start. Clearing it
     // exposes the deployment's own default underneath, which is the layering.
-    if (this.settings?.get().default !== id) return
+    if (canonicalAgentPresetId(this.settings?.get().default ?? '') !== preset.id) return
     await this.settingsService?.mutate(
       settingsNamespace(SETTINGS_NAMESPACE),
       [{ op: 'unset', path: ['default'] }],

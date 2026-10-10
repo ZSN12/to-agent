@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { lstatSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { getConfigDir } from "../config";
+import { getConfigDir } from "../config/paths";
 
 export const ADMIN_TOKEN_FILE = "admin-api-token";
 

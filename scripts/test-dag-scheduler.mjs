@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { validateAndOrderTasks, executeDag } from '../electron/backend/dag-scheduler.mjs'
+import { validateAndOrderTasks, executeDag } from '../desktop/backend/dag-scheduler.mjs'
 
 const tasks = validateAndOrderTasks([
   { id: 'T1', title: '调研 A', description: '读代码', taskType: 'research', dependsOn: [] },
@@ -46,6 +46,113 @@ await executeDag(tasks.slice(0, 2), {
 assert.deepEqual(serialOrder, ['T1', 'T2'])
 assert.equal(serialMaxParallel, 1, 'maxConcurrency=1 serializes independent research tasks for benchmark replay')
 await assert.rejects(executeDag(tasks.slice(0, 2), { maxConcurrency: 0, execute: async () => ({ text: 'never' }) }), /正整数/)
+await assert.rejects(executeDag(tasks.slice(0, 2), { maxConcurrencyPerProvider: 0, execute: async () => ({ text: 'never' }) }), /提供方并发上限/)
+
+const providerTasks = [
+  { id: 'A1', title: 'provider A 1', description: 'A', taskType: 'research', provider: 'provider-a', dependsOn: [] },
+  { id: 'A2', title: 'provider A 2', description: 'A', taskType: 'research', provider: 'provider-a', dependsOn: [] },
+  { id: 'A3', title: 'provider A 3', description: 'A', taskType: 'research', provider: 'provider-a', dependsOn: [] },
+  { id: 'B1', title: 'provider B 1', description: 'B', taskType: 'research', provider: 'provider-b', dependsOn: [] },
+  { id: 'B2', title: 'provider B 2', description: 'B', taskType: 'research', provider: 'provider-b', dependsOn: [] },
+]
+const activeByProvider = new Map()
+let providerConcurrencyPeak = 0
+let providerAPeak = 0
+let providerBPeak = 0
+const providerLimited = await executeDag(providerTasks, {
+  maxConcurrency: 4,
+  maxConcurrencyPerProvider: 1,
+  getTaskProvider: (task) => task.provider,
+  execute: async (task) => {
+    const active = (activeByProvider.get(task.provider) ?? 0) + 1
+    activeByProvider.set(task.provider, active)
+    providerConcurrencyPeak = Math.max(providerConcurrencyPeak, [...activeByProvider.values()].reduce((sum, count) => sum + count, 0))
+    if (task.provider === 'provider-a') providerAPeak = Math.max(providerAPeak, active)
+    if (task.provider === 'provider-b') providerBPeak = Math.max(providerBPeak, active)
+    await new Promise((resolve) => setTimeout(resolve, 5))
+    activeByProvider.set(task.provider, activeByProvider.get(task.provider) - 1)
+    return { text: task.id }
+  },
+})
+assert.equal(providerLimited.failed.size, 0)
+assert.equal(providerLimited.results.size, providerTasks.length)
+assert.equal(providerAPeak, 1, 'same-provider nodes must respect their independent concurrency ceiling')
+assert.equal(providerBPeak, 1, 'each provider receives its own concurrency ceiling')
+assert.equal(providerConcurrencyPeak, 2, 'different providers may run concurrently while each stays capped')
+
+const seededRandom = (seed) => {
+  let state = seed >>> 0
+  return () => {
+    state = (state * 1664525 + 1013904223) >>> 0
+    return state / 0x1_0000_0000
+  }
+}
+
+for (let seed = 1; seed <= 24; seed += 1) {
+  const random = seededRandom(seed)
+  const count = 2 + Math.floor(random() * 7)
+  const generated = Array.from({ length: count }, (_, index) => ({
+    id: `R${index + 1}`,
+    title: `random research ${index + 1}`,
+    description: 'seeded property DAG',
+    taskType: 'research',
+    dependsOn: Array.from({ length: index }, (_, dependencyIndex) => dependencyIndex)
+      .filter(() => random() < 0.28)
+      .map((dependencyIndex) => `R${dependencyIndex + 1}`),
+  }))
+  const startedAt = new Map()
+  const finishedAt = new Map()
+  let eventSequence = 0
+  const generatedResult = await executeDag(generated, {
+    maxConcurrency: 4,
+    execute: async (task) => {
+      startedAt.set(task.id, ++eventSequence)
+      await new Promise((resolve) => setTimeout(resolve, Math.floor(random() * 3)))
+      finishedAt.set(task.id, ++eventSequence)
+      return { text: task.id }
+    },
+  })
+  assert.equal(generatedResult.failed.size, 0, `seed ${seed} must terminate without failed nodes`)
+  assert.equal(generatedResult.results.size, count, `seed ${seed} must execute every node`)
+  for (const task of generated) {
+    for (const dependencyId of task.dependsOn) {
+      assert.ok(finishedAt.get(dependencyId) < startedAt.get(task.id), `seed ${seed}: dependency ${dependencyId} must finish before ${task.id} starts`)
+    }
+  }
+}
+
+for (let seed = 1; seed <= 16; seed += 1) {
+  const random = seededRandom(seed * 97)
+  const activePaths = new Set()
+  let activeWriters = 0
+  let peakWriters = 0
+  const writers = Array.from({ length: 6 }, (_, index) => ({
+    id: `W${index + 1}`,
+    title: `random writer ${index + 1}`,
+    description: 'seeded overlapping writer property',
+    taskType: 'implementation',
+    writeScopes: [`src/group-${Math.floor(random() * 3)}.ts`],
+    dependsOn: [],
+  }))
+  const writerResult = await executeDag(writers, {
+    maxConcurrency: 4,
+    allowParallelImplementation: true,
+    execute: async (task) => {
+      const scope = task.writeScopes[0]
+      assert.equal(activePaths.has(scope), false, `seed ${seed}: overlapping write scope ${scope} must not run concurrently`)
+      activePaths.add(scope)
+      activeWriters += 1
+      peakWriters = Math.max(peakWriters, activeWriters)
+      await new Promise((resolve) => setTimeout(resolve, Math.floor(random() * 3)))
+      activeWriters -= 1
+      activePaths.delete(scope)
+      return { text: task.id }
+    },
+  })
+  assert.equal(writerResult.failed.size, 0, `seed ${seed} writer DAG must terminate`)
+  assert.equal(writerResult.results.size, writers.length)
+  assert.ok(peakWriters <= 3, `seed ${seed} must respect the run concurrency cap`)
+}
 
 const evidenceGateTasks = validateAndOrderTasks([
   { id: 'R1', title: '代码调研', description: '阅读代码', taskType: 'research', dependsOn: [] },

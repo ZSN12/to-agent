@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
-import { Service } from "@z/cordis";
-import z from "@z/schemastery";
-import SessionQueryEngine, { SESSION_QUERY_DEFAULT_PERSISTED_INSPECT_CONCURRENCY, SESSION_QUERY_READ_WINDOW_MAX, SessionQueryError, SessionSearchCursor, assertSessionHeadersCompatible, buildSessionEventSearchDocuments, materializeSessionEventResultFilters, materializeSessionResultFilters } from "@z/dsh-session-query";
+import { Service } from "@taskweaver/cordis";
+import z from "@taskweaver/schemastery";
+import SessionQueryEngine, { SESSION_QUERY_DEFAULT_PERSISTED_INSPECT_CONCURRENCY, SESSION_QUERY_READ_WINDOW_MAX, SessionQueryError, SessionSearchCursor, assertSessionHeadersCompatible, buildSessionEventSearchDocuments, materializeSessionEventResultFilters, materializeSessionResultFilters } from "@taskweaver/dsh-session-query";
 import { mkdir, open } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 //#region lib/types/schema.js
@@ -460,7 +460,7 @@ function unknownFilter(filter) {
 /**
 * Concrete session-query service with SQLite FTS5 over the live-preferred corpus.
 *
-* @module @z/dsh-session-query-sqlite
+* @module @taskweaver/dsh-session-query-sqlite
 */
 /** Boot-context slot for a launcher-owned absolute path to this process's derived query index. */
 const SESSION_QUERY_SQLITE_PATH_KEY = "launcherSessionQueryPath";

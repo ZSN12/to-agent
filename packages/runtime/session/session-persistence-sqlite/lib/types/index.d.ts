@@ -1,12 +1,12 @@
 /**
  * Opt-in SQLite persistence provider. Logical sessions remain unchanged;
  * the physical backend packs eligible chunk runs into schema-17 rows.
- * @module @z/dsh-session-persistence-sqlite
+ * @module @taskweaver/dsh-session-persistence-sqlite
  */
-import { Context, Service } from '@z/cordis';
-import z from '@z/schemastery';
-import type { SessionEvent, SessionHeader, SessionId, SessionPreparation } from '@z/dsh-session';
-import { SessionPersistence, type SessionInspection, type SessionLocation, type SessionPersistenceSnapshot } from '@z/dsh-session-persistence';
+import { Context, Service } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
+import type { SessionEvent, SessionHeader, SessionId, SessionPreparation } from '@taskweaver/dsh-session';
+import { SessionPersistence, type SessionInspection, type SessionLocation, type SessionPersistenceSnapshot } from '@taskweaver/dsh-session-persistence';
 import type { JournalMode } from './schema.ts';
 export { SCHEMA_VERSION } from './schema.ts';
 /** Default wait for another SQLite connection's write reservation. */

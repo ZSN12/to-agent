@@ -6,13 +6,13 @@
  * Registrations outlive producer and controller fibers. Agent or service
  * disposal cancels live work and awaits compliant producers; a throwing
  * teardown cancel force-fails only the record and reports a possible orphan.
- * @module @z/dsh-jobs-local
+ * @module @taskweaver/dsh-jobs-local
  */
-import { Context } from '@z/cordis';
-import z from '@z/schemastery';
-import type { Agent } from '@z/dsh-agent';
-import { JobRegistry, JobId } from '@z/dsh-jobs';
-import type { JobDoneListener, JobRead, JobSnapshot, JobStart, JobsChangedListener } from '@z/dsh-jobs';
+import { Context } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
+import type { Agent } from '@taskweaver/dsh-agent';
+import { JobRegistry, JobId } from '@taskweaver/dsh-jobs';
+import type { JobDoneListener, JobRead, JobSnapshot, JobStart, JobsChangedListener } from '@taskweaver/dsh-jobs';
 /** Timeout code that distinguishes a bounded wait from caller cancellation. */
 export declare const TASK_WAIT_TIMEOUT = "TASK_WAIT_TIMEOUT";
 /** Configuration for the process-local job registry. */
@@ -25,7 +25,7 @@ export interface Config {
 }
 /**
  * The in-memory `jobs` registry. See the Service Definition contract in
- * `@z/dsh-jobs` for the ownership, isolation, and lifecycle
+ * `@taskweaver/dsh-jobs` for the ownership, isolation, and lifecycle
  * semantics this implementation honors.
  */
 export declare class LocalJobRegistry extends JobRegistry {

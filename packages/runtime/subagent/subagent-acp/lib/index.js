@@ -1,12 +1,12 @@
 import { accessSync, constants, statSync } from "node:fs";
 import { isAbsolute, resolve } from "node:path";
-import z from "@z/schemastery";
-import { MAX_TIMER_DELAY_MS } from "@z/dsh-timeout";
+import z from "@taskweaver/schemastery";
+import { MAX_TIMER_DELAY_MS } from "@taskweaver/dsh-timeout";
 import { randomUUID } from "node:crypto";
 import { Readable, Writable } from "node:stream";
 import { ClientSideConnection, PROTOCOL_VERSION, ndJsonStream } from "@agentclientprotocol/sdk";
-import { SessionId } from "@z/dsh-session";
-import { AssistantOutputFold } from "@z/dsh-subagent";
+import { SessionId } from "@taskweaver/dsh-session";
+import { AssistantOutputFold } from "@taskweaver/dsh-subagent";
 //#region lib/types/run.js
 /**
 * Fresh-process ACP subagent client. Drives one child session and owns cancellation and
@@ -15,7 +15,7 @@ import { AssistantOutputFold } from "@z/dsh-subagent";
 * TODO(acp-subagent-replay): add snapshot-tier coverage with a separate replay fixture and
 * sessions root inside each child process. Current keyless coverage uses a scripted ACP child;
 * with-key coverage drives the real ACP example.
-* @module @z/dsh-subagent-acp/run
+* @module @taskweaver/dsh-subagent-acp/run
 */
 /** EOF grace for child flush and nested-process teardown; wider than the signal grace below. */
 const DEFAULT_DISPOSE_EOF_GRACE_MS = 6e3;
@@ -250,7 +250,7 @@ async function startAcpRun(request, spec) {
 * the ONE thing it reads off `request.parent` is the session's workspace cwd (see
 * {@link resolveCwd}). This plugin uses named exports only; a default would hide its
 * loader metadata (see `docs/postmortem/0001-acp-default-export-drops-inject.md`).
-* @module @z/dsh-subagent-acp
+* @module @taskweaver/dsh-subagent-acp
 */
 const name = "subagent-acp";
 const inject = ["subagents", "subprocess"];

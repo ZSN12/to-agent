@@ -1,10 +1,10 @@
-import { Context } from '@z/cordis'
+import { Context } from '@taskweaver/cordis'
 import {
   TypertRemoteService,
   Remote,
   RemoteScope,
   remoteMethods,
-} from '@z/dsh-typert-protocol'
+} from '@taskweaver/dsh-typert-protocol'
 
 class Goals extends TypertRemoteService {
   constructor(ctx: Context) {

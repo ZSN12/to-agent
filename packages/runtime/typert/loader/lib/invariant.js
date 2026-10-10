@@ -1,9 +1,9 @@
 //#region lib/types/invariant.js
 /**
-* Package-owned invariant companion for `@z/dsh-typert-loader`.
-* @module @z/dsh-typert-loader/invariant
+* Package-owned invariant companion for `@taskweaver/dsh-typert-loader`.
+* @module @taskweaver/dsh-typert-loader/invariant
 */
-const PACKAGE_NAME = "@z/dsh-typert-loader";
+const PACKAGE_NAME = "@taskweaver/dsh-typert-loader";
 /** Cordis companion plugin name. */
 const name = "typert-loader-invariant";
 /** Service required before the companion can reserve package ownership. */

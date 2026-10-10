@@ -1,13 +1,13 @@
 import { readFileSync } from "node:fs";
-import z from "@z/schemastery";
-import { createUserMessage } from "@z/dsh-llm";
-import { DEFAULT_HOOK_TIMEOUT_MS, DEFAULT_STDERR_SUMMARY_MAX_CHARS, appendHookInvoked, appendHookResult, createDetachedRuns, matcherDiagnostic, matchesMatcher, mergeHookOutputs, runHook } from "@z/dsh-hook-protocol";
+import z from "@taskweaver/schemastery";
+import { createUserMessage } from "@taskweaver/dsh-llm";
+import { DEFAULT_HOOK_TIMEOUT_MS, DEFAULT_STDERR_SUMMARY_MAX_CHARS, appendHookInvoked, appendHookResult, createDetachedRuns, matcherDiagnostic, matchesMatcher, mergeHookOutputs, runHook } from "@taskweaver/dsh-hook-protocol";
 //#region lib/types/config.js
 /**
 * Parse Codex's five-event hook subset into shared {@link MatcherGroup}s. Only synchronous command
 * hooks run; other types and `async: true` commands are recorded as skipped. Codex performs no
 * command substitution.
-* @module @z/dsh-hooks-codex/config
+* @module @taskweaver/dsh-hooks-codex/config
 */
 /** The eight Codex hook points this bridge supports. */
 const CODEX_EVENTS = [
@@ -100,7 +100,7 @@ function parseCodexConfig(raw) {
 * blocking decisions are honored. Shared execution and parsing live in
 * `dsh-hook-protocol`; see the
 * [hook-bridges Agent Note](../../../../.agents/notes/implemented/feature/2026-06-30-hook-bridges.md).
-* @module @z/dsh-hooks-codex
+* @module @taskweaver/dsh-hooks-codex
 */
 const name = "hooks-codex";
 const inject = ["shell"];

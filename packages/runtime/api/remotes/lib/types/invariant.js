@@ -1,21 +1,16 @@
-"use strict";
-/** Package-owned invariant companion for `@z/dsh-api-remotes`. */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.apply = exports.inject = exports.name = void 0;
-var PACKAGE_NAME = '@z/dsh-api-remotes';
+/** Package-owned invariant companion for `@taskweaver/dsh-api-remotes`. */
+const PACKAGE_NAME = '@taskweaver/dsh-api-remotes';
 /** Cordis companion plugin name. */
-exports.name = 'api-remotes-invariant';
+export const name = 'api-remotes-invariant';
 /** Service required before the companion can reserve package ownership. */
-exports.inject = ['invariants'];
+export const inject = ['invariants'];
 /** No runtime invariant: Typert and the Agent/Session registries own the observed relationships. */
-var install = function () { };
+const install = () => { };
 /**
  * Register this package's invariant companion.
  * @param ctx - Cordis context carrying the invariant service.
  * @returns the installed registration's disposer after setup succeeds.
  */
-var apply = function (ctx) {
-    return Promise.resolve(ctx.invariants.register(PACKAGE_NAME, install));
-};
-exports.apply = apply;
+export const apply = (ctx) => Promise.resolve(ctx.invariants.register(PACKAGE_NAME, install));
 /* jscpd:ignore-end */
+//# sourceMappingURL=invariant.js.map

@@ -1,7 +1,7 @@
 /** Web Session-log download command over the host endpoint owned by ApiProxy. */
 
-import type { Context } from '@z/cordis'
-import type { CommandResult } from '@z/dsh-commands'
+import type { Context } from '@taskweaver/cordis'
+import type { CommandResult } from '@taskweaver/dsh-commands'
 
 export const name = 'session-log-download'
 export const inject = ['commands']

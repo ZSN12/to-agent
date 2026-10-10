@@ -3,7 +3,7 @@
  * with a structured `outputSchema`, so the reviewer returns a validated
  * {@link ReviewOutcome} without inheriting parent context. The child runs with
  * a narrowed tool set so the reviewer cannot itself become an attack surface.
- * @module @z/dsh-auto-review
+ * @module @taskweaver/dsh-auto-review
  */
 /**
  * The object-rooted JSON schema the reviewer child must satisfy. Restricted to

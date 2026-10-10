@@ -1,14 +1,14 @@
-/** Package-owned durable retry-event invariants. @module @z/dsh-llm-retry/invariant */
+/** Package-owned durable retry-event invariants. @module @taskweaver/dsh-llm-retry/invariant */
 
-import type { Context } from '@z/cordis'
-import type { Session, SessionEvent } from '@z/dsh-session'
-import type { LlmFailure } from '@z/dsh-llm'
-import { MAX_TIMER_DELAY_MS } from '@z/dsh-timeout'
-import type { InvariantFailure, InvariantInstaller } from '@z/dsh-invariants'
+import type { Context } from '@taskweaver/cordis'
+import type { Session, SessionEvent } from '@taskweaver/dsh-session'
+import type { LlmFailure } from '@taskweaver/dsh-llm'
+import { MAX_TIMER_DELAY_MS } from '@taskweaver/dsh-timeout'
+import type { InvariantFailure, InvariantInstaller } from '@taskweaver/dsh-invariants'
 import { providerForOpenStep } from './history.ts'
 import type {} from './index.ts'
 
-const PACKAGE_NAME = '@z/dsh-llm-retry'
+const PACKAGE_NAME = '@taskweaver/dsh-llm-retry'
 
 /** Cordis companion plugin name. */
 export const name = 'llm-retry-invariant'

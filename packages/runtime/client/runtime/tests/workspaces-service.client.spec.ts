@@ -1,9 +1,9 @@
-import { Context } from '@z/cordis'
+import { Context } from '@taskweaver/cordis'
 import { describe, expect, it, vi } from 'vitest'
-import type { SessionId, WorkspaceId, WorkspaceView } from '@z/dsh-api-remotes/client'
+import type { SessionId, WorkspaceId, WorkspaceView } from '@taskweaver/dsh-api-remotes/client'
 import { SessionRuntime } from '../src/client/sessions/service.ts'
 import { WorkspaceManager } from '../src/client/workspaces/manager.ts'
-import { DirectoryBrowseError, WorkspaceCreateError, WorkspaceRuntime } from '../src/client/workspaces/service.ts'
+import { WorkspaceCreateError, WorkspaceRuntime } from '../src/client/workspaces/service.ts'
 import { FakeApiClient, deferred, err, fakeRemote, ok } from './fake-api.client.ts'
 
 const sid = (id: string): SessionId => id as SessionId
@@ -326,27 +326,6 @@ describe('WorkspaceRuntime', () => {
     expect(api.callsOf('host.pickDirectory')).toEqual([{}, {}])
     api.onPickDirectory = () => Promise.resolve(err({ code: 'internal', message: 'no chooser', details: {} }))
     await expect(workspaces.pickDirectory()).rejects.toThrow(/no chooser/)
-  })
-
-  it('passes listings and creation through the browse wire, wrapping business failures', async () => {
-    const ctx = new Context()
-    const api = new FakeApiClient()
-    const workspaces = new WorkspaceRuntime(ctx, api, new SessionRuntime(ctx, api, fakeRemote()))
-    const listing = { path: '/home/u', home: '/home/u', crumbs: [{ name: '/', path: '/', hidden: false }], entries: [{ name: 'p', path: '/home/u/p', hidden: false }], truncated: false }
-    api.onListDirectory = () => Promise.resolve(ok(listing))
-    await expect(workspaces.listDirectory()).resolves.toEqual(listing)
-    await expect(workspaces.listDirectory('/home/u')).resolves.toEqual(listing)
-    // The optional path is omitted from the payload, not sent as undefined.
-    expect(api.callsOf('host.listDirectory')).toEqual([{}, { path: '/home/u' }])
-    api.onListDirectory = () => Promise.resolve(err({ code: 'directory-unreadable', message: 'denied', details: { path: '/x' } }))
-    const listFailure = workspaces.listDirectory('/x')
-    await expect(listFailure).rejects.toBeInstanceOf(DirectoryBrowseError)
-    await expect(listFailure).rejects.toMatchObject({ rpcError: { code: 'directory-unreadable' } })
-
-    await expect(workspaces.createDirectory('/home/u', 'fresh')).resolves.toBe('/home/fake/new')
-    expect(api.callsOf('host.createDirectory')).toEqual([{ path: '/home/u', name: 'fresh' }])
-    api.onCreateDirectory = () => Promise.resolve(err({ code: 'directory-exists', message: 'taken', details: { path: '/home/u/fresh' } }))
-    await expect(workspaces.createDirectory('/home/u', 'fresh')).rejects.toMatchObject({ rpcError: { code: 'directory-exists' } })
   })
 
   it('opens a filesystem path through the host without local state', async () => {

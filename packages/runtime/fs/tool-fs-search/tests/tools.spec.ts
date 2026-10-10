@@ -11,18 +11,18 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
+import { Context } from '@taskweaver/cordis'
 import { join, sep } from 'node:path'
-import { createUserMessage, CallId } from '@z/dsh-llm'
-import SystemPrompt, { renderPrompt } from '@z/dsh-system-prompt'
-import ToolRuntime, { TOOL_ABORTED_BEFORE_DISPATCH, type ToolExecution, type ToolExecutionToken } from '@z/dsh-tools'
-import { SubprocessRuntime } from '@z/dsh-subprocess'
-import type { SubprocessCollectedOutputs, SubprocessHandle, SubprocessOutcome, SubprocessOutputRead, SubprocessOutputReader, SubprocessSpawnSpec } from '@z/dsh-subprocess'
-import { MAX_TIMER_DELAY_MS } from '@z/dsh-timeout'
+import { createUserMessage, CallId } from '@taskweaver/dsh-llm'
+import SystemPrompt, { renderPrompt } from '@taskweaver/dsh-system-prompt'
+import ToolRuntime, { TOOL_ABORTED_BEFORE_DISPATCH, type ToolExecution, type ToolExecutionToken } from '@taskweaver/dsh-tools'
+import { SubprocessRuntime } from '@taskweaver/dsh-subprocess'
+import type { SubprocessCollectedOutputs, SubprocessHandle, SubprocessOutcome, SubprocessOutputRead, SubprocessOutputReader, SubprocessSpawnSpec } from '@taskweaver/dsh-subprocess'
+import { MAX_TIMER_DELAY_MS } from '@taskweaver/dsh-timeout'
 import { rgPath } from '@vscode/ripgrep'
-import { SpillLocator, SpillStore } from '@z/dsh-spill'
-import type { SaveTextSpill, SpillRef } from '@z/dsh-spill'
-import * as ToolFsSearch from '@z/dsh-tool-fs-search'
+import { SpillLocator, SpillStore } from '@taskweaver/dsh-spill'
+import type { SaveTextSpill, SpillRef } from '@taskweaver/dsh-spill'
+import * as ToolFsSearch from '@taskweaver/dsh-tool-fs-search'
 import {
   buildGlobCommand,
   buildGrepCommand,
@@ -37,7 +37,7 @@ import {
   runRipgrep,
   sampleAcrossTopLevel,
   toWorkdirRelative,
-} from '@z/dsh-tool-fs-search'
+} from '@taskweaver/dsh-tool-fs-search'
 
 const testToolSignal = new AbortController().signal
 

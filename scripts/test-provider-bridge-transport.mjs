@@ -6,7 +6,24 @@ import {
   resolveCursorReasoningOption,
   createAdapterEventChunkMapper,
   buildCursorParsedRequest,
+  createCursorBackend,
+  UI_VERIFY_APPROVAL_FIXTURE,
+  UI_VERIFY_MOCK_REPLY,
+  isUiVerifyApprovalFixture,
+  resolveRuntimeRootOverride,
 } from '../packages/provider-bridge-transport/index.mjs'
+
+const oldWarn = console.warn
+const runtimeWarnings = []
+console.warn = (message) => runtimeWarnings.push(String(message))
+try {
+  assert.equal(resolveRuntimeRootOverride({ TASKWEAVER_RUNTIME: '/runtime/canonical', TASKWEAVER_Z_RUNTIME: '/runtime/legacy' }), '/runtime/canonical')
+  assert.equal(resolveRuntimeRootOverride({ TASKWEAVER_DSH_RUNTIME: '/runtime/dsh-legacy' }), '/runtime/dsh-legacy')
+} finally {
+  console.warn = oldWarn
+}
+assert.ok(runtimeWarnings.some((message) => message.includes('TASKWEAVER_Z_RUNTIME') && message.includes('TASKWEAVER_RUNTIME')))
+assert.ok(runtimeWarnings.some((message) => message.includes('TASKWEAVER_DSH_RUNTIME') && message.includes('TASKWEAVER_RUNTIME')))
 
 const profile = {
   bridgeKind: 'cursor',
@@ -104,5 +121,50 @@ assert.ok(chunks.some((c) => c.type === 'reasoning-delta' && c.text === 'b'))
 assert.ok(chunks.some((c) => c.type === 'tool-call-delta'))
 assert.ok(chunks.some((c) => c.type === 'finish' && c.reason.kind === 'tool-calls'))
 assert.ok(chunks.some((c) => c.type === 'usage'))
+
+const fixtureContext = {
+  options: {
+    messages: [{ role: 'user', content: [{ type: 'text', text: UI_VERIFY_APPROVAL_FIXTURE }] }],
+  },
+}
+const uiVerifyEnv = {
+  TASKWEAVER_E2E: '1',
+  TASKWEAVER_UI_VERIFY: '1',
+  TASKWEAVER_UI_VERIFY_MOCK: '1',
+}
+assert.equal(isUiVerifyApprovalFixture(fixtureContext, uiVerifyEnv), true)
+assert.equal(isUiVerifyApprovalFixture(fixtureContext, { ...uiVerifyEnv, TASKWEAVER_PACKAGED: '1' }), false)
+assert.equal(isUiVerifyApprovalFixture(fixtureContext, { ...uiVerifyEnv, TASKWEAVER_UI_VERIFY_MOCK: '0' }), false)
+assert.equal(isUiVerifyApprovalFixture({
+  options: { messages: [{ role: 'user', content: `Please ${UI_VERIFY_APPROVAL_FIXTURE}` }] },
+}, uiVerifyEnv), false)
+
+const oldMock = process.env.BRIDGE_SMOKE_MOCK
+const oldE2e = process.env.TASKWEAVER_E2E
+const oldUiVerify = process.env.TASKWEAVER_UI_VERIFY
+const oldUiVerifyMock = process.env.TASKWEAVER_UI_VERIFY_MOCK
+try {
+  process.env.BRIDGE_SMOKE_MOCK = '1'
+  process.env.TASKWEAVER_E2E = '1'
+  process.env.TASKWEAVER_UI_VERIFY = '1'
+  process.env.TASKWEAVER_UI_VERIFY_MOCK = '1'
+  const mockBackend = createCursorBackend()
+  const fixtureChunks = []
+  for await (const chunk of mockBackend.stream(fixtureContext)) fixtureChunks.push(chunk)
+  assert.ok(fixtureChunks.some((chunk) => chunk.type === 'tool-call-delta' && chunk.name === 'bash'))
+  assert.equal(fixtureChunks.at(-1)?.reason?.kind, 'tool-calls')
+  const replyChunks = []
+  for await (const chunk of mockBackend.stream({ options: { messages: [{ role: 'user', content: 'hello' }] } })) replyChunks.push(chunk)
+  assert.ok(replyChunks.some((chunk) => chunk.type === 'text-delta' && chunk.text === UI_VERIFY_MOCK_REPLY))
+} finally {
+  if (oldMock === undefined) delete process.env.BRIDGE_SMOKE_MOCK
+  else process.env.BRIDGE_SMOKE_MOCK = oldMock
+  if (oldE2e === undefined) delete process.env.TASKWEAVER_E2E
+  else process.env.TASKWEAVER_E2E = oldE2e
+  if (oldUiVerify === undefined) delete process.env.TASKWEAVER_UI_VERIFY
+  else process.env.TASKWEAVER_UI_VERIFY = oldUiVerify
+  if (oldUiVerifyMock === undefined) delete process.env.TASKWEAVER_UI_VERIFY_MOCK
+  else process.env.TASKWEAVER_UI_VERIFY_MOCK = oldUiVerifyMock
+}
 
 console.log('test-taskweaver-bridge-transport: ok')

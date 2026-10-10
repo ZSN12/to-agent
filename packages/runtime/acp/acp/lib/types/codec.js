@@ -1,6 +1,6 @@
 /**
  * Pure translation between the harness lifecycle and the automation-only ACP wire.
- * @module @z/dsh-acp/codec
+ * @module @taskweaver/dsh-acp/codec
  */
 /**
  * Map a harness turn ending to ACP's terminal reason vocabulary.

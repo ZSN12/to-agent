@@ -10,7 +10,7 @@
 
 import { release as osRelease } from 'node:os'
 import { extname } from 'node:path'
-import { runNativeCommand, type NativeCommandRunner } from '@z/dsh-native-command'
+import { runNativeCommand, type NativeCommandRunner } from '@taskweaver/dsh-native-command'
 
 /** Testable command boundary; native implementations never invoke a shell. */
 export type PathOpenerRunner = NativeCommandRunner

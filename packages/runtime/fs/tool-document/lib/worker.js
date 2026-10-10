@@ -1,4 +1,9 @@
+import { createRequire } from "node:module";
 import { parentPort } from "node:worker_threads";
+import { spawn } from "node:child_process";
+import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { OPS, getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { unzipSync } from "fflate";
 //#region lib/types/errors.js
@@ -58,7 +63,7 @@ function parseAttributes(source) {
 }
 /** A deliberately small, non-validating XML reader: external entities and DTDs are rejected. */
 function parseXml(xml, maxNodes = 1e6) {
-	if (xml.length > 50 * 1024 * 1024) throw new DocumentReadError("Office XML part exceeds the 50 MB parser limit", "DOCUMENT_XML_TOO_LARGE");
+	if (xml.length > 52428800) throw new DocumentReadError("Office XML part exceeds the 50 MB parser limit", "DOCUMENT_XML_TOO_LARGE");
 	if (/<!\s*(?:DOCTYPE|ENTITY)\b/iu.test(xml)) throw new DocumentReadError("Office XML with DTD or entity declarations is not accepted", "DOCUMENT_XML_DTD");
 	const root = {
 		name: "#document",
@@ -127,6 +132,77 @@ function parseXml(xml, maxNodes = 1e6) {
 	if (stack.length !== 1) throw new DocumentReadError("Office XML contains unclosed tags", "DOCUMENT_XML_INVALID");
 	return root;
 }
+/**
+* Validate XML and deliver SAX-style events without retaining a document tree.
+* Large worksheet parts can contain millions of cells, so building one object
+* per XML tag would defeat the parser worker's memory ceiling.
+*/
+function walkXml(xml, visitor, maxNodes = 1e7) {
+	if (xml.length > 314572800) throw new DocumentReadError("Office XML part exceeds the 300 MB parser limit", "DOCUMENT_XML_TOO_LARGE");
+	if (/<!\s*(?:DOCTYPE|ENTITY)\b/iu.test(xml)) throw new DocumentReadError("Office XML with DTD or entity declarations is not accepted", "DOCUMENT_XML_DTD");
+	const stack = [];
+	let nodes = 0;
+	let roots = 0;
+	let cursor = 0;
+	while (cursor < xml.length) {
+		const open = xml.indexOf("<", cursor);
+		if (open === -1) {
+			const tail = decodeEntities(xml.slice(cursor));
+			if (tail) visitor.text(tail);
+			break;
+		}
+		if (open > cursor) {
+			const text = decodeEntities(xml.slice(cursor, open));
+			if (text) visitor.text(text);
+		}
+		if (xml.startsWith("<!--", open)) {
+			const end = xml.indexOf("-->", open + 4);
+			if (end === -1) throw new DocumentReadError("Office XML has an unterminated comment", "DOCUMENT_XML_INVALID");
+			cursor = end + 3;
+			continue;
+		}
+		if (xml.startsWith("<![CDATA[", open)) {
+			const end = xml.indexOf("]]>", open + 9);
+			if (end === -1) throw new DocumentReadError("Office XML has an unterminated CDATA section", "DOCUMENT_XML_INVALID");
+			visitor.text(xml.slice(open + 9, end));
+			cursor = end + 3;
+			continue;
+		}
+		if (xml.startsWith("<?", open)) {
+			const end = xml.indexOf("?>", open + 2);
+			if (end === -1) throw new DocumentReadError("Office XML has an unterminated processing instruction", "DOCUMENT_XML_INVALID");
+			cursor = end + 2;
+			continue;
+		}
+		const close = tagEnd(xml, open + 1);
+		if (close === -1) throw new DocumentReadError("Office XML has an unterminated tag", "DOCUMENT_XML_INVALID");
+		const raw = xml.slice(open + 1, close).trim();
+		if (raw.startsWith("!")) throw new DocumentReadError("Office XML contains an unsupported declaration", "DOCUMENT_XML_DTD");
+		if (raw.startsWith("/")) {
+			const name = localName(raw.slice(1).trim());
+			if (stack.at(-1) !== name) throw new DocumentReadError("Office XML contains mismatched tags", "DOCUMENT_XML_INVALID");
+			visitor.end(name);
+			stack.pop();
+			cursor = close + 1;
+			continue;
+		}
+		const selfClosing = raw.endsWith("/");
+		const body = selfClosing ? raw.slice(0, -1).trimEnd() : raw;
+		const nameEnd = body.search(/\s/u);
+		const name = localName(nameEnd === -1 ? body : body.slice(0, nameEnd));
+		if (!name) throw new DocumentReadError("Office XML contains an empty tag name", "DOCUMENT_XML_INVALID");
+		nodes += 1;
+		if (nodes > maxNodes) throw new DocumentReadError("Office XML exceeds the parser node limit", "DOCUMENT_XML_TOO_LARGE");
+		if (stack.length === 0 && ++roots > 1) throw new DocumentReadError("Office XML has multiple document roots", "DOCUMENT_XML_INVALID");
+		const attributes = parseAttributes(nameEnd === -1 ? "" : body.slice(nameEnd + 1));
+		visitor.start(name, attributes);
+		if (selfClosing) visitor.end(name);
+		else stack.push(name);
+		cursor = close + 1;
+	}
+	if (stack.length !== 0) throw new DocumentReadError("Office XML contains unclosed tags", "DOCUMENT_XML_INVALID");
+	if (roots !== 1) throw new DocumentReadError("Office XML has no document root", "DOCUMENT_XML_INVALID");
+}
 function descendants(node, name) {
 	const found = [];
 	const stack = [...node.children].reverse();
@@ -161,6 +237,7 @@ function textContent(node) {
 //#endregion
 //#region lib/types/zip.js
 const ZIP_MAX_ENTRIES = 1e4;
+const ZIP_MAX_XML_PART_BYTES = 52428800;
 /** Inspect central-directory sizes before any decompression takes place. */
 function inspectZip(bytes) {
 	const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
@@ -218,10 +295,10 @@ function inspectZip(bytes) {
 	return entries;
 }
 /** Decompress only requested entries after the entire archive has passed size checks. */
-function extractZipEntries(bytes, catalog, requested) {
+function extractZipEntries(bytes, catalog, requested, maxPartBytes = ZIP_MAX_XML_PART_BYTES) {
 	for (const name of requested) {
 		if (!catalog.has(name)) throw new DocumentReadError(`Office archive is missing ${name}`, "DOCUMENT_PART_MISSING");
-		if (catalog.get(name).expandedBytes > 50 * 1024 * 1024) throw new DocumentReadError(`Office XML part ${name} exceeds the 50 MB parser limit`, "DOCUMENT_XML_TOO_LARGE");
+		if (catalog.get(name).expandedBytes > maxPartBytes) throw new DocumentReadError(`Office XML part ${name} exceeds the ${Math.floor(maxPartBytes / 1048576)} MB parser limit`, "DOCUMENT_XML_TOO_LARGE");
 	}
 	try {
 		const archive = unzipSync(bytes, { filter: (entry) => requested.has(entry.name) });
@@ -231,9 +308,10 @@ function extractZipEntries(bytes, catalog, requested) {
 		throw new DocumentReadError("Office archive could not be safely decompressed", "DOCUMENT_ZIP_INVALID", { cause });
 	}
 }
-function textPart(parts, name) {
+function textPart(parts, name, maxBytes = ZIP_MAX_XML_PART_BYTES) {
 	const data = parts.get(name);
 	if (!data) throw new DocumentReadError(`Office archive is missing ${name}`, "DOCUMENT_PART_MISSING");
+	if (data.byteLength > maxBytes) throw new DocumentReadError(`Office XML part ${name} exceeds the ${Math.floor(maxBytes / 1048576)} MB parser limit`, "DOCUMENT_XML_TOO_LARGE");
 	try {
 		return new TextDecoder("utf-8", { fatal: true }).decode(data);
 	} catch (cause) {
@@ -241,14 +319,155 @@ function textPart(parts, name) {
 	}
 }
 //#endregion
+//#region lib/types/legacy-office.js
+const OLE_HEADER = [
+	208,
+	207,
+	17,
+	224,
+	161,
+	177,
+	26,
+	225
+];
+function isOleCompoundFile(bytes) {
+	return OLE_HEADER.every((byte, index) => bytes[index] === byte);
+}
+function officeEncryptionMarkersPresent(bytes) {
+	if (!isOleCompoundFile(bytes)) return false;
+	const data = Buffer.from(bytes);
+	for (const marker of ["EncryptionInfo", "EncryptedPackage"]) {
+		const ascii = Buffer.from(marker, "ascii");
+		const utf16le = Buffer.allocUnsafe(marker.length * 2);
+		for (let index = 0; index < marker.length; index += 1) {
+			utf16le[index * 2] = marker.charCodeAt(index);
+			utf16le[index * 2 + 1] = 0;
+		}
+		const utf16be = Buffer.from(utf16le);
+		for (let index = 0; index < utf16be.length; index += 2) {
+			const byte = utf16be[index];
+			utf16be[index] = utf16be[index + 1];
+			utf16be[index + 1] = byte;
+		}
+		if (data.includes(ascii) || data.includes(utf16le) || data.includes(utf16be)) return true;
+	}
+	return false;
+}
+//#endregion
 //#region lib/types/parse.js
-const PDF_MAX_BYTES = 100 * 1024 * 1024;
-const OFFICE_MAX_BYTES = 50 * 1024 * 1024;
+const PDF_MAX_BYTES = 104857600;
+const OFFICE_MAX_BYTES = 52428800;
 const PDF_MAX_PAGES = 2e3;
 const SEGMENT_MAX = 20;
 const SHEET_MAX_ROWS = 200;
 const SHEET_MAX_COLUMNS = 50;
 const CELL_MAX_CHARS = 200;
+const XLSX_WORKSHEET_XML_BYTES = 314572800;
+const IMAGE_MAX_COUNT = 8;
+const IMAGE_MAX_BYTES = 10485760;
+const IMAGE_MAX_TOTAL_BYTES = 26214400;
+const require = createRequire(import.meta.url);
+const IMAGE_TYPES = {
+	".png": "image/png",
+	".jpg": "image/jpeg",
+	".jpeg": "image/jpeg",
+	".gif": "image/gif",
+	".webp": "image/webp"
+};
+function imageTypeForPath(path) {
+	const extension = path.slice(path.lastIndexOf(".")).toLowerCase();
+	return IMAGE_TYPES[extension];
+}
+function imageReferences(node) {
+	return descendants(node, "blip").flatMap((blip) => blip.attributes.embed ? [blip.attributes.embed] : []);
+}
+function imageDimensions(data) {
+	if (data.length >= 24 && data[0] === 137 && data[1] === 80 && data[2] === 78 && data[3] === 71) {
+		const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+		return {
+			width: view.getUint32(16),
+			height: view.getUint32(20)
+		};
+	}
+	if (data.length >= 10 && data[0] === 71 && data[1] === 73 && data[2] === 70) return {
+		width: data[6] | data[7] << 8,
+		height: data[8] | data[9] << 8
+	};
+	if (data.length >= 30 && data[0] === 82 && data[1] === 73 && data[2] === 70 && data[3] === 70 && data[8] === 87 && data[9] === 69 && data[10] === 66 && data[11] === 80) {
+		if (String.fromCharCode(data[12], data[13], data[14], data[15]) === "VP8X") return {
+			width: 1 + data[24] + (data[25] << 8) + (data[26] << 16),
+			height: 1 + data[27] + (data[28] << 8) + (data[29] << 16)
+		};
+	}
+	if (data.length > 4 && data[0] === 255 && data[1] === 216) {
+		let offset = 2;
+		while (offset + 9 < data.length) {
+			if (data[offset] !== 255) {
+				offset += 1;
+				continue;
+			}
+			const marker = data[offset + 1];
+			const size = data[offset + 2] << 8 | data[offset + 3];
+			if ([
+				192,
+				193,
+				194,
+				195,
+				197,
+				198,
+				199,
+				201,
+				202,
+				203,
+				205,
+				206,
+				207
+			].includes(marker)) return {
+				width: data[offset + 7] << 8 | data[offset + 8],
+				height: data[offset + 5] << 8 | data[offset + 6]
+			};
+			if (size < 2) break;
+			offset += 2 + size;
+		}
+	}
+}
+function relatedOfficeImages(bytes, catalog, relationshipsPath, basePath, usedIds, location, maxCandidates = IMAGE_MAX_COUNT, maxTotalBytes = IMAGE_MAX_TOTAL_BYTES) {
+	if (usedIds.size === 0 || !catalog.has(relationshipsPath)) return {
+		candidates: [],
+		omitted: 0
+	};
+	const relationships = rootOf(extractZipEntries(bytes, catalog, /* @__PURE__ */ new Set([relationshipsPath])), relationshipsPath);
+	const candidates = [];
+	let omitted = 0;
+	let totalBytes = 0;
+	for (const relation of descendants(relationships, "Relationship")) {
+		const id = relation.attributes.id;
+		const target = relation.attributes.target;
+		if (!id || !usedIds.has(id) || !target || relation.attributes.targetmode?.toLowerCase() === "external") continue;
+		if (!relation.attributes.type?.endsWith("/image")) continue;
+		const targetPath = resolvePartTarget(basePath, target);
+		const mediaType = imageTypeForPath(targetPath);
+		if (!mediaType || !catalog.has(targetPath)) {
+			omitted += 1;
+			continue;
+		}
+		const data = extractZipEntries(bytes, catalog, /* @__PURE__ */ new Set([targetPath])).get(targetPath);
+		if (data.byteLength === 0 || data.byteLength > IMAGE_MAX_BYTES || candidates.length >= maxCandidates || totalBytes + data.byteLength > maxTotalBytes) {
+			omitted += 1;
+			continue;
+		}
+		candidates.push({
+			data,
+			mediaType,
+			name: location + "/" + targetPath.slice(targetPath.lastIndexOf("/") + 1)
+		});
+		totalBytes += data.byteLength;
+	}
+	return {
+		candidates,
+		omitted
+	};
+}
 function resolvePartTarget(base, target) {
 	if (target.includes("\\")) throw new DocumentReadError("Office relationship contains an unsafe path.", "DOCUMENT_PART_MISSING");
 	const parts = target.startsWith("/") ? [] : base.split("/").filter(Boolean);
@@ -262,16 +481,15 @@ function resolvePartTarget(base, target) {
 	return parts.join("/");
 }
 function detectDocument(bytes) {
-	const header = new TextDecoder().decode(bytes.subarray(0, Math.min(bytes.length, 2048)));
-	if (header.startsWith("%PDF-")) return { kind: "pdf" };
-	if (bytes.length >= 8 && bytes[0] === 208 && bytes[1] === 207 && bytes[2] === 17 && bytes[3] === 224) {
-		if (/\/Encrypt\b/u.test(header)) throw new DocumentReadError("This legacy Office file is encrypted. Save an unencrypted modern Office copy and retry.", "DOCUMENT_ENCRYPTED");
-		throw new DocumentReadError("Legacy .doc, .ppt, and .xls files must be saved as .docx, .pptx, or .xlsx before reading.", "DOCUMENT_LEGACY_OFFICE");
+	if (new TextDecoder().decode(bytes.subarray(0, Math.min(bytes.length, 2048))).startsWith("%PDF-")) return { kind: "pdf" };
+	if (isOleCompoundFile(bytes)) {
+		if (officeEncryptionMarkersPresent(bytes)) throw new DocumentReadError("This Office document is encrypted. Remove its password and retry.", "DOCUMENT_ENCRYPTED");
+		throw new DocumentReadError("This is a legacy .doc, .ppt, or .xls file. To read it, install LibreOffice and approve the isolated conversion, or save it as .docx, .pptx, or .xlsx.", "DOCUMENT_LEGACY_OFFICE");
 	}
 	if (bytes[0] === 80 && bytes[1] === 75 && bytes[2] === 3 && bytes[3] === 4) {
 		const catalog = inspectZip(bytes);
 		if (!catalog.has("[Content_Types].xml")) throw new DocumentReadError("ZIP archive is not a supported Office document.", "DOCUMENT_UNSUPPORTED");
-		const manifest = textPart(extractZipEntries(bytes, catalog, new Set(["[Content_Types].xml"])), "[Content_Types].xml");
+		const manifest = textPart(extractZipEntries(bytes, catalog, /* @__PURE__ */ new Set(["[Content_Types].xml"])), "[Content_Types].xml");
 		if (/\/ppt\/presentation\.xml/u.test(manifest)) return {
 			kind: "pptx",
 			catalog
@@ -296,7 +514,7 @@ function estimateTokens(value) {
 	}
 	return Math.ceil(cjk * 1.3 + ([...value].length - cjk) / 4);
 }
-function result(value, metadata = {}, maxBytes = 50 * 1024) {
+function result(value, metadata = {}, maxBytes = 51200) {
 	const lines = [value];
 	const outline = [];
 	let clipped = false;
@@ -410,8 +628,107 @@ async function inspectPdfPage(pdf, pageNumber) {
 		scanned
 	};
 }
+/** Render one scanned PDF page with the system Poppler binary when available. */
+async function renderScannedPdfPage(bytes, pageNumber) {
+	let directory;
+	try {
+		directory = await mkdtemp(join(tmpdir(), "taskweaver-document-page-"));
+		const inputPath = join(directory, "source.pdf");
+		const outputPrefix = join(directory, "page");
+		const outputPath = outputPrefix + ".png";
+		await writeFile(inputPath, bytes, {
+			flag: "wx",
+			mode: 384
+		});
+		if (await new Promise((resolve) => {
+			let child;
+			let settled = false;
+			let timer;
+			const finish = (value) => {
+				if (settled) return;
+				settled = true;
+				if (timer) clearTimeout(timer);
+				resolve(value);
+			};
+			try {
+				child = spawn("pdftoppm", [
+					"-f",
+					String(pageNumber),
+					"-l",
+					String(pageNumber),
+					"-singlefile",
+					"-scale-to",
+					"1568",
+					"-png",
+					inputPath,
+					outputPrefix
+				], {
+					stdio: "ignore",
+					windowsHide: true
+				});
+			} catch {
+				finish(void 0);
+				return;
+			}
+			timer = setTimeout(() => {
+				child.kill("SIGKILL");
+				finish(void 0);
+			}, 18e3);
+			child.on("error", () => finish(void 0));
+			child.on("close", (value) => finish(value ?? void 0));
+		}) !== 0) return void 0;
+		const output = await stat(outputPath);
+		if (!output.isFile() || output.size < 8 || output.size > IMAGE_MAX_BYTES) return void 0;
+		const data = await readFile(outputPath);
+		if (data.length < 8 || !data.subarray(0, 8).equals(Buffer.from([
+			137,
+			80,
+			78,
+			71,
+			13,
+			10,
+			26,
+			10
+		]))) return void 0;
+		return new Uint8Array(data);
+	} catch {
+		return;
+	} finally {
+		if (directory) await rm(directory, {
+			recursive: true,
+			force: true
+		}).catch(() => void 0);
+	}
+}
+/** Render through the bundled native canvas when Poppler is not installed. */
+async function renderScannedPdfPageWithCanvas(pdf, pageNumber) {
+	let page;
+	try {
+		const canvasModule = require("@napi-rs/canvas");
+		page = await pdf.getPage(pageNumber);
+		const initial = page.getViewport({ scale: 1 });
+		if (!Number.isFinite(initial.width) || initial.width <= 0 || !Number.isFinite(initial.height) || initial.height <= 0) return void 0;
+		const viewport = page.getViewport({ scale: 1568 / initial.width });
+		const width = Math.ceil(viewport.width);
+		const height = Math.ceil(viewport.height);
+		if (width <= 0 || height <= 0 || width > 4096 || height > 4096 || width * height > 8e6) return void 0;
+		const canvas = canvasModule.createCanvas(width, height);
+		const context = canvas.getContext("2d");
+		await page.render({
+			canvasContext: context,
+			viewport
+		}).promise;
+		const data = canvas.toBuffer("image/png");
+		if (data.length === 0 || data.length > IMAGE_MAX_BYTES) return void 0;
+		return new Uint8Array(data);
+	} catch {
+		return;
+	} finally {
+		page?.cleanup();
+	}
+}
 async function readPdf(bytes, options) {
-	if (bytes.length > PDF_MAX_BYTES) throw new DocumentReadError("PDF exceeds the 100 MB file limit.", "DOCUMENT_TOO_LARGE");
+	if (bytes.length > (options.maxPdfBytes ?? PDF_MAX_BYTES)) throw new DocumentReadError("PDF exceeds the " + Math.floor((options.maxPdfBytes ?? PDF_MAX_BYTES) / 1048576) + " MB file limit.", "DOCUMENT_TOO_LARGE");
 	const loading = getDocument({
 		data: Uint8Array.from(bytes),
 		isEvalSupported: false,
@@ -448,13 +765,33 @@ async function readPdf(bytes, options) {
 		}, options.maxOutputBytes);
 		const [start, end] = parseRange(options.pages, total, "pages");
 		const pieces = [];
+		const imageCandidates = [];
 		for (let pageNumber = start; pageNumber <= end; pageNumber += 1) {
 			const page = previews.get(pageNumber) ?? await inspectPdfPage(pdf, pageNumber);
-			const unavailable = page.scanned ? options.images ? "[Scanned page; image persistence is not connected in this build, so the page image was not attached]" : "[Scanned page; provide a screenshot or a searchable PDF to read this page]" : "[Blank page]";
-			pieces.push("--- Page " + pageNumber + " ---\n" + (page.text || unavailable));
+			let fallback = "[Blank page]";
+			if (page.scanned) {
+				const currentImageBytes = imageCandidates.reduce((sum, candidate) => sum + candidate.data.byteLength, 0);
+				if (options.images && imageCandidates.length < IMAGE_MAX_COUNT && currentImageBytes < IMAGE_MAX_TOTAL_BYTES) {
+					const data = await renderScannedPdfPage(bytes, pageNumber) ?? await renderScannedPdfPageWithCanvas(pdf, pageNumber);
+					if (data && data.byteLength + currentImageBytes <= IMAGE_MAX_TOTAL_BYTES) {
+						imageCandidates.push({
+							data,
+							mediaType: "image/png",
+							name: "page-" + pageNumber + ".png"
+						});
+						fallback = "[Scanned page attached as an image.]";
+					} else fallback = "[Scanned page; rendering is unavailable. Install Poppler (pdftoppm) or provide a screenshot.]";
+				} else if (options.images) fallback = "[Scanned page image omitted; each call can attach at most 8 images.]";
+				else fallback = "[Scanned page; provide a screenshot or a searchable PDF to read this page.]";
+			}
+			pieces.push("--- Page " + pageNumber + " ---\n" + (page.text || fallback));
 		}
 		const next = end < total ? "pages=" + (end + 1) + "-" + Math.min(total, end + SEGMENT_MAX) : void 0;
-		return bounded(pieces.join("\n\n"), options.maxOutputBytes, next);
+		const response = bounded(pieces.join("\n\n"), options.maxOutputBytes, next);
+		return imageCandidates.length ? {
+			...response,
+			imageCandidates
+		} : response;
 	} finally {
 		await loading.destroy();
 	}
@@ -491,8 +828,10 @@ function pptxBody(slide) {
 		for (const paragraph of descendants(shape, "p")) {
 			const value = descendants(paragraph, "t").map(nodeText).filter(Boolean).join("");
 			if (!value) continue;
-			const level = Number(firstDescendant(paragraph, "pPr")?.attributes.lvl ?? "0");
-			lines.push((level > 0 ? "  ".repeat(Math.min(level, 8)) + "- " : "") + value);
+			const properties = firstDescendant(paragraph, "pPr");
+			const level = Math.max(0, Number(properties?.attributes.lvl ?? "0") || 0);
+			const isBullet = properties !== void 0 && (properties.attributes.lvl !== void 0 || firstDescendant(properties, "buChar") !== void 0 || firstDescendant(properties, "buAutoNum") !== void 0) && firstDescendant(properties, "buNone") === void 0;
+			lines.push((isBullet ? "  ".repeat(Math.min(level, 8)) + "- " : "") + value);
 		}
 	}
 	for (const table of descendants(slide, "tbl")) {
@@ -508,7 +847,7 @@ function pptxBody(slide) {
 function notesForSlide(bytes, catalog, path) {
 	const relsPath = "ppt/slides/_rels/" + path.slice(path.lastIndexOf("/") + 1) + ".rels";
 	if (!catalog.has(relsPath)) return void 0;
-	const target = descendants(rootOf(extractZipEntries(bytes, catalog, new Set([relsPath])), relsPath), "Relationship").find((item) => item.attributes.type?.endsWith("/notesSlide"))?.attributes.Target;
+	const target = descendants(rootOf(extractZipEntries(bytes, catalog, /* @__PURE__ */ new Set([relsPath])), relsPath), "Relationship").find((item) => item.attributes.type?.endsWith("/notesSlide"))?.attributes.Target;
 	if (!target) return void 0;
 	let notesPath;
 	try {
@@ -517,7 +856,7 @@ function notesForSlide(bytes, catalog, path) {
 		return;
 	}
 	if (!catalog.has(notesPath)) return void 0;
-	return descendants(rootOf(extractZipEntries(bytes, catalog, new Set([notesPath])), notesPath), "sp").filter((shape) => {
+	return descendants(rootOf(extractZipEntries(bytes, catalog, /* @__PURE__ */ new Set([notesPath])), notesPath), "sp").filter((shape) => {
 		const kind = firstDescendant(shape, "ph")?.attributes.type;
 		return ![
 			"sldNum",
@@ -527,13 +866,13 @@ function notesForSlide(bytes, catalog, path) {
 	}).flatMap((shape) => descendants(shape, "t").map(nodeText)).filter(Boolean).join(" ") || void 0;
 }
 async function readPptx(bytes, options, catalog) {
-	if (bytes.length > OFFICE_MAX_BYTES) throw new DocumentReadError("Office file exceeds the 50 MB file limit.", "DOCUMENT_TOO_LARGE");
-	const basics = extractZipEntries(bytes, catalog, new Set(["ppt/presentation.xml", "ppt/_rels/presentation.xml.rels"]));
+	if (bytes.length > (options.maxOfficeBytes ?? OFFICE_MAX_BYTES)) throw new DocumentReadError("Office file exceeds the configured file limit.", "DOCUMENT_TOO_LARGE");
+	const basics = extractZipEntries(bytes, catalog, /* @__PURE__ */ new Set(["ppt/presentation.xml", "ppt/_rels/presentation.xml.rels"]));
 	const paths = pptxSlidePaths(rootOf(basics, "ppt/presentation.xml"), rootOf(basics, "ppt/_rels/presentation.xml.rels"));
 	const titles = [];
 	for (const path of paths) {
 		if (!catalog.has(path)) throw new DocumentReadError("PPTX is missing " + path, "DOCUMENT_PART_MISSING");
-		const slide = rootOf(extractZipEntries(bytes, catalog, new Set([path])), path);
+		const slide = rootOf(extractZipEntries(bytes, catalog, /* @__PURE__ */ new Set([path])), path);
 		titles.push(pptxTitle(slide));
 	}
 	const outline = titles.map((title, index) => index + 1 + ". " + title);
@@ -544,23 +883,42 @@ async function readPptx(bytes, options, catalog) {
 	}, options.maxOutputBytes);
 	const [start, end] = parseRange(options.pages, paths.length, "pages");
 	const content = [];
+	const imageCandidates = [];
 	for (let page = start; page <= end; page += 1) {
 		const path = paths[page - 1];
-		const slide = rootOf(extractZipEntries(bytes, catalog, new Set([path])), path);
+		const slide = rootOf(extractZipEntries(bytes, catalog, /* @__PURE__ */ new Set([path])), path);
 		let section = "## Slide " + page + ": " + titles[page - 1] + "\n" + pptxBody(slide);
 		const notes = notesForSlide(bytes, catalog, path);
 		if (notes) section += "\n> Notes: " + notes;
 		const relsPath = "ppt/slides/_rels/" + path.slice(path.lastIndexOf("/") + 1) + ".rels";
 		if (catalog.has(relsPath)) {
-			const images = descendants(rootOf(extractZipEntries(bytes, catalog, new Set([relsPath])), relsPath), "Relationship").filter((rel) => rel.attributes.type?.endsWith("/image"));
-			if (images.length) section += "\n\n[" + images.length + " embedded image(s)" + (options.images ? "; image attachment pipeline is not connected, images omitted" : "") + "]";
+			const rels = rootOf(extractZipEntries(bytes, catalog, /* @__PURE__ */ new Set([relsPath])), relsPath);
+			const ids = new Set(imageReferences(slide));
+			const imageRelations = descendants(rels, "Relationship").filter((rel) => ids.has(rel.attributes.id ?? "") && rel.attributes.type?.endsWith("/image"));
+			const existingImageBytes = imageCandidates.reduce((sum, candidate) => sum + candidate.data.byteLength, 0);
+			const images = relatedOfficeImages(bytes, catalog, relsPath, path.slice(0, path.lastIndexOf("/")), ids, "slide-" + page, IMAGE_MAX_COUNT - imageCandidates.length, IMAGE_MAX_TOTAL_BYTES - existingImageBytes);
+			if (imageRelations.length) {
+				const labels = images.candidates.map((candidate) => {
+					const dimensions = imageDimensions(candidate.data);
+					return candidate.name.slice(candidate.name.lastIndexOf("/") + 1) + (dimensions ? " " + dimensions.width + "×" + dimensions.height + " px" : "");
+				});
+				section += "\n\n[Embedded image(s): " + (labels.join(", ") || "unsupported or unavailable format") + "]";
+				if (options.images) {
+					for (const candidate of images.candidates) imageCandidates.push(candidate);
+					if (Math.max(0, imageRelations.length - images.candidates.length) > 0) section += "\n[Some images were omitted because their format, size, or per-call count is unsupported.]";
+				}
+			}
 		}
 		content.push(section);
 	}
 	const next = end < paths.length ? "pages=" + (end + 1) + "-" + Math.min(paths.length, end + SEGMENT_MAX) : void 0;
-	return bounded(content.join("\n\n"), options.maxOutputBytes, next);
+	const response = bounded(content.join("\n\n"), options.maxOutputBytes, next);
+	return options.images && imageCandidates.length ? {
+		...response,
+		imageCandidates
+	} : response;
 }
-const DOCX_HIDDEN_REVISION_NODES = new Set([
+const DOCX_HIDDEN_REVISION_NODES = /* @__PURE__ */ new Set([
 	"ins",
 	"del",
 	"moveFrom",
@@ -598,7 +956,8 @@ function docSections(root) {
 	let current = {
 		title: "Document",
 		level: 1,
-		blocks: []
+		blocks: [],
+		imageIds: []
 	};
 	const save = () => {
 		if (current.title !== "Document" || current.blocks.length) sections.push(current);
@@ -611,17 +970,23 @@ function docSections(root) {
 			current = {
 				title: value || "(Untitled)",
 				level,
-				blocks: []
+				blocks: [],
+				imageIds: []
 			};
-		} else if (value) {
-			const listLevel = firstDescendant(block, "ilvl")?.attributes.val;
-			current.blocks.push((listLevel === void 0 ? "" : "  ".repeat(Math.min(Number(listLevel) || 0, 8)) + "- ") + value);
+			current.imageIds.push(...imageReferences(block));
+		} else {
+			if (value) {
+				const listLevel = firstDescendant(block, "ilvl")?.attributes.val;
+				current.blocks.push((listLevel === void 0 ? "" : "  ".repeat(Math.min(Number(listLevel) || 0, 8)) + "- ") + value);
+			}
+			current.imageIds.push(...imageReferences(block));
 		}
 	} else if (block.name === "tbl") {
 		const rows = descendants(block, "tr").map((row) => descendants(row, "tc").map((cell) => descendants(cell, "p").map(docParagraphText).filter(Boolean).join("<br>").replace(/\|/gu, "\\|")));
 		if (rows.length) {
 			current.blocks.push("| " + rows[0].join(" | ") + " |", "| " + rows[0].map(() => "---").join(" | ") + " |");
 			current.blocks.push(...rows.slice(1).map((row) => "| " + row.join(" | ") + " |"));
+			current.imageIds.push(...imageReferences(block));
 		}
 	}
 	save();
@@ -635,7 +1000,8 @@ function docSections(root) {
 		chunks.push({
 			title: "Document part " + (chunks.length + 1),
 			level: 1,
-			blocks: chunk
+			blocks: chunk,
+			imageIds: []
 		});
 		chunk = [];
 		length = 0;
@@ -669,8 +1035,8 @@ function docSectionRange(value, count) {
 	return [start, Math.min(end, count)];
 }
 async function readDocx(bytes, options, catalog) {
-	if (bytes.length > OFFICE_MAX_BYTES) throw new DocumentReadError("Office file exceeds the 50 MB file limit.", "DOCUMENT_TOO_LARGE");
-	const sections = docSections(rootOf(extractZipEntries(bytes, catalog, new Set(["word/document.xml"])), "word/document.xml"));
+	if (bytes.length > (options.maxOfficeBytes ?? OFFICE_MAX_BYTES)) throw new DocumentReadError("Office file exceeds the configured file limit.", "DOCUMENT_TOO_LARGE");
+	const sections = docSections(rootOf(extractZipEntries(bytes, catalog, /* @__PURE__ */ new Set(["word/document.xml"])), "word/document.xml"));
 	const outline = sections.map((section, index) => index + 1 + ". " + "#".repeat(Math.max(1, Math.min(section.level, 6))) + " " + section.title);
 	const totalChars = sections.reduce((sum, section) => sum + section.blocks.join("\n").length, 0);
 	if (options.section === void 0 && (sections.length > 1 || totalChars > 2e4)) return result("Document has " + sections.length + " sections and about " + totalChars + " body characters. First call returns its outline; specify section.", {
@@ -679,9 +1045,22 @@ async function readDocx(bytes, options, catalog) {
 		truncated: true
 	}, options.maxOutputBytes);
 	const [start, end] = options.section ? docSectionRange(options.section, sections.length) : [1, sections.length];
-	const content = sections.slice(start - 1, end).map((section) => "#".repeat(Math.max(1, Math.min(section.level, 6))) + " " + section.title + "\n" + section.blocks.join("\n\n"));
+	const selected = sections.slice(start - 1, end);
+	const selectedIds = new Set(selected.flatMap((section) => section.imageIds));
+	const imagePart = relatedOfficeImages(bytes, catalog, "word/_rels/document.xml.rels", "word", selectedIds, "docx");
+	const labels = imagePart.candidates.map((candidate) => {
+		const dimensions = imageDimensions(candidate.data);
+		return candidate.name.slice(candidate.name.lastIndexOf("/") + 1) + (dimensions ? " " + dimensions.width + "×" + dimensions.height + " px" : "");
+	});
+	const imageSummary = labels.length > 0 ? "\n\n[Embedded image(s): " + labels.join(", ") + "]" : selectedIds.size > 0 ? "\n\n[Embedded image(s): unsupported or unavailable format]" : "";
+	const content = selected.map((section) => "#".repeat(Math.max(1, Math.min(section.level, 6))) + " " + section.title + "\n" + section.blocks.join("\n\n"));
+	if (imageSummary) content[content.length - 1] = (content.at(-1) ?? "") + imageSummary;
 	const next = end < sections.length ? "section=" + (end + 1) : void 0;
-	return bounded(content.join("\n\n"), options.maxOutputBytes, next);
+	const response = bounded(content.join("\n\n"), options.maxOutputBytes, next);
+	return options.images && imagePart.candidates.length > 0 ? {
+		...response,
+		imageCandidates: imagePart.candidates
+	} : response;
 }
 function excelColumnToNumber(name) {
 	let result = 0;
@@ -731,7 +1110,7 @@ function parseCellRange(value, dimension) {
 	return range;
 }
 function workbookParts(bytes, catalog) {
-	const parts = extractZipEntries(bytes, catalog, new Set(["xl/workbook.xml", "xl/_rels/workbook.xml.rels"]));
+	const parts = extractZipEntries(bytes, catalog, /* @__PURE__ */ new Set(["xl/workbook.xml", "xl/_rels/workbook.xml.rels"]));
 	const workbook = rootOf(parts, "xl/workbook.xml");
 	const rels = rootOf(parts, "xl/_rels/workbook.xml.rels");
 	const targets = new Map(descendants(rels, "Relationship").map((rel) => [rel.attributes.Id, rel.attributes.Target]));
@@ -759,7 +1138,7 @@ function dateStyleIndexes(root) {
 	const custom = new Map(descendants(root, "numFmt").map((item) => [Number(item.attributes.numFmtId), item.attributes.formatCode ?? ""]));
 	const xfs = descendants(root, "cellXfs")[0];
 	if (!xfs) return /* @__PURE__ */ new Set();
-	const builtin = new Set([
+	const builtin = /* @__PURE__ */ new Set([
 		14,
 		15,
 		16,
@@ -784,25 +1163,123 @@ function dateStyleIndexes(root) {
 		return builtin.has(id) || /[ymdh]/iu.test(code) ? [index] : [];
 	}));
 }
-function formattedCell(cell, shared, dateStyles, date1904) {
-	const type = cell.attributes.t;
-	const raw = firstDescendant(cell, "v")?.text ?? "";
-	const formula = firstDescendant(cell, "f")?.text.trim();
+function formatCellValue(type, style, raw, formula, inlineText, shared, dateStyles, date1904) {
 	let value = raw;
 	if (type === "s") value = shared[Number(raw)] ?? "";
-	else if (type === "inlineStr") value = descendants(cell, "t").map(textContent).join("");
+	else if (type === "inlineStr") value = inlineText;
 	else if (type === "b") value = raw === "1" ? "TRUE" : "FALSE";
 	else if (type === "e") value = "#ERROR " + raw;
-	else if (raw && dateStyles.has(Number(cell.attributes.s ?? "0")) && Number.isFinite(Number(raw))) value = excelDate(Number(raw), date1904);
+	else if (raw && dateStyles.has(Number(style ?? "0")) && Number.isFinite(Number(raw))) value = excelDate(Number(raw), date1904);
 	if (value.length > CELL_MAX_CHARS) value = value.slice(0, CELL_MAX_CHARS) + "…";
-	return formula ? value + (value ? " " : "") + "(=" + formula + ")" : value;
+	return formula ? value + (value ? " " : "") + "(=" + formula.trim() + ")" : value;
+}
+function worksheetDimension(xml) {
+	const match = /<(?:[\w.-]+:)?dimension\b([^>]*)\/?\s*>/iu.exec(xml);
+	const ref = match?.[1] ? /\bref\s*=\s*(?:"([^"]*)"|'([^']*)')/iu.exec(match[1]) : void 0;
+	return ref?.[1] ?? ref?.[2] ?? "A1";
+}
+/** Walk a worksheet without materializing a tree containing millions of cell nodes. */
+function scanWorksheet(xml, range, shared, dateStyles, date1904) {
+	let dimension = worksheetDimension(xml);
+	let formulas = 0;
+	let rangeFormulas = 0;
+	let mergeCount = 0;
+	const merges = [];
+	let lastRow = 1;
+	let lastColumn = 1;
+	let rowNumber;
+	let currentColumn = 0;
+	let cell;
+	const elementStack = [];
+	const rows = /* @__PURE__ */ new Map();
+	walkXml(xml, {
+		start(name, attributes) {
+			elementStack.push(name);
+			if (name === "dimension") dimension = attributes.ref ?? dimension;
+			else if (name === "mergeCell") {
+				mergeCount += 1;
+				if (merges.length < 12 && attributes.ref) merges.push(attributes.ref);
+			} else if (name === "row") {
+				const parsed = Number(attributes.r);
+				rowNumber = Number.isSafeInteger(parsed) && parsed > 0 ? parsed : (rowNumber ?? 0) + 1;
+				currentColumn = 0;
+				lastRow = Math.max(lastRow, rowNumber);
+			} else if (name === "c") {
+				const address = attributes.r;
+				let targetRow = rowNumber;
+				let targetColumn;
+				if (address) {
+					const parsed = parseCellAddress(address);
+					targetRow = parsed.row;
+					targetColumn = parsed.column;
+				} else targetColumn = currentColumn + 1;
+				currentColumn = targetColumn;
+				if (targetRow !== void 0) {
+					lastRow = Math.max(lastRow, targetRow);
+					lastColumn = Math.max(lastColumn, targetColumn);
+				}
+				const capture = targetRow !== void 0 && range !== void 0 && targetRow >= range.r1 && targetRow <= range.r2 && targetColumn >= range.c1 && targetColumn <= range.c2;
+				cell = {
+					row: targetRow ?? 0,
+					column: targetColumn,
+					capture,
+					...attributes.t !== void 0 ? { type: attributes.t } : {},
+					...attributes.s !== void 0 ? { style: attributes.s } : {},
+					value: "",
+					formula: "",
+					inlineText: ""
+				};
+			} else if (name === "f") {
+				formulas += 1;
+				if (cell?.capture) rangeFormulas += 1;
+			}
+		},
+		text(value) {
+			if (!cell?.capture) return;
+			switch (elementStack.at(-1)) {
+				case "v":
+					cell.value += value;
+					break;
+				case "f":
+					cell.formula += value;
+					break;
+				case "t": if (cell.type === "inlineStr") cell.inlineText += value;
+			}
+		},
+		end(name) {
+			if (name === "c" && cell) {
+				if (cell.capture) {
+					let values = rows.get(cell.row);
+					if (!values) rows.set(cell.row, values = /* @__PURE__ */ new Map());
+					values.set(cell.column, formatCellValue(cell.type, cell.style, cell.value, cell.formula, cell.inlineText, shared, dateStyles, date1904));
+				}
+				cell = void 0;
+			} else if (name === "row") rowNumber = void 0;
+			elementStack.pop();
+		}
+	});
+	const declared = /^([A-Z]+\d+)(?::([A-Z]+\d+))?$/iu.exec(dimension);
+	if (declared) {
+		const last = parseCellAddress(declared[2] ?? declared[1]);
+		lastRow = Math.max(lastRow, last.row);
+		lastColumn = Math.max(lastColumn, last.column);
+	}
+	return {
+		dimension,
+		formulas,
+		rangeFormulas,
+		merges,
+		mergeCount,
+		lastRow,
+		lastColumn,
+		rows
+	};
 }
 async function readXlsx(bytes, options, catalog) {
-	if (bytes.length > OFFICE_MAX_BYTES) throw new DocumentReadError("Office file exceeds the 50 MB file limit.", "DOCUMENT_TOO_LARGE");
+	if (bytes.length > (options.maxOfficeBytes ?? OFFICE_MAX_BYTES)) throw new DocumentReadError("Office file exceeds the configured file limit.", "DOCUMENT_TOO_LARGE");
 	const { workbook, sheets } = workbookParts(bytes, catalog);
 	if (!sheets.length) throw new DocumentReadError("XLSX workbook has no worksheets.", "DOCUMENT_XML_INVALID");
 	const metadata = /* @__PURE__ */ new Map();
-	const worksheets = /* @__PURE__ */ new Map();
 	const outline = [];
 	let index = 0;
 	if (options.sheet !== void 0) {
@@ -812,18 +1289,13 @@ async function readXlsx(bytes, options, catalog) {
 	}
 	const selected = sheets[index];
 	const inspect = options.sheet === void 0 ? sheets : [selected];
+	let selectedWorksheetXml;
 	for (const sheet of inspect) {
-		const root = rootOf(extractZipEntries(bytes, catalog, new Set([sheet.path])), sheet.path);
-		const dimension = firstDescendant(root, "dimension")?.attributes.ref ?? "A1";
-		const formulas = descendants(root, "f").length;
-		const merges = descendants(root, "mergeCell").flatMap((item) => item.attributes.ref ? [item.attributes.ref] : []);
-		metadata.set(sheet.name, {
-			dimension,
-			formulas,
-			merges
-		});
-		worksheets.set(sheet.name, root);
-		if (options.sheet === void 0) outline.push(sheet.name + " — " + dimension + " (" + formulas + " formulas, " + merges.length + " merged ranges)");
+		const xml = textPart(extractZipEntries(bytes, catalog, /* @__PURE__ */ new Set([sheet.path]), XLSX_WORKSHEET_XML_BYTES), sheet.path, XLSX_WORKSHEET_XML_BYTES);
+		const dimension = worksheetDimension(xml);
+		metadata.set(sheet.name, { dimension });
+		if (sheet.name === selected.name) selectedWorksheetXml = xml;
+		if (options.sheet === void 0) outline.push(sheet.name + " — " + dimension);
 	}
 	if (options.sheet === void 0) {
 		if (sheets.length > 1) return result("Workbook has " + sheets.length + " sheets. First call returns its outline; specify sheet by name or 1-based number.", {
@@ -849,25 +1321,17 @@ async function readXlsx(bytes, options, catalog) {
 	if (catalog.has(sharedPath)) requested.add(sharedPath);
 	if (catalog.has(stylesPath)) requested.add(stylesPath);
 	const parts = requested.size > 0 ? extractZipEntries(bytes, catalog, requested) : /* @__PURE__ */ new Map();
-	const worksheet = worksheets.get(selected.name);
 	const shared = parts.has(sharedPath) ? descendants(rootOf(parts, sharedPath), "si").map((item) => descendants(item, "t").map(textContent).join("")) : [];
 	const dateStyles = dateStyleIndexes(parts.has(stylesPath) ? rootOf(parts, stylesPath) : void 0);
-	const rows = /* @__PURE__ */ new Map();
-	let formulas = 0;
-	for (const row of descendants(worksheet, "row")) for (const cell of directChildren(row, "c")) {
-		const address = cell.attributes.r;
-		if (!address) continue;
-		const { row: rowNumber, column } = parseCellAddress(address);
-		if (rowNumber < range.r1 || rowNumber > range.r2 || column < range.c1 || column > range.c2) continue;
-		if (firstDescendant(cell, "f")) formulas += 1;
-		let values = rows.get(rowNumber);
-		if (!values) rows.set(rowNumber, values = /* @__PURE__ */ new Map());
-		values.set(column, formattedCell(cell, shared, dateStyles, firstDescendant(workbook, "workbookPr")?.attributes.date1904 === "1"));
-	}
+	const worksheetXml = selectedWorksheetXml;
+	if (!worksheetXml) throw new DocumentReadError("XLSX worksheet is missing.", "DOCUMENT_PART_MISSING");
+	const sheetScan = scanWorksheet(worksheetXml, range, shared, dateStyles, firstDescendant(workbook, "workbookPr")?.attributes.date1904 === "1");
+	const rows = sheetScan.rows;
+	const actualDimension = sheetScan.dimension;
 	const columns = Array.from({ length: range.c2 - range.c1 + 1 }, (_, offset) => excelNumberToColumn(range.c1 + offset));
 	const header = ["Row", ...columns.map((column) => column + " (" + column + range.r1 + ")")];
 	const output = [
-		"Sheet: " + selected.name + "; dimensions: " + sheetMeta.dimension + "; merged ranges: " + sheetMeta.merges.length + (sheetMeta.merges.length ? " (" + sheetMeta.merges.slice(0, 12).join(", ") + (sheetMeta.merges.length > 12 ? ", …" : "") + ")" : "") + "; formulas on sheet: " + sheetMeta.formulas + "; formulas in this range: " + formulas,
+		"Sheet: " + selected.name + "; dimensions: " + actualDimension + "; merged ranges: " + sheetScan.mergeCount + (sheetScan.mergeCount ? " (" + sheetScan.merges.join(", ") + (sheetScan.mergeCount > sheetScan.merges.length ? ", …" : "") + ")" : "") + "; formulas on sheet: " + sheetScan.formulas + "; formulas in this range: " + sheetScan.rangeFormulas,
 		"| " + header.join(" | ") + " |",
 		"| " + header.map(() => "---").join(" | ") + " |"
 	];
@@ -876,9 +1340,9 @@ async function readXlsx(bytes, options, catalog) {
 		const values = columns.map((_column, offset) => (row?.get(range.c1 + offset) ?? "").replace(/\|/gu, "\\|").replace(/\r?\n/gu, "<br>"));
 		output.push("| " + rowNumber + " | " + values.join(" | ") + " |");
 	}
-	const dimension = /^([A-Z]+)(\d+)(?::([A-Z]+)(\d+))?$/iu.exec(sheetMeta.dimension);
-	const lastRow = dimension ? Number(dimension[4] ?? dimension[2]) : range.r2;
-	const lastColumn = dimension ? excelColumnToNumber(dimension[3] ?? dimension[1]) : range.c2;
+	const dimension = /^([A-Z]+)(\d+)(?::([A-Z]+)(\d+))?$/iu.exec(actualDimension);
+	const lastRow = Math.max(range.r2, sheetScan.lastRow, dimension ? Number(dimension[4] ?? dimension[2]) : range.r2);
+	const lastColumn = Math.max(range.c2, sheetScan.lastColumn, dimension ? excelColumnToNumber(dimension[3] ?? dimension[1]) : range.c2);
 	let next;
 	if (range.r2 < lastRow) next = "sheet=" + (index + 1) + "&range=" + excelNumberToColumn(range.c1) + (range.r2 + 1) + ":" + excelNumberToColumn(range.c2) + Math.min(lastRow, range.r2 + SHEET_MAX_ROWS);
 	else if (range.c2 < lastColumn) {
@@ -890,7 +1354,7 @@ async function readXlsx(bytes, options, catalog) {
 async function parseDocumentBytes(bytes, options) {
 	const detected = detectDocument(bytes);
 	if (detected.kind === "pdf") return await readPdf(bytes, options);
-	if (bytes.length > OFFICE_MAX_BYTES) throw new DocumentReadError("Office file exceeds the 50 MB file limit.", "DOCUMENT_TOO_LARGE");
+	if (bytes.length > (options.maxOfficeBytes ?? OFFICE_MAX_BYTES)) throw new DocumentReadError("Office file exceeds the configured file limit.", "DOCUMENT_TOO_LARGE");
 	if (!detected.catalog) throw new DocumentReadError("Office archive directory is missing.", "DOCUMENT_ZIP_INVALID");
 	if (detected.kind === "pptx") return await readPptx(bytes, options, detected.catalog);
 	if (detected.kind === "docx") return await readDocx(bytes, options, detected.catalog);

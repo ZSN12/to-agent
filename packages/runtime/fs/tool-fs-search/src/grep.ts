@@ -8,15 +8,15 @@
  * `--json` record parsing, per-line preview retention, match retention,
  * grouping, and formatting; process concerns stay behind `ctx.subprocess`.
  *
- * @module @z/dsh-tool-fs-search/grep
+ * @module @taskweaver/dsh-tool-fs-search/grep
  */
 
-import type { Context } from '@z/cordis'
-import { defineTool } from '@z/dsh-tools'
-import type { GenericCallView, SearchResultView, ToolResult } from '@z/dsh-tools'
-import type { RetainedItems } from '@z/dsh-output-retention'
-import type { SpillRef } from '@z/dsh-spill'
-import type {} from '@z/dsh-system-prompt'
+import type { Context } from '@taskweaver/cordis'
+import { defineTool } from '@taskweaver/dsh-tools'
+import type { GenericCallView, SearchResultView, ToolResult } from '@taskweaver/dsh-tools'
+import type { RetainedItems } from '@taskweaver/dsh-output-retention'
+import type { SpillRef } from '@taskweaver/dsh-spill'
+import type {} from '@taskweaver/dsh-system-prompt'
 import type { GrepMatch } from './search-core.ts'
 import { SearchError, previewLine, retainGrepMatches, runRipgrep, toWorkdirRelative, trySaveFormattedResult } from './search-core.ts'
 import { grepSearchMeta, searchViewFromMeta } from './presentation.ts'

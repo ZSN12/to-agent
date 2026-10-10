@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
-import { Context } from '@z/cordis'
+import { Context } from '@taskweaver/cordis'
 import TurndownService from 'turndown'
-import { CallId } from '@z/dsh-llm'
-import SystemPrompt from '@z/dsh-system-prompt'
-import ToolRuntime, { type ToolExecutionResult } from '@z/dsh-tools'
-import WebRuntime from '@z/dsh-web'
-import type { WebSearchProvider, WebSearchResult } from '@z/dsh-web'
-import * as ToolWeb from '@z/dsh-tool-web'
+import { CallId } from '@taskweaver/dsh-llm'
+import SystemPrompt from '@taskweaver/dsh-system-prompt'
+import ToolRuntime, { type ToolExecutionResult } from '@taskweaver/dsh-tools'
+import WebRuntime from '@taskweaver/dsh-web'
+import type { WebSearchProvider, WebSearchResult } from '@taskweaver/dsh-web'
+import * as ToolWeb from '@taskweaver/dsh-tool-web'
 import {
   formatSearchOutput,
   formatFetchOutput,
@@ -21,9 +21,9 @@ import {
   fetchMetaFromResult,
   WEB_SEARCH_MAX_QUERIES,
   WEB_SEARCH_MAX_RESULTS,
-} from '@z/dsh-tool-web'
-import type { ContentBlock } from '@z/dsh-llm'
-import type { ToolResult } from '@z/dsh-tools'
+} from '@taskweaver/dsh-tool-web'
+import type { ContentBlock } from '@taskweaver/dsh-llm'
+import type { ToolResult } from '@taskweaver/dsh-tools'
 import { parseSearchArgs } from '../src/search.ts'
 
 const testToolSignal = new AbortController().signal
@@ -39,7 +39,7 @@ async function mountTools(opts: {
   config?: ToolWeb.Config
   webConfig?: ConstructorParameters<typeof WebRuntime>[1]
   search?: WebSearchProvider
-  fetchProvider?: import('@z/dsh-web').WebFetchProvider
+  fetchProvider?: import('@taskweaver/dsh-web').WebFetchProvider
 } = {}): Promise<{ ctx: Context; fiber: Awaited<ReturnType<Context['plugin']>>; call: (name: string, args: unknown) => Promise<ToolExecutionResult> }> {
   const ctx = new Context()
   await ctx.plugin(SystemPrompt)

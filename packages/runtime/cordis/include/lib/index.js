@@ -1,5 +1,5 @@
-import { EntryGroup, EntryTree, isJsExpr } from "@z/cordis-plugin-loader";
-import { Service } from "@z/cordis";
+import { EntryGroup, EntryTree, isJsExpr } from "@taskweaver/cordis-plugin-loader";
+import { Service } from "@taskweaver/cordis";
 import { extname } from "node:path";
 import { access, constants, readFile, rename, writeFile } from "node:fs/promises";
 import { setTimeout as setTimeout$1 } from "node:timers/promises";

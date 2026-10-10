@@ -1,11 +1,11 @@
-import { createUserMessage } from '@z/dsh-llm'
+import { createUserMessage } from '@taskweaver/dsh-llm'
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import { SessionId, type SessionEvent } from '@z/dsh-session'
-import type { Agent } from '@z/dsh-agent'
-import AgentLoop from '@z/dsh-agent-loop'
-import { mountAgentLoopTestDependencies } from '@z/dsh-agent-loop-testkit'
-import * as ToolTodo from '@z/dsh-tool-todo'
+import { Context } from '@taskweaver/cordis'
+import { SessionId, type SessionEvent } from '@taskweaver/dsh-session'
+import type { Agent } from '@taskweaver/dsh-agent'
+import AgentLoop from '@taskweaver/dsh-agent-loop'
+import { mountAgentLoopTestDependencies } from '@taskweaver/dsh-agent-loop-testkit'
+import * as ToolTodo from '@taskweaver/dsh-tool-todo'
 import { MockAdapter, textResponse, toolCallResponse } from '../../../core/agent-loop/tests/mock-adapter.ts'
 
 /**

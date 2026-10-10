@@ -4,13 +4,13 @@
  * {@link CompactionEngine}. This interface necessarily depends on session and LLM
  * vocabulary; the rationale is in the
  * [compaction Agent Note](../../../../.agents/notes/implemented/feature/2026-06-18-compaction-capability-seam.md).
- * @module @z/dsh-compaction
+ * @module @taskweaver/dsh-compaction
  */
-import { Context, Service } from '@z/cordis';
-import type { Session } from '@z/dsh-session';
-import type { CommandId } from '@z/dsh-commands/brand';
+import { Context, Service } from '@taskweaver/cordis';
+import type { Session } from '@taskweaver/dsh-session';
+import type { CommandId } from '@taskweaver/dsh-commands/brand';
 import type { CompactionResult } from './types.ts';
-export type { CompactionResult } from './types.ts';
+export type { CompactionRecordTrigger, CompactionResult } from './types.ts';
 export { CompactionId } from './brand.ts';
 export { toolPairingBalancedAfter, toolPairingBalancedBefore } from './tool-pairing.ts';
 export { compactCheckpointSource, isCompactCheckpointSource } from './checkpoint.ts';
@@ -58,7 +58,7 @@ export interface ManualCompactAgentContext extends CompactionAgentContext {
      */
     runMaintenance<T>(task: (signal: AbortSignal) => Promise<T>): Promise<T>;
 }
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
     interface Context {
         compaction: CompactionEngine;
     }
@@ -127,7 +127,7 @@ export declare abstract class CompactionEngine extends Service {
      * @throws when compaction is active or the range is missing, reversed, or unbalanced.
      * @returns the appended event seqs, summary, replaced range, and token accounting.
      */
-    abstract compactRegion(start: number, end: number, agent: CompactionAgentContext, signal?: AbortSignal): Promise<CompactionResult>;
+    abstract compactRegion(start: number, end: number, agent: CompactionAgentContext, signal?: AbortSignal, trigger?: CompactionTrigger): Promise<CompactionResult>;
 }
 export default CompactionEngine;
 //# sourceMappingURL=index.d.ts.map

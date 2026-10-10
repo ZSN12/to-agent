@@ -1,11 +1,11 @@
 /**
  * Service Definition for combined session-history reads, traces, filters, and full-text search.
  *
- * @module @z/dsh-session-query
+ * @module @taskweaver/dsh-session-query
  */
-import { Context, Service } from '@z/cordis';
-import { type SessionId } from '@z/dsh-session';
-import type { SessionTitleSnapshot } from '@z/dsh-session-title';
+import { Context, Service } from '@taskweaver/cordis';
+import { type SessionId } from '@taskweaver/dsh-session';
+import type { SessionTitleSnapshot } from '@taskweaver/dsh-session-title';
 import type { SessionEventResultFilter, SessionEventSearchPage, SessionEventReadRequest, SessionEventRecord, SessionEventSearchDocument, SessionEventSearchRequest, SessionEventTraceObservation, SessionEventTraceRequest, SessionEventWindow, SessionLineageTrace, SessionLogSnapshot, SessionRecord, SessionResultFilter, SessionSearchExecContext, SessionSearchHit, SessionSearchPage, SessionSearchRequest, SessionSurfaceSnapshot, SessionTitleObservation, SessionTitleObservationResult } from './types.ts';
 import { type Config } from './config.ts';
 export type * from './types.ts';
@@ -16,7 +16,7 @@ export { extractSessionEventText } from './extraction.ts';
 export { buildSessionEventRecords, buildSessionEventSearchDocuments } from './documents.ts';
 export { compileSessionTextFilter, filterSessionEventDocuments, filterSessionResults, materializeSessionEventResultFilters, materializeSessionResultFilters, } from './filters.ts';
 export { assertSessionHeadersCompatible } from './sources.ts';
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
     interface Context {
         sessionQuery: SessionQueryEngine;
     }

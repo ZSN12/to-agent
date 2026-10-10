@@ -2,15 +2,15 @@
  * Model-facing full-file write. It obtains an optional intent from the single policy slot, calls
  * `ctx.fs.writeText` without a stat, then records the resulting version; no policy means an
  * unconditional atomic create-or-overwrite.
- * @module @z/dsh-tool-fs/src/write
+ * @module @taskweaver/dsh-tool-fs/src/write
  */
 
-import type { Context } from '@z/cordis'
-import { defineTool } from '@z/dsh-tools'
-import type { DiffCallView, DiffResultView, ToolResult } from '@z/dsh-tools'
-import type { FsWriteOutcome } from '@z/dsh-fs'
-import type {} from '@z/dsh-fs'
-import type {} from '@z/dsh-system-prompt'
+import type { Context } from '@taskweaver/cordis'
+import { defineTool } from '@taskweaver/dsh-tools'
+import type { DiffCallView, DiffResultView, ToolResult } from '@taskweaver/dsh-tools'
+import type { FsWriteOutcome } from '@taskweaver/dsh-fs'
+import type {} from '@taskweaver/dsh-fs'
+import type {} from '@taskweaver/dsh-system-prompt'
 import { computeHunkDiffs, diffsFromMeta } from './diff.ts'
 import { remediateFsError } from './error.ts'
 import { sessionResolveOptions } from './session-cwd.ts'

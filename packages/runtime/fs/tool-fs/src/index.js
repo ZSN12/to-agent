@@ -2,9 +2,9 @@
  * Model-facing read, read_image, write, and edit tools over `ctx.fs`. This package owns schemas, validation,
  * read windows, formatting, and observation events, never a concrete provider. An optional
  * event policy supplies mutation guards; without one the tools use unconditional provider calls.
- * @module @z/dsh-tool-fs
+ * @module @taskweaver/dsh-tool-fs
  */
-import z from '@z/schemastery';
+import z from '@taskweaver/schemastery';
 import { applyReadTool, READ_LIMIT, STREAM_MIN_SIZE } from "./read.js";
 import { applyWriteTool } from "./write.js";
 import { applyEditTool } from "./edit.js";
@@ -18,6 +18,7 @@ export const inject = ['tools', 'fs', 'systemPrompt'];
 // Shared by sibling filesystem plugins so mutations use the same policy path.
 export { FsSandboxController } from "./sandbox.js";
 export { sessionCwd, sessionResolveOptions } from "./session-cwd.js";
+export { resolveRegularReadTarget } from "./read-target.js";
 export { computeHunkDiffs, diffsFromMeta } from "./diff.js";
 export const Config = z.object({
     mutations: z.boolean().default(true),

@@ -7,7 +7,7 @@
  * translates every path for the Windows desktop instead of assuming a Linux
  * GUI. The text-editor intent never consults the browser.
  */
-import { type NativeCommandRunner } from '@z/dsh-native-command';
+import { type NativeCommandRunner } from '@taskweaver/dsh-native-command';
 /** Testable command boundary; native implementations never invoke a shell. */
 export type PathOpenerRunner = NativeCommandRunner;
 /** Injectable platform facts for deterministic adapter tests. */

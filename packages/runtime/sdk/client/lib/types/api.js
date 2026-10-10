@@ -4,7 +4,7 @@
  * prompt and settles when the whole agent next becomes idle.
  * Mirrors the Python SDK's `DeepSeekHarness`/`Session` pair.
  *
- * @module @z/dsh-sdk-client/api
+ * @module @taskweaver/dsh-sdk-client/api
  */
 import { randomUUID } from 'node:crypto';
 import { resolve } from 'node:path';

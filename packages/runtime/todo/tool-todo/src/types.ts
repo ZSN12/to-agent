@@ -5,14 +5,14 @@
  * for host consumers, `./client/types` (the browser half-entry's re-export)
  * for client aggregates — with zero content duplication.
  *
- * @module @z/dsh-tool-todo/types
+ * @module @taskweaver/dsh-tool-todo/types
  */
 
-import type { TodoItem } from '@z/dsh-session/types'
+import type { TodoItem } from '@taskweaver/dsh-session/types'
 
-export type { TodoItem } from '@z/dsh-session/types'
+export type { TodoItem } from '@taskweaver/dsh-session/types'
 
-declare module '@z/dsh-session-projection/types' {
+declare module '@taskweaver/dsh-session-projection/types' {
   interface SessionProjectionStateMap {
     todos: TodoItem[] | null
   }

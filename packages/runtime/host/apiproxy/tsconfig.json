@@ -1,5 +1,5 @@
 {
-  "extends": "../../../../tsconfig.base.json",
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "rootDir": "src",
     "outDir": "lib/types"
@@ -18,10 +18,10 @@
       "path": "../../credentials/credentials"
     },
     {
-      "path": "../../../../vendor/cordis"
+      "path": "../../cordis/cordis"
     },
     {
-      "path": "../../../../vendor/schemastery"
+      "path": "../../cordis/schemastery"
     },
     {
       "path": "../../api/remotes/tsconfig.host.json"
@@ -90,6 +90,9 @@
       "path": "../../interaction/user-questions"
     },
     {
+      "path": "../../fs/tool-document"
+    },
+    {
       "path": "../../workspace/workspace"
     },
     {
@@ -100,6 +103,9 @@
     },
     {
       "path": "../../runtime-diagnostics/invariants"
+    },
+    {
+      "path": "../../web/web"
     },
     {
       "path": "../../util/native-command"

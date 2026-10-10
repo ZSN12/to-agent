@@ -4,9 +4,9 @@
  * product methods, current thread/turn association, unattended approval
  * responses, and terminal-answer selection.
  *
- * @module @z/dsh-subagent-codex/wire
+ * @module @taskweaver/dsh-subagent-codex/wire
  */
-import { JsonRpcLineTransport } from '@z/dsh-sdk-protocol';
+import { JsonRpcLineTransport } from '@taskweaver/dsh-sdk-protocol';
 const THREAD_PERMISSION_PARAMS = {
     never: { approvalPolicy: 'never' },
     'approve-for-me': {

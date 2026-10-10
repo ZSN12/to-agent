@@ -4,13 +4,15 @@
  * surface events; a separate replacement `user/message` carries the summary.
  * Backend packages own configuration and retention policy; see
  * `.agents/notes/implemented/feature/2026-06-18-compaction-capability-seam.md`.
- * @module @z/dsh-compaction/types
+ * @module @taskweaver/dsh-compaction/types
  */
-import type { ContentBlock, TokenUsage } from '@z/dsh-llm';
-import type { CommandId } from '@z/dsh-commands/brand';
+import type { ContentBlock, TokenUsage } from '@taskweaver/dsh-llm';
+import type { CommandId } from '@taskweaver/dsh-commands/brand';
 import type { CompactionId } from './brand.ts';
 export type { CompactionId };
-declare module '@z/dsh-session/types' {
+/** Durable trigger recorded for transcript classification. */
+export type CompactionRecordTrigger = 'pressure' | 'context-overflow' | 'manual';
+declare module '@taskweaver/dsh-session/types' {
     interface SessionEventMap {
         /**
          * Marks the start of a compaction — log-only, holds the lock until
@@ -21,6 +23,8 @@ declare module '@z/dsh-session/types' {
             compactionId: CompactionId;
             sourceCommandId?: CommandId;
             turn: number | null;
+            /** Missing on older session records. */
+            trigger?: CompactionRecordTrigger;
         };
         /**
          * Completed summary, its inputs, and its model call facts — log-only, no surfaceOp.
@@ -34,6 +38,8 @@ declare module '@z/dsh-session/types' {
         'compaction/summary': {
             compactionId: CompactionId;
             sourceCommandId?: CommandId;
+            /** Missing on older session records. */
+            trigger?: CompactionRecordTrigger;
             summary: ContentBlock[];
             shadowedRange: {
                 start: number;
@@ -73,6 +79,8 @@ declare module '@z/dsh-session/types' {
             compactionId: CompactionId;
             sourceCommandId?: CommandId;
             turn: number | null;
+            /** Missing on older session records. */
+            trigger?: CompactionRecordTrigger;
             error?: string;
         };
         /**
@@ -103,6 +111,7 @@ export interface CompactionResult {
     compactionId: CompactionId;
     /** Human command that initiated this compaction, when it was manual. */
     sourceCommandId?: CommandId;
+    trigger?: CompactionRecordTrigger;
     /** The seq of the appended `compaction/start` event. */
     startSeq: number;
     /** The seq of the appended `compaction/summary` event. */

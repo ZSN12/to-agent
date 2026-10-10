@@ -1,5 +1,5 @@
 /** ACP wire-content admission and projection owned by the ACP adapter. @module */
-import { isImageAdmissionError } from '@z/dsh-attachment';
+import { isImageAdmissionError } from '@taskweaver/dsh-attachment';
 /** Raster formats shared by ACP image blocks and the core attachment vocabulary. */
 const IMAGE_MEDIA_TYPES = [
     'image/png',

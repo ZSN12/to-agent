@@ -3,9 +3,9 @@
  * vocabulary remains in `./types` so Client programs never import Agent or
  * host Cordis context declarations.
  *
- * @module @z/dsh-workflow
+ * @module @taskweaver/dsh-workflow
  */
-import type { Agent } from '@z/dsh-agent';
+import type { Agent } from '@taskweaver/dsh-agent';
 import type { WorkflowMeta, WorkflowResult, WorkflowRunId } from './types.ts';
 /**
  * What a caller asks for when starting a workflow run. `meta` and `args` are

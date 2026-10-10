@@ -1,45 +1,41 @@
-"use strict";
 /**
  * Package-owned relational invariants for the session event log. Load this
- * companion beside `@z/dsh-invariants` to enable the checks.
+ * companion beside `@taskweaver/dsh-invariants` to enable the checks.
  *
- * @module @z/dsh-session/invariant
+ * @module @taskweaver/dsh-session/invariant
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.apply = exports.inject = exports.name = void 0;
-var dsh_llm_1 = require("@z/dsh-llm");
-var repair_ts_1 = require("./repair.ts");
-var PACKAGE_NAME = '@z/dsh-session';
+import { assertNever } from '@taskweaver/dsh-llm';
+import { TOOL_NOT_STARTED } from "./repair.js";
+const PACKAGE_NAME = '@taskweaver/dsh-session';
 /** Cordis companion plugin name. */
-exports.name = 'session-invariant';
+export const name = 'session-invariant';
 /** Service required before the companion can reserve package ownership. */
-exports.inject = ['invariants'];
+export const inject = ['invariants'];
 /** Assert that a step-scoped event names the currently open turn and step. */
 function requireOpenStep(trace, kind, turn, step, fail) {
     if (trace.openTurn !== turn || trace.openStep !== step) {
-        fail("".concat(kind, " names turn ").concat(turn, "/step ").concat(step, " but open is turn ").concat(trace.openTurn, "/step ").concat(trace.openStep));
+        fail(`${kind} names turn ${turn}/step ${step} but open is turn ${trace.openTurn}/step ${trace.openStep}`);
     }
 }
 /** Validate one candidate event without mutating the committed trace. */
 function validateEvent(trace, event, fail) {
-    var _a;
     if (event.seq <= trace.lastSeq) {
-        fail("seq must strictly increase: saw ".concat(event.seq, " after ").concat(trace.lastSeq));
+        fail(`seq must strictly increase: saw ${event.seq} after ${trace.lastSeq}`);
     }
-    var openTurn = trace.openTurn;
-    var openStep = trace.openStep;
-    var nextTurn = trace.nextTurn;
-    var nextStep = trace.nextStep;
-    var pendingCalls = { kind: 'none' };
+    let openTurn = trace.openTurn;
+    let openStep = trace.openStep;
+    let nextTurn = trace.nextTurn;
+    let nextStep = trace.nextStep;
+    let pendingCalls = { kind: 'none' };
     // Context and plugin-owned log-only events may be appended between model
     // executions. Core execution events retain their explicit turn relations.
     switch (event.type) {
         case 'turn/start': {
             if (trace.openTurn !== null) {
-                fail("turn/start ".concat(event.data.turn, " while turn ").concat(trace.openTurn, " is still open"));
+                fail(`turn/start ${event.data.turn} while turn ${trace.openTurn} is still open`);
             }
             if (event.data.turn !== trace.nextTurn) {
-                fail("turn/start expected turn ".concat(trace.nextTurn, ", got ").concat(event.data.turn));
+                fail(`turn/start expected turn ${trace.nextTurn}, got ${event.data.turn}`);
             }
             openTurn = event.data.turn;
             nextStep = 1;
@@ -47,10 +43,10 @@ function validateEvent(trace, event, fail) {
         }
         case 'turn/end': {
             if (trace.openTurn !== event.data.turn) {
-                fail("turn/end ".concat(event.data.turn, " does not match open turn ").concat(trace.openTurn));
+                fail(`turn/end ${event.data.turn} does not match open turn ${trace.openTurn}`);
             }
             if (trace.openStep !== null) {
-                fail("turn/end ".concat(event.data.turn, " while step ").concat(trace.openStep, " is still open"));
+                fail(`turn/end ${event.data.turn} while step ${trace.openStep} is still open`);
             }
             openTurn = null;
             nextTurn += 1;
@@ -58,13 +54,13 @@ function validateEvent(trace, event, fail) {
         }
         case 'step/start': {
             if (trace.openTurn !== event.data.turn) {
-                fail("step/start in turn ".concat(event.data.turn, " but open turn is ").concat(trace.openTurn));
+                fail(`step/start in turn ${event.data.turn} but open turn is ${trace.openTurn}`);
             }
             if (trace.openStep !== null) {
-                fail("step/start ".concat(event.data.step, " while step ").concat(trace.openStep, " is still open"));
+                fail(`step/start ${event.data.step} while step ${trace.openStep} is still open`);
             }
             if (event.data.step !== trace.nextStep) {
-                fail("step/start expected step ".concat(trace.nextStep, " in turn ").concat(event.data.turn, ", got ").concat(event.data.step));
+                fail(`step/start expected step ${trace.nextStep} in turn ${event.data.turn}, got ${event.data.step}`);
             }
             openStep = event.data.step;
             break;
@@ -99,12 +95,12 @@ function validateEvent(trace, event, fail) {
                 break;
             }
             requireOpenStep(trace, 'tool/result', event.data.turn, event.data.step, fail);
-            var callId = event.data.message.source.callId;
-            var syntheticNotStarted = event.data.message.content[0].isError === true && ((_a = event.data.error) === null || _a === void 0 ? void 0 : _a.code) === repair_ts_1.TOOL_NOT_STARTED;
+            const callId = event.data.message.source.callId;
+            const syntheticNotStarted = event.data.message.content[0].isError === true && event.data.error?.code === TOOL_NOT_STARTED;
             if (!trace.pendingCalls.has(callId) && !syntheticNotStarted) {
-                fail("tool/result for ".concat(callId, " with no prior tool/call in this step"));
+                fail(`tool/result for ${callId} with no prior tool/call in this step`);
             }
-            pendingCalls = { kind: 'delete', callId: callId };
+            pendingCalls = { kind: 'delete', callId };
             break;
         }
         case 'user/message':
@@ -116,7 +112,7 @@ function validateEvent(trace, event, fail) {
         case 'request/header':
         case 'request/context': {
             if (trace.openTurn === null) {
-                fail("".concat(event.type, " appended outside any open turn (core execution events must be turn-enclosed)"));
+                fail(`${event.type} appended outside any open turn (core execution events must be turn-enclosed)`);
             }
             break;
         }
@@ -125,8 +121,8 @@ function validateEvent(trace, event, fail) {
             break;
     }
     return {
-        scalars: { lastSeq: event.seq, openTurn: openTurn, openStep: openStep, nextTurn: nextTurn, nextStep: nextStep },
-        pendingCalls: pendingCalls,
+        scalars: { lastSeq: event.seq, openTurn, openStep, nextTurn, nextStep },
+        pendingCalls,
     };
 }
 /** Apply one already-validated transition after its event commits. */
@@ -146,39 +142,36 @@ function applyTransition(trace, transition) {
             break;
         /* v8 ignore next -- validateEvent produces this closed transition union */
         default:
-            (0, dsh_llm_1.assertNever)(transition.pendingCalls, 'session trace pending-call transition');
+            assertNever(transition.pendingCalls, 'session trace pending-call transition');
     }
 }
 /** Install the session contribution into its child registration fiber. */
-var install = Object.assign(function (ctx, fail) {
-    var traces = new WeakMap();
-    var stagedTransitions = new WeakMap();
-    var freshTrace = function () { return ({
+const install = Object.assign((ctx, fail) => {
+    const traces = new WeakMap();
+    const stagedTransitions = new WeakMap();
+    const freshTrace = () => ({
         lastSeq: -1,
         openTurn: null,
         openStep: null,
         nextTurn: 1,
         nextStep: 1,
         pendingCalls: new Set(),
-    }); };
-    var seedSession = function (session) {
-        var trace = freshTrace();
+    });
+    const seedSession = (session) => {
+        const trace = freshTrace();
         traces.set(session, trace);
-        for (var _i = 0, _a = session.events; _i < _a.length; _i++) {
-            var event_1 = _a[_i];
-            applyTransition(trace, validateEvent(trace, event_1, fail));
+        for (const event of session.events) {
+            applyTransition(trace, validateEvent(trace, event, fail));
         }
         return trace;
     };
     /* v8 ignore next -- session/event always follows list() or session/created seeding */
-    var traceFor = function (session) { var _a; return (_a = traces.get(session)) !== null && _a !== void 0 ? _a : seedSession(session); };
-    for (var _i = 0, _a = ctx.sessions.list(); _i < _a.length; _i++) {
-        var session = _a[_i];
+    const traceFor = (session) => traces.get(session) ?? seedSession(session);
+    for (const session of ctx.sessions.list())
         seedSession(session);
-    }
-    ctx.on('session/created', function (session) { seedSession(session); }, { global: true });
-    ctx.on('session/event', function (session, event) {
-        var staged = stagedTransitions.get(event);
+    ctx.on('session/created', (session) => { seedSession(session); }, { global: true });
+    ctx.on('session/event', (session, event) => {
+        const staged = stagedTransitions.get(event);
         /* v8 ignore next 2 -- internal/dispatch stages the exact callback arguments */
         if (staged === undefined || staged.session !== session) {
             return fail('session/event reached publication without matching pre-commit validation');
@@ -186,15 +179,15 @@ var install = Object.assign(function (ctx, fail) {
         stagedTransitions.delete(event);
         applyTransition(staged.trace, staged.transition);
     }, { global: true });
-    ctx.on('internal/dispatch', function (_mode, eventName, args) {
+    ctx.on('internal/dispatch', (_mode, eventName, args) => {
         if (eventName !== 'session/event')
             return;
-        var _a = args, session = _a[0], event = _a[1];
-        var trace = traceFor(session);
-        var transition = validateEvent(trace, event, fail);
+        const [session, event] = args;
+        const trace = traceFor(session);
+        const transition = validateEvent(trace, event, fail);
         // A later dispatch listener may veto. Validation is pure, so abandoning
         // this weakly keyed transition does not advance or retain the session.
-        stagedTransitions.set(event, { session: session, trace: trace, transition: transition });
+        stagedTransitions.set(event, { session, trace, transition });
     }, { global: true });
 }, { inject: ['sessions'] });
 /**
@@ -202,7 +195,5 @@ var install = Object.assign(function (ctx, fail) {
  * @param ctx - Cordis context carrying the invariant service.
  * @returns the installed registration's disposer after setup succeeds.
  */
-var apply = function (ctx) {
-    return Promise.resolve(ctx.invariants.register(PACKAGE_NAME, install));
-};
-exports.apply = apply;
+export const apply = (ctx) => Promise.resolve(ctx.invariants.register(PACKAGE_NAME, install));
+//# sourceMappingURL=invariant.js.map

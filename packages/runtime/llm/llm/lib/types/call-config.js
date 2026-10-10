@@ -1,4 +1,3 @@
-"use strict";
 /**
  * Conversation call configuration and freeze utilities. Provider routing,
  * model, reasoning effort, and sampling values are request-header state that
@@ -6,13 +5,8 @@
  * changed snapshots instead of allowing silent per-call drift.
  * @module dsh-llm/call-config
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.callConfigEquals = callConfigEquals;
-exports.markAgentLoopRequest = markAgentLoopRequest;
-exports.isAgentLoopRequest = isAgentLoopRequest;
-exports.deepFreeze = deepFreeze;
 /** Process-local identities of request objects assembled by dsh-agent-loop. */
-var AGENT_LOOP_REQUESTS = new WeakSet();
+const AGENT_LOOP_REQUESTS = new WeakSet();
 /**
  * Field-wise equality over {@link LlmCallConfig} — the comparison a caller
  * runs to decide whether a proposed configuration is a real change (worth a
@@ -21,7 +15,7 @@ var AGENT_LOOP_REQUESTS = new WeakSet();
  * @param b - the other.
  * @returns whether every field (including the `stop` list, element-wise) matches.
  */
-function callConfigEquals(a, b) {
+export function callConfigEquals(a, b) {
     if (a.provider !== b.provider
         || a.model !== b.model
         || a.reasoningEffort !== b.reasoningEffort
@@ -30,14 +24,14 @@ function callConfigEquals(a, b) {
         return false;
     if (a.stop === undefined || b.stop === undefined)
         return a.stop === b.stop;
-    return a.stop.length === b.stop.length && a.stop.every(function (s, i) { var _a; return s === ((_a = b.stop) === null || _a === void 0 ? void 0 : _a[i]); });
+    return a.stop.length === b.stop.length && a.stop.every((s, i) => s === b.stop?.[i]);
 }
 /**
  * Mark one exact request object as assembled by dsh-agent-loop.
  * @param request - loop-owned request envelope before LLM dispatch.
  * @returns the same request object marked as created by the process-local agent loop.
  */
-function markAgentLoopRequest(request) {
+export function markAgentLoopRequest(request) {
     AGENT_LOOP_REQUESTS.add(request);
     return request;
 }
@@ -46,7 +40,7 @@ function markAgentLoopRequest(request) {
  * @param request - request envelope observed at the LLM waterfall.
  * @returns whether {@link markAgentLoopRequest} recorded this object.
  */
-function isAgentLoopRequest(request) {
+export function isAgentLoopRequest(request) {
     return AGENT_LOOP_REQUESTS.has(request);
 }
 /**
@@ -57,11 +51,11 @@ function isAgentLoopRequest(request) {
  * @param value - the value to freeze in place.
  * @returns the same value, frozen.
  */
-function deepFreeze(value) {
-    var seen = new WeakSet();
-    var pending = [{ kind: 'visit', node: value }];
+export function deepFreeze(value) {
+    const seen = new WeakSet();
+    const pending = [{ kind: 'visit', node: value }];
     while (pending.length > 0) {
-        var task = pending.pop();
+        const task = pending.pop();
         /* v8 ignore next -- the loop condition guarantees one pending task. */
         if (task === undefined)
             continue;
@@ -69,7 +63,7 @@ function deepFreeze(value) {
             pending.push({ kind: 'visit', node: task.source[task.key] });
             continue;
         }
-        var node = task.node;
+        const node = task.node;
         if (node === null || typeof node !== 'object')
             continue;
         if (node instanceof AbortSignal)
@@ -78,14 +72,15 @@ function deepFreeze(value) {
             continue;
         seen.add(node);
         Object.freeze(node);
-        var keys = Object.keys(node);
-        for (var index = keys.length - 1; index >= 0; index--) {
-            var key = keys[index];
+        const keys = Object.keys(node);
+        for (let index = keys.length - 1; index >= 0; index--) {
+            const key = keys[index];
             /* v8 ignore next -- the loop is bounded by the captured key count. */
             if (key === undefined)
                 continue;
-            pending.push({ kind: 'property', source: node, key: key });
+            pending.push({ kind: 'property', source: node, key });
         }
     }
     return value;
 }
+//# sourceMappingURL=call-config.js.map

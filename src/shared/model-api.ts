@@ -1,6 +1,46 @@
 /** 与 electron/preload 暴露的模型 API 对齐，供前端类型检查 */
 
 export type ModelTier = 'cheap' | 'balanced' | 'strong'
+export type CapabilityTier = 'strong' | 'medium' | 'weak'
+export type CapabilityTierSource = 'lmarena' | 'user' | 'unrated'
+export type CapabilityTierBoard = {
+  board: 'webdev' | 'text'
+  tier: CapabilityTier
+  rating: number
+  matchedName: string
+  votes: number
+  publishDate: string
+}
+export type CapabilityTierChange = {
+  canonicalId: string
+  before: CapabilityTier
+  after: CapabilityTier
+}
+export interface CapabilityTierDetails {
+  canonicalId: string
+  tier: CapabilityTier
+  defaultTier: CapabilityTier
+  source: CapabilityTierSource
+  status: 'rated' | 'single-board' | 'unrated'
+  overridden: boolean
+  board: 'webdev' | 'text' | null
+  rating: number | null
+  matchedName: string | null
+  votes: number | null
+  publishDate: string | null
+  thresholdsVersion?: string | null
+  boards: Partial<Record<'webdev' | 'text', CapabilityTierBoard>>
+}
+export interface CapabilityTierStatus {
+  source: 'cache' | 'bundled' | 'remote' | 'unavailable'
+  stale: boolean
+  fetchedAt: string | null
+  thresholdsVersion: string | null
+  attribution: string | null
+  sourceUrl: string | null
+  changes: CapabilityTierChange[]
+  error?: string | null
+}
 /** Host-advertised reasoning effort id (provider-specific; not a fixed four-level enum). */
 export type ThinkingLevel = string
 
@@ -12,6 +52,8 @@ export type ReasoningEffortOption = {
 
 export interface ModelProfilePatch {
   tier?: ModelTier
+  /** Explicit capability tier; null removes the override and uses the leaderboard default. */
+  capabilityTierOverride?: CapabilityTier | null
   thinkingLevel?: ThinkingLevel
   capabilitySummary?: string
   enabledForAllocation?: boolean
@@ -91,6 +133,8 @@ export interface CatalogModel {
   verificationStatus?: 'verified' | 'unverified' | 'bundled'
   /** Whether DSH llm.models has confirmed this model is routable. */
   routeRegistered?: boolean
+  /** Ability tier is independent from the legacy cost/allocation profile tier. */
+  capabilityTier?: CapabilityTierDetails
 }
 
 export interface ModelCatalog {
@@ -101,6 +145,7 @@ export interface ModelCatalog {
   /** 刚从旧版「智能路由」迁移，需用户在 Composer 重新选主模型 */
   primaryModelReselectRequired?: boolean
   activeThinkingLevel?: ThinkingLevel
+  capabilityTierStatus?: CapabilityTierStatus
 }
 
 export interface ProviderAuthStatus {
@@ -189,11 +234,14 @@ export interface ModelLoadBundle {
   auth: ProviderAuthStatus[]
   hostReady: boolean
   providerCount: number
+  /** True while the UI is showing a disk snapshot and Host refresh is pending. */
+  stale?: boolean
 }
 
 export interface TaskweaverModelsApi {
   list: () => Promise<IpcResult<ModelCatalog>>
-  loadBundle: () => Promise<IpcResult<ModelLoadBundle>>
+  loadBundle: (options?: { force?: boolean }) => Promise<IpcResult<ModelLoadBundle>>
+  onCatalogUpdated?: (listener: (bundle: ModelLoadBundle) => void) => () => void
   refresh: () => Promise<IpcResult<ModelCatalog>>
   getUpdateStatus: () => Promise<IpcResult<ModelUpdateStatus>>
   checkForUpdates: (options?: { force?: boolean }) => Promise<IpcResult<ModelUpdateStatus>>
@@ -233,9 +281,22 @@ export interface TaskweaverModelsApi {
   testCustomProvider: (payload: CustomProviderTestPayload) => Promise<IpcResult<{ ok: boolean; method?: string; status?: number }>>
   testCustomProviderToolCall: (payload: CustomProviderTestPayload) => Promise<IpcResult<{ ok: boolean; supported: boolean; method?: string; status?: number }>>
   probeProviderModels: (payload: { providerId?: string; baseUrl?: string; apiKey?: string }) => Promise<IpcResult<ProbeModelsResult>>
+  discoverProviderModels: (payload: DiscoverProviderModelsPayload) => Promise<IpcResult<DiscoveredProviderModel[]>>
   batchAddCustomModels: (payload: BatchAddCustomModelsPayload) => Promise<
     IpcResult<{ ok: boolean; addedCount: number; addedKeys: string[]; catalog: ModelCatalog }>
   >
+}
+
+export interface DiscoverProviderModelsPayload {
+  providerId: string
+  force?: boolean
+}
+
+export interface DiscoveredProviderModel {
+  id: string
+  name: string
+  contextWindow?: number
+  maxTokens?: number
 }
 
 export interface ProbedModelItem {

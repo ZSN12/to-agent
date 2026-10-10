@@ -1,8 +1,8 @@
 /**
- * Package-owned invariant companion for `@z/dsh-session-projection`.
- * @module @z/dsh-session-projection/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-session-projection`.
+ * @module @taskweaver/dsh-session-projection/invariant
  */
-import type { Context } from '@z/cordis';
+import type { Context } from '@taskweaver/cordis';
 /** Cordis companion plugin name. */
 export declare const name = "session-projection-invariant";
 /** Service required before the companion can reserve package ownership. */

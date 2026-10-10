@@ -3,9 +3,9 @@
  * Only command hooks run; other hook types are returned as skipped so the
  * bridge can warn. Plugin-root and project-directory substitutions are applied
  * to commands at parse time.
- * @module @z/dsh-hooks-claude-code/config
+ * @module @taskweaver/dsh-hooks-claude-code/config
  */
-import { matcherDiagnostic } from '@z/dsh-hook-protocol';
+import { matcherDiagnostic } from '@taskweaver/dsh-hook-protocol';
 const CLAUDE_EVENTS = [
     'SessionStart',
     'UserPromptSubmit',

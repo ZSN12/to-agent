@@ -1,13 +1,13 @@
 /**
- * Package-owned invariant companion for `@z/dsh-app-boot`.
- * @module @z/dsh-app-boot/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-app-boot`.
+ * @module @taskweaver/dsh-app-boot/invariant
  */
 
 /* jscpd:ignore-start */
-import type { Context } from '@z/cordis'
-import type { InvariantInstaller } from '@z/dsh-invariants'
+import type { Context } from '@taskweaver/cordis'
+import type { InvariantInstaller } from '@taskweaver/dsh-invariants'
 
-const PACKAGE_NAME = '@z/dsh-app-boot'
+const PACKAGE_NAME = '@taskweaver/dsh-app-boot'
 
 /** Cordis companion plugin name. */
 export const name = 'app-boot-invariant'

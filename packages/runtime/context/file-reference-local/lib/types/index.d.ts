@@ -1,16 +1,16 @@
 /**
  * Local-filesystem implementation of `ctx.fileReferences`.
  *
- * @module @z/dsh-file-reference-local
+ * @module @taskweaver/dsh-file-reference-local
  */
-import { Context } from '@z/cordis';
-import z from '@z/schemastery';
-import type { Agent } from '@z/dsh-agent';
-import FileReferenceService, { type FileReferenceCandidate } from '@z/dsh-file-reference';
+import { Context } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
+import type { Agent } from '@taskweaver/dsh-agent';
+import FileReferenceService, { type FileReferenceCandidate } from '@taskweaver/dsh-file-reference';
 export { DEFAULT_FILE_SEARCH_EXCLUDED_DIRECTORIES, DEFAULT_FILE_SEARCH_MAX_ENTRIES, DEFAULT_FILE_SEARCH_MAX_RESULTS, WorkspaceFileSearch, } from './search.ts';
 export type { FileSearchConfig } from './search.ts';
-export { FILE_REFERENCE_PROMPT } from '@z/dsh-file-reference';
-export { activeAtToken, formatFileMention } from '@z/dsh-file-reference/grammar';
+export { FILE_REFERENCE_PROMPT } from '@taskweaver/dsh-file-reference';
+export { activeAtToken, formatFileMention } from '@taskweaver/dsh-file-reference/grammar';
 /** Local file-reference discovery configuration. */
 export interface Config {
     /** Maximum ranked candidates returned for one query. */

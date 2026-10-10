@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import { createUserMessage, CallId , createMessage } from '@z/dsh-llm'
-import SessionStore, { Session, SessionForkError, SessionId } from '@z/dsh-session'
-import type { SessionEvent, TurnEndReason } from '@z/dsh-session'
+import { Context } from '@taskweaver/cordis'
+import { createUserMessage, CallId , createMessage } from '@taskweaver/dsh-llm'
+import SessionStore, { Session, SessionForkError, SessionId } from '@taskweaver/dsh-session'
+import type { SessionEvent, TurnEndReason } from '@taskweaver/dsh-session'
 
-declare module '@z/dsh-session/types' {
+declare module '@taskweaver/dsh-session/types' {
   interface SessionEventMap {
     'test/log-only': { value: string }
     /** Stands in for a plugin's open/close bracket (`compaction/start`). */

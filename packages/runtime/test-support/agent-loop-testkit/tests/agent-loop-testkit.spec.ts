@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import AgentLoop from '@z/dsh-agent-loop'
-import { renderPrompt } from '@z/dsh-system-prompt'
+import { Context } from '@taskweaver/cordis'
+import AgentLoop from '@taskweaver/dsh-agent-loop'
+import { renderPrompt } from '@taskweaver/dsh-system-prompt'
 import { mountAgentLoopTestDependencies } from '../src/index.ts'
 
 describe('dsh-agent-loop-testkit', () => {

@@ -1,11 +1,11 @@
 import { Command } from "commander";
-import { parseCmdline } from "@z/dsh-cmdline";
+import { parseCmdline } from "@taskweaver/dsh-cmdline";
 //#region lib/types/startup.js
 /**
 * The one-shot app's command-line provider: it parses the task positional and
 * `--help`, then publishes {@link HEADLESS_STARTUP_SERVICE}. The runner is an
 * ordinary consumer whose lazy config waits for that service.
-* @module @z/dsh-headless/startup
+* @module @taskweaver/dsh-headless/startup
 */
 /** Stable Cordis plugin name. */
 const name = "headless-startup";

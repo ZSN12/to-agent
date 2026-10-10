@@ -1,27 +1,17 @@
 /**
- * The third-party memory examples stay config-only. This suite parses every
- * checked-in overlay, verifies its package pin, transport, and secret handling, then replaces
- * only the upstream endpoint with the package-owned keyless MCP fixture and
- * proves the real Cordis Loader discovers a tool through the generic bridge.
+ * This retained package's source fixture exercises the generic MCP client
+ * contract and proves the real Cordis Loader discovers a keyless tool.
  */
 
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import type { Context } from '@z/cordis'
-import type { PatchOptions } from '@z/cordis-plugin-include'
-import { boot, loadOverlayPatches } from '@z/dsh-app-boot'
-import SystemPrompt from '@z/dsh-system-prompt'
-import ToolRuntime from '@z/dsh-tools'
-import * as McpClient from '@z/dsh-mcp-client/src/index.ts'
-
-interface ExampleContract {
-  file: string
-  id: string
-  serverName: string
-  transport: 'stdio' | 'streamable-http'
-  pin: string
-}
+import type { Context } from '@taskweaver/cordis'
+import type { PatchOptions } from '@taskweaver/cordis-plugin-include'
+import { boot, loadOverlayPatches } from '@taskweaver/dsh-app-boot'
+import SystemPrompt from '@taskweaver/dsh-system-prompt'
+import ToolRuntime from '@taskweaver/dsh-tools'
+import * as McpClient from '@taskweaver/dsh-mcp-client/src/index.ts'
 
 interface InsertedRow {
   id?: string
@@ -29,34 +19,17 @@ interface InsertedRow {
   config?: Record<string, unknown>
 }
 
-const root = resolve(import.meta.dirname, '../../..')
-const exampleDir = resolve(root, 'examples/mcp-memory')
+const root = resolve(import.meta.dirname, '../..')
 const baseConfig = resolve(import.meta.dirname, 'fixtures/memory-mcp-base.cordis.yml')
-const fixtureServer = resolve(root, 'packages/mcp/mcp-client/tests/fixture-server.ts')
+const overlayFile = resolve(import.meta.dirname, 'fixtures/memory-mcp-overlay.cordis.yml')
+const fixtureServer = resolve(root, 'mcp/mcp-client/tests/fixture-server.ts')
 
-const examples: ExampleContract[] = [
-  {
-    file: 'memorix.cordis.yml',
-    id: 'memory-memorix',
-    serverName: 'memorix',
-    transport: 'stdio',
-    pin: '1.3.0',
-  },
-  {
-    file: 'mcp-reference-memory.cordis.yml',
-    id: 'memory-mcp-reference',
-    serverName: 'reference_memory',
-    transport: 'stdio',
-    pin: '2026.7.4',
-  },
-  {
-    file: 'engram.cordis.yml',
-    id: 'memory-engram',
-    serverName: 'engram',
-    transport: 'stdio',
-    pin: '1.20.0',
-  },
-]
+const contract = {
+  id: 'memory-fixture',
+  name: '@taskweaver/dsh-mcp-client',
+  serverName: 'memory_fixture',
+  transport: 'stdio',
+} as const
 
 const liveContexts = new Set<Context>()
 
@@ -80,29 +53,23 @@ async function waitForTool(ctx: Context, name: string): Promise<void> {
   }
 }
 
-describe('third-party memory MCP example overlays', () => {
-  it.each(examples)('parses $file with the documented generic plugin fields', (contract) => {
-    const file = resolve(exampleDir, contract.file)
-    const source = readFileSync(file, 'utf8')
-    const row = insertedRow(loadOverlayPatches('memory-mcp-config-test', file))
+describe('TaskWeaver MCP client overlay', () => {
+  it('parses the package contract without credentials', () => {
+    const source = readFileSync(overlayFile, 'utf8')
+    const row = insertedRow(loadOverlayPatches('memory-mcp-config-test', overlayFile))
 
     expect(row.id).toBe(contract.id)
-    expect(row.name).toBe('@z/dsh-mcp-client')
+    expect(row.name).toBe(contract.name)
     expect(row.config?.serverName).toBe(contract.serverName)
     expect(row.config?.transport).toBe(contract.transport)
-    expect(source.split('\n', 1)[0]).toContain(contract.pin)
-    expect(source).not.toMatch(/\bsk-[A-Za-z0-9_-]{8,}\b/)
+    expect(source).not.toMatch(/\bsk-[A-Za-z0-9_-]{8,}\b/u)
     expect(source).not.toContain('DEEPSEEK_API_KEY')
   })
 
-  it.each(examples)('loads $file and discovers a keyless fixture tool', async (contract) => {
-    const patches = loadOverlayPatches(
-      'memory-mcp-config-test',
-      resolve(exampleDir, contract.file),
-    )
-    // The static config gate verifies the checked-in bare package specifier.
-    // The unit test maps it to the source module so a clean checkout needs no
-    // prebuilt `lib/` artifacts before proving the Loader/MCP behavior.
+  it('loads the overlay and discovers a keyless fixture tool', async () => {
+    const patches = loadOverlayPatches('memory-mcp-config-test', overlayFile)
+    // The unit test maps the workspace package to its source module so a clean
+    // checkout needs no prebuilt `lib/` artifacts to exercise Loader/MCP.
     insertedRow(patches).name = 'cordis:memory-test-mcp-client'
     const fixturePatch: PatchOptions = {
       id: contract.id,

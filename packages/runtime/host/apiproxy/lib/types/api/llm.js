@@ -1,4 +1,3 @@
-"use strict";
 /**
  * llm domain contract: host-scoped provider topology for configuration
  * surfaces. `llm.providers` merges the configurable-provider directory
@@ -8,4 +7,5 @@
  * Clients invalidate from the forwarded `llm/adapters-updated` and
  * `settings/document-updated` owner events.
  */
-Object.defineProperty(exports, "__esModule", { value: true });
+export {};
+//# sourceMappingURL=llm.js.map

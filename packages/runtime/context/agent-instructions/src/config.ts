@@ -1,12 +1,12 @@
 /**
  * Configuration normalization for workspace instruction discovery and rendering.
  *
- * @module @z/dsh-agent-instructions/config
+ * @module @taskweaver/dsh-agent-instructions/config
  */
 
 import { relative } from 'node:path'
-import z from '@z/schemastery'
-import { resolveDshHome } from '@z/dsh-home-paths'
+import z from '@taskweaver/schemastery'
+import { resolveRuntimeHome } from '@taskweaver/dsh-home-paths'
 
 const DEFAULT_PROJECT_ROOT_MARKERS = ['.git'] as const
 const DEFAULT_INSTRUCTION_FILE_CANDIDATES = ['AGENTS.md', 'CLAUDE.md'] as const
@@ -16,7 +16,7 @@ const RESERVED_PATH_SEGMENTS = new Set(['', '.', '..'])
 
 /** User-facing workspace instruction loader configuration. */
 export interface Config {
-  /** Harness home containing the fixed user-global `AGENTS.md`; defaults to `$DSH_HOME` or `~/.dsh`. */
+  /** Runtime home containing the fixed user-global `AGENTS.md`; defaults to `$TASKWEAVER_HOME` or `~/.taskweaver/runtime`. */
   dshHome?: string
   /** Directory entries that identify the project root while walking upward from the session cwd. */
   projectRootMarkers?: string[]
@@ -103,7 +103,7 @@ export function resolveDiscoveryConfig(
   config: Pick<Config, 'dshHome' | 'projectRootMarkers' | 'instructionFileCandidates' | 'localInstructionFileCandidates'>,
 ): ResolvedDiscoveryConfig {
   return {
-    dshHome: resolveDshHome(config.dshHome),
+    dshHome: resolveRuntimeHome(config.dshHome),
     projectRootMarkers: config.projectRootMarkers ?? [...DEFAULT_PROJECT_ROOT_MARKERS],
     instructionFileCandidates: resolveInstructionFileCandidates(
       config.instructionFileCandidates,

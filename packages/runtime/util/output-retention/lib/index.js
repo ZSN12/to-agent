@@ -28,7 +28,7 @@
 *   web bodies). `head` / `tail` / `headTail`, preserving UTF-8 boundaries at
 *   {@link TextRetainer.finish}.
 *
-* @module @z/dsh-output-retention
+* @module @taskweaver/dsh-output-retention
 */
 /** Assert a budget field is a non-negative integer (the retainer request contract). */
 function assertBudget(value, name) {

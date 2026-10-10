@@ -2,7 +2,7 @@
  * Shared rendering helpers for the shell tools (`dsh-tool-bash`,
  * `dsh-tool-pwsh`): the exit-status marker contract the tools' renderers
  * emit and the presentation layer parses back.
- * @module @z/dsh-shell/render
+ * @module @taskweaver/dsh-shell/render
  */
 /**
  * The exit status recovered from a rendered result, with the output body that

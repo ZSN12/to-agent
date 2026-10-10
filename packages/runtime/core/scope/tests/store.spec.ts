@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { Context } from '@z/cordis'
+import { Context } from '@taskweaver/cordis'
 import {
   AnonymousEntries,
   createScope,
@@ -8,7 +8,7 @@ import {
   type Scope,
   type ScopeKey,
   type ScopeLayer,
-} from '@z/dsh-scope'
+} from '@taskweaver/dsh-scope'
 
 class TestLayer implements ScopeLayer {
   readonly named: NamedEntries<number>

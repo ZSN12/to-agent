@@ -1,9 +1,9 @@
 //#region lib/types/invariant.js
 /**
-* Package-owned invariant companion for `@z/dsh-session-projection-cache`.
-* @module @z/dsh-session-projection-cache/invariant
+* Package-owned invariant companion for `@taskweaver/dsh-session-projection-cache`.
+* @module @taskweaver/dsh-session-projection-cache/invariant
 */
-const PACKAGE_NAME = "@z/dsh-session-projection-cache";
+const PACKAGE_NAME = "@taskweaver/dsh-session-projection-cache";
 /** Cordis companion plugin name. */
 const name = "session-projection-cache-invariant";
 /** Service required before the companion can reserve package ownership. */

@@ -1,6 +1,6 @@
-import { Service } from "@z/cordis";
-import z from "@z/schemastery";
-import { deepFreeze, freezeMessage } from "@z/dsh-llm";
+import { Service } from "@taskweaver/cordis";
+import z from "@taskweaver/schemastery";
+import { deepFreeze, freezeMessage } from "@taskweaver/dsh-llm";
 //#region lib/types/config.js
 /** Configuration resolution for deterministic tool-result pruning. */
 /** Fixed marker substituted for every removed middle span. */
@@ -54,7 +54,7 @@ function assertNonNegativeInteger(name, value) {
 /**
 * Replay-safe, model-free tool-result pruning service.
 *
-* @module @z/dsh-compaction-tool-result-pruner
+* @module @taskweaver/dsh-compaction-tool-result-pruner
 */
 /** Deterministic head/middle/tail pruning for current tool-result surface nodes. */
 var ToolResultPruner = class extends Service {

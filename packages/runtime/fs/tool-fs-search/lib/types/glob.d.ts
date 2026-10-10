@@ -6,11 +6,11 @@
  * argument validation, argv construction, result parsing, inline sampling,
  * and formatting; process concerns (spawn execution, tree termination,
  * environment scrubbing, output capture) stay behind `ctx.subprocess`.
- * @module @z/dsh-tool-fs-search/glob
+ * @module @taskweaver/dsh-tool-fs-search/glob
  */
-import type { Context } from '@z/cordis';
-import type { GenericCallView, SearchResultView, ToolResult } from '@z/dsh-tools';
-import type { SpillRef } from '@z/dsh-spill';
+import type { Context } from '@taskweaver/cordis';
+import type { GenericCallView, SearchResultView, ToolResult } from '@taskweaver/dsh-tools';
+import type { SpillRef } from '@taskweaver/dsh-spill';
 /**
  * Default cap on paths retained inline by one `glob` call (the `globMaxResults`
  * config), matching Claude Code's default `GlobTool` result limit.

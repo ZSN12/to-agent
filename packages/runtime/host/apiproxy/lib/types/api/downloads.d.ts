@@ -4,7 +4,7 @@
  * envelope: the carrier's GET routes answer these directly, and the browser
  * `IApiClient` never exposes them.
  */
-import type { SessionId } from '@z/dsh-session/types';
+import type { SessionId } from '@taskweaver/dsh-session/types';
 /** Host-only download surfaces (no wire envelope; absent from IApiClient). */
 export interface DownloadsApi {
     /**

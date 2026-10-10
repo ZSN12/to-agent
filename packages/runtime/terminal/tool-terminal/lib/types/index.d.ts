@@ -1,11 +1,11 @@
 /**
  * Six model-facing persistent terminal tools. Owner identity comes from the exact
  * tool execution Agent; generic `ctx.jobs` owns background ids and collection.
- * @module @z/dsh-tool-terminal
+ * @module @taskweaver/dsh-tool-terminal
  */
-import { Context } from '@z/cordis';
-import z from '@z/schemastery';
-declare module '@z/dsh-jobs' {
+import { Context } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
+declare module '@taskweaver/dsh-jobs' {
     interface JobKindMap {
         'pty-send': 'pty-send';
     }

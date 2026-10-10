@@ -1,5 +1,5 @@
-import type { ObservableSnapshot, SessionId } from '@z/dsh-client-runtime/client';
-import type { InjectFace, PropsLocale, PropsRuntime } from '@z/dsh-client-ui-slots';
+import type { ObservableSnapshot, SessionId } from '@taskweaver/dsh-client-runtime/client';
+import type { InjectFace, PropsLocale, PropsRuntime } from '@taskweaver/dsh-client-ui-slots';
 import type { SessionLogDownloadState } from './controller.ts';
 import { NS } from './locales.ts';
 /** Browser operations and state injected into the Session Header contribution. */

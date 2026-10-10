@@ -9,9 +9,9 @@
 
 import { describe, expect, it } from 'vitest'
 import fc from 'fast-check'
-import { createUserMessage, CallId , createMessage, createToolResultMessage } from '@z/dsh-llm'
-import { Session, SessionId } from '@z/dsh-session'
-import type { SessionEventMap, SessionEventType, SurfaceIntent } from '@z/dsh-session'
+import { createUserMessage, CallId , createMessage, createToolResultMessage } from '@taskweaver/dsh-llm'
+import { Session, SessionId } from '@taskweaver/dsh-session'
+import type { SessionEventMap, SessionEventType, SurfaceIntent } from '@taskweaver/dsh-session'
 
 // Each arbitrary supplies its own surface intent; `build` must not synthesize
 // one or the property would fail to exercise malformed fixture choices.

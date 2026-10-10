@@ -1,19 +1,19 @@
 /**
  * Shared boot glue for the app bins (`dsh`, `dsh-acp-demo`): load the gitignored
  * `.env`, install the fail-loud Loader guards, resolve the config path (snapshot-aware), load the
- * optional user patch layers from the Harness home (`~/.dsh`), expose its path resolver to
+ * optional user patch layers from the TaskWeaver runtime home (`~/.taskweaver/runtime`), expose its path resolver to
  * config expressions, and drive the Cordis Loader against a leaf `cordis.yml` until the tree settles.
- * @module @z/dsh-app-boot
+ * @module @taskweaver/dsh-app-boot
  */
-import { Context } from '@z/cordis';
-import { type Entry } from '@z/cordis-plugin-loader';
-import { type PatchOptions } from '@z/cordis-plugin-include';
-import { dshHomePath } from '@z/dsh-home-paths';
-import { type LaunchEnvironmentSnapshot } from '@z/dsh-launch-environment';
-declare module '@z/cordis' {
+import { Context } from '@taskweaver/cordis';
+import { type Entry } from '@taskweaver/cordis-plugin-loader';
+import { type PatchOptions } from '@taskweaver/cordis-plugin-include';
+import { runtimeHomePath } from '@taskweaver/dsh-home-paths';
+import { type LaunchEnvironmentSnapshot } from '@taskweaver/dsh-launch-environment';
+declare module '@taskweaver/cordis' {
     interface Context {
         /** Harness-home path resolver available to Loader `!!js` config expressions. */
-        dshHomePath?: typeof dshHomePath;
+        runtimeHomePath?: typeof runtimeHomePath;
     }
 }
 export { composeEntries, DEFAULT_PROFILE_BUNDLES, healProfilesModuleFallback, initProfile, loadProfile, PROFILE_PATCH_FILENAME, PROFILE_TEMPLATES, PROFILES_DIR, readProfileManifest, resolveBundleDir, resolveProfileDir, writeProfileManifest, type DshBundleManifest, type DshManifestSection, type DshProfileManifest, type Profile, type ProfileLayer, type ProfileManifest, } from './profile.ts';
@@ -21,7 +21,7 @@ export { composeEntries, DEFAULT_PROFILE_BUNDLES, healProfilesModuleFallback, in
  * Resolve the config to boot. Replay swaps a `cordis.yml` basename for
  * `cordis.snapshot.yml` in the same directory; every other mode keeps the path.
  * @param configPath - the requested config path (absolute, or relative to `cwd`).
- * @param snapshotMode - the bin's `$DSH_SNAPSHOT` value; only `'replay'` swaps the
+ * @param snapshotMode - the bin's `$TASKWEAVER_SNAPSHOT` value; only `'replay'` swaps the
  *   basename.
  * @param cwd - the base a relative `configPath` resolves against.
  * @returns the absolute path of the config to boot.
@@ -72,7 +72,7 @@ export interface UserPatchWatchOptions {
 export declare function watchUserPatches(ctx: Context, options: UserPatchWatchOptions): Promise<() => Promise<void>>;
 /**
  * Load an optional patch-list file: a top-level YAML array of loader patch
- * entries (`@z/cordis-plugin-include`'s `PatchOptions`): id-targeted config
+ * entries (`@taskweaver/cordis-plugin-include`'s `PatchOptions`): id-targeted config
  * overrides and `insert` lists, with `!!js` expressions allowed. A missing
  * file means "no layer"; an unreadable, unparsable, or non-array file throws —
  * a present patch file that cannot apply is a misconfiguration and must fail

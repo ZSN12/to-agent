@@ -6,18 +6,18 @@
  */
 
 import { describe, expect, it, vi } from 'vitest'
-import { Context } from '@z/cordis'
-import z from '@z/schemastery'
-import AgentRegistry from '@z/dsh-agent'
-import SessionStore from '@z/dsh-session'
-import SystemPrompt from '@z/dsh-system-prompt'
-import ToolRuntime from '@z/dsh-tools'
-import UserQuestionService from '@z/dsh-user-questions'
-import LlmRuntime, { LlmAdapter } from '@z/dsh-llm'
-import type { GenerateOptions, LlmModelInfo, LlmProviderInfo, StreamChunk } from '@z/dsh-llm'
-import { SettingsProvider, settingsNamespace } from '@z/dsh-settings'
-import type { SettingsNamespace } from '@z/dsh-settings'
-import { CredentialProvider } from '@z/dsh-credentials'
+import { Context } from '@taskweaver/cordis'
+import z from '@taskweaver/schemastery'
+import AgentRegistry from '@taskweaver/dsh-agent'
+import SessionStore from '@taskweaver/dsh-session'
+import SystemPrompt from '@taskweaver/dsh-system-prompt'
+import ToolRuntime from '@taskweaver/dsh-tools'
+import UserQuestionService from '@taskweaver/dsh-user-questions'
+import LlmRuntime, { LlmAdapter } from '@taskweaver/dsh-llm'
+import type { GenerateOptions, LlmModelInfo, LlmProviderInfo, StreamChunk } from '@taskweaver/dsh-llm'
+import { SettingsProvider, settingsNamespace } from '@taskweaver/dsh-settings'
+import type { SettingsNamespace } from '@taskweaver/dsh-settings'
+import { CredentialProvider } from '@taskweaver/dsh-credentials'
 import type {
   CredentialInfo,
   CredentialKey,
@@ -26,11 +26,11 @@ import type {
   CredentialRecordInfo,
   CredentialRef,
   ResolvedCredential,
-} from '@z/dsh-credentials'
+} from '@taskweaver/dsh-credentials'
 import type { HostFrame } from '../src/api/index.ts'
 import type { RpcRequest, RpcResponse } from '../src/api/rpc.ts'
 import { RpcId } from '../src/api/rpc.ts'
-import { AGENT_DEFAULT_MODEL_SETTINGS_NAMESPACE } from '@z/dsh-agent-default-model'
+import { AGENT_DEFAULT_MODEL_SETTINGS_NAMESPACE } from '@taskweaver/dsh-agent-default-model'
 import { createApiProxy } from '../src/api-proxy.ts'
 
 const DEFAULTS = { defaultModelSelection: () => ({ provider: 'p', model: 'm' }), cwd: '/tmp' }
@@ -667,9 +667,9 @@ describe('llm domain', () => {
     expect(value.providers).toEqual([
       { provider: 'deepseek-official', displayName: 'DeepSeek', settingsNs: 'llm-deepseek', settingsPath: [], active: true },
       { provider: 'openai', displayName: 'openai', settingsNs: 'llm-pi-ai', settingsPath: ['providers', 'openai'], active: false },
-      // An undeclared live route has no settings address, so nothing can be
-      // interrogated on its behalf either.
-      { provider: 'undeclared', displayName: 'Undeclared', settingsNs: '', settingsPath: [], active: true },
+      // The mounted pi-ai directory exposes its fallback provider settings
+      // address so the host can configure a live route before declaration.
+      { provider: 'undeclared', displayName: 'Undeclared', settingsNs: 'llm-pi-ai', settingsPath: ['providers', 'undeclared'], active: true },
     ])
   })
 

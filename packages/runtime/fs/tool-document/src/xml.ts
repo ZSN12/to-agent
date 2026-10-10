@@ -7,6 +7,12 @@ export interface XmlNode {
   text: string
 }
 
+export interface XmlVisitor {
+  start(name: string, attributes: Record<string, string>): void
+  text(value: string): void
+  end(name: string): void
+}
+
 function localName(name: string): string {
   const split = name.lastIndexOf(':')
   return split === -1 ? name : name.slice(split + 1)
@@ -134,6 +140,83 @@ export function parseXml(xml: string, maxNodes = 1_000_000): XmlNode {
   }
   if (stack.length !== 1) throw new DocumentReadError('Office XML contains unclosed tags', 'DOCUMENT_XML_INVALID')
   return root
+}
+
+/**
+ * Validate XML and deliver SAX-style events without retaining a document tree.
+ * Large worksheet parts can contain millions of cells, so building one object
+ * per XML tag would defeat the parser worker's memory ceiling.
+ */
+export function walkXml(xml: string, visitor: XmlVisitor, maxNodes = 10_000_000): void {
+  if (xml.length > 300 * 1024 * 1024) throw new DocumentReadError('Office XML part exceeds the 300 MB parser limit', 'DOCUMENT_XML_TOO_LARGE')
+  if (/<!\s*(?:DOCTYPE|ENTITY)\b/iu.test(xml)) {
+    throw new DocumentReadError('Office XML with DTD or entity declarations is not accepted', 'DOCUMENT_XML_DTD')
+  }
+
+  const stack: string[] = []
+  let nodes = 0
+  let roots = 0
+  let cursor = 0
+  while (cursor < xml.length) {
+    const open = xml.indexOf('<', cursor)
+    if (open === -1) {
+      const tail = decodeEntities(xml.slice(cursor))
+      if (tail) visitor.text(tail)
+      break
+    }
+    if (open > cursor) {
+      const text = decodeEntities(xml.slice(cursor, open))
+      if (text) visitor.text(text)
+    }
+    if (xml.startsWith('<!--', open)) {
+      const end = xml.indexOf('-->', open + 4)
+      if (end === -1) throw new DocumentReadError('Office XML has an unterminated comment', 'DOCUMENT_XML_INVALID')
+      cursor = end + 3
+      continue
+    }
+    if (xml.startsWith('<![CDATA[', open)) {
+      const end = xml.indexOf(']]>', open + 9)
+      if (end === -1) throw new DocumentReadError('Office XML has an unterminated CDATA section', 'DOCUMENT_XML_INVALID')
+      visitor.text(xml.slice(open + 9, end))
+      cursor = end + 3
+      continue
+    }
+    if (xml.startsWith('<?', open)) {
+      const end = xml.indexOf('?>', open + 2)
+      if (end === -1) throw new DocumentReadError('Office XML has an unterminated processing instruction', 'DOCUMENT_XML_INVALID')
+      cursor = end + 2
+      continue
+    }
+
+    const close = tagEnd(xml, open + 1)
+    if (close === -1) throw new DocumentReadError('Office XML has an unterminated tag', 'DOCUMENT_XML_INVALID')
+    const raw = xml.slice(open + 1, close).trim()
+    if (raw.startsWith('!')) throw new DocumentReadError('Office XML contains an unsupported declaration', 'DOCUMENT_XML_DTD')
+    if (raw.startsWith('/')) {
+      const name = localName(raw.slice(1).trim())
+      if (stack.at(-1) !== name) throw new DocumentReadError('Office XML contains mismatched tags', 'DOCUMENT_XML_INVALID')
+      visitor.end(name)
+      stack.pop()
+      cursor = close + 1
+      continue
+    }
+
+    const selfClosing = raw.endsWith('/')
+    const body = selfClosing ? raw.slice(0, -1).trimEnd() : raw
+    const nameEnd = body.search(/\s/u)
+    const name = localName(nameEnd === -1 ? body : body.slice(0, nameEnd))
+    if (!name) throw new DocumentReadError('Office XML contains an empty tag name', 'DOCUMENT_XML_INVALID')
+    nodes += 1
+    if (nodes > maxNodes) throw new DocumentReadError('Office XML exceeds the parser node limit', 'DOCUMENT_XML_TOO_LARGE')
+    if (stack.length === 0 && ++roots > 1) throw new DocumentReadError('Office XML has multiple document roots', 'DOCUMENT_XML_INVALID')
+    const attributes = parseAttributes(nameEnd === -1 ? '' : body.slice(nameEnd + 1))
+    visitor.start(name, attributes)
+    if (selfClosing) visitor.end(name)
+    else stack.push(name)
+    cursor = close + 1
+  }
+  if (stack.length !== 0) throw new DocumentReadError('Office XML contains unclosed tags', 'DOCUMENT_XML_INVALID')
+  if (roots !== 1) throw new DocumentReadError('Office XML has no document root', 'DOCUMENT_XML_INVALID')
 }
 
 export function descendants(node: XmlNode, name: string): XmlNode[] {

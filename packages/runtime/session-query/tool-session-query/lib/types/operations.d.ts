@@ -1,11 +1,11 @@
 /**
  * Tool operation orchestration over session-query service capabilities.
  *
- * @module @z/dsh-tool-session-query/operations
+ * @module @taskweaver/dsh-tool-session-query/operations
  */
-import type { Context } from '@z/cordis';
-import { type SessionEventSurface } from '@z/dsh-session-query';
-import type { ToolRunContext } from '@z/dsh-tools';
+import type { Context } from '@taskweaver/cordis';
+import { type SessionEventSurface } from '@taskweaver/dsh-session-query';
+import type { ToolRunContext } from '@taskweaver/dsh-tools';
 import { toolInput } from './input.ts';
 type SessionSearchArgs = Parameters<typeof toolInput.buildSessionFilters>[0];
 interface EventSearchArgs {

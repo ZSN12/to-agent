@@ -17,6 +17,34 @@ export type PresetTrust = 'system' | 'user'
  */
 export const PRESET_ID = /^[a-z0-9][a-z0-9-]*$/
 
+/**
+ * Stable TaskWeaver preset ids and the one-release aliases for their former
+ * names. Resolution canonicalizes aliases while discovery only exposes the
+ * new ids, so picker choices and newly persisted sessions use one vocabulary.
+ */
+export const LEGACY_AGENT_PRESET_ALIASES: Readonly<Record<string, string>> = Object.freeze({
+  standard: 'tw-default',
+  code: 'tw-code',
+  'taskweaver-code': 'tw-taskweaver-code',
+  'taskweaver-readonly': 'tw-taskweaver-readonly',
+  'taskweaver-planner': 'tw-taskweaver-planner',
+  'taskweaver-pi-lite': 'tw-taskweaver-pi-lite',
+})
+
+const REVERSE_LEGACY_AGENT_PRESET_ALIASES = new Map(
+  Object.entries(LEGACY_AGENT_PRESET_ALIASES).map(([legacy, canonical]) => [canonical, legacy]),
+)
+
+/** Return a canonical preset id while preserving custom ids. */
+export function canonicalAgentPresetId(id: string): string {
+  return LEGACY_AGENT_PRESET_ALIASES[id] ?? id
+}
+
+/** Return the former id for canonical presets that had a compatibility alias. */
+export function legacyAgentPresetId(id: string): string | undefined {
+  return REVERSE_LEGACY_AGENT_PRESET_ALIASES.get(id)
+}
+
 /** One preset directory that carries a mountable agent composition. */
 export interface AgentPreset {
   /** Stable identifier; the preset directory's name. */

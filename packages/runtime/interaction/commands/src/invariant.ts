@@ -1,14 +1,14 @@
 /**
- * Package-owned invariant companion for `@z/dsh-commands`:
+ * Package-owned invariant companion for `@taskweaver/dsh-commands`:
  * command lifecycle events pair by commandId within one session log.
- * @module @z/dsh-commands/invariant
+ * @module @taskweaver/dsh-commands/invariant
  */
 
-import type { Context } from '@z/cordis'
-import type { Session, SessionEvent } from '@z/dsh-session'
-import type { InvariantFailure, InvariantInstaller } from '@z/dsh-invariants'
+import type { Context } from '@taskweaver/cordis'
+import type { Session, SessionEvent } from '@taskweaver/dsh-session'
+import type { InvariantFailure, InvariantInstaller } from '@taskweaver/dsh-invariants'
 
-const PACKAGE_NAME = '@z/dsh-commands'
+const PACKAGE_NAME = '@taskweaver/dsh-commands'
 
 /** Cordis companion plugin name. */
 export const name = 'commands-invariant'

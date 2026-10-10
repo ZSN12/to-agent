@@ -4,9 +4,9 @@
  * participates in method lookup, invocation, or type exposure.
  */
 
-import { Service } from '@z/cordis'
-import type { Context, Events } from '@z/cordis'
-import type { ConnectionHandle } from '@z/dsh-client-connection/client'
+import { Service } from '@taskweaver/cordis'
+import type { Context, Events } from '@taskweaver/cordis'
+import type { ConnectionHandle } from '@taskweaver/dsh-client-connection/client'
 import type {
   InvocationDescriptor,
   TypertClientRemote,
@@ -15,7 +15,7 @@ import type {
   TypertDisposer,
   TypertRemoteContribution,
   TypertRemoteEvent,
-} from '@z/dsh-typert-protocol'
+} from '@taskweaver/dsh-typert-protocol'
 
 interface MountToken {
   active: boolean
@@ -63,7 +63,7 @@ interface InstalledMethod {
 /** Typed Remote service augmented by generated direct namespaces. */
 export type ClientRemote = TypertClientRemote
 
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
   interface Context {
     /** Generated Remote namespaces selected by the Client assembly. */
     remote: ClientRemote

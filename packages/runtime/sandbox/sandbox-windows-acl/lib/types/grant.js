@@ -1,4 +1,3 @@
-"use strict";
 /**
  * Server-side write-grant materialization. The sandbox seam holds one
  * standing workspace grant per workspace and one revocable temp grant per
@@ -9,21 +8,10 @@
  * Fail-closed: `add` throws on any grant failure and the caller disposes the
  * instance (revoking every path granted so far); `dispose` revokes every
  * standing grant and reports every cleanup failure.
- * @module @z/dsh-sandbox-windows-acl/grant
+ * @module @taskweaver/dsh-sandbox-windows-acl/grant
  */
-var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
-    if (pack || arguments.length === 2) for (var i = 0, l = from.length, ar; i < l; i++) {
-        if (ar || !(i in from)) {
-            if (!ar) ar = Array.prototype.slice.call(from, 0, i);
-            ar[i] = from[i];
-        }
-    }
-    return to.concat(ar || Array.prototype.slice.call(from));
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.AclWriteGrant = void 0;
-var acl_ts_1 = require("./acl.ts");
-var ffi_ts_1 = require("./ffi.ts");
+import { grantWrite, revokeWrite } from "./acl.js";
+import { allocPtrSlot, decodePtr, isNullPtr, throwLastError, win32Sync } from "./ffi.js";
 /**
  * One write SID's provider-lifetime grant materialization: the parsed SID
  * pointer plus every directory whose DACL currently carries its ACE.
@@ -34,10 +22,14 @@ var ffi_ts_1 = require("./ffi.ts");
  * session's temp directory). Create with {@link AclWriteGrant.create};
  * dispose revokes the revocable paths and frees the SID.
  */
-var AclWriteGrant = /** @class */ (function () {
-    function AclWriteGrant(api, sidPtr, writeSid) {
-        this.revocablePaths = [];
-        this.standingPaths = [];
+export class AclWriteGrant {
+    /** The write SID in SDDL string form. */
+    writeSid;
+    api;
+    sidPtr;
+    revocablePaths = [];
+    standingPaths = [];
+    constructor(api, sidPtr, writeSid) {
         this.api = api;
         this.sidPtr = sidPtr;
         this.writeSid = writeSid;
@@ -49,17 +41,17 @@ var AclWriteGrant = /** @class */ (function () {
      * @param api - optional already-resolved bindings (tests).
      * @returns the ready grant (no ACEs yet).
      */
-    AclWriteGrant.create = function (writeSid, api) {
-        var bindings = api !== null && api !== void 0 ? api : (0, ffi_ts_1.win32Sync)();
-        var sidSlot = (0, ffi_ts_1.allocPtrSlot)();
+    static create(writeSid, api) {
+        const bindings = api ?? win32Sync();
+        const sidSlot = allocPtrSlot();
         if (bindings.convertStringSidToSidW(writeSid, sidSlot) === 0) {
-            (0, ffi_ts_1.throwLastError)(bindings, 'ConvertStringSidToSidW', writeSid);
+            throwLastError(bindings, 'ConvertStringSidToSidW', writeSid);
         }
-        var sidPtr = (0, ffi_ts_1.decodePtr)(sidSlot);
+        const sidPtr = decodePtr(sidSlot);
         if (sidPtr === null)
-            (0, ffi_ts_1.throwLastError)(bindings, 'ConvertStringSidToSidW', "null SID for ".concat(writeSid));
+            throwLastError(bindings, 'ConvertStringSidToSidW', `null SID for ${writeSid}`);
         return new AclWriteGrant(bindings, sidPtr, writeSid);
-    };
+    }
     /**
      * Grant the write ACE on one directory (idempotent: an already-standing
      * exact ACE skips the eager full-tree re-propagation — see
@@ -74,44 +66,37 @@ var AclWriteGrant = /** @class */ (function () {
      *   cache; dispose() skips revoking it). Default false (revoked on
      *   dispose — the temp-directory lifecycle).
      */
-    AclWriteGrant.prototype.add = function (path, standing) {
-        if (standing === void 0) { standing = false; }
+    add(path, standing = false) {
         ;
         (standing ? this.standingPaths : this.revocablePaths).push(path);
-        (0, acl_ts_1.grantWrite)(this.api, path, this.sidPtr);
-    };
-    Object.defineProperty(AclWriteGrant.prototype, "paths", {
-        /** Every directory currently carrying the grant, in grant order. */
-        get: function () {
-            return __spreadArray(__spreadArray([], this.standingPaths, true), this.revocablePaths, true);
-        },
-        enumerable: false,
-        configurable: true
-    });
+        grantWrite(this.api, path, this.sidPtr);
+    }
+    /** Every directory currently carrying the grant, in grant order. */
+    get paths() {
+        return [...this.standingPaths, ...this.revocablePaths];
+    }
     /** Revoke every revocable grant (standing ACEs stay) and free the SID; reports every cleanup failure. */
-    AclWriteGrant.prototype.dispose = function () {
-        var failures = [];
-        for (var _i = 0, _a = this.revocablePaths; _i < _a.length; _i++) {
-            var path = _a[_i];
+    dispose() {
+        const failures = [];
+        for (const path of this.revocablePaths) {
             try {
-                (0, acl_ts_1.revokeWrite)(this.api, path, this.sidPtr);
+                revokeWrite(this.api, path, this.sidPtr);
             }
             catch (error) {
                 failures.push(error);
             }
         }
         try {
-            var freed = this.api.localFree(this.sidPtr);
-            if (!(0, ffi_ts_1.isNullPtr)(freed))
-                (0, ffi_ts_1.throwLastError)(this.api, 'LocalFree', 'write SID');
+            const freed = this.api.localFree(this.sidPtr);
+            if (!isNullPtr(freed))
+                throwLastError(this.api, 'LocalFree', 'write SID');
         }
         catch (error) {
             failures.push(error);
         }
         if (failures.length > 0) {
-            throw new AggregateError(failures, "AclWriteGrant dispose completed with ".concat(failures.length, " cleanup failure(s)"));
+            throw new AggregateError(failures, `AclWriteGrant dispose completed with ${failures.length} cleanup failure(s)`);
         }
-    };
-    return AclWriteGrant;
-}());
-exports.AclWriteGrant = AclWriteGrant;
+    }
+}
+//# sourceMappingURL=grant.js.map

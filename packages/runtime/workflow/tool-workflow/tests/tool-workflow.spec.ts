@@ -1,20 +1,20 @@
 import { describe, expect, it, vi } from 'vitest'
-import { Context } from '@z/cordis'
-import Loader from '@z/cordis-plugin-loader'
-import SystemPrompt from '@z/dsh-system-prompt'
-import ToolRuntime, { TOOL_ABORTED_BEFORE_DISPATCH } from '@z/dsh-tools'
-import type { ToolExecutionResult, ToolExecutionToken } from '@z/dsh-tools'
-import type { Agent } from '@z/dsh-agent'
-import { WorkflowRunId, WorkflowEngine } from '@z/dsh-workflow'
+import { Context } from '@taskweaver/cordis'
+import Loader from '@taskweaver/cordis-plugin-loader'
+import SystemPrompt from '@taskweaver/dsh-system-prompt'
+import ToolRuntime, { TOOL_ABORTED_BEFORE_DISPATCH } from '@taskweaver/dsh-tools'
+import type { ToolExecutionResult, ToolExecutionToken } from '@taskweaver/dsh-tools'
+import type { Agent } from '@taskweaver/dsh-agent'
+import { WorkflowRunId, WorkflowEngine } from '@taskweaver/dsh-workflow'
 import type {
   WorkflowAgentEndInfo, WorkflowAgentInfo, WorkflowResult, WorkflowRun,
   WorkflowRunId as WorkflowRunIdType, WorkflowStartRequest,
-} from '@z/dsh-workflow'
-import { CallId } from '@z/dsh-llm'
-import SubagentRuntime from '@z/dsh-subagent'
-import WorkerThreadWorkflowEngine from '@z/dsh-workflow-worker-thread'
+} from '@taskweaver/dsh-workflow'
+import { CallId } from '@taskweaver/dsh-llm'
+import SubagentRuntime from '@taskweaver/dsh-subagent'
+import WorkerThreadWorkflowEngine from '@taskweaver/dsh-workflow-worker-thread'
 import * as toolWorkflow from '../src/index.ts'
-import { Session, SessionId } from '@z/dsh-session'
+import { Session, SessionId } from '@taskweaver/dsh-session'
 
 const testToolSignal = new AbortController().signal
 

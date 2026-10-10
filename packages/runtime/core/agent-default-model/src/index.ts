@@ -1,16 +1,16 @@
 /**
  * Default model selection for an Agent without a session-specific selection.
  *
- * @module @z/dsh-agent-default-model
+ * @module @taskweaver/dsh-agent-default-model
  */
 
-import { Context, Service } from '@z/cordis'
-import z from '@z/schemastery'
-import type { ModelSelection } from '@z/dsh-agent'
-import { ReasoningEffortId } from '@z/dsh-llm'
-import { installSettingsSection, settingsNamespace } from '@z/dsh-settings'
+import { Context, Service } from '@taskweaver/cordis'
+import z from '@taskweaver/schemastery'
+import type { ModelSelection } from '@taskweaver/dsh-agent'
+import { ReasoningEffortId } from '@taskweaver/dsh-llm'
+import { installSettingsSection, settingsNamespace } from '@taskweaver/dsh-settings'
 
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
   interface Context {
     /** Default model selection for Agents created without an explicit model. */
     agentDefaultModel: AgentDefaultModelConfig

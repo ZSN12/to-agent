@@ -3,14 +3,14 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import Loader from '@z/cordis-plugin-loader'
-import Include from '@z/cordis-plugin-include'
-import LlmRuntime from '@z/dsh-llm'
-import SessionStore from '@z/dsh-session'
-import TokenMeter from '@z/dsh-token-meter'
-import BasicCompactionEngine from '@z/dsh-compaction-basic'
-import ToolResultPruner from '@z/dsh-compaction-tool-result-pruner'
+import { Context } from '@taskweaver/cordis'
+import Loader from '@taskweaver/cordis-plugin-loader'
+import Include from '@taskweaver/cordis-plugin-include'
+import LlmRuntime from '@taskweaver/dsh-llm'
+import SessionStore from '@taskweaver/dsh-session'
+import TokenMeter from '@taskweaver/dsh-token-meter'
+import BasicCompactionEngine from '@taskweaver/dsh-compaction-basic'
+import ToolResultPruner from '@taskweaver/dsh-compaction-tool-result-pruner'
 
 let root: string | undefined
 let context: Context | undefined
@@ -32,11 +32,11 @@ async function loadYaml(lines: readonly string[]): Promise<Context> {
   await context.plugin(Loader)
   context.loader.builtins.include = Include
   const modules = new Map<string, unknown>([
-    ['@z/dsh-llm', LlmRuntime],
-    ['@z/dsh-session', SessionStore],
-    ['@z/dsh-token-meter', TokenMeter],
-    ['@z/dsh-compaction-tool-result-pruner', ToolResultPruner],
-    ['@z/dsh-compaction-basic', BasicCompactionEngine],
+    ['@taskweaver/dsh-llm', LlmRuntime],
+    ['@taskweaver/dsh-session', SessionStore],
+    ['@taskweaver/dsh-token-meter', TokenMeter],
+    ['@taskweaver/dsh-compaction-tool-result-pruner', ToolResultPruner],
+    ['@taskweaver/dsh-compaction-basic', BasicCompactionEngine],
   ])
   context.loader.internal = {
     version: 'v2',
@@ -56,15 +56,15 @@ async function loadYaml(lines: readonly string[]): Promise<Context> {
 describe('real Loader composition', () => {
   it('loads the shipped token-meter, pruning, and compaction-basic YAML order', async () => {
     const loaded = await loadYaml([
-      "- name: '@z/dsh-llm'",
-      "- name: '@z/dsh-session'",
-      "- name: '@z/dsh-token-meter'",
-      "- name: '@z/dsh-compaction-tool-result-pruner'",
+      "- name: '@taskweaver/dsh-llm'",
+      "- name: '@taskweaver/dsh-session'",
+      "- name: '@taskweaver/dsh-token-meter'",
+      "- name: '@taskweaver/dsh-compaction-tool-result-pruner'",
       '  config:',
       '    thresholdChars: 100',
       '    headChars: 20',
       '    tailChars: 10',
-      "- name: '@z/dsh-compaction-basic'",
+      "- name: '@taskweaver/dsh-compaction-basic'",
       '  config:',
       '    thresholdRatio: 0.5',
       '    retainRatio: 0.125',

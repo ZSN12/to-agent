@@ -2,10 +2,10 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { createAppStateStore } from '../electron/backend/app-state-store.mjs'
-import { createUsageStore } from '../electron/backend/usage-store.mjs'
-import { createChatTurnPersistence } from '../electron/backend/chat-turn-persistence.mjs'
-import { createChatTurnPipeline } from '../electron/backend/chat-turn-pipeline.mjs'
+import { createAppStateStore } from '../desktop/backend/app-state-store.mjs'
+import { createUsageStore } from '../desktop/backend/usage-store.mjs'
+import { createChatTurnPersistence } from '../desktop/backend/chat-turn-persistence.mjs'
+import { createChatTurnPipeline } from '../desktop/backend/chat-turn-pipeline.mjs'
 
 // Execute the production IPC persistence helpers with real stores, no Electron
 // or model provider. This checks delayed IPC and aggregate accounting contracts.
@@ -61,8 +61,8 @@ try {
   assert.equal((await appState.getConversationState(conversationId)).messages.length, 1)
   assert.deepEqual((await appState.getConversationState(conversationId)).messages[0].fileChanges, result.fileChanges,
     'file change summaries must survive native persistence and delayed IPC reconciliation')
-  const readLedger = async () => JSON.parse(await fs.readFile(path.join(home, 'taskweaver-model-usage.json'), 'utf8')).records
-  assert.equal((await readLedger()).length, 1, 'delayed IPC must not duplicate native ledger record')
+  const readStats = () => usageStore.getStats()
+  assert.equal((await readStats()).totals.totalCalls, 1, 'delayed IPC must not duplicate native usage')
 
   const partial = { ...result, turnId: 'failed', text: 'partial output', nativePersisted: false }
   const error = Object.assign(new Error('Controlled failure'), { partialResult: partial, modelKey: activeKey })
@@ -84,7 +84,7 @@ try {
   assert.equal(messages.filter(message => message.id === 'z-turn-failed-error').length, 0,
     'failed turn with partial output must not create a duplicate error message')
   assert.match(messages.find(message => message.id === 'z-turn-failed').callout, /执行失败：Controlled failure/)
-  assert.equal((await readLedger()).length, 2)
+  assert.equal((await readStats()).totals.totalCalls, 2)
   assert.equal(messages.find(message => message.id === 'z-turn-failed').interrupted, true)
   assert.deepEqual(messages.find(message => message.id === 'z-turn-failed').fileChanges, result.fileChanges,
     'partial output after a failed run retains file change summaries')
@@ -117,7 +117,7 @@ try {
     (await appState.getConversationState(earlyConversationId)).messages.at(-1).text,
     '执行失败：before native start',
   )
-  assert.equal((await readLedger()).length, 2, 'early errors invent no model usage')
+  assert.equal((await readStats()).totals.totalCalls, 2, 'early errors invent no model usage')
 
   await persistNativeTurn({ conversationId, modelKey: activeKey, result: {
     turnId: 'files-only', startedAt: Date.now(), text: '', thinking: '',
@@ -132,8 +132,8 @@ try {
   const aggregate = { turnId: 'synthesis', text: 'DAG answer', usage: { inputTokens: 100, outputTokens: 20, elapsedMs: 100 } }
   await createAssistantMessage(aggregate, 'dag', '12:03', activeKey, { mode: 'multi-agent' }, conversationId)
   await createAssistantMessage(aggregate, 'dag', '12:03', activeKey, { mode: 'multi-agent' }, conversationId)
-  assert.equal((await readLedger()).length, 3)
-  assert.equal((await readLedger()).reduce((sum, row) => sum + row.totalTokens, 0), 144)
+  assert.equal((await readStats()).totals.totalCalls, 3)
+  assert.equal((await readStats()).totals.totalTokens, 144)
   messages = (await appState.getConversationState(conversationId)).messages
   assert.equal(messages.filter(message => message.id === 'z-turn-synthesis').length, 1)
   assert.match(messages.find(message => message.id === 'z-turn-synthesis').callout, /子任务/)

@@ -1,8 +1,8 @@
-import { Service } from "@z/cordis";
+import { Service } from "@taskweaver/cordis";
 //#region lib/types/error.js
 /**
 * Error vocabulary for the storage hub and its backends.
-* @module @z/dsh-storage/src/error
+* @module @taskweaver/dsh-storage/src/error
 */
 /**
 * Error thrown by the hub and by backend implementations. The `code` is the
@@ -25,7 +25,7 @@ var StorageError = class extends Error {
 //#region lib/types/registry.js
 /**
 * Named backend registry of the storage hub.
-* @module @z/dsh-storage/src/registry
+* @module @taskweaver/dsh-storage/src/registry
 */
 /**
 * Mutable name → backend table. Multiple backends stay mounted side by side;
@@ -74,7 +74,7 @@ var BackendRegistry = class {
 * (a file-tree root, a database file) and exposes operation groups over it.
 * This module defines the normative contract text for backend implementers; the shared
 * conformance suite in `tests/contract.ts` checks every rule.
-* @module @z/dsh-storage/src/backend
+* @module @taskweaver/dsh-storage/src/backend
 */
 /** Allowed format for unit and table names: safe as a file name and as a SQL identifier segment without escaping. */
 const UNIT_NAME_RE = /^[a-z][a-z0-9_]*$/;
@@ -84,7 +84,7 @@ const UNIT_NAME_RE = /^[a-z][a-z0-9_]*$/;
 * Storage hub (`ctx.storage`): a named backend registry plus mounted
 * data-form facilities. The hub itself performs no IO — backends own media,
 * data forms (the domain layer first) own semantics.
-* @module @z/dsh-storage
+* @module @taskweaver/dsh-storage
 */
 /**
 * Derive the Cordis lifecycle service that one named backend plugin provides.

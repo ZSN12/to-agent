@@ -18,17 +18,6 @@ function fmtDT(ms: number | null): string {
   return `${d.getMonth() + 1}月${d.getDate()}日 ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
-function fdur(ms: number | null | undefined): string {
-  if (ms == null) return '—'
-  const s = Math.round(ms / 1000)
-  if (s < 60) return s + ' 秒'
-  const m = Math.floor(s / 60)
-  const r = s % 60
-  if (m < 60) return m + '分' + (r ? String(r).padStart(2, '0') + '秒' : '')
-  const h = Math.floor(m / 60)
-  return h + '小时' + (m % 60 ? (m % 60) + '分' : '')
-}
-
 function lvl(v: number, max: number): number {
   if (v <= 0) return 0
   const r = v / (max || 1)
@@ -46,14 +35,13 @@ interface DshModelRow {
   cacheReadTokens: number
   cacheWriteTokens: number
   reasoningTokens: number
-  firstAt: number
-  lastAt: number
-  peakTokens: number
-  maxDur: number
   totalTokens: number
+  costUsd: number
 }
 
 interface DshUsageReport {
+  enabled: boolean
+  earliestDate: string | null
   allModels: DshModelRow[]
   rows: DshModelRow[]
   totals: {
@@ -68,14 +56,13 @@ interface DshUsageReport {
   overview: {
     totalTokens: number
     peakTokens: number
-    maxDur: number
     currentStreak: number
     maxStreak: number
+    earliestDate: string | null
   }
   summary: {
     totalTokens: number
     peakTokens: number
-    maxDur: number
     currentStreak: number
     maxStreak: number
     requests: number
@@ -110,10 +97,7 @@ function mergeRows(rows: DshModelRow[]): DshModelRow[] {
       existing.cacheWriteTokens += r.cacheWriteTokens
       existing.reasoningTokens += r.reasoningTokens
       existing.totalTokens += r.totalTokens
-      existing.firstAt = Math.min(existing.firstAt, r.firstAt)
-      existing.lastAt = Math.max(existing.lastAt, r.lastAt)
-      existing.peakTokens = Math.max(existing.peakTokens, r.peakTokens)
-      existing.maxDur = Math.max(existing.maxDur, r.maxDur)
+      existing.costUsd += r.costUsd
       if (r.displayName) existing.displayName = r.displayName
       if (r.providerDisplayName) existing.providerDisplayName = r.providerDisplayName
     }
@@ -363,6 +347,8 @@ function DshKpi({ l, v, d }: { l: string; v: string; d: string }) {
 
 export function UsageSettings() {
   const [report, setReport] = useState<DshUsageReport | null>(null)
+  const [usageEnabled, setUsageEnabled] = useState(true)
+  const [usageSettingError, setUsageSettingError] = useState<string | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [pricingStatus, setPricingStatus] = useState<{
     synced_at?: string | null
@@ -389,6 +375,7 @@ export function UsageSettings() {
         })
         if (res && res.ok) {
           setReport(res.data as DshUsageReport)
+          setUsageEnabled((res.data as DshUsageReport).enabled !== false)
           setErr(null)
           return
         }
@@ -398,6 +385,8 @@ export function UsageSettings() {
       if (statsRes?.ok) {
         const totals = statsRes.data.totals
         const fallback: DshUsageReport = {
+          enabled: statsRes.data.enabled !== false,
+          earliestDate: statsRes.data.earliestDate ?? null,
           allModels: statsRes.data.byModel.map((m) => ({
             provider: m.modelKey.split('/')[0] || 'default',
             model: m.modelKey.split('/')[1] || m.modelKey,
@@ -407,12 +396,9 @@ export function UsageSettings() {
             outputTokens: m.outputTokens,
             cacheReadTokens: m.cacheReadTokens,
             cacheWriteTokens: 0,
-            reasoningTokens: 0,
-            firstAt: Date.now(),
-            lastAt: Date.now(),
-            peakTokens: m.totalTokens,
-            maxDur: 0,
+            reasoningTokens: m.reasoningTokens,
             totalTokens: m.totalTokens,
+            costUsd: m.costUsd,
           })),
           rows: statsRes.data.byModel.map((m) => ({
             provider: m.modelKey.split('/')[0] || 'default',
@@ -423,12 +409,9 @@ export function UsageSettings() {
             outputTokens: m.outputTokens,
             cacheReadTokens: m.cacheReadTokens,
             cacheWriteTokens: 0,
-            reasoningTokens: 0,
-            firstAt: Date.now(),
-            lastAt: Date.now(),
-            peakTokens: m.totalTokens,
-            maxDur: 0,
+            reasoningTokens: m.reasoningTokens,
             totalTokens: m.totalTokens,
+            costUsd: m.costUsd,
           })),
           totals: {
             calls: totals.totalCalls,
@@ -436,30 +419,30 @@ export function UsageSettings() {
             outputTokens: totals.outputTokens,
             cacheReadTokens: totals.cacheReadTokens,
             cacheWriteTokens: totals.cacheWriteTokens,
-            reasoningTokens: 0,
+            reasoningTokens: totals.reasoningTokens,
           },
           daily: {},
           overview: {
             totalTokens: totals.totalTokens,
             peakTokens: totals.totalTokens,
-            maxDur: totals.totalDurationMs,
             currentStreak: 1,
             maxStreak: 1,
+            earliestDate: statsRes.data.earliestDate ?? null,
           },
           summary: {
             totalTokens: totals.totalTokens,
             peakTokens: totals.totalTokens,
-            maxDur: totals.totalDurationMs,
             currentStreak: 1,
             maxStreak: 1,
             requests: totals.totalCalls,
             costUsd: totals.costUsd,
             cacheHitRate: totals.inputTokens + totals.cacheReadTokens > 0 ? totals.cacheReadTokens / (totals.inputTokens + totals.cacheReadTokens) : 0,
             cacheReadTokens: totals.cacheReadTokens,
-            reasoningTokens: 0,
+            reasoningTokens: totals.reasoningTokens,
           },
         }
         setReport(fallback)
+        setUsageEnabled(statsRes.data.enabled !== false)
         setErr(null)
       }
     } catch (error) {
@@ -486,24 +469,40 @@ export function UsageSettings() {
   const handlePricingSync = async () => {
     setPricingBusy(true)
     setPricingError(null)
-    const res = await window.taskweaver?.pricing?.sync?.()
-    setPricingBusy(false)
-    if (!res?.ok) {
-      setPricingError(res?.error ?? '价签同步失败')
-      return
+    try {
+      const res = await window.taskweaver?.pricing?.sync?.()
+      if (!res?.ok) {
+        setPricingError(res?.error ?? '价签同步失败')
+        return
+      }
+      await loadPricingStatus()
+      await window.taskweaver?.models?.refresh?.()
+    } catch (error) {
+      setPricingError(error instanceof Error ? error.message : String(error))
+    } finally {
+      setPricingBusy(false)
     }
-    await loadPricingStatus()
-    await window.taskweaver?.models?.refresh?.()
   }
 
   const handleClear = async () => {
-    if (!window.confirm('确定清空所有模型用量记录吗？清空后将不可恢复。')) return
+    if (!window.confirm('确定清空所有模型用量统计吗？清空后将不可恢复。')) return
     try {
       await window.taskweaver?.usage?.clear?.()
       await load()
     } catch {
       // ignore
     }
+  }
+
+  const handleUsageEnabledChange = async (enabled: boolean) => {
+    setUsageSettingError(null)
+    const res = await window.taskweaver?.usage?.setEnabled?.(enabled)
+    if (!res?.ok) {
+      setUsageSettingError(res?.error || '保存用量统计设置失败')
+      return
+    }
+    setUsageEnabled(res.data.enabled)
+    await load()
   }
 
   if (err) {
@@ -520,9 +519,9 @@ export function UsageSettings() {
   const ov = report.overview ?? {
     totalTokens: sum.totalTokens,
     peakTokens: sum.peakTokens,
-    maxDur: sum.maxDur,
     currentStreak: sum.currentStreak,
     maxStreak: sum.maxStreak,
+    earliestDate: report.earliestDate,
   }
 
   const rows = mergeRows(report.rows).filter((r) => r.totalTokens > 0)
@@ -604,6 +603,23 @@ export function UsageSettings() {
     <div className="dsh-root">
       <div className="dsh-panel" style={{ marginBottom: 12 }}>
         <div className="dsh-panel-head">
+          <h3><span className="dsh-dot-blue" />用量统计与隐私</h3>
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={usageEnabled}
+              onChange={(event) => { void handleUsageEnabledChange(event.target.checked) }}
+            />
+            记录模型用量
+          </label>
+        </div>
+        <p className="dsh-range-info-dim">
+          仅保存日期、模型和 Provider 的日汇总。关闭后停止新增统计；已有汇总会保留，可用“清空统计”永久删除。
+        </p>
+        {usageSettingError && <p className="dsh-err-sub" role="alert">{usageSettingError}</p>}
+      </div>
+      <div className="dsh-panel" style={{ marginBottom: 12 }}>
+        <div className="dsh-panel-head">
           <h3><span className="dsh-dot-blue" />模型价签</h3>
           <div className="dsh-tools" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
@@ -626,8 +642,8 @@ export function UsageSettings() {
       {/* 顶部统计栏: 5 个指标横向排列 (全量历史) */}
       <div className="dsh-stats">
         <DshStatCard label="累计 Token 数" value={fc(ov.totalTokens)} />
-        <DshStatCard label="峰值 Token 数" value={fc(ov.peakTokens)} />
-        <DshStatCard label="最长聊天时长" value={fdur(ov.maxDur)} />
+        <DshStatCard label="单日峰值 Token 数" value={fc(ov.peakTokens)} />
+        <DshStatCard label="统计起始日期" value={ov.earliestDate || '暂无'} />
         <DshStatCard label="当前连续天数" value={ov.currentStreak != null ? `${ov.currentStreak} 天` : '—'} />
         <DshStatCard label="最长连续天数" value={ov.maxStreak != null ? `${ov.maxStreak} 天` : '—'} />
       </div>
@@ -704,8 +720,8 @@ export function UsageSettings() {
             <button className={`dsh-btn ${auto ? 'dsh-btn-on' : ''}`} onClick={() => setAuto(!auto)}>
               {auto ? <span className="dsh-auto"><span className="dsh-pulse" />5s 自动刷新</span> : '自动刷新关闭'}
             </button>
-            <button className="dsh-btn dsh-btn-subtle" onClick={() => void handleClear()} title="清空全部用量数据">
-              清空记录
+            <button className="dsh-btn dsh-btn-subtle" onClick={() => void handleClear()} title="清空全部用量统计">
+              清空统计
             </button>
           </div>
         </div>
@@ -717,6 +733,7 @@ export function UsageSettings() {
             {range.start != null ? fmtDT(range.start) : '全部时间'}
             {range.end != null ? ' ~ ' + fmtDT(range.end) : ''}
           </span>
+          <span className="dsh-range-info-dim">· 按本地日期汇总，起止日期均包含整日</span>
           {report.debug?.version ? (
             <span className="dsh-range-info-dim">· host {report.debug.version}</span>
           ) : null}
@@ -724,9 +741,9 @@ export function UsageSettings() {
 
         {/* 4 张 KPI 卡 (无图标，简洁文字) */}
         <div className="dsh-kpis">
-          <DshKpi l="真实消耗 Tokens" v={fc(sum.totalTokens)} d="输入+输出+缓存" />
+          <DshKpi l="Token 用量（不含缓存读取）" v={fc(sum.totalTokens)} d="输入+输出+缓存写入；缓存读取单列" />
           <DshKpi l="总请求数" v={sum.requests != null ? String(sum.requests) : '—'} d="所有模型调用" />
-          <DshKpi l="总成本(估算)" v={sum.costUsd != null ? '¥' + Number(sum.costUsd).toFixed(2) : '—'} d="按官方公开价(¥/M)估算" />
+          <DshKpi l="总成本（USD 估算）" v={sum.costUsd != null ? 'US$' + Number(sum.costUsd).toFixed(2) : '—'} d="按官方公开价估算" />
           <DshKpi l="缓存命中" v={fc(sum.cacheReadTokens)} d="cache read tokens" />
         </div>
 
@@ -740,6 +757,9 @@ export function UsageSettings() {
             <div className="dsh-rate-fill" style={{ width: Math.min(100, (sum.cacheHitRate ?? 0) * 100) + '%' }} />
           </div>
         </div>
+        <p className="dsh-range-info-dim">
+          费用按模型返回的 Token 与公开价格估算；OpenUsage 展示订阅配额快照，两者口径不同。请核对快照更新时间，并以提供商账单为准。
+        </p>
 
         {/* 模型列表: 按来源 (provider) 分组，可收缩/展开 */}
         {rows.length === 0 ? (
@@ -775,7 +795,9 @@ export function UsageSettings() {
                             <div className="dsh-num"><b>{r.calls}</b><span>调用</span></div>
                             <div className="dsh-num"><b>{fc(r.inputTokens)}</b><span>输入</span></div>
                             <div className="dsh-num"><b>{fc(r.outputTokens)}</b><span>输出</span></div>
+                            <div className="dsh-num"><b>{fc(r.cacheReadTokens)}</b><span>缓存读取</span></div>
                             <div className="dsh-num"><b>{fc(r.reasoningTokens)}</b><span>推理</span></div>
+                            <div className="dsh-num"><b>US${Number(r.costUsd).toFixed(2)}</b><span>估算费用</span></div>
                           </div>
                         </div>
                       ))}

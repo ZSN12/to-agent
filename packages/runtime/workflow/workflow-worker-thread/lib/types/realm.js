@@ -1,4 +1,3 @@
-"use strict";
 /**
  * Materializes values leaving the script vm into plain JSON before they cross the worker
  * boundary, and renders thrown script values without rejecting the run. The walk rejects
@@ -6,40 +5,19 @@
  * run, and the vm is not a security boundary. The worker provides host-loop isolation and
  * forced termination, not hostile-value containment. See
  * .agents/notes/implemented/feature/2026-07-05-dynamic-workflows.md for the isolation rationale.
- * @module @z/dsh-workflow-worker-thread/realm
+ * @module @taskweaver/dsh-workflow-worker-thread/realm
  */
-var __extends = (this && this.__extends) || (function () {
-    var extendStatics = function (d, b) {
-        extendStatics = Object.setPrototypeOf ||
-            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-            function (d, b) { for (var p in b) if (Object.prototype.hasOwnProperty.call(b, p)) d[p] = b[p]; };
-        return extendStatics(d, b);
-    };
-    return function (d, b) {
-        if (typeof b !== "function" && b !== null)
-            throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
-})();
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.MaterializeError = void 0;
-exports.renderThrown = renderThrown;
-exports.materializeFromRealm = materializeFromRealm;
 /** Thrown by {@link materializeFromRealm}; the caller wraps it into the right `WorkflowError` code. */
-var MaterializeError = /** @class */ (function (_super) {
-    __extends(MaterializeError, _super);
-    function MaterializeError(path, reason) {
-        var _this = _super.call(this, "".concat(path, ": ").concat(reason)) || this;
-        _this.path = path;
-        _this.reason = reason;
-        _this.name = 'MaterializeError';
-        return _this;
+export class MaterializeError extends Error {
+    path;
+    reason;
+    constructor(path, reason) {
+        super(`${path}: ${reason}`);
+        this.path = path;
+        this.reason = reason;
+        this.name = 'MaterializeError';
     }
-    return MaterializeError;
-}(Error));
-exports.MaterializeError = MaterializeError;
+}
 /**
  * Render a thrown value to failure text without ever throwing: prefer the
  * `stack` (host or realm — a realm error's `stack` is a plain string read),
@@ -49,17 +27,17 @@ exports.MaterializeError = MaterializeError;
  * @param error - any value thrown in the host or worker realm.
  * @returns human-readable text for the failure report; prefers the stack.
  */
-function renderThrown(error) {
+export function renderThrown(error) {
     try {
-        var stack = error === null || error === void 0 ? void 0 : error.stack;
+        const stack = error?.stack;
         if (typeof stack === 'string' && stack.length > 0)
             return stack;
-        var message = error === null || error === void 0 ? void 0 : error.message;
+        const message = error?.message;
         if (typeof message === 'string' && message.length > 0)
             return message;
         return String(error);
     }
-    catch (_a) {
+    catch {
         // A throwing accessor/toString on the thrown value — rendering must be
         // total (drive()'s never-reject contract), so fall back to a fixed label.
         return '[unrenderable thrown value]';
@@ -72,7 +50,7 @@ function renderThrown(error) {
  * has a longer chain and is rejected.
  */
 function hasPlainPrototype(value) {
-    var proto = Object.getPrototypeOf(value);
+    const proto = Object.getPrototypeOf(value);
     if (proto === null)
         return true;
     return Object.getPrototypeOf(proto) === null;
@@ -89,8 +67,7 @@ function hasPlainPrototype(value) {
  * @throws {@link MaterializeError} for unsupported values, cycles, sparse arrays, exotic
  *   prototypes, or property reads that throw.
  */
-function materializeFromRealm(value, root) {
-    if (root === void 0) { root = 'value'; }
+export function materializeFromRealm(value, root = 'value') {
     if (value === undefined)
         return undefined;
     try {
@@ -101,7 +78,7 @@ function materializeFromRealm(value, root) {
             throw error;
         // A property read ran script code that threw; total-ize it so callers can
         // keep the narrow MaterializeError contract.
-        throw new MaterializeError(root, "reading the value threw: ".concat(renderThrown(error)));
+        throw new MaterializeError(root, `reading the value threw: ${renderThrown(error)}`);
     }
 }
 function materialize(value, path, seen) {
@@ -127,7 +104,7 @@ function materialize(value, path, seen) {
     }
     if (value === null)
         return null;
-    var objectValue = value;
+    const objectValue = value;
     if (seen.has(objectValue))
         throw new MaterializeError(path, 'circular references are not JSON data');
     seen.add(objectValue);
@@ -141,19 +118,18 @@ function materialize(value, path, seen) {
     }
 }
 function materializeArray(value, path, seen) {
-    var out = [];
-    for (var index = 0; index < value.length; index++) {
+    const out = [];
+    for (let index = 0; index < value.length; index++) {
         if (!(index in value))
-            throw new MaterializeError("".concat(path, "[").concat(index, "]"), 'sparse arrays are not JSON data');
-        out.push(materialize(value[index], "".concat(path, "[").concat(index, "]"), seen));
+            throw new MaterializeError(`${path}[${index}]`, 'sparse arrays are not JSON data');
+        out.push(materialize(value[index], `${path}[${index}]`, seen));
     }
     // Own enumerable props beyond the indices (e.g. `arr.total = 3`) would be
     // silently dropped by JSON — reject them instead.
-    for (var _i = 0, _a = Object.keys(value); _i < _a.length; _i++) {
-        var key = _a[_i];
-        var index = Number(key);
+    for (const key of Object.keys(value)) {
+        const index = Number(key);
         if (!Number.isInteger(index) || index < 0 || index >= value.length) {
-            throw new MaterializeError("".concat(path, ".").concat(key), 'arrays with non-index properties are not JSON data');
+            throw new MaterializeError(`${path}.${key}`, 'arrays with non-index properties are not JSON data');
         }
     }
     if (Object.getOwnPropertySymbols(value).length > 0) {
@@ -168,15 +144,14 @@ function materializeObject(value, path, seen) {
     if (Object.getOwnPropertySymbols(value).length > 0) {
         throw new MaterializeError(path, 'symbol-keyed properties are not plain JSON data');
     }
-    var out = {};
+    const out = {};
     // Object.keys = own enumerable string keys, matching JSON.stringify's
     // property selection exactly (non-enumerable props never reach JSON output).
-    for (var _i = 0, _a = Object.keys(value); _i < _a.length; _i++) {
-        var key = _a[_i];
+    for (const key of Object.keys(value)) {
         // defineProperty, never assignment: a "__proto__" key must become an OWN
         // data property of the copy, not a prototype mutation.
         Object.defineProperty(out, key, {
-            value: materialize(value[key], "".concat(path, ".").concat(key), seen),
+            value: materialize(value[key], `${path}.${key}`, seen),
             enumerable: true,
             writable: true,
             configurable: true,
@@ -184,3 +159,4 @@ function materializeObject(value, path, seen) {
     }
     return out;
 }
+//# sourceMappingURL=realm.js.map

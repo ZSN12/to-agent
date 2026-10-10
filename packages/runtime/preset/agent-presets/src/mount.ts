@@ -11,16 +11,16 @@
  * published a service into the ROOT realm is rejected, because such a service
  * is process-global rather than per-session and the second session mounting the
  * same preset collides with the first.
- * @module @z/dsh-agent-presets/mount
+ * @module @taskweaver/dsh-agent-presets/mount
  */
 
 import { isAbsolute } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { Context, type Fiber } from '@z/cordis'
-import { Include } from '@z/cordis-plugin-include'
-import type { EntryTree } from '@z/cordis-plugin-loader'
-import { taskweaverEmbeddedFromEnv } from '@z/dsh-home-paths'
-import { scopeOf, scopeParentOf, type ScopeKey } from '@z/dsh-scope'
+import { Context, type Fiber } from '@taskweaver/cordis'
+import { Include } from '@taskweaver/cordis-plugin-include'
+import type { EntryTree } from '@taskweaver/cordis-plugin-loader'
+import { taskweaverEmbeddedFromEnv } from '@taskweaver/dsh-home-paths'
+import { scopeOf, scopeParentOf, type ScopeKey } from '@taskweaver/dsh-scope'
 import { PresetMountError, type AgentPreset } from './preset.ts'
 
 /** What one mounted subtree publishes about itself for the audit to read. */
@@ -81,7 +81,7 @@ class PresetTree extends Include {
    * relative specifier — a preset's own files travel with it — and wrong for
    * a package name: a locally authored preset lives under the user's home,
    * where Node's upward `node_modules` walk never reaches the harness's own
-   * dependencies, so every `@z/dsh-*` row would fail to import. The
+   * dependencies, so every `@taskweaver/dsh-*` row would fail to import. The
    * mount records the host composition's base instead, which is inside the
    * installed harness, and bare names resolve from there. An absolute
    * filesystem path names neither base and becomes a file URL before Node's
@@ -351,9 +351,9 @@ export async function mountPreset(agentCtx: Context, preset: AgentPreset): Promi
     )
   }
   const config: Include.Config = { path: pathToFileURL(preset.path).href }
-  // Captured before the subtree exists: bare `@z/*` rows must resolve from the
+  // Captured before the subtree exists: bare `@taskweaver/*` rows must resolve from the
   // installed runtime root. TaskWeaver embeds with `cwd` at that root while
-  // `agentCtx.baseUrl` still points at `$DSH_HOME/profiles/*`.
+  // `agentCtx.baseUrl` still points at `$TASKWEAVER_HOME/profiles/*`.
   const harnessBaseUrl = presetHarnessBaseUrl(agentCtx)
   /* v8 ignore next -- the Loader sets `baseUrl` on the root before any scoped context derives from it */
   if (harnessBaseUrl !== undefined) harnessBase.set(config, harnessBaseUrl)

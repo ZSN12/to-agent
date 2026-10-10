@@ -1,27 +1,27 @@
 /**
  * Tool registry, model presentation modes, and pre/guard/around/post/result
  * execution pipeline.
- * @module @z/dsh-tools
+ * @module @taskweaver/dsh-tools
  */
-import { Context, Service } from '@z/cordis';
-import z from '@z/schemastery';
-import type { ScopeKey, Scoped } from '@z/dsh-scope';
-import type { CallId, ContentBlock, ToolSchema } from '@z/dsh-llm';
-import { HarnessError } from '@z/dsh-llm';
-import type { Agent } from '@z/dsh-agent';
-import type { JsonValue, UserMessage } from '@z/dsh-session';
+import { Context, Service } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
+import type { ScopeKey, Scoped } from '@taskweaver/dsh-scope';
+import type { CallId, ContentBlock, ToolSchema } from '@taskweaver/dsh-llm';
+import { HarnessError } from '@taskweaver/dsh-llm';
+import type { Agent } from '@taskweaver/dsh-agent';
+import type { JsonValue, UserMessage } from '@taskweaver/dsh-session';
 import type { ToolCallView, ToolResultView } from './presentation.ts';
 import type { JsonSchemaNode } from './json-schema.ts';
 export { defineTool, valueSchemaSpecToJsonSchema, parameterSchemaSpecToJsonSchema, validateArgs, ToolArgsError, type ValueSchemaAnnotations, type StringValueSchemaSpec, type NumberValueSchemaSpec, type IntegerValueSchemaSpec, type BooleanValueSchemaSpec, type NullValueSchemaSpec, type ArrayValueSchemaSpec, type ObjectValueSchemaSpec, type JsonValueSchemaSpec, type OneOfValueSchemaSpec, type ValueSchemaSpec, type ParameterPropertySpec, type ParameterSchemaSpec, type ParameterJsonSchema, type InferValue, type InferArgs, type DefineToolOptions, } from './schema.ts';
 export { assertSupportedJsonSchema, assertObjectJsonSchema, validateJsonSchemaValue, JsonSchemaError, type JsonSchemaNode, type ObjectJsonSchema, type JsonSchemaType, type JsonSchemaScalar, } from './json-schema.ts';
-export type { JsonValue } from '@z/dsh-session';
+export type { JsonValue } from '@taskweaver/dsh-session';
 export type { CodeDispatchEventData, CodeDispatchStartEventData } from './types.ts';
 export { CodeRunFailedError, RUN_CODE_NAME } from './code-mode.ts';
 export { jsonSchemaToTs, renderToolsSdk } from './ts-types.ts';
 export { jsonSchemaToPy, renderToolsSdkPy } from './py-types.ts';
 export { defineContentToolFixture, type ContentToolFixtureOptions } from './testing.ts';
 export type { ToolCallKind, FileLocation, FileDiff, ReadFileLine, ToolCallView, GenericCallView, TerminalCallView, DiffCallView, ToolResultView, GenericResultView, TerminalResultView, DiffResultView, SearchResultView, SearchMatchesResultView, SearchPathsResultView, SearchFileMatches, SearchLineMatch, ReadResultView, WebResultView, WebSearchResultView, WebFetchResultView, WebSource, } from './presentation.ts';
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
     interface Context {
         tools: ToolRuntime;
     }
@@ -31,7 +31,7 @@ declare module '@z/cordis' {
          * approval support turns `ask` into denial. Async gates must observe
          * `exec.signal`; the registry rechecks cancellation after they settle but
          * never abandons their promise.
-         * Scope-filtered dispatch (`@z/dsh-scope`): agent-scoped listeners receive only that agent's calls.
+         * Scope-filtered dispatch (`@taskweaver/dsh-scope`): agent-scoped listeners receive only that agent's calls.
          * @param exec - the pending call (name, parsed arguments, caller agent).
          * @mode waterfall
          */
@@ -42,7 +42,7 @@ declare module '@z/cordis' {
          * identity remains immutable. The registry re-fuses the original caller
          * signal before the body, so replacement cannot detach caller cancellation;
          * wrappers must still restore their signal and reach quiescence.
-         * Scope-filtered dispatch (`@z/dsh-scope`): agent-scoped listeners receive only that agent's calls.
+         * Scope-filtered dispatch (`@taskweaver/dsh-scope`): agent-scoped listeners receive only that agent's calls.
          * @param exec - the allowed call about to dispatch (name, parsed arguments, caller agent, signal).
          * @mode waterfall
          */
@@ -53,7 +53,7 @@ declare module '@z/cordis' {
          * listeners must observe `exec.signal`; after they settle, caller
          * cancellation replaces only a successful accepted outcome with the code
          * selected by whether the tool body was invoked.
-         * Scope-filtered dispatch (`@z/dsh-scope`): agent-scoped listeners receive only that agent's calls.
+         * Scope-filtered dispatch (`@taskweaver/dsh-scope`): agent-scoped listeners receive only that agent's calls.
          * @param exec - the call that just ran (name, parsed arguments, caller agent).
          * @param result - the dispatch outcome a listener may accept, replace, or block.
          * @mode waterfall
@@ -68,14 +68,14 @@ declare module '@z/cordis' {
          * logged copy is affected — the program already received the complete
          * value, and the model sees neither. A throwing listener is contained:
          * the bridge falls back to logging the original settled content.
-         * Scope-filtered dispatch (`@z/dsh-scope`): agent-scoped listeners receive only that agent's dispatches.
+         * Scope-filtered dispatch (`@taskweaver/dsh-scope`): agent-scoped listeners receive only that agent's dispatches.
          * @param dispatch - the parent execution, sub-call identity, and the settled content to log.
          * @mode waterfall
          */
         'tools/code-dispatch-log'(this: Scoped<ToolRuntime>, dispatch: CodeDispatchLog, next: () => Promise<ContentBlock[]>): Promise<ContentBlock[]>;
         /**
          * Observe the frozen, lossless-JSON final outcome. Listener failures are contained.
-         * Scope-filtered dispatch (`@z/dsh-scope`): keyed by `exec.agent`.
+         * Scope-filtered dispatch (`@taskweaver/dsh-scope`): keyed by `exec.agent`.
          * @param exec - the execution object that traversed the pipeline.
          * @param result - a deep-frozen snapshot of the final returned result.
          * @mode emit
@@ -131,7 +131,7 @@ export interface ToolDefinition extends ToolSchema {
     finalizeContent?(exec: Readonly<ToolExecution>, result: Readonly<ToolExecutionResult>): ContentBlock[] | undefined;
     /**
      * Cooperative tool-call timeout budget in milliseconds. Omit for no deadline.
-     * Enforced by `@z/dsh-tool-call-timeout-policy` (a `tools/execute` wrapper); it
+     * Enforced by `@taskweaver/dsh-tool-call-timeout-policy` (a `tools/execute` wrapper); it
      * is NEVER sent to the model — `schemas()` whitelists only name/description/
      * parameters. Declaring it asserts this tool forwards `exec.signal` to a
      * cooperative implementation that can reach quiescence when the signal aborts.

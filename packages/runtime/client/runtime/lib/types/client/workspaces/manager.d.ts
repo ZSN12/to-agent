@@ -1,5 +1,5 @@
 /** Workspace baseline, incremental-frame, and unary-action owner. */
-import type { HostFrame, IApiClient, RpcError, RpcRequest, RpcResult, SessionId, WorkspaceId, WorkspaceView } from '@z/dsh-api-remotes/client';
+import type { HostFrame, IApiClient, RpcError, RpcRequest, RpcResult, SessionId, WorkspaceId, WorkspaceView } from '@taskweaver/dsh-api-remotes/client';
 import { type WorkspaceCreateInput } from './workspace.ts';
 /** Monotone workspace-list arrival lifecycle. */
 export type WorkspaceListPhase = 'pending' | 'ready';

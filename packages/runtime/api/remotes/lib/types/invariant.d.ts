@@ -1,5 +1,5 @@
-/** Package-owned invariant companion for `@z/dsh-api-remotes`. */
-import type { Context } from '@z/cordis';
+/** Package-owned invariant companion for `@taskweaver/dsh-api-remotes`. */
+import type { Context } from '@taskweaver/cordis';
 /** Cordis companion plugin name. */
 export declare const name = "api-remotes-invariant";
 /** Service required before the companion can reserve package ownership. */

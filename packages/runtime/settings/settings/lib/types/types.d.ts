@@ -4,14 +4,14 @@
  * no runtime code, and nothing here reaches a Host-only symbol, so a Client
  * compilation face reads exactly the signatures the Host emits.
  *
- * @module @z/dsh-settings/types
+ * @module @taskweaver/dsh-settings/types
  */
-import type { Branded } from '@z/dsh-brand';
+import type { Branded } from '@taskweaver/dsh-brand';
 /** Nominal id of one registered settings namespace. */
 export type SettingsNamespace = Branded<'SettingsNamespace'>;
 /** Origin of one committed settings change. */
 export type SettingsUpdateSource = 'update' | 'provider';
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
     interface Events {
         /**
          * Committed change to one registered namespace's resolved value. Emitted

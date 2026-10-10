@@ -3,11 +3,11 @@
  * fetch. Duplicate ids are rejected. At execution time, a configured provider must exist and
  * be usable; without one, exactly one usable provider is required, so selection never depends
  * on registration order.
- * @module @z/dsh-web
+ * @module @taskweaver/dsh-web
  */
 
-import { Context, Service } from '@z/cordis'
-import z from '@z/schemastery'
+import { Context, Service } from '@taskweaver/cordis'
+import z from '@taskweaver/schemastery'
 import type {
   WebFetchProvider,
   WebFetchRequest,
@@ -32,7 +32,7 @@ export type {
   WebSearchSource,
 } from './types.ts'
 
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
   interface Context {
     web: WebRuntime
   }
@@ -74,7 +74,7 @@ export interface WebRuntimeConfig {
 export class WebRuntime extends Service {
   /**
    * Provider selection config. Operational env overrides feed the SAME fields:
-   * `$DSH_WEB_SEARCH_PROVIDER` / `$DSH_WEB_FETCH_PROVIDER` are equivalent to
+   * `$TASKWEAVER_WEB_SEARCH_PROVIDER` / `$TASKWEAVER_WEB_FETCH_PROVIDER` are equivalent to
    * `searchProvider` / `fetchProvider` and are NOT a hidden priority chain.
    */
   static Config: z<WebRuntimeConfig> = z.object({
@@ -89,8 +89,8 @@ export class WebRuntime extends Service {
 
   constructor(ctx: Context, config: WebRuntimeConfig = {}) {
     super(ctx, 'web')
-    this.searchProviderId = config.searchProvider ?? process.env.DSH_WEB_SEARCH_PROVIDER
-    this.fetchProviderId = config.fetchProvider ?? process.env.DSH_WEB_FETCH_PROVIDER
+    this.searchProviderId = config.searchProvider ?? process.env.TASKWEAVER_WEB_SEARCH_PROVIDER
+    this.fetchProviderId = config.fetchProvider ?? process.env.TASKWEAVER_WEB_FETCH_PROVIDER
   }
 
   /**

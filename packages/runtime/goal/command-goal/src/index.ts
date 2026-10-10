@@ -1,13 +1,13 @@
 /**
  * Human-facing `/goal` command over the persisted same-session goal domain.
- * @module @z/dsh-command-goal
+ * @module @taskweaver/dsh-command-goal
  */
 
-import type { Context } from '@z/cordis'
-import type { CommandInvocation, CommandResult } from '@z/dsh-commands'
-import { GoalError } from '@z/dsh-goal'
-import type { GoalPhase, GoalRef, GoalView } from '@z/dsh-goal'
-import { createUserMessage } from '@z/dsh-llm'
+import type { Context } from '@taskweaver/cordis'
+import type { CommandInvocation, CommandResult } from '@taskweaver/dsh-commands'
+import { GoalError } from '@taskweaver/dsh-goal'
+import type { GoalPhase, GoalRef, GoalView } from '@taskweaver/dsh-goal'
+import { createUserMessage } from '@taskweaver/dsh-llm'
 
 export const name = 'command-goal'
 export const inject = ['commands', 'goals']

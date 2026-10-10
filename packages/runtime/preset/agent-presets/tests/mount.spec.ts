@@ -2,24 +2,24 @@ import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { Context } from '@z/cordis'
-import Loader from '@z/cordis-plugin-loader'
-import Include from '@z/cordis-plugin-include'
-import LlmRuntime from '@z/dsh-llm'
-import SessionStore, { SessionId } from '@z/dsh-session'
-import SystemPrompt from '@z/dsh-system-prompt'
-import ToolRuntime from '@z/dsh-tools'
-import AgentRegistry, { assembleContextFor, type Agent } from '@z/dsh-agent'
-import AgentLoop from '@z/dsh-agent-loop'
+import { Context } from '@taskweaver/cordis'
+import Loader from '@taskweaver/cordis-plugin-loader'
+import Include from '@taskweaver/cordis-plugin-include'
+import LlmRuntime from '@taskweaver/dsh-llm'
+import SessionStore, { SessionId } from '@taskweaver/dsh-session'
+import SystemPrompt from '@taskweaver/dsh-system-prompt'
+import ToolRuntime from '@taskweaver/dsh-tools'
+import AgentRegistry, { assembleContextFor, type Agent } from '@taskweaver/dsh-agent'
+import AgentLoop from '@taskweaver/dsh-agent-loop'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import AgentPresets, {
   COMPOSITION_FILE, leakedServices, livePresetMounts, mountPreset, PresetMountError, serviceForAgent,
-} from '@z/dsh-agent-presets'
-import type { Config } from '@z/dsh-agent-presets'
-import type {} from '@z/dsh-agent-presets/types'
-import { bindScopeParent, createScope, scopeOf } from '@z/dsh-scope'
+} from '@taskweaver/dsh-agent-presets'
+import type { Config } from '@taskweaver/dsh-agent-presets'
+import type {} from '@taskweaver/dsh-agent-presets/types'
+import { bindScopeParent, createScope, scopeOf } from '@taskweaver/dsh-scope'
 
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
   interface Context {
     /** Published by the `isolated` fixture preset behind an entry-local realm. */
     fixtureIsolatedSvc: { label: string }
@@ -337,7 +337,7 @@ describe('the preset roster', () => {
   })
 
   it('exposes the configured default id', () => {
-    expect(ctx.agentPresets.defaultId).toBe('standard')
+    expect(ctx.agentPresets.defaultId).toBe('tw-default')
   })
 })
 
@@ -383,7 +383,7 @@ describe('a roster with nothing in it', () => {
     await bare.plugin(AgentPresets, { default: 'standard', roots: [], includeUserRoot: false })
 
     await expect(bare.agentPresets.resolve())
-      .rejects.toThrow(/preset "standard" not found \(available: none\)/)
+      .rejects.toThrow(/preset "tw-default" not found \(available: none\)/)
   })
 })
 

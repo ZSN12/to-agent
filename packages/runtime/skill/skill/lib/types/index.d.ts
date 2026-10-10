@@ -3,15 +3,15 @@
  *
  * This package owns the Service Definition role of the skill capability seam.
  * Concrete
- * providers such as `@z/dsh-skill-filesystem` decide where skills come
+ * providers such as `@taskweaver/dsh-skill-filesystem` decide where skills come
  * from; this service only merges provider catalogs, resolves the winning skill
  * for a name, and exposes the winning summaries and definitions to consumers.
  *
- * @module @z/dsh-skill
+ * @module @taskweaver/dsh-skill
  */
-import { Context, Service } from '@z/cordis';
-import type { ScopeKey } from '@z/dsh-scope';
-import type Schema from '@z/schemastery';
+import { Context, Service } from '@taskweaver/cordis';
+import type { ScopeKey } from '@taskweaver/dsh-scope';
+import type Schema from '@taskweaver/schemastery';
 /** Standard precedence rank for packaged skill providers and local bundled roots. */
 export declare const BUNDLED_SKILL_RANK = 600;
 /**
@@ -127,7 +127,7 @@ export interface SkillInvocationSource {
     /** Injected skill bodies are instructions for the model to follow. */
     readonly form: 'instructions';
 }
-declare module '@z/dsh-llm' {
+declare module '@taskweaver/dsh-llm' {
     interface MessageSourceMap {
         /** A user-explicit skill invocation injected by the host. */
         'skill-invocation': SkillInvocationSource;
@@ -198,7 +198,7 @@ export interface Config {
     /** Maximum number of completed cwd/provider catalogs kept in memory. */
     readonly collectCacheMaxEntries?: number;
 }
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
     interface Context {
         skills: SkillRegistry;
     }

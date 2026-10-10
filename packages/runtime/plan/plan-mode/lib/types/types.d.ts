@@ -5,7 +5,7 @@
  * `./types` for host consumers, `./client` for client aggregates — with zero
  * content duplication.
  *
- * @module @z/dsh-plan-mode/types
+ * @module @taskweaver/dsh-plan-mode/types
  */
 /**
  * The plan projection's wire value. `active` is the logged state in force
@@ -19,7 +19,7 @@ export interface PlanProjection {
     active: boolean;
     pending: boolean;
 }
-declare module '@z/dsh-session-projection/types' {
+declare module '@taskweaver/dsh-session-projection/types' {
     interface SessionProjectionMap {
         /** Plan collaboration state folded from the plan command lifecycle and `plan/mode` events. */
         plan: PlanProjection;

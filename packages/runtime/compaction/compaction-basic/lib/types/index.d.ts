@@ -1,14 +1,14 @@
 /**
  * Basic replay-aware compaction backend.
  *
- * @module @z/dsh-compaction-basic
+ * @module @taskweaver/dsh-compaction-basic
  */
-import { Context } from '@z/cordis';
-import z from '@z/schemastery';
-import { CompactionEngine } from '@z/dsh-compaction';
-import type { CompactionResult, CompactionTrigger } from '@z/dsh-compaction';
-import type { Agent } from '@z/dsh-agent';
-import type { CommandId } from '@z/dsh-commands/brand';
+import { Context } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
+import { CompactionEngine } from '@taskweaver/dsh-compaction';
+import type { CompactionResult, CompactionTrigger } from '@taskweaver/dsh-compaction';
+import type { Agent } from '@taskweaver/dsh-agent';
+import type { CommandId } from '@taskweaver/dsh-commands/brand';
 import type { SummarizationInput, SummaryResult } from './summarizer.ts';
 import type { BasicCompactionConfig, ResolvedConfig } from './types.ts';
 export type { BasicCompactionConfig, CompactionPolicyConfig, ModelCompactPolicyConfig, ResolvedCompactSpec, ResolvedConfig, ResolvedRetention, ResolvedTargetPolicy, } from './types.ts';
@@ -66,7 +66,7 @@ export declare class BasicCompactionEngine extends CompactionEngine {
      * @param signal - optional summarization cancellation signal.
      * @returns the successful durable compaction result.
      */
-    compactRegion(start: number, end: number, agent: Agent, signal?: AbortSignal): Promise<CompactionResult>;
+    compactRegion(start: number, end: number, agent: Agent, signal?: AbortSignal, trigger?: CompactionTrigger): Promise<CompactionResult>;
     /**
      * Force one useful idle-session compaction below the pressure threshold, and
      * resolve only after its standalone marker pair is durably checkpointed.

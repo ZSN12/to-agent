@@ -1,27 +1,9 @@
-"use strict";
 /**
  * Service Definition for the code-execution capability seam that runs one model-written program against host async bindings.
  * Runtimes know nothing about tools or sessions; consumers own those concerns.
- * @module @z/dsh-code-runtime
+ * @module @taskweaver/dsh-code-runtime
  */
-var __extends = (this && this.__extends) || (function () {
-    var extendStatics = function (d, b) {
-        extendStatics = Object.setPrototypeOf ||
-            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-            function (d, b) { for (var p in b) if (Object.prototype.hasOwnProperty.call(b, p)) d[p] = b[p]; };
-        return extendStatics(d, b);
-    };
-    return function (d, b) {
-        if (typeof b !== "function" && b !== null)
-            throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
-})();
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.CodeRuntime = exports.PORTABLE_RESERVED_WORDS = exports.DUNDER_MEMBER = exports.RESERVED_ERROR_MEMBERS = exports.RESERVED_BINDING_GLOBALS = void 0;
-var cordis_1 = require("@z/cordis");
+import { Service } from '@taskweaver/cordis';
 /**
  * Binding globals EVERY backend refuses because SOME backend owns the slot in
  * the program's namespace: `console` (the worker's log capture), and
@@ -42,7 +24,7 @@ var cordis_1 = require("@z/cordis");
  * unreachable from the program — accepted by validation, unusable on the
  * Python backend, which is exactly the split the shared set exists to prevent.
  */
-exports.RESERVED_BINDING_GLOBALS = new Set([
+export const RESERVED_BINDING_GLOBALS = new Set([
     'console',
     '__dsh_main__', '__builtins__', '__name__', '__debug__',
 ]);
@@ -56,7 +38,7 @@ exports.RESERVED_BINDING_GLOBALS = new Set([
  * raises while constructing the rejection, and the exact set is an interpreter
  * version detail. Any other non-empty own property name is accepted everywhere.
  */
-exports.RESERVED_ERROR_MEMBERS = new Set([
+export const RESERVED_ERROR_MEMBERS = new Set([
     'name', 'message', 'stack',
     'args', 'with_traceback', 'add_note',
 ]);
@@ -64,7 +46,7 @@ exports.RESERVED_ERROR_MEMBERS = new Set([
  * Dunder form (`__x__`, non-empty middle): object-protocol slots in Python,
  * refused as {@link RESERVED_ERROR_MEMBERS | error members} on every backend.
  */
-exports.DUNDER_MEMBER = /^__.+__$/;
+export const DUNDER_MEMBER = /^__.+__$/;
 /**
  * Reserved words of every portable target language (ECMAScript ∪ Python),
  * refused as {@link CodeBindingNamespace.global} / error-class names by all
@@ -75,7 +57,7 @@ exports.DUNDER_MEMBER = /^__.+__$/;
  * the Python one. Extending the seam with a new language means widening this
  * union (a breaking review of existing binding names, by design).
  */
-exports.PORTABLE_RESERVED_WORDS = new Set([
+export const PORTABLE_RESERVED_WORDS = new Set([
     // ECMAScript reserved words and reserved-in-strict-mode names.
     'await', 'break', 'case', 'catch', 'class', 'const', 'continue', 'debugger', 'default', 'delete', 'do',
     'else', 'enum', 'export', 'extends', 'false', 'finally', 'for', 'function', 'if', 'import', 'in',
@@ -94,12 +76,10 @@ exports.PORTABLE_RESERVED_WORDS = new Set([
  * class, treat programs as hostile peers, isolate runs from one another, and
  * terminate and await in-flight runs during disposal.
  */
-var CodeRuntime = /** @class */ (function (_super) {
-    __extends(CodeRuntime, _super);
-    function CodeRuntime(ctx) {
-        return _super.call(this, ctx, 'codeRuntime') || this;
+export class CodeRuntime extends Service {
+    constructor(ctx) {
+        super(ctx, 'codeRuntime');
     }
-    return CodeRuntime;
-}(cordis_1.Service));
-exports.CodeRuntime = CodeRuntime;
-exports.default = CodeRuntime;
+}
+export default CodeRuntime;
+//# sourceMappingURL=index.js.map

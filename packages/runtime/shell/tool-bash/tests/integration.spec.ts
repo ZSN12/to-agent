@@ -1,20 +1,20 @@
-import { createUserMessage } from '@z/dsh-llm'
+import { createUserMessage } from '@taskweaver/dsh-llm'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { Context } from '@z/cordis'
+import { Context } from '@taskweaver/cordis'
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { SessionId, type SessionEvent } from '@z/dsh-session'
-import JsonlSessionPersistence from '@z/dsh-session-persistence-jsonl'
-import type { Agent } from '@z/dsh-agent'
-import AgentLoop from '@z/dsh-agent-loop'
-import { mountAgentLoopTestDependencies } from '@z/dsh-agent-loop-testkit'
-import LocalJobRegistry from '@z/dsh-jobs-local'
-import * as ToolTasks from '@z/dsh-tool-jobs'
-import { LocalBashExecutor } from '@z/dsh-bash-local'
-import LocalSubprocessRuntime from '@z/dsh-subprocess-local'
-import * as ToolBash from '@z/dsh-tool-bash'
-import * as BashEnvPlugin from '@z/dsh-shell-env'
+import { SessionId, type SessionEvent } from '@taskweaver/dsh-session'
+import JsonlSessionPersistence from '@taskweaver/dsh-session-persistence-jsonl'
+import type { Agent } from '@taskweaver/dsh-agent'
+import AgentLoop from '@taskweaver/dsh-agent-loop'
+import { mountAgentLoopTestDependencies } from '@taskweaver/dsh-agent-loop-testkit'
+import LocalJobRegistry from '@taskweaver/dsh-jobs-local'
+import * as ToolTasks from '@taskweaver/dsh-tool-jobs'
+import { LocalBashExecutor } from '@taskweaver/dsh-bash-local'
+import LocalSubprocessRuntime from '@taskweaver/dsh-subprocess-local'
+import * as ToolBash from '@taskweaver/dsh-tool-bash'
+import * as BashEnvPlugin from '@taskweaver/dsh-shell-env'
 import { MockAdapter, textResponse, toolCallResponse } from '../../../core/agent-loop/tests/mock-adapter.ts'
 
 /**
@@ -97,10 +97,10 @@ describe('bash tool through the agent loop', () => {
     const root = mkdtempSync(join(tmpdir(), 'dsh-bash-session-env-'))
     dirs.push(root)
     const dshHome = join(root, 'dsh-home')
-    vi.stubEnv('DSH_STALE_PARENT', 'stale')
+    vi.stubEnv('TASKWEAVER_STALE_PARENT', 'stale')
     const adapter = new MockAdapter([
       toolCallResponse('call-1', 'bash', {
-        command: 'printf \'%s\\n%s\\n%s\\n%s\\n%s\\n\' "$DSH_HOME" "$DSH_SHELL" "$DSH_SESSION_ID" "$DSH_SESSION_JSONL" "${DSH_STALE_PARENT-unset}"; if [ -e "$DSH_SESSION_JSONL" ]; then printf \'present\\n\'; else printf \'absent\\n\'; fi',
+        command: 'printf \'%s\\n%s\\n%s\\n%s\\n%s\\n\' "$TASKWEAVER_HOME" "$TASKWEAVER_SHELL" "$TASKWEAVER_SESSION_ID" "$TASKWEAVER_SESSION_JSONL" "${TASKWEAVER_STALE_PARENT-unset}"; if [ -e "$TASKWEAVER_SESSION_JSONL" ]; then printf \'present\\n\'; else printf \'absent\\n\'; fi',
         description: 'inspect session environment',
       }),
       textResponse('Session environment inspected.'),
@@ -123,6 +123,33 @@ describe('bash tool through the agent loop', () => {
     expect(existsSync(location!.path)).toBe(true)
     const header = JSON.parse(readFileSync(location!.path, 'utf8').split('\n')[0]!) as { type: string; id: string }
     expect(header).toMatchObject({ type: 'session', id: 'session-env-id' })
+    await handle.dispose()
+  })
+
+  it('does not expose ambient MCP credentials to a model-invoked shell', async () => {
+    vi.stubEnv('TASKWEAVER_MCP_0123456789_SECRET', 'synthetic-mcp-secret')
+    const adapter = new MockAdapter([
+      toolCallResponse('call-mcp-env', 'bash', {
+        command: 'env',
+        description: 'inspect process environment',
+      }),
+      textResponse('Environment inspected.'),
+    ])
+    const ctx = await harness(adapter)
+    const handle = await ctx.agents.create({
+      sessionId: SessionId('session-mcp-env'),
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+
+    handle.agent.followup(createUserMessage({
+      content: [{ type: 'text', text: 'inspect environment' }],
+      source: { kind: 'user' },
+    }))
+    await waitForIdle(ctx, handle.agent)
+
+    const output = resultText(findEvent(events(handle.agent), 'tool/result'))
+    expect(output).not.toContain('TASKWEAVER_MCP_')
+    expect(output).not.toContain('synthetic-mcp-secret')
     await handle.dispose()
   })
 

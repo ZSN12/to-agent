@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { createZHostManager, resolveTaskWeaverRuntimeRoot } from '../../electron/agent/z-host/index.mjs'
+import { createZHostManager, resolveTaskWeaverRuntimeRoot } from '../../desktop/agent/z-host/index.mjs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -16,7 +16,6 @@ const userDataPath = path.join(process.env.HOME, '.taskweaver-dev')
 const hostManager = createZHostManager({
   runtimeRoot,
   userDataPath,
-  executable: process.execPath,
 })
 
 try {

@@ -1,0 +1,18 @@
+{
+  "extends": "./tsconfig.base.client.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rewriteRelativeImportExtensions": false,
+    "types": ["node"]
+  },
+  "files": [],
+  "references": [
+    { "path": "./host/webserver" },
+    { "path": "./compaction/compaction" },
+    { "path": "./client/connection/tsconfig.client.json" },
+    { "path": "./typert/registry" },
+    { "path": "./api/gateway/tsconfig.client.json" },
+    { "path": "./api/remotes/tsconfig.client.json" },
+    { "path": "./client/runtime" }
+  ]
+}

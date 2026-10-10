@@ -3,8 +3,8 @@ import {
   bridgeProfilesFromModelsDoc,
   bridgeProviderBlockToDshProfile,
   splitModelsDocProviders,
-} from '../electron/backend/taskweaver-bridge-models.mjs'
-import { profilesFromModelsDoc } from '../electron/backend/pi-models-to-dsh-profile.mjs'
+} from '../desktop/backend/taskweaver-bridge-models.mjs'
+import { profilesFromModelsDoc } from '../desktop/backend/pi-models-to-dsh-profile.mjs'
 
 const doc = {
   providers: {

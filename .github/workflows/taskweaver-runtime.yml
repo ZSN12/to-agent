@@ -11,11 +11,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
+          run_install: false
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
+          node-version: '22.19.0'
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
       - name: Headless CLI fixture smoke
         run: node scripts/taskweaver-headless.mjs --fixture --text "CI fixture" --json-summary
       - run: node scripts/test-z-runtime-resolution.mjs
@@ -25,18 +30,19 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
       - uses: pnpm/action-setup@v4
         with:
-          version: 9
-      - run: npm ci
+          version: 11.7.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.19.0'
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
       - name: Build Z runtime deploy
-        run: |
-          cd packages/runtime && CI=true pnpm install --ignore-scripts
-          cd ../..
-          node scripts/build-z-runtime.mjs
+        env:
+          CI: 'true'
+        run: pnpm run build:z-runtime
       - run: node scripts/test-z-host.mjs
-      - run: npm run test:models
+      - run: pnpm run test:models

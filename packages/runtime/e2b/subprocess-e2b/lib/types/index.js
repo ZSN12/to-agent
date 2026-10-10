@@ -1,14 +1,14 @@
 /**
  * E2B Service Provider for the subprocess capability seam. Each handle starts through the
  * shared sandbox and retains command output/status paths in that remote world.
- * @module @z/dsh-subprocess-e2b
+ * @module @taskweaver/dsh-subprocess-e2b
  */
 import { randomUUID } from 'node:crypto';
 import { posix } from 'node:path';
-import z from '@z/schemastery';
-import { SubprocessRuntime } from '@z/dsh-subprocess';
-import { MAX_TIMER_DELAY_MS } from '@z/dsh-timeout';
-import { e2bControlEnvs, quoteE2BShellArg } from '@z/dsh-e2b';
+import z from '@taskweaver/schemastery';
+import { SubprocessRuntime } from '@taskweaver/dsh-subprocess';
+import { MAX_TIMER_DELAY_MS } from '@taskweaver/dsh-timeout';
+import { e2bControlEnvs, quoteE2BShellArg } from '@taskweaver/dsh-e2b';
 import { E2BSubprocessHandle } from "./process.js";
 import { asError, signalOpts } from "./remote.js";
 import { spawnE2BTerminal } from "./terminal.js";

@@ -14,8 +14,8 @@ import {
   escalationHintMarker,
   sandboxDenialMarker,
   validateEscalationArgs,
-} from '@z/dsh-sandbox'
-import type { EscalationApprover, EscalationOutcome } from '@z/dsh-sandbox'
+} from '@taskweaver/dsh-sandbox'
+import type { EscalationApprover, EscalationOutcome } from '@taskweaver/dsh-sandbox'
 
 describe('the strictly-wider ladder', () => {
   it('read-only escalates to either wider mode; workspace-write only to full access', () => {

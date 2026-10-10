@@ -1,8 +1,8 @@
 /**
- * Package-owned invariant companion for `@z/dsh-shell-env`.
- * @module @z/dsh-shell-env/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-shell-env`.
+ * @module @taskweaver/dsh-shell-env/invariant
  */
-import type { Context } from '@z/cordis';
+import type { Context } from '@taskweaver/cordis';
 /** Cordis companion plugin name. */
 export declare const name = "shell-env-invariant";
 /** Service required before the companion can reserve package ownership. */

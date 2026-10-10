@@ -1,6 +1,6 @@
 /** Read-only projection of the current Cordis Loader plugin entries. */
-import type { Context } from '@z/cordis';
-import { TypertRemoteService } from '@z/dsh-typert-protocol';
+import type { Context } from '@taskweaver/cordis';
+import { TypertRemoteService } from '@taskweaver/dsh-typert-protocol';
 import type { PluginInventorySnapshot } from './types.ts';
 export type * from './types.ts';
 /** Remote-only service exposing the Loader's current non-group entry state. */

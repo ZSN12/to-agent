@@ -6,8 +6,8 @@ import {
   discoverWorkspaceRuleFiles,
   loadWorkspaceRules,
   clearWorkspaceRulesCache,
-} from '../electron/backend/workspace-rules-service.mjs'
-import { assembleWorkspaceContext } from '../electron/backend/context-assembler.mjs'
+} from '../desktop/backend/workspace-rules-service.mjs'
+import { assembleWorkspaceContext } from '../desktop/backend/context-assembler.mjs'
 
 const testDir = await fs.mkdtemp(path.join(os.tmpdir(), 'tw-rules-test-'))
 

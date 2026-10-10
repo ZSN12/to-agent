@@ -1,19 +1,19 @@
 /**
- * Package-owned invariant companion for `@z/dsh-storage-domain`: every
+ * Package-owned invariant companion for `@taskweaver/dsh-storage-domain`: every
  * `domain/changed` event must agree with the emitting domain's authoritative
  * in-memory state (the owned event-stream ↔ mutable-data relationship of this
  * package). Writes emit strictly after mutating memory and the write chain
  * serializes them, so at emission time the event's snapshot equals the
  * current read — any divergence means a write path skipped the chain or
  * emitted a stale value.
- * @module @z/dsh-storage-domain/invariant
+ * @module @taskweaver/dsh-storage-domain/invariant
  */
 
-import type { Context } from '@z/cordis'
-import type { InvariantFailure, InvariantInstaller } from '@z/dsh-invariants'
+import type { Context } from '@taskweaver/cordis'
+import type { InvariantFailure, InvariantInstaller } from '@taskweaver/dsh-invariants'
 import type { DomainChanged } from './events.ts'
 
-const PACKAGE_NAME = '@z/dsh-storage-domain'
+const PACKAGE_NAME = '@taskweaver/dsh-storage-domain'
 
 /** Cordis companion plugin name. */
 export const name = 'storage-domain-invariant'

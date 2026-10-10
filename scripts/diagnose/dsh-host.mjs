@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { createZHostManager, resolveTaskWeaverRuntimeRoot } from '../../electron/agent/z-host/index.mjs'
+import { createZHostManager, resolveTaskWeaverRuntimeRoot } from '../../desktop/agent/z-host/index.mjs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -22,7 +22,6 @@ console.log('userDataPath:', userDataPath)
 const hostManager = createZHostManager({
   runtimeRoot,
   userDataPath,
-  executable: process.execPath,
 })
 
 console.log('\n正在启动 DSH Host...')

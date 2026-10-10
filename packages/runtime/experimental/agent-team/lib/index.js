@@ -1,11 +1,11 @@
-import { Service } from "@z/cordis";
-import z from "@z/schemastery";
+import { Service } from "@taskweaver/cordis";
+import z from "@taskweaver/schemastery";
 import { inspect } from "node:util";
-import { HarnessError, createUserMessage } from "@z/dsh-llm";
+import { HarnessError, createUserMessage } from "@taskweaver/dsh-llm";
 import { z as z$1 } from "zod";
-import { SessionId } from "@z/dsh-session";
+import { SessionId } from "@taskweaver/dsh-session";
 import { randomUUID } from "node:crypto";
-import { foldSubagentDescriptor } from "@z/dsh-subagent";
+import { foldSubagentDescriptor } from "@taskweaver/dsh-subagent";
 //#region lib/types/error.js
 /** Typed Agent Teams failures. */
 /** Stable failure raised by the Team domain. */

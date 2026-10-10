@@ -17,12 +17,12 @@
  * stops managing DACLs itself. The rung reports partial enforcement because
  * WRITE_RESTRICTED must retain Everyone in its
  * restricting list and NTFS hard links alias one file object across paths.
- * @module @z/dsh-sandbox-local
+ * @module @taskweaver/dsh-sandbox-local
  */
-import { Context } from '@z/cordis';
-import z from '@z/schemastery';
-import { SandboxProvider } from '@z/dsh-sandbox';
-import type { ConfinedArgv, SandboxEnforcement, SandboxPolicy } from '@z/dsh-sandbox';
+import { Context } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
+import { SandboxProvider } from '@taskweaver/dsh-sandbox';
+import type { ConfinedArgv, SandboxEnforcement, SandboxPolicy } from '@taskweaver/dsh-sandbox';
 /** Plugin config. All optional — `static Config` supplies the defaults. */
 export interface Config {
     /**

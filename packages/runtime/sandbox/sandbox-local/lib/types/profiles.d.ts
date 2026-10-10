@@ -1,9 +1,9 @@
 /**
  * Internal platform-profile builders for the local sandbox provider.
  *
- * @module @z/dsh-sandbox-local/profiles
+ * @module @taskweaver/dsh-sandbox-local/profiles
  */
-import type { SandboxPolicy } from '@z/dsh-sandbox';
+import type { SandboxPolicy } from '@taskweaver/dsh-sandbox';
 /**
  * Build the bwrap profile arguments for one file-effect policy.
  * @param policy - file-effect policy to express as bwrap mounts.
@@ -14,7 +14,7 @@ export declare function bwrapProfileArgs(policy: SandboxPolicy): string[];
  * Build the sandbox-exec arguments and SBPL profile for one policy. The
  * writable roots come from the shared {@link writableRoots} helper (canonical,
  * deduplicated) so the Seatbelt grant and the in-process fs fence
- * (`@z/dsh-fs-sandbox`) can never drift apart.
+ * (`@taskweaver/dsh-fs-sandbox`) can never drift apart.
  * @param policy - file-effect policy to express as an SBPL profile.
  * @returns sandbox-exec arguments before the trailing separator and command argv.
  */

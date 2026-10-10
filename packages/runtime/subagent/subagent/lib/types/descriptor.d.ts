@@ -18,11 +18,11 @@
  * durable descriptor, so it neither restores the prior budget nor inherits
  * the parent's current one; the resumed route's defaults apply instead.
  *
- * @module @z/dsh-subagent/descriptor
+ * @module @taskweaver/dsh-subagent/descriptor
  */
-import type { SessionEvent } from '@z/dsh-session';
-import type { ToolRestriction } from '@z/dsh-tools';
-declare module '@z/dsh-session/types' {
+import type { SessionEvent } from '@taskweaver/dsh-session';
+import type { ToolRestriction } from '@taskweaver/dsh-tools';
+declare module '@taskweaver/dsh-session/types' {
     interface SessionEventMap {
         /**
          * Durable identity and lifecycle mode of a session-backed subagent child,

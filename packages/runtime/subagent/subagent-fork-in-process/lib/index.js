@@ -1,5 +1,5 @@
-import z from "@z/schemastery";
-import { startInProcessRun } from "@z/dsh-subagent-in-process-driver";
+import z from "@taskweaver/schemastery";
+import { startInProcessRun } from "@taskweaver/dsh-subagent-in-process-driver";
 //#region lib/types/index.js
 /**
 * The in-process FORK subagent backend: registers a {@link SubagentProvider} on
@@ -7,7 +7,7 @@ import { startInProcessRun } from "@z/dsh-subagent-in-process-driver";
 * parent's session log — so the child inherits the parent's conversation context instead of
 * starting fresh. The seed ends at the last `turn/end`: the current tool-call turn is
 * unbalanced and cannot be replayed as a valid child session.
-* @module @z/dsh-subagent-fork-in-process
+* @module @taskweaver/dsh-subagent-fork-in-process
 */
 const name = "subagent-fork-in-process";
 const inject = ["subagents"];

@@ -1,10 +1,10 @@
 /** Host entry for the shared Typert runtime registry. */
 import type { z } from 'zod';
-import type { TypertDisposer } from '@z/dsh-typert-protocol';
+import type { TypertDisposer } from '@taskweaver/dsh-typert-protocol';
 import type { TypertContribution, TypertFace, TypertPackageFilter, TypertPackageRecord, TypertSchemaFilter, TypertSchemaRecord } from './types.ts';
 export { default, TypertRegistry, typertEndpoint, typertKey, typertPackageKey } from './service.ts';
 export type * from './types.ts';
-declare module '@z/dsh-typert-protocol' {
+declare module '@taskweaver/dsh-typert-protocol' {
     interface TypertRegistryContract {
         register(contribution: TypertContribution): TypertDisposer;
         get(key: string): TypertSchemaRecord | undefined;

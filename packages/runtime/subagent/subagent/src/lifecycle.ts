@@ -11,15 +11,15 @@
  * between this module and one in-package caller, not something a plugin may
  * depend on.
  *
- * @module @z/dsh-subagent/lifecycle
+ * @module @taskweaver/dsh-subagent/lifecycle
  */
 
 import { randomUUID } from 'node:crypto'
-import type { Context } from '@z/cordis'
-import type { Agent } from '@z/dsh-agent'
-import type { ContentBlock } from '@z/dsh-llm'
-import { foldConsumedWork } from '@z/dsh-agent'
-import type { SessionEvent, SessionId } from '@z/dsh-session'
+import type { Context } from '@taskweaver/cordis'
+import type { Agent } from '@taskweaver/dsh-agent'
+import type { ContentBlock } from '@taskweaver/dsh-llm'
+import { foldConsumedWork } from '@taskweaver/dsh-agent'
+import type { SessionEvent, SessionId } from '@taskweaver/dsh-session'
 import { finalAssistantOutput } from './assistant-output.ts'
 import { SubagentRunId } from './types.ts'
 import type { SubagentResult, SubagentRun, SubagentRunEndInfo, SubagentRunInfo } from './types.ts'

@@ -1,11 +1,11 @@
-import { Service } from "@z/cordis";
-import { HarnessError } from "@z/dsh-llm";
+import { Service } from "@taskweaver/cordis";
+import { HarnessError } from "@taskweaver/dsh-llm";
 //#region lib/types/brand.js
 /**
 * dsh-lsp's owned branded id: {@link LspProviderId}, the opaque identity a provider reserves on
-* `ctx.lsp`. The `Branded<B>` primitive lives in `@z/dsh-brand`; keeping the type and its
+* `ctx.lsp`. The `Branded<B>` primitive lives in `@taskweaver/dsh-brand`; keeping the type and its
 * factory together here lets `index.ts` re-export both under one name.
-* @module @z/dsh-lsp/brand
+* @module @taskweaver/dsh-lsp/brand
 */
 /**
 * Brand a string as an {@link LspProviderId}. No validation — the registry rejects an empty id at
@@ -28,7 +28,7 @@ function LspProviderId(id) {
 * invalid or conflicting registration publishes nothing, and its disposer releases every
 * reservation together. Selection routes a query by the file's final extension; it never depends on
 * registration order. The seam exposes exactly the four operations and no JSON-RPC escape hatch.
-* @module @z/dsh-lsp
+* @module @taskweaver/dsh-lsp
 */
 /**
 * Structured LSP failure. Extends {@link HarnessError} with a stable `code`

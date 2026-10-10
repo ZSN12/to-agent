@@ -1,6 +1,6 @@
 /**
  * Error vocabulary of the domain data form.
- * @module @z/dsh-storage-domain/src/error
+ * @module @taskweaver/dsh-storage-domain/src/error
  */
 /** Discriminant codes carried by every {@link DomainError}. */
 export type DomainErrorCode = 'already-open' | 'facet-unsupported' | 'invalid-record' | 'missing-key' | 'closed';

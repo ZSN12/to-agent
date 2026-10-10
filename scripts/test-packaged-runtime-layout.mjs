@@ -26,6 +26,7 @@ if (!appPath) {
 }
 
 const resources = path.join(appPath, 'Contents', 'Resources')
+const bundledHostNode = path.join(resources, 'host-node', 'bin', 'node')
 const runtimeRoot = path.join(resources, 'taskweaver-z-runtime')
 const bridgeTransport = path.join(runtimeRoot, 'electron-vendor', 'taskweaver-bridge-transport', 'index.mjs')
 const chatRegistry = path.join(runtimeRoot, 'electron-vendor', 'dsh-chat-registry.mjs')
@@ -36,10 +37,33 @@ const clientLib = path.join(
   'lib/types/client/sessions/manager.js',
 )
 
+await fs.access(bundledHostNode)
 await fs.access(bridgeTransport)
 await fs.access(chatRegistry)
 await fs.access(clientLib)
-await fs.access(path.resolve('electron/vendor/dsh-chat-registry.mjs'))
+await fs.access(path.resolve('desktop/vendor/dsh-chat-registry.mjs'))
+
+const cursorLoader = path.join(runtimeRoot, 'electron-vendor', 'taskweaver-bridge-transport', 'cursor-adapter-loader.mjs')
+const cursorLoaderSource = await fs.readFile(cursorLoader, 'utf8')
+assert.match(cursorLoaderSource, /@taskweaver\/provider-bridge/, 'packaged Cursor loader must use compiled @taskweaver/provider-bridge')
+assert.doesNotMatch(cursorLoaderSource, /src\/adapters\/cursor\.ts/, 'packaged Cursor loader must not import OpenCodex TypeScript sources')
+
+const providerBridgeLibCandidates = [
+  path.join(runtimeRoot, 'runtime-packages', '@taskweaver', 'provider-bridge', 'lib'),
+  path.join(runtimeRoot, 'runtime-packages', 'node_modules', '@taskweaver', 'provider-bridge', 'lib'),
+]
+let providerBridgeEntry = null
+for (const providerBridgeLib of providerBridgeLibCandidates) {
+  for (const name of ['index.mjs', 'index.js']) {
+    const candidate = path.join(providerBridgeLib, name)
+    if (await fs.stat(candidate).catch(() => null)) {
+      providerBridgeEntry = candidate
+      break
+    }
+  }
+  if (providerBridgeEntry) break
+}
+assert.ok(providerBridgeEntry, 'packaged @taskweaver/provider-bridge entry missing (expected lib/index.mjs or lib/index.js)')
 
 assert.ok((await fs.stat(bridgeTransport)).isFile(), 'taskweaver-bridge-transport missing in packaged runtime')
 assert.ok((await fs.stat(chatRegistry)).isFile(), 'dsh-chat-registry missing in packaged runtime electron-vendor')

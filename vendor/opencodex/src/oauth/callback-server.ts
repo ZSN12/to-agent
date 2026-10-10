@@ -8,8 +8,15 @@
  * Handles: port allocation (preferred → random/manual-only fallback), callback server, CSRF state,
  * manual-input race, 300s timeout. Providers implement generateAuthUrl() + exchangeToken().
  */
-import { isAddrInUse } from "../server/ports";
 import type { OAuthController, OAuthCredentials } from "./types";
+
+function isAddrInUse(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const { code, message } = error as { code?: unknown; message?: unknown };
+  if (code === "EADDRINUSE") return true;
+  const text = typeof message === "string" ? message.toLowerCase() : "";
+  return text.includes("eaddrinuse") || text.includes("in use");
+}
 
 const DEFAULT_TIMEOUT = 300_000;
 const DEFAULT_HOSTNAME = "localhost";

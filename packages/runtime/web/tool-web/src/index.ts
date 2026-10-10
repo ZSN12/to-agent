@@ -3,12 +3,12 @@
  * validation, prompt guidance, limits, and presentation, never concrete providers. Enablement
  * controls tool registration; an enabled tool remains visible when its provider is unavailable
  * and fails with a structured error at execution time.
- * @module @z/dsh-tool-web
+ * @module @taskweaver/dsh-tool-web
  */
 
-import type { Context } from '@z/cordis'
-import z from '@z/schemastery'
-import type {} from '@z/dsh-web'
+import type { Context } from '@taskweaver/cordis'
+import z from '@taskweaver/schemastery'
+import type {} from '@taskweaver/dsh-web'
 import { applyWebSearchTool, WEB_SEARCH_MAX_QUERIES, WEB_SEARCH_MAX_RESULTS } from './search.ts'
 import { applyWebFetchTool } from './fetch.ts'
 
@@ -76,7 +76,7 @@ function assertPositiveInteger(name: string, value: number): void {
  * that wants only one disables the other in config. Each tool's cooperative
  * timeout budget (`fetchTimeoutMs`/`searchTimeoutMs`, default 30000) is resolved
  * here and attached to the tool as `ToolDefinition.timeoutMs` for
- * `@z/dsh-tool-call-timeout-policy` to enforce. The tools' disposers are
+ * `@taskweaver/dsh-tool-call-timeout-policy` to enforce. The tools' disposers are
  * fiber-scoped (the effect-based registries clean up on dispose), so no manual
  * teardown is needed.
  */

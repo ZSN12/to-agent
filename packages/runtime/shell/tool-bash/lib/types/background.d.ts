@@ -1,9 +1,9 @@
 /**
  * Generic-task adaptation for background bash process handles.
  *
- * @module @z/dsh-tool-bash/background
+ * @module @taskweaver/dsh-tool-bash/background
  */
-import type { ShellProcess } from '@z/dsh-shell';
+import type { ShellProcess } from '@taskweaver/dsh-shell';
 /**
  * Map a settled background process onto the generic task-outcome vocabulary:
  * `killed` stays `killed` (detail: the signal when one is known), everything

@@ -1,4 +1,4 @@
-import { defineProperty } from '@z/cosmokit';
+import { defineProperty } from '@taskweaver/cosmokit';
 import { Fiber } from "./fiber.js";
 import { buildOuterStack, DisposableList, symbols, withProps } from "./utils.js";
 function isApplicable(object) {

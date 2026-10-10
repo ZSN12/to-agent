@@ -1,10 +1,10 @@
 /**
  * Durable session skill catalog and model-facing `skill` loader tool.
  *
- * @module @z/dsh-tool-skill
+ * @module @taskweaver/dsh-tool-skill
  */
-import type { Context } from '@z/cordis';
-import z from '@z/schemastery';
+import type { Context } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
 export declare const name = "tool-skill";
 export declare const inject: string[];
 /**
@@ -24,7 +24,7 @@ export interface SkillCatalogSource {
         readonly description: string;
     }[];
 }
-declare module '@z/dsh-llm' {
+declare module '@taskweaver/dsh-llm' {
     interface MessageSourceMap {
         'skill-catalog': SkillCatalogSource;
     }

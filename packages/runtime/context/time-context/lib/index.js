@@ -1,6 +1,6 @@
 import { createRequire } from "node:module";
-import z from "@z/schemastery";
-import "@z/cordis";
+import z from "@taskweaver/schemastery";
+import "@taskweaver/cordis";
 //#region ../../llm/llm/src/brand.ts
 /**
 * Brand a message identifier.
@@ -117,7 +117,7 @@ new RegExp(String.raw`\b(?:input|prompt|request|messages?)\b.{0,40}` + String.ra
 * Adapters expose one resolved policy per registered provider route; the
 * optional dsh-llm-retry plugin executes it on the agent's failed-step extension point.
 *
-* @module @z/dsh-llm/retry-policy
+* @module @taskweaver/dsh-llm/retry-policy
 */
 const DEFAULT_MAX_RETRIES = 5;
 const DEFAULT_INITIAL_DELAY_MS = 500;
@@ -154,7 +154,7 @@ z.union([normalPolicySchema, alwaysPolicySchema]);
 * `.agents/notes/implemented/architecture/2026-06-21-mandatory-app-attribution-headers.md`.
 *
 * App-attribution vocabulary for provider requests.
-* @module @z/dsh-llm/attribution
+* @module @taskweaver/dsh-llm/attribution
 */
 const { version } = createRequire(import.meta.url)("../package.json");
 //#endregion
@@ -164,7 +164,7 @@ const { version } = createRequire(import.meta.url)("../package.json");
 * new variant fails compilation at every required handler. Do not use it for declaration-merged
 * unions such as session events or content blocks: handle known variants and explicitly fall
 * through because plugins may add valid unknown cases.
-* @module @z/dsh-llm/never
+* @module @taskweaver/dsh-llm/never
 */
 /**
 * Mark an unreachable closed-union branch. A newly unhandled typed variant fails at the call site;
@@ -271,7 +271,7 @@ function formatTimestamp(now, formatter, timeZone) {
 * Opt-in request clock context. Eligible steps add durable,
 * source-attributed time readings to the request history.
 *
-* @module @z/dsh-time-context
+* @module @taskweaver/dsh-time-context
 */
 /** Cordis plugin name used by loader diagnostics. */
 const name = "time-context";

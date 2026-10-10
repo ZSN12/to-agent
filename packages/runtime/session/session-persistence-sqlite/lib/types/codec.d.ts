@@ -1,10 +1,10 @@
 /**
  * Schema-17 physical chunk-row codec. This package owns the durable tags,
  * validation, and row-size limits independently from other persistence formats.
- * @module @z/dsh-session-persistence-sqlite/codec
+ * @module @taskweaver/dsh-session-persistence-sqlite/codec
  */
-import type { StreamChunk } from '@z/dsh-llm';
-import type { SessionEvent } from '@z/dsh-session';
+import type { StreamChunk } from '@taskweaver/dsh-llm';
+import type { SessionEvent } from '@taskweaver/dsh-session';
 interface RunDataBase {
     readonly turn: number;
     readonly step: number;

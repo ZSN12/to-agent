@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { Context, type Plugin } from '@z/cordis'
-import Loader from '@z/cordis-plugin-loader'
-import { remoteMethods } from '@z/dsh-typert-protocol'
+import { Context, type Plugin } from '@taskweaver/cordis'
+import Loader from '@taskweaver/cordis-plugin-loader'
+import { remoteMethods } from '@taskweaver/dsh-typert-protocol'
 import PluginInventoryGateway from '../src/index.ts'
 
 const contexts: Context[] = []

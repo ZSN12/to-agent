@@ -1,0 +1,12 @@
+# Keyless contract fixture; the unit suite replaces command/args with its
+# in-repository MCP fixture server before booting the Cordis Loader.
+- insert:
+    - id: memory-fixture
+      name: '@taskweaver/dsh-mcp-client'
+      config:
+        serverName: memory_fixture
+        transport: stdio
+        command: unused
+        args: []
+        env: {}
+        cwd: .

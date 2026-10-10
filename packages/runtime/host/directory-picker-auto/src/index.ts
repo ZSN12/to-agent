@@ -1,77 +1,44 @@
 /**
- * Adaptive chooser of the directory-picker seam: resolves the host's
- * situation once at boot (bind host, SSH launch, display session, Linux
- * chooser binary) and mounts the matching interaction — `native` or `browse`
- * — as real Loader entries in the in-memory root tree. Each interaction is a
- * pair: the Host backend serving the seam capability and the client surface
- * occupying ui-workspace's directory-flow holes. Both arrive as ordinary
- * entries, so the surface is discovered exactly as a config-row's would be
- * and one resolved choice still swaps both faces; pinning an interaction
- * remains composing that pair directly instead of this row.
- * @module @z/dsh-host-directory-picker-auto
+ * Native directory picker composition for TaskWeaver's Electron-owned UI.
+ * Mounts the native Host backend and, for non-embedded Clients, the native
+ * client surface as ordinary Loader entries in the in-memory root tree.
+ * @module @taskweaver/dsh-host-directory-picker-auto
  */
 
-import type { Context } from '@z/cordis'
-// Empty type imports carry the `loader` and `webServer` Context merges for the reads below.
-import type {} from '@z/cordis-plugin-loader'
-import type {} from '@z/dsh-host-webserver'
-import { taskweaverEmbeddedFromEnv } from '@z/dsh-home-paths'
-import { canExecute, hasLinuxChooserBinary } from './probe.ts'
-import type { DirectoryPickerBackendKind } from './resolve.ts'
-import { resolveDirectoryPickerBackend } from './resolve.ts'
-
-export { canExecute, hasLinuxChooserBinary } from './probe.ts'
-export type { DirectoryPickerBackendKind, DirectoryPickerEnv, DirectoryPickerHostFacts } from './resolve.ts'
-export { resolveDirectoryPickerBackend } from './resolve.ts'
+import type { Context } from '@taskweaver/cordis'
+// Import the Loader augmentation so the injected loader service is typed.
+import type {} from '@taskweaver/cordis-plugin-loader'
+import { taskweaverEmbeddedFromEnv } from '@taskweaver/dsh-home-paths'
 
 /** Cordis plugin name. */
 export const name = 'directory-picker-auto'
-/** Required services: the effective bind host (`webServer`) and the entry tree the backend mounts into (`loader`). */
-export const inject = ['webServer', 'loader']
+/** Required service: the entry tree the native interaction mounts into. */
+export const inject = ['loader']
 
 /**
- * Host backend package per resolved kind — fixed composition vocabulary, not a
- * tunable. Exported because the reference is a runtime string the static
- * config gate cannot see in a yml row: `verify-cordis-config` requires every
- * app composing this chooser to declare both values as dependencies.
+ * Native Host backend package — fixed composition vocabulary, not a tunable.
+ * Exported because the reference is a runtime string the static config gate
+ * cannot see in a yml row.
  */
-export const BACKEND_PACKAGES: Record<DirectoryPickerBackendKind, string> = {
-  native: '@z/dsh-host-directory-picker-native',
-  browse: '@z/dsh-host-directory-picker-browse',
-}
+export const BACKEND_PACKAGE = '@taskweaver/dsh-host-directory-picker-native'
 
 /**
- * Client surface package per resolved kind, mounted with its backend so one
- * resolved interaction still composes both faces. Declared as dependencies by
- * every composing app for the same reason as {@link BACKEND_PACKAGES}. Only the
- * specifier is referenced here — the packages belong to the Client program, so
- * no import of them exists on this side and knip needs them ignored for this
- * workspace.
+ * Native client surface mounted with the Host backend for non-embedded clients.
+ * Only the specifier is referenced here; the package belongs to the Client
+ * program and is discovered by the loader.
  */
-export const SURFACE_PACKAGES: Record<DirectoryPickerBackendKind, string> = {
-  native: '@z/dsh-client-ui-directory-picker-native',
-  browse: '@z/dsh-client-ui-directory-picker-browse',
-}
+export const SURFACE_PACKAGE = '@taskweaver/dsh-client-ui-directory-picker-native'
 
 /**
- * Resolve the interaction from one boot-time sample and mount its backend and
- * surface as Loader entries; the effect's disposer removes both entries and
- * joins their fibers' teardown, so unloading this plugin returns only after
- * both faces of the mounted interaction (and their dependents) quiesced.
- * @param ctx - cordis context carrying the injected `webServer` and `loader`.
+ * Mount the native interaction as Loader entries; the effect's disposer
+ * removes both entries and joins their fibers' teardown.
+ * @param ctx - cordis context carrying the injected `loader`.
  */
 export async function apply(ctx: Context): Promise<void> {
-  const backend = resolveDirectoryPickerBackend({
-    bindHost: ctx.webServer.host,
-    platform: process.platform,
-    env: process.env,
-    linuxChooser: hasLinuxChooserBinary(process.env.PATH, canExecute),
-  })
   await ctx.effect(async () => {
     // Root-tree create: the Loader root is in-memory (write() is a no-op), so
     // the mounted rows can never be persisted back into a config file. The
-    // backend lands first: the surface's browser half drives the capability
-    // the backend registers.
+    // backend lands first so the client surface sees its registered capability.
     const ids: string[] = []
     const unmount = async () => {
       for (const id of [...ids].reverse()) {
@@ -84,11 +51,9 @@ export async function apply(ctx: Context): Promise<void> {
       }
     }
     try {
-      const packages = [BACKEND_PACKAGES[backend]]
-      // TaskWeaver Electron owns the UI; skip DSH browser directory-picker surfaces.
-      if (!taskweaverEmbeddedFromEnv()) {
-        packages.push(SURFACE_PACKAGES[backend])
-      }
+      const packages = [BACKEND_PACKAGE]
+      // TaskWeaver Electron owns the UI and invokes its native dialog directly.
+      if (!taskweaverEmbeddedFromEnv()) packages.push(SURFACE_PACKAGE)
       for (const name of packages) {
         ids.push(await ctx.loader.create({ name }))
       }
@@ -100,5 +65,5 @@ export async function apply(ctx: Context): Promise<void> {
       throw cause
     }
     return unmount
-  }, 'directory-picker-auto: interaction entries')
+  }, 'directory-picker-auto: native interaction entries')
 }

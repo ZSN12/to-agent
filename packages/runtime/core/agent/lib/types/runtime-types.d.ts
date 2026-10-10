@@ -1,17 +1,17 @@
 /**
  * Public agent types and live-runtime events. Durable transcript facts and
- * turn/step boundaries remain `@z/dsh-session` events.
+ * turn/step boundaries remain `@taskweaver/dsh-session` events.
  *
- * @module @z/dsh-agent
+ * @module @taskweaver/dsh-agent
  */
-import type { Context } from '@z/cordis';
-import type { Scoped } from '@z/dsh-scope';
-import type { LlmCallConfig, LlmFailure, ResolvedRetryPolicy } from '@z/dsh-llm';
-import type { AgentCancelCause, Session, SessionId, UserMessage } from '@z/dsh-session';
-export type { AgentCancelCause } from '@z/dsh-session';
+import type { Context } from '@taskweaver/cordis';
+import type { Scoped } from '@taskweaver/dsh-scope';
+import type { LlmCallConfig, LlmFailure, ResolvedRetryPolicy } from '@taskweaver/dsh-llm';
+import type { AgentCancelCause, Session, SessionId, UserMessage } from '@taskweaver/dsh-session';
+export type { AgentCancelCause } from '@taskweaver/dsh-session';
 import type { Inbox } from './inbox.ts';
 import type { InboxTarget } from './types.ts';
-declare module '@z/dsh-system-prompt' {
+declare module '@taskweaver/dsh-system-prompt' {
     interface AssembleContext {
         /** Agent for this assembly; absent on diagnostics. When present, `scope` must identify the same agent. */
         agent?: Agent;
@@ -131,7 +131,7 @@ export interface Agent {
      */
     inject(message: UserMessage): void;
 }
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
     interface Events {
         /**
          * A fully configured agent and live session were published. Setup is
@@ -140,7 +140,7 @@ declare module '@z/cordis' {
          * rejection is reported. Detach requested during dispatch waits until every
          * creation listener has observed the stable entry.
          * @param payload.agent - the newly registered agent with its live session and completed setup.
-         * Scope-filtered dispatch (`@z/dsh-scope`): agent-scoped listeners receive only that agent.
+         * Scope-filtered dispatch (`@taskweaver/dsh-scope`): agent-scoped listeners receive only that agent.
          * @mode emit
          */
         'agent/created'(this: Scoped<Agent>, payload: {
@@ -151,7 +151,7 @@ declare module '@z/cordis' {
          * and scoped-registration unwind, but before session detachment. Custom
          * registry users own their driver-ordering contract.
          * @param payload.agent - the exact agent removed from the registry.
-         * Scope-filtered dispatch (`@z/dsh-scope`): agent-scoped listeners receive only that agent.
+         * Scope-filtered dispatch (`@taskweaver/dsh-scope`): agent-scoped listeners receive only that agent.
          * @mode emit
          */
         'agent/disposed'(this: Scoped<Agent>, payload: {
@@ -163,7 +163,7 @@ declare module '@z/cordis' {
          * driver remains scheduled or active.
          * @param payload.agent - the agent whose status flipped.
          * @param payload.status - the status just entered (the transition's destination).
-         * Scope-filtered dispatch (`@z/dsh-scope`): agent-scoped listeners receive only that agent.
+         * Scope-filtered dispatch (`@taskweaver/dsh-scope`): agent-scoped listeners receive only that agent.
          * @mode emit
          */
         'agent/status'(this: Scoped<Agent>, payload: {
@@ -174,7 +174,7 @@ declare module '@z/cordis' {
          * One message entered the live inbox.
          * @param payload.agent - the agent whose inbox changed.
          * @param payload.message - the inserted message.
-         * Scope-filtered dispatch (`@z/dsh-scope`): agent-scoped listeners receive only that agent.
+         * Scope-filtered dispatch (`@taskweaver/dsh-scope`): agent-scoped listeners receive only that agent.
          * @mode emit
          */
         'agent/inbox/inserted'(this: Scoped<Agent>, payload: {
@@ -188,7 +188,7 @@ declare module '@z/cordis' {
          * @param payload.agent - the agent whose inbox changed.
          * @param payload.message - the claimed message.
          * @param payload.turn - the owning turn.
-         * Scope-filtered dispatch (`@z/dsh-scope`): agent-scoped listeners receive only that agent.
+         * Scope-filtered dispatch (`@taskweaver/dsh-scope`): agent-scoped listeners receive only that agent.
          * @mode emit
          */
         'agent/inbox/claimed'(this: Scoped<Agent>, payload: {
@@ -200,7 +200,7 @@ declare module '@z/cordis' {
          * One message was discarded from the live inbox.
          * @param payload.agent - the agent whose inbox changed.
          * @param payload.message - the discarded message.
-         * Scope-filtered dispatch (`@z/dsh-scope`): agent-scoped listeners receive only that agent.
+         * Scope-filtered dispatch (`@taskweaver/dsh-scope`): agent-scoped listeners receive only that agent.
          * @mode emit
          */
         'agent/inbox/discarded'(this: Scoped<Agent>, payload: {
@@ -214,7 +214,7 @@ declare module '@z/cordis' {
          * driver starts.
          * @param payload.agent - the agent whose session lifecycle began.
          * @param payload.source - why the session started (fresh startup, resume, …).
-         * Scope-filtered dispatch (`@z/dsh-scope`): agent-scoped listeners receive only that agent.
+         * Scope-filtered dispatch (`@taskweaver/dsh-scope`): agent-scoped listeners receive only that agent.
          * @mode emit
          */
         'agent/session-start'(this: Scoped<Agent>, payload: {
@@ -229,7 +229,7 @@ declare module '@z/cordis' {
          * @param payload.turn - the turn that will own the step.
          * @param payload.step - the step proposed by the loop.
          * @param payload.signal - the current turn's cancellation signal.
-         * Scope-filtered dispatch (`@z/dsh-scope`): agent-scoped listeners receive only that agent.
+         * Scope-filtered dispatch (`@taskweaver/dsh-scope`): agent-scoped listeners receive only that agent.
          * @mode waterfall
          */
         'agent/pre-step'(this: Scoped<Agent>, payload: {
@@ -248,7 +248,7 @@ declare module '@z/cordis' {
          * @param payload.turn - the open turn number.
          * @param payload.step - the step whose request this is.
          * @param payload.signal - the current turn's explicit abort signal.
-         * Scope-filtered dispatch (`@z/dsh-scope`): agent-scoped listeners receive only that agent.
+         * Scope-filtered dispatch (`@taskweaver/dsh-scope`): agent-scoped listeners receive only that agent.
          * @mode waterfall
         */
         'agent/request'(this: Scoped<Agent>, payload: {
@@ -269,7 +269,7 @@ declare module '@z/cordis' {
          * @param payload.failure - serializable facts normalized at the final adapter boundary.
          * @param payload.retryPolicy - the policy of the adapter registration that served the failed request.
          * @param payload.signal - the turn abort signal.
-         * Scope-filtered dispatch (`@z/dsh-scope`): agent-scoped listeners receive only that agent.
+         * Scope-filtered dispatch (`@taskweaver/dsh-scope`): agent-scoped listeners receive only that agent.
          * @mode waterfall
          */
         'agent/request-error'(this: Scoped<Agent>, payload: {
@@ -295,7 +295,7 @@ declare module '@z/cordis' {
          * @param payload.agent - the agent whose turn is at its stop boundary.
          * @param payload.turn - the turn about to close.
          * @param payload.signal - the current turn's explicit abort signal.
-         * Scope-filtered dispatch (`@z/dsh-scope`): agent-scoped listeners receive only that agent.
+         * Scope-filtered dispatch (`@taskweaver/dsh-scope`): agent-scoped listeners receive only that agent.
          * @mode serial
          */
         'agent/turn-stopping'(this: Scoped<Agent>, payload: {
@@ -310,7 +310,7 @@ declare module '@z/cordis' {
          * @param payload.turn - the turn in which the failure surfaced.
          * @param payload.step - the step at which the failure surfaced.
          * @param payload.error - the failure, verbatim.
-         * Scope-filtered dispatch (`@z/dsh-scope`): agent-scoped listeners receive only that agent.
+         * Scope-filtered dispatch (`@taskweaver/dsh-scope`): agent-scoped listeners receive only that agent.
          * @mode emit
          */
         'agent/error'(this: Scoped<Agent>, payload: {

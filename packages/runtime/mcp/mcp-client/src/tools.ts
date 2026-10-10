@@ -17,13 +17,13 @@ import { isDeepStrictEqual } from 'node:util'
 import type { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { ListToolsResultSchema } from '@modelcontextprotocol/sdk/types.js'
 import { z } from 'zod'
-import type { Context } from '@z/cordis'
-import { isImageAdmissionError } from '@z/dsh-attachment'
-import type { AttachmentStore, ImageAttachmentRef, ImageMediaType, SaveImageAttachment } from '@z/dsh-attachment'
-import type { ContentBlock } from '@z/dsh-llm'
-import type { ToolDefinition, ToolExecution, ToolExecutionResult } from '@z/dsh-tools'
-import { assertSupportedJsonSchema } from '@z/dsh-tools'
-import type { JsonSchemaNode, JsonValue } from '@z/dsh-tools'
+import type { Context } from '@taskweaver/cordis'
+import { isImageAdmissionError } from '@taskweaver/dsh-attachment'
+import type { AttachmentStore, ImageAttachmentRef, ImageMediaType, SaveImageAttachment } from '@taskweaver/dsh-attachment'
+import type { ContentBlock } from '@taskweaver/dsh-llm'
+import type { ToolDefinition, ToolExecution, ToolExecutionResult } from '@taskweaver/dsh-tools'
+import { assertSupportedJsonSchema } from '@taskweaver/dsh-tools'
+import type { JsonSchemaNode, JsonValue } from '@taskweaver/dsh-tools'
 
 /** Resolved options relevant to tool bridging. */
 export interface ToolBridgeOptions {
@@ -310,7 +310,8 @@ function createExecutor(
 ): ToolDefinition['execute'] {
   return async (args: unknown, exec: ToolExecution) => {
     const agentPreset = exec.agent?.session?.header?.agentPreset
-    if (agentPreset === 'taskweaver-readonly' || agentPreset === 'taskweaver-planner') {
+    if (agentPreset === 'taskweaver-readonly' || agentPreset === 'taskweaver-planner'
+      || agentPreset === 'tw-taskweaver-readonly' || agentPreset === 'tw-taskweaver-planner') {
       // MCP servers are external capability providers; their annotations are
       // untrusted and cannot make a tool safe for a read-only/planner agent.
       // Keep this check in the executor so a model call cannot bypass it by

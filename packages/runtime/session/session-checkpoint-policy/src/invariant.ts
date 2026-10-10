@@ -1,13 +1,13 @@
 /**
- * Package-owned invariant companion for `@z/dsh-session-checkpoint-policy`.
- * @module @z/dsh-session-checkpoint-policy/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-session-checkpoint-policy`.
+ * @module @taskweaver/dsh-session-checkpoint-policy/invariant
  */
 
 /* jscpd:ignore-start */
-import type { Context } from '@z/cordis'
-import type { InvariantInstaller } from '@z/dsh-invariants'
+import type { Context } from '@taskweaver/cordis'
+import type { InvariantInstaller } from '@taskweaver/dsh-invariants'
 
-const PACKAGE_NAME = '@z/dsh-session-checkpoint-policy'
+const PACKAGE_NAME = '@taskweaver/dsh-session-checkpoint-policy'
 
 /** Cordis companion plugin name. */
 export const name = 'session-checkpoint-policy-invariant'

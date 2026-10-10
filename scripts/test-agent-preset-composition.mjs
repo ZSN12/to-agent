@@ -6,11 +6,11 @@ import { fileURLToPath } from 'node:url'
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const presetRoots = [
-  path.join(projectRoot, 'packages', 'runtime', 'apps', 'cli', 'config', 'agent-presets'),
+  path.join(projectRoot, 'packages', 'runtime', 'host-cli', 'config', 'agent-presets'),
   path.join(projectRoot, 'vendor', 'taskweaver-z-runtime', 'config', 'agent-presets'),
 ]
 
-/** Same rules as @z/dsh-agent-presets discovery `entryListProblem`. */
+/** Same rules as @taskweaver/dsh-agent-presets discovery `entryListProblem`. */
 function entryListProblem(rows, at = '') {
   if (!Array.isArray(rows)) {
     return at === ''
@@ -35,12 +35,12 @@ function entryListProblem(rows, at = '') {
 }
 
 const requireFromRuntime = createRequire(
-  path.join(projectRoot, 'vendor', 'taskweaver-z-runtime', 'runtime-packages', '@z', 'dsh-agent-presets', 'package.json'),
+  path.join(projectRoot, 'vendor', 'taskweaver-z-runtime', 'runtime-packages', '@taskweaver', 'dsh-agent-presets', 'package.json'),
 )
 
 async function loadPresetRows(filePath) {
   const yaml = requireFromRuntime('js-yaml')
-  const { entryListSchema } = requireFromRuntime('@z/cordis-plugin-include')
+  const { entryListSchema } = requireFromRuntime('@taskweaver/cordis-plugin-include')
   const content = await fs.readFile(filePath, 'utf8')
   return yaml.load(content, { schema: entryListSchema })
 }
@@ -64,13 +64,13 @@ async function scanPresetRoot(root, { requireWebSearch = false } = {}) {
     const rows = await loadPresetRows(filePath)
     const problem = entryListProblem(rows)
     assert.equal(problem, undefined, `${path.relative(projectRoot, filePath)}: ${problem}`)
-    if (requireWebSearch && ['standard', 'code', 'taskweaver-code', 'taskweaver-readonly'].includes(entry.name)) {
+    if (requireWebSearch && ['tw-default', 'tw-code', 'tw-taskweaver-code', 'tw-taskweaver-readonly'].includes(entry.name)) {
       const webTool = rows.find((row) => row.id === 'tool-web')
-      assert.equal(webTool?.name, '@z/dsh-tool-web', `${path.relative(projectRoot, filePath)} must expose the model-facing web_search tool`)
+      assert.equal(webTool?.name, '@taskweaver/dsh-tool-web', `${path.relative(projectRoot, filePath)} must expose the model-facing web_search tool`)
       assert.notEqual(webTool?.disabled, true, `${path.relative(projectRoot, filePath)} must not disable web_search`)
     }
-    if (['standard', 'taskweaver-code', 'taskweaver-readonly', 'taskweaver-planner', 'taskweaver-pi-lite'].includes(entry.name)) {
-      const instructions = rows.find((row) => row.name === '@z/dsh-agent-instructions')
+    if (['tw-default', 'tw-taskweaver-code', 'tw-taskweaver-readonly', 'tw-taskweaver-planner', 'tw-taskweaver-pi-lite'].includes(entry.name)) {
+      const instructions = rows.find((row) => row.name === '@taskweaver/dsh-agent-instructions')
       assert.ok(instructions, `${path.relative(projectRoot, filePath)} must mount agent-instructions`)
       assert.deepEqual(
         instructions.config?.instructionFileCandidates,

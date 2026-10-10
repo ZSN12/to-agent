@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import SessionStore, { type Session, type SessionEvent } from '@z/dsh-session'
-import ToolRuntime from '@z/dsh-tools'
-import * as ToolTodo from '@z/dsh-tool-todo'
-import * as TodoInvariant from '@z/dsh-tool-todo/invariant'
-import InvariantRegistry from '@z/dsh-invariants'
+import { Context } from '@taskweaver/cordis'
+import SessionStore, { type Session, type SessionEvent } from '@taskweaver/dsh-session'
+import ToolRuntime from '@taskweaver/dsh-tools'
+import * as ToolTodo from '@taskweaver/dsh-tool-todo'
+import * as TodoInvariant from '@taskweaver/dsh-tool-todo/invariant'
+import InvariantRegistry from '@taskweaver/dsh-invariants'
 
 async function setup(): Promise<Context> {
   const ctx = new Context()

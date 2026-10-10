@@ -1,4 +1,4 @@
-import type { WebSearchProvider, WebSearchRequest, WebSearchResult } from '@z/dsh-web';
+import type { WebSearchProvider, WebSearchRequest, WebSearchResult } from '@taskweaver/dsh-web';
 /** Search provider using only configuration injected by Electron at Host startup. */
 export declare class TaskWeaverSearchProvider implements WebSearchProvider {
     readonly id = "taskweaver-baidu";

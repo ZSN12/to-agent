@@ -1,25 +1,19 @@
 /**
  * REAL-composition coverage: a test-only cordis.yml booted through the
- * vendored Loader mounts the webserver row plus the adaptive chooser, and the
- * assertions observe the durable outcome — which backend and surface entries
- * the chooser mounted into the Loader store, the capability the seam then
- * serves, and that disposing the chooser removes both mounted entries again
- * (HMR safety), joining the backend's own teardown before the disposer settles.
+ * vendored Loader mounts the native chooser and observes the durable outcome:
+ * its Host capability, optional Client surface, and teardown of mounted entries.
  */
 
-import { chmodSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { Context } from '@z/cordis'
-import Loader from '@z/cordis-plugin-loader'
-import Include from '@z/cordis-plugin-include'
-import HttpServer from '@z/dsh-host-webserver'
-import type { DirectoryPicker } from '@z/dsh-host-directory-picker'
-import BrowseDirectoryPicker from '@z/dsh-host-directory-picker-browse'
-import NativeDirectoryPicker from '@z/dsh-host-directory-picker-native'
+import { Context } from '@taskweaver/cordis'
+import Loader from '@taskweaver/cordis-plugin-loader'
+import Include from '@taskweaver/cordis-plugin-include'
+import type { DirectoryPicker } from '@taskweaver/dsh-host-directory-picker'
+import NativeDirectoryPicker from '@taskweaver/dsh-host-directory-picker-native'
 import * as DirectoryPickerAuto from '../src/index.ts'
 
 const renameControl = vi.hoisted(() => ({
@@ -45,11 +39,9 @@ vi.mock('node:fs/promises', async (importOriginal) => {
   }
 })
 
-const AUTO = '@z/dsh-host-directory-picker-auto'
-const NATIVE = '@z/dsh-host-directory-picker-native'
-const BROWSE = '@z/dsh-host-directory-picker-browse'
-const NATIVE_SURFACE = '@z/dsh-client-ui-directory-picker-native'
-const BROWSE_SURFACE = '@z/dsh-client-ui-directory-picker-browse'
+const AUTO = '@taskweaver/dsh-host-directory-picker-auto'
+const NATIVE = '@taskweaver/dsh-host-directory-picker-native'
+const NATIVE_SURFACE = '@taskweaver/dsh-client-ui-directory-picker-native'
 
 /**
  * Loader-visible stand-in for a client surface package: the surfaces belong to
@@ -67,38 +59,29 @@ function surfaceModule(name: string): unknown {
 }
 
 let root: string | undefined
-let fakeBin: string | undefined
 let context: Context | undefined
 
 afterEach(async () => {
   vi.unstubAllEnvs()
   await context?.fiber.dispose()
   context = undefined
-  for (const dir of [root, fakeBin]) {
+  for (const dir of [root]) {
     // maxRetries absorbs teardown stragglers (e.g. an unawaited fiber's late
     // file handle) that can otherwise race the recursive scan into ENOTEMPTY.
     if (dir !== undefined) await rm(dir, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 })
   }
   root = undefined
-  fakeBin = undefined
   renameControl.attempts = 0
   renameControl.failureCode = 'EPERM'
   renameControl.injectedFailures = 0
   renameControl.remainingFailures = 0
 })
 
-/** Write a two-row cordis.yml (webserver + chooser), then boot it through the real Loader. */
-async function loadComposition(
-  bindHost: '127.0.0.1' | '0.0.0.0',
-  options: { failSurface?: boolean } = {},
-): Promise<{ ctx: Context; configPath: string }> {
+/** Write the chooser row and boot it through the real Loader. */
+async function loadComposition(options: { failSurface?: boolean } = {}): Promise<{ ctx: Context; configPath: string }> {
   root = await mkdtemp(join(tmpdir(), 'dsh-directory-picker-auto-'))
   const configPath = join(root, 'cordis.yml')
   await writeFile(configPath, [
-    "- name: '@z/dsh-host-webserver'",
-    '  config:',
-    `    host: '${bindHost}'`,
-    '    port: 0',
     `- name: '${AUTO}'`,
     '',
   ].join('\n'))
@@ -108,17 +91,14 @@ async function loadComposition(
   await context.plugin(Loader)
   context.loader.builtins.include = Include
   const modules = new Map<string, unknown>([
-    ['@z/dsh-host-webserver', HttpServer],
     [AUTO, DirectoryPickerAuto],
     [NATIVE, NativeDirectoryPicker],
-    [BROWSE, BrowseDirectoryPicker],
     [NATIVE_SURFACE, surfaceModule(NATIVE_SURFACE)],
-    [BROWSE_SURFACE, surfaceModule(BROWSE_SURFACE)],
   ])
   context.loader.internal = {
     version: 'v2',
     async import(specifier: string) {
-      if (options.failSurface === true && (specifier === NATIVE_SURFACE || specifier === BROWSE_SURFACE)) {
+      if (options.failSurface === true && specifier === NATIVE_SURFACE) {
         throw new Error(`surface import failed: ${specifier}`)
       }
       if (!modules.has(specifier)) throw new Error(`unexpected Loader import: ${specifier}`)
@@ -138,29 +118,11 @@ function entryNames(ctx: Context): string[] {
   return [...ctx.loader.entries()].map(entry => entry.options.name)
 }
 
-/**
- * Force every signal of an attended host on any platform: no SSH launch, a
- * display, and a PATH holding one executable chooser binary so the real
- * probe resolves identically on hosts with and without zenity/kdialog.
- */
-function stubAttendedHost(): void {
-  fakeBin = mkdtempSync(join(tmpdir(), 'dsh-picker-bin-'))
-  const zenity = join(fakeBin, 'zenity')
-  writeFileSync(zenity, '#!/bin/sh\n')
-  chmodSync(zenity, 0o755)
-  vi.stubEnv('PATH', fakeBin)
-  vi.stubEnv('SSH_CONNECTION', '')
-  vi.stubEnv('SSH_TTY', '')
-  vi.stubEnv('DISPLAY', ':0')
-}
-
 describe('real Loader composition', () => {
-  // The 60s budget covers this file's static imports (webserver plus both
-  // backend node halves through tsx), which dominate on cold caches; the
+  // The 60s budget covers this file's static imports, which dominate on cold caches; the
   // Loader itself resolves nothing here — `loader.internal` is a module map.
-  it('mounts the native backend for an attended loopback host and unmounts it on disposal', { timeout: 60_000 }, async () => {
-    stubAttendedHost()
-    const { ctx, configPath } = await loadComposition('127.0.0.1')
+  it('mounts the native backend and surface, then unmounts both on disposal', { timeout: 60_000 }, async () => {
+    const { ctx, configPath } = await loadComposition()
 
     const unloaded = [...ctx.loader.entries()]
       .filter(entry => entry.fiber === undefined && !entry.disabled)
@@ -168,12 +130,10 @@ describe('real Loader composition', () => {
     expect(unloaded).toEqual([])
     expect(entryNames(ctx)).toContain(NATIVE)
     expect(entryNames(ctx)).toContain(NATIVE_SURFACE)
-    expect(entryNames(ctx)).not.toContain(BROWSE)
-    expect(entryNames(ctx)).not.toContain(BROWSE_SURFACE)
     const picker = ctx.get('directoryPicker') as DirectoryPicker
-    expect(picker.capability().kind).toBe('native')
+    expect(picker.pick).toBeTypeOf('function')
     // The mounted row lives in the Loader's in-memory root tree only — the
-    // booted config file must never gain the resolved backend row.
+    // booted config file must never gain the mounted backend row.
     expect(await readFile(configPath, 'utf8')).not.toContain(NATIVE)
 
     // HMR safety: disposing the chooser's fiber removes the entry it created,
@@ -187,7 +147,7 @@ describe('real Loader composition', () => {
     // Self-disposing an include-tree entry persists `disabled: true` (loader
     // behavior, not the chooser's); await that debounced write so it cannot
     // race the temp-dir removal, and pin that the persisted row is the
-    // chooser itself — the resolved backend still never reaches the file.
+    // chooser itself — the mounted backend still never reaches the file.
     await expect.poll(
       async () => await readFile(configPath, 'utf8'),
       { timeout: 15_000 },
@@ -195,32 +155,16 @@ describe('real Loader composition', () => {
     expect(await readFile(configPath, 'utf8')).not.toContain(NATIVE)
   })
 
-  it('mounts the browse backend under an SSH launch', { timeout: 60_000 }, async () => {
-    stubAttendedHost()
-    vi.stubEnv('SSH_CONNECTION', '10.0.0.2 55 10.0.0.9 22')
-    const { ctx } = await loadComposition('127.0.0.1')
+  it('omits the Client surface when embedded in TaskWeaver Electron', { timeout: 60_000 }, async () => {
+    vi.stubEnv('TASKWEAVER_EMBEDDED', '1')
+    const { ctx } = await loadComposition()
 
-    expect(entryNames(ctx)).toContain(BROWSE)
-    expect(entryNames(ctx)).toContain(BROWSE_SURFACE)
-    expect(entryNames(ctx)).not.toContain(NATIVE)
-    expect(entryNames(ctx)).not.toContain(NATIVE_SURFACE)
-    const picker = ctx.get('directoryPicker') as DirectoryPicker
-    expect(picker.capability().kind).toBe('browse')
-  })
-
-  it('mounts the browse backend for an all-interfaces bind even on an attended host', { timeout: 60_000 }, async () => {
-    stubAttendedHost()
-    const { ctx } = await loadComposition('0.0.0.0')
-
-    expect(entryNames(ctx)).toContain(BROWSE)
-    expect(entryNames(ctx)).toContain(BROWSE_SURFACE)
-    expect(entryNames(ctx)).not.toContain(NATIVE)
+    expect(entryNames(ctx)).toContain(NATIVE)
     expect(entryNames(ctx)).not.toContain(NATIVE_SURFACE)
   })
 
   it('unmounts the backend when the surface entry fails to load', { timeout: 60_000 }, async () => {
-    stubAttendedHost()
-    await expect(loadComposition('127.0.0.1', { failSurface: true })).rejects.toThrow(/surface import failed/)
+    await expect(loadComposition({ failSurface: true })).rejects.toThrow(/surface import failed/)
 
     // Setup owns both entries until it returns its disposer, so a failed surface
     // must take the mounted backend with it: otherwise a retry collides with the
@@ -230,8 +174,7 @@ describe('real Loader composition', () => {
   })
 
   it('tolerates the mounted entry being removed by the tree before the chooser unloads', { timeout: 60_000 }, async () => {
-    stubAttendedHost()
-    const { ctx, configPath } = await loadComposition('127.0.0.1')
+    const { ctx, configPath } = await loadComposition()
 
     const backendEntry = [...ctx.loader.entries()].find(entry => entry.options.name === NATIVE)!
     await ctx.loader.remove(backendEntry.id)
@@ -248,8 +191,7 @@ describe('real Loader composition', () => {
   })
 
   it('reports a terminal debounced-write failure again to the teardown owner', { timeout: 60_000 }, async () => {
-    stubAttendedHost()
-    const { ctx } = await loadComposition('127.0.0.1')
+    const { ctx } = await loadComposition()
     const autoEntry = [...ctx.loader.entries()].find(entry => entry.options.name === AUTO)!
     const include = [...ctx.loader.entries()]
       .find(entry => entry.options.name === 'cordis:include')?.subtree as Include | undefined

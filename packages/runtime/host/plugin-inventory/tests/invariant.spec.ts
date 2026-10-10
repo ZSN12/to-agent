@@ -1,6 +1,6 @@
-import { Context } from '@z/cordis'
+import { Context } from '@taskweaver/cordis'
 import { describe, expect, it } from 'vitest'
-import InvariantRegistry from '@z/dsh-invariants'
+import InvariantRegistry from '@taskweaver/dsh-invariants'
 import * as PluginInventoryInvariant from '../src/invariant.ts'
 
 describe('plugin-inventory invariant companion', () => {

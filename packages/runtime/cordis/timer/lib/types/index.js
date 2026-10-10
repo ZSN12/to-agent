@@ -1,4 +1,4 @@
-import { Service } from '@z/cordis';
+import { Service } from '@taskweaver/cordis';
 /** Disposable timer helpers mixed into Cordis contexts. */
 export class TimerService extends Service {
     constructor(ctx) {

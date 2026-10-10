@@ -5,6 +5,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import { SearchAddon } from '@xterm/addon-search'
 import '@xterm/xterm/css/xterm.css'
 import type { TerminalSessionInfo } from '../../shared/app-api'
+import { CONTROL_MODIFIER_KEY, PRIMARY_MODIFIER_KEY } from '../../shared/shortcuts'
 
 interface TerminalTab {
   id: string
@@ -321,25 +322,33 @@ export function TerminalDrawer({ isOpen, open, onClose, workspacePath }: Termina
 
       {/* DSH 风格精致 Tab 栏 */}
       <div className="terminal-header">
-        <div className="terminal-tabs-list">
+        <div className="terminal-tabs-list" role="group" aria-label="终端会话">
           {tabs.map((tab) => (
             <div
               key={tab.id}
-              className={`terminal-tab-item ${tab.id === activeTabId ? 'active' : ''}`}
-              onClick={(e) => {
-                e.stopPropagation()
-                setActiveTabId(tab.id)
-              }}
+              className="terminal-tab-group"
             >
-              <DshTerminalIcon />
-              <span className="terminal-tab-title">{tab.title}</span>
+              <button
+                type="button"
+                className={`terminal-tab-item ${tab.id === activeTabId ? 'active' : ''}`}
+                aria-pressed={tab.id === activeTabId}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setActiveTabId(tab.id)
+                }}
+                title={tab.title}
+              >
+                <DshTerminalIcon />
+                <span className="terminal-tab-title">{tab.title}</span>
+              </button>
               <button
                 type="button"
                 className="terminal-tab-close"
                 onClick={(e) => closeTab(tab.id, e)}
+                aria-label={`关闭终端 ${tab.title}`}
                 title="关闭此终端"
               >
-                <X size={11} />
+                <X size={11} aria-hidden="true" />
               </button>
             </div>
           ))}
@@ -415,7 +424,7 @@ export function TerminalDrawer({ isOpen, open, onClose, workspacePath }: Termina
                   setSearchOpen(true)
                   setTimeout(() => searchInputRef.current?.focus(), 50)
                 }}
-                title="在终端中搜索 (⌘F)"
+                title={`在终端中搜索 (${PRIMARY_MODIFIER_KEY}F)`}
               >
                 <Search size={12} />
               </button>
@@ -426,7 +435,7 @@ export function TerminalDrawer({ isOpen, open, onClose, workspacePath }: Termina
                   e.stopPropagation()
                   clearCurrentTab()
                 }}
-                title="清屏 (⌃L)"
+                title={`清屏 (${CONTROL_MODIFIER_KEY}L)`}
               >
                 <RotateCcw size={12} />
               </button>

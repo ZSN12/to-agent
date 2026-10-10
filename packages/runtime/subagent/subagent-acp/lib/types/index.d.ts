@@ -4,10 +4,10 @@
  * the ONE thing it reads off `request.parent` is the session's workspace cwd (see
  * {@link resolveCwd}). This plugin uses named exports only; a default would hide its
  * loader metadata (see `docs/postmortem/0001-acp-default-export-drops-inject.md`).
- * @module @z/dsh-subagent-acp
+ * @module @taskweaver/dsh-subagent-acp
  */
-import type { Context } from '@z/cordis';
-import z from '@z/schemastery';
+import type { Context } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
 import { type PermissionPolicy } from './run.ts';
 export declare const name = "subagent-acp";
 export declare const inject: string[];

@@ -1,12 +1,12 @@
 /**
  * Register TaskWeaver in-process model bridge routes on `ctx.llm`.
- * @module @z/dsh-llm-taskweaver-bridge
+ * @module @taskweaver/dsh-llm-taskweaver-bridge
  */
 
-import type { Context } from '@z/cordis'
-import { deepEqualJson, installSettingsSection, settingsNamespace } from '@z/dsh-settings'
-import type { AdapterRegistrationHandle } from '@z/dsh-llm'
-import { installDefaultBridgeBackends, installTaskWeaverTransportBackends } from '@z/dsh-bridge-core'
+import type { Context } from '@taskweaver/cordis'
+import { deepEqualJson, installSettingsSection, settingsNamespace } from '@taskweaver/dsh-settings'
+import type { AdapterRegistrationHandle, DirectoryRegistrationHandle } from '@taskweaver/dsh-llm'
+import { installDefaultBridgeBackends, installTaskWeaverTransportBackends } from '@taskweaver/dsh-bridge-core'
 import { TaskWeaverBridgeAdapter } from './adapter.ts'
 import { ConfigSchema, resolveBridgeOptions, type Config, type ResolvedBridgeOptions } from './config.ts'
 
@@ -52,23 +52,15 @@ export const apply = async (ctx: Context): Promise<void> => {
 
   const adapter = new TaskWeaverBridgeAdapter({ options })
   let registration: AdapterRegistrationHandle | undefined
+  let directory: DirectoryRegistrationHandle | undefined
   let registeredRoutes: string[] = []
+  let registeredDirectoryEntries: unknown[] | undefined
 
   const ensureRegistration = (): void => {
-    const routes = [...options().providers.keys()].sort()
-    if (deepEqualJson(routes, registeredRoutes)) return
-    if (registration === undefined) {
-      if (!routes.length) {
-        registeredRoutes = routes
-        return
-      }
-      registration = ctx.llm.registerAdapter(routes, adapter)
-    } else {
-      registration.replace(routes)
-    }
-    registeredRoutes = routes
+    const resolved = options()
+    const routes = [...resolved.providers.keys()].sort()
     const entries = routes.flatMap((id) => {
-      const profile = options().providers.get(id)
+      const profile = resolved.providers.get(id)
       if (!profile) return []
       return [{
         provider: id,
@@ -77,7 +69,25 @@ export const apply = async (ctx: Context): Promise<void> => {
         settingsPath: ['providers', id],
       }]
     })
-    if (entries.length) ctx.llm.registerConfigurableProviders(entries)
+    const routesChanged = !deepEqualJson(routes, registeredRoutes)
+    const directoryChanged = !deepEqualJson(entries, registeredDirectoryEntries)
+    if (!routesChanged && !directoryChanged) return
+    if (routesChanged) {
+      if (registration === undefined && routes.length) {
+        registration = ctx.llm.registerAdapter(routes, adapter)
+      } else if (registration !== undefined) {
+        registration.replace(routes)
+      }
+      registeredRoutes = routes
+    }
+    if (directoryChanged) {
+      if (directory === undefined && entries.length) {
+        directory = ctx.llm.registerConfigurableProviders(entries)
+      } else if (directory !== undefined) {
+        directory.replace(entries)
+      }
+      registeredDirectoryEntries = entries
+    }
   }
 
   options()

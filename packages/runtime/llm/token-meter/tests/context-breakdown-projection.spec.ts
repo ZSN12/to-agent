@@ -2,15 +2,15 @@
 // plus the shared estimator's pricing branches.
 
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import { createMessage, createUserMessage } from '@z/dsh-llm'
-import type { ContentBlock, ToolSchema } from '@z/dsh-llm'
-import SessionStore from '@z/dsh-session'
-import type { Session, SessionEvent } from '@z/dsh-session'
-import SessionProjectionRegistry from '@z/dsh-session-projection'
-import TokenMeter from '@z/dsh-token-meter'
-import type { ContextBreakdownProjection } from '@z/dsh-token-meter/client'
-import { CompactionId } from '@z/dsh-compaction'
+import { Context } from '@taskweaver/cordis'
+import { createMessage, createUserMessage } from '@taskweaver/dsh-llm'
+import type { ContentBlock, ToolSchema } from '@taskweaver/dsh-llm'
+import SessionStore from '@taskweaver/dsh-session'
+import type { Session, SessionEvent } from '@taskweaver/dsh-session'
+import SessionProjectionRegistry from '@taskweaver/dsh-session-projection'
+import TokenMeter from '@taskweaver/dsh-token-meter'
+import type { ContextBreakdownProjection } from '@taskweaver/dsh-token-meter/client'
+import { CompactionId } from '@taskweaver/dsh-compaction'
 import { contextBreakdownProjectionDefinition } from '../src/breakdown-projection.ts'
 import {
   estimateContent,

@@ -1,11 +1,11 @@
-import { createUserMessage } from '@z/dsh-llm'
+import { createUserMessage } from '@taskweaver/dsh-llm'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import type { Context } from '@z/cordis'
+import type { Context } from '@taskweaver/cordis'
 import { spawnHarness, waitForIdle } from './harness.ts'
-import { SessionId } from '@z/dsh-session'
+import { SessionId } from '@taskweaver/dsh-session'
 
 /** Key-gated smoke for a real parent delegating filesystem work to a real child. */
 

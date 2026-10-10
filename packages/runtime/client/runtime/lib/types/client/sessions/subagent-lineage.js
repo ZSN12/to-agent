@@ -1,6 +1,3 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.indexSubagentDescendants = indexSubagentDescendants;
 /**
  * Index every subagent descendant under each ancestor it reaches through an
  * uninterrupted subagent-origin chain. Cycles fail soft and orphan owners
@@ -8,18 +5,17 @@ exports.indexSubagentDescendants = indexSubagentDescendants;
  * @param summaries - retained session summaries keyed by id.
  * @returns descendant totals and running totals keyed by possible parent id.
  */
-function indexSubagentDescendants(summaries) {
-    var indexed = new Map();
-    for (var _i = 0, _a = Object.values(summaries); _i < _a.length; _i++) {
-        var descendant = _a[_i];
+export function indexSubagentDescendants(summaries) {
+    const indexed = new Map();
+    for (const descendant of Object.values(summaries)) {
         if (descendant.origin !== 'subagent')
             continue;
-        var seen = new Set();
-        var current = descendant;
-        while ((current === null || current === void 0 ? void 0 : current.origin) === 'subagent' && current.parentId !== undefined
+        const seen = new Set();
+        let current = descendant;
+        while (current?.origin === 'subagent' && current.parentId !== undefined
             && !seen.has(current.id)) {
             seen.add(current.id);
-            var aggregate = indexed.get(current.parentId);
+            const aggregate = indexed.get(current.parentId);
             if (aggregate === undefined) {
                 indexed.set(current.parentId, {
                     count: 1,
@@ -36,3 +32,4 @@ function indexSubagentDescendants(summaries) {
     }
     return indexed;
 }
+//# sourceMappingURL=subagent-lineage.js.map

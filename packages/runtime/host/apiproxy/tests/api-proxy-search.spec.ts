@@ -5,21 +5,21 @@
  */
 
 import { describe, expect, it, vi } from 'vitest'
-import { Context } from '@z/cordis'
+import { Context } from '@taskweaver/cordis'
 import { stat } from 'node:fs/promises'
-import AgentRegistry from '@z/dsh-agent'
-import { createUserMessage } from '@z/dsh-llm'
-import SessionStore from '@z/dsh-session'
-import type { SessionHeader, SessionId } from '@z/dsh-session'
-import UserQuestionService from '@z/dsh-user-questions'
+import AgentRegistry from '@taskweaver/dsh-agent'
+import { createUserMessage } from '@taskweaver/dsh-llm'
+import SessionStore from '@taskweaver/dsh-session'
+import type { SessionHeader, SessionId } from '@taskweaver/dsh-session'
+import UserQuestionService from '@taskweaver/dsh-user-questions'
 import {
   SessionQueryError,
   type SessionSearchHit,
   type SessionSearchRequest,
-} from '@z/dsh-session-query'
-import type { RpcRequest } from '@z/dsh-host-apiproxy/api'
-import { RpcId } from '@z/dsh-host-apiproxy/api'
-import { createApiProxy } from '@z/dsh-host-apiproxy'
+} from '@taskweaver/dsh-session-query'
+import type { RpcRequest } from '@taskweaver/dsh-host-apiproxy/api'
+import { RpcId } from '@taskweaver/dsh-host-apiproxy/api'
+import { createApiProxy } from '@taskweaver/dsh-host-apiproxy'
 
 vi.mock('node:fs/promises', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:fs/promises')>()

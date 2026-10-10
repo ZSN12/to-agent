@@ -1,9 +1,9 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
-import { Context } from '@z/cordis'
-import { bindScopeParent, carrierKeyOf, createScope, isScopeCarrier, scopeChainOf, scopeOf, scopeParentOf, scopeTarget } from '@z/dsh-scope'
-import type { Scope, Scoped } from '@z/dsh-scope'
+import { Context } from '@taskweaver/cordis'
+import { bindScopeParent, carrierKeyOf, createScope, isScopeCarrier, scopeChainOf, scopeOf, scopeParentOf, scopeTarget } from '@taskweaver/dsh-scope'
+import type { Scope, Scoped } from '@taskweaver/dsh-scope'
 
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
   interface Events {
     /**
      * Test-only event for scope-filtered dispatch.

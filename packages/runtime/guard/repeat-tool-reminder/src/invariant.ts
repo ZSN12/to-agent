@@ -1,13 +1,13 @@
 /**
- * Package-owned invariant companion for `@z/dsh-repeat-tool-reminder`.
- * @module @z/dsh-repeat-tool-reminder/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-repeat-tool-reminder`.
+ * @module @taskweaver/dsh-repeat-tool-reminder/invariant
  */
 
 /* jscpd:ignore-start */
-import type { Context } from '@z/cordis'
-import type { InvariantInstaller } from '@z/dsh-invariants'
+import type { Context } from '@taskweaver/cordis'
+import type { InvariantInstaller } from '@taskweaver/dsh-invariants'
 
-const PACKAGE_NAME = '@z/dsh-repeat-tool-reminder'
+const PACKAGE_NAME = '@taskweaver/dsh-repeat-tool-reminder'
 
 /** Cordis companion plugin name. */
 export const name = 'repeat-tool-reminder-invariant'

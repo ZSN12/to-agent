@@ -1,4 +1,4 @@
-import { defineProperty } from '@z/cosmokit';
+import { defineProperty } from '@taskweaver/cosmokit';
 import { Context } from "./context.js";
 import { createCallable, joinPrototype, symbols } from "./utils.js";
 /**

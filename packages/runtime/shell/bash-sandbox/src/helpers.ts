@@ -1,12 +1,12 @@
 /**
  * Internal sandbox-result classification helpers.
  *
- * @module @z/dsh-bash-sandbox/helpers
+ * @module @taskweaver/dsh-bash-sandbox/helpers
  */
 
 import { accessSync, constants, statSync } from 'node:fs'
-import type { ShellRunResult } from '@z/dsh-shell'
-import type { RunnerFailureRule } from '@z/dsh-sandbox'
+import type { ShellRunResult } from '@taskweaver/dsh-shell'
+import type { RunnerFailureRule } from '@taskweaver/dsh-sandbox'
 
 /** Node-local spawn codes proven to identify executable resolution or permission failure. */
 const EXECUTABLE_SPAWN_CODES = new Set(['EACCES', 'ENOENT'])

@@ -1,13 +1,13 @@
 import { describe, expect, it, vi } from 'vitest'
-import { AttachmentId, ImageVariantId } from '@z/dsh-attachment'
+import { AttachmentId, ImageVariantId } from '@taskweaver/dsh-attachment'
 import type {
   AttachmentStore,
   ImageAttachmentRef,
   ImageRequestPolicy,
   RequestImageAttachment,
-} from '@z/dsh-attachment'
-import { CallId, createMessage, createUserMessage, OFFLOADED_IMAGE_TEXT } from '@z/dsh-llm'
-import type { ContentBlock, GenerateOptions, Message } from '@z/dsh-llm'
+} from '@taskweaver/dsh-attachment'
+import { CallId, createMessage, createUserMessage, OFFLOADED_IMAGE_TEXT } from '@taskweaver/dsh-llm'
+import type { ContentBlock, GenerateOptions, Message } from '@taskweaver/dsh-llm'
 import { toPiContext } from '../src/context.ts'
 import { toPiAssistant } from '../src/replay.ts'
 

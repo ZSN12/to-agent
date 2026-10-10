@@ -5,10 +5,10 @@
  * (validation, descriptor projection) derive from it. Record schemas are zod
  * (`z.infer` keeps types un-duplicated and the same schemas later project to
  * RPC wire schemas); plugin `Config` stays schemastery.
- * @module @z/dsh-storage-domain/src/spec
+ * @module @taskweaver/dsh-storage-domain/src/spec
  */
 import type { ZodType } from 'zod';
-import { type KvUnitDescriptor } from '@z/dsh-storage';
+import { type KvUnitDescriptor } from '@taskweaver/dsh-storage';
 /** Global singleton declaration: schema plus the value used before the first write. */
 export interface DomainGlobalSpec<G> {
     /** Validates the stored global at the durable boundary. */

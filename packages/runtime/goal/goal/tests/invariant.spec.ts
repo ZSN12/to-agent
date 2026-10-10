@@ -1,13 +1,13 @@
-import { createUserMessage } from '@z/dsh-llm'
+import { createUserMessage } from '@taskweaver/dsh-llm'
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
+import { Context } from '@taskweaver/cordis'
 import {
   GoalId,
   type GoalSnapshotChangeMeta,
-} from '@z/dsh-goal'
-import * as GoalInvariantCompanion from '@z/dsh-goal/invariant'
-import InvariantRegistry, { InvariantError } from '@z/dsh-invariants'
-import SessionStore, { SessionId } from '@z/dsh-session'
+} from '@taskweaver/dsh-goal'
+import * as GoalInvariantCompanion from '@taskweaver/dsh-goal/invariant'
+import InvariantRegistry, { InvariantError } from '@taskweaver/dsh-invariants'
+import SessionStore, { SessionId } from '@taskweaver/dsh-session'
 
 const change: GoalSnapshotChangeMeta = {
   kind: 'goal/change',
@@ -54,7 +54,7 @@ describe('goal stream invariants', () => {
       session.append('goal/change', { ...change, extra: true } as never)
     }).toThrow(expect.objectContaining<Partial<InvariantError>>({
       code: 'INVARIANT',
-      packageName: '@z/dsh-goal',
+      packageName: '@taskweaver/dsh-goal',
     }))
     expect(session.seq).toBe(0)
     expect(() => {

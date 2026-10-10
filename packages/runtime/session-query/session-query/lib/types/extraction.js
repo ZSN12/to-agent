@@ -1,7 +1,4 @@
-"use strict";
 /** First-party semantic text extraction for session-query consumers. */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.extractSessionEventText = extractSessionEventText;
 /**
  * Extract searchable semantic text from one first-party session event.
  *
@@ -10,8 +7,7 @@ exports.extractSessionEventText = extractSessionEventText;
  * @param event - event to inspect.
  * @returns newline-joined semantic text, or an empty string when non-searchable.
  */
-function extractSessionEventText(event) {
-    var _a, _b, _c, _d;
+export function extractSessionEventText(event) {
     switch (event.type) {
         case 'user/message':
             return contentText(event.data.content);
@@ -22,11 +18,11 @@ function extractSessionEventText(event) {
         case 'tool/result':
             return joinText([
                 contentText(event.data.message.content),
-                (_b = (_a = event.data.error) === null || _a === void 0 ? void 0 : _a.name) !== null && _b !== void 0 ? _b : '',
-                (_d = (_c = event.data.error) === null || _c === void 0 ? void 0 : _c.code) !== null && _d !== void 0 ? _d : '',
+                event.data.error?.name ?? '',
+                event.data.error?.code ?? '',
             ]);
         case 'todo/write':
-            return joinText(event.data.todos.flatMap(function (todo) { return [todo.status, todo.content]; }));
+            return joinText(event.data.todos.flatMap(todo => [todo.status, todo.content]));
         case 'turn/end':
             return turnEndText(event.data.reason);
         case 'turn/start':
@@ -78,5 +74,6 @@ function blockText(block) {
     }
 }
 function joinText(parts) {
-    return parts.map(function (part) { return part.trim(); }).filter(Boolean).join('\n');
+    return parts.map(part => part.trim()).filter(Boolean).join('\n');
 }
+//# sourceMappingURL=extraction.js.map

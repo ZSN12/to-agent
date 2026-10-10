@@ -4,10 +4,10 @@
  * {@link ApprovalOutcome} with a fail-closed fallback. Enforcement stays with
  * the approval service; this plugin only recommends, and only for requests the
  * approval service has already determined need asking.
- * @module @z/dsh-auto-review
+ * @module @taskweaver/dsh-auto-review
  */
-import type { Context } from '@z/cordis';
-import z from '@z/schemastery';
+import type { Context } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
 import type { ReviewPolicy } from './types.ts';
 export declare const name = "auto-review";
 /** Declare the subagent seam the reviewer child needs. */

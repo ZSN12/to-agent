@@ -1,76 +1,74 @@
-"use strict";
 /** Zod schemas for the browser-safe subagent domain. */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.subagentPromptValueSchema = exports.subagentInterruptValueSchema = exports.subagentInterruptRequestSchema = exports.subagentPromptRequestSchema = exports.subagentHistoryValueSchema = exports.subagentHistoryRequestSchema = exports.subagentListValueSchema = exports.subagentListRequestSchema = exports.subagentListEntrySchema = void 0;
-var zod_1 = require("zod");
-var sessions_schema_ts_1 = require("./sessions.schema.ts");
+import { z } from 'zod';
+import { contentBlockSchema, historyEntrySchema, sessionIdSchema, sessionProjectionsBlockSchema, } from "./sessions.schema.js";
 /** Healthy and diagnostic durable catalog rows. */
-exports.subagentListEntrySchema = zod_1.z.union([
-    zod_1.z.object({
-        kind: zod_1.z.literal('child'),
-        id: sessions_schema_ts_1.sessionIdSchema,
-        mode: zod_1.z.literal('one-shot'),
-        activity: zod_1.z.union([zod_1.z.literal('running'), zod_1.z.literal('inactive')]),
-        hasChildren: zod_1.z.boolean(),
-        label: zod_1.z.string().optional(),
+export const subagentListEntrySchema = z.union([
+    z.object({
+        kind: z.literal('child'),
+        id: sessionIdSchema,
+        mode: z.literal('one-shot'),
+        activity: z.union([z.literal('running'), z.literal('inactive')]),
+        hasChildren: z.boolean(),
+        label: z.string().optional(),
     }),
-    zod_1.z.object({
-        kind: zod_1.z.literal('child'),
-        id: sessions_schema_ts_1.sessionIdSchema,
-        mode: zod_1.z.literal('continuable'),
-        activity: zod_1.z.union([zod_1.z.literal('running'), zod_1.z.literal('inactive')]),
-        hasChildren: zod_1.z.boolean(),
-        label: zod_1.z.string(),
+    z.object({
+        kind: z.literal('child'),
+        id: sessionIdSchema,
+        mode: z.literal('continuable'),
+        activity: z.union([z.literal('running'), z.literal('inactive')]),
+        hasChildren: z.boolean(),
+        label: z.string(),
     }),
-    zod_1.z.object({
-        kind: zod_1.z.literal('diagnostic'),
-        id: sessions_schema_ts_1.sessionIdSchema,
-        reason: zod_1.z.union([zod_1.z.literal('corrupt'), zod_1.z.literal('unsupported'), zod_1.z.literal('unavailable')]),
+    z.object({
+        kind: z.literal('diagnostic'),
+        id: sessionIdSchema,
+        reason: z.union([z.literal('corrupt'), z.literal('unsupported'), z.literal('unavailable')]),
     }),
 ]);
 /** subagent.list request payload. */
-exports.subagentListRequestSchema = zod_1.z.object({
-    parentSessionId: sessions_schema_ts_1.sessionIdSchema,
+export const subagentListRequestSchema = z.object({
+    parentSessionId: sessionIdSchema,
 });
 /** subagent.list response value. */
-exports.subagentListValueSchema = zod_1.z.object({
-    entries: zod_1.z.array(exports.subagentListEntrySchema),
-    parentAvailable: zod_1.z.boolean(),
+export const subagentListValueSchema = z.object({
+    entries: z.array(subagentListEntrySchema),
+    parentAvailable: z.boolean(),
 });
 /** subagent.history request payload. */
-exports.subagentHistoryRequestSchema = zod_1.z.object({
-    parentSessionId: sessions_schema_ts_1.sessionIdSchema,
-    childSessionId: sessions_schema_ts_1.sessionIdSchema,
-    mode: zod_1.z.union([zod_1.z.literal('one-shot'), zod_1.z.literal('continuable')]),
-    beforeSeq: zod_1.z.number().int().nonnegative().optional(),
-    maxMessages: zod_1.z.number().int().positive().optional(),
+export const subagentHistoryRequestSchema = z.object({
+    parentSessionId: sessionIdSchema,
+    childSessionId: sessionIdSchema,
+    mode: z.union([z.literal('one-shot'), z.literal('continuable')]),
+    beforeSeq: z.number().int().nonnegative().optional(),
+    maxMessages: z.number().int().positive().optional(),
 });
 /** subagent.history response value. */
-exports.subagentHistoryValueSchema = zod_1.z.object({
-    events: zod_1.z.array(sessions_schema_ts_1.historyEntrySchema),
-    hasMore: zod_1.z.boolean(),
-    projections: sessions_schema_ts_1.sessionProjectionsBlockSchema.optional(),
+export const subagentHistoryValueSchema = z.object({
+    events: z.array(historyEntrySchema),
+    hasMore: z.boolean(),
+    projections: sessionProjectionsBlockSchema.optional(),
 });
 /** subagent.prompt request payload. */
-exports.subagentPromptRequestSchema = zod_1.z.object({
-    parentSessionId: sessions_schema_ts_1.sessionIdSchema,
-    childSessionId: sessions_schema_ts_1.sessionIdSchema,
-    mode: zod_1.z.literal('continuable'),
-    content: zod_1.z.array(sessions_schema_ts_1.contentBlockSchema),
-    clientTimeZone: zod_1.z.string().optional(),
+export const subagentPromptRequestSchema = z.object({
+    parentSessionId: sessionIdSchema,
+    childSessionId: sessionIdSchema,
+    mode: z.literal('continuable'),
+    content: z.array(contentBlockSchema),
+    clientTimeZone: z.string().optional(),
 });
 /** subagent.interrupt request payload. */
-exports.subagentInterruptRequestSchema = zod_1.z.object({
-    parentSessionId: sessions_schema_ts_1.sessionIdSchema,
-    childSessionId: sessions_schema_ts_1.sessionIdSchema,
-    mode: zod_1.z.literal('continuable'),
+export const subagentInterruptRequestSchema = z.object({
+    parentSessionId: sessionIdSchema,
+    childSessionId: sessionIdSchema,
+    mode: z.literal('continuable'),
 });
 /** subagent.interrupt response value. */
-exports.subagentInterruptValueSchema = zod_1.z.object({
-    accepted: zod_1.z.literal(true),
+export const subagentInterruptValueSchema = z.object({
+    accepted: z.literal(true),
 });
-var messageIdSchema = zod_1.z.string();
+const messageIdSchema = z.string();
 /** subagent.prompt response value. */
-exports.subagentPromptValueSchema = zod_1.z.object({
+export const subagentPromptValueSchema = z.object({
     messageId: messageIdSchema,
 });
+//# sourceMappingURL=subagents.schema.js.map

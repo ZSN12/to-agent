@@ -3,11 +3,11 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import Loader from '@z/cordis-plugin-loader'
-import Include from '@z/cordis-plugin-include'
-import type { Agent } from '@z/dsh-agent'
-import CommandRuntime from '@z/dsh-commands'
+import { Context } from '@taskweaver/cordis'
+import Loader from '@taskweaver/cordis-plugin-loader'
+import Include from '@taskweaver/cordis-plugin-include'
+import type { Agent } from '@taskweaver/dsh-agent'
+import CommandRuntime from '@taskweaver/dsh-commands'
 import {
   CompactionId,
   CompactionEngine,
@@ -15,9 +15,9 @@ import {
   type CompactionResult,
   type CompactionTrigger,
   type ManualCompactAgentContext,
-} from '@z/dsh-compaction'
-import * as commandCompact from '@z/dsh-command-compact'
-import { Session, SessionId } from '@z/dsh-session'
+} from '@taskweaver/dsh-compaction'
+import * as commandCompact from '@taskweaver/dsh-command-compact'
+import { Session, SessionId } from '@taskweaver/dsh-session'
 
 const COMPACTION_ID = CompactionId('loader-command-compact-test')
 
@@ -84,9 +84,9 @@ describe('command-compact real Loader composition', () => {
     root = await mkdtemp(join(tmpdir(), 'dsh-command-compact-loader-'))
     const configPath = join(root, 'cordis.yml')
     await writeFile(configPath, [
-      "- name: '@z/dsh-commands'",
+      "- name: '@taskweaver/dsh-commands'",
       "- name: '@test/compact-backend'",
-      "- name: '@z/dsh-command-compact'",
+      "- name: '@taskweaver/dsh-command-compact'",
       '',
     ].join('\n'))
 
@@ -95,9 +95,9 @@ describe('command-compact real Loader composition', () => {
     await context.plugin(Loader)
     context.loader.builtins.include = Include
     const modules = new Map<string, unknown>([
-      ['@z/dsh-commands', CommandRuntime],
+      ['@taskweaver/dsh-commands', CommandRuntime],
       ['@test/compact-backend', LoaderCompactionEngine],
-      ['@z/dsh-command-compact', commandCompact],
+      ['@taskweaver/dsh-command-compact', commandCompact],
     ])
     context.loader.internal = {
       version: 'v2',

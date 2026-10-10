@@ -1,5 +1,5 @@
 /** Raster inspection: full decode at admission, header-only probe on verified reads. */
-import type { ImageMediaType } from '@z/dsh-attachment';
+import type { ImageMediaType } from '@taskweaver/dsh-attachment';
 /** Decoded metadata from a supported image. */
 export interface DetectedImage {
     mediaType: ImageMediaType;

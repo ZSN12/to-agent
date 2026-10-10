@@ -2,9 +2,9 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { createPermissionRulesStore, splitShellCommandSegments } from '../electron/backend/permission-rules-store.mjs'
-import { createPermissionService, clearSessionPermissionGrants } from '../electron/backend/permission-service.mjs'
-import { createMcpService } from '../electron/backend/mcp-service.mjs'
+import { createPermissionRulesStore, splitShellCommandSegments } from '../desktop/backend/permission-rules-store.mjs'
+import { createPermissionService, clearSessionPermissionGrants } from '../desktop/backend/permission-service.mjs'
+import { createMcpService } from '../desktop/backend/mcp-service.mjs'
 
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-permrules-test-'))
 const workspaceA = path.join(root, 'workspace-a')

@@ -173,6 +173,26 @@ export default function App() {
 
   const composerModelOptions = modelCatalog.composerOptions
 
+  const composerModelEmptyLabel = useMemo(() => {
+    if (modelCatalog.loading) return undefined
+    const message = modelCatalog.error?.trim()
+    if (message) {
+      if (/Z Host|未就绪|启动失败/i.test(message)) return 'Host 未就绪，请重启应用'
+      if (/系统安全存储|钥匙串凭据|credentials\.enc/i.test(message)) {
+        return '本机钥匙串不可用，请到设置重新保存模型密钥'
+      }
+      return message.length > 36 ? `${message.slice(0, 36)}…` : message
+    }
+    const catalogSize = modelCatalog.catalog?.candidateModels?.length ?? modelCatalog.catalog?.models?.length ?? 0
+    if (catalogSize > 0) return '请在设置中配置模型凭据'
+    return undefined
+  }, [
+    modelCatalog.loading,
+    modelCatalog.error,
+    modelCatalog.catalog?.candidateModels?.length,
+    modelCatalog.catalog?.models?.length,
+  ])
+
   useEffect(() => {
     if (priorTaskCount.current === 0 && tasks.length > 0) setPanel('dag')
     priorTaskCount.current = tasks.length
@@ -281,14 +301,32 @@ export default function App() {
     })
   }
 
+  const handleResendMessage = async (text: string, precedingAssistantId: string | null, modelKey?: string | null) => {
+    if (appBackend.sending || !text.trim()) return
+    let forkLabel = '已从对话开头重新发送'
+    if (precedingAssistantId) {
+      const result = await appBackend.forkThread(precedingAssistantId)
+      if (!result) return
+      forkLabel = result.completedTurns ? `已从第 ${result.completedTurns} 轮后分支并重新发送` : '已从上一轮后分支并重新发送'
+    } else {
+      const cleared = await appBackend.clearConversation({ workspacePath: appBackend.workspacePath })
+      if (!cleared) return
+    }
+    setPanel(null)
+    setMainView('chat')
+    showForkNotice(forkLabel)
+    await appBackend.sendMessage(text, modelKey ?? model?.id ?? undefined)
+  }
+
   const sendMainMessage = (
     text: string,
     skillName: string | null,
     workMode?: WorkMode,
     executionModeOverride?: 'single-agent' | 'multi-agent',
     attachments?: { id: string, mediaType: string, data: string, name: string }[],
+    documents?: { id: string, name: string }[],
   ) => {
-    void appBackend.sendMessage(text, model?.id, skillName ?? undefined, executionModeOverride, workMode, attachments)
+    void appBackend.sendMessage(text, model?.id, skillName ?? undefined, executionModeOverride, workMode, attachments, documents)
   }
 
   const sendTaskMessage = (text: string) => {
@@ -433,6 +471,7 @@ export default function App() {
           onLoadSkills={appBackend.refreshSkills}
           permissionMode={appBackend.state?.permissionMode ?? 'ask'}
           modelsLoading={modelCatalog.loading}
+          modelEmptyLabel={composerModelEmptyLabel}
           sending={appBackend.sending}
           compacting={appBackend.compacting}
           compactedSeq={appBackend.compactedSeq}
@@ -486,6 +525,9 @@ export default function App() {
           onSelectPanel={setPanel}
           onToggleNav={() => setNavCollapsed((current) => !current)}
           onFork={handleForkThread}
+          onResendMessage={(text, precedingAssistantId, modelKey) => {
+            void handleResendMessage(text, precedingAssistantId, modelKey)
+          }}
           onShowToolDetails={showToolDetails}
           onOpenWorkspacePath={openWorkspacePath}
           terminalOpen={terminalOpen}
@@ -497,7 +539,7 @@ export default function App() {
           }}
         />
         )}
-        {panel === 'dag' && <DagPanel tasks={tasks} onTask={openTask} onClose={() => setPanel(null)} />}
+        {panel === 'dag' && <DagPanel tasks={tasks} onTask={openTask} onClose={() => setPanel(null)} conversationId={appBackend.state?.conversationId ?? null} modelOptions={modelCatalog.composerOptions} />}
         {panel === 'task' && selectedTask && (
           <TaskConversation
             task={selectedTask}

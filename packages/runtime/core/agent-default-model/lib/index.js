@@ -1,12 +1,12 @@
-import { Service } from "@z/cordis";
-import z from "@z/schemastery";
-import { ReasoningEffortId } from "@z/dsh-llm";
-import { installSettingsSection, settingsNamespace } from "@z/dsh-settings";
+import { Service } from "@taskweaver/cordis";
+import z from "@taskweaver/schemastery";
+import { ReasoningEffortId } from "@taskweaver/dsh-llm";
+import { installSettingsSection, settingsNamespace } from "@taskweaver/dsh-settings";
 //#region lib/types/index.js
 /**
 * Default model selection for an Agent without a session-specific selection.
 *
-* @module @z/dsh-agent-default-model
+* @module @taskweaver/dsh-agent-default-model
 */
 /** Settings namespace carrying the default model selection for future Agents. */
 const AGENT_DEFAULT_MODEL_SETTINGS_NAMESPACE = settingsNamespace("agent-default-model");

@@ -3,11 +3,11 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { createServer } from 'node:http'
-import { createZHostManager, resolveTaskWeaverRuntimeRoot } from '../electron/agent/z-host/index.mjs'
-import { createDshChatService } from '../electron/backend/dsh-chat-service.mjs'
-import { createAppStateStore } from '../electron/backend/app-state-store.mjs'
-import { createUsageStore } from '../electron/backend/usage-store.mjs'
-import { createChatTurnPersistence } from '../electron/backend/chat-turn-persistence.mjs'
+import { createZHostManager, resolveTaskWeaverRuntimeRoot } from '../desktop/agent/z-host/index.mjs'
+import { createDshChatService } from '../desktop/backend/dsh-chat-service.mjs'
+import { createAppStateStore } from '../desktop/backend/app-state-store.mjs'
+import { createUsageStore } from '../desktop/backend/usage-store.mjs'
+import { createChatTurnPersistence } from '../desktop/backend/chat-turn-persistence.mjs'
 
 // Real deployed Agent + read tool. Only the provider endpoint is controlled.
 // The second LLM step fails after visible text and a completed filesystem read.
@@ -47,7 +47,7 @@ const server = createServer((request, response) => {
 })
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
 const manager = createZHostManager({ runtimeRoot: resolveTaskWeaverRuntimeRoot({ appPath: process.cwd(), isPackaged: false }),
-  userDataPath: home, executable: process.execPath, environment: { ...process.env, TASKWEAVER_FAILURE_TEST_KEY: 'local-only' } })
+  userDataPath: home, environment: { ...process.env, TASKWEAVER_FAILURE_TEST_KEY: 'local-only' } })
 let chat
 const modelKey = 'failure-test/mock-model'
 const id = (await appState.getState()).conversationId
@@ -91,9 +91,9 @@ try {
   // Delayed/repeated delivery is idempotent for both transcript and accounting.
   await persist({ conversationId: id, modelKey, result: failure.partialResult, errorMessage: failure.message })
   assert.equal((await appState.getConversationState(id)).messages.length, saved.length)
-  const ledger = JSON.parse(await fs.readFile(path.join(home, 'taskweaver-model-usage.json'), 'utf8'))
-  assert.equal(ledger.records.length, 1)
-  assert.equal(ledger.records[0].totalTokens, 12, 'reported usage from before failure is counted once')
+  const usage = await usageStore.getStats()
+  assert.equal(usage.totals.totalCalls, 1)
+  assert.equal(usage.totals.totalTokens, 12, 'reported usage from before failure is counted once')
   const history = (await api.sessions.history({ sessionId: chat.getSessionId(id), maxMessages: 1000 })).result.value.events.map(row => row.event)
   assert.ok(history.some(event => event.type === 'assistant/message' && JSON.stringify(event.data).includes('PARTIAL_BEFORE_FAILURE')))
   assert.equal(history.findLast(event => event.type === 'turn/end').data.reason.kind, 'error')

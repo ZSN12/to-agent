@@ -23,6 +23,11 @@ export interface ToolMessageSource {
     kind: 'tool';
     callId: CallId;
 }
+/** Object-rooted JSON Schema carried internally from one prompt to its model turn. */
+export interface StructuredOutputSchema {
+    type: 'object';
+    [keyword: string]: unknown;
+}
 /**
  * The kind of information in producer-supplied context, declared by the
  * producer beside its provenance.
@@ -94,6 +99,7 @@ export type ContextFormed = {
 export interface MessageSourceMap {
     user: {
         kind: 'user';
+        outputSchema?: StructuredOutputSchema;
     };
     plugin: {
         kind: 'plugin';

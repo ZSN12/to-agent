@@ -2,25 +2,25 @@ import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
-import { Context } from '@z/cordis'
-import { CallId } from '@z/dsh-llm'
-import { ShellExecutor } from '@z/dsh-shell'
-import type { ShellExecRequest, ShellExecSpec, ShellProcess, ShellProcessRead, ShellRunResult } from '@z/dsh-shell'
-import SystemPrompt from '@z/dsh-system-prompt'
-import ToolRuntime, { TOOL_ABORTED, TOOL_ABORTED_BEFORE_DISPATCH } from '@z/dsh-tools'
-import AgentRegistry from '@z/dsh-agent'
-import type { Agent } from '@z/dsh-agent'
-import SessionStore, { SessionId } from '@z/dsh-session'
-import JsonlSessionPersistence from '@z/dsh-session-persistence-jsonl'
-import LocalJobRegistry from '@z/dsh-jobs-local'
-import * as ToolTasks from '@z/dsh-tool-jobs'
-import ApprovalService from '@z/dsh-user-approval'
-import type { ApprovalOutcome } from '@z/dsh-user-approval'
-import { LocalBashExecutor } from '@z/dsh-bash-local'
-import LocalSubprocessRuntime from '@z/dsh-subprocess-local'
-import SandboxPolicyService from '@z/dsh-sandbox-policy'
-import * as ToolBash from '@z/dsh-tool-bash'
-import * as BashEnvPlugin from '@z/dsh-shell-env'
+import { Context } from '@taskweaver/cordis'
+import { CallId } from '@taskweaver/dsh-llm'
+import { ShellExecutor } from '@taskweaver/dsh-shell'
+import type { ShellExecRequest, ShellExecSpec, ShellProcess, ShellProcessRead, ShellRunResult } from '@taskweaver/dsh-shell'
+import SystemPrompt from '@taskweaver/dsh-system-prompt'
+import ToolRuntime, { TOOL_ABORTED, TOOL_ABORTED_BEFORE_DISPATCH } from '@taskweaver/dsh-tools'
+import AgentRegistry from '@taskweaver/dsh-agent'
+import type { Agent } from '@taskweaver/dsh-agent'
+import SessionStore, { SessionId } from '@taskweaver/dsh-session'
+import JsonlSessionPersistence from '@taskweaver/dsh-session-persistence-jsonl'
+import LocalJobRegistry from '@taskweaver/dsh-jobs-local'
+import * as ToolTasks from '@taskweaver/dsh-tool-jobs'
+import ApprovalService from '@taskweaver/dsh-user-approval'
+import type { ApprovalOutcome } from '@taskweaver/dsh-user-approval'
+import { LocalBashExecutor } from '@taskweaver/dsh-bash-local'
+import LocalSubprocessRuntime from '@taskweaver/dsh-subprocess-local'
+import SandboxPolicyService from '@taskweaver/dsh-sandbox-policy'
+import * as ToolBash from '@taskweaver/dsh-tool-bash'
+import * as BashEnvPlugin from '@taskweaver/dsh-shell-env'
 import { processOutcome } from '../src/background.ts'
 import { renderProcessRead, renderResult } from '../src/render.ts'
 
@@ -492,7 +492,7 @@ describe('background execution through the job runtime', () => {
     const ctx = await setup() // no LocalJobRegistry / ToolTasks
     const result = await call(ctx, 'bash', { command: 'sleep 60', description: 'test command', run_in_background: true })
     expect(result.isError).toBe(true)
-    expect(text(result)).toContain('background jobs unavailable: load @z/dsh-jobs and @z/dsh-tool-jobs')
+    expect(text(result)).toContain('background jobs unavailable: load @taskweaver/dsh-jobs and @taskweaver/dsh-tool-jobs')
   })
 
   it('a pre-aborted call is skipped before the process starts', async () => {
@@ -1120,8 +1120,8 @@ describe('the model-facing bash tool builds its request from named args only (no
   it('describes the managed harness environment namespace to the model', async () => {
     const { ctx } = await setupRecording()
     const description = ctx.tools.get('bash')?.description ?? ''
-    expect(description).toContain('$DSH_*')
-    expect(description).not.toContain('DSH_SESSION_JSONL')
+    expect(description).toContain('$TASKWEAVER_*')
+    expect(description).not.toContain('TASKWEAVER_SESSION_JSONL')
   })
 
   it('injects the session id and JSONL target path into a foreground request', async () => {
@@ -1138,10 +1138,10 @@ describe('the model-facing bash tool builds its request from named args only (no
     })
 
     expect(bash.requests[0]?.dshEnv).toEqual({
-      DSH_HOME: recordingDshHome,
-      DSH_SESSION_ID: 'request-fg',
-      DSH_SESSION_JSONL: path,
-      DSH_SHELL: '1',
+      TASKWEAVER_HOME: recordingDshHome,
+      TASKWEAVER_SESSION_ID: 'request-fg',
+      TASKWEAVER_SESSION_JSONL: path,
+      TASKWEAVER_SHELL: '1',
     })
   })
 
@@ -1158,24 +1158,24 @@ describe('the model-facing bash tool builds its request from named args only (no
         command: 'sleep 1',
         description: 'run command',
         run_in_background: true,
-        env: { DSH_SESSION_ID: 'spoofed', DSH_SESSION_JSONL: '/tmp/spoofed' },
+        env: { TASKWEAVER_SESSION_ID: 'spoofed', TASKWEAVER_SESSION_JSONL: '/tmp/spoofed' },
       },
       agent,
     })
 
     expect(bash.requests[0]?.env).toBeUndefined()
     expect(bash.requests[0]?.dshEnv).toEqual({
-      DSH_HOME: recordingDshHome,
-      DSH_SESSION_ID: 'request-bg',
-      DSH_SESSION_JSONL: path,
-      DSH_SHELL: '1',
+      TASKWEAVER_HOME: recordingDshHome,
+      TASKWEAVER_SESSION_ID: 'request-bg',
+      TASKWEAVER_SESSION_JSONL: path,
+      TASKWEAVER_SHELL: '1',
     })
   })
 
   it('injects built-ins and the stable session id when no JSONL locator is available', async () => {
     const { ctx, bash } = await setupRecording()
     const agent = registerFakeAgent(ctx, 'request-id-only', () => undefined)
-    const ambient = process.env.DSH_SESSION_ID
+    const ambient = process.env.TASKWEAVER_SESSION_ID
 
     await ctx.tools.execute({
       signal: testToolSignal,
@@ -1186,11 +1186,11 @@ describe('the model-facing bash tool builds its request from named args only (no
     })
 
     expect(bash.requests[0]?.dshEnv).toEqual({
-      DSH_HOME: recordingDshHome,
-      DSH_SESSION_ID: 'request-id-only',
-      DSH_SHELL: '1',
+      TASKWEAVER_HOME: recordingDshHome,
+      TASKWEAVER_SESSION_ID: 'request-id-only',
+      TASKWEAVER_SHELL: '1',
     })
-    expect(process.env.DSH_SESSION_ID).toBe(ambient)
+    expect(process.env.TASKWEAVER_SESSION_ID).toBe(ambient)
   })
 
   it('keeps parent and child agent session environments isolated', async () => {
@@ -1210,19 +1210,19 @@ describe('the model-facing bash tool builds its request from named args only (no
 
     expect(bash.requests.map(request => request.dshEnv)).toEqual([
       {
-        DSH_HOME: recordingDshHome,
-        DSH_SESSION_ID: 'request-parent',
-        DSH_SESSION_JSONL: ctx.sessionPersistence.locate(parent.session.header)?.path,
-        DSH_SHELL: '1',
+        TASKWEAVER_HOME: recordingDshHome,
+        TASKWEAVER_SESSION_ID: 'request-parent',
+        TASKWEAVER_SESSION_JSONL: ctx.sessionPersistence.locate(parent.session.header)?.path,
+        TASKWEAVER_SHELL: '1',
       },
       {
-        DSH_HOME: recordingDshHome,
-        DSH_SESSION_ID: 'request-child',
-        DSH_SESSION_JSONL: ctx.sessionPersistence.locate(child.session.header)?.path,
-        DSH_SHELL: '1',
+        TASKWEAVER_HOME: recordingDshHome,
+        TASKWEAVER_SESSION_ID: 'request-child',
+        TASKWEAVER_SESSION_JSONL: ctx.sessionPersistence.locate(child.session.header)?.path,
+        TASKWEAVER_SHELL: '1',
       },
     ])
-    expect(bash.requests[0]?.dshEnv?.DSH_SESSION_JSONL).not.toBe(bash.requests[1]?.dshEnv?.DSH_SESSION_JSONL)
+    expect(bash.requests[0]?.dshEnv?.TASKWEAVER_SESSION_JSONL).not.toBe(bash.requests[1]?.dshEnv?.TASKWEAVER_SESSION_JSONL)
   })
 
   it('does not forward trusted-only fields even when the model includes them as extra arguments', async () => {

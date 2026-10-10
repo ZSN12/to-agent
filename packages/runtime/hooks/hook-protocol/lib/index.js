@@ -5,7 +5,7 @@
 * treats every non-empty pattern as an unanchored regex. Missing, empty, and
 * `*` match all. Runtime matching contains invalid regexes as non-matches;
 * config parsers use {@link matcherDiagnostic} to reject them with a diagnostic.
-* @module @z/dsh-hook-protocol/matcher
+* @module @taskweaver/dsh-hook-protocol/matcher
 */
 /** True for an absent / empty / `'*'` pattern — the match-all sentinels. */
 function isMatchAll(matcher) {
@@ -56,7 +56,7 @@ function matchesMatcher(matcher, query, mode) {
 * Decode hook process outcomes for both dialects. Exit 0 may carry structured
 * JSON or plain stdout; exit 2 blocks with stderr as the reason; every other
 * exit is a non-blocking error. Bridges decide which recognized fields apply.
-* @module @z/dsh-hook-protocol/codec
+* @module @taskweaver/dsh-hook-protocol/codec
 */
 /** The exit code a hook uses to signal a blocking error (stderr → model). */
 const BLOCKING_EXIT_CODE = 2;
@@ -163,7 +163,7 @@ function applyStructured(output, parsed, expectedEventName) {
 * process-group cancellation, and timeout machinery. The bridge supplies the
 * trusted stdin payload and dialect environment, then this module decodes the
 * captured outcome.
-* @module @z/dsh-hook-protocol/runner
+* @module @taskweaver/dsh-hook-protocol/runner
 */
 /**
 * The reference default per-hook timeout, in ms (10 minutes) — the value both
@@ -216,7 +216,7 @@ async function runHook(bash, hook, options, now) {
 * is `deny > ask > allow`; the first `continue:false` stop is sticky; reasons
 * for the winning rank are joined; and context and system messages accumulate
 * in hook order.
-* @module @z/dsh-hook-protocol/merge
+* @module @taskweaver/dsh-hook-protocol/merge
 */
 /** Rank a single hook's decision for the deny>ask>allow precedence (higher = stricter). */
 function rank(decision) {
@@ -285,7 +285,7 @@ function mergeHookOutputs(outputs) {
 * intent and must remain turn-enclosed and invoked/result paired. Mid-turn hook
 * points satisfy that boundary; SessionStart records injected context instead
 * and does not append `hook/*` outside a turn.
-* @module @z/dsh-hook-protocol/events
+* @module @taskweaver/dsh-hook-protocol/events
 */
 /**
 * The reference default for {@link HookResultRecord.stderrSummaryMaxChars}
@@ -348,7 +348,7 @@ function appendHookResult(session, record) {
 * Quiescence tracking for emit-shaped hook runs that no extension point awaits. Bridges
 * track the run plus its continuation, pass the tracker signal into execution,
 * and drain on disposal so no process or late callback outlives the fiber.
-* @module @z/dsh-hook-protocol/detached
+* @module @taskweaver/dsh-hook-protocol/detached
 */
 /**
 * Create a {@link DetachedRuns} tracker (one per bridge `apply()`); settled

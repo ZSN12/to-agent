@@ -1,4 +1,4 @@
-import { Service } from "@z/cordis";
+import { Service } from "@taskweaver/cordis";
 //#region lib/types/brand.js
 /**
 * Brand an implementation-minted compaction identity.
@@ -14,7 +14,7 @@ function CompactionId(id) {
 * Tool-pairing balance over a session surface. Compaction changes surface
 * positions, so safe cuts are derived from tool-call/result content in current
 * surface order rather than step markers.
-* @module @z/dsh-compaction/tool-pairing
+* @module @taskweaver/dsh-compaction/tool-pairing
 */
 const balanceCacheBySession = /* @__PURE__ */ new WeakMap();
 /** Return how one surface event changes the in-progress tool-call count. */
@@ -103,13 +103,13 @@ function toolPairingBalancedAfter(session, seq) {
 * every backend uses for its replacement user message, plus the predicate that
 * recognizes persisted checkpoints.
 *
-* The seam itself lives in `@z/dsh-compaction`, which re-exports these
+* The seam itself lives in `@taskweaver/dsh-compaction`, which re-exports these
 * contracts; this module is a pure type/value/predicate outlet (no cordis
 * imports, no module augmentation) so client and wire programs can name the
 * checkpoint source without loading the host plugin's Context merges — the
 * `dsh-commands/brand` shape.
 *
-* @module @z/dsh-compaction/checkpoint
+* @module @taskweaver/dsh-compaction/checkpoint
 */
 const COMPACT_CHECKPOINT_MARKER = Object.freeze({
 	kind: "plugin",
@@ -144,7 +144,7 @@ function isCompactCheckpointSource(source) {
 * {@link CompactionEngine}. This interface necessarily depends on session and LLM
 * vocabulary; the rationale is in the
 * [compaction Agent Note](../../../../.agents/notes/implemented/feature/2026-06-18-compaction-capability-seam.md).
-* @module @z/dsh-compaction
+* @module @taskweaver/dsh-compaction
 */
 /**
 * Expected manual-compaction failure suitable for a direct human-command result.

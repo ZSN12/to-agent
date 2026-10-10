@@ -11,7 +11,7 @@
 
 import { spawnSync } from 'node:child_process'
 import koffi from 'koffi'
-import type { SubprocessTerminalSignal } from '@z/dsh-subprocess'
+import type { SubprocessTerminalSignal } from '@taskweaver/dsh-subprocess'
 import type { ProcessIdentity, ProcessInspector } from './process-inspector.ts'
 
 /** One Toolhelp32 process-table row. */

@@ -6,65 +6,94 @@ on:
   pull_request:
 
 jobs:
+  ui-verify:
+    name: TaskWeaver UI verification
+    runs-on: macos-14
+    timeout-minutes: 35
+    env:
+      TASKWEAVER_UI_ARTIFACTS: artifacts/ui-verify
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.19.0'
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install desktop dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Run isolated shell UI scenarios
+        run: pnpm run test:ui
+      - name: Upload UI failure evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: taskweaver-ui-verify
+          path: |
+            artifacts/ui-verify/**/*.png
+            artifacts/ui-verify/**/*.zip
+            artifacts/ui-verify/**/failure.json
+            artifacts/ui-verify/**/aria-snapshot.yml
+            artifacts/ui-verify/driver-failure.json
+          if-no-files-found: ignore
+
   test:
     runs-on: macos-14
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
+          run_install: false
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
-          cache: npm
+          node-version: '22.19.0'
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
       - name: Install dependencies
-        env:
-          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
-        run: npm ci --omit=optional
+        run: pnpm install --frozen-lockfile
       - name: IPC contract
-        run: npm run check:ipc
+        run: pnpm run check:ipc
       - name: Typecheck
-        run: npx tsc -b
+        run: pnpm run typecheck
       - name: Lint
-        run: npm run lint
+        run: pnpm run lint
       - name: Security hardening
-        run: npm run test:security-hardening
+        run: pnpm run test:security-hardening
       - name: Unit tests
-        run: npm run test:all
+        run: pnpm run test:script-targets && pnpm run test:all
       - name: Live / host deploy tests
-        run: npm run test:live
+        run: pnpm run test:live
 
   dsh-unit:
     name: DSH unit shard ${{ matrix.shard }}/4
     runs-on: macos-14
-    timeout-minutes: 15
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         shard: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22.19.0'
-          cache: pnpm
-          cache-dependency-path: packages/runtime/pnpm-lock.yaml
       - uses: pnpm/action-setup@v4
         with:
           version: 11.7.0
           run_install: false
-      - name: Install DSH workspace dependencies
-        working-directory: packages/runtime
-        env:
-          CI: 'true'
-        run: pnpm install --frozen-lockfile --prod=false
-      - name: Build retained DSH Host packages
-        working-directory: packages/runtime
-        env:
-          CI: 'true'
-        run: pnpm run build:host
-      - name: Run retained DSH unit tests
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.19.0'
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Run retained DSH unit shard
         env:
           DSH_VITEST_SHARD: ${{ matrix.shard }}/4
-        run: npm run test:dsh-unit:shard
+        run: pnpm run test:dsh-unit:shard
 
   dsh-e2e:
     name: DSH keyless and runtime E2E
@@ -72,34 +101,28 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22.19.0'
-          cache: npm
-          cache-dependency-path: package-lock.json
       - uses: pnpm/action-setup@v4
         with:
           version: 11.7.0
           run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.19.0'
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
       - name: Install desktop dependencies
-        env:
-          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
-        run: npm ci --omit=optional
-      - name: Install DSH workspace dependencies
-        working-directory: packages/runtime
-        env:
-          CI: 'true'
-        run: pnpm install --frozen-lockfile --prod=false
-      - name: Build retained DSH Host packages
-        working-directory: packages/runtime
+        run: pnpm install --frozen-lockfile
+      - name: Build retained Host packages for artifact E2E
         env:
           CI: 'true'
         run: pnpm run build:host
       - name: Build deployed TaskWeaver runtime
-        run: npm run build:z-runtime
-      - name: Check preset integrity and composition
-        run: npm run test:preset-integrity
-      - name: Run DSH E2E (provider-gated cases report as skipped)
-        run: npm run test:dsh-e2e
+        env:
+          CI: 'true'
+        run: pnpm run build:z-runtime
+      - name: Check deployed Host, preset integrity, and composition
+        run: pnpm run test:runtime-deploy
+      - name: Run DSH artifact E2E (provider-gated cases report as skipped)
+        run: pnpm run test:dsh-e2e
       - name: Run mock-provider end-to-end deployment smoke (no API secrets)
-        run: npm run test:keyless-e2e
+        run: pnpm run test:keyless-e2e

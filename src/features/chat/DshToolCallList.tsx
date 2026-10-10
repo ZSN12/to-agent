@@ -1,5 +1,5 @@
 import { ChevronRight, FileText, Search, Terminal, Pencil, Code2 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   buildDshToolCallTree,
   groupDshToolCallTree,
@@ -10,6 +10,7 @@ import { DshStateDot } from './DshStateDot'
 import { dshToolRowPresentation } from './dshToolRowModel'
 import { ToolTraceCard } from './ToolTraceCard'
 import type { DshProjectedToolCall, ToolTraceItem } from '../../shared/app-api'
+import type { CodeOutputImage } from './codeOutputPresentation'
 function rowIcon(variant: string) {
   if (variant === 'bash') return Terminal
   if (variant === 'read') return FileText
@@ -38,6 +39,7 @@ export function DshToolCallList({
   rows,
   traces,
   workspacePath,
+  conversationId,
   isActive = false,
   onShowToolDetails,
   onOpenWorkspacePath,
@@ -45,11 +47,15 @@ export function DshToolCallList({
   rows?: readonly DshProjectedToolCall[]
   traces?: readonly ToolTraceItem[]
   workspacePath?: string | null
+  conversationId?: string | null
   isActive?: boolean
   onShowToolDetails?: (item: ToolTraceItem) => void
   onOpenWorkspacePath?: (relativePath: string) => void
 }) {
   const [openId, setOpenId] = useState<string | null>(null)
+  const [resultImages, setResultImages] = useState<CodeOutputImage[]>([])
+  const [resultImagesLoading, setResultImagesLoading] = useState(false)
+  const resultImageCache = useRef(new Map<string, Promise<CodeOutputImage | null>>())
   const [batchExpandedOverride, setBatchExpandedOverride] = useState<boolean | null>(null)
   const [stepExpandedOverrides, setStepExpandedOverrides] = useState<Record<string, boolean>>({})
 
@@ -66,6 +72,57 @@ export function DshToolCallList({
     visit(tree)
     return flattened
   }, [tree])
+
+  const openCall = calls.find((row) => row.callId === openId)
+  const openImageRefs = openCall?.resultImages?.slice(0, 4) ?? []
+  const openImageIdsKey = openImageRefs.map((image) => image.attachmentId).join('\n')
+  useEffect(() => {
+    if (!openId || !openImageIdsKey || !conversationId) {
+      setResultImages([])
+      setResultImagesLoading(false)
+      return
+    }
+
+    const attachmentIds = openImageIdsKey.split('\n')
+    const refs = new Map(openImageRefs.map((image) => [image.attachmentId, image]))
+    let current = true
+    setResultImages([])
+    setResultImagesLoading(true)
+    const pending = attachmentIds.map((attachmentId) => {
+      const cacheKey = `${conversationId}\n${attachmentId}`
+      const cached = resultImageCache.current.get(cacheKey)
+      if (cached) return cached
+      const request = (async (): Promise<CodeOutputImage | null> => {
+        const load = window.taskweaver?.chat.getResultAttachment
+        if (typeof load !== 'function') return null
+        try {
+          const result = await load({ conversationId, attachmentId })
+          if (!result?.ok || result.data.attachment.attachmentId !== attachmentId) return null
+          const ref = refs.get(attachmentId)
+          return {
+            mediaType: result.data.attachment.mediaType,
+            data: result.data.data,
+            bytes: result.data.attachment.bytes,
+            name: ref?.name ?? result.data.attachment.name,
+            width: ref?.width ?? result.data.attachment.width,
+            height: ref?.height ?? result.data.attachment.height,
+          }
+        } catch {
+          return null
+        }
+      })()
+      resultImageCache.current.set(cacheKey, request)
+      return request
+    })
+    void Promise.all(pending).then((images) => {
+      if (!current) return
+      setResultImages(images.filter((image): image is CodeOutputImage => image !== null))
+      setResultImagesLoading(false)
+    })
+    return () => { current = false }
+  // Projected snapshots recreate objects during streaming; stable IDs prevent repeated IPC reads.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openId, conversationId, openImageIdsKey])
 
   if (!calls.length) return null
 
@@ -88,7 +145,13 @@ export function DshToolCallList({
     const failure = failureHint(row.status, row.resultPreview ?? sourceTrace.resultSummary)
     const open = openId === row.callId
     const Icon = rowIcon(variant)
-    const detailTrace: ToolTraceItem = { ...sourceTrace, inputSummary: summary }
+    // The live trace only carries a compact status summary for run_code; the
+    // DSH projection carries the bounded rendered text/JSON for its result.
+    const isCodeModeResult = row.toolName === 'run_code' || Boolean(row.parentCallId)
+    const resultSummary = isCodeModeResult
+      ? row.resultPreview ?? sourceTrace.resultSummary
+      : sourceTrace.resultSummary
+    const detailTrace: ToolTraceItem = { ...sourceTrace, inputSummary: summary, resultSummary }
 
     return (
       <div key={row.callId} className={`dsh-tool-call-list-item${depth === 0 ? ' is-root' : ' is-nested'}`}>
@@ -130,6 +193,10 @@ export function DshToolCallList({
               item={detailTrace}
               onShowDetails={onShowToolDetails}
               onOpenPath={onOpenWorkspacePath}
+              resultImages={resultImages}
+              resultImageCount={row.resultImages?.length}
+              resultImagesLoading={resultImagesLoading}
+              codeModeResult={Boolean(row.parentCallId)}
             />
           </div>
         )}

@@ -1,6 +1,6 @@
-import { Logger } from "@z/cordis";
-import { Time } from "@z/cosmokit";
-import z from "@z/schemastery";
+import { Logger } from "@taskweaver/cordis";
+import { Time } from "@taskweaver/cosmokit";
+import z from "@taskweaver/schemastery";
 //#region lib/types/shared.js
 /** Shared console log exporter implementation used by Node and browser builds. */
 var ConsoleExporter$1 = class {

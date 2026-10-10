@@ -1,4 +1,5 @@
 import { X } from 'lucide-react'
+import { useModalFocusTrap } from '../../shared/useModalFocusTrap'
 
 type Props = {
   reason: string
@@ -13,11 +14,12 @@ export function OrchestrationChoiceOverlay({
   onConfirmMulti,
   onDismiss,
 }: Props) {
+  const dialogRef = useModalFocusTrap<HTMLDivElement>({ open: true, onEscape: onDismiss })
   return (
-    <div className="orchestration-choice-overlay" role="dialog" aria-modal="true" aria-labelledby="orchestration-choice-title">
+    <div ref={dialogRef} className="orchestration-choice-overlay" role="dialog" aria-modal="true" aria-labelledby="orchestration-choice-title" aria-describedby="orchestration-choice-reason" tabIndex={-1}>
       <div className="orchestration-choice-card">
         <h2 id="orchestration-choice-title">是否启用多 Agent？</h2>
-        <p>{reason}</p>
+        <p id="orchestration-choice-reason">{reason}</p>
         <div className="orchestration-choice-actions">
           <button type="button" className="ghost" onClick={onConfirmSingle}>
             单 Agent 继续

@@ -1,13 +1,13 @@
 /**
- * Package-owned invariant companion for `@z/dsh-subprocess-local`.
- * @module @z/dsh-subprocess-local/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-subprocess-local`.
+ * @module @taskweaver/dsh-subprocess-local/invariant
  */
 
 /* jscpd:ignore-start */
-import type { Context } from '@z/cordis'
-import type { InvariantInstaller } from '@z/dsh-invariants'
+import type { Context } from '@taskweaver/cordis'
+import type { InvariantInstaller } from '@taskweaver/dsh-invariants'
 
-const PACKAGE_NAME = '@z/dsh-subprocess-local'
+const PACKAGE_NAME = '@taskweaver/dsh-subprocess-local'
 
 /** Cordis companion plugin name. */
 export const name = 'subprocess-local-invariant'

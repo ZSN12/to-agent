@@ -12,7 +12,7 @@ type ExitTrigger = 'direct' | 'uncaught-exception' | 'unhandled-rejection' | 'di
 type ManagedKind = 'ordinary' | 'terminal'
 interface TreeState { root: number; descendant: number }
 
-const repoRoot = fileURLToPath(new URL('../../../../', import.meta.url))
+const repoRoot = fileURLToPath(new URL('../../../', import.meta.url))
 const hostScript = fileURLToPath(new URL('./fixtures/process-exit-host.ts', import.meta.url))
 const scenarioTimeoutMs = 30_000
 

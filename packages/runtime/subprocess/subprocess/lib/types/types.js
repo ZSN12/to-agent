@@ -1,4 +1,3 @@
-"use strict";
 /**
  * Vocabulary for the subprocess Service Definition: fully-specified spawn requests with
  * Node-shaped per-stream stdio modes, bounded collected output with spill
@@ -7,9 +6,12 @@
  * consumers such as the bash executor seam.
  * @module dsh-subprocess/types
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.Z_ENV_PREFIX = exports.DSH_ENV_PREFIX = void 0;
-/** Namespace prefix reserved for DeepSeek Harness-managed child environment facts. */
-exports.DSH_ENV_PREFIX = 'DSH_';
-/** TaskWeaver / Z runtime managed child environment facts (`Z_HOME`, `Z_SESSION_ID`, …). */
-exports.Z_ENV_PREFIX = 'Z_';
+/** Namespace prefix reserved for TaskWeaver-managed child environment facts. */
+export const TASKWEAVER_ENV_PREFIX = 'TASKWEAVER_';
+/** Legacy prefixes are scrubbed so old identities and secrets never leak to child processes. */
+export const LEGACY_TASKWEAVER_ENV_PREFIXES = ['DSH_', 'Z_'];
+/** @deprecated Use {@link TASKWEAVER_ENV_PREFIX}. */
+export const DSH_ENV_PREFIX = 'DSH_';
+/** @deprecated Use {@link TASKWEAVER_ENV_PREFIX}. */
+export const Z_ENV_PREFIX = 'Z_';
+//# sourceMappingURL=types.js.map

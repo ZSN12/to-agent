@@ -117,10 +117,10 @@ node scripts/diagnose/verify-dsh-backend.mjs
 ## 文件清单
 
 ### 已修改文件
-- ✅ `electron/backend/register-ipc.mjs` - 服务初始化顺序修复
+- ✅ `desktop/backend/register-ipc.mjs` - 服务初始化顺序修复
 - ✅ `src/features/models/ModelSettingsPanel.tsx` - OAuth UI 已验证正确
 - ✅ `src/hooks/useModelCatalog.ts` - OAuth 状态管理已验证正确
-- ✅ `electron/preload.cjs` - IPC 桥接已验证正确
+- ✅ `desktop/preload.cjs` - IPC 桥接已验证正确
 
 ### 新增验证脚本
 - ✅ `scripts/diagnose/verify-dsh-backend.mjs` - 自动化验证脚本

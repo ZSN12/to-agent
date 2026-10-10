@@ -1,13 +1,13 @@
 /**
- * Package-owned invariant companion for `@z/dsh-llm-replay`.
- * @module @z/dsh-llm-replay/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-llm-replay`.
+ * @module @taskweaver/dsh-llm-replay/invariant
  */
 
 /* jscpd:ignore-start */
-import type { Context } from '@z/cordis'
-import type { InvariantInstaller } from '@z/dsh-invariants'
+import type { Context } from '@taskweaver/cordis'
+import type { InvariantInstaller } from '@taskweaver/dsh-invariants'
 
-const PACKAGE_NAME = '@z/dsh-llm-replay'
+const PACKAGE_NAME = '@taskweaver/dsh-llm-replay'
 
 /** Cordis companion plugin name. */
 export const name = 'llm-replay-invariant'

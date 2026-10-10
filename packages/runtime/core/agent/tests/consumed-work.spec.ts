@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { createUserMessage } from '@z/dsh-llm'
-import { Session, SessionId } from '@z/dsh-session'
-import type { TurnEndReason } from '@z/dsh-session'
-import { foldConsumedWork } from '@z/dsh-agent'
+import { createUserMessage } from '@taskweaver/dsh-llm'
+import { Session, SessionId } from '@taskweaver/dsh-session'
+import type { TurnEndReason } from '@taskweaver/dsh-session'
+import { foldConsumedWork } from '@taskweaver/dsh-agent'
 
 /** One pending message, as the inbox records it. */
 function message(text: string) {

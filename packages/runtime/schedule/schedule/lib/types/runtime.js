@@ -1,8 +1,8 @@
 /**
  * Disposable live timer projection for one exact root agent.
- * @module @z/dsh-schedule
+ * @module @taskweaver/dsh-schedule
  */
-import { createUserMessage } from '@z/dsh-llm';
+import { createUserMessage } from '@taskweaver/dsh-llm';
 import { foldScheduleEvents, renderEveryReminderBatchFraming, renderReminderFraming, resolveEveryOccurrence, ScheduleLogError, } from "./domain.js";
 import { flushSchedulePersistence } from "./persistence.js";
 import { runScheduleTransaction } from "./transaction.js";

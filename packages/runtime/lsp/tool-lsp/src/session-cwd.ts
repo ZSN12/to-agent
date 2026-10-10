@@ -4,10 +4,10 @@
  * Unlike those tools, LSP has NO provider fallback — a missing cwd fails the call as
  * `LSP_WORKSPACE_REQUIRED`, because the local provider must canonicalize a real workspace before it
  * can start a server.
- * @module @z/dsh-tool-lsp/session-cwd
+ * @module @taskweaver/dsh-tool-lsp/session-cwd
  */
 
-import type { ToolExecution } from '@z/dsh-tools'
+import type { ToolExecution } from '@taskweaver/dsh-tools'
 
 /**
  * The session workspace cwd for this call, or `undefined` when none applies.

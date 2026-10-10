@@ -15,18 +15,18 @@ var __copyProps = (to, from, except, desc) => {
 	}
 	return to;
 };
-var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", {
+var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(isNodeMode || !mod || !mod.__esModule || !__hasOwnProp.call(mod, "default") ? __defProp(target, "default", {
 	value: mod,
 	enumerable: true
 }) : target, mod));
 //#endregion
 let node_worker_threads = require("node:worker_threads");
-let _z_dsh_llm = require("@z/dsh-llm");
+let _taskweaver_dsh_llm = require("@taskweaver/dsh-llm");
 let node_vm = require("node:vm");
 node_vm = __toESM(node_vm, 1);
-let _z_dsh_session = require("@z/dsh-session");
-let _z_dsh_tools = require("@z/dsh-tools");
-let _z_dsh_workflow = require("@z/dsh-workflow");
+let _taskweaver_dsh_session = require("@taskweaver/dsh-session");
+let _taskweaver_dsh_tools = require("@taskweaver/dsh-tools");
+let _taskweaver_dsh_workflow = require("@taskweaver/dsh-workflow");
 //#region lib/types/protocol.js
 /**
 * The host⇄worker wire protocol: one string-valued enum of message tags per direction, a
@@ -34,7 +34,7 @@ let _z_dsh_workflow = require("@z/dsh-workflow");
 * unions derived from them. Payloads are plain JSON by construction for structured clone. Both
 * directions are closed engine protocols whose receivers use `assertNever`; generic typed senders
 * make tag/payload mismatches compile-time errors rather than silently skipped messages.
-* @module @z/dsh-workflow-worker-thread/protocol
+* @module @taskweaver/dsh-workflow-worker-thread/protocol
 */
 /** Message tags the worker sends the host (the wire values are the tag strings). */
 var WorkerToHostType;
@@ -83,7 +83,7 @@ var HostToWorkerType;
 * run, and the vm is not a security boundary. The worker provides host-loop isolation and
 * forced termination, not hostile-value containment. See
 * .agents/notes/implemented/feature/2026-07-05-dynamic-workflows.md for the isolation rationale.
-* @module @z/dsh-workflow-worker-thread/realm
+* @module @taskweaver/dsh-workflow-worker-thread/realm
 */
 /** Thrown by {@link materializeFromRealm}; the caller wraps it into the right `WorkflowError` code. */
 var MaterializeError = class extends Error {
@@ -159,7 +159,6 @@ function materialize(value, path, seen) {
 		case "function": throw new MaterializeError(path, "functions are not plain JSON data");
 		case "symbol": throw new MaterializeError(path, "symbols are not plain JSON data");
 		case "undefined": throw new MaterializeError(path, "undefined is not JSON data");
-		case "object": break;
 	}
 	if (value === null) return null;
 	const objectValue = value;
@@ -210,10 +209,10 @@ function materializeObject(value, path, seen) {
 * per-item nulls. Every returned promise has a rejection consumer so dropped script promises cannot
 * kill the worker. A cancelled script that never settles emits nothing; the host force-settles the
 * run within grace and terminates the thread.
-* @module @z/dsh-workflow-worker-thread/runtime
+* @module @taskweaver/dsh-workflow-worker-thread/runtime
 */
 /** The `agent()` options the script may pass; everything else rejects loud. */
-const SUPPORTED_AGENT_OPTIONS = new Set([
+const SUPPORTED_AGENT_OPTIONS = /* @__PURE__ */ new Set([
 	"label",
 	"phase",
 	"schema",
@@ -221,7 +220,7 @@ const SUPPORTED_AGENT_OPTIONS = new Set([
 	"model"
 ]);
 /** Deferred Claude Code options we name explicitly in the rejection message. */
-const DEFERRED_AGENT_OPTIONS = new Set([
+const DEFERRED_AGENT_OPTIONS = /* @__PURE__ */ new Set([
 	"effort",
 	"isolation",
 	"agentType"
@@ -265,7 +264,7 @@ var WorkflowExecution = class {
 				lineOffset: -1
 			});
 		} catch (error) {
-			throw new _z_dsh_workflow.WorkflowError(`workflow script does not parse: ${String(error)}`, "SCRIPT_PARSE", { cause: error });
+			throw new _taskweaver_dsh_workflow.WorkflowError(`workflow script does not parse: ${String(error)}`, "SCRIPT_PARSE", { cause: error });
 		}
 		this.context = node_vm.createContext({}, { name: `workflow:${meta.name}` });
 		const globals = {
@@ -313,7 +312,7 @@ var WorkflowExecution = class {
 	cancel(reason) {
 		if (this.cancelReason !== void 0) return;
 		this.cancelReason = reason;
-		this.cancelError = new _z_dsh_workflow.WorkflowError(`workflow run cancelled: ${this.cancelReason}`, "CANCELLED");
+		this.cancelError = new _taskweaver_dsh_workflow.WorkflowError(`workflow run cancelled: ${this.cancelReason}`, "CANCELLED");
 		for (const waiter of this.slotWaiters.splice(0)) waiter.reject(this.cancelledError());
 	}
 	/**
@@ -363,7 +362,7 @@ var WorkflowExecution = class {
 	}
 	cancelledError() {
 		/* v8 ignore next */
-		return this.cancelError ?? new _z_dsh_workflow.WorkflowError("workflow run cancelled", "CANCELLED");
+		return this.cancelError ?? new _taskweaver_dsh_workflow.WorkflowError("workflow run cancelled", "CANCELLED");
 	}
 	/** Materialize the script's return value; violations become RESULT_UNSERIALIZABLE. */
 	materializeResult(raw) {
@@ -372,7 +371,7 @@ var WorkflowExecution = class {
 		} catch (error) {
 			/* v8 ignore next -- defensive rethrow arm: materializeFromRealm only throws MaterializeError */
 			if (!(error instanceof MaterializeError)) throw error;
-			throw new _z_dsh_workflow.WorkflowError(`the workflow's return value is not plain JSON data — ${error.message}. Return only JSON-serializable objects/arrays/scalars.`, "RESULT_UNSERIALIZABLE", { cause: error });
+			throw new _taskweaver_dsh_workflow.WorkflowError(`the workflow's return value is not plain JSON data — ${error.message}. Return only JSON-serializable objects/arrays/scalars.`, "RESULT_UNSERIALIZABLE", { cause: error });
 		}
 	}
 	/**
@@ -403,9 +402,9 @@ var WorkflowExecution = class {
 	/** The `agent(prompt, opts)` hook. */
 	async agent(rawPrompt, rawOpts) {
 		this.throwIfCancelled();
-		if (typeof rawPrompt !== "string" || rawPrompt.length === 0) throw new _z_dsh_workflow.WorkflowError("agent() requires a non-empty prompt string", "INVALID_ARGUMENT");
+		if (typeof rawPrompt !== "string" || rawPrompt.length === 0) throw new _taskweaver_dsh_workflow.WorkflowError("agent() requires a non-empty prompt string", "INVALID_ARGUMENT");
 		const opts = this.readAgentOptions(rawOpts);
-		if (this.started >= this.limits.maxTotalAgents) throw new _z_dsh_workflow.WorkflowError(`this run reached its total agent cap (${this.limits.maxTotalAgents}) — a runaway-loop backstop; raise the applicable maxTotalAgents limit if the scale is intentional`, "AGENT_CAP");
+		if (this.started >= this.limits.maxTotalAgents) throw new _taskweaver_dsh_workflow.WorkflowError(`this run reached its total agent cap (${this.limits.maxTotalAgents}) — a runaway-loop backstop; raise the applicable maxTotalAgents limit if the scale is intentional`, "AGENT_CAP");
 		this.started += 1;
 		const seq = this.started;
 		const label = opts.label ?? defaultLabel(rawPrompt);
@@ -423,7 +422,7 @@ var WorkflowExecution = class {
 				});
 			} catch (error) {
 				if (this.isCancelled()) throw this.cancelledError();
-				throw new _z_dsh_workflow.WorkflowError(`agent() could not start a child: ${renderThrown(error)}`, "AGENT_START", { cause: error });
+				throw new _taskweaver_dsh_workflow.WorkflowError(`agent() could not start a child: ${renderThrown(error)}`, "AGENT_START", { cause: error });
 			}
 			if (this.isCancelled()) {
 				await run.dispose();
@@ -433,7 +432,7 @@ var WorkflowExecution = class {
 				seq,
 				label,
 				...phase !== void 0 ? { phase } : {},
-				childId: (0, _z_dsh_session.SessionId)(run.id)
+				childId: (0, _taskweaver_dsh_session.SessionId)(run.id)
 			};
 			this.observer.agentStart(info);
 			try {
@@ -452,7 +451,7 @@ var WorkflowExecution = class {
 						...info,
 						outcome: "failed"
 					});
-					throw new _z_dsh_workflow.WorkflowError(`child agent run failed: ${renderThrown(error)}`, "AGENT_RESULT", { cause: error });
+					throw new _taskweaver_dsh_workflow.WorkflowError(`child agent run failed: ${renderThrown(error)}`, "AGENT_RESULT", { cause: error });
 				}
 				if (result.stopReason === "completed") {
 					if (opts.schema !== void 0) {
@@ -503,29 +502,29 @@ var WorkflowExecution = class {
 		} catch (error) {
 			/* v8 ignore next -- defensive rethrow arm: materializeFromRealm only throws MaterializeError */
 			if (!(error instanceof MaterializeError)) throw error;
-			throw new _z_dsh_workflow.WorkflowError(`agent() options must be plain JSON data — ${error.message}`, "INVALID_ARGUMENT", { cause: error });
+			throw new _taskweaver_dsh_workflow.WorkflowError(`agent() options must be plain JSON data — ${error.message}`, "INVALID_ARGUMENT", { cause: error });
 		}
-		if (typeof opts !== "object" || opts === null || Array.isArray(opts)) throw new _z_dsh_workflow.WorkflowError("agent() options must be an object", "INVALID_ARGUMENT");
+		if (typeof opts !== "object" || opts === null || Array.isArray(opts)) throw new _taskweaver_dsh_workflow.WorkflowError("agent() options must be an object", "INVALID_ARGUMENT");
 		const record = opts;
 		for (const key of Object.keys(record)) {
 			if (SUPPORTED_AGENT_OPTIONS.has(key)) continue;
-			if (DEFERRED_AGENT_OPTIONS.has(key)) throw new _z_dsh_workflow.WorkflowError(`agent() option "${key}" is deferred and not supported by this engine (supported: label, phase, schema, provider, model)`, "UNSUPPORTED_OPTION");
-			throw new _z_dsh_workflow.WorkflowError(`agent() option "${key}" is not recognized (supported: label, phase, schema, provider, model)`, "UNSUPPORTED_OPTION");
+			if (DEFERRED_AGENT_OPTIONS.has(key)) throw new _taskweaver_dsh_workflow.WorkflowError(`agent() option "${key}" is deferred and not supported by this engine (supported: label, phase, schema, provider, model)`, "UNSUPPORTED_OPTION");
+			throw new _taskweaver_dsh_workflow.WorkflowError(`agent() option "${key}" is not recognized (supported: label, phase, schema, provider, model)`, "UNSUPPORTED_OPTION");
 		}
 		for (const key of [
 			"label",
 			"phase",
 			"provider",
 			"model"
-		]) if (record[key] !== void 0 && typeof record[key] !== "string") throw new _z_dsh_workflow.WorkflowError(`agent() option "${key}" must be a string`, "INVALID_ARGUMENT");
+		]) if (record[key] !== void 0 && typeof record[key] !== "string") throw new _taskweaver_dsh_workflow.WorkflowError(`agent() option "${key}" must be a string`, "INVALID_ARGUMENT");
 		let schema;
 		if (record.schema !== void 0) try {
-			(0, _z_dsh_tools.assertObjectJsonSchema)(record.schema);
+			(0, _taskweaver_dsh_tools.assertObjectJsonSchema)(record.schema);
 			schema = record.schema;
 		} catch (error) {
 			/* v8 ignore next -- defensive rethrow arm: assertObjectJsonSchema only throws JsonSchemaError */
-			if (!(error instanceof _z_dsh_tools.JsonSchemaError)) throw error;
-			throw new _z_dsh_workflow.WorkflowError(`agent() schema is outside the supported subset — ${error.message}`, "UNSUPPORTED_SCHEMA", { cause: error });
+			if (!(error instanceof _taskweaver_dsh_tools.JsonSchemaError)) throw error;
+			throw new _taskweaver_dsh_workflow.WorkflowError(`agent() schema is outside the supported subset — ${error.message}`, "UNSUPPORTED_SCHEMA", { cause: error });
 		}
 		return {
 			...record.label !== void 0 ? { label: record.label } : {},
@@ -538,17 +537,17 @@ var WorkflowExecution = class {
 	/** The `parallel(thunks)` hook: each thunk caught → `null`; fatal errors propagate. */
 	async parallel(rawThunks) {
 		this.throwIfCancelled();
-		if (!Array.isArray(rawThunks)) throw new _z_dsh_workflow.WorkflowError("parallel() requires an array of zero-argument functions", "INVALID_ARGUMENT");
+		if (!Array.isArray(rawThunks)) throw new _taskweaver_dsh_workflow.WorkflowError("parallel() requires an array of zero-argument functions", "INVALID_ARGUMENT");
 		this.assertItemCap(rawThunks.length, "parallel()");
 		const thunks = rawThunks.map((thunk, index) => {
-			if (typeof thunk !== "function") throw new _z_dsh_workflow.WorkflowError(`parallel() item ${index} is not a function`, "INVALID_ARGUMENT");
+			if (typeof thunk !== "function") throw new _taskweaver_dsh_workflow.WorkflowError(`parallel() item ${index} is not a function`, "INVALID_ARGUMENT");
 			return thunk;
 		});
 		return Promise.all(thunks.map(async (thunk) => {
 			try {
 				return await thunk();
 			} catch (error) {
-				if ((0, _z_dsh_workflow.isFatalWorkflowError)(error)) throw error;
+				if ((0, _taskweaver_dsh_workflow.isFatalWorkflowError)(error)) throw error;
 				return null;
 			}
 		}));
@@ -556,11 +555,11 @@ var WorkflowExecution = class {
 	/** The `pipeline(items, ...stages)` hook: per-item stage chains, NO cross-stage barrier. */
 	async pipeline(rawItems, rawStages) {
 		this.throwIfCancelled();
-		if (!Array.isArray(rawItems)) throw new _z_dsh_workflow.WorkflowError("pipeline() requires an items array", "INVALID_ARGUMENT");
+		if (!Array.isArray(rawItems)) throw new _taskweaver_dsh_workflow.WorkflowError("pipeline() requires an items array", "INVALID_ARGUMENT");
 		this.assertItemCap(rawItems.length, "pipeline()");
-		if (rawStages.length === 0) throw new _z_dsh_workflow.WorkflowError("pipeline() requires at least one stage function", "INVALID_ARGUMENT");
+		if (rawStages.length === 0) throw new _taskweaver_dsh_workflow.WorkflowError("pipeline() requires at least one stage function", "INVALID_ARGUMENT");
 		const stages = rawStages.map((stage, index) => {
-			if (typeof stage !== "function") throw new _z_dsh_workflow.WorkflowError(`pipeline() stage ${index} is not a function`, "INVALID_ARGUMENT");
+			if (typeof stage !== "function") throw new _taskweaver_dsh_workflow.WorkflowError(`pipeline() stage ${index} is not a function`, "INVALID_ARGUMENT");
 			return stage;
 		});
 		return Promise.all(rawItems.map(async (item, index) => {
@@ -569,25 +568,25 @@ var WorkflowExecution = class {
 				for (const stage of stages) value = await stage(value, item, index);
 				return value;
 			} catch (error) {
-				if ((0, _z_dsh_workflow.isFatalWorkflowError)(error)) throw error;
+				if ((0, _taskweaver_dsh_workflow.isFatalWorkflowError)(error)) throw error;
 				return null;
 			}
 		}));
 	}
 	assertItemCap(length, hook) {
-		if (length > this.limits.maxItemsPerCall) throw new _z_dsh_workflow.WorkflowError(`${hook} received ${length} items — over the per-call cap (${this.limits.maxItemsPerCall}); split the work or raise maxItemsPerCall in the engine config`, "ITEM_CAP");
+		if (length > this.limits.maxItemsPerCall) throw new _taskweaver_dsh_workflow.WorkflowError(`${hook} received ${length} items — over the per-call cap (${this.limits.maxItemsPerCall}); split the work or raise maxItemsPerCall in the engine config`, "ITEM_CAP");
 	}
 	/** The `phase(title)` hook: sets the current label for subsequent `agent()` calls and notifies observers. */
 	phase(title) {
 		this.throwIfCancelled();
-		if (typeof title !== "string" || title.length === 0) throw new _z_dsh_workflow.WorkflowError("phase() requires a non-empty title string", "INVALID_ARGUMENT");
+		if (typeof title !== "string" || title.length === 0) throw new _taskweaver_dsh_workflow.WorkflowError("phase() requires a non-empty title string", "INVALID_ARGUMENT");
 		this.currentPhase = title;
 		this.observer.phase(title);
 	}
 	/** The `log(message)` hook: narration to observers. */
 	log(message) {
 		this.throwIfCancelled();
-		if (typeof message !== "string") throw new _z_dsh_workflow.WorkflowError("log() requires a message string", "INVALID_ARGUMENT");
+		if (typeof message !== "string") throw new _taskweaver_dsh_workflow.WorkflowError("log() requires a message string", "INVALID_ARGUMENT");
 		this.observer.log(message);
 	}
 };
@@ -603,7 +602,7 @@ var WorkflowExecution = class {
 * The session announces ready and waits for `go`, so cancellation racing startup can prevent even
 * the script's synchronous prefix. A cancel in place of `go` releases the gate into a cancelled
 * drive without executing the body.
-* @module @z/dsh-workflow-worker-thread/session
+* @module @taskweaver/dsh-workflow-worker-thread/session
 */
 /**
 * The worker-side handle for one started child agent ({@link ChildHandle}):
@@ -763,7 +762,7 @@ async function runWorkerSession(port, init) {
 				children.onChildDisposed(message.callId);
 				break;
 			/* v8 ignore next 2 -- closed engine-owned union; the arm only makes adding a message type a compile error */
-			default: (0, _z_dsh_llm.assertNever)(message, "host-to-worker message");
+			default: (0, _taskweaver_dsh_llm.assertNever)(message, "host-to-worker message");
 		}
 	});
 	post(WorkerToHostType.Ready, {});
@@ -777,7 +776,7 @@ async function runWorkerSession(port, init) {
 * Single-statement worker entry that boots `runWorkerSession` on real `parentPort`. Logic remains in
 * the session module for in-process MessageChannel coverage; importing this entry on the main thread
 * exercises `requireParentPort`'s failure path.
-* @module @z/dsh-workflow-worker-thread/worker
+* @module @taskweaver/dsh-workflow-worker-thread/worker
 */
 runWorkerSession(requireParentPort(node_worker_threads.parentPort), node_worker_threads.workerData);
 //#endregion

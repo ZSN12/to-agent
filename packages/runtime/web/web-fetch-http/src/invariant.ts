@@ -1,13 +1,13 @@
 /**
- * Package-owned invariant companion for `@z/dsh-web-fetch-http`.
- * @module @z/dsh-web-fetch-http/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-web-fetch-http`.
+ * @module @taskweaver/dsh-web-fetch-http/invariant
  */
 
 /* jscpd:ignore-start */
-import type { Context } from '@z/cordis'
-import type { InvariantInstaller } from '@z/dsh-invariants'
+import type { Context } from '@taskweaver/cordis'
+import type { InvariantInstaller } from '@taskweaver/dsh-invariants'
 
-const PACKAGE_NAME = '@z/dsh-web-fetch-http'
+const PACKAGE_NAME = '@taskweaver/dsh-web-fetch-http'
 
 /** Cordis companion plugin name. */
 export const name = 'web-fetch-http-invariant'

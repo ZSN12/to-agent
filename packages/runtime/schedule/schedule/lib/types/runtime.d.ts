@@ -1,9 +1,9 @@
 /**
  * Disposable live timer projection for one exact root agent.
- * @module @z/dsh-schedule
+ * @module @taskweaver/dsh-schedule
  */
-import type { Context } from '@z/cordis';
-import type { Agent } from '@z/dsh-agent';
+import type { Context } from '@taskweaver/cordis';
+import type { Agent } from '@taskweaver/dsh-agent';
 /** Largest delay that Node timers represent without clamping. */
 export declare const MAX_TIMER_DELAY_MS = 2147483647;
 /** One process-local, disposable projection of an exact agent's durable schedules. */

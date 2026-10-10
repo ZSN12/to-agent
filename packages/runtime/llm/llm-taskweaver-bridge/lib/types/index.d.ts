@@ -1,8 +1,8 @@
 /**
  * Register TaskWeaver in-process model bridge routes on `ctx.llm`.
- * @module @z/dsh-llm-taskweaver-bridge
+ * @module @taskweaver/dsh-llm-taskweaver-bridge
  */
-import type { Context } from '@z/cordis';
+import type { Context } from '@taskweaver/cordis';
 export declare const name = "llm-taskweaver-bridge";
 export declare const inject: string[];
 export { TaskWeaverBridgeAdapter } from './adapter.ts';

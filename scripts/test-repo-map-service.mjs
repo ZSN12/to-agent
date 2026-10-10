@@ -10,7 +10,7 @@ import {
   clearRepoMapCache,
   getRepoMapCacheSize,
   setSymbolOutlineExtractor,
-} from '../electron/backend/repo-map-service.mjs'
+} from '../desktop/backend/repo-map-service.mjs'
 
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'test-repo-map-'))
 

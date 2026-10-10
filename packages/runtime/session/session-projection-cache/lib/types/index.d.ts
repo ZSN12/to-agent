@@ -9,15 +9,15 @@
  * `ver` mismatch discards the row instead of migrating it. Design
  * authority: the session-projection RFC
  * (.agents/notes/proposed/architecture/2026-07-27-session-projection-and-command-log.md).
- * @module @z/dsh-session-projection-cache
+ * @module @taskweaver/dsh-session-projection-cache
  */
-import { Context, Service } from '@z/cordis';
-import z from '@z/schemastery';
-import type { Session, SessionHeader, SessionId } from '@z/dsh-session';
-import type { ProjectionSnapshot } from '@z/dsh-session-projection';
+import { Context, Service } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
+import type { Session, SessionHeader, SessionId } from '@taskweaver/dsh-session';
+import type { ProjectionSnapshot } from '@taskweaver/dsh-session-projection';
 export { checkpointIdentity, checkpointRecord, checkpointRow, projectionCacheDomainSpec } from './spec.ts';
 export type { CheckpointIdentity, CheckpointRecord } from './spec.ts';
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
     interface Context {
         sessionProjectionCache: SessionProjectionCache;
     }

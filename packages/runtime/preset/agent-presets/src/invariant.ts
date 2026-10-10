@@ -1,20 +1,20 @@
 /**
- * Package-owned invariant companion for `@z/dsh-agent-presets`.
- * @module @z/dsh-agent-presets/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-agent-presets`.
+ * @module @taskweaver/dsh-agent-presets/invariant
  */
 
-import type { Context } from '@z/cordis'
-import type { InvariantInstaller } from '@z/dsh-invariants'
+import type { Context } from '@taskweaver/cordis'
+import type { InvariantInstaller } from '@taskweaver/dsh-invariants'
 // Type-only: resolves the `system-prompt/assemble` waterfall this companion
 // joins, and the `agent` field `dsh-agent` merges into its context.
-import type {} from '@z/dsh-system-prompt'
-import type {} from '@z/dsh-agent'
+import type {} from '@taskweaver/dsh-system-prompt'
+import type {} from '@taskweaver/dsh-agent'
 // Imported through the package name, not `./mount.ts`: a module shared between
 // the two build entry points becomes a third chunk that the published `files`
 // list does not carry, which `verify-built-package-invariants` rejects.
-import { leakedServices, livePresetMounts } from '@z/dsh-agent-presets'
+import { leakedServices, livePresetMounts } from '@taskweaver/dsh-agent-presets'
 
-const PACKAGE_NAME = '@z/dsh-agent-presets'
+const PACKAGE_NAME = '@taskweaver/dsh-agent-presets'
 
 /** Cordis companion plugin name. */
 export const name = 'agent-presets-invariant'

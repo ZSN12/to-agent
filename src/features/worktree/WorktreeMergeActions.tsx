@@ -14,11 +14,21 @@ export function WorktreeMergeActions({
   onDone?: () => void
 }) {
   const [busy, setBusy] = useState(false)
+  const [merged, setMerged] = useState(false)
+
+  const runBusy = async (operation: () => Promise<void>) => {
+    setBusy(true)
+    try {
+      await operation()
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : String(error))
+    } finally {
+      setBusy(false)
+    }
+  }
 
   const preview = async () => {
-    setBusy(true)
     const res = await window.taskweaver?.worktree?.previewMerge(taskId, conversationId, runId)
-    setBusy(false)
     if (!res?.ok) {
       window.alert(res?.error ?? '检测合并失败')
       return
@@ -35,9 +45,7 @@ export function WorktreeMergeActions({
   }
 
   const diff = async () => {
-    setBusy(true)
     const res = await window.taskweaver?.worktree?.diff(taskId, conversationId, runId)
-    setBusy(false)
     if (!res?.ok) {
       window.alert(res?.error ?? '无法读取差异')
       return
@@ -46,9 +54,7 @@ export function WorktreeMergeActions({
   }
 
   const merge = async () => {
-    setBusy(true)
     const previewRes = await window.taskweaver?.worktree?.previewMerge(taskId, conversationId, runId)
-    setBusy(false)
     if (!previewRes?.ok) {
       window.alert(previewRes?.error ?? '预览失败')
       return
@@ -65,9 +71,7 @@ export function WorktreeMergeActions({
       return
     }
     const removeAfter = window.confirm('合并成功后删除该 worktree？选「取消」则保留。')
-    setBusy(true)
     const res = await window.taskweaver?.worktree?.applyMerge(taskId, { removeAfter }, conversationId, runId)
-    setBusy(false)
     if (!res?.ok) {
       window.alert(res?.error ?? '合并失败')
       return
@@ -77,21 +81,26 @@ export function WorktreeMergeActions({
     } else {
       window.alert(res.data.worktreeRemoved ? '已合并并删除 worktree' : '已合并到主工作区')
     }
+    setMerged(true)
     onDone?.()
   }
 
   const btnClass = compact ? 'settings-secondary-button' : 'settings-secondary-button'
   return (
     <div className="task-worktree-actions" style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: compact ? 0 : 8 }}>
-      <button type="button" className={btnClass} disabled={busy} onClick={() => { void diff() }}>
-        查看差异
-      </button>
-      <button type="button" className={btnClass} disabled={busy} onClick={() => { void preview() }}>
-        检测合并
-      </button>
-      <button type="button" className="settings-primary-button" disabled={busy} onClick={() => { void merge() }}>
-        合并到主工作区
-      </button>
+      {merged ? (
+        <span role="status">改动已合并到主工作区</span>
+      ) : <>
+        <button type="button" className={btnClass} disabled={busy} onClick={() => { void runBusy(diff) }}>
+          查看差异
+        </button>
+        <button type="button" className={btnClass} disabled={busy} onClick={() => { void runBusy(preview) }}>
+          检测合并
+        </button>
+        <button type="button" className="settings-primary-button" disabled={busy} onClick={() => { void runBusy(merge) }}>
+          合并到主工作区
+        </button>
+      </>}
     </div>
   )
 }

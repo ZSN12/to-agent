@@ -1,12 +1,12 @@
 /**
  * Durable agent session-event vocabulary shared with type-only consumers.
  *
- * @module @z/dsh-agent/types
+ * @module @taskweaver/dsh-agent/types
  */
-import type { UserMessage } from '@z/dsh-llm/types';
+import type { UserMessage } from '@taskweaver/dsh-llm/types';
 /** One of the two ordered pending-message lists owned by an agent. */
 export type InboxTarget = 'next-turn' | 'next-step';
-declare module '@z/dsh-session/types' {
+declare module '@taskweaver/dsh-session/types' {
     interface SessionEventMap {
         /**
          * One normalized mutation of an agent's durable pending-message lists.

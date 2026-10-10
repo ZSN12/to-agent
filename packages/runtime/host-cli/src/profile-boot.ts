@@ -1,6 +1,6 @@
 /**
- * Shared profile boot for every `dsh` surface: resolve the profile, stack its
- * patch layers (bundle layers in `dsh.profile.bundles` order, the profile's
+ * Shared profile boot for every `taskweaver-host` surface: resolve the profile, stack its
+ * patch layers (bundle layers in `taskweaver.profile.bundles` order, the profile's
  * own `cordis.patch.yml`, and `--patch` overlays), mount the
  * tree over the profile's empty root config, keep the profile patch layer
  * live, and wire fail-loud plus bounded shutdown.
@@ -8,15 +8,15 @@
  * App flags are not the launcher's business: the invocation's inner arguments
  * are provided to the tree through `ctx.cmdlineArgs`, where any injected app
  * plugin may read the same immutable snapshot.
- * @module @z/dsh/profile-boot
+ * @module @taskweaver/dsh/profile-boot
  */
 
 import { existsSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import type { Context } from '@z/cordis'
-import type { PatchOptions } from '@z/cordis-plugin-include'
-import type { EntryOptions } from '@z/cordis-plugin-loader'
+import type { Context } from '@taskweaver/cordis'
+import type { PatchOptions } from '@taskweaver/cordis-plugin-include'
+import type { EntryOptions } from '@taskweaver/cordis-plugin-loader'
 import {
   boot,
   composeEntries,
@@ -27,18 +27,18 @@ import {
   loadProfile,
   PROFILE_PATCH_FILENAME,
   type Profile,
-} from '@z/dsh-app-boot'
-import { resolveDshHome, taskweaverEmbeddedFromEnv } from '@z/dsh-home-paths'
+} from '@taskweaver/dsh-app-boot'
+import { resolveRuntimeHome, taskweaverEmbeddedFromEnv } from '@taskweaver/dsh-home-paths'
 
 /** Shipped agent-preset root: beside this app's own config, in both source and built layouts. */
 const SHIPPED_PRESET_ROOT = fileURLToPath(new URL('../config/agent-presets/', import.meta.url))
 
-import { DSH_LAUNCH_ENVIRONMENT_KEY, type LaunchEnvironmentSnapshot } from '@z/dsh-launch-environment'
-import { provideCmdline } from '@z/dsh-cmdline'
+import { TASKWEAVER_LAUNCH_ENVIRONMENT_KEY, type LaunchEnvironmentSnapshot } from '@taskweaver/dsh-launch-environment'
+import { provideCmdline } from '@taskweaver/dsh-cmdline'
 import { createProcessShutdown, type ProcessShutdown } from './process-shutdown.ts'
 import { ensureDeployNodeModules } from './deploy-layout.ts'
 
-const NAME = 'dsh'
+const NAME = 'taskweaver-host'
 
 /** TaskWeaver embeds Z as an API host; skip patch/HMR watchers that need Node internals. */
 function taskweaverEmbedded(): boolean {
@@ -47,12 +47,18 @@ function taskweaverEmbedded(): boolean {
 
 /**
  * Packaged TaskWeaver runs the host with `cwd` at the deploy root (or its stable
- * mirror). Bare `@z/*` imports must resolve from there, not from `$DSH_HOME/profiles/*`.
+ * mirror). Bare `@taskweaver/*` imports must resolve from there, not from `$TASKWEAVER_HOME/profiles/*`.
  */
-export function resolveTaskWeaverBareModuleBaseUrl(): string | undefined {
+export function resolveTaskWeaverBareModuleBaseUrl(runtimeRoot = process.cwd()): string | undefined {
   if (!taskweaverEmbedded()) return undefined
-  const runtimeRoot = process.cwd()
   ensureDeployNodeModules(runtimeRoot)
+  // In the pnpm source workspace, package links belong to the host-cli
+  // importer rather than the workspace root. Use that importer as the ESM
+  // resolution anchor; deployed runtimes keep using their flattened root.
+  const workspaceHostRoot = join(runtimeRoot, 'host-cli')
+  if (existsSync(join(workspaceHostRoot, 'node_modules', '@taskweaver'))) {
+    return `${pathToFileURL(workspaceHostRoot).href}/`
+  }
   const hasPackages = existsSync(join(runtimeRoot, 'runtime-packages'))
     || existsSync(join(runtimeRoot, 'node_modules'))
   if (!hasPackages) return undefined
@@ -60,13 +66,13 @@ export function resolveTaskWeaverBareModuleBaseUrl(): string | undefined {
 }
 
 /**
- * The home-level user patch layer (`$DSH_HOME/cordis.patch.yml`), applied
+ * The home-level user patch layer (`$TASKWEAVER_HOME/cordis.patch.yml`), applied
  * over every profile's own layer. Resolved per call, not at module load:
- * `$DSH_HOME` may be set by the test or launcher after import.
+ * `$TASKWEAVER_HOME` may be set by the test or launcher after import.
  * @returns the absolute patch-file path.
  */
 export function homePatchPath(): string {
-  return join(resolveDshHome(), PROFILE_PATCH_FILENAME)
+  return join(resolveRuntimeHome(), PROFILE_PATCH_FILENAME)
 }
 
 /** Absolute path of this dsh installation's package.json (both anchors: src/ and lib/ sit one level under host-cli). */
@@ -74,7 +80,7 @@ export const INSTALL_ANCHOR = fileURLToPath(new URL('../package.json', import.me
 
 /** The empty root entry list every profile tree patches over. */
 const PROFILE_ROOT_CONFIG = `# dsh profile root — an empty entry list. The tree is composed as patches:
-# each bundle in package.json's dsh.profile.bundles, then cordis.patch.yml, then any
+# each bundle in package.json's taskweaver.profile.bundles, then cordis.patch.yml, then any
 # --patch overlays. Edit cordis.patch.yml, not this file.
 []
 `
@@ -107,7 +113,7 @@ interface ComposedProfile {
   profile: Profile
   /** Bundle layers concatenated — the part below the user layers on a live reload. */
   bundlePatches: PatchOptions[]
-  /** The home-level user layer (`$DSH_HOME/cordis.patch.yml`), applied after the profile's own. */
+  /** The home-level user layer (`$TASKWEAVER_HOME/cordis.patch.yml`), applied after the profile's own. */
   homePatches: PatchOptions[]
   /** Layers above the user layers on a live reload: `--patch` overlays. */
   overlays: PatchOptions[]
@@ -130,9 +136,9 @@ function allPatches(composed: ComposedProfile): PatchOptions[] {
 
 /**
  * Load `name` and compose its effective patch stack: bundle layers in
- * `dsh.profile.bundles` order (the base bundle gates the shell stacks by
+ * `taskweaver.profile.bundles` order (the base bundle gates the shell stacks by
  * platform on its own rows), the profile's user layer, the home-level user
- * layer (`$DSH_HOME/cordis.patch.yml` — machine-local preferences that apply
+ * layer (`$TASKWEAVER_HOME/cordis.patch.yml` — machine-local preferences that apply
  * to every profile, so it outranks the per-profile layer), `--patch` overlays,
  * after the user layers.
  * @param name - the profile name.
@@ -214,7 +220,7 @@ export async function runProfile(options: RunProfileOptions): Promise<{ ctx: Con
     app.current = hostCtx
     // Before any config-tree entry mounts, so plugins resolve all launch-time
     // environment values from the same immutable provenance snapshot.
-    hostCtx.provide(DSH_LAUNCH_ENVIRONMENT_KEY, options.environment)
+    hostCtx.provide(TASKWEAVER_LAUNCH_ENVIRONMENT_KEY, options.environment)
     // The command line and bounded exit request are launcher facts available
     // to every app plugin that injects the argument snapshot.
     provideCmdline(hostCtx, {

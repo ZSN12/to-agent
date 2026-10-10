@@ -1,8 +1,8 @@
 /**
  * Lossless-JSON snapshots for the dependency-free source worker closure.
- * @module @z/dsh-code-runtime-worker-thread/worker-json
+ * @module @taskweaver/dsh-code-runtime-worker-thread/worker-json
  */
-import type { CodeJsonValue } from '@z/dsh-code-runtime';
+import type { CodeJsonValue } from '@taskweaver/dsh-code-runtime';
 /**
  * Validate and detach one worker-boundary value without loading another
  * workspace package at runtime. This mirrors the session-owned canonical

@@ -1,23 +1,25 @@
 /**
  * Tool registry, model presentation modes, and pre/guard/around/post/result
  * execution pipeline.
- * @module @z/dsh-tools
+ * @module @taskweaver/dsh-tools
  */
 
-import { Context, Service } from '@z/cordis'
-import z from '@z/schemastery'
-import { AnonymousEntries, NamedEntries, ScopedLayers, scopeOf, scopeTarget } from '@z/dsh-scope'
-import type { ScopeKey, ScopeLayer, Scoped } from '@z/dsh-scope'
-import type { CallId, ContentBlock, ToolSchema } from '@z/dsh-llm'
-import { assertNever, deepFreeze, HarnessError } from '@z/dsh-llm'
-import type { Agent } from '@z/dsh-agent'
-import { snapshotJsonValue } from '@z/dsh-session'
-import type { JsonValue, UserMessage } from '@z/dsh-session'
-import type { ToolProviderResult } from '@z/dsh-system-prompt'
-import type { CodeRuntime } from '@z/dsh-code-runtime'
+import { Context, Service } from '@taskweaver/cordis'
+import z from '@taskweaver/schemastery'
+import { AnonymousEntries, NamedEntries, ScopedLayers, scopeOf, scopeTarget } from '@taskweaver/dsh-scope'
+import type { ScopeKey, ScopeLayer, Scoped } from '@taskweaver/dsh-scope'
+import type { CallId, ContentBlock, ToolSchema } from '@taskweaver/dsh-llm'
+import { assertNever, deepFreeze, HarnessError } from '@taskweaver/dsh-llm'
+import type { Agent } from '@taskweaver/dsh-agent'
+import { snapshotJsonValue } from '@taskweaver/dsh-session'
+import type { JsonValue, UserMessage } from '@taskweaver/dsh-session'
+import type { ToolProviderResult } from '@taskweaver/dsh-system-prompt'
+import type { CodeRuntime } from '@taskweaver/dsh-code-runtime'
+import type { SandboxExecutionPolicy } from '@taskweaver/dsh-sandbox'
+import type {} from '@taskweaver/dsh-sandbox-policy'
 // Type-only: makes `ctx.get('approval')` resolve to the ApprovalService
 // augmentation. The seam stays optional at runtime — see `serviceAsk`.
-import type {} from '@z/dsh-user-approval'
+import type {} from '@taskweaver/dsh-user-approval'
 import type { ToolCallView, ToolResultView } from './presentation.ts'
 import { assertSupportedJsonSchema, validateJsonSchemaValue } from './json-schema.ts'
 import type { JsonSchemaNode } from './json-schema.ts'
@@ -98,7 +100,7 @@ export {
   type JsonSchemaScalar,
 } from './json-schema.ts'
 
-export type { JsonValue } from '@z/dsh-session'
+export type { JsonValue } from '@taskweaver/dsh-session'
 export type { CodeDispatchEventData, CodeDispatchStartEventData } from './types.ts'
 
 export { CodeRunFailedError, RUN_CODE_NAME } from './code-mode.ts'
@@ -107,7 +109,7 @@ export { jsonSchemaToPy, renderToolsSdkPy } from './py-types.ts'
 export { defineContentToolFixture, type ContentToolFixtureOptions } from './testing.ts'
 
 // The render-intent vocabulary a tool declares via `presentCall`/`presentResult`
-// lives in its own UI-facing module; re-export it so `@z/dsh-tools`
+// lives in its own UI-facing module; re-export it so `@taskweaver/dsh-tools`
 // stays the single public API for tool producers and UI adapters.
 export type {
   ToolCallKind,
@@ -134,7 +136,7 @@ export type {
   WebSource,
 } from './presentation.ts'
 
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
   interface Context {
     tools: ToolRuntime
   }
@@ -145,7 +147,7 @@ declare module '@z/cordis' {
      * approval support turns `ask` into denial. Async gates must observe
      * `exec.signal`; the registry rechecks cancellation after they settle but
      * never abandons their promise.
-     * Scope-filtered dispatch (`@z/dsh-scope`): agent-scoped listeners receive only that agent's calls.
+     * Scope-filtered dispatch (`@taskweaver/dsh-scope`): agent-scoped listeners receive only that agent's calls.
      * @param exec - the pending call (name, parsed arguments, caller agent).
      * @mode waterfall
      */
@@ -156,7 +158,7 @@ declare module '@z/cordis' {
      * identity remains immutable. The registry re-fuses the original caller
      * signal before the body, so replacement cannot detach caller cancellation;
      * wrappers must still restore their signal and reach quiescence.
-     * Scope-filtered dispatch (`@z/dsh-scope`): agent-scoped listeners receive only that agent's calls.
+     * Scope-filtered dispatch (`@taskweaver/dsh-scope`): agent-scoped listeners receive only that agent's calls.
      * @param exec - the allowed call about to dispatch (name, parsed arguments, caller agent, signal).
      * @mode waterfall
      */
@@ -167,7 +169,7 @@ declare module '@z/cordis' {
      * listeners must observe `exec.signal`; after they settle, caller
      * cancellation replaces only a successful accepted outcome with the code
      * selected by whether the tool body was invoked.
-     * Scope-filtered dispatch (`@z/dsh-scope`): agent-scoped listeners receive only that agent's calls.
+     * Scope-filtered dispatch (`@taskweaver/dsh-scope`): agent-scoped listeners receive only that agent's calls.
      * @param exec - the call that just ran (name, parsed arguments, caller agent).
      * @param result - the dispatch outcome a listener may accept, replace, or block.
      * @mode waterfall
@@ -182,14 +184,14 @@ declare module '@z/cordis' {
      * logged copy is affected — the program already received the complete
      * value, and the model sees neither. A throwing listener is contained:
      * the bridge falls back to logging the original settled content.
-     * Scope-filtered dispatch (`@z/dsh-scope`): agent-scoped listeners receive only that agent's dispatches.
+     * Scope-filtered dispatch (`@taskweaver/dsh-scope`): agent-scoped listeners receive only that agent's dispatches.
      * @param dispatch - the parent execution, sub-call identity, and the settled content to log.
      * @mode waterfall
      */
     'tools/code-dispatch-log'(this: Scoped<ToolRuntime>, dispatch: CodeDispatchLog, next: () => Promise<ContentBlock[]>): Promise<ContentBlock[]>
     /**
      * Observe the frozen, lossless-JSON final outcome. Listener failures are contained.
-     * Scope-filtered dispatch (`@z/dsh-scope`): keyed by `exec.agent`.
+     * Scope-filtered dispatch (`@taskweaver/dsh-scope`): keyed by `exec.agent`.
      * @param exec - the execution object that traversed the pipeline.
      * @param result - a deep-frozen snapshot of the final returned result.
      * @mode emit
@@ -247,7 +249,7 @@ export interface ToolDefinition extends ToolSchema {
   finalizeContent?(exec: Readonly<ToolExecution>, result: Readonly<ToolExecutionResult>): ContentBlock[] | undefined
   /**
    * Cooperative tool-call timeout budget in milliseconds. Omit for no deadline.
-   * Enforced by `@z/dsh-tool-call-timeout-policy` (a `tools/execute` wrapper); it
+   * Enforced by `@taskweaver/dsh-tool-call-timeout-policy` (a `tools/execute` wrapper); it
    * is NEVER sent to the model — `schemas()` whitelists only name/description/
    * parameters. Declaring it asserts this tool forwards `exec.signal` to a
    * cooperative implementation that can reach quiescence when the signal aborts.
@@ -463,7 +465,7 @@ export interface ToolRuntimeScheduler {
  * Scheduler entry point omitted from the generated named service API.
  * @internal
  */
-export const TOOL_RUNTIME_SCHEDULER: unique symbol = Symbol('@z/dsh-tools.scheduler')
+export const TOOL_RUNTIME_SCHEDULER: unique symbol = Symbol('@taskweaver/dsh-tools.scheduler')
 
 /** Canonical error code for cancellation after a tool body was invoked. */
 export const TOOL_ABORTED = 'ABORTED'
@@ -926,6 +928,11 @@ export class ToolRuntime extends Service {
       // without demanding one, so a native-default process can still project
       // the transport for an agent that chose code.
       peekRuntime: () => this.ctx.get('codeRuntime'),
+      sandboxPolicyFor: agent => {
+        const context = agent?.ctx ?? this.ctx
+        const sandboxPolicy = context.get('sandboxPolicy')
+        return sandboxPolicy?.resolve(agent === undefined ? {} : { session: agent.session }) as SandboxExecutionPolicy | undefined
+      },
       maxParallel: this.maxParallelSubCalls,
       shapeDispatchLog: dispatch => this.shapeDispatchLog(dispatch),
     })
@@ -1019,7 +1026,7 @@ export class ToolRuntime extends Service {
   private requireCodeRuntime(mode: ToolPresentationMode): CodeRuntime {
     const runtime = this.ctx.get('codeRuntime')
     if (!runtime) {
-      throw new Error(`dsh-tools: mode "${mode}" requires a code runtime — load a ctx.codeRuntime implementation (e.g. @z/dsh-code-runtime-worker-thread) or set tools mode to "native"`)
+      throw new Error(`dsh-tools: mode "${mode}" requires a code runtime — load a ctx.codeRuntime implementation (e.g. @taskweaver/dsh-code-runtime-worker-thread) or set tools mode to "native"`)
     }
     if (!Object.hasOwn(SDK_RENDERERS, runtime.language)) {
       const known = Object.keys(SDK_RENDERERS).map(name => JSON.stringify(name)).join(', ')

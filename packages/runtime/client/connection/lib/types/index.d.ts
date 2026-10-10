@@ -1,6 +1,6 @@
 /** Host HTTP bridge for browser-client RPC. */
-import type { Context } from '@z/cordis';
-import z from '@z/schemastery';
+import type { Context } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
 export type { ConnectionRpcAuthority, ConnectionRpcEndpointMatcher, ConnectionRpcHandler, ConnectionRpcHandlerOptions, HostConnectionHandle, HostConnectionRpc, } from './rpc.ts';
 export { HostConnectionService } from './rpc-host.ts';
 export { API_PATH, HOST_EVENTS_PATH, MUX_EVENTS_PATH } from './api-path.ts';

@@ -5,11 +5,11 @@
  * any trees the service still owns. It has no config: every disposition and
  * limit arrives on the spec, so the deployment-varying choices stay with the
  * caller's config (the bash executor's, the LSP host's, …).
- * @module @z/dsh-subprocess-local
+ * @module @taskweaver/dsh-subprocess-local
  */
-import { Context } from '@z/cordis';
-import { SubprocessRuntime } from '@z/dsh-subprocess';
-import type { SubprocessHandle, SubprocessSpawnSpec, SubprocessTerminalHandle, SubprocessTerminalSpawnSpec } from '@z/dsh-subprocess';
+import { Context } from '@taskweaver/cordis';
+import { SubprocessRuntime } from '@taskweaver/dsh-subprocess';
+import type { SubprocessHandle, SubprocessSpawnSpec, SubprocessTerminalHandle, SubprocessTerminalSpawnSpec } from '@taskweaver/dsh-subprocess';
 import type { SpawnInternals } from './spawn.ts';
 import type { ProcessInspector } from './process-inspector.ts';
 /**

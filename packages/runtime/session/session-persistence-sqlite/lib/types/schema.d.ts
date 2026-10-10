@@ -1,9 +1,9 @@
 /**
  * SQLite schema ownership and durable-row validation.
- * @module @z/dsh-session-persistence-sqlite/schema
+ * @module @taskweaver/dsh-session-persistence-sqlite/schema
  */
 import type { DatabaseSync } from 'node:sqlite';
-import { type SessionHeader } from '@z/dsh-session';
+import { type SessionHeader } from '@taskweaver/dsh-session';
 /** Current physical-record schema with packed and compressed event rows. */
 export declare const SCHEMA_VERSION = 17;
 /** Application id reserved for DeepSeek Harness SQLite session databases. */

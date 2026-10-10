@@ -1,11 +1,11 @@
 /**
  * workspace domain contract. Wire projection of the host-side workspace
- * entity (@z/dsh-workspace): a stable id over a directory path,
+ * entity (@taskweaver/dsh-workspace): a stable id over a directory path,
  * a display title, and the ordered session account. Method signatures are the
  * source of truth, same as the sessions domain.
  */
-import type { SessionId } from '@z/dsh-session/types';
-import type { Branded } from '@z/dsh-brand';
+import type { SessionId } from '@taskweaver/dsh-session/types';
+import type { Branded } from '@taskweaver/dsh-brand';
 import type { RpcRequest, RpcResponse } from './rpc.ts';
 /**
  * Wire-side workspace id brand. Deliberately re-declared here rather than

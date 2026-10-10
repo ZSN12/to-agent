@@ -1,5 +1,5 @@
-/** Package-owned tool-pipeline invariants. @module @z/dsh-tools/invariant */
-import type { Context } from '@z/cordis';
+/** Package-owned tool-pipeline invariants. @module @taskweaver/dsh-tools/invariant */
+import type { Context } from '@taskweaver/cordis';
 /** Cordis companion plugin name. */
 export declare const name = "tools-invariant";
 /** Service required before the companion can reserve package ownership. */

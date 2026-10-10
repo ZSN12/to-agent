@@ -1,0 +1,32 @@
+{
+  "checkpoints": [
+    {
+      "id": "cp-1791562870288-a30d6b",
+      "kind": "internal_protection",
+      "conversationId": null,
+      "taskId": null,
+      "timestamp": 1791562870288,
+      "headCommit": "418f26a7c363faccf20726917fb726a1eab047af",
+      "stashCommit": "63727a471bccc76d38a8fe894adcb1019dd2f072",
+      "branch": "main",
+      "hasDirtyChanges": true,
+      "changedFilesCount": 4605,
+      "summary": "P18 prompt registry and routing refactor baseline",
+      "gitRef": "refs/taskweaver/checkpoints/cp-1791562870288-a30d6b"
+    },
+    {
+      "id": "cp-1791560124466-29b06c",
+      "kind": "internal_protection",
+      "conversationId": null,
+      "taskId": null,
+      "timestamp": 1791560124466,
+      "headCommit": "418f26a7c363faccf20726917fb726a1eab047af",
+      "stashCommit": "4328691f9ae4a6c53e9a18e1f9acca0c16d93017",
+      "branch": "main",
+      "hasDirtyChanges": true,
+      "changedFilesCount": 4574,
+      "summary": "P4 unused exports and directory picker audit",
+      "gitRef": "refs/taskweaver/checkpoints/cp-1791560124466-29b06c"
+    }
+  ]
+}

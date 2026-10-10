@@ -1,5 +1,5 @@
-/** Package-owned subagent registry and lifecycle invariants. @module @z/dsh-subagent/invariant */
-import type { Context } from '@z/cordis';
+/** Package-owned subagent registry and lifecycle invariants. @module @taskweaver/dsh-subagent/invariant */
+import type { Context } from '@taskweaver/cordis';
 /** Cordis companion plugin name. */
 export declare const name = "subagent-invariant";
 /** Service required before the companion can reserve package ownership. */

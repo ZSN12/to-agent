@@ -1,5 +1,5 @@
-import { defineProperty } from '@z/cosmokit'
-import type { Dict } from '@z/cosmokit'
+import { defineProperty } from '@taskweaver/cosmokit'
+import type { Dict } from '@taskweaver/cosmokit'
 import type { StandardSchemaV1 } from '@standard-schema/spec'
 import { Context } from './context.ts'
 import { Fiber } from './fiber.ts'

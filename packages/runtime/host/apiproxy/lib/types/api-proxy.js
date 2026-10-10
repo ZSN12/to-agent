@@ -1,191 +1,141 @@
-"use strict";
 /**
  * Host-side ApiProxy implementation. Signature discipline: unary takes the
  * narrow RpcRequest<P> and echoes request.rpcId on the RpcResponse<T>.
  */
-var __extends = (this && this.__extends) || (function () {
-    var extendStatics = function (d, b) {
-        extendStatics = Object.setPrototypeOf ||
-            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-            function (d, b) { for (var p in b) if (Object.prototype.hasOwnProperty.call(b, p)) d[p] = b[p]; };
-        return extendStatics(d, b);
-    };
-    return function (d, b) {
-        if (typeof b !== "function" && b !== null)
-            throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
-})();
-var __assign = (this && this.__assign) || function () {
-    __assign = Object.assign || function(t) {
-        for (var s, i = 1, n = arguments.length; i < n; i++) {
-            s = arguments[i];
-            for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p))
-                t[p] = s[p];
-        }
-        return t;
-    };
-    return __assign.apply(this, arguments);
-};
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
-var __generator = (this && this.__generator) || function (thisArg, body) {
-    var _ = { label: 0, sent: function() { if (t[0] & 1) throw t[1]; return t[1]; }, trys: [], ops: [] }, f, y, t, g = Object.create((typeof Iterator === "function" ? Iterator : Object).prototype);
-    return g.next = verb(0), g["throw"] = verb(1), g["return"] = verb(2), typeof Symbol === "function" && (g[Symbol.iterator] = function() { return this; }), g;
-    function verb(n) { return function (v) { return step([n, v]); }; }
-    function step(op) {
-        if (f) throw new TypeError("Generator is already executing.");
-        while (g && (g = 0, op[0] && (_ = 0)), _) try {
-            if (f = 1, y && (t = op[0] & 2 ? y["return"] : op[0] ? y["throw"] || ((t = y["return"]) && t.call(y), 0) : y.next) && !(t = t.call(y, op[1])).done) return t;
-            if (y = 0, t) op = [op[0] & 2, t.value];
-            switch (op[0]) {
-                case 0: case 1: t = op; break;
-                case 4: _.label++; return { value: op[1], done: false };
-                case 5: _.label++; y = op[1]; op = [0]; continue;
-                case 7: op = _.ops.pop(); _.trys.pop(); continue;
-                default:
-                    if (!(t = _.trys, t = t.length > 0 && t[t.length - 1]) && (op[0] === 6 || op[0] === 2)) { _ = 0; continue; }
-                    if (op[0] === 3 && (!t || (op[1] > t[0] && op[1] < t[3]))) { _.label = op[1]; break; }
-                    if (op[0] === 6 && _.label < t[1]) { _.label = t[1]; t = op; break; }
-                    if (t && _.label < t[2]) { _.label = t[2]; _.ops.push(op); break; }
-                    if (t[2]) _.ops.pop();
-                    _.trys.pop(); continue;
-            }
-            op = body.call(thisArg, _);
-        } catch (e) { op = [6, e]; y = 0; } finally { f = t = 0; }
-        if (op[0] & 5) throw op[1]; return { value: op[0] ? op[1] : void 0, done: true };
-    }
-};
-var __await = (this && this.__await) || function (v) { return this instanceof __await ? (this.v = v, this) : new __await(v); }
-var __asyncGenerator = (this && this.__asyncGenerator) || function (thisArg, _arguments, generator) {
-    if (!Symbol.asyncIterator) throw new TypeError("Symbol.asyncIterator is not defined.");
-    var g = generator.apply(thisArg, _arguments || []), i, q = [];
-    return i = Object.create((typeof AsyncIterator === "function" ? AsyncIterator : Object).prototype), verb("next"), verb("throw"), verb("return", awaitReturn), i[Symbol.asyncIterator] = function () { return this; }, i;
-    function awaitReturn(f) { return function (v) { return Promise.resolve(v).then(f, reject); }; }
-    function verb(n, f) { if (g[n]) { i[n] = function (v) { return new Promise(function (a, b) { q.push([n, v, a, b]) > 1 || resume(n, v); }); }; if (f) i[n] = f(i[n]); } }
-    function resume(n, v) { try { step(g[n](v)); } catch (e) { settle(q[0][3], e); } }
-    function step(r) { r.value instanceof __await ? Promise.resolve(r.value.v).then(fulfill, reject) : settle(q[0][2], r); }
-    function fulfill(value) { resume("next", value); }
-    function reject(value) { resume("throw", value); }
-    function settle(f, v) { if (f(v), q.shift(), q.length) resume(q[0][0], q[0][1]); }
-};
-var __rest = (this && this.__rest) || function (s, e) {
-    var t = {};
-    for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p) && e.indexOf(p) < 0)
-        t[p] = s[p];
-    if (s != null && typeof Object.getOwnPropertySymbols === "function")
-        for (var i = 0, p = Object.getOwnPropertySymbols(s); i < p.length; i++) {
-            if (e.indexOf(p[i]) < 0 && Object.prototype.propertyIsEnumerable.call(s, p[i]))
-                t[p[i]] = s[p[i]];
-        }
-    return t;
-};
-var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
-    if (pack || arguments.length === 2) for (var i = 0, l = from.length, ar; i < l; i++) {
-        if (ar || !(i in from)) {
-            if (!ar) ar = Array.prototype.slice.call(from, 0, i);
-            ar[i] = from[i];
-        }
-    }
-    return to.concat(ar || Array.prototype.slice.call(from));
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.DEFAULT_COLD_BLANK_PROBE_MAX_BYTES = void 0;
-exports.assertJsonArgs = assertJsonArgs;
-exports.createApiProxy = createApiProxy;
-var node_crypto_1 = require("node:crypto");
-var promises_1 = require("node:fs/promises");
-var node_os_1 = require("node:os");
-var node_path_1 = require("node:path");
-var zod_1 = require("zod");
-var dsh_agent_1 = require("@z/dsh-agent");
-var dsh_attachment_1 = require("@z/dsh-attachment");
-var dsh_llm_1 = require("@z/dsh-llm");
-var dsh_llm_2 = require("@z/dsh-llm");
-var dsh_session_1 = require("@z/dsh-session");
-var dsh_session_query_1 = require("@z/dsh-session-query");
-var dsh_subagent_1 = require("@z/dsh-subagent");
-var dsh_skill_1 = require("@z/dsh-skill");
-var dsh_workspace_1 = require("@z/dsh-workspace");
+import { randomUUID } from 'node:crypto';
+import { mkdir, stat } from 'node:fs/promises';
+import { homedir } from 'node:os';
+import { dirname } from 'node:path';
+import { z as zod } from 'zod';
+import { installModelSelection } from '@taskweaver/dsh-agent';
+import { AttachmentError, admitEncodedImages } from '@taskweaver/dsh-attachment';
+import { createUserMessage, freezeMessage, ReasoningEffortId } from '@taskweaver/dsh-llm';
+import { errorChain } from '@taskweaver/dsh-llm';
+import { isAppendSurfaceEvent, isJsonValue } from '@taskweaver/dsh-session';
+import { SessionQueryError } from '@taskweaver/dsh-session-query';
+import { SubagentError } from '@taskweaver/dsh-subagent';
+import { isUserInvocable } from '@taskweaver/dsh-skill';
+import { workspaceDomainState, workspaceRecord, WorkspaceId as brandWorkspaceId, WorkspaceMoveInvalidError, WorkspaceOrderInvalidError, WorkspaceUnknownSessionError, } from '@taskweaver/dsh-workspace';
 // Type-only: brings the `ctx.tools` Context merge into this program (viewFor reads presenters).
-var dsh_agent_presets_1 = require("@z/dsh-agent-presets");
-var session_export_ts_1 = require("./session-export.ts");
-var session_search_ts_1 = require("./api/session-search.ts");
+import { InvalidPresetIdError, PresetExistsError, PresetMountError, PresetNotWritableError, resolveSessionPreset, UnknownPresetError, } from '@taskweaver/dsh-agent-presets';
+import { assertObjectJsonSchema } from '@taskweaver/dsh-tools';
+import { DEFAULT_SESSION_LOG_COMPRESSION_LEVEL, flushLiveSessionLog, sessionLogExportDeps, sessionLogZipFilename, streamSessionLogZip, } from "./session-export.js";
+import { SESSION_SEARCH_RESULT_LIMIT, SESSION_SEARCH_SNIPPET_MAX_CODE_POINTS, truncateUnicodeCodePoints, } from "./api/session-search.js";
 // GoalError narrows domain rejections to their stable codes at the wire boundary.
-var dsh_goal_1 = require("@z/dsh-goal");
+import { GoalError } from '@taskweaver/dsh-goal';
 // The settings/credentials seams: brand guards run at this wire boundary; the
 // service reads stay optional (`ctx.get`) so a composition without either
 // provider still serves every other domain.
-var dsh_settings_1 = require("@z/dsh-settings");
-var dsh_credentials_1 = require("@z/dsh-credentials");
+import { SettingsConflictError, settingsNamespace } from '@taskweaver/dsh-settings';
+import { credentialKey, credentialRef } from '@taskweaver/dsh-credentials';
 // Value edge: the rename impl narrows the title service's validation failure; the import also resolves `ctx.get('sessionTitle')`.
-var dsh_session_title_1 = require("@z/dsh-session-title");
-var dsh_llm_3 = require("@z/dsh-llm");
-var approvals_schema_ts_1 = require("./api/approvals.schema.ts");
-var sessions_schema_ts_1 = require("./api/sessions.schema.ts");
-var questions_schema_ts_1 = require("./api/questions.schema.ts");
-var rpc_ts_1 = require("./api/rpc.ts");
-var dsh_user_questions_1 = require("@z/dsh-user-questions");
-var dsh_host_directory_picker_1 = require("@z/dsh-host-directory-picker");
-var dsh_api_remotes_1 = require("@z/dsh-api-remotes");
-var native_path_opener_ts_1 = require("./native-path-opener.ts");
+import { SessionTitleInvalidError } from '@taskweaver/dsh-session-title';
+import { CallId } from '@taskweaver/dsh-llm';
+import { approvalResponsePayloadSchema } from "./api/approvals.schema.js";
+import { imageLimitsProjectionSchema, sessionListMetadataProjectionSchema } from "./api/sessions.schema.js";
+import { questionResponsePayloadSchema } from "./api/questions.schema.js";
+import { RpcId } from "./api/rpc.js";
+import { UserQuestionError } from '@taskweaver/dsh-user-questions';
+import { ApiRemoteSessionNotFound as SessionNotFound, ApiRemoteSubagentSessionOwnership as SubagentSessionOwnership, API_REMOTE_FORWARDED_EVENTS, apiRemoteSubagentOwnershipError, createApiRemoteAgentResolver, hasApiRemoteSubagentOwner, inspectApiRemoteSession, } from '@taskweaver/dsh-api-remotes';
+import { canOpenNativePath, openNativePath, openNativeTextFile } from "./native-path-opener.js";
 /** Page size when history is called without maxMessages. */
-var DEFAULT_MAX_MESSAGES = 50;
+const DEFAULT_MAX_MESSAGES = 50;
 /** Provider work budget: at most 100 calls and 2,000 inspected hits. */
-var SESSION_SEARCH_PROVIDER_CALL_LIMIT = 100;
+const SESSION_SEARCH_PROVIDER_CALL_LIMIT = 100;
 /** Bound cold-log stat fan-out and settle each started batch before cancellation returns. */
-var COLD_SUMMARY_BATCH_SIZE = 16;
+const COLD_SUMMARY_BATCH_SIZE = 16;
 /** Default maximum artifact size eligible for one cold blankness read. */
-exports.DEFAULT_COLD_BLANK_PROBE_MAX_BYTES = 1024;
+export const DEFAULT_COLD_BLANK_PROBE_MAX_BYTES = 1024;
 /** Conversation message event types (the pagination counting unit). */
-var MESSAGE_TYPES = new Set(['user/message', 'assistant/message']);
-/** Validate one prompt as a batch before publishing any durable image object. */
-function durablePromptContent(ctx, content) {
-    return __awaiter(this, void 0, void 0, function () {
-        var refs, next;
-        return __generator(this, function (_a) {
-            switch (_a.label) {
-                case 0:
-                    if (content.every(function (part) { return part.type === 'text'; })) {
-                        return [2 /*return*/, content.map(function (part) { return ({ type: 'text', text: part.text }); })];
-                    }
-                    return [4 /*yield*/, (0, dsh_attachment_1.admitEncodedImages)(ctx.attachments, content.filter(function (part) { return part.type === 'image'; }))];
-                case 1:
-                    refs = _a.sent();
-                    next = 0;
-                    return [2 /*return*/, content.map(function (part) { return part.type === 'text'
-                            ? { type: 'text', text: part.text }
-                            // admitEncodedImages returns one reference per image part in order.
-                            : { type: 'image', attachment: refs[next++] }; })];
+const MESSAGE_TYPES = new Set(['user/message', 'assistant/message']);
+const MAX_DOCUMENTS_PER_PROMPT = 8;
+const MAX_DOCUMENT_PROMPT_BYTES = 256 * 1024 * 1024;
+/** Validate prompt document envelopes before admitting durable images or snapshots. */
+async function durablePromptContent(ctx, sessionId, content) {
+    if (content.every(part => part.type === 'text')) {
+        return content.map(part => ({ type: 'text', text: part.text }));
+    }
+    const documentParts = content.filter((part) => part.type === 'document');
+    if (documentParts.length > MAX_DOCUMENTS_PER_PROMPT) {
+        const error = new Error('A prompt can include at most ' + MAX_DOCUMENTS_PER_PROMPT + ' documents.');
+        error.code = 'DOCUMENT_TOO_MANY';
+        throw error;
+    }
+    let totalDocumentBytes = 0;
+    const documentBytes = new Map();
+    for (const part of documentParts) {
+        const maximumBase64Length = 4 * Math.ceil(100 * 1024 * 1024 / 3);
+        if (part.data.length > maximumBase64Length
+            || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/u.test(part.data)) {
+            const error = new Error('Document upload is not canonical base64.');
+            error.code = 'DOCUMENT_INVALID_BASE64';
+            throw error;
+        }
+        const paddingBytes = part.data.endsWith('==') ? 2 : part.data.endsWith('=') ? 1 : 0;
+        totalDocumentBytes += part.data.length / 4 * 3 - paddingBytes;
+        if (totalDocumentBytes > MAX_DOCUMENT_PROMPT_BYTES) {
+            const error = new Error('Documents in one prompt exceed the 256 MB transfer limit.');
+            error.code = 'DOCUMENT_TOO_LARGE';
+            throw error;
+        }
+        const bytes = Buffer.from(part.data, 'base64');
+        if (bytes.toString('base64') !== part.data) {
+            const error = new Error('Document upload is not canonical base64.');
+            error.code = 'DOCUMENT_INVALID_BASE64';
+            throw error;
+        }
+        documentBytes.set(part, bytes);
+    }
+    const imageParts = content.filter((part) => part.type === 'image');
+    const refs = imageParts.length > 0 ? await admitEncodedImages(ctx.attachments, imageParts) : [];
+    let nextImage = 0;
+    const durable = [];
+    for (const part of content) {
+        if (part.type === 'text') {
+            durable.push({ type: 'text', text: part.text });
+        }
+        else if (part.type === 'image') {
+            // admitEncodedImages returns one reference per image part in order.
+            durable.push({ type: 'image', attachment: refs[nextImage++] });
+        }
+        else {
+            try {
+                // Load the owning package lazily: image-only prompts do not acquire the
+                // document parser/storage runtime or its native PDF dependencies.
+                const { storeDocumentSnapshot: store } = await import('@taskweaver/dsh-tool-document');
+                const stored = await store(documentBytes.get(part), { name: part.name, sessionId });
+                durable.push({
+                    type: 'text',
+                    text: `用户附加了文档「${stored.name}」（${stored.bytes} 字节），需要时用 read_document 读取：${stored.reference}`,
+                });
             }
-        });
-    });
+            catch (error) {
+                if (error instanceof Error && 'code' in error && typeof error.code === 'string' && error.code.startsWith('DOCUMENT_'))
+                    throw error;
+                const failure = new Error('Document snapshot could not be stored safely.');
+                failure.code = 'DOCUMENT_STORAGE_FAILED';
+                failure.cause = error;
+                throw failure;
+            }
+        }
+    }
+    return durable;
 }
 /** Search durable content for an image reference, including nested tool results. */
 function imageBlockIn(content, match) {
     if (!Array.isArray(content))
         return undefined;
-    for (var _i = 0, content_1 = content; _i < content_1.length; _i++) {
-        var value = content_1[_i];
+    for (const value of content) {
         if (typeof value !== 'object' || value === null || Array.isArray(value))
             continue;
-        var block = value;
+        const block = value;
         if (block.type === 'image' && typeof block.attachment === 'object' && block.attachment !== null) {
-            var ref = block.attachment;
+            const ref = block.attachment;
             if (match(ref))
                 return ref;
         }
         if (block.type === 'tool-result') {
-            var nested = imageBlockIn(block.content, match);
+            const nested = imageBlockIn(block.content, match);
             if (nested !== undefined)
                 return nested;
         }
@@ -194,55 +144,52 @@ function imageBlockIn(content, match) {
 }
 /** Search every durable event carrier that can own model-visible content. */
 function imageInEvent(event, match) {
-    var _a;
-    var data = event.data;
-    var direct = imageBlockIn(data.content, match);
+    const data = event.data;
+    const direct = imageBlockIn(data.content, match);
     if (direct !== undefined)
         return direct;
     if (data.message !== undefined) {
-        var wrapped = imageBlockIn(data.message.content, match);
+        const wrapped = imageBlockIn(data.message.content, match);
         if (wrapped !== undefined)
             return wrapped;
     }
     if (data.inserted !== undefined) {
-        for (var _i = 0, _b = data.inserted; _i < _b.length; _i++) {
-            var message = _b[_i];
-            var inserted = imageBlockIn(message.content, match);
+        for (const message of data.inserted) {
+            const inserted = imageBlockIn(message.content, match);
             if (inserted !== undefined)
                 return inserted;
         }
     }
-    if (event.type === 'assistant/chunk' && ((_a = data.chunk) === null || _a === void 0 ? void 0 : _a.type) === 'block-end') {
+    if (event.type === 'assistant/chunk' && data.chunk?.type === 'block-end') {
         return imageBlockIn([data.chunk.block], match);
     }
     return undefined;
 }
 /** Resolve the first reference matching one opaque id. */
 function referencedImage(events, attachmentId) {
-    for (var _i = 0, events_1 = events; _i < events_1.length; _i++) {
-        var event_1 = events_1[_i];
-        var found = imageInEvent(event_1, function (ref) { return String(ref.attachmentId) === attachmentId; });
+    for (const event of events) {
+        const found = imageInEvent(event, ref => String(ref.attachmentId) === attachmentId);
         if (found !== undefined)
             return found;
     }
     return undefined;
 }
 /** Strict browser-zone profile: UTC or an IANA Area/Location-style identifier. */
-var IANA_TIME_ZONE = /^[A-Za-z][A-Za-z0-9_+.-]*(?:\/[A-Za-z0-9_+.-]+)+$/;
+const IANA_TIME_ZONE = /^[A-Za-z][A-Za-z0-9_+.-]*(?:\/[A-Za-z0-9_+.-]+)+$/;
 /** Validate and canonicalize one browser-supplied IANA zone at the wire boundary. */
 function canonicalClientTimeZone(value) {
     if (value.length === 0 || value.trim() !== value
         || (value !== 'UTC' && !IANA_TIME_ZONE.test(value)))
         return undefined;
     try {
-        var canonical = new Intl.DateTimeFormat('en-US', { timeZone: value })
+        const canonical = new Intl.DateTimeFormat('en-US', { timeZone: value })
             .resolvedOptions().timeZone;
         /* v8 ignore next -- Intl returns UTC or a canonical IANA Area/Location for accepted input. */
         if (canonical !== 'UTC' && !IANA_TIME_ZONE.test(canonical))
             return undefined;
         return canonical;
     }
-    catch (_a) {
+    catch {
         // Intl rejects unsupported zone names; the RPC maps that parser rejection below.
         return undefined;
     }
@@ -262,19 +209,18 @@ function isAborted(signal) {
  * includes the in-progress partial.
  */
 function paginate(events, beforeSeq, maxMessages) {
-    var window = beforeSeq === undefined ? __spreadArray([], events, true) : events.filter(function (event) { return event.seq < beforeSeq; });
-    var count = 0;
-    var cut = 0;
-    for (var i = window.length - 1; i >= 0; i--) {
-        var event_2 = window[i];
-        if (!MESSAGE_TYPES.has(event_2.type) || !(0, dsh_session_1.isAppendSurfaceEvent)(event_2))
+    const window = beforeSeq === undefined ? [...events] : events.filter(event => event.seq < beforeSeq);
+    let count = 0;
+    let cut = 0;
+    for (let i = window.length - 1; i >= 0; i--) {
+        const event = window[i];
+        if (!MESSAGE_TYPES.has(event.type) || !isAppendSurfaceEvent(event))
             continue;
         count++;
-        var sources = event_2.sourceEventSeqs;
-        var groupStart = event_2.seq;
+        const sources = event.sourceEventSeqs;
+        let groupStart = event.seq;
         if (sources !== undefined) {
-            for (var _i = 0, sources_1 = sources; _i < sources_1.length; _i++) {
-                var source = sources_1[_i];
+            for (const source of sources) {
                 if (source < groupStart)
                     groupStart = source;
             }
@@ -284,12 +230,12 @@ function paginate(events, beforeSeq, maxMessages) {
             break;
         }
     }
-    var page = window.filter(function (event) { return event.seq >= cut; });
+    const page = window.filter(event => event.seq >= cut);
     return { events: page, hasMore: cut > 0 };
 }
 /** Wrap an ok result echoing the request's rpcId. */
 function ok(request, value) {
-    return { rpcId: request.rpcId, result: { ok: true, value: value } };
+    return { rpcId: request.rpcId, result: { ok: true, value } };
 }
 /**
  * Build the provider/model catalog over every registered route. Shared by the
@@ -299,73 +245,57 @@ function ok(request, value) {
  * owning catalog stops advertising it. Per-provider failures ride `failures`
  * without failing the sound groups; groups that advertise nothing are dropped.
  */
-function buildModelCatalog(ctx) {
-    return __awaiter(this, void 0, void 0, function () {
-        var catalog;
-        var _this = this;
-        return __generator(this, function (_a) {
-            switch (_a.label) {
-                case 0: return [4 /*yield*/, Promise.all(ctx.llm.listProviders().map(function (provider) { return __awaiter(_this, void 0, void 0, function () {
-                        var models, entries, group, error_1, failure;
-                        var _this = this;
-                        return __generator(this, function (_a) {
-                            switch (_a.label) {
-                                case 0:
-                                    _a.trys.push([0, 3, , 4]);
-                                    return [4 /*yield*/, ctx.llm.listModels(provider.id)];
-                                case 1:
-                                    models = _a.sent();
-                                    return [4 /*yield*/, Promise.all(models.map(function (model) { return __awaiter(_this, void 0, void 0, function () {
-                                            var resolved, reasoning;
-                                            return __generator(this, function (_a) {
-                                                switch (_a.label) {
-                                                    case 0: return [4 /*yield*/, ctx.llm.resolveModelInfo(provider.id, model.id)];
-                                                    case 1:
-                                                        resolved = _a.sent();
-                                                        reasoning = resolved.reasoning === undefined
-                                                            ? undefined
-                                                            : __assign({ efforts: resolved.reasoning.efforts.map(function (effort) { return (__assign({ id: effort.id, name: effort.name }, effort.description === undefined
-                                                                    ? {}
-                                                                    : { description: effort.description })); }) }, resolved.reasoning.defaultEffort === undefined
-                                                                ? {}
-                                                                : { defaultEffort: resolved.reasoning.defaultEffort });
-                                                        return [2 /*return*/, __assign(__assign({ id: model.id, name: model.name }, model.description === undefined ? {} : { description: model.description }), reasoning === undefined ? {} : { reasoning: reasoning })];
-                                                }
-                                            });
-                                        }); }))];
-                                case 2:
-                                    entries = _a.sent();
-                                    group = {
-                                        id: provider.id,
-                                        name: provider.name,
-                                        models: entries,
-                                    };
-                                    return [2 /*return*/, { kind: 'group', group: group }];
-                                case 3:
-                                    error_1 = _a.sent();
-                                    failure = {
-                                        id: provider.id,
-                                        name: provider.name,
-                                        message: error_1 instanceof Error ? error_1.message : String(error_1),
-                                    };
-                                    return [2 /*return*/, { kind: 'failure', failure: failure }];
-                                case 4: return [2 /*return*/];
-                            }
-                        });
-                    }); }))];
-                case 1:
-                    catalog = _a.sent();
-                    return [2 /*return*/, {
-                            groups: catalog.flatMap(function (item) { return item.kind === 'group' ? [item.group] : []; }).filter(function (group) { return group.models.length > 0; }),
-                            failures: catalog.flatMap(function (item) { return item.kind === 'failure' ? [item.failure] : []; }),
-                        }];
-            }
-        });
-    });
+async function buildModelCatalog(ctx) {
+    const catalog = await Promise.all(ctx.llm.listProviders().map(async (provider) => {
+        try {
+            const models = await ctx.llm.listModels(provider.id);
+            const entries = await Promise.all(models.map(async (model) => {
+                const resolved = await ctx.llm.resolveModelInfo(provider.id, model.id);
+                const reasoning = resolved.reasoning === undefined
+                    ? undefined
+                    : {
+                        efforts: resolved.reasoning.efforts.map(effort => ({
+                            id: effort.id,
+                            name: effort.name,
+                            ...effort.description === undefined
+                                ? {}
+                                : { description: effort.description },
+                        })),
+                        ...resolved.reasoning.defaultEffort === undefined
+                            ? {}
+                            : { defaultEffort: resolved.reasoning.defaultEffort },
+                    };
+                return {
+                    id: model.id,
+                    name: model.name,
+                    ...model.description === undefined ? {} : { description: model.description },
+                    ...reasoning === undefined ? {} : { reasoning },
+                };
+            }));
+            const group = {
+                id: provider.id,
+                name: provider.name,
+                models: entries,
+            };
+            return { kind: 'group', group };
+        }
+        catch (error) {
+            const failure = {
+                id: provider.id,
+                name: provider.name,
+                message: error instanceof Error ? error.message : String(error),
+            };
+            return { kind: 'failure', failure };
+        }
+    }));
+    return {
+        groups: catalog.flatMap(item => item.kind === 'group' ? [item.group] : []).filter(group => group.models.length > 0),
+        failures: catalog.flatMap(item => item.kind === 'failure' ? [item.failure] : []),
+    };
 }
 /** Wrap an error result echoing the request's rpcId. */
 function err(request, error) {
-    return { rpcId: request.rpcId, result: { ok: false, error: error } };
+    return { rpcId: request.rpcId, result: { ok: false, error } };
 }
 /**
  * The RPC refusal a preset failure becomes, or undefined when the failure is
@@ -379,14 +309,14 @@ function err(request, error) {
  * @returns the refusal, or undefined when the caller should keep handling.
  */
 function presetFailure(request, error) {
-    if (error instanceof dsh_agent_presets_1.UnknownPresetError) {
+    if (error instanceof UnknownPresetError) {
         return err(request, {
             code: 'agent-preset-not-found',
             message: error.message,
-            details: { agentPreset: error.presetId, available: __spreadArray([], error.available, true) },
+            details: { agentPreset: error.presetId, available: [...error.available] },
         });
     }
-    if (error instanceof dsh_agent_presets_1.PresetMountError) {
+    if (error instanceof PresetMountError) {
         return err(request, {
             code: 'agent-preset-invalid',
             message: error.message,
@@ -396,74 +326,46 @@ function presetFailure(request, error) {
     return undefined;
 }
 /** Simple async queue: core callbacks push, the AsyncIterable pulls; abort/return cleans up. */
-var FrameQueue = /** @class */ (function () {
-    function FrameQueue() {
-        this.buffer = [];
-        this.done = false;
-    }
-    FrameQueue.prototype.push = function (item) {
-        var _a;
+class FrameQueue {
+    buffer = [];
+    waiter;
+    done = false;
+    push(item) {
         if (this.done)
             return;
         this.buffer.push(item);
-        (_a = this.waiter) === null || _a === void 0 ? void 0 : _a.call(this);
-    };
-    FrameQueue.prototype.end = function () {
-        var _a;
+        this.waiter?.();
+    }
+    end() {
         this.done = true;
-        (_a = this.waiter) === null || _a === void 0 ? void 0 : _a.call(this);
-    };
-    FrameQueue.prototype.iterate = function (signal, cleanup) {
-        return __asyncGenerator(this, arguments, function iterate_1() {
-            var onAbort;
-            var _this = this;
-            return __generator(this, function (_a) {
-                switch (_a.label) {
-                    case 0:
-                        onAbort = function () { _this.end(); };
-                        signal.addEventListener('abort', onAbort, { once: true });
-                        _a.label = 1;
-                    case 1:
-                        _a.trys.push([1, , 11, 12]);
-                        _a.label = 2;
-                    case 2:
-                        if (!true) return [3 /*break*/, 10];
-                        _a.label = 3;
-                    case 3:
-                        if (!(this.buffer.length > 0)) return [3 /*break*/, 6];
-                        return [4 /*yield*/, __await(this.buffer.shift())];
-                    case 4: return [4 /*yield*/, _a.sent()];
-                    case 5:
-                        _a.sent();
-                        return [3 /*break*/, 3];
-                    case 6:
-                        if (!(this.done || signal.aborted)) return [3 /*break*/, 8];
-                        return [4 /*yield*/, __await(void 0)];
-                    case 7: return [2 /*return*/, _a.sent()];
-                    case 8: return [4 /*yield*/, __await(new Promise(function (resolve) { _this.waiter = resolve; }))];
-                    case 9:
-                        _a.sent();
-                        this.waiter = undefined;
-                        return [3 /*break*/, 2];
-                    case 10: return [3 /*break*/, 12];
-                    case 11:
-                        signal.removeEventListener('abort', onAbort);
-                        cleanup();
-                        return [7 /*endfinally*/];
-                    case 12: return [2 /*return*/];
-                }
-            });
-        });
-    };
-    return FrameQueue;
-}());
+        this.waiter?.();
+    }
+    async *iterate(signal, cleanup) {
+        const onAbort = () => { this.end(); };
+        signal.addEventListener('abort', onAbort, { once: true });
+        try {
+            while (true) {
+                while (this.buffer.length > 0)
+                    yield this.buffer.shift();
+                if (this.done || signal.aborted)
+                    return;
+                await new Promise((resolve) => { this.waiter = resolve; });
+                this.waiter = undefined;
+            }
+        }
+        finally {
+            signal.removeEventListener('abort', onAbort);
+            cleanup();
+        }
+    }
+}
 /**
  * Server-side frame mint: pure pushes get a fresh rpcId per frame (answerable
  * frames — approval/question requested — mint their stable id in their
  * pending registries instead).
  */
 function frame(payload) {
-    return { rpcId: (0, rpc_ts_1.RpcId)((0, node_crypto_1.randomUUID)()), payload: payload };
+    return { rpcId: RpcId(randomUUID()), payload };
 }
 /**
  * Narrow one allowlisted host event's argument list to the JSON values the
@@ -479,11 +381,10 @@ function frame(payload) {
  * @param args - the emitter's argument list.
  * @returns the same arguments typed as JSON values.
  */
-function assertJsonArgs(event, args) {
-    for (var _i = 0, _a = args.entries(); _i < _a.length; _i++) {
-        var _b = _a[_i], index = _b[0], arg = _b[1];
-        if (!(0, dsh_session_1.isJsonValue)(arg)) {
-            throw new Error("forwarded host event \"".concat(event, "\" argument ").concat(index, " is not lossless JSON data"));
+export function assertJsonArgs(event, args) {
+    for (const [index, arg] of args.entries()) {
+        if (!isJsonValue(arg)) {
+            throw new Error(`forwarded host event "${event}" argument ${index} is not lossless JSON data`);
         }
     }
     return args;
@@ -497,7 +398,15 @@ function subscribeSession(queue, session) {
  * fields {@link JobView} documents as absent.
  */
 function jobViews(snapshots) {
-    return snapshots.map(function (job) { return (__assign(__assign(__assign({ id: job.id, kind: job.kind, label: job.label, status: job.status }, job.detail === undefined ? {} : { detail: job.detail }), { startedAt: job.startedAt }), job.finishedAt === undefined ? {} : { finishedAt: job.finishedAt })); });
+    return snapshots.map(job => ({
+        id: job.id,
+        kind: job.kind,
+        label: job.label,
+        status: job.status,
+        ...job.detail === undefined ? {} : { detail: job.detail },
+        startedAt: job.startedAt,
+        ...job.finishedAt === undefined ? {} : { finishedAt: job.finishedAt },
+    }));
 }
 /**
  * Whether the session's conversation has started: no turn has run yet (a
@@ -507,45 +416,52 @@ function jobViews(snapshots) {
  * (list-hidden, reusable).
  */
 function sessionBlank(session) {
-    return !session.events.some(function (event) { return event.type === 'turn/start'; });
+    return !session.events.some(event => event.type === 'turn/start');
 }
 /** Advance the Session-list hint projection by one committed event. */
 function applySessionListMetadata(state, event) {
-    var blank = state.blank && event.type !== 'turn/start';
-    var lastPromptAt = event.type === 'user/message' && event.data.source.kind === 'user'
+    const blank = state.blank && event.type !== 'turn/start';
+    const lastPromptAt = event.type === 'user/message' && event.data.source.kind === 'user'
         ? event.time
         : state.lastPromptAt;
     return blank === state.blank && lastPromptAt === state.lastPromptAt
         ? state
-        : { blank: blank, lastPromptAt: lastPromptAt };
+        : { blank, lastPromptAt };
 }
 /** Fold exact list metadata for an attached Session. */
 function sessionListMetadata(events) {
-    var state = { blank: true, lastPromptAt: null };
-    for (var _i = 0, events_2 = events; _i < events_2.length; _i++) {
-        var event_3 = events_2[_i];
-        state = applySessionListMetadata(state, event_3);
-    }
+    let state = { blank: true, lastPromptAt: null };
+    for (const event of events)
+        state = applySessionListMetadata(state, event);
     return state;
 }
 /** Sort by creation or latest human prompt, whichever is newer. */
 function sessionListUpdatedAt(header, metadata) {
-    var _a;
-    return Math.max(header.createdAt, (_a = metadata === null || metadata === void 0 ? void 0 : metadata.lastPromptAt) !== null && _a !== void 0 ? _a : 0);
+    return Math.max(header.createdAt, metadata?.lastPromptAt ?? 0);
 }
 /** Shared Session-header projection for list baselines and creation frames. */
-function sessionListFields(header, events) {
-    if (events === void 0) { events = []; }
+function sessionListFields(header, events = []) {
     // The preset comes from the log, not the header: a session that switched
     // while blank ran its turns under the newer composition, and a picker
     // showing the creation-time value would contradict what the model saw.
-    var agentPreset = (0, dsh_agent_presets_1.resolveSessionPreset)({ header: header, events: events });
-    return __assign(__assign(__assign(__assign({}, header.parentSession === undefined ? {} : { parentSessionId: header.parentSession }), header.origin === undefined ? {} : { origin: header.origin }), header.cwd === undefined ? {} : { cwd: header.cwd }), agentPreset === undefined ? {} : { agentPreset: agentPreset });
+    const agentPreset = resolveSessionPreset({ header, events });
+    return {
+        ...header.parentSession === undefined ? {} : { parentSessionId: header.parentSession },
+        ...header.origin === undefined ? {} : { origin: header.origin },
+        ...header.cwd === undefined ? {} : { cwd: header.cwd },
+        ...agentPreset === undefined ? {} : { agentPreset },
+    };
 }
 /** SessionSummary projection for attached (in-memory) sessions. */
 function summarize(session, running) {
-    var metadata = sessionListMetadata(session.events);
-    return __assign({ sessionId: session.id, updatedAt: sessionListUpdatedAt(session.header, metadata), running: running, blank: metadata.blank }, sessionListFields(session.header, session.events));
+    const metadata = sessionListMetadata(session.events);
+    return {
+        sessionId: session.id,
+        updatedAt: sessionListUpdatedAt(session.header, metadata),
+        running,
+        blank: metadata.blank,
+        ...sessionListFields(session.header, session.events),
+    };
 }
 /**
  * Verify a possibly blank cold Session only when its physical artifact passes
@@ -554,102 +470,79 @@ function summarize(session, running) {
  * resolve to visible (`false`); listing must never hide a conversation on a
  * cache hint or an unavailable optimization.
  */
-function probeColdSessionMetadata(ctx, persistence, meta, maxBytes, signal) {
-    return __awaiter(this, void 0, void 0, function () {
-        var location, size, _a, events, error_2;
-        return __generator(this, function (_b) {
-            switch (_b.label) {
-                case 0:
-                    if (maxBytes === 0)
-                        return [2 /*return*/, undefined];
-                    signal === null || signal === void 0 ? void 0 : signal.throwIfAborted();
-                    location = persistence.locate(meta);
-                    if (location === undefined)
-                        return [2 /*return*/, undefined];
-                    signal === null || signal === void 0 ? void 0 : signal.throwIfAborted();
-                    _b.label = 1;
-                case 1:
-                    _b.trys.push([1, 3, , 4]);
-                    return [4 /*yield*/, (0, promises_1.stat)(location.path)];
-                case 2:
-                    size = (_b.sent()).size;
-                    return [3 /*break*/, 4];
-                case 3:
-                    _a = _b.sent();
-                    signal === null || signal === void 0 ? void 0 : signal.throwIfAborted();
-                    return [2 /*return*/, undefined];
-                case 4:
-                    if (size > maxBytes)
-                        return [2 /*return*/, undefined];
-                    _b.label = 5;
-                case 5:
-                    _b.trys.push([5, 7, , 8]);
-                    return [4 /*yield*/, persistence.readFrom(meta.id, 0, signal)];
-                case 6:
-                    events = (_b.sent()).events;
-                    signal === null || signal === void 0 ? void 0 : signal.throwIfAborted();
-                    return [2 /*return*/, sessionListMetadata(events)];
-                case 7:
-                    error_2 = _b.sent();
-                    signal === null || signal === void 0 ? void 0 : signal.throwIfAborted();
-                    ctx.logger.warn("session.list: blank probe for \"".concat(meta.id, "\" failed (serving it as visible): ").concat(String(error_2)));
-                    return [2 /*return*/, undefined];
-                case 8: return [2 /*return*/];
-            }
-        });
-    });
+async function probeColdSessionMetadata(ctx, persistence, meta, maxBytes, signal) {
+    if (maxBytes === 0)
+        return undefined;
+    signal?.throwIfAborted();
+    const location = persistence.locate(meta);
+    if (location === undefined)
+        return undefined;
+    signal?.throwIfAborted();
+    let size;
+    try {
+        size = (await stat(location.path)).size;
+    }
+    catch {
+        signal?.throwIfAborted();
+        return undefined;
+    }
+    if (size > maxBytes)
+        return undefined;
+    try {
+        const { events } = await persistence.readFrom(meta.id, 0, signal);
+        signal?.throwIfAborted();
+        return sessionListMetadata(events);
+    }
+    catch (error) {
+        signal?.throwIfAborted();
+        ctx.logger.warn(`session.list: blank probe for "${meta.id}" failed (serving it as visible): ${String(error)}`);
+        return undefined;
+    }
 }
 /** SessionSummary projection for a cold persisted Session. */
-function summarizeCold(ctx, persistence, meta, metadata, blankProbeMaxBytes, signal) {
-    return __awaiter(this, void 0, void 0, function () {
-        var probed, _a;
-        var _b;
-        return __generator(this, function (_c) {
-            switch (_c.label) {
-                case 0:
-                    if (!((metadata === null || metadata === void 0 ? void 0 : metadata.blank) === false)) return [3 /*break*/, 1];
-                    _a = undefined;
-                    return [3 /*break*/, 3];
-                case 1: return [4 /*yield*/, probeColdSessionMetadata(ctx, persistence, meta, blankProbeMaxBytes, signal)];
-                case 2:
-                    _a = _c.sent();
-                    _c.label = 3;
-                case 3:
-                    probed = _a;
-                    return [2 /*return*/, __assign({ sessionId: meta.id, updatedAt: sessionListUpdatedAt(meta, probed !== null && probed !== void 0 ? probed : metadata), running: false, blank: (metadata === null || metadata === void 0 ? void 0 : metadata.blank) === false ? false : (_b = probed === null || probed === void 0 ? void 0 : probed.blank) !== null && _b !== void 0 ? _b : false }, sessionListFields(meta))];
-            }
-        });
-    });
-}
-/** Map a browse-primitive failure onto the wire error vocabulary (unknown throws stay internal). */
-function directoryError(error) {
-    if (error instanceof dsh_host_directory_picker_1.DirectoryPickerError) {
-        return { code: error.code, message: error.message, details: { path: error.path } };
-    }
-    return { code: 'internal', message: error instanceof Error ? error.message : String(error), details: {} };
+async function summarizeCold(ctx, persistence, meta, metadata, blankProbeMaxBytes, signal) {
+    const probed = metadata?.blank === false
+        ? undefined
+        : await probeColdSessionMetadata(ctx, persistence, meta, blankProbeMaxBytes, signal);
+    return {
+        sessionId: meta.id,
+        updatedAt: sessionListUpdatedAt(meta, probed ?? metadata),
+        running: false,
+        blank: metadata?.blank === false ? false : probed?.blank ?? false,
+        // Header-only: reading the log for a blank-window preset switch would
+        // defeat the same index read, and attaching the session replaces this row
+        // with `summarize()`, which resolves the switch from the events.
+        ...sessionListFields(meta),
+    };
 }
 /** Project a pending entry into its answerable mux frame (initial push and mux-open replay share it). */
 function requestedFrame(pending) {
     return {
         rpcId: pending.rpcId,
-        payload: __assign(__assign({ type: 'approval/requested', sessionId: pending.sessionId, approvalId: pending.approvalId, toolName: pending.toolName }, pending.callId === undefined ? {} : { callId: pending.callId }), pending.reason === undefined ? {} : { reason: pending.reason }),
+        payload: {
+            type: 'approval/requested',
+            sessionId: pending.sessionId,
+            approvalId: pending.approvalId,
+            toolName: pending.toolName,
+            ...pending.callId === undefined ? {} : { callId: pending.callId },
+            ...pending.reason === undefined ? {} : { reason: pending.reason },
+        },
     };
 }
 /** Validate one answer batch against the exact question request it resolves. */
 function matchesQuestions(payload, pending) {
     if (payload.sessionId !== pending.sessionId)
         return false;
-    var answers = payload.answer.answers;
+    const answers = payload.answer.answers;
     if (answers.length !== pending.questions.length)
         return false;
-    return answers.every(function (answer, index) {
-        var _a, _b, _c;
-        var question = pending.questions[index];
+    return answers.every((answer, index) => {
+        const question = pending.questions[index];
         if (answer.id !== question.id)
             return false;
         if (new Set(answer.selected).size !== answer.selected.length)
             return false;
-        var custom = (_a = answer.custom) === null || _a === void 0 ? void 0 : _a.trim();
+        const custom = answer.custom?.trim();
         if (custom !== undefined && custom === '')
             return false;
         if (question.multiSelect !== true) {
@@ -658,8 +551,8 @@ function matchesQuestions(payload, pending) {
             if (answer.selected.length > 1)
                 return false;
         }
-        var labels = new Set((_c = (_b = question.options) === null || _b === void 0 ? void 0 : _b.map(function (option) { return option.label; })) !== null && _c !== void 0 ? _c : []);
-        return answer.selected.every(function (label) { return labels.has(label); });
+        const labels = new Set(question.options?.map(option => option.label) ?? []);
+        return answer.selected.every(label => labels.has(label));
     });
 }
 /**
@@ -678,28 +571,31 @@ function viewFor(ctx, event, argsFor,
 // preset's standing key directly — no agent, no resume. An undefined scope
 // sees only the global layer, which is the pre-preset deployment shape.
 scope) {
-    var _a, _b, _c, _d;
     try {
         if (event.type === 'tool/call') {
-            var _e = event.data, name_1 = _e.name, raw = _e.arguments;
-            var view = (_b = (_a = ctx.tools.get(name_1, scope)) === null || _a === void 0 ? void 0 : _a.presentCall) === null || _b === void 0 ? void 0 : _b.call(_a, JSON.parse(raw));
-            return view === undefined ? undefined : { for: 'call', view: view };
+            const { name, arguments: raw } = event.data;
+            const view = ctx.tools.get(name, scope)?.presentCall?.(JSON.parse(raw));
+            return view === undefined ? undefined : { for: 'call', view };
         }
         if (event.type === 'tool/result') {
-            var _f = event.data, message = _f.message, meta = _f.meta;
-            var result = message.content[0];
-            var callId = message.source.callId;
-            var call = argsFor(callId);
+            const { message, meta } = event.data;
+            const [result] = message.content;
+            const callId = message.source.callId;
+            const call = argsFor(callId);
             if (call === undefined)
                 return undefined;
-            var view = (_d = (_c = ctx.tools.get(call.name, scope)) === null || _c === void 0 ? void 0 : _c.presentResult) === null || _d === void 0 ? void 0 : _d.call(_c, call.args, __assign({ content: result.content, isError: result.isError === true }, meta === undefined ? {} : { meta: meta }));
-            return view === undefined ? undefined : { for: 'result', view: view };
+            const view = ctx.tools.get(call.name, scope)?.presentResult?.(call.args, {
+                content: result.content,
+                isError: result.isError === true,
+                ...meta === undefined ? {} : { meta },
+            });
+            return view === undefined ? undefined : { for: 'result', view };
         }
     }
     catch (error) {
         // A throwing presenter (or unparseable arguments) must not break delivery;
         // the event still ships, just without a view.
-        console.error("api-proxy: presenter failed for ".concat(event.type, ", falling back to generic: ").concat(String(error)));
+        console.error(`api-proxy: presenter failed for ${event.type}, falling back to generic: ${String(error)}`);
     }
     return undefined;
 }
@@ -710,17 +606,17 @@ scope) {
  * misses after a reconnect-eviction.
  */
 function backscanArgs(events, callId) {
-    for (var i = events.length - 1; i >= 0; i--) {
-        var event_4 = events[i];
-        if (event_4.type !== 'tool/call')
+    for (let i = events.length - 1; i >= 0; i--) {
+        const event = events[i];
+        if (event.type !== 'tool/call')
             continue;
-        var data = event_4.data;
+        const data = event.data;
         if (data.callId !== callId)
             continue;
         try {
             return { name: data.name, args: JSON.parse(data.arguments) };
         }
-        catch (_a) {
+        catch {
             // Unparseable stored arguments: same soft-fall as a live parse failure.
             return undefined;
         }
@@ -729,17 +625,17 @@ function backscanArgs(events, callId) {
 }
 /** Render one detached history page through the same presenter path as ordinary history. */
 function historyPage(ctx, events, beforeSeq, maxMessages, scope) {
-    var page = paginate(events, beforeSeq, maxMessages !== null && maxMessages !== void 0 ? maxMessages : DEFAULT_MAX_MESSAGES);
+    const page = paginate(events, beforeSeq, maxMessages ?? DEFAULT_MAX_MESSAGES);
     return {
-        events: page.events.map(function (event) {
-            var view = viewFor(ctx, event, function (callId) { return backscanArgs(page.events, callId); }, scope);
-            return __assign({ event: event }, view === undefined ? {} : { view: view });
+        events: page.events.map((event) => {
+            const view = viewFor(ctx, event, callId => backscanArgs(page.events, callId), scope);
+            return { event, ...view === undefined ? {} : { view } };
         }),
         hasMore: page.hasMore,
     };
 }
 function projectionsFor(ctx, session) {
-    var registry = ctx.get('sessionProjections');
+    const registry = ctx.get('sessionProjections');
     if (registry === undefined)
         return undefined;
     return registry.snapshot(session);
@@ -755,21 +651,20 @@ function projectionsFor(ctx, session) {
  * is degraded, never broken.
  */
 function listProjectionsFor(ctx, meta, session) {
-    var _a, _b;
     try {
-        var block = session !== undefined
-            ? (_a = ctx.get('sessionProjections')) === null || _a === void 0 ? void 0 : _a.snapshot(session)
-            : (_b = ctx.get('sessionProjectionCache')) === null || _b === void 0 ? void 0 : _b.cachedSnapshot(meta);
+        const block = session !== undefined
+            ? ctx.get('sessionProjections')?.snapshot(session)
+            : ctx.get('sessionProjectionCache')?.cachedSnapshot(meta);
         return block !== undefined && Object.keys(block.values).length > 0 ? block : undefined;
     }
     catch (error) {
-        ctx.logger.warn("session.list: projection column for \"".concat(meta.id, "\" failed (serving the row without it): ").concat(String(error)));
+        ctx.logger.warn(`session.list: projection column for "${meta.id}" failed (serving the row without it): ${String(error)}`);
         return undefined;
     }
 }
 /** Projection baseline for a detached history tail without Agent activation. */
 function detachedProjectionsFor(ctx, events) {
-    var registry = ctx.get('sessionProjections');
+    const registry = ctx.get('sessionProjections');
     if (registry === undefined)
         return undefined;
     return registry.restore({}, events, 0).snapshot;
@@ -788,29 +683,29 @@ function subagentHistoryProjections(ctx, childSessionId, compute) {
         return compute();
     }
     catch (error) {
-        ctx.logger.warn("subagent.history: projections for \"".concat(childSessionId, "\" failed (serving the page without them): ").concat(String(error)));
+        ctx.logger.warn(`subagent.history: projections for "${childSessionId}" failed (serving the page without them): ${String(error)}`);
         return undefined;
     }
 }
 /** Map continuation admission failures without exposing provider details. */
 function subagentPromptError(request, error, signal) {
-    var childSessionId = request.payload.childSessionId;
+    const childSessionId = request.payload.childSessionId;
     if (signal.aborted) {
         return err(request, { code: 'cancelled', message: 'subagent prompt was cancelled', details: {} });
     }
-    if (error instanceof dsh_subagent_1.SubagentError) {
+    if (error instanceof SubagentError) {
         switch (error.code) {
             case 'NOT_RESUMABLE':
                 return err(request, {
                     code: 'subagent-not-resumable',
                     message: 'subagent cannot be resumed',
-                    details: { childSessionId: childSessionId },
+                    details: { childSessionId },
                 });
             case 'UNAUTHORIZED':
                 return err(request, {
                     code: 'subagent-unauthorized',
                     message: 'subagent does not belong to this parent',
-                    details: { childSessionId: childSessionId },
+                    details: { childSessionId },
                 });
             case 'DRAINING':
             case 'ACTIVATION_CLOSING':
@@ -819,7 +714,7 @@ function subagentPromptError(request, error, signal) {
                 return err(request, {
                     code: 'subagent-delivery-unavailable',
                     message: 'subagent follow-up is temporarily unavailable',
-                    details: { childSessionId: childSessionId },
+                    details: { childSessionId },
                 });
             default:
                 break;
@@ -831,57 +726,45 @@ function subagentPromptError(request, error, signal) {
 function projectionsUnavailableError() {
     return {
         code: 'internal',
-        message: 'subagent catalog is unavailable: this deployment does not mount the sessionProjections registry (load @z/dsh-session-projection)',
+        message: 'subagent catalog is unavailable: this deployment does not mount the sessionProjections registry (load @taskweaver/dsh-session-projection)',
         details: {},
     };
 }
 /** Verify one address and mode against the complete direct-child catalog. */
-function catalogChild(ctx, address, signal) {
-    return __awaiter(this, void 0, void 0, function () {
-        var parentSessionId, childSessionId, mode, entries, entry, error_3;
-        return __generator(this, function (_a) {
-            switch (_a.label) {
-                case 0:
-                    parentSessionId = address.parentSessionId, childSessionId = address.childSessionId, mode = address.mode;
-                    _a.label = 1;
-                case 1:
-                    _a.trys.push([1, 3, , 4]);
-                    return [4 /*yield*/, ctx.subagents.listChildren(parentSessionId, signal)];
-                case 2:
-                    entries = _a.sent();
-                    entry = entries.find(function (candidate) { return candidate.id === childSessionId; });
-                    if (entry === undefined || (entry.kind === 'child' && entry.mode !== mode)) {
-                        return [2 /*return*/, {
-                                error: {
-                                    code: 'subagent-not-found',
-                                    message: "session \"".concat(childSessionId, "\" is not a ").concat(mode, " direct child of \"").concat(parentSessionId, "\""),
-                                    details: { parentSessionId: parentSessionId, childSessionId: childSessionId },
-                                },
-                            }];
-                    }
-                    if (entry.kind === 'diagnostic') {
-                        return [2 /*return*/, {
-                                error: {
-                                    code: 'subagent-catalog-diagnostic',
-                                    message: "subagent \"".concat(childSessionId, "\" is ").concat(entry.reason),
-                                    details: { parentSessionId: parentSessionId, childSessionId: childSessionId, reason: entry.reason },
-                                },
-                            }];
-                    }
-                    return [2 /*return*/, { entry: entry }];
-                case 3:
-                    error_3 = _a.sent();
-                    if ((signal === null || signal === void 0 ? void 0 : signal.aborted) || (error_3 instanceof dsh_subagent_1.SubagentError && error_3.code === 'CANCELLED')) {
-                        return [2 /*return*/, { error: { code: 'cancelled', message: 'subagent catalog read was cancelled', details: {} } }];
-                    }
-                    if (error_3 instanceof dsh_subagent_1.SubagentError && error_3.code === 'SUBAGENT_CONTROL_PROJECTIONS_UNAVAILABLE') {
-                        return [2 /*return*/, { error: projectionsUnavailableError() }];
-                    }
-                    return [2 /*return*/, { error: { code: 'internal', message: 'subagent catalog read failed', details: {} } }];
-                case 4: return [2 /*return*/];
-            }
-        });
-    });
+async function catalogChild(ctx, address, signal) {
+    const { parentSessionId, childSessionId, mode } = address;
+    try {
+        const entries = await ctx.subagents.listChildren(parentSessionId, signal);
+        const entry = entries.find(candidate => candidate.id === childSessionId);
+        if (entry === undefined || (entry.kind === 'child' && entry.mode !== mode)) {
+            return {
+                error: {
+                    code: 'subagent-not-found',
+                    message: `session "${childSessionId}" is not a ${mode} direct child of "${parentSessionId}"`,
+                    details: { parentSessionId, childSessionId },
+                },
+            };
+        }
+        if (entry.kind === 'diagnostic') {
+            return {
+                error: {
+                    code: 'subagent-catalog-diagnostic',
+                    message: `subagent "${childSessionId}" is ${entry.reason}`,
+                    details: { parentSessionId, childSessionId, reason: entry.reason },
+                },
+            };
+        }
+        return { entry };
+    }
+    catch (error) {
+        if (signal?.aborted || (error instanceof SubagentError && error.code === 'CANCELLED')) {
+            return { error: { code: 'cancelled', message: 'subagent catalog read was cancelled', details: {} } };
+        }
+        if (error instanceof SubagentError && error.code === 'SUBAGENT_CONTROL_PROJECTIONS_UNAVAILABLE') {
+            return { error: projectionsUnavailableError() };
+        }
+        return { error: { code: 'internal', message: 'subagent catalog read failed', details: {} } };
+    }
 }
 /**
  * The requested preset differs from the one this session already runs.
@@ -896,71 +779,69 @@ function noRoster(agentPreset) {
     return {
         code: 'agent-preset-not-found',
         message: 'this deployment composes no agent presets',
-        details: { agentPreset: agentPreset, available: [] },
+        details: { agentPreset, available: [] },
     };
 }
 /** Map one authoring/roster failure onto its wire code. */
 function presetError(agentPreset, error) {
-    if (error instanceof dsh_agent_presets_1.UnknownPresetError) {
+    if (error instanceof UnknownPresetError) {
         return {
             code: 'agent-preset-not-found',
             message: error.message,
-            details: { agentPreset: error.presetId, available: __spreadArray([], error.available, true) },
+            details: { agentPreset: error.presetId, available: [...error.available] },
         };
     }
-    if (error instanceof dsh_agent_presets_1.PresetNotWritableError) {
-        return { code: 'agent-preset-read-only', message: error.message, details: { agentPreset: agentPreset, reason: error.message } };
+    if (error instanceof PresetNotWritableError) {
+        return { code: 'agent-preset-read-only', message: error.message, details: { agentPreset, reason: error.message } };
     }
-    if (error instanceof dsh_agent_presets_1.InvalidPresetIdError || error instanceof dsh_agent_presets_1.PresetExistsError) {
-        return { code: 'agent-preset-invalid', message: error.message, details: { agentPreset: agentPreset, reason: error.message } };
+    if (error instanceof InvalidPresetIdError || error instanceof PresetExistsError) {
+        return { code: 'agent-preset-invalid', message: error.message, details: { agentPreset, reason: error.message } };
     }
-    return { code: 'internal', message: "agent preset \"".concat(agentPreset, "\": ").concat(String(error)), details: {} };
+    return { code: 'internal', message: `agent preset "${agentPreset}": ${String(error)}`, details: {} };
 }
-var AgentPresetConflict = /** @class */ (function (_super) {
-    __extends(AgentPresetConflict, _super);
-    function AgentPresetConflict(sessionId, requestedPreset, existingPreset) {
-        var _this = _super.call(this, existingPreset === undefined
-            ? "session \"".concat(sessionId, "\" records no agent preset, so it cannot be adopted under one; ")
+class AgentPresetConflict extends Error {
+    sessionId;
+    requestedPreset;
+    existingPreset;
+    constructor(sessionId, requestedPreset, existingPreset) {
+        super(existingPreset === undefined
+            ? `session "${sessionId}" records no agent preset, so it cannot be adopted under one; `
                 + 'a deployment composing no roster records none on any session — '
-            : "session \"".concat(sessionId, "\" already runs agent preset ").concat(JSON.stringify(existingPreset), "; ")
-                + "requested ".concat(JSON.stringify(requestedPreset), ". A session's preset is fixed at creation.")) || this;
-        _this.sessionId = sessionId;
-        _this.requestedPreset = requestedPreset;
-        _this.existingPreset = existingPreset;
-        return _this;
+            : `session "${sessionId}" already runs agent preset ${JSON.stringify(existingPreset)}; `
+                + `requested ${JSON.stringify(requestedPreset)}. A session's preset is fixed at creation.`);
+        this.sessionId = sessionId;
+        this.requestedPreset = requestedPreset;
+        this.existingPreset = existingPreset;
     }
-    return AgentPresetConflict;
-}(Error));
+}
 /** Requested identity already belongs to a session with another project cwd. */
-var SessionCwdConflict = /** @class */ (function (_super) {
-    __extends(SessionCwdConflict, _super);
-    function SessionCwdConflict(sessionId, requestedCwd, existingCwd) {
-        var _this = _super.call(this, "session \"".concat(sessionId, "\" already exists with cwd ").concat(JSON.stringify(existingCwd), "; ")
-            + "requested ".concat(JSON.stringify(requestedCwd))) || this;
-        _this.sessionId = sessionId;
-        _this.requestedCwd = requestedCwd;
-        _this.existingCwd = existingCwd;
-        return _this;
+class SessionCwdConflict extends Error {
+    sessionId;
+    requestedCwd;
+    existingCwd;
+    constructor(sessionId, requestedCwd, existingCwd) {
+        super(`session "${sessionId}" already exists with cwd ${JSON.stringify(existingCwd)}; `
+            + `requested ${JSON.stringify(requestedCwd)}`);
+        this.sessionId = sessionId;
+        this.requestedCwd = requestedCwd;
+        this.existingCwd = existingCwd;
     }
-    return SessionCwdConflict;
-}(Error));
+}
 /** An explicit Host naming operation would duplicate another Workspace title. */
-var WorkspaceNameConflictError = /** @class */ (function (_super) {
-    __extends(WorkspaceNameConflictError, _super);
-    function WorkspaceNameConflictError(workspaceName) {
-        var _this = _super.call(this, "workspace name '".concat(workspaceName, "' is already in use")) || this;
-        _this.workspaceName = workspaceName;
-        _this.name = 'WorkspaceNameConflictError';
-        return _this;
+class WorkspaceNameConflictError extends Error {
+    workspaceName;
+    constructor(workspaceName) {
+        super(`workspace name '${workspaceName}' is already in use`);
+        this.workspaceName = workspaceName;
+        this.name = 'WorkspaceNameConflictError';
     }
-    return WorkspaceNameConflictError;
-}(Error));
+}
 /** Shared workspace-not-found error response of the workspace.* mutation rows. */
 function workspaceNotFound(request, workspaceId) {
     return err(request, {
         code: 'workspace-not-found',
-        message: "workspace \"".concat(workspaceId, "\" not found"),
-        details: { workspaceId: workspaceId },
+        message: `workspace "${workspaceId}" not found`,
+        details: { workspaceId },
     });
 }
 /** Wire projection of one workspace entity (the workspace.* value row). */
@@ -969,19 +850,19 @@ function workspaceView(workspace) {
         workspaceId: workspace.id,
         path: workspace.path,
         title: workspace.title,
-        sessionIds: __spreadArray([], workspace.sessionIds, true),
+        sessionIds: [...workspace.sessionIds],
         createdAt: workspace.createdAt,
         updatedAt: workspace.updatedAt,
     };
 }
 /** Wire projection of the durable record carried by `domain/changed`. */
 function changedWorkspaceView(workspaceId, value) {
-    var record = dsh_workspace_1.workspaceRecord.parse(value);
+    const record = workspaceRecord.parse(value);
     return {
         workspaceId: workspaceId,
         path: record.path,
         title: record.title,
-        sessionIds: __spreadArray([], record.sessionIds, true),
+        sessionIds: [...record.sessionIds],
         createdAt: record.createdAt,
         updatedAt: record.updatedAt,
     };
@@ -992,17 +873,17 @@ function changedWorkspaceView(workspaceId, value) {
  * @param defaults - host routing and project-directory defaults.
  * @returns the ApiProxy implementation.
  */
-function createApiProxy(ctx, defaults) {
-    var _this = this;
-    var _a, _b;
-    var sessionExportCompressionLevel = (_a = defaults.sessionExportCompressionLevel) !== null && _a !== void 0 ? _a : session_export_ts_1.DEFAULT_SESSION_LOG_COMPRESSION_LEVEL;
-    var coldBlankProbeMaxBytes = (_b = defaults.coldBlankProbeMaxBytes) !== null && _b !== void 0 ? _b : exports.DEFAULT_COLD_BLANK_PROBE_MAX_BYTES;
+export function createApiProxy(ctx, defaults) {
+    const sessionExportCompressionLevel = defaults.sessionExportCompressionLevel
+        ?? DEFAULT_SESSION_LOG_COMPRESSION_LEVEL;
+    const coldBlankProbeMaxBytes = defaults.coldBlankProbeMaxBytes
+        ?? DEFAULT_COLD_BLANK_PROBE_MAX_BYTES;
     /** The seed model each create/resume declares; re-read so it never goes stale. */
-    var agentOptions = function () {
-        var _a = defaults.defaultModelSelection(), provider = _a.provider, model = _a.model;
-        return { provider: provider, model: model };
+    const agentOptions = () => {
+        const { provider, model } = defaults.defaultModelSelection();
+        return { provider, model };
     };
-    var selections = new WeakMap();
+    const selections = new WeakMap();
     /**
      * Serializes `agentPreset.select` per session. Two concurrent selects both
      * pass the blank check, and the second `unmountPresetFor` then finds nothing
@@ -1010,21 +891,20 @@ function createApiProxy(ctx, defaults) {
      * compositions registered into one agent layer. The client's `busy` flag is
      * not enforcement: the wire is reachable directly.
      */
-    var presetSwitches = new Map();
+    const presetSwitches = new Map();
     /** Client-chosen identity creation/resume, deduplicated across concurrent retries. */
-    var sessionCreations = new Map();
+    const sessionCreations = new Map();
     /** Serializes path ownership and explicit title checks with Workspace mutations. */
-    var workspaceCreationChain = Promise.resolve();
-    var pendingQuestions = new Map();
-    var pendingApprovals = new Map();
-    var authorizationAttempts = new Map();
-    var muxQueues = new Set();
-    var imageAdmissionChains = new WeakMap();
+    let workspaceCreationChain = Promise.resolve();
+    const pendingQuestions = new Map();
+    const pendingApprovals = new Map();
+    const authorizationAttempts = new Map();
+    const muxQueues = new Set();
+    const imageAdmissionChains = new WeakMap();
     /** Serialize image admission with model selection for one agent. */
     function serializeImageAdmission(agent, operation) {
-        var _a;
-        var result = ((_a = imageAdmissionChains.get(agent)) !== null && _a !== void 0 ? _a : Promise.resolve()).then(operation);
-        imageAdmissionChains.set(agent, result.then(function () { return undefined; }, function () { return undefined; }));
+        const result = (imageAdmissionChains.get(agent) ?? Promise.resolve()).then(operation);
+        imageAdmissionChains.set(agent, result.then(() => undefined, () => undefined));
         return result;
     }
     /**
@@ -1040,36 +920,39 @@ function createApiProxy(ctx, defaults) {
      * contribution), it must fold in between the selection and the log.
      */
     function selectionFor(agent) {
-        var installed = selections.get(agent);
+        const installed = selections.get(agent);
         if (installed !== undefined)
             return installed;
-        var picked;
-        var selection = {
+        let picked;
+        const selection = {
             get current() {
-                var _a;
                 if (picked !== undefined)
                     return picked;
                 // Incrementally folded by the session, so a per-step read costs
                 // O(new events) rather than a rescan.
-                var logged = (_a = agent.session.requestHeader()) === null || _a === void 0 ? void 0 : _a.config;
+                const logged = agent.session.requestHeader()?.config;
                 if (logged === undefined)
                     return defaults.defaultModelSelection();
-                return __assign({ provider: logged.provider, model: logged.model }, logged.reasoningEffort === undefined
-                    ? {}
-                    : { reasoningEffort: logged.reasoningEffort });
+                return {
+                    provider: logged.provider,
+                    model: logged.model,
+                    ...logged.reasoningEffort === undefined
+                        ? {}
+                        : { reasoningEffort: logged.reasoningEffort },
+                };
             },
             set current(next) {
                 picked = next;
             },
             assembled: undefined,
         };
-        (0, dsh_agent_1.installModelSelection)(agent.ctx, selection);
+        installModelSelection(agent.ctx, selection);
         selections.set(agent, selection);
         return selection;
     }
     /** Pre-publication setup used by both fresh and resumed Web agents. */
     function installSelection(agentCtx) {
-        var agent = agentCtx.agent;
+        const agent = agentCtx.agent;
         if (agent === undefined)
             throw new Error('api-proxy: agent setup has no scoped agent');
         selectionFor(agent);
@@ -1107,51 +990,28 @@ function createApiProxy(ctx, defaults) {
      * @returns the id to record on the header (absent without a roster) and the setup callback.
      * @throws when the roster supplies no such preset.
      */
-    function composeAgent(presetId) {
-        return __awaiter(this, void 0, void 0, function () {
-            var presets, resolvedId;
-            var _this = this;
-            return __generator(this, function (_a) {
-                switch (_a.label) {
-                    case 0:
-                        presets = ctx.get('agentPresets');
-                        if (presets === undefined) {
-                            return [2 /*return*/, {
-                                    setup: function (agentCtx) {
-                                        installSelection(agentCtx);
-                                        return Promise.resolve();
-                                    },
-                                }];
-                        }
-                        return [4 /*yield*/, presets.resolve(presetId)];
-                    case 1:
-                        resolvedId = (_a.sent()).id;
-                        return [2 /*return*/, {
-                                agentPreset: resolvedId,
-                                setup: function (agentCtx) { return __awaiter(_this, void 0, void 0, function () {
-                                    return __generator(this, function (_a) {
-                                        switch (_a.label) {
-                                            case 0:
-                                                installSelection(agentCtx);
-                                                return [4 /*yield*/, presets.mount(agentCtx, resolvedId)];
-                                            case 1:
-                                                _a.sent();
-                                                return [2 /*return*/];
-                                        }
-                                    });
-                                }); },
-                            }];
-                }
-            });
-        });
+    async function composeAgent(presetId) {
+        const presets = ctx.get('agentPresets');
+        if (presets === undefined) {
+            return {
+                setup: (agentCtx) => {
+                    installSelection(agentCtx);
+                    return Promise.resolve();
+                },
+            };
+        }
+        const resolvedId = (await presets.resolve(presetId)).id;
+        return {
+            agentPreset: resolvedId,
+            setup: async (agentCtx) => {
+                installSelection(agentCtx);
+                await presets.mount(agentCtx, resolvedId);
+            },
+        };
     }
-    var hasSubagentOwner = function (session, agent) { return (0, dsh_api_remotes_1.hasApiRemoteSubagentOwner)(ctx, session, agent); };
-    var subagentOwnershipError = function (sessionId) {
-        return (0, dsh_api_remotes_1.apiRemoteSubagentOwnershipError)(sessionId);
-    };
-    var inspectServable = function (sessionId) {
-        return (0, dsh_api_remotes_1.inspectApiRemoteSession)(ctx, sessionId);
-    };
+    const hasSubagentOwner = (session, agent) => hasApiRemoteSubagentOwner(ctx, session, agent);
+    const subagentOwnershipError = (sessionId) => apiRemoteSubagentOwnershipError(sessionId);
+    const inspectServable = (sessionId) => inspectApiRemoteSession(ctx, sessionId);
     // Cold resume composes the preset the session recorded, for the same reason
     // `session.create` does: its history was produced under that composition.
     // Every generic entry point — prompt, models, commands — arrives here, so
@@ -1161,44 +1021,34 @@ function createApiProxy(ctx, defaults) {
     // composition, and the header is written once at creation. Reading the
     // header here would silently undo the switch on the next restart and
     // restore that history under the old tool set.
-    var agentFor = (0, dsh_api_remotes_1.createApiRemoteAgentResolver)(ctx, {
-        agentOptions: agentOptions,
-        setup: function (_a) { return __awaiter(_this, [_a], void 0, function (_b) {
-            var meta = _b.meta, events = _b.events;
-            return __generator(this, function (_c) {
-                switch (_c.label) {
-                    case 0: return [4 /*yield*/, composeAgent((0, dsh_agent_presets_1.resolveSessionPreset)({ header: meta, events: events }))];
-                    case 1: return [2 /*return*/, (_c.sent()).setup];
-                }
-            });
-        }); },
+    const agentFor = createApiRemoteAgentResolver(ctx, {
+        agentOptions,
+        setup: async ({ meta, events }) => (await composeAgent(resolveSessionPreset({ header: meta, events }))).setup,
     });
     /** Send one transient frame to every connected mux consumer. */
     function broadcast(payload) {
-        var envelope = frame(payload);
-        for (var _i = 0, muxQueues_1 = muxQueues; _i < muxQueues_1.length; _i++) {
-            var queue = muxQueues_1[_i];
+        const envelope = frame(payload);
+        for (const queue of muxQueues)
             queue.push(envelope);
-        }
     }
     // Projection change feed → session/projection push frames. The carrier
     // mints the wire frame (the Service Definition package holds no wire vocabulary); the
     // child activates only when a projection registry is composed, and the
     // subscription unwinds with this gateway's fiber.
-    ctx.inject(['sessionProjections'], function (projectionCtx) {
-        projectionCtx.sessionProjections.onChanged(function (session, key, value, seq) {
-            broadcast({ type: 'session/projection', sessionId: session.id, key: key, value: value, seq: seq });
+    ctx.inject(['sessionProjections'], (projectionCtx) => {
+        projectionCtx.sessionProjections.onChanged((session, key, value, seq) => {
+            broadcast({ type: 'session/projection', sessionId: session.id, key, value, seq });
         });
     });
     // The cache supplies recency and a monotonic non-blank hint. A cached
     // `blank: true` remains only a prefix fact and is verified on the cold path.
-    ctx.inject(['sessionProjections'], function (projectionCtx) {
+    ctx.inject(['sessionProjections'], (projectionCtx) => {
         projectionCtx.sessionProjections.register({
             key: 'sessionListMetadata',
-            stateSchema: sessions_schema_ts_1.sessionListMetadataProjectionSchema,
-            init: function () { return ({ blank: true, lastPromptAt: null }); },
+            stateSchema: sessionListMetadataProjectionSchema,
+            init: () => ({ blank: true, lastPromptAt: null }),
             apply: applySessionListMetadata,
-            wire: { viewSchema: sessions_schema_ts_1.sessionListMetadataProjectionSchema, view: function (state) { return state; } },
+            wire: { viewSchema: sessionListMetadataProjectionSchema, view: state => state },
             stateVersion: 1,
         });
     });
@@ -1215,38 +1065,41 @@ function createApiProxy(ctx, defaults) {
     // exactly for boot-constant units: the value cannot change within a process
     // lifetime, so the fold stays observationally pure, and a stale persisted
     // cache row re-viewing to the current config is the correct outcome.
-    ctx.inject(['sessionProjections', 'attachments'], function (projectionCtx) {
+    ctx.inject(['sessionProjections', 'attachments'], (projectionCtx) => {
         projectionCtx.sessionProjections.register({
             key: 'imageLimits',
-            stateSchema: zod_1.z.null(),
-            init: function () { return null; },
-            apply: function (state) { return state; },
-            wire: { viewSchema: sessions_schema_ts_1.imageLimitsProjectionSchema, view: function () { return projectionCtx.attachments.imageLimits; } },
+            stateSchema: zod.null(),
+            init: () => null,
+            apply: state => state,
+            wire: { viewSchema: imageLimitsProjectionSchema, view: () => projectionCtx.attachments.imageLimits },
             stateVersion: 1,
         });
     });
     /** Project both durable inbox lists, optionally including the splice currently being emitted. */
-    var queueItems = function (agent, splice) {
-        var project = function (target) {
-            var _a;
-            var messages = target === 'next-turn' ? agent.inbox.nextTurn : agent.inbox.nextStep;
-            return (splice === null || splice === void 0 ? void 0 : splice.target) === target
-                ? messages.toSpliced.apply(messages, __spreadArray([splice.start, (_a = splice.removedCount) !== null && _a !== void 0 ? _a : 0], splice.inserted, false)) : messages;
+    const queueItems = (agent, splice) => {
+        const project = (target) => {
+            const messages = target === 'next-turn' ? agent.inbox.nextTurn : agent.inbox.nextStep;
+            return splice?.target === target
+                ? messages.toSpliced(splice.start, splice.removedCount ?? 0, ...splice.inserted)
+                : messages;
         };
-        return __spreadArray(__spreadArray([], project('next-turn').map(function (message) { return ({ id: message.id, placement: 'queued', message: message }); }), true), project('next-step').map(function (message) { return ({
-            id: message.id,
-            // Only user-origin messages are steering; injected context (approval
-            // notices, task completion, attached snapshots) is not a user action
-            // and must not render as a pending steering bubble.
-            placement: message.source.kind === 'user' ? 'steering' : 'context',
-            message: message,
-        }); }), true);
+        return [
+            ...project('next-turn').map(message => ({ id: message.id, placement: 'queued', message })),
+            ...project('next-step').map(message => ({
+                id: message.id,
+                // Only user-origin messages are steering; injected context (approval
+                // notices, task completion, attached snapshots) is not a user action
+                // and must not render as a pending steering bubble.
+                placement: message.source.kind === 'user' ? 'steering' : 'context',
+                message,
+            })),
+        ];
     };
-    ctx.root.on('session/event', function (session, event) {
+    ctx.root.on('session/event', (session, event) => {
         if (event.type !== 'agent/inbox/spliced')
             return;
-        var agent = ctx.agents.get(session.id);
-        if ((agent === null || agent === void 0 ? void 0 : agent.session) !== session)
+        const agent = ctx.agents.get(session.id);
+        if (agent?.session !== session)
             return;
         broadcast({ type: 'session/queue', sessionId: session.id, items: queueItems(agent, event.data) });
     }, { global: true });
@@ -1258,47 +1111,44 @@ function createApiProxy(ctx, defaults) {
         }
         broadcast({
             type: 'question/resolved', sessionId: pending.sessionId,
-            questionRpcId: pending.rpcId,
-            outcome: outcome,
+            questionRpcId: pending.rpcId, outcome,
         });
     }
-    var disposeProvider = ctx.userQuestions.registerProvider({
-        ask: function (request) {
-            var _a;
-            var sessionId = (_a = request.agent) === null || _a === void 0 ? void 0 : _a.id;
+    const disposeProvider = ctx.userQuestions.registerProvider({
+        ask(request) {
+            const sessionId = request.agent?.id;
             if (sessionId === undefined) {
-                return Promise.reject(new dsh_user_questions_1.UserQuestionError('web user interaction requires an agent-owned session', 'ASK_MISSING_AGENT'));
+                return Promise.reject(new UserQuestionError('web user interaction requires an agent-owned session', 'ASK_MISSING_AGENT'));
             }
-            return new Promise(function (resolve, reject) {
-                var _a;
-                var rpcId = (0, rpc_ts_1.RpcId)((0, node_crypto_1.randomUUID)());
-                var pending = __assign({ rpcId: rpcId, sessionId: sessionId, questions: request.questions, resolve: resolve, reject: reject }, (request.signal === undefined ? {} : { signal: request.signal }));
-                var onAbort = function () {
+            return new Promise((resolve, reject) => {
+                const rpcId = RpcId(randomUUID());
+                const pending = {
+                    rpcId, sessionId, questions: request.questions, resolve, reject,
+                    ...(request.signal === undefined ? {} : { signal: request.signal }),
+                };
+                const onAbort = () => {
                     claimQuestion(pending, 'cancelled');
-                    reject(new dsh_user_questions_1.UserQuestionError('ask_user_question was aborted before the user answered', 'ASK_ABORTED'));
+                    reject(new UserQuestionError('ask_user_question was aborted before the user answered', 'ASK_ABORTED'));
                 };
                 pending.onAbort = onAbort;
                 pendingQuestions.set(rpcId, pending);
-                (_a = request.signal) === null || _a === void 0 ? void 0 : _a.addEventListener('abort', onAbort, { once: true });
-                var envelope = {
-                    rpcId: rpcId,
-                    payload: { type: 'question/requested', sessionId: sessionId, questions: request.questions },
+                request.signal?.addEventListener('abort', onAbort, { once: true });
+                const envelope = {
+                    rpcId,
+                    payload: { type: 'question/requested', sessionId, questions: request.questions },
                 };
-                for (var _i = 0, muxQueues_2 = muxQueues; _i < muxQueues_2.length; _i++) {
-                    var queue = muxQueues_2[_i];
+                for (const queue of muxQueues)
                     queue.push(envelope);
-                }
             });
         },
     });
-    ctx.effect(function () { return function () {
+    ctx.effect(() => () => {
         disposeProvider();
-        for (var _i = 0, _a = __spreadArray([], pendingQuestions.values(), true); _i < _a.length; _i++) {
-            var pending = _a[_i];
+        for (const pending of [...pendingQuestions.values()]) {
             claimQuestion(pending, 'cancelled');
-            pending.reject(new dsh_user_questions_1.UserQuestionError('web user-questions provider was disposed', 'ASK_ABORTED'));
+            pending.reject(new UserQuestionError('web user-questions provider was disposed', 'ASK_ABORTED'));
         }
-    }; }, 'api-proxy: user-questions provider');
+    }, 'api-proxy: user-questions provider');
     // --- Approval pending registry ------------------------------------------
     // The proxy is the approval channel for every agent this host owns: an ask
     // through `ctx.approval` becomes an answerable server-request on the mux
@@ -1311,19 +1161,16 @@ function createApiProxy(ctx, defaults) {
         // while approvals are pending settles every entry as 'cancelled' (the
         // service's fail-closed vocabulary), so no ask promise dangles past the
         // proxy's lifetime and subscribers see the withdrawal.
-        ctx.effect(function () { return function () {
-            for (var _i = 0, _a = __spreadArray([], pendingApprovals.values(), true); _i < _a.length; _i++) {
-                var pending = _a[_i];
+        ctx.effect(() => () => {
+            for (const pending of [...pendingApprovals.values()])
                 pending.resolve('cancelled');
-            }
-        }; }, 'api-proxy: approval registry teardown');
-        ctx.on('approval/request', function (req, next) {
-            var _a, _b, _c;
+        }, 'api-proxy: approval registry teardown');
+        ctx.on('approval/request', (req, next) => {
             // Dispatch rides a microtask behind the service's own signal check: an
             // abort landing in that window would register the abort listener AFTER
             // the signal fired — never invoked, entry pending forever, zombie frame
             // on every mux replay. Settle synchronously instead of publishing.
-            if (((_a = req.signal) === null || _a === void 0 ? void 0 : _a.aborted) === true)
+            if (req.signal?.aborted === true)
                 return Promise.resolve('cancelled');
             // The audit pair `approval/asked` is already appended by the service
             // before dispatch, but dispatch rides a microtask: parallel tool calls
@@ -1331,30 +1178,28 @@ function createApiProxy(ctx, defaults) {
             // request's event is therefore the newest asked event that is still
             // undecided, unclaimed by another pending entry, and — when the ask
             // names a call — carries the same callId.
-            var events = req.agent.session.events;
-            var claimed = new Set();
-            for (var _i = 0, _d = pendingApprovals.values(); _i < _d.length; _i++) {
-                var entry = _d[_i];
+            const events = req.agent.session.events;
+            const claimed = new Set();
+            for (const entry of pendingApprovals.values())
                 claimed.add(entry.approvalId);
-            }
-            var decided = new Set();
-            var approvalId;
-            for (var i = events.length - 1; i >= 0; i -= 1) {
-                var event_5 = events[i];
-                if (event_5.type === 'approval/decided') {
-                    decided.add(event_5.data.id);
+            const decided = new Set();
+            let approvalId;
+            for (let i = events.length - 1; i >= 0; i -= 1) {
+                const event = events[i];
+                if (event.type === 'approval/decided') {
+                    decided.add(event.data.id);
                 }
-                else if (event_5.type === 'approval/asked') {
-                    if (decided.has(event_5.data.id) || claimed.has(event_5.data.id))
+                else if (event.type === 'approval/asked') {
+                    if (decided.has(event.data.id) || claimed.has(event.data.id))
                         continue;
                     // Symmetric pairing: a callId-bearing ask only takes its own call's
                     // record, and a callId-less ask only takes a callId-less record —
                     // so neither shape can steal the other's audit id under parallel
                     // asks. (Today every producer — the tool executor — passes callId;
                     // the callId-less arm guards any future non-tool asker.)
-                    if (((_b = req.callId) !== null && _b !== void 0 ? _b : null) !== ((_c = event_5.data.callId) !== null && _c !== void 0 ? _c : null))
+                    if ((req.callId ?? null) !== (event.data.callId ?? null))
                         continue;
-                    approvalId = event_5.data.id;
+                    approvalId = event.data.id;
                     break;
                 }
             }
@@ -1362,88 +1207,66 @@ function createApiProxy(ctx, defaults) {
             // not this channel's question; delegate to the fail-closed default.
             if (approvalId === undefined)
                 return next();
-            var id = approvalId;
-            return new Promise(function (resolve) {
-                var _a;
-                var settle = function (outcome) {
-                    var _a;
+            const id = approvalId;
+            return new Promise((resolve) => {
+                const settle = (outcome) => {
                     /* v8 ignore next 3 -- defensive double-settle guard: respond() routes
                        through the pending table (a settled id is not-pending before it can
                        re-settle) and the first settle removes the abort listener, so no
                        reachable path settles twice; kept against future settle callers. */
                     if (!pendingApprovals.delete(pending.rpcId))
                         return;
-                    (_a = req.signal) === null || _a === void 0 ? void 0 : _a.removeEventListener('abort', onAbort);
-                    broadcast({ type: 'approval/resolved', sessionId: pending.sessionId, approvalId: id, outcome: outcome });
+                    req.signal?.removeEventListener('abort', onAbort);
+                    broadcast({ type: 'approval/resolved', sessionId: pending.sessionId, approvalId: id, outcome });
                     // A cancelled ask was already settled by the service's own signal
                     // race, which discards this late resolution; resolving is a no-op
                     // there and keeps this promise from dangling forever.
                     resolve(outcome);
                 };
-                var onAbort = function () { settle('cancelled'); };
-                var pending = __assign(__assign(__assign({ rpcId: (0, rpc_ts_1.RpcId)((0, node_crypto_1.randomUUID)()), sessionId: req.agent.session.id, approvalId: id, toolName: req.toolName }, req.callId === undefined ? {} : { callId: req.callId }), req.reason === undefined ? {} : { reason: req.reason }), { resolve: settle });
+                const onAbort = () => { settle('cancelled'); };
+                const pending = {
+                    rpcId: RpcId(randomUUID()),
+                    sessionId: req.agent.session.id,
+                    approvalId: id,
+                    toolName: req.toolName,
+                    ...req.callId === undefined ? {} : { callId: req.callId },
+                    ...req.reason === undefined ? {} : { reason: req.reason },
+                    resolve: settle,
+                };
                 pendingApprovals.set(pending.rpcId, pending);
-                (_a = req.signal) === null || _a === void 0 ? void 0 : _a.addEventListener('abort', onAbort, { once: true });
-                var envelope = requestedFrame(pending);
-                for (var _i = 0, muxQueues_3 = muxQueues; _i < muxQueues_3.length; _i++) {
-                    var queue = muxQueues_3[_i];
+                req.signal?.addEventListener('abort', onAbort, { once: true });
+                const envelope = requestedFrame(pending);
+                for (const queue of muxQueues)
                     queue.push(envelope);
-                }
             });
         });
     }
     /** Read one stable session prefix without acquiring an Agent owner. */
-    function readSessionState(sessionId) {
-        return __awaiter(this, void 0, void 0, function () {
-            var attached, inspected;
-            return __generator(this, function (_a) {
-                switch (_a.label) {
-                    case 0:
-                        attached = ctx.sessions.get(sessionId);
-                        if (attached !== undefined) {
-                            return [2 /*return*/, {
-                                    id: attached.id,
-                                    header: attached.header,
-                                    events: __spreadArray([], attached.events, true),
-                                }];
-                        }
-                        return [4 /*yield*/, inspectServable(sessionId)];
-                    case 1:
-                        inspected = _a.sent();
-                        return [2 /*return*/, { id: inspected.meta.id, header: inspected.meta, events: inspected.events }];
-                }
-            });
-        });
+    async function readSessionState(sessionId) {
+        const attached = ctx.sessions.get(sessionId);
+        if (attached !== undefined) {
+            return {
+                id: attached.id,
+                header: attached.header,
+                events: [...attached.events],
+            };
+        }
+        const inspected = await inspectServable(sessionId);
+        return { id: inspected.meta.id, header: inspected.meta, events: inspected.events };
     }
     /** Resolve the Workspace inherited by a fork without making ordinary loose lineage grouped. */
-    function forkWorkspace(source) {
-        return __awaiter(this, void 0, void 0, function () {
-            var workspaces, direct, lineage, _loop_1, _i, _a, ancestor, state_1;
-            return __generator(this, function (_b) {
-                switch (_b.label) {
-                    case 0:
-                        workspaces = ctx.workspaceRegistry.list();
-                        direct = workspaces.find(function (workspace) { return workspace.sessionIds.includes(source.id); });
-                        if (direct !== undefined || source.header.origin !== 'subagent')
-                            return [2 /*return*/, direct];
-                        return [4 /*yield*/, ctx.sessionQuery.traceSession(source.id)];
-                    case 1:
-                        lineage = _b.sent();
-                        _loop_1 = function (ancestor) {
-                            var workspace = workspaces.find(function (candidate) { return candidate.sessionIds.includes(ancestor.header.id); });
-                            if (workspace !== undefined)
-                                return { value: workspace };
-                        };
-                        for (_i = 0, _a = lineage.ancestors; _i < _a.length; _i++) {
-                            ancestor = _a[_i];
-                            state_1 = _loop_1(ancestor);
-                            if (typeof state_1 === "object")
-                                return [2 /*return*/, state_1.value];
-                        }
-                        return [2 /*return*/, undefined];
-                }
-            });
-        });
+    async function forkWorkspace(source) {
+        const workspaces = ctx.workspaceRegistry.list();
+        const direct = workspaces.find(workspace => workspace.sessionIds.includes(source.id));
+        if (direct !== undefined || source.header.origin !== 'subagent')
+            return direct;
+        const lineage = await ctx.sessionQuery.traceSession(source.id);
+        for (const ancestor of lineage.ancestors) {
+            const workspace = workspaces.find(candidate => candidate.sessionIds.includes(ancestor.header.id));
+            if (workspace !== undefined)
+                return workspace;
+        }
+        return undefined;
     }
     /**
      * Resolve which session one transcript read is served from, without
@@ -1453,22 +1276,12 @@ function createApiProxy(ctx, defaults) {
      * @returns the attached session, or the inspected detached header and events.
      * @throws {@link ApiRemoteSessionNotFound} when no project-backed session has that identity.
      */
-    function historySourceFor(sessionId) {
-        return __awaiter(this, void 0, void 0, function () {
-            var attached, inspected;
-            return __generator(this, function (_a) {
-                switch (_a.label) {
-                    case 0:
-                        attached = ctx.sessions.get(sessionId);
-                        if (attached !== undefined)
-                            return [2 /*return*/, { kind: 'attached', session: attached }];
-                        return [4 /*yield*/, inspectServable(sessionId)];
-                    case 1:
-                        inspected = _a.sent();
-                        return [2 /*return*/, { kind: 'detached', header: inspected.meta, events: inspected.events }];
-                }
-            });
-        });
+    async function historySourceFor(sessionId) {
+        const attached = ctx.sessions.get(sessionId);
+        if (attached !== undefined)
+            return { kind: 'attached', session: attached };
+        const inspected = await inspectServable(sessionId);
+        return { kind: 'detached', header: inspected.meta, events: inspected.events };
     }
     /**
      * The header and events {@link presenterScopeFor} reads to decide which
@@ -1495,12 +1308,12 @@ function createApiProxy(ctx, defaults) {
      */
     function historyCutOf(source, includeProjections) {
         if (source.kind === 'detached') {
-            var projections_1 = includeProjections ? detachedProjectionsFor(ctx, source.events) : undefined;
-            return __assign({ events: source.events }, projections_1 === undefined ? {} : { projections: projections_1 });
+            const projections = includeProjections ? detachedProjectionsFor(ctx, source.events) : undefined;
+            return { events: source.events, ...projections === undefined ? {} : { projections } };
         }
-        var events = __spreadArray([], source.session.events, true);
-        var projections = includeProjections ? projectionsFor(ctx, source.session) : undefined;
-        return __assign({ events: events }, projections === undefined ? {} : { projections: projections });
+        const events = [...source.session.events];
+        const projections = includeProjections ? projectionsFor(ctx, source.session) : undefined;
+        return { events, ...projections === undefined ? {} : { projections } };
     }
     /**
      * The registry view scope a transcript's presenters resolve in.
@@ -1522,182 +1335,124 @@ function createApiProxy(ctx, defaults) {
      * @param session - that session's header and log (attached or inspected).
      * @returns the scope to pass to presenter lookups, or undefined for global.
      */
-    function presenterScopeFor(sessionId, session) {
-        return __awaiter(this, void 0, void 0, function () {
-            var live, presets, _a;
-            var _b;
-            return __generator(this, function (_c) {
-                switch (_c.label) {
-                    case 0:
-                        live = (_b = ctx.get('agents')) === null || _b === void 0 ? void 0 : _b.get(sessionId);
-                        if (live !== undefined)
-                            return [2 /*return*/, live];
-                        presets = ctx.get('agentPresets');
-                        if (presets === undefined)
-                            return [2 /*return*/, undefined];
-                        _c.label = 1;
-                    case 1:
-                        _c.trys.push([1, 3, , 4]);
-                        return [4 /*yield*/, presets.standingKeyFor((0, dsh_agent_presets_1.resolveSessionPreset)(session))];
-                    case 2: 
-                    // An unrecorded preset (a log from before the roster existed) renders
-                    // through the DEFAULT preset's standing layer: that is the composition
-                    // an unnamed session composes today, and presenters are pure display,
-                    // so the worst a mismatch produces is the generic card it had anyway.
-                    return [2 /*return*/, _c.sent()];
-                    case 3:
-                        _a = _c.sent();
-                        // Swallows only the unknown/unusable-preset rejection from the roster:
-                        // a deleted or broken preset must degrade this read, never fail it.
-                        return [2 /*return*/, undefined];
-                    case 4: return [2 /*return*/];
-                }
-            });
-        });
+    async function presenterScopeFor(sessionId, session) {
+        const live = ctx.get('agents')?.get(sessionId);
+        if (live !== undefined)
+            return live;
+        const presets = ctx.get('agentPresets');
+        if (presets === undefined)
+            return undefined;
+        try {
+            // An unrecorded preset (a log from before the roster existed) renders
+            // through the DEFAULT preset's standing layer: that is the composition
+            // an unnamed session composes today, and presenters are pure display,
+            // so the worst a mismatch produces is the generic card it had anyway.
+            return await presets.standingKeyFor(resolveSessionPreset(session));
+        }
+        catch {
+            // Swallows only the unknown/unusable-preset rejection from the roster:
+            // a deleted or broken preset must degrade this read, never fail it.
+            return undefined;
+        }
     }
     /** Resolve one requested identity to a live agent, creating or resuming it once. */
-    function ensureSession(sessionId, cwd, checkPersistedIdentity, presetId, parentSessionId) {
-        return __awaiter(this, void 0, void 0, function () {
-            var creation, agent;
-            var _this = this;
-            return __generator(this, function (_a) {
-                switch (_a.label) {
-                    case 0:
-                        creation = sessionCreations.get(sessionId);
-                        if (creation === undefined) {
-                            creation = (function () { return __awaiter(_this, void 0, void 0, function () {
-                                var attached, live, persistence, stored, _a, inspected, storedPreset, _b, _c, error_4, composition;
-                                var _d;
-                                return __generator(this, function (_e) {
-                                    switch (_e.label) {
-                                        case 0:
-                                            attached = ctx.sessions.get(sessionId);
-                                            live = ctx.agents.get(sessionId);
-                                            if (attached !== undefined && hasSubagentOwner(attached, live)) {
-                                                throw new dsh_api_remotes_1.ApiRemoteSubagentSessionOwnership(sessionId);
-                                            }
-                                            if (live !== undefined)
-                                                return [2 /*return*/, live];
-                                            persistence = checkPersistedIdentity ? ctx.get('sessionPersistence') : undefined;
-                                            if (!(persistence === undefined)) return [3 /*break*/, 1];
-                                            _a = undefined;
-                                            return [3 /*break*/, 3];
-                                        case 1: return [4 /*yield*/, persistence.list()];
-                                        case 2:
-                                            _a = (_e.sent()).find(function (header) { return header.id === sessionId; });
-                                            _e.label = 3;
-                                        case 3:
-                                            stored = _a;
-                                            if (!(persistence !== undefined && stored !== undefined)) return [3 /*break*/, 7];
-                                            return [4 /*yield*/, persistence.inspect(sessionId)
-                                                // Ownership first: explicit-id adoption of a session-backed
-                                                // subagent must answer `agent-busy` regardless of the requested
-                                                // cwd (the api/commands.ts contract), not a cwd conflict.
-                                            ];
-                                        case 4:
-                                            inspected = _e.sent();
-                                            // Ownership first: explicit-id adoption of a session-backed
-                                            // subagent must answer `agent-busy` regardless of the requested
-                                            // cwd (the api/commands.ts contract), not a cwd conflict.
-                                            if (hasSubagentOwner({ header: inspected.meta }, undefined)) {
-                                                throw new dsh_api_remotes_1.ApiRemoteSubagentSessionOwnership(sessionId);
-                                            }
-                                            if (inspected.meta.cwd !== cwd) {
-                                                throw new SessionCwdConflict(sessionId, cwd, inspected.meta.cwd);
-                                            }
-                                            storedPreset = (0, dsh_agent_presets_1.resolveSessionPreset)({ header: inspected.meta, events: inspected.events });
-                                            assertPresetUnchanged(sessionId, presetId, storedPreset);
-                                            _c = (_b = ctx.agents).resume;
-                                            _d = {
-                                                resumeSessionId: sessionId,
-                                                agentOptions: agentOptions()
-                                            };
-                                            return [4 /*yield*/, composeAgent(storedPreset)];
-                                        case 5: return [4 /*yield*/, _c.apply(_b, [(_d.setup = (_e.sent()).setup,
-                                                    _d)])];
-                                        case 6: 
-                                        // The stored preset wins over anything the request names: a resumed
-                                        // session's history was produced under that composition, and
-                                        // rebuilding it differently would replay tool calls the model can no
-                                        // longer make.
-                                        return [2 /*return*/, (_e.sent()).agent];
-                                        case 7:
-                                            _e.trys.push([7, 9, , 10]);
-                                            return [4 /*yield*/, (0, promises_1.mkdir)(cwd, { recursive: true })];
-                                        case 8:
-                                            _e.sent();
-                                            return [3 /*break*/, 10];
-                                        case 9:
-                                            error_4 = _e.sent();
-                                            throw new Error("failed to ensure project directory \"".concat(cwd, "\": ").concat(String(error_4)), { cause: error_4 });
-                                        case 10: return [4 /*yield*/, composeAgent(presetId)];
-                                        case 11:
-                                            composition = _e.sent();
-                                            return [4 /*yield*/, ctx.agents.create({
-                                                    sessionId: sessionId,
-                                                    agentOptions: agentOptions(),
-                                                    meta: __assign(__assign({ cwd: cwd }, parentSessionId === undefined ? {} : { parentSession: parentSessionId }), composition.agentPreset === undefined ? {} : { agentPreset: composition.agentPreset }),
-                                                    setup: composition.setup,
-                                                })];
-                                        case 12: return [2 /*return*/, (_e.sent()).agent];
-                                    }
-                                });
-                            }); })().catch(function (error) {
-                                // Another Host entry path may have published the same identity while
-                                // this operation crossed an asynchronous persistence/filesystem step.
-                                var live = ctx.agents.get(sessionId);
-                                if (live !== undefined) {
-                                    if (hasSubagentOwner(live.session, live))
-                                        throw new dsh_api_remotes_1.ApiRemoteSubagentSessionOwnership(sessionId);
-                                    return live;
-                                }
-                                var attached = ctx.sessions.get(sessionId);
-                                if (attached !== undefined && hasSubagentOwner(attached, undefined)) {
-                                    throw new dsh_api_remotes_1.ApiRemoteSubagentSessionOwnership(sessionId);
-                                }
-                                throw error;
-                            }).finally(function () {
-                                sessionCreations.delete(sessionId);
-                            });
-                            sessionCreations.set(sessionId, creation);
-                        }
-                        return [4 /*yield*/, creation];
-                    case 1:
-                        agent = _a.sent();
-                        if (hasSubagentOwner(agent.session, agent))
-                            throw new dsh_api_remotes_1.ApiRemoteSubagentSessionOwnership(sessionId);
-                        // Beside the cwd check for the same reason, and after the await so it
-                        // covers every path that yields a live agent — freshly created, adopted
-                        // live, resumed from disk, or recovered by the concurrent-creation catch.
-                        assertPresetUnchanged(sessionId, presetId, (0, dsh_agent_presets_1.resolveSessionPreset)(agent.session));
-                        if (agent.session.header.cwd !== cwd) {
-                            throw new SessionCwdConflict(sessionId, cwd, agent.session.header.cwd);
-                        }
-                        return [2 /*return*/, agent];
+    async function ensureSession(sessionId, cwd, checkPersistedIdentity, presetId, parentSessionId) {
+        let creation = sessionCreations.get(sessionId);
+        if (creation === undefined) {
+            creation = (async () => {
+                const attached = ctx.sessions.get(sessionId);
+                const live = ctx.agents.get(sessionId);
+                if (attached !== undefined && hasSubagentOwner(attached, live)) {
+                    throw new SubagentSessionOwnership(sessionId);
                 }
+                if (live !== undefined)
+                    return live;
+                const persistence = checkPersistedIdentity ? ctx.get('sessionPersistence') : undefined;
+                const stored = persistence === undefined
+                    ? undefined
+                    : (await persistence.list()).find(header => header.id === sessionId);
+                if (persistence !== undefined && stored !== undefined) {
+                    const inspected = await persistence.inspect(sessionId);
+                    // Ownership first: explicit-id adoption of a session-backed
+                    // subagent must answer `agent-busy` regardless of the requested
+                    // cwd (the api/commands.ts contract), not a cwd conflict.
+                    if (hasSubagentOwner({ header: inspected.meta }, undefined)) {
+                        throw new SubagentSessionOwnership(sessionId);
+                    }
+                    if (inspected.meta.cwd !== cwd) {
+                        throw new SessionCwdConflict(sessionId, cwd, inspected.meta.cwd);
+                    }
+                    // Resolved from the log, not the header: a session that switched
+                    // while blank ran every turn under the newer composition.
+                    const storedPreset = resolveSessionPreset({ header: inspected.meta, events: inspected.events });
+                    assertPresetUnchanged(sessionId, presetId, storedPreset);
+                    // The stored preset wins over anything the request names: a resumed
+                    // session's history was produced under that composition, and
+                    // rebuilding it differently would replay tool calls the model can no
+                    // longer make.
+                    return (await ctx.agents.resume({
+                        resumeSessionId: sessionId,
+                        agentOptions: agentOptions(),
+                        setup: (await composeAgent(storedPreset)).setup,
+                    })).agent;
+                }
+                try {
+                    await mkdir(cwd, { recursive: true });
+                }
+                catch (error) {
+                    throw new Error(`failed to ensure project directory "${cwd}": ${String(error)}`, { cause: error });
+                }
+                const composition = await composeAgent(presetId);
+                return (await ctx.agents.create({
+                    sessionId,
+                    agentOptions: agentOptions(),
+                    meta: {
+                        cwd,
+                        ...parentSessionId === undefined ? {} : { parentSession: parentSessionId },
+                        ...composition.agentPreset === undefined ? {} : { agentPreset: composition.agentPreset },
+                    },
+                    setup: composition.setup,
+                })).agent;
+            })().catch((error) => {
+                // Another Host entry path may have published the same identity while
+                // this operation crossed an asynchronous persistence/filesystem step.
+                const live = ctx.agents.get(sessionId);
+                if (live !== undefined) {
+                    if (hasSubagentOwner(live.session, live))
+                        throw new SubagentSessionOwnership(sessionId);
+                    return live;
+                }
+                const attached = ctx.sessions.get(sessionId);
+                if (attached !== undefined && hasSubagentOwner(attached, undefined)) {
+                    throw new SubagentSessionOwnership(sessionId);
+                }
+                throw error;
+            }).finally(() => {
+                sessionCreations.delete(sessionId);
             });
-        });
+            sessionCreations.set(sessionId, creation);
+        }
+        const agent = await creation;
+        if (hasSubagentOwner(agent.session, agent))
+            throw new SubagentSessionOwnership(sessionId);
+        // Beside the cwd check for the same reason, and after the await so it
+        // covers every path that yields a live agent — freshly created, adopted
+        // live, resumed from disk, or recovered by the concurrent-creation catch.
+        assertPresetUnchanged(sessionId, presetId, resolveSessionPreset(agent.session));
+        if (agent.session.header.cwd !== cwd) {
+            throw new SessionCwdConflict(sessionId, cwd, agent.session.header.cwd);
+        }
+        return agent;
     }
     /** Resolve or create one path while holding the Host's workspace-create chain. */
     function ensureWorkspace(path) {
-        var _this = this;
-        var operation = workspaceCreationChain.then(function () { return __awaiter(_this, void 0, void 0, function () {
-            var existing;
-            var _a;
-            return __generator(this, function (_b) {
-                switch (_b.label) {
-                    case 0: return [4 /*yield*/, ctx.workspaceRegistry.resolveByPath(path)];
-                    case 1:
-                        existing = _b.sent();
-                        if (existing !== undefined)
-                            return [2 /*return*/, { workspace: existing, created: false }];
-                        _a = {};
-                        return [4 /*yield*/, ctx.workspaceRegistry.create(path)];
-                    case 2: return [2 /*return*/, (_a.workspace = _b.sent(), _a.created = true, _a)];
-                }
-            });
-        }); });
-        workspaceCreationChain = operation.then(function () { return undefined; }, function () { return undefined; });
+        const operation = workspaceCreationChain.then(async () => {
+            const existing = await ctx.workspaceRegistry.resolveByPath(path);
+            if (existing !== undefined)
+                return { workspace: existing, created: false };
+            return { workspace: await ctx.workspaceRegistry.create(path), created: true };
+        });
+        workspaceCreationChain = operation.then(() => undefined, () => undefined);
         return operation;
     }
     /**
@@ -1705,80 +1460,60 @@ function createApiProxy(ctx, defaults) {
      * Attached sessions come from memory; servable cold sessions merge from
      * persistence, and the final order is newest-first.
      */
-    function listVisibleSessionSummaries(signal) {
-        return __awaiter(this, void 0, void 0, function () {
-            var summarizeAttached, items, attached, persistence, cold, offset, batch, settled, summaries, rejected, failure, _i, settled_1, result;
-            var _this = this;
-            return __generator(this, function (_a) {
-                switch (_a.label) {
-                    case 0:
-                        signal === null || signal === void 0 ? void 0 : signal.throwIfAborted();
-                        summarizeAttached = function (session) {
-                            var agent = ctx.agents.get(session.id);
-                            var projections = listProjectionsFor(ctx, session.header, session);
-                            return __assign(__assign({}, summarize(session, (agent === null || agent === void 0 ? void 0 : agent.status) === 'running')), projections === undefined ? {} : { projections: projections });
-                        };
-                        items = ctx.sessions.list().map(summarizeAttached);
-                        signal === null || signal === void 0 ? void 0 : signal.throwIfAborted();
-                        attached = new Set(items.map(function (item) { return item.sessionId; }));
-                        persistence = ctx.get('sessionPersistence');
-                        if (!(persistence !== undefined)) return [3 /*break*/, 5];
-                        return [4 /*yield*/, persistence.list(signal)];
-                    case 1:
-                        cold = (_a.sent())
-                            .filter(function (meta) { return !attached.has(meta.id) && meta.cwd !== undefined; });
-                        signal === null || signal === void 0 ? void 0 : signal.throwIfAborted();
-                        offset = 0;
-                        _a.label = 2;
-                    case 2:
-                        if (!(offset < cold.length)) return [3 /*break*/, 5];
-                        signal === null || signal === void 0 ? void 0 : signal.throwIfAborted();
-                        batch = cold.slice(offset, offset + COLD_SUMMARY_BATCH_SIZE);
-                        return [4 /*yield*/, Promise.allSettled(batch.map(function (meta) { return __awaiter(_this, void 0, void 0, function () {
-                                var projections, summary, attachedSession;
-                                return __generator(this, function (_a) {
-                                    switch (_a.label) {
-                                        case 0:
-                                            projections = listProjectionsFor(ctx, meta, undefined);
-                                            return [4 /*yield*/, summarizeCold(ctx, persistence, meta, projections === null || projections === void 0 ? void 0 : projections.values.sessionListMetadata, coldBlankProbeMaxBytes, signal)];
-                                        case 1:
-                                            summary = _a.sent();
-                                            attachedSession = ctx.sessions.get(meta.id);
-                                            if (attachedSession !== undefined)
-                                                return [2 /*return*/, summarizeAttached(attachedSession)];
-                                            return [2 /*return*/, __assign(__assign({}, summary), projections === undefined ? {} : { projections: projections })];
-                                    }
-                                });
-                            }); }))];
-                    case 3:
-                        settled = _a.sent();
-                        summaries = [];
-                        rejected = false;
-                        failure = void 0;
-                        for (_i = 0, settled_1 = settled; _i < settled_1.length; _i++) {
-                            result = settled_1[_i];
-                            if (result.status === 'fulfilled') {
-                                summaries.push(result.value);
-                            }
-                            else if (!rejected) {
-                                rejected = true;
-                                failure = result.reason;
-                            }
-                        }
-                        if (rejected)
-                            throw failure;
-                        signal === null || signal === void 0 ? void 0 : signal.throwIfAborted();
-                        items.push.apply(items, summaries);
-                        _a.label = 4;
-                    case 4:
-                        offset += COLD_SUMMARY_BATCH_SIZE;
-                        return [3 /*break*/, 2];
-                    case 5:
-                        items.sort(function (a, b) { return b.updatedAt - a.updatedAt; });
-                        return [2 /*return*/, items];
+    async function listVisibleSessionSummaries(signal) {
+        signal?.throwIfAborted();
+        const summarizeAttached = (session) => {
+            const agent = ctx.agents.get(session.id);
+            const projections = listProjectionsFor(ctx, session.header, session);
+            return {
+                ...summarize(session, agent?.status === 'running'),
+                ...projections === undefined ? {} : { projections },
+            };
+        };
+        const items = ctx.sessions.list().map(summarizeAttached);
+        signal?.throwIfAborted();
+        const attached = new Set(items.map(item => item.sessionId));
+        const persistence = ctx.get('sessionPersistence');
+        if (persistence !== undefined) {
+            const cold = (await persistence.list(signal))
+                .filter(meta => !attached.has(meta.id) && meta.cwd !== undefined);
+            signal?.throwIfAborted();
+            for (let offset = 0; offset < cold.length; offset += COLD_SUMMARY_BATCH_SIZE) {
+                signal?.throwIfAborted();
+                const batch = cold.slice(offset, offset + COLD_SUMMARY_BATCH_SIZE);
+                const settled = await Promise.allSettled(batch.map(async (meta) => {
+                    // Projection hints remain optional. Blank verification may read
+                    // this Session's artifact only when it passes the configured size check.
+                    const projections = listProjectionsFor(ctx, meta, undefined);
+                    const summary = await summarizeCold(ctx, persistence, meta, projections?.values.sessionListMetadata, coldBlankProbeMaxBytes, signal);
+                    const attachedSession = ctx.sessions.get(meta.id);
+                    if (attachedSession !== undefined)
+                        return summarizeAttached(attachedSession);
+                    return {
+                        ...summary,
+                        ...projections === undefined ? {} : { projections },
+                    };
+                }));
+                const summaries = [];
+                let rejected = false;
+                let failure;
+                for (const result of settled) {
+                    if (result.status === 'fulfilled') {
+                        summaries.push(result.value);
+                    }
+                    else if (!rejected) {
+                        rejected = true;
+                        failure = result.reason;
+                    }
                 }
-            });
-        });
+                if (rejected)
+                    throw failure;
+                signal?.throwIfAborted();
+                items.push(...summaries);
+            }
+        }
+        items.sort((a, b) => b.updatedAt - a.updatedAt);
+        return items;
     }
     /**
      * Resolve the goal service THIS agent runs.
@@ -1790,44 +1525,33 @@ function createApiProxy(ctx, defaults) {
      * genuinely absent.
      */
     function goalServiceFor(agent) {
-        var _a;
-        var presets = ctx.get('agentPresets');
-        var goals = (_a = presets === null || presets === void 0 ? void 0 : presets.serviceFor(agent, 'goals')) !== null && _a !== void 0 ? _a : ctx.get('goals');
+        const presets = ctx.get('agentPresets');
+        const goals = presets?.serviceFor(agent, 'goals') ?? ctx.get('goals');
         if (goals === undefined) {
-            return { error: { code: 'internal', message: 'goal service is absent: neither this session\'s agent preset nor the host composition mounts @z/dsh-goal', details: {} } };
+            return { error: { code: 'internal', message: 'goal service is absent: neither this session\'s agent preset nor the host composition mounts @taskweaver/dsh-goal', details: {} } };
         }
         return goals;
     }
     /** Map one goal-domain rejection to the wire error (stable GoalError codes ride in details). */
     function goalError(request, error) {
-        var details = error instanceof dsh_goal_1.GoalError ? { goalCode: error.code } : {};
-        return err(request, { code: 'internal', message: String(error), details: details });
+        const details = error instanceof GoalError ? { goalCode: error.code } : {};
+        return err(request, { code: 'internal', message: String(error), details });
     }
     /** Resolve a session's agent, apply one goal mutation, and acknowledge with the new CAS ref. */
-    function mutateGoal(request, mutation) {
-        return __awaiter(this, void 0, void 0, function () {
-            var found, goals, ref;
-            return __generator(this, function (_a) {
-                switch (_a.label) {
-                    case 0: return [4 /*yield*/, agentFor(request.payload.sessionId)];
-                    case 1:
-                        found = _a.sent();
-                        if ('error' in found)
-                            return [2 /*return*/, err(request, found.error)];
-                        goals = goalServiceFor(found.agent);
-                        if ('error' in goals)
-                            return [2 /*return*/, err(request, goals.error)];
-                        try {
-                            ref = mutation(goals, found.agent);
-                            return [2 /*return*/, ok(request, { ref: { id: ref.id, revision: ref.revision } })];
-                        }
-                        catch (error) {
-                            return [2 /*return*/, goalError(request, error)];
-                        }
-                        return [2 /*return*/];
-                }
-            });
-        });
+    async function mutateGoal(request, mutation) {
+        const found = await agentFor(request.payload.sessionId);
+        if ('error' in found)
+            return err(request, found.error);
+        const goals = goalServiceFor(found.agent);
+        if ('error' in goals)
+            return err(request, goals.error);
+        try {
+            const ref = mutation(goals, found.agent);
+            return ok(request, { ref: { id: ref.id, revision: ref.revision } });
+        }
+        catch (error) {
+            return goalError(request, error);
+        }
     }
     /**
      * Whether an adapter currently serves this provider, and therefore whether
@@ -1838,8 +1562,8 @@ function createApiProxy(ctx, defaults) {
      * the dispatch it would have refused fails on its own terms.
      */
     function routeServed(provider) {
-        var llm = ctx.get('llm');
-        return llm === undefined || llm.listProviders().some(function (entry) { return entry.id === provider; });
+        const llm = ctx.get('llm');
+        return llm === undefined || llm.listProviders().some(entry => entry.id === provider);
     }
     /**
      * Resolve the addressed agent for a turn-starting method and refuse when no
@@ -1850,77 +1574,58 @@ function createApiProxy(ctx, defaults) {
      * This is `session.prompt`'s enforcement boundary: a client that disables
      * its input is an affordance, and the method stays callable regardless.
      */
-    function turnAgentFor(request, sessionId) {
-        return __awaiter(this, void 0, void 0, function () {
-            var found, agent, selection;
-            return __generator(this, function (_a) {
-                switch (_a.label) {
-                    case 0: return [4 /*yield*/, agentFor(sessionId)];
-                    case 1:
-                        found = _a.sent();
-                        if ('error' in found)
-                            return [2 /*return*/, { refused: err(request, found.error) }];
-                        agent = found.agent;
-                        selection = selectionFor(agent).current;
-                        if (!routeServed(selection.provider)) {
-                            return [2 /*return*/, {
-                                    refused: err(request, {
-                                        code: 'model-unavailable',
-                                        message: "no adapter serves provider \"".concat(selection.provider, "\"; select a model for this session"),
-                                        details: { provider: selection.provider, model: selection.model },
-                                    }),
-                                }];
-                        }
-                        return [2 /*return*/, { agent: agent }];
-                }
-            });
-        });
+    async function turnAgentFor(request, sessionId) {
+        const found = await agentFor(sessionId);
+        if ('error' in found)
+            return { refused: err(request, found.error) };
+        const agent = found.agent;
+        const selection = selectionFor(agent).current;
+        if (!routeServed(selection.provider)) {
+            return {
+                refused: err(request, {
+                    code: 'model-unavailable',
+                    message: `no adapter serves provider "${selection.provider}"; select a model for this session`,
+                    details: { provider: selection.provider, model: selection.model },
+                }),
+            };
+        }
+        return { agent };
     }
     /** Missing-service report shared by the settings domain (skills-domain stance). */
     function settingsAbsent() {
-        return { code: 'internal', message: 'settings service is absent: this deployment does not mount a settings provider (e.g. @z/dsh-settings-file) in its composition', details: {} };
+        return { code: 'internal', message: 'settings service is absent: this deployment does not mount a settings provider (e.g. @taskweaver/dsh-settings-file) in its composition', details: {} };
     }
     /** Open one Host-resolved target and map native failures onto the wire vocabulary. */
-    function openTarget(request, path, signal, open) {
-        return __awaiter(this, void 0, void 0, function () {
-            var error_5;
-            return __generator(this, function (_a) {
-                switch (_a.label) {
-                    case 0:
-                        _a.trys.push([0, 2, , 3]);
-                        return [4 /*yield*/, open(path, signal)];
-                    case 1:
-                        _a.sent();
-                        return [2 /*return*/, ok(request, { opened: true })];
-                    case 2:
-                        error_5 = _a.sent();
-                        if (signal.aborted) {
-                            return [2 /*return*/, err(request, {
-                                    code: 'cancelled',
-                                    message: 'path open was aborted',
-                                    details: {},
-                                })];
-                        }
-                        return [2 /*return*/, err(request, {
-                                code: 'internal',
-                                message: "path open failed: ".concat(error_5 instanceof Error ? error_5.message : String(error_5)),
-                                details: {},
-                            })];
-                    case 3: return [2 /*return*/];
-                }
+    async function openTarget(request, path, signal, open) {
+        try {
+            await open(path, signal);
+            return ok(request, { opened: true });
+        }
+        catch (error) {
+            if (signal.aborted) {
+                return err(request, {
+                    code: 'cancelled',
+                    message: 'path open was aborted',
+                    details: {},
+                });
+            }
+            return err(request, {
+                code: 'internal',
+                message: `path open failed: ${error instanceof Error ? error.message : String(error)}`,
+                details: {},
             });
-        });
+        }
     }
     /** Open one Host-resolved path with its default application. */
     function openPath(request, path, signal) {
-        var _a;
-        var open = (_a = defaults.openPath) !== null && _a !== void 0 ? _a : (function (target, openSignal) { return (0, native_path_opener_ts_1.openNativePath)(target, openSignal); });
+        const open = defaults.openPath
+            ?? ((target, openSignal) => openNativePath(target, openSignal));
         return openTarget(request, path, signal, open);
     }
     /** Open one Host-resolved text document in a native editor. */
     function openTextFile(request, path, signal) {
-        var _a;
-        var open = (_a = defaults.openTextFile) !== null && _a !== void 0 ? _a : (function (target, openSignal) { return (0, native_path_opener_ts_1.openNativeTextFile)(target, openSignal); });
+        const open = defaults.openTextFile
+            ?? ((target, openSignal) => openNativeTextFile(target, openSignal));
         return openTarget(request, path, signal, open);
     }
     /** Whether this deployment can hand a path to a native opener at all. */
@@ -1928,16 +1633,24 @@ function createApiProxy(ctx, defaults) {
         if (defaults.canOpenPath !== undefined)
             return defaults.canOpenPath();
         // An injected opener is by definition usable; otherwise ask the platform.
-        return defaults.openPath !== undefined || (0, native_path_opener_ts_1.canOpenNativePath)();
+        return defaults.openPath !== undefined || canOpenNativePath();
     }
     /** Missing-service report shared by the credentials domain. */
     function credentialsAbsent() {
-        return { code: 'internal', message: 'credentials service is absent: this deployment does not mount a credential provider (e.g. @z/dsh-credentials-local) in its composition', details: {} };
+        return { code: 'internal', message: 'credentials service is absent: this deployment does not mount a credential provider (e.g. @taskweaver/dsh-credentials-local) in its composition', details: {} };
     }
     /** Map one redacted settings descriptor to its wire view. */
     function namespaceView(descriptor) {
-        var _a;
-        return __assign(__assign(__assign({ ns: String(descriptor.ns), schema: descriptor.schema, value: descriptor.value }, descriptor.base === undefined ? {} : { base: descriptor.base }), descriptor.user === undefined ? {} : { user: descriptor.user }), { applies: descriptor.applies, secrets: ((_a = descriptor.secrets) !== null && _a !== void 0 ? _a : []).map(function (secret) { return ({ path: __spreadArray([], secret.path, true), set: secret.set }); }), revision: descriptor.revision });
+        return {
+            ns: String(descriptor.ns),
+            schema: descriptor.schema,
+            value: descriptor.value,
+            ...descriptor.base === undefined ? {} : { base: descriptor.base },
+            ...descriptor.user === undefined ? {} : { user: descriptor.user },
+            applies: descriptor.applies,
+            secrets: (descriptor.secrets ?? []).map(secret => ({ path: [...secret.path], set: secret.set })),
+            revision: descriptor.revision,
+        };
     }
     /**
      * Run one settings write (merge or wholesale replace) and acknowledge with
@@ -1945,72 +1658,53 @@ function createApiProxy(ctx, defaults) {
      * namespace, read-only provider, schema validation, storage — becomes one
      * `settings-rejected` carrying the seam's own message.
      */
-    function settingsWrite(request, ns, mode, section, expectedRevision) {
-        return __awaiter(this, void 0, void 0, function () {
-            var settings, rejected, branded, error_6, descriptor;
-            return __generator(this, function (_a) {
-                switch (_a.label) {
-                    case 0:
-                        settings = ctx.get('settings');
-                        if (settings === undefined)
-                            return [2 /*return*/, err(request, settingsAbsent())];
-                        rejected = function (error) {
-                            // A stale writer is its own outcome, not a malformed request: the client
-                            // must re-read and re-apply rather than treat the write as invalid.
-                            if (error instanceof dsh_settings_1.SettingsConflictError) {
-                                return err(request, {
-                                    code: 'settings-conflict',
-                                    message: error.message,
-                                    details: { ns: ns, expected: error.expected, actual: error.actual },
-                                });
-                            }
-                            return err(request, {
-                                code: 'settings-rejected',
-                                message: error instanceof Error ? error.message : String(error),
-                                details: { ns: ns },
-                            });
-                        };
-                        try {
-                            branded = (0, dsh_settings_1.settingsNamespace)(ns);
-                        }
-                        catch (error) {
-                            // A malformed name can address no registration, so it fails exactly as
-                            // an unregistered one does.
-                            return [2 /*return*/, rejected(error)];
-                        }
-                        _a.label = 1;
-                    case 1:
-                        _a.trys.push([1, 8, , 9]);
-                        if (!(mode === 'update')) return [3 /*break*/, 3];
-                        return [4 /*yield*/, settings.update(branded, section, expectedRevision)];
-                    case 2:
-                        _a.sent();
-                        return [3 /*break*/, 7];
-                    case 3:
-                        if (!(mode === 'replace')) return [3 /*break*/, 5];
-                        return [4 /*yield*/, settings.replace(branded, section, expectedRevision)];
-                    case 4:
-                        _a.sent();
-                        return [3 /*break*/, 7];
-                    case 5: return [4 /*yield*/, settings.mutate(branded, section, expectedRevision)];
-                    case 6:
-                        _a.sent();
-                        _a.label = 7;
-                    case 7: return [3 /*break*/, 9];
-                    case 8:
-                        error_6 = _a.sent();
-                        return [2 /*return*/, rejected(error_6)];
-                    case 9:
-                        descriptor = settings.describe({ redactSecrets: true }).find(function (candidate) { return candidate.ns === branded; });
-                        if (descriptor === undefined) {
-                            // The write committed but the namespace vanished before this read: only
-                            // a concurrent registrant disposal can produce it.
-                            return [2 /*return*/, err(request, { code: 'internal', message: "settings namespace \"".concat(ns, "\" was disposed after the ").concat(mode), details: {} })];
-                        }
-                        return [2 /*return*/, ok(request, namespaceView(descriptor))];
-                }
+    async function settingsWrite(request, ns, mode, section, expectedRevision) {
+        const settings = ctx.get('settings');
+        if (settings === undefined)
+            return err(request, settingsAbsent());
+        const rejected = (error) => {
+            // A stale writer is its own outcome, not a malformed request: the client
+            // must re-read and re-apply rather than treat the write as invalid.
+            if (error instanceof SettingsConflictError) {
+                return err(request, {
+                    code: 'settings-conflict',
+                    message: error.message,
+                    details: { ns, expected: error.expected, actual: error.actual },
+                });
+            }
+            return err(request, {
+                code: 'settings-rejected',
+                message: error instanceof Error ? error.message : String(error),
+                details: { ns },
             });
-        });
+        };
+        let branded;
+        try {
+            branded = settingsNamespace(ns);
+        }
+        catch (error) {
+            // A malformed name can address no registration, so it fails exactly as
+            // an unregistered one does.
+            return rejected(error);
+        }
+        try {
+            if (mode === 'update')
+                await settings.update(branded, section, expectedRevision);
+            else if (mode === 'replace')
+                await settings.replace(branded, section, expectedRevision);
+            else
+                await settings.mutate(branded, section, expectedRevision);
+        }
+        catch (error) {
+            return rejected(error);
+        }
+        const descriptor = settings.describe({ redactSecrets: true }).find(candidate => candidate.ns === branded);
+        if (descriptor === undefined) {
+            // The write committed but the namespace vanished before this read: only
+            // a concurrent registrant disposal can produce it.
+            return err(request, { code: 'internal', message: `settings namespace "${ns}" was disposed after the ${mode}`, details: {} });
+        }
+        return ok(request, namespaceView(descriptor));
     }
     return {
         sessions: {
@@ -2018,695 +1712,597 @@ function createApiProxy(ctx, defaults) {
             // sessions merge in from the persistence store so history survives restarts.
             // Logs without a cwd are not served; every session records its project
             // at create time.
-            list: function (request) {
-                return __awaiter(this, void 0, void 0, function () {
-                    var _a, _b;
-                    var _c;
-                    return __generator(this, function (_d) {
-                        switch (_d.label) {
-                            case 0:
-                                _a = ok;
-                                _b = [request];
-                                _c = {};
-                                return [4 /*yield*/, listVisibleSessionSummaries()];
-                            case 1: return [2 /*return*/, _a.apply(void 0, _b.concat([(_c.items = _d.sent(), _c)]))];
-                        }
+            async list(request) {
+                return ok(request, { items: await listVisibleSessionSummaries() });
+            },
+            async search(request, signal) {
+                const cancelled = () => err(request, {
+                    code: 'cancelled',
+                    message: 'session search was aborted',
+                    details: {},
+                });
+                if (isAborted(signal))
+                    return cancelled();
+                const sessionQuery = ctx.get('sessionQuery');
+                if (sessionQuery === undefined) {
+                    return err(request, {
+                        code: 'internal',
+                        message: 'session search is unavailable: this deployment does not mount @taskweaver/dsh-session-query',
+                        details: {},
                     });
+                }
+                try {
+                    const visible = await listVisibleSessionSummaries(signal);
+                    if (isAborted(signal))
+                        return cancelled();
+                    if (visible.length === 0)
+                        return ok(request, { items: [], hasMore: false });
+                    const visibleIds = new Set(visible.map(item => item.sessionId));
+                    const authorized = [];
+                    const acceptedIds = new Set();
+                    const seenCursors = new Set();
+                    let cursor;
+                    let providerCallCount = 0;
+                    let providerPageLimit = SESSION_SEARCH_RESULT_LIMIT;
+                    while (authorized.length <= SESSION_SEARCH_RESULT_LIMIT) {
+                        if (isAborted(signal))
+                            return cancelled();
+                        if (providerCallCount >= SESSION_SEARCH_PROVIDER_CALL_LIMIT) {
+                            throw new Error(`session search provider exceeded the ${SESSION_SEARCH_PROVIDER_CALL_LIMIT}-call work budget`);
+                        }
+                        providerCallCount++;
+                        const requestedCursor = cursor;
+                        const requestedPageLimit = providerPageLimit;
+                        let page;
+                        try {
+                            page = await sessionQuery.searchSessions({
+                                query: request.payload.query,
+                                eventFilters: [
+                                    { kind: 'type', values: ['user/message', 'assistant/message'] },
+                                    { kind: 'surface', values: ['current'] },
+                                ],
+                                limit: requestedPageLimit,
+                                ...requestedCursor === undefined ? {} : { cursor: requestedCursor },
+                            }, { signal });
+                        }
+                        catch (error) {
+                            if (isAborted(signal))
+                                return cancelled();
+                            if (requestedCursor === undefined
+                                && error instanceof SessionQueryError
+                                && error.code === 'SESSION_QUERY_INVALID_LIMIT'
+                                && requestedPageLimit > 1) {
+                                providerPageLimit = Math.max(1, Math.floor(requestedPageLimit / 2));
+                                continue;
+                            }
+                            if (requestedCursor !== undefined
+                                && error instanceof SessionQueryError
+                                && error.code === 'SESSION_QUERY_STALE_CURSOR') {
+                                authorized.length = 0;
+                                acceptedIds.clear();
+                                seenCursors.clear();
+                                cursor = undefined;
+                                continue;
+                            }
+                            throw error;
+                        }
+                        if (isAborted(signal))
+                            return cancelled();
+                        const providerItemCount = page.items.length;
+                        if (providerItemCount > requestedPageLimit) {
+                            throw new Error(`session search provider returned ${providerItemCount} items; maximum is ${requestedPageLimit}`);
+                        }
+                        // Host visibility is the authorization boundary. Consume the
+                        // provider's globally ranked results rather than binding every
+                        // visible id into one SQLite statement, then require each hit to
+                        // name a visible session and a current message from that same
+                        // session before emitting its snippet.
+                        for (const hit of page.items) {
+                            if (authorized.length > SESSION_SEARCH_RESULT_LIMIT)
+                                continue;
+                            if (!visibleIds.has(hit.header.id)
+                                || hit.bestMatch.sessionId !== hit.header.id
+                                || hit.bestMatch.surface !== 'current'
+                                || !MESSAGE_TYPES.has(hit.bestMatch.type)
+                                || acceptedIds.has(hit.header.id))
+                                continue;
+                            const snippet = truncateUnicodeCodePoints(hit.bestMatch.snippet, SESSION_SEARCH_SNIPPET_MAX_CODE_POINTS);
+                            acceptedIds.add(hit.header.id);
+                            authorized.push({
+                                sessionId: hit.header.id,
+                                snippet,
+                            });
+                        }
+                        const nextCursor = page.nextCursor;
+                        if (nextCursor !== undefined) {
+                            if (seenCursors.has(nextCursor)) {
+                                throw new Error('session search provider repeated a continuation cursor');
+                            }
+                            seenCursors.add(nextCursor);
+                        }
+                        if (authorized.length > SESSION_SEARCH_RESULT_LIMIT || nextCursor === undefined)
+                            break;
+                        cursor = nextCursor;
+                    }
+                    return ok(request, {
+                        items: authorized.slice(0, SESSION_SEARCH_RESULT_LIMIT),
+                        hasMore: authorized.length > SESSION_SEARCH_RESULT_LIMIT,
+                    });
+                }
+                catch (error) {
+                    if (isAborted(signal)
+                        || (error instanceof SessionQueryError && error.code === 'SESSION_QUERY_ABORTED'))
+                        return cancelled();
+                    // XXX: Redact provider details before exposing this gateway beyond
+                    // its current single-user local deployment.
+                    return err(request, {
+                        code: 'internal',
+                        message: `session search failed: ${String(error)}`,
+                        details: {},
+                    });
+                }
+            },
+            async create(request) {
+                const sessionId = request.payload.sessionId ?? `session-${randomUUID()}`;
+                let workspace;
+                if (request.payload.workspaceId !== undefined) {
+                    workspace = ctx.workspaceRegistry.get(brandWorkspaceId(request.payload.workspaceId));
+                    if (workspace === undefined) {
+                        return err(request, {
+                            code: 'workspace-not-found',
+                            message: `workspace "${request.payload.workspaceId}" not found`,
+                            details: { workspaceId: request.payload.workspaceId },
+                        });
+                    }
+                }
+                const cwd = workspace?.path ?? request.payload.cwd ?? defaults.cwd;
+                const requestedPreset = request.payload.agentPreset;
+                try {
+                    await ensureSession(sessionId, cwd, request.payload.sessionId !== undefined, requestedPreset, request.payload.parentSessionId);
+                }
+                catch (error) {
+                    if (error instanceof AgentPresetConflict) {
+                        return err(request, {
+                            code: 'agent-preset-conflict',
+                            message: error.message,
+                            details: {
+                                sessionId: error.sessionId,
+                                requestedPreset: error.requestedPreset,
+                                ...error.existingPreset === undefined ? {} : { existingPreset: error.existingPreset },
+                            },
+                        });
+                    }
+                    const refused = presetFailure(request, error);
+                    if (refused !== undefined)
+                        return refused;
+                    if (error instanceof SessionCwdConflict) {
+                        return err(request, {
+                            code: 'session-conflict',
+                            message: error.message,
+                            details: {
+                                sessionId: error.sessionId,
+                                requestedCwd: error.requestedCwd,
+                                ...error.existingCwd === undefined ? {} : { existingCwd: error.existingCwd },
+                            },
+                        });
+                    }
+                    if (error instanceof SubagentSessionOwnership) {
+                        return err(request, subagentOwnershipError(error.sessionId));
+                    }
+                    return err(request, {
+                        code: 'internal',
+                        message: `failed to create session "${sessionId}": ${String(error)}`,
+                        details: {},
+                    });
+                }
+                if (workspace !== undefined) {
+                    try {
+                        await workspace.attachSession(sessionId);
+                    }
+                    catch (error) {
+                        return err(request, {
+                            code: 'workspace-attach-failed',
+                            message: `session "${sessionId}" was created but could not attach to workspace "${workspace.id}": ${String(error)}`,
+                            details: { sessionId, workspaceId: workspace.id },
+                        });
+                    }
+                }
+                // Echo the composition the session RUNS so a client can label it
+                // without waiting for the next list refresh — the create is the commit
+                // point that knows it (a caller that named none gets the default).
+                // Resolved from the log for the same reason `sessionListFields()` is:
+                // this handler also adopts an already-live session, and one that
+                // switched while blank runs a preset its header no longer names, so
+                // echoing the header would contradict both the adoption this call just
+                // allowed and the row `session.list` serves for the same session.
+                const created = ctx.agents.get(sessionId);
+                const createdPreset = created === undefined ? undefined : resolveSessionPreset(created.session);
+                return ok(request, { sessionId, ...createdPreset === undefined ? {} : { agentPreset: createdPreset } });
+            },
+            async history(request) {
+                const { sessionId, beforeSeq, maxMessages } = request.payload;
+                try {
+                    const source = await historySourceFor(sessionId);
+                    // Both awaits happen BEFORE the cut. Ensuring the recorded
+                    // composition's standing mount is what registers its projection
+                    // units, so a first cold read would otherwise serve a baseline
+                    // missing every preset-owned key; and an attached session keeps
+                    // appending, so awaiting between the two reads would pair events cut
+                    // at N with a baseline folded to N+1.
+                    const scope = await presenterScopeFor(sessionId, sourceSession(source));
+                    const cut = historyCutOf(source, beforeSeq === undefined);
+                    const page = historyPage(ctx, cut.events, beforeSeq, maxMessages, scope);
+                    return ok(request, {
+                        events: page.events,
+                        hasMore: page.hasMore,
+                        ...cut.projections === undefined ? {} : { projections: cut.projections },
+                    });
+                }
+                catch (error) {
+                    if (error instanceof SessionNotFound) {
+                        return err(request, { code: 'session-not-found', message: error.message, details: { sessionId } });
+                    }
+                    return err(request, {
+                        code: 'internal',
+                        message: `history unavailable for session "${sessionId}": ${String(error)}`,
+                        details: {},
+                    });
+                }
+            },
+            async models(request) {
+                const { sessionId } = request.payload;
+                const found = await agentFor(sessionId);
+                if ('error' in found)
+                    return err(request, found.error);
+                const current = selectionFor(found.agent).current;
+                const { groups, failures } = await buildModelCatalog(ctx);
+                const routable = routeServed(current.provider);
+                return ok(request, { current: { ...current }, routable, groups, failures });
+            },
+            async selectModel(request) {
+                const { sessionId, provider, model, reasoningEffort } = request.payload;
+                const found = await agentFor(sessionId);
+                if ('error' in found)
+                    return err(request, found.error);
+                return serializeImageAdmission(found.agent, async () => {
+                    try {
+                        const resolved = await ctx.llm.resolveCallConfig({
+                            provider,
+                            model,
+                            ...reasoningEffort === undefined
+                                ? {}
+                                : { reasoningEffort: ReasoningEffortId(reasoningEffort) },
+                        });
+                        const selected = {
+                            provider: resolved.provider,
+                            model: resolved.model,
+                            ...resolved.reasoningEffort === undefined
+                                ? {}
+                                : { reasoningEffort: resolved.reasoningEffort },
+                        };
+                        selectionFor(found.agent).current = selected;
+                        try {
+                            await defaults.saveDefaultModelSelection?.(selected);
+                        }
+                        catch (error) {
+                            ctx.logger.warn(`api-proxy: the model switch applies to this session but was not saved as the default: ${String(error)}`);
+                        }
+                        return ok(request, { selected: { ...selected } });
+                    }
+                    catch (error) {
+                        return err(request, {
+                            code: 'model-unavailable',
+                            message: error instanceof Error ? error.message : String(error),
+                            details: { provider, model },
+                        });
+                    }
                 });
             },
-            search: function (request, signal) {
-                return __awaiter(this, void 0, void 0, function () {
-                    var cancelled, sessionQuery, visible, visibleIds, authorized, acceptedIds, seenCursors, cursor, providerCallCount, providerPageLimit, requestedCursor, requestedPageLimit, page, error_7, providerItemCount, _i, _a, hit, snippet, nextCursor, error_8;
-                    return __generator(this, function (_b) {
-                        switch (_b.label) {
-                            case 0:
-                                cancelled = function () { return err(request, {
-                                    code: 'cancelled',
-                                    message: 'session search was aborted',
-                                    details: {},
-                                }); };
-                                if (isAborted(signal))
-                                    return [2 /*return*/, cancelled()];
-                                sessionQuery = ctx.get('sessionQuery');
-                                if (sessionQuery === undefined) {
-                                    return [2 /*return*/, err(request, {
-                                            code: 'internal',
-                                            message: 'session search is unavailable: this deployment does not mount @z/dsh-session-query',
-                                            details: {},
-                                        })];
-                                }
-                                _b.label = 1;
-                            case 1:
-                                _b.trys.push([1, 9, , 10]);
-                                return [4 /*yield*/, listVisibleSessionSummaries(signal)];
-                            case 2:
-                                visible = _b.sent();
-                                if (isAborted(signal))
-                                    return [2 /*return*/, cancelled()];
-                                if (visible.length === 0)
-                                    return [2 /*return*/, ok(request, { items: [], hasMore: false })];
-                                visibleIds = new Set(visible.map(function (item) { return item.sessionId; }));
-                                authorized = [];
-                                acceptedIds = new Set();
-                                seenCursors = new Set();
-                                cursor = void 0;
-                                providerCallCount = 0;
-                                providerPageLimit = session_search_ts_1.SESSION_SEARCH_RESULT_LIMIT;
-                                _b.label = 3;
-                            case 3:
-                                if (!(authorized.length <= session_search_ts_1.SESSION_SEARCH_RESULT_LIMIT)) return [3 /*break*/, 8];
-                                if (isAborted(signal))
-                                    return [2 /*return*/, cancelled()];
-                                if (providerCallCount >= SESSION_SEARCH_PROVIDER_CALL_LIMIT) {
-                                    throw new Error("session search provider exceeded the ".concat(SESSION_SEARCH_PROVIDER_CALL_LIMIT, "-call work budget"));
-                                }
-                                providerCallCount++;
-                                requestedCursor = cursor;
-                                requestedPageLimit = providerPageLimit;
-                                page = void 0;
-                                _b.label = 4;
-                            case 4:
-                                _b.trys.push([4, 6, , 7]);
-                                return [4 /*yield*/, sessionQuery.searchSessions(__assign({ query: request.payload.query, eventFilters: [
-                                            { kind: 'type', values: ['user/message', 'assistant/message'] },
-                                            { kind: 'surface', values: ['current'] },
-                                        ], limit: requestedPageLimit }, requestedCursor === undefined ? {} : { cursor: requestedCursor }), { signal: signal })];
-                            case 5:
-                                page = _b.sent();
-                                return [3 /*break*/, 7];
-                            case 6:
-                                error_7 = _b.sent();
-                                if (isAborted(signal))
-                                    return [2 /*return*/, cancelled()];
-                                if (requestedCursor === undefined
-                                    && error_7 instanceof dsh_session_query_1.SessionQueryError
-                                    && error_7.code === 'SESSION_QUERY_INVALID_LIMIT'
-                                    && requestedPageLimit > 1) {
-                                    providerPageLimit = Math.max(1, Math.floor(requestedPageLimit / 2));
-                                    return [3 /*break*/, 3];
-                                }
-                                if (requestedCursor !== undefined
-                                    && error_7 instanceof dsh_session_query_1.SessionQueryError
-                                    && error_7.code === 'SESSION_QUERY_STALE_CURSOR') {
-                                    authorized.length = 0;
-                                    acceptedIds.clear();
-                                    seenCursors.clear();
-                                    cursor = undefined;
-                                    return [3 /*break*/, 3];
-                                }
-                                throw error_7;
-                            case 7:
-                                if (isAborted(signal))
-                                    return [2 /*return*/, cancelled()];
-                                providerItemCount = page.items.length;
-                                if (providerItemCount > requestedPageLimit) {
-                                    throw new Error("session search provider returned ".concat(providerItemCount, " items; maximum is ").concat(requestedPageLimit));
-                                }
-                                // Host visibility is the authorization boundary. Consume the
-                                // provider's globally ranked results rather than binding every
-                                // visible id into one SQLite statement, then require each hit to
-                                // name a visible session and a current message from that same
-                                // session before emitting its snippet.
-                                for (_i = 0, _a = page.items; _i < _a.length; _i++) {
-                                    hit = _a[_i];
-                                    if (authorized.length > session_search_ts_1.SESSION_SEARCH_RESULT_LIMIT)
-                                        continue;
-                                    if (!visibleIds.has(hit.header.id)
-                                        || hit.bestMatch.sessionId !== hit.header.id
-                                        || hit.bestMatch.surface !== 'current'
-                                        || !MESSAGE_TYPES.has(hit.bestMatch.type)
-                                        || acceptedIds.has(hit.header.id))
-                                        continue;
-                                    snippet = (0, session_search_ts_1.truncateUnicodeCodePoints)(hit.bestMatch.snippet, session_search_ts_1.SESSION_SEARCH_SNIPPET_MAX_CODE_POINTS);
-                                    acceptedIds.add(hit.header.id);
-                                    authorized.push({
-                                        sessionId: hit.header.id,
-                                        snippet: snippet,
-                                    });
-                                }
-                                nextCursor = page.nextCursor;
-                                if (nextCursor !== undefined) {
-                                    if (seenCursors.has(nextCursor)) {
-                                        throw new Error('session search provider repeated a continuation cursor');
-                                    }
-                                    seenCursors.add(nextCursor);
-                                }
-                                if (authorized.length > session_search_ts_1.SESSION_SEARCH_RESULT_LIMIT || nextCursor === undefined)
-                                    return [3 /*break*/, 8];
-                                cursor = nextCursor;
-                                return [3 /*break*/, 3];
-                            case 8: return [2 /*return*/, ok(request, {
-                                    items: authorized.slice(0, session_search_ts_1.SESSION_SEARCH_RESULT_LIMIT),
-                                    hasMore: authorized.length > session_search_ts_1.SESSION_SEARCH_RESULT_LIMIT,
-                                })];
-                            case 9:
-                                error_8 = _b.sent();
-                                if (isAborted(signal)
-                                    || (error_8 instanceof dsh_session_query_1.SessionQueryError && error_8.code === 'SESSION_QUERY_ABORTED'))
-                                    return [2 /*return*/, cancelled()
-                                        // XXX: Redact provider details before exposing this gateway beyond
-                                        // its current single-user local deployment.
-                                    ];
-                                // XXX: Redact provider details before exposing this gateway beyond
-                                // its current single-user local deployment.
-                                return [2 /*return*/, err(request, {
-                                        code: 'internal',
-                                        message: "session search failed: ".concat(String(error_8)),
-                                        details: {},
-                                    })];
-                            case 10: return [2 /*return*/];
-                        }
+            async rename(request) {
+                const { sessionId, title } = request.payload;
+                const found = await agentFor(sessionId);
+                if ('error' in found)
+                    return err(request, found.error);
+                const titles = ctx.get('sessionTitle');
+                if (titles === undefined) {
+                    return err(request, { code: 'internal', message: 'renaming is unavailable: this deployment mounts no session-title service', details: {} });
+                }
+                try {
+                    const accepted = titles.rename(found.agent.session, title);
+                    return ok(request, { title: accepted.title, seq: accepted.eventSeq });
+                }
+                catch (error) {
+                    // Only the input's fault maps to title-invalid (the message is
+                    // product-user-visible in the rename dialog); liveness and disposal
+                    // races are deployment trouble, not a bad title.
+                    if (error instanceof SessionTitleInvalidError) {
+                        return err(request, {
+                            code: 'title-invalid',
+                            message: error.message,
+                            details: { sessionId },
+                        });
+                    }
+                    return err(request, {
+                        code: 'internal',
+                        message: `failed to rename session "${sessionId}": ${String(error)}`,
+                        details: {},
                     });
-                });
+                }
             },
-            create: function (request) {
-                return __awaiter(this, void 0, void 0, function () {
-                    var sessionId, workspace, cwd, requestedPreset, error_9, refused, error_10, created, createdPreset;
-                    var _a, _b, _c;
-                    return __generator(this, function (_d) {
-                        switch (_d.label) {
-                            case 0:
-                                sessionId = (_a = request.payload.sessionId) !== null && _a !== void 0 ? _a : "session-".concat((0, node_crypto_1.randomUUID)());
-                                if (request.payload.workspaceId !== undefined) {
-                                    workspace = ctx.workspaceRegistry.get((0, dsh_workspace_1.WorkspaceId)(request.payload.workspaceId));
-                                    if (workspace === undefined) {
-                                        return [2 /*return*/, err(request, {
-                                                code: 'workspace-not-found',
-                                                message: "workspace \"".concat(request.payload.workspaceId, "\" not found"),
-                                                details: { workspaceId: request.payload.workspaceId },
-                                            })];
-                                    }
-                                }
-                                cwd = (_c = (_b = workspace === null || workspace === void 0 ? void 0 : workspace.path) !== null && _b !== void 0 ? _b : request.payload.cwd) !== null && _c !== void 0 ? _c : defaults.cwd;
-                                requestedPreset = request.payload.agentPreset;
-                                _d.label = 1;
-                            case 1:
-                                _d.trys.push([1, 3, , 4]);
-                                return [4 /*yield*/, ensureSession(sessionId, cwd, request.payload.sessionId !== undefined, requestedPreset, request.payload.parentSessionId)];
-                            case 2:
-                                _d.sent();
-                                return [3 /*break*/, 4];
-                            case 3:
-                                error_9 = _d.sent();
-                                if (error_9 instanceof AgentPresetConflict) {
-                                    return [2 /*return*/, err(request, {
-                                            code: 'agent-preset-conflict',
-                                            message: error_9.message,
-                                            details: __assign({ sessionId: error_9.sessionId, requestedPreset: error_9.requestedPreset }, error_9.existingPreset === undefined ? {} : { existingPreset: error_9.existingPreset }),
-                                        })];
-                                }
-                                refused = presetFailure(request, error_9);
-                                if (refused !== undefined)
-                                    return [2 /*return*/, refused];
-                                if (error_9 instanceof SessionCwdConflict) {
-                                    return [2 /*return*/, err(request, {
-                                            code: 'session-conflict',
-                                            message: error_9.message,
-                                            details: __assign({ sessionId: error_9.sessionId, requestedCwd: error_9.requestedCwd }, error_9.existingCwd === undefined ? {} : { existingCwd: error_9.existingCwd }),
-                                        })];
-                                }
-                                if (error_9 instanceof dsh_api_remotes_1.ApiRemoteSubagentSessionOwnership) {
-                                    return [2 /*return*/, err(request, subagentOwnershipError(error_9.sessionId))];
-                                }
-                                return [2 /*return*/, err(request, {
-                                        code: 'internal',
-                                        message: "failed to create session \"".concat(sessionId, "\": ").concat(String(error_9)),
-                                        details: {},
-                                    })];
-                            case 4:
-                                if (!(workspace !== undefined)) return [3 /*break*/, 8];
-                                _d.label = 5;
-                            case 5:
-                                _d.trys.push([5, 7, , 8]);
-                                return [4 /*yield*/, workspace.attachSession(sessionId)];
-                            case 6:
-                                _d.sent();
-                                return [3 /*break*/, 8];
-                            case 7:
-                                error_10 = _d.sent();
-                                return [2 /*return*/, err(request, {
-                                        code: 'workspace-attach-failed',
-                                        message: "session \"".concat(sessionId, "\" was created but could not attach to workspace \"").concat(workspace.id, "\": ").concat(String(error_10)),
-                                        details: { sessionId: sessionId, workspaceId: workspace.id },
-                                    })];
-                            case 8:
-                                created = ctx.agents.get(sessionId);
-                                createdPreset = created === undefined ? undefined : (0, dsh_agent_presets_1.resolveSessionPreset)(created.session);
-                                return [2 /*return*/, ok(request, __assign({ sessionId: sessionId }, createdPreset === undefined ? {} : { agentPreset: createdPreset }))];
-                        }
+            async fork(request) {
+                const { sessionId, atSeq } = request.payload;
+                let source;
+                try {
+                    source = await readSessionState(sessionId);
+                }
+                catch (error) {
+                    if (error instanceof SessionNotFound) {
+                        return err(request, { code: 'session-not-found', message: error.message, details: { sessionId } });
+                    }
+                    return err(request, {
+                        code: 'internal',
+                        message: `fork source unavailable for session "${sessionId}": ${String(error)}`,
+                        details: {},
                     });
-                });
-            },
-            history: function (request) {
-                return __awaiter(this, void 0, void 0, function () {
-                    var _a, sessionId, beforeSeq, maxMessages, source, scope, cut, page, error_11;
-                    return __generator(this, function (_b) {
-                        switch (_b.label) {
-                            case 0:
-                                _a = request.payload, sessionId = _a.sessionId, beforeSeq = _a.beforeSeq, maxMessages = _a.maxMessages;
-                                _b.label = 1;
-                            case 1:
-                                _b.trys.push([1, 4, , 5]);
-                                return [4 /*yield*/, historySourceFor(sessionId)
-                                    // Both awaits happen BEFORE the cut. Ensuring the recorded
-                                    // composition's standing mount is what registers its projection
-                                    // units, so a first cold read would otherwise serve a baseline
-                                    // missing every preset-owned key; and an attached session keeps
-                                    // appending, so awaiting between the two reads would pair events cut
-                                    // at N with a baseline folded to N+1.
-                                ];
-                            case 2:
-                                source = _b.sent();
-                                return [4 /*yield*/, presenterScopeFor(sessionId, sourceSession(source))];
-                            case 3:
-                                scope = _b.sent();
-                                cut = historyCutOf(source, beforeSeq === undefined);
-                                page = historyPage(ctx, cut.events, beforeSeq, maxMessages, scope);
-                                return [2 /*return*/, ok(request, __assign({ events: page.events, hasMore: page.hasMore }, cut.projections === undefined ? {} : { projections: cut.projections }))];
-                            case 4:
-                                error_11 = _b.sent();
-                                if (error_11 instanceof dsh_api_remotes_1.ApiRemoteSessionNotFound) {
-                                    return [2 /*return*/, err(request, { code: 'session-not-found', message: error_11.message, details: { sessionId: sessionId } })];
-                                }
-                                return [2 /*return*/, err(request, {
-                                        code: 'internal',
-                                        message: "history unavailable for session \"".concat(sessionId, "\": ").concat(String(error_11)),
-                                        details: {},
-                                    })];
-                            case 5: return [2 /*return*/];
-                        }
+                }
+                const events = source.events;
+                // An in-log anchor belongs to the turn containing it and must never
+                // clip backward to an earlier completed turn. Omitted and past-end
+                // anchors retain the last-completed-turn shortcut.
+                const lastSeq = events.at(-1)?.seq ?? -1;
+                const anchoredBoundary = atSeq === undefined
+                    ? undefined
+                    : events.find(e => e.type === 'turn/end' && e.seq >= atSeq);
+                const boundary = anchoredBoundary
+                    ?? (atSeq === undefined || atSeq > lastSeq
+                        ? events.findLast(e => e.type === 'turn/end')
+                        : undefined);
+                if (boundary === undefined) {
+                    return err(request, {
+                        code: 'fork-unavailable',
+                        message: atSeq !== undefined && atSeq <= lastSeq
+                            ? `session "${sessionId}" has not completed the turn containing event ${String(atSeq)}`
+                            : `session "${sessionId}" has no completed turn to fork from`,
+                        details: { sessionId },
                     });
-                });
-            },
-            models: function (request) {
-                return __awaiter(this, void 0, void 0, function () {
-                    var sessionId, found, current, _a, groups, failures, routable;
-                    return __generator(this, function (_b) {
-                        switch (_b.label) {
-                            case 0:
-                                sessionId = request.payload.sessionId;
-                                return [4 /*yield*/, agentFor(sessionId)];
-                            case 1:
-                                found = _b.sent();
-                                if ('error' in found)
-                                    return [2 /*return*/, err(request, found.error)];
-                                current = selectionFor(found.agent).current;
-                                return [4 /*yield*/, buildModelCatalog(ctx)];
-                            case 2:
-                                _a = _b.sent(), groups = _a.groups, failures = _a.failures;
-                                routable = routeServed(current.provider);
-                                return [2 /*return*/, ok(request, { current: __assign({}, current), routable: routable, groups: groups, failures: failures })];
-                        }
+                }
+                // Extend the cut through trailing out-of-band appends (session/title,
+                // injections) up to the next turn/start: they are standalone events, so
+                // the seed stays balanced, and the child inherits a title generated
+                // right after the boundary turn.
+                let cut = boundary.seq + 1;
+                while (cut < events.length && events[cut]?.type !== 'turn/start')
+                    cut++;
+                let workspace;
+                try {
+                    workspace = await forkWorkspace(source);
+                }
+                catch (error) {
+                    return err(request, {
+                        code: 'internal',
+                        message: `failed to resolve fork workspace for session "${sessionId}": ${String(error)}`,
+                        details: {},
                     });
-                });
-            },
-            selectModel: function (request) {
-                return __awaiter(this, void 0, void 0, function () {
-                    var _a, sessionId, provider, model, reasoningEffort, found;
-                    var _this = this;
-                    return __generator(this, function (_b) {
-                        switch (_b.label) {
-                            case 0:
-                                _a = request.payload, sessionId = _a.sessionId, provider = _a.provider, model = _a.model, reasoningEffort = _a.reasoningEffort;
-                                return [4 /*yield*/, agentFor(sessionId)];
-                            case 1:
-                                found = _b.sent();
-                                if ('error' in found)
-                                    return [2 /*return*/, err(request, found.error)];
-                                return [2 /*return*/, serializeImageAdmission(found.agent, function () { return __awaiter(_this, void 0, void 0, function () {
-                                        var resolved, selected, error_12, error_13;
-                                        var _a;
-                                        return __generator(this, function (_b) {
-                                            switch (_b.label) {
-                                                case 0:
-                                                    _b.trys.push([0, 6, , 7]);
-                                                    return [4 /*yield*/, ctx.llm.resolveCallConfig(__assign({ provider: provider, model: model }, reasoningEffort === undefined
-                                                            ? {}
-                                                            : { reasoningEffort: (0, dsh_llm_1.ReasoningEffortId)(reasoningEffort) }))];
-                                                case 1:
-                                                    resolved = _b.sent();
-                                                    selected = __assign({ provider: resolved.provider, model: resolved.model }, resolved.reasoningEffort === undefined
-                                                        ? {}
-                                                        : { reasoningEffort: resolved.reasoningEffort });
-                                                    selectionFor(found.agent).current = selected;
-                                                    _b.label = 2;
-                                                case 2:
-                                                    _b.trys.push([2, 4, , 5]);
-                                                    return [4 /*yield*/, ((_a = defaults.saveDefaultModelSelection) === null || _a === void 0 ? void 0 : _a.call(defaults, selected))];
-                                                case 3:
-                                                    _b.sent();
-                                                    return [3 /*break*/, 5];
-                                                case 4:
-                                                    error_12 = _b.sent();
-                                                    ctx.logger.warn("api-proxy: the model switch applies to this session but was not saved as the default: ".concat(String(error_12)));
-                                                    return [3 /*break*/, 5];
-                                                case 5: return [2 /*return*/, ok(request, { selected: __assign({}, selected) })];
-                                                case 6:
-                                                    error_13 = _b.sent();
-                                                    return [2 /*return*/, err(request, {
-                                                            code: 'model-unavailable',
-                                                            message: error_13 instanceof Error ? error_13.message : String(error_13),
-                                                            details: { provider: provider, model: model },
-                                                        })];
-                                                case 7: return [2 /*return*/];
-                                            }
-                                        });
-                                    }); })];
-                        }
+                }
+                const childId = `session-${randomUUID()}`;
+                // The child inherits the parent's composition for the same reason a
+                // resumed session keeps its own: the seeded history was produced under
+                // those tools, and composing anything else would strand the tool calls
+                // it already carries. Now that no model-facing row sits in the host
+                // plane, composing nothing would leave the child with no tools at all.
+                const forkComposition = await composeAgent(resolveSessionPreset(source));
+                try {
+                    await ctx.agents.create({
+                        sessionId: childId,
+                        seed: events.slice(0, cut),
+                        meta: {
+                            ...source.header.cwd === undefined ? {} : { cwd: source.header.cwd },
+                            parentSession: source.id,
+                            seedLength: cut,
+                            ...forkComposition.agentPreset === undefined
+                                ? {}
+                                : { agentPreset: forkComposition.agentPreset },
+                        },
+                        agentOptions: agentOptions(),
+                        setup: forkComposition.setup,
                     });
-                });
-            },
-            rename: function (request) {
-                return __awaiter(this, void 0, void 0, function () {
-                    var _a, sessionId, title, found, titles, accepted;
-                    return __generator(this, function (_b) {
-                        switch (_b.label) {
-                            case 0:
-                                _a = request.payload, sessionId = _a.sessionId, title = _a.title;
-                                return [4 /*yield*/, agentFor(sessionId)];
-                            case 1:
-                                found = _b.sent();
-                                if ('error' in found)
-                                    return [2 /*return*/, err(request, found.error)];
-                                titles = ctx.get('sessionTitle');
-                                if (titles === undefined) {
-                                    return [2 /*return*/, err(request, { code: 'internal', message: 'renaming is unavailable: this deployment mounts no session-title service', details: {} })];
-                                }
-                                try {
-                                    accepted = titles.rename(found.agent.session, title);
-                                    return [2 /*return*/, ok(request, { title: accepted.title, seq: accepted.eventSeq })];
-                                }
-                                catch (error) {
-                                    // Only the input's fault maps to title-invalid (the message is
-                                    // product-user-visible in the rename dialog); liveness and disposal
-                                    // races are deployment trouble, not a bad title.
-                                    if (error instanceof dsh_session_title_1.SessionTitleInvalidError) {
-                                        return [2 /*return*/, err(request, {
-                                                code: 'title-invalid',
-                                                message: error.message,
-                                                details: { sessionId: sessionId },
-                                            })];
-                                    }
-                                    return [2 /*return*/, err(request, {
-                                            code: 'internal',
-                                            message: "failed to rename session \"".concat(sessionId, "\": ").concat(String(error)),
-                                            details: {},
-                                        })];
-                                }
-                                return [2 /*return*/];
-                        }
+                }
+                catch (error) {
+                    return err(request, {
+                        code: 'internal',
+                        message: `failed to fork session "${sessionId}": ${String(error)}`,
+                        details: {},
                     });
-                });
+                }
+                // An ordinary source keeps its direct Workspace. A subagent source is
+                // not listed there, so its ordinary fork joins the nearest owning
+                // ancestor instead. The child is already published if attach fails.
+                if (workspace !== undefined) {
+                    try {
+                        await workspace.attachSession(childId);
+                    }
+                    catch (error) {
+                        return err(request, {
+                            code: 'workspace-attach-failed',
+                            message: `session "${childId}" was forked but could not attach to workspace "${workspace.id}": ${String(error)}`,
+                            details: { sessionId: childId, workspaceId: workspace.id },
+                        });
+                    }
+                }
+                return ok(request, { sessionId: childId });
             },
-            fork: function (request) {
-                return __awaiter(this, void 0, void 0, function () {
-                    var _a, sessionId, atSeq, source, error_14, events, lastSeq, anchoredBoundary, boundary, cut, workspace, error_15, childId, forkComposition, error_16, error_17;
-                    var _b, _c, _d;
-                    return __generator(this, function (_e) {
-                        switch (_e.label) {
-                            case 0:
-                                _a = request.payload, sessionId = _a.sessionId, atSeq = _a.atSeq;
-                                _e.label = 1;
-                            case 1:
-                                _e.trys.push([1, 3, , 4]);
-                                return [4 /*yield*/, readSessionState(sessionId)];
-                            case 2:
-                                source = _e.sent();
-                                return [3 /*break*/, 4];
-                            case 3:
-                                error_14 = _e.sent();
-                                if (error_14 instanceof dsh_api_remotes_1.ApiRemoteSessionNotFound) {
-                                    return [2 /*return*/, err(request, { code: 'session-not-found', message: error_14.message, details: { sessionId: sessionId } })];
-                                }
-                                return [2 /*return*/, err(request, {
-                                        code: 'internal',
-                                        message: "fork source unavailable for session \"".concat(sessionId, "\": ").concat(String(error_14)),
-                                        details: {},
-                                    })];
-                            case 4:
-                                events = source.events;
-                                lastSeq = (_c = (_b = events.at(-1)) === null || _b === void 0 ? void 0 : _b.seq) !== null && _c !== void 0 ? _c : -1;
-                                anchoredBoundary = atSeq === undefined
-                                    ? undefined
-                                    : events.find(function (e) { return e.type === 'turn/end' && e.seq >= atSeq; });
-                                boundary = anchoredBoundary !== null && anchoredBoundary !== void 0 ? anchoredBoundary : (atSeq === undefined || atSeq > lastSeq
-                                    ? events.findLast(function (e) { return e.type === 'turn/end'; })
-                                    : undefined);
-                                if (boundary === undefined) {
-                                    return [2 /*return*/, err(request, {
-                                            code: 'fork-unavailable',
-                                            message: atSeq !== undefined && atSeq <= lastSeq
-                                                ? "session \"".concat(sessionId, "\" has not completed the turn containing event ").concat(String(atSeq))
-                                                : "session \"".concat(sessionId, "\" has no completed turn to fork from"),
-                                            details: { sessionId: sessionId },
-                                        })];
-                                }
-                                cut = boundary.seq + 1;
-                                while (cut < events.length && ((_d = events[cut]) === null || _d === void 0 ? void 0 : _d.type) !== 'turn/start')
-                                    cut++;
-                                _e.label = 5;
-                            case 5:
-                                _e.trys.push([5, 7, , 8]);
-                                return [4 /*yield*/, forkWorkspace(source)];
-                            case 6:
-                                workspace = _e.sent();
-                                return [3 /*break*/, 8];
-                            case 7:
-                                error_15 = _e.sent();
-                                return [2 /*return*/, err(request, {
-                                        code: 'internal',
-                                        message: "failed to resolve fork workspace for session \"".concat(sessionId, "\": ").concat(String(error_15)),
-                                        details: {},
-                                    })];
-                            case 8:
-                                childId = "session-".concat((0, node_crypto_1.randomUUID)());
-                                return [4 /*yield*/, composeAgent((0, dsh_agent_presets_1.resolveSessionPreset)(source))];
-                            case 9:
-                                forkComposition = _e.sent();
-                                _e.label = 10;
-                            case 10:
-                                _e.trys.push([10, 12, , 13]);
-                                return [4 /*yield*/, ctx.agents.create({
-                                        sessionId: childId,
-                                        seed: events.slice(0, cut),
-                                        meta: __assign(__assign(__assign({}, source.header.cwd === undefined ? {} : { cwd: source.header.cwd }), { parentSession: source.id, seedLength: cut }), forkComposition.agentPreset === undefined
-                                            ? {}
-                                            : { agentPreset: forkComposition.agentPreset }),
-                                        agentOptions: agentOptions(),
-                                        setup: forkComposition.setup,
-                                    })];
-                            case 11:
-                                _e.sent();
-                                return [3 /*break*/, 13];
-                            case 12:
-                                error_16 = _e.sent();
-                                return [2 /*return*/, err(request, {
-                                        code: 'internal',
-                                        message: "failed to fork session \"".concat(sessionId, "\": ").concat(String(error_16)),
-                                        details: {},
-                                    })];
-                            case 13:
-                                if (!(workspace !== undefined)) return [3 /*break*/, 17];
-                                _e.label = 14;
-                            case 14:
-                                _e.trys.push([14, 16, , 17]);
-                                return [4 /*yield*/, workspace.attachSession(childId)];
-                            case 15:
-                                _e.sent();
-                                return [3 /*break*/, 17];
-                            case 16:
-                                error_17 = _e.sent();
-                                return [2 /*return*/, err(request, {
-                                        code: 'workspace-attach-failed',
-                                        message: "session \"".concat(childId, "\" was forked but could not attach to workspace \"").concat(workspace.id, "\": ").concat(String(error_17)),
-                                        details: { sessionId: childId, workspaceId: workspace.id },
-                                    })];
-                            case 17: return [2 /*return*/, ok(request, { sessionId: childId })];
-                        }
+            async prompt(request) {
+                const { sessionId, mode, content, clientTimeZone, uiVerifyPolicy, outputSchema } = request.payload;
+                if (outputSchema !== undefined)
+                    assertObjectJsonSchema(outputSchema);
+                const canonicalTimeZone = clientTimeZone === undefined
+                    ? undefined
+                    : canonicalClientTimeZone(clientTimeZone);
+                if (clientTimeZone !== undefined && canonicalTimeZone === undefined) {
+                    return err(request, {
+                        code: 'invalid-time-zone',
+                        message: 'clientTimeZone must be UTC or a valid IANA Area/Location name',
+                        details: { value: clientTimeZone },
                     });
-                });
-            },
-            prompt: function (request) {
-                return __awaiter(this, void 0, void 0, function () {
-                    var _a, sessionId, mode, content, clientTimeZone, canonicalTimeZone, resolved, agent, commandText, commands, execution, source, hasImage, admit;
-                    var _this = this;
-                    var _b;
-                    return __generator(this, function (_c) {
-                        switch (_c.label) {
-                            case 0:
-                                _a = request.payload, sessionId = _a.sessionId, mode = _a.mode, content = _a.content, clientTimeZone = _a.clientTimeZone;
-                                canonicalTimeZone = clientTimeZone === undefined
-                                    ? undefined
-                                    : canonicalClientTimeZone(clientTimeZone);
-                                if (clientTimeZone !== undefined && canonicalTimeZone === undefined) {
-                                    return [2 /*return*/, err(request, {
-                                            code: 'invalid-time-zone',
-                                            message: 'clientTimeZone must be UTC or a valid IANA Area/Location name',
-                                            details: { value: clientTimeZone },
-                                        })];
-                                }
-                                return [4 /*yield*/, turnAgentFor(request, sessionId)];
-                            case 1:
-                                resolved = _c.sent();
-                                if ('refused' in resolved)
-                                    return [2 /*return*/, resolved.refused];
-                                agent = resolved.agent;
-                                commandText = content.length === 1 && ((_b = content[0]) === null || _b === void 0 ? void 0 : _b.type) === 'text'
-                                    ? content[0].text
-                                    : undefined;
-                                if (!((commandText === null || commandText === void 0 ? void 0 : commandText.startsWith('/')) && !/[\r\n]/.test(commandText))) return [3 /*break*/, 3];
-                                commands = ctx.get('commands');
-                                if (!(commands !== undefined)) return [3 /*break*/, 3];
-                                return [4 /*yield*/, commands.execute(agent, commandText, [], new AbortController().signal)];
-                            case 2:
-                                execution = _c.sent();
-                                if (execution !== undefined) {
-                                    if (execution.result.kind === 'error') {
-                                        return [2 /*return*/, err(request, {
-                                                code: 'command-error',
-                                                message: execution.result.text,
-                                                details: { commandId: execution.commandId },
-                                            })];
-                                    }
-                                    return [2 /*return*/, ok(request, {
-                                            accepted: true,
-                                            command: __assign({ kind: 'success' }, execution.result.text === undefined ? {} : { text: execution.result.text }),
-                                        })];
-                                }
-                                _c.label = 3;
-                            case 3:
-                                if (request.payload.commandOnly === true) {
-                                    return [2 /*return*/, err(request, { code: 'unknown-command', message: 'No native command handles this input for the current agent preset.', details: {} })];
-                                }
-                                source = __assign({ kind: 'user', rpcId: request.rpcId }, (canonicalTimeZone === undefined ? {} : { clientTimeZone: canonicalTimeZone }));
-                                hasImage = content.some(function (part) { return part.type === 'image'; });
-                                admit = function () { return __awaiter(_this, void 0, void 0, function () {
-                                    var current, modelInfo, durable, message, error_18;
-                                    return __generator(this, function (_a) {
-                                        switch (_a.label) {
-                                            case 0:
-                                                _a.trys.push([0, 4, , 5]);
-                                                if (!hasImage) return [3 /*break*/, 2];
-                                                current = selectionFor(agent).current;
-                                                return [4 /*yield*/, ctx.llm.resolveModelInfo(current.provider, current.model)];
-                                            case 1:
-                                                modelInfo = _a.sent();
-                                                if (modelInfo.inputModalities !== undefined && !modelInfo.inputModalities.includes('image')) {
-                                                    return [2 /*return*/, err(request, {
-                                                            code: 'attachment-error',
-                                                            message: "Model \"".concat(current.model, "\" does not support image input."),
-                                                            details: { reason: 'MODEL_DOES_NOT_SUPPORT_IMAGES' },
-                                                        })];
-                                                }
-                                                _a.label = 2;
-                                            case 2: return [4 /*yield*/, durablePromptContent(ctx, content)];
-                                            case 3:
-                                                durable = _a.sent();
-                                                message = (0, dsh_llm_1.createUserMessage)({ content: durable, source: source });
-                                                if (mode === 'steer')
-                                                    agent.steer(message);
-                                                else
-                                                    agent.followup(message);
-                                                return [3 /*break*/, 5];
-                                            case 4:
-                                                error_18 = _a.sent();
-                                                if (error_18 instanceof dsh_attachment_1.AttachmentError) {
-                                                    return [2 /*return*/, err(request, {
-                                                            code: 'attachment-error',
-                                                            message: error_18.message,
-                                                            details: { reason: error_18.code },
-                                                        })];
-                                                }
-                                                return [2 /*return*/, err(request, {
-                                                        code: 'agent-busy',
-                                                        message: 'prompt rejected',
-                                                        details: { reason: String(error_18) },
-                                                    })];
-                                            case 5: return [2 /*return*/, ok(request, { accepted: true })];
-                                        }
-                                    });
-                                }); };
-                                return [2 /*return*/, hasImage ? serializeImageAdmission(agent, admit) : admit()];
+                }
+                const resolved = await turnAgentFor(request, sessionId);
+                if ('refused' in resolved)
+                    return resolved.refused;
+                const agent = resolved.agent;
+                // TaskWeaver's Electron caller derives this snapshot from its live
+                // workspace-trust store and app preference. Unknown/omitted fields
+                // clear policy in the service; no agent/tool argument can set it.
+                ctx.get('uiVerifyPolicy')?.update(agent, uiVerifyPolicy);
+                // DSH's browser command UI normally dispatches through the command
+                // registry before calling this RPC. Thin clients (including
+                // TaskWeaver) use the same typed prompt surface, so preserve the
+                // documented behavior here as well. A slash token that is not a
+                // registered command falls through to the Agent; tool-skill then
+                // handles explicit `/<skill-name>` gestures at agent/pre-step.
+                const commandText = content.length === 1 && content[0]?.type === 'text'
+                    ? content[0].text
+                    : undefined;
+                // Skill gestures intentionally contain a newline before their user
+                // prompt; unlike a standalone command they must always reach Agent
+                // pre-step, even when a skill name happens to match a command name.
+                if (commandText?.startsWith('/') && !/[\r\n]/.test(commandText)) {
+                    const commands = ctx.get('commands');
+                    if (commands !== undefined) {
+                        const execution = await commands.execute(agent, commandText, [], new AbortController().signal);
+                        if (execution !== undefined) {
+                            if (execution.result.kind === 'error') {
+                                return err(request, {
+                                    code: 'command-error',
+                                    message: execution.result.text,
+                                    details: { commandId: execution.commandId },
+                                });
+                            }
+                            return ok(request, {
+                                accepted: true,
+                                command: {
+                                    kind: 'success',
+                                    ...execution.result.text === undefined ? {} : { text: execution.result.text },
+                                },
+                            });
                         }
-                    });
-                });
-            },
-            attachment: function (request) {
-                return __awaiter(this, void 0, void 0, function () {
-                    var _a, sessionId, attachmentId, state, error_19, ref, stored, error_20;
-                    return __generator(this, function (_b) {
-                        switch (_b.label) {
-                            case 0:
-                                _a = request.payload, sessionId = _a.sessionId, attachmentId = _a.attachmentId;
-                                _b.label = 1;
-                            case 1:
-                                _b.trys.push([1, 3, , 4]);
-                                return [4 /*yield*/, readSessionState(sessionId)];
-                            case 2:
-                                state = _b.sent();
-                                return [3 /*break*/, 4];
-                            case 3:
-                                error_19 = _b.sent();
-                                if (error_19 instanceof dsh_api_remotes_1.ApiRemoteSessionNotFound) {
-                                    return [2 /*return*/, err(request, {
-                                            code: 'session-not-found',
-                                            message: error_19.message,
-                                            details: { sessionId: sessionId },
-                                        })];
-                                }
-                                return [2 /*return*/, err(request, {
-                                        code: 'internal',
-                                        message: "attachment authorization unavailable for session \"".concat(sessionId, "\": ").concat(String(error_19)),
-                                        details: {},
-                                    })];
-                            case 4:
-                                ref = referencedImage(state.events, String(attachmentId));
-                                if (ref === undefined) {
-                                    return [2 /*return*/, err(request, {
-                                            code: 'attachment-error',
-                                            message: 'Image is not referenced by this session.',
-                                            details: { reason: 'ATTACHMENT_NOT_REFERENCED' },
-                                        })];
-                                }
-                                _b.label = 5;
-                            case 5:
-                                _b.trys.push([5, 7, , 8]);
-                                return [4 /*yield*/, ctx.attachments.readImage(ref)];
-                            case 6:
-                                stored = _b.sent();
-                                return [2 /*return*/, ok(request, {
-                                        attachment: stored.ref,
-                                        data: Buffer.from(stored.data).toString('base64'),
-                                    })];
-                            case 7:
-                                error_20 = _b.sent();
-                                if (error_20 instanceof dsh_attachment_1.AttachmentError) {
-                                    return [2 /*return*/, err(request, {
-                                            code: 'attachment-error',
-                                            message: error_20.message,
-                                            details: { reason: error_20.code },
-                                        })];
-                                }
-                                return [2 /*return*/, err(request, {
-                                        code: 'internal',
-                                        message: 'Unable to read image attachment.',
-                                        details: {},
-                                    })];
-                            case 8: return [2 /*return*/];
+                    }
+                }
+                if (request.payload.commandOnly === true) {
+                    return err(request, { code: 'unknown-command', message: 'No native command handles this input for the current agent preset.', details: {} });
+                }
+                // Request identity and optional browser zone ride the exact durable user message.
+                const source = {
+                    kind: 'user',
+                    rpcId: request.rpcId,
+                    ...(canonicalTimeZone === undefined ? {} : { clientTimeZone: canonicalTimeZone }),
+                    ...(outputSchema === undefined ? {} : { outputSchema }),
+                };
+                const hasImage = content.some(part => part.type === 'image');
+                const admit = async () => {
+                    try {
+                        if (hasImage) {
+                            const current = selectionFor(agent).current;
+                            const modelInfo = await ctx.llm.resolveModelInfo(current.provider, current.model);
+                            if (modelInfo.inputModalities !== undefined && !modelInfo.inputModalities.includes('image')) {
+                                return err(request, {
+                                    code: 'attachment-error',
+                                    message: `Model "${current.model}" does not support image input.`,
+                                    details: { reason: 'MODEL_DOES_NOT_SUPPORT_IMAGES' },
+                                });
+                            }
                         }
-                    });
-                });
+                        const durable = await durablePromptContent(ctx, sessionId, content);
+                        const message = createUserMessage({ content: durable, source });
+                        if (mode === 'steer')
+                            agent.steer(message);
+                        else
+                            agent.followup(message);
+                    }
+                    catch (error) {
+                        if (error instanceof AttachmentError) {
+                            return err(request, {
+                                code: 'attachment-error',
+                                message: error.message,
+                                details: { reason: error.code },
+                            });
+                        }
+                        if (error instanceof Error && 'code' in error && typeof error.code === 'string' && error.code.startsWith('DOCUMENT_')) {
+                            return err(request, {
+                                code: 'attachment-error',
+                                message: error.message,
+                                details: { reason: error.code },
+                            });
+                        }
+                        return err(request, {
+                            code: 'agent-busy',
+                            message: 'prompt rejected',
+                            details: { reason: String(error) },
+                        });
+                    }
+                    return ok(request, { accepted: true });
+                };
+                return hasImage ? serializeImageAdmission(agent, admit) : admit();
             },
-            updateQueue: function (request) {
-                var _a = request.payload, sessionId = _a.sessionId, itemId = _a.itemId, action = _a.action;
-                if (action.kind === 'edit' && action.content.some(function (block) { return block.type !== 'text'; })) {
+            async attachment(request) {
+                const { sessionId, attachmentId } = request.payload;
+                let state;
+                try {
+                    state = await readSessionState(sessionId);
+                }
+                catch (error) {
+                    if (error instanceof SessionNotFound) {
+                        return err(request, {
+                            code: 'session-not-found',
+                            message: error.message,
+                            details: { sessionId },
+                        });
+                    }
+                    return err(request, {
+                        code: 'internal',
+                        message: `attachment authorization unavailable for session "${sessionId}": ${String(error)}`,
+                        details: {},
+                    });
+                }
+                const ref = referencedImage(state.events, String(attachmentId));
+                if (ref === undefined) {
+                    return err(request, {
+                        code: 'attachment-error',
+                        message: 'Image is not referenced by this session.',
+                        details: { reason: 'ATTACHMENT_NOT_REFERENCED' },
+                    });
+                }
+                try {
+                    const stored = await ctx.attachments.readImage(ref);
+                    return ok(request, {
+                        attachment: stored.ref,
+                        data: Buffer.from(stored.data).toString('base64'),
+                    });
+                }
+                catch (error) {
+                    if (error instanceof AttachmentError) {
+                        return err(request, {
+                            code: 'attachment-error',
+                            message: error.message,
+                            details: { reason: error.code },
+                        });
+                    }
+                    return err(request, {
+                        code: 'internal',
+                        message: 'Unable to read image attachment.',
+                        details: {},
+                    });
+                }
+            },
+            updateQueue(request) {
+                const { sessionId, itemId, action } = request.payload;
+                if (action.kind === 'edit' && action.content.some(block => block.type !== 'text')) {
                     return Promise.resolve(err(request, {
                         code: 'attachment-error',
                         message: 'queue edits accept text content only',
                         details: { reason: 'QUEUE_EDIT_NON_TEXT' },
                     }));
                 }
-                var agent = ctx.agents.get(sessionId);
+                const agent = ctx.agents.get(sessionId);
                 if (agent !== undefined && hasSubagentOwner(agent.session, agent)) {
                     return Promise.resolve(err(request, subagentOwnershipError(sessionId)));
                 }
@@ -2714,32 +2310,32 @@ function createApiProxy(ctx, defaults) {
                     return Promise.resolve(err(request, {
                         code: 'queue-item-not-found',
                         message: 'queued item is no longer pending',
-                        details: { itemId: itemId },
+                        details: { itemId },
                     }));
                 }
-                var target = agent.inbox.nextTurn.some(function (message) { return message.id === itemId; })
+                const target = agent.inbox.nextTurn.some(message => message.id === itemId)
                     ? 'next-turn'
-                    : agent.inbox.nextStep.some(function (message) { return message.id === itemId; }) ? 'next-step' : undefined;
-                var message = target === undefined
+                    : agent.inbox.nextStep.some(message => message.id === itemId) ? 'next-step' : undefined;
+                const message = target === undefined
                     ? undefined
                     : (target === 'next-turn' ? agent.inbox.nextTurn : agent.inbox.nextStep)
-                        .find(function (candidate) { return candidate.id === itemId; });
+                        .find(candidate => candidate.id === itemId);
                 if (target === undefined || message === undefined) {
                     return Promise.resolve(err(request, {
                         code: 'queue-item-not-found',
                         message: 'queued item is no longer pending',
-                        details: { itemId: itemId },
+                        details: { itemId },
                     }));
                 }
                 if (action.kind === 'steer' && (target !== 'next-turn' || agent.status !== 'running')) {
                     return Promise.resolve(err(request, {
                         code: 'steer-unavailable',
                         message: 'current turn no longer accepts steering',
-                        details: { itemId: itemId },
+                        details: { itemId },
                     }));
                 }
                 if (action.kind === 'edit') {
-                    agent.inbox.replace(itemId, (0, dsh_llm_1.freezeMessage)(__assign(__assign({}, message), { content: action.content })));
+                    agent.inbox.replace(itemId, freezeMessage({ ...message, content: action.content }));
                 }
                 else {
                     agent.inbox.remove(itemId);
@@ -2748,14 +2344,14 @@ function createApiProxy(ctx, defaults) {
                 }
                 return Promise.resolve(ok(request, { accepted: true }));
             },
-            cancel: function (request) {
-                var _a = request.payload, sessionId = _a.sessionId, _b = _a.clearPendingUserInput, clearPendingUserInput = _b === void 0 ? false : _b;
-                var agent = ctx.agents.get(sessionId);
+            cancel(request) {
+                const { sessionId, clearPendingUserInput = false } = request.payload;
+                const agent = ctx.agents.get(sessionId);
                 if (agent === undefined) {
                     return Promise.resolve(err(request, {
                         code: 'session-not-found',
-                        message: "session \"".concat(sessionId, "\" not found (not attached)"),
-                        details: { sessionId: sessionId },
+                        message: `session "${sessionId}" not found (not attached)`,
+                        details: { sessionId },
                     }));
                 }
                 if (hasSubagentOwner(agent.session, agent)) {
@@ -2768,12 +2364,9 @@ function createApiProxy(ctx, defaults) {
                     // Match the browser's queue semantics: every next-turn item is a
                     // queued follow-up, while only user-origin next-step items are
                     // steering. Preserve plugin/context messages in next-step.
-                    for (var _i = 0, _c = __spreadArray([], agent.inbox.nextTurn, true); _i < _c.length; _i++) {
-                        var message = _c[_i];
+                    for (const message of [...agent.inbox.nextTurn])
                         agent.inbox.remove(message.id);
-                    }
-                    for (var _d = 0, _e = __spreadArray([], agent.inbox.nextStep, true); _d < _e.length; _d++) {
-                        var message = _e[_d];
+                    for (const message of [...agent.inbox.nextStep]) {
                         if (message.source.kind === 'user')
                             agent.inbox.remove(message.id);
                     }
@@ -2783,194 +2376,161 @@ function createApiProxy(ctx, defaults) {
             },
         },
         subagents: {
-            list: function (request, signal) {
-                return __awaiter(this, void 0, void 0, function () {
-                    var entries, error_21;
-                    return __generator(this, function (_a) {
-                        switch (_a.label) {
-                            case 0:
-                                _a.trys.push([0, 2, , 3]);
-                                return [4 /*yield*/, ctx.subagents.listChildren(request.payload.parentSessionId, signal)];
-                            case 1:
-                                entries = _a.sent();
-                                return [2 /*return*/, ok(request, {
-                                        entries: entries.map(function (entry) {
-                                            var _a;
-                                            return entry.kind === 'child'
-                                                ? __assign(__assign({}, entry), { activity: ((_a = ctx.agents.get(entry.id)) === null || _a === void 0 ? void 0 : _a.status) === 'running' ? 'running' : 'inactive' }) : entry;
-                                        }),
-                                        parentAvailable: ctx.agents.get(request.payload.parentSessionId) !== undefined,
-                                    })];
-                            case 2:
-                                error_21 = _a.sent();
-                                if ((signal === null || signal === void 0 ? void 0 : signal.aborted) || (error_21 instanceof dsh_subagent_1.SubagentError && error_21.code === 'CANCELLED')) {
-                                    return [2 /*return*/, err(request, {
-                                            code: 'cancelled',
-                                            message: 'subagent catalog read was cancelled',
-                                            details: {},
-                                        })];
-                                }
-                                if (error_21 instanceof dsh_subagent_1.SubagentError && error_21.code === 'SUBAGENT_CONTROL_PROJECTIONS_UNAVAILABLE') {
-                                    return [2 /*return*/, err(request, projectionsUnavailableError())];
-                                }
-                                return [2 /*return*/, err(request, {
-                                        code: 'internal',
-                                        message: 'subagent catalog read failed',
-                                        details: {},
-                                    })];
-                            case 3: return [2 /*return*/];
-                        }
+            async list(request, signal) {
+                try {
+                    const entries = await ctx.subagents.listChildren(request.payload.parentSessionId, signal);
+                    return ok(request, {
+                        entries: entries.map(entry => entry.kind === 'child'
+                            ? {
+                                ...entry,
+                                activity: ctx.agents.get(entry.id)?.status === 'running' ? 'running' : 'inactive',
+                            }
+                            : entry),
+                        parentAvailable: ctx.agents.get(request.payload.parentSessionId) !== undefined,
                     });
-                });
+                }
+                catch (error) {
+                    if (signal?.aborted || (error instanceof SubagentError && error.code === 'CANCELLED')) {
+                        return err(request, {
+                            code: 'cancelled',
+                            message: 'subagent catalog read was cancelled',
+                            details: {},
+                        });
+                    }
+                    if (error instanceof SubagentError && error.code === 'SUBAGENT_CONTROL_PROJECTIONS_UNAVAILABLE') {
+                        return err(request, projectionsUnavailableError());
+                    }
+                    return err(request, {
+                        code: 'internal',
+                        message: 'subagent catalog read failed',
+                        details: {},
+                    });
+                }
             },
-            history: function (request, signal) {
-                return __awaiter(this, void 0, void 0, function () {
-                    var _a, parentSessionId, childSessionId, mode, beforeSeq, maxMessages, verified, header, events, projections, attached, inspected_1, error_22, page;
-                    return __generator(this, function (_b) {
-                        switch (_b.label) {
-                            case 0:
-                                _a = request.payload, parentSessionId = _a.parentSessionId, childSessionId = _a.childSessionId, mode = _a.mode, beforeSeq = _a.beforeSeq, maxMessages = _a.maxMessages;
-                                return [4 /*yield*/, catalogChild(ctx, {
-                                        parentSessionId: parentSessionId,
-                                        childSessionId: childSessionId,
-                                        mode: mode,
-                                    }, signal)];
-                            case 1:
-                                verified = _b.sent();
-                                if (verified.error !== undefined)
-                                    return [2 /*return*/, err(request, verified.error)
-                                        // The generic-history data plane: an attached child serves its
-                                        // in-memory snapshot and the registry's live watermark projections; a
-                                        // cold child is one persistence inspection plus a detached fold.
-                                    ];
-                                attached = ctx.sessions.get(childSessionId);
-                                if (!(attached !== undefined)) return [3 /*break*/, 2];
-                                header = attached.header;
-                                events = __spreadArray([], attached.events, true);
-                                projections = beforeSeq === undefined
-                                    ? subagentHistoryProjections(ctx, childSessionId, function () { return projectionsFor(ctx, attached); })
-                                    : undefined;
-                                return [3 /*break*/, 5];
-                            case 2:
-                                _b.trys.push([2, 4, , 5]);
-                                return [4 /*yield*/, inspectServable(childSessionId)];
-                            case 3:
-                                inspected_1 = _b.sent();
-                                header = inspected_1.meta;
-                                events = inspected_1.events;
-                                projections = beforeSeq === undefined
-                                    ? subagentHistoryProjections(ctx, childSessionId, function () { return detachedProjectionsFor(ctx, inspected_1.events); })
-                                    : undefined;
-                                return [3 /*break*/, 5];
-                            case 4:
-                                error_22 = _b.sent();
-                                if (signal === null || signal === void 0 ? void 0 : signal.aborted) {
-                                    return [2 /*return*/, err(request, {
-                                            code: 'cancelled',
-                                            message: 'subagent history read was cancelled',
-                                            details: {},
-                                        })];
-                                }
-                                if (error_22 instanceof dsh_api_remotes_1.ApiRemoteSessionNotFound) {
-                                    return [2 /*return*/, err(request, {
-                                            code: 'subagent-not-found',
-                                            message: 'subagent disappeared during history read',
-                                            details: { parentSessionId: parentSessionId, childSessionId: childSessionId },
-                                        })];
-                                }
-                                return [2 /*return*/, err(request, {
-                                        code: 'internal',
-                                        message: 'subagent history read failed',
-                                        details: {},
-                                    })];
-                            case 5:
-                                if (signal === null || signal === void 0 ? void 0 : signal.aborted) {
-                                    return [2 /*return*/, err(request, {
-                                            code: 'cancelled',
-                                            message: 'subagent history read was cancelled',
-                                            details: {},
-                                        })];
-                                }
-                                if (header.parentSession !== parentSessionId) {
-                                    return [2 /*return*/, err(request, {
-                                            code: 'subagent-unauthorized',
-                                            message: 'subagent parent changed during history read',
-                                            details: { childSessionId: childSessionId },
-                                        })];
-                                }
-                                page = historyPage(ctx, events, beforeSeq, maxMessages);
-                                return [2 /*return*/, ok(request, __assign(__assign({}, page), projections === undefined ? {} : { projections: projections }))];
+            async history(request, signal) {
+                const { parentSessionId, childSessionId, mode, beforeSeq, maxMessages, } = request.payload;
+                const verified = await catalogChild(ctx, {
+                    parentSessionId, childSessionId, mode,
+                }, signal);
+                if (verified.error !== undefined)
+                    return err(request, verified.error);
+                // The generic-history data plane: an attached child serves its
+                // in-memory snapshot and the registry's live watermark projections; a
+                // cold child is one persistence inspection plus a detached fold.
+                let header;
+                let events;
+                let projections;
+                const attached = ctx.sessions.get(childSessionId);
+                if (attached !== undefined) {
+                    header = attached.header;
+                    events = [...attached.events];
+                    projections = beforeSeq === undefined
+                        ? subagentHistoryProjections(ctx, childSessionId, () => projectionsFor(ctx, attached))
+                        : undefined;
+                }
+                else {
+                    try {
+                        const inspected = await inspectServable(childSessionId);
+                        header = inspected.meta;
+                        events = inspected.events;
+                        projections = beforeSeq === undefined
+                            ? subagentHistoryProjections(ctx, childSessionId, () => detachedProjectionsFor(ctx, inspected.events))
+                            : undefined;
+                    }
+                    catch (error) {
+                        if (signal?.aborted) {
+                            return err(request, {
+                                code: 'cancelled',
+                                message: 'subagent history read was cancelled',
+                                details: {},
+                            });
                         }
+                        if (error instanceof SessionNotFound) {
+                            return err(request, {
+                                code: 'subagent-not-found',
+                                message: 'subagent disappeared during history read',
+                                details: { parentSessionId, childSessionId },
+                            });
+                        }
+                        return err(request, {
+                            code: 'internal',
+                            message: 'subagent history read failed',
+                            details: {},
+                        });
+                    }
+                }
+                if (signal?.aborted) {
+                    return err(request, {
+                        code: 'cancelled',
+                        message: 'subagent history read was cancelled',
+                        details: {},
                     });
-                });
+                }
+                if (header.parentSession !== parentSessionId) {
+                    return err(request, {
+                        code: 'subagent-unauthorized',
+                        message: 'subagent parent changed during history read',
+                        details: { childSessionId },
+                    });
+                }
+                const page = historyPage(ctx, events, beforeSeq, maxMessages);
+                return ok(request, { ...page, ...projections === undefined ? {} : { projections } });
             },
-            prompt: function (request, signal) {
-                return __awaiter(this, void 0, void 0, function () {
-                    var _a, parentSessionId, childSessionId, content, clientTimeZone, canonicalTimeZone, parent, verified, messageId, error_23;
-                    return __generator(this, function (_b) {
-                        switch (_b.label) {
-                            case 0:
-                                _a = request.payload, parentSessionId = _a.parentSessionId, childSessionId = _a.childSessionId, content = _a.content, clientTimeZone = _a.clientTimeZone;
-                                canonicalTimeZone = clientTimeZone === undefined
-                                    ? undefined
-                                    : canonicalClientTimeZone(clientTimeZone);
-                                if (clientTimeZone !== undefined && canonicalTimeZone === undefined) {
-                                    return [2 /*return*/, err(request, {
-                                            code: 'invalid-time-zone',
-                                            message: 'clientTimeZone must be UTC or a valid IANA Area/Location name',
-                                            details: { value: clientTimeZone },
-                                        })];
-                                }
-                                parent = ctx.agents.get(parentSessionId);
-                                if (parent === undefined) {
-                                    return [2 /*return*/, err(request, {
-                                            code: 'subagent-parent-unavailable',
-                                            message: "parent session \"".concat(parentSessionId, "\" is not live"),
-                                            details: { parentSessionId: parentSessionId },
-                                        })];
-                                }
-                                return [4 /*yield*/, catalogChild(ctx, {
-                                        parentSessionId: parentSessionId,
-                                        childSessionId: childSessionId,
-                                        mode: 'continuable',
-                                    }, signal)];
-                            case 1:
-                                verified = _b.sent();
-                                if (verified.error !== undefined)
-                                    return [2 /*return*/, err(request, verified.error)];
-                                _b.label = 2;
-                            case 2:
-                                _b.trys.push([2, 4, , 5]);
-                                return [4 /*yield*/, ctx.subagents.followup(parent, childSessionId, content, {
-                                        source: __assign({ kind: 'user', rpcId: request.rpcId }, (canonicalTimeZone === undefined ? {} : { clientTimeZone: canonicalTimeZone })),
-                                        signal: signal,
-                                    })];
-                            case 3:
-                                messageId = _b.sent();
-                                return [2 /*return*/, ok(request, { messageId: messageId })];
-                            case 4:
-                                error_23 = _b.sent();
-                                return [2 /*return*/, subagentPromptError(request, error_23, signal)];
-                            case 5: return [2 /*return*/];
-                        }
+            async prompt(request, signal) {
+                const { parentSessionId, childSessionId, content, clientTimeZone } = request.payload;
+                const canonicalTimeZone = clientTimeZone === undefined
+                    ? undefined
+                    : canonicalClientTimeZone(clientTimeZone);
+                if (clientTimeZone !== undefined && canonicalTimeZone === undefined) {
+                    return err(request, {
+                        code: 'invalid-time-zone',
+                        message: 'clientTimeZone must be UTC or a valid IANA Area/Location name',
+                        details: { value: clientTimeZone },
                     });
-                });
+                }
+                const parent = ctx.agents.get(parentSessionId);
+                if (parent === undefined) {
+                    return err(request, {
+                        code: 'subagent-parent-unavailable',
+                        message: `parent session "${parentSessionId}" is not live`,
+                        details: { parentSessionId },
+                    });
+                }
+                const verified = await catalogChild(ctx, {
+                    parentSessionId, childSessionId, mode: 'continuable',
+                }, signal);
+                if (verified.error !== undefined)
+                    return err(request, verified.error);
+                try {
+                    const messageId = await ctx.subagents.followup(parent, childSessionId, content, {
+                        source: {
+                            kind: 'user',
+                            rpcId: request.rpcId,
+                            ...(canonicalTimeZone === undefined ? {} : { clientTimeZone: canonicalTimeZone }),
+                        },
+                        signal,
+                    });
+                    return ok(request, { messageId });
+                }
+                catch (error) {
+                    return subagentPromptError(request, error, signal);
+                }
             },
             // Deliberately no catalog, history, persistence, or parent Agent lookup:
             // the core primitive alone authorizes the durable address against the
             // live Activation, which is what keeps a live child interruptible while
             // its parent Agent is offline. Absent targets are accepted no-ops there.
-            interrupt: function (request) {
-                var _a = request.payload, parentSessionId = _a.parentSessionId, childSessionId = _a.childSessionId;
+            interrupt(request) {
+                const { parentSessionId, childSessionId } = request.payload;
                 try {
-                    ctx.subagents.interrupt(childSessionId, { kind: 'user', parentSessionId: parentSessionId });
+                    ctx.subagents.interrupt(childSessionId, { kind: 'user', parentSessionId });
                 }
                 catch (error) {
-                    if (error instanceof dsh_subagent_1.SubagentError && error.code === 'UNAUTHORIZED') {
+                    if (error instanceof SubagentError && error.code === 'UNAUTHORIZED') {
                         return Promise.resolve(err(request, {
                             code: 'subagent-unauthorized',
                             message: 'subagent does not belong to this parent',
-                            details: { childSessionId: childSessionId },
+                            details: { childSessionId },
                         }));
                     }
                     return Promise.resolve(err(request, {
@@ -2983,204 +2543,131 @@ function createApiProxy(ctx, defaults) {
             },
         },
         workspace: {
-            list: function (request) {
+            list(request) {
                 return Promise.resolve(ok(request, {
                     items: ctx.workspaceRegistry.list().map(workspaceView),
-                    archivedSessionIds: __spreadArray([], ctx.workspaceRegistry.archivedSessionIds, true),
+                    archivedSessionIds: [...ctx.workspaceRegistry.archivedSessionIds],
                 }));
             },
-            create: function (request) {
-                return __awaiter(this, void 0, void 0, function () {
-                    var path, _a, workspace, created, error_24;
-                    return __generator(this, function (_b) {
-                        switch (_b.label) {
-                            case 0:
-                                path = request.payload.path;
-                                _b.label = 1;
-                            case 1:
-                                _b.trys.push([1, 3, , 4]);
-                                return [4 /*yield*/, ensureWorkspace(path)];
-                            case 2:
-                                _a = _b.sent(), workspace = _a.workspace, created = _a.created;
-                                return [2 /*return*/, ok(request, { workspace: workspaceView(workspace), created: created })];
-                            case 3:
-                                error_24 = _b.sent();
-                                // The registry rejects a path that does not resolve to an existing
-                                // directory (realpath ENOENT / not-a-directory) — the business
-                                // error of the typed-path flow, surfaced as a validation failure.
-                                return [2 /*return*/, err(request, {
-                                        code: 'workspace-invalid-path',
-                                        message: "cannot create a workspace at \"".concat(path, "\": ").concat(error_24 instanceof Error ? error_24.message : String(error_24)),
-                                        details: { path: path },
-                                    })];
-                            case 4: return [2 /*return*/];
-                        }
+            async create(request) {
+                const { path } = request.payload;
+                try {
+                    const { workspace, created } = await ensureWorkspace(path);
+                    return ok(request, { workspace: workspaceView(workspace), created });
+                }
+                catch (error) {
+                    // The registry rejects a path that does not resolve to an existing
+                    // directory (realpath ENOENT / not-a-directory) — the business
+                    // error of the typed-path flow, surfaced as a validation failure.
+                    return err(request, {
+                        code: 'workspace-invalid-path',
+                        message: `cannot create a workspace at "${path}": ${error instanceof Error ? error.message : String(error)}`,
+                        details: { path },
                     });
-                });
+                }
             },
-            rename: function (request) {
-                return __awaiter(this, void 0, void 0, function () {
-                    var payload, workspace, title, operation, error_25;
-                    var _this = this;
-                    return __generator(this, function (_a) {
-                        switch (_a.label) {
-                            case 0:
-                                payload = request.payload;
-                                workspace = ctx.workspaceRegistry.get((0, dsh_workspace_1.WorkspaceId)(payload.workspaceId));
-                                if (workspace === undefined)
-                                    return [2 /*return*/, workspaceNotFound(request, payload.workspaceId)];
-                                title = payload.title.trim();
-                                operation = workspaceCreationChain.then(function () { return __awaiter(_this, void 0, void 0, function () {
-                                    return __generator(this, function (_a) {
-                                        switch (_a.label) {
-                                            case 0:
-                                                if (title === workspace.title)
-                                                    return [2 /*return*/];
-                                                if (ctx.workspaceRegistry.list().some(function (other) { return other.id !== workspace.id && other.title === title; })) {
-                                                    throw new WorkspaceNameConflictError(title);
-                                                }
-                                                return [4 /*yield*/, workspace.setTitle(title)];
-                                            case 1:
-                                                _a.sent();
-                                                return [2 /*return*/];
-                                        }
-                                    });
-                                }); });
-                                workspaceCreationChain = operation.then(function () { return undefined; }, function () { return undefined; });
-                                _a.label = 1;
-                            case 1:
-                                _a.trys.push([1, 3, , 4]);
-                                return [4 /*yield*/, operation];
-                            case 2:
-                                _a.sent();
-                                return [3 /*break*/, 4];
-                            case 3:
-                                error_25 = _a.sent();
-                                if (error_25 instanceof WorkspaceNameConflictError) {
-                                    return [2 /*return*/, err(request, {
-                                            code: 'workspace-name-conflict',
-                                            message: error_25.message,
-                                            details: { name: error_25.workspaceName },
-                                        })];
-                                }
-                                throw error_25;
-                            case 4: return [2 /*return*/, ok(request, { workspace: workspaceView(workspace) })];
-                        }
-                    });
+            async rename(request) {
+                const { payload } = request;
+                const workspace = ctx.workspaceRegistry.get(brandWorkspaceId(payload.workspaceId));
+                if (workspace === undefined)
+                    return workspaceNotFound(request, payload.workspaceId);
+                const title = payload.title.trim();
+                // Uniqueness AND the same-title no-op both ride the create chain so
+                // they observe the state left by earlier queued renames — checked
+                // up front, a queued A→A could report success while an earlier A→B
+                // still lands afterwards.
+                const operation = workspaceCreationChain.then(async () => {
+                    if (title === workspace.title)
+                        return;
+                    if (ctx.workspaceRegistry.list().some(other => other.id !== workspace.id && other.title === title)) {
+                        throw new WorkspaceNameConflictError(title);
+                    }
+                    await workspace.setTitle(title);
                 });
+                workspaceCreationChain = operation.then(() => undefined, () => undefined);
+                try {
+                    await operation;
+                }
+                catch (error) {
+                    if (error instanceof WorkspaceNameConflictError) {
+                        return err(request, {
+                            code: 'workspace-name-conflict',
+                            message: error.message,
+                            details: { name: error.workspaceName },
+                        });
+                    }
+                    throw error;
+                }
+                return ok(request, { workspace: workspaceView(workspace) });
             },
-            delete: function (request) {
-                return __awaiter(this, void 0, void 0, function () {
-                    var workspaceId, operation;
-                    return __generator(this, function (_a) {
-                        switch (_a.label) {
-                            case 0:
-                                workspaceId = request.payload.workspaceId;
-                                operation = workspaceCreationChain.then(function () {
-                                    return ctx.workspaceRegistry.delete((0, dsh_workspace_1.WorkspaceId)(workspaceId));
-                                });
-                                workspaceCreationChain = operation.then(function () { return undefined; }, function () { return undefined; });
-                                return [4 /*yield*/, operation];
-                            case 1:
-                                if (!(_a.sent()))
-                                    return [2 /*return*/, workspaceNotFound(request, workspaceId)];
-                                return [2 /*return*/, ok(request, { deleted: true })];
-                        }
-                    });
-                });
+            async delete(request) {
+                const { workspaceId } = request.payload;
+                const operation = workspaceCreationChain.then(() => ctx.workspaceRegistry.delete(brandWorkspaceId(workspaceId)));
+                workspaceCreationChain = operation.then(() => undefined, () => undefined);
+                if (!await operation)
+                    return workspaceNotFound(request, workspaceId);
+                return ok(request, { deleted: true });
             },
-            insertBefore: function (request) {
-                return __awaiter(this, void 0, void 0, function () {
-                    var _a, workspaceId, beforeWorkspaceId, workspaceIds, error_26;
-                    return __generator(this, function (_b) {
-                        switch (_b.label) {
-                            case 0:
-                                _a = request.payload, workspaceId = _a.workspaceId, beforeWorkspaceId = _a.beforeWorkspaceId;
-                                _b.label = 1;
-                            case 1:
-                                _b.trys.push([1, 3, , 4]);
-                                return [4 /*yield*/, ctx.workspaceRegistry.insertBefore((0, dsh_workspace_1.WorkspaceId)(workspaceId), beforeWorkspaceId === undefined ? undefined : (0, dsh_workspace_1.WorkspaceId)(beforeWorkspaceId))];
-                            case 2:
-                                workspaceIds = _b.sent();
-                                return [2 /*return*/, ok(request, { workspaceIds: __spreadArray([], workspaceIds, true) })];
-                            case 3:
-                                error_26 = _b.sent();
-                                if (!(error_26 instanceof dsh_workspace_1.WorkspaceOrderInvalidError))
-                                    throw error_26;
-                                return [2 /*return*/, workspaceNotFound(request, error_26.workspaceId)];
-                            case 4: return [2 /*return*/];
-                        }
-                    });
-                });
+            async insertBefore(request) {
+                const { workspaceId, beforeWorkspaceId } = request.payload;
+                try {
+                    const workspaceIds = await ctx.workspaceRegistry.insertBefore(brandWorkspaceId(workspaceId), beforeWorkspaceId === undefined ? undefined : brandWorkspaceId(beforeWorkspaceId));
+                    return ok(request, { workspaceIds: [...workspaceIds] });
+                }
+                catch (error) {
+                    if (!(error instanceof WorkspaceOrderInvalidError))
+                        throw error;
+                    return workspaceNotFound(request, error.workspaceId);
+                }
             },
-            insertSessionBefore: function (request) {
-                return __awaiter(this, void 0, void 0, function () {
-                    var payload, workspace, error_27;
-                    return __generator(this, function (_a) {
-                        switch (_a.label) {
-                            case 0:
-                                payload = request.payload;
-                                workspace = ctx.workspaceRegistry.get((0, dsh_workspace_1.WorkspaceId)(payload.workspaceId));
-                                if (workspace === undefined)
-                                    return [2 /*return*/, workspaceNotFound(request, payload.workspaceId)];
-                                _a.label = 1;
-                            case 1:
-                                _a.trys.push([1, 3, , 4]);
-                                return [4 /*yield*/, workspace.insertSessionBefore(payload.sessionId, payload.beforeSessionId)];
-                            case 2:
-                                _a.sent();
-                                return [3 /*break*/, 4];
-                            case 3:
-                                error_27 = _a.sent();
-                                // Only the entity's unaccounted-id rejection is the business code;
-                                // storage/durability failures propagate as internal errors.
-                                if (!(error_27 instanceof dsh_workspace_1.WorkspaceMoveInvalidError))
-                                    throw error_27;
-                                return [2 /*return*/, err(request, {
-                                        code: 'workspace-move-invalid',
-                                        message: error_27.message,
-                                        details: __assign({ workspaceId: payload.workspaceId, sessionId: payload.sessionId }, payload.beforeSessionId === undefined ? {} : { beforeSessionId: payload.beforeSessionId }),
-                                    })];
-                            case 4: return [2 /*return*/, ok(request, { workspace: workspaceView(workspace) })];
-                        }
+            async insertSessionBefore(request) {
+                const { payload } = request;
+                const workspace = ctx.workspaceRegistry.get(brandWorkspaceId(payload.workspaceId));
+                if (workspace === undefined)
+                    return workspaceNotFound(request, payload.workspaceId);
+                try {
+                    await workspace.insertSessionBefore(payload.sessionId, payload.beforeSessionId);
+                }
+                catch (error) {
+                    // Only the entity's unaccounted-id rejection is the business code;
+                    // storage/durability failures propagate as internal errors.
+                    if (!(error instanceof WorkspaceMoveInvalidError))
+                        throw error;
+                    return err(request, {
+                        code: 'workspace-move-invalid',
+                        message: error.message,
+                        details: {
+                            workspaceId: payload.workspaceId,
+                            sessionId: payload.sessionId,
+                            ...payload.beforeSessionId === undefined ? {} : { beforeSessionId: payload.beforeSessionId },
+                        },
                     });
-                });
+                }
+                return ok(request, { workspace: workspaceView(workspace) });
             },
-            archiveSession: function (request) {
-                return __awaiter(this, void 0, void 0, function () {
-                    var sessionId, error_28;
-                    return __generator(this, function (_a) {
-                        switch (_a.label) {
-                            case 0:
-                                sessionId = request.payload.sessionId;
-                                _a.label = 1;
-                            case 1:
-                                _a.trys.push([1, 3, , 4]);
-                                return [4 /*yield*/, ctx.workspaceRegistry.archiveSession(sessionId)];
-                            case 2:
-                                _a.sent();
-                                return [3 /*break*/, 4];
-                            case 3:
-                                error_28 = _a.sent();
-                                // Only the registry's unknown-session rejection is the business
-                                // code; storage/durability failures propagate as internal errors.
-                                if (!(error_28 instanceof dsh_workspace_1.WorkspaceUnknownSessionError))
-                                    throw error_28;
-                                return [2 /*return*/, err(request, {
-                                        code: 'session-not-found',
-                                        message: error_28.message,
-                                        details: { sessionId: sessionId },
-                                    })];
-                            case 4: return [2 /*return*/, ok(request, { archivedSessionIds: __spreadArray([], ctx.workspaceRegistry.archivedSessionIds, true) })];
-                        }
+            async archiveSession(request) {
+                const { sessionId } = request.payload;
+                try {
+                    await ctx.workspaceRegistry.archiveSession(sessionId);
+                }
+                catch (error) {
+                    // Only the registry's unknown-session rejection is the business
+                    // code; storage/durability failures propagate as internal errors.
+                    if (!(error instanceof WorkspaceUnknownSessionError))
+                        throw error;
+                    return err(request, {
+                        code: 'session-not-found',
+                        message: error.message,
+                        details: { sessionId },
                     });
-                });
+                }
+                return ok(request, { archivedSessionIds: [...ctx.workspaceRegistry.archivedSessionIds] });
             },
         },
         host: {
-            describe: function (request) {
+            describe(request) {
                 // TODO: version should read host-cli's package.json; placeholder for now.
-                var selection = defaults.defaultModelSelection();
+                const selection = defaults.defaultModelSelection();
                 return Promise.resolve(ok(request, {
                     version: '0.0.1',
                     // Same source as session.create's fallback: the UI's default project
@@ -3191,124 +2678,65 @@ function createApiProxy(ctx, defaults) {
                     provider: selection.provider,
                     model: selection.model,
                     attachedSessions: ctx.agents.list().length,
-                    home: (0, node_os_1.homedir)(),
+                    home: homedir(),
                     canOpenPath: canOpenPaths(),
                 }));
             },
-            pickDirectory: function (request, signal) {
-                return __awaiter(this, void 0, void 0, function () {
-                    var capability, path, error_29;
-                    return __generator(this, function (_a) {
-                        switch (_a.label) {
-                            case 0:
-                                capability = ctx.directoryPicker.capability();
-                                if (capability.kind !== 'native') {
-                                    return [2 /*return*/, err(request, {
-                                            code: 'directory-picker-unavailable',
-                                            message: "host.pickDirectory needs the native capability; the composed picker serves \"".concat(capability.kind, "\""),
-                                            details: { capability: capability.kind },
-                                        })];
-                                }
-                                _a.label = 1;
-                            case 1:
-                                _a.trys.push([1, 3, , 4]);
-                                return [4 /*yield*/, capability.pick(signal)];
-                            case 2:
-                                path = _a.sent();
-                                return [2 /*return*/, ok(request, { path: path })];
-                            case 3:
-                                error_29 = _a.sent();
-                                if (signal.aborted) {
-                                    return [2 /*return*/, err(request, {
-                                            code: 'cancelled',
-                                            message: 'directory picker was aborted',
-                                            details: {},
-                                        })];
-                                }
-                                return [2 /*return*/, err(request, {
-                                        code: 'internal',
-                                        message: "directory picker failed: ".concat(error_29 instanceof Error ? error_29.message : String(error_29)),
-                                        details: {},
-                                    })];
-                            case 4: return [2 /*return*/];
-                        }
+            async pickDirectory(request, signal) {
+                try {
+                    const path = await ctx.directoryPicker.pick(signal);
+                    return ok(request, { path });
+                }
+                catch (error) {
+                    if (signal.aborted) {
+                        return err(request, {
+                            code: 'cancelled',
+                            message: 'directory picker was aborted',
+                            details: {},
+                        });
+                    }
+                    return err(request, {
+                        code: 'internal',
+                        message: `directory picker failed: ${error instanceof Error ? error.message : String(error)}`,
+                        details: {},
                     });
-                });
+                }
             },
-            listDirectory: function (request, signal) {
-                return __awaiter(this, void 0, void 0, function () {
-                    var capability, _a, _b, error_30;
-                    return __generator(this, function (_c) {
-                        switch (_c.label) {
-                            case 0:
-                                capability = ctx.directoryPicker.capability();
-                                if (capability.kind !== 'browse') {
-                                    return [2 /*return*/, err(request, {
-                                            code: 'directory-picker-unavailable',
-                                            message: "host.listDirectory needs the browse capability; the composed picker serves \"".concat(capability.kind, "\""),
-                                            details: { capability: capability.kind },
-                                        })];
-                                }
-                                _c.label = 1;
-                            case 1:
-                                _c.trys.push([1, 3, , 4]);
-                                _a = ok;
-                                _b = [request];
-                                return [4 /*yield*/, capability.list(request.payload.path, signal)];
-                            case 2: 
-                            // The carrier's signal follows the caller: a disconnect or timeout
-                            // stops the backend's directory scan instead of outliving it.
-                            return [2 /*return*/, _a.apply(void 0, _b.concat([_c.sent()]))];
-                            case 3:
-                                error_30 = _c.sent();
-                                // An abort is the caller's own timeout/disconnect, not a server
-                                // failure — same code pickDirectory and command.execute report.
-                                if (signal.aborted) {
-                                    return [2 /*return*/, err(request, { code: 'cancelled', message: 'directory listing was aborted', details: {} })];
-                                }
-                                return [2 /*return*/, err(request, directoryError(error_30))];
-                            case 4: return [2 /*return*/];
-                        }
-                    });
-                });
+            async openPath(request, signal) {
+                return openPath(request, request.payload.path, signal);
             },
-            createDirectory: function (request) {
-                return __awaiter(this, void 0, void 0, function () {
-                    var capability, _a, _b, error_31;
-                    var _c;
-                    return __generator(this, function (_d) {
-                        switch (_d.label) {
-                            case 0:
-                                capability = ctx.directoryPicker.capability();
-                                if (capability.kind !== 'browse') {
-                                    return [2 /*return*/, err(request, {
-                                            code: 'directory-picker-unavailable',
-                                            message: "host.createDirectory needs the browse capability; the composed picker serves \"".concat(capability.kind, "\""),
-                                            details: { capability: capability.kind },
-                                        })];
-                                }
-                                _d.label = 1;
-                            case 1:
-                                _d.trys.push([1, 3, , 4]);
-                                _a = ok;
-                                _b = [request];
-                                _c = {};
-                                return [4 /*yield*/, capability.createDirectory(request.payload.path, request.payload.name)];
-                            case 2: return [2 /*return*/, _a.apply(void 0, _b.concat([(_c.path = _d.sent(), _c)]))];
-                            case 3:
-                                error_31 = _d.sent();
-                                return [2 /*return*/, err(request, directoryError(error_31))];
-                            case 4: return [2 /*return*/];
-                        }
+            async searchWeb(request, signal) {
+                if (signal.aborted) {
+                    return err(request, { code: 'cancelled', message: 'web search was aborted', details: {} });
+                }
+                try {
+                    const result = await ctx.web.search({
+                        query: request.payload.query,
+                        ...(request.payload.maxResults === undefined ? {} : { maxResults: request.payload.maxResults }),
+                    }, signal);
+                    return ok(request, {
+                        ...(result.content === undefined ? {} : { content: result.content }),
+                        sources: result.sources.map(source => ({
+                            url: source.url,
+                            ...(source.title === undefined ? {} : { title: source.title }),
+                            ...(source.snippet === undefined ? {} : { snippet: source.snippet }),
+                            ...(source.publishedAt === undefined ? {} : { publishedAt: source.publishedAt }),
+                        })),
+                        truncated: result.truncated,
                     });
-                });
-            },
-            openPath: function (request, signal) {
-                return __awaiter(this, void 0, void 0, function () {
-                    return __generator(this, function (_a) {
-                        return [2 /*return*/, openPath(request, request.payload.path, signal)];
+                }
+                catch (error) {
+                    if (signal.aborted) {
+                        return err(request, { code: 'cancelled', message: 'web search was aborted', details: {} });
+                    }
+                    const secret = process.env.TASKWEAVER_WEB_SEARCH_API_KEY_SECRET;
+                    const message = error instanceof Error ? error.message : String(error);
+                    return err(request, {
+                        code: 'internal',
+                        message: (secret ? message.split(secret).join('[redacted]') : message).slice(0, 1_000),
+                        details: {},
                     });
-                });
+                }
             },
         },
         goals: {
@@ -3317,362 +2745,256 @@ function createApiProxy(ctx, defaults) {
             // resume, the command.* precedent) and acknowledges with the new CAS
             // ref; the committed goal/change event carries the whole value to every
             // client through the projection frames.
-            create: function (request) {
-                return __awaiter(this, void 0, void 0, function () {
-                    var _a, objective, maxGoalRounds;
-                    return __generator(this, function (_b) {
-                        _a = request.payload, objective = _a.objective, maxGoalRounds = _a.maxGoalRounds;
-                        return [2 /*return*/, mutateGoal(request, function (goals, agent) { return goals.create(agent, __assign({ objective: objective }, (maxGoalRounds !== undefined ? { maxGoalRounds: maxGoalRounds } : {}))); })];
-                    });
-                });
+            async create(request) {
+                const { objective, maxGoalRounds } = request.payload;
+                return mutateGoal(request, (goals, agent) => goals.create(agent, {
+                    objective,
+                    ...(maxGoalRounds !== undefined ? { maxGoalRounds } : {}),
+                }));
             },
-            edit: function (request) {
-                return __awaiter(this, void 0, void 0, function () {
-                    var _a, ref, objective, maxGoalRounds;
-                    return __generator(this, function (_b) {
-                        _a = request.payload, ref = _a.ref, objective = _a.objective, maxGoalRounds = _a.maxGoalRounds;
-                        return [2 /*return*/, mutateGoal(request, function (goals, agent) { return goals.edit(agent, ref, __assign(__assign({}, (objective !== undefined ? { objective: objective } : {})), (maxGoalRounds !== undefined ? { maxGoalRounds: maxGoalRounds } : {}))); })];
-                    });
-                });
+            async edit(request) {
+                const { ref, objective, maxGoalRounds } = request.payload;
+                return mutateGoal(request, (goals, agent) => goals.edit(agent, ref, {
+                    ...(objective !== undefined ? { objective } : {}),
+                    ...(maxGoalRounds !== undefined ? { maxGoalRounds } : {}),
+                }));
             },
-            pause: function (request) {
-                return __awaiter(this, void 0, void 0, function () {
-                    return __generator(this, function (_a) {
-                        return [2 /*return*/, mutateGoal(request, function (goals, agent) { return goals.pause(agent, request.payload.ref); })];
-                    });
-                });
+            async pause(request) {
+                return mutateGoal(request, (goals, agent) => goals.pause(agent, request.payload.ref));
             },
-            resume: function (request) {
-                return __awaiter(this, void 0, void 0, function () {
-                    return __generator(this, function (_a) {
-                        return [2 /*return*/, mutateGoal(request, function (goals, agent) { return goals.resume(agent, request.payload.ref); })];
-                    });
-                });
+            async resume(request) {
+                return mutateGoal(request, (goals, agent) => goals.resume(agent, request.payload.ref));
             },
-            complete: function (request) {
-                return __awaiter(this, void 0, void 0, function () {
-                    return __generator(this, function (_a) {
-                        return [2 /*return*/, mutateGoal(request, function (goals, agent) { return goals.complete(agent, request.payload.ref); })];
-                    });
-                });
+            async complete(request) {
+                return mutateGoal(request, (goals, agent) => goals.complete(agent, request.payload.ref));
             },
-            clear: function (request) {
-                return __awaiter(this, void 0, void 0, function () {
-                    var found, goals;
-                    return __generator(this, function (_a) {
-                        switch (_a.label) {
-                            case 0: return [4 /*yield*/, agentFor(request.payload.sessionId)];
-                            case 1:
-                                found = _a.sent();
-                                if ('error' in found)
-                                    return [2 /*return*/, err(request, found.error)];
-                                goals = goalServiceFor(found.agent);
-                                if ('error' in goals)
-                                    return [2 /*return*/, err(request, goals.error)];
-                                try {
-                                    goals.clear(found.agent, request.payload.ref);
-                                    return [2 /*return*/, ok(request, { cleared: true })];
-                                }
-                                catch (error) {
-                                    return [2 /*return*/, goalError(request, error)];
-                                }
-                                return [2 /*return*/];
-                        }
-                    });
-                });
+            async clear(request) {
+                const found = await agentFor(request.payload.sessionId);
+                if ('error' in found)
+                    return err(request, found.error);
+                const goals = goalServiceFor(found.agent);
+                if ('error' in goals)
+                    return err(request, goals.error);
+                try {
+                    goals.clear(found.agent, request.payload.ref);
+                    return ok(request, { cleared: true });
+                }
+                catch (error) {
+                    return goalError(request, error);
+                }
             },
         },
         agentPresets: {
             // A deployment with no roster answers with an empty list rather than an
             // error: composing no presets is a valid deployment, and the browser
             // simply offers no choice.
-            list: function (request) {
-                return __awaiter(this, void 0, void 0, function () {
-                    var presets, defaultId, _a, _b;
-                    var _c;
-                    return __generator(this, function (_d) {
-                        switch (_d.label) {
-                            case 0:
-                                presets = ctx.get('agentPresets');
-                                if (presets === undefined)
-                                    return [2 /*return*/, ok(request, { presets: [], authorable: false, hasDocument: false })];
-                                defaultId = presets.defaultId;
-                                _a = ok;
-                                _b = [request];
-                                _c = {};
-                                return [4 /*yield*/, presets.list()];
-                            case 1: return [2 /*return*/, _a.apply(void 0, _b.concat([(_c.presets = (_d.sent()).map(function (preset) { return (__assign(__assign(__assign({ id: preset.id, trust: preset.trust, isDefault: preset.id === defaultId }, preset.name === undefined ? {} : { name: preset.name }), preset.description === undefined ? {} : { description: preset.description }), preset.broken === undefined ? {} : { broken: preset.broken })); }),
-                                        _c.authorable = presets.authorable,
-                                        _c.hasDocument = canOpenPaths(),
-                                        _c)]))];
-                        }
-                    });
+            async list(request) {
+                const presets = ctx.get('agentPresets');
+                if (presets === undefined)
+                    return ok(request, { presets: [], authorable: false, hasDocument: false });
+                const defaultId = presets.defaultId;
+                return ok(request, {
+                    presets: (await presets.list()).map(preset => ({
+                        id: preset.id,
+                        trust: preset.trust,
+                        isDefault: preset.id === defaultId,
+                        ...preset.name === undefined ? {} : { name: preset.name },
+                        ...preset.description === undefined ? {} : { description: preset.description },
+                        ...preset.broken === undefined ? {} : { broken: preset.broken },
+                    })),
+                    authorable: presets.authorable,
+                    hasDocument: canOpenPaths(),
                 });
             },
             // Recomposing is limited to a blank session because a started
             // conversation's history was produced under its preset's tools; the
             // agent and the session survive, only the composition is swapped.
-            select: function (request) {
-                return __awaiter(this, void 0, void 0, function () {
-                    var _a, sessionId, agentPreset, presets, found, agent, swap, queued, turn;
-                    var _this = this;
-                    var _b;
-                    return __generator(this, function (_c) {
-                        switch (_c.label) {
-                            case 0:
-                                _a = request.payload, sessionId = _a.sessionId, agentPreset = _a.agentPreset;
-                                presets = ctx.get('agentPresets');
-                                if (presets === undefined) {
-                                    return [2 /*return*/, err(request, {
-                                            code: 'agent-preset-not-found',
-                                            message: 'this deployment composes no agent presets',
-                                            details: { agentPreset: agentPreset, available: [] },
-                                        })];
-                                }
-                                return [4 /*yield*/, agentFor(sessionId)];
-                            case 1:
-                                found = _c.sent();
-                                if ('error' in found)
-                                    return [2 /*return*/, err(request, found.error)];
-                                agent = found.agent;
-                                swap = function () { return __awaiter(_this, void 0, void 0, function () {
-                                    var preset, error_32, refused;
-                                    return __generator(this, function (_a) {
-                                        switch (_a.label) {
-                                            case 0:
-                                                // Re-read inside the queue: an earlier switch may have run, and a
-                                                // conversation may have started, since this request arrived.
-                                                if (!sessionBlank(agent.session)) {
-                                                    return [2 /*return*/, err(request, {
-                                                            code: 'agent-preset-locked',
-                                                            message: "session \"".concat(sessionId, "\" has already started; its agent preset is fixed"),
-                                                            details: { sessionId: sessionId, agentPreset: agentPreset },
-                                                        })];
-                                                }
-                                                _a.label = 1;
-                                            case 1:
-                                                _a.trys.push([1, 3, , 4]);
-                                                return [4 /*yield*/, presets.recompose(agent.ctx, agentPreset)
-                                                    // Recorded only after the swap committed: the log states what the
-                                                    // agent runs, and a rejected mount leaves the previous composition.
-                                                ];
-                                            case 2:
-                                                preset = _a.sent();
-                                                // Recorded only after the swap committed: the log states what the
-                                                // agent runs, and a rejected mount leaves the previous composition.
-                                                agent.session.append('agent-preset/selected', { agentPreset: preset.id });
-                                                return [2 /*return*/, ok(request, { agentPreset: preset.id })];
-                                            case 3:
-                                                error_32 = _a.sent();
-                                                refused = presetFailure(request, error_32);
-                                                if (refused !== undefined)
-                                                    return [2 /*return*/, refused];
-                                                return [2 /*return*/, err(request, {
-                                                        code: 'internal',
-                                                        message: "failed to select agent preset \"".concat(agentPreset, "\": ").concat(String(error_32)),
-                                                        details: {},
-                                                    })];
-                                            case 4: return [2 /*return*/];
-                                        }
-                                    });
-                                }); };
-                                queued = (_b = presetSwitches.get(sessionId)) !== null && _b !== void 0 ? _b : Promise.resolve();
-                                turn = queued.then(swap);
-                                presetSwitches.set(sessionId, turn.catch(function () { return undefined; }));
-                                _c.label = 2;
-                            case 2:
-                                _c.trys.push([2, , 4, 5]);
-                                return [4 /*yield*/, turn];
-                            case 3: return [2 /*return*/, _c.sent()];
-                            case 4:
-                                if (presetSwitches.get(sessionId) === turn)
-                                    presetSwitches.delete(sessionId);
-                                return [7 /*endfinally*/];
-                            case 5: return [2 /*return*/];
-                        }
+            async select(request) {
+                const { sessionId, agentPreset } = request.payload;
+                const presets = ctx.get('agentPresets');
+                if (presets === undefined) {
+                    return err(request, {
+                        code: 'agent-preset-not-found',
+                        message: 'this deployment composes no agent presets',
+                        details: { agentPreset, available: [] },
                     });
-                });
+                }
+                const found = await agentFor(sessionId);
+                if ('error' in found)
+                    return err(request, found.error);
+                const { agent } = found;
+                const swap = async () => {
+                    // Re-read inside the queue: an earlier switch may have run, and a
+                    // conversation may have started, since this request arrived.
+                    if (!sessionBlank(agent.session)) {
+                        return err(request, {
+                            code: 'agent-preset-locked',
+                            message: `session "${sessionId}" has already started; its agent preset is fixed`,
+                            details: { sessionId, agentPreset },
+                        });
+                    }
+                    try {
+                        const preset = await presets.recompose(agent.ctx, agentPreset);
+                        // Recorded only after the swap committed: the log states what the
+                        // agent runs, and a rejected mount leaves the previous composition.
+                        agent.session.append('agent-preset/selected', { agentPreset: preset.id });
+                        return ok(request, { agentPreset: preset.id });
+                    }
+                    catch (error) {
+                        const refused = presetFailure(request, error);
+                        if (refused !== undefined)
+                            return refused;
+                        return err(request, {
+                            code: 'internal',
+                            message: `failed to select agent preset "${agentPreset}": ${String(error)}`,
+                            details: {},
+                        });
+                    }
+                };
+                const queued = presetSwitches.get(sessionId) ?? Promise.resolve();
+                const turn = queued.then(swap);
+                presetSwitches.set(sessionId, turn.catch(() => undefined));
+                try {
+                    return await turn;
+                }
+                finally {
+                    if (presetSwitches.get(sessionId) === turn)
+                        presetSwitches.delete(sessionId);
+                }
             },
             // Authoring is privileged (see PRIVILEGED_METHODS in dsh-client-connection):
             // a composition names the plugins a session runs, so reading one is
             // reconnaissance, and copy/remove/openDocument manage the roster and
             // drive the host desktop.
-            read: function (request) {
-                return __awaiter(this, void 0, void 0, function () {
-                    var agentPreset, presets, preset, _a, _b, error_33;
-                    var _c;
-                    return __generator(this, function (_d) {
-                        switch (_d.label) {
-                            case 0:
-                                agentPreset = request.payload.agentPreset;
-                                presets = ctx.get('agentPresets');
-                                if (presets === undefined)
-                                    return [2 /*return*/, err(request, noRoster(agentPreset))];
-                                _d.label = 1;
-                            case 1:
-                                _d.trys.push([1, 4, , 5]);
-                                return [4 /*yield*/, presets.resolve(agentPreset)];
-                            case 2:
-                                preset = _d.sent();
-                                _a = ok;
-                                _b = [request];
-                                _c = { agentPreset: preset.id, trust: preset.trust };
-                                return [4 /*yield*/, presets.read(preset.id)];
-                            case 3: return [2 /*return*/, _a.apply(void 0, _b.concat([__assign.apply(void 0, [__assign.apply(void 0, [(_c.content = _d.sent(), _c), preset.name === undefined ? {} : { name: preset.name }]), preset.description === undefined ? {} : { description: preset.description }])]))];
-                            case 4:
-                                error_33 = _d.sent();
-                                return [2 /*return*/, err(request, presetError(agentPreset, error_33))];
-                            case 5: return [2 /*return*/];
-                        }
+            async read(request) {
+                const { agentPreset } = request.payload;
+                const presets = ctx.get('agentPresets');
+                if (presets === undefined)
+                    return err(request, noRoster(agentPreset));
+                try {
+                    const preset = await presets.resolve(agentPreset);
+                    return ok(request, {
+                        agentPreset: preset.id,
+                        trust: preset.trust,
+                        content: await presets.read(preset.id),
+                        ...preset.name === undefined ? {} : { name: preset.name },
+                        ...preset.description === undefined ? {} : { description: preset.description },
                     });
-                });
+                }
+                catch (error) {
+                    return err(request, presetError(agentPreset, error));
+                }
             },
-            copy: function (request) {
-                return __awaiter(this, void 0, void 0, function () {
-                    var _a, from, agentPreset, name, presets, error_34;
-                    return __generator(this, function (_b) {
-                        switch (_b.label) {
-                            case 0:
-                                _a = request.payload, from = _a.from, agentPreset = _a.agentPreset, name = _a.name;
-                                presets = ctx.get('agentPresets');
-                                if (presets === undefined)
-                                    return [2 /*return*/, err(request, noRoster(agentPreset))];
-                                _b.label = 1;
-                            case 1:
-                                _b.trys.push([1, 3, , 4]);
-                                return [4 /*yield*/, presets.copy(from, agentPreset, name)];
-                            case 2:
-                                _b.sent();
-                                return [2 /*return*/, ok(request, { agentPreset: agentPreset })];
-                            case 3:
-                                error_34 = _b.sent();
-                                return [2 /*return*/, err(request, presetError(agentPreset, error_34))];
-                            case 4: return [2 /*return*/];
-                        }
-                    });
-                });
+            async copy(request) {
+                const { from, agentPreset, name } = request.payload;
+                const presets = ctx.get('agentPresets');
+                if (presets === undefined)
+                    return err(request, noRoster(agentPreset));
+                try {
+                    await presets.copy(from, agentPreset, name);
+                    return ok(request, { agentPreset });
+                }
+                catch (error) {
+                    return err(request, presetError(agentPreset, error));
+                }
             },
-            openDocument: function (request, signal) {
-                return __awaiter(this, void 0, void 0, function () {
-                    var agentPreset, presets, preset, directory, error_35;
-                    return __generator(this, function (_a) {
-                        switch (_a.label) {
-                            case 0:
-                                agentPreset = request.payload.agentPreset;
-                                presets = ctx.get('agentPresets');
-                                if (presets === undefined)
-                                    return [2 /*return*/, err(request, noRoster(agentPreset))];
-                                _a.label = 1;
-                            case 1:
-                                _a.trys.push([1, 4, , 5]);
-                                return [4 /*yield*/, presets.resolve(agentPreset)
-                                    // Same line as copy/remove draw: the shipped install is not the
-                                    // user's to manage, and pointing an editor into it invites edits an
-                                    // upgrade will silently overwrite.
-                                ];
-                            case 2:
-                                preset = _a.sent();
-                                // Same line as copy/remove draw: the shipped install is not the
-                                // user's to manage, and pointing an editor into it invites edits an
-                                // upgrade will silently overwrite.
-                                if (preset.trust !== 'user') {
-                                    throw new dsh_agent_presets_1.PresetNotWritableError(preset.id, 'it ships with the deployment');
-                                }
-                                directory = (0, node_path_1.dirname)(preset.path);
-                                if (!canOpenPaths())
-                                    return [2 /*return*/, ok(request, { opened: false, path: directory })];
-                                return [4 /*yield*/, openPath(request, directory, signal)];
-                            case 3: return [2 /*return*/, _a.sent()];
-                            case 4:
-                                error_35 = _a.sent();
-                                return [2 /*return*/, err(request, presetError(agentPreset, error_35))];
-                            case 5: return [2 /*return*/];
-                        }
-                    });
-                });
+            async openDocument(request, signal) {
+                const { agentPreset } = request.payload;
+                const presets = ctx.get('agentPresets');
+                if (presets === undefined)
+                    return err(request, noRoster(agentPreset));
+                try {
+                    const preset = await presets.resolve(agentPreset);
+                    // Same line as copy/remove draw: the shipped install is not the
+                    // user's to manage, and pointing an editor into it invites edits an
+                    // upgrade will silently overwrite.
+                    if (preset.trust !== 'user') {
+                        throw new PresetNotWritableError(preset.id, 'it ships with the deployment');
+                    }
+                    // The id resolved against the Host's own roots is what selects the
+                    // directory — no browser payload carries a path in either direction
+                    // unless the deployment has no opener to hand it to.
+                    const directory = dirname(preset.path);
+                    if (!canOpenPaths())
+                        return ok(request, { opened: false, path: directory });
+                    return await openPath(request, directory, signal);
+                }
+                catch (error) {
+                    return err(request, presetError(agentPreset, error));
+                }
             },
-            remove: function (request) {
-                return __awaiter(this, void 0, void 0, function () {
-                    var agentPreset, presets, error_36;
-                    return __generator(this, function (_a) {
-                        switch (_a.label) {
-                            case 0:
-                                agentPreset = request.payload.agentPreset;
-                                presets = ctx.get('agentPresets');
-                                if (presets === undefined)
-                                    return [2 /*return*/, err(request, noRoster(agentPreset))];
-                                _a.label = 1;
-                            case 1:
-                                _a.trys.push([1, 3, , 4]);
-                                return [4 /*yield*/, presets.remove(agentPreset)];
-                            case 2:
-                                _a.sent();
-                                return [2 /*return*/, ok(request, {})];
-                            case 3:
-                                error_36 = _a.sent();
-                                return [2 /*return*/, err(request, presetError(agentPreset, error_36))];
-                            case 4: return [2 /*return*/];
-                        }
-                    });
-                });
+            async remove(request) {
+                const { agentPreset } = request.payload;
+                const presets = ctx.get('agentPresets');
+                if (presets === undefined)
+                    return err(request, noRoster(agentPreset));
+                try {
+                    await presets.remove(agentPreset);
+                    return ok(request, {});
+                }
+                catch (error) {
+                    return err(request, presetError(agentPreset, error));
+                }
             },
         },
         skills: {
             // Skill lookup never creates or resumes an agent: the session address
             // resolves to a canonical cwd from the host-resident session header, and
             // the view scope is the live agent or the preset's standing key.
-            list: function (request) {
-                return __awaiter(this, void 0, void 0, function () {
-                    var sessionId, session, cwd, live, presets, scoped, skillRegistry, scope, skills, error_37;
-                    return __generator(this, function (_a) {
-                        switch (_a.label) {
-                            case 0:
-                                sessionId = request.payload.sessionId;
-                                session = ctx.sessions.get(sessionId);
-                                if (session === undefined) {
-                                    return [2 /*return*/, err(request, {
-                                            code: 'session-not-found',
-                                            message: "session \"".concat(sessionId, "\" not found (not attached)"),
-                                            details: { sessionId: sessionId },
-                                        })];
-                                }
-                                if (session.header.cwd === undefined) {
-                                    // Every served session records its project at create time; a
-                                    // cwd-less header is a pre-project legacy log (not served).
-                                    return [2 /*return*/, err(request, { code: 'internal', message: "session \"".concat(sessionId, "\" has no project cwd"), details: {} })];
-                                }
-                                cwd = session.header.cwd;
-                                live = ctx.agents.get(sessionId);
-                                presets = ctx.get('agentPresets');
-                                scoped = live === undefined ? undefined : presets === null || presets === void 0 ? void 0 : presets.serviceFor(live, 'skills');
-                                skillRegistry = scoped !== null && scoped !== void 0 ? scoped : ctx.get('skills');
-                                if (skillRegistry === undefined) {
-                                    return [2 /*return*/, err(request, { code: 'internal', message: 'skill registry is absent: neither this session\'s agent preset nor the host composition mounts @z/dsh-skill', details: {} })];
-                                }
-                                return [4 /*yield*/, presenterScopeFor(sessionId, session)];
-                            case 1:
-                                scope = _a.sent();
-                                _a.label = 2;
-                            case 2:
-                                _a.trys.push([2, 4, , 5]);
-                                return [4 /*yield*/, skillRegistry.list({ cwd: cwd, scope: scope })];
-                            case 3:
-                                skills = (_a.sent()).filter(dsh_skill_1.isUserInvocable);
-                                return [2 /*return*/, ok(request, {
-                                        skills: skills.map(function (skill) { return (__assign(__assign({ name: skill.name, description: skill.description }, skill.whenToUse === undefined ? {} : { whenToUse: skill.whenToUse }), { modelInvocable: skill.invocation.modelInvocable })); }),
-                                    })];
-                            case 4:
-                                error_37 = _a.sent();
-                                return [2 /*return*/, err(request, { code: 'internal', message: "skill listing failed: ".concat(String(error_37)), details: {} })];
-                            case 5: return [2 /*return*/];
-                        }
+            async list(request) {
+                const { sessionId } = request.payload;
+                const session = ctx.sessions.get(sessionId);
+                if (session === undefined) {
+                    return err(request, {
+                        code: 'session-not-found',
+                        message: `session "${sessionId}" not found (not attached)`,
+                        details: { sessionId },
                     });
-                });
+                }
+                if (session.header.cwd === undefined) {
+                    // Every served session records its project at create time; a
+                    // cwd-less header is a pre-project legacy log (not served).
+                    return err(request, { code: 'internal', message: `session "${sessionId}" has no project cwd`, details: {} });
+                }
+                const cwd = session.header.cwd;
+                // The host registry is layered per scope and serves every session. A
+                // composition may still realm-mount its own registry instead; that
+                // instance is invisible to host contexts, so address it through the
+                // live agent (`agents.get` keeps the no-side-effect stance above).
+                const live = ctx.agents.get(sessionId);
+                const presets = ctx.get('agentPresets');
+                const scoped = live === undefined ? undefined : presets?.serviceFor(live, 'skills');
+                // Same stance as the commands domain: a missing service means no
+                // composition mounts dsh-skill, not an empty catalog. `ctx.get` also
+                // keeps this handler independent of the gateway plugin's inject list
+                // (an undeclared `ctx.skills` property read fails the reflect proxy).
+                const skillRegistry = scoped ?? ctx.get('skills');
+                if (skillRegistry === undefined) {
+                    return err(request, { code: 'internal', message: 'skill registry is absent: neither this session\'s agent preset nor the host composition mounts @taskweaver/dsh-skill', details: {} });
+                }
+                // The scope presenters resolve in — the live agent, else the recorded
+                // preset's standing key, else the global layer — so a cold session's
+                // '/' popup lists the catalog its composition actually serves.
+                const scope = await presenterScopeFor(sessionId, session);
+                try {
+                    const skills = (await skillRegistry.list({ cwd, scope })).filter(isUserInvocable);
+                    return ok(request, {
+                        skills: skills.map(skill => ({
+                            name: skill.name,
+                            description: skill.description,
+                            ...skill.whenToUse === undefined ? {} : { whenToUse: skill.whenToUse },
+                            modelInvocable: skill.invocation.modelInvocable,
+                        })),
+                    });
+                }
+                catch (error) {
+                    return err(request, { code: 'internal', message: `skill listing failed: ${String(error)}`, details: {} });
+                }
             },
         },
         settings: {
-            describe: function (request) {
-                var settings = ctx.get('settings');
+            describe(request) {
+                const settings = ctx.get('settings');
                 if (settings === undefined)
                     return Promise.resolve(err(request, settingsAbsent()));
                 return Promise.resolve(ok(request, {
@@ -3681,213 +3003,162 @@ function createApiProxy(ctx, defaults) {
                     namespaces: settings.describe({ redactSecrets: true }).map(namespaceView),
                 }));
             },
-            openDocument: function (request, signal) {
-                return __awaiter(this, void 0, void 0, function () {
-                    var settings, path, error_38;
-                    return __generator(this, function (_a) {
-                        switch (_a.label) {
-                            case 0:
-                                settings = ctx.get('settings');
-                                if (settings === undefined)
-                                    return [2 /*return*/, err(request, settingsAbsent())];
-                                if (isAborted(signal)) {
-                                    return [2 /*return*/, err(request, {
-                                            code: 'cancelled',
-                                            message: 'settings document open was aborted',
-                                            details: {},
-                                        })];
-                                }
-                                _a.label = 1;
-                            case 1:
-                                _a.trys.push([1, 3, , 4]);
-                                return [4 /*yield*/, settings.prepareDocument()];
-                            case 2:
-                                path = _a.sent();
-                                return [3 /*break*/, 4];
-                            case 3:
-                                error_38 = _a.sent();
-                                if (isAborted(signal)) {
-                                    return [2 /*return*/, err(request, {
-                                            code: 'cancelled',
-                                            message: 'settings document preparation was aborted',
-                                            details: {},
-                                        })];
-                                }
-                                return [2 /*return*/, err(request, {
-                                        code: 'internal',
-                                        message: "settings document preparation failed: ".concat(error_38 instanceof Error ? error_38.message : String(error_38)),
-                                        details: {},
-                                    })];
-                            case 4:
-                                if (path === undefined) {
-                                    return [2 /*return*/, err(request, {
-                                            code: 'internal',
-                                            message: 'settings provider has no local document to open',
-                                            details: {},
-                                        })];
-                                }
-                                if (isAborted(signal)) {
-                                    return [2 /*return*/, err(request, {
-                                            code: 'cancelled',
-                                            message: 'settings document open was aborted',
-                                            details: {},
-                                        })];
-                                }
-                                return [2 /*return*/, openTextFile(request, path, signal)];
-                        }
+            async openDocument(request, signal) {
+                const settings = ctx.get('settings');
+                if (settings === undefined)
+                    return err(request, settingsAbsent());
+                if (isAborted(signal)) {
+                    return err(request, {
+                        code: 'cancelled',
+                        message: 'settings document open was aborted',
+                        details: {},
                     });
-                });
+                }
+                let path;
+                try {
+                    path = await settings.prepareDocument();
+                }
+                catch (error) {
+                    if (isAborted(signal)) {
+                        return err(request, {
+                            code: 'cancelled',
+                            message: 'settings document preparation was aborted',
+                            details: {},
+                        });
+                    }
+                    return err(request, {
+                        code: 'internal',
+                        message: `settings document preparation failed: ${error instanceof Error ? error.message : String(error)}`,
+                        details: {},
+                    });
+                }
+                if (path === undefined) {
+                    return err(request, {
+                        code: 'internal',
+                        message: 'settings provider has no local document to open',
+                        details: {},
+                    });
+                }
+                if (isAborted(signal)) {
+                    return err(request, {
+                        code: 'cancelled',
+                        message: 'settings document open was aborted',
+                        details: {},
+                    });
+                }
+                return openTextFile(request, path, signal);
             },
-            update: function (request) { return settingsWrite(request, request.payload.ns, 'update', request.payload.patch, request.payload.expectedRevision); },
-            replace: function (request) { return settingsWrite(request, request.payload.ns, 'replace', request.payload.section, request.payload.expectedRevision); },
-            mutate: function (request) { return settingsWrite(request, request.payload.ns, 'mutate', request.payload.ops, request.payload.expectedRevision); },
+            update: request => settingsWrite(request, request.payload.ns, 'update', request.payload.patch, request.payload.expectedRevision),
+            replace: request => settingsWrite(request, request.payload.ns, 'replace', request.payload.section, request.payload.expectedRevision),
+            mutate: request => settingsWrite(request, request.payload.ns, 'mutate', request.payload.ops, request.payload.expectedRevision),
         },
         credentials: {
-            describe: function (request) {
-                return __awaiter(this, void 0, void 0, function () {
-                    var credentials, entries;
-                    var _this = this;
-                    return __generator(this, function (_a) {
-                        switch (_a.label) {
-                            case 0:
-                                credentials = ctx.get('credentials');
-                                if (credentials === undefined)
-                                    return [2 /*return*/, err(request, credentialsAbsent())];
-                                return [4 /*yield*/, Promise.all(request.payload.refs.map(function (ref) { return __awaiter(_this, void 0, void 0, function () {
-                                        var info, view;
-                                        return __generator(this, function (_a) {
-                                            switch (_a.label) {
-                                                case 0: return [4 /*yield*/, credentials.describe((0, dsh_credentials_1.credentialRef)(ref))];
-                                                case 1:
-                                                    info = _a.sent();
-                                                    view = __assign(__assign({ configured: info.configured }, info.source === undefined ? {} : { source: info.source }), { writable: info.writable });
-                                                    return [2 /*return*/, [ref, view]];
-                                            }
-                                        });
-                                    }); }))];
-                            case 1:
-                                entries = _a.sent();
-                                return [2 /*return*/, ok(request, { credentials: Object.fromEntries(entries) })];
-                        }
-                    });
-                });
+            async describe(request) {
+                const credentials = ctx.get('credentials');
+                if (credentials === undefined)
+                    return err(request, credentialsAbsent());
+                const entries = await Promise.all(request.payload.refs.map(async (ref) => {
+                    const info = await credentials.describe(credentialRef(ref));
+                    const view = {
+                        configured: info.configured,
+                        ...info.source === undefined ? {} : { source: info.source },
+                        writable: info.writable,
+                    };
+                    return [ref, view];
+                }));
+                return ok(request, { credentials: Object.fromEntries(entries) });
             },
-            set: function (request) {
-                return __awaiter(this, void 0, void 0, function () {
-                    var credentials, _a, ref, value, error_39;
-                    return __generator(this, function (_b) {
-                        switch (_b.label) {
-                            case 0:
-                                credentials = ctx.get('credentials');
-                                if (credentials === undefined)
-                                    return [2 /*return*/, err(request, credentialsAbsent())];
-                                _a = request.payload, ref = _a.ref, value = _a.value;
-                                _b.label = 1;
-                            case 1:
-                                _b.trys.push([1, 3, , 4]);
-                                return [4 /*yield*/, credentials.set((0, dsh_credentials_1.credentialRef)(ref), value)];
-                            case 2:
-                                _b.sent();
-                                return [3 /*break*/, 4];
-                            case 3:
-                                error_39 = _b.sent();
-                                return [2 /*return*/, err(request, {
-                                        code: 'credential-rejected',
-                                        message: error_39 instanceof Error ? error_39.message : String(error_39),
-                                        details: { ref: ref },
-                                    })];
-                            case 4: return [2 /*return*/, ok(request, {})];
-                        }
+            async set(request) {
+                const credentials = ctx.get('credentials');
+                if (credentials === undefined)
+                    return err(request, credentialsAbsent());
+                const { ref, value } = request.payload;
+                try {
+                    await credentials.set(credentialRef(ref), value);
+                }
+                catch (error) {
+                    return err(request, {
+                        code: 'credential-rejected',
+                        message: error instanceof Error ? error.message : String(error),
+                        details: { ref },
                     });
-                });
+                }
+                return ok(request, {});
             },
-            unset: function (request) {
-                return __awaiter(this, void 0, void 0, function () {
-                    var credentials, ref, error_40;
-                    return __generator(this, function (_a) {
-                        switch (_a.label) {
-                            case 0:
-                                credentials = ctx.get('credentials');
-                                if (credentials === undefined)
-                                    return [2 /*return*/, err(request, credentialsAbsent())];
-                                ref = request.payload.ref;
-                                _a.label = 1;
-                            case 1:
-                                _a.trys.push([1, 3, , 4]);
-                                return [4 /*yield*/, credentials.unset((0, dsh_credentials_1.credentialRef)(ref))];
-                            case 2:
-                                _a.sent();
-                                return [3 /*break*/, 4];
-                            case 3:
-                                error_40 = _a.sent();
-                                return [2 /*return*/, err(request, {
-                                        code: 'credential-rejected',
-                                        message: error_40 instanceof Error ? error_40.message : String(error_40),
-                                        details: { ref: ref },
-                                    })];
-                            case 4: return [2 /*return*/, ok(request, {})];
-                        }
+            async unset(request) {
+                const credentials = ctx.get('credentials');
+                if (credentials === undefined)
+                    return err(request, credentialsAbsent());
+                const { ref } = request.payload;
+                try {
+                    await credentials.unset(credentialRef(ref));
+                }
+                catch (error) {
+                    return err(request, {
+                        code: 'credential-rejected',
+                        message: error instanceof Error ? error.message : String(error),
+                        details: { ref },
                     });
-                });
+                }
+                return ok(request, {});
             },
         },
         mcp: {
-            list: function (request) {
-                var tools = ctx.tools.schemas().filter(function (tool) { return tool.name.startsWith('mcp__'); });
-                return Promise.resolve(ok(request, { tools: tools }));
+            list(request) {
+                const tools = ctx.tools.schemas().filter(tool => tool.name.startsWith('mcp__'));
+                return Promise.resolve(ok(request, { tools }));
             },
-            call: function (request, signal) {
-                return __awaiter(this, void 0, void 0, function () {
-                    var found, _a, name, args, result;
-                    return __generator(this, function (_b) {
-                        switch (_b.label) {
-                            case 0: return [4 /*yield*/, agentFor(request.payload.sessionId)];
-                            case 1:
-                                found = _b.sent();
-                                if ('error' in found)
-                                    return [2 /*return*/, err(request, found.error)];
-                                _a = request.payload, name = _a.name, args = _a.arguments;
-                                if (ctx.tools.get(name, found.agent) === undefined) {
-                                    return [2 /*return*/, err(request, {
-                                            code: 'internal',
-                                            message: "MCP tool \"".concat(name, "\" is not available to this session"),
-                                            details: {},
-                                        })];
-                                }
-                                return [4 /*yield*/, ctx.tools.execute({
-                                        callId: (0, dsh_llm_3.CallId)("host-mcp-".concat((0, node_crypto_1.randomUUID)())),
-                                        name: name,
-                                        arguments: args,
-                                        signal: signal !== null && signal !== void 0 ? signal : new AbortController().signal,
-                                        agent: found.agent,
-                                    })];
-                            case 2:
-                                result = _b.sent();
-                                return [2 /*return*/, ok(request, __assign({ isError: result.isError, content: result.content.flatMap(function (block) { return block.type === 'text' ? [block.text] : []; }) }, result.isError ? {} : { value: result.value }))];
-                        }
+            async call(request, signal) {
+                const found = await agentFor(request.payload.sessionId);
+                if ('error' in found)
+                    return err(request, found.error);
+                const { name, arguments: args } = request.payload;
+                if (ctx.tools.get(name, found.agent) === undefined) {
+                    return err(request, {
+                        code: 'internal',
+                        message: `MCP tool "${name}" is not available to this session`,
+                        details: {},
                     });
+                }
+                const result = await ctx.tools.execute({
+                    callId: CallId(`host-mcp-${randomUUID()}`),
+                    name,
+                    arguments: args,
+                    signal: signal ?? new AbortController().signal,
+                    agent: found.agent,
+                });
+                return ok(request, {
+                    isError: result.isError,
+                    content: result.content.flatMap(block => block.type === 'text' ? [block.text] : []),
+                    ...result.isError ? {} : { value: result.value },
                 });
             },
         },
         llm: {
-            providers: function (request) {
-                var registered = ctx.llm.listProviders();
-                var active = new Set(registered.map(function (provider) { return provider.id; }));
-                var directory = ctx.llm.listConfigurableProviders();
-                var declared = new Set(directory.map(function (entry) { return entry.provider; }));
-                var piAiDirectoryMounted = directory.some(function (entry) { return String(entry.settingsNs) === 'llm-pi-ai'; });
-                var views = directory.map(function (entry) { return (__assign({ provider: entry.provider, displayName: entry.displayName, settingsNs: entry.settingsNs, settingsPath: __spreadArray([], entry.settingsPath, true), active: active.has(entry.provider) }, entry.declared === undefined ? {} : { declared: entry.declared })); });
+            providers(request) {
+                const registered = ctx.llm.listProviders();
+                const active = new Set(registered.map(provider => provider.id));
+                const directory = ctx.llm.listConfigurableProviders();
+                const declared = new Set(directory.map(entry => entry.provider));
+                const piAiDirectoryMounted = directory.some(entry => String(entry.settingsNs) === 'llm-pi-ai');
+                const views = directory.map(entry => ({
+                    provider: entry.provider,
+                    displayName: entry.displayName,
+                    settingsNs: entry.settingsNs,
+                    settingsPath: [...entry.settingsPath],
+                    active: active.has(entry.provider),
+                    ...entry.declared === undefined ? {} : { declared: entry.declared },
+                }));
                 // Routes registered without a directory declaration still appear —
                 // they exist and serve models — just with no settings address. No
                 // adapter claimed them, so nothing can say whether they are shipped.
-                for (var _i = 0, registered_1 = registered; _i < registered_1.length; _i++) {
-                    var provider = registered_1[_i];
+                for (const provider of registered) {
                     if (declared.has(provider.id))
                         continue;
                     // When llm-pi-ai is mounted its catalog routes are always configurable
                     // at providers.<id>; exposing an empty settingsNs blocks API clients
                     // from wiring apiKeyEnv before the directory catches up.
-                    var piAiFallback = piAiDirectoryMounted && !provider.id.startsWith('custom-');
+                    const piAiFallback = piAiDirectoryMounted && !provider.id.startsWith('custom-');
                     views.push({
                         provider: provider.id,
                         displayName: provider.name,
@@ -3898,215 +3169,161 @@ function createApiProxy(ctx, defaults) {
                 }
                 return Promise.resolve(ok(request, { providers: views }));
             },
-            models: function (request) {
-                return __awaiter(this, void 0, void 0, function () {
-                    var _a, _b;
-                    return __generator(this, function (_c) {
-                        switch (_c.label) {
-                            case 0:
-                                _a = ok;
-                                _b = [request];
-                                return [4 /*yield*/, buildModelCatalog(ctx)];
-                            case 1: return [2 /*return*/, _a.apply(void 0, _b.concat([_c.sent()]))];
-                        }
-                    });
-                });
+            async models(request) {
+                return ok(request, await buildModelCatalog(ctx));
             },
-            discoverModels: function (request, signal) {
-                return __awaiter(this, void 0, void 0, function () {
-                    var _a, settingsNs, provider, baseURL, api, apiKey, models, error_41;
-                    return __generator(this, function (_b) {
-                        switch (_b.label) {
-                            case 0:
-                                _a = request.payload, settingsNs = _a.settingsNs, provider = _a.provider, baseURL = _a.baseURL, api = _a.api, apiKey = _a.apiKey;
-                                _b.label = 1;
-                            case 1:
-                                _b.trys.push([1, 3, , 4]);
-                                return [4 /*yield*/, ctx.llm.discoverModels(settingsNs, __assign(__assign(__assign(__assign(__assign({}, provider === undefined ? {} : { provider: provider }), baseURL === undefined ? {} : { baseURL: baseURL }), api === undefined ? {} : { api: api }), apiKey === undefined ? {} : { apiKey: apiKey }), signal === undefined ? {} : { signal: signal }))];
-                            case 2:
-                                models = _b.sent();
-                                return [2 /*return*/, ok(request, { models: models })];
-                            case 3:
-                                error_41 = _b.sent();
-                                // Every failure here is the user's next move, not a transport fault:
-                                // a wrong endpoint, a rejected key, or a protocol with no listing all
-                                // end at the same place — fill the models in by hand. The details
-                                // repeat only what the caller already sent, never the credential.
-                                return [2 /*return*/, err(request, {
-                                        code: 'model-discovery-failed',
-                                        message: error_41 instanceof Error ? error_41.message : String(error_41),
-                                        details: __assign({ settingsNs: settingsNs }, baseURL === undefined ? {} : { baseURL: baseURL }),
-                                    })];
-                            case 4: return [2 /*return*/];
-                        }
+            async discoverModels(request, signal) {
+                const { settingsNs, provider, baseURL, api, apiKey } = request.payload;
+                try {
+                    const models = await ctx.llm.discoverModels(settingsNs, {
+                        ...provider === undefined ? {} : { provider },
+                        ...baseURL === undefined ? {} : { baseURL },
+                        ...api === undefined ? {} : { api },
+                        ...apiKey === undefined ? {} : { apiKey },
+                        ...signal === undefined ? {} : { signal },
                     });
-                });
+                    return ok(request, { models });
+                }
+                catch (error) {
+                    // Every failure here is the user's next move, not a transport fault:
+                    // a wrong endpoint, a rejected key, or a protocol with no listing all
+                    // end at the same place — fill the models in by hand. The details
+                    // repeat only what the caller already sent, never the credential.
+                    return err(request, {
+                        code: 'model-discovery-failed',
+                        message: error instanceof Error ? error.message : String(error),
+                        details: { settingsNs, ...baseURL === undefined ? {} : { baseURL } },
+                    });
+                }
             },
         },
         authorization: {
-            list: function (request) {
-                return __awaiter(this, void 0, void 0, function () {
-                    var authorization, credentials, flows;
-                    var _this = this;
-                    return __generator(this, function (_a) {
-                        switch (_a.label) {
-                            case 0:
-                                authorization = ctx.get('authorization');
-                                credentials = ctx.get('credentials');
-                                if (authorization === undefined || credentials === undefined) {
-                                    return [2 /*return*/, err(request, { code: 'internal', message: 'authorization or credentials service is absent', details: {} })];
-                                }
-                                return [4 /*yield*/, Promise.all(authorization.list().map(function (entry) { return __awaiter(_this, void 0, void 0, function () {
-                                        var record;
-                                        return __generator(this, function (_a) {
-                                            switch (_a.label) {
-                                                case 0: return [4 /*yield*/, credentials.describeRecord(entry.key)];
-                                                case 1:
-                                                    record = _a.sent();
-                                                    return [2 /*return*/, {
-                                                            key: entry.key,
-                                                            label: entry.label,
-                                                            methods: entry.methods.map(function (method) { return ({ id: method.id, label: method.label }); }),
-                                                            inFlight: entry.inFlight,
-                                                            configured: record.configured,
-                                                        }];
-                                            }
-                                        });
-                                    }); }))];
-                            case 1:
-                                flows = _a.sent();
-                                return [2 /*return*/, ok(request, { flows: flows })];
-                        }
-                    });
-                });
+            async list(request) {
+                const authorization = ctx.get('authorization');
+                const credentials = ctx.get('credentials');
+                if (authorization === undefined || credentials === undefined) {
+                    return err(request, { code: 'internal', message: 'authorization or credentials service is absent', details: {} });
+                }
+                const flows = await Promise.all(authorization.list().map(async (entry) => {
+                    const record = await credentials.describeRecord(entry.key);
+                    return {
+                        key: entry.key,
+                        label: entry.label,
+                        methods: entry.methods.map(method => ({ id: method.id, label: method.label })),
+                        inFlight: entry.inFlight,
+                        configured: record.configured,
+                    };
+                }));
+                return ok(request, { flows });
             },
-            begin: function (request, signal) {
-                return __awaiter(this, void 0, void 0, function () {
-                    var authorization, _a, attemptId, rawKey, method, key, attempt, outcome, error_42;
-                    return __generator(this, function (_b) {
-                        switch (_b.label) {
-                            case 0:
-                                authorization = ctx.get('authorization');
-                                if (authorization === undefined)
-                                    return [2 /*return*/, err(request, { code: 'internal', message: 'authorization service is absent', details: {} })];
-                                _a = request.payload, attemptId = _a.attemptId, rawKey = _a.key, method = _a.method;
-                                key = (0, dsh_credentials_1.credentialKey)(rawKey.slice(0, rawKey.indexOf('/')), rawKey.slice(rawKey.indexOf('/') + 1));
-                                if (authorizationAttempts.has(attemptId))
-                                    return [2 /*return*/, err(request, { code: 'internal', message: 'authorization attempt id is already in use', details: {} })];
-                                attempt = { key: key, prompts: new Map() };
-                                authorizationAttempts.set(attemptId, attempt);
-                                _b.label = 1;
-                            case 1:
-                                _b.trys.push([1, 3, 4, 5]);
-                                return [4 /*yield*/, authorization.begin(__assign(__assign(__assign({ key: key }, method === undefined ? {} : { method: method }), signal === undefined ? {} : { signal: signal }), { interaction: {
-                                            notify: function (notice) {
-                                                ctx.emit('taskweaver/authorization-notice', attemptId, key, __assign(__assign({ message: notice.message }, notice.url === undefined ? {} : { url: notice.url }), notice.code === undefined ? {} : { code: notice.code }));
-                                            },
-                                            prompt: function (prompt) {
-                                                var promptId = (0, node_crypto_1.randomUUID)();
-                                                var promptSignal = prompt.signal, view = __rest(prompt, ["signal"]);
-                                                return new Promise(function (resolve, reject) {
-                                                    var pending = { resolve: resolve, reject: reject };
-                                                    attempt.prompts.set(promptId, pending);
-                                                    var onAbort = function () {
-                                                        attempt.prompts.delete(promptId);
-                                                        reject(new Error('authorization prompt withdrawn'));
-                                                    };
-                                                    promptSignal === null || promptSignal === void 0 ? void 0 : promptSignal.addEventListener('abort', onAbort, { once: true });
-                                                    ctx.emit('taskweaver/authorization-prompt', attemptId, promptId, key, view);
-                                                }).finally(function () { attempt.prompts.delete(promptId); });
-                                            },
-                                        } }))];
-                            case 2:
-                                outcome = _b.sent();
-                                return [2 /*return*/, ok(request, outcome)];
-                            case 3:
-                                error_42 = _b.sent();
-                                return [2 /*return*/, err(request, {
-                                        code: 'internal',
-                                        message: error_42 instanceof Error ? error_42.message : String(error_42),
-                                        details: {},
-                                    })];
-                            case 4:
-                                authorizationAttempts.delete(attemptId);
-                                return [7 /*endfinally*/];
-                            case 5: return [2 /*return*/];
-                        }
+            async begin(request, signal) {
+                const authorization = ctx.get('authorization');
+                if (authorization === undefined)
+                    return err(request, { code: 'internal', message: 'authorization service is absent', details: {} });
+                const { attemptId, key: rawKey, method } = request.payload;
+                const key = credentialKey(rawKey.slice(0, rawKey.indexOf('/')), rawKey.slice(rawKey.indexOf('/') + 1));
+                if (authorizationAttempts.has(attemptId))
+                    return err(request, { code: 'internal', message: 'authorization attempt id is already in use', details: {} });
+                const attempt = { key, prompts: new Map() };
+                authorizationAttempts.set(attemptId, attempt);
+                try {
+                    const outcome = await authorization.begin({
+                        key,
+                        ...method === undefined ? {} : { method },
+                        ...signal === undefined ? {} : { signal },
+                        interaction: {
+                            notify(notice) {
+                                ctx.emit('taskweaver/authorization-notice', attemptId, key, {
+                                    message: notice.message,
+                                    ...notice.url === undefined ? {} : { url: notice.url },
+                                    ...notice.code === undefined ? {} : { code: notice.code },
+                                });
+                            },
+                            prompt(prompt) {
+                                const promptId = randomUUID();
+                                const { signal: promptSignal, ...view } = prompt;
+                                return new Promise((resolve, reject) => {
+                                    const pending = { resolve, reject };
+                                    attempt.prompts.set(promptId, pending);
+                                    const onAbort = () => {
+                                        attempt.prompts.delete(promptId);
+                                        reject(new Error('authorization prompt withdrawn'));
+                                    };
+                                    promptSignal?.addEventListener('abort', onAbort, { once: true });
+                                    ctx.emit('taskweaver/authorization-prompt', attemptId, promptId, key, view);
+                                }).finally(() => { attempt.prompts.delete(promptId); });
+                            },
+                        },
                     });
-                });
+                    return ok(request, outcome);
+                }
+                catch (error) {
+                    return err(request, {
+                        code: 'internal',
+                        message: error instanceof Error ? error.message : String(error),
+                        details: {},
+                    });
+                }
+                finally {
+                    authorizationAttempts.delete(attemptId);
+                }
             },
-            cancel: function (request) {
-                var _a, _b;
-                var authorization = ctx.get('authorization');
+            cancel(request) {
+                const authorization = ctx.get('authorization');
                 if (authorization === undefined)
                     return Promise.resolve(err(request, { code: 'internal', message: 'authorization service is absent', details: {} }));
-                var _c = request.payload, rawKey = _c.key, attemptId = _c.attemptId;
-                var key = (0, dsh_credentials_1.credentialKey)(rawKey.slice(0, rawKey.indexOf('/')), rawKey.slice(rawKey.indexOf('/') + 1));
-                var attempt = attemptId === undefined ? undefined : authorizationAttempts.get(attemptId);
-                if (attemptId !== undefined && (attempt === null || attempt === void 0 ? void 0 : attempt.key) !== key)
+                const { key: rawKey, attemptId } = request.payload;
+                const key = credentialKey(rawKey.slice(0, rawKey.indexOf('/')), rawKey.slice(rawKey.indexOf('/') + 1));
+                const attempt = attemptId === undefined ? undefined : authorizationAttempts.get(attemptId);
+                if (attemptId !== undefined && attempt?.key !== key)
                     return Promise.resolve(ok(request, { cancelled: false }));
-                var inFlight = attempt !== undefined || ((_a = authorization.describe(key)) === null || _a === void 0 ? void 0 : _a.inFlight) === true;
+                const inFlight = attempt !== undefined || authorization.describe(key)?.inFlight === true;
                 if (inFlight) {
                     authorization.cancel(key);
-                    for (var _i = 0, _d = (_b = attempt === null || attempt === void 0 ? void 0 : attempt.prompts.values()) !== null && _b !== void 0 ? _b : []; _i < _d.length; _i++) {
-                        var pending = _d[_i];
+                    for (const pending of attempt?.prompts.values() ?? [])
                         pending.reject(new Error('authorization declined'));
-                    }
-                    attempt === null || attempt === void 0 ? void 0 : attempt.prompts.clear();
+                    attempt?.prompts.clear();
                 }
                 return Promise.resolve(ok(request, { cancelled: inFlight }));
             },
-            answer: function (request) {
-                var _a, _b;
-                var _c = request.payload, attemptId = _c.attemptId, promptId = _c.promptId, answer = _c.answer, declined = _c.declined;
-                var pending = (_a = authorizationAttempts.get(attemptId)) === null || _a === void 0 ? void 0 : _a.prompts.get(promptId);
+            answer(request) {
+                const { attemptId, promptId, answer, declined } = request.payload;
+                const pending = authorizationAttempts.get(attemptId)?.prompts.get(promptId);
                 if (pending === undefined)
                     return Promise.resolve(ok(request, { accepted: false }));
                 if (declined) {
-                    var authorization = ctx.get('authorization');
-                    var key = (_b = authorizationAttempts.get(attemptId)) === null || _b === void 0 ? void 0 : _b.key;
+                    const authorization = ctx.get('authorization');
+                    const key = authorizationAttempts.get(attemptId)?.key;
                     if (key)
-                        authorization === null || authorization === void 0 ? void 0 : authorization.cancel(key);
+                        authorization?.cancel(key);
                     pending.reject(new Error('authorization declined'));
                 }
                 else
-                    pending.resolve(answer !== null && answer !== void 0 ? answer : '');
+                    pending.resolve(answer ?? '');
                 return Promise.resolve(ok(request, { accepted: true }));
             },
-            logout: function (request) {
-                return __awaiter(this, void 0, void 0, function () {
-                    var authorization, credentials, rawKey, key;
-                    return __generator(this, function (_a) {
-                        switch (_a.label) {
-                            case 0:
-                                authorization = ctx.get('authorization');
-                                credentials = ctx.get('credentials');
-                                if (authorization === undefined || credentials === undefined)
-                                    return [2 /*return*/, err(request, { code: 'internal', message: 'authorization or credentials service is absent', details: {} })];
-                                rawKey = request.payload.key;
-                                key = (0, dsh_credentials_1.credentialKey)(rawKey.slice(0, rawKey.indexOf('/')), rawKey.slice(rawKey.indexOf('/') + 1));
-                                if (authorization.describe(key) === undefined)
-                                    return [2 /*return*/, err(request, { code: 'internal', message: 'no authorization flow is registered for this credential', details: {} })];
-                                authorization.cancel(key);
-                                return [4 /*yield*/, credentials.deleteRecord(key)];
-                            case 1:
-                                _a.sent();
-                                return [2 /*return*/, ok(request, {})];
-                        }
-                    });
-                });
+            async logout(request) {
+                const authorization = ctx.get('authorization');
+                const credentials = ctx.get('credentials');
+                if (authorization === undefined || credentials === undefined)
+                    return err(request, { code: 'internal', message: 'authorization or credentials service is absent', details: {} });
+                const rawKey = request.payload.key;
+                const key = credentialKey(rawKey.slice(0, rawKey.indexOf('/')), rawKey.slice(rawKey.indexOf('/') + 1));
+                if (authorization.describe(key) === undefined)
+                    return err(request, { code: 'internal', message: 'no authorization flow is registered for this credential', details: {} });
+                authorization.cancel(key);
+                await credentials.deleteRecord(key);
+                return ok(request, {});
             },
         },
         events: {
-            mux: function (_request, signal) {
-                var queue = new FrameQueue();
+            mux(_request, signal) {
+                const queue = new FrameQueue();
                 muxQueues.add(queue);
-                for (var _i = 0, _a = ctx.sessions.list(); _i < _a.length; _i++) {
-                    var session = _a[_i];
+                for (const session of ctx.sessions.list()) {
                     subscribeSession(queue, session);
                 }
-                for (var _b = 0, _c = pendingQuestions.values(); _b < _c.length; _b++) {
-                    var pending = _c[_b];
+                for (const pending of pendingQuestions.values()) {
                     queue.push({
                         rpcId: pending.rpcId,
                         payload: {
@@ -4117,17 +3334,14 @@ function createApiProxy(ctx, defaults) {
                 }
                 // Refresh recovery: still-pending approval questions replay with their
                 // stable rpcId so a reconnecting client can still answer them.
-                for (var _d = 0, _e = pendingApprovals.values(); _d < _e.length; _d++) {
-                    var pending = _e[_d];
+                for (const pending of pendingApprovals.values())
                     queue.push(requestedFrame(pending));
-                }
                 // Queue snapshot baseline (pendingQuestions precedent): frames replayed
                 // in arrival order per session; a reconnecting client rebuilds its
                 // queue view from these alone.
-                for (var _f = 0, _g = ctx.sessions.list(); _f < _g.length; _f++) {
-                    var session = _g[_f];
-                    var agent = ctx.agents.get(session.id);
-                    if ((agent === null || agent === void 0 ? void 0 : agent.session) === session && agent.inbox.hasPending) {
+                for (const session of ctx.sessions.list()) {
+                    const agent = ctx.agents.get(session.id);
+                    if (agent?.session === session && agent.inbox.hasPending) {
                         queue.push(frame({ type: 'session/queue', sessionId: session.id, items: queueItems(agent) }));
                     }
                 }
@@ -4135,11 +3349,10 @@ function createApiProxy(ctx, defaults) {
                 // a session with no live Agent owns no tasks, so it correctly sees only
                 // the unowned ones, and listing never revives a cold session. An empty
                 // set sends nothing — absence is how the client reads "no tasks".
-                var jobs = ctx.get('jobs');
+                const jobs = ctx.get('jobs');
                 if (jobs !== undefined) {
-                    for (var _h = 0, _j = ctx.sessions.list(); _h < _j.length; _h++) {
-                        var session = _j[_h];
-                        var views = jobViews(jobs.list(ctx.agents.get(session.id)));
+                    for (const session of ctx.sessions.list()) {
+                        const views = jobViews(jobs.list(ctx.agents.get(session.id)));
                         if (views.length > 0) {
                             queue.push(frame({ type: 'session/jobs', sessionId: session.id, jobs: views }));
                         }
@@ -4148,129 +3361,129 @@ function createApiProxy(ctx, defaults) {
                 // Per-session open-call table for result-view pairing. Bounded by the
                 // per-turn call count: entries clear on turn/end; a table miss (stream
                 // opened mid-turn) backscans the session's in-memory events instead.
-                var openCalls = new Map();
-                var disposers = __spreadArray([
-                    ctx.root.on('session/event', function (session, event) {
+                const openCalls = new Map();
+                const disposers = [
+                    ctx.root.on('session/event', (session, event) => {
                         if (event.type === 'tool/call') {
-                            var data = event.data;
+                            const data = event.data;
                             try {
-                                var table = openCalls.get(session.id);
+                                let table = openCalls.get(session.id);
                                 if (table === undefined)
                                     openCalls.set(session.id, table = new Map());
                                 table.set(data.callId, { name: data.name, args: JSON.parse(data.arguments) });
                             }
-                            catch (_a) {
+                            catch {
                                 // Unparseable model arguments: leave the table unset; the result view soft-falls.
                             }
                         }
                         else if (event.type === 'turn/end') {
                             openCalls.delete(session.id);
                         }
-                        var view = viewFor(ctx, event, function (callId) { var _a, _b; return (_b = (_a = openCalls.get(session.id)) === null || _a === void 0 ? void 0 : _a.get(callId)) !== null && _b !== void 0 ? _b : backscanArgs(session.events, callId); }, ctx.agents.get(session.id));
-                        queue.push(frame(__assign({ type: 'session/event', sessionId: session.id, event: event }, view === undefined ? {} : { view: view })));
+                        const view = viewFor(ctx, event, callId => openCalls.get(session.id)?.get(callId) ?? backscanArgs(session.events, callId), ctx.agents.get(session.id));
+                        queue.push(frame({ type: 'session/event', sessionId: session.id, event, ...view === undefined ? {} : { view } }));
                     }, { global: true }),
-                    ctx.root.on('session/created', function (session) {
+                    ctx.root.on('session/created', (session) => {
                         subscribeSession(queue, session);
                         // The subscribe frame clears the client's task mirror, and a
                         // session born after the stream opened missed the baseline loop.
                         // Unowned tasks are visible to it from birth, so without this it
                         // would show none until the next registry change.
-                        var views = jobs === undefined ? [] : jobViews(jobs.list(ctx.agents.get(session.id)));
+                        const views = jobs === undefined ? [] : jobViews(jobs.list(ctx.agents.get(session.id)));
                         if (views.length > 0) {
                             queue.push(frame({ type: 'session/jobs', sessionId: session.id, jobs: views }));
                         }
                     }, { global: true }),
-                    ctx.root.on('session/disposed', function (session) {
+                    ctx.root.on('session/disposed', (session) => {
                         openCalls.delete(session.id);
-                    }, { global: true })
-                ], jobs === undefined ? [] : [jobs.onJobsChanged(function (owner) {
-                        if (owner !== undefined) {
-                            // The exact owner instance the fence compares against, so the
-                            // push stays correct even while that Agent's scope is tearing
-                            // down and a lookup by id would already miss.
-                            queue.push(frame({ type: 'session/jobs', sessionId: owner.id, jobs: jobViews(jobs.list(owner)) }));
-                            return;
-                        }
-                        // An unowned task is visible to every caller, so every subscribed
-                        // session's set changed with it.
-                        for (var _i = 0, _a = ctx.sessions.list(); _i < _a.length; _i++) {
-                            var session = _a[_i];
-                            queue.push(frame({
-                                type: 'session/jobs',
-                                sessionId: session.id,
-                                jobs: jobViews(jobs.list(ctx.agents.get(session.id))),
-                            }));
-                        }
-                    })], true);
-                return queue.iterate(signal, function () {
+                    }, { global: true }),
+                    ...jobs === undefined ? [] : [jobs.onJobsChanged((owner) => {
+                            if (owner !== undefined) {
+                                // The exact owner instance the fence compares against, so the
+                                // push stays correct even while that Agent's scope is tearing
+                                // down and a lookup by id would already miss.
+                                queue.push(frame({ type: 'session/jobs', sessionId: owner.id, jobs: jobViews(jobs.list(owner)) }));
+                                return;
+                            }
+                            // An unowned task is visible to every caller, so every subscribed
+                            // session's set changed with it.
+                            for (const session of ctx.sessions.list()) {
+                                queue.push(frame({
+                                    type: 'session/jobs',
+                                    sessionId: session.id,
+                                    jobs: jobViews(jobs.list(ctx.agents.get(session.id))),
+                                }));
+                            }
+                        })],
+                ];
+                return queue.iterate(signal, () => {
                     muxQueues.delete(queue);
-                    for (var _i = 0, disposers_1 = disposers; _i < disposers_1.length; _i++) {
-                        var dispose = disposers_1[_i];
+                    for (const dispose of disposers)
                         dispose();
-                    }
                 });
             },
-            host: function (_request, signal) {
-                var queue = new FrameQueue();
-                var committedWorkspaces = ctx.workspaceRegistry.list();
-                var committedWorkspaceIds = new Set(committedWorkspaces.map(function (workspace) { return String(workspace.id); }));
-                var committedWorkspaceOrder = committedWorkspaces.map(function (workspace) { return workspace.id; });
+            host(_request, signal) {
+                const queue = new FrameQueue();
+                const committedWorkspaces = ctx.workspaceRegistry.list();
+                const committedWorkspaceIds = new Set(committedWorkspaces.map(workspace => String(workspace.id)));
+                let committedWorkspaceOrder = committedWorkspaces.map(workspace => workspace.id);
                 // Frame-dedup baseline, same posture as committedWorkspaceIds: the
                 // stream opens against the current set; workspace.list re-baselines
                 // reconnecting clients, so only later changes need frames.
-                var archivedSessionIds = ctx.workspaceRegistry.archivedSessionIds;
-                var disposers = __spreadArray([
-                    ctx.root.on('session/created', function (session) {
-                        queue.push(frame(__assign({ type: 'host/session-added', sessionId: session.id, 
+                let archivedSessionIds = ctx.workspaceRegistry.archivedSessionIds;
+                const disposers = [
+                    ctx.root.on('session/created', (session) => {
+                        queue.push(frame({
+                            type: 'host/session-added',
+                            sessionId: session.id,
                             // Derived at frame time like summarize(); a just-created session
                             // has run no turn yet, so this is constantly true in practice.
-                            blank: sessionBlank(session) }, sessionListFields(session.header, session.events))));
+                            blank: sessionBlank(session),
+                            // Including cwd lets the client group the new session without refreshing the list.
+                            ...sessionListFields(session.header, session.events),
+                        }));
                     }, { global: true }),
-                    ctx.root.on('session/disposed', function (session) {
+                    ctx.root.on('session/disposed', (session) => {
                         queue.push(frame({ type: 'host/session-removed', sessionId: session.id }));
                     }, { global: true }),
-                    ctx.root.on('agent/status', function (_a) {
-                        var agent = _a.agent, status = _a.status;
+                    ctx.root.on('agent/status', ({ agent, status }) => {
                         queue.push(frame({ type: 'host/session-status', sessionId: agent.id, running: status === 'running' }));
                     }, { global: true }),
-                    ctx.root.on('agent/error', function (_a) {
-                        var agent = _a.agent, error = _a.error;
-                        queue.push(frame({ type: 'host/agent-error', sessionId: agent.id, message: (0, dsh_llm_2.errorChain)(error) }));
+                    ctx.root.on('agent/error', ({ agent, error }) => {
+                        queue.push(frame({ type: 'host/agent-error', sessionId: agent.id, message: errorChain(error) }));
                     }, { global: true }),
-                    ctx.on('domain/changed', function (change) {
+                    ctx.on('domain/changed', (change) => {
                         if (change.domain !== 'workspace')
                             return;
                         if (change.table === '') {
                             if (change.operation !== 'put')
                                 return;
-                            var state = dsh_workspace_1.workspaceDomainState.parse(change.value);
-                            var orderChanged = state.workspaceIds.length === committedWorkspaceOrder.length
-                                && state.workspaceIds.every(function (workspaceId) { return committedWorkspaceIds.has(String(workspaceId)); })
-                                && state.workspaceIds.some(function (workspaceId, index) { return workspaceId !== committedWorkspaceOrder[index]; });
-                            for (var _i = 0, _a = state.workspaceIds; _i < _a.length; _i++) {
-                                var workspaceId = _a[_i];
+                            const state = workspaceDomainState.parse(change.value);
+                            const orderChanged = state.workspaceIds.length === committedWorkspaceOrder.length
+                                && state.workspaceIds.every(workspaceId => committedWorkspaceIds.has(String(workspaceId)))
+                                && state.workspaceIds.some((workspaceId, index) => workspaceId !== committedWorkspaceOrder[index]);
+                            for (const workspaceId of state.workspaceIds) {
                                 if (committedWorkspaceIds.has(workspaceId))
                                     continue;
-                                var workspace = ctx.workspaceRegistry.get(workspaceId);
+                                const workspace = ctx.workspaceRegistry.get(workspaceId);
                                 if (workspace === undefined) {
-                                    throw new Error("committed workspace registry references missing workspace \"".concat(workspaceId, "\""));
+                                    throw new Error(`committed workspace registry references missing workspace "${workspaceId}"`);
                                 }
                                 committedWorkspaceIds.add(workspaceId);
                                 queue.push(frame({ type: 'host/workspace-changed', workspace: workspaceView(workspace) }));
                             }
-                            committedWorkspaceOrder = __spreadArray([], state.workspaceIds, true);
+                            committedWorkspaceOrder = [...state.workspaceIds];
                             if (orderChanged) {
                                 queue.push(frame({
                                     type: 'host/workspace-order-changed',
-                                    workspaceIds: __spreadArray([], state.workspaceIds, true),
+                                    workspaceIds: [...state.workspaceIds],
                                 }));
                             }
                             if (state.archivedSessionIds.length !== archivedSessionIds.length
-                                || state.archivedSessionIds.some(function (id, index) { return id !== archivedSessionIds[index]; })) {
+                                || state.archivedSessionIds.some((id, index) => id !== archivedSessionIds[index])) {
                                 archivedSessionIds = state.archivedSessionIds;
                                 queue.push(frame({
                                     type: 'host/archived-sessions-changed',
-                                    archivedSessionIds: __spreadArray([], state.archivedSessionIds, true),
+                                    archivedSessionIds: [...state.archivedSessionIds],
                                 }));
                             }
                             return;
@@ -4294,98 +3507,85 @@ function createApiProxy(ctx, defaults) {
                             type: 'host/workspace-changed',
                             workspace: changedWorkspaceView(change.key, change.value),
                         }));
-                    })
-                ], dsh_api_remotes_1.API_REMOTE_FORWARDED_EVENTS.map(function (name) { return ctx.on(name, 
-                // The allowlist's shape assertion proves each name is a real,
-                // non-scoped, void-returning event, so the rest-parameter handler
-                // satisfies every member of the union `on` accepts here;
-                // assertJsonArgs proves the payload is JSON-safe before it queues.
-                (function () {
-                    var args = [];
-                    for (var _i = 0; _i < arguments.length; _i++) {
-                        args[_i] = arguments[_i];
-                    }
-                    queue.push(frame({
-                        type: 'host/remote-event',
-                        event: name,
-                        args: assertJsonArgs(name, args),
-                    }));
-                })); }), true);
-                return queue.iterate(signal, function () { for (var _i = 0, disposers_2 = disposers; _i < disposers_2.length; _i++) {
-                    var dispose = disposers_2[_i];
-                    dispose();
-                } });
+                    }),
+                    // Allowlisted host events ride one verbatim wrapper frame each. The
+                    // allowlist is api-remotes', and `ctx.remote.$on` is the consumer
+                    // face; nothing here projects, redacts, or renames.
+                    ...API_REMOTE_FORWARDED_EVENTS.map(name => ctx.on(name, 
+                    // The allowlist's shape assertion proves each name is a real,
+                    // non-scoped, void-returning event, so the rest-parameter handler
+                    // satisfies every member of the union `on` accepts here;
+                    // assertJsonArgs proves the payload is JSON-safe before it queues.
+                    ((...args) => {
+                        queue.push(frame({
+                            type: 'host/remote-event',
+                            event: name,
+                            args: assertJsonArgs(name, args),
+                        }));
+                    }))),
+                ];
+                return queue.iterate(signal, () => { for (const dispose of disposers)
+                    dispose(); });
             },
         },
         downloads: {
-            sessionLog: function (request, signal) {
-                return __awaiter(this, void 0, void 0, function () {
-                    var deps, ready, root, _a;
-                    return __generator(this, function (_b) {
-                        switch (_b.label) {
-                            case 0:
-                                deps = (0, session_export_ts_1.sessionLogExportDeps)(ctx);
-                                if (deps.sessionQuery === undefined || deps.sessionPersistence === undefined || deps.attachments === undefined) {
-                                    return [2 /*return*/, new Response('session log export is unavailable: missing session-query, session-persistence, or attachments service', { status: 500 })];
-                                }
-                                if (!deps.sessionPersistence.supportsRawArtifacts) {
-                                    return [2 /*return*/, new Response('session log export is unavailable: the persistence backend does not expose per-session raw artifacts', { status: 501 })];
-                                }
-                                ready = {
-                                    sessionQuery: deps.sessionQuery,
-                                    sessionPersistence: deps.sessionPersistence,
-                                    attachments: deps.attachments,
-                                    sessions: deps.sessions,
-                                };
-                                _b.label = 1;
-                            case 1:
-                                _b.trys.push([1, 4, , 5]);
-                                return [4 /*yield*/, (0, session_export_ts_1.flushLiveSessionLog)(deps, request.sessionId, signal)];
-                            case 2:
-                                _b.sent();
-                                return [4 /*yield*/, deps.sessionPersistence.readRaw(request.sessionId, signal)];
-                            case 3:
-                                root = _b.sent();
-                                signal.throwIfAborted();
-                                return [3 /*break*/, 5];
-                            case 4:
-                                _a = _b.sent();
-                                signal.throwIfAborted();
-                                // Root preparation failure: answer 500 without echoing the error,
-                                // which may carry absolute host paths into the browser error bar.
-                                return [2 /*return*/, new Response('session log export failed to prepare the stored artifact', { status: 500 })];
-                            case 5:
-                                if (root === undefined) {
-                                    return [2 /*return*/, new Response('session not found', { status: 404 })];
-                                }
-                                return [2 /*return*/, new Response((0, session_export_ts_1.streamSessionLogZip)(ready, root, request.sessionId, request.includeDescendants === true, sessionExportCompressionLevel, signal), {
-                                        headers: {
-                                            'content-type': 'application/zip',
-                                            'content-disposition': "attachment; filename=\"".concat((0, session_export_ts_1.sessionLogZipFilename)(request.sessionId), "\""),
-                                        },
-                                    })];
-                        }
-                    });
+            async sessionLog(request, signal) {
+                // Clean error path first: missing services answer 500 and a missing
+                // root artifact 404 before any zip byte is produced. The root content
+                // read here is reused as the first zip entry, so nothing is read twice.
+                const deps = sessionLogExportDeps(ctx);
+                if (deps.sessionQuery === undefined || deps.sessionPersistence === undefined || deps.attachments === undefined) {
+                    return new Response('session log export is unavailable: missing session-query, session-persistence, or attachments service', { status: 500 });
+                }
+                if (!deps.sessionPersistence.supportsRawArtifacts) {
+                    return new Response('session log export is unavailable: the persistence backend does not expose per-session raw artifacts', { status: 501 });
+                }
+                const ready = {
+                    sessionQuery: deps.sessionQuery,
+                    sessionPersistence: deps.sessionPersistence,
+                    attachments: deps.attachments,
+                    sessions: deps.sessions,
+                };
+                let root;
+                try {
+                    await flushLiveSessionLog(deps, request.sessionId, signal);
+                    root = await deps.sessionPersistence.readRaw(request.sessionId, signal);
+                    signal.throwIfAborted();
+                }
+                catch {
+                    signal.throwIfAborted();
+                    // Root preparation failure: answer 500 without echoing the error,
+                    // which may carry absolute host paths into the browser error bar.
+                    return new Response('session log export failed to prepare the stored artifact', { status: 500 });
+                }
+                if (root === undefined) {
+                    return new Response('session not found', { status: 404 });
+                }
+                return new Response(streamSessionLogZip(ready, root, request.sessionId, request.includeDescendants === true, sessionExportCompressionLevel, signal), {
+                    headers: {
+                        'content-type': 'application/zip',
+                        'content-disposition': `attachment; filename="${sessionLogZipFilename(request.sessionId)}"`,
+                    },
                 });
             },
         },
-        respond: function (message) {
+        respond(message) {
             // Route by the echoed rpcId (the wire correlation): approvals first,
             // then questions — the two registries share one id space of UUIDs.
-            var approval = pendingApprovals.get(message.rpcId);
+            const approval = pendingApprovals.get(message.rpcId);
             if (approval !== undefined) {
                 if (!message.result.ok)
                     return Promise.resolve({ accepted: false, reason: 'bad-response' });
-                var parsed_1 = approvals_schema_ts_1.approvalResponsePayloadSchema.safeParse(message.result.value);
+                const parsed = approvalResponsePayloadSchema.safeParse(message.result.value);
                 // The payload's audit correlation must match the entry the rpcId routed
                 // to — a mismatched answer is malformed, not merely late.
-                if (!parsed_1.success || parsed_1.data.approvalId !== approval.approvalId || parsed_1.data.sessionId !== approval.sessionId) {
+                if (!parsed.success || parsed.data.approvalId !== approval.approvalId || parsed.data.sessionId !== approval.sessionId) {
                     return Promise.resolve({ accepted: false, reason: 'bad-response' });
                 }
-                approval.resolve(parsed_1.data.outcome);
+                approval.resolve(parsed.data.outcome);
                 return Promise.resolve({ accepted: true });
             }
-            var pending = pendingQuestions.get(message.rpcId);
+            const pending = pendingQuestions.get(message.rpcId);
             if (pending === undefined)
                 return Promise.resolve({ accepted: false, reason: 'not-pending' });
             if (!message.result.ok) {
@@ -4393,17 +3593,21 @@ function createApiProxy(ctx, defaults) {
                     return Promise.resolve({ accepted: false, reason: 'bad-response' });
                 }
                 claimQuestion(pending, 'cancelled');
-                pending.reject(new dsh_user_questions_1.UserQuestionError('the user cancelled ask_user_question', 'ASK_CANCELLED'));
+                pending.reject(new UserQuestionError('the user cancelled ask_user_question', 'ASK_CANCELLED'));
                 return Promise.resolve({ accepted: true });
             }
-            var parsed = questions_schema_ts_1.questionResponsePayloadSchema.safeParse(message.result.value);
+            const parsed = questionResponsePayloadSchema.safeParse(message.result.value);
             if (!parsed.success) {
                 return Promise.resolve({ accepted: false, reason: 'bad-response' });
             }
-            var payload = {
+            const payload = {
                 sessionId: parsed.data.sessionId,
                 answer: {
-                    answers: parsed.data.answer.answers.map(function (answer) { return (__assign({ id: answer.id, selected: answer.selected }, (answer.custom === undefined ? {} : { custom: answer.custom }))); }),
+                    answers: parsed.data.answer.answers.map(answer => ({
+                        id: answer.id,
+                        selected: answer.selected,
+                        ...(answer.custom === undefined ? {} : { custom: answer.custom }),
+                    })),
                 },
             };
             if (!matchesQuestions(payload, pending)) {
@@ -4415,3 +3619,4 @@ function createApiProxy(ctx, defaults) {
         },
     };
 }
+//# sourceMappingURL=api-proxy.js.map

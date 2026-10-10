@@ -490,6 +490,40 @@
   color: #86efac;
   border: 1px solid rgba(34, 197, 94, 0.2);
 }
+.code-execution-result-text {
+  max-height: 220px;
+}
+.code-execution-result-truncated,
+.code-execution-result-more {
+  margin-top: 5px;
+  color: var(--text-muted, #a1a1aa);
+  font-size: 11px;
+}
+.code-execution-result-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+.code-execution-result-image {
+  margin: 0;
+  max-width: min(100%, 360px);
+}
+.code-execution-result-image img {
+  display: block;
+  max-width: 100%;
+  max-height: 260px;
+  object-fit: contain;
+  border: 1px solid var(--line-light);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+}
+.code-execution-result-image figcaption {
+  margin-top: 4px;
+  color: var(--text-muted, #a1a1aa);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
 
 /* DSH 风格：输入框下方三枚统计 chip + 悬停详情面板 */
 .settings-hint-inline {
@@ -2415,4 +2449,39 @@
   color: #111827 !important;
 }
 
+.local-scan-row {
+  appearance: none;
+  width: 100%;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
 
+.codex-plugin-card-open {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  margin: 0 0 4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.codex-plugin-card-open-title {
+  min-width: 0;
+  overflow: hidden;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-theme="light"] .codex-plugin-card-open-title {
+  color: var(--text);
+}

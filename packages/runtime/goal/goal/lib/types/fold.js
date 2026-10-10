@@ -1,25 +1,6 @@
-"use strict";
 /** Pure replay fold and strict decoder for durable goal changes. */
-var __assign = (this && this.__assign) || function () {
-    __assign = Object.assign || function(t) {
-        for (var s, i = 1, n = arguments.length; i < n; i++) {
-            s = arguments[i];
-            for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p))
-                t[p] = s[p];
-        }
-        return t;
-    };
-    return __assign.apply(this, arguments);
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.emptyGoalFoldState = emptyGoalFoldState;
-exports.decodeGoalChange = decodeGoalChange;
-exports.goalChangeRef = goalChangeRef;
-exports.applyGoalChange = applyGoalChange;
-exports.applyGoalEvent = applyGoalEvent;
-exports.foldGoal = foldGoal;
-var runtime_ts_1 = require("./runtime.ts");
-var SNAPSHOT_OPERATIONS = new Set([
+import { GOAL_CHANGE_VERSION, GoalId } from "./runtime.js";
+const SNAPSHOT_OPERATIONS = new Set([
     'create',
     'edit',
     'pause',
@@ -27,12 +8,12 @@ var SNAPSHOT_OPERATIONS = new Set([
     'complete',
     'block',
 ]);
-var PHASES = new Set(['active', 'paused', 'blocked', 'complete']);
+const PHASES = new Set(['active', 'paused', 'blocked', 'complete']);
 /**
  * Build an empty replay accumulator.
  * @returns mutable state with no current goal or prior ref.
  */
-function emptyGoalFoldState() {
+export function emptyGoalFoldState() {
     return {
         goal: undefined,
         roundsStarted: 0,
@@ -49,14 +30,14 @@ function isRecord(value) {
 /** Require one positive safe integer. */
 function positiveInteger(value, field) {
     if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1) {
-        throw new Error("goal change ".concat(field, " must be a positive safe integer"));
+        throw new Error(`goal change ${field} must be a positive safe integer`);
     }
     return value;
 }
 /** Require one non-negative safe integer. */
 function nonNegativeInteger(value, field) {
     if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) {
-        throw new Error("goal change ".concat(field, " must be a non-negative safe integer"));
+        throw new Error(`goal change ${field} must be a non-negative safe integer`);
     }
     return value;
 }
@@ -88,14 +69,21 @@ function decodeSnapshot(value) {
     if (typeof value['phase'] !== 'string' || !PHASES.has(value['phase'])) {
         throw new Error('goal change goal.phase is invalid');
     }
-    var phase = value['phase'];
-    var expectedKeys = phase === 'blocked'
+    const phase = value['phase'];
+    const expectedKeys = phase === 'blocked'
         ? 'blockedReason,id,maxGoalRounds,objective,phase,revision'
         : 'id,maxGoalRounds,objective,phase,revision';
     if (Object.keys(value).sort().join(',') !== expectedKeys) {
-        throw new Error("goal change goal for phase ".concat(phase, " must have exactly ").concat(expectedKeys, " fields"));
+        throw new Error(`goal change goal for phase ${phase} must have exactly ${expectedKeys} fields`);
     }
-    return __assign({ id: (0, runtime_ts_1.GoalId)(value['id']), revision: positiveInteger(value['revision'], 'goal.revision'), objective: value['objective'], phase: phase, maxGoalRounds: positiveInteger(value['maxGoalRounds'], 'goal.maxGoalRounds') }, phase === 'blocked' ? { blockedReason: decodeBlockReason(value['blockedReason']) } : {});
+    return {
+        id: GoalId(value['id']),
+        revision: positiveInteger(value['revision'], 'goal.revision'),
+        objective: value['objective'],
+        phase,
+        maxGoalRounds: positiveInteger(value['maxGoalRounds'], 'goal.maxGoalRounds'),
+        ...phase === 'blocked' ? { blockedReason: decodeBlockReason(value['blockedReason']) } : {},
+    };
 }
 /** Decode and validate one ref. */
 function decodeRef(value) {
@@ -105,7 +93,7 @@ function decodeRef(value) {
     if (typeof value['id'] !== 'string' || value['id'].length === 0) {
         throw new Error('goal clear tombstone id must be a non-empty string');
     }
-    return { id: (0, runtime_ts_1.GoalId)(value['id']), revision: positiveInteger(value['revision'], 'cleared.revision') };
+    return { id: GoalId(value['id']), revision: positiveInteger(value['revision'], 'cleared.revision') };
 }
 /**
  * Decode a value that declares itself as a goal change. Unrelated values
@@ -113,20 +101,20 @@ function decodeRef(value) {
  * @param value - candidate source change.
  * @returns validated goal change or `undefined` for another value kind.
  */
-function decodeGoalChange(value) {
+export function decodeGoalChange(value) {
     if (!isRecord(value) || value['kind'] !== 'goal/change')
         return undefined;
-    if (value['version'] !== runtime_ts_1.GOAL_CHANGE_VERSION) {
-        throw new Error("unsupported goal change version ".concat(String(value['version'])));
+    if (value['version'] !== GOAL_CHANGE_VERSION) {
+        throw new Error(`unsupported goal change version ${String(value['version'])}`);
     }
     if (value['operation'] === 'clear') {
-        var allowed_1 = ['cleared', 'clearedAt', 'kind', 'operation', 'version'];
-        if (Object.keys(value).sort().join(',') !== allowed_1.sort().join(',')) {
-            throw new Error("goal clear change must have exactly ".concat(allowed_1.sort().join(','), " fields"));
+        const allowed = ['cleared', 'clearedAt', 'kind', 'operation', 'version'];
+        if (Object.keys(value).sort().join(',') !== allowed.sort().join(',')) {
+            throw new Error(`goal clear change must have exactly ${allowed.sort().join(',')} fields`);
         }
         return {
             kind: 'goal/change',
-            version: runtime_ts_1.GOAL_CHANGE_VERSION,
+            version: GOAL_CHANGE_VERSION,
             operation: 'clear',
             cleared: decodeRef(value['cleared']),
             clearedAt: nonNegativeInteger(value['clearedAt'], 'clearedAt'),
@@ -136,22 +124,22 @@ function decodeGoalChange(value) {
         || !SNAPSHOT_OPERATIONS.has(value['operation'])) {
         throw new Error('goal change operation is invalid');
     }
-    var allowed = ['createdAt', 'goal', 'kind', 'operation', 'roundsStarted', 'updatedAt', 'version'];
+    const allowed = ['createdAt', 'goal', 'kind', 'operation', 'roundsStarted', 'updatedAt', 'version'];
     if (Object.keys(value).sort().join(',') !== allowed.sort().join(',')) {
-        throw new Error("goal snapshot change must have exactly ".concat(allowed.sort().join(','), " fields"));
+        throw new Error(`goal snapshot change must have exactly ${allowed.sort().join(',')} fields`);
     }
-    var createdAt = nonNegativeInteger(value['createdAt'], 'createdAt');
-    var updatedAt = nonNegativeInteger(value['updatedAt'], 'updatedAt');
+    const createdAt = nonNegativeInteger(value['createdAt'], 'createdAt');
+    const updatedAt = nonNegativeInteger(value['updatedAt'], 'updatedAt');
     if (updatedAt < createdAt)
         throw new Error('goal change updatedAt cannot precede createdAt');
     return {
         kind: 'goal/change',
-        version: runtime_ts_1.GOAL_CHANGE_VERSION,
+        version: GOAL_CHANGE_VERSION,
         operation: value['operation'],
         goal: decodeSnapshot(value['goal']),
         roundsStarted: nonNegativeInteger(value['roundsStarted'], 'roundsStarted'),
-        createdAt: createdAt,
-        updatedAt: updatedAt,
+        createdAt,
+        updatedAt,
     };
 }
 /** Narrow model attribution to a valid goal source. */
@@ -168,18 +156,18 @@ function goalSource(source) {
 /** Require two snapshots to retain fields that only `edit` may replace. */
 function requireSameDefinition(current, next, operation) {
     if (next.objective !== current.objective || next.maxGoalRounds !== current.maxGoalRounds) {
-        throw new Error("goal ".concat(operation, " cannot change objective or maxGoalRounds"));
+        throw new Error(`goal ${operation} cannot change objective or maxGoalRounds`);
     }
 }
 /** Require one exact next revision of the current goal. */
 function requireNextRevision(current, next, operation) {
     if (next.id !== current.id || next.revision !== current.revision + 1) {
-        throw new Error("goal ".concat(operation, " must advance the current goal by one revision"));
+        throw new Error(`goal ${operation} must advance the current goal by one revision`);
     }
 }
 /** Validate one non-create snapshot operation against the preceding projection. */
 function validateSnapshotTransition(state, change, current) {
-    var next = change.goal;
+    const next = change.goal;
     requireNextRevision(current, next, change.operation);
     /* v8 ignore next -- a current goal established by this fold always has an updatedAt */
     if (state.updatedAt === undefined)
@@ -187,7 +175,7 @@ function validateSnapshotTransition(state, change, current) {
     if (change.createdAt !== state.createdAt
         || change.updatedAt < state.updatedAt
         || change.roundsStarted !== state.roundsStarted) {
-        throw new Error("goal ".concat(change.operation, " does not preserve the current counters and timestamps"));
+        throw new Error(`goal ${change.operation} does not preserve the current counters and timestamps`);
     }
     switch (change.operation) {
         case 'edit':
@@ -203,7 +191,7 @@ function validateSnapshotTransition(state, change, current) {
             break;
         case 'resume': {
             requireSameDefinition(current, next, change.operation);
-            var resumable = new Set([
+            const resumable = new Set([
                 'active',
                 'paused',
                 'blocked',
@@ -237,7 +225,7 @@ function validateSnapshotTransition(state, change, current) {
  * @param change - decoded goal mutation.
  * @returns stable identity used to reconcile a deferred change with its log event.
  */
-function goalChangeRef(change) {
+export function goalChangeRef(change) {
     return change.operation === 'clear'
         ? change.cleared
         : { id: change.goal.id, revision: change.goal.revision };
@@ -247,10 +235,10 @@ function goalChangeRef(change) {
  * @param state - preceding durable goal projection.
  * @param change - decoded full snapshot or clear tombstone.
  */
-function applyGoalChange(state, change) {
-    var ref = goalChangeRef(change);
+export function applyGoalChange(state, change) {
+    const ref = goalChangeRef(change);
     if (change.operation === 'clear') {
-        var current = state.goal;
+        const current = state.goal;
         if (current === undefined)
             throw new Error('goal clear requires a current goal');
         requireNextRevision(current, change.cleared, change.operation);
@@ -276,9 +264,9 @@ function applyGoalChange(state, change) {
         state.seenGoalIds.add(change.goal.id);
     }
     else {
-        var current = state.goal;
+        const current = state.goal;
         if (current === undefined)
-            throw new Error("goal ".concat(change.operation, " requires a current goal"));
+            throw new Error(`goal ${change.operation} requires a current goal`);
         validateSnapshotTransition(state, change, current);
     }
     state.goal = change.goal;
@@ -292,24 +280,24 @@ function applyGoalChange(state, change) {
  * @param state - mutable fold accumulator.
  * @param event - next event in sequence order.
  */
-function applyGoalEvent(state, event) {
+export function applyGoalEvent(state, event) {
     if (event.type === 'goal/change') {
-        var change = decodeGoalChange(event.data);
+        const change = decodeGoalChange(event.data);
         /* v8 ignore next -- the event's declared payload always identifies itself as a goal change. */
         if (change === undefined)
-            throw new Error("goal change at session event ".concat(event.seq, " has an invalid kind"));
+            throw new Error(`goal change at session event ${event.seq} has an invalid kind`);
         applyGoalChange(state, change);
         return;
     }
     if (event.type === 'user/message') {
-        var source = goalSource(event.data.source);
+        const source = goalSource(event.data.source);
         if (source === undefined)
             return;
-        var current = state.goal;
+        const current = state.goal;
         if (current === undefined || current.phase !== 'active' || source.goalId !== current.id
             || source.revision !== current.revision || source.round !== state.roundsStarted + 1
             || source.round > current.maxGoalRounds) {
-            throw new Error("goal round at session event ".concat(event.seq, " is not the next admitted round of the active goal"));
+            throw new Error(`goal round at session event ${event.seq} is not the next admitted round of the active goal`);
         }
         state.roundsStarted = source.round;
     }
@@ -319,11 +307,16 @@ function applyGoalEvent(state, event) {
  * @param events - session events in sequence order.
  * @returns a fresh durable projection; activation is deliberately absent.
  */
-function foldGoal(events) {
-    var state = emptyGoalFoldState();
-    for (var _i = 0, events_1 = events; _i < events_1.length; _i++) {
-        var event_1 = events_1[_i];
-        applyGoalEvent(state, event_1);
-    }
-    return __assign(__assign(__assign(__assign(__assign({}, state.goal === undefined ? {} : { goal: __assign({}, state.goal) }), { roundsStarted: state.roundsStarted }), state.createdAt === undefined ? {} : { createdAt: state.createdAt }), state.updatedAt === undefined ? {} : { updatedAt: state.updatedAt }), state.lastRef === undefined ? {} : { lastRef: __assign({}, state.lastRef) });
+export function foldGoal(events) {
+    const state = emptyGoalFoldState();
+    for (const event of events)
+        applyGoalEvent(state, event);
+    return {
+        ...state.goal === undefined ? {} : { goal: { ...state.goal } },
+        roundsStarted: state.roundsStarted,
+        ...state.createdAt === undefined ? {} : { createdAt: state.createdAt },
+        ...state.updatedAt === undefined ? {} : { updatedAt: state.updatedAt },
+        ...state.lastRef === undefined ? {} : { lastRef: { ...state.lastRef } },
+    };
 }
+//# sourceMappingURL=fold.js.map

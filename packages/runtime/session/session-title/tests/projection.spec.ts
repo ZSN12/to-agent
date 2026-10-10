@@ -10,11 +10,11 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import SessionStore, { SessionId } from '@z/dsh-session'
-import type { Session } from '@z/dsh-session'
-import SessionProjectionRegistry from '@z/dsh-session-projection'
-import SessionTitleService from '@z/dsh-session-title'
+import { Context } from '@taskweaver/cordis'
+import SessionStore, { SessionId } from '@taskweaver/dsh-session'
+import type { Session } from '@taskweaver/dsh-session'
+import SessionProjectionRegistry from '@taskweaver/dsh-session-projection'
+import SessionTitleService from '@taskweaver/dsh-session-title'
 
 const CONFIG = { fallbackMaxWords: 8, fallbackMaxBytes: 64, maxTitleBytes: 256 }
 

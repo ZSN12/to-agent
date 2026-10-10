@@ -1,5 +1,5 @@
-/** Package-owned compaction log-stream invariants. @module @z/dsh-compaction/invariant */
-import type { Context } from '@z/cordis';
+/** Package-owned compaction log-stream invariants. @module @taskweaver/dsh-compaction/invariant */
+import type { Context } from '@taskweaver/cordis';
 /** Cordis companion plugin name. */
 export declare const name = "compaction-invariant";
 /** Service required before the companion can reserve package ownership. */

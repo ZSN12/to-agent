@@ -1,4 +1,4 @@
-import { TypertLookupFailure } from "@z/dsh-typert-protocol";
+import { TypertLookupFailure } from "@taskweaver/dsh-typert-protocol";
 //#region lib/types/remote-events.js
 /**
 * The one home of this application's forwarded-Host-event allowlist. Both

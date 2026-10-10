@@ -2,9 +2,9 @@
  * Storage hub (`ctx.storage`): a named backend registry plus mounted
  * data-form facilities. The hub itself performs no IO — backends own media,
  * data forms (the domain layer first) own semantics.
- * @module @z/dsh-storage
+ * @module @taskweaver/dsh-storage
  */
-import { Context, Service } from '@z/cordis';
+import { Context, Service } from '@taskweaver/cordis';
 import { BackendRegistry } from './registry.ts';
 export { BackendRegistry } from './registry.ts';
 export { StorageError } from './error.ts';
@@ -20,7 +20,7 @@ export type { StorageBackend, KvFacet, KvUnit, KvUnitDescriptor } from './backen
  * @returns the corresponding lifecycle-only service key.
  */
 export declare function storageBackendServiceKey(name: string): string;
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
     interface Context {
         storage: Storage;
     }

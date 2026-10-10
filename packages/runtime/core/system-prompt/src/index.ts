@@ -1,16 +1,16 @@
 /**
  * Registry for ordered system sections, dynamic context, tool schemas, and prompt variables.
  *
- * @module @z/dsh-system-prompt
+ * @module @taskweaver/dsh-system-prompt
  */
 
-import { Context, Service } from '@z/cordis'
-import z from '@z/schemastery'
-import { AnonymousEntries, NamedEntries, ScopedLayers, scopeTarget } from '@z/dsh-scope'
-import type { ScopeKey, ScopeLayer, Scoped } from '@z/dsh-scope'
-import type { ContextSnapshotSection, ToolSchema } from '@z/dsh-llm'
+import { Context, Service } from '@taskweaver/cordis'
+import z from '@taskweaver/schemastery'
+import { AnonymousEntries, NamedEntries, ScopedLayers, scopeTarget } from '@taskweaver/dsh-scope'
+import type { ScopeKey, ScopeLayer, Scoped } from '@taskweaver/dsh-scope'
+import type { ContextSnapshotSection, ToolSchema } from '@taskweaver/dsh-llm'
 
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
   interface Context {
     systemPrompt: SystemPrompt
   }
@@ -18,7 +18,7 @@ declare module '@z/cordis' {
   interface Events {
     /**
      * Expert waterfall over the assembled sections, contexts, tools, and variables.
-     * Scope-filtered dispatch (`@z/dsh-scope`): scoped listeners
+     * Scope-filtered dispatch (`@taskweaver/dsh-scope`): scoped listeners
      * receive only that scope's assemblies. The returned value is authoritative.
      * A supplied signal controls only this explicit assembly request and must not
      * be retained to control later turns. A registered complete section is

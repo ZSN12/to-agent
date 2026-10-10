@@ -8,17 +8,17 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import SessionStore from '@z/dsh-session'
-import AgentRegistry from '@z/dsh-agent'
-import type { Agent, AgentHandle, CreateAgentOptions } from '@z/dsh-agent'
-import { createUserMessage } from '@z/dsh-llm'
-import SessionTitleService from '@z/dsh-session-title'
-import UserQuestionService from '@z/dsh-user-questions'
-import type { Session, SessionId } from '@z/dsh-session'
-import type { RpcRequest } from '@z/dsh-host-apiproxy/api/rpc'
-import { RpcId } from '@z/dsh-host-apiproxy/api/rpc'
-import { createApiProxy } from '@z/dsh-host-apiproxy'
+import { Context } from '@taskweaver/cordis'
+import SessionStore from '@taskweaver/dsh-session'
+import AgentRegistry from '@taskweaver/dsh-agent'
+import type { Agent, AgentHandle, CreateAgentOptions } from '@taskweaver/dsh-agent'
+import { createUserMessage } from '@taskweaver/dsh-llm'
+import SessionTitleService from '@taskweaver/dsh-session-title'
+import UserQuestionService from '@taskweaver/dsh-user-questions'
+import type { Session, SessionId } from '@taskweaver/dsh-session'
+import type { RpcRequest } from '@taskweaver/dsh-host-apiproxy/api/rpc'
+import { RpcId } from '@taskweaver/dsh-host-apiproxy/api/rpc'
+import { createApiProxy } from '@taskweaver/dsh-host-apiproxy'
 
 const sid = (id: string): SessionId => id as SessionId
 

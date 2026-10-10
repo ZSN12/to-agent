@@ -7,17 +7,17 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import AgentRegistry from '@z/dsh-agent'
-import type { Agent } from '@z/dsh-agent'
-import SessionStore from '@z/dsh-session'
-import SystemPrompt from '@z/dsh-system-prompt'
-import UserQuestionService from '@z/dsh-user-questions'
-import ApprovalService from '@z/dsh-user-approval'
-import type { ApprovalRequestId } from '@z/dsh-user-approval'
-import type { ApiProxy, MuxFrame, RpcRequest } from '@z/dsh-host-apiproxy/api'
-import type { RpcId } from '@z/dsh-host-apiproxy/api/rpc'
-import { RpcId as mintRpcId } from '@z/dsh-host-apiproxy/api/rpc'
+import { Context } from '@taskweaver/cordis'
+import AgentRegistry from '@taskweaver/dsh-agent'
+import type { Agent } from '@taskweaver/dsh-agent'
+import SessionStore from '@taskweaver/dsh-session'
+import SystemPrompt from '@taskweaver/dsh-system-prompt'
+import UserQuestionService from '@taskweaver/dsh-user-questions'
+import ApprovalService from '@taskweaver/dsh-user-approval'
+import type { ApprovalRequestId } from '@taskweaver/dsh-user-approval'
+import type { ApiProxy, MuxFrame, RpcRequest } from '@taskweaver/dsh-host-apiproxy/api'
+import type { RpcId } from '@taskweaver/dsh-host-apiproxy/api/rpc'
+import { RpcId as mintRpcId } from '@taskweaver/dsh-host-apiproxy/api/rpc'
 import { createApiProxy } from '../src/api-proxy.ts'
 
 async function harness(): Promise<{ ctx: Context; api: ApiProxy }> {

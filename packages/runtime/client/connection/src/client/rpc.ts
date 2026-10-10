@@ -4,7 +4,7 @@ import {
   RpcId,
   serverResponseSchema,
   type ClientRequest,
-} from '@z/dsh-host-apiproxy/api'
+} from '@taskweaver/dsh-host-apiproxy/api'
 import type { ClientConnectionRpc } from '../rpc.ts'
 import { randomUuid } from './random-uuid.ts'
 

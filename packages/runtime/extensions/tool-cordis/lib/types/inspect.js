@@ -4,7 +4,7 @@
  * `api-catalog.ts`. This module owns the join of the two plus presentation: which
  * lines a section prints, how compact the default report stays, and what an exact
  * `name` adds.
- * @module @z/dsh-tool-cordis/inspect
+ * @module @taskweaver/dsh-tool-cordis/inspect
  */
 import { EVENT_API, INHERITED_CTX_API, SERVICE_API, TYPE_API } from "./api-catalog.js";
 import { FiberState, STATE_LABELS } from "./fiber-state.js";

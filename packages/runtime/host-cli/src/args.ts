@@ -1,17 +1,17 @@
 /**
- * Commander adapter for the `dsh` command line.
+ * Commander adapter for the `taskweaver-host` command line.
  *
  * The launcher parses only what it owns — which profile to boot, which extra
  * patch overlays to apply, and the config dumps — and hands **everything after
  * its own flags** to the booted tree verbatim, where injected app plugins parse
  * their own flag families and print their own `--help` (see
- * `@z/dsh-cmdline`). Launcher flags therefore come first: the first
+ * `@taskweaver/dsh-cmdline`). Launcher flags therefore come first: the first
  * token this parser does not recognize starts the inner arguments, so
- * `dsh --profile taskweaver --resume abc` boots that profile with
+ * `taskweaver-host --profile taskweaver --resume abc` boots that profile with
  * `--resume abc`.
  *
  * `plugin` manages a profile's plugin dependencies by forwarding to pnpm.
- * @module @z/dsh/args
+ * @module @taskweaver/dsh/args
  */
 
 import { Command, CommanderError } from 'commander'
@@ -43,7 +43,7 @@ interface PluginInvocation {
   args: string[]
 }
 
-/** The resolved `dsh` invocation. Help, version, and errors exit inside {@link parseDshArgs}. */
+/** The resolved `taskweaver-host` invocation. */
 export type DshInvocation = ProfileInvocation | DumpConfigInvocation | PluginInvocation
 
 /** Flags owned by the launcher before app arguments begin. */
@@ -62,12 +62,13 @@ const collect = (value: string, previous: string[] = []): string[] => [...previo
 /** The launcher's own help text; each app prints its own. */
 const HELP_EXAMPLES = `
 Examples:
-  dsh --profile taskweaver                   boot the TaskWeaver profile
-  dsh --profile taskweaver --patch ./extra.yml
+  taskweaver-host --profile taskweaver       boot the TaskWeaver profile
+  taskweaver-host --profile taskweaver --patch ./extra.yml
                                             boot with one extra overlay
-  dsh --profile taskweaver --help            show the profile app's own help
-  dsh plugin --profile taskweaver add <package>
+  taskweaver-host --profile taskweaver --help show the profile app's own help
+  taskweaver-host plugin --profile taskweaver add <package>
                                             install a plugin into the profile
+  dsh --profile taskweaver                   legacy alias for taskweaver-host
 `
 
 /**
@@ -108,32 +109,32 @@ function resolveBoot(program: Command, profile: string, options: BootOptions, ar
  * @param version - version string printed by `--version`.
  * @returns the resolved invocation.
  */
-export function parseDshArgs(argv: readonly string[], version: string): DshInvocation {
+export function parseTaskWeaverHostArgs(argv: readonly string[], version: string): DshInvocation {
   let resolved: DshInvocation | undefined
   // Annotated, not inferred: the actions below call back into `program`, and an
   // inferred type would be circular through its own chain.
   const program: Command = new Command()
   program
-    .name('dsh')
+    .name('taskweaver-host')
     .version(version, '-V, --version', 'output the version number')
-    .description('dsh: boot a DeepSeek Harness profile — an ordered stack of plugin-bundle patch layers under your own overrides.')
+    .description('taskweaver-host: boot a TaskWeaver profile — an ordered stack of plugin-bundle patch layers under your own overrides.')
     .addHelpText('after', HELP_EXAMPLES)
     .exitOverride()
     // The launcher's flags come first and end at the first token it does not
     // know; everything from there on belongs to the booted app, including
-    // its -h. `dsh -h` with no profile still prints this help, below.
+    // its -h. `taskweaver-host -h` with no profile still prints this help, below.
     .helpOption(false)
     .allowUnknownOption()
     .passThroughOptions()
     .enablePositionalOptions()
-    .argument('[args...]', 'arguments for the booted profile\'s app (see: dsh --profile <name> --help)')
-    .option('--profile <name>', 'the profile under $DSH_HOME/profiles to boot')
+    .argument('[args...]', 'arguments for the booted profile\'s app (see: taskweaver-host --profile <name> --help)')
+    .option('--profile <name>', 'the profile under $TASKWEAVER_HOME/profiles to boot')
     .option('--patch <path>', 'extra patch-list overlay applied after the profile layer (repeatable)', collect)
     .option('--dump-config', 'print the composed profile tree and exit')
     .option('--dump-default-config', 'print the profile tree without its user layer or --patch overlays and exit')
     .action((args: string[], options: BootOptions & { profile?: string }) => {
       // With the app owning -h, the launcher's own help is what a bare
-      // `dsh -h` (no profile to hand it to) must print.
+      // `taskweaver-host -h` (no profile to hand it to) must print.
       if (options.profile === undefined) {
         if (args.some(argument => argument === '-h' || argument === '--help')) program.help()
         program.error('error: --profile <name> is required')
@@ -170,6 +171,9 @@ export function parseDshArgs(argv: readonly string[], version: string): DshInvoc
     return process.exit(error instanceof CommanderError ? error.exitCode : 1)
   }
   /* v8 ignore next -- an action resolves or Commander throws */
-  if (resolved === undefined) throw new Error('dsh: no invocation resolved')
+  if (resolved === undefined) throw new Error('taskweaver-host: no invocation resolved')
   return resolved
 }
+
+/** @deprecated Use {@link parseTaskWeaverHostArgs}. */
+export const parseDshArgs = parseTaskWeaverHostArgs

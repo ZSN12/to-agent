@@ -5,9 +5,9 @@
  * `dsh-tool-bash` defaults a bash `workdir` to the session cwd.
  * Non-agent calls return `undefined`, leaving the fallback in the provider rather than reading
  * `process.cwd()` at the tool boundary.
- * @module @z/dsh-tool-fs/session-cwd
+ * @module @taskweaver/dsh-tool-fs/session-cwd
  */
-import { canonicalPath } from '@z/dsh-sandbox';
+import { canonicalPath } from '@taskweaver/dsh-sandbox';
 const PARENT_PATH_SEGMENT = /(?:^|[\\/])\.\.(?:[\\/]|$)/;
 /**
  * The session workspace cwd for this call, or `undefined` when none applies.

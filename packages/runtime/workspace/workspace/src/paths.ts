@@ -1,6 +1,6 @@
 /**
  * Path canonicalization for workspace identity.
- * @module @z/dsh-workspace/src/paths
+ * @module @taskweaver/dsh-workspace/src/paths
  */
 
 import { realpath } from 'node:fs/promises'

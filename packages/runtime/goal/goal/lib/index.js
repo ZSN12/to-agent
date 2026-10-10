@@ -1,9 +1,9 @@
 import { randomUUID } from "node:crypto";
-import z from "@z/schemastery";
+import z from "@taskweaver/schemastery";
 import { z as z$1 } from "zod";
-import { agentEvents } from "@z/dsh-agent";
-import { Remote, TypertRemoteService } from "@z/dsh-typert-protocol";
-import { HarnessError } from "@z/dsh-llm";
+import { agentEvents } from "@taskweaver/dsh-agent";
+import { Remote, TypertRemoteService } from "@taskweaver/dsh-typert-protocol";
+import { HarnessError } from "@taskweaver/dsh-llm";
 //#region lib/types/runtime.js
 /** Runtime constructors and protocol constants for the goal domain. */
 /** Version of the goal change embedded in a round-zero message source. */
@@ -29,7 +29,7 @@ var GoalError = class extends HarnessError {
 //#endregion
 //#region lib/types/fold.js
 /** Pure replay fold and strict decoder for durable goal changes. */
-const SNAPSHOT_OPERATIONS = new Set([
+const SNAPSHOT_OPERATIONS = /* @__PURE__ */ new Set([
 	"create",
 	"edit",
 	"pause",
@@ -37,7 +37,7 @@ const SNAPSHOT_OPERATIONS = new Set([
 	"complete",
 	"block"
 ]);
-const PHASES = new Set([
+const PHASES = /* @__PURE__ */ new Set([
 	"active",
 	"paused",
 	"blocked",
@@ -189,11 +189,11 @@ function validateSnapshotTransition(state, change, current) {
 			break;
 		case "resume":
 			requireSameDefinition(current, next, change.operation);
-			if (!new Set([
+			if (!(/* @__PURE__ */ new Set([
 				"active",
 				"paused",
 				"blocked"
-			]).has(current.phase) || next.phase !== "active" || state.roundsStarted >= next.maxGoalRounds) throw new Error("goal resume has an invalid phase transition or exhausted round budget");
+			])).has(current.phase) || next.phase !== "active" || state.roundsStarted >= next.maxGoalRounds) throw new Error("goal resume has an invalid phase transition or exhausted round budget");
 			break;
 		case "complete":
 			requireSameDefinition(current, next, change.operation);
@@ -298,7 +298,7 @@ function foldGoal(events) {
 /**
 * Same-session goal domain: event-sourced state, compare-and-set mutations,
 * and process-local continuation activation.
-* @module @z/dsh-goal
+* @module @taskweaver/dsh-goal
 */
 var __runInitializers = function(thisArg, initializers, value) {
 	var useValue = arguments.length > 2;
@@ -332,8 +332,10 @@ var __esDecorate = function(ctor, descriptorIn, decorators, contextIn, initializ
 			if (_ = accept(result.get)) descriptor.get = _;
 			if (_ = accept(result.set)) descriptor.set = _;
 			if (_ = accept(result.init)) initializers.unshift(_);
-		} else if (_ = accept(result)) if (kind === "field") initializers.unshift(_);
-		else descriptor[key] = _;
+		} else if (_ = accept(result)) {
+			if (kind === "field") initializers.unshift(_);
+			else descriptor[key] = _;
+		}
 	}
 	if (target) Object.defineProperty(target, contextIn.name, descriptor);
 	done = true;

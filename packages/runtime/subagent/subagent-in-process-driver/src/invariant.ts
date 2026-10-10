@@ -1,13 +1,13 @@
 /**
- * Package-owned invariant companion for `@z/dsh-subagent-in-process-driver`.
- * @module @z/dsh-subagent-in-process-driver/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-subagent-in-process-driver`.
+ * @module @taskweaver/dsh-subagent-in-process-driver/invariant
  */
 
 /* jscpd:ignore-start */
-import type { Context } from '@z/cordis'
-import type { InvariantInstaller } from '@z/dsh-invariants'
+import type { Context } from '@taskweaver/cordis'
+import type { InvariantInstaller } from '@taskweaver/dsh-invariants'
 
-const PACKAGE_NAME = '@z/dsh-subagent-in-process-driver'
+const PACKAGE_NAME = '@taskweaver/dsh-subagent-in-process-driver'
 
 /** Cordis companion plugin name. */
 export const name = 'subagent-in-process-driver-invariant'

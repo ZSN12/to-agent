@@ -1,20 +1,20 @@
 /**
  * Log-backed session title service, deterministic fallback, and provider contract.
- * @module @z/dsh-session-title
+ * @module @taskweaver/dsh-session-title
  */
 
-import { Context, FiberState, Service, type Fiber } from '@z/cordis'
-import z from '@z/schemastery'
+import { Context, FiberState, Service, type Fiber } from '@taskweaver/cordis'
+import z from '@taskweaver/schemastery'
 import { z as zod } from 'zod'
-import type { Branded } from '@z/dsh-brand'
-import { assertNever, deepFreeze, isAgentLoopRequest } from '@z/dsh-llm'
-import type { GenerateOptions } from '@z/dsh-llm'
+import type { Branded } from '@taskweaver/dsh-brand'
+import { assertNever, deepFreeze, isAgentLoopRequest } from '@taskweaver/dsh-llm'
+import type { GenerateOptions } from '@taskweaver/dsh-llm'
 import type {
   Session,
   SessionEvent,
-} from '@z/dsh-session'
+} from '@taskweaver/dsh-session'
 // Type-only: resolves ctx.sessionProjections for the optional unit child.
-import type {} from '@z/dsh-session-projection'
+import type {} from '@taskweaver/dsh-session-projection'
 // The `title` projection-key declaration lives in src/types.ts (its one home);
 // this re-export projects the type face onto the package root AND keeps the
 // module edge in the emitted index.d.ts, so aggregate programs consuming the
@@ -85,13 +85,13 @@ export interface Config {
   readonly maxTitleBytes: number
 }
 
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
   interface Context {
     sessionTitle: SessionTitleService
   }
 }
 
-declare module '@z/dsh-session/types' {
+declare module '@taskweaver/dsh-session/types' {
   interface SessionEventMap {
     /**
      * Latest-wins session title snapshot. Log-only: it never enters the model

@@ -5,17 +5,17 @@
  * (approval/question requested) echo it; for pure pushes it identifies that one push.
  * signal is a local stream-control parameter, independent of the request (never on the wire).
  */
-import type { AskUserQuestionItem } from '@z/dsh-user-questions/types';
-import type { ApprovalOutcome, ApprovalRequestId } from '@z/dsh-user-approval/types';
-import type { Message } from '@z/dsh-llm/types';
-import type { MessageId } from '@z/dsh-llm/brand';
-import type { CallId } from '@z/dsh-llm/brand';
-import type { JsonValue, SessionEvent, SessionId } from '@z/dsh-session/types';
-import type { ToolCallView, ToolResultView } from '@z/dsh-tools/presentation';
+import type { AskUserQuestionItem } from '@taskweaver/dsh-user-questions/types';
+import type { ApprovalOutcome, ApprovalRequestId } from '@taskweaver/dsh-user-approval/types';
+import type { Message } from '@taskweaver/dsh-llm/types';
+import type { MessageId } from '@taskweaver/dsh-llm/brand';
+import type { CallId } from '@taskweaver/dsh-llm/brand';
+import type { JsonValue, SessionEvent, SessionId } from '@taskweaver/dsh-session/types';
+import type { ToolCallView, ToolResultView } from '@taskweaver/dsh-tools/presentation';
 import type { RpcError, RpcId, RpcRequest } from './rpc.ts';
 import type { JobView } from './jobs.ts';
 import type { WorkspaceView } from './workspace.ts';
-export type { ToolCallView, ToolResultView } from '@z/dsh-tools/presentation';
+export type { ToolCallView, ToolResultView } from '@taskweaver/dsh-tools/presentation';
 /**
  * Host-computed render intent accompanying a `tool/call` or `tool/result`
  * event. A pure derivation of args/result through the presenter registered at
@@ -194,7 +194,7 @@ export type HostFrame = {
 }
 /**
  * One allowlisted host cordis event forwarded verbatim. The allowlist is
- * owned by `@z/dsh-api-remotes` (`API_REMOTE_FORWARDED_EVENTS`),
+ * owned by `@taskweaver/dsh-api-remotes` (`API_REMOTE_FORWARDED_EVENTS`),
  * which is also the only control point over what a consumer can receive.
  * `event` is the host's own event name and `args` its argument list: this
  * path applies no projection, no redaction, and no renaming, so the payload

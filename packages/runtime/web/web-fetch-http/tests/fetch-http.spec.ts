@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import { AddressInfo } from 'node:net'
-import { Context } from '@z/cordis'
-import WebRuntime from '@z/dsh-web'
-import { HttpFetchProvider, LOCAL_FETCH_PROVIDER_ID } from '@z/dsh-web-fetch-http'
-import type { HttpFetchLimits } from '@z/dsh-web-fetch-http'
-import * as fetchPlugin from '@z/dsh-web-fetch-http'
+import { Context } from '@taskweaver/cordis'
+import WebRuntime from '@taskweaver/dsh-web'
+import { HttpFetchProvider, LOCAL_FETCH_PROVIDER_ID } from '@taskweaver/dsh-web-fetch-http'
+import type { HttpFetchLimits } from '@taskweaver/dsh-web-fetch-http'
+import * as fetchPlugin from '@taskweaver/dsh-web-fetch-http'
 import { classifyContentType, decoderForCharset, isSameOrigin, parseCharset, validateFetchUrl } from '../src/policy.ts'
 
 const limits: HttpFetchLimits = {

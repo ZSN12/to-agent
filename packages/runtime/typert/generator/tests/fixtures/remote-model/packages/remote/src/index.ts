@@ -1,4 +1,4 @@
-import { TypertRemoteService, Remote, RemoteScope } from '@z/dsh-typert-protocol'
+import { TypertRemoteService, Remote, RemoteScope } from '@taskweaver/dsh-typert-protocol'
 import type { Agent } from '@fixture/domain'
 import type {
   CreateGoalRequest,

@@ -20,41 +20,6 @@ export declare const hostPickDirectoryRequestSchema: z.ZodObject<{}, z.core.$str
 export declare const hostPickDirectoryValueSchema: z.ZodObject<{
     path: z.ZodNullable<z.ZodString>;
 }, z.core.$strip>;
-/** Directory row shared by listing entries and breadcrumb crumbs. */
-export declare const directoryEntrySchema: z.ZodObject<{
-    name: z.ZodString;
-    path: z.ZodString;
-    hidden: z.ZodBoolean;
-}, z.core.$strip>;
-/** host.listDirectory request payload; an absent path lists the home directory. */
-export declare const hostListDirectoryRequestSchema: z.ZodObject<{
-    path: z.ZodOptional<z.ZodString>;
-}, z.core.$strip>;
-/** host.listDirectory response value. */
-export declare const hostListDirectoryValueSchema: z.ZodObject<{
-    path: z.ZodString;
-    home: z.ZodString;
-    crumbs: z.ZodArray<z.ZodObject<{
-        name: z.ZodString;
-        path: z.ZodString;
-        hidden: z.ZodBoolean;
-    }, z.core.$strip>>;
-    entries: z.ZodArray<z.ZodObject<{
-        name: z.ZodString;
-        path: z.ZodString;
-        hidden: z.ZodBoolean;
-    }, z.core.$strip>>;
-    truncated: z.ZodBoolean;
-}, z.core.$strip>;
-/** host.createDirectory request payload: name must be one plain path segment. */
-export declare const hostCreateDirectoryRequestSchema: z.ZodObject<{
-    path: z.ZodString;
-    name: z.ZodString;
-}, z.core.$strip>;
-/** host.createDirectory response value: the created directory's absolute path. */
-export declare const hostCreateDirectoryValueSchema: z.ZodObject<{
-    path: z.ZodString;
-}, z.core.$strip>;
 /** host.openPath request payload. */
 export declare const hostOpenPathRequestSchema: z.ZodObject<{
     path: z.ZodString;
@@ -62,5 +27,21 @@ export declare const hostOpenPathRequestSchema: z.ZodObject<{
 /** host.openPath response value. */
 export declare const hostOpenPathValueSchema: z.ZodObject<{
     opened: z.ZodLiteral<true>;
+}, z.core.$strip>;
+/** host.searchWeb request payload. */
+export declare const hostSearchWebRequestSchema: z.ZodObject<{
+    query: z.ZodString;
+    maxResults: z.ZodOptional<z.ZodNumber>;
+}, z.core.$strip>;
+/** host.searchWeb response value; API keys never cross the Host boundary. */
+export declare const hostSearchWebValueSchema: z.ZodObject<{
+    content: z.ZodOptional<z.ZodString>;
+    sources: z.ZodArray<z.ZodObject<{
+        url: z.ZodString;
+        title: z.ZodOptional<z.ZodString>;
+        snippet: z.ZodOptional<z.ZodString>;
+        publishedAt: z.ZodOptional<z.ZodString>;
+    }, z.core.$strip>>;
+    truncated: z.ZodBoolean;
 }, z.core.$strip>;
 //# sourceMappingURL=host.schema.d.ts.map

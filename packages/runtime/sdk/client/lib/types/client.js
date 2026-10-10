@@ -1,7 +1,7 @@
 /**
  * Low-level JSON-RPC client for a DeepSeek Harness SDK runtime subprocess.
  * {@link HarnessClient} owns the child process: it spawns the runtime, speaks
- * the `@z/dsh-sdk-protocol` wire over the child's stdio, fans
+ * the `@taskweaver/dsh-sdk-protocol` wire over the child's stdio, fans
  * server notifications out to subscriptions, and tears the child down to
  * quiescence through a private EOF → SIGTERM → SIGKILL ladder. The design
  * twin is the Python SDK's `HarnessClient` (`python/sdk`); both drive the
@@ -9,10 +9,10 @@
  * spawns directly rather than through the `dsh-subprocess` service — the
  * seam's documented exception for SDK-managed transports.
  *
- * @module @z/dsh-sdk-client/client
+ * @module @taskweaver/dsh-sdk-client/client
  */
 import { spawn } from 'node:child_process';
-import { JsonRpcLineTransport, JsonRpcResponseError, } from '@z/dsh-sdk-protocol';
+import { JsonRpcLineTransport, JsonRpcResponseError, } from '@taskweaver/dsh-sdk-protocol';
 import { disposeRuntimeProcess } from "./dispose.js";
 /** Retained stderr lines used to diagnose an unexpected runtime death. */
 const STDERR_TAIL_LIMIT = 400;

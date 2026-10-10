@@ -1,9 +1,9 @@
 //#region lib/types/invariant.js
 /**
-* Package-owned invariant companion for `@z/dsh-tool-goal`.
-* @module @z/dsh-tool-goal/invariant
+* Package-owned invariant companion for `@taskweaver/dsh-tool-goal`.
+* @module @taskweaver/dsh-tool-goal/invariant
 */
-const PACKAGE_NAME = "@z/dsh-tool-goal";
+const PACKAGE_NAME = "@taskweaver/dsh-tool-goal";
 /** Cordis companion plugin name. */
 const name = "tool-goal-invariant";
 /** Service required before the companion can reserve package ownership. */

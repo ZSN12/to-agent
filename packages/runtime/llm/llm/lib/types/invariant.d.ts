@@ -1,5 +1,5 @@
-/** Package-owned LLM stream-protocol invariants. @module @z/dsh-llm/invariant */
-import type { Context } from '@z/cordis';
+/** Package-owned LLM stream-protocol invariants. @module @taskweaver/dsh-llm/invariant */
+import type { Context } from '@taskweaver/cordis';
 /** Cordis companion plugin name. */
 export declare const name = "llm-invariant";
 /** Service required before the companion can reserve package ownership. */

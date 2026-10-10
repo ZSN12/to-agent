@@ -1,8 +1,8 @@
 /**
- * Package-owned invariant companion for `@z/dsh-storage-sqlite`.
- * @module @z/dsh-storage-sqlite/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-storage-sqlite`.
+ * @module @taskweaver/dsh-storage-sqlite/invariant
  */
-const PACKAGE_NAME = '@z/dsh-storage-sqlite';
+const PACKAGE_NAME = '@taskweaver/dsh-storage-sqlite';
 /** Cordis companion plugin name. */
 export const name = 'storage-sqlite-invariant';
 /** Service required before the companion can reserve package ownership. */

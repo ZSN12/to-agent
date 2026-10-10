@@ -15,12 +15,11 @@ const { createZHostManager } = await import(
 const runtimeRoot = path.join(PROJECT, 'vendor', 'taskweaver-z-runtime')
 const userDataPath = fs.mkdtempSync(path.join(os.tmpdir(), 'tw-bench-'))
 console.log('runtimeRoot :', runtimeRoot)
-console.log('DSH_HOME    :', path.join(userDataPath, 'dsh'))
+console.log('TASKWEAVER_HOME    :', path.join(userDataPath, 'dsh'))
 
 const host = createZHostManager({
   runtimeRoot,
   userDataPath,
-  executable: process.execPath,
   startTimeoutMs: 90_000,
 })
 

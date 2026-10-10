@@ -1,15 +1,15 @@
 //#region lib/types/invariant.js
 /**
-* Package-owned invariant companion for `@z/dsh-jobs-local`.
-* @module @z/dsh-jobs-local/invariant
+* Package-owned invariant companion for `@taskweaver/dsh-jobs-local`.
+* @module @taskweaver/dsh-jobs-local/invariant
 */
-const PACKAGE_NAME = "@z/dsh-jobs-local";
+const PACKAGE_NAME = "@taskweaver/dsh-jobs-local";
 /** Cordis companion plugin name. */
 const name = "jobs-local-invariant";
 /** Service required before the companion can reserve package ownership. */
 const inject = ["invariants"];
 /**
-* No runtime invariant: `@z/dsh-jobs/invariant` owns per-snapshot identity, status,
+* No runtime invariant: `@taskweaver/dsh-jobs/invariant` owns per-snapshot identity, status,
 * timestamp, and owner checks. This provider's admission decision uses private configuration and
 * must fail before a backend starter runs; `LocalJobRegistry.start()` enforces it synchronously
 * for current producers. Repeating an aggregate after publication would expose private

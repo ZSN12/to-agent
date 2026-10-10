@@ -1,5 +1,5 @@
 {
-  "name": "@z/dsh-typert-registry",
+  "name": "@taskweaver/dsh-typert-registry",
   "description": "Runtime registry for generated package reflection and Zod schemas",
   "version": "0.1.1-rc.2",
   "publishConfig": {
@@ -8,7 +8,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
-    "directory": "packages/typert/registry"
+    "directory": "packages/runtime/typert/registry"
   },
   "type": "module",
   "main": "lib/index.js",
@@ -53,15 +53,15 @@
   ],
   "license": "MIT",
   "dependencies": {
-    "@z/dsh-typert-protocol": "workspace:^",
+    "@taskweaver/dsh-typert-protocol": "workspace:^",
     "zod": "^4.4.3"
   },
   "peerDependencies": {
-    "@z/dsh-invariants": "workspace:^",
-    "@z/cordis": "workspace:^"
+    "@taskweaver/dsh-invariants": "workspace:^",
+    "@taskweaver/cordis": "workspace:^"
   },
   "devDependencies": {
-    "@z/dsh-invariants": "workspace:^",
-    "@z/cordis": "workspace:^"
+    "@taskweaver/dsh-invariants": "workspace:^",
+    "@taskweaver/cordis": "workspace:^"
   }
 }

@@ -4,14 +4,14 @@
  * compaction calls, then binds fresh live sessions to parent/child scripts by
  * first-call order. Throw and hang cases require an explicit override because
  * a session log cannot reconstruct them alone.
- * @module @z/dsh-llm-replay
+ * @module @taskweaver/dsh-llm-replay
  */
 
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { delimiter as pathDelimiter } from 'node:path'
-import type { Context } from '@z/cordis'
-import type {} from '@z/dsh-compaction'
-import { decodeStorageRecord, type SessionEvent } from '@z/dsh-session'
+import type { Context } from '@taskweaver/cordis'
+import type {} from '@taskweaver/dsh-compaction'
+import { decodeStorageRecord, type SessionEvent } from '@taskweaver/dsh-session'
 import type {
   ContentBlock,
   GenerateOptions,
@@ -23,8 +23,8 @@ import type {
   RetryPolicyConfig,
   StreamChunk,
   TokenUsage,
-} from '@z/dsh-llm'
-import { LlmAdapter, LlmError, ReasoningEffortId, assertNever, resolveRetryPolicy } from '@z/dsh-llm'
+} from '@taskweaver/dsh-llm'
+import { LlmAdapter, LlmError, ReasoningEffortId, assertNever, resolveRetryPolicy } from '@taskweaver/dsh-llm'
 
 const PACKED_CHUNK_ROW_TYPES = new Set(['text-chunks', 'reasoning-chunks', 'tool-call-chunks'])
 
@@ -805,14 +805,14 @@ export function installLlmReplay(ctx: Context, config: ReplayConfig): ReplayHand
 export const name = 'llm-replay'
 export const inject = ['llm']
 
-/** Plugin config: the {@link ReplayConfig} inputs, each defaulting to its `DSH_SNAPSHOT_*` env var in `apply`. */
+/** Plugin config: the {@link ReplayConfig} inputs, each defaulting to its `TASKWEAVER_SNAPSHOT_*` env var in `apply`. */
 export interface Config {
-  /** Override the fixture path; defaults to `$DSH_SNAPSHOT_FILE`. */
+  /** Override the fixture path; defaults to `$TASKWEAVER_SNAPSHOT_FILE`. */
   file?: string
-  /** Override the sidecar path; defaults to `$DSH_SNAPSHOT_OVERRIDE`. */
+  /** Override the sidecar path; defaults to `$TASKWEAVER_SNAPSHOT_OVERRIDE`. */
   overrideFile?: string
   /**
-   * Override the child-log paths; defaults to `$DSH_SNAPSHOT_CHILD_FILES` (a
+   * Override the child-log paths; defaults to `$TASKWEAVER_SNAPSHOT_CHILD_FILES` (a
    * path-separator-delimited list). Each is a recorded subagent session log for
    * a nested-agent scenario; absent/empty for a single-session scenario.
    */
@@ -840,13 +840,13 @@ function validateConfiguredModalities(providers: ReplayProviderConfig[] | undefi
 }
 
 export function apply(ctx: Context, config: Config = {}): void {
-  const file = config.file ?? process.env.DSH_SNAPSHOT_FILE
+  const file = config.file ?? process.env.TASKWEAVER_SNAPSHOT_FILE
   if (file === undefined || file.length === 0) {
-    throw new Error('llm-replay: a fixture path is required (Config.file or $DSH_SNAPSHOT_FILE)')
+    throw new Error('llm-replay: a fixture path is required (Config.file or $TASKWEAVER_SNAPSHOT_FILE)')
   }
   validateConfiguredModalities(config.providers)
-  const overrideFile = config.overrideFile ?? process.env.DSH_SNAPSHOT_OVERRIDE
-  const childEnv = process.env.DSH_SNAPSHOT_CHILD_FILES
+  const overrideFile = config.overrideFile ?? process.env.TASKWEAVER_SNAPSHOT_OVERRIDE
+  const childEnv = process.env.TASKWEAVER_SNAPSHOT_CHILD_FILES
   const childFiles = config.childFiles
     ?? (childEnv !== undefined && childEnv.length > 0 ? childEnv.split(pathDelimiter) : [])
   installLlmReplay(ctx, {

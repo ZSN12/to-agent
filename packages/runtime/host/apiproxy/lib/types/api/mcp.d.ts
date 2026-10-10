@@ -1,5 +1,5 @@
 /** Host-owned MCP directory and execution surface. */
-import type { JsonValue, SessionId } from '@z/dsh-session/types';
+import type { JsonValue, SessionId } from '@taskweaver/dsh-session/types';
 import type { RpcRequest, RpcResponse } from './rpc.ts';
 export interface McpToolView {
     name: string;

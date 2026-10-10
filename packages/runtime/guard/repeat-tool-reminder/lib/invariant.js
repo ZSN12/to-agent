@@ -1,9 +1,9 @@
 //#region lib/types/invariant.js
 /**
-* Package-owned invariant companion for `@z/dsh-repeat-tool-reminder`.
-* @module @z/dsh-repeat-tool-reminder/invariant
+* Package-owned invariant companion for `@taskweaver/dsh-repeat-tool-reminder`.
+* @module @taskweaver/dsh-repeat-tool-reminder/invariant
 */
-const PACKAGE_NAME = "@z/dsh-repeat-tool-reminder";
+const PACKAGE_NAME = "@taskweaver/dsh-repeat-tool-reminder";
 /** Cordis companion plugin name. */
 const name = "repeat-tool-reminder-invariant";
 /** Service required before the companion can reserve package ownership. */

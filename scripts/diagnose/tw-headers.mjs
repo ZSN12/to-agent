@@ -14,7 +14,7 @@ import path from 'node:path'
 import os from 'node:os'
 import zlib from 'node:zlib'
 
-const DSH_HOME = path.join(
+const TASKWEAVER_HOME = path.join(
   os.homedir(),
   'Library',
   'Application Support',
@@ -49,7 +49,7 @@ function decompressAll(file) {
 }
 
 function latestSessionDir() {
-  const sessionsRoot = path.join(DSH_HOME, 'sessions')
+  const sessionsRoot = path.join(TASKWEAVER_HOME, 'sessions')
   if (!fs.existsSync(sessionsRoot)) throw new Error(`找不到 sessions 目录: ${sessionsRoot}`)
   const candidates = []
   for (const slug of fs.readdirSync(sessionsRoot)) {

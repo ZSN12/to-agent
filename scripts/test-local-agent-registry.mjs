@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
-import { LOCAL_AGENT_INTEGRATIONS } from '../electron/backend/model-sync/local-agent-registry.mjs'
-import { discoverAgentsFromExport } from '../electron/backend/model-sync/discover-local-agents.mjs'
-import { bridgeProviderBlocksFromExport } from '../electron/backend/model-sync/bridge-catalog.mjs'
+import { LOCAL_AGENT_INTEGRATIONS } from '../desktop/backend/model-sync/local-agent-registry.mjs'
+import { discoverAgentsFromExport } from '../desktop/backend/model-sync/discover-local-agents.mjs'
+import { bridgeProviderBlocksFromExport } from '../desktop/backend/model-sync/bridge-catalog.mjs'
 
 assert.ok(LOCAL_AGENT_INTEGRATIONS.length >= 2)
 const exportDoc = {

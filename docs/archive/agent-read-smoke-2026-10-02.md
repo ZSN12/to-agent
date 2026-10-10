@@ -193,6 +193,6 @@ OpenCodex `usage.jsonl` 中，gpt-5.4-mini 主任务的记录为约 307.5 秒后
 
 ### 2026-10-04 回归清理与全量测试
 
-首次 `npm run test:all` 在 `test:workspace-trust` 失败：脚本仍导入已不存在的 `electron/agent/taskweaver-resources.mjs`。继续检查还发现 Skill 测试断言了过时的 `DSH` 展示标签，而 `test:credentials` 指向的 `scripts/test-credential-store.mjs` 缺失。按当前代码边界修正了这些回归：工作区信任测试只验证现存的持久化服务（项目 Skill 信任隔离仍由 Skill service 测试覆盖）；Skill 展示标签改断言为 `Z`；补充凭据存储测试，覆盖加密落盘、并发更新不丢数据、provider 隔离、文件权限和系统安全存储不可用时 fail-closed。
+首次 `npm run test:all` 在 `test:workspace-trust` 失败：脚本仍导入已不存在的 `desktop/agent/taskweaver-resources.mjs`。继续检查还发现 Skill 测试断言了过时的 `DSH` 展示标签，而 `test:credentials` 指向的 `scripts/test-credential-store.mjs` 缺失。按当前代码边界修正了这些回归：工作区信任测试只验证现存的持久化服务（项目 Skill 信任隔离仍由 Skill service 测试覆盖）；Skill 展示标签改断言为 `Z`；补充凭据存储测试，覆盖加密落盘、并发更新不丢数据、provider 隔离、文件权限和系统安全存储不可用时 fail-closed。
 
 修正后 `npm run test:all` 从头到尾退出码 0。覆盖已部署 Z Host 的并发 DAG、队列/取消/失败与 mux 恢复、模型目录、工作区上下文/信任、编排、Skill、凭据、MCP、用量持久化及 25 项多会话/权限集成测试。另有单独的 MiMo v2.6 Flash 安装版真实请求记录如上。该结果只证明当前源码与本机本地 Runtime 测试通过；没有重打包或安装新的桌面应用。

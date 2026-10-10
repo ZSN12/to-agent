@@ -1,4 +1,4 @@
-/** Durable attachment vocabulary. @module @z/dsh-attachment/types */
+/** Durable attachment vocabulary. @module @taskweaver/dsh-attachment/types */
 
 import type { AttachmentId, ImageVariantId } from './brand.ts'
 

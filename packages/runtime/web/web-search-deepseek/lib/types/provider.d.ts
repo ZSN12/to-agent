@@ -3,17 +3,17 @@
  * `web_search_20250305` server tool. Each search costs a model turn, but returns structured
  * result blocks; absence of those blocks is an error rather than a prose-scraping fallback.
  * The wire format and native `fetch` client are provider-private and do not use `ctx.llm`.
- * @module @z/dsh-web-search-deepseek/provider
+ * @module @taskweaver/dsh-web-search-deepseek/provider
  */
-import type { WebSearchProvider, WebSearchRequest, WebSearchResult } from '@z/dsh-web';
-import type { CredentialRef } from '@z/dsh-credentials';
+import type { WebSearchProvider, WebSearchRequest, WebSearchResult } from '@taskweaver/dsh-web';
+import type { CredentialRef } from '@taskweaver/dsh-credentials';
 import type { AnthropicResponse, ContentBlock } from './types.ts';
 /** Stable id this provider registers under. */
 export declare const DEEPSEEK_PROVIDER_ID = "deepseek-official";
 /**
  * Default endpoint: DeepSeek's Anthropic-compatible API, `/v1` included
  * (`/messages` is appended). This is NOT the chat-completions base
- * (`https://api.deepseek.com`) `@z/dsh-llm-deepseek` uses, so this
+ * (`https://api.deepseek.com`) `@taskweaver/dsh-llm-deepseek` uses, so this
  * provider does NOT reuse `$DEEPSEEK_BASE_URL` — only the API key is shared.
  */
 export declare const DEEPSEEK_DEFAULT_BASE_URL = "https://api.deepseek.com/anthropic/v1";
@@ -58,7 +58,7 @@ export interface DeepSeekSearchLlmRequest {
         ];
     };
 }
-declare module '@z/dsh-session/types' {
+declare module '@taskweaver/dsh-session/types' {
     interface SessionEventMap {
         /** Secret-free auxiliary DeepSeek search request recorded before dispatch. */
         'web/deepseek-search-llm-request': DeepSeekSearchLlmRequest;

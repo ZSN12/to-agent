@@ -6,7 +6,7 @@
  * browser half-entry's re-export) for client aggregates — with zero content
  * duplication.
  *
- * @module @z/dsh-permission-presets/types
+ * @module @taskweaver/dsh-permission-presets/types
  */
 /** The select-option shape a presentation layer advertises for one preset (or for the derived `custom` state). */
 export interface PresetOption {
@@ -28,7 +28,7 @@ export interface PermissionSelect {
     /** The effective current value: a preset table key, or `custom`. */
     currentValue: string;
 }
-declare module '@z/dsh-session-projection/types' {
+declare module '@taskweaver/dsh-session-projection/types' {
     interface SessionProjectionMap {
         /**
          * The session's permission select, folded from the three whole-value

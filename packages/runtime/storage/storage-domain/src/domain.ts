@@ -6,11 +6,11 @@
  * backend write leaves memory untouched (no divergence between reads and the
  * medium), and events carry values that equal the in-memory state at
  * emission, in write order.
- * @module @z/dsh-storage-domain/src/domain
+ * @module @taskweaver/dsh-storage-domain/src/domain
  */
 
-import type { Context } from '@z/cordis'
-import type { KvUnit } from '@z/dsh-storage'
+import type { Context } from '@taskweaver/cordis'
+import type { KvUnit } from '@taskweaver/dsh-storage'
 import { DomainError } from './error.ts'
 import type { DomainSpec, DomainGlobalSpec, TableKeyOf, TableValueOf } from './spec.ts'
 import type { DomainChanged } from './events.ts'

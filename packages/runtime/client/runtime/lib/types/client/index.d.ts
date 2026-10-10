@@ -1,8 +1,8 @@
 /** Browser runtime services for sessions, workspaces, and connection-stream delivery. */
-import type { Context } from '@z/cordis';
-import type { SessionId } from '@z/dsh-api-remotes/client';
-import type { TypertContext } from '@z/dsh-typert-protocol';
-export { isAppendSurfaceEvent, isReplacementSurfaceEvent } from '@z/dsh-session/surface';
+import type { Context } from '@taskweaver/cordis';
+import type { SessionId } from '@taskweaver/dsh-api-remotes/client';
+import type { TypertContext } from '@taskweaver/dsh-typert-protocol';
+export { isAppendSurfaceEvent, isReplacementSurfaceEvent } from '@taskweaver/dsh-session/surface';
 export { ConversationEventRegistry } from './conversation/event-registry.ts';
 export { ConversationViewRegistry } from './conversation/view-registry.ts';
 export { ConversationNodeAssembler } from './sessions/conversation-assembler.ts';
@@ -26,10 +26,10 @@ export type { AgentContext, ISessions } from './contract/sessions.ts';
 export type { IWorkspaces } from './contract/workspaces.ts';
 export type { SessionBinding, SessionListState, SessionProvideContribution, SessionProvideDescriptor, SessionSummary, } from './sessions/service.ts';
 export type { SessionListPhase, SessionSearchResultItem, SubagentCatalogSnapshot } from './sessions/manager.ts';
-export type { SubagentAddress, JobView } from '@z/dsh-client-connection/client';
+export type { SubagentAddress, JobView } from '@taskweaver/dsh-client-connection/client';
 export type { WorkspaceListPhase } from './workspaces/manager.ts';
 export type { WorkspaceListState } from './workspaces/service.ts';
-export type { DirectoryEntry, DirectoryListing, WorkspaceId, WorkspaceView, } from '@z/dsh-client-connection/client';
+export type { DirectoryEntry, DirectoryListing, WorkspaceId, WorkspaceView, } from '@taskweaver/dsh-client-connection/client';
 export { createSnapshotStore } from './contract/store.ts';
 export type { ObservableSnapshot, SnapshotStore } from './contract/store.ts';
 export type { SessionMaybeProvideInfo, SessionProvideInfo } from './contract/session-provide.ts';
@@ -45,16 +45,23 @@ export type { ConversationPromptSnapshot, RequestInspectionSnapshot, RequestProm
 export { PendingWait } from './sessions/pending.ts';
 export type { PendingInteraction, PendingInteractionStatus, PendingKind, PendingPayloads, } from './sessions/pending.ts';
 export type { ProjectionsBaseline, ProjectionValueStore, SessionProjectionMap, UseProjection, } from './sessions/projection-store.ts';
-export type { SessionId } from '@z/dsh-client-connection/client';
-/** Client-side Cordis context after declaration merging. */
-export type ClientContext = Context;
-declare module '@z/dsh-typert-protocol' {
+export type { SessionId } from '@taskweaver/dsh-client-connection/client';
+/**
+ * Client-side Cordis context. Host and Client both expose `sessions`, but the
+ * services intentionally have different public faces; keeping the Client face
+ * explicit avoids merging incompatible `Context.sessions` declarations into
+ * one global Cordis interface.
+ */
+export type ClientContext = Omit<Context, 'sessions'> & {
+    sessions: import('./contract/sessions.ts').ISessions;
+};
+declare module '@taskweaver/dsh-typert-protocol' {
     interface TypertContextMap {
         /** Client Agent scope identity; the agent and session share one wire id. */
         agent: TypertContext<SessionId>;
     }
 }
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
     interface Events {
         /**
          * A connection generation was (re-)established. Wire-derived caches must
@@ -69,8 +76,6 @@ declare module '@z/cordis' {
         conversationEvents: import('./conversation/event-registry.ts').ConversationEventRegistry;
         /** Per-target Conversation snapshot builder registry. */
         conversationViews: import('./conversation/view-registry.ts').ConversationViewRegistry;
-        /** The outward face only; the concrete service stays inside the runtime. */
-        sessions: import('./contract/sessions.ts').ISessions;
         /** The outward face only; the concrete service stays inside the runtime. */
         workspaces: import('./contract/workspaces.ts').IWorkspaces;
     }

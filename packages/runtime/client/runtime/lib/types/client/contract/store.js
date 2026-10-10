@@ -1,31 +1,19 @@
-"use strict";
-var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
-    if (pack || arguments.length === 2) for (var i = 0, l = from.length, ar; i < l; i++) {
-        if (ar || !(i in from)) {
-            if (!ar) ar = Array.prototype.slice.call(from, 0, i);
-            ar[i] = from[i];
-        }
-    }
-    return to.concat(ar || Array.prototype.slice.call(from));
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.createSnapshotStore = createSnapshotStore;
 /** Runtime-owned observable snapshot store used by session and workspace services. */
-var vanilla_1 = require("zustand/vanilla");
-var immer_1 = require("immer");
+import { createStore } from 'zustand/vanilla';
+import { produce } from 'immer';
 /** Batches subscriber notification into one flush per animation frame. */
 function rafBatch(notify) {
     // Fall back to microtask batching where rAF is absent (node unit tests);
     // both preserve the N-changes=1-notification contract within a tick.
-    var schedule = typeof requestAnimationFrame === 'function'
-        ? function (fn) { requestAnimationFrame(function () { fn(); }); }
-        : function (fn) { queueMicrotask(fn); };
-    var scheduled = false;
-    return function () {
+    const schedule = typeof requestAnimationFrame === 'function'
+        ? (fn) => { requestAnimationFrame(() => { fn(); }); }
+        : (fn) => { queueMicrotask(fn); };
+    let scheduled = false;
+    return () => {
         if (scheduled)
             return;
         scheduled = true;
-        schedule(function () {
+        schedule(() => {
             scheduled = false;
             notify();
         });
@@ -44,34 +32,32 @@ function rafBatch(notify) {
  * @param opts - flush mode and opt-in persistence (localStorage, keyed by name).
  * @returns the store.
  */
-function createSnapshotStore(init, opts) {
+export function createSnapshotStore(init, opts) {
     // Immer enters through produce() in update() below (identical semantics to
     // the immer middleware without its setState-signature mutator generics).
-    var api = (0, vanilla_1.createStore)()(function () { return init; });
-    if (opts === null || opts === void 0 ? void 0 : opts.persist)
+    const api = createStore()(() => init);
+    if (opts?.persist)
         attachPersistence(api, opts.persist.name);
-    var subscribe = function (fn) { return api.subscribe(fn); };
-    if ((opts === null || opts === void 0 ? void 0 : opts.flush) === 'raf') {
-        var listeners_1 = new Set();
-        var flush = rafBatch(function () { for (var _i = 0, _a = __spreadArray([], listeners_1, true); _i < _a.length; _i++) {
-            var fn = _a[_i];
-            fn();
-        } });
+    let subscribe = (fn) => api.subscribe(fn);
+    if (opts?.flush === 'raf') {
+        const listeners = new Set();
+        const flush = rafBatch(() => { for (const fn of [...listeners])
+            fn(); });
         api.subscribe(flush);
-        subscribe = function (fn) {
-            listeners_1.add(fn);
-            return function () { listeners_1.delete(fn); };
+        subscribe = (fn) => {
+            listeners.add(fn);
+            return () => { listeners.delete(fn); };
         };
     }
     return {
-        getSnapshot: function () { return api.getState(); },
-        subscribe: function (fn) { return subscribe(fn); },
-        update: function (mutator) {
+        getSnapshot: () => api.getState(),
+        subscribe: fn => subscribe(fn),
+        update: (mutator) => {
             // Immer's produce (not setState's partial-merge path) so scalar and
             // array roots replace correctly; produce also freezes in dev.
-            api.setState((0, immer_1.produce)(api.getState(), function (draft) { mutator(draft); }), true);
+            api.setState(produce(api.getState(), (draft) => { mutator(draft); }), true);
         },
-        set: function (next) {
+        set: (next) => {
             api.setState(devFreeze(next), true);
         },
     };
@@ -91,20 +77,20 @@ function attachPersistence(api, name) {
     if (typeof localStorage === 'undefined')
         return;
     try {
-        var raw = localStorage.getItem(name);
+        const raw = localStorage.getItem(name);
         if (raw !== null) {
             api.setState(devFreeze(JSON.parse(raw)), true);
         }
     }
     catch (error) {
-        console.error("snapshot store '".concat(name, "' rehydration failed:"), error);
+        console.error(`snapshot store '${name}' rehydration failed:`, error);
     }
-    api.subscribe(function (state) {
+    api.subscribe((state) => {
         try {
             localStorage.setItem(name, JSON.stringify(state));
         }
         catch (error) {
-            console.error("snapshot store '".concat(name, "' persistence failed:"), error);
+            console.error(`snapshot store '${name}' persistence failed:`, error);
         }
     });
 }
@@ -119,8 +105,8 @@ function deepFreeze(value) {
     if (typeof value !== 'object' || value === null || Object.isFrozen(value))
         return;
     Object.freeze(value);
-    for (var _i = 0, _a = Reflect.ownKeys(value); _i < _a.length; _i++) {
-        var key = _a[_i];
+    for (const key of Reflect.ownKeys(value)) {
         deepFreeze(value[key]);
     }
 }
+//# sourceMappingURL=store.js.map

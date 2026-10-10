@@ -1,7 +1,7 @@
 /** Model-visible continuation prompt for one same-session goal round. */
 
-import type { ContentBlock } from '@z/dsh-llm'
-import type { GoalView } from '@z/dsh-goal'
+import type { ContentBlock } from '@taskweaver/dsh-llm'
+import type { GoalView } from '@taskweaver/dsh-goal'
 
 /**
  * Render the complete goal-round instruction retained in session history.

@@ -1,7 +1,7 @@
 /** Pure replay fold and strict decoder for durable goal changes. */
 
-import type { MessageSource } from '@z/dsh-llm'
-import type { SessionEvent } from '@z/dsh-session'
+import type { MessageSource } from '@taskweaver/dsh-llm'
+import type { SessionEvent } from '@taskweaver/dsh-session'
 import { GOAL_CHANGE_VERSION, GoalId } from './runtime.ts'
 import type { GoalBlockReason, GoalPhase, GoalRef, GoalSnapshot } from './types.ts'
 import type {

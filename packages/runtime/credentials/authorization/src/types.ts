@@ -2,10 +2,10 @@
  * Wire-safe authorization types, free of cordis/service imports so browser type
  * chains (apiproxy api → client) can consume them without loading this
  * package's Context augmentation.
- * @module @z/dsh-authorization/types
+ * @module @taskweaver/dsh-authorization/types
  */
 
-import type { CredentialKey } from '@z/dsh-credentials/types'
+import type { CredentialKey } from '@taskweaver/dsh-credentials/types'
 
 /** One way a flow can obtain its credential, named by the flow that offers it. */
 export interface AuthorizationMethod {

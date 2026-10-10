@@ -1,9 +1,9 @@
 //#region lib/types/invariant.js
 /**
-* Package-owned invariant companion for `@z/dsh-session-persistence-jsonl`.
-* @module @z/dsh-session-persistence-jsonl/invariant
+* Package-owned invariant companion for `@taskweaver/dsh-session-persistence-jsonl`.
+* @module @taskweaver/dsh-session-persistence-jsonl/invariant
 */
-const PACKAGE_NAME = "@z/dsh-session-persistence-jsonl";
+const PACKAGE_NAME = "@taskweaver/dsh-session-persistence-jsonl";
 /** Cordis companion plugin name. */
 const name = "session-persistence-jsonl-invariant";
 /** Service required before the companion can reserve package ownership. */

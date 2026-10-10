@@ -5,12 +5,12 @@
  * TODO(acp-subagent-replay): add snapshot-tier coverage with a separate replay fixture and
  * sessions root inside each child process. Current keyless coverage uses a scripted ACP child;
  * with-key coverage drives the real ACP example.
- * @module @z/dsh-subagent-acp/run
+ * @module @taskweaver/dsh-subagent-acp/run
  */
 import { type ContentBlock as AcpContentBlock, type StopReason } from '@agentclientprotocol/sdk';
-import type { ContentBlock } from '@z/dsh-llm';
-import type { SubagentRun, SubagentStartRequest, SubagentStopReason } from '@z/dsh-subagent';
-import type { SubprocessHandle, SubprocessSpawnSpec } from '@z/dsh-subprocess';
+import type { ContentBlock } from '@taskweaver/dsh-llm';
+import type { SubagentRun, SubagentStartRequest, SubagentStopReason } from '@taskweaver/dsh-subagent';
+import type { SubprocessHandle, SubprocessSpawnSpec } from '@taskweaver/dsh-subprocess';
 /** Fixed response to child permission requests: reject by default, or select the first allow option. */
 export type PermissionPolicy = 'allow' | 'reject';
 /** Resolved spawn spec for an ACP child process (no defaults — see Config). */

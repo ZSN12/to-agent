@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import {
   resolveCompactionSummarizationFromModelsDoc,
-} from '../electron/backend/taskweaver-compaction-target.mjs'
+} from '../desktop/backend/taskweaver-compaction-target.mjs'
 
 const doc = {
   providers: {

@@ -1,39 +1,36 @@
-"use strict";
 /**
  * Generated scoped-event routing-subject resolvers for dsh-scope invariants.
  * Do not edit by hand; run `pnpm run gen-scoped-events`.
  *
- * @module @z/dsh-scope/scoped-events.generated
+ * @module @taskweaver/dsh-scope/scoped-events.generated
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.scopedSubjectResolverFor = scopedSubjectResolverFor;
-var scopedSubjectResolvers = Object.freeze({
-    'agent/created': function (args) { return args[0]['agent']; },
-    'agent/disposed': function (args) { return args[0]['agent']; },
-    'agent/error': function (args) { return args[0]['agent']; },
-    'agent/inbox/claimed': function (args) { return args[0]['agent']; },
-    'agent/inbox/discarded': function (args) { return args[0]['agent']; },
-    'agent/inbox/inserted': function (args) { return args[0]['agent']; },
-    'agent/pre-step': function (args) { return args[0]['agent']; },
-    'agent/request': function (args) { return args[0]['agent']; },
-    'agent/request-error': function (args) { return args[0]['agent']; },
-    'agent/session-start': function (args) { return args[0]['agent']; },
-    'agent/status': function (args) { return args[0]['agent']; },
-    'agent/turn-stopping': function (args) { return args[0]['agent']; },
-    'approval/request': function (args) { return args[0]['agent']; },
-    'goal/changed': function (args) { return args[0]['agent']; },
+const scopedSubjectResolvers = Object.freeze({
+    'agent/created': args => args[0]['agent'],
+    'agent/disposed': args => args[0]['agent'],
+    'agent/error': args => args[0]['agent'],
+    'agent/inbox/claimed': args => args[0]['agent'],
+    'agent/inbox/discarded': args => args[0]['agent'],
+    'agent/inbox/inserted': args => args[0]['agent'],
+    'agent/pre-step': args => args[0]['agent'],
+    'agent/request': args => args[0]['agent'],
+    'agent/request-error': args => args[0]['agent'],
+    'agent/session-start': args => args[0]['agent'],
+    'agent/status': args => args[0]['agent'],
+    'agent/turn-stopping': args => args[0]['agent'],
+    'approval/request': args => args[0]['agent'],
+    'goal/changed': args => args[0]['agent'],
     'session/created': null,
     'session/disposed': null,
     'session/event': null,
     'session/flush': null,
     'subagent/end': null,
     'subagent/start': null,
-    'system-prompt/assemble': function (args) { return args[1]['scope']; },
-    'tools/code-dispatch-log': function (args) { return args[0]['agent']; },
-    'tools/execute': function (args) { return args[0]['agent']; },
-    'tools/post-execute': function (args) { return args[0]['agent']; },
-    'tools/pre-execute': function (args) { return args[0]['agent']; },
-    'tools/result': function (args) { return args[0]['agent']; },
+    'system-prompt/assemble': args => args[1]['scope'],
+    'tools/code-dispatch-log': args => args[0]['agent'],
+    'tools/execute': args => args[0]['agent'],
+    'tools/post-execute': args => args[0]['agent'],
+    'tools/pre-execute': args => args[0]['agent'],
+    'tools/result': args => args[0]['agent'],
 });
 /**
  * Resolve the routing key named by one scoped event payload. A null
@@ -43,6 +40,7 @@ var scopedSubjectResolvers = Object.freeze({
  * @returns the generated subject resolver, null for presence-only,
  *   or undefined when the event is not scope-filtered.
  */
-function scopedSubjectResolverFor(event) {
+export function scopedSubjectResolverFor(event) {
     return scopedSubjectResolvers[event];
 }
+//# sourceMappingURL=scoped-events.generated.js.map

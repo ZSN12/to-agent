@@ -1,5 +1,5 @@
-import type { Context } from '@z/cordis';
-import z from '@z/schemastery';
+import type { Context } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
 export declare const name = "tool-fs-semantic-search";
 export declare const inject: string[];
 export interface Config {

@@ -1,7 +1,7 @@
 /**
  * Pure client-safe subagent projection vocabulary.
  *
- * @module @z/dsh-subagent/projection-types
+ * @module @taskweaver/dsh-subagent/projection-types
  */
 /** Durable active-turn timing for one descriptor-backed child session. */
 export interface SubagentTimingProjection {
@@ -41,7 +41,7 @@ export type SubagentIdentityProjection = {
     /** Seq of the folded descriptor event; see the one-shot arm for the own-suffix proof. */
     seq: number;
 };
-declare module '@z/dsh-session-projection/types' {
+declare module '@taskweaver/dsh-session-projection/types' {
     interface SessionProjectionMap {
         /** Active-turn duration for a descriptor-backed subagent session. */
         subagentTiming: SubagentTimingProjection;

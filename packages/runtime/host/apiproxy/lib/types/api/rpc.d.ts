@@ -6,9 +6,9 @@
  */
 import type { z as zCore } from 'zod';
 type ZodIssue = zCore.core.$ZodIssue;
-import type { Branded } from '@z/dsh-brand';
-import type { MessageId } from '@z/dsh-llm/brand';
-import type { SessionId } from '@z/dsh-session/types';
+import type { Branded } from '@taskweaver/dsh-brand';
+import type { MessageId } from '@taskweaver/dsh-llm/brand';
+import type { SessionId } from '@taskweaver/dsh-session/types';
 /**
  * Message correlation id: the initiator mints it on a request; a response
  * echoes the matching request's rpcId and never mints a new one.
@@ -60,18 +60,6 @@ export interface RpcErrorDetailsMap {
         workspaceId: string;
         sessionId: SessionId;
         beforeSessionId?: SessionId;
-    };
-    'directory-unreadable': {
-        path: string;
-    };
-    'directory-exists': {
-        path: string;
-    };
-    'directory-create-failed': {
-        path: string;
-    };
-    'directory-picker-unavailable': {
-        capability: string;
     };
     'agent-preset-read-only': {
         agentPreset: string;

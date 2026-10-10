@@ -12,6 +12,7 @@ export interface ZipEntryInfo {
 export const ZIP_MAX_ENTRIES = 10_000
 export const ZIP_MAX_EXPANDED_BYTES = 500 * 1024 * 1024
 export const ZIP_MAX_RATIO = 100
+export const ZIP_MAX_XML_PART_BYTES = 50 * 1024 * 1024
 
 /** Inspect central-directory sizes before any decompression takes place. */
 export function inspectZip(bytes: Uint8Array): Map<string, ZipEntryInfo> {
@@ -98,12 +99,13 @@ export function extractZipEntries(
   bytes: Uint8Array,
   catalog: ReadonlyMap<string, ZipEntryInfo>,
   requested: ReadonlySet<string>,
+  maxPartBytes = ZIP_MAX_XML_PART_BYTES,
 ): Map<string, Uint8Array> {
   for (const name of requested) {
     if (!catalog.has(name)) throw new DocumentReadError(`Office archive is missing ${name}`, 'DOCUMENT_PART_MISSING')
     const entry = catalog.get(name)!
-    if (entry.expandedBytes > 50 * 1024 * 1024) {
-      throw new DocumentReadError(`Office XML part ${name} exceeds the 50 MB parser limit`, 'DOCUMENT_XML_TOO_LARGE')
+    if (entry.expandedBytes > maxPartBytes) {
+      throw new DocumentReadError(`Office XML part ${name} exceeds the ${Math.floor(maxPartBytes / (1024 * 1024))} MB parser limit`, 'DOCUMENT_XML_TOO_LARGE')
     }
   }
   try {
@@ -115,9 +117,12 @@ export function extractZipEntries(
   }
 }
 
-export function textPart(parts: ReadonlyMap<string, Uint8Array>, name: string): string {
+export function textPart(parts: ReadonlyMap<string, Uint8Array>, name: string, maxBytes = ZIP_MAX_XML_PART_BYTES): string {
   const data = parts.get(name)
   if (!data) throw new DocumentReadError(`Office archive is missing ${name}`, 'DOCUMENT_PART_MISSING')
+  if (data.byteLength > maxBytes) {
+    throw new DocumentReadError(`Office XML part ${name} exceeds the ${Math.floor(maxBytes / (1024 * 1024))} MB parser limit`, 'DOCUMENT_XML_TOO_LARGE')
+  }
   try {
     return new TextDecoder('utf-8', { fatal: true }).decode(data)
   } catch (cause) {

@@ -1,3 +1,3 @@
-"use strict";
-/** Durable attachment vocabulary. @module @z/dsh-attachment/types */
-Object.defineProperty(exports, "__esModule", { value: true });
+/** Durable attachment vocabulary. @module @taskweaver/dsh-attachment/types */
+export {};
+//# sourceMappingURL=types.js.map

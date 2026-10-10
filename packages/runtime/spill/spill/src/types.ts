@@ -1,14 +1,14 @@
 /**
  * Vocabulary for the spill storage Service Definition. Types only — the abstract service
  * lives in `./index.ts`, implementations in sibling packages
- * (`@z/dsh-spill-local` first).
+ * (`@taskweaver/dsh-spill-local` first).
  *
- * @module @z/dsh-spill/types
+ * @module @taskweaver/dsh-spill/types
  */
 
-import type { Branded } from '@z/dsh-brand'
-import type { CallId } from '@z/dsh-llm'
-import type { SessionId } from '@z/dsh-session'
+import type { Branded } from '@taskweaver/dsh-brand'
+import type { CallId } from '@taskweaver/dsh-llm'
+import type { SessionId } from '@taskweaver/dsh-session'
 
 /**
  * Opaque model-facing handle for one spilled artifact. A local backend may use a

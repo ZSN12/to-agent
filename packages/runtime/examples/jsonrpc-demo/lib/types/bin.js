@@ -3,7 +3,7 @@
  * Generic JSON-RPC agent bin. External configurations own their bare plugin
  * packages; the packaged runtime uses `packaged-bin.ts` instead.
  *
- * @module @z/dsh-sdk-jsonrpc-demo/bin
+ * @module @taskweaver/dsh-sdk-jsonrpc-demo/bin
  */
 import { runJsonrpcAgent } from "./runner.js";
 await runJsonrpcAgent();

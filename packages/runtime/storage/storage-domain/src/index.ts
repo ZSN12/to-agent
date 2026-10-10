@@ -4,12 +4,12 @@
  * layer — consumers depend on this package and never touch backends directly.
  * Plugin `Config` is schemastery; record schemas inside domain specs are zod
  * (see `src/spec.ts` for the split rationale).
- * @module @z/dsh-storage-domain
+ * @module @taskweaver/dsh-storage-domain
  */
 
-import type { Context } from '@z/cordis'
-import z from '@z/schemastery'
-import { storageBackendServiceKey } from '@z/dsh-storage'
+import type { Context } from '@taskweaver/cordis'
+import z from '@taskweaver/schemastery'
+import { storageBackendServiceKey } from '@taskweaver/dsh-storage'
 import { DomainError } from './error.ts'
 import { descriptorOf } from './spec.ts'
 import type { DomainSpec } from './spec.ts'
@@ -26,13 +26,13 @@ export type {
 export type { DomainChanged } from './events.ts'
 export type { Domain, DomainGlobal, DomainGlobalHandleOf, KvTable } from './domain.ts'
 
-declare module '@z/dsh-storage' {
+declare module '@taskweaver/dsh-storage' {
   interface StorageForms {
     domain: DomainFacility
   }
 }
 
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
   interface Context {
     storageDomain: DomainFacility
   }

@@ -1,11 +1,11 @@
-/** Package-owned scoped-dispatch invariants. @module @z/dsh-scope/invariant */
+/** Package-owned scoped-dispatch invariants. @module @taskweaver/dsh-scope/invariant */
 
-import type { Context } from '@z/cordis'
-import type { InvariantInstaller } from '@z/dsh-invariants'
-import { carrierKeyOf, isScopeCarrier } from '@z/dsh-scope'
+import type { Context } from '@taskweaver/cordis'
+import type { InvariantInstaller } from '@taskweaver/dsh-invariants'
+import { carrierKeyOf, isScopeCarrier } from '@taskweaver/dsh-scope'
 import { scopedSubjectResolverFor } from './scoped-events.generated.ts'
 
-const PACKAGE_NAME = '@z/dsh-scope'
+const PACKAGE_NAME = '@taskweaver/dsh-scope'
 
 /** Cordis companion plugin name. */
 export const name = 'scope-invariant'

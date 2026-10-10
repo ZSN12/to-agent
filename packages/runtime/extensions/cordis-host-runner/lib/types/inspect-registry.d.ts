@@ -1,8 +1,8 @@
 /** Host registry for model-visible, read-only Cordis capability queries. */
-import { Service } from '@z/cordis';
-import type { Context } from '@z/cordis';
-import type { Agent } from '@z/dsh-agent';
-import type { JsonValue } from '@z/dsh-session/types';
+import { Service } from '@taskweaver/cordis';
+import type { Context } from '@taskweaver/cordis';
+import type { Agent } from '@taskweaver/dsh-agent';
+import type { JsonValue } from '@taskweaver/dsh-session/types';
 import type { CordisInspectPlatform, CordisInspectProviderManifest, CordisInspectProviderView, CordisInspectQueryResolution, CordisInspectRequestId, CordisInspectResolveAck } from './types.ts';
 /** Context supplied to a Host inspect query. */
 export interface HostCordisInspectQueryContext {
@@ -18,7 +18,7 @@ export interface HostCordisInspectProviderRegistration {
     /** Execute one declared method. */
     query(method: string, input: JsonValue | undefined, context: HostCordisInspectQueryContext): Promise<JsonValue>;
 }
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
     interface Context {
         /** Host registry for Cordis inspect providers and Client manifest/query routing. */
         cordisInspect: CordisInspectRegistryService;

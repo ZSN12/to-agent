@@ -3,7 +3,7 @@
  * profile's patch layers through the include plugin's patch algorithm without
  * booting or evaluating `!!js`, with one source layer per bundle, the
  * profile's own patch file, and each `--patch` overlay.
- * @module @z/dsh/dump-config
+ * @module @taskweaver/dsh/dump-config
  */
 /**
  * Print a profile composition with comments naming each source file and patch layer.

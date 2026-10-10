@@ -1,5 +1,5 @@
 /** Shared Team task DAG commands and runtime-enriched views. */
-import type { Agent } from '@z/dsh-agent';
+import type { Agent } from '@taskweaver/dsh-agent';
 import type { TeamMembership } from './roster.ts';
 import type { TeamJournal } from './journal.ts';
 import { TeamTaskId } from './types.ts';

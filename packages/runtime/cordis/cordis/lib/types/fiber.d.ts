@@ -1,4 +1,4 @@
-import type { Awaitable, Dict } from '@z/cosmokit';
+import type { Awaitable, Dict } from '@taskweaver/cosmokit';
 import { Context } from './context.ts';
 import type { Plugin } from './registry.ts';
 import { DisposableList } from './utils.ts';

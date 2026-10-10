@@ -4,7 +4,7 @@
  * and an operation discriminant — never the old value (a diffing consumer
  * keeps its own previous snapshot). This is the event source for cross-process
  * change push (RPC frames) in a later phase.
- * @module @z/dsh-storage-domain/src/events
+ * @module @taskweaver/dsh-storage-domain/src/events
  */
 
 /** Shared location fields of one durable domain change. */
@@ -33,7 +33,7 @@ export interface DomainChangedDeleted extends DomainChangedBase {
 /** One durable domain change; a closed union — switch on `operation`. */
 export type DomainChanged = DomainChangedPut | DomainChangedDeleted
 
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
   interface Events {
     /**
      * A domain record or the global singleton changed, emitted once per write

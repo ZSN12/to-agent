@@ -1,5 +1,5 @@
 /**
- * @module @z/dsh-bridge-core
+ * @module @taskweaver/dsh-bridge-core
  */
 export { BUILTIN_BRIDGE_KINDS } from "./types.js";
 export { getBridgeBackend, installDefaultBridgeBackends, registerBridgeBackend, streamThroughBridge, installTaskWeaverTransportBackends, } from "./registry.js";

@@ -1,7 +1,7 @@
 /** One-shot session-lineage and event-relationship tracing helpers. */
 
-import { foldSurface, isSurfaceEvent, snapshotSessionEvent } from '@z/dsh-session'
-import type { SessionEvent, SessionId, SurfaceEvent, SurfaceEventType } from '@z/dsh-session'
+import { foldSurface, isSurfaceEvent, snapshotSessionEvent } from '@taskweaver/dsh-session'
+import type { SessionEvent, SessionId, SurfaceEvent, SurfaceEventType } from '@taskweaver/dsh-session'
 import { SessionQueryError } from './config.ts'
 import type {
   SessionEventRecord,

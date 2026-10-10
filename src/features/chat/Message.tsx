@@ -1,7 +1,9 @@
-import { useState } from 'react'
-import type { DshProjectedToolCall } from '../../shared/app-api'
+import { useEffect, useRef, useState } from 'react'
+import { Pencil, RefreshCw, RotateCcw } from 'lucide-react'
+import type { DshProjectedImageRef, DshProjectedToolCall } from '../../shared/app-api'
 import type { ToolTraceItem } from '../../shared/app-api'
 import type { ChatMessage } from '../../types'
+import { copyTextToClipboard } from '../../shared/clipboard'
 import { AssistantTurnBody } from './AssistantTurnBody'
 import { ChangedFilesSummary } from './ChangedFilesSummary'
 import { CompactionRow } from './CompactionRow'
@@ -13,13 +15,120 @@ import { DeepDivingIndicator } from './DeepDivingIndicator'
 import { formatMessageTime } from './formatMessageTime'
 import { formatDshRunDuration } from './session-usage'
 import { visibleToolActivity } from './visibleToolActivity'
+import { getBridge } from '../app/getBridge'
+import { AttachmentImagePreview } from './AttachmentImagePreview'
+
+function DshUserImageAttachments({
+  images,
+  conversationId,
+}: {
+  images: readonly DshProjectedImageRef[]
+  conversationId?: string | null
+}) {
+  const imageKey = images.map((image) => image.attachmentId).join('\n')
+  const imagesRef = useRef(images)
+  const containerRef = useRef<HTMLDivElement>(null)
+  imagesRef.current = images
+  const [sources, setSources] = useState<Map<string, string>>(() => new Map())
+  const [failed, setFailed] = useState<Set<string>>(() => new Set())
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+
+  useEffect(() => {
+    let active = true
+    setSources(new Map())
+    setFailed(new Set())
+    setSelectedId(null)
+    const bridge = getBridge()
+    const getImageAttachment = bridge?.chat?.getImageAttachment
+    if (!conversationId || !getImageAttachment) {
+      setFailed(new Set(imagesRef.current.map((image) => image.attachmentId)))
+      return () => { active = false }
+    }
+    const loadImages = async () => {
+      for (const image of imagesRef.current) {
+        try {
+          const result = await getImageAttachment({ conversationId, attachmentId: image.attachmentId })
+          if (!active) return
+          if (!result.ok || !result.data?.data) {
+            setFailed((previous) => new Set(previous).add(image.attachmentId))
+            continue
+          }
+          setSources((previous) => new Map(previous).set(
+            image.attachmentId,
+            `data:${result.data.attachment.mediaType};base64,${result.data.data}`,
+          ))
+        } catch {
+          if (!active) return
+          setFailed((previous) => new Set(previous).add(image.attachmentId))
+        }
+      }
+    }
+    const container = containerRef.current
+    if (!container || typeof IntersectionObserver === 'undefined') {
+      void loadImages()
+    } else {
+      const observer = new IntersectionObserver((entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          observer.disconnect()
+          void loadImages()
+        }
+      }, { rootMargin: '240px' })
+      observer.observe(container)
+      return () => { active = false; observer.disconnect() }
+    }
+    return () => { active = false }
+  }, [conversationId, imageKey])
+
+  const selected = images.find((image) => image.attachmentId === selectedId)
+  const selectedSource = selected ? sources.get(selected.attachmentId) : undefined
+  const scaledLabel = (image: DshProjectedImageRef) => image.originalDimensions
+    ? `已从 ${image.originalDimensions.width}×${image.originalDimensions.height} 缩放`
+    : ''
+
+  return (
+    <>
+      <div ref={containerRef} className="dsh-user-image-attachments" aria-label="消息图片">
+        {images.map((image, index) => {
+          const src = sources.get(image.attachmentId)
+          return (
+            <div className="dsh-user-image-item" key={image.attachmentId}>
+              {src ? (
+                <button type="button" className="dsh-user-image-open" onClick={() => setSelectedId(image.attachmentId)} aria-label={`查看图片 ${image.name || index + 1}`}>
+                  <AttachmentImagePreview src={src} alt={image.name || `消息图片 ${index + 1}`} />
+                </button>
+              ) : (
+                <div className={`dsh-user-image-placeholder${failed.has(image.attachmentId) ? ' is-error' : ''}`} role="status">
+                  {failed.has(image.attachmentId) ? '图片暂不可用' : '正在读取图片…'}
+                </div>
+              )}
+              {scaledLabel(image) && <small>{scaledLabel(image)}</small>}
+            </div>
+          )
+        })}
+      </div>
+      {selected && selectedSource && (
+        <div className="dsh-image-lightbox-backdrop" role="presentation" onClick={() => setSelectedId(null)} onKeyDown={(event) => { if (event.key === 'Escape') setSelectedId(null) }} tabIndex={-1}>
+          <section className="dsh-image-lightbox" role="dialog" aria-modal="true" aria-label={selected.name || '查看消息图片'} onClick={(event) => event.stopPropagation()}>
+            <button type="button" className="dsh-image-lightbox-close" onClick={() => setSelectedId(null)} aria-label="关闭图片预览">×</button>
+            <img src={selectedSource} alt={selected.name || '消息图片'} />
+            {(selected.name || scaledLabel(selected)) && <div className="dsh-image-lightbox-caption">{selected.name}{selected.name && scaledLabel(selected) ? ' · ' : ''}{scaledLabel(selected)}</div>}
+          </section>
+        </div>
+      )}
+    </>
+  )
+}
 
 export function Message({
   message,
   dshToolRows,
   toolTraceItems,
   workspacePath,
+  conversationId,
   onFork,
+  onEditAndResend,
+  onRegenerate,
+  onRetry,
   isStreaming = false,
   thinkingIsStreaming,
   streamActivity,
@@ -32,7 +141,11 @@ export function Message({
   dshToolRows?: readonly DshProjectedToolCall[]
   toolTraceItems?: readonly ToolTraceItem[]
   workspacePath?: string | null
+  conversationId?: string | null
   onFork?: (messageId: string) => void
+  onEditAndResend?: (text: string) => void
+  onRegenerate?: () => void
+  onRetry?: () => void
   isStreaming?: boolean
   thinkingIsStreaming?: boolean
   streamActivity?: string | null
@@ -43,26 +156,26 @@ export function Message({
 }) {
   const isUser = message.author === 'user'
   const [copied, setCopied] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [editDraft, setEditDraft] = useState(message.text)
 
   const copyMessage = async () => {
     try {
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(message.text)
+      if (await copyTextToClipboard(message.text)) {
+        setCopied(true)
+        window.setTimeout(() => setCopied(false), 1400)
       } else {
-        const textarea = document.createElement('textarea')
-        textarea.value = message.text
-        textarea.style.position = 'fixed'
-        textarea.style.opacity = '0'
-        document.body.append(textarea)
-        textarea.select()
-        document.execCommand('copy')
-        textarea.remove()
+        setCopied(false)
       }
-      setCopied(true)
-      window.setTimeout(() => setCopied(false), 1400)
     } catch {
       setCopied(false)
     }
+  }
+
+  const submitEdit = () => {
+    if (!editDraft.trim() || !onEditAndResend) return
+    setEditing(false)
+    onEditAndResend(editDraft)
   }
 
   const runMs = !isUser ? message.usage?.elapsedMs : undefined
@@ -113,6 +226,7 @@ export function Message({
             dshToolRows={dshToolRows}
             toolTraceItems={toolTraceItems}
             workspacePath={workspacePath}
+            conversationId={conversationId}
             onShowToolDetails={onShowToolDetails}
             onOpenWorkspacePath={onOpenWorkspacePath}
           />
@@ -134,11 +248,34 @@ export function Message({
             isStreaming={isStreaming}
           />
         )}
-        {isUser && message.text && (
+        {isUser && (message.text || message.images?.length) ? (
           <div className="user-message-stack">
-            <div className="message-text user-message-bubble">{message.text}</div>
+            {message.text && (editing ? (
+              <div className="user-message-edit">
+                <textarea
+                  autoFocus
+                  value={editDraft}
+                  onChange={(event) => setEditDraft(event.target.value)}
+                  aria-label="编辑并重发消息"
+                  onKeyDown={(event) => {
+                    if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+                      event.preventDefault()
+                      submitEdit()
+                    }
+                    if (event.key === 'Escape') setEditing(false)
+                  }}
+                />
+                <div className="user-message-edit-actions">
+                  <button type="button" onClick={() => setEditing(false)}>取消</button>
+                  <button type="button" className="is-primary" onClick={submitEdit} disabled={!editDraft.trim()}>
+                    编辑并重发
+                  </button>
+                </div>
+              </div>
+            ) : <div className="message-text user-message-bubble">{message.text}</div>)}
+            {Boolean(message.images?.length) && <DshUserImageAttachments images={message.images!} conversationId={conversationId} />}
           </div>
-        )}
+        ) : null}
         {message.callout ? (
           <div className="dsh-turn-error-row" role="status">
             <DshStateDot state="error" size={8} className="dsh-turn-error-dot" />
@@ -146,6 +283,12 @@ export function Message({
               <span className="dsh-turn-error-title">本轮运行失败</span>
               <span className="dsh-turn-error-message">{message.callout}</span>
             </div>
+            {onRetry && (
+              <button type="button" className="dsh-turn-error-retry" onClick={onRetry}>
+                <RefreshCw size={14} />
+                <span>重试</span>
+              </button>
+            )}
           </div>
         ) : message.interrupted ? (
           <span className="dsh-turn-stopped-badge">已停止</span>
@@ -164,6 +307,30 @@ export function Message({
             >
               {copied ? <IconCheckOutline16 size={14} /> : <IconCopyOutline16 size={14} />}
             </button>
+            {isUser && onEditAndResend && !message.behavior && (
+              <button
+                className="message-action-btn message-edit-resend"
+                type="button"
+                onClick={() => { setEditDraft(message.text); setEditing(true) }}
+                aria-label="编辑并重发"
+                data-tooltip="编辑并重发"
+                title="编辑并重发"
+              >
+                <Pencil size={14} />
+              </button>
+            )}
+            {!isUser && onRegenerate && (
+              <button
+                className="message-action-btn message-regenerate"
+                type="button"
+                onClick={onRegenerate}
+                aria-label="重新生成"
+                data-tooltip="重新生成"
+                title="重新生成"
+              >
+                <RotateCcw size={14} />
+              </button>
+            )}
             {onFork && message.id !== 'streaming-assistant' && (
               <button
                 className="message-action-btn message-fork"

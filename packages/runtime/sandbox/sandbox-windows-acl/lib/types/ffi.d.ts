@@ -5,7 +5,7 @@
  * (winnt.h / accctrl.h / aclapi.h / securitybaseapi.h / sddl.h /
  * processthreadsapi.h / fileapi.h / namedpipeapi.h / synchapi.h / winbase.h);
  * struct layouts are asserted at load time against verify/abi-probe.cpp.
- * @module @z/dsh-sandbox-windows-acl/ffi
+ * @module @taskweaver/dsh-sandbox-windows-acl/ffi
  */
 /** Branded koffi 3 native pointer. Koffi 3 pointers are BigInt values; the brand keeps them out of numeric contexts. */
 declare const nativePtr: unique symbol;

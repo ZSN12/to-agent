@@ -24,14 +24,14 @@ try {
     env: {
       ...process.env,
       PATH: `${fakeBin}${path.delimiter}${process.env.PATH ?? ''}`,
-      TASKWEAVER_Z_RUNTIME_OUTPUT_DIR: outputDir,
+      TASKWEAVER_RUNTIME_OUTPUT_DIR: outputDir,
     },
   })
 
   assert.equal(result.status, 1, 'a failed deploy command must fail the build')
   assert.match(`${result.stdout}\n${result.stderr}`, /pnpm deploy →/,
     'the fake pnpm must fail at the deploy stage, not an earlier build step')
-  assert.match(`${result.stdout}\n${result.stderr}`, /--filter @z\/dsh deploy/)
+  assert.match(`${result.stdout}\n${result.stderr}`, /--filter @taskweaver\/dsh deploy/)
   assert.equal(await fs.readFile(marker, 'utf8'), 'preserve this deploy if pnpm deploy fails\n',
     'a failed deploy must leave the previous output untouched')
 
@@ -40,18 +40,14 @@ try {
   assert.equal(siblings.some((name) => name.startsWith(stagePrefix)), false,
     'failed deployment staging must be cleaned up')
 
-  const runtimeStagingDir = path.join(root, 'vendor', `taskweaver-z-runtime-build-validation-${process.pid}`)
-  const upgrade = spawnSync(process.execPath, [path.join(root, 'scripts/upgrade-vendor-pi-ai.mjs')], {
-    cwd: root,
-    encoding: 'utf8',
-    env: { ...process.env, TASKWEAVER_Z_RUNTIME: runtimeStagingDir },
-  })
-  assert.equal(upgrade.status, 1)
-  assert.match(`${upgrade.stdout}\n${upgrade.stderr}`, /缺少 runtime deploy/,
-    'pi-ai sync must accept the dedicated staging directory under vendor')
-  assert.doesNotMatch(`${upgrade.stdout}\n${upgrade.stderr}`, /must be a dedicated/,
-    'the staging-path validator must accept the build location without touching it')
-  console.log('Z Runtime deploy failure preserves the previous output and cleans staging')
+  const lock = JSON.parse(await fs.readFile(path.join(root, 'runtime-lock.json'), 'utf8'))
+  const llmAdapter = JSON.parse(await fs.readFile(
+    path.join(root, 'packages/runtime/llm/llm-pi-ai/package.json'),
+    'utf8',
+  ))
+  assert.equal(llmAdapter.dependencies[lock.piAi.package], lock.piAi.version,
+    'runtime-lock must agree with the adapter package manifest')
+  console.log('runtime deploy failure preserves the previous output, cleans staging, and honors the pinned pi-ai version')
 } finally {
   await fs.rm(tempRoot, { recursive: true, force: true })
   await fs.rm(outputDir, { recursive: true, force: true })

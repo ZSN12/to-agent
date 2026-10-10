@@ -1,16 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import LlmRuntime, { createUserMessage, CallId, LlmError, MessageSource, ProviderRequestId, StreamChunk  } from '@z/dsh-llm'
-import SessionStore, { Session, SessionEvent, SessionId, TurnEndReason, type UserMessage } from '@z/dsh-session'
-import SystemPrompt from '@z/dsh-system-prompt'
-import ToolRuntime, { defineContentToolFixture, type PostToolDecision } from '@z/dsh-tools'
-import AgentRegistry, { type Agent } from '@z/dsh-agent'
-import AgentLoop from '@z/dsh-agent-loop'
+import { Context } from '@taskweaver/cordis'
+import LlmRuntime, { createUserMessage, CallId, LlmError, MessageSource, ProviderRequestId, StreamChunk  } from '@taskweaver/dsh-llm'
+import SessionStore, { Session, SessionEvent, SessionId, TurnEndReason, type UserMessage } from '@taskweaver/dsh-session'
+import SystemPrompt from '@taskweaver/dsh-system-prompt'
+import ToolRuntime, { defineContentToolFixture, type PostToolDecision } from '@taskweaver/dsh-tools'
+import AgentRegistry, { type Agent } from '@taskweaver/dsh-agent'
+import AgentLoop from '@taskweaver/dsh-agent-loop'
 import { ReactLoopAgent } from '../src/agent.ts'
-import InvariantRegistry from '@z/dsh-invariants'
-import * as SessionInvariant from '@z/dsh-session/invariant'
-import * as AgentInvariant from '@z/dsh-agent/invariant'
-import * as AgentLoopInvariant from '@z/dsh-agent-loop/invariant'
+import InvariantRegistry from '@taskweaver/dsh-invariants'
+import * as SessionInvariant from '@taskweaver/dsh-session/invariant'
+import * as AgentInvariant from '@taskweaver/dsh-agent/invariant'
+import * as AgentLoopInvariant from '@taskweaver/dsh-agent-loop/invariant'
 import { MockAdapter, textResponse, toolCallResponse } from './mock-adapter.ts'
 
 async function mountInvariants(ctx: Context): Promise<void> {
@@ -810,7 +810,7 @@ describe('turn and step boundary recovery', () => {
     expect(adapter.requests).toHaveLength(1)
     expect(errors.map(error => error.message)).toEqual([
       'reject first step-end',
-      'invariant violated by "@z/dsh-session": turn/end 1 while step 1 is still open',
+      'invariant violated by "@taskweaver/dsh-session": turn/end 1 while step 1 is still open',
     ])
     expect(boundaryCounts(agent)).toMatchObject({
       turnStart: 1,

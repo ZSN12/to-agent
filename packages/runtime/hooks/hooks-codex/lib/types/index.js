@@ -6,15 +6,15 @@
  * blocking decisions are honored. Shared execution and parsing live in
  * `dsh-hook-protocol`; see the
  * [hook-bridges Agent Note](../../../../.agents/notes/implemented/feature/2026-06-30-hook-bridges.md).
- * @module @z/dsh-hooks-codex
+ * @module @taskweaver/dsh-hooks-codex
  */
 // Each dialect bridge keeps its complete dependency list visible at the entry
 // point; a cross-package facade for imports alone would add indirection.
 /* jscpd:ignore-start */
 import { readFileSync } from 'node:fs';
-import z from '@z/schemastery';
-import { createUserMessage } from '@z/dsh-llm';
-import { appendHookInvoked, appendHookResult, createDetachedRuns, DEFAULT_HOOK_TIMEOUT_MS, DEFAULT_STDERR_SUMMARY_MAX_CHARS, matchesMatcher, mergeHookOutputs, runHook, } from '@z/dsh-hook-protocol';
+import z from '@taskweaver/schemastery';
+import { createUserMessage } from '@taskweaver/dsh-llm';
+import { appendHookInvoked, appendHookResult, createDetachedRuns, DEFAULT_HOOK_TIMEOUT_MS, DEFAULT_STDERR_SUMMARY_MAX_CHARS, matchesMatcher, mergeHookOutputs, runHook, } from '@taskweaver/dsh-hook-protocol';
 import { parseCodexConfig } from "./config.js";
 /* jscpd:ignore-end */
 export const name = 'hooks-codex';

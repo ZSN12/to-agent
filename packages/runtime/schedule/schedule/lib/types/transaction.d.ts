@@ -1,5 +1,5 @@
 /** Agent-scoped serialization for Schedule reads and durable mutations. */
-import type { Agent } from '@z/dsh-agent';
+import type { Agent } from '@taskweaver/dsh-agent';
 /**
  * Run one complete Schedule transaction after its exact Agent's prior transaction.
  * @param agent - Exact Schedule owner and serialization key.

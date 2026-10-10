@@ -1,13 +1,14 @@
-import { Context, Fiber, Inject } from '@z/cordis';
+import { Context, Fiber, Inject } from '@taskweaver/cordis';
 import { Loader } from '../index.ts';
 import { EntryGroup } from './group.ts';
 import { EntryTree } from './tree.ts';
+import { type JsExpr } from './utils.ts';
 /** Serialized plugin entry options stored in loader config files. */
 export interface EntryOptions {
     /** Stable id inside the containing entry tree. */
     id: string;
-    /** Module specifier imported by the entry tree. */
-    name: string;
+    /** Module specifier imported by the entry tree (or a `!!js` expression resolving to one). */
+    name: string | JsExpr;
     /** Config passed to the plugin. */
     config?: any;
     /** Marks this entry as a nested group. */
@@ -41,6 +42,7 @@ export declare class Entry {
      */
     private disabledOf;
     evaluate(expr: string): any;
+    private resolveImportName;
     private _patchContext;
     refresh(): Promise<void>;
     _dispose(fiber?: Fiber | undefined): Promise<void>;

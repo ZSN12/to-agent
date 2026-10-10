@@ -3,15 +3,15 @@ import { writeSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { createZApiClient, createZHostManager } from '../../electron/agent/z-host/index.mjs'
-import { createDshChatService } from '../../electron/backend/dsh-chat-service.mjs'
-import { createModelService } from '../../electron/backend/model-service.mjs'
-import { createProfileStore } from '../../electron/backend/profile-store.mjs'
-import { resolveTaskWeaverModelsPath } from '../../electron/backend/taskweaver-models-path.mjs'
-import { ensureModelsJsonSyncedToDshHost } from '../../electron/backend/sync-models-json-to-host.mjs'
-import { setOcxRuntimeContext } from '../../electron/backend/opencodex-binary.mjs'
+import { createZApiClient, createZHostManager } from '../../desktop/agent/z-host/index.mjs'
+import { createDshChatService } from '../../desktop/backend/dsh-chat-service.mjs'
+import { createModelService } from '../../desktop/backend/model-service.mjs'
+import { createProfileStore } from '../../desktop/backend/profile-store.mjs'
+import { resolveTaskWeaverModelsPath } from '../../desktop/backend/taskweaver-models-path.mjs'
+import { ensureModelsJsonSyncedToDshHost } from '../../desktop/backend/sync-models-json-to-host.mjs'
+import { setOcxRuntimeContext } from '../../desktop/backend/opencodex-binary.mjs'
 import { summarizeHostStepTimings } from '../host-step-timings.mjs'
-import { assembleWorkspaceContext } from '../../electron/backend/context-assembler.mjs'
+import { assembleWorkspaceContext } from '../../desktop/backend/context-assembler.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const installedAppRoot = process.env.TASKWEAVER_APP_PATH || '/Applications/TaskWeaver.app'
@@ -102,8 +102,8 @@ if (fixture) {
 const userData = process.env.TASKWEAVER_USER_DATA
   ? path.resolve(process.env.TASKWEAVER_USER_DATA)
   : path.join(os.homedir(), 'Library', 'Application Support', 'taskweaver-desktop')
-const runtimeRoot = process.env.TASKWEAVER_Z_RUNTIME
-  ? path.resolve(process.env.TASKWEAVER_Z_RUNTIME)
+const runtimeRoot = process.env.TASKWEAVER_RUNTIME
+  ? path.resolve(process.env.TASKWEAVER_RUNTIME)
   : installed ? path.join(installedResourcesPath, 'taskweaver-z-runtime') : path.join(root, 'vendor', 'taskweaver-z-runtime')
 const reportDir = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-live-read-'))
 let api
@@ -160,7 +160,7 @@ try {
       await fs.mkdir(path.dirname(isolatedModelsPath), { recursive: true })
       await fs.writeFile(isolatedModelsPath, `${JSON.stringify(modelsDoc, null, 2)}\n`, { mode: 0o600 })
     } catch (error) { if (error.code !== 'ENOENT') throw error }
-    hostManager = createZHostManager({ runtimeRoot, userDataPath: reportDir, executable: process.execPath })
+    hostManager = createZHostManager({ runtimeRoot, userDataPath: reportDir })
     ;({ api } = await hostManager.start())
     const sync = await ensureModelsJsonSyncedToDshHost({
       hostManager,

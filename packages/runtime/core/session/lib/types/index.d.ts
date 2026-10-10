@@ -3,19 +3,19 @@
  * the derived LLM message history. Persistence is a plugin concern (subscribe
  * to `session/event`, drain on `session/flush`).
  *
- * @module @z/dsh-session
+ * @module @taskweaver/dsh-session
  */
-import { Context, Service } from '@z/cordis';
-import type { Scoped } from '@z/dsh-scope';
-import type { Message } from '@z/dsh-llm';
+import { Context, Service } from '@taskweaver/cordis';
+import type { Scoped } from '@taskweaver/dsh-scope';
+import type { Message } from '@taskweaver/dsh-llm';
 import { SessionId } from './types.ts';
-import type { TypertLookup } from '@z/dsh-typert-protocol';
+import type { TypertLookup } from '@taskweaver/dsh-typert-protocol';
 import type { CreateSessionOptions, EpochHeader, PrepareSessionOptions, RequestContext, SessionEvent, SessionEventMap, SessionEventType, SessionHeader, SurfaceIntent, SurfaceEventType } from './types.ts';
 import type { SessionSurface } from './surface.ts';
 export * from './types.ts';
 export { SessionPreparation } from './preparation.ts';
 export type { SessionPreparationOptions } from './preparation.ts';
-export type { AssistantMessage, ToolResultMessage, UserMessage } from '@z/dsh-llm';
+export type { AssistantMessage, ToolResultMessage, UserMessage } from '@taskweaver/dsh-llm';
 export { isJsonValue, snapshotJsonValue } from './json.ts';
 export type { JsonValue } from './json.ts';
 export { interruptedTurnClosers, TOOL_NOT_STARTED, TOOL_OUTCOME_UNKNOWN } from './repair.ts';
@@ -25,7 +25,7 @@ export type { SessionSurface, SurfaceFoldReplacement, SurfaceFoldResult } from '
 export { deriveEventMessage, foldSurface, isAppendSurfaceEvent, isReplacementSurfaceEvent, isSurfaceEvent, isSurfaceEligibleType } from './surface.ts';
 export { canonicalHeader, foldRequestHeader, headerEquals } from './request-header.ts';
 export { KNOWN_SESSION_EVENT_TYPES } from './known-event-types.ts';
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
     interface Context {
         sessions: SessionStore;
     }
@@ -35,7 +35,7 @@ declare module '@z/cordis' {
          * back with a paired disposal; detach requested during dispatch is deferred.
          * A returned-promise rejection is logged but cannot retroactively veto this
          * synchronous boundary.
-         * Scope-filtered dispatch (`@z/dsh-scope`): agent-scoped listeners
+         * Scope-filtered dispatch (`@taskweaver/dsh-scope`): agent-scoped listeners
          * receive only sessions entered through that agent's context.
          * @param session - the session just entered and announced.
          * @dshScopeScan unsupported
@@ -46,7 +46,7 @@ declare module '@z/cordis' {
          * Emitted once when an announced session leaves the store, including
          * publication rollback, but never for an entry whose creation announcement
          * did not begin. Listener failures are logged and contained.
-         * Scope-filtered dispatch (`@z/dsh-scope`) reuses the owner scope.
+         * Scope-filtered dispatch (`@taskweaver/dsh-scope`) reuses the owner scope.
          * @param session - the session that is no longer live in the store.
          * @dshScopeScan unsupported
          * @mode emit
@@ -56,7 +56,7 @@ declare module '@z/cordis' {
          * Post-commit, fire-and-forget append feed. The listener snapshot resolves
          * before the log push, but callbacks run after it; observer failures are
          * logged and contained without making the committed append fail.
-         * Scope-filtered dispatch (`@z/dsh-scope`): agent-scoped listeners
+         * Scope-filtered dispatch (`@taskweaver/dsh-scope`): agent-scoped listeners
          * receive only events from sessions entered through that agent's context.
          * @param session - the session whose log grew.
          * @param event - the appended event, exactly as recorded.
@@ -67,7 +67,7 @@ declare module '@z/cordis' {
         /**
          * Awaited parallel durability checkpoint: every listener runs and the
          * caller awaits all of them, with no waterfall veto. Scope-filtered dispatch
-         * (`@z/dsh-scope`) reuses the session's owner scope.
+         * (`@taskweaver/dsh-scope`) reuses the session's owner scope.
          * @param session - the session whose buffered events must reach durable storage.
          * @dshScopeScan unsupported
          * @mode parallel
@@ -75,7 +75,7 @@ declare module '@z/cordis' {
         'session/flush'(this: Scoped<Session>, session: Session): Promise<void> | void;
     }
 }
-declare module '@z/dsh-typert-protocol' {
+declare module '@taskweaver/dsh-typert-protocol' {
     interface TypertLookupMap {
         session: TypertLookup<Session, SessionId>;
     }

@@ -8,7 +8,7 @@ import koffi from "koffi";
 * API name and the exact Win32 code; the original POC silently ignored every
 * failed call and would run children UNRESTRICTED (fail-open) — that is the
 * failure mode this class exists to prevent.
-* @module @z/dsh-sandbox-windows-acl/errors
+* @module @taskweaver/dsh-sandbox-windows-acl/errors
 */
 var Win32Error = class extends Error {
 	/** The failing Win32 API name, e.g. `CreateRestrictedToken`. */
@@ -56,7 +56,7 @@ const JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 8192;
 * (winnt.h / accctrl.h / aclapi.h / securitybaseapi.h / sddl.h /
 * processthreadsapi.h / fileapi.h / namedpipeapi.h / synchapi.h / winbase.h);
 * struct layouts are asserted at load time against verify/abi-probe.cpp.
-* @module @z/dsh-sandbox-windows-acl/ffi
+* @module @taskweaver/dsh-sandbox-windows-acl/ffi
 */
 /**
 * True for NULL pointers, however koffi returns them (null or 0n).
@@ -524,7 +524,7 @@ function throwWin32(api, name, win32Code, detail) {
 * DACL, and the whole get-merge-set sequence runs under a per-path exclusive
 * LockFileEx lock (see {@link withPathLock}) so concurrent sandbox instances
 * cannot clobber each other's ACEs.
-* @module @z/dsh-sandbox-windows-acl/acl
+* @module @taskweaver/dsh-sandbox-windows-acl/acl
 */
 /**
 * Pack one EXPLICIT_ACCESS_W (48 bytes, layout verified by abi-probe.cpp):
@@ -744,7 +744,7 @@ function revokeWrite(api, path, sidPtr) {
 /**
 * Canonical directory-boundary checks for the Windows ACL workspace and
 * private-temp capabilities.
-* @module @z/dsh-sandbox-windows-acl/path-boundary
+* @module @taskweaver/dsh-sandbox-windows-acl/path-boundary
 */
 /** Whether `root` is the same canonical directory as `candidate` or contains it. */
 function containsDirectory(root, candidate) {
@@ -779,7 +779,7 @@ function assertPrivateTempDisjoint(writableDirs, tempDir) {
 * restriction scheme hidden-console children die with STATUS_DLL_INIT_FAILED
 * (0xC0000142) — verified empirically, see win32-abi.ts. Stdio redirection is
 * pipe-based and unaffected; the child shares the host console.
-* @module @z/dsh-sandbox-windows-acl/spawn
+* @module @taskweaver/dsh-sandbox-windows-acl/spawn
 */
 /**
 * Quote one argument per the CommandLineToArgvW parsing rules: backslashes
@@ -1044,7 +1044,7 @@ function spawnSandboxedInherited(api, token, options) {
 * the POC's restricting-SID allowlist. Every API call is checked; any failure
 * throws with the API name and the exact Win32 code — the original POC ignored
 * all of these and silently ran children with the FULL, unrestricted token.
-* @module @z/dsh-sandbox-windows-acl/token
+* @module @taskweaver/dsh-sandbox-windows-acl/token
 */
 /**
 * Open the current process's access token with the rights
@@ -1218,7 +1218,7 @@ function createRestrictedToken(api, currentToken, logonSid, writeSids, known, mo
 * Fail-closed: `add` throws on any grant failure and the caller disposes the
 * instance (revoking every path granted so far); `dispose` revokes every
 * standing grant and reports every cleanup failure.
-* @module @z/dsh-sandbox-windows-acl/grant
+* @module @taskweaver/dsh-sandbox-windows-acl/grant
 */
 /**
 * One write SID's provider-lifetime grant materialization: the parsed SID
@@ -1320,7 +1320,7 @@ var AclWriteGrant = class AclWriteGrant {
 * tree propagation). Renaming the workspace directory derives a new SID —
 * the old standing ACEs are inert residue, and the next session re-propagates
 * once.
-* @module @z/dsh-sandbox-windows-acl/workspace-sid
+* @module @taskweaver/dsh-sandbox-windows-acl/workspace-sid
 */
 /**
 * Derive the workspace's write SID (`S-1-4-x-y`; subauthorities 30-bit,
@@ -1384,7 +1384,7 @@ function tempWriteSid(tempDir) {
 *    the CALLER owns the DACLs (the sandbox seam's grant reuse):
 *    init()/dispose() skip grant/revoke entirely and the caller must not
 *    revoke under live children.
-* @module @z/dsh-sandbox-windows-acl
+* @module @taskweaver/dsh-sandbox-windows-acl
 */
 /** Free one optional SID while retaining a failure for best-effort sibling cleanup. */
 function freeSidBestEffort(api, sidPtr, label, failures) {

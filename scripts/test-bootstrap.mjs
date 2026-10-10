@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict'
-import { createAppBootstrap } from '../electron/backend/bootstrap.mjs'
+import { createAppBootstrap } from '../desktop/backend/bootstrap.mjs'
 
 let startCalls = 0
 const bootstrap = createAppBootstrap({

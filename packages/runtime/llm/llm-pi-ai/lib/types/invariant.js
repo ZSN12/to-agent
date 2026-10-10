@@ -1,27 +1,22 @@
-"use strict";
 /**
- * Package-owned invariant companion for `@z/dsh-llm-pi-ai`.
- * @module @z/dsh-llm-pi-ai/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-llm-pi-ai`.
+ * @module @taskweaver/dsh-llm-pi-ai/invariant
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.apply = exports.inject = exports.name = void 0;
-var PACKAGE_NAME = '@z/dsh-llm-pi-ai';
+const PACKAGE_NAME = '@taskweaver/dsh-llm-pi-ai';
 /** Cordis companion plugin name. */
-exports.name = 'llm-pi-ai-invariant';
+export const name = 'llm-pi-ai-invariant';
 /** Service required before the companion can reserve package ownership. */
-exports.inject = ['invariants'];
+export const inject = ['invariants'];
 /**
  * No runtime invariant: this package exposes no independent event sequence or mutable data relation
  * beyond contracts enforced at its owning seam.
  */
-var install = function () { };
+const install = () => { };
 /**
  * Register this package's invariant companion.
  * @param ctx - Cordis context carrying the invariant service.
  * @returns the installed registration's disposer after setup succeeds.
  */
-var apply = function (ctx) {
-    return Promise.resolve(ctx.invariants.register(PACKAGE_NAME, install));
-};
-exports.apply = apply;
+export const apply = (ctx) => Promise.resolve(ctx.invariants.register(PACKAGE_NAME, install));
 /* jscpd:ignore-end */
+//# sourceMappingURL=invariant.js.map

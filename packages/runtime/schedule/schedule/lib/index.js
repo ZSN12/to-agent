@@ -1,9 +1,9 @@
-import { createUserMessage } from "@z/dsh-llm";
-import { defineTool } from "@z/dsh-tools";
+import { createUserMessage } from "@taskweaver/dsh-llm";
+import { defineTool } from "@taskweaver/dsh-tools";
 //#region lib/types/domain.js
 /**
 * Strict Schedule decoding, replay, time validation, and framing.
-* @module @z/dsh-schedule
+* @module @taskweaver/dsh-schedule
 */
 /** Durable Schedule protocol version implemented by this package. */
 const SCHEDULE_CHANGE_VERSION = 1;
@@ -622,7 +622,7 @@ async function runScheduleTransaction(agent, operation) {
 //#region lib/types/runtime.js
 /**
 * Disposable live timer projection for one exact root agent.
-* @module @z/dsh-schedule
+* @module @taskweaver/dsh-schedule
 */
 /** Largest delay that Node timers represent without clamping. */
 const MAX_TIMER_DELAY_MS = 2147483647;
@@ -875,7 +875,7 @@ var ScheduleRuntime = class {
 //#region lib/types/tools.js
 /**
 * Agent-scoped Schedule management tools over the durable session fold.
-* @module @z/dsh-schedule
+* @module @taskweaver/dsh-schedule
 */
 const SHARED_VIEW_PROPERTIES = {
 	id: {
@@ -1337,7 +1337,7 @@ function registerScheduleTools(rootCtx, toolCtx, agent, onDurableChange) {
 //#region lib/types/index.js
 /**
 * Agent-scoped durable one-shot and fixed-rate reminders over the session event log.
-* @module @z/dsh-schedule
+* @module @taskweaver/dsh-schedule
 */
 /** Cordis function-plugin name. */
 const name = "schedule";

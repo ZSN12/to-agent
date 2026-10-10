@@ -1,30 +1,14 @@
-"use strict";
 /**
  * Restricted-token construction: open the current process token, extract its
  * logon SID, build the well-known SIDs, and call CreateRestrictedToken with
  * the POC's restricting-SID allowlist. Every API call is checked; any failure
  * throws with the API name and the exact Win32 code — the original POC ignored
  * all of these and silently ran children with the FULL, unrestricted token.
- * @module @z/dsh-sandbox-windows-acl/token
+ * @module @taskweaver/dsh-sandbox-windows-acl/token
  */
-var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
-    if (pack || arguments.length === 2) for (var i = 0, l = from.length, ar; i < l; i++) {
-        if (ar || !(i in from)) {
-            if (!ar) ar = Array.prototype.slice.call(from, 0, i);
-            ar[i] = from[i];
-        }
-    }
-    return to.concat(ar || Array.prototype.slice.call(from));
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.openCurrentProcessToken = openCurrentProcessToken;
-exports.findLogonSid = findLogonSid;
-exports.makeWellKnownSid = makeWellKnownSid;
-exports.setTokenDefaultDaclGrant = setTokenDefaultDaclGrant;
-exports.createRestrictedToken = createRestrictedToken;
-var ffi_ts_1 = require("./ffi.ts");
-var acl_ts_1 = require("./acl.ts");
-var abi = require("./win32-abi.ts");
+import { allocBytes, allocPtrSlot, allocUint32, decodePtr, decodePtrAt, decodeUint32, encodeUint32, isNullPtr, ptrAddress, throwLastError, throwWin32 } from "./ffi.js";
+import { buildExplicitAccess } from "./acl.js";
+import * as abi from "./win32-abi.js";
 /**
  * Open the current process's access token with the rights
  * CreateRestrictedToken requires (the POC's OpenProcessToken call; the token
@@ -33,22 +17,22 @@ var abi = require("./win32-abi.ts");
  * @param api - the binding table.
  * @returns the opened token handle.
  */
-function openCurrentProcessToken(api) {
-    var processHandle = api.openProcess(abi.PROCESS_QUERY_INFORMATION, 0, process.pid);
-    if ((0, ffi_ts_1.isNullPtr)(processHandle))
-        (0, ffi_ts_1.throwLastError)(api, 'OpenProcess', "pid ".concat(process.pid));
-    var tokenSlot = (0, ffi_ts_1.allocPtrSlot)();
-    var opened = api.openProcessToken(processHandle, abi.TOKEN_QUERY | abi.TOKEN_DUPLICATE | abi.TOKEN_ADJUST_DEFAULT | abi.TOKEN_ASSIGN_PRIMARY, tokenSlot);
+export function openCurrentProcessToken(api) {
+    const processHandle = api.openProcess(abi.PROCESS_QUERY_INFORMATION, 0, process.pid);
+    if (isNullPtr(processHandle))
+        throwLastError(api, 'OpenProcess', `pid ${process.pid}`);
+    const tokenSlot = allocPtrSlot();
+    const opened = api.openProcessToken(processHandle, abi.TOKEN_QUERY | abi.TOKEN_DUPLICATE | abi.TOKEN_ADJUST_DEFAULT | abi.TOKEN_ASSIGN_PRIMARY, tokenSlot);
     if (opened === 0) {
-        var win32Code = api.getLastError();
+        const win32Code = api.getLastError();
         api.closeHandle(processHandle); // best-effort on the error path
-        (0, ffi_ts_1.throwWin32)(api, 'OpenProcessToken', win32Code, "pid ".concat(process.pid));
+        throwWin32(api, 'OpenProcessToken', win32Code, `pid ${process.pid}`);
     }
     if (api.closeHandle(processHandle) === 0)
-        (0, ffi_ts_1.throwLastError)(api, 'CloseHandle', 'OpenProcess process handle');
-    var token = (0, ffi_ts_1.decodePtr)(tokenSlot);
+        throwLastError(api, 'CloseHandle', 'OpenProcess process handle');
+    const token = decodePtr(tokenSlot);
     if (token === null)
-        (0, ffi_ts_1.throwWin32)(api, 'OpenProcessToken', api.getLastError(), 'null token handle');
+        throwWin32(api, 'OpenProcessToken', api.getLastError(), 'null token handle');
     return token;
 }
 /**
@@ -59,35 +43,35 @@ function openCurrentProcessToken(api) {
  * @param token - the token whose groups are scanned.
  * @returns a copied logon SID (thrown when the token carries none).
  */
-function findLogonSid(api, token) {
-    var neededSlot = (0, ffi_ts_1.allocUint32)();
+export function findLogonSid(api, token) {
+    const neededSlot = allocUint32();
     api.getTokenInformation(token, abi.TokenGroups, null, 0, neededSlot); // expected to fail with ERROR_INSUFFICIENT_BUFFER
-    var needed = (0, ffi_ts_1.decodeUint32)(neededSlot);
+    const needed = decodeUint32(neededSlot);
     if (needed === 0)
-        (0, ffi_ts_1.throwLastError)(api, 'GetTokenInformation', 'TokenGroups size query');
+        throwLastError(api, 'GetTokenInformation', 'TokenGroups size query');
     if (needed < abi.TOKEN_GROUPS_OFFSET)
-        (0, ffi_ts_1.throwWin32)(api, 'GetTokenInformation', api.getLastError(), "implausible TokenGroups size ".concat(needed));
-    var groups = Buffer.alloc(needed);
+        throwWin32(api, 'GetTokenInformation', api.getLastError(), `implausible TokenGroups size ${needed}`);
+    const groups = Buffer.alloc(needed);
     if (api.getTokenInformation(token, abi.TokenGroups, groups, groups.length, neededSlot) === 0) {
-        (0, ffi_ts_1.throwLastError)(api, 'GetTokenInformation', 'TokenGroups');
+        throwLastError(api, 'GetTokenInformation', 'TokenGroups');
     }
-    var groupCount = groups.readUInt32LE(0);
-    for (var index = 0; index < groupCount; index++) {
-        var sidPtr = (0, ffi_ts_1.decodePtrAt)(groups, abi.TOKEN_GROUPS_OFFSET + index * abi.SID_AND_ATTRIBUTES_SIZE);
-        var attributes = groups.readUInt32LE(abi.TOKEN_GROUPS_OFFSET + index * abi.SID_AND_ATTRIBUTES_SIZE + 8);
+    const groupCount = groups.readUInt32LE(0);
+    for (let index = 0; index < groupCount; index++) {
+        const sidPtr = decodePtrAt(groups, abi.TOKEN_GROUPS_OFFSET + index * abi.SID_AND_ATTRIBUTES_SIZE);
+        const attributes = groups.readUInt32LE(abi.TOKEN_GROUPS_OFFSET + index * abi.SID_AND_ATTRIBUTES_SIZE + 8);
         // >>> 0: JS bitwise & is signed 32-bit; SE_GROUP_LOGON_ID has bit 31 set.
-        var isLogonId = ((attributes & abi.SE_GROUP_LOGON_ID) >>> 0) === (abi.SE_GROUP_LOGON_ID >>> 0);
+        const isLogonId = ((attributes & abi.SE_GROUP_LOGON_ID) >>> 0) === (abi.SE_GROUP_LOGON_ID >>> 0);
         if (sidPtr === null || !isLogonId)
             continue;
-        var sidLength = api.getLengthSid(sidPtr);
+        const sidLength = api.getLengthSid(sidPtr);
         if (sidLength === 0)
-            (0, ffi_ts_1.throwLastError)(api, 'GetLengthSid', "logon SID group ".concat(index));
-        var copy = (0, ffi_ts_1.allocBytes)(sidLength);
+            throwLastError(api, 'GetLengthSid', `logon SID group ${index}`);
+        const copy = allocBytes(sidLength);
         if (api.copySid(sidLength, copy, sidPtr) === 0)
-            (0, ffi_ts_1.throwLastError)(api, 'CopySid', "logon SID group ".concat(index));
+            throwLastError(api, 'CopySid', `logon SID group ${index}`);
         return copy;
     }
-    throw new Error("CreateRestrictedToken prerequisite failed: no logon SID found among ".concat(groupCount, " token groups"));
+    throw new Error(`CreateRestrictedToken prerequisite failed: no logon SID found among ${groupCount} token groups`);
 }
 /**
  * Create one well-known SID (68-byte buffer) and assert its validity.
@@ -95,15 +79,15 @@ function findLogonSid(api, token) {
  * @param type - the WELL_KNOWN_SID_TYPE to create.
  * @returns the created SID pointer.
  */
-function makeWellKnownSid(api, type) {
-    var sid = (0, ffi_ts_1.allocBytes)(abi.SECURITY_MAX_SID_SIZE);
-    var sizeSlot = (0, ffi_ts_1.allocUint32)();
-    (0, ffi_ts_1.encodeUint32)(sizeSlot, abi.SECURITY_MAX_SID_SIZE);
+export function makeWellKnownSid(api, type) {
+    const sid = allocBytes(abi.SECURITY_MAX_SID_SIZE);
+    const sizeSlot = allocUint32();
+    encodeUint32(sizeSlot, abi.SECURITY_MAX_SID_SIZE);
     if (api.createWellKnownSid(type, null, sid, sizeSlot) === 0) {
-        (0, ffi_ts_1.throwLastError)(api, 'CreateWellKnownSid', "type ".concat(type));
+        throwLastError(api, 'CreateWellKnownSid', `type ${type}`);
     }
     if (api.isValidSid(sid) === 0)
-        (0, ffi_ts_1.throwLastError)(api, 'IsValidSid', "CreateWellKnownSid type ".concat(type));
+        throwLastError(api, 'IsValidSid', `CreateWellKnownSid type ${type}`);
     return sid;
 }
 /**
@@ -122,43 +106,43 @@ function makeWellKnownSid(api, type) {
  * @param token - the restricted token to adjust (requires TOKEN_ADJUST_DEFAULT).
  * @param sidPtr - the restricting SID whose full-access ACE joins the default DACL.
  */
-function setTokenDefaultDaclGrant(api, token, sidPtr) {
-    var neededSlot = (0, ffi_ts_1.allocUint32)();
+export function setTokenDefaultDaclGrant(api, token, sidPtr) {
+    const neededSlot = allocUint32();
     api.getTokenInformation(token, abi.TokenDefaultDacl, null, 0, neededSlot); // expected to fail with ERROR_INSUFFICIENT_BUFFER
-    var needed = (0, ffi_ts_1.decodeUint32)(neededSlot);
+    const needed = decodeUint32(neededSlot);
     if (needed === 0)
-        (0, ffi_ts_1.throwLastError)(api, 'GetTokenInformation', 'TokenDefaultDacl size query');
-    var buffer = Buffer.alloc(needed);
+        throwLastError(api, 'GetTokenInformation', 'TokenDefaultDacl size query');
+    const buffer = Buffer.alloc(needed);
     if (api.getTokenInformation(token, abi.TokenDefaultDacl, buffer, buffer.length, neededSlot) === 0) {
-        (0, ffi_ts_1.throwLastError)(api, 'GetTokenInformation', 'TokenDefaultDacl');
+        throwLastError(api, 'GetTokenInformation', 'TokenDefaultDacl');
     }
-    var currentDacl = (0, ffi_ts_1.decodePtrAt)(buffer, 0);
+    const currentDacl = decodePtrAt(buffer, 0);
     if (currentDacl === null) {
         throw new Error('setTokenDefaultDaclGrant: the token carries no default DACL to extend');
     }
-    var newDaclSlot = (0, ffi_ts_1.allocPtrSlot)();
-    var result = api.setEntriesInAclW(1, (0, acl_ts_1.buildExplicitAccess)(sidPtr, abi.GRANT_ACCESS, abi.FILE_ALL_ACCESS), currentDacl, newDaclSlot);
+    const newDaclSlot = allocPtrSlot();
+    const result = api.setEntriesInAclW(1, buildExplicitAccess(sidPtr, abi.GRANT_ACCESS, abi.FILE_ALL_ACCESS), currentDacl, newDaclSlot);
     if (result !== abi.ERROR_SUCCESS)
-        (0, ffi_ts_1.throwWin32)(api, 'SetEntriesInAclW', result, 'default DACL merge');
-    var newDacl = (0, ffi_ts_1.decodePtr)(newDaclSlot);
+        throwWin32(api, 'SetEntriesInAclW', result, 'default DACL merge');
+    const newDacl = decodePtr(newDaclSlot);
     if (newDacl === null)
-        (0, ffi_ts_1.throwWin32)(api, 'SetEntriesInAclW', result, 'null merged default DACL');
+        throwWin32(api, 'SetEntriesInAclW', result, 'null merged default DACL');
     // TOKEN_DEFAULT_DACL { PACL DefaultDacl; } — the struct is exactly the
     // pointer; SetTokenInformation copies the ACL before returning.
-    var info = Buffer.alloc(8);
+    const info = Buffer.alloc(8);
     info.writeBigUInt64LE(newDacl, 0);
     if (api.setTokenInformation(token, abi.TokenDefaultDacl, info, info.length) === 0) {
-        var win32Code = api.getLastError();
+        const win32Code = api.getLastError();
         api.localFree(newDacl);
-        (0, ffi_ts_1.throwWin32)(api, 'SetTokenInformation', win32Code, 'TokenDefaultDacl');
+        throwWin32(api, 'SetTokenInformation', win32Code, 'TokenDefaultDacl');
     }
     api.localFree(newDacl);
 }
 /** Pack `SID_AND_ATTRIBUTES[count]` (16-byte stride; Attributes stay 0). */
 function buildRestrictingSids(sids) {
-    var buffer = Buffer.alloc(abi.SID_AND_ATTRIBUTES_SIZE * sids.length);
-    sids.forEach(function (sid, index) {
-        buffer.writeBigUInt64LE((0, ffi_ts_1.ptrAddress)(sid), abi.SID_AND_ATTRIBUTES_SIZE * index);
+    const buffer = Buffer.alloc(abi.SID_AND_ATTRIBUTES_SIZE * sids.length);
+    sids.forEach((sid, index) => {
+        buffer.writeBigUInt64LE(ptrAddress(sid), abi.SID_AND_ATTRIBUTES_SIZE * index);
     });
     return buffer;
 }
@@ -196,20 +180,21 @@ function buildRestrictingSids(sids) {
  * @param mode - selects the restricting list (workspace-write adds the capability SIDs).
  * @returns the restricted token handle.
  */
-function createRestrictedToken(api, currentToken, logonSid, writeSids, known, mode) {
-    var restrictingSids = buildRestrictingSids(mode === 'read-only'
+export function createRestrictedToken(api, currentToken, logonSid, writeSids, known, mode) {
+    const restrictingSids = buildRestrictingSids(mode === 'read-only'
         ? [logonSid, known.world]
         : writeSids.length === 0
-            ? (function () { throw new Error('createRestrictedToken: workspace-write restricting list requires at least one write SID'); })()
-            : __spreadArray([logonSid, known.world], writeSids, true));
-    var tokenSlot = (0, ffi_ts_1.allocPtrSlot)();
-    var created = api.createRestrictedToken(currentToken, abi.DISABLE_MAX_PRIVILEGE | abi.LUA_TOKEN | abi.WRITE_RESTRICTED, 0, null, // no SIDs disabled
+            ? (() => { throw new Error('createRestrictedToken: workspace-write restricting list requires at least one write SID'); })()
+            : [logonSid, known.world, ...writeSids]);
+    const tokenSlot = allocPtrSlot();
+    const created = api.createRestrictedToken(currentToken, abi.DISABLE_MAX_PRIVILEGE | abi.LUA_TOKEN | abi.WRITE_RESTRICTED, 0, null, // no SIDs disabled
     0, null, // no privileges deleted
     restrictingSids.length / abi.SID_AND_ATTRIBUTES_SIZE, restrictingSids, tokenSlot);
     if (created === 0)
-        (0, ffi_ts_1.throwLastError)(api, 'CreateRestrictedToken', "restricting SIDs: ".concat(restrictingSids.length / abi.SID_AND_ATTRIBUTES_SIZE));
-    var token = (0, ffi_ts_1.decodePtr)(tokenSlot);
+        throwLastError(api, 'CreateRestrictedToken', `restricting SIDs: ${restrictingSids.length / abi.SID_AND_ATTRIBUTES_SIZE}`);
+    const token = decodePtr(tokenSlot);
     if (token === null)
-        (0, ffi_ts_1.throwWin32)(api, 'CreateRestrictedToken', api.getLastError(), 'null token handle');
+        throwWin32(api, 'CreateRestrictedToken', api.getLastError(), 'null token handle');
     return token;
 }
+//# sourceMappingURL=token.js.map

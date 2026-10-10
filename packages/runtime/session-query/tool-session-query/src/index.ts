@@ -1,14 +1,14 @@
 /**
  * Model-facing, workspace-authorized session-history search and read tools.
  *
- * @module @z/dsh-tool-session-query
+ * @module @taskweaver/dsh-tool-session-query
  */
 
-import type { Context } from '@z/cordis'
-import z from '@z/schemastery'
-import { MAX_TIMER_DELAY_MS } from '@z/dsh-timeout'
-import { defineTool } from '@z/dsh-tools'
-import type {} from '@z/dsh-system-prompt'
+import type { Context } from '@taskweaver/cordis'
+import z from '@taskweaver/schemastery'
+import { MAX_TIMER_DELAY_MS } from '@taskweaver/dsh-timeout'
+import { defineTool } from '@taskweaver/dsh-tools'
+import type {} from '@taskweaver/dsh-system-prompt'
 import { toolInput } from './input.ts'
 import { operations } from './operations.ts'
 import { presentation } from './presentation.ts'

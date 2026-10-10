@@ -9,7 +9,7 @@
 
 ## 自动选用
 
-`electron/backend/primary-agent-preset.mjs` 在**新 Host 会话**创建前解析 preset：
+`desktop/backend/primary-agent-preset.mjs` 在**新 Host 会话**创建前解析 preset：
 
 | 条件 | Preset |
 |------|--------|

@@ -4,24 +4,24 @@
  * through the seam, and every write re-reads the document under a
  * cross-process writer lock before patching it as a comment-preserving
  * leaf-level diff.
- * @module @z/dsh-settings-file
+ * @module @taskweaver/dsh-settings-file
  */
 
-import { Context, Service } from '@z/cordis'
-import z from '@z/schemastery'
+import { Context, Service } from '@taskweaver/cordis'
+import z from '@taskweaver/schemastery'
 import { watch as chokidarWatch } from 'chokidar'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, extname, join, resolve } from 'node:path'
 import { Document, parseDocument } from 'yaml'
-import { withFileLock, writeFileAtomic } from '@z/dsh-atomic-write'
-import { canonicalizeWatchPath, resolveDshHome } from '@z/dsh-home-paths'
-import { SettingsProvider, deepEqualJson, type SettingsNamespace } from '@z/dsh-settings'
+import { withFileLock, writeFileAtomic } from '@taskweaver/dsh-atomic-write'
+import { canonicalizeWatchPath, resolveRuntimeHome } from '@taskweaver/dsh-home-paths'
+import { SettingsProvider, deepEqualJson, type SettingsNamespace } from '@taskweaver/dsh-settings'
 
 /** Plugin config: file location and hot-reload behavior. */
 export interface Config {
   /** Settings document path; defaults to `settings.yaml` under the harness home. */
   path?: string
-  /** Harness home used when `path` is omitted; defaults to `$DSH_HOME` or `~/.dsh`. */
+  /** Runtime home used when `path` is omitted; defaults to `$TASKWEAVER_HOME` or `~/.taskweaver/runtime`. */
   dshHome?: string
   /** Watch the document and hot-publish external edits; defaults to true. */
   watch?: boolean
@@ -53,7 +53,7 @@ interface ResolvedSpec {
  * @returns the resolved file location, format, and watch behavior.
  */
 export function resolveSpec(config: Config): ResolvedSpec {
-  const filename = resolve(config.path ?? join(resolveDshHome(config.dshHome), 'settings.yaml'))
+  const filename = resolve(config.path ?? join(resolveRuntimeHome(config.dshHome), 'settings.yaml'))
   const format = FORMATS[extname(filename)]
   if (format === undefined) {
     throw new Error(`settings-file: extension "${extname(filename)}" is not supported (use .yaml, .yml, or .json)`)

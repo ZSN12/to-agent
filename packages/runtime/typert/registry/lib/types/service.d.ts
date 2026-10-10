@@ -2,11 +2,11 @@
  * Runtime registry for generated Typert reflection, Remote invocations, and
  * dependency-inverted lookup/Context providers. It performs no TypeScript
  * analysis or schema generation.
- * @module @z/dsh-typert-registry
+ * @module @taskweaver/dsh-typert-registry
  */
-import { Context, Service } from '@z/cordis';
+import { Context, Service } from '@taskweaver/cordis';
 import { z } from 'zod';
-import type { InvocationDescriptor, TypertContextRegistry, TypertDisposer, TypertLocalRegistry, TypertLookupRegistry, TypertRemoteRegistry, TypertRegistryContract } from '@z/dsh-typert-protocol';
+import type { InvocationDescriptor, TypertContextRegistry, TypertDisposer, TypertLocalRegistry, TypertLookupRegistry, TypertRemoteRegistry, TypertRegistryContract } from '@taskweaver/dsh-typert-protocol';
 import type { TypertContribution, TypertFace, TypertPackageFilter, TypertPackageRecord, TypertSchemaFilter, TypertSchemaRecord } from './types.ts';
 /**
  * Compose the global key of one generated schema.

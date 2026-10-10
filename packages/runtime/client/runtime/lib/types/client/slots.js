@@ -14,8 +14,8 @@
  * holds this package's 'root' row in this compilation unit, but consumers
  * merge keys in; the rule fires on the narrow-map view, not on real
  * redundancy. */
-import { Service } from '@z/cordis';
-import { SlotCore } from '@z/dsh-client-ui-slots';
+import { Service } from '@taskweaver/cordis';
+import { SlotCore } from '@taskweaver/dsh-client-ui-slots';
 /** Instance key for root-scoped store records (session records key by session id, so the literal cannot collide). */
 const ROOT_INSTANCE_KEY = 'root';
 /** cordis Service layer of the slot system; see the module doc for the split with SlotCore. */

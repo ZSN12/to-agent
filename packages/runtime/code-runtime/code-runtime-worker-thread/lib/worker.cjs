@@ -1,7 +1,7 @@
 let node_worker_threads = require("node:worker_threads");
 let node_util = require("node:util");
 //#region lib/types/output-json.js
-/** JSON string-prefix accounting for the outer-output ledger. @module @z/dsh-code-runtime-worker-thread/output-json */
+/** JSON string-prefix accounting for the outer-output ledger. @module @taskweaver/dsh-code-runtime-worker-thread/output-json */
 const intrinsicReflectApply$1 = Reflect.apply;
 const intrinsicArrayIsArray$1 = Array.isArray;
 const IntrinsicBuffer = Buffer;
@@ -45,7 +45,8 @@ function takeLast$1(target) {
 }
 /** One code-point-aligned character from a string. */
 function characterAt(text, index) {
-	return intrinsicReflectApply$1(intrinsicStringSlice, text, [index, index + (intrinsicReflectApply$1(intrinsicStringCodePointAt, text, [index]) > 65535 ? 2 : 1)]);
+	const width = intrinsicReflectApply$1(intrinsicStringCodePointAt, text, [index]) > 65535 ? 2 : 1;
+	return intrinsicReflectApply$1(intrinsicStringSlice, text, [index, index + width]);
 }
 /** Serialized bytes contributed by one complete Unicode code point inside JSON quotes. */
 function serializedCharacterBytes(character) {
@@ -180,7 +181,7 @@ function truncateJsonStringBytes(text, maxBytes) {
 //#region lib/types/worker-json.js
 /**
 * Lossless-JSON snapshots for the dependency-free source worker closure.
-* @module @z/dsh-code-runtime-worker-thread/worker-json
+* @module @taskweaver/dsh-code-runtime-worker-thread/worker-json
 */
 const intrinsicFunctionToString = Reflect.get(Function.prototype, "toString");
 const intrinsicReflectApply = Reflect.get(Reflect, "apply");
@@ -563,7 +564,7 @@ function decodeWorkerJson(input) {
 * Worker-side execution logic, written as plain functions over an injected port so the unit
 * suite can run every line IN-PROCESS against a fake port (a real worker thread is a separate
 * V8 isolate the coverage provider cannot observe).
-* @module @z/dsh-code-runtime-worker-thread/src/bootstrap
+* @module @taskweaver/dsh-code-runtime-worker-thread/src/bootstrap
 */
 const CapturedError = Error;
 const capturedObjectCreate = Object.create;
@@ -835,7 +836,8 @@ function makeNamespaces(data, port, pending, nextId, errorClasses = makeBindingE
 						});
 					} catch (error) {
 						pending.delete(id);
-						reject(bindingFailure(errorClass, name, `binding arguments must be structured-cloneable: ${error instanceof CapturedError ? error.message : String(error)}`));
+						const message = `binding arguments must be structured-cloneable: ${error instanceof CapturedError ? error.message : String(error)}`;
+						reject(bindingFailure(errorClass, name, message));
 					}
 				});
 			}
@@ -899,7 +901,7 @@ async function runWorkerMain(port, data, streams) {
 /**
 * Spawn-only worker entrypoint over {@link runWorkerMain}. Executable logic stays in
 * `bootstrap.ts` for in-process coverage; real-worker tests cover this glue.
-* @module @z/dsh-code-runtime-worker-thread/src/worker
+* @module @taskweaver/dsh-code-runtime-worker-thread/src/worker
 */
 if (!node_worker_threads.parentPort) throw new Error("dsh-code-runtime-worker-thread: worker entry loaded outside a worker thread");
 runWorkerMain(node_worker_threads.parentPort, node_worker_threads.workerData, {

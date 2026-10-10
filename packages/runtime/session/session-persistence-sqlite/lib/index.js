@@ -1,6 +1,6 @@
-import { Service } from "@z/cordis";
-import z from "@z/schemastery";
-import { DEFAULT_PREPARED_SESSION_CACHE_SIZE, DEFAULT_WRITE_BATCH_MAX_DELAY_MS, MAX_WRITE_BATCH_DELAY_MS, PersistenceCoordinator, SessionPersistence, SessionPersistenceRevision } from "@z/dsh-session-persistence";
+import { Service } from "@taskweaver/cordis";
+import z from "@taskweaver/schemastery";
+import { DEFAULT_PREPARED_SESSION_CACHE_SIZE, DEFAULT_WRITE_BATCH_MAX_DELAY_MS, MAX_WRITE_BATCH_DELAY_MS, PersistenceCoordinator, SessionPersistence, SessionPersistenceRevision } from "@taskweaver/dsh-session-persistence";
 import { randomUUID } from "node:crypto";
 import { readFileSync, statSync } from "node:fs";
 import { lstat, mkdir, open } from "node:fs/promises";
@@ -9,7 +9,7 @@ import { TextDecoder } from "node:util";
 import { constants, zstdCompressSync, zstdDecompressSync } from "node:zlib";
 import { performance } from "node:perf_hooks";
 import { setTimeout } from "node:timers/promises";
-import { SessionId } from "@z/dsh-session";
+import { SessionId } from "@taskweaver/dsh-session";
 import { fileURLToPath } from "node:url";
 /** Maximum logical members represented by one packed physical record. */
 const MAX_PACKED_ROW_MEMBERS = 1024;
@@ -503,7 +503,7 @@ function scanRows(rows, base = 0) {
 //#region lib/types/sql.js
 /**
 * Closed, package-owned SQL resource loading for SQLite.
-* @module @z/dsh-session-persistence-sqlite/sql
+* @module @taskweaver/dsh-session-persistence-sqlite/sql
 */
 const cache = /* @__PURE__ */ new Map();
 /**
@@ -522,7 +522,7 @@ function sql(name) {
 //#region lib/types/schema.js
 /**
 * SQLite schema ownership and durable-row validation.
-* @module @z/dsh-session-persistence-sqlite/schema
+* @module @taskweaver/dsh-session-persistence-sqlite/schema
 */
 /** Current physical-record schema with packed and compressed event rows. */
 const SCHEMA_VERSION = 17;
@@ -809,7 +809,7 @@ function nullableNonnegativeSafeIntegerField(value, key) {
 /**
 * SQLite storage primitives: transactional append-batch packing, physical
 * reads, schema validation, revisions, repair, and lifecycle closure.
-* @module @z/dsh-session-persistence-sqlite/store
+* @module @taskweaver/dsh-session-persistence-sqlite/store
 */
 /** SQLite implementation of the coordinator's physical backend hooks. */
 var SqliteStore = class {
@@ -1139,7 +1139,7 @@ async function importNodeSqlite() {
 /**
 * Opt-in SQLite persistence provider. Logical sessions remain unchanged;
 * the physical backend packs eligible chunk runs into schema-17 rows.
-* @module @z/dsh-session-persistence-sqlite
+* @module @taskweaver/dsh-session-persistence-sqlite
 */
 /** Default wait for another SQLite connection's write reservation. */
 const DEFAULT_BUSY_TIMEOUT_MS = 5e3;

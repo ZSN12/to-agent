@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
-import { Context } from '@z/cordis'
-import { createScope, scopeOf } from '@z/dsh-scope'
-import type { Scope, ScopeKey } from '@z/dsh-scope'
-import SystemPrompt, { TOOL_ORDER_REST, renderContextSnapshot, renderPrompt } from '@z/dsh-system-prompt'
-import type { Config, PromptAssembly } from '@z/dsh-system-prompt'
+import { Context } from '@taskweaver/cordis'
+import { createScope, scopeOf } from '@taskweaver/dsh-scope'
+import type { Scope, ScopeKey } from '@taskweaver/dsh-scope'
+import SystemPrompt, { TOOL_ORDER_REST, renderContextSnapshot, renderPrompt } from '@taskweaver/dsh-system-prompt'
+import type { Config, PromptAssembly } from '@taskweaver/dsh-system-prompt'
 
 async function mount(config: Config = {}): Promise<Context> {
   const ctx = new Context()

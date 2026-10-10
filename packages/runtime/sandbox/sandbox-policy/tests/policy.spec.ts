@@ -8,11 +8,11 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from 'node:
 import { tmpdir } from 'node:os'
 import { join, resolve, sep } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import type { Agent } from '@z/dsh-agent'
-import { Session, SessionId } from '@z/dsh-session'
-import SandboxPolicyService, { SANDBOX_MODES, effectiveSandboxMode, setSandboxMode } from '@z/dsh-sandbox-policy'
-import SystemPrompt, { renderContextSnapshot, renderPrompt } from '@z/dsh-system-prompt'
+import { Context } from '@taskweaver/cordis'
+import type { Agent } from '@taskweaver/dsh-agent'
+import { Session, SessionId } from '@taskweaver/dsh-session'
+import SandboxPolicyService, { SANDBOX_MODES, effectiveSandboxMode, setSandboxMode } from '@taskweaver/dsh-sandbox-policy'
+import SystemPrompt, { renderContextSnapshot, renderPrompt } from '@taskweaver/dsh-system-prompt'
 
 async function mounted(config: { mode?: 'read-only' | 'workspace-write' | 'danger-full-access'; workspaceRoot?: string } = {}) {
   const ctx = new Context()

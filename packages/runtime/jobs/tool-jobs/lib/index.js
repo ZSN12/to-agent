@@ -1,8 +1,8 @@
-import z from "@z/schemastery";
-import { boundContextSummary, createUserMessage } from "@z/dsh-llm";
-import { TextRetainer } from "@z/dsh-output-retention";
-import { defineTool } from "@z/dsh-tools";
-import { JobId } from "@z/dsh-jobs";
+import z from "@taskweaver/schemastery";
+import { boundContextSummary, createUserMessage } from "@taskweaver/dsh-llm";
+import { TextRetainer } from "@taskweaver/dsh-output-retention";
+import { defineTool } from "@taskweaver/dsh-tools";
+import { JobId } from "@taskweaver/dsh-jobs";
 //#region lib/types/index.js
 /**
 * Model-facing `job_output`, `job_list`, and `job_kill` tools over
@@ -10,7 +10,7 @@ import { JobId } from "@z/dsh-jobs";
 * producers. It also delivers unreported completions to the owning agent:
 * injected into a busy owner's next step, or opening a turn on an idle one
 * under the default `wakeup` delivery, bounded per owner.
-* @module @z/dsh-tool-jobs
+* @module @taskweaver/dsh-tool-jobs
 */
 const name = "tool-jobs";
 const inject = [

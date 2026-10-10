@@ -1,12 +1,9 @@
-"use strict";
-/** Package-owned filesystem event-data invariants. @module @z/dsh-fs/invariant */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.apply = exports.inject = exports.name = void 0;
-var PACKAGE_NAME = '@z/dsh-fs';
+/** Package-owned filesystem event-data invariants. @module @taskweaver/dsh-fs/invariant */
+const PACKAGE_NAME = '@taskweaver/dsh-fs';
 /** Cordis companion plugin name. */
-exports.name = 'fs-invariant';
+export const name = 'fs-invariant';
 /** Service required before the companion can reserve package ownership. */
-exports.inject = ['invariants'];
+export const inject = ['invariants'];
 /** Assert that an event carries a usable opaque target identity. */
 function validateTarget(target, fail) {
     if (target.targetKey.length === 0)
@@ -15,15 +12,15 @@ function validateTarget(target, fail) {
         fail('filesystem event displayPath must be non-empty');
 }
 /** Install checks over the filesystem decision and observation event stream. */
-var install = function (ctx, fail) {
-    ctx.on('internal/dispatch', function (_mode, eventName, args) {
+const install = (ctx, fail) => {
+    ctx.on('internal/dispatch', (_mode, eventName, args) => {
         if (eventName !== 'fs/write-intent'
             && eventName !== 'fs/edit-intent'
             && eventName !== 'fs/observed')
             return;
         validateTarget(args[0], fail);
         if (eventName === 'fs/observed') {
-            var observation = args[1];
+            const observation = args[1];
             switch (observation.kind) {
                 case 'present':
                     if (observation.version.length === 0)
@@ -42,7 +39,5 @@ var install = function (ctx, fail) {
  * @param ctx - Cordis context carrying the invariant service.
  * @returns the installed registration's disposer after setup succeeds.
  */
-var apply = function (ctx) {
-    return Promise.resolve(ctx.invariants.register(PACKAGE_NAME, install));
-};
-exports.apply = apply;
+export const apply = (ctx) => Promise.resolve(ctx.invariants.register(PACKAGE_NAME, install));
+//# sourceMappingURL=invariant.js.map

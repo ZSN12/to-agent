@@ -3,11 +3,11 @@
  * per-namespace sections; plugins register a namespace schema and read the
  * resolved value, which layers schema defaults, the registrant's composition
  * `base`, and the user document section, in that order.
- * @module @z/dsh-settings
+ * @module @taskweaver/dsh-settings
  */
 
-import { Context, Service } from '@z/cordis'
-import type z from '@z/schemastery'
+import { Context, Service } from '@taskweaver/cordis'
+import type z from '@taskweaver/schemastery'
 import { redactSecrets } from './redact.ts'
 import type { RedactedSecret } from './redact.ts'
 import type { SettingsNamespace, SettingsUpdateSource } from './types.ts'
@@ -128,7 +128,7 @@ export interface SettingsScope<T> {
   replace(section: object): Promise<void>
 }
 
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
   interface Context {
     settings: SettingsProvider
   }

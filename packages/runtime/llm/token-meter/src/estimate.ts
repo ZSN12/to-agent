@@ -3,11 +3,11 @@
  * pure context-breakdown projection, so both surfaces price identical content
  * to identical numbers.
  *
- * @module @z/dsh-token-meter/estimate
+ * @module @taskweaver/dsh-token-meter/estimate
  */
 
-import type { ContentBlock, Message } from '@z/dsh-llm'
-import type { EpochHeader } from '@z/dsh-session'
+import type { ContentBlock, Message } from '@taskweaver/dsh-llm'
+import type { EpochHeader } from '@taskweaver/dsh-session'
 
 /** Fixed text-density estimate used until exact tokenization is needed. */
 const CHARS_PER_TOKEN = 4

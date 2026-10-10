@@ -3,7 +3,7 @@ import {
   compactToolOutput,
   calculateDynamicContextBudget,
   COMPACTION_LIMITS,
-} from '../electron/backend/context-compactor.mjs'
+} from '../desktop/backend/context-compactor.mjs'
 
 // ============ 1. 短输出不折叠 ============
 const shortText = 'line 1\nline 2\nline 3\nsuccess'
@@ -42,6 +42,9 @@ const codeBudget = calculateDynamicContextBudget('code', { modelContextWindow: 1
 assert.equal(codeBudget.workspaceContextBytes, 32 * 1024, '代码模式工作区注入默认 32KiB')
 assert.equal(codeBudget.repoMapTokens, 1200, '代码编写模式应分配适中 Repo Map tokens')
 assert.ok(codeBudget.toolOutputMaxChars > planBudget.toolOutputMaxChars, '代码模式应保留更多工具输出空间')
+const millionTokenBudget = calculateDynamicContextBudget('code', { modelContextWindow: 1_000_000 })
+assert.ok(millionTokenBudget.repoMapTokens > codeBudget.repoMapTokens, '1M 窗口模型应获得更大的 Repo Map 预算')
+assert.ok(millionTokenBudget.toolOutputMaxChars > codeBudget.toolOutputMaxChars, '工具痕迹显示预算随模型窗口增长')
 assert.equal(COMPACTION_LIMITS.MAX_TOOL_OUTPUT_CHARS, 3000, '默认工具输出折叠阈值应保持稳定')
 
 console.log('✓ context-compactor 测试用例 100% 通过！')

@@ -1,7 +1,7 @@
 /** Shared top-level-call post-policy selection for search result spill. @module dsh-tool-fs-search/direct-call */
 
-import type { Context } from '@z/cordis'
-import type { JsonValue, PostToolDecision, ToolDefinition, ToolExecution, ToolExecutionResult } from '@z/dsh-tools'
+import type { Context } from '@taskweaver/cordis'
+import type { JsonValue, PostToolDecision, ToolDefinition, ToolExecution, ToolExecutionResult } from '@taskweaver/dsh-tools'
 
 /**
  * Return the accepted canonical value only when this tool still owns a direct

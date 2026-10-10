@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import SessionStore, { SessionId } from '@z/dsh-session'
-import InvariantRegistry from '@z/dsh-invariants'
-import * as AgentLoopInvariant from '@z/dsh-agent-loop/invariant'
-import { createUserMessage, markAgentLoopRequest, type GenerateOptions  } from '@z/dsh-llm'
+import { Context } from '@taskweaver/cordis'
+import SessionStore, { SessionId } from '@taskweaver/dsh-session'
+import InvariantRegistry from '@taskweaver/dsh-invariants'
+import * as AgentLoopInvariant from '@taskweaver/dsh-agent-loop/invariant'
+import { createUserMessage, markAgentLoopRequest, type GenerateOptions  } from '@taskweaver/dsh-llm'
 
 async function setup(): Promise<Context> {
   const ctx = new Context()

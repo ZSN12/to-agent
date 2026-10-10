@@ -1,27 +1,22 @@
-"use strict";
 /**
- * Package-owned invariant companion for `@z/dsh-session-checkpoint-policy`.
- * @module @z/dsh-session-checkpoint-policy/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-session-checkpoint-policy`.
+ * @module @taskweaver/dsh-session-checkpoint-policy/invariant
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.apply = exports.inject = exports.name = void 0;
-var PACKAGE_NAME = '@z/dsh-session-checkpoint-policy';
+const PACKAGE_NAME = '@taskweaver/dsh-session-checkpoint-policy';
 /** Cordis companion plugin name. */
-exports.name = 'session-checkpoint-policy-invariant';
+export const name = 'session-checkpoint-policy-invariant';
 /** Service required before the companion can reserve package ownership. */
-exports.inject = ['invariants'];
+export const inject = ['invariants'];
 /**
  * No runtime invariant: checkpoint ordering is enforced at the intercepted waterfall and
  * persistence seams; this stateless policy owns no independent mutable relation.
  */
-var install = function () { };
+const install = () => { };
 /**
  * Register this package's invariant companion.
  * @param ctx - Cordis context carrying the invariant service.
  * @returns the installed registration's disposer after setup succeeds.
  */
-var apply = function (ctx) {
-    return Promise.resolve(ctx.invariants.register(PACKAGE_NAME, install));
-};
-exports.apply = apply;
+export const apply = (ctx) => Promise.resolve(ctx.invariants.register(PACKAGE_NAME, install));
 /* jscpd:ignore-end */
+//# sourceMappingURL=invariant.js.map

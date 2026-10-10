@@ -2,10 +2,10 @@
  * Model-facing full-file write. It obtains an optional intent from the single policy slot, calls
  * `ctx.fs.writeText` without a stat, then records the resulting version; no policy means an
  * unconditional atomic create-or-overwrite.
- * @module @z/dsh-tool-fs/src/write
+ * @module @taskweaver/dsh-tool-fs/src/write
  */
-import type { Context } from '@z/cordis';
-import type { FsWriteOutcome } from '@z/dsh-fs';
+import type { Context } from '@taskweaver/cordis';
+import type { FsWriteOutcome } from '@taskweaver/dsh-fs';
 import type { FsSandboxController } from './sandbox.ts';
 /**
  * Validate value constraints the schema DSL can't express: only a non-blank

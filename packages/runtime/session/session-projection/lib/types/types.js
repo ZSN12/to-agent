@@ -1,4 +1,3 @@
-"use strict";
 /**
  * Pure-type outlet of the session-projection Service Definition: the one projection type
  * table, importable from client aggregates without dragging the host-side
@@ -6,6 +5,7 @@
  * packages may declare-merge through either the package root or this outlet —
  * re-export preserves symbol identity, so both land on the same table.
  *
- * @module @z/dsh-session-projection/types
+ * @module @taskweaver/dsh-session-projection/types
  */
-Object.defineProperty(exports, "__esModule", { value: true });
+export {};
+//# sourceMappingURL=types.js.map

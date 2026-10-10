@@ -1,11 +1,11 @@
 /** Default Agent model settings layered over a real settings provider. */
 
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
+import { Context } from '@taskweaver/cordis'
 import AgentDefaultModelConfig, { AGENT_DEFAULT_MODEL_SETTINGS_NAMESPACE } from '../src/index.ts'
-import { SettingsProvider } from '@z/dsh-settings'
-import type { SettingsNamespace } from '@z/dsh-settings'
-import { ReasoningEffortId } from '@z/dsh-llm'
+import { SettingsProvider } from '@taskweaver/dsh-settings'
+import type { SettingsNamespace } from '@taskweaver/dsh-settings'
+import { ReasoningEffortId } from '@taskweaver/dsh-llm'
 
 /** The smallest real provider: one in-memory document, always writable. */
 class MemorySettings extends SettingsProvider {

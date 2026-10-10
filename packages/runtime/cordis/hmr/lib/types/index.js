@@ -1,4 +1,4 @@
-import { Service } from '@z/cordis';
+import { Service } from '@taskweaver/cordis';
 import { watch } from 'chokidar';
 import { dirname, relative, resolve } from 'node:path';
 import { realpath, stat } from 'node:fs/promises';
@@ -6,7 +6,7 @@ import { handleError } from "./error.js";
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
 import picomatch from 'picomatch';
-import z from '@z/schemastery';
+import z from '@taskweaver/schemastery';
 /**
  * Recursively collect all module dependencies from a ModuleJob.
  * Skips node: builtins and node_modules to focus on user code.
@@ -363,7 +363,9 @@ class Hmr extends Service {
         // Plugin entry files are treated as atomic reload units.
         const nameMap = Object.create(null);
         for (const entry of this.ctx.loader.entries()) {
-            (nameMap[entry.parent.tree.ctx.baseUrl] ??= new Set()).add(entry.options.name);
+            if (typeof entry.options.name === 'string') {
+                (nameMap[entry.parent.tree.ctx.baseUrl] ??= new Set()).add(entry.options.name);
+            }
         }
         // Resolve each plugin name to its file URL and check if it needs reload
         for (const baseUrl in nameMap) {

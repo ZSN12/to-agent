@@ -2,15 +2,15 @@
  * The background-job Service Definition (`ctx.jobs`). It owns the contract for
  * job ids, session-scoped access, lifecycle state, completion listeners, and
  * owner cleanup while producers retain their execution resources. The
- * process-local registry lives in `@z/dsh-jobs-local`.
- * @module @z/dsh-jobs
+ * process-local registry lives in `@taskweaver/dsh-jobs-local`.
+ * @module @taskweaver/dsh-jobs
  */
-import { Context, Service } from '@z/cordis';
-import type { Agent } from '@z/dsh-agent';
+import { Context, Service } from '@taskweaver/cordis';
+import type { Agent } from '@taskweaver/dsh-agent';
 import type { JobDoneListener, JobId, JobRead, JobSnapshot, JobStart, JobsChangedListener } from './types.ts';
 export { JobId } from './types.ts';
 export type { JobDoneListener, JobHooks, JobKind, JobKindMap, JobOutcome, JobRead, JobSnapshot, JobStart, JobStatus, JobsChangedListener, } from './types.ts';
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
     interface Context {
         jobs: JobRegistry;
     }

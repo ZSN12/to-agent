@@ -1,13 +1,13 @@
 /**
- * Package-owned invariant companion for `@z/dsh-tool-fs`.
- * @module @z/dsh-tool-fs/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-tool-fs`.
+ * @module @taskweaver/dsh-tool-fs/invariant
  */
 
 /* jscpd:ignore-start */
-import type { Context } from '@z/cordis'
-import type { InvariantInstaller } from '@z/dsh-invariants'
+import type { Context } from '@taskweaver/cordis'
+import type { InvariantInstaller } from '@taskweaver/dsh-invariants'
 
-const PACKAGE_NAME = '@z/dsh-tool-fs'
+const PACKAGE_NAME = '@taskweaver/dsh-tool-fs'
 
 /** Cordis companion plugin name. */
 export const name = 'tool-fs-invariant'

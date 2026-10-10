@@ -2,11 +2,11 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { createAppStateStore } from '../electron/backend/app-state-store.mjs'
-import { createUsageStore } from '../electron/backend/usage-store.mjs'
-import { createChatTurnPersistence } from '../electron/backend/chat-turn-persistence.mjs'
-import { createChatTurnPipeline } from '../electron/backend/chat-turn-pipeline.mjs'
-import { nativeChatCommand } from '../electron/backend/native-chat-command.mjs'
+import { createAppStateStore } from '../desktop/backend/app-state-store.mjs'
+import { createUsageStore } from '../desktop/backend/usage-store.mjs'
+import { createChatTurnPersistence } from '../desktop/backend/chat-turn-persistence.mjs'
+import { createChatTurnPipeline } from '../desktop/backend/chat-turn-pipeline.mjs'
+import { nativeChatCommand } from '../desktop/backend/native-chat-command.mjs'
 
 for (const [input, expected] of [
   ['/compact', '/compact'], [' /COMPACT  ', '/compact'],
@@ -19,8 +19,8 @@ for (const [input, expected] of [
   ['/dingtalk-chat\n用户任务', null], ['请解释 /compact', null], [null, null],
 ]) assert.equal(nativeChatCommand(input), expected)
 
-const registerIpc = await fs.readFile(new URL('../electron/backend/register-ipc.mjs', import.meta.url), 'utf8')
-const sendIpc = await fs.readFile(new URL('../electron/backend/ipc/register-chat-send-ipc.mjs', import.meta.url), 'utf8')
+const registerIpc = await fs.readFile(new URL('../desktop/backend/register-ipc.mjs', import.meta.url), 'utf8')
+const sendIpc = await fs.readFile(new URL('../desktop/backend/ipc/register-chat-send-ipc.mjs', import.meta.url), 'utf8')
 assert.equal(registerIpc.includes('【系统模式：计划模式 (Plan Mode)】'), false,
   'Plan guidance must come from the Host mode, not a hand-built local prompt prefix')
 assert.match(sendIpc, /ipcHandle\(ipcMain, 'chat:send'/)

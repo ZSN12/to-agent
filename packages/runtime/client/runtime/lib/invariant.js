@@ -1,9 +1,9 @@
 //#region lib/types/invariant.js
 /**
-* Package-owned invariant companion for `@z/dsh-client-runtime`.
-* @module @z/dsh-client-runtime/invariant
+* Package-owned invariant companion for `@taskweaver/dsh-client-runtime`.
+* @module @taskweaver/dsh-client-runtime/invariant
 */
-const PACKAGE_NAME = "@z/dsh-client-runtime";
+const PACKAGE_NAME = "@taskweaver/dsh-client-runtime";
 /** Cordis companion plugin name. */
 const name = "client-runtime-invariant";
 /** Service required before the companion can register. */

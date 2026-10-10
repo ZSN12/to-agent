@@ -1,4 +1,4 @@
-# TaskWeaver-owned bundle (@z/dsh-taskweaver): API host over dsh-base; Electron
+# TaskWeaver-owned bundle (@taskweaver/dsh-taskweaver): API host over dsh-base; Electron
 # owns the desktop UI while the Host supplies native directory selection and web search.
 # Applied after dsh-base's insert; rows here override base rows by id, with
 # the profile's own cordis.patch.yml and any --patch overlays still to come.
@@ -32,89 +32,96 @@
 
 - id: tools
   config:
-    # TEMPORARY workaround: DSH_TOOLS_MODE (native|code|both) opts a whole dsh
+    # TEMPORARY workaround: TASKWEAVER_TOOLS_MODE (native|code|both) opts a whole dsh
     # process into Code Mode while per-session tool-presentation selection is being
     # designed; unset keeps the schema default (native). Remove the env seam
     # once the web UI owns the choice per session.
-    mode: !!js process.env.DSH_TOOLS_MODE
+    mode: !!js process.env.TASKWEAVER_TOOLS_MODE
 
 # ── web-only host rows, the transport layer, and the browser roster ─────────
 
 # `dsh.client` rows are the browser roster the modules node half scans into
-# window.__DSH_BOOT__; the modules row is simultaneously a host row.
+# window.__TASKWEAVER_BOOT__; the modules row is simultaneously a host row.
 - insert:
     - id: code-runtime
-      name: '@z/dsh-code-runtime-worker-thread'
+      # `ctx.codeRuntime` is one Host service, so TaskWeaver selects one
+      # language for the process. Python is opt-in; unset keeps TypeScript.
+      name: !!js >-
+        process.env.TASKWEAVER_CODE_LANGUAGE === undefined || process.env.TASKWEAVER_CODE_LANGUAGE === 'typescript'
+          ? '@taskweaver/dsh-code-runtime-worker-thread'
+          : process.env.TASKWEAVER_CODE_LANGUAGE === 'python'
+            ? '@taskweaver/dsh-code-runtime-python'
+            : (() => { throw new Error('TASKWEAVER_CODE_LANGUAGE must be typescript or python') })()
 
     - id: storage
-      name: '@z/dsh-storage'
+      name: '@taskweaver/dsh-storage'
 
     - id: storage-json
-      name: '@z/dsh-storage-json'
+      name: '@taskweaver/dsh-storage-json'
       config:
         root: !!js runtimeHomePath('storages')
 
     - id: storage-domain
-      name: '@z/dsh-storage-domain'
+      name: '@taskweaver/dsh-storage-domain'
       config:
         backend: json
 
     # OAuth / API-key authorization flows for llm-pi-ai (TaskWeaver model settings).
     - id: authorization
-      name: '@z/dsh-authorization'
+      name: '@taskweaver/dsh-authorization'
 
     # Browser Session export: `/export` command plus the shared download dialog.
     - id: session-log-download
-      name: '@z/dsh-session-log-export'
+      name: '@taskweaver/dsh-session-log-export'
 
     - id: workspace
-      name: '@z/dsh-workspace'
+      name: '@taskweaver/dsh-workspace'
 
     - id: session-projection-cache
-      name: '@z/dsh-session-projection-cache'
+      name: '@taskweaver/dsh-session-projection-cache'
       config:
         writeEveryEvents: 200
         writeIntervalMs: 5000
 
     - id: session-reference
-      name: '@z/dsh-session-reference'
+      name: '@taskweaver/dsh-session-reference'
 
     - id: file-reference-local
-      name: '@z/dsh-file-reference-local'
+      name: '@taskweaver/dsh-file-reference-local'
 
     # Whole-log turn/step counts for the chat stats strip (the sessionStats
     # projection key); the projection registry itself is a base-layer row.
     - id: session-stats
-      name: '@z/dsh-session-stats'
+      name: '@taskweaver/dsh-session-stats'
 
     # Desktop TaskWeaver uses one native OS directory picker. Electron owns the
     # user interface; no Host browser picker surface is mounted.
     - id: directory-picker
-      name: '@z/dsh-host-directory-picker-native'
+      name: '@taskweaver/dsh-host-directory-picker-native'
 
     # Read-only projection of current Loader entries for trusted client RPCs.
     - id: plugin-inventory
-      name: '@z/dsh-host-plugin-inventory'
+      name: '@taskweaver/dsh-host-plugin-inventory'
 
     # The API gateway: the transport-agnostic dispatch face every client shape
     # shares. The base layer's agent-default-model service owns the default model.
     - id: api-gateway
-      name: '@z/dsh-host-apiproxy'
+      name: '@taskweaver/dsh-host-apiproxy'
 
     - id: cordis-host-runner
-      name: '@z/dsh-cordis-host-runner'
+      name: '@taskweaver/dsh-cordis-host-runner'
 
     # Ordinary provider for the parsed API Host flags. Its plugin-level
     # injection waits for cmdlineArgs; no launcher metadata is needed.
     - id: web-startup
-      name: '@z/dsh-taskweaver/startup'
+      name: '@taskweaver/dsh-taskweaver/startup'
 
     # ── layer 2: transport/service ──────────────────────────────────────────────
 
     # API route-registration carrier; host and port come from the CLI provider,
     # with loopback defaults for direct profile launches.
     - id: webserver
-      name: '@z/dsh-host-webserver'
+      name: '@taskweaver/dsh-host-webserver'
       inject: [webStartup]
       config:
         host: !!js ctx.webStartup.host ?? '127.0.0.1'
@@ -123,7 +130,7 @@
     # API-only Host glue: forwards the explicit `/api` trust list and prints
     # the existing readiness URL after every Loader row has mounted.
     - id: web-runtime
-      name: '@z/dsh-taskweaver'
+      name: '@taskweaver/dsh-taskweaver'
       inject: [webStartup]
       config:
         trustedHosts: !!js ctx.webStartup.trustedHosts
@@ -132,7 +139,7 @@
     # webserver under /api. TaskWeaver Electron talks to this route; the DSH
     # browser roster (modules / ui-* / client-hmr) is not mounted.
     - id: connection
-      name: '@z/dsh-client-connection'
+      name: '@taskweaver/dsh-client-connection'
       inject: [webRuntime]
       config:
         # Only explicit authorities are trusted; the bind is loopback by
@@ -140,7 +147,7 @@
         trustedHosts: !!js ctx.webRuntime.trustedHosts
 
     - id: api-remotes
-      name: '@z/dsh-api-remotes'
+      name: '@taskweaver/dsh-api-remotes'
 
 # ── the agent plane moves behind agent presets ─────────────────────────────
 #
@@ -154,7 +161,7 @@
 # the composition.
 
 # `shell-env` STAYS in the host plane: `host-cli/src/web.ts` injects it to
-# publish `DSH_WEB_URL`/`DSH_WEB_MODE`, and a host row that injects a service is
+# publish `TASKWEAVER_WEB_URL`/`TASKWEAVER_WEB_MODE`, and a host row that injects a service is
 # the criterion for host-plane ownership — injection resolves before any session
 # exists, so there is no agent to key by. Behind a preset realm those variables
 # would never reach the model's shell at all.
@@ -271,7 +278,7 @@
   disabled: true
 
 # The preset roster. `config/agent-presets/` ships with the deployment and is
-# read-only (its entries carry `system` trust); `$DSH_HOME/.agent-presets` is
+# read-only (its entries carry `system` trust); `$TASKWEAVER_HOME/.agent-presets` is
 # where a person — or an agent — authors their own, and carries the same trust
 # as shell access because a preset IS a composition.
 #
@@ -282,6 +289,6 @@
 # never reaches that patch still finds a person's presets.
 - insert:
     - id: agent-presets
-      name: '@z/dsh-agent-presets'
+      name: '@taskweaver/dsh-agent-presets'
       config:
-        default: standard
+        default: tw-default

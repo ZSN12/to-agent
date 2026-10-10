@@ -1,11 +1,11 @@
-import z from "@z/schemastery";
-import { defineTool } from "@z/dsh-tools";
+import z from "@taskweaver/schemastery";
+import { defineTool } from "@taskweaver/dsh-tools";
 //#region lib/types/index.js
 /**
 * Model-facing foreground Ralph loop over the workflow and subagent seams. A
 * fixed script starts one fresh structured-output child per round, carrying
 * only the immutable objective and the previous bounded handoff between them.
-* @module @z/dsh-tool-ralph
+* @module @taskweaver/dsh-tool-ralph
 */
 const name = "tool-ralph";
 const inject = [

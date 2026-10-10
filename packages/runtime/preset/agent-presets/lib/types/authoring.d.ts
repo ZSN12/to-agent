@@ -9,7 +9,7 @@
  * No caller supplies composition text: the inputs are ids the host resolves
  * against its own roots plus an optional display name, so authoring grants no
  * capability the copied preset did not already carry.
- * @module @z/dsh-agent-presets/authoring
+ * @module @taskweaver/dsh-agent-presets/authoring
  */
 import { type AgentPreset, type PresetRoot } from './preset.ts';
 /** A preset id that cannot be used as a directory name under a root. */

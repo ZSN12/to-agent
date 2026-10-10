@@ -1,5 +1,5 @@
-/** Package-owned session-event invariants for sandbox policy. @module @z/dsh-sandbox-policy/invariant */
-import type { Context } from '@z/cordis';
+/** Package-owned session-event invariants for sandbox policy. @module @taskweaver/dsh-sandbox-policy/invariant */
+import type { Context } from '@taskweaver/cordis';
 /** Cordis companion plugin name. */
 export declare const name = "sandbox-policy-invariant";
 /** Service required before the companion can reserve package ownership. */

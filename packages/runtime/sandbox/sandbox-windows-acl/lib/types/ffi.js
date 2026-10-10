@@ -1,4 +1,3 @@
-"use strict";
 /**
  * Lazy koffi bindings for the Win32 ACL-sandbox backend. Koffi loads lazily so
  * non-Windows processes never open Win32 libraries. Every function signature
@@ -6,44 +5,17 @@
  * (winnt.h / accctrl.h / aclapi.h / securitybaseapi.h / sddl.h /
  * processthreadsapi.h / fileapi.h / namedpipeapi.h / synchapi.h / winbase.h);
  * struct layouts are asserted at load time against verify/abi-probe.cpp.
- * @module @z/dsh-sandbox-windows-acl/ffi
+ * @module @taskweaver/dsh-sandbox-windows-acl/ffi
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.PROCESS_INFORMATION = exports.STARTUPINFOW = void 0;
-exports.isNullPtr = isNullPtr;
-exports.isInvalidHandle = isInvalidHandle;
-exports.allocPtrSlot = allocPtrSlot;
-exports.allocUint32 = allocUint32;
-exports.encodeUint32 = encodeUint32;
-exports.decodePtr = decodePtr;
-exports.decodeUint32 = decodeUint32;
-exports.ptrAddress = ptrAddress;
-exports.allocBytes = allocBytes;
-exports.allocOverlapped = allocOverlapped;
-exports.decodePtrAt = decodePtrAt;
-exports.decodeUint8At = decodeUint8At;
-exports.decodeUint16At = decodeUint16At;
-exports.decodeUint32At = decodeUint32At;
-exports.sameSidAt = sameSidAt;
-exports.allocStartupInfo = allocStartupInfo;
-exports.encodeStartupInfo = encodeStartupInfo;
-exports.allocProcessInfo = allocProcessInfo;
-exports.decodeProcessInfo = decodeProcessInfo;
-exports.win32 = win32;
-exports.win32Sync = win32Sync;
-exports.errorText = errorText;
-exports.getTempPath = getTempPath;
-exports.throwLastError = throwLastError;
-exports.throwWin32 = throwWin32;
-var koffi_1 = require("koffi");
-var errors_ts_1 = require("./errors.ts");
-var abi = require("./win32-abi.ts");
+import koffi from 'koffi';
+import { Win32Error } from "./errors.js";
+import * as abi from "./win32-abi.js";
 /**
  * True for NULL pointers, however koffi returns them (null or 0n).
  * @param value - a pointer as koffi may hand it back (pointer, null, or 0n).
  * @returns a type guard narrowing to the NULL shapes.
  */
-function isNullPtr(value) {
+export function isNullPtr(value) {
     return value === null || value === undefined || value === 0n;
 }
 /**
@@ -52,15 +24,15 @@ function isNullPtr(value) {
  * @param handle - the handle CreateFileW returned.
  * @returns whether the handle signals failure.
  */
-function isInvalidHandle(handle) {
+export function isInvalidHandle(handle) {
     if (isNullPtr(handle))
         return true;
     return handle === 0xffffffffffffffffn || handle === -1n;
 }
-var PVOID = koffi_1.default.pointer('void');
-var PPVOID = koffi_1.default.pointer(PVOID);
+const PVOID = koffi.pointer('void');
+const PPVOID = koffi.pointer(PVOID);
 /** koffi STARTUPINFOW layout; its size is asserted against abi.STARTUPINFOW_SIZE at load. */
-exports.STARTUPINFOW = koffi_1.default.struct('STARTUPINFOW', {
+export const STARTUPINFOW = koffi.struct('STARTUPINFOW', {
     cb: 'uint32',
     lpReserved: 'str16',
     lpDesktop: 'str16',
@@ -75,40 +47,40 @@ exports.STARTUPINFOW = koffi_1.default.struct('STARTUPINFOW', {
     dwFlags: 'uint32',
     wShowWindow: 'uint16',
     cbReserved2: 'uint16',
-    lpReserved2: koffi_1.default.pointer('uint8'),
+    lpReserved2: koffi.pointer('uint8'),
     hStdInput: PVOID,
     hStdOutput: PVOID,
     hStdError: PVOID,
 });
 /** koffi PROCESS_INFORMATION layout; its size is asserted against abi.PROCESS_INFORMATION_SIZE at load. */
-exports.PROCESS_INFORMATION = koffi_1.default.struct('PROCESS_INFORMATION', {
+export const PROCESS_INFORMATION = koffi.struct('PROCESS_INFORMATION', {
     hProcess: PVOID,
     hThread: PVOID,
     dwProcessId: 'uint32',
     dwThreadId: 'uint32',
 });
 /* v8 ignore start -- layout-mismatch guards fire only on ABI breakage; verify/abi-probe.cpp pins both sizes. */
-if (exports.STARTUPINFOW.size !== abi.STARTUPINFOW_SIZE) {
-    throw new Error("STARTUPINFOW layout mismatch: koffi computed ".concat(exports.STARTUPINFOW.size, ", header probe says ").concat(abi.STARTUPINFOW_SIZE));
+if (STARTUPINFOW.size !== abi.STARTUPINFOW_SIZE) {
+    throw new Error(`STARTUPINFOW layout mismatch: koffi computed ${STARTUPINFOW.size}, header probe says ${abi.STARTUPINFOW_SIZE}`);
 }
-if (exports.PROCESS_INFORMATION.size !== abi.PROCESS_INFORMATION_SIZE) {
-    throw new Error("PROCESS_INFORMATION layout mismatch: koffi computed ".concat(exports.PROCESS_INFORMATION.size, ", header probe says ").concat(abi.PROCESS_INFORMATION_SIZE));
+if (PROCESS_INFORMATION.size !== abi.PROCESS_INFORMATION_SIZE) {
+    throw new Error(`PROCESS_INFORMATION layout mismatch: koffi computed ${PROCESS_INFORMATION.size}, header probe says ${abi.PROCESS_INFORMATION_SIZE}`);
 }
 /* v8 ignore stop */
 /**
  * Allocate one pointer-sized slot (for `T **` out-parameters).
  * @returns the allocated slot pointer.
  */
-function allocPtrSlot() {
-    var value = koffi_1.default.alloc(PVOID, 1);
+export function allocPtrSlot() {
+    const value = koffi.alloc(PVOID, 1);
     return value;
 }
 /**
  * Allocate one uint32 slot.
  * @returns the allocated slot pointer.
  */
-function allocUint32() {
-    var value = koffi_1.default.alloc('uint32', 1);
+export function allocUint32() {
+    const value = koffi.alloc('uint32', 1);
     return value;
 }
 /**
@@ -116,16 +88,16 @@ function allocUint32() {
  * @param slot - the slot allocated by {@link allocUint32}.
  * @param value - the uint32 to encode.
  */
-function encodeUint32(slot, value) {
-    koffi_1.default.encode(slot, 'uint32', value);
+export function encodeUint32(slot, value) {
+    koffi.encode(slot, 'uint32', value);
 }
 /**
  * Decode the pointer stored in a pointer-sized slot (NULL becomes null).
  * @param slot - the pointer-sized slot holding the out-parameter value.
  * @returns the decoded pointer, or null for NULL.
  */
-function decodePtr(slot) {
-    var value = koffi_1.default.decode(slot, PVOID);
+export function decodePtr(slot) {
+    const value = koffi.decode(slot, PVOID);
     if (isNullPtr(value))
         return null;
     return value;
@@ -135,8 +107,8 @@ function decodePtr(slot) {
  * @param slot - the uint32 slot holding the out-parameter value.
  * @returns the decoded uint32.
  */
-function decodeUint32(slot) {
-    var value = koffi_1.default.decode(slot, 'uint32');
+export function decodeUint32(slot) {
+    const value = koffi.decode(slot, 'uint32');
     return value;
 }
 /**
@@ -144,16 +116,16 @@ function decodeUint32(slot) {
  * @param ptr - the koffi pointer.
  * @returns the pointer's numeric address.
  */
-function ptrAddress(ptr) {
-    return koffi_1.default.address(ptr);
+export function ptrAddress(ptr) {
+    return koffi.address(ptr);
 }
 /**
  * Allocate a raw byte block (used for SID copies and variable-length arrays).
  * @param length - the block size in bytes.
  * @returns the allocated block pointer.
  */
-function allocBytes(length) {
-    var value = koffi_1.default.alloc('uint8', length);
+export function allocBytes(length) {
+    const value = koffi.alloc('uint8', length);
     return value;
 }
 /**
@@ -164,7 +136,7 @@ function allocBytes(length) {
  * (the byte range locks from offset 0, hEvent stays NULL).
  * @returns the zeroed block pointer.
  */
-function allocOverlapped() {
+export function allocOverlapped() {
     return allocBytes(32);
 }
 /**
@@ -173,8 +145,8 @@ function allocOverlapped() {
  * @param offset - byte offset of the pointer inside the buffer.
  * @returns the decoded pointer, or null for NULL.
  */
-function decodePtrAt(buffer, offset) {
-    var value = koffi_1.default.decode(buffer, offset, PVOID);
+export function decodePtrAt(buffer, offset) {
+    const value = koffi.decode(buffer, offset, PVOID);
     if (isNullPtr(value))
         return null;
     return value;
@@ -187,8 +159,8 @@ function decodePtrAt(buffer, offset) {
  * @param offset - byte offset from the pointer.
  * @returns the decoded uint8.
  */
-function decodeUint8At(ptr, offset) {
-    var value = koffi_1.default.decode(ptr, offset, 'uint8');
+export function decodeUint8At(ptr, offset) {
+    const value = koffi.decode(ptr, offset, 'uint8');
     return value;
 }
 /**
@@ -197,8 +169,8 @@ function decodeUint8At(ptr, offset) {
  * @param offset - byte offset from the pointer.
  * @returns the decoded uint16.
  */
-function decodeUint16At(ptr, offset) {
-    var value = koffi_1.default.decode(ptr, offset, 'uint16');
+export function decodeUint16At(ptr, offset) {
+    const value = koffi.decode(ptr, offset, 'uint16');
     return value;
 }
 /**
@@ -207,8 +179,8 @@ function decodeUint16At(ptr, offset) {
  * @param offset - byte offset from the pointer.
  * @returns the decoded uint32.
  */
-function decodeUint32At(ptr, offset) {
-    var value = koffi_1.default.decode(ptr, offset, 'uint32');
+export function decodeUint32At(ptr, offset) {
+    const value = koffi.decode(ptr, offset, 'uint32');
     return value;
 }
 /**
@@ -223,20 +195,20 @@ function decodeUint32At(ptr, offset) {
  * @param rightOffset - byte offset of the SID structure within `right`.
  * @returns whether the SIDs are identical.
  */
-function sameSidAt(left, leftOffset, right, rightOffset) {
-    var leftRevision = decodeUint8At(left, leftOffset);
-    var rightRevision = decodeUint8At(right, rightOffset);
+export function sameSidAt(left, leftOffset, right, rightOffset) {
+    const leftRevision = decodeUint8At(left, leftOffset);
+    const rightRevision = decodeUint8At(right, rightOffset);
     if (leftRevision !== rightRevision)
         return false;
-    var leftCount = decodeUint8At(left, leftOffset + 1);
-    var rightCount = decodeUint8At(right, rightOffset + 1);
+    const leftCount = decodeUint8At(left, leftOffset + 1);
+    const rightCount = decodeUint8At(right, rightOffset + 1);
     if (leftCount !== rightCount || leftCount > abi.SID_MAX_SUB_AUTHORITIES)
         return false;
-    for (var index = 0; index < 6; index++) {
+    for (let index = 0; index < 6; index++) {
         if (decodeUint8At(left, leftOffset + 2 + index) !== decodeUint8At(right, rightOffset + 2 + index))
             return false;
     }
-    for (var index = 0; index < leftCount; index++) {
+    for (let index = 0; index < leftCount; index++) {
         if (decodeUint32At(left, leftOffset + 8 + index * 4) !== decodeUint32At(right, rightOffset + 8 + index * 4))
             return false;
     }
@@ -246,8 +218,8 @@ function sameSidAt(left, leftOffset, right, rightOffset) {
  * Allocate a zeroed STARTUPINFOW.
  * @returns the allocated struct pointer.
  */
-function allocStartupInfo() {
-    var value = koffi_1.default.alloc(exports.STARTUPINFOW, 1);
+export function allocStartupInfo() {
+    const value = koffi.alloc(STARTUPINFOW, 1);
     return value;
 }
 /**
@@ -255,15 +227,15 @@ function allocStartupInfo() {
  * @param startupInfo - the allocated STARTUPINFOW to encode into.
  * @param fields - the field subset to write.
  */
-function encodeStartupInfo(startupInfo, fields) {
-    koffi_1.default.encode(startupInfo, exports.STARTUPINFOW, fields);
+export function encodeStartupInfo(startupInfo, fields) {
+    koffi.encode(startupInfo, STARTUPINFOW, fields);
 }
 /**
  * Allocate a zeroed PROCESS_INFORMATION.
  * @returns the allocated struct pointer.
  */
-function allocProcessInfo() {
-    var value = koffi_1.default.alloc(exports.PROCESS_INFORMATION, 1);
+export function allocProcessInfo() {
+    const value = koffi.alloc(PROCESS_INFORMATION, 1);
     return value;
 }
 /**
@@ -271,22 +243,20 @@ function allocProcessInfo() {
  * @param processInfo - the PROCESS_INFORMATION filled by the spawn call.
  * @returns the decoded handle/id fields.
  */
-function decodeProcessInfo(processInfo) {
-    var value = koffi_1.default.decode(processInfo, exports.PROCESS_INFORMATION);
+export function decodeProcessInfo(processInfo) {
+    const value = koffi.decode(processInfo, PROCESS_INFORMATION);
     return value;
 }
-var cached;
+let cached;
 function bindings() {
     if (cached !== undefined)
         return cached;
-    var kernel32 = koffi_1.default.load('kernel32.dll');
-    var advapi32 = koffi_1.default.load('advapi32.dll');
+    const kernel32 = koffi.load('kernel32.dll');
+    const advapi32 = koffi.load('advapi32.dll');
     // Each binding shape is verified by verify/abi-probe.cpp against the real
     // Windows headers and exercised end-to-end by tests/probe.spec.ts; the
     // single cast keeps the per-binding noise out of this table.
-    var bind = function (lib, name, result, args) {
-        return lib.func('__stdcall', name, result, args);
-    };
+    const bind = (lib, name, result, args) => lib.func('__stdcall', name, result, args);
     cached = {
         openProcess: bind(kernel32, 'OpenProcess', PVOID, ['uint32', 'int', 'uint32']),
         openProcessToken: bind(advapi32, 'OpenProcessToken', 'int', [PVOID, 'uint32', PPVOID]),
@@ -296,11 +266,11 @@ function bindings() {
         localAlloc: bind(kernel32, 'LocalAlloc', PVOID, ['uint32', 'size_t']),
         localFree: bind(kernel32, 'LocalFree', PVOID, [PVOID]),
         convertStringSidToSidW: bind(advapi32, 'ConvertStringSidToSidW', 'int', ['str16', PPVOID]),
-        createWellKnownSid: bind(advapi32, 'CreateWellKnownSid', 'int', ['int', PVOID, PVOID, koffi_1.default.pointer('uint32')]),
+        createWellKnownSid: bind(advapi32, 'CreateWellKnownSid', 'int', ['int', PVOID, PVOID, koffi.pointer('uint32')]),
         isValidSid: bind(advapi32, 'IsValidSid', 'int', [PVOID]),
         getLengthSid: bind(advapi32, 'GetLengthSid', 'uint32', [PVOID]),
         copySid: bind(advapi32, 'CopySid', 'int', ['uint32', PVOID, PVOID]),
-        getTokenInformation: bind(advapi32, 'GetTokenInformation', 'int', [PVOID, 'int', PVOID, 'uint32', koffi_1.default.pointer('uint32')]),
+        getTokenInformation: bind(advapi32, 'GetTokenInformation', 'int', [PVOID, 'int', PVOID, 'uint32', koffi.pointer('uint32')]),
         setTokenInformation: bind(advapi32, 'SetTokenInformation', 'int', [PVOID, 'int', PVOID, 'uint32']),
         createRestrictedToken: bind(advapi32, 'CreateRestrictedToken', 'int', [PVOID, 'uint32', 'uint32', PVOID, 'uint32', PVOID, 'uint32', PVOID, PPVOID]),
         setEntriesInAclW: bind(advapi32, 'SetEntriesInAclW', 'uint32', ['uint32', PVOID, PVOID, PPVOID]),
@@ -319,13 +289,13 @@ function bindings() {
         setHandleInformation: bind(kernel32, 'SetHandleInformation', 'int', [PVOID, 'uint32', 'uint32']),
         createProcessAsUserW: bind(advapi32, 'CreateProcessAsUserW', 'int', [
             PVOID, 'str16', 'str16', PVOID, PVOID, 'int', 'uint32', PVOID, 'str16',
-            koffi_1.default.pointer(exports.STARTUPINFOW), koffi_1.default.pointer(exports.PROCESS_INFORMATION),
+            koffi.pointer(STARTUPINFOW), koffi.pointer(PROCESS_INFORMATION),
         ]),
         setEnvironmentVariableW: bind(kernel32, 'SetEnvironmentVariableW', 'int', ['str16', 'str16']),
-        readFile: bind(kernel32, 'ReadFile', 'int', [PVOID, PVOID, 'uint32', koffi_1.default.pointer('uint32'), PVOID]),
-        peekNamedPipe: bind(kernel32, 'PeekNamedPipe', 'int', [PVOID, PVOID, 'uint32', koffi_1.default.pointer('uint32'), koffi_1.default.pointer('uint32'), koffi_1.default.pointer('uint32')]),
+        readFile: bind(kernel32, 'ReadFile', 'int', [PVOID, PVOID, 'uint32', koffi.pointer('uint32'), PVOID]),
+        peekNamedPipe: bind(kernel32, 'PeekNamedPipe', 'int', [PVOID, PVOID, 'uint32', koffi.pointer('uint32'), koffi.pointer('uint32'), koffi.pointer('uint32')]),
         waitForSingleObject: bind(kernel32, 'WaitForSingleObject', 'uint32', [PVOID, 'uint32']),
-        getExitCodeProcess: bind(kernel32, 'GetExitCodeProcess', 'int', [PVOID, koffi_1.default.pointer('uint32')]),
+        getExitCodeProcess: bind(kernel32, 'GetExitCodeProcess', 'int', [PVOID, koffi.pointer('uint32')]),
         resumeThread: bind(kernel32, 'ResumeThread', 'uint32', [PVOID]),
         createJobObjectW: bind(kernel32, 'CreateJobObjectW', PVOID, [PVOID, 'str16']),
         setInformationJobObject: bind(kernel32, 'SetInformationJobObject', 'int', [PVOID, 'int', PVOID, 'uint32']),
@@ -340,7 +310,7 @@ function bindings() {
  * Resolve the lazy Win32 bindings (throws the first binding failure, fail-closed).
  * @returns the cached binding table.
  */
-function win32() {
+export function win32() {
     return Promise.resolve(bindings());
 }
 /**
@@ -351,7 +321,7 @@ function win32() {
  * the runner's await-shaped call sites).
  * @returns the cached binding table.
  */
-function win32Sync() {
+export function win32Sync() {
     return bindings();
 }
 /**
@@ -360,9 +330,9 @@ function win32Sync() {
  * @param win32Code - the error code to format.
  * @returns the formatted message text, or '' when formatting fails.
  */
-function errorText(api, win32Code) {
-    var buffer = Buffer.alloc(1024);
-    var length = api.formatMessageW(abi.FORMAT_MESSAGE_FROM_SYSTEM | abi.FORMAT_MESSAGE_IGNORE_INSERTS, null, win32Code, 0, buffer, buffer.length / 2, null);
+export function errorText(api, win32Code) {
+    const buffer = Buffer.alloc(1024);
+    const length = api.formatMessageW(abi.FORMAT_MESSAGE_FROM_SYSTEM | abi.FORMAT_MESSAGE_IGNORE_INSERTS, null, win32Code, 0, buffer, buffer.length / 2, null);
     if (length === 0)
         return '';
     return buffer.subarray(0, length * 2).toString('utf16le').trim();
@@ -376,13 +346,13 @@ function errorText(api, win32Code) {
  * @param api - the binding table.
  * @returns the NUL-terminated temp path decoded as a string.
  */
-function getTempPath(api) {
-    var buffer = Buffer.alloc((abi.MAX_PATH + 1) * 2);
-    var length = api.getTempPathW(buffer.length / 2, buffer);
+export function getTempPath(api) {
+    const buffer = Buffer.alloc((abi.MAX_PATH + 1) * 2);
+    const length = api.getTempPathW(buffer.length / 2, buffer);
     if (length === 0)
         throwLastError(api, 'GetTempPathW');
     if (length > buffer.length / 2) {
-        throw new errors_ts_1.Win32Error('GetTempPathW', abi.ERROR_INSUFFICIENT_BUFFER, "required ".concat(length, " chars exceed the ").concat(buffer.length / 2, "-char buffer; nothing was written"));
+        throw new Win32Error('GetTempPathW', abi.ERROR_INSUFFICIENT_BUFFER, `required ${length} chars exceed the ${buffer.length / 2}-char buffer; nothing was written`);
     }
     return buffer.subarray(0, length * 2).toString('utf16le');
 }
@@ -394,9 +364,9 @@ function getTempPath(api) {
  * @param detail - optional detail overriding the formatted system message.
  * @returns never — always throws.
  */
-function throwLastError(api, name, detail) {
-    var win32Code = api.getLastError();
-    throw new errors_ts_1.Win32Error(name, win32Code, detail !== null && detail !== void 0 ? detail : errorText(api, win32Code));
+export function throwLastError(api, name, detail) {
+    const win32Code = api.getLastError();
+    throw new Win32Error(name, win32Code, detail ?? errorText(api, win32Code));
 }
 /**
  * Throw a Win32Error for an HRESULT-style API return value (the value IS the error code).
@@ -406,6 +376,7 @@ function throwLastError(api, name, detail) {
  * @param detail - optional detail overriding the formatted system message.
  * @returns never — always throws.
  */
-function throwWin32(api, name, win32Code, detail) {
-    throw new errors_ts_1.Win32Error(name, win32Code, detail !== null && detail !== void 0 ? detail : errorText(api, win32Code));
+export function throwWin32(api, name, win32Code, detail) {
+    throw new Win32Error(name, win32Code, detail ?? errorText(api, win32Code));
 }
+//# sourceMappingURL=ffi.js.map

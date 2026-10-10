@@ -6,12 +6,12 @@
  * the storage-domain routing decides the medium (the shipped composition's
  * json backend lands it at `<root>/session_projcache.json`, beside
  * `workspace.json`).
- * @module @z/dsh-session-projection-cache/src/spec
+ * @module @taskweaver/dsh-session-projection-cache/src/spec
  */
 
 import { z } from 'zod'
-import { SessionId } from '@z/dsh-session'
-import { defineDomain, domainTable } from '@z/dsh-storage-domain'
+import { SessionId } from '@taskweaver/dsh-session'
+import { defineDomain, domainTable } from '@taskweaver/dsh-storage-domain'
 
 /**
  * One persisted checkpoint row (the RFC's `(sessionId, key, ver, seq, val)`

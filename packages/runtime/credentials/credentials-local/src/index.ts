@@ -1,12 +1,12 @@
 /**
- * File-backed credentials provider over `$DSH_HOME/.credentials.yaml`, layered
+ * File-backed credentials provider over `$TASKWEAVER_HOME/.credentials.yaml`, layered
  * against the environment by how much each layer is trusted:
  *
  * ```text
  * inherited process environment      (read-only, wins)
- * > $DSH_HOME/.credentials.yaml      (provider-managed, writable)
+ * > $TASKWEAVER_HOME/.credentials.yaml      (provider-managed, writable)
  * > <invocation cwd>/.env            (read-only fallback)
- * > $DSH_HOME/.env                   (read-only fallback)
+ * > $TASKWEAVER_HOME/.env                   (read-only fallback)
  * ```
  *
  * The inherited environment wins because `DEEPSEEK_API_KEY=… dsh`, a CI
@@ -32,19 +32,19 @@
  * as the user's environment layer; a store that doubled as the environment
  * layer would shadow non-secret entries behind its precedence, making them
  * silently unreachable.
- * @module @z/dsh-credentials-local
+ * @module @taskweaver/dsh-credentials-local
  */
 
-import { Context, Service } from '@z/cordis'
-import z from '@z/schemastery'
+import { Context, Service } from '@taskweaver/cordis'
+import z from '@taskweaver/schemastery'
 import { watch as chokidarWatch } from 'chokidar'
 import { mkdir, readFile, stat } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { Document, isMap, isScalar, parseDocument, type YAMLError } from 'yaml'
-import { withFileLock, writeFileAtomic } from '@z/dsh-atomic-write'
-import { canonicalizeWatchPath, resolveDshHome } from '@z/dsh-home-paths'
-import { launchEnvironmentOf } from '@z/dsh-launch-environment'
-import { CredentialProvider, credentialRef, parseCredentialKey } from '@z/dsh-credentials'
+import { withFileLock, writeFileAtomic } from '@taskweaver/dsh-atomic-write'
+import { canonicalizeWatchPath, resolveRuntimeHome } from '@taskweaver/dsh-home-paths'
+import { launchEnvironmentOf } from '@taskweaver/dsh-launch-environment'
+import { CredentialProvider, credentialRef, parseCredentialKey } from '@taskweaver/dsh-credentials'
 import type {
   ApiKeyRecord,
   CredentialInfo,
@@ -54,8 +54,8 @@ import type {
   CredentialRecordInfo,
   CredentialRef,
   ResolvedCredential,
-} from '@z/dsh-credentials'
-import type { LaunchEnvironmentEntry } from '@z/dsh-launch-environment'
+} from '@taskweaver/dsh-credentials'
+import type { LaunchEnvironmentEntry } from '@taskweaver/dsh-launch-environment'
 
 /** Basename of the credentials document inside the harness home. */
 export const CREDENTIALS_FILENAME = '.credentials.yaml'
@@ -64,7 +64,7 @@ export const CREDENTIALS_FILENAME = '.credentials.yaml'
 export interface Config {
   /** Credentials document path; defaults to `.credentials.yaml` under the harness home. */
   path?: string
-  /** Harness home used when `path` is omitted; defaults to `$DSH_HOME` or `~/.dsh`. */
+  /** Runtime home used when `path` is omitted; defaults to `$TASKWEAVER_HOME` or `~/.taskweaver/runtime`. */
   dshHome?: string
   /** Watch the document and hot-publish external edits; defaults to true. */
   watch?: boolean
@@ -87,7 +87,7 @@ interface ResolvedSpec {
  */
 export function resolveSpec(config: Config): ResolvedSpec {
   return {
-    filename: resolve(config.path ?? join(resolveDshHome(config.dshHome), CREDENTIALS_FILENAME)),
+    filename: resolve(config.path ?? join(resolveRuntimeHome(config.dshHome), CREDENTIALS_FILENAME)),
     watch: config.watch ?? true,
     debounceMs: config.debounceMs ?? 100,
   }
@@ -509,7 +509,7 @@ function sameJsonValue(left: unknown, right: unknown): boolean {
     && sameJsonValue((left as Record<string, unknown>)[key], (right as Record<string, unknown>)[key]))
 }
 
-/** File-backed credentials provider (`$DSH_HOME/.credentials.yaml`). */
+/** File-backed credentials provider (`$TASKWEAVER_HOME/.credentials.yaml`). */
 export class LocalCredentialProvider extends CredentialProvider {
   /* jscpd:ignore-start -- deliberate config-surface and lifecycle symmetry with
      settings-file (prefer symmetry for parallel values); extracting the shared

@@ -10,8 +10,8 @@
  * {@link assertObjectJsonSchema} before accepting input.
  * @module dsh-tools/json-schema
  */
-import { HarnessError } from '@z/dsh-llm';
-import { type JsonValue } from '@z/dsh-session';
+import { HarnessError } from '@taskweaver/dsh-llm';
+import { type JsonValue } from '@taskweaver/dsh-session';
 /** Scalar JSON values supported by `enum` and `const`. */
 export type JsonSchemaScalar = string | number | boolean | null;
 /** Single-type keywords accepted by the enforced subset. */

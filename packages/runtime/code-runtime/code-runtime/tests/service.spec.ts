@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import { CodeRuntime } from '@z/dsh-code-runtime'
-import type { CodeRunRequest, CodeRunResult } from '@z/dsh-code-runtime'
+import { Context } from '@taskweaver/cordis'
+import { CodeRuntime } from '@taskweaver/dsh-code-runtime'
+import type { CodeRunRequest, CodeRunResult } from '@taskweaver/dsh-code-runtime'
 
 /**
  * Minimal concrete runtime: records requests, "executes" by invoking every

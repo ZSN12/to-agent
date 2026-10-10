@@ -1,4 +1,4 @@
-import type { SessionEvent } from '@z/dsh-session/types'
+import type { SessionEvent } from '@taskweaver/dsh-session/types'
 import type {
   ConversationEventInput, ConversationLocation, ConversationLocationData,
   ConversationLocationDataStore, ConversationStepDataMap, ConversationTimelineSnapshot,

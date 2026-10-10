@@ -1,7 +1,7 @@
 /** Durable Team mailbox admission, target-local dispatch, acknowledgement, and recovery. */
 import { randomUUID } from 'node:crypto';
-import { createUserMessage } from '@z/dsh-llm';
-import { SessionId } from '@z/dsh-session';
+import { createUserMessage } from '@taskweaver/dsh-llm';
+import { SessionId } from '@taskweaver/dsh-session';
 import { errorMessage, TeamError } from "./error.js";
 import { resolveActiveMember } from "./roster.js";
 import { messageAccepted } from "./session-message.js";

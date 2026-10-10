@@ -1,10 +1,10 @@
 /**
  * Client-safe wire vocabulary of the dynamic Cordis plugin runner.
- * @module @z/dsh-cordis-host-runner/types
+ * @module @taskweaver/dsh-cordis-host-runner/types
  */
 
-import type { Branded } from '@z/dsh-brand'
-import type { JsonValue, SessionId } from '@z/dsh-session/types'
+import type { Branded } from '@taskweaver/dsh-brand'
+import type { JsonValue, SessionId } from '@taskweaver/dsh-session/types'
 
 /** Stable identity of one dynamic plugin instance. */
 export type CordisDynamicPluginId = Branded<'CordisDynamicPluginId'>
@@ -357,7 +357,7 @@ export type DynamicCordisInvokeResult =
   | { ok: true; value: JsonValue }
   | ({ ok: false; code: 'plugin-not-running' | 'stale-run' | 'method-not-found' | 'handler-error' } & CordisErrorDetails)
 
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
   interface Events {
     /**
      * A Client-bearing activation needs a browser page, and may require a user decision.

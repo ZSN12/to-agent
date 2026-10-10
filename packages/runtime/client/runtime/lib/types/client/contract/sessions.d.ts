@@ -7,8 +7,8 @@
  * [SessionsPort](./sessions-port.ts). Widening this interface is the
  * explicit act of widening what features may do to the sessions domain.
  */
-import type { Context } from '@z/cordis';
-import type { RpcResult, SessionId, SubagentAddress } from '@z/dsh-api-remotes/client';
+import type { Context } from '@taskweaver/cordis';
+import type { RpcResult, SessionId, SubagentAddress } from '@taskweaver/dsh-api-remotes/client';
 import type { SessionMaybeProvideInfo } from './session-provide.ts';
 import type { AgentContext } from '../agents/scope.ts';
 import type { SessionSearchResultItem } from '../sessions/manager.ts';

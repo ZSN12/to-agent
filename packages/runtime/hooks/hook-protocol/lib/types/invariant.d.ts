@@ -1,5 +1,5 @@
-/** Package-owned hook invocation/result stream invariants. @module @z/dsh-hook-protocol/invariant */
-import type { Context } from '@z/cordis';
+/** Package-owned hook invocation/result stream invariants. @module @taskweaver/dsh-hook-protocol/invariant */
+import type { Context } from '@taskweaver/cordis';
 /** Cordis companion plugin name. */
 export declare const name = "hook-protocol-invariant";
 /** Service required before the companion can reserve package ownership. */

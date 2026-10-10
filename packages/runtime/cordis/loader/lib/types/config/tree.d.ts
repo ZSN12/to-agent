@@ -1,5 +1,5 @@
-import { Context } from '@z/cordis';
-import { type Dict } from '@z/cosmokit';
+import { Context } from '@taskweaver/cordis';
+import { type Dict } from '@taskweaver/cosmokit';
 import { Entry, type EntryOptions } from './entry.ts';
 import { EntryGroup } from './group.ts';
 /** Mutable tree of loader entries. Persistence is supplied by subclasses. */

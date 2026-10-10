@@ -1,12 +1,21 @@
-import { useCallback, useEffect, FormEvent, useMemo, useState } from 'react'
+import { useCallback, useEffect, FormEvent, useId, useMemo, useState } from 'react'
 import { Check, Copy, Database, ExternalLink, KeyRound, Link2, LogOut, Pencil, Plus, Radio, RefreshCw, ScanSearch, ShieldAlert, Sparkles, Trash2, X } from 'lucide-react'
-import type { CatalogModel, CustomProviderEntry, ModelProfilePatch, ProviderAuthStatus, OAuthStatusInfo, ScanLocalModelsResult, ModelUpdateStatus, ProbedModelItem, ProbeModelsResult } from '../../shared/model-api'
+import type { CapabilityTier, CapabilityTierStatus, CatalogModel, CustomProviderEntry, DiscoveredProviderModel, ModelProfilePatch, ProviderAuthStatus, OAuthStatusInfo, ScanLocalModelsResult, ModelUpdateStatus, ProbedModelItem, ProbeModelsResult } from '../../shared/model-api'
 import { formatCostPerMillion, getCleanModelName } from './format'
 import { LocalScanModal } from './LocalScanModal'
 import { CustomProviderSection } from './CustomProviderSection'
 import { ProbeModelsModal } from './ProbeModelsModal'
 import { OpenUsageSection } from './OpenUsageSection'
 import { LocalAgentStatusStrip, useLocalAgentBridgeStatus } from './LocalAgentStatusStrip'
+import { useModalFocusTrap } from '../../shared/useModalFocusTrap'
+
+type ProviderModelDiscoveryResult = {
+  providerId: string
+  providerName: string
+  source: 'catalog' | 'online' | 'error'
+  models: DiscoveredProviderModel[]
+  error?: string
+}
 
 function OAuthLoginModal({
   status,
@@ -19,6 +28,8 @@ function OAuthLoginModal({
   onClose: () => void
   onSubmitCode: (code: string) => Promise<boolean>
 }) {
+  const titleId = useId()
+  const dialogRef = useModalFocusTrap<HTMLDivElement>({ open: true, onEscape: onClose })
   const [code, setCode] = useState('')
   const [copied, setCopied] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -54,8 +65,8 @@ function OAuthLoginModal({
         if (e.target === e.currentTarget) onClose()
       }}
     >
-      <div className="model-editor oauth-modal">
-        <h2>{providerLabel} 官方订阅授权</h2>
+      <div ref={dialogRef} className="model-editor oauth-modal" role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}>
+        <h2 id={titleId}>{providerLabel} 官方订阅授权</h2>
         <p>{status?.instructions || `TaskWeaver 将通过 Z Runtime 授权流程打开 ${providerId === 'anthropic' ? 'Anthropic' : 'OpenAI Codex'} 登录页面。凭据由 Z Runtime 安全保存。`}</p>
 
         <div className="oauth-status-box">
@@ -133,6 +144,8 @@ function ProviderKeyModal({
   onClose: () => void
   onSave: (apiKey: string) => Promise<{ ok: boolean; error?: string }>
 }) {
+  const titleId = useId()
+  const dialogRef = useModalFocusTrap<HTMLFormElement>({ open: true, onEscape: onClose })
   const [apiKey, setApiKey] = useState('')
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -156,8 +169,8 @@ function ProviderKeyModal({
         if (event.target === event.currentTarget) onClose()
       }}
     >
-      <form className="model-editor" onSubmit={submit}>
-        <h2>配置 {provider.name} API 密钥</h2>
+      <form ref={dialogRef} className="model-editor" onSubmit={submit} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}>
+        <h2 id={titleId}>配置 {provider.name} API 密钥</h2>
         <p>凭据仅保存在 TaskWeaver 的应用数据中。</p>
         <label>
           API 密钥
@@ -218,6 +231,7 @@ function AddModelModal({
   initialCustomMode?: 'edit' | 'add_model'
   onStartOAuth?: (providerId: string) => Promise<void>
 }) {
+  const dialogRef = useModalFocusTrap<HTMLDivElement>({ open: true, onEscape: onClose })
   const [modalTab, setModalTab] = useState<'builtin' | 'subscription' | 'custom'>(initialTab ?? (initialCustomEntry ? 'custom' : 'builtin'))
   const [providerId, setProviderId] = useState(
     initialProviderId && providers.some((p) => p.id === initialProviderId)
@@ -301,7 +315,7 @@ function AddModelModal({
 
   return (
     <div className="settings-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>
-      <div className="model-editor model-editor-wide" role="dialog" aria-modal="true" aria-labelledby="add-model-title">
+      <div ref={dialogRef} className="model-editor model-editor-wide" role="dialog" aria-modal="true" aria-labelledby="add-model-title" tabIndex={-1}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
           <div>
             <h2 id="add-model-title">添加模型</h2>
@@ -332,11 +346,10 @@ function AddModelModal({
           </button>
         </div>
 
-        <div className="custom-provider-tabs" role="tablist" aria-label="添加模型方式" style={{ margin: '4px 0 8px' }}>
+        <div className="custom-provider-tabs" role="group" aria-label="添加模型方式" style={{ margin: '4px 0 8px' }}>
           <button
             type="button"
-            role="tab"
-            aria-selected={modalTab === 'builtin'}
+            aria-pressed={modalTab === 'builtin'}
             className={modalTab === 'builtin' ? 'active' : ''}
             onClick={() => { setModalTab('builtin'); setStep('provider') }}
           >
@@ -344,8 +357,7 @@ function AddModelModal({
           </button>
           <button
             type="button"
-            role="tab"
-            aria-selected={modalTab === 'subscription'}
+            aria-pressed={modalTab === 'subscription'}
             className={modalTab === 'subscription' ? 'active' : ''}
             onClick={() => setModalTab('subscription')}
           >
@@ -353,8 +365,7 @@ function AddModelModal({
           </button>
           <button
             type="button"
-            role="tab"
-            aria-selected={modalTab === 'custom'}
+            aria-pressed={modalTab === 'custom'}
             className={modalTab === 'custom' ? 'active' : ''}
             onClick={() => setModalTab('custom')}
           >
@@ -375,6 +386,8 @@ function AddModelModal({
                   autoFocus
                 />
                 <div
+                  role="group"
+                  aria-label="选择模型提供方"
                   style={{
                     maxHeight: 220,
                     overflowY: 'auto',
@@ -391,11 +404,16 @@ function AddModelModal({
                     matchingProviders.map((item) => {
                       const isSelected = item.id === providerId
                       return (
-                        <div
+                        <button
+                          type="button"
                           key={item.id}
+                          aria-pressed={isSelected}
+                          aria-label={`${item.name}（${item.id}）`}
                           onClick={() => setProviderId(item.id)}
                           onDoubleClick={continueToModels}
                           style={{
+                            appearance: 'none',
+                            width: '100%',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'space-between',
@@ -404,18 +422,21 @@ function AddModelModal({
                             cursor: 'pointer',
                             background: isSelected ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
                             border: isSelected ? '1px solid rgba(16, 185, 129, 0.5)' : '1px solid transparent',
+                            color: 'inherit',
+                            font: 'inherit',
+                            textAlign: 'left',
                             transition: 'all 0.15s ease',
                           }}
                         >
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                          <span style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                             <span style={{ fontWeight: 600, color: isSelected ? '#10b981' : '#fff', fontSize: 13 }}>
                               {item.name}
                             </span>
                             <span style={{ fontSize: 11, color: 'rgba(255, 255, 255, 0.5)' }}>
                               {item.id}
                             </span>
-                          </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          </span>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                             <span
                               style={{
                                 fontSize: 10.5,
@@ -430,8 +451,8 @@ function AddModelModal({
                             {isSelected && (
                               <span style={{ color: '#10b981', fontSize: 12, fontWeight: 700 }}>✓ 已选择</span>
                             )}
-                          </div>
-                        </div>
+                          </span>
+                        </button>
                       )
                     })
                   ) : (
@@ -526,6 +547,8 @@ function AddModelModal({
                   )}
                 </div>
                 <div
+                  role="group"
+                  aria-label="选择要添加的模型"
                   style={{
                     maxHeight: 280,
                     overflowY: 'auto',
@@ -542,19 +565,17 @@ function AddModelModal({
                     matchingModels.map((model) => {
                       const isSelected = selectedModelKeys.has(model.key)
                       return (
-                        <div
+                        <button
+                          type="button"
                           key={model.key}
-                          role="button"
-                          tabIndex={0}
+                          role="checkbox"
+                          aria-checked={isSelected}
+                          aria-label={`${model.name}（${model.id}）`}
                           onClick={() => toggleModelSelection(model.key)}
-                          onKeyDown={(event) => {
-                            if (event.key === 'Enter' || event.key === ' ') {
-                              event.preventDefault()
-                              toggleModelSelection(model.key)
-                            }
-                          }}
                           onDoubleClick={addSelectedModels}
                           style={{
+                            appearance: 'none',
+                            width: '100%',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'space-between',
@@ -563,6 +584,9 @@ function AddModelModal({
                             cursor: 'pointer',
                             background: isSelected ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
                             border: isSelected ? '1px solid rgba(16, 185, 129, 0.5)' : '1px solid transparent',
+                            color: 'inherit',
+                            font: 'inherit',
+                            textAlign: 'left',
                             transition: 'all 0.15s ease',
                           }}
                         >
@@ -584,7 +608,7 @@ function AddModelModal({
                               <span style={{ color: '#10b981', fontSize: 12, fontWeight: 700 }}>✓ 已选择</span>
                             )}
                           </div>
-                        </div>
+                        </button>
                       )
                     })
                   ) : (
@@ -835,12 +859,155 @@ function AllocationToggle({
   )
 }
 
+function CapabilityTierControl({
+  model,
+  onUpdate,
+  onToast,
+}: {
+  model: CatalogModel
+  onUpdate: (modelKey: string, patch: ModelProfilePatch) => Promise<boolean>
+  onToast?: (message: string) => void
+}) {
+  const capability = model.capabilityTier
+  const [saving, setSaving] = useState(false)
+  if (!capability) return null
+
+  const sourceDate = capability.publishDate ?? '日期未知'
+  const sourceLabel = capability.overridden
+    ? `用户覆盖（榜单默认 ${capability.defaultTier} · ${sourceDate}）`
+    : capability.status === 'unrated'
+      ? 'unrated · 待确认'
+      : capability.status === 'single-board'
+        ? `LMArena · 仅一个榜单 · ${sourceDate}`
+        : `LMArena 默认档位 · ${sourceDate}`
+  const boardDetails = (['webdev', 'text'] as const)
+    .flatMap((board) => {
+      const row = capability.boards?.[board]
+      if (!row) return []
+      const label = board === 'webdev' ? 'WebDev' : 'Text'
+      return [`${label} ${Math.round(row.rating)} (${row.tier}) · ${row.matchedName}`]
+    })
+    .join('；')
+
+  return (
+    <div
+      className="source-model-capability-tier"
+      style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px 10px', marginTop: 7, fontSize: 11 }}
+    >
+      <strong>能力 {capability.tier}</strong>
+      <span style={{ color: capability.status === 'unrated' ? '#fbbf24' : 'var(--text-secondary)' }}>{sourceLabel}</span>
+      {boardDetails && <span style={{ color: 'var(--text-secondary)' }}>{boardDetails}</span>}
+      <label style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+        <span>覆盖</span>
+        <select
+          aria-label={`${model.name}能力档位覆盖`}
+          value={capability.overridden ? capability.tier : 'auto'}
+          disabled={saving}
+          onChange={async (event) => {
+            const value = event.currentTarget.value
+            const override = value === 'auto' ? null : value as CapabilityTier
+            setSaving(true)
+            const saved = await onUpdate(model.key, { capabilityTierOverride: override })
+            setSaving(false)
+            if (!saved) onToast?.('保存能力档位覆盖失败。')
+          }}
+        >
+          <option value="auto">自动（榜单）</option>
+          <option value="strong">strong</option>
+          <option value="medium">medium</option>
+          <option value="weak">weak</option>
+        </select>
+      </label>
+    </div>
+  )
+}
+
+function CapabilityTierStatusCard({
+  status,
+  models,
+  onUpsertProfile,
+  onToast,
+}: {
+  status?: CapabilityTierStatus
+  models: CatalogModel[]
+  onUpsertProfile: (modelKey: string, patch: ModelProfilePatch) => Promise<boolean>
+  onToast?: (message: string) => void
+}) {
+  const [pinning, setPinning] = useState(false)
+  if (!status) return null
+  const changes = status.changes ?? []
+  const fixableChanges = changes.filter((change) => models.some((model) =>
+    model.capabilityTier?.canonicalId === change.canonicalId && !model.capabilityTier.overridden,
+  ))
+
+  const pinPreviousTiers = async () => {
+    setPinning(true)
+    let failed = 0
+    for (const change of fixableChanges) {
+      const matchingModels = models.filter((model) =>
+        model.capabilityTier?.canonicalId === change.canonicalId && !model.capabilityTier.overridden,
+      )
+      for (const model of matchingModels) {
+        if (!await onUpsertProfile(model.key, { capabilityTierOverride: change.before })) failed += 1
+      }
+    }
+    setPinning(false)
+    onToast?.(failed === 0 ? '已将旧档位固定为用户覆盖。' : `有 ${failed} 个模型固定失败，请重试。`)
+  }
+
+  const refreshedAt = status.fetchedAt
+    ? new Date(status.fetchedAt).toLocaleDateString('zh-CN')
+    : '未知'
+  const displayedChanges = changes.slice(0, 8)
+
+  return (
+    <section className="capability-tier-status-card" style={{ margin: '0 0 14px', padding: 12, border: '1px solid var(--border-color)', borderRadius: 9 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <strong>模型能力档位 · {status.thresholdsVersion ?? '快照不可用'}</strong>
+        <span style={{ color: status.stale || status.source === 'unavailable' ? '#fbbf24' : 'var(--text-secondary)', fontSize: 12 }}>
+          {status.source === 'unavailable'
+            ? '暂无快照，模型按 medium / unrated 处理'
+            : status.stale
+              ? `档位数据已过期 · ${refreshedAt}`
+              : `数据日期 ${refreshedAt} · ${status.source === 'cache' ? '本地缓存' : status.source === 'remote' ? '远端快照' : '打包快照'}`}
+        </span>
+      </div>
+      <p style={{ margin: '7px 0 0', color: 'var(--text-secondary)', fontSize: 12 }}>
+        来源：{status.sourceUrl
+          ? <a href={status.sourceUrl} target="_blank" rel="noreferrer">LMArena Leaderboard Dataset</a>
+          : 'LMArena Leaderboard Dataset'} · CC BY 4.0。新模型默认 medium / unrated，模型档位仅表示能力，不按价格定档。
+        {status.attribution && <span> {status.attribution}</span>}
+      </p>
+      {status.error && <p role="status" style={{ margin: '6px 0 0', color: 'var(--text-secondary)', fontSize: 12 }}>离线回退已启用：{status.error}</p>}
+      {displayedChanges.length > 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginTop: 9, fontSize: 12 }}>
+          <span>榜单刷新后有 {changes.length} 个未覆盖模型档位变化：</span>
+          {displayedChanges.map((change) => (
+            <code key={change.canonicalId}>{change.canonicalId} {change.before} → {change.after}</code>
+          ))}
+          {changes.length > displayedChanges.length && <span>另有 {changes.length - displayedChanges.length} 项</span>}
+          <button
+            type="button"
+            className="settings-secondary-button"
+            disabled={pinning || fixableChanges.length === 0}
+            onClick={() => void pinPreviousTiers()}
+          >
+            {pinning ? '固定中…' : `一键固定旧档位 (${fixableChanges.length})`}
+          </button>
+        </div>
+      )}
+    </section>
+  )
+}
+
 export function ModelSettingsPanel({
   auth,
   models,
   candidateModels,
   loading,
   bridgeReady,
+  catalogStale = false,
+  capabilityTierStatus,
   error,
   oauthStatus,
   updateStatus,
@@ -866,6 +1033,8 @@ export function ModelSettingsPanel({
   candidateModels: CatalogModel[]
   loading: boolean
   bridgeReady: boolean
+  catalogStale?: boolean
+  capabilityTierStatus?: CapabilityTierStatus
   error: string | null
   oauthStatus?: OAuthStatusInfo | null
   updateStatus?: ModelUpdateStatus | null
@@ -907,6 +1076,8 @@ export function ModelSettingsPanel({
   const [probeError, setProbeError] = useState<string | null>(null)
   const [probeResult, setProbeResult] = useState<ProbeModelsResult | null>(null)
   const [probeTargetSource, setProbeTargetSource] = useState<{ id: string; name: string; baseUrl?: string } | null>(null)
+  const [providerDiscoveryLoading, setProviderDiscoveryLoading] = useState(false)
+  const [providerDiscoveryResults, setProviderDiscoveryResults] = useState<ProviderModelDiscoveryResult[] | null>(null)
   const [migrateLoading, setMigrateLoading] = useState(false)
   const {
     status: localAgentStatus,
@@ -1142,6 +1313,60 @@ export function ModelSettingsPanel({
     return list
   }, [auth, customList, isCodexConfigured, models, query])
 
+  const handleDiscoverAvailableModels = async () => {
+    const targets = sourceGroups.filter((source) =>
+      source.configured && (source.kind === 'builtin' || source.kind === 'custom'))
+    if (providerDiscoveryLoading || !targets.length) return
+    setProviderDiscoveryLoading(true)
+    setProviderDiscoveryResults(null)
+    try {
+      const settled = await Promise.allSettled(targets.map(async (source) => {
+        // The already-loaded pi-ai catalog is authoritative for built-in providers;
+        // reading it locally avoids a network request for an endpoint we already know.
+        const bundledModels = source.kind === 'builtin'
+          ? candidateModels.filter((model) => model.provider === source.id && model.source === 'bundled')
+          : []
+        if (bundledModels.length) {
+          return {
+            providerId: source.id,
+            providerName: source.name,
+            source: 'catalog' as const,
+            models: bundledModels.map((model) => ({
+              id: model.id,
+              name: model.name || model.id,
+              contextWindow: model.contextWindow || undefined,
+              maxTokens: model.maxTokens || undefined,
+            })),
+          }
+        }
+
+        const discover = window.taskweaver?.models?.discoverProviderModels
+        if (!discover) throw new Error('模型发现接口不可用')
+        const response = await discover({ providerId: source.id })
+        if (!response?.ok) throw new Error(response?.error || '模型发现失败')
+        return {
+          providerId: source.id,
+          providerName: source.name,
+          source: 'online' as const,
+          models: response.data ?? [],
+        }
+      }))
+      setProviderDiscoveryResults(settled.map((result, index) => {
+        if (result.status === 'fulfilled') return result.value
+        const source = targets[index]
+        return {
+          providerId: source.id,
+          providerName: source.name,
+          source: 'error' as const,
+          models: [],
+          error: result.reason instanceof Error ? result.reason.message : String(result.reason),
+        }
+      }))
+    } finally {
+      setProviderDiscoveryLoading(false)
+    }
+  }
+
   const handleStartOAuth = async (providerId: string) => {
     setOauthProviderId(providerId)
     setShowOAuthModal(true)
@@ -1317,6 +1542,19 @@ export function ModelSettingsPanel({
         </div>
       )}
 
+      {catalogStale && (
+        <div className="model-catalog-stale" role="status">
+          当前显示本地缓存的模型目录，正在后台同步最新状态。
+        </div>
+      )}
+
+      <CapabilityTierStatusCard
+        status={capabilityTierStatus}
+        models={models ?? []}
+        onUpsertProfile={onUpsertProfile}
+        onToast={onToast}
+      />
+
       {loading && !models ? (
         <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--text-secondary)' }}>
           <p>正在加载模型目录…</p>
@@ -1335,10 +1573,70 @@ export function ModelSettingsPanel({
               onChange={(event) => setQuery(event.target.value)}
               aria-label="搜索模型或来源"
             />
-            <span className="model-list-count">
-              {sourceGroups.length} 个来源 · {models.length} 个已添加模型
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10 }}>
+              <span className="model-list-count">
+                {sourceGroups.length} 个来源 · {models.length} 个已添加模型
+              </span>
+              <button
+                type="button"
+                className="settings-secondary-button"
+                onClick={() => void handleDiscoverAvailableModels()}
+                disabled={providerDiscoveryLoading || !sourceGroups.some((source) =>
+                  source.configured && (source.kind === 'builtin' || source.kind === 'custom'))}
+                aria-busy={providerDiscoveryLoading}
+                title="并行查询已配置来源；只展示结果，不写入模型配置"
+              >
+                <Radio size={14} />
+                {providerDiscoveryLoading ? '正在获取…' : '获取可用模型'}
+              </button>
+            </div>
           </div>
+
+          {providerDiscoveryResults && (
+            <section className="model-settings-panel-card" aria-label="可用模型发现结果" style={{ marginBottom: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                <div>
+                  <strong>可用模型发现结果</strong>
+                  <p style={{ margin: '4px 0 0', color: 'var(--text-secondary)', fontSize: 12 }}>
+                    来自 pi-ai 内置目录或在线查询；结果仅供查看，没有修改配置。
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="settings-secondary-button"
+                  onClick={() => setProviderDiscoveryResults(null)}
+                  aria-label="关闭模型发现结果"
+                >
+                  <X size={14} />
+                  关闭
+                </button>
+              </div>
+              <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>
+                {providerDiscoveryResults.map((result) => (
+                  <div key={result.providerId} style={{ borderTop: '1px solid var(--border-color, rgba(255,255,255,0.08))', paddingTop: 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <strong>{result.providerName}</strong>
+                      <span className={`provider-status-label ${result.source === 'error' ? '' : 'ok'}`}>
+                        {result.source === 'catalog' ? '内置目录' : result.source === 'online' ? '在线发现' : '失败'}
+                      </span>
+                      {result.source !== 'error' && <span className="model-list-count">{result.models.length} 个模型</span>}
+                    </div>
+                    {result.error ? (
+                      <p className="settings-inline-error" style={{ margin: '6px 0 0' }}>{result.error}</p>
+                    ) : result.models.length ? (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 7 }}>
+                        {result.models.map((model) => (
+                          <code key={model.id} title={model.name}>{model.id}</code>
+                        ))}
+                      </div>
+                    ) : (
+                      <p style={{ margin: '6px 0 0', color: 'var(--text-secondary)', fontSize: 12 }}>未返回可用模型。</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
 
       <div className="provider-source-cards-stack">
         {sourceGroups.length === 0 ? (
@@ -1530,6 +1828,7 @@ export function ModelSettingsPanel({
                         {model.provider !== 'openai-codex' && model.profile?.capabilitySummary && (
                           <p className="source-model-summary">{model.profile.capabilitySummary}</p>
                         )}
+                        <CapabilityTierControl model={model} onUpdate={onUpsertProfile} onToast={onToast} />
                       </div>
                       <div className="source-model-actions">
                         <button

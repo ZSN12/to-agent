@@ -1,9 +1,9 @@
 /**
  * Remote decorators and explicit Gateway bindings backed only by private
  * module state. Strict reflection remains a Typert compiler responsibility.
- * @module @z/dsh-typert-protocol
+ * @module @taskweaver/dsh-typert-protocol
  */
-import { Service, type Context } from '@z/cordis';
+import { Service, type Context } from '@taskweaver/cordis';
 import type { TypertContextMap } from './types.ts';
 /**
  * Test one generated Remote name against the Connection endpoint grammar.

@@ -8,8 +8,8 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { SessionId } from '@z/dsh-session'
-import type { SessionEvent, SessionHeader } from '@z/dsh-session'
+import { SessionId } from '@taskweaver/dsh-session'
+import type { SessionEvent, SessionHeader } from '@taskweaver/dsh-session'
 import { resolveSessionPreset } from '../src/session.ts'
 
 /** A header carrying the creation-time preset, if any. */
@@ -30,7 +30,7 @@ function selected(agentPreset: string, seq: number): SessionEvent {
 
 describe('resolving which preset a session ran', () => {
   it('reads the creation-time value when nothing was switched', () => {
-    expect(resolveSessionPreset({ header: header('standard'), events: [] })).toBe('standard')
+    expect(resolveSessionPreset({ header: header('standard'), events: [] })).toBe('tw-default')
   })
 
   it('prefers a logged switch over the header', () => {
@@ -38,6 +38,11 @@ describe('resolving which preset a session ran', () => {
     // that follow run under the newer composition.
     expect(resolveSessionPreset({ header: header('standard'), events: [selected('minimal', 0)] }))
       .toBe('minimal')
+  })
+
+  it('canonicalizes legacy ids in later selection events', () => {
+    expect(resolveSessionPreset({ header: header('tw-default'), events: [selected('taskweaver-readonly', 1)] }))
+      .toBe('tw-taskweaver-readonly')
   })
 
   it('takes the last switch when a session was moved twice', () => {

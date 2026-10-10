@@ -1,14 +1,10 @@
-"use strict";
-/** Attachment identifier brand. @module @z/dsh-attachment/brand */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.AttachmentId = AttachmentId;
-exports.ImageVariantId = ImageVariantId;
+/** Attachment identifier brand. @module @taskweaver/dsh-attachment/brand */
 /**
  * Brand a validated storage identifier.
  * @param value - backend-produced opaque identifier.
  * @returns the branded identifier.
  */
-function AttachmentId(value) {
+export function AttachmentId(value) {
     return value;
 }
 /**
@@ -16,6 +12,7 @@ function AttachmentId(value) {
  * @param value - attachment-provider-produced opaque identifier.
  * @returns the branded identifier.
  */
-function ImageVariantId(value) {
+export function ImageVariantId(value) {
     return value;
 }
+//# sourceMappingURL=brand.js.map

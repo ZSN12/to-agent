@@ -1,110 +1,31 @@
-"use strict";
 /**
  * Agent skill provider registry.
  *
  * This package owns the Service Definition role of the skill capability seam.
  * Concrete
- * providers such as `@z/dsh-skill-filesystem` decide where skills come
+ * providers such as `@taskweaver/dsh-skill-filesystem` decide where skills come
  * from; this service only merges provider catalogs, resolves the winning skill
  * for a name, and exposes the winning summaries and definitions to consumers.
  *
- * @module @z/dsh-skill
+ * @module @taskweaver/dsh-skill
  */
-var __extends = (this && this.__extends) || (function () {
-    var extendStatics = function (d, b) {
-        extendStatics = Object.setPrototypeOf ||
-            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-            function (d, b) { for (var p in b) if (Object.prototype.hasOwnProperty.call(b, p)) d[p] = b[p]; };
-        return extendStatics(d, b);
-    };
-    return function (d, b) {
-        if (typeof b !== "function" && b !== null)
-            throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
-})();
-var __assign = (this && this.__assign) || function () {
-    __assign = Object.assign || function(t) {
-        for (var s, i = 1, n = arguments.length; i < n; i++) {
-            s = arguments[i];
-            for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p))
-                t[p] = s[p];
-        }
-        return t;
-    };
-    return __assign.apply(this, arguments);
-};
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
-var __generator = (this && this.__generator) || function (thisArg, body) {
-    var _ = { label: 0, sent: function() { if (t[0] & 1) throw t[1]; return t[1]; }, trys: [], ops: [] }, f, y, t, g = Object.create((typeof Iterator === "function" ? Iterator : Object).prototype);
-    return g.next = verb(0), g["throw"] = verb(1), g["return"] = verb(2), typeof Symbol === "function" && (g[Symbol.iterator] = function() { return this; }), g;
-    function verb(n) { return function (v) { return step([n, v]); }; }
-    function step(op) {
-        if (f) throw new TypeError("Generator is already executing.");
-        while (g && (g = 0, op[0] && (_ = 0)), _) try {
-            if (f = 1, y && (t = op[0] & 2 ? y["return"] : op[0] ? y["throw"] || ((t = y["return"]) && t.call(y), 0) : y.next) && !(t = t.call(y, op[1])).done) return t;
-            if (y = 0, t) op = [op[0] & 2, t.value];
-            switch (op[0]) {
-                case 0: case 1: t = op; break;
-                case 4: _.label++; return { value: op[1], done: false };
-                case 5: _.label++; y = op[1]; op = [0]; continue;
-                case 7: op = _.ops.pop(); _.trys.pop(); continue;
-                default:
-                    if (!(t = _.trys, t = t.length > 0 && t[t.length - 1]) && (op[0] === 6 || op[0] === 2)) { _ = 0; continue; }
-                    if (op[0] === 3 && (!t || (op[1] > t[0] && op[1] < t[3]))) { _.label = op[1]; break; }
-                    if (op[0] === 6 && _.label < t[1]) { _.label = t[1]; t = op; break; }
-                    if (t && _.label < t[2]) { _.label = t[2]; _.ops.push(op); break; }
-                    if (t[2]) _.ops.pop();
-                    _.trys.pop(); continue;
-            }
-            op = body.call(thisArg, _);
-        } catch (e) { op = [6, e]; y = 0; } finally { f = t = 0; }
-        if (op[0] & 5) throw op[1]; return { value: op[0] ? op[1] : void 0, done: true };
-    }
-};
-var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
-    if (pack || arguments.length === 2) for (var i = 0, l = from.length, ar; i < l; i++) {
-        if (ar || !(i in from)) {
-            if (!ar) ar = Array.prototype.slice.call(from, 0, i);
-            ar[i] = from[i];
-        }
-    }
-    return to.concat(ar || Array.prototype.slice.call(from));
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.SkillRegistry = exports.BUNDLED_SKILL_RANK = void 0;
-exports.isSkillName = isSkillName;
-exports.isModelInvocable = isModelInvocable;
-exports.isUserInvocable = isUserInvocable;
-exports.renderSkillContent = renderSkillContent;
-exports.escapeText = escapeText;
-var cordis_1 = require("@z/cordis");
-var dsh_llm_1 = require("@z/dsh-llm");
-var dsh_scope_1 = require("@z/dsh-scope");
-var schemastery_1 = require("@z/schemastery");
-var SKILL_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-var DEFAULT_COLLECT_CACHE_ENTRIES = 128;
-var MAX_COLLECT_ATTEMPTS = 2;
-var RUNTIME_PROVIDER = 'runtime';
-var RUNTIME_RANK = 250;
+import { Service } from '@taskweaver/cordis';
+import { assertNever } from '@taskweaver/dsh-llm';
+import { NamedEntries, ScopedLayers, scopeChainOf, scopeOf } from '@taskweaver/dsh-scope';
+import z from '@taskweaver/schemastery';
+const SKILL_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const DEFAULT_COLLECT_CACHE_ENTRIES = 128;
+const MAX_COLLECT_ATTEMPTS = 2;
+const RUNTIME_PROVIDER = 'runtime';
+const RUNTIME_RANK = 250;
 /** Standard precedence rank for packaged skill providers and local bundled roots. */
-exports.BUNDLED_SKILL_RANK = 600;
+export const BUNDLED_SKILL_RANK = 600;
 /**
  * Return whether a string is a valid kebab-case skill name.
  * @param name - candidate skill name to validate.
  * @returns whether the name matches the public skill-name grammar.
  */
-function isSkillName(name) {
+export function isSkillName(name) {
     return SKILL_NAME.test(name);
 }
 /**
@@ -112,7 +33,7 @@ function isSkillName(name) {
  * @param skill - skill metadata carrying resolved invocation controls.
  * @returns whether the policy permits model invocation.
  */
-function isModelInvocable(skill) {
+export function isModelInvocable(skill) {
     return skill.invocation.modelInvocable;
 }
 /**
@@ -120,7 +41,7 @@ function isModelInvocable(skill) {
  * @param skill - skill metadata carrying resolved invocation controls.
  * @returns whether the policy permits user invocation.
  */
-function isUserInvocable(skill) {
+export function isUserInvocable(skill) {
     return skill.invocation.userInvocable;
 }
 /**
@@ -132,47 +53,47 @@ function isUserInvocable(skill) {
  * @param skill - name, provider, optional resource base, and body to render.
  * @returns the complete model-facing `<skill_content>` block.
  */
-function renderSkillContent(skill) {
-    var resourceHint = renderResourceHint(skill);
-    return __spreadArray(__spreadArray([
-        "<skill_content name=\"".concat(escapeAttr(skill.name), "\">"),
-        '<skill_resources>'
-    ], resourceHint, true), [
+export function renderSkillContent(skill) {
+    const resourceHint = renderResourceHint(skill);
+    return [
+        `<skill_content name="${escapeAttr(skill.name)}">`,
+        '<skill_resources>',
+        ...resourceHint,
         '</skill_resources>',
         '',
         '<skill_instructions>',
         skill.content,
         '</skill_instructions>',
         '</skill_content>',
-    ], false).join('\n');
+    ].join('\n');
 }
 function renderResourceHint(skill) {
-    var base = skill.resourceBase;
+    const base = skill.resourceBase;
     if (base === undefined) {
         return [
-            "Resources for this skill are managed by provider \"".concat(escapeText(skill.provider), "\"."),
+            `Resources for this skill are managed by provider "${escapeText(skill.provider)}".`,
             'Load referenced resources only as needed.',
         ];
     }
     switch (base.kind) {
         case 'directory':
             return [
-                "Base directory for this skill: ".concat(escapeText(base.path)),
+                `Base directory for this skill: ${escapeText(base.path)}`,
                 'Resolve relative paths mentioned by this skill against the base directory before using them. Load referenced resources only as needed.',
             ];
         case 'url':
             return [
-                "Base URL for this skill: ".concat(escapeText(base.url)),
+                `Base URL for this skill: ${escapeText(base.url)}`,
                 'Resolve relative URLs mentioned by this skill against the base URL before using them. Load referenced resources only as needed.',
             ];
         case 'opaque':
             return [
-                "Resources for this skill: ".concat(escapeText(base.description)),
+                `Resources for this skill: ${escapeText(base.description)}`,
                 'Load referenced resources only as needed.',
             ];
         /* v8 ignore start -- SkillResourceBase is a closed union; a future kind must fail compilation here. */
         default:
-            return (0, dsh_llm_1.assertNever)(base, 'SkillResourceBase.kind');
+            return assertNever(base, 'SkillResourceBase.kind');
         /* v8 ignore stop */
     }
 }
@@ -185,24 +106,25 @@ function escapeAttr(value) {
  * @param value - raw prose to embed.
  * @returns the escaped text.
  */
-function escapeText(value) {
+export function escapeText(value) {
     return value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
 }
 /** One scope's complete skill-registry contribution. */
-var SkillLayer = /** @class */ (function () {
-    function SkillLayer(scope) {
-        /** Runtime skills registered through contexts carrying this scope. */
-        this.runtime = new Map();
-        this.providers = new dsh_scope_1.NamedEntries(function (name) { return new Error(scope === undefined
-            ? "a skill provider named \"".concat(name, "\" is already registered")
-            : "a skill provider named \"".concat(name, "\" is already registered in this scope")); });
+class SkillLayer {
+    /** Providers registered through contexts carrying this scope, insertion-ordered. */
+    providers;
+    /** Runtime skills registered through contexts carrying this scope. */
+    runtime = new Map();
+    constructor(scope) {
+        this.providers = new NamedEntries(name => new Error(scope === undefined
+            ? `a skill provider named "${name}" is already registered`
+            : `a skill provider named "${name}" is already registered in this scope`));
     }
     /** Whether every contribution table in this aggregate layer is empty. */
-    SkillLayer.prototype.isEmpty = function () {
+    isEmpty() {
         return this.providers.isEmpty() && this.runtime.size === 0;
-    };
-    return SkillLayer;
-}());
+    }
+}
 /**
  * Layered registry of skill providers, the host+per-scope shape the tools
  * registry established. A registration files into the layer of its calling
@@ -214,22 +136,22 @@ var SkillLayer = /** @class */ (function () {
  * It exposes sorted invocation-neutral summaries and loads full skill bodies
  * on demand.
  */
-var SkillRegistry = /** @class */ (function (_super) {
-    __extends(SkillRegistry, _super);
-    function SkillRegistry(ctx, config) {
-        if (config === void 0) { config = {}; }
-        var _a;
-        var _this = _super.call(this, ctx, 'skills') || this;
-        _this.layers = new dsh_scope_1.ScopedLayers(function (scope) { return new SkillLayer(scope); }, function () { _this.invalidateCache(); });
-        _this.collectCache = new Map();
-        _this.revision = 0;
-        _this.nextProviderOrder = 0;
-        /** Stable identities for cache keys; scope keys are opaque identity-compared objects. */
-        _this.scopeIds = new WeakMap();
-        _this.nextScopeId = 1;
-        _this.collectCacheMaxEntries = (_a = config.collectCacheMaxEntries) !== null && _a !== void 0 ? _a : DEFAULT_COLLECT_CACHE_ENTRIES;
-        assertPositiveInteger('collectCacheMaxEntries', _this.collectCacheMaxEntries);
-        return _this;
+export class SkillRegistry extends Service {
+    static Config = z.object({
+        collectCacheMaxEntries: z.number().default(DEFAULT_COLLECT_CACHE_ENTRIES),
+    });
+    collectCacheMaxEntries;
+    layers = new ScopedLayers(scope => new SkillLayer(scope), () => { this.invalidateCache(); });
+    collectCache = new Map();
+    revision = 0;
+    nextProviderOrder = 0;
+    /** Stable identities for cache keys; scope keys are opaque identity-compared objects. */
+    scopeIds = new WeakMap();
+    nextScopeId = 1;
+    constructor(ctx, config = {}) {
+        super(ctx, 'skills');
+        this.collectCacheMaxEntries = config.collectCacheMaxEntries ?? DEFAULT_COLLECT_CACHE_ENTRIES;
+        assertPositiveInteger('collectCacheMaxEntries', this.collectCacheMaxEntries);
     }
     /**
      * Register a borrowed same-process provider synchronously during plugin
@@ -242,36 +164,34 @@ var SkillRegistry = /** @class */ (function (_super) {
      * @returns the exact Cordis effect disposer that unregisters this provider;
      *   composite effects may yield it directly to preserve teardown ordering.
      */
-    SkillRegistry.prototype.registerProvider = function (create) {
-        var _this = this;
-        var lifecycle = new AbortController();
-        var registration;
-        var provider;
-        var control = {
+    registerProvider(create) {
+        const lifecycle = new AbortController();
+        let registration;
+        let provider;
+        const control = {
             signal: lifecycle.signal,
-            invalidate: function () {
-                var _a;
-                var active = registration;
-                if (active !== undefined && ((_a = active.layer.providers.get(active.name)) === null || _a === void 0 ? void 0 : _a.provider) === provider) {
-                    _this.invalidateCache();
+            invalidate: () => {
+                const active = registration;
+                if (active !== undefined && active.layer.providers.get(active.name)?.provider === provider) {
+                    this.invalidateCache();
                 }
             },
         };
         try {
             provider = create(control);
-            var name_1 = provider.name;
-            if (name_1 === RUNTIME_PROVIDER) {
-                throw new Error("\"".concat(RUNTIME_PROVIDER, "\" is reserved for runtime skill registrations"));
+            const name = provider.name;
+            if (name === RUNTIME_PROVIDER) {
+                throw new Error(`"${RUNTIME_PROVIDER}" is reserved for runtime skill registrations`);
             }
-            var order_1 = this.nextProviderOrder;
+            const order = this.nextProviderOrder;
             this.nextProviderOrder += 1;
-            return this.layers.effect(this.ctx, function (layer) {
-                var undo = layer.providers.insert(name_1, { provider: provider, order: order_1 });
-                registration = { layer: layer, name: name_1 };
-                return function () {
+            return this.layers.effect(this.ctx, (layer) => {
+                const undo = layer.providers.insert(name, { provider, order });
+                registration = { layer, name };
+                return () => {
                     registration = undefined;
                     undo();
-                    lifecycle.abort(new Error("skill provider \"".concat(name_1, "\" disposed")));
+                    lifecycle.abort(new Error(`skill provider "${name}" disposed`));
                 };
             }, { label: 'skills.registerProvider()' });
         }
@@ -279,7 +199,7 @@ var SkillRegistry = /** @class */ (function (_super) {
             lifecycle.abort(error);
             throw error;
         }
-    };
+    }
     /**
      * Register a borrowed readonly runtime skill into the calling context's
      * layer. Project entries outrank runtime entries, which outrank user
@@ -289,21 +209,24 @@ var SkillRegistry = /** @class */ (function (_super) {
      * @param skill - the skill definition input; omitted invocation and provider fields receive defaults.
      * @returns the exact Cordis effect disposer, preserving composite teardown order and invalidating caches.
      */
-    SkillRegistry.prototype.register = function (skill) {
-        var _a, _b;
+    register(skill) {
         validateRuntimeSkill(skill);
-        var scope = (0, dsh_scope_1.scopeOf)(this.ctx);
-        var existingLayer = scope === undefined ? this.layers.global : this.layers.peek(scope);
+        const scope = scopeOf(this.ctx);
+        const existingLayer = scope === undefined ? this.layers.global : this.layers.peek(scope);
         if (existingLayer !== undefined && existingLayer.runtime.has(skill.name)) {
-            this.ctx.logger.warn("runtime skill \"".concat(skill.name, "\" ignored because it is already registered"));
-            return function () { };
+            this.ctx.logger.warn(`runtime skill "${skill.name}" ignored because it is already registered`);
+            return () => { };
         }
-        var definition = __assign(__assign({}, skill), { invocation: (_a = skill.invocation) !== null && _a !== void 0 ? _a : { modelInvocable: true, userInvocable: true }, provider: (_b = skill.provider) !== null && _b !== void 0 ? _b : RUNTIME_PROVIDER });
-        return this.layers.effect(this.ctx, function (layer) {
+        const definition = {
+            ...skill,
+            invocation: skill.invocation ?? { modelInvocable: true, userInvocable: true },
+            provider: skill.provider ?? RUNTIME_PROVIDER,
+        };
+        return this.layers.effect(this.ctx, (layer) => {
             layer.runtime.set(definition.name, definition);
-            return function () { layer.runtime.delete(definition.name); };
+            return () => { layer.runtime.delete(definition.name); };
         }, { label: 'skills.register()' });
-    };
+    }
     /**
      * List invocation-neutral skill summaries for a workspace. Consumers apply
      * model or user invocation policy at their operational boundary. Lookup
@@ -312,17 +235,9 @@ var SkillRegistry = /** @class */ (function (_super) {
      * @param options - view options; `scope` selects the viewing agent's layers, `cwd` selects project roots, and `signal` cancels discovery.
      * @returns all sorted winning summaries.
      */
-    SkillRegistry.prototype.list = function () {
-        return __awaiter(this, arguments, void 0, function (options) {
-            if (options === void 0) { options = {}; }
-            return __generator(this, function (_a) {
-                switch (_a.label) {
-                    case 0: return [4 /*yield*/, this.snapshot(options)];
-                    case 1: return [2 /*return*/, (_a.sent()).skills];
-                }
-            });
-        });
-    };
+    async list(options = {}) {
+        return (await this.snapshot(options)).skills;
+    }
     /**
      * Observe the current invocation-neutral catalog and whether discovery completed within a stable revision.
      * Incomplete observations are never cached, allowing consumers to retain last-good state and
@@ -330,24 +245,15 @@ var SkillRegistry = /** @class */ (function (_super) {
      * @param options - view options; `scope` selects the viewing agent's layers, `cwd` selects project roots, and `signal` cancels discovery.
      * @returns sorted summaries plus discovery-completeness state.
      */
-    SkillRegistry.prototype.snapshot = function () {
-        return __awaiter(this, arguments, void 0, function (options) {
-            var collected;
-            if (options === void 0) { options = {}; }
-            return __generator(this, function (_a) {
-                switch (_a.label) {
-                    case 0: return [4 /*yield*/, this.collect(options)];
-                    case 1:
-                        collected = _a.sent();
-                        return [2 /*return*/, {
-                                skills: __spreadArray([], collected.entries.values(), true).map(function (entry) { return toSummary(entry.candidate); })
-                                    .sort(compareSkillSummary),
-                                complete: collected.cacheable,
-                            }];
-                }
-            });
-        });
-    };
+    async snapshot(options = {}) {
+        const collected = await this.collect(options);
+        return {
+            skills: [...collected.entries.values()]
+                .map(entry => toSummary(entry.candidate))
+                .sort(compareSkillSummary),
+            complete: collected.cacheable,
+        };
+    }
     /**
      * Load and validate the winning candidate, passing its opaque discovery locator back to the
      * provider. Cancellation is rechecked after selection, including cache hits, and raced against
@@ -357,246 +263,166 @@ var SkillRegistry = /** @class */ (function (_super) {
      *   `cwd` selects workspace-sensitive skills, and `signal` cancels work.
      * @returns the full skill, including body content, or `undefined`.
      */
-    SkillRegistry.prototype.get = function (name_2) {
-        return __awaiter(this, arguments, void 0, function (name, options) {
-            var collected, match, definition;
-            if (options === void 0) { options = {}; }
-            return __generator(this, function (_a) {
-                switch (_a.label) {
-                    case 0:
-                        if (!isSkillName(name))
-                            return [2 /*return*/, undefined];
-                        return [4 /*yield*/, this.collect(options)];
-                    case 1:
-                        collected = _a.sent();
-                        throwIfAborted(options.signal);
-                        match = collected.entries.get(name);
-                        if (match === undefined)
-                            return [2 /*return*/, undefined];
-                        return [4 /*yield*/, waitWithAbort(match.provider.get(match.candidate, options), options.signal)];
-                    case 2:
-                        definition = _a.sent();
-                        if (definition === undefined)
-                            return [2 /*return*/, undefined];
-                        validateDefinition(definition);
-                        if (definition.name !== match.candidate.name) {
-                            this.invalidateEntry(match);
-                            return [2 /*return*/, undefined];
-                        }
-                        return [2 /*return*/, definition];
+    async get(name, options = {}) {
+        if (!isSkillName(name))
+            return undefined;
+        const collected = await this.collect(options);
+        throwIfAborted(options.signal);
+        const match = collected.entries.get(name);
+        if (match === undefined)
+            return undefined;
+        const definition = await waitWithAbort(match.provider.get(match.candidate, options), options.signal);
+        if (definition === undefined)
+            return undefined;
+        validateDefinition(definition);
+        if (definition.name !== match.candidate.name) {
+            this.invalidateEntry(match);
+            return undefined;
+        }
+        return definition;
+    }
+    async collect(options) {
+        throwIfAborted(options.signal);
+        let attempt = 1;
+        while (true) {
+            const revision = this.revision;
+            // The chain is part of the key rather than assumed stable: a blank-session
+            // recompose re-parents an existing scope without touching this registry,
+            // and only a chain-bearing key makes the next read see the new preset.
+            const key = this.collectCacheKey(options.cwd, scopeChainOf(options.scope), revision);
+            const cached = this.collectCache.get(key);
+            if (cached !== undefined)
+                return { entries: cached, cacheable: true };
+            const result = await this.collectFresh(options);
+            throwIfAborted(options.signal);
+            if (revision !== this.revision) {
+                if (attempt < MAX_COLLECT_ATTEMPTS) {
+                    attempt += 1;
+                    continue;
                 }
-            });
-        });
-    };
-    SkillRegistry.prototype.collect = function (options) {
-        return __awaiter(this, void 0, void 0, function () {
-            var attempt, revision, key, cached, result, oldest;
-            return __generator(this, function (_a) {
-                switch (_a.label) {
-                    case 0:
-                        throwIfAborted(options.signal);
-                        attempt = 1;
-                        _a.label = 1;
-                    case 1:
-                        if (!true) return [3 /*break*/, 3];
-                        revision = this.revision;
-                        key = this.collectCacheKey(options.cwd, (0, dsh_scope_1.scopeChainOf)(options.scope), revision);
-                        cached = this.collectCache.get(key);
-                        if (cached !== undefined)
-                            return [2 /*return*/, { entries: cached, cacheable: true }];
-                        return [4 /*yield*/, this.collectFresh(options)];
-                    case 2:
-                        result = _a.sent();
-                        throwIfAborted(options.signal);
-                        if (revision !== this.revision) {
-                            if (attempt < MAX_COLLECT_ATTEMPTS) {
-                                attempt += 1;
-                                return [3 /*break*/, 1];
-                            }
-                            return [2 /*return*/, { entries: result.entries, cacheable: false }];
-                        }
-                        if (result.cacheable) {
-                            this.collectCache.set(key, result.entries);
-                            if (this.collectCache.size > this.collectCacheMaxEntries) {
-                                oldest = this.collectCache.keys().next();
-                                this.collectCache.delete(oldest.value);
-                            }
-                        }
-                        return [2 /*return*/, result];
-                    case 3: return [2 /*return*/];
+                return { entries: result.entries, cacheable: false };
+            }
+            if (result.cacheable) {
+                this.collectCache.set(key, result.entries);
+                if (this.collectCache.size > this.collectCacheMaxEntries) {
+                    const oldest = this.collectCache.keys().next();
+                    this.collectCache.delete(oldest.value);
                 }
+            }
+            return result;
+        }
+    }
+    async collectFresh(options) {
+        // Global first, then existing chain overlays farthest ancestor first and
+        // the exact scope last, so the nearest layer's same-name entry replaces
+        // the farther ones — the tools registry's shadowing rule. Rank decides
+        // duplicates only within one layer.
+        const layers = [this.layers.global, ...this.layers.chainLayers(options.scope)];
+        const merged = new Map();
+        let cacheable = true;
+        for (const layer of layers) {
+            const collected = await this.collectLayer(layer, options);
+            if (!collected.cacheable)
+                cacheable = false;
+            for (const entry of collected.entries)
+                merged.set(entry.candidate.name, entry);
+        }
+        return { entries: merged, cacheable };
+    }
+    async collectLayer(layer, options) {
+        const collected = await this.listLayerCandidates(layer, options);
+        collected.entries.sort(compareIndexedCandidates);
+        const seen = new Set();
+        const result = [];
+        for (const entry of collected.entries) {
+            const skill = entry.candidate;
+            if (seen.has(skill.name)) {
+                this.ctx.logger.warn(`skill "${skill.name}" from ${skill.source} ignored because a higher-priority skill already exists`);
+                continue;
+            }
+            seen.add(skill.name);
+            result.push(entry);
+        }
+        return { entries: result, cacheable: collected.cacheable };
+    }
+    async listLayerCandidates(layer, options) {
+        throwIfAborted(options.signal);
+        const candidates = [];
+        let cacheable = true;
+        let runtimeOrder = 0;
+        for (const skill of [...layer.runtime.values()].sort((a, b) => compareCodePoints(a.name, b.name))) {
+            candidates.push({
+                candidate: runtimeCandidate(skill),
+                provider: RUNTIME_SKILL_PROVIDER,
+                providerOrder: -1,
+                localOrder: runtimeOrder,
+                layer,
             });
-        });
-    };
-    SkillRegistry.prototype.collectFresh = function (options) {
-        return __awaiter(this, void 0, void 0, function () {
-            var layers, merged, cacheable, _i, layers_1, layer, collected, _a, _b, entry;
-            return __generator(this, function (_c) {
-                switch (_c.label) {
-                    case 0:
-                        layers = __spreadArray([this.layers.global], this.layers.chainLayers(options.scope), true);
-                        merged = new Map();
-                        cacheable = true;
-                        _i = 0, layers_1 = layers;
-                        _c.label = 1;
-                    case 1:
-                        if (!(_i < layers_1.length)) return [3 /*break*/, 4];
-                        layer = layers_1[_i];
-                        return [4 /*yield*/, this.collectLayer(layer, options)];
-                    case 2:
-                        collected = _c.sent();
-                        if (!collected.cacheable)
-                            cacheable = false;
-                        for (_a = 0, _b = collected.entries; _a < _b.length; _a++) {
-                            entry = _b[_a];
-                            merged.set(entry.candidate.name, entry);
-                        }
-                        _c.label = 3;
-                    case 3:
-                        _i++;
-                        return [3 /*break*/, 1];
-                    case 4: return [2 /*return*/, { entries: merged, cacheable: cacheable }];
-                }
-            });
-        });
-    };
-    SkillRegistry.prototype.collectLayer = function (layer, options) {
-        return __awaiter(this, void 0, void 0, function () {
-            var collected, seen, result, _i, _a, entry, skill;
-            return __generator(this, function (_b) {
-                switch (_b.label) {
-                    case 0: return [4 /*yield*/, this.listLayerCandidates(layer, options)];
-                    case 1:
-                        collected = _b.sent();
-                        collected.entries.sort(compareIndexedCandidates);
-                        seen = new Set();
-                        result = [];
-                        for (_i = 0, _a = collected.entries; _i < _a.length; _i++) {
-                            entry = _a[_i];
-                            skill = entry.candidate;
-                            if (seen.has(skill.name)) {
-                                this.ctx.logger.warn("skill \"".concat(skill.name, "\" from ").concat(skill.source, " ignored because a higher-priority skill already exists"));
-                                continue;
-                            }
-                            seen.add(skill.name);
-                            result.push(entry);
-                        }
-                        return [2 /*return*/, { entries: result, cacheable: collected.cacheable }];
-                }
-            });
-        });
-    };
-    SkillRegistry.prototype.listLayerCandidates = function (layer, options) {
-        return __awaiter(this, void 0, void 0, function () {
-            var candidates, cacheable, runtimeOrder, _i, _a, skill, _b, _c, _d, provider, order, localOrder, output, error_1, observation, _e, _f, candidate;
-            var _g;
-            return __generator(this, function (_h) {
-                switch (_h.label) {
-                    case 0:
-                        throwIfAborted(options.signal);
-                        candidates = [];
-                        cacheable = true;
-                        runtimeOrder = 0;
-                        for (_i = 0, _a = __spreadArray([], layer.runtime.values(), true).sort(function (a, b) { return compareCodePoints(a.name, b.name); }); _i < _a.length; _i++) {
-                            skill = _a[_i];
-                            candidates.push({
-                                candidate: runtimeCandidate(skill),
-                                provider: RUNTIME_SKILL_PROVIDER,
-                                providerOrder: -1,
-                                localOrder: runtimeOrder,
-                                layer: layer,
-                            });
-                            runtimeOrder += 1;
-                        }
-                        _b = 0, _c = __spreadArray([], layer.providers.values(), true);
-                        _h.label = 1;
-                    case 1:
-                        if (!(_b < _c.length)) return [3 /*break*/, 7];
-                        _d = _c[_b], provider = _d.provider, order = _d.order;
-                        localOrder = 0;
-                        output = void 0;
-                        _h.label = 2;
-                    case 2:
-                        _h.trys.push([2, 4, , 5]);
-                        return [4 /*yield*/, waitWithAbort(provider.list(options), options.signal)];
-                    case 3:
-                        output = _h.sent();
-                        return [3 /*break*/, 5];
-                    case 4:
-                        error_1 = _h.sent();
-                        if (((_g = options.signal) === null || _g === void 0 ? void 0 : _g.aborted) === true)
-                            throw toError(options.signal.reason);
-                        cacheable = false;
-                        this.ctx.logger.warn("skill provider \"".concat(provider.name, "\" skipped: ").concat(errorMessage(error_1)));
-                        return [3 /*break*/, 5];
-                    case 5:
-                        if (output === undefined)
-                            return [3 /*break*/, 6];
-                        observation = normalizeProviderObservation(output, provider.name);
-                        if (!observation.complete)
-                            cacheable = false;
-                        for (_e = 0, _f = observation.candidates; _e < _f.length; _e++) {
-                            candidate = _f[_e];
-                            validateCandidate(candidate, provider.name);
-                            candidates.push({ candidate: candidate, provider: provider, providerOrder: order, localOrder: localOrder, layer: layer });
-                            localOrder += 1;
-                        }
-                        _h.label = 6;
-                    case 6:
-                        _b++;
-                        return [3 /*break*/, 1];
-                    case 7: return [2 /*return*/, { entries: candidates, cacheable: cacheable }];
-                }
-            });
-        });
-    };
-    SkillRegistry.prototype.invalidateCache = function () {
+            runtimeOrder += 1;
+        }
+        for (const { provider, order } of [...layer.providers.values()]) {
+            let localOrder = 0;
+            let output;
+            try {
+                output = await waitWithAbort(provider.list(options), options.signal);
+            }
+            catch (error) {
+                if (options.signal?.aborted === true)
+                    throw toError(options.signal.reason);
+                cacheable = false;
+                this.ctx.logger.warn(`skill provider "${provider.name}" skipped: ${errorMessage(error)}`);
+            }
+            if (output === undefined)
+                continue;
+            const observation = normalizeProviderObservation(output, provider.name);
+            if (!observation.complete)
+                cacheable = false;
+            for (const candidate of observation.candidates) {
+                validateCandidate(candidate, provider.name);
+                candidates.push({ candidate, provider, providerOrder: order, localOrder, layer });
+                localOrder += 1;
+            }
+        }
+        return { entries: candidates, cacheable };
+    }
+    invalidateCache() {
         this.revision += 1;
         this.collectCache.clear();
         this.notifyChange();
-    };
+    }
     /** Invalidate after a stale definition load, only while the exact registration that produced the entry is still live. */
-    SkillRegistry.prototype.invalidateEntry = function (entry) {
-        var _a;
+    invalidateEntry(entry) {
         /* v8 ignore else -- A definition load can outlive the exact provider registration it selected. */
-        if (((_a = entry.layer.providers.get(entry.provider.name)) === null || _a === void 0 ? void 0 : _a.provider) === entry.provider)
+        if (entry.layer.providers.get(entry.provider.name)?.provider === entry.provider)
             this.invalidateCache();
-    };
-    SkillRegistry.prototype.scopeId = function (key) {
-        var id = this.scopeIds.get(key);
+    }
+    scopeId(key) {
+        let id = this.scopeIds.get(key);
         if (id === undefined) {
             id = this.nextScopeId;
             this.nextScopeId += 1;
             this.scopeIds.set(key, id);
         }
         return id;
-    };
-    SkillRegistry.prototype.collectCacheKey = function (cwd, chain, revision) {
-        var _this = this;
-        return JSON.stringify({ cwd: cwd, scopes: chain.map(function (key) { return _this.scopeId(key); }), revision: revision });
-    };
+    }
+    collectCacheKey(cwd, chain, revision) {
+        return JSON.stringify({ cwd, scopes: chain.map(key => this.scopeId(key)), revision });
+    }
     /** Notify catalog observers without making their refresh work load-bearing. */
-    SkillRegistry.prototype.notifyChange = function () {
-        var _this = this;
-        for (var _i = 0, _a = this.ctx.events.dispatch('emit', ['skills/change']); _i < _a.length; _i++) {
-            var callback = _a[_i];
+    notifyChange() {
+        for (const callback of this.ctx.events.dispatch('emit', ['skills/change'])) {
             try {
-                var returned = callback();
-                void Promise.resolve(returned).catch(function (error) {
-                    _this.ctx.logger.warn("skills/change listener rejected: ".concat(errorMessage(error)));
+                const returned = callback();
+                void Promise.resolve(returned).catch((error) => {
+                    this.ctx.logger.warn(`skills/change listener rejected: ${errorMessage(error)}`);
                 });
             }
             catch (error) {
-                this.ctx.logger.warn("skills/change listener threw: ".concat(errorMessage(error)));
+                this.ctx.logger.warn(`skills/change listener threw: ${errorMessage(error)}`);
             }
         }
-    };
-    SkillRegistry.Config = schemastery_1.default.object({
-        collectCacheMaxEntries: schemastery_1.default.number().default(DEFAULT_COLLECT_CACHE_ENTRIES),
-    });
-    return SkillRegistry;
-}(cordis_1.Service));
-exports.SkillRegistry = SkillRegistry;
+    }
+}
 function normalizeProviderObservation(output, providerName) {
     if (Array.isArray(output)) {
         return { candidates: output, complete: true };
@@ -604,114 +430,134 @@ function normalizeProviderObservation(output, providerName) {
     if (output === null || typeof output !== 'object') {
         throw invalidProviderObservation(providerName);
     }
-    var observation = output;
+    const observation = output;
     if (!Array.isArray(observation.candidates) || typeof observation.complete !== 'boolean') {
         throw invalidProviderObservation(providerName);
     }
     return observation;
 }
 function invalidProviderObservation(providerName) {
-    return new TypeError("skill provider \"".concat(providerName, "\" list() must return an array or { candidates, complete } observation"));
+    return new TypeError(`skill provider "${providerName}" list() must return an array or { candidates, complete } observation`);
 }
-var RUNTIME_SKILL_PROVIDER = {
+const RUNTIME_SKILL_PROVIDER = {
     name: RUNTIME_PROVIDER,
     /* v8 ignore next -- Runtime skills are injected directly by the registry; this provider only owns `get()`. */
-    list: function () {
+    list() {
         return Promise.resolve([]);
     },
-    get: function (candidate) {
+    get(candidate) {
         return Promise.resolve(candidate.locator);
     },
 };
 function runtimeCandidate(skill) {
-    return __assign(__assign(__assign(__assign(__assign(__assign({ name: skill.name, description: skill.description }, skill.whenToUse !== undefined ? { whenToUse: skill.whenToUse } : {}), { invocation: skill.invocation, source: skill.source, provider: skill.provider }), skill.resourceBase !== undefined ? { resourceBase: skill.resourceBase } : {}), { rank: RUNTIME_RANK, locator: skill }), skill.path !== undefined ? { path: skill.path } : {}), skill.metadata !== undefined ? { metadata: skill.metadata } : {});
+    return {
+        name: skill.name,
+        description: skill.description,
+        ...skill.whenToUse !== undefined ? { whenToUse: skill.whenToUse } : {},
+        invocation: skill.invocation,
+        source: skill.source,
+        provider: skill.provider,
+        ...skill.resourceBase !== undefined ? { resourceBase: skill.resourceBase } : {},
+        rank: RUNTIME_RANK,
+        locator: skill,
+        ...skill.path !== undefined ? { path: skill.path } : {},
+        ...skill.metadata !== undefined ? { metadata: skill.metadata } : {},
+    };
 }
 function validateCandidate(candidate, providerName) {
     if (typeof candidate.name !== 'string') {
-        throw new TypeError("skill provider \"".concat(providerName, "\" returned a non-string skill name"));
+        throw new TypeError(`skill provider "${providerName}" returned a non-string skill name`);
     }
     if (!SKILL_NAME.test(candidate.name)) {
-        throw new Error("skill provider \"".concat(providerName, "\" returned invalid skill name \"").concat(candidate.name, "\""));
+        throw new Error(`skill provider "${providerName}" returned invalid skill name "${candidate.name}"`);
     }
     if (typeof candidate.description !== 'string') {
-        throw new TypeError("skill provider \"".concat(providerName, "\" returned skill \"").concat(candidate.name, "\" with a non-string description"));
+        throw new TypeError(`skill provider "${providerName}" returned skill "${candidate.name}" with a non-string description`);
     }
     if (candidate.description.length === 0) {
-        throw new Error("skill provider \"".concat(providerName, "\" returned skill \"").concat(candidate.name, "\" without a description"));
+        throw new Error(`skill provider "${providerName}" returned skill "${candidate.name}" without a description`);
     }
-    validateInvocation(candidate.invocation, "skill provider \"".concat(providerName, "\" returned skill \"").concat(candidate.name, "\""));
+    validateInvocation(candidate.invocation, `skill provider "${providerName}" returned skill "${candidate.name}"`);
     if (candidate.whenToUse !== undefined && typeof candidate.whenToUse !== 'string') {
-        throw new TypeError("skill provider \"".concat(providerName, "\" returned skill \"").concat(candidate.name, "\" with a non-string whenToUse"));
+        throw new TypeError(`skill provider "${providerName}" returned skill "${candidate.name}" with a non-string whenToUse`);
     }
     if (typeof candidate.source !== 'string') {
-        throw new TypeError("skill provider \"".concat(providerName, "\" returned skill \"").concat(candidate.name, "\" with a non-string source"));
+        throw new TypeError(`skill provider "${providerName}" returned skill "${candidate.name}" with a non-string source`);
     }
     if (typeof candidate.rank !== 'number' || !Number.isFinite(candidate.rank)) {
-        throw new Error("skill provider \"".concat(providerName, "\" returned skill \"").concat(candidate.name, "\" with an invalid rank"));
+        throw new Error(`skill provider "${providerName}" returned skill "${candidate.name}" with an invalid rank`);
     }
     if (typeof candidate.provider !== 'string') {
-        throw new TypeError("skill provider \"".concat(providerName, "\" returned skill \"").concat(candidate.name, "\" with a non-string provider"));
+        throw new TypeError(`skill provider "${providerName}" returned skill "${candidate.name}" with a non-string provider`);
     }
     if (candidate.provider !== providerName) {
-        throw new Error("skill provider \"".concat(providerName, "\" returned skill \"").concat(candidate.name, "\" for provider \"").concat(candidate.provider, "\""));
+        throw new Error(`skill provider "${providerName}" returned skill "${candidate.name}" for provider "${candidate.provider}"`);
     }
     if (candidate.path !== undefined && typeof candidate.path !== 'string') {
-        throw new TypeError("skill provider \"".concat(providerName, "\" returned skill \"").concat(candidate.name, "\" with a non-string path"));
+        throw new TypeError(`skill provider "${providerName}" returned skill "${candidate.name}" with a non-string path`);
     }
 }
 function validateRuntimeSkill(skill) {
     if (!SKILL_NAME.test(skill.name))
-        throw new Error("invalid skill name \"".concat(skill.name, "\""));
+        throw new Error(`invalid skill name "${skill.name}"`);
     if (skill.description.length === 0)
-        throw new Error("skill \"".concat(skill.name, "\" requires a description"));
-    validateInvocation(skill.invocation, "runtime skill \"".concat(skill.name, "\""));
+        throw new Error(`skill "${skill.name}" requires a description`);
+    validateInvocation(skill.invocation, `runtime skill "${skill.name}"`);
 }
 /** Validate a definition loaded from a provider-controlled parser or remote source. */
 function validateDefinition(skill) {
-    var name = skill.name;
-    var description = skill.description;
-    var whenToUse = skill.whenToUse;
-    var invocation = skill.invocation;
-    var source = skill.source;
-    var provider = skill.provider;
-    var content = skill.content;
-    var path = skill.path;
+    const name = skill.name;
+    const description = skill.description;
+    const whenToUse = skill.whenToUse;
+    const invocation = skill.invocation;
+    const source = skill.source;
+    const provider = skill.provider;
+    const content = skill.content;
+    const path = skill.path;
     if (typeof name !== 'string')
         throw new TypeError('loaded skill name must be a string');
     if (!SKILL_NAME.test(name))
-        throw new Error("loaded skill has invalid name \"".concat(name, "\""));
+        throw new Error(`loaded skill has invalid name "${name}"`);
     if (typeof description !== 'string')
-        throw new TypeError("loaded skill \"".concat(name, "\" description must be a string"));
+        throw new TypeError(`loaded skill "${name}" description must be a string`);
     if (description.length === 0)
-        throw new Error("loaded skill \"".concat(name, "\" requires a description"));
-    validateInvocation(invocation, "loaded skill \"".concat(name, "\""));
+        throw new Error(`loaded skill "${name}" requires a description`);
+    validateInvocation(invocation, `loaded skill "${name}"`);
     if (whenToUse !== undefined && typeof whenToUse !== 'string')
-        throw new TypeError("loaded skill \"".concat(name, "\" whenToUse must be a string"));
+        throw new TypeError(`loaded skill "${name}" whenToUse must be a string`);
     if (typeof source !== 'string')
-        throw new TypeError("loaded skill \"".concat(name, "\" source must be a string"));
+        throw new TypeError(`loaded skill "${name}" source must be a string`);
     if (typeof provider !== 'string')
-        throw new TypeError("loaded skill \"".concat(name, "\" provider must be a string"));
+        throw new TypeError(`loaded skill "${name}" provider must be a string`);
     if (typeof content !== 'string')
-        throw new TypeError("loaded skill \"".concat(name, "\" content must be a string"));
+        throw new TypeError(`loaded skill "${name}" content must be a string`);
     if (path !== undefined && typeof path !== 'string')
-        throw new TypeError("loaded skill \"".concat(name, "\" path must be a string"));
+        throw new TypeError(`loaded skill "${name}" path must be a string`);
 }
 function toSummary(skill) {
-    var name = skill.name, description = skill.description, whenToUse = skill.whenToUse, invocation = skill.invocation, source = skill.source, provider = skill.provider, resourceBase = skill.resourceBase;
-    return __assign(__assign(__assign({ name: name, description: description }, whenToUse !== undefined ? { whenToUse: whenToUse } : {}), { invocation: invocation, source: source, provider: provider }), resourceBase !== undefined ? { resourceBase: resourceBase } : {});
+    const { name, description, whenToUse, invocation, source, provider, resourceBase } = skill;
+    return {
+        name,
+        description,
+        ...whenToUse !== undefined ? { whenToUse } : {},
+        invocation,
+        source,
+        provider,
+        ...resourceBase !== undefined ? { resourceBase } : {},
+    };
 }
 function validateInvocation(invocation, subject) {
     if (invocation === undefined)
         return;
     if (typeof invocation !== 'object' || invocation === null || Array.isArray(invocation)) {
-        throw new TypeError("".concat(subject, " with a non-object invocation policy"));
+        throw new TypeError(`${subject} with a non-object invocation policy`);
     }
-    var policy = invocation;
+    const policy = invocation;
     if (typeof policy.modelInvocable !== 'boolean') {
-        throw new TypeError("".concat(subject, " with a non-boolean invocation.modelInvocable"));
+        throw new TypeError(`${subject} with a non-boolean invocation.modelInvocable`);
     }
     if (typeof policy.userInvocable !== 'boolean') {
-        throw new TypeError("".concat(subject, " with a non-boolean invocation.userInvocable"));
+        throw new TypeError(`${subject} with a non-boolean invocation.userInvocable`);
     }
 }
 function compareSkillSummary(left, right) {
@@ -729,29 +575,28 @@ function compareIndexedCandidates(left, right) {
         || left.providerOrder - right.providerOrder
         || left.localOrder - right.localOrder;
 }
-function assertPositiveInteger(name, value, minimum) {
-    if (minimum === void 0) { minimum = 1; }
+function assertPositiveInteger(name, value, minimum = 1) {
     if (!Number.isInteger(value) || value < minimum) {
-        throw new Error("skill: ".concat(name, " must be an integer greater than or equal to ").concat(minimum));
+        throw new Error(`skill: ${name} must be an integer greater than or equal to ${minimum}`);
     }
 }
 function waitWithAbort(promise, signal) {
     if (signal === undefined)
         return promise;
     throwIfAborted(signal);
-    return new Promise(function (resolve, reject) {
-        var cleanup = function () {
+    return new Promise((resolve, reject) => {
+        const cleanup = () => {
             signal.removeEventListener('abort', onAbort);
         };
-        var onAbort = function () {
+        const onAbort = () => {
             cleanup();
             reject(toError(signal.reason));
         };
         signal.addEventListener('abort', onAbort, { once: true });
-        void promise.then(function (value) {
+        void promise.then((value) => {
             cleanup();
             resolve(value);
-        }, function (error) {
+        }, (error) => {
             cleanup();
             reject(toError(error));
         });
@@ -759,7 +604,7 @@ function waitWithAbort(promise, signal) {
 }
 /** Throw a total Error for an already-aborted lookup. */
 function throwIfAborted(signal) {
-    if ((signal === null || signal === void 0 ? void 0 : signal.aborted) === true)
+    if (signal?.aborted === true)
         throw toError(signal.reason);
 }
 /** Normalize an arbitrary abort or provider failure without trusting coercion. */
@@ -768,7 +613,7 @@ function toError(error) {
         if (error instanceof Error)
             return error;
     }
-    catch (_a) {
+    catch {
         // A hostile proxy may throw during instanceof; fall through to the total renderer.
     }
     return new Error(errorMessage(error));
@@ -778,8 +623,9 @@ function errorMessage(error) {
     try {
         return String(error);
     }
-    catch (_a) {
+    catch {
         return '[unrenderable thrown value]';
     }
 }
-exports.default = SkillRegistry;
+export default SkillRegistry;
+//# sourceMappingURL=index.js.map

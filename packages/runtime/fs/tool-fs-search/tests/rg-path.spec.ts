@@ -7,10 +7,10 @@
  */
 
 import { describe, expect, it, vi } from 'vitest'
-import { Context } from '@z/cordis'
-import { CallId } from '@z/dsh-llm'
-import type { ToolExecution } from '@z/dsh-tools'
-import { resolveRgPath, runRipgrep } from '@z/dsh-tool-fs-search'
+import { Context } from '@taskweaver/cordis'
+import { CallId } from '@taskweaver/dsh-llm'
+import type { ToolExecution } from '@taskweaver/dsh-tools'
+import { resolveRgPath, runRipgrep } from '@taskweaver/dsh-tool-fs-search'
 
 // Any access throws a fresh error — a missing platform package should be
 // reported per call, without caching the rejected resolution promise.

@@ -13,12 +13,12 @@ import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promis
 import { existsSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import { join, parse } from 'node:path'
-import { Context } from '@z/cordis'
-import { FsError, FsTargetKey } from '@z/dsh-fs'
-import type { FsTarget } from '@z/dsh-fs'
-import SandboxPolicyService from '@z/dsh-sandbox-policy'
-import type { SandboxMode } from '@z/dsh-sandbox'
-import { SandboxedFileSystem } from '@z/dsh-fs-sandbox'
+import { Context } from '@taskweaver/cordis'
+import { FsError, FsTargetKey } from '@taskweaver/dsh-fs'
+import type { FsTarget } from '@taskweaver/dsh-fs'
+import SandboxPolicyService from '@taskweaver/dsh-sandbox-policy'
+import type { SandboxMode } from '@taskweaver/dsh-sandbox'
+import { SandboxedFileSystem } from '@taskweaver/dsh-fs-sandbox'
 
 let base: string
 let workspace: string

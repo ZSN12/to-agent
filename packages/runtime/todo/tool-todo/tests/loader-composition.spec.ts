@@ -6,16 +6,16 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import Loader from '@z/cordis-plugin-loader'
-import Include from '@z/cordis-plugin-include'
-import { CallId } from '@z/dsh-llm'
-import { Session, SessionId } from '@z/dsh-session'
-import AgentRegistry, { Inbox } from '@z/dsh-agent'
-import type { Agent } from '@z/dsh-agent'
-import SystemPrompt from '@z/dsh-system-prompt'
-import ToolRuntime from '@z/dsh-tools'
-import * as ToolTodo from '@z/dsh-tool-todo'
+import { Context } from '@taskweaver/cordis'
+import Loader from '@taskweaver/cordis-plugin-loader'
+import Include from '@taskweaver/cordis-plugin-include'
+import { CallId } from '@taskweaver/dsh-llm'
+import { Session, SessionId } from '@taskweaver/dsh-session'
+import AgentRegistry, { Inbox } from '@taskweaver/dsh-agent'
+import type { Agent } from '@taskweaver/dsh-agent'
+import SystemPrompt from '@taskweaver/dsh-system-prompt'
+import ToolRuntime from '@taskweaver/dsh-tools'
+import * as ToolTodo from '@taskweaver/dsh-tool-todo'
 
 let root: string | undefined
 let context: Context | undefined
@@ -55,10 +55,10 @@ async function boot(configLines: readonly string[]): Promise<Context> {
   root = await mkdtemp(join(tmpdir(), 'dsh-todo-loader-'))
   const configPath = join(root, 'cordis.yml')
   await writeFile(configPath, [
-    "- name: '@z/dsh-agent'",
-    "- name: '@z/dsh-system-prompt'",
-    "- name: '@z/dsh-tools'",
-    "- name: '@z/dsh-tool-todo'",
+    "- name: '@taskweaver/dsh-agent'",
+    "- name: '@taskweaver/dsh-system-prompt'",
+    "- name: '@taskweaver/dsh-tools'",
+    "- name: '@taskweaver/dsh-tool-todo'",
     ...configLines.length > 0 ? ['  config:', ...configLines] : [],
     '',
   ].join('\n'))
@@ -69,10 +69,10 @@ async function boot(configLines: readonly string[]): Promise<Context> {
   await ctx.plugin(Loader)
   ctx.loader.builtins.include = Include
   const modules = new Map<string, unknown>([
-    ['@z/dsh-agent', AgentRegistry],
-    ['@z/dsh-system-prompt', SystemPrompt],
-    ['@z/dsh-tools', ToolRuntime],
-    ['@z/dsh-tool-todo', ToolTodo],
+    ['@taskweaver/dsh-agent', AgentRegistry],
+    ['@taskweaver/dsh-system-prompt', SystemPrompt],
+    ['@taskweaver/dsh-tools', ToolRuntime],
+    ['@taskweaver/dsh-tool-todo', ToolTodo],
   ])
   ctx.loader.internal = {
     version: 'v2',

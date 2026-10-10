@@ -1,15 +1,32 @@
 import { Worker } from 'node:worker_threads';
 import { DocumentReadError } from "./errors.js";
-const POOL_SIZE = 2;
-const WORKER_TIMEOUT_MS = 30_000;
-const WORKER_MEMORY_MB = 512;
+const DEFAULT_POOL_SIZE = 2;
+const DEFAULT_WORKER_TIMEOUT_MS = 30_000;
+const DEFAULT_WORKER_MEMORY_MB = 512;
 function abortError() {
     return new Error('Document reading was cancelled.');
 }
-class DocumentWorkerPool {
-    slots = Array.from({ length: POOL_SIZE }, () => ({ worker: undefined, job: undefined }));
+export class DocumentWorkerPool {
+    slots;
     queue = [];
     nextId = 1;
+    size;
+    timeoutMs;
+    memoryMb;
+    workerURL;
+    constructor(options = {}) {
+        this.size = options.size ?? DEFAULT_POOL_SIZE;
+        this.timeoutMs = options.timeoutMs ?? DEFAULT_WORKER_TIMEOUT_MS;
+        this.memoryMb = options.memoryMb ?? DEFAULT_WORKER_MEMORY_MB;
+        this.workerURL = options.workerURL;
+        if (!Number.isSafeInteger(this.size) || this.size < 1)
+            throw new Error('document worker pool size must be a positive integer');
+        if (!Number.isSafeInteger(this.timeoutMs) || this.timeoutMs < 1)
+            throw new Error('document worker timeout must be a positive integer');
+        if (!Number.isSafeInteger(this.memoryMb) || this.memoryMb < 64)
+            throw new Error('document worker memory limit must be at least 64 MB');
+        this.slots = Array.from({ length: this.size }, () => ({ worker: undefined, job: undefined }));
+    }
     run(bytes, options, signal) {
         if (signal?.aborted)
             return Promise.reject(abortError());
@@ -41,10 +58,10 @@ class DocumentWorkerPool {
         });
     }
     createWorker() {
-        const source = import.meta.url.endsWith('.ts') ? new URL('./worker.ts', import.meta.url) : new URL('./worker.js', import.meta.url);
+        const source = this.workerURL ?? (import.meta.url.endsWith('.ts') ? new URL('./worker.ts', import.meta.url) : new URL('./worker.js', import.meta.url));
         const options = {
             name: 'taskweaver-document-parser',
-            resourceLimits: { maxOldGenerationSizeMb: WORKER_MEMORY_MB },
+            resourceLimits: { maxOldGenerationSizeMb: this.memoryMb },
         };
         return new Worker(source, options);
     }
@@ -95,7 +112,7 @@ class DocumentWorkerPool {
                 this.attachWorker(slot, worker);
             slot.job = job;
             worker.ref();
-            job.timeout = setTimeout(() => this.stop(slot, new Error('Document parsing exceeded the 30 second time limit. Retry with a smaller document.')), WORKER_TIMEOUT_MS);
+            job.timeout = setTimeout(() => this.stop(slot, new Error('Document parsing exceeded the ' + this.timeoutMs + ' ms time limit. Retry with a smaller document.')), this.timeoutMs);
             const transferable = Uint8Array.from(job.bytes);
             worker.postMessage({ id: job.id, bytes: transferable, options: job.options }, [transferable.buffer]);
         }

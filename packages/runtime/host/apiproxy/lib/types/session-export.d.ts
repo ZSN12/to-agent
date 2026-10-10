@@ -18,11 +18,11 @@
  * the fixed 64 KiB response queue plus one synchronous fflate push.
  * @module
  */
-import type { Context } from '@z/cordis';
-import type { AttachmentStore } from '@z/dsh-attachment';
-import type { SessionQueryEngine } from '@z/dsh-session-query';
-import type { SessionId, SessionStore } from '@z/dsh-session';
-import type { SessionPersistence, SessionRawArtifact } from '@z/dsh-session-persistence';
+import type { Context } from '@taskweaver/cordis';
+import type { AttachmentStore } from '@taskweaver/dsh-attachment';
+import type { SessionQueryEngine } from '@taskweaver/dsh-session-query';
+import type { SessionId, SessionStore } from '@taskweaver/dsh-session';
+import type { SessionPersistence, SessionRawArtifact } from '@taskweaver/dsh-session-persistence';
 /** Valid fflate DEFLATE levels accepted by session-log export. */
 export type SessionLogCompressionLevel = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
 /** Balanced default used when a direct createApiProxy caller omits deployment config. */

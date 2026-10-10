@@ -6,10 +6,10 @@
  * compaction cannot change. The plugin owns only the fold; delivery is the
  * seam's.
  *
- * @module @z/dsh-session-stats
+ * @module @taskweaver/dsh-session-stats
  */
 
-import type { Context } from '@z/cordis'
+import type { Context } from '@taskweaver/cordis'
 import { sessionStatsProjectionDefinition } from './projection.ts'
 
 export type * from './types.ts'

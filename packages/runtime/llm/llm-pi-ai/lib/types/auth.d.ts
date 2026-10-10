@@ -8,8 +8,8 @@
  * @module dsh-llm-pi-ai/auth
  */
 import type { AuthContext, CredentialStore } from '@earendil-works/pi-ai';
-import type { Context } from '@z/cordis';
-import type { CredentialKey } from '@z/dsh-credentials';
+import type { Context } from '@taskweaver/cordis';
+import type { CredentialKey } from '@taskweaver/dsh-credentials';
 /**
  * The record scope every credential this adapter family stores is written
  * under. It is the plugin's registered name, which is what tells a later

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { AttachmentId } from '@z/dsh-attachment'
+import { AttachmentId } from '@taskweaver/dsh-attachment'
 import {
   CallId,
   createUserMessage,

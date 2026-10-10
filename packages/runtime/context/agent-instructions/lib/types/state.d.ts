@@ -1,12 +1,12 @@
 /**
  * Session-visible workspace instruction state and dynamic reconciliation.
  *
- * @module @z/dsh-agent-instructions/state
+ * @module @taskweaver/dsh-agent-instructions/state
  */
-import type { Agent } from '@z/dsh-agent';
-import type { Message } from '@z/dsh-llm';
-import type { Session, UserMessage } from '@z/dsh-session';
-import type { FileSystem, FsVersion } from '@z/dsh-fs';
+import type { Agent } from '@taskweaver/dsh-agent';
+import type { Message } from '@taskweaver/dsh-llm';
+import type { Session, UserMessage } from '@taskweaver/dsh-session';
+import type { FileSystem, FsVersion } from '@taskweaver/dsh-fs';
 import type { ResolvedConfig } from './config.ts';
 import { type LoadedInstructionFile } from './files.ts';
 import { type AgentInstructionChange } from './render.ts';
@@ -22,7 +22,7 @@ export interface AgentInstructionSource {
     baselineIdentity?: string;
     changes: AgentInstructionChange[];
 }
-declare module '@z/dsh-llm' {
+declare module '@taskweaver/dsh-llm' {
     interface MessageSourceMap {
         'agent-instructions': AgentInstructionSource;
     }

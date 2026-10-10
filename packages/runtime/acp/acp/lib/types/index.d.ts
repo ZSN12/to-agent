@@ -6,10 +6,10 @@
  * and one-shot permission decisions; presentation and human-interaction
  * features stay with the harness's UI modules.
  *
- * @module @z/dsh-acp
+ * @module @taskweaver/dsh-acp
  */
-import type { Context } from '@z/cordis';
-import Schema from '@z/schemastery';
+import type { Context } from '@taskweaver/cordis';
+import Schema from '@taskweaver/schemastery';
 import { type Stream } from '@agentclientprotocol/sdk';
 export declare const name = "acp";
 /** The bridge creates and owns agents; every other concern is carried by the agent composition. */

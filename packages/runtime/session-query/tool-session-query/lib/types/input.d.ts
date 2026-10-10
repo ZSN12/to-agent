@@ -1,10 +1,10 @@
 /**
  * Model argument schemas, normalization, and filter construction.
  *
- * @module @z/dsh-tool-session-query/input
+ * @module @taskweaver/dsh-tool-session-query/input
  */
-import { type SessionId as SessionIdValue } from '@z/dsh-session';
-import { type SessionAvailability, type SessionEventMetadataFilter, type SessionEventSurface, type SessionResultFilter } from '@z/dsh-session-query';
+import { type SessionId as SessionIdValue } from '@taskweaver/dsh-session';
+import { type SessionAvailability, type SessionEventMetadataFilter, type SessionEventSurface, type SessionResultFilter } from '@taskweaver/dsh-session-query';
 interface SessionSearchArgs {
     query: string;
     session_ids?: string[];

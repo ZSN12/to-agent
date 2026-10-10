@@ -7,10 +7,10 @@
  * fatal close, and exposes tree-scoped termination through the handle so the
  * instance owns teardown; group/tree mechanics live in the subprocess
  * Service Provider.
- * @module @z/dsh-lsp-stdio/connection
+ * @module @taskweaver/dsh-lsp-stdio/connection
  */
 import type { Writable } from 'node:stream';
-import type { SubprocessHandle, SubprocessSpawnSpec } from '@z/dsh-subprocess';
+import type { SubprocessHandle, SubprocessSpawnSpec } from '@taskweaver/dsh-subprocess';
 /** How to launch the server and answer its config requests. */
 export interface ConnectionSpec {
     /** The resolved absolute executable path (no shell). */

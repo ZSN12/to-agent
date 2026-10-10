@@ -1,4 +1,4 @@
-import { defineProperty } from '@z/cosmokit';
+import { defineProperty } from '@taskweaver/cosmokit';
 /** Ordered collection of disposable values with O(1) deletion by value. */
 export class DisposableList {
     sn = 0;

@@ -14,7 +14,7 @@
  *
  * @module
  */
-import type { Context } from '@z/cordis';
+import type { Context } from '@taskweaver/cordis';
 import type { Config } from './index.ts';
 /** Automatic reconnect policy for one MCP server connection. */
 export interface ReconnectConfig {

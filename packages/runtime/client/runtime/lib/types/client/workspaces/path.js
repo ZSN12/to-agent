@@ -1,21 +1,17 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.resolveWorkspacePath = resolveWorkspacePath;
-exports.abbreviateHomePath = abbreviateHomePath;
 /**
  * Resolve a workspace-relative path into the Host-facing spelling used by openPath.
  * @param cwd - session workspace root, when known.
  * @param path - absolute or workspace-relative path.
  * @returns an absolute path when a workspace root is available, otherwise the original path.
  */
-function resolveWorkspacePath(cwd, path) {
+export function resolveWorkspacePath(cwd, path) {
     if (path.startsWith('/') || isWindowsStylePath(path))
         return path;
     if (cwd === undefined || cwd === '')
         return path;
-    var base = cwd.replace(/[/\\]+$/, '');
-    var rel = path.replace(/^[/\\]+/, '');
-    return "".concat(base, "/").concat(rel);
+    const base = cwd.replace(/[/\\]+$/, '');
+    const rel = path.replace(/^[/\\]+/, '');
+    return `${base}/${rel}`;
 }
 /** Drive-letter or UNC path; Web display must not rewrite these as `~`. */
 function isWindowsStylePath(value) {
@@ -29,17 +25,18 @@ function isWindowsStylePath(value) {
  * @param home - host account home from `host.describe`; absent skips abbreviation.
  * @returns `~` or `~/…` for the POSIX home and its descendants, otherwise `path`.
  */
-function abbreviateHomePath(path, home) {
+export function abbreviateHomePath(path, home) {
     if (home === undefined || home === '')
         return path;
     if (isWindowsStylePath(path) || isWindowsStylePath(home))
         return path;
-    var root = home.replace(/\/+$/, '');
+    const root = home.replace(/\/+$/, '');
     if (root === '' || root === '/')
         return path;
     if (path.replace(/\/+$/, '') === root)
         return '~';
-    if (path.startsWith("".concat(root, "/")))
-        return "~".concat(path.slice(root.length));
+    if (path.startsWith(`${root}/`))
+        return `~${path.slice(root.length)}`;
     return path;
 }
+//# sourceMappingURL=path.js.map

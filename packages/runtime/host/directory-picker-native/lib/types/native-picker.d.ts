@@ -1,5 +1,5 @@
 /** Cross-platform native single-directory chooser behind the native backend's capability. */
-import { type NativeCommandRunner } from '@z/dsh-native-command';
+import { type NativeCommandRunner } from '@taskweaver/dsh-native-command';
 /** Testable command boundary; native implementations never invoke a shell. */
 export type DirectoryPickerRunner = NativeCommandRunner;
 /** Injectable platform facts for deterministic adapter tests. */

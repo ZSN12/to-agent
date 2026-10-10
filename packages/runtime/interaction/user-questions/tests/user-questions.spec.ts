@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
-import { Context } from '@z/cordis'
-import AgentRegistry, { type Agent } from '@z/dsh-agent'
+import { Context } from '@taskweaver/cordis'
+import AgentRegistry, { type Agent } from '@taskweaver/dsh-agent'
 import UserQuestionService, {
   UserQuestionError,
   type AskUserQuestionRequest,
   type UserQuestionProvider,
-} from '@z/dsh-user-questions'
+} from '@taskweaver/dsh-user-questions'
 
 function provider(answer = 'approved'): UserQuestionProvider & { seen: AskUserQuestionRequest[] } {
   const seen: AskUserQuestionRequest[] = []

@@ -1,4 +1,4 @@
-/** Wire-form admission of base64-encoded image uploads. @module @z/dsh-attachment/admission */
+/** Wire-form admission of base64-encoded image uploads. @module @taskweaver/dsh-attachment/admission */
 import type { AttachmentStore } from './index.ts';
 import type { EncodedImageAttachment, ImageAttachmentRef } from './types.ts';
 /**

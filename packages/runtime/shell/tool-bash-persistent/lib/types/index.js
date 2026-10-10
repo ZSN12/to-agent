@@ -1,6 +1,6 @@
 /**
  * Model-facing persistent `bash` tool over the owner-scoped PTY seam.
- * @module @z/dsh-tool-bash-persistent
+ * @module @taskweaver/dsh-tool-bash-persistent
  */
 var __addDisposableResource = (this && this.__addDisposableResource) || function (env, value, async) {
     if (value !== null && value !== void 0) {
@@ -55,9 +55,9 @@ var __disposeResources = (this && this.__disposeResources) || (function (Suppres
     return e.name = "SuppressedError", e.error = error, e.suppressed = suppressed, e;
 });
 import { randomUUID } from 'node:crypto';
-import z from '@z/schemastery';
-import { deadline, timeoutOf } from '@z/dsh-timeout';
-import { defineTool } from '@z/dsh-tools';
+import z from '@taskweaver/schemastery';
+import { deadline, timeoutOf } from '@taskweaver/dsh-timeout';
+import { defineTool } from '@taskweaver/dsh-tools';
 // TODO: Replace the file-search advice; arbitrary command output need not come from a searchable file.
 const TRUNCATED_MESSAGE = '<response clipped><NOTE>To save on context only part of this file has been shown to you. You should retry this tool after you have searched inside the file with `grep -n` in order to find the line numbers of what you are looking for.</NOTE>';
 const LOST_PREFIX_MESSAGE = '<response clipped><NOTE>The beginning of this command output was dropped by the terminal scrollback limit. The following text is the earliest retained output.</NOTE>\n';

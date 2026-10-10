@@ -14,9 +14,9 @@
  * armed claim folds with zero delta because bounded state cannot reconstruct
  * the replaced range; this preserves replay at the cost of possible drift.
  *
- * @module @z/dsh-token-meter/surface-projection
+ * @module @taskweaver/dsh-token-meter/surface-projection
  */
-import type { SessionEvent } from '@z/dsh-session';
+import type { SessionEvent } from '@taskweaver/dsh-session';
 /**
  * One armed shadow price: the heuristic tokens of the surface range the
  * IMMEDIATELY following event replaces. Plain JSON — it is part of the

@@ -1,13 +1,13 @@
 /**
- * Package-owned invariant companion for `@z/dsh-agent-tool-presentation`.
- * @module @z/dsh-agent-tool-presentation/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-agent-tool-presentation`.
+ * @module @taskweaver/dsh-agent-tool-presentation/invariant
  */
 
 /* jscpd:ignore-start */
-import type { Context } from '@z/cordis'
-import type { InvariantInstaller } from '@z/dsh-invariants'
+import type { Context } from '@taskweaver/cordis'
+import type { InvariantInstaller } from '@taskweaver/dsh-invariants'
 
-const PACKAGE_NAME = '@z/dsh-agent-tool-presentation'
+const PACKAGE_NAME = '@taskweaver/dsh-agent-tool-presentation'
 
 /** Cordis companion plugin name. */
 export const name = 'tool-presentation-invariant'

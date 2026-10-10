@@ -1,10 +1,10 @@
 /**
  * Internal sandbox-result classification helpers.
  *
- * @module @z/dsh-bash-sandbox/helpers
+ * @module @taskweaver/dsh-bash-sandbox/helpers
  */
-import type { ShellRunResult } from '@z/dsh-shell';
-import type { RunnerFailureRule } from '@z/dsh-sandbox';
+import type { ShellRunResult } from '@taskweaver/dsh-shell';
+import type { RunnerFailureRule } from '@taskweaver/dsh-sandbox';
 /**
  * Attribute only Node ENOENT/EACCES failures whose error path equals argv[0]
  * after independently ruling out the caller-owned cwd. A supplied error path

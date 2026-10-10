@@ -14,12 +14,12 @@
  * are identical. Every live header is checked against the composed pin, so
  * session-dependent composition must declare a separate class instead of
  * escaping coverage.
- * @module @z/dsh-acp-snapshot/suite
+ * @module @taskweaver/dsh-acp-snapshot/suite
  */
 import { readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { isSurfaceEligibleType } from '@z/dsh-session/surface';
+import { isSurfaceEligibleType } from '@taskweaver/dsh-session/surface';
 import { describe, expect, it } from 'vitest';
 import { runScenario } from "./harness.js";
 import { extractSnapshotSpillPaths, normalizeSessionLog, normalizeStdout, scrubRequestHeaders, scrubSessionSnapshot, scrubSystemPrompts, scrubToolSchemas, tokenizeSessionFixtureCwd, } from "./normalize.js";

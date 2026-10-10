@@ -1,15 +1,15 @@
 /** Covers fail-closed per-call classification and model-schema isolation. */
 
 import { describe, expect, expectTypeOf, it } from 'vitest'
-import { Context } from '@z/cordis'
-import { CallId } from '@z/dsh-llm'
-import SystemPrompt from '@z/dsh-system-prompt'
+import { Context } from '@taskweaver/cordis'
+import { CallId } from '@taskweaver/dsh-llm'
+import SystemPrompt from '@taskweaver/dsh-system-prompt'
 import ToolRuntime, {
   defineContentToolFixture,
   type ToolDefinition,
   type ToolExecutionInput,
   type ToolExecutionMode,
-} from '@z/dsh-tools'
+} from '@taskweaver/dsh-tools'
 
 const testToolSignal = new AbortController().signal
 

@@ -29,7 +29,9 @@ export function chatMessagesFromDshTranscript(
         timestamp: row.timestamp,
         text: '',
         compaction: {
-          automatic: row.automatic ?? true,
+          automatic: row.compactionTrigger
+            ? row.compactionTrigger !== 'manual'
+            : (row.automatic ?? true),
           summary: row.summary,
           tokensBefore: row.tokensBefore ?? null,
         },
@@ -43,6 +45,7 @@ export function chatMessagesFromDshTranscript(
         time: formatMessageTime(row.timestamp),
         timestamp: row.timestamp,
         text: row.text ?? '',
+        images: row.images,
         behavior: row.behavior,
       }
     }

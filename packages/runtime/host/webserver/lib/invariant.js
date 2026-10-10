@@ -1,9 +1,9 @@
 //#region lib/types/invariant.js
 /**
-* Package-owned invariant companion for `@z/dsh-host-webserver`.
-* @module @z/dsh-host-webserver/invariant
+* Package-owned invariant companion for `@taskweaver/dsh-host-webserver`.
+* @module @taskweaver/dsh-host-webserver/invariant
 */
-const PACKAGE_NAME = "@z/dsh-host-webserver";
+const PACKAGE_NAME = "@taskweaver/dsh-host-webserver";
 /** Cordis companion plugin name. */
 const name = "host-webserver-invariant";
 /** Service required before the companion can register. */

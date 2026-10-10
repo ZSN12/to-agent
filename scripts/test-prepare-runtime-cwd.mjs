@@ -11,7 +11,7 @@ import {
   resolveTaskWeaverRuntimeRoot,
   runtimePackagesResolveSmoke,
   TASKWEAVER_RUNTIME_PACKAGES,
-} from '../electron/agent/z-host/index.mjs'
+} from '../desktop/agent/z-host/index.mjs'
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const runtimeRoot = resolveTaskWeaverRuntimeRoot({
@@ -24,16 +24,16 @@ const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'tw-prepare-cwd-'))
 const dshHome = path.join(tempRoot, 'dsh')
 await fs.mkdir(dshHome, { recursive: true })
 const packagesDir = path.join(runtimeRoot, TASKWEAVER_RUNTIME_PACKAGES)
-const personaPkg = path.join(packagesDir, '@z', 'dsh-persona', 'package.json')
+const personaPkg = path.join(packagesDir, '@taskweaver', 'dsh-persona', 'package.json')
 await fs.access(personaPkg, fs.constants.R_OK)
 
 try {
   const inPlace = prepareRuntimeCwd(runtimeRoot, dshHome, { useStableMirror: false })
-  assert.equal(runtimePackagesResolveSmoke(inPlace), true, 'in-place cwd must resolve @z/dsh-persona')
+  assert.equal(runtimePackagesResolveSmoke(inPlace), true, 'in-place cwd must resolve @taskweaver/dsh-persona')
 
   const mirrored = prepareRuntimeCwd(runtimeRoot, dshHome, { useStableMirror: true })
   assert.equal(mirrored, path.join(dshHome, 'packaged-runtime'))
-  assert.equal(runtimePackagesResolveSmoke(mirrored), true, 'stable mirror must resolve @z/dsh-persona')
+  assert.equal(runtimePackagesResolveSmoke(mirrored), true, 'stable mirror must resolve @taskweaver/dsh-persona')
 
   const stagedTransport = path.join(runtimeRoot, 'electron-vendor', 'taskweaver-bridge-transport', 'index.mjs')
   if (await fs.access(stagedTransport).then(() => true, () => false)) {
@@ -45,7 +45,7 @@ try {
     const bridgeEnv = bridgeTransportChildEnv(mirrored, undefined, runtimeRoot)
     assert.ok(bridgeEnv.TASKWEAVER_BRIDGE_TRANSPORT?.includes('taskweaver-bridge-transport'),
       'bridge env must point at deploy electron-vendor transport')
-    assert.equal(bridgeEnv.TASKWEAVER_Z_RUNTIME, path.resolve(runtimeRoot))
+    assert.equal(bridgeEnv.TASKWEAVER_RUNTIME, path.resolve(runtimeRoot))
   }
 
   // Simulate build:z-runtime's atomic swap. A Host started from this stable
@@ -54,9 +54,9 @@ try {
   const fixtureHome = path.join(tempRoot, 'fixture-dsh')
   const fixtureRuntime = path.join(fixtureRoot, 'runtime')
   const writeFixture = async (version) => {
-    const persona = path.join(fixtureRuntime, 'runtime-packages', '@z', 'dsh-persona')
+    const persona = path.join(fixtureRuntime, 'runtime-packages', '@taskweaver', 'dsh-persona')
     await fs.mkdir(persona, { recursive: true })
-    await fs.writeFile(path.join(persona, 'package.json'), JSON.stringify({ name: '@z/dsh-persona', version }))
+    await fs.writeFile(path.join(persona, 'package.json'), JSON.stringify({ name: '@taskweaver/dsh-persona', version }))
   }
   await fs.mkdir(fixtureHome, { recursive: true })
   await writeFixture('1')
@@ -80,7 +80,7 @@ try {
     assert.equal(await fs.stat(stableCwd).then((stat) => stat.isDirectory()), true,
       'Host cwd must survive replacement of the runtime directory')
     assert.equal(runtimePackagesResolveSmoke(stableCwd), true,
-      'stable mirror must resolve @z packages from the replacement runtime')
+      'stable mirror must resolve @taskweaver packages from the replacement runtime')
     const workerCwd = await new Promise((resolve, reject) => {
       const worker = new Worker('require("node:worker_threads").parentPort.postMessage(process.cwd())', { eval: true })
       worker.once('message', resolve)

@@ -1,25 +1,25 @@
 /**
- * `dsh plugin --profile <name> <args...>` — profile plugin management as a
+ * `taskweaver-host plugin --profile <name> <args...>` — profile plugin management as a
  * thin pnpm forwarder: initialize the profile on first use, run
  * `pnpm <args...>` in the profile directory, then reconcile the
- * `dsh.profile.bundles` layer list against the installed state (a dependency
- * resolving to a package that declares `dsh.bundle` joins the layer stack; a
+ * `taskweaver.profile.bundles` layer list against the installed state (a dependency
+ * resolving to a package that declares `taskweaver.bundle` joins the layer stack; a
  * removed or bundle-less dependency leaves it). Reconciling by installed
  * state, not by dependency diff, means `update` activates a package that
- * gained its `dsh.bundle` declaration in a newer version.
- * @module @z/dsh/plugin
+ * gained its `taskweaver.bundle` declaration in a newer version.
+ * @module @taskweaver/dsh/plugin
  */
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { DEFAULT_PROFILE_BUNDLES, initProfile, PROFILE_TEMPLATES, readProfileManifest, resolveBundleDir, resolveProfileDir, writeProfileManifest, } from '@z/dsh-app-boot';
+import { DEFAULT_PROFILE_BUNDLES, initProfile, PROFILE_TEMPLATES, readProfileManifest, resolveBundleDir, resolveProfileDir, writeProfileManifest, } from '@taskweaver/dsh-app-boot';
 import { INSTALL_ANCHOR } from "./profile-boot.js";
-const NAME = 'dsh';
+const NAME = 'taskweaver-host';
 /**
  * Whether a resolved dependency exports a profile patch, i.e. is a bundle.
  * @param packageName - the dependency's package name.
  * @param profileDir - the profile directory (resolution anchor).
- * @returns true when the package manifest declares `dsh.bundle`.
+ * @returns true when the package manifest declares `taskweaver.bundle`.
  */
 function exportsPatch(packageName, profileDir) {
     let dir;
@@ -30,13 +30,13 @@ function exportsPatch(packageName, profileDir) {
         return false; // pnpm reported success yet the package is unresolvable — treat as plain
     }
     const manifest = readProfileManifest(NAME, dir);
-    return manifest.dsh?.bundle?.patch !== undefined;
+    return manifest.taskweaver?.bundle?.patch !== undefined;
 }
 /**
- * Reconcile `dsh.profile.bundles` against the installed state: pnpm has
+ * Reconcile `taskweaver.profile.bundles` against the installed state: pnpm has
  * already written the real installed names (so a git/path/tarball/alias spec
  * on the command line reconciles by its true package name) and materialized
- * the packages. A dependency that resolves to a `dsh.bundle`-declaring
+ * the packages. A dependency that resolves to a `taskweaver.bundle`-declaring
  * package joins the layer stack (appended in dependency order); a
  * dependency-listed name that no longer does — removed, or the installed
  * version dropped the declaration — leaves it. In-box bundles from the
@@ -48,7 +48,7 @@ function reconcilePlugins(before, profileDir) {
     const after = readProfileManifest(NAME, profileDir);
     const beforeDeps = new Set(Object.keys(before.dependencies ?? {}));
     const dependencies = Object.keys(after.dependencies ?? {});
-    const plugins = after.dsh?.profile?.bundles ?? [];
+    const plugins = after.taskweaver?.profile?.bundles ?? [];
     let changed = false;
     for (const packageName of dependencies) {
         const isBundle = exportsPatch(packageName, profileDir);
@@ -57,14 +57,14 @@ function reconcilePlugins(before, profileDir) {
             changed = true;
         }
         else if (!isBundle && !beforeDeps.has(packageName)) {
-            process.stderr.write(`${NAME}: warning: ${packageName} declares no dsh.bundle — installed as a plain dependency, not a profile layer `
+            process.stderr.write(`${NAME}: warning: ${packageName} declares no taskweaver.bundle — installed as a plain dependency, not a profile layer `
                 + '(a later update that gains one activates it automatically)\n');
         }
     }
     const dependencySet = new Set(dependencies);
     for (const packageName of [...plugins]) {
         // Only dependency-managed entries are subject to removal; template
-        // bundles (dsh-base and friends) are not dependencies.
+        // template bundles are not dependency-managed entries.
         const wasDependency = beforeDeps.has(packageName) || dependencySet.has(packageName);
         const stillBundle = dependencySet.has(packageName) && exportsPatch(packageName, profileDir);
         if (wasDependency && !stillBundle) {
@@ -74,7 +74,7 @@ function reconcilePlugins(before, profileDir) {
     }
     if (!changed)
         return;
-    after.dsh = { ...after.dsh, profile: { ...after.dsh?.profile, bundles: plugins } };
+    after.taskweaver = { ...after.taskweaver, profile: { ...after.taskweaver?.profile, bundles: plugins } };
     writeProfileManifest(profileDir, after);
 }
 /**
@@ -85,7 +85,7 @@ function reconcilePlugins(before, profileDir) {
  * specs, registry names, and every other pnpm argument pass through
  * untouched.
  * @param argument - one pnpm argument, verbatim from argv.
- * @param cwd - the directory `dsh` was invoked from.
+ * @param cwd - the directory `taskweaver-host` was invoked from.
  * @returns the argument with a relative path spec anchored to `cwd`.
  */
 function anchorPathSpec(argument, cwd) {

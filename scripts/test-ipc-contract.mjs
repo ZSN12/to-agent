@@ -5,14 +5,14 @@ import os from 'node:os'
 import path from 'node:path'
 import vm from 'node:vm'
 import { fileURLToPath } from 'node:url'
-import { IPC_CHANNELS, PRELOAD_EVENTS, PRELOAD_LOCAL_METHODS } from '../electron/ipc/channels.mjs'
+import { IPC_CHANNELS, PRELOAD_EVENTS, PRELOAD_LOCAL_METHODS } from '../desktop/ipc/channels.mjs'
 import { collectIpcContractIssues } from './check-ipc-contract.mjs'
 import { parsePreloadApi, scanRegisteredHandlers } from './ipc-contract-utils.mjs'
 import { checkGeneratedIpcTypes } from './gen-ipc-types.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const preloadSource = fs.readFileSync(path.join(root, 'electron/preload.cjs'), 'utf8')
-const preload = parsePreloadApi(preloadSource, 'electron/preload.cjs')
+const bridgeSource = fs.readFileSync(path.join(root, 'src/shell/taskweaver-shell-bridge.generated.ts'), 'utf8')
+const preload = parsePreloadApi(bridgeSource, 'taskweaver-shell-bridge.generated.ts')
 const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'taskweaver-ipc-contract-'))
 
 function loadPreload(devtools = false) {
@@ -49,7 +49,7 @@ function loadPreload(devtools = false) {
         webUtils: { getPathForFile: () => 'dropped:path' },
       }
     },
-  }, { filename: 'electron/preload.cjs' })
+  }, { filename: 'taskweaver-shell-bridge.generated.ts' })
   assert.equal(exposedName, 'taskweaver')
   return { api: exposedApi, calls, ipcRenderer, subscriptions, removedListeners }
 }

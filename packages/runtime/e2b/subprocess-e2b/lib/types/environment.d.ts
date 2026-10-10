@@ -1,5 +1,5 @@
 /** Shared remote-environment scrubbing for E2B process and terminal launchers. */
-import type { Sandbox } from '@z/dsh-e2b';
+import type { Sandbox } from '@taskweaver/dsh-e2b';
 /**
  * Read the remote environment through ASCII base64 so SDK callback chunking cannot corrupt UTF-8.
  * @param sandbox - shared E2B execution world.

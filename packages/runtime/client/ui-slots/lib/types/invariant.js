@@ -1,8 +1,8 @@
 /**
- * Package-owned invariant companion for `@z/dsh-client-ui-slots`.
- * @module @z/dsh-client-ui-slots/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-client-ui-slots`.
+ * @module @taskweaver/dsh-client-ui-slots/invariant
  */
-const PACKAGE_NAME = '@z/dsh-client-ui-slots';
+const PACKAGE_NAME = '@taskweaver/dsh-client-ui-slots';
 /** Cordis companion plugin name. */
 export const name = 'client-ui-slots-invariant';
 /** Service required before the companion can reserve package ownership. */

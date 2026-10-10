@@ -1,5 +1,5 @@
 {
-  "extends": "../../../../tsconfig.base.json",
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "rootDir": "src",
     "outDir": "lib/types"
@@ -12,13 +12,13 @@
       "path": "../../util/launch-environment"
     },
     {
-      "path": "../../../../vendor/cosmokit"
+      "path": "../../cordis/cosmokit"
     },
     {
-      "path": "../../../../vendor/cordis"
+      "path": "../../cordis/cordis"
     },
     {
-      "path": "../../../../vendor/schemastery"
+      "path": "../../cordis/schemastery"
     },
     {
       "path": "../web"

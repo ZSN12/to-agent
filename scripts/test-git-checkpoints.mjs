@@ -15,7 +15,7 @@ import {
   getGitCheckpointDiff,
   restoreGitCheckpoint,
   deleteGitCheckpoint,
-} from '../electron/backend/git-service.mjs'
+} from '../desktop/backend/git-service.mjs'
 
 const execFileAsync = promisify(execFile)
 async function runGit(args, cwd) {
@@ -398,10 +398,28 @@ try {
   await fs.writeFile(path.join(manualRepo, 'new-untracked.txt'), 'new\n')
   await fs.writeFile(path.join(manualRepo, 'secret.ignored'), 'ignored\n')
   await fs.rm(path.join(manualRepo, 'to-delete.txt'))
+  const taskweaverAttachments = path.join(manualRepo, '.taskweaver', 'attachments')
+  await fs.mkdir(taskweaverAttachments, { recursive: true })
+  await fs.writeFile(path.join(taskweaverAttachments, 'pasted-image.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47]))
+
+  const internalAttachmentCp = await createGitCheckpoint(manualRepo, {
+    summary: '图片附件不进入内部检查点',
+    userDataPath: root,
+  })
+  assert.equal(internalAttachmentCp.ok, true)
+  const internalAttachmentTree = await runGit([
+    'ls-tree', '-r', '--name-only', internalAttachmentCp.checkpoint.gitRef,
+  ], manualRepo)
+  assert.equal(
+    internalAttachmentTree.stdout.includes('.taskweaver/attachments/pasted-image.png'),
+    false,
+    '内部检查点不得捕获图片附件',
+  )
 
   const previewManual = await previewManualGitCommit(manualRepo)
   assert.equal(previewManual.ok, true)
   assert.equal(previewManual.hasCommittableChanges, true)
+  assert.equal(previewManual.files.some((entry) => entry.file.startsWith('.taskweaver/attachments/')), false)
 
   const manualRes = await createManualGitCommitSnapshot(manualRepo, {
     message: 'chore(taskweaver): create workspace snapshot',
@@ -422,9 +440,14 @@ try {
   assert.ok(showNames.stdout.includes('new-untracked.txt'))
   assert.ok(showNames.stdout.includes('README.md'))
   assert.equal(showNames.stdout.includes('secret.ignored'), false, '忽略文件不得进入手动提交')
+  assert.equal(showNames.stdout.includes('.taskweaver/attachments/pasted-image.png'), false, '手动提交不得包含图片附件')
 
-  const porcelainManual = await runGit(['status', '--porcelain'], manualRepo)
-  assert.equal(porcelainManual.stdout.trim(), '', '提交后工作区应干净')
+  const porcelainManual = await runGit(['status', '--porcelain', '--untracked-files=all'], manualRepo)
+  assert.ok(porcelainManual.stdout.includes('.taskweaver/attachments/pasted-image.png'), '附件留在工作区供迁移流程处理')
+  const porcelainWithoutAttachments = await runGit([
+    'status', '--porcelain', '--untracked-files=all', '--', '.', ':(exclude).taskweaver/attachments',
+  ], manualRepo)
+  assert.equal(porcelainWithoutAttachments.stdout.trim(), '', '排除图片后的工作区应干净')
 
   const fakeRef = await runGit(['rev-parse', '--verify', `refs/taskweaver/checkpoints/${manualRes.checkpoint.id}`], manualRepo).catch(() => ({ stdout: '' }))
   assert.equal(Boolean(fakeRef.stdout?.trim()), false, '手动提交不得创建 taskweaver checkpoints ref')
@@ -458,7 +481,9 @@ try {
   assert.equal(restoreManualCp.success, true)
   const headAfterManualRestore = await runGit(['rev-parse', 'HEAD'], manualRepo)
   assert.equal(headAfterManualRestore.stdout.trim(), manualRes.commitSha, '还原 Git 提交快照应将 HEAD 重置到目标 commit')
-  const statusAfterManualRestore = await runGit(['status', '--porcelain'], manualRepo)
+  const statusAfterManualRestore = await runGit([
+    'status', '--porcelain', '--untracked-files=all', '--', '.', ':(exclude).taskweaver/attachments',
+  ], manualRepo)
   assert.equal(statusAfterManualRestore.stdout.trim(), '', '重置后工作区应与该提交一致')
   const readmeAfterReset = await fs.readFile(path.join(manualRepo, 'README.md'), 'utf8')
   assert.ok(readmeAfterReset.includes('v2 unstaged'), '文件内容应对齐目标提交')

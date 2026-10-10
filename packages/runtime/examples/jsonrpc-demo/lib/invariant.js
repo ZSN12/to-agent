@@ -1,9 +1,9 @@
 //#region lib/types/invariant.js
 /**
-* Package-owned invariant companion for `@z/dsh-sdk-jsonrpc-demo`.
-* @module @z/dsh-sdk-jsonrpc-demo/invariant
+* Package-owned invariant companion for `@taskweaver/dsh-sdk-jsonrpc-demo`.
+* @module @taskweaver/dsh-sdk-jsonrpc-demo/invariant
 */
-const PACKAGE_NAME = "@z/dsh-sdk-jsonrpc-demo";
+const PACKAGE_NAME = "@taskweaver/dsh-sdk-jsonrpc-demo";
 /** Cordis companion plugin name. */
 const name = "sdk-jsonrpc-demo-invariant";
 /** Service required before the companion can reserve package ownership. */

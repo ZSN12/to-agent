@@ -3,16 +3,16 @@
  * continuable in-process child's unpublished context. Roots, one-shot children,
  * remote providers, and agentless executions never see the registration.
  *
- * @module @z/dsh-tool-subagent-report
+ * @module @taskweaver/dsh-tool-subagent-report
  */
 
-import type { Context } from '@z/cordis'
-import z from '@z/schemastery'
-import type { Agent } from '@z/dsh-agent'
-import type { ContentBlock } from '@z/dsh-llm'
-import type { SubagentReportDelivery } from '@z/dsh-subagent'
-import type {} from '@z/dsh-system-prompt'
-import { defineTool } from '@z/dsh-tools'
+import type { Context } from '@taskweaver/cordis'
+import z from '@taskweaver/schemastery'
+import type { Agent } from '@taskweaver/dsh-agent'
+import type { ContentBlock } from '@taskweaver/dsh-llm'
+import type { SubagentReportDelivery } from '@taskweaver/dsh-subagent'
+import type {} from '@taskweaver/dsh-system-prompt'
+import { defineTool } from '@taskweaver/dsh-tools'
 
 export const name = 'tool-subagent-report'
 // The contribution registers only through childCtx.tools and

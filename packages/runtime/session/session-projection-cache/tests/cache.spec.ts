@@ -7,18 +7,18 @@
  */
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { Context } from '@z/cordis'
+import { Context } from '@taskweaver/cordis'
 import { z } from 'zod'
-import Storage from '@z/dsh-storage'
-import { DomainFacility } from '@z/dsh-storage-domain'
-import SessionStore, { SessionId } from '@z/dsh-session'
-import type { Session, SessionEvent } from '@z/dsh-session'
-import SessionProjectionRegistry from '@z/dsh-session-projection'
-import type { ProjectionDefinition } from '@z/dsh-session-projection'
+import Storage from '@taskweaver/dsh-storage'
+import { DomainFacility } from '@taskweaver/dsh-storage-domain'
+import SessionStore, { SessionId } from '@taskweaver/dsh-session'
+import type { Session, SessionEvent } from '@taskweaver/dsh-session'
+import SessionProjectionRegistry from '@taskweaver/dsh-session-projection'
+import type { ProjectionDefinition } from '@taskweaver/dsh-session-projection'
 import { MemoryMediaPool, MemoryStorageBackend } from '../../../storage/storage-domain/tests/helpers/memory-backend.ts'
 import SessionProjectionCache from '../src/index.ts'
 
-declare module '@z/dsh-session-projection/types' {
+declare module '@taskweaver/dsh-session-projection/types' {
   interface SessionProjectionStateMap {
     'cache-test/marks': MarksState
     'cache-test/marks2': Map<string, string>
@@ -28,7 +28,7 @@ declare module '@z/dsh-session-projection/types' {
   }
 }
 
-declare module '@z/dsh-session/types' {
+declare module '@taskweaver/dsh-session/types' {
   interface SessionEventMap {
     'cache-test/mark': { marks: string[] }
   }

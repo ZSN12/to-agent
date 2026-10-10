@@ -1,13 +1,13 @@
 import { describe, expectTypeOf, it } from 'vitest'
-import type { Context } from '@z/cordis'
-import { CallId } from '@z/dsh-llm'
-import { defineTool } from '@z/dsh-tools'
+import type { Context } from '@taskweaver/cordis'
+import { CallId } from '@taskweaver/dsh-llm'
+import { defineTool } from '@taskweaver/dsh-tools'
 import type {
   ToolDispatchExecution,
   ToolExecution,
   ToolExecutionInput,
   ToolRunContext,
-} from '@z/dsh-tools'
+} from '@taskweaver/dsh-tools'
 
 function inputAndExecutionContracts(
   input: ToolExecutionInput,

@@ -1,5 +1,5 @@
-import type { Branded } from '@z/dsh-brand';
-import type { AssistantMessage, CallId, LlmCallConfig, LlmCallConfigAdapterDefaults, LlmFailure, StreamChunk, TokenUsage, ToolResultMessage, ToolSchema, UserMessage } from '@z/dsh-llm';
+import type { Branded } from '@taskweaver/dsh-brand';
+import type { AssistantMessage, CallId, LlmCallConfig, LlmCallConfigAdapterDefaults, LlmFailure, StreamChunk, TokenUsage, ToolResultMessage, ToolSchema, UserMessage } from '@taskweaver/dsh-llm';
 import type { JsonValue } from './json.ts';
 export type { JsonValue } from './json.ts';
 /** Identifies one session in the store (and its persistence artifacts). */

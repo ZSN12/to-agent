@@ -1,27 +1,22 @@
-"use strict";
 /**
- * Package-owned invariant companion for `@z/dsh-fs-observation-policy`.
- * @module @z/dsh-fs-observation-policy/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-fs-observation-policy`.
+ * @module @taskweaver/dsh-fs-observation-policy/invariant
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.apply = exports.inject = exports.name = void 0;
-var PACKAGE_NAME = '@z/dsh-fs-observation-policy';
+const PACKAGE_NAME = '@taskweaver/dsh-fs-observation-policy';
 /** Cordis companion plugin name. */
-exports.name = 'fs-observation-policy-invariant';
+export const name = 'fs-observation-policy-invariant';
 /** Service required before the companion can reserve package ownership. */
-exports.inject = ['invariants'];
+export const inject = ['invariants'];
 /**
  * No runtime invariant: this package exposes no independent event sequence or mutable data relation
  * beyond contracts enforced at its owning seam.
  */
-var install = function () { };
+const install = () => { };
 /**
  * Register this package's invariant companion.
  * @param ctx - Cordis context carrying the invariant service.
  * @returns the installed registration's disposer after setup succeeds.
  */
-var apply = function (ctx) {
-    return Promise.resolve(ctx.invariants.register(PACKAGE_NAME, install));
-};
-exports.apply = apply;
+export const apply = (ctx) => Promise.resolve(ctx.invariants.register(PACKAGE_NAME, install));
 /* jscpd:ignore-end */
+//# sourceMappingURL=invariant.js.map

@@ -1,21 +1,9 @@
-"use strict";
-/** Package-owned durable workflow-record invariants. @module @z/dsh-tool-workflow/invariant */
-var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
-    if (pack || arguments.length === 2) for (var i = 0, l = from.length, ar; i < l; i++) {
-        if (ar || !(i in from)) {
-            if (!ar) ar = Array.prototype.slice.call(from, 0, i);
-            ar[i] = from[i];
-        }
-    }
-    return to.concat(ar || Array.prototype.slice.call(from));
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.apply = exports.inject = exports.name = void 0;
-var PACKAGE_NAME = '@z/dsh-tool-workflow';
+/** Package-owned durable workflow-record invariants. @module @taskweaver/dsh-tool-workflow/invariant */
+const PACKAGE_NAME = '@taskweaver/dsh-tool-workflow';
 /** Cordis companion plugin name. */
-exports.name = 'tool-workflow-invariant';
+export const name = 'tool-workflow-invariant';
 /** Services required to validate existing and newly appended Session logs. */
-exports.inject = ['invariants'];
+export const inject = ['invariants'];
 /** Whether this package owns the candidate Session event. */
 function isWorkflowRecordEvent(event) {
     return event.type.startsWith('tool-workflow/');
@@ -23,7 +11,7 @@ function isWorkflowRecordEvent(event) {
 /** Require a durable opaque identity to be a non-empty string. */
 function stringId(value, label, fail) {
     if (typeof value !== 'string' || value.length === 0)
-        fail("".concat(label, " must be a non-empty string"));
+        fail(`${label} must be a non-empty string`);
     return value;
 }
 /** Require one workflow member's 1-based sequence identity. */
@@ -35,20 +23,20 @@ function memberSeq(value, fail) {
 }
 /** Read one plain payload field without trusting restored plugin data. */
 function recordOf(event, fail) {
-    var data = event.data;
+    const data = event.data;
     if (data === null || typeof data !== 'object' || Array.isArray(data)) {
-        fail("".concat(event.type, " data must be a JSON object"));
+        fail(`${event.type} data must be a JSON object`);
     }
     return data;
 }
 /** Copy only the run one candidate can mutate; other committed states stay shared. */
 function cloneTraceForEvent(source, event, fail) {
-    var trace = new Map(source);
+    const trace = new Map(source);
     if (event.type === 'tool-workflow/run-start')
         return trace;
-    var data = recordOf(event, fail);
-    var runId = stringId(data.runId, "".concat(event.type, " runId"), fail);
-    var run = source.get(runId);
+    const data = recordOf(event, fail);
+    const runId = stringId(data.runId, `${event.type} runId`, fail);
+    const run = source.get(runId);
     if (run !== undefined) {
         trace.set(runId, { ended: run.ended, members: new Map(run.members) });
     }
@@ -56,30 +44,30 @@ function cloneTraceForEvent(source, event, fail) {
 }
 /** Require the named run to exist and remain open. */
 function openRun(trace, runId, eventType, fail) {
-    var run = trace.get(runId);
+    const run = trace.get(runId);
     if (run === undefined)
-        fail("".concat(eventType, " has no matching tool-workflow/run-start for run ").concat(runId));
+        fail(`${eventType} has no matching tool-workflow/run-start for run ${runId}`);
     if (run.ended)
-        fail("".concat(eventType, " appears after tool-workflow/run-end for run ").concat(runId));
+        fail(`${eventType} appears after tool-workflow/run-end for run ${runId}`);
     return run;
 }
 /** Advance the workflow-record fold with one relevant Session event. */
 function applyEvent(trace, event, fail) {
-    var data = recordOf(event, fail);
-    var runId = stringId(data.runId, "".concat(event.type, " runId"), fail);
+    const data = recordOf(event, fail);
+    const runId = stringId(data.runId, `${event.type} runId`, fail);
     switch (event.type) {
         case 'tool-workflow/run-start': {
             if (typeof data.name !== 'string' || data.name.length === 0) {
                 fail('tool-workflow/run-start name must be a non-empty string');
             }
             if (trace.has(runId))
-                fail("tool-workflow/run-start repeats run ".concat(runId));
+                fail(`tool-workflow/run-start repeats run ${runId}`);
             trace.set(runId, { ended: false, members: new Map() });
             return;
         }
         case 'tool-workflow/agent-start': {
-            var run = openRun(trace, runId, event.type, fail);
-            var seq = memberSeq(data.seq, fail);
+            const run = openRun(trace, runId, event.type, fail);
+            const seq = memberSeq(data.seq, fail);
             if (typeof data.label !== 'string')
                 fail('tool-workflow/agent-start label must be a string');
             if (data.phase !== undefined && typeof data.phase !== 'string') {
@@ -87,77 +75,69 @@ function applyEvent(trace, event, fail) {
             }
             stringId(data.childId, 'tool-workflow/agent-start childId', fail);
             if (run.members.has(seq))
-                fail("tool-workflow/agent-start repeats member seq ".concat(seq, " in run ").concat(runId));
+                fail(`tool-workflow/agent-start repeats member seq ${seq} in run ${runId}`);
             run.members.set(seq, false);
             return;
         }
         case 'tool-workflow/agent-end': {
-            var run = openRun(trace, runId, event.type, fail);
-            var seq = memberSeq(data.seq, fail);
+            const run = openRun(trace, runId, event.type, fail);
+            const seq = memberSeq(data.seq, fail);
             if (data.outcome !== 'completed' && data.outcome !== 'failed' && data.outcome !== 'cancelled') {
-                fail("tool-workflow/agent-end outcome ".concat(String(data.outcome), " is invalid"));
+                fail(`tool-workflow/agent-end outcome ${String(data.outcome)} is invalid`);
             }
-            var ended = run.members.get(seq);
+            const ended = run.members.get(seq);
             if (ended === undefined)
-                fail("tool-workflow/agent-end has no matching member seq ".concat(seq, " in run ").concat(runId));
+                fail(`tool-workflow/agent-end has no matching member seq ${seq} in run ${runId}`);
             if (ended)
-                fail("tool-workflow/agent-end repeats member seq ".concat(seq, " in run ").concat(runId));
+                fail(`tool-workflow/agent-end repeats member seq ${seq} in run ${runId}`);
             run.members.set(seq, true);
             return;
         }
         case 'tool-workflow/run-end': {
-            var run = openRun(trace, runId, event.type, fail);
+            const run = openRun(trace, runId, event.type, fail);
             if (data.stopReason !== 'completed' && data.stopReason !== 'cancelled' && data.stopReason !== 'error') {
-                fail("tool-workflow/run-end stopReason ".concat(String(data.stopReason), " is invalid"));
+                fail(`tool-workflow/run-end stopReason ${String(data.stopReason)} is invalid`);
             }
-            var openMembers = __spreadArray([], run.members, true).filter(function (_a) {
-                var ended = _a[1];
-                return !ended;
-            }).map(function (_a) {
-                var seq = _a[0];
-                return seq;
-            });
+            const openMembers = [...run.members].filter(([, ended]) => !ended).map(([seq]) => seq);
             if (openMembers.length > 0) {
-                fail("tool-workflow/run-end leaves member seq ".concat(openMembers.join(', '), " open in run ").concat(runId));
+                fail(`tool-workflow/run-end leaves member seq ${openMembers.join(', ')} open in run ${runId}`);
             }
             run.ended = true;
             run.members.clear();
             return;
         }
         default:
-            fail("unknown tool-workflow event type ".concat(event.type));
+            fail(`unknown tool-workflow event type ${event.type}`);
     }
 }
 /** Install an independent incremental fold over every attached Session. */
-var install = Object.assign(function (ctx, fail) {
-    var traces = new WeakMap();
-    var staged = new WeakMap();
-    var seed = function (session) {
-        var trace = new Map();
-        for (var _i = 0, _a = session.events.filter(isWorkflowRecordEvent); _i < _a.length; _i++) {
-            var event_1 = _a[_i];
-            applyEvent(trace, event_1, fail);
-        }
+const install = Object.assign((ctx, fail) => {
+    const traces = new WeakMap();
+    const staged = new WeakMap();
+    const seed = (session) => {
+        const trace = new Map();
+        for (const event of session.events.filter(isWorkflowRecordEvent))
+            applyEvent(trace, event, fail);
         traces.set(session, trace);
         return trace;
     };
     ctx.sessions.list().forEach(seed);
-    ctx.on('session/created', function (session) { seed(session); }, { global: true });
-    ctx.on('internal/dispatch', function (_mode, eventName, args) {
+    ctx.on('session/created', (session) => { seed(session); }, { global: true });
+    ctx.on('internal/dispatch', (_mode, eventName, args) => {
         if (eventName !== 'session/event')
             return;
-        var _a = args, session = _a[0], event = _a[1];
+        const [session, event] = args;
         if (!isWorkflowRecordEvent(event))
             return;
         // session/event dispatch follows list() or session/created seeding.
-        var trace = cloneTraceForEvent(traces.get(session), event, fail);
+        const trace = cloneTraceForEvent(traces.get(session), event, fail);
         applyEvent(trace, event, fail);
-        staged.set(event, { session: session, trace: trace });
+        staged.set(event, { session, trace });
     }, { global: true });
-    ctx.on('session/event', function (session, event) {
+    ctx.on('session/event', (session, event) => {
         if (!isWorkflowRecordEvent(event))
             return;
-        var candidate = staged.get(event);
+        const candidate = staged.get(event);
         /* v8 ignore next 2 -- internal/dispatch stages the exact session/event callback arguments. */
         if (candidate === undefined || candidate.session !== session) {
             return fail('session/event reached publication without matching workflow-record validation');
@@ -167,7 +147,5 @@ var install = Object.assign(function (ctx, fail) {
     }, { global: true });
 }, { inject: ['sessions'] });
 /** Register this package's invariant companion. */
-var apply = function (ctx) {
-    return Promise.resolve(ctx.invariants.register(PACKAGE_NAME, install));
-};
-exports.apply = apply;
+export const apply = (ctx) => Promise.resolve(ctx.invariants.register(PACKAGE_NAME, install));
+//# sourceMappingURL=invariant.js.map

@@ -1,59 +1,59 @@
 /** Zod schemas for the browser-safe subagent domain. */
 import { z } from 'zod';
-import type { MessageId } from '@z/dsh-llm/brand';
+import type { MessageId } from '@taskweaver/dsh-llm/brand';
 import type { RequestPayload, ResponseValue } from './rpc-map.ts';
 import type { Wire } from './rpc.schema.ts';
 /** Healthy and diagnostic durable catalog rows. */
 export declare const subagentListEntrySchema: z.ZodUnion<readonly [z.ZodObject<{
     kind: z.ZodLiteral<"child">;
-    id: z.ZodType<import("@z/dsh-session").SessionId, unknown, z.core.$ZodTypeInternals<import("@z/dsh-session").SessionId, unknown>>;
+    id: z.ZodType<import("@taskweaver/dsh-session").SessionId, unknown, z.core.$ZodTypeInternals<import("@taskweaver/dsh-session").SessionId, unknown>>;
     mode: z.ZodLiteral<"one-shot">;
     activity: z.ZodUnion<readonly [z.ZodLiteral<"running">, z.ZodLiteral<"inactive">]>;
     hasChildren: z.ZodBoolean;
     label: z.ZodOptional<z.ZodString>;
 }, z.core.$strip>, z.ZodObject<{
     kind: z.ZodLiteral<"child">;
-    id: z.ZodType<import("@z/dsh-session").SessionId, unknown, z.core.$ZodTypeInternals<import("@z/dsh-session").SessionId, unknown>>;
+    id: z.ZodType<import("@taskweaver/dsh-session").SessionId, unknown, z.core.$ZodTypeInternals<import("@taskweaver/dsh-session").SessionId, unknown>>;
     mode: z.ZodLiteral<"continuable">;
     activity: z.ZodUnion<readonly [z.ZodLiteral<"running">, z.ZodLiteral<"inactive">]>;
     hasChildren: z.ZodBoolean;
     label: z.ZodString;
 }, z.core.$strip>, z.ZodObject<{
     kind: z.ZodLiteral<"diagnostic">;
-    id: z.ZodType<import("@z/dsh-session").SessionId, unknown, z.core.$ZodTypeInternals<import("@z/dsh-session").SessionId, unknown>>;
+    id: z.ZodType<import("@taskweaver/dsh-session").SessionId, unknown, z.core.$ZodTypeInternals<import("@taskweaver/dsh-session").SessionId, unknown>>;
     reason: z.ZodUnion<readonly [z.ZodLiteral<"corrupt">, z.ZodLiteral<"unsupported">, z.ZodLiteral<"unavailable">]>;
 }, z.core.$strip>]>;
 /** subagent.list request payload. */
 export declare const subagentListRequestSchema: z.ZodObject<{
-    parentSessionId: z.ZodType<import("@z/dsh-session").SessionId, unknown, z.core.$ZodTypeInternals<import("@z/dsh-session").SessionId, unknown>>;
+    parentSessionId: z.ZodType<import("@taskweaver/dsh-session").SessionId, unknown, z.core.$ZodTypeInternals<import("@taskweaver/dsh-session").SessionId, unknown>>;
 }, z.core.$strip>;
 /** subagent.list response value. */
 export declare const subagentListValueSchema: z.ZodObject<{
     entries: z.ZodArray<z.ZodUnion<readonly [z.ZodObject<{
         kind: z.ZodLiteral<"child">;
-        id: z.ZodType<import("@z/dsh-session").SessionId, unknown, z.core.$ZodTypeInternals<import("@z/dsh-session").SessionId, unknown>>;
+        id: z.ZodType<import("@taskweaver/dsh-session").SessionId, unknown, z.core.$ZodTypeInternals<import("@taskweaver/dsh-session").SessionId, unknown>>;
         mode: z.ZodLiteral<"one-shot">;
         activity: z.ZodUnion<readonly [z.ZodLiteral<"running">, z.ZodLiteral<"inactive">]>;
         hasChildren: z.ZodBoolean;
         label: z.ZodOptional<z.ZodString>;
     }, z.core.$strip>, z.ZodObject<{
         kind: z.ZodLiteral<"child">;
-        id: z.ZodType<import("@z/dsh-session").SessionId, unknown, z.core.$ZodTypeInternals<import("@z/dsh-session").SessionId, unknown>>;
+        id: z.ZodType<import("@taskweaver/dsh-session").SessionId, unknown, z.core.$ZodTypeInternals<import("@taskweaver/dsh-session").SessionId, unknown>>;
         mode: z.ZodLiteral<"continuable">;
         activity: z.ZodUnion<readonly [z.ZodLiteral<"running">, z.ZodLiteral<"inactive">]>;
         hasChildren: z.ZodBoolean;
         label: z.ZodString;
     }, z.core.$strip>, z.ZodObject<{
         kind: z.ZodLiteral<"diagnostic">;
-        id: z.ZodType<import("@z/dsh-session").SessionId, unknown, z.core.$ZodTypeInternals<import("@z/dsh-session").SessionId, unknown>>;
+        id: z.ZodType<import("@taskweaver/dsh-session").SessionId, unknown, z.core.$ZodTypeInternals<import("@taskweaver/dsh-session").SessionId, unknown>>;
         reason: z.ZodUnion<readonly [z.ZodLiteral<"corrupt">, z.ZodLiteral<"unsupported">, z.ZodLiteral<"unavailable">]>;
     }, z.core.$strip>]>>;
     parentAvailable: z.ZodBoolean;
 }, z.core.$strip>;
 /** subagent.history request payload. */
 export declare const subagentHistoryRequestSchema: z.ZodObject<{
-    parentSessionId: z.ZodType<import("@z/dsh-session").SessionId, unknown, z.core.$ZodTypeInternals<import("@z/dsh-session").SessionId, unknown>>;
-    childSessionId: z.ZodType<import("@z/dsh-session").SessionId, unknown, z.core.$ZodTypeInternals<import("@z/dsh-session").SessionId, unknown>>;
+    parentSessionId: z.ZodType<import("@taskweaver/dsh-session").SessionId, unknown, z.core.$ZodTypeInternals<import("@taskweaver/dsh-session").SessionId, unknown>>;
+    childSessionId: z.ZodType<import("@taskweaver/dsh-session").SessionId, unknown, z.core.$ZodTypeInternals<import("@taskweaver/dsh-session").SessionId, unknown>>;
     mode: z.ZodUnion<readonly [z.ZodLiteral<"one-shot">, z.ZodLiteral<"continuable">]>;
     beforeSeq: z.ZodOptional<z.ZodNumber>;
     maxMessages: z.ZodOptional<z.ZodNumber>;
@@ -64,8 +64,8 @@ export declare const subagentHistoryValueSchema: z.ZodType<Wire<ResponseValue<"s
 export declare const subagentPromptRequestSchema: z.ZodType<RequestPayload<"subagent.prompt">>;
 /** subagent.interrupt request payload. */
 export declare const subagentInterruptRequestSchema: z.ZodObject<{
-    parentSessionId: z.ZodType<import("@z/dsh-session").SessionId, unknown, z.core.$ZodTypeInternals<import("@z/dsh-session").SessionId, unknown>>;
-    childSessionId: z.ZodType<import("@z/dsh-session").SessionId, unknown, z.core.$ZodTypeInternals<import("@z/dsh-session").SessionId, unknown>>;
+    parentSessionId: z.ZodType<import("@taskweaver/dsh-session").SessionId, unknown, z.core.$ZodTypeInternals<import("@taskweaver/dsh-session").SessionId, unknown>>;
+    childSessionId: z.ZodType<import("@taskweaver/dsh-session").SessionId, unknown, z.core.$ZodTypeInternals<import("@taskweaver/dsh-session").SessionId, unknown>>;
     mode: z.ZodLiteral<"continuable">;
 }, z.core.$strip>;
 /** subagent.interrupt response value. */

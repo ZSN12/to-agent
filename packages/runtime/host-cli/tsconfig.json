@@ -1,5 +1,5 @@
 {
-  "extends": "../../tsconfig.base.json",
+  "extends": "../tsconfig.base.json",
   "compilerOptions": {
     "rootDir": "src",
     "outDir": "lib/types"
@@ -9,58 +9,58 @@
   ],
   "references": [
     {
-      "path": "../../vendor/cordis"
+      "path": "../cordis/cordis"
     },
     {
-      "path": "../../vendor/loader"
+      "path": "../cordis/loader"
     },
     {
-      "path": "../../vendor/include"
+      "path": "../cordis/include"
     },
     {
-      "path": "../../packages/boot/app-boot"
+      "path": "../boot/app-boot"
     },
     {
-      "path": "../../packages/boot/cmdline"
+      "path": "../boot/cmdline"
     },
     {
-      "path": "../../packages/bundle/base"
+      "path": "../bundle/base"
     },
     {
-      "path": "../../packages/bundle/taskweaver"
+      "path": "../bundle/taskweaver"
     },
     {
-      "path": "../../packages/host/apiproxy"
+      "path": "../host/apiproxy"
     },
     {
-      "path": "../../packages/host/webserver"
+      "path": "../host/webserver"
     },
     {
-      "path": "../../packages/core/session"
+      "path": "../core/session"
     },
     {
-      "path": "../../packages/core/system-prompt"
+      "path": "../core/system-prompt"
     },
     {
-      "path": "../../packages/core/tools"
+      "path": "../core/tools"
     },
     {
-      "path": "../../packages/util/launch-environment"
+      "path": "../util/launch-environment"
     },
     {
-      "path": "../../packages/util/home-paths"
+      "path": "../util/home-paths"
     },
     {
-      "path": "../../packages/mcp/mcp-client"
+      "path": "../mcp/mcp-client"
     },
     {
-      "path": "../../packages/session-query/session-query-sqlite"
+      "path": "../session-query/session-query-sqlite"
     },
     {
-      "path": "../../packages/shell/shell-env"
+      "path": "../shell/shell-env"
     },
     {
-      "path": "../../packages/shell/tool-bash"
+      "path": "../shell/tool-bash"
     }
   ]
 }

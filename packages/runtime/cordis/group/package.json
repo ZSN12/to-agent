@@ -1,5 +1,5 @@
 {
-  "name": "@z/cordis-plugin-group",
+  "name": "@taskweaver/cordis-plugin-group",
   "description": "Nested plugin group for cordis",
   "version": "1.0.1",
   "publishConfig": {
@@ -8,7 +8,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
-    "directory": "vendor/group"
+    "directory": "packages/runtime/cordis/group"
   },
   "type": "module",
   "main": "lib/index.js",
@@ -30,7 +30,7 @@
   "author": "Shigma <shigma10826@gmail.com>",
   "license": "MIT",
   "peerDependencies": {
-    "@z/cordis-plugin-loader": "workspace:^",
-    "@z/cordis": "workspace:^"
+    "@taskweaver/cordis-plugin-loader": "workspace:^",
+    "@taskweaver/cordis": "workspace:^"
   }
 }

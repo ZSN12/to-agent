@@ -1,13 +1,13 @@
 /**
- * Package-owned invariant companion for `@z/dsh-tool-session-query`.
- * @module @z/dsh-tool-session-query/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-tool-session-query`.
+ * @module @taskweaver/dsh-tool-session-query/invariant
  */
 
 /* jscpd:ignore-start */
-import type { Context } from '@z/cordis'
-import type { InvariantInstaller } from '@z/dsh-invariants'
+import type { Context } from '@taskweaver/cordis'
+import type { InvariantInstaller } from '@taskweaver/dsh-invariants'
 
-const PACKAGE_NAME = '@z/dsh-tool-session-query'
+const PACKAGE_NAME = '@taskweaver/dsh-tool-session-query'
 
 /** Cordis companion plugin name. */
 export const name = 'tool-session-query-invariant'

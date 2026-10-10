@@ -10,16 +10,16 @@
  * disposing the old instance and creating a new one; identical `serverName`
  * reproduces identical public tool names.
  *
- * @module @z/dsh-mcp-client
+ * @module @taskweaver/dsh-mcp-client
  */
 
-import type { Context } from '@z/cordis'
-import z from '@z/schemastery'
-import { MAX_TIMER_DELAY_MS } from '@z/dsh-timeout'
+import type { Context } from '@taskweaver/cordis'
+import z from '@taskweaver/schemastery'
+import { MAX_TIMER_DELAY_MS } from '@taskweaver/dsh-timeout'
 import { RECONNECT_DEFAULTS, resolveReconnectPolicy, startConnection } from './connection.ts'
 import type { ReconnectConfig } from './connection.ts'
 // Side-effect type import: declaration-merges `ctx.tools` onto Context.
-import type {} from '@z/dsh-tools'
+import type {} from '@taskweaver/dsh-tools'
 
 export type { McpResult } from './tools.ts'
 export type { ReconnectConfig, ResolvedReconnectPolicy } from './connection.ts'
@@ -32,9 +32,12 @@ export const inject = ['tools']
 
 /** Default timeout for individual MCP tool calls (ms). */
 const DEFAULT_TOOL_CALL_TIMEOUT_MS = 60_000
+/** Maximum time spent establishing one MCP transport generation. */
+const DEFAULT_CONNECT_TIMEOUT_MS = 30_000
 
 /** Valid `serverName`, kept below the public tool-name budget. */
 const SERVER_NAME_PATTERN = /^[A-Za-z0-9_-]{1,32}$/
+const HOST_ENV_VAR_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/
 
 /**
  * Live `serverName` reservations per app, keyed off `ctx.root` (multiple apps
@@ -62,12 +65,21 @@ export interface StdioConfig {
   args: string[]
   /** Extra env vars merged on top of scrubbed ambient env. */
   env: Record<string, string>
-  /** Working directory for the child process. */
+  /**
+   * Map child env keys to host `process.env` names (values are read when the
+   * transport is created; avoids `!!js` in Cordis patch overlays).
+   */
+  processEnv?: Record<string, string>
+  /** Working directory for the child process; empty uses `process.cwd()`. */
   cwd: string
   /** Per-tool-call timeout in milliseconds. */
   toolCallTimeoutMs: number
+  /** Maximum time to establish one connection attempt (default 30 seconds). */
+  connectTimeoutMs?: number
   /** Fail plugin activation when the initial connection or tool synchronization fails. */
   failOnStartupError: boolean
+  /** How long plugin activation may wait for the first connection (default 0). */
+  startupWaitMs?: number
   /** Automatic reconnect policy after a lost connection; omission uses the defaults. */
   reconnect?: ReconnectConfig
 }
@@ -86,10 +98,19 @@ export interface StreamableHttpConfig {
   url: string
   /** Additional headers attached to MCP requests. */
   headers: Record<string, string>
+  /**
+   * Host env var holding the bearer token for `Authorization: Bearer …`.
+   * Resolved when the transport is created.
+   */
+  bearerTokenEnvVar?: string
   /** Per-tool-call timeout in milliseconds. */
   toolCallTimeoutMs: number
+  /** Maximum time to establish one connection attempt (default 30 seconds). */
+  connectTimeoutMs?: number
   /** Fail plugin activation when the initial connection or tool synchronization fails. */
   failOnStartupError: boolean
+  /** How long plugin activation may wait for the first connection (default 0). */
+  startupWaitMs?: number
   /** Automatic reconnect policy after a lost connection; omission uses the defaults. */
   reconnect?: ReconnectConfig
 }
@@ -111,9 +132,12 @@ export const Config = z.union([
     command: z.string().required(),
     args: z.array(String).default([]),
     env: z.dict(String).default({}),
+    processEnv: z.dict(z.string().pattern(HOST_ENV_VAR_PATTERN)).default({}),
     cwd: z.string().default(''),
     toolCallTimeoutMs: z.number().default(DEFAULT_TOOL_CALL_TIMEOUT_MS),
+    connectTimeoutMs: z.number().min(1).max(MAX_TIMER_DELAY_MS).default(DEFAULT_CONNECT_TIMEOUT_MS),
     failOnStartupError: z.boolean().default(false),
+    startupWaitMs: z.number().min(0).max(MAX_TIMER_DELAY_MS).default(0),
     reconnect: Reconnect,
   }),
   z.object({
@@ -121,8 +145,11 @@ export const Config = z.union([
     serverName: z.string().required().pattern(SERVER_NAME_PATTERN),
     url: z.string().required(),
     headers: z.dict(String).default({}),
+    bearerTokenEnvVar: z.string().pattern(HOST_ENV_VAR_PATTERN).default(''),
     toolCallTimeoutMs: z.number().default(DEFAULT_TOOL_CALL_TIMEOUT_MS),
+    connectTimeoutMs: z.number().min(1).max(MAX_TIMER_DELAY_MS).default(DEFAULT_CONNECT_TIMEOUT_MS),
     failOnStartupError: z.boolean().default(false),
+    startupWaitMs: z.number().min(0).max(MAX_TIMER_DELAY_MS).default(0),
     reconnect: Reconnect,
   }),
 ]) as unknown as z<Config>
@@ -135,7 +162,7 @@ export const Config = z.union([
  * ordinary function as a constructor, whose returned Promise is not startup work.
  * @param ctx - plugin context carrying the tool registry.
  * @param config - resolved transport and server namespace configuration.
- * @returns startup readiness after connection and initial tool discovery settle.
+ * @returns startup readiness according to the configured wait policy.
  */
 export async function apply(ctx: Context, config: Config): Promise<void> {
   // Fail loud at load: reconnect misconfiguration (including programmatic
@@ -169,13 +196,33 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
     return () => connection.dispose()
   }, 'mcp-client.connection')
 
-  // Block plugin activation on the initial connection + tool discovery so
-  // Cordis consumers observe the tools immediately after the fiber activates.
-  // When failOnStartupError is true, a failed initial attempt rejects the
-  // fiber (Cordis rolls it back); otherwise the error is logged and the
-  // supervisor enters its reconnect loop.
-  const outcome = await connection.ready
-  if (outcome.error !== undefined && config.failOnStartupError) {
-    throw new Error(`mcp-client(${config.serverName}): initial connection or tool synchronization failed`, { cause: outcome.error })
+  // MCP servers can be slow to spawn (for example, a cold npx install). Keep
+  // them off Host's critical startup path by default; the supervisor still
+  // connects in the background and publishes tools as soon as they arrive.
+  // Strict startup is the explicit always-load mode and remains fatal.
+  if (config.failOnStartupError) {
+    const outcome = await connection.ready
+    if (outcome.error !== undefined) {
+      throw new Error(`mcp-client(${config.serverName}): initial connection or tool synchronization failed`, { cause: outcome.error })
+    }
+  } else {
+    const startupWaitMs = config.startupWaitMs ?? 0
+    if (!Number.isFinite(startupWaitMs) || startupWaitMs < 0 || startupWaitMs > MAX_TIMER_DELAY_MS) {
+      throw new Error(`mcp-client(${config.serverName}): startupWaitMs must be between 0 and ${MAX_TIMER_DELAY_MS}`)
+    }
+    if (startupWaitMs > 0) {
+      let timer: NodeJS.Timeout | undefined
+      try {
+        await Promise.race([
+          connection.ready,
+          new Promise<void>((resolve) => {
+            timer = setTimeout(resolve, startupWaitMs)
+            timer.unref?.()
+          }),
+        ])
+      } finally {
+        if (timer) clearTimeout(timer)
+      }
+    }
   }
 }

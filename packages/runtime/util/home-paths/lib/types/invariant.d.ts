@@ -1,8 +1,8 @@
 /**
- * Package-owned invariant companion for `@z/dsh-home-paths`.
- * @module @z/dsh-home-paths/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-home-paths`.
+ * @module @taskweaver/dsh-home-paths/invariant
  */
-import type { Context } from '@z/cordis';
+import type { Context } from '@taskweaver/cordis';
 /** Cordis companion plugin name. */
 export declare const name = "home-paths-invariant";
 /** Service required before the companion can reserve package ownership. */

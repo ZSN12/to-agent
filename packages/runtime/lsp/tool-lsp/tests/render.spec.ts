@@ -10,8 +10,8 @@ import {
   parseLspArgs,
   presentLspCall,
   renderUri,
-} from '@z/dsh-tool-lsp'
-import type { LspLocation } from '@z/dsh-lsp'
+} from '@taskweaver/dsh-tool-lsp'
+import type { LspLocation } from '@taskweaver/dsh-lsp'
 
 const WS = resolve('/home/u/proj')
 const WS_URI = pathToFileURL(WS).href

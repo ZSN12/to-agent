@@ -3,16 +3,16 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import Loader from '@z/cordis-plugin-loader'
-import Include from '@z/cordis-plugin-include'
-import AgentRegistry from '@z/dsh-agent'
-import AgentLoop from '@z/dsh-agent-loop'
-import LlmRuntime, { createUserMessage, LlmAdapter, LlmError, resolveRetryPolicy  } from '@z/dsh-llm'
-import type { GenerateOptions, ResolvedRetryPolicy, StreamChunk } from '@z/dsh-llm'
-import SessionStore, { SessionId } from '@z/dsh-session'
-import SystemPrompt from '@z/dsh-system-prompt'
-import ToolRuntime from '@z/dsh-tools'
+import { Context } from '@taskweaver/cordis'
+import Loader from '@taskweaver/cordis-plugin-loader'
+import Include from '@taskweaver/cordis-plugin-include'
+import AgentRegistry from '@taskweaver/dsh-agent'
+import AgentLoop from '@taskweaver/dsh-agent-loop'
+import LlmRuntime, { createUserMessage, LlmAdapter, LlmError, resolveRetryPolicy  } from '@taskweaver/dsh-llm'
+import type { GenerateOptions, ResolvedRetryPolicy, StreamChunk } from '@taskweaver/dsh-llm'
+import SessionStore, { SessionId } from '@taskweaver/dsh-session'
+import SystemPrompt from '@taskweaver/dsh-system-prompt'
+import ToolRuntime from '@taskweaver/dsh-tools'
 import * as retry from '../src/index.ts'
 
 let root: string | undefined
@@ -58,13 +58,13 @@ async function loadYaml(lines: readonly string[]): Promise<Context> {
   await context.plugin(Loader)
   context.loader.builtins.include = Include
   const modules = new Map<string, unknown>([
-    ['@z/dsh-llm', LlmRuntime],
-    ['@z/dsh-session', SessionStore],
-    ['@z/dsh-system-prompt', SystemPrompt],
-    ['@z/dsh-tools', ToolRuntime],
-    ['@z/dsh-agent', AgentRegistry],
-    ['@z/dsh-llm-retry', retry],
-    ['@z/dsh-agent-loop', AgentLoop],
+    ['@taskweaver/dsh-llm', LlmRuntime],
+    ['@taskweaver/dsh-session', SessionStore],
+    ['@taskweaver/dsh-system-prompt', SystemPrompt],
+    ['@taskweaver/dsh-tools', ToolRuntime],
+    ['@taskweaver/dsh-agent', AgentRegistry],
+    ['@taskweaver/dsh-llm-retry', retry],
+    ['@taskweaver/dsh-agent-loop', AgentLoop],
   ])
   context.loader.internal = {
     version: 'v2',
@@ -87,13 +87,13 @@ describe('real Loader composition', () => {
   // to trip the default 5s budget on cold caches.
   it('loads provider-supplied policy and records recovery through the shipping loop', { timeout: 60_000 }, async () => {
     const loaded = await loadYaml([
-      "- name: '@z/dsh-llm'",
-      "- name: '@z/dsh-session'",
-      "- name: '@z/dsh-system-prompt'",
-      "- name: '@z/dsh-tools'",
-      "- name: '@z/dsh-agent'",
-      "- name: '@z/dsh-llm-retry'",
-      "- name: '@z/dsh-agent-loop'",
+      "- name: '@taskweaver/dsh-llm'",
+      "- name: '@taskweaver/dsh-session'",
+      "- name: '@taskweaver/dsh-system-prompt'",
+      "- name: '@taskweaver/dsh-tools'",
+      "- name: '@taskweaver/dsh-agent'",
+      "- name: '@taskweaver/dsh-llm-retry'",
+      "- name: '@taskweaver/dsh-agent-loop'",
     ])
 
     const unloaded = [...loaded.loader.entries()]

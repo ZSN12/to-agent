@@ -1,6 +1,6 @@
-import type { Context, Fiber } from '@z/cordis';
-import type { SessionId } from '@z/dsh-api-remotes/client';
-import type { TypertClientRemote, TypertRemoteScopeApi } from '@z/dsh-typert-protocol';
+import type { Context, Fiber } from '@taskweaver/cordis';
+import type { SessionId } from '@taskweaver/dsh-api-remotes/client';
+import type { TypertClientRemote, TypertRemoteScopeApi } from '@taskweaver/dsh-typert-protocol';
 /** Client Cordis Context carrying one Agent identity and its scoped Remote namespaces. */
 export type AgentContext = Omit<Context, 'remote'> & {
     readonly remote: TypertClientRemote & TypertRemoteScopeApi<'agent'>;

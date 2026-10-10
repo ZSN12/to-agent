@@ -9,7 +9,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import type { JsonValue } from '@z/dsh-session'
+import type { JsonValue } from '@taskweaver/dsh-session'
 import {
   globSearchMeta,
   grepSearchMeta,

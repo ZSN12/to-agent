@@ -5,9 +5,9 @@
  * operation, so a changed credential reaches the next operation without any
  * plugin restart, and configuration surfaces describe a reference without
  * ever seeing its value.
- * @module @z/dsh-credentials
+ * @module @taskweaver/dsh-credentials
  */
-import { Context, Service } from '@z/cordis';
+import { Context, Service } from '@taskweaver/cordis';
 import type { CredentialKey, CredentialRecord, CredentialRef } from './types.ts';
 export type { ApiKeyRecord, CredentialKey, CredentialRecord, CredentialRef, GrantRecord } from './types.ts';
 /**
@@ -104,7 +104,7 @@ export interface CredentialRecordEntry {
     /** Discriminant of the stored record. */
     kind: CredentialRecord['kind'];
 }
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
     interface Context {
         credentials: CredentialProvider;
     }

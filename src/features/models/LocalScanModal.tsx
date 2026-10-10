@@ -1,6 +1,7 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react'
+import { FormEvent, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Check, ScanSearch } from 'lucide-react'
 import type { ScanLocalModelsResult, ScannedLocalModel } from '../../shared/model-api'
+import { useModalFocusTrap } from '../../shared/useModalFocusTrap'
 
 const SOURCE_LABELS: Record<string, string> = {
   cursor: 'Cursor',
@@ -28,9 +29,18 @@ export function LocalScanModal({
   onClose: () => void
   onConfirm: (keys: string[]) => Promise<boolean>
 }) {
+  const titleId = useId()
+  const descriptionId = useId()
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  const cancelButtonRef = useRef<HTMLButtonElement>(null)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [saving, setSaving] = useState(false)
   const [filter, setFilter] = useState('')
+  const dialogRef = useModalFocusTrap<HTMLFormElement>({
+    open,
+    onEscape: !loading && !saving ? onClose : undefined,
+    getInitialFocus: () => searchInputRef.current ?? cancelButtonRef.current,
+  })
 
   useEffect(() => {
     if (!result) {
@@ -109,8 +119,18 @@ export function LocalScanModal({
         if (event.target === event.currentTarget && !loading && !saving) onClose()
       }}
     >
-      <form className="model-editor local-scan-modal" onSubmit={submit}>
-        <h2>
+      <form
+        ref={dialogRef}
+        className="model-editor local-scan-modal"
+        onSubmit={submit}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        aria-describedby={descriptionId}
+        tabIndex={-1}
+      >
+        <span className="sr-only" id={descriptionId}>选择可用模型后，使用添加所选按钮保存。</span>
+        <h2 id={titleId}>
           <ScanSearch size={18} aria-hidden="true" />
           扫描本地官方 Agent
         </h2>
@@ -128,6 +148,7 @@ export function LocalScanModal({
             </p>
             <div className="local-scan-toolbar">
               <input
+                ref={searchInputRef}
                 type="search"
                 placeholder="筛选模型…"
                 value={filter}
@@ -149,30 +170,25 @@ export function LocalScanModal({
                 清空选择
               </button>
             </div>
-            <div className="local-scan-list" role="list">
+            <div className="local-scan-list" role="group" aria-label="可扫描的本地模型">
               {groups.map(([source, items]) => (
-                <div key={source} className="local-scan-group">
+                <div key={source} className="local-scan-group" role="group" aria-label={sourceLabel(source)}>
                   <div className="local-scan-group-title">{sourceLabel(source)}</div>
                   {items.map((model) => {
                     const disabled = !model.available || model.alreadyAdded
                     const checked = model.alreadyAdded || selected.has(model.key)
                     return (
-                      <div
+                      <button
+                        type="button"
                         key={model.key}
                         className={`local-scan-row ${disabled ? 'disabled' : ''} ${checked && !disabled ? 'selected' : ''}`}
-                        role="listitem"
+                        role="checkbox"
+                        aria-checked={checked}
+                        aria-label={`${model.name}（${model.id}）`}
+                        disabled={disabled}
                         onClick={() => {
-                          if (disabled || model.alreadyAdded) return
                           toggle(model.key, !selected.has(model.key))
                         }}
-                        onKeyDown={(event) => {
-                          if (disabled || model.alreadyAdded) return
-                          if (event.key === 'Enter' || event.key === ' ') {
-                            event.preventDefault()
-                            toggle(model.key, !selected.has(model.key))
-                          }
-                        }}
-                        tabIndex={disabled ? -1 : 0}
                       >
                         <div className="local-scan-row-main">
                           <span className="local-scan-name">{model.name}</span>
@@ -185,16 +201,7 @@ export function LocalScanModal({
                         <span className="local-scan-check" aria-hidden="true">
                           {checked ? <Check size={16} strokeWidth={2.5} /> : null}
                         </span>
-                        <input
-                          type="checkbox"
-                          className="sr-only"
-                          checked={checked}
-                          disabled={disabled}
-                          readOnly
-                          tabIndex={-1}
-                          aria-label={model.name}
-                        />
-                      </div>
+                      </button>
                     )
                   })}
                 </div>
@@ -206,7 +213,7 @@ export function LocalScanModal({
           </>
         )}
         <div className="model-editor-actions">
-          <button type="button" className="settings-secondary-button" onClick={onClose} disabled={loading || saving}>
+          <button ref={cancelButtonRef} type="button" className="settings-secondary-button" onClick={onClose} disabled={loading || saving}>
             取消
           </button>
           <button

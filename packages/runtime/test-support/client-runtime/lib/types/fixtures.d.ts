@@ -1,5 +1,5 @@
 /** Session/workspace fixture shapes and snapshot defaults for the test runtime. */
-import type { ConversationSnapshot, ISession, SessionId, SessionSummary, WorkspaceListState } from '@z/dsh-client-runtime/client';
+import type { ConversationSnapshot, ISession, SessionId, SessionSummary, WorkspaceListState } from '@taskweaver/dsh-client-runtime/client';
 /**
  * Fixture overrides for the session behavior face: any subset of the
  * production ISession verbs (typed against it, so a face change surfaces

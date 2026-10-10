@@ -1,13 +1,13 @@
 /**
- * Package-owned invariant companion for `@z/dsh-tool-lsp`.
- * @module @z/dsh-tool-lsp/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-tool-lsp`.
+ * @module @taskweaver/dsh-tool-lsp/invariant
  */
 
 /* jscpd:ignore-start */
-import type { Context } from '@z/cordis'
-import type { InvariantInstaller } from '@z/dsh-invariants'
+import type { Context } from '@taskweaver/cordis'
+import type { InvariantInstaller } from '@taskweaver/dsh-invariants'
 
-const PACKAGE_NAME = '@z/dsh-tool-lsp'
+const PACKAGE_NAME = '@taskweaver/dsh-tool-lsp'
 
 /** Cordis companion plugin name. */
 export const name = 'tool-lsp-invariant'

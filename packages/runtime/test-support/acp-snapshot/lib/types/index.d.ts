@@ -13,7 +13,7 @@
  * NOTE: ./suite.ts imports vitest, so this package is importable only inside a
  * vitest run — a support-tier constraint stated in the README.
  *
- * @module @z/dsh-acp-snapshot
+ * @module @taskweaver/dsh-acp-snapshot
  */
 export { runScenario, type HarvestedLog, type InputScript, type InputStep, type PermissionAnswer, type RunOptions, type RunResult, } from './harness.ts';
 export { launchAcpTestAgent, type AcpTestLaunchOptions, type AgentUnderTest, type LaunchedAcpTestAgent, } from './launcher.ts';

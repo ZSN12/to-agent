@@ -1,10 +1,10 @@
 /** Request-header canonicalization, equality, snapshot folding, and format rejection. */
 
 import { describe, expect, it } from 'vitest'
-import { Session, SessionId, canonicalHeader, foldRequestHeader, headerEquals } from '@z/dsh-session'
-import type { EpochHeader, SessionEvent } from '@z/dsh-session'
-import { createUserMessage, ReasoningEffortId } from '@z/dsh-llm'
-import type { ToolSchema } from '@z/dsh-llm'
+import { Session, SessionId, canonicalHeader, foldRequestHeader, headerEquals } from '@taskweaver/dsh-session'
+import type { EpochHeader, SessionEvent } from '@taskweaver/dsh-session'
+import { createUserMessage, ReasoningEffortId } from '@taskweaver/dsh-llm'
+import type { ToolSchema } from '@taskweaver/dsh-llm'
 
 const CONFIG = { provider: 'mock', model: 'm' }
 

@@ -1,9 +1,9 @@
-import type { Context } from '@z/cordis'
-import { defineTool } from '@z/dsh-tools'
-import type { DiffCallView, JsonValue } from '@z/dsh-tools'
-import { computeHunkDiffs, FsSandboxController, sessionResolveOptions } from '@z/dsh-tool-fs'
-import type {} from '@z/dsh-fs'
-import type {} from '@z/dsh-system-prompt'
+import type { Context } from '@taskweaver/cordis'
+import { defineTool } from '@taskweaver/dsh-tools'
+import type { DiffCallView, JsonValue } from '@taskweaver/dsh-tools'
+import { computeHunkDiffs, FsSandboxController, sessionResolveOptions } from '@taskweaver/dsh-tool-fs'
+import type {} from '@taskweaver/dsh-fs'
+import type {} from '@taskweaver/dsh-system-prompt'
 
 export const name = 'tool-fs-inline-edit'
 export const inject = ['tools', 'fs', 'systemPrompt']

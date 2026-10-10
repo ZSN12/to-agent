@@ -1,15 +1,15 @@
 // Sessions remain resident after creation so they continue consuming mux frames off-screen.
 
-import type { Context } from '@z/cordis'
-import type { AttachmentIdType, ImageAttachmentRef } from '@z/dsh-attachment'
-import type { SessionEvent } from '@z/dsh-session/types'
+import type { Context } from '@taskweaver/cordis'
+import type { AttachmentIdType, ImageAttachmentRef } from '@taskweaver/dsh-attachment'
+import type { SessionEvent } from '@taskweaver/dsh-session/types'
 import type {
   HistoryEntry, IApiClient, MessageId, MuxFrame, PromptContentPart, QueueAction, RpcError,
   RpcId, RpcResponse, RpcResult, SessionId, SubagentAddress, ToolEventView,
-} from '@z/dsh-api-remotes/client'
+} from '@taskweaver/dsh-api-remotes/client'
 // Value import from the inline-safe wire layer (not the connection plugin):
 // plugin-to-plugin value imports are a bundle purity error.
-import { transportError } from '@z/dsh-host-apiproxy/api'
+import { transportError } from '@taskweaver/dsh-host-apiproxy/api'
 import type { SessionFace } from '../contract/session.ts'
 import { ConversationNodeAssembler } from './conversation-assembler.ts'
 import type { ConversationRuntime } from './conversation-assembler.ts'
@@ -21,7 +21,7 @@ import { EMPTY_CHAT_SNAPSHOT } from './conversation.ts'
 import type { PendingInteraction } from './pending.ts'
 import { PendingWait } from './pending.ts'
 import { Notifier } from './notifier.ts'
-import type { RemoteResult } from '@z/dsh-typert-protocol'
+import type { RemoteResult } from '@taskweaver/dsh-typert-protocol'
 import type { SessionRemotes } from './remotes.ts'
 import { ProjectionValueStore } from './projection-store.ts'
 import type { ProjectionsBaseline } from './projection-store.ts'

@@ -6,11 +6,10 @@
  * koffi-driven COM conversation on the child's main thread). Only viable when
  * the operator sits at the host's screen; remote deployments compose the
  * browse backend instead.
- * @module @z/dsh-host-directory-picker-native
+ * @module @taskweaver/dsh-host-directory-picker-native
  */
 
-import { DirectoryPicker } from '@z/dsh-host-directory-picker'
-import type { DirectoryPickerCapability } from '@z/dsh-host-directory-picker'
+import { DirectoryPicker } from '@taskweaver/dsh-host-directory-picker'
 import { pickNativeDirectory } from './native-picker.ts'
 
 export type { DirectoryPickerInternals, DirectoryPickerRunner } from './native-picker.ts'
@@ -18,17 +17,12 @@ export { pickNativeDirectory } from './native-picker.ts'
 
 /** The `ctx.directoryPicker` native implementation (stable capability object per service life). */
 export default class NativeDirectoryPicker extends DirectoryPicker {
-  private readonly nativeCapability: DirectoryPickerCapability = {
-    kind: 'native',
-    /* v8 ignore next -- pure forward to pickNativeDirectory (its spec owns behavior); invoking here opens a real chooser. */
-    pick: signal => pickNativeDirectory(signal),
-  }
-
   /**
-   * The native interaction capability.
-   * @returns the stable `native` capability object.
+   * Open the native OS chooser.
+   * @param signal - caller lifetime, used to stop the native picker process.
+   * @returns the selected directory, or null when the chooser is cancelled.
    */
-  capability(): DirectoryPickerCapability {
-    return this.nativeCapability
+  pick(signal: AbortSignal): Promise<string | null> {
+    return pickNativeDirectory(signal)
   }
 }

@@ -2,17 +2,17 @@
  * Model-facing whole-list replacement. Each call appends a `todo/write` snapshot to the calling
  * agent's session; replay is last-write-wins, and UIs render from session events. A non-agent
  * caller has no owning list and is rejected. Named exports preserve loader injection metadata.
- * @module @z/dsh-tool-todo
+ * @module @taskweaver/dsh-tool-todo
  */
 
-import type { Context } from '@z/cordis'
-import z from '@z/schemastery'
+import type { Context } from '@taskweaver/cordis'
+import z from '@taskweaver/schemastery'
 import { z as zod } from 'zod'
 import type { ZodType } from 'zod'
-import { defineTool } from '@z/dsh-tools'
-import type { TodoItem } from '@z/dsh-session'
+import { defineTool } from '@taskweaver/dsh-tools'
+import type { TodoItem } from '@taskweaver/dsh-session'
 // Type-only: resolves ctx.sessionProjections for the optional unit child.
-import type {} from '@z/dsh-session-projection'
+import type {} from '@taskweaver/dsh-session-projection'
 // The `todos` projection-key declaration lives in src/types.ts (its one home);
 // this re-export projects the type face onto the package root AND keeps the
 // module edge in the emitted index.d.ts, so aggregate programs consuming the

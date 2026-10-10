@@ -1,14 +1,14 @@
-import { createUserMessage } from '@z/dsh-llm'
+import { createUserMessage } from '@taskweaver/dsh-llm'
 import { afterEach, describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import LlmRuntime from '@z/dsh-llm'
-import SessionStore, { SessionId } from '@z/dsh-session'
-import SystemPrompt from '@z/dsh-system-prompt'
-import ToolRuntime, { defineContentToolFixture } from '@z/dsh-tools'
-import AgentRegistry, { type Agent } from '@z/dsh-agent'
+import { Context } from '@taskweaver/cordis'
+import LlmRuntime from '@taskweaver/dsh-llm'
+import SessionStore, { SessionId } from '@taskweaver/dsh-session'
+import SystemPrompt from '@taskweaver/dsh-system-prompt'
+import ToolRuntime, { defineContentToolFixture } from '@taskweaver/dsh-tools'
+import AgentRegistry, { type Agent } from '@taskweaver/dsh-agent'
 
-import AgentLoop from '@z/dsh-agent-loop'
-import * as LlmPiAi from '@z/dsh-llm-pi-ai'
+import AgentLoop from '@taskweaver/dsh-agent-loop'
+import * as LlmPiAi from '@taskweaver/dsh-llm-pi-ai'
 
 /**
  * With-key proof that log-derived requests translate into real provider cache hits: a

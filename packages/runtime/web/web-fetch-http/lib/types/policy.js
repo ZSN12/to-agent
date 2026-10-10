@@ -1,18 +1,11 @@
-"use strict";
 /**
  * URL validation and content-type classification for the local HTTP(S) fetch
  * provider — the pure, network-free half. The provider's `fetch()` composes
  * these with transport (redirect following, byte caps, decoding).
  *
- * @module @z/dsh-web-fetch-http/policy
+ * @module @taskweaver/dsh-web-fetch-http/policy
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.validateFetchUrl = validateFetchUrl;
-exports.isSameOrigin = isSameOrigin;
-exports.classifyContentType = classifyContentType;
-exports.parseCharset = parseCharset;
-exports.decoderForCharset = decoderForCharset;
-var dsh_web_1 = require("@z/dsh-web");
+import { WebError } from '@taskweaver/dsh-web';
 /**
  * Validate a request URL against the basic transport hygiene the provider
  * enforces before any network access: http(s) only, no embedded credentials,
@@ -23,22 +16,22 @@ var dsh_web_1 = require("@z/dsh-web");
  * @param maxUrlLength - inclusive upper bound on `input`'s length.
  * @returns the parsed `URL`.
  */
-function validateFetchUrl(input, maxUrlLength) {
+export function validateFetchUrl(input, maxUrlLength) {
     if (input.length > maxUrlLength) {
-        throw new dsh_web_1.WebError("URL exceeds the maximum length of ".concat(maxUrlLength), 'WEB_INVALID_URL');
+        throw new WebError(`URL exceeds the maximum length of ${maxUrlLength}`, 'WEB_INVALID_URL');
     }
-    var url;
+    let url;
     try {
         url = new URL(input);
     }
     catch (error) {
-        throw new dsh_web_1.WebError("invalid URL: ".concat(input), 'WEB_INVALID_URL', { cause: error });
+        throw new WebError(`invalid URL: ${input}`, 'WEB_INVALID_URL', { cause: error });
     }
     if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-        throw new dsh_web_1.WebError("unsupported URL scheme \"".concat(url.protocol, "\" (only http and https are allowed)"), 'WEB_INVALID_URL');
+        throw new WebError(`unsupported URL scheme "${url.protocol}" (only http and https are allowed)`, 'WEB_INVALID_URL');
     }
     if (url.username.length > 0 || url.password.length > 0) {
-        throw new dsh_web_1.WebError('credentials in URLs are not allowed', 'WEB_BLOCKED_URL');
+        throw new WebError('credentials in URLs are not allowed', 'WEB_BLOCKED_URL');
     }
     return url;
 }
@@ -51,7 +44,7 @@ function validateFetchUrl(input, maxUrlLength) {
  * @param b - the other URL to compare.
  * @returns true when `a` and `b` share scheme, hostname, and port.
  */
-function isSameOrigin(a, b) {
+export function isSameOrigin(a, b) {
     return a.protocol === b.protocol && a.hostname === b.hostname && a.port === b.port;
 }
 /**
@@ -63,8 +56,8 @@ function isSameOrigin(a, b) {
  *   response carries none (unsupported).
  * @returns the decodable kind, or `undefined` for an unsupported type.
  */
-function classifyContentType(contentType) {
-    var mime = (contentType !== null && contentType !== void 0 ? contentType : '').replace(/;.*$/s, '').trim().toLowerCase();
+export function classifyContentType(contentType) {
+    const mime = (contentType ?? '').replace(/;.*$/s, '').trim().toLowerCase();
     if (mime === 'text/html' || mime === 'application/xhtml+xml')
         return 'html';
     if (mime.startsWith('text/'))
@@ -83,10 +76,9 @@ function classifyContentType(contentType) {
  *   response carries none.
  * @returns the lower-cased charset label, or `undefined` when none is declared.
  */
-function parseCharset(contentType) {
-    var _a;
-    var match = /;\s*charset\s*=\s*"?([^";]+)"?/i.exec(contentType !== null && contentType !== void 0 ? contentType : '');
-    return (_a = match === null || match === void 0 ? void 0 : match[1]) === null || _a === void 0 ? void 0 : _a.trim().toLowerCase();
+export function parseCharset(contentType) {
+    const match = /;\s*charset\s*=\s*"?([^";]+)"?/i.exec(contentType ?? '');
+    return match?.[1]?.trim().toLowerCase();
 }
 /**
  * Build a `TextDecoder` for the declared charset, falling back to UTF-8 when
@@ -98,13 +90,14 @@ function parseCharset(contentType) {
  *   `undefined` to default to UTF-8.
  * @returns a decoder for the declared (or defaulted) encoding.
  */
-function decoderForCharset(charset) {
+export function decoderForCharset(charset) {
     if (charset === undefined)
         return new TextDecoder('utf-8');
     try {
         return new TextDecoder(charset);
     }
     catch (error) {
-        throw new dsh_web_1.WebError("unsupported charset \"".concat(charset, "\""), 'WEB_UNSUPPORTED_CONTENT_TYPE', { cause: error });
+        throw new WebError(`unsupported charset "${charset}"`, 'WEB_UNSUPPORTED_CONTENT_TYPE', { cause: error });
     }
 }
+//# sourceMappingURL=policy.js.map

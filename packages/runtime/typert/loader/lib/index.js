@@ -2,7 +2,7 @@ import { createRequire } from "node:module";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
-import z from "@z/schemastery";
+import z from "@taskweaver/schemastery";
 //#region lib/types/index.js
 /**
 * Typert Loader integration: automatic registration for mounted plugin packages.
@@ -28,7 +28,7 @@ import z from "@z/schemastery";
 * that do not use a `./typert` artifact (hand-written wire schemas,
 * tests, non-loader compositions).
 *
-* @module @z/dsh-typert-loader
+* @module @taskweaver/dsh-typert-loader
 */
 var __rewriteRelativeImportExtension = function(path, preserveJsx) {
 	if (typeof path === "string" && /^\.\.?\//.test(path)) return path.replace(/\.(tsx)$|((?:\.d)?)((?:\.[^./]+?)?)\.([cm]?)ts$/i, function(m, tsx, d, ext, cm) {

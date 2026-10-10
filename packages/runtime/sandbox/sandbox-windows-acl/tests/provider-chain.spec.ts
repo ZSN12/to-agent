@@ -9,9 +9,9 @@
 
 import { tmpdir } from 'node:os'
 import { describe, expect, it, vi } from 'vitest'
-import { Context } from '@z/cordis'
-import type { SandboxPolicy } from '@z/dsh-sandbox'
-import { LocalSandboxProvider } from '@z/dsh-sandbox-local'
+import { Context } from '@taskweaver/cordis'
+import type { SandboxPolicy } from '@taskweaver/dsh-sandbox'
+import { LocalSandboxProvider } from '@taskweaver/dsh-sandbox-local'
 
 const RO: SandboxPolicy = { mode: 'read-only', workspaceRoot: '/ws' }
 const WW: SandboxPolicy = { mode: 'workspace-write', workspaceRoot: '/ws' }

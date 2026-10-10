@@ -1,18 +1,18 @@
 /**
  * Replay-safe, model-free tool-result pruning service.
  *
- * @module @z/dsh-compaction-tool-result-pruner
+ * @module @taskweaver/dsh-compaction-tool-result-pruner
  */
 
-import { Context, Service } from '@z/cordis'
-import z from '@z/schemastery'
-import { freezeMessage } from '@z/dsh-llm'
-import type { ContentBlock } from '@z/dsh-llm'
-import type { Session, SessionEvent, ToolResultMessage } from '@z/dsh-session'
+import { Context, Service } from '@taskweaver/cordis'
+import z from '@taskweaver/schemastery'
+import { freezeMessage } from '@taskweaver/dsh-llm'
+import type { ContentBlock } from '@taskweaver/dsh-llm'
+import type { Session, SessionEvent, ToolResultMessage } from '@taskweaver/dsh-session'
 // Type-only: the `compaction/*` SessionEventMap merges (the shadow-price event).
-import type {} from '@z/dsh-compaction'
+import type {} from '@taskweaver/dsh-compaction'
 // Type-only: the `ctx.tokenMeter` Context merge for the declared injection.
-import type {} from '@z/dsh-token-meter'
+import type {} from '@taskweaver/dsh-token-meter'
 import { codePointLength, DEFAULTS, PRUNE_MARKER, resolveConfig } from './config.ts'
 import type {
   PrunedEntry,
@@ -29,7 +29,7 @@ export type {
   ToolResultPruneConfig,
 } from './types.ts'
 
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
   interface Context {
     toolResultPruner: ToolResultPruner
   }

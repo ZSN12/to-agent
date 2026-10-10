@@ -1,5 +1,5 @@
 /** Validated configuration for the local PTY backend. */
-import z from '@z/schemastery';
+import z from '@taskweaver/schemastery';
 /** One supported interactive shell dialect. */
 export type ShellDialect = 'bash' | 'pwsh';
 /** Public plugin configuration. */

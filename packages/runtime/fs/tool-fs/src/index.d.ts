@@ -2,10 +2,10 @@
  * Model-facing read, read_image, write, and edit tools over `ctx.fs`. This package owns schemas, validation,
  * read windows, formatting, and observation events, never a concrete provider. An optional
  * event policy supplies mutation guards; without one the tools use unconditional provider calls.
- * @module @z/dsh-tool-fs
+ * @module @taskweaver/dsh-tool-fs
  */
-import type { Context } from '@z/cordis';
-import z from '@z/schemastery';
+import type { Context } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
 /** Cordis plugin name used by loader diagnostics. */
 export declare const name = "tool-fs";
 /** Services required by the filesystem tool suite. */

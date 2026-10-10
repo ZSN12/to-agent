@@ -3,11 +3,11 @@
  * the one-shot background path uses Jobs; continuable children have no Task,
  * no per-message result, and no Task cancellation.
  *
- * @module @z/dsh-subagent/run-settlement
+ * @module @taskweaver/dsh-subagent/run-settlement
  */
 
-import type { ContentBlock } from '@z/dsh-llm'
-import type { JobOutcome } from '@z/dsh-jobs'
+import type { ContentBlock } from '@taskweaver/dsh-llm'
+import type { JobOutcome } from '@taskweaver/dsh-jobs'
 import type { SubagentResult, SubagentRun } from './types.ts'
 
 /** Flatten a child's final output blocks to the task's final text. */

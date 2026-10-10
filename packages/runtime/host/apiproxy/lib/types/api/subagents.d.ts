@@ -3,9 +3,9 @@
  * activate an Agent, while continuable prompts route through the exact live
  * direct parent into the child's Agent inbox.
  */
-import type { MessageId } from '@z/dsh-llm/brand';
-import type { ContentBlock } from '@z/dsh-llm/types';
-import type { SessionId } from '@z/dsh-session/types';
+import type { MessageId } from '@taskweaver/dsh-llm/brand';
+import type { ContentBlock } from '@taskweaver/dsh-llm/types';
+import type { SessionId } from '@taskweaver/dsh-session/types';
 import type { RpcRequest, RpcResponse } from './rpc.ts';
 import type { HistoryEntry, SessionProjectionsBlock } from './sessions.ts';
 /** Complete durable direct-child catalog row. */

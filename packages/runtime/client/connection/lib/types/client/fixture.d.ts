@@ -1,6 +1,6 @@
-import type { SessionId } from '@z/dsh-session/types';
+import type { SessionId } from '@taskweaver/dsh-session/types';
 import type { ApiProxy, ClientResponse, HostFrame, MuxFrame, RpcReceipt, RpcRequest, RpcResponse } from './api.ts';
-import type { RequestPayload, ResponseValue, RpcMethodMap } from '@z/dsh-host-apiproxy/api';
+import type { RequestPayload, ResponseValue, RpcMethodMap } from '@taskweaver/dsh-host-apiproxy/api';
 import { AbstractApiClient } from './api.ts';
 import type { ClientConnectionRpc } from '../rpc.ts';
 /** Deterministic fixture branches used by keyless Web assembly tests. */

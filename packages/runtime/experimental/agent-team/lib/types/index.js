@@ -1,6 +1,6 @@
 /** Agent Teams service façade over roster, mailbox, task, and runtime lifecycle owners. */
-import { Service } from '@z/cordis';
-import z from '@z/schemastery';
+import { Service } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
 import { TeamActivity } from "./activity.js";
 import { errorMessage, TeamError } from "./error.js";
 import { TeamJournal } from "./journal.js";

@@ -1,12 +1,12 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
-import { Context, Service, symbols } from '@z/cordis'
-import { createUserMessage, freezeMessage } from '@z/dsh-llm'
-import { Session, SessionId, type UserMessage } from '@z/dsh-session'
+import { Context, Service, symbols } from '@taskweaver/cordis'
+import { createUserMessage, freezeMessage } from '@taskweaver/dsh-llm'
+import { Session, SessionId, type UserMessage } from '@taskweaver/dsh-session'
 import AgentRegistry, {
   agentEvents,
   Inbox,
-} from '@z/dsh-agent'
-import TypertRegistry from '@z/dsh-typert-registry'
+} from '@taskweaver/dsh-agent'
+import TypertRegistry from '@taskweaver/dsh-typert-registry'
 
 import type {
   Agent,
@@ -15,7 +15,7 @@ import type {
   AgentStatus,
   CreateAgentOptions,
   ResumeAgentOptions,
-} from '@z/dsh-agent'
+} from '@taskweaver/dsh-agent'
 
 function stubAgent(rawId: string, overrides: Partial<Agent> = {}): Agent {
   const id = SessionId(rawId)
@@ -181,8 +181,8 @@ describe('AgentRegistry', () => {
     expect(lookup).toMatchObject({
       parameter: 'agent',
       wire: 'agentId',
-      hostTypeSymbol: '@z/dsh-agent#Agent',
-      wireTypeSymbol: '@z/dsh-session/types#SessionId',
+      hostTypeSymbol: '@taskweaver/dsh-agent#Agent',
+      wireTypeSymbol: '@taskweaver/dsh-session/types#SessionId',
     })
     expect(lookup?.resolve(agent.id)).toBe(agent)
     expect(ctx.typert.contexts.getHost('agent')?.resolve(agent.id)).toBe(agent.ctx)

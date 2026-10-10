@@ -1,16 +1,16 @@
 /**
  * Owner-scoped persistent PTY registry. Backends own terminal mechanics while
  * this service owns ids, publication, authorization, and awaited cleanup.
- * @module @z/dsh-terminal
+ * @module @taskweaver/dsh-terminal
  */
-import { Context, Service } from '@z/cordis';
-import type { Agent } from '@z/dsh-agent';
+import { Context, Service } from '@taskweaver/cordis';
+import type { Agent } from '@taskweaver/dsh-agent';
 import type { TerminalBackend, TerminalReadRequest, TerminalReadResult, TerminalSendOperation, TerminalSendRequest, TerminalSessionIdValue, TerminalSessionSnapshot, TerminalSignal, TerminalSignalResult, TerminalSpawnRequest, TerminalSpawnResult } from './types.ts';
 export type { TerminalBackend, TerminalBackendSession, TerminalBackendSpawnSpec, TerminalReadRequest, TerminalReadResult, TerminalSendOperation, TerminalSendRead, TerminalSendRequest, TerminalSendResult, TerminalSessionSnapshot, TerminalSessionStatus, TerminalSignal, TerminalSignalResult, TerminalSpawnRequest, TerminalSpawnResult, TerminalWaitReason, } from './types.ts';
 export { TerminalBackendCleanupError } from './types.ts';
 /** Opaque identity minted by {@link TerminalSessionService} for one live PTY session. */
 export type TerminalSessionId = TerminalSessionIdValue;
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
     interface Context {
         terminals: TerminalSessionService;
     }

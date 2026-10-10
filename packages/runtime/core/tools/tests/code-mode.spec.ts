@@ -1,16 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import { createUserMessage, CallId  } from '@z/dsh-llm'
-import { createScope } from '@z/dsh-scope'
-import type { Scope } from '@z/dsh-scope'
-import SystemPrompt from '@z/dsh-system-prompt'
-import { CodeRuntime } from '@z/dsh-code-runtime'
-import type { CodeRunRequest, CodeRunResult } from '@z/dsh-code-runtime'
-import ToolRuntime, { CodeRunFailedError, RUN_CODE_NAME, TOOL_ABORTED_BEFORE_DISPATCH, defineContentToolFixture, defineTool } from '@z/dsh-tools'
-import type { Config, JsonSchemaNode, PostToolDecision, ToolExecutionResult } from '@z/dsh-tools'
-import type { Agent } from '@z/dsh-agent'
-import { Session, SessionId } from '@z/dsh-session'
-import type { JsonValue, SessionEventMap } from '@z/dsh-session'
+import { Context } from '@taskweaver/cordis'
+import { createUserMessage, CallId  } from '@taskweaver/dsh-llm'
+import { createScope } from '@taskweaver/dsh-scope'
+import type { Scope } from '@taskweaver/dsh-scope'
+import SystemPrompt from '@taskweaver/dsh-system-prompt'
+import { CodeRuntime } from '@taskweaver/dsh-code-runtime'
+import type { CodeRunRequest, CodeRunResult } from '@taskweaver/dsh-code-runtime'
+import ToolRuntime, { CodeRunFailedError, RUN_CODE_NAME, TOOL_ABORTED_BEFORE_DISPATCH, defineContentToolFixture, defineTool } from '@taskweaver/dsh-tools'
+import type { Config, JsonSchemaNode, PostToolDecision, ToolExecutionResult } from '@taskweaver/dsh-tools'
+import type { Agent } from '@taskweaver/dsh-agent'
+import { Session, SessionId } from '@taskweaver/dsh-session'
+import type { JsonValue, SessionEventMap } from '@taskweaver/dsh-session'
 
 const testToolSignal = new AbortController().signal
 
@@ -1735,7 +1735,7 @@ describe('per-agent presentation', () => {
   })
 
   it('inherits a STANDING preset scope\'s mode down the chain, agents beside it unaffected', async () => {
-    const { bindScopeParent } = await import('@z/dsh-scope')
+    const { bindScopeParent } = await import('@taskweaver/dsh-scope')
     const { ctx, systemPrompt } = await setup({ mode: 'native' })
     const calls = registerEcho(ctx)
     // The preset's standing scope declares once; the agent only PARENTS to it

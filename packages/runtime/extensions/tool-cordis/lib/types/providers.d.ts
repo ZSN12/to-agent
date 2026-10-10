@@ -1,6 +1,6 @@
 /** First-party Host inspect providers registered by the Cordis tool package. */
-import type { Context } from '@z/cordis';
-import type { HostCordisInspectProviderRegistration } from '@z/dsh-cordis-host-runner';
+import type { Context } from '@taskweaver/cordis';
+import type { HostCordisInspectProviderRegistration } from '@taskweaver/dsh-cordis-host-runner';
 /**
  * Construct Host providers over generated Catalogs, evaluator declarations, and live Tool scope.
  * @param ctx - Host context used for Agent-scoped live Tool queries.

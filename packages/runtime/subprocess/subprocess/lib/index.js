@@ -1,4 +1,4 @@
-import { Service } from "@z/cordis";
+import { Service } from "@taskweaver/cordis";
 //#region lib/types/types.js
 /**
 * Vocabulary for the subprocess Service Definition: fully-specified spawn requests with
@@ -18,8 +18,8 @@ const DSH_ENV_PREFIX = "DSH_";
 * collected stdio, and one terminal-process primitive. Command defaulting,
 * shell semantics, deadlines, protocol framing, terminal readiness, and
 * presentation belong to consumers. The local implementation lives in
-* `@z/dsh-subprocess-local`.
-* @module @z/dsh-subprocess
+* `@taskweaver/dsh-subprocess-local`.
+* @module @taskweaver/dsh-subprocess
 */
 /**
 * Credential-shaped environment names are NOT forwarded to children (the

@@ -1,23 +1,18 @@
-"use strict";
 /** Title text normalization and UTF-8-safe truncation. */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.truncateTitleUtf8 = truncateTitleUtf8;
-exports.normalizeSessionTitle = normalizeSessionTitle;
-exports.fallbackSessionTitle = fallbackSessionTitle;
 /** Operating-system-command escape sequences, including unterminated tails. */
-var OSC_SEQUENCE = /(?:\u001B\]|\u009D)(?:(?!\u0007|\u001B\\)[\s\S])*(?:\u0007|\u001B\\|$)/gu;
+const OSC_SEQUENCE = /(?:\u001B\]|\u009D)(?:(?!\u0007|\u001B\\)[\s\S])*(?:\u0007|\u001B\\|$)/gu;
 /** Control-sequence-introducer escapes such as SGR color codes. */
-var CSI_SEQUENCE = /(?:\u001B\[|\u009B)[0-?]*[ -/]*[@-~]/gu;
+const CSI_SEQUENCE = /(?:\u001B\[|\u009B)[0-?]*[ -/]*[@-~]/gu;
 /** Remaining two-byte ESC control sequences. */
-var ESC_SEQUENCE = /\u001B[@-_]/gu;
+const ESC_SEQUENCE = /\u001B[@-_]/gu;
 /** Non-whitespace C0/C1 control characters. */
-var CONTROL_CHARACTER = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/gu;
+const CONTROL_CHARACTER = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/gu;
 /** Directional and invisible controls that can make a displayed title deceptive. */
-var DIRECTIONAL_CONTROL = /[\u200B\u200E\u200F\u202A-\u202E\u2060-\u2064\u2066-\u206F\uFEFF]/gu;
+const DIRECTIONAL_CONTROL = /[\u200B\u200E\u200F\u202A-\u202E\u2060-\u2064\u2066-\u206F\uFEFF]/gu;
 /** Reject an invalid public text limit. */
 function assertPositiveInteger(name, value) {
     if (!Number.isInteger(value) || value <= 0) {
-        throw new Error("".concat(name, " must be a positive integer"));
+        throw new Error(`${name} must be a positive integer`);
     }
 }
 /** Remove controls and produce one trimmed, whitespace-normalized line. */
@@ -37,15 +32,14 @@ function cleanTitleText(input) {
  * @param maxBytes - positive UTF-8 byte budget.
  * @returns the longest leading code-point prefix within the budget.
  */
-function truncateTitleUtf8(input, maxBytes) {
+export function truncateTitleUtf8(input, maxBytes) {
     assertPositiveInteger('maxBytes', maxBytes);
     if (Buffer.byteLength(input, 'utf8') <= maxBytes)
         return input;
-    var used = 0;
-    var output = '';
-    for (var _i = 0, input_1 = input; _i < input_1.length; _i++) {
-        var character = input_1[_i];
-        var bytes = Buffer.byteLength(character, 'utf8');
+    let used = 0;
+    let output = '';
+    for (const character of input) {
+        const bytes = Buffer.byteLength(character, 'utf8');
         if (used + bytes > maxBytes)
             break;
         output += character;
@@ -59,7 +53,7 @@ function truncateTitleUtf8(input, maxBytes) {
  * @param maxBytes - positive maximum encoded size.
  * @returns a terminal-safe one-line title, possibly empty after sanitization.
  */
-function normalizeSessionTitle(input, maxBytes) {
+export function normalizeSessionTitle(input, maxBytes) {
     return truncateTitleUtf8(cleanTitleText(input), maxBytes).trimEnd();
 }
 /**
@@ -69,8 +63,9 @@ function normalizeSessionTitle(input, maxBytes) {
  * @param maxBytes - positive UTF-8 byte cap.
  * @returns the normalized leading words within both limits.
  */
-function fallbackSessionTitle(input, maxWords, maxBytes) {
+export function fallbackSessionTitle(input, maxWords, maxBytes) {
     assertPositiveInteger('maxWords', maxWords);
-    var words = cleanTitleText(input).split(' ').filter(Boolean).slice(0, maxWords);
+    const words = cleanTitleText(input).split(' ').filter(Boolean).slice(0, maxWords);
     return truncateTitleUtf8(words.join(' '), maxBytes).trimEnd();
 }
+//# sourceMappingURL=normalize.js.map

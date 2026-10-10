@@ -1,6 +1,6 @@
 /** Schedule-owned use of the shared session durability barrier. */
-import type { Context } from '@z/cordis';
-import type { Session } from '@z/dsh-session';
+import type { Context } from '@taskweaver/cordis';
+import type { Session } from '@taskweaver/dsh-session';
 /** Failure to prove that the current live prefix reached a persistence listener. */
 export declare class SchedulePersistenceError extends Error {
     /**

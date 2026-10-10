@@ -1,8 +1,8 @@
 /**
- * Package-owned invariant companion for `@z/dsh-user-questions`.
- * @module @z/dsh-user-questions/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-user-questions`.
+ * @module @taskweaver/dsh-user-questions/invariant
  */
-import type { Context } from '@z/cordis';
+import type { Context } from '@taskweaver/cordis';
 /** Cordis companion plugin name. */
 export declare const name = "user-questions-invariant";
 /** Service required before the companion can reserve package ownership. */

@@ -7,9 +7,9 @@
  * aggregates — with zero content duplication. Host-coupled domain
  * vocabulary (message sources, events, fold shapes) lives in ./domain.ts.
  *
- * @module @z/dsh-goal/types
+ * @module @taskweaver/dsh-goal/types
  */
-import type { Branded } from '@z/dsh-brand';
+import type { Branded } from '@taskweaver/dsh-brand';
 /** Identifies one goal across its durable revisions. */
 export type GoalId = Branded<'GoalId'>;
 /** Compare-and-set identity for one exact goal revision. */
@@ -82,7 +82,7 @@ export interface GoalProjection {
     /** Epoch milliseconds of the latest mutation. */
     readonly updatedAt: number;
 }
-declare module '@z/dsh-session-projection/types' {
+declare module '@taskweaver/dsh-session-projection/types' {
     interface SessionProjectionStateMap {
         goal: GoalProjection | null;
     }

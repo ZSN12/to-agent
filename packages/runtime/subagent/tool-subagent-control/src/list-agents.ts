@@ -4,15 +4,15 @@
  * `descendants` scope, `ctx.subagents.listDescendants()`. It stays separately
  * loadable from the root `send_message` plugin so a deployment can register
  * continuation delivery without exposing discovery.
- * @module @z/dsh-tool-subagent-control/list-agents
+ * @module @taskweaver/dsh-tool-subagent-control/list-agents
  */
 
-import type { Context } from '@z/cordis'
-import { defineTool } from '@z/dsh-tools'
-import type { Agent } from '@z/dsh-agent'
-import type { SessionId } from '@z/dsh-session'
-import { assertNever } from '@z/dsh-llm'
-import type { SubagentDescendantListEntry, SubagentListEntry } from '@z/dsh-subagent'
+import type { Context } from '@taskweaver/cordis'
+import { defineTool } from '@taskweaver/dsh-tools'
+import type { Agent } from '@taskweaver/dsh-agent'
+import type { SessionId } from '@taskweaver/dsh-session'
+import { assertNever } from '@taskweaver/dsh-llm'
+import type { SubagentDescendantListEntry, SubagentListEntry } from '@taskweaver/dsh-subagent'
 
 export const name = 'tool-subagent-list-agents'
 export const inject = ['tools', 'subagents', 'agents']

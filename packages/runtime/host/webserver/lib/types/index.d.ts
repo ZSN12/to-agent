@@ -1,5 +1,5 @@
 /**
- * @z/dsh-host-webserver — Web route-registration plugin: a node:http
+ * @taskweaver/dsh-host-webserver — Web route-registration plugin: a node:http
  * server plus the `webServer` service (HTTP and upgrade route registries, the
  * structured index injection table with raw transform taps behind it, and the
  * single fallback seat for everything no route claims). Knows no harness concepts and serves no files; the composing
@@ -9,12 +9,12 @@
  */
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Duplex } from 'node:stream';
-import { Context, Service } from '@z/cordis';
-import z from '@z/schemastery';
+import { Context, Service } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
 import { type IndexInjection } from './injections.ts';
 export { renderIndexInjections } from './injections.ts';
 export type { IndexInjection, IndexInjectionPlacement } from './injections.ts';
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
     interface Context {
         webServer: WebServer;
     }

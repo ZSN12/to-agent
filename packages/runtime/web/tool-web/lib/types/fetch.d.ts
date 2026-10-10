@@ -4,14 +4,14 @@
  * `ToolDefinition.timeoutMs`, timeout policy enforces it, and this tool forwards the resulting
  * signal. A provider timeout remains a backstop for direct service callers.
  */
-import type { Context } from '@z/cordis';
-import type { GenericCallView, JsonValue, ToolResult, WebFetchResultView } from '@z/dsh-tools';
-import type { WebFetchResult } from '@z/dsh-web';
+import type { Context } from '@taskweaver/cordis';
+import type { GenericCallView, JsonValue, ToolResult, WebFetchResultView } from '@taskweaver/dsh-tools';
+import type { WebFetchResult } from '@taskweaver/dsh-web';
 /**
  * Validate value constraints the schema DSL can't express: a non-blank `url`.
  * Throws a plain `Error` otherwise. No timeout parameter — the tool-call budget
  * is deployment policy declared via `fetchTimeoutMs` config and enforced by
- * `@z/dsh-tool-call-timeout-policy`, not a model argument.
+ * `@taskweaver/dsh-tool-call-timeout-policy`, not a model argument.
  *
  * @param args - the schema-validated `web_fetch` arguments.
  * @returns the arguments as the seam's request fields.
@@ -100,7 +100,7 @@ export declare function presentFetchResult(args: {
  * @param ctx - context whose `tools` and `systemPrompt` registries receive the
  *   registrations; both are effect-scoped and unregister on plugin dispose.
  * @param timeoutMs - the cooperative tool-call budget (ms) attached as the tool's
- *   `ToolDefinition.timeoutMs` for `@z/dsh-tool-call-timeout-policy` to enforce.
+ *   `ToolDefinition.timeoutMs` for `@taskweaver/dsh-tool-call-timeout-policy` to enforce.
  * @param maxOutputChars - cap on the complete rendered tool output (see
  *   {@link formatFetchOutput}) and on source characters converted synchronously.
  */

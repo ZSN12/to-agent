@@ -1,8 +1,8 @@
 /**
- * Package-owned invariant companion for `@z/dsh-typert-protocol`.
- * @module @z/dsh-typert-protocol/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-typert-protocol`.
+ * @module @taskweaver/dsh-typert-protocol/invariant
  */
-import type { Context } from '@z/cordis';
+import type { Context } from '@taskweaver/cordis';
 /** Cordis companion plugin name. */
 export declare const name = "typert-protocol-invariant";
 /** Service required before the companion can reserve package ownership. */

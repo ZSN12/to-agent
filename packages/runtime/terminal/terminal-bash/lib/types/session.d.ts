@@ -1,6 +1,6 @@
 /** Persistent PTY session over the subprocess seam's terminal primitive. */
-import type { SubprocessTerminalHandle } from '@z/dsh-subprocess';
-import type { TerminalBackendSession, TerminalReadRequest, TerminalReadResult, TerminalSendOperation, TerminalSendRequest, TerminalSessionStatus, TerminalSignal, TerminalSignalResult } from '@z/dsh-terminal';
+import type { SubprocessTerminalHandle } from '@taskweaver/dsh-subprocess';
+import type { TerminalBackendSession, TerminalReadRequest, TerminalReadResult, TerminalSendOperation, TerminalSendRequest, TerminalSessionStatus, TerminalSignal, TerminalSignalResult } from '@taskweaver/dsh-terminal';
 import type { ResolvedConfig } from './config.ts';
 /** Backend session wrapping one provider-owned terminal process. */
 export declare class LocalPtySession implements TerminalBackendSession {

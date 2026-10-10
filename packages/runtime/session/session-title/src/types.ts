@@ -5,14 +5,14 @@
  * `./types` for host consumers, `./client/types` (the browser half-entry's
  * re-export) for client aggregates — with zero content duplication.
  *
- * @module @z/dsh-session-title/types
+ * @module @taskweaver/dsh-session-title/types
  */
 
 // Marks this file a module so the declaration below AUGMENTS the projection
 // table instead of declaring an ambient module.
 export {}
 
-declare module '@z/dsh-session-projection/types' {
+declare module '@taskweaver/dsh-session-projection/types' {
   interface SessionProjectionStateMap {
     title: string | null
   }

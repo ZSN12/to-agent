@@ -3,11 +3,11 @@
  * continuable in-process child's unpublished context. Roots, one-shot children,
  * remote providers, and agentless executions never see the registration.
  *
- * @module @z/dsh-tool-subagent-report
+ * @module @taskweaver/dsh-tool-subagent-report
  */
-import type { Context } from '@z/cordis';
-import z from '@z/schemastery';
-import type { SubagentReportDelivery } from '@z/dsh-subagent';
+import type { Context } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
+import type { SubagentReportDelivery } from '@taskweaver/dsh-subagent';
 export declare const name = "tool-subagent-report";
 export declare const inject: string[];
 /** Config: how accepted reports are scheduled on the parent. */

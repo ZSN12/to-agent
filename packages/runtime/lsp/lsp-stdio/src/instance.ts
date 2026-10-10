@@ -4,16 +4,16 @@
  * instance owns one `(provider id, canonical workspace)` process. Queries serialize through a single
  * queue so a cancellation that fails to stop the server can terminate it without killing unrelated
  * work; distinct instances run in parallel.
- * @module @z/dsh-lsp-stdio/instance
+ * @module @taskweaver/dsh-lsp-stdio/instance
  */
 
-import { LspError } from '@z/dsh-lsp'
+import { LspError } from '@taskweaver/dsh-lsp'
 import type {
   LspOperation,
   LspProviderQuery,
   LspQueryResult,
-} from '@z/dsh-lsp'
-import { deadline } from '@z/dsh-timeout'
+} from '@taskweaver/dsh-lsp'
+import { deadline } from '@taskweaver/dsh-timeout'
 import { abortable, abortError } from './abort.ts'
 import { LspConnection } from './connection.ts'
 import type { ConnectionSpawner, ConnectionSpec, ConnectionWriter } from './connection.ts'

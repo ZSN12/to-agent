@@ -3,10 +3,10 @@
  * family (`--host`, `--port`, `--trusted-host`, `--no-open`) and its `--help`
  * text, then provides the immutable values as {@link WEB_STARTUP_SERVICE}.
  * Ordinary rows inject that service before reading it from lazy config.
- * @module @z/dsh-web-app/startup
+ * @module @taskweaver/dsh-web-app/startup
  */
 import { Command } from 'commander';
-import { parseCmdline } from '@z/dsh-cmdline';
+import { parseCmdline } from '@taskweaver/dsh-cmdline';
 /** Stable Cordis plugin name. */
 export const name = 'web-startup';
 /** Services required before the flags can be resolved. */

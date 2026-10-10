@@ -2,15 +2,15 @@
  * JSON storage backend: one human-readable file per unit under a configured
  * root, published by atomic whole-file rewrite. Registers as backend `json`
  * on the storage hub.
- * @module @z/dsh-storage-json
+ * @module @taskweaver/dsh-storage-json
  */
 
 import { mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
-import type { Context } from '@z/cordis'
-import z from '@z/schemastery'
-import { StorageError, UNIT_NAME_RE, storageBackendServiceKey } from '@z/dsh-storage'
-import type { KvFacet, KvUnit, KvUnitDescriptor, StorageBackend } from '@z/dsh-storage'
+import type { Context } from '@taskweaver/cordis'
+import z from '@taskweaver/schemastery'
+import { StorageError, UNIT_NAME_RE, storageBackendServiceKey } from '@taskweaver/dsh-storage'
+import type { KvFacet, KvUnit, KvUnitDescriptor, StorageBackend } from '@taskweaver/dsh-storage'
 import { openJsonUnit } from './unit.ts'
 
 /** Cordis plugin name. */

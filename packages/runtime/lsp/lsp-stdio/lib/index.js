@@ -1,12 +1,12 @@
-import z from "@z/schemastery";
-import { LspError, LspProviderId } from "@z/dsh-lsp";
-import { MAX_TIMER_DELAY_MS, deadline, timeoutOf } from "@z/dsh-timeout";
+import z from "@taskweaver/schemastery";
+import { LspError, LspProviderId } from "@taskweaver/dsh-lsp";
+import { MAX_TIMER_DELAY_MS, deadline, timeoutOf } from "@taskweaver/dsh-timeout";
 import { Buffer as Buffer$1 } from "node:buffer";
-import { assertNever } from "@z/dsh-llm";
+import { assertNever } from "@taskweaver/dsh-llm";
 //#region lib/types/abort.js
 /**
 * Shared cancellation helpers for the local LSP provider's host-I/O, queue, and protocol phases.
-* @module @z/dsh-lsp-stdio/abort
+* @module @taskweaver/dsh-lsp-stdio/abort
 */
 /**
 * Build an abort Error carrying the signal's reason and preserving timeout classification.
@@ -137,7 +137,7 @@ function messageOf(error) {
 * LSP base-protocol framing: `Content-Length`-delimited JSON-RPC over a byte stream. The encoder
 * produces one framed buffer; the decoder buffers incoming bytes and yields complete message bodies,
 * bounding the header and total message size so a hostile or broken server cannot exhaust memory.
-* @module @z/dsh-lsp-stdio/framing
+* @module @taskweaver/dsh-lsp-stdio/framing
 */
 /** The header/body separator in the LSP base protocol. */
 const HEADER_SEPARATOR = "\r\n\r\n";
@@ -232,7 +232,7 @@ function parseContentLength(headerText) {
 * fatal close, and exposes tree-scoped termination through the handle so the
 * instance owns teardown; group/tree mechanics live in the subprocess
 * Service Provider.
-* @module @z/dsh-lsp-stdio/connection
+* @module @taskweaver/dsh-lsp-stdio/connection
 */
 const writeConnectionMessage = (stdin, message, done) => {
 	stdin.write(encodeMessage(message), done);
@@ -488,7 +488,7 @@ function asError(value) {
 * Pure protocol translation for the local host: what the server's capabilities allow, and how its
 * `Location`/`LocationLink`/`Hover` payloads normalize into the seam's closed result unions. No I/O
 * or process state — every function here is a pure transform, which the fake-stdio tests pin exactly.
-* @module @z/dsh-lsp-stdio/translate
+* @module @taskweaver/dsh-lsp-stdio/translate
 */
 /**
 * The `textDocument/*` request method for each LSP operation.
@@ -693,7 +693,7 @@ function malformedResponse(message) {
 * instance owns one `(provider id, canonical workspace)` process. Queries serialize through a single
 * queue so a cancellation that fails to stop the server can terminate it without killing unrelated
 * work; distinct instances run in parallel.
-* @module @z/dsh-lsp-stdio/instance
+* @module @taskweaver/dsh-lsp-stdio/instance
 */
 /**
 * A single initialized server process. Not exported as a provider — the provider single-flights and
@@ -957,7 +957,7 @@ const CLIENT_CAPABILITIES = {
 *
 * Namespace plugin (named exports, no default export). Lifecycle is effect-scoped: disposal
 * unregisters from `ctx.lsp` and tears down every live server.
-* @module @z/dsh-lsp-stdio
+* @module @taskweaver/dsh-lsp-stdio
 */
 /** Cordis plugin name for loader diagnostics. */
 const name = "lsp-stdio";

@@ -1,8 +1,8 @@
 /**
  * Human-facing `/compact` command over the backend-independent compaction seam.
- * @module @z/dsh-command-compact
+ * @module @taskweaver/dsh-command-compact
  */
-import type { Context } from '@z/cordis';
+import type { Context } from '@taskweaver/cordis';
 export declare const name = "command-compact";
 export declare const inject: string[];
 /**

@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
+import { Context } from '@taskweaver/cordis'
 import { runInNewContext } from 'node:vm'
-import AgentRegistry from '@z/dsh-agent'
-import type { Agent } from '@z/dsh-agent'
-import { SessionId } from '@z/dsh-session'
+import AgentRegistry from '@taskweaver/dsh-agent'
+import type { Agent } from '@taskweaver/dsh-agent'
+import { SessionId } from '@taskweaver/dsh-session'
 
 function agent(id: string): Agent {
   return { id: SessionId(id) } as Agent

@@ -1,10 +1,10 @@
-/** Package-owned durable plan-mode invariants. @module @z/dsh-plan-mode/invariant */
+/** Package-owned durable plan-mode invariants. @module @taskweaver/dsh-plan-mode/invariant */
 
-import type { Context } from '@z/cordis'
-import type { Session, SessionEvent } from '@z/dsh-session'
-import type { InvariantFailure, InvariantInstaller } from '@z/dsh-invariants'
+import type { Context } from '@taskweaver/cordis'
+import type { Session, SessionEvent } from '@taskweaver/dsh-session'
+import type { InvariantFailure, InvariantInstaller } from '@taskweaver/dsh-invariants'
 
-const PACKAGE_NAME = '@z/dsh-plan-mode'
+const PACKAGE_NAME = '@taskweaver/dsh-plan-mode'
 
 /** Cordis companion plugin name. */
 export const name = 'plan-mode-invariant'

@@ -22,20 +22,20 @@ describe('ensureDeployNodeModules', () => {
 
   it('clears legacy TaskWeaver home authorization overlay when embedded', () => {
     const root = mkdtempSync(join(tmpdir(), 'dsh-entry-'))
-    const prev = process.env.DSH_TASKWEAVER_EMBEDDED
-    const prevHome = process.env.DSH_HOME
+    const prev = process.env.TASKWEAVER_EMBEDDED
+    const prevHome = process.env.TASKWEAVER_HOME
     try {
-      process.env.DSH_TASKWEAVER_EMBEDDED = '1'
-      process.env.DSH_HOME = root
+      process.env.TASKWEAVER_EMBEDDED = '1'
+      process.env.TASKWEAVER_HOME = root
       writeFileSync(join(root, 'cordis.patch.yml'), `- insert:
     - id: authorization
-      name: '@z/dsh-authorization'
+      name: '@taskweaver/dsh-authorization'
 `)
       migrateLegacyTaskWeaverHomePatch()
       expect(readFileSync(join(root, 'cordis.patch.yml'), 'utf8').trim()).toBe('[]')
     } finally {
-      process.env.DSH_TASKWEAVER_EMBEDDED = prev
-      process.env.DSH_HOME = prevHome
+      process.env.TASKWEAVER_EMBEDDED = prev
+      process.env.TASKWEAVER_HOME = prevHome
       rmSync(root, { recursive: true, force: true })
     }
   })

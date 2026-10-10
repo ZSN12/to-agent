@@ -1,4 +1,3 @@
-"use strict";
 /**
  * A dependency-light **retention** library: bounded model-facing output for
  * tools that must cap how much context they return. A caller feeds items or
@@ -28,16 +27,12 @@
  *   web bodies). `head` / `tail` / `headTail`, preserving UTF-8 boundaries at
  *   {@link TextRetainer.finish}.
  *
- * @module @z/dsh-output-retention
+ * @module @taskweaver/dsh-output-retention
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.TextRetainer = exports.ItemRetainer = void 0;
-exports.describeOmitted = describeOmitted;
-exports.formatRetentionNotice = formatRetentionNotice;
 /** Assert a budget field is a non-negative integer (the retainer request contract). */
 function assertBudget(value, name) {
     if (!Number.isInteger(value) || value < 0) {
-        throw new Error("".concat(name, " must be a non-negative integer"));
+        throw new Error(`${name} must be a non-negative integer`);
     }
 }
 /**
@@ -50,12 +45,13 @@ function assertBudget(value, name) {
  * more. The caller pushes prepared logical units and, after {@link finish},
  * groups/sorts the retained subset itself.
  */
-var ItemRetainer = /** @class */ (function () {
+export class ItemRetainer {
+    maxItems;
+    items = [];
+    seen = 0;
+    omittedCount = 0;
     /** @param strategy Head strategy: `maxItems` (non-negative integer). */
-    function ItemRetainer(strategy) {
-        this.items = [];
-        this.seen = 0;
-        this.omittedCount = 0;
+    constructor(strategy) {
         assertBudget(strategy.maxItems, 'maxItems');
         this.maxItems = strategy.maxItems;
     }
@@ -67,7 +63,7 @@ var ItemRetainer = /** @class */ (function () {
      * @param item The prepared logical unit (path, flat match, source).
      * @returns The per-push {@link PushDecision}.
      */
-    ItemRetainer.prototype.push = function (item) {
+    push(item) {
         this.seen++;
         if (this.items.length < this.maxItems) {
             // Reached only below the cap, before any omission (items only grow, the
@@ -80,29 +76,27 @@ var ItemRetainer = /** @class */ (function () {
             kept: false,
             truncated: true,
         };
-    };
+    }
     /**
      * Finalize and report what was kept and omitted.
      *
      * @returns The {@link RetainedItems} snapshot (safe to group/sort downstream).
      */
-    ItemRetainer.prototype.finish = function () {
-        var truncated = this.omittedCount > 0;
+    finish() {
+        const truncated = this.omittedCount > 0;
         return {
             items: this.items,
-            truncated: truncated,
+            truncated,
             seen: this.seen,
             kept: this.items.length,
             omitted: truncated
                 ? { kind: 'exact', count: this.omittedCount }
                 : { kind: 'none' },
         };
-    };
-    return ItemRetainer;
-}());
-exports.ItemRetainer = ItemRetainer;
-var encoder = new TextEncoder();
-var decoder = new TextDecoder(); // utf-8, non-fatal: internal malformed bytes → U+FFFD
+    }
+}
+const encoder = new TextEncoder();
+const decoder = new TextDecoder(); // utf-8, non-fatal: internal malformed bytes → U+FFFD
 /**
  * Drop a trailing incomplete UTF-8 sequence so a prefix cut never emits a
  * replacement char at the boundary. Walks back over continuation bytes
@@ -112,15 +106,15 @@ var decoder = new TextDecoder(); // utf-8, non-fatal: internal malformed bytes �
  * genuinely malformed interior is left for the decoder to replace).
  */
 function trimTrailingPartialUtf8(bytes) {
-    var i = bytes.length - 1;
+    let i = bytes.length - 1;
     // Continuation bytes are 0b10xxxxxx; scan back at most 3 (max sequence is 4).
     // Indices are bounds-checked by the loop guard, so the reads are in range.
     while (i >= 0 && (bytes[i] & 0xc0) === 0x80 && bytes.length - i <= 3)
         i--;
     if (i < 0)
         return bytes;
-    var lead = bytes[i];
-    var expected = lead < 0x80 ? 1 : lead < 0xe0 ? 2 : lead < 0xf0 ? 3 : lead < 0xf8 ? 4 : 0;
+    const lead = bytes[i];
+    const expected = lead < 0x80 ? 1 : lead < 0xe0 ? 2 : lead < 0xf0 ? 3 : lead < 0xf8 ? 4 : 0;
     // expected 0 → not a lead byte (stray continuation / invalid): leave it.
     if (expected === 0)
         return bytes;
@@ -131,7 +125,7 @@ function trimTrailingPartialUtf8(bytes) {
  * lead/ASCII byte instead of mid-codepoint.
  */
 function trimLeadingContinuationUtf8(bytes) {
-    var i = 0;
+    let i = 0;
     // i < length guards the read.
     while (i < bytes.length && (bytes[i] & 0xc0) === 0x80)
         i++;
@@ -149,14 +143,16 @@ function trimLeadingContinuationUtf8(bytes) {
  * `prefixCap + tailBytes + one chunk` in memory (old suffix chunks are dropped
  * as they slide out), so a large stream does not accumulate unbounded.
  */
-var TextRetainer = /** @class */ (function () {
+export class TextRetainer {
+    prefixCap;
+    suffixCap;
+    prefixChunks = [];
+    prefixHeld = 0;
+    suffixChunks = [];
+    suffixHeld = 0;
+    total = 0;
     /** @param strategy One {@link TextRetentionStrategy} variant; byte budgets must be non-negative integers. */
-    function TextRetainer(strategy) {
-        this.prefixChunks = [];
-        this.prefixHeld = 0;
-        this.suffixChunks = [];
-        this.suffixHeld = 0;
-        this.total = 0;
+    constructor(strategy) {
         switch (strategy.kind) {
             case 'head':
                 assertBudget(strategy.maxBytes, 'maxBytes');
@@ -185,13 +181,13 @@ var TextRetainer = /** @class */ (function () {
      * @param chunk The next bytes of the stream (`Uint8Array` or UTF-8 `string`).
      * @returns The per-push {@link PushDecision}.
      */
-    TextRetainer.prototype.push = function (chunk) {
-        var bytes = typeof chunk === 'string' ? encoder.encode(chunk) : chunk;
-        var before = this.total;
+    push(chunk) {
+        const bytes = typeof chunk === 'string' ? encoder.encode(chunk) : chunk;
+        const before = this.total;
         this.total += bytes.length;
         // Prefix: take only up to the cap; the rest of this chunk is "not prefixed".
-        var room = this.prefixCap - this.prefixHeld;
-        var take = Math.max(0, Math.min(room, bytes.length));
+        const room = this.prefixCap - this.prefixHeld;
+        const take = Math.max(0, Math.min(room, bytes.length));
         if (take > 0) {
             this.prefixChunks.push(bytes.subarray(0, take));
             this.prefixHeld += take;
@@ -201,7 +197,7 @@ var TextRetainer = /** @class */ (function () {
         if (this.suffixCap > 0) {
             this.suffixChunks.push(bytes);
             this.suffixHeld += bytes.length;
-            var head = this.suffixChunks[0];
+            let head = this.suffixChunks[0];
             while (head !== undefined && this.suffixHeld - head.length >= this.suffixCap) {
                 this.suffixChunks.shift();
                 this.suffixHeld -= head.length;
@@ -216,7 +212,7 @@ var TextRetainer = /** @class */ (function () {
             // drops nothing it would return. (head.length > excess by the loop
             // invariant `suffixHeld - head.length < suffixCap`, so the slice is non-empty.)
             if (head !== undefined && this.suffixHeld > this.suffixCap) {
-                var excess = this.suffixHeld - this.suffixCap;
+                const excess = this.suffixHeld - this.suffixCap;
                 this.suffixChunks[0] = head.subarray(excess);
                 this.suffixHeld -= excess;
             }
@@ -225,29 +221,29 @@ var TextRetainer = /** @class */ (function () {
         // SAME way finish() does (via omittedAt), so push and finish never disagree;
         // per-push we only need whether THIS chunk pushed the total past what the
         // two caps hold.
-        var droppedThisChunk = this.omittedAt(this.total) > this.omittedAt(before);
+        const droppedThisChunk = this.omittedAt(this.total) > this.omittedAt(before);
         return {
             kept: !droppedThisChunk,
             truncated: this.omittedAt(this.total) > 0,
         };
-    };
+    }
     /** Bytes omitted once `total` bytes have been seen: `total − keptPrefix − keptSuffix`. */
-    TextRetainer.prototype.omittedAt = function (total) {
-        var prefixLen = Math.min(total, this.prefixCap);
-        var suffixLen = Math.min(total - prefixLen, this.suffixCap);
+    omittedAt(total) {
+        const prefixLen = Math.min(total, this.prefixCap);
+        const suffixLen = Math.min(total - prefixLen, this.suffixCap);
         return total - prefixLen - suffixLen;
-    };
+    }
     /**
      * Finalize: decode the retained prefix and suffix (each trimmed to a UTF-8
      * boundary at its cut) and report the exact omitted byte count.
      *
      * @returns The {@link RetainedText} snapshot (safe to hand to a formatter).
      */
-    TextRetainer.prototype.finish = function () {
-        var prefixLen = Math.min(this.total, this.prefixCap);
-        var suffixLen = Math.min(this.total - prefixLen, this.suffixCap);
-        var prefix = concat(this.prefixChunks); // exactly prefixLen bytes (prefixHeld === prefixLen)
-        var suffix = concat(this.suffixChunks).subarray(this.suffixHeld - suffixLen);
+    finish() {
+        const prefixLen = Math.min(this.total, this.prefixCap);
+        const suffixLen = Math.min(this.total - prefixLen, this.suffixCap);
+        const prefix = concat(this.prefixChunks); // exactly prefixLen bytes (prefixHeld === prefixLen)
+        const suffix = concat(this.suffixChunks).subarray(this.suffixHeld - suffixLen);
         // With nothing omitted by budget, prefix and suffix are ADJACENT slices of
         // one stream (prefixLen + suffixLen === total), so the head|tail split is
         // artificial: a codepoint may span it. Decode the contiguous whole as one
@@ -255,41 +251,36 @@ var TextRetainer = /** @class */ (function () {
         // boundary-spanning codepoint though no content was dropped. Only a real
         // omitted gap makes each side a true cut: trim each to a UTF-8 boundary and
         // decode separately so a codepoint is never reconstructed across the gap.
-        var budgetOmitted = this.omittedAt(this.total);
-        var _a = budgetOmitted > 0
+        const budgetOmitted = this.omittedAt(this.total);
+        const [keptPrefix, keptSuffix] = budgetOmitted > 0
             ? [trimTrailingPartialUtf8(prefix), trimLeadingContinuationUtf8(suffix)]
-            : [prefix, suffix], keptPrefix = _a[0], keptSuffix = _a[1];
-        var text = budgetOmitted > 0
+            : [prefix, suffix];
+        const text = budgetOmitted > 0
             ? decoder.decode(keptPrefix) + decoder.decode(keptSuffix)
             : decoder.decode(concat([prefix, suffix]));
         // Report omission against the bytes ACTUALLY returned, not the pre-trim
         // budget: a boundary trim drops partial-codepoint bytes too, so an exact
         // count derived from the budget alone would overstate the retained text (and
         // any "Omitted N bytes" notice built from it would be a lie).
-        var omitted = this.total - keptPrefix.length - keptSuffix.length;
-        var truncated = omitted > 0;
+        const omitted = this.total - keptPrefix.length - keptSuffix.length;
+        const truncated = omitted > 0;
         return {
-            text: text,
-            truncated: truncated,
+            text,
+            truncated,
             omittedBytes: truncated
                 ? { kind: 'exact', count: omitted }
                 : { kind: 'none' },
         };
-    };
-    return TextRetainer;
-}());
-exports.TextRetainer = TextRetainer;
+    }
+}
 /** Concatenate chunks into one contiguous buffer (their exact total length). */
 function concat(chunks) {
-    var length = 0;
-    for (var _i = 0, chunks_1 = chunks; _i < chunks_1.length; _i++) {
-        var chunk = chunks_1[_i];
+    let length = 0;
+    for (const chunk of chunks)
         length += chunk.length;
-    }
-    var out = new Uint8Array(length);
-    var offset = 0;
-    for (var _a = 0, chunks_2 = chunks; _a < chunks_2.length; _a++) {
-        var chunk = chunks_2[_a];
+    const out = new Uint8Array(length);
+    let offset = 0;
+    for (const chunk of chunks) {
         out.set(chunk, offset);
         offset += chunk.length;
     }
@@ -305,14 +296,14 @@ function concat(chunks) {
  * @param unit The noun for the omitted quantity (`items`, `bytes`, `chars`, `lines`).
  * @returns A neutral clause (no trailing space), or `''` when nothing was omitted.
  */
-function describeOmitted(omitted, unit) {
+export function describeOmitted(omitted, unit) {
     switch (omitted.kind) {
         case 'none':
             return '';
         case 'exact':
-            return "Omitted ".concat(omitted.count, " ").concat(unit, ".");
+            return `Omitted ${omitted.count} ${unit}.`;
         case 'unknown':
-            return "More ".concat(unit, " were omitted.");
+            return `More ${unit} were omitted.`;
     }
 }
 /**
@@ -328,8 +319,9 @@ function describeOmitted(omitted, unit) {
  * @param recovery Tool-supplied guidance builder; receives the notice, returns a sentence (or `''`).
  * @returns The combined footer line.
  */
-function formatRetentionNotice(notice, recovery) {
+export function formatRetentionNotice(notice, recovery) {
     return [describeOmitted(notice.omitted, notice.unit), recovery(notice)]
-        .filter(function (part) { return part.length > 0; })
+        .filter(part => part.length > 0)
         .join(' ');
 }
+//# sourceMappingURL=index.js.map

@@ -2,7 +2,7 @@ import { defineConfig } from 'tsdown'
 import { typertPlugin } from '../../typert/generator/lib/types/tsdown-plugin.js'
 
 export default defineConfig(({ env }) => {
-  const client = env?.DSH_BUILD_FACE === 'client'
+  const client = env?.TASKWEAVER_BUILD_FACE === 'client'
 
   return {
     entry: client ? '' : ['lib/types/{index,invariant}.js'],

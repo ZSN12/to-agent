@@ -86,6 +86,14 @@ export function RoutingPortfolioSettingsPanel({
   const [worktrees, setWorktrees] = useState<WorktreeEntry[]>([])
   const [autoSnapshotOnTurn, setAutoSnapshotOnTurn] = useState(false)
   const [subtaskUpgradeMax, setSubtaskUpgradeMax] = useState(1)
+  const [maxSubtaskConcurrency, setMaxSubtaskConcurrency] = useState(3)
+  const [dagPlanApproval, setDagPlanApproval] = useState<'always' | 'write-only' | 'never'>('write-only')
+  const [dagCrossProviderReview, setDagCrossProviderReview] = useState(false)
+  const [dagBudgetTokens, setDagBudgetTokens] = useState(2_000_000)
+  const [dagBudgetUsd, setDagBudgetUsd] = useState(2)
+  const [dagReadOnlyTimeoutMinutes, setDagReadOnlyTimeoutMinutes] = useState(10)
+  const [dagWriteTimeoutMinutes, setDagWriteTimeoutMinutes] = useState(20)
+  const [dagIdleTimeoutMinutes, setDagIdleTimeoutMinutes] = useState(3)
   const [memorySummary, setMemorySummary] = useState('')
   const [portfolioOpen, setPortfolioOpen] = useState(false)
 
@@ -96,6 +104,14 @@ export function RoutingPortfolioSettingsPanel({
       if (prefs.data.bashSandbox) setBashSandbox(prefs.data.bashSandbox)
       setAutoSnapshotOnTurn(prefs.data.autoSnapshotOnTurn === true)
       setSubtaskUpgradeMax(prefs.data.subtaskUpgradeMax ?? 1)
+      setMaxSubtaskConcurrency(prefs.data.maxSubtaskConcurrency ?? 3)
+      setDagPlanApproval(prefs.data.dagPlanApproval ?? 'write-only')
+      setDagCrossProviderReview(prefs.data.dagCrossProviderReview === true)
+      setDagBudgetTokens(prefs.data.dagBudgetTokens ?? 2_000_000)
+      setDagBudgetUsd(prefs.data.dagBudgetUsd ?? 2)
+      setDagReadOnlyTimeoutMinutes(Math.max(1, Math.round((prefs.data.dagReadOnlyTimeoutMs ?? 600_000) / 60_000)))
+      setDagWriteTimeoutMinutes(Math.max(1, Math.round((prefs.data.dagWriteTimeoutMs ?? 1_200_000) / 60_000)))
+      setDagIdleTimeoutMinutes(Math.max(1, Math.round((prefs.data.dagIdleTimeoutMs ?? 180_000) / 60_000)))
     }
     const mem = await window.taskweaver?.memory?.get()
     if (mem?.ok && mem.data) {
@@ -316,6 +332,148 @@ export function RoutingPortfolioSettingsPanel({
             </label>
             <span className="routing-field-hint">0–3 次，失败后可换更强模型重试</span>
           </div>
+          <div className="routing-field-inline">
+            <label>
+              <span>DAG 子任务最大并发</span>
+              <input
+                type="number"
+                min={1}
+                max={10}
+                value={maxSubtaskConcurrency}
+                onChange={(e) => setMaxSubtaskConcurrency(Math.max(1, Math.min(10, Number(e.target.value))))}
+                onBlur={() => {
+                  void window.taskweaver?.preferences?.set({ maxSubtaskConcurrency }).then((res) => {
+                    if (res?.ok) onToast('已更新 DAG 最大并发数')
+                  })
+                }}
+              />
+            </label>
+            <span className="routing-field-hint">1–10 个节点，默认最多同时运行 3 个</span>
+          </div>
+          <div className="routing-field-inline">
+            <label>
+              <span>DAG 计划审批</span>
+              <select
+                value={dagPlanApproval}
+                onChange={(event) => {
+                  const value = event.target.value as 'always' | 'write-only' | 'never'
+                  setDagPlanApproval(value)
+                  void window.taskweaver?.preferences?.set({ dagPlanApproval: value }).then((res) => {
+                    if (res?.ok) onToast('已更新 DAG 计划审批策略')
+                  })
+                }}
+              >
+                <option value="write-only">仅含写入节点时审批（推荐）</option>
+                <option value="always">所有计划都审批</option>
+                <option value="never">从不审批</option>
+              </select>
+            </label>
+          </div>
+          <div className="routing-field-inline">
+            <label>
+              <span>DAG 跨提供方自动审查</span>
+              <input
+                type="checkbox"
+                checked={dagCrossProviderReview}
+                onChange={(event) => {
+                  const enabled = event.target.checked
+                  setDagCrossProviderReview(enabled)
+                  void window.taskweaver?.preferences?.set({ dagCrossProviderReview: enabled }).then((res) => {
+                    if (res?.ok) onToast(enabled ? '已启用 DAG 跨提供方自动审查' : '已关闭 DAG 跨提供方自动审查')
+                  })
+                }}
+              />
+            </label>
+            <span className="routing-field-hint">仅代码变更 DAG 生效；每轮可用“启用跨提供方审查”或“关闭跨提供方审查”覆盖</span>
+          </div>
+          <div className="routing-field-inline">
+            <label>
+              <span>DAG 单轮 Token 预算</span>
+              <input
+                type="number"
+                min={1_000}
+                max={100_000_000}
+                step={100_000}
+                value={dagBudgetTokens}
+                onChange={(event) => setDagBudgetTokens(Math.max(1_000, Math.min(100_000_000, Math.round(Number(event.target.value)) || 1_000)))}
+                onBlur={() => {
+                  void window.taskweaver?.preferences?.set({ dagBudgetTokens }).then((res) => {
+                    if (res?.ok) onToast('已更新 DAG Token 预算')
+                  })
+                }}
+              />
+            </label>
+            <span className="routing-field-hint">超出后不再启动新节点，运行中的节点会完成</span>
+          </div>
+          <div className="routing-field-inline">
+            <label>
+              <span>DAG 单轮费用预算（美元）</span>
+              <input
+                type="number"
+                min={0.01}
+                max={10_000}
+                step={0.25}
+                value={dagBudgetUsd}
+                onChange={(event) => setDagBudgetUsd(Math.max(0.01, Math.min(10_000, Math.round((Number(event.target.value) || 0.01) * 100) / 100)))}
+                onBlur={() => {
+                  void window.taskweaver?.preferences?.set({ dagBudgetUsd }).then((res) => {
+                    if (res?.ok) onToast('已更新 DAG 费用预算')
+                  })
+                }}
+              />
+            </label>
+          </div>
+          <div className="routing-field-inline">
+            <label>
+              <span>只读节点时限（分钟）</span>
+              <input
+                type="number"
+                min={1}
+                max={60}
+                value={dagReadOnlyTimeoutMinutes}
+                onChange={(e) => setDagReadOnlyTimeoutMinutes(Math.max(1, Math.min(60, Number(e.target.value))))}
+                onBlur={() => {
+                  void window.taskweaver?.preferences?.set({ dagReadOnlyTimeoutMs: dagReadOnlyTimeoutMinutes * 60_000 }).then((res) => {
+                    if (res?.ok) onToast('已更新 DAG 只读节点时限')
+                  })
+                }}
+              />
+            </label>
+          </div>
+          <div className="routing-field-inline">
+            <label>
+              <span>写入 / 测试节点时限（分钟）</span>
+              <input
+                type="number"
+                min={1}
+                max={60}
+                value={dagWriteTimeoutMinutes}
+                onChange={(e) => setDagWriteTimeoutMinutes(Math.max(1, Math.min(60, Number(e.target.value))))}
+                onBlur={() => {
+                  void window.taskweaver?.preferences?.set({ dagWriteTimeoutMs: dagWriteTimeoutMinutes * 60_000 }).then((res) => {
+                    if (res?.ok) onToast('已更新 DAG 写入节点时限')
+                  })
+                }}
+              />
+            </label>
+          </div>
+          <div className="routing-field-inline">
+            <label>
+              <span>节点空闲时限（分钟）</span>
+              <input
+                type="number"
+                min={1}
+                max={60}
+                value={dagIdleTimeoutMinutes}
+                onChange={(e) => setDagIdleTimeoutMinutes(Math.max(1, Math.min(60, Number(e.target.value))))}
+                onBlur={() => {
+                  void window.taskweaver?.preferences?.set({ dagIdleTimeoutMs: dagIdleTimeoutMinutes * 60_000 }).then((res) => {
+                    if (res?.ok) onToast('已更新 DAG 节点空闲时限')
+                  })
+                }}
+              />
+            </label>
+          </div>
         </article>
 
         <article className="routing-settings-card">
@@ -344,8 +502,8 @@ export function RoutingPortfolioSettingsPanel({
             />
             <SettingToggle
               checked={worktreeIsolation}
-              label="Worktree 隔离（实现 / 测试子任务）"
-              hint="启用且 Git 工作区干净时，写入范围互不重叠的实现任务可并行；各自改动需检查后手动合并"
+              label="Worktree 隔离（实现 / 测试 / 审查子任务）"
+              hint="启用且 Git 工作区干净时，实现节点可安全并行；测试和审查会继承上游分支，结束后生成可预览的集成分支，不会自动合并"
               onChange={(v) => { void toggleWorktree(v) }}
             />
           </div>

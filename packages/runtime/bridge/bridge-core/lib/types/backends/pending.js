@@ -1,8 +1,8 @@
 /**
  * Placeholder backend until opencodex transport is wired in-process per kind.
- * @module @z/dsh-bridge-core/backends/pending
+ * @module @taskweaver/dsh-bridge-core/backends/pending
  */
-import { LlmError } from '@z/dsh-llm';
+import { LlmError } from '@taskweaver/dsh-llm';
 export function createPendingBridgeBackend(kind) {
     return {
         kind,

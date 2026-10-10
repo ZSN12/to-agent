@@ -1,5 +1,5 @@
 /**
- * Profile machinery of `dsh-app-boot`: directory resolution and init,
+ * Profile machinery of `taskweaver-host`: directory resolution and init,
  * manifest round-trips, two-anchor bundle resolution, patch-layer loading,
  * empty-root composition, and the installation module-fallback healing.
  */
@@ -21,7 +21,7 @@ import {
   writeProfileManifest,
 } from '../src/index.ts'
 
-const tmp = (): string => mkdtempSync(join(tmpdir(), 'dsh-profile-'))
+const tmp = (): string => mkdtempSync(join(tmpdir(), 'taskweaver-profile-'))
 
 /** Stage a fake installed app: package.json with deps and a node_modules holding bundles. */
 function stageInstallation(bundles: Record<string, { patch?: string; deps?: Record<string, string> }>): string {
@@ -37,7 +37,7 @@ function stageInstallation(bundles: Record<string, { patch?: string; deps?: Reco
       name,
       version: '0.0.0',
       dependencies: spec.deps ?? {},
-      ...spec.patch === undefined ? {} : { dsh: { bundle: { patch: './cordis.patch.yml' } } },
+      ...spec.patch === undefined ? {} : { taskweaver: { bundle: { patch: './cordis.patch.yml' } } },
     }))
     if (spec.patch !== undefined) writeFileSync(join(dir, 'cordis.patch.yml'), spec.patch)
   }
@@ -59,24 +59,40 @@ describe('initProfile', () => {
   it('creates manifest, user patch layer, and pnpm workspace once, never overwriting', () => {
     const home = tmp()
     const dir = resolveProfileDir('tui', home)
-    initProfile(dir, ['@z/dsh-base'])
+    initProfile(dir, ['@taskweaver/dsh-base'])
     const manifest = readProfileManifest('t', dir)
-    expect(manifest.dsh?.profile?.bundles).toEqual(['@z/dsh-base'])
+    expect(manifest.taskweaver?.profile?.bundles).toEqual(['@taskweaver/dsh-base'])
     expect(readFileSync(join(dir, PROFILE_PATCH_FILENAME), 'utf8')).toContain('[]')
     expect(readFileSync(join(dir, 'pnpm-workspace.yaml'), 'utf8')).toContain('nodeLinker: hoisted')
     // Re-init keeps user edits.
     writeFileSync(join(dir, PROFILE_PATCH_FILENAME), '- id: x\n  config: {}\n')
     initProfile(dir, ['other'])
-    expect(readProfileManifest('t', dir).dsh?.profile?.bundles).toEqual(['@z/dsh-base'])
+    expect(readProfileManifest('t', dir).taskweaver?.profile?.bundles).toEqual(['@taskweaver/dsh-base'])
     expect(readFileSync(join(dir, PROFILE_PATCH_FILENAME), 'utf8')).toContain('- id: x')
   })
 })
 
 describe('manifest round-trip', () => {
-  it('writes and reads back, and fails loud on a broken manifest', () => {
+  it('writes canonical keys and reads the old dsh key as a compatibility alias', () => {
     const dir = tmp()
     writeProfileManifest(dir, { name: 'p', dsh: { profile: { bundles: ['a'] } } })
-    expect(readProfileManifest('t', dir).dsh?.profile?.bundles).toEqual(['a'])
+    expect(readProfileManifest('t', dir).taskweaver?.profile?.bundles).toEqual(['a'])
+    expect(JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'))).toHaveProperty('taskweaver.profile.bundles', ['a'])
+    writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: 'old', dsh: { profile: { bundles: ['legacy'] } } }))
+    const legacy = readProfileManifest('t', dir)
+    expect(legacy.taskweaver?.profile?.bundles).toEqual(['legacy'])
+    expect(legacy).not.toHaveProperty('dsh')
+    writeProfileManifest(dir, {
+      name: 'both',
+      dsh: { profile: { bundles: ['legacy-profile'] }, bundle: { patch: './legacy.yml' } },
+      taskweaver: { profile: { bundles: ['canonical-profile'] } },
+    })
+    const merged = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'))
+    expect(merged.taskweaver).toEqual({
+      profile: { bundles: ['canonical-profile'] },
+      bundle: { patch: './legacy.yml' },
+    })
+    expect(merged).not.toHaveProperty('dsh')
     writeFileSync(join(dir, 'package.json'), '[]')
     expect(() => readProfileManifest('t', dir)).toThrow('must hold a JSON object')
     expect(() => readProfileManifest('t', join(dir, 'nope'))).toThrow('failed to read profile manifest')
@@ -118,7 +134,7 @@ describe('resolveBundleDir', () => {
 })
 
 describe('loadProfile', () => {
-  it('resolves each dsh.profile.bundles entry to its patch layer in order, plus the user layer', () => {
+  it('resolves each taskweaver.profile.bundles entry to its patch layer in order, plus the user layer', () => {
     const anchor = stageInstallation({
       'bundle-a': { patch: '- insert:\n    - id: a\n      name: pkg-a\n' },
       'bundle-b': { patch: '- id: a\n  config:\n    v: 2\n' },
@@ -150,45 +166,45 @@ describe('loadProfile', () => {
       .toThrow('profile "custom" does not exist')
     // The web template auto-initializes on first load. Bundle resolution
     // cannot be asserted to fail here: the source-plane test runner resolves
-    // @z/* through tsconfig paths regardless of the staged anchor.
-    expect(PROFILE_TEMPLATES.web).toContain('@z/dsh-base')
+    // @taskweaver/* through tsconfig paths regardless of the staged anchor.
+    expect(PROFILE_TEMPLATES.web).toContain('@taskweaver/dsh-base')
     try {
       loadProfile('t', 'web', anchor, home)
     } catch {
       // Resolution failure is the plain-Node outcome for this empty anchor.
     }
-    expect(readProfileManifest('t', resolveProfileDir('web', home)).dsh?.profile?.bundles)
+    expect(readProfileManifest('t', resolveProfileDir('web', home)).taskweaver?.profile?.bundles)
       .toEqual([...PROFILE_TEMPLATES.web ?? []])
   })
 
   it('normalizes the retired web surface to the TaskWeaver bundle', () => {
     const anchor = stageInstallation({
-      '@z/dsh-base': { patch: '[]\n' },
+      '@taskweaver/dsh-base': { patch: '[]\n' },
       '@legacy/web-app': { patch: '[]\n' },
-      '@z/dsh-taskweaver': { patch: '[]\n' },
+      '@taskweaver/dsh-taskweaver': { patch: '[]\n' },
       'custom-bundle': { patch: '[]\n' },
     })
     const home = tmp()
     const stock = resolveProfileDir('web', home)
-    initProfile(stock, ['@z/dsh-base', '@legacy/web-app'])
+    initProfile(stock, ['@taskweaver/dsh-base', '@legacy/web-app'])
     loadProfile('t', 'web', anchor, home)
-    expect(readProfileManifest('t', stock).dsh?.profile?.bundles)
-      .toEqual(['@z/dsh-base', '@z/dsh-taskweaver'])
+    expect(readProfileManifest('t', stock).taskweaver?.profile?.bundles)
+      .toEqual(['@taskweaver/dsh-base', '@taskweaver/dsh-taskweaver'])
 
     const customHome = tmp()
     const custom = resolveProfileDir('web', customHome)
-    initProfile(custom, ['@z/dsh-base', '@legacy/web-app', 'custom-bundle'])
+    initProfile(custom, ['@taskweaver/dsh-base', '@legacy/web-app', 'custom-bundle'])
     loadProfile('t', 'web', anchor, customHome)
-    expect(readProfileManifest('t', custom).dsh?.profile?.bundles)
-      .toEqual(['@z/dsh-base', '@legacy/web-app', 'custom-bundle'])
+    expect(readProfileManifest('t', custom).taskweaver?.profile?.bundles)
+      .toEqual(['@taskweaver/dsh-base', '@legacy/web-app', 'custom-bundle'])
   })
 
-  it('fails loud when a listed bundle declares no dsh.bundle', () => {
+  it('fails loud when a listed bundle declares no taskweaver.bundle', () => {
     const anchor = stageInstallation({ 'not-a-bundle': {} })
     const home = tmp()
     const dir = resolveProfileDir('demo', home)
     initProfile(dir, ['not-a-bundle'])
-    expect(() => loadProfile('t', 'demo', anchor, home)).toThrow('declares no dsh.bundle')
+    expect(() => loadProfile('t', 'demo', anchor, home)).toThrow('declares no taskweaver.bundle')
   })
 })
 

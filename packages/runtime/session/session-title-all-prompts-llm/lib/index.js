@@ -1,5 +1,5 @@
-import z from "@z/schemastery";
-import { SessionTitleLlmConfigFields, registerSessionTitleLlmProvider } from "@z/dsh-session-title-llm";
+import z from "@taskweaver/schemastery";
+import { SessionTitleLlmConfigFields, registerSessionTitleLlmProvider } from "@taskweaver/dsh-session-title-llm";
 //#region lib/types/index.js
 /** All-human-messages model provider for `ctx.sessionTitle`. */
 const name = "session-title-all-prompts-llm";

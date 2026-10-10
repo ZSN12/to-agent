@@ -7,10 +7,10 @@
  * infrastructure failures (spawn errors, aborts) surface as isError
  * results.
  *
- * @module @z/dsh-tool-pwsh/render
+ * @module @taskweaver/dsh-tool-pwsh/render
  */
-import type { ShellProcessRead, ShellSandboxInfo, CollectedOutput } from '@z/dsh-shell';
-import type { SandboxMode } from '@z/dsh-sandbox';
+import type { ShellProcessRead, ShellSandboxInfo, CollectedOutput } from '@taskweaver/dsh-shell';
+import type { SandboxMode } from '@taskweaver/dsh-sandbox';
 /** The renderable foreground result shape (the schema-derived value, no `kind`). */
 export interface RenderablePwshResult {
     exitCode: number | null;

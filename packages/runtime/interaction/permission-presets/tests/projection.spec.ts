@@ -10,16 +10,16 @@
  */
 
 import { describe, expect, it, vi } from 'vitest'
-import { Context } from '@z/cordis'
-import SessionStore, { SessionId } from '@z/dsh-session'
-import type { Session } from '@z/dsh-session'
-import type { Agent } from '@z/dsh-agent'
-import { createScope } from '@z/dsh-scope'
-import SessionProjectionRegistry from '@z/dsh-session-projection'
-import CommandRuntime from '@z/dsh-commands'
-import PermissionPresetService from '@z/dsh-permission-presets'
-import type { Config } from '@z/dsh-permission-presets'
-import ApprovalService from '@z/dsh-user-approval'
+import { Context } from '@taskweaver/cordis'
+import SessionStore, { SessionId } from '@taskweaver/dsh-session'
+import type { Session } from '@taskweaver/dsh-session'
+import type { Agent } from '@taskweaver/dsh-agent'
+import { createScope } from '@taskweaver/dsh-scope'
+import SessionProjectionRegistry from '@taskweaver/dsh-session-projection'
+import CommandRuntime from '@taskweaver/dsh-commands'
+import PermissionPresetService from '@taskweaver/dsh-permission-presets'
+import type { Config } from '@taskweaver/dsh-permission-presets'
+import ApprovalService from '@taskweaver/dsh-user-approval'
 
 async function harness(options: { withPermission?: boolean; config?: Config } = {}): Promise<{ ctx: Context; session: Session }> {
   const ctx = new Context()

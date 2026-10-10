@@ -1,7 +1,7 @@
-/** Content-block structure helpers. @module @z/dsh-llm/content */
+/** Content-block structure helpers. @module @taskweaver/dsh-llm/content */
 import type { ContentBlock } from './types.ts';
 import type { Message } from './message.ts';
-import type { ImageAttachmentRef, RequestImageAttachment } from '@z/dsh-attachment';
+import type { ImageAttachmentRef, RequestImageAttachment } from '@taskweaver/dsh-attachment';
 /** Model-facing stand-in for an image removed to fit a provider request bound. */
 export declare const OFFLOADED_IMAGE_TEXT = "[image omitted to keep the request within its image limit; older images are omitted first. If this image is still needed, read its file again when a path is available; otherwise ask the user to attach it again.]";
 /**

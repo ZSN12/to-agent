@@ -1,5 +1,5 @@
-import type { SessionEvent } from '@z/dsh-session/types'
-import type {} from '@z/dsh-tools/types'
+import type { SessionEvent } from '@taskweaver/dsh-session/types'
+import type {} from '@taskweaver/dsh-tools/types'
 import type {
   ConversationNode, RunningToolCall, ToolCallBlock, ToolResultNode,
 } from './conversation.ts'

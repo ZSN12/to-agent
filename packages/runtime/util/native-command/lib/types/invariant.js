@@ -1,28 +1,23 @@
-"use strict";
 /**
- * Package-owned invariant companion for `@z/dsh-native-command`.
- * @module @z/dsh-native-command/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-native-command`.
+ * @module @taskweaver/dsh-native-command/invariant
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.apply = exports.inject = exports.name = void 0;
-var PACKAGE_NAME = '@z/dsh-native-command';
+const PACKAGE_NAME = '@taskweaver/dsh-native-command';
 /** Cordis companion plugin name. */
-exports.name = 'native-command-invariant';
+export const name = 'native-command-invariant';
 /** Service required before the companion can reserve package ownership. */
-exports.inject = ['invariants'];
+export const inject = ['invariants'];
 /**
  * No runtime invariant: each run is one stateless child-process round trip
  * with no owned event stream or mutable runtime data; behavior is enforced by
  * unit tests.
  */
-var install = function () { };
+const install = () => { };
 /**
  * Register this package's invariant companion.
  * @param ctx - Cordis context carrying the invariant service.
  * @returns the installed registration's disposer after setup succeeds.
  */
-var apply = function (ctx) {
-    return Promise.resolve(ctx.invariants.register(PACKAGE_NAME, install));
-};
-exports.apply = apply;
+export const apply = (ctx) => Promise.resolve(ctx.invariants.register(PACKAGE_NAME, install));
 /* jscpd:ignore-end */
+//# sourceMappingURL=invariant.js.map

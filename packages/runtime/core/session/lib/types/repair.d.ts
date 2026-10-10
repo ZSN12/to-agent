@@ -2,7 +2,7 @@
  * Crash-recovery repair for an interrupted session log. It preserves a fully
  * written final turn and supplies the missing tool, step, and turn boundaries
  * needed to resume with a provider-valid transcript.
- * @module @z/dsh-session/repair
+ * @module @taskweaver/dsh-session/repair
  */
 import type { SessionEvent } from './types.ts';
 /** Recovery code for an assistant tool request that never reached a recorded call start. */

@@ -3,10 +3,10 @@
  * supplied each value. Harness consumers resolve through it instead of a flattened
  * `process.env`; launchers may still materialize accepted values for config
  * expressions and third-party libraries.
- * @module @z/dsh-launch-environment
+ * @module @taskweaver/dsh-launch-environment
  */
 
-import type { Context } from '@z/cordis'
+import type { Context } from '@taskweaver/cordis'
 
 /**
  * Which layer supplied a value, from most to least trusted: the environment
@@ -103,7 +103,9 @@ export function createLaunchEnvironmentSnapshot(layers: readonly LaunchEnvironme
 }
 
 /** Context slot the launcher fills with this run's snapshot before any config entry mounts. */
-export const DSH_LAUNCH_ENVIRONMENT_KEY = 'launchEnvironment'
+export const TASKWEAVER_LAUNCH_ENVIRONMENT_KEY = 'launchEnvironment'
+/** @deprecated use TASKWEAVER_LAUNCH_ENVIRONMENT_KEY */
+export const DSH_LAUNCH_ENVIRONMENT_KEY = TASKWEAVER_LAUNCH_ENVIRONMENT_KEY
 
 /**
  * Return the launcher's snapshot, or the inherited environment as the sole
@@ -112,11 +114,11 @@ export const DSH_LAUNCH_ENVIRONMENT_KEY = 'launchEnvironment'
  * @returns the snapshot to resolve user-facing values against.
  */
 export function launchEnvironmentOf(ctx: Context): LaunchEnvironmentSnapshot {
-  return ctx.get(DSH_LAUNCH_ENVIRONMENT_KEY)
+  return ctx.get(TASKWEAVER_LAUNCH_ENVIRONMENT_KEY)
     ?? createLaunchEnvironmentSnapshot([{ source: 'process', values: process.env as Record<string, string> }])
 }
 
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
   interface Context {
     /** Launcher-owned snapshot of this run's environment; absent in compositions the product CLI did not boot. */
     launchEnvironment?: LaunchEnvironmentSnapshot

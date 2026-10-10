@@ -1,9 +1,9 @@
 /**
- * @module @z/dsh-llm-taskweaver-bridge/adapter
+ * @module @taskweaver/dsh-llm-taskweaver-bridge/adapter
  */
-import { LlmAdapter, LlmError } from '@z/dsh-llm';
-import { streamThroughBridge } from '@z/dsh-bridge-core';
-import { resolveDshHome } from '@z/dsh-home-paths';
+import { LlmAdapter, LlmError } from '@taskweaver/dsh-llm';
+import { streamThroughBridge } from '@taskweaver/dsh-bridge-core';
+import { resolveRuntimeHome } from '@taskweaver/dsh-home-paths';
 function modelInfo(provider, entry) {
     return {
         provider,
@@ -59,7 +59,7 @@ export class TaskWeaverBridgeAdapter extends LlmAdapter {
         if (!profile) {
             throw new LlmError(`taskweaver-bridge: unknown provider route "${provider}"`, 'INVALID_PROVIDER');
         }
-        const harnessHome = resolveDshHome();
+        const harnessHome = resolveRuntimeHome();
         yield* streamThroughBridge({
             providerId: provider,
             profile,

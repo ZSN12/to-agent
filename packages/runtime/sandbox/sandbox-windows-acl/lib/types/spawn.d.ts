@@ -6,7 +6,7 @@
  * restriction scheme hidden-console children die with STATUS_DLL_INIT_FAILED
  * (0xC0000142) — verified empirically, see win32-abi.ts. Stdio redirection is
  * pipe-based and unaffected; the child shares the host console.
- * @module @z/dsh-sandbox-windows-acl/spawn
+ * @module @taskweaver/dsh-sandbox-windows-acl/spawn
  */
 import type { NativePtr, Win32Bindings } from './ffi.ts';
 /**

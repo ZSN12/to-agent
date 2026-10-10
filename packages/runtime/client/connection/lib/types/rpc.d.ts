@@ -1,5 +1,5 @@
 /** Generic unary RPC contracts shared by the Host and Client Connection halves. */
-import type { RpcResult } from '@z/dsh-host-apiproxy/api';
+import type { RpcResult } from '@taskweaver/dsh-host-apiproxy/api';
 /** Trust fence applied before a Host RPC channel reaches its handler. */
 export type ConnectionRpcAuthority = 'trusted-host' | 'loopback';
 /** Registration policy for one logical RPC channel. */

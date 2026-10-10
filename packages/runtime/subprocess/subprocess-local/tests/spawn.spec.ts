@@ -9,8 +9,8 @@ import {
   spawnSubprocess,
   taskkillProcessTree,
 } from '../src/spawn.ts'
-import type { SubprocessHandle, SubprocessOutputReader } from '@z/dsh-subprocess'
-import { MAX_TIMER_DELAY_MS } from '@z/dsh-timeout'
+import type { SubprocessHandle, SubprocessOutputReader } from '@taskweaver/dsh-subprocess'
+import { MAX_TIMER_DELAY_MS } from '@taskweaver/dsh-timeout'
 
 /**
  * Translate the suite's POSIX command strings into node one-liners on Windows,
@@ -41,10 +41,10 @@ function shellArgv(command: string): string[] {
     case 'echo "$EXTRA_ONE/$EXTRA_TWO"': return node('console.log(process.env.EXTRA_ONE + "/" + process.env.EXTRA_TWO)')
     case 'echo "$EXPLICIT_OVERRIDE_PASSWORD"': return node('console.log(process.env.EXPLICIT_OVERRIDE_PASSWORD)')
     case 'echo "${SUBPROCESS_TOMBSTONE_PROBE:-absent}"': return node('console.log(process.env.SUBPROCESS_TOMBSTONE_PROBE ?? "absent")')
-    case 'echo "[${DSH_STALE:-absent}|$DSH_SHELL|$DSH_SESSION_ID]"':
-      return node('console.log("[" + [process.env.DSH_STALE ?? "absent", process.env.DSH_SHELL, process.env.DSH_SESSION_ID].join("|") + "]")')
-    case 'echo "[${DSH_TEST_API_KEY:-absent}|${DSH_TEST_TOKEN:-absent}|${SUBPROCESS_TEST_PASSWORD:-absent}|${DSH_TEST_PLAIN:-absent}]"':
-      return node('console.log("[" + [process.env.DSH_TEST_API_KEY ?? "absent", process.env.DSH_TEST_TOKEN ?? "absent", process.env.SUBPROCESS_TEST_PASSWORD ?? "absent", process.env.DSH_TEST_PLAIN ?? "absent"].join("|") + "]")')
+    case 'echo "[${TASKWEAVER_STALE:-absent}|$TASKWEAVER_SHELL|$TASKWEAVER_SESSION_ID]"':
+      return node('console.log("[" + [process.env.TASKWEAVER_STALE ?? "absent", process.env.TASKWEAVER_SHELL, process.env.TASKWEAVER_SESSION_ID].join("|") + "]")')
+    case 'echo "[${TASKWEAVER_TEST_API_KEY:-absent}|${TASKWEAVER_TEST_TOKEN:-absent}|${SUBPROCESS_TEST_PASSWORD:-absent}|${TASKWEAVER_TEST_PLAIN:-absent}]"':
+      return node('console.log("[" + [process.env.TASKWEAVER_TEST_API_KEY ?? "absent", process.env.TASKWEAVER_TEST_TOKEN ?? "absent", process.env.SUBPROCESS_TEST_PASSWORD ?? "absent", process.env.TASKWEAVER_TEST_PLAIN ?? "absent"].join("|") + "]")')
     case 'printf "%.0sx" $(seq 1 500)': return node('process.stdout.write("x".repeat(500))')
     case 'printf "%.0sx" $(seq 1 500); printf "%.0se" $(seq 1 500) >&2':
       return node('process.stdout.write("x".repeat(500)); process.stderr.write("e".repeat(500))')
@@ -754,8 +754,8 @@ describe.skipIf(process.platform === 'win32')('tree-survivor escalation (termina
   })
 
   it('service teardown awaits tree survivors, not just handle settlement', async () => {
-    const { Context } = await import('@z/cordis')
-    const { default: LocalSubprocessRuntime } = await import('@z/dsh-subprocess-local')
+    const { Context } = await import('@taskweaver/cordis')
+    const { default: LocalSubprocessRuntime } = await import('@taskweaver/dsh-subprocess-local')
     const ctx = new Context()
     const fiber = await ctx.plugin(LocalSubprocessRuntime)
     ;(ctx.subprocess as InstanceType<typeof LocalSubprocessRuntime>).internals = { spillDir }
@@ -832,7 +832,7 @@ describe('coverage seams', () => {
   it('childEnv keeps the POSIX spread on non-Windows hosts', () => {
     const platform = vi.spyOn(process, 'platform', 'get').mockReturnValue('linux')
     try {
-      expect(childEnv({ DSH_X: '1' }).DSH_X).toBe('1')
+      expect(childEnv({ TASKWEAVER_X: '1' }).TASKWEAVER_X).toBe('1')
     } finally {
       platform.mockRestore()
     }
@@ -1039,34 +1039,34 @@ describe('abort edge cases', () => {
 
 describe('environment and spill-file hardening', () => {
   it('scrubs credential-shaped and ambient DSH env vars from child processes', async () => {
-    process.env.DSH_TEST_API_KEY = 'super-secret'
-    process.env.DSH_TEST_TOKEN = 'also-secret'
+    process.env.TASKWEAVER_TEST_API_KEY = 'super-secret'
+    process.env.TASKWEAVER_TEST_TOKEN = 'also-secret'
     process.env.SUBPROCESS_TEST_PASSWORD = 'password-secret'
-    process.env.DSH_TEST_PLAIN = 'visible'
+    process.env.TASKWEAVER_TEST_PLAIN = 'visible'
     try {
       const result = await finish(spawnSubprocess(spec(
-        'echo "[${DSH_TEST_API_KEY:-absent}|${DSH_TEST_TOKEN:-absent}|${SUBPROCESS_TEST_PASSWORD:-absent}|${DSH_TEST_PLAIN:-absent}]"',
+        'echo "[${TASKWEAVER_TEST_API_KEY:-absent}|${TASKWEAVER_TEST_TOKEN:-absent}|${SUBPROCESS_TEST_PASSWORD:-absent}|${TASKWEAVER_TEST_PLAIN:-absent}]"',
       )))
       expect(result.stdout.text.trim()).toBe('[absent|absent|absent|absent]')
     } finally {
-      delete process.env.DSH_TEST_API_KEY
-      delete process.env.DSH_TEST_TOKEN
+      delete process.env.TASKWEAVER_TEST_API_KEY
+      delete process.env.TASKWEAVER_TEST_TOKEN
       delete process.env.SUBPROCESS_TEST_PASSWORD
-      delete process.env.DSH_TEST_PLAIN
+      delete process.env.TASKWEAVER_TEST_PLAIN
     }
   })
 
-  it('forwards explicit DSH_* env entries while scrubbing ambient ones', async () => {
-    // Both facts through one explicit map: the ambient DSH_STALE is dropped by
+  it('forwards explicit TASKWEAVER_* env entries while scrubbing ambient ones', async () => {
+    // Both facts through one explicit map: the ambient TASKWEAVER_STALE is dropped by
     // the scrub, and the deliberately supplied current values merge after it.
-    process.env.DSH_STALE = 'old-value'
+    process.env.TASKWEAVER_STALE = 'old-value'
     try {
-      const result = await finish(spawnSubprocess(spec('echo "[${DSH_STALE:-absent}|$DSH_SHELL|$DSH_SESSION_ID]"', {
-        env: { DSH_SHELL: '1', DSH_SESSION_ID: 'current-session' },
+      const result = await finish(spawnSubprocess(spec('echo "[${TASKWEAVER_STALE:-absent}|$TASKWEAVER_SHELL|$TASKWEAVER_SESSION_ID]"', {
+        env: { TASKWEAVER_SHELL: '1', TASKWEAVER_SESSION_ID: 'current-session' },
       })))
       expect(result.stdout.text.trim()).toBe('[absent|1|current-session]')
     } finally {
-      delete process.env.DSH_STALE
+      delete process.env.TASKWEAVER_STALE
     }
   })
 

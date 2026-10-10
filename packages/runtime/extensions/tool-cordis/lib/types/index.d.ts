@@ -1,8 +1,8 @@
 /**
  * Model-facing Cordis runtime/package inspection, define, run, stop, and remove tools.
- * @module @z/dsh-tool-cordis
+ * @module @taskweaver/dsh-tool-cordis
  */
-import type { Context } from '@z/cordis';
+import type { Context } from '@taskweaver/cordis';
 export declare const name = "tool-cordis";
 export declare const inject: string[];
 /** Register the Cordis tools and explicit `@pluginId` context injection. */

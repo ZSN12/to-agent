@@ -10,10 +10,10 @@
  * disposing the old instance and creating a new one; identical `serverName`
  * reproduces identical public tool names.
  *
- * @module @z/dsh-mcp-client
+ * @module @taskweaver/dsh-mcp-client
  */
-import type { Context } from '@z/cordis';
-import z from '@z/schemastery';
+import type { Context } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
 import type { ReconnectConfig } from './connection.ts';
 export type { McpResult } from './tools.ts';
 export type { ReconnectConfig, ResolvedReconnectPolicy } from './connection.ts';
@@ -37,12 +37,21 @@ export interface StdioConfig {
     args: string[];
     /** Extra env vars merged on top of scrubbed ambient env. */
     env: Record<string, string>;
-    /** Working directory for the child process. */
+    /**
+     * Map child env keys to host `process.env` names (values are read when the
+     * transport is created; avoids `!!js` in Cordis patch overlays).
+     */
+    processEnv?: Record<string, string>;
+    /** Working directory for the child process; empty uses `process.cwd()`. */
     cwd: string;
     /** Per-tool-call timeout in milliseconds. */
     toolCallTimeoutMs: number;
+    /** Maximum time to establish one connection attempt (default 30 seconds). */
+    connectTimeoutMs?: number;
     /** Fail plugin activation when the initial connection or tool synchronization fails. */
     failOnStartupError: boolean;
+    /** How long plugin activation may wait for the first connection (default 0). */
+    startupWaitMs?: number;
     /** Automatic reconnect policy after a lost connection; omission uses the defaults. */
     reconnect?: ReconnectConfig;
 }
@@ -60,10 +69,19 @@ export interface StreamableHttpConfig {
     url: string;
     /** Additional headers attached to MCP requests. */
     headers: Record<string, string>;
+    /**
+     * Host env var holding the bearer token for `Authorization: Bearer …`.
+     * Resolved when the transport is created.
+     */
+    bearerTokenEnvVar?: string;
     /** Per-tool-call timeout in milliseconds. */
     toolCallTimeoutMs: number;
+    /** Maximum time to establish one connection attempt (default 30 seconds). */
+    connectTimeoutMs?: number;
     /** Fail plugin activation when the initial connection or tool synchronization fails. */
     failOnStartupError: boolean;
+    /** How long plugin activation may wait for the first connection (default 0). */
+    startupWaitMs?: number;
     /** Automatic reconnect policy after a lost connection; omission uses the defaults. */
     reconnect?: ReconnectConfig;
 }
@@ -76,7 +94,7 @@ export declare const Config: z<Config>;
  * ordinary function as a constructor, whose returned Promise is not startup work.
  * @param ctx - plugin context carrying the tool registry.
  * @param config - resolved transport and server namespace configuration.
- * @returns startup readiness after connection and initial tool discovery settle.
+ * @returns startup readiness according to the configured wait policy.
  */
 export declare function apply(ctx: Context, config: Config): Promise<void>;
 //# sourceMappingURL=index.d.ts.map

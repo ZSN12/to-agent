@@ -1,4 +1,4 @@
-import type { StreamChunk } from '@z/dsh-llm/types';
+import type { StreamChunk } from '@taskweaver/dsh-llm/types';
 import type { AssistantBlock, PartialAssistant } from './conversation.ts';
 /**
  * Whether a stream chunk changes the partial assistant projection shown by the UI.

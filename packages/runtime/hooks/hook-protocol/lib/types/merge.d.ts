@@ -3,7 +3,7 @@
  * is `deny > ask > allow`; the first `continue:false` stop is sticky; reasons
  * for the winning rank are joined; and context and system messages accumulate
  * in hook order.
- * @module @z/dsh-hook-protocol/merge
+ * @module @taskweaver/dsh-hook-protocol/merge
  */
 import type { HookOutput } from './types.ts';
 /** The single decision a hook point resolves to after merging all matched hooks. */

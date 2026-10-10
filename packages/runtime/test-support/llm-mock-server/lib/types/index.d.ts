@@ -3,7 +3,7 @@
  * semantic-empty LLM recovery tests. Each accepted chat-completions request
  * consumes one behavior; the server never retries or interprets harness policy.
  *
- * @module @z/dsh-llm-mock-server
+ * @module @taskweaver/dsh-llm-mock-server
  */
 import type { IncomingHttpHeaders } from 'node:http';
 /** Request-scoped behaviors accepted by {@link startMockLlmServer}. */

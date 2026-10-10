@@ -3,10 +3,10 @@
  * only: selected values remain ordinary prompt text and file contents stay
  * behind the model-facing `read` tool.
  *
- * @module @z/dsh-file-reference-local/search
+ * @module @taskweaver/dsh-file-reference-local/search
  */
-import type { FileReferenceCandidate } from '@z/dsh-file-reference';
-export { activeAtToken, formatFileMention } from '@z/dsh-file-reference/grammar';
+import type { FileReferenceCandidate } from '@taskweaver/dsh-file-reference';
+export { activeAtToken, formatFileMention } from '@taskweaver/dsh-file-reference/grammar';
 /** Default maximum file and directory candidates rendered for one query. */
 export declare const DEFAULT_FILE_SEARCH_MAX_RESULTS = 20;
 /** Default maximum entries retained in one workspace search index. */

@@ -6,14 +6,14 @@
  * continuation host in `./continuation.ts` — so this module stays the published
  * surface rather than a bag of everything type-shaped.
  *
- * @module @z/dsh-subagent/types
+ * @module @taskweaver/dsh-subagent/types
  */
 
-import type { Agent, AgentOptions } from '@z/dsh-agent'
-import type { Branded } from '@z/dsh-brand'
-import type { ContentBlock } from '@z/dsh-llm'
-import type { SessionEvent, SessionId } from '@z/dsh-session'
-import type { ObjectJsonSchema, ToolRestriction } from '@z/dsh-tools'
+import type { Agent, AgentOptions } from '@taskweaver/dsh-agent'
+import type { Branded } from '@taskweaver/dsh-brand'
+import type { ContentBlock } from '@taskweaver/dsh-llm'
+import type { SessionEvent, SessionId } from '@taskweaver/dsh-session'
+import type { ObjectJsonSchema, ToolRestriction } from '@taskweaver/dsh-tools'
 import type { SubagentDescriptorData } from './descriptor.ts'
 
 /** Identifies one accepted subagent run across its lifecycle event pair. */

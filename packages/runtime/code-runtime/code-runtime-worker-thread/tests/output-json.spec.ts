@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { CodeJsonValue } from '@z/dsh-code-runtime'
+import type { CodeJsonValue } from '@taskweaver/dsh-code-runtime'
 import { jsonStringBytesUpTo, jsonValueBytesUpTo, truncateJsonStringBytes } from '../src/output-json.ts'
 
 describe('truncateJsonStringBytes', () => {

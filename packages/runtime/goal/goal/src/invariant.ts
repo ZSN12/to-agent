@@ -1,12 +1,12 @@
-/** Package-owned durable goal-stream invariants. @module @z/dsh-goal/invariant */
+/** Package-owned durable goal-stream invariants. @module @taskweaver/dsh-goal/invariant */
 
-import type { Context } from '@z/cordis'
-import type { InvariantFailure, InvariantInstaller } from '@z/dsh-invariants'
-import type { Session, SessionEvent } from '@z/dsh-session'
+import type { Context } from '@taskweaver/cordis'
+import type { InvariantFailure, InvariantInstaller } from '@taskweaver/dsh-invariants'
+import type { Session, SessionEvent } from '@taskweaver/dsh-session'
 import { applyGoalEvent, emptyGoalFoldState } from './fold.ts'
 import type { GoalFoldState } from './fold.ts'
 
-const PACKAGE_NAME = '@z/dsh-goal'
+const PACKAGE_NAME = '@taskweaver/dsh-goal'
 
 /** Cordis companion plugin name. */
 export const name = 'goal-invariant'

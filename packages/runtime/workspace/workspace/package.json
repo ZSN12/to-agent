@@ -1,5 +1,5 @@
 {
-  "name": "@z/dsh-workspace",
+  "name": "@taskweaver/dsh-workspace",
   "description": "Workspace entity registry (ctx.workspaceRegistry): durable workspace records with validated session attachment over the domain data form for the DeepSeek Harness",
   "version": "0.1.1-rc.2",
   "publishConfig": {
@@ -8,7 +8,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
-    "directory": "packages/workspace/workspace"
+    "directory": "packages/runtime/workspace/workspace"
   },
   "type": "module",
   "main": "lib/index.js",
@@ -37,24 +37,24 @@
   ],
   "license": "MIT",
   "peerDependencies": {
-    "@z/dsh-brand": "workspace:^",
-    "@z/dsh-storage-domain": "workspace:^",
-    "@z/dsh-invariants": "workspace:^",
-    "@z/dsh-session": "workspace:^",
-    "@z/dsh-session-persistence": "workspace:^",
-    "@z/dsh-storage": "workspace:^",
-    "@z/cordis": "workspace:^"
+    "@taskweaver/dsh-brand": "workspace:^",
+    "@taskweaver/dsh-storage-domain": "workspace:^",
+    "@taskweaver/dsh-invariants": "workspace:^",
+    "@taskweaver/dsh-session": "workspace:^",
+    "@taskweaver/dsh-session-persistence": "workspace:^",
+    "@taskweaver/dsh-storage": "workspace:^",
+    "@taskweaver/cordis": "workspace:^"
   },
   "dependencies": {
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@z/dsh-brand": "workspace:^",
-    "@z/dsh-storage-domain": "workspace:^",
-    "@z/dsh-invariants": "workspace:^",
-    "@z/dsh-session": "workspace:^",
-    "@z/dsh-session-persistence": "workspace:^",
-    "@z/dsh-storage": "workspace:^",
-    "@z/cordis": "workspace:^"
+    "@taskweaver/dsh-brand": "workspace:^",
+    "@taskweaver/dsh-storage-domain": "workspace:^",
+    "@taskweaver/dsh-invariants": "workspace:^",
+    "@taskweaver/dsh-session": "workspace:^",
+    "@taskweaver/dsh-session-persistence": "workspace:^",
+    "@taskweaver/dsh-storage": "workspace:^",
+    "@taskweaver/cordis": "workspace:^"
   }
 }

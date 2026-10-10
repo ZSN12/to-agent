@@ -1,5 +1,5 @@
 /** Shared immutable-header checks for logical session source observers. */
-import type { SessionHeader } from '@z/dsh-session';
+import type { SessionHeader } from '@taskweaver/dsh-session';
 /**
  * Reject incompatible observations of one logical session source.
  * @param a - first live, listed, or loaded header observation.

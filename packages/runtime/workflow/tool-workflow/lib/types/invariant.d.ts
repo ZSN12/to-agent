@@ -1,5 +1,5 @@
-/** Package-owned durable workflow-record invariants. @module @z/dsh-tool-workflow/invariant */
-import type { Context } from '@z/cordis';
+/** Package-owned durable workflow-record invariants. @module @taskweaver/dsh-tool-workflow/invariant */
+import type { Context } from '@taskweaver/cordis';
 /** Cordis companion plugin name. */
 export declare const name = "tool-workflow-invariant";
 /** Services required to validate existing and newly appended Session logs. */

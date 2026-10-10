@@ -1,5 +1,5 @@
-import { defineProperty, isNullable } from '@z/cosmokit'
-import type { Dict } from '@z/cosmokit'
+import { defineProperty, isNullable } from '@taskweaver/cosmokit'
+import type { Dict } from '@taskweaver/cosmokit'
 import { Context } from './context.ts'
 import { getTraceable, symbols, withProps } from './utils.ts'
 import { Fiber, FiberState } from './fiber.ts'

@@ -3,12 +3,12 @@
  * real CLI process under the shared subprocess owner, map only strict SDK
  * success to completion, and dispose to whole-tree quiescence.
  *
- * @module @z/dsh-subagent-claude-code/run
+ * @module @taskweaver/dsh-subagent-claude-code/run
  */
 import { type Options, type Query, type SDKMessage, type SDKResultMessage } from '@anthropic-ai/claude-agent-sdk';
-import type { ContentBlock } from '@z/dsh-llm';
-import { type SubagentResult, type SubagentRun, type SubagentStartRequest, type SubagentStopReason } from '@z/dsh-subagent';
-import { type SubprocessHandle, type SubprocessSpawnSpec } from '@z/dsh-subprocess';
+import type { ContentBlock } from '@taskweaver/dsh-llm';
+import { type SubagentResult, type SubagentRun, type SubagentStartRequest, type SubagentStopReason } from '@taskweaver/dsh-subagent';
+import { type SubprocessHandle, type SubprocessSpawnSpec } from '@taskweaver/dsh-subprocess';
 import { ManagedClaudeCodeProcess } from './process.ts';
 /** Default POSIX grace between subprocess termination tiers. */
 export declare const DEFAULT_DISPOSE_GRACE_MS = 3000;

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Deployed-runtime bootstrap — see `deploy-layout.ts`.
- * @module @z/dsh/entry
+ * @module @taskweaver/dsh/entry
  */
 import { basename, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';

@@ -3,19 +3,19 @@
  * and bridges bindings over its message port. This is containment, not a security boundary:
  * model code has bash-equivalent trust despite an empty environment, a heap cap, measured
  * event-loop busy-time and wall-time budgets, and termination that also stops synchronous loops.
- * @module @z/dsh-code-runtime-worker-thread
+ * @module @taskweaver/dsh-code-runtime-worker-thread
  */
 
 import { Worker } from 'node:worker_threads'
 import { stripTypeScriptTypes } from 'node:module'
 import type { Readable } from 'node:stream'
 import { fileURLToPath } from 'node:url'
-import { Context } from '@z/cordis'
-import z from '@z/schemastery'
-import { MAX_TIMER_DELAY_MS } from '@z/dsh-timeout'
-import { CodeRuntime, DUNDER_MEMBER, PORTABLE_RESERVED_WORDS, RESERVED_BINDING_GLOBALS, RESERVED_ERROR_MEMBERS } from '@z/dsh-code-runtime'
-import type { CodeBindingNamespace, CodeJsonValue, CodeRunFailure, CodeRunRequest, CodeRunResult } from '@z/dsh-code-runtime'
-import { snapshotJsonValue } from '@z/dsh-session'
+import { Context } from '@taskweaver/cordis'
+import z from '@taskweaver/schemastery'
+import { MAX_TIMER_DELAY_MS } from '@taskweaver/dsh-timeout'
+import { CodeRuntime, DUNDER_MEMBER, PORTABLE_RESERVED_WORDS, RESERVED_BINDING_GLOBALS, RESERVED_ERROR_MEMBERS } from '@taskweaver/dsh-code-runtime'
+import type { CodeBindingNamespace, CodeJsonValue, CodeRunFailure, CodeRunRequest, CodeRunResult } from '@taskweaver/dsh-code-runtime'
+import { snapshotJsonValue } from '@taskweaver/dsh-session'
 import type { ReplyMessage, WorkerBootData, WorkerToHost } from './protocol.ts'
 import { jsonStringBytesUpTo, jsonValueBytesUpTo, truncateJsonStringBytes } from './output-json.ts'
 import { decodeWorkerJson, encodeWorkerJson } from './worker-json.ts'

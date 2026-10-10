@@ -44,7 +44,7 @@ import {
   LlmAdapter,
   LlmError,
   ReasoningEffortId,
-} from '@z/dsh-llm'
+} from '@taskweaver/dsh-llm'
 import type {
   GenerateOptions,
   LlmModelInfo,
@@ -54,9 +54,9 @@ import type {
   ReasoningEffortId as ReasoningEffortIdType,
   ResolvedRetryPolicy,
   StreamChunk,
-} from '@z/dsh-llm'
-import type { AttachmentStore } from '@z/dsh-attachment'
-import { idleWatchdog, timeoutOf } from '@z/dsh-timeout'
+} from '@taskweaver/dsh-llm'
+import type { AttachmentStore } from '@taskweaver/dsh-attachment'
+import { idleWatchdog, timeoutOf } from '@taskweaver/dsh-timeout'
 import type { ResolvedPiAiProviderProfile } from './config.ts'
 import { toPiContext } from './context.ts'
 import { toStreamChunks } from './stream.ts'
@@ -98,6 +98,22 @@ export interface PiAiAdapterOptions {
    * conversion because its stored replay state is unusable by this build.
    */
   onReplayDegrade?: (detail: { provider: string; model: string; reason: string }) => void
+}
+
+/** Map the provider-neutral contract to the exact OpenAI wire field. */
+function structuredOutputParams(api: string, schema: GenerateOptions['outputSchema']): Record<string, unknown> | undefined {
+  if (schema === undefined) return undefined
+  const format = { type: 'json_schema', name: 'taskweaver_output', strict: true, schema }
+  if (api === 'openai-completions') {
+    return { response_format: { type: 'json_schema', json_schema: { name: format.name, strict: true, schema } } }
+  }
+  if (api === 'openai-responses' || api === 'azure-openai-responses') {
+    return { text: { format } }
+  }
+  throw new LlmError(
+    `pi-ai API "${api}" does not support TaskWeaver structured output`,
+    'UNSUPPORTED_OPTION',
+  )
 }
 
 /** The two auth injectables a pi-ai collection is built with. */
@@ -373,6 +389,7 @@ export class PiAiAdapter extends LlmAdapter {
       const onReplayDegrade = (reason: string): void => {
         this.config.onReplayDegrade?.({ provider: options.provider, model: options.model, reason })
       }
+      const samplingParams = structuredOutputParams(model.api, options.outputSchema)
       const context = attachments === undefined
         ? toPiContext(options, undefined, onReplayDegrade)
         : await toPiContext({ ...options, signal: watchdog.signal }, attachments, onReplayDegrade, profile.maxRequestImageBytes, {
@@ -384,6 +401,7 @@ export class PiAiAdapter extends LlmAdapter {
         ...options.temperature === undefined ? {} : { temperature: options.temperature },
         ...options.maxTokens === undefined ? {} : { maxTokens: options.maxTokens },
         ...options.sessionId === undefined ? {} : { sessionId: String(options.sessionId) },
+        ...samplingParams === undefined ? {} : { samplingParams },
         signal: watchdog.signal,
         // Profile headers are deployment-owned; attribution names are
         // Harness-owned and therefore win collisions.

@@ -1,39 +1,20 @@
-"use strict";
 /**
  * Service Definition for the spill storage capability seam (`ctx.spillStore`): an abstract service defining WHAT a
  * spill backend does — persist a tool's oversized text and return a model-facing
  * locator plus retrieval guidance — without saying HOW. Implementations
  * subclass {@link SpillStore} and register as the `spillStore` service;
- * `@z/dsh-spill-local` (host filesystem) is the first.
+ * `@taskweaver/dsh-spill-local` (host filesystem) is the first.
  *
  * The Service Definition is deliberately minimal: `saveText` and nothing else. It owns NO
- * retention policy (that is `@z/dsh-output-retention`), NO tool-result
- * replacement (that is `@z/dsh-spill-policy`), and NO retrieval or
+ * retention policy (that is `@taskweaver/dsh-output-retention`), NO tool-result
+ * replacement (that is `@taskweaver/dsh-spill-policy`), and NO retrieval or
  * search API. The backend supplies the locator and retrieval hint appropriate
  * for its storage substrate.
  *
- * @module @z/dsh-spill
+ * @module @taskweaver/dsh-spill
  */
-var __extends = (this && this.__extends) || (function () {
-    var extendStatics = function (d, b) {
-        extendStatics = Object.setPrototypeOf ||
-            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-            function (d, b) { for (var p in b) if (Object.prototype.hasOwnProperty.call(b, p)) d[p] = b[p]; };
-        return extendStatics(d, b);
-    };
-    return function (d, b) {
-        if (typeof b !== "function" && b !== null)
-            throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
-})();
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.SpillStore = exports.SpillLocator = void 0;
-var cordis_1 = require("@z/cordis");
-var types_ts_1 = require("./types.ts");
-Object.defineProperty(exports, "SpillLocator", { enumerable: true, get: function () { return types_ts_1.SpillLocator; } });
+import { Service } from '@taskweaver/cordis';
+export { SpillLocator } from "./types.js";
 /**
  * Abstract spill storage service. Subclass, implement {@link saveText}, and load
  * the subclass as a plugin — it registers as `ctx.spillStore` (one
@@ -50,12 +31,10 @@ Object.defineProperty(exports, "SpillLocator", { enumerable: true, get: function
  *   unavailable); the caller decides how to degrade (the spill policy treats a
  *   rejection as best-effort and keeps the inline result).
  */
-var SpillStore = /** @class */ (function (_super) {
-    __extends(SpillStore, _super);
-    function SpillStore(ctx) {
-        return _super.call(this, ctx, 'spillStore') || this;
+export class SpillStore extends Service {
+    constructor(ctx) {
+        super(ctx, 'spillStore');
     }
-    return SpillStore;
-}(cordis_1.Service));
-exports.SpillStore = SpillStore;
-exports.default = SpillStore;
+}
+export default SpillStore;
+//# sourceMappingURL=index.js.map

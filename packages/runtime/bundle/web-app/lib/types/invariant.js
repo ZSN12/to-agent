@@ -1,8 +1,8 @@
 /**
- * Package-owned invariant companion for `@z/dsh-web-app`.
- * @module @z/dsh-web-app/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-web-app`.
+ * @module @taskweaver/dsh-web-app/invariant
  */
-const PACKAGE_NAME = '@z/dsh-web-app';
+const PACKAGE_NAME = '@taskweaver/dsh-web-app';
 /** Cordis companion plugin name. */
 export const name = 'web-app-invariant';
 /** Service required before the companion can register. */

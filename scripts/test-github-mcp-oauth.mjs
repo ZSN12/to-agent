@@ -4,10 +4,13 @@ import {
   createGitHubAuthorizationUrl,
   exchangeGitHubAuthorizationCode,
   requestGitHubDeviceCode,
-} from '../electron/backend/github-mcp-oauth.mjs'
-import { isGitHubMcpOAuthConfigured } from '../electron/backend/github-mcp-oauth-app.mjs'
+  runGitHubMcpOAuthLogin,
+  startGitHubOAuthCallbackServer,
+} from '../desktop/backend/github-mcp-oauth.mjs'
+import { isGitHubMcpOAuthConfigured } from '../desktop/backend/github-mcp-oauth-app.mjs'
 
 const hadClientId = process.env.TASKWEAVER_GITHUB_OAUTH_CLIENT_ID
+const hadClientSecret = process.env.TASKWEAVER_GITHUB_OAUTH_CLIENT_SECRET
 process.env.TASKWEAVER_GITHUB_OAUTH_CLIENT_ID = 'test_client_id'
 process.env.TASKWEAVER_GITHUB_OAUTH_CLIENT_SECRET = 'test_secret'
 
@@ -61,8 +64,45 @@ const exchanged = await exchangeGitHubAuthorizationCode({
 assert.equal(exchanged.accessToken, 'oauth_at')
 assert.match(lastTokenBody, /code_verifier=/)
 
+const callbackServer = await startGitHubOAuthCallbackServer('expected-state', '/callback', { timeoutMs: 120 })
+const pendingCode = callbackServer.waitForCode()
+let callbackSettled = false
+void pendingCode.then(() => { callbackSettled = true })
+const invalidStateResponse = await fetch(`${callbackServer.redirectUri}?state=invalid-state&error=access_denied`)
+assert.equal(invalidStateResponse.status, 400)
+assert.match(await invalidStateResponse.text(), /State 不匹配/)
+await new Promise(resolve => setTimeout(resolve, 10))
+assert.equal(callbackSettled, false, 'state 不匹配只显示错误页，不应结束仍在等待的授权')
+assert.equal(await pendingCode, null, '回调服务器达到配置的超时后应结束等待')
+callbackServer.close()
+
+let browserOpenCount = 0
+const loginStatuses = []
+const login = await runGitHubMcpOAuthLogin({
+  onStatus: status => loginStatuses.push(status),
+  openExternal: async authorizationUrl => {
+    browserOpenCount++
+    const authorization = new URL(authorizationUrl)
+    const callbackUrl = new URL(authorization.searchParams.get('redirect_uri'))
+    callbackUrl.searchParams.set('state', authorization.searchParams.get('state'))
+    callbackUrl.searchParams.set('code', 'callback_code')
+    const response = await fetch(callbackUrl)
+    assert.equal(response.status, 200)
+  },
+})
+assert.equal(login.accessToken, 'oauth_at')
+assert.equal(browserOpenCount, 1)
+assert.ok(loginStatuses.some(status => status.status === 'auth_url' && status.url))
+
+const mcpIpcSource = await (await import('node:fs/promises')).readFile(
+  new URL('../desktop/backend/ipc/register-mcp-ipc.mjs', import.meta.url),
+  'utf8',
+)
+assert.doesNotMatch(mcpIpcSource, /if\s*\(statusInfo\?\.url\)\s*shell\.openExternal/)
+
 if (hadClientId) process.env.TASKWEAVER_GITHUB_OAUTH_CLIENT_ID = hadClientId
 else delete process.env.TASKWEAVER_GITHUB_OAUTH_CLIENT_ID
-delete process.env.TASKWEAVER_GITHUB_OAUTH_CLIENT_SECRET
+if (hadClientSecret) process.env.TASKWEAVER_GITHUB_OAUTH_CLIENT_SECRET = hadClientSecret
+else delete process.env.TASKWEAVER_GITHUB_OAUTH_CLIENT_SECRET
 
 console.log('github-mcp-oauth unit checks passed')

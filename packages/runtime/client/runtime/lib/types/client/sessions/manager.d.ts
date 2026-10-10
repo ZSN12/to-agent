@@ -1,4 +1,4 @@
-import type { IApiClient, HostFrame, MuxFrame, RpcError, RpcRequest, RpcResult, SessionId, SubagentAddress, SubagentCatalog, JobView, WorkspaceId } from '@z/dsh-api-remotes/client';
+import type { IApiClient, HostFrame, MuxFrame, RpcError, RpcRequest, RpcResult, SessionId, SubagentAddress, SubagentCatalog, JobView, WorkspaceId } from '@taskweaver/dsh-api-remotes/client';
 import type { ConversationRuntime } from './conversation-assembler.ts';
 import type { SessionListEntry } from './lineage.ts';
 import { Session } from './session.ts';

@@ -4,18 +4,19 @@
  * else references RequestPayload<'session.*'> / ResponseValue<'session.*'>.
  */
 
-import type { MessageId } from '@z/dsh-llm/brand'
-import type { AttachmentIdType, ImageAttachmentLimits, ImageAttachmentRef, ImageMediaType } from '@z/dsh-attachment'
-import type { ContentBlock } from '@z/dsh-llm/types'
-import type { SessionEvent, SessionId } from '@z/dsh-session/types'
+import type { MessageId } from '@taskweaver/dsh-llm/brand'
+import type { AttachmentIdType, ImageAttachmentLimits, ImageAttachmentRef, ImageMediaType } from '@taskweaver/dsh-attachment'
+import type { ContentBlock } from '@taskweaver/dsh-llm/types'
+import type { SessionEvent, SessionId } from '@taskweaver/dsh-session/types'
 // The pure-type outlet: api/ is browser-importable, and the package root's
 // cordis Context merge (via dsh-agent) must not enter client aggregates.
-import type { SessionProjectionMap } from '@z/dsh-session-projection/types'
+import type { SessionProjectionMap } from '@taskweaver/dsh-session-projection/types'
 import type { RpcId, RpcRequest, RpcResponse } from './rpc.ts'
 import type { ToolEventView } from './events.ts'
 import type { WorkspaceId } from './workspace.ts'
+import type { ObjectJsonSchema } from '@taskweaver/dsh-tools'
 
-declare module '@z/dsh-session-projection/types' {
+declare module '@taskweaver/dsh-session-projection/types' {
   interface SessionProjectionStateMap {
     sessionListMetadata: SessionListMetadata
     imageLimits: null
@@ -47,7 +48,7 @@ export interface SessionListMetadata {
   lastPromptAt: number | null
 }
 
-declare module '@z/dsh-llm' {
+declare module '@taskweaver/dsh-llm' {
   interface MessageSourceMap {
     /**
      * The prompt's rpcId is passed through MessageSource into the `user/message` event
@@ -56,7 +57,13 @@ declare module '@z/dsh-llm' {
      * carries no transport vocabulary; rpcId and the optional Host-validated browser zone are
      * durable JSON fields passed back to the client with the event.
      */
-    'user-rpc': { kind: 'user'; rpcId: RpcId; clientTimeZone?: string }
+    'user-rpc': {
+      kind: 'user'
+      rpcId: RpcId
+      clientTimeZone?: string
+      /** Per-turn structured output contract supplied by trusted Host orchestration. */
+      outputSchema?: ObjectJsonSchema
+    }
   }
 }
 
@@ -87,10 +94,11 @@ export interface SessionProjectionsBlock {
   values: Partial<SessionProjectionMap>
 }
 
-/** Browser-submitted prompt content; the host promotes image bytes to durable references. */
+/** Browser-submitted prompt content; the Host promotes image/document bytes to durable references. */
 export type PromptContentPart =
   | { type: 'text'; text: string }
   | { type: 'image'; mediaType: ImageMediaType; data: string; name?: string }
+  | { type: 'document'; data: string; name: string }
 
 /** Complete model selection for one session. */
 export interface ModelSelection {
@@ -356,6 +364,13 @@ export interface SessionsApi {
     mode: 'queue' | 'steer'
     content: PromptContentPart[]
     clientTimeZone?: string
+    /** Trusted Electron snapshot; ignored for tool access unless both booleans are present. */
+    uiVerifyPolicy?: {
+      workspaceTrusted: boolean
+      autoAllowUiVerify: boolean
+    }
+    /** Object-rooted JSON Schema applied to the model request for this turn. */
+    outputSchema?: ObjectJsonSchema
     /** Reject rather than enqueue/model-dispatch if no native command handles this input. */
     commandOnly?: boolean
   }>):

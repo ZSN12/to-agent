@@ -1,8 +1,8 @@
 /**
- * Package-owned invariant companion for `@z/dsh-code-runtime-worker-thread`.
- * @module @z/dsh-code-runtime-worker-thread/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-code-runtime-worker-thread`.
+ * @module @taskweaver/dsh-code-runtime-worker-thread/invariant
  */
-import type { Context } from '@z/cordis';
+import type { Context } from '@taskweaver/cordis';
 /** Cordis companion plugin name. */
 export declare const name = "code-runtime-worker-thread-invariant";
 /** Service required before the companion can reserve package ownership. */

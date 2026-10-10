@@ -10,8 +10,8 @@
  * execute through `ctx.subprocess.spawn()` with fixed ripgrep argv templates —
  * never `ctx.shell`, never `ctx.shell.start()`, never a model-visible background
  * task. The tool layer owns schemas, argument validation, argv construction
- * ({@link module:@z/dsh-tool-fs-search/glob} /
- * {@link module:@z/dsh-tool-fs-search/grep}), result parsing,
+ * ({@link module:@taskweaver/dsh-tool-fs-search/glob} /
+ * {@link module:@taskweaver/dsh-tool-fs-search/grep}), result parsing,
  * retention, formatted-result spill, and timeout declaration; the subprocess
  * seam owns spawn execution, process-tree termination, environment scrubbing,
  * and raw output capture. The package injects `tools`, `systemPrompt`, and
@@ -23,10 +23,10 @@
  * filesystem `read` root are the same workspace — a documented v1 deployment
  * requirement, not runtime-validated.
  *
- * @module @z/dsh-tool-fs-search
+ * @module @taskweaver/dsh-tool-fs-search
  */
-import type { Context } from '@z/cordis';
-import z from '@z/schemastery';
+import type { Context } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
 export { GLOB_MAX_RESULTS, GLOB_VCS_EXCLUDES, applyGlobTool, buildGlobCommand, formatGlobOutput, parseGlobArgs, presentGlobCall, presentGlobResult, sampleAcrossTopLevel } from './glob.ts';
 export type { GlobInput, GlobSample, GlobToolCaps } from './glob.ts';
 export { GREP_MAX_LINE_BYTES, GREP_MAX_MATCHES, applyGrepTool, buildGrepCommand, formatGrepMatches, formatGrepOutput, parseGrepArgs, parseGrepMatches, presentGrepCall, presentGrepResult, } from './grep.ts';
@@ -59,7 +59,7 @@ export interface Config {
     stderrMaxBytes?: number;
     /**
      * Cooperative tool-call timeout budget (ms) on both tools, enforced by
-     * `@z/dsh-tool-call-timeout-policy` through `exec.signal`.
+     * `@taskweaver/dsh-tool-call-timeout-policy` through `exec.signal`.
      */
     timeoutMs?: number;
 }

@@ -3,14 +3,16 @@
  * tools through nested executions scheduled under the native concurrency
  * contract; each sub-dispatch is logged for reconstruction, while only the
  * outer curated result enters model history.
- * @module @z/dsh-tools/src/code-mode
+ * @module @taskweaver/dsh-tools/src/code-mode
  */
 
-import { CallId, createUserMessage, HarnessError } from '@z/dsh-llm'
-import type { ContentBlock } from '@z/dsh-llm'
-import type { CodeBindingFunction, CodeRunResult, CodeRuntime } from '@z/dsh-code-runtime'
-import { snapshotJsonValue } from '@z/dsh-session'
-import type { JsonValue } from '@z/dsh-session'
+import { CallId, createUserMessage, HarnessError } from '@taskweaver/dsh-llm'
+import type { ContentBlock } from '@taskweaver/dsh-llm'
+import type { CodeBindingFunction, CodeRunResult, CodeRuntime } from '@taskweaver/dsh-code-runtime'
+import type { SandboxExecutionPolicy } from '@taskweaver/dsh-sandbox'
+import type { Agent } from '@taskweaver/dsh-agent'
+import { snapshotJsonValue } from '@taskweaver/dsh-session'
+import type { JsonValue } from '@taskweaver/dsh-session'
 import { defineTool, parameterSchemaSpecToJsonSchema } from './schema.ts'
 import { TOOL_RUNTIME_SCHEDULER } from './index.ts'
 import type { CodeDispatchLog, ToolDefinition, ToolExecutionResult, ToolRuntime, ToolRunContext } from './index.ts'
@@ -269,6 +271,8 @@ type RunCodeOutput = { logs: string[]; result?: JsonValue }
 export interface RunCodeBridgeOptions {
   /** Resolves `ctx.codeRuntime` or throws the loud misconfiguration error (shared with the registry's assembly-time checks). */
   requireRuntime: () => CodeRuntime
+  /** Resolve the current agent's complete filesystem policy when available. */
+  sandboxPolicyFor: (agent?: Agent) => SandboxExecutionPolicy | undefined
   /**
    * Reads `ctx.codeRuntime` without throwing: `undefined` when none is mounted.
    * Lets schema emission tell "no runtime" (degrade to TS; the readers that
@@ -294,7 +298,7 @@ export interface RunCodeBridgeOptions {
  * @returns the registry-ready definition.
  */
 export function createRunCodeTool(registry: ToolRuntime, options: RunCodeBridgeOptions): ToolDefinition {
-  const { requireRuntime, peekRuntime, maxParallel, shapeDispatchLog } = options
+  const { requireRuntime, peekRuntime, sandboxPolicyFor, maxParallel, shapeDispatchLog } = options
   const definition = defineTool({
     name: RUN_CODE_NAME,
     // The description and `code` parameter description are placeholders here:
@@ -619,6 +623,7 @@ export function createRunCodeTool(registry: ToolRuntime, options: RunCodeBridgeO
       try {
         let result: CodeRunResult
         try {
+          const sandboxPolicy = sandboxPolicyFor(exec.agent)
           result = await runtime.run({
             program: args.code,
             bindings: [{
@@ -627,6 +632,7 @@ export function createRunCodeTool(registry: ToolRuntime, options: RunCodeBridgeO
               errorClass: { name: 'ToolCallError', memberNameProperty: 'toolName' },
             }],
             signal: runController.signal,
+            ...(sandboxPolicy === undefined ? {} : { sandboxPolicy }),
           })
         } finally {
           // Abort sub-dispatches and drain every in-flight dispatch before

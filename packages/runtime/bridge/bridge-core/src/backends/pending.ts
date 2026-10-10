@@ -1,10 +1,10 @@
 /**
  * Placeholder backend until opencodex transport is wired in-process per kind.
- * @module @z/dsh-bridge-core/backends/pending
+ * @module @taskweaver/dsh-bridge-core/backends/pending
  */
 
-import { LlmError } from '@z/dsh-llm'
-import type { StreamChunk } from '@z/dsh-llm'
+import { LlmError } from '@taskweaver/dsh-llm'
+import type { StreamChunk } from '@taskweaver/dsh-llm'
 import type { BridgeBackend, BridgeKind, BridgeStreamContext } from '../types.ts'
 
 export function createPendingBridgeBackend(kind: BridgeKind): BridgeBackend {

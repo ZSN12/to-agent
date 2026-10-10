@@ -15,7 +15,7 @@ import { basename, dirname, isAbsolute, relative, resolve as resolvePath, sep } 
 import { fileURLToPath } from 'node:url'
 import type { UserConfig } from 'tsdown'
 import { transform } from 'lightningcss'
-import { clientBuildEnvironmentDefines } from '../../scripts/client-build-environment.ts'
+import { clientBuildEnvironmentDefines } from '../scripts/client-build-environment.ts'
 
 function optionalStringArray(subject: string, field: string, value: unknown): string[] | undefined {
   if (value === undefined) return undefined
@@ -26,11 +26,11 @@ function optionalStringArray(subject: string, field: string, value: unknown): st
 }
 
 const PLATFORM_MODULES = [
-  'react', 'react/jsx-runtime', 'react-dom', 'react-dom/client', '@z/cordis',
+  'react', 'react/jsx-runtime', 'react-dom', 'react-dom/client', '@taskweaver/cordis',
 ] as const
 
 const PRELOADED_CLIENT_EXTERNALS = [
-  '@z/dsh-client-runtime/client',
+  '@taskweaver/dsh-client-runtime/client',
 ] as const
 
 /**
@@ -69,10 +69,10 @@ function styleInjectionModule(
 /**
  * Wire/type layers a client bundle may inline: browser-safe contracts
  * with no runtime identity to share (no Symbol/instanceof/singleton state).
- * Everything else under @z/* is either a module-table entry
+ * Everything else under @taskweaver/* is either a module-table entry
  * (external) or a leak the purity gate rejects.
  */
-export const INLINE_SAFE = /^@z\/dsh-(host-apiproxy|file-reference|session|llm|tools|brand)(\/|$)/
+export const INLINE_SAFE = /^@taskweaver\/dsh-(host-apiproxy|file-reference|session|llm|tools|brand)(\/|$)/
 
 /**
  * Vendored framework libraries: rescoped into @deepseek-ai, so the gate below
@@ -80,10 +80,10 @@ export const INLINE_SAFE = /^@z\/dsh-(host-apiproxy|file-reference|session|llm|t
  * identity to share — the framework itself is a requested module-table row
  * (external), while these are ordinary libraries a browser bundle inlines.
  */
-const VENDORED_LIBRARY = /^@z\/(cosmokit|schemastery)(\/|$)/
+const VENDORED_LIBRARY = /^@taskweaver\/(cosmokit|schemastery)(\/|$)/
 
 /** Generated descriptor/codec contribution with no shared runtime identity. */
-const GENERATED_REMOTE = /^@z\/dsh-[a-z0-9]+(?:-[a-z0-9]+)*\/remote$/
+const GENERATED_REMOTE = /^@taskweaver\/dsh-[a-z0-9]+(?:-[a-z0-9]+)*\/remote$/
 
 /**
  * Workspace mode replaces an empty config array with the root defaults. A
@@ -91,13 +91,16 @@ const GENERATED_REMOTE = /^@z\/dsh-[a-z0-9]+(?:-[a-z0-9]+)*\/remote$/
  */
 const SKIP_WORKSPACE_BUILD: UserConfig = { entry: '' }
 
-const REPOSITORY_ROOT = fileURLToPath(new URL('../..', import.meta.url))
+/** Runtime workspace root (`packages/runtime`), not the monorepo root. */
+const RUNTIME_WORKSPACE_ROOT = fileURLToPath(new URL('..', import.meta.url))
+/** Monorepo root; used for browser sourcemap URLs that mirror `packages/…` paths. */
+const MONOREPO_ROOT = fileURLToPath(new URL('../..', import.meta.url))
 
 /** Rebase a physical lib-relative source onto a browser URL that mirrors the repository directories. */
 function browserSourcePath(source: string, sourcemapPath: string): string {
   if (!source.startsWith('.')) return source
   const physicalSource = resolvePath(dirname(sourcemapPath), source)
-  const repositoryPath = relative(REPOSITORY_ROOT, physicalSource).split(sep).join('/')
+  const repositoryPath = relative(MONOREPO_ROOT, physicalSource).split(sep).join('/')
   return repositoryPath.startsWith('packages/') ? `../../../${repositoryPath}` : source
 }
 
@@ -124,7 +127,7 @@ export function clientBundle(
 ): BuildFaceConfig {
   const lib = clientLibraryConfig(id, libEntry, options.lib)
   return ({ env }) => {
-    const face = buildFace(env?.DSH_BUILD_FACE)
+    const face = buildFace(env?.TASKWEAVER_BUILD_FACE)
     const clientEntry = face === undefined ? 'src/client/index.ts' : 'lib/types/client/index.js'
     const client = clientConfig(id, clientEntry)
     const node = [lib, ...(options.companions ?? [])]
@@ -203,7 +206,7 @@ export function clientLibrary(id: string, libEntry: readonly string[]): BuildFac
  * @returns ENV-selected tsdown config for the Client build face.
  */
 export function clientOnly(configs: readonly UserConfig[]): BuildFaceConfig {
-  return ({ env }) => buildFace(env?.DSH_BUILD_FACE) === 'host'
+  return ({ env }) => buildFace(env?.TASKWEAVER_BUILD_FACE) === 'host'
     ? [SKIP_WORKSPACE_BUILD]
     : [...configs]
 }
@@ -223,7 +226,7 @@ type BuildFaceConfig = (inlineConfig: Pick<UserConfig, 'env'>) => UserConfig[]
 
 function buildFace(value: unknown): BuildFace {
   if (value === undefined || value === 'host' || value === 'client') return value
-  throw new Error(`tsdown: --env.DSH_BUILD_FACE must be host or client, received ${String(value)}`)
+  throw new Error(`tsdown: --env.TASKWEAVER_BUILD_FACE must be host or client, received ${String(value)}`)
 }
 
 function clientLibraryConfig(
@@ -372,15 +375,15 @@ const clientExternalCache = new Map<string, ReadonlySet<string>>()
 function workspaceManifest(id: string): WorkspaceManifest {
   const cached = manifestCache.get(id)
   if (cached !== undefined) return cached
-  for (const manifestPath of globSync('packages/*/*/package.json', { cwd: REPOSITORY_ROOT })) {
+  for (const manifestPath of globSync('*/*/package.json', { cwd: RUNTIME_WORKSPACE_ROOT })) {
     const manifest = JSON.parse(
-      readFileSync(resolvePath(REPOSITORY_ROOT, manifestPath), 'utf8'),
+      readFileSync(resolvePath(RUNTIME_WORKSPACE_ROOT, manifestPath), 'utf8'),
     ) as WorkspaceManifest
     if (manifest.name !== id) continue
     manifestCache.set(id, manifest)
     return manifest
   }
-  throw new Error(`tsdown: no packages/*/*/package.json declares the name ${id}`)
+  throw new Error(`tsdown: no */*/package.json under runtime root declares the name ${id}`)
 }
 
 /**
@@ -499,7 +502,7 @@ function clientConfig(id: string, entry: string): UserConfig {
       // Cross-plugin collaboration goes through cordis services instead.
       name: 'dsh-client-bundle-purity',
       resolveId(source: string) {
-        if (!source.startsWith('@z/')) return null
+        if (!source.startsWith('@taskweaver/')) return null
         if (isRequested(source)) return null // requested module-table row: external wins
         if (VENDORED_LIBRARY.test(source)) return null // vendored library: inline, no shared identity
         if (INLINE_SAFE.test(source) || GENERATED_REMOTE.test(source)) return null // wire contribution: inline is the point

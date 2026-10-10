@@ -1,12 +1,12 @@
-import { createUserMessage } from '@z/dsh-llm'
+import { createUserMessage } from '@taskweaver/dsh-llm'
 import { afterEach, describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
+import { Context } from '@taskweaver/cordis'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import SessionStore, { SessionId } from '@z/dsh-session'
-import JsonlSessionPersistence from '@z/dsh-session-persistence-jsonl'
-import SessionTitleService, { foldSessionTitle } from '@z/dsh-session-title'
+import SessionStore, { SessionId } from '@taskweaver/dsh-session'
+import JsonlSessionPersistence from '@taskweaver/dsh-session-persistence-jsonl'
+import SessionTitleService, { foldSessionTitle } from '@taskweaver/dsh-session-title'
 
 const CONFIG = {
   fallbackMaxWords: 5,

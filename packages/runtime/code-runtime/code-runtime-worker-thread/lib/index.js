@@ -1,12 +1,12 @@
 import { stripTypeScriptTypes } from "node:module";
 import { Worker } from "node:worker_threads";
 import { fileURLToPath } from "node:url";
-import z from "@z/schemastery";
-import { MAX_TIMER_DELAY_MS } from "@z/dsh-timeout";
-import { CodeRuntime, DUNDER_MEMBER, PORTABLE_RESERVED_WORDS, RESERVED_BINDING_GLOBALS, RESERVED_ERROR_MEMBERS } from "@z/dsh-code-runtime";
-import { snapshotJsonValue } from "@z/dsh-session";
+import z from "@taskweaver/schemastery";
+import { MAX_TIMER_DELAY_MS } from "@taskweaver/dsh-timeout";
+import { CodeRuntime, DUNDER_MEMBER, PORTABLE_RESERVED_WORDS, RESERVED_BINDING_GLOBALS, RESERVED_ERROR_MEMBERS } from "@taskweaver/dsh-code-runtime";
+import { snapshotJsonValue } from "@taskweaver/dsh-session";
 //#region lib/types/output-json.js
-/** JSON string-prefix accounting for the outer-output ledger. @module @z/dsh-code-runtime-worker-thread/output-json */
+/** JSON string-prefix accounting for the outer-output ledger. @module @taskweaver/dsh-code-runtime-worker-thread/output-json */
 const intrinsicReflectApply$1 = Reflect.apply;
 const intrinsicArrayIsArray$1 = Array.isArray;
 const IntrinsicBuffer = Buffer;
@@ -50,7 +50,8 @@ function takeLast$1(target) {
 }
 /** One code-point-aligned character from a string. */
 function characterAt(text, index) {
-	return intrinsicReflectApply$1(intrinsicStringSlice, text, [index, index + (intrinsicReflectApply$1(intrinsicStringCodePointAt, text, [index]) > 65535 ? 2 : 1)]);
+	const width = intrinsicReflectApply$1(intrinsicStringCodePointAt, text, [index]) > 65535 ? 2 : 1;
+	return intrinsicReflectApply$1(intrinsicStringSlice, text, [index, index + width]);
 }
 /** Serialized bytes contributed by one complete Unicode code point inside JSON quotes. */
 function serializedCharacterBytes(character) {
@@ -185,7 +186,7 @@ function truncateJsonStringBytes(text, maxBytes) {
 //#region lib/types/worker-json.js
 /**
 * Lossless-JSON snapshots for the dependency-free source worker closure.
-* @module @z/dsh-code-runtime-worker-thread/worker-json
+* @module @taskweaver/dsh-code-runtime-worker-thread/worker-json
 */
 const intrinsicFunctionToString = Reflect.get(Function.prototype, "toString");
 const intrinsicReflectApply = Reflect.get(Reflect, "apply");
@@ -454,7 +455,7 @@ function decodeWorkerJson(input) {
 * and bridges bindings over its message port. This is containment, not a security boundary:
 * model code has bash-equivalent trust despite an empty environment, a heap cap, measured
 * event-loop busy-time and wall-time budgets, and termination that also stops synchronous loops.
-* @module @z/dsh-code-runtime-worker-thread
+* @module @taskweaver/dsh-code-runtime-worker-thread
 */
 /**
 * How often the host samples the worker's event-loop utilization for the
@@ -734,16 +735,17 @@ var WorkerThreadCodeRuntime = class extends CodeRuntime {
 	}
 	/** Spawn the worker for one validated, type-stripped run and drive it to settlement. */
 	execute(request, code, bindings) {
+		const bootData = {
+			code,
+			namespaces: [...bindings].map(([global, namespace]) => ({
+				global,
+				names: Object.keys(namespace.functions),
+				...namespace.errorClass ? { errorClass: namespace.errorClass } : {}
+			})),
+			maxOutputBytes: this.config.maxOutputBytes
+		};
 		const worker = new Worker(WORKER_PATH, {
-			workerData: {
-				code,
-				namespaces: [...bindings].map(([global, namespace]) => ({
-					global,
-					names: Object.keys(namespace.functions),
-					...namespace.errorClass ? { errorClass: namespace.errorClass } : {}
-				})),
-				maxOutputBytes: this.config.maxOutputBytes
-			},
+			workerData: bootData,
 			env: {},
 			execArgv: [],
 			resourceLimits: { maxOldGenerationSizeMb: this.config.maxOldGenerationSizeMb },
@@ -881,15 +883,17 @@ var WorkerThreadCodeRuntime = class extends CodeRuntime {
 				const message = parseWorkerMessage(raw);
 				if (!message) return;
 				if (message.type === "log" && !settled && !output.admit(message.text, logs)) {
-					finish(output.limit([
+					const limited = output.limit([
 						...logs,
 						...strayLogs,
 						message.text
-					]));
+					]);
+					finish(limited);
 					return;
 				}
 				if (message.type === "output-limit" && !settled) {
-					finish(output.limit([...logs, ...strayLogs]));
+					const limited = output.limit([...logs, ...strayLogs]);
+					finish(limited);
 					return;
 				}
 				onCall(message);

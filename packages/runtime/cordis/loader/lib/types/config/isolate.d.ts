@@ -1,5 +1,5 @@
-import { Context } from '@z/cordis';
-import type { Dict } from '@z/cosmokit';
+import { Context } from '@taskweaver/cordis';
+import type { Dict } from '@taskweaver/cosmokit';
 import { Entry } from './entry.ts';
 declare module './entry.ts' {
     interface EntryOptions {

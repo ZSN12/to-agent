@@ -1,13 +1,13 @@
 import { createHash, randomUUID } from "node:crypto";
 import { Buffer } from "node:buffer";
 import { posix } from "node:path";
-import { FileSystem, FsError, FsTargetKey, FsVersion } from "@z/dsh-fs";
-import { CommandExitError, FileNotFoundError, FileType, e2bControlEnvs, quoteE2BShellArg } from "@z/dsh-e2b";
+import { FileSystem, FsError, FsTargetKey, FsVersion } from "@taskweaver/dsh-fs";
+import { CommandExitError, FileNotFoundError, FileType, e2bControlEnvs, quoteE2BShellArg } from "@taskweaver/dsh-e2b";
 //#region lib/types/index.js
 /**
 * E2B provider for the filesystem capability seam. Paths, contents, and
 * atomic staging files remain inside the shared remote sandbox.
-* @module @z/dsh-fs-e2b
+* @module @taskweaver/dsh-fs-e2b
 */
 const VERSION_METADATA_KEY = "dsh-version";
 const BINARY_SAMPLE_BYTES = 8192;

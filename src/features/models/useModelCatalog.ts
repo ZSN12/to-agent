@@ -17,6 +17,7 @@ export function useModelCatalog() {
   const [auth, setAuth] = useState<ProviderAuthStatus[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [catalogStale, setCatalogStale] = useState(false)
   const [updateStatus, setUpdateStatus] = useState<ModelUpdateStatus | null>(null)
   const bridgeReady = isModelsBridgeAvailable()
   const loadInFlight = useRef<Promise<void> | null>(null)
@@ -34,7 +35,7 @@ export function useModelCatalog() {
       if (!ready?.ok) throw new Error(ready?.error ?? '后端 IPC 尚未就绪，请稍后重试。')
       if (ready.data?.ready !== true) throw new Error(ready.data?.error ?? '后端服务初始化失败，请重试或重启应用。')
 
-      const loadBundle = client.loadBundle ?? (async () => {
+      const loadBundle = client.loadBundle ?? (async (_options?: { force?: boolean }) => {
         const [listRes, authRes] = await Promise.all([client.list(), client.listProvidersAuth()])
         if (!listRes.ok) return { ok: false as const, error: listRes.error ?? '获取模型列表失败' }
         if (!authRes.ok) return { ok: false as const, error: authRes.error ?? '获取认证状态失败' }
@@ -49,6 +50,7 @@ export function useModelCatalog() {
       const bundle = res.data!
       setCatalog(bundle.catalog ?? null)
       setAuth(bundle.auth ?? [])
+      setCatalogStale(bundle.stale === true)
       if (bundle.providerCount === 0 && bundle.hostReady) {
         setError('Z Host 已连接，但提供方目录为空。请稍候再试或重启应用。')
       }
@@ -70,7 +72,7 @@ export function useModelCatalog() {
     if (showBlockingLoad) setLoading(true)
     setError(null)
     try {
-      const loadBundle = client.loadBundle ?? (async () => {
+      const loadBundle = client.loadBundle ?? (async (_options?: { force?: boolean }) => {
         const listRes = await client.refresh()
         if (!listRes.ok) return { ok: false as const, error: listRes.error ?? '刷新模型目录失败' }
         const authRes = await client.listProvidersAuth()
@@ -81,7 +83,7 @@ export function useModelCatalog() {
           data: { catalog: listRes.data!, auth, hostReady: true, providerCount: auth.length },
         }
       })
-      const res = await loadBundle()
+      const res = await loadBundle({ force: true })
       if (!res.ok) {
         const message = res.error ?? '刷新模型目录失败'
         setError(message)
@@ -91,6 +93,7 @@ export function useModelCatalog() {
       const bundle = res.data!
       setCatalog(bundle.catalog ?? null)
       setAuth(bundle.auth ?? [])
+      setCatalogStale(bundle.stale === true)
       const emptyMessage = bundle.providerCount === 0
         ? 'Z Host 已连接，但提供方目录为空。请稍候再试或重启应用。'
         : null
@@ -112,6 +115,17 @@ export function useModelCatalog() {
   useEffect(() => {
     void load()
   }, [load])
+
+  useEffect(() => {
+    const client = getModelsClient()
+    if (!client?.onCatalogUpdated) return
+    return client.onCatalogUpdated((bundle) => {
+      setCatalog(bundle.catalog ?? null)
+      setAuth(bundle.auth ?? [])
+      setCatalogStale(bundle.stale === true)
+      if (bundle.providerCount > 0) setError(null)
+    })
+  }, [])
 
   useEffect(() => {
     const client = getModelsClient()
@@ -373,6 +387,7 @@ export function useModelCatalog() {
     bridgeReady,
     catalog,
     auth,
+    catalogStale,
     loading,
     error,
     clearError,

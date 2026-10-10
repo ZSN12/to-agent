@@ -5,7 +5,7 @@
  * serve it — `./types` for host consumers, `./client` for client aggregates —
  * with zero content duplication.
  *
- * @module @z/dsh-session-stats/types
+ * @module @taskweaver/dsh-session-stats/types
  */
 
 // Marks this file a module so the declaration below AUGMENTS the projection
@@ -40,7 +40,7 @@ export interface SessionStatsProjection {
   decodeTokens: number
 }
 
-declare module '@z/dsh-session-projection/types' {
+declare module '@taskweaver/dsh-session-projection/types' {
   interface SessionProjectionMap {
     /** Whole-log turn/step/tool-call counts and wall times; see {@link SessionStatsProjection}. */
     sessionStats: SessionStatsProjection

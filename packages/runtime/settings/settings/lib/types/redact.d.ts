@@ -4,9 +4,9 @@
  * each schema-declared secret position and whether it currently holds a value,
  * so a configuration surface can render a write-only input without ever
  * receiving the secret itself.
- * @module @z/dsh-settings/redact
+ * @module @taskweaver/dsh-settings/redact
  */
-import type z from '@z/schemastery';
+import type z from '@taskweaver/schemastery';
 /** One schema-declared secret position inside a redacted value. */
 export interface RedactedSecret {
     /** Path from the section root to the removed field (concrete dict keys and array indexes included). */

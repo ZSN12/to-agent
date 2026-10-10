@@ -1,5 +1,5 @@
-/** JSON string-prefix accounting for the outer-output ledger. @module @z/dsh-code-runtime-worker-thread/output-json */
-import type { CodeJsonValue } from '@z/dsh-code-runtime';
+/** JSON string-prefix accounting for the outer-output ledger. @module @taskweaver/dsh-code-runtime-worker-thread/output-json */
+import type { CodeJsonValue } from '@taskweaver/dsh-code-runtime';
 /**
  * Measure one JSON string without materializing its complete escaped form.
  * @param text - the candidate string.

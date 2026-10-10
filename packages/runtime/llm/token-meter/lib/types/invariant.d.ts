@@ -1,8 +1,8 @@
 /**
- * Package-owned invariant companion for `@z/dsh-token-meter`.
- * @module @z/dsh-token-meter/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-token-meter`.
+ * @module @taskweaver/dsh-token-meter/invariant
  */
-import type { Context } from '@z/cordis';
+import type { Context } from '@taskweaver/cordis';
 /** Cordis companion plugin name. */
 export declare const name = "token-meter-invariant";
 /** Service required before the companion can reserve package ownership. */

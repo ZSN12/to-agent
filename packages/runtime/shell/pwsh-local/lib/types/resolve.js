@@ -1,4 +1,3 @@
-"use strict";
 /**
  * PowerShell executable resolution, dependency-free so non-package consumers
  * (the repository's coverage-gate probe in `vitest.config.ts`) can share the
@@ -6,13 +5,10 @@
  * resolved differently from the code under test could exempt a file whose
  * suites actually run.
  *
- * @module @z/dsh-pwsh-local/resolve
+ * @module @taskweaver/dsh-pwsh-local/resolve
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.candidatePwshPaths = candidatePwshPaths;
-exports.resolvePwshPath = resolvePwshPath;
-var node_fs_1 = require("node:fs");
-var node_path_1 = require("node:path");
+import { lstatSync } from 'node:fs';
+import { join } from 'node:path';
 /**
  * Well-known Windows PowerShell install locations plus PATH entries, newest
  * first. Explicitly parameterized (env) so resolution is a pure function of
@@ -20,25 +16,22 @@ var node_path_1 = require("node:path");
  * @param env - the environment to probe; defaults to the process environment.
  * @returns candidate `pwsh` executable paths in resolution order.
  */
-function candidatePwshPaths(env) {
-    var _a, _b, _c;
-    if (env === void 0) { env = process.env; }
-    var programFiles = (_a = env.ProgramFiles) !== null && _a !== void 0 ? _a : 'C:\\Program Files';
-    var systemRoot = (_b = env.SystemRoot) !== null && _b !== void 0 ? _b : 'C:\\Windows';
-    var candidates = [
-        (0, node_path_1.join)(programFiles, 'PowerShell', '7', 'pwsh.exe'),
+export function candidatePwshPaths(env = process.env) {
+    const programFiles = env.ProgramFiles ?? 'C:\\Program Files';
+    const systemRoot = env.SystemRoot ?? 'C:\\Windows';
+    const candidates = [
+        join(programFiles, 'PowerShell', '7', 'pwsh.exe'),
     ];
     // Microsoft Store installs (and any user-added location) live on PATH;
     // entries may carry surrounding quotes from `setx`-style definitions.
-    for (var _i = 0, _d = ((_c = env.PATH) !== null && _c !== void 0 ? _c : '').split(';'); _i < _d.length; _i++) {
-        var entry = _d[_i];
-        var trimmed = entry.trim().replace(/^"|"$/g, '');
+    for (const entry of (env.PATH ?? '').split(';')) {
+        const trimmed = entry.trim().replace(/^"|"$/g, '');
         if (trimmed.length === 0)
             continue;
-        candidates.push((0, node_path_1.join)(trimmed, 'pwsh.exe'));
+        candidates.push(join(trimmed, 'pwsh.exe'));
     }
     // Windows PowerShell 5.1 remains the last-resort fallback on legacy hosts.
-    candidates.push((0, node_path_1.join)(systemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'));
+    candidates.push(join(systemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'));
     return candidates;
 }
 /**
@@ -50,10 +43,10 @@ function candidatePwshPaths(env) {
  */
 function candidateExists(candidate) {
     try {
-        var stat = (0, node_fs_1.lstatSync)(candidate);
+        const stat = lstatSync(candidate);
         return stat.isFile() || stat.isSymbolicLink();
     }
-    catch (_a) {
+    catch {
         // ENOENT (the candidate vanished between listing and probing) is the only
         // expected failure; any other error names an unspawnable path, so false
         // is the safe answer for it too.
@@ -69,17 +62,15 @@ function candidateExists(candidate) {
  *   install, a PATH entry such as the Microsoft Store install, then Windows
  *   PowerShell 5.1), else `pwsh` for PATH resolution.
  */
-function resolvePwshPath(configured, env, platform) {
-    if (env === void 0) { env = process.env; }
-    if (platform === void 0) { platform = process.platform; }
+export function resolvePwshPath(configured, env = process.env, platform = process.platform) {
     if (configured !== undefined && configured.length > 0)
         return configured;
     if (platform === 'win32') {
-        for (var _i = 0, _a = candidatePwshPaths(env); _i < _a.length; _i++) {
-            var candidate = _a[_i];
+        for (const candidate of candidatePwshPaths(env)) {
             if (candidateExists(candidate))
                 return candidate;
         }
     }
     return 'pwsh';
 }
+//# sourceMappingURL=resolve.js.map

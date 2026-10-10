@@ -1,13 +1,13 @@
 /**
- * Package-owned invariant companion for `@z/dsh-code-runtime-python`.
- * @module @z/dsh-code-runtime-python/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-code-runtime-python`.
+ * @module @taskweaver/dsh-code-runtime-python/invariant
  */
 
 /* jscpd:ignore-start */
-import type { Context } from '@z/cordis'
-import type { InvariantInstaller } from '@z/dsh-invariants'
+import type { Context } from '@taskweaver/cordis'
+import type { InvariantInstaller } from '@taskweaver/dsh-invariants'
 
-const PACKAGE_NAME = '@z/dsh-code-runtime-python'
+const PACKAGE_NAME = '@taskweaver/dsh-code-runtime-python'
 
 /** Cordis companion plugin name. */
 export const name = 'code-runtime-python-invariant'

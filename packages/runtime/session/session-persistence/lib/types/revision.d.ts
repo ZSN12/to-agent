@@ -1,5 +1,5 @@
 /** Opaque revision identity for lightweight persistence observations. */
-import type { Branded } from '@z/dsh-brand';
+import type { Branded } from '@taskweaver/dsh-brand';
 /**
  * Backend-owned token that identifies both one storage source and one revision
  * of a persisted session log.

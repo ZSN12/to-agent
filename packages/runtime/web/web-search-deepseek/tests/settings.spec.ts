@@ -1,13 +1,13 @@
 /** The `web-search-deepseek` settings section layered over the composition entry. */
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { Context } from '@z/cordis'
-import type { Fiber } from '@z/cordis'
-import { SettingsProvider } from '@z/dsh-settings'
-import type { SettingsNamespace } from '@z/dsh-settings'
-import WebRuntime from '@z/dsh-web'
-import * as deepseekPlugin from '@z/dsh-web-search-deepseek'
-import { WEB_SEARCH_DEEPSEEK_SETTINGS_NAMESPACE } from '@z/dsh-web-search-deepseek'
+import { Context } from '@taskweaver/cordis'
+import type { Fiber } from '@taskweaver/cordis'
+import { SettingsProvider } from '@taskweaver/dsh-settings'
+import type { SettingsNamespace } from '@taskweaver/dsh-settings'
+import WebRuntime from '@taskweaver/dsh-web'
+import * as deepseekPlugin from '@taskweaver/dsh-web-search-deepseek'
+import { WEB_SEARCH_DEEPSEEK_SETTINGS_NAMESPACE } from '@taskweaver/dsh-web-search-deepseek'
 
 /** The smallest real provider: one in-memory document, always writable. */
 class MemorySettings extends SettingsProvider {

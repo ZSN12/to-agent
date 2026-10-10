@@ -1,6 +1,6 @@
 /**
  * Named backend registry of the storage hub.
- * @module @z/dsh-storage/src/registry
+ * @module @taskweaver/dsh-storage/src/registry
  */
 
 import type { StorageBackend } from './backend.ts'

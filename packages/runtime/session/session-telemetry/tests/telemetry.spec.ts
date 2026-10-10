@@ -1,4 +1,4 @@
-import { createToolResultMessage, createUserMessage } from '@z/dsh-llm'
+import { createToolResultMessage, createUserMessage } from '@taskweaver/dsh-llm'
 /**
  * Coordinator semantics against a bare fake backend — the RFC's named unit
  * tier for the seam: adoption (fresh, seeded, re-adoption via the handoff
@@ -7,9 +7,9 @@ import { createToolResultMessage, createUserMessage } from '@z/dsh-llm'
  */
 
 import { describe, expect, it, vi } from 'vitest'
-import { Context } from '@z/cordis'
-import SessionStore, { SessionId, type Session, type SessionEvent } from '@z/dsh-session'
-import type { Agent } from '@z/dsh-agent'
+import { Context } from '@taskweaver/cordis'
+import SessionStore, { SessionId, type Session, type SessionEvent } from '@taskweaver/dsh-session'
+import type { Agent } from '@taskweaver/dsh-agent'
 import {
   SessionTelemetryCoordinator,
   type SessionTelemetrySink,
@@ -17,7 +17,7 @@ import {
   type SessionTelemetryRecord,
 } from '../src/index.ts'
 
-declare module '@z/dsh-session/types' {
+declare module '@taskweaver/dsh-session/types' {
   interface SessionEventMap {
     /**
      * Test-only merged event proving unknown types flow through unchanged.

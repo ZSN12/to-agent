@@ -8,229 +8,229 @@ The TaskWeaver profile applies the dsh-base bundle first, then its host bundle a
 ```mermaid
 flowchart LR
   cfg["packages/bundle/base/cordis.patch.yml<br/>cordis.yml"]
-  plugin_dsh_base_timer["timer<br/>@z/cordis-plugin-timer"]
+  plugin_dsh_base_timer["timer<br/>@taskweaver/cordis-plugin-timer"]
   cfg --> plugin_dsh_base_timer
-  plugin_dsh_base_hmr["hmr<br/>@z/cordis-plugin-hmr"]
+  plugin_dsh_base_hmr["hmr<br/>@taskweaver/cordis-plugin-hmr"]
   cfg --> plugin_dsh_base_hmr
-  plugin_dsh_base_llm["llm<br/>@z/dsh-llm"]
+  plugin_dsh_base_llm["llm<br/>@taskweaver/dsh-llm"]
   cfg --> plugin_dsh_base_llm
-  plugin_dsh_base_session["session<br/>@z/dsh-session"]
+  plugin_dsh_base_session["session<br/>@taskweaver/dsh-session"]
   cfg --> plugin_dsh_base_session
-  plugin_dsh_base_typert["typert<br/>@z/dsh-typert-registry"]
+  plugin_dsh_base_typert["typert<br/>@taskweaver/dsh-typert-registry"]
   cfg --> plugin_dsh_base_typert
-  plugin_dsh_base_typert_loader["typert-loader<br/>@z/dsh-typert-loader"]
+  plugin_dsh_base_typert_loader["typert-loader<br/>@taskweaver/dsh-typert-loader"]
   cfg --> plugin_dsh_base_typert_loader
-  plugin_dsh_base_typert_gateway["typert-gateway<br/>@z/dsh-api-gateway"]
+  plugin_dsh_base_typert_gateway["typert-gateway<br/>@taskweaver/dsh-api-gateway"]
   cfg --> plugin_dsh_base_typert_gateway
-  plugin_dsh_base_session_title["session-title<br/>@z/dsh-session-title"]
+  plugin_dsh_base_session_title["session-title<br/>@taskweaver/dsh-session-title"]
   cfg --> plugin_dsh_base_session_title
-  plugin_dsh_base_session_title_llm["session-title-llm<br/>@z/dsh-session-title-first-prompt-llm"]
+  plugin_dsh_base_session_title_llm["session-title-llm<br/>@taskweaver/dsh-session-title-first-prompt-llm"]
   cfg --> plugin_dsh_base_session_title_llm
-  plugin_dsh_base_user_questions["user-questions<br/>@z/dsh-user-questions"]
+  plugin_dsh_base_user_questions["user-questions<br/>@taskweaver/dsh-user-questions"]
   cfg --> plugin_dsh_base_user_questions
-  plugin_dsh_base_agent["agent<br/>@z/dsh-agent"]
+  plugin_dsh_base_agent["agent<br/>@taskweaver/dsh-agent"]
   cfg --> plugin_dsh_base_agent
-  plugin_dsh_base_agent_default_model["agent-default-model<br/>@z/dsh-agent-default-model"]
+  plugin_dsh_base_agent_default_model["agent-default-model<br/>@taskweaver/dsh-agent-default-model"]
   cfg --> plugin_dsh_base_agent_default_model
-  plugin_dsh_base_jobs["jobs<br/>@z/dsh-jobs-local"]
+  plugin_dsh_base_jobs["jobs<br/>@taskweaver/dsh-jobs-local"]
   cfg --> plugin_dsh_base_jobs
-  plugin_dsh_base_llm_retry["llm-retry<br/>@z/dsh-llm-retry"]
+  plugin_dsh_base_llm_retry["llm-retry<br/>@taskweaver/dsh-llm-retry"]
   cfg --> plugin_dsh_base_llm_retry
-  plugin_dsh_base_settings["settings<br/>@z/dsh-settings-file"]
+  plugin_dsh_base_settings["settings<br/>@taskweaver/dsh-settings-file"]
   cfg --> plugin_dsh_base_settings
-  plugin_dsh_base_credentials["credentials<br/>@z/dsh-credentials-local"]
+  plugin_dsh_base_credentials["credentials<br/>@taskweaver/dsh-credentials-local"]
   cfg --> plugin_dsh_base_credentials
-  plugin_dsh_base_llm_pi_ai["llm-pi-ai<br/>@z/dsh-llm-pi-ai"]
+  plugin_dsh_base_llm_pi_ai["llm-pi-ai<br/>@taskweaver/dsh-llm-pi-ai"]
   cfg --> plugin_dsh_base_llm_pi_ai
-  plugin_dsh_base_session_persistence_jsonl["session-persistence-jsonl<br/>@z/dsh-session-persistence-jsonl"]
+  plugin_dsh_base_session_persistence_jsonl["session-persistence-jsonl<br/>@taskweaver/dsh-session-persistence-jsonl"]
   cfg --> plugin_dsh_base_session_persistence_jsonl
-  plugin_dsh_base_attachment_local["attachment-local<br/>@z/dsh-attachment-local"]
+  plugin_dsh_base_attachment_local["attachment-local<br/>@taskweaver/dsh-attachment-local"]
   cfg --> plugin_dsh_base_attachment_local
-  plugin_dsh_base_session_query_sqlite["session-query-sqlite<br/>@z/dsh-session-query-sqlite"]
+  plugin_dsh_base_session_query_sqlite["session-query-sqlite<br/>@taskweaver/dsh-session-query-sqlite"]
   cfg --> plugin_dsh_base_session_query_sqlite
-  plugin_dsh_base_session_projection["session-projection<br/>@z/dsh-session-projection"]
+  plugin_dsh_base_session_projection["session-projection<br/>@taskweaver/dsh-session-projection"]
   cfg --> plugin_dsh_base_session_projection
-  plugin_dsh_base_subprocess["subprocess<br/>@z/dsh-subprocess-local"]
+  plugin_dsh_base_subprocess["subprocess<br/>@taskweaver/dsh-subprocess-local"]
   cfg --> plugin_dsh_base_subprocess
-  plugin_dsh_base_sandbox["sandbox<br/>@z/dsh-sandbox-local"]
+  plugin_dsh_base_sandbox["sandbox<br/>@taskweaver/dsh-sandbox-local"]
   cfg --> plugin_dsh_base_sandbox
-  plugin_dsh_base_sandbox_policy["sandbox-policy<br/>@z/dsh-sandbox-policy"]
+  plugin_dsh_base_sandbox_policy["sandbox-policy<br/>@taskweaver/dsh-sandbox-policy"]
   cfg --> plugin_dsh_base_sandbox_policy
-  plugin_dsh_base_bash_sandbox["bash-sandbox<br/>@z/dsh-bash-sandbox"]
+  plugin_dsh_base_bash_sandbox["bash-sandbox<br/>@taskweaver/dsh-bash-sandbox"]
   cfg --> plugin_dsh_base_bash_sandbox
-  plugin_dsh_base_pwsh_sandbox["pwsh-sandbox<br/>@z/dsh-pwsh-sandbox"]
+  plugin_dsh_base_pwsh_sandbox["pwsh-sandbox<br/>@taskweaver/dsh-pwsh-sandbox"]
   cfg --> plugin_dsh_base_pwsh_sandbox
-  plugin_dsh_base_approval["approval<br/>@z/dsh-user-approval"]
+  plugin_dsh_base_approval["approval<br/>@taskweaver/dsh-user-approval"]
   cfg --> plugin_dsh_base_approval
-  plugin_dsh_base_permission["permission<br/>@z/dsh-permission-presets"]
+  plugin_dsh_base_permission["permission<br/>@taskweaver/dsh-permission-presets"]
   cfg --> plugin_dsh_base_permission
-  plugin_dsh_base_shell_env["shell-env<br/>@z/dsh-shell-env"]
+  plugin_dsh_base_shell_env["shell-env<br/>@taskweaver/dsh-shell-env"]
   cfg --> plugin_dsh_base_shell_env
-  plugin_dsh_base_tool_bash["tool-bash<br/>@z/dsh-tool-bash"]
+  plugin_dsh_base_tool_bash["tool-bash<br/>@taskweaver/dsh-tool-bash"]
   cfg --> plugin_dsh_base_tool_bash
-  plugin_dsh_base_tool_pwsh["tool-pwsh<br/>@z/dsh-tool-pwsh"]
+  plugin_dsh_base_tool_pwsh["tool-pwsh<br/>@taskweaver/dsh-tool-pwsh"]
   cfg --> plugin_dsh_base_tool_pwsh
-  plugin_dsh_base_tool_jobs["tool-jobs<br/>@z/dsh-tool-jobs"]
+  plugin_dsh_base_tool_jobs["tool-jobs<br/>@taskweaver/dsh-tool-jobs"]
   cfg --> plugin_dsh_base_tool_jobs
-  plugin_dsh_base_fs_observation_policy["fs-observation-policy<br/>@z/dsh-fs-observation-policy"]
+  plugin_dsh_base_fs_observation_policy["fs-observation-policy<br/>@taskweaver/dsh-fs-observation-policy"]
   cfg --> plugin_dsh_base_fs_observation_policy
-  plugin_dsh_base_tool_fs["tool-fs<br/>@z/dsh-tool-fs"]
+  plugin_dsh_base_tool_fs["tool-fs<br/>@taskweaver/dsh-tool-fs"]
   cfg --> plugin_dsh_base_tool_fs
-  plugin_dsh_base_tool_fs_search["tool-fs-search<br/>@z/dsh-tool-fs-search"]
+  plugin_dsh_base_tool_fs_search["tool-fs-search<br/>@taskweaver/dsh-tool-fs-search"]
   cfg --> plugin_dsh_base_tool_fs_search
-  plugin_dsh_base_agent_instructions["agent-instructions<br/>@z/dsh-agent-instructions"]
+  plugin_dsh_base_agent_instructions["agent-instructions<br/>@taskweaver/dsh-agent-instructions"]
   cfg --> plugin_dsh_base_agent_instructions
-  plugin_dsh_base_skill["skill<br/>@z/dsh-skill"]
+  plugin_dsh_base_skill["skill<br/>@taskweaver/dsh-skill"]
   cfg --> plugin_dsh_base_skill
-  plugin_dsh_base_skill_filesystem["skill-filesystem<br/>@z/dsh-skill-filesystem"]
+  plugin_dsh_base_skill_filesystem["skill-filesystem<br/>@taskweaver/dsh-skill-filesystem"]
   cfg --> plugin_dsh_base_skill_filesystem
-  plugin_dsh_base_tool_skill["tool-skill<br/>@z/dsh-tool-skill"]
+  plugin_dsh_base_tool_skill["tool-skill<br/>@taskweaver/dsh-tool-skill"]
   cfg --> plugin_dsh_base_tool_skill
-  plugin_dsh_base_commands["commands<br/>@z/dsh-commands"]
+  plugin_dsh_base_commands["commands<br/>@taskweaver/dsh-commands"]
   cfg --> plugin_dsh_base_commands
-  plugin_dsh_base_goal["goal<br/>@z/dsh-goal"]
+  plugin_dsh_base_goal["goal<br/>@taskweaver/dsh-goal"]
   cfg --> plugin_dsh_base_goal
-  plugin_dsh_base_goal_round_driver["goal-round-driver<br/>@z/dsh-goal-round-driver"]
+  plugin_dsh_base_goal_round_driver["goal-round-driver<br/>@taskweaver/dsh-goal-round-driver"]
   cfg --> plugin_dsh_base_goal_round_driver
-  plugin_dsh_base_command_goal["command-goal<br/>@z/dsh-command-goal"]
+  plugin_dsh_base_command_goal["command-goal<br/>@taskweaver/dsh-command-goal"]
   cfg --> plugin_dsh_base_command_goal
-  plugin_dsh_base_plan_mode["plan-mode<br/>@z/dsh-plan-mode"]
+  plugin_dsh_base_plan_mode["plan-mode<br/>@taskweaver/dsh-plan-mode"]
   cfg --> plugin_dsh_base_plan_mode
-  plugin_dsh_base_token_meter["token-meter<br/>@z/dsh-token-meter"]
+  plugin_dsh_base_token_meter["token-meter<br/>@taskweaver/dsh-token-meter"]
   cfg --> plugin_dsh_base_token_meter
-  plugin_dsh_base_compaction_basic["compaction-basic<br/>@z/dsh-compaction-basic"]
+  plugin_dsh_base_compaction_basic["compaction-basic<br/>@taskweaver/dsh-compaction-basic"]
   cfg --> plugin_dsh_base_compaction_basic
-  plugin_dsh_base_command_compact["command-compact<br/>@z/dsh-command-compact"]
+  plugin_dsh_base_command_compact["command-compact<br/>@taskweaver/dsh-command-compact"]
   cfg --> plugin_dsh_base_command_compact
-  plugin_dsh_base_subagent["subagent<br/>@z/dsh-subagent"]
+  plugin_dsh_base_subagent["subagent<br/>@taskweaver/dsh-subagent"]
   cfg --> plugin_dsh_base_subagent
-  plugin_dsh_base_subagent_spawn_in_process["subagent-spawn-in-process<br/>@z/dsh-subagent-spawn-in-process"]
+  plugin_dsh_base_subagent_spawn_in_process["subagent-spawn-in-process<br/>@taskweaver/dsh-subagent-spawn-in-process"]
   cfg --> plugin_dsh_base_subagent_spawn_in_process
-  plugin_dsh_base_subagent_fork_in_process["subagent-fork-in-process<br/>@z/dsh-subagent-fork-in-process"]
+  plugin_dsh_base_subagent_fork_in_process["subagent-fork-in-process<br/>@taskweaver/dsh-subagent-fork-in-process"]
   cfg --> plugin_dsh_base_subagent_fork_in_process
-  plugin_dsh_base_tool_subagent_control["tool-subagent-control<br/>@z/dsh-tool-subagent-control"]
+  plugin_dsh_base_tool_subagent_control["tool-subagent-control<br/>@taskweaver/dsh-tool-subagent-control"]
   cfg --> plugin_dsh_base_tool_subagent_control
-  plugin_dsh_base_tool_subagent_list_agents["tool-subagent-list-agents<br/>@z/dsh-tool-subagent-control/list-agents"]
+  plugin_dsh_base_tool_subagent_list_agents["tool-subagent-list-agents<br/>@taskweaver/dsh-tool-subagent-control/list-agents"]
   cfg --> plugin_dsh_base_tool_subagent_list_agents
-  plugin_dsh_base_tool_subagent["tool-subagent<br/>@z/dsh-tool-subagent"]
+  plugin_dsh_base_tool_subagent["tool-subagent<br/>@taskweaver/dsh-tool-subagent"]
   cfg --> plugin_dsh_base_tool_subagent
-  plugin_dsh_base_tool_subagent_fork["tool-subagent-fork<br/>@z/dsh-tool-subagent"]
+  plugin_dsh_base_tool_subagent_fork["tool-subagent-fork<br/>@taskweaver/dsh-tool-subagent"]
   cfg --> plugin_dsh_base_tool_subagent_fork
-  plugin_dsh_base_tool_subagent_report["tool-subagent-report<br/>@z/dsh-tool-subagent-report"]
+  plugin_dsh_base_tool_subagent_report["tool-subagent-report<br/>@taskweaver/dsh-tool-subagent-report"]
   cfg --> plugin_dsh_base_tool_subagent_report
-  plugin_dsh_base_workflow_worker_thread["workflow-worker-thread<br/>@z/dsh-workflow-worker-thread"]
+  plugin_dsh_base_workflow_worker_thread["workflow-worker-thread<br/>@taskweaver/dsh-workflow-worker-thread"]
   cfg --> plugin_dsh_base_workflow_worker_thread
-  plugin_dsh_base_tool_workflow["tool-workflow<br/>@z/dsh-tool-workflow"]
+  plugin_dsh_base_tool_workflow["tool-workflow<br/>@taskweaver/dsh-tool-workflow"]
   cfg --> plugin_dsh_base_tool_workflow
-  plugin_dsh_base_timeout_policy["timeout-policy<br/>@z/dsh-tool-call-timeout-policy"]
+  plugin_dsh_base_timeout_policy["timeout-policy<br/>@taskweaver/dsh-tool-call-timeout-policy"]
   cfg --> plugin_dsh_base_timeout_policy
-  plugin_dsh_base_spill_local["spill-local<br/>@z/dsh-spill-local"]
+  plugin_dsh_base_spill_local["spill-local<br/>@taskweaver/dsh-spill-local"]
   cfg --> plugin_dsh_base_spill_local
-  plugin_dsh_base_spill_policy["spill-policy<br/>@z/dsh-spill-policy"]
+  plugin_dsh_base_spill_policy["spill-policy<br/>@taskweaver/dsh-spill-policy"]
   cfg --> plugin_dsh_base_spill_policy
-  plugin_dsh_base_session_checkpoint_policy["session-checkpoint-policy<br/>@z/dsh-session-checkpoint-policy"]
+  plugin_dsh_base_session_checkpoint_policy["session-checkpoint-policy<br/>@taskweaver/dsh-session-checkpoint-policy"]
   cfg --> plugin_dsh_base_session_checkpoint_policy
-  plugin_dsh_base_tool_result_pruner["tool-result-pruner<br/>@z/dsh-compaction-tool-result-pruner"]
+  plugin_dsh_base_tool_result_pruner["tool-result-pruner<br/>@taskweaver/dsh-compaction-tool-result-pruner"]
   cfg --> plugin_dsh_base_tool_result_pruner
-  plugin_dsh_base_tool_todo["tool-todo<br/>@z/dsh-tool-todo"]
+  plugin_dsh_base_tool_todo["tool-todo<br/>@taskweaver/dsh-tool-todo"]
   cfg --> plugin_dsh_base_tool_todo
-  plugin_dsh_base_tool_goal["tool-goal<br/>@z/dsh-tool-goal"]
+  plugin_dsh_base_tool_goal["tool-goal<br/>@taskweaver/dsh-tool-goal"]
   cfg --> plugin_dsh_base_tool_goal
-  plugin_dsh_base_tool_ralph["tool-ralph<br/>@z/dsh-tool-ralph"]
+  plugin_dsh_base_tool_ralph["tool-ralph<br/>@taskweaver/dsh-tool-ralph"]
   cfg --> plugin_dsh_base_tool_ralph
-  plugin_dsh_base_repeat_tool_reminder["repeat-tool-reminder<br/>@z/dsh-repeat-tool-reminder"]
+  plugin_dsh_base_repeat_tool_reminder["repeat-tool-reminder<br/>@taskweaver/dsh-repeat-tool-reminder"]
   cfg --> plugin_dsh_base_repeat_tool_reminder
-  plugin_dsh_base_web["web<br/>@z/dsh-web"]
+  plugin_dsh_base_web["web<br/>@taskweaver/dsh-web"]
   cfg --> plugin_dsh_base_web
-  plugin_dsh_base_web_search_deepseek["web-search-deepseek<br/>@z/dsh-web-search-deepseek"]
+  plugin_dsh_base_web_search_deepseek["web-search-deepseek<br/>@taskweaver/dsh-web-search-deepseek"]
   cfg --> plugin_dsh_base_web_search_deepseek
-  plugin_dsh_base_tool_web["tool-web<br/>@z/dsh-tool-web"]
+  plugin_dsh_base_tool_web["tool-web<br/>@taskweaver/dsh-tool-web"]
   cfg --> plugin_dsh_base_tool_web
-  plugin_dsh_base_tools["tools<br/>@z/dsh-tools"]
+  plugin_dsh_base_tools["tools<br/>@taskweaver/dsh-tools"]
   cfg --> plugin_dsh_base_tools
-  plugin_dsh_base_system_prompt["system-prompt<br/>@z/dsh-system-prompt"]
+  plugin_dsh_base_system_prompt["system-prompt<br/>@taskweaver/dsh-system-prompt"]
   cfg --> plugin_dsh_base_system_prompt
-  plugin_dsh_base_agent_loop["agent-loop<br/>@z/dsh-agent-loop"]
+  plugin_dsh_base_agent_loop["agent-loop<br/>@taskweaver/dsh-agent-loop"]
   cfg --> plugin_dsh_base_agent_loop
-  plugin_dsh_base_fs_sandbox["fs-sandbox<br/>@z/dsh-fs-sandbox"]
+  plugin_dsh_base_fs_sandbox["fs-sandbox<br/>@taskweaver/dsh-fs-sandbox"]
   cfg --> plugin_dsh_base_fs_sandbox
 ```
 
 | Plugin id | Package / module |
 | --- | --- |
-| `timer` | `@z/cordis-plugin-timer` |
-| `hmr` | `@z/cordis-plugin-hmr` |
-| `llm` | `@z/dsh-llm` |
-| `session` | `@z/dsh-session` |
-| `typert` | `@z/dsh-typert-registry` |
-| `typert-loader` | `@z/dsh-typert-loader` |
-| `typert-gateway` | `@z/dsh-api-gateway` |
-| `session-title` | `@z/dsh-session-title` |
-| `session-title-llm` | `@z/dsh-session-title-first-prompt-llm` |
-| `user-questions` | `@z/dsh-user-questions` |
-| `agent` | `@z/dsh-agent` |
-| `agent-default-model` | `@z/dsh-agent-default-model` |
-| `jobs` | `@z/dsh-jobs-local` |
-| `llm-retry` | `@z/dsh-llm-retry` |
-| `settings` | `@z/dsh-settings-file` |
-| `credentials` | `@z/dsh-credentials-local` |
-| `llm-pi-ai` | `@z/dsh-llm-pi-ai` |
-| `session-persistence-jsonl` | `@z/dsh-session-persistence-jsonl` |
-| `attachment-local` | `@z/dsh-attachment-local` |
-| `session-query-sqlite` | `@z/dsh-session-query-sqlite` |
-| `session-projection` | `@z/dsh-session-projection` |
-| `subprocess` | `@z/dsh-subprocess-local` |
-| `sandbox` | `@z/dsh-sandbox-local` |
-| `sandbox-policy` | `@z/dsh-sandbox-policy` |
-| `bash-sandbox` | `@z/dsh-bash-sandbox` |
-| `pwsh-sandbox` | `@z/dsh-pwsh-sandbox` |
-| `approval` | `@z/dsh-user-approval` |
-| `permission` | `@z/dsh-permission-presets` |
-| `shell-env` | `@z/dsh-shell-env` |
-| `tool-bash` | `@z/dsh-tool-bash` |
-| `tool-pwsh` | `@z/dsh-tool-pwsh` |
-| `tool-jobs` | `@z/dsh-tool-jobs` |
-| `fs-observation-policy` | `@z/dsh-fs-observation-policy` |
-| `tool-fs` | `@z/dsh-tool-fs` |
-| `tool-fs-search` | `@z/dsh-tool-fs-search` |
-| `agent-instructions` | `@z/dsh-agent-instructions` |
-| `skill` | `@z/dsh-skill` |
-| `skill-filesystem` | `@z/dsh-skill-filesystem` |
-| `tool-skill` | `@z/dsh-tool-skill` |
-| `commands` | `@z/dsh-commands` |
-| `goal` | `@z/dsh-goal` |
-| `goal-round-driver` | `@z/dsh-goal-round-driver` |
-| `command-goal` | `@z/dsh-command-goal` |
-| `plan-mode` | `@z/dsh-plan-mode` |
-| `token-meter` | `@z/dsh-token-meter` |
-| `compaction-basic` | `@z/dsh-compaction-basic` |
-| `command-compact` | `@z/dsh-command-compact` |
-| `subagent` | `@z/dsh-subagent` |
-| `subagent-spawn-in-process` | `@z/dsh-subagent-spawn-in-process` |
-| `subagent-fork-in-process` | `@z/dsh-subagent-fork-in-process` |
-| `tool-subagent-control` | `@z/dsh-tool-subagent-control` |
-| `tool-subagent-list-agents` | `@z/dsh-tool-subagent-control/list-agents` |
-| `tool-subagent` | `@z/dsh-tool-subagent` |
-| `tool-subagent-fork` | `@z/dsh-tool-subagent` |
-| `tool-subagent-report` | `@z/dsh-tool-subagent-report` |
-| `workflow-worker-thread` | `@z/dsh-workflow-worker-thread` |
-| `tool-workflow` | `@z/dsh-tool-workflow` |
-| `timeout-policy` | `@z/dsh-tool-call-timeout-policy` |
-| `spill-local` | `@z/dsh-spill-local` |
-| `spill-policy` | `@z/dsh-spill-policy` |
-| `session-checkpoint-policy` | `@z/dsh-session-checkpoint-policy` |
-| `tool-result-pruner` | `@z/dsh-compaction-tool-result-pruner` |
-| `tool-todo` | `@z/dsh-tool-todo` |
-| `tool-goal` | `@z/dsh-tool-goal` |
-| `tool-ralph` | `@z/dsh-tool-ralph` |
-| `repeat-tool-reminder` | `@z/dsh-repeat-tool-reminder` |
-| `web` | `@z/dsh-web` |
-| `web-search-deepseek` | `@z/dsh-web-search-deepseek` |
-| `tool-web` | `@z/dsh-tool-web` |
-| `tools` | `@z/dsh-tools` |
-| `system-prompt` | `@z/dsh-system-prompt` |
-| `agent-loop` | `@z/dsh-agent-loop` |
-| `fs-sandbox` | `@z/dsh-fs-sandbox` |
+| `timer` | `@taskweaver/cordis-plugin-timer` |
+| `hmr` | `@taskweaver/cordis-plugin-hmr` |
+| `llm` | `@taskweaver/dsh-llm` |
+| `session` | `@taskweaver/dsh-session` |
+| `typert` | `@taskweaver/dsh-typert-registry` |
+| `typert-loader` | `@taskweaver/dsh-typert-loader` |
+| `typert-gateway` | `@taskweaver/dsh-api-gateway` |
+| `session-title` | `@taskweaver/dsh-session-title` |
+| `session-title-llm` | `@taskweaver/dsh-session-title-first-prompt-llm` |
+| `user-questions` | `@taskweaver/dsh-user-questions` |
+| `agent` | `@taskweaver/dsh-agent` |
+| `agent-default-model` | `@taskweaver/dsh-agent-default-model` |
+| `jobs` | `@taskweaver/dsh-jobs-local` |
+| `llm-retry` | `@taskweaver/dsh-llm-retry` |
+| `settings` | `@taskweaver/dsh-settings-file` |
+| `credentials` | `@taskweaver/dsh-credentials-local` |
+| `llm-pi-ai` | `@taskweaver/dsh-llm-pi-ai` |
+| `session-persistence-jsonl` | `@taskweaver/dsh-session-persistence-jsonl` |
+| `attachment-local` | `@taskweaver/dsh-attachment-local` |
+| `session-query-sqlite` | `@taskweaver/dsh-session-query-sqlite` |
+| `session-projection` | `@taskweaver/dsh-session-projection` |
+| `subprocess` | `@taskweaver/dsh-subprocess-local` |
+| `sandbox` | `@taskweaver/dsh-sandbox-local` |
+| `sandbox-policy` | `@taskweaver/dsh-sandbox-policy` |
+| `bash-sandbox` | `@taskweaver/dsh-bash-sandbox` |
+| `pwsh-sandbox` | `@taskweaver/dsh-pwsh-sandbox` |
+| `approval` | `@taskweaver/dsh-user-approval` |
+| `permission` | `@taskweaver/dsh-permission-presets` |
+| `shell-env` | `@taskweaver/dsh-shell-env` |
+| `tool-bash` | `@taskweaver/dsh-tool-bash` |
+| `tool-pwsh` | `@taskweaver/dsh-tool-pwsh` |
+| `tool-jobs` | `@taskweaver/dsh-tool-jobs` |
+| `fs-observation-policy` | `@taskweaver/dsh-fs-observation-policy` |
+| `tool-fs` | `@taskweaver/dsh-tool-fs` |
+| `tool-fs-search` | `@taskweaver/dsh-tool-fs-search` |
+| `agent-instructions` | `@taskweaver/dsh-agent-instructions` |
+| `skill` | `@taskweaver/dsh-skill` |
+| `skill-filesystem` | `@taskweaver/dsh-skill-filesystem` |
+| `tool-skill` | `@taskweaver/dsh-tool-skill` |
+| `commands` | `@taskweaver/dsh-commands` |
+| `goal` | `@taskweaver/dsh-goal` |
+| `goal-round-driver` | `@taskweaver/dsh-goal-round-driver` |
+| `command-goal` | `@taskweaver/dsh-command-goal` |
+| `plan-mode` | `@taskweaver/dsh-plan-mode` |
+| `token-meter` | `@taskweaver/dsh-token-meter` |
+| `compaction-basic` | `@taskweaver/dsh-compaction-basic` |
+| `command-compact` | `@taskweaver/dsh-command-compact` |
+| `subagent` | `@taskweaver/dsh-subagent` |
+| `subagent-spawn-in-process` | `@taskweaver/dsh-subagent-spawn-in-process` |
+| `subagent-fork-in-process` | `@taskweaver/dsh-subagent-fork-in-process` |
+| `tool-subagent-control` | `@taskweaver/dsh-tool-subagent-control` |
+| `tool-subagent-list-agents` | `@taskweaver/dsh-tool-subagent-control/list-agents` |
+| `tool-subagent` | `@taskweaver/dsh-tool-subagent` |
+| `tool-subagent-fork` | `@taskweaver/dsh-tool-subagent` |
+| `tool-subagent-report` | `@taskweaver/dsh-tool-subagent-report` |
+| `workflow-worker-thread` | `@taskweaver/dsh-workflow-worker-thread` |
+| `tool-workflow` | `@taskweaver/dsh-tool-workflow` |
+| `timeout-policy` | `@taskweaver/dsh-tool-call-timeout-policy` |
+| `spill-local` | `@taskweaver/dsh-spill-local` |
+| `spill-policy` | `@taskweaver/dsh-spill-policy` |
+| `session-checkpoint-policy` | `@taskweaver/dsh-session-checkpoint-policy` |
+| `tool-result-pruner` | `@taskweaver/dsh-compaction-tool-result-pruner` |
+| `tool-todo` | `@taskweaver/dsh-tool-todo` |
+| `tool-goal` | `@taskweaver/dsh-tool-goal` |
+| `tool-ralph` | `@taskweaver/dsh-tool-ralph` |
+| `repeat-tool-reminder` | `@taskweaver/dsh-repeat-tool-reminder` |
+| `web` | `@taskweaver/dsh-web` |
+| `web-search-deepseek` | `@taskweaver/dsh-web-search-deepseek` |
+| `tool-web` | `@taskweaver/dsh-tool-web` |
+| `tools` | `@taskweaver/dsh-tools` |
+| `system-prompt` | `@taskweaver/dsh-system-prompt` |
+| `agent-loop` | `@taskweaver/dsh-agent-loop` |
+| `fs-sandbox` | `@taskweaver/dsh-fs-sandbox` |
 
 Source config: [`packages/bundle/base/cordis.patch.yml`](../../packages/bundle/base/cordis.patch.yml).
 

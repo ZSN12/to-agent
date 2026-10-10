@@ -3,10 +3,10 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { Context } from '@z/cordis'
-import Include from '@z/cordis-plugin-include'
-import Loader from '@z/cordis-plugin-loader'
-import LocalJobRegistry from '@z/dsh-jobs-local'
+import { Context } from '@taskweaver/cordis'
+import Include from '@taskweaver/cordis-plugin-include'
+import Loader from '@taskweaver/cordis-plugin-loader'
+import LocalJobRegistry from '@taskweaver/dsh-jobs-local'
 
 let root: string | undefined
 let context: Context | undefined
@@ -23,7 +23,7 @@ describe('jobs-local through a real Loader composition', () => {
     root = await mkdtemp(join(tmpdir(), 'dsh-jobs-local-loader-'))
     const configPath = join(root, 'cordis.yml')
     await writeFile(configPath, [
-      "- name: '@z/dsh-jobs-local'",
+      "- name: '@taskweaver/dsh-jobs-local'",
       '  config:',
       '    maxConcurrentJobsPerOwner: 1',
       '',
@@ -36,7 +36,7 @@ describe('jobs-local through a real Loader composition', () => {
     context.loader.internal = {
       version: 'v2',
       async import(specifier: string) {
-        if (specifier === '@z/dsh-jobs-local') return LocalJobRegistry
+        if (specifier === '@taskweaver/dsh-jobs-local') return LocalJobRegistry
         throw new Error(`unexpected Loader import: ${specifier}`)
       },
     } as unknown as NonNullable<typeof context.loader.internal>

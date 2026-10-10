@@ -1,13 +1,13 @@
 /**
- * Package-owned invariant companion for `@z/dsh-storage`.
- * @module @z/dsh-storage/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-storage`.
+ * @module @taskweaver/dsh-storage/invariant
  */
 
 /* jscpd:ignore-start */
-import type { Context } from '@z/cordis'
-import type { InvariantInstaller } from '@z/dsh-invariants'
+import type { Context } from '@taskweaver/cordis'
+import type { InvariantInstaller } from '@taskweaver/dsh-invariants'
 
-const PACKAGE_NAME = '@z/dsh-storage'
+const PACKAGE_NAME = '@taskweaver/dsh-storage'
 
 /** Cordis companion plugin name. */
 export const name = 'storage-invariant'

@@ -1,7 +1,7 @@
-import z from "@z/schemastery";
-import { SHELL_SETTINGS_NAMESPACE, ShellExecutor } from "@z/dsh-shell";
-import { installSettingsSection } from "@z/dsh-settings";
-import { MAX_TIMER_DELAY_MS, clampTimeout, deadline, timeoutOf } from "@z/dsh-timeout";
+import z from "@taskweaver/schemastery";
+import { SHELL_SETTINGS_NAMESPACE, ShellExecutor } from "@taskweaver/dsh-shell";
+import { installSettingsSection } from "@taskweaver/dsh-settings";
+import { MAX_TIMER_DELAY_MS, clampTimeout, deadline, timeoutOf } from "@taskweaver/dsh-timeout";
 //#region lib/types/index.js
 /**
 * Local Service Provider for the bash capability seam over the subprocess
@@ -11,7 +11,7 @@ import { MAX_TIMER_DELAY_MS, clampTimeout, deadline, timeoutOf } from "@z/dsh-ti
 * classification, the model-friendly terminal environment, and the model-facing
 * stdout/stderr merge for background reads. Execution policy belongs in
 * `tools/pre-execute` or a sandboxing executor.
-* @module @z/dsh-bash-local
+* @module @taskweaver/dsh-bash-local
 */
 var __addDisposableResource = function(env, value, async) {
 	if (value !== null && value !== void 0) {

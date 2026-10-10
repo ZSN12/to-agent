@@ -2,9 +2,9 @@
  * Tool-pairing balance over a session surface. Compaction changes surface
  * positions, so safe cuts are derived from tool-call/result content in current
  * surface order rather than step markers.
- * @module @z/dsh-compaction/tool-pairing
+ * @module @taskweaver/dsh-compaction/tool-pairing
  */
-import type { Session } from '@z/dsh-session';
+import type { Session } from '@taskweaver/dsh-session';
 /**
  * Whether the cut immediately before a current surface sequence is tool-pairing balanced.
  * @param session - session whose surface is checked.

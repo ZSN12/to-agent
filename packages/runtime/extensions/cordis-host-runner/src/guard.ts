@@ -10,16 +10,16 @@
  * VM-realm schemas and canonical values are rebuilt as host objects, while rendered content and
  * presentation metadata are shape-checked before entering the registry. Common JSON-Schema spellings are normalized when they
  * have one meaning; invalid vocabulary fails during registration with a teaching error.
- * @module @z/dsh-cordis-host-runner/guard
+ * @module @taskweaver/dsh-cordis-host-runner/guard
  */
 
-import { Context } from '@z/cordis'
-import type { Plugin } from '@z/cordis'
-import { scopeOf } from '@z/dsh-scope'
-import { assertSupportedJsonSchema, defineTool } from '@z/dsh-tools'
-import type { ToolDefinition } from '@z/dsh-tools'
-import type { ContentBlock } from '@z/dsh-llm'
-import type { JsonValue } from '@z/dsh-session'
+import { Context } from '@taskweaver/cordis'
+import type { Plugin } from '@taskweaver/cordis'
+import { scopeOf } from '@taskweaver/dsh-scope'
+import { assertSupportedJsonSchema, defineTool } from '@taskweaver/dsh-tools'
+import type { ToolDefinition } from '@taskweaver/dsh-tools'
+import type { ContentBlock } from '@taskweaver/dsh-llm'
+import type { JsonValue } from '@taskweaver/dsh-session'
 
 const DYNAMIC_TOOL = Symbol('cordis-host-runner.dynamic-tool')
 const SCHEMA_TYPES = new Set<unknown>(['string', 'number', 'integer', 'boolean', 'null', 'object', 'array', 'json'])
@@ -744,7 +744,7 @@ function sandboxContext(ctx: Context, reportFailure: (error: Error) => void): Co
   }
   const get = (name: string): unknown => readService(name, false)
   // The browser half builds the same façade over its own Context
-  // (`@z/dsh-cordis-client-runner`, whose CTX_VERBS names this one its
+  // (`@taskweaver/dsh-cordis-client-runner`, whose CTX_VERBS names this one its
   // twin), and the sameness is the point: a package author meets ONE contract on
   // both halves. Folding them together is not available — the two halves compile
   // in separate programs where `Context` merges different service keys — so the

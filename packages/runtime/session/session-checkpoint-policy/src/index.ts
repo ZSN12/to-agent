@@ -1,15 +1,15 @@
 /**
  * Semantic durability checkpoints for model requests, top-level tool dispatch,
  * and completed agent steps.
- * @module @z/dsh-session-checkpoint-policy
+ * @module @taskweaver/dsh-session-checkpoint-policy
  */
 
-import type { Context } from '@z/cordis'
-import type { Session } from '@z/dsh-session'
-import type { StreamChunk } from '@z/dsh-llm'
-import { TOOL_ABORTED_BEFORE_DISPATCH, type ToolExecutionResult } from '@z/dsh-tools'
-import type { PreStepDecision } from '@z/dsh-agent'
-import type {} from '@z/dsh-session-persistence'
+import type { Context } from '@taskweaver/cordis'
+import type { Session } from '@taskweaver/dsh-session'
+import type { StreamChunk } from '@taskweaver/dsh-llm'
+import { TOOL_ABORTED_BEFORE_DISPATCH, type ToolExecutionResult } from '@taskweaver/dsh-tools'
+import type { PreStepDecision } from '@taskweaver/dsh-agent'
+import type {} from '@taskweaver/dsh-session-persistence'
 
 /** Cordis plugin name used by Loader diagnostics. */
 export const name = 'session-checkpoint-policy'

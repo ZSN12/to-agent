@@ -2,12 +2,12 @@
  * Host-side ApiProxy implementation. Signature discipline: unary takes the
  * narrow RpcRequest<P> and echoes request.rpcId on the RpcResponse<T>.
  */
-import type { Context } from '@z/cordis';
-import type { ModelSelection } from '@z/dsh-agent';
-import type { JsonValue } from '@z/dsh-session';
+import type { Context } from '@taskweaver/cordis';
+import type { ModelSelection } from '@taskweaver/dsh-agent';
+import type { JsonValue } from '@taskweaver/dsh-session';
 import type { ApiProxy } from './api/index.ts';
 import { type SessionLogCompressionLevel } from './session-export.ts';
-import { credentialKey } from '@z/dsh-credentials';
+import { credentialKey } from '@taskweaver/dsh-credentials';
 interface ApiProxyAuthorizationService {
     list(): Array<{
         key: ReturnType<typeof credentialKey>;
@@ -48,7 +48,7 @@ interface ApiProxyAuthorizationService {
         inFlight: boolean;
     } | undefined;
 }
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
     interface Context {
         authorization: ApiProxyAuthorizationService;
     }

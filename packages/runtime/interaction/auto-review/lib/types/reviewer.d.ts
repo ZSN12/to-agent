@@ -3,9 +3,9 @@
  * with a structured `outputSchema`, so the reviewer returns a validated
  * {@link ReviewOutcome} without inheriting parent context. The child runs with
  * a narrowed tool set so the reviewer cannot itself become an attack surface.
- * @module @z/dsh-auto-review
+ * @module @taskweaver/dsh-auto-review
  */
-import type { Context } from '@z/cordis';
+import type { Context } from '@taskweaver/cordis';
 import type { Reviewer } from './types.ts';
 /**
  * Build a {@link Reviewer} whose `run` spawns a fresh, sanitized subagent and

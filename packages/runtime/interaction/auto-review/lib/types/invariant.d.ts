@@ -1,5 +1,5 @@
-/** Package-owned session-event invariants for auto-review. @module @z/dsh-auto-review/invariant */
-import type { Context } from '@z/cordis';
+/** Package-owned session-event invariants for auto-review. @module @taskweaver/dsh-auto-review/invariant */
+import type { Context } from '@taskweaver/cordis';
 /** Cordis companion plugin name. */
 export declare const name = "auto-review-invariant";
 /** Service required before the companion can reserve package ownership. */

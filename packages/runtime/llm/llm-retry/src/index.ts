@@ -2,17 +2,17 @@
  * Provider-routed model-request retry policy on the agent loop's request
  * recovery extension point. Each scheduled retry is durable before its cancellable wait.
  *
- * @module @z/dsh-llm-retry
+ * @module @taskweaver/dsh-llm-retry
  */
 
 import { randomUUID } from 'node:crypto'
-import type { Context, Events } from '@z/cordis'
-import z from '@z/schemastery'
-import type { Agent, RequestErrorAction } from '@z/dsh-agent'
-import { EMPTY_RESPONSE_CODE } from '@z/dsh-llm'
-import type { LlmFailure, ResolvedRetryPolicy } from '@z/dsh-llm'
-import { taskweaverEmbeddedFromEnv } from '@z/dsh-home-paths'
-import type { SessionEvent } from '@z/dsh-session'
+import type { Context, Events } from '@taskweaver/cordis'
+import z from '@taskweaver/schemastery'
+import type { Agent, RequestErrorAction } from '@taskweaver/dsh-agent'
+import { EMPTY_RESPONSE_CODE } from '@taskweaver/dsh-llm'
+import type { LlmFailure, ResolvedRetryPolicy } from '@taskweaver/dsh-llm'
+import { taskweaverEmbeddedFromEnv } from '@taskweaver/dsh-home-paths'
+import type { SessionEvent } from '@taskweaver/dsh-session'
 import { RetryId } from './brand.ts'
 import type { LlmRetryEventData } from './types.ts'
 

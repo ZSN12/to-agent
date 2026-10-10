@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import SessionStore, { Session, SessionId } from '@z/dsh-session'
-import { ApprovalRequestId } from '@z/dsh-user-approval'
-import * as ApprovalInvariant from '@z/dsh-user-approval/invariant'
-import InvariantRegistry from '@z/dsh-invariants'
+import { Context } from '@taskweaver/cordis'
+import SessionStore, { Session, SessionId } from '@taskweaver/dsh-session'
+import { ApprovalRequestId } from '@taskweaver/dsh-user-approval'
+import * as ApprovalInvariant from '@taskweaver/dsh-user-approval/invariant'
+import InvariantRegistry from '@taskweaver/dsh-invariants'
 
 async function setup(): Promise<Context> {
   const ctx = new Context()

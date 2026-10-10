@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
-import { Context } from '@z/cordis'
-import type { Fiber } from '@z/cordis'
-import LlmRuntime, { createUserMessage, CallId, EMPTY_RESPONSE_CODE, LlmAdapter, LlmError, resolveRetryPolicy  } from '@z/dsh-llm'
+import { Context } from '@taskweaver/cordis'
+import type { Fiber } from '@taskweaver/cordis'
+import LlmRuntime, { createUserMessage, CallId, EMPTY_RESPONSE_CODE, LlmAdapter, LlmError, resolveRetryPolicy  } from '@taskweaver/dsh-llm'
 import type {
   AlwaysRetryPolicyConfig,
   BackoffConfig,
@@ -10,15 +10,15 @@ import type {
   ResolvedRetryPolicy,
   RetryPolicyConfig,
   StreamChunk,
-} from '@z/dsh-llm'
-import SessionStore, { SessionId } from '@z/dsh-session'
-import type { SessionEvent, SessionEventMap } from '@z/dsh-session'
-import type { LlmRetryEventData } from '@z/dsh-llm-retry/types'
-import SystemPrompt from '@z/dsh-system-prompt'
-import ToolRuntime, { defineContentToolFixture } from '@z/dsh-tools'
-import AgentRegistry from '@z/dsh-agent'
-import type { Agent, RequestErrorAction } from '@z/dsh-agent'
-import AgentLoop from '@z/dsh-agent-loop'
+} from '@taskweaver/dsh-llm'
+import SessionStore, { SessionId } from '@taskweaver/dsh-session'
+import type { SessionEvent, SessionEventMap } from '@taskweaver/dsh-session'
+import type { LlmRetryEventData } from '@taskweaver/dsh-llm-retry/types'
+import SystemPrompt from '@taskweaver/dsh-system-prompt'
+import ToolRuntime, { defineContentToolFixture } from '@taskweaver/dsh-tools'
+import AgentRegistry from '@taskweaver/dsh-agent'
+import type { Agent, RequestErrorAction } from '@taskweaver/dsh-agent'
+import AgentLoop from '@taskweaver/dsh-agent-loop'
 import * as retry from '../src/index.ts'
 
 type ScriptEntry = Error | Iterable<StreamChunk> | AsyncIterable<StreamChunk>

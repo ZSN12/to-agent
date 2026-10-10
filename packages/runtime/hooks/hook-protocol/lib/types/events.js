@@ -3,7 +3,7 @@
  * intent and must remain turn-enclosed and invoked/result paired. Mid-turn hook
  * points satisfy that boundary; SessionStart records injected context instead
  * and does not append `hook/*` outside a turn.
- * @module @z/dsh-hook-protocol/events
+ * @module @taskweaver/dsh-hook-protocol/events
  */
 /**
  * The reference default for {@link HookResultRecord.stderrSummaryMaxChars}

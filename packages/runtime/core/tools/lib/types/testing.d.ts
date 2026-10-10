@@ -1,5 +1,5 @@
 /** Canonical tool-definition fixtures for repository tests. @module dsh-tools/testing */
-import type { ContentBlock } from '@z/dsh-llm';
+import type { ContentBlock } from '@taskweaver/dsh-llm';
 import type { DefineToolOptions, ParameterSchemaSpec } from './schema.ts';
 import type { ToolDefinition, ToolRunContext } from './index.ts';
 declare const CONTENT_VALUE_SCHEMA: {

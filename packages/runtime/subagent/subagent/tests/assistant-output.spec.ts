@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { ContentBlock } from '@z/dsh-llm'
-import type { SessionEvent } from '@z/dsh-session'
+import type { ContentBlock } from '@taskweaver/dsh-llm'
+import type { SessionEvent } from '@taskweaver/dsh-session'
 import { AssistantOutputFold, finalAssistantOutput } from '../src/assistant-output.ts'
 
 function message(content: ContentBlock[]): SessionEvent {

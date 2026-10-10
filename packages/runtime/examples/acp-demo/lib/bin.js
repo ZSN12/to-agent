@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { parseArgs } from "node:util";
-import { boot, installFailLoud, loadEnv, resolveConfigPath } from "@z/dsh-app-boot";
+import { boot, installFailLoud, loadEnv, resolveConfigPath } from "@taskweaver/dsh-app-boot";
 //#region lib/types/bin.js
 /**
 * Boot an ACP stdio server from `cordis.yml`; usage is
@@ -10,7 +10,7 @@ import { boot, installFailLoud, loadEnv, resolveConfigPath } from "@z/dsh-app-bo
 * `cordis.snapshot.yml` so a stray key cannot trigger a model call. EOF disposes
 * and flushes snapshot runs; the calling automation owns process lifetime. Stdout is
 * reserved for JSON-RPC, so diagnostics go only to stderr.
-* @module @z/dsh-acp-demo/bin
+* @module @taskweaver/dsh-acp-demo/bin
 */
 const NAME = "dsh-acp-demo";
 /* v8 ignore start -- thin self-executing composition over the unit-tested

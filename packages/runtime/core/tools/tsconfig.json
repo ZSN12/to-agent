@@ -1,5 +1,5 @@
 {
-  "extends": "../../../../tsconfig.base.json",
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "rootDir": "src",
     "outDir": "lib/types"
@@ -15,10 +15,16 @@
       "path": "../../code-runtime/code-runtime"
     },
     {
-      "path": "../../../../vendor/cosmokit"
+      "path": "../../sandbox/sandbox"
     },
     {
-      "path": "../../../../vendor/cordis"
+      "path": "../../sandbox/sandbox-policy"
+    },
+    {
+      "path": "../../cordis/cosmokit"
+    },
+    {
+      "path": "../../cordis/cordis"
     },
     {
       "path": "../../llm/llm"

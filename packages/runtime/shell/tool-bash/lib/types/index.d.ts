@@ -5,10 +5,10 @@
  *
  * TODO(permissions): deployment policy belongs in `tools/pre-execute` and
  * sandboxing executors; see docs/architecture.md § Where new behavior goes.
- * @module @z/dsh-tool-bash
+ * @module @taskweaver/dsh-tool-bash
  */
-import type { Context } from '@z/cordis';
-import z from '@z/schemastery';
+import type { Context } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
 export declare const name = "tool-bash";
 export declare const inject: string[];
 /** Configuration for the bash tool. */

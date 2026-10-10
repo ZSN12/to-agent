@@ -5,12 +5,12 @@
  */
 
 import { expect, it, vi } from 'vitest'
-import { Context } from '@z/cordis'
-import type { Agent } from '@z/dsh-agent'
-import SubagentRuntime from '@z/dsh-subagent'
-import type { SubagentProvider } from '@z/dsh-subagent'
+import { Context } from '@taskweaver/cordis'
+import type { Agent } from '@taskweaver/dsh-agent'
+import SubagentRuntime from '@taskweaver/dsh-subagent'
+import type { SubagentProvider } from '@taskweaver/dsh-subagent'
 import WorkerThreadWorkflowEngine from '../src/index.ts'
-import { SessionId } from '@z/dsh-session'
+import { SessionId } from '@taskweaver/dsh-session'
 
 // A fresh thread compiles the source runtime. Leave contention headroom on
 // shared CI runners without weakening any engine-level timeout assertion.

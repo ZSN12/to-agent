@@ -1,7 +1,7 @@
 /** Durable Team mailbox admission, target-local dispatch, acknowledgement, and recovery. */
-import type { Context } from '@z/cordis';
-import type { Agent } from '@z/dsh-agent';
-import type { Session, SessionEvent } from '@z/dsh-session';
+import type { Context } from '@taskweaver/cordis';
+import type { Agent } from '@taskweaver/dsh-agent';
+import type { Session, SessionEvent } from '@taskweaver/dsh-session';
 import type { TeamJournal } from './journal.ts';
 import type { TeamRuntimeLifecycle } from './lifecycle.ts';
 import type { TeamRoster } from './roster.ts';

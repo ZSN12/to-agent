@@ -1,18 +1,18 @@
 /**
  * File-reference discovery seam shared by host-backed user interfaces.
  *
- * @module @z/dsh-file-reference
+ * @module @taskweaver/dsh-file-reference
  */
-import type { Context } from '@z/cordis';
-import type { Agent } from '@z/dsh-agent';
-import { TypertRemoteService } from '@z/dsh-typert-protocol';
+import type { Context } from '@taskweaver/cordis';
+import type { Agent } from '@taskweaver/dsh-agent';
+import { TypertRemoteService } from '@taskweaver/dsh-typert-protocol';
 import type { FileReferenceCandidate } from './types.ts';
 export { activeAtToken, formatFileMention } from './grammar.ts';
 export type { ActiveAtToken } from './grammar.ts';
 export type { FileReferenceCandidate } from './types.ts';
 /** Model guidance for path-only references selected by a user interface. */
 export declare const FILE_REFERENCE_PROMPT = "Paths prefixed with @ are files explicitly referenced by the user. Use the read tool when their contents are needed; do not claim to have inspected a file before reading it.";
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
     interface Context {
         fileReferences: FileReferenceService;
     }

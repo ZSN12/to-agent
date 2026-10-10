@@ -1,5 +1,5 @@
 {
-  "name": "@z/dsh-bridge-core",
+  "name": "@taskweaver/dsh-bridge-core",
   "description": "TaskWeaver in-process model bridge: pluggable backends (Cursor, Antigravity, custom relay)",
   "version": "0.1.0-taskweaver",
   "private": true,
@@ -24,9 +24,9 @@
   ],
   "license": "MIT",
   "dependencies": {
-    "@z/dsh-llm": "workspace:^"
+    "@taskweaver/dsh-llm": "workspace:^"
   },
   "devDependencies": {
-    "@z/dsh-llm": "workspace:^"
+    "@taskweaver/dsh-llm": "workspace:^"
   }
 }

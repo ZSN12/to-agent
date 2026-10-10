@@ -5,11 +5,11 @@
  * Background policy is selected by this plugin's configuration: one-shot
  * calls own a plain Task, while continuable calls use
  * `ctx.subagents.startContinuable()`.
- * @module @z/dsh-tool-subagent
+ * @module @taskweaver/dsh-tool-subagent
  */
-import type { Context } from '@z/cordis';
-import z from '@z/schemastery';
-import type { AgentOptions } from '@z/dsh-agent';
+import type { Context } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
+import type { AgentOptions } from '@taskweaver/dsh-agent';
 export declare const name = "tool-subagent";
 export declare const inject: string[];
 /** Config: which registered provider this tool delegates to, plus child defaults. */

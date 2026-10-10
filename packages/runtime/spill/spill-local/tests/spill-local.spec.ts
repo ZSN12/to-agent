@@ -7,14 +7,14 @@
  */
 
 import { describe, expect, it, beforeEach, afterEach } from 'vitest'
-import { Context } from '@z/cordis'
+import { Context } from '@taskweaver/cordis'
 import { mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, dirname, isAbsolute, join, normalize } from 'node:path'
-import { CallId } from '@z/dsh-llm'
-import { SessionId } from '@z/dsh-session'
-import type { SaveTextSpill } from '@z/dsh-spill'
-import LocalSpillStore, { encodeSegment, privateRoot, saveTextFile, sessionDir } from '@z/dsh-spill-local'
+import { CallId } from '@taskweaver/dsh-llm'
+import { SessionId } from '@taskweaver/dsh-session'
+import type { SaveTextSpill } from '@taskweaver/dsh-spill'
+import LocalSpillStore, { encodeSegment, privateRoot, saveTextFile, sessionDir } from '@taskweaver/dsh-spill-local'
 
 let root: string
 

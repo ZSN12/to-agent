@@ -2,13 +2,13 @@
  * JSON-RPC methods and notifications for out-of-process harness SDKs.
  * The surrounding context owns plugins, persistence, and configured adapters.
  *
- * @module @z/dsh-sdk-jsonrpc-server/server
+ * @module @taskweaver/dsh-sdk-jsonrpc-server/server
  */
 import { resolve } from 'node:path';
-import { createUserMessage } from '@z/dsh-llm';
-import { carrierKeyOf } from '@z/dsh-scope';
-import { SessionId } from '@z/dsh-session';
-import * as LlmDeepSeek from '@z/dsh-llm-deepseek';
+import { createUserMessage } from '@taskweaver/dsh-llm';
+import { carrierKeyOf } from '@taskweaver/dsh-scope';
+import { SessionId } from '@taskweaver/dsh-session';
+import * as LlmDeepSeek from '@taskweaver/dsh-llm-deepseek';
 /** Recover the delegating parent from the service-owned scoped carrier. */
 function subagentParentOf(carrier) {
     return carrierKeyOf(carrier);
@@ -192,7 +192,7 @@ export class HarnessSdkJsonRpcServer {
         // No preset composition: this server's compositions keep the model-facing
         // rows in the host plane, so this agent reads them from the global layer. A
         // deployment that configures a roster has to join one here first
-        // (@z/dsh-agent-presets README, "Composing a child agent").
+        // (@taskweaver/dsh-agent-presets README, "Composing a child agent").
         const handle = await this.ctx.agents.create({
             sessionId: SessionId(sessionId),
             meta: { cwd: this.cwd },

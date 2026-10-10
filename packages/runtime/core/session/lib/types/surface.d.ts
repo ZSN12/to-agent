@@ -5,9 +5,9 @@
  * Browser-safe: web clients consume this subpath export, so it must stay free
  * of `node:` imports (they break the vite bundle).
  *
- * @module @z/dsh-session/surface
+ * @module @taskweaver/dsh-session/surface
  */
-import type { Message } from '@z/dsh-llm';
+import type { Message } from '@taskweaver/dsh-llm';
 import type { SessionEvent, SurfaceEvent, SurfaceOp } from './types.ts';
 /**
  * Whether an event type can join the model-visible surface.

@@ -1,9 +1,9 @@
 //#region lib/types/invariant.js
 /**
-* Package-owned invariant companion for `@z/dsh-subprocess-local`.
-* @module @z/dsh-subprocess-local/invariant
+* Package-owned invariant companion for `@taskweaver/dsh-subprocess-local`.
+* @module @taskweaver/dsh-subprocess-local/invariant
 */
-const PACKAGE_NAME = "@z/dsh-subprocess-local";
+const PACKAGE_NAME = "@taskweaver/dsh-subprocess-local";
 /** Cordis companion plugin name. */
 const name = "subprocess-local-invariant";
 /** Service required before the companion can reserve package ownership. */

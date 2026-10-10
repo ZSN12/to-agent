@@ -2,10 +2,10 @@
  * JSON-RPC methods and notifications for out-of-process harness SDKs.
  * The surrounding context owns plugins, persistence, and configured adapters.
  *
- * @module @z/dsh-sdk-jsonrpc-server/server
+ * @module @taskweaver/dsh-sdk-jsonrpc-server/server
  */
-import type { Context } from '@z/cordis';
-import type { InitializeParams, InitializeResult, JsonRpcTransportPeer, SessionPromptParams, SessionPromptResult } from '@z/dsh-sdk-protocol';
+import type { Context } from '@taskweaver/cordis';
+import type { InitializeParams, InitializeResult, JsonRpcTransportPeer, SessionPromptParams, SessionPromptResult } from '@taskweaver/dsh-sdk-protocol';
 /** Deployment-specific status mapping for SDK turn and subagent outcomes. */
 export interface HarnessSdkJsonRpcServerOptions {
     /** Report max-token termination as an accepted result instead of an infrastructure error. */

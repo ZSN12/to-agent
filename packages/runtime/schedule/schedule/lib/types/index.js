@@ -1,6 +1,6 @@
 /**
  * Agent-scoped durable one-shot and fixed-rate reminders over the session event log.
- * @module @z/dsh-schedule
+ * @module @taskweaver/dsh-schedule
  */
 import { ScheduleRuntime } from "./runtime.js";
 import { registerScheduleTools } from "./tools.js";

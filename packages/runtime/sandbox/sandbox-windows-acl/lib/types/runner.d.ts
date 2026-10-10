@@ -41,7 +41,7 @@
  * directories, token/grant/spawn errors) prints `windows-acl-run: <detail>`
  * to stderr and exits 127 — the seam's RUNNER_FAILURE_RULES matches that
  * signature. The child is NEVER spawned unrestricted.
- * @module @z/dsh-sandbox-windows-acl/runner
+ * @module @taskweaver/dsh-sandbox-windows-acl/runner
  */
 export {};
 //# sourceMappingURL=runner.d.ts.map

@@ -1,4 +1,4 @@
-/** Host 上下文占用达到阈值时，触发上下文压缩瘦身。 */
+/** Host 上下文占用较高时，显示手动压缩建议。实际自动压缩只由 DSH 处理。 */
 
 export const COMPACTION_SUGGEST_CONTEXT_PERCENT = 75
 export const COMPACTION_SUGGEST_CLEAR_PERCENT = 60
@@ -6,19 +6,6 @@ export const COMPACTION_SUGGEST_CLEAR_PERCENT = 60
 /** Same shape nativeChatCommand() treats as a Host `/compact`. */
 export function isCompactCommandText(text: unknown): boolean {
   return typeof text === 'string' && /^\/compact(?:[ \t]+[^\r\n]*)?$/i.test(text.trim())
-}
-
-/** 判定是否应当触发自动压缩（水位超过 75% 且非忙碌） */
-export function shouldAutoCompact(input: {
-  contextPercent?: number | null
-  sending?: boolean
-  compacting?: boolean
-  autoCompactedForSeq?: boolean
-}): boolean {
-  if (input.compacting || input.sending || input.autoCompactedForSeq) return false
-  const pct = input.contextPercent
-  if (!Number.isFinite(pct)) return false
-  return pct! >= COMPACTION_SUGGEST_CONTEXT_PERCENT
 }
 
 export function shouldSuggestContextCompaction(input: {
@@ -38,6 +25,6 @@ export function shouldSuggestContextCompaction(input: {
     suggest: true as const,
     reason: 'context-pressure' as const,
     contextPercent: pct!,
-    message: `上下文已用约 ${Math.round(pct!)}%（超过 75% 阈值），正在自动瘦身或建议压缩历史以留出余量。`,
+    message: `上下文已用约 ${Math.round(pct!)}%，可以手动压缩历史以留出余量。`,
   }
 }

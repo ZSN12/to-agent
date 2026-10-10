@@ -1,7 +1,7 @@
 /** SQLite schema for the disposable session full-text read model. */
 import type { DatabaseSync } from 'node:sqlite';
 /** Current derived-index schema version. Incompatible versions reset in place. */
-export declare const SESSION_QUERY_SQLITE_SCHEMA_VERSION = 9;
+export declare const SESSION_QUERY_SQLITE_SCHEMA_VERSION = 10;
 /** SQLite application id protecting unrelated databases from derived resets. */
 export declare const SESSION_QUERY_SQLITE_APPLICATION_ID = 1146308689;
 /** Supported SQLite journal modes. */

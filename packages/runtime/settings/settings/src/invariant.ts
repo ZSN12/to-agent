@@ -1,13 +1,13 @@
 /**
- * Package-owned invariant companion for `@z/dsh-settings`.
- * @module @z/dsh-settings/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-settings`.
+ * @module @taskweaver/dsh-settings/invariant
  */
 
-import type { Context } from '@z/cordis'
-import type { InvariantFailure, InvariantInstaller } from '@z/dsh-invariants'
+import type { Context } from '@taskweaver/cordis'
+import type { InvariantFailure, InvariantInstaller } from '@taskweaver/dsh-invariants'
 import { deepEqualJson } from './index.ts'
 
-const PACKAGE_NAME = '@z/dsh-settings'
+const PACKAGE_NAME = '@taskweaver/dsh-settings'
 
 /** Cordis companion plugin name. */
 export const name = 'settings-invariant'

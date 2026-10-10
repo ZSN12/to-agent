@@ -1,27 +1,22 @@
-"use strict";
 /**
- * Package-owned invariant companion for `@z/dsh-agent-loop-testkit`.
- * @module @z/dsh-agent-loop-testkit/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-agent-loop-testkit`.
+ * @module @taskweaver/dsh-agent-loop-testkit/invariant
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.apply = exports.inject = exports.name = void 0;
-var PACKAGE_NAME = '@z/dsh-agent-loop-testkit';
+const PACKAGE_NAME = '@taskweaver/dsh-agent-loop-testkit';
 /** Cordis companion plugin name. */
-exports.name = 'agent-loop-testkit-invariant';
+export const name = 'agent-loop-testkit-invariant';
 /** Service required before the companion can reserve package ownership. */
-exports.inject = ['invariants'];
+export const inject = ['invariants'];
 /**
  * No runtime invariant: this test-support package owns no production event stream or mutable data;
  * consuming test suites exercise its behavior.
  */
-var install = function () { };
+const install = () => { };
 /**
  * Register this package's invariant companion.
  * @param ctx - Cordis context carrying the invariant service.
  * @returns the installed registration's disposer after setup succeeds.
  */
-var apply = function (ctx) {
-    return Promise.resolve(ctx.invariants.register(PACKAGE_NAME, install));
-};
-exports.apply = apply;
+export const apply = (ctx) => Promise.resolve(ctx.invariants.register(PACKAGE_NAME, install));
 /* jscpd:ignore-end */
+//# sourceMappingURL=invariant.js.map

@@ -1,8 +1,8 @@
 /** Deterministic provider-independent image normalization. */
 
 import sharp, { type Sharp } from 'sharp'
-import { AttachmentError } from '@z/dsh-attachment'
-import type { ImageMediaType } from '@z/dsh-attachment'
+import { AttachmentError } from '@taskweaver/dsh-attachment'
+import type { ImageMediaType } from '@taskweaver/dsh-attachment'
 import { encodeFirstWithinLimit, isExhaustedEncoding } from './encoding.ts'
 import { detectImage, encodedAlphaIsCompatible } from './image.ts'
 import type { DetectedImage } from './image.ts'

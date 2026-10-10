@@ -7,7 +7,7 @@
  * locator and retrieval guidance.
  *
  * It registers NO service and owns NO storage or preview mechanics: preview is
- * `@z/dsh-output-retention` (`TextRetainer`), storage is `ctx.spillStore`.
+ * `@taskweaver/dsh-output-retention` (`TextRetainer`), storage is `ctx.spillStore`.
  * The policy only decides WHEN to spill and composes the notice.
  *
  * A second arm applies the SAME cap to the durable log: the
@@ -40,18 +40,18 @@
  * replaced content still has its replacement bounded, and value replacements
  * and `block` decisions pass through unchanged.
  *
- * @module @z/dsh-spill-policy
+ * @module @taskweaver/dsh-spill-policy
  */
 
-import type { Context } from '@z/cordis'
-import z from '@z/schemastery'
-import type { ContentBlock } from '@z/dsh-llm'
-import { TextRetainer, describeOmitted } from '@z/dsh-output-retention'
-import type { Omitted } from '@z/dsh-output-retention'
-import type { SaveTextSpill, SpillRef } from '@z/dsh-spill'
-import type { SessionId } from '@z/dsh-session'
-import type { CallId } from '@z/dsh-llm'
-import type { PostToolDecision, ToolExecution } from '@z/dsh-tools'
+import type { Context } from '@taskweaver/cordis'
+import z from '@taskweaver/schemastery'
+import type { ContentBlock } from '@taskweaver/dsh-llm'
+import { TextRetainer, describeOmitted } from '@taskweaver/dsh-output-retention'
+import type { Omitted } from '@taskweaver/dsh-output-retention'
+import type { SaveTextSpill, SpillRef } from '@taskweaver/dsh-spill'
+import type { SessionId } from '@taskweaver/dsh-session'
+import type { CallId } from '@taskweaver/dsh-llm'
+import type { PostToolDecision, ToolExecution } from '@taskweaver/dsh-tools'
 import type { SpillPolicyExec } from './types.ts'
 
 export type { SpillPolicyExec } from './types.ts'

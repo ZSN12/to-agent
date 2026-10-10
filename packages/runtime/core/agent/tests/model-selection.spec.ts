@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import SystemPrompt from '@z/dsh-system-prompt'
+import { Context } from '@taskweaver/cordis'
+import SystemPrompt from '@taskweaver/dsh-system-prompt'
 import {
   agentEvents,
   installModelSelection,
   type Agent,
   type ModelSelectionRef,
 } from '../src/index.ts'
-import { ReasoningEffortId, type LlmCallConfig } from '@z/dsh-llm'
+import { ReasoningEffortId, type LlmCallConfig } from '@taskweaver/dsh-llm'
 
 describe('installModelSelection()', () => {
   it('snapshots prompt variables and request routing together, then disposes both listeners', async () => {

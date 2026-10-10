@@ -1,11 +1,11 @@
 /**
  * Persistent shell PTY backend over the subprocess terminal primitive, shared
  * sandbox policy, bounded output, and provider-owned session cleanup.
- * @module @z/dsh-terminal-bash
+ * @module @taskweaver/dsh-terminal-bash
  */
-import { Context } from '@z/cordis';
-import type { TerminalBackend, TerminalBackendSpawnSpec } from '@z/dsh-terminal';
-import type { SubprocessTerminalHandle, SubprocessTerminalSpawnSpec } from '@z/dsh-subprocess';
+import { Context } from '@taskweaver/cordis';
+import type { TerminalBackend, TerminalBackendSpawnSpec } from '@taskweaver/dsh-terminal';
+import type { SubprocessTerminalHandle, SubprocessTerminalSpawnSpec } from '@taskweaver/dsh-subprocess';
 import { type Config, type ResolvedConfig } from './config.ts';
 import { LocalPtySession } from './session.ts';
 export { Config } from './config.ts';

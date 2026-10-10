@@ -5,12 +5,12 @@
  * `updatedAt` stamping and invalid-account pruning happen exactly once.
  * Not re-exported from the package entrypoint — consumers see only the
  * `Workspace` interface.
- * @module @z/dsh-workspace/src/entity
+ * @module @taskweaver/dsh-workspace/src/entity
  */
 
 import { stat } from 'node:fs/promises'
-import type { SessionHeader, SessionId } from '@z/dsh-session'
-import type { KvTable } from '@z/dsh-storage-domain'
+import type { SessionHeader, SessionId } from '@taskweaver/dsh-session'
+import type { KvTable } from '@taskweaver/dsh-storage-domain'
 import type { WorkspaceRecord } from './spec.ts'
 import type { Workspace, WorkspaceId } from './types.ts'
 import { realpathNormalize } from './paths.ts'

@@ -1,5 +1,5 @@
 window.__ModuleLoader__.load({
-	id: "@z/dsh-api-remotes",
+	id: "@taskweaver/dsh-api-remotes",
 	factory: (require) => {
 		var module = { exports: {} };
 		var exports = module.exports;
@@ -4307,9 +4307,9 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			}).readonly().optional()
 		}));
 		const TYPERT_REMOTE$6 = {
-			package: "@z/dsh-commands",
+			package: "@taskweaver/dsh-commands",
 			descriptors: [{
-				id: "@z/dsh-commands#commands/execute",
+				id: "@taskweaver/dsh-commands#commands/execute",
 				service: "commands",
 				namespace: "commands",
 				method: "execute",
@@ -4326,7 +4326,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 						lookup: "agent",
 						codec: {
 							mode: "strict",
-							typeSymbol: "@z/dsh-session/types#SessionId",
+							typeSymbol: "@taskweaver/dsh-session/types#SessionId",
 							schema: _z_dsh_commands_commands_execute_parameter_0$schema
 						}
 					},
@@ -4336,7 +4336,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 						source: "json",
 						codec: {
 							mode: "strict",
-							typeSymbol: "@z/dsh-commands#commands/execute:line",
+							typeSymbol: "@taskweaver/dsh-commands#commands/execute:line",
 							schema: _z_dsh_commands_commands_execute_parameter_1$schema
 						}
 					},
@@ -4346,7 +4346,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 						source: "json",
 						codec: {
 							mode: "strict",
-							typeSymbol: "@z/dsh-commands#commands/execute:images",
+							typeSymbol: "@taskweaver/dsh-commands#commands/execute:images",
 							schema: _z_dsh_commands_commands_execute_parameter_2$schema
 						}
 					}
@@ -4354,7 +4354,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 				cancellation: { parameter: "signal" },
 				result: {
 					mode: "strict",
-					typeSymbol: "@z/dsh-commands#commands/execute:result",
+					typeSymbol: "@taskweaver/dsh-commands#commands/execute:result",
 					schema: _z_dsh_commands_commands_execute_result$schema
 				},
 				sourceLocation: {
@@ -4363,7 +4363,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 					"column": 9
 				}
 			}, {
-				id: "@z/dsh-commands#commands/list",
+				id: "@taskweaver/dsh-commands#commands/list",
 				service: "commands",
 				namespace: "commands",
 				method: "list",
@@ -4379,13 +4379,13 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 					lookup: "agent",
 					codec: {
 						mode: "strict",
-						typeSymbol: "@z/dsh-session/types#SessionId",
+						typeSymbol: "@taskweaver/dsh-session/types#SessionId",
 						schema: _z_dsh_commands_commands_list_parameter_0$schema
 					}
 				}],
 				result: {
 					mode: "strict",
-					typeSymbol: "@z/dsh-commands#commands/list:result",
+					typeSymbol: "@taskweaver/dsh-commands#commands/list:result",
 					schema: _z_dsh_commands_commands_list_result$schema
 				},
 				sourceLocation: {
@@ -4520,10 +4520,10 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			"revision": number().readonly()
 		});
 		const TYPERT_REMOTE$5 = {
-			package: "@z/dsh-goal",
+			package: "@taskweaver/dsh-goal",
 			descriptors: [
 				{
-					id: "@z/dsh-goal#goals/clear",
+					id: "@taskweaver/dsh-goal#goals/clear",
 					service: "goals",
 					namespace: "goals",
 					method: "clear",
@@ -4539,7 +4539,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 						lookup: "agent",
 						codec: {
 							mode: "strict",
-							typeSymbol: "@z/dsh-session/types#SessionId",
+							typeSymbol: "@taskweaver/dsh-session/types#SessionId",
 							schema: _z_dsh_goal_goals_clear_parameter_0$schema
 						}
 					}, {
@@ -4548,13 +4548,13 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 						source: "json",
 						codec: {
 							mode: "strict",
-							typeSymbol: "@z/dsh-goal/client#GoalRef",
+							typeSymbol: "@taskweaver/dsh-goal/client#GoalRef",
 							schema: _z_dsh_goal_goals_clear_parameter_1$schema
 						}
 					}],
 					result: {
 						mode: "strict",
-						typeSymbol: "@z/dsh-goal/client#GoalRef",
+						typeSymbol: "@taskweaver/dsh-goal/client#GoalRef",
 						schema: _z_dsh_goal_goals_clear_result$schema
 					},
 					sourceLocation: {
@@ -4564,7 +4564,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 					}
 				},
 				{
-					id: "@z/dsh-goal#goals/complete",
+					id: "@taskweaver/dsh-goal#goals/complete",
 					service: "goals",
 					namespace: "goals",
 					method: "complete",
@@ -4580,7 +4580,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 						lookup: "agent",
 						codec: {
 							mode: "strict",
-							typeSymbol: "@z/dsh-session/types#SessionId",
+							typeSymbol: "@taskweaver/dsh-session/types#SessionId",
 							schema: _z_dsh_goal_goals_complete_parameter_0$schema
 						}
 					}, {
@@ -4589,13 +4589,13 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 						source: "json",
 						codec: {
 							mode: "strict",
-							typeSymbol: "@z/dsh-goal/client#GoalRef",
+							typeSymbol: "@taskweaver/dsh-goal/client#GoalRef",
 							schema: _z_dsh_goal_goals_complete_parameter_1$schema
 						}
 					}],
 					result: {
 						mode: "strict",
-						typeSymbol: "@z/dsh-goal/client#GoalView",
+						typeSymbol: "@taskweaver/dsh-goal/client#GoalView",
 						schema: _z_dsh_goal_goals_complete_result$schema
 					},
 					sourceLocation: {
@@ -4605,7 +4605,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 					}
 				},
 				{
-					id: "@z/dsh-goal#goals/create",
+					id: "@taskweaver/dsh-goal#goals/create",
 					service: "goals",
 					namespace: "goals",
 					method: "create",
@@ -4622,7 +4622,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 						lookup: "agent",
 						codec: {
 							mode: "strict",
-							typeSymbol: "@z/dsh-session/types#SessionId",
+							typeSymbol: "@taskweaver/dsh-session/types#SessionId",
 							schema: _z_dsh_goal_goals_create_parameter_0$schema
 						}
 					}, {
@@ -4631,13 +4631,13 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 						source: "json",
 						codec: {
 							mode: "strict",
-							typeSymbol: "@z/dsh-goal/client#CreateGoalRequest",
+							typeSymbol: "@taskweaver/dsh-goal/client#CreateGoalRequest",
 							schema: _z_dsh_goal_goals_create_parameter_1$schema
 						}
 					}],
 					result: {
 						mode: "strict",
-						typeSymbol: "@z/dsh-goal/client#CreateGoalResult",
+						typeSymbol: "@taskweaver/dsh-goal/client#CreateGoalResult",
 						schema: _z_dsh_goal_goals_create_result$schema
 					},
 					sourceLocation: {
@@ -4647,7 +4647,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 					}
 				},
 				{
-					id: "@z/dsh-goal#goals/edit",
+					id: "@taskweaver/dsh-goal#goals/edit",
 					service: "goals",
 					namespace: "goals",
 					method: "edit",
@@ -4664,7 +4664,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 							lookup: "agent",
 							codec: {
 								mode: "strict",
-								typeSymbol: "@z/dsh-session/types#SessionId",
+								typeSymbol: "@taskweaver/dsh-session/types#SessionId",
 								schema: _z_dsh_goal_goals_edit_parameter_0$schema
 							}
 						},
@@ -4674,7 +4674,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 							source: "json",
 							codec: {
 								mode: "strict",
-								typeSymbol: "@z/dsh-goal/client#GoalRef",
+								typeSymbol: "@taskweaver/dsh-goal/client#GoalRef",
 								schema: _z_dsh_goal_goals_edit_parameter_1$schema
 							}
 						},
@@ -4684,14 +4684,14 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 							source: "json",
 							codec: {
 								mode: "strict",
-								typeSymbol: "@z/dsh-goal/client#EditGoalRequest",
+								typeSymbol: "@taskweaver/dsh-goal/client#EditGoalRequest",
 								schema: _z_dsh_goal_goals_edit_parameter_2$schema
 							}
 						}
 					],
 					result: {
 						mode: "strict",
-						typeSymbol: "@z/dsh-goal/client#GoalView",
+						typeSymbol: "@taskweaver/dsh-goal/client#GoalView",
 						schema: _z_dsh_goal_goals_edit_result$schema
 					},
 					sourceLocation: {
@@ -4701,7 +4701,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 					}
 				},
 				{
-					id: "@z/dsh-goal#goals/pause",
+					id: "@taskweaver/dsh-goal#goals/pause",
 					service: "goals",
 					namespace: "goals",
 					method: "pause",
@@ -4717,7 +4717,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 						lookup: "agent",
 						codec: {
 							mode: "strict",
-							typeSymbol: "@z/dsh-session/types#SessionId",
+							typeSymbol: "@taskweaver/dsh-session/types#SessionId",
 							schema: _z_dsh_goal_goals_pause_parameter_0$schema
 						}
 					}, {
@@ -4726,13 +4726,13 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 						source: "json",
 						codec: {
 							mode: "strict",
-							typeSymbol: "@z/dsh-goal/client#GoalRef",
+							typeSymbol: "@taskweaver/dsh-goal/client#GoalRef",
 							schema: _z_dsh_goal_goals_pause_parameter_1$schema
 						}
 					}],
 					result: {
 						mode: "strict",
-						typeSymbol: "@z/dsh-goal/client#GoalView",
+						typeSymbol: "@taskweaver/dsh-goal/client#GoalView",
 						schema: _z_dsh_goal_goals_pause_result$schema
 					},
 					sourceLocation: {
@@ -4742,7 +4742,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 					}
 				},
 				{
-					id: "@z/dsh-goal#goals/resume",
+					id: "@taskweaver/dsh-goal#goals/resume",
 					service: "goals",
 					namespace: "goals",
 					method: "resume",
@@ -4758,7 +4758,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 						lookup: "agent",
 						codec: {
 							mode: "strict",
-							typeSymbol: "@z/dsh-session/types#SessionId",
+							typeSymbol: "@taskweaver/dsh-session/types#SessionId",
 							schema: _z_dsh_goal_goals_resume_parameter_0$schema
 						}
 					}, {
@@ -4767,13 +4767,13 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 						source: "json",
 						codec: {
 							mode: "strict",
-							typeSymbol: "@z/dsh-goal/client#GoalRef",
+							typeSymbol: "@taskweaver/dsh-goal/client#GoalRef",
 							schema: _z_dsh_goal_goals_resume_parameter_1$schema
 						}
 					}],
 					result: {
 						mode: "strict",
-						typeSymbol: "@z/dsh-goal/client#GoalView",
+						typeSymbol: "@taskweaver/dsh-goal/client#GoalView",
 						schema: _z_dsh_goal_goals_resume_result$schema
 					},
 					sourceLocation: {
@@ -5113,10 +5113,10 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			"message": string()
 		})]);
 		const TYPERT_REMOTE$4 = {
-			package: "@z/dsh-cordis-host-runner",
+			package: "@taskweaver/dsh-cordis-host-runner",
 			descriptors: [
 				{
-					id: "@z/dsh-cordis-host-runner#dynamicCordisRunner/getClientCode",
+					id: "@taskweaver/dsh-cordis-host-runner#dynamicCordisRunner/getClientCode",
 					service: "dynamicCordisRunner",
 					namespace: "dynamicCordisRunner",
 					method: "getClientCode",
@@ -5133,7 +5133,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 							lookup: "agent",
 							codec: {
 								mode: "strict",
-								typeSymbol: "@z/dsh-session/types#SessionId",
+								typeSymbol: "@taskweaver/dsh-session/types#SessionId",
 								schema: _z_dsh_cordis_host_runner_dynamicCordisRunner_getClientCode_parameter_0$schema
 							}
 						},
@@ -5143,7 +5143,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 							source: "json",
 							codec: {
 								mode: "strict",
-								typeSymbol: "@z/dsh-cordis-host-runner/types#CordisDynamicPluginId",
+								typeSymbol: "@taskweaver/dsh-cordis-host-runner/types#CordisDynamicPluginId",
 								schema: _z_dsh_cordis_host_runner_dynamicCordisRunner_getClientCode_parameter_1$schema
 							}
 						},
@@ -5153,14 +5153,14 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 							source: "json",
 							codec: {
 								mode: "strict",
-								typeSymbol: "@z/dsh-cordis-host-runner/types#CordisDynamicPluginRunId",
+								typeSymbol: "@taskweaver/dsh-cordis-host-runner/types#CordisDynamicPluginRunId",
 								schema: _z_dsh_cordis_host_runner_dynamicCordisRunner_getClientCode_parameter_2$schema
 							}
 						}
 					],
 					result: {
 						mode: "strict",
-						typeSymbol: "@z/dsh-cordis-host-runner/types#DynamicCordisClientSource",
+						typeSymbol: "@taskweaver/dsh-cordis-host-runner/types#DynamicCordisClientSource",
 						schema: _z_dsh_cordis_host_runner_dynamicCordisRunner_getClientCode_result$schema
 					},
 					sourceLocation: {
@@ -5170,7 +5170,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 					}
 				},
 				{
-					id: "@z/dsh-cordis-host-runner#dynamicCordisRunner/inventory",
+					id: "@taskweaver/dsh-cordis-host-runner#dynamicCordisRunner/inventory",
 					service: "dynamicCordisRunner",
 					namespace: "dynamicCordisRunner",
 					method: "inventory",
@@ -5178,7 +5178,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 					parameters: [],
 					result: {
 						mode: "strict",
-						typeSymbol: "@z/dsh-cordis-host-runner#dynamicCordisRunner/inventory:result",
+						typeSymbol: "@taskweaver/dsh-cordis-host-runner#dynamicCordisRunner/inventory:result",
 						schema: _z_dsh_cordis_host_runner_dynamicCordisRunner_inventory_result$schema
 					},
 					sourceLocation: {
@@ -5188,7 +5188,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 					}
 				},
 				{
-					id: "@z/dsh-cordis-host-runner#dynamicCordisRunner/invoke",
+					id: "@taskweaver/dsh-cordis-host-runner#dynamicCordisRunner/invoke",
 					service: "dynamicCordisRunner",
 					namespace: "dynamicCordisRunner",
 					method: "invoke",
@@ -5200,7 +5200,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 							source: "json",
 							codec: {
 								mode: "strict",
-								typeSymbol: "@z/dsh-cordis-host-runner/types#CordisDynamicPluginId",
+								typeSymbol: "@taskweaver/dsh-cordis-host-runner/types#CordisDynamicPluginId",
 								schema: _z_dsh_cordis_host_runner_dynamicCordisRunner_invoke_parameter_0$schema
 							}
 						},
@@ -5210,7 +5210,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 							source: "json",
 							codec: {
 								mode: "strict",
-								typeSymbol: "@z/dsh-cordis-host-runner/types#CordisDynamicPluginRunId",
+								typeSymbol: "@taskweaver/dsh-cordis-host-runner/types#CordisDynamicPluginRunId",
 								schema: _z_dsh_cordis_host_runner_dynamicCordisRunner_invoke_parameter_1$schema
 							}
 						},
@@ -5220,7 +5220,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 							source: "json",
 							codec: {
 								mode: "strict",
-								typeSymbol: "@z/dsh-cordis-host-runner#dynamicCordisRunner/invoke:method",
+								typeSymbol: "@taskweaver/dsh-cordis-host-runner#dynamicCordisRunner/invoke:method",
 								schema: _z_dsh_cordis_host_runner_dynamicCordisRunner_invoke_parameter_2$schema
 							}
 						},
@@ -5230,14 +5230,14 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 							source: "json",
 							codec: {
 								mode: "strict",
-								typeSymbol: "@z/dsh-session/types#JsonValue",
+								typeSymbol: "@taskweaver/dsh-session/types#JsonValue",
 								schema: _z_dsh_cordis_host_runner_dynamicCordisRunner_invoke_parameter_3$schema
 							}
 						}
 					],
 					result: {
 						mode: "strict",
-						typeSymbol: "@z/dsh-cordis-host-runner/types#DynamicCordisInvokeResult",
+						typeSymbol: "@taskweaver/dsh-cordis-host-runner/types#DynamicCordisInvokeResult",
 						schema: _z_dsh_cordis_host_runner_dynamicCordisRunner_invoke_result$schema
 					},
 					sourceLocation: {
@@ -5247,7 +5247,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 					}
 				},
 				{
-					id: "@z/dsh-cordis-host-runner#dynamicCordisRunner/reportClientGuardFailure",
+					id: "@taskweaver/dsh-cordis-host-runner#dynamicCordisRunner/reportClientGuardFailure",
 					service: "dynamicCordisRunner",
 					namespace: "dynamicCordisRunner",
 					method: "reportClientGuardFailure",
@@ -5264,7 +5264,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 							lookup: "agent",
 							codec: {
 								mode: "strict",
-								typeSymbol: "@z/dsh-session/types#SessionId",
+								typeSymbol: "@taskweaver/dsh-session/types#SessionId",
 								schema: _z_dsh_cordis_host_runner_dynamicCordisRunner_reportClientGuardFailure_parameter_0$schema
 							}
 						},
@@ -5274,7 +5274,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 							source: "json",
 							codec: {
 								mode: "strict",
-								typeSymbol: "@z/dsh-cordis-host-runner/types#CordisDynamicPluginId",
+								typeSymbol: "@taskweaver/dsh-cordis-host-runner/types#CordisDynamicPluginId",
 								schema: _z_dsh_cordis_host_runner_dynamicCordisRunner_reportClientGuardFailure_parameter_1$schema
 							}
 						},
@@ -5284,7 +5284,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 							source: "json",
 							codec: {
 								mode: "strict",
-								typeSymbol: "@z/dsh-cordis-host-runner/types#CordisDynamicPluginRunId",
+								typeSymbol: "@taskweaver/dsh-cordis-host-runner/types#CordisDynamicPluginRunId",
 								schema: _z_dsh_cordis_host_runner_dynamicCordisRunner_reportClientGuardFailure_parameter_2$schema
 							}
 						},
@@ -5294,14 +5294,14 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 							source: "json",
 							codec: {
 								mode: "strict",
-								typeSymbol: "@z/dsh-cordis-host-runner/types#CordisErrorDetails",
+								typeSymbol: "@taskweaver/dsh-cordis-host-runner/types#CordisErrorDetails",
 								schema: _z_dsh_cordis_host_runner_dynamicCordisRunner_reportClientGuardFailure_parameter_3$schema
 							}
 						}
 					],
 					result: {
 						mode: "strict",
-						typeSymbol: "@z/dsh-cordis-host-runner#dynamicCordisRunner/reportClientGuardFailure:result",
+						typeSymbol: "@taskweaver/dsh-cordis-host-runner#dynamicCordisRunner/reportClientGuardFailure:result",
 						schema: _z_dsh_cordis_host_runner_dynamicCordisRunner_reportClientGuardFailure_result$schema
 					},
 					sourceLocation: {
@@ -5311,7 +5311,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 					}
 				},
 				{
-					id: "@z/dsh-cordis-host-runner#dynamicCordisRunner/reportRenderFailure",
+					id: "@taskweaver/dsh-cordis-host-runner#dynamicCordisRunner/reportRenderFailure",
 					service: "dynamicCordisRunner",
 					namespace: "dynamicCordisRunner",
 					method: "reportRenderFailure",
@@ -5328,7 +5328,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 							lookup: "agent",
 							codec: {
 								mode: "strict",
-								typeSymbol: "@z/dsh-session/types#SessionId",
+								typeSymbol: "@taskweaver/dsh-session/types#SessionId",
 								schema: _z_dsh_cordis_host_runner_dynamicCordisRunner_reportRenderFailure_parameter_0$schema
 							}
 						},
@@ -5338,7 +5338,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 							source: "json",
 							codec: {
 								mode: "strict",
-								typeSymbol: "@z/dsh-cordis-host-runner/types#CordisDynamicPluginId",
+								typeSymbol: "@taskweaver/dsh-cordis-host-runner/types#CordisDynamicPluginId",
 								schema: _z_dsh_cordis_host_runner_dynamicCordisRunner_reportRenderFailure_parameter_1$schema
 							}
 						},
@@ -5348,7 +5348,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 							source: "json",
 							codec: {
 								mode: "strict",
-								typeSymbol: "@z/dsh-cordis-host-runner/types#CordisDynamicPluginRunId",
+								typeSymbol: "@taskweaver/dsh-cordis-host-runner/types#CordisDynamicPluginRunId",
 								schema: _z_dsh_cordis_host_runner_dynamicCordisRunner_reportRenderFailure_parameter_2$schema
 							}
 						},
@@ -5358,14 +5358,14 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 							source: "json",
 							codec: {
 								mode: "strict",
-								typeSymbol: "@z/dsh-cordis-host-runner/types#DynamicCordisRenderFailure",
+								typeSymbol: "@taskweaver/dsh-cordis-host-runner/types#DynamicCordisRenderFailure",
 								schema: _z_dsh_cordis_host_runner_dynamicCordisRunner_reportRenderFailure_parameter_3$schema
 							}
 						}
 					],
 					result: {
 						mode: "strict",
-						typeSymbol: "@z/dsh-cordis-host-runner#dynamicCordisRunner/reportRenderFailure:result",
+						typeSymbol: "@taskweaver/dsh-cordis-host-runner#dynamicCordisRunner/reportRenderFailure:result",
 						schema: _z_dsh_cordis_host_runner_dynamicCordisRunner_reportRenderFailure_result$schema
 					},
 					sourceLocation: {
@@ -5375,7 +5375,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 					}
 				},
 				{
-					id: "@z/dsh-cordis-host-runner#dynamicCordisRunner/resolveInspectQuery",
+					id: "@taskweaver/dsh-cordis-host-runner#dynamicCordisRunner/resolveInspectQuery",
 					service: "dynamicCordisRunner",
 					namespace: "dynamicCordisRunner",
 					method: "resolveInspectQuery",
@@ -5392,7 +5392,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 							lookup: "agent",
 							codec: {
 								mode: "strict",
-								typeSymbol: "@z/dsh-session/types#SessionId",
+								typeSymbol: "@taskweaver/dsh-session/types#SessionId",
 								schema: _z_dsh_cordis_host_runner_dynamicCordisRunner_resolveInspectQuery_parameter_0$schema
 							}
 						},
@@ -5402,7 +5402,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 							source: "json",
 							codec: {
 								mode: "strict",
-								typeSymbol: "@z/dsh-cordis-host-runner/types#CordisInspectRequestId",
+								typeSymbol: "@taskweaver/dsh-cordis-host-runner/types#CordisInspectRequestId",
 								schema: _z_dsh_cordis_host_runner_dynamicCordisRunner_resolveInspectQuery_parameter_1$schema
 							}
 						},
@@ -5412,14 +5412,14 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 							source: "json",
 							codec: {
 								mode: "strict",
-								typeSymbol: "@z/dsh-cordis-host-runner/types#CordisInspectQueryResolution",
+								typeSymbol: "@taskweaver/dsh-cordis-host-runner/types#CordisInspectQueryResolution",
 								schema: _z_dsh_cordis_host_runner_dynamicCordisRunner_resolveInspectQuery_parameter_2$schema
 							}
 						}
 					],
 					result: {
 						mode: "strict",
-						typeSymbol: "@z/dsh-cordis-host-runner/types#CordisInspectResolveAck",
+						typeSymbol: "@taskweaver/dsh-cordis-host-runner/types#CordisInspectResolveAck",
 						schema: _z_dsh_cordis_host_runner_dynamicCordisRunner_resolveInspectQuery_result$schema
 					},
 					sourceLocation: {
@@ -5429,7 +5429,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 					}
 				},
 				{
-					id: "@z/dsh-cordis-host-runner#dynamicCordisRunner/resolveRequestRun",
+					id: "@taskweaver/dsh-cordis-host-runner#dynamicCordisRunner/resolveRequestRun",
 					service: "dynamicCordisRunner",
 					namespace: "dynamicCordisRunner",
 					method: "resolveRequestRun",
@@ -5440,7 +5440,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 						source: "json",
 						codec: {
 							mode: "strict",
-							typeSymbol: "@z/dsh-cordis-host-runner/types#ApprovalRequestId",
+							typeSymbol: "@taskweaver/dsh-cordis-host-runner/types#ApprovalRequestId",
 							schema: _z_dsh_cordis_host_runner_dynamicCordisRunner_resolveRequestRun_parameter_0$schema
 						}
 					}, {
@@ -5449,13 +5449,13 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 						source: "json",
 						codec: {
 							mode: "strict",
-							typeSymbol: "@z/dsh-cordis-host-runner/types#DynamicCordisRunResolution",
+							typeSymbol: "@taskweaver/dsh-cordis-host-runner/types#DynamicCordisRunResolution",
 							schema: _z_dsh_cordis_host_runner_dynamicCordisRunner_resolveRequestRun_parameter_1$schema
 						}
 					}],
 					result: {
 						mode: "strict",
-						typeSymbol: "@z/dsh-cordis-host-runner/types#DynamicCordisResolveAck",
+						typeSymbol: "@taskweaver/dsh-cordis-host-runner/types#DynamicCordisResolveAck",
 						schema: _z_dsh_cordis_host_runner_dynamicCordisRunner_resolveRequestRun_result$schema
 					},
 					sourceLocation: {
@@ -5465,7 +5465,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 					}
 				},
 				{
-					id: "@z/dsh-cordis-host-runner#dynamicCordisRunner/runHostHalf",
+					id: "@taskweaver/dsh-cordis-host-runner#dynamicCordisRunner/runHostHalf",
 					service: "dynamicCordisRunner",
 					namespace: "dynamicCordisRunner",
 					method: "runHostHalf",
@@ -5482,7 +5482,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 							lookup: "agent",
 							codec: {
 								mode: "strict",
-								typeSymbol: "@z/dsh-session/types#SessionId",
+								typeSymbol: "@taskweaver/dsh-session/types#SessionId",
 								schema: _z_dsh_cordis_host_runner_dynamicCordisRunner_runHostHalf_parameter_0$schema
 							}
 						},
@@ -5492,7 +5492,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 							source: "json",
 							codec: {
 								mode: "strict",
-								typeSymbol: "@z/dsh-cordis-host-runner/types#CordisDynamicPluginId",
+								typeSymbol: "@taskweaver/dsh-cordis-host-runner/types#CordisDynamicPluginId",
 								schema: _z_dsh_cordis_host_runner_dynamicCordisRunner_runHostHalf_parameter_1$schema
 							}
 						},
@@ -5502,7 +5502,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 							source: "json",
 							codec: {
 								mode: "strict",
-								typeSymbol: "@z/dsh-cordis-host-runner/types#CordisDynamicPackageId",
+								typeSymbol: "@taskweaver/dsh-cordis-host-runner/types#CordisDynamicPackageId",
 								schema: _z_dsh_cordis_host_runner_dynamicCordisRunner_runHostHalf_parameter_2$schema
 							}
 						},
@@ -5512,7 +5512,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 							source: "json",
 							codec: {
 								mode: "strict",
-								typeSymbol: "@z/dsh-cordis-host-runner/types#CordisDynamicRunMode",
+								typeSymbol: "@taskweaver/dsh-cordis-host-runner/types#CordisDynamicRunMode",
 								schema: _z_dsh_cordis_host_runner_dynamicCordisRunner_runHostHalf_parameter_3$schema
 							}
 						},
@@ -5522,7 +5522,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 							source: "json",
 							codec: {
 								mode: "strict",
-								typeSymbol: "@z/dsh-cordis-host-runner#dynamicCordisRunner/runHostHalf:requestId",
+								typeSymbol: "@taskweaver/dsh-cordis-host-runner#dynamicCordisRunner/runHostHalf:requestId",
 								schema: _z_dsh_cordis_host_runner_dynamicCordisRunner_runHostHalf_parameter_4$schema
 							}
 						},
@@ -5532,14 +5532,14 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 							source: "json",
 							codec: {
 								mode: "strict",
-								typeSymbol: "@z/dsh-cordis-host-runner#dynamicCordisRunner/runHostHalf:approveFutureVersions",
+								typeSymbol: "@taskweaver/dsh-cordis-host-runner#dynamicCordisRunner/runHostHalf:approveFutureVersions",
 								schema: _z_dsh_cordis_host_runner_dynamicCordisRunner_runHostHalf_parameter_5$schema
 							}
 						}
 					],
 					result: {
 						mode: "strict",
-						typeSymbol: "@z/dsh-cordis-host-runner/types#DynamicCordisHostHalfResult",
+						typeSymbol: "@taskweaver/dsh-cordis-host-runner/types#DynamicCordisHostHalfResult",
 						schema: _z_dsh_cordis_host_runner_dynamicCordisRunner_runHostHalf_result$schema
 					},
 					sourceLocation: {
@@ -5549,7 +5549,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 					}
 				},
 				{
-					id: "@z/dsh-cordis-host-runner#dynamicCordisRunner/settleUserRun",
+					id: "@taskweaver/dsh-cordis-host-runner#dynamicCordisRunner/settleUserRun",
 					service: "dynamicCordisRunner",
 					namespace: "dynamicCordisRunner",
 					method: "settleUserRun",
@@ -5566,7 +5566,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 							lookup: "agent",
 							codec: {
 								mode: "strict",
-								typeSymbol: "@z/dsh-session/types#SessionId",
+								typeSymbol: "@taskweaver/dsh-session/types#SessionId",
 								schema: _z_dsh_cordis_host_runner_dynamicCordisRunner_settleUserRun_parameter_0$schema
 							}
 						},
@@ -5576,7 +5576,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 							source: "json",
 							codec: {
 								mode: "strict",
-								typeSymbol: "@z/dsh-cordis-host-runner/types#CordisDynamicPluginId",
+								typeSymbol: "@taskweaver/dsh-cordis-host-runner/types#CordisDynamicPluginId",
 								schema: _z_dsh_cordis_host_runner_dynamicCordisRunner_settleUserRun_parameter_1$schema
 							}
 						},
@@ -5586,14 +5586,14 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 							source: "json",
 							codec: {
 								mode: "strict",
-								typeSymbol: "@z/dsh-cordis-host-runner/types#DynamicCordisRunResolution",
+								typeSymbol: "@taskweaver/dsh-cordis-host-runner/types#DynamicCordisRunResolution",
 								schema: _z_dsh_cordis_host_runner_dynamicCordisRunner_settleUserRun_parameter_2$schema
 							}
 						}
 					],
 					result: {
 						mode: "strict",
-						typeSymbol: "@z/dsh-cordis-host-runner/types#DynamicCordisRunResponse",
+						typeSymbol: "@taskweaver/dsh-cordis-host-runner/types#DynamicCordisRunResponse",
 						schema: _z_dsh_cordis_host_runner_dynamicCordisRunner_settleUserRun_result$schema
 					},
 					sourceLocation: {
@@ -5603,7 +5603,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 					}
 				},
 				{
-					id: "@z/dsh-cordis-host-runner#dynamicCordisRunner/stopFromPanel",
+					id: "@taskweaver/dsh-cordis-host-runner#dynamicCordisRunner/stopFromPanel",
 					service: "dynamicCordisRunner",
 					namespace: "dynamicCordisRunner",
 					method: "stopFromPanel",
@@ -5619,7 +5619,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 						lookup: "agent",
 						codec: {
 							mode: "strict",
-							typeSymbol: "@z/dsh-session/types#SessionId",
+							typeSymbol: "@taskweaver/dsh-session/types#SessionId",
 							schema: _z_dsh_cordis_host_runner_dynamicCordisRunner_stopFromPanel_parameter_0$schema
 						}
 					}, {
@@ -5628,13 +5628,13 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 						source: "json",
 						codec: {
 							mode: "strict",
-							typeSymbol: "@z/dsh-cordis-host-runner/types#CordisDynamicPluginId",
+							typeSymbol: "@taskweaver/dsh-cordis-host-runner/types#CordisDynamicPluginId",
 							schema: _z_dsh_cordis_host_runner_dynamicCordisRunner_stopFromPanel_parameter_1$schema
 						}
 					}],
 					result: {
 						mode: "strict",
-						typeSymbol: "@z/dsh-cordis-host-runner/types#DynamicCordisStopResponse",
+						typeSymbol: "@taskweaver/dsh-cordis-host-runner/types#DynamicCordisStopResponse",
 						schema: _z_dsh_cordis_host_runner_dynamicCordisRunner_stopFromPanel_result$schema
 					},
 					sourceLocation: {
@@ -5644,7 +5644,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 					}
 				},
 				{
-					id: "@z/dsh-cordis-host-runner#dynamicCordisRunner/syncInspectManifest",
+					id: "@taskweaver/dsh-cordis-host-runner#dynamicCordisRunner/syncInspectManifest",
 					service: "dynamicCordisRunner",
 					namespace: "dynamicCordisRunner",
 					method: "syncInspectManifest",
@@ -5655,13 +5655,13 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 						source: "json",
 						codec: {
 							mode: "strict",
-							typeSymbol: "@z/dsh-cordis-host-runner#dynamicCordisRunner/syncInspectManifest:providers",
+							typeSymbol: "@taskweaver/dsh-cordis-host-runner#dynamicCordisRunner/syncInspectManifest:providers",
 							schema: _z_dsh_cordis_host_runner_dynamicCordisRunner_syncInspectManifest_parameter_0$schema
 						}
 					}],
 					result: {
 						mode: "strict",
-						typeSymbol: "@z/dsh-cordis-host-runner#dynamicCordisRunner/syncInspectManifest:result",
+						typeSymbol: "@taskweaver/dsh-cordis-host-runner#dynamicCordisRunner/syncInspectManifest:result",
 						schema: _z_dsh_cordis_host_runner_dynamicCordisRunner_syncInspectManifest_result$schema
 					},
 					sourceLocation: {
@@ -5671,7 +5671,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 					}
 				},
 				{
-					id: "@z/dsh-cordis-host-runner#dynamicCordisRunner/undefineFromPanel",
+					id: "@taskweaver/dsh-cordis-host-runner#dynamicCordisRunner/undefineFromPanel",
 					service: "dynamicCordisRunner",
 					namespace: "dynamicCordisRunner",
 					method: "undefineFromPanel",
@@ -5687,7 +5687,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 						lookup: "agent",
 						codec: {
 							mode: "strict",
-							typeSymbol: "@z/dsh-session/types#SessionId",
+							typeSymbol: "@taskweaver/dsh-session/types#SessionId",
 							schema: _z_dsh_cordis_host_runner_dynamicCordisRunner_undefineFromPanel_parameter_0$schema
 						}
 					}, {
@@ -5696,13 +5696,13 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 						source: "json",
 						codec: {
 							mode: "strict",
-							typeSymbol: "@z/dsh-cordis-host-runner/types#CordisDynamicPluginId",
+							typeSymbol: "@taskweaver/dsh-cordis-host-runner/types#CordisDynamicPluginId",
 							schema: _z_dsh_cordis_host_runner_dynamicCordisRunner_undefineFromPanel_parameter_1$schema
 						}
 					}],
 					result: {
 						mode: "strict",
-						typeSymbol: "@z/dsh-cordis-host-runner/types#DynamicCordisUndefineReceipt",
+						typeSymbol: "@taskweaver/dsh-cordis-host-runner/types#DynamicCordisUndefineReceipt",
 						schema: _z_dsh_cordis_host_runner_dynamicCordisRunner_undefineFromPanel_result$schema
 					},
 					sourceLocation: {
@@ -5722,9 +5722,9 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			"kind": union([literal("file"), literal("directory")])
 		}));
 		const TYPERT_REMOTE$3 = {
-			package: "@z/dsh-file-reference",
+			package: "@taskweaver/dsh-file-reference",
 			descriptors: [{
-				id: "@z/dsh-file-reference#fileReferences/list",
+				id: "@taskweaver/dsh-file-reference#fileReferences/list",
 				service: "fileReferences",
 				namespace: "fileReferences",
 				method: "list",
@@ -5741,7 +5741,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 					lookup: "agent",
 					codec: {
 						mode: "strict",
-						typeSymbol: "@z/dsh-session/types#SessionId",
+						typeSymbol: "@taskweaver/dsh-session/types#SessionId",
 						schema: _z_dsh_file_reference_fileReferences_list_parameter_0$schema
 					}
 				}, {
@@ -5750,14 +5750,14 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 					source: "json",
 					codec: {
 						mode: "strict",
-						typeSymbol: "@z/dsh-file-reference#fileReferences/list:query",
+						typeSymbol: "@taskweaver/dsh-file-reference#fileReferences/list:query",
 						schema: _z_dsh_file_reference_fileReferences_list_parameter_1$schema
 					}
 				}],
 				cancellation: { parameter: "signal" },
 				result: {
 					mode: "strict",
-					typeSymbol: "@z/dsh-file-reference#fileReferences/list:result",
+					typeSymbol: "@taskweaver/dsh-file-reference#fileReferences/list:result",
 					schema: _z_dsh_file_reference_fileReferences_list_result$schema
 				},
 				sourceLocation: {
@@ -5768,9 +5768,9 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			}]
 		};
 		const TYPERT_REMOTE$2 = {
-			package: "@z/dsh-host-plugin-inventory",
+			package: "@taskweaver/dsh-host-plugin-inventory",
 			descriptors: [{
-				id: "@z/dsh-host-plugin-inventory#pluginInventory/list",
+				id: "@taskweaver/dsh-host-plugin-inventory#pluginInventory/list",
 				service: "pluginInventory",
 				namespace: "pluginInventory",
 				method: "list",
@@ -5778,7 +5778,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 				parameters: [],
 				result: {
 					mode: "strict",
-					typeSymbol: "@z/dsh-host-plugin-inventory/types#PluginInventorySnapshot",
+					typeSymbol: "@taskweaver/dsh-host-plugin-inventory/types#PluginInventorySnapshot",
 					schema: object({ "entries": array(object({
 						"entryId": intersection(string(), unknown()).readonly(),
 						"moduleName": string().readonly(),
@@ -5894,10 +5894,10 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			]).readonly()
 		})]);
 		const TYPERT_REMOTE$1 = {
-			package: "@z/dsh-message-feedback",
+			package: "@taskweaver/dsh-message-feedback",
 			descriptors: [
 				{
-					id: "@z/dsh-message-feedback#messageFeedback/delete",
+					id: "@taskweaver/dsh-message-feedback#messageFeedback/delete",
 					service: "messageFeedback",
 					namespace: "messageFeedback",
 					method: "delete",
@@ -5908,13 +5908,13 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 						source: "json",
 						codec: {
 							mode: "strict",
-							typeSymbol: "@z/dsh-message-feedback/types#MessageFeedbackDeleteRequest",
+							typeSymbol: "@taskweaver/dsh-message-feedback/types#MessageFeedbackDeleteRequest",
 							schema: _z_dsh_message_feedback_messageFeedback_delete_parameter_0$schema
 						}
 					}],
 					result: {
 						mode: "strict",
-						typeSymbol: "@z/dsh-message-feedback/types#MessageFeedbackDeleteResult",
+						typeSymbol: "@taskweaver/dsh-message-feedback/types#MessageFeedbackDeleteResult",
 						schema: _z_dsh_message_feedback_messageFeedback_delete_result$schema
 					},
 					sourceLocation: {
@@ -5924,7 +5924,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 					}
 				},
 				{
-					id: "@z/dsh-message-feedback#messageFeedback/list",
+					id: "@taskweaver/dsh-message-feedback#messageFeedback/list",
 					service: "messageFeedback",
 					namespace: "messageFeedback",
 					method: "list",
@@ -5935,13 +5935,13 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 						source: "json",
 						codec: {
 							mode: "strict",
-							typeSymbol: "@z/dsh-message-feedback/types#MessageFeedbackListRequest",
+							typeSymbol: "@taskweaver/dsh-message-feedback/types#MessageFeedbackListRequest",
 							schema: _z_dsh_message_feedback_messageFeedback_list_parameter_0$schema
 						}
 					}],
 					result: {
 						mode: "strict",
-						typeSymbol: "@z/dsh-message-feedback/types#MessageFeedbackListResult",
+						typeSymbol: "@taskweaver/dsh-message-feedback/types#MessageFeedbackListResult",
 						schema: _z_dsh_message_feedback_messageFeedback_list_result$schema
 					},
 					sourceLocation: {
@@ -5951,7 +5951,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 					}
 				},
 				{
-					id: "@z/dsh-message-feedback#messageFeedback/put",
+					id: "@taskweaver/dsh-message-feedback#messageFeedback/put",
 					service: "messageFeedback",
 					namespace: "messageFeedback",
 					method: "put",
@@ -5962,13 +5962,13 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 						source: "json",
 						codec: {
 							mode: "strict",
-							typeSymbol: "@z/dsh-message-feedback/types#MessageFeedbackPutRequest",
+							typeSymbol: "@taskweaver/dsh-message-feedback/types#MessageFeedbackPutRequest",
 							schema: _z_dsh_message_feedback_messageFeedback_put_parameter_0$schema
 						}
 					}],
 					result: {
 						mode: "strict",
-						typeSymbol: "@z/dsh-message-feedback/types#MessageFeedbackPutResult",
+						typeSymbol: "@taskweaver/dsh-message-feedback/types#MessageFeedbackPutResult",
 						schema: _z_dsh_message_feedback_messageFeedback_put_result$schema
 					},
 					sourceLocation: {
@@ -5991,9 +5991,9 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			"createdAt": number()
 		}));
 		const TYPERT_REMOTE = {
-			package: "@z/dsh-session-reference",
+			package: "@taskweaver/dsh-session-reference",
 			descriptors: [{
-				id: "@z/dsh-session-reference#sessionReferenceResolver/candidates",
+				id: "@taskweaver/dsh-session-reference#sessionReferenceResolver/candidates",
 				service: "sessionReferenceResolver",
 				namespace: "sessionReferenceResolver",
 				method: "candidates",
@@ -6010,7 +6010,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 					lookup: "agent",
 					codec: {
 						mode: "strict",
-						typeSymbol: "@z/dsh-session/types#SessionId",
+						typeSymbol: "@taskweaver/dsh-session/types#SessionId",
 						schema: _z_dsh_session_reference_sessionReferenceResolver_candidates_parameter_0$schema
 					}
 				}, {
@@ -6019,14 +6019,14 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 					source: "json",
 					codec: {
 						mode: "strict",
-						typeSymbol: "@z/dsh-session-reference#sessionReferenceResolver/candidates:query",
+						typeSymbol: "@taskweaver/dsh-session-reference#sessionReferenceResolver/candidates:query",
 						schema: _z_dsh_session_reference_sessionReferenceResolver_candidates_parameter_1$schema
 					}
 				}],
 				cancellation: { parameter: "signal" },
 				result: {
 					mode: "strict",
-					typeSymbol: "@z/dsh-session-reference#sessionReferenceResolver/candidates:result",
+					typeSymbol: "@taskweaver/dsh-session-reference#sessionReferenceResolver/candidates:result",
 					schema: _z_dsh_session_reference_sessionReferenceResolver_candidates_result$schema
 				},
 				sourceLocation: {

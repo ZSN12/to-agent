@@ -11,6 +11,8 @@ export function ChatBehaviorSettingsPanel({ onToast }: { onToast?: (msg: string)
   const [loading, setLoading] = useState(true)
   const [selfHealingLoop, setSelfHealingLoop] = useState(false)
   const [enableRepoMap, setEnableRepoMap] = useState(true)
+  const [compactionThresholdRatio, setCompactionThresholdRatio] = useState(0.8)
+  const [savingCompactionThreshold, setSavingCompactionThreshold] = useState(false)
   const [selfHealingMaxRetries, setSelfHealingMaxRetries] = useState(2)
   const [preferencesLoading, setPreferencesLoading] = useState(true)
 
@@ -26,6 +28,8 @@ export function ChatBehaviorSettingsPanel({ onToast }: { onToast?: (msg: string)
       if (preferencesResult?.ok) {
         setSelfHealingLoop(preferencesResult.data.selfHealingLoop === true)
         setEnableRepoMap(preferencesResult.data.enableRepoMap !== false)
+        const threshold = Number(preferencesResult.data.compactionThresholdRatio)
+        setCompactionThresholdRatio(Number.isFinite(threshold) ? Math.min(0.9, Math.max(0.6, threshold)) : 0.8)
         const retries = Number(preferencesResult.data.selfHealingMaxRetries)
         setSelfHealingMaxRetries(Number.isFinite(retries) ? Math.max(1, Math.min(3, retries)) : 2)
       }
@@ -76,6 +80,24 @@ export function ChatBehaviorSettingsPanel({ onToast }: { onToast?: (msg: string)
     setEnableRepoMap(res.data.enableRepoMap !== false)
     onToast?.(next ? '已开启：首轮注入仓库结构图' : '已关闭仓库结构图注入')
   }, [enableRepoMap, onToast])
+
+  const saveCompactionThreshold = useCallback(async () => {
+    const bridge = getBridge()
+    if (!bridge?.preferences?.set) return
+    setSavingCompactionThreshold(true)
+    try {
+      const res = await bridge.preferences.set({ compactionThresholdRatio })
+      if (!res.ok) {
+        onToast?.(res.error || '保存压缩阈值失败')
+        return
+      }
+      const applied = Number(res.data.compactionThresholdRatio)
+      setCompactionThresholdRatio(Number.isFinite(applied) ? applied : 0.8)
+      onToast?.(`DSH 自动压缩阈值已应用：${Math.round((Number.isFinite(applied) ? applied : 0.8) * 100)}%`)
+    } finally {
+      setSavingCompactionThreshold(false)
+    }
+  }, [compactionThresholdRatio, onToast])
 
   const saveSelfHealingMaxRetries = useCallback(async (value: number) => {
     const next = Math.max(1, Math.min(3, Math.round(value)))
@@ -162,7 +184,7 @@ export function ChatBehaviorSettingsPanel({ onToast }: { onToast?: (msg: string)
           <Check size={16} aria-hidden />
           <div>
             <h3>上下文与自愈</h3>
-            <p>控制 Prompt Pipeline 是否注入仓库结构图，以及验证失败后的重试上限。</p>
+            <p>控制自动压缩阈值、Prompt Pipeline 仓库结构图注入，以及验证失败后的重试上限。</p>
           </div>
         </div>
         <button
@@ -174,6 +196,31 @@ export function ChatBehaviorSettingsPanel({ onToast }: { onToast?: (msg: string)
           onClick={() => void saveEnableRepoMap()}
         >
           <span>{enableRepoMap ? '仓库结构图：开' : '仓库结构图：关'}</span>
+        </button>
+        <label style={{ display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'center', gap: 10, marginTop: 12, fontSize: 12 }}>
+          <span>DSH 自动压缩阈值：{Math.round(compactionThresholdRatio * 100)}%</span>
+          <input
+            type="range"
+            min={0.6}
+            max={0.9}
+            step={0.05}
+            value={compactionThresholdRatio}
+            disabled={preferencesLoading || savingCompactionThreshold}
+            onChange={(event) => setCompactionThresholdRatio(Number(event.target.value))}
+            aria-label="DSH 自动压缩阈值"
+          />
+          <span style={{ gridColumn: '1 / -1', color: 'var(--text-muted, #888)' }}>
+            按当前模型上下文窗口的比例触发；保存后会重启 Host。范围 60%–90%。
+          </span>
+        </label>
+        <button
+          type="button"
+          className="chat-self-healing-toggle"
+          disabled={preferencesLoading || savingCompactionThreshold}
+          onClick={() => void saveCompactionThreshold()}
+          style={{ marginTop: 8 }}
+        >
+          <span>{savingCompactionThreshold ? '正在应用…' : '保存并应用压缩阈值'}</span>
         </button>
         <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 12, fontSize: 12 }}>
           <span>自愈最多重试（1–3）</span>

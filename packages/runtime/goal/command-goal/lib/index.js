@@ -1,9 +1,9 @@
-import { GoalError } from "@z/dsh-goal";
-import { createUserMessage } from "@z/dsh-llm";
+import { GoalError } from "@taskweaver/dsh-goal";
+import { createUserMessage } from "@taskweaver/dsh-llm";
 //#region lib/types/index.js
 /**
 * Human-facing `/goal` command over the persisted same-session goal domain.
-* @module @z/dsh-command-goal
+* @module @taskweaver/dsh-command-goal
 */
 const name = "command-goal";
 const inject = ["commands", "goals"];

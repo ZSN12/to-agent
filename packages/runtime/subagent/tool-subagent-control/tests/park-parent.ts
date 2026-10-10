@@ -4,8 +4,8 @@
  * @module park-parent
  */
 
-import type { Context } from '@z/cordis'
-import type { SessionId } from '@z/dsh-session'
+import type { Context } from '@taskweaver/cordis'
+import type { SessionId } from '@taskweaver/dsh-session'
 
 /**
  * Reject every step of the stand-in parent. Each child settlement wakes its

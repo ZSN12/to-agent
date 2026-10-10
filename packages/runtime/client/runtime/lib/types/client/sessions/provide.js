@@ -1,53 +1,47 @@
-"use strict";
-var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
-    if (pack || arguments.length === 2) for (var i = 0, l = from.length, ar; i < l; i++) {
-        if (ar || !(i in from)) {
-            if (!ar) ar = Array.prototype.slice.call(from, 0, i);
-            ar[i] = from[i];
-        }
-    }
-    return to.concat(ar || Array.prototype.slice.call(from));
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.SessionProvideChannel = void 0;
 /**
  * Provider roster + materialization + current projection. The channel owns
  * every rule a provider contribution must satisfy; owners keep only their
  * per-session bundle storage and the definition of "current".
  */
-var SessionProvideChannel = /** @class */ (function () {
+export class SessionProvideChannel {
+    host;
+    providers = [];
+    maybeInfoCache;
+    /** Latest published current bundle (identity comparison dedupes republish). */
+    currentSnapshot;
+    /** Projection subscribers (plain cell: bundles hold live session sources, so no store freeze may touch them). */
+    listeners = new Set();
+    /**
+     * Atomic current-session provide projection: selection changes and
+     * provider-roster changes publish through this one source, so a roster
+     * change under a stable current id republishes the bundle instead of
+     * stranding mounted entries.
+     */
+    currentProvideInfo;
     /**
      * @param host - owner-side bundle storage and current-selection resolution.
      */
-    function SessionProvideChannel(host) {
-        var _this = this;
+    constructor(host) {
         this.host = host;
-        this.providers = [];
-        /** Projection subscribers (plain cell: bundles hold live session sources, so no store freeze may touch them). */
-        this.listeners = new Set();
         // The runtime's own contribution comes first in every session-data bundle.
         this.providers.push({
             hooks: ['session'],
-            resolve: function (binding) { return ({ hooks: { session: binding.session } }); },
+            resolve: binding => ({ hooks: { session: binding.session } }),
         });
         this.maybeInfoCache = this.materializeMaybeInfo();
         this.currentSnapshot = this.maybeInfoCache;
         this.currentProvideInfo = {
-            getSnapshot: function () { return _this.currentSnapshot; },
-            subscribe: function (fn) {
-                _this.listeners.add(fn);
-                return function () { _this.listeners.delete(fn); };
+            getSnapshot: () => this.currentSnapshot,
+            subscribe: (fn) => {
+                this.listeners.add(fn);
+                return () => { this.listeners.delete(fn); };
             },
         };
     }
-    Object.defineProperty(SessionProvideChannel.prototype, "maybeInfo", {
-        /** The static no-session projection under the current roster (declared names present, values undefined). */
-        get: function () {
-            return this.maybeInfoCache;
-        },
-        enumerable: false,
-        configurable: true
-    });
+    /** The static no-session projection under the current roster (declared names present, values undefined). */
+    get maybeInfo() {
+        return this.maybeInfoCache;
+    }
     /**
      * Register a per-session standard-props provider (see
      * SessionRuntime.provide for the product contract). Live bundles rebuild
@@ -57,8 +51,7 @@ var SessionProvideChannel = /** @class */ (function () {
      * @param descriptor - static member roster plus per-session resolver.
      * @returns disposer removing the provider.
      */
-    SessionProvideChannel.prototype.provide = function (descriptor) {
-        var _this = this;
+    provide(descriptor) {
         this.providers.push(descriptor);
         try {
             this.applyRosterChange();
@@ -70,13 +63,13 @@ var SessionProvideChannel = /** @class */ (function () {
             this.applyRosterChange();
             throw error;
         }
-        return function () {
-            var at = _this.providers.indexOf(descriptor);
+        return () => {
+            const at = this.providers.indexOf(descriptor);
             if (at >= 0)
-                _this.providers.splice(at, 1);
-            _this.applyRosterChange();
+                this.providers.splice(at, 1);
+            this.applyRosterChange();
         };
-    };
+    }
     /**
      * Re-derive the current selection's bundle and publish it when it changed.
      * Bundles are identity-stable per (scope, roster) materialization, so an
@@ -84,13 +77,12 @@ var SessionProvideChannel = /** @class */ (function () {
      * list subscription, provide()) already sit behind their own batching or
      * registration edges.
      */
-    SessionProvideChannel.prototype.publishCurrent = function () {
-        var next = this.host.resolveCurrent();
+    publishCurrent() {
+        const next = this.host.resolveCurrent();
         if (next === this.currentSnapshot)
             return;
         this.currentSnapshot = next;
-        for (var _i = 0, _a = __spreadArray([], this.listeners, true); _i < _a.length; _i++) {
-            var fn = _a[_i];
+        for (const fn of [...this.listeners]) {
             try {
                 fn();
             }
@@ -101,89 +93,78 @@ var SessionProvideChannel = /** @class */ (function () {
                 console.error('sessions.currentProvideInfo subscriber failed:', error);
             }
         }
-    };
+    }
     /**
      * Materialize the standard-props bundle for one session (fails loud on
      * undeclared, missing, and duplicate member names).
      * @param binding - session assembly handle fed to every resolver.
      * @returns the materialized bundle (identity-stable until the next materialization).
      */
-    SessionProvideChannel.prototype.materializeInfo = function (binding) {
-        var _a, _b, _c, _d, _e, _f;
-        var hooks = {};
-        var props = {};
-        for (var _i = 0, _g = this.providers; _i < _g.length; _i++) {
-            var descriptor = _g[_i];
-            var contribution = descriptor.resolve(binding);
-            var contributedHooks = (_a = contribution.hooks) !== null && _a !== void 0 ? _a : {};
-            var contributedProps = (_b = contribution.props) !== null && _b !== void 0 ? _b : {};
-            for (var _h = 0, _j = Object.keys(contributedHooks); _h < _j.length; _h++) {
-                var name_1 = _j[_h];
-                if (!((_c = descriptor.hooks) !== null && _c !== void 0 ? _c : []).includes(name_1)) {
-                    throw new Error("sessions.provide: undeclared hook \"".concat(name_1, "\""));
+    materializeInfo(binding) {
+        const hooks = {};
+        const props = {};
+        for (const descriptor of this.providers) {
+            const contribution = descriptor.resolve(binding);
+            const contributedHooks = contribution.hooks ?? {};
+            const contributedProps = contribution.props ?? {};
+            for (const name of Object.keys(contributedHooks)) {
+                if (!(descriptor.hooks ?? []).includes(name)) {
+                    throw new Error(`sessions.provide: undeclared hook "${name}"`);
                 }
             }
-            for (var _k = 0, _l = Object.keys(contributedProps); _k < _l.length; _k++) {
-                var name_2 = _l[_k];
-                if (!((_d = descriptor.props) !== null && _d !== void 0 ? _d : []).includes(name_2)) {
-                    throw new Error("sessions.provide: undeclared prop \"".concat(name_2, "\""));
+            for (const name of Object.keys(contributedProps)) {
+                if (!(descriptor.props ?? []).includes(name)) {
+                    throw new Error(`sessions.provide: undeclared prop "${name}"`);
                 }
             }
-            for (var _m = 0, _o = (_e = descriptor.hooks) !== null && _e !== void 0 ? _e : []; _m < _o.length; _m++) {
-                var name_3 = _o[_m];
-                var source = contributedHooks[name_3];
+            for (const name of descriptor.hooks ?? []) {
+                const source = contributedHooks[name];
                 if (source === undefined)
-                    throw new Error("sessions.provide: missing hook \"".concat(name_3, "\""));
-                if (Object.hasOwn(hooks, name_3))
-                    throw new Error("sessions.provide: duplicate hook \"".concat(name_3, "\""));
-                hooks[name_3] = source;
+                    throw new Error(`sessions.provide: missing hook "${name}"`);
+                if (Object.hasOwn(hooks, name))
+                    throw new Error(`sessions.provide: duplicate hook "${name}"`);
+                hooks[name] = source;
             }
-            for (var _p = 0, _q = (_f = descriptor.props) !== null && _f !== void 0 ? _f : []; _p < _q.length; _p++) {
-                var name_4 = _q[_p];
-                if (!Object.hasOwn(contributedProps, name_4))
-                    throw new Error("sessions.provide: missing prop \"".concat(name_4, "\""));
-                if (Object.hasOwn(props, name_4))
-                    throw new Error("sessions.provide: duplicate prop \"".concat(name_4, "\""));
-                props[name_4] = contributedProps[name_4];
+            for (const name of descriptor.props ?? []) {
+                if (!Object.hasOwn(contributedProps, name))
+                    throw new Error(`sessions.provide: missing prop "${name}"`);
+                if (Object.hasOwn(props, name))
+                    throw new Error(`sessions.provide: duplicate prop "${name}"`);
+                props[name] = contributedProps[name];
             }
         }
         return {
             sessionId: binding.sessionId,
-            hooks: hooks,
-            props: props,
+            hooks,
+            props,
             // The useProjection seat: key-addressed bare value faces off the
             // session's projection store (open key space — never a static roster member).
-            projections: { faceOf: function (key) { return binding.session.projections.faceOf(key); } },
+            projections: { faceOf: key => binding.session.projections.faceOf(key) },
         };
-    };
+    }
     /** Rebuild the static projection and the owner's live bundles, then republish the current one. */
-    SessionProvideChannel.prototype.applyRosterChange = function () {
+    applyRosterChange() {
         this.maybeInfoCache = this.materializeMaybeInfo();
         this.host.rebuildBundles();
         this.publishCurrent();
-    };
+    }
     /** Build the static no-session kit and reject duplicate declared names. */
-    SessionProvideChannel.prototype.materializeMaybeInfo = function () {
-        var _a, _b;
-        var hooks = {};
-        var props = {};
-        for (var _i = 0, _c = this.providers; _i < _c.length; _i++) {
-            var descriptor = _c[_i];
-            for (var _d = 0, _e = (_a = descriptor.hooks) !== null && _a !== void 0 ? _a : []; _d < _e.length; _d++) {
-                var name_5 = _e[_d];
-                if (Object.hasOwn(hooks, name_5))
-                    throw new Error("sessions.provide: duplicate hook \"".concat(name_5, "\""));
-                hooks[name_5] = undefined;
+    materializeMaybeInfo() {
+        const hooks = {};
+        const props = {};
+        for (const descriptor of this.providers) {
+            for (const name of descriptor.hooks ?? []) {
+                if (Object.hasOwn(hooks, name))
+                    throw new Error(`sessions.provide: duplicate hook "${name}"`);
+                hooks[name] = undefined;
             }
-            for (var _f = 0, _g = (_b = descriptor.props) !== null && _b !== void 0 ? _b : []; _f < _g.length; _f++) {
-                var name_6 = _g[_f];
-                if (Object.hasOwn(props, name_6))
-                    throw new Error("sessions.provide: duplicate prop \"".concat(name_6, "\""));
-                props[name_6] = undefined;
+            for (const name of descriptor.props ?? []) {
+                if (Object.hasOwn(props, name))
+                    throw new Error(`sessions.provide: duplicate prop "${name}"`);
+                props[name] = undefined;
             }
         }
-        return { sessionId: undefined, hooks: hooks, props: props }; // no projections face: every key reads absent without a session
-    };
-    return SessionProvideChannel;
-}());
-exports.SessionProvideChannel = SessionProvideChannel;
+        return { sessionId: undefined, hooks, props }; // no projections face: every key reads absent without a session
+    }
+}
+//# sourceMappingURL=provide.js.map

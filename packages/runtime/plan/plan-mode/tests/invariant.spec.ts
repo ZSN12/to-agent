@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import SessionStore, { Session, SessionId, type SessionEvent } from '@z/dsh-session'
-import * as PlanModeInvariant from '@z/dsh-plan-mode/invariant'
-import InvariantRegistry from '@z/dsh-invariants'
+import { Context } from '@taskweaver/cordis'
+import SessionStore, { Session, SessionId, type SessionEvent } from '@taskweaver/dsh-session'
+import * as PlanModeInvariant from '@taskweaver/dsh-plan-mode/invariant'
+import InvariantRegistry from '@taskweaver/dsh-invariants'
 
 async function setup(): Promise<Context> {
   const ctx = new Context()

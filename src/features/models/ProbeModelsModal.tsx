@@ -1,6 +1,7 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react'
+import { FormEvent, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Check, Radio, Search, Sparkles, X } from 'lucide-react'
 import type { ProbedModelItem, ProbeModelsResult } from '../../shared/model-api'
+import { useModalFocusTrap } from '../../shared/useModalFocusTrap'
 
 export function ProbeModelsModal({
   open,
@@ -22,6 +23,13 @@ export function ProbeModelsModal({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [submitting, setSubmitting] = useState(false)
   const [filter, setFilter] = useState('')
+  const titleId = useId()
+  const closeButtonRef = useRef<HTMLButtonElement>(null)
+  const dialogRef = useModalFocusTrap<HTMLDivElement>({
+    open,
+    onEscape: !submitting ? onClose : undefined,
+    getInitialFocus: () => closeButtonRef.current,
+  })
 
   useEffect(() => {
     if (!result) {
@@ -88,18 +96,19 @@ export function ProbeModelsModal({
         if (e.target === e.currentTarget && !submitting) onClose()
       }}
     >
-      <div className="model-editor model-editor-wide" role="dialog" aria-modal="true">
+      <div ref={dialogRef} className="model-editor model-editor-wide" role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <Radio size={20} style={{ color: 'var(--accent-green, #10b981)' }} />
-              <h2 style={{ margin: 0 }}>探测最新模型 · {providerName}</h2>
+              <h2 id={titleId} style={{ margin: 0 }}>探测最新模型 · {providerName}</h2>
             </div>
             <p style={{ marginTop: 4, color: 'var(--text-secondary, rgba(255,255,255,0.6))', fontSize: 13 }}>
               已连通提供商 API，检测最新开放支持的模型列表并对比本地目录。
             </p>
           </div>
           <button
+            ref={closeButtonRef}
             type="button"
             onClick={onClose}
             disabled={submitting}

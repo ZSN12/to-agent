@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { SessionId, SessionSummary } from '@z/dsh-client-runtime/client'
-import { indexSubagentDescendants } from '@z/dsh-client-runtime/client'
+import type { SessionId, SessionSummary } from '@taskweaver/dsh-client-runtime/client'
+import { indexSubagentDescendants } from '@taskweaver/dsh-client-runtime/client'
 
 const sid = (id: string) => id as SessionId
 

@@ -4,12 +4,12 @@
  * NOT queued here — per the backend contract, write ordering belongs to the
  * caller (the domain layer's write chain); this unit only guarantees that
  * each single call publishes a complete, durable file.
- * @module @z/dsh-storage-json/src/unit
+ * @module @taskweaver/dsh-storage-json/src/unit
  */
 
 import { readFile } from 'node:fs/promises'
-import { StorageError } from '@z/dsh-storage'
-import type { KvUnit, KvUnitDescriptor } from '@z/dsh-storage'
+import { StorageError } from '@taskweaver/dsh-storage'
+import type { KvUnit, KvUnitDescriptor } from '@taskweaver/dsh-storage'
 import { writeAtomic } from './atomic.ts'
 import { parse, serialize } from './format.ts'
 import type { UnitState } from './format.ts'

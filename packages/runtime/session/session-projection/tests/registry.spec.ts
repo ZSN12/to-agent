@@ -8,14 +8,14 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
+import { Context } from '@taskweaver/cordis'
 import { z } from 'zod'
-import SessionStore from '@z/dsh-session'
-import type { Session, SessionEvent } from '@z/dsh-session'
-import SessionProjectionRegistry from '@z/dsh-session-projection'
-import type { ProjectionDefinition } from '@z/dsh-session-projection'
+import SessionStore from '@taskweaver/dsh-session'
+import type { Session, SessionEvent } from '@taskweaver/dsh-session'
+import SessionProjectionRegistry from '@taskweaver/dsh-session-projection'
+import type { ProjectionDefinition } from '@taskweaver/dsh-session-projection'
 
-declare module '@z/dsh-session-projection/types' {
+declare module '@taskweaver/dsh-session-projection/types' {
   interface SessionProjectionStateMap {
     'test/marks': MarksState
     'test/count': number
@@ -26,7 +26,7 @@ declare module '@z/dsh-session-projection/types' {
   }
 }
 
-declare module '@z/dsh-session/types' {
+declare module '@taskweaver/dsh-session/types' {
   interface SessionEventMap {
     'test/mark': { marks: string[] }
   }

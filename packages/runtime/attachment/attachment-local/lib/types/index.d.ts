@@ -1,8 +1,8 @@
-/** Local durable attachment backend rooted below `DSH_HOME`. @module @z/dsh-attachment-local */
-import { Context } from '@z/cordis';
-import z from '@z/schemastery';
-import { AttachmentStore } from '@z/dsh-attachment';
-import type { ImageAttachmentLimits, ImageAttachmentRef, ImageRequestPolicy, RequestImageAttachment, SaveImageAttachment, StoredImageAttachment } from '@z/dsh-attachment';
+/** Local durable attachment backend rooted below `TASKWEAVER_HOME`. @module @taskweaver/dsh-attachment-local */
+import { Context } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
+import { AttachmentStore } from '@taskweaver/dsh-attachment';
+import type { ImageAttachmentLimits, ImageAttachmentRef, ImageRequestPolicy, RequestImageAttachment, SaveImageAttachment, StoredImageAttachment } from '@taskweaver/dsh-attachment';
 import type { NormalizationPolicy } from './normalization.ts';
 export { canPassThroughNormalization, normalizeImage } from './normalization.ts';
 export type { NormalizedImage, NormalizationPolicy } from './normalization.ts';
@@ -33,7 +33,7 @@ export declare const DEFAULT_IMAGE_COMPRESSION_CONCURRENCY = 2;
 export declare const MAX_IMAGE_COMPRESSION_CONCURRENCY = 8;
 /** Local attachment backend configuration. */
 export interface Config {
-    /** Explicit harness home; omitted follows `DSH_HOME`, then `~/.dsh`. */
+    /** Explicit runtime home; omitted follows `TASKWEAVER_HOME`, then `~/.taskweaver/runtime`. */
     dshHome?: string;
     /** Maximum encoded bytes accepted for one submitted image. Default: 20 MiB. */
     maxImageBytes?: number;

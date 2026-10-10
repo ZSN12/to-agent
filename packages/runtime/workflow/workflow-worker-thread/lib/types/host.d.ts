@@ -3,12 +3,12 @@
  * cancellation-grace expiry owns settlement and closes message admission.
  * Pending starts share one abort signal; published children share idempotent
  * cleanup, and quiescence waits for both while synthesizing any missing end events.
- * @module @z/dsh-workflow-worker-thread/host
+ * @module @taskweaver/dsh-workflow-worker-thread/host
  */
-import type { Context } from '@z/cordis';
-import type { Agent } from '@z/dsh-agent';
-import type SubagentRuntime from '@z/dsh-subagent';
-import type { WorkflowMeta, WorkflowResult, WorkflowRun, WorkflowRunId } from '@z/dsh-workflow';
+import type { Context } from '@taskweaver/cordis';
+import type { Agent } from '@taskweaver/dsh-agent';
+import type SubagentRuntime from '@taskweaver/dsh-subagent';
+import type { WorkflowMeta, WorkflowResult, WorkflowRun, WorkflowRunId } from '@taskweaver/dsh-workflow';
 import type { ExecutionObserver } from './runtime.ts';
 import type { WorkerInit } from './types.ts';
 /**

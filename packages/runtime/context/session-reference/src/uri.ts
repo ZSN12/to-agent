@@ -1,6 +1,6 @@
 /** Canonical session URI and inline mention encoding. */
 
-import { SessionId, type SessionId as SessionIdType } from '@z/dsh-session'
+import { SessionId, type SessionId as SessionIdType } from '@taskweaver/dsh-session'
 import { SessionReferenceError } from './config.ts'
 import type { SessionReferenceInput } from './types.ts'
 

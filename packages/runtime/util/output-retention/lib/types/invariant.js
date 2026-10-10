@@ -1,27 +1,22 @@
-"use strict";
 /**
- * Package-owned invariant companion for `@z/dsh-output-retention`.
- * @module @z/dsh-output-retention/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-output-retention`.
+ * @module @taskweaver/dsh-output-retention/invariant
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.apply = exports.inject = exports.name = void 0;
-var PACKAGE_NAME = '@z/dsh-output-retention';
+const PACKAGE_NAME = '@taskweaver/dsh-output-retention';
 /** Cordis companion plugin name. */
-exports.name = 'output-retention-invariant';
+export const name = 'output-retention-invariant';
 /** Service required before the companion can reserve package ownership. */
-exports.inject = ['invariants'];
+export const inject = ['invariants'];
 /**
  * No runtime invariant: this pure utility owns no event stream or mutable runtime data; its value
  * algebra is enforced by unit tests.
  */
-var install = function () { };
+const install = () => { };
 /**
  * Register this package's invariant companion.
  * @param ctx - Cordis context carrying the invariant service.
  * @returns the installed registration's disposer after setup succeeds.
  */
-var apply = function (ctx) {
-    return Promise.resolve(ctx.invariants.register(PACKAGE_NAME, install));
-};
-exports.apply = apply;
+export const apply = (ctx) => Promise.resolve(ctx.invariants.register(PACKAGE_NAME, install));
 /* jscpd:ignore-end */
+//# sourceMappingURL=invariant.js.map

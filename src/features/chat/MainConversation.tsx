@@ -37,7 +37,13 @@ import { Message } from './Message'
 import { PendingSteeringBubble } from './PendingSteeringBubble'
 import { RetryBanner } from './RetryBanner'
 import type { PanelView } from './panel-view'
-import { matchesKeys, type ShortcutItem } from '../../shared/shortcuts'
+import {
+  ALT_MODIFIER_KEY,
+  CONTROL_MODIFIER_KEY,
+  matchesKeys,
+  PRIMARY_MODIFIER_KEY,
+  type ShortcutItem,
+} from '../../shared/shortcuts'
 import { workspaceLabel } from '../../shared/ui-utils'
 
 const TerminalDrawer = lazy(() =>
@@ -55,6 +61,7 @@ export function MainConversation({
   onLoadSkills,
   permissionMode,
   modelsLoading,
+  modelEmptyLabel,
   sending,
   compacting,
   compactedSeq,
@@ -100,6 +107,7 @@ export function MainConversation({
   onSelectPanel,
   onToggleNav,
   onFork,
+  onResendMessage,
   onShowToolDetails,
   onOpenWorkspacePath,
   shortcuts,
@@ -128,6 +136,7 @@ export function MainConversation({
   onLoadSkills?: () => Promise<void>
   permissionMode: PermissionMode
   modelsLoading?: boolean
+  modelEmptyLabel?: string
   sending?: boolean
   compacting?: boolean
   compactedSeq?: number
@@ -175,6 +184,8 @@ export function MainConversation({
     skillName: string | null,
     workMode?: WorkMode,
     executionModeOverride?: 'single-agent' | 'multi-agent',
+    attachments?: { id: string, mediaType: string, data: string, name: string }[],
+    documents?: { id: string, name: string }[],
   ) => void
   onCancel: () => void
   onSteer?: (text: string) => void
@@ -183,6 +194,7 @@ export function MainConversation({
   onCreateDroppedReference: (file: File) => Promise<WorkspaceReference | null>
   onToggleNav: () => void
   onFork?: (messageId: string) => void
+  onResendMessage?: (text: string, precedingAssistantId: string | null, modelKey?: string | null) => void
   onShowToolDetails?: (item: ToolTraceItem) => void
   onOpenWorkspacePath?: (relativePath: string) => void
   shortcuts?: ShortcutItem[]
@@ -212,9 +224,16 @@ export function MainConversation({
 
   const lastAgentMessageId = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
-      if (messages[i].author !== 'user' && !isDshContextMessage(messages[i])) return messages[i].id
+      if (messages[i].author !== 'user' && !messages[i].compaction && !isDshContextMessage(messages[i])) return messages[i].id
     }
     return null
+  }, [messages])
+
+  const latestUserMessageIndex = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].author === 'user' && !messages[i].behavior) return i
+    }
+    return -1
   }, [messages])
 
   const streamFollowKey = useMemo(() => {
@@ -297,7 +316,7 @@ export function MainConversation({
   }
 
   useEffect(() => {
-    const jumpShortcut = shortcuts?.find((item) => item.id === 'jump-bottom')?.keys ?? ['⌥', '↓']
+    const jumpShortcut = shortcuts?.find((item) => item.id === 'jump-bottom')?.keys ?? [ALT_MODIFIER_KEY, '↓']
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.isComposing || !matchesKeys(event, jumpShortcut)) return
       const target = event.target instanceof HTMLElement ? event.target : null
@@ -431,7 +450,7 @@ export function MainConversation({
             onClick={onToggleTerminal}
             aria-label={terminalOpen ? '隐藏终端抽屉' : '显示终端抽屉'}
             aria-pressed={terminalOpen}
-            title="显示或隐藏交互式终端 · ⌃`"
+            title={'显示或隐藏交互式终端 · ' + CONTROL_MODIFIER_KEY + '`'}
           >
             <PanelBottom size={18} />
           </button>
@@ -441,7 +460,7 @@ export function MainConversation({
               onClick={() => onSelectPanel?.(activePanel === 'dag' ? null : 'dag')}
               aria-label={panelOpen ? '隐藏任务侧边栏' : '显示任务侧边栏'}
               aria-pressed={panelOpen}
-              title="显示或隐藏任务 DAG · ⌘B"
+              title={`显示或隐藏任务 DAG · ${PRIMARY_MODIFIER_KEY}B`}
             >
               <PanelRight size={19} /><span>{taskCount}</span>
             </button>
@@ -495,7 +514,46 @@ export function MainConversation({
                 />
               )
             }
-            const isLatestAgent = !sending && message.id === lastAgentMessageId
+            const isLatestAgent = !sending && message.id === lastAgentMessageId && index > latestUserMessageIndex
+            const mayResend = Boolean(onResendMessage)
+              && !sending
+              && (promptQueue?.steering?.length ?? 0) === 0
+
+            const previousAssistantId = (userIndex: number): string | null => {
+              for (let cursor = userIndex - 1; cursor >= 0; cursor--) {
+                const candidate = messages[cursor]
+                if (isDshContextMessage(candidate) || candidate.compaction || candidate.author === 'user') continue
+                return candidate.id
+              }
+              return null
+            }
+            const userIndexBeforeAssistant = (assistantIndex: number): number => {
+              for (let cursor = assistantIndex - 1; cursor >= 0; cursor--) {
+                const candidate = messages[cursor]
+                if (isDshContextMessage(candidate) || candidate.compaction) continue
+                if (candidate.author === 'user' && !candidate.behavior) return cursor
+              }
+              return -1
+            }
+            const responseForUser = (userIndex: number): ChatMessage | undefined => {
+              for (let cursor = userIndex + 1; cursor < messages.length; cursor++) {
+                const candidate = messages[cursor]
+                if (isDshContextMessage(candidate) || candidate.compaction) continue
+                if (candidate.author === 'user' && !candidate.behavior) return undefined
+                if (candidate.author !== 'user') return candidate
+              }
+              return undefined
+            }
+            const priorUserIndex = !message.compaction && message.author !== 'user'
+              ? userIndexBeforeAssistant(index)
+              : -1
+            const priorUserMessage = priorUserIndex >= 0 ? messages[priorUserIndex] : undefined
+            const resendText = priorUserMessage?.text
+            const resendAnchor = priorUserIndex >= 0 ? previousAssistantId(priorUserIndex) : null
+            const resendModelKey = message.modelKey ?? (priorUserIndex >= 0 ? responseForUser(priorUserIndex)?.modelKey : undefined) ?? model?.id
+            const editResponse = message.author === 'user' && !message.behavior
+              ? responseForUser(index)
+              : undefined
             const canForkHere =
               Boolean(onFork)
               && !sending
@@ -512,7 +570,17 @@ export function MainConversation({
                 dshToolRows={isLatestAgent ? dshToolRows : undefined}
                 toolTraceItems={isLatestAgent ? toolTraces : undefined}
                 workspacePath={workspacePath}
+                conversationId={conversationId}
                 onFork={canForkHere ? onFork : undefined}
+                onEditAndResend={mayResend && message.author === 'user' && !message.behavior
+                  ? (text) => onResendMessage?.(text, previousAssistantId(index), editResponse?.modelKey ?? model?.id)
+                  : undefined}
+                onRegenerate={mayResend && isLatestAgent && message.author !== 'user' && !message.callout && resendText
+                  ? () => onResendMessage?.(resendText, resendAnchor, resendModelKey)
+                  : undefined}
+                onRetry={mayResend && message.author !== 'user' && Boolean(message.callout) && resendText
+                  ? () => onResendMessage?.(resendText, resendAnchor, resendModelKey)
+                  : undefined}
                 onShowToolDetails={onShowToolDetails}
                 onOpenWorkspacePath={onOpenWorkspacePath}
                 fallbackModelKey={model?.id ?? model?.name}
@@ -547,6 +615,7 @@ export function MainConversation({
               dshToolRows={dshToolRows}
               toolTraceItems={toolTraces}
               workspacePath={workspacePath}
+              conversationId={conversationId}
               isStreaming={true}
               thinkingIsStreaming={streamThinking?.isActive}
               streamActivity={streamActivity}
@@ -561,7 +630,7 @@ export function MainConversation({
           type="button"
           className="scroll-to-bottom-pill"
           onClick={scrollToLatest}
-          title="定位到最新答案 (快捷键: ⌥↓)"
+          title={`定位到最新答案 (快捷键: ${ALT_MODIFIER_KEY}↓)`}
           aria-label="回到底部最新答案"
         >
           <ArrowDown size={14} className={sending ? 'pulse-icon' : ''} />
@@ -579,6 +648,7 @@ export function MainConversation({
           onLoadSkills={onLoadSkills}
           permissionMode={permissionMode}
           modelsLoading={modelsLoading}
+          modelEmptyLabel={modelEmptyLabel}
           sending={sending}
           compacting={compacting}
           compactedSeq={compactedSeq}

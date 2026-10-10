@@ -3,11 +3,13 @@
  * tools through nested executions scheduled under the native concurrency
  * contract; each sub-dispatch is logged for reconstruction, while only the
  * outer curated result enters model history.
- * @module @z/dsh-tools/src/code-mode
+ * @module @taskweaver/dsh-tools/src/code-mode
  */
-import { HarnessError } from '@z/dsh-llm';
-import type { ContentBlock } from '@z/dsh-llm';
-import type { CodeRuntime } from '@z/dsh-code-runtime';
+import { HarnessError } from '@taskweaver/dsh-llm';
+import type { ContentBlock } from '@taskweaver/dsh-llm';
+import type { CodeRuntime } from '@taskweaver/dsh-code-runtime';
+import type { SandboxExecutionPolicy } from '@taskweaver/dsh-sandbox';
+import type { Agent } from '@taskweaver/dsh-agent';
 import type { CodeDispatchLog, ToolDefinition, ToolRuntime } from './index.ts';
 /** The model-facing name of the Code Mode tool. */
 export declare const RUN_CODE_NAME = "run_code";
@@ -41,6 +43,8 @@ export declare class CodeRunFailedError extends HarnessError {
 export interface RunCodeBridgeOptions {
     /** Resolves `ctx.codeRuntime` or throws the loud misconfiguration error (shared with the registry's assembly-time checks). */
     requireRuntime: () => CodeRuntime;
+    /** Resolve the current agent's complete filesystem policy when available. */
+    sandboxPolicyFor: (agent?: Agent) => SandboxExecutionPolicy | undefined;
     /**
      * Reads `ctx.codeRuntime` without throwing: `undefined` when none is mounted.
      * Lets schema emission tell "no runtime" (degrade to TS; the readers that

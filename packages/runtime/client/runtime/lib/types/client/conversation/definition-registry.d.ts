@@ -1,4 +1,4 @@
-import { Service } from '@z/cordis';
+import { Service } from '@taskweaver/cordis';
 /** Shared lifecycle and stable-entry storage for one Conversation Definition registry. */
 export declare abstract class ConversationDefinitionRegistry<Definition> extends Service {
     protected readonly definitions: Map<string, Definition>;

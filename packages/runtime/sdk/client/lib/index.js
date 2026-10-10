@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
 import { spawn } from "node:child_process";
-import { JsonRpcLineTransport, JsonRpcResponseError, JsonRpcResponseError as JsonRpcResponseError$1 } from "@z/dsh-sdk-protocol";
+import { JsonRpcLineTransport, JsonRpcResponseError, JsonRpcResponseError as JsonRpcResponseError$1 } from "@taskweaver/dsh-sdk-protocol";
 //#region lib/types/dispose.js
 /**
 * Private teardown ladder for the runtime subprocess: stdin EOF (cooperative
@@ -10,7 +10,7 @@ import { JsonRpcLineTransport, JsonRpcResponseError, JsonRpcResponseError as Jso
 * cannot ride the `dsh-subprocess` service — this module is the seam's
 * documented exception for SDK-managed transports.
 *
-* @module @z/dsh-sdk-client/dispose
+* @module @taskweaver/dsh-sdk-client/dispose
 */
 /**
 * Race the child's exit against a timer. Neither outcome leaves anything
@@ -101,7 +101,7 @@ async function disposeRuntimeProcess(child, graces, platform = process.platform)
 /**
 * Low-level JSON-RPC client for a DeepSeek Harness SDK runtime subprocess.
 * {@link HarnessClient} owns the child process: it spawns the runtime, speaks
-* the `@z/dsh-sdk-protocol` wire over the child's stdio, fans
+* the `@taskweaver/dsh-sdk-protocol` wire over the child's stdio, fans
 * server notifications out to subscriptions, and tears the child down to
 * quiescence through a private EOF → SIGTERM → SIGKILL ladder. The design
 * twin is the Python SDK's `HarnessClient` (`python/sdk`); both drive the
@@ -109,7 +109,7 @@ async function disposeRuntimeProcess(child, graces, platform = process.platform)
 * spawns directly rather than through the `dsh-subprocess` service — the
 * seam's documented exception for SDK-managed transports.
 *
-* @module @z/dsh-sdk-client/client
+* @module @taskweaver/dsh-sdk-client/client
 */
 /** Retained stderr lines used to diagnose an unexpected runtime death. */
 const STDERR_TAIL_LIMIT = 400;
@@ -514,7 +514,7 @@ function errorMessage(error) {
 * prompt and settles when the whole agent next becomes idle.
 * Mirrors the Python SDK's `DeepSeekHarness`/`Session` pair.
 *
-* @module @z/dsh-sdk-client/api
+* @module @taskweaver/dsh-sdk-client/api
 */
 /**
 * Reusable SDK for running DeepSeek Harness agent turns in a runtime

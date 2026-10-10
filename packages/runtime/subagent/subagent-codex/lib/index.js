@@ -1,12 +1,12 @@
 import { createRequire } from "node:module";
-import z from "@z/schemastery";
-import { MAX_TIMER_DELAY_MS } from "@z/dsh-timeout";
-import { NO_START_CAPABILITIES, assertPositiveFinite, resolveChildCwd, settleRunResult, subprocessRunHandle } from "@z/dsh-subagent";
+import z from "@taskweaver/schemastery";
+import { MAX_TIMER_DELAY_MS } from "@taskweaver/dsh-timeout";
+import { NO_START_CAPABILITIES, assertPositiveFinite, resolveChildCwd, settleRunResult, subprocessRunHandle } from "@taskweaver/dsh-subagent";
 import { randomUUID } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { SessionId } from "@z/dsh-session";
-import { JsonRpcLineTransport } from "@z/dsh-sdk-protocol";
+import { SessionId } from "@taskweaver/dsh-session";
+import { JsonRpcLineTransport } from "@taskweaver/dsh-sdk-protocol";
 //#region lib/types/wire.js
 /**
 * Minimal Codex app-server 0.147.0 protocol adapter. The shared JSON-RPC
@@ -14,7 +14,7 @@ import { JsonRpcLineTransport } from "@z/dsh-sdk-protocol";
 * product methods, current thread/turn association, unattended approval
 * responses, and terminal-answer selection.
 *
-* @module @z/dsh-subagent-codex/wire
+* @module @taskweaver/dsh-subagent-codex/wire
 */
 const THREAD_PERMISSION_PARAMS = {
 	never: { approvalPolicy: "never" },
@@ -553,7 +553,7 @@ var CodexAppServerWire = class {
 * creation, flatten post-publication failures, and dispose to whole-tree
 * quiescence.
 *
-* @module @z/dsh-subagent-codex/run
+* @module @taskweaver/dsh-subagent-codex/run
 */
 /** Default POSIX grace between subprocess termination tiers. */
 const DEFAULT_DISPOSE_GRACE_MS = 3e3;
@@ -840,7 +840,7 @@ async function startCodexRun(request, spec) {
 * fresh official package-local Codex wrapper with `app-server --stdio` in the
 * delegating Session's workspace and publishes only after an ephemeral thread exists.
 *
-* @module @z/dsh-subagent-codex
+* @module @taskweaver/dsh-subagent-codex
 */
 const name = "subagent-codex";
 const inject = ["subagents", "subprocess"];

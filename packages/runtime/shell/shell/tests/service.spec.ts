@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import { ShellExecutor } from '@z/dsh-shell'
-import type { ShellExecRequest, ShellExecSpec, ShellProcess, ShellProcessRead, ShellRunResult } from '@z/dsh-shell'
+import { Context } from '@taskweaver/cordis'
+import { ShellExecutor } from '@taskweaver/dsh-shell'
+import type { ShellExecRequest, ShellExecSpec, ShellProcess, ShellProcessRead, ShellRunResult } from '@taskweaver/dsh-shell'
 
 /**
  * Minimal concrete executor: canned foreground results, a hand-built process

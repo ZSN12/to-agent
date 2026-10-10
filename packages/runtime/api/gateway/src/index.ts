@@ -1,11 +1,11 @@
 /**
  * Live Typert Remote dispatch over Cordis Services and registered providers.
  * Transport, request correlation, and response envelopes belong to Connection.
- * @module @z/dsh-api-gateway
+ * @module @taskweaver/dsh-api-gateway
  */
 
-import { Context, Service, symbols } from '@z/cordis'
-import type { ConnectionRpcHandler } from '@z/dsh-client-connection'
+import { Context, Service, symbols } from '@taskweaver/cordis'
+import type { ConnectionRpcHandler } from '@taskweaver/dsh-client-connection'
 import {
   remoteMethods,
   TypertLookupFailure,
@@ -13,7 +13,7 @@ import {
   type InvocationParameterDescriptor,
   type TypertCodec,
   type TypertGatewayBinding,
-} from '@z/dsh-typert-protocol'
+} from '@taskweaver/dsh-typert-protocol'
 import type {
   InvokeRemoteRequest,
   TypertGateway,

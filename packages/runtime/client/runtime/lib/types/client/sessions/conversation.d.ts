@@ -1,10 +1,10 @@
-import type { CommandId } from '@z/dsh-commands/brand';
-import type { MessageId } from '@z/dsh-llm/brand';
-import type { ContentBlock } from '@z/dsh-llm/types';
-import type { ImageAttachmentRef } from '@z/dsh-attachment';
-import type { LlmRetryEventData } from '@z/dsh-llm-retry/types';
-import type { TodoItem } from '@z/dsh-session/types';
-import type { RpcError, SessionId, SubagentAddress, ToolCallView, ToolResultView } from '@z/dsh-api-remotes/client';
+import type { CommandId } from '@taskweaver/dsh-commands/brand';
+import type { MessageId } from '@taskweaver/dsh-llm/brand';
+import type { ContentBlock } from '@taskweaver/dsh-llm/types';
+import type { ImageAttachmentRef } from '@taskweaver/dsh-attachment';
+import type { LlmRetryEventData } from '@taskweaver/dsh-llm-retry/types';
+import type { TodoItem } from '@taskweaver/dsh-session/types';
+import type { RpcError, SessionId, SubagentAddress, ToolCallView, ToolResultView } from '@taskweaver/dsh-api-remotes/client';
 import type { PendingInteraction } from './pending.ts';
 import type { ContextProvenanceView, KnownContextForm } from './context-provenance.ts';
 import type { ChatConversationViewNode, ConversationTimelineSnapshot, ConversationViewSnapshotStore } from '../contract/conversation.ts';

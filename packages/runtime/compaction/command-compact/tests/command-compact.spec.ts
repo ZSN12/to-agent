@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import Loader from '@z/cordis-plugin-loader'
-import type { Agent } from '@z/dsh-agent'
-import CommandRuntime, { type CommandResult } from '@z/dsh-commands'
+import { Context } from '@taskweaver/cordis'
+import Loader from '@taskweaver/cordis-plugin-loader'
+import type { Agent } from '@taskweaver/dsh-agent'
+import CommandRuntime, { type CommandResult } from '@taskweaver/dsh-commands'
 import {
   CompactionId,
   CompactionEngine,
@@ -11,9 +11,9 @@ import {
   type CompactionResult,
   type CompactionTrigger,
   type ManualCompactAgentContext,
-} from '@z/dsh-compaction'
-import { Session, SessionId } from '@z/dsh-session'
-import * as commandCompact from '@z/dsh-command-compact'
+} from '@taskweaver/dsh-compaction'
+import { Session, SessionId } from '@taskweaver/dsh-session'
+import * as commandCompact from '@taskweaver/dsh-command-compact'
 
 const COMPACTION_ID = CompactionId('command-compact-test')
 
@@ -153,7 +153,7 @@ function expectLastLifecycle(
   return runEvent.data.commandId
 }
 
-describe('@z/dsh-command-compact registration', () => {
+describe('@taskweaver/dsh-command-compact registration', () => {
   it('registers one argument-free command with Loader-safe exports and disposes it', async () => {
     const test = await harness()
     expect(commandCompact.name).toBe('command-compact')

@@ -14,7 +14,7 @@ export declare const askUserQuestionAnswerSchema: z.ZodObject<{
 }, z.core.$strip>;
 /** Question answer payload (the result.value slot of a client-response). */
 export declare const questionResponsePayloadSchema: z.ZodObject<{
-    sessionId: z.ZodType<import("@z/dsh-session").SessionId, unknown, z.core.$ZodTypeInternals<import("@z/dsh-session").SessionId, unknown>>;
+    sessionId: z.ZodType<import("@taskweaver/dsh-session").SessionId, unknown, z.core.$ZodTypeInternals<import("@taskweaver/dsh-session").SessionId, unknown>>;
     answer: z.ZodObject<{
         answers: z.ZodArray<z.ZodObject<{
             id: z.ZodString;

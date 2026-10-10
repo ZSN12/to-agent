@@ -13,7 +13,7 @@
  * `ctx.remote.$on`. Forwarding one more event is an entry here and nothing
  * else.
  */
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
     interface Events {
         'authorization/settled'(key: string, settlement: 'authorized' | 'cancelled' | 'failed'): void;
         'taskweaver/authorization-notice'(attemptId: string, key: string, notice: {

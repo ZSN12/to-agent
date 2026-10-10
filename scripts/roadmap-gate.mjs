@@ -6,19 +6,19 @@ import { fileURLToPath } from 'node:url'
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 
 const steps = [
-  ['npm run test:prompt-pipeline', 'A4 prompt pipeline'],
-  ['npm run test:workspace-context', 'A4 workspace context'],
-  ['npm run test:orchestration', 'multi-agent orchestration'],
-  ['npm run test:dsh-lifecycle', 'C fork / session lifecycle'],
-  ['npm run test:usage', 'B usage + compaction policy'],
+  ['pnpm run test:prompt-pipeline', 'A4 prompt pipeline'],
+  ['pnpm run test:workspace-context', 'A4 workspace context'],
+  ['pnpm run test:orchestration', 'multi-agent orchestration'],
+  ['pnpm run test:dsh-lifecycle', 'C fork / session lifecycle'],
+  ['pnpm run test:usage', 'B usage + compaction policy'],
   ['node scripts/test-transcript-display-policy.mjs', 'C transcript policy'],
   ['node scripts/test-scheduled-jobs-store.mjs', 'D scheduled jobs'],
   ['node scripts/test-taskweaver-hooks.mjs', 'E hooks'],
   ['node scripts/test-launchd-scheduler.mjs', 'D launchd plist'],
   ['node scripts/test-github-pull-requests.mjs', 'PR remote parse'],
-  ['npm run test:headless-doc', 'D headless CLI doc'],
+  ['pnpm run test:headless-doc', 'D headless CLI doc'],
   ['node --test tests/fork-thread-smoke.test.mjs', 'C fork smoke'],
-  ['npx tsc -b', 'TypeScript build'],
+  ['pnpm run typecheck', 'TypeScript build'],
 ]
 
 let failed = 0

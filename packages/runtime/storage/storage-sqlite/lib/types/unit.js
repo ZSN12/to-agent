@@ -4,9 +4,9 @@
  * `unit_globals` table. Each primitive is a single statement, so atomicity
  * comes from SQLite itself — no explicit transactions, and no write queue
  * (write ordering is the caller's responsibility per the KV contract).
- * @module @z/dsh-storage-sqlite/unit
+ * @module @taskweaver/dsh-storage-sqlite/unit
  */
-import { StorageError } from '@z/dsh-storage';
+import { StorageError } from '@taskweaver/dsh-storage';
 import { recordTableName } from "./schema.js";
 /**
  * The SQLite {@link KvUnit}. Constructed by the backend AFTER the unit's

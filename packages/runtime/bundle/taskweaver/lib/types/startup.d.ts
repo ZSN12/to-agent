@@ -1,8 +1,8 @@
 /**
  * Parse the TaskWeaver API Host's WebServer bind and `/api` trust options.
- * @module @z/dsh-taskweaver/startup
+ * @module @taskweaver/dsh-taskweaver/startup
  */
-import type { Context } from '@z/cordis';
+import type { Context } from '@taskweaver/cordis';
 /** Stable Cordis plugin name. */
 export declare const name = "web-startup";
 /** Service required before the flags can be resolved. */

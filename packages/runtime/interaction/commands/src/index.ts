@@ -1,17 +1,17 @@
 /**
  * Plugin-owned human-command registry shared by interactive UI adapters.
- * @module @z/dsh-commands
+ * @module @taskweaver/dsh-commands
  */
 
-import { Context } from '@z/cordis'
-import type { Agent } from '@z/dsh-agent'
-import { AttachmentError, admitEncodedImages } from '@z/dsh-attachment'
-import type { EncodedImageAttachment } from '@z/dsh-attachment/types'
-import type { ImageBlock } from '@z/dsh-llm'
-import { NamedEntries, ScopedLayers } from '@z/dsh-scope'
-import type { ScopeKey, ScopeLayer } from '@z/dsh-scope'
-import type { Session, SessionEvent, SessionEventMap } from '@z/dsh-session'
-import { TypertRemoteService, Remote } from '@z/dsh-typert-protocol'
+import { Context } from '@taskweaver/cordis'
+import type { Agent } from '@taskweaver/dsh-agent'
+import { AttachmentError, admitEncodedImages } from '@taskweaver/dsh-attachment'
+import type { EncodedImageAttachment } from '@taskweaver/dsh-attachment/types'
+import type { ImageBlock } from '@taskweaver/dsh-llm'
+import { NamedEntries, ScopedLayers } from '@taskweaver/dsh-scope'
+import type { ScopeKey, ScopeLayer } from '@taskweaver/dsh-scope'
+import type { Session, SessionEvent, SessionEventMap } from '@taskweaver/dsh-session'
+import { TypertRemoteService, Remote } from '@taskweaver/dsh-typert-protocol'
 import { CommandId } from './brand.ts'
 import type {
   CommandDescriptor,
@@ -101,7 +101,7 @@ class CommandLayer implements ScopeLayer {
   }
 }
 
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
   interface Context {
     commands: CommandRuntime
   }

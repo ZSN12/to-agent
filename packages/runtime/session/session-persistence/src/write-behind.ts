@@ -1,9 +1,9 @@
 /**
  * Bounded per-session write batching for the shared persistence coordinator.
- * @module @z/dsh-session-persistence/write-behind
+ * @module @taskweaver/dsh-session-persistence/write-behind
  */
 
-import type { SessionEvent } from '@z/dsh-session'
+import type { SessionEvent } from '@taskweaver/dsh-session'
 
 /** Dependencies and scheduling policy for one live session's write controller. */
 export interface SessionWriteBehindOptions {

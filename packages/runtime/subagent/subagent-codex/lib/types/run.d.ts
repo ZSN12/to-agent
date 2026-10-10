@@ -4,11 +4,11 @@
  * creation, flatten post-publication failures, and dispose to whole-tree
  * quiescence.
  *
- * @module @z/dsh-subagent-codex/run
+ * @module @taskweaver/dsh-subagent-codex/run
  */
-import type { ContentBlock } from '@z/dsh-llm';
-import { type SubagentRun, type SubagentStartRequest, type SubagentStopReason } from '@z/dsh-subagent';
-import type { SubprocessHandle, SubprocessSpawnSpec } from '@z/dsh-subprocess';
+import type { ContentBlock } from '@taskweaver/dsh-llm';
+import { type SubagentRun, type SubagentStartRequest, type SubagentStopReason } from '@taskweaver/dsh-subagent';
+import type { SubprocessHandle, SubprocessSpawnSpec } from '@taskweaver/dsh-subprocess';
 import { CodexAppServerWire } from './wire.ts';
 /** Default POSIX grace between subprocess termination tiers. */
 export declare const DEFAULT_DISPOSE_GRACE_MS = 3000;

@@ -1,7 +1,7 @@
 /** The Remote face delegates to the provider's discovery contract unchanged. */
-import { Context } from '@z/cordis'
+import { Context } from '@taskweaver/cordis'
 import { describe, expect, it, vi } from 'vitest'
-import type { Agent } from '@z/dsh-agent'
+import type { Agent } from '@taskweaver/dsh-agent'
 import { FileReferenceService } from '../src/index.ts'
 import type { FileReferenceCandidate } from '../src/types.ts'
 

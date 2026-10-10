@@ -1,16 +1,16 @@
 /** The `agent-loop` settings section layered over the composition entry. */
 
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import type { Fiber } from '@z/cordis'
-import LlmRuntime from '@z/dsh-llm'
-import SessionStore from '@z/dsh-session'
-import SystemPrompt from '@z/dsh-system-prompt'
-import ToolRuntime from '@z/dsh-tools'
-import AgentRegistry from '@z/dsh-agent'
-import { SettingsProvider } from '@z/dsh-settings'
-import type { SettingsNamespace } from '@z/dsh-settings'
-import AgentLoop, { AGENT_LOOP_SETTINGS_NAMESPACE } from '@z/dsh-agent-loop'
+import { Context } from '@taskweaver/cordis'
+import type { Fiber } from '@taskweaver/cordis'
+import LlmRuntime from '@taskweaver/dsh-llm'
+import SessionStore from '@taskweaver/dsh-session'
+import SystemPrompt from '@taskweaver/dsh-system-prompt'
+import ToolRuntime from '@taskweaver/dsh-tools'
+import AgentRegistry from '@taskweaver/dsh-agent'
+import { SettingsProvider } from '@taskweaver/dsh-settings'
+import type { SettingsNamespace } from '@taskweaver/dsh-settings'
+import AgentLoop, { AGENT_LOOP_SETTINGS_NAMESPACE } from '@taskweaver/dsh-agent-loop'
 
 /** The smallest real provider: one in-memory document, always writable. */
 class MemorySettings extends SettingsProvider {

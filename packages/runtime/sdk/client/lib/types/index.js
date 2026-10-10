@@ -6,9 +6,9 @@
  * registers nothing on a Cordis context; the runtime process it spawns is a
  * complete harness configured by its own `cordis.yml`.
  *
- * @module @z/dsh-sdk-client
+ * @module @taskweaver/dsh-sdk-client
  */
 export { DeepSeekHarness, HarnessSession } from "./api.js";
 export { HarnessClient, RequestTimeoutError, SdkProtocolError, TransportClosedError, } from "./client.js";
-export { JsonRpcResponseError } from '@z/dsh-sdk-protocol';
+export { JsonRpcResponseError } from '@taskweaver/dsh-sdk-protocol';
 //# sourceMappingURL=index.js.map

@@ -1,13 +1,13 @@
 /**
- * Package-owned invariant companion for `@z/dsh-credentials-local`.
- * @module @z/dsh-credentials-local/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-credentials-local`.
+ * @module @taskweaver/dsh-credentials-local/invariant
  */
 
 /* jscpd:ignore-start */
-import type { Context } from '@z/cordis'
-import type { InvariantInstaller } from '@z/dsh-invariants'
+import type { Context } from '@taskweaver/cordis'
+import type { InvariantInstaller } from '@taskweaver/dsh-invariants'
 
-const PACKAGE_NAME = '@z/dsh-credentials-local'
+const PACKAGE_NAME = '@taskweaver/dsh-credentials-local'
 
 /** Cordis companion plugin name. */
 export const name = 'credentials-local-invariant'

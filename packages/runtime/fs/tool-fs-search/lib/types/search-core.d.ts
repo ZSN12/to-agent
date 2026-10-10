@@ -16,13 +16,13 @@
  * artifact is the formatted result saved through `ctx.spillStore.saveText()`
  * ({@link trySaveFormattedResult}).
  *
- * @module @z/dsh-tool-fs-search/search-core
+ * @module @taskweaver/dsh-tool-fs-search/search-core
  */
-import type { Context } from '@z/cordis';
-import { HarnessError } from '@z/dsh-llm';
-import type { RetainedItems } from '@z/dsh-output-retention';
-import type { SpillRef } from '@z/dsh-spill';
-import type { ToolExecution } from '@z/dsh-tools';
+import type { Context } from '@taskweaver/cordis';
+import { HarnessError } from '@taskweaver/dsh-llm';
+import type { RetainedItems } from '@taskweaver/dsh-output-retention';
+import type { SpillRef } from '@taskweaver/dsh-spill';
+import type { ToolExecution } from '@taskweaver/dsh-tools';
 /**
  * Default cap on the complete raw `rg` stdout the tools will parse (the
  * `rawOutputMaxBytes` config), matching Claude Code's ripgrep raw buffer.
@@ -31,7 +31,7 @@ export declare const RAW_OUTPUT_MAX_BYTES = 20000000;
 /**
  * Default cooperative tool-call timeout budget in milliseconds (the `timeoutMs`
  * config), attached to both tool definitions for
- * `@z/dsh-tool-call-timeout-policy` to enforce through `exec.signal`.
+ * `@taskweaver/dsh-tool-call-timeout-policy` to enforce through `exec.signal`.
  */
 export declare const SEARCH_TIMEOUT_MS = 30000;
 /**
@@ -102,7 +102,7 @@ export declare function resolveRgPath(): Promise<string>;
  * complete raw stdout. The working directory is the calling agent's session
  * cwd (`exec.agent.session.header.cwd`) when available, else
  * `process.cwd()`. `exec.signal` is forwarded so the cooperative tool timeout
- * (`@z/dsh-tool-call-timeout-policy`) and caller cancellation terminate the
+ * (`@taskweaver/dsh-tool-call-timeout-policy`) and caller cancellation terminate the
  * process tree.
  *
  * The spawn is unconfined (a plain `ctx.subprocess` call), so `--no-config`
@@ -165,9 +165,9 @@ export declare function previewLine(line: string, maxBytes: number): string;
 /**
  * Apply the shared inline cap to a canonical `grep` match list: preview each
  * retained line to `maxLineBytes` and keep the first `maxMatches`. The single
- * retention pass both the model-facing render ({@link module:@z/dsh-tool-fs-search/grep}
+ * retention pass both the model-facing render ({@link module:@taskweaver/dsh-tool-fs-search/grep}
  * `formatGrepOutput`) and the search-card projection
- * ({@link module:@z/dsh-tool-fs-search/presentation} `grepSearchMeta`)
+ * ({@link module:@taskweaver/dsh-tool-fs-search/presentation} `grepSearchMeta`)
  * consume, so text and card never disagree about which matches survived.
  *
  * @param matches - every match the search parsed (the canonical value's matches).

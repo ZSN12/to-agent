@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { fileURLToPath } from 'node:url'
-import { LspConnection } from '@z/dsh-lsp-stdio'
-import type { ConnectionWriter } from '@z/dsh-lsp-stdio/src/connection.ts'
-import { scrubbedParentEnv } from '@z/dsh-subprocess'
-import { spawnSubprocess } from '@z/dsh-subprocess-local/src/spawn.ts'
+import { LspConnection } from '@taskweaver/dsh-lsp-stdio'
+import type { ConnectionWriter } from '@taskweaver/dsh-lsp-stdio/src/connection.ts'
+import { scrubbedParentEnv } from '@taskweaver/dsh-subprocess'
+import { spawnSubprocess } from '@taskweaver/dsh-subprocess-local/src/spawn.ts'
 
 const fixtureServer = fileURLToPath(new URL('./fixture-server.ts', import.meta.url))
 
@@ -51,11 +51,11 @@ describe('LspConnection', () => {
     expect(conn.pid).toBeGreaterThan(0)
   })
 
-  it('forwards explicit DSH_* env entries to the child', async () => {
-    // A configured DSH_* fact must reach the child: the seam scrubs only the
+  it('forwards explicit TASKWEAVER_* env entries to the child', async () => {
+    // A configured TASKWEAVER_* fact must reach the child: the seam scrubs only the
     // ambient namespace, and the explicit entry merges after that scrub. The
     // fixture echoes the named variable back as hover text.
-    const conn = connect({ LSP_FAKE_ECHO_ENV: 'DSH_LSP_TEST_FACT', DSH_LSP_TEST_FACT: 'managed' })
+    const conn = connect({ LSP_FAKE_ECHO_ENV: 'TASKWEAVER_LSP_TEST_FACT', TASKWEAVER_LSP_TEST_FACT: 'managed' })
     await conn.request('initialize', { capabilities: {} })
     expect(await conn.request('textDocument/hover', {})).toEqual({ contents: 'managed' })
   })

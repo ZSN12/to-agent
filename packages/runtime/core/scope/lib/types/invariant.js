@@ -1,26 +1,23 @@
-"use strict";
-/** Package-owned scoped-dispatch invariants. @module @z/dsh-scope/invariant */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.apply = exports.inject = exports.name = void 0;
-var dsh_scope_1 = require("@z/dsh-scope");
-var scoped_events_generated_ts_1 = require("./scoped-events.generated.ts");
-var PACKAGE_NAME = '@z/dsh-scope';
+/** Package-owned scoped-dispatch invariants. @module @taskweaver/dsh-scope/invariant */
+import { carrierKeyOf, isScopeCarrier } from '@taskweaver/dsh-scope';
+import { scopedSubjectResolverFor } from "./scoped-events.generated.js";
+const PACKAGE_NAME = '@taskweaver/dsh-scope';
 /** Cordis companion plugin name. */
-exports.name = 'scope-invariant';
+export const name = 'scope-invariant';
 /** Services required before the companion can register. */
-exports.inject = ['invariants'];
+export const inject = ['invariants'];
 /** Install the scoped-dispatch contribution into its child registration fiber. */
-var install = function (ctx, fail) {
-    ctx.on('internal/dispatch', function (_mode, eventName, args, thisArg) {
-        var subjectOf = (0, scoped_events_generated_ts_1.scopedSubjectResolverFor)(eventName);
+const install = (ctx, fail) => {
+    ctx.on('internal/dispatch', (_mode, eventName, args, thisArg) => {
+        const subjectOf = scopedSubjectResolverFor(eventName);
         if (subjectOf === undefined)
             return;
-        if (!(0, dsh_scope_1.isScopeCarrier)(thisArg)) {
-            fail("\"".concat(eventName, "\" is a scope-filtered event but was dispatched without a scope carrier \u2014 ")
+        if (!isScopeCarrier(thisArg)) {
+            fail(`"${eventName}" is a scope-filtered event but was dispatched without a scope carrier — `
                 + 'pass scopeTarget(base, subject) as the dispatch thisArg (agent events: use agentEvents(ctx, agent))');
         }
-        if (subjectOf !== null && (0, dsh_scope_1.carrierKeyOf)(thisArg) !== subjectOf(args)) {
-            fail("\"".concat(eventName, "\" was dispatched with a scope carrier keyed to a DIFFERENT subject than its arguments name \u2014 ")
+        if (subjectOf !== null && carrierKeyOf(thisArg) !== subjectOf(args)) {
+            fail(`"${eventName}" was dispatched with a scope carrier keyed to a DIFFERENT subject than its arguments name — `
                 + 'the carrier key and the event\'s subject must be the same object (use agentEvents(ctx, agent))');
         }
     }, { global: true });
@@ -30,7 +27,5 @@ var install = function (ctx, fail) {
  * @param ctx - Cordis context carrying the invariant service.
  * @returns the installed registration's disposer after setup succeeds.
  */
-var apply = function (ctx) {
-    return Promise.resolve(ctx.invariants.register(PACKAGE_NAME, install));
-};
-exports.apply = apply;
+export const apply = (ctx) => Promise.resolve(ctx.invariants.register(PACKAGE_NAME, install));
+//# sourceMappingURL=invariant.js.map

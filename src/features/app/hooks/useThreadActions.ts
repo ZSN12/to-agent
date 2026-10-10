@@ -225,12 +225,31 @@ export function useThreadActions(options: ThreadActionsOptions) {
       return null
     }
     resetTransientConversationState()
+    activeConversationIdRef.current = res.data.state.conversationId
     setState(res.data.state)
+    setCompletedConversationIds((current) => current.filter((id) => id !== res.data.state.conversationId))
     setToolTraces([])
+    setSending(isConversationRunning(res.data.state.conversationId))
+    setStreamStartedAt(conversationStartedAtRef.current.get(res.data.state.conversationId) ?? null)
+    void refreshSkills(res.data.state.workspacePath)
     setError(null)
     void refreshSessionStats()
     return res.data
-  }, [refreshSessionStats, resetTransientConversationState, state?.currentThreadId, setState, setError, setToolTraces])
+  }, [
+    activeConversationIdRef,
+    conversationStartedAtRef,
+    isConversationRunning,
+    refreshSessionStats,
+    refreshSkills,
+    resetTransientConversationState,
+    setCompletedConversationIds,
+    setSending,
+    setState,
+    setError,
+    setStreamStartedAt,
+    setToolTraces,
+    state?.currentThreadId,
+  ])
 
   return {
     switchThread,

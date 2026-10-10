@@ -1,15 +1,15 @@
 /**
  * Single replay-aware token-meter service for request and surface pressure.
  *
- * @module @z/dsh-token-meter
+ * @module @taskweaver/dsh-token-meter
  */
-import { Context, Service } from '@z/cordis';
-import z from '@z/schemastery';
-import type { Message } from '@z/dsh-llm';
-import type { EpochHeader, Session } from '@z/dsh-session';
+import { Context, Service } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
+import type { Message } from '@taskweaver/dsh-llm';
+import type { EpochHeader, Session } from '@taskweaver/dsh-session';
 import type { TokenMeasurement, TokenMeterConfig } from './types.ts';
 export type * from './types.ts';
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
     interface Context {
         tokenMeter: TokenMeter;
     }

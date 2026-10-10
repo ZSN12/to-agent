@@ -1,4 +1,4 @@
-import { Context } from '@z/cordis';
+import { Context } from '@taskweaver/cordis';
 function swap(target, source) {
     for (const key of Reflect.ownKeys(target)) {
         Reflect.deleteProperty(target, key);

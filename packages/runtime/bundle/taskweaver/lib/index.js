@@ -2,13 +2,13 @@ import { createRequire } from "node:module";
 import { spawn } from "node:child_process";
 import { networkInterfaces } from "node:os";
 import { fileURLToPath } from "node:url";
-import z from "@z/schemastery";
-import { addHarnessSourceSection } from "@z/dsh-app-boot";
-import { launchEnvironmentOf } from "@z/dsh-launch-environment";
-import { scrubbedParentEnv } from "@z/dsh-subprocess";
+import z from "@taskweaver/schemastery";
+import { addHarnessSourceSection } from "@taskweaver/dsh-app-boot";
+import { launchEnvironmentOf } from "@taskweaver/dsh-launch-environment";
+import { scrubbedParentEnv } from "@taskweaver/dsh-subprocess";
 //#region lib/types/index.js
 /**
-* @z/dsh-web-app — the browser-surface bundle's runtime glue plugin
+* @taskweaver/dsh-web-app — the browser-surface bundle's runtime glue plugin
 * plus the bundle patch (`cordis.patch.yml`, declared by the `dsh.bundle.patch`
 * manifest field). The plugin owns the browser-surface glue: it resolves
 * the built frontend dist (workspace knowledge of this bundle, never user
@@ -17,7 +17,7 @@ import { scrubbedParentEnv } from "@z/dsh-subprocess";
 * variable, the URL line, and the default-browser handoff. App command-line
 * values arrive through the `webStartup` service expressions in the bundle
 * patch.
-* @module @z/dsh-web-app
+* @module @taskweaver/dsh-web-app
 */
 /** Stable Cordis plugin name. */
 const name = "web-app";
@@ -110,7 +110,7 @@ function localWebUrl(ctx) {
 function resolveDistIndex() {
 	const require = createRequire(import.meta.url);
 	try {
-		return require.resolve("@z/dsh-web-frontend/dist/index.html");
+		return require.resolve("@taskweaver/dsh-web-frontend/dist/index.html");
 	} catch {
 		/* v8 ignore next 2 -- reachable only on a checkout without a built dist; the test tree builds it */
 		throw new Error("web-app: frontend dist not built; run pnpm run build from the repository root first");
@@ -178,7 +178,7 @@ function apply(ctx, config) {
 	ctx.provide(WEB_RUNTIME_SERVICE, runtime);
 	if (!taskweaverEmbedded()) {
 		const require = createRequire(import.meta.url);
-		ctx.plugin(require("@z/dsh-host-frontend-static"), { distIndex: internals.resolveDistIndex() });
+		ctx.plugin(require("@taskweaver/dsh-host-frontend-static"), { distIndex: internals.resolveDistIndex() });
 	}
 	if (config.surfaceContext && !taskweaverEmbedded()) {
 		ctx.inject(["systemPrompt"], (promptCtx) => {

@@ -1,8 +1,8 @@
 /**
- * @module @z/dsh-llm-taskweaver-bridge/adapter
+ * @module @taskweaver/dsh-llm-taskweaver-bridge/adapter
  */
 
-import { LlmAdapter, LlmError } from '@z/dsh-llm'
+import { LlmAdapter, LlmError } from '@taskweaver/dsh-llm'
 import type {
   GenerateOptions,
   LlmModelInfo,
@@ -10,10 +10,10 @@ import type {
   LlmResolvedModelInfo,
   PreparedAdapterCall,
   StreamChunk,
-} from '@z/dsh-llm'
-import { streamThroughBridge } from '@z/dsh-bridge-core'
-import type { BridgeCatalogModel, BridgeProviderProfile } from '@z/dsh-bridge-core'
-import { resolveDshHome } from '@z/dsh-home-paths'
+} from '@taskweaver/dsh-llm'
+import { streamThroughBridge } from '@taskweaver/dsh-bridge-core'
+import type { BridgeCatalogModel, BridgeProviderProfile } from '@taskweaver/dsh-bridge-core'
+import { resolveRuntimeHome } from '@taskweaver/dsh-home-paths'
 import type { ResolvedBridgeOptions } from './config.ts'
 
 export interface TaskWeaverBridgeAdapterOptions {
@@ -82,7 +82,7 @@ export class TaskWeaverBridgeAdapter extends LlmAdapter {
         'INVALID_PROVIDER',
       )
     }
-    const harnessHome = resolveDshHome()
+    const harnessHome = resolveRuntimeHome()
     yield* streamThroughBridge({
       providerId: provider,
       profile,

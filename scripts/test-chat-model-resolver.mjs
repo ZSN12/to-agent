@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { AUTO_ROUTE_MODEL_KEY, inferSingleAgentTaskType, resolveModelKeyForChat } from '../electron/backend/chat-model-resolver.mjs'
+import { AUTO_ROUTE_MODEL_KEY, inferSingleAgentTaskType, resolveModelKeyForChat } from '../desktop/backend/chat-model-resolver.mjs'
 
 assert.equal(inferSingleAgentTaskType('帮我找一下 login 在哪'), 'research')
 assert.equal(inferSingleAgentTaskType('实现登录接口并写单元测试'), 'test')

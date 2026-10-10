@@ -1,5 +1,5 @@
 {
-  "name": "@z/dsh-fs-sandbox",
+  "name": "@taskweaver/dsh-fs-sandbox",
   "description": "Sandbox-enforcing implementation of the DeepSeek Harness filesystem seam: fences write/edit by the per-call sandbox mode (read-only denies mutation, workspace-write contains it to the workspace + temp roots) while reads pass through",
   "version": "0.1.1-rc.2",
   "publishConfig": {
@@ -8,7 +8,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
-    "directory": "packages/fs/fs-sandbox"
+    "directory": "packages/runtime/fs/fs-sandbox"
   },
   "type": "module",
   "main": "lib/index.js",
@@ -32,19 +32,19 @@
   ],
   "license": "MIT",
   "peerDependencies": {
-    "@z/dsh-fs": "workspace:^",
-    "@z/dsh-fs-local": "workspace:^",
-    "@z/dsh-invariants": "workspace:^",
-    "@z/dsh-sandbox": "workspace:^",
-    "@z/dsh-sandbox-policy": "workspace:^",
-    "@z/cordis": "workspace:^"
+    "@taskweaver/dsh-fs": "workspace:^",
+    "@taskweaver/dsh-fs-local": "workspace:^",
+    "@taskweaver/dsh-invariants": "workspace:^",
+    "@taskweaver/dsh-sandbox": "workspace:^",
+    "@taskweaver/dsh-sandbox-policy": "workspace:^",
+    "@taskweaver/cordis": "workspace:^"
   },
   "devDependencies": {
-    "@z/dsh-fs": "workspace:^",
-    "@z/dsh-fs-local": "workspace:^",
-    "@z/dsh-invariants": "workspace:^",
-    "@z/dsh-sandbox": "workspace:^",
-    "@z/dsh-sandbox-policy": "workspace:^",
-    "@z/cordis": "workspace:^"
+    "@taskweaver/dsh-fs": "workspace:^",
+    "@taskweaver/dsh-fs-local": "workspace:^",
+    "@taskweaver/dsh-invariants": "workspace:^",
+    "@taskweaver/dsh-sandbox": "workspace:^",
+    "@taskweaver/dsh-sandbox-policy": "workspace:^",
+    "@taskweaver/cordis": "workspace:^"
   }
 }

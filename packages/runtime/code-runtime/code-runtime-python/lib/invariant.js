@@ -1,9 +1,9 @@
 //#region lib/types/invariant.js
 /**
-* Package-owned invariant companion for `@z/dsh-code-runtime-python`.
-* @module @z/dsh-code-runtime-python/invariant
+* Package-owned invariant companion for `@taskweaver/dsh-code-runtime-python`.
+* @module @taskweaver/dsh-code-runtime-python/invariant
 */
-const PACKAGE_NAME = "@z/dsh-code-runtime-python";
+const PACKAGE_NAME = "@taskweaver/dsh-code-runtime-python";
 /** Cordis companion plugin name. */
 const name = "code-runtime-python-invariant";
 /** Service required before the companion can reserve package ownership. */

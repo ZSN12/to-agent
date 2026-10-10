@@ -1,6 +1,6 @@
-import type { SessionEvent } from '@z/dsh-session/types';
+import type { SessionEvent } from '@taskweaver/dsh-session/types';
 import type { AssistantTiming } from './conversation.ts';
-export { isTokenDelta } from '@z/dsh-llm/message';
+export { isTokenDelta } from '@taskweaver/dsh-llm/message';
 /** Pre-finalize timing boundaries for one assistant step (start + first token). */
 export interface AssistantStepMetadata {
     stepStartTime: number | null;

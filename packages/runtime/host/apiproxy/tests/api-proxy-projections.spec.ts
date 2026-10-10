@@ -8,22 +8,22 @@
  */
 
 import { describe, expect, it, vi } from 'vitest'
-import { Context } from '@z/cordis'
+import { Context } from '@taskweaver/cordis'
 import { z } from 'zod'
-import AgentRegistry, { Inbox } from '@z/dsh-agent'
-import { AttachmentStore } from '@z/dsh-attachment'
-import type { Agent } from '@z/dsh-agent'
-import { createUserMessage } from '@z/dsh-llm'
-import SessionStore, { SessionId } from '@z/dsh-session'
-import type { Session } from '@z/dsh-session'
-import SessionProjectionRegistry from '@z/dsh-session-projection'
-import type { ProjectionDefinition } from '@z/dsh-session-projection'
-import UserQuestionService from '@z/dsh-user-questions'
-import type { MuxFrame, RpcRequest } from '@z/dsh-host-apiproxy/api'
-import { RpcId } from '@z/dsh-host-apiproxy/api/rpc'
-import { createApiProxy } from '@z/dsh-host-apiproxy'
+import AgentRegistry, { Inbox } from '@taskweaver/dsh-agent'
+import { AttachmentStore } from '@taskweaver/dsh-attachment'
+import type { Agent } from '@taskweaver/dsh-agent'
+import { createUserMessage } from '@taskweaver/dsh-llm'
+import SessionStore, { SessionId } from '@taskweaver/dsh-session'
+import type { Session } from '@taskweaver/dsh-session'
+import SessionProjectionRegistry from '@taskweaver/dsh-session-projection'
+import type { ProjectionDefinition } from '@taskweaver/dsh-session-projection'
+import UserQuestionService from '@taskweaver/dsh-user-questions'
+import type { MuxFrame, RpcRequest } from '@taskweaver/dsh-host-apiproxy/api'
+import { RpcId } from '@taskweaver/dsh-host-apiproxy/api/rpc'
+import { createApiProxy } from '@taskweaver/dsh-host-apiproxy'
 
-declare module '@z/dsh-session-projection/types' {
+declare module '@taskweaver/dsh-session-projection/types' {
   interface SessionProjectionStateMap {
     'test/last-user': LastUserState
     'test/internal-count': number

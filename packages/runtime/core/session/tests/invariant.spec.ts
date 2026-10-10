@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import { createScope, scopeTarget } from '@z/dsh-scope'
-import { createUserMessage, CallId, createMessage, createToolResultMessage, freezeMessage } from '@z/dsh-llm'
-import SessionStore, { SessionId, TOOL_NOT_STARTED } from '@z/dsh-session'
-import * as SessionInvariant from '@z/dsh-session/invariant'
-import InvariantRegistry, { InvariantError } from '@z/dsh-invariants'
+import { Context } from '@taskweaver/cordis'
+import { createScope, scopeTarget } from '@taskweaver/dsh-scope'
+import { createUserMessage, CallId, createMessage, createToolResultMessage, freezeMessage } from '@taskweaver/dsh-llm'
+import SessionStore, { SessionId, TOOL_NOT_STARTED } from '@taskweaver/dsh-session'
+import * as SessionInvariant from '@taskweaver/dsh-session/invariant'
+import InvariantRegistry, { InvariantError } from '@taskweaver/dsh-invariants'
 
 async function setup(): Promise<{ ctx: Context; fiber: Awaited<ReturnType<Context['plugin']>> }> {
   const ctx = new Context()

@@ -2,17 +2,17 @@
  * Register a DeepSeek-backed provider in `ctx.web`. It calls the Anthropic-compatible Messages API
  * with native `web_search_20250305`. The provider reuses `DEEPSEEK_API_KEY` but not
  * `DEEPSEEK_BASE_URL`, because search and chat-completions use different bases.
- * @module @z/dsh-web-search-deepseek
+ * @module @taskweaver/dsh-web-search-deepseek
  */
 
-import type { Context } from '@z/cordis'
-import z from '@z/schemastery'
-import type {} from '@z/dsh-agent'
-import { credentialRef } from '@z/dsh-credentials'
-import { installSettingsSection, settingsNamespace } from '@z/dsh-settings'
-import { launchEnvironmentOf } from '@z/dsh-launch-environment'
-import type {} from '@z/dsh-session'
-import type {} from '@z/dsh-web'
+import type { Context } from '@taskweaver/cordis'
+import z from '@taskweaver/schemastery'
+import type {} from '@taskweaver/dsh-agent'
+import { credentialRef } from '@taskweaver/dsh-credentials'
+import { installSettingsSection, settingsNamespace } from '@taskweaver/dsh-settings'
+import { launchEnvironmentOf } from '@taskweaver/dsh-launch-environment'
+import type {} from '@taskweaver/dsh-session'
+import type {} from '@taskweaver/dsh-web'
 import {
   DeepSeekSearchProvider,
   DEEPSEEK_DEFAULT_API_VERSION,

@@ -1,6 +1,6 @@
 /** All-human-messages model provider for `ctx.sessionTitle`. */
-import z from '@z/schemastery';
-import { registerSessionTitleLlmProvider, SessionTitleLlmConfigFields, } from '@z/dsh-session-title-llm';
+import z from '@taskweaver/schemastery';
+import { registerSessionTitleLlmProvider, SessionTitleLlmConfigFields, } from '@taskweaver/dsh-session-title-llm';
 export const name = 'session-title-all-prompts-llm';
 export const inject = ['sessionTitle', 'llm', 'sessions'];
 /** Loader schema shared with the first-prompt provider. */

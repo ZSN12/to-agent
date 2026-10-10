@@ -3,7 +3,7 @@
  * `session/jobs` frames.
  */
 import { z } from 'zod';
-import type { JobId } from '@z/dsh-jobs/brand';
+import type { JobId } from '@taskweaver/dsh-jobs/brand';
 /** JobId: one brand cast after non-empty string validation. */
 export declare const taskIdSchema: z.ZodType<JobId>;
 /**

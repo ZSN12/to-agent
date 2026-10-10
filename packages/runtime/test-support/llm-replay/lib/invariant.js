@@ -1,9 +1,9 @@
 //#region lib/types/invariant.js
 /**
-* Package-owned invariant companion for `@z/dsh-llm-replay`.
-* @module @z/dsh-llm-replay/invariant
+* Package-owned invariant companion for `@taskweaver/dsh-llm-replay`.
+* @module @taskweaver/dsh-llm-replay/invariant
 */
-const PACKAGE_NAME = "@z/dsh-llm-replay";
+const PACKAGE_NAME = "@taskweaver/dsh-llm-replay";
 /** Cordis companion plugin name. */
 const name = "llm-replay-invariant";
 /** Service required before the companion can reserve package ownership. */

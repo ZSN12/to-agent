@@ -1,5 +1,5 @@
 /** Package-owned invariant companion for the Team tool adapter. */
-import type { Context } from '@z/cordis';
+import type { Context } from '@taskweaver/cordis';
 /** Cordis companion plugin name. */
 export declare const name = "tool-team-invariant";
 /** Invariant registry dependency. */

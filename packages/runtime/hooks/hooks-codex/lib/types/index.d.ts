@@ -6,10 +6,10 @@
  * blocking decisions are honored. Shared execution and parsing live in
  * `dsh-hook-protocol`; see the
  * [hook-bridges Agent Note](../../../../.agents/notes/implemented/feature/2026-06-30-hook-bridges.md).
- * @module @z/dsh-hooks-codex
+ * @module @taskweaver/dsh-hooks-codex
  */
-import type { Context } from '@z/cordis';
-import z from '@z/schemastery';
+import type { Context } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
 export declare const name = "hooks-codex";
 export declare const inject: string[];
 /** Plugin config: where the Codex hooks.json lives + the model name for payloads. */

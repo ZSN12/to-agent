@@ -7,10 +7,10 @@
  * imports no provider.
  *
  * Namespace plugin (named exports, no default export).
- * @module @z/dsh-tool-lsp
+ * @module @taskweaver/dsh-tool-lsp
  */
-import type { Context } from '@z/cordis';
-import z from '@z/schemastery';
+import type { Context } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
 export { DEFAULT_MAX_LOCATIONS, DEFAULT_MAX_RESULT_CHARS, formatHover, formatLocations, LSP_OPERATIONS, parseLspArgs, presentLspCall, renderUri, } from './render.ts';
 export { sessionCwd } from './session-cwd.ts';
 /** Cordis plugin name for loader diagnostics. */

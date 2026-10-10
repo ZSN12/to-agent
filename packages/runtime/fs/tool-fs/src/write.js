@@ -2,9 +2,9 @@
  * Model-facing full-file write. It obtains an optional intent from the single policy slot, calls
  * `ctx.fs.writeText` without a stat, then records the resulting version; no policy means an
  * unconditional atomic create-or-overwrite.
- * @module @z/dsh-tool-fs/src/write
+ * @module @taskweaver/dsh-tool-fs/src/write
  */
-import { defineTool } from '@z/dsh-tools';
+import { defineTool } from '@taskweaver/dsh-tools';
 import { computeHunkDiffs, diffsFromMeta } from "./diff.js";
 import { remediateFsError } from "./error.js";
 import { sessionResolveOptions } from "./session-cwd.js";

@@ -4,13 +4,13 @@
  * stdout tee, SDK client, update collection, permission fallback, and process
  * shutdown so e2e and snapshot suites do not each reconstruct that boundary.
  *
- * @module @z/dsh-acp-snapshot/launcher
+ * @module @taskweaver/dsh-acp-snapshot/launcher
  */
 import { spawn } from 'node:child_process';
 import { join } from 'node:path';
 import { Readable, Writable } from 'node:stream';
 import { ClientSideConnection, ndJsonStream, } from '@agentclientprotocol/sdk';
-import { resolveExampleLaunch } from '@z/dsh-loader-smoke';
+import { resolveExampleLaunch } from '@taskweaver/dsh-loader-smoke';
 const EXIT_MARKER_GRACE_MS = 250;
 /**
  * Boot an ACP agent subprocess and connect an SDK client to its stdio.

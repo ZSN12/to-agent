@@ -1,4 +1,3 @@
-"use strict";
 /**
  * events domain contract: signatures and frame unions for the two logical
  * streams. Four-quadrant: streams yield the narrow form `RpcRequest<Frame>` (server-request
@@ -6,4 +5,5 @@
  * (approval/question requested) echo it; for pure pushes it identifies that one push.
  * signal is a local stream-control parameter, independent of the request (never on the wire).
  */
-Object.defineProperty(exports, "__esModule", { value: true });
+export {};
+//# sourceMappingURL=events.js.map

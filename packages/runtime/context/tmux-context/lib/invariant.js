@@ -1,9 +1,9 @@
 //#region lib/types/invariant.js
 /**
-* Package-owned invariant companion for `@z/dsh-tmux-context`.
-* @module @z/dsh-tmux-context/invariant
+* Package-owned invariant companion for `@taskweaver/dsh-tmux-context`.
+* @module @taskweaver/dsh-tmux-context/invariant
 */
-const PACKAGE_NAME = "@z/dsh-tmux-context";
+const PACKAGE_NAME = "@taskweaver/dsh-tmux-context";
 /** Cordis companion plugin name. */
 const name = "tmux-context-invariant";
 /** Service required before the companion can reserve package ownership. */

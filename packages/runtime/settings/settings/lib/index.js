@@ -1,4 +1,4 @@
-import { Service } from "@z/cordis";
+import { Service } from "@taskweaver/cordis";
 //#region lib/types/redact.js
 /**
 * Structural secret redaction for settings values. `role('secret')` fields are
@@ -6,7 +6,7 @@ import { Service } from "@z/cordis";
 * each schema-declared secret position and whether it currently holds a value,
 * so a configuration surface can render a write-only input without ever
 * receiving the secret itself.
-* @module @z/dsh-settings/redact
+* @module @taskweaver/dsh-settings/redact
 */
 /** Whether a value is a plain data object the walker may recurse into. */
 function isRecord(value) {
@@ -76,7 +76,7 @@ function redactSecrets(schema, value) {
 * per-namespace sections; plugins register a namespace schema and read the
 * resolved value, which layers schema defaults, the registrant's composition
 * `base`, and the user document section, in that order.
-* @module @z/dsh-settings
+* @module @taskweaver/dsh-settings
 */
 const NAMESPACE_PATTERN = /^[a-z][a-z0-9-]*$/;
 /**

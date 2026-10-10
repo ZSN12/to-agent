@@ -6,12 +6,12 @@
  * `updatedInput` is logged and warned but not honored. Bespoke behavior should
  * use typed native plugins on the same extension points; see the
  * [hook-bridges Agent Note](../../../../.agents/notes/implemented/feature/2026-06-30-hook-bridges.md).
- * @module @z/dsh-hooks-claude-code
+ * @module @taskweaver/dsh-hooks-claude-code
  */
 import { readFileSync } from 'node:fs';
-import z from '@z/schemastery';
-import { createUserMessage } from '@z/dsh-llm';
-import { appendHookInvoked, appendHookResult, createDetachedRuns, DEFAULT_HOOK_TIMEOUT_MS, DEFAULT_STDERR_SUMMARY_MAX_CHARS, matchesMatcher, mergeHookOutputs, runHook, } from '@z/dsh-hook-protocol';
+import z from '@taskweaver/schemastery';
+import { createUserMessage } from '@taskweaver/dsh-llm';
+import { appendHookInvoked, appendHookResult, createDetachedRuns, DEFAULT_HOOK_TIMEOUT_MS, DEFAULT_STDERR_SUMMARY_MAX_CHARS, matchesMatcher, mergeHookOutputs, runHook, } from '@taskweaver/dsh-hook-protocol';
 import { parseClaudeCodeConfig } from "./config.js";
 export const name = 'hooks-claude-code';
 // `bash` is required to run hooks; the rest are read opportunistically via

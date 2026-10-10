@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import { FsTargetKey, FsVersion } from '@z/dsh-fs'
-import type { FsTarget } from '@z/dsh-fs'
-import * as FsInvariant from '@z/dsh-fs/invariant'
-import InvariantRegistry from '@z/dsh-invariants'
+import { Context } from '@taskweaver/cordis'
+import { FsTargetKey, FsVersion } from '@taskweaver/dsh-fs'
+import type { FsTarget } from '@taskweaver/dsh-fs'
+import * as FsInvariant from '@taskweaver/dsh-fs/invariant'
+import InvariantRegistry from '@taskweaver/dsh-invariants'
 
 async function setup(): Promise<Context> {
   const ctx = new Context()

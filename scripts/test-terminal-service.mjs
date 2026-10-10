@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { createTerminalService } from '../electron/backend/terminal-service.mjs'
+import { createTerminalService } from '../desktop/backend/terminal-service.mjs'
 
 console.log('--- 开始测试 TerminalService 终端服务 (PTY、尺寸动态调整、中断与进程树清理) ---')
 

@@ -3,11 +3,11 @@
  * fresh official package-local Codex wrapper with `app-server --stdio` in the
  * delegating Session's workspace and publishes only after an ephemeral thread exists.
  *
- * @module @z/dsh-subagent-codex
+ * @module @taskweaver/dsh-subagent-codex
  */
-import z from '@z/schemastery';
-import { MAX_TIMER_DELAY_MS } from '@z/dsh-timeout';
-import { assertPositiveFinite, NO_START_CAPABILITIES, resolveChildCwd, } from '@z/dsh-subagent';
+import z from '@taskweaver/schemastery';
+import { MAX_TIMER_DELAY_MS } from '@taskweaver/dsh-timeout';
+import { assertPositiveFinite, NO_START_CAPABILITIES, resolveChildCwd, } from '@taskweaver/dsh-subagent';
 import { CODEX_PERMISSION_MODES, DEFAULT_CODEX_PERMISSION_MODE, DEFAULT_DISPOSE_GRACE_MS, codexStartupFailure, startCodexRun, } from "./run.js";
 export const name = 'subagent-codex';
 export const inject = ['subagents', 'subprocess'];

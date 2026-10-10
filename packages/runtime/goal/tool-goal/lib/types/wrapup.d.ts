@@ -1,5 +1,5 @@
 /** Model-visible wrap-up instruction for a terminal autonomous goal update. */
-import type { ContentBlock } from '@z/dsh-llm';
+import type { ContentBlock } from '@taskweaver/dsh-llm';
 /**
  * Render the closing-message instruction injected after an autonomous goal
  * round reports `complete` or `blocked`, replacing the former hard turn stop

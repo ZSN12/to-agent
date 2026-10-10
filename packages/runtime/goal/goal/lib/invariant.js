@@ -1,4 +1,4 @@
-import "@z/dsh-llm";
+import "@taskweaver/dsh-llm";
 //#region lib/types/runtime.js
 /**
 * Brand a string as a goal id.
@@ -11,7 +11,7 @@ function GoalId(id) {
 //#endregion
 //#region lib/types/fold.js
 /** Pure replay fold and strict decoder for durable goal changes. */
-const SNAPSHOT_OPERATIONS = new Set([
+const SNAPSHOT_OPERATIONS = /* @__PURE__ */ new Set([
 	"create",
 	"edit",
 	"pause",
@@ -19,7 +19,7 @@ const SNAPSHOT_OPERATIONS = new Set([
 	"complete",
 	"block"
 ]);
-const PHASES = new Set([
+const PHASES = /* @__PURE__ */ new Set([
 	"active",
 	"paused",
 	"blocked",
@@ -171,11 +171,11 @@ function validateSnapshotTransition(state, change, current) {
 			break;
 		case "resume":
 			requireSameDefinition(current, next, change.operation);
-			if (!new Set([
+			if (!(/* @__PURE__ */ new Set([
 				"active",
 				"paused",
 				"blocked"
-			]).has(current.phase) || next.phase !== "active" || state.roundsStarted >= next.maxGoalRounds) throw new Error("goal resume has an invalid phase transition or exhausted round budget");
+			])).has(current.phase) || next.phase !== "active" || state.roundsStarted >= next.maxGoalRounds) throw new Error("goal resume has an invalid phase transition or exhausted round budget");
 			break;
 		case "complete":
 			requireSameDefinition(current, next, change.operation);
@@ -261,8 +261,8 @@ function applyGoalEvent(state, event) {
 }
 //#endregion
 //#region lib/types/invariant.js
-/** Package-owned durable goal-stream invariants. @module @z/dsh-goal/invariant */
-const PACKAGE_NAME = "@z/dsh-goal";
+/** Package-owned durable goal-stream invariants. @module @taskweaver/dsh-goal/invariant */
+const PACKAGE_NAME = "@taskweaver/dsh-goal";
 /** Cordis companion plugin name. */
 const name = "goal-invariant";
 /** Service required before the companion can reserve package ownership. */

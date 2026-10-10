@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { decodeSeqRanges, encodeSeqRanges } from '@z/dsh-session'
+import { decodeSeqRanges, encodeSeqRanges } from '@taskweaver/dsh-session'
 
 describe('sourceEventSeqs ranges', () => {
   it.each([

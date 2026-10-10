@@ -1,5 +1,5 @@
 {
-  "name": "@z/dsh-subprocess",
+  "name": "@taskweaver/dsh-subprocess",
   "description": "Subprocess seam (ctx.subprocess) for the DeepSeek Harness — managed process groups, bounded spill-backed output, and escalated kills behind one abstract service",
   "version": "0.1.1-rc.2",
   "publishConfig": {
@@ -8,7 +8,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
-    "directory": "packages/subprocess/subprocess"
+    "directory": "packages/runtime/subprocess/subprocess"
   },
   "type": "module",
   "main": "lib/index.js",
@@ -32,11 +32,11 @@
   ],
   "license": "MIT",
   "peerDependencies": {
-    "@z/dsh-invariants": "workspace:^",
-    "@z/cordis": "workspace:^"
+    "@taskweaver/dsh-invariants": "workspace:^",
+    "@taskweaver/cordis": "workspace:^"
   },
   "devDependencies": {
-    "@z/dsh-invariants": "workspace:^",
-    "@z/cordis": "workspace:^"
+    "@taskweaver/dsh-invariants": "workspace:^",
+    "@taskweaver/cordis": "workspace:^"
   }
 }

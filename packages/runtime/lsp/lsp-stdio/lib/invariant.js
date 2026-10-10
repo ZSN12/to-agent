@@ -1,9 +1,9 @@
 //#region lib/types/invariant.js
 /**
-* Package-owned invariant companion for `@z/dsh-lsp-stdio`.
-* @module @z/dsh-lsp-stdio/invariant
+* Package-owned invariant companion for `@taskweaver/dsh-lsp-stdio`.
+* @module @taskweaver/dsh-lsp-stdio/invariant
 */
-const PACKAGE_NAME = "@z/dsh-lsp-stdio";
+const PACKAGE_NAME = "@taskweaver/dsh-lsp-stdio";
 /** Cordis companion plugin name. */
 const name = "lsp-stdio-invariant";
 /** Service required before the companion can reserve package ownership. */

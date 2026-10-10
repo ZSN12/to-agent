@@ -10,9 +10,9 @@
  * events without fabricating results.
  * @module dsh-agent-loop/tool-calls
  */
-import type { Context } from '@z/cordis';
-import { type ToolCallBlock } from '@z/dsh-llm';
-import type { UserMessage } from '@z/dsh-session';
+import type { Context } from '@taskweaver/cordis';
+import { type ToolCallBlock } from '@taskweaver/dsh-llm';
+import type { UserMessage } from '@taskweaver/dsh-session';
 /**
  * Schedule one assistant step's tool calls by their live concurrency mode.
  * Ordinary completion and abort commit started-call results in order. Abort

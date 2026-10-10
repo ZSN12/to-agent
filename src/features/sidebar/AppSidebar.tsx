@@ -281,6 +281,7 @@ export function AppSidebar({
           <button
             type="button"
             className={`sidebar-codex-nav-item ${activeMainView === 'chat' && !currentThreadId ? 'active' : ''}`}
+            aria-current={activeMainView === 'chat' && !currentThreadId ? 'page' : undefined}
             title="新对话"
             aria-label="新建会话"
             data-testid="new-chat"
@@ -295,6 +296,7 @@ export function AppSidebar({
           <button
             type="button"
             className={`sidebar-codex-nav-item ${activeMainView === 'pull-requests' ? 'active' : ''}`}
+            aria-current={activeMainView === 'pull-requests' ? 'page' : undefined}
             title="Pull Request"
             onClick={() => onSelectMainView?.('pull-requests')}
           >
@@ -304,6 +306,7 @@ export function AppSidebar({
           <button
             type="button"
             className={`sidebar-codex-nav-item ${activeMainView === 'schedules' ? 'active' : ''}`}
+            aria-current={activeMainView === 'schedules' ? 'page' : undefined}
             title="定时任务"
             onClick={() => onSelectMainView?.('schedules')}
           >
@@ -313,6 +316,7 @@ export function AppSidebar({
           <button
             type="button"
             className={`sidebar-codex-nav-item ${activeMainView === 'plugins' ? 'active' : ''}`}
+            aria-current={activeMainView === 'plugins' ? 'page' : undefined}
             title="插件市场"
             onClick={() => onSelectMainView?.('plugins')}
           >
@@ -322,6 +326,7 @@ export function AppSidebar({
           <button
             type="button"
             className={`sidebar-codex-nav-item ${activeMainView === 'explore' ? 'active' : ''}`}
+            aria-current={activeMainView === 'explore' ? 'page' : undefined}
             title="探索"
             onClick={() => onSelectMainView?.('explore')}
           >
@@ -347,6 +352,7 @@ export function AppSidebar({
                   <button
                     type="button"
                     className="thread-main"
+                    aria-current={thread.id === currentThreadId ? 'page' : undefined}
                     title={`${thread.title}${thread.workspacePath ? ` · ${workspaceLabel(thread.workspacePath)}` : ''}`}
                     onClick={() => {
                       onSwitchThread(thread.id)
@@ -445,6 +451,7 @@ export function AppSidebar({
                         <button
                           type="button"
                           className="thread-main"
+                          aria-current={thread.id === currentThreadId ? 'page' : undefined}
                           title={`${thread.title}${thread.workspacePath ? ` · ${workspaceLabel(thread.workspacePath)}` : ''}`}
                           onClick={() => onSwitchThread(thread.id)}
                         >
@@ -576,6 +583,7 @@ export function AppSidebar({
                                   <button
                                     type="button"
                                     className="thread-main"
+                                    aria-current={thread.id === currentThreadId ? 'page' : undefined}
                                     title={thread.title}
                                     onClick={() => onSwitchThread(thread.id)}
                                   >
@@ -664,6 +672,7 @@ export function AppSidebar({
                         <button
                           type="button"
                           className="sidebar-recent-link"
+                          aria-current={thread.id === currentThreadId ? 'page' : undefined}
                           title={thread.title}
                           onClick={() => onSwitchThread(thread.id)}
                         >
@@ -743,6 +752,7 @@ export function AppSidebar({
                       <button
                         type="button"
                         className="thread-main"
+                        aria-current={thread.id === currentThreadId ? 'page' : undefined}
                         title={`${thread.title}${thread.workspacePath ? ` · ${workspaceLabel(thread.workspacePath)}` : ''}`}
                         onClick={() => onSwitchThread(thread.id)}
                       >

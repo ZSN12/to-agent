@@ -1,11 +1,11 @@
-import { createUserMessage } from '@z/dsh-llm'
+import { createUserMessage } from '@taskweaver/dsh-llm'
 import { afterEach, describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import LlmRuntime from '@z/dsh-llm'
-import * as LlmPiAi from '@z/dsh-llm-pi-ai'
-import SessionStore, { SessionId } from '@z/dsh-session'
-import SessionTitleService from '@z/dsh-session-title'
-import * as FirstMessageTitleProvider from '@z/dsh-session-title-first-prompt-llm'
+import { Context } from '@taskweaver/cordis'
+import LlmRuntime from '@taskweaver/dsh-llm'
+import * as LlmPiAi from '@taskweaver/dsh-llm-pi-ai'
+import SessionStore, { SessionId } from '@taskweaver/dsh-session'
+import SessionTitleService from '@taskweaver/dsh-session-title'
+import * as FirstMessageTitleProvider from '@taskweaver/dsh-session-title-first-prompt-llm'
 
 const contexts: Context[] = []
 

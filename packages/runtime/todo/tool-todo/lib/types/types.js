@@ -1,4 +1,3 @@
-"use strict";
 /**
  * Pure types of the todo domain: the ONE home of the `todos` projection-key
  * declaration plus its payload types, free of this package's host-side value
@@ -6,6 +5,7 @@
  * for host consumers, `./client/types` (the browser half-entry's re-export)
  * for client aggregates — with zero content duplication.
  *
- * @module @z/dsh-tool-todo/types
+ * @module @taskweaver/dsh-tool-todo/types
  */
-Object.defineProperty(exports, "__esModule", { value: true });
+export {};
+//# sourceMappingURL=types.js.map

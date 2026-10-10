@@ -3,19 +3,19 @@ import { createHash, randomInt, randomUUID } from 'node:crypto'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { createZHostManager } from '../../electron/agent/z-host/index.mjs'
-import { createDshChatService } from '../../electron/backend/dsh-chat-service.mjs'
-import { dshPermissionPresetForMode } from '../../electron/backend/dsh-permission-map.mjs'
-import { createModelService } from '../../electron/backend/model-service.mjs'
-import { createProfileStore } from '../../electron/backend/profile-store.mjs'
-import { resolveTaskWeaverModelsPath } from '../../electron/backend/taskweaver-models-path.mjs'
-import { ensureModelsJsonSyncedToDshHost } from '../../electron/backend/sync-models-json-to-host.mjs'
+import { createZHostManager } from '../../desktop/agent/z-host/index.mjs'
+import { createDshChatService } from '../../desktop/backend/dsh-chat-service.mjs'
+import { dshPermissionPresetForMode } from '../../desktop/backend/dsh-permission-map.mjs'
+import { createModelService } from '../../desktop/backend/model-service.mjs'
+import { createProfileStore } from '../../desktop/backend/profile-store.mjs'
+import { resolveTaskWeaverModelsPath } from '../../desktop/backend/taskweaver-models-path.mjs'
+import { ensureModelsJsonSyncedToDshHost } from '../../desktop/backend/sync-models-json-to-host.mjs'
 import { summarizeHostStepTimings } from '../host-step-timings.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const userData = path.join(os.homedir(), 'Library', 'Application Support', 'taskweaver-desktop')
-const runtimeRoot = process.env.TASKWEAVER_Z_RUNTIME
-  ? path.resolve(process.env.TASKWEAVER_Z_RUNTIME)
+const runtimeRoot = process.env.TASKWEAVER_RUNTIME
+  ? path.resolve(process.env.TASKWEAVER_RUNTIME)
   : path.join(root, 'vendor', 'taskweaver-z-runtime')
 const permissionMode = 'readonly'
 const agentPreset = 'taskweaver-benchmark-readonly'
@@ -32,22 +32,22 @@ const hostHome = path.join(reportDir, 'host-home')
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 const hash = (value) => createHash('sha256').update(value).digest('hex')
 const benchmarkPreset = `- id: persona
-  name: '@z/dsh-persona'
+  name: '@taskweaver/dsh-persona'
   config:
     text: >-
       You are a read-only local-code benchmark agent. Use only the assigned workspace file and cite exact line numbers.
       Do not use external sources, disclose workspace contents, or perform any mutation.
 - id: agent-instructions
-  name: '@z/dsh-agent-instructions'
+  name: '@taskweaver/dsh-agent-instructions'
   config:
     maxBytes: 65536
 - id: tool-fs
-  name: '@z/dsh-tool-fs'
+  name: '@taskweaver/dsh-tool-fs'
   config:
     mutations: false
     readLimit: 600
 - id: tool-presentation
-  name: '@z/dsh-agent-tool-presentation'
+  name: '@taskweaver/dsh-agent-tool-presentation'
   config:
     mode: native
 `
@@ -197,7 +197,7 @@ function summarizeRun({ id, pathKind, sessionId, startedAt, promptStartedAt, fin
         && path.resolve(root, requestedPath) === path.resolve(root, 'package.json')
     } catch { return false }
   })
-  const outputQuality = finalText.includes('electron/main.cjs')
+  const outputQuality = finalText.includes('desktop/main.cjs')
     && finalText.includes('dev:web')
     && finalText.includes('dev:electron')
     && /(?:package\.json:|L\d+|第\s*\d+\s*行)/i.test(finalText)
@@ -276,7 +276,7 @@ try {
     await fs.writeFile(isolatedModelsPath, `${JSON.stringify(sanitized, null, 2)}\n`, { mode: 0o600 })
   } catch (error) { if (error.code !== 'ENOENT') throw error }
 
-  hostManager = createZHostManager({ runtimeRoot, userDataPath: hostHome, executable: process.execPath, environment: safeHostEnvironment })
+  hostManager = createZHostManager({ runtimeRoot, userDataPath: hostHome, environment: safeHostEnvironment })
   let started = await hostManager.start()
   api = started.api
   const sync = await ensureModelsJsonSyncedToDshHost({ hostManager, userDataPath: hostHome, modelsDocOverride: modelDocForSync })

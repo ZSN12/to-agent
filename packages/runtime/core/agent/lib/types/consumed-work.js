@@ -1,4 +1,3 @@
-"use strict";
 /**
  * How one agent log accounts for the work it consumed.
  *
@@ -10,21 +9,8 @@
  * with `removedCount` and marks a cancellation `outcome: 'canceled'`, which
  * separates a turn claiming its input from work being dropped unrun.
  *
- * @module @z/dsh-agent/consumed-work
+ * @module @taskweaver/dsh-agent/consumed-work
  */
-var __assign = (this && this.__assign) || function () {
-    __assign = Object.assign || function(t) {
-        for (var s, i = 1, n = arguments.length; i < n; i++) {
-            s = arguments[i];
-            for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p))
-                t[p] = s[p];
-        }
-        return t;
-    };
-    return __assign.apply(this, arguments);
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.foldConsumedWork = foldConsumedWork;
 /**
  * Whether a turn that consumed input but never reached a step ends in a way
  * that accounts for that input. Only a `completed` end does not: it had
@@ -59,39 +45,38 @@ function accountsForClaim(reason) {
  * @param events - the log, or an owned suffix, to fold.
  * @returns the accounting turn when one closed, and whether work was dropped unrun after it.
  */
-function foldConsumedWork(events) {
-    var stepped = new Set();
-    var claimed = new Set();
-    var open;
-    var end;
-    var droppedUnrun = false;
-    for (var _i = 0, events_1 = events; _i < events_1.length; _i++) {
-        var event_1 = events_1[_i];
-        switch (event_1.type) {
+export function foldConsumedWork(events) {
+    const stepped = new Set();
+    const claimed = new Set();
+    let open;
+    let end;
+    let droppedUnrun = false;
+    for (const event of events) {
+        switch (event.type) {
             case 'turn/start':
-                open = event_1.data.turn;
+                open = event.data.turn;
                 break;
             case 'step/start':
-                stepped.add(event_1.data.turn);
+                stepped.add(event.data.turn);
                 break;
             case 'agent/inbox/spliced': {
-                var _a = event_1.data, removedCount = _a.removedCount, outcome = _a.outcome, inserted = _a.inserted;
+                const { removedCount, outcome, inserted } = event.data;
                 if (removedCount === undefined)
                     break;
                 // A replacement keeps the work pending under a new identity, so only a
                 // cancellation that leaves nothing behind drops it.
                 if (outcome === 'canceled')
-                    droppedUnrun || (droppedUnrun = inserted.length === 0);
+                    droppedUnrun ||= inserted.length === 0;
                 // Claims are the loop's own step-boundary reads, always inside a turn.
                 else if (open !== undefined)
                     claimed.add(open);
                 break;
             }
             case 'turn/end': {
-                var _b = event_1.data, turn = _b.turn, reason = _b.reason;
+                const { turn, reason } = event.data;
                 open = undefined;
                 if (stepped.delete(turn) || (claimed.delete(turn) && accountsForClaim(reason))) {
-                    end = event_1;
+                    end = event;
                     // Anything dropped before this turn closed is what its own ending
                     // reports; only a later drop is still unaccounted for.
                     droppedUnrun = false;
@@ -102,5 +87,6 @@ function foldConsumedWork(events) {
                 break;
         }
     }
-    return __assign(__assign({}, end === undefined ? {} : { end: end }), { droppedUnrun: droppedUnrun });
+    return { ...end === undefined ? {} : { end }, droppedUnrun };
 }
+//# sourceMappingURL=consumed-work.js.map

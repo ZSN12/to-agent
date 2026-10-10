@@ -1,6 +1,6 @@
-import { defineTool } from "@z/dsh-tools";
-import { sessionResolveOptions } from "@z/dsh-tool-fs";
-import z from "@z/schemastery";
+import { defineTool } from "@taskweaver/dsh-tools";
+import { sessionResolveOptions } from "@taskweaver/dsh-tool-fs";
+import z from "@taskweaver/schemastery";
 import { createHash } from "node:crypto";
 //#region lib/types/chunker.js
 var CodeChunker = class {
@@ -461,7 +461,7 @@ const Config = z.object({
 	maxTotalBytes: z.number().default(8388608)
 });
 const indexes = /* @__PURE__ */ new Map();
-const skipDirs = new Set([
+const skipDirs = /* @__PURE__ */ new Set([
 	".git",
 	".hg",
 	".svn",

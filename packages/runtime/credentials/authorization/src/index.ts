@@ -23,12 +23,12 @@
  * })
  * ```
  *
- * @module @z/dsh-authorization
+ * @module @taskweaver/dsh-authorization
  */
 
-import { Context, Service } from '@z/cordis'
-import type { CredentialKey } from '@z/dsh-credentials'
-import { HarnessError } from '@z/dsh-llm'
+import { Context, Service } from '@taskweaver/cordis'
+import type { CredentialKey } from '@taskweaver/dsh-credentials'
+import { HarnessError } from '@taskweaver/dsh-llm'
 
 import type {
   AuthorizationEntry, AuthorizationMethod, AuthorizationNotice, AuthorizationOutcome, AuthorizationPrompt,
@@ -40,7 +40,7 @@ export type {
   AuthorizationPromptOption, AuthorizationSettlement, AuthorizationStatus,
 } from './types.ts'
 
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
   interface Context {
     authorization: AuthorizationService
   }

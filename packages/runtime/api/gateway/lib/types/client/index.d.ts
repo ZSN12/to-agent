@@ -3,11 +3,11 @@
  * install traced `remote.<namespace>` services; no JavaScript Proxy
  * participates in method lookup, invocation, or type exposure.
  */
-import type { Context } from '@z/cordis';
-import type { TypertClientRemote } from '@z/dsh-typert-protocol';
+import type { Context } from '@taskweaver/cordis';
+import type { TypertClientRemote } from '@taskweaver/dsh-typert-protocol';
 /** Typed Remote service augmented by generated direct namespaces. */
 export type ClientRemote = TypertClientRemote;
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
     interface Context {
         /** Generated Remote namespaces selected by the Client assembly. */
         remote: ClientRemote;

@@ -4,9 +4,9 @@
  * Adapters expose one resolved policy per registered provider route; the
  * optional dsh-llm-retry plugin executes it on the agent's failed-step extension point.
  *
- * @module @z/dsh-llm/retry-policy
+ * @module @taskweaver/dsh-llm/retry-policy
  */
-import z from '@z/schemastery';
+import z from '@taskweaver/schemastery';
 /** Bounded exponential backoff with symmetric jitter around each local delay. */
 export interface BackoffConfig {
     /** Initial local exponential-backoff delay in milliseconds (default 500). */

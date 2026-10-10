@@ -3,12 +3,12 @@
  * an escapable vm context on a fresh worker and bridges `agent()` calls to host
  * subagents. The thread prevents synchronous script work from blocking the host
  * and permits forced termination, but it is containment rather than a security boundary.
- * @module @z/dsh-workflow-worker-thread
+ * @module @taskweaver/dsh-workflow-worker-thread
  */
-import type { Context } from '@z/cordis';
-import z from '@z/schemastery';
-import WorkflowEngine from '@z/dsh-workflow';
-import type { WorkflowRun, WorkflowStartRequest } from '@z/dsh-workflow';
+import type { Context } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
+import WorkflowEngine from '@taskweaver/dsh-workflow';
+import type { WorkflowRun, WorkflowStartRequest } from '@taskweaver/dsh-workflow';
 export { validateMeta } from './meta.ts';
 export { materializeFromRealm, MaterializeError } from './realm.ts';
 export type { ChildHandle, ChildPort, ChildResult, ChildStartRequest, WorkerInit, WorkerLimits, } from './types.ts';

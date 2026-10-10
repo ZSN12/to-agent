@@ -5,13 +5,13 @@
  * TODO(acp-subagent-replay): add snapshot-tier coverage with a separate replay fixture and
  * sessions root inside each child process. Current keyless coverage uses a scripted ACP child;
  * with-key coverage drives the real ACP example.
- * @module @z/dsh-subagent-acp/run
+ * @module @taskweaver/dsh-subagent-acp/run
  */
 import { randomUUID } from 'node:crypto';
 import { Readable as NodeReadable, Writable as NodeWritable } from 'node:stream';
 import { ClientSideConnection, ndJsonStream, PROTOCOL_VERSION, } from '@agentclientprotocol/sdk';
-import { SessionId } from '@z/dsh-session';
-import { AssistantOutputFold } from '@z/dsh-subagent';
+import { SessionId } from '@taskweaver/dsh-session';
+import { AssistantOutputFold } from '@taskweaver/dsh-subagent';
 /** EOF grace for child flush and nested-process teardown; wider than the signal grace below. */
 export const DEFAULT_DISPOSE_EOF_GRACE_MS = 6_000;
 /** Default POSIX grace between SIGTERM and SIGKILL on dispose (the `disposeGraceMs` config). */

@@ -1,5 +1,5 @@
 /**
- * Real-load-path guard for @z/dsh-tool-fs-search. `tool-fs-search` is
+ * Real-load-path guard for @taskweaver/dsh-tool-fs-search. `tool-fs-search` is
  * a NAMESPACE plugin with `inject` — so a stray `export default apply` would
  * make the cordis Loader's `unwrapExports` (`exports.default ?? exports`)
  * collapse the module to the bare `apply` function, DROPPING `inject`. The
@@ -15,12 +15,12 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import Loader from '@z/cordis-plugin-loader'
-import SystemPrompt from '@z/dsh-system-prompt'
-import ToolRuntime from '@z/dsh-tools'
-import LocalSubprocessRuntime from '@z/dsh-subprocess-local'
-import * as toolFsSearch from '@z/dsh-tool-fs-search'
+import { Context } from '@taskweaver/cordis'
+import Loader from '@taskweaver/cordis-plugin-loader'
+import SystemPrompt from '@taskweaver/dsh-system-prompt'
+import ToolRuntime from '@taskweaver/dsh-tools'
+import LocalSubprocessRuntime from '@taskweaver/dsh-subprocess-local'
+import * as toolFsSearch from '@taskweaver/dsh-tool-fs-search'
 
 describe('dsh-tool-fs-search real-load-path guard', () => {
   it('has no default export and keeps name/inject/Config through unwrapExports', () => {

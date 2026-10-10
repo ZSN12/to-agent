@@ -1,6 +1,6 @@
 /** WorkspaceRuntime projects the Workspace object manager for UI consumers. */
-import type { Context } from '@z/cordis';
-import type { DirectoryListing, IApiClient, RpcError, SessionId, WorkspaceId, WorkspaceView } from '@z/dsh-api-remotes/client';
+import type { Context } from '@taskweaver/cordis';
+import type { DirectoryListing, IApiClient, RpcError, SessionId, WorkspaceId, WorkspaceView } from '@taskweaver/dsh-api-remotes/client';
 import type { SnapshotStore } from '../contract/store.ts';
 import type { SessionsPort } from '../contract/sessions-port.ts';
 import type { IWorkspaces } from '../contract/workspaces.ts';

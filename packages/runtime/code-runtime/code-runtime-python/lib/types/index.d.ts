@@ -5,8 +5,10 @@
  * the CPython subprocess. The protocol's host-side codec and hostile-frame
  * validators are re-exported so every consumer of the wire shares one
  * vocabulary.
- * @module @z/dsh-code-runtime-python
+ * @module @taskweaver/dsh-code-runtime-python
  */
 export type { BootMessage, ChildToHost, ReplyMessage } from './protocol.ts';
 export { checkDoneValue, encodeJsonPlain, hasNonLosslessNumber, hasUnsafeIntegerToken, logTruncationMarker, validateChildFrame, } from './protocol.ts';
+export { discoverPython3, PythonCodeRuntime } from './python-runtime.ts';
+export type { Config, PythonDiscovery, PythonExecutable } from './python-runtime.ts';
 //# sourceMappingURL=index.d.ts.map

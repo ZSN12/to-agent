@@ -1,12 +1,12 @@
 /**
- * Package-owned invariant companion for `@z/dsh-cmdline`.
- * @module @z/dsh-cmdline/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-cmdline`.
+ * @module @taskweaver/dsh-cmdline/invariant
  */
 
-import type { Context } from '@z/cordis'
-import type { InvariantInstaller } from '@z/dsh-invariants'
+import type { Context } from '@taskweaver/cordis'
+import type { InvariantInstaller } from '@taskweaver/dsh-invariants'
 
-const PACKAGE_NAME = '@z/dsh-cmdline'
+const PACKAGE_NAME = '@taskweaver/dsh-cmdline'
 
 /** Cordis companion plugin name. */
 export const name = 'cmdline-invariant'

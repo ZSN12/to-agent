@@ -1,8 +1,8 @@
 /** Live/persisted logical-corpus resolution for session-query. */
 
-import type { Context, Fiber } from '@z/cordis'
-import type { Session, SessionEvent, SessionHeader, SessionId } from '@z/dsh-session'
-import type SessionPersistence from '@z/dsh-session-persistence'
+import type { Context, Fiber } from '@taskweaver/cordis'
+import type { Session, SessionEvent, SessionHeader, SessionId } from '@taskweaver/dsh-session'
+import type SessionPersistence from '@taskweaver/dsh-session-persistence'
 import type { SessionRecord } from './types.ts'
 import { SessionQueryError } from './config.ts'
 import { assertSessionHeadersCompatible } from './sources.ts'

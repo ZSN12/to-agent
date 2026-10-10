@@ -1,7 +1,7 @@
 /** Host BFF policy for resolving Remote Agent and Session identities. */
-import type { Context } from '@z/cordis';
-import type { Agent, AgentOptions, AgentSetup } from '@z/dsh-agent';
-import type { Session, SessionEvent, SessionHeader, SessionId } from '@z/dsh-session';
+import type { Context } from '@taskweaver/cordis';
+import type { Agent, AgentOptions, AgentSetup } from '@taskweaver/dsh-agent';
+import type { Session, SessionEvent, SessionHeader, SessionId } from '@taskweaver/dsh-session';
 /** Caller-facing failures preserved by the Gateway's RPC adapter. */
 export type ApiRemoteLookupError = {
     readonly code: 'agent-busy';

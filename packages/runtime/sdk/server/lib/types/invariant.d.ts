@@ -1,8 +1,8 @@
 /**
- * Package-owned invariant companion for `@z/dsh-sdk-jsonrpc-server`.
- * @module @z/dsh-sdk-jsonrpc-server/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-sdk-jsonrpc-server`.
+ * @module @taskweaver/dsh-sdk-jsonrpc-server/invariant
  */
-import type { Context } from '@z/cordis';
+import type { Context } from '@taskweaver/cordis';
 /** Cordis companion plugin name. */
 export declare const name = "sdk-jsonrpc-server-invariant";
 /** Service required before the companion can reserve package ownership. */

@@ -1,11 +1,11 @@
 /**
  * Durable Tool event vocabulary shared with type-only consumers.
  *
- * @module @z/dsh-tools/types
+ * @module @taskweaver/dsh-tools/types
  */
 
-import type { CallId } from '@z/dsh-llm/brand'
-import type { ContentBlock } from '@z/dsh-llm/types'
+import type { CallId } from '@taskweaver/dsh-llm/brand'
+import type { ContentBlock } from '@taskweaver/dsh-llm/types'
 
 /** Payload recorded when one nested Code Mode Tool dispatch starts. */
 export interface CodeDispatchStartEventData {
@@ -22,7 +22,7 @@ export interface CodeDispatchEventData extends CodeDispatchStartEventData {
   content: ContentBlock[]
 }
 
-declare module '@z/dsh-session/types' {
+declare module '@taskweaver/dsh-session/types' {
   interface SessionEventMap {
     /**
      * One sub-dispatch STARTING inside a `run_code` program: the parent

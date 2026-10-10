@@ -1,7 +1,7 @@
 /** Agent Teams service façade over roster, mailbox, task, and runtime lifecycle owners. */
-import { Context, Service } from '@z/cordis';
-import z from '@z/schemastery';
-import type { Agent } from '@z/dsh-agent';
+import { Context, Service } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
+import type { Agent } from '@taskweaver/dsh-agent';
 import type { TeamMembership } from './roster.ts';
 import { TeamTaskId } from './types.ts';
 import type { Config, CreateTeamTaskRequest, SendTeamMessageRequest, SendTeamMessageResult, SpawnTeammateRequest, SpawnTeammateResult, TeamMemberView, TeamTaskView, TeamWaitResult, UpdateTeamTaskRequest } from './types.ts';
@@ -10,7 +10,7 @@ export type { TeamMembership } from './roster.ts';
 export { TeamId, TeamMessageId, TeamTaskId } from './types.ts';
 export { TeamError } from './error.ts';
 export { foldTeam } from './fold.ts';
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
     interface Context {
         agentTeams: TeamService;
     }

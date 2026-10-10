@@ -1,10 +1,10 @@
-/** Package-owned durable todo-snapshot invariants. @module @z/dsh-tool-todo/invariant */
+/** Package-owned durable todo-snapshot invariants. @module @taskweaver/dsh-tool-todo/invariant */
 
-import type { Context } from '@z/cordis'
-import type { Session, SessionEvent } from '@z/dsh-session'
-import type { InvariantFailure, InvariantInstaller } from '@z/dsh-invariants'
+import type { Context } from '@taskweaver/cordis'
+import type { Session, SessionEvent } from '@taskweaver/dsh-session'
+import type { InvariantFailure, InvariantInstaller } from '@taskweaver/dsh-invariants'
 
-const PACKAGE_NAME = '@z/dsh-tool-todo'
+const PACKAGE_NAME = '@taskweaver/dsh-tool-todo'
 const TODO_STATUSES = new Set(['pending', 'in_progress', 'completed'])
 
 /** Cordis companion plugin name. */

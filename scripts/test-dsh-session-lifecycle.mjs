@@ -8,8 +8,8 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { createDshChatService } from '../electron/backend/dsh-chat-service.mjs'
-import { Z_MAX_TRACKED_SESSIONS } from '../electron/backend/config.mjs'
+import { createDshChatService } from '../desktop/backend/dsh-chat-service.mjs'
+import { Z_MAX_TRACKED_SESSIONS } from '../desktop/backend/config.mjs'
 
 const modelService = {
   async getDshModelConfig(modelKey) {

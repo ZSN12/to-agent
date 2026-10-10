@@ -1,6 +1,6 @@
 /**
  * Closed, package-owned SQL resource loading for SQLite.
- * @module @z/dsh-session-persistence-sqlite/sql
+ * @module @taskweaver/dsh-session-persistence-sqlite/sql
  */
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';

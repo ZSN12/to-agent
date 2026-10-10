@@ -6,20 +6,20 @@
  * Registrations outlive producer and controller fibers. Agent or service
  * disposal cancels live work and awaits compliant producers; a throwing
  * teardown cancel force-fails only the record and reports a possible orphan.
- * @module @z/dsh-jobs-local
+ * @module @taskweaver/dsh-jobs-local
  */
 
-import { Context } from '@z/cordis'
-import z from '@z/schemastery'
-import type { Agent } from '@z/dsh-agent'
-import { AnonymousEntries, ScopedLayers, scopeOf } from '@z/dsh-scope'
-import type { ScopeLayer } from '@z/dsh-scope'
-import { deadline, timeoutOf } from '@z/dsh-timeout'
-import { JobRegistry, JobId } from '@z/dsh-jobs'
+import { Context } from '@taskweaver/cordis'
+import z from '@taskweaver/schemastery'
+import type { Agent } from '@taskweaver/dsh-agent'
+import { AnonymousEntries, ScopedLayers, scopeOf } from '@taskweaver/dsh-scope'
+import type { ScopeLayer } from '@taskweaver/dsh-scope'
+import { deadline, timeoutOf } from '@taskweaver/dsh-timeout'
+import { JobRegistry, JobId } from '@taskweaver/dsh-jobs'
 import type {
   JobDoneListener, JobKind, JobOutcome, JobRead, JobSnapshot, JobStart, JobStatus,
   JobsChangedListener,
-} from '@z/dsh-jobs'
+} from '@taskweaver/dsh-jobs'
 
 /** Timeout code that distinguishes a bounded wait from caller cancellation. */
 export const TASK_WAIT_TIMEOUT = 'TASK_WAIT_TIMEOUT'
@@ -85,7 +85,7 @@ class JobLayer implements ScopeLayer {
 
 /**
  * The in-memory `jobs` registry. See the Service Definition contract in
- * `@z/dsh-jobs` for the ownership, isolation, and lifecycle
+ * `@taskweaver/dsh-jobs` for the ownership, isolation, and lifecycle
  * semantics this implementation honors.
  */
 export class LocalJobRegistry extends JobRegistry {
@@ -130,7 +130,7 @@ export class LocalJobRegistry extends JobRegistry {
 
   start(spec: JobStart): JobId {
     if (!this.servesOwner(spec.owner)) {
-      throw new Error('background jobs unavailable: no job controller serves this agent (load @z/dsh-tool-jobs in its composition)')
+      throw new Error('background jobs unavailable: no job controller serves this agent (load @taskweaver/dsh-tool-jobs in its composition)')
     }
     if (spec.kind.length === 0) throw new Error('invalid job kind: expected a non-empty string')
     if (spec.label.length === 0) throw new Error('invalid job label: expected a non-empty string')
@@ -449,7 +449,7 @@ export class LocalJobRegistry extends JobRegistry {
     const ownerId = owner.id
     const agents = this.selfCtx.get('agents')
     if (agents === undefined) {
-      throw new Error('background job ownership requires the agent registry (load @z/dsh-agent)')
+      throw new Error('background job ownership requires the agent registry (load @taskweaver/dsh-agent)')
     }
     if (agents.get(ownerId) !== owner) {
       throw new Error(`agent "${ownerId}" is not the registered agent instance (background job owner must be live)`)

@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import { WorkerThreadCodeRuntime } from '@z/dsh-code-runtime-worker-thread'
-import type { Config } from '@z/dsh-code-runtime-worker-thread'
-import type { CodeBindingFunction, CodeBindingNamespace, CodeRunResult } from '@z/dsh-code-runtime'
+import { Context } from '@taskweaver/cordis'
+import { WorkerThreadCodeRuntime } from '@taskweaver/dsh-code-runtime-worker-thread'
+import type { Config } from '@taskweaver/dsh-code-runtime-worker-thread'
+import type { CodeBindingFunction, CodeBindingNamespace, CodeRunResult } from '@taskweaver/dsh-code-runtime'
 
 /**
  * Integration suite over REAL worker threads (no mocks — workers are cheap

@@ -5,13 +5,13 @@
  * with no field-level passthrough. SessionId brand cast point: sessionIdSchema, and only there.
  */
 import { z } from 'zod';
-import type { SessionEvent, SessionId } from '@z/dsh-session/types';
-import type { MessageId } from '@z/dsh-llm/brand';
+import type { SessionEvent, SessionId } from '@taskweaver/dsh-session/types';
+import type { MessageId } from '@taskweaver/dsh-llm/brand';
 import type { RequestPayload, ResponseValue } from './rpc-map.ts';
 import type { Wire } from './rpc.schema.ts';
 import type { HistoryEntry, SessionListMetadata, SessionProjectionsBlock, SessionSummary } from './sessions.ts';
 import type { ToolEventView } from './events.ts';
-import type { AttachmentIdType, ImageAttachmentLimits, ImageAttachmentRef } from '@z/dsh-attachment';
+import type { AttachmentIdType, ImageAttachmentLimits, ImageAttachmentRef } from '@taskweaver/dsh-attachment';
 import type { WorkspaceId } from './workspace.ts';
 /** SessionId: one brand cast after schema validation (the only cast point in this domain). */
 export declare const sessionIdSchema: z.ZodType<SessionId>;
@@ -238,6 +238,10 @@ export declare const promptContentPartSchema: z.ZodDiscriminatedUnion<[z.ZodObje
     mediaType: z.ZodUnion<readonly [z.ZodLiteral<"image/png">, z.ZodLiteral<"image/jpeg">, z.ZodLiteral<"image/webp">, z.ZodLiteral<"image/gif">]>;
     data: z.ZodString;
     name: z.ZodOptional<z.ZodString>;
+}, z.core.$strip>, z.ZodObject<{
+    type: z.ZodLiteral<"document">;
+    data: z.ZodString;
+    name: z.ZodString;
 }, z.core.$strip>], "type">;
 /** session.prompt request payload, including optional browser-local request provenance. */
 export declare const sessionPromptRequestSchema: z.ZodType<RequestPayload<"session.prompt">>;

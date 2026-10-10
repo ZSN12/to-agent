@@ -1,15 +1,12 @@
-"use strict";
 /**
- * Package-owned invariant companion for `@z/dsh-token-meter`.
- * @module @z/dsh-token-meter/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-token-meter`.
+ * @module @taskweaver/dsh-token-meter/invariant
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.apply = exports.inject = exports.name = void 0;
-var PACKAGE_NAME = '@z/dsh-token-meter';
+const PACKAGE_NAME = '@taskweaver/dsh-token-meter';
 /** Cordis companion plugin name. */
-exports.name = 'token-meter-invariant';
+export const name = 'token-meter-invariant';
 /** Service required before the companion can reserve package ownership. */
-exports.inject = ['invariants'];
+export const inject = ['invariants'];
 /**
  * No runtime invariant: token estimates are per-call outputs and the private
  * session cache is invalidated at its event mutation boundary. The package's
@@ -22,14 +19,12 @@ exports.inject = ['invariants'];
  * `measure().surfaceTokens` by construction rather than by a relation worth
  * observing at runtime.
  */
-var install = function () { };
+const install = () => { };
 /**
  * Register this package's invariant companion.
  * @param ctx - Cordis context carrying the invariant service.
  * @returns the installed registration's disposer after setup succeeds.
  */
-var apply = function (ctx) {
-    return Promise.resolve(ctx.invariants.register(PACKAGE_NAME, install));
-};
-exports.apply = apply;
+export const apply = (ctx) => Promise.resolve(ctx.invariants.register(PACKAGE_NAME, install));
 /* jscpd:ignore-end */
+//# sourceMappingURL=invariant.js.map

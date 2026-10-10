@@ -1,7 +1,7 @@
 /**
  * Model-facing workspace instruction rendering within an explicit byte budget.
  *
- * @module @z/dsh-agent-instructions/render
+ * @module @taskweaver/dsh-agent-instructions/render
  */
 import type { InstructionFile, LoadedInstructionFile } from './files.ts';
 /** Byte-accounting record for one truncated instruction file. */
@@ -31,8 +31,8 @@ export interface ChangeRenderItem {
 /** Directory component that identifies the single user-global instruction scope. */
 export declare const USER_GLOBAL_DIRECTORY = "user-global";
 /**
- * File name of the single user-global instruction file under `$DSH_HOME`.
- * Discovery (`$DSH_HOME/<name>`) and reconciliation (the user-global scope key's
+ * File name of the single user-global instruction file under `$TASKWEAVER_HOME`.
+ * Discovery (`$TASKWEAVER_HOME/<name>`) and reconciliation (the user-global scope key's
  * candidate component) both key on this name, so it lives in one place: were the
  * two to disagree, the user-global instruction would load but never reconcile.
  */

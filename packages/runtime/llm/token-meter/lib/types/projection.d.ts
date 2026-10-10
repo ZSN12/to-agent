@@ -1,7 +1,7 @@
 /**
  * Pure client-safe token-projection vocabulary.
  *
- * @module @z/dsh-token-meter/projection
+ * @module @taskweaver/dsh-token-meter/projection
  */
 /**
  * Durable cumulative provider usage for a complete session log.
@@ -61,7 +61,7 @@ export interface ContextBreakdownProjection {
     /** Heuristic tokens of the current model-visible conversation surface. */
     messageTokens: number;
 }
-declare module '@z/dsh-session-projection/types' {
+declare module '@taskweaver/dsh-session-projection/types' {
     interface SessionProjectionMap {
         /** Provider-reported usage accumulated across the complete durable log. */
         tokenUsage: TokenUsageProjection;

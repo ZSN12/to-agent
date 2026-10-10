@@ -1,11 +1,11 @@
 /**
  * Load-time validation and routed-model policy resolution for compaction-basic.
  *
- * @module @z/dsh-compaction-basic/config
+ * @module @taskweaver/dsh-compaction-basic/config
  */
 
-import { deepFreeze } from '@z/dsh-llm'
-import type { LlmCallConfig } from '@z/dsh-llm'
+import { deepFreeze } from '@taskweaver/dsh-llm'
+import type { LlmCallConfig } from '@taskweaver/dsh-llm'
 import type {
   BasicCompactionConfig,
   CompactionPolicyConfig,

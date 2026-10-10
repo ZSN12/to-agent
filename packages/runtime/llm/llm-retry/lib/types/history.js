@@ -1,7 +1,4 @@
-"use strict";
-/** Durable request-route lookup for one open model step. @module @z/dsh-llm-retry/history */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.providerForOpenStep = providerForOpenStep;
+/** Durable request-route lookup for one open model step. @module @taskweaver/dsh-llm-retry/history */
 /**
  * Find the provider in force for one currently open step.
  * Request headers remain effective across turn boundaries until a newer full
@@ -11,22 +8,19 @@ exports.providerForOpenStep = providerForOpenStep;
  * @param step - failed step whose provider is required.
  * @returns the provider from the request header in force for the step.
  */
-function providerForOpenStep(events, turn, step) {
-    var stepStartIndex = events.findLastIndex(function (event) {
-        return event.type === 'step/start'
-            && event.data.turn === turn
-            && event.data.step === step;
-    });
-    if (stepStartIndex < 0 || events.slice(stepStartIndex + 1).some(function (event) {
-        return event.type === 'step/end' || event.type === 'turn/end';
-    }))
+export function providerForOpenStep(events, turn, step) {
+    const stepStartIndex = events.findLastIndex(event => event.type === 'step/start'
+        && event.data.turn === turn
+        && event.data.step === step);
+    if (stepStartIndex < 0 || events.slice(stepStartIndex + 1).some(event => event.type === 'step/end' || event.type === 'turn/end'))
         return undefined;
-    for (var index = events.length - 1; index >= 0; index -= 1) {
+    for (let index = events.length - 1; index >= 0; index -= 1) {
         // The loop bounds prove this indexed read exists.
         // oxlint-disable-next-line typescript/no-non-null-assertion
-        var event_1 = events[index];
-        if (event_1.type === 'request/header')
-            return event_1.data.header.config.provider;
+        const event = events[index];
+        if (event.type === 'request/header')
+            return event.data.header.config.provider;
     }
     return undefined;
 }
+//# sourceMappingURL=history.js.map

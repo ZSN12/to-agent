@@ -1,8 +1,8 @@
 import { constants } from "node:buffer";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep, toNamespacedPath } from "node:path";
 import { pathToFileURL } from "node:url";
-import z from "@z/schemastery";
-import { FileSystem, FsError, FsTargetKey, FsVersion } from "@z/dsh-fs";
+import z from "@taskweaver/schemastery";
+import { FileSystem, FsError, FsTargetKey, FsVersion } from "@taskweaver/dsh-fs";
 import { randomUUID } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { chmod, link, lstat, mkdir, open, readFile, readdir, realpath, rename, rm, stat } from "node:fs/promises";
@@ -11,7 +11,7 @@ import { TextDecoder } from "node:util";
 /**
 * Windows security-descriptor helpers for atomic local-file replacement. Koffi loads lazily so
 * non-Windows processes never open Win32 libraries.
-* @module @z/dsh-fs-local/win32
+* @module @taskweaver/dsh-fs-local/win32
 */
 const DACL_SECURITY_INFORMATION = 4;
 const ERROR_FILE_NOT_FOUND = 2;
@@ -90,7 +90,7 @@ async function replaceFileWin32(replaced, replacement) {
 * Cordis-free local filesystem mechanics. This provider layer returns validated UTF-8 text,
 * streams large files, and rejects binary data; line windows belong to `dsh-tool-fs`. Writes
 * stage an exclusive owner-only file in a private sibling directory and atomically publish it.
-* @module @z/dsh-fs-local/fsio
+* @module @taskweaver/dsh-fs-local/fsio
 */
 const BINARY_SAMPLE_BYTES = 8192;
 const DIFF_BASIS_READ_CHUNK_BYTES = 64 * 1024;
@@ -661,7 +661,7 @@ function applyLiteralEdit(content, oldString, newString, replaceAll, displayPath
 /**
 * Host-filesystem implementation of `ctx.fs`. Realpath-derived target identity makes aliases
 * share stale guards, and writes through a symlink update its target without replacing the link.
-* @module @z/dsh-fs-local
+* @module @taskweaver/dsh-fs-local
 */
 const DEFAULT_DIFF_BASIS_MAX_BYTES = 10 * 1024 * 1024;
 const MAX_DIFF_BASIS_BYTES = Math.min(constants.MAX_LENGTH, constants.MAX_STRING_LENGTH);

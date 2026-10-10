@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import * as CommandInvariant from '@z/dsh-commands/invariant'
-import InvariantRegistry, { InvariantError } from '@z/dsh-invariants'
-import SessionStore, { SessionId, type Session } from '@z/dsh-session'
-import { CommandId } from '@z/dsh-commands'
+import { Context } from '@taskweaver/cordis'
+import * as CommandInvariant from '@taskweaver/dsh-commands/invariant'
+import InvariantRegistry, { InvariantError } from '@taskweaver/dsh-invariants'
+import SessionStore, { SessionId, type Session } from '@taskweaver/dsh-session'
+import { CommandId } from '@taskweaver/dsh-commands'
 
 async function mount(installCompanion = true): Promise<{ ctx: Context; session: Session }> {
   const ctx = new Context()
@@ -50,7 +50,7 @@ describe('command lifecycle invariants', () => {
       })
     }).toThrow(expect.objectContaining<Partial<InvariantError>>({
       code: 'INVARIANT',
-      packageName: '@z/dsh-commands',
+      packageName: '@taskweaver/dsh-commands',
     }))
   })
 
@@ -68,7 +68,7 @@ describe('command lifecycle invariants', () => {
       })
     }).toThrow(expect.objectContaining<Partial<InvariantError>>({
       code: 'INVARIANT',
-      packageName: '@z/dsh-commands',
+      packageName: '@taskweaver/dsh-commands',
     }))
   })
 
@@ -83,7 +83,7 @@ describe('command lifecycle invariants', () => {
 
     await expect(ctx.plugin(CommandInvariant)).rejects.toMatchObject({
       code: 'INVARIANT',
-      packageName: '@z/dsh-commands',
+      packageName: '@taskweaver/dsh-commands',
     })
   })
 })

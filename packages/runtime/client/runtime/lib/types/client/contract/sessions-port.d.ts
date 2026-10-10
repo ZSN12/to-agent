@@ -6,7 +6,7 @@
  * widening this face is the explicit act of widening the inter-domain
  * dependency.
  */
-import type { SessionId, WorkspaceId } from '@z/dsh-api-remotes/client';
+import type { SessionId, WorkspaceId } from '@taskweaver/dsh-api-remotes/client';
 import type { ObservableSnapshot } from './store.ts';
 /** Session-list row facts sibling domains read: recency, blank-reuse eligibility, and its cwd canon. */
 export interface SessionsPortSummary {

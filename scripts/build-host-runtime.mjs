@@ -3,7 +3,6 @@
  * Build Z runtime deploy for TaskWeaver packaging (`packages/runtime` → vendor/taskweaver-z-runtime).
  */
 import { spawn } from 'node:child_process'
-import { createRequire } from 'node:module'
 import fs from 'node:fs'
 import fsp from 'node:fs/promises'
 import os from 'node:os'
@@ -13,15 +12,30 @@ import {
   resolveTaskWeaverHostLaunch,
   resolveRuntimeNodePath,
   TASKWEAVER_RUNTIME_PACKAGES,
-  TASKWEAVER_Z_RUNTIME_DEPLOY_DIR,
-  TASKWEAVER_Z_RUNTIME_CLIENT_DIR,
-} from '../electron/agent/z-host/resolve-runtime.mjs'
-import { assertTaskWeaverPresetDeployMatches } from '../electron/agent/z-host/preset-integrity.mjs'
-import { patchTaskWeaverRuntimeNoHmr, patchZRuntimeSourceBundlesNoHmr } from './patch-taskweaver-runtime-no-hmr.mjs'
+  TASKWEAVER_RUNTIME_DEPLOY_DIR,
+  TASKWEAVER_RUNTIME_CLIENT_DIR,
+} from '../desktop/agent/z-host/resolve-runtime.mjs'
+import { scriptHostNodeExecutable } from './lib/host-node-executable.mjs'
+import { assertTaskWeaverPresetDeployMatches } from '../desktop/agent/z-host/preset-integrity.mjs'
+import {
+  copyPackageIntoStaging,
+  finalizeRuntimeLayout,
+  healDeployPackageClosure,
+  packageHasRunnableEntry,
+  runtimeModulesDir,
+} from './runtime-deploy-closure.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const zRuntimeSource = path.join(root, 'packages', 'runtime')
-const rawOutDir = process.env.TASKWEAVER_Z_RUNTIME_OUTPUT_DIR || process.env.TASKWEAVER_DSH_RUNTIME_OUTPUT_DIR
+const legacyOutputVariables = ['TASKWEAVER_DSH_RUNTIME_OUTPUT_DIR', 'TASKWEAVER_Z_RUNTIME_OUTPUT_DIR']
+const legacyOutputValues = []
+for (const name of legacyOutputVariables) {
+  const value = process.env[name]
+  if (!value) continue
+  console.warn(`[TaskWeaver] ${name} 已弃用，请改用 TASKWEAVER_RUNTIME_OUTPUT_DIR。`)
+  legacyOutputValues.push(value)
+}
+const rawOutDir = process.env.TASKWEAVER_RUNTIME_OUTPUT_DIR || legacyOutputValues[0]
 const customOutDir = rawOutDir
   ? path.resolve(rawOutDir)
   : null
@@ -29,10 +43,10 @@ if (customOutDir) {
   const tempRoot = path.resolve(os.tmpdir())
   const safeBasename = /^taskweaver-(?:z|dsh)-runtime-build-[A-Za-z0-9._-]+$/
   if (path.dirname(customOutDir) !== tempRoot || !safeBasename.test(path.basename(customOutDir))) {
-    throw new Error(`TASKWEAVER_Z_RUNTIME_OUTPUT_DIR must be a dedicated taskweaver-z-runtime-build-* child of ${tempRoot}`)
+    throw new Error(`TASKWEAVER_RUNTIME_OUTPUT_DIR must be a dedicated taskweaver-z-runtime-build-* child of ${tempRoot}`)
   }
 }
-const targetOutDir = customOutDir ?? path.join(root, 'vendor', TASKWEAVER_Z_RUNTIME_DEPLOY_DIR)
+const targetOutDir = customOutDir ?? path.join(root, 'vendor', TASKWEAVER_RUNTIME_DEPLOY_DIR)
 const legacyOutDir = path.join(root, 'vendor', 'taskweaver-dsh-runtime')
 
 /** @returns {{ monorepoRoot: string, cliFilter: string, scope: string, label: string }} */
@@ -41,7 +55,7 @@ function resolveMonorepo() {
   if (!zReady) {
     throw new Error('缺少 packages/runtime；请确保已检出 Z 运行时源码树')
   }
-  return { monorepoRoot: zRuntimeSource, cliFilter: '@z/dsh', scope: '@z/', label: 'Z Runtime' }
+  return { monorepoRoot: zRuntimeSource, cliFilter: '@taskweaver/dsh', scope: '@taskweaver/', label: 'Z Runtime' }
 }
 const skipBuild = process.argv.includes('--skip-build')
 const skipDeploy = process.argv.includes('--skip-deploy')
@@ -53,7 +67,7 @@ const outDir = skipDeploy
       path.dirname(targetOutDir),
       `taskweaver-z-runtime-build-${path.basename(targetOutDir)}-${process.pid}-${Date.now()}`,
     )
-const clientOut = path.join(outDir, TASKWEAVER_Z_RUNTIME_CLIENT_DIR)
+const clientOut = path.join(outDir, TASKWEAVER_RUNTIME_CLIENT_DIR)
 let stagingOutputOwned = false
 const maxRepair = 80
 const runtimeLockPath = path.join(root, 'runtime-lock.json')
@@ -117,125 +131,20 @@ async function copyDir(from, to, filter) {
   }
 }
 
-/** Workspace packages that pnpm deploy omits but agent presets import at runtime. */
-function monorepoPackagePaths(scope) {
-  return {
-    [`${scope}dsh-workflow`]: 'packages/workflow/workflow',
-  }
-}
-
-function packageHasRunnableEntry(pkgDir) {
-  const pkgJsonPath = path.join(pkgDir, 'package.json')
-  if (!fs.existsSync(pkgJsonPath)) return false
-  try {
-    const pkg = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'))
-    const candidates = []
-    if (typeof pkg.main === 'string') candidates.push(pkg.main)
-    const dotExport = pkg.exports?.['.']
-    if (typeof dotExport === 'string') candidates.push(dotExport)
-    else if (dotExport && typeof dotExport.default === 'string') candidates.push(dotExport.default)
-    if (!candidates.length) candidates.push('index.js')
-    return candidates.some((rel) => fs.existsSync(path.join(pkgDir, rel)))
-  } catch {
-    return false
-  }
-}
-
-function resolvePackageDir(monorepoRoot, stagingRoot, packageName) {
-  const candidates = []
-  // Prefer deploy staging (pnpm 已带 lib/)，避免用 monorepo 源码树覆盖掉可运行副本。
-  const roots = [stagingRoot, monorepoRoot].filter(Boolean)
-  for (const rootDir of roots) {
-    try {
-      const launch = resolveTaskWeaverHostLaunch(rootDir)
-      const require = createRequire(launch.entrypoint)
-      candidates.push(path.dirname(require.resolve(`${packageName}/package.json`)))
-    } catch {
-      /* try next root */
-    }
-  }
-  if (monorepoRoot) {
-    const scope = packageName.startsWith('@z/') ? '@z/' : '@deepseek-ai/'
-    const rel = monorepoPackagePaths(scope)[packageName]
-    if (rel) {
-      candidates.push(path.join(monorepoRoot, rel))
-    }
-    const short = packageName.replace(/^@[^/]+\//, '')
-    candidates.push(path.join(monorepoRoot, 'vendor', short))
-  }
-  for (const dir of candidates) {
-    if (packageHasRunnableEntry(dir)) return dir
-  }
-  return null
-}
-
-async function copyPackageIntoStaging(monorepoRoot, stagingRoot, packageName) {
-  const dest = path.join(runtimeModulesDir(stagingRoot), ...packageName.split('/'))
-  if (packageHasRunnableEntry(dest)) return true
-  const pkgDir = resolvePackageDir(monorepoRoot, stagingRoot, packageName)
-  if (!pkgDir) return false
-  await fsp.mkdir(path.dirname(dest), { recursive: true })
-  await copyDir(pkgDir, dest, (p) => {
-    const rel = path.relative(pkgDir, p)
-    return !rel.split(path.sep).includes('node_modules')
-  })
-  return packageHasRunnableEntry(dest)
-}
-
 const MISSING_PKG = /Cannot find package '([^']+)'/
 const MISSING_MODULE = /Cannot find module '[^']*\/node_modules\/((?:@[^/]+\/)?[^/']+)\//
-
-/**
- * pnpm deploy 会带上 preset 插件，但 peer 依赖（如 dsh-workflow）不会自动落地；
- * `code` preset 在首条消息挂载 workflow-worker-thread 时会因此失败。
- */
-/** pnpm deploy 常漏掉 workspace vendor 与 preset peer，启动冒烟前强制补齐。 */
-function runtimePeerPackages(scope) {
-  return [`${scope}cosmokit`, `${scope}schemastery`, `${scope}dsh-workflow`]
-}
-
-async function ensureRuntimePeerPackages(stagingRoot, monorepoRoot, scope) {
-  for (const packageName of runtimePeerPackages(scope)) {
-    const pkgJson = path.join(runtimeModulesDir(stagingRoot), ...packageName.split('/'), 'package.json')
-    if (fs.existsSync(pkgJson)) continue
-    const copied = await copyPackageIntoStaging(monorepoRoot, stagingRoot, packageName)
-    if (!copied) throw new Error(`无法从 monorepo 补齐 runtime peer：${packageName}`)
-    console.log(`build-host-runtime: 预补齐 ${packageName}`)
-  }
-}
-
-function runtimeModulesDir(stagingRoot) {
-  return path.join(stagingRoot, 'node_modules')
-}
-
-async function relayoutRuntimePackagesForPackaging(outDir) {
-  const nm = path.join(outDir, 'node_modules')
-  const rp = path.join(outDir, TASKWEAVER_RUNTIME_PACKAGES)
-  if (!fs.existsSync(nm)) return
-  if (fs.existsSync(rp)) await fsp.rm(rp, { recursive: true, force: true })
-  await fsp.rename(nm, rp)
-  const resolverLink = path.join(outDir, 'node_modules')
-  if (!fs.existsSync(resolverLink)) {
-    await fsp.symlink(TASKWEAVER_RUNTIME_PACKAGES, resolverLink, 'dir')
-    console.log('build-host-runtime: node_modules → runtime-packages（@z/* 可解析）')
-  }
-  console.log(`build-host-runtime: ${TASKWEAVER_RUNTIME_PACKAGES}（供 electron-builder 打包）`)
-}
 
 async function tryBootSmoke(stagingRoot, homeDir) {
   const launch = resolveTaskWeaverHostLaunch(stagingRoot)
   const nodePath = resolveRuntimeNodePath(stagingRoot)
   return new Promise((resolve) => {
-    const child = spawn(process.execPath, [launch.entrypoint, '--profile', 'web', '--host', '127.0.0.1', '--port', '0'], {
+    const child = spawn(scriptHostNodeExecutable(), [launch.entrypoint, '--profile', 'web', '--host', '127.0.0.1', '--port', '0'], {
       cwd: launch.cwd,
       env: {
         ...process.env,
-        Z_HOME: path.join(homeDir, 'z'),
-        Z_TELEMETRY_DISABLED: '1',
-        Z_TASKWEAVER_EMBEDDED: '1',
-        DSH_HOME: path.join(homeDir, 'z'),
-        DSH_TELEMETRY_DISABLED: '1',
-        DSH_TASKWEAVER_EMBEDDED: '1',
+        TASKWEAVER_HOME: path.join(homeDir, 'runtime'),
+        TASKWEAVER_TELEMETRY_DISABLED: '1',
+        TASKWEAVER_EMBEDDED: '1',
         ...(nodePath ? { NODE_PATH: nodePath } : {}),
       },
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -288,11 +197,11 @@ async function repairClosure(stagingRoot, monorepoRoot) {
           + ' 若 monorepo 仅有 src/ 无 lib/，请先执行 host-cli build:lib:host（勿使用 --skip-build）。',
         )
       }
-      const copied = await copyPackageIntoStaging(monorepoRoot, stagingRoot, pkg)
+      const copied = await copyPackageIntoStaging(monorepoRoot, stagingRoot, pkg, root)
       if (!copied) {
         throw new Error(
           `无法从 monorepo 补齐依赖：${pkg}（需已编译的 package main/exports 入口）。`
-          + ' 请先执行 packages/runtime 的 tsc -b tsconfig.host.json。',
+          + ' 请先执行 pnpm --dir packages/runtime run build:host。',
         )
       }
       repairAttempts.set(pkg, attempts + 1)
@@ -308,7 +217,7 @@ async function repairClosure(stagingRoot, monorepoRoot) {
 async function pruneTaskWeaverBrowserFrontend(stagingRoot, scope) {
   const packageRoots = [
     path.join(runtimeModulesDir(stagingRoot), scope.replace(/\/$/, '')),
-    path.join(stagingRoot, TASKWEAVER_RUNTIME_PACKAGES, '@z'),
+    path.join(stagingRoot, TASKWEAVER_RUNTIME_PACKAGES, '@taskweaver'),
   ]
   const exactNames = new Set([
     'dsh-web-frontend',
@@ -344,18 +253,58 @@ async function pruneStaleCliHashedChunks(monorepoRoot) {
   }
 }
 
-/** tsdown 有时只更新 lib/types，入口 lib/index.js 需与 types 对齐（@z/dsh-home-paths 等）。 */
+/** tsdown 有时只更新 lib/types，入口 lib/index.js 需与 types 对齐（@taskweaver/dsh-home-paths 等）。 */
 async function syncHostPackageRuntimeLibs(monorepoRoot) {
-  const homePaths = path.join(monorepoRoot, 'packages/util/home-paths/lib')
-  for (const name of ['index', 'invariant']) {
-    const from = path.join(homePaths, 'types', `${name}.js`)
-    const to = path.join(homePaths, `${name}.js`)
-    if (!fs.existsSync(from)) continue
-    const needsCopy = !fs.existsSync(to)
-      || fs.statSync(to).mtimeMs < fs.statSync(from).mtimeMs
-    if (needsCopy) {
-      await fsp.copyFile(from, to)
-      console.log(`build-host-runtime: 同步 @z/dsh-home-paths/lib/${name}.js`)
+  const packages = [
+    { label: '@taskweaver/dsh-app-boot', libDir: path.join(monorepoRoot, 'boot/app-boot/lib') },
+    { label: '@taskweaver/dsh-home-paths', libDir: path.join(monorepoRoot, 'util/home-paths/lib') },
+    { label: '@taskweaver/dsh-launch-environment', libDir: path.join(monorepoRoot, 'util/launch-environment/lib') },
+    { label: '@taskweaver/dsh-web', libDir: path.join(monorepoRoot, 'web/web/lib') },
+    { label: '@taskweaver/dsh-web-search-taskweaver', libDir: path.join(monorepoRoot, 'web/web-search-taskweaver/lib') },
+    { label: '@taskweaver/dsh-tool-web', libDir: path.join(monorepoRoot, 'web/tool-web/lib') },
+    { label: '@taskweaver/tool-ui-verify', libDir: path.join(monorepoRoot, 'interaction/tool-ui-verify/lib') },
+    { label: '@taskweaver/dsh-tool-fs-semantic-search', libDir: path.join(monorepoRoot, 'fs/tool-fs-semantic-search/lib') },
+  ]
+  for (const { label, libDir } of packages) {
+    for (const name of ['index', 'invariant']) {
+      const from = path.join(libDir, 'types', `${name}.js`)
+      const to = path.join(libDir, `${name}.js`)
+      if (!fs.existsSync(from)) continue
+      const source = fs.readFileSync(from, 'utf8')
+      const looksCjs = /Object\.defineProperty\(exports,\s*['"]__esModule['"]/.test(source)
+      const destText = fs.existsSync(to) ? fs.readFileSync(to, 'utf8') : ''
+      const needsRuntimeHomePath = name === 'index'
+        && source.includes('runtimeHomePath')
+        && !destText.includes('runtimeHomePath')
+      if (looksCjs && !needsRuntimeHomePath) continue
+      if (!fs.existsSync(to) || needsRuntimeHomePath) {
+        await fsp.copyFile(from, to)
+        console.log(`build-host-runtime: 同步 ${label}/lib/${name}.js`)
+      }
+    }
+    const typesSrc = path.join(libDir, 'types', 'types.js')
+    const typesDest = path.join(libDir, 'types.js')
+    if (fs.existsSync(typesSrc)) {
+      const needsCopy = !fs.existsSync(typesDest)
+        || fs.statSync(typesDest).mtimeMs < fs.statSync(typesSrc).mtimeMs
+      if (needsCopy) {
+        await fsp.copyFile(typesSrc, typesDest)
+        console.log(`build-host-runtime: 同步 ${label}/lib/types.js`)
+      }
+    }
+    const typesDir = path.join(libDir, 'types')
+    if (fs.existsSync(typesDir)) {
+      for (const name of await fsp.readdir(typesDir)) {
+        if (!name.endsWith('.js')) continue
+        const from = path.join(typesDir, name)
+        const to = path.join(libDir, name)
+        const needsCopy = !fs.existsSync(to)
+          || fs.statSync(to).mtimeMs < fs.statSync(from).mtimeMs
+        if (needsCopy) {
+          await fsp.copyFile(from, to)
+          console.log(`build-host-runtime: 同步 ${label}/lib/${name}`)
+        }
+      }
     }
   }
 }
@@ -417,22 +366,58 @@ await import('./bin.js')
 
 /** Node-safe SessionManager (lib/types tree); deploy package omits this in favor of web client.js. */
 async function stageTaskWeaverBridgeTransport(stagingRoot, taskweaverRepoRoot) {
-  const from = path.join(taskweaverRepoRoot, 'packages', 'taskweaver-bridge-transport')
+  const from = path.join(taskweaverRepoRoot, 'packages', 'provider-bridge-transport')
   const index = path.join(from, 'index.mjs')
   if (!fs.existsSync(index)) {
-    console.warn('build-host-runtime: 跳过 taskweaver-bridge-transport（仓库包不存在）')
-    return
+    throw new Error(`缺少 TaskWeaver Provider Bridge transport：${index}`)
+  }
+  const providerBridgeFrom = path.join(taskweaverRepoRoot, 'packages', 'provider-bridge')
+  const providerBridgeEntry = ['lib/index.mjs', 'lib/index.js']
+    .map((rel) => path.join(providerBridgeFrom, rel))
+    .find((candidate) => fs.existsSync(candidate))
+  if (!providerBridgeEntry) {
+    throw new Error(`缺少已构建的 @taskweaver/provider-bridge（lib/index.mjs）；请先运行 pnpm run build:host`)
+  }
+  const providerBridgePackage = path.join(runtimeModulesDir(stagingRoot), '@taskweaver', 'provider-bridge')
+  await fsp.rm(providerBridgePackage, { recursive: true, force: true })
+  await copyDir(providerBridgeFrom, providerBridgePackage, (p) => (
+    !path.relative(providerBridgeFrom, p).split(path.sep).includes('node_modules')
+  ))
+  if (!packageHasRunnableEntry(providerBridgePackage)) {
+    throw new Error(`@taskweaver/provider-bridge 构建产物不完整：${providerBridgePackage}`)
+  }
+  const providerManifest = JSON.parse(await fsp.readFile(path.join(providerBridgePackage, 'package.json'), 'utf8'))
+  for (const dependency of Object.keys(providerManifest.dependencies ?? {})) {
+    const dest = path.join(runtimeModulesDir(stagingRoot), ...dependency.split('/'))
+    if (fs.existsSync(dest)) continue
+    let copied = await copyPackageIntoStaging(taskweaverRepoRoot, stagingRoot, dependency, root)
+    if (!copied) copied = await copyPackageIntoStaging(root, stagingRoot, dependency, root)
+    if (!copied) {
+      throw new Error(`Runtime deploy 缺少 Provider Bridge 依赖 ${dependency}；请确认 Host CLI 声明了 @taskweaver/provider-bridge`)
+    }
   }
   const destRoot = path.join(stagingRoot, 'electron-vendor', 'taskweaver-bridge-transport')
   await fsp.rm(destRoot, { recursive: true, force: true })
-  await copyDir(from, destRoot)
-  console.log('build-host-runtime: 已打入 electron-vendor/taskweaver-bridge-transport')
+  await copyDir(from, destRoot, (p) => !path.relative(from, p).split(path.sep).includes('node_modules'))
+  await fsp.rm(path.join(destRoot, 'node_modules'), { recursive: true, force: true }).catch(() => {})
+  const stagedBridgeLib = path.join(stagingRoot, 'electron-vendor', 'provider-bridge')
+  await fsp.rm(stagedBridgeLib, { recursive: true, force: true })
+  await copyDir(providerBridgeFrom, stagedBridgeLib, (p) => (
+    !path.relative(providerBridgeFrom, p).split(path.sep).includes('node_modules')
+  ))
+  const cursorLoader = await fsp.readFile(path.join(destRoot, 'cursor-adapter-loader.mjs'), 'utf8')
+  if (!cursorLoader.includes('@taskweaver/provider-bridge') || cursorLoader.includes('src/adapters/cursor.ts')) {
+    throw new Error(
+      'taskweaver-bridge-transport/cursor-adapter-loader.mjs 仍指向 OpenCodex TypeScript；请使用 packages/provider-bridge-transport 中的编译桥接加载器',
+    )
+  }
+  console.log('build-host-runtime: 已打入 @taskweaver/provider-bridge 与 electron-vendor/taskweaver-bridge-transport')
 }
 
 async function stageDshChatRegistry(stagingRoot) {
   const from = path.join(root, 'electron', 'vendor', 'dsh-chat-registry.mjs')
   if (!fs.existsSync(from)) {
-    throw new Error('缺少 electron/vendor/dsh-chat-registry.mjs；请先运行 scripts/build-dsh-chat-registry.mjs')
+    throw new Error('缺少 desktop/vendor/dsh-chat-registry.mjs；请先运行 scripts/build-dsh-chat-registry.mjs')
   }
   const destRoot = path.join(stagingRoot, 'electron-vendor')
   await fsp.mkdir(destRoot, { recursive: true })
@@ -441,11 +426,11 @@ async function stageDshChatRegistry(stagingRoot) {
 }
 
 async function stageMainProcessSessionManagerLib(stagingRoot, monorepoRoot) {
-  const srcTypes = path.join(monorepoRoot, 'packages/client/runtime/lib/types')
+  const srcTypes = path.join(monorepoRoot, 'client/runtime/lib/types')
   const manager = path.join(srcTypes, 'client/sessions/manager.js')
   if (!fs.existsSync(manager)) {
     console.warn(
-      'build-host-runtime: packages/client/runtime/lib/types 未构建，主进程 SessionManager 将不可用（请在 z-runtime 内 build client face）',
+      'build-host-runtime: client/runtime/lib/types 未构建，主进程 SessionManager 将不可用（请先构建 runtime client face）',
     )
     return
   }
@@ -480,8 +465,9 @@ async function stageApiClient(stagingRoot, scope) {
 }
 
 const TASKWEAVER_FS_TOOLS = [
-  { ref: './packages/fs/tool-fs-inline-edit', name: '@z/dsh-tool-fs-inline-edit', id: 'tool-fs-inline-edit' },
-  { ref: './packages/fs/tool-fs-semantic-search', name: '@z/dsh-tool-fs-semantic-search', id: 'tool-fs-semantic-search' },
+  { ref: './fs/tool-document', name: '@taskweaver/dsh-tool-document', id: 'tool-document' },
+  { ref: './fs/tool-fs-inline-edit', name: '@taskweaver/dsh-tool-fs-inline-edit', id: 'tool-fs-inline-edit' },
+  { ref: './fs/tool-fs-semantic-search', name: '@taskweaver/dsh-tool-fs-semantic-search', id: 'tool-fs-semantic-search' },
 ]
 
 function assertTaskWeaverFsToolsIntegrated(monorepoRoot) {
@@ -489,7 +475,7 @@ function assertTaskWeaverFsToolsIntegrated(monorepoRoot) {
   if (!fs.existsSync(hostTsconfigPath)) throw new Error('缺少 TaskWeaver Host TypeScript 配置')
   const hostTsconfig = JSON.parse(fs.readFileSync(hostTsconfigPath, 'utf8'))
   const refs = hostTsconfig.references ?? []
-  const cliPackage = JSON.parse(fs.readFileSync(path.join(monorepoRoot, 'apps', 'cli', 'package.json'), 'utf8'))
+  const cliPackage = JSON.parse(fs.readFileSync(path.join(monorepoRoot, 'host-cli', 'package.json'), 'utf8'))
   const cliDependencies = cliPackage.dependencies ?? {}
   for (const tool of TASKWEAVER_FS_TOOLS) {
     if (!refs.some((entry) => entry.path === tool.ref)) {
@@ -498,10 +484,10 @@ function assertTaskWeaverFsToolsIntegrated(monorepoRoot) {
       )
     }
     if (!cliDependencies[tool.name]) throw new Error(`host-cli/package.json 缺少运行时依赖 ${tool.name}`)
-    const packageJson = path.join(monorepoRoot, 'packages', 'fs', tool.ref.split('/').at(-1), 'package.json')
+    const packageJson = path.join(monorepoRoot, 'fs', tool.ref.split('/').at(-1), 'package.json')
     if (!fs.existsSync(packageJson)) throw new Error(`缺少已接入插件包：${packageJson}`)
-    for (const preset of ['standard', 'taskweaver-code']) {
-      const presetPath = path.join(monorepoRoot, 'apps', 'cli', 'config', 'agent-presets', preset, 'agent.cordis.yml')
+    for (const preset of ['tw-default', 'tw-taskweaver-code']) {
+      const presetPath = path.join(monorepoRoot, 'host-cli', 'config', 'agent-presets', preset, 'agent.cordis.yml')
       const source = fs.readFileSync(presetPath, 'utf8')
       if (!source.includes(`id: ${tool.id}`) || !source.includes(`name: '${tool.name}'`)) {
         throw new Error(`${preset} preset 未挂载 ${tool.name}`)
@@ -522,7 +508,7 @@ async function main() {
   }
   console.log(`build-host-runtime: 使用 ${label}（${monorepoRoot}）`)
   assertTaskWeaverFsToolsIntegrated(monorepoRoot)
-  const dshBuildEnv = {
+  const taskweaverBuildEnv = {
     ...process.env,
     CI: 'true',
     npm_config_ignore_scripts: 'true',
@@ -531,27 +517,23 @@ async function main() {
   const zTsdown = path.join(zNodeModules, 'tsdown', 'dist', 'run.mjs')
   if (monorepoRoot === zRuntimeSource && (!fs.existsSync(zTsdown) || !fs.existsSync(path.join(zNodeModules, '.bin', 'tsc')))) {
     console.log('build-host-runtime: packages/runtime pnpm install --ignore-scripts …')
-    await run(pnpmBin(), ['install', '--ignore-scripts'], { cwd: monorepoRoot, env: dshBuildEnv })
+    await run(pnpmBin(), ['install', '--ignore-scripts'], { cwd: monorepoRoot, env: taskweaverBuildEnv })
   }
   if (!skipBuild) {
+    console.log('build-host-runtime: 构建 @taskweaver/provider-bridge …')
+    await run(pnpmBin(), ['--dir', path.join(root, 'packages', 'provider-bridge'), 'run', 'build'], {
+      cwd: root,
+      env: taskweaverBuildEnv,
+    })
     console.log(`build-host-runtime: ${label} host-cli build:lib:host …`)
-    const hostTsconfig = fs.existsSync(path.join(monorepoRoot, 'tsconfig.host.taskweaver.json'))
-      ? 'tsconfig.host.taskweaver.json'
-      : 'tsconfig.host.json'
     const tscBin = path.join(monorepoRoot, 'node_modules/.bin/tsc')
     const tsdownBin = path.join(monorepoRoot, 'node_modules/.bin/tsdown')
-    await run(tscBin, ['-b', hostTsconfig], { cwd: monorepoRoot, env: dshBuildEnv })
+    // The runtime solution config builds the TaskWeaver Host plus its minimal
+    // Client graph in one dependency-aware TypeScript pass.
+    await run(tscBin, ['-b', 'tsconfig.host.taskweaver.json'], { cwd: monorepoRoot, env: taskweaverBuildEnv })
     await pruneStaleCliHashedChunks(monorepoRoot)
-    await run(tsdownBin, ['--env.DSH_BUILD_FACE', 'host'], { cwd: monorepoRoot, env: dshBuildEnv })
-    await run(tsdownBin, ['--env.DSH_BUILD_FACE', 'host', '--filter', '@z/dsh'], { cwd: monorepoRoot, env: dshBuildEnv })
+    await run(tsdownBin, ['--env.TASKWEAVER_BUILD_FACE', 'host', '--filter', '@taskweaver/dsh'], { cwd: monorepoRoot, env: taskweaverBuildEnv })
     await syncHostPackageRuntimeLibs(monorepoRoot)
-    console.log('build-host-runtime: 最小 client 编译（SessionManager / web-api-client，无 UI roster）')
-    const minClientTsconfig = fs.existsSync(path.join(monorepoRoot, 'tsconfig.client.taskweaver-min.json'))
-      ? 'tsconfig.client.taskweaver-min.json'
-      : (fs.existsSync(path.join(monorepoRoot, 'tsconfig.client.taskweaver.json'))
-        ? 'tsconfig.client.taskweaver.json'
-        : 'tsconfig.client.json')
-    await run(tscBin, ['-b', minClientTsconfig], { cwd: monorepoRoot, env: dshBuildEnv })
     await assertTaskWeaverProfileBootBundled(monorepoRoot)
   }
   if (!skipDeploy) {
@@ -563,7 +545,7 @@ async function main() {
       '--legacy', '--prod',
       '--config.node-linker=hoisted',
       '--config.auto-install-peers=false',
-      '--config.link-workspace-packages=true',
+      '--config.link-workspace-packages=false',
       '--config.ignore-scripts=true',
       outDir,
     ], { cwd: monorepoRoot, env: { ...process.env, CI: 'true' } })
@@ -571,17 +553,20 @@ async function main() {
       await fsp.rm(path.join(outDir, doc), { force: true })
     }
   } else if (!fs.existsSync(outDir)) {
-    throw new Error(`--skip-deploy 但 vendor/${TASKWEAVER_Z_RUNTIME_DEPLOY_DIR} 不存在`)
+    throw new Error(`--skip-deploy 但 vendor/${TASKWEAVER_RUNTIME_DEPLOY_DIR} 不存在`)
   }
-  await patchZRuntimeSourceBundlesNoHmr()
-  await patchTaskWeaverRuntimeNoHmr(outDir)
-  await ensureRuntimePeerPackages(outDir, monorepoRoot, scope)
+  await healDeployPackageClosure({
+    monorepoRoot,
+    stagingRoot: outDir,
+    desktopRepoRoot: root,
+  })
   await stageDeployedCliEntry(outDir, monorepoRoot)
   const presetIntegrity = await assertTaskWeaverPresetDeployMatches(
-    path.join(monorepoRoot, 'apps', 'cli', 'config', 'agent-presets'),
+    path.join(monorepoRoot, 'host-cli', 'config', 'agent-presets'),
     path.join(outDir, 'config', 'agent-presets'),
   )
   console.log(`build-host-runtime: TaskWeaver agent presets match source (${presetIntegrity.presets.map((preset) => preset.id).join(', ')})`)
+  await finalizeRuntimeLayout(outDir)
   const url = await repairClosure(outDir, monorepoRoot)
   await pruneTaskWeaverBrowserFrontend(outDir, scope)
   await stageApiClient(outDir, scope)
@@ -590,11 +575,7 @@ async function main() {
   console.log('build-host-runtime: 同步 dsh-chat-registry …')
   await run(process.execPath, [path.join(root, 'scripts/build-dsh-chat-registry.mjs')])
   await stageDshChatRegistry(outDir)
-  console.log('build-host-runtime: 同步 pi-ai 模型目录 …')
-  const piAiEnv = { ...process.env }
-  if (skipDeploy) delete piAiEnv.TASKWEAVER_Z_RUNTIME
-  else piAiEnv.TASKWEAVER_Z_RUNTIME = outDir
-  await run(process.execPath, [path.join(root, 'scripts/upgrade-vendor-pi-ai.mjs')], { env: piAiEnv })
+  console.log('build-host-runtime: 校验锁定的 pi-ai 版本 …')
   const packagesRoot = resolveRuntimeNodePath(outDir) ?? runtimeModulesDir(outDir)
   const piPackage = JSON.parse(await fsp.readFile(path.join(
     packagesRoot,
@@ -605,7 +586,7 @@ async function main() {
   if (piPackage.version !== runtimeLock.piAi.version) {
     throw new Error(`Runtime pi-ai ${piPackage.version} 与 runtime-lock ${runtimeLock.piAi.version} 不一致`)
   }
-  await relayoutRuntimePackagesForPackaging(outDir)
+  await finalizeRuntimeLayout(outDir)
   await fsp.writeFile(
     path.join(outDir, 'taskweaver-runtime-meta.json'),
     `${JSON.stringify({ ...runtimeLock, builtAt: new Date().toISOString(), apiOnlyHost: true }, null, 2)}\n`,

@@ -1,27 +1,22 @@
-"use strict";
 /**
- * Package-owned invariant companion for `@z/dsh-skill-filesystem`.
- * @module @z/dsh-skill-filesystem/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-skill-filesystem`.
+ * @module @taskweaver/dsh-skill-filesystem/invariant
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.apply = exports.inject = exports.name = void 0;
-var PACKAGE_NAME = '@z/dsh-skill-filesystem';
+const PACKAGE_NAME = '@taskweaver/dsh-skill-filesystem';
 /** Cordis companion plugin name. */
-exports.name = 'skill-filesystem-invariant';
+export const name = 'skill-filesystem-invariant';
 /** Service required before the companion can reserve package ownership. */
-exports.inject = ['invariants'];
+export const inject = ['invariants'];
 /**
  * No runtime invariant: this package exposes no independent event sequence or mutable data relation
  * beyond contracts enforced at its owning seam.
  */
-var install = function () { };
+const install = () => { };
 /**
  * Register this package's invariant companion.
  * @param ctx - Cordis context carrying the invariant service.
  * @returns the installed registration's disposer after setup succeeds.
  */
-var apply = function (ctx) {
-    return Promise.resolve(ctx.invariants.register(PACKAGE_NAME, install));
-};
-exports.apply = apply;
+export const apply = (ctx) => Promise.resolve(ctx.invariants.register(PACKAGE_NAME, install));
 /* jscpd:ignore-end */
+//# sourceMappingURL=invariant.js.map

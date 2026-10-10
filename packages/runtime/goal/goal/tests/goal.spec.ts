@@ -1,16 +1,16 @@
 import { describe, expect, it, vi } from 'vitest'
-import { Context } from '@z/cordis'
-import AgentRegistry, { agentEvents, Inbox } from '@z/dsh-agent'
-import type { Agent } from '@z/dsh-agent'
-import { createUserMessage, HarnessError } from '@z/dsh-llm'
-import SessionStore, { Session, SessionId, type UserMessage } from '@z/dsh-session'
+import { Context } from '@taskweaver/cordis'
+import AgentRegistry, { agentEvents, Inbox } from '@taskweaver/dsh-agent'
+import type { Agent } from '@taskweaver/dsh-agent'
+import { createUserMessage, HarnessError } from '@taskweaver/dsh-llm'
+import SessionStore, { Session, SessionId, type UserMessage } from '@taskweaver/dsh-session'
 import GoalService, {
   GoalError,
   GoalId,
   decodeGoalChange,
   foldGoal,
-} from '@z/dsh-goal'
-import type { GoalChangeMeta, GoalRef, GoalSnapshotChangeMeta } from '@z/dsh-goal'
+} from '@taskweaver/dsh-goal'
+import type { GoalChangeMeta, GoalRef, GoalSnapshotChangeMeta } from '@taskweaver/dsh-goal'
 
 interface StubAgent {
   agent: Agent
@@ -53,7 +53,7 @@ function stubAgentForSession(session: Session): StubAgent {
 }
 
 /** Build a registry-compatible agent around a fresh session. */
-function stubAgent(rawId: string, seed?: readonly import('@z/dsh-session').SessionEvent[]): StubAgent {
+function stubAgent(rawId: string, seed?: readonly import('@taskweaver/dsh-session').SessionEvent[]): StubAgent {
   return stubAgentForSession(Session.create(SessionId(rawId), seed))
 }
 

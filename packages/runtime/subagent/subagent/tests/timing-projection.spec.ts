@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import SessionStore from '@z/dsh-session'
-import type { SessionEvent } from '@z/dsh-session'
-import SessionProjectionRegistry from '@z/dsh-session-projection'
+import { Context } from '@taskweaver/cordis'
+import SessionStore from '@taskweaver/dsh-session'
+import type { SessionEvent } from '@taskweaver/dsh-session'
+import SessionProjectionRegistry from '@taskweaver/dsh-session-projection'
 import SubagentRuntime from '../src/index.ts'
 import { subagentTimingProjectionDefinition, type TimingState } from '../src/projection.ts'
 

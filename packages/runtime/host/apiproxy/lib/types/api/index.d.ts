@@ -42,7 +42,8 @@ export interface ApiProxy {
     respond(message: ClientResponse): Promise<RpcReceipt>;
 }
 export type { HistoryEntry, ModelCatalogFailure, ModelCatalogModel, ModelProviderGroup, ModelReasoning, ModelReasoningEffort, ModelSelection, PromptContentPart, QueueAction, SessionModels, SessionListMetadata, SessionProjectionsBlock, SessionSearchItem, SessionsApi, SessionSummary, } from './sessions.ts';
-export type { DirectoryEntry, DirectoryListing, HostApi } from './host.ts';
+export type { UiVerifyPolicyService, UiVerifyPolicySnapshot, UiVerifyWorkspacePolicy } from './ui-verify-policy.ts';
+export type { HostApi, HostWebSearchResult } from './host.ts';
 export type { SubagentAddress, SubagentCatalog, SubagentInterruptReceipt, SubagentListEntry, SubagentPromptReceipt, SubagentsApi, } from './subagents.ts';
 export type { JobView } from './jobs.ts';
 export type { WorkspaceApi, WorkspaceId, WorkspaceView } from './workspace.ts';

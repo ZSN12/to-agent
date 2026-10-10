@@ -5,19 +5,19 @@
  * Background policy is selected by this plugin's configuration: one-shot
  * calls own a plain Task, while continuable calls use
  * `ctx.subagents.startContinuable()`.
- * @module @z/dsh-tool-subagent
+ * @module @taskweaver/dsh-tool-subagent
  */
 
-import type { Context } from '@z/cordis'
-import z from '@z/schemastery'
-import { defineTool } from '@z/dsh-tools'
-import type { AgentOptions } from '@z/dsh-agent'
-import type { ContentBlock } from '@z/dsh-llm'
-import type { JsonValue } from '@z/dsh-session'
-import { assertSubagentMaxDepth, settleRun } from '@z/dsh-subagent'
-import type { SubagentProvider, SubagentResult, SubagentRun } from '@z/dsh-subagent'
-import type { JobOutcome } from '@z/dsh-jobs'
-import type {} from '@z/dsh-system-prompt'
+import type { Context } from '@taskweaver/cordis'
+import z from '@taskweaver/schemastery'
+import { defineTool } from '@taskweaver/dsh-tools'
+import type { AgentOptions } from '@taskweaver/dsh-agent'
+import type { ContentBlock } from '@taskweaver/dsh-llm'
+import type { JsonValue } from '@taskweaver/dsh-session'
+import { assertSubagentMaxDepth, settleRun } from '@taskweaver/dsh-subagent'
+import type { SubagentProvider, SubagentResult, SubagentRun } from '@taskweaver/dsh-subagent'
+import type { JobOutcome } from '@taskweaver/dsh-jobs'
+import type {} from '@taskweaver/dsh-system-prompt'
 
 export const name = 'tool-subagent'
 export const inject = ['tools', 'subagents', 'systemPrompt']
@@ -408,7 +408,7 @@ export function apply(ctx: Context, config: Config): void {
           }
           const jobs = ctx.get('jobs')
           if (jobs === undefined) {
-            throw new Error('background jobs unavailable: load @z/dsh-jobs and @z/dsh-tool-jobs')
+            throw new Error('background jobs unavailable: load @taskweaver/dsh-jobs and @taskweaver/dsh-tool-jobs')
           }
           // One-shot background child: job preflight finishes before the
           // starter can spawn, and the task-owned signal covers startup.

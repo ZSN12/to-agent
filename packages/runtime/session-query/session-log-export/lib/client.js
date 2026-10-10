@@ -1,12 +1,12 @@
 window.__ModuleLoader__.load({
-	id: "@z/dsh-session-log-export",
+	id: "@taskweaver/dsh-session-log-export",
 	factory: (require) => {
 		var module = { exports: {} };
 		var exports = module.exports;
 		Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
-		let _z_dsh_client_runtime_client = require("@z/dsh-client-runtime/client");
+		let _z_dsh_client_runtime_client = require("@taskweaver/dsh-client-runtime/client");
 		let react_jsx_runtime = require("react/jsx-runtime");
-		let _z_dsh_client_ui_primitives = require("@z/dsh-client-ui-primitives");
+		let _z_dsh_client_ui_primitives = require("@taskweaver/dsh-client-ui-primitives");
 		//#region lib/types/client/controller.js
 		/** Browser download state shared by the Session Header button and `/export`. */
 		const INITIAL = { bySession: {} };
@@ -170,10 +170,10 @@ window.__ModuleLoader__.load({
 		//#endregion
 		//#region \0dsh-css:/Users/zsn/Documents/毕设/packages/runtime/session-query/session-log-export/src/client/HeaderAction.module.css.mjs
 		const css = ".i4etfW_sessionLogButton{border:1px solid var(--dsw-alias-border-l2);min-width:111px;height:32px;color:var(--dsw-alias-label-primary);font-family:var(--dsw-font-family);cursor:pointer;background:0 0;border-radius:18px;justify-content:center;align-items:center;gap:4px;padding:6px 12px;font-size:13px;font-weight:400;line-height:20px;display:inline-flex}.i4etfW_sessionLogButton:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover)}.i4etfW_sessionLogButton:disabled{color:var(--dsw-alias-label-dimmed);cursor:wait}.i4etfW_sessionLogButton span,.i4etfW_sessionLogButton svg{flex:none}.i4etfW_sessionLogButton span{white-space:nowrap}";
-		const tagId = "@z/dsh-session-log-export/HeaderAction.module.css";
+		const tagId = "@taskweaver/dsh-session-log-export/HeaderAction.module.css";
 		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId) + "]") === null) {
 			const tag = document.createElement("style");
-			tag.dataset.plugin = "@z/dsh-session-log-export";
+			tag.dataset.plugin = "@taskweaver/dsh-session-log-export";
 			tag.dataset.pluginCss = tagId;
 			tag.textContent = css;
 			document.head.appendChild(tag);

@@ -1,6 +1,6 @@
-"use strict";
 /**
  * Carrier-independent Typert Gateway request, service, and error contracts.
- * @module @z/dsh-api-gateway/types
+ * @module @taskweaver/dsh-api-gateway/types
  */
-Object.defineProperty(exports, "__esModule", { value: true });
+export {};
+//# sourceMappingURL=types.js.map

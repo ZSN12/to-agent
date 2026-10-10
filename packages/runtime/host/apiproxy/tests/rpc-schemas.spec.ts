@@ -15,9 +15,7 @@ import {
   sessionUpdateQueueRequestSchema, sessionUpdateQueueValueSchema,
 } from '../src/api/sessions.schema.ts'
 import {
-  hostCreateDirectoryRequestSchema, hostCreateDirectoryValueSchema,
   hostDescribeRequestSchema, hostDescribeValueSchema,
-  hostListDirectoryRequestSchema, hostListDirectoryValueSchema,
 } from '../src/api/host.schema.ts'
 import {
   workspaceArchiveSessionRequestSchema, workspaceArchiveSessionValueSchema,
@@ -263,6 +261,18 @@ describe('sessions domain schemas', () => {
     })
     expect(prompt.mode).toBe('queue')
     expect(prompt.clientTimeZone).toBe('Asia/Shanghai')
+    const outputSchema = {
+      type: 'object',
+      properties: { ok: { type: 'boolean' } },
+      required: ['ok'],
+      additionalProperties: false,
+    }
+    expect(sessionPromptRequestSchema.parse({
+      sessionId: 's1', mode: 'queue', content: [{ type: 'text', text: 'plan' }], outputSchema,
+    }).outputSchema).toEqual(outputSchema)
+    expect(() => sessionPromptRequestSchema.parse({
+      sessionId: 's1', mode: 'queue', content: [], outputSchema: { type: 'array' },
+    })).toThrow()
     expect(sessionPromptRequestSchema.parse({
       sessionId: 's1', mode: 'queue', content: [{ type: 'text', text: '/compact' }], commandOnly: true,
     }).commandOnly).toBe(true)
@@ -333,25 +343,6 @@ describe('host domain schemas', () => {
     })).toThrow()
   })
 
-  it('validates the browse listing/creation payloads', () => {
-    expect(hostListDirectoryRequestSchema.parse({})).toEqual({})
-    expect(hostListDirectoryRequestSchema.parse({ path: '/x' })).toEqual({ path: '/x' })
-    const listing = hostListDirectoryValueSchema.parse({
-      path: '/home/u/p',
-      home: '/home/u',
-      crumbs: [{ name: '/', path: '/', hidden: false }, { name: 'p', path: '/home/u/p', hidden: false }],
-      entries: [{ name: '.dot', path: '/home/u/p/.dot', hidden: true }],
-      truncated: false,
-    })
-    expect(listing.entries[0]?.hidden).toBe(true)
-    // The flag is part of the wire value, not an optional decoration.
-    expect(() => hostListDirectoryValueSchema.parse({ path: '/x', home: '/x', crumbs: [], entries: [] })).toThrow()
-    expect(hostCreateDirectoryRequestSchema.parse({ path: '/x', name: 'new' })).toEqual({ path: '/x', name: 'new' })
-    for (const name of ['', ' ', '.', '..', 'a/b', 'a\\b']) {
-      expect(() => hostCreateDirectoryRequestSchema.parse({ path: '/x', name })).toThrow()
-    }
-    expect(hostCreateDirectoryValueSchema.parse({ path: '/x/new' })).toEqual({ path: '/x/new' })
-  })
 })
 
 describe('workspace domain schemas', () => {

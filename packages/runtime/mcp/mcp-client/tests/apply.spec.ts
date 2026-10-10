@@ -3,10 +3,10 @@
  * Isolated file so vi.mock of the MCP SDK doesn't pollute other test suites.
  */
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { Context } from '@z/cordis'
-import SystemPrompt from '@z/dsh-system-prompt'
-import ToolRuntime from '@z/dsh-tools'
-import type { Config } from '@z/dsh-mcp-client'
+import { Context } from '@taskweaver/cordis'
+import SystemPrompt from '@taskweaver/dsh-system-prompt'
+import ToolRuntime from '@taskweaver/dsh-tools'
+import type { Config } from '@taskweaver/dsh-mcp-client'
 
 // ---- Mock MCP SDK ----
 
@@ -54,7 +54,7 @@ vi.mock('@modelcontextprotocol/sdk/client/streamableHttp.js', () => ({
 
 // vi.mock is hoisted above static imports, so the module under test sees the
 // mocked SDK even through a static import.
-import { apply, name, inject, Config as ConfigSchema } from '@z/dsh-mcp-client/src/index.ts'
+import { apply, name, inject, Config as ConfigSchema } from '@taskweaver/dsh-mcp-client/src/index.ts'
 
 // ---- Helpers ----
 
@@ -83,6 +83,7 @@ const stdioConfig: Config = {
   cwd: '',
   toolCallTimeoutMs: 60_000,
   failOnStartupError: false,
+  startupWaitMs: 500,
 }
 
 // ---- Tests ----
@@ -125,6 +126,27 @@ describe('mcp-client plugin module exports', () => {
     expect(resolved.serverName).toBe('github-prod_1')
   })
 
+  it('defaults connectTimeoutMs to 30 seconds and rejects values outside the timer range', () => {
+    const resolved = ConfigSchema({
+      transport: 'stdio',
+      serverName: 'timeout-default',
+      command: 'echo',
+    } as never)
+    expect(resolved.connectTimeoutMs).toBe(30_000)
+    expect(() => ConfigSchema({
+      transport: 'stdio',
+      serverName: 'timeout-zero',
+      command: 'echo',
+      connectTimeoutMs: 0,
+    } as never)).toThrow()
+    expect(() => ConfigSchema({
+      transport: 'streamable-http',
+      serverName: 'timeout-overflow',
+      url: 'http://127.0.0.1:1/mcp',
+      connectTimeoutMs: 2_147_483_648,
+    } as never)).toThrow()
+  })
+
   it('Config schema materializes reconnect defaults and merges partial overrides', () => {
     const omitted = ConfigSchema({
       transport: 'stdio',
@@ -140,6 +162,21 @@ describe('mcp-client plugin module exports', () => {
       reconnect: { initialDelayMs: 100 },
     } as never)
     expect(partial.reconnect).toEqual({ enabled: true, initialDelayMs: 100, maxDelayMs: 30_000, maxAttempts: 10 })
+  })
+
+  it('defaults startupWaitMs to zero and rejects values outside the timer range', () => {
+    const resolved = ConfigSchema({
+      transport: 'stdio',
+      serverName: 'srv',
+      command: 'echo',
+    } as never)
+    expect(resolved.startupWaitMs).toBe(0)
+    expect(() => ConfigSchema({
+      transport: 'stdio',
+      serverName: 'srv',
+      command: 'echo',
+      startupWaitMs: -1,
+    } as never)).toThrow()
   })
 
   it('Config schema rejects an invalid reconnect block', () => {
@@ -197,6 +234,45 @@ describe('apply (plugin lifecycle)', () => {
     connection.resolve()
     await activation
     expect(ctx.tools.get('mcp__srv__remote')).toBeDefined()
+    await fiber.dispose()
+  })
+
+  it('activates without waiting by default and publishes tools when the connection arrives', async () => {
+    const connection: PromiseWithResolvers<void> = Promise.withResolvers()
+    mockConnect.mockImplementation(async () => {
+      await connection.promise
+    })
+    const fiber = ctx.plugin({ name: 'mcp-client-nonblocking', inject, apply }, {
+      ...stdioConfig,
+      startupWaitMs: 0,
+    })
+    await fiber
+
+    expect(ctx.tools.get('mcp__srv__remote')).toBeUndefined()
+    connection.resolve()
+    await vi.waitFor(() => { expect(ctx.tools.get('mcp__srv__remote')).toBeDefined() })
+    await fiber.dispose()
+  })
+
+  it('limits startup waiting to startupWaitMs while the connection continues in the background', async () => {
+    const connection: PromiseWithResolvers<void> = Promise.withResolvers()
+    mockConnect.mockImplementation(async () => {
+      await connection.promise
+    })
+    const fiber = ctx.plugin({ name: 'mcp-client-bounded-wait', inject, apply }, {
+      ...stdioConfig,
+      startupWaitMs: 300,
+    })
+    let activated = false
+    const activation = Promise.resolve(fiber).then(() => { activated = true })
+    await vi.waitFor(() => { expect(mockConnect).toHaveBeenCalled() })
+    expect(activated).toBe(false)
+    await vi.waitFor(() => { expect(activated).toBe(true) })
+    await activation
+
+    expect(ctx.tools.get('mcp__srv__remote')).toBeUndefined()
+    connection.resolve()
+    await vi.waitFor(() => { expect(ctx.tools.get('mcp__srv__remote')).toBeDefined() })
     await fiber.dispose()
   })
 
@@ -262,6 +338,27 @@ describe('apply (plugin lifecycle)', () => {
     })).rejects.toMatchObject({
       message: 'mcp-client(srv): initial connection or tool synchronization failed',
       cause,
+    })
+
+    expect(mockListTools).not.toHaveBeenCalled()
+    expect(ctx.tools.get('mcp__srv__remote')).toBeUndefined()
+    await ctx.fiber.dispose()
+    expect(mockClose).toHaveBeenCalled()
+  })
+
+  it('treats a connection attempt that exceeds connectTimeoutMs as a failed attempt', async () => {
+    mockConnect.mockImplementation(() => new Promise<void>(() => {}))
+
+    await expect(apply(ctx, {
+      ...stdioConfig,
+      failOnStartupError: true,
+      connectTimeoutMs: 20,
+    })).rejects.toMatchObject({
+      message: 'mcp-client(srv): initial connection or tool synchronization failed',
+      cause: expect.objectContaining({
+        code: 'MCP_CONNECT_TIMEOUT',
+        message: 'mcp-client(srv): connection timed out after 20ms',
+      }),
     })
 
     expect(mockListTools).not.toHaveBeenCalled()
@@ -398,6 +495,7 @@ describe('apply (plugin lifecycle)', () => {
     await apply(ctx, httpConfig)
 
     expect(mockConnect).toHaveBeenCalled()
+    await vi.waitFor(() => { expect(ctx.tools.get('mcp__web__remote')).toBeDefined() })
     expect(ctx.tools.get('mcp__web__remote')).toBeDefined()
   })
 })

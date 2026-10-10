@@ -6,7 +6,7 @@ import { StringDecoder } from "node:string_decoder";
 * `method` are requests, `id` alone is a response, and `method` alone is a
 * notification. Malformed lines are ignored; handler failures become error frames.
 *
-* @module @z/dsh-sdk-protocol/transport
+* @module @taskweaver/dsh-sdk-protocol/transport
 */
 /** A JSON-RPC error response, preserving the wire `code` and optional `data`. */
 var JsonRpcResponseError = class extends Error {

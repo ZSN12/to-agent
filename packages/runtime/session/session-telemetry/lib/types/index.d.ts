@@ -11,10 +11,10 @@
  * design and its trade-offs are pinned in
  * .agents/notes/implemented/feature/2026-07-23-session-telemetry-otel-revival.md.
  *
- * @module @z/dsh-session-telemetry
+ * @module @taskweaver/dsh-session-telemetry
  */
-import { Context, Service } from '@z/cordis';
-declare module '@z/cordis' {
+import { Context, Service } from '@taskweaver/cordis';
+declare module '@taskweaver/cordis' {
     interface Context {
         sessionTelemetry: SessionTelemetryBackend;
     }

@@ -1,13 +1,9 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.SESSION_FORMAT_VERSION = void 0;
-exports.SessionId = SessionId;
 /**
  * Brand a string as a {@link SessionId}.
  * @param id - the raw session id string.
  * @returns the same string, branded (a compile-time cast — no runtime cost).
  */
-function SessionId(id) {
+export function SessionId(id) {
     return id;
 }
 /**
@@ -33,4 +29,5 @@ function SessionId(id) {
  * recorded in the session-log-version-mechanism Agent Note
  * (`.agents/notes/implemented/architecture/2026-08-10-session-log-version-mechanism.md`).
  */
-exports.SESSION_FORMAT_VERSION = 0;
+export const SESSION_FORMAT_VERSION = 0;
+//# sourceMappingURL=types.js.map

@@ -1,37 +1,34 @@
-"use strict";
 /**
- * Package-owned invariant companion for `@z/dsh-settings`.
- * @module @z/dsh-settings/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-settings`.
+ * @module @taskweaver/dsh-settings/invariant
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.apply = exports.inject = exports.name = void 0;
-var index_ts_1 = require("./index.ts");
-var PACKAGE_NAME = '@z/dsh-settings';
+import { deepEqualJson } from "./index.js";
+const PACKAGE_NAME = '@taskweaver/dsh-settings';
 /** Cordis companion plugin name. */
-exports.name = 'settings-invariant';
+export const name = 'settings-invariant';
 /** Service required before the companion can reserve package ownership. */
-exports.inject = ['invariants'];
+export const inject = ['invariants'];
 /**
  * Install the commit-event contract: `settings/updated` fires only for a
  * currently registered namespace, only when the resolved value changed, and
  * only with the service's authoritative resolved value — all judged with the
  * seam's own equality predicate.
  */
-var install = function (ctx, fail) {
-    ctx.on('settings/updated', function (ns, next, prev) {
-        var settings = ctx.get('settings');
+const install = (ctx, fail) => {
+    ctx.on('settings/updated', (ns, next, prev) => {
+        const settings = ctx.get('settings');
         if (settings === undefined) {
-            fail("settings/updated for \"".concat(ns, "\" emitted without a live settings service"));
+            fail(`settings/updated for "${ns}" emitted without a live settings service`);
         }
-        var current = settings.get(ns);
+        const current = settings.get(ns);
         if (current === undefined) {
-            fail("settings/updated for \"".concat(ns, "\" emitted while the namespace is unregistered"));
+            fail(`settings/updated for "${ns}" emitted while the namespace is unregistered`);
         }
-        if (!(0, index_ts_1.deepEqualJson)(current, next)) {
-            fail("settings/updated for \"".concat(ns, "\" does not match the authoritative resolved value"));
+        if (!deepEqualJson(current, next)) {
+            fail(`settings/updated for "${ns}" does not match the authoritative resolved value`);
         }
-        if ((0, index_ts_1.deepEqualJson)(next, prev)) {
-            fail("settings/updated for \"".concat(ns, "\" emitted without a resolved-value change"));
+        if (deepEqualJson(next, prev)) {
+            fail(`settings/updated for "${ns}" emitted without a resolved-value change`);
         }
     });
 };
@@ -40,7 +37,5 @@ var install = function (ctx, fail) {
  * @param ctx - Cordis context carrying the invariant service.
  * @returns the installed registration's disposer after setup succeeds.
  */
-var apply = function (ctx) {
-    return Promise.resolve(ctx.invariants.register(PACKAGE_NAME, install));
-};
-exports.apply = apply;
+export const apply = (ctx) => Promise.resolve(ctx.invariants.register(PACKAGE_NAME, install));
+//# sourceMappingURL=invariant.js.map

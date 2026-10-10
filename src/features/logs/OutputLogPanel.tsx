@@ -164,18 +164,16 @@ export function OutputLogPanel({
         </button>
       </div>
 
-      <div role="tablist" aria-label="日志类型" style={{ display: 'flex', gap: 6, padding: '8px 14px', borderBottom: '1px solid var(--border-color, #e5e7eb)' }}>
+      <div role="group" aria-label="日志类型" style={{ display: 'flex', gap: 6, padding: '8px 14px', borderBottom: '1px solid var(--border-color, #e5e7eb)' }}>
         <button
           type="button"
-          role="tab"
-          aria-selected={activeTab === 'tools'}
+          aria-pressed={activeTab === 'tools'}
           onClick={() => setActiveTab('tools')}
           style={{ padding: '5px 10px', borderRadius: 5, border: '1px solid var(--border-color, #e5e7eb)', background: activeTab === 'tools' ? 'var(--accent-primary, #3b82f6)' : 'var(--bg-secondary)', color: activeTab === 'tools' ? '#fff' : 'var(--text-secondary)' }}
         >工具轨迹</button>
         <button
           type="button"
-          role="tab"
-          aria-selected={activeTab === 'approvals'}
+          aria-pressed={activeTab === 'approvals'}
           disabled={!conversationId}
           onClick={() => setActiveTab('approvals')}
           style={{ padding: '5px 10px', borderRadius: 5, border: '1px solid var(--border-color, #e5e7eb)', background: activeTab === 'approvals' ? 'var(--accent-primary, #3b82f6)' : 'var(--bg-secondary)', color: activeTab === 'approvals' ? '#fff' : 'var(--text-secondary)', opacity: conversationId ? 1 : 0.55 }}
@@ -188,6 +186,7 @@ export function OutputLogPanel({
           <Search size={13} style={{ position: 'absolute', left: 8, top: 8, color: 'var(--text-tertiary)' }} />
           <input
             type="search"
+            aria-label={activeTab === 'tools' ? '搜索工具轨迹' : '搜索审批审计'}
             placeholder={activeTab === 'tools' ? '搜索工具名、命令或结果…' : '搜索审批类型、工具、理由或结果…'}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -217,11 +216,12 @@ export function OutputLogPanel({
           </select>
         )}
 
-        {activeTab === 'tools' && <div style={{ display: 'flex', gap: 6, fontSize: 11 }}>
+        {activeTab === 'tools' && <div role="group" aria-label="按执行状态筛选" style={{ display: 'flex', gap: 6, fontSize: 11 }}>
           {(['all', 'done', 'error', 'blocked', 'running', 'cancelled'] as const).map((s) => (
             <button
               key={s}
               type="button"
+              aria-pressed={filterStatus === s}
               onClick={() => setFilterStatus(s)}
               style={{
                 padding: '2px 8px',
@@ -306,6 +306,7 @@ export function OutputLogPanel({
                     <button
                       type="button"
                       onClick={() => copyLogText(log)}
+                      aria-label={isCopied ? '完整日志已复制' : `复制 ${log.toolName} 完整日志`}
                       title="复制完整日志"
                       style={{
                         background: 'transparent',
@@ -358,6 +359,7 @@ export function OutputLogPanel({
                   {log.resultSummary && log.resultSummary.length > 100 && (
                     <button
                       type="button"
+                      aria-expanded={isExpanded}
                       onClick={() => setExpandedId(isExpanded ? null : log.id)}
                       style={{
                         background: 'none',

@@ -2,12 +2,12 @@
  * The background-job Service Definition (`ctx.jobs`). It owns the contract for
  * job ids, session-scoped access, lifecycle state, completion listeners, and
  * owner cleanup while producers retain their execution resources. The
- * process-local registry lives in `@z/dsh-jobs-local`.
- * @module @z/dsh-jobs
+ * process-local registry lives in `@taskweaver/dsh-jobs-local`.
+ * @module @taskweaver/dsh-jobs
  */
 
-import { Context, Service } from '@z/cordis'
-import type { Agent } from '@z/dsh-agent'
+import { Context, Service } from '@taskweaver/cordis'
+import type { Agent } from '@taskweaver/dsh-agent'
 import type {
   JobDoneListener, JobId, JobRead, JobSnapshot, JobStart, JobsChangedListener,
 } from './types.ts'
@@ -26,7 +26,7 @@ export type {
   JobsChangedListener,
 } from './types.ts'
 
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
   interface Context {
     jobs: JobRegistry
   }
@@ -65,7 +65,7 @@ export abstract class JobRegistry extends Service {
     // would register a ctx.jobs with no method implementations and fail far
     // from the misconfiguration. Fail loud at load instead.
     if (new.target === JobRegistry) {
-      throw new Error('@z/dsh-jobs is the abstract job registry seam; load an implementation such as @z/dsh-jobs-local instead')
+      throw new Error('@taskweaver/dsh-jobs is the abstract job registry seam; load an implementation such as @taskweaver/dsh-jobs-local instead')
     }
     super(ctx, 'jobs')
   }

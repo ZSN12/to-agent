@@ -1,11 +1,11 @@
-import { chmodSync, copyFileSync, existsSync } from "node:fs";
-import { join } from "node:path";
 import * as z from "zod/v4";
 import { CODEX_ACCOUNT_NAMESPACE_COMBO_ALIAS_COLLISION_ERROR } from "../codex/account-namespace-match";
 import { redactSecretString } from "../lib/redact";
 import { hasWarnedConfigFallback, markWarnedConfigFallback } from "./warn-memo";
 import { configSchema } from "./schema/config-schema";
 import type { OcxConfig } from "../types";
+import { backupInvalidConfig } from "./file-security";
+export { backupInvalidConfig } from "./file-security";
 
 export function warnConfigRepaired(configPath: string, error: z.ZodError): void {
   if (hasWarnedConfigFallback(configPath)) return;
@@ -229,16 +229,4 @@ export function warnAndBackupInvalidConfig(configPath: string, error: unknown): 
     : error instanceof Error ? error.message : String(error);
   const backupNote = backupPath ? ` A backup was written to ${backupPath}.` : "";
   console.error(`Could not load opencodex config at ${configPath}: ${reason}. Using default config.${backupNote}`);
-}
-
-export function backupInvalidConfig(configPath: string): string | null {
-  if (!existsSync(configPath)) return null;
-  const backupPath = `${configPath}.invalid-${new Date().toISOString().replace(/[:.]/g, "-")}`;
-  try {
-    copyFileSync(configPath, backupPath);
-    try { chmodSync(backupPath, 0o600); } catch { /* best-effort */ }
-    return backupPath;
-  } catch {
-    return null;
-  }
 }

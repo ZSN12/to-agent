@@ -1,5 +1,5 @@
 /** Test-owned Remote face: `$on` subscriptions driven by the internal forwarded-event plumbing. */
-import type { Context } from '@z/cordis';
+import type { Context } from '@taskweaver/cordis';
 /**
  * Remote service test double for the forwarded-event path. Feature specs need
  * `ctx.remote.$on` to exist (their plugins inject `remote`) and need forwarded

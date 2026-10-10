@@ -1,4 +1,3 @@
-"use strict";
 /**
  * The session-log record of which preset a session actually runs.
  *
@@ -11,10 +10,9 @@
  * preset decides the tool schemas and prompt sections the model sees.
  *
  * Reconstruction reads {@link resolveSessionPreset}, never the header alone.
- * @module @z/dsh-agent-presets/session
+ * @module @taskweaver/dsh-agent-presets/session
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.resolveSessionPreset = resolveSessionPreset;
+import { canonicalAgentPresetId } from "./preset.js";
 /**
  * The preset a session actually runs, newest selection winning.
  *
@@ -25,11 +23,14 @@ exports.resolveSessionPreset = resolveSessionPreset;
  * @param session - the session's header and event log.
  * @returns the preset id, or `undefined` when the deployment composes none.
  */
-function resolveSessionPreset(session) {
-    for (var index = session.events.length - 1; index >= 0; index -= 1) {
-        var event_1 = session.events[index];
-        if ((event_1 === null || event_1 === void 0 ? void 0 : event_1.type) === 'agent-preset/selected')
-            return event_1.data.agentPreset;
+export function resolveSessionPreset(session) {
+    for (let index = session.events.length - 1; index >= 0; index -= 1) {
+        const event = session.events[index];
+        if (event?.type === 'agent-preset/selected')
+            return canonicalAgentPresetId(event.data.agentPreset);
     }
-    return session.header.agentPreset;
+    return session.header.agentPreset === undefined
+        ? undefined
+        : canonicalAgentPresetId(session.header.agentPreset);
 }
+//# sourceMappingURL=session.js.map

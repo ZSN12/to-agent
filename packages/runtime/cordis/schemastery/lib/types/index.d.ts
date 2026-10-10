@@ -1,4 +1,4 @@
-import { Binary, type Dict } from '@z/cosmokit';
+import { Binary, type Dict } from '@taskweaver/cosmokit';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 declare const kSchema: unique symbol;
 declare global {

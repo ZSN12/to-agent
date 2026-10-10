@@ -5,35 +5,35 @@
  * deployments still choose the LLM adapter, bash executor, and presentation.
  * The plugin intentionally exposes named exports only because Loader default
  * unwrapping would discard its `Config` schema (see docs/postmortem/0001).
- * @module @z/dsh-agent-spine-demo
+ * @module @taskweaver/dsh-agent-spine-demo
  */
-import Timer from '@z/cordis-plugin-timer';
-import z from '@z/schemastery';
-import LlmRuntime from '@z/dsh-llm';
-import SessionStore from '@z/dsh-session';
-import SessionTitleService from '@z/dsh-session-title';
-import SystemPrompt from '@z/dsh-system-prompt';
-import ToolRuntime from '@z/dsh-tools';
-import SkillRegistry from '@z/dsh-skill';
-import * as SkillFileSystem from '@z/dsh-skill-filesystem';
-import AgentRegistry from '@z/dsh-agent';
-import GoalService from '@z/dsh-goal';
-import * as goalSession from '@z/dsh-goal-round-driver';
-import * as toolGoal from '@z/dsh-tool-goal';
-import LocalJobRegistry from '@z/dsh-jobs-local';
-import InvariantRegistry from '@z/dsh-invariants';
-import * as sessionInvariant from '@z/dsh-session/invariant';
-import * as agentInvariant from '@z/dsh-agent/invariant';
-import * as scopeInvariant from '@z/dsh-scope/invariant';
-import * as agentLoopInvariant from '@z/dsh-agent-loop/invariant';
-import * as toolBash from '@z/dsh-tool-bash';
-import * as bashEnv from '@z/dsh-shell-env';
-import * as workspaceContext from '@z/dsh-agent-instructions';
-import * as toolSkill from '@z/dsh-tool-skill';
-import * as toolJobs from '@z/dsh-tool-jobs';
-import AgentLoop from '@z/dsh-agent-loop';
-import * as llmRetry from '@z/dsh-llm-retry';
-import { resolveDshHome } from '@z/dsh-home-paths';
+import Timer from '@taskweaver/cordis-plugin-timer';
+import z from '@taskweaver/schemastery';
+import LlmRuntime from '@taskweaver/dsh-llm';
+import SessionStore from '@taskweaver/dsh-session';
+import SessionTitleService from '@taskweaver/dsh-session-title';
+import SystemPrompt from '@taskweaver/dsh-system-prompt';
+import ToolRuntime from '@taskweaver/dsh-tools';
+import SkillRegistry from '@taskweaver/dsh-skill';
+import * as SkillFileSystem from '@taskweaver/dsh-skill-filesystem';
+import AgentRegistry from '@taskweaver/dsh-agent';
+import GoalService from '@taskweaver/dsh-goal';
+import * as goalSession from '@taskweaver/dsh-goal-round-driver';
+import * as toolGoal from '@taskweaver/dsh-tool-goal';
+import LocalJobRegistry from '@taskweaver/dsh-jobs-local';
+import InvariantRegistry from '@taskweaver/dsh-invariants';
+import * as sessionInvariant from '@taskweaver/dsh-session/invariant';
+import * as agentInvariant from '@taskweaver/dsh-agent/invariant';
+import * as scopeInvariant from '@taskweaver/dsh-scope/invariant';
+import * as agentLoopInvariant from '@taskweaver/dsh-agent-loop/invariant';
+import * as toolBash from '@taskweaver/dsh-tool-bash';
+import * as bashEnv from '@taskweaver/dsh-shell-env';
+import * as workspaceContext from '@taskweaver/dsh-agent-instructions';
+import * as toolSkill from '@taskweaver/dsh-tool-skill';
+import * as toolJobs from '@taskweaver/dsh-tool-jobs';
+import AgentLoop from '@taskweaver/dsh-agent-loop';
+import * as llmRetry from '@taskweaver/dsh-llm-retry';
+import { resolveDshHome } from '@taskweaver/dsh-home-paths';
 export const name = 'agent-spine-demo';
 /** Overridable example policy used when a bundle consumer omits `sessionTitle`. */
 const EXAMPLE_SESSION_TITLE_CONFIG = {

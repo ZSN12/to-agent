@@ -1,8 +1,8 @@
 /**
- * Package-owned invariant companion for `@z/dsh-session-persistence-sqlite`.
- * @module @z/dsh-session-persistence-sqlite/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-session-persistence-sqlite`.
+ * @module @taskweaver/dsh-session-persistence-sqlite/invariant
  */
-const PACKAGE_NAME = '@z/dsh-session-persistence-sqlite';
+const PACKAGE_NAME = '@taskweaver/dsh-session-persistence-sqlite';
 /** Cordis companion plugin name. */
 export const name = 'session-persistence-sqlite-invariant';
 /** Service required before the companion can reserve package ownership. */

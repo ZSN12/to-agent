@@ -2,19 +2,19 @@
  * Model-facing foreground Ralph loop over the workflow and subagent seams. A
  * fixed script starts one fresh structured-output child per round, carrying
  * only the immutable objective and the previous bounded handoff between them.
- * @module @z/dsh-tool-ralph
+ * @module @taskweaver/dsh-tool-ralph
  */
 
-import type { Context } from '@z/cordis'
-import z from '@z/schemastery'
-import type { ContentBlock } from '@z/dsh-llm'
-import type { JsonValue } from '@z/dsh-session'
-import type { SubagentProvider } from '@z/dsh-subagent'
-import { defineTool } from '@z/dsh-tools'
-import type { ToolCallView, ToolResultView } from '@z/dsh-tools'
-import type { WorkflowResult, WorkflowRun } from '@z/dsh-workflow'
+import type { Context } from '@taskweaver/cordis'
+import z from '@taskweaver/schemastery'
+import type { ContentBlock } from '@taskweaver/dsh-llm'
+import type { JsonValue } from '@taskweaver/dsh-session'
+import type { SubagentProvider } from '@taskweaver/dsh-subagent'
+import { defineTool } from '@taskweaver/dsh-tools'
+import type { ToolCallView, ToolResultView } from '@taskweaver/dsh-tools'
+import type { WorkflowResult, WorkflowRun } from '@taskweaver/dsh-workflow'
 // Declaration merge only: makes ctx.systemPrompt visible for section registration.
-import type {} from '@z/dsh-system-prompt'
+import type {} from '@taskweaver/dsh-system-prompt'
 
 export const name = 'tool-ralph'
 export const inject = ['tools', 'workflowEngine', 'subagents', 'systemPrompt']

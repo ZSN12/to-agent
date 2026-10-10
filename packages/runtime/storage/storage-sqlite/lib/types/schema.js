@@ -3,12 +3,12 @@
  * layout version, the database open/configure sequence (permissions, pragmas,
  * version stamp/reject), and the unit metadata tables. Unit record tables are
  * created per descriptor in `unit.ts`.
- * @module @z/dsh-storage-sqlite/schema
+ * @module @taskweaver/dsh-storage-sqlite/schema
  */
 import { DatabaseSync } from 'node:sqlite';
 import { mkdir, open } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
-import { StorageError } from '@z/dsh-storage';
+import { StorageError } from '@taskweaver/dsh-storage';
 /**
  * The on-disk physical layout version, stored in `PRAGMA user_version`.
  * Orthogonal to each unit's own `version` (stamped per unit in the `units`

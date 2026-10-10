@@ -1,4 +1,3 @@
-"use strict";
 /**
  * On-disk format helpers for the JSONL session-persistence backend: path
  * sanitization (a {@link SessionId} is an unvalidated branded string, so it
@@ -8,39 +7,15 @@
  *
  * @module dsh-session-persistence-jsonl/format
  */
-var __assign = (this && this.__assign) || function () {
-    __assign = Object.assign || function(t) {
-        for (var s, i = 1, n = arguments.length; i < n; i++) {
-            s = arguments[i];
-            for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p))
-                t[p] = s[p];
-        }
-        return t;
-    };
-    return __assign.apply(this, arguments);
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.SessionLogScanner = void 0;
-exports.logSuffix = logSuffix;
-exports.toHeaderLine = toHeaderLine;
-exports.fromHeaderLine = fromHeaderLine;
-exports.encodeSegment = encodeSegment;
-exports.projectKey = projectKey;
-exports.projectDir = projectDir;
-exports.sessionDir = sessionDir;
-exports.logPath = logPath;
-exports.eventLines = eventLines;
-exports.scanLog = scanLog;
-exports.parseHeaderMeta = parseHeaderMeta;
-var node_path_1 = require("node:path");
-var dsh_session_1 = require("@z/dsh-session");
-var dsh_session_persistence_1 = require("@z/dsh-session-persistence");
+import { join } from 'node:path';
+import { decodeSeqRanges, decodeStorageRecord, encodeSeqRanges, packChunkRuns, SESSION_FORMAT_VERSION, } from '@taskweaver/dsh-session';
+import { SessionFormatUnsupportedError, sessionFormatVersionRefusal } from '@taskweaver/dsh-session-persistence';
 /**
  * Return the artifact suffix for one physical encoding.
  * @param compression - configured JSONL artifact encoding.
  * @returns `.jsonl.zstd` for Zstandard or `.jsonl` for plaintext.
  */
-function logSuffix(compression) {
+export function logSuffix(compression) {
     return compression === 'zstd' ? '.jsonl.zstd' : '.jsonl';
 }
 /**
@@ -48,20 +23,40 @@ function logSuffix(compression) {
  * @param header - the immutable session metadata to serialize.
  * @returns the `type: 'session'`-tagged line object, absent optional fields omitted (never null).
  */
-function toHeaderLine(header) {
-    var _a;
-    return __assign(__assign(__assign(__assign(__assign(__assign({ type: 'session', version: header.version, id: header.id, createdAt: header.createdAt }, header.cwd !== undefined ? { cwd: header.cwd } : {}), header.parentSession !== undefined ? { parentSession: header.parentSession } : {}), header.seedLength !== undefined ? { seedLength: header.seedLength } : {}), header.origin !== undefined ? { origin: header.origin } : {}), { delegationDepth: (_a = header.delegationDepth) !== null && _a !== void 0 ? _a : 0 }), header.agentPreset !== undefined ? { agentPreset: header.agentPreset } : {});
+export function toHeaderLine(header) {
+    return {
+        type: 'session',
+        version: header.version,
+        id: header.id,
+        createdAt: header.createdAt,
+        ...header.cwd !== undefined ? { cwd: header.cwd } : {},
+        ...header.parentSession !== undefined ? { parentSession: header.parentSession } : {},
+        ...header.seedLength !== undefined ? { seedLength: header.seedLength } : {},
+        ...header.origin !== undefined ? { origin: header.origin } : {},
+        delegationDepth: header.delegationDepth ?? 0,
+        ...header.agentPreset !== undefined ? { agentPreset: header.agentPreset } : {},
+    };
 }
 /**
  * Parse a header line back into a {@link SessionHeader}.
  * @param line - the shape-checked first line of a log (see the `isHeaderLine` guard).
  * @returns the header, absent optional fields omitted.
  */
-function fromHeaderLine(line) {
+export function fromHeaderLine(line) {
     if (Object.hasOwn(line, 'sandboxMode') || Object.hasOwn(line, 'approvalPolicy')) {
         throw new Error('session header uses retired policy baseline fields');
     }
-    return __assign(__assign(__assign(__assign(__assign(__assign({ version: line.version, id: line.id, createdAt: line.createdAt }, line.cwd !== undefined ? { cwd: line.cwd } : {}), line.parentSession !== undefined ? { parentSession: line.parentSession } : {}), line.seedLength !== undefined ? { seedLength: line.seedLength } : {}), line.origin !== undefined ? { origin: line.origin } : {}), { delegationDepth: line.delegationDepth }), line.agentPreset !== undefined ? { agentPreset: line.agentPreset } : {});
+    return {
+        version: line.version,
+        id: line.id,
+        createdAt: line.createdAt,
+        ...line.cwd !== undefined ? { cwd: line.cwd } : {},
+        ...line.parentSession !== undefined ? { parentSession: line.parentSession } : {},
+        ...line.seedLength !== undefined ? { seedLength: line.seedLength } : {},
+        ...line.origin !== undefined ? { origin: line.origin } : {},
+        delegationDepth: line.delegationDepth,
+        ...line.agentPreset !== undefined ? { agentPreset: line.agentPreset } : {},
+    };
 }
 /** Type guard: a parsed first line is a well-formed session header. */
 function isHeaderLine(value) {
@@ -93,17 +88,17 @@ function isHeaderLine(value) {
  * @param raw - the string to encode; must be non-empty (throws on `''`).
  * @returns the escaped single path segment, decodable back to `raw`.
  */
-function encodeSegment(raw) {
+export function encodeSegment(raw) {
     if (raw.length === 0)
         throw new Error('cannot encode an empty path segment');
     if (raw === '.')
         return '~002E';
     if (raw === '..')
         return '~002E~002E';
-    var out = '';
-    for (var i = 0; i < raw.length; i++) {
-        var code = raw.charCodeAt(i);
-        var ch = String.fromCharCode(code);
+    let out = '';
+    for (let i = 0; i < raw.length; i++) {
+        const code = raw.charCodeAt(i);
+        const ch = String.fromCharCode(code);
         if (ch !== '~' && /^[A-Za-z0-9._-]$/.test(ch)) {
             out += ch;
         }
@@ -122,14 +117,14 @@ function encodeSegment(raw) {
  * @param cwd - the session's project directory.
  * @returns a single filesystem-safe project directory name.
  */
-function projectKey(cwd) {
+export function projectKey(cwd) {
     if (cwd.length === 0)
         throw new Error('cannot encode an empty project path');
-    var readable = '';
-    var separatorRun = false;
-    for (var i = 0; i < cwd.length; i++) {
-        var code = cwd.charCodeAt(i);
-        var ch = String.fromCharCode(code);
+    let readable = '';
+    let separatorRun = false;
+    for (let i = 0; i < cwd.length; i++) {
+        const code = cwd.charCodeAt(i);
+        const ch = String.fromCharCode(code);
         if (ch === '/' || ch === '\\' || ch === ':') {
             if (!separatorRun)
                 readable += '-';
@@ -144,8 +139,8 @@ function projectKey(cwd) {
             separatorRun = false;
         }
     }
-    var slug = readable.replace(/^-+/, '') || 'root';
-    return "--".concat(slug.slice(0, 251), "--");
+    const slug = readable.replace(/^-+/, '') || 'root';
+    return `--${slug.slice(0, 251)}--`;
 }
 /**
  * The configured root's human-navigable project directory. A configured root
@@ -154,10 +149,10 @@ function projectKey(cwd) {
  * @param cwd - the session's project directory; `undefined` selects `_no-cwd`.
  * @returns the project directory path under `root`.
  */
-function projectDir(root, cwd) {
+export function projectDir(root, cwd) {
     if (cwd === undefined)
-        return (0, node_path_1.join)(root, '_no-cwd');
-    return (0, node_path_1.join)(root, projectKey(cwd));
+        return join(root, '_no-cwd');
+    return join(root, projectKey(cwd));
 }
 /**
  * The directory owned by one session and available for future session-local
@@ -167,8 +162,8 @@ function projectDir(root, cwd) {
  * @param id - the session id, encoded to one safe path segment.
  * @returns the session directory beneath its project directory.
  */
-function sessionDir(root, cwd, id) {
-    return (0, node_path_1.join)(projectDir(root, cwd), encodeSegment(id));
+export function sessionDir(root, cwd, id) {
+    return join(projectDir(root, cwd), encodeSegment(id));
 }
 /**
  * The append-only event-log file path for a session.
@@ -178,8 +173,8 @@ function sessionDir(root, cwd, id) {
  * @param compression - physical artifact encoding and filename suffix.
  * @returns the session's configured JSONL artifact path.
  */
-function logPath(root, cwd, id, compression) {
-    return (0, node_path_1.join)(sessionDir(root, cwd, id), "session".concat(logSuffix(compression)));
+export function logPath(root, cwd, id, compression) {
+    return join(sessionDir(root, cwd, id), `session${logSuffix(compression)}`);
 }
 /**
  * Serialize an event batch as JSONL lines (no trailing newline). With
@@ -192,9 +187,9 @@ function logPath(root, cwd, id, compression) {
  * @param packChunks - whether to pack delta runs into storage rows.
  * @returns the batch's JSONL text; the writer adds the final newline.
  */
-function eventLines(events, packChunks) {
-    var records = packChunks ? (0, dsh_session_1.packChunkRuns)(events) : events;
-    return records.map(function (record) { return JSON.stringify(encodeProvenanceForStorage(record)); }).join('\n');
+export function eventLines(events, packChunks) {
+    const records = packChunks ? packChunkRuns(events) : events;
+    return records.map(record => JSON.stringify(encodeProvenanceForStorage(record))).join('\n');
 }
 /**
  * Losslessly shrink a record's `sourceEventSeqs` for the log: consecutive
@@ -207,7 +202,7 @@ function eventLines(events, packChunks) {
 function encodeProvenanceForStorage(record) {
     if (!('sourceEventSeqs' in record))
         return record;
-    return __assign(__assign({}, record), { sourceEventSeqs: (0, dsh_session_1.encodeSeqRanges)(record.sourceEventSeqs) });
+    return { ...record, sourceEventSeqs: encodeSeqRanges(record.sourceEventSeqs) };
 }
 /**
  * Expand a parsed line's storage-form provenance back to `number[]`.
@@ -219,13 +214,13 @@ function expandProvenanceFromStorage(parsed) {
     if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
         throw new TypeError('stored session records must be objects');
     }
-    var record = parsed;
+    const record = parsed;
     if (record.sourceEventSeqs === undefined)
         return parsed;
     if (!Number.isSafeInteger(record.seq) || record.seq < 0) {
         throw new TypeError('stored session event seq must be a non-negative safe integer');
     }
-    return __assign(__assign({}, record), { sourceEventSeqs: (0, dsh_session_1.decodeSeqRanges)(record.sourceEventSeqs, record.seq) });
+    return { ...record, sourceEventSeqs: decodeSeqRanges(record.sourceEventSeqs, record.seq) };
 }
 /** Parse one complete header record supplied independently from event rows. */
 /**
@@ -238,20 +233,20 @@ function expandProvenanceFromStorage(parsed) {
 function refuseForeignFormatVersion(parsed) {
     if (typeof parsed !== 'object' || parsed === null)
         return;
-    var _a = parsed, version = _a.version, id = _a.id;
-    if (typeof version !== 'number' || version === dsh_session_1.SESSION_FORMAT_VERSION)
+    const { version, id } = parsed;
+    if (typeof version !== 'number' || version === SESSION_FORMAT_VERSION)
         return;
-    throw new dsh_session_persistence_1.SessionFormatUnsupportedError((0, dsh_session_persistence_1.sessionFormatVersionRefusal)(typeof id === 'string' ? id : String(id), version));
+    throw new SessionFormatUnsupportedError(sessionFormatVersionRefusal(typeof id === 'string' ? id : String(id), version));
 }
 function parseHeaderRecord(record) {
     if (record.length === 0 || record.at(-1) !== 0x0A || record.indexOf(0x0A) !== record.length - 1) {
         throw new Error('empty or header-less session log');
     }
-    var parsed;
+    let parsed;
     try {
         parsed = JSON.parse(record.subarray(0, -1).toString('utf8'));
     }
-    catch (_a) {
+    catch {
         throw new Error('corrupt session log: header line is not valid JSON');
     }
     refuseForeignFormatVersion(parsed);
@@ -266,17 +261,21 @@ function parseHeaderRecord(record) {
  * only complete records are decoded to UTF-8. A fragment crossing writes is
  * copied because a decoder may reuse its output buffer after `write()` returns.
  */
-var SessionLogScanner = /** @class */ (function () {
+export class SessionLogScanner {
+    meta;
+    events = [];
+    fragments = [];
+    fragmentBytes = 0;
+    inputBytes;
+    committedBytes;
+    eventLine = 0;
+    issue;
+    finished = false;
     /**
      * Create an event scanner from exactly one newline-terminated header record.
      * @param headerRecord - the complete first JSONL record, including its newline.
      */
-    function SessionLogScanner(headerRecord) {
-        this.events = [];
-        this.fragments = [];
-        this.fragmentBytes = 0;
-        this.eventLine = 0;
-        this.finished = false;
+    constructor(headerRecord) {
         this.meta = parseHeaderRecord(headerRecord);
         this.inputBytes = headerRecord.length;
         this.committedBytes = headerRecord.length;
@@ -285,15 +284,15 @@ var SessionLogScanner = /** @class */ (function () {
      * Consume the next raw plaintext chunk, retaining only an incomplete final record.
      * @param chunk - bytes immediately following all previously supplied bytes.
      */
-    SessionLogScanner.prototype.write = function (chunk) {
+    write(chunk) {
         if (this.finished)
             throw new Error('cannot write to a finished session log scanner');
-        var chunkStart = this.inputBytes;
+        const chunkStart = this.inputBytes;
         this.inputBytes += chunk.length;
-        var lineStart = 0;
-        for (var newline = chunk.indexOf(0x0A); newline !== -1; newline = chunk.indexOf(0x0A, lineStart)) {
-            var fragment = chunk.subarray(lineStart, newline);
-            var line = fragment;
+        let lineStart = 0;
+        for (let newline = chunk.indexOf(0x0A); newline !== -1; newline = chunk.indexOf(0x0A, lineStart)) {
+            const fragment = chunk.subarray(lineStart, newline);
+            let line = fragment;
             if (this.fragments.length > 0) {
                 if (fragment.length > 0)
                     this.fragments.push(fragment);
@@ -305,66 +304,62 @@ var SessionLogScanner = /** @class */ (function () {
             lineStart = newline + 1;
         }
         if (lineStart < chunk.length) {
-            var fragment = Buffer.from(chunk.subarray(lineStart));
+            const fragment = Buffer.from(chunk.subarray(lineStart));
             this.fragments.push(fragment);
             this.fragmentBytes += fragment.length;
         }
-    };
+    }
     /**
      * Snapshot progress before appending a recoverable torn-frame prefix.
      * @returns byte, committed-prefix, and expanded-event cursors.
      */
-    SessionLogScanner.prototype.checkpoint = function () {
+    checkpoint() {
         return {
             inputBytes: this.inputBytes,
             committedBytes: this.committedBytes,
             eventCount: this.events.length,
         };
-    };
+    }
     /**
      * Finish scanning, ignoring a final record without a newline as a torn tail.
      * @returns the header, contiguous event prefix, and safe truncation offset.
      */
-    SessionLogScanner.prototype.finish = function () {
+    finish() {
         this.finished = true;
         return { meta: this.meta, events: this.events, committedBytes: this.committedBytes };
-    };
+    }
     /** Decode one complete event row and update the contiguous prefix. */
-    SessionLogScanner.prototype.consumeEventLine = function (line, endByte) {
-        var _a;
+    consumeEventLine(line, endByte) {
         this.eventLine += 1;
-        var decoded;
+        let decoded;
         try {
-            decoded = (0, dsh_session_1.decodeStorageRecord)(expandProvenanceFromStorage(JSON.parse(line.toString('utf8'))));
+            decoded = decodeStorageRecord(expandProvenanceFromStorage(JSON.parse(line.toString('utf8'))));
         }
-        catch (_b) {
-            (_a = this.issue) !== null && _a !== void 0 ? _a : (this.issue = new Error("corrupt session log: unparsable committed event at line ".concat(this.eventLine)));
+        catch {
+            this.issue ??= new Error(`corrupt session log: unparsable committed event at line ${this.eventLine}`);
             return;
         }
         if (this.issue !== undefined) {
-            if (decoded.some(function (event) { return event.type === 'turn/end'; }))
+            if (decoded.some(event => event.type === 'turn/end'))
                 throw this.issue;
             return;
         }
-        var rowStart = this.events.length;
-        for (var _i = 0, decoded_1 = decoded; _i < decoded_1.length; _i++) {
-            var event_1 = decoded_1[_i];
-            if (event_1.seq !== this.events.length) {
-                var expected = this.events.length;
+        const rowStart = this.events.length;
+        for (const event of decoded) {
+            if (event.seq !== this.events.length) {
+                const expected = this.events.length;
                 this.events.length = rowStart;
-                this.issue = new Error("corrupt session log: seq gap in committed region at line ".concat(this.eventLine, " ")
-                    + "(expected ".concat(expected, ", got ").concat(event_1.seq, ")"));
-                if (decoded.some(function (candidate) { return candidate.type === 'turn/end'; }))
+                this.issue = new Error(`corrupt session log: seq gap in committed region at line ${this.eventLine} `
+                    + `(expected ${expected}, got ${event.seq})`);
+                if (decoded.some(candidate => candidate.type === 'turn/end'))
                     throw this.issue;
                 return;
             }
-            this.events.push(event_1);
+            this.events.push(event);
         }
         this.committedBytes = endByte;
-    };
-    return SessionLogScanner;
-}());
-exports.SessionLogScanner = SessionLogScanner;
+    }
+}
 /**
  * Parse a complete or torn JSONL buffer into its preserved event prefix. This
  * compatibility wrapper supplies the first record separately, then delegates
@@ -373,11 +368,11 @@ exports.SessionLogScanner = SessionLogScanner;
  * @param buffer - the raw bytes of the log file (header line first).
  * @returns the header, preserved event prefix, and byte offset safe to append at.
  */
-function scanLog(buffer) {
-    var headerEnd = buffer.indexOf(0x0A);
+export function scanLog(buffer) {
+    const headerEnd = buffer.indexOf(0x0A);
     if (headerEnd === -1)
         throw new Error('empty or header-less session log');
-    var scanner = new SessionLogScanner(buffer.subarray(0, headerEnd + 1));
+    const scanner = new SessionLogScanner(buffer.subarray(0, headerEnd + 1));
     scanner.write(buffer.subarray(headerEnd + 1));
     return scanner.finish();
 }
@@ -389,15 +384,16 @@ function scanLog(buffer) {
  * @param firstLine - the first line of a log file (without its trailing newline).
  * @returns the parsed header, or `undefined` when the line is not a well-formed session header.
  */
-function parseHeaderMeta(firstLine) {
-    var parsed;
+export function parseHeaderMeta(firstLine) {
+    let parsed;
     try {
         parsed = JSON.parse(firstLine);
     }
-    catch (_a) {
+    catch {
         return undefined;
     }
     if (!isHeaderLine(parsed))
         return undefined;
     return fromHeaderLine(parsed);
 }
+//# sourceMappingURL=format.js.map

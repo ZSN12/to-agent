@@ -4,9 +4,9 @@
  * {@link ApprovalOutcome}, failing closed. Enforcement stays with the approval
  * service — this listener only recommends, and only for requests it is
  * configured to judge.
- * @module @z/dsh-auto-review
+ * @module @taskweaver/dsh-auto-review
  */
-import type { ApprovalOutcome, ApprovalRequest } from '@z/dsh-user-approval';
+import type { ApprovalOutcome, ApprovalRequest } from '@taskweaver/dsh-user-approval';
 import './session-events.ts';
 import type { ReviewPolicy, Reviewer } from './types.ts';
 /**

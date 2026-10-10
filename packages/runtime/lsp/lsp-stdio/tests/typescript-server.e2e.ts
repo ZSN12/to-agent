@@ -9,11 +9,11 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { mkdtemp, mkdir, rm, writeFile, realpath } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { Context } from '@z/cordis'
-import LocalSubprocessRuntime from '@z/dsh-subprocess-local'
-import LocalFileSystem from '@z/dsh-fs-local'
-import Lsp, { type LspQueryRequest, type LspQueryResult } from '@z/dsh-lsp'
-import * as LspLocal from '@z/dsh-lsp-stdio'
+import { Context } from '@taskweaver/cordis'
+import LocalSubprocessRuntime from '@taskweaver/dsh-subprocess-local'
+import LocalFileSystem from '@taskweaver/dsh-fs-local'
+import Lsp, { type LspQueryRequest, type LspQueryResult } from '@taskweaver/dsh-lsp'
+import * as LspLocal from '@taskweaver/dsh-lsp-stdio'
 
 // The server binary is a dev dependency of this package; resolve its pnpm-hoisted .bin path.
 const serverBin = join(

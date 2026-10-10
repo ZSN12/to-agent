@@ -3,16 +3,16 @@
  * an escapable vm context on a fresh worker and bridges `agent()` calls to host
  * subagents. The thread prevents synchronous script work from blocking the host
  * and permits forced termination, but it is containment rather than a security boundary.
- * @module @z/dsh-workflow-worker-thread
+ * @module @taskweaver/dsh-workflow-worker-thread
  */
 
 import { randomUUID } from 'node:crypto'
 import { availableParallelism } from 'node:os'
 import * as vm from 'node:vm'
-import type { Context } from '@z/cordis'
-import z from '@z/schemastery'
-import WorkflowEngine, { WorkflowError, WorkflowRunId } from '@z/dsh-workflow'
-import type { WorkflowRun, WorkflowRunInfo, WorkflowStartRequest } from '@z/dsh-workflow'
+import type { Context } from '@taskweaver/cordis'
+import z from '@taskweaver/schemastery'
+import WorkflowEngine, { WorkflowError, WorkflowRunId } from '@taskweaver/dsh-workflow'
+import type { WorkflowRun, WorkflowRunInfo, WorkflowStartRequest } from '@taskweaver/dsh-workflow'
 import { WorkerRun } from './host.ts'
 import { validateMeta } from './meta.ts'
 import type { WorkerInit, WorkerLimits } from './types.ts'

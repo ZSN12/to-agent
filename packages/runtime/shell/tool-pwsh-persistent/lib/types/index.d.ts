@@ -1,9 +1,9 @@
 /**
  * Model-facing persistent `pwsh` tool over the owner-scoped PTY seam.
- * @module @z/dsh-tool-pwsh-persistent
+ * @module @taskweaver/dsh-tool-pwsh-persistent
  */
-import type { Context } from '@z/cordis';
-import z from '@z/schemastery';
+import type { Context } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
 export declare const name = "tool-pwsh-persistent";
 export declare const inject: string[];
 /** Configuration for the persistent pwsh tool. */

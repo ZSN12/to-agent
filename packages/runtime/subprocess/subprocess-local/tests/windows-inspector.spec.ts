@@ -4,13 +4,13 @@ import {
   isInvalidHandle,
   windowsProcessTree,
   WindowsProcessInspector,
-} from '@z/dsh-subprocess-local/src/windows-inspector.ts'
+} from '@taskweaver/dsh-subprocess-local/src/windows-inspector.ts'
 import type {
   NativePtr,
   ProcessEntry,
   WindowsProcessInspectorInternals,
   WindowsProcessState,
-} from '@z/dsh-subprocess-local/src/windows-inspector.ts'
+} from '@taskweaver/dsh-subprocess-local/src/windows-inspector.ts'
 
 function fakeInternals() {
   const entries: ProcessEntry[] = []

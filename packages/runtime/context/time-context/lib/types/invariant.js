@@ -1,7 +1,7 @@
-/** Package-owned durable clock-context invariants. @module @z/dsh-time-context/invariant */
+/** Package-owned durable clock-context invariants. @module @taskweaver/dsh-time-context/invariant */
 import { deriveBrowserTimeZoneContext, renderBrowserTimeZoneContext, } from "./request-zone.js";
 import { createTimestampFormatter, formatTimestamp } from "./timestamp.js";
-const PACKAGE_NAME = '@z/dsh-time-context';
+const PACKAGE_NAME = '@taskweaver/dsh-time-context';
 const SOURCE_NAME = 'time-context';
 const READING = new RegExp('^Time sampled while preparing turn (\\d+), step (\\d+): '
     + '(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:Z|[+-]\\d{2}:\\d{2})\\[[^\\]]+\\])\\n'

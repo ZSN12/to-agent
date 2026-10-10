@@ -1,8 +1,8 @@
 /**
- * Package-owned invariant companion for `@z/dsh-tool-bash-persistent`.
- * @module @z/dsh-tool-bash-persistent/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-tool-bash-persistent`.
+ * @module @taskweaver/dsh-tool-bash-persistent/invariant
  */
-import type { Context } from '@z/cordis';
+import type { Context } from '@taskweaver/cordis';
 /** Cordis companion plugin name. */
 export declare const name = "tool-bash-persistent-invariant";
 /** Service required before the companion can reserve package ownership. */

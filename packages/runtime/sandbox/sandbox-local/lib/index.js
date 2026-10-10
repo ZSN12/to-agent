@@ -3,16 +3,16 @@ import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { LAUNCHER_BIN, LAUNCHER_FAILURE_EXIT, grantArgs, launcherPath, probe } from "@z/node-addon-landlock-run";
-import z from "@z/schemastery";
-import { assertNever } from "@z/dsh-llm";
-import { SandboxProvider, SandboxUnavailableError, writableRoots } from "@z/dsh-sandbox";
-import { AclWriteGrant, assertTempRootOutsideWorkspace, tempWriteSid, workspaceWriteSid } from "@z/dsh-sandbox-windows-acl";
+import { LAUNCHER_BIN, LAUNCHER_FAILURE_EXIT, grantArgs, launcherPath, probe } from "@taskweaver/node-addon-landlock-run";
+import z from "@taskweaver/schemastery";
+import { assertNever } from "@taskweaver/dsh-llm";
+import { SandboxProvider, SandboxUnavailableError, writableRoots } from "@taskweaver/dsh-sandbox";
+import { AclWriteGrant, assertTempRootOutsideWorkspace, tempWriteSid, workspaceWriteSid } from "@taskweaver/dsh-sandbox-windows-acl";
 //#region lib/types/profiles.js
 /**
 * Internal platform-profile builders for the local sandbox provider.
 *
-* @module @z/dsh-sandbox-local/profiles
+* @module @taskweaver/dsh-sandbox-local/profiles
 */
 /**
 * Build the bwrap profile arguments for one file-effect policy.
@@ -58,7 +58,7 @@ function sbplString(path) {
 * Build the sandbox-exec arguments and SBPL profile for one policy. The
 * writable roots come from the shared {@link writableRoots} helper (canonical,
 * deduplicated) so the Seatbelt grant and the in-process fs fence
-* (`@z/dsh-fs-sandbox`) can never drift apart.
+* (`@taskweaver/dsh-fs-sandbox`) can never drift apart.
 * @param policy - file-effect policy to express as an SBPL profile.
 * @returns sandbox-exec arguments before the trailing separator and command argv.
 */
@@ -94,7 +94,7 @@ function seatbeltProfileArgs(policy) {
 * stops managing DACLs itself. The rung reports partial enforcement because
 * WRITE_RESTRICTED must retain Everyone in its
 * restricting list and NTFS hard links alias one file object across paths.
-* @module @z/dsh-sandbox-local
+* @module @taskweaver/dsh-sandbox-local
 */
 /** Probe whether `bwrap` can create the profile; the provider caches the bounded result. */
 function defaultProbeBwrap(timeoutMs) {
@@ -524,9 +524,9 @@ var LocalSandboxProvider = class extends SandboxProvider {
 	windowsAclRunnerInvocation() {
 		const override = this.internals.windowsAclRunnerArgs;
 		if (override !== void 0) return override;
-		const builtEntry = this.internals.windowsAclRunnerEntry ?? fileURLToPath(import.meta.resolve("@z/dsh-sandbox-windows-acl/runner"));
+		const builtEntry = this.internals.windowsAclRunnerEntry ?? fileURLToPath(import.meta.resolve("@taskweaver/dsh-sandbox-windows-acl/runner"));
 		if (existsSync(builtEntry)) return [process.execPath, builtEntry];
-		const sourceEntry = fileURLToPath(import.meta.resolve("@z/dsh-sandbox-windows-acl/src/runner.ts"));
+		const sourceEntry = fileURLToPath(import.meta.resolve("@taskweaver/dsh-sandbox-windows-acl/src/runner.ts"));
 		return [
 			process.execPath,
 			"--import",

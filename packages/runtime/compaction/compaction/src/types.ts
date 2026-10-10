@@ -4,23 +4,32 @@
  * surface events; a separate replacement `user/message` carries the summary.
  * Backend packages own configuration and retention policy; see
  * `.agents/notes/implemented/feature/2026-06-18-compaction-capability-seam.md`.
- * @module @z/dsh-compaction/types
+ * @module @taskweaver/dsh-compaction/types
  */
 
-import type { ContentBlock, TokenUsage } from '@z/dsh-llm'
-import type { CommandId } from '@z/dsh-commands/brand'
+import type { ContentBlock, TokenUsage } from '@taskweaver/dsh-llm'
+import type { CommandId } from '@taskweaver/dsh-commands/brand'
 import type { CompactionId } from './brand.ts'
 
 export type { CompactionId }
 
-declare module '@z/dsh-session/types' {
+/** Durable trigger recorded for transcript classification. */
+export type CompactionRecordTrigger = 'pressure' | 'context-overflow' | 'manual'
+
+declare module '@taskweaver/dsh-session/types' {
   interface SessionEventMap {
     /**
      * Marks the start of a compaction — log-only, holds the lock until
      * `compaction/end`. A numbered owner is strictly enclosed by that open turn;
      * `null` identifies a standalone manual transaction between turns.
      */
-    'compaction/start': { compactionId: CompactionId; sourceCommandId?: CommandId; turn: number | null }
+    'compaction/start': {
+      compactionId: CompactionId
+      sourceCommandId?: CommandId
+      turn: number | null
+      /** Missing on older session records. */
+      trigger?: CompactionRecordTrigger
+    }
     /**
      * Completed summary, its inputs, and its model call facts — log-only, no surfaceOp.
      * The summary content is in `data.summary`; the actual surface replacement
@@ -33,6 +42,8 @@ declare module '@z/dsh-session/types' {
     'compaction/summary': {
       compactionId: CompactionId
       sourceCommandId?: CommandId
+      /** Missing on older session records. */
+      trigger?: CompactionRecordTrigger
       summary: ContentBlock[]
       shadowedRange: { start: number; end: number }
       shadowedSeqs: number[]
@@ -68,7 +79,14 @@ declare module '@z/dsh-session/types' {
      * Marks the end of a compaction — log-only, releases the lock. Its owner
      * matches `compaction/start`; `error` records an unsuccessful attempt.
      */
-    'compaction/end': { compactionId: CompactionId; sourceCommandId?: CommandId; turn: number | null; error?: string }
+    'compaction/end': {
+      compactionId: CompactionId
+      sourceCommandId?: CommandId
+      turn: number | null
+      /** Missing on older session records. */
+      trigger?: CompactionRecordTrigger
+      error?: string
+    }
     /**
      * Shadow price of one model-free prune replacement — log-only, no
      * surfaceOp. The shared shadow-price protocol: a surface `replace` event
@@ -95,6 +113,7 @@ export interface CompactionResult {
   compactionId: CompactionId
   /** Human command that initiated this compaction, when it was manual. */
   sourceCommandId?: CommandId
+  trigger?: CompactionRecordTrigger
   /** The seq of the appended `compaction/start` event. */
   startSeq: number
   /** The seq of the appended `compaction/summary` event. */

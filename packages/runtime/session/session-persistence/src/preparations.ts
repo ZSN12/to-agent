@@ -1,9 +1,9 @@
 /**
  * Bounded sharing and exclusive reservation of unpublished Sessions.
- * @module @z/dsh-session-persistence/preparations
+ * @module @taskweaver/dsh-session-persistence/preparations
  */
 
-import type { Session, SessionId } from '@z/dsh-session'
+import type { Session, SessionId } from '@taskweaver/dsh-session'
 
 interface PreparedSource {
   readonly session: Session

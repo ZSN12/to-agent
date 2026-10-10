@@ -4,16 +4,16 @@
  * `ctx.subagents.interrupt()`. They perform no lifecycle routing of their own —
  * residency, cold resume, and interrupt authorization belong to the subagent
  * service — and they live apart from the provider-bound
- * `@z/dsh-tool-subagent` instances so multiple delegation tools share
+ * `@taskweaver/dsh-tool-subagent` instances so multiple delegation tools share
  * one control API.
- * @module @z/dsh-tool-subagent-control
+ * @module @taskweaver/dsh-tool-subagent-control
  */
 
-import type { Context } from '@z/cordis'
-import { defineTool } from '@z/dsh-tools'
-import type { ContentBlock } from '@z/dsh-llm'
-import { SessionId } from '@z/dsh-session'
-import type {} from '@z/dsh-subagent'
+import type { Context } from '@taskweaver/cordis'
+import { defineTool } from '@taskweaver/dsh-tools'
+import type { ContentBlock } from '@taskweaver/dsh-llm'
+import { SessionId } from '@taskweaver/dsh-session'
+import type {} from '@taskweaver/dsh-subagent'
 
 export const name = 'tool-subagent-control'
 export const inject = ['tools', 'subagents']

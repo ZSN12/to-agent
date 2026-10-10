@@ -1,17 +1,17 @@
 /**
  * Model-facing `get_goal`, `create_goal`, and `update_goal` tools over the
  * persisted same-session goal domain.
- * @module @z/dsh-tool-goal
+ * @module @taskweaver/dsh-tool-goal
  */
 
-import type { Context } from '@z/cordis'
-import z from '@z/schemastery'
-import { GoalId } from '@z/dsh-goal'
-import type { GoalRef, GoalView } from '@z/dsh-goal'
-import { boundContextSummary, createUserMessage, HarnessError } from '@z/dsh-llm'
-import { defineTool } from '@z/dsh-tools'
-import type { GenericCallView } from '@z/dsh-tools'
-import type {} from '@z/dsh-system-prompt'
+import type { Context } from '@taskweaver/cordis'
+import z from '@taskweaver/schemastery'
+import { GoalId } from '@taskweaver/dsh-goal'
+import type { GoalRef, GoalView } from '@taskweaver/dsh-goal'
+import { boundContextSummary, createUserMessage, HarnessError } from '@taskweaver/dsh-llm'
+import { defineTool } from '@taskweaver/dsh-tools'
+import type { GenericCallView } from '@taskweaver/dsh-tools'
+import type {} from '@taskweaver/dsh-system-prompt'
 import {
   completionAuthority,
   goalToolExecution,

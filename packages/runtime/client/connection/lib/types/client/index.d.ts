@@ -3,7 +3,7 @@
  * the shared API client, and lets the runtime object layer start the stream
  * controller with its sinks.
  */
-import type { Context } from '@z/cordis';
+import type { Context } from '@taskweaver/cordis';
 import type { HostDescription, IApiClient } from './api.ts';
 import { type ConnectionConfig, type ConnectionSinks, type ConnectionState } from './connection.ts';
 import { type RpcFetch } from './rpc.ts';

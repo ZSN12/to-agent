@@ -1,9 +1,9 @@
 //#region lib/types/invariant.js
 /**
-* Package-owned invariant companion for `@z/dsh-skill-filesystem`.
-* @module @z/dsh-skill-filesystem/invariant
+* Package-owned invariant companion for `@taskweaver/dsh-skill-filesystem`.
+* @module @taskweaver/dsh-skill-filesystem/invariant
 */
-const PACKAGE_NAME = "@z/dsh-skill-filesystem";
+const PACKAGE_NAME = "@taskweaver/dsh-skill-filesystem";
 /** Cordis companion plugin name. */
 const name = "skill-filesystem-invariant";
 /** Service required before the companion can reserve package ownership. */

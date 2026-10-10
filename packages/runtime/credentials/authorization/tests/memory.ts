@@ -1,4 +1,4 @@
-import { CredentialProvider } from '@z/dsh-credentials'
+import { CredentialProvider } from '@taskweaver/dsh-credentials'
 import type {
   CredentialInfo,
   CredentialKey,
@@ -7,7 +7,7 @@ import type {
   CredentialRecordInfo,
   CredentialRef,
   ResolvedCredential,
-} from '@z/dsh-credentials'
+} from '@taskweaver/dsh-credentials'
 
 /**
  * In-memory credentials provider for the authorization suite. Only the record

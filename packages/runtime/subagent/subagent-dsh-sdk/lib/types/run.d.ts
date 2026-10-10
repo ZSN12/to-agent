@@ -1,17 +1,17 @@
 /**
  * Fresh-process SDK subagent client. Drives one child DeepSeek Harness
- * runtime over stdio JSON-RPC through `@z/dsh-sdk-client` and owns
+ * runtime over stdio JSON-RPC through `@taskweaver/dsh-sdk-client` and owns
  * cancellation and quiescent disposal. Structure mirrors the ACP backend
- * (`@z/dsh-subagent-acp`): publish after the child handshake,
+ * (`@taskweaver/dsh-subagent-acp`): publish after the child handshake,
  * flatten child failures into stop reasons, tear down to quiescence. The
  * child is spawned BY the SDK client rather than through `ctx.subprocess` —
  * the subprocess seam's documented exception for SDK-managed transports —
  * so this driver applies the seam's shared env scrub itself.
  *
- * @module @z/dsh-subagent-dsh-sdk/run
+ * @module @taskweaver/dsh-subagent-dsh-sdk/run
  */
-import { type TurnEndReason } from '@z/dsh-session';
-import type { SubagentRun, SubagentStartRequest, SubagentStopReason } from '@z/dsh-subagent';
+import { type TurnEndReason } from '@taskweaver/dsh-session';
+import type { SubagentRun, SubagentStartRequest, SubagentStopReason } from '@taskweaver/dsh-subagent';
 /** Resolved spawn spec for an SDK runtime child process (no defaults — see Config). */
 export interface SdkRunSpec {
     /** The executable to spawn (the child runtime — a `dsh-jsonrpc-agent` bin or packaged exe). */

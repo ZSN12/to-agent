@@ -1,10 +1,10 @@
-import { createUserMessage, createMessage } from '@z/dsh-llm'
+import { createUserMessage, createMessage } from '@taskweaver/dsh-llm'
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import SessionStore, { SESSION_FORMAT_VERSION, SessionId } from '@z/dsh-session'
-import type { Session, SessionEvent, SessionHeader, SessionId as SessionIdType } from '@z/dsh-session'
-import SessionPersistence from '@z/dsh-session-persistence'
-import { type SessionQueryErrorCode } from '@z/dsh-session-query'
+import { Context } from '@taskweaver/cordis'
+import SessionStore, { SESSION_FORMAT_VERSION, SessionId } from '@taskweaver/dsh-session'
+import type { Session, SessionEvent, SessionHeader, SessionId as SessionIdType } from '@taskweaver/dsh-session'
+import SessionPersistence from '@taskweaver/dsh-session-persistence'
+import { type SessionQueryErrorCode } from '@taskweaver/dsh-session-query'
 import { TestSessionQueryEngine } from './test-service.ts'
 
 type MutableSessionHeader = { -readonly [K in keyof SessionHeader]: SessionHeader[K] }

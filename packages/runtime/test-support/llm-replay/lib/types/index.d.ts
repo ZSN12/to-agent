@@ -4,11 +4,11 @@
  * compaction calls, then binds fresh live sessions to parent/child scripts by
  * first-call order. Throw and hang cases require an explicit override because
  * a session log cannot reconstruct them alone.
- * @module @z/dsh-llm-replay
+ * @module @taskweaver/dsh-llm-replay
  */
-import type { Context } from '@z/cordis';
-import { type SessionEvent } from '@z/dsh-session';
-import type { GenerateOptions, ModelModality, RetryPolicyConfig, StreamChunk } from '@z/dsh-llm';
+import type { Context } from '@taskweaver/cordis';
+import { type SessionEvent } from '@taskweaver/dsh-session';
+import type { GenerateOptions, ModelModality, RetryPolicyConfig, StreamChunk } from '@taskweaver/dsh-llm';
 /**
  * One recorded model call. `throw` may replay prefix chunks before failing;
  * `hang` models cancellation. Derived chunk entries come from ordinary model
@@ -240,14 +240,14 @@ export declare function loadSessionScripts(config: ReplayConfig): SessionScript[
 export declare function installLlmReplay(ctx: Context, config: ReplayConfig): ReplayHandle;
 export declare const name = "llm-replay";
 export declare const inject: string[];
-/** Plugin config: the {@link ReplayConfig} inputs, each defaulting to its `DSH_SNAPSHOT_*` env var in `apply`. */
+/** Plugin config: the {@link ReplayConfig} inputs, each defaulting to its `TASKWEAVER_SNAPSHOT_*` env var in `apply`. */
 export interface Config {
-    /** Override the fixture path; defaults to `$DSH_SNAPSHOT_FILE`. */
+    /** Override the fixture path; defaults to `$TASKWEAVER_SNAPSHOT_FILE`. */
     file?: string;
-    /** Override the sidecar path; defaults to `$DSH_SNAPSHOT_OVERRIDE`. */
+    /** Override the sidecar path; defaults to `$TASKWEAVER_SNAPSHOT_OVERRIDE`. */
     overrideFile?: string;
     /**
-     * Override the child-log paths; defaults to `$DSH_SNAPSHOT_CHILD_FILES` (a
+     * Override the child-log paths; defaults to `$TASKWEAVER_SNAPSHOT_CHILD_FILES` (a
      * path-separator-delimited list). Each is a recorded subagent session log for
      * a nested-agent scenario; absent/empty for a single-session scenario.
      */

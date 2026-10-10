@@ -2,10 +2,10 @@
  * Browser-safe durable workflow-record events written by the model-facing
  * workflow tool into its calling parent Session.
  *
- * @module @z/dsh-tool-workflow/types
+ * @module @taskweaver/dsh-tool-workflow/types
  */
-import type { SessionId } from '@z/dsh-session/types';
-import type { WorkflowAgentOutcome, WorkflowRunId, WorkflowStopReason } from '@z/dsh-workflow/types';
+import type { SessionId } from '@taskweaver/dsh-session/types';
+import type { WorkflowAgentOutcome, WorkflowRunId, WorkflowStopReason } from '@taskweaver/dsh-workflow/types';
 /** Opens one durable top-level workflow run record. */
 export interface ToolWorkflowRunStartData {
     readonly runId: WorkflowRunId;
@@ -30,7 +30,7 @@ export interface ToolWorkflowRunEndData {
     readonly runId: WorkflowRunId;
     readonly stopReason: WorkflowStopReason;
 }
-declare module '@z/dsh-session/types' {
+declare module '@taskweaver/dsh-session/types' {
     interface SessionEventMap {
         /**
          * Opens one top-level workflow record.

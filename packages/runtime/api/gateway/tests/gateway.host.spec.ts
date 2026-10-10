@@ -1,10 +1,10 @@
 import { createServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { describe, expect, it } from 'vitest'
-import { Context, Service, symbols } from '@z/cordis'
+import { Context, Service, symbols } from '@taskweaver/cordis'
 import { z } from 'zod'
-import { apply as applyConnection, inject as connectionInject } from '@z/dsh-client-connection'
-import type { WebServer, WebRoute } from '@z/dsh-host-webserver'
+import { apply as applyConnection, inject as connectionInject } from '@taskweaver/dsh-client-connection'
+import type { WebServer, WebRoute } from '@taskweaver/dsh-host-webserver'
 import {
   bindTypertRemote,
   Remote,
@@ -14,9 +14,9 @@ import {
   type TypertContext,
   type TypertLookup,
   type TypertLookupProvider,
-} from '@z/dsh-typert-protocol'
-import TypertRegistry, { type TypertContribution } from '@z/dsh-typert-registry'
-import TypertGatewayService, { TypertGatewayError } from '@z/dsh-api-gateway'
+} from '@taskweaver/dsh-typert-protocol'
+import TypertRegistry, { type TypertContribution } from '@taskweaver/dsh-typert-registry'
+import TypertGatewayService, { TypertGatewayError } from '@taskweaver/dsh-api-gateway'
 
 interface FixtureAgent {
   readonly id: string
@@ -26,7 +26,7 @@ interface MarkedContext extends Context {
   readonly fixtureScope?: string
 }
 
-declare module '@z/dsh-typert-protocol' {
+declare module '@taskweaver/dsh-typert-protocol' {
   interface TypertLookupMap {
     gatewayFixture: TypertLookup<FixtureAgent, string>
     gatewayFixtureAlias: TypertLookup<FixtureAgent, string>

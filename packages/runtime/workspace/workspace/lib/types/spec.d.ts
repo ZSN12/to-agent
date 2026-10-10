@@ -2,10 +2,10 @@
  * The workspace domain declaration: record schema and the `defineDomain` spec
  * the registry opens. The zod schema is the durable-boundary validator today
  * and the direct source of the RPC wire projection in a later phase.
- * @module @z/dsh-workspace/src/spec
+ * @module @taskweaver/dsh-workspace/src/spec
  */
 import { z } from 'zod';
-import { SessionId } from '@z/dsh-session';
+import { SessionId } from '@taskweaver/dsh-session';
 import type { WorkspaceId } from './types.ts';
 /**
  * Durable shape of one workspace record. `path` is the `fs.realpath` canon
@@ -73,7 +73,7 @@ export declare const workspaceDomainSpec: {
         };
     };
     tables: {
-        workspaces: import("@z/dsh-storage-domain").DomainTableSpec<WorkspaceId, {
+        workspaces: import("@taskweaver/dsh-storage-domain").DomainTableSpec<WorkspaceId, {
             path: string;
             title: string;
             sessionIds: SessionId[];

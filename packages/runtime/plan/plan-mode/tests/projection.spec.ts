@@ -11,17 +11,17 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import AgentRegistry from '@z/dsh-agent'
-import type { Agent } from '@z/dsh-agent'
-import SessionStore from '@z/dsh-session'
-import type { Session } from '@z/dsh-session'
-import SystemPrompt from '@z/dsh-system-prompt'
-import ToolRuntime from '@z/dsh-tools'
-import SessionProjectionRegistry from '@z/dsh-session-projection'
-import UserQuestionService from '@z/dsh-user-questions'
-import { CommandId } from '@z/dsh-commands/brand'
-import PlanModeController from '@z/dsh-plan-mode'
+import { Context } from '@taskweaver/cordis'
+import AgentRegistry from '@taskweaver/dsh-agent'
+import type { Agent } from '@taskweaver/dsh-agent'
+import SessionStore from '@taskweaver/dsh-session'
+import type { Session } from '@taskweaver/dsh-session'
+import SystemPrompt from '@taskweaver/dsh-system-prompt'
+import ToolRuntime from '@taskweaver/dsh-tools'
+import SessionProjectionRegistry from '@taskweaver/dsh-session-projection'
+import UserQuestionService from '@taskweaver/dsh-user-questions'
+import { CommandId } from '@taskweaver/dsh-commands/brand'
+import PlanModeController from '@taskweaver/dsh-plan-mode'
 
 interface Bench {
   ctx: Context

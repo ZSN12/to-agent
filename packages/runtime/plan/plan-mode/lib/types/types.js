@@ -1,4 +1,3 @@
-"use strict";
 /**
  * Pure types of the plan domain: the ONE home of the `plan` projection-key
  * declaration, free of this package's host-side value imports (cordis
@@ -6,6 +5,7 @@
  * `./types` for host consumers, `./client` for client aggregates — with zero
  * content duplication.
  *
- * @module @z/dsh-plan-mode/types
+ * @module @taskweaver/dsh-plan-mode/types
  */
-Object.defineProperty(exports, "__esModule", { value: true });
+export {};
+//# sourceMappingURL=types.js.map

@@ -1,16 +1,16 @@
 /**
  * Replay-safe, model-free tool-result pruning service.
  *
- * @module @z/dsh-compaction-tool-result-pruner
+ * @module @taskweaver/dsh-compaction-tool-result-pruner
  */
-import { Context, Service } from '@z/cordis';
-import z from '@z/schemastery';
-import type { ContentBlock } from '@z/dsh-llm';
-import type { Session } from '@z/dsh-session';
+import { Context, Service } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
+import type { ContentBlock } from '@taskweaver/dsh-llm';
+import type { Session } from '@taskweaver/dsh-session';
 import type { PruneResult, ResolvedConfig, ToolResultPruneConfig } from './types.ts';
 export { codePointLength, DEFAULTS, PRUNE_MARKER, resolveConfig } from './config.ts';
 export type { PrunedEntry, PruneResult, ResolvedConfig, ToolResultPruneConfig, } from './types.ts';
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
     interface Context {
         toolResultPruner: ToolResultPruner;
     }

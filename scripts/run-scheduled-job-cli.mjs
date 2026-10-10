@@ -4,12 +4,25 @@
  */
 import os from 'node:os'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { spawn } from 'node:child_process'
-import { createScheduledJobsStore } from '../electron/backend/scheduled-jobs-store.mjs'
-import { withScheduledJobLock } from '../electron/backend/scheduled-job-lock.mjs'
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+const sourceRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+const packaged = process.env.TASKWEAVER_PACKAGED === '1'
+const resourcesPath = process.env.TASKWEAVER_RESOURCES_PATH
+if (packaged && !resourcesPath) throw new Error('TASKWEAVER_RESOURCES_PATH is required for the packaged scheduled runner')
+const appRoot = packaged ? path.join(resourcesPath, 'app.asar') : sourceRoot
+const [{ createScheduledJobsStore }, { withScheduledJobLock }, { resolveHostNodeExecutable }] = await Promise.all([
+  import(pathToFileURL(path.join(appRoot, 'desktop/backend/scheduled-jobs-store.mjs')).href),
+  import(pathToFileURL(path.join(appRoot, 'desktop/backend/scheduled-job-lock.mjs')).href),
+  import(pathToFileURL(path.join(appRoot, 'desktop/agent/z-host/resolve-host-executable.mjs')).href),
+])
+
+const hostNode = resolveHostNodeExecutable({
+  env: process.env,
+  resourcesPath,
+  isPackaged: packaged,
+}).executable
 
 function arg(name) {
   const i = process.argv.indexOf(name)
@@ -51,9 +64,10 @@ try {
     const lastRunAt = current.lastRunAt ?? current.createdAt ?? Date.now()
     if (Date.now() - lastRunAt < dueMs) return { skipped: 'not-due' }
 
-    const script = path.join(root, 'scripts/taskweaver-headless.mjs')
+    const script = path.join(appRoot, 'scripts/taskweaver-headless.mjs')
     const headlessArgs = [
       script,
+      packaged ? '--installed' : '--local',
       '--text',
       current.prompt,
       '--preset',
@@ -63,8 +77,8 @@ try {
     ]
     try {
       await new Promise((resolve, reject) => {
-        const child = spawn(process.execPath, headlessArgs, {
-          cwd: root,
+        const child = spawn(hostNode, headlessArgs, {
+          cwd: userData,
           stdio: 'inherit',
           env: { ...process.env, TASKWEAVER_USER_DATA: userData },
         })

@@ -1,8 +1,8 @@
 /**
- * Package-owned invariant companion for `@z/dsh-taskweaver`.
- * @module @z/dsh-taskweaver/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-taskweaver`.
+ * @module @taskweaver/dsh-taskweaver/invariant
  */
-import type { Context } from '@z/cordis';
+import type { Context } from '@taskweaver/cordis';
 /** Cordis companion plugin name. */
 export declare const name = "taskweaver-api-host-invariant";
 /** Service required before the companion can register. */

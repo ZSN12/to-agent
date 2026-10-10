@@ -10,8 +10,8 @@
  * (`LlmRuntime.registerAdapter`), not the single-service bash executor.
  *
  * This package owns the Service Definition role of the capability seam. Service Providers
- * (`@z/dsh-subagent-spawn-in-process`, `-fork`, `-acp`) and the model-facing
- * consumer (`@z/dsh-tool-subagent`) are separate packages.
+ * (`@taskweaver/dsh-subagent-spawn-in-process`, `-fork`, `-acp`) and the model-facing
+ * consumer (`@taskweaver/dsh-tool-subagent`) are separate packages.
  *
  * Public operations express caller intent: `start` returns one published owned
  * one-shot run, `startContinuable` establishes a durable continuable child, and
@@ -28,16 +28,16 @@
  * serialization and hostile-input validation belong at real process, worker,
  * persistence, and model boundaries.
  *
- * @module @z/dsh-subagent
+ * @module @taskweaver/dsh-subagent
  */
 
-import { Context, Service } from '@z/cordis'
-import { scopeTarget } from '@z/dsh-scope'
-import type { Scoped } from '@z/dsh-scope'
-import { assertObjectJsonSchema } from '@z/dsh-tools'
-import type { ContentBlock, MessageId } from '@z/dsh-llm'
-import type { Agent } from '@z/dsh-agent'
-import type { SessionId } from '@z/dsh-session'
+import { Context, Service } from '@taskweaver/cordis'
+import { scopeTarget } from '@taskweaver/dsh-scope'
+import type { Scoped } from '@taskweaver/dsh-scope'
+import { assertObjectJsonSchema } from '@taskweaver/dsh-tools'
+import type { ContentBlock, MessageId } from '@taskweaver/dsh-llm'
+import type { Agent } from '@taskweaver/dsh-agent'
+import type { SessionId } from '@taskweaver/dsh-session'
 import type {
   ContinuableCreateRequest,
   ContinuableCreateSpec,
@@ -126,7 +126,7 @@ export type { SubagentDescendantListEntry, SubagentListEntry } from './list-chil
 export type { SubagentRunEndInfo, SubagentRunInfo } from './types.ts'
 export type { SubagentIdentityProjection, SubagentTimingProjection } from './projection-types.ts'
 
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
   interface Context {
     subagents: SubagentRuntime
   }

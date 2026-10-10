@@ -1,14 +1,10 @@
-"use strict";
 /**
  * Delegation-depth accounting: the recursion budget a parent passes to its
  * children. Kept apart from the service so composition helpers can read it
  * without importing the registry.
  *
- * @module @z/dsh-subagent/depth
+ * @module @taskweaver/dsh-subagent/depth
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.delegationDepthOf = delegationDepthOf;
-exports.assertSubagentMaxDepth = assertSubagentMaxDepth;
 /**
  * Read an agent's delegation depth, treating absence as top-level depth zero.
  * The persisted session header is authoritative and monotone: runtime
@@ -19,21 +15,20 @@ exports.assertSubagentMaxDepth = assertSubagentMaxDepth;
  * @returns its non-negative safe-integer depth.
  * @throws if the runtime `AgentOptions.subagentDepth` is not a non-negative safe integer.
  */
-function delegationDepthOf(agent) {
-    var _a;
-    var runtime = agent.options.subagentDepth;
+export function delegationDepthOf(agent) {
+    const runtime = agent.options.subagentDepth;
     if (runtime !== undefined && (!Number.isSafeInteger(runtime) || runtime < 0 || Object.is(runtime, -0))) {
         throw new TypeError('agent subagentDepth must be a non-negative safe integer');
     }
     // The header value was validated at the session boundary (creation and
     // persistence load both construct through the store).
-    return Math.max((_a = agent.session.header.delegationDepth) !== null && _a !== void 0 ? _a : 0, runtime !== null && runtime !== void 0 ? runtime : 0);
+    return Math.max(agent.session.header.delegationDepth ?? 0, runtime ?? 0);
 }
 /**
  * Reject a recursion cap that cannot represent an exact delegation depth.
  * @param maxDepth - the optional runtime value to validate.
  */
-function assertSubagentMaxDepth(maxDepth) {
+export function assertSubagentMaxDepth(maxDepth) {
     if (maxDepth !== undefined && (typeof maxDepth !== 'number'
         || !Number.isSafeInteger(maxDepth)
         || maxDepth < 0
@@ -41,3 +36,4 @@ function assertSubagentMaxDepth(maxDepth) {
         throw new TypeError('subagent maxDepth must be a non-negative safe integer');
     }
 }
+//# sourceMappingURL=depth.js.map

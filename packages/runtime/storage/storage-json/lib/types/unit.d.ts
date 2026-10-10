@@ -4,9 +4,9 @@
  * NOT queued here — per the backend contract, write ordering belongs to the
  * caller (the domain layer's write chain); this unit only guarantees that
  * each single call publishes a complete, durable file.
- * @module @z/dsh-storage-json/src/unit
+ * @module @taskweaver/dsh-storage-json/src/unit
  */
-import type { KvUnit, KvUnitDescriptor } from '@z/dsh-storage';
+import type { KvUnit, KvUnitDescriptor } from '@taskweaver/dsh-storage';
 /**
  * Open (load or lazily create) one unit backed by `path`.
  * @param descriptor - Static identity and shape of the unit.

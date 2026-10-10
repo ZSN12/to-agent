@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { createMcpService, getMcpDshRuntimeBinding } from '../electron/backend/mcp-service.mjs'
+import { createMcpService, getMcpDshRuntimeBinding } from '../desktop/backend/mcp-service.mjs'
 
 const userData = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-mcp-test-'))
 const mockSafeStorage = {
@@ -51,13 +51,15 @@ try {
 
   const runtime = await service.prepareRuntimeIntegration()
   const patch = await fs.readFile(runtime.patchPath, 'utf8')
-  assert.ok(patch.includes('@z/dsh-mcp-client'))
-  assert.match(patch, /process\.env\.TASKWEAVER_MCP_[A-F0-9]{10}_SECRET/)
+  assert.ok(patch.includes('@taskweaver/dsh-mcp-client'))
+  assert.match(patch, /startupWaitMs:\s*0/)
+  assert.match(patch, /processEnv:/)
+  assert.equal(patch.includes('!!js'), false)
   assert.equal(patch.includes('secret'), false)
   assert.ok(Object.values(runtime.environment).includes('secret'))
-  assert.ok(Object.keys(runtime.environment).every(name => /(?:KEY|PASSWORD|SECRET|TOKEN)/i.test(name)))
+  assert.ok(Object.keys(runtime.environment).every(name => /^TASKWEAVER_MCP_[A-F0-9]{10}_SECRET$/.test(name)))
 
-  const source = await fs.readFile(new URL('../electron/backend/mcp-service.mjs', import.meta.url), 'utf8')
+  const source = await fs.readFile(new URL('../desktop/backend/mcp-service.mjs', import.meta.url), 'utf8')
   assert.doesNotMatch(source, /@modelcontextprotocol\/client|connectClient|callTool\(/)
   await service.disconnect('local')
   assert.equal((await service.listServers())[0].enabled, false)
@@ -76,9 +78,11 @@ try {
   const githubRuntime = await service.prepareRuntimeIntegration()
   const githubPatch = await fs.readFile(githubRuntime.patchPath, 'utf8')
   assert.ok(githubPatch.includes('transport: streamable-http'))
-  assert.ok(githubPatch.includes('Authorization: !!js'))
+  assert.ok(githubPatch.includes('bearerTokenEnvVar:'))
+  assert.equal(githubPatch.includes('!!js'), false)
   assert.equal(githubPatch.includes('ghp_test_token'), false)
   assert.ok(Object.values(githubRuntime.environment).includes('ghp_test_token'))
+  assert.ok(Object.keys(githubRuntime.environment).every(name => /^TASKWEAVER_MCP_[A-F0-9]{10}_SECRET$/.test(name)))
   await service.configureGitHub('')
   assert.equal((await service.listServers())[0].envKeys.includes('GITHUB_PERSONAL_ACCESS_TOKEN'), true)
   await service.setEnabled('github', false)
@@ -89,6 +93,49 @@ try {
     id: 'github', transport: 'http', url: 'http://127.0.0.1/mcp/', args: [],
     env: { GITHUB_PERSONAL_ACCESS_TOKEN: 'x' }, enabled: true,
   }), /仅允许连接 GitHub 官方 MCP 地址/)
+
+  let cliTokenReads = 0
+  const cliConsent = createMcpService({
+    userData: path.join(userData, 'cli-consent'),
+    safeStorage: mockSafeStorage,
+    isOAuthConfigured: () => false,
+    localGitHubAuth: {
+      hasCliAuth: async () => true,
+      hasEnvToken: () => true,
+      readCliToken: async () => { cliTokenReads++; return { ok: true, token: 'gh_cli_private' } },
+      readEnvToken: () => 'gh_env_private',
+    },
+  })
+  const declinedCli = await cliConsent.loginGitHubWithOAuth({ confirmLocalCredential: async () => false })
+  assert.deepEqual(declinedCli, { cancelled: true, source: 'gh-cli' })
+  assert.equal(cliTokenReads, 0, '未确认时不得读取 gh auth token')
+  const acceptedCli = await cliConsent.loginGitHubWithOAuth({ confirmLocalCredential: async () => true })
+  assert.equal(acceptedCli.server.authMethod, 'pat')
+  assert.equal(cliTokenReads, 1)
+  assert.equal(await cliConsent.getGitHubPersonalAccessToken(), 'gh_cli_private')
+  const cliConfig = await fs.readFile(path.join(userData, 'cli-consent', 'taskweaver-mcp.json'), 'utf8')
+  assert.equal(cliConfig.includes('gh_cli_private'), false)
+  assert.equal(cliConfig.includes('gh_env_private'), false)
+
+  let envTokenReads = 0
+  const envConsent = createMcpService({
+    userData: path.join(userData, 'env-consent'),
+    safeStorage: mockSafeStorage,
+    isOAuthConfigured: () => false,
+    localGitHubAuth: {
+      hasCliAuth: async () => false,
+      hasEnvToken: () => true,
+      readCliToken: async () => { throw new Error('gh token must not be read') },
+      readEnvToken: () => { envTokenReads++; return 'gh_env_confirmed' },
+    },
+  })
+  const declinedEnv = await envConsent.loginGitHubWithOAuth({ confirmLocalCredential: async () => false })
+  assert.deepEqual(declinedEnv, { cancelled: true, source: 'environment' })
+  assert.equal(envTokenReads, 0, '未确认时不得读取 GH_TOKEN/GITHUB_TOKEN')
+  const acceptedEnv = await envConsent.loginGitHubWithOAuth({ confirmLocalCredential: async () => true })
+  assert.equal(acceptedEnv.server.authMethod, 'pat')
+  assert.equal(envTokenReads, 1)
+  assert.equal(await envConsent.getGitHubPersonalAccessToken(), 'gh_env_confirmed')
 
   const migrationDir = path.join(userData, 'migration')
   await fs.mkdir(migrationDir, { recursive: true })

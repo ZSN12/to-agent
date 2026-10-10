@@ -1,7 +1,7 @@
 import { mkdir, open, readFile, rename, rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import z from "@z/schemastery";
-import { StorageError, UNIT_NAME_RE, storageBackendServiceKey } from "@z/dsh-storage";
+import z from "@taskweaver/schemastery";
+import { StorageError, UNIT_NAME_RE, storageBackendServiceKey } from "@taskweaver/dsh-storage";
 import { randomUUID } from "node:crypto";
 //#region lib/types/atomic.js
 /**
@@ -14,7 +14,7 @@ import { randomUUID } from "node:crypto";
 * backend's link()+unlink() no-clobber protocol, a unit file has exactly one
 * writer per process and last-write-wins is correct. After the rename the
 * parent directory is fsynced on POSIX so the new entry is crash-durable.
-* @module @z/dsh-storage-json/src/atomic
+* @module @taskweaver/dsh-storage-json/src/atomic
 */
 /**
 * Durably replace `path` with `data`.
@@ -57,7 +57,7 @@ async function fsyncDirectory(path) {
 * On-disk JSON unit format: the file is always the current net state, kept
 * human-readable (pretty-printed, stable key order from insertion) — that
 * legibility is this backend's reason to exist.
-* @module @z/dsh-storage-json/src/format
+* @module @taskweaver/dsh-storage-json/src/format
 */
 /**
 * Serialize a unit state to file content.
@@ -121,7 +121,7 @@ function parse(text, descriptor) {
 * NOT queued here — per the backend contract, write ordering belongs to the
 * caller (the domain layer's write chain); this unit only guarantees that
 * each single call publishes a complete, durable file.
-* @module @z/dsh-storage-json/src/unit
+* @module @taskweaver/dsh-storage-json/src/unit
 */
 /**
 * Open (load or lazily create) one unit backed by `path`.
@@ -229,7 +229,7 @@ var JsonKvUnit = class {
 * JSON storage backend: one human-readable file per unit under a configured
 * root, published by atomic whole-file rewrite. Registers as backend `json`
 * on the storage hub.
-* @module @z/dsh-storage-json
+* @module @taskweaver/dsh-storage-json
 */
 /** Cordis plugin name. */
 const name = "storage-json";

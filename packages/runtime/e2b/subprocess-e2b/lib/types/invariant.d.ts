@@ -1,8 +1,8 @@
 /**
- * Package-owned invariant companion for `@z/dsh-subprocess-e2b`.
- * @module @z/dsh-subprocess-e2b/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-subprocess-e2b`.
+ * @module @taskweaver/dsh-subprocess-e2b/invariant
  */
-import type { Context } from '@z/cordis';
+import type { Context } from '@taskweaver/cordis';
 /** Cordis companion plugin name. */
 export declare const name = "subprocess-e2b-invariant";
 /** Service required before reserving package ownership. */

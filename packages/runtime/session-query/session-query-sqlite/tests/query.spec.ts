@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { SessionId } from '@z/dsh-session'
-import { SessionSearchCursor, type SessionQueryErrorCode } from '@z/dsh-session-query'
+import { SessionId } from '@taskweaver/dsh-session'
+import { SessionSearchCursor, type SessionQueryErrorCode } from '@taskweaver/dsh-session-query'
 import {
   buildEventWhere,
   buildSessionWhere,

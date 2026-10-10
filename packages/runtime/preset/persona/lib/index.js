@@ -1,5 +1,5 @@
-import z from "@z/schemastery";
-import { PERSONA_ORDER, PERSONA_SECTION } from "@z/dsh-system-prompt";
+import z from "@taskweaver/schemastery";
+import { PERSONA_ORDER, PERSONA_SECTION } from "@taskweaver/dsh-system-prompt";
 //#region lib/types/index.js
 /**
 * A per-agent persona as a composable row.
@@ -13,7 +13,7 @@ import { PERSONA_ORDER, PERSONA_SECTION } from "@z/dsh-system-prompt";
 * That constraint is the reason the row exists. An agent preset cannot mount
 * the prompt registry itself, so without a row of its own a preset could
 * change an agent's tools but never its identity.
-* @module @z/dsh-persona
+* @module @taskweaver/dsh-persona
 */
 /** Cordis plugin name. */
 const name = "persona";

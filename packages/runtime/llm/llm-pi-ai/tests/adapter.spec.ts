@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { Context } from '@z/cordis'
-import { AttachmentId, AttachmentStore, ImageVariantId } from '@z/dsh-attachment'
+import { Context } from '@taskweaver/cordis'
+import { AttachmentId, AttachmentStore, ImageVariantId } from '@taskweaver/dsh-attachment'
 import type {
   ImageAttachmentLimits,
   ImageAttachmentRef,
@@ -8,11 +8,11 @@ import type {
   RequestImageAttachment,
   SaveImageAttachment,
   StoredImageAttachment,
-} from '@z/dsh-attachment'
-import LlmRuntime, { createUserMessage, CONTEXT_WINDOW_EXCEEDED_CODE, LlmError, ReasoningEffortId, userAgent } from '@z/dsh-llm'
-import * as LlmPiAi from '@z/dsh-llm-pi-ai'
-import { PiAiAdapter } from '@z/dsh-llm-pi-ai'
-import { MAX_TIMER_DELAY_MS } from '@z/dsh-timeout'
+} from '@taskweaver/dsh-attachment'
+import LlmRuntime, { createUserMessage, CONTEXT_WINDOW_EXCEEDED_CODE, LlmError, ReasoningEffortId, userAgent } from '@taskweaver/dsh-llm'
+import * as LlmPiAi from '@taskweaver/dsh-llm-pi-ai'
+import { PiAiAdapter } from '@taskweaver/dsh-llm-pi-ai'
+import { MAX_TIMER_DELAY_MS } from '@taskweaver/dsh-timeout'
 import { getBuiltinModels } from '@earendil-works/pi-ai/providers/all'
 import { DEFAULT_MAX_REQUEST_IMAGE_BYTES, resolveProfiles } from '../src/config.ts'
 import { memoryAuth } from './auth-double.ts'

@@ -1,10 +1,10 @@
 /**
  * Process-local dynamic Plugin registry and its opaque identity mints.
- * @module @z/dsh-cordis-host-runner/registry
+ * @module @taskweaver/dsh-cordis-host-runner/registry
  */
 
-import type { Fiber } from '@z/cordis'
-import type { SessionId } from '@z/dsh-session/types'
+import type { Fiber } from '@taskweaver/cordis'
+import type { SessionId } from '@taskweaver/dsh-session/types'
 import type {
   ApprovalRequestId, CordisDynamicPackageId, CordisDynamicPluginId, CordisDynamicPluginRunId,
   CordisDynamicRunMode, DynamicCordisRenderFailure, DynamicCordisRunAttempt,

@@ -59,7 +59,7 @@
 | 用例 | 验收标准 | TaskWeaver 结果 | DSH 对照 | 状态 |
 |---|---|---|---|---|
 | A 单文件只读 | ≤2 steps、≤1 次 read；不搜索、不修改；耗时接近 DSH | 最新真实 MiMo `standard` 样本：23.987 秒、首段文本 9.427 秒；2 steps、1 次 `read`，无搜索/写入，回答 1,631 字符。前一同类样本为 11.280 秒/6.933 秒，2 steps、1 次 read。两个样本的 provider/排队波动明显；DSH 同句数据尚缺，不能据此判定 ±30% | DSH Web UI 未同环境复测；预设单文件样本见 `agent-preset-live-ab-2026-10-06.md` | 临时隔离 Host 单样本通过；构建包/安装版未测 |
-| B 仓库概览 | `standard`；≤6 次 inspection；single-agent、无 DAG | 真实 MiMo 样本：23.422 秒、首段文本 9.933 秒；2 steps、4 次工具调用（根目录 `ls -la` + 3 个指定文件 read），没有递归扫描或写入。提示：“请简要概览当前毕设项目的仓库结构：只查看根目录条目（不要递归扫描），然后仅阅读 package.json、electron/main.cjs、src/main.tsx，概括主要目录/入口及它们如何连接。没有实际读取的模块不要推断细节。只读，不要修改文件、构建或测试。” | DSH 未同环境复测 | 临时隔离 Host 样本通过；与 DSH 的 step/时延差值待测 |
+| B 仓库概览 | `standard`；≤6 次 inspection；single-agent、无 DAG | 真实 MiMo 样本：23.422 秒、首段文本 9.933 秒；2 steps、4 次工具调用（根目录 `ls -la` + 3 个指定文件 read），没有递归扫描或写入。提示：“请简要概览当前毕设项目的仓库结构：只查看根目录条目（不要递归扫描），然后仅阅读 package.json、desktop/main.cjs、src/main.tsx，概括主要目录/入口及它们如何连接。没有实际读取的模块不要推断细节。只读，不要修改文件、构建或测试。” | DSH 未同环境复测 | 临时隔离 Host 样本通过；与 DSH 的 step/时延差值待测 |
 | C 排队追问/取消 | 运行状态持续正确；两轮历史完整；取消形成明确终态并保留部分文本 | 排队：真实 MiMo 3/3 通过，不同 turn ID、`continuing=[true,false]`、两条答案均在 Host 历史。取消：真实 MiMo 1 次通过，21ms 返回、保留首段 18 字符、Host 原生 `aborted` 后同会话恢复成功；受控 Host 另通过成功工具后取消及 prompt admission/Stop+延迟 mux 快照竞态 | 不适用 | 真实排队 3/3、真实取消 1/1、两种受控取消边界通过；真实工具仍执行中取消及安装版 UI 待测 |
 | D 多 Agent 不误触 | 仓库概览提示走 single-agent、无 DAG | 精确 B 提示加入 `test:orchestration`；并覆盖“完整平台 + 前后端/测试/安全/部署”等跨域请求仍为 single-agent。B 实际 Host 样本用 `standard` 单会话完成、无 DAG | 不适用 | 自动化门控与真实单 Agent 样本通过；应用 UI 端到端未测 |
 | E 装包一致 | `/Applications/TaskWeaver.app` 与当前提交/Runtime 一致；部署测试通过 | 新测试包资源与部署目录一致且 Host 部署测试通过；当前 `/Applications/TaskWeaver.app` 仍为旧包 | 不适用 | 安装后复测 |
@@ -110,7 +110,7 @@
 
 同日新增 Host `sessions.prompt` 用户消息字节观测：`dsh-chat-service` 在真正提交边界仅记录 UTF-8 字节数、投递类型和 Skill envelope 增量，不记录消息正文。普通轮次、排队、steer 与子任务共用该边界；mock 回归核对记录值等于实际提交字符串。它可观察 TaskWeaver 提交的完整用户消息（包括本地 Skill 包装），但 DSH 原生 Skill 正文和 Host system/tool/preset 仍不在其统计范围；该数值不是 token 数或完整模型上下文大小。`npm run test:dsh-chat`、`npm run test:skills`、`npm run test:workspace-context`、`npm run test:user-intent` 与 `npm run build` 均通过。
 
-只读路径边界的部署验证：将更新后的 `repeat-tool-reminder` 编译到 `/tmp/taskweaver-z-runtime-scope.Q1fBXI` 的临时 APFS 克隆中，再运行 `TASKWEAVER_Z_RUNTIME=/tmp/taskweaver-z-runtime-scope.Q1fBXI node scripts/test-z-host-deploy.mjs`，通过。测试让只读 Agent 请求读取未分配的 `electron/main.cjs`，部署 Host 在文件系统工具执行前拒绝；同一测试中的范围内读取及并发 DAG 仍通过。另对模型常见的 `glob(path=".", pattern="electron/main.cjs")` 增加窄例外：仅无通配符且字面目标已授权时映射到该目标；宽泛 root glob 仍拒绝。Guard 27 项 Vitest 与其 TypeScript 检查通过。原 `vendor/taskweaver-z-runtime` 和已安装应用均未覆盖。
+只读路径边界的部署验证：将更新后的 `repeat-tool-reminder` 编译到 `/tmp/taskweaver-z-runtime-scope.Q1fBXI` 的临时 APFS 克隆中，再运行 `TASKWEAVER_RUNTIME=/tmp/taskweaver-z-runtime-scope.Q1fBXI node scripts/test-z-host-deploy.mjs`，通过。测试让只读 Agent 请求读取未分配的 `desktop/main.cjs`，部署 Host 在文件系统工具执行前拒绝；同一测试中的范围内读取及并发 DAG 仍通过。另对模型常见的 `glob(path=".", pattern="desktop/main.cjs")` 增加窄例外：仅无通配符且字面目标已授权时映射到该目标；宽泛 root glob 仍拒绝。Guard 27 项 Vitest 与其 TypeScript 检查通过。原 `vendor/taskweaver-z-runtime` 和已安装应用均未覆盖。
 
 针对上述误报，当前源码仅在同时满足“Host 拒绝了越界工具调用”且“最终回答明确承认关键证据缺口”时，才将只读子任务转为“待复核”；越界次数始终单独记录。若 Agent 最终依据范围内证据给出完整结论，单次被拒的探索不会单独判失败。它不限制总工具调用次数或运行时间。P8Jaek、fi56fk、kqULxA 均有真实 MiMo DAG 记录；用当前判定器重新检查 kqULxA 的两份原始回答，因它们明确承认范围外证据缺口而继续待复核。最新一轮还验证精确字面 glob 修复把拒绝数从 4 次降为 2 次，但没有降低总耗时（约 174 秒）。
 
@@ -135,9 +135,9 @@
 
 - `/Applications/TaskWeaver.app` 当前版本为 `1.0.0`，应用与内置只读 preset 文件时间为 `2026-10-04`。
 - 2026-10-06 检查快照中的源码/deploy preset SHA-256 为 `21059026a4426a44463a5d7558a56bd7a7deaa55ec34a330c82202df971ac84e`；安装版为 `ae731f4bc94e4343f3a7bb2a084df18a3bbd10557ccad0d65996f14dfbf471de`。该源码哈希已被之后的 preset 改动取代，不能作为当前哈希。
-- 用 `TASKWEAVER_Z_RUNTIME=/Applications/TaskWeaver.app/Contents/Resources/taskweaver-z-runtime node scripts/test-z-host-deploy.mjs` 对安装版做隔离 mock 验收，在 Host 启动前失败：安装 preset 没有默认排除 `vendor`。对比文件还显示它缺少 native tool presentation，保留了每任务五次检查的硬限制。
+- 用 `TASKWEAVER_RUNTIME=/Applications/TaskWeaver.app/Contents/Resources/taskweaver-z-runtime node scripts/test-z-host-deploy.mjs` 对安装版做隔离 mock 验收，在 Host 启动前失败：安装 preset 没有默认排除 `vendor`。对比文件还显示它缺少 native tool presentation，保留了每任务五次检查的硬限制。
 - **2026-10-07 复验：**源码与 `vendor/taskweaver-z-runtime` 的只读 preset SHA-256 均为 `08c551d55ca5a45b00817506f92f3a6f64ad040dca79a2bc8faaf8b65c522c2a`；重新以 `npm run app:builder -- --config.directories.output=/tmp/taskweaver-app-current-gThQRv/out` 构建独立测试 `.app`，包内 preset 哈希也相同。仓库 deploy 与新 `.app` Runtime 的 `scripts/test-z-host-deploy.mjs` 均通过，覆盖真实 Host 进程、MCP、只读模型工具和并发 DAG（模型端为 mock）。
-- **2026-10-07 当前源码包复验：**`npm run build` 通过；使用独立 `/tmp/taskweaver-app-verify-jq0qKD` 输出目录打包，未触碰 `release/` 或 `/Applications`。包内 `app.asar` 扫描 109 个 Electron/前端 JS 文件，未发现 `TASKWEAVER_LEGACY_HISTORY_CONTEXT` 或 `formatLegacyHistoryContext`；打包代码中的 `dshAgentPresetForPermissionMode` 返回 `standard`。canonical source、`vendor/taskweaver-z-runtime` deploy 和该 `.app` extraResources 中的只读 preset SHA-256 均为 `7e1eb673b0ec30b0cc29025ed8229281444fe20c23fca980b35bfe74dc62be40`。再以 `TASKWEAVER_Z_RUNTIME=<临时 .app 内 Runtime> node scripts/test-z-host-deploy.mjs` 启动该包内 Runtime 的真实 Host 进程，部署、只读工具、MCP、并发 DAG mock 和历史重启 smoke 全通过。没有调用真实 LLM；这是 bundle/Host 验收，不代表应用已安装或完成 GUI/真实模型验收。
+- **2026-10-07 当前源码包复验：**`npm run build` 通过；使用独立 `/tmp/taskweaver-app-verify-jq0qKD` 输出目录打包，未触碰 `release/` 或 `/Applications`。包内 `app.asar` 扫描 109 个 Electron/前端 JS 文件，未发现 `TASKWEAVER_LEGACY_HISTORY_CONTEXT` 或 `formatLegacyHistoryContext`；打包代码中的 `dshAgentPresetForPermissionMode` 返回 `standard`。canonical source、`vendor/taskweaver-z-runtime` deploy 和该 `.app` extraResources 中的只读 preset SHA-256 均为 `7e1eb673b0ec30b0cc29025ed8229281444fe20c23fca980b35bfe74dc62be40`。再以 `TASKWEAVER_RUNTIME=<临时 .app 内 Runtime> node scripts/test-z-host-deploy.mjs` 启动该包内 Runtime 的真实 Host 进程，部署、只读工具、MCP、并发 DAG mock 和历史重启 smoke 全通过。没有调用真实 LLM；这是 bundle/Host 验收，不代表应用已安装或完成 GUI/真实模型验收。
 - 当前 `/Applications/TaskWeaver.app` 仍为旧哈希 `ae731f4bc94e4343f3a7bb2a084df18a3bbd10557ccad0d65996f14dfbf471de`。新测试包已验证，但没有安装或覆盖现有应用。
 
 ## 每次实测记录
@@ -152,8 +152,8 @@
 
 ### 2026-10-07 只读子 Agent 与真实 Planner 五轮验收
 
-- source preset `packages/runtime/host-cli/config/agent-presets/taskweaver-readonly/agent.cordis.yml` 与当前 deploy preset SHA-256 均为 `b0ced271694b60bfca6ae0332a802a8d674e4f7b9e70df0dd5795a1bd31218b3`。每轮实时 Planner 的两条 research 子任务都有独立 Host session，Host session 元数据均为 `taskweaver-readonly`；Host 原生请求头确认 MiMo V2.6 Flash / Medium，工具历史每轮均为 T1 `read(package.json)` 一次、T2 `grep + read(electron/backend/dsh-session-model.mjs)`，无写入、shell、失败或越权调用。
-- **质量核对：**5/5 轮两项任务都完成且返回文本；T1 均给出 `electron/main.cjs` 及入口行号，T2 均解释 `sessionModelMatches`、`reasoningEffort` 缺失与 `lastAppliedSelection` 回退判定。每份 Host route、preset、文件工具审计均 verified。
+- source preset `packages/runtime/host-cli/config/agent-presets/taskweaver-readonly/agent.cordis.yml` 与当前 deploy preset SHA-256 均为 `b0ced271694b60bfca6ae0332a802a8d674e4f7b9e70df0dd5795a1bd31218b3`。每轮实时 Planner 的两条 research 子任务都有独立 Host session，Host session 元数据均为 `taskweaver-readonly`；Host 原生请求头确认 MiMo V2.6 Flash / Medium，工具历史每轮均为 T1 `read(package.json)` 一次、T2 `grep + read(desktop/backend/dsh-session-model.mjs)`，无写入、shell、失败或越权调用。
+- **质量核对：**5/5 轮两项任务都完成且返回文本；T1 均给出 `desktop/main.cjs` 及入口行号，T2 均解释 `sessionModelMatches`、`reasoningEffort` 缺失与 `lastAppliedSelection` 回退判定。每份 Host route、preset、文件工具审计均 verified。
 
   | 报告 | 总墙钟 | Planner 首阶段进度 | Host 子 Agent turn 重叠 | 验收 |
   |---|---:|---:|---:|---|

@@ -1,6 +1,6 @@
 //#region lib/types/invariant.js
-/** Package-owned invariant companion for the bash seam. @module @z/dsh-shell/invariant */
-const PACKAGE_NAME = "@z/dsh-shell";
+/** Package-owned invariant companion for the bash seam. @module @taskweaver/dsh-shell/invariant */
+const PACKAGE_NAME = "@taskweaver/dsh-shell";
 /** Cordis companion plugin name. */
 const name = "shell-invariant";
 /** Service required before the companion can reserve package ownership. */

@@ -1,13 +1,13 @@
 /**
- * Package-owned invariant companion for `@z/dsh-launch-environment`.
- * @module @z/dsh-launch-environment/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-launch-environment`.
+ * @module @taskweaver/dsh-launch-environment/invariant
  */
 
 /* jscpd:ignore-start */
-import type { Context } from '@z/cordis'
-import type { InvariantInstaller } from '@z/dsh-invariants'
+import type { Context } from '@taskweaver/cordis'
+import type { InvariantInstaller } from '@taskweaver/dsh-invariants'
 
-const PACKAGE_NAME = '@z/dsh-launch-environment'
+const PACKAGE_NAME = '@taskweaver/dsh-launch-environment'
 
 /** Cordis companion plugin name. */
 export const name = 'launch-environment-invariant'

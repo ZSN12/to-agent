@@ -1,20 +1,20 @@
 /**
  * Service Definition for the approval capability seam, covering requests, cancellation, audit, and per-session policy. Missing
  * answerers fail closed; grants apply only to the requested action.
- * @module @z/dsh-user-approval
+ * @module @taskweaver/dsh-user-approval
  */
 
 import { randomUUID } from 'node:crypto'
-import { Context, Service } from '@z/cordis'
-import z from '@z/schemastery'
-import type { Agent } from '@z/dsh-agent'
-import { createUserMessage, type CallId } from '@z/dsh-llm'
-import { scopeTarget } from '@z/dsh-scope'
-import type { Scoped } from '@z/dsh-scope'
-import type { Session, SessionEvent } from '@z/dsh-session'
-import type {} from '@z/dsh-system-prompt'
+import { Context, Service } from '@taskweaver/cordis'
+import z from '@taskweaver/schemastery'
+import type { Agent } from '@taskweaver/dsh-agent'
+import { createUserMessage, type CallId } from '@taskweaver/dsh-llm'
+import { scopeTarget } from '@taskweaver/dsh-scope'
+import type { Scoped } from '@taskweaver/dsh-scope'
+import type { Session, SessionEvent } from '@taskweaver/dsh-session'
+import type {} from '@taskweaver/dsh-system-prompt'
 
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
   interface Context {
     approval: ApprovalService
   }
@@ -23,7 +23,7 @@ declare module '@z/cordis' {
     /**
      * Ask composed answerers for one decision. Return an outcome to claim the
      * request or call `next()`; failure yields the fail-closed default.
-     * Scope-filtered dispatch (`@z/dsh-scope`): agent-scoped listeners receive only that agent.
+     * Scope-filtered dispatch (`@taskweaver/dsh-scope`): agent-scoped listeners receive only that agent.
      * @param req - the pending decision (agent, tool identity, reason, signal).
      * @mode waterfall
      */
@@ -31,7 +31,7 @@ declare module '@z/cordis' {
   }
 }
 
-declare module '@z/dsh-session/types' {
+declare module '@taskweaver/dsh-session/types' {
   interface SessionEventMap {
     /**
      * An approval question was put to the answerer chain — log-only audit

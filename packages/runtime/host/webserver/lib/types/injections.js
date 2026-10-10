@@ -1,4 +1,3 @@
-"use strict";
 /**
  * Structured index injections: the typed rows plugins contribute to the boot
  * HTML instead of raw `tapIndex` string transforms. Rows are pure
@@ -8,8 +7,6 @@
  * for a page-side interpreter. Anything not expressible as a row stays on
  * `tapIndex`, which runs after row rendering.
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.renderIndexInjections = renderIndexInjections;
 /** Escape a row value before placing it in a quoted HTML attribute. */
 function escapeHtmlAttribute(value) {
     return value
@@ -19,7 +16,7 @@ function escapeHtmlAttribute(value) {
         .replaceAll('>', '&gt;');
 }
 function assertNever(row) {
-    throw new Error("webserver: unknown index injection row ".concat(JSON.stringify(row)));
+    throw new Error(`webserver: unknown index injection row ${JSON.stringify(row)}`);
 }
 /** Render one row to markup with its placement. */
 function renderRow(row) {
@@ -27,18 +24,18 @@ function renderRow(row) {
         case 'global': {
             // `<` is escaped in JSON so a row-controlled string cannot break out of
             // the script element.
-            var name_1 = JSON.stringify(row.name).replaceAll('<', '\\u003c');
-            var value = row.value === undefined
+            const name = JSON.stringify(row.name).replaceAll('<', '\\u003c');
+            const value = row.value === undefined
                 ? 'undefined'
                 : JSON.stringify(row.value).replaceAll('<', '\\u003c');
-            return { placement: 'head', markup: "<script>globalThis[".concat(name_1, "] = ").concat(value, "</script>") };
+            return { placement: 'head', markup: `<script>globalThis[${name}] = ${value}</script>` };
         }
         case 'script':
-            return { placement: row.placement, markup: "<script>".concat(row.text, "</script>") };
+            return { placement: row.placement, markup: `<script>${row.text}</script>` };
         case 'script-src':
-            return { placement: row.placement, markup: "<script src=\"".concat(escapeHtmlAttribute(row.src), "\"></script>") };
+            return { placement: row.placement, markup: `<script src="${escapeHtmlAttribute(row.src)}"></script>` };
         case 'style':
-            return { placement: 'head', markup: "<style>".concat(row.text, "</style>") };
+            return { placement: 'head', markup: `<style>${row.text}</style>` };
         case 'html':
             return { placement: row.placement, markup: row.html };
         default:
@@ -47,7 +44,7 @@ function renderRow(row) {
 }
 /** Insert `markup` into `html` at `at`. */
 function splice(html, at, markup) {
-    return "".concat(html.slice(0, at)).concat(markup).concat(html.slice(at));
+    return `${html.slice(0, at)}${markup}${html.slice(at)}`;
 }
 /**
  * Render rows into an index.html body: head rows immediately after the
@@ -57,29 +54,29 @@ function splice(html, at, markup) {
  * @param rows - the collected injection table.
  * @returns the html with every row rendered.
  */
-function renderIndexInjections(html, rows) {
-    var head = '';
-    var body = '';
-    for (var _i = 0, rows_1 = rows; _i < rows_1.length; _i++) {
-        var row = rows_1[_i];
-        var rendered = renderRow(row);
+export function renderIndexInjections(html, rows) {
+    let head = '';
+    let body = '';
+    for (const row of rows) {
+        const rendered = renderRow(row);
         if (rendered.placement === 'head')
             head += rendered.markup;
         else
             body += rendered.markup;
     }
-    var out = html;
+    let out = html;
     if (head !== '') {
-        var open_1 = /<head(?:\s[^>]*)?>/i.exec(out);
+        const open = /<head(?:\s[^>]*)?>/i.exec(out);
         // Headless fixture pages may lack <head>; prepending keeps the rows ahead
         // of every document script.
-        out = open_1 === null ? "".concat(head).concat(out) : splice(out, open_1.index + open_1[0].length, head);
+        out = open === null ? `${head}${out}` : splice(out, open.index + open[0].length, head);
     }
     if (body !== '') {
-        var open_2 = /<body(?:\s[^>]*)?>/i.exec(out);
+        const open = /<body(?:\s[^>]*)?>/i.exec(out);
         // Body-less fragments receive the rows at the end, where the HTML parser
         // has already synthesized a body.
-        out = open_2 === null ? "".concat(out).concat(body) : splice(out, open_2.index + open_2[0].length, body);
+        out = open === null ? `${out}${body}` : splice(out, open.index + open[0].length, body);
     }
     return out;
 }
+//# sourceMappingURL=injections.js.map

@@ -4,11 +4,11 @@
  * producers. It also delivers unreported completions to the owning agent:
  * injected into a busy owner's next step, or opening a turn on an idle one
  * under the default `wakeup` delivery, bounded per owner.
- * @module @z/dsh-tool-jobs
+ * @module @taskweaver/dsh-tool-jobs
  */
-import type { Context } from '@z/cordis';
-import z from '@z/schemastery';
-import type { JobSnapshot } from '@z/dsh-jobs';
+import type { Context } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
+import type { JobSnapshot } from '@taskweaver/dsh-jobs';
 export declare const name = "tool-jobs";
 export declare const inject: string[];
 /**

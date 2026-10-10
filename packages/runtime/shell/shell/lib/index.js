@@ -1,12 +1,12 @@
-import { Service } from "@z/cordis";
-import { settingsNamespace } from "@z/dsh-settings";
-import { DSH_ENV_PREFIX } from "@z/dsh-subprocess";
+import { Service } from "@taskweaver/cordis";
+import { settingsNamespace } from "@taskweaver/dsh-settings";
+import { DSH_ENV_PREFIX } from "@taskweaver/dsh-subprocess";
 //#region lib/types/render.js
 /**
 * Shared rendering helpers for the shell tools (`dsh-tool-bash`,
 * `dsh-tool-pwsh`): the exit-status marker contract the tools' renderers
 * emit and the presentation layer parses back.
-* @module @z/dsh-shell/render
+* @module @taskweaver/dsh-shell/render
 */
 /**
 * Split a rendered shell-tool result string into its output body and the
@@ -49,8 +49,8 @@ function parseExitStatus(text) {
 /**
 * Service Definition for the `ctx.shell` capability seam, covering foreground commands and background process
 * handles. Job ids, ownership, polling, and notices belong to
-* `@z/dsh-jobs`, keeping executors independent of sessions.
-* @module @z/dsh-shell
+* `@taskweaver/dsh-jobs`, keeping executors independent of sessions.
+* @module @taskweaver/dsh-shell
 */
 /**
 * Settings namespace of this capability, owned here rather than by either

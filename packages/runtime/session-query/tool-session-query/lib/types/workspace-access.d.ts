@@ -1,12 +1,12 @@
 /**
  * Caller identity, workspace authorization, and visible lineage projection.
  *
- * @module @z/dsh-tool-session-query/workspace-access
+ * @module @taskweaver/dsh-tool-session-query/workspace-access
  */
-import type { Context } from '@z/cordis';
-import { type SessionEvent, type SessionHeader, type SessionId as SessionIdValue } from '@z/dsh-session';
-import type { SessionLineageNode, SessionRecord } from '@z/dsh-session-query';
-import type { ToolRunContext } from '@z/dsh-tools';
+import type { Context } from '@taskweaver/cordis';
+import { type SessionEvent, type SessionHeader, type SessionId as SessionIdValue } from '@taskweaver/dsh-session';
+import type { SessionLineageNode, SessionRecord } from '@taskweaver/dsh-session-query';
+import type { ToolRunContext } from '@taskweaver/dsh-tools';
 interface Caller {
     readonly id: SessionIdValue;
     readonly header: SessionHeader;

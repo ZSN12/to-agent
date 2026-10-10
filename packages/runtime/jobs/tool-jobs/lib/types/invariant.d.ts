@@ -1,8 +1,8 @@
 /**
- * Package-owned invariant companion for `@z/dsh-tool-jobs`.
- * @module @z/dsh-tool-jobs/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-tool-jobs`.
+ * @module @taskweaver/dsh-tool-jobs/invariant
  */
-import type { Context } from '@z/cordis';
+import type { Context } from '@taskweaver/cordis';
 /** Cordis companion plugin name. */
 export declare const name = "tool-jobs-invariant";
 /** Service required before the companion can reserve package ownership. */

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import {
   AlertTriangle,
   Check,
@@ -27,6 +27,7 @@ import type {
   GitRestoreResult,
   ManualGitCommitPreview,
 } from '../../shared/app-api'
+import { useModalFocusTrap } from '../../shared/useModalFocusTrap'
 
 function isGitCommitSnapshot(cp: GitCheckpoint) {
   return cp.kind === 'git_commit'
@@ -59,6 +60,18 @@ export function GitCheckpointPanel({
     checkpoint: GitCheckpoint
     impact: GitRestoreResult
   } | null>(null)
+  const commitDialogTitleId = useId()
+  const commitDialogDescriptionId = useId()
+  const restoreDialogTitleId = useId()
+  const restoreDialogDescriptionId = useId()
+  const commitDialogRef = useModalFocusTrap<HTMLDivElement>({
+    open: Boolean(commitModalData),
+    onEscape: !committing ? () => setCommitModalData(null) : undefined,
+  })
+  const restoreDialogRef = useModalFocusTrap<HTMLDivElement>({
+    open: Boolean(confirmModalData),
+    onEscape: () => setConfirmModalData(null),
+  })
 
   // 还原完成状态（可撤销）
   const [lastRestoreResult, setLastRestoreResult] = useState<{
@@ -756,15 +769,15 @@ export function GitCheckpointPanel({
       </div>
 
       {commitModalData && (
-        <div className="custom-confirm-backdrop" onClick={() => !committing && setCommitModalData(null)}>
-          <div className="custom-confirm-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 520 }}>
+        <div className="custom-confirm-backdrop" role="presentation" onClick={(event) => { if (event.target === event.currentTarget && !committing) setCommitModalData(null) }}>
+          <div ref={commitDialogRef} className="custom-confirm-card" role="dialog" aria-modal="true" aria-labelledby={commitDialogTitleId} aria-describedby={commitDialogDescriptionId} tabIndex={-1} style={{ maxWidth: 520 }}>
             <div className="custom-confirm-head">
               <div className="custom-confirm-icon" style={{ background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8' }}>
                 <GitBranch size={20} />
               </div>
               <div style={{ flex: 1 }}>
-                <h3 className="custom-confirm-title">确认提交快照</h3>
-                <p className="custom-confirm-desc" style={{ fontSize: 12 }}>
+                <h3 className="custom-confirm-title" id={commitDialogTitleId}>确认提交快照</h3>
+                <p className="custom-confirm-desc" id={commitDialogDescriptionId} style={{ fontSize: 12 }}>
                   将在分支 <strong>{commitModalData.branch || '—'}</strong> 上创建一个本地 Git commit，推进当前分支历史；不会上传到远程。
                 </p>
               </div>
@@ -820,17 +833,17 @@ export function GitCheckpointPanel({
 
       {/* 应用内还原确认弹窗 (CheckpointRestoreModal) */}
       {confirmModalData && (
-        <div className="custom-confirm-backdrop" onClick={() => setConfirmModalData(null)}>
-          <div className="custom-confirm-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 480 }}>
+        <div className="custom-confirm-backdrop" role="presentation" onClick={(event) => { if (event.target === event.currentTarget) setConfirmModalData(null) }}>
+          <div ref={restoreDialogRef} className="custom-confirm-card" role="dialog" aria-modal="true" aria-labelledby={restoreDialogTitleId} aria-describedby={restoreDialogDescriptionId} tabIndex={-1} style={{ maxWidth: 480 }}>
             <div className="custom-confirm-head">
               <div className="custom-confirm-icon" style={{ background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b' }}>
                 <AlertTriangle size={20} />
               </div>
               <div style={{ flex: 1 }}>
-                <h3 className="custom-confirm-title">
+                <h3 className="custom-confirm-title" id={restoreDialogTitleId}>
                   {isGitCommitSnapshot(confirmModalData.checkpoint) ? '确认回溯到此 Git 提交' : '确认还原自动保护快照'}
                 </h3>
-                <p className="custom-confirm-desc" style={{ fontSize: 12 }}>
+                <p className="custom-confirm-desc" id={restoreDialogDescriptionId} style={{ fontSize: 12 }}>
                   {isGitCommitSnapshot(confirmModalData.checkpoint) ? (
                     <>
                       将把当前分支重置到提交{' '}

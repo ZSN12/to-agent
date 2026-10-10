@@ -4,7 +4,7 @@ import { generateKeyPairSync, sign, createHash } from 'node:crypto'
 import fsp from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { createModelRegistryUpdater } from '../electron/backend/model-registry-updater.mjs'
+import { createModelRegistryUpdater } from '../desktop/backend/model-registry-updater.mjs'
 
 const temp = await fsp.mkdtemp(path.join(os.tmpdir(), 'tw-registry-test-'))
 try {

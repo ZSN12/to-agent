@@ -1,14 +1,14 @@
 /**
  * Profile discovery, initialization, and patch-layer composition for the
- * `dsh --profile` launcher family.
+ * `taskweaver-host --profile` launcher.
  *
- * A profile is a directory under `$DSH_HOME/profiles/<name>` holding a
+ * A profile is a directory under `$TASKWEAVER_HOME/profiles/<name>` holding a
  * `package.json` (out-of-tree plugin dependencies plus the profile manifest
- * `dsh.profile` with its ordered `bundles` list) and a `cordis.patch.yml`
+ * `taskweaver.profile` with its ordered `bundles` list) and a `cordis.patch.yml`
  * (the user's own patch layer, applied after every bundle layer). Bundles are
  * npm packages whose manifest declares
  * `"dsh": { "bundle": { "patch": "./cordis.patch.yml" } }`; the tree is
- * composed by applying each bundle's patch list in `dsh.profile.bundles` order over
+ * composed by applying each bundle's patch list in `taskweaver.profile.bundles` order over
  * an empty entry list, then the profile's own patches, then any launcher
  * layers (`--patch` files and flag-derived patches).
  *
@@ -16,29 +16,29 @@
  * first from the dsh installation (the launcher's own package), then from the
  * profile directory. The Loader's `baseUrl` is the profile directory, whose
  * `node_modules` pnpm manages for out-of-tree plugins, while the maintained
- * flat fallback directory `$DSH_HOME/profiles/node_modules` (one symlink per
+ * flat fallback directory `$TASKWEAVER_HOME/profiles/node_modules` (one symlink per
  * package the installation's app and bundles depend on) makes every in-box
  * plugin Node-resolvable from any profile through the ordinary parent-walk.
- * @module @z/dsh-app-boot/profile
+ * @module @taskweaver/dsh-app-boot/profile
  */
-import type { EntryOptions } from '@z/cordis-plugin-loader';
-import { type PatchOptions } from '@z/cordis-plugin-include';
+import type { EntryOptions } from '@taskweaver/cordis-plugin-loader';
+import { type PatchOptions } from '@taskweaver/cordis-plugin-include';
 /** Directory under the Harness home holding every profile. */
 export declare const PROFILES_DIR = "profiles";
 /** The user patch layer inside a profile directory (hot-reloaded on long-lived surfaces). */
 export declare const PROFILE_PATCH_FILENAME = "cordis.patch.yml";
-/** The bundle half of the `dsh` manifest section: what a bundle package exports. */
+/** The bundle half of the `taskweaver` manifest section: what a bundle package exports. */
 export interface DshBundleManifest {
     /** The patch layer this bundle exports, relative to its package root. */
     patch: string;
 }
-/** The profile half of the `dsh` manifest section: what a profile directory composes. */
+/** The profile half of the `taskweaver` manifest section: what a profile directory composes. */
 export interface DshProfileManifest {
     /** Ordered bundle layer list (package names). */
     bundles?: string[];
 }
 /**
- * The profile-launcher slice of the `dsh`-owned package.json section. A
+ * The profile-launcher slice of the `taskweaver`-owned package.json section. A
  * manifest may declare both roles; other consumers own additional keys.
  */
 export interface DshManifestSection {
@@ -52,11 +52,13 @@ export interface ProfileManifest {
     name?: string;
     dependencies?: Record<string, string>;
     peerDependencies?: Record<string, string>;
+    taskweaver?: DshManifestSection;
+    /** @deprecated Read-only compatibility for profiles created before the rename. */
     dsh?: DshManifestSection;
 }
 /** One resolved bundle layer of a profile. */
 export interface ProfileLayer {
-    /** The bundle's package name, as listed in `dsh.profile.bundles`. */
+    /** The bundle's package name, as listed in `taskweaver.profile.bundles`. */
     packageName: string;
     /** Absolute directory of the resolved bundle package. */
     packageDir: string;
@@ -71,7 +73,7 @@ export interface Profile {
     name: string;
     /** Absolute profile directory. */
     dir: string;
-    /** Bundle layers in `dsh.profile.bundles` order. */
+    /** Bundle layers in `taskweaver.profile.bundles` order. */
     layers: ProfileLayer[];
     /** Absolute path of the profile's own patch file. */
     patchPath: string;
@@ -80,25 +82,25 @@ export interface Profile {
 }
 /**
  * Resolve a profile's directory under the Harness home.
- * @param name - the profile name (`dsh --profile <name>`).
- * @param home - the Harness home; defaults to {@link resolveDshHome}.
+ * @param name - the profile name (`taskweaver-host --profile <name>`).
+ * @param home - the Harness home; defaults to {@link resolveRuntimeHome}.
  * @returns the absolute profile directory (which may not exist yet).
  */
 export declare function resolveProfileDir(name: string, home?: string): string;
 /** The shipped profile templates auto-initialized on first use, by name. */
 export declare const PROFILE_TEMPLATES: Record<string, readonly string[]>;
-/** The bundle list a `dsh plugin` init uses for a name with no shipped template. */
+/** The bundle list a `taskweaver-host plugin` init uses for a name with no shipped template. */
 export declare const DEFAULT_PROFILE_BUNDLES: readonly string[];
 /**
  * Initialize a profile directory: manifest, empty user patch layer, and the
  * pnpm settings out-of-tree plugins need. Existing files are never touched,
  * so re-running is a no-op on an initialized profile.
  * @param dir - the profile directory from {@link resolveProfileDir}.
- * @param bundles - the initial `dsh.profile.bundles` layer list.
+ * @param bundles - the initial `taskweaver.profile.bundles` layer list.
  */
 export declare function initProfile(dir: string, bundles: readonly string[]): void;
 /**
- * Maintain the flat module fallback `$DSH_HOME/profiles/node_modules`: one
+ * Maintain the flat module fallback `$TASKWEAVER_HOME/profiles/node_modules`: one
  * symlink per package in the dsh app's resolvable dependency CLOSURE (BFS
  * over `dependencies` from the app manifest), each resolved from its own
  * real location. Node's parent-directory walk from any profile finds this
@@ -114,7 +116,7 @@ export declare function initProfile(dir: string, bundles: readonly string[]): vo
  * re-pointed; a stale link to a vanished package stays until its name is
  * reused (dangling links are invisible to resolution).
  * @param installAnchor - absolute path of the dsh app's package.json.
- * @param home - the Harness home; defaults to {@link resolveDshHome}.
+ * @param home - the Harness home; defaults to {@link resolveRuntimeHome}.
  */
 export declare function healProfilesModuleFallback(installAnchor: string, home?: string): void;
 /**
@@ -133,25 +135,25 @@ export declare function writeProfileManifest(dir: string, manifest: ProfileManif
 /**
  * Resolve one bundle package's directory: installation anchor first, then the
  * profile directory. The installation-first order is the contract that
- * `@z/dsh-base` (and every other in-box bundle) always comes from
+ * `@taskweaver/dsh-base` (and every other in-box bundle) always comes from
  * the same installation as the running dsh, never from a profile-local copy.
  * Resolution does not require the package to export `./package.json`.
  * @param binName - the diagnostic prefix on the thrown error.
- * @param packageName - the bundle's package name from `dsh.profile.bundles`.
+ * @param packageName - the bundle's package name from `taskweaver.profile.bundles`.
  * @param installAnchor - absolute path of a file inside the dsh app package (its package.json).
  * @param profileDir - the profile directory (second anchor).
  * @returns the bundle package's absolute directory.
  */
 export declare function resolveBundleDir(binName: string, packageName: string, installAnchor: string, profileDir: string): string;
 /**
- * Load a profile: resolve every `dsh.profile.bundles` entry to its patch
+ * Load a profile: resolve every `taskweaver.profile.bundles` entry to its patch
  * layer and parse the profile's own patch file. A listed bundle without a
- * `dsh.bundle` manifest fails loud — naming a bundle-less package as a layer
+ * `taskweaver.bundle` manifest fails loud — naming a bundle-less package as a layer
  * is a misconfiguration, not "no patches".
  * @param binName - the diagnostic prefix on thrown errors.
  * @param name - the profile name.
  * @param installAnchor - absolute path of the dsh app's package.json (first resolution anchor).
- * @param home - the Harness home; defaults to {@link resolveDshHome}.
+ * @param home - the Harness home; defaults to {@link resolveRuntimeHome}.
  * @param options - `userLayer: false` skips reading `cordis.patch.yml`, so a
  * bundles-only consumer (`--dump-default-config`, a recovery diagnostic)
  * cannot fail on a broken user layer.

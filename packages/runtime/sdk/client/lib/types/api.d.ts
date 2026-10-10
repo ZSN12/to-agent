@@ -4,9 +4,9 @@
  * prompt and settles when the whole agent next becomes idle.
  * Mirrors the Python SDK's `DeepSeekHarness`/`Session` pair.
  *
- * @module @z/dsh-sdk-client/api
+ * @module @taskweaver/dsh-sdk-client/api
  */
-import type { SessionEvent } from '@z/dsh-session';
+import type { SessionEvent } from '@taskweaver/dsh-session';
 import { HarnessClient } from './client.ts';
 import type { ContentBlock, DeepSeekHarnessOptions, HarnessNotification, RunResult } from './types.ts';
 /**

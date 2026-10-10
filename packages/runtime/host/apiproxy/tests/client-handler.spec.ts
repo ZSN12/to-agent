@@ -6,9 +6,9 @@
  */
 
 import { describe, expect, it, vi } from 'vitest'
-import type { SessionId } from '@z/dsh-session'
-import type { ApiProxy, GoalRef, HostFrame, MuxFrame, RpcMessage, RpcRequest, RpcResponse } from '@z/dsh-host-apiproxy'
-import { InProcessApiClient, RpcId, toFetchHandler } from '@z/dsh-host-apiproxy'
+import type { SessionId } from '@taskweaver/dsh-session'
+import type { ApiProxy, GoalRef, HostFrame, MuxFrame, RpcMessage, RpcRequest, RpcResponse } from '@taskweaver/dsh-host-apiproxy'
+import { InProcessApiClient, RpcId, toFetchHandler } from '@taskweaver/dsh-host-apiproxy'
 
 const sid = (id: string): SessionId => id as SessionId
 
@@ -76,9 +76,8 @@ function scriptedApi(overrides: {
         version: '0-test', cwd: '/t', attachedSessions: 0, home: '/h', canOpenPath: true,
       }),
       pickDirectory: r => ok(r, { path: null }),
-      listDirectory: r => ok(r, { path: '/t', home: '/t', crumbs: [], entries: [], truncated: false }),
-      createDirectory: r => ok(r, { path: '/t/new' }),
       openPath: r => ok(r, { opened: true as const }),
+      searchWeb: r => ok(r, { sources: [], truncated: false }),
       ...overrides.host,
     },
     workspace: {

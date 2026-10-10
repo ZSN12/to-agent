@@ -1,6 +1,6 @@
 /**
  * Ownership of one unpublished Session before registry publication.
- * @module @z/dsh-session/preparation
+ * @module @taskweaver/dsh-session/preparation
  */
 
 import type { Session } from './index.ts'

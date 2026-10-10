@@ -1,16 +1,16 @@
-import Schema from "@z/schemastery";
-import { JsonRpcLineTransport } from "@z/dsh-sdk-protocol";
+import Schema from "@taskweaver/schemastery";
+import { JsonRpcLineTransport } from "@taskweaver/dsh-sdk-protocol";
 import { resolve } from "node:path";
-import { createUserMessage } from "@z/dsh-llm";
-import { carrierKeyOf } from "@z/dsh-scope";
-import { SessionId } from "@z/dsh-session";
-import * as LlmDeepSeek from "@z/dsh-llm-deepseek";
+import { createUserMessage } from "@taskweaver/dsh-llm";
+import { carrierKeyOf } from "@taskweaver/dsh-scope";
+import { SessionId } from "@taskweaver/dsh-session";
+import * as LlmDeepSeek from "@taskweaver/dsh-llm-deepseek";
 //#region lib/types/server.js
 /**
 * JSON-RPC methods and notifications for out-of-process harness SDKs.
 * The surrounding context owns plugins, persistence, and configured adapters.
 *
-* @module @z/dsh-sdk-jsonrpc-server/server
+* @module @taskweaver/dsh-sdk-jsonrpc-server/server
 */
 /** Recover the delegating parent from the service-owned scoped carrier. */
 function subagentParentOf(carrier) {
@@ -202,7 +202,7 @@ var HarnessSdkJsonRpcServer = class {
 * owns EOF and signal exits. Keep named plugin exports with no default export so
 * Loader `unwrapExports` preserves `name`, `inject`, `Config`, and `apply`.
 *
-* @module @z/dsh-sdk-jsonrpc-server
+* @module @taskweaver/dsh-sdk-jsonrpc-server
 */
 const name = "sdk-jsonrpc-server";
 const inject = ["agents"];

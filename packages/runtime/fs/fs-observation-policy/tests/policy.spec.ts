@@ -1,11 +1,11 @@
 /** Event-level policy tests; no filesystem provider is needed because the plugin performs no I/O. */
 
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import { FsTargetKey, FsVersion } from '@z/dsh-fs'
-import type { FsObservation, FsTarget, FsWriteIntent } from '@z/dsh-fs'
-import * as FsPolicy from '@z/dsh-fs-observation-policy'
-import type { FsObservationActor } from '@z/dsh-fs-observation-policy'
+import { Context } from '@taskweaver/cordis'
+import { FsTargetKey, FsVersion } from '@taskweaver/dsh-fs'
+import type { FsObservation, FsTarget, FsWriteIntent } from '@taskweaver/dsh-fs'
+import * as FsPolicy from '@taskweaver/dsh-fs-observation-policy'
+import type { FsObservationActor } from '@taskweaver/dsh-fs-observation-policy'
 
 function target(path: string): FsTarget {
   return { targetKey: FsTargetKey(path), displayPath: path }

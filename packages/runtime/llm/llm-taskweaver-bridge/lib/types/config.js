@@ -1,7 +1,7 @@
 /**
- * @module @z/dsh-llm-taskweaver-bridge/config
+ * @module @taskweaver/dsh-llm-taskweaver-bridge/config
  */
-import z from '@z/schemastery';
+import z from '@taskweaver/schemastery';
 const catalogModel = z.object({
     id: z.string().required(),
     name: z.string(),

@@ -22,18 +22,18 @@
  * that do not use a `./typert` artifact (hand-written wire schemas,
  * tests, non-loader compositions).
  *
- * @module @z/dsh-typert-loader
+ * @module @taskweaver/dsh-typert-loader
  */
 
 import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import type { Context } from '@z/cordis'
-import z from '@z/schemastery'
-import type {} from '@z/cordis-plugin-loader'
-import type {} from '@z/dsh-typert-registry'
-import type { TypertContribution } from '@z/dsh-typert-registry/types'
+import type { Context } from '@taskweaver/cordis'
+import z from '@taskweaver/schemastery'
+import type {} from '@taskweaver/cordis-plugin-loader'
+import type {} from '@taskweaver/dsh-typert-registry'
+import type { TypertContribution } from '@taskweaver/dsh-typert-registry/types'
 
 /** The package.json exports key naming a package's host-face typert artifact. */
 export const TYPERT_HOST_EXPORT = './typert'

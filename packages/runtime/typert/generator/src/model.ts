@@ -1,7 +1,7 @@
 /**
  * Compiler-independent Typert analysis model. TypeScript nodes and checker
  * objects are extraction inputs only; emitters consume this graph.
- * @module @z/dsh-typert-generator/model
+ * @module @taskweaver/dsh-typert-generator/model
  */
 
 /** One independently compiled side of the workspace. */

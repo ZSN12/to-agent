@@ -1,19 +1,19 @@
-import { Service } from "@z/cordis";
+import { Service } from "@taskweaver/cordis";
 import { randomUUID } from "node:crypto";
-import z from "@z/schemastery";
-import { Inbox, agentEvents, assembleContextFor, emitAgentEvent } from "@z/dsh-agent";
-import { BlockAssembler, LlmError, assertNever, createAssistantMessage, createToolResultMessage, createUserMessage, deepFreeze, errorChain, markAgentLoopRequest } from "@z/dsh-llm";
-import { installSettingsSection, settingsNamespace } from "@z/dsh-settings";
-import { SessionId, SessionPreparation, canonicalHeader, headerEquals, isReplacementSurfaceEvent } from "@z/dsh-session";
-import { createScope } from "@z/dsh-scope";
-import { joinContextSections, renderContextSections, renderPrompt } from "@z/dsh-system-prompt";
-import { TOOL_ABORTED_BEFORE_DISPATCH, TOOL_RUNTIME_SCHEDULER } from "@z/dsh-tools";
+import z from "@taskweaver/schemastery";
+import { Inbox, agentEvents, assembleContextFor, emitAgentEvent } from "@taskweaver/dsh-agent";
+import { BlockAssembler, LlmError, assertNever, createAssistantMessage, createToolResultMessage, createUserMessage, deepFreeze, errorChain, markAgentLoopRequest } from "@taskweaver/dsh-llm";
+import { installSettingsSection, settingsNamespace } from "@taskweaver/dsh-settings";
+import { SessionId, SessionPreparation, canonicalHeader, headerEquals, isReplacementSurfaceEvent } from "@taskweaver/dsh-session";
+import { createScope } from "@taskweaver/dsh-scope";
+import { joinContextSections, renderContextSections, renderPrompt } from "@taskweaver/dsh-system-prompt";
+import { TOOL_ABORTED_BEFORE_DISPATCH, TOOL_RUNTIME_SCHEDULER } from "@taskweaver/dsh-tools";
 //#region lib/types/runtime-context.js
 /**
 * Durable projection state for dynamic runtime context.
-* @module @z/dsh-agent-loop/runtime-context
+* @module @taskweaver/dsh-agent-loop/runtime-context
 */
-const SOURCE = "@z/dsh-system-prompt";
+const SOURCE = "@taskweaver/dsh-system-prompt";
 const CLEARED = "Current runtime context: none. Earlier runtime-context snapshots no longer apply.";
 function isOwned(message) {
 	return message.source.kind === "plugin" && message.source.plugin === SOURCE;
@@ -774,7 +774,7 @@ const DEFAULT_MAX_PARALLEL_TOOL_CALLS = 10;
 * Concrete agent-loop plugin: creates scoped ReactLoopAgents, publishes them
 * through the agent/session registries, and owns their ordered teardown.
 *
-* @module @z/dsh-agent-loop
+* @module @taskweaver/dsh-agent-loop
 */
 var __addDisposableResource = function(env, value, async) {
 	if (value !== null && value !== void 0) {
@@ -835,7 +835,7 @@ var __disposeResources = (function(SuppressedError) {
 	return e.name = "SuppressedError", e.error = error, e.suppressed = suppressed, e;
 });
 /** Fiber states that cannot own or serve a new lifecycle. */
-const INACTIVE_STATES = new Set([
+const INACTIVE_STATES = /* @__PURE__ */ new Set([
 	5,
 	4,
 	3

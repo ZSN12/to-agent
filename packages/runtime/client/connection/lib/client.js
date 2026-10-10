@@ -1,5 +1,5 @@
 window.__ModuleLoader__.load({
-	id: "@z/dsh-client-connection",
+	id: "@taskweaver/dsh-client-connection",
 	factory: (require) => {
 		var module = { exports: {} };
 		var exports = module.exports;
@@ -150,12 +150,12 @@ window.__ModuleLoader__.load({
 		* dsh-llm's owned branded ids: tool-call correlation and provider request
 		* diagnostics.
 		*
-		* The `Branded<B>` primitive itself lives in `@z/dsh-brand` (a
+		* The `Branded<B>` primitive itself lives in `@taskweaver/dsh-brand` (a
 		* zero-dependency type-only package) so every owner of a cross-boundary id can
 		* brand it without depending on dsh-llm; see that package's README for the
 		* nominal-typing policy.
 		*
-		* @module @z/dsh-llm/brand
+		* @module @taskweaver/dsh-llm/brand
 		*/
 		/**
 		* Brand a message identifier.
@@ -312,7 +312,7 @@ window.__ModuleLoader__.load({
 		* Browser-safe: web clients consume this subpath export, so it must stay free
 		* of `node:` imports (they break the vite bundle).
 		*
-		* @module @z/dsh-session/surface
+		* @module @taskweaver/dsh-session/surface
 		*/
 		/** Runtime counterpart of the message-producing event union. */
 		const SURFACE_EVENT_TYPES = new Set([
@@ -8034,15 +8034,15 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 			const fixturePresets = new Map([
 				["standard", {
 					trust: "system",
-					content: "- id: tool-bash\n  name: '@z/dsh-tool-bash'\n"
+					content: "- id: tool-bash\n  name: '@taskweaver/dsh-tool-bash'\n"
 				}],
 				["minimal", {
 					trust: "system",
-					content: "- id: tool-web-search\n  name: '@z/dsh-tool-web-search'\n"
+					content: "- id: tool-web-search\n  name: '@taskweaver/dsh-tool-web-search'\n"
 				}],
 				["my-agent", {
 					trust: "user",
-					content: "- id: tool-read\n  name: '@z/dsh-tool-read'\n"
+					content: "- id: tool-read\n  name: '@taskweaver/dsh-tool-read'\n"
 				}]
 			]);
 			let fixtureDefaultPreset = "standard";

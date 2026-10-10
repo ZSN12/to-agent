@@ -1,9 +1,12 @@
-import { deepEqual, isNullable } from '@z/cosmokit';
+import { deepEqual, isNullable } from '@taskweaver/cosmokit';
 import { EntryTree } from "./tree.js";
 import { evaluate, isJsExpr } from "./utils.js";
+function formatEntryName(name) {
+    return isJsExpr(name) ? '!!js' : String(name);
+}
 function updateError(stage, options, cause) {
     const detail = cause instanceof Error ? cause.message : String(cause);
-    return new Error(`failed to ${stage} loader entry ${options.id} (${options.name}): ${detail}`, { cause });
+    return new Error(`failed to ${stage} loader entry ${options.id} (${formatEntryName(options.name)}): ${detail}`, { cause });
 }
 function takeEntries(object, keys) {
     const result = [];
@@ -83,6 +86,13 @@ export class Entry {
     }
     evaluate(expr) {
         return evaluate(this.ctx, expr);
+    }
+    resolveImportName(name) {
+        const resolved = isJsExpr(name) ? evaluate(this.ctx, name.__jsExpr) : name;
+        if (typeof resolved !== 'string' || resolved.length === 0) {
+            throw new TypeError(`loader entry ${this.options.id} name must resolve to a non-empty string`);
+        }
+        return resolved;
     }
     async _patchContext(diff) {
         await this.context.waterfall('loader/patch-context', this, async () => {
@@ -190,7 +200,7 @@ export class Entry {
         let plugin;
         try {
             plugin = diff.includes('name')
-                ? this.loader.unwrapExports(await this.parent.tree.import(candidate.name, this.getOuterStack))
+                ? this.loader.unwrapExports(await this.parent.tree.import(this.resolveImportName(candidate.name), this.getOuterStack))
                 : previous.runtime.callback;
         }
         catch (error) {
@@ -254,7 +264,7 @@ export class Entry {
     async _init() {
         let plugin;
         try {
-            plugin = this.loader.unwrapExports(await this.parent.tree.import(this.options.name, this.getOuterStack));
+            plugin = this.loader.unwrapExports(await this.parent.tree.import(this.resolveImportName(this.options.name), this.getOuterStack));
         }
         catch (error) {
             throw updateError('import', this.options, error);

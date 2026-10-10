@@ -1,5 +1,5 @@
 /** Public configuration and typed failures for the combined session-query service. */
-import { HarnessError } from '@z/dsh-llm';
+import { HarnessError } from '@taskweaver/dsh-llm';
 /** Default maximum `before`/`after` raw-event window. */
 export declare const SESSION_QUERY_READ_WINDOW_MAX = 50;
 /** Default maximum number of concurrent persisted-log inspections in one batch read. */

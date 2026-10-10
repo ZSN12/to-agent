@@ -1,8 +1,8 @@
 /**
  * Shared path resolution and regular-file validation for model-facing read tools.
- * @module @z/dsh-tool-fs/src/read-target
+ * @module @taskweaver/dsh-tool-fs/src/read-target
  */
-import { FsError } from '@z/dsh-fs';
+import { FsError } from '@taskweaver/dsh-fs';
 import { sessionResolveOptions } from "./session-cwd.js";
 /**
  * Resolve a model-supplied path, observe absence, and require a regular file.

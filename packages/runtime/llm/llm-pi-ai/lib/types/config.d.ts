@@ -14,9 +14,9 @@
  * @module dsh-llm-pi-ai/config
  */
 import type { CacheRetention, ModelThinkingLevel, Provider, ThinkingBudgets, Transport } from '@earendil-works/pi-ai';
-import z from '@z/schemastery';
-import type { CredentialRef } from '@z/dsh-credentials';
-import type { ResolvedRetryPolicy, RetryPolicyConfig } from '@z/dsh-llm';
+import z from '@taskweaver/schemastery';
+import type { CredentialRef } from '@taskweaver/dsh-credentials';
+import type { ResolvedRetryPolicy, RetryPolicyConfig } from '@taskweaver/dsh-llm';
 import type { PiAiCompatProfile, PiAiModality, PiAiModelOverride, PiAiModelProfile } from './catalog.ts';
 /** Default maximum idle interval while an adapter stream read is outstanding. */
 export declare const DEFAULT_STREAM_IDLE_TIMEOUT_MS = 300000;

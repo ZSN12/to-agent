@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { SessionEvent, SurfaceEvent, SurfaceEventType } from '@z/dsh-session'
+import type { SessionEvent, SurfaceEvent, SurfaceEventType } from '@taskweaver/dsh-session'
 import {
   Session,
   SessionId,
@@ -8,8 +8,8 @@ import {
   isReplacementSurfaceEvent,
   isSurfaceEligibleType,
   isSurfaceEvent,
-} from '@z/dsh-session'
-import { SurfaceManager } from '@z/dsh-session/surface'
+} from '@taskweaver/dsh-session'
+import { SurfaceManager } from '@taskweaver/dsh-session/surface'
 import {
   createMessage,
   createToolResultMessage,
@@ -17,7 +17,7 @@ import {
   freezeMessage,
   CallId,
   MessageId,
-} from '@z/dsh-llm'
+} from '@taskweaver/dsh-llm'
 
 /** Build a minimal session with turn boundaries and a single user message. */
 function surfaceSession(): Session {

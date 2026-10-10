@@ -1,9 +1,9 @@
 /** TaskWeaver API Host readiness follows the bound server and `/api` route. */
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { Context } from '@z/cordis'
-import WebServer from '@z/dsh-host-webserver'
-import { apply as registerApiRoute } from '@z/dsh-client-connection'
+import { Context } from '@taskweaver/cordis'
+import WebServer from '@taskweaver/dsh-host-webserver'
+import { apply as registerApiRoute } from '@taskweaver/dsh-client-connection'
 import { apply } from '../src/index.ts'
 
 const contexts: Context[] = []

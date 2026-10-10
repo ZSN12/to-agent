@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
-import z from "@z/schemastery";
-import { EMPTY_RESPONSE_CODE } from "@z/dsh-llm";
-import { taskweaverEmbeddedFromEnv } from "@z/dsh-home-paths";
+import z from "@taskweaver/schemastery";
+import { EMPTY_RESPONSE_CODE } from "@taskweaver/dsh-llm";
+import { taskweaverEmbeddedFromEnv } from "@taskweaver/dsh-home-paths";
 //#region lib/types/brand.js
 /**
 * Brand an implementation-minted retry-chain identity.
@@ -17,7 +17,7 @@ function RetryId(id) {
 * Provider-routed model-request retry policy on the agent loop's request
 * recovery extension point. Each scheduled retry is durable before its cancellable wait.
 *
-* @module @z/dsh-llm-retry
+* @module @taskweaver/dsh-llm-retry
 */
 const name = "llm-retry";
 const inject = ["agents"];
@@ -166,11 +166,12 @@ function apply(ctx, config = {}, internals = {}) {
 		const retry = previousRetry + 1;
 		const retryId = priorPolicyRetry?.data.retryId ?? RetryId(randomUUID());
 		let delayMs;
-		if (failure.providerRetryAfterMs !== void 0 && Number.isFinite(failure.providerRetryAfterMs) && failure.providerRetryAfterMs > 0) if (failure.providerRetryAfterMs > policy.maxDelayMs) {
-			if (policy.mode === "normal") return next();
-			delayMs = localDelay(policy, retry, random);
-		} else delayMs = failure.providerRetryAfterMs;
-		else delayMs = localDelay(policy, retry, random);
+		if (failure.providerRetryAfterMs !== void 0 && Number.isFinite(failure.providerRetryAfterMs) && failure.providerRetryAfterMs > 0) {
+			if (failure.providerRetryAfterMs > policy.maxDelayMs) {
+				if (policy.mode === "normal") return next();
+				delayMs = localDelay(policy, retry, random);
+			} else delayMs = failure.providerRetryAfterMs;
+		} else delayMs = localDelay(policy, retry, random);
 		return backoff(agent, turn, step, failure, provider, policy, policyKey, retry, retryId, delayMs, signal);
 	}
 	const disposeListener = ctx.on("agent/request-error", (payload, next) => {

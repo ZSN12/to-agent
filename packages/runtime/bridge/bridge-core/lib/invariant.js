@@ -1,5 +1,5 @@
 //#region lib/types/invariant.js
-const PACKAGE_NAME = "@z/dsh-bridge-core";
+const PACKAGE_NAME = "@taskweaver/dsh-bridge-core";
 const name = "bridge-core-invariant";
 const inject = ["invariants"];
 const install = () => {};

@@ -1,8 +1,8 @@
 /**
- * Package-owned invariant companion for `@z/dsh-settings`.
- * @module @z/dsh-settings/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-settings`.
+ * @module @taskweaver/dsh-settings/invariant
  */
-import type { Context } from '@z/cordis';
+import type { Context } from '@taskweaver/cordis';
 /** Cordis companion plugin name. */
 export declare const name = "settings-invariant";
 /** Service required before the companion can reserve package ownership. */

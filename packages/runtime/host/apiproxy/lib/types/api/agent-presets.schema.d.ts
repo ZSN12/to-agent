@@ -29,7 +29,7 @@ export declare const agentPresetListValueSchema: z.ZodObject<{
 }, z.core.$strip>;
 /** agentPreset.select request payload. */
 export declare const agentPresetSelectRequestSchema: z.ZodObject<{
-    sessionId: z.ZodType<import("@z/dsh-session").SessionId, unknown, z.core.$ZodTypeInternals<import("@z/dsh-session").SessionId, unknown>>;
+    sessionId: z.ZodType<import("@taskweaver/dsh-session").SessionId, unknown, z.core.$ZodTypeInternals<import("@taskweaver/dsh-session").SessionId, unknown>>;
     agentPreset: z.ZodString;
 }, z.core.$strip>;
 /** agentPreset.select response value. */

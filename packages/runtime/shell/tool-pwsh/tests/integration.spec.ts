@@ -1,5 +1,5 @@
 /**
- * Integration tests: the REAL `@z/dsh-pwsh-local` executor plus the
+ * Integration tests: the REAL `@taskweaver/dsh-pwsh-local` executor plus the
  * `pwsh` tool, exercised through `ctx.tools.execute()` with a real PowerShell
  * process. These verify the world — actual commands run, stdout/stderr come
  * back, exit codes render, timeouts abort, background jobs settle through the
@@ -14,16 +14,16 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
-import { Context } from '@z/cordis'
-import { CallId } from '@z/dsh-llm'
-import SystemPrompt from '@z/dsh-system-prompt'
-import ToolRuntime, { TOOL_ABORTED } from '@z/dsh-tools'
-import LocalJobRegistry from '@z/dsh-jobs-local'
-import * as ToolTasks from '@z/dsh-tool-jobs'
-import LocalSubprocessRuntime from '@z/dsh-subprocess-local'
-import { PwshLocalExecutor, resolvePwshPath } from '@z/dsh-pwsh-local'
-import * as ToolPwsh from '@z/dsh-tool-pwsh'
-import * as BashEnvPlugin from '@z/dsh-shell-env'
+import { Context } from '@taskweaver/cordis'
+import { CallId } from '@taskweaver/dsh-llm'
+import SystemPrompt from '@taskweaver/dsh-system-prompt'
+import ToolRuntime, { TOOL_ABORTED } from '@taskweaver/dsh-tools'
+import LocalJobRegistry from '@taskweaver/dsh-jobs-local'
+import * as ToolTasks from '@taskweaver/dsh-tool-jobs'
+import LocalSubprocessRuntime from '@taskweaver/dsh-subprocess-local'
+import { PwshLocalExecutor, resolvePwshPath } from '@taskweaver/dsh-pwsh-local'
+import * as ToolPwsh from '@taskweaver/dsh-tool-pwsh'
+import * as BashEnvPlugin from '@taskweaver/dsh-shell-env'
 
 const testToolSignal = new AbortController().signal
 

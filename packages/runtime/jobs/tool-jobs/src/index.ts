@@ -4,19 +4,19 @@
  * producers. It also delivers unreported completions to the owning agent:
  * injected into a busy owner's next step, or opening a turn on an idle one
  * under the default `wakeup` delivery, bounded per owner.
- * @module @z/dsh-tool-jobs
+ * @module @taskweaver/dsh-tool-jobs
  */
 
-import type { Context } from '@z/cordis'
-import z from '@z/schemastery'
-import { boundContextSummary, createUserMessage, type ContentBlock } from '@z/dsh-llm'
-import { TextRetainer } from '@z/dsh-output-retention'
-import { defineTool } from '@z/dsh-tools'
-import type { GenericCallView, ToolDefinition, ToolExecution } from '@z/dsh-tools'
-import { JobId } from '@z/dsh-jobs'
-import type { JobSnapshot } from '@z/dsh-jobs'
-import type {} from '@z/dsh-system-prompt'
-import type { Agent } from '@z/dsh-agent'
+import type { Context } from '@taskweaver/cordis'
+import z from '@taskweaver/schemastery'
+import { boundContextSummary, createUserMessage, type ContentBlock } from '@taskweaver/dsh-llm'
+import { TextRetainer } from '@taskweaver/dsh-output-retention'
+import { defineTool } from '@taskweaver/dsh-tools'
+import type { GenericCallView, ToolDefinition, ToolExecution } from '@taskweaver/dsh-tools'
+import { JobId } from '@taskweaver/dsh-jobs'
+import type { JobSnapshot } from '@taskweaver/dsh-jobs'
+import type {} from '@taskweaver/dsh-system-prompt'
+import type { Agent } from '@taskweaver/dsh-agent'
 
 export const name = 'tool-jobs'
 export const inject = ['tools', 'jobs', 'systemPrompt']

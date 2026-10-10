@@ -1,8 +1,8 @@
 /**
- * Package-owned invariant companion for `@z/dsh-persona`.
- * @module @z/dsh-persona/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-persona`.
+ * @module @taskweaver/dsh-persona/invariant
  */
-import type { Context } from '@z/cordis';
+import type { Context } from '@taskweaver/cordis';
 /** Cordis companion plugin name. */
 export declare const name = "persona-invariant";
 /** Service required before the companion can reserve package ownership. */

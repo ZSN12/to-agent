@@ -13,7 +13,7 @@
  *
  * See .agents/notes/implemented/testing/2026-06-19-acp-snapshot-tests.md.
  *
- * @module @z/dsh-acp-snapshot/harness
+ * @module @taskweaver/dsh-acp-snapshot/harness
  */
 import { type ContentBlock as AcpContentBlock } from '@agentclientprotocol/sdk';
 import { type AgentUnderTest } from './launcher.ts';

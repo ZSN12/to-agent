@@ -1,9 +1,9 @@
 //#region lib/types/invariant.js
 /**
-* Package-owned invariant companion for `@z/dsh-storage-json`.
-* @module @z/dsh-storage-json/invariant
+* Package-owned invariant companion for `@taskweaver/dsh-storage-json`.
+* @module @taskweaver/dsh-storage-json/invariant
 */
-const PACKAGE_NAME = "@z/dsh-storage-json";
+const PACKAGE_NAME = "@taskweaver/dsh-storage-json";
 /** Cordis companion plugin name. */
 const name = "storage-json-invariant";
 /** Service required before the companion can reserve package ownership. */

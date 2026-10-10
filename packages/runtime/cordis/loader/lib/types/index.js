@@ -1,5 +1,5 @@
-import { Inject, Service } from '@z/cordis';
-import { defineProperty, isNullable } from '@z/cosmokit';
+import { Inject, Service } from '@taskweaver/cordis';
+import { defineProperty, isNullable } from '@taskweaver/cosmokit';
 import { ModuleLoader } from "./internal.js";
 import { Entry } from "./config/entry.js";
 import { EntryGroup } from "./config/group.js";

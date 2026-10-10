@@ -5,17 +5,17 @@
  * image-reading tool is useful only when the exact calling route can inspect
  * its result, so unknown capability refuses instead of relying on an adapter
  * failure after filesystem and attachment work.
- * @module @z/dsh-tool-fs/src/read-image
+ * @module @taskweaver/dsh-tool-fs/src/read-image
  */
 
 import { basename, extname } from 'node:path'
-import type { Context } from '@z/cordis'
-import { AttachmentError, AttachmentId } from '@z/dsh-attachment'
-import type { ImageAttachmentRef, ImageMediaType } from '@z/dsh-attachment'
-import type { ContentBlock } from '@z/dsh-llm'
-import { defineTool } from '@z/dsh-tools'
-import type { GenericCallView, ToolExecution } from '@z/dsh-tools'
-import type {} from '@z/dsh-fs'
+import type { Context } from '@taskweaver/cordis'
+import { AttachmentError, AttachmentId } from '@taskweaver/dsh-attachment'
+import type { ImageAttachmentRef, ImageMediaType } from '@taskweaver/dsh-attachment'
+import type { ContentBlock } from '@taskweaver/dsh-llm'
+import { defineTool } from '@taskweaver/dsh-tools'
+import type { GenericCallView, ToolExecution } from '@taskweaver/dsh-tools'
+import type {} from '@taskweaver/dsh-fs'
 import { resolveRegularReadTarget } from './read-target.ts'
 
 /** Extensions `read_image` accepts; magic-byte validation at the attachment service stays authoritative. */

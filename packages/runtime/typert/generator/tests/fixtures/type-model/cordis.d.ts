@@ -1,4 +1,4 @@
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
   export class Service { protected readonly __service?: never }
 
   export interface Context {}

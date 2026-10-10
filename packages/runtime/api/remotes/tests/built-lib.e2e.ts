@@ -45,7 +45,7 @@ describe.skipIf(!requiredArtifacts)('Goal Remote built LIB chain', () => {
     }).map(([key, path]) => [key, artifactUrl(path)]))
     const script = `
       import { createServer } from 'node:http'
-      import * as cordis from '@z/cordis'
+      import * as cordis from '@taskweaver/cordis'
 
       const urls = ${JSON.stringify(urls)}
       const { Context } = cordis
@@ -123,16 +123,16 @@ describe.skipIf(!requiredArtifacts)('Goal Remote built LIB chain', () => {
         const handoff = handoffs.get(id)
         if (handoff === undefined) throw new Error('missing Client bundle handoff ' + id)
         return handoff.factory(specifier => {
-          if (specifier === '@z/cordis') return cordis
+          if (specifier === '@taskweaver/cordis') return cordis
           throw new Error('unexpected Client external ' + specifier)
         })
       }
       const client = new Context()
       for (const id of [
-        '@z/dsh-typert-registry',
-        '@z/dsh-client-connection',
-        '@z/dsh-api-gateway',
-        '@z/dsh-api-remotes',
+        '@taskweaver/dsh-typert-registry',
+        '@taskweaver/dsh-client-connection',
+        '@taskweaver/dsh-api-gateway',
+        '@taskweaver/dsh-api-remotes',
       ]) {
         const plugin = instantiate(id)
         await client.plugin({ inject: plugin.inject, apply: plugin.apply })

@@ -2,9 +2,9 @@
  * Fixed physical-record compression for SQLite. Schema-owned functions
  * encode logical events and decode tagged rows before persistence consumers
  * observe them.
- * @module @z/dsh-session-persistence-sqlite/compression
+ * @module @taskweaver/dsh-session-persistence-sqlite/compression
  */
-import type { SessionEvent } from '@z/dsh-session';
+import type { SessionEvent } from '@taskweaver/dsh-session';
 import { type StorageRecord } from './codec.ts';
 import type { EventRow } from './schema.ts';
 /** One physical row ready for SQLite parameter binding. */

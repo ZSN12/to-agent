@@ -1,10 +1,10 @@
 /**
  * Model-facing Cordis runtime/package inspection, define, run, stop, and remove tools.
- * @module @z/dsh-tool-cordis
+ * @module @taskweaver/dsh-tool-cordis
  */
-import { CordisDynamicPackageId, CordisDynamicPluginId, } from '@z/dsh-cordis-host-runner';
-import { createUserMessage } from '@z/dsh-llm';
-import { defineTool } from '@z/dsh-tools';
+import { CordisDynamicPackageId, CordisDynamicPluginId, } from '@taskweaver/dsh-cordis-host-runner';
+import { createUserMessage } from '@taskweaver/dsh-llm';
+import { defineTool } from '@taskweaver/dsh-tools';
 import { missingServices, providedServices } from "./inspect.js";
 import { presentDefineCall, presentInspectListCall, presentInspectQueryCall, presentInspectSelfCall, presentRunCall, presentStopCall, presentUndefineCall, } from "./present.js";
 import { CORDIS_SYSTEM_PROMPT } from "./prompt.js";

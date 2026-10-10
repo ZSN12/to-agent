@@ -1,20 +1,14 @@
-"use strict";
 /**
  * Model-facing result rendering for the bash tool.
  *
- * @module @z/dsh-tool-bash/render
+ * @module @taskweaver/dsh-tool-bash/render
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.parseExitStatus = void 0;
-exports.renderResult = renderResult;
-exports.renderProcessRead = renderProcessRead;
-var dsh_sandbox_1 = require("@z/dsh-sandbox");
+import { escalationHintMarker, sandboxDenialMarker } from '@taskweaver/dsh-sandbox';
 /** Append the truncation notice (with the full-output spill path) to a stream's text. */
 function streamText(output) {
-    var _a;
     if (!output.truncated)
         return output.text;
-    return "".concat(output.text, "\n[output truncated; full output: ").concat((_a = output.spillPath) !== null && _a !== void 0 ? _a : '(unavailable)', "]");
+    return `${output.text}\n[output truncated; full output: ${output.spillPath ?? '(unavailable)'}]`;
 }
 /**
  * Shape one finished run into the text the model sees: stdout, then a marked
@@ -27,37 +21,35 @@ function streamText(output) {
  *   (default `[]`: no hint).
  * @returns the model-facing text: output body (or `(no output)`), then any timeout/signal/exit markers, each on its own line.
  */
-function renderResult(result, escalationModes) {
-    var _a;
-    if (escalationModes === void 0) { escalationModes = []; }
-    var out = streamText(result.stdout);
-    var err = streamText(result.stderr);
-    var body = out;
+export function renderResult(result, escalationModes = []) {
+    const out = streamText(result.stdout);
+    const err = streamText(result.stderr);
+    let body = out;
     if (err.length > 0) {
         // Single newline between sections (stdout usually ends with one already).
         if (body.length > 0 && !body.endsWith('\n'))
             body += '\n';
-        body += "[stderr]\n".concat(err);
+        body += `[stderr]\n${err}`;
     }
     if (body.length === 0)
         body = '(no output)';
-    var markers = [];
+    const markers = [];
     // Keep the exit marker last because parseExitStatus anchors there.
-    if ((_a = result.sandbox) === null || _a === void 0 ? void 0 : _a.denied) {
-        markers.push((0, dsh_sandbox_1.sandboxDenialMarker)(result.sandbox.mode));
+    if (result.sandbox?.denied) {
+        markers.push(sandboxDenialMarker(result.sandbox.mode));
         // Hint only when the composition exposes escalation, before the final exit marker.
         if (escalationModes.length > 0) {
-            markers.push((0, dsh_sandbox_1.escalationHintMarker)('command'));
+            markers.push(escalationHintMarker('command'));
         }
     }
     // A command may trap SIGTERM and exit 0 after timeout; still report interruption.
     if (result.timedOut)
-        markers.push("[timed out after ".concat(result.timeoutMs, "ms]"));
+        markers.push(`[timed out after ${result.timeoutMs}ms]`);
     if (result.signal !== null) {
-        markers.push("[killed by signal: ".concat(result.signal, "]"));
+        markers.push(`[killed by signal: ${result.signal}]`);
     }
     else if (result.exitCode !== 0) {
-        markers.push("[exit code: ".concat(result.exitCode, "]"));
+        markers.push(`[exit code: ${result.exitCode}]`);
     }
     if (markers.length === 0)
         return body;
@@ -75,31 +67,30 @@ function renderResult(result, escalationModes) {
  * @param escalationModes - escalation targets advertised by this composition.
  * @returns the delta text with any loss or sandbox notice appended.
  */
-function renderProcessRead(read, sandbox, escalationModes) {
-    if (escalationModes === void 0) { escalationModes = []; }
-    var notices = [];
+export function renderProcessRead(read, sandbox, escalationModes = []) {
+    const notices = [];
     if (read.lossy) {
-        var paths = [read.stdoutSpillPath, read.stderrSpillPath].filter(function (path) { return path !== undefined; });
-        notices.push("[some output was dropped from memory; full output: ".concat(paths.length > 0 ? paths.join(', ') : '(unavailable)', "]"));
+        const paths = [read.stdoutSpillPath, read.stderrSpillPath].filter((path) => path !== undefined);
+        notices.push(`[some output was dropped from memory; full output: ${paths.length > 0 ? paths.join(', ') : '(unavailable)'}]`);
     }
-    if (sandbox === null || sandbox === void 0 ? void 0 : sandbox.runnerFailed) {
-        notices.push("[sandbox: the sandbox runner itself failed under ".concat(sandbox.mode, " mode \u2014 the command did not run; this is a sandbox problem, not a command failure]"));
+    if (sandbox?.runnerFailed) {
+        notices.push(`[sandbox: the sandbox runner itself failed under ${sandbox.mode} mode — the command did not run; this is a sandbox problem, not a command failure]`);
     }
-    else if (sandbox === null || sandbox === void 0 ? void 0 : sandbox.denied) {
-        notices.push((0, dsh_sandbox_1.sandboxDenialMarker)(sandbox.mode));
+    else if (sandbox?.denied) {
+        notices.push(sandboxDenialMarker(sandbox.mode));
         if (escalationModes.length > 0) {
-            notices.push((0, dsh_sandbox_1.escalationHintMarker)('command'));
+            notices.push(escalationHintMarker('command'));
         }
     }
     if (notices.length === 0)
         return read.delta;
-    return "".concat(read.delta).concat(read.delta.length > 0 && !read.delta.endsWith('\n') ? '\n' : '').concat(notices.join('\n'));
+    return `${read.delta}${read.delta.length > 0 && !read.delta.endsWith('\n') ? '\n' : ''}${notices.join('\n')}`;
 }
 /**
  * The exit-status parse is the shared marker-contract half of the shell-tool
- * rendering story, owned by `@z/dsh-shell` so `dsh-tool-pwsh` reuses
+ * rendering story, owned by `@taskweaver/dsh-shell` so `dsh-tool-pwsh` reuses
  * it (its renderer emits the same markers). Re-exported here to keep
  * `../src/render.ts` a single import root for bash-tool consumers.
  */
-var dsh_shell_1 = require("@z/dsh-shell");
-Object.defineProperty(exports, "parseExitStatus", { enumerable: true, get: function () { return dsh_shell_1.parseExitStatus; } });
+export { parseExitStatus } from '@taskweaver/dsh-shell';
+//# sourceMappingURL=render.js.map

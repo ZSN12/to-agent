@@ -1,15 +1,15 @@
-import { createUserMessage } from '@z/dsh-llm'
+import { createUserMessage } from '@taskweaver/dsh-llm'
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
+import { Context } from '@taskweaver/cordis'
 import {
   GoalId,
   type GoalSnapshotChangeMeta,
   type GoalView,
-} from '@z/dsh-goal'
-import * as GoalSessionInvariant from '@z/dsh-goal-round-driver/invariant'
-import { renderGoalRoundPrompt } from '@z/dsh-goal-round-driver'
-import InvariantRegistry, { InvariantError } from '@z/dsh-invariants'
-import SessionStore, { SessionId, type Session } from '@z/dsh-session'
+} from '@taskweaver/dsh-goal'
+import * as GoalSessionInvariant from '@taskweaver/dsh-goal-round-driver/invariant'
+import { renderGoalRoundPrompt } from '@taskweaver/dsh-goal-round-driver'
+import InvariantRegistry, { InvariantError } from '@taskweaver/dsh-invariants'
+import SessionStore, { SessionId, type Session } from '@taskweaver/dsh-session'
 
 const change: GoalSnapshotChangeMeta = {
   kind: 'goal/change',
@@ -95,7 +95,7 @@ describe('goal-round-driver prompt invariants', () => {
       appendRound(session, 2, [{ type: 'text', text: 'counterfeit continuation' }])
     }).toThrow(expect.objectContaining<Partial<InvariantError>>({
       code: 'INVARIANT',
-      packageName: '@z/dsh-goal-round-driver',
+      packageName: '@taskweaver/dsh-goal-round-driver',
     }))
   })
 
@@ -110,7 +110,7 @@ describe('goal-round-driver prompt invariants', () => {
         source,
       }), { surfaceOp: 'append' })
     }).toThrow(expect.objectContaining<Partial<InvariantError>>({
-      packageName: '@z/dsh-goal-round-driver',
+      packageName: '@taskweaver/dsh-goal-round-driver',
     }))
   })
 
@@ -122,7 +122,7 @@ describe('goal-round-driver prompt invariants', () => {
 
     await expect(ctx.plugin(GoalSessionInvariant)).rejects.toMatchObject({
       code: 'INVARIANT',
-      packageName: '@z/dsh-goal-round-driver',
+      packageName: '@taskweaver/dsh-goal-round-driver',
     })
   })
 })

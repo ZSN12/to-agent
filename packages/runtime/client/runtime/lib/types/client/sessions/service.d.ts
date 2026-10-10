@@ -14,11 +14,11 @@
  * tears its scope down immediately unless it is the staged one, whose scope
  * survives frozen (read-only view) until the stage moves on.
  */
-import type { Context } from '@z/cordis';
-import type { IApiClient, RpcError, RpcResult, SessionId, SubagentAddress, JobView, WorkspaceId } from '@z/dsh-api-remotes/client';
+import type { Context } from '@taskweaver/cordis';
+import type { IApiClient, RpcError, RpcResult, SessionId, SubagentAddress, JobView, WorkspaceId } from '@taskweaver/dsh-api-remotes/client';
 import type { SessionMaybeProvideInfo } from '../contract/session-provide.ts';
 import type { ObservableSnapshot } from '../contract/store.ts';
-import type { SessionProjectionMap } from '@z/dsh-session-projection/types';
+import type { SessionProjectionMap } from '@taskweaver/dsh-session-projection/types';
 import type { SnapshotStore } from '../contract/store.ts';
 import type { SessionFace } from '../contract/session.ts';
 import type { AgentContext, ISessions } from '../contract/sessions.ts';

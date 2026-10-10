@@ -1,9 +1,9 @@
 //#region lib/types/invariant.js
 /**
-* Package-owned invariant companion for `@z/dsh-agent-instructions`.
-* @module @z/dsh-agent-instructions/invariant
+* Package-owned invariant companion for `@taskweaver/dsh-agent-instructions`.
+* @module @taskweaver/dsh-agent-instructions/invariant
 */
-const PACKAGE_NAME = "@z/dsh-agent-instructions";
+const PACKAGE_NAME = "@taskweaver/dsh-agent-instructions";
 /** Cordis companion plugin name. */
 const name = "workspace-context-invariant";
 /** Service required before the companion can reserve package ownership. */

@@ -9,16 +9,16 @@
  */
 
 import { describe, expect, it, vi } from 'vitest'
-import { Context } from '@z/cordis'
-import AgentRegistry, { Inbox } from '@z/dsh-agent'
-import type { Agent, AgentStatus } from '@z/dsh-agent'
-import { createUserMessage } from '@z/dsh-llm'
-import type { UserMessage } from '@z/dsh-session'
-import SessionStore from '@z/dsh-session'
-import type { Session } from '@z/dsh-session'
-import SessionProjectionRegistry from '@z/dsh-session-projection'
-import GoalService, { applyGoalProjection, foldGoal } from '@z/dsh-goal'
-import type { GoalRef } from '@z/dsh-goal'
+import { Context } from '@taskweaver/cordis'
+import AgentRegistry, { Inbox } from '@taskweaver/dsh-agent'
+import type { Agent, AgentStatus } from '@taskweaver/dsh-agent'
+import { createUserMessage } from '@taskweaver/dsh-llm'
+import type { UserMessage } from '@taskweaver/dsh-session'
+import SessionStore from '@taskweaver/dsh-session'
+import type { Session } from '@taskweaver/dsh-session'
+import SessionProjectionRegistry from '@taskweaver/dsh-session-projection'
+import GoalService, { applyGoalProjection, foldGoal } from '@taskweaver/dsh-goal'
+import type { GoalRef } from '@taskweaver/dsh-goal'
 
 interface Bench {
   ctx: Context

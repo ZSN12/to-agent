@@ -1,23 +1,8 @@
-"use strict";
 // PendingWait: the carrier-protocol half of a pending host interaction. The runtime owns only
 // envelope knowledge (rpcId backfill into a client-response); domain result encoding belongs to
 // the interaction's consumer package.
-var __classPrivateFieldSet = (this && this.__classPrivateFieldSet) || function (receiver, state, value, kind, f) {
-    if (kind === "m") throw new TypeError("Private method is not writable");
-    if (kind === "a" && !f) throw new TypeError("Private accessor was defined without a setter");
-    if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot write private member to an object whose class did not declare it");
-    return (kind === "a" ? f.call(receiver, value) : f ? f.value = value : state.set(receiver, value)), value;
-};
-var __classPrivateFieldGet = (this && this.__classPrivateFieldGet) || function (receiver, state, kind, f) {
-    if (kind === "a" && !f) throw new TypeError("Private accessor was defined without a getter");
-    if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot read private member from an object whose class did not declare it");
-    return kind === "m" ? f : kind === "a" ? f.call(receiver) : f ? f.value : state.get(receiver);
-};
-var _PendingWait_settled, _PendingWait_rpcId, _PendingWait_respond;
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.PendingWait = void 0;
 /** Key prefixes, one per kind (the key doubles as the Session pending-map key). */
-var KEY_PREFIX = { approval: 'a', question: 'q' };
+const KEY_PREFIX = { approval: 'a', question: 'q' };
 /**
  * One pending host-owned interaction wait: an immutable render face
  * (kind/key/sessionId/payload) plus the response carrier. respond() backfills
@@ -25,7 +10,18 @@ var KEY_PREFIX = { approval: 'a', question: 'q' };
  * ever sees the raw rpcId. Settlement is expressed only by pending-list
  * membership (the settled flag is a fail-loud guard, not a render input).
  */
-var PendingWait = /** @class */ (function () {
+export class PendingWait {
+    /** Interaction kind (union discriminant). */
+    kind;
+    /** Opaque render identity, `<prefix>:<rpcId>` — stable across baseline replay, usable as a React key. */
+    key;
+    /** Owning session. */
+    sessionId;
+    /** The requested frame's domain fields, verbatim. */
+    payload;
+    #settled = false;
+    #rpcId;
+    #respond;
     /**
      * Minted by Session on a requested frame (public construction is the test-fixture path).
      * @param kind - interaction kind.
@@ -34,16 +30,13 @@ var PendingWait = /** @class */ (function () {
      * @param payload - the requested frame's domain fields.
      * @param respond - the client-response carrier (api.respond).
      */
-    function PendingWait(kind, rpcId, sessionId, payload, respond) {
-        _PendingWait_settled.set(this, false);
-        _PendingWait_rpcId.set(this, void 0);
-        _PendingWait_respond.set(this, void 0);
+    constructor(kind, rpcId, sessionId, payload, respond) {
         this.kind = kind;
-        this.key = "".concat(KEY_PREFIX[kind], ":").concat(rpcId);
+        this.key = `${KEY_PREFIX[kind]}:${rpcId}`;
         this.sessionId = sessionId;
         this.payload = payload;
-        __classPrivateFieldSet(this, _PendingWait_rpcId, rpcId, "f");
-        __classPrivateFieldSet(this, _PendingWait_respond, respond, "f");
+        this.#rpcId = rpcId;
+        this.#respond = respond;
     }
     /**
      * Send a result for this wait: wraps it into the client-response envelope
@@ -51,16 +44,14 @@ var PendingWait = /** @class */ (function () {
      * @param result - the result shell (ok value / error envelope), domain-encoded by the caller.
      * @returns the carrier receipt.
      */
-    PendingWait.prototype.respond = function (result) {
-        if (__classPrivateFieldGet(this, _PendingWait_settled, "f"))
-            throw new Error("pending wait ".concat(this.key, " is already settled"));
-        return __classPrivateFieldGet(this, _PendingWait_respond, "f").call(this, { type: 'client-response', rpcId: __classPrivateFieldGet(this, _PendingWait_rpcId, "f"), result: result });
-    };
+    respond(result) {
+        if (this.#settled)
+            throw new Error(`pending wait ${this.key} is already settled`);
+        return this.#respond({ type: 'client-response', rpcId: this.#rpcId, result });
+    }
     /** Session-only settlement mark (the authoritative resolved frame arrived); respond() throws afterwards. */
-    PendingWait.prototype.markSettled = function () {
-        __classPrivateFieldSet(this, _PendingWait_settled, true, "f");
-    };
-    return PendingWait;
-}());
-exports.PendingWait = PendingWait;
-_PendingWait_settled = new WeakMap(), _PendingWait_rpcId = new WeakMap(), _PendingWait_respond = new WeakMap();
+    markSettled() {
+        this.#settled = true;
+    }
+}
+//# sourceMappingURL=pending.js.map

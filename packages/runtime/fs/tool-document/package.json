@@ -1,6 +1,6 @@
 {
-  "name": "@z/dsh-tool-document",
-  "description": "Bounded, sandboxed document reading tool for PDF and Office Open XML files",
+  "name": "@taskweaver/dsh-tool-document",
+  "description": "Bounded, sandboxed document reading tool for PDF and Office Open XML, with approval-gated legacy Office conversion",
   "version": "0.1.1-rc.2",
   "type": "module",
   "main": "lib/index.js",
@@ -20,29 +20,40 @@
   ],
   "license": "MIT",
   "dependencies": {
-    "@z/dsh-tool-fs": "workspace:^",
-    "@z/schemastery": "workspace:^",
+    "@taskweaver/dsh-home-paths": "workspace:^",
+    "@taskweaver/dsh-tool-fs": "workspace:^",
+    "@taskweaver/schemastery": "workspace:^",
+    "@napi-rs/canvas": "0.1.100",
     "fflate": "^0.8.3",
     "pdfjs-dist": "4.10.38"
   },
   "peerDependencies": {
-    "@z/dsh-fs": "workspace:^",
-    "@z/dsh-system-prompt": "workspace:^",
-    "@z/dsh-tools": "workspace:^",
-    "@z/cordis": "workspace:^"
+    "@taskweaver/dsh-attachment": "workspace:^",
+    "@taskweaver/dsh-fs": "workspace:^",
+    "@taskweaver/dsh-llm": "workspace:^",
+    "@taskweaver/dsh-system-prompt": "workspace:^",
+    "@taskweaver/dsh-spill": "workspace:^",
+    "@taskweaver/dsh-tools": "workspace:^",
+    "@taskweaver/dsh-user-approval": "workspace:^",
+    "@taskweaver/cordis": "workspace:^"
   },
   "devDependencies": {
-    "@z/dsh-agent-loop-testkit": "workspace:^",
-    "@z/dsh-attachment": "workspace:^",
-    "@z/dsh-fs-local": "workspace:^",
-    "@z/dsh-system-prompt": "workspace:^",
-    "@z/dsh-tools": "workspace:^",
-    "@z/cordis": "workspace:^",
+    "@taskweaver/dsh-agent-loop-testkit": "workspace:^",
+    "@taskweaver/dsh-attachment": "workspace:^",
+    "@taskweaver/dsh-fs-local": "workspace:^",
+    "@taskweaver/dsh-home-paths": "workspace:^",
+    "@taskweaver/dsh-llm": "workspace:^",
+    "@taskweaver/dsh-system-prompt": "workspace:^",
+    "@taskweaver/dsh-spill": "workspace:^",
+    "@taskweaver/dsh-tools": "workspace:^",
+    "@taskweaver/dsh-user-approval": "workspace:^",
+    "@taskweaver/cordis": "workspace:^",
     "typescript": "^6.0.3",
     "vitest": "^4.1.8"
   },
   "scripts": {
     "test": "vitest run",
-    "typecheck": "tsc -b"
+    "typecheck": "tsc -b",
+    "fixtures:documents": "tsx tests/generate-fixtures.ts"
   }
 }

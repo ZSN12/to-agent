@@ -1,5 +1,5 @@
 {
-  "extends": "../../../../tsconfig.base.json",
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "rootDir": "src",
     "outDir": "lib/types"
@@ -9,19 +9,19 @@
   ],
   "references": [
     {
-      "path": "../../../../vendor/cordis"
+      "path": "../../cordis/cordis"
     },
     {
-      "path": "../../../../vendor/loader"
+      "path": "../../cordis/loader"
     },
     {
-      "path": "../../../../vendor/include"
+      "path": "../../cordis/include"
     },
     {
-      "path": "../../../../vendor/group"
+      "path": "../../cordis/group"
     },
     {
-      "path": "../../../../vendor/hmr"
+      "path": "../../cordis/hmr"
     },
     {
       "path": "../../runtime-diagnostics/invariants"

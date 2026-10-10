@@ -5,11 +5,11 @@
  * image-reading tool is useful only when the exact calling route can inspect
  * its result, so unknown capability refuses instead of relying on an adapter
  * failure after filesystem and attachment work.
- * @module @z/dsh-tool-fs/src/read-image
+ * @module @taskweaver/dsh-tool-fs/src/read-image
  */
-import type { Context } from '@z/cordis';
-import type { ImageAttachmentRef, ImageMediaType } from '@z/dsh-attachment';
-import type { ToolExecution } from '@z/dsh-tools';
+import type { Context } from '@taskweaver/cordis';
+import type { ImageAttachmentRef, ImageMediaType } from '@taskweaver/dsh-attachment';
+import type { ToolExecution } from '@taskweaver/dsh-tools';
 /** The structured outcome declared by the `read_image` output schema. */
 export interface ImageReadValue {
     path: string;

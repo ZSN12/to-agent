@@ -1,7 +1,7 @@
 /** Host-side WebSocket carrier for the two server-to-browser event streams. */
 import type { IncomingMessage } from 'node:http';
 import type { Duplex } from 'node:stream';
-import type { ApiProxy } from '@z/dsh-host-apiproxy/api';
+import type { ApiProxy } from '@taskweaver/dsh-host-apiproxy/api';
 /**
  * Owns WebSocket negotiation and frame pumping for the connection plugin's
  * two downlinks. Client messages are a protocol violation: upstream traffic

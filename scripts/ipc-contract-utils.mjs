@@ -16,9 +16,18 @@ function firstInvokeChannel(node) {
       ts.isCallExpression(current)
       && ts.isIdentifier(current.expression)
       && current.expression.text === 'invoke'
+      && current.arguments[0]
       && ts.isStringLiteral(current.arguments[0])
     ) {
       channel = current.arguments[0].text
+      return
+    }
+    if (ts.isArrowFunction(current) || ts.isFunctionExpression(current)) {
+      if (ts.isBlock(current.body)) {
+        for (const statement of current.body.statements) ts.forEachChild(statement, visit)
+      } else {
+        visit(current.body)
+      }
       return
     }
     ts.forEachChild(current, visit)
@@ -28,8 +37,14 @@ function firstInvokeChannel(node) {
 }
 
 /** Read the methods exposed by the preload source, including channels and API paths. */
-export function parsePreloadApi(source, fileName = 'electron/preload.cjs') {
-  const sourceFile = ts.createSourceFile(fileName, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS)
+export function parsePreloadApi(source, fileName = 'desktop/preload.cjs') {
+  const extension = path.extname(fileName)
+  const kind = extension === '.tsx'
+    ? ts.ScriptKind.TSX
+    : extension === '.ts'
+      ? ts.ScriptKind.TS
+      : ts.ScriptKind.JS
+  const sourceFile = ts.createSourceFile(fileName, source, ts.ScriptTarget.Latest, true, kind)
   const invokeMethods = new Map()
   const bridgeMethods = new Map()
   const exposedPaths = new Set([''])
@@ -90,6 +105,26 @@ export function parsePreloadApi(source, fileName = 'electron/preload.cjs') {
       && ts.isObjectLiteralExpression(node.arguments[1])
     ) {
       visitBridgeObject(node.arguments[1])
+    }
+    const functionNode = ts.isFunctionDeclaration(node)
+      ? node
+      : node.kind === ts.SyntaxKind.ExportNamedDeclaration
+        && node.exportClause === undefined
+        && ts.isFunctionDeclaration(node.declaration)
+        ? node.declaration
+        : null
+    if (
+      functionNode
+      && ts.isIdentifier(functionNode.name)
+      && functionNode.name.text === 'createShellTaskweaverBridge'
+      && functionNode.body
+    ) {
+      for (const statement of functionNode.body.statements) {
+        if (!ts.isReturnStatement(statement) || !statement.expression) continue
+        if (ts.isObjectLiteralExpression(statement.expression)) {
+          visitBridgeObject(statement.expression)
+        }
+      }
     }
     ts.forEachChild(node, visitSource)
   }

@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import SessionStore, { Session, SessionId } from '@z/dsh-session'
-import { createUserMessage } from '@z/dsh-llm'
-import { CompactionId, compactCheckpointSource } from '@z/dsh-compaction'
-import * as CompactionInvariant from '@z/dsh-compaction/invariant'
-import { CommandId } from '@z/dsh-commands/brand'
-import InvariantRegistry from '@z/dsh-invariants'
+import { Context } from '@taskweaver/cordis'
+import SessionStore, { Session, SessionId } from '@taskweaver/dsh-session'
+import { createUserMessage } from '@taskweaver/dsh-llm'
+import { CompactionId, compactCheckpointSource } from '@taskweaver/dsh-compaction'
+import * as CompactionInvariant from '@taskweaver/dsh-compaction/invariant'
+import { CommandId } from '@taskweaver/dsh-commands/brand'
+import InvariantRegistry from '@taskweaver/dsh-invariants'
 
 async function setup(): Promise<Context> {
   const ctx = new Context()
@@ -310,6 +310,21 @@ describe('compaction invariants', () => {
         turn: 1,
       })
     }, /compaction\/start sourceCommandId must be a non-empty string/],
+    ['invalid start trigger', (session: ReturnType<Context['sessions']['create']>) => {
+      session.append('compaction/start', {
+        compactionId: TEST_COMPACTION_ID,
+        trigger: 'timer',
+        turn: 1,
+      } as never)
+    }, /compaction\/start trigger must be pressure, context-overflow, or manual/],
+    ['summary with a different trigger', (session: ReturnType<Context['sessions']['create']>) => {
+      session.append('compaction/start', {
+        compactionId: TEST_COMPACTION_ID,
+        trigger: 'manual',
+        turn: 1,
+      })
+      session.append('compaction/summary', summary({ trigger: 'pressure' }))
+    }, /compaction\/summary trigger .* does not match compaction\/start trigger/],
     ['summary without start', (session: ReturnType<Context['sessions']['create']>) => {
       session.append('compaction/summary', summary())
     }, /no matching compaction\/start/],
@@ -382,6 +397,19 @@ describe('compaction invariants', () => {
       session.append('compaction/start', { compactionId: TEST_COMPACTION_ID, turn: 1 })
       session.append('compaction/end', { compactionId: TEST_COMPACTION_ID, turn: 1 })
     }, /requires one compaction\/summary/],
+    ['end with a different trigger', (session: ReturnType<Context['sessions']['create']>) => {
+      session.append('compaction/start', {
+        compactionId: TEST_COMPACTION_ID,
+        trigger: 'manual',
+        turn: 1,
+      })
+      session.append('compaction/end', {
+        compactionId: TEST_COMPACTION_ID,
+        trigger: 'pressure',
+        turn: 1,
+        error: 'failed',
+      })
+    }, /compaction\/end trigger .* does not match compaction\/start trigger/],
   ])('rejects %s', async (_name, action, message) => {
     const ctx = await setup()
     const session = ctx.sessions.create()

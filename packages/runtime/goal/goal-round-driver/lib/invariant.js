@@ -1,5 +1,5 @@
 import { isDeepStrictEqual } from "node:util";
-import { foldGoal } from "@z/dsh-goal";
+import { foldGoal } from "@taskweaver/dsh-goal";
 //#region lib/types/prompt.js
 /** Model-visible continuation prompt for one same-session goal round. */
 /**
@@ -18,8 +18,8 @@ Objective: ${JSON.stringify(goal.objective)}\nRound: ${round}/${goal.maxGoalRoun
 }
 //#endregion
 //#region lib/types/invariant.js
-/** Package-owned goal-round prompt invariants. @module @z/dsh-goal-round-driver/invariant */
-const PACKAGE_NAME = "@z/dsh-goal-round-driver";
+/** Package-owned goal-round prompt invariants. @module @taskweaver/dsh-goal-round-driver/invariant */
+const PACKAGE_NAME = "@taskweaver/dsh-goal-round-driver";
 /** Cordis companion plugin name. */
 const name = "goal-round-driver-invariant";
 /** Service required before the companion can reserve package ownership. */

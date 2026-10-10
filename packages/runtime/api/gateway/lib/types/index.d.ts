@@ -1,9 +1,9 @@
 /**
  * Live Typert Remote dispatch over Cordis Services and registered providers.
  * Transport, request correlation, and response envelopes belong to Connection.
- * @module @z/dsh-api-gateway
+ * @module @taskweaver/dsh-api-gateway
  */
-import { Context, Service } from '@z/cordis';
+import { Context, Service } from '@taskweaver/cordis';
 import type { InvokeRemoteRequest, TypertGateway, TypertGatewayErrorCode } from './types.ts';
 export type { InvokeRemoteRequest, TypertGateway, TypertGatewayErrorCode, } from './types.ts';
 interface GatewayErrorOptions {

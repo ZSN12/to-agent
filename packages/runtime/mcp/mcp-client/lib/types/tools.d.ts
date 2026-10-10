@@ -12,8 +12,8 @@
  * @module
  */
 import type { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import type { Context } from '@z/cordis';
-import type { JsonValue } from '@z/dsh-tools';
+import type { Context } from '@taskweaver/cordis';
+import type { JsonValue } from '@taskweaver/dsh-tools';
 /** Resolved options relevant to tool bridging. */
 export interface ToolBridgeOptions {
     /** Whether a registry conflict is contained or rejects this synchronization. */

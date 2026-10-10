@@ -1,5 +1,5 @@
 /** Browser-zone derivation and model-facing policy text for one open request turn. */
-import type { UserMessage } from '@z/dsh-llm';
+import type { UserMessage } from '@taskweaver/dsh-llm';
 /** Browser-zone facts derived from user-rpc messages in one open turn. */
 export type BrowserTimeZoneContext = {
     readonly kind: 'resolved';

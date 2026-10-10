@@ -1,6 +1,6 @@
-import { MAX_TIMER_DELAY_MS } from "@z/dsh-timeout";
+import { MAX_TIMER_DELAY_MS } from "@taskweaver/dsh-timeout";
 //#region lib/types/history.js
-/** Durable request-route lookup for one open model step. @module @z/dsh-llm-retry/history */
+/** Durable request-route lookup for one open model step. @module @taskweaver/dsh-llm-retry/history */
 /**
 * Find the provider in force for one currently open step.
 * Request headers remain effective across turn boundaries until a newer full
@@ -20,8 +20,8 @@ function providerForOpenStep(events, turn, step) {
 }
 //#endregion
 //#region lib/types/invariant.js
-/** Package-owned durable retry-event invariants. @module @z/dsh-llm-retry/invariant */
-const PACKAGE_NAME = "@z/dsh-llm-retry";
+/** Package-owned durable retry-event invariants. @module @taskweaver/dsh-llm-retry/invariant */
+const PACKAGE_NAME = "@taskweaver/dsh-llm-retry";
 /** Cordis companion plugin name. */
 const name = "llm-retry-invariant";
 /** Service required before the companion can reserve package ownership. */

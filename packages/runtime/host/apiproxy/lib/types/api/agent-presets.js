@@ -1,4 +1,3 @@
-"use strict";
 /**
  * agent-presets domain contract: the roster a browser offers when starting a
  * session, plus the authoring calls behind it.
@@ -9,4 +8,5 @@
  * although authoring is copy-only (no caller supplies composition text or a
  * path), copying and deleting still rearrange what the deployment offers.
  */
-Object.defineProperty(exports, "__esModule", { value: true });
+export {};
+//# sourceMappingURL=agent-presets.js.map

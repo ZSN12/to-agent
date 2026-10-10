@@ -1,4 +1,4 @@
-import type { Context } from '@z/cordis'
+import type { Context } from '@taskweaver/cordis'
 import type { ConversationNodeDefinition } from '../contract/conversation.ts'
 import { ConversationDefinitionRegistry } from './definition-registry.ts'
 

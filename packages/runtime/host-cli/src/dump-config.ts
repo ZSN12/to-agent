@@ -3,7 +3,7 @@
  * profile's patch layers through the include plugin's patch algorithm without
  * booting or evaluating `!!js`, with one source layer per bundle, the
  * profile's own patch file, and each `--patch` overlay.
- * @module @z/dsh/dump-config
+ * @module @taskweaver/dsh/dump-config
  */
 
 import { existsSync } from 'node:fs'
@@ -13,10 +13,10 @@ import {
   loadOverlayPatches,
   renderConfigDump,
   type ConfigDumpLayer,
-} from '@z/dsh-app-boot'
+} from '@taskweaver/dsh-app-boot'
 import { homePatchPath, prepareProfile, PROFILE_ROOT_FILENAME } from './profile-boot.ts'
 
-const NAME = 'dsh'
+const NAME = 'taskweaver-host'
 
 /* v8 ignore start -- built-bin acceptance drives this boot-free dispatch */
 /**

@@ -12,7 +12,7 @@ const source = path.join(root, 'release/mac-arm64/TaskWeaver.app')
 
 if (!fs.existsSync(source)) {
   console.error('未找到 release/mac-arm64/TaskWeaver.app')
-  console.error('请先执行: npm run build:z-runtime && npm run app:builder')
+  console.error('请先执行: pnpm run build:z-runtime && pnpm run app:builder')
   process.exit(1)
 }
 

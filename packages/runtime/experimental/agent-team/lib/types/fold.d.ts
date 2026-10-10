@@ -1,6 +1,6 @@
 /** Strict replay fold for Agent Teams log-only events. */
-import { SessionId } from '@z/dsh-session';
-import type { SessionEvent } from '@z/dsh-session';
+import { SessionId } from '@taskweaver/dsh-session';
+import type { SessionEvent } from '@taskweaver/dsh-session';
 import type { TeamId, TeamMemberSnapshot, TeamMessageId, TeamMessageSnapshot, TeamTaskId, TeamTaskSnapshot } from './types.ts';
 /** Mutable internal replay state. */
 export interface TeamFoldState {

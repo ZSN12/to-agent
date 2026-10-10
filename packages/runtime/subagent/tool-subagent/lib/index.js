@@ -1,6 +1,6 @@
-import z from "@z/schemastery";
-import { defineTool } from "@z/dsh-tools";
-import { assertSubagentMaxDepth, settleRun } from "@z/dsh-subagent";
+import z from "@taskweaver/schemastery";
+import { defineTool } from "@taskweaver/dsh-tools";
+import { assertSubagentMaxDepth, settleRun } from "@taskweaver/dsh-subagent";
 //#region lib/types/index.js
 /**
 * Model-facing delegation through one configured `ctx.subagents` provider.
@@ -9,7 +9,7 @@ import { assertSubagentMaxDepth, settleRun } from "@z/dsh-subagent";
 * Background policy is selected by this plugin's configuration: one-shot
 * calls own a plain Task, while continuable calls use
 * `ctx.subagents.startContinuable()`.
-* @module @z/dsh-tool-subagent
+* @module @taskweaver/dsh-tool-subagent
 */
 const name = "tool-subagent";
 const inject = [
@@ -246,7 +246,7 @@ function apply(ctx, config) {
 						})).childId
 					};
 					const jobs = ctx.get("jobs");
-					if (jobs === void 0) throw new Error("background jobs unavailable: load @z/dsh-jobs and @z/dsh-tool-jobs");
+					if (jobs === void 0) throw new Error("background jobs unavailable: load @taskweaver/dsh-jobs and @taskweaver/dsh-tool-jobs");
 					return {
 						kind: "background",
 						jobId: jobs.start({

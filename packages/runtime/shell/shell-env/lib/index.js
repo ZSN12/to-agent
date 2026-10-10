@@ -1,7 +1,7 @@
-import { Service } from "@z/cordis";
-import z from "@z/schemastery";
-import { DSH_ENV_PREFIX } from "@z/dsh-shell";
-import { DSH_HOME_ENV, resolveDshHome } from "@z/dsh-home-paths";
+import { Service } from "@taskweaver/cordis";
+import z from "@taskweaver/schemastery";
+import { DSH_ENV_PREFIX } from "@taskweaver/dsh-shell";
+import { DSH_HOME_ENV, resolveDshHome } from "@taskweaver/dsh-home-paths";
 //#region lib/types/index.js
 /**
 * Tool-independent shell environment plugin: owns the `ctx.shellEnv` registry of
@@ -10,7 +10,7 @@ import { DSH_HOME_ENV, resolveDshHome } from "@z/dsh-home-paths";
 * the registry itself while plugins can register additional, enumerable facts
 * with effect-scoped disposal.
 *
-* @module @z/dsh-shell-env
+* @module @taskweaver/dsh-shell-env
 */
 const name = "shell-env";
 const inject = [];

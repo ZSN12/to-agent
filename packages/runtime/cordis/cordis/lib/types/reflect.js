@@ -1,4 +1,4 @@
-import { defineProperty, isNullable } from '@z/cosmokit';
+import { defineProperty, isNullable } from '@taskweaver/cosmokit';
 import { getTraceable, symbols, withProps } from "./utils.js";
 function enhanceError(error) {
     const lines = error.stack.split('\n');

@@ -1,4 +1,3 @@
-"use strict";
 /**
  * Domain declaration vocabulary. A spec object is the single source of a
  * domain's identity, layout, and record schemas: the owning package defines
@@ -6,19 +5,15 @@
  * (validation, descriptor projection) derive from it. Record schemas are zod
  * (`z.infer` keeps types un-duplicated and the same schemas later project to
  * RPC wire schemas); plugin `Config` stays schemastery.
- * @module @z/dsh-storage-domain/src/spec
+ * @module @taskweaver/dsh-storage-domain/src/spec
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.domainTable = domainTable;
-exports.defineDomain = defineDomain;
-exports.descriptorOf = descriptorOf;
-var dsh_storage_1 = require("@z/dsh-storage");
+import { UNIT_NAME_RE } from '@taskweaver/dsh-storage';
 /**
  * Declare one table.
  * @param schema - zod schema validating every stored record of this table.
  * @returns the table declaration, key-typed by `K`.
  */
-function domainTable(schema) {
+export function domainTable(schema) {
     return { valueSchema: schema };
 }
 /**
@@ -33,21 +28,20 @@ function domainTable(schema) {
  * @param spec - The domain declaration.
  * @returns the same spec, narrowed to its literal type.
  */
-function defineDomain(spec) {
-    if (!dsh_storage_1.UNIT_NAME_RE.test(spec.name)) {
-        throw new Error("domain name '".concat(spec.name, "' must match ").concat(dsh_storage_1.UNIT_NAME_RE));
+export function defineDomain(spec) {
+    if (!UNIT_NAME_RE.test(spec.name)) {
+        throw new Error(`domain name '${spec.name}' must match ${UNIT_NAME_RE}`);
     }
     if (!Number.isInteger(spec.version) || spec.version < 0) {
-        throw new Error("domain '".concat(spec.name, "' version must be a non-negative integer, got ").concat(spec.version));
+        throw new Error(`domain '${spec.name}' version must be a non-negative integer, got ${spec.version}`);
     }
-    for (var _i = 0, _a = Object.keys(spec.tables); _i < _a.length; _i++) {
-        var table = _a[_i];
-        if (!dsh_storage_1.UNIT_NAME_RE.test(table)) {
-            throw new Error("domain '".concat(spec.name, "' table name '").concat(table, "' must match ").concat(dsh_storage_1.UNIT_NAME_RE));
+    for (const table of Object.keys(spec.tables)) {
+        if (!UNIT_NAME_RE.test(table)) {
+            throw new Error(`domain '${spec.name}' table name '${table}' must match ${UNIT_NAME_RE}`);
         }
     }
     if (spec.global !== undefined && spec.global.schema.safeParse(null).success) {
-        throw new Error("domain '".concat(spec.name, "' global schema must not accept null: ")
+        throw new Error(`domain '${spec.name}' global schema must not accept null: `
             + 'null is the medium\'s "never written" sentinel, so a stored null could not round-trip');
     }
     return spec;
@@ -57,7 +51,7 @@ function defineDomain(spec) {
  * @param spec - The domain declaration.
  * @returns the descriptor handed to `KvFacet.open`.
  */
-function descriptorOf(spec) {
+export function descriptorOf(spec) {
     return {
         name: spec.name,
         version: spec.version,
@@ -65,3 +59,4 @@ function descriptorOf(spec) {
         hasGlobal: spec.global !== undefined,
     };
 }
+//# sourceMappingURL=spec.js.map

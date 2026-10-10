@@ -1,13 +1,13 @@
 /**
- * Package-owned invariant companion for `@z/dsh-session-projection-cache`.
- * @module @z/dsh-session-projection-cache/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-session-projection-cache`.
+ * @module @taskweaver/dsh-session-projection-cache/invariant
  */
 
 /* jscpd:ignore-start */
-import type { Context } from '@z/cordis'
-import type { InvariantInstaller } from '@z/dsh-invariants'
+import type { Context } from '@taskweaver/cordis'
+import type { InvariantInstaller } from '@taskweaver/dsh-invariants'
 
-const PACKAGE_NAME = '@z/dsh-session-projection-cache'
+const PACKAGE_NAME = '@taskweaver/dsh-session-projection-cache'
 
 /** Cordis companion plugin name. */
 export const name = 'session-projection-cache-invariant'

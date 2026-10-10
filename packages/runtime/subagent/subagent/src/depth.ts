@@ -3,12 +3,12 @@
  * children. Kept apart from the service so composition helpers can read it
  * without importing the registry.
  *
- * @module @z/dsh-subagent/depth
+ * @module @taskweaver/dsh-subagent/depth
  */
 
-import type { Agent } from '@z/dsh-agent'
+import type { Agent } from '@taskweaver/dsh-agent'
 
-declare module '@z/dsh-agent' {
+declare module '@taskweaver/dsh-agent' {
   interface AgentOptions {
     /** Delegation depth: zero for a top-level agent and parent depth + 1 for a child. */
     subagentDepth?: number

@@ -1,11 +1,11 @@
-import { isAgentLoopRequest } from "@z/dsh-llm";
-import { foldRequestHeader } from "@z/dsh-session";
+import { isAgentLoopRequest } from "@taskweaver/dsh-llm";
+import { foldRequestHeader } from "@taskweaver/dsh-session";
 //#region lib/types/invariant.js
 /**
 * Package-owned request-reconstruction invariant for loop-built LLM calls.
-* @module @z/dsh-agent-loop/invariant
+* @module @taskweaver/dsh-agent-loop/invariant
 */
-const PACKAGE_NAME = "@z/dsh-agent-loop";
+const PACKAGE_NAME = "@taskweaver/dsh-agent-loop";
 /** Cordis companion plugin name. */
 const name = "agent-loop-invariant";
 /** Service required before the companion can reserve package ownership. */

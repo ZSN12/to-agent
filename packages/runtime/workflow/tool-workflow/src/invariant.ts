@@ -1,11 +1,11 @@
-/** Package-owned durable workflow-record invariants. @module @z/dsh-tool-workflow/invariant */
+/** Package-owned durable workflow-record invariants. @module @taskweaver/dsh-tool-workflow/invariant */
 
-import type { Context } from '@z/cordis'
-import type { Session, SessionEvent } from '@z/dsh-session'
-import type { InvariantFailure, InvariantInstaller } from '@z/dsh-invariants'
+import type { Context } from '@taskweaver/cordis'
+import type { Session, SessionEvent } from '@taskweaver/dsh-session'
+import type { InvariantFailure, InvariantInstaller } from '@taskweaver/dsh-invariants'
 import type {} from './types.ts'
 
-const PACKAGE_NAME = '@z/dsh-tool-workflow'
+const PACKAGE_NAME = '@taskweaver/dsh-tool-workflow'
 
 /** Cordis companion plugin name. */
 export const name = 'tool-workflow-invariant'

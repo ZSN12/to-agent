@@ -1,4 +1,4 @@
-import type { Context } from '@z/cordis';
+import type { Context } from '@taskweaver/cordis';
 export { TaskWeaverSearchProvider } from './provider.ts';
 export declare const name = "web-search-taskweaver";
 export declare const inject: string[];

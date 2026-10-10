@@ -1,12 +1,12 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
-import { Context } from '@z/cordis'
-import { createUserMessage, CallId, createMessage } from '@z/dsh-llm'
-import type { ContentBlock, Message, TokenUsage } from '@z/dsh-llm'
-import SessionStore, { Session, SessionId, canonicalHeader } from '@z/dsh-session'
-import type { EpochHeader, SessionEvent } from '@z/dsh-session'
-import SessionProjectionRegistry from '@z/dsh-session-projection'
-import TokenMeter from '@z/dsh-token-meter'
-import type { TokenMeasurement, TokenMeterConfig } from '@z/dsh-token-meter'
+import { Context } from '@taskweaver/cordis'
+import { createUserMessage, CallId, createMessage } from '@taskweaver/dsh-llm'
+import type { ContentBlock, Message, TokenUsage } from '@taskweaver/dsh-llm'
+import SessionStore, { Session, SessionId, canonicalHeader } from '@taskweaver/dsh-session'
+import type { EpochHeader, SessionEvent } from '@taskweaver/dsh-session'
+import SessionProjectionRegistry from '@taskweaver/dsh-session-projection'
+import TokenMeter from '@taskweaver/dsh-token-meter'
+import type { TokenMeasurement, TokenMeterConfig } from '@taskweaver/dsh-token-meter'
 
 function header(model: string, extras: Omit<EpochHeader, 'config'> = {}): EpochHeader {
   return canonicalHeader({ config: { provider: 'mock', model }, ...extras })

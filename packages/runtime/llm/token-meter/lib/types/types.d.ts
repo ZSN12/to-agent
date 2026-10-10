@@ -1,9 +1,9 @@
 /**
  * Public configuration and measurement vocabulary for replay token metering.
  *
- * @module @z/dsh-token-meter/types
+ * @module @taskweaver/dsh-token-meter/types
  */
-import type { TokenUsage } from '@z/dsh-llm';
+import type { TokenUsage } from '@taskweaver/dsh-llm';
 export type { ContextBreakdownProjection, ContextPressureProjection, TokenUsageProjection } from './projection.ts';
 /** Token-meter plugin configuration; the fixed estimator has no settings. */
 export type TokenMeterConfig = Record<string, never>;

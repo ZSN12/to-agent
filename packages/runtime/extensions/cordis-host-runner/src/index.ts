@@ -1,16 +1,16 @@
 /**
  * Dynamic Cordis Plugin service: immutable package definitions, one active run
  * per Plugin, human-approved Client activation, and Host/Client invocation.
- * @module @z/dsh-cordis-host-runner
+ * @module @taskweaver/dsh-cordis-host-runner
  */
 
-import { Context } from '@z/cordis'
-import type { Fiber } from '@z/cordis'
-import z from '@z/schemastery'
-import type { Agent } from '@z/dsh-agent'
-import { createUserMessage } from '@z/dsh-llm'
-import type { JsonValue } from '@z/dsh-session/types'
-import { TypertRemoteService, Remote } from '@z/dsh-typert-protocol'
+import { Context } from '@taskweaver/cordis'
+import type { Fiber } from '@taskweaver/cordis'
+import z from '@taskweaver/schemastery'
+import type { Agent } from '@taskweaver/dsh-agent'
+import { createUserMessage } from '@taskweaver/dsh-llm'
+import type { JsonValue } from '@taskweaver/dsh-session/types'
+import { TypertRemoteService, Remote } from '@taskweaver/dsh-typert-protocol'
 import { isPlugin, normalizeHandler } from './guard.ts'
 import { CordisInspectRegistryService } from './inspect-registry.ts'
 import { missingServices, startHostHalf } from './lifecycle.ts'
@@ -77,7 +77,7 @@ export function ApprovalRequestId(id: string): ApprovalRequestId {
   return id as ApprovalRequestId
 }
 
-declare module '@z/cordis' {
+declare module '@taskweaver/cordis' {
   interface Context {
     /** Process-local dynamic Plugin registry and lifecycle service. */
     dynamicCordisRunner: DynamicCordisRunnerService

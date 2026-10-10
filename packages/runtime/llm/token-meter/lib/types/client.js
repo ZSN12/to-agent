@@ -1,7 +1,7 @@
-"use strict";
 /**
  * Client-namespace projection of token-meter's browser-safe types.
  *
- * @module @z/dsh-token-meter/client
+ * @module @taskweaver/dsh-token-meter/client
  */
-Object.defineProperty(exports, "__esModule", { value: true });
+export {};
+//# sourceMappingURL=client.js.map

@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import { credentialKey } from '@z/dsh-credentials'
-import InvariantRegistry from '@z/dsh-invariants'
-import AuthorizationService from '@z/dsh-authorization'
+import { Context } from '@taskweaver/cordis'
+import { credentialKey } from '@taskweaver/dsh-credentials'
+import InvariantRegistry from '@taskweaver/dsh-invariants'
+import AuthorizationService from '@taskweaver/dsh-authorization'
 import * as AuthorizationInvariant from '../src/invariant.ts'
 import { MemoryCredentials } from './memory.ts'
 
@@ -81,7 +81,7 @@ describe('authorization invariant companion', () => {
     await ctx.plugin(AuthorizationInvariant)
 
     expect(() => {
-      ctx.invariants.register('@z/dsh-authorization', () => {})
+      ctx.invariants.register('@taskweaver/dsh-authorization', () => {})
     }).toThrow(/already registered/)
   })
 })

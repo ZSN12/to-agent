@@ -1,5 +1,5 @@
 {
-  "name": "@z/dsh-llm-pi-ai",
+  "name": "@taskweaver/dsh-llm-pi-ai",
   "description": "pi-ai-backed multi-provider adapter for the DeepSeek Harness LLM seam",
   "version": "0.1.1-rc.2",
   "publishConfig": {
@@ -8,7 +8,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
-    "directory": "packages/llm/llm-pi-ai"
+    "directory": "packages/runtime/llm/llm-pi-ai"
   },
   "type": "module",
   "main": "lib/index.js",
@@ -32,29 +32,29 @@
   ],
   "license": "MIT",
   "peerDependencies": {
-    "@z/dsh-attachment": "workspace:^",
-    "@z/dsh-authorization": "workspace:^",
-    "@z/dsh-credentials": "workspace:^",
-    "@z/dsh-launch-environment": "workspace:^",
-    "@z/dsh-invariants": "workspace:^",
-    "@z/dsh-llm": "workspace:^",
-    "@z/dsh-settings": "workspace:^",
-    "@z/dsh-timeout": "workspace:^",
-    "@z/cordis": "workspace:^"
+    "@taskweaver/dsh-attachment": "workspace:^",
+    "@taskweaver/dsh-authorization": "workspace:^",
+    "@taskweaver/dsh-credentials": "workspace:^",
+    "@taskweaver/dsh-launch-environment": "workspace:^",
+    "@taskweaver/dsh-invariants": "workspace:^",
+    "@taskweaver/dsh-llm": "workspace:^",
+    "@taskweaver/dsh-settings": "workspace:^",
+    "@taskweaver/dsh-timeout": "workspace:^",
+    "@taskweaver/cordis": "workspace:^"
   },
   "dependencies": {
     "@earendil-works/pi-ai": "0.87.1",
-    "@z/schemastery": "workspace:^"
+    "@taskweaver/schemastery": "workspace:^"
   },
   "devDependencies": {
-    "@z/dsh-attachment": "workspace:^",
-    "@z/dsh-authorization": "workspace:^",
-    "@z/dsh-credentials": "workspace:^",
-    "@z/dsh-launch-environment": "workspace:^",
-    "@z/dsh-invariants": "workspace:^",
-    "@z/dsh-llm": "workspace:^",
-    "@z/dsh-settings": "workspace:^",
-    "@z/dsh-timeout": "workspace:^",
-    "@z/cordis": "workspace:^"
+    "@taskweaver/dsh-attachment": "workspace:^",
+    "@taskweaver/dsh-authorization": "workspace:^",
+    "@taskweaver/dsh-credentials": "workspace:^",
+    "@taskweaver/dsh-launch-environment": "workspace:^",
+    "@taskweaver/dsh-invariants": "workspace:^",
+    "@taskweaver/dsh-llm": "workspace:^",
+    "@taskweaver/dsh-settings": "workspace:^",
+    "@taskweaver/dsh-timeout": "workspace:^",
+    "@taskweaver/cordis": "workspace:^"
   }
 }

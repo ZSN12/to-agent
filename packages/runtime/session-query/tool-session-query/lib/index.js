@@ -1,14 +1,14 @@
-import z from "@z/schemastery";
-import { MAX_TIMER_DELAY_MS } from "@z/dsh-timeout";
-import { defineTool } from "@z/dsh-tools";
-import { SessionId } from "@z/dsh-session";
-import { SessionQueryError, extractSessionEventText } from "@z/dsh-session-query";
-import { HarnessError } from "@z/dsh-llm";
+import z from "@taskweaver/schemastery";
+import { MAX_TIMER_DELAY_MS } from "@taskweaver/dsh-timeout";
+import { defineTool } from "@taskweaver/dsh-tools";
+import { SessionId } from "@taskweaver/dsh-session";
+import { SessionQueryError, extractSessionEventText } from "@taskweaver/dsh-session-query";
+import { HarnessError } from "@taskweaver/dsh-llm";
 //#region lib/types/input.js
 /**
 * Model argument schemas, normalization, and filter construction.
 *
-* @module @z/dsh-tool-session-query/input
+* @module @taskweaver/dsh-tool-session-query/input
 */
 const sessionSearchParameters = {
 	query: {
@@ -299,7 +299,7 @@ const toolInput = {
 /**
 * Session-query service error containment and model-safe translation.
 *
-* @module @z/dsh-tool-session-query/service-boundary
+* @module @taskweaver/dsh-tool-session-query/service-boundary
 */
 const UNPRINTABLE_SERVICE_ERROR = "[unprintable session query failure]";
 const SAFE_SESSION_QUERY_FAILURES = {
@@ -438,7 +438,7 @@ const serviceBoundary = {
 /**
 * Caller identity, workspace authorization, and visible lineage projection.
 *
-* @module @z/dsh-tool-session-query/workspace-access
+* @module @taskweaver/dsh-tool-session-query/workspace-access
 */
 function callerOf(exec) {
 	const agent = exec.agent;
@@ -591,7 +591,7 @@ const workspaceAccess = {
 /**
 * Model text rendering and generic tool-call presentation.
 *
-* @module @z/dsh-tool-session-query/presentation
+* @module @taskweaver/dsh-tool-session-query/presentation
 */
 function formatSessionSearch(collected, titles, authorizedParents) {
 	if (collected.items.length === 0) return formatEmptySessionSearch();
@@ -742,7 +742,7 @@ const presentation = {
 /**
 * Tool operation orchestration over session-query service capabilities.
 *
-* @module @z/dsh-tool-session-query/operations
+* @module @taskweaver/dsh-tool-session-query/operations
 */
 async function executeSessionSearch(ctx, args, exec, maxResults) {
 	const caller = workspaceAccess.callerOf(exec);
@@ -913,7 +913,7 @@ const operations = {
 /**
 * Model-facing, workspace-authorized session-history search and read tools.
 *
-* @module @z/dsh-tool-session-query
+* @module @taskweaver/dsh-tool-session-query
 */
 /** Cordis plugin name used by Loader diagnostics. */
 const name = "tool-session-query";

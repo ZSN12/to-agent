@@ -1,5 +1,5 @@
 {
-  "name": "@z/dsh-sandbox",
+  "name": "@taskweaver/dsh-sandbox",
   "description": "Abstract process-sandbox seam (ctx.sandbox) for the DeepSeek Harness: same-world confinement vocabulary and the SandboxProvider contract",
   "version": "0.1.1-rc.2",
   "publishConfig": {
@@ -8,7 +8,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
-    "directory": "packages/sandbox/sandbox"
+    "directory": "packages/runtime/sandbox/sandbox"
   },
   "type": "module",
   "main": "lib/index.js",
@@ -32,15 +32,15 @@
   ],
   "license": "MIT",
   "peerDependencies": {
-    "@z/dsh-invariants": "workspace:^",
-    "@z/dsh-llm": "workspace:^",
-    "@z/dsh-session": "workspace:^",
-    "@z/cordis": "workspace:^"
+    "@taskweaver/dsh-invariants": "workspace:^",
+    "@taskweaver/dsh-llm": "workspace:^",
+    "@taskweaver/dsh-session": "workspace:^",
+    "@taskweaver/cordis": "workspace:^"
   },
   "devDependencies": {
-    "@z/dsh-invariants": "workspace:^",
-    "@z/dsh-llm": "workspace:^",
-    "@z/dsh-session": "workspace:^",
-    "@z/cordis": "workspace:^"
+    "@taskweaver/dsh-invariants": "workspace:^",
+    "@taskweaver/dsh-llm": "workspace:^",
+    "@taskweaver/dsh-session": "workspace:^",
+    "@taskweaver/cordis": "workspace:^"
   }
 }

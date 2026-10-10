@@ -1,5 +1,5 @@
-import type { SessionEvent } from '@z/dsh-session/types'
-import type { ToolEventView } from '@z/dsh-api-remotes/client'
+import type { SessionEvent } from '@taskweaver/dsh-session/types'
+import type { ToolEventView } from '@taskweaver/dsh-api-remotes/client'
 
 /* oxlint-disable typescript/no-duplicate-type-constituents, typescript/no-redundant-type-constituents --
  * The unaugmented declaration-merge maps intentionally resolve to never in the Runtime program;

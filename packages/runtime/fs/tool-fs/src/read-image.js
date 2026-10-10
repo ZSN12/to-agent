@@ -5,11 +5,11 @@
  * image-reading tool is useful only when the exact calling route can inspect
  * its result, so unknown capability refuses instead of relying on an adapter
  * failure after filesystem and attachment work.
- * @module @z/dsh-tool-fs/src/read-image
+ * @module @taskweaver/dsh-tool-fs/src/read-image
  */
 import { basename, extname } from 'node:path';
-import { AttachmentError, AttachmentId } from '@z/dsh-attachment';
-import { defineTool } from '@z/dsh-tools';
+import { AttachmentError, AttachmentId } from '@taskweaver/dsh-attachment';
+import { defineTool } from '@taskweaver/dsh-tools';
 import { resolveRegularReadTarget } from "./read-target.js";
 /** Extensions `read_image` accepts; magic-byte validation at the attachment service stays authoritative. */
 const IMAGE_EXTENSIONS = {

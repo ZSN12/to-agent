@@ -10,12 +10,12 @@
  * shell-quoting layer to escape (the `bash -c` string domain has no
  * equivalent here). Native Win32 paths (`C:\...`) pass through unchanged.
  *
- * @module @z/dsh-pwsh-local
+ * @module @taskweaver/dsh-pwsh-local
  */
-import { Context } from '@z/cordis';
-import z from '@z/schemastery';
-import { ShellExecutor } from '@z/dsh-shell';
-import type { ShellExecRequest, ShellExecSpec, ShellProcess, ShellRunResult } from '@z/dsh-shell';
+import { Context } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
+import { ShellExecutor } from '@taskweaver/dsh-shell';
+import type { ShellExecRequest, ShellExecSpec, ShellProcess, ShellRunResult } from '@taskweaver/dsh-shell';
 /**
  * Model-friendly environment overrides for PowerShell: disable colors and
  * pagers that would garble tool output. `TERM=dumb` is a POSIX concept and is
@@ -98,7 +98,7 @@ export declare class PwshLocalExecutor extends ShellExecutor {
      * The pwsh invocation argv for one resolved spec — the argv-level seam a
      * confining subclass wraps through `ctx.sandbox.confine` (the pwsh twin of
      * `dsh-bash-local`'s `runArgv`/`startArgv` hooks; see
-     * `@z/dsh-pwsh-sandbox`).
+     * `@taskweaver/dsh-pwsh-sandbox`).
      */
     protected argv(spec: ShellExecSpec): string[];
     /** Map one resolved spec plus its argv onto a fully-specified subprocess spawn. */
@@ -115,7 +115,7 @@ export declare class PwshLocalExecutor extends ShellExecutor {
      * Settlement hook for subclasses that attach execution facts to a process.
      * The base implementation is intentionally empty. Mirrored from
      * `dsh-bash-local` (whose sandboxing subclass consumes the same hook); the
-     * pwsh-confining consumer is `@z/dsh-pwsh-sandbox`.
+     * pwsh-confining consumer is `@taskweaver/dsh-pwsh-sandbox`.
      * @param _proc - the settled process handle.
      * @param _stderr - the process's retained stderr tail used by subclasses for settlement classification.
      * @param _spawnFailed - whether the spawn rejected before any process existed.

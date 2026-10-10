@@ -13,9 +13,9 @@ import {
   analyzeUserIntent,
   injectIntentGuidelines,
   USER_INTENTS,
-} from '../electron/backend/user-intent.mjs'
-import { detectVerificationCommands } from '../electron/backend/verification-policy.mjs'
-import { resolvePrimaryAgentPreset } from '../electron/backend/primary-agent-preset.mjs'
+} from '../desktop/backend/user-intent.mjs'
+import { detectVerificationCommands } from '../desktop/backend/verification-policy.mjs'
+import { resolvePrimaryAgentPreset } from '../desktop/backend/primary-agent-preset.mjs'
 
 const { CODE_MUTATION, READ_ONLY, PLANNING, CONVERSATION } = USER_INTENTS
 
@@ -93,8 +93,8 @@ assert.equal(injectIntentGuidelines('原文', PLANNING, policy), '原文', '计�
 const readOnly = injectIntentGuidelines('原文', READ_ONLY, policy)
 assert.equal(readOnly, '原文', '只读消息应与 DSH 一致，不追加 Host 外的 prompt 指引')
 assert.equal(
-  injectIntentGuidelines('读一下 electron/main.cjs', READ_ONLY, policy),
-  '读一下 electron/main.cjs',
+  injectIntentGuidelines('读一下 desktop/main.cjs', READ_ONLY, policy),
+  '读一下 desktop/main.cjs',
   '指定文件的只读消息应原样进入 Host',
 )
 
@@ -115,20 +115,20 @@ const e2e = injectIntentGuidelines('你好', analyzeUserIntent('你好', 'code')
 assert.doesNotMatch(e2e, /npm run|npx tsc|pnpm run/, '寒暄的最终 prompt 里不能出现任何构建/自检命令')
 
 // ===== 主会话预设由任务形状自动选择，不暴露给用户 =====
-assert.equal(resolvePrimaryAgentPreset('你好'), 'taskweaver-pi-lite', '寒暄走 Pi 风格短 system 预设')
-assert.equal(resolvePrimaryAgentPreset('读一下 electron/main.cjs，概述启动流程'), 'standard', '单文件检查保持原生工具')
-assert.equal(resolvePrimaryAgentPreset('读一下当前项目结构并简要介绍'), 'standard', '广角仓库概览不要误触发批处理模式')
+assert.equal(resolvePrimaryAgentPreset('你好'), 'tw-taskweaver-pi-lite', '寒暄走 Pi 风格短 system 预设')
+assert.equal(resolvePrimaryAgentPreset('读一下 desktop/main.cjs，概述启动流程'), 'tw-default', '单文件检查保持原生工具')
+assert.equal(resolvePrimaryAgentPreset('读一下当前项目结构并简要介绍'), 'tw-default', '广角仓库概览不要误触发批处理模式')
 assert.equal(
-  resolvePrimaryAgentPreset('只阅读 electron/main.cjs 和 electron/backend/z-conversation-hub.mjs，比较两者的启动与流转职责'),
-  'code',
+  resolvePrimaryAgentPreset('只阅读 desktop/main.cjs 和 desktop/backend/z-conversation-hub.mjs，比较两者的启动与流转职责'),
+  'tw-code',
   '用户明确列出多个独立文件时自动采用批量工具模式',
 )
-assert.equal(resolvePrimaryAgentPreset('请并行检查多个文件的导入关系'), 'code', '明确的批量只读任务应自动采用批量工具模式')
+assert.equal(resolvePrimaryAgentPreset('请并行检查多个文件的导入关系'), 'tw-code', '明确的批量只读任务应自动采用批量工具模式')
 assert.equal(
   resolvePrimaryAgentPreset('请并行检查多个文件的导入关系', 'code', 'opencodex/cursor/composer-2.5'),
-  'standard',
+  'tw-default',
   'Composer 路线与 DSH 一致，不自动切 Code Mode',
 )
-assert.equal(resolvePrimaryAgentPreset('修改 electron/main.cjs 和 electron/preload.cjs'), 'standard', '写入任务暂不自动切 Code，避免未经验证改变编辑行为')
+assert.equal(resolvePrimaryAgentPreset('修改 desktop/main.cjs 和 desktop/preload.cjs'), 'tw-default', '写入任务暂不自动切 Code，避免未经验证改变编辑行为')
 
 console.log(`\nuser-intent 回归测试全部通过（${cases.length} 条意图判定 + 注入行为 + 端到端）。`)

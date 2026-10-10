@@ -4,17 +4,17 @@
  */
 
 import { describe, expect, it, vi } from 'vitest'
-import { Context } from '@z/cordis'
-import { createScope } from '@z/dsh-scope'
-import type { Agent } from '@z/dsh-agent'
-import type { SessionId } from '@z/dsh-session'
+import { Context } from '@taskweaver/cordis'
+import { createScope } from '@taskweaver/dsh-scope'
+import type { Agent } from '@taskweaver/dsh-agent'
+import type { SessionId } from '@taskweaver/dsh-session'
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve, sep } from 'node:path'
-import { CallId } from '@z/dsh-llm'
-import SystemPrompt, { renderPrompt } from '@z/dsh-system-prompt'
-import ToolRuntime, { type ToolResult } from '@z/dsh-tools'
-import { FileSystem, FsError, FsTargetKey, FsVersion } from '@z/dsh-fs'
+import { CallId } from '@taskweaver/dsh-llm'
+import SystemPrompt, { renderPrompt } from '@taskweaver/dsh-system-prompt'
+import ToolRuntime, { type ToolResult } from '@taskweaver/dsh-tools'
+import { FileSystem, FsError, FsTargetKey, FsVersion } from '@taskweaver/dsh-fs'
 import type {
   FsDirEntry,
   FsEditOutcome,
@@ -24,16 +24,16 @@ import type {
   FsTarget,
   FsWriteIntent,
   FsWriteOutcome,
-} from '@z/dsh-fs'
-import * as FsPolicy from '@z/dsh-fs-observation-policy'
-import * as ToolFs from '@z/dsh-tool-fs'
+} from '@taskweaver/dsh-fs'
+import * as FsPolicy from '@taskweaver/dsh-fs-observation-policy'
+import * as ToolFs from '@taskweaver/dsh-tool-fs'
 import { STREAM_MIN_SIZE } from '../src/read.ts'
 import { formatReadOutput } from '../src/read-render.ts'
 import type { FileReadOutcome } from '../src/read-render.ts'
 import { sessionCwd } from '../src/session-cwd.ts'
-import ApprovalService from '@z/dsh-user-approval'
-import type { SandboxExecutionPolicy, SandboxMode } from '@z/dsh-sandbox'
-import SandboxPolicyService from '@z/dsh-sandbox-policy'
+import ApprovalService from '@taskweaver/dsh-user-approval'
+import type { SandboxExecutionPolicy, SandboxMode } from '@taskweaver/dsh-sandbox'
+import SandboxPolicyService from '@taskweaver/dsh-sandbox-policy'
 
 const testToolSignal = new AbortController().signal
 

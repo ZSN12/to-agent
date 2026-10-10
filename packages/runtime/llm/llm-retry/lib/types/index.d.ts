@@ -2,10 +2,10 @@
  * Provider-routed model-request retry policy on the agent loop's request
  * recovery extension point. Each scheduled retry is durable before its cancellable wait.
  *
- * @module @z/dsh-llm-retry
+ * @module @taskweaver/dsh-llm-retry
  */
-import type { Context } from '@z/cordis';
-import z from '@z/schemastery';
+import type { Context } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
 export type { LlmRetryEventData, LlmRetryStartedEventData } from './types.ts';
 export { RetryId } from './brand.ts';
 export declare const name = "llm-retry";

@@ -15,7 +15,7 @@
 | **Node** | 与仓库 `package.json` engines 一致（建议 22+）。 |
 | **模型** | macOS 用户数据目录 `~/Library/Application Support/taskweaver-desktop` 内已配置 `models.json` 与活动模型（与桌面端相同）。 |
 | **DSH 凭据** | 同上目录下 `dsh/settings.yaml`、`.credentials.yaml`（smoke 会复制到临时 report 目录，不打印明文密钥）。 |
-| **Z Host 运行时** | 环境变量 `TASKWEAVER_Z_RUNTIME` 指向已构建的 taskweaver-z-runtime；未设置时默认 `vendor/taskweaver-z-runtime`（开发树）或安装包内路径（`--installed` 时由 smoke 脚本处理，headless 始终 `--local`）。 |
+| **Z Host 运行时** | 环境变量 `TASKWEAVER_RUNTIME` 指向已构建的 taskweaver-z-runtime；未设置时默认 `vendor/taskweaver-z-runtime`（开发树）或安装包内路径（`--installed` 时由 smoke 脚本处理，headless 始终 `--local`）。 |
 | **工作区** | 仓库根目录作为 `cwd` 与 Agent 工作区。 |
 
 无模型/无凭据时，子进程会在启动 Host 或选模型阶段失败，退出码 `1`，stderr 一行 JSON：`{ "status": "failed", ... }`。

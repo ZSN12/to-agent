@@ -1,7 +1,7 @@
-import z from "@z/schemastery";
-import { toFetchHandler } from "@z/dsh-host-apiproxy";
-import { Service } from "@z/cordis";
-import { RpcId, clientRequestSchema } from "@z/dsh-host-apiproxy/api";
+import z from "@taskweaver/schemastery";
+import { toFetchHandler } from "@taskweaver/dsh-host-apiproxy";
+import { Service } from "@taskweaver/cordis";
+import { RpcId, clientRequestSchema } from "@taskweaver/dsh-host-apiproxy/api";
 import { randomUUID } from "node:crypto";
 import WebSocket, { WebSocketServer } from "ws";
 //#region lib/types/api-path.js

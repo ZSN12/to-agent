@@ -1,8 +1,8 @@
 /**
- * Package-owned invariant companion for `@z/dsh-bash-local`.
- * @module @z/dsh-bash-local/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-bash-local`.
+ * @module @taskweaver/dsh-bash-local/invariant
  */
-import type { Context } from '@z/cordis';
+import type { Context } from '@taskweaver/cordis';
 /** Cordis companion plugin name. */
 export declare const name = "bash-local-invariant";
 /** Service required before the companion can reserve package ownership. */

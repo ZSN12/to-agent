@@ -1,4 +1,4 @@
-import { createUserMessage } from '@z/dsh-llm'
+import { createUserMessage } from '@taskweaver/dsh-llm'
 /**
  * Shared write-path orchestration contract for backends using {@link PersistenceCoordinator}.
  * Unlike the public storage-semantics suite in `contract.ts`, it covers SessionStore event wiring,
@@ -7,14 +7,14 @@ import { createUserMessage } from '@z/dsh-llm'
  *
  * Each real backend supplies a shared storage scope and optional torn-tail injector; backend specs
  * retain only storage-mechanics tests, while these scenarios run once per backend.
- * @module @z/dsh-session-persistence/tests/coordinator-contract
+ * @module @taskweaver/dsh-session-persistence/tests/coordinator-contract
  */
 
 import { describe, expect, it, vi } from 'vitest'
-import { Context, type Fiber } from '@z/cordis'
-import { scopeTarget } from '@z/dsh-scope'
-import SessionStore, { SESSION_FORMAT_VERSION, Session, SessionId } from '@z/dsh-session'
-import type { SessionEvent } from '@z/dsh-session'
+import { Context, type Fiber } from '@taskweaver/cordis'
+import { scopeTarget } from '@taskweaver/dsh-scope'
+import SessionStore, { SESSION_FORMAT_VERSION, Session, SessionId } from '@taskweaver/dsh-session'
+import type { SessionEvent } from '@taskweaver/dsh-session'
 import { meta, oneTurnLog, appendLog } from './contract.ts'
 
 /**

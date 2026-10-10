@@ -1,11 +1,11 @@
 /**
  * Default one-shot summarization and durable checkpoint framing.
  *
- * @module @z/dsh-compaction-basic/summarizer
+ * @module @taskweaver/dsh-compaction-basic/summarizer
  */
-import type { Context } from '@z/cordis';
-import type { ContentBlock, Message, TokenUsage, ToolSchema } from '@z/dsh-llm';
-import type { Agent } from '@z/dsh-agent';
+import type { Context } from '@taskweaver/cordis';
+import type { ContentBlock, Message, TokenUsage, ToolSchema } from '@taskweaver/dsh-llm';
+import type { Agent } from '@taskweaver/dsh-agent';
 interface SummaryConfig {
     readonly summarizationProvider: string;
     readonly summarizationModel: string;

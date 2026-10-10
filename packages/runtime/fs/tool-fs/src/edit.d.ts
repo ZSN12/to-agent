@@ -2,9 +2,9 @@
  * Model-facing literal edit, unique-match by default. It obtains an optional guard from the
  * single intent slot, calls `ctx.fs.editText` without a separate stat, then records the observed
  * version; no policy means an unconditional atomic edit.
- * @module @z/dsh-tool-fs/src/edit
+ * @module @taskweaver/dsh-tool-fs/src/edit
  */
-import type { Context } from '@z/cordis';
+import type { Context } from '@taskweaver/cordis';
 import type { FsSandboxController } from './sandbox.ts';
 /** Validated `edit` arguments after defaulting. */
 interface EditInput {

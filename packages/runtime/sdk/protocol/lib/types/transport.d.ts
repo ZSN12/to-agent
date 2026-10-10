@@ -3,7 +3,7 @@
  * `method` are requests, `id` alone is a response, and `method` alone is a
  * notification. Malformed lines are ignored; handler failures become error frames.
  *
- * @module @z/dsh-sdk-protocol/transport
+ * @module @taskweaver/dsh-sdk-protocol/transport
  */
 import type { Readable, Writable } from 'node:stream';
 type RequestHandler = (method: string, params: Record<string, unknown>) => Promise<unknown>;

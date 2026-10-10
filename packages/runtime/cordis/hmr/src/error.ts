@@ -1,4 +1,4 @@
-import { Context } from '@z/cordis'
+import { Context } from '@taskweaver/cordis'
 import type { BuildFailure } from 'esbuild'
 import { codeFrameColumns } from '@babel/code-frame'
 import { readFileSync } from 'node:fs'

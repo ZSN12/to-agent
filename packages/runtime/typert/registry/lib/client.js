@@ -1,10 +1,10 @@
 window.__ModuleLoader__.load({
-	id: "@z/dsh-typert-registry",
+	id: "@taskweaver/dsh-typert-registry",
 	factory: (require) => {
 		var module = { exports: {} };
 		var exports = module.exports;
 		Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
-		let _z_cordis = require("@z/cordis");
+		let _z_cordis = require("@taskweaver/cordis");
 		//#region ../../../node_modules/.pnpm/zod@4.4.3/node_modules/zod/v4/core/util.js
 		function getEnumValues(entries) {
 			const numericValues = Object.values(entries).filter((v) => typeof v === "number");
@@ -797,7 +797,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 		* Runtime registry for generated Typert reflection, Remote invocations, and
 		* dependency-inverted lookup/Context providers. It performs no TypeScript
 		* analysis or schema generation.
-		* @module @z/dsh-typert-registry
+		* @module @taskweaver/dsh-typert-registry
 		*/
 		/**
 		* Compose the global key of one generated schema.

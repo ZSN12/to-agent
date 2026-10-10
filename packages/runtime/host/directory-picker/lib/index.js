@@ -1,4 +1,4 @@
-import { Service } from "@z/cordis";
+import { Service } from "@taskweaver/cordis";
 //#region lib/types/index.js
 /**
 * Service Definition for the `ctx.directoryPicker` capability seam: how the web-GUI host lets an operator
@@ -10,7 +10,7 @@ import { Service } from "@z/cordis";
 * can reach). Consumers switch on `capability().kind`; the union is
 * merge-extensible, and the documented default for an unknown kind is to
 * hide the picking affordance rather than fail.
-* @module @z/dsh-host-directory-picker
+* @module @taskweaver/dsh-host-directory-picker
 */
 /** Typed failure thrown by browse primitives so consumers can map business codes without string matching. */
 var DirectoryPickerError = class extends Error {

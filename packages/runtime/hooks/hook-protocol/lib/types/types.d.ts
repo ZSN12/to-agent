@@ -2,9 +2,9 @@
  * Dialect-neutral vocabulary and log-only events shared by the Claude Code and
  * Codex hook bridges. Payload construction, matching differences, environment,
  * and extension-point-specific decision mapping remain owned by each bridge.
- * @module @z/dsh-hook-protocol/types
+ * @module @taskweaver/dsh-hook-protocol/types
  */
-declare module '@z/dsh-session/types' {
+declare module '@taskweaver/dsh-session/types' {
     interface SessionEventMap {
         /**
          * A hook command was invoked at a hook point — a log-only record (like

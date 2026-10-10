@@ -21,7 +21,7 @@
  * tree propagation). Renaming the workspace directory derives a new SID —
  * the old standing ACEs are inert residue, and the next session re-propagates
  * once.
- * @module @z/dsh-sandbox-windows-acl/workspace-sid
+ * @module @taskweaver/dsh-sandbox-windows-acl/workspace-sid
  */
 /**
  * Derive the workspace's write SID (`S-1-4-x-y`; subauthorities 30-bit,

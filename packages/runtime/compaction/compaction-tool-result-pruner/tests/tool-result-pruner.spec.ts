@@ -1,22 +1,22 @@
 import { describe, expect, it } from 'vitest'
-import { Context } from '@z/cordis'
-import { CallId , createMessage, createToolResultMessage } from '@z/dsh-llm'
-import type { ContentBlock } from '@z/dsh-llm'
+import { Context } from '@taskweaver/cordis'
+import { CallId , createMessage, createToolResultMessage } from '@taskweaver/dsh-llm'
+import type { ContentBlock } from '@taskweaver/dsh-llm'
 import SessionStore, {
   Session,
   SessionId,
-} from '@z/dsh-session'
-import type { SurfaceEvent } from '@z/dsh-session'
-import * as SessionInvariant from '@z/dsh-session/invariant'
-import InvariantRegistry from '@z/dsh-invariants'
-import TokenMeter from '@z/dsh-token-meter'
+} from '@taskweaver/dsh-session'
+import type { SurfaceEvent } from '@taskweaver/dsh-session'
+import * as SessionInvariant from '@taskweaver/dsh-session/invariant'
+import InvariantRegistry from '@taskweaver/dsh-invariants'
+import TokenMeter from '@taskweaver/dsh-token-meter'
 import ToolResultPruner, {
   codePointLength,
   DEFAULTS,
   PRUNE_MARKER,
   resolveConfig,
-} from '@z/dsh-compaction-tool-result-pruner'
-import type { ToolResultPruneConfig } from '@z/dsh-compaction-tool-result-pruner'
+} from '@taskweaver/dsh-compaction-tool-result-pruner'
+import type { ToolResultPruneConfig } from '@taskweaver/dsh-compaction-tool-result-pruner'
 
 const MODEL = 'test-model'
 const SMALL: ToolResultPruneConfig = {

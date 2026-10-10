@@ -1,9 +1,9 @@
 import { describe, expect, expectTypeOf, it, vi } from 'vitest'
-import { Context } from '@z/cordis'
-import { type Agent } from '@z/dsh-agent'
+import { Context } from '@taskweaver/cordis'
+import { type Agent } from '@taskweaver/dsh-agent'
 
-import { HarnessError } from '@z/dsh-llm'
-import { carrierKeyOf } from '@z/dsh-scope'
+import { HarnessError } from '@taskweaver/dsh-llm'
+import { carrierKeyOf } from '@taskweaver/dsh-scope'
 import SubagentRuntime, {
   foldSubagentDescriptor,
   snapshotSubagentDescriptor,
@@ -17,8 +17,8 @@ import SubagentRuntime, {
   type SubagentRun,
   type SubagentRunEndInfo,
   type SubagentStartRequest,
-} from '@z/dsh-subagent'
-import { SessionId, type SessionEvent } from '@z/dsh-session'
+} from '@taskweaver/dsh-subagent'
+import { SessionId, type SessionEvent } from '@taskweaver/dsh-session'
 
 function fakeParent(id = 'parent-1'): Agent {
   return { id: SessionId(id) } as unknown as Agent

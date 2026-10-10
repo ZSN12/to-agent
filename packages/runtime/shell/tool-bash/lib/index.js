@@ -1,14 +1,14 @@
-import z from "@z/schemastery";
+import z from "@taskweaver/schemastery";
 import { isAbsolute, resolve } from "node:path";
-import { TOOL_ABORTED, defineTool } from "@z/dsh-tools";
-import { HarnessError } from "@z/dsh-llm";
-import { ESCALATION_TARGETS, approveEscalation, canonicalPath, escalationHintMarker, sandboxDenialMarker, validateEscalationArgs } from "@z/dsh-sandbox";
-import { DSH_ENV_PREFIX, parseExitStatus } from "@z/dsh-shell";
+import { TOOL_ABORTED, defineTool } from "@taskweaver/dsh-tools";
+import { HarnessError } from "@taskweaver/dsh-llm";
+import { ESCALATION_TARGETS, approveEscalation, canonicalPath, escalationHintMarker, sandboxDenialMarker, validateEscalationArgs } from "@taskweaver/dsh-sandbox";
+import { DSH_ENV_PREFIX, parseExitStatus } from "@taskweaver/dsh-shell";
 //#region lib/types/background.js
 /**
 * Generic-task adaptation for background bash process handles.
 *
-* @module @z/dsh-tool-bash/background
+* @module @taskweaver/dsh-tool-bash/background
 */
 /**
 * Map a settled background process onto the generic task-outcome vocabulary:
@@ -33,7 +33,7 @@ function processOutcome(proc) {
 /**
 * Model-facing result rendering for the bash tool.
 *
-* @module @z/dsh-tool-bash/render
+* @module @taskweaver/dsh-tool-bash/render
 */
 /** Append the truncation notice (with the full-output spill path) to a stream's text. */
 function streamText(output) {
@@ -105,7 +105,7 @@ function renderProcessRead(read, sandbox, escalationModes = []) {
 *
 * TODO(permissions): deployment policy belongs in `tools/pre-execute` and
 * sandboxing executors; see docs/architecture.md § Where new behavior goes.
-* @module @z/dsh-tool-bash
+* @module @taskweaver/dsh-tool-bash
 */
 const name = "tool-bash";
 const inject = [
@@ -403,7 +403,7 @@ function apply(ctx, config = {}) {
 			if (args.run_in_background === true) {
 				if (!backgroundEnabled) throw new Error("run_in_background is disabled for this deployment (enableRunInBackground: false)");
 				const jobs = ctx.get("jobs");
-				if (jobs === void 0) throw new Error("background jobs unavailable: load @z/dsh-jobs and @z/dsh-tool-jobs");
+				if (jobs === void 0) throw new Error("background jobs unavailable: load @taskweaver/dsh-jobs and @taskweaver/dsh-tool-jobs");
 				if (exec.signal.aborted) {
 					const error = new HarnessError("tool call aborted", TOOL_ABORTED);
 					error.name = "AbortError";

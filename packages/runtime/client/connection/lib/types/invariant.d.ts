@@ -1,8 +1,8 @@
 /**
- * Package-owned invariant companion for `@z/dsh-client-connection`.
- * @module @z/dsh-client-connection/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-client-connection`.
+ * @module @taskweaver/dsh-client-connection/invariant
  */
-import type { Context } from '@z/cordis';
+import type { Context } from '@taskweaver/cordis';
 /** Cordis companion plugin name. */
 export declare const name = "client-connection-invariant";
 /** Service required before the companion can reserve package ownership. */

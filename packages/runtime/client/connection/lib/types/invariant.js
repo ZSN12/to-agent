@@ -1,15 +1,12 @@
-"use strict";
 /**
- * Package-owned invariant companion for `@z/dsh-client-connection`.
- * @module @z/dsh-client-connection/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-client-connection`.
+ * @module @taskweaver/dsh-client-connection/invariant
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.apply = exports.inject = exports.name = void 0;
-var PACKAGE_NAME = '@z/dsh-client-connection';
+const PACKAGE_NAME = '@taskweaver/dsh-client-connection';
 /** Cordis companion plugin name. */
-exports.name = 'client-connection-invariant';
+export const name = 'client-connection-invariant';
 /** Service required before the companion can reserve package ownership. */
-exports.inject = ['invariants'];
+export const inject = ['invariants'];
 /**
  * No runtime invariant: the wire layer emits no cordis events and owns no
  * mutable cross-plugin relation — stream/reconnect sequencing is exercised
@@ -17,14 +14,12 @@ exports.inject = ['invariants'];
  * apiproxy contract layer, and the node half's single route registration's
  * register/dispose symmetry is audited by the webserver package's invariant.
  */
-var install = function () { };
+const install = () => { };
 /**
  * Register this package's invariant companion.
  * @param ctx - Cordis context carrying the invariant service.
  * @returns the installed registration's disposer after setup succeeds.
  */
-var apply = function (ctx) {
-    return Promise.resolve(ctx.invariants.register(PACKAGE_NAME, install));
-};
-exports.apply = apply;
+export const apply = (ctx) => Promise.resolve(ctx.invariants.register(PACKAGE_NAME, install));
 /* jscpd:ignore-end */
+//# sourceMappingURL=invariant.js.map

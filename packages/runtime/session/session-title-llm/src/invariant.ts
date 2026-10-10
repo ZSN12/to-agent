@@ -1,13 +1,13 @@
 /**
- * Package-owned invariant companion for `@z/dsh-session-title-llm`.
- * @module @z/dsh-session-title-llm/invariant
+ * Package-owned invariant companion for `@taskweaver/dsh-session-title-llm`.
+ * @module @taskweaver/dsh-session-title-llm/invariant
  */
 
 /* jscpd:ignore-start */
-import type { Context } from '@z/cordis'
-import type { InvariantInstaller } from '@z/dsh-invariants'
+import type { Context } from '@taskweaver/cordis'
+import type { InvariantInstaller } from '@taskweaver/dsh-invariants'
 
-const PACKAGE_NAME = '@z/dsh-session-title-llm'
+const PACKAGE_NAME = '@taskweaver/dsh-session-title-llm'
 
 /** Cordis companion plugin name. */
 export const name = 'session-title-llm-invariant'

@@ -3,10 +3,10 @@
  * pure context-breakdown projection, so both surfaces price identical content
  * to identical numbers.
  *
- * @module @z/dsh-token-meter/estimate
+ * @module @taskweaver/dsh-token-meter/estimate
  */
-import type { ContentBlock, Message } from '@z/dsh-llm';
-import type { EpochHeader } from '@z/dsh-session';
+import type { ContentBlock, Message } from '@taskweaver/dsh-llm';
+import type { EpochHeader } from '@taskweaver/dsh-session';
 /** Role-field framing overhead added to every priced message. */
 export declare const ROLE_OVERHEAD = 4;
 /**

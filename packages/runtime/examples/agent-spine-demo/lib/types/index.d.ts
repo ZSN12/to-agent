@@ -5,24 +5,24 @@
  * deployments still choose the LLM adapter, bash executor, and presentation.
  * The plugin intentionally exposes named exports only because Loader default
  * unwrapping would discard its `Config` schema (see docs/postmortem/0001).
- * @module @z/dsh-agent-spine-demo
+ * @module @taskweaver/dsh-agent-spine-demo
  */
-import type { Context } from '@z/cordis';
-import z from '@z/schemastery';
-import { type Config as SessionTitleConfig } from '@z/dsh-session-title';
-import { type Config as SystemPromptConfig } from '@z/dsh-system-prompt';
-import { type Config as ToolsConfig } from '@z/dsh-tools';
-import { type Config as SkillRegistryConfig } from '@z/dsh-skill';
-import * as SkillFileSystem from '@z/dsh-skill-filesystem';
-import { type Config as GoalDomainConfig } from '@z/dsh-goal';
-import * as toolGoal from '@z/dsh-tool-goal';
-import { type Config as JobsConfig } from '@z/dsh-jobs-local';
-import { type Config as InvariantConfig } from '@z/dsh-invariants';
-import * as toolBash from '@z/dsh-tool-bash';
-import * as workspaceContext from '@z/dsh-agent-instructions';
-import * as toolSkill from '@z/dsh-tool-skill';
-import * as toolJobs from '@z/dsh-tool-jobs';
-import { type Config as AgentLoopConfig } from '@z/dsh-agent-loop';
+import type { Context } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
+import { type Config as SessionTitleConfig } from '@taskweaver/dsh-session-title';
+import { type Config as SystemPromptConfig } from '@taskweaver/dsh-system-prompt';
+import { type Config as ToolsConfig } from '@taskweaver/dsh-tools';
+import { type Config as SkillRegistryConfig } from '@taskweaver/dsh-skill';
+import * as SkillFileSystem from '@taskweaver/dsh-skill-filesystem';
+import { type Config as GoalDomainConfig } from '@taskweaver/dsh-goal';
+import * as toolGoal from '@taskweaver/dsh-tool-goal';
+import { type Config as JobsConfig } from '@taskweaver/dsh-jobs-local';
+import { type Config as InvariantConfig } from '@taskweaver/dsh-invariants';
+import * as toolBash from '@taskweaver/dsh-tool-bash';
+import * as workspaceContext from '@taskweaver/dsh-agent-instructions';
+import * as toolSkill from '@taskweaver/dsh-tool-skill';
+import * as toolJobs from '@taskweaver/dsh-tool-jobs';
+import { type Config as AgentLoopConfig } from '@taskweaver/dsh-agent-loop';
 export declare const name = "agent-spine-demo";
 /** Skill bundle config forwarded to the registry, local provider, and model-facing consumer. */
 export interface SkillConfig {

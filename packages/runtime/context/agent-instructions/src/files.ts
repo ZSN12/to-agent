@@ -1,15 +1,15 @@
 /**
  * Instruction-file discovery and bounded, abort-aware provider reads.
  *
- * @module @z/dsh-agent-instructions/files
+ * @module @taskweaver/dsh-agent-instructions/files
  */
 
 import { createReadStream } from 'node:fs'
 import { stat } from 'node:fs/promises'
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
-import type { FileSystem, FsInfo, FsTarget, FsVersion } from '@z/dsh-fs'
-import { assertNever } from '@z/dsh-llm'
-import { dshHomeDisplay } from '@z/dsh-home-paths'
+import type { FileSystem, FsInfo, FsTarget, FsVersion } from '@taskweaver/dsh-fs'
+import { assertNever } from '@taskweaver/dsh-llm'
+import { runtimeHomeDisplay } from '@taskweaver/dsh-home-paths'
 import { resolveConfig, resolveDiscoveryConfig, type ResolvedConfig } from './config.ts'
 import { trimmedInstructionDigest } from './digest.ts'
 import {
@@ -517,5 +517,5 @@ export async function readScopeInstruction(
 }
 
 function userGlobalDisplayPath(dshHome: string): string {
-  return `${dshHomeDisplay(dshHome)}/AGENTS.md`
+  return `${runtimeHomeDisplay(dshHome)}/AGENTS.md`
 }

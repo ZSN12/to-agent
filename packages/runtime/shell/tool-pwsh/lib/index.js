@@ -1,15 +1,15 @@
 import { isAbsolute, resolve } from "node:path";
-import z from "@z/schemastery";
-import { TOOL_ABORTED, defineTool } from "@z/dsh-tools";
-import { HarnessError } from "@z/dsh-llm";
-import { ESCALATION_TARGETS, approveEscalation, escalationHintMarker, sandboxDenialMarker, validateEscalationArgs } from "@z/dsh-sandbox";
-import { parseExitStatus } from "@z/dsh-shell";
+import z from "@taskweaver/schemastery";
+import { TOOL_ABORTED, defineTool } from "@taskweaver/dsh-tools";
+import { HarnessError } from "@taskweaver/dsh-llm";
+import { ESCALATION_TARGETS, approveEscalation, escalationHintMarker, sandboxDenialMarker, validateEscalationArgs } from "@taskweaver/dsh-sandbox";
+import { parseExitStatus } from "@taskweaver/dsh-shell";
 //#region lib/types/background.js
 /**
 * Generic-task adaptation for background pwsh process handles — the shell-agnostic
 * twin of `dsh-tool-bash`'s background adaptation.
 *
-* @module @z/dsh-tool-pwsh/background
+* @module @taskweaver/dsh-tool-pwsh/background
 */
 /**
 * Map a settled background process onto the generic task-outcome vocabulary:
@@ -40,7 +40,7 @@ function processOutcome(proc) {
 * infrastructure failures (spawn errors, aborts) surface as isError
 * results.
 *
-* @module @z/dsh-tool-pwsh/render
+* @module @taskweaver/dsh-tool-pwsh/render
 */
 /** Append the truncation notice (with the full-output spill path) to a stream's text. */
 function streamText(output) {
@@ -106,7 +106,7 @@ function renderPwshProcessRead(read, sandbox, escalationModes = []) {
 /**
 * Model-facing PowerShell Consumer of the `ctx.shell` capability seam. Intended for
 * Windows compositions where a PowerShell executor (e.g.
-* `@z/dsh-pwsh-local`) backs `ctx.shell`; the tool contract is
+* `@taskweaver/dsh-pwsh-local`) backs `ctx.shell`; the tool contract is
 * PowerShell-dialect: native `C:\...` paths and `$env:NAME` variables.
 *
 * Behavior mirrors `dsh-tool-bash` call-for-call: foreground and
@@ -119,9 +119,9 @@ function renderPwshProcessRead(read, sandbox, escalationModes = []) {
 * `ctx.approval`), and the bash marker/truncation rendering story. UI
 * presentation mirrors the bash tool's too: a completed foreground call is
 * a terminal card with the parsed exit-status pill, using the shared
-* exit-status parse from `@z/dsh-shell`.
+* exit-status parse from `@taskweaver/dsh-shell`.
 *
-* @module @z/dsh-tool-pwsh
+* @module @taskweaver/dsh-tool-pwsh
 */
 const name = "tool-pwsh";
 const inject = [
@@ -376,7 +376,7 @@ function apply(ctx, config = {}) {
 			if (args.run_in_background === true) {
 				if (!backgroundEnabled) throw new Error("run_in_background is disabled for this deployment (enableRunInBackground: false)");
 				const jobs = ctx.get("jobs");
-				if (jobs === void 0) throw new Error("background jobs unavailable: load @z/dsh-jobs and @z/dsh-tool-jobs");
+				if (jobs === void 0) throw new Error("background jobs unavailable: load @taskweaver/dsh-jobs and @taskweaver/dsh-tool-jobs");
 				if (exec.signal.aborted) {
 					const error = new HarnessError("tool call aborted", TOOL_ABORTED);
 					error.name = "AbortError";

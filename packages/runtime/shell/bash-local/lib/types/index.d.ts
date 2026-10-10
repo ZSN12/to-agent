@@ -6,12 +6,12 @@
  * classification, the model-friendly terminal environment, and the model-facing
  * stdout/stderr merge for background reads. Execution policy belongs in
  * `tools/pre-execute` or a sandboxing executor.
- * @module @z/dsh-bash-local
+ * @module @taskweaver/dsh-bash-local
  */
-import { Context } from '@z/cordis';
-import z from '@z/schemastery';
-import { ShellExecutor } from '@z/dsh-shell';
-import type { ShellExecRequest, ShellExecSpec, ShellProcess, ShellRunResult } from '@z/dsh-shell';
+import { Context } from '@taskweaver/cordis';
+import z from '@taskweaver/schemastery';
+import { ShellExecutor } from '@taskweaver/dsh-shell';
+import type { ShellExecRequest, ShellExecSpec, ShellProcess, ShellRunResult } from '@taskweaver/dsh-shell';
 /**
  * Model-friendly environment overrides: disable colors, pagers, and
  * interactive terminal features that would garble tool output (the same set

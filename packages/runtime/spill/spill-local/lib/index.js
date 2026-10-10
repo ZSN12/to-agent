@@ -1,6 +1,6 @@
 import { join, resolve } from "node:path";
-import z from "@z/schemastery";
-import { SpillLocator, SpillStore } from "@z/dsh-spill";
+import z from "@taskweaver/schemastery";
+import { SpillLocator, SpillStore } from "@taskweaver/dsh-spill";
 import { createHash, randomBytes } from "node:crypto";
 import { mkdtempSync } from "node:fs";
 import { mkdir, open } from "node:fs/promises";
@@ -13,7 +13,7 @@ import { tmpdir } from "node:os";
 * (like `dsh-bash-local`'s `run.ts`) so the filesystem behavior is unit-testable
 * without a `ctx` and without the OS temp dir.
 *
-* @module @z/dsh-spill-local/store
+* @module @taskweaver/dsh-spill-local/store
 */
 let defaultRoot;
 /**
@@ -99,12 +99,12 @@ async function saveTextFile(options) {
 //#region lib/types/index.js
 /**
 * `LocalSpillStore`: the host-filesystem implementation of the
-* `@z/dsh-spill` storage seam. Persists a tool's oversized text to a
+* `@taskweaver/dsh-spill` storage seam. Persists a tool's oversized text to a
 * private, session-scoped file (see `./store.ts` for the traversal-safe naming
 * and exclusive owner-only write) and returns a path locator plus local
 * read/grep retrieval guidance.
 *
-* @module @z/dsh-spill-local
+* @module @taskweaver/dsh-spill-local
 */
 /**
 * Local-filesystem spill backend. Files land under `<root>/session-<hash>/…`

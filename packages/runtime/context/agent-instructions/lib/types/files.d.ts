@@ -1,9 +1,9 @@
 /**
  * Instruction-file discovery and bounded, abort-aware provider reads.
  *
- * @module @z/dsh-agent-instructions/files
+ * @module @taskweaver/dsh-agent-instructions/files
  */
-import type { FileSystem, FsTarget, FsVersion } from '@z/dsh-fs';
+import type { FileSystem, FsTarget, FsVersion } from '@taskweaver/dsh-fs';
 import { type ResolvedConfig } from './config.ts';
 import { type RenderedWorkspaceContext } from './render.ts';
 /** An instruction candidate identified by absolute and model-facing paths. */

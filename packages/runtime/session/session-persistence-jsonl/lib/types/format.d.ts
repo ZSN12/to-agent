@@ -7,7 +7,7 @@
  *
  * @module dsh-session-persistence-jsonl/format
  */
-import type { SessionEvent, SessionHeader, SessionId } from '@z/dsh-session';
+import type { SessionEvent, SessionHeader, SessionId } from '@taskweaver/dsh-session';
 /** Physical encoding selected for JSONL session artifacts. */
 export type JsonlCompression = 'zstd' | 'none';
 /**

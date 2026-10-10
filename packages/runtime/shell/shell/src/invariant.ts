@@ -1,9 +1,9 @@
-/** Package-owned invariant companion for the bash seam. @module @z/dsh-shell/invariant */
+/** Package-owned invariant companion for the bash seam. @module @taskweaver/dsh-shell/invariant */
 
-import type { Context } from '@z/cordis'
-import type { InvariantInstaller } from '@z/dsh-invariants'
+import type { Context } from '@taskweaver/cordis'
+import type { InvariantInstaller } from '@taskweaver/dsh-invariants'
 
-const PACKAGE_NAME = '@z/dsh-shell'
+const PACKAGE_NAME = '@taskweaver/dsh-shell'
 
 /** Cordis companion plugin name. */
 export const name = 'shell-invariant'
