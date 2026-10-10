@@ -45,7 +45,6 @@ export function LocalAgentStatusStrip({
     <div className="local-agent-status-strip" role="region" aria-label="本地官方 Agent 状态">
       <div className="local-agent-status-head">
         <strong>本地官方 Agent</strong>
-        <span className="local-agent-status-hint">扫描后模型经内置桥接入 Z Host，无需本机 10100 代理</span>
         <button
           type="button"
           className="settings-secondary-button local-agent-status-refresh"
