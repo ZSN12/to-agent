@@ -69,7 +69,7 @@
     "test:degradation": "node scripts/test-degradation-matrix.mjs",
     "test:github-mcp-oauth": "node scripts/test-github-mcp-oauth.mjs",
     "test:verification": "node scripts/test-verification-policy.mjs",
-    "test:usage": "node scripts/test-json-store-concurrency.mjs && node scripts/test-chat-turn-persistence.mjs && node scripts/test-usage-and-thinking.mjs && node scripts/test-session-usage.mjs && node scripts/test-session-stats.mjs && node scripts/test-context-compaction-policy.mjs && node scripts/test-compaction-reply.mjs",
+    "test:usage": "node scripts/test-json-store-concurrency.mjs && node scripts/test-chat-turn-persistence.mjs && node scripts/test-usage-and-thinking.mjs && node scripts/test-session-usage.mjs && node --import tsx scripts/test-session-stats.mjs && node scripts/test-context-compaction-policy.mjs && node scripts/test-compaction-reply.mjs",
     "test:session-stats": "node scripts/test-session-stats.mjs",
     "check:ipc": "node scripts/gen-contract-schema.mjs --check && node scripts/gen-swift-client.mjs --check && node scripts/check-ipc-contract.mjs",
     "test:stream-buffer": "node scripts/test-stream-buffer.mjs && node scripts/test-conversation-run-lifecycle.mjs",

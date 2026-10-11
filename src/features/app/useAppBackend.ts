@@ -22,7 +22,7 @@ import {
   shouldPreferDshTranscript,
 } from '../dsh-runtime/projectionStream'
 import { mergeStoredMessagesWithDshTranscript } from '../dsh-runtime/dshTranscriptMessages'
-import { liveContextFromDshProjections } from '../chat/session-usage'
+import { liveContextFromDshProjections, mergeSessionStatsSnapshots } from '../chat/session-usage'
 import { readHostPlanMode, readHostTodos } from '../chat/hostPlanTodoProjection'
 import type { AssistantContentBlock, TaskNode } from '../../types'
 import { type ConversationStreamSnapshot } from '../chat/conversation-stream-buffer'
@@ -99,6 +99,7 @@ export function useAppBackend() {
   const [liveContext, setLiveContext] = useState<LiveContextUsage | null>(null)
   const [promptBudget, setPromptBudget] = useState<PromptBudgetSnapshot | null>(null)
   const [sessionStats, setSessionStats] = useState<SessionStatsSnapshot | null>(null)
+  const sessionStatsRequestVersionRef = useRef(0)
   const [busyEnterMode, setBusyEnterMode] = useState<BusyEnterMode>('followUp')
   const activeConversationIdRef = useRef<string | null>(null)
   const permissionPromptsRef = useRef(new Map<string, PermissionPromptPayload>())
@@ -183,12 +184,14 @@ export function useAppBackend() {
   const refreshSessionStats = useCallback(async (expectedConversationId = activeConversationIdRef.current) => {
     const bridge = getBridge()
     if (!bridge?.chat?.getSessionStats) return
+    const requestVersion = ++sessionStatsRequestVersionRef.current
     const [statsRes, contextRes] = await Promise.all([
       bridge.chat.getSessionStats(expectedConversationId),
       bridge.chat.getLiveContext?.(expectedConversationId),
     ])
-    if (expectedConversationId !== activeConversationIdRef.current) return
-    if (statsRes.ok) setSessionStats(statsRes.data)
+    if (expectedConversationId !== activeConversationIdRef.current
+      || requestVersion !== sessionStatsRequestVersionRef.current) return
+    if (statsRes.ok) setSessionStats((previous) => mergeSessionStatsSnapshots(previous, statsRes.data))
     if (contextRes?.ok) setLiveContext(contextRes.data)
   }, [])
 
@@ -223,8 +226,6 @@ export function useAppBackend() {
     setToolTraces,
     setPromptQueue,
     setRetryBanner,
-    setLiveContext,
-    setSessionStats,
     orchestrationChoice,
     setOrchestrationChoice,
     activeConversationIdRef,

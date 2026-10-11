@@ -132,7 +132,7 @@ const nodeModulesSrc = path.join(rootDir, 'node_modules');
 if (fs.existsSync(nodeModulesSrc)) {
   const nodeModulesDest = path.join(appDir, 'node_modules');
   console.log('  - Linking or copying critical node_modules...');
-  const criticalModules = ['undici', 'ws', 'dotenv', 'koffi', 'node-pty', 'tree-sitter'];
+  const criticalModules = ['undici', 'ws', 'dotenv', 'koffi', 'node-pty', 'tree-sitter', 'yaml'];
   fs.mkdirSync(nodeModulesDest, { recursive: true });
   for (const mod of criticalModules) {
     const modSrc = path.join(nodeModulesSrc, mod);

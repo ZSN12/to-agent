@@ -15,11 +15,14 @@ RESOURCES_DIR="${CONTENTS_DIR}/Resources"
 DIST_DIR="${TASKWEAVER_DIST_DIR:-${ROOT_DIR}/dist}"
 NODE_DIR="${TASKWEAVER_NODE_DIR:-${BUILD_DIR}/node}"
 STAGE_BACKEND="${TASKWEAVER_STAGE_DIR:-${BUILD_DIR}/stage/backend}"
-SWIFT_BUILD_ARGS=()
-if [ -n "${TASKWEAVER_SWIFT_SCRATCH_PATH:-}" ]; then
-    mkdir -p "${TASKWEAVER_SWIFT_SCRATCH_PATH}"
-    SWIFT_BUILD_ARGS+=(--scratch-path "${TASKWEAVER_SWIFT_SCRATCH_PATH}")
-fi
+swift_build() {
+    if [ -n "${TASKWEAVER_SWIFT_SCRATCH_PATH:-}" ]; then
+        mkdir -p "${TASKWEAVER_SWIFT_SCRATCH_PATH}"
+        swift build --scratch-path "${TASKWEAVER_SWIFT_SCRATCH_PATH}" "$@"
+    else
+        swift build "$@"
+    fi
+}
 
 ZIP_PATH="${DIST_DIR}/TaskWeaver-macOS-arm64.zip"
 DMG_PATH="${DIST_DIR}/TaskWeaver-macOS-arm64.dmg"
@@ -39,9 +42,9 @@ TASKWEAVER_NODE_DIR="${NODE_DIR}" bash "${SCRIPT_DIR}/fetch-node.sh"
 
 # 2. Build Swift App (Release mode)
 echo "🛠️ Compiling Swift binaries (Release)..."
-swift build "${SWIFT_BUILD_ARGS[@]}" -c release --package-path "${ROOT_DIR}/apps/macos/Packages/TaskWeaverKit" --product TaskWeaver
+swift_build -c release --package-path "${ROOT_DIR}/apps/macos/Packages/TaskWeaverKit" --product TaskWeaver
 
-SWIFT_BIN_DIR="$(swift build "${SWIFT_BUILD_ARGS[@]}" --configuration release --show-bin-path --package-path "${ROOT_DIR}/apps/macos/Packages/TaskWeaverKit")"
+SWIFT_BIN_DIR="$(swift_build --configuration release --show-bin-path --package-path "${ROOT_DIR}/apps/macos/Packages/TaskWeaverKit")"
 SWIFT_BIN="${SWIFT_BIN_DIR}/TaskWeaver"
 
 if [ ! -f "${SWIFT_BIN}" ]; then

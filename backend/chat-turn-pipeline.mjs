@@ -485,6 +485,7 @@ export function createChatTurnPipeline(deps) {
       effectivePrompt,
       promptStats,
       assembled,
+      dynamicBudget,
     } = await assembleAndComposeUserPrompt({
       text,
       workMode,
@@ -552,7 +553,7 @@ export function createChatTurnPipeline(deps) {
         attachments,
         documents,
         dagPlanApprovalOverride,
-        assembled.dynamicBudget.toolOutputMaxChars,
+        dynamicBudget.toolOutputMaxChars,
       )
     } catch (error) {
       await handleChatError(error, messageId, time, conversationId, activeKey)
@@ -570,7 +571,7 @@ export function createChatTurnPipeline(deps) {
       conversationId,
       runtimeContext,
       result,
-      toolOutputMaxChars: assembled.dynamicBudget.toolOutputMaxChars,
+      toolOutputMaxChars: dynamicBudget.toolOutputMaxChars,
     })
 
     const agentEntry = await createAssistantMessage(result, messageId, time, activeKey, execution, conversationId)

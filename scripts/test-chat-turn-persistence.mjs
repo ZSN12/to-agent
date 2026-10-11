@@ -117,6 +117,45 @@ try {
     (await appState.getConversationState(earlyConversationId)).messages.at(-1).text,
     '执行失败：before native start',
   )
+
+  const budgetConversationId = (await appState.createThread({})).conversationId
+  let chatRequest
+  const budgetPipeline = createChatTurnPipeline({
+    appState,
+    usageStore,
+    profileStore: { resolve: async () => ({}) },
+    modelService: { getModelContextWindow: async () => 128_000 },
+    resolveModelKeyForChat: async () => ({ modelKey: activeKey }),
+    appPreferences: { get: async () => ({}) },
+    createGitCheckpoint: async () => {},
+    userDataPath: home,
+    chat: {
+      send: async (request) => {
+        chatRequest = request
+        return { text: '你好' }
+      },
+    },
+    orchestration: {},
+    permissions: { withExecution: async (_mode, _sender, fn) => fn() },
+    skills: { resolve: async () => null },
+    persistNativeTurn,
+    workspaceHooksTrusted: async () => false,
+    sandboxContextLineForContext: () => '',
+  })
+  await budgetPipeline.runTurn({
+    webContents: { isDestroyed: () => false, send: () => {} },
+    text: '你好',
+    executionModeOverride: 'single-agent',
+    conversationId: budgetConversationId,
+    runtimeContext: {
+      workspacePath: home,
+      permissionMode: 'standard',
+      workspaceTrusted: false,
+      modelKey: activeKey,
+    },
+  })
+  assert.equal(chatRequest.toolOutputMaxChars, 2_800,
+    'chat execution receives the dynamic tool output budget returned beside workspace context')
   assert.equal((await readStats()).totals.totalCalls, 2, 'early errors invent no model usage')
 
   await persistNativeTurn({ conversationId, modelKey: activeKey, result: {

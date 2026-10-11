@@ -1,5 +1,5 @@
 import type { ChatMessage, ChatUsage } from '../../types'
-import type { ContextBreakdownEstimate, LiveContextUsage } from '../../shared/app-api'
+import type { ContextBreakdownEstimate, LiveContextUsage, SessionStatsSnapshot } from '../../shared/app-api'
 
 export interface SessionUsageTotals {
   rounds: number
@@ -8,6 +8,72 @@ export interface SessionUsageTotals {
   cacheReadTokens: number
   cacheWriteTokens: number
   cacheHitRatePercent: number | null
+}
+
+function maxCounter(a: number, b: number): number {
+  return Math.max(Number.isFinite(a) ? a : 0, Number.isFinite(b) ? b : 0)
+}
+
+/** Retain cumulative counters when a delayed Host projection returns an older snapshot. */
+export function mergeSessionStatsSnapshots(
+  previous: SessionStatsSnapshot | null,
+  incoming: SessionStatsSnapshot | null,
+): SessionStatsSnapshot | null {
+  if (!incoming) return previous
+  if (!previous) return incoming
+  const input = maxCounter(previous.tokens.input, incoming.tokens.input)
+  const output = maxCounter(previous.tokens.output, incoming.tokens.output)
+  const cacheRead = maxCounter(previous.tokens.cacheRead, incoming.tokens.cacheRead)
+  const cacheWrite = maxCounter(previous.tokens.cacheWrite, incoming.tokens.cacheWrite)
+  return {
+    ...previous,
+    ...incoming,
+    agentPreset: incoming.agentPreset ?? previous.agentPreset,
+    userMessages: maxCounter(previous.userMessages, incoming.userMessages),
+    assistantMessages: maxCounter(previous.assistantMessages, incoming.assistantMessages),
+    toolCalls: maxCounter(previous.toolCalls, incoming.toolCalls),
+    llmMs: maxCounter(previous.llmMs, incoming.llmMs),
+    toolMs: maxCounter(previous.toolMs, incoming.toolMs),
+    ttftMs: maxCounter(previous.ttftMs, incoming.ttftMs),
+    ttftSteps: maxCounter(previous.ttftSteps, incoming.ttftSteps),
+    decodeMs: maxCounter(previous.decodeMs, incoming.decodeMs),
+    decodeTokens: maxCounter(previous.decodeTokens, incoming.decodeTokens),
+    tokens: {
+      input,
+      output,
+      cacheRead,
+      cacheWrite,
+      total: Math.max(maxCounter(previous.tokens.total, incoming.tokens.total), input + output + cacheRead + cacheWrite),
+    },
+    contextTokens: incoming.contextTokens ?? previous.contextTokens,
+    contextWindow: incoming.contextWindow ?? previous.contextWindow,
+    contextPercent: incoming.contextPercent ?? previous.contextPercent,
+  }
+}
+
+/** A lagging projection must not hide usage already present on committed chat messages. */
+export function mergeSessionStatsWithUsage(
+  stats: SessionStatsSnapshot,
+  usage: SessionUsageTotals,
+): SessionStatsSnapshot {
+  return mergeSessionStatsSnapshots(stats, {
+    userMessages: usage.rounds,
+    assistantMessages: usage.rounds,
+    toolCalls: 0,
+    llmMs: 0,
+    toolMs: 0,
+    ttftMs: 0,
+    ttftSteps: 0,
+    decodeMs: 0,
+    decodeTokens: 0,
+    tokens: {
+      input: usage.inputTokens,
+      output: usage.outputTokens,
+      cacheRead: usage.cacheReadTokens,
+      cacheWrite: usage.cacheWriteTokens,
+      total: usage.inputTokens + usage.outputTokens + usage.cacheReadTokens + usage.cacheWriteTokens,
+    },
+  })!
 }
 
 /** 紧凑显示大 token 数（与 pi 终端 footer 类似） */

@@ -3,6 +3,10 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { createDshChatService } from '../backend/dsh-chat-service.mjs'
+import {
+  mergeSessionStatsSnapshots,
+  mergeSessionStatsWithUsage,
+} from '../src/features/chat/session-usage.ts'
 
 // Production bridge, cold persisted mapping, controlled native projections.
 // No model request, user state, or GUI.
@@ -91,6 +95,57 @@ try {
   assert.equal(legacyContextFallbackCalls, 3)
   assert.equal(fallbackCalls, 2)
   assert.equal(chat.isBusyAny(), false, 'reading stats never starts an Agent turn')
+
+  const previousUiStats = {
+    agentPreset: 'code',
+    userMessages: 29,
+    assistantMessages: 29,
+    toolCalls: 12,
+    llmMs: 30_000,
+    toolMs: 5_000,
+    ttftMs: 800,
+    ttftSteps: 29,
+    decodeMs: 10_000,
+    decodeTokens: 1_000,
+    tokens: { input: 100, output: 20, cacheRead: 900, cacheWrite: 40, total: 1_060 },
+    contextTokens: 600,
+    contextWindow: 1_000,
+    contextPercent: 60,
+  }
+  const laggingUiStats = {
+    userMessages: 0,
+    assistantMessages: 0,
+    toolCalls: 0,
+    llmMs: 0,
+    toolMs: 0,
+    ttftMs: 0,
+    ttftSteps: 0,
+    decodeMs: 0,
+    decodeTokens: 0,
+    tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+    contextTokens: 0,
+    contextWindow: 1_000,
+    contextPercent: 0,
+  }
+  const stableUiStats = mergeSessionStatsSnapshots(previousUiStats, laggingUiStats)
+  assert.equal(stableUiStats.userMessages, 29, 'late zero projections cannot regress cumulative rounds')
+  assert.equal(stableUiStats.tokens.total, 1_060, 'late zero projections cannot erase displayed token totals')
+  assert.equal(stableUiStats.contextTokens, 0, 'current context pressure may legitimately fall after compaction')
+  assert.equal(mergeSessionStatsSnapshots(previousUiStats, null), previousUiStats,
+    'a transient missing projection keeps the previous session snapshot')
+  const transcriptFallback = mergeSessionStatsWithUsage(laggingUiStats, {
+    rounds: 2,
+    inputTokens: 10,
+    outputTokens: 3,
+    cacheReadTokens: 50,
+    cacheWriteTokens: 0,
+    cacheHitRatePercent: 83.3,
+  })
+  assert.equal(transcriptFallback.userMessages, 2)
+  assert.equal(transcriptFallback.tokens.total, 63,
+    'message usage remains visible while durable Host projections are catching up')
+  const footerSource = await fs.readFile(new URL('../src/features/composer/ConversationUsageFooter.tsx', import.meta.url), 'utf8')
+  assert.match(footerSource, /mergeSessionStatsWithUsage/)
   console.log('session stats: Host projections, RPC totals, zero-pressure precedence and legacy fallback pass')
 } finally {
   await chat?.stop()

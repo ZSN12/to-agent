@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import type { ChatMessage } from '../../types'
 import type { LiveContextUsage, SessionStatsSnapshot } from '../../shared/app-api'
 import { ComposerStatsDock } from '../chat/ComposerStatsDock'
-import { sessionUsageHasData, summarizeSessionUsage } from '../chat/session-usage'
+import { mergeSessionStatsWithUsage, sessionUsageHasData, summarizeSessionUsage } from '../chat/session-usage'
 
 export function ConversationUsageFooter({
   messages,
@@ -17,7 +17,7 @@ export function ConversationUsageFooter({
 }) {
   const sessionUsage = useMemo(() => summarizeSessionUsage(messages), [messages])
   if (sessionStats) {
-    return <ComposerStatsDock stats={sessionStats} messages={messages} liveContext={liveContext} modelContextWindow={modelContextWindow} />
+    return <ComposerStatsDock stats={mergeSessionStatsWithUsage(sessionStats, sessionUsage)} messages={messages} liveContext={liveContext} modelContextWindow={modelContextWindow} />
   }
   if (!sessionUsageHasData(sessionUsage) && !liveContext) return null
   return (
