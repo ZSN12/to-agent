@@ -63,6 +63,7 @@
   name: '@taskweaver/dsh-agent-instructions'
   config:
     maxBytes: 65536
+    instructionFileCandidates: [TASKWEAVER.md, AGENTS.md, CLAUDE.md, .cursorrules]
 
 # ── shell ───────────────────────────────────────────────────────────────────
 
@@ -96,6 +97,9 @@
   config:
     sampleOverCapGlobResults: true
     excludeDirectories: [node_modules, runtime-packages, dist, release, coverage, .pnpm-store, .taskweaver-build, taskweaver-z-runtime, taskweaver-dsh-runtime]
+
+- id: tool-fs-inline-edit
+  name: '@taskweaver/dsh-tool-fs-inline-edit'
 
 # ── background jobs ────────────────────────────────────────────────────────
 

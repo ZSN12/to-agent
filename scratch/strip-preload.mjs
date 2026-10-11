@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 
-let source = fs.readFileSync('desktop/ipc/channels.mjs', 'utf8')
+let source = fs.readFileSync('contract/channels.mjs', 'utf8')
 
 // We want to match: `["name", "bridgePath", "methodType", (invoke) => ... ]`
 // and replace it with `["name", "bridgePath", "methodType"]`
@@ -20,4 +20,4 @@ source = source.split('\n').map(line => {
   return line
 }).join('\n')
 
-fs.writeFileSync('desktop/ipc/channels.mjs', source)
+fs.writeFileSync('contract/channels.mjs', source)

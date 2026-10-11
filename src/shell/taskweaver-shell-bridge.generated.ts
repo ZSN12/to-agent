@@ -80,7 +80,9 @@ export function createShellTaskweaverBridge(): TaskweaverBridge {
       setWorkspace: (...args: unknown[]) => invoke("app:setWorkspace", ...args),
       switchThread: (...args: unknown[]) => invoke("app:switchThread", ...args),
       toggleArchiveThread: (...args: unknown[]) => invoke("app:toggleArchiveThread", ...args),
-      togglePinThread: (...args: unknown[]) => invoke("app:togglePinThread", ...args)
+      togglePinThread: (...args: unknown[]) => invoke("app:togglePinThread", ...args),
+      getFirstRunNotice: (...args: unknown[]) => invoke("app:getFirstRunNotice", ...args),
+      dismissFirstRunNotice: (...args: unknown[]) => invoke("app:dismissFirstRunNotice", ...args)
     },
     models: {
       bridgeGetStatus: (...args: unknown[]) => invoke("bridge:getStatus", ...args),
@@ -141,6 +143,7 @@ export function createShellTaskweaverBridge(): TaskweaverBridge {
     chat: {
       cancel: (...args: unknown[]) => invoke("chat:cancel", ...args),
       getDshView: (...args: unknown[]) => invoke("chat:getDshView", ...args),
+      getToolOutput: (...args: unknown[]) => invoke("chat:getToolOutput", ...args),
       getImageAttachment: (...args: unknown[]) => invoke("chat:getImageAttachment", ...args),
       getImageLimits: (...args: unknown[]) => invoke("chat:getImageLimits", ...args),
       getResultAttachment: (...args: unknown[]) => invoke("chat:getResultAttachment", ...args),

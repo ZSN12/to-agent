@@ -4,7 +4,7 @@ import { PassThrough } from 'node:stream'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { createZHostManager } from '../desktop/agent/z-host/spawn-host.mjs'
+import { createZHostManager } from '../backend/agent/z-host/spawn-host.mjs'
 
 class FakeHostProcess extends EventEmitter {
   stdout = new PassThrough()

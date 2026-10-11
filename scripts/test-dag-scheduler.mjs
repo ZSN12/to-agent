@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { validateAndOrderTasks, executeDag } from '../desktop/backend/dag-scheduler.mjs'
+import { validateAndOrderTasks, executeDag } from '../backend/dag-scheduler.mjs'
 
 const tasks = validateAndOrderTasks([
   { id: 'T1', title: '调研 A', description: '读代码', taskType: 'research', dependsOn: [] },

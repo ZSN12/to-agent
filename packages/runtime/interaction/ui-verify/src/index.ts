@@ -92,9 +92,9 @@ async function assertTaskWeaverRoot(root: string): Promise<string> {
   if (!manifest || typeof manifest !== 'object' || (manifest as { name?: unknown }).name !== 'taskweaver-desktop') {
     throw new Error('UI verification is enabled only for a TaskWeaver repository (package.json name must be taskweaver-desktop)')
   }
-  const shellEntry = path.join(canonical, 'desktop/shell/run.mjs')
+  const shellEntry = path.join(canonical, 'backend/shell/run.mjs')
   await readFile(shellEntry, 'utf8').catch(() => {
-    throw new Error('TaskWeaver UI verification requires the shell backend entry at desktop/shell/run.mjs')
+    throw new Error('TaskWeaver UI verification requires the shell backend entry at backend/shell/run.mjs')
   })
   return canonical
 }
@@ -175,7 +175,7 @@ export class UiVerifySession {
     shellEnv.TASKWEAVER_SHELL_SERVER = '1'
     shellEnv.TASKWEAVER_SHELL_PORT = String(shellPort)
     shellEnv.TASKWEAVER_SHELL_HOST = '127.0.0.1'
-    const shellEntry = path.join(root, 'desktop/shell/run.mjs')
+    const shellEntry = path.join(root, 'backend/shell/run.mjs')
     const shellProcess = spawn(process.execPath, [shellEntry], {
       cwd: root,
       env: shellEnv,

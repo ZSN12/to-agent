@@ -281,7 +281,7 @@ export interface TaskweaverModelsApi {
   testCustomProvider: (payload: CustomProviderTestPayload) => Promise<IpcResult<{ ok: boolean; method?: string; status?: number }>>
   testCustomProviderToolCall: (payload: CustomProviderTestPayload) => Promise<IpcResult<{ ok: boolean; supported: boolean; method?: string; status?: number }>>
   probeProviderModels: (payload: { providerId?: string; baseUrl?: string; apiKey?: string }) => Promise<IpcResult<ProbeModelsResult>>
-  discoverProviderModels: (payload: DiscoverProviderModelsPayload) => Promise<IpcResult<DiscoveredProviderModel[]>>
+  discoverProviderModels: (payload: DiscoverProviderModelsPayload) => Promise<IpcResult<ProviderModelDiscoveryResult>>
   batchAddCustomModels: (payload: BatchAddCustomModelsPayload) => Promise<
     IpcResult<{ ok: boolean; addedCount: number; addedKeys: string[]; catalog: ModelCatalog }>
   >
@@ -298,6 +298,19 @@ export interface DiscoveredProviderModel {
   contextWindow?: number
   maxTokens?: number
 }
+
+export type ProviderModelDiscoveryResult =
+  | {
+      providerId: string
+      status: 'ok'
+      models: DiscoveredProviderModel[]
+    }
+  | {
+      providerId: string
+      status: 'timeout' | 'error'
+      models: []
+      error: string
+    }
 
 export interface ProbedModelItem {
   id: string

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { createZHostManager, resolveTaskWeaverRuntimeRoot } from '../../desktop/agent/z-host/index.mjs'
+import { createZHostManager, resolveTaskWeaverRuntimeRoot } from '../../backend/agent/z-host/index.mjs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import os from 'node:os'
-import { createWebSearchService } from '../desktop/backend/web-search-service.mjs'
+import { createWebSearchService } from '../backend/web-search-service.mjs'
 
 async function run() {
   const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'tw-web-search-test-'))

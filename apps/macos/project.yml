@@ -1,0 +1,50 @@
+name: TaskWeaver
+options:
+  bundleIdPrefix: com.taskweaver
+  deploymentTarget:
+    macOS: "14.4"
+  xcodeVersion: "15.0"
+
+packages:
+  TaskWeaverKit:
+    path: Packages/TaskWeaverKit
+
+targets:
+  TaskWeaver:
+    type: application
+    platform: macOS
+    deploymentTarget: "14.4"
+    sources:
+      - path: TaskWeaver
+    dependencies:
+      - package: TaskWeaverKit
+        product: TWUI
+      - package: TaskWeaverKit
+        product: TWCore
+      - package: TaskWeaverKit
+        product: TWRPC
+      - package: TaskWeaverKit
+        product: TWPlatform
+      - package: TaskWeaverKit
+        product: TWMarkdown
+      - package: TaskWeaverKit
+        product: TWContract
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.taskweaver.desktop
+        PRODUCT_NAME: TaskWeaver
+        INFOPLIST_FILE: TaskWeaver/Info.plist
+        CODE_SIGN_ENTITLEMENTS: TaskWeaver/TaskWeaver.entitlements
+        ENABLE_HARDENED_RUNTIME: YES
+        SWIFT_VERSION: "5.9"
+        MACOSX_DEPLOYMENT_TARGET: "14.4"
+        GENERATE_INFOPLIST_FILE: NO
+
+  TaskWeaverUITests:
+    type: bundle.ui-testing
+    platform: macOS
+    deploymentTarget: "14.4"
+    sources:
+      - path: TaskWeaverUITests
+    dependencies:
+      - target: TaskWeaver

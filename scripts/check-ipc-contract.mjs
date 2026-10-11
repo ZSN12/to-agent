@@ -2,14 +2,14 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { IPC_CHANNELS, PRELOAD_EVENTS } from '../desktop/ipc/channels.mjs'
+import { IPC_CHANNELS, PRELOAD_EVENTS } from '../contract/channels.mjs'
 import { checkGeneratedIpcTypes } from './gen-ipc-types.mjs'
 import { checkGeneratedShellBridge } from './gen-shell-bridge.mjs'
 import { scanRegisteredHandlers, scanRendererTaskweaverPaths } from './ipc-contract-utils.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const bridgePath = path.join(root, 'src/shell/taskweaver-shell-bridge.generated.ts')
-const backendDir = path.join(root, 'desktop/backend')
+const backendDir = path.join(root, 'backend')
 const rendererDir = path.join(root, 'src')
 const bridgeSource = fs.readFileSync(bridgePath, 'utf8')
 const shellBridge = buildShellBridgeIndex(bridgeSource)

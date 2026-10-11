@@ -26,7 +26,7 @@
 
 对应源码：
 
-- `desktop/backend/dsh-chat-service.mjs:651` 在每次 turn/end 发出 `done`；`:670` 检测到待处理追问后保留运行任务。
+- `backend/dsh-chat-service.mjs:651` 在每次 turn/end 发出 `done`；`:670` 检测到待处理追问后保留运行任务。
 - `src/features/app/useAppBackend.ts:463` 收到任何 `done` 就删除会话运行标记；`:471` 删除流快照，`:473` 清除当前发送状态。
 - `src/features/chat/conversation-stream-buffer.ts` 将 start/done 作为瞬态快照重置边界。
 

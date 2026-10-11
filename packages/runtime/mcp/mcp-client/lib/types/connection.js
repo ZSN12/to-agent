@@ -14,11 +14,32 @@
  *
  * @module
  */
+import { appendFileSync } from 'node:fs';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { ToolListChangedNotificationSchema } from '@modelcontextprotocol/sdk/types.js';
 import { MAX_TIMER_DELAY_MS } from '@taskweaver/dsh-timeout';
 import { createTransport } from "./transport.js";
-import { syncTools } from "./tools.js";
+import { registerCachedTools, syncTools } from "./tools.js";
+import { createRemoteToolCache } from "./remote-tool-cache.js";
+function traceMcpConnect(event, server, ms) {
+    if (process.env.TASKWEAVER_STARTUP_TRACE !== '1')
+        return;
+    const tracePath = process.env.TASKWEAVER_STARTUP_TRACE_FILE;
+    if (!tracePath)
+        return;
+    try {
+        const record = {
+            timestamp: new Date().toISOString(),
+            pid: process.pid,
+            ...(process.env.TASKWEAVER_STARTUP_ID ? { startupId: process.env.TASKWEAVER_STARTUP_ID } : {}),
+            event: `mcp:connect:${event}`,
+            server,
+            ...(ms !== undefined ? { ms: Number(ms.toFixed(3)) } : {})
+        };
+        appendFileSync(tracePath, `${JSON.stringify(record)}\n`, { encoding: 'utf8', mode: 0o600 });
+    }
+    catch { }
+}
 /** Defaults shared by the Config schema and {@link resolveReconnectPolicy}. */
 export const RECONNECT_DEFAULTS = Object.freeze({
     enabled: true,
@@ -98,6 +119,9 @@ export function startConnection(ctx, config, policy) {
     const startupOpts = config.failOnStartupError
         ? { ...opts, registrationFailure: 'throw' }
         : opts;
+    const remoteToolCache = config.transport === 'streamable-http'
+        ? createRemoteToolCache(config.serverName, config.url)
+        : undefined;
     let disposed = false;
     /** Current generation: the connecting or connected client; undefined during backoff waits and after final failure. */
     let client;
@@ -125,7 +149,7 @@ export function startConnection(ctx, config, policy) {
         const run = syncChain.then(async () => {
             if (!isCurrent(generation))
                 return;
-            disposers = await syncTools(generation, ctx, syncOpts, disposers);
+            disposers = await syncTools(generation, ctx, syncOpts, disposers, { cache: remoteToolCache });
         });
         // The chain tail must survive a failed sync; the enqueuing caller owns reporting.
         syncChain = run.catch(() => { });
@@ -197,7 +221,11 @@ export function startConnection(ctx, config, policy) {
      * @param startup - Whether this is the plugin's activation attempt.
      */
     async function connectGeneration(startup) {
+        const startAt = process.hrtime.bigint();
+        traceMcpConnect('begin', label);
         const generation = new Client({ name: 'dsh-mcp-client', version: '0.0.1' }, { capabilities: {} });
+        const connectionReady = Promise.withResolvers();
+        const generationOpts = { ...opts, connectionReady: connectionReady.promise };
         const closed = Promise.withResolvers();
         let attemptSettled = false;
         let closeObserved = false;
@@ -229,32 +257,57 @@ export function startConnection(ctx, config, policy) {
             }
         });
         try {
+            // Start both operations immediately. Cache loading is local and bounded;
+            // it must not delay the transport handshake.
+            const cachedToolsPromise = remoteToolCache?.read() ?? Promise.resolve(null);
             let connectTimer;
-            try {
-                await Promise.race([
-                    generation.connect(createTransport(config)),
-                    new Promise((_resolve, reject) => {
-                        connectTimer = setTimeout(() => {
-                            const error = new Error(`${label}: connection timed out after ${connectTimeoutMs}ms`);
-                            Object.assign(error, { code: 'MCP_CONNECT_TIMEOUT' });
-                            reject(error);
-                        }, connectTimeoutMs);
-                        connectTimer.unref?.();
-                    }),
-                ]);
-            }
-            finally {
+            const connectAttempt = Promise.race([
+                generation.connect(createTransport(config)),
+                new Promise((_resolve, reject) => {
+                    connectTimer = setTimeout(() => {
+                        const error = new Error(`${label}: connection timed out after ${connectTimeoutMs}ms`);
+                        Object.assign(error, { code: 'MCP_CONNECT_TIMEOUT' });
+                        reject(error);
+                    }, connectTimeoutMs);
+                    connectTimer.unref?.();
+                }),
+            ]).finally(() => {
                 if (connectTimer)
                     clearTimeout(connectTimer);
+            });
+            // A transport timeout may settle while cache I/O is in flight. Mark the
+            // rejection handled now; the same promise is awaited below.
+            void connectAttempt.catch(() => { });
+            const cachedTools = await cachedToolsPromise;
+            if (cachedTools !== null && isCurrent(generation)) {
+                try {
+                    disposers = registerCachedTools(generation, ctx, generationOpts, cachedTools, disposers);
+                }
+                catch (error) {
+                    ctx.logger.warn(`${label}: cached tool list ignored: ${String(error)}`);
+                }
             }
+            await connectAttempt;
             if (hasClosed()) {
                 attemptSettled = true;
+                connectionReady.resolve({ error: new Error(`${label}: connection closed during startup`) });
+                const elapsedMs = Number(process.hrtime.bigint() - startAt) / 1e6;
+                traceMcpConnect('failed', label, elapsedMs);
                 generationDown(generation);
                 return;
             }
-            await enqueueSync(generation, startup ? startupOpts : opts);
+            connectionReady.resolve({});
+            await enqueueSync(generation, {
+                ...(startup ? startupOpts : opts),
+                connectionReady: connectionReady.promise,
+            });
+            const elapsedMs = Number(process.hrtime.bigint() - startAt) / 1e6;
+            traceMcpConnect('ok', label, elapsedMs);
         }
         catch (error) {
+            connectionReady.resolve({ error });
+            const elapsedMs = Number(process.hrtime.bigint() - startAt) / 1e6;
+            traceMcpConnect('failed', label, elapsedMs);
             if (firstAttemptError === undefined)
                 firstAttemptError = error;
             // Disposal clears current ownership before it closes the generation, so

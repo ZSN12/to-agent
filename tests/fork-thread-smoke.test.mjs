@@ -2,12 +2,12 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { createAppStateStore } from '../desktop/backend/app-state-store.mjs'
+import { createAppStateStore } from '../backend/app-state-store.mjs'
 import {
   resolveForkCompletedTurns,
   resolveForkSliceEnd,
   sliceForkMessages,
-} from '../desktop/backend/fork-turns.mjs'
+} from '../backend/fork-turns.mjs'
 
 const home = await fs.mkdtemp(path.join(os.tmpdir(), 'tw-fork-smoke-'))
 const appState = createAppStateStore(home, '/tmp/workspace')

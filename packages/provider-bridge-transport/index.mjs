@@ -5,7 +5,7 @@ import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { createRequire } from 'node:module'
 import { spawn } from 'node:child_process'
-import { existsSync, statSync } from 'node:fs'
+import { existsSync, statSync, appendFileSync } from 'node:fs'
 import {
   createCursorTranslatorBudget as createPackageCursorTranslatorBudget,
   loadCreateCursorAdapter,
@@ -14,6 +14,23 @@ import { loadCreateGoogleAdapter } from './google-adapter-loader.mjs'
 import { createOAuthTokenCache, isUnauthorizedError } from './oauth-token-cache.mjs'
 
 const oauthTokenCache = createOAuthTokenCache()
+
+function traceTokenHelper(ms, provider) {
+  if (process.env.TASKWEAVER_STARTUP_TRACE !== '1') return
+  const tracePath = process.env.TASKWEAVER_STARTUP_TRACE_FILE
+  if (!tracePath) return
+  try {
+    const record = {
+      timestamp: new Date().toISOString(),
+      pid: process.pid,
+      ...(process.env.TASKWEAVER_STARTUP_ID ? { startupId: process.env.TASKWEAVER_STARTUP_ID } : {}),
+      event: 'bridge:token-helper',
+      ms: Number(ms.toFixed(3)),
+      provider: String(provider),
+    }
+    appendFileSync(tracePath, `${JSON.stringify(record)}\n`, { encoding: 'utf8', mode: 0o600 })
+  } catch {}
+}
 
 function bridgeError(code, message) {
   const err = new Error(message)
@@ -199,6 +216,7 @@ function openCodexOAuthTokenProgram(provider) {
 }
 
 function acquireOpenCodexAccessTokenUncached(provider, signal) {
+  const startAt = process.hrtime.bigint()
   const bun = resolveBunBinary()
   const source = openCodexOAuthTokenProgram(provider)
   return new Promise((resolve, reject) => {
@@ -220,6 +238,8 @@ function acquireOpenCodexAccessTokenUncached(provider, signal) {
       settled = true
       clearTimeout(timer)
       signal?.removeEventListener('abort', abort)
+      const elapsedMs = Number(process.hrtime.bigint() - startAt) / 1e6
+      traceTokenHelper(elapsedMs, provider)
       fn(value)
     }
     const abort = () => {

@@ -3,8 +3,8 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { randomUUID } from 'node:crypto'
-import { createOrchestrationService } from '../desktop/backend/orchestration-service.mjs'
-import { RunStore } from '../desktop/backend/orchestration/run-store.mjs'
+import { createOrchestrationService } from '../backend/orchestration-service.mjs'
+import { RunStore } from '../backend/orchestration/run-store.mjs'
 
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-dag-budget-'))
 try {

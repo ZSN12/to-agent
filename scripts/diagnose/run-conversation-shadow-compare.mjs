@@ -2,17 +2,17 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { createZHostManager } from '../../desktop/agent/z-host/index.mjs'
+import { createZHostManager } from '../../backend/agent/z-host/index.mjs'
 import {
   createTaskWeaverConversationRuntime,
   fakeSessionRemotes,
   loadSessionManagerClass,
-} from '../../desktop/backend/dsh-conversation-runtime.mjs'
-import { extractDshChatTranscript } from '../../desktop/backend/dsh-transcript-serialize.mjs'
+} from '../../backend/dsh-conversation-runtime.mjs'
+import { extractDshChatTranscript } from '../../backend/dsh-transcript-serialize.mjs'
 import {
   compareConversationTranscripts,
   inspectUserPromptEnvelope,
-} from '../../desktop/backend/conversation-shadow-compare.mjs'
+} from '../../backend/conversation-shadow-compare.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const userDataPath = process.argv.find((arg) => arg.startsWith('--user-data='))?.slice('--user-data='.length)

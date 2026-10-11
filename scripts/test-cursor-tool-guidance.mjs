@@ -3,7 +3,7 @@ import {
   shouldInjectCursorToolGuidance,
   CURSOR_TOOL_GUIDANCE_TEXT,
   hostToolToOcxClientWireName,
-} from '../desktop/backend/cursor-tool-guidance.mjs'
+} from '../backend/cursor-tool-guidance.mjs'
 
 assert.equal(shouldInjectCursorToolGuidance('bridge-composer/cursor/composer-2.5'), true)
 assert.equal(shouldInjectCursorToolGuidance('opencodex/cursor/composer-2.5'), true)
@@ -22,8 +22,8 @@ assert.match(CURSOR_TOOL_GUIDANCE_TEXT, /文件名已给出时不要先扫全仓
 assert.match(CURSOR_TOOL_GUIDANCE_TEXT, /证据充分后停止/)
 assert.ok(Buffer.byteLength(CURSOR_TOOL_GUIDANCE_TEXT, 'utf8') < 1500, 'cursor guidance should stay compact')
 
-import { humanizeBridgeTransportError } from '../desktop/backend/cursor-tool-guidance.mjs'
-import { parseProviderLoginFromStatusText } from '../desktop/backend/opencodex-service.mjs'
+import { humanizeBridgeTransportError } from '../backend/cursor-tool-guidance.mjs'
+import { parseProviderLoginFromStatusText } from '../backend/opencodex-service.mjs'
 
 const hint = humanizeBridgeTransportError('fetch failed（底层原因：ECONNREFUSED）', 'bridge-composer/cursor/composer-2.5')
 assert.match(hint, /内置 Composer 桥/)
@@ -50,7 +50,7 @@ assert.match(conn, /bridge-composer/)
 import {
   ocxSupportsComposerToolContinuation,
   parseOcxSemver,
-} from '../desktop/backend/opencodex-binary.mjs'
+} from '../backend/opencodex-binary.mjs'
 
 assert.equal(parseOcxSemver('opencodex 2.28.0')?.raw, '2.28.0')
 assert.equal(ocxSupportsComposerToolContinuation('opencodex 2.28.0'), false)

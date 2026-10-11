@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { createCredentialStore } from '../desktop/backend/credential-store.mjs'
+import { createCredentialStore } from '../backend/credential-store.mjs'
 
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-credentials-'))
 const filePath = path.join(root, 'private', 'credentials.enc')

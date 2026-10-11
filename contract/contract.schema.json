@@ -1,0 +1,1804 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "TaskWeaverContract",
+  "version": "1.0.0",
+  "generatedAt": "2026-10-11T06:56:14.066Z",
+  "channels": [
+    {
+      "name": "backend:ready",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "backendReady",
+      "handlerModule": "backend/register-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverBackendApi",
+        "method": "backendReady"
+      }
+    },
+    {
+      "name": "app:clearConversation",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "app.clearConversation",
+      "handlerModule": "backend/ipc/register-app-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverAppApi",
+        "method": "clearConversation"
+      }
+    },
+    {
+      "name": "app:deleteThread",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "app.deleteThread",
+      "handlerModule": "backend/ipc/register-app-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverAppApi",
+        "method": "deleteThread"
+      }
+    },
+    {
+      "name": "app:forkThread",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "app.forkThread",
+      "handlerModule": "backend/ipc/register-app-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverAppApi",
+        "method": "forkThread"
+      }
+    },
+    {
+      "name": "app:getState",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "app.getState",
+      "handlerModule": "backend/ipc/register-app-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverAppApi",
+        "method": "getState"
+      }
+    },
+    {
+      "name": "app:listOutputLogs",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "app.listOutputLogs",
+      "handlerModule": "backend/ipc/register-app-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverAppApi",
+        "method": "listOutputLogs"
+      }
+    },
+    {
+      "name": "app:listThreads",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "app.listThreads",
+      "handlerModule": "backend/ipc/register-app-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverAppApi",
+        "method": "listThreads"
+      }
+    },
+    {
+      "name": "app:pickWorkspace",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "app.pickWorkspace",
+      "handlerModule": "backend/ipc/register-app-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverAppApi",
+        "method": "pickWorkspace"
+      }
+    },
+    {
+      "name": "app:renameThread",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "app.renameThread",
+      "handlerModule": "backend/ipc/register-app-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverAppApi",
+        "method": "renameThread"
+      }
+    },
+    {
+      "name": "app:searchThreads",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "app.searchThreads",
+      "handlerModule": "backend/ipc/register-app-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverAppApi",
+        "method": "searchThreads"
+      }
+    },
+    {
+      "name": "app:setModelKey",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "app.setModelKey",
+      "handlerModule": "backend/ipc/register-app-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverAppApi",
+        "method": "setModelKey"
+      }
+    },
+    {
+      "name": "app:setPermissionMode",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "app.setPermissionMode",
+      "handlerModule": "backend/ipc/register-app-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverAppApi",
+        "method": "setPermissionMode"
+      }
+    },
+    {
+      "name": "app:setThinkingLevel",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "app.setThinkingLevel",
+      "handlerModule": "backend/ipc/register-app-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverAppApi",
+        "method": "setThinkingLevel"
+      }
+    },
+    {
+      "name": "app:setWorkspace",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "app.setWorkspace",
+      "handlerModule": "backend/ipc/register-app-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverAppApi",
+        "method": "setWorkspace"
+      }
+    },
+    {
+      "name": "app:switchThread",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "app.switchThread",
+      "handlerModule": "backend/ipc/register-app-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverAppApi",
+        "method": "switchThread"
+      }
+    },
+    {
+      "name": "app:toggleArchiveThread",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "app.toggleArchiveThread",
+      "handlerModule": "backend/ipc/register-app-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverAppApi",
+        "method": "toggleArchiveThread"
+      }
+    },
+    {
+      "name": "app:togglePinThread",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "app.togglePinThread",
+      "handlerModule": "backend/ipc/register-app-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverAppApi",
+        "method": "togglePinThread"
+      }
+    },
+    {
+      "name": "app:getFirstRunNotice",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "app.getFirstRunNotice",
+      "handlerModule": "backend/ipc/register-app-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverAppApi",
+        "method": "getFirstRunNotice"
+      }
+    },
+    {
+      "name": "app:dismissFirstRunNotice",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "app.dismissFirstRunNotice",
+      "handlerModule": "backend/ipc/register-app-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverAppApi",
+        "method": "dismissFirstRunNotice"
+      }
+    },
+    {
+      "name": "bridge:getStatus",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "models.bridgeGetStatus",
+      "handlerModule": "backend/ipc/register-models-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/model-api",
+        "interface": "TaskweaverModelsApi",
+        "method": "bridgeGetStatus"
+      }
+    },
+    {
+      "name": "bridge:login",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "models.bridgeLogin",
+      "handlerModule": "backend/ipc/register-models-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/model-api",
+        "interface": "TaskweaverModelsApi",
+        "method": "bridgeLogin"
+      }
+    },
+    {
+      "name": "models:add",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "models.add",
+      "handlerModule": "backend/ipc/register-models-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/model-api",
+        "interface": "TaskweaverModelsApi",
+        "method": "add"
+      }
+    },
+    {
+      "name": "models:batchAddCustomModels",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "models.batchAddCustomModels",
+      "handlerModule": "backend/ipc/register-models-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/model-api",
+        "interface": "TaskweaverModelsApi",
+        "method": "batchAddCustomModels"
+      }
+    },
+    {
+      "name": "models:cancelOAuth",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "models.cancelOAuth",
+      "handlerModule": "backend/ipc/register-models-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/model-api",
+        "interface": "TaskweaverModelsApi",
+        "method": "cancelOAuth"
+      }
+    },
+    {
+      "name": "models:checkForUpdates",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "models.checkForUpdates",
+      "handlerModule": "backend/ipc/register-models-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/model-api",
+        "interface": "TaskweaverModelsApi",
+        "method": "checkForUpdates"
+      }
+    },
+    {
+      "name": "models:discoverProviderModels",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "models.discoverProviderModels",
+      "handlerModule": "backend/ipc/register-models-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/model-api",
+        "interface": "TaskweaverModelsApi",
+        "method": "discoverProviderModels"
+      }
+    },
+    {
+      "name": "models:getBusyEnterMode",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "models.getBusyEnterMode",
+      "handlerModule": "backend/ipc/register-models-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/model-api",
+        "interface": "TaskweaverModelsApi",
+        "method": "getBusyEnterMode"
+      }
+    },
+    {
+      "name": "models:getThinkingLevel",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "models.getThinkingLevel",
+      "handlerModule": "backend/ipc/register-models-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/model-api",
+        "interface": "TaskweaverModelsApi",
+        "method": "getThinkingLevel"
+      }
+    },
+    {
+      "name": "models:getUpdateStatus",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "models.getUpdateStatus",
+      "handlerModule": "backend/ipc/register-models-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/model-api",
+        "interface": "TaskweaverModelsApi",
+        "method": "getUpdateStatus"
+      }
+    },
+    {
+      "name": "models:list",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "models.list",
+      "handlerModule": "backend/ipc/register-models-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/model-api",
+        "interface": "TaskweaverModelsApi",
+        "method": "list"
+      }
+    },
+    {
+      "name": "models:listCustomProviders",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "models.listCustomProviders",
+      "handlerModule": "backend/ipc/register-models-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/model-api",
+        "interface": "TaskweaverModelsApi",
+        "method": "listCustomProviders"
+      }
+    },
+    {
+      "name": "models:loadBundle",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "models.loadBundle",
+      "handlerModule": "backend/ipc/register-models-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/model-api",
+        "interface": "TaskweaverModelsApi",
+        "method": "loadBundle"
+      }
+    },
+    {
+      "name": "models:logoutOAuth",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "models.logoutOAuth",
+      "handlerModule": "backend/ipc/register-models-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/model-api",
+        "interface": "TaskweaverModelsApi",
+        "method": "logoutOAuth"
+      }
+    },
+    {
+      "name": "models:migrateLegacyOpenCodexRoutes",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "models.migrateLegacyOpenCodexRoutes",
+      "handlerModule": "backend/ipc/register-models-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/model-api",
+        "interface": "TaskweaverModelsApi",
+        "method": "migrateLegacyOpenCodexRoutes"
+      }
+    },
+    {
+      "name": "models:probeProviderModels",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "models.probeProviderModels",
+      "handlerModule": "backend/ipc/register-models-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/model-api",
+        "interface": "TaskweaverModelsApi",
+        "method": "probeProviderModels"
+      }
+    },
+    {
+      "name": "models:providersAuth",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "models.listProvidersAuth",
+      "handlerModule": "backend/ipc/register-models-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/model-api",
+        "interface": "TaskweaverModelsApi",
+        "method": "listProvidersAuth"
+      }
+    },
+    {
+      "name": "models:refresh",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "models.refresh",
+      "handlerModule": "backend/ipc/register-models-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/model-api",
+        "interface": "TaskweaverModelsApi",
+        "method": "refresh"
+      }
+    },
+    {
+      "name": "models:remove",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "models.remove",
+      "handlerModule": "backend/ipc/register-models-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/model-api",
+        "interface": "TaskweaverModelsApi",
+        "method": "remove"
+      }
+    },
+    {
+      "name": "models:removeCustomProvider",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "models.removeCustomProvider",
+      "handlerModule": "backend/ipc/register-models-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/model-api",
+        "interface": "TaskweaverModelsApi",
+        "method": "removeCustomProvider"
+      }
+    },
+    {
+      "name": "models:removeProviderCredentials",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "models.removeProviderCredentials",
+      "handlerModule": "backend/ipc/register-models-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/model-api",
+        "interface": "TaskweaverModelsApi",
+        "method": "removeProviderCredentials"
+      }
+    },
+    {
+      "name": "models:rollbackRegistry",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "models.rollbackRegistry",
+      "handlerModule": "backend/ipc/register-models-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/model-api",
+        "interface": "TaskweaverModelsApi",
+        "method": "rollbackRegistry"
+      }
+    },
+    {
+      "name": "models:scanLocal",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "models.scanLocal",
+      "handlerModule": "backend/ipc/register-models-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/model-api",
+        "interface": "TaskweaverModelsApi",
+        "method": "scanLocal"
+      }
+    },
+    {
+      "name": "models:setActive",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "models.setActive",
+      "handlerModule": "backend/ipc/register-models-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/model-api",
+        "interface": "TaskweaverModelsApi",
+        "method": "setActive"
+      }
+    },
+    {
+      "name": "models:setBusyEnterMode",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "models.setBusyEnterMode",
+      "handlerModule": "backend/ipc/register-models-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/model-api",
+        "interface": "TaskweaverModelsApi",
+        "method": "setBusyEnterMode"
+      }
+    },
+    {
+      "name": "models:setProviderApiKey",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "models.setProviderApiKey",
+      "handlerModule": "backend/ipc/register-models-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/model-api",
+        "interface": "TaskweaverModelsApi",
+        "method": "setProviderApiKey"
+      }
+    },
+    {
+      "name": "models:setThinkingLevel",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "models.setThinkingLevel",
+      "handlerModule": "backend/ipc/register-models-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/model-api",
+        "interface": "TaskweaverModelsApi",
+        "method": "setThinkingLevel"
+      }
+    },
+    {
+      "name": "models:startOAuth",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "models.startOAuth",
+      "handlerModule": "backend/ipc/register-models-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/model-api",
+        "interface": "TaskweaverModelsApi",
+        "method": "startOAuth"
+      }
+    },
+    {
+      "name": "models:submitOAuthCode",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "models.submitOAuthCode",
+      "handlerModule": "backend/ipc/register-models-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/model-api",
+        "interface": "TaskweaverModelsApi",
+        "method": "submitOAuthCode"
+      }
+    },
+    {
+      "name": "models:testCustomProvider",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "models.testCustomProvider",
+      "handlerModule": "backend/ipc/register-models-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/model-api",
+        "interface": "TaskweaverModelsApi",
+        "method": "testCustomProvider"
+      }
+    },
+    {
+      "name": "models:testCustomProviderToolCall",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "models.testCustomProviderToolCall",
+      "handlerModule": "backend/ipc/register-models-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/model-api",
+        "interface": "TaskweaverModelsApi",
+        "method": "testCustomProviderToolCall"
+      }
+    },
+    {
+      "name": "models:upsertCustomProvider",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "models.upsertCustomProvider",
+      "handlerModule": "backend/ipc/register-models-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/model-api",
+        "interface": "TaskweaverModelsApi",
+        "method": "upsertCustomProvider"
+      }
+    },
+    {
+      "name": "models:upsertProfile",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "models.upsertProfile",
+      "handlerModule": "backend/ipc/register-models-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/model-api",
+        "interface": "TaskweaverModelsApi",
+        "method": "upsertProfile"
+      }
+    },
+    {
+      "name": "openusage:getLimits",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "openusage.getLimits",
+      "handlerModule": "backend/ipc/register-models-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverOpenUsageApi",
+        "method": "getLimits"
+      }
+    },
+    {
+      "name": "portfolio:get",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "portfolio.get",
+      "handlerModule": "backend/ipc/register-models-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverPortfolioApi",
+        "method": "get"
+      }
+    },
+    {
+      "name": "portfolio:resetToBundled",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "portfolio.resetToBundled",
+      "handlerModule": "backend/ipc/register-models-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverPortfolioApi",
+        "method": "resetToBundled"
+      }
+    },
+    {
+      "name": "portfolio:save",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "portfolio.save",
+      "handlerModule": "backend/ipc/register-models-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverPortfolioApi",
+        "method": "save"
+      }
+    },
+    {
+      "name": "pricing:getStatus",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "pricing.getStatus",
+      "handlerModule": "backend/ipc/register-models-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverPricingApi",
+        "method": "getStatus"
+      }
+    },
+    {
+      "name": "pricing:sync",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "pricing.sync",
+      "handlerModule": "backend/ipc/register-models-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverPricingApi",
+        "method": "sync"
+      }
+    },
+    {
+      "name": "usage:clear",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "usage.clear",
+      "handlerModule": "backend/ipc/register-models-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverUsageApi",
+        "method": "clear"
+      }
+    },
+    {
+      "name": "usage:getReport",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "usage.getReport",
+      "handlerModule": "backend/ipc/register-models-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverUsageApi",
+        "method": "getReport"
+      }
+    },
+    {
+      "name": "usage:getStats",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "usage.getStats",
+      "handlerModule": "backend/ipc/register-models-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverUsageApi",
+        "method": "getStats"
+      }
+    },
+    {
+      "name": "usage:setEnabled",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "usage.setEnabled",
+      "handlerModule": "backend/ipc/register-models-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverUsageApi",
+        "method": "setEnabled"
+      }
+    },
+    {
+      "name": "chat:cancel",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "chat.cancel",
+      "handlerModule": "backend/ipc/register-chat-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverChatApi",
+        "method": "cancel"
+      }
+    },
+    {
+      "name": "chat:getDshView",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "chat.getDshView",
+      "handlerModule": "backend/ipc/register-chat-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverChatApi",
+        "method": "getDshView"
+      }
+    },
+    {
+      "name": "chat:getToolOutput",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "chat.getToolOutput",
+      "handlerModule": "backend/ipc/register-chat-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverChatApi",
+        "method": "getToolOutput"
+      }
+    },
+    {
+      "name": "chat:getImageAttachment",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "chat.getImageAttachment",
+      "handlerModule": "backend/ipc/register-chat-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverChatApi",
+        "method": "getImageAttachment"
+      }
+    },
+    {
+      "name": "chat:getImageLimits",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "chat.getImageLimits",
+      "handlerModule": "backend/ipc/register-chat-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverChatApi",
+        "method": "getImageLimits"
+      }
+    },
+    {
+      "name": "chat:getResultAttachment",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "chat.getResultAttachment",
+      "handlerModule": "backend/ipc/register-chat-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverChatApi",
+        "method": "getResultAttachment"
+      }
+    },
+    {
+      "name": "chat:getLiveContext",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "chat.getLiveContext",
+      "handlerModule": "backend/ipc/register-chat-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverChatApi",
+        "method": "getLiveContext"
+      }
+    },
+    {
+      "name": "chat:getSessionStats",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "chat.getSessionStats",
+      "handlerModule": "backend/ipc/register-chat-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverChatApi",
+        "method": "getSessionStats"
+      }
+    },
+    {
+      "name": "chat:listRunningConversations",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "chat.listRunningConversations",
+      "handlerModule": "backend/ipc/register-chat-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverChatApi",
+        "method": "listRunningConversations"
+      }
+    },
+    {
+      "name": "chat:pickImages",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "chat.pickImages",
+      "handlerModule": "backend/ipc/register-chat-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverChatApi",
+        "method": "pickImages"
+      }
+    },
+    {
+      "name": "chat:pickAttachments",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "chat.pickAttachments",
+      "handlerModule": "backend/ipc/register-chat-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverChatApi",
+        "method": "pickAttachments"
+      }
+    },
+    {
+      "name": "chat:releaseDocuments",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "chat.releaseDocuments",
+      "handlerModule": "backend/ipc/register-chat-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverChatApi",
+        "method": "releaseDocuments"
+      }
+    },
+    {
+      "name": "chat:queueMutate",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "chat.queueMutate",
+      "handlerModule": "backend/ipc/register-chat-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverChatApi",
+        "method": "queueMutate"
+      }
+    },
+    {
+      "name": "chat:readDroppedImage",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "chat.readDroppedImageFile",
+      "handlerModule": "backend/ipc/register-chat-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverChatApi",
+        "method": "readDroppedImageFile"
+      }
+    },
+    {
+      "name": "chat:stageDroppedDocument",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "chat.stageDroppedDocumentFile",
+      "handlerModule": "backend/ipc/register-chat-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverChatApi",
+        "method": "stageDroppedDocumentFile"
+      }
+    },
+    {
+      "name": "chat:subscribeMux",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "chat.subscribeMux",
+      "handlerModule": "backend/ipc/register-chat-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverChatApi",
+        "method": "subscribeMux"
+      }
+    },
+    {
+      "name": "chat:unsubscribeMux",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "chat.unsubscribeMux",
+      "handlerModule": "backend/ipc/register-chat-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverChatApi",
+        "method": "unsubscribeMux"
+      }
+    },
+    {
+      "name": "skills:list",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "skills.list",
+      "handlerModule": "backend/ipc/register-chat-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverSkillsApi",
+        "method": "list"
+      }
+    },
+    {
+      "name": "tasks:approvePlan",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "tasks.approvePlan",
+      "handlerModule": "backend/ipc/register-chat-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverTasksApi",
+        "method": "approvePlan"
+      }
+    },
+    {
+      "name": "tasks:cancel",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "tasks.cancel",
+      "handlerModule": "backend/ipc/register-chat-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverTasksApi",
+        "method": "cancel"
+      }
+    },
+    {
+      "name": "tasks:pauseRun",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "tasks.pauseRun",
+      "handlerModule": "backend/ipc/register-chat-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverTasksApi",
+        "method": "pauseRun"
+      }
+    },
+    {
+      "name": "tasks:rejectPlan",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "tasks.rejectPlan",
+      "handlerModule": "backend/ipc/register-chat-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverTasksApi",
+        "method": "rejectPlan"
+      }
+    },
+    {
+      "name": "tasks:rerunDownstream",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "tasks.rerunDownstream",
+      "handlerModule": "backend/ipc/register-chat-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverTasksApi",
+        "method": "rerunDownstream"
+      }
+    },
+    {
+      "name": "tasks:resumeCheckpoint",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "tasks.resumeCheckpoint",
+      "handlerModule": "backend/ipc/register-chat-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverTasksApi",
+        "method": "resumeCheckpoint"
+      }
+    },
+    {
+      "name": "tasks:resumeRun",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "tasks.resumeRun",
+      "handlerModule": "backend/ipc/register-chat-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverTasksApi",
+        "method": "resumeRun"
+      }
+    },
+    {
+      "name": "tasks:listRuns",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "tasks.listRuns",
+      "handlerModule": "backend/ipc/register-chat-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverTasksApi",
+        "method": "listRuns"
+      }
+    },
+    {
+      "name": "tasks:sendMessage",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "tasks.sendMessage",
+      "handlerModule": "backend/ipc/register-chat-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverTasksApi",
+        "method": "sendMessage"
+      }
+    },
+    {
+      "name": "chat:followUp",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "chat.followUp",
+      "handlerModule": "backend/ipc/register-chat-send-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverChatApi",
+        "method": "followUp"
+      }
+    },
+    {
+      "name": "chat:send",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "chat.send",
+      "handlerModule": "backend/ipc/register-chat-send-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverChatApi",
+        "method": "send"
+      }
+    },
+    {
+      "name": "chat:steer",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "chat.steer",
+      "handlerModule": "backend/ipc/register-chat-send-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverChatApi",
+        "method": "steer"
+      }
+    },
+    {
+      "name": "debug:shadowTranscript",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "debug.shadowTranscript",
+      "handlerModule": "backend/ipc/register-debug-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverDebugApi",
+        "method": "shadowTranscript"
+      }
+    },
+    {
+      "name": "github:listPullRequests",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "github.listPullRequests",
+      "handlerModule": "backend/ipc/register-preferences-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverGithubApi",
+        "method": "listPullRequests"
+      }
+    },
+    {
+      "name": "preferences:get",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "preferences.get",
+      "handlerModule": "backend/ipc/register-preferences-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverPreferencesApi",
+        "method": "get"
+      }
+    },
+    {
+      "name": "preferences:set",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "preferences.set",
+      "handlerModule": "backend/ipc/register-preferences-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverPreferencesApi",
+        "method": "set"
+      }
+    },
+    {
+      "name": "webSearch:getConfig",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "webSearch.getConfig",
+      "handlerModule": "backend/ipc/register-preferences-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverWebSearchApi",
+        "method": "getConfig"
+      }
+    },
+    {
+      "name": "webSearch:setConfig",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "webSearch.setConfig",
+      "handlerModule": "backend/ipc/register-preferences-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverWebSearchApi",
+        "method": "setConfig"
+      }
+    },
+    {
+      "name": "webSearch:testSearch",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "webSearch.testSearch",
+      "handlerModule": "backend/ipc/register-preferences-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverWebSearchApi",
+        "method": "testSearch"
+      }
+    },
+    {
+      "name": "jobs:installLaunchAgent",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "jobs.installLaunchAgent",
+      "handlerModule": "backend/register-scheduled-jobs-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverJobsApi",
+        "method": "installLaunchAgent"
+      }
+    },
+    {
+      "name": "jobs:list",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "jobs.list",
+      "handlerModule": "backend/register-scheduled-jobs-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverJobsApi",
+        "method": "list"
+      }
+    },
+    {
+      "name": "jobs:launchAgentInstalled",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "jobs.launchAgentInstalled",
+      "handlerModule": "backend/register-scheduled-jobs-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverJobsApi",
+        "method": "launchAgentInstalled"
+      }
+    },
+    {
+      "name": "jobs:remove",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "jobs.remove",
+      "handlerModule": "backend/register-scheduled-jobs-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverJobsApi",
+        "method": "remove"
+      }
+    },
+    {
+      "name": "jobs:removeLaunchAgent",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "jobs.removeLaunchAgent",
+      "handlerModule": "backend/register-scheduled-jobs-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverJobsApi",
+        "method": "removeLaunchAgent"
+      }
+    },
+    {
+      "name": "jobs:runNow",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "jobs.runNow",
+      "handlerModule": "backend/register-scheduled-jobs-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverJobsApi",
+        "method": "runNow"
+      }
+    },
+    {
+      "name": "jobs:upsert",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "jobs.upsert",
+      "handlerModule": "backend/register-scheduled-jobs-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverJobsApi",
+        "method": "upsert"
+      }
+    },
+    {
+      "name": "mcp:cancelGitHubOAuth",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "mcp.cancelGitHubOAuth",
+      "handlerModule": "backend/ipc/register-mcp-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverMcpApi",
+        "method": "cancelGitHubOAuth"
+      }
+    },
+    {
+      "name": "mcp:catalog",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "mcp.catalog",
+      "handlerModule": "backend/ipc/register-mcp-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverMcpApi",
+        "method": "catalog"
+      }
+    },
+    {
+      "name": "mcp:configureGitHub",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "mcp.configureGitHub",
+      "handlerModule": "backend/ipc/register-mcp-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverMcpApi",
+        "method": "configureGitHub"
+      }
+    },
+    {
+      "name": "mcp:disconnect",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "mcp.disconnect",
+      "handlerModule": "backend/ipc/register-mcp-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverMcpApi",
+        "method": "disconnect"
+      }
+    },
+    {
+      "name": "mcp:getGitHubOAuthAvailability",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "mcp.getGitHubOAuthAvailability",
+      "handlerModule": "backend/ipc/register-mcp-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverMcpApi",
+        "method": "getGitHubOAuthAvailability"
+      }
+    },
+    {
+      "name": "mcp:getRuntimeBinding",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "mcp.getRuntimeBinding",
+      "handlerModule": "backend/ipc/register-mcp-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverMcpApi",
+        "method": "getRuntimeBinding"
+      }
+    },
+    {
+      "name": "mcp:installCatalog",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "mcp.installCatalog",
+      "handlerModule": "backend/ipc/register-mcp-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverMcpApi",
+        "method": "installCatalog"
+      }
+    },
+    {
+      "name": "mcp:list",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "mcp.list",
+      "handlerModule": "backend/ipc/register-mcp-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverMcpApi",
+        "method": "list"
+      }
+    },
+    {
+      "name": "mcp:marketplace",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "mcp.marketplace",
+      "handlerModule": "backend/ipc/register-mcp-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverMcpApi",
+        "method": "marketplace"
+      }
+    },
+    {
+      "name": "mcp:refresh",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "mcp.refresh",
+      "handlerModule": "backend/ipc/register-mcp-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverMcpApi",
+        "method": "refresh"
+      }
+    },
+    {
+      "name": "mcp:remove",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "mcp.remove",
+      "handlerModule": "backend/ipc/register-mcp-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverMcpApi",
+        "method": "remove"
+      }
+    },
+    {
+      "name": "mcp:save",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "mcp.save",
+      "handlerModule": "backend/ipc/register-mcp-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverMcpApi",
+        "method": "save"
+      }
+    },
+    {
+      "name": "mcp:setEnabled",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "mcp.setEnabled",
+      "handlerModule": "backend/ipc/register-mcp-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverMcpApi",
+        "method": "setEnabled"
+      }
+    },
+    {
+      "name": "mcp:startGitHubOAuth",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "mcp.startGitHubOAuth",
+      "handlerModule": "backend/ipc/register-mcp-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverMcpApi",
+        "method": "startGitHubOAuth"
+      }
+    },
+    {
+      "name": "mcp:testConnection",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "mcp.testConnection",
+      "handlerModule": "backend/ipc/register-mcp-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverMcpApi",
+        "method": "testConnection"
+      }
+    },
+    {
+      "name": "memory:clear",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "memory.clear",
+      "handlerModule": "backend/ipc/register-memory-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverMemoryApi",
+        "method": "clear"
+      }
+    },
+    {
+      "name": "memory:get",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "memory.get",
+      "handlerModule": "backend/ipc/register-memory-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverMemoryApi",
+        "method": "get"
+      }
+    },
+    {
+      "name": "permission:addRule",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "permission.addRule",
+      "handlerModule": "backend/ipc/register-permissions-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverPermissionApi",
+        "method": "addRule"
+      }
+    },
+    {
+      "name": "permission:clearRules",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "permission.clearRules",
+      "handlerModule": "backend/ipc/register-permissions-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverPermissionApi",
+        "method": "clearRules"
+      }
+    },
+    {
+      "name": "permission:listApprovalAudit",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "permission.listApprovalAudit",
+      "handlerModule": "backend/ipc/register-permissions-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverPermissionApi",
+        "method": "listApprovalAudit"
+      }
+    },
+    {
+      "name": "permission:listRules",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "permission.listRules",
+      "handlerModule": "backend/ipc/register-permissions-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverPermissionApi",
+        "method": "listRules"
+      }
+    },
+    {
+      "name": "permission:removeRule",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "permission.removeRule",
+      "handlerModule": "backend/ipc/register-permissions-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverPermissionApi",
+        "method": "removeRule"
+      }
+    },
+    {
+      "name": "permission:respondPrompt",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "permission.respondPrompt",
+      "handlerModule": "backend/ipc/register-permissions-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverPermissionApi",
+        "method": "respondPrompt"
+      }
+    },
+    {
+      "name": "userQuestions:answer",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "userQuestions.answer",
+      "handlerModule": "backend/ipc/register-permissions-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverUserQuestionsApi",
+        "method": "answer"
+      }
+    },
+    {
+      "name": "userQuestions:cancel",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "userQuestions.cancel",
+      "handlerModule": "backend/ipc/register-permissions-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverUserQuestionsApi",
+        "method": "cancel"
+      }
+    },
+    {
+      "name": "sandbox:getEffective",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "sandbox.getEffective",
+      "handlerModule": "backend/ipc/register-sandbox-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverSandboxApi",
+        "method": "getEffective"
+      }
+    },
+    {
+      "name": "sandbox:probe",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "sandbox.probe",
+      "handlerModule": "backend/ipc/register-sandbox-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverSandboxApi",
+        "method": "probe"
+      }
+    },
+    {
+      "name": "sandbox:setSessionMode",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "sandbox.setSessionMode",
+      "handlerModule": "backend/ipc/register-sandbox-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverSandboxApi",
+        "method": "setSessionMode"
+      }
+    },
+    {
+      "name": "terminal:create",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "terminal.create",
+      "handlerModule": "backend/register-terminal-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverTerminalApi",
+        "method": "create"
+      }
+    },
+    {
+      "name": "terminal:kill",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "terminal.kill",
+      "handlerModule": "backend/register-terminal-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverTerminalApi",
+        "method": "kill"
+      }
+    },
+    {
+      "name": "terminal:list",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "terminal.list",
+      "handlerModule": "backend/register-terminal-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverTerminalApi",
+        "method": "list"
+      }
+    },
+    {
+      "name": "terminal:resize",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "terminal.resize",
+      "handlerModule": "backend/register-terminal-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverTerminalApi",
+        "method": "resize"
+      }
+    },
+    {
+      "name": "terminal:write",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "terminal.write",
+      "handlerModule": "backend/register-terminal-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverTerminalApi",
+        "method": "write"
+      }
+    },
+    {
+      "name": "worktree:applyMerge",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "worktree.applyMerge",
+      "handlerModule": "backend/ipc/register-worktree-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverWorktreeApi",
+        "method": "applyMerge"
+      }
+    },
+    {
+      "name": "worktree:diff",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "worktree.diff",
+      "handlerModule": "backend/ipc/register-worktree-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverWorktreeApi",
+        "method": "diff"
+      }
+    },
+    {
+      "name": "worktree:list",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "worktree.list",
+      "handlerModule": "backend/ipc/register-worktree-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverWorktreeApi",
+        "method": "list"
+      }
+    },
+    {
+      "name": "worktree:previewMerge",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "worktree.previewMerge",
+      "handlerModule": "backend/ipc/register-worktree-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverWorktreeApi",
+        "method": "previewMerge"
+      }
+    },
+    {
+      "name": "worktree:remove",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "worktree.remove",
+      "handlerModule": "backend/ipc/register-worktree-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverWorktreeApi",
+        "method": "remove"
+      }
+    },
+    {
+      "name": "workspace:createManualGitCommit",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "workspace.createManualGitCommit",
+      "handlerModule": "backend/register-workspace-git-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverWorkspaceApi",
+        "method": "createManualGitCommit"
+      }
+    },
+    {
+      "name": "workspace:deleteGitCheckpoint",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "workspace.deleteGitCheckpoint",
+      "handlerModule": "backend/register-workspace-git-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverWorkspaceApi",
+        "method": "deleteGitCheckpoint"
+      }
+    },
+    {
+      "name": "workspace:getGitCheckpointDiff",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "workspace.getGitCheckpointDiff",
+      "handlerModule": "backend/register-workspace-git-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverWorkspaceApi",
+        "method": "getGitCheckpointDiff"
+      }
+    },
+    {
+      "name": "workspace:gitStatus",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "workspace.gitStatus",
+      "handlerModule": "backend/register-workspace-git-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverWorkspaceApi",
+        "method": "gitStatus"
+      }
+    },
+    {
+      "name": "workspace:gitSuggestCommit",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "workspace.gitSuggestCommit",
+      "handlerModule": "backend/register-workspace-git-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverWorkspaceApi",
+        "method": "gitSuggestCommit"
+      }
+    },
+    {
+      "name": "workspace:listGitCheckpoints",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "workspace.listGitCheckpoints",
+      "handlerModule": "backend/register-workspace-git-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverWorkspaceApi",
+        "method": "listGitCheckpoints"
+      }
+    },
+    {
+      "name": "workspace:openPath",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "workspace.openPath",
+      "handlerModule": "backend/register-workspace-git-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverWorkspaceApi",
+        "method": "openPath"
+      }
+    },
+    {
+      "name": "workspace:previewManualGitCommit",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "workspace.previewManualGitCommit",
+      "handlerModule": "backend/register-workspace-git-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverWorkspaceApi",
+        "method": "previewManualGitCommit"
+      }
+    },
+    {
+      "name": "workspace:restoreGitCheckpoint",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "workspace.restoreGitCheckpoint",
+      "handlerModule": "backend/register-workspace-git-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverWorkspaceApi",
+        "method": "restoreGitCheckpoint"
+      }
+    },
+    {
+      "name": "workspace:revertDiff",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "workspace.revertDiff",
+      "handlerModule": "backend/register-workspace-git-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverWorkspaceApi",
+        "method": "revertDiff"
+      }
+    },
+    {
+      "name": "workspace:createReference",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "workspace.createReference",
+      "handlerModule": "backend/ipc/register-workspace-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverWorkspaceApi",
+        "method": "createReference"
+      }
+    },
+    {
+      "name": "workspace:getTrust",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "workspace.getTrust",
+      "handlerModule": "backend/ipc/register-workspace-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverWorkspaceApi",
+        "method": "getTrust"
+      }
+    },
+    {
+      "name": "workspace:listContext",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "workspace.listContext",
+      "handlerModule": "backend/ipc/register-workspace-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverWorkspaceApi",
+        "method": "listContext"
+      }
+    },
+    {
+      "name": "workspace:setTrust",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "workspace.setTrust",
+      "handlerModule": "backend/ipc/register-workspace-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverWorkspaceApi",
+        "method": "setTrust"
+      }
+    }
+  ],
+  "events": [
+    {
+      "event": "models:oauthStatus",
+      "bridgePath": "models.onOAuthStatus"
+    },
+    {
+      "event": "models:catalogUpdated",
+      "bridgePath": "models.onCatalogUpdated"
+    },
+    {
+      "event": "models:updateStatus",
+      "bridgePath": "models.onUpdateStatus"
+    },
+    {
+      "event": "mcp:githubOAuthStatus",
+      "bridgePath": "mcp.onGitHubOAuthStatus"
+    },
+    {
+      "event": "chat:mux",
+      "bridgePath": "chat.onMux"
+    },
+    {
+      "event": "chat:dshView",
+      "bridgePath": "chat.onDshView"
+    },
+    {
+      "event": "chat:stream",
+      "bridgePath": "chat.onStream"
+    },
+    {
+      "event": "chat:promptBudget",
+      "bridgePath": "chat.onPromptBudget"
+    },
+    {
+      "event": "permission:prompt",
+      "bridgePath": "permission.onPrompt"
+    },
+    {
+      "event": "user-question:prompt",
+      "bridgePath": "userQuestions.onPrompt"
+    },
+    {
+      "event": "user-question:resolved",
+      "bridgePath": "userQuestions.onResolved"
+    },
+    {
+      "event": "terminal:data",
+      "bridgePath": "terminal.onData"
+    },
+    {
+      "event": "terminal:exit",
+      "bridgePath": "terminal.onExit"
+    },
+    {
+      "event": "sandbox:mode",
+      "bridgePath": "sandbox.onMode"
+    }
+  ]
+}

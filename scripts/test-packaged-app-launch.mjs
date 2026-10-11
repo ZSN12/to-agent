@@ -20,7 +20,7 @@ assert.ok(appPath, 'TaskWeaver.app is missing; run pnpm run app:builder first')
 
 const resources = path.join(appPath, 'Contents/Resources')
 const hostNode = path.join(resources, 'host-node/bin/node')
-const shellEntry = path.join(resources, 'app/desktop/shell/run.mjs')
+const shellEntry = path.join(resources, 'app/backend/shell/run.mjs')
 const scheduledRunner = path.join(resources, 'taskweaver-scheduled-runner.mjs')
 assert.ok(fs.existsSync(hostNode), `missing bundled Node: ${hostNode}`)
 assert.ok(fs.existsSync(shellEntry), `missing shell backend: ${shellEntry}`)

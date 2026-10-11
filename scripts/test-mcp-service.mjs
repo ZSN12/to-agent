@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { createMcpService, getMcpDshRuntimeBinding } from '../desktop/backend/mcp-service.mjs'
+import { createMcpService, getMcpDshRuntimeBinding } from '../backend/mcp-service.mjs'
 
 const userData = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-mcp-test-'))
 const mockSafeStorage = {
@@ -59,7 +59,7 @@ try {
   assert.ok(Object.values(runtime.environment).includes('secret'))
   assert.ok(Object.keys(runtime.environment).every(name => /^TASKWEAVER_MCP_[A-F0-9]{10}_SECRET$/.test(name)))
 
-  const source = await fs.readFile(new URL('../desktop/backend/mcp-service.mjs', import.meta.url), 'utf8')
+  const source = await fs.readFile(new URL('../backend/mcp-service.mjs', import.meta.url), 'utf8')
   assert.doesNotMatch(source, /@modelcontextprotocol\/client|connectClient|callTool\(/)
   await service.disconnect('local')
   assert.equal((await service.listServers())[0].enabled, false)

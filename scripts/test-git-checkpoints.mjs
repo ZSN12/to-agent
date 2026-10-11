@@ -15,7 +15,7 @@ import {
   getGitCheckpointDiff,
   restoreGitCheckpoint,
   deleteGitCheckpoint,
-} from '../desktop/backend/git-service.mjs'
+} from '../backend/git-service.mjs'
 
 const execFileAsync = promisify(execFile)
 async function runGit(args, cwd) {

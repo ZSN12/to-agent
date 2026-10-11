@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
-import { composePromptPipeline, DEFAULT_PROMPT_BUDGET_BYTES } from '../desktop/backend/prompt-pipeline.mjs'
-import { buildSkillPromptPrefix } from '../desktop/backend/skill-prompt.mjs'
+import { composePromptPipeline, DEFAULT_PROMPT_BUDGET_BYTES } from '../backend/prompt-pipeline.mjs'
+import { buildSkillPromptPrefix } from '../backend/skill-prompt.mjs'
 
 // UTF-8 字节预算按编码后的实际字节数计算，不计算连接符。
 const utf8 = composePromptPipeline({

@@ -3,7 +3,7 @@ import {
   compactToolOutput,
   calculateDynamicContextBudget,
   COMPACTION_LIMITS,
-} from '../desktop/backend/context-compactor.mjs'
+} from '../backend/context-compactor.mjs'
 
 // ============ 1. 短输出不折叠 ============
 const shortText = 'line 1\nline 2\nline 3\nsuccess'

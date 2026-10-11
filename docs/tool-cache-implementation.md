@@ -33,7 +33,7 @@
 ### 1. ToolResultCache 类
 
 #### 文件位置
-`/Users/zsn/Documents/毕设/desktop/backend/tool-result-cache.mjs`
+`/Users/zsn/Documents/毕设/backend/tool-result-cache.mjs`
 
 #### 主要职责
 - 管理工具调用结果的内存缓存
@@ -347,7 +347,7 @@ interface CacheEntry {
 ### Electron 后端集成
 
 #### 文件位置
-`desktop/backend/dsh-chat-service.mjs`
+`backend/dsh-chat-service.mjs`
 
 #### 集成代码
 ```javascript

@@ -2,7 +2,7 @@
 import fsp from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { validateRegistry } from '../desktop/backend/model-registry-updater.mjs'
+import { validateRegistry } from '../backend/model-registry-updater.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const file = path.resolve(process.argv[2] || path.join(root, 'registry', 'model-registry.v1.json'))

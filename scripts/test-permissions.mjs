@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { createPermissionService } from '../desktop/backend/permission-service.mjs'
+import { createPermissionService } from '../backend/permission-service.mjs'
 
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-permissions-'))
 const workspace = path.join(root, 'workspace')

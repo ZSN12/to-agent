@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { resolveSandboxPolicy, renderFileSandboxContext } from '../desktop/backend/sandbox-policy.mjs'
+import { resolveSandboxPolicy, renderFileSandboxContext } from '../backend/sandbox-policy.mjs'
 
 const ws = '/tmp/taskweaver-ws'
 const ro = resolveSandboxPolicy({ bashSandbox: 'auto', permissionMode: 'readonly', workspacePath: ws })

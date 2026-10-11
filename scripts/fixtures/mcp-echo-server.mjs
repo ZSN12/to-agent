@@ -1,5 +1,6 @@
 import { createInterface } from 'node:readline'
 import { appendFile } from 'node:fs/promises'
+import { appendFileSync } from 'node:fs'
 
 const input = createInterface({ input: process.stdin })
 const pendingToolCalls = new Map()

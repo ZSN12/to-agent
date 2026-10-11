@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { serializeDshConversationView } from '../desktop/backend/dsh-snapshot-serialize.mjs'
+import { serializeDshConversationView } from '../backend/dsh-snapshot-serialize.mjs'
 import ts from 'typescript'
 
 const activitySource = await fs.readFile(path.resolve('src/features/chat/streamActivityLabel.ts'), 'utf8')

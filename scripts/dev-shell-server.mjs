@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url'
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const port = process.env.TASKWEAVER_SHELL_PORT || '31981'
 
-const child = spawn(process.execPath, [path.join(root, 'desktop/shell/run.mjs')], {
+const child = spawn(process.execPath, [path.join(root, 'backend/shell/run.mjs')], {
   cwd: root,
   env: { ...process.env, TASKWEAVER_SHELL_PORT: port },
   stdio: 'inherit',

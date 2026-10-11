@@ -11,7 +11,7 @@ import {
   resolveTaskWeaverRuntimeRoot,
   runtimePackagesResolveSmoke,
   TASKWEAVER_RUNTIME_PACKAGES,
-} from '../desktop/agent/z-host/index.mjs'
+} from '../backend/agent/z-host/index.mjs'
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const runtimeRoot = resolveTaskWeaverRuntimeRoot({

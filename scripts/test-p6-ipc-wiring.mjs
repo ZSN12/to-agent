@@ -4,8 +4,8 @@ import { build } from 'esbuild'
 const result = await build({
   stdin: {
     contents: `
-      export { registerChatIpc } from './desktop/backend/ipc/register-chat-ipc.mjs'
-      export { registerWorktreeIpc } from './desktop/backend/ipc/register-worktree-ipc.mjs'
+      export { registerChatIpc } from './backend/ipc/register-chat-ipc.mjs'
+      export { registerWorktreeIpc } from './backend/ipc/register-worktree-ipc.mjs'
     `,
     resolveDir: process.cwd(),
     loader: 'js',
@@ -55,17 +55,30 @@ const ipcMain = { handle: (channel, handler) => handlers.set(channel, handler) }
 const calls = []
 globalThis.__taskweaverP6 = { calls }
 
+const outputRequests = []
 registerChatIpc({
   ipcMain,
-  chat: { listRunningConversationIds: () => ['conv-chat', 'conv-shared'] },
+  chat: {
+    listRunningConversationIds: () => ['conv-chat', 'conv-shared'],
+    getToolOutput: (request) => {
+      outputRequests.push(request)
+      return { text: 'redacted tool output', truncated: false }
+    },
+  },
   orchestration: { listRunningConversationIds: () => ['conv-dag', 'conv-shared'] },
   turnInProgressByConversation: new Map([['conv-turn', true], ['conv-idle', false]]),
+  resolveIpcConversationId: async (requestedId) => requestedId ? `canonical:${requestedId}` : 'canonical:active',
 })
 
 const listRunning = await handlers.get('chat:listRunningConversations')({}, {})
 assert.equal(listRunning.ok, true)
 assert.deepEqual(new Set(listRunning.data), new Set(['conv-chat', 'conv-shared', 'conv-dag', 'conv-turn']),
   'running status must aggregate chat, DAG and turn locks, deduplicating conversations')
+assert.deepEqual(await handlers.get('chat:getToolOutput')({}, {
+  conversationId: 'conv-a', outputId: 'opaque-output-id',
+}), { ok: true, data: { text: 'redacted tool output', truncated: false } })
+assert.deepEqual(outputRequests, [{ conversationId: 'canonical:conv-a', outputId: 'opaque-output-id' }],
+  'tool output IPC resolves and forwards the canonical conversation before reading')
 
 let busy = false
 const resolved = []

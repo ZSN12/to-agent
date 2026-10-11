@@ -3,7 +3,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { IPC_CHANNELS, PRELOAD_EVENTS, PRELOAD_LOCAL_METHODS } from '../desktop/ipc/channels.mjs'
+import { IPC_CHANNELS, PRELOAD_EVENTS, PRELOAD_LOCAL_METHODS } from '../contract/channels.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const outPath = path.join(root, 'src/shell/taskweaver-shell-bridge.generated.ts')

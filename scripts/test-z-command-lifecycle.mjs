@@ -3,8 +3,8 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { createServer } from 'node:http'
-import { createZHostManager, resolveTaskWeaverRuntimeRoot } from '../desktop/agent/z-host/index.mjs'
-import { createDshChatService } from '../desktop/backend/dsh-chat-service.mjs'
+import { createZHostManager, resolveTaskWeaverRuntimeRoot } from '../backend/agent/z-host/index.mjs'
+import { createDshChatService } from '../backend/dsh-chat-service.mjs'
 
 // Real Host/compaction; deterministic local provider, no user data or external cost.
 const root = process.cwd()

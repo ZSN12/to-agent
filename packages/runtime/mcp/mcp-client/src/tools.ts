@@ -16,6 +16,7 @@ import { createHash } from 'node:crypto'
 import { isDeepStrictEqual } from 'node:util'
 import type { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { ListToolsResultSchema } from '@modelcontextprotocol/sdk/types.js'
+import type { Tool } from '@modelcontextprotocol/sdk/types.js'
 import { z } from 'zod'
 import type { Context } from '@taskweaver/cordis'
 import { isImageAdmissionError } from '@taskweaver/dsh-attachment'
@@ -31,6 +32,12 @@ export interface ToolBridgeOptions {
   registrationFailure: 'contain' | 'throw'
   serverName: string
   toolCallTimeoutMs: number
+  /** Startup handshake barrier used by tools registered from the remote cache. */
+  connectionReady?: Promise<{ error?: unknown }>
+}
+
+export interface RemoteToolCacheWriter {
+  write(tools: readonly Tool[]): Promise<unknown>
 }
 
 /** State for one sync generation: the current set of disposers keyed by public name. */
@@ -145,35 +152,74 @@ export async function syncTools(
   ctx: Context,
   opts: ToolBridgeOptions,
   previous: ToolDisposers,
+  options: { cache?: RemoteToolCacheWriter | undefined } = {},
 ): Promise<ToolDisposers> {
-  // Phase 1: fetch and build the next generation without touching the registry.
-  const definitions = new Map<string, ToolDefinition>()
+  // Phase 1: fetch the complete list without touching the registry. Retain the
+  // protocol objects so a remote server can warm the next startup.
+  const tools: Tool[] = []
   let cursor: string | undefined
   do {
     const response = await listToolsUncached(client, cursor)
-    for (const tool of response.tools) {
-      const publicName = publicToolName(opts.serverName, tool.name)
-      if (definitions.has(publicName)) {
-        throw new Error(
-          `mcp-client(${opts.serverName}): server listed tool "${tool.name}" more than once — invalid tool list`,
-        )
-      }
-      definitions.set(publicName, createDefinition(
-        client,
-        ctx,
-        publicName,
-        tool.name,
-        tool.description ?? '',
-        tool.inputSchema,
-        supportedOutputSchema(tool.outputSchema),
-        tool.execution?.taskSupport === 'required',
-        opts,
-      ))
-    }
+    tools.push(...response.tools)
     cursor = response.nextCursor
   } while (cursor)
 
-  // Phase 2: swap generations.
+  const definitions = buildDefinitions(client, ctx, opts, tools)
+  const next = swapToolGeneration(ctx, opts, definitions, previous)
+  if (next === null) return new Map()
+  if (options.cache) {
+    try { await options.cache.write(tools) } catch { /* cache is best-effort */ }
+  }
+  return next
+}
+
+/** Register one validated cached tool list before a remote transport is ready. */
+export function registerCachedTools(
+  client: Client,
+  ctx: Context,
+  opts: ToolBridgeOptions,
+  tools: readonly Tool[],
+  previous: ToolDisposers,
+): ToolDisposers {
+  return swapToolGeneration(ctx, opts, buildDefinitions(client, ctx, opts, tools), previous) ?? new Map()
+}
+
+function buildDefinitions(
+  client: Client,
+  ctx: Context,
+  opts: ToolBridgeOptions,
+  tools: readonly Tool[],
+): Map<string, ToolDefinition> {
+  const definitions = new Map<string, ToolDefinition>()
+  for (const tool of tools) {
+    const publicName = publicToolName(opts.serverName, tool.name)
+    if (definitions.has(publicName)) {
+      throw new Error(
+        `mcp-client(${opts.serverName}): server listed tool "${tool.name}" more than once — invalid tool list`,
+      )
+    }
+    definitions.set(publicName, createDefinition(
+      client,
+      ctx,
+      publicName,
+      tool.name,
+      tool.description ?? '',
+      tool.inputSchema,
+      supportedOutputSchema(tool.outputSchema),
+      tool.execution?.taskSupport === 'required',
+      opts,
+    ))
+  }
+  return definitions
+}
+
+/** Dispose/register as one generation; null means the registry rejected it. */
+function swapToolGeneration(
+  ctx: Context,
+  opts: ToolBridgeOptions,
+  definitions: Map<string, ToolDefinition>,
+  previous: ToolDisposers,
+): ToolDisposers | null {
   for (const dispose of previous.values()) dispose()
   const disposers: ToolDisposers = new Map()
   try {
@@ -187,7 +233,7 @@ export async function syncTools(
     for (const dispose of disposers.values()) dispose()
     ctx.logger.error(`mcp-client(${opts.serverName}): tool registration failed, no tools registered: ${String(error)}`)
     if (opts.registrationFailure === 'throw') throw error
-    return new Map()
+    return null
   }
   return disposers
 }
@@ -320,6 +366,12 @@ function createExecutor(
     }
     if (taskRequired) {
       throw new Error(`Tool "${rawName}" requires task-based execution, which this bridge does not support`)
+    }
+    if (opts.connectionReady) {
+      const readiness = await opts.connectionReady
+      if (readiness.error !== undefined) {
+        throw new Error(`MCP connection for "${opts.serverName}" is not ready`, { cause: readiness.error })
+      }
     }
     // The agent loop passes `JSON.parse(model_arguments)` which is usually an
     // object, but can be any JSON value if the model misbehaves (outputs a bare

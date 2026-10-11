@@ -5,8 +5,8 @@
     "taskweaver-dsh-runtime"
   ],
   "pathWeights": [
-    { "path": "desktop/backend/dsh-chat-service.mjs", "weight": 5 },
-    { "path": "desktop/backend/orchestration-service.mjs", "weight": 5 }
+    { "path": "backend/dsh-chat-service.mjs", "weight": 5 },
+    { "path": "backend/orchestration-service.mjs", "weight": 5 }
   ],
   "scopeRules": [
     {
@@ -20,12 +20,12 @@
       "requiredPaths": [
         "src/features/app/useAppBackend.ts",
         "desktop/preload.cjs",
-        "desktop/backend/register-ipc.mjs",
-        "desktop/backend/dsh-chat-service.mjs",
-        "desktop/backend/orchestration-service.mjs",
-        "desktop/agent/z-host/index.mjs",
-        "desktop/agent/z-host/z-api-client.mjs",
-        "desktop/agent/z-host/spawn-host.mjs"
+        "backend/register-ipc.mjs",
+        "backend/dsh-chat-service.mjs",
+        "backend/orchestration-service.mjs",
+        "backend/agent/z-host/index.mjs",
+        "backend/agent/z-host/z-api-client.mjs",
+        "backend/agent/z-host/spawn-host.mjs"
       ]
     }
   ],
@@ -33,25 +33,25 @@
     {
       "queryTermsAny": ["调用链", "请求链", "端到端", "从前端", "从渲染端", "renderer", "preload", "ipc", "调用顺序", "链路"],
       "boostPaths": [
-        { "path": "desktop/agent/z-host", "weight": 20 },
+        { "path": "backend/agent/z-host", "weight": 20 },
         { "path": "src/features/app/useAppBackend.ts", "weight": 24 },
         { "path": "desktop/preload.cjs", "weight": 22 },
-        { "path": "desktop/backend/register-ipc.mjs", "weight": 22 },
-        { "path": "desktop/backend/dsh-chat-service.mjs", "weight": 18 },
-        { "path": "desktop/backend/orchestration-service.mjs", "weight": 18 },
-        { "path": "desktop/agent/z-host/z-api-client.mjs", "weight": 16 },
-        { "path": "desktop/agent/z-host/spawn-host.mjs", "weight": 16 }
+        { "path": "backend/register-ipc.mjs", "weight": 22 },
+        { "path": "backend/dsh-chat-service.mjs", "weight": 18 },
+        { "path": "backend/orchestration-service.mjs", "weight": 18 },
+        { "path": "backend/agent/z-host/z-api-client.mjs", "weight": 16 },
+        { "path": "backend/agent/z-host/spawn-host.mjs", "weight": 16 }
       ],
-      "preferredDirectories": ["desktop/agent/z-host"],
+      "preferredDirectories": ["backend/agent/z-host"],
       "prependPaths": [
         "src/features/app/useAppBackend.ts",
         "desktop/preload.cjs",
-        "desktop/backend/register-ipc.mjs",
-        "desktop/backend/dsh-chat-service.mjs",
-        "desktop/backend/orchestration-service.mjs",
-        "desktop/agent/z-host/z-api-client.mjs",
-        "desktop/agent/z-host/spawn-host.mjs",
-        "desktop/agent/z-host"
+        "backend/register-ipc.mjs",
+        "backend/dsh-chat-service.mjs",
+        "backend/orchestration-service.mjs",
+        "backend/agent/z-host/z-api-client.mjs",
+        "backend/agent/z-host/spawn-host.mjs",
+        "backend/agent/z-host"
       ]
     }
   ]

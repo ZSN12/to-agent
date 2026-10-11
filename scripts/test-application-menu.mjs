@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { createRequire } from 'node:module'
 
 const require = createRequire(import.meta.url)
-const { buildApplicationMenuTemplate } = require('../desktop/application-menu.cjs')
+const { buildApplicationMenuTemplate } = require('../backend/application-menu.cjs')
 const roles = (template) => template.map((item) => item.role)
 
 assert.deepEqual(roles(buildApplicationMenuTemplate({ platform: 'darwin' })), [

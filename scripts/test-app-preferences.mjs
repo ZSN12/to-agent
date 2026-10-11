@@ -2,13 +2,18 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { createAppPreferencesStore } from '../desktop/backend/app-preferences.mjs'
-import { normalizeOpenUsageBaseUrl } from '../desktop/backend/openusage-service.mjs'
+import { createAppPreferencesStore } from '../backend/app-preferences.mjs'
+import { normalizeOpenUsageBaseUrl } from '../backend/openusage-service.mjs'
 
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-preferences-'))
 try {
   const store = createAppPreferencesStore(root)
   assert.equal((await store.get()).promptInjectionLimitBytes, 32 * 1024, 'prompt injection cap defaults to 32 KiB')
+  assert.equal((await store.get()).inlineSmallFileReferences, false, 'small-file inline references default off')
+  assert.equal((await store.set({ inlineSmallFileReferences: true })).inlineSmallFileReferences, true)
+  assert.equal((await store.set({ inlineSmallFileReferences: 'invalid' })).inlineSmallFileReferences, true,
+    'invalid inline-reference preference updates preserve the previous value')
+  assert.equal((await store.set({ inlineSmallFileReferences: false })).inlineSmallFileReferences, false)
   assert.equal((await store.get()).adaptiveOrchestrationGate, true, 'adaptive gate defaults on')
   assert.equal((await store.get()).preferMultiAgent, false, 'prefer multi-agent defaults off')
   assert.equal((await store.get()).dagReadOnlyTimeoutMs, 600_000, 'DAG read-only timeout defaults to ten minutes')

@@ -2,10 +2,10 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { createAppStateStore } from '../desktop/backend/app-state-store.mjs'
-import { createUsageStore } from '../desktop/backend/usage-store.mjs'
-import { createChatTurnPersistence } from '../desktop/backend/chat-turn-persistence.mjs'
-import { createChatTurnPipeline } from '../desktop/backend/chat-turn-pipeline.mjs'
+import { createAppStateStore } from '../backend/app-state-store.mjs'
+import { createUsageStore } from '../backend/usage-store.mjs'
+import { createChatTurnPersistence } from '../backend/chat-turn-persistence.mjs'
+import { createChatTurnPipeline } from '../backend/chat-turn-pipeline.mjs'
 
 // Execute the production IPC persistence helpers with real stores, no Electron
 // or model provider. This checks delayed IPC and aggregate accounting contracts.

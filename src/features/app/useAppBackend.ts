@@ -516,6 +516,8 @@ export function useAppBackend() {
     refreshSkills,
     threads: state?.threads ?? [],
     currentThreadId: state?.currentThreadId ?? null,
+    // DSH's projected owner/event id is the source of truth for transient tool-output references.
+    toolOutputConversationId: activeDshView?.conversationId ?? state?.conversationId ?? null,
     runningConversationIds,
     completedConversationIds,
     reload,

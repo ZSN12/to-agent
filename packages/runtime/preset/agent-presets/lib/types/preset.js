@@ -17,6 +17,7 @@ export const LEGACY_AGENT_PRESET_ALIASES = Object.freeze({
     standard: 'tw-default',
     code: 'tw-code',
     'taskweaver-code': 'tw-taskweaver-code',
+    'taskweaver-optimized': 'tw-taskweaver-code',
     'taskweaver-readonly': 'tw-taskweaver-readonly',
     'taskweaver-planner': 'tw-taskweaver-planner',
     'taskweaver-pi-lite': 'tw-taskweaver-pi-lite',

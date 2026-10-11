@@ -32,8 +32,8 @@ function row(callId, { parentCallId, status = 'done', resultPreview } = {}) {
   }
 }
 
-function trace(id, { parentCallId, status = 'done', resultSummary, inputSummary = id, turn, step, taskId } = {}) {
-  return { id, parentCallId, toolName: 'bash', status, resultSummary, inputSummary, turn, step, taskId }
+function trace(id, { parentCallId, status = 'done', resultSummary, inputSummary = id, turn, step, taskId, outputId, outputTruncated } = {}) {
+  return { id, parentCallId, toolName: 'bash', status, resultSummary, inputSummary, turn, step, taskId, outputId, outputTruncated }
 }
 
 const nested = buildDshToolCallTree([
@@ -102,6 +102,16 @@ assert.equal(settled.row.status, 'done', 'terminal trace status settles a runnin
 assert.equal(settled.trace.status, 'done')
 assert.equal(settled.row.resultPreview, 'final result')
 assert.equal(settled.trace.resultSummary, 'final result')
+
+const outputReference = buildDshToolCallTree(
+  [row('output-reference')],
+  [trace('output-reference', { outputId: 'opaque-output-id', outputTruncated: true })],
+)
+assert.equal(outputReference[0].trace.outputId, 'opaque-output-id', 'merging live trace with projection retains the fetch reference')
+assert.equal(outputReference[0].trace.outputTruncated, true, 'the bounded-output marker survives replay projection')
+
+const legacyProjection = buildDshToolCallTree([row('legacy-without-output-reference')])
+assert.equal(legacyProjection[0].trace.outputId, undefined, 'older projected events have no full-output affordance')
 
 const lateRunning = buildDshToolCallTree(
   [row('already-done', { status: 'done', resultPreview: 'kept result' })],

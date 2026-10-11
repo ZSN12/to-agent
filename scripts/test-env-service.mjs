@@ -6,7 +6,7 @@ import {
   diagnoseTool,
   diagnoseEnvironment,
   getSanitizedEnv,
-} from '../desktop/backend/env-service.mjs'
+} from '../backend/env-service.mjs'
 
 console.log('--- 开始测试 env-service 环境变量与外部工具诊断 ---')
 

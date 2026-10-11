@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { extractDshChatTranscript } from '../desktop/backend/dsh-transcript-serialize.mjs'
+import { extractDshChatTranscript } from '../backend/dsh-transcript-serialize.mjs'
 
 const nodes = new Map([
   ['u1', { kind: 'user', data: { seq: 1, time: 1_000, content: [{ type: 'text', text: '你好' }] } }],

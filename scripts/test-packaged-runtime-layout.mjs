@@ -41,7 +41,7 @@ await fs.access(bundledHostNode)
 await fs.access(bridgeTransport)
 await fs.access(chatRegistry)
 await fs.access(clientLib)
-await fs.access(path.resolve('desktop/vendor/dsh-chat-registry.mjs'))
+await fs.access(path.resolve('backend/vendor/dsh-chat-registry.mjs'))
 
 const cursorLoader = path.join(runtimeRoot, 'electron-vendor', 'taskweaver-bridge-transport', 'cursor-adapter-loader.mjs')
 const cursorLoaderSource = await fs.readFile(cursorLoader, 'utf8')

@@ -39,7 +39,7 @@ Host 使用 pnpm workspace 管理的 `@taskweaver/*` 包。Cordis 提供插件�
 
 ## 3. IPC 契约表
 
-`desktop/ipc/channels.mjs` 是 UI 到桌面后端 invoke 通道、事件订阅与桥接方法的唯一契约来源。`scripts/gen-shell-bridge.mjs` 与 `scripts/gen-ipc-types.mjs` 从此文件生成 HTTP Shell 桥接与 TypeScript 定义；handler 在各 `register-*-ipc.mjs` 中实现。`pnpm run check:ipc` 校验生成物、通道注册与 renderer 调用。
+`contract/channels.mjs` 是 UI 到桌面后端 invoke 通道、事件订阅与桥接方法的唯一契约来源。`scripts/gen-shell-bridge.mjs` 与 `scripts/gen-ipc-types.mjs` 从此文件生成 HTTP Shell 桥接与 TypeScript 定义；handler 在各 `register-*-ipc.mjs` 中实现。`pnpm run check:ipc` 校验生成物、通道注册与 renderer 调用。
 
 | IPC 域 | 代表通道 | 责任 |
 | --- | --- | --- |

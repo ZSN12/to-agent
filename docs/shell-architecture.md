@@ -8,7 +8,7 @@
 
 ```
 ┌─────────────────┐     HTTP invoke + SSE      ┌──────────────────────────┐
-│  React UI       │ ◄────────────────────────► │  desktop/shell/run.mjs   │
+│  React UI       │ ◄────────────────────────► │  backend/shell/run.mjs   │
 │  (Vite / dist)  │   /shell/v1/invoke|events  │  + compose-services      │
 └─────────────────┘                            │  + registerIpc (shim)    │
         ▲                                      └────────────┬─────────────┘
@@ -35,7 +35,7 @@
 
 - **不需要**重写 UI。
 - **需要**一个 Win 壳（WebView2 + 可选托盘/单实例），启动同一 `run.mjs`（或打包后的 `taskweaver-shell-server`），环境变量与 macOS 一致。
-- 文件夹选择等原生对话框在 `desktop/platform/shell-platform.mjs` 里按平台扩展（macOS 已用 `osascript`）。
+- 文件夹选择等原生对话框在 `backend/platform/shell-platform.mjs` 里按平台扩展（macOS 已用 `osascript`）。
 - Shell 后端**不**模拟 Chromium `safeStorage`；凭据统一走 `credential-store` 的 `tw-b64:` 文件编码（与 Electron 钥匙串格式分离）。
 
 ## 相关环境变量

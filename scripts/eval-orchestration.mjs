@@ -6,8 +6,8 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { randomUUID } from 'node:crypto'
-import { createOrchestrationService } from '../desktop/backend/orchestration-service.mjs'
-import { RunStore } from '../desktop/backend/orchestration/run-store.mjs'
+import { createOrchestrationService } from '../backend/orchestration-service.mjs'
+import { RunStore } from '../backend/orchestration/run-store.mjs'
 
 const execFileAsync = promisify(execFile)
 const scriptDir = path.dirname(fileURLToPath(import.meta.url))

@@ -4,13 +4,13 @@ import os from 'node:os'
 import path from 'node:path'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import { createOrchestrationService } from '../desktop/backend/orchestration-service.mjs'
+import { createOrchestrationService } from '../backend/orchestration-service.mjs'
 import {
   crossProviderReviewRequestOverride,
   prepareCrossProviderReviewTasks,
   resolveCrossProviderReviewEnabled,
   selectCrossProviderReviewRoute,
-} from '../desktop/backend/orchestration/cross-provider-review.mjs'
+} from '../backend/orchestration/cross-provider-review.mjs'
 
 const execFileAsync = promisify(execFile)
 

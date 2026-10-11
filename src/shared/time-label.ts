@@ -1,4 +1,4 @@
-/** Chat message clock label (zh-CN, 24h), aligned with `desktop/backend/message-factory.mjs`. */
+/** Chat message clock label (zh-CN, 24h), aligned with `backend/message-factory.mjs`. */
 export function clockLabelZh(timestamp: number = Date.now()): string {
   return new Date(timestamp).toLocaleTimeString('zh-CN', {
     hour: '2-digit',

@@ -323,6 +323,7 @@ export function OutputLogPanel({
                   {isExpanded ? (
                     <ToolTraceCard
                       item={log}
+                      conversationId={conversationId}
                       onShowDetails={onShowToolDetails}
                       onOpenPath={onOpenWorkspacePath}
                     />

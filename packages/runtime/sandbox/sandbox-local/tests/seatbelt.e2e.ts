@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -108,5 +108,43 @@ describe.skipIf(!seatbeltUsable)('sandbox-local: real Seatbelt confinement throu
     expect(result.status).toBe(0)
     expect(readFileSync(join(hostTmp, 'scratch.txt'), 'utf8')).toBe('tmp-ok')
     expect(readFileSync(join(userTmp, 'scratch.txt'), 'utf8')).toBe('user-tmp-ok')
+  })
+
+  it('workspace-write still denies Git hook/config writes after granting the workspace', async () => {
+    const workdir = await tempDir(homedir())
+    mkdirSync(join(workdir, '.git', 'hooks'), { recursive: true })
+    writeFileSync(join(workdir, '.git', 'config'), '[core]\n')
+    const sandbox = await provider()
+    const policy = { mode: 'workspace-write' as const, workspaceRoot: workdir }
+
+    const hook = runConfined(sandbox, `printf injected > '${join(workdir, '.git', 'hooks', 'pre-commit')}'`, policy)
+    expect(hook.result.status).not.toBe(0)
+    expect(existsSync(join(workdir, '.git', 'hooks', 'pre-commit'))).toBe(false)
+
+    const config = runConfined(sandbox, `printf injected >> '${join(workdir, '.git', 'config')}'`, policy)
+    expect(config.result.status).not.toBe(0)
+    expect(readFileSync(join(workdir, '.git', 'config'), 'utf8')).toBe('[core]\n')
+  })
+
+  it('Seatbelt cannot read credential files under the selected HOME', async () => {
+    const workdir = await tempDir(homedir())
+    const isolatedHome = await tempDir(homedir())
+    for (const relative of ['.ssh/id_rsa', '.aws/credentials', '.config/gh/hosts.yml', 'Library/Keychains/test.keychain-db']) {
+      const credential = join(isolatedHome, relative)
+      mkdirSync(join(credential, '..'), { recursive: true })
+      writeFileSync(credential, 'dummy-secret\n')
+    }
+    const previousHome = process.env.HOME
+    process.env.HOME = isolatedHome
+    try {
+      const sandbox = await provider()
+      const command = `for f in .ssh/id_rsa .aws/credentials .config/gh/hosts.yml Library/Keychains/test.keychain-db; do cat "$HOME/$f" >/dev/null 2>&1 && exit 20; done; printf blocked`
+      const { result } = runConfined(sandbox, command, { mode: 'read-only', workspaceRoot: workdir })
+      expect(result.status).toBe(0)
+      expect(result.stdout).toBe('blocked')
+    } finally {
+      if (previousHome === undefined) delete process.env.HOME
+      else process.env.HOME = previousHome
+    }
   })
 })

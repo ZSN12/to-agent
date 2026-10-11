@@ -6,22 +6,22 @@ import { fileURLToPath } from 'node:url'
 import { normalizeMarkdownUrl } from '../src/shared/markdown-url.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const ipcUtils = fs.readFileSync(path.join(root, 'desktop/backend/ipc-utils.mjs'), 'utf8')
-const shellPlatform = fs.readFileSync(path.join(root, 'desktop/platform/shell-platform.mjs'), 'utf8')
+const ipcUtils = fs.readFileSync(path.join(root, 'backend/ipc-utils.mjs'), 'utf8')
+const shellPlatform = fs.readFileSync(path.join(root, 'backend/platform/shell-platform.mjs'), 'utf8')
 const bootstrap = fs.readFileSync(path.join(root, 'src/shell/bootstrap.ts'), 'utf8')
 const shellBridge = fs.readFileSync(path.join(root, 'src/shell/taskweaver-shell-bridge.generated.ts'), 'utf8')
 const markdown = fs.readFileSync(path.join(root, 'src/features/chat/AgentMessageMarkdown.tsx'), 'utf8')
 const workspaceTrustUi = fs.readFileSync(path.join(root, 'src/features/composer/ProjectSelector.tsx'), 'utf8')
-const verificationPolicy = fs.readFileSync(path.join(root, 'desktop/backend/verification-policy.mjs'), 'utf8')
+const verificationPolicy = fs.readFileSync(path.join(root, 'backend/verification-policy.mjs'), 'utf8')
 const hookTrustSources = [
-  'desktop/backend/register-ipc.mjs',
-  'desktop/backend/ipc/wire-backend-ipc.mjs',
-  'desktop/backend/chat-turn-pipeline.mjs',
-  'desktop/backend/scheduled-job-run.mjs',
+  'backend/register-ipc.mjs',
+  'backend/ipc/wire-backend-ipc.mjs',
+  'backend/chat-turn-pipeline.mjs',
+  'backend/scheduled-job-run.mjs',
 ].map((rel) => fs.readFileSync(path.join(root, rel), 'utf8')).join('\n')
-const hookRunner = fs.readFileSync(path.join(root, 'desktop/backend/taskweaver-hook-runner.mjs'), 'utf8')
+const hookRunner = fs.readFileSync(path.join(root, 'backend/taskweaver-hook-runner.mjs'), 'utf8')
 const viteConfig = fs.readFileSync(path.join(root, 'vite.config.ts'), 'utf8')
-const httpServer = fs.readFileSync(path.join(root, 'desktop/shell/http-server.mjs'), 'utf8')
+const httpServer = fs.readFileSync(path.join(root, 'backend/shell/http-server.mjs'), 'utf8')
 
 assert.match(ipcUtils, /assertTrustedSender|senderFrame/, 'ipc-utils must validate IPC sender frame')
 assert.match(ipcUtils, /isShellBackend/, 'ipc-utils must allow trusted shell HTTP invoke path')

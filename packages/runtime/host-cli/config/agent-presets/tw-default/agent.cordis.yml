@@ -185,7 +185,7 @@
         # route is deliberately NOT pinned here: under the embedded TaskWeaver runtime
         # (TASKWEAVER_EMBEDDED=1) `dsh-compaction-basic` resolves it from
         # TASKWEAVER_COMPACTION_SUMMARIZATION_{PROVIDER,MODEL}, which the desktop derives
-        # from the user's models.json (desktop/backend/taskweaver-compaction-target.mjs).
+        # from the user's models.json (backend/taskweaver-compaction-target.mjs).
         # A pin here would outrank that resolved route in `summarizeWithLlm` and fail
         # whenever the pinned deployment provider is absent, which is why this preset
         # ships with none: with neither set, the request's own routed model is used.

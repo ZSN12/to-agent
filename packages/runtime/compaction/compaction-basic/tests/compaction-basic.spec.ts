@@ -819,7 +819,7 @@ describe('pressure measurement and retention', () => {
 describe('optional model-free tool-result pruning', () => {
   const pruneConfig = { thresholdChars: 100, headChars: 20, tailChars: 10 }
 
-  it('does not prune a below-pressure session opportunistically', async () => {
+  it('bounds tool results before the next model request even below summary pressure', async () => {
     const ctx = createContext(10_000)
     const prune = new ToolResultPruner(ctx, pruneConfig)
     const compact = new TestCompactionEngine(ctx, {
@@ -830,10 +830,11 @@ describe('optional model-free tool-result pruning', () => {
     const session = oversizedToolResult()
     const pruneSession = vi.spyOn(prune, 'pruneSession')
 
+    expect(ctx.tokenMeter.measure(session).totalTokens).toBeLessThan(8_000)
     expect(await compactIfNeeded(compact, session)).toBeNull()
-    expect(pruneSession).not.toHaveBeenCalled()
+    expect(pruneSession).toHaveBeenCalledTimes(1)
     expect(compact.calls).toHaveLength(0)
-    expect(session.surface.replaceGeneration).toBe(0)
+    expect(session.surface.replaceGeneration).toBe(1)
   })
 
   it('skips LLM summarization when pruning alone clears pressure', async () => {

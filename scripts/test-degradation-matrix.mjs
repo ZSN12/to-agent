@@ -17,12 +17,12 @@ import {
   humanizeBridgeTransportError,
   isCursorBridgeTransportRoute,
   isDeprecatedOpenCodexChatRoute,
-} from '../desktop/backend/cursor-tool-guidance.mjs'
+} from '../backend/cursor-tool-guidance.mjs'
 import {
   ocxSupportsComposerToolContinuation,
   OCX_COMPOSER_CONTINUATION_MIN_VERSION,
-} from '../desktop/backend/opencodex-binary.mjs'
-import { selectModelForTask } from '../desktop/backend/orchestration-policy.mjs'
+} from '../backend/opencodex-binary.mjs'
+import { selectModelForTask } from '../backend/orchestration-policy.mjs'
 
 console.log('🧪 开始降级路径自动化验证矩阵 (test-degradation-matrix)...\n')
 

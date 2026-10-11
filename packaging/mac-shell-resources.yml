@@ -22,4 +22,4 @@ headless_scripts:
   - scripts/taskweaver-headless.mjs
   - scripts/diagnose/run-agent-read-smoke.mjs
 
-shell_backend_entry: desktop/shell/run.mjs
+shell_backend_entry: backend/shell/run.mjs

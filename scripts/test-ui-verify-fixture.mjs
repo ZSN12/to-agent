@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict'
-import { activateUiVerifyMockModel, UI_VERIFY_MOCK_MODEL_KEY } from '../desktop/backend/bootstrap.mjs'
+import { activateUiVerifyMockModel, UI_VERIFY_MOCK_MODEL_KEY } from '../backend/bootstrap.mjs'
 
 const base = {
   env: {

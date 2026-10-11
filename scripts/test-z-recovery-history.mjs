@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { readMissingEvents } from '../desktop/backend/dsh-chat/session-history.mjs'
+import { readMissingEvents } from '../backend/dsh-chat/session-history.mjs'
 
 const entries = Array.from({ length: 180 }, (_, seq) => ({ event: { seq: seq + 1, type: 'assistant/chunk' }, view: { seq: seq + 1 } }))
 const calls = []

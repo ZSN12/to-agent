@@ -9,9 +9,9 @@ import {
   checkSubscription,
   checkMeteredSurge,
   matchPattern,
-} from '../desktop/backend/routing-portfolio-service.mjs'
-import { fetchOpenUsageSnapshot } from '../desktop/backend/openusage-service.mjs'
-import { selectModelForTask } from '../desktop/backend/orchestration-policy.mjs'
+} from '../backend/routing-portfolio-service.mjs'
+import { fetchOpenUsageSnapshot } from '../backend/openusage-service.mjs'
+import { selectModelForTask } from '../backend/orchestration-policy.mjs'
 
 console.log('--- 开始测试能力作品集 (Routing Portfolio) 与成本感知模型路由 (RuleRouter v1) ---')
 

@@ -164,6 +164,8 @@ export default function App() {
   useEffect(() => {
     setDismissedInterruptId(null)
     setSelectedTaskId(null)
+    setDetailsTool(null)
+    setPanel((current) => current === 'details' ? null : current)
   }, [appBackend.currentThreadId])
 
   const selectedTask = useMemo(
@@ -515,7 +517,7 @@ export default function App() {
           onSend={sendMainMessage}
           multiAgentOrchestration={multiAgentOrchestration}
           onMultiAgentOrchestrationChange={handleMultiAgentOrchestrationChange}
-          conversationId={appBackend.state?.conversationId ?? null}
+          conversationId={appBackend.toolOutputConversationId}
           onCancel={() => { void appBackend.cancelMessage() }}
           onSteer={(text) => { void appBackend.steerMessage(text) }}
           onFollowUp={(text) => { void appBackend.followUpMessage(text) }}
@@ -554,6 +556,7 @@ export default function App() {
         {panel === 'details' && detailsTool && (
           <DetailsPanel
             item={detailsTool}
+            conversationId={appBackend.toolOutputConversationId}
             workspacePath={appBackend.workspacePath}
             onClose={() => {
               setPanel(null)
@@ -572,7 +575,7 @@ export default function App() {
           <Suspense fallback={null}>
             <OutputLogPanel
               logs={appBackend.toolTraces}
-              conversationId={appBackend.state?.conversationId ?? null}
+              conversationId={appBackend.toolOutputConversationId}
               onClose={() => setPanel(null)}
               onShowToolDetails={showToolDetails}
               onOpenWorkspacePath={openWorkspacePath}

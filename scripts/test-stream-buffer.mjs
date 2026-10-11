@@ -55,8 +55,14 @@ const afterThinkEnd = applyStreamEventToSnapshot(thoughtDelta, {
 assert.equal(afterThinkEnd.streamThinking?.isActive, false, 'thinking_end preserves text but ends the active state')
 const withToolTrace = applyStreamEventToSnapshot(inFlight, {
   type: 'tool', conversationId: 'c1', id: 'tool-1', toolName: 'read', status: 'done',
+  outputId: 'output-ref', outputTruncated: false,
 })
 assert.equal(withToolTrace.toolTraces.length, 1, 'tool calls should be captured in the conversation snapshot')
+assert.equal(withToolTrace.toolTraces[0].outputId, 'output-ref', 'in-flight trace replay preserves transient output references')
+const legacyToolTrace = applyStreamEventToSnapshot(inFlight, {
+  type: 'tool', conversationId: 'c1', id: 'legacy-tool', toolName: 'read', status: 'done',
+})
+assert.equal(legacyToolTrace.toolTraces[0].outputId, undefined, 'older stream events remain valid without output references')
 assert.deepEqual(
   applyStreamEventToSnapshot(withToolTrace, { type: 'start', conversationId: 'c1' }).toolTraces,
   [],

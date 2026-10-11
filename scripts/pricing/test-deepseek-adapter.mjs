@@ -4,11 +4,11 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { runPricingSync } from '../../desktop/backend/pricing/run-sync.mjs'
+import { runPricingSync } from '../../backend/pricing/run-sync.mjs'
 import {
   parseDeepseekPricingHtml,
   fetchDeepseekOfficialPrices,
-} from '../../desktop/backend/pricing/adapters/deepseek-official.mjs'
+} from '../../backend/pricing/adapters/deepseek-official.mjs'
 
 const fixturePath = path.join(
   path.dirname(fileURLToPath(import.meta.url)),

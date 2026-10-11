@@ -13,9 +13,9 @@ import {
   analyzeUserIntent,
   injectIntentGuidelines,
   USER_INTENTS,
-} from '../desktop/backend/user-intent.mjs'
-import { detectVerificationCommands } from '../desktop/backend/verification-policy.mjs'
-import { resolvePrimaryAgentPreset } from '../desktop/backend/primary-agent-preset.mjs'
+} from '../backend/user-intent.mjs'
+import { detectVerificationCommands } from '../backend/verification-policy.mjs'
+import { resolvePrimaryAgentPreset } from '../backend/primary-agent-preset.mjs'
 
 const { CODE_MUTATION, READ_ONLY, PLANNING, CONVERSATION } = USER_INTENTS
 
@@ -119,7 +119,7 @@ assert.equal(resolvePrimaryAgentPreset('你好'), 'tw-taskweaver-pi-lite', '寒�
 assert.equal(resolvePrimaryAgentPreset('读一下 desktop/main.cjs，概述启动流程'), 'tw-default', '单文件检查保持原生工具')
 assert.equal(resolvePrimaryAgentPreset('读一下当前项目结构并简要介绍'), 'tw-default', '广角仓库概览不要误触发批处理模式')
 assert.equal(
-  resolvePrimaryAgentPreset('只阅读 desktop/main.cjs 和 desktop/backend/z-conversation-hub.mjs，比较两者的启动与流转职责'),
+  resolvePrimaryAgentPreset('只阅读 desktop/main.cjs 和 backend/z-conversation-hub.mjs，比较两者的启动与流转职责'),
   'tw-code',
   '用户明确列出多个独立文件时自动采用批量工具模式',
 )

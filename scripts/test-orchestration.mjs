@@ -2,12 +2,12 @@ import './test-orchestration-p11.mjs'
 import './test-cross-provider-review.mjs'
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
-import { decideExecutionMode, explicitlyDisablesMultiAgent, resolveExecutionMode, selectModelForTask, shouldUpgradeFailedTask, workModeExecutionOverride } from '../desktop/backend/orchestration-policy.mjs'
-import { evaluateOrchestrationGate } from '../desktop/backend/orchestration-gate.mjs'
-import { executeDag, validateAndOrderTasks } from '../desktop/backend/dag-scheduler.mjs'
-import { getTaskProfile, getToolsForSingleAgent, getToolsForTask } from '../desktop/backend/task-profile.mjs'
-import { classifySubtaskFailure, runWithSubtaskRetries } from '../desktop/backend/subtask-retry.mjs'
-import { listTaskWorktrees } from '../desktop/backend/worktree-service.mjs'
+import { decideExecutionMode, explicitlyDisablesMultiAgent, resolveExecutionMode, selectModelForTask, shouldUpgradeFailedTask, workModeExecutionOverride } from '../backend/orchestration-policy.mjs'
+import { evaluateOrchestrationGate } from '../backend/orchestration-gate.mjs'
+import { executeDag, validateAndOrderTasks } from '../backend/dag-scheduler.mjs'
+import { getTaskProfile, getToolsForSingleAgent, getToolsForTask } from '../backend/task-profile.mjs'
+import { classifySubtaskFailure, runWithSubtaskRetries } from '../backend/subtask-retry.mjs'
+import { listTaskWorktrees } from '../backend/worktree-service.mjs'
 import {
   createOrchestrationService,
   assessSubtaskCompletion,
@@ -18,7 +18,7 @@ import {
   resolveOrchestrationAgentPreset,
   summarizeExecutionEvidence,
   validatePlanForRequest,
-} from '../desktop/backend/orchestration-service.mjs'
+} from '../backend/orchestration-service.mjs'
 
 {
   let now = 1_000
@@ -49,6 +49,14 @@ assert.equal(requiresReadOnlyPlan('不要修改 desktop/main.cjs'), false,
   'a constraint against one target alone must not force the entire request into read-only mode')
 assert.equal(requiresReadOnlyPlan('本轮不要修改任何文件。'), true,
   'whole-workspace no-write instructions remain read-only')
+assert.equal(requiresReadOnlyPlan('不要修改代码风格，修复 src/a.ts 的空指针'), false,
+  'a style constraint must not suppress a separate repair request')
+assert.equal(requiresReadOnlyPlan('修复 bug，但不要修改文件名'), false,
+  'a filename constraint must not suppress a repair request')
+assert.equal(requiresReadOnlyPlan('不要改动代码的公共接口，重构 utils'), false,
+  'an API constraint must not suppress a refactor request')
+assert.equal(requiresReadOnlyPlan('检查 auth 模块，不要修改任何文件'), true,
+  'an inspection request with an explicit whole-workspace write ban stays read-only')
 assert.deepEqual(validatePlanForRequest([
   { id: 'T1', taskType: 'research', scopePaths: ['src/App.tsx'] },
   { id: 'T2', taskType: 'review', scopePaths: ['desktop/backend'] },
@@ -166,53 +174,53 @@ assert.equal(summarizeExecutionEvidence({
 
 const plannerHints = await collectPlannerPathHints(process.cwd(), '检查 agent session 和 dsh chat service', { maxVisited: 1200, limit: 90 })
 assert.ok(plannerHints.paths.includes('package.json'), '路径索引应包含根目录清单')
-assert.ok(plannerHints.paths.includes('desktop/backend/dsh-chat-service.mjs'), '路径索引应定位相关后端源码')
+assert.ok(plannerHints.paths.includes('backend/dsh-chat-service.mjs'), '路径索引应定位相关后端源码')
 assert.ok(plannerHints.paths.length <= 90, '路径索引必须有严格输出上限')
 assert.ok(!plannerHints.paths.some((candidate) => candidate.startsWith('node_modules/')), '路径索引不得扫描依赖目录')
 assert.ok(!plannerHints.paths.some((candidate) => candidate.startsWith('vendor/')), '路径索引不得让 vendored 源码挤占产品源码候选')
 const callChainHints = await collectPlannerPathHints(process.cwd(), '只读检查从前端到 Host 的 Agent 请求调用链和 IPC', { maxVisited: 1200, limit: 90 })
 for (const candidate of [
   'src/features/app/useAppBackend.ts',
-  'desktop/preload.cjs',
-  'desktop/backend/register-ipc.mjs',
-  'desktop/backend/dsh-chat-service.mjs',
-  'desktop/agent/z-host/z-api-client.mjs',
-  'desktop/agent/z-host/spawn-host.mjs',
+  'contract/channels.mjs',
+  'backend/register-ipc.mjs',
+  'backend/dsh-chat-service.mjs',
+  'backend/agent/z-host/z-api-client.mjs',
+  'backend/agent/z-host/spawn-host.mjs',
 ]) {
   assert.ok(callChainHints.paths.includes(candidate), `端到端调用链索引应暴露关键桥接文件：${candidate}`)
 }
 assert.ok(!callChainHints.paths.some((candidate) => candidate.startsWith('vendor/')), '调用链索引不得混入 vendored 路径')
 const closedPlanScopes = completeReadOnlyPlanScopes([
-  { id: 'T1', title: '应用启动入口链路调研', taskType: 'research', description: '梳理 Electron 从启动到 renderer 就绪；停止条件：链路闭合后立即停止，不深入 Agent 业务逻辑。', scopePaths: ['desktop/main.cjs', 'desktop/preload.cjs', 'src/main.tsx', 'src/App.tsx'] },
-  { id: 'T2', title: 'Agent 请求链路调研', taskType: 'research', description: '梳理一次 Agent 请求从前端发起到后端执行的调用链；停止条件：调用闭合后立即停止，不检查启动窗口细节。', scopePaths: ['desktop/preload.cjs', 'desktop/backend/register-ipc.mjs', 'desktop/backend/dsh-chat-service.mjs'] },
+  { id: 'T1', title: '应用启动入口链路调研', taskType: 'research', description: '梳理 Electron 从启动到 renderer 就绪；停止条件：链路闭合后立即停止，不深入 Agent 业务逻辑。', scopePaths: ['backend/shell/run.mjs', 'contract/channels.mjs', 'src/main.tsx', 'src/App.tsx'] },
+  { id: 'T2', title: 'Agent 请求链路调研', taskType: 'research', description: '梳理一次 Agent 请求从前端发起到后端执行的调用链；停止条件：调用闭合后立即停止，不检查启动窗口细节。', scopePaths: ['contract/channels.mjs', 'backend/register-ipc.mjs', 'backend/dsh-chat-service.mjs'] },
 ], explicitParallelResearchRequest.replace('只读分析当前毕设代码，要求两项独立研究并行完成后交叉汇总。不得修改文件。', '只读分析应用启动入口和 Agent 请求链路，要求两项独立研究并行完成后交叉汇总。不得修改文件。'), [
-  'package.json', 'index.html', 'src/features/app/useAppBackend.ts', 'desktop/preload.cjs',
-  'desktop/backend/register-ipc.mjs', 'desktop/backend/dsh-chat-service.mjs',
-  'desktop/backend/orchestration-service.mjs', 'desktop/agent/z-host/index.mjs',
-  'desktop/agent/z-host/z-api-client.mjs', 'desktop/agent/z-host/spawn-host.mjs',
+  'package.json', 'index.html', 'src/features/app/useAppBackend.ts', 'contract/channels.mjs',
+  'backend/register-ipc.mjs', 'backend/dsh-chat-service.mjs',
+  'backend/orchestration-service.mjs', 'backend/agent/z-host/index.mjs',
+  'backend/agent/z-host/z-api-client.mjs', 'backend/agent/z-host/spawn-host.mjs',
 ], callChainHints.workspaceHints)
 assert.ok(closedPlanScopes[0].scopePaths.includes('package.json') && closedPlanScopes[0].scopePaths.includes('index.html'),
   'startup chain scope must include the app manifest and HTML entry when the request explicitly asks for startup order')
-assert.ok(!closedPlanScopes[0].scopePaths.includes('desktop/backend/dsh-chat-service.mjs')
-  && !closedPlanScopes[0].scopePaths.includes('desktop/agent/z-host/index.mjs'),
+assert.ok(!closedPlanScopes[0].scopePaths.includes('backend/dsh-chat-service.mjs')
+  && !closedPlanScopes[0].scopePaths.includes('backend/agent/z-host/index.mjs'),
 'a startup task that explicitly excludes Agent business logic must not inherit request-chain files')
 assert.ok(closedPlanScopes[1].scopePaths.includes('src/features/app/useAppBackend.ts')
-  && closedPlanScopes[1].scopePaths.includes('desktop/agent/z-host/spawn-host.mjs'),
+  && closedPlanScopes[1].scopePaths.includes('backend/agent/z-host/spawn-host.mjs'),
 'an Agent request-chain task must include the renderer send logic and exact Host implementation files')
 assert.ok(!closedPlanScopes[1].scopePaths.includes('package.json') && !closedPlanScopes[1].scopePaths.includes('index.html'),
   'a request-chain task that explicitly excludes startup details must not inherit startup files')
-assert.ok(closedPlanScopes[1].description.includes('desktop/agent/z-host/spawn-host.mjs'), 'added evidence paths must be visible in the assigned task description')
+assert.ok(closedPlanScopes[1].description.includes('backend/agent/z-host/spawn-host.mjs'), 'added evidence paths must be visible in the assigned task description')
 
 const boundedPlanInput = [
   { id: 'T1', title: '梳理应用启动入口', taskType: 'research', description: '只读研究且范围仅限 package.json、desktop/main.cjs、src/main.tsx。不要做目录发现或读取其他文件；完成后立即汇报。', scopePaths: ['package.json', 'desktop/main.cjs', 'src/main.tsx'] },
-  { id: 'T2', title: '梳理 Agent 请求链路', taskType: 'research', description: '范围仅限 src/features/app/useAppBackend.ts、desktop/preload.cjs、desktop/backend/register-ipc.mjs、desktop/backend/dsh-chat-service.mjs。确认渲染端 chat:send 到 api.sessions.prompt 的调用关系；不要 glob，不要继续检查 Host、权限、审批、响应投影等旁支，两端调用关系已证实后立即汇报。', scopePaths: ['src/features/app/useAppBackend.ts', 'desktop/preload.cjs', 'desktop/backend/register-ipc.mjs', 'desktop/backend/dsh-chat-service.mjs'] },
+  { id: 'T2', title: '梳理 Agent 请求链路', taskType: 'research', description: '范围仅限 src/features/app/useAppBackend.ts、desktop/preload.cjs、backend/register-ipc.mjs、backend/dsh-chat-service.mjs。确认渲染端 chat:send 到 api.sessions.prompt 的调用关系；不要 glob，不要继续检查 Host、权限、审批、响应投影等旁支，两端调用关系已证实后立即汇报。', scopePaths: ['src/features/app/useAppBackend.ts', 'desktop/preload.cjs', 'backend/register-ipc.mjs', 'backend/dsh-chat-service.mjs'] },
 ]
 const boundedPlan = completeReadOnlyPlanScopes(boundedPlanInput,
   '只读分析应用启动入口和 Agent 请求链路，要求两项独立研究并行完成后交叉汇总。不得修改文件。', [
   'package.json', 'index.html', 'src/features/app/useAppBackend.ts', 'desktop/preload.cjs',
-    'desktop/backend/register-ipc.mjs', 'desktop/backend/dsh-chat-service.mjs',
-    'desktop/backend/orchestration-service.mjs', 'desktop/agent/z-host/index.mjs',
-    'desktop/agent/z-host/z-api-client.mjs', 'desktop/agent/z-host/spawn-host.mjs',
+    'backend/register-ipc.mjs', 'backend/dsh-chat-service.mjs',
+    'backend/orchestration-service.mjs', 'backend/agent/z-host/index.mjs',
+    'backend/agent/z-host/z-api-client.mjs', 'backend/agent/z-host/spawn-host.mjs',
   ], callChainHints.workspaceHints)
 assert.deepEqual(boundedPlan.map(({ scopePaths }) => scopePaths), boundedPlanInput.map(({ scopePaths }) => scopePaths),
   'explicitly bounded read-only tasks must not have paths appended, even when the request suggests broader chain coverage')

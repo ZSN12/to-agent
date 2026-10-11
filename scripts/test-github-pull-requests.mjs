@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict'
-import { parseGithubRemote } from '../desktop/backend/github-pull-requests.mjs'
+import { parseGithubRemote } from '../backend/github-pull-requests.mjs'
 
 assert.deepEqual(parseGithubRemote('git@github.com:acme/demo.git'), { owner: 'acme', repo: 'demo' })
 assert.deepEqual(parseGithubRemote('https://github.com/acme/demo'), { owner: 'acme', repo: 'demo' })

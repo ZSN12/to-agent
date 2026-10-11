@@ -2,7 +2,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { canonicalModelIdFromRoute } from '../desktop/backend/capability-tiers.mjs'
+import { canonicalModelIdFromRoute } from '../backend/capability-tiers.mjs'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const DATASET_ID = 'lmarena-ai/leaderboard-dataset'

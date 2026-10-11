@@ -1,6 +1,6 @@
 import Foundation
 
-/// Spawns `desktop/shell/run.mjs` (Node backend, no Electron runtime).
+/// Spawns `backend/shell/run.mjs` (Node backend, no Electron runtime).
 final class BackendLauncher {
     private var process: Process?
     private(set) var baseURL: URL?
@@ -76,17 +76,17 @@ final class BackendLauncher {
 
     private func resolveLaunchPaths() -> LaunchPaths {
         if let resourceURL = Bundle.main.resourceURL,
-           FileManager.default.fileExists(atPath: resourceURL.appendingPathComponent("app/desktop/shell/run.mjs").path) {
+           FileManager.default.fileExists(atPath: resourceURL.appendingPathComponent("app/backend/shell/run.mjs").path) {
             let appRoot = resourceURL.appendingPathComponent("app")
             let node = resourceURL.appendingPathComponent("host-node/bin/node")
-            let script = appRoot.appendingPathComponent("desktop/shell/run.mjs")
+            let script = appRoot.appendingPathComponent("backend/shell/run.mjs")
             return LaunchPaths(node: node, script: script, appRoot: appRoot, resources: resourceURL, isPackaged: true, useEnvNode: false)
         }
 
         let repo = ProcessInfo.processInfo.environment["TASKWEAVER_REPO_ROOT"]
             ?? FileManager.default.currentDirectoryPath
         let appRoot = URL(fileURLWithPath: repo, isDirectory: true)
-        let script = appRoot.appendingPathComponent("desktop/shell/run.mjs")
+        let script = appRoot.appendingPathComponent("backend/shell/run.mjs")
         if let hostNode = ProcessInfo.processInfo.environment["TASKWEAVER_HOST_NODE"], !hostNode.isEmpty {
             return LaunchPaths(
                 node: URL(fileURLWithPath: hostNode),

@@ -68,7 +68,7 @@ function isTaskWeaverRepository(root: unknown): boolean {
       main?: unknown
     }
     if (manifest?.name !== 'taskweaver-desktop') return false
-    return existsSync(path.join(canonicalRoot, 'desktop/shell/run.mjs'))
+    return existsSync(path.join(canonicalRoot, 'backend/shell/run.mjs'))
   } catch {
     return false
   }

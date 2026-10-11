@@ -7,10 +7,10 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { createProfileStore } from '../desktop/backend/profile-store.mjs'
-import { createModelService } from '../desktop/backend/model-service.mjs'
-import { createZHostManager } from '../desktop/agent/z-host/index.mjs'
-import { resolveTaskWeaverRuntimeRoot } from '../desktop/agent/z-host/index.mjs'
+import { createProfileStore } from '../backend/profile-store.mjs'
+import { createModelService } from '../backend/model-service.mjs'
+import { createZHostManager } from '../backend/agent/z-host/index.mjs'
+import { resolveTaskWeaverRuntimeRoot } from '../backend/agent/z-host/index.mjs'
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const runtimeRoot = resolveTaskWeaverRuntimeRoot({

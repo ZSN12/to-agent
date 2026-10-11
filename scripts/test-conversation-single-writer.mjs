@@ -34,23 +34,23 @@ import { fileURLToPath } from 'node:url'
  */
 const root = fileURLToPath(new URL('../', import.meta.url))
 const registry = [
-  ['desktop/backend/message-factory.mjs', 'appendMessagesToConversation:conversationId,userEntry', 1, 'createUserMessage via chat-turn-pipeline'],
-  ['desktop/backend/scheduled-job-run.mjs', 'appendMessagesToConversation:conversationId,{', 1, 'scheduled jobs failure append'],
-  ['desktop/backend/chat-turn-pipeline.mjs', 'upsertMessagesToConversation:conversationId,agentEntry', 1, 'IPC assistant projection via chat-turn-pipeline'],
-  ['desktop/backend/chat-turn-pipeline.mjs', 'upsertMessagesToConversation:conversationId,{', 1, 'handleChatError error patch upsert'],
-  ['desktop/backend/chat-turn-pipeline.mjs', 'appendMessagesToConversation:conversationId,{', 1, 'handleChatError fallback error message'],
-  ['desktop/backend/chat-turn-persistence.mjs', 'upsertMessagesToConversation:conversationId,{', 2, 'native terminal projection + error'],
-  ['desktop/backend/dsh-chat/chat-send.mjs', 'sessions.prompt:{sessionId:', 2, 'Host prompt admission (queue + turn)'],
-  ['desktop/backend/dsh-chat/model-config.mjs', 'sessions.prompt:{sessionId:', 1, 'permission-mode command prompt'],
-  ['desktop/backend/thread-store.mjs', 'store.update:async(current', 2, 'thread json-store.update (transact + updateCurrent)'],
-  ['desktop/backend/json-store.mjs', 'writeFile:temporaryPath,<string>', 1, 'shared atomic JSON sink'],
-  ['desktop/backend/app-state-store.mjs', 'setCurrent:{messages}', 1, 'replace UI messages'],
-  ['desktop/backend/app-state-store.mjs', 'updateCurrent:(thread)', 2, 'messages + unrelated output logs'],
-  ['desktop/backend/app-state-store.mjs', 'updateConversation:conversationId,(', 3, 'append/upsert + output logs'],
-  ['desktop/backend/app-state-store.mjs', 'updateConversation:conversationId,{', 1, 'task metadata patch'],
-  ['desktop/backend/thread-store.mjs', 'fact-store:taskweaver-threads.json', 1, 'UI cache store'],
-  ['desktop/backend/app-state-store.mjs', 'fact-store:taskweaver-app-state.json', 1, 'legacy migration input'],
-  ['desktop/backend/orchestration/trace-store.mjs', 'appendFile:path.join', 1, 'DAG run-scoped trace.jsonl (metadata only, not chat transcript)'],
+  ['backend/message-factory.mjs', 'appendMessagesToConversation:conversationId,userEntry', 1, 'createUserMessage via chat-turn-pipeline'],
+  ['backend/scheduled-job-run.mjs', 'appendMessagesToConversation:conversationId,{', 1, 'scheduled jobs failure append'],
+  ['backend/chat-turn-pipeline.mjs', 'upsertMessagesToConversation:conversationId,agentEntry', 1, 'IPC assistant projection via chat-turn-pipeline'],
+  ['backend/chat-turn-pipeline.mjs', 'upsertMessagesToConversation:conversationId,{', 1, 'handleChatError error patch upsert'],
+  ['backend/chat-turn-pipeline.mjs', 'appendMessagesToConversation:conversationId,{', 1, 'handleChatError fallback error message'],
+  ['backend/chat-turn-persistence.mjs', 'upsertMessagesToConversation:conversationId,{', 2, 'native terminal projection + error'],
+  ['backend/dsh-chat/chat-send.mjs', 'sessions.prompt:{sessionId:', 2, 'Host prompt admission (queue + turn)'],
+  ['backend/dsh-chat/model-config.mjs', 'sessions.prompt:{sessionId:', 1, 'permission-mode command prompt'],
+  ['backend/thread-store.mjs', 'store.update:async(current', 2, 'thread json-store.update (transact + updateCurrent)'],
+  ['backend/json-store.mjs', 'writeFile:temporaryPath,<string>', 1, 'shared atomic JSON sink'],
+  ['backend/app-state-store.mjs', 'setCurrent:{messages}', 1, 'replace UI messages'],
+  ['backend/app-state-store.mjs', 'updateCurrent:(thread)', 2, 'messages + unrelated output logs'],
+  ['backend/app-state-store.mjs', 'updateConversation:conversationId,(', 3, 'append/upsert + output logs'],
+  ['backend/app-state-store.mjs', 'updateConversation:conversationId,{', 1, 'task metadata patch'],
+  ['backend/thread-store.mjs', 'fact-store:taskweaver-threads.json', 1, 'UI cache store'],
+  ['backend/app-state-store.mjs', 'fact-store:taskweaver-app-state.json', 1, 'legacy migration input'],
+  ['backend/orchestration/trace-store.mjs', 'appendFile:path.join', 1, 'DAG run-scoped trace.jsonl (metadata only, not chat transcript)'],
 ]
 
 // Small lexical recognizer: discard comments, keep quoted strings opaque.
@@ -121,7 +121,7 @@ assert.equal(sites('fs.appendFile("new.jsonl", data)', 'electron/example.mjs').l
 assert.equal(sites('api.sessions.prompt({ sessionId: id }); ctx.sessionPersistence.append(id, events)', 'electron/example.mjs').length, 2)
 
 const actual = new Map()
-for (const file of [...await files('electron'), ...await files('src')]) {
+for (const file of [...await files('backend'), ...await files('src')]) {
   for (const site of sites(await fs.readFile(path.join(root, file), 'utf8'), file)) {
     const id = `${file} | ${site.key}`
     const lines = actual.get(id) ?? []

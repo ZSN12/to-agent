@@ -6,26 +6,26 @@ import path from 'node:path'
 const root = process.cwd()
 const SKIP_DIRS = new Set(['node_modules', '.git', 'vendor', 'release', '.pnpm-store', 'packages/runtime/cordis', 'desktop/.build'])
 const REPLACEMENTS = [
-  ['desktop/backend/', 'desktop/backend/'],
-  ['desktop/agent/', 'desktop/agent/'],
-  ['desktop/shell/', 'desktop/shell/'],
-  ['desktop/platform/', 'desktop/platform/'],
+  ['backend/', 'backend/'],
+  ['backend/agent/', 'backend/agent/'],
+  ['backend/shell/', 'backend/shell/'],
+  ['backend/platform/', 'backend/platform/'],
   ['desktop/ipc/', 'desktop/ipc/'],
-  ['desktop/vendor/', 'desktop/vendor/'],
-  ['desktop/application-menu.cjs', 'desktop/application-menu.cjs'],
+  ['backend/vendor/', 'backend/vendor/'],
+  ['backend/application-menu.cjs', 'backend/application-menu.cjs'],
   ['desktop/main-process-stability.cjs', 'desktop/main-process-stability.cjs'],
   ['desktop/main.cjs', 'desktop/main.cjs'],
   ['desktop/preload.cjs', 'desktop/preload.cjs'],
-  ['desktop/startup-trace.cjs', 'desktop/startup-trace.cjs'],
+  ['backend/startup-trace.cjs', 'backend/startup-trace.cjs'],
   ["from '../desktop/", "from '../desktop/"],
   ["from '../../desktop/", "from '../../desktop/"],
   ["from '../../../desktop/", "from '../../../desktop/"],
-  ['"desktop/backend/', '"desktop/backend/'],
-  ['"desktop/agent/', '"desktop/agent/'],
-  ['"desktop/shell/', '"desktop/shell/'],
+  ['"backend/', '"backend/'],
+  ['"backend/agent/', '"backend/agent/'],
+  ['"backend/shell/', '"backend/shell/'],
   ['"desktop/ipc/', '"desktop/ipc/'],
-  ['`desktop/backend/', '`desktop/backend/'],
-  ['`desktop/shell/', '`desktop/shell/'],
+  ['`backend/', '`backend/'],
+  ['`backend/shell/', '`backend/shell/'],
 ]
 
 const EXT = new Set(['.mjs', '.cjs', '.js', '.ts', '.tsx', '.json', '.md', '.yml', '.yaml', '.swift', '.sh', '.plist'])

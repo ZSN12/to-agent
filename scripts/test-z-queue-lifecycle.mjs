@@ -3,11 +3,11 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { createServer } from 'node:http'
-import { createZHostManager, resolveTaskWeaverRuntimeRoot } from '../desktop/agent/z-host/index.mjs'
-import { createDshChatService } from '../desktop/backend/dsh-chat-service.mjs'
-import { createAppStateStore } from '../desktop/backend/app-state-store.mjs'
-import { createUsageStore } from '../desktop/backend/usage-store.mjs'
-import { createChatTurnPersistence } from '../desktop/backend/chat-turn-persistence.mjs'
+import { createZHostManager, resolveTaskWeaverRuntimeRoot } from '../backend/agent/z-host/index.mjs'
+import { createDshChatService } from '../backend/dsh-chat-service.mjs'
+import { createAppStateStore } from '../backend/app-state-store.mjs'
+import { createUsageStore } from '../backend/usage-store.mjs'
+import { createChatTurnPersistence } from '../backend/chat-turn-persistence.mjs'
 
 // Real deployed Host and durable inbox; only the model HTTP endpoint is controlled.
 // No external provider request or user session/config is used.

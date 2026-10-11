@@ -5,7 +5,7 @@ import {
   dshAgentPresetForPermissionMode,
   dshPermissionPresetForMode,
   normalizePermissionMode,
-} from '../desktop/backend/dsh-permission-map.mjs'
+} from '../backend/dsh-permission-map.mjs'
 
 assert.equal(dshAgentPresetForPermissionMode('full'), 'tw-default')
 assert.equal(dshAgentPresetForPermissionMode('ask'), 'tw-default', 'new interactive sessions should align with DSH Web default regardless of permission mode')

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { createTaskWeaverConversationRuntime } from '../desktop/backend/dsh-conversation-runtime.mjs'
+import { createTaskWeaverConversationRuntime } from '../backend/dsh-conversation-runtime.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const runtimeRoot = path.join(root, 'vendor/taskweaver-z-runtime')

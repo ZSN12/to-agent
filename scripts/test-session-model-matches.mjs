@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { sessionModelMatches } from '../desktop/backend/dsh-session-model.mjs'
+import { sessionModelMatches } from '../backend/dsh-session-model.mjs'
 
 const config = { provider: 'xiaomi', id: 'mimo-v2.6-flash' }
 

@@ -32,7 +32,7 @@
 
 ## 当前已支持的本地 Agent
 
-在 `desktop/backend/model-sync/local-agent-registry.mjs` 注册：
+在 `backend/model-sync/local-agent-registry.mjs` 注册：
 
 | agentId | 用户可见 | Host 路由 | bridgeKind | 发现（今日） | 登录 |
 |---------|----------|-----------|------------|--------------|------|

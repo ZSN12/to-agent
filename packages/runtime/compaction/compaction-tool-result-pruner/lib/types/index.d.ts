@@ -21,6 +21,7 @@ export declare class ToolResultPruner extends Service {
     static Config: z<ToolResultPruneConfig>;
     /** Resolved and immutable character budgets. */
     readonly config: ResolvedConfig;
+    private readonly contextWindowLookups;
     constructor(ctx: Context, config?: ToolResultPruneConfig);
     /**
      * Measure text content in Unicode code points; non-text blocks cost zero.
@@ -28,6 +29,7 @@ export declare class ToolResultPruner extends Service {
      * @returns total Unicode code points across text blocks.
      */
     measureContent(blocks: readonly ContentBlock[]): number;
+    private configForSession;
     /**
      * Replace an over-budget text middle while retaining rich-block order.
      * Text slicing is by Unicode code point, not UTF-16 code unit, so a retained
@@ -35,7 +37,7 @@ export declare class ToolResultPruner extends Service {
      * @param blocks - original tool-result content.
      * @returns pruned content, or `null` when the text is within budget.
      */
-    pruneContent(blocks: readonly ContentBlock[]): ContentBlock[] | null;
+    pruneContent(blocks: readonly ContentBlock[], config?: ResolvedConfig): ContentBlock[] | null;
     /**
      * Prune every over-budget tool result from one stable current-surface snapshot.
      * Each replacement preserves the complete event data except for `content`,
@@ -48,7 +50,7 @@ export declare class ToolResultPruner extends Service {
      * @throws when the session rejects a replacement; replacements committed
      * earlier in the pass remain durable.
      */
-    pruneSession(session: Session): PruneResult;
+    pruneSession(session: Session): Promise<PruneResult>;
 }
 export default ToolResultPruner;
 //# sourceMappingURL=index.d.ts.map

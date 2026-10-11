@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { createWorkspaceOperationGuard } from '../desktop/backend/workspace-operation-guard.mjs'
+import { createWorkspaceOperationGuard } from '../backend/workspace-operation-guard.mjs'
 
 const contexts = new Map([
   ['same-project', { workspacePath: '/work/project-a' }],

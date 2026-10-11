@@ -8,9 +8,9 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { createModelService } from '../desktop/backend/model-service.mjs'
-import { createModelRegistryUpdater } from '../desktop/backend/model-registry-updater.mjs'
-import { resolveTaskWeaverRuntimeRoot } from '../desktop/agent/z-host/index.mjs'
+import { createModelService } from '../backend/model-service.mjs'
+import { createModelRegistryUpdater } from '../backend/model-registry-updater.mjs'
+import { resolveTaskWeaverRuntimeRoot } from '../backend/agent/z-host/index.mjs'
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const runtimeRoot = resolveTaskWeaverRuntimeRoot({

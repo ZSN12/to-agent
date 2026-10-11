@@ -8,7 +8,7 @@ import {
   compareSemver,
   resolveBundledHostNodeExecutable,
   resolveHostNodeExecutable,
-} from '../desktop/agent/z-host/resolve-host-executable.mjs'
+} from '../backend/agent/z-host/resolve-host-executable.mjs'
 
 assert.equal(compareSemver([22, 18, 0], [22, 17, 9]), 1)
 assert.equal(compareSemver([22, 18, 0], [22, 18, 0]), 0)
@@ -19,6 +19,15 @@ await fs.mkdir(path.dirname(bundledBin), { recursive: true })
 const realNode = resolveHostNodeExecutable({ isPackaged: false, env: process.env }).executable
 await fs.copyFile(realNode, bundledBin)
 assert.equal(resolveBundledHostNodeExecutable(temp), bundledBin)
+
+const canonicalNode = path.join(temp, 'backend', 'node')
+await fs.mkdir(path.dirname(canonicalNode), { recursive: true })
+await fs.copyFile(realNode, canonicalNode)
+assert.equal(resolveHostNodeExecutable({
+  env: { TASKWEAVER_HOST_NODE: canonicalNode },
+  resourcesPath: temp,
+  isPackaged: true,
+}).executable, canonicalNode, 'Swift packaged backend passes the canonical Resources/backend/node path')
 
 const fromPath = resolveHostNodeExecutable({ isPackaged: false, env: process.env })
 assert.equal(fromPath.source, 'path')

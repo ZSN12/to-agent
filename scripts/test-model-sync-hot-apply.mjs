@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { ensureModelsJsonSyncedToDshHost } from '../desktop/backend/sync-models-json-to-host.mjs'
+import { ensureModelsJsonSyncedToDshHost } from '../backend/sync-models-json-to-host.mjs'
 
 const userDataPath = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-model-sync-'))
 let apiKey = 'test-key-one'

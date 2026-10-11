@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { Context } from '@taskweaver/cordis'
 import Loader from '@taskweaver/cordis-plugin-loader'
 import Include from '@taskweaver/cordis-plugin-include'
+import LlmRuntime from '@taskweaver/dsh-llm'
 import TokenMeter from '@taskweaver/dsh-token-meter'
 import ToolResultPruner from '@taskweaver/dsh-compaction-tool-result-pruner'
 
@@ -25,6 +26,7 @@ describe('compaction-tool-result-pruner real Loader composition', () => {
     const configPath = join(root, 'cordis.yml')
     await writeFile(configPath, [
       "- name: '@taskweaver/dsh-token-meter'",
+      "- name: '@taskweaver/dsh-llm'",
       "- name: '@taskweaver/dsh-compaction-tool-result-pruner'",
       '  config:',
       '    thresholdChars: 100',
@@ -41,6 +43,7 @@ describe('compaction-tool-result-pruner real Loader composition', () => {
       version: 'v2',
       async import(specifier: string) {
         if (specifier === '@taskweaver/dsh-token-meter') return TokenMeter
+        if (specifier === '@taskweaver/dsh-llm') return LlmRuntime
         if (specifier === '@taskweaver/dsh-compaction-tool-result-pruner') return ToolResultPruner
         throw new Error(`unexpected Loader import: ${specifier}`)
       },
@@ -64,6 +67,7 @@ describe('compaction-tool-result-pruner real Loader composition', () => {
     // Satisfy the declared injection first: config normalization runs in the
     // service constructor, which a pending fiber never reaches.
     await context.plugin(TokenMeter)
+    await context.plugin(LlmRuntime)
     await expect(context.plugin(ToolResultPruner, {
       maxChars: 100,
     } as never)).rejects.toThrow(/unknown key "maxChars"/)

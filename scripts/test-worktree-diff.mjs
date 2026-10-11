@@ -16,8 +16,8 @@ import {
   removeTaskWorktree,
   resolveTaskWorktreeDir,
   resetNodeWorktree,
-} from '../desktop/backend/worktree-service.mjs'
-import { createNodeWorkspaceRegistry } from '../desktop/backend/orchestration/node-workspace.mjs'
+} from '../backend/worktree-service.mjs'
+import { createNodeWorkspaceRegistry } from '../backend/orchestration/node-workspace.mjs'
 
 const execFileAsync = promisify(execFile)
 

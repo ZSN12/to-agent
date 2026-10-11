@@ -2,8 +2,8 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { createJsonStore, setJsonStoreCorruptionHandler } from '../desktop/backend/json-store.mjs'
-import { createUsageStore } from '../desktop/backend/usage-store.mjs'
+import { createJsonStore, setJsonStoreCorruptionHandler } from '../backend/json-store.mjs'
+import { createUsageStore } from '../backend/usage-store.mjs'
 
 const home = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-store-concurrency-'))
 const corruptionNotices = []

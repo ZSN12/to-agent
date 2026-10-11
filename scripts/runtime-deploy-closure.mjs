@@ -9,7 +9,7 @@ import path from 'node:path'
 import {
   resolveTaskWeaverHostLaunch,
   TASKWEAVER_RUNTIME_PACKAGES,
-} from '../desktop/agent/z-host/resolve-runtime.mjs'
+} from '../backend/agent/z-host/resolve-runtime.mjs'
 import { ensureTaskweaverScopeAliases } from './runtime-package-aliases.mjs'
 
 /** Workspace packages that pnpm deploy omits but agent presets import at runtime. */

@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { getTaskProfile, canRunSubtasksInParallel, getToolsForTask } from '../desktop/backend/task-profile.mjs'
-import { resolveSkillForSubtask } from '../desktop/backend/skill-prompt.mjs'
+import { getTaskProfile, canRunSubtasksInParallel, getToolsForTask } from '../backend/task-profile.mjs'
+import { resolveSkillForSubtask } from '../backend/skill-prompt.mjs'
 
 assert.equal(getToolsForTask('research').includes('write'), false)
 assert.equal(getToolsForTask('implementation').includes('write'), true)

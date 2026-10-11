@@ -117,7 +117,7 @@ node scripts/diagnose/verify-dsh-backend.mjs
 ## 文件清单
 
 ### 已修改文件
-- ✅ `desktop/backend/register-ipc.mjs` - 服务初始化顺序修复
+- ✅ `backend/register-ipc.mjs` - 服务初始化顺序修复
 - ✅ `src/features/models/ModelSettingsPanel.tsx` - OAuth UI 已验证正确
 - ✅ `src/hooks/useModelCatalog.ts` - OAuth 状态管理已验证正确
 - ✅ `desktop/preload.cjs` - IPC 桥接已验证正确

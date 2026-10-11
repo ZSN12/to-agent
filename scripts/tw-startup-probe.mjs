@@ -29,7 +29,12 @@ const traceOffset = fs.existsSync(tracePath) ? fs.statSync(tracePath).size : 0
 const startedAt = performance.now()
 const timestamp = new Date().toISOString()
 fs.appendFileSync(tracePath, `${JSON.stringify({ timestamp, pid: process.pid, startupId: probeId, elapsedMs: 0, event: 'probe:start', label, command: command[0] })}\n`)
-const env = { ...process.env, TASKWEAVER_STARTUP_TRACE: '1', TASKWEAVER_STARTUP_TRACE_FILE: tracePath }
+const env = {
+  ...process.env,
+  TASKWEAVER_STARTUP_TRACE: '1',
+  TASKWEAVER_STARTUP_TRACE_FILE: tracePath,
+  TASKWEAVER_STARTUP_ID: probeId,
+}
 let result
 let startupEventMs = null
 

@@ -9,10 +9,10 @@ import { OpenUsageSection } from './OpenUsageSection'
 import { LocalAgentStatusStrip, useLocalAgentBridgeStatus } from './LocalAgentStatusStrip'
 import { useModalFocusTrap } from '../../shared/useModalFocusTrap'
 
-type ProviderModelDiscoveryResult = {
+type ProviderModelDiscoveryViewResult = {
   providerId: string
   providerName: string
-  source: 'catalog' | 'online' | 'error'
+  source: 'catalog' | 'online' | 'timeout' | 'error'
   models: DiscoveredProviderModel[]
   error?: string
 }
@@ -1077,7 +1077,7 @@ export function ModelSettingsPanel({
   const [probeResult, setProbeResult] = useState<ProbeModelsResult | null>(null)
   const [probeTargetSource, setProbeTargetSource] = useState<{ id: string; name: string; baseUrl?: string } | null>(null)
   const [providerDiscoveryLoading, setProviderDiscoveryLoading] = useState(false)
-  const [providerDiscoveryResults, setProviderDiscoveryResults] = useState<ProviderModelDiscoveryResult[] | null>(null)
+  const [providerDiscoveryResults, setProviderDiscoveryResults] = useState<ProviderModelDiscoveryViewResult[] | null>(null)
   const [migrateLoading, setMigrateLoading] = useState(false)
   const {
     status: localAgentStatus,
@@ -1344,11 +1344,20 @@ export function ModelSettingsPanel({
         if (!discover) throw new Error('模型发现接口不可用')
         const response = await discover({ providerId: source.id })
         if (!response?.ok) throw new Error(response?.error || '模型发现失败')
+        if (response.data.status === 'timeout' || response.data.status === 'error') {
+          return {
+            providerId: source.id,
+            providerName: source.name,
+            source: response.data.status,
+            models: [],
+            error: response.data.error || (response.data.status === 'timeout' ? '模型发现超时' : '模型发现失败'),
+          }
+        }
         return {
           providerId: source.id,
           providerName: source.name,
           source: 'online' as const,
-          models: response.data ?? [],
+          models: response.data.models,
         }
       }))
       setProviderDiscoveryResults(settled.map((result, index) => {
@@ -1616,10 +1625,12 @@ export function ModelSettingsPanel({
                   <div key={result.providerId} style={{ borderTop: '1px solid var(--border-color, rgba(255,255,255,0.08))', paddingTop: 10 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                       <strong>{result.providerName}</strong>
-                      <span className={`provider-status-label ${result.source === 'error' ? '' : 'ok'}`}>
-                        {result.source === 'catalog' ? '内置目录' : result.source === 'online' ? '在线发现' : '失败'}
+                      <span className={`provider-status-label ${result.source === 'catalog' || result.source === 'online' ? 'ok' : ''}`}>
+                        {result.source === 'error' ? '失败' : result.source === 'timeout' ? '超时' : result.source === 'catalog' ? '内置目录' : '在线发现'}
                       </span>
-                      {result.source !== 'error' && <span className="model-list-count">{result.models.length} 个模型</span>}
+                      {(result.source === 'catalog' || result.source === 'online') && (
+                        <span className="model-list-count">{result.models.length} 个模型</span>
+                      )}
                     </div>
                     {result.error ? (
                       <p className="settings-inline-error" style={{ margin: '6px 0 0' }}>{result.error}</p>

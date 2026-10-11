@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
-import { assessAcceptanceCriteria, assessSubtaskCompletion } from '../desktop/backend/orchestration/evidence.mjs'
-import { parsePlan } from '../desktop/backend/orchestration/planner.mjs'
-import { applyPlanApprovalChanges } from '../desktop/backend/orchestration/plan-approval.mjs'
+import { assessAcceptanceCriteria, assessSubtaskCompletion } from '../backend/orchestration/evidence.mjs'
+import { parsePlan } from '../backend/orchestration/planner.mjs'
+import { applyPlanApprovalChanges } from '../backend/orchestration/plan-approval.mjs'
 
 const criteria = ['调用路径已核实', '异常行为有记录']
 const report = (results) => `<taskweaver-acceptance-v1>${JSON.stringify({ results })}</taskweaver-acceptance-v1>`

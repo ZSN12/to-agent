@@ -2,8 +2,8 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { createUsageStore } from '../desktop/backend/usage-store.mjs'
-import { createProfileStore } from '../desktop/backend/profile-store.mjs'
+import { createUsageStore } from '../backend/usage-store.mjs'
+import { createProfileStore } from '../backend/profile-store.mjs'
 
 async function main() {
   console.log('--- 测试 1: usageStore 用量统计与聚合 ---')

@@ -11,6 +11,7 @@ import type {
 } from '../../shared/model-api'
 import { getModelsClient, isModelsBridgeAvailable } from './client'
 import { catalogModelToOption } from './format'
+import { singleFlight } from './single-flight'
 import type { ModelOption } from '../../types'
 export function useModelCatalog() {
   const [catalog, setCatalog] = useState<ModelCatalog | null>(null)
@@ -23,9 +24,8 @@ export function useModelCatalog() {
   const loadInFlight = useRef<Promise<void> | null>(null)
   const hasCompletedInitialLoad = useRef(false)
 
-  const load = useCallback(async () => {
-    if (loadInFlight.current) return loadInFlight.current
-    const flight = (async () => {
+  const load = useCallback(() => singleFlight(loadInFlight, async () => {
+    try {
       if (!hasCompletedInitialLoad.current) setLoading(true)
       setError(null)
       const client = getModelsClient()
@@ -54,16 +54,13 @@ export function useModelCatalog() {
       if (bundle.providerCount === 0 && bundle.hostReady) {
         setError('Z Host 已连接，但提供方目录为空。请稍候再试或重启应用。')
       }
-    })().catch((err: unknown) => {
+    } catch (err: unknown) {
       setError(err instanceof Error ? err.message : '加载模型目录时发生错误')
-    }).finally(() => {
+    } finally {
       hasCompletedInitialLoad.current = true
       setLoading(false)
-      loadInFlight.current = null
-    })
-    loadInFlight.current = flight
-    return flight
-  }, [])
+    }
+  }), [])
 
   const refresh = useCallback(async (): Promise<{ ok: boolean; providerCount: number; error: string | null }> => {
     const client = getModelsClient()

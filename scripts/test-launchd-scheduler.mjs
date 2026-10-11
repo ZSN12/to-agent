@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import path from 'node:path'
 import fs from 'node:fs'
-import { buildLaunchAgentPlist, launchAgentLabel } from '../desktop/backend/launchd-scheduler.mjs'
+import { buildLaunchAgentPlist, launchAgentLabel } from '../backend/launchd-scheduler.mjs'
 import { scriptHostNodeExecutable } from './lib/host-node-executable.mjs'
 
 const label = launchAgentLabel('job-abc')

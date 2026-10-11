@@ -34,7 +34,7 @@
 
 | 项 | 状态 |
 |----|------|
-| 3.1 通道表 | ✅ `desktop/ipc/channels.mjs` |
+| 3.1 通道表 | ✅ `contract/channels.mjs` |
 | 3.2 生成 preload | ✅ `preload-spec.cjs` + `gen-preload.mjs`（`predev` / `build` / `check:ipc`） |
 | 3.3 注册对照 | ✅ `assertAllChannelsRegistered` + `TASKWEAVER_STRICT_IPC` + channels 四向对齐 |
 | 3.4 check-ipc-contract | ✅ |
@@ -95,7 +95,7 @@
 
 | 项 | 证据 |
 |----|------|
-| 5.1 bootstrap | `desktop/backend/bootstrap.mjs`；`chat:send` / `models:loadBundle` 串行 `start()` |
+| 5.1 bootstrap | `backend/bootstrap.mjs`；`chat:send` / `models:loadBundle` 串行 `start()` |
 | 5.2 IPC 拆分 | 薄 `register-ipc.mjs`、`ipc/wire-backend-ipc.mjs`、`compose-services`、`scheduled-job-run`、各 `register-*-ipc` |
 | 5.3 回合流水线 | `chat-turn-pipeline.mjs` `runTurn`；定时任务同路径（`scheduled-job-run.mjs`） |
 | 5.7 App 壳 | `App.tsx` <600 行；`MainConversation` / `AppSidebar` / 快捷键与编排浮层已拆 |

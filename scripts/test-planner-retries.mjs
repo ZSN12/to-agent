@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { buildPlannerRetryPrompt, plannerRejectionGuidance } from '../desktop/backend/orchestration/planner.mjs'
+import { buildPlannerRetryPrompt, plannerRejectionGuidance } from '../backend/orchestration/planner.mjs'
 
 const priorPlan = JSON.stringify({ tasks: [{ id: 'T1', taskType: 'research', scopePaths: [] }] })
 const reason = '只读子任务范围无效：T1 缺少 scopePaths 数组'

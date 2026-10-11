@@ -5,6 +5,9 @@
  * Isolated file so vi.mock of the MCP SDK doesn't pollute other test suites.
  */
 import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { Context } from '@taskweaver/cordis'
 import SystemPrompt from '@taskweaver/dsh-system-prompt'
 import ToolRuntime from '@taskweaver/dsh-tools'
@@ -106,6 +109,19 @@ function stdioConfig(reconnect?: Config['reconnect']): Config {
   }
 }
 
+function streamableHttpConfig(): Config {
+  return {
+    transport: 'streamable-http',
+    serverName: 'remote-cache',
+    url: 'https://example.test/mcp/',
+    headers: {},
+    toolCallTimeoutMs: 60_000,
+    connectTimeoutMs: 1_000,
+    failOnStartupError: false,
+    reconnect: { enabled: false },
+  }
+}
+
 /** The tool list the mock server advertises after a successful (re)connect. */
 function listing(...names: string[]): { tools: { name: string; inputSchema: { type: string } }[]; nextCursor: undefined } {
   return {
@@ -135,6 +151,62 @@ describe('reconnect supervisor', () => {
     mockListTools.mockResolvedValue(listing('remote'))
     mockCallTool.mockResolvedValue({ content: [{ type: 'text', text: 'ok' }] })
     ctx = await mountRegistry()
+  })
+
+  it('publishes cached remote tools during a slow connect, waits before calls, then replaces the cache', async () => {
+    const home = await mkdtemp(join(tmpdir(), 'tw-mcp-reconnect-cache-'))
+    const previousHome = process.env.TASKWEAVER_HOME
+    process.env.TASKWEAVER_HOME = home
+    let first: ReturnType<typeof startConnection> | undefined
+    let second: ReturnType<typeof startConnection> | undefined
+    let secondCtx: Context | undefined
+    try {
+      mockConnect.mockResolvedValue(undefined)
+      mockListTools.mockResolvedValue(listing('cached'))
+      first = startConnection(ctx, streamableHttpConfig(), resolveReconnectPolicy(undefined, 'test'))
+      const firstOutcome = await first.ready
+      expect(firstOutcome.error).toBeUndefined()
+      await first.dispose()
+      first = undefined
+
+      secondCtx = await mountRegistry()
+      const connectGate: PromiseWithResolvers<void> = Promise.withResolvers()
+      const listGate: PromiseWithResolvers<unknown> = Promise.withResolvers()
+      mockConnect.mockReturnValue(connectGate.promise)
+      mockListTools.mockImplementation(async () => await listGate.promise)
+      second = startConnection(secondCtx, streamableHttpConfig(), resolveReconnectPolicy(undefined, 'test'))
+
+      await vi.waitFor(() => {
+        expect(secondCtx?.tools.get('mcp__remote-cache__cached')).toBeDefined()
+      })
+      const invocation = secondCtx.tools.execute({
+        signal: testToolSignal,
+        callId: nextCallId(),
+        name: 'mcp__remote-cache__cached',
+        arguments: {},
+      })
+      await Promise.resolve()
+      expect(mockCallTool).not.toHaveBeenCalled()
+
+      connectGate.resolve()
+      await vi.waitFor(() => { expect(mockCallTool).toHaveBeenCalledTimes(1) })
+      const result = await invocation
+      expect(result.isError).toBe(false)
+
+      listGate.resolve(listing('fresh'))
+      await vi.waitFor(() => {
+        expect(secondCtx?.tools.get('mcp__remote-cache__fresh')).toBeDefined()
+      })
+      expect(secondCtx.tools.get('mcp__remote-cache__cached')).toBeUndefined()
+      await second.dispose()
+      second = undefined
+    } finally {
+      await second?.dispose()
+      await first?.dispose()
+      if (previousHome === undefined) delete process.env.TASKWEAVER_HOME
+      else process.env.TASKWEAVER_HOME = previousHome
+      await rm(home, { recursive: true, force: true })
+    }
   })
 
   it('reconnects after a transport close, re-syncs tools through the new generation, and serves calls', async () => {

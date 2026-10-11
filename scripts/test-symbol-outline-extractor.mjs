@@ -5,7 +5,7 @@ import {
   extractRustSymbols,
   extractGoSymbols,
   extractFileSymbols,
-} from '../desktop/backend/symbol-outline-extractor.mjs'
+} from '../backend/symbol-outline-extractor.mjs'
 
 // ============ 1. TypeScript / JavaScript 测试 ============
 const tsCode = `

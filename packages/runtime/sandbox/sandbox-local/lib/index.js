@@ -1,14 +1,13 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
+import os, { tmpdir } from "node:os";
+import path, { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { LAUNCHER_BIN, LAUNCHER_FAILURE_EXIT, grantArgs, launcherPath, probe } from "@taskweaver/node-addon-landlock-run";
 import z from "@taskweaver/schemastery";
 import { assertNever } from "@taskweaver/dsh-llm";
-import { SandboxProvider, SandboxUnavailableError, writableRoots } from "@taskweaver/dsh-sandbox";
+import { SandboxProvider, SandboxUnavailableError, canonicalPath, writableRoots } from "@taskweaver/dsh-sandbox";
 import { AclWriteGrant, assertTempRootOutsideWorkspace, tempWriteSid, workspaceWriteSid } from "@taskweaver/dsh-sandbox-windows-acl";
-//#region lib/types/profiles.js
+//#region ../lib/types/profiles.js
 /**
 * Internal platform-profile builders for the local sandbox provider.
 *
@@ -37,22 +36,33 @@ function bwrapProfileArgs(policy) {
 	}
 	return args;
 }
-/**
-* Build the Landlock launcher grants for one file-effect policy.
-* @param policy - file-effect policy to express as Landlock allow-list grants.
-* @returns launcher grant arguments before the trailing separator and command argv.
-*/
-function landlockProfileArgs(policy) {
-	const readWrite = ["/dev/null"];
-	if (policy.mode === "workspace-write") readWrite.push("/tmp", policy.workspaceRoot);
-	return grantArgs({
-		readOnly: ["/"],
-		readWrite
-	});
-}
 /** Quote one path as an SBPL string literal. */
 function sbplString(path) {
 	return `"${path.replaceAll("\\", String.raw`\\`).replaceAll("\"", String.raw`\"`)}"`;
+}
+/** Resolve the Git directories whose hooks/config are security-sensitive for this workspace. */
+function gitMetadataPaths(workspaceRoot) {
+	const gitPath = path.join(workspaceRoot, ".git");
+	try {
+		if (statSync(gitPath).isDirectory()) return { dirs: [canonicalPath(gitPath)] };
+		const pointer = readFileSync(gitPath, "utf8").match(/^gitdir:\s*(.+)\s*$/im);
+		if (!pointer) return {
+			dirs: [canonicalPath(gitPath)],
+			pointerFile: gitPath
+		};
+		const worktreeGitDir = canonicalPath(path.resolve(workspaceRoot, pointer[1]));
+		const dirs = [worktreeGitDir];
+		try {
+			const commonDir = readFileSync(path.join(worktreeGitDir, "commondir"), "utf8").trim();
+			if (commonDir) dirs.push(canonicalPath(path.resolve(worktreeGitDir, commonDir)));
+		} catch {}
+		return {
+			dirs: [...new Set(dirs)],
+			pointerFile: gitPath
+		};
+	} catch {
+		return { dirs: [canonicalPath(gitPath)] };
+	}
 }
 /**
 * Build the sandbox-exec arguments and SBPL profile for one policy. The
@@ -71,13 +81,30 @@ function seatbeltProfileArgs(policy) {
 	];
 	const roots = writableRoots(policy);
 	if (roots.length > 0) forms.push(`(allow file-write* ${roots.map((root) => `(subpath ${sbplString(root)})`).join(" ")})`);
+	if (policy.mode === "workspace-write") {
+		const metadata = gitMetadataPaths(canonicalPath(policy.workspaceRoot));
+		const protectedPaths = metadata.dirs.flatMap((dir) => [
+			`(subpath ${sbplString(path.join(dir, "hooks"))})`,
+			`(literal ${sbplString(path.join(dir, "config"))})`,
+			`(literal ${sbplString(path.join(dir, "config.worktree"))})`
+		]);
+		if (metadata.pointerFile) protectedPaths.push(`(literal ${sbplString(metadata.pointerFile)})`);
+		forms.push(`(deny file-write* ${protectedPaths.join(" ")})`);
+	}
+	const privateReadRoots = [
+		path.join(os.homedir(), ".ssh"),
+		path.join(os.homedir(), ".aws"),
+		path.join(os.homedir(), ".config", "gh"),
+		path.join(os.homedir(), "Library", "Keychains")
+	].map(canonicalPath);
+	forms.push(`(deny file-read* ${privateReadRoots.map((root) => `(subpath ${sbplString(root)})`).join(" ")})`);
 	return ["-p", forms.join(" ")];
 }
 //#endregion
-//#region lib/types/index.js
+//#region ../lib/types/index.js
 /**
-* Local sandbox backend. It selects the platform runner chain (Linux bwrap then
-* Landlock; macOS Seatbelt; Windows the ACL restricted-token runner), functionally probes
+* Local sandbox backend. It selects the platform runner (Linux bwrap; macOS
+* Seatbelt; Windows the ACL restricted-token runner), functionally probes
 * competing candidates once, and reports each wrap's enforcement and stderr
 * classification facts. Missing or unusable confinement fails closed rather
 * than returning the original argv.
@@ -165,27 +192,21 @@ function defaultProbeWindowsAcl(runnerInvocation, timeoutMs) {
 * second: a platform's chain is probed in preference order only when it has
 * MORE than one candidate (probing arbitrates; it does not re-validate a
 * choice that has no alternative). A platform with no chain fails closed at
-* `confine()`. Linux prefers `bwrap` (its mount profile is closest to the
-* mode vocabulary) over the Landlock launcher; darwin has exactly one
-* candidate, selected without any probe.
+* `confine()`. Linux uses the bwrap mount profile; darwin has exactly one
+* Seatbelt candidate, selected without any probe.
 */
 const PLATFORM_CHAINS = {
-	linux: ["bwrap", "landlock"],
+	linux: ["bwrap"],
 	darwin: ["seatbelt"],
 	win32: ["windows-acl"]
 };
 /**
 * Enforcement completeness a rung claims when selected WITHOUT a probe (a
 * chain of one). `bwrap` and Seatbelt govern every promised file effect by
-* construction, so the claim is a profile fact; `landlock` is listed for the
-* table's totality but is unreachable unprobed today (the Linux chain has
-* two rungs, so it is only ever selected through its probe, whose report is
-* what distinguishes full from per-ABI-partial — and the launcher additionally
-* self-reports partial enforcement on stderr at every confined run).
+* construction; the Windows runner reports its documented partial boundary.
 */
 const STATIC_ENFORCEMENT = {
 	bwrap: "full",
-	landlock: "full",
 	seatbelt: "full",
 	"windows-acl": "partial"
 };
@@ -204,7 +225,6 @@ function assertPositiveFinite(name, value) {
 */
 const DENIAL_SIGNATURES = {
 	bwrap: ["read-only file system"],
-	landlock: ["permission denied"],
 	seatbelt: ["operation not permitted"],
 	"windows-acl": [
 		"access is denied",
@@ -214,25 +234,17 @@ const DENIAL_SIGNATURES = {
 	runnerCommand: ["read-only file system", "permission denied"]
 };
 /**
-* Runner-owned fatal diagnostics. Landlock has a versioned exit-125 plus
-* fatal-line launcher-failure contract. Bubblewrap's current fatal paths exit
+* Runner-owned fatal diagnostics. Bubblewrap's current fatal paths exit
 * 1 but its public contract does not reserve that status, while sandbox-exec
 * publishes no launcher-failure status; those backends remain signature-only.
 * The windows-acl runner prints `windows-acl-run: <detail>` on every
 * runner-side failure and exits 127 — the rule is exit-gated on that status
 * so a confined command that merely PRINTS the signature (or a runner
 * cleanup failure reported on a non-zero child exit) is never misclassified
-* as "the command did not run". Keep the Landlock tuple aligned with the
-* assembled snapshot fixture at
-* `examples/acp-agent/tests/fixtures/partial-landlock-sandbox.ts`.
+* as "the command did not run".
 */
 const RUNNER_FAILURE_RULES = {
 	bwrap: [{ fatalSignatures: ["bwrap: "] }],
-	landlock: [{
-		allowedExitCodes: [LAUNCHER_FAILURE_EXIT],
-		fatalSignatures: [`${LAUNCHER_BIN}: `],
-		informationalLines: [`${LAUNCHER_BIN}: partial enforcement (older Landlock ABI)`]
-	}],
 	seatbelt: [{ fatalSignatures: ["sandbox-exec: "] }],
 	"windows-acl": [{
 		allowedExitCodes: [127],
@@ -323,7 +335,6 @@ var LocalSandboxProvider = class extends SandboxProvider {
 	runnerArgv(runner, policy) {
 		switch (runner) {
 			case "bwrap": return ["bwrap", ...bwrapProfileArgs(policy)];
-			case "landlock": return [this.landlockLauncher(), ...landlockProfileArgs(policy)];
 			case "seatbelt": return [this.seatbeltExec(), ...seatbeltProfileArgs(policy)];
 			case "windows-acl": return this.windowsAclRunnerArgv(policy);
 			default: return assertNever(runner);
@@ -501,15 +512,10 @@ var LocalSandboxProvider = class extends SandboxProvider {
 	probeRunner(runner) {
 		switch (runner) {
 			case "bwrap": return (this.internals.probeBwrap ?? (() => defaultProbeBwrap(this.probeTimeoutMs)))() ? "full" : "unusable";
-			case "landlock": return (this.internals.probeLandlock ?? ((launcher) => probe(launcher, { timeoutMs: this.probeTimeoutMs })))(this.landlockLauncher());
 			case "seatbelt": return (this.internals.probeSeatbelt ?? ((exec) => defaultProbeSeatbelt(exec, this.probeTimeoutMs)))(this.seatbeltExec()) ? "full" : "unusable";
 			case "windows-acl": return (this.internals.probeWindowsAcl ?? (() => defaultProbeWindowsAcl(this.windowsAclRunnerInvocation(), this.probeTimeoutMs)))() ? "partial" : "unusable";
 			default: return assertNever(runner);
 		}
-	}
-	/** The Landlock launcher to probe and exec (test hook over the resolved one). */
-	landlockLauncher() {
-		return this.internals.landlockLauncher ?? launcherPath();
 	}
 	/** The `sandbox-exec` executable to probe and exec (test hook over the system one). */
 	seatbeltExec() {

@@ -191,6 +191,7 @@ export function DshToolCallList({
           <div className="tool-trace-dropdown dsh-tool-call-expanded">
             <ToolTraceCard
               item={detailTrace}
+              conversationId={conversationId}
               onShowDetails={onShowToolDetails}
               onOpenPath={onOpenWorkspacePath}
               resultImages={resultImages}

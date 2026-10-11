@@ -745,6 +745,7 @@ const presentation = {
 * @module @taskweaver/dsh-tool-session-query/operations
 */
 async function executeSessionSearch(ctx, args, exec, maxResults) {
+	process.stderr.write(`[DEBUG-SESSION-SEARCH] enter executeSessionSearch, query=${args?.query}, hasSessionQuery=${!!ctx.sessionQuery}\n`);
 	const caller = workspaceAccess.callerOf(exec);
 	const cwd = caller.header.cwd;
 	if (cwd === void 0) throw new HarnessError("cross-session search is unavailable because the caller session has no workspace", "SESSION_QUERY_TOOL_UNAUTHORIZED");
@@ -773,15 +774,32 @@ async function executeSessionSearch(ctx, args, exec, maxResults) {
 		kind: "cwd",
 		values: [cwd]
 	});
-	const collected = await collectPages(maxResults, exec.signal, (cursor) => serviceBoundary.call(ctx, exec.signal, "session search", () => ctx.sessionQuery.searchSessions({
-		query,
-		sessionFilters,
-		eventFilters,
-		...cursor === void 0 ? {} : { cursor }
-	}, { signal: exec.signal })), (hit) => hit.header.id !== caller.id && workspaceAccess.recordAuthorized(hit, caller));
+	process.stderr.write(`[DEBUG-SESSION-SEARCH] before collectPages, sessionFilters=${JSON.stringify(sessionFilters)}\n`);
+	const collected = await collectPages(maxResults, exec.signal, async (cursor) => {
+		process.stderr.write(`[DEBUG-SESSION-SEARCH] calling searchSessions, cursor=${cursor}\n`);
+		const res = await serviceBoundary.call(ctx, exec.signal, "session search", async () => {
+			process.stderr.write(`[DEBUG-SESSION-SEARCH] invoking ctx.sessionQuery.searchSessions\n`);
+			try {
+				const r = await ctx.sessionQuery.searchSessions({
+					query,
+					sessionFilters,
+					eventFilters,
+					...cursor === void 0 ? {} : { cursor }
+				}, { signal: exec.signal });
+				process.stderr.write(`[DEBUG-SESSION-SEARCH] ctx.sessionQuery.searchSessions resolved, items=${r?.items?.length}\n`);
+				return r;
+			} catch (err) {
+				process.stderr.write(`[DEBUG-SESSION-SEARCH] ctx.sessionQuery.searchSessions threw: ${err?.stack || err}\n`);
+				throw err;
+			}
+		});
+		return res;
+	}, (hit) => hit.header.id !== caller.id && workspaceAccess.recordAuthorized(hit, caller));
+	process.stderr.write(`[DEBUG-SESSION-SEARCH] after collectPages, items=${collected?.items?.length}\n`);
 	const parentIds = collected.items.map((hit) => hit.header.parentSession).filter((id) => id !== void 0);
 	const authorizedParents = await workspaceAccess.authorizeSessionIds(ctx, caller, parentIds, exec.signal);
 	const titles = await workspaceAccess.readTitles(ctx, caller, collected.items.map((hit) => hit.header.id), exec.signal);
+	process.stderr.write(`[DEBUG-SESSION-SEARCH] returning formatSessionSearch\n`);
 	return presentation.formatSessionSearch(collected, titles, authorizedParents);
 }
 async function executeEventSearch(ctx, args, exec, maxResults) {

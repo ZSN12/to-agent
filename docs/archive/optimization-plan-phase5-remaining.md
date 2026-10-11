@@ -4,7 +4,7 @@
 
 对照 `毕设优化计划.md` 阶段 5，以下仍在 backlog：
 
-- **5.2（续）**：✅ `desktop/backend/ipc/context.mjs`（`createIpcRuntimeContext`）
+- **5.2（续）**：✅ `backend/ipc/context.mjs`（`createIpcRuntimeContext`）
 - **5.3（续）**：✅ steer/followUp → `runQueuedBehavior`；`tasks:sendMessage` → `runTaskMessage`
 - **5.4**：✅ 按会话 `getConversationRuntimeContext`；UI 快照 `refreshUiSnapshot` / `getUi*`
 - **5.6**：✅ `thread-store` → `json-store.update`（`test-thread-store-concurrency`）

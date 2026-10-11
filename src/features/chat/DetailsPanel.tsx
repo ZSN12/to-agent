@@ -6,12 +6,14 @@ import { resolveToolFilePath } from './tool-path'
 
 export function DetailsPanel({
   item,
+  conversationId,
   workspacePath,
   onClose,
   onOpenPath,
   renderDiff,
 }: {
   item: ToolTraceItem
+  conversationId?: string | null
   workspacePath: string | null
   onClose: () => void
   onOpenPath: (relativePath: string) => Promise<{ ok: boolean; error?: string }>
@@ -39,7 +41,7 @@ export function DetailsPanel({
         </button>
       </div>
       <div className="details-panel-body dag-scroll">
-        <ToolTraceCard item={item} />
+        <ToolTraceCard item={item} conversationId={conversationId} />
         {filePath && workspacePath && (
           <div className="details-open-row">
             <button type="button" className="details-open-btn" onClick={() => { void tryOpen() }}>

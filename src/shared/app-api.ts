@@ -66,6 +66,10 @@ export interface ToolTraceItem {
   status: 'running' | 'done' | 'error' | 'blocked' | 'cancelled'
   inputSummary?: string
   resultSummary?: string
+  /** Conversation-scoped reference for fetching a transient redacted tool result. */
+  outputId?: string
+  /** True when the stored result was clipped to the bounded output-store limit. */
+  outputTruncated?: boolean
   durationMs?: number | null
   taskId?: string
   startedAt?: number
@@ -174,6 +178,8 @@ export interface TaskweaverAppApi {
   setPermissionMode: (mode: PermissionMode) => Promise<IpcResult<AppState>>
   setModelKey: (modelKey: string) => Promise<IpcResult<AppState>>
   setThinkingLevel: (thinkingLevel: string) => Promise<IpcResult<AppState>>
+  getFirstRunNotice: () => Promise<IpcResult<{ hasLegacySecrets: boolean; dismissed: boolean; count: number }>>
+  dismissFirstRunNotice: () => Promise<IpcResult<{ ok: boolean }>>
 }
 
 export interface WorkspaceEntry {
@@ -588,6 +594,7 @@ export interface TaskweaverChatApi {
   unsubscribeMux?: (conversationId: string) => Promise<IpcResult<{ ok: boolean }>>
   onMux?: (listener: (payload: DshMuxFramePayload) => void) => () => void
   getDshView?: (conversationId?: string | null) => Promise<IpcResult<DshConversationView | null>>
+  getToolOutput?: (payload: { conversationId?: string | null; outputId: string }) => Promise<IpcResult<{ text: string; truncated: boolean } | null>>
   getResultAttachment?: (payload: { conversationId?: string | null; attachmentId: string }) => Promise<IpcResult<CodeOutputAttachment>>
   onDshView?: (listener: (view: DshConversationView) => void) => () => void
   onStream: (listener: (event: ChatStreamEvent) => void) => () => void
@@ -1076,6 +1083,8 @@ export interface AppPreferences {
   selfHealingMaxRetries?: number
   /** 首轮是否注入仓库结构图（repo map）。 */
   enableRepoMap?: boolean
+  /** 显式 @file 引用时，是否内联小于 4 KiB 的 UTF-8 文本；默认只发送路径。 */
+  inlineSmallFileReferences?: boolean
   /** 每轮 Prompt Pipeline 注入的系统上下文上限，单位为字节；默认 32 KiB。 */
   promptInjectionLimitBytes?: number
   /** 规则门控：灰区是否询问启用多 Agent（不调用模型）。 */

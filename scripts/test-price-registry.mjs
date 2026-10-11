@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mergeRegistryCost } from '../desktop/backend/price-registry.mjs'
+import { mergeRegistryCost } from '../backend/price-registry.mjs'
 
 const registry = {
   version: 1,

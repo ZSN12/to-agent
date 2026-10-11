@@ -14,9 +14,9 @@ import {
   TASKWEAVER_RUNTIME_PACKAGES,
   TASKWEAVER_RUNTIME_DEPLOY_DIR,
   TASKWEAVER_RUNTIME_CLIENT_DIR,
-} from '../desktop/agent/z-host/resolve-runtime.mjs'
+} from '../backend/agent/z-host/resolve-runtime.mjs'
 import { scriptHostNodeExecutable } from './lib/host-node-executable.mjs'
-import { assertTaskWeaverPresetDeployMatches } from '../desktop/agent/z-host/preset-integrity.mjs'
+import { assertTaskWeaverPresetDeployMatches } from '../backend/agent/z-host/preset-integrity.mjs'
 import {
   copyPackageIntoStaging,
   finalizeRuntimeLayout,
@@ -415,14 +415,14 @@ async function stageTaskWeaverBridgeTransport(stagingRoot, taskweaverRepoRoot) {
 }
 
 async function stageDshChatRegistry(stagingRoot) {
-  const from = path.join(root, 'electron', 'vendor', 'dsh-chat-registry.mjs')
+  const from = path.join(root, 'backend', 'vendor', 'dsh-chat-registry.mjs')
   if (!fs.existsSync(from)) {
-    throw new Error('缺少 desktop/vendor/dsh-chat-registry.mjs；请先运行 scripts/build-dsh-chat-registry.mjs')
+    throw new Error('缺少 backend/vendor/dsh-chat-registry.mjs；请先运行 scripts/build-dsh-chat-registry.mjs')
   }
   const destRoot = path.join(stagingRoot, 'electron-vendor')
   await fsp.mkdir(destRoot, { recursive: true })
   await fsp.copyFile(from, path.join(destRoot, 'dsh-chat-registry.mjs'))
-  console.log('build-host-runtime: 已打入 electron-vendor/dsh-chat-registry.mjs')
+  console.log('build-host-runtime: 已打入 backend-vendor/dsh-chat-registry.mjs')
 }
 
 async function stageMainProcessSessionManagerLib(stagingRoot, monorepoRoot) {

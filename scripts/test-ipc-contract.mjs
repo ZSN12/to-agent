@@ -3,87 +3,40 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import vm from 'node:vm'
 import { fileURLToPath } from 'node:url'
-import { IPC_CHANNELS, PRELOAD_EVENTS, PRELOAD_LOCAL_METHODS } from '../desktop/ipc/channels.mjs'
+import { IPC_CHANNELS, PRELOAD_EVENTS, PRELOAD_LOCAL_METHODS } from '../contract/channels.mjs'
 import { collectIpcContractIssues } from './check-ipc-contract.mjs'
-import { parsePreloadApi, scanRegisteredHandlers } from './ipc-contract-utils.mjs'
+import { parseShellBridgeApi, scanRegisteredHandlers } from './ipc-contract-utils.mjs'
 import { checkGeneratedIpcTypes } from './gen-ipc-types.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const bridgeSource = fs.readFileSync(path.join(root, 'src/shell/taskweaver-shell-bridge.generated.ts'), 'utf8')
-const preload = parsePreloadApi(bridgeSource, 'taskweaver-shell-bridge.generated.ts')
+const bridgeTypeSource = fs.readFileSync(path.join(root, 'src/shared/ipc-bridge.generated.d.ts'), 'utf8')
+const bridge = parseShellBridgeApi(bridgeSource)
 const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'taskweaver-ipc-contract-'))
 
-function loadPreload(devtools = false) {
-  const calls = []
-  const subscriptions = new Map()
-  const removedListeners = []
-  const ipcRenderer = {
-    invoke(channel, ...args) {
-      calls.push({ channel, args })
-      return undefined
-    },
-    on(channel, handler) {
-      subscriptions.set(channel, handler)
-    },
-    removeListener(channel, handler) {
-      removedListeners.push(channel)
-      if (subscriptions.get(channel) === handler) subscriptions.delete(channel)
-    },
-  }
-  let exposedName
-  let exposedApi
-  vm.runInNewContext(preloadSource, {
-    process: { env: { TASKWEAVER_DEVTOOLS: devtools ? '1' : '' } },
-    require(moduleName) {
-      assert.equal(moduleName, 'electron')
-      return {
-        contextBridge: {
-          exposeInMainWorld(name, api) {
-            exposedName = name
-            exposedApi = api
-          },
-        },
-        ipcRenderer,
-        webUtils: { getPathForFile: () => 'dropped:path' },
-      }
-    },
-  }, { filename: 'taskweaver-shell-bridge.generated.ts' })
-  assert.equal(exposedName, 'taskweaver')
-  return { api: exposedApi, calls, ipcRenderer, subscriptions, removedListeners }
-}
-
 try {
-  const runtime = loadPreload()
-  const devtoolsRuntime = loadPreload(true)
   for (const entry of IPC_CHANNELS) {
-    const method = entry.bridgePath.split('.').reduce((value, segment) => value?.[segment], devtoolsRuntime.api)
-    assert.equal(typeof method, 'function', `${entry.bridgePath} must be a public preload function`)
-    method(...Array.from({ length: method.length }, (_, index) => `argument-${index}`))
+    assert.equal(bridge.invokeMethods.get(entry.name), entry.bridgePath, `${entry.name} must map to ${entry.bridgePath}`)
+    assert(bridge.bridgeMethods.has(entry.bridgePath), `${entry.bridgePath} must be exposed by the Shell bridge`)
   }
-  assert.deepEqual(devtoolsRuntime.calls.map(({ channel }) => channel), IPC_CHANNELS.map(({ name }) => name))
-  assert.equal(runtime.api.debug, undefined, 'debug APIs must stay hidden unless explicitly enabled')
-  assert.equal(typeof devtoolsRuntime.api.debug.shadowTranscript, 'function')
 
   for (const entry of PRELOAD_EVENTS) {
-    const subscribe = entry.bridgePath.split('.').reduce((value, segment) => value?.[segment], runtime.api)
-    assert.equal(typeof subscribe, 'function', `${entry.bridgePath} event subscription must be exposed`)
-    let received
-    const unsubscribe = subscribe((payload) => { received = payload })
-    const payload = { channel: entry.event }
-    runtime.subscriptions.get(entry.event)(undefined, payload)
-    assert.equal(received, payload)
-    unsubscribe()
-    assert(runtime.removedListeners.includes(entry.event), `${entry.event} listener must be removable`)
+    assert.equal(bridge.eventMethods.get(entry.event), entry.bridgePath, `${entry.event} must map to ${entry.bridgePath}`)
+    assert(bridge.bridgeMethods.has(entry.bridgePath), `${entry.bridgePath} event subscription must be exposed`)
   }
 
   for (const entry of PRELOAD_LOCAL_METHODS) {
-    const method = entry.bridgePath.split('.').reduce((value, segment) => value?.[segment], runtime.api)
-    assert.equal(method({ name: 'drop.txt' }), 'dropped:path')
+    assert(bridge.bridgeMethods.has(entry.bridgePath), `${entry.bridgePath} local bridge method must be exposed`)
+    assert(bridge.exposedPaths.has(entry.bridgePath), `${entry.bridgePath} must be a public Shell API path`)
   }
 
-  assert.equal(runtime.api.ipcRenderer, undefined, 'raw ipcRenderer must not cross the contextBridge')
+  assert.match(bridgeSource, /\/shell\/v1\/invoke/, 'Shell API calls must use the HTTP bridge')
+  assert.match(bridgeSource, /\/shell\/v1\/events/, 'Shell events must use the server-sent event bridge')
+  assert.doesNotMatch(bridgeSource, /electron|ipcRenderer|contextBridge/i, 'the Swift Shell bridge must not depend on Electron preload APIs')
+  assert.match(bridgeTypeSource, /import\('\.\/app-api'\)/, 'generated bridge types must resolve the shared API module')
+  assert.match(bridgeTypeSource, /import\('\.\/model-api'\)/, 'generated bridge types must resolve the shared model API module')
+  assert.doesNotMatch(bridgeTypeSource, /import\('\.\/types\//, 'renderer bridge types must not point at a nonexistent src/shared/types directory')
 
   const removed = IPC_CHANNELS[0]
   const registrations = IPC_CHANNELS
@@ -94,22 +47,21 @@ try {
   const handlers = scanRegisteredHandlers(tempRoot, tempRoot)
   const removedIssues = collectIpcContractIssues({
     handlers,
-    invokeMethods: preload.invokeMethods,
-    exposedPaths: preload.exposedPaths,
+    invokeMethods: bridge.invokeMethods,
+    exposedPaths: bridge.exposedPaths,
     rendererPaths: new Map(),
     generatedTypesFresh: true,
   })
   assert(removedIssues.some((issue) => issue.startsWith(`${removed.name}: table entry has no ipcHandle registration`)))
 
-  const missingBridgeMethods = new Map(preload.bridgeMethods)
+  const missingBridgeMethods = new Map(bridge.bridgeMethods)
   missingBridgeMethods.delete(removed.bridgePath)
   const bridgeIssues = collectIpcContractIssues({
     bridgeMethods: missingBridgeMethods,
     rendererPaths: new Map(),
     generatedTypesFresh: true,
-    generatedPreloadFresh: true,
   })
-  assert(bridgeIssues.some((issue) => issue.startsWith(`${removed.name}: bridgePath ${removed.bridgePath} is not a generated preload method`)))
+  assert(bridgeIssues.some((issue) => issue.startsWith(`${removed.name}: bridgePath ${removed.bridgePath} is not a generated shell bridge method`)))
 
   const mismatchedTypes = IPC_CHANNELS.map((entry) => entry.name === removed.name
     ? { ...entry, resultSchema: { ...entry.resultSchema, reference: 'Promise<void>' } }
@@ -118,7 +70,6 @@ try {
     channels: mismatchedTypes,
     rendererPaths: new Map(),
     generatedTypesFresh: true,
-    generatedPreloadFresh: true,
   })
   assert(typeIssues.some((issue) => issue.startsWith(`${removed.name}: argsSchema and resultSchema must reference the same API method`)))
 
@@ -129,7 +80,7 @@ try {
   assert(rendererIssues.some((issue) => issue.includes('chat.missingMethod')))
   assert.equal(checkGeneratedIpcTypes(), true, 'generated IPC types must be current')
 
-  console.log(`test-ipc-contract: ok (${IPC_CHANNELS.length} entries; handler, bridgePath, type-reference, and renderer checks passed)`)
+  console.log(`test-ipc-contract: ok (${IPC_CHANNELS.length} invoke channels, ${PRELOAD_EVENTS.length} events, ${PRELOAD_LOCAL_METHODS.length} local methods; handler, Shell bridge, type-reference, and renderer checks passed)`)
 } finally {
   fs.rmSync(tempRoot, { recursive: true, force: true })
 }

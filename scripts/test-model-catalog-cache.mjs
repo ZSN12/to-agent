@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { createModelCatalogCache, collectCredentialRefs } from '../desktop/backend/model-catalog-cache.mjs'
+import { createModelCatalogCache, collectCredentialRefs } from '../backend/model-catalog-cache.mjs'
 
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-model-cache-'))
 const userDataPath = path.join(root, 'user-data')
@@ -28,7 +28,7 @@ assert.equal(await cache.readCachedCatalog(context), null, 'cache starts cold')
 assert.equal(await cache.writeCachedCatalog(context, bundle), true)
 assert.deepEqual(await cache.readCachedCatalog(context), bundle)
 assert.equal(await cache.readCachedCatalog({ ...context, appVersion: '1.2.4' }), null, 'app version invalidates cache')
-assert.equal(await cache.readCachedCatalog({ ...context, profileFingerprint: 'profiles-b' }), null, 'profile changes invalidate cache')
+assert.deepEqual(await cache.readCachedCatalog({ ...context, profileFingerprint: 'profiles-b' }), bundle, 'profile changes do not invalidate cache')
 assert.equal(await cache.readCachedCatalog({ ...context, registryVersion: 'registry-b' }), null, 'registry changes invalidate cache')
 assert.equal(await cache.readCachedCatalog({ ...context, registrySource: 'remote' }), null, 'registry source changes invalidate cache')
 

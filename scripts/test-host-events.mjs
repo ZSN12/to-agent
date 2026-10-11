@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { createHostModelCatalogEventPump } from '../desktop/backend/host-events.mjs'
+import { createHostModelCatalogEventPump } from '../backend/host-events.mjs'
 
 const calls = []
 const modelService = {

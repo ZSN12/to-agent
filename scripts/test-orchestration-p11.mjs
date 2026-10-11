@@ -16,30 +16,45 @@ import {
   createNodeDeadline,
   resolveNodeTimeouts,
   waitForNodeTurn,
-} from '../desktop/backend/orchestration/node-deadline.mjs'
-import { createDagPauseControl } from '../desktop/backend/orchestration/pause-control.mjs'
-import { executeDag } from '../desktop/backend/dag-scheduler.mjs'
-import { createOrchestrationService } from '../desktop/backend/orchestration-service.mjs'
-import { createNodeWorktree, removeTaskWorktree } from '../desktop/backend/worktree-service.mjs'
-import { TraceStore } from '../desktop/backend/orchestration/trace-store.mjs'
-import { RunStore } from '../desktop/backend/orchestration/run-store.mjs'
-import { UsageLedger } from '../desktop/backend/orchestration/usage-ledger.mjs'
-import { layoutTasks } from '../desktop/backend/orchestration/planner.mjs'
+} from '../backend/orchestration/node-deadline.mjs'
+import { shouldRunSelfHealingVerification } from '../backend/orchestration/plan-and-execute.mjs'
+import { createDagPauseControl } from '../backend/orchestration/pause-control.mjs'
+import { executeDag } from '../backend/dag-scheduler.mjs'
+import { createOrchestrationService } from '../backend/orchestration-service.mjs'
+import { createNodeWorktree, removeTaskWorktree } from '../backend/worktree-service.mjs'
+import { TraceStore } from '../backend/orchestration/trace-store.mjs'
+import { RunStore } from '../backend/orchestration/run-store.mjs'
+import { UsageLedger } from '../backend/orchestration/usage-ledger.mjs'
+import { layoutTasks } from '../backend/orchestration/planner.mjs'
 import { buildOrchestrationTraceCsv } from '../src/features/orchestration/orchestration-trace-csv.mjs'
 import {
   classifySubtaskFailure,
   runWithSubtaskRetries,
-} from '../desktop/backend/subtask-retry.mjs'
+} from '../backend/subtask-retry.mjs'
 import {
   nextTaskTier,
   selectModelForTask,
   shouldUpgradeFailedTask,
-} from '../desktop/backend/orchestration-policy.mjs'
+} from '../backend/orchestration-policy.mjs'
 
 const timeouts = resolveNodeTimeouts('research')
 assert.equal(timeouts.timeoutMs, 10 * 60 * 1000)
 assert.equal(timeouts.idleTimeoutMs, 3 * 60 * 1000)
 assert.equal(resolveNodeTimeouts('implementation').timeoutMs, 20 * 60 * 1000)
+const selfHealingVerification = {
+  selfHealingEnabled: true,
+  taskType: 'test',
+  hasFileChanges: true,
+  hasVerification: false,
+  permissionMode: 'ask',
+  execCwd: '/tmp/taskweaver-test-workspace',
+}
+assert.equal(shouldRunSelfHealingVerification({ ...selfHealingVerification, workspaceTrusted: false }), false,
+  'self-healing must not run repository commands for an untrusted workspace')
+assert.equal(shouldRunSelfHealingVerification({ ...selfHealingVerification, workspaceTrusted: true, permissionMode: 'readonly' }), false,
+  'self-healing must honor read-only permission mode')
+assert.equal(shouldRunSelfHealingVerification({ ...selfHealingVerification, workspaceTrusted: true }), true,
+  'self-healing may run for a trusted writable workspace')
 assert.deepEqual(resolveNodeTimeouts('review', {
   dagReadOnlyTimeoutMs: 30_000,
   dagIdleTimeoutMs: 5_000,
@@ -219,6 +234,71 @@ const repo = path.join(tempRoot, 'repo')
 const userDataPath = path.join(tempRoot, 'user-data')
 const agentDataPath = path.join(tempRoot, 'agent-data')
 await Promise.all([fs.mkdir(repo), fs.mkdir(userDataPath), fs.mkdir(agentDataPath)])
+
+const identityRepo = path.join(tempRoot, 'identity-repo')
+const identityUserDataPath = path.join(tempRoot, 'identity-user-data')
+const emptyGitHome = path.join(tempRoot, 'empty-git-home')
+await Promise.all([fs.mkdir(identityRepo), fs.mkdir(identityUserDataPath), fs.mkdir(emptyGitHome)])
+const noGitIdentityEnv = {
+  ...process.env,
+  HOME: emptyGitHome,
+  XDG_CONFIG_HOME: emptyGitHome,
+  GIT_CONFIG_GLOBAL: path.join(emptyGitHome, 'missing-gitconfig'),
+  GIT_CONFIG_NOSYSTEM: '1',
+  LC_ALL: 'C',
+}
+await execFileAsync('git', ['init', '-b', 'main'], { cwd: identityRepo, env: noGitIdentityEnv })
+await fs.writeFile(path.join(identityRepo, 'base.txt'), 'base\n')
+await execFileAsync('git', ['add', '-A'], { cwd: identityRepo, env: noGitIdentityEnv })
+await execFileAsync('git', ['-c', 'user.name=TaskWeaver Test', '-c', 'user.email=test@taskweaver.local', 'commit', '-m', 'baseline'], {
+  cwd: identityRepo,
+  env: noGitIdentityEnv,
+})
+const identityBaseCommit = (await execFileAsync('git', ['rev-parse', 'HEAD'], { cwd: identityRepo, env: noGitIdentityEnv })).stdout.trim()
+await execFileAsync('git', ['switch', '-c', 'writer'], { cwd: identityRepo, env: noGitIdentityEnv })
+await fs.writeFile(path.join(identityRepo, 'writer.txt'), 'upstream\n')
+await execFileAsync('git', ['add', '-A'], { cwd: identityRepo, env: noGitIdentityEnv })
+await execFileAsync('git', ['-c', 'user.name=TaskWeaver Test', '-c', 'user.email=test@taskweaver.local', 'commit', '-m', 'upstream'], {
+  cwd: identityRepo,
+  env: noGitIdentityEnv,
+})
+await execFileAsync('git', ['switch', 'main'], { cwd: identityRepo, env: noGitIdentityEnv })
+const savedGitEnv = Object.fromEntries(['HOME', 'XDG_CONFIG_HOME', 'GIT_CONFIG_GLOBAL', 'GIT_CONFIG_NOSYSTEM']
+  .map((name) => [name, process.env[name]]))
+let identityWorktree
+try {
+  for (const [name, value] of Object.entries(noGitIdentityEnv)) {
+    if (['HOME', 'XDG_CONFIG_HOME', 'GIT_CONFIG_GLOBAL', 'GIT_CONFIG_NOSYSTEM'].includes(name)) process.env[name] = value
+  }
+  const identityConversationId = randomUUID()
+  const identityRunId = randomUUID()
+  const identityTaskId = 'T-merge'
+  identityWorktree = await createNodeWorktree({
+    workspacePath: identityRepo,
+    conversationId: identityConversationId,
+    runId: identityRunId,
+    taskId: identityTaskId,
+    userDataPath: identityUserDataPath,
+    baseCommit: identityBaseCommit,
+    mergeFrom: ['writer'],
+  })
+  assert.deepEqual(identityWorktree.mergedBranches, ['writer'], 'a downstream worktree merge gets a fallback Git identity')
+  assert.equal(await fs.readFile(path.join(identityWorktree.path, 'writer.txt'), 'utf8'), 'upstream\n')
+  await removeTaskWorktree({
+    workspacePath: identityRepo,
+    conversationId: identityConversationId,
+    runId: identityRunId,
+    taskId: identityTaskId,
+    userDataPath: identityUserDataPath,
+    force: true,
+  })
+} finally {
+  for (const [name, value] of Object.entries(savedGitEnv)) {
+    if (value === undefined) delete process.env[name]
+    else process.env[name] = value
+  }
+}
+
 const recoveryStore = new RunStore({ agentDataPath })
 const recoveryConversationId = randomUUID()
 const recoveryRunId = randomUUID()

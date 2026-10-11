@@ -21,7 +21,7 @@ describe('TaskWeaver UI verify boundaries', () => {
     root = await mkdtemp(path.join(os.tmpdir(), 'tw-ui-verify-'))
     await writeFile(path.join(root, 'package.json'), JSON.stringify({ name: 'taskweaver-desktop' }))
     await mkdir(path.join(root, 'desktop/shell'), { recursive: true })
-    await writeFile(path.join(root, 'desktop/shell/run.mjs'), 'export {}\n')
+    await writeFile(path.join(root, 'backend/shell/run.mjs'), 'export {}\n')
     await expect(assertTaskWeaverProject(root)).resolves.toBe(await realpath(root))
   })
 

@@ -11,6 +11,7 @@ export function ChatBehaviorSettingsPanel({ onToast }: { onToast?: (msg: string)
   const [loading, setLoading] = useState(true)
   const [selfHealingLoop, setSelfHealingLoop] = useState(false)
   const [enableRepoMap, setEnableRepoMap] = useState(true)
+  const [inlineSmallFileReferences, setInlineSmallFileReferences] = useState(false)
   const [compactionThresholdRatio, setCompactionThresholdRatio] = useState(0.8)
   const [savingCompactionThreshold, setSavingCompactionThreshold] = useState(false)
   const [selfHealingMaxRetries, setSelfHealingMaxRetries] = useState(2)
@@ -28,6 +29,7 @@ export function ChatBehaviorSettingsPanel({ onToast }: { onToast?: (msg: string)
       if (preferencesResult?.ok) {
         setSelfHealingLoop(preferencesResult.data.selfHealingLoop === true)
         setEnableRepoMap(preferencesResult.data.enableRepoMap !== false)
+        setInlineSmallFileReferences(preferencesResult.data.inlineSmallFileReferences === true)
         const threshold = Number(preferencesResult.data.compactionThresholdRatio)
         setCompactionThresholdRatio(Number.isFinite(threshold) ? Math.min(0.9, Math.max(0.6, threshold)) : 0.8)
         const retries = Number(preferencesResult.data.selfHealingMaxRetries)
@@ -80,6 +82,19 @@ export function ChatBehaviorSettingsPanel({ onToast }: { onToast?: (msg: string)
     setEnableRepoMap(res.data.enableRepoMap !== false)
     onToast?.(next ? '已开启：首轮注入仓库结构图' : '已关闭仓库结构图注入')
   }, [enableRepoMap, onToast])
+
+  const saveInlineSmallFileReferences = useCallback(async () => {
+    const next = !inlineSmallFileReferences
+    const bridge = getBridge()
+    if (!bridge?.preferences?.set) return
+    const res = await bridge.preferences.set({ inlineSmallFileReferences: next })
+    if (!res.ok) {
+      onToast?.(res.error || '保存失败')
+      return
+    }
+    setInlineSmallFileReferences(res.data.inlineSmallFileReferences === true)
+    onToast?.(next ? '已开启：小于 4 KiB 的文本文件会随 @file 引用内联' : '已关闭：@file 默认只发送路径引用')
+  }, [inlineSmallFileReferences, onToast])
 
   const saveCompactionThreshold = useCallback(async () => {
     const bridge = getBridge()
@@ -197,6 +212,21 @@ export function ChatBehaviorSettingsPanel({ onToast }: { onToast?: (msg: string)
         >
           <span>{enableRepoMap ? '仓库结构图：开' : '仓库结构图：关'}</span>
         </button>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={inlineSmallFileReferences}
+          className={`chat-self-healing-toggle ${inlineSmallFileReferences ? 'is-active' : ''}`}
+          disabled={preferencesLoading}
+          onClick={() => void saveInlineSmallFileReferences()}
+          style={{ marginTop: 8 }}
+        >
+          <span>{inlineSmallFileReferences ? '小文件内联：开' : '小文件内联：关'}</span>
+          <span className="chat-self-healing-toggle-state">{preferencesLoading ? '读取中…' : '切换设置'}</span>
+        </button>
+        <p style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--text-muted, #888)' }}>
+          默认只发送工作区相对路径；开启后仅内联小于 4 KiB 的 UTF-8 文本，并附文件修改时间。
+        </p>
         <label style={{ display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'center', gap: 10, marginTop: 12, fontSize: 12 }}>
           <span>DSH 自动压缩阈值：{Math.round(compactionThresholdRatio * 100)}%</span>
           <input
