@@ -2,7 +2,7 @@
 
 > **索引：**阶段状态见 [`taskweaver-roadmap-2026-q4.md`](taskweaver-roadmap-2026-q4.md)；发版节奏见 [`release-rhythm-v1.2.md`](release-rhythm-v1.2.md)；headless 见 [`taskweaver-headless.md`](taskweaver-headless.md)。
 
-> **当前执行权威（2026-10-13）：**面向顶级 Coding Agent 的可靠性与能力差距，以本文 §16 的 `CA-*` 任务 ID 和状态为唯一执行清单。§0–15 包含 2026-10-07 的计划与历史基线；与 §16 或当前源码冲突时，不要把旧状态当成已验收事实。当前审计基线为 `0668e6562`；审计未运行测试或构建。创建本计划时 `src/features/settings/SettingsPage.tsx`、`src/styles.css` 有未提交修改，执行任务前必须重新检查并保留。
+> **当前执行权威（2026-10-13）：**面向顶级 Coding Agent 的可靠性与能力差距，以本文 §16 的 `CA-*` 任务 ID 和状态为唯一执行清单。§0–15 包含 2026-10-07 的计划与历史基线；与 §16 或当前源码冲突时，不要把旧状态当成已验收事实。静态审计参考代码快照为 `0668e6562`；执行基线和后续验证见 §16.6。创建本计划时 `src/features/settings/SettingsPage.tsx`、`src/styles.css` 有未提交修改，执行任务前必须重新检查并保留。
 
 初始修订记录（2026-10-07）：**分支 `main`**、**HEAD `80b3e040`**（与 `origin/main` 一致）、**tag `v1.2.1`**。本轮 BCDE 状态以 §15 为准；工作区改动尚未提交。
 
@@ -435,7 +435,7 @@ TaskWeaver 当前是 **macOS 优先的本地桌面 Coding Agent**。本计划遵
 
 | ID | 优先级 | 发现 | 证据与当前判断 | 状态 |
 |---|---|---|---|---|
-| CA-R01 | P0 | Shell/RPC 终端请求的 sender 缺少终端服务要求的整数窗口 ID；注册 owner 时可能直接失败 | [`register-terminal-ipc.mjs`](../backend/register-terminal-ipc.mjs) 要求 `event.sender.id`；Shell sender 定义见 [`shell-platform.mjs`](../backend/platform/shell-platform.mjs) | 源码确认；待复现与修复 |
+| CA-R01 | P0 | Shell/RPC 终端请求的 sender 缺少终端服务要求的整数窗口 ID；注册 owner 时可能直接失败 | [`register-terminal-ipc.mjs`](../backend/register-terminal-ipc.mjs)；Shell sender 定义见 [`shell-platform.mjs`](../backend/platform/shell-platform.mjs) | 已修复并通过 targeted 验证；见 §16.6 |
 | CA-R02 | P1 | `apply_patch` 把 CRLF 内容归一成 LF 后写回，可能导致整文件换行格式变化 | [`apply-patch.ts`](../packages/runtime/fs/tool-fs/src/apply-patch.ts)；普通 `editText` 会恢复换行格式 | 源码确认；待回归测试 |
 | CA-R03 | P1 | 首次运行提示读写路径可能回退到 `process.cwd()`，而不是应用 user data 目录 | [`register-app-ipc.mjs`](../backend/ipc/register-app-ipc.mjs) 与 IPC 装配路径 | 静态调用链确认；待针对路径修复 |
 | CA-R04 | P1 | Planner 输出样例仍含不存在的 `desktop/main.cjs`，配置中也有旧 `desktop/` 路径 | [`plan-and-execute.mjs`](../backend/orchestration/plan-and-execute.mjs)、`.taskweaver/planner-hints.json` | 源码确认；待改为从当前索引选路径并校验 |
@@ -455,9 +455,11 @@ TaskWeaver 当前是 **macOS 优先的本地桌面 Coding Agent**。本计划遵
 
 #### CA-00：冻结基线与任务评测设计（分为 A/B 两个检查点）
 
-- [ ] **CA-00A（数小时）：**重新核对 `git status`、当前分支/HEAD、当前 `AGENTS.md`、pnpm/Node 版本和测试入口；记录未提交用户改动，并使用隔离副本或 worktree 做基线工作，不覆盖、不纳入用户文件。
-- [ ] CA-R01 是 P0：完成 CA-00A 后立即复现并推进 CA-10 中的 CA-R01，不等待完整任务集；记录修复前后代码快照与针对性证据。
+- [x] **CA-00A 初始冻结：**复核了 `git status`、分支/HEAD、`AGENTS.md`、pnpm/Node 版本和测试入口；具体快照见本节执行记录。
+- [ ] CA-00A 基准隔离：开始 CA-00B 任务评测前，使用干净 worktree/副本冻结修复前快照；不要把 SettingsPage/CSS 用户改动纳入基准。
+- [x] CA-R01 是 P0：初始冻结后立即处理，已记录修复前代码基线、修复提交与针对性证据；无需等待完整任务集。
 - [ ] **CA-00B（1–2 天）：**在固定仓库快照上建初始任务集，覆盖仓库问答、单点 Bug、跨文件功能、重构、测试修复、权限/文件边界、MCP、DAG/取消/恢复。至少 20 个不同任务作为 smoke/eval 开始集；20 项本身不构成发布统计门槛。
+- [x] 已盘点现有评测：`eval/orchestration/tasks.json` 是 10 个确定性 mock DAG 任务；`eval/prompts` 有 30 个提示行为样例；`parity-bench` 评估 Host 生命周期/队列/DAG。它们都不能单独代表真实工具调用下的端到端编码质量，不能直接当作本计划 baseline。
 - [ ] 固定并记录 repo commit、模型/Provider、路由策略、权限、干净工作区副本、提示和验证命令；用相同设置比较原始快照与候选版本，避免把已有用户工作区修改混入结果。
 - [ ] 每个任务评分：验收通过、隐藏/针对性测试、回归、scope/权限违规、完成声明是否有执行证据、耗时、工具调用、token/成本。保留失败样本，不从统计中剔除。
 
@@ -465,7 +467,7 @@ TaskWeaver 当前是 **macOS 优先的本地桌面 Coding Agent**。本计划遵
 
 #### CA-10：修复阻断执行与数据完整性的缺陷（3–5 天）
 
-- [ ] **CA-R01 终端身份：**为 Shell 与 RPC 路径定义稳定、隔离的 owner 身份，不伪造 Electron sender。验证创建、数据事件、停止、sender 销毁、跨 owner 拒绝及异常清理。
+- [x] **CA-R01 终端身份：**Electron 继续用真实 `sender.id`；Shell/RPC 使用稳定的 sender 对象身份，不伪造 Electron sender。专项测试覆盖实际 ShellPlatform 无 ID 创建、data/exit 推送、owner stop、sender 销毁、跨 owner 拒绝和创建异常清理。提交见 §16.6。
 - [ ] **CA-R02 换行：**`apply_patch` 保留 CRLF/LF、无末尾换行和混合换行输入的约定；若混合换行不支持，要明确拒绝或采取有据可依的策略，不能静默重写整文件。
 - [ ] **CA-R03 用户数据路径：**从应用平台层显式注入唯一 user data 路径；移除生产回退到 cwd 的路径；覆盖读取旧标记、写入新标记和目录不可写等失败场景。
 - [ ] **CA-R04 Planner 路径：**提示样例和 planner hints 不写死迁移前路径；规划结果必须根据当前工作区索引验证存在性。无效路径应要求修正或报告失败，不得悄悄作为有效 scope 执行。
@@ -553,8 +555,8 @@ Node 构建入口已知分为两条：根 `package.json` 的 `app`/`app:dmg` →
 
 | ID | 状态 | 当前结论/下一步 |
 |---|---|---|
-| CA-00 | TODO | CA-00A 冻结工作区并保护用户改动；CA-R01 P0 后完成 CA-00B 任务集和 baseline |
-| CA-10 | TODO | 优先处理终端身份、换行与用户数据路径 |
+| CA-00 | IN PROGRESS | 初始冻结和既有评测盘点已完成；下一步在隔离快照中建立 20 项 smoke 任务集并设计可复跑的真实工具调用评测 |
+| CA-10 | IN PROGRESS | CA-R01 已验证；继续复核/处理 CA-R02–R11 |
 | CA-20 | TODO | 建立测试入口清单并闭合关键回归门禁 |
 | CA-30 | TODO | 先测 Repo Map/LSP/符号入口，再决定索引改造 |
 | CA-40 | TODO | 审计 DAG 证据、取消、恢复和隔离路径 |
@@ -568,7 +570,7 @@ Node 构建入口已知分为两条：根 `package.json` 的 `app`/`app:dmg` →
 
 | ID | 状态 | 责任人 | 相关提交 | 验证命令与结果 | 下一步 / 未决问题 |
 |---|---|---|---|---|---|
-| CA-R01 | CONFIRMED（静态） | 未分配 | — | NOT RUN | P0：最小化复现 Shell/RPC owner 注册失败并修复 |
+| CA-R01 | VERIFIED | Codex 主 Agent | `94a47fbb0`, `2d659932e` | `node scripts/test-terminal-service.mjs` PASS；`node scripts/test-terminal-output-throttle.mjs` PASS；`pnpm run test:terminal` 在 pnpm 自动依赖检查阶段因无 TTY 中止，未启动测试 | Shell/RPC sender object identity；测试覆盖 actual ShellPlatform 生命周期、隔离、数据推送、stop 与失败清理 |
 | CA-R02 | CONFIRMED（静态） | 未分配 | — | NOT RUN | 覆盖 CRLF/LF、无末尾换行和混合换行约定 |
 | CA-R03 | CONFIRMED（调用链） | 未分配 | — | NOT RUN | 确认 userDataPath 注入并覆盖写入失败 |
 | CA-R04 | CONFIRMED（静态） | 未分配 | — | NOT RUN | 校验 Planner 输出路径存在且属于当前 workspace |
@@ -580,4 +582,6 @@ Node 构建入口已知分为两条：根 `package.json` 的 `app`/`app:dmg` →
 | CA-R10 | TODO（待分诊） | 未分配 | — | NOT RUN | 校验异常 loader 结果与并发冷启动，不假定已复现 |
 | CA-R11 | TODO（威胁建模） | 未分配 | — | NOT RUN | 明确环境变量来源、loopback 页面控制和 token 能力 |
 
-**当前续接点：CA-00A，然后快速处理 CA-R01 P0。**首次执行时重新检查 SettingsPage/CSS 工作区修改；这些改动不属于本计划，不得覆盖或纳入本计划提交。
+**CA-00A 执行记录（2026-10-13）：**分支 `main`；冻结前 HEAD `f5624a108`；Node `v22.23.1`；pnpm `11.7.0`；已读取根 `AGENTS.md`。当时存在未提交的 `src/features/settings/SettingsPage.tsx` 与 `src/styles.css` 修改，已保留且未纳入 CA-R01 提交。CA-R01 修复提交 `94a47fbb0`，补充专项覆盖提交 `2d659932e`。
+
+**当前续接点：CA-00B。**现有评测工具已盘点，但它们不是端到端编码质量 baseline；下一步在干净隔离快照中构建任务集，基线使用冻结前代码快照 `f5624a108`。所有后续写入继续避开 SettingsPage/CSS 用户改动。
