@@ -2,6 +2,7 @@
 /** CLI entry: desktop backend + Shell HTTP (Swift / WebView2 / dev browser). */
 import { startDesktopBackend } from '../start-desktop-backend.mjs'
 import { stopOpenCodexProxyForApp } from '../ensure-opencodex-proxy.mjs'
+import { createShellDevUiEntryUrl } from './dev-ui-url.mjs'
 
 if (!process.env.TASKWEAVER_RESOURCES_PATH && process.env.TASKWEAVER_PACKAGED === '1') {
   console.error('[shell] TASKWEAVER_RESOURCES_PATH is required when TASKWEAVER_PACKAGED=1')
@@ -15,15 +16,12 @@ if (process.env.TASKWEAVER_DEV_HTTP !== '1'
   process.exit(2)
 }
 
-const shellToken = process.env.TASKWEAVER_SHELL_TOKEN || null
 const { app, http, startup } = await startDesktopBackend({ serveHttp: true })
 
 console.log(`[TaskWeaver] shell-server: ${http.baseUrl}`)
 if (process.env.TASKWEAVER_DEV_HTTP === '1') {
-  const devUiQuery = new URLSearchParams({ shellApi: http.baseUrl })
-  const devUiUrl = new URL(`http://127.0.0.1:5173/?${devUiQuery}`)
-  if (shellToken) devUiUrl.hash = `shellToken=${encodeURIComponent(shellToken)}`
-  console.log(`[TaskWeaver] shell-ui-dev: ${devUiUrl}`)
+  const devUiEntryUrl = createShellDevUiEntryUrl(http.baseUrl)
+  console.log(`[TaskWeaver] shell-ui-dev: ${devUiEntryUrl}`)
 }
 
 let shutdownPromise = null

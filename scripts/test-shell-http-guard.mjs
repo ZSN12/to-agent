@@ -57,6 +57,72 @@ try {
   else process.env.TASKWEAVER_PACKAGED = previousPackaged
 }
 
+const previousPackagedForDefaults = process.env.TASKWEAVER_PACKAGED
+process.env.TASKWEAVER_PACKAGED = '1'
+let packagedDefaultServer
+try {
+  assert.throws(() => startShellHttpServer({
+    authToken,
+    developmentUiPort: 5173,
+  }), /开发版 UI 跳转只允许/, 'packaged mode cannot expose the development redirect')
+
+  packagedDefaultServer = await startShellHttpServer({
+    port: 0,
+    host: '127.0.0.1',
+    authToken,
+  })
+} finally {
+  if (previousPackagedForDefaults === undefined) delete process.env.TASKWEAVER_PACKAGED
+  else process.env.TASKWEAVER_PACKAGED = previousPackagedForDefaults
+}
+try {
+  const packagedOrigin = new URL(packagedDefaultServer.baseUrl).origin
+  const packagedPreflight = await request(`${packagedDefaultServer.baseUrl}/shell/v1/invoke`, {
+    method: 'OPTIONS',
+    headers: {
+      Origin: packagedOrigin,
+      'Access-Control-Request-Method': 'POST',
+      'Access-Control-Request-Headers': 'content-type,x-taskweaver-shell-token',
+    },
+  })
+  assert.equal(packagedPreflight.status, 204)
+  assert.equal(packagedPreflight.headers['access-control-allow-origin'], packagedOrigin)
+
+  const devOriginPreflight = await request(`${packagedDefaultServer.baseUrl}/shell/v1/invoke`, {
+    method: 'OPTIONS',
+    headers: {
+      Origin: 'http://127.0.0.1:5173',
+      'Access-Control-Request-Method': 'POST',
+      'Access-Control-Request-Headers': 'content-type,x-taskweaver-shell-token',
+    },
+  })
+  assert.equal(devOriginPreflight.status, 403, 'packaged defaults must not trust the development server origin')
+  assert.equal(devOriginPreflight.headers['access-control-allow-origin'], undefined)
+} finally {
+  packagedDefaultServer.server.closeAllConnections?.()
+  await new Promise((resolve) => packagedDefaultServer.server.close(resolve))
+}
+
+const devRedirectServer = await startShellHttpServer({
+  port: 0,
+  host: '127.0.0.1',
+  authToken,
+  allowDevelopmentOrigins: true,
+  developmentUiPort: 5173,
+})
+try {
+  const devUiEntry = await request(`${devRedirectServer.baseUrl}/__taskweaver/dev-ui`)
+  assert.equal(devUiEntry.status, 302)
+  assert.equal(devUiEntry.headers['cache-control'], 'no-store')
+  const redirectTarget = new URL(devUiEntry.headers.location)
+  assert.equal(redirectTarget.origin, 'http://127.0.0.1:5173')
+  assert.equal(redirectTarget.searchParams.get('shellApi'), devRedirectServer.baseUrl)
+  assert.equal(new URLSearchParams(redirectTarget.hash.slice(1)).get('shellToken'), authToken)
+} finally {
+  devRedirectServer.server.closeAllConnections?.()
+  await new Promise((resolve) => devRedirectServer.server.close(resolve))
+}
+
 const { server, baseUrl } = await startShellHttpServer({
   port: 0,
   host: '127.0.0.1',

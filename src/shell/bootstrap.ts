@@ -17,18 +17,25 @@ function readShellApiBase(): string | null {
 }
 
 function readShellApiToken(): string | null {
-  const fragment = window.location.hash.startsWith('#')
-    ? window.location.hash.slice(1)
-    : window.location.hash
-  const params = new URLSearchParams(fragment)
-  const fromFragment = params.get('shellToken')
-  if (fromFragment) return fromFragment
-  const query = new URLSearchParams(window.location.search)
-  const fromQuery = query.get('shellToken')
-  if (fromQuery) return fromQuery
-  const meta = document.querySelector('meta[name="taskweaver-shell-token"]')
-  const fromMeta = meta?.getAttribute('content')
-  return fromMeta || null
+  const url = new URL(window.location.href)
+  const fragmentParams = new URLSearchParams(url.hash.slice(1))
+  const token = fragmentParams.get('shellToken')
+  const queryParams = new URLSearchParams(url.search)
+  const hadFragmentToken = fragmentParams.has('shellToken')
+  const hadQueryToken = queryParams.has('shellToken')
+
+  fragmentParams.delete('shellToken')
+  queryParams.delete('shellToken')
+  if (hadFragmentToken || hadQueryToken) {
+    url.hash = fragmentParams.size > 0 ? fragmentParams.toString() : ''
+    url.search = queryParams.size > 0 ? queryParams.toString() : ''
+    window.history.replaceState(
+      window.history.state,
+      '',
+      `${url.pathname}${url.search}${url.hash}`,
+    )
+  }
+  return token || null
 }
 
 /** Install HTTP bridge when UI runs inside a native shell (no Electron preload). */

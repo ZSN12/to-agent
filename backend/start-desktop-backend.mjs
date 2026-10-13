@@ -37,11 +37,15 @@ export async function startDesktopBackend({
 
   let http
   try {
+    const isDevelopmentHttp = process.env.TASKWEAVER_DEV_HTTP === '1'
+      && process.env.TASKWEAVER_PACKAGED !== '1'
+      && process.env.TASKWEAVER_PACKAGED !== 'true'
     http = await startHttpServer({
       host,
       port,
       uiRoot: process.env.TASKWEAVER_SHELL_UI_ROOT,
       authToken: shellToken,
+      developmentUiPort: isDevelopmentHttp && shellToken ? 5173 : null,
     })
   } catch (error) {
     await cleanupFailedStartup(platform.app, startup)

@@ -60,15 +60,22 @@ export function startShellHttpServer({
   allowedOrigins,
   allowDevelopmentOrigins = process.env.TASKWEAVER_PACKAGED !== '1' && process.env.TASKWEAVER_PACKAGED !== 'true',
   authToken = process.env.TASKWEAVER_SHELL_TOKEN || null,
+  developmentUiPort = null,
   // One 100 MiB PDF is accepted by chat attachments; base64 JSON needs ~134 MiB.
   maxRequestBodyBytes = 144 * 1024 * 1024,
 } = {}) {
   if (!isLoopbackHost(host)) {
     throw new Error('Shell HTTP 服务仅允许绑定到 loopback 地址')
   }
-  if ((process.env.TASKWEAVER_PACKAGED === '1' || process.env.TASKWEAVER_PACKAGED === 'true')
+  const isPackaged = process.env.TASKWEAVER_PACKAGED === '1' || process.env.TASKWEAVER_PACKAGED === 'true'
+  if (isPackaged
     && (typeof authToken !== 'string' || authToken.length < 32)) {
     throw new Error('打包版 Shell HTTP 服务必须配置随机访问令牌')
+  }
+  if (developmentUiPort !== null && (!Number.isInteger(developmentUiPort)
+    || developmentUiPort < 1 || developmentUiPort > 65535
+    || isPackaged || !allowDevelopmentOrigins || typeof authToken !== 'string' || authToken.length === 0)) {
+    throw new Error('开发版 UI 跳转只允许在有令牌的显式开发模式下启用')
   }
 
   const explicitAllowedOrigins = allowedOrigins == null ? null : new Set(allowedOrigins)
@@ -88,6 +95,19 @@ export function startShellHttpServer({
       }
       const cors = corsHeaders(origin, Boolean(origin))
       const url = new URL(req.url ?? '/', `http://${req.headers.host ?? host}`)
+      if (req.method === 'GET' && url.pathname === '/__taskweaver/dev-ui'
+        && developmentUiPort) {
+        const targetHost = host.includes(':') && !host.startsWith('[') ? `[${host}]` : host
+        const target = new URL(`http://127.0.0.1:${developmentUiPort}/`)
+        target.searchParams.set('shellApi', `http://${targetHost}:${listeningPort}`)
+        target.hash = new URLSearchParams({ shellToken: authToken }).toString()
+        res.writeHead(302, {
+          Location: target.toString(),
+          'Cache-Control': 'no-store',
+        })
+        res.end()
+        return
+      }
       if (req.method === 'OPTIONS') {
         res.writeHead(204, cors)
         res.end()
