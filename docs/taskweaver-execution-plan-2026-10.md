@@ -437,7 +437,7 @@ TaskWeaver 当前是 **macOS 优先的本地桌面 Coding Agent**。本计划遵
 |---|---|---|---|---|
 | CA-R01 | P0 | Shell/RPC 终端请求的 sender 缺少终端服务要求的整数窗口 ID；注册 owner 时可能直接失败 | [`register-terminal-ipc.mjs`](../backend/register-terminal-ipc.mjs)；Shell sender 定义见 [`shell-platform.mjs`](../backend/platform/shell-platform.mjs) | 已修复并通过 targeted 验证；见 §16.6 |
 | CA-R02 | P1 | `apply_patch` 把 CRLF 内容归一成 LF 后写回，可能导致整文件换行格式变化 | [`apply-patch.ts`](../packages/runtime/fs/tool-fs/src/apply-patch.ts)；普通 `editText` 会恢复换行格式 | 已修复：统一 CRLF/LF 保留；混合换行明确拒绝；见 §16.6 |
-| CA-R03 | P1 | 首次运行提示读写路径可能回退到 `process.cwd()`，而不是应用 user data 目录 | [`register-app-ipc.mjs`](../backend/ipc/register-app-ipc.mjs) 与 IPC 装配路径 | 静态调用链确认；待针对路径修复 |
+| CA-R03 | P1 | 首次运行提示读写路径可能回退到 `process.cwd()`，而不是应用 user data 目录 | [`register-app-ipc.mjs`](../backend/ipc/register-app-ipc.mjs) 与 IPC 装配路径 | 已修复：显式注入 userDataPath、移除 cwd 回退，并通过路径隔离专项测试；见 §16.6 |
 | CA-R04 | P1 | Planner 输出样例仍含不存在的 `desktop/main.cjs`，配置中也有旧 `desktop/` 路径 | [`plan-and-execute.mjs`](../backend/orchestration/plan-and-execute.mjs)、`.taskweaver/planner-hints.json` | 源码确认；待改为从当前索引选路径并校验 |
 | CA-R05 | P1 | MCP 工具缓存身份仅包含 URL；相同 URL 换认证身份时可能短暂复用旧工具 schema | [`remote-tool-cache.ts`](../packages/runtime/mcp/mcp-client/src/remote-tool-cache.ts)、`connection.ts` | 风险成立；不是已确认的权限绕过；待定义安全缓存语义 |
 | CA-R06 | P2 | Python PTY 后备模式的 wrapper 与 shell 进程组清理可能不完整 | [`terminal-service.mjs`](../backend/terminal-service.mjs)、[`pty-shim.py`](../backend/pty-shim.py) | 静态推断；必须先复现，不按既定 Bug 修复 |
@@ -456,12 +456,14 @@ TaskWeaver 当前是 **macOS 优先的本地桌面 Coding Agent**。本计划遵
 #### CA-00：冻结基线与任务评测设计（分为 A/B 两个检查点）
 
 - [x] **CA-00A 初始冻结：**复核了 `git status`、分支/HEAD、`AGENTS.md`、pnpm/Node 版本和测试入口；具体快照见本节执行记录。
-- [ ] CA-00A 基准隔离：开始 CA-00B 任务评测前，使用干净 worktree/副本冻结修复前快照；不要把 SettingsPage/CSS 用户改动纳入基准。
+- [x] CA-00A 基准隔离：建立 detached 干净 worktree，冻结修复前完整提交 `f5624a10880efd2841df4f0a45fb0b8eaed5beba`；SettingsPage/CSS 用户改动未进入基线。
 - [x] CA-R01 是 P0：初始冻结后立即处理，已记录修复前代码基线、修复提交与针对性证据；无需等待完整任务集。
-- [ ] **CA-00B（1–2 天）：**在固定仓库快照上建初始任务集，覆盖仓库问答、单点 Bug、跨文件功能、重构、测试修复、权限/文件边界、MCP、DAG/取消/恢复。至少 20 个不同任务作为 smoke/eval 开始集；20 项本身不构成发布统计门槛。
+- [x] **CA-00B 初始任务集：**在冻结快照上建立 20 项任务，覆盖仓库问答、单点/跨文件修复、重构、测试、权限/文件边界、MCP、DAG/取消/恢复；任务提示、验收、验证命令、风险标签和禁止副作用均版本化在 `eval/coding-agent/tasks.json`。
+- [x] **CA-00B 真实工具调用方法：**复用 headless + 本机 Host 历史；新增默认 `ask`、可选 `readonly`/`on-risk`，不开放 `full`，无 UI 的高风险审批会被拒绝并记入 `permissionEvents`。验证脚本仍可通过无模型 fixture 运行。
 - [x] 已盘点现有评测：`eval/orchestration/tasks.json` 是 10 个确定性 mock DAG 任务；`eval/prompts` 有 30 个提示行为样例；`parity-bench` 评估 Host 生命周期/队列/DAG。它们都不能单独代表真实工具调用下的端到端编码质量，不能直接当作本计划 baseline。
-- [ ] 固定并记录 repo commit、模型/Provider、路由策略、权限、干净工作区副本、提示和验证命令；用相同设置比较原始快照与候选版本，避免把已有用户工作区修改混入结果。
-- [ ] 每个任务评分：验收通过、隐藏/针对性测试、回归、scope/权限违规、完成声明是否有执行证据、耗时、工具调用、token/成本。保留失败样本，不从统计中剔除。
+- [ ] 固定并记录被测 Agent commit、Z Runtime 版本/哈希、模型/Provider、路由、权限、干净任务工作区和重复次数；通过真实 Provider 运行原始快照与候选版本。当前没有执行模型请求。
+- [x] 冻结初始评分结构：安全硬失败条件、100 分权重（正确性 50、范围/回归 20、工具与验证证据 20、报告准确性 10），资源指标单独报告；缺失费用记为 null/unavailable。
+- [ ] 逐项运行后记录验收、隐藏/针对性测试、回归、scope/权限违规、声明证据、耗时、工具调用和 token/成本；保留失败样本，不从统计中剔除。
 
 **验收：**CA-00A 有可恢复的基线标识与用户改动清单；P0 不被 benchmark 排期阻塞。CA-00B 的样本能回溯到代码快照与工具/测试记录；候选比较前冻结评分规则和阈值。
 
@@ -469,7 +471,7 @@ TaskWeaver 当前是 **macOS 优先的本地桌面 Coding Agent**。本计划遵
 
 - [x] **CA-R01 终端身份：**Electron 继续用真实 `sender.id`；Shell/RPC 使用稳定的 sender 对象身份，不伪造 Electron sender。专项测试覆盖实际 ShellPlatform 无 ID 创建、data/exit 推送、owner stop、sender 销毁、跨 owner 拒绝和创建异常清理。提交见 §16.6。
 - [x] **CA-R02 换行：**`apply_patch` 保留 CRLF/LF 和无末尾换行；混合换行明确拒绝，避免静默重写整文件。专项结果见 §16.6。
-- [ ] **CA-R03 用户数据路径：**从应用平台层显式注入唯一 user data 路径；移除生产回退到 cwd 的路径；覆盖读取旧标记、写入新标记和目录不可写等失败场景。
+- [x] **CA-R03 用户数据路径：**从应用 IPC 装配层显式注入唯一 user data 路径；移除生产回退到 cwd 的路径；覆盖配置路径读取、dismiss 写入、缺失路径与写入失败。
 - [ ] **CA-R04 Planner 路径：**提示样例和 planner hints 不写死迁移前路径；规划结果必须根据当前工作区索引验证存在性。无效路径应要求修正或报告失败，不得悄悄作为有效 scope 执行。
 - [ ] **CA-R05 MCP 缓存：**制定缓存身份、工具禁用/替换时序及旧 schema 失效规则。身份指纹不得保存或写日志明文凭据；同 URL 换账号、header/token 变化、刷新失败、并发连接均须可测。新权限工具同步完成前不得把旧 schema 当成新身份的可执行能力。
 - [ ] **CA-R06 PTY：**先通过取消/关闭测试复现是否遗留 shell；如复现，再定义 macOS 支持范围内的进程组信号、超时和清理语义。
@@ -555,8 +557,8 @@ Node 构建入口已知分为两条：根 `package.json` 的 `app`/`app:dmg` →
 
 | ID | 状态 | 当前结论/下一步 |
 |---|---|---|
-| CA-00 | IN PROGRESS | 初始冻结和既有评测盘点已完成；下一步在隔离快照中建立 20 项 smoke 任务集并设计可复跑的真实工具调用评测 |
-| CA-10 | IN PROGRESS | CA-R01、CA-R02 已验证；继续复核/处理 CA-R03–R11 |
+| CA-00 | IN PROGRESS | 冻结 worktree、20 项任务集和 headless Host 调用方法已就绪；固定 Runtime 哈希/模型设置并运行仍未完成 |
+| CA-10 | IN PROGRESS | CA-R01、CA-R02、CA-R03 已验证；继续复核/处理 CA-R04–R11 |
 | CA-20 | TODO | 建立测试入口清单并闭合关键回归门禁 |
 | CA-30 | TODO | 先测 Repo Map/LSP/符号入口，再决定索引改造 |
 | CA-40 | TODO | 审计 DAG 证据、取消、恢复和隔离路径 |
@@ -584,6 +586,10 @@ Node 构建入口已知分为两条：根 `package.json` 的 `app`/`app:dmg` →
 
 **CA-00A 执行记录（2026-10-13）：**分支 `main`；冻结前 HEAD `f5624a108`；Node `v22.23.1`；pnpm `11.7.0`；已读取根 `AGENTS.md`。当时存在未提交的 `src/features/settings/SettingsPage.tsx` 与 `src/styles.css` 修改，已保留且未纳入 CA-R01 提交。CA-R01 修复提交 `94a47fbb0`，补充专项覆盖提交 `2d659932e`。
 
+**CA-00A 基准隔离执行记录（2026-10-13）：**Codex managed detached worktree `ca00-baseline` 指向完整提交 `f5624a10880efd2841df4f0a45fb0b8eaed5beba`；`git status --short` 为空。worktree 不包含主工作树的 SettingsPage/CSS 修改。依赖和 `vendor/taskweaver-z-runtime` 属忽略/本机产物，基线 worktree 未复制它们。
+
 **CA-R03 执行记录（2026-10-13）：**首次运行提示 IPC 现在只使用 `wireBackendIpc` 注入的应用 user data 路径，缺失配置在注册期失败；读取提示、dismiss 持久化与写入错误均增加 cwd 隔离覆盖。提交 `7c7bdaf74`；`node scripts/test-legacy-secrets.mjs` PASS。
 
-**当前续接点：CA-00B。**现有评测工具已盘点，但它们不是端到端编码质量 baseline；下一步在干净隔离快照中构建任务集，基线使用冻结前代码快照 `f5624a108`。所有后续写入继续避开 SettingsPage/CSS 用户改动。
+**CA-00B 执行记录（2026-10-13）：**增加 20 项固定任务集、评分结构与 Host 工具调用运行规程；数据集 SHA-256 `17f2c99fe1cdf0c6fbec0b8009a54ae1143b1077f1e9cbf17e8836bd21f0210f`。headless `on-risk` 与权限审计记录提交 `ff400e532`；任务集/评测规程提交 `0cc724af4`。`node scripts/test-headless-cli.mjs` PASS；JSON 字段、20 个唯一任务、权限模式和 100 分权重通过结构检查。没有调用模型或外部服务；Runtime 哈希、Provider/model 固定与真实运行仍未执行。基线目标仍为冻结提交 `f5624a108`。
+
+**当前续接点：CA-R04。**CA-00B 的任务和执行规程已经落地；真实比较等被测 Runtime 与 Provider 配置固定后进行。所有后续写入继续避开 SettingsPage/CSS 用户改动。
