@@ -92,6 +92,63 @@ describe('apply_patch tool', () => {
     expect(await readFile(join(workspace, 'added.txt'), 'utf8')).toBe('created\n')
   })
 
+  it.skipIf(process.platform === 'win32')('preserves CRLF when updating an existing file', async () => {
+    const { ctx, workspace } = await boot()
+    const target = join(workspace, 'windows-lines.txt')
+    await writeFile(target, 'alpha\r\nold\r\nomega\r\n')
+    const result = await run(ctx, [
+      '*** Begin Patch',
+      '*** Update File: windows-lines.txt',
+      '@@',
+      ' alpha',
+      '-old',
+      '+new',
+      ' omega',
+      '*** End Patch',
+    ].join('\n'))
+
+    expect(result.isError).toBe(false)
+    expect(await readFile(target, 'utf8')).toBe('alpha\r\nnew\r\nomega\r\n')
+  })
+
+  it.skipIf(process.platform === 'win32')('preserves a missing final newline when updating an LF file', async () => {
+    const { ctx, workspace } = await boot()
+    const target = join(workspace, 'no-final-newline.txt')
+    await writeFile(target, 'old')
+    const result = await run(ctx, [
+      '*** Begin Patch',
+      '*** Update File: no-final-newline.txt',
+      '@@',
+      '-old',
+      '+new',
+      '*** End Patch',
+    ].join('\n'))
+
+    expect(result.isError).toBe(false)
+    expect(await readFile(target, 'utf8')).toBe('new')
+  })
+
+  it.skipIf(process.platform === 'win32')('rejects mixed line endings without modifying the file', async () => {
+    const { ctx, workspace } = await boot()
+    const target = join(workspace, 'mixed-lines.txt')
+    const original = 'alpha\r\nold\nomega\r\n'
+    await writeFile(target, original)
+    const result = await run(ctx, [
+      '*** Begin Patch',
+      '*** Update File: mixed-lines.txt',
+      '@@',
+      ' alpha',
+      '-old',
+      '+new',
+      ' omega',
+      '*** End Patch',
+    ].join('\n'))
+
+    expect(result.isError).toBe(true)
+    expect(text(result)).toContain('mixed line endings are unsupported')
+    expect(await readFile(target, 'utf8')).toBe(original)
+  })
+
   it.skipIf(process.platform === 'win32')('denies an outside target before publishing an earlier in-workspace add', async () => {
     const { ctx, workspace, outside } = await boot()
     const result = await run(ctx, [

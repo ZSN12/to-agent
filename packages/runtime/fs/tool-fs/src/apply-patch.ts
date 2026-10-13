@@ -116,6 +116,17 @@ export function parseCodexPatch(patch: string): ParsedPatchFile[] {
 }
 
 function applyHunks(original: string, hunks: readonly PatchHunk[], path: string): string {
+  let crlfCount = 0
+  let lfCount = 0
+  for (let index = 0; index < original.length; index += 1) {
+    if (original[index] !== '\n') continue
+    if (original[index - 1] === '\r') crlfCount += 1
+    else lfCount += 1
+  }
+  if (crlfCount > 0 && lfCount > 0) {
+    fail(`mixed line endings are unsupported for ${path}; convert it to a single style before patching`)
+  }
+  const lineEnding = crlfCount > 0 ? '\r\n' : '\n'
   const trailingNewline = original.endsWith('\n')
   const lines = original.replaceAll('\r\n', '\n').split('\n')
   if (trailingNewline) lines.pop()
@@ -136,7 +147,7 @@ function applyHunks(original: string, hunks: readonly PatchHunk[], path: string)
 
   const after = `${lines.join('\n')}${trailingNewline && lines.length > 0 ? '\n' : ''}`
   if (after === original.replaceAll('\r\n', '\n')) fail(`patch makes no change to ${path}`)
-  return after
+  return lineEnding === '\r\n' ? after.replaceAll('\n', '\r\n') : after
 }
 
 function decodeText(bytes: Uint8Array, path: string): string {
