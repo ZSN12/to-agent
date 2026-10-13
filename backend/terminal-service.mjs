@@ -84,6 +84,7 @@ function findSystemPython() {
 export function createTerminalService({
   sandbox = { confineArgv, probeSandboxSupport },
   getEnv = getSanitizedEnv,
+  nodePty: ptyDriver = nodePty,
 } = {}) {
   /** @type {Map<string, { id: string, title: string, cwd: string, driver: 'node-pty' | 'python-shim', pty?: any, process?: import('node:child_process').ChildProcess, pid: number, isPty: boolean, shell: string, cols: number, rows: number }>} */
   const sessions = new Map()
@@ -186,9 +187,9 @@ export function createTerminalService({
     let sessionInfo = null
 
     // 优先方案 1：node-pty 原生模块
-    if (nodePty && typeof nodePty.spawn === 'function') {
+    if (ptyDriver && typeof ptyDriver.spawn === 'function') {
       try {
-        const ptyProcess = nodePty.spawn(invocation.program, invocation.args, {
+        const ptyProcess = ptyDriver.spawn(invocation.program, invocation.args, {
           name: 'xterm-256color',
           cols: safeCols,
           rows: safeRows,
@@ -374,19 +375,15 @@ export function createTerminalService({
       if (session.driver === 'node-pty') {
         session.pty.kill()
       } else if (session.driver === 'python-shim') {
-        const pid = session.pid
-        if (process.platform !== 'win32' && pid) {
-          process.kill(-pid, 'SIGTERM')
-          setTimeout(() => {
-            try {
-              process.kill(-pid, 'SIGKILL')
-            } catch {
-              // ignore
-            }
-          }, 150)
-        } else {
-          session.process?.kill('SIGTERM')
-        }
+        const child = session.process
+        child?.kill('SIGTERM')
+        // The shim scans process groups twice, with each system process scan
+        // capped at one second, before it can finish reaping the shell.
+        const killTimer = setTimeout(() => {
+          if (!child || child.exitCode !== null || child.signalCode !== null) return
+          try { child?.kill('SIGKILL') } catch { /* ignore */ }
+        }, 5000)
+        killTimer.unref?.()
       }
     } catch {
       // ignore

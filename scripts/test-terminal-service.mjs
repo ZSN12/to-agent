@@ -245,6 +245,88 @@ try {
   assert.deepEqual(killed, [
     'idless-owned-terminal', 'shell-kill-terminal', 'shell-destroy-terminal', 'owned-terminal',
   ])
+
+  // Force the supported Python PTY fallback and prove that closing the
+  // wrapper also terminates/reaps the shell session, including a job that
+  // deliberately ignores SIGTERM.
+  const fallbackTerminal = createTerminalService({ nodePty: null })
+  if (fallbackTerminal.isPtyShimAvailable()) {
+    const fallbackRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-python-pty-cleanup-'))
+    const shellPidFile = path.join(fallbackRoot, 'shell.pid')
+    const childPidFile = path.join(fallbackRoot, 'child.pid')
+    let shellPid
+    let childPid
+    let fallbackProcessesCleaned = false
+    let fallbackExitTimer
+    let resolveFallbackExit
+    const fallbackExited = new Promise((resolve) => { resolveFallbackExit = resolve })
+    const processIsAlive = (pid) => {
+      try {
+        process.kill(pid, 0)
+        return true
+      } catch (error) {
+        return error.code === 'EPERM'
+      }
+    }
+    try {
+      const fallbackSession = await fallbackTerminal.createSession({
+        id: 'python-pty-cleanup',
+        cwd: fallbackRoot,
+        onExit: resolveFallbackExit,
+      })
+      assert.equal(fallbackSession.driver, 'python-shim')
+      const fallbackPython = fallbackTerminal.findSystemPython()
+      assert.ok(fallbackPython)
+      assert.equal(fallbackTerminal.write(
+        fallbackSession.id,
+        `echo $$ > ${shellPidFile}; ${fallbackPython} -c "import os,signal,time; signal.signal(signal.SIGTERM,signal.SIG_IGN); open('${childPidFile}','w').write(str(os.getpid())); time.sleep(120)" & wait\n`,
+      ), true)
+
+      const startupDeadline = Date.now() + 5000
+      while (Date.now() < startupDeadline) {
+        try {
+          shellPid = Number(await fs.readFile(shellPidFile, 'utf8'))
+          childPid = Number(await fs.readFile(childPidFile, 'utf8'))
+          if (shellPid > 1 && childPid > 1) break
+        } catch {
+          // The interactive shell has not processed the command yet.
+        }
+        await new Promise((resolve) => setTimeout(resolve, 20))
+      }
+      assert.ok(shellPid > 1 && childPid > 1, 'Python PTY shell and background process should start')
+      assert.equal(fallbackTerminal.killSession(fallbackSession.id), true)
+      try {
+        await Promise.race([
+          fallbackExited,
+          new Promise((_, reject) => {
+            fallbackExitTimer = setTimeout(() => reject(new Error('Python PTY wrapper did not exit')), 3000)
+          }),
+        ])
+      } finally {
+        clearTimeout(fallbackExitTimer)
+      }
+
+      const cleanupDeadline = Date.now() + 2000
+      while (Date.now() < cleanupDeadline && (processIsAlive(shellPid) || processIsAlive(childPid))) {
+        await new Promise((resolve) => setTimeout(resolve, 20))
+      }
+      assert.equal(processIsAlive(shellPid), false, 'Python PTY shell must be terminated')
+      assert.equal(processIsAlive(childPid), false, 'Python PTY background job must be terminated')
+      fallbackProcessesCleaned = true
+    } finally {
+      clearTimeout(fallbackExitTimer)
+      fallbackTerminal.dispose()
+      if (!fallbackProcessesCleaned) {
+        for (const pid of [childPid, shellPid]) {
+          if (pid > 1) {
+            try { process.kill(pid, 'SIGKILL') } catch { /* already stopped */ }
+          }
+        }
+      }
+      await fs.rm(fallbackRoot, { recursive: true, force: true })
+    }
+  }
+  fallbackTerminal.dispose()
   await fs.rm(root, { recursive: true, force: true })
   await fs.rm(outside, { recursive: true, force: true })
 

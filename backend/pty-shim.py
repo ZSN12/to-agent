@@ -13,12 +13,58 @@ import fcntl
 import signal
 import argparse
 import json
+import subprocess
+import time
 
 def set_winsize(fd, rows, cols):
     try:
         winsize = struct.pack("HHHH", int(rows), int(cols), 0, 0)
         fcntl.ioctl(fd, termios.TIOCSWINSZ, winsize)
     except Exception:
+        pass
+
+def handle_termination(signum, _frame):
+    raise SystemExit(128 + signum)
+
+def process_groups_for_session(session_id):
+    groups = {session_id}
+    try:
+        result = subprocess.run(
+            ["/bin/ps", "-axo", "pid="],
+            capture_output=True,
+            text=True,
+            timeout=1,
+            check=False,
+        )
+        if result.returncode != 0:
+            return groups
+        for line in result.stdout.splitlines():
+            try:
+                candidate = int(line.strip())
+                if os.getsid(candidate) == session_id:
+                    groups.add(os.getpgid(candidate))
+            except (ValueError, OSError):
+                continue
+    except (OSError, subprocess.SubprocessError):
+        pass
+    return groups
+
+def signal_shell_session(session_id, signum):
+    for group_id in process_groups_for_session(session_id):
+        try:
+            os.killpg(group_id, signum)
+        except OSError:
+            pass
+
+def terminate_shell_session(pid):
+    signal_shell_session(pid, signal.SIGTERM)
+    # Allow the shell to exit cleanly, then kill every process group still in
+    # its private session (interactive jobs may use separate process groups).
+    time.sleep(0.1)
+    signal_shell_session(pid, signal.SIGKILL)
+    try:
+        os.waitpid(pid, 0)
+    except ChildProcessError:
         pass
 
 def main():
@@ -40,10 +86,25 @@ def main():
     master, slave = pty.openpty()
     set_winsize(master, args.rows, args.cols)
 
-    # 创建子进程并在新进程组中运行目标 Shell
-    pid = os.fork()
+    # Handle SIGTERM in the wrapper before forking so an immediate close still
+    # runs the finally block that terminates and reaps the shell process group.
+    signal.signal(signal.SIGTERM, handle_termination)
+
+    # Keep SIGTERM pending until the parent has recorded the fork result. This
+    # closes the tiny window where the wrapper could exit before knowing which
+    # shell process it must clean up.
+    previous_signal_mask = signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGTERM})
+    try:
+        # 创建子进程并在新进程组中运行目标 Shell
+        pid = os.fork()
+    except BaseException:
+        signal.pthread_sigmask(signal.SIG_SETMASK, previous_signal_mask)
+        raise
+
     if pid == 0:
         # 子进程：连接到 slave 伪终端
+        signal.pthread_sigmask(signal.SIG_SETMASK, previous_signal_mask)
+        signal.signal(signal.SIGTERM, signal.SIG_DFL)
         os.close(master)
         os.setsid()
         os.dup2(slave, 0)
@@ -69,24 +130,28 @@ def main():
             sys.stderr.write(f"Failed to exec {shell}: {e}\n")
             sys.exit(1)
 
-    # 父进程：中继 master 伪终端与父级 Node.js 进程的 stdin/stdout
-    os.close(slave)
-
-    # 忽略 SIGINT，让子进程处理 Ctrl-C
-    signal.signal(signal.SIGINT, signal.SIG_IGN)
-
-    stdin_fileno = sys.stdin.fileno()
-    stdout_fileno = sys.stdout.fileno()
-
-    # 设置 stdin 为非阻塞
-    orig_fl = fcntl.fcntl(stdin_fileno, fcntl.F_GETFL)
-    fcntl.fcntl(stdin_fileno, fcntl.F_SETFL, orig_fl | os.O_NONBLOCK)
-
-    # 缓存控制指令解析
-    # 尺寸控制协议：__TW_RESIZE__:<rows>:<cols>\n
-    buffer = b""
-
     try:
+        # Unblocking can deliver a pending SIGTERM; the finally block below
+        # already knows the child PID and will clean up its private session.
+        signal.pthread_sigmask(signal.SIG_SETMASK, previous_signal_mask)
+
+        # 父进程：中继 master 伪终端与父级 Node.js 进程的 stdin/stdout
+        os.close(slave)
+
+        # 忽略 SIGINT，让子进程处理 Ctrl-C
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
+
+        stdin_fileno = sys.stdin.fileno()
+        stdout_fileno = sys.stdout.fileno()
+
+        # 设置 stdin 为非阻塞
+        orig_fl = fcntl.fcntl(stdin_fileno, fcntl.F_GETFL)
+        fcntl.fcntl(stdin_fileno, fcntl.F_SETFL, orig_fl | os.O_NONBLOCK)
+
+        # 缓存控制指令解析
+        # 尺寸控制协议：__TW_RESIZE__:<rows>:<cols>\n
+        buffer = b""
+
         while True:
             rlist, _, _ = select.select([master, stdin_fileno], [], [])
 
@@ -131,15 +196,11 @@ def main():
                     break
 
     finally:
-        os.close(master)
         try:
-            os.killpg(pid, signal.SIGTERM)
-        except Exception:
+            os.close(master)
+        except OSError:
             pass
-        try:
-            os.waitpid(pid, 0)
-        except Exception:
-            pass
+        terminate_shell_session(pid)
 
 if __name__ == "__main__":
     main()
