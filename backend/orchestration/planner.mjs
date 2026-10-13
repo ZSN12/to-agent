@@ -470,9 +470,23 @@ export function completeReadOnlyPlanScopes(tasks, requestText, indexedPaths, wor
   })
 }
 
+/** Reject planner scopes that were not offered from the current workspace index. */
+export function validateReadOnlyPlanScopesFromIndex(tasks, indexedPaths) {
+  const available = new Set(Array.isArray(indexedPaths) ? indexedPaths : [])
+  for (const task of tasks) {
+    if (!READ_ONLY_TASK_TYPES.has(task.taskType)) continue
+    const unavailable = (Array.isArray(task.scopePaths) ? task.scopePaths : [])
+      .filter((candidate) => !available.has(candidate))
+    if (unavailable.length > 0) {
+      throw new Error(`只读子任务范围无效：${task.id} 的 scopePaths 包含不在当前工作区路径索引中的路径：${unavailable.join('、')}`)
+    }
+  }
+  return tasks
+}
+
 /** Build a bounded paths-only workspace hint for planning; never reads file contents or follows symlinks. */
 export async function collectPlannerPathHints(workspacePath, query, {
-  maxVisited = 1200,
+  maxVisited = 2000,
   limit = 90,
   workspaceHints: suppliedWorkspaceHints,
   disableWorkspaceHints = false,
@@ -510,7 +524,7 @@ export async function collectPlannerPathHints(workspacePath, query, {
       const absolute = path.join(current.absolute, entry.name)
       if (entry.isDirectory()) {
         directories.push(relative)
-        if (current.depth < 3) queue.push({ absolute, relative, depth: current.depth + 1 })
+        if (current.depth < 4) queue.push({ absolute, relative, depth: current.depth + 1 })
       } else if (entry.isFile()) {
         files.push(relative)
       }

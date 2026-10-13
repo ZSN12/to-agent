@@ -151,6 +151,9 @@ function plannerInterpolation(expression, context) {
   if (value === 'cwd') return context.cwd
   if (value === 'text') return context.userText
   if (value === 'plannerPathHints.visitedEntries') return String(context.visitedEntries)
+  if (value.startsWith('JSON.stringify(plannerPathHints.paths[0]')) {
+    return JSON.stringify(context.paths[0] ?? '从上方路径索引选择的真实路径')
+  }
   if (value.includes('plannerPathHints.truncated')) return context.truncated ? '（达到扫描/展示上限，结果不完整）' : ''
   if (value.startsWith('plannerPathHints.paths.map')) {
     return context.paths.map((item) => '- ' + item).join('\n') || '(没有发现路径；任务需先搜索定位，再实际读取文件)'

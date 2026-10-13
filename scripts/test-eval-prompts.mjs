@@ -110,7 +110,7 @@ try {
   assert.equal(initial.ok, true, initial.errors.join('\n'))
   const standardPath = path.join(fixtureRoot, 'packages/runtime/host-cli/config/agent-presets/tw-default/agent.cordis.yml')
   const originalSource = await fs.readFile(standardPath, 'utf8')
-  await fs.writeFile(standardPath, originalSource.replace('You are a coding agent powered by', 'You are a software coding agent powered by'))
+  await fs.writeFile(standardPath, originalSource.replace('You are a coding agent powered by', 'You are a code agent powered by'))
   const updated = await runStaticEvaluation({ root: fixtureRoot, update: true })
   assert.equal(updated.ok, true, updated.errors.join('\n'))
   const manifest = JSON.parse(await fs.readFile(path.join(fixtureRoot, 'tests/prompts/snapshots/manifest.json'), 'utf8'))

@@ -6,7 +6,9 @@
   ],
   "pathWeights": [
     { "path": "backend/dsh-chat-service.mjs", "weight": 5 },
-    { "path": "backend/orchestration-service.mjs", "weight": 5 }
+    { "path": "backend/orchestration-service.mjs", "weight": 5 },
+    { "path": "src/features/app/hooks/useConversationRun.ts", "weight": 5 },
+    { "path": "backend/shell/http-server.mjs", "weight": 5 }
   ],
   "scopeRules": [
     {
@@ -18,14 +20,17 @@
       "requestTermsAny": ["调用链", "请求链", "端到端", "从前端", "renderer", "preload", "ipc", "调用顺序", "链路"],
       "taskTermsAny": ["agent 请求", "agent 调用", "agent request", "agent call", "智能体 请求", "智能体 调用", "chat:send", "sessions.prompt", "从前端"],
       "requiredPaths": [
-        "src/features/app/useAppBackend.ts",
-        "desktop/preload.cjs",
-        "backend/register-ipc.mjs",
+        "src/features/app/hooks/useConversationRun.ts",
+        "src/features/app/getBridge.ts",
+        "src/shell/bootstrap.ts",
+        "src/shell/taskweaver-shell-bridge.generated.ts",
+        "backend/shell/http-server.mjs",
+        "backend/ipc/wire-backend-ipc.mjs",
+        "backend/ipc/register-chat-send-ipc.mjs",
         "backend/dsh-chat-service.mjs",
+        "backend/dsh-chat/chat-send.mjs",
         "backend/orchestration-service.mjs",
-        "backend/agent/z-host/index.mjs",
-        "backend/agent/z-host/z-api-client.mjs",
-        "backend/agent/z-host/spawn-host.mjs"
+        "backend/orchestration/plan-and-execute.mjs"
       ]
     }
   ],
@@ -33,25 +38,40 @@
     {
       "queryTermsAny": ["调用链", "请求链", "端到端", "从前端", "从渲染端", "renderer", "preload", "ipc", "调用顺序", "链路"],
       "boostPaths": [
-        { "path": "backend/agent/z-host", "weight": 20 },
-        { "path": "src/features/app/useAppBackend.ts", "weight": 24 },
-        { "path": "desktop/preload.cjs", "weight": 22 },
-        { "path": "backend/register-ipc.mjs", "weight": 22 },
+        { "path": "src/features/app/hooks/useConversationRun.ts", "weight": 24 },
+        { "path": "src/features/app/getBridge.ts", "weight": 20 },
+        { "path": "src/shell/bootstrap.ts", "weight": 18 },
+        { "path": "src/shell/taskweaver-shell-bridge.generated.ts", "weight": 18 },
+        { "path": "backend/shell/http-server.mjs", "weight": 22 },
+        { "path": "backend/shell/run.mjs", "weight": 14 },
+        { "path": "backend/ipc/wire-backend-ipc.mjs", "weight": 18 },
+        { "path": "backend/ipc/register-chat-send-ipc.mjs", "weight": 22 },
         { "path": "backend/dsh-chat-service.mjs", "weight": 18 },
+        { "path": "backend/dsh-chat/chat-send.mjs", "weight": 16 },
         { "path": "backend/orchestration-service.mjs", "weight": 18 },
-        { "path": "backend/agent/z-host/z-api-client.mjs", "weight": 16 },
-        { "path": "backend/agent/z-host/spawn-host.mjs", "weight": 16 }
+        { "path": "backend/orchestration/plan-and-execute.mjs", "weight": 16 }
       ],
-      "preferredDirectories": ["backend/agent/z-host"],
+      "preferredDirectories": [
+        "src/features/app",
+        "src/shell",
+        "backend/shell",
+        "backend/ipc",
+        "backend/dsh-chat",
+        "backend/orchestration"
+      ],
       "prependPaths": [
-        "src/features/app/useAppBackend.ts",
-        "desktop/preload.cjs",
-        "backend/register-ipc.mjs",
+        "src/features/app/hooks/useConversationRun.ts",
+        "src/features/app/getBridge.ts",
+        "src/shell/bootstrap.ts",
+        "src/shell/taskweaver-shell-bridge.generated.ts",
+        "backend/shell/http-server.mjs",
+        "backend/shell/run.mjs",
+        "backend/ipc/wire-backend-ipc.mjs",
+        "backend/ipc/register-chat-send-ipc.mjs",
         "backend/dsh-chat-service.mjs",
+        "backend/dsh-chat/chat-send.mjs",
         "backend/orchestration-service.mjs",
-        "backend/agent/z-host/z-api-client.mjs",
-        "backend/agent/z-host/spawn-host.mjs",
-        "backend/agent/z-host"
+        "backend/orchestration/plan-and-execute.mjs"
       ]
     }
   ]

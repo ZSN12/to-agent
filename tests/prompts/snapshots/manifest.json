@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "capturedAt": "2026-10-10T12:34:05.106Z",
+  "capturedAt": "2026-10-13T08:10:22.910Z",
   "prefixProbeBytes": 256,
   "prompts": {
     "standard": {
@@ -9,19 +9,19 @@
         "file": "legacy/standard.prompt.txt",
         "sha256": "fb7e0fe109f54aac8ab7c1abbcfab63abfd67d36b48592d1f89ad8ed35bf2253",
         "bytes": 2026,
-        "sourceSha256": "66aec5a6d969464b880fe9468a786f6f892a4145622336cb185d400490a7189f",
-        "capturedAt": "2026-10-09T08:52:36.959Z"
+        "sourceSha256": "3423580f9d740055d1d47b577e08ef8fc25f7775c2b118ce7045e225c7fc8cbd",
+        "capturedAt": "2026-10-13T08:10:22.919Z"
       },
       "sourcePath": "packages/runtime/host-cli/config/agent-presets/tw-default/agent.cordis.yml",
-      "sourceSha256": "3423580f9d740055d1d47b577e08ef8fc25f7775c2b118ce7045e225c7fc8cbd",
-      "sha256": "fb7e0fe109f54aac8ab7c1abbcfab63abfd67d36b48592d1f89ad8ed35bf2253",
-      "bytes": 2026,
-      "estimatedTokens": 507,
-      "staticBytes": 2026,
+      "sourceSha256": "b27eeb1c27755e62a233111bb4f799a3eb4eaa3ef1274a272696d0013b9f5fc6",
+      "sha256": "f36a803a41a7909489b224a9e9c34932e01507ecb61693b0bb0435c5745ff984",
+      "bytes": 2047,
+      "estimatedTokens": 512,
+      "staticBytes": 2047,
       "hanCharacters": 0,
       "targetMaxBytes": 2048,
       "targetMaxHanCharacters": null,
-      "maxRegressionBytes": 2128,
+      "maxRegressionBytes": 2150,
       "knownViolations": [
         "prefix-unstable-under-dynamic-context",
         "stable-prefix-under-64-bytes",
@@ -229,21 +229,21 @@
       "file": "planner-request.prompt.txt",
       "legacy": {
         "file": "legacy/planner-request.prompt.txt",
-        "sha256": "48cc958ed65e44e062218328707d94e9289fbc595e86823fdb7b42923dfa6987",
-        "bytes": 5945,
-        "sourceSha256": "b83ec149b5c890abac7651ba1d259b75d80e0659a3bcf78987a4f7443ea5ee6e",
-        "capturedAt": "2026-10-10T12:34:05.113Z"
+        "sha256": "1ac6ab02b4cbb064855441b32ab77d96c8ed258ed273c5d7ed73940c1f008b62",
+        "bytes": 5944,
+        "sourceSha256": "5ff3d2a58df0b5022b3407d8d6973df9df3d5a56f9795d33a7b75024d35e2c4e",
+        "capturedAt": "2026-10-13T08:10:22.925Z"
       },
       "sourcePath": "backend/orchestration/plan-and-execute.mjs",
-      "sourceSha256": "5ff3d2a58df0b5022b3407d8d6973df9df3d5a56f9795d33a7b75024d35e2c4e",
-      "sha256": "1ac6ab02b4cbb064855441b32ab77d96c8ed258ed273c5d7ed73940c1f008b62",
-      "bytes": 5944,
-      "estimatedTokens": 1486,
-      "staticBytes": 3555,
+      "sourceSha256": "4ee54b4c33fa553a2ef923abf3cbd13e42067fed8f5164f724600e1ac641711e",
+      "sha256": "765824c03b486d9c5cb6e6aade2dbd0a7a3207dbc75f3e50d208763d3856ca7c",
+      "bytes": 5969,
+      "estimatedTokens": 1493,
+      "staticBytes": 2869,
       "hanCharacters": 1452,
       "targetMaxBytes": 3584,
       "targetMaxHanCharacters": null,
-      "maxRegressionBytes": 6242,
+      "maxRegressionBytes": 6268,
       "knownViolations": [
         "repository-specific-path"
       ],
@@ -260,7 +260,7 @@
         "capturedAt": "2026-10-10T03:31:31.718Z"
       },
       "sourcePath": "backend/orchestration/plan-and-execute.mjs",
-      "sourceSha256": "5ff3d2a58df0b5022b3407d8d6973df9df3d5a56f9795d33a7b75024d35e2c4e",
+      "sourceSha256": "4ee54b4c33fa553a2ef923abf3cbd13e42067fed8f5164f724600e1ac641711e",
       "sha256": "2c9eba6d6d984b0dd1f59838b9d2a2189bf85cb62820e98ac2959b5deb3952ad",
       "bytes": 1476,
       "estimatedTokens": 369,

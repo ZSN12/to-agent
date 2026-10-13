@@ -190,49 +190,52 @@ assert.ok(plannerHints.paths.includes('backend/dsh-chat-service.mjs'), '路径�
 assert.ok(plannerHints.paths.length <= 90, '路径索引必须有严格输出上限')
 assert.ok(!plannerHints.paths.some((candidate) => candidate.startsWith('node_modules/')), '路径索引不得扫描依赖目录')
 assert.ok(!plannerHints.paths.some((candidate) => candidate.startsWith('vendor/')), '路径索引不得让 vendored 源码挤占产品源码候选')
-const callChainHints = await collectPlannerPathHints(process.cwd(), '只读检查从前端到 Host 的 Agent 请求调用链和 IPC', { maxVisited: 1200, limit: 90 })
-for (const candidate of [
-  'src/features/app/useAppBackend.ts',
-  'contract/channels.mjs',
-  'backend/register-ipc.mjs',
+const callChainHints = await collectPlannerPathHints(process.cwd(), '只读检查从前端到 Host 的 Agent 请求调用链和 IPC', { maxVisited: 2000, limit: 90 })
+const callChainScopePaths = [
+  'src/features/app/hooks/useConversationRun.ts',
+  'src/features/app/getBridge.ts',
+  'src/shell/bootstrap.ts',
+  'src/shell/taskweaver-shell-bridge.generated.ts',
+  'backend/shell/http-server.mjs',
+  'backend/shell/run.mjs',
+  'backend/ipc/wire-backend-ipc.mjs',
+  'backend/ipc/register-chat-send-ipc.mjs',
   'backend/dsh-chat-service.mjs',
-  'backend/agent/z-host/z-api-client.mjs',
-  'backend/agent/z-host/spawn-host.mjs',
-]) {
+  'backend/dsh-chat/chat-send.mjs',
+  'backend/orchestration-service.mjs',
+  'backend/orchestration/plan-and-execute.mjs',
+]
+for (const candidate of callChainScopePaths) {
   assert.ok(callChainHints.paths.includes(candidate), `端到端调用链索引应暴露关键桥接文件：${candidate}`)
 }
 assert.ok(!callChainHints.paths.some((candidate) => candidate.startsWith('vendor/')), '调用链索引不得混入 vendored 路径')
 const closedPlanScopes = completeReadOnlyPlanScopes([
-  { id: 'T1', title: '应用启动入口链路调研', taskType: 'research', description: '梳理 Electron 从启动到 renderer 就绪；停止条件：链路闭合后立即停止，不深入 Agent 业务逻辑。', scopePaths: ['backend/shell/run.mjs', 'contract/channels.mjs', 'src/main.tsx', 'src/App.tsx'] },
-  { id: 'T2', title: 'Agent 请求链路调研', taskType: 'research', description: '梳理一次 Agent 请求从前端发起到后端执行的调用链；停止条件：调用闭合后立即停止，不检查启动窗口细节。', scopePaths: ['contract/channels.mjs', 'backend/register-ipc.mjs', 'backend/dsh-chat-service.mjs'] },
+  { id: 'T1', title: '应用启动入口链路调研', taskType: 'research', description: '梳理 macOS Swift 壳从启动到 renderer 就绪；停止条件：链路闭合后立即停止，不深入 Agent 业务逻辑。', scopePaths: ['backend/shell/run.mjs', 'apps/macos/TaskWeaverShell/Sources/TaskWeaverShell/TaskWeaverShellApp.swift', 'src/main.tsx', 'index.html'] },
+  { id: 'T2', title: 'Agent 请求链路调研', taskType: 'research', description: '梳理一次 Agent 请求从前端发起到后端执行的调用链；停止条件：调用闭合后立即停止，不检查启动窗口细节。', scopePaths: ['src/features/app/hooks/useConversationRun.ts'] },
 ], explicitParallelResearchRequest.replace('只读分析当前毕设代码，要求两项独立研究并行完成后交叉汇总。不得修改文件。', '只读分析应用启动入口和 Agent 请求链路，要求两项独立研究并行完成后交叉汇总。不得修改文件。'), [
-  'package.json', 'index.html', 'src/features/app/useAppBackend.ts', 'contract/channels.mjs',
-  'backend/register-ipc.mjs', 'backend/dsh-chat-service.mjs',
-  'backend/orchestration-service.mjs', 'backend/agent/z-host/index.mjs',
-  'backend/agent/z-host/z-api-client.mjs', 'backend/agent/z-host/spawn-host.mjs',
+  'package.json', 'index.html', 'src/main.tsx', 'apps/macos/TaskWeaverShell/Sources/TaskWeaverShell/TaskWeaverShellApp.swift',
+  ...callChainScopePaths,
 ], callChainHints.workspaceHints)
 assert.ok(closedPlanScopes[0].scopePaths.includes('package.json') && closedPlanScopes[0].scopePaths.includes('index.html'),
   'startup chain scope must include the app manifest and HTML entry when the request explicitly asks for startup order')
 assert.ok(!closedPlanScopes[0].scopePaths.includes('backend/dsh-chat-service.mjs')
   && !closedPlanScopes[0].scopePaths.includes('backend/agent/z-host/index.mjs'),
 'a startup task that explicitly excludes Agent business logic must not inherit request-chain files')
-assert.ok(closedPlanScopes[1].scopePaths.includes('src/features/app/useAppBackend.ts')
-  && closedPlanScopes[1].scopePaths.includes('backend/agent/z-host/spawn-host.mjs'),
+assert.ok(closedPlanScopes[1].scopePaths.includes('src/features/app/hooks/useConversationRun.ts')
+  && closedPlanScopes[1].scopePaths.includes('backend/orchestration/plan-and-execute.mjs'),
 'an Agent request-chain task must include the renderer send logic and exact Host implementation files')
 assert.ok(!closedPlanScopes[1].scopePaths.includes('package.json') && !closedPlanScopes[1].scopePaths.includes('index.html'),
   'a request-chain task that explicitly excludes startup details must not inherit startup files')
-assert.ok(closedPlanScopes[1].description.includes('backend/agent/z-host/spawn-host.mjs'), 'added evidence paths must be visible in the assigned task description')
+assert.ok(closedPlanScopes[1].description.includes('backend/orchestration/plan-and-execute.mjs'), 'added evidence paths must be visible in the assigned task description')
 
 const boundedPlanInput = [
-  { id: 'T1', title: '梳理应用启动入口', taskType: 'research', description: '只读研究且范围仅限 package.json、desktop/main.cjs、src/main.tsx。不要做目录发现或读取其他文件；完成后立即汇报。', scopePaths: ['package.json', 'desktop/main.cjs', 'src/main.tsx'] },
-  { id: 'T2', title: '梳理 Agent 请求链路', taskType: 'research', description: '范围仅限 src/features/app/useAppBackend.ts、desktop/preload.cjs、backend/register-ipc.mjs、backend/dsh-chat-service.mjs。确认渲染端 chat:send 到 api.sessions.prompt 的调用关系；不要 glob，不要继续检查 Host、权限、审批、响应投影等旁支，两端调用关系已证实后立即汇报。', scopePaths: ['src/features/app/useAppBackend.ts', 'desktop/preload.cjs', 'backend/register-ipc.mjs', 'backend/dsh-chat-service.mjs'] },
+  { id: 'T1', title: '梳理应用启动入口', taskType: 'research', description: '只读研究且范围仅限 package.json、apps/macos/TaskWeaverShell/Sources/TaskWeaverShell/TaskWeaverShellApp.swift、src/main.tsx。不要做目录发现或读取其他文件；完成后立即汇报。', scopePaths: ['package.json', 'apps/macos/TaskWeaverShell/Sources/TaskWeaverShell/TaskWeaverShellApp.swift', 'src/main.tsx'] },
+  { id: 'T2', title: '梳理 Agent 请求链路', taskType: 'research', description: '范围仅限 src/features/app/hooks/useConversationRun.ts、src/shell/taskweaver-shell-bridge.generated.ts、backend/ipc/register-chat-send-ipc.mjs、backend/dsh-chat-service.mjs。确认渲染端 chat:send 到后端处理的调用关系；不要 glob，不要继续检查权限、审批、响应投影等旁支，两端调用关系已证实后立即汇报。', scopePaths: ['src/features/app/hooks/useConversationRun.ts', 'src/shell/taskweaver-shell-bridge.generated.ts', 'backend/ipc/register-chat-send-ipc.mjs', 'backend/dsh-chat-service.mjs'] },
 ]
 const boundedPlan = completeReadOnlyPlanScopes(boundedPlanInput,
   '只读分析应用启动入口和 Agent 请求链路，要求两项独立研究并行完成后交叉汇总。不得修改文件。', [
-  'package.json', 'index.html', 'src/features/app/useAppBackend.ts', 'desktop/preload.cjs',
-    'backend/register-ipc.mjs', 'backend/dsh-chat-service.mjs',
-    'backend/orchestration-service.mjs', 'backend/agent/z-host/index.mjs',
-    'backend/agent/z-host/z-api-client.mjs', 'backend/agent/z-host/spawn-host.mjs',
+  'package.json', 'index.html', 'src/main.tsx', 'apps/macos/TaskWeaverShell/Sources/TaskWeaverShell/TaskWeaverShellApp.swift',
+  ...callChainScopePaths,
   ], callChainHints.workspaceHints)
 assert.deepEqual(boundedPlan.map(({ scopePaths }) => scopePaths), boundedPlanInput.map(({ scopePaths }) => scopePaths),
   'explicitly bounded read-only tasks must not have paths appended, even when the request suggests broader chain coverage')
@@ -241,7 +244,7 @@ assert.deepEqual(boundedPlan.map(({ description }) => description), boundedPlanI
 
 assert.equal(decideExecutionMode('你好').mode, 'single-agent')
 assert.equal(decideExecutionMode('读一下整个项目的代码，梳理目录和主要模块').mode, 'single-agent', '只读仓库走读不应因为涉及多个领域而自动编排')
-assert.equal(decideExecutionMode('请简要概览当前毕设项目的仓库结构：只查看根目录条目，然后阅读 package.json、desktop/main.cjs、src/main.tsx，概括主要目录/入口及它们如何连接。只读，不要修改文件、构建或测试。').mode, 'single-agent', '验收 B 的仓库结构概览必须留在单 Agent')
+assert.equal(decideExecutionMode('请简要概览当前毕设项目的仓库结构：只查看根目录条目，然后阅读 package.json、apps/macos/TaskWeaverShell/Sources/TaskWeaverShell/TaskWeaverShellApp.swift、src/main.tsx，概括主要目录/入口及它们如何连接。只读，不要修改文件、构建或测试。').mode, 'single-agent', '验收 B 的仓库结构概览必须留在单 Agent')
 assert.equal(decideExecutionMode('看看当前代码有哪些前端、后端和测试问题').mode, 'single-agent', '跨领域只读审查仍应保持单 Agent')
 assert.equal(decideExecutionMode('修复一个按钮样式').mode, 'single-agent')
 assert.equal(decideExecutionMode('请使用多智能体处理这个任务').mode, 'multi-agent')
@@ -815,20 +818,20 @@ try {
         if (opts.text.includes('子任务执行结果')) return { text: '两个研究结论已汇总。', usage }
         if (opts.text.includes('并行研究任务数量不匹配')) {
           return { text: JSON.stringify({ tasks: [
-            { id: 'T1', title: '启动入口', taskType: 'research', description: '读取入口源码', acceptance: ['启动入口有源码证据'], dependsOn: [] },
+            { id: 'T1', title: '启动入口', taskType: 'research', description: '读取入口源码', acceptance: ['启动入口有源码证据'], scopePaths: ['README.md'], dependsOn: [] },
             { id: 'T2', title: 'Agent 请求链路', taskType: 'research', description: '读取 Agent 源码', acceptance: ['调用路径有源码证据'], scopePaths: ['desktop/backend'], dependsOn: [] },
           ] }), usage }
         }
         if (opts.text.includes('只读子任务范围无效')) {
           return { text: JSON.stringify({ tasks: [
-            { id: 'T1', title: '启动入口', taskType: 'research', description: '读取入口源码', acceptance: ['启动入口有源码证据'], scopePaths: ['desktop/main.cjs'], dependsOn: [] },
-            { id: 'T2', title: 'Agent 请求链路', taskType: 'research', description: '读取 Agent 源码', acceptance: ['调用路径有源码证据'], scopePaths: ['desktop/backend'], dependsOn: [] },
+            { id: 'T1', title: '启动入口', taskType: 'research', description: '读取入口源码', acceptance: ['启动入口有源码证据'], scopePaths: ['README.md'], dependsOn: [] },
+            { id: 'T2', title: 'Agent 请求链路', taskType: 'research', description: '读取 Agent 源码', acceptance: ['调用路径有源码证据'], scopePaths: ['README.md'], dependsOn: [] },
           ] }), usage }
         }
         return { text: JSON.stringify({ tasks: [
-          { id: 'T1', title: '启动入口', taskType: 'research', description: '读取入口源码', acceptance: ['启动入口有源码证据'], scopePaths: ['desktop/main.cjs'], dependsOn: [] },
-          { id: 'T2', title: 'Agent 请求链路', taskType: 'research', description: '读取 Agent 源码', acceptance: ['调用路径有源码证据'], scopePaths: ['desktop/backend'], dependsOn: [] },
-          { id: 'T3', title: '交叉汇总', taskType: 'review', description: '汇总 T1 和 T2', acceptance: ['审查结论逐项引用上游证据'], scopePaths: ['desktop/backend'], dependsOn: ['T1', 'T2'] },
+          { id: 'T1', title: '启动入口', taskType: 'research', description: '读取入口源码', acceptance: ['启动入口有源码证据'], scopePaths: ['README.md'], dependsOn: [] },
+          { id: 'T2', title: 'Agent 请求链路', taskType: 'research', description: '读取 Agent 源码', acceptance: ['调用路径有源码证据'], scopePaths: ['README.md'], dependsOn: [] },
+          { id: 'T3', title: '交叉汇总', taskType: 'review', description: '汇总 T1 和 T2', acceptance: ['审查结论逐项引用上游证据'], scopePaths: ['README.md'], dependsOn: ['T1', 'T2'] },
         ] }), usage }
       }
       opts.webContents.send('chat:stream', {
@@ -862,7 +865,7 @@ try {
   assert.match(correctedPlannerTurns[1].text, /并行研究任务数量不匹配/)
   assert.match(correctedPlannerTurns[1].text, /交叉汇总/, 'retry prompt must include the rejected prior plan as correction context')
   assert.match(correctedPlannerTurns[2].text, /只读子任务范围无效/)
-  assert.match(correctedPlannerTurns[2].text, /缺少 scopePaths/, 'the second retry explains the second rejection')
+  assert.match(correctedPlannerTurns[2].text, /不在当前工作区路径索引/, 'the second retry explains that stale paths are rejected')
   const correctedRunId = correctedPlan.tasks[0].runId
   const correctedRunState = JSON.parse(await fs.readFile(path.join(agentData, 'orchestration', correctedPlannerTurns[0].conversationId, correctedRunId, 'run.json'), 'utf8'))
   assert.deepEqual(correctedRunState.plannerAttempts.map(({ accepted, attempt }) => ({ accepted, attempt })), [
@@ -873,7 +876,7 @@ try {
   assert.match(correctedRunState.plannerAttempts[0].plan, /交叉汇总/)
   assert.match(correctedRunState.plannerAttempts[0].rejectionReason, /并行研究任务数量不匹配/)
   assert.match(correctedRunState.plannerAttempts[1].plan, /Agent 请求链路/)
-  assert.match(correctedRunState.plannerAttempts[1].rejectionReason, /只读子任务范围无效/)
+  assert.match(correctedRunState.plannerAttempts[1].rejectionReason, /scopePaths 包含不在当前工作区路径索引/)
   assert.ok(correctedPlan.tasks.every((task) => task.taskType === 'research' && task.status === 'done'))
 
   const blockedTurns = []
@@ -888,18 +891,18 @@ try {
           return { text: '明确汇报一个受阻子任务和一个依赖阻塞子任务。', usage }
         }
         return { text: JSON.stringify({ tasks: [
-          { id: 'T1', title: '读取入口', taskType: 'research', description: '读取入口源码并说明结论', acceptance: ['入口结论有源码证据'], scopePaths: ['desktop/main.cjs'], dependsOn: [] },
-          { id: 'T2', title: '依赖复核', taskType: 'review', description: '依赖 T1 的发现做只读复核', acceptance: ['复核结果有独立读取证据'], scopePaths: ['desktop/backend'], dependsOn: ['T1'] },
+          { id: 'T1', title: '读取入口', taskType: 'research', description: '读取入口源码并说明结论', acceptance: ['入口结论有源码证据'], scopePaths: ['README.md'], dependsOn: [] },
+          { id: 'T2', title: '依赖复核', taskType: 'review', description: '依赖 T1 的发现做只读复核', acceptance: ['复核结果有独立读取证据'], scopePaths: ['README.md'], dependsOn: ['T1'] },
         ] }), usage }
       }
       assert.equal(opts.taskId, 'T1', 'T2 must not run after its prerequisite is blocked')
       opts.webContents.send('chat:stream', {
         type: 'tool', id: 'blocked-read', taskId: 'T1', toolName: 'read',
-        status: 'running', inputSummary: 'desktop/main.cjs',
+        status: 'running', inputSummary: 'README.md',
       })
       opts.webContents.send('chat:stream', {
         type: 'tool', id: 'blocked-read', taskId: 'T1', toolName: 'read',
-        status: 'done', inputSummary: 'desktop/main.cjs', resultSummary: 'read ok', durationMs: 8,
+        status: 'done', inputSummary: 'README.md', resultSummary: 'read ok', durationMs: 8,
       })
       throw Object.assign(new Error('重複文件搜索已被熔断'), { code: 'AGENT_BLOCKED' })
     },
@@ -932,7 +935,7 @@ try {
   assert.deepEqual(blockedT1.messages.at(-1).executionEvidence, {
     source: 'z-host-tool-events',
     observedToolCalls: [{
-      toolName: 'read', status: 'done', inputSummary: 'desktop/main.cjs',
+      toolName: 'read', status: 'done', inputSummary: 'README.md',
       resultSummary: 'read ok', durationMs: 8,
     }],
     omittedToolCalls: 0,
@@ -947,17 +950,17 @@ try {
       if (opts.agentPreset === 'tw-taskweaver-planner') {
         if (opts.text.includes('子任务执行结果')) return { text: '该任务因范围不足待复核。', usage }
         return { text: JSON.stringify({ tasks: [
-          { id: 'T1', title: '只读分析', taskType: 'research', description: '读取已分配文件并核实结论', acceptance: ['主文件读取有结果'], scopePaths: ['desktop/main.cjs'], dependsOn: [] },
-          { id: 'T2', title: '依赖复核', taskType: 'review', description: '依赖 T1 的发现做只读复核', acceptance: ['复核证据范围完整'], scopePaths: ['desktop/backend'], dependsOn: ['T1'] },
+          { id: 'T1', title: '只读分析', taskType: 'research', description: '读取已分配文件并核实结论', acceptance: ['主文件读取有结果'], scopePaths: ['README.md'], dependsOn: [] },
+          { id: 'T2', title: '依赖复核', taskType: 'review', description: '依赖 T1 的发现做只读复核', acceptance: ['复核证据范围完整'], scopePaths: ['README.md'], dependsOn: ['T1'] },
         ] }), usage }
       }
       opts.webContents.send('chat:stream', {
         type: 'tool', id: 'scope-denied-read', taskId: 'T1', toolName: 'read',
-        status: 'running', inputSummary: 'desktop/main.cjs',
+        status: 'running', inputSummary: 'electron/other.mjs',
       })
       opts.webContents.send('chat:stream', {
         type: 'tool', id: 'scope-denied-read', taskId: 'T1', toolName: 'read',
-        status: 'error', inputSummary: 'desktop/main.cjs',
+        status: 'error', inputSummary: 'electron/other.mjs',
         resultSummary: 'TaskWeaver read-only scope denied read at electron/other.mjs before execution.',
         durationMs: 1,
       })
