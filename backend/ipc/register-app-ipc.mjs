@@ -9,6 +9,7 @@ import { inspectFirstRunSecrets, dismissFirstRunNotice } from '../legacy-secrets
  *   BrowserWindow: import('electron').BrowserWindow,
  *   dialog: import('electron').dialog,
  *   appState: import('../app-state-store.mjs').AppStateStore,
+ *   userDataPath: string,
  *   chat: ReturnType<typeof import('../dsh-chat-service.mjs').createDshChatService>,
  *   sessionMemory?: { deleteConversation?: (conversationId: string) => Promise<unknown> },
  *   conversationHub: { detachSession: (id: string) => void, attachSession: (conversationId: string, sessionId: string, sender: unknown) => Promise<void>, getView: (id: string) => Promise<{ transcript?: unknown[] } | null> },
@@ -18,11 +19,15 @@ import { inspectFirstRunSecrets, dismissFirstRunNotice } from '../legacy-secrets
  * }} ctx
  */
 export function registerAppIpc(ctx) {
+  if (typeof ctx.userDataPath !== 'string' || !ctx.userDataPath.trim()) {
+    throw new Error('registerAppIpc: userDataPath is required')
+  }
   const {
     ipcMain,
     BrowserWindow,
     dialog,
     appState,
+    userDataPath,
     chat,
     sessionMemory,
     conversationHub,
@@ -224,13 +229,11 @@ export function registerAppIpc(ctx) {
   })
 
   ipcHandle(ipcMain, 'app:getFirstRunNotice', async () => {
-    const userData = ctx.userDataPath || appState.userDataPath || process.cwd()
-    return inspectFirstRunSecrets(userData)
+    return inspectFirstRunSecrets(userDataPath)
   })
 
   ipcHandle(ipcMain, 'app:dismissFirstRunNotice', async () => {
-    const userData = ctx.userDataPath || appState.userDataPath || process.cwd()
-    await dismissFirstRunNotice(userData)
+    await dismissFirstRunNotice(userDataPath)
     return { ok: true }
   })
 }

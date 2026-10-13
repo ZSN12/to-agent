@@ -141,6 +141,7 @@ export function wireBackendIpc({ ipcMain, app, dialog, BrowserWindow, shell, ctx
     BrowserWindow,
     dialog,
     appState,
+    userDataPath: userData,
     chat,
     sessionMemory,
     conversationHub,

@@ -4,6 +4,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { inspectFirstRunSecrets, dismissFirstRunNotice } from '../backend/legacy-secrets.mjs'
+import { registerAppIpc } from '../backend/ipc/register-app-ipc.mjs'
 
 console.log('--- 测试 legacy-secrets 首次启动密钥重填扫描 ---')
 
@@ -68,6 +69,62 @@ try {
   assert.equal(report2.dismissed, true, '再次启动时应识别为已关闭')
   assert.equal(fs.readFileSync(credFile, 'utf8'), legacyCredentialPayload, '关闭提示不得改动凭据文件')
   console.log('✓ 状态持久化与不再提示验证通过')
+
+  console.log('3. 验证首次启动 IPC 固定使用应用 user data 目录...')
+  const cwd = path.join(tmpDir, 'cwd')
+  const appUserData = path.join(tmpDir, 'app-user-data')
+  fs.mkdirSync(cwd)
+  fs.mkdirSync(appUserData)
+  fs.writeFileSync(path.join(cwd, 'models.json'), JSON.stringify({
+    providers: { cwdOnly: { name: 'CWD Provider', authType: 'api-key' } },
+  }))
+  fs.writeFileSync(path.join(appUserData, 'models.json'), JSON.stringify({
+    providers: { appOnly: { name: 'App User Data Provider', authType: 'api-key' } },
+  }))
+
+  const handlers = new Map()
+  const ipcMain = { handle: (channel, handler) => handlers.set(channel, handler) }
+  const registerAppHandlers = (userDataPath) => registerAppIpc({
+    ipcMain,
+    BrowserWindow: {},
+    dialog: {},
+    appState: {},
+    userDataPath,
+    chat: {},
+    conversationHub: {},
+    refreshUiSnapshot: async () => {},
+    assertNotBusy: () => {},
+    validateWorkspace: async (workspacePath) => workspacePath,
+  })
+
+  const originalCwd = process.cwd()
+  try {
+    process.chdir(cwd)
+    assert.throws(() => registerAppHandlers(undefined), /userDataPath is required/)
+    registerAppHandlers(appUserData)
+
+    const event = { senderFrame: { url: 'taskweaver://app/index.html' } }
+    const noticeResult = await handlers.get('app:getFirstRunNotice')(event)
+    assert.equal(noticeResult.ok, true)
+    assert.ok(noticeResult.data.items.some((item) => item.label.includes('App User Data Provider')))
+    assert.ok(!noticeResult.data.items.some((item) => item.label.includes('CWD Provider')))
+
+    const dismissResult = await handlers.get('app:dismissFirstRunNotice')(event)
+    assert.equal(dismissResult.ok, true)
+    assert.equal(JSON.parse(fs.readFileSync(path.join(appUserData, 'taskweaver-p19-cutover.json'), 'utf8')).dismissed, true)
+    assert.equal(fs.existsSync(path.join(cwd, 'taskweaver-p19-cutover.json')), false)
+
+    const invalidUserData = path.join(tmpDir, 'not-a-directory')
+    fs.writeFileSync(invalidUserData, 'file')
+    registerAppHandlers(invalidUserData)
+    const failedDismiss = await handlers.get('app:dismissFirstRunNotice')(event)
+    assert.equal(failedDismiss.ok, false, 'user data 写入失败应返回 IPC 错误')
+    assert.ok(failedDismiss.error)
+    assert.equal(fs.existsSync(path.join(cwd, 'taskweaver-p19-cutover.json')), false, '写入失败不得回退到工作目录')
+  } finally {
+    process.chdir(originalCwd)
+  }
+  console.log('✓ IPC 只使用注入的 user data 路径；缺失配置和写入失败会明确失败')
 
   console.log('--- legacy-secrets 测试全部通过！---')
 } finally {
