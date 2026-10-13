@@ -71,7 +71,7 @@
     "test:verification": "node scripts/test-verification-policy.mjs",
     "test:usage": "node scripts/test-json-store-concurrency.mjs && node scripts/test-chat-turn-persistence.mjs && node scripts/test-usage-and-thinking.mjs && node scripts/test-session-usage.mjs && node --import tsx scripts/test-session-stats.mjs && node scripts/test-context-compaction-policy.mjs && node scripts/test-compaction-reply.mjs",
     "test:session-stats": "node scripts/test-session-stats.mjs",
-    "check:ipc": "node scripts/gen-contract-schema.mjs --check && node scripts/check-ipc-contract.mjs",
+    "check:ipc": "node scripts/gen-contract-schema.mjs --check && node scripts/check-ipc-contract.mjs && tsc --project tsconfig.app.json",
     "test:stream-buffer": "node scripts/test-stream-buffer.mjs && node scripts/test-conversation-run-lifecycle.mjs && node --import tsx scripts/test-stream-render-stability.mjs",
     "test:opencodex-overlay": "node scripts/test-opencodex-reasoning-overlay.mjs",
     "test:security-path": "node scripts/test-security-path.mjs",
