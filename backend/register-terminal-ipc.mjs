@@ -18,28 +18,32 @@ export function registerTerminalIpc({
   const sessionOwners = new Map()
   const owners = new Map()
 
-  const ownerIdFor = (event) => {
-    const id = event?.sender?.id
-    if (!Number.isInteger(id)) throw new Error('终端请求缺少有效的窗口身份')
-    return id
+  const ownerKeyFor = (event) => {
+    const sender = event?.sender
+    if (Number.isInteger(sender?.id)) return sender.id
+    // Electron exposes a stable numeric WebContents id. The native Shell
+    // adapter has no such id, so use its stable sender object identity instead
+    // of inventing an Electron-shaped id or sharing ownership across windows.
+    if (sender && typeof sender === 'object') return sender
+    throw new Error('终端请求缺少有效的窗口身份')
   }
 
   function forgetSession(id) {
-    const ownerId = sessionOwners.get(id)
-    if (ownerId === undefined) return
+    const ownerKey = sessionOwners.get(id)
+    if (ownerKey === undefined) return
     sessionOwners.delete(id)
-    const owner = owners.get(ownerId)
+    const owner = owners.get(ownerKey)
     if (!owner) return
     owner.sessionIds.delete(id)
     if (owner.sessionIds.size === 0) {
       owner.sender.removeListener?.('destroyed', owner.onDestroyed)
-      owners.delete(ownerId)
+      owners.delete(ownerKey)
     }
   }
 
   function registerOwner(event, id) {
-    const ownerId = ownerIdFor(event)
-    let owner = owners.get(ownerId)
+    const ownerKey = ownerKeyFor(event)
+    let owner = owners.get(ownerKey)
     if (!owner) {
       const sender = event.sender
       owner = {
@@ -51,20 +55,20 @@ export function registerTerminalIpc({
             sessionOwners.delete(sessionId)
           }
           owner.sessionIds.clear()
-          owners.delete(ownerId)
+          owners.delete(ownerKey)
         },
       }
-      owners.set(ownerId, owner)
+      owners.set(ownerKey, owner)
       sender.once?.('destroyed', owner.onDestroyed)
     }
     owner.sessionIds.add(id)
-    sessionOwners.set(id, ownerId)
+    sessionOwners.set(id, ownerKey)
   }
 
   function ownsSession(event, id) {
     if (typeof id !== 'string' || !id) return false
     try {
-      return sessionOwners.get(id) === ownerIdFor(event)
+      return sessionOwners.get(id) === ownerKeyFor(event)
     } catch {
       return false
     }
@@ -161,8 +165,8 @@ export function registerTerminalIpc({
     return killed
   })
   ipcHandle(ipcMain, 'terminal:list', (event) => {
-    const ownerId = ownerIdFor(event)
-    return terminalService.listSessions().filter((session) => sessionOwners.get(session.id) === ownerId)
+    const ownerKey = ownerKeyFor(event)
+    return terminalService.listSessions().filter((session) => sessionOwners.get(session.id) === ownerKey)
   })
 
   return terminalService

@@ -5,6 +5,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { createTerminalService } from '../backend/terminal-service.mjs'
 import { registerTerminalIpc } from '../backend/register-terminal-ipc.mjs'
+import { createShellPlatform, invokeShellChannel } from '../backend/platform/shell-platform.mjs'
 
 console.log('--- 开始测试 TerminalService 终端服务 (PTY、尺寸动态调整、中断与进程树清理) ---')
 
@@ -150,7 +151,7 @@ try {
 
   const makeEvent = (id) => {
     const sender = new EventEmitter()
-    sender.id = id
+    if (Number.isInteger(id)) sender.id = id
     sender.destroyed = false
     sender.isDestroyed = () => sender.destroyed
     sender.send = () => {}
@@ -178,10 +179,40 @@ try {
   assert.equal(duplicateCreate.ok, false)
   assert.match(duplicateCreate.error, /已被占用/)
 
+  // Shell/RPC senders have stable object identity but no Electron numeric id.
+  const ownerC = makeEvent()
+  const ownerD = makeEvent()
+  const shellLikeCreated = await invoke('terminal:create', ownerC, { id: 'idless-owned-terminal', cwd: nested })
+  assert.equal(shellLikeCreated.ok, true)
+  const ownerDWrite = await invoke('terminal:write', ownerD, 'idless-owned-terminal', 'echo unsafe')
+  assert.deepEqual(ownerDWrite, { ok: true, data: false })
+  const ownerDList = await invoke('terminal:list', ownerD)
+  assert.deepEqual(ownerDList, { ok: true, data: [] })
+  ownerC.sender.emit('destroyed')
+  assert.equal(fakeSessions.has('idless-owned-terminal'), false)
+
+  // Exercise the actual ShellPlatform adapter, whose WebContents has no id.
+  const shellPlatform = createShellPlatform({ platformName: 'linux' })
+  registerTerminalIpc({
+    ipcMain: shellPlatform.ipcMain,
+    terminalService: fakeService,
+    resolveRuntimeContext: async () => ({
+      conversationId: 'shell-conversation', workspacePath: root,
+      permissionMode: 'ask', bashSandbox: 'workspace-write', sessionSandboxMode: null,
+    }),
+    resolveTerminalPolicy: (context) => ({ mode: 'workspace-write', workspaceRoot: context.workspacePath }),
+  })
+  const nativeShellCreated = await invokeShellChannel('terminal:create', { id: 'shell-platform-terminal', cwd: nested })
+  assert.equal(nativeShellCreated.ok, true)
+  const nativeShellList = await invokeShellChannel('terminal:list')
+  assert.deepEqual(nativeShellList.data.map((row) => row.id), ['shell-platform-terminal'])
+  shellPlatform.BrowserWindow.getFocusedWindow().webContents.destroy()
+  assert.equal(fakeSessions.has('shell-platform-terminal'), false, 'Shell WebContents destruction must clean up its terminal')
+
   ownerA.sender.destroyed = true
   ownerA.sender.emit('destroyed')
   assert.equal(fakeSessions.has('owned-terminal'), false)
-  assert.deepEqual(killed, ['owned-terminal'])
+  assert.deepEqual(killed, ['idless-owned-terminal', 'shell-platform-terminal', 'owned-terminal'])
   await fs.rm(root, { recursive: true, force: true })
   await fs.rm(outside, { recursive: true, force: true })
 
