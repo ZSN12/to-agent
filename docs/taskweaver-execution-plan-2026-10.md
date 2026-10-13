@@ -436,7 +436,7 @@ TaskWeaver 当前是 **macOS 优先的本地桌面 Coding Agent**。本计划遵
 | ID | 优先级 | 发现 | 证据与当前判断 | 状态 |
 |---|---|---|---|---|
 | CA-R01 | P0 | Shell/RPC 终端请求的 sender 缺少终端服务要求的整数窗口 ID；注册 owner 时可能直接失败 | [`register-terminal-ipc.mjs`](../backend/register-terminal-ipc.mjs)；Shell sender 定义见 [`shell-platform.mjs`](../backend/platform/shell-platform.mjs) | 已修复并通过 targeted 验证；见 §16.6 |
-| CA-R02 | P1 | `apply_patch` 把 CRLF 内容归一成 LF 后写回，可能导致整文件换行格式变化 | [`apply-patch.ts`](../packages/runtime/fs/tool-fs/src/apply-patch.ts)；普通 `editText` 会恢复换行格式 | 源码确认；待回归测试 |
+| CA-R02 | P1 | `apply_patch` 把 CRLF 内容归一成 LF 后写回，可能导致整文件换行格式变化 | [`apply-patch.ts`](../packages/runtime/fs/tool-fs/src/apply-patch.ts)；普通 `editText` 会恢复换行格式 | 已修复：统一 CRLF/LF 保留；混合换行明确拒绝；见 §16.6 |
 | CA-R03 | P1 | 首次运行提示读写路径可能回退到 `process.cwd()`，而不是应用 user data 目录 | [`register-app-ipc.mjs`](../backend/ipc/register-app-ipc.mjs) 与 IPC 装配路径 | 静态调用链确认；待针对路径修复 |
 | CA-R04 | P1 | Planner 输出样例仍含不存在的 `desktop/main.cjs`，配置中也有旧 `desktop/` 路径 | [`plan-and-execute.mjs`](../backend/orchestration/plan-and-execute.mjs)、`.taskweaver/planner-hints.json` | 源码确认；待改为从当前索引选路径并校验 |
 | CA-R05 | P1 | MCP 工具缓存身份仅包含 URL；相同 URL 换认证身份时可能短暂复用旧工具 schema | [`remote-tool-cache.ts`](../packages/runtime/mcp/mcp-client/src/remote-tool-cache.ts)、`connection.ts` | 风险成立；不是已确认的权限绕过；待定义安全缓存语义 |
@@ -468,7 +468,7 @@ TaskWeaver 当前是 **macOS 优先的本地桌面 Coding Agent**。本计划遵
 #### CA-10：修复阻断执行与数据完整性的缺陷（3–5 天）
 
 - [x] **CA-R01 终端身份：**Electron 继续用真实 `sender.id`；Shell/RPC 使用稳定的 sender 对象身份，不伪造 Electron sender。专项测试覆盖实际 ShellPlatform 无 ID 创建、data/exit 推送、owner stop、sender 销毁、跨 owner 拒绝和创建异常清理。提交见 §16.6。
-- [ ] **CA-R02 换行：**`apply_patch` 保留 CRLF/LF、无末尾换行和混合换行输入的约定；若混合换行不支持，要明确拒绝或采取有据可依的策略，不能静默重写整文件。
+- [x] **CA-R02 换行：**`apply_patch` 保留 CRLF/LF 和无末尾换行；混合换行明确拒绝，避免静默重写整文件。专项结果见 §16.6。
 - [ ] **CA-R03 用户数据路径：**从应用平台层显式注入唯一 user data 路径；移除生产回退到 cwd 的路径；覆盖读取旧标记、写入新标记和目录不可写等失败场景。
 - [ ] **CA-R04 Planner 路径：**提示样例和 planner hints 不写死迁移前路径；规划结果必须根据当前工作区索引验证存在性。无效路径应要求修正或报告失败，不得悄悄作为有效 scope 执行。
 - [ ] **CA-R05 MCP 缓存：**制定缓存身份、工具禁用/替换时序及旧 schema 失效规则。身份指纹不得保存或写日志明文凭据；同 URL 换账号、header/token 变化、刷新失败、并发连接均须可测。新权限工具同步完成前不得把旧 schema 当成新身份的可执行能力。
@@ -556,7 +556,7 @@ Node 构建入口已知分为两条：根 `package.json` 的 `app`/`app:dmg` →
 | ID | 状态 | 当前结论/下一步 |
 |---|---|---|
 | CA-00 | IN PROGRESS | 初始冻结和既有评测盘点已完成；下一步在隔离快照中建立 20 项 smoke 任务集并设计可复跑的真实工具调用评测 |
-| CA-10 | IN PROGRESS | CA-R01 已验证；继续复核/处理 CA-R02–R11 |
+| CA-10 | IN PROGRESS | CA-R01、CA-R02 已验证；继续复核/处理 CA-R03–R11 |
 | CA-20 | TODO | 建立测试入口清单并闭合关键回归门禁 |
 | CA-30 | TODO | 先测 Repo Map/LSP/符号入口，再决定索引改造 |
 | CA-40 | TODO | 审计 DAG 证据、取消、恢复和隔离路径 |
@@ -571,7 +571,7 @@ Node 构建入口已知分为两条：根 `package.json` 的 `app`/`app:dmg` →
 | ID | 状态 | 责任人 | 相关提交 | 验证命令与结果 | 下一步 / 未决问题 |
 |---|---|---|---|---|---|
 | CA-R01 | VERIFIED | Codex 主 Agent | `94a47fbb0`, `2d659932e` | `node scripts/test-terminal-service.mjs` PASS；`node scripts/test-terminal-output-throttle.mjs` PASS；`pnpm run test:terminal` 在 pnpm 自动依赖检查阶段因无 TTY 中止，未启动测试 | Shell/RPC sender object identity；测试覆盖 actual ShellPlatform 生命周期、隔离、数据推送、stop 与失败清理 |
-| CA-R02 | CONFIRMED（静态） | 未分配 | — | NOT RUN | 覆盖 CRLF/LF、无末尾换行和混合换行约定 |
+| CA-R02 | VERIFIED | Codex 主 Agent | `3b29300a3` | `packages/runtime/node_modules/.bin/vitest run fs/tool-fs/tests/apply-patch.spec.ts --config vitest.config.ts` PASS（6/6） | CRLF/LF 与无末尾换行保留；混合换行失败关闭且磁盘文件不变 |
 | CA-R03 | CONFIRMED（调用链） | 未分配 | — | NOT RUN | 确认 userDataPath 注入并覆盖写入失败 |
 | CA-R04 | CONFIRMED（静态） | 未分配 | — | NOT RUN | 校验 Planner 输出路径存在且属于当前 workspace |
 | CA-R05 | CONFIRMED（风险） | 未分配 | — | NOT RUN | 设计换身份/换凭据/刷新失败与并发失效测试 |
