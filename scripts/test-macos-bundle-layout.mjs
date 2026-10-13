@@ -13,6 +13,7 @@ const shellApp = await read('apps/macos/TaskWeaverShell/Sources/TaskWeaverShell/
 const runtimeResolver = await read('backend/agent/z-host/resolve-runtime.mjs')
 const nodeFetcher = await read('scripts/macos/fetch-node.sh')
 const appBuilder = await read('scripts/macos/build-app.sh')
+const packaging = await read('packaging/mac-shell-resources.yml')
 const shellPlatform = await read('backend/platform/shell-platform.mjs')
 const keychainBridge = await read('backend/platform/keychain-secrets.mjs')
 const keychainHelper = await read('apps/macos/TaskWeaverShell/Sources/TaskWeaverKeychain/main.swift')
@@ -23,7 +24,16 @@ assert.match(packageJson.scripts['dev:mac'], /TaskWeaverShell --product TaskWeav
 assert.match(packageJson.scripts['dev:mac'], /TaskWeaverKeychain/)
 assert.match(packageJson.scripts.app, /pnpm run build && pnpm run check:ipc && TASKWEAVER_REPLACE_EXISTING=1 bash scripts\/macos\/build-app\.sh/)
 assert.doesNotMatch(packageJson.scripts.app, /build-macos-shell-app/)
+assert.equal(Object.hasOwn(packageJson.scripts, 'ensure:host-node'), false)
 assert.match(packageJson.scripts['dev:browser'], /dev:shell-server/)
+
+for (const obsoleteBuilder of [
+  'scripts/ensure-host-node.mjs',
+  'scripts/build-macos-shell-app.mjs',
+  'scripts/make-mac-app.sh',
+]) {
+  await assert.rejects(fs.access(path.join(root, obsoleteBuilder)), { code: 'ENOENT' })
+}
 
 assert.match(bundleScript, /TASKWEAVER_STAGE_DIR/)
 assert.match(bundleScript, /apps\/macos\/build\/stage\/backend/)
@@ -57,6 +67,8 @@ assert.match(keychainHelper, /SecItemUpdate/)
 assert.match(keychainHelper, /SecItemAdd/)
 assert.match(appBuilder, /--product TaskWeaverKeychain/)
 assert.match(appBuilder, /HELPERS_DIR="\$\{CONTENTS_DIR\}\/Helpers"/)
+assert.match(packaging, /from: apps\/macos\/build\/node[\s\S]*?to: host-node/)
+assert.match(appBuilder, /cp -R "\$\{NODE_DIR\}\/\." "\$\{RESOURCES_DIR\}\/host-node\/"/)
 
 assert.match(runtimeResolver, /path\.join\(packagedResourcesPath, 'backend', 'runtime'\)/)
 assert.match(runtimeResolver, /env\.TASKWEAVER_RESOURCES_PATH/)

@@ -1,13 +1,13 @@
 # TaskWeaver.app Contents/Resources layout (Swift shell, no Electron).
 #
 # Resources/
-#   host-node/bin/node
+#   host-node/bin/node (fetched into apps/macos/build/node, then copied by build-app.sh)
 #   taskweaver-z-runtime/          # Z Host deploy tree
 #   taskweaver-scheduled-runner.mjs
 #   app/                             # Node backend payload (dist, desktop/, node_modules, …)
 
 host_node:
-  from: vendor/host-node
+  from: apps/macos/build/node
   to: host-node
 
 z_runtime:

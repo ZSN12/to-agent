@@ -34,7 +34,8 @@ assert.equal(fromPath.source, 'path')
 assert.ok(fromPath.executable.includes('node') || fromPath.executable.endsWith('node'))
 
 const packaging = await fs.readFile(path.resolve('packaging/mac-shell-resources.yml'), 'utf8')
-assert.match(packaging, /vendor\/host-node/)
+assert.match(packaging, /from: apps\/macos\/build\/node/)
 assert.match(packaging, /to: host-node/)
+assert.doesNotMatch(packaging, /vendor\/host-node/)
 
 console.log('test-host-node-executable passed')

@@ -1,5 +1,7 @@
 # Z 运行时收尾计划：删除 dsh-source，全面去 DSH 化
 
+> 历史收尾方案快照；文中的 `make-mac-app.sh` 不再存在。当前 macOS 打包入口为 `scripts/macos/build-app.sh`，详见 [Z Runtime 构建说明](./Z_RUNTIME_BUILD.md)。
+
 > 承接 `docs/完整改造.md` 和 `docs/完整改造-执行进度.md`。
 > 回退点：分支 `refactor/z-runtime-integration`，提交 `5d24dba`（checkpoint）。
 

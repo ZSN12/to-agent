@@ -1,5 +1,7 @@
 # TaskWeaver 执行层：从 Pi 迁到 DSH Host
 
+> 历史迁移方案（2026-09）。其中 macOS 打包路径与进度记录已过期；当前入口和操作说明见 [Z Runtime 构建说明](./Z_RUNTIME_BUILD.md) 与 [TaskWeaver 执行计划](./taskweaver-execution-plan-2026-10.md)。
+
 ## 结论（产品决策）
 
 **目标态**：桌面端对话与工具执行 **只走 DSH**（Cordis 组合 + Session 事件日志 + Host ApiProxy），不再维护「Pi `createAgentSession` + 零散 DSH 沙箱/vendor 补丁」双栈。
@@ -40,7 +42,7 @@
 ### 阶段 0 — 冻结 Pi 扩散（当前）
 
 - 新能力优先 **DSH 对齐文档 + 行为**，不再在 Pi extension 里堆逻辑。
-- 构建：**先 `packages/pi` build，再 embed**；禁止单独 `runtime-seed-dist` 覆盖新 dist（已在 `make-mac-app.sh` 调整）。
+- 构建（当时方案）：**先 `packages/pi` build，再 embed**；禁止单独 `runtime-seed-dist` 覆盖新 dist。当前打包入口已改为 `pnpm run build` + `scripts/macos/build-app.sh`。
 - 模型目录：`builtin-model-data.mjs` 合并 `pi-ai` data（过渡）；迁 DSH 后改为 **ApiProxy `llm` / models 域**。
 
 ### 阶段 1 — 并行 Host（验证）
@@ -107,7 +109,7 @@ TaskWeaver 继续负责：`register-ipc`、`app-state-store`（线程列表）�
 | C Skill / MCP | 完成（MCP 未进 DSH） | `npm run test:skills`、`test:mcp` |
 | D 权限桥接 | 完成（full 无 danger preset） | `npm run test:dsh-permission-map` |
 | E DAG 子任务 | 完成（仅 DSH） | `npm run test:orchestration` |
-| F macOS 打包 | 接线完成 | `make-mac-app.sh` 含 `build-dsh-runtime` + `extraResources` |
+| F macOS 打包 | 历史接线记录 | 当前入口为 `pnpm run app` / `app:dmg` → `scripts/macos/build-app.sh` |
 | G 删 Pi 主链 | 进行中 | 主聊天已走 `dsh-chat-service`；Pi 仍被模型目录、Skill 装载、会话维护等兼容层引用 |
 
 **未删 Pi 前**：`npm run build` + 上表测试 + 打包应用在无外部 `DSH_HOME` 下试开聊天。

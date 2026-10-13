@@ -31,7 +31,6 @@
     "test:dsh-host-deploy": "pnpm run test:z-host-deploy",
     "test:dsh-runtime-resolution": "pnpm run test:z-runtime-resolution",
     "test:dsh-apiproxy": "pnpm --dir packages/runtime exec vitest run host/apiproxy/tests/api-proxy-models.spec.ts",
-    "ensure:host-node": "node scripts/ensure-host-node.mjs",
     "app:builder": "pnpm run app && node scripts/test-macos-bundle-layout.mjs",
     "test:packaged-app-launch": "node scripts/test-packaged-app-launch.mjs",
     "startup:report": "node scripts/tw-startup-report.mjs",

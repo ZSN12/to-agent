@@ -146,7 +146,7 @@ flowchart TD
 - Host 事件历史与 UI thread 展示状态的完全单源（compaction 摘要字段级对齐 Host projection）
 - DSH 完整 `dsh-auto-review` 模型审查链（非规则/轻量 auto-review）
 - 审批决策审计 JSONL 与设置页导出；当前 `scripts/test-approval-audit.mjs` 引用了尚不存在的 `approval-audit.mjs`，不能视为已交付
-- Windows runner 纳入 `make-mac-app` / CI 预同步（当前需本机 sync）
+- Windows runner 不在当前支持范围内；桌面打包目标为 macOS。
 - 子任务独立 jsonl 子会话（与 DAG 编排二选一或混合）
 
 ## 代码索引（TaskWeaver）

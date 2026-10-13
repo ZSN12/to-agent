@@ -2,7 +2,11 @@
 
 ## 依赖安装
 
-**TaskWeaver 仓库根目录**只用 npm：克隆后执行 `npm ci`（锁文件为 `package-lock.json`）。不要在根目录运行 `pnpm install`。
+TaskWeaver 根目录固定使用 `pnpm@11.7.0` 和 Node.js `>=22.18`。从仓库根目录安装依赖：
+
+```bash
+pnpm install --frozen-lockfile
+```
 
 Z Runtime 使用 pnpm workspace，必须在其目录下用 CI 模式安装以避免交互式提示和副作用：
 
@@ -78,8 +82,6 @@ CI=true pnpm install --ignore-scripts
 
 解决：确保构建时 cwd 在 z-runtime 内，使用本地二进制而非 pnpm exec。
 
-### make-mac-app.sh 显示"全量构建失败，尝试仅打包"
+### macOS App 构建入口
 
-原因：tsc 编译失败，但脚本检测到旧的 deploy 目录，fallback 到 `--skip-build`。
-
-解决：修复 tsc 错误后重新运行，或删除 `vendor/taskweaver-z-runtime` 强制全量构建。
+当前支持的入口是 `pnpm run app` 或 `pnpm run app:dmg`，两者使用 `scripts/macos/build-app.sh`。脚本通过 `scripts/macos/fetch-node.sh` 获取 macOS arm64 Node，并在替换构建目录前校验 Node 官方 `SHASUMS256.txt`。旧的 `make-mac-app.sh` 和 `ensure-host-node.mjs` 入口已删除。
