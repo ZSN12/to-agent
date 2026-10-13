@@ -572,7 +572,7 @@ Node 构建入口已知分为两条：根 `package.json` 的 `app`/`app:dmg` →
 |---|---|---|---|---|---|
 | CA-R01 | VERIFIED | Codex 主 Agent | `94a47fbb0`, `2d659932e` | `node scripts/test-terminal-service.mjs` PASS；`node scripts/test-terminal-output-throttle.mjs` PASS；`pnpm run test:terminal` 在 pnpm 自动依赖检查阶段因无 TTY 中止，未启动测试 | Shell/RPC sender object identity；测试覆盖 actual ShellPlatform 生命周期、隔离、数据推送、stop 与失败清理 |
 | CA-R02 | VERIFIED | Codex 主 Agent | `3b29300a3` | `packages/runtime/node_modules/.bin/vitest run fs/tool-fs/tests/apply-patch.spec.ts --config vitest.config.ts` PASS（6/6） | CRLF/LF 与无末尾换行保留；混合换行失败关闭且磁盘文件不变 |
-| CA-R03 | CONFIRMED（调用链） | 未分配 | — | NOT RUN | 确认 userDataPath 注入并覆盖写入失败 |
+| CA-R03 | VERIFIED | Codex 主 Agent | `7c7bdaf74` | `node scripts/test-legacy-secrets.mjs` PASS；覆盖显式 userDataPath、cwd 诱饵目录、缺失路径拒绝与写入失败不回退 | `wireBackendIpc` 显式注入 `userDataPath`；移除 `process.cwd()` 兜底；测试验证只读与 dismiss 标记写入都命中应用目录 |
 | CA-R04 | CONFIRMED（静态） | 未分配 | — | NOT RUN | 校验 Planner 输出路径存在且属于当前 workspace |
 | CA-R05 | CONFIRMED（风险） | 未分配 | — | NOT RUN | 设计换身份/换凭据/刷新失败与并发失效测试 |
 | CA-R06 | TODO（静态推断） | 未分配 | — | NOT RUN | 先复现 PTY 取消/关闭后是否遗留进程 |
@@ -583,5 +583,7 @@ Node 构建入口已知分为两条：根 `package.json` 的 `app`/`app:dmg` →
 | CA-R11 | TODO（威胁建模） | 未分配 | — | NOT RUN | 明确环境变量来源、loopback 页面控制和 token 能力 |
 
 **CA-00A 执行记录（2026-10-13）：**分支 `main`；冻结前 HEAD `f5624a108`；Node `v22.23.1`；pnpm `11.7.0`；已读取根 `AGENTS.md`。当时存在未提交的 `src/features/settings/SettingsPage.tsx` 与 `src/styles.css` 修改，已保留且未纳入 CA-R01 提交。CA-R01 修复提交 `94a47fbb0`，补充专项覆盖提交 `2d659932e`。
+
+**CA-R03 执行记录（2026-10-13）：**首次运行提示 IPC 现在只使用 `wireBackendIpc` 注入的应用 user data 路径，缺失配置在注册期失败；读取提示、dismiss 持久化与写入错误均增加 cwd 隔离覆盖。提交 `7c7bdaf74`；`node scripts/test-legacy-secrets.mjs` PASS。
 
 **当前续接点：CA-00B。**现有评测工具已盘点，但它们不是端到端编码质量 baseline；下一步在干净隔离快照中构建任务集，基线使用冻结前代码快照 `f5624a108`。所有后续写入继续避开 SettingsPage/CSS 用户改动。
