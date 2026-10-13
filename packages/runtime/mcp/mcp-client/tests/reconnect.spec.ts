@@ -109,16 +109,21 @@ function stdioConfig(reconnect?: Config['reconnect']): Config {
   }
 }
 
-function streamableHttpConfig(): Config {
+function streamableHttpConfig(
+  headers: Record<string, string> = {},
+  reconnect: Config['reconnect'] = { enabled: false },
+  bearerTokenEnvVar?: string,
+): Config {
   return {
     transport: 'streamable-http',
     serverName: 'remote-cache',
     url: 'https://example.test/mcp/',
-    headers: {},
+    headers,
+    ...(bearerTokenEnvVar !== undefined ? { bearerTokenEnvVar } : {}),
     toolCallTimeoutMs: 60_000,
     connectTimeoutMs: 1_000,
     failOnStartupError: false,
-    reconnect: { enabled: false },
+    reconnect,
   }
 }
 
@@ -153,7 +158,7 @@ describe('reconnect supervisor', () => {
     ctx = await mountRegistry()
   })
 
-  it('publishes cached remote tools during a slow connect, waits before calls, then replaces the cache', async () => {
+  it('keeps cached tools provisional until the live list replaces them', async () => {
     const home = await mkdtemp(join(tmpdir(), 'tw-mcp-reconnect-cache-'))
     const previousHome = process.env.TASKWEAVER_HOME
     process.env.TASKWEAVER_HOME = home
@@ -189,20 +194,105 @@ describe('reconnect supervisor', () => {
       expect(mockCallTool).not.toHaveBeenCalled()
 
       connectGate.resolve()
-      await vi.waitFor(() => { expect(mockCallTool).toHaveBeenCalledTimes(1) })
-      const result = await invocation
-      expect(result.isError).toBe(false)
+      await Promise.resolve()
+      expect(mockCallTool).not.toHaveBeenCalled()
 
       listGate.resolve(listing('fresh'))
       await vi.waitFor(() => {
         expect(secondCtx?.tools.get('mcp__remote-cache__fresh')).toBeDefined()
       })
       expect(secondCtx.tools.get('mcp__remote-cache__cached')).toBeUndefined()
+      const provisionalResult = await invocation
+      expect(provisionalResult.isError).toBe(true)
+      expect(mockCallTool).not.toHaveBeenCalled()
+
+      const liveResult = await secondCtx.tools.execute({
+        signal: testToolSignal,
+        callId: nextCallId(),
+        name: 'mcp__remote-cache__fresh',
+        arguments: {},
+      })
+      expect(liveResult.isError).toBe(false)
+      expect(mockCallTool).toHaveBeenCalledTimes(1)
       await second.dispose()
       second = undefined
     } finally {
       await second?.dispose()
       await first?.dispose()
+      if (previousHome === undefined) delete process.env.TASKWEAVER_HOME
+      else process.env.TASKWEAVER_HOME = previousHome
+      await rm(home, { recursive: true, force: true })
+    }
+  })
+
+  it('does not reuse a cached schema after bearer identity changes when the live refresh fails', async () => {
+    const home = await mkdtemp(join(tmpdir(), 'tw-mcp-auth-cache-'))
+    const previousHome = process.env.TASKWEAVER_HOME
+    const previousToken = process.env.TASKWEAVER_TEST_MCP_TOKEN
+    const tokenEnvVar = 'TASKWEAVER_TEST_MCP_TOKEN'
+    process.env.TASKWEAVER_HOME = home
+    process.env[tokenEnvVar] = 'account-a-token'
+    let first: ReturnType<typeof startConnection> | undefined
+    let second: ReturnType<typeof startConnection> | undefined
+    try {
+      mockListTools.mockResolvedValueOnce(listing('account_a_only'))
+      first = startConnection(ctx, streamableHttpConfig({}, { enabled: false }, tokenEnvVar), resolveReconnectPolicy(undefined, 'test'))
+      expect((await first.ready).error).toBeUndefined()
+      await first.dispose()
+      first = undefined
+
+      const nextCtx = await mountRegistry()
+      process.env[tokenEnvVar] = 'account-b-token'
+      mockListTools.mockRejectedValueOnce(new Error('live tool refresh failed'))
+      second = startConnection(nextCtx, streamableHttpConfig({}, { enabled: false }, tokenEnvVar), resolveReconnectPolicy(undefined, 'test'))
+      expect((await second.ready).error).toBeDefined()
+      expect(nextCtx.tools.get('mcp__remote-cache__account_a_only')).toBeUndefined()
+      expect(mockCallTool).not.toHaveBeenCalled()
+      await second.dispose()
+      second = undefined
+    } finally {
+      await second?.dispose()
+      await first?.dispose()
+      if (previousHome === undefined) delete process.env.TASKWEAVER_HOME
+      else process.env.TASKWEAVER_HOME = previousHome
+      if (previousToken === undefined) delete process.env[tokenEnvVar]
+      else process.env[tokenEnvVar] = previousToken
+      await rm(home, { recursive: true, force: true })
+    }
+  })
+
+  it('serializes reconnect cache registration behind an obsolete notification sync', async () => {
+    const home = await mkdtemp(join(tmpdir(), 'tw-mcp-cache-reconnect-race-'))
+    const previousHome = process.env.TASKWEAVER_HOME
+    process.env.TASKWEAVER_HOME = home
+    let handle: ReturnType<typeof startConnection> | undefined
+    try {
+      const policy = resolveReconnectPolicy({ initialDelayMs: 5, maxDelayMs: 20, maxAttempts: 2 }, 'test')
+      handle = startConnection(ctx, streamableHttpConfig({}, { initialDelayMs: 5, maxDelayMs: 20, maxAttempts: 2 }), policy)
+      expect((await handle.ready).error).toBeUndefined()
+
+      const oldRefresh: PromiseWithResolvers<unknown> = Promise.withResolvers()
+      mockListTools
+        .mockImplementationOnce(async () => await oldRefresh.promise)
+        .mockResolvedValueOnce(listing('fresh_after_reconnect'))
+      const notification = mockSetNotificationHandler.mock.calls[0]?.[1]
+      if (typeof notification !== 'function') throw new Error('expected tool-list notification handler')
+      const oldRefreshRun = (notification as () => Promise<void>)()
+      await vi.waitFor(() => { expect(mockListTools).toHaveBeenCalledTimes(2) })
+
+      instances[0]!.onclose?.()
+      await vi.waitFor(() => { expect(instances).toHaveLength(2) })
+      expect(ctx.tools.get('mcp__remote-cache__fresh_after_reconnect')).toBeUndefined()
+
+      oldRefresh.resolve(listing('obsolete_old_generation'))
+      await oldRefreshRun
+      await vi.waitFor(() => {
+        expect(ctx.tools.get('mcp__remote-cache__fresh_after_reconnect')).toBeDefined()
+      })
+      expect(ctx.tools.get('mcp__remote-cache__obsolete_old_generation')).toBeUndefined()
+      expect(ctx.tools.get('mcp__remote-cache__remote')).toBeUndefined()
+    } finally {
+      await handle?.dispose()
       if (previousHome === undefined) delete process.env.TASKWEAVER_HOME
       else process.env.TASKWEAVER_HOME = previousHome
       await rm(home, { recursive: true, force: true })

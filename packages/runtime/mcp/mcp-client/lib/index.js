@@ -61,7 +61,7 @@ function buildChildEnv(extra) {
 * @param config - Resolved plugin config discriminated on `transport`.
 * @returns A connected-ready MCP Transport (stdio or Streamable HTTP).
 */
-function createTransport(config) {
+function createTransport(config, resolvedHttpHeaders) {
 	switch (config.transport) {
 		case "stdio": return new StdioClientTransport({
 			command: config.command,
@@ -72,7 +72,7 @@ function createTransport(config) {
 			}),
 			cwd: config.cwd || process.cwd()
 		});
-		case "streamable-http": return new StreamableHTTPClientTransport(new URL(config.url), { requestInit: { headers: resolveStreamableHttpHeaders(config) } });
+		case "streamable-http": return new StreamableHTTPClientTransport(new URL(config.url), { requestInit: { headers: resolvedHttpHeaders ?? resolveStreamableHttpHeaders(config) } });
 	}
 }
 //#endregion
@@ -183,6 +183,7 @@ async function syncTools(client, ctx, opts, previous, options = {}) {
 		tools.push(...response.tools);
 		cursor = response.nextCursor;
 	} while (cursor);
+	if (options.isCurrent?.() === false) return previous;
 	const next = swapToolGeneration(ctx, opts, buildDefinitions(client, ctx, opts, tools), previous);
 	if (next === null) return /* @__PURE__ */ new Map();
 	if (options.cache) try {
@@ -498,8 +499,8 @@ function projectContent(mcpContent, toolName, image = (block) => ({
 }
 //#endregion
 //#region lib/types/remote-tool-cache.js
-/** Private, endpoint-scoped cache for remote MCP tool schemas. */
-const CACHE_SCHEMA = 1;
+/** Private, endpoint- and credential-scoped cache for remote MCP tool schemas. */
+const CACHE_SCHEMA = 2;
 const MAX_CACHE_BYTES = 2097152;
 const SERVER_NAME = /^[A-Za-z0-9_-]{1,32}$/;
 function runtimeHome() {
@@ -509,6 +510,10 @@ function runtimeHome() {
 }
 function endpointIdentity(url) {
 	return createHash("sha256").update(url).digest("hex");
+}
+function authIdentity(headers) {
+	const canonicalHeaders = [...new Headers(headers).entries()].sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0);
+	return createHash("sha256").update("taskweaver:mcp-tool-cache-auth:v1\0").update(JSON.stringify(canonicalHeaders)).digest("hex");
 }
 function cacheableTool(tool) {
 	return {
@@ -523,11 +528,12 @@ function cacheableTool(tool) {
 * A best-effort cache. Cache I/O and malformed cache files never make MCP
 * connection or tool synchronization fail.
 */
-function createRemoteToolCache(serverName, url) {
+function createRemoteToolCache(serverName, url, headers = {}) {
 	if (!SERVER_NAME.test(serverName)) throw new Error("MCP cache serverName is invalid");
 	const directory = join(runtimeHome(), "cache", "mcp-tools");
 	const filePath = join(directory, `${serverName}.json`);
 	const endpoint = endpointIdentity(url);
+	const auth = authIdentity(headers);
 	async function read() {
 		try {
 			const file = await lstat(filePath);
@@ -535,7 +541,7 @@ function createRemoteToolCache(serverName, url) {
 			const parsed = JSON.parse(await readFile(filePath, "utf8"));
 			if (!parsed || typeof parsed !== "object") return null;
 			const record = parsed;
-			if (record.schema !== CACHE_SCHEMA || record.endpoint !== endpoint || !Array.isArray(record.tools)) return null;
+			if (record.schema !== CACHE_SCHEMA || record.endpoint !== endpoint || record.auth !== auth || !Array.isArray(record.tools)) return null;
 			const validated = ListToolsResultSchema.safeParse({ tools: record.tools });
 			return validated.success ? validated.data.tools : null;
 		} catch {
@@ -549,6 +555,7 @@ function createRemoteToolCache(serverName, url) {
 		const content = `${JSON.stringify({
 			schema: CACHE_SCHEMA,
 			endpoint,
+			auth,
 			tools: validated.data.tools
 		})}\n`;
 		if (Buffer.byteLength(content, "utf8") > MAX_CACHE_BYTES) return false;
@@ -679,7 +686,6 @@ function startConnection(ctx, config, policy) {
 		...opts,
 		registrationFailure: "throw"
 	} : opts;
-	const remoteToolCache = config.transport === "streamable-http" ? createRemoteToolCache(config.serverName, config.url) : void 0;
 	let disposed = false;
 	/** Current generation: the connecting or connected client; undefined during backoff waits and after final failure. */
 	let client;
@@ -703,10 +709,22 @@ function startConnection(ctx, config, policy) {
 	* generation and leak another).
 	*/
 	let syncChain = Promise.resolve();
-	function enqueueSync(generation, syncOpts = opts) {
+	function enqueueSync(generation, syncOpts = opts, cache) {
 		const run = syncChain.then(async () => {
 			if (!isCurrent(generation)) return;
-			disposers = await syncTools(generation, ctx, syncOpts, disposers, { cache: remoteToolCache });
+			disposers = await syncTools(generation, ctx, syncOpts, disposers, {
+				...cache !== void 0 ? { cache } : {},
+				isCurrent: () => isCurrent(generation)
+			});
+		});
+		syncChain = run.catch(() => {});
+		return run;
+	}
+	/** Cache registrations share the same disposer queue as live syncs. */
+	function enqueueCachedTools(generation, cachedOpts, tools) {
+		const run = syncChain.then(() => {
+			if (!isCurrent(generation)) return;
+			disposers = registerCachedTools(generation, ctx, cachedOpts, tools, disposers);
 		});
 		syncChain = run.catch(() => {});
 		return run;
@@ -776,10 +794,12 @@ function startConnection(ctx, config, policy) {
 			version: "0.0.1"
 		}, { capabilities: {} });
 		const connectionReady = Promise.withResolvers();
-		const generationOpts = {
+		const cachedConnectionReady = connectionReady.promise.then((readiness) => ({ error: readiness.error ?? /* @__PURE__ */ new Error(`${label}: cached tool schema is not executable`) }));
+		const cachedOpts = {
 			...opts,
-			connectionReady: connectionReady.promise
+			connectionReady: cachedConnectionReady
 		};
+		let generationCache;
 		const closed = Promise.withResolvers();
 		let attemptSettled = false;
 		let closeObserved = false;
@@ -795,15 +815,20 @@ function startConnection(ctx, config, policy) {
 			if (!isCurrent(generation)) return;
 			ctx.logger.info(`${label}: tool list changed, re-syncing`);
 			try {
-				await enqueueSync(generation);
+				await enqueueSync(generation, {
+					...opts,
+					connectionReady: connectionReady.promise
+				}, generationCache);
 			} catch (error) {
 				if (!disposed) ctx.logger.error(`${label}: tool re-sync failed: ${String(error)}`);
 			}
 		});
 		try {
-			const cachedToolsPromise = remoteToolCache?.read() ?? Promise.resolve(null);
+			const httpHeaders = config.transport === "streamable-http" ? resolveStreamableHttpHeaders(config) : void 0;
+			if (config.transport === "streamable-http" && httpHeaders !== void 0) generationCache = createRemoteToolCache(config.serverName, config.url, httpHeaders);
+			const cachedToolsPromise = generationCache?.read() ?? Promise.resolve(null);
 			let connectTimer;
-			const connectAttempt = Promise.race([generation.connect(createTransport(config)), new Promise((_resolve, reject) => {
+			const connectAttempt = Promise.race([generation.connect(createTransport(config, httpHeaders)), new Promise((_resolve, reject) => {
 				connectTimer = setTimeout(() => {
 					const error = /* @__PURE__ */ new Error(`${label}: connection timed out after ${connectTimeoutMs}ms`);
 					Object.assign(error, { code: "MCP_CONNECT_TIMEOUT" });
@@ -816,7 +841,7 @@ function startConnection(ctx, config, policy) {
 			connectAttempt.catch(() => {});
 			const cachedTools = await cachedToolsPromise;
 			if (cachedTools !== null && isCurrent(generation)) try {
-				disposers = registerCachedTools(generation, ctx, generationOpts, cachedTools, disposers);
+				await enqueueCachedTools(generation, cachedOpts, cachedTools);
 			} catch (error) {
 				ctx.logger.warn(`${label}: cached tool list ignored: ${String(error)}`);
 			}
@@ -829,11 +854,19 @@ function startConnection(ctx, config, policy) {
 				generationDown(generation);
 				return;
 			}
-			connectionReady.resolve({});
 			await enqueueSync(generation, {
 				...startup ? startupOpts : opts,
 				connectionReady: connectionReady.promise
-			});
+			}, generationCache);
+			if (hasClosed() || !isCurrent(generation)) {
+				attemptSettled = true;
+				connectionReady.resolve({ error: /* @__PURE__ */ new Error(`${label}: connection closed during tool synchronization`) });
+				const elapsedMs = Number(process.hrtime.bigint() - startAt) / 1e6;
+				traceMcpConnect("failed", label, elapsedMs);
+				generationDown(generation);
+				return;
+			}
+			connectionReady.resolve({});
 			const elapsedMs = Number(process.hrtime.bigint() - startAt) / 1e6;
 			traceMcpConnect("ok", label, elapsedMs);
 		} catch (error) {

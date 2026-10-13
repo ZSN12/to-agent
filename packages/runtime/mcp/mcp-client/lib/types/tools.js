@@ -104,6 +104,8 @@ export async function syncTools(client, ctx, opts, previous, options = {}) {
         tools.push(...response.tools);
         cursor = response.nextCursor;
     } while (cursor);
+    if (options.isCurrent?.() === false)
+        return previous;
     const definitions = buildDefinitions(client, ctx, opts, tools);
     const next = swapToolGeneration(ctx, opts, definitions, previous);
     if (next === null)

@@ -20,7 +20,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { ToolListChangedNotificationSchema } from '@modelcontextprotocol/sdk/types.js'
 import type { Context } from '@taskweaver/cordis'
 import { MAX_TIMER_DELAY_MS } from '@taskweaver/dsh-timeout'
-import { createTransport } from './transport.ts'
+import { createTransport, resolveStreamableHttpHeaders } from './transport.ts'
 import { registerCachedTools, syncTools } from './tools.ts'
 import type { ToolBridgeOptions, ToolDisposers } from './tools.ts'
 import { createRemoteToolCache } from './remote-tool-cache.ts'
@@ -162,10 +162,6 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
   const startupOpts: ToolBridgeOptions = config.failOnStartupError
     ? { ...opts, registrationFailure: 'throw' }
     : opts
-  const remoteToolCache = config.transport === 'streamable-http'
-    ? createRemoteToolCache(config.serverName, config.url)
-    : undefined
-
   let disposed = false
   /** Current generation: the connecting or connected client; undefined during backoff waits and after final failure. */
   let client: Client | undefined
@@ -191,12 +187,33 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
    * generation and leak another).
    */
   let syncChain: Promise<void> = Promise.resolve()
-  function enqueueSync(generation: Client, syncOpts: ToolBridgeOptions = opts): Promise<void> {
+  function enqueueSync(
+    generation: Client,
+    syncOpts: ToolBridgeOptions = opts,
+    cache?: ReturnType<typeof createRemoteToolCache>,
+  ): Promise<void> {
     const run = syncChain.then(async () => {
       if (!isCurrent(generation)) return
-      disposers = await syncTools(generation, ctx, syncOpts, disposers, { cache: remoteToolCache })
+      disposers = await syncTools(generation, ctx, syncOpts, disposers, {
+        ...(cache !== undefined ? { cache } : {}),
+        isCurrent: () => isCurrent(generation),
+      })
     })
     // The chain tail must survive a failed sync; the enqueuing caller owns reporting.
+    syncChain = run.catch(() => {})
+    return run
+  }
+
+  /** Cache registrations share the same disposer queue as live syncs. */
+  function enqueueCachedTools(
+    generation: Client,
+    cachedOpts: ToolBridgeOptions,
+    tools: Parameters<typeof registerCachedTools>[3],
+  ): Promise<void> {
+    const run = syncChain.then(() => {
+      if (!isCurrent(generation)) return
+      disposers = registerCachedTools(generation, ctx, cachedOpts, tools, disposers)
+    })
     syncChain = run.catch(() => {})
     return run
   }
@@ -274,7 +291,13 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
       { capabilities: {} },
     )
     const connectionReady: PromiseWithResolvers<{ error?: unknown }> = Promise.withResolvers()
-    const generationOpts: ToolBridgeOptions = { ...opts, connectionReady: connectionReady.promise }
+    // Provisional cache definitions may be shown while connecting, but any
+    // invocation that captured one must fail after the live schema replaces it.
+    const cachedConnectionReady = connectionReady.promise.then(readiness => ({
+      error: readiness.error ?? new Error(`${label}: cached tool schema is not executable`),
+    }))
+    const cachedOpts: ToolBridgeOptions = { ...opts, connectionReady: cachedConnectionReady }
+    let generationCache: ReturnType<typeof createRemoteToolCache> | undefined
     const closed: PromiseWithResolvers<void> = Promise.withResolvers()
     let attemptSettled = false
     let closeObserved = false
@@ -296,7 +319,10 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
         if (!isCurrent(generation)) return
         ctx.logger.info(`${label}: tool list changed, re-syncing`)
         try {
-          await enqueueSync(generation)
+          await enqueueSync(generation, {
+            ...opts,
+            connectionReady: connectionReady.promise,
+          }, generationCache)
         } catch (error) {
           // Fetch-phase failure: the previous generation is still registered
           // and `disposers` still owns it — keep serving the last good list.
@@ -305,12 +331,18 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
       },
     )
     try {
+      const httpHeaders = config.transport === 'streamable-http'
+        ? resolveStreamableHttpHeaders(config)
+        : undefined
+      if (config.transport === 'streamable-http' && httpHeaders !== undefined) {
+        generationCache = createRemoteToolCache(config.serverName, config.url, httpHeaders)
+      }
       // Start both operations immediately. Cache loading is local and bounded;
       // it must not delay the transport handshake.
-      const cachedToolsPromise = remoteToolCache?.read() ?? Promise.resolve(null)
+      const cachedToolsPromise = generationCache?.read() ?? Promise.resolve(null)
       let connectTimer: NodeJS.Timeout | undefined
       const connectAttempt = Promise.race([
-        generation.connect(createTransport(config)),
+        generation.connect(createTransport(config, httpHeaders)),
         new Promise<never>((_resolve, reject) => {
           connectTimer = setTimeout(() => {
             const error = new Error(`${label}: connection timed out after ${connectTimeoutMs}ms`)
@@ -328,7 +360,7 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
       const cachedTools = await cachedToolsPromise
       if (cachedTools !== null && isCurrent(generation)) {
         try {
-          disposers = registerCachedTools(generation, ctx, generationOpts, cachedTools, disposers)
+          await enqueueCachedTools(generation, cachedOpts, cachedTools)
         } catch (error) {
           ctx.logger.warn(`${label}: cached tool list ignored: ${String(error)}`)
         }
@@ -342,11 +374,19 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
         generationDown(generation)
         return
       }
-      connectionReady.resolve({})
       await enqueueSync(generation, {
         ...(startup ? startupOpts : opts),
         connectionReady: connectionReady.promise,
-      })
+      }, generationCache)
+      if (hasClosed() || !isCurrent(generation)) {
+        attemptSettled = true
+        connectionReady.resolve({ error: new Error(`${label}: connection closed during tool synchronization`) })
+        const elapsedMs = Number(process.hrtime.bigint() - startAt) / 1e6
+        traceMcpConnect('failed', label, elapsedMs)
+        generationDown(generation)
+        return
+      }
+      connectionReady.resolve({})
       const elapsedMs = Number(process.hrtime.bigint() - startAt) / 1e6
       traceMcpConnect('ok', label, elapsedMs)
     } catch (error) {

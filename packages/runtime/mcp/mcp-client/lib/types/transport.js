@@ -23,7 +23,7 @@ function resolveBoundProcessEnv(bindings) {
     }
     return resolved;
 }
-function resolveStreamableHttpHeaders(config) {
+export function resolveStreamableHttpHeaders(config) {
     const headers = { ...config.headers };
     const envVar = config.bearerTokenEnvVar?.trim();
     if (envVar) {
@@ -51,7 +51,7 @@ function buildChildEnv(extra) {
  * @param config - Resolved plugin config discriminated on `transport`.
  * @returns A connected-ready MCP Transport (stdio or Streamable HTTP).
  */
-export function createTransport(config) {
+export function createTransport(config, resolvedHttpHeaders) {
     switch (config.transport) {
         case 'stdio':
             return new StdioClientTransport({
@@ -65,7 +65,7 @@ export function createTransport(config) {
             // properties typed without `| undefined` (exactOptionalPropertyTypes
             // mismatch with the Transport interface); the SDK constructed the
             // object, so the cast records only that widening.
-            return new StreamableHTTPClientTransport(new URL(config.url), { requestInit: { headers: resolveStreamableHttpHeaders(config) } });
+            return new StreamableHTTPClientTransport(new URL(config.url), { requestInit: { headers: resolvedHttpHeaders ?? resolveStreamableHttpHeaders(config) } });
     }
 }
 //# sourceMappingURL=transport.js.map

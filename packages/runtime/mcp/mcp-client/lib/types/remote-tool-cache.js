@@ -1,10 +1,10 @@
-/** Private, endpoint-scoped cache for remote MCP tool schemas. */
+/** Private, endpoint- and credential-scoped cache for remote MCP tool schemas. */
 import { createHash, randomBytes } from 'node:crypto';
 import { chmod, lstat, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join, resolve, sep } from 'node:path';
 import { ListToolsResultSchema } from '@modelcontextprotocol/sdk/types.js';
-const CACHE_SCHEMA = 1;
+const CACHE_SCHEMA = 2;
 const MAX_CACHE_BYTES = 2 * 1024 * 1024;
 const SERVER_NAME = /^[A-Za-z0-9_-]{1,32}$/;
 function runtimeHome() {
@@ -22,6 +22,15 @@ function runtimeHome() {
 function endpointIdentity(url) {
     return createHash('sha256').update(url).digest('hex');
 }
+function authIdentity(headers) {
+    // HTTP header names are case-insensitive. Canonicalize the same effective
+    // values the transport sends, then persist only a digest, never credentials.
+    const canonicalHeaders = [...new Headers(headers).entries()].sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0);
+    return createHash('sha256')
+        .update('taskweaver:mcp-tool-cache-auth:v1\0')
+        .update(JSON.stringify(canonicalHeaders))
+        .digest('hex');
+}
 function cacheableTool(tool) {
     return {
         name: tool.name,
@@ -37,12 +46,13 @@ function cacheableTool(tool) {
  * A best-effort cache. Cache I/O and malformed cache files never make MCP
  * connection or tool synchronization fail.
  */
-export function createRemoteToolCache(serverName, url) {
+export function createRemoteToolCache(serverName, url, headers = {}) {
     if (!SERVER_NAME.test(serverName))
         throw new Error('MCP cache serverName is invalid');
     const directory = join(runtimeHome(), 'cache', 'mcp-tools');
     const filePath = join(directory, `${serverName}.json`);
     const endpoint = endpointIdentity(url);
+    const auth = authIdentity(headers);
     async function read() {
         try {
             const file = await lstat(filePath);
@@ -53,7 +63,8 @@ export function createRemoteToolCache(serverName, url) {
             if (!parsed || typeof parsed !== 'object')
                 return null;
             const record = parsed;
-            if (record.schema !== CACHE_SCHEMA || record.endpoint !== endpoint || !Array.isArray(record.tools))
+            if (record.schema !== CACHE_SCHEMA || record.endpoint !== endpoint || record.auth !== auth
+                || !Array.isArray(record.tools))
                 return null;
             const validated = ListToolsResultSchema.safeParse({ tools: record.tools });
             return validated.success ? validated.data.tools : null;
@@ -67,7 +78,7 @@ export function createRemoteToolCache(serverName, url) {
         const validated = ListToolsResultSchema.safeParse({ tools: sanitized });
         if (!validated.success)
             return false;
-        const content = `${JSON.stringify({ schema: CACHE_SCHEMA, endpoint, tools: validated.data.tools })}\n`;
+        const content = `${JSON.stringify({ schema: CACHE_SCHEMA, endpoint, auth, tools: validated.data.tools })}\n`;
         if (Buffer.byteLength(content, 'utf8') > MAX_CACHE_BYTES)
             return false;
         const temporaryPath = `${filePath}.${process.pid}.${randomBytes(6).toString('hex')}.tmp`;

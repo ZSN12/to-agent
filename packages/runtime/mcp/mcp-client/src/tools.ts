@@ -152,7 +152,11 @@ export async function syncTools(
   ctx: Context,
   opts: ToolBridgeOptions,
   previous: ToolDisposers,
-  options: { cache?: RemoteToolCacheWriter | undefined } = {},
+  options: {
+    cache?: RemoteToolCacheWriter | undefined
+    /** Rechecked after the network fetch before this generation may replace live tools. */
+    isCurrent?: (() => boolean) | undefined
+  } = {},
 ): Promise<ToolDisposers> {
   // Phase 1: fetch the complete list without touching the registry. Retain the
   // protocol objects so a remote server can warm the next startup.
@@ -164,6 +168,7 @@ export async function syncTools(
     cursor = response.nextCursor
   } while (cursor)
 
+  if (options.isCurrent?.() === false) return previous
   const definitions = buildDefinitions(client, ctx, opts, tools)
   const next = swapToolGeneration(ctx, opts, definitions, previous)
   if (next === null) return new Map()

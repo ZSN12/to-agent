@@ -77,6 +77,8 @@ export declare function publicToolName(serverName: string, rawName: string): str
  */
 export declare function syncTools(client: Client, ctx: Context, opts: ToolBridgeOptions, previous: ToolDisposers, options?: {
     cache?: RemoteToolCacheWriter | undefined;
+    /** Rechecked after the network fetch before this generation may replace live tools. */
+    isCurrent?: (() => boolean) | undefined;
 }): Promise<ToolDisposers>;
 /** Register one validated cached tool list before a remote transport is ready. */
 export declare function registerCachedTools(client: Client, ctx: Context, opts: ToolBridgeOptions, tools: readonly Tool[], previous: ToolDisposers): ToolDisposers;

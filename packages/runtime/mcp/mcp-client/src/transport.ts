@@ -27,7 +27,9 @@ function resolveBoundProcessEnv(bindings: Record<string, string> | undefined): R
   return resolved
 }
 
-function resolveStreamableHttpHeaders(config: Extract<Config, { transport: 'streamable-http' }>): Record<string, string> {
+export function resolveStreamableHttpHeaders(
+  config: Extract<Config, { transport: 'streamable-http' }>,
+): Record<string, string> {
   const headers = { ...config.headers }
   const envVar = config.bearerTokenEnvVar?.trim()
   if (envVar) {
@@ -56,7 +58,7 @@ function buildChildEnv(extra: Record<string, string>): Record<string, string> {
  * @param config - Resolved plugin config discriminated on `transport`.
  * @returns A connected-ready MCP Transport (stdio or Streamable HTTP).
  */
-export function createTransport(config: Config): Transport {
+export function createTransport(config: Config, resolvedHttpHeaders?: Record<string, string>): Transport {
   switch (config.transport) {
     case 'stdio':
       return new StdioClientTransport({
@@ -72,7 +74,7 @@ export function createTransport(config: Config): Transport {
       // object, so the cast records only that widening.
       return new StreamableHTTPClientTransport(
         new URL(config.url),
-        { requestInit: { headers: resolveStreamableHttpHeaders(config) } },
+        { requestInit: { headers: resolvedHttpHeaders ?? resolveStreamableHttpHeaders(config) } },
       ) as Transport
   }
 }
