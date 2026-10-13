@@ -444,7 +444,7 @@ TaskWeaver 当前是 **macOS 优先的本地桌面 Coding Agent**。本计划遵
 | CA-R07 | P2 | Contract API 类型有失效导入、且与 `src/shared/app-api.ts` 漂移；当前检查范围未覆盖该文件 | `contract/types/app-api.ts`、`contract/types/model-api.ts`、`src/shared/`、`tsconfig.app.json` | 已修复：renderer shared API 是唯一类型定义；contract 类型入口改为 re-export，并纳入 `check:ipc` 的 TypeScript 消费端检查；见 §16.6 |
 | CA-R08 | P2 | 两套 macOS Node 获取/打包入口版本和校验策略不一致 | 旧 `scripts/ensure-host-node.mjs` 与当前 `scripts/macos/fetch-node.sh` | 已确定仅支持 `build-app.sh` 路径；旧 builder、下载器和 npm script 已删除，资源映射及文档已同步；见 §16.6 |
 | CA-R09 | P2 | 若干重要脚本测试未进入默认回归门禁；CI 与 `test:all` 有重复步骤，README/提示词样例有陈旧命令和路径 | 根 `package.json`、`.github/workflows/ci.yml`、`tests/README.md`、`tests/prompts/cases.json` | 已完成分诊与本地针对性验证；workflow/打包环境仍待 CI 确认，见 §16.6 |
-| CA-R10 | P3 | OAuth token cache 对 loader 返回对象的 token 字段缺少完整结构校验；并发冷启动也需确认是否会重复刷新 | [`oauth-token-cache.mjs`](../packages/provider-bridge-transport/oauth-token-cache.mjs)；当前内部调用链会提供 token 字符串 | 待分诊；不是已确认的任务阻断问题 |
+| CA-R10 | P3 | OAuth token cache 未校验 loader 返回的 access token；`undefined`/非字符串可能被缓存。并发冷启动会启动多个 helper，需区分 helper 重复与真实 token refresh 重复 | [`oauth-token-cache.mjs`](../packages/provider-bridge-transport/oauth-token-cache.mjs)、[`bridge-access.ts`](../vendor/opencodex/src/oauth/bridge-access.ts)、[`store.ts`](../vendor/opencodex/src/oauth/store.ts) | 缓存校验已修复并通过专项测试；源码审查确认真实 refresh 有进程内 single-flight 与跨进程锁/锁内重读。重复 helper 启动仍可能，作为轻量性能开销记录；未运行真实 Provider |
 | CA-R11 | Triage | 原生 Shell 可从 `TASKWEAVER_UI_URL` 选择受信任的 loopback 页面，再把 Shell API bearer token 放进 URL fragment；需要核清环境来源、页面脚本可控性与 token 能力 | [`TaskWeaverShellApp.swift`](../apps/macos/TaskWeaverShell/Sources/TaskWeaverShell/TaskWeaverShellApp.swift)、[`ShellURLPolicy.swift`](../apps/macos/TaskWeaverShell/Sources/ShellURLPolicy/ShellURLPolicy.swift)、[`bootstrap.ts`](../src/shell/bootstrap.ts) | 条件性风险；未确认漏洞，不得按已证实问题描述 |
 | CA-R12 | P1 | 测试构造 Host 时未把临时 `HOME` 注入 runtime-home migration；一次模型服务测试误把真实 `~/.dsh` 迁移进临时目录，随后源目录与测试临时目录均被清理 | [`spawn-host.mjs`](../backend/agent/z-host/spawn-host.mjs)、[`test-model-service.mjs`](../scripts/test-model-service.mjs)、本次执行记录 | 代码侧隔离缺陷已修复并验证；用户确认不需要恢复数据。真实目录的逐文件清单未留存，不能从 Git 还原 |
 
@@ -488,7 +488,7 @@ TaskWeaver 当前是 **macOS 优先的本地桌面 Coding Agent**。本计划遵
 - [x] 为 `scripts/` 下已有测试建立清单：默认 CI、PR 必跑、发行必跑、nightly/真实模型、人工诊断、废弃；每项给出责任包和理由。见 [`taskweaver-test-inventory-2026-10.md`](./taskweaver-test-inventory-2026-10.md)。
 - [x] 将 P0/P1 边界回归接入适当门禁：默认集新增 startup、Shell static entry、model/bridge/chat/usage/MCP 覆盖；Host deploy/runtime build 与 app bundle 检查保留在 CI/发行专用入口。专项人工检查不强塞进每次运行。
 - [x] 移除 CI 中重复执行的等价步骤，修正集成测试 README 命令与遗漏列表、prompt eval 旧路径；生成文件的检查以生成脚本和 `check:ipc` 为准。
-- [ ] 核心 P0/P1 收敛后分诊 **CA-R10 OAuth cache（P3）**：验证 loader 返回 `undefined`、非字符串 `accessToken`、异常 expiry 和并发冷启动；只有复现无效缓存或重复刷新后才修复。
+- [x] 核心 P0/P1 收敛后分诊 **CA-R10 OAuth cache（P3）**：验证 loader 返回 `undefined`、非字符串 `accessToken`、异常 expiry 和并发冷启动；空值/非字符串误缓存已复现并修复。并发冷启动会重复启动 Bun helper；OpenCodex 的 refresh coordinator 通过进程内 flight map、跨进程 account lock 和锁内重读凭据避免重复 refresh。未做真实 Provider 调用，见 §16.6。
 - [ ] 统一测试结果证据：Agent 只可报告实际执行且成功的命令；跳过、未运行、失败、部分通过需分别显示，不能从自然语言推断“测试通过”。
 - [ ] 等 CA-10 修复范围和接口稳定后，把针对性回归接入门禁；CA-10 完成后再用固定任务集跑修复前后版本，分层比较 correctness、回归、权限、安全、耗时、工具数、成本。不允许只优化平均耗时而牺牲任务成功率或安全边界。
 
@@ -560,8 +560,8 @@ Node 构建唯一支持入口：根 `package.json` 的 `app`/`app:dmg` → `scri
 | ID | 状态 | 当前结论/下一步 |
 |---|---|---|
 | CA-00 | IN PROGRESS | 冻结 worktree、20 项任务集和 headless Host 调用方法已就绪；固定 Runtime 哈希/模型设置并运行仍未完成 |
-| CA-10 | IN PROGRESS | CA-R01–CA-R09、CA-R12 已验证；继续分诊 CA-R10 与 CA-R11 |
-| CA-20 | IN PROGRESS | 清单、入口调整和文档修正已完成且定向测试通过；等待 CI/macOS 打包门禁确认，并完成证据策略与 CA-R10 分诊 |
+| CA-10 | IN PROGRESS | CA-R01–CA-R10、CA-R12 已验证；继续处理 CA-R11 Shell URL/token 威胁分诊 |
+| CA-20 | IN PROGRESS | 清单、默认接线、去重、CA-R10 分诊及文档修正已完成；等待 CI/macOS 打包门禁确认，证据策略与 benchmark 仍未完成 |
 | CA-30 | TODO | 先测 Repo Map/LSP/符号入口，再决定索引改造 |
 | CA-40 | TODO | 审计 DAG 证据、取消、恢复和隔离路径 |
 | CA-50 | TODO | 验证 Plan→改码→测试→Diff/PR 的端到端体验 |
@@ -584,7 +584,7 @@ Node 构建唯一支持入口：根 `package.json` 的 `app`/`app:dmg` → `scri
 | CA-R08 | VERIFIED | Codex 主 Agent | `0d29da2ff` | `node scripts/test-macos-bundle-layout.mjs` PASS；`node scripts/test-host-node-executable.mjs` PASS；`node scripts/test-launchd-scheduler.mjs` PASS；`node scripts/check-package-scripts.mjs` PASS（134 root scripts）；Node `--check` 与 `git diff --check` PASS。未下载 Node 或运行 macOS 打包 | 唯一支持路径为 `app`/`app:dmg` → `build-app.sh` → `fetch-node.sh`；旧 builder/下载器及入口已删除；资源清单与历史文档已同步标注 |
 | CA-R09 | VERIFIED | Codex 主 Agent | `49d9e5aec` | `node scripts/check-package-scripts.mjs` PASS（140 scripts）；新增接线的 model/startup/bridge/chat/shell-entry/usage/MCP/UI/headless/runtime 定向测试通过；`node scripts/test-eval-prompts.mjs` 与 `node scripts/eval-prompts.mjs` PASS | 清单覆盖 173 个 `scripts/test-*.mjs` 与 8 个 `tests/*.test.mjs`；GitHub Actions 和 macOS app rebuild 未在本机运行 |
 | CA-R12 | VERIFIED（代码预防）；数据不恢复 | Codex 主 Agent | `49d9e5aec` | `node scripts/test-host-lifecycle.mjs` PASS；修复后 `node scripts/test-model-service.mjs` PASS，迁移落在测试临时 `HOME` | `spawn-host` 注入 `home`；测试和诊断脚本显式隔离 `HOME`/`TASKWEAVER_HOME`。用户确认不恢复；实际被删文件名未记录 |
-| CA-R10 | TODO（待分诊） | 未分配 | — | NOT RUN | 校验异常 loader 结果与并发冷启动，不假定已复现 |
+| CA-R10 | VERIFIED（缓存）；refresh 并发源码审查 | Codex 主 Agent | `50c1a6e5a` | 修复前内联 Node 复现：loader 返回 `undefined` 后缓存 `undefined`，第二次 get 未再调用 loader；4 个并发 cold get 调用 loader 4 次。修复后 `node scripts/test-provider-bridge-p12.mjs` PASS，覆盖 undefined/非字符串/空白 token、坏 expiry、过期 token；`node scripts/test-bridge-token-reuse.mjs` PASS；Node `--check` 与 `git diff --check` PASS | 实际 bridge 每次 loader 调用会启动 Bun helper；OpenCodex `bridge-access.ts#refreshAccount` 用 provider/account flight map，且 `createOAuthRefreshIntentLock` 跨进程串行、锁内重读有效 credential，源码路径不会重复 refresh。多个 cold helper 仍有启动开销；未运行真实 OAuth Provider 或跨进程集成实验 |
 | CA-R11 | TODO（威胁建模） | 未分配 | — | NOT RUN | 明确环境变量来源、loopback 页面控制和 token 能力 |
 
 **CA-00A 执行记录（2026-10-13）：**分支 `main`；冻结前 HEAD `f5624a108`；Node `v22.23.1`；pnpm `11.7.0`；已读取根 `AGENTS.md`。当时存在未提交的 `src/features/settings/SettingsPage.tsx` 与 `src/styles.css` 修改，已保留且未纳入 CA-R01 提交。CA-R01 修复提交 `94a47fbb0`，补充专项覆盖提交 `2d659932e`。
@@ -607,6 +607,8 @@ Node 构建唯一支持入口：根 `package.json` 的 `app`/`app:dmg` → `scri
 
 **CA-R12 数据事故记录（2026-10-13）：**运行 `node scripts/test-model-service.mjs` 时，测试创建的 Host manager 设置了临时 `TASKWEAVER_HOME`，但旧代码仍用真实 `os.homedir()` 搜索迁移源；因此把 `/Users/zsn/.dsh` 复制到测试临时运行目录，校验后删除源目录，随后测试清理又删除临时目录。迁移器只输出源/目标路径，不生成逐文件清单。已将 `home` 从 Host manager 显式传入迁移和旧目录清理，并给自动化测试/手工诊断提供隔离 home；修复后 `node scripts/test-host-lifecycle.mjs`、`node scripts/test-model-service.mjs` 均 PASS。用户已答复“删了就删了吧”，不需要恢复；实际内容只能按 runtime 常见结构推测，不能确认为目录当时的文件。
 
+**CA-R10 OAuth token cache 分诊（2026-10-13）：**修复前用临时内联 Node 复现：loader 返回 `undefined` 时，cache 会把 `undefined` 缓存到 fallback TTL，下一次 get 直接命中且不再运行 loader；4 个并发 cold get 各自运行 loader。缓存现在只接受非空字符串 access token，拒绝已过期 token；expiry 仅接受有限正数，否则尝试 JWT exp，仍缺失时按 5 分钟短 TTL 处理。`node scripts/test-provider-bridge-p12.mjs` 与 `node scripts/test-bridge-token-reuse.mjs` PASS，覆盖失效结果不会污染后续缓存、异常 expiry fallback、过期 token 拒绝及 401 invalidation。并发 loader 确有重复 helper 启动；源码中 OpenCodex `bridge-access.ts` 对同 account 有进程内 promise map，`store.ts` 用 create-exclusive-file lock 跨进程串行 refresh，并在锁内重新读取有效 credential，因此没有发现重复 OAuth refresh 的代码路径。没有运行真实 Provider、网络 OAuth 或多进程集成实验；helper 启动开销保留为待优化观察项。
+
 **CA-00B 执行记录（2026-10-13）：**增加 20 项固定任务集、评分结构与 Host 工具调用运行规程；数据集 SHA-256 `17f2c99fe1cdf0c6fbec0b8009a54ae1143b1077f1e9cbf17e8836bd21f0210f`。headless `on-risk` 与权限审计记录提交 `ff400e532`；任务集/评测规程提交 `0cc724af4`。`node scripts/test-headless-cli.mjs` PASS；JSON 字段、20 个唯一任务、权限模式和 100 分权重通过结构检查。没有调用模型或外部服务；Runtime 哈希、Provider/model 固定与真实运行仍未执行。基线目标仍为冻结提交 `f5624a108`。
 
-**当前续接点：CA-R10 / CA-R11，随后完成 CA-20 验收。**CA-R09/CA-20 的测试清单、接线、去重和文档修正已在本地完成；剩余验证是 GitHub Actions 与重建 macOS `.app`。CA-R10 OAuth cache 尚未分诊；CA-R11 Shell URL/token 威胁模型尚未核清。CA-R12 已修复隔离缺陷，用户确认不恢复丢失的 `~/.dsh`；不能提供真实文件清单。`src/features/settings/SettingsPage.tsx` 与 `src/styles.css` 中用户改动仍保留、未暂存、未提交。
+**当前续接点：CA-R11，然后完成 CA-20 的证据策略与环境门禁。**CA-R09/CA-20 测试清单、默认接线、去重、CA-R10 分诊和文档修正已在本地完成；剩余验证是 GitHub Actions 与重建 macOS `.app`，benchmark 对比仍须等 CA-10/CA-11 收敛。CA-R10 代码修复提交 `50c1a6e5a`；并发冷启动可重复启动 helper，但未发现重复 refresh 路径，未运行真实 Provider。CA-R12 已修复隔离缺陷，用户确认不恢复丢失的 `~/.dsh`；不能提供真实文件清单。`src/features/settings/SettingsPage.tsx` 与 `src/styles.css` 中用户改动仍保留、未暂存、未提交。
