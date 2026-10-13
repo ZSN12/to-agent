@@ -44,6 +44,7 @@ headless 会注入 `--local`（隔离临时 userData + 本机起 Host）。下�
 |------|------|------|
 | `--preset` | `taskweaver-readonly` | `standard` \| `code` \| `minimal` \| `cordis` \| `taskweaver-code` \| `taskweaver-readonly` \| `taskweaver-optimized` \| `taskweaver-pi-lite` |
 | `--workspace` | TaskWeaver 仓库目录 | 绑定会话的工作区；必须是已存在的非根目录。定时任务会显式传入保存的工作区。 |
+| `--permission-mode` | `ask` | `readonly`、`ask` 或 `on-risk`。headless 不开放 `full`；`on-risk` 按既有权限策略处理低风险操作。越界、网络、MCP、破坏性和提权操作会被拒绝并记录在 `permissionEvents`，因为 headless 没有 UI 审批通道。评测只应在独立临时工作区使用 `on-risk`。 |
 | `--model` | 活动模型 | 覆盖 profile 中的模型 key |
 | `--thinking` | profile | `default` \| `off` \| `minimal` \| `low` \| `medium` \| `high` \| `xhigh` \| `max` |
 | `--idle-timeout` | 提供商默认 | 流空闲超时（ms），1000–300000 |

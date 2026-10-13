@@ -27,6 +27,7 @@ Options:
   --text <prompt>       User message for this turn (required)
   --preset <name>       Agent preset (default in smoke: taskweaver-readonly)
   --workspace <path>    Workspace directory to bind the headless session to
+  --permission-mode <mode>  readonly, ask (default), or on-risk; full is unavailable
   --json-summary        After run, print one JSON summary line on stdout
   --fixture             Emit deterministic smoke events without starting Host/model
   --help                Show this help
@@ -71,6 +72,7 @@ function buildSummary(exitCode, lastCompleted, lastFailed) {
       agentPreset: lastCompleted.agentPreset ?? null,
       reportPath: lastCompleted.reportPath ?? null,
       text: lastCompleted.text ?? null,
+      permissionMode: lastCompleted.permissionMode ?? null,
       error: null,
     }
   }
@@ -84,6 +86,7 @@ function buildSummary(exitCode, lastCompleted, lastFailed) {
       agentPreset: null,
       reportPath: lastFailed.reportDir ?? null,
       text: null,
+      permissionMode: null,
       error: lastFailed.error ?? 'unknown',
     }
   }
@@ -96,6 +99,7 @@ function buildSummary(exitCode, lastCompleted, lastFailed) {
     agentPreset: null,
     reportPath: null,
     text: null,
+    permissionMode: null,
     error: 'no smoke status line captured',
   }
 }

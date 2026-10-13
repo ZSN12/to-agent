@@ -10,6 +10,7 @@ import { createProfileStore } from '../../backend/profile-store.mjs'
 import { resolveTaskWeaverModelsPath } from '../../backend/taskweaver-models-path.mjs'
 import { ensureModelsJsonSyncedToDshHost } from '../../backend/sync-models-json-to-host.mjs'
 import { setOcxRuntimeContext } from '../../backend/opencodex-binary.mjs'
+import { resolvePermissionPrompt } from '../../backend/permission-prompt-bridge.mjs'
 import { summarizeHostStepTimings } from '../host-step-timings.mjs'
 import { assembleWorkspaceContext } from '../../backend/context-assembler.mjs'
 
@@ -37,6 +38,10 @@ setOcxRuntimeContext(installed ? {
 if (!fixture && !isolated && !process.argv.includes('--base-url')) throw new Error('Pass --installed, --local, or the URL of an existing Z Host with --base-url')
 const thinkingOverride = process.argv.includes('--thinking') ? arg('--thinking') : null
 const textOverride = process.argv.includes('--text') ? arg('--text') : null
+const permissionMode = process.argv.includes('--permission-mode') ? arg('--permission-mode') : 'ask'
+if (!['readonly', 'ask', 'on-risk'].includes(permissionMode)) {
+  throw new Error('--permission-mode must be readonly, ask, or on-risk')
+}
 const opencodexBaseUrlOverride = process.argv.includes('--opencodex-base-url') ? arg('--opencodex-base-url') : null
 if (opencodexBaseUrlOverride) {
   const url = new URL(opencodexBaseUrlOverride)
@@ -71,6 +76,7 @@ if (fixture) {
       agentPreset,
       conversationId: 'headless-fixture',
       startedAt,
+      permissionMode,
     },
     {
       elapsedMs: 1,
@@ -90,6 +96,7 @@ if (fixture) {
       reasoningChars: 0,
       toolCalls: [],
       nestedToolCalls: [],
+      permissionMode,
       requestAttemptEstimate: 1,
       requestHeaderSnapshots: 1,
       steps: 1,
@@ -193,6 +200,7 @@ try {
   metrics = {
     modelKey,
     agentPreset,
+    permissionMode,
     ...(thinkingOverride ? { thinkingOverride } : {}),
     ...(opencodexBaseUrlOverride ? { opencodexBaseUrlOverride } : {}),
     ...(idleTimeoutOverride !== null ? { idleTimeoutOverride } : {}),
@@ -204,16 +212,26 @@ try {
       userTextBytes: Buffer.byteLength(userText, 'utf8'),
     } : {}),
     conversationId, cwd: workspacePath, runtimeRoot, startedAt,
-    firstThinkingMs: null, firstTextMs: null, reasoningChars: 0, toolEvents: [], retries: [],
+    firstThinkingMs: null, firstTextMs: null, reasoningChars: 0, toolEvents: [], permissionEvents: [], retries: [],
   }
   chat = createDshChatService({
     hostManager, userDataPath: reportDir, modelService, profileStore,
-    getWorkspacePath: () => workspacePath, getPermissionMode: () => 'ask',
+    getWorkspacePath: () => workspacePath, getPermissionMode: () => permissionMode,
   })
   const webContents = {
     isDestroyed: () => false,
-    send(_channel, event) {
+    send(channel, event) {
       const elapsedMs = Date.now() - startedAt
+      if (channel === 'permission:prompt') {
+        metrics.permissionEvents.push({
+          elapsedMs,
+          tool: event.tool,
+          reason: event.reason,
+          decision: 'denied-no-ui',
+        })
+        resolvePermissionPrompt(event.id, { action: 'deny' })
+        return
+      }
       if (event.type === 'thinking_delta') {
         metrics.firstThinkingMs ??= elapsedMs
         metrics.reasoningChars += event.delta?.length ?? 0
