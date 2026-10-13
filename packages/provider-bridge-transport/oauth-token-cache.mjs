@@ -1,4 +1,5 @@
 export const OAUTH_TOKEN_CACHE_REFRESH_SKEW_MS = 60_000
+const FALLBACK_TTL_MS = 5 * 60_000
 
 export function accessTokenExpiryMs(token) {
   if (typeof token !== 'string') return null
@@ -32,14 +33,20 @@ export function createOAuthTokenCache({
 
       const loaded = await loadToken()
       const accessToken = typeof loaded === 'string' ? loaded : loaded?.accessToken
-      const expiresAtMs = typeof loaded === 'object' && loaded !== null
-        ? Number(loaded.expiresAtMs)
+      if (typeof accessToken !== 'string' || accessToken.trim().length === 0) {
+        throw new TypeError('OAuth token loader must return a non-empty access token string.')
+      }
+
+      const expiryHint = typeof loaded === 'object' && loaded !== null ? loaded.expiresAtMs : undefined
+      const expiresAtMs = typeof expiryHint === 'number' && Number.isFinite(expiryHint) && expiryHint > 0
+        ? expiryHint
         : accessTokenExpiryMs(accessToken)
-      const FALLBACK_TTL_MS = 5 * 60_000
-      const effectiveExpiry = Number.isFinite(expiresAtMs) && expiresAtMs > 0
-        ? expiresAtMs
-        : now() + FALLBACK_TTL_MS + refreshSkewMs
-      if (effectiveExpiry > now() + refreshSkewMs) {
+      const currentTimeMs = now()
+      if (expiresAtMs !== null && expiresAtMs <= currentTimeMs) {
+        throw new TypeError('OAuth token loader returned an expired access token.')
+      }
+      const effectiveExpiry = expiresAtMs ?? currentTimeMs + FALLBACK_TTL_MS + refreshSkewMs
+      if (effectiveExpiry > currentTimeMs + refreshSkewMs) {
         tokens.set(provider, { accessToken, expiresAtMs: effectiveExpiry })
       } else {
         tokens.delete(provider)

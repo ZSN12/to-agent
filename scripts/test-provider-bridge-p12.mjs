@@ -36,6 +36,60 @@ tokens.invalidate('opaque-provider')
 assert.equal(await tokens.get('opaque-provider', async () => { opaqueReads += 1; return 'opaque-token-2' }), 'opaque-token-2')
 assert.equal(opaqueReads, 2, 'opaque token is invalidated on 401')
 
+const invalidCache = createOAuthTokenCache({ now: () => 1_000, refreshSkewMs: 60_000 })
+let invalidLoads = 0
+await assert.rejects(
+  invalidCache.get('missing-token', async () => { invalidLoads += 1; return undefined }),
+  /non-empty access token string/,
+)
+await assert.rejects(
+  invalidCache.get('non-string-token', async () => ({ accessToken: 42, expiresAtMs: 500_000 })),
+  /non-empty access token string/,
+)
+await assert.rejects(
+  invalidCache.get('empty-token', async () => ({ accessToken: '   ', expiresAtMs: 500_000 })),
+  /non-empty access token string/,
+)
+assert.equal(await invalidCache.get('missing-token', async () => { invalidLoads += 1; return 'recovered-token' }), 'recovered-token')
+assert.equal(invalidLoads, 2, 'an invalid token result is not cached and a later read retries the loader')
+
+for (const [provider, badExpiry] of [
+  ['string-expiry', 'never'],
+  ['infinite-expiry', Infinity],
+  ['nan-expiry', Number.NaN],
+]) {
+  let expiryNow = 1_000
+  let expiryReads = 0
+  const expiryCache = createOAuthTokenCache({ now: () => expiryNow, refreshSkewMs: 60_000 })
+  assert.equal(await expiryCache.get(provider, async () => {
+    expiryReads += 1
+    return { accessToken: `${provider}-first`, expiresAtMs: badExpiry }
+  }), `${provider}-first`)
+  assert.equal(await expiryCache.get(provider, async () => {
+    expiryReads += 1
+    return { accessToken: `${provider}-unexpected`, expiresAtMs: 500_000 }
+  }), `${provider}-first`, 'a malformed expiry falls back to the short conservative TTL')
+  expiryNow += 5 * 60_000 + 1
+  assert.equal(await expiryCache.get(provider, async () => {
+    expiryReads += 1
+    return { accessToken: `${provider}-second`, expiresAtMs: 500_000 }
+  }), `${provider}-second`)
+  assert.equal(expiryReads, 2, 'fallback expiry is bounded and eventually reloads the token')
+}
+
+let expiredNow = 200_000
+let expiredReads = 0
+const expiredCache = createOAuthTokenCache({ now: () => expiredNow, refreshSkewMs: 0 })
+await assert.rejects(expiredCache.get('expired-token', async () => {
+  expiredReads += 1
+  return { accessToken: 'expired-token', expiresAtMs: expiredNow - 1 }
+}), /expired access token/)
+assert.equal(await expiredCache.get('expired-token', async () => {
+  expiredReads += 1
+  return { accessToken: 'fresh-token', expiresAtMs: expiredNow + 100_000 }
+}), 'fresh-token', 'an already-expired token is rejected and never cached')
+assert.equal(expiredReads, 2)
+
 let prewarmCallback
 let prewarmDelay
 let prewarmCalls = 0
