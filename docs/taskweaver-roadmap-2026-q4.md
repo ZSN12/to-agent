@@ -1,8 +1,10 @@
 # TaskWeaver 路线图（2026 Q4 → 2027 Q1）
 
-执行版索引；当前版本焦点：**v1.2.0 发版一致性 + 上下文成本 + 编排产品化**。
+执行版索引。**2026-10-13 更新：**面向顶级 Coding Agent 的当前执行状态和任务 ID 见 [`taskweaver-execution-plan-2026-10.md` §16](taskweaver-execution-plan-2026-10.md#16-coding-agent-质量提升计划2026-10-13-当前执行)；本文下方阶段表、门禁说明是 2026-10-07 快照，不能替代 §16 的当前状态表。
 
-**可执行计划：**[`taskweaver-execution-plan-2026-10.md`](taskweaver-execution-plan-2026-10.md)（**2026-10-07 修订版**：Done/缺口、v1.2.1→v1.4、本周 Issue 清单）。
+> 下方旧阶段表、门禁和命令是历史快照，其中可能有 `npm` 命令或过期脚本名。当前执行前应以仓库 `AGENTS.md`、`package.json` 和执行计划 §16 为准；本仓库使用 pnpm。
+
+**执行计划：**[`taskweaver-execution-plan-2026-10.md`](taskweaver-execution-plan-2026-10.md)（历史版本阶段 A–E；当前 Coding Agent 质量提升以 §16 的 CA-00–CA-70 为准）。
 
 **基线（2026-10-07）：**当前 `main` / `80b3e040` 与 `origin/main` 一致，`v1.2.1` tag 已存在。BCDE 本轮工作区改动未提交；详细状态和验证边界见执行计划 §15。
 

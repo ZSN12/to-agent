@@ -2,7 +2,11 @@
 
 > **索引：**阶段状态见 [`taskweaver-roadmap-2026-q4.md`](taskweaver-roadmap-2026-q4.md)；发版节奏见 [`release-rhythm-v1.2.md`](release-rhythm-v1.2.md)；headless 见 [`taskweaver-headless.md`](taskweaver-headless.md)。
 
+> **当前执行权威（2026-10-13）：**面向顶级 Coding Agent 的可靠性与能力差距，以本文 §16 的 `CA-*` 任务 ID 和状态为唯一执行清单。§0–15 包含 2026-10-07 的计划与历史基线；与 §16 或当前源码冲突时，不要把旧状态当成已验收事实。当前审计基线为 `0668e6562`；审计未运行测试或构建。创建本计划时 `src/features/settings/SettingsPage.tsx`、`src/styles.css` 有未提交修改，执行任务前必须重新检查并保留。
+
 初始修订记录（2026-10-07）：**分支 `main`**、**HEAD `80b3e040`**（与 `origin/main` 一致）、**tag `v1.2.1`**。本轮 BCDE 状态以 §15 为准；工作区改动尚未提交。
+
+> **历史内容提示：**§0–15 的 shell 命令、包管理器和测试入口均属于 2026-10-07 计划快照，可能已过时，不要直接照抄。当前仓库固定使用 `pnpm@11.7.0`；执行命令前先核对当前 `package.json` 与 `AGENTS.md`。
 
 本版在「12 周总路线图」基础上，把 **已完成 / 进行中 / 未做** 写清楚，并给出 **版本切割、门禁、周计划、验收表**。
 
@@ -410,3 +414,170 @@ npm run install:app
 - `node --check`：已核查的 Electron backend / smoke 脚本通过；`git diff --check` 通过。
 - 未运行任何测试套件、未运行安装版/真实模型 E2E、未做性能压测；CI 尚未验证。
 - 未清理分析文档，也未删除 vendor 下出现的未跟踪 semantic-search / inline-edit 包；它们未纳入本轮 BCDE 交付验收。
+
+---
+
+## 16. Coding Agent 质量提升计划（2026-10-13 当前执行）
+
+### 16.1 目标与产品边界
+
+目标不是堆出更多功能，也不承诺和某个竞品“功能完全一样”。目标是让用户把有明确验收条件的真实仓库任务交给 TaskWeaver 后，Agent 能理解仓库、在正确边界内修改、运行与任务匹配的验证、如实报告证据；失败时保留现场并可恢复。
+
+TaskWeaver 当前是 **macOS 优先的本地桌面 Coding Agent**。本计划遵守仓库约束：不把 Windows 作为支持目标；不默认启用云端执行；不自动推送、合并、发布、覆盖已安装应用或进行真实模型计费调用。云端/团队托管能力是后续产品决策，不阻塞本地 Agent 质量提升。
+
+### 16.2 现有基础与审计边界
+
+仓库已有多智能体与 DAG、会话持久化/恢复、Worktree 与 Git 检查点、任务路由、Repo Map/符号工具、Shell/文件/MCP/Web 工具、Hooks、计划任务和 GitHub PR 能力；根 `test:all` 也覆盖了大量服务与生命周期场景。这些属于已有能力，不应重复造一套。
+
+本计划基于源码和静态引用/调用链审查，不代表所有能力都完成了安装版或真实任务验收。2026-10-13 审计没有运行测试、构建或真实模型实验。以下缺陷分为源码已确认和需要运行场景复现两类；进入执行阶段后应先复核当前代码，再写测试并修复。
+
+### 16.3 已知差距与风险登记
+
+| ID | 优先级 | 发现 | 证据与当前判断 | 状态 |
+|---|---|---|---|---|
+| CA-R01 | P0 | Shell/RPC 终端请求的 sender 缺少终端服务要求的整数窗口 ID；注册 owner 时可能直接失败 | [`register-terminal-ipc.mjs`](../backend/register-terminal-ipc.mjs) 要求 `event.sender.id`；Shell sender 定义见 [`shell-platform.mjs`](../backend/platform/shell-platform.mjs) | 源码确认；待复现与修复 |
+| CA-R02 | P1 | `apply_patch` 把 CRLF 内容归一成 LF 后写回，可能导致整文件换行格式变化 | [`apply-patch.ts`](../packages/runtime/fs/tool-fs/src/apply-patch.ts)；普通 `editText` 会恢复换行格式 | 源码确认；待回归测试 |
+| CA-R03 | P1 | 首次运行提示读写路径可能回退到 `process.cwd()`，而不是应用 user data 目录 | [`register-app-ipc.mjs`](../backend/ipc/register-app-ipc.mjs) 与 IPC 装配路径 | 静态调用链确认；待针对路径修复 |
+| CA-R04 | P1 | Planner 输出样例仍含不存在的 `desktop/main.cjs`，配置中也有旧 `desktop/` 路径 | [`plan-and-execute.mjs`](../backend/orchestration/plan-and-execute.mjs)、`.taskweaver/planner-hints.json` | 源码确认；待改为从当前索引选路径并校验 |
+| CA-R05 | P1 | MCP 工具缓存身份仅包含 URL；相同 URL 换认证身份时可能短暂复用旧工具 schema | [`remote-tool-cache.ts`](../packages/runtime/mcp/mcp-client/src/remote-tool-cache.ts)、`connection.ts` | 风险成立；不是已确认的权限绕过；待定义安全缓存语义 |
+| CA-R06 | P2 | Python PTY 后备模式的 wrapper 与 shell 进程组清理可能不完整 | [`terminal-service.mjs`](../backend/terminal-service.mjs)、[`pty-shim.py`](../backend/pty-shim.py) | 静态推断；必须先复现，不按既定 Bug 修复 |
+| CA-R07 | P2 | Contract API 类型有失效导入、且与 `src/shared/app-api.ts` 漂移；当前检查范围未覆盖该文件 | `contract/types/app-api.ts`、`scripts/gen-ipc-types.mjs`、`tsconfig.app.json` | 源码确认；待决定生成/校验的唯一来源 |
+| CA-R08 | P2 | Node 获取路径默认版本和校验方式不一致 | `scripts/ensure-host-node.mjs` 与 `scripts/macos/fetch-node.sh` | 源码确认；先确认两条构建入口是否都受支持 |
+| CA-R09 | P2 | 若干重要脚本测试未进入默认回归门禁；CI 与 `test:all` 有重复步骤，README/提示词样例有陈旧命令和路径 | 根 `package.json`、`.github/workflows/ci.yml`、`tests/README.md`、`tests/prompts/cases.json` | 源码确认；待梳理后修改 |
+| CA-R10 | P3 | OAuth token cache 对 loader 返回对象的 token 字段缺少完整结构校验；并发冷启动也需确认是否会重复刷新 | [`oauth-token-cache.mjs`](../packages/provider-bridge-transport/oauth-token-cache.mjs)；当前内部调用链会提供 token 字符串 | 待分诊；不是已确认的任务阻断问题 |
+| CA-R11 | Triage | 原生 Shell 可从 `TASKWEAVER_UI_URL` 选择受信任的 loopback 页面，再把 Shell API bearer token 放进 URL fragment；需要核清环境来源、页面脚本可控性与 token 能力 | [`TaskWeaverShellApp.swift`](../apps/macos/TaskWeaverShell/Sources/TaskWeaverShell/TaskWeaverShellApp.swift)、[`ShellURLPolicy.swift`](../apps/macos/TaskWeaverShell/Sources/ShellURLPolicy/ShellURLPolicy.swift)、[`bootstrap.ts`](../src/shell/bootstrap.ts) | 条件性风险；未确认漏洞，不得按已证实问题描述 |
+
+已完成的仓库卫生清理：提交 `0668e6562` 删除无调用入口的迁移/打包残留、测试生成文件、旧扩展和临时 `scratch/` 脚本；Swift 壳未接线的导航状态也已删除；Git 不再跟踪 SwiftPM `.build` 缓存。本清理不代表运行时可靠性问题已解决。
+
+### 16.4 阶段与任务
+
+估时按一名熟悉仓库的工程师粗算，只用于排期，不构成自动执行时限。每个阶段完成后记录 commit、改动范围、实际验证命令和结果；未执行的验证明确写 `NOT RUN`，不得把代码已存在描述为已通过。
+
+#### CA-00：冻结基线与任务评测设计（分为 A/B 两个检查点）
+
+- [ ] **CA-00A（数小时）：**重新核对 `git status`、当前分支/HEAD、当前 `AGENTS.md`、pnpm/Node 版本和测试入口；记录未提交用户改动，并使用隔离副本或 worktree 做基线工作，不覆盖、不纳入用户文件。
+- [ ] CA-R01 是 P0：完成 CA-00A 后立即复现并推进 CA-10 中的 CA-R01，不等待完整任务集；记录修复前后代码快照与针对性证据。
+- [ ] **CA-00B（1–2 天）：**在固定仓库快照上建初始任务集，覆盖仓库问答、单点 Bug、跨文件功能、重构、测试修复、权限/文件边界、MCP、DAG/取消/恢复。至少 20 个不同任务作为 smoke/eval 开始集；20 项本身不构成发布统计门槛。
+- [ ] 固定并记录 repo commit、模型/Provider、路由策略、权限、干净工作区副本、提示和验证命令；用相同设置比较原始快照与候选版本，避免把已有用户工作区修改混入结果。
+- [ ] 每个任务评分：验收通过、隐藏/针对性测试、回归、scope/权限违规、完成声明是否有执行证据、耗时、工具调用、token/成本。保留失败样本，不从统计中剔除。
+
+**验收：**CA-00A 有可恢复的基线标识与用户改动清单；P0 不被 benchmark 排期阻塞。CA-00B 的样本能回溯到代码快照与工具/测试记录；候选比较前冻结评分规则和阈值。
+
+#### CA-10：修复阻断执行与数据完整性的缺陷（3–5 天）
+
+- [ ] **CA-R01 终端身份：**为 Shell 与 RPC 路径定义稳定、隔离的 owner 身份，不伪造 Electron sender。验证创建、数据事件、停止、sender 销毁、跨 owner 拒绝及异常清理。
+- [ ] **CA-R02 换行：**`apply_patch` 保留 CRLF/LF、无末尾换行和混合换行输入的约定；若混合换行不支持，要明确拒绝或采取有据可依的策略，不能静默重写整文件。
+- [ ] **CA-R03 用户数据路径：**从应用平台层显式注入唯一 user data 路径；移除生产回退到 cwd 的路径；覆盖读取旧标记、写入新标记和目录不可写等失败场景。
+- [ ] **CA-R04 Planner 路径：**提示样例和 planner hints 不写死迁移前路径；规划结果必须根据当前工作区索引验证存在性。无效路径应要求修正或报告失败，不得悄悄作为有效 scope 执行。
+- [ ] **CA-R05 MCP 缓存：**制定缓存身份、工具禁用/替换时序及旧 schema 失效规则。身份指纹不得保存或写日志明文凭据；同 URL 换账号、header/token 变化、刷新失败、并发连接均须可测。新权限工具同步完成前不得把旧 schema 当成新身份的可执行能力。
+- [ ] **CA-R06 PTY：**先通过取消/关闭测试复现是否遗留 shell；如复现，再定义 macOS 支持范围内的进程组信号、超时和清理语义。
+- [ ] **CA-R07 API 类型：**以 `contract/channels.mjs` 为契约真源，明确 TS API 类型是生成物还是由契约导出；修正无效导入，并让 IPC 检查实际覆盖其类型消费端。
+- [ ] **CA-R08 Node 供应：**清点每条受支持的打包入口，统一版本来源；下载时校验官方摘要，失败需 fail closed。淘汰的旧 builder 应删除或标成不支持入口。
+- [ ] **CA-R11 Shell URL/token（分诊）：**确认 `TASKWEAVER_UI_URL` 是否可由非可信来源注入、loopback 页面由谁控制、fragment token 可被哪些脚本读取、token 可调用哪些 IPC/API；按威胁模型和可达性定优先级，不预设为漏洞。
+
+**验收：**CA-R01–CA-R04 的回归门禁通过；CA-R05/06 的安全语义与复现结论有记录；CA-R11 有明确威胁前提与处置结论；关键失败路径可以在不调用真实外部服务的 fixture/mock 中验证。P0/P1 未关闭不得进入发布验收。
+
+#### CA-20：把正确性验证变成默认闭环（3–5 天，可与 CA-10 后半并行）
+
+- [ ] 为 `scripts/` 下已有测试建立清单：默认 CI、PR 必跑、发行必跑、nightly/真实模型、人工诊断、废弃；每项给出责任包和理由。CA-00B 期间可先做只读清点，与 CA-10 后半并行。
+- [ ] 将 P0/P1 边界回归接入适当的 `pnpm` 门禁；评估 `test:z-runtime-build-atomic`、GitHub OAuth、Shell 静态服务等未接线项。专项人工检查不强塞进每次运行。
+- [ ] 移除 CI 中重复执行的等价步骤，修正集成测试 README 命令与遗漏列表、prompt eval 旧路径；生成文件的检查以生成脚本和 `check:ipc` 为准。
+- [ ] 核心 P0/P1 收敛后分诊 **CA-R10 OAuth cache（P3）**：验证 loader 返回 `undefined`、非字符串 `accessToken`、异常 expiry 和并发冷启动；只有复现无效缓存或重复刷新后才修复。
+- [ ] 统一测试结果证据：Agent 只可报告实际执行且成功的命令；跳过、未运行、失败、部分通过需分别显示，不能从自然语言推断“测试通过”。
+- [ ] 等 CA-10 修复范围和接口稳定后，把针对性回归接入门禁；CA-10 完成后再用固定任务集跑修复前后版本，分层比较 correctness、回归、权限、安全、耗时、工具数、成本。不允许只优化平均耗时而牺牲任务成功率或安全边界。
+
+**验收：**每个 P0/P1 生产路径均有针对性自动验证；默认 CI 对关键路径无重复且无缺口；benchmark 报告包含失败样本、置信限制和真实命令记录。测试清点可提前完成，但修复后比较不得早于 CA-10 完成。
+
+#### CA-30：让代码库理解更精确、更省上下文（1–2 周）
+
+- [ ] 审计 Repo Map、文件索引、符号提取和 LSP 的默认组合。对已支持语言启用可用的符号/诊断入口；未支持语言明确降级到 grep/read。
+- [ ] 评估索引新鲜度与大仓开销：增量更新、Git 变更失效、忽略 vendor/generated/build、按需读取。不要因为竞品有 embedding 就默认添加全仓向量库。
+- [ ] Planner scope 必须由当前工作区路径索引生成和验证；跨文件问题的只读 scope 覆盖完整调用链，写 scope 按任务最小化。
+- [ ] 用 CA-00 的仓库问答和跨文件定位题衡量路径准确率、引用完整度、工具调用数与上下文 token。
+
+**验收：**支持语言的符号查找可从 Planner/Agent 常规路径使用；增量变更后索引不返回旧路径；benchmark 的定位/证据质量不得比 baseline 下降。
+
+#### CA-40：提升长任务、DAG 和恢复的正确性（1–2 周）
+
+- [ ] 保持产品约束：普通 Composer 走单 Agent；只有用户明确选择多智能体/Goal 时才启动 DAG，不因复杂度自动升级。
+- [ ] 每个 DAG 节点具有具体输入、scope、验收点、依赖和停止条件；下游只依赖已完成且通过证据检查的上游结果。
+- [ ] 审计取消、失败、重试、进程重启、会话恢复、worktree 清理与重复执行；清理失效任务不能丢失用户改动。
+- [ ] 结果汇总必须基于执行历史和测试证据，不以 Agent 的“我完成了”作为唯一终态。证据不足时输出未完成与下一步。
+- [ ] 并行改动按文件/职责分区，主 Agent 负责集成；禁止多个 worker 同时改同一接口而无契约协调。
+
+**验收：**固定任务集至少覆盖取消、失败恢复和真实 turn 并发；任务状态与 Host/tool 历史一致；无未授权写入、越界或幽灵成功。
+
+#### CA-50：打磨从需求到可审阅交付的产品流程（1–2 周）
+
+- [ ] 把 Plan → 修改 → targeted tests → Diff/Worktree review → 汇总证据串成单一任务流程，确保用户能看到进行中状态、失败原因和最终改动。
+- [ ] 验收 GitHub PR 能力的权限、草稿/审阅、失败重试与离线降级；发布、push、merge、安装等高影响动作仍需明确用户授权。
+- [ ] 验证长任务离开/关闭 UI 后的真实语义：支持的恢复行为、后台任务生命周期和通知必须与界面一致；不能把 LaunchAgent 定时运行等同任意任务云端持续执行。
+- [ ] 保持 macOS 原生壳与浏览器开发入口契约一致；优先修复跨 Shell/RPC 差异，不以新增平台目标稀释稳定性工作。
+
+**验收：**从新建任务到审阅 diff 的端到端 smoke 覆盖成功、失败、取消和恢复；所有外部副作用均在正确授权边界内。
+
+#### CA-60：用实测提升模型路由与工具策略（持续，CA-00 后开始）
+
+- [ ] 分开测模型能力、Provider 延迟、路由策略、上下文构成、工具策略和 DAG 并发；一次实验只改变一个主要变量。
+- [ ] 对分类器/路由决策保留解释、候选与实际 Provider；故障 fallback 对用户可见，不默默改变权限或任务目标。
+- [ ] 使用固定与 holdout 任务对比不同可用模型/路由；同时报告成功率、质量、P50/P90 时延和成本，不用单样本宣称提速。20 项初始集仅用于 smoke；进入 CA-70 前扩到至少 50 个不同任务，随机性明显的任务至少跑 3 次，并按任务做 paired bootstrap 或同等方法报告 95% 置信区间。
+- [ ] 对依赖真实模型或收费 Provider 的实验设置独立显式命令，CI 默认使用 mock/fixture。
+
+**验收：**任何默认路由变化都以冻结任务集数据支持；关键确定性任务无回归，安全/权限违规为零。当前计划建议把总体正确率的非劣界值预登记为 `-5` 个百分点：候选与 baseline 的配对差值点估计不得下降，且 95% 区间下界不得越过该界值。CA-00B 首次候选比较前冻结或书面调整此门槛；区间过宽或跨过门槛时标记“证据不足”，扩充样本后再判，不得按通过处理。结果可复跑。
+
+#### CA-70：发布门禁与维护收尾（2–4 天）
+
+- [ ] 只保留被支持的构建路径，统一 Node 与 pnpm 来源；验证生成的 deploy/app 内容与源码来源一致。
+- [ ] 发布门禁涵盖 IPC、TypeScript、runtime 构建、P0/P1 集成回归和独立 `.app` smoke；每个门禁列明命令、环境和跳过条件。
+- [ ] 更新 README、roadmap、Agent instructions 和测试清单，删除完成后已失效的路径/说明；所有 plan 状态标注日期与 commit。
+- [ ] 形成一次端到端质量报告：与 CA-00 baseline 的质量/回归/成本/延迟差异；发布或推送仍需用户单独授权。
+
+**总验收门槛：**没有未关闭的 P0/P1；所有关键用户任务都有可重跑验证；完成声明与运行证据一致；同一固定任务集的正确率点估计不低于 baseline，且 95% 区间下界不越过 CA-00B 冻结的非劣界值；安全/权限违规为零；成本与耗时有数据且没有通过降低质量换取表面提速。未满足或证据不足时标记未完成，不以功能已合入代替验收。
+
+### 16.5 顺序、并行分工与交接规则
+
+依赖顺序：**CA-00A → CA-R01 P0 快速通道 → CA-00B → CA-10 其余问题 → CA-20 → CA-30/CA-40 → CA-50 → CA-60 复测 → CA-70**。CA-20 的只读测试目录清点可与 CA-10 后半并行；CI 回归接线待接口/修复方案稳定；修复前后 benchmark 在 CA-10 完成后执行。CA-30 与 CA-40 可在接口冻结后分人执行。CA-10 的终端、文件换行、MCP 任务应由不同责任人处理，不并行编辑同一文件。
+
+建议子任务边界：
+
+1. Shell/RPC owner、PTY 生命周期：`backend/register-terminal-ipc.mjs`、`backend/platform/`、`backend/terminal-service.mjs`、`backend/pty-shim.py`。
+2. Runtime 文件工具与 MCP cache：`packages/runtime/fs/` 与 `packages/runtime/mcp/`，互相不改共享数据结构。
+3. CI、测试清单、固定任务集：根 `package.json`、`.github/workflows/`、`scripts/`、`eval/`。
+4. Planner、API contract、UI 展示和最终集成由主负责人串行整合；每个 worker 返回文件范围、证据、未解决点，不直接扩大任务范围。
+
+每次继续本计划前，先读本节和 `git status`；只推进一个 `CA-*` 主任务，完成时更新状态与证据；提交只包含本任务文件，检查点不得混入用户改动。每个 CA-R 风险记录 `状态 / 责任人 / 相关提交 / 验证命令与结果 / 下一步或未决问题`；`fixed` 只表示代码已修改，只有有命令输出或等价可复核证据时才可改为 `verified`。上下文切换只传递当前 ID、下一步、阻塞项和未提交用户改动，不重做已完成审计。最新状态以本节状态表和风险证据台账为准。
+
+Node 构建入口已知分为两条：根 `package.json` 的 `app`/`app:dmg` → `scripts/macos/build-app.sh` → `scripts/macos/fetch-node.sh`（当前默认 Node `v22.19.0`、arm64、校验官方 SHA256）；以及 `scripts/make-mac-app.sh` → `scripts/build-macos-shell-app.mjs` → `scripts/ensure-host-node.mjs`（当前默认 `22.18.0`、允许 arm64/x64、未校验 SHA256）。CA-R08 必须明确第二条是否受支持；若保留，两条均统一版本与校验/失败语义；若废弃，删除或明确阻断其入口，并更新引用和布局检查。
+
+### 16.6 当前状态表
+
+| ID | 状态 | 当前结论/下一步 |
+|---|---|---|
+| CA-00 | TODO | CA-00A 冻结工作区并保护用户改动；CA-R01 P0 后完成 CA-00B 任务集和 baseline |
+| CA-10 | TODO | 优先处理终端身份、换行与用户数据路径 |
+| CA-20 | TODO | 建立测试入口清单并闭合关键回归门禁 |
+| CA-30 | TODO | 先测 Repo Map/LSP/符号入口，再决定索引改造 |
+| CA-40 | TODO | 审计 DAG 证据、取消、恢复和隔离路径 |
+| CA-50 | TODO | 验证 Plan→改码→测试→Diff/PR 的端到端体验 |
+| CA-60 | TODO | CA-00 baseline 后按单一变量做模型/路由比较 |
+| CA-70 | TODO | 其他阶段验收后完成发布与文档门禁 |
+
+#### 风险证据台账（逐项更新）
+
+状态限定为 `TODO / CONFIRMED / REPRODUCED / FIXED / VERIFIED / DEFERRED`。静态确认与运行复现分开记录；没有验证命令或可检查证据时不得写 `VERIFIED`。
+
+| ID | 状态 | 责任人 | 相关提交 | 验证命令与结果 | 下一步 / 未决问题 |
+|---|---|---|---|---|---|
+| CA-R01 | CONFIRMED（静态） | 未分配 | — | NOT RUN | P0：最小化复现 Shell/RPC owner 注册失败并修复 |
+| CA-R02 | CONFIRMED（静态） | 未分配 | — | NOT RUN | 覆盖 CRLF/LF、无末尾换行和混合换行约定 |
+| CA-R03 | CONFIRMED（调用链） | 未分配 | — | NOT RUN | 确认 userDataPath 注入并覆盖写入失败 |
+| CA-R04 | CONFIRMED（静态） | 未分配 | — | NOT RUN | 校验 Planner 输出路径存在且属于当前 workspace |
+| CA-R05 | CONFIRMED（风险） | 未分配 | — | NOT RUN | 设计换身份/换凭据/刷新失败与并发失效测试 |
+| CA-R06 | TODO（静态推断） | 未分配 | — | NOT RUN | 先复现 PTY 取消/关闭后是否遗留进程 |
+| CA-R07 | CONFIRMED（静态） | 未分配 | — | NOT RUN | 定义 contract 类型单一来源并扩大真实消费端检查 |
+| CA-R08 | CONFIRMED（静态） | 未分配 | — | NOT RUN | 由 CA-10 决定第二条 builder 的支持状态与统一方案 |
+| CA-R09 | CONFIRMED（静态） | 未分配 | — | NOT RUN | 清点默认 CI、专项、人工诊断与废弃入口 |
+| CA-R10 | TODO（待分诊） | 未分配 | — | NOT RUN | 校验异常 loader 结果与并发冷启动，不假定已复现 |
+| CA-R11 | TODO（威胁建模） | 未分配 | — | NOT RUN | 明确环境变量来源、loopback 页面控制和 token 能力 |
+
+**当前续接点：CA-00A，然后快速处理 CA-R01 P0。**首次执行时重新检查 SettingsPage/CSS 工作区修改；这些改动不属于本计划，不得覆盖或纳入本计划提交。
