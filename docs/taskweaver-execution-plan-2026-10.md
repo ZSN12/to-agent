@@ -442,7 +442,7 @@ TaskWeaver 当前是 **macOS 优先的本地桌面 Coding Agent**。本计划遵
 | CA-R05 | P1 | MCP 工具缓存身份仅包含 URL；相同 URL 换认证身份时可能短暂复用旧工具 schema | [`remote-tool-cache.ts`](../packages/runtime/mcp/mcp-client/src/remote-tool-cache.ts)、`connection.ts` | 已复现并修复：缓存身份绑定有效 HTTP headers 的摘要；旧缓存仅临时展示，实时 schema 同步成功前不可执行；见 §16.6 |
 | CA-R06 | P2 | Python PTY 后备模式的 wrapper 与 shell 进程组清理可能不完整 | [`terminal-service.mjs`](../backend/terminal-service.mjs)、[`pty-shim.py`](../backend/pty-shim.py) | 已复现：关闭后 shell 与后台任务存活；已修复并专项验证，见 §16.6 |
 | CA-R07 | P2 | Contract API 类型有失效导入、且与 `src/shared/app-api.ts` 漂移；当前检查范围未覆盖该文件 | `contract/types/app-api.ts`、`contract/types/model-api.ts`、`src/shared/`、`tsconfig.app.json` | 已修复：renderer shared API 是唯一类型定义；contract 类型入口改为 re-export，并纳入 `check:ipc` 的 TypeScript 消费端检查；见 §16.6 |
-| CA-R08 | P2 | Node 获取路径默认版本和校验方式不一致 | `scripts/ensure-host-node.mjs` 与 `scripts/macos/fetch-node.sh` | 源码确认；先确认两条构建入口是否都受支持 |
+| CA-R08 | P2 | 两套 macOS Node 获取/打包入口版本和校验策略不一致 | 旧 `scripts/ensure-host-node.mjs` 与当前 `scripts/macos/fetch-node.sh` | 已确定仅支持 `build-app.sh` 路径；旧 builder、下载器和 npm script 已删除，资源映射及文档已同步；见 §16.6 |
 | CA-R09 | P2 | 若干重要脚本测试未进入默认回归门禁；CI 与 `test:all` 有重复步骤，README/提示词样例有陈旧命令和路径 | 根 `package.json`、`.github/workflows/ci.yml`、`tests/README.md`、`tests/prompts/cases.json` | 源码确认；待梳理后修改 |
 | CA-R10 | P3 | OAuth token cache 对 loader 返回对象的 token 字段缺少完整结构校验；并发冷启动也需确认是否会重复刷新 | [`oauth-token-cache.mjs`](../packages/provider-bridge-transport/oauth-token-cache.mjs)；当前内部调用链会提供 token 字符串 | 待分诊；不是已确认的任务阻断问题 |
 | CA-R11 | Triage | 原生 Shell 可从 `TASKWEAVER_UI_URL` 选择受信任的 loopback 页面，再把 Shell API bearer token 放进 URL fragment；需要核清环境来源、页面脚本可控性与 token 能力 | [`TaskWeaverShellApp.swift`](../apps/macos/TaskWeaverShell/Sources/TaskWeaverShell/TaskWeaverShellApp.swift)、[`ShellURLPolicy.swift`](../apps/macos/TaskWeaverShell/Sources/ShellURLPolicy/ShellURLPolicy.swift)、[`bootstrap.ts`](../src/shell/bootstrap.ts) | 条件性风险；未确认漏洞，不得按已证实问题描述 |
@@ -551,15 +551,15 @@ TaskWeaver 当前是 **macOS 优先的本地桌面 Coding Agent**。本计划遵
 
 每次继续本计划前，先读本节和 `git status`；只推进一个 `CA-*` 主任务，完成时更新状态与证据；提交只包含本任务文件，检查点不得混入用户改动。每个 CA-R 风险记录 `状态 / 责任人 / 相关提交 / 验证命令与结果 / 下一步或未决问题`；`fixed` 只表示代码已修改，只有有命令输出或等价可复核证据时才可改为 `verified`。上下文切换只传递当前 ID、下一步、阻塞项和未提交用户改动，不重做已完成审计。最新状态以本节状态表和风险证据台账为准。
 
-Node 构建入口已知分为两条：根 `package.json` 的 `app`/`app:dmg` → `scripts/macos/build-app.sh` → `scripts/macos/fetch-node.sh`（当前默认 Node `v22.19.0`、arm64、校验官方 SHA256）；以及 `scripts/make-mac-app.sh` → `scripts/build-macos-shell-app.mjs` → `scripts/ensure-host-node.mjs`（当前默认 `22.18.0`、允许 arm64/x64、未校验 SHA256）。CA-R08 必须明确第二条是否受支持；若保留，两条均统一版本与校验/失败语义；若废弃，删除或明确阻断其入口，并更新引用和布局检查。
+Node 构建唯一支持入口：根 `package.json` 的 `app`/`app:dmg` → `scripts/macos/build-app.sh` → `scripts/macos/fetch-node.sh`，默认获取 Node `v22.19.0` arm64 并校验官方 SHA256。已删除旧 `make-mac-app.sh`、`build-macos-shell-app.mjs`、`ensure-host-node.mjs` 与 `ensure:host-node` script；`packaging/mac-shell-resources.yml` 现映射实际构建源 `apps/macos/build/node`，布局测试会阻止旧入口复活。
 
 ### 16.6 当前状态表
 
 | ID | 状态 | 当前结论/下一步 |
 |---|---|---|
 | CA-00 | IN PROGRESS | 冻结 worktree、20 项任务集和 headless Host 调用方法已就绪；固定 Runtime 哈希/模型设置并运行仍未完成 |
-| CA-10 | IN PROGRESS | CA-R01–CA-R07 已验证；继续复核/处理 CA-R08–R11 |
-| CA-20 | TODO | 建立测试入口清单并闭合关键回归门禁 |
+| CA-10 | IN PROGRESS | CA-R01–CA-R08 已验证；继续复核/处理 CA-R09–R11 |
+| CA-20 | IN PROGRESS | CA-R09/CA-20 只读测试入口清点已完成；接下来分类默认 CI、专项、人工与夜间入口，再修复遗漏和重复门禁 |
 | CA-30 | TODO | 先测 Repo Map/LSP/符号入口，再决定索引改造 |
 | CA-40 | TODO | 审计 DAG 证据、取消、恢复和隔离路径 |
 | CA-50 | TODO | 验证 Plan→改码→测试→Diff/PR 的端到端体验 |
@@ -579,8 +579,8 @@ Node 构建入口已知分为两条：根 `package.json` 的 `app`/`app:dmg` →
 | CA-R05 | VERIFIED | Codex 主 Agent | `ccd479bd7` | 在 `packages/runtime` 执行 `./node_modules/.bin/vitest run mcp/mcp-client/tests --config vitest.config.ts` PASS（7 files / 116 tests）；定向 ESLint PASS；`tsc -b mcp/mcp-client` PASS；package-only tsdown Host bundle PASS；`node --check packages/runtime/mcp/mcp-client/lib/index.js` 与 `git diff --check` PASS | 缓存身份含 endpoint 与规范化有效 headers 摘要；摘要不含原凭据；缓存定义仅展示且不能在 live `tools/list` 成功前执行；缓存注册与同步串行，旧 generation 不能提交结果 |
 | CA-R06 | VERIFIED | Codex 主 Agent | `af4c84570` | 先以 forced Python fallback 复现：`killSession()` 后 shell 与后台 child 均存活；修复后 `node scripts/test-terminal-service.mjs` PASS（覆盖忽略 SIGTERM 的后台 child，shell、child、wrapper 均退出）；`node_modules/.bin/eslint backend/terminal-service.mjs scripts/test-terminal-service.mjs --max-warnings 0` PASS；Node `--check`、Python AST parse、`git diff --check` PASS。`pnpm exec eslint ...` 因 pnpm 自动依赖状态检查在无 TTY 环境中止，随后直接运行仓库本地 ESLint 二进制通过 | Python shim 在 SIGTERM 时扫描 shell 私有 session 的 process groups，TERM 后 100ms 再 KILL，wait/reap shell；fork PID 竞态由 pthread signal mask 关闭；Node wrapper 5 秒强杀仅作兜底。复现和验证记录见下方 |
 | CA-R07 | VERIFIED | Codex 主 Agent | `68a996a02` | 修复前直接编译 `contract/types/app-api.ts` 失败：找不到 `../types` 与 `./ipc-invoke-channels`；修复后 `node scripts/gen-contract-schema.mjs --check` PASS；`node scripts/gen-ipc-types.mjs --check` PASS；`node scripts/gen-shell-bridge.mjs --check` PASS；`node scripts/check-ipc-contract.mjs` PASS（158 routes / registrations、79 renderer API paths）；`node_modules/.bin/tsc --project tsconfig.app.json` PASS（含 renderer 与 contract types）；`node scripts/test-ipc-contract.mjs` PASS（158 invoke channels、14 events、1 local method）；`git diff --check` PASS | `src/shared/app-api.ts` 与 `src/shared/model-api.ts` 是唯一声明来源；`contract/types/` 只 re-export。`check:ipc` 现在包含 app TypeScript 项目检查，生成类型和 renderer API 的实际消费端均被验证 |
-| CA-R08 | CONFIRMED（静态） | 未分配 | — | NOT RUN | 由 CA-10 决定第二条 builder 的支持状态与统一方案 |
-| CA-R09 | CONFIRMED（静态） | 未分配 | — | NOT RUN | 清点默认 CI、专项、人工诊断与废弃入口 |
+| CA-R08 | VERIFIED | Codex 主 Agent | `0d29da2ff` | `node scripts/test-macos-bundle-layout.mjs` PASS；`node scripts/test-host-node-executable.mjs` PASS；`node scripts/test-launchd-scheduler.mjs` PASS；`node scripts/check-package-scripts.mjs` PASS（134 root scripts）；Node `--check` 与 `git diff --check` PASS。未下载 Node 或运行 macOS 打包 | 唯一支持路径为 `app`/`app:dmg` → `build-app.sh` → `fetch-node.sh`；旧 builder/下载器及入口已删除；资源清单与历史文档已同步标注 |
+| CA-R09 | CONFIRMED（静态） | Codex 子 Agent（只读审计） | — | `node scripts/check-package-scripts.mjs` PASS（静态入口一致性） | 发现 CI 与 `test:all` 重复步骤、若干重要专项测试未接入默认门禁、`tests/README.md` 命令/测试数过时、prompt case 指向不存在的脚本；待主 Agent 逐项分诊，避免盲目把所有测试加入默认集 |
 | CA-R10 | TODO（待分诊） | 未分配 | — | NOT RUN | 校验异常 loader 结果与并发冷启动，不假定已复现 |
 | CA-R11 | TODO（威胁建模） | 未分配 | — | NOT RUN | 明确环境变量来源、loopback 页面控制和 token 能力 |
 
@@ -598,6 +598,10 @@ Node 构建入口已知分为两条：根 `package.json` 的 `app`/`app:dmg` →
 
 **CA-R07 执行记录（2026-10-13）：**修复前 `contract/types/app-api.ts` 单独 TypeScript 编译会报两个不存在模块；默认 `tsconfig.app.json` 又只包含 `src/`，所以 `check:ipc` 尽管通过静态路由检查也漏掉了该文件。与 `src/shared/app-api.ts` 对照还发现 API 漂移：缺少 `block_delta` 与 error `code`，首次运行提示结果仍是旧结构，DSH turn metadata 缺失，且 `getToolOutput` 可选性不一致。将 `contract/types/app-api.ts`、`model-api.ts` 改为指向 renderer shared API 的薄 re-export；`tsconfig.app.json` 纳入 contract type entrypoints；`check:ipc` 增加 app TypeScript 检查。生成器运行后无未预期生成 diff。提交 `68a996a02`；schema、IPC 静态检查、生成文件检查、全 app/contract TypeScript、IPC 专项测试均 PASS。
 
+**CA-R08 执行记录（2026-10-13）：**只保留根 `package.json` 的 `app`/`app:dmg` → `scripts/macos/build-app.sh` → `scripts/macos/fetch-node.sh` 路径；移除旧 `ensure-host-node.mjs`、`build-macos-shell-app.mjs`、`make-mac-app.sh` 和 `ensure:host-node` script。`packaging/mac-shell-resources.yml` 从已不存在的 `vendor/host-node` 改为真实 fetch/stage 目录 `apps/macos/build/node`，包布局测试校验映射与实际复制路径。同步当前构建说明，并给旧迁移/优化文档加历史标记；Windows runner 项明确为不支持范围。提交 `0d29da2ff`。`node scripts/test-macos-bundle-layout.mjs`、`node scripts/test-host-node-executable.mjs`、`node scripts/test-launchd-scheduler.mjs`、`node scripts/check-package-scripts.mjs`（134 scripts）、Node `--check` 与 `git diff --check` PASS。没有下载 Node、运行 Swift 构建或覆盖已安装 App。
+
+**CA-R09/CA-20 只读清点（2026-10-13）：**子 Agent 对 174 个 `test-*.mjs`、根 package scripts、CI 与 README 做静态分类，没有改文件或调用模型/外部服务。发现 `test:all`/CI 重复执行部分门禁；一些有价值的专项测试未进入默认集；`tests/README.md` 的命令、版本要求和测试清单过时；prompt case 的硬化脚本路径失效。下一步由主 Agent 按本地快速回归、CI、手工/真实环境和夜间覆盖分组，按需修门禁与说明，不把所有脚本无差别塞进 `test:all`。
+
 **CA-00B 执行记录（2026-10-13）：**增加 20 项固定任务集、评分结构与 Host 工具调用运行规程；数据集 SHA-256 `17f2c99fe1cdf0c6fbec0b8009a54ae1143b1077f1e9cbf17e8836bd21f0210f`。headless `on-risk` 与权限审计记录提交 `ff400e532`；任务集/评测规程提交 `0cc724af4`。`node scripts/test-headless-cli.mjs` PASS；JSON 字段、20 个唯一任务、权限模式和 100 分权重通过结构检查。没有调用模型或外部服务；Runtime 哈希、Provider/model 固定与真实运行仍未执行。基线目标仍为冻结提交 `f5624a108`。
 
-**当前续接点：CA-R08。**CA-R08 已完成只读入口审计：主 `build-app.sh` 路径校验官方 SHA256，旧 `build-macos-shell-app.mjs` 路径仍可运行但有 Node 版本及校验差异，正按唯一支持入口清理方案评估；CA-R09/CA-20 的测试入口清点仍在并行审计。所有后续写入继续避开 SettingsPage/CSS 用户改动。
+**当前续接点：CA-R09 与 CA-20。**CA-R08 已验证并提交 `0d29da2ff`；Node 打包只保留当前 `build-app.sh` 路径。CA-R09/CA-20 静态清点已完成，接下来主 Agent 分诊遗漏的默认回归、重复 CI 运行与过时 README/prompt 引用，再推进 CA-R10。`src/features/settings/SettingsPage.tsx` 与 `src/styles.css` 中用户改动仍保留、未暂存、未提交。
