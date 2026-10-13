@@ -29,9 +29,10 @@
 
       For work that needs several tool calls or is likely to take more than 15 seconds, send one concise,
       user-visible progress sentence in normal assistant text before the first tool call, then continue the
-      task without waiting for a reply. Do not perform more than three tool calls in a row without a brief,
-      factual user-visible checkpoint. After a tool batch, if substantial analysis or more work remains, send
-      a one-sentence checkpoint before continuing; do not leave the user with only Think until the final answer.
+      task without waiting for a reply. Send a brief, factual user-visible checkpoint at meaningful milestones;
+      do not interrupt work merely to count tool calls. After a tool batch, if substantial analysis or more work
+      remains, send a one-sentence checkpoint before continuing; do not leave the user with only Think until
+      the final answer.
       Never expose private reasoning, add filler, or claim progress that the tools have not confirmed.
 
       Match effort to the request. For a straightforward conversational or explanatory question, answer
@@ -92,6 +93,9 @@
 
 - id: tool-fs-semantic-search
   name: '@taskweaver/dsh-tool-fs-semantic-search'
+
+- id: tool-lsp
+  name: '@taskweaver/dsh-tool-lsp'
 
 # ── background jobs ────────────────────────────────────────────────────────
 
@@ -185,7 +189,7 @@
         # route is deliberately NOT pinned here: under the embedded TaskWeaver runtime
         # (TASKWEAVER_EMBEDDED=1) `dsh-compaction-basic` resolves it from
         # TASKWEAVER_COMPACTION_SUMMARIZATION_{PROVIDER,MODEL}, which the desktop derives
-        # from the user's models.json (desktop/backend/taskweaver-compaction-target.mjs).
+        # from the user's models.json (backend/taskweaver-compaction-target.mjs).
         # A pin here would outrank that resolved route in `summarizeWithLlm` and fail
         # whenever the pinned deployment provider is absent, which is why this preset
         # ships with none: with neither set, the request's own routed model is used.

@@ -59,6 +59,8 @@ export declare class BlockAssembler {
     get usage(): TokenUsage | undefined;
     /** Finish reason from the `finish` chunk; `{kind: 'stop'}` when the stream ended without one. */
     get finish(): FinishReason;
+    /** Whether any complete or partial tool-call block was emitted. */
+    get hasToolCall(): boolean;
     /**
      * Replay metadata from the terminal finish chunk, if any, with per-block
      * entries pruned in step with {@link blocks}. Undefined when the envelope's

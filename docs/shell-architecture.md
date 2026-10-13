@@ -1,57 +1,48 @@
-# 桌面 Shell 架构（与 Electron 并行）
+# TaskWeaver 桌面架构
 
-## 目标
+## 正式桌面链路
 
-- **UI 不变**：继续用现有 Vite/React 产物（`src/` → `dist/`），视觉与交互与当前 Electron 窗口一致。
-- **Agent 跨平台**：Z Host 与后端逻辑始终在 **Node**（`host-node` / 系统 Node ≥ 22.18），不绑定 macOS。
-- **壳很薄**：macOS 用 **Swift + WKWebView**；Windows 后期用 **WebView2**（或 Tauri 等）加载同一 `dist`，连接同一 **Shell HTTP API**。
+正式 macOS App 使用原生 Swift 窗口与 WKWebView 展示 React 界面。Swift 壳启动随包 Node 后端；React 页面通过只绑定 loopback 的 Shell HTTP/SSE 桥调用后端。后端组合模型、聊天、权限、MCP 与编排服务，再启动 Z Host 运行时。
 
-```
-┌─────────────────┐     HTTP invoke + SSE      ┌──────────────────────────┐
-│  React UI       │ ◄────────────────────────► │  desktop/shell/run.mjs   │
-│  (Vite / dist)  │   /shell/v1/invoke|events  │  + compose-services      │
-└─────────────────┘                            │  + registerIpc (shim)    │
-        ▲                                      └────────────┬─────────────┘
-        │ WKWebView / WebView2                               │ spawn
-┌───────┴─────────┐                                          ▼
-│ 平台 Shell App  │                               Z Host (Node 子进程)
-│ macOS / Win     │
-└─────────────────┘
+```text
+Swift App + WKWebView
+    └─ React UI
+       └─ loopback Shell HTTP / SSE
+          └─ Node backend/shell/run.mjs
+             ├─ Z Host runtime 子进程
+             └─ 按需启动的 TaskWeaver OpenCodex 本地代理
 ```
 
-## Shell HTTP API
+安装包将 Node、后端、Z Runtime 和仓库内 `vendor/opencodex` 一起打包。用户安装 TaskWeaver 时不需要另行下载或全局安装 OpenCodex。OpenCodex 代理仍由后端按需管理为子进程。
 
-| 路径 | 说明 |
+## WebView / 浏览器 UI
+
+正式应用把构建后的 React 页面打包到 `Contents/Resources/app/dist`，由 Swift 壳内的 WKWebView 通过本机 Shell HTTP 服务加载。服务仅绑定 loopback，并校验 Host、Origin 与每次启动随机生成的访问令牌；Swift 健康检查使用 HMAC 挑战验证后端身份，避免把令牌发送给抢占固定端口的进程。界面把令牌放在 URL fragment 中，调用与流式事件请求通过请求头认证。浏览器调试使用 Vite UI 和同一 Shell HTTP 后端；仅 Swift 壳、已打包应用或 `pnpm run dev:browser` 可以启用该入口。
+
+```text
+Vite / React UI
+    └─ Shell HTTP invoke + SSE
+       └─ backend/shell/run.mjs
+          └─ Node backend services
+```
+
+渲染 UI 使用的 Shell HTTP 桥由 `scripts/gen-shell-bridge.mjs` 生成。Swift 壳负责启动、停止后端和限制 WKWebView 导航到本机应用页面。
+
+## 凭据与平台能力
+
+- 原生后端通过 Swift 平台层提供的 `$platform/secrets` 接口读写 macOS Keychain；配置文件只保存 Keychain 引用。
+- 原生凭据读取会把旧 `tw-b64:` 凭据迁入 Keychain；旧 Chromium 密文无法迁移时会改名归档，原文件内容保留。
+- 首次启动提示只读扫描凭据状态；关闭提示时才保存已关闭标记。
+- WebView 页面经 Shell HTTP 调用 Swift 壳提供的本机平台能力；凭据仍由后端安全存储服务管理，不写入普通配置文件。
+
+## 开发与打包命令
+
+| 命令 | 用途 |
 |------|------|
-| `GET /shell/v1/health` | 健康检查 |
-| `GET /shell/v1/events` | SSE，推送原 `webContents.send` 事件 |
-| `POST /shell/v1/invoke` | `{ channel, args }` → 与 preload `invoke` 相同 |
+| `pnpm run dev` | 构建 React 页面并运行 Swift WebView 壳与开发版 Node 后端 |
+| `pnpm run dev:browser` | 启动 Vite 与本机 Shell HTTP 后端 |
+| `pnpm run app` | 构建 Swift 壳、React UI 和内嵌服务并生成 `.app` |
+| `pnpm run install:app` | 构建并安装 Swift 壳 + React UI 应用 |
+| `pnpm run app:dmg` | 构建 `.app`、ZIP 与 DMG |
 
-渲染进程通过 `src/shell/bootstrap.ts` 安装 `window.taskweaver`（生成于 `scripts/gen-shell-bridge.mjs`）。
-
-开发时打开：`http://127.0.0.1:5173/?shellApi=http://127.0.0.1:<port>`。
-
-## Windows 后期成本
-
-- **不需要**重写 UI。
-- **需要**一个 Win 壳（WebView2 + 可选托盘/单实例），启动同一 `run.mjs`（或打包后的 `taskweaver-shell-server`），环境变量与 macOS 一致。
-- 文件夹选择等原生对话框在 `desktop/platform/shell-platform.mjs` 里按平台扩展（macOS 已用 `osascript`）。
-- Shell 后端**不**模拟 Chromium `safeStorage`；凭据统一走 `credential-store` 的 `tw-b64:` 文件编码（与 Electron 钥匙串格式分离）。
-
-## 相关环境变量
-
-- `TASKWEAVER_SHELL_SERVER=1` — 后端以 Shell 模式运行（跳过 Electron sender 校验）。
-- `TASKWEAVER_SHELL_HOST` / `TASKWEAVER_SHELL_PORT` — HTTP 监听地址。
-- `TASKWEAVER_UI_URL` — 壳加载的页面（开发默认 Vite）。
-- `TASKWEAVER_SHELL_API` — 壳传给 UI 的 API 根 URL（也可走 query `shellApi`）。
-
-## 开发命令
-
-```bash
-pnpm run dev:shell          # Vite + Shell 后端（见 package.json）
-pnpm run dev:shell:mac      # 上述 + 构建并启动 macOS WKWebView 壳（需 Xcode CLI）
-```
-
-**默认桌面路径**：`pnpm dev`（Vite + Swift 壳，壳内自启 Node 后端）与 `pnpm run app`（Swift `.app` 打包）。Electron 窗口已弃用，仅保留 `pnpm run app:legacy-electron` 供对照。
-
-桌面 Node 后端源码在 **`desktop/`**（见 `desktop/README.md`）。
+桌面 Node 后端源码在 `backend/`，IPC 契约唯一来源为 `contract/channels.mjs`，Z Runtime 源码位于 `packages/runtime/`。

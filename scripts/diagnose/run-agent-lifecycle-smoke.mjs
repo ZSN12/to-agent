@@ -3,10 +3,10 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { createZHostManager } from '../../desktop/agent/z-host/index.mjs'
-import { createDshChatService } from '../../desktop/backend/dsh-chat-service.mjs'
-import { createModelService } from '../../desktop/backend/model-service.mjs'
-import { createProfileStore } from '../../desktop/backend/profile-store.mjs'
+import { createZHostManager } from '../../backend/agent/z-host/index.mjs'
+import { createDshChatService } from '../../backend/dsh-chat-service.mjs'
+import { createModelService } from '../../backend/model-service.mjs'
+import { createProfileStore } from '../../backend/profile-store.mjs'
 import { classifyLifecycleSmokeError, summarizeLifecycleSmokeFailure } from '../lifecycle-smoke-diagnostics.mjs'
 
 // Real provider requests: invoke explicitly; never attach to user-owned sessions.
@@ -135,7 +135,7 @@ try {
       const id = `cancel-${crypto.randomUUID()}`
       const marker = `CANCEL_RECOVERY_${crypto.randomUUID()}`
       const pending = bounded(chat.send(options(id,
-        '先在任何工具调用之前向我输出一句“我开始只读检查并梳理调用关系。”，然后只读检查 package.json、src/App.tsx、desktop/backend/register-ipc.mjs、desktop/backend/dsh-chat-service.mjs 和 packages/runtime/host-cli/config/agent-presets/standard/agent.cordis.yml，指出它们之间的调用关系。请先逐个读取再总结；不要修改文件、不要运行命令。')), 'cancelled inspection')
+        '先在任何工具调用之前向我输出一句“我开始只读检查并梳理调用关系。”，然后只读检查 package.json、src/App.tsx、backend/register-ipc.mjs、backend/dsh-chat-service.mjs 和 packages/runtime/host-cli/config/agent-presets/standard/agent.cordis.yml，指出它们之间的调用关系。请先逐个读取再总结；不要修改文件、不要运行命令。')), 'cancelled inspection')
       pending.catch(() => {})
       await waitFor(() => chat.isBusy(id) && caseEvents(id, since).some(event => event.type === 'delta'),
         'visible partial text before cancellation', 120_000)

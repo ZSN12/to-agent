@@ -150,7 +150,7 @@ export function OutputLogPanel({
   }
 
   return (
-    <aside className="side-panel dag-panel trajectory-panel" aria-label="日志与审批审计" style={{ width: 440 }}>
+    <aside className="side-panel dag-panel trajectory-panel" aria-label="日志与审批审计">
       <div className="panel-header">
         <div className="panel-header-title">
           <Terminal size={17} style={{ marginRight: 6 }} />
@@ -323,6 +323,7 @@ export function OutputLogPanel({
                   {isExpanded ? (
                     <ToolTraceCard
                       item={log}
+                      conversationId={conversationId}
                       onShowDetails={onShowToolDetails}
                       onOpenPath={onOpenWorkspacePath}
                     />

@@ -23,6 +23,6 @@
 
 ## 对应实现
 
-- Fork：`desktop/backend/fork-turns.mjs`、`desktop/backend/dsh-chat-service.mjs`、`desktop/backend/register-ipc.mjs`
-- Git 检查点：`desktop/backend/git-service.mjs`、`desktop/backend/register-workspace-git-ipc.mjs`
+- Fork：`backend/fork-turns.mjs`、`backend/dsh-chat-service.mjs`、`backend/register-ipc.mjs`
+- Git 检查点：`backend/git-service.mjs`、`backend/register-workspace-git-ipc.mjs`
 - 回归入口：`npm run test:fork-thread-smoke`、`npm run test:git-checkpoints`

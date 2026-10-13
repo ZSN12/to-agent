@@ -11,6 +11,7 @@ import type {
 } from '../../shared/model-api'
 import { getModelsClient, isModelsBridgeAvailable } from './client'
 import { catalogModelToOption } from './format'
+import { singleFlight } from './single-flight'
 import type { ModelOption } from '../../types'
 export function useModelCatalog() {
   const [catalog, setCatalog] = useState<ModelCatalog | null>(null)
@@ -23,13 +24,12 @@ export function useModelCatalog() {
   const loadInFlight = useRef<Promise<void> | null>(null)
   const hasCompletedInitialLoad = useRef(false)
 
-  const load = useCallback(async () => {
-    if (loadInFlight.current) return loadInFlight.current
-    const flight = (async () => {
+  const load = useCallback(() => singleFlight(loadInFlight, async () => {
+    try {
       if (!hasCompletedInitialLoad.current) setLoading(true)
       setError(null)
       const client = getModelsClient()
-      if (!client) throw new Error('未检测到 Electron 模型桥接，请使用 npm run dev 启动桌面端。')
+      if (!client) throw new Error('未检测到 TaskWeaver 桌面后端，请使用 pnpm run dev 启动桌面应用。')
 
       const ready = await window.taskweaver?.backendReady()
       if (!ready?.ok) throw new Error(ready?.error ?? '后端 IPC 尚未就绪，请稍后重试。')
@@ -54,20 +54,17 @@ export function useModelCatalog() {
       if (bundle.providerCount === 0 && bundle.hostReady) {
         setError('Z Host 已连接，但提供方目录为空。请稍候再试或重启应用。')
       }
-    })().catch((err: unknown) => {
+    } catch (err: unknown) {
       setError(err instanceof Error ? err.message : '加载模型目录时发生错误')
-    }).finally(() => {
+    } finally {
       hasCompletedInitialLoad.current = true
       setLoading(false)
-      loadInFlight.current = null
-    })
-    loadInFlight.current = flight
-    return flight
-  }, [])
+    }
+  }), [])
 
   const refresh = useCallback(async (): Promise<{ ok: boolean; providerCount: number; error: string | null }> => {
     const client = getModelsClient()
-    if (!client) return { ok: false, providerCount: 0, error: '未检测到 Electron 模型桥接' }
+    if (!client) return { ok: false, providerCount: 0, error: '未检测到 TaskWeaver 桌面后端' }
     const showBlockingLoad = auth.length === 0
     if (showBlockingLoad) setLoading(true)
     setError(null)
@@ -115,6 +112,13 @@ export function useModelCatalog() {
   useEffect(() => {
     void load()
   }, [load])
+
+  useEffect(() => {
+    if (!catalogStale) return
+    // Shell pushes are not replayed across an event-stream reconnect.
+    const timer = window.setTimeout(() => { void load() }, 10_000)
+    return () => window.clearTimeout(timer)
+  }, [catalogStale, load])
 
   useEffect(() => {
     const client = getModelsClient()

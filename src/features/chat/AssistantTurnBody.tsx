@@ -264,7 +264,6 @@ export function AssistantTurnBody({
                 traces={stepTraces}
                 workspacePath={workspacePath}
                 conversationId={conversationId}
-                isActive={isStreaming}
                 onShowToolDetails={onShowToolDetails}
                 onOpenWorkspacePath={onOpenWorkspacePath}
               />

@@ -70,6 +70,9 @@ export function applyStreamEventToSnapshot(
     case 'blocks':
       next.streamBlocks = event.segments
       return next
+    case 'block_delta':
+      next.streamBlocks = applyStreamBlockDelta(snapshot.streamBlocks, event)
+      return next
     case 'done':
       // This map is a recovery snapshot for an in-flight turn, not transcript
       // storage. Keeping a completed turn here makes the next `start` look like
@@ -107,4 +110,20 @@ export function applyStreamEventToSnapshot(
     default:
       return next
   }
+}
+
+/** Apply one keyed streaming block patch without serializing prior block text again. */
+export function applyStreamBlockDelta(
+  blocks: AssistantContentBlock[],
+  event: Extract<ChatStreamEvent, { type: 'block_delta' }>,
+): AssistantContentBlock[] {
+  const index = blocks.findIndex((block) => block.id === event.id)
+  if (index < 0) return [...blocks, { id: event.id, kind: event.kind, text: event.delta }]
+  const current = blocks[index]
+  if (!current || current.kind !== event.kind) {
+    return [...blocks.slice(0, index), { id: event.id, kind: event.kind, text: event.delta }, ...blocks.slice(index + 1)]
+  }
+  const updated = [...blocks]
+  updated[index] = { ...current, text: current.text + event.delta }
+  return updated
 }

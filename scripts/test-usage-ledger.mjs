@@ -1,5 +1,5 @@
 import assert from 'node:assert'
-import { UsageLedger } from '../desktop/backend/orchestration/usage-ledger.mjs'
+import { UsageLedger } from '../backend/orchestration/usage-ledger.mjs'
 
 async function testUsageLedger() {
   const ledger = new UsageLedger()

@@ -528,6 +528,7 @@ export function PluginsMarketplaceView({
           <button
             type="button"
             className="codex-icon-btn"
+            aria-label="刷新插件与技能"
             title="刷新插件与技能"
             onClick={loadData}
             disabled={loading}
@@ -537,6 +538,7 @@ export function PluginsMarketplaceView({
           <button
             type="button"
             className="codex-icon-btn"
+            aria-label="MCP 与环境配置"
             title="MCP 与环境配置"
             onClick={onOpenSettings}
           >
@@ -615,30 +617,6 @@ export function PluginsMarketplaceView({
 
         {activeTab === 'plugins' ? (
           <>
-            {/* 快速品牌图标滑轨 */}
-            <div className="codex-quick-icons-row">
-              {quickBadges.map((badge) => {
-                const IconComponent = badge.icon
-                const isActive = selectedTag === badge.query
-                return (
-                  <button
-                    key={badge.label}
-                    type="button"
-                    className={`codex-quick-icon-btn ${isActive ? 'active' : ''}`}
-                    title={badge.label}
-                    onClick={() => setSelectedTag((prev) => (prev === badge.query ? null : badge.query))}
-                  >
-                    <div
-                      className="quick-icon-inner"
-                      style={{ background: badge.bg, color: badge.color }}
-                    >
-                      <IconComponent size={18} />
-                    </div>
-                  </button>
-                )
-              })}
-            </div>
-
             {/* 公开 / 个人 分类 Tab */}
             <div className="codex-sub-filter-row">
               <button
@@ -655,6 +633,28 @@ export function PluginsMarketplaceView({
               >
                 已配置 ({(installedIds.has('github') ? 1 : 0) + (webSearchConfig.enabled ? 1 : 0)})
               </button>
+              {quickBadges.map((badge) => {
+                const IconComponent = badge.icon
+                const isActive = selectedTag === badge.query
+                return (
+                  <button
+                    key={badge.label}
+                    type="button"
+                    className={`codex-quick-icon-btn ${isActive ? 'active' : ''}`}
+                    aria-pressed={isActive}
+                    title={`筛选 ${badge.label}`}
+                    onClick={() => setSelectedTag((prev) => (prev === badge.query ? null : badge.query))}
+                  >
+                    <span
+                      className="quick-icon-inner"
+                      style={{ background: badge.bg, color: badge.color }}
+                    >
+                      <IconComponent size={14} />
+                    </span>
+                    <span>{badge.label}</span>
+                  </button>
+                )
+              })}
             </div>
 
             {/* 插件网格列表 */}
@@ -720,17 +720,13 @@ export function PluginsMarketplaceView({
                         </div>
                       </div>
 
-                      <div
-                        className="card-right"
-                        style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-                      >
+                      <div className="card-right">
                         <button
                           type="button"
                           className="codex-icon-btn"
                           aria-label="配置网页搜索"
                           title="配置网页搜索"
                           onClick={openWebSearchModal}
-                          style={{ width: '28px', height: '28px' }}
                         >
                           <Sliders size={14} />
                         </button>
@@ -787,13 +783,13 @@ export function PluginsMarketplaceView({
                               >
                                 {githubEnabled ? '停用' : '启用'}
                               </button>
-                              <button type="button" className="codex-icon-btn" title="测试 GitHub 连接" onClick={handleTestGitHub} disabled={isBusy || !githubEnabled}>
+                              <button type="button" className="codex-icon-btn" aria-label="测试 GitHub 连接" title="测试 GitHub 连接" onClick={handleTestGitHub} disabled={isBusy || !githubEnabled}>
                                 {isBusy ? <RefreshCw size={14} className="spin-icon" /> : <RefreshCw size={14} />}
                               </button>
-                              <button type="button" className="codex-icon-btn" title="管理 GitHub 凭据" onClick={() => { setGithubToken(''); setGithubModalOpen(true) }} disabled={isBusy}>
+                              <button type="button" className="codex-icon-btn" aria-label="管理 GitHub 凭据" title="管理 GitHub 凭据" onClick={() => { setGithubToken(''); setGithubModalOpen(true) }} disabled={isBusy}>
                                 <Sliders size={14} />
                               </button>
-                              <button type="button" className="codex-icon-btn" title="移除 GitHub 集成并删除本地凭据" onClick={() => void handleDisconnectGitHub()} disabled={isBusy}>
+                              <button type="button" className="codex-icon-btn" aria-label="移除 GitHub 集成并删除本地凭据" title="移除 GitHub 集成并删除本地凭据" onClick={() => void handleDisconnectGitHub()} disabled={isBusy}>
                                 <Trash2 size={14} />
                               </button>
                             </>
@@ -801,6 +797,7 @@ export function PluginsMarketplaceView({
                             <button
                               type="button"
                               className="install-action-btn"
+                              aria-label="连接 GitHub"
                               title="连接 GitHub"
                               onClick={() => handleInstall(entry)}
                               disabled={isBusy}

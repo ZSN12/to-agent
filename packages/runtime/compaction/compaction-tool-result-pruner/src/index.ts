@@ -29,6 +29,10 @@ export type {
   ToolResultPruneConfig,
 } from './types.ts'
 
+const MODEL_CONTEXT_WINDOW_BASELINE = 128_000
+const MODEL_TOOL_OUTPUT_BASELINE_CHARS = 2_800
+const MODEL_TOOL_OUTPUT_MAX_CHARS = 24_000
+
 declare module '@taskweaver/cordis' {
   interface Context {
     toolResultPruner: ToolResultPruner
@@ -44,7 +48,7 @@ interface SnapshotCandidate {
 export class ToolResultPruner extends Service {
   // The token meter prices each shadowed node for its logged shadow-price
   // event, so pruning genuinely requires the pricing capability.
-  static inject = ['tokenMeter']
+  static inject = ['tokenMeter', 'llm']
 
   static Config: z<ToolResultPruneConfig> = z.object({
     thresholdChars: z.number().step(1).min(1).default(DEFAULTS.thresholdChars),
@@ -54,6 +58,8 @@ export class ToolResultPruner extends Service {
 
   /** Resolved and immutable character budgets. */
   readonly config: ResolvedConfig
+
+  private readonly contextWindowLookups = new Map<string, Promise<number | undefined>>()
 
   constructor(ctx: Context, config: ToolResultPruneConfig = {}) {
     super(ctx, 'toolResultPruner')
@@ -73,6 +79,43 @@ export class ToolResultPruner extends Service {
     return chars
   }
 
+  private async configForSession(session: Session): Promise<ResolvedConfig> {
+    const route = session.requestHeader()?.config
+    if (route === undefined || route.provider.length === 0 || route.model.length === 0) return this.config
+
+    const key = `${route.provider}/${route.model}`
+    let contextWindowLookup = this.contextWindowLookups.get(key)
+    if (contextWindowLookup === undefined) {
+      contextWindowLookup = this.ctx.llm.resolveModelInfo(route.provider, route.model)
+        .then(info => info.context?.contextWindow)
+        .catch(() => undefined)
+      if (this.contextWindowLookups.size >= 64) {
+        const oldest = this.contextWindowLookups.keys().next().value
+        if (oldest !== undefined) this.contextWindowLookups.delete(oldest)
+      }
+      this.contextWindowLookups.set(key, contextWindowLookup)
+    }
+    const contextWindow = await contextWindowLookup ?? MODEL_CONTEXT_WINDOW_BASELINE
+    const scale = Math.max(0.25, contextWindow / MODEL_CONTEXT_WINDOW_BASELINE)
+    // A configured threshold below the adaptive baseline remains the cap for
+    // the baseline. It still scales with larger windows; the marker itself is
+    // the minimum valid emitted result for unusually small contexts.
+    const baselineChars = Math.min(MODEL_TOOL_OUTPUT_BASELINE_CHARS, this.config.thresholdChars)
+    const thresholdChars = Math.min(
+      MODEL_TOOL_OUTPUT_MAX_CHARS,
+      Math.max(codePointLength(PRUNE_MARKER), Math.round(baselineChars * scale)),
+    )
+    const retainedChars = Math.max(0, thresholdChars - codePointLength(PRUNE_MARKER))
+    const configuredRetention = this.config.headChars + this.config.tailChars
+    const headRatio = configuredRetention > 0 ? this.config.headChars / configuredRetention : 0.5
+    const headChars = Math.floor(retainedChars * headRatio)
+    return resolveConfig({
+      thresholdChars,
+      headChars,
+      tailChars: retainedChars - headChars,
+    })
+  }
+
   /**
    * Replace an over-budget text middle while retaining rich-block order.
    * Text slicing is by Unicode code point, not UTF-16 code unit, so a retained
@@ -80,12 +123,12 @@ export class ToolResultPruner extends Service {
    * @param blocks - original tool-result content.
    * @returns pruned content, or `null` when the text is within budget.
    */
-  pruneContent(blocks: readonly ContentBlock[]): ContentBlock[] | null {
+  pruneContent(blocks: readonly ContentBlock[], config: ResolvedConfig = this.config): ContentBlock[] | null {
     const totalChars = this.measureContent(blocks)
-    if (totalChars <= this.config.thresholdChars) return null
+    if (totalChars <= config.thresholdChars) return null
 
-    const removedStart = this.config.headChars
-    const removedEnd = totalChars - this.config.tailChars
+    const removedStart = config.headChars
+    const removedEnd = totalChars - config.tailChars
     const pruned: ContentBlock[] = []
     let consumed = 0
     let markerInserted = false
@@ -115,7 +158,7 @@ export class ToolResultPruner extends Service {
     if (!markerInserted) throw new Error('tool-result prune: failed to locate the removed text span')
     const charsAfter = this.measureContent(pruned)
     /* v8 ignore next -- config validation fixes the emitted head + marker + tail budget. */
-    if (charsAfter > this.config.thresholdChars || charsAfter >= totalChars) {
+    if (charsAfter > config.thresholdChars || charsAfter >= totalChars) {
       throw new Error('tool-result prune: replacement must be smaller and within threshold')
     }
     return pruned
@@ -133,7 +176,8 @@ export class ToolResultPruner extends Service {
    * @throws when the session rejects a replacement; replacements committed
    * earlier in the pass remain durable.
    */
-  pruneSession(session: Session): PruneResult {
+  async pruneSession(session: Session): Promise<PruneResult> {
+    const config = await this.configForSession(session)
     const candidates: SnapshotCandidate[] = []
     for (const seq of [...session.surface.nodes]) {
       const event = session.events[seq]
@@ -145,7 +189,7 @@ export class ToolResultPruner extends Service {
     let charsRemoved = 0
     for (const { seq, event } of candidates) {
       const result = event.data.message.content[0]
-      const content = this.pruneContent(result.content)
+      const content = this.pruneContent(result.content, config)
       if (content === null) continue
       const charsBefore = this.measureContent(result.content)
       const charsAfter = this.measureContent(content)

@@ -146,7 +146,10 @@ describe('startInProcessRun', () => {
     expect(ctx.sessions.list()).toHaveLength(beforeSessions)
   })
   it('reports the turn outcome when later metadata is appended during flush', async () => {
-    const { ctx, parent } = await setup([maxTokensResponse('partial answer')])
+    const { ctx, parent } = await setup([
+      maxTokensResponse('partial answer'),
+      maxTokensResponse('still unfinished'),
+    ])
     let injected = false
     ctx.on('session/flush', (session) => {
       if (injected || session.header.parentSession === undefined) return
@@ -180,6 +183,12 @@ describe('startInProcessRun', () => {
         { type: 'tool-call-delta', index: 0, id: CallId('t2'), name: 'noop', argumentsDelta: '{}' },
         { type: 'block-end', index: 0, block: { type: 'tool-call', id: CallId('t2'), name: 'noop', arguments: '{}' } },
         { type: 'usage', usage: { inputTokens: 20, outputTokens: 5 } },
+        { type: 'finish', reason: { kind: 'max-tokens' } },
+      ],
+      // The guarded continuation is also truncated with usage but no message;
+      // the one-shot result must retain the earlier streamed text.
+      [
+        { type: 'usage', usage: { inputTokens: 30, outputTokens: 8 } },
         { type: 'finish', reason: { kind: 'max-tokens' } },
       ],
     ])

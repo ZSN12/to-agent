@@ -6,8 +6,7 @@
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
-import { createCredentialStore } from '../desktop/backend/credential-store.mjs'
+import { createCredentialStore } from '../backend/credential-store.mjs'
 
 const userData = process.env.TASKWEAVER_USER_DATA
   || path.join(os.homedir(), 'Library', 'Application Support', 'taskweaver-desktop')

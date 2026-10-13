@@ -4,7 +4,7 @@ import { buildCursorParsedRequest } from '../packages/provider-bridge-transport/
 import {
   createCursorAdapter,
   createTranslatorBudget,
-} from '../packages/provider-bridge/src/index.ts'
+} from '../packages/provider-bridge/lib/index.mjs'
 
 const profile = {
   bridgeKind: 'cursor',

@@ -149,7 +149,10 @@ describe('dsh-subagent-spawn-in-process', () => {
   })
 
   it('maps a child that hit its token ceiling to stopReason "max-tokens"', async () => {
-    const { ctx, parent } = await setup([maxTokensResponse('cut off')])
+    const { ctx, parent } = await setup([
+      maxTokensResponse('cut off'),
+      maxTokensResponse('cut off again'),
+    ])
     const run = await start(ctx, 'spawn', { prompt: [{ type: 'text', text: 'p' }], parent })
     const result = await run.result
     expect(result.stopReason).toBe('max-tokens')

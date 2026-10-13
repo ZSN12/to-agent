@@ -1,22 +1,10 @@
-import { useEffect, useState } from 'react'
+import { memo, useEffect, useState } from 'react'
 import { formatDshRunDuration } from './session-usage'
 import { visibleStreamStatusLabel } from './streamActivityLabel'
 
-/** Mirrors DSH ChatView `TurnStatus`: shimmer label + optional tool chip + clock after 15s. */
-export function DeepDivingIndicator({
-  startTime,
-  activity,
-  completedToolCount = 0,
-  isThinking = false,
-  hasVisibleText = false,
-}: {
-  startTime?: number
-  activity?: string | null
-  completedToolCount?: number
-  isThinking?: boolean
-  hasVisibleText?: boolean
-}) {
-  const anchor = startTime ?? Date.now()
+const ElapsedRunTime = memo(function ElapsedRunTime({ startTime }: { startTime?: number }) {
+  const [fallbackStart] = useState(() => Date.now())
+  const anchor = startTime ?? fallbackStart
   const [elapsedMs, setElapsedMs] = useState(() => Math.max(0, Date.now() - anchor))
 
   useEffect(() => {
@@ -26,17 +14,29 @@ export function DeepDivingIndicator({
     return () => clearInterval(id)
   }, [anchor])
 
-  const showClock = elapsedMs >= 1000
-  const clockLabel = formatDshRunDuration(elapsedMs)
-  const statusLabel = visibleStreamStatusLabel({ activity, isThinking, hasVisibleText, completedToolCount })
-  const progressLabel = completedToolCount > 0 ? `已完成 ${completedToolCount} 次工具调用` : null
+  if (elapsedMs < 1000) return null
+  return (
+    <span className="dsh-diving-timer" aria-live="off">
+      {formatDshRunDuration(elapsedMs)}
+    </span>
+  )
+})
+
+/** Shows stable run state; only the isolated elapsed-time child ticks each second. */
+export const DeepDivingIndicator = memo(function DeepDivingIndicator({
+  startTime,
+  isCallingTool = false,
+}: {
+  startTime?: number
+  isCallingTool?: boolean
+}) {
+  const statusLabel = visibleStreamStatusLabel({ isCallingTool })
 
   return (
     <div className="dsh-deep-diving-row" role="status" aria-live="polite">
       <span className="dsh-diving-badge">本轮运行中</span>
       <span className="dsh-diving-sub" aria-live="polite">{statusLabel}</span>
-      {progressLabel && <span className="dsh-diving-progress">{progressLabel}</span>}
-      {showClock && <span className="dsh-diving-timer" aria-live="off">{clockLabel}</span>}
+      <ElapsedRunTime startTime={startTime} />
     </div>
   )
-}
+})

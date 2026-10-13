@@ -31,12 +31,14 @@ import type {
 } from '../../shared/app-api'
 import type { AssistantContentBlock, ChatMessage, ModelOption, ThinkingLevel } from '../../types'
 import { Composer } from '../composer/Composer'
-import { isDshContextMessage } from '../dsh-runtime/dshTranscriptMessages'
+import { dshToolHistoryForMessage, isDshContextMessage } from '../dsh-runtime/dshTranscriptMessages'
 import { ContextInjectionRow } from './ContextInjectionRow'
 import { Message } from './Message'
 import { PendingSteeringBubble } from './PendingSteeringBubble'
 import { RetryBanner } from './RetryBanner'
 import type { PanelView } from './panel-view'
+import { useStableCallbacks } from './stable-callbacks'
+import { useStableArrays } from './stable-messages'
 import {
   ALT_MODIFIER_KEY,
   CONTROL_MODIFIER_KEY,
@@ -73,6 +75,7 @@ export function MainConversation({
   retryBanner,
   toolTraces,
   dshToolRows,
+  activeDshTurn,
   promptQueue,
   busyEnterMode,
   onQueueMutate,
@@ -108,6 +111,7 @@ export function MainConversation({
   onToggleNav,
   onFork,
   onResendMessage,
+  onContinueMessage,
   onShowToolDetails,
   onOpenWorkspacePath,
   shortcuts,
@@ -153,6 +157,7 @@ export function MainConversation({
   } | null
   toolTraces: ToolTraceItem[]
   dshToolRows?: readonly DshProjectedToolCall[]
+  activeDshTurn?: number | null
   promptQueue?: PromptQueueSnapshot
   busyEnterMode?: BusyEnterMode
   onQueueMutate?: (payload: { kind: 'steering' | 'followUp'; index: number; action: 'remove' | 'update'; text?: string }) => void
@@ -195,6 +200,7 @@ export function MainConversation({
   onToggleNav: () => void
   onFork?: (messageId: string) => void
   onResendMessage?: (text: string, precedingAssistantId: string | null, modelKey?: string | null) => void
+  onContinueMessage?: (modelKey?: string | null) => void
   onShowToolDetails?: (item: ToolTraceItem) => void
   onOpenWorkspacePath?: (relativePath: string) => void
   shortcuts?: ShortcutItem[]
@@ -221,6 +227,8 @@ export function MainConversation({
   const [showScrollBottomBtn, setShowScrollBottomBtn] = useState(false)
   const [turnMenuOpen, setTurnMenuOpen] = useState(false)
   const [focusedMessageIndex, setFocusedMessageIndex] = useState<number>(-1)
+  const bindCallback = useStableCallbacks()
+  const stableArray = useStableArrays()
 
   const lastAgentMessageId = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
@@ -515,6 +523,7 @@ export function MainConversation({
               )
             }
             const isLatestAgent = !sending && message.id === lastAgentMessageId && index > latestUserMessageIndex
+            const messageToolHistory = dshToolHistoryForMessage(message, dshToolRows, toolTraces, isLatestAgent)
             const mayResend = Boolean(onResendMessage)
               && !sending
               && (promptQueue?.steering?.length ?? 0) === 0
@@ -567,22 +576,24 @@ export function MainConversation({
               <Message
                 key={message.id}
                 message={message}
-                dshToolRows={isLatestAgent ? dshToolRows : undefined}
-                toolTraceItems={isLatestAgent ? toolTraces : undefined}
+                dshToolRows={stableArray(`${message.id}:rows`, messageToolHistory.rows)}
+                toolTraceItems={stableArray(`${message.id}:traces`, messageToolHistory.traces)}
                 workspacePath={workspacePath}
                 conversationId={conversationId}
-                onFork={canForkHere ? onFork : undefined}
-                onEditAndResend={mayResend && message.author === 'user' && !message.behavior
-                  ? (text) => onResendMessage?.(text, previousAssistantId(index), editResponse?.modelKey ?? model?.id)
-                  : undefined}
-                onRegenerate={mayResend && isLatestAgent && message.author !== 'user' && !message.callout && resendText
+                onFork={bindCallback('fork', canForkHere ? onFork : undefined)}
+                onEditAndResend={bindCallback(`${message.id}:edit`, mayResend && message.author === 'user' && !message.behavior
+                  ? (text: string) => onResendMessage?.(text, previousAssistantId(index), editResponse?.modelKey ?? model?.id)
+                  : undefined)}
+                onRegenerate={bindCallback(`${message.id}:regenerate`, mayResend && isLatestAgent && message.author !== 'user' && !message.callout && resendText
                   ? () => onResendMessage?.(resendText, resendAnchor, resendModelKey)
-                  : undefined}
-                onRetry={mayResend && message.author !== 'user' && Boolean(message.callout) && resendText
-                  ? () => onResendMessage?.(resendText, resendAnchor, resendModelKey)
-                  : undefined}
-                onShowToolDetails={onShowToolDetails}
-                onOpenWorkspacePath={onOpenWorkspacePath}
+                  : undefined)}
+                onRetry={bindCallback(`${message.id}:retry`, mayResend && message.author !== 'user' && Boolean(message.callout) && resendText
+                  ? message.errorCode === 'MAX_STEPS'
+                    ? () => onContinueMessage?.(resendModelKey)
+                    : () => onResendMessage?.(resendText, resendAnchor, resendModelKey)
+                  : undefined)}
+                onShowToolDetails={bindCallback('show-tool-details', onShowToolDetails)}
+                onOpenWorkspacePath={bindCallback('open-workspace-path', onOpenWorkspacePath)}
                 fallbackModelKey={model?.id ?? model?.name}
                 isFocused={isFocused}
               />
@@ -601,6 +612,7 @@ export function MainConversation({
           )}
           {sending && (
             <Message
+              key="streaming-assistant"
               message={{
                 id: 'streaming-assistant',
                 author: 'orchestrator',
@@ -612,8 +624,12 @@ export function MainConversation({
                 thinkingDurationMs: streamThinking?.durationMs,
                 contentBlocks: streamBlocks?.length ? streamBlocks : undefined,
               }}
-              dshToolRows={dshToolRows}
-              toolTraceItems={toolTraces}
+              dshToolRows={activeDshTurn != null
+                ? dshToolRows?.filter((row) => row.turn === activeDshTurn || row.turn === 0)
+                : []}
+              toolTraceItems={activeDshTurn != null
+                ? toolTraces.filter((trace) => trace.turn === activeDshTurn || trace.turn == null)
+                : toolTraces}
               workspacePath={workspacePath}
               conversationId={conversationId}
               isStreaming={true}

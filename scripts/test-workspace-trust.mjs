@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { createWorkspaceTrustService } from '../desktop/backend/workspace-trust-service.mjs'
+import { createWorkspaceTrustService } from '../backend/workspace-trust-service.mjs'
 
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-trust-'))
 try {

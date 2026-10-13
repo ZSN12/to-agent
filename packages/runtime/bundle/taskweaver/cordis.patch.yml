@@ -111,6 +111,16 @@
     - id: cordis-host-runner
       name: '@taskweaver/dsh-cordis-host-runner'
 
+    # One process-wide LSP registry is visible to mounted agent presets. The
+    # stdio provider is shipped but stays off until a user-owned Host patch
+    # explicitly supplies trusted server commands; project files never do.
+    - id: lsp
+      name: '@taskweaver/dsh-lsp'
+
+    - id: lsp-stdio
+      name: '@taskweaver/dsh-lsp-stdio'
+      disabled: true
+
     # Ordinary provider for the parsed API Host flags. Its plugin-level
     # injection waits for cmdlineArgs; no launcher metadata is needed.
     - id: web-startup

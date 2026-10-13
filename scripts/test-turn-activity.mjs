@@ -4,7 +4,7 @@ import {
   recordTurnActivity,
   serializeTurnActivity,
   normalizeHostToolName,
-} from '../desktop/backend/turn-activity.mjs'
+} from '../backend/turn-activity.mjs'
 
 assert.equal(normalizeHostToolName('ocx_client_read'), 'read')
 

@@ -81,6 +81,22 @@ export class SandboxedFileSystem extends LocalFileSystem {
         return super.editText(await this.checkedTarget(target, sandboxPolicy), edit, expected, signal);
     }
     /**
+     * Check every requested target against the same per-call policy before the
+     * local provider stages or mutates any file. Only after the full permission
+     * pass succeeds are fresh canonical targets delegated to the rollback-capable
+     * batch implementation.
+     */
+    async applyTextTransaction(mutations, signal, sandboxPolicy) {
+        const checked = [];
+        for (const mutation of mutations) {
+            checked.push({
+                ...mutation,
+                target: await this.checkedTarget(mutation.target, sandboxPolicy),
+            });
+        }
+        return super.applyTextTransaction(checked, signal);
+    }
+    /**
      * Enforce the per-call policy against `target` and return the EXACT target the
      * mutation must use, so the checked identity is the mutated one (no
      * check-here-write-there TOCTOU). `read-only` denies; `workspace-write`

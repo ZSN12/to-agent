@@ -7,10 +7,11 @@
 import path from 'node:path'
 import fs from 'node:fs'
 import os from 'node:os'
+import { fileURLToPath } from 'node:url'
 
-const PROJECT = '/Users/zsn/Documents/毕设'
-const { createZHostManager } = await import(path.join(PROJECT, 'electron', 'agent', 'z-host', 'spawn-host.mjs'))
-const { createZConversationHub } = await import(path.join(PROJECT, 'electron', 'backend', 'z-conversation-hub.mjs'))
+const PROJECT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
+const { createZHostManager } = await import(path.join(PROJECT, 'backend', 'agent', 'z-host', 'spawn-host.mjs'))
+const { createZConversationHub } = await import(path.join(PROJECT, 'backend', 'z-conversation-hub.mjs'))
 
 const runtimeRoot = path.join(PROJECT, 'vendor', 'taskweaver-z-runtime')
 const userDataPath = fs.mkdtempSync(path.join(os.tmpdir(), 'tw-hub-'))

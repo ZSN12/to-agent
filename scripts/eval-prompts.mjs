@@ -4,12 +4,13 @@ import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import ts from 'typescript'
-import { getTaskProfile } from '../desktop/backend/task-profile.mjs'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const PRESET_ROOT = 'packages/runtime/host-cli/config/agent-presets'
 const SNAPSHOT_ROOT = 'tests/prompts/snapshots'
 const DATASET_PATH = 'tests/prompts/cases.json'
+const TASK_PROFILE_SOURCE_PATH = 'backend/task-profile.mjs'
+const PLANNER_SOURCE_PATH = 'backend/orchestration/plan-and-execute.mjs'
 // Stable eval prompt ids intentionally survive the TaskWeaver preset rename.
 const ACTIVE_PRESETS = Object.freeze([
   { id: 'standard', directory: 'tw-default' },
@@ -203,6 +204,10 @@ function plannerStaticPrefix(sourceText, variableName) {
 
 async function collectPromptSources(root = ROOT) {
   const prompts = new Map()
+  // Resolve prompt-producing modules from the evaluation root. Besides making
+  // the source map follow desktop → backend migrations, this keeps fixture
+  // evaluations honest: the fixture's copied module is the one being tested.
+  const { getTaskProfile } = await import(pathToFileURL(path.join(root, TASK_PROFILE_SOURCE_PATH)).href)
   for (const { id: presetId, directory } of ACTIVE_PRESETS) {
     const relative = path.join(PRESET_ROOT, directory, 'agent.cordis.yml')
     const raw = await fs.readFile(path.join(root, relative), 'utf8')
@@ -218,13 +223,13 @@ async function collectPromptSources(root = ROOT) {
     const id = 'task-profile.' + taskType
     prompts.set(id, {
       id,
-      sourcePath: 'desktop/backend/task-profile.mjs',
+      sourcePath: TASK_PROFILE_SOURCE_PATH,
       text: getTaskProfile(taskType).preamble,
       prefixText: null,
       staticText: null,
     })
   }
-  const plannerPath = 'desktop/backend/orchestration/plan-and-execute.mjs'
+  const plannerPath = PLANNER_SOURCE_PATH
   const plannerSource = await fs.readFile(path.join(root, plannerPath), 'utf8')
   for (const variableName of ['plannerPrompt', 'synthesis']) {
     const id = variableName === 'plannerPrompt' ? 'planner-request' : 'planner-synthesis'

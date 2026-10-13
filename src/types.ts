@@ -52,6 +52,8 @@ export interface ChatMessage {
   turnActivity?: TurnActivitySummary
   modelKey?: string
   callout?: string
+  /** Structured reason for a failed turn, used to offer the right recovery action. */
+  errorCode?: string
   usage?: ChatUsage
   executionEvidenceSummary?: TaskExecutionEvidenceSummary
   acceptanceAssessment?: TaskAcceptanceAssessment

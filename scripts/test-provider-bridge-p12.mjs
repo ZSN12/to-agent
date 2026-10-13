@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import { accessTokenExpiryMs, createOAuthTokenCache, isUnauthorizedError } from '../packages/provider-bridge-transport/oauth-token-cache.mjs'
 import { scheduleCursorAdapterPrewarm } from '../packages/provider-bridge-transport/index.mjs'
-import { createSystemProxyConfigCache } from '../desktop/agent/z-host/system-proxy-cache.mjs'
-import { migrateLegacyProfileManifestsOnce } from '../desktop/agent/z-host/spawn-host.mjs'
+import { createSystemProxyConfigCache } from '../backend/agent/z-host/system-proxy-cache.mjs'
+import { migrateLegacyProfileManifestsOnce } from '../backend/agent/z-host/spawn-host.mjs'
 
 let now = 1_000
 let tokenReads = 0
@@ -24,10 +24,17 @@ assert.equal(tokenReads, 1, 'provider token is reused while it is valid beyond t
 assert.equal(await tokens.get('google-antigravity', async () => token('google-a', 200)), 'google-a')
 now = 140_001
 assert.equal(await tokens.get('cursor', async () => { tokenReads += 1; return token('cursor-b', 400) }), 'cursor-b')
-assert.equal(tokenReads, 2, 'token is refreshed once it is within sixty seconds of expiry')
 tokens.invalidate('cursor')
 assert.equal(await tokens.get('cursor', async () => { tokenReads += 1; return token('cursor-c', 500) }), 'cursor-c')
 assert.equal(tokenReads, 3, 'unauthorized invalidation forces a new OAuth read')
+
+let opaqueReads = 0
+assert.equal(await tokens.get('opaque-provider', async () => { opaqueReads += 1; return 'opaque-token-val' }), 'opaque-token-val')
+assert.equal(await tokens.get('opaque-provider', async () => { opaqueReads += 1; return 'unexpected' }), 'opaque-token-val')
+assert.equal(opaqueReads, 1, 'opaque token without exp is cached with fallback TTL')
+tokens.invalidate('opaque-provider')
+assert.equal(await tokens.get('opaque-provider', async () => { opaqueReads += 1; return 'opaque-token-2' }), 'opaque-token-2')
+assert.equal(opaqueReads, 2, 'opaque token is invalidated on 401')
 
 let prewarmCallback
 let prewarmDelay

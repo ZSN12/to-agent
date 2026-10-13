@@ -6,8 +6,8 @@ import {
   requestGitHubDeviceCode,
   runGitHubMcpOAuthLogin,
   startGitHubOAuthCallbackServer,
-} from '../desktop/backend/github-mcp-oauth.mjs'
-import { isGitHubMcpOAuthConfigured } from '../desktop/backend/github-mcp-oauth-app.mjs'
+} from '../backend/github-mcp-oauth.mjs'
+import { isGitHubMcpOAuthConfigured } from '../backend/github-mcp-oauth-app.mjs'
 
 const hadClientId = process.env.TASKWEAVER_GITHUB_OAUTH_CLIENT_ID
 const hadClientSecret = process.env.TASKWEAVER_GITHUB_OAUTH_CLIENT_SECRET
@@ -95,7 +95,7 @@ assert.equal(browserOpenCount, 1)
 assert.ok(loginStatuses.some(status => status.status === 'auth_url' && status.url))
 
 const mcpIpcSource = await (await import('node:fs/promises')).readFile(
-  new URL('../desktop/backend/ipc/register-mcp-ipc.mjs', import.meta.url),
+  new URL('../backend/ipc/register-mcp-ipc.mjs', import.meta.url),
   'utf8',
 )
 assert.doesNotMatch(mcpIpcSource, /if\s*\(statusInfo\?\.url\)\s*shell\.openExternal/)

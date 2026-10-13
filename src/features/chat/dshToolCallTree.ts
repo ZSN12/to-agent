@@ -16,21 +16,14 @@ export interface DshToolCallStepGroup {
   startedAt: number | null
 }
 
-/** Keep live tool activity inline; collapse the completed history by default. */
-export function isDshToolCallBatchExpanded(
-  userOverride: boolean | null,
-  isActive: boolean,
-): boolean {
-  return userOverride ?? isActive
+/** Tool batches stay collapsed until the user explicitly opens them. */
+export function isDshToolCallBatchExpanded(userOverride: boolean | null): boolean {
+  return userOverride ?? false
 }
 
-/** Expand the active step, or the latest completed step, unless the user overrides it. */
-export function isDshToolCallStepExpanded(
-  userOverride: boolean | undefined,
-  hasRunningCall: boolean,
-  isLatestStep: boolean,
-): boolean {
-  return userOverride ?? (hasRunningCall || isLatestStep)
+/** Steps stay collapsed until the user explicitly opens them. */
+export function isDshToolCallStepExpanded(userOverride: boolean | undefined): boolean {
+  return userOverride ?? false
 }
 
 function countCalls(nodes: readonly DshToolCallTreeNode[]): { callCount: number; runningCount: number; startedAt: number | null } {

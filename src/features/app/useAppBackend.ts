@@ -22,10 +22,11 @@ import {
   shouldPreferDshTranscript,
 } from '../dsh-runtime/projectionStream'
 import { mergeStoredMessagesWithDshTranscript } from '../dsh-runtime/dshTranscriptMessages'
-import { liveContextFromDshProjections } from '../chat/session-usage'
+import { liveContextFromDshProjections, mergeSessionStatsSnapshots } from '../chat/session-usage'
 import { readHostPlanMode, readHostTodos } from '../chat/hostPlanTodoProjection'
-import type { AssistantContentBlock, TaskNode } from '../../types'
+import type { AssistantContentBlock, ChatMessage, TaskNode } from '../../types'
 import { type ConversationStreamSnapshot } from '../chat/conversation-stream-buffer'
+import { reuseUnchangedMessages } from '../chat/stable-messages'
 import { getBridge } from './getBridge'
 import { useThreadActions } from './hooks/useThreadActions'
 import { useWorkspaceActions } from './hooks/useWorkspaceActions'
@@ -99,6 +100,7 @@ export function useAppBackend() {
   const [liveContext, setLiveContext] = useState<LiveContextUsage | null>(null)
   const [promptBudget, setPromptBudget] = useState<PromptBudgetSnapshot | null>(null)
   const [sessionStats, setSessionStats] = useState<SessionStatsSnapshot | null>(null)
+  const sessionStatsRequestVersionRef = useRef(0)
   const [busyEnterMode, setBusyEnterMode] = useState<BusyEnterMode>('followUp')
   const activeConversationIdRef = useRef<string | null>(null)
   const permissionPromptsRef = useRef(new Map<string, PermissionPromptPayload>())
@@ -120,7 +122,9 @@ export function useAppBackend() {
     setPromptQueue(snapshot.promptQueue)
   }, [])
 
+  const flushLiveCopyRef = useRef<() => void>(() => {})
   const resetTransientConversationState = useCallback(() => {
+    flushLiveCopyRef.current()
     setStreamText(null)
     setStreamStartedAt(null)
     setStreamThinking(null)
@@ -170,25 +174,32 @@ export function useAppBackend() {
     [activeDshView?.projections],
   )
 
-  const displayMessages = useMemo(
-    () => mergeStoredMessagesWithDshTranscript(
-      state?.messages ?? [],
-      activeDshView?.transcript,
-      preferDshTranscript,
-      sending,
-    ),
-    [state?.messages, activeDshView?.transcript, preferDshTranscript, sending],
-  )
+  const previousDisplayMessagesRef = useRef<ChatMessage[]>([])
+  const displayMessages = useMemo(() => {
+    const merged = reuseUnchangedMessages(
+      previousDisplayMessagesRef.current,
+      mergeStoredMessagesWithDshTranscript(
+        state?.messages ?? [],
+        activeDshView?.transcript,
+        preferDshTranscript,
+        sending,
+      ),
+    )
+    previousDisplayMessagesRef.current = merged
+    return merged
+  }, [state?.messages, activeDshView?.transcript, preferDshTranscript, sending])
 
   const refreshSessionStats = useCallback(async (expectedConversationId = activeConversationIdRef.current) => {
     const bridge = getBridge()
     if (!bridge?.chat?.getSessionStats) return
+    const requestVersion = ++sessionStatsRequestVersionRef.current
     const [statsRes, contextRes] = await Promise.all([
       bridge.chat.getSessionStats(expectedConversationId),
       bridge.chat.getLiveContext?.(expectedConversationId),
     ])
-    if (expectedConversationId !== activeConversationIdRef.current) return
-    if (statsRes.ok) setSessionStats(statsRes.data)
+    if (expectedConversationId !== activeConversationIdRef.current
+      || requestVersion !== sessionStatsRequestVersionRef.current) return
+    if (statsRes.ok) setSessionStats((previous) => mergeSessionStatsSnapshots(previous, statsRes.data))
     if (contextRes?.ok) setLiveContext(contextRes.data)
   }, [])
 
@@ -223,8 +234,6 @@ export function useAppBackend() {
     setToolTraces,
     setPromptQueue,
     setRetryBanner,
-    setLiveContext,
-    setSessionStats,
     orchestrationChoice,
     setOrchestrationChoice,
     activeConversationIdRef,
@@ -234,6 +243,7 @@ export function useAppBackend() {
     clearPendingCompaction,
     setPendingCompactionIds,
     preferDshTranscript,
+    flushLiveCopyRef,
   })
 
   const {
@@ -253,7 +263,7 @@ export function useAppBackend() {
     const bridge = getBridge()
     if (!bridge?.app) {
       setLoading(false)
-      setError('请在 Electron 桌面应用中运行以加载后端状态。')
+      setError('请在 TaskWeaver 桌面应用中运行以加载后端状态。')
       return
     }
     const requestedConversationId = activeConversationIdRef.current
@@ -510,12 +520,15 @@ export function useAppBackend() {
     retryBanner,
     toolTraces,
     dshToolRows,
+    activeDshTurn: activeDshView?.activeTurn ?? null,
     promptQueue,
     skills,
     skillsLoading,
     refreshSkills,
     threads: state?.threads ?? [],
     currentThreadId: state?.currentThreadId ?? null,
+    // DSH's projected owner/event id is the source of truth for transient tool-output references.
+    toolOutputConversationId: activeDshView?.conversationId ?? state?.conversationId ?? null,
     runningConversationIds,
     completedConversationIds,
     reload,

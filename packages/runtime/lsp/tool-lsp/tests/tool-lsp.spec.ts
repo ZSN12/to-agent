@@ -4,7 +4,8 @@ import { pathToFileURL } from 'node:url'
 import { Context } from '@taskweaver/cordis'
 import SystemPrompt from '@taskweaver/dsh-system-prompt'
 import ToolRuntime from '@taskweaver/dsh-tools'
-import Lsp, { LspProviderId, type LspProvider, type LspProviderQuery, type LspQueryResult } from '@taskweaver/dsh-lsp'
+import { defineTool } from '@taskweaver/dsh-tools'
+import Lsp, { LspProviderId, type LspDiagnostic, type LspProvider, type LspProviderQuery, type LspQueryResult } from '@taskweaver/dsh-lsp'
 import * as ToolLsp from '@taskweaver/dsh-tool-lsp'
 import { DEFAULT_LSP_TOOL_TIMEOUT_MS, LSP_PROMPT_TEXT } from '@taskweaver/dsh-tool-lsp'
 import { MAX_TIMER_DELAY_MS } from '@taskweaver/dsh-timeout'
@@ -48,10 +49,14 @@ const resolvedWorkspaceUri = pathToFileURL(resolvedWorkspaceRoot).href
 const workspaceAlias = resolve('/virtual/workspace-alias')
 /** `cwd: null` means "no agent" (tests LSP_WORKSPACE_REQUIRED); a string is the session cwd. */
 function call(ctx: Context, args: unknown, cwd: string | null = workspaceRoot) {
+  return callNamed(ctx, 'lsp', args, cwd)
+}
+
+function callNamed(ctx: Context, name: string, args: unknown, cwd: string | null = workspaceRoot) {
   return ctx.tools.execute({
     signal: testToolSignal,
     callId: `c-${++seq}` as never,
-    name: 'lsp',
+    name,
     arguments: args,
     ...cwd !== null ? { agent: { session: { header: { cwd } } } as never } : {},
   })
@@ -223,6 +228,151 @@ describe('tool-lsp execution', () => {
     // The timeout policy is not mounted here, so the signal is whatever the registry passes (may be
     // undefined); the point is the tool threads it through without throwing.
     expect(seen).toHaveLength(1)
+  })
+
+  it('appends only a bounded list of error diagnostics after edit and preserves its value', async () => {
+    const diagnostics: LspDiagnostic[] = Array.from({ length: 6 }, (_, index) => ({
+      range: { start: { line: index, character: 1 }, end: { line: index, character: 2 } },
+      severity: 1,
+      code: `E${index}`,
+      message: `error ${index}`,
+    }))
+    diagnostics.push({
+      range: { start: { line: 8, character: 0 }, end: { line: 8, character: 1 } },
+      severity: 2,
+      code: 'W1',
+      message: 'warning is omitted',
+    })
+    const provider: LspProvider = {
+      id: LspProviderId('post-edit-diagnostics'),
+      extensionToLanguage: { '.ts': 'typescript' },
+      query: () => Promise.resolve(okLocations),
+      getDiagnostics(request, waitMs) {
+        expect(request).toMatchObject({ filePath: 'a.ts', workspaceRoot })
+        expect(waitMs).toBe(1_500)
+        return Promise.resolve(diagnostics)
+      },
+    }
+    const { ctx } = await mount(provider)
+    ctx.tools.register(defineTool({
+      name: 'edit',
+      description: 'Test edit tool.',
+      parameters: { file_path: { type: 'string', required: true } },
+      output: {
+        schema: {
+          type: 'object',
+          additionalProperties: false,
+          properties: { updated: { type: 'boolean', required: true } },
+        },
+        render: () => [{ type: 'text', text: 'Updated a.ts.' }],
+      },
+      async execute() { return { updated: true } },
+    }))
+
+    const result = await callNamed(ctx, 'edit', { file_path: 'a.ts' })
+    expect(result.isError).toBe(false)
+    expect(result.value).toEqual({ updated: true })
+    expect(result.content).toHaveLength(2)
+    expect(result.content[1]).toEqual({
+      type: 'text',
+      text: 'LSP errors after a.ts update (first 5):\n'
+        + '- a.ts:1:2 E0: error 0\n'
+        + '- a.ts:2:2 E1: error 1\n'
+        + '- a.ts:3:2 E2: error 2\n'
+        + '- a.ts:4:2 E3: error 3\n'
+        + '- a.ts:5:2 E4: error 4\n'
+        + '- 1 additional error diagnostics omitted.',
+    })
+    expect(JSON.stringify(result.content)).not.toContain('warning is omitted')
+  })
+
+  it('does not append warning or unknown-severity diagnostics after write', async () => {
+    const provider: LspProvider = {
+      id: LspProviderId('post-write-warning-only'),
+      extensionToLanguage: { '.ts': 'typescript' },
+      query: () => Promise.resolve(okLocations),
+      getDiagnostics: () => Promise.resolve([{
+        range: { start: { line: 0, character: 0 }, end: { line: 0, character: 1 } },
+        severity: 2,
+        message: 'warning only',
+      }]),
+    }
+    const { ctx } = await mount(provider)
+    ctx.tools.register(defineTool({
+      name: 'write',
+      description: 'Test write tool.',
+      parameters: { file_path: { type: 'string', required: true } },
+      output: {
+        schema: {
+          type: 'object',
+          additionalProperties: false,
+          properties: { updated: { type: 'boolean', required: true } },
+        },
+        render: () => [{ type: 'text', text: 'Wrote a.ts.' }],
+      },
+      async execute() { return { updated: true } },
+    }))
+
+    const result = await callNamed(ctx, 'write', { file_path: 'a.ts' })
+    expect(result.isError).toBe(false)
+    expect(result.content).toEqual([{ type: 'text', text: 'Wrote a.ts.' }])
+  })
+
+  it('appends per-file error diagnostics after apply_patch for added and updated files', async () => {
+    const queried: string[] = []
+    const provider: LspProvider = {
+      id: LspProviderId('post-patch-diagnostics'),
+      extensionToLanguage: { '.ts': 'typescript' },
+      query: () => Promise.resolve(okLocations),
+      getDiagnostics(request) {
+        queried.push(request.filePath)
+        expect(request.workspaceRoot).toBe(workspaceRoot)
+        return Promise.resolve(request.filePath === 'clean.ts' ? [] : [{
+          range: { start: { line: 2, character: 4 }, end: { line: 2, character: 5 } },
+          severity: 1,
+          message: `broken ${request.filePath}`,
+        }])
+      },
+    }
+    const { ctx } = await mount(provider)
+    ctx.tools.register(defineTool({
+      name: 'apply_patch',
+      description: 'Test apply_patch tool.',
+      parameters: { patch: { type: 'string', required: true } },
+      output: {
+        schema: {
+          type: 'object',
+          additionalProperties: false,
+          properties: { applied: { type: 'boolean', required: true } },
+        },
+        render: () => [{ type: 'text', text: 'Applied patch.' }],
+      },
+      async execute() { return { applied: true } },
+    }))
+
+    const patch = [
+      '*** Begin Patch',
+      '*** Add File: new.ts',
+      '+export const x: number = "no"',
+      '*** Update File: clean.ts',
+      '@@',
+      '-a',
+      '+b',
+      '*** Update File: old.ts\r',
+      '@@',
+      '-c',
+      '+d',
+      '*** End Patch',
+    ].join('\n')
+    const result = await callNamed(ctx, 'apply_patch', { patch })
+    expect(result.isError).toBe(false)
+    expect(result.value).toEqual({ applied: true })
+    expect(queried).toEqual(['new.ts', 'clean.ts', 'old.ts'])
+    expect(result.content).toEqual([
+      { type: 'text', text: 'Applied patch.' },
+      { type: 'text', text: 'LSP errors after new.ts update (first 1):\n- new.ts:3:5: broken new.ts' },
+      { type: 'text', text: 'LSP errors after old.ts update (first 1):\n- old.ts:3:5: broken old.ts' },
+    ])
   })
 
   it('presentCall renders the pending card from args', async () => {

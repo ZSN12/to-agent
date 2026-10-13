@@ -2,10 +2,10 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { createAppStateStore } from '../desktop/backend/app-state-store.mjs'
-import { createUsageStore } from '../desktop/backend/usage-store.mjs'
-import { createChatTurnPersistence } from '../desktop/backend/chat-turn-persistence.mjs'
-import { createChatTurnPipeline } from '../desktop/backend/chat-turn-pipeline.mjs'
+import { createAppStateStore } from '../backend/app-state-store.mjs'
+import { createUsageStore } from '../backend/usage-store.mjs'
+import { createChatTurnPersistence } from '../backend/chat-turn-persistence.mjs'
+import { createChatTurnPipeline } from '../backend/chat-turn-pipeline.mjs'
 
 // Execute the production IPC persistence helpers with real stores, no Electron
 // or model provider. This checks delayed IPC and aggregate accounting contracts.
@@ -65,7 +65,7 @@ try {
   assert.equal((await readStats()).totals.totalCalls, 1, 'delayed IPC must not duplicate native usage')
 
   const partial = { ...result, turnId: 'failed', text: 'partial output', nativePersisted: false }
-  const error = Object.assign(new Error('Controlled failure'), { partialResult: partial, modelKey: activeKey })
+  const error = Object.assign(new Error('Controlled failure'), { code: 'MAX_STEPS', partialResult: partial, modelKey: activeKey })
   let wrappedHandler
   ipcHandle({ handle(_channel, handler) { wrappedHandler = handler } }, 'chat:send', async () => { throw error })
   assert.deepEqual(await wrappedHandler({}), { ok: false, error: 'Controlled failure', turnId: 'failed' },
@@ -84,10 +84,18 @@ try {
   assert.equal(messages.filter(message => message.id === 'z-turn-failed-error').length, 0,
     'failed turn with partial output must not create a duplicate error message')
   assert.match(messages.find(message => message.id === 'z-turn-failed').callout, /执行失败：Controlled failure/)
+  assert.equal(messages.find(message => message.id === 'z-turn-failed').errorCode, 'MAX_STEPS',
+    'the durable assistant message keeps the machine-readable recovery reason')
   assert.equal((await readStats()).totals.totalCalls, 2)
   assert.equal(messages.find(message => message.id === 'z-turn-failed').interrupted, true)
   assert.deepEqual(messages.find(message => message.id === 'z-turn-failed').fileChanges, result.fileChanges,
     'partial output after a failed run retains file change summaries')
+  await persistNativeTurn({ conversationId, modelKey: activeKey, result: {
+    turnId: 'max-steps-empty', startedAt: Date.now(), text: '', thinking: '', fileChanges: [],
+  }, errorMessage: '本轮已达到安全步数上限，当前进度已保留，点击“继续”可接着完成。', errorCode: 'MAX_STEPS' })
+  const noOutputFailure = (await appState.getConversationState(conversationId)).messages.find(message => message.id === 'z-turn-max-steps-empty')
+  assert.equal(noOutputFailure.errorCode, 'MAX_STEPS', 'step-limit failures remain actionable even without visible partial text')
+  assert.match(noOutputFailure.callout, /点击“继续”/)
   const persistenceFailure = new Error('controlled disk failure')
   const originalErrorLog = console.error
   try {
@@ -117,6 +125,45 @@ try {
     (await appState.getConversationState(earlyConversationId)).messages.at(-1).text,
     '执行失败：before native start',
   )
+
+  const budgetConversationId = (await appState.createThread({})).conversationId
+  let chatRequest
+  const budgetPipeline = createChatTurnPipeline({
+    appState,
+    usageStore,
+    profileStore: { resolve: async () => ({}) },
+    modelService: { getModelContextWindow: async () => 128_000 },
+    resolveModelKeyForChat: async () => ({ modelKey: activeKey }),
+    appPreferences: { get: async () => ({}) },
+    createGitCheckpoint: async () => {},
+    userDataPath: home,
+    chat: {
+      send: async (request) => {
+        chatRequest = request
+        return { text: '你好' }
+      },
+    },
+    orchestration: {},
+    permissions: { withExecution: async (_mode, _sender, fn) => fn() },
+    skills: { resolve: async () => null },
+    persistNativeTurn,
+    workspaceHooksTrusted: async () => false,
+    sandboxContextLineForContext: () => '',
+  })
+  await budgetPipeline.runTurn({
+    webContents: { isDestroyed: () => false, send: () => {} },
+    text: '你好',
+    executionModeOverride: 'single-agent',
+    conversationId: budgetConversationId,
+    runtimeContext: {
+      workspacePath: home,
+      permissionMode: 'standard',
+      workspaceTrusted: false,
+      modelKey: activeKey,
+    },
+  })
+  assert.equal(chatRequest.toolOutputMaxChars, 2_800,
+    'chat execution receives the dynamic tool output budget returned beside workspace context')
   assert.equal((await readStats()).totals.totalCalls, 2, 'early errors invent no model usage')
 
   await persistNativeTurn({ conversationId, modelKey: activeKey, result: {

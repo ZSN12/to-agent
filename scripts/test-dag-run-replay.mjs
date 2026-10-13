@@ -3,9 +3,9 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { randomUUID } from 'node:crypto'
-import { createOrchestrationService } from '../desktop/backend/orchestration-service.mjs'
-import { RunStore } from '../desktop/backend/orchestration/run-store.mjs'
-import { createRunReplay } from '../desktop/backend/orchestration/run-replay.mjs'
+import { createOrchestrationService } from '../backend/orchestration-service.mjs'
+import { RunStore } from '../backend/orchestration/run-store.mjs'
+import { createRunReplay } from '../backend/orchestration/run-replay.mjs'
 
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-dag-replay-'))
 try {
@@ -20,6 +20,10 @@ try {
   const acceptance = (criterion) => `<taskweaver-acceptance-v1>${JSON.stringify({
     results: [{ criterion, passed: true, evidence: 'mock evidence' }],
   })}</taskweaver-acceptance-v1>`
+  const successfulReadEvidence = {
+    source: 'z-host-tool-events',
+    observedToolCalls: [{ toolName: 'read', status: 'done', inputSummary: 'README.md' }],
+  }
   const makeTask = (id, dependsOn, status) => ({
     id,
     title: `节点 ${id}`,
@@ -36,7 +40,11 @@ try {
     statusLabel: status === 'done' ? '已完成' : '已中断',
     runStatus: status === 'done' ? 'completed' : 'interrupted',
     messages: status === 'done'
-      ? [{ id: `${id}-old`, author: 'agent', name: '调研', time: '', text: `已完成 ${id}\n${acceptance(`${id} 有可核验结论`)}` }]
+      ? [{
+        id: `${id}-old`, author: 'agent', name: '调研', time: '',
+        text: `已完成 ${id}\n${acceptance(`${id} 有可核验结论`)}`,
+        executionEvidence: structuredClone(successfulReadEvidence),
+      }]
       : [{ id: `${id}-old`, author: 'agent', name: '调研', time: '', text: '未完成：模拟中断' }],
   })
   const source = {
@@ -49,7 +57,7 @@ try {
     workspacePath,
     permissionMode: 'readonly',
     workspaceTrusted: false,
-    settings: { worktreeIsolation: false, maxSubtaskConcurrency: 1 },
+    settings: { worktreeIsolation: false, maxSubtaskConcurrency: 1, maxDagNodes: 6 },
     tasks: [
       makeTask('T1', [], 'done'),
       makeTask('T2', ['T1'], 'interrupted'),
@@ -61,15 +69,58 @@ try {
   const checkpoint = createRunReplay(source)
   assert.deepEqual([...checkpoint.pendingTaskIds], ['T2', 'T3'])
   assert.deepEqual([...checkpoint.initialResults.keys()], ['T1'])
+  const largerRun = {
+    ...source,
+    settings: { ...source.settings, maxDagNodes: 7 },
+    tasks: Array.from({ length: 7 }, (_, index) => makeTask(`R${index + 1}`, [], 'interrupted')),
+  }
+  assert.equal(createRunReplay(largerRun).pendingTaskIds.size, 7, 'replay honors the node cap persisted when the source run was created')
   const rerun = createRunReplay({ ...source, status: 'completed', tasks: source.tasks.map((task) => ({
     ...task,
     status: 'done',
     statusLabel: '已完成',
     runStatus: 'completed',
-    messages: [{ id: `${task.id}-done`, author: 'agent', name: '调研', time: '', text: `已完成 ${task.id}\n${acceptance(`${task.id} 有可核验结论`)}` }],
+    messages: [{
+      id: `${task.id}-done`, author: 'agent', name: '调研', time: '',
+      text: `已完成 ${task.id}\n${acceptance(`${task.id} 有可核验结论`)}`,
+      executionEvidence: structuredClone(successfulReadEvidence),
+    }],
   })) }, { mode: 'rerun', taskId: 'T2' })
   assert.deepEqual([...rerun.pendingTaskIds], ['T2', 'T3'])
   assert.deepEqual([...rerun.initialResults.keys()], ['T1'])
+
+  const testTask = {
+    ...makeTask('T-test', [], 'done'),
+    taskType: 'test',
+    acceptance: ['测试命令通过'],
+    messages: [{
+      id: 'T-test-done', author: 'agent', name: '测试', time: '',
+      text: `测试完成\n${acceptance('测试命令通过')}`,
+    }],
+  }
+  const unverifiedTestReplay = createRunReplay({ ...source, tasks: [testTask] })
+  assert.deepEqual([...unverifiedTestReplay.initialResults.keys()], [], 'a prior done label and model acceptance report cannot verify a test node')
+  assert.deepEqual([...unverifiedTestReplay.pendingTaskIds], ['T-test'])
+
+  const verifiedTestTask = {
+    ...testTask,
+    messages: [{
+      ...testTask.messages[0],
+      executionEvidence: {
+        source: 'z-host-tool-events',
+        observedToolCalls: [{
+          toolName: 'bash', status: 'done', commandSummary: 'pnpm test',
+          commandOutcome: { exitCode: 0, background: false, timedOut: false, sandboxDenied: false },
+        }],
+      },
+    }],
+  }
+  const verifiedTestReplay = createRunReplay({
+    ...source,
+    tasks: [verifiedTestTask, makeTask('T-pending', [], 'interrupted')],
+  })
+  assert.deepEqual([...verifiedTestReplay.initialResults.keys()], ['T-test'], 'replay may reuse a test node with a recorded successful Host verification command')
+  assert.deepEqual([...verifiedTestReplay.pendingTaskIds], ['T-pending'])
 
   const calls = []
   const states = new Map([[conversationId, { workspacePath, messages: [], tasks: [] }]])

@@ -2,15 +2,14 @@ import { useCallback, useEffect, useRef, useState, type Dispatch, type MutableRe
 import type {
   AppState,
   ChatStreamEvent,
-  LiveContextUsage,
   OrchestrationChoicePrompt,
   PromptQueueSnapshot,
-  SessionStatsSnapshot,
   ToolTraceItem,
   WorkMode,
 } from '../../../shared/app-api'
 import type { ChatMessage } from '../../../types'
 import {
+  applyStreamBlockDelta,
   applyStreamEventToSnapshot,
   emptyConversationStream,
   type ConversationStreamSnapshot,
@@ -18,11 +17,17 @@ import {
 import { completedStreamMessage, endsConversationRun, mayResetStreamAfterReply } from '../../chat/conversation-run-lifecycle'
 import { isCompactCommandText } from '../../../shared/context-compaction-policy'
 import { shortStreamActivityLabel } from '../../chat/streamActivityLabel'
+import { animationFrameScheduler, createFrameCoalescer } from '../../chat/stream-frame-coalescer'
 import { clockLabelZh } from '../../../shared/time-label'
 import { getBridge } from '../getBridge'
 
 function emptyPromptQueue(): PromptQueueSnapshot {
   return { steering: [], followUp: [] }
+}
+
+/** Token-rate copy updates; their React state is batched per frame. */
+function isLiveCopyEvent(event: ChatStreamEvent): boolean {
+  return event.type === 'delta' || event.type === 'block_delta' || event.type === 'thinking_delta'
 }
 
 export type ConversationRunRefs = {
@@ -53,8 +58,6 @@ export type ConversationRunOptions = {
     delayMs?: number
     message?: string
   } | null>>
-  setLiveContext: Dispatch<SetStateAction<LiveContextUsage | null>>
-  setSessionStats: Dispatch<SetStateAction<SessionStatsSnapshot | null>>
   orchestrationChoice: OrchestrationChoicePrompt | null
   setOrchestrationChoice: Dispatch<SetStateAction<OrchestrationChoicePrompt | null>>
   activeConversationIdRef: MutableRefObject<string | null>
@@ -64,6 +67,12 @@ export type ConversationRunOptions = {
   clearPendingCompaction: (conversationId?: string | null) => void
   setPendingCompactionIds: Dispatch<SetStateAction<string[]>>
   preferDshTranscript: boolean
+  /**
+   * Set to apply frame-queued stream copy immediately. Callers must invoke it
+   * before switching the active conversation, whose restored snapshot already
+   * contains every queued delta.
+   */
+  flushLiveCopyRef: MutableRefObject<() => void>
 }
 
 export function useConversationRun(options: ConversationRunOptions) {
@@ -82,8 +91,6 @@ export function useConversationRun(options: ConversationRunOptions) {
     setToolTraces,
     setPromptQueue,
     setRetryBanner,
-    setLiveContext,
-    setSessionStats,
     orchestrationChoice,
     setOrchestrationChoice,
     activeConversationIdRef,
@@ -93,6 +100,7 @@ export function useConversationRun(options: ConversationRunOptions) {
     clearPendingCompaction,
     setPendingCompactionIds,
     preferDshTranscript,
+    flushLiveCopyRef,
   } = options
 
   const runningConversationsRef = useRef(new Set<string>())
@@ -173,8 +181,14 @@ export function useConversationRun(options: ConversationRunOptions) {
   useEffect(() => {
     const bridge = getBridge()
     if (!bridge?.chat) return
-    return bridge.chat.onStream((event: ChatStreamEvent) => {
+    const liveCopy = createFrameCoalescer<ChatStreamEvent>(
+      (events) => { for (const event of events) applyToActiveView(event) },
+      animationFrameScheduler(),
+    )
+    const unsubscribe = bridge.chat.onStream((event: ChatStreamEvent) => {
       if ('taskId' in event && event.taskId && event.type !== 'tool') return
+      const liveCopyEvent = isLiveCopyEvent(event)
+      if (!liveCopyEvent) liveCopy.flush()
       const completedMessage = completedStreamMessage(event)
       if (completedMessage) {
         setState((current) => {
@@ -285,6 +299,13 @@ export function useConversationRun(options: ConversationRunOptions) {
         }
       }
       if (event.conversationId && event.conversationId !== activeConversationIdRef.current) return
+      if (liveCopyEvent) liveCopy.push(event)
+      else applyToActiveView(event, completedMessage)
+    })
+    flushLiveCopyRef.current = liveCopy.flush
+
+    function applyToActiveView(event: ChatStreamEvent, completedMessage: ChatMessage | null = null) {
+      if (event.conversationId && event.conversationId !== activeConversationIdRef.current) return
 
       if (event.type === 'thinking_start') {
         setStreamActivity(null)
@@ -350,6 +371,9 @@ export function useConversationRun(options: ConversationRunOptions) {
       }
       if (event.type === 'blocks') {
         setStreamBlocks(event.segments)
+      }
+      if (event.type === 'block_delta') {
+        setStreamBlocks((current) => applyStreamBlockDelta(current, event))
       }
       if (event.type === 'start') {
         setStreamText('')
@@ -430,7 +454,16 @@ export function useConversationRun(options: ConversationRunOptions) {
           setRetryBanner(null)
         }
       }
-    })
+    }
+
+    return () => {
+      unsubscribe()
+      // Deliver, never drop, queued copy: a dependency change mid-stream would
+      // otherwise lose deltas that the next subscription cannot replay.
+      liveCopy.flush()
+      liveCopy.dispose()
+      if (flushLiveCopyRef.current === liveCopy.flush) flushLiveCopyRef.current = () => {}
+    }
   }, [
     refreshSessionStats,
     syncRunningConversationIds,
@@ -454,18 +487,24 @@ export function useConversationRun(options: ConversationRunOptions) {
   useEffect(() => {
     if (!sending) return
     const bridge = getBridge()
-    if (!bridge?.chat?.getLiveContext) return
-    const timer = window.setInterval(() => {
+    if (!bridge?.chat?.getSessionStats) return
+    let active = true
+    let timer: number | null = null
+    const poll = async () => {
       const expectedConversationId = activeConversationIdRef.current
-      void bridge.chat.getLiveContext(expectedConversationId).then((res) => {
-        if (res.ok && expectedConversationId === activeConversationIdRef.current) setLiveContext(res.data)
-      })
-      void bridge.chat.getSessionStats?.(expectedConversationId).then((res) => {
-        if (res?.ok && expectedConversationId === activeConversationIdRef.current) setSessionStats(res.data)
-      })
-    }, 2000)
-    return () => window.clearInterval(timer)
-  }, [sending, activeConversationIdRef, setLiveContext, setSessionStats])
+      try {
+        await refreshSessionStats(expectedConversationId)
+      } catch {
+        // A transient stats read must not interrupt an active conversation.
+      }
+      if (active) timer = window.setTimeout(() => { void poll() }, 2000)
+    }
+    timer = window.setTimeout(() => { void poll() }, 2000)
+    return () => {
+      active = false
+      if (timer !== null) window.clearTimeout(timer)
+    }
+  }, [sending, activeConversationIdRef, refreshSessionStats])
 
   const sendMessage = useCallback(
     async (

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { serializeDshConversationView } from '../desktop/backend/dsh-snapshot-serialize.mjs'
+import { serializeDshConversationView } from '../backend/dsh-snapshot-serialize.mjs'
 import ts from 'typescript'
 
 const activitySource = await fs.readFile(path.resolve('src/features/chat/streamActivityLabel.ts'), 'utf8')
@@ -120,10 +120,74 @@ assert.equal('path' in withTools.toolRows[1].resultImages[0], false, 'local file
 assert.doesNotMatch(withTools.toolRows[1].resultPreview, /must-not-cross-projection|\/private\/image\.png/,
   'the compact text summary does not stringify binary payloads or local paths')
 assert.match(withTools.activityLabel, /run_code/, 'active tool should take precedence over model-step status')
+assert.equal(withTools.activeTurn, 2)
 assert.equal(shortStreamActivityLabel(withTools.activityLabel), '正在执行 run_code')
 assert.match(withTools.toolRows[0].argsRaw, /read workspace layout/)
 assert.equal(withTools.projections.contextPressure.contextWindow, 128_000)
 assert.equal(withTools.projections.contextBreakdown.systemTokens, 800)
+
+const settledTools = serializeDshConversationView({
+  running: false,
+  partial: null,
+  runningCalls: [],
+  chat: {
+    order: ['tool-call-1'],
+    nodes: {
+      get(key) {
+        if (key !== 'tool-call-1') return undefined
+        return {
+          kind: 'tool-call',
+          location: { kind: 'step', turn: { turn: 3 }, step: { step: 2 } },
+          data: { root: {
+            kind: 'tool-result',
+            callId: 'tool-call-1',
+            call: { name: 'read', argsRaw: '{"path":"README.md"}' },
+            turn: 3,
+            step: 2,
+            callTime: 100,
+            time: 145,
+            content: [{ type: 'text', text: 'README contents' }],
+            isError: false,
+            subCalls: [],
+          } },
+        }
+      },
+    },
+  },
+})
+assert.equal(settledTools.running, false)
+assert.equal(settledTools.toolRows.length, 1, 'settled tool history stays in the DSH projection after the turn ends')
+assert.equal(settledTools.toolRows[0].status, 'done')
+assert.equal(settledTools.toolRows[0].turn, 3, 'settled tool rows recover their turn from the owning DSH node location')
+assert.equal(settledTools.toolRows[0].step, 2, 'settled tool rows recover their step from the owning DSH node location')
+assert.equal(settledTools.toolRows[0].resultPreview, 'README contents')
+
+const historyDuringNextTurn = serializeDshConversationView({
+  running: true,
+  partial: { turn: 4, step: 1, blocks: [] },
+  runningCalls: [],
+  turnTimings: new Map([[4, { startTime: 200, endTime: undefined }]]),
+  chat: {
+    order: ['tool-call-1', 'tool-call-2'],
+    nodes: {
+      get(key) {
+        const turn = key === 'tool-call-1' ? 3 : 4
+        return {
+          kind: 'tool-call',
+          location: { kind: 'step', turn: { turn }, step: { step: 1 } },
+          data: { root: {
+            kind: 'tool-result', callId: key,
+            call: { name: 'read', argsRaw: '{}' },
+            time: 300, callTime: 250, content: [], isError: false, subCalls: [],
+          } },
+        }
+      },
+    },
+  },
+})
+assert.equal(historyDuringNextTurn.activeTurn, 4)
+assert.deepEqual(historyDuringNextTurn.toolRows.map((row) => row.turn), [3, 4],
+  'recent settled rows remain available while a later turn is running')
 
 const hostTodos = [
   { content: '检查 composer 命令路由', status: 'completed' },

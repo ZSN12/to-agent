@@ -9,8 +9,8 @@ import {
   resolveTaskWeaverRuntimeHome,
   removeLegacyRuntimeHome,
   removeStaleRetiredRuntimeHomes,
-} from '../desktop/agent/z-host/migrate-z-home.mjs'
-import { resolveRuntimeHome as resolveElectronRuntimeHome } from '../desktop/backend/dsh-pi-ai-credentials.mjs'
+} from '../backend/agent/z-host/migrate-z-home.mjs'
+import { resolveRuntimeHome as resolveElectronRuntimeHome } from '../backend/dsh-pi-ai-credentials.mjs'
 
 async function runTests() {
   const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-runtime-home-'))

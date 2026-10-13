@@ -2,12 +2,12 @@ import './test-orchestration-p11.mjs'
 import './test-cross-provider-review.mjs'
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
-import { decideExecutionMode, explicitlyDisablesMultiAgent, resolveExecutionMode, selectModelForTask, shouldUpgradeFailedTask, workModeExecutionOverride } from '../desktop/backend/orchestration-policy.mjs'
-import { evaluateOrchestrationGate } from '../desktop/backend/orchestration-gate.mjs'
-import { executeDag, validateAndOrderTasks } from '../desktop/backend/dag-scheduler.mjs'
-import { getTaskProfile, getToolsForSingleAgent, getToolsForTask } from '../desktop/backend/task-profile.mjs'
-import { classifySubtaskFailure, runWithSubtaskRetries } from '../desktop/backend/subtask-retry.mjs'
-import { listTaskWorktrees } from '../desktop/backend/worktree-service.mjs'
+import { decideExecutionMode, explicitlyDisablesMultiAgent, resolveExecutionMode, selectModelForTask, shouldUpgradeFailedTask, workModeExecutionOverride } from '../backend/orchestration-policy.mjs'
+import { evaluateOrchestrationGate } from '../backend/orchestration-gate.mjs'
+import { executeDag, validateAndOrderTasks } from '../backend/dag-scheduler.mjs'
+import { getTaskProfile, getToolsForSingleAgent, getToolsForTask } from '../backend/task-profile.mjs'
+import { classifySubtaskFailure, runWithSubtaskRetries } from '../backend/subtask-retry.mjs'
+import { listTaskWorktrees } from '../backend/worktree-service.mjs'
 import {
   createOrchestrationService,
   assessSubtaskCompletion,
@@ -18,7 +18,9 @@ import {
   resolveOrchestrationAgentPreset,
   summarizeExecutionEvidence,
   validatePlanForRequest,
-} from '../desktop/backend/orchestration-service.mjs'
+  plannerRejectionGuidance,
+} from '../backend/orchestration-service.mjs'
+import { RunStore } from '../backend/orchestration/run-store.mjs'
 
 {
   let now = 1_000
@@ -49,6 +51,14 @@ assert.equal(requiresReadOnlyPlan('不要修改 desktop/main.cjs'), false,
   'a constraint against one target alone must not force the entire request into read-only mode')
 assert.equal(requiresReadOnlyPlan('本轮不要修改任何文件。'), true,
   'whole-workspace no-write instructions remain read-only')
+assert.equal(requiresReadOnlyPlan('不要修改代码风格，修复 src/a.ts 的空指针'), false,
+  'a style constraint must not suppress a separate repair request')
+assert.equal(requiresReadOnlyPlan('修复 bug，但不要修改文件名'), false,
+  'a filename constraint must not suppress a repair request')
+assert.equal(requiresReadOnlyPlan('不要改动代码的公共接口，重构 utils'), false,
+  'an API constraint must not suppress a refactor request')
+assert.equal(requiresReadOnlyPlan('检查 auth 模块，不要修改任何文件'), true,
+  'an inspection request with an explicit whole-workspace write ban stays read-only')
 assert.deepEqual(validatePlanForRequest([
   { id: 'T1', taskType: 'research', scopePaths: ['src/App.tsx'] },
   { id: 'T2', taskType: 'review', scopePaths: ['desktop/backend'] },
@@ -71,6 +81,16 @@ assert.throws(() => validatePlanForRequest([
 assert.deepEqual(validatePlanForRequest([
   { id: 'T1', taskType: 'implementation' },
 ], '实现一个新功能').map(({ taskType }) => taskType), ['implementation'])
+assert.throws(() => validatePlanForRequest([
+  { id: 'T1', taskType: 'implementation' },
+  { id: 'T2', taskType: 'test' },
+], '实现一个新功能', { maxDagNodes: 1 }), /1 到 1 个子任务/, 'planner validation applies the configured node cap')
+assert.equal(validatePlanForRequest(Array.from({ length: 8 }, (_, index) => ({
+  id: `C${index + 1}`,
+  taskType: 'implementation',
+})), '实现一个新功能', { maxDagNodes: 8 }).length, 8)
+assert.match(plannerRejectionGuidance('DAG 计划必须包含 1 到 9 个子任务'), /拒绝原因中给出的范围/,
+  'planner retry guidance supports configured caps')
 const explicitParallelResearchRequest = '只读分析当前毕设代码，要求两项独立研究并行完成后交叉汇总。不得修改文件。'
 assert.equal(validatePlanForRequest([
   { id: 'T1', taskType: 'research', scopePaths: ['src'], dependsOn: [] },
@@ -166,53 +186,53 @@ assert.equal(summarizeExecutionEvidence({
 
 const plannerHints = await collectPlannerPathHints(process.cwd(), '检查 agent session 和 dsh chat service', { maxVisited: 1200, limit: 90 })
 assert.ok(plannerHints.paths.includes('package.json'), '路径索引应包含根目录清单')
-assert.ok(plannerHints.paths.includes('desktop/backend/dsh-chat-service.mjs'), '路径索引应定位相关后端源码')
+assert.ok(plannerHints.paths.includes('backend/dsh-chat-service.mjs'), '路径索引应定位相关后端源码')
 assert.ok(plannerHints.paths.length <= 90, '路径索引必须有严格输出上限')
 assert.ok(!plannerHints.paths.some((candidate) => candidate.startsWith('node_modules/')), '路径索引不得扫描依赖目录')
 assert.ok(!plannerHints.paths.some((candidate) => candidate.startsWith('vendor/')), '路径索引不得让 vendored 源码挤占产品源码候选')
 const callChainHints = await collectPlannerPathHints(process.cwd(), '只读检查从前端到 Host 的 Agent 请求调用链和 IPC', { maxVisited: 1200, limit: 90 })
 for (const candidate of [
   'src/features/app/useAppBackend.ts',
-  'desktop/preload.cjs',
-  'desktop/backend/register-ipc.mjs',
-  'desktop/backend/dsh-chat-service.mjs',
-  'desktop/agent/z-host/z-api-client.mjs',
-  'desktop/agent/z-host/spawn-host.mjs',
+  'contract/channels.mjs',
+  'backend/register-ipc.mjs',
+  'backend/dsh-chat-service.mjs',
+  'backend/agent/z-host/z-api-client.mjs',
+  'backend/agent/z-host/spawn-host.mjs',
 ]) {
   assert.ok(callChainHints.paths.includes(candidate), `端到端调用链索引应暴露关键桥接文件：${candidate}`)
 }
 assert.ok(!callChainHints.paths.some((candidate) => candidate.startsWith('vendor/')), '调用链索引不得混入 vendored 路径')
 const closedPlanScopes = completeReadOnlyPlanScopes([
-  { id: 'T1', title: '应用启动入口链路调研', taskType: 'research', description: '梳理 Electron 从启动到 renderer 就绪；停止条件：链路闭合后立即停止，不深入 Agent 业务逻辑。', scopePaths: ['desktop/main.cjs', 'desktop/preload.cjs', 'src/main.tsx', 'src/App.tsx'] },
-  { id: 'T2', title: 'Agent 请求链路调研', taskType: 'research', description: '梳理一次 Agent 请求从前端发起到后端执行的调用链；停止条件：调用闭合后立即停止，不检查启动窗口细节。', scopePaths: ['desktop/preload.cjs', 'desktop/backend/register-ipc.mjs', 'desktop/backend/dsh-chat-service.mjs'] },
+  { id: 'T1', title: '应用启动入口链路调研', taskType: 'research', description: '梳理 Electron 从启动到 renderer 就绪；停止条件：链路闭合后立即停止，不深入 Agent 业务逻辑。', scopePaths: ['backend/shell/run.mjs', 'contract/channels.mjs', 'src/main.tsx', 'src/App.tsx'] },
+  { id: 'T2', title: 'Agent 请求链路调研', taskType: 'research', description: '梳理一次 Agent 请求从前端发起到后端执行的调用链；停止条件：调用闭合后立即停止，不检查启动窗口细节。', scopePaths: ['contract/channels.mjs', 'backend/register-ipc.mjs', 'backend/dsh-chat-service.mjs'] },
 ], explicitParallelResearchRequest.replace('只读分析当前毕设代码，要求两项独立研究并行完成后交叉汇总。不得修改文件。', '只读分析应用启动入口和 Agent 请求链路，要求两项独立研究并行完成后交叉汇总。不得修改文件。'), [
-  'package.json', 'index.html', 'src/features/app/useAppBackend.ts', 'desktop/preload.cjs',
-  'desktop/backend/register-ipc.mjs', 'desktop/backend/dsh-chat-service.mjs',
-  'desktop/backend/orchestration-service.mjs', 'desktop/agent/z-host/index.mjs',
-  'desktop/agent/z-host/z-api-client.mjs', 'desktop/agent/z-host/spawn-host.mjs',
+  'package.json', 'index.html', 'src/features/app/useAppBackend.ts', 'contract/channels.mjs',
+  'backend/register-ipc.mjs', 'backend/dsh-chat-service.mjs',
+  'backend/orchestration-service.mjs', 'backend/agent/z-host/index.mjs',
+  'backend/agent/z-host/z-api-client.mjs', 'backend/agent/z-host/spawn-host.mjs',
 ], callChainHints.workspaceHints)
 assert.ok(closedPlanScopes[0].scopePaths.includes('package.json') && closedPlanScopes[0].scopePaths.includes('index.html'),
   'startup chain scope must include the app manifest and HTML entry when the request explicitly asks for startup order')
-assert.ok(!closedPlanScopes[0].scopePaths.includes('desktop/backend/dsh-chat-service.mjs')
-  && !closedPlanScopes[0].scopePaths.includes('desktop/agent/z-host/index.mjs'),
+assert.ok(!closedPlanScopes[0].scopePaths.includes('backend/dsh-chat-service.mjs')
+  && !closedPlanScopes[0].scopePaths.includes('backend/agent/z-host/index.mjs'),
 'a startup task that explicitly excludes Agent business logic must not inherit request-chain files')
 assert.ok(closedPlanScopes[1].scopePaths.includes('src/features/app/useAppBackend.ts')
-  && closedPlanScopes[1].scopePaths.includes('desktop/agent/z-host/spawn-host.mjs'),
+  && closedPlanScopes[1].scopePaths.includes('backend/agent/z-host/spawn-host.mjs'),
 'an Agent request-chain task must include the renderer send logic and exact Host implementation files')
 assert.ok(!closedPlanScopes[1].scopePaths.includes('package.json') && !closedPlanScopes[1].scopePaths.includes('index.html'),
   'a request-chain task that explicitly excludes startup details must not inherit startup files')
-assert.ok(closedPlanScopes[1].description.includes('desktop/agent/z-host/spawn-host.mjs'), 'added evidence paths must be visible in the assigned task description')
+assert.ok(closedPlanScopes[1].description.includes('backend/agent/z-host/spawn-host.mjs'), 'added evidence paths must be visible in the assigned task description')
 
 const boundedPlanInput = [
   { id: 'T1', title: '梳理应用启动入口', taskType: 'research', description: '只读研究且范围仅限 package.json、desktop/main.cjs、src/main.tsx。不要做目录发现或读取其他文件；完成后立即汇报。', scopePaths: ['package.json', 'desktop/main.cjs', 'src/main.tsx'] },
-  { id: 'T2', title: '梳理 Agent 请求链路', taskType: 'research', description: '范围仅限 src/features/app/useAppBackend.ts、desktop/preload.cjs、desktop/backend/register-ipc.mjs、desktop/backend/dsh-chat-service.mjs。确认渲染端 chat:send 到 api.sessions.prompt 的调用关系；不要 glob，不要继续检查 Host、权限、审批、响应投影等旁支，两端调用关系已证实后立即汇报。', scopePaths: ['src/features/app/useAppBackend.ts', 'desktop/preload.cjs', 'desktop/backend/register-ipc.mjs', 'desktop/backend/dsh-chat-service.mjs'] },
+  { id: 'T2', title: '梳理 Agent 请求链路', taskType: 'research', description: '范围仅限 src/features/app/useAppBackend.ts、desktop/preload.cjs、backend/register-ipc.mjs、backend/dsh-chat-service.mjs。确认渲染端 chat:send 到 api.sessions.prompt 的调用关系；不要 glob，不要继续检查 Host、权限、审批、响应投影等旁支，两端调用关系已证实后立即汇报。', scopePaths: ['src/features/app/useAppBackend.ts', 'desktop/preload.cjs', 'backend/register-ipc.mjs', 'backend/dsh-chat-service.mjs'] },
 ]
 const boundedPlan = completeReadOnlyPlanScopes(boundedPlanInput,
   '只读分析应用启动入口和 Agent 请求链路，要求两项独立研究并行完成后交叉汇总。不得修改文件。', [
   'package.json', 'index.html', 'src/features/app/useAppBackend.ts', 'desktop/preload.cjs',
-    'desktop/backend/register-ipc.mjs', 'desktop/backend/dsh-chat-service.mjs',
-    'desktop/backend/orchestration-service.mjs', 'desktop/agent/z-host/index.mjs',
-    'desktop/agent/z-host/z-api-client.mjs', 'desktop/agent/z-host/spawn-host.mjs',
+    'backend/register-ipc.mjs', 'backend/dsh-chat-service.mjs',
+    'backend/orchestration-service.mjs', 'backend/agent/z-host/index.mjs',
+    'backend/agent/z-host/z-api-client.mjs', 'backend/agent/z-host/spawn-host.mjs',
   ], callChainHints.workspaceHints)
 assert.deepEqual(boundedPlan.map(({ scopePaths }) => scopePaths), boundedPlanInput.map(({ scopePaths }) => scopePaths),
   'explicitly bounded read-only tasks must not have paths appended, even when the request suggests broader chain coverage')
@@ -604,6 +624,18 @@ try {
         type: 'tool', id: `${taskLabel}-read`, taskId: taskLabel,
         toolName: 'read', status: 'done', inputSummary: 'README.md', resultSummary: 'read ok', durationMs: 12,
       })
+      if (taskLabel === 'T2') {
+        opts.webContents.send('chat:stream', {
+          type: 'tool', id: `${taskLabel}-test`, taskId: taskLabel,
+          toolName: 'bash', status: 'running', commandSummary: 'pnpm test',
+        })
+        opts.webContents.send('chat:stream', {
+          type: 'tool', id: `${taskLabel}-test`, taskId: taskLabel,
+          toolName: 'bash', status: 'done', commandSummary: 'pnpm test',
+          commandOutcome: { exitCode: 0, background: false, timedOut: false, sandboxDenied: false },
+          resultSummary: '执行完成', durationMs: 12,
+        })
+      }
       await new Promise((resolve) => setTimeout(resolve, 10))
       concurrentTaskCalls -= 1
       const acceptanceCriterion = opts.text.match(/【本节点验收点】\s*\n\d+\. ([^\n]+)/)?.[1] ?? '读取结果有可核验依据'
@@ -626,7 +658,7 @@ try {
     userDataPath: userData,
     getAppPreferences: async () => {
       preferenceReadCount += 1
-      return { dagPlanApproval: 'never', worktreeIsolation: true, subtaskUpgradeMax: 1, dagPlanApproval: 'never', maxSubtaskConcurrency: 3 }
+      return { dagPlanApproval: 'never', worktreeIsolation: true, subtaskUpgradeMax: 1, dagPlanApproval: 'never', maxSubtaskConcurrency: 3, maxDagNodes: 8 }
     },
     dshRuntime: mockDshRuntime,
   })
@@ -655,6 +687,7 @@ try {
 
   const plannerTurn = dshTurns.find((turn) => turn.agentPreset === 'tw-taskweaver-planner' && turn.text.includes('Planner Agent'))
   assert.ok(plannerTurn, '应通过 DSH 调用 planner preset')
+  assert.match(plannerTurn.text, /1 到 8 个职责明确的子任务/, 'planner sees the configured node cap')
   assert.match(plannerTurn.text, /工作区路径索引：仅路径名，不含文件正文/)
   assert.match(plannerTurn.text, /不要额外创建只负责.*汇总.*review 子任务/)
   assert.match(plannerTurn.text, /用户明确给出.*DAG 必须恰好包含 N 个互相独立的 research 节点/)
@@ -668,6 +701,8 @@ try {
   assert.match(plannerTurn.sessionKey, /^tw-orchestration-/)
   assert.equal(plannerTurn.conversationId, conversationId)
   assert.equal(plannerTurn.progressOnly, true, 'the planner should opt into safe phase-only progress forwarding')
+  const savedRun = (await new RunStore({ agentDataPath: agentData }).listRuns(conversationId))[0]
+  assert.equal(savedRun.settings.maxDagNodes, 8, 'the chosen node cap is snapshotted for run replay')
 
   const subtaskKeys = new Set(dshTurns.filter((turn) => turn.taskId).map((turn) => turn.sessionKey))
   assert.equal(subtaskKeys.size, 2, '每个子任务应使用独立 sessionKey')
@@ -723,6 +758,17 @@ try {
     omittedToolCalls: 0,
     scopeDeniedToolCalls: 0,
   }, '子 Agent 消息应携带 Host 实际观测到的工具证据')
+  assert.deepEqual(stateTasks[1].messages.at(-1).executionEvidence.observedToolCalls.find((call) => call.toolName === 'bash'), {
+    toolName: 'bash', status: 'done', inputSummary: '', resultSummary: '执行完成',
+    commandSummary: 'pnpm test',
+    commandOutcome: { exitCode: 0, background: false, timedOut: false, sandboxDenied: false },
+    durationMs: 12,
+  }, 'DAG Host evidence must retain a shell verification command and its actual exit code')
+  assert.deepEqual(stateTasks[1].messages.at(-1).verification, {
+    executed: true, command: 'pnpm test', passed: true, exitCode: 0,
+    source: 'z-host-tool-events',
+    commands: [{ command: 'pnpm test', status: 'done', exitCode: 0, timedOut: false, sandboxDenied: false }],
+  }, 'a successful tool command should be persisted as verification evidence')
   assert.equal(stateTasks[0].executionEvidenceSummary.label, 'Host 工具记录：读取 1', '任务状态应展示 Host 实际观测到的文件读取次数')
   assert.equal(stateTasks[0].messages.at(-1).executionEvidenceSummary.successfulReadCount, 1)
   assert.deepEqual(stateTasks[1].messages.at(-1).fileChanges, [{ path: 'src/changed.ts', addedLines: 3, deletedLines: 1 }],

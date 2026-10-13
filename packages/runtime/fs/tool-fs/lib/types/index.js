@@ -8,6 +8,7 @@ import z from '@taskweaver/schemastery';
 import { applyReadTool, READ_LIMIT, STREAM_MIN_SIZE } from "./read.js";
 import { applyWriteTool } from "./write.js";
 import { applyEditTool } from "./edit.js";
+import { applyApplyPatchTool } from "./apply-patch.js";
 import { applyReadImageTool } from "./read-image.js";
 import { READ_MAX_BYTES, READ_MAX_LINE_LENGTH } from "./read-render.js";
 import { FsSandboxController } from "./sandbox.js";
@@ -20,6 +21,7 @@ export { FsSandboxController } from "./sandbox.js";
 export { sessionCwd, sessionResolveOptions } from "./session-cwd.js";
 export { resolveRegularReadTarget } from "./read-target.js";
 export { computeHunkDiffs, diffsFromMeta } from "./diff.js";
+export { parseCodexPatch } from "./apply-patch.js";
 export const Config = z.object({
     mutations: z.boolean().default(true),
     readLimit: z.number().default(READ_LIMIT),
@@ -54,7 +56,7 @@ export function apply(ctx, config) {
         // view inherits those global definitions. Mask only the inherited
         // capabilities that actually exist; standalone read-only compositions
         // have nothing to restrict.
-        const inheritedMutations = ['write', 'edit'].filter(name => ctx.tools.get(name) !== undefined);
+        const inheritedMutations = ['write', 'edit', 'apply_patch'].filter(name => ctx.tools.get(name) !== undefined);
         if (inheritedMutations.length > 0)
             ctx.tools.restrict({ deny: inheritedMutations });
     }
@@ -71,6 +73,7 @@ export function apply(ctx, config) {
         const sandbox = new FsSandboxController(ctx);
         applyWriteTool(ctx, sandbox);
         applyEditTool(ctx, sandbox);
+        applyApplyPatchTool(ctx, sandbox);
     }
 }
 //# sourceMappingURL=index.js.map

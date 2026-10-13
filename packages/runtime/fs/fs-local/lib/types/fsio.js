@@ -6,7 +6,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import { createReadStream } from 'node:fs';
-import { chmod, link, lstat, mkdir, open, readFile, realpath, readdir, rename, rm, stat } from 'node:fs/promises';
+import { chmod, link, lstat, mkdir, open, readFile, realpath, readdir, rename, rm, stat, unlink } from 'node:fs/promises';
 import { basename, dirname, join, resolve } from 'node:path';
 import { TextDecoder } from 'node:util';
 import { FsError, FsTargetKey, FsVersion } from '@taskweaver/dsh-fs';
@@ -523,6 +523,252 @@ export async function writeFileAtomic(absolutePath, content, mode, signal, inter
             throw failure;
         return removeStagingDirOrThrow(stagingDir, failure, removeStagingDir);
     }
+}
+async function maybeLstat(path) {
+    try {
+        return await lstat(path, { bigint: true });
+    }
+    catch (error) {
+        if (isENOENT(error) || isENOTDIR(error))
+            return undefined;
+        throw error;
+    }
+}
+function sameStableSnapshot(left, right) {
+    return left.dev === right.dev
+        && left.ino === right.ino
+        && left.size === right.size
+        && left.mtimeNs === right.mtimeNs
+        && (left.mode & 511n) === (right.mode & 511n);
+}
+function samePublishedFile(expected, current) {
+    return current.isFile()
+        && expected.dev === current.dev
+        && expected.ino === current.ino
+        && expected.size === current.size
+        && expected.mtimeNs === current.mtimeNs;
+}
+async function cleanupTransactionStages(entries, preserve = new Set()) {
+    const failures = [];
+    for (const entry of entries) {
+        if (preserve.has(entry.stagingDir))
+            continue;
+        try {
+            await rm(entry.stagingDir, { recursive: true, force: true });
+        }
+        catch (error) {
+            failures.push(`${entry.displayPath}: ${errorMessage(error)}`);
+        }
+    }
+    return failures;
+}
+/**
+ * Publish multiple full-text files using a private staged file and hard-link
+ * recovery copy for each existing target. This is rollback-capable only within
+ * the current process: the provider's sorted target locks serialize its own
+ * mutations, but local filesystems do not offer an atomic multi-path commit or
+ * exclude external writers. The caller/API must not describe this as visibility-
+ * atomic or crash-safe. Existing parents and regular non-symlink targets are
+ * required; directory creation, deletion, moves, and Windows are rejected.
+ *
+ * The function validates every target before creating any stage, stages every
+ * output and backup before publishing the first member, revalidates the whole
+ * set, then publishes in input order. A publication error triggers reverse
+ * compensation. Rollback refuses to replace a target whose identity/version
+ * no longer matches the file this transaction published; the private recovery
+ * copy is retained and FS_TRANSACTION_ROLLBACK_FAILED is raised in that case.
+ */
+export async function writeTextFilesTransaction(entries, signal, internals = {}) {
+    if (process.platform === 'win32') {
+        throw new FsError('rollback-capable text batches are unsupported on this platform', 'FS_TRANSACTION_UNSUPPORTED');
+    }
+    if (entries.length === 0)
+        return [];
+    if (entries.some(entry => entry.content.includes('\0'))) {
+        throw new FsError('cannot apply a text batch containing NUL bytes', 'FS_NOT_TEXT');
+    }
+    const seen = new Set();
+    const prepared = [];
+    // Complete validation first: no stage or backup filesystem entries are
+    // created until every target, parent, and expected version has passed.
+    for (const entry of entries) {
+        if (seen.has(entry.absolutePath)) {
+            throw new FsError(`text batch contains the same target more than once: "${entry.displayPath}"`, 'FS_TRANSACTION_UNSUPPORTED');
+        }
+        seen.add(entry.absolutePath);
+        throwIfAborted(signal, 'write');
+        let parentInfo;
+        try {
+            parentInfo = await stat(dirname(entry.absolutePath), { bigint: true });
+        }
+        catch (error) {
+            if (isENOENT(error) || isENOTDIR(error)) {
+                throw new FsError(`cannot apply patch to "${entry.displayPath}": parent directory must already exist`, 'FS_NOT_DIRECTORY', { cause: error });
+            }
+            throw error;
+        }
+        if (!parentInfo.isDirectory()) {
+            throw new FsError(`cannot apply patch to "${entry.displayPath}": parent is not a directory`, 'FS_NOT_DIRECTORY');
+        }
+        const current = await maybeLstat(entry.absolutePath);
+        if (current?.isSymbolicLink()) {
+            throw new FsError(`cannot apply patch to "${entry.displayPath}": symbolic-link targets are unsupported`, 'FS_TRANSACTION_UNSUPPORTED');
+        }
+        if (current !== undefined && !current.isFile()) {
+            throw new FsError(`cannot apply patch to "${entry.displayPath}": not a regular file`, 'FS_NOT_REGULAR_FILE');
+        }
+        if (entry.expectedVersion === undefined) {
+            if (current !== undefined) {
+                throw new FsError(`cannot create "${entry.displayPath}": target already exists`, 'FS_NOT_OBSERVED');
+            }
+        }
+        else if (current === undefined || versionOf(current) !== entry.expectedVersion) {
+            throw new FsError(`cannot update "${entry.displayPath}": file changed since it was read`, 'FS_STALE_VERSION');
+        }
+        const parent = dirname(entry.absolutePath);
+        const stagingDir = join(parent, `.${basename(entry.absolutePath)}.${process.pid}.${randomUUID()}.tw-batch`);
+        prepared.push({
+            ...entry,
+            ...(current !== undefined ? { initialStats: current } : {}),
+            stagingDir,
+            stagedPath: join(stagingDir, 'new-file'),
+            backupPath: join(stagingDir, 'original-file'),
+            committed: false,
+        });
+    }
+    throwIfAborted(signal, 'write');
+    try {
+        // Stage all output files first. Each directory is a private sibling, so a
+        // later rename/link stays on the same filesystem as its destination.
+        for (const entry of prepared) {
+            throwIfAborted(signal, 'write');
+            await mkdir(entry.stagingDir, { mode: 0o700 });
+            await chmod(entry.stagingDir, 0o700);
+            let handle;
+            try {
+                handle = await open(entry.stagedPath, 'wx', 0o600);
+                await handle.chmod(0o600);
+                await handle.writeFile(entry.content, { encoding: 'utf8', ...signal ? { signal } : {} });
+                await handle.sync();
+                if (entry.initialStats !== undefined) {
+                    await handle.chmod(Number(entry.initialStats.mode & 511n));
+                }
+                await handle.close();
+                handle = undefined;
+            }
+            finally {
+                if (handle)
+                    await handle.close();
+            }
+            entry.stagedStats = await lstat(entry.stagedPath, { bigint: true });
+        }
+        // Existing-file backups are hard links so rollback preserves the original
+        // inode metadata/ACLs. If the filesystem cannot create them, fail before
+        // publishing any target.
+        for (const entry of prepared) {
+            if (entry.initialStats !== undefined) {
+                try {
+                    await link(entry.absolutePath, entry.backupPath);
+                }
+                catch (error) {
+                    throw new FsError(`cannot create a safe recovery copy for "${entry.displayPath}"`, 'FS_TRANSACTION_UNSUPPORTED', { cause: error });
+                }
+            }
+        }
+        // Verify every target after staging/backups and before the first publish.
+        // Creating a hard link changes ctime, so compare the stable inode/content
+        // fields here; then retain the complete post-backup version for per-target
+        // immediate rechecks during publication.
+        for (const entry of prepared) {
+            const current = await maybeLstat(entry.absolutePath);
+            if (entry.initialStats === undefined) {
+                if (current !== undefined) {
+                    throw new FsError(`cannot create "${entry.displayPath}": target appeared during staging`, 'FS_NOT_OBSERVED');
+                }
+            }
+            else if (current === undefined || !sameStableSnapshot(entry.initialStats, current)) {
+                throw new FsError(`cannot update "${entry.displayPath}": file changed during staging`, 'FS_STALE_VERSION');
+            }
+            else {
+                entry.commitVersion = versionOf(current);
+            }
+        }
+        throwIfAborted(signal, 'write');
+        for (const [index, entry] of prepared.entries()) {
+            // Recheck immediately before each syscall. This detects ordinary external
+            // races, but cannot turn a filesystem without compare-and-swap rename into
+            // a cross-process isolation primitive.
+            await internals.beforeTransactionPublish?.({ index, targetPath: entry.absolutePath });
+            const current = await maybeLstat(entry.absolutePath);
+            if (entry.initialStats === undefined) {
+                if (current !== undefined) {
+                    throw new FsError(`cannot create "${entry.displayPath}": target appeared before publication`, 'FS_NOT_OBSERVED');
+                }
+            }
+            else if (current === undefined || versionOf(current) !== entry.commitVersion) {
+                throw new FsError(`cannot update "${entry.displayPath}": file changed before publication`, 'FS_STALE_VERSION');
+            }
+            if (entry.initialStats === undefined) {
+                // link is an atomic no-replace create: a concurrent creator is never
+                // overwritten, even in the check-to-syscall window.
+                await link(entry.stagedPath, entry.absolutePath);
+            }
+            else {
+                await rename(entry.stagedPath, entry.absolutePath);
+            }
+            entry.committed = true;
+            const published = await maybeLstat(entry.absolutePath);
+            if (!published || !entry.stagedStats || !samePublishedFile(entry.stagedStats, published)) {
+                throw new FsError(`cannot verify publication for "${entry.displayPath}"`, 'FS_TRANSACTION_ROLLBACK_FAILED');
+            }
+            entry.commitVersion = versionOf(published);
+        }
+    }
+    catch (error) {
+        const recoveryFailures = [];
+        const preserve = new Set();
+        for (const entry of [...prepared].reverse()) {
+            if (!entry.committed)
+                continue;
+            try {
+                const current = await maybeLstat(entry.absolutePath);
+                if (!current || !entry.stagedStats || !samePublishedFile(entry.stagedStats, current)
+                    || (entry.commitVersion !== undefined && versionOf(current) !== entry.commitVersion)) {
+                    recoveryFailures.push(`${entry.displayPath}: target changed after publication; it was left untouched`);
+                    if (entry.initialStats !== undefined)
+                        preserve.add(entry.stagingDir);
+                    continue;
+                }
+                if (entry.initialStats === undefined) {
+                    await unlink(entry.absolutePath);
+                }
+                else {
+                    await rename(entry.backupPath, entry.absolutePath);
+                }
+                entry.committed = false;
+            }
+            catch (rollbackError) {
+                recoveryFailures.push(`${entry.displayPath}: ${errorMessage(rollbackError)}`);
+                if (entry.initialStats !== undefined)
+                    preserve.add(entry.stagingDir);
+            }
+        }
+        const cleanupFailures = await cleanupTransactionStages(prepared, preserve);
+        recoveryFailures.push(...cleanupFailures.map(message => `staging cleanup: ${message}`));
+        if (recoveryFailures.length > 0) {
+            throw new FsError(`text batch failed and rollback was incomplete: ${recoveryFailures.join('; ')}`, 'FS_TRANSACTION_ROLLBACK_FAILED', { cause: error });
+        }
+        throw error;
+    }
+    // Cleanup after a successful publish is best effort, matching writeFileAtomic:
+    // private staging residue must not report a failed operation after commit.
+    await cleanupTransactionStages(prepared);
+    return prepared.map(entry => {
+        if (entry.commitVersion === undefined) {
+            throw new FsError(`cannot report publication version for "${entry.displayPath}"`, 'FS_TRANSACTION_ROLLBACK_FAILED');
+        }
+        return { version: entry.commitVersion };
+    });
 }
 /**
  * Collapse CRLF to LF — the canonical in-memory form every edit/diff basis

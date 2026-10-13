@@ -2,8 +2,8 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { collectPlannerPathHints, completeReadOnlyPlanScopes } from '../desktop/backend/orchestration/planner.mjs'
-import { loadWorkspacePlannerHints, normalizePlannerHints } from '../desktop/backend/orchestration/planner-hints.mjs'
+import { collectPlannerPathHints, completeReadOnlyPlanScopes } from '../backend/orchestration/planner.mjs'
+import { loadWorkspacePlannerHints, normalizePlannerHints } from '../backend/orchestration/planner-hints.mjs'
 
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-planner-hints-'))
 try {

@@ -53,6 +53,8 @@ export interface FileDiffData {
   addedLines?: number
   deletedLines?: number
   isNewFile?: boolean
+  /** Hex SHA-256 of a tool-created file's contents; revert deletes it only while unchanged. */
+  createdContentSha256?: string
 }
 
 export interface ToolTraceItem {
@@ -65,7 +67,13 @@ export interface ToolTraceItem {
   toolName: string
   status: 'running' | 'done' | 'error' | 'blocked' | 'cancelled'
   inputSummary?: string
+  /** Redacted, bounded shell command summary for expanded tool details. */
+  commandSummary?: string
   resultSummary?: string
+  /** Conversation-scoped reference for fetching a transient redacted tool result. */
+  outputId?: string
+  /** True when the stored result was clipped to the bounded output-store limit. */
+  outputTruncated?: boolean
   durationMs?: number | null
   taskId?: string
   startedAt?: number
@@ -84,6 +92,7 @@ export type ChatStreamEvent =
   | { type: 'thinking_delta'; delta: string; fullThinking?: string; durationMs?: number }
   | { type: 'thinking_end'; fullThinking?: string; durationMs?: number }
   | { type: 'delta'; delta: string; full?: string }
+  | { type: 'block_delta'; id: string; kind: 'thinking' | 'text'; delta: string }
   | { type: 'blocks'; segments: Array<{ id: string; kind: 'thinking' | 'text'; text: string }> }
   | {
     type: 'done'
@@ -101,7 +110,7 @@ export type ChatStreamEvent =
     fileChanges?: ModifiedFileSummary[]
     turnActivity?: TurnActivitySummary
   }
-  | { type: 'error'; message: string; turnId?: string; startedAt?: number;
+  | { type: 'error'; message: string; code?: string; turnId?: string; startedAt?: number;
       full?: string; fullThinking?: string; thinkingDurationMs?: number; usage?: ChatUsage;
       contentBlocks?: Array<{ id: string; kind: 'thinking' | 'text'; text: string }>; fileChanges?: ModifiedFileSummary[];
       turnActivity?: TurnActivitySummary }
@@ -174,6 +183,8 @@ export interface TaskweaverAppApi {
   setPermissionMode: (mode: PermissionMode) => Promise<IpcResult<AppState>>
   setModelKey: (modelKey: string) => Promise<IpcResult<AppState>>
   setThinkingLevel: (thinkingLevel: string) => Promise<IpcResult<AppState>>
+  getFirstRunNotice: () => Promise<IpcResult<{ hasLegacySecrets: boolean; dismissed: boolean; count: number }>>
+  dismissFirstRunNotice: () => Promise<IpcResult<{ ok: boolean }>>
 }
 
 export interface WorkspaceEntry {
@@ -191,7 +202,7 @@ export interface TaskweaverWorkspaceApi {
   getDroppedFilePath: (file: File) => string
   getTrust: () => Promise<IpcResult<WorkspaceTrustState>>
   setTrust: (trusted: boolean) => Promise<IpcResult<WorkspaceTrustState>>
-  revertDiff: (payload: { path: string; reverseEdits?: Array<{ oldText: string; newText: string }>; originalContent?: string }) => Promise<IpcResult<{ success: boolean; message: string }>>
+  revertDiff: (payload: { path: string; reverseEdits?: Array<{ oldText: string; newText: string }>; originalContent?: string; createdContentSha256?: string }) => Promise<IpcResult<{ success: boolean; message: string; checkpointId?: string | null }>>
   openPath: (relativePath: string) => Promise<IpcResult<{ ok: boolean; error?: string; path?: string; isDirectory?: boolean }>>
   gitStatus: () => Promise<IpcResult<GitStatusResult>>
   gitSuggestCommit: () => Promise<IpcResult<GitCommitSuggestion>>
@@ -460,6 +471,8 @@ export interface CodeOutputAttachment {
 export interface DshTranscriptRow {
   dshKey: string
   role: 'user' | 'assistant' | 'compaction' | 'context'
+  /** DSH turn number, present on assistant turn-tail rows. */
+  turn?: number
   text?: string
   images?: DshProjectedImageRef[]
   thinking?: string
@@ -480,6 +493,8 @@ export interface DshTranscriptRow {
 
 /** Display-only metadata present on projected Host context rows, never assistant turns. */
 export type DshTranscriptChatMessage = ChatMessage & {
+  /** Display-only DSH turn identity used to retain per-turn tool history. */
+  dshTurn?: number
   dshContext?: {
     plugin: string
     form?: string
@@ -507,9 +522,11 @@ export interface DshConversationView {
   conversationId: string | null
   sessionId: string | null
   running: boolean
+  /** Current DSH turn while a turn is active; null when idle or not yet known. */
+  activeTurn?: number | null
   partial: DshConversationPartial | null
   runningCalls: DshConversationRunningCall[]
-  /** Current-turn tool rows (DSH ui-conversation tool nodes). */
+  /** Recent settled and in-flight tool rows (DSH ui-conversation tool nodes). */
   toolRows: DshProjectedToolCall[]
   /** Full in-flight assistant text from projection partial blocks. */
   streamingText?: string
@@ -554,7 +571,7 @@ export interface TaskweaverChatApi {
     documentIds?: string[] | null,
   ) => Promise<IpcResult<ChatSendResult>>
   getImageLimits?: (conversationId?: string | null) => Promise<IpcResult<ImageAttachmentLimits>>
-  /** Accepts an Electron file dropped by the user; preload resolves its opaque path. */
+  /** Accepts a file dropped by the user; the desktop bridge resolves its opaque path. */
   readDroppedImageFile?: (file: File, conversationId?: string | null) => Promise<IpcResult<ComposerImageAttachment>>
   pickImages?: (conversationId?: string | null) => Promise<IpcResult<{ cancelled: boolean; images: ComposerImageAttachment[] }>>
   pickAttachments?: (conversationId?: string | null) => Promise<IpcResult<{
@@ -588,6 +605,7 @@ export interface TaskweaverChatApi {
   unsubscribeMux?: (conversationId: string) => Promise<IpcResult<{ ok: boolean }>>
   onMux?: (listener: (payload: DshMuxFramePayload) => void) => () => void
   getDshView?: (conversationId?: string | null) => Promise<IpcResult<DshConversationView | null>>
+  getToolOutput?: (payload: { conversationId?: string | null; outputId: string }) => Promise<IpcResult<{ text: string; truncated: boolean } | null>>
   getResultAttachment?: (payload: { conversationId?: string | null; attachmentId: string }) => Promise<IpcResult<CodeOutputAttachment>>
   onDshView?: (listener: (view: DshConversationView) => void) => () => void
   onStream: (listener: (event: ChatStreamEvent) => void) => () => void
@@ -1060,6 +1078,8 @@ export interface AppPreferences {
   dagIdleTimeoutMs?: number
   /** DAG 最大同时运行的子任务数，范围 1–10，默认 3。 */
   maxSubtaskConcurrency?: number
+  /** DAG 子任务节点总数上限，范围 1–12，默认 6。 */
+  maxDagNodes?: number
   /** DAG 单轮 token 预算，范围 1,000–100,000,000，默认 2,000,000。 */
   dagBudgetTokens?: number
   /** DAG 单轮美元预算，范围 $0.01–$10,000，默认 $2。 */
@@ -1076,7 +1096,9 @@ export interface AppPreferences {
   selfHealingMaxRetries?: number
   /** 首轮是否注入仓库结构图（repo map）。 */
   enableRepoMap?: boolean
-  /** 每轮 Prompt Pipeline 注入的系统上下文上限，单位为字节；默认 32 KiB。 */
+  /** 显式 @file 引用时，是否内联小于 4 KiB 的 UTF-8 文本；默认只发送路径。 */
+  inlineSmallFileReferences?: boolean
+  /** 每轮 Prompt Pipeline 注入的系统上下文最大值，单位为字节；实际预算按模型上下文窗口缩放。 */
   promptInjectionLimitBytes?: number
   /** 规则门控：灰区是否询问启用多 Agent（不调用模型）。 */
   adaptiveOrchestrationGate?: boolean

@@ -6,7 +6,7 @@ import {
   diagnoseTool,
   diagnoseEnvironment,
   getSanitizedEnv,
-} from '../desktop/backend/env-service.mjs'
+} from '../backend/env-service.mjs'
 
 console.log('--- 开始测试 env-service 环境变量与外部工具诊断 ---')
 
@@ -52,10 +52,15 @@ assert.ok(report.tools.ocx, '报告必须包含 ocx 诊断')
 assert.ok(report.summary, '报告必须包含可读总结')
 
 // 5. 测试安全净化环境变量字典
+const priorTestSecret = process.env.TASKWEAVER_TEST_SECRET
+process.env.TASKWEAVER_TEST_SECRET = 'must-not-reach-shell'
 const sanitized = await getSanitizedEnv([], { CUSTOM_TEST_VAR: '123' })
 assert.equal(sanitized.CUSTOM_TEST_VAR, '123')
+assert.equal(sanitized.TASKWEAVER_TEST_SECRET, undefined, '净化环境不得继承进程中的凭据类变量')
 assert.ok(sanitized.PATH, '净化后必须保留有效 PATH')
 assert.ok(sanitized.SHELL, '净化后必须保留 SHELL')
 assert.ok(sanitized.TERM, '净化后必须保留 TERM')
+if (priorTestSecret === undefined) delete process.env.TASKWEAVER_TEST_SECRET
+else process.env.TASKWEAVER_TEST_SECRET = priorTestSecret
 
 console.log('✓ env-service 环境变量修复与外部工具诊断全部测试通过！')

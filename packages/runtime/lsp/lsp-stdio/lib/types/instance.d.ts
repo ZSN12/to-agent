@@ -6,7 +6,7 @@
  * work; distinct instances run in parallel.
  * @module @taskweaver/dsh-lsp-stdio/instance
  */
-import type { LspProviderQuery, LspQueryResult } from '@taskweaver/dsh-lsp';
+import type { LspDiagnostic, LspProviderQuery, LspQueryResult } from '@taskweaver/dsh-lsp';
 import type { ConnectionSpawner, ConnectionSpec, ConnectionWriter } from './connection.ts';
 import type { HostSource } from './host.ts';
 /** Everything an instance needs beyond the connection spec. */
@@ -33,6 +33,12 @@ export declare class LspInstance {
     private teardownPromise;
     /** Set once the process closes, so the pool can synchronously skip a dead instance. */
     private processClosed;
+    /** Latest diagnostics are kept per document URI, as LSP notifications are file-scoped. */
+    private readonly diagnosticsByUri;
+    /** Waiters are scoped to one URI and one document version. */
+    private readonly diagnosticWaiters;
+    /** Versions sent by this client, kept monotonic for each document URI. */
+    private readonly documentVersions;
     /** Populated once `initialize` succeeds; a failed handshake rejects every query. */
     private readonly ready;
     /**
@@ -59,6 +65,15 @@ export declare class LspInstance {
     query(request: LspProviderQuery, source: HostSource, signal?: AbortSignal): Promise<LspQueryResult>;
     private initialize;
     private runQuery;
+    /**
+     * Re-open a changed file and wait briefly for its next publishDiagnostics notification.
+     * The provider calls this only for a live instance, so advisory diagnostics never launch an
+     * otherwise-unused language server after an edit.
+     */
+    getDiagnostics(source: HostSource, languageId: string, waitMs: number, signal?: AbortSignal): Promise<readonly LspDiagnostic[]>;
+    private nextDocumentVersion;
+    private acceptServerNotification;
+    private waitForDiagnostics;
     private sendRequest;
     /**
      * Race a pending request against abort. On abort, send `$/cancelRequest` and give the server a

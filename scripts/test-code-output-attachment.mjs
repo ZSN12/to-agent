@@ -4,7 +4,7 @@ import {
   CODE_OUTPUT_ATTACHMENT_MAX_BYTES,
   createCodeOutputAttachmentService,
   validateCodeOutputAttachment,
-} from '../desktop/backend/code-output-attachment.mjs'
+} from '../backend/code-output-attachment.mjs'
 
 const payload = Buffer.from('verified image bytes')
 const ID = `sha256:${createHash('sha256').update(payload).digest('hex')}`

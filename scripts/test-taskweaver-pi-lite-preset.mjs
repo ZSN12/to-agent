@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { resolvePrimaryAgentPreset, TASKWEAVER_PI_LITE_PRESET } from '../desktop/backend/primary-agent-preset.mjs'
+import { resolvePrimaryAgentPreset, TASKWEAVER_PI_LITE_PRESET } from '../backend/primary-agent-preset.mjs'
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..')
 const presetDir = path.join(root, 'packages/runtime/host-cli/config/agent-presets/tw-taskweaver-pi-lite')

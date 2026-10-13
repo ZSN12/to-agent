@@ -3,12 +3,12 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { spawn } from 'node:child_process'
 import { pathToFileURL } from 'node:url'
-import { runOcx } from '../desktop/backend/model-sync/ocx-cli.mjs'
+import { runOcx } from '../backend/model-sync/ocx-cli.mjs'
 import {
   resolveOcxBunExecutable,
   resolveOcxExecutable,
   setOcxRuntimeContext,
-} from '../desktop/backend/opencodex-binary.mjs'
+} from '../backend/opencodex-binary.mjs'
 
 const candidateApps = process.argv[2]
   ? [path.resolve(process.argv[2])]

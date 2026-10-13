@@ -22,6 +22,13 @@ export class McpPayloadTooLargeError extends Error {
   readonly code = "MCP_PAYLOAD_TOO_LARGE";
   constructor(readonly kind: "result" | "resource") { super(`Cursor MCP ${kind} too large`); this.name = "McpPayloadTooLargeError"; }
 }
+export class McpToolNameCollisionError extends Error {
+  readonly code = "MCP_TOOL_NAME_COLLISION";
+  constructor(readonly toolName: string, readonly firstServer: string, readonly secondServer: string) {
+    super(`Cursor MCP tool name "${toolName}" is exposed by both "${firstServer}" and "${secondServer}"; configure unique toolPrefix values.`);
+    this.name = "McpToolNameCollisionError";
+  }
+}
 /** Backward-compatible export for existing integrations. */
 export const CursorMcpPayloadTooLargeError = McpPayloadTooLargeError;
 
@@ -33,6 +40,17 @@ function stableJson(value: unknown): string {
 
 function payloadBytes(value: unknown): number {
   return utf8.encode(stableJson(value)).byteLength;
+}
+
+function abortError(signal: AbortSignal): Error {
+  if (signal.reason instanceof Error) return signal.reason;
+  const error = new Error(typeof signal.reason === "string" ? signal.reason : "Cursor MCP preparation was aborted");
+  error.name = "AbortError";
+  return error;
+}
+
+function throwIfAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) throw abortError(signal);
 }
 
 /** A tool discovered on a connected MCP server, with its opencodex-advertised name. */
@@ -116,22 +134,39 @@ export class CursorMcpManager {
     this.maxResultBytes = options.maxResultBytes ?? CURSOR_MCP_MAX_RESULT_BYTES;
   }
 
-  /** Idempotent, lazy connect + tool discovery across all servers. Never throws. */
-  ensureConnected(): Promise<void> {
-    if (!this.connected) this.connected = this.connectAll();
+  /** Idempotent lazy discovery; isolates server failures and rejects on cancellation or catalog errors. */
+  ensureConnected(signal?: AbortSignal): Promise<void> {
+    if (!this.connected) {
+      const attempt = this.connectAll(signal);
+      this.connected = attempt;
+      // A cancelled preparation must not poison a later attempt on this manager.
+      void attempt.catch(() => {
+        if (this.connected === attempt) this.connected = undefined;
+      });
+    }
     return this.connected;
   }
 
-  private async connectAll(): Promise<void> {
+  private async connectAll(signal?: AbortSignal): Promise<void> {
     const staged: Array<{ connection: ConnectedServer; tools: Array<[string, { serverName: string; toolName: string; handle: McpToolHandle }]>; bytes: number }> = [];
     try {
       for (const server of this.resolved) {
-        const connected = await this.connectOne(server);
+        throwIfAborted(signal);
+        const connected = await this.connectOne(server, signal);
         if (!connected) continue;
         staged.push(connected);
         const toolCount = staged.reduce((sum, row) => sum + row.tools.length, 0);
         const catalogBytes = staged.reduce((sum, row) => sum + row.bytes, 0);
         if (toolCount > this.maxTools || catalogBytes > CURSOR_MCP_MAX_CATALOG_BYTES) throw new McpCatalogLimitError();
+      }
+      throwIfAborted(signal);
+      const owners = new Map<string, string>();
+      for (const row of staged) {
+        for (const [name, entry] of row.tools) {
+          const owner = owners.get(name);
+          if (owner !== undefined) throw new McpToolNameCollisionError(name, owner, entry.serverName);
+          owners.set(name, entry.serverName);
+        }
       }
       for (const row of staged) {
         this.servers.set(row.connection.server.serverName, row.connection);
@@ -139,7 +174,9 @@ export class CursorMcpManager {
         this.toolCatalogBytes += row.bytes;
       }
     } catch (error) {
-      await Promise.all(staged.map(row => row.connection.client.close().catch(() => {})));
+      const closing = Promise.all(staged.map(row => row.connection.client.close().catch(() => {})));
+      if (signal?.aborted) void closing;
+      else await closing;
       this.servers.clear();
       this.toolIndex.clear();
       this.toolCatalogBytes = 0;
@@ -147,18 +184,23 @@ export class CursorMcpManager {
     }
   }
 
-  private async connectOne(server: ResolvedMcpServer): Promise<{ connection: ConnectedServer; tools: Array<[string, { serverName: string; toolName: string; handle: McpToolHandle }]>; bytes: number } | null> {
+  private async connectOne(server: ResolvedMcpServer, signal?: AbortSignal): Promise<{ connection: ConnectedServer; tools: Array<[string, { serverName: string; toolName: string; handle: McpToolHandle }]>; bytes: number } | null> {
     let client: Client | undefined;
     try {
+      throwIfAborted(signal);
       const transport = this.options.transportFactory
         ? this.options.transportFactory(server)
         : this.createTransport(server);
       client = new Client({ name: "opencodex", version: "1.0.0" });
-      await this.withTimeout(client.connect(transport), this.connectTimeoutMs, `connect ${server.serverName}`);
-      const indexed = await this.indexTools(server, client);
+      await this.withTimeout(client.connect(transport), this.connectTimeoutMs, `connect ${server.serverName}`, signal);
+      const indexed = await this.indexTools(server, client, signal);
       return { connection: { server, client }, tools: indexed.tools, bytes: indexed.bytes };
     } catch (err) {
-      if (client) await client.close().catch(() => {});
+      if (client) {
+        if (signal?.aborted) void client.close().catch(() => {});
+        else await client.close().catch(() => {});
+      }
+      if (signal?.aborted) throw abortError(signal);
       this.options.log?.(`[cursor-mcp] server "${server.serverName}" failed to connect: ${errText(err)}`);
       if (err instanceof McpCatalogLimitError || err instanceof McpPayloadTooLargeError) throw err;
       return null;
@@ -182,9 +224,9 @@ export class CursorMcpManager {
     throw new Error(`MCP server "${server.serverName}" has neither command nor url`);
   }
 
-  private async indexTools(server: ResolvedMcpServer, client: Client): Promise<{ tools: Array<[string, { serverName: string; toolName: string; handle: McpToolHandle }]>; bytes: number }> {
+  private async indexTools(server: ResolvedMcpServer, client: Client, signal?: AbortSignal): Promise<{ tools: Array<[string, { serverName: string; toolName: string; handle: McpToolHandle }]>; bytes: number }> {
     const prefix = server.toolPrefix ?? "";
-    const { tools } = await this.withTimeout(client.listTools(), this.connectTimeoutMs, `listTools ${server.serverName}`);
+    const { tools } = await this.withTimeout(client.listTools(), this.connectTimeoutMs, `listTools ${server.serverName}`, signal);
     const additions: Array<[string, { serverName: string; toolName: string; handle: McpToolHandle }]> = [];
     let catalogBytes = 0;
     for (const tool of tools ?? []) {
@@ -299,17 +341,26 @@ export class CursorMcpManager {
     }));
   }
 
-  private async withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  private async withTimeout<T>(promise: Promise<T>, ms: number, label: string, signal?: AbortSignal): Promise<T> {
+    throwIfAborted(signal);
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let onAbort: (() => void) | undefined;
+    const pending: Promise<T>[] = [promise];
     try {
-      return await Promise.race([
-        promise,
-        new Promise<never>((_, reject) => {
-          timer = setTimeout(() => reject(new Error(`MCP ${label} timed out after ${ms}ms`)), ms);
-        }),
-      ]);
+      pending.push(new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`MCP ${label} timed out after ${ms}ms`)), ms);
+      }));
+      if (signal) {
+        pending.push(new Promise<never>((_, reject) => {
+          onAbort = () => reject(abortError(signal));
+          signal.addEventListener("abort", onAbort, { once: true });
+          if (signal.aborted) onAbort();
+        }));
+      }
+      return await Promise.race(pending);
     } finally {
       if (timer) clearTimeout(timer);
+      if (signal && onAbort) signal.removeEventListener("abort", onAbort);
     }
   }
 }

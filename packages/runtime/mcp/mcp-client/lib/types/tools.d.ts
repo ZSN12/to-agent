@@ -12,6 +12,7 @@
  * @module
  */
 import type { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import type { Context } from '@taskweaver/cordis';
 import type { JsonValue } from '@taskweaver/dsh-tools';
 /** Resolved options relevant to tool bridging. */
@@ -20,6 +21,13 @@ export interface ToolBridgeOptions {
     registrationFailure: 'contain' | 'throw';
     serverName: string;
     toolCallTimeoutMs: number;
+    /** Startup handshake barrier used by tools registered from the remote cache. */
+    connectionReady?: Promise<{
+        error?: unknown;
+    }>;
+}
+export interface RemoteToolCacheWriter {
+    write(tools: readonly Tool[]): Promise<unknown>;
 }
 /** State for one sync generation: the current set of disposers keyed by public name. */
 export type ToolDisposers = Map<string, () => void>;
@@ -67,5 +75,9 @@ export declare function publicToolName(serverName: string, rawName: string): str
  * @returns A map of registered public tool names to their unregister
  *   disposers — the exact set of live registrations owned by this server.
  */
-export declare function syncTools(client: Client, ctx: Context, opts: ToolBridgeOptions, previous: ToolDisposers): Promise<ToolDisposers>;
+export declare function syncTools(client: Client, ctx: Context, opts: ToolBridgeOptions, previous: ToolDisposers, options?: {
+    cache?: RemoteToolCacheWriter | undefined;
+}): Promise<ToolDisposers>;
+/** Register one validated cached tool list before a remote transport is ready. */
+export declare function registerCachedTools(client: Client, ctx: Context, opts: ToolBridgeOptions, tools: readonly Tool[], previous: ToolDisposers): ToolDisposers;
 //# sourceMappingURL=tools.d.ts.map

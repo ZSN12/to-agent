@@ -34,6 +34,23 @@ export interface FsIoInternals {
     }) => void | Promise<void>;
     /** Test hook after raw-read stat preflight and before bounded content I/O. */
     inspectReadBytesAfterStat?: (target: LocalTarget) => void | Promise<void>;
+    /** Test hook before the final version recheck for each staged batch member. */
+    beforeTransactionPublish?: (input: {
+        index: number;
+        targetPath: string;
+    }) => void | Promise<void>;
+}
+/** One already-guarded full-text mutation for the local transaction primitive. */
+export interface LocalTextTransactionEntry {
+    absolutePath: string;
+    displayPath: string;
+    content: string;
+    /** Existing target version, or undefined when the target must still be absent. */
+    expectedVersion?: FsVersion;
+}
+/** Version of one target after a completed local text transaction. */
+export interface LocalTextTransactionOutcome {
+    version: FsVersion;
 }
 /** A resolved local path: the absolute path shown to callers and its realpath identity. */
 export interface LocalTarget {
@@ -141,6 +158,23 @@ export declare function streamWholeText(target: LocalTarget, signal?: AbortSigna
 export declare function writeFileAtomic(absolutePath: string, content: string, mode: number | undefined, signal: AbortSignal | undefined, internals?: FsIoInternals, createIfAbsent?: {
     displayPath: string;
 }): Promise<void>;
+/**
+ * Publish multiple full-text files using a private staged file and hard-link
+ * recovery copy for each existing target. This is rollback-capable only within
+ * the current process: the provider's sorted target locks serialize its own
+ * mutations, but local filesystems do not offer an atomic multi-path commit or
+ * exclude external writers. The caller/API must not describe this as visibility-
+ * atomic or crash-safe. Existing parents and regular non-symlink targets are
+ * required; directory creation, deletion, moves, and Windows are rejected.
+ *
+ * The function validates every target before creating any stage, stages every
+ * output and backup before publishing the first member, revalidates the whole
+ * set, then publishes in input order. A publication error triggers reverse
+ * compensation. Rollback refuses to replace a target whose identity/version
+ * no longer matches the file this transaction published; the private recovery
+ * copy is retained and FS_TRANSACTION_ROLLBACK_FAILED is raised in that case.
+ */
+export declare function writeTextFilesTransaction(entries: readonly LocalTextTransactionEntry[], signal?: AbortSignal, internals?: FsIoInternals): Promise<LocalTextTransactionOutcome[]>;
 /** Line ending style detected before LF normalization. */
 export type LineEndings = 'LF' | 'CRLF';
 /**

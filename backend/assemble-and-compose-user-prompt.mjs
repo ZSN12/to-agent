@@ -1,0 +1,203 @@
+import {
+  assembleWorkspaceContext,
+  shouldAttachRepoMap,
+  workspaceContextLimits,
+} from './context-assembler.mjs'
+import { calculateDynamicContextBudget } from './context-compactor.mjs'
+import { composePromptPipeline } from './prompt-pipeline.mjs'
+import { buildSkillPromptPrefix } from './skill-prompt.mjs'
+import { detectVerificationCommands } from './verification-policy.mjs'
+import {
+  analyzeUserIntent,
+  injectIntentGuidelines,
+  USER_INTENTS,
+} from './user-intent.mjs'
+import { workModeExecutionOverride } from './orchestration-policy.mjs'
+
+/**
+ * 主聊天与 DAG 子任务共用的：工作区组装 + Prompt Pipeline + 意图/Skill 层。
+ */
+export async function assembleAndComposeUserPrompt({
+  text,
+  workMode = 'code',
+  modelContextWindow = null,
+  workspacePath,
+  sandboxContextLine,
+  selectedSkill = null,
+  conversationMessages = [],
+  preferences = {},
+  repoMapCacheDirectory = null,
+}) {
+  const dynamicBudget = calculateDynamicContextBudget(workMode, { modelContextWindow })
+  const injectionByteCap = Math.min(
+    preferences.promptInjectionLimitBytes ?? dynamicBudget.workspaceContextBytes,
+    dynamicBudget.workspaceContextBytes,
+  )
+  const hasNonConversationIntent = analyzeUserIntent(text, workMode) !== USER_INTENTS.CONVERSATION
+  const hasPriorNonConversationIntent = (Array.isArray(conversationMessages) ? conversationMessages : []).some((message) => {
+    if (message?.author !== 'user' && message?.role !== 'user') return false
+    const previousText = typeof message.text === 'string'
+      ? message.text
+      : typeof message.content === 'string' ? message.content : ''
+    return previousText.trim().length > 0
+      && analyzeUserIntent(previousText, workMode) !== USER_INTENTS.CONVERSATION
+  })
+  const isFirstTaskTurn = !hasPriorNonConversationIntent
+  const assembled = await assembleWorkspaceContext(text, workspacePath, {
+    sandboxContextLine,
+    maxInjectionBytes: injectionByteCap,
+    inlineSmallFileReferences: preferences.inlineSmallFileReferences === true,
+    // Re-inject the trusted project rules on each task turn. Conversation turns
+    // after a task began keep receiving the rules, so context compaction cannot
+    // silently erase them from the model's working context.
+    includeRules: workMode === 'goal' || hasNonConversationIntent || hasPriorNonConversationIntent,
+    rulesTaskWeaverOnly: true,
+    includeRepoMap: shouldAttachRepoMap(text, workMode, {
+      enableRepoMap: preferences.enableRepoMap !== false,
+      isFirstTurn: isFirstTaskTurn,
+      hasNonConversationIntent,
+    }),
+    repoMapTokens: dynamicBudget.repoMapTokens,
+    repoMapCacheDirectory,
+  })
+
+  const prepared = await preparePromptByWorkMode({
+    text,
+    workMode,
+    assembled,
+    injectionByteCap,
+    selectedSkill,
+    workspacePath,
+    autoVerifyAfterMutation: preferences.autoVerifyAfterMutation === true,
+  })
+
+  return {
+    ...prepared,
+    assembled,
+    dynamicBudget,
+    injectionByteCap,
+  }
+}
+
+async function preparePromptByWorkMode({
+  text,
+  workMode,
+  assembled,
+  injectionByteCap,
+  selectedSkill,
+  workspacePath,
+  autoVerifyAfterMutation,
+}) {
+  const effectiveOverride = workModeExecutionOverride(workMode)
+  const intent = workMode === 'goal' ? null : analyzeUserIntent(text, workMode)
+  let guidanceText = ''
+
+  if (workMode !== 'goal') {
+    const policy = detectVerificationCommands(workspacePath)
+    const guidedPrompt = injectIntentGuidelines(assembled.prompt, intent, policy, {
+      autoVerifyAfterMutation,
+    })
+    if (!guidedPrompt.startsWith(assembled.prompt)) {
+      throw new Error('意图指引必须以可单独记账的后缀形式追加')
+    }
+    guidanceText = guidedPrompt.slice(assembled.prompt.length)
+  }
+
+  const injectedLayers = assembled.layers
+  if (!injectedLayers || !Array.isArray(injectedLayers.prefix) || !Array.isArray(injectedLayers.suffix)) {
+    throw new Error('工作区上下文缺少可审计的注入层明细，已阻止发送')
+  }
+  const guidanceLayerId = intent === USER_INTENTS.CODE_MUTATION
+    ? 'verification-guidance'
+    : 'intent-guidance'
+  const prefixLayers = [...injectedLayers.prefix]
+  const suffixLayers = [...injectedLayers.suffix]
+  const skillPrefix = buildSkillPromptPrefix(selectedSkill)
+  if (skillPrefix) {
+    prefixLayers.push({ id: 'selected-skill', text: skillPrefix, required: true })
+  }
+  if (guidanceText) {
+    suffixLayers.push({
+      id: guidanceLayerId,
+      text: guidanceText,
+      required: false,
+      priority: intent === USER_INTENTS.CODE_MUTATION ? 10 : 30,
+    })
+  }
+  const composed = composePromptPipeline({
+    userText: text,
+    prefixLayers,
+    suffixLayers,
+    maxInjectedBytes: injectionByteCap,
+  })
+  const userBytes = Buffer.byteLength(text, 'utf8')
+  const layerBytes = composed.layerBytes
+  const contextBytes = (layerBytes['workspace-context'] ?? 0) + (layerBytes['repo-map'] ?? 0)
+  const guidanceBytes = layerBytes['intent-guidance'] ?? 0
+  return {
+    effectiveOverride,
+    effectivePrompt: composed.prompt,
+    promptStats: {
+      userBytes,
+      contextBytes,
+      sandboxPolicyBytes: layerBytes['sandbox-policy'] ?? 0,
+      guidanceBytes,
+      skillInstructionBytes: layerBytes['selected-skill'] ?? 0,
+      intentGuidanceBytes: layerBytes['intent-guidance'] ?? 0,
+      cursorGuidanceBytes: 0,
+      verificationGuidanceBytes: layerBytes['verification-guidance'] ?? 0,
+      totalInjectedBytes: composed.injectedBytes,
+      budgetBytes: composed.diagnostics.budgetBytes,
+      injectedEstimatedTokens: composed.diagnostics.injectedEstimatedTokens,
+      estimatedTokens: composed.diagnostics.estimatedTokens,
+      remainingBudgetBytes: composed.diagnostics.remainingBudgetBytes,
+      layerBytes,
+      droppedLayers: composed.droppedLayers,
+    },
+    injectionByteCap,
+  }
+}
+
+export function promptBudgetSnapshotFromStats(conversationId, promptStats, assembled, scope = 'task') {
+  const injectionUtilization = promptStats.budgetBytes > 0
+    ? Number((promptStats.totalInjectedBytes / promptStats.budgetBytes).toFixed(4))
+    : 0
+  return {
+    conversationId,
+    scope,
+    budgetBytes: promptStats.budgetBytes,
+    injectedBytes: promptStats.totalInjectedBytes,
+    injectedEstimatedTokens: promptStats.injectedEstimatedTokens,
+    estimatedTokens: promptStats.estimatedTokens,
+    remainingBudgetBytes: promptStats.remainingBudgetBytes,
+    utilization: injectionUtilization,
+    contextTruncated: assembled.contextTruncated === true,
+    layerBytes: promptStats.layerBytes,
+    droppedLayers: promptStats.droppedLayers,
+  }
+}
+
+export function logPromptPipelineAccounting(conversationId, promptStats, assembled, { scope = 'chat:send' } = {}) {
+  console.debug('[prompt-pipeline] injection byte accounting', {
+    conversationId,
+    scope,
+    maxInjectedBytes: promptStats.budgetBytes,
+    ...promptStats,
+    ratioToUserText: promptStats.userBytes ? Number((promptStats.totalInjectedBytes / promptStats.userBytes).toFixed(2)) : null,
+    contextTruncated: assembled.contextTruncated === true,
+  })
+  const injectionUtilization = promptStats.budgetBytes > 0
+    ? promptStats.totalInjectedBytes / promptStats.budgetBytes
+    : 0
+  if (injectionUtilization >= 0.9) {
+    console.warn('[prompt-pipeline] 本轮注入接近预算上限', {
+      conversationId,
+      scope,
+      utilization: Number(injectionUtilization.toFixed(4)),
+      droppedLayers: promptStats.droppedLayers,
+      contextTruncated: assembled.contextTruncated === true,
+    })
+  }
+}
+
+export { workspaceContextLimits }

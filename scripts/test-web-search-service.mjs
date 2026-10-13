@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import os from 'node:os'
-import { createWebSearchService } from '../desktop/backend/web-search-service.mjs'
+import { createWebSearchService } from '../backend/web-search-service.mjs'
 
 async function run() {
   const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'tw-web-search-test-'))
@@ -141,6 +141,50 @@ async function run() {
     const cleanedDisk = await fs.readFile(path.join(insecureDir, 'taskweaver-web-search.json'), 'utf8')
     assert.equal(cleanedDisk.includes('cannot-keep-plaintext'), false)
     await assert.rejects(() => insecureService.setConfig({ apiKey: 'new-key' }), /安全存储不可用.*拒绝保存/)
+
+    const keychainDir = path.join(tmpDir, 'keychain')
+    await fs.mkdir(keychainDir, { recursive: true })
+    const keychain = new Map()
+    const secrets = {
+      async get(account) { return keychain.get(account) ?? null },
+      async set(account, value) { keychain.set(account, value) },
+      async delete(account) { keychain.delete(account) },
+    }
+    const keychainService = createWebSearchService({
+      userData: keychainDir,
+      safeStorage: { isEncryptionAvailable: () => false },
+      secrets,
+      searchWithHost: async () => ({ content: 'Keychain search' }),
+    })
+    await keychainService.setConfig({ enabled: true, apiKey: 'keychain-search-secret' })
+    const keychainConfig = await fs.readFile(path.join(keychainDir, 'taskweaver-web-search.json'), 'utf8')
+    assert.equal(keychainConfig.includes('keychain-search-secret'), false)
+    assert.match(keychainConfig, /"apiKeyEncrypted"\s*:\s*"keychain:/)
+    assert.equal(keychain.size, 1)
+    assert.equal(
+      (await keychainService.prepareRuntimeIntegration()).environment.TASKWEAVER_WEB_SEARCH_API_KEY_SECRET,
+      'keychain-search-secret',
+    )
+    await keychainService.setConfig({ clearKey: true })
+    assert.equal(keychain.size, 0, 'clearing a Keychain-backed key removes its Keychain item')
+
+    const shellKeychainMigrationDir = path.join(tmpDir, 'shell-keychain-migration')
+    await fs.mkdir(shellKeychainMigrationDir, { recursive: true })
+    await fs.writeFile(path.join(shellKeychainMigrationDir, 'taskweaver-web-search.json'), JSON.stringify({
+      enabled: true,
+      apiKeyEncrypted: `enc:shell-file:${Buffer.from('old-shell-secret').toString('base64')}`,
+      endpoint: '',
+      maxResults: 5,
+    }))
+    const migratedKeychainService = createWebSearchService({
+      userData: shellKeychainMigrationDir,
+      secrets,
+      safeStorage: { isEncryptionAvailable: () => false },
+    })
+    assert.equal((await migratedKeychainService.getConfig()).hasKey, true)
+    const migratedKeychainConfig = await fs.readFile(path.join(shellKeychainMigrationDir, 'taskweaver-web-search.json'), 'utf8')
+    assert.equal(migratedKeychainConfig.includes('old-shell-secret'), false)
+    assert.match(migratedKeychainConfig, /"apiKeyEncrypted"\s*:\s*"keychain:/)
 
     console.log('web-search-service 单元测试全部通过！')
   } finally {

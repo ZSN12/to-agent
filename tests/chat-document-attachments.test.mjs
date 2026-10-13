@@ -3,8 +3,8 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
-import { createChatDocumentAttachmentService } from '../desktop/backend/chat-document-attachments.mjs'
-import { createDshChatSend } from '../desktop/backend/dsh-chat/chat-send.mjs'
+import { createChatDocumentAttachmentService } from '../backend/chat-document-attachments.mjs'
+import { createDshChatSend } from '../backend/dsh-chat/chat-send.mjs'
 
 const pdf = Buffer.from('%PDF-1.7\nGenerated attachment fixture\n%%EOF\n')
 

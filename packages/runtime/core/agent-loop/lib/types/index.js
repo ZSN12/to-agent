@@ -168,6 +168,10 @@ function assertAgentOptions(options) {
         && (!Number.isSafeInteger(options.maxTokens) || options.maxTokens <= 0)) {
         throw new TypeError('agent maxTokens must be a positive safe integer');
     }
+    if (options.maxSteps !== undefined
+        && (!Number.isSafeInteger(options.maxSteps) || options.maxSteps <= 0)) {
+        throw new TypeError('agent maxSteps must be a positive safe integer');
+    }
 }
 export { DEFAULT_MAX_PARALLEL_TOOL_CALLS };
 /**
@@ -234,6 +238,7 @@ export class AgentLoop extends Service {
             provider: z.string(),
             model: z.string(),
             maxTokens: z.number().step(1).min(1).max(Number.MAX_SAFE_INTEGER),
+            maxSteps: z.number().step(1).min(1).max(Number.MAX_SAFE_INTEGER),
             cwd: z.string(),
             resumeSessionId: z.string(),
         })).default([]),

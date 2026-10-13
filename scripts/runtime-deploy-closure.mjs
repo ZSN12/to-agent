@@ -9,7 +9,7 @@ import path from 'node:path'
 import {
   resolveTaskWeaverHostLaunch,
   TASKWEAVER_RUNTIME_PACKAGES,
-} from '../desktop/agent/z-host/resolve-runtime.mjs'
+} from '../backend/agent/z-host/resolve-runtime.mjs'
 import { ensureTaskweaverScopeAliases } from './runtime-package-aliases.mjs'
 
 /** Workspace packages that pnpm deploy omits but agent presets import at runtime. */
@@ -27,6 +27,8 @@ export const RUNTIME_WIRING_PACKAGE_NAMES = [
   '@taskweaver/dsh-web-search-taskweaver',
   '@taskweaver/dsh-tool-web',
   '@taskweaver/dsh-tool-document',
+  '@taskweaver/dsh-lsp',
+  '@taskweaver/dsh-lsp-stdio',
   '@taskweaver/dsh-home-paths',
   '@taskweaver/dsh-launch-environment',
 ]
@@ -142,31 +144,6 @@ async function copyDir(from, to, filter) {
     if (entry.isDirectory()) await copyDir(src, dest, filter)
     else await fsp.copyFile(src, dest)
   }
-}
-
-function countLibJsFiles(packageRoot) {
-  const libDir = path.join(packageRoot, 'lib')
-  if (!fs.existsSync(libDir)) return 0
-  let count = 0
-  const walk = (dir) => {
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      const full = path.join(dir, entry.name)
-      if (entry.isDirectory()) walk(full)
-      else if (entry.name.endsWith('.js')) count += 1
-    }
-  }
-  walk(libDir)
-  return count
-}
-
-function monorepoLibNewerThan(monorepoPkgDir, deployPkgDir) {
-  const srcCount = countLibJsFiles(monorepoPkgDir)
-  const destCount = countLibJsFiles(deployPkgDir)
-  if (srcCount > destCount) return true
-  const srcIndex = path.join(monorepoPkgDir, 'lib', 'index.js')
-  const destIndex = path.join(deployPkgDir, 'lib', 'index.js')
-  if (!fs.existsSync(srcIndex) || !fs.existsSync(destIndex)) return false
-  return fs.statSync(srcIndex).mtimeMs > fs.statSync(destIndex).mtimeMs
 }
 
 function resolvePackageDir(monorepoRoot, stagingRoot, packageName, desktopRepoRoot) {

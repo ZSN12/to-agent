@@ -3,8 +3,8 @@
 ## 仓库结构与命令
 
 - 根目录是 pnpm workspace，固定使用 `pnpm@11.7.0` 与 Node.js `>=22.18`；不要使用 npm 生成或改写 lockfile。
-- 桌面 **Node 后端** 位于 `desktop/`（`backend/`、`shell/`、`agent/`），**Swift 壳** 在 `apps/macos/`；界面位于 `src/`；Z 运行时源码位于 `packages/runtime/`；Provider Bridge 位于 `packages/provider-bridge/`。
-- IPC 契约以 `desktop/ipc/channels.mjs` 为唯一来源。修改契约后运行 `pnpm run gen:shell-bridge`、`pnpm run gen:ipc-types` 与 `pnpm run check:ipc`。
+- 桌面 **Node 后端** 位于 `backend/`（`agent/`、`ipc/`、`shell/`），**Swift 壳** 在 `apps/macos/`；界面位于 `src/`；Z 运行时源码位于 `packages/runtime/`；Provider Bridge 位于 `packages/provider-bridge/`。
+- IPC 契约以 `contract/channels.mjs` 为唯一来源。修改契约后运行 `pnpm run gen:shell-bridge`、`pnpm run gen:ipc-types` 与 `pnpm run check:ipc`。
 - Runtime 包应通过 Cordis 上下文和包间公开入口组合；避免从其他包的私有 `src` 路径引入实现。
 - 桌面打包面向 macOS；不得假设 Windows 是受支持目标。
 

@@ -11,7 +11,7 @@
 TaskWeaver 是基于 DSH 的 fork 项目（使用 Z Runtime），但模型目录更新器仍然指向上游 DSH 的模型目录服务器：
 
 ```javascript
-// desktop/backend/model-registry-updater.mjs:7
+// backend/model-registry-updater.mjs:7
 const DEFAULT_MANIFEST_URL = 'https://github.com/ZSN12/to-agent/releases/download/model-registry/model-registry-manifest.v1.json'
 ```
 
@@ -77,7 +77,7 @@ const DEFAULT_MANIFEST_URL = 'https://github.com/ZSN12/to-agent/releases/downloa
 
 #### 2. 后端层面：禁用自动更新检查
 
-**文件**: `desktop/backend/model-registry-updater.mjs`
+**文件**: `backend/model-registry-updater.mjs`
 
 选项 A（彻底禁用）：
 ```javascript
@@ -109,7 +109,7 @@ async function performCheck(force) {
 
 #### 3. IPC 层面：返回友好状态
 
-**文件**: `desktop/backend/register-ipc.mjs`
+**文件**: `backend/register-ipc.mjs`
 
 ```javascript
 ipcHandle(ipcMain, 'models:checkForUpdates', async (_event, options) => {
@@ -167,7 +167,7 @@ ipcHandle(ipcMain, 'models:checkForUpdates', async (_event, options) => {
 ### Step 3: 禁用后端更新检查
 
 ```javascript
-// desktop/backend/model-registry-updater.mjs
+// backend/model-registry-updater.mjs
 // 在 performCheck 函数开头添加：
 async function performCheck(force) {
   // TaskWeaver fork: 使用打包的 Z Runtime，禁用在线更新
@@ -219,9 +219,9 @@ async function performCheck(force) {
 ## 相关文件
 
 - `/Users/zsn/Documents/毕设/src/features/models/ModelSettingsPanel.tsx` (UI)
-- `/Users/zsn/Documents/毕设/desktop/backend/model-registry-updater.mjs` (更新器)
-- `/Users/zsn/Documents/毕设/desktop/backend/model-service.mjs` (模型服务)
-- `/Users/zsn/Documents/毕设/desktop/backend/register-ipc.mjs` (IPC 注册)
+- `/Users/zsn/Documents/毕设/backend/model-registry-updater.mjs` (更新器)
+- `/Users/zsn/Documents/毕设/backend/model-service.mjs` (模型服务)
+- `/Users/zsn/Documents/毕设/backend/register-ipc.mjs` (IPC 注册)
 
 ## 结论
 

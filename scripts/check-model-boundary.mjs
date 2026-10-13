@@ -5,7 +5,7 @@
  * 模型抽象护栏门禁检查脚本
  * 
  * 规则：
- * 业务代码（desktop/backend/* 与 src/）严禁直接 import / require 任何厂商专有 SDK
+ * 业务代码（backend/* 与 src/）严禁直接 import / require 任何厂商专有 SDK
  * （如 openai, @anthropic-ai/sdk, @google/genai 等）。
  * 必须统一经由适配层（custom-provider-service.mjs, model-service.mjs 等）调用。
  * 
@@ -23,7 +23,7 @@ const __dirname = path.dirname(__filename)
 const REPO_ROOT = path.resolve(__dirname, '..')
 
 // 扫描目录
-export const SCAN_DIRECTORIES = ['desktop/backend', 'src']
+export const SCAN_DIRECTORIES = ['backend', 'contract', 'src']
 
 // 扫描文件后缀
 export const EXTENSIONS = new Set(['.js', '.mjs', '.cjs', '.ts', '.tsx'])
@@ -45,8 +45,8 @@ export const BANNED_SDK_PACKAGES = [
 
 // 允许直接引用/适配的白名单文件（相对 REPO_ROOT 规范路径）
 export const WHITELIST_FILES = new Set([
-  'desktop/backend/custom-provider-service.mjs',
-  'desktop/backend/model-service.mjs',
+  'backend/custom-provider-service.mjs',
+  'backend/model-service.mjs',
 ])
 
 /**
@@ -176,6 +176,10 @@ export async function runBoundaryCheck(rootDir = REPO_ROOT) {
 
   for (const scanDir of SCAN_DIRECTORIES) {
     const absoluteScanDir = path.join(rootDir, scanDir)
+    const stat = await fsp.stat(absoluteScanDir).catch(() => null)
+    if (!stat?.isDirectory()) {
+      throw new Error(`模型抽象护栏扫描目录不存在或不是目录：${scanDir}`)
+    }
     const files = await collectFiles(absoluteScanDir)
     for (const filePath of files) {
       scannedFiles += 1
@@ -221,7 +225,7 @@ export async function runSelfTest() {
       const { Anthropic } = await import('@anthropic-ai/sdk')
     }
   `
-  const v2 = checkFileContent('desktop/backend/dsh-chat-service.mjs', codeAnthropic)
+  const v2 = checkFileContent('backend/dsh-chat-service.mjs', codeAnthropic)
   assert.equal(v2.length, 1)
   assert.equal(v2[0].bannedPkg, '@anthropic-ai/sdk')
   console.log('  ✓ 注入 import("@anthropic-ai/sdk") 拦截成功')
@@ -236,9 +240,9 @@ export async function runSelfTest() {
   console.log('  ✓ 注入 require("@google/genai/...") 拦截成功')
 
   // 5. 白名单文件允许测试：custom-provider-service.mjs 与 model-service.mjs
-  const vWhite1 = checkFileContent('desktop/backend/custom-provider-service.mjs', codeOpenAI)
+  const vWhite1 = checkFileContent('backend/custom-provider-service.mjs', codeOpenAI)
   assert.equal(vWhite1.length, 0, '白名单 custom-provider-service 应豁免')
-  const vWhite2 = checkFileContent('desktop/backend/model-service.mjs', codeAnthropic)
+  const vWhite2 = checkFileContent('backend/model-service.mjs', codeAnthropic)
   assert.equal(vWhite2.length, 0, '白名单 model-service 应豁免')
   console.log('  ✓ 适配通道白名单豁免逻辑验证成功')
 
@@ -274,7 +278,7 @@ async function main() {
       console.error(`    代码行: ${v.raw}`)
     }
     console.error('\n⚠️ 规则说明：')
-    console.error('业务层（desktop/backend/* 与 src/）禁止直接引用厂商专有 SDK（如 openai, @anthropic-ai/sdk 等）。')
+    console.error('业务层（backend/* 与 src/）禁止直接引用厂商专有 SDK（如 openai, @anthropic-ai/sdk 等）。')
     console.error('所有模型交互必须经过统一通道适配层（custom-provider-service.mjs / model-service.mjs）。')
     process.exit(1)
   }

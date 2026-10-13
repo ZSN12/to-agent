@@ -29,7 +29,7 @@
 【工作区路径索引：仅路径名，不含文件正文，也不代表已读取】扫描 1 个目录项。只从下列真实存在的路径中挑选候选文件；不得仅凭路径推断其内容。规划时尽量直接指定少量候选文件，并要求子 Agent 读取它们；只有索引不足时才安排必要的搜索：
 - [[dynamic:path-1]]
 
-只输出纯 JSON，不加 Markdown 代码块。格式：{"tasks":[{"id":"T1","title":"短标题","taskType":"research|implementation|test|review","role":"职责名","description":"目标、允许检查的文件/目录、验收点与停止条件","acceptance":["能由结果或 Host 证据逐项核对的验收点"],"scopePaths":["electron/main.cjs"],"writeScopes":["src/features/foo/Bar.tsx"],"dependsOn":[],"reasons":["规划原因"],"route":{"tier_adjust":0,"needs_vision":false,"reason":""}}]}；每个 task 必须有 route，route 中禁止输出 model 字段；acceptance 必须为 1–5 条。writeScopes 只供 implementation 使用，research/review 继续使用 scopePaths。
+只输出纯 JSON，不加 Markdown 代码块。格式：{"tasks":[{"id":"T1","title":"短标题","taskType":"research|implementation|test|review","role":"职责名","description":"目标、允许检查的文件/目录、验收点与停止条件","acceptance":["能由结果或 Host 证据逐项核对的验收点"],"scopePaths":["desktop/main.cjs"],"writeScopes":["src/features/foo/Bar.tsx"],"dependsOn":[],"reasons":["规划原因"],"route":{"tier_adjust":0,"needs_vision":false,"reason":""}}]}；每个 task 必须有 route，route 中禁止输出 model 字段；acceptance 必须为 1–5 条。writeScopes 只供 implementation 使用，research/review 继续使用 scopePaths。
 
 工作区：[[dynamic:cwd]]
 

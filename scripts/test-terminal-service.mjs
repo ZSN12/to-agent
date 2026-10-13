@@ -1,5 +1,10 @@
 import assert from 'node:assert/strict'
-import { createTerminalService } from '../desktop/backend/terminal-service.mjs'
+import { EventEmitter } from 'node:events'
+import fs from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
+import { createTerminalService } from '../backend/terminal-service.mjs'
+import { registerTerminalIpc } from '../backend/register-terminal-ipc.mjs'
 
 console.log('--- 开始测试 TerminalService 终端服务 (PTY、尺寸动态调整、中断与进程树清理) ---')
 
@@ -66,14 +71,11 @@ try {
   assert.equal(session2.cols, 10)
   assert.equal(session2.rows, 3)
 
-  // 9. 测试重复创建同名 session 时自动替换并 kill 旧 session
-  const session2Dup = await terminalService.createSession({
-    id: 'term-clamp-test',
-    cols: 80,
-    rows: 24,
-  })
-  assert.equal(session2Dup.id, 'term-clamp-test')
-  assert.equal(session2Dup.cols, 80)
+  // 9. 重复 ID 不能悄悄终止并替换正在使用的终端
+  await assert.rejects(
+    () => terminalService.createSession({ id: 'term-clamp-test', cols: 80, rows: 24 }),
+    /会话 ID 已被占用/,
+  )
   terminalService.killSession('term-clamp-test')
 
   // 10. 验证 asar.unpacked 路径解析
@@ -85,7 +87,105 @@ try {
   assert.equal(session.isPty, true, '终端必须由真实 PTY 驱动')
   assert.ok(['node-pty', 'python-shim'].includes(session.driver), `驱动必须为标准 PTY 引擎，当前为: ${session.driver}`)
 
-  console.log('✓ TerminalService PTY双向读写、动态Resize、中断、参数校验、进程树销毁与驱动收敛测试全部通过！')
+  // 12. 沙箱不可用时必须阻止受限 Shell，不能退化为普通进程。
+  const blockedTerminal = createTerminalService({
+    sandbox: {
+      probeSandboxSupport: () => ({ available: false }),
+      confineArgv: () => { throw new Error('不得在无 runner 时调用') },
+    },
+    getEnv: async () => { throw new Error('无 runner 时不应读取或构造 Shell 环境') },
+  })
+  await assert.rejects(
+    () => blockedTerminal.createSession({
+      id: 'term-no-sandbox',
+      cwd: process.cwd(),
+      sandboxPolicy: { mode: 'workspace-write', workspaceRoot: process.cwd() },
+    }),
+    /终端沙箱不可用/,
+  )
+  assert.equal(blockedTerminal.listSessions().length, 0)
+  blockedTerminal.dispose()
+
+  // 13. 环境清理失败必须失败关闭，不允许继承整个进程环境。
+  const blockedEnvironment = createTerminalService({ getEnv: async () => { throw new Error('sanitized env unavailable') } })
+  await assert.rejects(
+    () => blockedEnvironment.createSession({ id: 'term-no-env', cwd: process.cwd() }),
+    /sanitized env unavailable/,
+  )
+  assert.equal(blockedEnvironment.listSessions().length, 0)
+  blockedEnvironment.dispose()
+
+  // 14. IPC 按窗口隔离终端，且 cwd 只能位于当前会话工作区内。
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-terminal-ipc-'))
+  const nested = path.join(root, 'nested')
+  const outside = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-terminal-outside-'))
+  await fs.mkdir(nested)
+  const fakeSessions = new Map()
+  const killed = []
+  const fakeService = {
+    async createSession(options) {
+      fakeSessions.set(options.id, { id: options.id, cwd: options.cwd, title: options.title, isPty: true, shell: '/bin/zsh' })
+      return fakeSessions.get(options.id)
+    },
+    write: (id) => fakeSessions.has(id),
+    resize: (id) => fakeSessions.has(id),
+    killSession(id) {
+      killed.push(id)
+      return fakeSessions.delete(id)
+    },
+    listSessions: () => [...fakeSessions.values()],
+    dispose() {},
+  }
+  const handlers = new Map()
+  const ipcMain = { handle: (channel, handler) => handlers.set(channel, handler) }
+  registerTerminalIpc({
+    ipcMain,
+    terminalService: fakeService,
+    resolveRuntimeContext: async () => ({
+      conversationId: 'conversation-1', workspacePath: root,
+      permissionMode: 'ask', bashSandbox: 'workspace-write', sessionSandboxMode: null,
+    }),
+    resolveTerminalPolicy: (context) => ({ mode: 'workspace-write', workspaceRoot: context.workspacePath }),
+  })
+
+  const makeEvent = (id) => {
+    const sender = new EventEmitter()
+    sender.id = id
+    sender.destroyed = false
+    sender.isDestroyed = () => sender.destroyed
+    sender.send = () => {}
+    return { sender, senderFrame: { url: 'file:///TaskWeaver/index.html' } }
+  }
+  const ownerA = makeEvent(101)
+  const ownerB = makeEvent(202)
+  const invoke = (channel, event, ...args) => handlers.get(channel)(event, ...args)
+  const ipcCreated = await invoke('terminal:create', ownerA, { id: 'owned-terminal', cwd: nested })
+  assert.equal(ipcCreated.ok, true)
+  assert.equal(ipcCreated.data.cwd, await fs.realpath(nested))
+  const ownerBWrite = await invoke('terminal:write', ownerB, 'owned-terminal', 'echo unsafe')
+  assert.deepEqual(ownerBWrite, { ok: true, data: false })
+  const ownerBList = await invoke('terminal:list', ownerB)
+  assert.deepEqual(ownerBList, { ok: true, data: [] })
+  const ownerAList = await invoke('terminal:list', ownerA)
+  assert.deepEqual(ownerAList.data.map((row) => row.id), ['owned-terminal'])
+  const ownerBKill = await invoke('terminal:kill', ownerB, 'owned-terminal')
+  assert.deepEqual(ownerBKill, { ok: true, data: false })
+
+  const outsideCreate = await invoke('terminal:create', ownerA, { id: 'outside-terminal', cwd: outside })
+  assert.equal(outsideCreate.ok, false)
+  assert.match(outsideCreate.error, /当前会话工作区内/)
+  const duplicateCreate = await invoke('terminal:create', ownerB, { id: 'owned-terminal' })
+  assert.equal(duplicateCreate.ok, false)
+  assert.match(duplicateCreate.error, /已被占用/)
+
+  ownerA.sender.destroyed = true
+  ownerA.sender.emit('destroyed')
+  assert.equal(fakeSessions.has('owned-terminal'), false)
+  assert.deepEqual(killed, ['owned-terminal'])
+  await fs.rm(root, { recursive: true, force: true })
+  await fs.rm(outside, { recursive: true, force: true })
+
+  console.log('✓ TerminalService PTY、沙箱失败关闭、窗口归属、工作区路径边界与进程清理测试全部通过！')
 } finally {
   terminalService.dispose()
 }

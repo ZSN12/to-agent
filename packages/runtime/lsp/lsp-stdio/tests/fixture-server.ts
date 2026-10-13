@@ -20,6 +20,8 @@
  * - LSP_FAKE_NO_SHUTDOWN: "1" ignores the shutdown request (forces kill escalation).
  * - LSP_FAKE_ON_OPEN: server→client request to emit when a didOpen arrives, one of
  *   "configuration" | "applyEdit" | "notification" | "unknown"; the reply is logged to stderr.
+ * - LSP_FAKE_DIAGNOSTICS: JSON diagnostics array published for each opened document.
+ * - LSP_FAKE_DIAGNOSTICS_DELAY_MS: optional delay before publishing that array.
  * - LSP_FAKE_ERROR: "1" answers textDocument/* requests with a JSON-RPC error response.
  * - LSP_FAKE_GARBAGE: "1" emits an unframed garbage byte before the initialize reply.
  *
@@ -42,6 +44,8 @@ const exitDelayMs = Number(process.env.LSP_FAKE_EXIT_DELAY_MS ?? 0)
 const exitMarker = process.env.LSP_FAKE_EXIT_MARKER
 const noShutdown = process.env.LSP_FAKE_NO_SHUTDOWN === '1'
 const onOpen = process.env.LSP_FAKE_ON_OPEN
+const publishDiagnostics = process.env.LSP_FAKE_DIAGNOSTICS
+const diagnosticsDelayMs = Number(process.env.LSP_FAKE_DIAGNOSTICS_DELAY_MS ?? 0)
 const errorReply = process.env.LSP_FAKE_ERROR === '1'
 const garbage = process.env.LSP_FAKE_GARBAGE === '1'
 
@@ -138,6 +142,23 @@ function handle(message: { id?: number; method?: string; params?: unknown; resul
   }
   if (method === 'textDocument/didOpen') {
     if (crashOnOpen) process.exit(1)
+    if (publishDiagnostics !== undefined) {
+      const params = message.params as { textDocument?: { uri?: unknown; version?: unknown } } | undefined
+      const textDocument = params?.textDocument
+      const publish = (): void => send({
+        method: 'textDocument/publishDiagnostics',
+        params: {
+          uri: textDocument?.uri,
+          ...(typeof textDocument?.version === 'number' ? { version: textDocument.version } : {}),
+          diagnostics: (JSON.parse(publishDiagnostics) as unknown[]).map(item => {
+            if (item === null || typeof item !== 'object' || !('message' in item) || typeof item.message !== 'string') return item
+            return { ...item, message: item.message.replaceAll('{{uri}}', String(textDocument?.uri ?? '')) }
+          }),
+        },
+      })
+      if (diagnosticsDelayMs > 0) setTimeout(publish, diagnosticsDelayMs)
+      else publish()
+    }
     if (openMarker !== undefined) {
       const params = message.params as { textDocument?: { text?: unknown } } | undefined
       appendFileSync(openMarker, `${JSON.stringify(params?.textDocument?.text)}\n`)

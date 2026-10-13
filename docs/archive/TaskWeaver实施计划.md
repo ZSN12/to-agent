@@ -43,10 +43,10 @@
 | 模块 | 路径 | 状态 |
 |------|------|------|
 | 桌面壳 | `desktop/main.cjs`, `preload.cjs` | 可用：`npm start` / `npm run app` |
-| 模型目录与凭据 | `desktop/backend/model-service.mjs`, `profile-store.mjs`, `credential-store.mjs` | TaskWeaver 自有加密凭据存储；仅显式添加的模型进入主列表；候选目录仍由随项目提供的模型运行时枚举 |
-| 单 Agent 对话 | `desktop/backend/dsh-chat-service.mjs` | 主聊天通过 Z Host 会话与流式事件运行（文件名为历史内部标识） |
+| 模型目录与凭据 | `backend/model-service.mjs`, `profile-store.mjs`, `credential-store.mjs` | TaskWeaver 自有加密凭据存储；仅显式添加的模型进入主列表；候选目录仍由随项目提供的模型运行时枚举 |
+| 单 Agent 对话 | `backend/dsh-chat-service.mjs` | 主聊天通过 Z Host 会话与流式事件运行（文件名为历史内部标识） |
 | 入口门控 + 编排 | `orchestration-policy.mjs`, `orchestration-service.mjs`, `dag-scheduler.mjs` | 已有：`chat:send` 按门控走单 Agent 或 `planAndExecute` |
-| Skill 目录与调用 | `desktop/backend/skill-service.mjs`, `skill-prompt.mjs` | 已有：发现内置/应用/受信任工作区 Skill；用户选中后由 TaskWeaver 读取正文并注入当前任务；选中多 Agent Skill 才强制进入 DAG |
+| Skill 目录与调用 | `backend/skill-service.mjs`, `skill-prompt.mjs` | 已有：发现内置/应用/受信任工作区 Skill；用户选中后由 TaskWeaver 读取正文并注入当前任务；选中多 Agent Skill 才强制进入 DAG |
 | 前端 | `src/App.tsx`, `useAppBackend.ts` | 真实对话与模型设置；`/Skill` 补全、权限档位、模型添加/删除界面；DAG/任务 UI 部分具备 |
 | 执行层依赖 | `packages/runtime`（Z Runtime，`@z/dsh-*` 历史 workspace 包名） | 当前实际运行时；不是 pi npm 依赖 |
 
@@ -204,11 +204,11 @@
 ## 7. 关键文件（实施时优先改）
 
 ```
-desktop/agent/agent-runtime.mjs       # 执行层适配出口
-desktop/agent/session-factory.mjs     # 建议新增：统一 createAgentSession 参数
-desktop/backend/dsh-chat-service.mjs  # DSH-backed 单 Agent + 事件流
-desktop/backend/orchestration-*.mjs   # 门控、规划、分配、DAG
-desktop/backend/skill-service.mjs     # Skill 目录
+backend/agent/agent-runtime.mjs       # 执行层适配出口
+backend/agent/session-factory.mjs     # 建议新增：统一 createAgentSession 参数
+backend/dsh-chat-service.mjs  # DSH-backed 单 Agent + 事件流
+backend/orchestration-*.mjs   # 门控、规划、分配、DAG
+backend/skill-service.mjs     # Skill 目录
 electron/extensions/taskweaver-guard.mjs  # 建议新增：工具审批/拦截
 src/features/chat/                     # 建议：工具轨迹、Skill 选择组件
 electron/extensions/                 # TaskWeaver 自有 extension（如权限）

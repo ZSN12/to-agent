@@ -8,8 +8,8 @@ import {
   loadBundledDefaultModelsDoc,
   mergeMissingDefaultProviders,
   modelsDocHasBridgeProvider,
-} from '../desktop/backend/taskweaver-models-defaults.mjs'
-import { resolveTaskWeaverModelsPath } from '../desktop/backend/taskweaver-models-path.mjs'
+} from '../backend/taskweaver-models-defaults.mjs'
+import { resolveTaskWeaverModelsPath } from '../backend/taskweaver-models-path.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { createThreadStore } from '../desktop/backend/thread-store.mjs'
+import { createThreadStore } from '../backend/thread-store.mjs'
 
 console.log('--- 开始测试 ThreadStore 会话归档、搜索与生命周期隔离 ---')
 

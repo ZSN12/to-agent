@@ -10,6 +10,7 @@
 
 import { Context, Service } from '@taskweaver/cordis'
 import type { SandboxExecutionPolicy, SandboxMode } from '@taskweaver/dsh-sandbox'
+import { FsError } from './types.ts'
 import type {
   FsDirEntry,
   FsEditOutcome,
@@ -18,6 +19,8 @@ import type {
   FsPathInfo,
   FsObservation,
   FsTarget,
+  FsTextMutation,
+  FsTextMutationOutcome,
   FsVersion,
   FsWriteIntent,
   FsWriteOutcome,
@@ -37,6 +40,8 @@ export type {
   FsObservation,
   FsPathInfo,
   FsTarget,
+  FsTextMutation,
+  FsTextMutationOutcome,
   FsWriteIntent,
   FsWriteOutcome,
 } from './types.ts'
@@ -80,8 +85,15 @@ declare module '@taskweaver/cordis' {
 /**
  * Abstract filesystem provider. Targets must preserve identity across aliases;
  * reads expose regular UTF-8 text or typed errors, listings are stable and
- * content-free, and mutations are atomic. Optional guards add stale protection
- * without changing the unguarded provider contract.
+ * content-free, and single-file mutations are atomic. Batch text mutation is a
+ * separate optional capability: providers must either provide rollback-capable
+ * semantics or fail with FS_TRANSACTION_UNSUPPORTED. The local provider locks
+ * targets within one process, validates and stages every member before publish,
+ * and compensates completed publishes after an error. Ordinary filesystems do
+ * not provide multi-path visibility atomicity; external processes can observe
+ * intermediate publishes, and external concurrent writes can make rollback
+ * incomplete. Callers must not advertise this as a crash-safe or cross-process
+ * transaction.
  */
 export abstract class FileSystem extends Service {
   constructor(ctx: Context) {
@@ -247,6 +259,35 @@ export abstract class FileSystem extends Service {
     signal?: AbortSignal,
     sandboxPolicy?: SandboxExecutionPolicy,
   ): Promise<FsEditOutcome>
+
+  /**
+   * Apply a version-guarded batch of full-text creates/replacements. Every
+   * target must be validated and permission-checked before the provider begins
+   * publishing any member. Unsupported providers fail closed. Implementations
+   * may serialize calls inside their own process and compensate completed
+   * members after a failure, but must document weaker storage guarantees and
+   * never claim multi-path visibility atomicity unless the underlying host can
+   * actually provide it.
+   *
+   * @param mutations - unique targets and mandatory create/stale guards.
+   * @param signal - cancellation is honored before publication begins; once a
+   *   provider starts publishing, it must finish or compensate rather than
+   *   stop midway.
+   * @param sandboxPolicy - per-call mode and workspace root for sandboxed
+   *   implementations; the bare provider ignores it.
+   * @returns one outcome per mutation, in input order, only after all members
+   *   have been published and verified.
+   */
+  async applyTextTransaction(
+    _mutations: readonly FsTextMutation[],
+    _signal?: AbortSignal,
+    _sandboxPolicy?: SandboxExecutionPolicy,
+  ): Promise<FsTextMutationOutcome[]> {
+    throw new FsError(
+      'filesystem provider does not support rollback-capable text batches',
+      'FS_TRANSACTION_UNSUPPORTED',
+    )
+  }
 }
 
 export default FileSystem

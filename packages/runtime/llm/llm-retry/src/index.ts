@@ -51,13 +51,14 @@ const TASKWEAVER_ALWAYS_RETRYABLE_CODES = Object.freeze([
   EMPTY_RESPONSE_CODE,
   'RATE_LIMIT',
   'SERVER',
+  'TIMEOUT',
   'TRANSPORT',
 ])
 
 function taskweaverBoundedPolicy(policy: ResolvedRetryPolicy): ResolvedRetryPolicy {
   const retryableCodes = policy.mode === 'always'
     ? [...TASKWEAVER_ALWAYS_RETRYABLE_CODES]
-    : policy.retryableCodes.filter((code) => code !== 'TIMEOUT')
+    : [...policy.retryableCodes]
   return {
     mode: 'normal',
     maxRetries: policy.mode === 'always'
@@ -185,7 +186,7 @@ export function apply(ctx: Context, config: Config = {}, internals: RetryInterna
   }
 
   async function recover(
-    { agent, turn, step, provider, failure, retryPolicy: registeredPolicy, signal }: Parameters<Events['agent/request-error']>[0],
+    { agent, turn, step, provider, failure, retryPolicy: registeredPolicy, streamStarted, signal }: Parameters<Events['agent/request-error']>[0],
     next: () => Promise<RequestErrorAction>,
   ): Promise<RequestErrorAction> {
     if (registeredPolicy === undefined) return next()
@@ -196,6 +197,10 @@ export function apply(ctx: Context, config: Config = {}, internals: RetryInterna
     const policy = taskweaverEmbedded
       ? taskweaverBoundedPolicy(registeredPolicy)
       : registeredPolicy
+    // A timeout before the first streamed chunk is safe to replay. Once the
+    // provider has emitted anything, retrying may duplicate visible text or a
+    // tool call whose side effects have already started.
+    if (taskweaverEmbedded && failure.code === 'TIMEOUT' && streamStarted) return next()
     if (policy.mode === 'always') {
       if (signal.aborted || lifetime.signal.aborted) return
       const fusedSignal = AbortSignal.any([signal, lifetime.signal])

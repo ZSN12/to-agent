@@ -1,7 +1,7 @@
 import z from "@taskweaver/schemastery";
 import { defineTool } from "@taskweaver/dsh-tools";
 import { assertNever } from "@taskweaver/dsh-llm";
-import { LspError } from "@taskweaver/dsh-lsp";
+import { LspError, MAX_DIAGNOSTICS_WAIT_MS } from "@taskweaver/dsh-lsp";
 import { MAX_TIMER_DELAY_MS } from "@taskweaver/dsh-timeout";
 import { posix, win32 } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -199,6 +199,16 @@ const inject = [
 ];
 /** Default tool-call timeout budget (ms), covering the queued open/query/close lifecycle. */
 const DEFAULT_LSP_TOOL_TIMEOUT_MS = 6e4;
+const MAX_POST_EDIT_DIAGNOSTICS = 5;
+const MAX_POST_EDIT_DIAGNOSTICS_SCANNED = 100;
+const MAX_POST_EDIT_DIAGNOSTIC_MESSAGE_CHARS = 400;
+const MAX_POST_PATCH_DIAGNOSTIC_FILES = 8;
+const POST_EDIT_TOOLS = /* @__PURE__ */ new Set([
+	"edit",
+	"write",
+	"apply_patch"
+]);
+const PATCH_FILE_DIRECTIVES = ["*** Add File:", "*** Update File:"];
 /** The stable system-prompt guidance positioning LSP as a precision aid. */
 const LSP_PROMPT_TEXT = "Use search/read for ordinary navigation. Use lsp when textual matches are ambiguous or before a change requires precise definitions, implementations, or references. Positions are one-based line and character (UTF-16) at the cursor; an off-symbol position may return no results. findReferences always includes the declaration.";
 const Config = z.object({
@@ -399,6 +409,70 @@ function apply(ctx, config) {
 		},
 		presentCall: presentLspCall
 	}));
+	ctx.on("tools/post-execute", async (exec, result, next) => {
+		const decision = await next();
+		if (decision.kind !== "accept" || result.isError || Object.hasOwn(decision, "value") || !POST_EDIT_TOOLS.has(exec.name)) return decision;
+		const filePaths = toolFilePaths(exec);
+		const workspaceRoot = sessionCwd(exec);
+		if (filePaths.length === 0 || workspaceRoot === void 0) return decision;
+		const texts = (await Promise.all(filePaths.map(async (filePath) => {
+			let diagnostics;
+			try {
+				diagnostics = await ctx.lsp.getDiagnostics({
+					filePath,
+					workspaceRoot
+				}, {
+					waitMs: MAX_DIAGNOSTICS_WAIT_MS,
+					signal: exec.signal
+				});
+			} catch {
+				return null;
+			}
+			const errors = diagnostics.slice(0, MAX_POST_EDIT_DIAGNOSTICS_SCANNED).filter((item) => item.severity === 1);
+			return errors.length === 0 ? null : formatPostEditDiagnostics(filePath, errors);
+		}))).filter((text) => text !== null);
+		if (texts.length === 0) return decision;
+		return {
+			kind: "accept",
+			content: [...decision.content ?? result.content, ...texts.map((text) => ({
+				type: "text",
+				text
+			}))],
+			...decision.additionalContexts !== void 0 ? { additionalContexts: decision.additionalContexts } : {}
+		};
+	});
+}
+function toolFilePaths(exec) {
+	if (exec.arguments === null || typeof exec.arguments !== "object" || Array.isArray(exec.arguments)) return [];
+	if (exec.name === "apply_patch") return patchFilePaths(exec.arguments.patch);
+	const filePath = exec.arguments.file_path;
+	return typeof filePath === "string" && filePath.trim() !== "" ? [filePath] : [];
+}
+/** Paths named by a successfully applied Codex patch's add/update directives. */
+function patchFilePaths(patch) {
+	if (typeof patch !== "string") return [];
+	const paths = [];
+	for (const line of patch.split("\n")) {
+		const directive = PATCH_FILE_DIRECTIVES.find((prefix) => line.startsWith(prefix));
+		if (directive === void 0) continue;
+		const filePath = line.slice(directive.length).trim();
+		if (filePath !== "" && !paths.includes(filePath)) paths.push(filePath);
+		if (paths.length === MAX_POST_PATCH_DIAGNOSTIC_FILES) break;
+	}
+	return paths;
+}
+function formatPostEditDiagnostics(filePath, diagnostics) {
+	const visible = diagnostics.slice(0, MAX_POST_EDIT_DIAGNOSTICS);
+	const lines = visible.map((diagnostic) => {
+		const { line, character } = diagnostic.range.start;
+		const code = diagnostic.code === void 0 ? "" : ` ${diagnostic.code}`;
+		const source = diagnostic.source === void 0 ? "" : ` (${diagnostic.source})`;
+		const message = diagnostic.message.slice(0, MAX_POST_EDIT_DIAGNOSTIC_MESSAGE_CHARS);
+		return `- ${filePath}:${line + 1}:${character + 1}${code}${source}: ${message}`;
+	});
+	const omitted = diagnostics.length - visible.length;
+	if (omitted > 0) lines.push(`- ${omitted} additional error diagnostics omitted.`);
+	return `LSP errors after ${filePath} update (first ${visible.length}):\n${lines.join("\n")}`;
 }
 /** Reject a non-positive-integer config value at load, so misconfiguration fails loud. */
 function assertPositiveInteger(name, value) {

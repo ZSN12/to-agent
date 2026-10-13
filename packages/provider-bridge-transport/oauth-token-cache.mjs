@@ -35,9 +35,12 @@ export function createOAuthTokenCache({
       const expiresAtMs = typeof loaded === 'object' && loaded !== null
         ? Number(loaded.expiresAtMs)
         : accessTokenExpiryMs(accessToken)
-      if (typeof accessToken !== 'string' || !accessToken) throw new Error(`OAuth token for ${provider} is empty`)
-      if (Number.isFinite(expiresAtMs) && expiresAtMs > now() + refreshSkewMs) {
-        tokens.set(provider, { accessToken, expiresAtMs })
+      const FALLBACK_TTL_MS = 5 * 60_000
+      const effectiveExpiry = Number.isFinite(expiresAtMs) && expiresAtMs > 0
+        ? expiresAtMs
+        : now() + FALLBACK_TTL_MS + refreshSkewMs
+      if (effectiveExpiry > now() + refreshSkewMs) {
+        tokens.set(provider, { accessToken, expiresAtMs: effectiveExpiry })
       } else {
         tokens.delete(provider)
       }

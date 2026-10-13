@@ -29,12 +29,13 @@ const TASKWEAVER_ALWAYS_RETRYABLE_CODES = Object.freeze([
     EMPTY_RESPONSE_CODE,
     'RATE_LIMIT',
     'SERVER',
+    'TIMEOUT',
     'TRANSPORT',
 ]);
 function taskweaverBoundedPolicy(policy) {
     const retryableCodes = policy.mode === 'always'
         ? [...TASKWEAVER_ALWAYS_RETRYABLE_CODES]
-        : policy.retryableCodes.filter((code) => code !== 'TIMEOUT');
+        : [...policy.retryableCodes];
     return {
         mode: 'normal',
         maxRetries: policy.mode === 'always'
@@ -139,7 +140,7 @@ export function apply(ctx, config = {}, internals = {}) {
         agent.session.append('llm/retry-started', { retryId, turn, step, retry });
         return { kind: 'retry' };
     }
-    async function recover({ agent, turn, step, provider, failure, retryPolicy: registeredPolicy, signal }, next) {
+    async function recover({ agent, turn, step, provider, failure, retryPolicy: registeredPolicy, streamStarted, signal }, next) {
         if (registeredPolicy === undefined)
             return next();
         // DSH keeps its provider-owned policy semantics. TaskWeaver embeds the same
@@ -149,6 +150,11 @@ export function apply(ctx, config = {}, internals = {}) {
         const policy = taskweaverEmbedded
             ? taskweaverBoundedPolicy(registeredPolicy)
             : registeredPolicy;
+        // A timeout before the first streamed chunk is safe to replay. Once the
+        // provider has emitted anything, retrying may duplicate visible text or a
+        // tool call whose side effects have already started.
+        if (taskweaverEmbedded && failure.code === 'TIMEOUT' && streamStarted)
+            return next();
         if (policy.mode === 'always') {
             if (signal.aborted || lifetime.signal.aborted)
                 return;

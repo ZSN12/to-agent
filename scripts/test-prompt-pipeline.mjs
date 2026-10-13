@@ -1,6 +1,13 @@
 import assert from 'node:assert/strict'
-import { composePromptPipeline, DEFAULT_PROMPT_BUDGET_BYTES } from '../desktop/backend/prompt-pipeline.mjs'
-import { buildSkillPromptPrefix } from '../desktop/backend/skill-prompt.mjs'
+import { composePromptPipeline, DEFAULT_PROMPT_BUDGET_BYTES } from '../backend/prompt-pipeline.mjs'
+import { estimateTokens } from '../backend/token-estimate.mjs'
+import { buildSkillPromptPrefix } from '../backend/skill-prompt.mjs'
+
+assert.equal(estimateTokens(''), 0, 'the shared backend text estimator returns zero for empty text')
+assert.equal(estimateTokens('abcdefgh'), 3, 'Latin text uses the documented conservative density')
+assert.equal(estimateTokens('界'), 1, 'CJK scripts are counted separately from Latin text')
+assert.equal(estimateTokens('🙂'), 1, 'supplementary Unicode characters are handled without splitting surrogate pairs')
+assert.equal(estimateTokens(null), 0, 'non-string input does not produce a misleading token count')
 
 // UTF-8 字节预算按编码后的实际字节数计算，不计算连接符。
 const utf8 = composePromptPipeline({
@@ -17,8 +24,8 @@ assert.deepEqual(utf8.diagnostics, {
   userBytes: 12,
   injectedBytes: 10,
   promptBytes: 22,
-  estimatedTokens: 6,
-  injectedEstimatedTokens: 3,
+  estimatedTokens: estimateTokens('界 \n用户原文🙂 '),
+  injectedEstimatedTokens: estimateTokens('界 \n🙂 '),
   remainingBudgetBytes: 0,
   utilization: 1,
 })
@@ -28,7 +35,7 @@ const defaultBudget = composePromptPipeline({ userText: 'question', suffixLayers
 assert.equal(DEFAULT_PROMPT_BUDGET_BYTES, 32 * 1024)
 assert.equal(defaultBudget.diagnostics.budgetBytes, 32 * 1024)
 assert.equal(defaultBudget.diagnostics.promptBytes, Buffer.byteLength(defaultBudget.prompt, 'utf8'))
-assert.equal(defaultBudget.diagnostics.estimatedTokens, Math.ceil(defaultBudget.diagnostics.promptBytes / 4))
+assert.equal(defaultBudget.diagnostics.estimatedTokens, estimateTokens(defaultBudget.prompt))
 const greeting = composePromptPipeline({ userText: '你好' })
 assert.equal(greeting.injectedBytes, 0, 'plain conversation starts with zero business-injected layers')
 
@@ -114,7 +121,7 @@ assert.deepEqual(empty, {
     userBytes: 6,
     injectedBytes: 0,
     promptBytes: 6,
-    estimatedTokens: 2,
+    estimatedTokens: estimateTokens('原文'),
     injectedEstimatedTokens: 0,
     remainingBudgetBytes: 0,
     utilization: 0,

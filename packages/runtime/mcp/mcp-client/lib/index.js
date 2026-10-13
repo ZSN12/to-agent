@@ -1,15 +1,19 @@
 import z from "@taskweaver/schemastery";
 import { MAX_TIMER_DELAY_MS } from "@taskweaver/dsh-timeout";
+import { appendFileSync } from "node:fs";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { ListToolsResultSchema, ToolListChangedNotificationSchema } from "@modelcontextprotocol/sdk/types.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { scrubbedParentEnv } from "@taskweaver/dsh-subprocess";
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import { z as z$1 } from "zod";
 import { isImageAdmissionError } from "@taskweaver/dsh-attachment";
 import { assertSupportedJsonSchema } from "@taskweaver/dsh-tools";
+import { chmod, lstat, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
+import { join, resolve, sep } from "node:path";
 //#region lib/types/transport.js
 /**
 * Transport factory: creates the appropriate MCP transport based on the
@@ -18,9 +22,30 @@ import { assertSupportedJsonSchema } from "@taskweaver/dsh-tools";
 *
 * @module
 */
+const HOST_ENV_VAR_PATTERN$1 = /^[A-Za-z_][A-Za-z0-9_]*$/;
+function resolveBoundProcessEnv(bindings) {
+	if (!bindings) return {};
+	const resolved = {};
+	for (const [childKey, hostVar] of Object.entries(bindings)) {
+		if (!HOST_ENV_VAR_PATTERN$1.test(hostVar)) throw new Error(`mcp-client: invalid host environment variable name ${JSON.stringify(hostVar)}`);
+		const value = process.env[hostVar];
+		if (value !== void 0) resolved[childKey] = value;
+	}
+	return resolved;
+}
+function resolveStreamableHttpHeaders(config) {
+	const headers = { ...config.headers };
+	const envVar = config.bearerTokenEnvVar?.trim();
+	if (envVar) {
+		if (!HOST_ENV_VAR_PATTERN$1.test(envVar)) throw new Error(`mcp-client: invalid bearerTokenEnvVar ${JSON.stringify(envVar)}`);
+		const token = process.env[envVar];
+		if (token) headers.Authorization = `Bearer ${token}`;
+	}
+	return headers;
+}
 /**
 * The subprocess seam's scrubbed parent env (credential-shaped and stale
-* `DSH_*` names dropped), plus the spec's explicit env. The MCP SDK owns the
+* `TASKWEAVER_*` names dropped), plus the spec's explicit env. The MCP SDK owns the
 * actual spawn, so this transport shares the scrub definition rather than the
 * spawn path.
 */
@@ -41,10 +66,13 @@ function createTransport(config) {
 		case "stdio": return new StdioClientTransport({
 			command: config.command,
 			args: config.args,
-			env: buildChildEnv(config.env),
-			cwd: config.cwd
+			env: buildChildEnv({
+				...resolveBoundProcessEnv(config.processEnv),
+				...config.env
+			}),
+			cwd: config.cwd || process.cwd()
 		});
-		case "streamable-http": return new StreamableHTTPClientTransport(new URL(config.url), { requestInit: { headers: config.headers } });
+		case "streamable-http": return new StreamableHTTPClientTransport(new URL(config.url), { requestInit: { headers: resolveStreamableHttpHeaders(config) } });
 	}
 }
 //#endregion
@@ -121,7 +149,7 @@ function publicToolName(serverName, rawName) {
 	const normalized = joined.replace(INVALID_NAME_CHARS, "_");
 	if (normalized === joined && normalized.length <= MAX_PUBLIC_NAME_LENGTH) return normalized;
 	const hash = createHash("sha256").update(`${serverName}\0${rawName}`).digest("hex").slice(0, HASH_LENGTH);
-	return `${normalized.slice(0, MAX_PUBLIC_NAME_LENGTH - HASH_LENGTH - 1)}_${hash}`;
+	return `${normalized.slice(0, 51)}_${hash}`;
 }
 /**
 * Sync the MCP server's tool list into the harness ToolRuntime.
@@ -147,18 +175,36 @@ function publicToolName(serverName, rawName) {
 * @returns A map of registered public tool names to their unregister
 *   disposers — the exact set of live registrations owned by this server.
 */
-async function syncTools(client, ctx, opts, previous) {
-	const definitions = /* @__PURE__ */ new Map();
+async function syncTools(client, ctx, opts, previous, options = {}) {
+	const tools = [];
 	let cursor;
 	do {
 		const response = await listToolsUncached(client, cursor);
-		for (const tool of response.tools) {
-			const publicName = publicToolName(opts.serverName, tool.name);
-			if (definitions.has(publicName)) throw new Error(`mcp-client(${opts.serverName}): server listed tool "${tool.name}" more than once — invalid tool list`);
-			definitions.set(publicName, createDefinition(client, ctx, publicName, tool.name, tool.description ?? "", tool.inputSchema, supportedOutputSchema(tool.outputSchema), tool.execution?.taskSupport === "required", opts));
-		}
+		tools.push(...response.tools);
 		cursor = response.nextCursor;
 	} while (cursor);
+	const next = swapToolGeneration(ctx, opts, buildDefinitions(client, ctx, opts, tools), previous);
+	if (next === null) return /* @__PURE__ */ new Map();
+	if (options.cache) try {
+		await options.cache.write(tools);
+	} catch {}
+	return next;
+}
+/** Register one validated cached tool list before a remote transport is ready. */
+function registerCachedTools(client, ctx, opts, tools, previous) {
+	return swapToolGeneration(ctx, opts, buildDefinitions(client, ctx, opts, tools), previous) ?? /* @__PURE__ */ new Map();
+}
+function buildDefinitions(client, ctx, opts, tools) {
+	const definitions = /* @__PURE__ */ new Map();
+	for (const tool of tools) {
+		const publicName = publicToolName(opts.serverName, tool.name);
+		if (definitions.has(publicName)) throw new Error(`mcp-client(${opts.serverName}): server listed tool "${tool.name}" more than once — invalid tool list`);
+		definitions.set(publicName, createDefinition(client, ctx, publicName, tool.name, tool.description ?? "", tool.inputSchema, supportedOutputSchema(tool.outputSchema), tool.execution?.taskSupport === "required", opts));
+	}
+	return definitions;
+}
+/** Dispose/register as one generation; null means the registry rejected it. */
+function swapToolGeneration(ctx, opts, definitions, previous) {
 	for (const dispose of previous.values()) dispose();
 	const disposers = /* @__PURE__ */ new Map();
 	try {
@@ -167,7 +213,7 @@ async function syncTools(client, ctx, opts, previous) {
 		for (const dispose of disposers.values()) dispose();
 		ctx.logger.error(`mcp-client(${opts.serverName}): tool registration failed, no tools registered: ${String(error)}`);
 		if (opts.registrationFailure === "throw") throw error;
-		return /* @__PURE__ */ new Map();
+		return null;
 	}
 	return disposers;
 }
@@ -249,8 +295,12 @@ function createOutput(rawName, structuredSchema) {
 function createExecutor(client, ctx, rawName, taskRequired, opts, projections) {
 	return async (args, exec) => {
 		const agentPreset = exec.agent?.session?.header?.agentPreset;
-		if (agentPreset === "taskweaver-readonly" || agentPreset === "taskweaver-planner") throw new Error("MCP tools are unavailable to read-only and planner agents");
+		if (agentPreset === "taskweaver-readonly" || agentPreset === "taskweaver-planner" || agentPreset === "tw-taskweaver-readonly" || agentPreset === "tw-taskweaver-planner") throw new Error("MCP tools are unavailable to read-only and planner agents");
 		if (taskRequired) throw new Error(`Tool "${rawName}" requires task-based execution, which this bridge does not support`);
+		if (opts.connectionReady) {
+			const readiness = await opts.connectionReady;
+			if (readiness.error !== void 0) throw new Error(`MCP connection for "${opts.serverName}" is not ready`, { cause: readiness.error });
+		}
 		const result = await callToolUncached(client, rawName, typeof args === "object" && args !== null ? args : {}, exec, opts);
 		if (!Array.isArray(result.content)) {
 			const rendered = "toolResult" in result ? JSON.stringify(result.toolResult) : "(no output)";
@@ -447,6 +497,88 @@ function projectContent(mcpContent, toolName, image = (block) => ({
 	}];
 }
 //#endregion
+//#region lib/types/remote-tool-cache.js
+/** Private, endpoint-scoped cache for remote MCP tool schemas. */
+const CACHE_SCHEMA = 1;
+const MAX_CACHE_BYTES = 2097152;
+const SERVER_NAME = /^[A-Za-z0-9_-]{1,32}$/;
+function runtimeHome() {
+	const configured = process.env.TASKWEAVER_HOME?.trim() || process.env.Z_HOME?.trim() || process.env.DSH_HOME?.trim() || join(homedir(), ".taskweaver", "runtime");
+	const expanded = configured === "~" ? homedir() : configured.startsWith("~/") || configured.startsWith("~\\") ? join(homedir(), configured.slice(2).replaceAll(sep === "/" ? "\\" : "/", sep)) : configured;
+	return resolve(expanded);
+}
+function endpointIdentity(url) {
+	return createHash("sha256").update(url).digest("hex");
+}
+function cacheableTool(tool) {
+	return {
+		name: tool.name,
+		inputSchema: tool.inputSchema,
+		...tool.description !== void 0 ? { description: tool.description } : {},
+		...tool.outputSchema !== void 0 ? { outputSchema: tool.outputSchema } : {},
+		...tool.execution?.taskSupport !== void 0 ? { execution: { taskSupport: tool.execution.taskSupport } } : {}
+	};
+}
+/**
+* A best-effort cache. Cache I/O and malformed cache files never make MCP
+* connection or tool synchronization fail.
+*/
+function createRemoteToolCache(serverName, url) {
+	if (!SERVER_NAME.test(serverName)) throw new Error("MCP cache serverName is invalid");
+	const directory = join(runtimeHome(), "cache", "mcp-tools");
+	const filePath = join(directory, `${serverName}.json`);
+	const endpoint = endpointIdentity(url);
+	async function read() {
+		try {
+			const file = await lstat(filePath);
+			if (!file.isFile() || file.isSymbolicLink() || file.size <= 0 || file.size > MAX_CACHE_BYTES || (file.mode & 63) !== 0) return null;
+			const parsed = JSON.parse(await readFile(filePath, "utf8"));
+			if (!parsed || typeof parsed !== "object") return null;
+			const record = parsed;
+			if (record.schema !== CACHE_SCHEMA || record.endpoint !== endpoint || !Array.isArray(record.tools)) return null;
+			const validated = ListToolsResultSchema.safeParse({ tools: record.tools });
+			return validated.success ? validated.data.tools : null;
+		} catch {
+			return null;
+		}
+	}
+	async function write(tools) {
+		const sanitized = tools.map(cacheableTool);
+		const validated = ListToolsResultSchema.safeParse({ tools: sanitized });
+		if (!validated.success) return false;
+		const content = `${JSON.stringify({
+			schema: CACHE_SCHEMA,
+			endpoint,
+			tools: validated.data.tools
+		})}\n`;
+		if (Buffer.byteLength(content, "utf8") > MAX_CACHE_BYTES) return false;
+		const temporaryPath = `${filePath}.${process.pid}.${randomBytes(6).toString("hex")}.tmp`;
+		try {
+			await mkdir(directory, {
+				recursive: true,
+				mode: 448
+			});
+			await chmod(directory, 448);
+			await writeFile(temporaryPath, content, {
+				encoding: "utf8",
+				mode: 384,
+				flag: "wx"
+			});
+			await rename(temporaryPath, filePath);
+			await chmod(filePath, 384);
+			return true;
+		} catch {
+			await rm(temporaryPath, { force: true }).catch(() => {});
+			return false;
+		}
+	}
+	return {
+		filePath,
+		read,
+		write
+	};
+}
+//#endregion
 //#region lib/types/connection.js
 /**
 * Connection supervisor: owns the MCP client/transport generations for one
@@ -464,6 +596,25 @@ function projectContent(mcpContent, toolName, image = (block) => ({
 *
 * @module
 */
+function traceMcpConnect(event, server, ms) {
+	if (process.env.TASKWEAVER_STARTUP_TRACE !== "1") return;
+	const tracePath = process.env.TASKWEAVER_STARTUP_TRACE_FILE;
+	if (!tracePath) return;
+	try {
+		const record = {
+			timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+			pid: process.pid,
+			...process.env.TASKWEAVER_STARTUP_ID ? { startupId: process.env.TASKWEAVER_STARTUP_ID } : {},
+			event: `mcp:connect:${event}`,
+			server,
+			...ms !== void 0 ? { ms: Number(ms.toFixed(3)) } : {}
+		};
+		appendFileSync(tracePath, `${JSON.stringify(record)}\n`, {
+			encoding: "utf8",
+			mode: 384
+		});
+	} catch {}
+}
 /** Defaults shared by the Config schema and {@link resolveReconnectPolicy}. */
 const RECONNECT_DEFAULTS = Object.freeze({
 	enabled: true,
@@ -528,6 +679,7 @@ function startConnection(ctx, config, policy) {
 		...opts,
 		registrationFailure: "throw"
 	} : opts;
+	const remoteToolCache = config.transport === "streamable-http" ? createRemoteToolCache(config.serverName, config.url) : void 0;
 	let disposed = false;
 	/** Current generation: the connecting or connected client; undefined during backoff waits and after final failure. */
 	let client;
@@ -554,7 +706,7 @@ function startConnection(ctx, config, policy) {
 	function enqueueSync(generation, syncOpts = opts) {
 		const run = syncChain.then(async () => {
 			if (!isCurrent(generation)) return;
-			disposers = await syncTools(generation, ctx, syncOpts, disposers);
+			disposers = await syncTools(generation, ctx, syncOpts, disposers, { cache: remoteToolCache });
 		});
 		syncChain = run.catch(() => {});
 		return run;
@@ -617,10 +769,17 @@ function startConnection(ctx, config, policy) {
 	* @param startup - Whether this is the plugin's activation attempt.
 	*/
 	async function connectGeneration(startup) {
+		const startAt = process.hrtime.bigint();
+		traceMcpConnect("begin", label);
 		const generation = new Client({
 			name: "dsh-mcp-client",
 			version: "0.0.1"
 		}, { capabilities: {} });
+		const connectionReady = Promise.withResolvers();
+		const generationOpts = {
+			...opts,
+			connectionReady: connectionReady.promise
+		};
 		const closed = Promise.withResolvers();
 		let attemptSettled = false;
 		let closeObserved = false;
@@ -642,26 +801,45 @@ function startConnection(ctx, config, policy) {
 			}
 		});
 		try {
+			const cachedToolsPromise = remoteToolCache?.read() ?? Promise.resolve(null);
 			let connectTimer;
-			try {
-				await Promise.race([generation.connect(createTransport(config)), new Promise((_resolve, reject) => {
-					connectTimer = setTimeout(() => {
-						const error = new Error(`${label}: connection timed out after ${connectTimeoutMs}ms`);
-						Object.assign(error, { code: "MCP_CONNECT_TIMEOUT" });
-						reject(error);
-					}, connectTimeoutMs);
-					connectTimer.unref?.();
-				})]);
-			} finally {
+			const connectAttempt = Promise.race([generation.connect(createTransport(config)), new Promise((_resolve, reject) => {
+				connectTimer = setTimeout(() => {
+					const error = /* @__PURE__ */ new Error(`${label}: connection timed out after ${connectTimeoutMs}ms`);
+					Object.assign(error, { code: "MCP_CONNECT_TIMEOUT" });
+					reject(error);
+				}, connectTimeoutMs);
+				connectTimer.unref?.();
+			})]).finally(() => {
 				if (connectTimer) clearTimeout(connectTimer);
+			});
+			connectAttempt.catch(() => {});
+			const cachedTools = await cachedToolsPromise;
+			if (cachedTools !== null && isCurrent(generation)) try {
+				disposers = registerCachedTools(generation, ctx, generationOpts, cachedTools, disposers);
+			} catch (error) {
+				ctx.logger.warn(`${label}: cached tool list ignored: ${String(error)}`);
 			}
+			await connectAttempt;
 			if (hasClosed()) {
 				attemptSettled = true;
+				connectionReady.resolve({ error: /* @__PURE__ */ new Error(`${label}: connection closed during startup`) });
+				const elapsedMs = Number(process.hrtime.bigint() - startAt) / 1e6;
+				traceMcpConnect("failed", label, elapsedMs);
 				generationDown(generation);
 				return;
 			}
-			await enqueueSync(generation, startup ? startupOpts : opts);
+			connectionReady.resolve({});
+			await enqueueSync(generation, {
+				...startup ? startupOpts : opts,
+				connectionReady: connectionReady.promise
+			});
+			const elapsedMs = Number(process.hrtime.bigint() - startAt) / 1e6;
+			traceMcpConnect("ok", label, elapsedMs);
 		} catch (error) {
+			connectionReady.resolve({ error });
+			const elapsedMs = Number(process.hrtime.bigint() - startAt) / 1e6;
+			traceMcpConnect("failed", label, elapsedMs);
 			if (firstAttemptError === void 0) firstAttemptError = error;
 			if (isCurrent(generation)) ctx.logger.warn(`${label}: connection attempt failed: ${String(error)}`);
 			try {
@@ -745,6 +923,7 @@ const DEFAULT_TOOL_CALL_TIMEOUT_MS = 6e4;
 const DEFAULT_CONNECT_TIMEOUT_MS = 3e4;
 /** Valid `serverName`, kept below the public tool-name budget. */
 const SERVER_NAME_PATTERN = /^[A-Za-z0-9_-]{1,32}$/;
+const HOST_ENV_VAR_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 /**
 * Live `serverName` reservations per app, keyed off `ctx.root` (multiple apps
 * in one process — tests — must not see each other's names). A duplicate
@@ -764,6 +943,7 @@ const Config = z.union([z.object({
 	command: z.string().required(),
 	args: z.array(String).default([]),
 	env: z.dict(String).default({}),
+	processEnv: z.dict(z.string().pattern(HOST_ENV_VAR_PATTERN)).default({}),
 	cwd: z.string().default(""),
 	toolCallTimeoutMs: z.number().default(DEFAULT_TOOL_CALL_TIMEOUT_MS),
 	connectTimeoutMs: z.number().min(1).max(MAX_TIMER_DELAY_MS).default(DEFAULT_CONNECT_TIMEOUT_MS),
@@ -775,6 +955,7 @@ const Config = z.union([z.object({
 	serverName: z.string().required().pattern(SERVER_NAME_PATTERN),
 	url: z.string().required(),
 	headers: z.dict(String).default({}),
+	bearerTokenEnvVar: z.string().pattern(HOST_ENV_VAR_PATTERN).default(""),
 	toolCallTimeoutMs: z.number().default(DEFAULT_TOOL_CALL_TIMEOUT_MS),
 	connectTimeoutMs: z.number().min(1).max(MAX_TIMER_DELAY_MS).default(DEFAULT_CONNECT_TIMEOUT_MS),
 	failOnStartupError: z.boolean().default(false),
@@ -787,7 +968,7 @@ const Config = z.union([z.object({
 * ordinary function as a constructor, whose returned Promise is not startup work.
 * @param ctx - plugin context carrying the tool registry.
 * @param config - resolved transport and server namespace configuration.
-* @returns startup readiness after connection and initial tool discovery settle.
+* @returns startup readiness according to the configured wait policy.
 */
 async function apply(ctx, config) {
 	const reconnect = resolveReconnectPolicy(config.reconnect, `mcp-client(${config.serverName}): reconnect`);

@@ -2,9 +2,9 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { createSkillService } from '../desktop/backend/skill-service.mjs'
-import { decideExecutionMode } from '../desktop/backend/orchestration-policy.mjs'
-import { applySkillInstructions } from '../desktop/backend/skill-prompt.mjs'
+import { createSkillService } from '../backend/skill-service.mjs'
+import { decideExecutionMode } from '../backend/orchestration-policy.mjs'
+import { applySkillInstructions } from '../backend/skill-prompt.mjs'
 
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-skills-'))
 try {
@@ -79,7 +79,7 @@ try {
   }
   const service = createSkillService({
     agentDataPath: appData,
-    builtInSkillsPath: path.resolve('desktop/skills'),
+    builtInSkillsPath: path.resolve('backend/skills'),
     globalSkillPaths: [globalSkills],
     getWorkspacePath: () => currentWorkspace,
     getWorkspaceTrusted: () => trusted,
@@ -128,7 +128,7 @@ try {
 
   const localOnly = createSkillService({
     agentDataPath: appData,
-    builtInSkillsPath: path.resolve('desktop/skills'),
+    builtInSkillsPath: path.resolve('backend/skills'),
     globalSkillPaths: [globalSkills],
     getWorkspacePath: () => null,
     getWorkspaceTrusted: () => trusted,

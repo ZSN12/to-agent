@@ -11,13 +11,12 @@ const { buildDshToolCallTree, groupDshToolCallTree, isDshToolCallBatchExpanded, 
   `data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`,
 )
 
-assert.equal(isDshToolCallBatchExpanded(null, true), true, 'live tool history stays visible inline')
-assert.equal(isDshToolCallBatchExpanded(null, false), false, 'completed tool batches collapse by default')
-assert.equal(isDshToolCallBatchExpanded(false, true), false, 'user can collapse a running batch')
-assert.equal(isDshToolCallBatchExpanded(true, false), true, 'user can keep completed details expanded')
-assert.equal(isDshToolCallStepExpanded(undefined, true, false), true, 'the running step expands by default')
-assert.equal(isDshToolCallStepExpanded(undefined, false, true), true, 'the latest completed step expands by default')
-assert.equal(isDshToolCallStepExpanded(false, true, true), false, 'the user can collapse even the running step')
+assert.equal(isDshToolCallBatchExpanded(null), false, 'tool batches collapse by default')
+assert.equal(isDshToolCallBatchExpanded(false), false, 'user can collapse a batch')
+assert.equal(isDshToolCallBatchExpanded(true), true, 'user can expand a batch')
+assert.equal(isDshToolCallStepExpanded(undefined), false, 'steps collapse by default')
+assert.equal(isDshToolCallStepExpanded(true), true, 'user can expand a step')
+assert.equal(isDshToolCallStepExpanded(false), false, 'user can collapse a step')
 
 function row(callId, { parentCallId, status = 'done', resultPreview } = {}) {
   return {
@@ -32,8 +31,8 @@ function row(callId, { parentCallId, status = 'done', resultPreview } = {}) {
   }
 }
 
-function trace(id, { parentCallId, status = 'done', resultSummary, inputSummary = id, turn, step, taskId } = {}) {
-  return { id, parentCallId, toolName: 'bash', status, resultSummary, inputSummary, turn, step, taskId }
+function trace(id, { parentCallId, status = 'done', resultSummary, inputSummary = id, turn, step, taskId, outputId, outputTruncated } = {}) {
+  return { id, parentCallId, toolName: 'bash', status, resultSummary, inputSummary, turn, step, taskId, outputId, outputTruncated }
 }
 
 const nested = buildDshToolCallTree([
@@ -102,6 +101,16 @@ assert.equal(settled.row.status, 'done', 'terminal trace status settles a runnin
 assert.equal(settled.trace.status, 'done')
 assert.equal(settled.row.resultPreview, 'final result')
 assert.equal(settled.trace.resultSummary, 'final result')
+
+const outputReference = buildDshToolCallTree(
+  [row('output-reference')],
+  [trace('output-reference', { outputId: 'opaque-output-id', outputTruncated: true })],
+)
+assert.equal(outputReference[0].trace.outputId, 'opaque-output-id', 'merging live trace with projection retains the fetch reference')
+assert.equal(outputReference[0].trace.outputTruncated, true, 'the bounded-output marker survives replay projection')
+
+const legacyProjection = buildDshToolCallTree([row('legacy-without-output-reference')])
+assert.equal(legacyProjection[0].trace.outputId, undefined, 'older projected events have no full-output affordance')
 
 const lateRunning = buildDshToolCallTree(
   [row('already-done', { status: 'done', resultPreview: 'kept result' })],

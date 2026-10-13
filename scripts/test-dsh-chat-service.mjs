@@ -2,8 +2,8 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { createDshChatService } from '../desktop/backend/dsh-chat-service.mjs'
-import { applySkillInstructions } from '../desktop/backend/skill-prompt.mjs'
+import { createDshChatService } from '../backend/dsh-chat-service.mjs'
+import { applySkillInstructions } from '../backend/skill-prompt.mjs'
 
 const modelService = {
   async getDshModelConfig(modelKey) {
@@ -359,6 +359,12 @@ try {
   await waitFor(() => projectedEvents.some((event) => event.type === 'delta'), { label: 'direct delta despite live projection' })
   assert.ok(projectedEvents.some((event) => event.type === 'thinking_delta' && event.delta === 'reasoning first'))
   assert.ok(projectedEvents.some((event) => event.type === 'delta' && event.delta === 'visible answer now'))
+  assert.ok(projectedEvents.some((event) => event.type === 'block_delta' && event.id === 'step-1-thinking'
+    && event.kind === 'thinking' && event.delta === 'reasoning first'))
+  assert.ok(projectedEvents.some((event) => event.type === 'block_delta' && event.id === 'step-1-text'
+    && event.kind === 'text' && event.delta === 'visible answer now'))
+  assert.equal(projectedEvents.some((event) => event.type === 'blocks'), false,
+    'token deltas must not serialize cumulative block snapshots')
   const projectedThinkingEndIndex = projectedEvents.findIndex((event) => event.type === 'thinking_end')
   const projectedTextIndex = projectedEvents.findIndex((event) => event.type === 'delta')
   assert.ok(projectedThinkingEndIndex >= 0, 'the reasoning segment should have an explicit end event')
@@ -407,6 +413,13 @@ try {
   } } })
   await waitFor(() => toolBoundaryEvents.some((event) => event.type === 'tool' && event.id === 'boundary-read' && event.status === 'done'),
     { label: 'tool-boundary read completed' })
+  const boundaryTrace = toolBoundaryEvents.find((event) => event.type === 'tool' && event.id === 'boundary-read' && event.status === 'done')
+  assert.ok(boundaryTrace?.outputId, 'completed tool output should expose an opaque fetch reference')
+  assert.deepEqual(projectedService.getToolOutput({ conversationId: 'projection-tool-boundary', outputId: boundaryTrace.outputId }), {
+    text: 'package metadata read', truncated: false,
+  })
+  assert.equal(projectedService.getToolOutput({ conversationId: 'another-conversation', outputId: boundaryTrace.outputId }), null,
+    'a tool output reference cannot cross conversation boundaries')
   projectedRuntime.push({ payload: { type: 'session/event', sessionId: toolBoundarySessionId, event: {
     type: 'assistant/chunk', data: { turn: 1, step: 2, chunk: { type: 'text-delta', text: 'I read the file.' } },
   } } })
@@ -781,6 +794,9 @@ try {
   const toolFailure = outputs.find((event) => event.type === 'tool' && event.id === 'task-call-error' && event.status === 'error')
   assert.match(toolFailure?.resultSummary, /SEARCH_RAW_OUTPUT_OVERFLOW/)
   assert.equal(toolFailure.resultSummary.includes('hidden-fixture-secret'), false)
+  const fullToolFailure = service.getToolOutput({ conversationId: 'conversation-parent', outputId: toolFailure.outputId })
+  assert.equal(fullToolFailure.text.includes('hidden-fixture-secret'), false,
+    'full tool output retrieval redacts credentials before storage')
 
   const plannerProgressTurn = service.runAgentTurn({
     conversationId: 'conversation-parent',

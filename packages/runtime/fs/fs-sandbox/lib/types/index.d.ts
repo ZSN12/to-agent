@@ -32,7 +32,7 @@
 import { Context } from '@taskweaver/cordis';
 import { LocalFileSystem } from '@taskweaver/dsh-fs-local';
 import type { Config as LocalConfig } from '@taskweaver/dsh-fs-local';
-import type { FsEditOutcome, FsEditRequest, FsTarget, FsVersion, FsWriteIntent, FsWriteOutcome } from '@taskweaver/dsh-fs';
+import type { FsEditOutcome, FsEditRequest, FsTarget, FsTextMutation, FsTextMutationOutcome, FsVersion, FsWriteIntent, FsWriteOutcome } from '@taskweaver/dsh-fs';
 import type { SandboxExecutionPolicy, SandboxMode } from '@taskweaver/dsh-sandbox';
 /**
  * Plugin config: the local backend's knobs verbatim (`cwd` resolution default
@@ -81,6 +81,13 @@ export declare class SandboxedFileSystem extends LocalFileSystem {
     editText(target: FsTarget, edit: FsEditRequest, expected?: {
         version: FsVersion;
     }, signal?: AbortSignal, sandboxPolicy?: SandboxExecutionPolicy): Promise<FsEditOutcome>;
+    /**
+     * Check every requested target against the same per-call policy before the
+     * local provider stages or mutates any file. Only after the full permission
+     * pass succeeds are fresh canonical targets delegated to the rollback-capable
+     * batch implementation.
+     */
+    applyTextTransaction(mutations: readonly FsTextMutation[], signal?: AbortSignal, sandboxPolicy?: SandboxExecutionPolicy): Promise<FsTextMutationOutcome[]>;
     /**
      * Enforce the per-call policy against `target` and return the EXACT target the
      * mutation must use, so the checked identity is the mutated one (no

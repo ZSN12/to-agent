@@ -9,7 +9,8 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { detectVerificationCommands, formatVerificationPrompt, executeVerificationRunner } from '../desktop/backend/verification-policy.mjs'
+import { detectVerificationCommands, formatVerificationPrompt, executeVerificationRunner } from '../backend/verification-policy.mjs'
+import { runBoundedSelfHealing } from '../backend/self-healing-loop.mjs'
 
 const cleanup = []
 /** 建一个临时工作区，`files` 形如 { 'package.json': '...', 'src/a.ts': '' } */
@@ -24,6 +25,31 @@ async function makeWorkspace(files) {
   return dir
 }
 const pkg = (scripts, extra = {}) => JSON.stringify({ name: 'demo', version: '1.0.0', scripts, ...extra })
+
+let verifyCount = 0
+let repairCount = 0
+const healed = await runBoundedSelfHealing({
+  maxAttempts: 2,
+  async verify() {
+    verifyCount += 1
+    return { executed: true, passed: verifyCount === 3 }
+  },
+  async repair() { repairCount += 1 },
+})
+assert.deepEqual(healed, { verification: { executed: true, passed: true }, attempts: 2 },
+  'the loop must verify once more after its final repair before reporting status')
+assert.equal(verifyCount, 3, 'two repairs require an initial check plus a final check')
+assert.equal(repairCount, 2)
+
+let failedChecks = 0
+const stillFailing = await runBoundedSelfHealing({
+  maxAttempts: 1,
+  async verify() { failedChecks += 1; return { executed: true, passed: false, exitCode: 1 } },
+  async repair() {},
+})
+assert.equal(failedChecks, 2, 'a failed repair must still receive a final verification')
+assert.deepEqual(stillFailing.verification, { executed: true, passed: false, exitCode: 1 },
+  'the reported result must describe the code after the final repair')
 
 try {
   // ============ 1. 无工作区 / 目录不存在 ============

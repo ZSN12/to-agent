@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ChevronDown, GitBranch, RefreshCw, RotateCcw, Save, Shield } from 'lucide-react'
+import { ChevronDown, Database, GitBranch, RefreshCw, RotateCcw, Save, Shield } from 'lucide-react'
 import type { BashSandboxPreference, RoutingPortfolio, SandboxProbeResult, WorktreeEntry } from '../../shared/app-api'
 import { WorktreeMergeActions } from '../worktree/WorktreeMergeActions'
 import { RoutingPortfolioForm } from './RoutingPortfolioForm'
@@ -87,6 +87,7 @@ export function RoutingPortfolioSettingsPanel({
   const [autoSnapshotOnTurn, setAutoSnapshotOnTurn] = useState(false)
   const [subtaskUpgradeMax, setSubtaskUpgradeMax] = useState(1)
   const [maxSubtaskConcurrency, setMaxSubtaskConcurrency] = useState(3)
+  const [maxDagNodes, setMaxDagNodes] = useState(6)
   const [dagPlanApproval, setDagPlanApproval] = useState<'always' | 'write-only' | 'never'>('write-only')
   const [dagCrossProviderReview, setDagCrossProviderReview] = useState(false)
   const [dagBudgetTokens, setDagBudgetTokens] = useState(2_000_000)
@@ -105,6 +106,7 @@ export function RoutingPortfolioSettingsPanel({
       setAutoSnapshotOnTurn(prefs.data.autoSnapshotOnTurn === true)
       setSubtaskUpgradeMax(prefs.data.subtaskUpgradeMax ?? 1)
       setMaxSubtaskConcurrency(prefs.data.maxSubtaskConcurrency ?? 3)
+      setMaxDagNodes(prefs.data.maxDagNodes ?? 6)
       setDagPlanApproval(prefs.data.dagPlanApproval ?? 'write-only')
       setDagCrossProviderReview(prefs.data.dagCrossProviderReview === true)
       setDagBudgetTokens(prefs.data.dagBudgetTokens ?? 2_000_000)
@@ -266,10 +268,10 @@ export function RoutingPortfolioSettingsPanel({
   }
 
   const removeWorktree = async (worktree: WorktreeEntry) => {
-    if (!window.confirm(`删除子任务 ${worktree.taskId} 的 worktree？`)) return
-    const res = await window.taskweaver?.worktree?.remove(worktree.taskId, true, conversationId, worktree.runId)
+    if (!window.confirm(`删除子任务 ${worktree.taskId} 的 worktree？若有未提交改动，Git 会拒绝删除并保留现场。`)) return
+    const res = await window.taskweaver?.worktree?.remove(worktree.taskId, false, conversationId, worktree.runId)
     if (!res?.ok) {
-      onToast('删除 worktree 失败')
+      onToast(res?.error ?? '删除 worktree 失败')
       return
     }
     onToast('worktree 已删除')
@@ -296,7 +298,7 @@ export function RoutingPortfolioSettingsPanel({
       </div>
 
       <div className="routing-settings-grid">
-        <article className="routing-settings-card">
+        <article className="routing-settings-card routing-settings-card-wide routing-settings-card-execution">
           <h3>执行与 Git</h3>
           <p className="routing-card-desc">多 Agent 编排运行时的检查点与子任务失败策略。</p>
           <SettingToggle
@@ -352,6 +354,24 @@ export function RoutingPortfolioSettingsPanel({
           </div>
           <div className="routing-field-inline">
             <label>
+              <span>DAG 子任务节点上限</span>
+              <input
+                type="number"
+                min={1}
+                max={12}
+                value={maxDagNodes}
+                onChange={(e) => setMaxDagNodes(Math.max(1, Math.min(12, Number(e.target.value))))}
+                onBlur={() => {
+                  void window.taskweaver?.preferences?.set({ maxDagNodes }).then((res) => {
+                    if (res?.ok) onToast('已更新 DAG 子任务节点上限')
+                  })
+                }}
+              />
+            </label>
+            <span className="routing-field-hint">1–12 个节点，默认 6；较高上限会增加单次任务的规划与执行量</span>
+          </div>
+          <div className="routing-field-inline routing-field-select">
+            <label>
               <span>DAG 计划审批</span>
               <select
                 value={dagPlanApproval}
@@ -369,7 +389,7 @@ export function RoutingPortfolioSettingsPanel({
               </select>
             </label>
           </div>
-          <div className="routing-field-inline">
+          <div className="routing-field-inline routing-field-toggle">
             <label>
               <span>DAG 跨提供方自动审查</span>
               <input
@@ -477,20 +497,26 @@ export function RoutingPortfolioSettingsPanel({
         </article>
 
         <article className="routing-settings-card">
-          <h3>多智能体记忆</h3>
+          <h3><Database size={15} aria-hidden="true" />多智能体记忆</h3>
           <p className="routing-card-desc">当前会话的 L0–L2 外置记忆（编排注入用）。</p>
           {hasMemory ? (
             <pre className="routing-memory-preview">{memorySummary}</pre>
           ) : (
-            <p className="settings-list-empty" style={{ margin: 0 }}>当前会话尚无多智能体记忆。</p>
+            <div className="routing-memory-empty">
+              <span className="routing-memory-empty-icon"><Database size={16} aria-hidden="true" /></span>
+              <span>
+                <strong>当前会话暂无记忆</strong>
+                <small>开始多智能体任务后，相关摘要会显示在这里。</small>
+              </span>
+            </div>
           )}
-          <button type="button" className="settings-secondary-button" onClick={() => { void clearMemory() }}>
+          <button type="button" className="settings-secondary-button routing-memory-clear" disabled={!hasMemory} onClick={() => { void clearMemory() }}>
             <RotateCcw size={14} />
             清空当前会话记忆
           </button>
         </article>
 
-        <article className="routing-settings-card routing-settings-card-wide">
+        <article className="routing-settings-card">
           <h3>工具与隔离</h3>
           <p className="routing-card-desc">影响 Agent 可用工具与文件/Bash 执行环境。</p>
           <div className="routing-toggles-stack">

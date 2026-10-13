@@ -10,17 +10,19 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const appCandidates = [
-  path.join(root, 'release/mac-arm64/TaskWeaver.app'),
-  path.join(root, 'release/mac/TaskWeaver.app'),
-  path.join(root, 'release/mac-universal/TaskWeaver.app'),
-]
+const appCandidates = process.argv[2]
+  ? [path.resolve(process.argv[2])]
+  : [
+      path.join(root, 'release/mac-arm64/TaskWeaver.app'),
+      path.join(root, 'release/mac/TaskWeaver.app'),
+      path.join(root, 'release/mac-universal/TaskWeaver.app'),
+    ]
 const appPath = appCandidates.find((candidate) => fs.existsSync(candidate))
 assert.ok(appPath, 'TaskWeaver.app is missing; run pnpm run app:builder first')
 
 const resources = path.join(appPath, 'Contents/Resources')
 const hostNode = path.join(resources, 'host-node/bin/node')
-const shellEntry = path.join(resources, 'app/desktop/shell/run.mjs')
+const shellEntry = path.join(resources, 'app/backend/shell/run.mjs')
 const scheduledRunner = path.join(resources, 'taskweaver-scheduled-runner.mjs')
 assert.ok(fs.existsSync(hostNode), `missing bundled Node: ${hostNode}`)
 assert.ok(fs.existsSync(shellEntry), `missing shell backend: ${shellEntry}`)

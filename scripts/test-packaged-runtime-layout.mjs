@@ -27,7 +27,7 @@ if (!appPath) {
 
 const resources = path.join(appPath, 'Contents', 'Resources')
 const bundledHostNode = path.join(resources, 'host-node', 'bin', 'node')
-const runtimeRoot = path.join(resources, 'taskweaver-z-runtime')
+const runtimeRoot = path.join(resources, 'backend', 'runtime')
 const bridgeTransport = path.join(runtimeRoot, 'electron-vendor', 'taskweaver-bridge-transport', 'index.mjs')
 const chatRegistry = path.join(runtimeRoot, 'electron-vendor', 'dsh-chat-registry.mjs')
 const clientLib = path.join(
@@ -38,10 +38,14 @@ const clientLib = path.join(
 )
 
 await fs.access(bundledHostNode)
+await fs.access(path.join(resources, 'app', 'backend', 'shell', 'run.mjs'))
+await fs.access(path.join(resources, 'app', 'contract', 'channels.mjs'))
+await fs.access(path.join(resources, 'app', 'dist', 'index.html'))
+await fs.access(path.join(resources, 'AppIcon.icns'))
 await fs.access(bridgeTransport)
 await fs.access(chatRegistry)
 await fs.access(clientLib)
-await fs.access(path.resolve('desktop/vendor/dsh-chat-registry.mjs'))
+await fs.access(path.resolve('backend/vendor/dsh-chat-registry.mjs'))
 
 const cursorLoader = path.join(runtimeRoot, 'electron-vendor', 'taskweaver-bridge-transport', 'cursor-adapter-loader.mjs')
 const cursorLoaderSource = await fs.readFile(cursorLoader, 'utf8')

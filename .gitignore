@@ -28,3 +28,6 @@ prototype.html
 dsh-source/
 .workbuddy-ai/
 .test-worktree-diff/
+**/.build/
+apps/macos/build/
+**/.typert-export-forms-*/

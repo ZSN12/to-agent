@@ -17,12 +17,12 @@ import {
   humanizeBridgeTransportError,
   isCursorBridgeTransportRoute,
   isDeprecatedOpenCodexChatRoute,
-} from '../desktop/backend/cursor-tool-guidance.mjs'
+} from '../backend/cursor-tool-guidance.mjs'
 import {
   ocxSupportsComposerToolContinuation,
   OCX_COMPOSER_CONTINUATION_MIN_VERSION,
-} from '../desktop/backend/opencodex-binary.mjs'
-import { selectModelForTask } from '../desktop/backend/orchestration-policy.mjs'
+} from '../backend/opencodex-binary.mjs'
+import { selectModelForTask } from '../backend/orchestration-policy.mjs'
 
 console.log('🧪 开始降级路径自动化验证矩阵 (test-degradation-matrix)...\n')
 
@@ -74,7 +74,7 @@ console.log('--- 场景 B: Cursor 协议端异常 / wire 格式变动优雅降�
 const wireToolError = 'unknown Responses tool: read'
 const toolGuidance = humanizeBridgeTransportError(wireToolError, 'bridge-composer/cursor/composer-2.5')
 assert.ok(toolGuidance.includes('Composer 调用了本轮未向内置桥登记的 tools 名「read」'))
-assert.ok(toolGuidance.includes('经内置桥接时请改用 ocx_client_read'))
+assert.ok(toolGuidance.includes('手动添加前缀不会注册缺失工具'))
 assert.ok(toolGuidance.includes(wireToolError))
 
 const privateToolError = 'unknown Responses tool: file_search'

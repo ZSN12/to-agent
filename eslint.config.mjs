@@ -8,7 +8,7 @@ const runtimeSource = 'packages/runtime/{apps,packages,scripts}/**/*.{ts,tsx}'
 export default [
   {
     ignores: [
-      'desktop/vendor/**',
+      'backend/vendor/**',
       'release/**',
       '**/dist/**',
       'vendor/opencodex/**',

@@ -670,6 +670,12 @@ importers:
       '@taskweaver/dsh-host-webserver':
         specifier: workspace:^
         version: link:../../host/webserver
+      '@taskweaver/dsh-lsp':
+        specifier: workspace:^
+        version: link:../../lsp/lsp
+      '@taskweaver/dsh-lsp-stdio':
+        specifier: workspace:^
+        version: link:../../lsp/lsp-stdio
       '@taskweaver/dsh-session-log-export':
         specifier: workspace:^
         version: link:../../session-query/session-log-export
@@ -691,6 +697,9 @@ importers:
       '@taskweaver/dsh-storage-json':
         specifier: workspace:^
         version: link:../../storage/storage-json
+      '@taskweaver/dsh-tool-lsp':
+        specifier: workspace:^
+        version: link:../../lsp/tool-lsp
       '@taskweaver/dsh-tool-web':
         specifier: workspace:^
         version: link:../../web/tool-web

@@ -13,9 +13,9 @@ const resourcesPath = process.env.TASKWEAVER_RESOURCES_PATH
 if (packaged && !resourcesPath) throw new Error('TASKWEAVER_RESOURCES_PATH is required for the packaged scheduled runner')
 const appRoot = packaged ? path.join(resourcesPath, 'app.asar') : sourceRoot
 const [{ createScheduledJobsStore }, { withScheduledJobLock }, { resolveHostNodeExecutable }] = await Promise.all([
-  import(pathToFileURL(path.join(appRoot, 'desktop/backend/scheduled-jobs-store.mjs')).href),
-  import(pathToFileURL(path.join(appRoot, 'desktop/backend/scheduled-job-lock.mjs')).href),
-  import(pathToFileURL(path.join(appRoot, 'desktop/agent/z-host/resolve-host-executable.mjs')).href),
+  import(pathToFileURL(path.join(appRoot, 'backend/scheduled-jobs-store.mjs')).href),
+  import(pathToFileURL(path.join(appRoot, 'backend/scheduled-job-lock.mjs')).href),
+  import(pathToFileURL(path.join(appRoot, 'backend/agent/z-host/resolve-host-executable.mjs')).href),
 ])
 
 const hostNode = resolveHostNodeExecutable({

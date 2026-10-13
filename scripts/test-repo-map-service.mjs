@@ -10,9 +10,59 @@ import {
   clearRepoMapCache,
   getRepoMapCacheSize,
   setSymbolOutlineExtractor,
-} from '../desktop/backend/repo-map-service.mjs'
+  fallbackExtractSymbols,
+} from '../backend/repo-map-service.mjs'
 
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'test-repo-map-'))
+
+function referencePageRank(fileNodes, { damping = 0.85, iterations = 20 } = {}) {
+  const n = fileNodes.length
+  if (n === 0) return new Map()
+  if (n === 1) return new Map([[fileNodes[0].relativePath, 1]])
+  const outgoing = new Map(fileNodes.map((node) => [node.relativePath, new Set()]))
+  const incoming = new Map(fileNodes.map((node) => [node.relativePath, new Set()]))
+  for (let i = 0; i < n; i++) {
+    const source = fileNodes[i]
+    for (let j = 0; j < n; j++) {
+      if (i === j) continue
+      const target = fileNodes[j]
+      let linked = false
+      for (const def of target.defs) {
+        if (source.refs.has(def)) {
+          linked = true
+          break
+        }
+      }
+      if (!linked) {
+        const base = path.basename(target.relativePath, path.extname(target.relativePath))
+        linked = source.refs.has(base)
+      }
+      if (linked) {
+        outgoing.get(source.relativePath).add(target.relativePath)
+        incoming.get(target.relativePath).add(source.relativePath)
+      }
+    }
+  }
+  let ranks = new Map(fileNodes.map((node) => [node.relativePath, 1 / n]))
+  for (let iter = 0; iter < iterations; iter++) {
+    let danglingSum = 0
+    for (const node of fileNodes) {
+      if (outgoing.get(node.relativePath).size === 0) danglingSum += ranks.get(node.relativePath)
+    }
+    const baseProb = (1 - damping) / n + (damping * danglingSum) / n
+    const nextRanks = new Map()
+    for (const node of fileNodes) {
+      let incomingShare = 0
+      for (const sourcePath of incoming.get(node.relativePath)) {
+        const outDeg = outgoing.get(sourcePath).size
+        if (outDeg > 0) incomingShare += ranks.get(sourcePath) / outDeg
+      }
+      nextRanks.set(node.relativePath, baseProb + damping * incomingShare)
+    }
+    ranks = nextRanks
+  }
+  return ranks
+}
 
 try {
   const workspace = path.join(tempRoot, 'repo')
@@ -147,6 +197,19 @@ export class InvoiceManager {
   ]
   const ranks = computePageRank(fileNodes)
   assert.ok(ranks.get('logger.ts') > ranks.get('auth.ts'), '被多个模块引用的 Logger 应获得更高的 PageRank')
+
+  const graphCases = [
+    { relativePath: 'src/auth.ts', defs: new Set(['AuthService']), refs: new Set(['Logger', 'tokens', 'Self']) },
+    { relativePath: 'src/logging.ts', defs: new Set(['Logger', 'Shared']), refs: new Set(['AuthService']) },
+    { relativePath: 'src/other/logging.js', defs: new Set(['Shared']), refs: new Set(['Logger']) },
+    { relativePath: 'src/tokens.ts', defs: new Set(['TokenStore']), refs: new Set(['Shared']) },
+    { relativePath: 'src/isolated.ts', defs: new Set(['Self']), refs: new Set(['Self']) },
+  ]
+  const optimizedRanks = computePageRank(graphCases)
+  const referenceRanks = referencePageRank(graphCases)
+  for (const [relativePath, rank] of referenceRanks) {
+    assert.ok(Math.abs(optimizedRanks.get(relativePath) - rank) < 1e-12, `优化后的 PageRank 必须保持 ${relativePath} 的原有结果`)
+  }
   console.log('✓ Case 2: 基础地图生成与 PageRank 计算验证通过')
 
   // Case 3: Query 意图引导与符号重排
@@ -190,7 +253,41 @@ export class InvoiceManager {
   assert.match(updatedMap, /newLogHelper/, '修改文件后应刷新缓存并提取新符号')
   console.log('✓ Case 5: 内存缓存与 mtime 失效机制验证通过')
 
-  // Case 6: 符号提取器注入与 precomputedSymbols 兼容性验证
+  // Case 6: 磁盘只保存大纲/引用索引，并在重启式冷内存后增量复用
+  const outlineCacheDirectory = path.join(tempRoot, 'persistent-repo-map-cache')
+  let persistentExtractorCalls = 0
+  setSymbolOutlineExtractor((filePath, content) => {
+    persistentExtractorCalls += 1
+    return fallbackExtractSymbols(filePath, content)
+  })
+  clearRepoMapCache()
+  const persistentMap = await generateRepoMap(workspace, { maxTokens: 4000, cacheDirectory: outlineCacheDirectory })
+  const initialExtractorCalls = persistentExtractorCalls
+  assert.ok(initialExtractorCalls > 0, '冷磁盘缓存必须提取一次源码符号')
+  const outlineCacheFiles = await fs.readdir(outlineCacheDirectory)
+  assert.equal(outlineCacheFiles.length, 1, '每个工作区使用一个有界缓存文件')
+  const outlineCacheDoc = JSON.parse(await fs.readFile(path.join(outlineCacheDirectory, outlineCacheFiles[0]), 'utf8'))
+  assert.equal(outlineCacheDoc.schema, 1)
+  assert.ok(outlineCacheDoc.files.length > 0)
+  assert.ok(outlineCacheDoc.files.every((item) => !Object.hasOwn(item, 'content')),
+    '持久化缓存只保存路径元数据、符号与引用，不保存文件全文')
+
+  clearRepoMapCache()
+  persistentExtractorCalls = 0
+  const warmDiskMap = await generateRepoMap(workspace, { maxTokens: 4000, cacheDirectory: outlineCacheDirectory })
+  assert.equal(persistentExtractorCalls, 0, '清空进程内缓存后应直接复用磁盘中的未变化大纲')
+  assert.equal(warmDiskMap, persistentMap, '复用持久化大纲时地图输出保持稳定')
+
+  await fs.appendFile(path.join(workspace, 'src', 'utils', 'logger.ts'), '\nexport class PersistentCacheRefresh {}\n')
+  clearRepoMapCache()
+  persistentExtractorCalls = 0
+  const incrementallyUpdatedMap = await generateRepoMap(workspace, { maxTokens: 4000, cacheDirectory: outlineCacheDirectory })
+  assert.match(incrementallyUpdatedMap, /PersistentCacheRefresh/)
+  assert.equal(persistentExtractorCalls, 1, '文件变化时只重新提取发生变化的文件')
+  setSymbolOutlineExtractor(null)
+  console.log('✓ Case 6: Repo Map 磁盘大纲缓存、冷启动复用与增量更新验证通过')
+
+  // Case 7: 符号提取器注入与 precomputedSymbols 兼容性验证
   const customSymbolsMap = await generateRepoMap(workspace, {
     precomputedSymbols: {
       'virtual/api.ts': [
@@ -217,7 +314,7 @@ export class InvoiceManager {
   setSymbolOutlineExtractor(null)
   console.log('✓ Case 6: 符号提取器注入与 precomputedSymbols 验证通过')
 
-  // Case 7: 边界情况（空目录、极端字符、零预算等）
+  // Case 8: 边界情况（空目录、极端字符、零预算等）
   const emptyDir = path.join(tempRoot, 'empty')
   await fs.mkdir(emptyDir)
   const emptyResult = await generateRepoMap(emptyDir)

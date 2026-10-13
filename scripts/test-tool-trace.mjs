@@ -1,9 +1,35 @@
 import assert from 'node:assert/strict'
-import { extractFileDiff, normalizeToolResult, summarizeToolInput, summarizeToolResult } from '../desktop/backend/tool-trace.mjs'
+import { applyReverseDiffEdits } from '../backend/workspace-diff-revert.mjs'
+import {
+  extractFileDiff,
+  extractToolOutputText,
+  normalizeToolResult,
+  summarizeShellCommand,
+  summarizeShellCommandOutcome,
+  summarizeToolInput,
+  summarizeToolResult,
+} from '../backend/tool-trace.mjs'
 
 const command = summarizeToolInput('bash', { command: 'curl -H "Authorization: Bearer abcdefghijklmnop12345" https://example.invalid' })
 assert.equal(command.includes('abcdefghijklmnop12345'), false)
 assert.match(command, /已隐藏/)
+assert.equal(summarizeShellCommand('bash', { command: 'pnpm test', description: 'Run tests' }), 'pnpm test')
+assert.equal(summarizeShellCommand('read', { command: 'pnpm test' }), null)
+assert.deepEqual(summarizeShellCommandOutcome('bash', { command: 'pnpm test' }, 'tests failed\n[exit code: 4]'), {
+  exitCode: 4,
+  background: false,
+  timedOut: false,
+  sandboxDenied: false,
+})
+assert.deepEqual(summarizeShellCommandOutcome('bash', { command: 'pnpm test' }, 'tests passed'), {
+  exitCode: 0,
+  background: false,
+  timedOut: false,
+  sandboxDenied: false,
+})
+assert.equal(summarizeShellCommandOutcome('bash', { command: 'pnpm test' }, 'output\n[timed out after 500ms]').exitCode, null)
+assert.equal(summarizeShellCommandOutcome('bash', { command: 'pnpm test', run_in_background: true }, 'started background job j1').background, true)
+assert.equal(summarizeShellCommandOutcome('bash', { command: 'pnpm test' }, 'output\n[exit code: 0]', true).exitCode, null)
 
 const args = summarizeToolInput('write', { path: '/tmp/note.md', content: 'private body' })
 assert.equal(args, '/tmp/note.md')
@@ -18,6 +44,7 @@ assert.equal(error.includes('supersecret'), false)
 const wrapped = { content: [{ type: 'tool-result', toolCallId: 'read-1', content: [{ type: 'text', text: 'actual file contents' }] }] }
 assert.equal(summarizeToolResult(wrapped, false), '执行完成 · 1 个结果块，约 20 字符')
 assert.equal(summarizeToolResult(wrapped, false).includes('actual file contents'), false)
+assert.equal(extractToolOutputText(wrapped), 'actual file contents', 'full text is extracted before trace compaction')
 const nestedError = { content: [{ type: 'tool-result', isError: true, content: [{ type: 'text', text: 'SEARCH_RAW_OUTPUT_OVERFLOW token=supersecret' }] }] }
 assert.match(summarizeToolResult(nestedError, false), /SEARCH_RAW_OUTPUT_OVERFLOW/)
 assert.equal(summarizeToolResult(nestedError, false).includes('supersecret'), false)
@@ -32,6 +59,46 @@ assert.equal(editMetaDiff.addedLines, 1)
 assert.equal(editMetaDiff.deletedLines, 1)
 assert.match(editMetaDiff.diff, /-old line/)
 assert.match(editMetaDiff.diff, /\+new line/)
+assert.deepEqual(editMetaDiff.reverseEdits, [{
+  oldText: 'keep\nnew line\nend',
+  newText: 'keep\nold line\nend',
+}], 'each contextual diff hunk carries its own safe reverse edit')
+assert.equal(
+  applyReverseDiffEdits('start\nkeep\nnew line\nend\nfinish', editMetaDiff.reverseEdits).content,
+  'start\nkeep\nold line\nend\nfinish',
+)
+assert.throws(
+  () => applyReverseDiffEdits('keep\nnew line\nend\nkeep\nnew line\nend', editMetaDiff.reverseEdits),
+  /出现多次/,
+  'ambiguous repeated contexts must not edit an arbitrary location',
+)
+assert.throws(
+  () => applyReverseDiffEdits('keep\nother line\nend', editMetaDiff.reverseEdits),
+  /内容已变化/,
+  'stale hunks must fail instead of silently succeeding',
+)
+const alreadyReverted = applyReverseDiffEdits('keep\nold line\nend', editMetaDiff.reverseEdits)
+assert.equal(alreadyReverted.changed, false, 'retrying an already applied hunk is idempotent')
+const emptyFileInsertion = extractFileDiff('edit', { file_path: '/workspace/empty.txt' }, {
+  content: [{ type: 'text', text: 'updated' }],
+  meta: { diffs: [{ path: 'empty.txt', oldText: null, newText: 'new content' }] },
+})
+assert.deepEqual(emptyFileInsertion.reverseEdits, [{ oldText: 'new content', newText: '' }])
+const emptyAfterInsertionRevert = applyReverseDiffEdits('new content', emptyFileInsertion.reverseEdits)
+assert.equal(emptyAfterInsertionRevert.content, '')
+assert.equal(applyReverseDiffEdits('', emptyFileInsertion.reverseEdits).changed, false)
+const fullFileDeletion = extractFileDiff('edit', { file_path: '/workspace/file.txt' }, {
+  content: [{ type: 'text', text: 'updated' }],
+  meta: { diffs: [{ path: 'file.txt', oldText: 'entire original file', newText: '' }] },
+})
+assert.deepEqual(fullFileDeletion.reverseEdits, [{ oldText: '', newText: 'entire original file' }])
+assert.equal(applyReverseDiffEdits('', fullFileDeletion.reverseEdits).content, 'entire original file')
+assert.equal(applyReverseDiffEdits('entire original file', fullFileDeletion.reverseEdits).changed, false)
+assert.throws(
+  () => applyReverseDiffEdits('modified after deletion', fullFileDeletion.reverseEdits),
+  /内容已变化/,
+  'empty-target reversal must only restore an actually empty file',
+)
 const createdFile = extractFileDiff('write', { file_path: '/workspace/new.md', content: 'one\ntwo\n' }, {
   content: [{ type: 'text', text: '<content>Created file</content>' }],
   meta: { diffs: [] },

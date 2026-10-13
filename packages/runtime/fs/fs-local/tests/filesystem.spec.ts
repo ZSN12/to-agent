@@ -598,6 +598,102 @@ describe('writeText', () => {
   })
 })
 
+describe('applyTextTransaction', () => {
+  it.skipIf(process.platform === 'win32')('creates and replaces a guarded batch after preflight', async () => {
+    const existingPath = join(dir, 'existing.txt')
+    await writeFile(existingPath, 'before\n')
+    const existing = await fs.resolve(existingPath)
+    const added = await fs.resolve(join(dir, 'added.txt'))
+    const outcomes = await fs.applyTextTransaction([
+      { target: existing, content: 'after\n', expected: { kind: 'replaceIfVersion', version: await versionOf(existing) } },
+      { target: added, content: 'new\n', expected: { kind: 'createIfAbsent' } },
+    ])
+
+    expect(outcomes.map(outcome => outcome.operation)).toEqual(['update', 'create'])
+    expect(await readFile(existingPath, 'utf8')).toBe('after\n')
+    expect(await readFile(join(dir, 'added.txt'), 'utf8')).toBe('new\n')
+  })
+
+  it.skipIf(process.platform === 'win32')('rejects a stale later target before publishing earlier targets', async () => {
+    const firstPath = join(dir, 'first.txt')
+    const laterPath = join(dir, 'later.txt')
+    await writeFile(firstPath, 'first')
+    await writeFile(laterPath, 'later')
+    const first = await fs.resolve(firstPath)
+    const later = await fs.resolve(laterPath)
+
+    await expect(fs.applyTextTransaction([
+      { target: first, content: 'changed', expected: { kind: 'replaceIfVersion', version: await versionOf(first) } },
+      { target: later, content: 'changed', expected: { kind: 'replaceIfVersion', version: FsVersion('stale') } },
+    ])).rejects.toMatchObject({ code: 'FS_STALE_VERSION' })
+    expect(await readFile(firstPath, 'utf8')).toBe('first')
+    expect(await readFile(laterPath, 'utf8')).toBe('later')
+  })
+
+  it.skipIf(process.platform === 'win32')('compensates completed publications when a later member fails', async () => {
+    const firstPath = join(dir, 'first.txt')
+    const addedPath = join(dir, 'added.txt')
+    await writeFile(firstPath, 'original')
+    const first = await fs.resolve(firstPath)
+    const added = await fs.resolve(addedPath)
+    fs.internals.beforeTransactionPublish = async ({ index }) => {
+      if (index === 1) throw new Error('injected publication failure')
+    }
+
+    await expect(fs.applyTextTransaction([
+      { target: first, content: 'replacement', expected: { kind: 'replaceIfVersion', version: await versionOf(first) } },
+      { target: added, content: 'new', expected: { kind: 'createIfAbsent' } },
+    ])).rejects.toThrow('injected publication failure')
+    expect(await readFile(firstPath, 'utf8')).toBe('original')
+    await expect(stat(addedPath)).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  it.skipIf(process.platform === 'win32')('preserves an external later-file change and rolls back earlier publications', async () => {
+    const firstPath = join(dir, 'first.txt')
+    const laterPath = join(dir, 'later.txt')
+    await writeFile(firstPath, 'first-original')
+    await writeFile(laterPath, 'later-original')
+    const first = await fs.resolve(firstPath)
+    const later = await fs.resolve(laterPath)
+    fs.internals.beforeTransactionPublish = async ({ index }) => {
+      if (index === 1) await writeFile(laterPath, 'external-later-change')
+    }
+
+    await expect(fs.applyTextTransaction([
+      { target: first, content: 'first-replacement', expected: { kind: 'replaceIfVersion', version: await versionOf(first) } },
+      { target: later, content: 'later-replacement', expected: { kind: 'replaceIfVersion', version: await versionOf(later) } },
+    ])).rejects.toMatchObject({ code: 'FS_STALE_VERSION' })
+    expect(await readFile(firstPath, 'utf8')).toBe('first-original')
+    expect(await readFile(laterPath, 'utf8')).toBe('external-later-change')
+  })
+
+  it.skipIf(process.platform === 'win32')('serializes concurrent batches and rejects the stale batch without partial creation', async () => {
+    const path = join(dir, 'shared.txt')
+    await writeFile(path, 'base')
+    const shared = await fs.resolve(path)
+    const left = await fs.resolve(join(dir, 'left.txt'))
+    const right = await fs.resolve(join(dir, 'right.txt'))
+    const version = await versionOf(shared)
+    const results = await Promise.allSettled([
+      fs.applyTextTransaction([
+        { target: shared, content: 'left', expected: { kind: 'replaceIfVersion', version } },
+        { target: left, content: 'left-only', expected: { kind: 'createIfAbsent' } },
+      ]),
+      fs.applyTextTransaction([
+        { target: shared, content: 'right', expected: { kind: 'replaceIfVersion', version } },
+        { target: right, content: 'right-only', expected: { kind: 'createIfAbsent' } },
+      ]),
+    ])
+
+    expect(results.filter(result => result.status === 'fulfilled')).toHaveLength(1)
+    expect(results.filter(result => result.status === 'rejected')).toHaveLength(1)
+    const leftExists = await stat(join(dir, 'left.txt')).then(() => true, () => false)
+    const rightExists = await stat(join(dir, 'right.txt')).then(() => true, () => false)
+    expect(Number(leftExists) + Number(rightExists)).toBe(1)
+    expect(['left', 'right']).toContain(await readFile(path, 'utf8'))
+  })
+})
+
 describe('editText', () => {
   it('applies a literal edit at the matching version', async () => {
     await writeFile(join(dir, 'a.txt'), 'hello world')

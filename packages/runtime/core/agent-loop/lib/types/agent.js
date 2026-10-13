@@ -4,11 +4,12 @@
  * @module dsh-agent-loop/agent
  */
 import { Inbox, agentEvents, assembleContextFor } from '@taskweaver/dsh-agent';
-import { BlockAssembler, LlmError, createAssistantMessage, deepFreeze, errorChain, markAgentLoopRequest, } from '@taskweaver/dsh-llm';
+import { BlockAssembler, LlmError, createAssistantMessage, createUserMessage, deepFreeze, errorChain, markAgentLoopRequest, } from '@taskweaver/dsh-llm';
 import { createScope } from '@taskweaver/dsh-scope';
 import { canonicalHeader, headerEquals } from '@taskweaver/dsh-session';
 import { joinContextSections, renderContextSections, renderPrompt } from '@taskweaver/dsh-system-prompt';
 import { RuntimeContextProjection } from "./runtime-context.js";
+import { DEFAULT_MAX_AGENT_STEPS } from "./constants.js";
 import { executeToolCalls } from "./tool-calls.js";
 /** Remove adapter-derived values before plugins propose the next request config. */
 function requestProposal(header) {
@@ -145,6 +146,7 @@ export class ReactLoopAgent {
             turn: this.phase.lastTurn,
             step: 0,
             wakeRequested: false,
+            outputSchema: undefined,
         });
         this.loopCtx.agents.withInitiator(this, () => this.kick()).then(driver.resolve, driver.reject);
     }
@@ -212,15 +214,24 @@ export class ReactLoopAgent {
         }
         phase.turn = turn;
         let turnEnds = null;
+        let maxTokenRecoveryUsed = false;
         let target = 'next-turn';
         try {
             while (true) {
                 signal.throwIfAborted();
+                const maxSteps = this.options.maxSteps ?? DEFAULT_MAX_AGENT_STEPS;
+                if (phase.step >= maxSteps) {
+                    throw new LlmError(`agent "${this.id}" reached its per-turn step limit (${maxSteps})`, 'MAX_STEPS');
+                }
                 const step = phase.step + 1;
                 const decision = await this.preStep(target, { turn, step });
                 if (decision.kind === 'reject') {
                     turnEnds = { kind: 'blocked' };
                     return false;
+                }
+                const userInputs = decision.messages.filter(message => message.source.kind === 'user');
+                if (phase.step === 0 || userInputs.length > 0) {
+                    phase.outputSchema = userInputs.find(message => message.source.outputSchema !== undefined)?.source.outputSchema;
                 }
                 if (turnEnds && decision.messages.length === 0)
                     break;
@@ -240,10 +251,25 @@ export class ReactLoopAgent {
                     // max-tokens is sticky: once any step hits the ceiling, later steps
                     // that complete normally must not downgrade the turn outcome.
                     const stepEnd = await this.step(decision.assembly);
-                    // max-tokens stays sticky: a later completed step must not
-                    // downgrade the turn outcome.
-                    if (turnEnds === null || turnEnds.kind !== 'max-tokens')
-                        turnEnds = stepEnd;
+                    if (stepEnd?.kind === 'max-tokens' && !maxTokenRecoveryUsed) {
+                        maxTokenRecoveryUsed = true;
+                        const continuation = stepEnd.truncatedToolCall
+                            ? '模型上一条回复在生成工具调用参数时达到输出上限；不完整的工具调用已丢弃且不会执行。请把计划拆成更小、参数更短的独立工具调用，再继续完成用户任务。'
+                            : '模型上一条回复达到输出上限。请从刚才停止的位置继续，不要重复已经完成的内容，继续完成用户任务。';
+                        this.inject(createUserMessage({
+                            content: [{ type: 'text', text: continuation }],
+                            source: {
+                                kind: 'plugin',
+                                plugin: 'dsh-agent-loop/max-tokens-recovery',
+                                form: 'notice',
+                                summary: '模型输出达到上限，正在自动安全续写一次。',
+                            },
+                        }));
+                        turnEnds = null;
+                    }
+                    else if (turnEnds === null || turnEnds.kind !== 'max-tokens') {
+                        turnEnds = stepEnd?.kind === 'max-tokens' ? { kind: 'max-tokens' } : stepEnd;
+                    }
                 }
                 finally {
                     this.session.append('step/end', { turn, step });
@@ -298,15 +324,22 @@ export class ReactLoopAgent {
         signal.throwIfAborted();
         const system = renderPrompt(assembly);
         while (true) {
-            const { request, preparedCall } = await this.buildRequest(turn, step, assembly.tools, system, this.session.deriveMessages(), signal);
+            const { request, preparedCall } = await this.buildRequest(turn, step, assembly.tools, system, this.session.deriveMessages(), signal, this.phase.kind === 'running' ? this.phase.outputSchema : undefined);
             const assembler = new BlockAssembler();
             const chunkSeqs = [];
+            let streamStarted = false;
             try {
                 const stream = preparedCall?.stream(request) ?? this.loopCtx.llm.stream(request);
                 signal.throwIfAborted();
                 for await (const chunk of stream) {
                     signal.throwIfAborted();
                     chunkSeqs.push(this.session.append('assistant/chunk', { turn, step, chunk }).seq);
+                    if (chunk.type === 'block-end'
+                        || (chunk.type === 'text-delta' && chunk.text.length > 0)
+                        || (chunk.type === 'reasoning-delta' && chunk.text.length > 0)
+                        || (chunk.type === 'tool-call-delta' && (Boolean(chunk.name) || chunk.argumentsDelta.length > 0))) {
+                        streamStarted = true;
+                    }
                     assembler.push(chunk);
                 }
                 signal.throwIfAborted();
@@ -337,6 +370,7 @@ export class ReactLoopAgent {
                     provider: request.provider,
                     failure: finish.failure,
                     retryPolicy: preparedCall?.retryPolicy,
+                    streamStarted,
                     signal,
                 }, () => Promise.resolve(undefined));
                 signal.throwIfAborted();
@@ -359,8 +393,9 @@ export class ReactLoopAgent {
                 message,
                 ...assembler.usage === undefined ? {} : { usage: assembler.usage },
             }, { surfaceOp: 'append', sourceEventSeqs: chunkSeqs });
-            if (finish.kind === 'max-tokens')
-                return { kind: 'max-tokens' };
+            if (finish.kind === 'max-tokens') {
+                return { kind: 'max-tokens', truncatedToolCall: assembler.hasToolCall };
+            }
             const toolCalls = message.content.filter(block => block.type === 'tool-call');
             if (toolCalls.length === 0)
                 return { kind: 'completed' };
@@ -372,7 +407,7 @@ export class ReactLoopAgent {
      * Compose one frozen request and bind it to the adapter registration that
      * resolved its exact-model defaults.
      */
-    async buildRequest(turn, step, tools, system, boundaryMessages, signal) {
+    async buildRequest(turn, step, tools, system, boundaryMessages, signal, outputSchema) {
         const { session } = this;
         // A loop instance starts from its declared route, restoring only an explicit
         // effort owned by that exact model. Later steps re-resolve marked defaults.
@@ -443,6 +478,7 @@ export class ReactLoopAgent {
             messages: boundaryMessages,
             ...header.system !== undefined ? { system: header.system } : {},
             ...header.tools !== undefined ? { tools: header.tools } : {},
+            ...outputSchema !== undefined ? { outputSchema } : {},
             sessionId: this.session.id,
             signal,
         }));

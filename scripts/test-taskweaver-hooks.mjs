@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { loadTaskweaverHooks, runTaskweaverHooks, ensureWorkspaceHooksApproved } from '../desktop/backend/taskweaver-hook-runner.mjs'
+import { loadTaskweaverHooks, runTaskweaverHooks, ensureWorkspaceHooksApproved } from '../backend/taskweaver-hook-runner.mjs'
 
 const home = await fs.mkdtemp(path.join(os.tmpdir(), 'tw-hooks-'))
 await fs.writeFile(path.join(home, 'taskweaver-hooks.json'), JSON.stringify({
@@ -30,6 +30,14 @@ const trusted = await loadTaskweaverHooks(home, ws, { workspaceTrusted: true })
 assert.equal(trusted.beforeTurn.length, 2)
 
 process.env.TASKWEAVER_AUTO_APPROVE_HOOKS = '1'
+const packagedHome = await fs.mkdtemp(path.join(os.tmpdir(), 'tw-hooks-packaged-'))
+const packagedApproved = await ensureWorkspaceHooksApproved(packagedHome, ws, { isPackaged: true })
+assert.equal(packagedApproved, false, 'the development-only auto-approve override must not approve hooks in packaged builds')
+await assert.rejects(
+  fs.access(path.join(packagedHome, 'hook-approvals.json')),
+  { code: 'ENOENT' },
+  'a packaged auto-approve attempt must not persist an approval',
+)
 const approved = await ensureWorkspaceHooksApproved(home, ws)
 assert.equal(approved, true)
 const trustedAfterApproval = await loadTaskweaverHooks(home, ws, { workspaceTrusted: true })

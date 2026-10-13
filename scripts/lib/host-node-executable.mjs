@@ -1,4 +1,4 @@
-import { resolveHostNodeExecutable } from '../../desktop/agent/z-host/resolve-host-executable.mjs'
+import { resolveHostNodeExecutable } from '../../backend/agent/z-host/resolve-host-executable.mjs'
 
 let cachedExecutable
 

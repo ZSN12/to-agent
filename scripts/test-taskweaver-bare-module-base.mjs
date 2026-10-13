@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { prepareRuntimeCwd, runtimePackagesResolveSmoke } from '../desktop/agent/z-host/spawn-host.mjs'
+import { prepareRuntimeCwd, runtimePackagesResolveSmoke } from '../backend/agent/z-host/spawn-host.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const deploy = path.join(root, 'vendor', 'taskweaver-z-runtime')

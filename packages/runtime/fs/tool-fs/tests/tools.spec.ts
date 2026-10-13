@@ -26,7 +26,7 @@ import type {
   FsWriteOutcome,
 } from '@taskweaver/dsh-fs'
 import * as FsPolicy from '@taskweaver/dsh-fs-observation-policy'
-import * as ToolFs from '@taskweaver/dsh-tool-fs'
+import * as ToolFs from '../src/index.ts'
 import { STREAM_MIN_SIZE } from '../src/read.ts'
 import { formatReadOutput } from '../src/read-render.ts'
 import type { FileReadOutcome } from '../src/read-render.ts'
@@ -154,9 +154,9 @@ describe('session cwd resolution', () => {
 })
 
 describe('registration', () => {
-  it('registers read, write, and edit', async () => {
+  it('registers read, write, edit, and apply_patch', async () => {
     const { ctx } = await setup()
-    expect(ctx.tools.schemas().map(s => s.name).sort()).toEqual(['edit', 'read', 'write'])
+    expect(ctx.tools.schemas().map(s => s.name).sort()).toEqual(['apply_patch', 'edit', 'read', 'write'])
   })
 
   it('can register a genuinely read-only filesystem catalog without mutation tools', async () => {
@@ -166,6 +166,7 @@ describe('registration', () => {
     expect(prompt).toContain('Use the read tool')
     expect(prompt).not.toContain('Use the write tool')
     expect(prompt).not.toContain('Use the edit tool')
+    expect(prompt).not.toContain('apply_patch')
   })
 
   it('masks globally inherited write/edit tools only for a read-only scope', async () => {
@@ -178,21 +179,27 @@ describe('registration', () => {
     await scope.ctx.plugin(ToolFs, { mutations: false })
 
     expect(ctx.tools.schemas(agent).map(schema => schema.name).sort()).toEqual(['read'])
-    expect(ctx.tools.schemas().map(schema => schema.name).sort()).toEqual(['edit', 'read', 'write'])
+    expect(ctx.tools.schemas().map(schema => schema.name).sort()).toEqual(['apply_patch', 'edit', 'read', 'write'])
     expect(ctx.tools.get('write', agent)).toBeUndefined()
     expect(ctx.tools.get('edit', agent)).toBeUndefined()
+    expect(ctx.tools.get('apply_patch', agent)).toBeUndefined()
     const attemptedWrite = await call(ctx, 'write', { file_path: 'blocked.txt', content: 'nope' }, agent)
     expect(attemptedWrite.isError).toBe(true)
     expect(text(attemptedWrite)).toContain('unknown tool "write"')
+    const attemptedPatch = await call(ctx, 'apply_patch', { patch: '*** Begin Patch\n*** End Patch' }, agent)
+    expect(attemptedPatch.isError).toBe(true)
+    expect(text(attemptedPatch)).toContain('unknown tool "apply_patch"')
   })
 
-  it('declares read parallel-safe while write/edit remain exclusive', async () => {
+  it('declares read parallel-safe while write/edit/apply_patch remain exclusive', async () => {
     const { ctx } = await setup()
     expect(ctx.tools.executionMode({ signal: testToolSignal, callId: CallId('read-safe'), name: 'read', arguments: { file_path: 'a.txt' } }))
       .toEqual({ kind: 'parallel' })
     expect(ctx.tools.executionMode({ signal: testToolSignal, callId: CallId('write-exclusive'), name: 'write', arguments: { file_path: 'a.txt', content: 'x' } }))
       .toEqual({ kind: 'exclusive' })
     expect(ctx.tools.executionMode({ signal: testToolSignal, callId: CallId('edit-exclusive'), name: 'edit', arguments: { file_path: 'a.txt', old_string: 'x', new_string: 'y' } }))
+      .toEqual({ kind: 'exclusive' })
+    expect(ctx.tools.executionMode({ signal: testToolSignal, callId: CallId('patch-exclusive'), name: 'apply_patch', arguments: { patch: '' } }))
       .toEqual({ kind: 'exclusive' })
   })
 
@@ -202,6 +209,7 @@ describe('registration', () => {
     expect(prompt).toContain('Use the read tool')
     expect(prompt).toContain('Use the write tool')
     expect(prompt).toContain('Use the edit tool')
+    expect(prompt).toContain('Use apply_patch')
   })
 
   it('stays pending until ctx.fs exists (inject)', async () => {
@@ -221,9 +229,9 @@ describe('registration', () => {
     const fiber = await ctx.plugin(ToolFs)
     // Each tool contributes BOTH a schema and a prompt section; disposal must
     // withdraw both, not just the schemas.
-    expect(ctx.tools.schemas()).toHaveLength(3)
     const sectionNames = (a: { sections: { name: string }[] }) => a.sections.map(s => s.name).sort()
-    expect(sectionNames(await ctx.systemPrompt.assemble())).toEqual(['deployment:persona', 'harness:identity', 'tool:edit', 'tool:read', 'tool:write'])
+    expect(ctx.tools.schemas()).toHaveLength(4)
+    expect(sectionNames(await ctx.systemPrompt.assemble())).toEqual(['deployment:persona', 'harness:identity', 'tool:apply_patch', 'tool:edit', 'tool:read', 'tool:write'])
     await fiber.dispose()
     expect(ctx.tools.schemas()).toHaveLength(0)
     // Only the system-prompt plugin's own built-in sections remain.

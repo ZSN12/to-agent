@@ -58,6 +58,9 @@ export type ConnectionWriter = (
 /** Spawn one subprocess for this connection (the provider passes `ctx.subprocess.spawn`). */
 export type ConnectionSpawner = (spec: SubprocessSpawnSpec) => SubprocessHandle
 
+/** Receives a server→client notification. Notifications have no response channel. */
+export type ConnectionNotificationHandler = (method: string, params: unknown) => void
+
 const writeConnectionMessage: ConnectionWriter = (stdin, message, done) => {
   stdin.write(encodeMessage(message), done)
 }
@@ -78,12 +81,14 @@ export class LspConnection {
    * @param spawner - the subprocess seam's spawn (the provider passes `ctx.subprocess.spawn`).
    * @param onServerRequest - answers a server→client request; rejects to send an error response.
    * @param writer - message writer; tests inject callback failures without relying on OS pipe races.
+   * @param onServerNotification - receives notifications such as publishDiagnostics.
    */
   constructor(
     spec: ConnectionSpec,
     spawner: ConnectionSpawner,
     private readonly onServerRequest: (method: string, params: unknown) => Promise<unknown>,
     private readonly writer: ConnectionWriter = writeConnectionMessage,
+    private readonly onServerNotification: ConnectionNotificationHandler = () => {},
   ) {
     this.decoder = new MessageDecoder(spec.maxMessageBytes)
     // stdin/stdout are piped protocol streams this endpoint frames itself;
@@ -251,7 +256,12 @@ export class LspConnection {
       return
     }
     if (typeof method === 'string') {
-      // A server→client notification (e.g. diagnostics, logs): ignored by this MVP host.
+      // Notifications have no response. Keep parsing/caching policy in the owning instance.
+      try {
+        this.onServerNotification(method, frame.params)
+      } catch {
+        // A malformed or rejected notification cannot corrupt the JSON-RPC request stream.
+      }
       return
     }
     if (typeof id === 'number') this.handleResponse(id, frame)

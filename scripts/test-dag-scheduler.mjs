@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { validateAndOrderTasks, executeDag } from '../desktop/backend/dag-scheduler.mjs'
+import { validateAndOrderTasks, executeDag } from '../backend/dag-scheduler.mjs'
 
 const tasks = validateAndOrderTasks([
   { id: 'T1', title: '调研 A', description: '读代码', taskType: 'research', dependsOn: [] },
@@ -8,6 +8,22 @@ const tasks = validateAndOrderTasks([
 ])
 
 assert.equal(tasks.length, 3)
+
+const sevenNodePlan = Array.from({ length: 7 }, (_, index) => ({
+  id: `N${index + 1}`,
+  title: `节点 ${index + 1}`,
+  description: '配置上限测试',
+  taskType: 'research',
+  dependsOn: [],
+}))
+assert.throws(() => validateAndOrderTasks(sevenNodePlan), /1 到 6 个子任务/, 'default keeps the legacy six-node limit')
+assert.equal(validateAndOrderTasks(sevenNodePlan, { maxNodes: 7 }).length, 7, 'scheduler accepts a valid configured limit above the legacy default')
+assert.throws(() => validateAndOrderTasks(sevenNodePlan, { maxNodes: 13 }), /1 到 12 之间的整数/, 'scheduler rejects a configured limit outside the supported range')
+const sevenNodeExecution = await executeDag(sevenNodePlan, {
+  maxNodes: 7,
+  execute: async (task) => ({ text: task.id }),
+})
+assert.equal(sevenNodeExecution.results.size, 7, 'executor uses the configured DAG node cap')
 
 const order = []
 let active = 0

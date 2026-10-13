@@ -80,6 +80,17 @@ describe('read-only', () => {
     expect(await readFile(path, 'utf8')).toBe('original')
   })
 
+  it.skipIf(process.platform === 'win32')('denies a whole batch before creating any target', async () => {
+    const firstPath = join(workspace, 'first.txt')
+    const secondPath = join(workspace, 'second.txt')
+    await expect(fs.applyTextTransaction([
+      { target: await target(firstPath), content: 'first', expected: { kind: 'createIfAbsent' } },
+      { target: await target(secondPath), content: 'second', expected: { kind: 'createIfAbsent' } },
+    ])).rejects.toMatchObject({ code: 'FS_SANDBOX_DENIED' })
+    expect(existsSync(firstPath)).toBe(false)
+    expect(existsSync(secondPath)).toBe(false)
+  })
+
   it('allows reads (every mode permits reading)', async () => {
     const path = join(workspace, 'readable.txt')
     await writeFile(path, 'hello')
@@ -107,6 +118,17 @@ describe('workspace-write containment', () => {
     const path = join(outside, 'escape.txt')
     await expect(fs.writeText(await target(path), 'x')).rejects.toMatchObject({ code: 'FS_SANDBOX_DENIED' })
     expect(existsSync(path)).toBe(false)
+  })
+
+  it.skipIf(process.platform === 'win32')('checks every batch target before publishing an allowed earlier target', async () => {
+    const insidePath = join(workspace, 'inside.txt')
+    const outsidePath = join(outside, 'outside.txt')
+    await expect(fs.applyTextTransaction([
+      { target: await target(insidePath), content: 'inside', expected: { kind: 'createIfAbsent' } },
+      { target: await target(outsidePath), content: 'outside', expected: { kind: 'createIfAbsent' } },
+    ])).rejects.toMatchObject({ code: 'FS_SANDBOX_DENIED' })
+    expect(existsSync(insidePath)).toBe(false)
+    expect(existsSync(outsidePath)).toBe(false)
   })
 
   it('a `..` traversal out of the workspace is denied', async () => {

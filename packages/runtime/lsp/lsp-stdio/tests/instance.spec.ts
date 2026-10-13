@@ -77,6 +77,15 @@ async function run(instance: LspInstance, operation: LspProviderQuery['operation
   return instance.query(query(operation), source, signal)
 }
 
+async function sourceFor(filePath: string) {
+  const workspace = {
+    target: await fs.resolve(ws),
+    canonicalPath: ws,
+    fileUrl: pathToFileURL(ws).href,
+  }
+  return await readHostSource(fs, filePath, workspace, 4_000_000)
+}
+
 /** Build an instance whose "server" is an inline node script (for teardown-escalation control). */
 function scriptInstance(script: string, overrides: Partial<InstanceSpec> = {}): LspInstance {
   const instance = new LspInstance({
@@ -129,6 +138,54 @@ describe('LspInstance server-request handling', () => {
   it('rejects an unknown server request but keeps serving', async () => {
     const instance = makeInstance({ LSP_FAKE_ON_OPEN: 'unknown', LSP_FAKE_DEF: 'null' })
     await expect(run(instance, 'goToDefinition')).resolves.toEqual({ kind: 'locations', locations: [], resolvedWorkspaceUri: pathToFileURL(ws).href })
+  })
+})
+
+describe('LspInstance publishDiagnostics', () => {
+  it('waits for and caches bounded diagnostics independently by document URI', async () => {
+    const instance = makeInstance({
+      LSP_FAKE_DIAGNOSTICS: JSON.stringify([
+        {
+          range: { start: { line: 1, character: 2 }, end: { line: 1, character: 4 } },
+          severity: 1,
+          code: 2322,
+          source: 'typescript',
+          message: 'error at {{uri}}',
+        },
+        {
+          range: { start: { line: 0, character: 0 }, end: { line: 0, character: 1 } },
+          severity: 2,
+          message: 'warning',
+        },
+      ]),
+    })
+    const aUri = pathToFileURL(join(ws, 'a.ts')).href
+    const a = await instance.getDiagnostics(await sourceFor('a.ts'), 'typescript', 500)
+    expect(a).toEqual([
+      {
+        range: { start: { line: 1, character: 2 }, end: { line: 1, character: 4 } },
+        severity: 1,
+        code: 2322,
+        source: 'typescript',
+        message: `error at ${aUri}`,
+      },
+      {
+        range: { start: { line: 0, character: 0 }, end: { line: 0, character: 1 } },
+        severity: 2,
+        message: 'warning',
+      },
+    ])
+
+    await writeFile(join(ws, 'b.ts'), 'const y = 2\n')
+    const bUri = pathToFileURL(join(ws, 'b.ts')).href
+    const b = await instance.getDiagnostics(await sourceFor('b.ts'), 'typescript', 500)
+    expect(b[0]?.message).toBe(`error at ${bUri}`)
+    expect(a[0]?.message).toBe(`error at ${aUri}`)
+  })
+
+  it('returns no diagnostics when the server does not publish within the bounded wait', async () => {
+    const instance = makeInstance()
+    await expect(instance.getDiagnostics(await sourceFor('a.ts'), 'typescript', 20)).resolves.toEqual([])
   })
 })
 

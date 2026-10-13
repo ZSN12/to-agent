@@ -36,8 +36,36 @@ function firstInvokeChannel(node) {
   return channel
 }
 
-/** Read the methods exposed by the preload source, including channels and API paths. */
-export function parsePreloadApi(source, fileName = 'desktop/preload.cjs') {
+function firstSubscribeEvent(node) {
+  let event = null
+  function visit(current) {
+    if (event) return
+    if (
+      ts.isCallExpression(current)
+      && ts.isIdentifier(current.expression)
+      && current.expression.text === 'subscribe'
+      && current.arguments[0]
+      && ts.isStringLiteral(current.arguments[0])
+    ) {
+      event = current.arguments[0].text
+      return
+    }
+    if (ts.isArrowFunction(current) || ts.isFunctionExpression(current)) {
+      if (ts.isBlock(current.body)) {
+        for (const statement of current.body.statements) ts.forEachChild(statement, visit)
+      } else {
+        visit(current.body)
+      }
+      return
+    }
+    ts.forEachChild(current, visit)
+  }
+  visit(node)
+  return event
+}
+
+/** Read the methods exposed by the generated Shell bridge, including channels and API paths. */
+export function parseShellBridgeApi(source, fileName = 'src/shell/taskweaver-shell-bridge.generated.ts') {
   const extension = path.extname(fileName)
   const kind = extension === '.tsx'
     ? ts.ScriptKind.TSX
@@ -46,8 +74,18 @@ export function parsePreloadApi(source, fileName = 'desktop/preload.cjs') {
       : ts.ScriptKind.JS
   const sourceFile = ts.createSourceFile(fileName, source, ts.ScriptTarget.Latest, true, kind)
   const invokeMethods = new Map()
+  const eventMethods = new Map()
   const bridgeMethods = new Map()
   const exposedPaths = new Set([''])
+  const unwrap = (node) => {
+    while (
+      ts.isParenthesizedExpression(node)
+      || ts.isAsExpression(node)
+      || ts.isTypeAssertionExpression(node)
+      || ts.isSatisfiesExpression(node)
+    ) node = node.expression
+    return node
+  }
 
   const addPath = (segments) => {
     for (let index = 1; index <= segments.length; index += 1) {
@@ -61,7 +99,7 @@ export function parsePreloadApi(source, fileName = 'desktop/preload.cjs') {
         const name = propertyName(property.name)
         if (name === null) continue
         const segments = [...prefix, name]
-        const initializer = property.initializer
+        const initializer = unwrap(property.initializer)
         if (ts.isObjectLiteralExpression(initializer)) {
           addPath(segments)
           visitBridgeObject(initializer, segments)
@@ -73,13 +111,22 @@ export function parsePreloadApi(source, fileName = 'desktop/preload.cjs') {
           bridgeMethods.set(bridgePath, initializer.getText(sourceFile))
         }
         const channel = firstInvokeChannel(initializer)
-        if (!channel) continue
         const bridgePath = segments.join('.')
-        const previous = invokeMethods.get(channel)
-        if (previous && previous !== bridgePath) {
-          throw new Error(`preload channel ${channel} is exposed at multiple paths: ${previous}, ${bridgePath}`)
+        if (channel) {
+          const previous = invokeMethods.get(channel)
+          if (previous && previous !== bridgePath) {
+            throw new Error(`shell channel ${channel} is exposed at multiple paths: ${previous}, ${bridgePath}`)
+          }
+          invokeMethods.set(channel, bridgePath)
         }
-        invokeMethods.set(channel, bridgePath)
+        const event = firstSubscribeEvent(initializer)
+        if (event) {
+          const previous = eventMethods.get(event)
+          if (previous && previous !== bridgePath) {
+            throw new Error(`shell event ${event} is exposed at multiple paths: ${previous}, ${bridgePath}`)
+          }
+          eventMethods.set(event, bridgePath)
+        }
       }
       if (ts.isSpreadAssignment(property)) {
         function visitSpread(node) {
@@ -121,15 +168,16 @@ export function parsePreloadApi(source, fileName = 'desktop/preload.cjs') {
     ) {
       for (const statement of functionNode.body.statements) {
         if (!ts.isReturnStatement(statement) || !statement.expression) continue
-        if (ts.isObjectLiteralExpression(statement.expression)) {
-          visitBridgeObject(statement.expression)
+        const expression = unwrap(statement.expression)
+        if (ts.isObjectLiteralExpression(expression)) {
+          visitBridgeObject(expression)
         }
       }
     }
     ts.forEachChild(node, visitSource)
   }
   visitSource(sourceFile)
-  return { invokeMethods, bridgeMethods, exposedPaths }
+  return { invokeMethods, eventMethods, bridgeMethods, exposedPaths }
 }
 
 /** Return channel -> relative module path for statically registered ipcHandle calls. */

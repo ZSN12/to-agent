@@ -9,12 +9,12 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseDocument } from 'yaml'
-import { createZHostManager, resolveTaskWeaverRuntimeRoot } from '../desktop/agent/z-host/index.mjs'
-import { ensureZHomeDirectory } from '../desktop/agent/z-host/migrate-z-home.mjs'
-import { isLlmTaskweaverBridgeNamespaceRegistered, isLlmPiAiNamespaceRegistered } from '../desktop/backend/dsh-settings-repair.mjs'
-import { ensureModelsJsonSyncedToDshHost } from '../desktop/backend/sync-models-json-to-host.mjs'
-import { ensureTaskWeaverModelsJson } from '../desktop/backend/taskweaver-models-defaults.mjs'
-import { loadBundledDefaultModelsDoc } from '../desktop/backend/taskweaver-models-defaults.mjs'
+import { createZHostManager, resolveTaskWeaverRuntimeRoot } from '../backend/agent/z-host/index.mjs'
+import { ensureZHomeDirectory } from '../backend/agent/z-host/migrate-z-home.mjs'
+import { isLlmTaskweaverBridgeNamespaceRegistered, isLlmPiAiNamespaceRegistered } from '../backend/dsh-settings-repair.mjs'
+import { ensureModelsJsonSyncedToDshHost } from '../backend/sync-models-json-to-host.mjs'
+import { ensureTaskWeaverModelsJson } from '../backend/taskweaver-models-defaults.mjs'
+import { loadBundledDefaultModelsDoc } from '../backend/taskweaver-models-defaults.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -33,6 +33,9 @@ try {
 }
 
 const userDataPath = await fs.mkdtemp(path.join(os.tmpdir(), 'tw-bridge-sync-e2e-'))
+const taskweaverHome = path.join(userDataPath, 'runtime')
+await fs.mkdir(taskweaverHome, { recursive: true })
+process.env.TASKWEAVER_HOME = taskweaverHome
 await ensureTaskWeaverModelsJson({ userDataPath, appPath: root })
 
 const defaults = await loadBundledDefaultModelsDoc(root)
@@ -77,7 +80,10 @@ assert.ok(
 )
 
 const { zHome } = ensureZHomeDirectory(userDataPath)
-const settingsText = await fs.readFile(path.join(zHome, 'settings.yaml'), 'utf8')
+const settingsPath = (await fs.access(path.join(taskweaverHome, 'settings.yaml')).then(() => true, () => false))
+  ? path.join(taskweaverHome, 'settings.yaml')
+  : path.join(zHome, 'settings.yaml')
+const settingsText = await fs.readFile(settingsPath, 'utf8')
 const settings = parseDocument(settingsText).toJS()
 
 const bridgeProviders = settings?.['llm-taskweaver-bridge']?.providers

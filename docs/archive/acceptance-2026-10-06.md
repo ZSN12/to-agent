@@ -152,7 +152,7 @@
 
 ### 2026-10-07 只读子 Agent 与真实 Planner 五轮验收
 
-- source preset `packages/runtime/host-cli/config/agent-presets/taskweaver-readonly/agent.cordis.yml` 与当前 deploy preset SHA-256 均为 `b0ced271694b60bfca6ae0332a802a8d674e4f7b9e70df0dd5795a1bd31218b3`。每轮实时 Planner 的两条 research 子任务都有独立 Host session，Host session 元数据均为 `taskweaver-readonly`；Host 原生请求头确认 MiMo V2.6 Flash / Medium，工具历史每轮均为 T1 `read(package.json)` 一次、T2 `grep + read(desktop/backend/dsh-session-model.mjs)`，无写入、shell、失败或越权调用。
+- source preset `packages/runtime/host-cli/config/agent-presets/taskweaver-readonly/agent.cordis.yml` 与当前 deploy preset SHA-256 均为 `b0ced271694b60bfca6ae0332a802a8d674e4f7b9e70df0dd5795a1bd31218b3`。每轮实时 Planner 的两条 research 子任务都有独立 Host session，Host session 元数据均为 `taskweaver-readonly`；Host 原生请求头确认 MiMo V2.6 Flash / Medium，工具历史每轮均为 T1 `read(package.json)` 一次、T2 `grep + read(backend/dsh-session-model.mjs)`，无写入、shell、失败或越权调用。
 - **质量核对：**5/5 轮两项任务都完成且返回文本；T1 均给出 `desktop/main.cjs` 及入口行号，T2 均解释 `sessionModelMatches`、`reasoningEffort` 缺失与 `lastAppliedSelection` 回退判定。每份 Host route、preset、文件工具审计均 verified。
 
   | 报告 | 总墙钟 | Planner 首阶段进度 | Host 子 Agent turn 重叠 | 验收 |

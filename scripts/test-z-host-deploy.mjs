@@ -1,17 +1,18 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import fs from 'node:fs/promises'
+import fsSync from 'node:fs'
 import { createServer } from 'node:http'
 import net from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { createZHostManager } from '../desktop/agent/z-host/index.mjs'
-import { resolveTaskWeaverRuntimeRoot } from '../desktop/agent/z-host/index.mjs'
-import { createDshChatService } from '../desktop/backend/dsh-chat-service.mjs'
-import { createOrchestrationService } from '../desktop/backend/orchestration-service.mjs'
-import { createMcpService } from '../desktop/backend/mcp-service.mjs'
-import { piProviderBlockToDshProfile } from '../desktop/backend/pi-models-to-dsh-profile.mjs'
+import { createZHostManager } from '../backend/agent/z-host/index.mjs'
+import { resolveTaskWeaverRuntimeRoot } from '../backend/agent/z-host/index.mjs'
+import { createDshChatService } from '../backend/dsh-chat-service.mjs'
+import { createOrchestrationService } from '../backend/orchestration-service.mjs'
+import { createMcpService } from '../backend/mcp-service.mjs'
+import { piProviderBlockToDshProfile } from '../backend/pi-models-to-dsh-profile.mjs'
 import { scriptHostNodeExecutable } from './lib/host-node-executable.mjs'
 
 const hostNodeBin = scriptHostNodeExecutable()
@@ -49,9 +50,9 @@ const appDefaults = piProviderBlockToDshProfile('test-provider', { models: [{ id
 assert.equal(appDefaults.streamIdleTimeoutMs, 300_000, 'TaskWeaver-synced providers should match the Z Runtime five-minute stream-idle default')
 assert.deepEqual(appDefaults.retryPolicy, {
   mode: 'normal',
-  maxRetries: 1,
-  retryableCodes: ['EMPTY_RESPONSE', 'RATE_LIMIT', 'SERVER', 'TRANSPORT'],
-}, 'TaskWeaver-synced providers should avoid replaying a partial response after a long idle timeout')
+  maxRetries: 2,
+  retryableCodes: ['EMPTY_RESPONSE', 'RATE_LIMIT', 'SERVER', 'TIMEOUT', 'TRANSPORT'],
+}, 'TaskWeaver-synced providers should allow bounded retries, including safe pre-output timeouts')
 const providerOverrides = piProviderBlockToDshProfile('test-provider', {
   streamIdleTimeoutMs: 240_000,
   retryPolicy: { mode: 'normal', maxRetries: 9 },
@@ -60,7 +61,7 @@ assert.equal(providerOverrides.streamIdleTimeoutMs, 240_000, 'explicit provider 
 assert.deepEqual(providerOverrides.retryPolicy, {
   mode: 'normal',
   maxRetries: 3,
-  retryableCodes: ['EMPTY_RESPONSE', 'RATE_LIMIT', 'SERVER', 'TRANSPORT'],
+  retryableCodes: ['EMPTY_RESPONSE', 'RATE_LIMIT', 'SERVER', 'TIMEOUT', 'TRANSPORT'],
 }, 'explicit provider retry policy must stay finite and cap at three retries')
 const alwaysRetryProvider = piProviderBlockToDshProfile('test-provider', {
   retryPolicy: { mode: 'always', backoff: { initialDelayMs: 100, maxDelayMs: 500 } },
@@ -68,7 +69,7 @@ const alwaysRetryProvider = piProviderBlockToDshProfile('test-provider', {
 assert.deepEqual(alwaysRetryProvider.retryPolicy, {
   mode: 'normal',
   maxRetries: 1,
-  retryableCodes: ['EMPTY_RESPONSE', 'RATE_LIMIT', 'SERVER', 'TRANSPORT'],
+  retryableCodes: ['EMPTY_RESPONSE', 'RATE_LIMIT', 'SERVER', 'TIMEOUT', 'TRANSPORT'],
   backoff: { initialDelayMs: 100, maxDelayMs: 500 },
 }, 'unbounded provider retry mode must normalize to a bounded one-retry policy')
 const mockRequests = []
@@ -128,7 +129,12 @@ const mockLlm = createServer((request, response) => {
     const dagMatch = serialized.match(/当前子任务 (T1|T2|T3)：/)
     const latestUserMessage = (parsedBody.messages ?? []).filter(message => message.role === 'user')
       .reverse()
-      .find(message => !String(message.content ?? '').startsWith('Current runtime context.'))
+      .find(message => {
+        const text = typeof message.content === 'string' ? message.content : JSON.stringify(message.content ?? '')
+        return !text.includes('Current runtime context') && !text.includes('<system-reminder>')
+      })
+    const snippet = String(latestUserMessage?.content ?? '').slice(0, 50).replace(/\n/g, ' ')
+    console.log(`[REQ #${mockRequests.length}] ${isTitleRequest ? 'TITLE' : snippet || 'NO_USER'}`)
     if (serialized.includes('[CANCEL_AFTER_TOOL]')) {
       const messages = parsedBody.messages ?? []
       cancelAfterToolDebugRequests.push({
@@ -234,7 +240,7 @@ const mockLlm = createServer((request, response) => {
       return
     }
     if (serialized.includes('[KEYLESS_WORKFLOW]') && !isTitleRequest) {
-      keylessWorkflowRequests.push(parsedBody)
+      keylessWorkflowRequests.push({ ...parsedBody, authorization: request.headers.authorization })
       const completedTool = (parsedBody.messages ?? []).find((message) => message.role === 'tool')
       if (completedTool) {
         keylessWorkflowResultObserved = JSON.stringify(completedTool)
@@ -248,7 +254,7 @@ const mockLlm = createServer((request, response) => {
             `console.log('workflow-read:', readResult);`,
             `const editResult = await tools.edit_file_inline({ file_path: 'note.txt', old_string: 'before', new_string: 'after', preview: false });`,
             `console.log('workflow-edit:', editResult);`,
-            `const commandResult = await tools.bash({ command: "node -e \\\"process.stdout.write(require('node:fs').readFileSync('note.txt', 'utf8'))\\\"", description: 'Verify the edited workflow fixture', workdir: ${JSON.stringify(keylessWorkflowWorkspace)} });`,
+            `const commandResult = await tools.bash({ command: "node -e \\\"process.stdout.write(require('node:fs').readFileSync('note.txt', 'utf8'))\\\"", description: 'Verify the edited workflow fixture', workdir: ${JSON.stringify(keylessWorkflowWorkspace)}, sandbox_permissions: 'danger-full-access', justification: 'Verify the edited workflow fixture with node' });`,
             `console.log('workflow-command:', commandResult);`,
           ].join('\n')
           respondWithToolCall('keyless-workflow-run', 'run_code', {
@@ -261,15 +267,17 @@ const mockLlm = createServer((request, response) => {
       }
       return
     }
+    const isCancelRecovery = serialized.includes('[CANCEL_AFTER_TOOL_RECOVERY]')
     const cancelAfterToolTurn = !isTitleRequest
-      && JSON.stringify(latestUserMessage ?? {}).includes('[CANCEL_AFTER_TOOL]')
+      && !isCancelRecovery
+      && (serialized.includes('[CANCEL_AFTER_TOOL]') || JSON.stringify(latestUserMessage ?? {}).includes('[CANCEL_AFTER_TOOL]'))
     if (cancelAfterToolTurn) {
       cancelAfterToolRequests.push(parsedBody)
       const readToolResult = (parsedBody.messages ?? []).some((message) =>
         message.role === 'tool'
         && typeof message.content === 'string'
         && message.content.includes('<path>')
-        && message.content.includes('/package.json</path>'))
+        && message.content.includes('package.json'))
       if (!readToolResult) {
         const toolNames = (parsedBody.tools ?? []).map((tool) => tool.function?.name ?? tool.name)
         if (toolNames.includes('read')) {
@@ -462,11 +470,11 @@ const mockLlm = createServer((request, response) => {
       }
       return
     }
-    if (dagMatch?.[1] === 'T2' && serialized.includes('[MCP_DAG_SMOKE]')) {
+    if (dagMatch?.[1] === 'T2' && (serialized.includes('[MCP_DAG_SMOKE]') || serialized.includes('确认代码子 Agent 可独立完成简短的无文件改动验证'))) {
       respond(acceptanceTaggedText('无需改动，因为此节点只验证短任务执行链路。mcp-dag-secondary-ok'))
       return
     }
-    if (!dagMatch && serialized.includes('[MCP_DAG_SMOKE]') && serialized.includes('子任务结果：')) {
+    if (!dagMatch && (serialized.includes('[MCP_DAG_SMOKE]') || serialized.includes('mcp-dag-code-marker') || serialized.includes('mcp-dag-secondary-ok')) && serialized.includes('子任务结果：')) {
       respond('mcp-dag-synthesis-ok')
       return
     }
@@ -515,8 +523,8 @@ const mockLlm = createServer((request, response) => {
       respond(JSON.stringify({
         tasks: [
           { id: 'T1', title: '独立只读任务一', taskType: 'research', description: '并发读取并总结模块一', acceptance: ['模块一结论有读取证据'], scopePaths: ['package.json'], dependsOn: [] },
-          { id: 'T2', title: '独立只读任务二', taskType: 'research', description: '并发读取并总结模块二', acceptance: ['模块二结论有读取证据'], scopePaths: ['desktop/backend/dsh-chat-service.mjs'], dependsOn: [] },
-          { id: 'T3', title: '依赖汇总任务', taskType: 'review', description: '等待前两项完成后汇总', acceptance: ['复核结论与上游证据一致'], scopePaths: ['desktop/main.cjs'], dependsOn: ['T1', 'T2'] },
+          { id: 'T2', title: '独立只读任务二', taskType: 'research', description: '并发读取并总结模块二', acceptance: ['模块二结论有读取证据'], scopePaths: ['backend/dsh-chat-service.mjs'], dependsOn: [] },
+          { id: 'T3', title: '依赖汇总任务', taskType: 'review', description: '等待前两项完成后汇总', acceptance: ['复核结论与上游证据一致'], scopePaths: ['backend/bootstrap.mjs'], dependsOn: ['T1', 'T2'] },
         ],
       }))
       return
@@ -537,7 +545,7 @@ const mockLlm = createServer((request, response) => {
         for (const pending of dagPairRequests.splice(0)) {
           dagInFlight -= 1
           pending.respondWithReadCall(`dag-read-${pending.taskId}`, {
-            file_path: pending.taskId === 'T1' ? 'package.json' : 'desktop/backend/dsh-chat-service.mjs',
+            file_path: pending.taskId === 'T1' ? 'package.json' : 'backend/dsh-chat-service.mjs',
             limit: 3,
           })
         }
@@ -546,7 +554,7 @@ const mockLlm = createServer((request, response) => {
     }
     if (taskId === 'T3' && !dagReviewReadRequested) {
       dagReviewReadRequested = true
-      respondWithReadCall('dag-read-T3', { file_path: 'desktop/main.cjs', limit: 3 })
+      respondWithReadCall('dag-read-T3', { file_path: 'backend/bootstrap.mjs', limit: 3 })
       return
     }
     respond(acceptanceTaggedText(`completed-${taskId}`))
@@ -556,8 +564,12 @@ await new Promise((resolve) => mockLlm.listen(0, '127.0.0.1', resolve))
 const mockLlmAddress = mockLlm.address()
 assert.ok(mockLlmAddress && typeof mockLlmAddress !== 'string')
 const mockLlmBaseUrl = `http://127.0.0.1:${mockLlmAddress.port}/v1`
-const readonlyPresetPath = path.join(runtimeRoot, 'config', 'agent-presets', 'taskweaver-readonly', 'agent.cordis.yml')
-const readonlyPresetSourcePath = path.join(projectRoot, 'packages', 'runtime', 'apps', 'cli', 'config', 'agent-presets', 'taskweaver-readonly', 'agent.cordis.yml')
+const readonlyPresetPath = (fsSync.existsSync(path.join(runtimeRoot, 'config', 'agent-presets', 'tw-taskweaver-readonly', 'agent.cordis.yml')))
+  ? path.join(runtimeRoot, 'config', 'agent-presets', 'tw-taskweaver-readonly', 'agent.cordis.yml')
+  : path.join(runtimeRoot, 'config', 'agent-presets', 'taskweaver-readonly', 'agent.cordis.yml')
+const readonlyPresetSourcePath = (fsSync.existsSync(path.join(projectRoot, 'packages', 'runtime', 'host-cli', 'config', 'agent-presets', 'tw-taskweaver-readonly', 'agent.cordis.yml')))
+  ? path.join(projectRoot, 'packages', 'runtime', 'host-cli', 'config', 'agent-presets', 'tw-taskweaver-readonly', 'agent.cordis.yml')
+  : path.join(projectRoot, 'packages', 'runtime', 'apps', 'cli', 'config', 'agent-presets', 'taskweaver-readonly', 'agent.cordis.yml')
 const [readonlyPresetBytes, readonlyPresetSourceBytes] = await Promise.all([
   fs.readFile(readonlyPresetPath),
   fs.readFile(readonlyPresetSourcePath),
@@ -581,10 +593,15 @@ assert.match(readonlyPreset, /several requested symbols[\s\S]*?one contiguous ra
   'deployed readonly persona must combine nearby symbol reads')
 assert.match(readonlyPreset, /literal[\s\S]*scope[\s\S]*do not call glob\/ls[\s\S]*read it directly/i,
   'deployed readonly persona must not spend a search call confirming an already-named literal file path')
-const codePresetPath = path.join(runtimeRoot, 'config', 'agent-presets', 'taskweaver-code', 'agent.cordis.yml')
+const codePresetPath = fsSync.existsSync(path.join(runtimeRoot, 'config', 'agent-presets', 'tw-taskweaver-code', 'agent.cordis.yml'))
+  ? path.join(runtimeRoot, 'config', 'agent-presets', 'tw-taskweaver-code', 'agent.cordis.yml')
+  : path.join(runtimeRoot, 'config', 'agent-presets', 'taskweaver-code', 'agent.cordis.yml')
 const codePreset = await fs.readFile(codePresetPath, 'utf8')
 assert.match(codePreset, /name: '@taskweaver\/dsh-tool-fs'[\s\S]*?readLimit: 600/, 'deployed code preset must cap each filesystem read')
-const mainCodePreset = await fs.readFile(path.join(runtimeRoot, 'config', 'agent-presets', 'code', 'agent.cordis.yml'), 'utf8')
+const mainCodePresetPath = fsSync.existsSync(path.join(runtimeRoot, 'config', 'agent-presets', 'tw-code', 'agent.cordis.yml'))
+  ? path.join(runtimeRoot, 'config', 'agent-presets', 'tw-code', 'agent.cordis.yml')
+  : path.join(runtimeRoot, 'config', 'agent-presets', 'code', 'agent.cordis.yml')
+const mainCodePreset = await fs.readFile(mainCodePresetPath, 'utf8')
 assert.match(mainCodePreset, /name: '@taskweaver\/dsh-tool-fs'[\s\S]*?readLimit: 600/, 'deployed primary code preset must use the bounded filesystem reader')
 assert.match(mainCodePreset, /only tool you may call directly is `run_code`[\s\S]*?inside a `run_code` program/, 'deployed primary Code Mode preset must explicitly direct native capabilities through run_code')
 const runtimePackagesDir = await fs.stat(path.join(runtimeRoot, 'runtime-packages')).then(() => 'runtime-packages', () => 'node_modules')
@@ -640,7 +657,11 @@ await fs.writeFile(userReadonlyPresetPath, userReadonlyPreset)
 const manager = createZHostManager({
   runtimeRoot,
   userDataPath: testHome,
-  environment: { ...process.env, TASKWEAVER_READONLY_SMOKE_KEY: mockApiKey },
+  environment: {
+    ...process.env,
+    TASKWEAVER_HOME: testHome,
+    TASKWEAVER_READONLY_SMOKE_KEY: mockApiKey,
+  },
   getMcpRuntimeIntegration: async () => mcpService.prepareRuntimeIntegration(),
   startTimeoutMs: 90_000,
 })
@@ -667,11 +688,11 @@ try {
   const created = await api.sessions.create({
     sessionId,
     cwd: projectRoot,
-    agentPreset: 'taskweaver-planner',
+    agentPreset: 'tw-taskweaver-planner',
   })
-  assert.equal(created.result.ok, true)
+  assert.equal(created.result.ok, true, `failed to create tw-taskweaver-planner session: ${JSON.stringify(created.result)}`)
 
-  for (const agentPreset of ['taskweaver-optimized', 'taskweaver-readonly', 'taskweaver-code']) {
+  for (const agentPreset of ['tw-taskweaver-readonly', 'tw-taskweaver-code']) {
     const presetSessionId = `taskweaver-${agentPreset}-${crypto.randomUUID()}`
     const presetCreated = await api.sessions.create({
       sessionId: presetSessionId,
@@ -775,6 +796,9 @@ try {
     await new Promise(resolve => setTimeout(resolve, 25))
   } while (Date.now() < sessionQueryDeadline)
   const sessionQueryHistory = sessionQueryHistoryPage?.events.map(row => row.event) ?? []
+  if (!sessionQueryHistory.some(event => event.type === 'turn/end')) {
+    console.error('HOST DIAGNOSTICS ON TIMEOUT:\n', manager.getDiagnostics())
+  }
   assert.ok(sessionQueryHistory.some(event => event.type === 'turn/end'),
     'mock-backed prior-session search turn should finish')
   const sessionSearchCall = sessionQueryHistory.find(event =>
@@ -806,7 +830,7 @@ try {
   const optimizedCreated = await api.sessions.create({
     sessionId: optimizedSessionId,
     cwd: projectRoot,
-    agentPreset: 'taskweaver-optimized',
+    agentPreset: 'tw-taskweaver-code',
   })
   assert.equal(optimizedCreated.result.ok, true, optimizedCreated.result.error?.message ?? 'optimized preset session creation failed')
   const optimizedSelection = await api.sessions.selectModel({
@@ -846,9 +870,9 @@ try {
   const readonlyCreated = await api.sessions.create({
     sessionId: readonlySessionId,
     cwd: projectRoot,
-    agentPreset: 'taskweaver-readonly',
+    agentPreset: 'tw-taskweaver-readonly',
   })
-  assert.equal(readonlyCreated.result.ok, true)
+  assert.equal(readonlyCreated.result.ok, true, readonlyCreated.result.error?.message ?? 'readonly preset creation failed')
   const selected = await api.sessions.selectModel({
     sessionId: readonlySessionId,
     provider: route,
@@ -910,7 +934,7 @@ try {
   const searchCycleCreated = await api.sessions.create({
     sessionId: searchCycleSessionId,
     cwd: projectRoot,
-    agentPreset: 'taskweaver-readonly',
+    agentPreset: 'tw-taskweaver-readonly',
   })
   assert.equal(searchCycleCreated.result.ok, true)
   const searchCycleSelection = await api.sessions.selectModel({
@@ -952,7 +976,7 @@ try {
   const readonlyScopeCreated = await api.sessions.create({
     sessionId: readonlyScopeSessionId,
     cwd: projectRoot,
-    agentPreset: 'taskweaver-readonly',
+    agentPreset: 'tw-taskweaver-readonly',
   })
   assert.equal(readonlyScopeCreated.result.ok, true)
   const readonlyScopeSelection = await api.sessions.selectModel({
@@ -993,9 +1017,8 @@ try {
   assert.notEqual(literalGlobResult.data.message.content?.[0]?.isError, true,
     'the deployed Host must execute an exact authorized file glob instead of denying it as a broad workspace search')
 
-  // A stalled SSE stream should fail once without replaying a partially
-  // generated/billable turn. Use a short test timeout but the production retry
-  // policy generated by piProviderBlockToDshProfile.
+  // A stalled SSE stream that has not emitted content may be retried within the
+  // bounded provider policy. Use a short test timeout and the production policy.
   const stalledRoute = 'taskweaver-stalled-smoke'
   const stalledConfigured = await api.settings.update({
     ns: 'llm-pi-ai',
@@ -1008,7 +1031,7 @@ try {
   })
   assert.equal(stalledConfigured.result.ok, true, stalledConfigured.result.error?.message ?? 'stalled provider settings rejected')
   const stalledSessionId = `taskweaver-stalled-${crypto.randomUUID()}`
-  const stalledCreated = await api.sessions.create({ sessionId: stalledSessionId, cwd: projectRoot, agentPreset: 'taskweaver-readonly' })
+  const stalledCreated = await api.sessions.create({ sessionId: stalledSessionId, cwd: projectRoot, agentPreset: 'tw-taskweaver-readonly' })
   assert.equal(stalledCreated.result.ok, true)
   const stalledSelection = await api.sessions.selectModel({ sessionId: stalledSessionId, provider: stalledRoute, model: 'mock-stalled' })
   assert.equal(stalledSelection.result.ok, true, stalledSelection.result.error?.message ?? 'selecting stalled model failed')
@@ -1030,10 +1053,10 @@ try {
   assert.ok(stalledHistory.some((event) => event.type === 'turn/end'), 'stalled SSE turn should settle within the short test deadline')
   assert.equal(
     stalledRequests.filter((body) => Array.isArray(body.tools)).length,
-    1,
-    `a stream idle timeout must not replay the model turn; request count=${stalledRequests.length}; retry count=${stalledHistory.filter((event) => event.type === 'llm/retry').length}`,
+    3,
+    `pre-output timeouts should make the initial request plus two bounded retries; request count=${stalledRequests.length}; retry count=${stalledHistory.filter((event) => event.type === 'llm/retry').length}`,
   )
-  assert.equal(stalledHistory.filter((event) => event.type === 'llm/retry').length, 0, 'TIMEOUT is excluded from automatic retries by default')
+  assert.equal(stalledHistory.filter((event) => event.type === 'llm/retry').length, 2, 'pre-output TIMEOUT should use the configured finite retry budget')
 
   // The shared Host supports `always` for DSH profiles, but the embedded
   // TaskWeaver launcher must centrally clamp even native imported policies.
@@ -1048,7 +1071,7 @@ try {
   })
   assert.equal(retryCapConfigured.result.ok, true, retryCapConfigured.result.error?.message ?? 'always retry provider settings rejected')
   const retryCapSessionId = `taskweaver-retry-cap-${crypto.randomUUID()}`
-  const retryCapCreated = await api.sessions.create({ sessionId: retryCapSessionId, cwd: projectRoot, agentPreset: 'taskweaver-readonly' })
+  const retryCapCreated = await api.sessions.create({ sessionId: retryCapSessionId, cwd: projectRoot, agentPreset: 'tw-taskweaver-readonly' })
   assert.equal(retryCapCreated.result.ok, true)
   const retryCapSelection = await api.sessions.selectModel({ sessionId: retryCapSessionId, provider: retryCapRoute, model: 'mock-retry-cap' })
   assert.equal(retryCapSelection.result.ok, true, retryCapSelection.result.error?.message ?? 'selecting retry-cap model failed')
@@ -1110,7 +1133,7 @@ try {
     modelKey: `${route}/mock-readonly`,
     webContents: keylessWorkflowWebContents,
     cwdOverride: keylessWorkflowWorkspace,
-    agentPreset: 'taskweaver-code',
+    agentPreset: 'tw-code',
     permissionMode: 'ask',
   }).catch((error) => {
     keylessWorkflowRunError = error
@@ -1174,7 +1197,7 @@ try {
     modelKey: `${route}/mock-readonly`,
     webContents: cancelAfterToolWebContents,
     cwdOverride: projectRoot,
-    agentPreset: 'taskweaver-readonly',
+    agentPreset: 'tw-taskweaver-readonly',
   })
   let cancelAfterToolRunError = null
   cancelAfterToolPending.catch(error => { cancelAfterToolRunError = error })
@@ -1238,7 +1261,7 @@ try {
     modelKey: `${route}/mock-readonly`,
     webContents: cancelAfterToolWebContents,
     cwdOverride: projectRoot,
-    agentPreset: 'taskweaver-readonly',
+    agentPreset: 'tw-taskweaver-readonly',
   })
   assert.equal(cancelRecovery.cancelled, false)
   assert.equal(cancelRecovery.text, 'readonly-smoke-ok', 'the same conversation must accept a fresh turn after post-tool cancellation')
@@ -1264,7 +1287,7 @@ try {
     modelKey: `${route}/mock-readonly`,
     webContents: { send() {}, isDestroyed: () => false },
     cwd: projectRoot,
-    agentPreset: 'taskweaver-readonly',
+    agentPreset: 'tw-taskweaver-readonly',
   })
   assert.equal(mcpReadonlyTurn.text, 'mcp-readonly-blocked')
   assert.equal(mcpReadonlyGuardObserved, true, 'the Host MCP executor must return a denial to a read-only sub-agent')
@@ -1305,8 +1328,9 @@ try {
     if (mcpCancelCallLog.split('\n').includes('mcp-cancel-marker')) break
     await new Promise(resolve => setTimeout(resolve, 25))
   } while (Date.now() < mcpCancelCallDeadline)
+  const debugCancelLog = await fs.readFile(mcpCancelLogPath, 'utf8').catch(() => '')
   assert.ok(mcpCancelCallLog.split('\n').includes('mcp-cancel-marker'),
-    `the local MCP fixture must receive the hanging call before Stop; error=${mcpCancelRunError?.message ?? ''}; events=${JSON.stringify(mcpCancelEvents)}; requests=${JSON.stringify(mockRequests.filter(row => JSON.stringify(row.body).includes('[MCP_CANCEL_SMOKE]')).slice(-3).map(row => ({ users: row.body.messages?.filter(message => message.role === 'user').slice(-2).map(message => String(message.content).slice(0, 180)), tools: row.body.tools?.map(tool => tool.function?.name ?? tool.name) })))}`)
+    `the local MCP fixture must receive the hanging call before Stop; error=${mcpCancelRunError?.message ?? ''}; smokeLog=${JSON.stringify(mcpCancelCallLog)}; cancelLog=${JSON.stringify(debugCancelLog)}; events=${JSON.stringify(mcpCancelEvents)}; requests=${JSON.stringify(mockRequests.filter(row => JSON.stringify(row.body).includes('[MCP_CANCEL_SMOKE]')).slice(-3).map(row => ({ users: row.body.messages?.filter(message => message.role === 'user').slice(-2).map(message => String(message.content).slice(0, 180)), tools: row.body.tools?.map(tool => tool.function?.name ?? tool.name) })))}`)
   assert.equal(deployedChatService.isBusy(mcpCancelConversationId), true,
     'the turn must remain active while the MCP request is deliberately pending')
   const mcpCancelAccepted = await deployedChatService.abort(mcpCancelConversationId)
@@ -1451,7 +1475,7 @@ try {
     modelKey: `${route}/mock-readonly`,
     webContents: codeCancelWebContents,
     cwdOverride: codeCancelWorkspace,
-    agentPreset: 'code',
+    agentPreset: 'tw-code',
   })
   let codeCancelRunError = null
   codeCancelPending.catch(error => { codeCancelRunError = error })
@@ -1518,6 +1542,8 @@ try {
     'the main Agent may invoke the server; read-only sub-agents must not, and Stop must reach the pending MCP call')
 
   const mcpDagConversationId = `taskweaver-mcp-dag-${crypto.randomUUID()}`
+  const mcpDagWorkspace = path.join(testHome, 'mcp-dag-workspace')
+  await fs.mkdir(mcpDagWorkspace, { recursive: true })
   const mcpDagTasks = []
   const mcpDagOrchestration = createOrchestrationService({
     modelService: {
@@ -1532,10 +1558,10 @@ try {
     },
     profileStore: { getThinkingLevel: async () => null },
     appState: { setTasks: async (tasks) => { mcpDagTasks.splice(0, mcpDagTasks.length, ...tasks) } },
-    getWorkspacePath: () => projectRoot,
+    getWorkspacePath: () => mcpDagWorkspace,
     agentDataPath: path.join(testHome, 'mcp-dag-agent-data'),
     userDataPath: path.join(testHome, 'mcp-dag-user-data'),
-    getAppPreferences: async () => ({ worktreeIsolation: false, subtaskUpgradeMax: 0 }),
+    getAppPreferences: async () => ({ worktreeIsolation: false, subtaskUpgradeMax: 0, dagPlanApproval: 'never' }),
     dshRuntime: deployedChatService,
   })
   const mcpDag = await mcpDagOrchestration.planAndExecute({
@@ -1543,7 +1569,8 @@ try {
     primaryModelKey: `${route}/mock-readonly`,
     conversationId: mcpDagConversationId,
     webContents: { send() {}, isDestroyed: () => false },
-    workspacePath: projectRoot,
+    workspacePath: mcpDagWorkspace,
+    dagPlanApprovalOverride: 'never',
   })
   assert.deepEqual(mcpDag.failedTaskIds, [], `MCP implementation-child DAG should complete: ${mcpDag.failedTaskIds.join(', ')}`)
   assert.equal(mcpDag.assistant.text, 'mcp-dag-synthesis-ok')
@@ -1557,7 +1584,7 @@ try {
   ))
   const mcpDagEntries = ['T1', 'T2'].map((id) => Object.entries(mcpDagSessionMap.sessions).find(([sessionKey]) =>
     sessionKey.startsWith(`tw-orchestration-${mcpDagConversationId}-`) && sessionKey.endsWith(`-${id}`))?.[1])
-  assert.ok(mcpDagEntries.every((entry) => entry?.agentPreset === 'taskweaver-code'),
+  assert.ok(mcpDagEntries.every((entry) => entry?.agentPreset === 'tw-taskweaver-code' || entry?.agentPreset === 'taskweaver-code'),
     'implementation DAG children must persist the TaskWeaver Code Mode preset')
   const mcpCallLogAfterDag = await fs.readFile(mcpSmokeLogPath, 'utf8')
   assert.deepEqual(mcpCallLogAfterDag.trim().split('\n'), ['mcp-main-marker', 'mcp-fail-marker', 'mcp-cancel-marker', 'mcp-dag-code-marker'],
@@ -1584,7 +1611,8 @@ try {
   assert.ok(!focusedToolNames.includes('run_code'), 'new main-chat sessions should not implicitly switch to Code Mode')
   const focusedSessionMap = JSON.parse(await fs.readFile(
     path.join(testHome, 'agent-chat', 'taskweaver', 'dsh-session-map.json'), 'utf8'))
-  assert.equal(focusedSessionMap.sessions[`${focusedConversationId}-main`]?.agentPreset, 'standard',
+  const focusedSavedPreset = focusedSessionMap.sessions[`${focusedConversationId}-main`]?.agentPreset
+  assert.ok(focusedSavedPreset === 'tw-default' || focusedSavedPreset === 'standard',
     'the bridge should persist DSH Web standard as the main-chat default')
   assert.match(
     JSON.stringify(focusedRequest.body.messages),
@@ -1616,8 +1644,14 @@ try {
       && !serialized.includes('Create a concise title for an AI coding-assistant session')
   })
   assert.ok(instructionRequest, 'the project-instruction smoke must reach the deployed model provider')
-  assert.ok(JSON.stringify(instructionRequest.body.messages).includes('PROJECT-INSTRUCTION-SENTINEL-9b0f'),
+  const serializedInstructionMessages = JSON.stringify(instructionRequest.body.messages)
+  assert.ok(serializedInstructionMessages.includes('PROJECT-INSTRUCTION-SENTINEL-9b0f'),
     'the deployed Host must inject the actual project AGENTS.md content into the model request')
+  assert.equal(
+    serializedInstructionMessages.match(/PROJECT-INSTRUCTION-SENTINEL-9b0f/g)?.length ?? 0,
+    1,
+    'the Host request must include the AGENTS.md instruction exactly once',
+  )
   const instructionSessionId = deployedChatService.getSessionId(instructionConversationId + '-main')
   const instructionHistory = await api.sessions.history({ sessionId: instructionSessionId })
   assert.equal(instructionHistory.result.ok, true)
@@ -1641,7 +1675,7 @@ try {
     modelKey: `${route}/mock-readonly`,
     webContents: { send() {}, isDestroyed: () => false },
     cwd: readWindowWorkspace,
-    agentPreset: 'taskweaver-code',
+    agentPreset: 'tw-taskweaver-code',
   })
   assert.equal(readWindowTurn.text, 'read-window-ok')
   assert.equal(readWindowRequests.length, 2, 'the code preset should perform one bounded read before synthesizing')
@@ -1658,7 +1692,7 @@ try {
     modelKey: `${route}/mock-readonly`,
     webContents: { send() {}, isDestroyed: () => false },
     cwd: projectRoot,
-    agentPreset: 'taskweaver-code',
+    agentPreset: 'tw-taskweaver-code',
   })
   assert.equal(repeatGuardTurn.text, 'read-repeat-guard-ok')
   assert.equal(repeatReadCallCount, 11, 'the mock model should continue reading across interleaved searches so repeated-read reminders remain advisory')
@@ -1752,7 +1786,7 @@ try {
   })
   assert.ok(dagSessionEntries.every((entry) => entry?.sessionId), 'orchestration should persist an independent Host session for each DAG task')
   assert.equal(new Set(dagSessionEntries.map((entry) => entry.sessionId)).size, 3, 'DAG task sessions must not alias one another')
-  assert.ok(dagSessionEntries.every((entry) => entry.agentPreset === 'taskweaver-readonly'), 'research/review tasks must retain the deployed read-only preset')
+  assert.ok(dagSessionEntries.every((entry) => entry.agentPreset === 'tw-taskweaver-readonly' || entry.agentPreset === 'taskweaver-readonly'), 'research/review tasks must retain the deployed read-only preset')
   const plannerEntry = Object.entries(deployedSessionMap.sessions).find(([sessionKey]) =>
     sessionKey.startsWith(`tw-orchestration-${dagConversationId}-`) && /-planner(?:-retry)?$/.test(sessionKey))?.[1]
   assert.ok(plannerEntry?.sessionId, 'the planner Host session should be persisted')

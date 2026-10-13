@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { checkFileMutationAllowed, isPathUnder } from '../desktop/backend/fs-sandbox-fence.mjs'
+import { checkFileMutationAllowed, isPathUnder } from '../backend/fs-sandbox-fence.mjs'
 
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tw-fs-fence-'))
 const workspace = path.join(root, 'ws')

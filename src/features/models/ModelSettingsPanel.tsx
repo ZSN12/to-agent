@@ -9,10 +9,10 @@ import { OpenUsageSection } from './OpenUsageSection'
 import { LocalAgentStatusStrip, useLocalAgentBridgeStatus } from './LocalAgentStatusStrip'
 import { useModalFocusTrap } from '../../shared/useModalFocusTrap'
 
-type ProviderModelDiscoveryResult = {
+type ProviderModelDiscoveryViewResult = {
   providerId: string
   providerName: string
-  source: 'catalog' | 'online' | 'error'
+  source: 'catalog' | 'online' | 'timeout' | 'error'
   models: DiscoveredProviderModel[]
   error?: string
 }
@@ -1077,7 +1077,7 @@ export function ModelSettingsPanel({
   const [probeResult, setProbeResult] = useState<ProbeModelsResult | null>(null)
   const [probeTargetSource, setProbeTargetSource] = useState<{ id: string; name: string; baseUrl?: string } | null>(null)
   const [providerDiscoveryLoading, setProviderDiscoveryLoading] = useState(false)
-  const [providerDiscoveryResults, setProviderDiscoveryResults] = useState<ProviderModelDiscoveryResult[] | null>(null)
+  const [providerDiscoveryResults, setProviderDiscoveryResults] = useState<ProviderModelDiscoveryViewResult[] | null>(null)
   const [migrateLoading, setMigrateLoading] = useState(false)
   const {
     status: localAgentStatus,
@@ -1192,6 +1192,7 @@ export function ModelSettingsPanel({
       kind: 'codex' | 'anthropic' | 'custom' | 'builtin'
       typeLabel: string
       configured: boolean
+      authType?: string | null
       writable?: boolean
       baseUrl?: string
       api?: string
@@ -1284,6 +1285,7 @@ export function ModelSettingsPanel({
           kind: 'builtin',
           typeLabel: '官方提供方',
           configured: p.configured,
+          authType: p.authType,
           writable: p.writable,
           models: q && !matchSource ? matchedModels : (q ? matchedModels : pModels),
         })
@@ -1344,11 +1346,20 @@ export function ModelSettingsPanel({
         if (!discover) throw new Error('模型发现接口不可用')
         const response = await discover({ providerId: source.id })
         if (!response?.ok) throw new Error(response?.error || '模型发现失败')
+        if (response.data.status === 'timeout' || response.data.status === 'error') {
+          return {
+            providerId: source.id,
+            providerName: source.name,
+            source: response.data.status,
+            models: [],
+            error: response.data.error || (response.data.status === 'timeout' ? '模型发现超时' : '模型发现失败'),
+          }
+        }
         return {
           providerId: source.id,
           providerName: source.name,
           source: 'online' as const,
-          models: response.data ?? [],
+          models: response.data.models,
         }
       }))
       setProviderDiscoveryResults(settled.map((result, index) => {
@@ -1429,7 +1440,6 @@ export function ModelSettingsPanel({
       <div className="settings-page-heading">
         <div>
           <h1>模型与来源</h1>
-          <p>按来源分类管理模型与对应凭据；子 Agent 只会自动选择已开启「子 Agent 路由」的模型，主对话仍可手动使用其他已添加模型。</p>
         </div>
         <div className="settings-page-heading-actions">
           <button
@@ -1616,10 +1626,12 @@ export function ModelSettingsPanel({
                   <div key={result.providerId} style={{ borderTop: '1px solid var(--border-color, rgba(255,255,255,0.08))', paddingTop: 10 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                       <strong>{result.providerName}</strong>
-                      <span className={`provider-status-label ${result.source === 'error' ? '' : 'ok'}`}>
-                        {result.source === 'catalog' ? '内置目录' : result.source === 'online' ? '在线发现' : '失败'}
+                      <span className={`provider-status-label ${result.source === 'catalog' || result.source === 'online' ? 'ok' : ''}`}>
+                        {result.source === 'error' ? '失败' : result.source === 'timeout' ? '超时' : result.source === 'catalog' ? '内置目录' : '在线发现'}
                       </span>
-                      {result.source !== 'error' && <span className="model-list-count">{result.models.length} 个模型</span>}
+                      {(result.source === 'catalog' || result.source === 'online') && (
+                        <span className="model-list-count">{result.models.length} 个模型</span>
+                      )}
                     </div>
                     {result.error ? (
                       <p className="settings-inline-error" style={{ margin: '6px 0 0' }}>{result.error}</p>
@@ -1685,7 +1697,9 @@ export function ModelSettingsPanel({
                       <span className="provider-source-id">{source.id}</span>
                       <span className="provider-source-type-pill">{source.typeLabel}</span>
                       <span className={`provider-status-label ${source.configured ? 'ok' : ''}`}>
-                        {source.configured ? '凭据可用' : '未配置'}
+                        {source.authType === 'local_subscription'
+                          ? '订阅已登录'
+                          : source.configured ? '凭据可用' : '未配置'}
                       </span>
                     </div>
                     {source.baseUrl && (
@@ -1822,8 +1836,22 @@ export function ModelSettingsPanel({
                             onToast={onToast}
                           />
                           {model.deprecated && <span className="provider-tag">已弃用</span>}
-                          {model.verificationStatus === 'unverified' && <span className="provider-tag">当前不可验证</span>}
-                          {!model.available && <span className="provider-tag">连接不可用</span>}
+                          {model.verificationStatus === 'unverified' && (
+                            <span
+                              className="provider-tag"
+                              title="模型元数据未收录于 TaskWeaver 签名模型目录；此状态不代表连接失败。"
+                            >
+                              未收录官方目录
+                            </span>
+                          )}
+                          {!model.available && (
+                            <span
+                              className="provider-tag"
+                              title="模型目录中存在此项，但当前账号未登录或 Z Host 尚未确认该模型可路由。"
+                            >
+                              连接不可用
+                            </span>
+                          )}
                         </div>
                         {model.provider !== 'openai-codex' && model.profile?.capabilitySummary && (
                           <p className="source-model-summary">{model.profile.capabilitySummary}</p>
@@ -1876,7 +1904,7 @@ export function ModelSettingsPanel({
         <span>
           {bridgeReady
           ? 'API 凭据由 TaskWeaver 加密保存在本机；保存凭据不等于已验证服务连通。'
-            : '当前为纯 Web 预览，模型 API 仅在 Electron 主进程可用。'}
+            : '当前为纯 Web 预览，模型 API 仅在 TaskWeaver 桌面端可用。'}
         </span>
       </div>
         </>

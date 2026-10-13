@@ -4,16 +4,55 @@ client:
 tools: {}
 targets:
   "PackageStructure": ["<PackageStructure>"]
+  "ShellURLPolicy-arm64-apple-macosx-release.module": ["<ShellURLPolicy-arm64-apple-macosx-release.module>"]
+  "ShellURLPolicyTests-arm64-apple-macosx-release.module": ["<ShellURLPolicyTests-arm64-apple-macosx-release.module>"]
+  "TaskWeaverKeychain-arm64-apple-macosx-release.exe": ["<TaskWeaverKeychain-arm64-apple-macosx-release.exe>"]
+  "TaskWeaverKeychain-arm64-apple-macosx-release.module": ["<TaskWeaverKeychain-arm64-apple-macosx-release.module>"]
   "TaskWeaverShell-arm64-apple-macosx-release.exe": ["<TaskWeaverShell-arm64-apple-macosx-release.exe>"]
   "TaskWeaverShell-arm64-apple-macosx-release.module": ["<TaskWeaverShell-arm64-apple-macosx-release.module>"]
-  "main": ["<TaskWeaverShell-arm64-apple-macosx-release.exe>","<TaskWeaverShell-arm64-apple-macosx-release.module>"]
-  "test": ["<TaskWeaverShell-arm64-apple-macosx-release.exe>","<TaskWeaverShell-arm64-apple-macosx-release.module>"]
+  "TaskWeaverShellPackageTests-arm64-apple-macosx-release.module": ["<TaskWeaverShellPackageTests-arm64-apple-macosx-release.module>"]
+  "TaskWeaverShellPackageTests-arm64-apple-macosx-release.test": ["<TaskWeaverShellPackageTests-arm64-apple-macosx-release.test>"]
+  "main": ["<ShellURLPolicy-arm64-apple-macosx-release.module>","<TaskWeaverKeychain-arm64-apple-macosx-release.exe>","<TaskWeaverKeychain-arm64-apple-macosx-release.module>","<TaskWeaverShell-arm64-apple-macosx-release.exe>","<TaskWeaverShell-arm64-apple-macosx-release.module>"]
+  "test": ["<ShellURLPolicy-arm64-apple-macosx-release.module>","<ShellURLPolicyTests-arm64-apple-macosx-release.module>","<TaskWeaverKeychain-arm64-apple-macosx-release.exe>","<TaskWeaverKeychain-arm64-apple-macosx-release.module>","<TaskWeaverShell-arm64-apple-macosx-release.exe>","<TaskWeaverShell-arm64-apple-macosx-release.module>","<TaskWeaverShellPackageTests-arm64-apple-macosx-release.test>"]
 default: "main"
 nodes:
+  "/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/Sources/ShellURLPolicy/":
+    is-directory-structure: true
+    content-exclusion-patterns: [".git",".build"]
+  "/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/Sources/TaskWeaverKeychain/":
+    is-directory-structure: true
+    content-exclusion-patterns: [".git",".build"]
   "/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/Sources/TaskWeaverShell/":
     is-directory-structure: true
     content-exclusion-patterns: [".git",".build"]
+  "/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/Tests/ShellURLPolicyTests/":
+    is-directory-structure: true
+    content-exclusion-patterns: [".git",".build"]
 commands:
+  "/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/ShellURLPolicy.build/sources":
+    tool: write-auxiliary-file
+    inputs: ["<sources-file-list>","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/Sources/ShellURLPolicy/ShellURLPolicy.swift"]
+    outputs: ["/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/ShellURLPolicy.build/sources"]
+    description: "Write auxiliary file /Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/ShellURLPolicy.build/sources"
+
+  "/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/ShellURLPolicyTests.build/sources":
+    tool: write-auxiliary-file
+    inputs: ["<sources-file-list>","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/Tests/ShellURLPolicyTests/ShellURLPolicyTests.swift"]
+    outputs: ["/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/ShellURLPolicyTests.build/sources"]
+    description: "Write auxiliary file /Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/ShellURLPolicyTests.build/sources"
+
+  "/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/TaskWeaverKeychain.build/sources":
+    tool: write-auxiliary-file
+    inputs: ["<sources-file-list>","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/Sources/TaskWeaverKeychain/main.swift"]
+    outputs: ["/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/TaskWeaverKeychain.build/sources"]
+    description: "Write auxiliary file /Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/TaskWeaverKeychain.build/sources"
+
+  "/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/TaskWeaverKeychain.product/Objects.LinkFileList":
+    tool: write-auxiliary-file
+    inputs: ["<link-file-list>","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/TaskWeaverKeychain.build/main.swift.o"]
+    outputs: ["/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/TaskWeaverKeychain.product/Objects.LinkFileList"]
+    description: "Write auxiliary file /Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/TaskWeaverKeychain.product/Objects.LinkFileList"
+
   "/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/TaskWeaverShell.build/sources":
     tool: write-auxiliary-file
     inputs: ["<sources-file-list>","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/Sources/TaskWeaverShell/BackendLauncher.swift","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/Sources/TaskWeaverShell/TaskWeaverShellApp.swift"]
@@ -22,9 +61,26 @@ commands:
 
   "/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/TaskWeaverShell.product/Objects.LinkFileList":
     tool: write-auxiliary-file
-    inputs: ["<link-file-list>","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/TaskWeaverShell.build/BackendLauncher.swift.o","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/TaskWeaverShell.build/TaskWeaverShellApp.swift.o"]
+    inputs: ["<link-file-list>","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/ShellURLPolicy.build/ShellURLPolicy.swift.o","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/TaskWeaverShell.build/BackendLauncher.swift.o","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/TaskWeaverShell.build/TaskWeaverShellApp.swift.o"]
     outputs: ["/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/TaskWeaverShell.product/Objects.LinkFileList"]
     description: "Write auxiliary file /Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/TaskWeaverShell.product/Objects.LinkFileList"
+
+  "/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/TaskWeaverShellPackageTests.build/sources":
+    tool: write-auxiliary-file
+    inputs: ["<sources-file-list>","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/TaskWeaverShellPackageTests.derived/runner.swift"]
+    outputs: ["/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/TaskWeaverShellPackageTests.build/sources"]
+    description: "Write auxiliary file /Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/TaskWeaverShellPackageTests.build/sources"
+
+  "/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/TaskWeaverShellPackageTests.derived/runner.swift":
+    tool: test-entry-point-tool
+    inputs: []
+    outputs: ["/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/TaskWeaverShellPackageTests.derived/runner.swift"]
+
+  "/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/TaskWeaverShellPackageTests.product/Objects.LinkFileList":
+    tool: write-auxiliary-file
+    inputs: ["<link-file-list>","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/ShellURLPolicy.build/ShellURLPolicy.swift.o","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/ShellURLPolicyTests.build/ShellURLPolicyTests.swift.o","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/TaskWeaverShellPackageTests.build/runner.swift.o"]
+    outputs: ["/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/TaskWeaverShellPackageTests.product/Objects.LinkFileList"]
+    description: "Write auxiliary file /Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/TaskWeaverShellPackageTests.product/Objects.LinkFileList"
 
   "/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/swift-version--1AB21518FC5DEDBE.txt":
     tool: write-auxiliary-file
@@ -32,6 +88,26 @@ commands:
     outputs: ["/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/swift-version--1AB21518FC5DEDBE.txt"]
     always-out-of-date: "true"
     description: "Write auxiliary file /Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/swift-version--1AB21518FC5DEDBE.txt"
+
+  "<ShellURLPolicy-arm64-apple-macosx-release.module>":
+    tool: phony
+    inputs: ["/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/ShellURLPolicy.build/ShellURLPolicy.swift.o","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/Modules/ShellURLPolicy.swiftmodule"]
+    outputs: ["<ShellURLPolicy-arm64-apple-macosx-release.module>"]
+
+  "<ShellURLPolicyTests-arm64-apple-macosx-release.module>":
+    tool: phony
+    inputs: ["/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/ShellURLPolicyTests.build/ShellURLPolicyTests.swift.o","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/Modules/ShellURLPolicyTests.swiftmodule"]
+    outputs: ["<ShellURLPolicyTests-arm64-apple-macosx-release.module>"]
+
+  "<TaskWeaverKeychain-arm64-apple-macosx-release.exe>":
+    tool: phony
+    inputs: ["/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/TaskWeaverKeychain"]
+    outputs: ["<TaskWeaverKeychain-arm64-apple-macosx-release.exe>"]
+
+  "<TaskWeaverKeychain-arm64-apple-macosx-release.module>":
+    tool: phony
+    inputs: ["/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/TaskWeaverKeychain.build/main.swift.o","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/Modules/TaskWeaverKeychain.swiftmodule"]
+    outputs: ["<TaskWeaverKeychain-arm64-apple-macosx-release.module>"]
 
   "<TaskWeaverShell-arm64-apple-macosx-release.exe>":
     tool: phony
@@ -43,23 +119,75 @@ commands:
     inputs: ["/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/TaskWeaverShell.build/BackendLauncher.swift.o","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/TaskWeaverShell.build/TaskWeaverShellApp.swift.o","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/Modules/TaskWeaverShell.swiftmodule"]
     outputs: ["<TaskWeaverShell-arm64-apple-macosx-release.module>"]
 
+  "<TaskWeaverShellPackageTests-arm64-apple-macosx-release.module>":
+    tool: phony
+    inputs: ["/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/TaskWeaverShellPackageTests.build/runner.swift.o","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/Modules/TaskWeaverShellPackageTests.swiftmodule"]
+    outputs: ["<TaskWeaverShellPackageTests-arm64-apple-macosx-release.module>"]
+
+  "<TaskWeaverShellPackageTests-arm64-apple-macosx-release.test>":
+    tool: phony
+    inputs: ["/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/TaskWeaverShellPackageTests.xctest/Contents/MacOS/TaskWeaverShellPackageTests"]
+    outputs: ["<TaskWeaverShellPackageTests-arm64-apple-macosx-release.test>"]
+
+  "C.ShellURLPolicy-arm64-apple-macosx-release.module":
+    tool: shell
+    inputs: ["/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/Sources/ShellURLPolicy/ShellURLPolicy.swift","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/swift-version--1AB21518FC5DEDBE.txt","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/ShellURLPolicy.build/sources"]
+    outputs: ["/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/ShellURLPolicy.build/ShellURLPolicy.swift.o","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/Modules/ShellURLPolicy.swiftmodule"]
+    description: "Compiling Swift Module 'ShellURLPolicy' (1 sources)"
+    args: ["/Library/Developer/CommandLineTools/usr/bin/swiftc","-module-name","ShellURLPolicy","-emit-dependencies","-emit-module","-emit-module-path","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/Modules/ShellURLPolicy.swiftmodule","-output-file-map","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/ShellURLPolicy.build/output-file-map.json","-parse-as-library","-whole-module-optimization","-num-threads","12","-c","@/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/ShellURLPolicy.build/sources","-I","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/Modules","-target","arm64-apple-macosx13.0","-whole-module-optimization","-num-threads","12","-serialize-diagnostics","-O","-j12","-DSWIFT_PACKAGE","-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE","-module-cache-path","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/ModuleCache","-parseable-output","-parse-as-library","-emit-objc-header","-emit-objc-header-path","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/ShellURLPolicy.build/include/ShellURLPolicy-Swift.h","-swift-version","5","-I","/Library/Developer/CommandLineTools/Library/Developer/Frameworks","-L","/Library/Developer/CommandLineTools/Library/Developer/Frameworks","-plugin-path","/Library/Developer/CommandLineTools/usr/lib/swift/host/plugins/testing","-sdk","/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk","-g","-Xcc","-isysroot","-Xcc","/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk","-Xcc","-fPIC","-Xcc","-g","-package-name","taskweavershell"]
+
+  "C.ShellURLPolicyTests-arm64-apple-macosx-release.module":
+    tool: shell
+    inputs: ["/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/Tests/ShellURLPolicyTests/ShellURLPolicyTests.swift","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/swift-version--1AB21518FC5DEDBE.txt","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/Modules/ShellURLPolicy.swiftmodule","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/ShellURLPolicyTests.build/sources"]
+    outputs: ["/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/ShellURLPolicyTests.build/ShellURLPolicyTests.swift.o","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/Modules/ShellURLPolicyTests.swiftmodule"]
+    description: "Compiling Swift Module 'ShellURLPolicyTests' (1 sources)"
+    args: ["/Library/Developer/CommandLineTools/usr/bin/swiftc","-module-name","ShellURLPolicyTests","-emit-dependencies","-emit-module","-emit-module-path","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/Modules/ShellURLPolicyTests.swiftmodule","-output-file-map","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/ShellURLPolicyTests.build/output-file-map.json","-parse-as-library","-whole-module-optimization","-num-threads","12","-c","@/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/ShellURLPolicyTests.build/sources","-I","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/Modules","-target","arm64-apple-macosx13.0","-whole-module-optimization","-num-threads","12","-serialize-diagnostics","-index-store-path","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/index/store","-O","-enable-testing","-Xfrontend","-enable-cross-import-overlays","-j12","-DSWIFT_PACKAGE","-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE","-module-cache-path","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/ModuleCache","-parseable-output","-parse-as-library","-swift-version","5","-I","/Library/Developer/CommandLineTools/Library/Developer/Frameworks","-L","/Library/Developer/CommandLineTools/Library/Developer/Frameworks","-plugin-path","/Library/Developer/CommandLineTools/usr/lib/swift/host/plugins/testing","-sdk","/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk","-g","-Xcc","-isysroot","-Xcc","/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk","-Xcc","-fPIC","-Xcc","-g","-package-name","taskweavershell"]
+
+  "C.TaskWeaverKeychain-arm64-apple-macosx-release.exe":
+    tool: shell
+    inputs: ["/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/TaskWeaverKeychain.build/main.swift.o","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/TaskWeaverKeychain.product/Objects.LinkFileList"]
+    outputs: ["/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/TaskWeaverKeychain"]
+    description: "Linking ./.build/arm64-apple-macosx/release/TaskWeaverKeychain"
+    args: ["/Library/Developer/CommandLineTools/usr/bin/swiftc","-L","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release","-o","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/TaskWeaverKeychain","-module-name","TaskWeaverKeychain","-Xlinker","-no_warn_duplicate_libraries","-emit-executable","-Xlinker","-dead_strip","-Xlinker","-alias","-Xlinker","_TaskWeaverKeychain_main","-Xlinker","_main","-Xlinker","-rpath","-Xlinker","@loader_path","@/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/TaskWeaverKeychain.product/Objects.LinkFileList","-Xlinker","-rpath","-Xlinker","/Library/Developer/CommandLineTools/usr/lib/swift-6.2/macosx","-target","arm64-apple-macosx13.0","-I","/Library/Developer/CommandLineTools/Library/Developer/Frameworks","-L","/Library/Developer/CommandLineTools/Library/Developer/Frameworks","-plugin-path","/Library/Developer/CommandLineTools/usr/lib/swift/host/plugins/testing","-sdk","/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk","-g"]
+
+  "C.TaskWeaverKeychain-arm64-apple-macosx-release.module":
+    tool: shell
+    inputs: ["/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/Sources/TaskWeaverKeychain/main.swift","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/swift-version--1AB21518FC5DEDBE.txt","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/TaskWeaverKeychain.build/sources"]
+    outputs: ["/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/TaskWeaverKeychain.build/main.swift.o","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/Modules/TaskWeaverKeychain.swiftmodule"]
+    description: "Compiling Swift Module 'TaskWeaverKeychain' (1 sources)"
+    args: ["/Library/Developer/CommandLineTools/usr/bin/swiftc","-module-name","TaskWeaverKeychain","-emit-dependencies","-emit-module","-emit-module-path","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/Modules/TaskWeaverKeychain.swiftmodule","-output-file-map","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/TaskWeaverKeychain.build/output-file-map.json","-whole-module-optimization","-num-threads","12","-c","@/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/TaskWeaverKeychain.build/sources","-I","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/Modules","-target","arm64-apple-macosx13.0","-whole-module-optimization","-num-threads","12","-serialize-diagnostics","-O","-j12","-DSWIFT_PACKAGE","-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE","-module-cache-path","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/ModuleCache","-parseable-output","-Xfrontend","-entry-point-function-name","-Xfrontend","TaskWeaverKeychain_main","-swift-version","5","-I","/Library/Developer/CommandLineTools/Library/Developer/Frameworks","-L","/Library/Developer/CommandLineTools/Library/Developer/Frameworks","-plugin-path","/Library/Developer/CommandLineTools/usr/lib/swift/host/plugins/testing","-sdk","/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk","-g","-Xcc","-isysroot","-Xcc","/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk","-Xcc","-fPIC","-Xcc","-g","-package-name","taskweavershell"]
+
   "C.TaskWeaverShell-arm64-apple-macosx-release.exe":
     tool: shell
-    inputs: ["/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/TaskWeaverShell.build/BackendLauncher.swift.o","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/TaskWeaverShell.build/TaskWeaverShellApp.swift.o","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/TaskWeaverShell.product/Objects.LinkFileList"]
+    inputs: ["/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/ShellURLPolicy.build/ShellURLPolicy.swift.o","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/TaskWeaverShell.build/BackendLauncher.swift.o","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/TaskWeaverShell.build/TaskWeaverShellApp.swift.o","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/TaskWeaverShell.product/Objects.LinkFileList"]
     outputs: ["/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/TaskWeaverShell"]
     description: "Linking ./.build/arm64-apple-macosx/release/TaskWeaverShell"
     args: ["/Library/Developer/CommandLineTools/usr/bin/swiftc","-L","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release","-o","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/TaskWeaverShell","-module-name","TaskWeaverShell","-Xlinker","-no_warn_duplicate_libraries","-emit-executable","-Xlinker","-dead_strip","-Xlinker","-alias","-Xlinker","_TaskWeaverShell_main","-Xlinker","_main","-Xlinker","-rpath","-Xlinker","@loader_path","@/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/TaskWeaverShell.product/Objects.LinkFileList","-Xlinker","-rpath","-Xlinker","/Library/Developer/CommandLineTools/usr/lib/swift-6.2/macosx","-target","arm64-apple-macosx13.0","-I","/Library/Developer/CommandLineTools/Library/Developer/Frameworks","-L","/Library/Developer/CommandLineTools/Library/Developer/Frameworks","-plugin-path","/Library/Developer/CommandLineTools/usr/lib/swift/host/plugins/testing","-sdk","/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk","-g"]
 
   "C.TaskWeaverShell-arm64-apple-macosx-release.module":
     tool: shell
-    inputs: ["/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/Sources/TaskWeaverShell/BackendLauncher.swift","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/Sources/TaskWeaverShell/TaskWeaverShellApp.swift","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/swift-version--1AB21518FC5DEDBE.txt","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/TaskWeaverShell.build/sources"]
+    inputs: ["/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/Sources/TaskWeaverShell/BackendLauncher.swift","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/Sources/TaskWeaverShell/TaskWeaverShellApp.swift","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/swift-version--1AB21518FC5DEDBE.txt","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/Modules/ShellURLPolicy.swiftmodule","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/TaskWeaverShell.build/sources"]
     outputs: ["/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/TaskWeaverShell.build/BackendLauncher.swift.o","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/TaskWeaverShell.build/TaskWeaverShellApp.swift.o","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/Modules/TaskWeaverShell.swiftmodule"]
     description: "Compiling Swift Module 'TaskWeaverShell' (2 sources)"
     args: ["/Library/Developer/CommandLineTools/usr/bin/swiftc","-module-name","TaskWeaverShell","-emit-dependencies","-emit-module","-emit-module-path","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/Modules/TaskWeaverShell.swiftmodule","-output-file-map","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/TaskWeaverShell.build/output-file-map.json","-whole-module-optimization","-num-threads","12","-c","@/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/TaskWeaverShell.build/sources","-I","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/Modules","-target","arm64-apple-macosx13.0","-whole-module-optimization","-num-threads","12","-serialize-diagnostics","-O","-j12","-DSWIFT_PACKAGE","-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE","-module-cache-path","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/ModuleCache","-parseable-output","-Xfrontend","-entry-point-function-name","-Xfrontend","TaskWeaverShell_main","-swift-version","5","-I","/Library/Developer/CommandLineTools/Library/Developer/Frameworks","-L","/Library/Developer/CommandLineTools/Library/Developer/Frameworks","-plugin-path","/Library/Developer/CommandLineTools/usr/lib/swift/host/plugins/testing","-sdk","/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk","-g","-Xcc","-isysroot","-Xcc","/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk","-Xcc","-fPIC","-Xcc","-g","-package-name","taskweavershell"]
 
+  "C.TaskWeaverShellPackageTests-arm64-apple-macosx-release.module":
+    tool: shell
+    inputs: ["/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/TaskWeaverShellPackageTests.derived/runner.swift","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/swift-version--1AB21518FC5DEDBE.txt","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/Modules/ShellURLPolicyTests.swiftmodule","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/TaskWeaverShellPackageTests.build/sources"]
+    outputs: ["/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/TaskWeaverShellPackageTests.build/runner.swift.o","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/Modules/TaskWeaverShellPackageTests.swiftmodule"]
+    description: "Compiling Swift Module 'TaskWeaverShellPackageTests' (1 sources)"
+    args: ["/Library/Developer/CommandLineTools/usr/bin/swiftc","-module-name","TaskWeaverShellPackageTests","-emit-dependencies","-emit-module","-emit-module-path","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/Modules/TaskWeaverShellPackageTests.swiftmodule","-output-file-map","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/TaskWeaverShellPackageTests.build/output-file-map.json","-parse-as-library","-whole-module-optimization","-num-threads","12","-c","@/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/TaskWeaverShellPackageTests.build/sources","-I","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/Modules","-target","arm64-apple-macosx13.0","-whole-module-optimization","-num-threads","12","-serialize-diagnostics","-O","-enable-testing","-Xfrontend","-enable-cross-import-overlays","-j12","-DSWIFT_PACKAGE","-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE","-module-cache-path","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/ModuleCache","-parseable-output","-parse-as-library","-emit-objc-header","-emit-objc-header-path","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/TaskWeaverShellPackageTests.build/include/TaskWeaverShellPackageTests-Swift.h","-I","/Library/Developer/CommandLineTools/Library/Developer/Frameworks","-L","/Library/Developer/CommandLineTools/Library/Developer/Frameworks","-plugin-path","/Library/Developer/CommandLineTools/usr/lib/swift/host/plugins/testing","-sdk","/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk","-g","-Xcc","-isysroot","-Xcc","/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk","-Xcc","-fPIC","-Xcc","-g","-package-name","taskweavershell"]
+
+  "C.TaskWeaverShellPackageTests-arm64-apple-macosx-release.test":
+    tool: shell
+    inputs: ["/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/ShellURLPolicy.build/ShellURLPolicy.swift.o","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/ShellURLPolicyTests.build/ShellURLPolicyTests.swift.o","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/TaskWeaverShellPackageTests.build/runner.swift.o","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/TaskWeaverShellPackageTests.product/Objects.LinkFileList"]
+    outputs: ["/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/TaskWeaverShellPackageTests.xctest/Contents/MacOS/TaskWeaverShellPackageTests"]
+    description: "Linking ./.build/arm64-apple-macosx/release/TaskWeaverShellPackageTests.xctest/Contents/MacOS/TaskWeaverShellPackageTests"
+    args: ["/Library/Developer/CommandLineTools/usr/bin/swiftc","-L","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release","-o","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/TaskWeaverShellPackageTests.xctest/Contents/MacOS/TaskWeaverShellPackageTests","-module-name","TaskWeaverShellPackageTests","-Xlinker","-no_warn_duplicate_libraries","-Xlinker","-bundle","-Xlinker","-dead_strip","-Xlinker","-rpath","-Xlinker","@loader_path/../../../","@/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/.build/arm64-apple-macosx/release/TaskWeaverShellPackageTests.product/Objects.LinkFileList","-Xlinker","-rpath","-Xlinker","/Library/Developer/CommandLineTools/usr/lib/swift-6.2/macosx","-target","arm64-apple-macosx13.0","-I","/Library/Developer/CommandLineTools/Library/Developer/Frameworks","-L","/Library/Developer/CommandLineTools/Library/Developer/Frameworks","-plugin-path","/Library/Developer/CommandLineTools/usr/lib/swift/host/plugins/testing","-sdk","/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk","-g"]
+
   "PackageStructure":
     tool: package-structure-tool
-    inputs: ["/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/Sources/TaskWeaverShell/","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/Package.swift","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/Package.resolved"]
+    inputs: ["/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/Sources/ShellURLPolicy/","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/Sources/TaskWeaverKeychain/","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/Sources/TaskWeaverShell/","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/Tests/ShellURLPolicyTests/","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/Package.swift","/Users/zsn/Documents/毕设/apps/macos/TaskWeaverShell/Package.resolved"]
     outputs: ["<PackageStructure>"]
     description: "Planning build"
     allow-missing-inputs: true

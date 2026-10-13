@@ -38,11 +38,11 @@
 
       For work that needs several tool calls or is likely to take more than 15 seconds, send one concise,
       user-visible progress sentence in normal assistant text before the first `run_code` call, then continue
-      the task without waiting for a reply. Do not perform more than three tool operations in a row without a
-      brief, factual user-visible checkpoint. Keep each `run_code` batch to at most three independent tool
-      operations when more work remains; after a batch, report what completed before continuing. Do not leave
-      the user with only Think until the final answer. Never expose private reasoning, add filler, or claim
-      progress that the tools have not confirmed.
+      the task without waiting for a reply. Send a brief, factual user-visible checkpoint at meaningful
+      milestones; do not interrupt work merely to count tool calls. Batch independent operations when safe,
+      then report what completed before continuing if substantial work remains. Do not leave the user with only
+      Think until the final answer. Never expose private reasoning, add filler, or claim progress that the tools
+      have not confirmed.
 
       Match effort to the request. For a straightforward conversational or explanatory question, answer
       directly from the available context; do not inspect the repository or launch agents unless the user
@@ -63,6 +63,7 @@
   name: '@taskweaver/dsh-agent-instructions'
   config:
     maxBytes: 65536
+    instructionFileCandidates: [TASKWEAVER.md, AGENTS.md, CLAUDE.md, .cursorrules]
 
 # ── shell ───────────────────────────────────────────────────────────────────
 
@@ -96,6 +97,12 @@
   config:
     sampleOverCapGlobResults: true
     excludeDirectories: [node_modules, runtime-packages, dist, release, coverage, .pnpm-store, .taskweaver-build, taskweaver-z-runtime, taskweaver-dsh-runtime]
+
+- id: tool-fs-inline-edit
+  name: '@taskweaver/dsh-tool-fs-inline-edit'
+
+- id: tool-lsp
+  name: '@taskweaver/dsh-tool-lsp'
 
 # ── background jobs ────────────────────────────────────────────────────────
 

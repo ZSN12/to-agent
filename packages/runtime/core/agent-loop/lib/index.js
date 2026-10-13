@@ -82,6 +82,13 @@ var RuntimeContextProjection = class {
 	}
 };
 //#endregion
+//#region lib/types/constants.js
+/** Shared agent-loop scheduler defaults.
+* @module dsh-agent-loop/constants
+*/
+/** Default maximum in-flight parallel-safe calls per agent step. */
+const DEFAULT_MAX_PARALLEL_TOOL_CALLS = 10;
+//#endregion
 //#region lib/types/tool-calls.js
 /**
 * Schedules one assistant step's tool calls. Exclusive calls form barriers;
@@ -453,7 +460,8 @@ var ReactLoopAgent = class {
 			abort: new AbortController(),
 			turn: this.phase.lastTurn,
 			step: 0,
-			wakeRequested: false
+			wakeRequested: false,
+			outputSchema: void 0
 		});
 		this.loopCtx.agents.withInitiator(this, () => this.kick()).then(driver.resolve, driver.reject);
 	}
@@ -526,10 +534,13 @@ var ReactLoopAgent = class {
 		}
 		phase.turn = turn;
 		let turnEnds = null;
+		let maxTokenRecoveryUsed = false;
 		let target = "next-turn";
 		try {
 			while (true) {
 				signal.throwIfAborted();
+				const maxSteps = this.options.maxSteps ?? 128;
+				if (phase.step >= maxSteps) throw new LlmError(`agent "${this.id}" reached its per-turn step limit (${maxSteps})`, "MAX_STEPS");
 				const step = phase.step + 1;
 				const decision = await this.preStep(target, {
 					turn,
@@ -539,6 +550,8 @@ var ReactLoopAgent = class {
 					turnEnds = { kind: "blocked" };
 					return false;
 				}
+				const userInputs = decision.messages.filter((message) => message.source.kind === "user");
+				if (phase.step === 0 || userInputs.length > 0) phase.outputSchema = userInputs.find((message) => message.source.outputSchema !== void 0)?.source.outputSchema;
 				if (turnEnds && decision.messages.length === 0) break;
 				if (phase.step === 0 && decision.messages.length === 0) {
 					turnEnds = { kind: "completed" };
@@ -553,7 +566,23 @@ var ReactLoopAgent = class {
 				try {
 					for (const message of decision.messages) this.session.append("user/message", message, { surfaceOp: "append" });
 					const stepEnd = await this.step(decision.assembly);
-					if (turnEnds === null || turnEnds.kind !== "max-tokens") turnEnds = stepEnd;
+					if (stepEnd?.kind === "max-tokens" && !maxTokenRecoveryUsed) {
+						maxTokenRecoveryUsed = true;
+						const continuation = stepEnd.truncatedToolCall ? "模型上一条回复在生成工具调用参数时达到输出上限；不完整的工具调用已丢弃且不会执行。请把计划拆成更小、参数更短的独立工具调用，再继续完成用户任务。" : "模型上一条回复达到输出上限。请从刚才停止的位置继续，不要重复已经完成的内容，继续完成用户任务。";
+						this.inject(createUserMessage({
+							content: [{
+								type: "text",
+								text: continuation
+							}],
+							source: {
+								kind: "plugin",
+								plugin: "dsh-agent-loop/max-tokens-recovery",
+								form: "notice",
+								summary: "模型输出达到上限，正在自动安全续写一次。"
+							}
+						}));
+						turnEnds = null;
+					} else if (turnEnds === null || turnEnds.kind !== "max-tokens") turnEnds = stepEnd?.kind === "max-tokens" ? { kind: "max-tokens" } : stepEnd;
 				} finally {
 					this.session.append("step/end", {
 						turn,
@@ -610,9 +639,10 @@ var ReactLoopAgent = class {
 		signal.throwIfAborted();
 		const system = renderPrompt(assembly);
 		while (true) {
-			const { request, preparedCall } = await this.buildRequest(turn, step, assembly.tools, system, this.session.deriveMessages(), signal);
+			const { request, preparedCall } = await this.buildRequest(turn, step, assembly.tools, system, this.session.deriveMessages(), signal, this.phase.kind === "running" ? this.phase.outputSchema : void 0);
 			const assembler = new BlockAssembler();
 			const chunkSeqs = [];
+			let streamStarted = false;
 			try {
 				const stream = preparedCall?.stream(request) ?? this.loopCtx.llm.stream(request);
 				signal.throwIfAborted();
@@ -623,6 +653,7 @@ var ReactLoopAgent = class {
 						step,
 						chunk
 					}).seq);
+					if (chunk.type === "block-end" || chunk.type === "text-delta" && chunk.text.length > 0 || chunk.type === "reasoning-delta" && chunk.text.length > 0 || chunk.type === "tool-call-delta" && (Boolean(chunk.name) || chunk.argumentsDelta.length > 0)) streamStarted = true;
 					assembler.push(chunk);
 				}
 				signal.throwIfAborted();
@@ -656,6 +687,7 @@ var ReactLoopAgent = class {
 					provider: request.provider,
 					failure: finish.failure,
 					retryPolicy: preparedCall?.retryPolicy,
+					streamStarted,
 					signal
 				}, () => Promise.resolve(void 0));
 				signal.throwIfAborted();
@@ -679,7 +711,10 @@ var ReactLoopAgent = class {
 				surfaceOp: "append",
 				sourceEventSeqs: chunkSeqs
 			});
-			if (finish.kind === "max-tokens") return { kind: "max-tokens" };
+			if (finish.kind === "max-tokens") return {
+				kind: "max-tokens",
+				truncatedToolCall: assembler.hasToolCall
+			};
 			const toolCalls = message.content.filter((block) => block.type === "tool-call");
 			if (toolCalls.length === 0) return { kind: "completed" };
 			const { concluded } = await executeToolCalls(this.loopCtx, turn, step, toolCalls, signal, (context) => this.inbox.splice("next-step", this.inbox.nextStep.length, 0, [context]));
@@ -690,7 +725,7 @@ var ReactLoopAgent = class {
 	* Compose one frozen request and bind it to the adapter registration that
 	* resolved its exact-model defaults.
 	*/
-	async buildRequest(turn, step, tools, system, boundaryMessages, signal) {
+	async buildRequest(turn, step, tools, system, boundaryMessages, signal, outputSchema) {
 		const { session } = this;
 		const persistedHeader = session.requestHeader();
 		const persistedConfig = persistedHeader?.config;
@@ -754,6 +789,7 @@ var ReactLoopAgent = class {
 				messages: boundaryMessages,
 				...header.system !== void 0 ? { system: header.system } : {},
 				...header.tools !== void 0 ? { tools: header.tools } : {},
+				...outputSchema !== void 0 ? { outputSchema } : {},
 				sessionId: this.session.id,
 				signal
 			})),
@@ -761,13 +797,6 @@ var ReactLoopAgent = class {
 		};
 	}
 };
-//#endregion
-//#region lib/types/constants.js
-/** Shared agent-loop scheduler defaults.
-* @module dsh-agent-loop/constants
-*/
-/** Default maximum in-flight parallel-safe calls per agent step. */
-const DEFAULT_MAX_PARALLEL_TOOL_CALLS = 10;
 //#endregion
 //#region lib/types/index.js
 /**
@@ -923,6 +952,7 @@ function resolveMaxParallelToolCalls(value) {
 /** Reject an output-token cap that cannot be represented exactly on the request wire. */
 function assertAgentOptions(options) {
 	if (options.maxTokens !== void 0 && (!Number.isSafeInteger(options.maxTokens) || options.maxTokens <= 0)) throw new TypeError("agent maxTokens must be a positive safe integer");
+	if (options.maxSteps !== void 0 && (!Number.isSafeInteger(options.maxSteps) || options.maxSteps <= 0)) throw new TypeError("agent maxSteps must be a positive safe integer");
 }
 /**
 * Context key a launcher sets before any Loader entry mounts
@@ -989,6 +1019,7 @@ var AgentLoop = class extends Service {
 			provider: z.string(),
 			model: z.string(),
 			maxTokens: z.number().step(1).min(1).max(Number.MAX_SAFE_INTEGER),
+			maxSteps: z.number().step(1).min(1).max(Number.MAX_SAFE_INTEGER),
 			cwd: z.string(),
 			resumeSessionId: z.string()
 		})).default([])

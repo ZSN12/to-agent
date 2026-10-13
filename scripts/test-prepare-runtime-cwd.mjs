@@ -11,7 +11,7 @@ import {
   resolveTaskWeaverRuntimeRoot,
   runtimePackagesResolveSmoke,
   TASKWEAVER_RUNTIME_PACKAGES,
-} from '../desktop/agent/z-host/index.mjs'
+} from '../backend/agent/z-host/index.mjs'
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const runtimeRoot = resolveTaskWeaverRuntimeRoot({
@@ -53,15 +53,47 @@ try {
   const fixtureRoot = path.join(tempRoot, 'runtime-fixture')
   const fixtureHome = path.join(tempRoot, 'fixture-dsh')
   const fixtureRuntime = path.join(fixtureRoot, 'runtime')
-  const writeFixture = async (version) => {
-    const persona = path.join(fixtureRuntime, 'runtime-packages', '@taskweaver', 'dsh-persona')
+  const writeFixture = async (runtimePath, version) => {
+    const persona = path.join(runtimePath, 'runtime-packages', '@taskweaver', 'dsh-persona')
     await fs.mkdir(persona, { recursive: true })
     await fs.writeFile(path.join(persona, 'package.json'), JSON.stringify({ name: '@taskweaver/dsh-persona', version }))
+    for (const name of ['lib', 'config', 'electron-vendor']) {
+      await fs.mkdir(path.join(runtimePath, name), { recursive: true })
+    }
+    await fs.writeFile(path.join(runtimePath, 'package.json'), JSON.stringify({ name: 'runtime-fixture', version }))
+    await fs.writeFile(path.join(runtimePath, 'taskweaver-runtime-meta.json'), JSON.stringify({ version }))
   }
   await fs.mkdir(fixtureHome, { recursive: true })
-  await writeFixture('1')
+  await writeFixture(fixtureRuntime, '1')
+
+  const packagesOnly = path.join(tempRoot, 'packages-only')
+  await writeFixture(packagesOnly, '1')
+  assert.equal(runtimePackagesResolveSmoke(packagesOnly), false,
+    'runtime-packages alone is insufficient when Node cannot resolve it through node_modules')
+
+  const danglingRuntime = path.join(fixtureRoot, 'dangling-runtime')
+  await writeFixture(danglingRuntime, '1')
+  await fs.symlink(path.join(tempRoot, 'missing-node-modules'), path.join(danglingRuntime, 'node_modules'), 'dir')
+  const repairedInPlace = prepareRuntimeCwd(danglingRuntime, fixtureHome, { useStableMirror: false })
+  assert.equal(repairedInPlace, danglingRuntime)
+  assert.equal(runtimePackagesResolveSmoke(repairedInPlace), true,
+    'in-place preparation must replace a dangling node_modules symlink')
+
+  const staleMirror = path.join(fixtureHome, 'packaged-runtime')
+  await fs.mkdir(staleMirror, { recursive: true })
+  for (const name of ['lib', 'config', 'runtime-packages', 'electron-vendor', 'package.json', 'taskweaver-runtime-meta.json']) {
+    await fs.symlink(path.join(staleMirror, name), path.join(staleMirror, name), name.endsWith('.json') ? 'file' : 'dir')
+  }
+  await fs.symlink('runtime-packages', path.join(staleMirror, 'node_modules'), 'dir')
+
   const stableCwd = prepareRuntimeCwd(fixtureRuntime, fixtureHome, { useStableMirror: true })
   const stableRealCwd = await fs.realpath(stableCwd)
+  assert.equal(runtimePackagesResolveSmoke(stableCwd), true,
+    'stable mirror preparation must repair stale self-referential links')
+  assert.equal(await fs.realpath(path.join(stableCwd, 'runtime-packages')),
+    await fs.realpath(path.join(fixtureRuntime, 'runtime-packages')))
+  assert.equal(await fs.realpath(path.join(stableCwd, 'package.json')),
+    await fs.realpath(path.join(fixtureRuntime, 'package.json')))
   const previousRuntime = path.join(fixtureRoot, 'runtime-previous')
   const originalCwd = process.cwd()
   try {
@@ -69,7 +101,7 @@ try {
     // directory, which build:z-runtime renames and then removes.
     process.chdir(fixtureRuntime)
     await fs.rename(fixtureRuntime, previousRuntime)
-    await writeFixture('2')
+    await writeFixture(fixtureRuntime, '2')
     await fs.rm(previousRuntime, { recursive: true, force: true })
     assert.throws(() => process.cwd(), /uv_cwd|ENOENT/,
       'removing a live process cwd makes Node unable to resolve its cwd')

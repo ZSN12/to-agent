@@ -12,9 +12,11 @@
  */
 import { Context, Service } from '@taskweaver/cordis';
 import { HarnessError } from '@taskweaver/dsh-llm';
-import type { LspProvider, LspQueryRequest, LspQueryResult, LspService } from './types.ts';
+import type { LspProvider, LspDiagnosticsOptions, LspDiagnosticsRequest, LspDiagnostic, LspQueryRequest, LspQueryResult, LspService } from './types.ts';
 export { LspProviderId } from './brand.ts';
-export type { LspHover, LspLocation, LspOperation, LspPosition, LspProvider, LspProviderQuery, LspQueryRequest, LspQueryResult, LspRange, LspService, } from './types.ts';
+export type { LspDiagnostic, LspDiagnosticSeverity, LspDiagnosticsOptions, LspDiagnosticsRequest, LspHover, LspLocation, LspOperation, LspPosition, LspProvider, LspProviderDiagnosticsRequest, LspProviderQuery, LspQueryRequest, LspQueryResult, LspRange, LspService, } from './types.ts';
+/** Maximum wait for a language server to publish diagnostics after a document open. */
+export declare const MAX_DIAGNOSTICS_WAIT_MS = 1500;
 declare module '@taskweaver/cordis' {
     interface Context {
         lsp: LspService;
@@ -47,6 +49,7 @@ export declare class Lsp extends Service implements LspService {
     constructor(ctx: Context);
     registerProvider(provider: LspProvider): () => void;
     query(request: LspQueryRequest, signal?: AbortSignal): Promise<LspQueryResult>;
+    getDiagnostics(request: LspDiagnosticsRequest, options?: LspDiagnosticsOptions): Promise<readonly LspDiagnostic[]>;
 }
 export default Lsp;
 //# sourceMappingURL=index.d.ts.map

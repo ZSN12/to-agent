@@ -24,20 +24,12 @@ const { outputText: activityOutput } = ts.transpileModule(activitySource, {
 const { visibleStreamStatusLabel } = await import(
   `data:text/javascript;base64,${Buffer.from(activityOutput).toString('base64')}`,
 )
-assert.equal(visibleStreamStatusLabel({}), '正在等待模型响应', 'the live turn must show status before the model emits prose')
-assert.equal(visibleStreamStatusLabel({ isThinking: true }), '模型正在分析下一步')
-assert.equal(visibleStreamStatusLabel({ hasVisibleText: true }), '正在生成回复')
-assert.equal(visibleStreamStatusLabel({ completedToolCount: 2 }), '工具已返回，模型正在继续')
-assert.equal(visibleStreamStatusLabel({ activity: '正在读取 src/App.tsx', isThinking: true }), '正在读取 src/App.tsx',
-  'a concrete tool activity takes precedence over the generic phase')
-assert.equal(visibleStreamStatusLabel({ activity: 'Deep diving...' }), '模型正在处理',
-  'the Host default activity is localized instead of leaking its DSH label')
-assert.equal(visibleStreamStatusLabel({ activity: 'bash (批量调用)' }), '正在执行 bash 批量调用',
-  'batch-tool activity is translated into actionable Chinese status')
-assert.equal(visibleStreamStatusLabel({ activity: '正在执行工具：bash（批量调用）…' }), '正在执行 bash 批量调用',
-  'the actual Host batch activity format is translated instead of leaking its suffix')
-assert.equal(visibleStreamStatusLabel({ activity: '正在执行工具：read…' }), '正在执行 read',
-  'ordinary Host tool activity keeps a clear verb instead of showing only the tool name')
+assert.equal(visibleStreamStatusLabel({}), '模型思考中', 'the live turn uses the compact model-thinking label before prose appears')
+assert.equal(visibleStreamStatusLabel({ isThinking: true }), '模型思考中')
+assert.equal(visibleStreamStatusLabel({ hasVisibleText: true }), '模型思考中')
+assert.equal(visibleStreamStatusLabel({ completedToolCount: 2 }), '模型思考中')
+assert.equal(visibleStreamStatusLabel({ isCallingTool: true }), '模型调用工具',
+  'tool execution uses the second stable status label')
 
 const inFlight = applyStreamEventToSnapshot(emptyConversationStream(), { type: 'start', conversationId: 'c1' })
 const thought = applyStreamEventToSnapshot(inFlight, { type: 'thinking_start', conversationId: 'c1' })
@@ -55,8 +47,14 @@ const afterThinkEnd = applyStreamEventToSnapshot(thoughtDelta, {
 assert.equal(afterThinkEnd.streamThinking?.isActive, false, 'thinking_end preserves text but ends the active state')
 const withToolTrace = applyStreamEventToSnapshot(inFlight, {
   type: 'tool', conversationId: 'c1', id: 'tool-1', toolName: 'read', status: 'done',
+  outputId: 'output-ref', outputTruncated: false,
 })
 assert.equal(withToolTrace.toolTraces.length, 1, 'tool calls should be captured in the conversation snapshot')
+assert.equal(withToolTrace.toolTraces[0].outputId, 'output-ref', 'in-flight trace replay preserves transient output references')
+const legacyToolTrace = applyStreamEventToSnapshot(inFlight, {
+  type: 'tool', conversationId: 'c1', id: 'legacy-tool', toolName: 'read', status: 'done',
+})
+assert.equal(legacyToolTrace.toolTraces[0].outputId, undefined, 'older stream events remain valid without output references')
 assert.deepEqual(
   applyStreamEventToSnapshot(withToolTrace, { type: 'start', conversationId: 'c1' }).toolTraces,
   [],
@@ -74,6 +72,15 @@ const incremental2 = applyStreamEventToSnapshot(incremental, {
   type: 'delta', conversationId: 'c1', delta: 'lo',
 })
 assert.equal(incremental2.streamText, 'hello', 'delta without full must append incrementally')
+
+const block1 = applyStreamEventToSnapshot(inFlight, {
+  type: 'block_delta', conversationId: 'c1', id: 'step-1-text', kind: 'text', delta: 'hel',
+})
+const block2 = applyStreamEventToSnapshot(block1, {
+  type: 'block_delta', conversationId: 'c1', id: 'step-1-text', kind: 'text', delta: 'lo',
+})
+assert.deepEqual(block2.streamBlocks, [{ id: 'step-1-text', kind: 'text', text: 'hello' }],
+  'keyed block patches reconstruct streamed blocks without resending full snapshots')
 
 const completed = applyStreamEventToSnapshot(partial, {
   type: 'done', conversationId: 'c1', full: 'complete answer',

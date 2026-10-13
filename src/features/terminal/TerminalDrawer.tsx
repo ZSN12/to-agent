@@ -68,6 +68,16 @@ export function TerminalDrawer({ isOpen, open, onClose, workspacePath }: Termina
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
 
+  useEffect(() => {
+    const clampHeight = () => {
+      const maxHeight = Math.max(120, Math.min(650, Math.floor(window.innerHeight * 0.65)))
+      setDrawerHeight((current) => Math.min(current, maxHeight))
+    }
+    clampHeight()
+    window.addEventListener('resize', clampHeight)
+    return () => window.removeEventListener('resize', clampHeight)
+  }, [])
+
   const isDraggingRef = useRef(false)
   const startYRef = useRef(0)
   const startHeightRef = useRef(240)
@@ -277,7 +287,8 @@ export function TerminalDrawer({ isOpen, open, onClose, workspacePath }: Termina
     const onMouseMove = (moveEvent: MouseEvent) => {
       if (!isDraggingRef.current) return
       const delta = startYRef.current - moveEvent.clientY
-      const nextHeight = Math.min(Math.max(startHeightRef.current + delta, 120), 650)
+      const maxHeight = Math.max(120, Math.min(650, Math.floor(window.innerHeight * 0.65)))
+      const nextHeight = Math.min(Math.max(startHeightRef.current + delta, 120), maxHeight)
       setDrawerHeight(nextHeight)
     }
 

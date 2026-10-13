@@ -10,8 +10,9 @@
 import path from 'node:path'
 import fs from 'node:fs'
 import os from 'node:os'
+import { fileURLToPath } from 'node:url'
 
-const PROJECT = '/Users/zsn/Documents/毕设'
+const PROJECT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const REAL_TASKWEAVER_HOME = path.join(
   os.homedir(),
   'Library',
@@ -21,7 +22,7 @@ const REAL_TASKWEAVER_HOME = path.join(
 )
 
 const { createZHostManager } = await import(
-  path.join(PROJECT, 'electron', 'agent', 'z-host', 'spawn-host.mjs')
+  path.join(PROJECT, 'backend', 'agent', 'z-host', 'spawn-host.mjs')
 )
 
 const runtimeRoot = path.join(PROJECT, 'vendor', 'taskweaver-z-runtime')

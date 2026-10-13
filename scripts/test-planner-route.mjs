@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
-import { selectModelForTask } from '../desktop/backend/orchestration-policy.mjs'
+import { selectModelForTask } from '../backend/orchestration-policy.mjs'
 import {
   createPlannerOutputSchema,
   normalizePlannerRoute,
@@ -11,7 +11,7 @@ import {
   PLANNER_ROUTE_SCHEMA_REFERENCE,
   supportsPlannerOutputSchema,
   taskReferencesImage,
-} from '../desktop/backend/orchestration/planner-routing.mjs'
+} from '../backend/orchestration/planner-routing.mjs'
 
 assert.equal(PLANNER_ROUTE_SCHEMA_ID, 'taskweaver/planner-route.v2')
 assert.deepEqual(PLANNER_ROUTE_SCHEMA_REFERENCE, { $ref: PLANNER_ROUTE_SCHEMA_ID })

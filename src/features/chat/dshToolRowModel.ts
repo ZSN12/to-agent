@@ -21,10 +21,10 @@ export interface DshToolTitlePair {
 }
 
 const VARIANT_TITLES: Record<DshToolRowVariant, DshToolTitlePair> = {
-  bash: { running: '运行命令', settled: '执行了命令' },
+  bash: { running: '正在运行命令', settled: '命令已运行' },
   read: { running: '正在读取', settled: '查看了文件' },
-  write: { running: '正在修改', settled: '修改了文件' },
-  edit: { running: '正在修改', settled: '修改了文件' },
+  write: { running: '正在写入', settled: '已写入' },
+  edit: { running: '正在编辑', settled: '已编辑' },
   search: { running: '正在搜索', settled: '搜索了文件' },
   code: { running: '正在执行代码', settled: '执行了代码' },
   others: { running: '调用工具', settled: '调用了工具' },
@@ -100,4 +100,3 @@ export function dshToolRowPresentation(
 
   return { variant, title, summary }
 }
-

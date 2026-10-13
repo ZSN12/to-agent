@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { applyOpenCodexDshReasoningOverlay } from '../desktop/backend/model-sync/overlay.mjs'
+import { applyOpenCodexDshReasoningOverlay } from '../backend/model-sync/overlay.mjs'
 
 const sample = {
   providers: {

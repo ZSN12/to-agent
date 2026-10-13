@@ -6,12 +6,12 @@
  * behavior are exercised through the real `confine()` path.
  */
 
-import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@taskweaver/cordis'
-import { SANDBOX_UNAVAILABLE, SandboxUnavailableError } from '@taskweaver/dsh-sandbox'
+import { canonicalPath, SANDBOX_UNAVAILABLE, SandboxUnavailableError } from '@taskweaver/dsh-sandbox'
 import type { SandboxPolicy } from '@taskweaver/dsh-sandbox'
 import {
   LocalSandboxProvider,
@@ -58,7 +58,15 @@ function fakeBwrapOnPath(script: string): { dir: string; previousPath: string | 
 }
 
 /** The seatbelt read-only profile — every seatbelt profile starts with these forms. */
-const SEATBELT_RO_PROFILE = '(version 1) (allow default) (deny file-write*) (allow file-write* (literal "/dev/null"))'
+const privateReadRoots = [
+  join(homedir(), '.ssh'),
+  join(homedir(), '.aws'),
+  join(homedir(), '.config', 'gh'),
+  join(homedir(), 'Library', 'Keychains'),
+].map(canonicalPath)
+const SEATBELT_PRIVATE_READ_DENY = `(deny file-read* ${privateReadRoots.map(root => `(subpath "${root}")`).join(' ')})`
+const SEATBELT_BASE_PROFILE = '(version 1) (allow default) (deny file-write*) (allow file-write* (literal "/dev/null"))'
+const SEATBELT_RO_PROFILE = `${SEATBELT_BASE_PROFILE} ${SEATBELT_PRIVATE_READ_DENY}`
 
 describe('profile dialects', () => {
   it('bwrap read-only: whole tree read-only with fresh /dev and private PID-scoped /proc, no writable mounts', () => {
@@ -84,7 +92,15 @@ describe('profile dialects', () => {
     // where they resolve to the same directory.
     const roots = [...new Set(['/ws', realpathSync('/tmp'), realpathSync(tmpdir())])]
     const allow = `(allow file-write* ${roots.map(root => `(subpath "${root}")`).join(' ')})`
-    expect(seatbeltProfileArgs(WW)).toEqual(['-p', `${SEATBELT_RO_PROFILE} ${allow}`])
+    const denyGitMetadata = '(deny file-write* (subpath "/ws/.git/hooks") (literal "/ws/.git/config") (literal "/ws/.git/config.worktree"))'
+    expect(seatbeltProfileArgs(WW)).toEqual(['-p', `${SEATBELT_BASE_PROFILE} ${allow} ${denyGitMetadata} ${SEATBELT_PRIVATE_READ_DENY}`])
+  })
+
+  it('Seatbelt places protected metadata and private-directory denials after writable grants', () => {
+    const profile = seatbeltProfileArgs(WW)[1]
+    expect(profile.indexOf('(allow file-write* (subpath')).toBeLessThan(profile.indexOf('(deny file-write* (subpath'))
+    expect(profile).toContain('(deny file-read*')
+    for (const root of privateReadRoots) expect(profile).toContain(root)
   })
 
   it('seatbelt workspace-write dedups a workspace root that already IS the temp dir', () => {
@@ -92,6 +108,28 @@ describe('profile dialects', () => {
     const grant = `(subpath "${realpathSync(tmpdir())}")`
     expect(profile).toContain(grant)
     expect(profile.split(grant)).toHaveLength(2)
+  })
+
+  it('seatbelt protects linked-worktree Git metadata in both the worktree and common Git directories', () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'dsh-seatbelt-worktree-'))
+    const commonDir = join(workspace, 'common.git')
+    const worktreeGitDir = join(commonDir, 'worktrees', 'linked')
+    mkdirSync(worktreeGitDir, { recursive: true })
+    writeFileSync(join(workspace, '.git'), `gitdir: ${worktreeGitDir}\n`)
+    writeFileSync(join(worktreeGitDir, 'commondir'), '../..\n')
+    try {
+      const profile = seatbeltProfileArgs({ mode: 'workspace-write', workspaceRoot: workspace })[1] as string
+      const canonicalWorkspace = canonicalPath(workspace)
+      const canonicalWorktreeGitDir = canonicalPath(worktreeGitDir)
+      const canonicalCommonDir = canonicalPath(commonDir)
+      expect(profile).toContain(`(literal "${canonicalPath(join(canonicalWorkspace, '.git'))}")`)
+      expect(profile).toContain(`(subpath "${join(canonicalWorktreeGitDir, 'hooks')}")`)
+      expect(profile).toContain(`(literal "${join(canonicalWorktreeGitDir, 'config.worktree')}")`)
+      expect(profile).toContain(`(subpath "${join(canonicalCommonDir, 'hooks')}")`)
+      expect(profile).toContain(`(literal "${join(canonicalCommonDir, 'config')}")`)
+    } finally {
+      rmSync(workspace, { recursive: true, force: true })
+    }
   })
 })
 

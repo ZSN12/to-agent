@@ -6,7 +6,7 @@
 import { Context } from '@taskweaver/cordis';
 import z from '@taskweaver/schemastery';
 import { FileSystem, FsVersion } from '@taskweaver/dsh-fs';
-import type { FsDirEntry, FsEditOutcome, FsEditRequest, FsInfo, FsPathInfo, FsTarget, FsWriteIntent, FsWriteOutcome } from '@taskweaver/dsh-fs';
+import type { FsDirEntry, FsEditOutcome, FsEditRequest, FsInfo, FsPathInfo, FsTarget, FsTextMutation, FsTextMutationOutcome, FsWriteIntent, FsWriteOutcome } from '@taskweaver/dsh-fs';
 import type { FsIoInternals } from './fsio.ts';
 /** Configuration for the local filesystem backend. */
 export interface Config {
@@ -57,6 +57,14 @@ export declare class LocalFileSystem extends FileSystem {
     editText(target: FsTarget, edit: FsEditRequest, expected?: {
         version: FsVersion;
     }, signal?: AbortSignal): Promise<FsEditOutcome>;
+    /**
+     * Rollback-capable batch for unique regular text files with existing parent
+     * directories. All targets are locked in sorted key order, guards/types/text
+     * are validated before staging, and the fsio transaction stages every target
+     * before publishing. This gives in-process serialization and compensation,
+     * not true multi-path visibility atomicity or protection from external writers.
+     */
+    applyTextTransaction(mutations: readonly FsTextMutation[], signal?: AbortSignal): Promise<FsTextMutationOutcome[]>;
     private versionAfterWrite;
 }
 export default LocalFileSystem;

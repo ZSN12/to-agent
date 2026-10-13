@@ -2,19 +2,25 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { createAppPreferencesStore } from '../desktop/backend/app-preferences.mjs'
-import { normalizeOpenUsageBaseUrl } from '../desktop/backend/openusage-service.mjs'
+import { createAppPreferencesStore } from '../backend/app-preferences.mjs'
+import { normalizeOpenUsageBaseUrl } from '../backend/openusage-service.mjs'
 
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-preferences-'))
 try {
   const store = createAppPreferencesStore(root)
-  assert.equal((await store.get()).promptInjectionLimitBytes, 32 * 1024, 'prompt injection cap defaults to 32 KiB')
+  assert.equal((await store.get()).promptInjectionLimitBytes, 128 * 1024, 'prompt injection cap defaults to the safe 128 KiB ceiling')
+  assert.equal((await store.get()).inlineSmallFileReferences, false, 'small-file inline references default off')
+  assert.equal((await store.set({ inlineSmallFileReferences: true })).inlineSmallFileReferences, true)
+  assert.equal((await store.set({ inlineSmallFileReferences: 'invalid' })).inlineSmallFileReferences, true,
+    'invalid inline-reference preference updates preserve the previous value')
+  assert.equal((await store.set({ inlineSmallFileReferences: false })).inlineSmallFileReferences, false)
   assert.equal((await store.get()).adaptiveOrchestrationGate, true, 'adaptive gate defaults on')
   assert.equal((await store.get()).preferMultiAgent, false, 'prefer multi-agent defaults off')
   assert.equal((await store.get()).dagReadOnlyTimeoutMs, 600_000, 'DAG read-only timeout defaults to ten minutes')
   assert.equal((await store.get()).dagWriteTimeoutMs, 1_200_000, 'DAG writer timeout defaults to twenty minutes')
   assert.equal((await store.get()).dagIdleTimeoutMs, 180_000, 'DAG idle timeout defaults to three minutes')
   assert.equal((await store.get()).maxSubtaskConcurrency, 3, 'DAG concurrency defaults to three tasks')
+  assert.equal((await store.get()).maxDagNodes, 6, 'DAG node limit defaults to the legacy six-node behavior')
   assert.equal((await store.get()).dagPlanApproval, 'write-only', 'DAG plan approval defaults to write-only plans')
   assert.equal((await store.get()).dagCrossProviderReview, false, 'DAG cross-provider review defaults off')
   assert.equal((await store.set({ dagCrossProviderReview: true })).dagCrossProviderReview, true)
@@ -36,6 +42,9 @@ try {
   assert.equal(dagConcurrency.maxSubtaskConcurrency, 10, 'DAG concurrency is clamped to ten')
   assert.equal((await store.set({ maxSubtaskConcurrency: 2 })).maxSubtaskConcurrency, 2)
   assert.equal((await store.set({ maxSubtaskConcurrency: 0 })).maxSubtaskConcurrency, 1, 'DAG concurrency has a one-task minimum')
+  assert.equal((await store.set({ maxDagNodes: 99 })).maxDagNodes, 12, 'DAG node limit is clamped to twelve')
+  assert.equal((await store.set({ maxDagNodes: 1.4 })).maxDagNodes, 1, 'DAG node limit rounds then clamps to its minimum')
+  assert.equal((await store.set({ maxDagNodes: Number.NaN })).maxDagNodes, 1, 'invalid DAG node limit preserves the previous valid value')
   const dagBudgets = await store.set({ dagBudgetTokens: 999, dagBudgetUsd: 0 })
   assert.equal(dagBudgets.dagBudgetTokens, 1_000, 'DAG token budget has a one-thousand-token minimum')
   assert.equal(dagBudgets.dagBudgetUsd, 0.01, 'DAG cost budget has a one-cent minimum')
@@ -74,7 +83,7 @@ try {
     bashSandbox: 'off',
     selfHealingLoop: false,
   }))
-  assert.equal((await store.get()).promptInjectionLimitBytes, 32 * 1024, 'legacy preferences use the default cap')
+  assert.equal((await store.get()).promptInjectionLimitBytes, 128 * 1024, 'legacy preferences use the new model-scaled cap')
   const upgraded = await store.set({ promptInjectionLimitBytes: 8192 })
   assert.equal(upgraded.promptInjectionLimitBytes, 8192)
   assert.equal(upgraded.bashSandbox, 'off', 'setting the new cap preserves existing preferences')

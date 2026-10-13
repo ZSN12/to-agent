@@ -26,6 +26,12 @@ export class LspInstance {
     teardownPromise;
     /** Set once the process closes, so the pool can synchronously skip a dead instance. */
     processClosed = false;
+    /** Latest diagnostics are kept per document URI, as LSP notifications are file-scoped. */
+    diagnosticsByUri = new Map();
+    /** Waiters are scoped to one URI and one document version. */
+    diagnosticWaiters = new Map();
+    /** Versions sent by this client, kept monotonic for each document URI. */
+    documentVersions = new Map();
     /** Populated once `initialize` succeeds; a failed handshake rejects every query. */
     ready;
     /**
@@ -35,7 +41,7 @@ export class LspInstance {
      */
     constructor(spec, spawner, writer) {
         this.spec = spec;
-        this.connection = new LspConnection(spec, spawner, (method, params) => this.answerServerRequest(method, params), writer);
+        this.connection = new LspConnection(spec, spawner, (method, params) => this.answerServerRequest(method, params), writer, (method, params) => this.acceptServerNotification(method, params));
         this.ready = this.initialize();
         // A handshake rejection must not surface as an unhandled rejection before the first query awaits
         // it; queries attach the real handler.
@@ -130,8 +136,9 @@ export class LspInstance {
             if (signal?.aborted)
                 throw abortError(signal);
             try {
+                const version = this.nextDocumentVersion(uri);
                 await abortable(this.connection.notify('textDocument/didOpen', {
-                    textDocument: { uri, languageId: request.languageId, version: 1, text: source.text },
+                    textDocument: { uri, languageId: request.languageId, version, text: source.text },
                 }), signal);
             }
             catch (error) {
@@ -165,6 +172,139 @@ export class LspInstance {
                 }
             }
         }
+    }
+    /**
+     * Re-open a changed file and wait briefly for its next publishDiagnostics notification.
+     * The provider calls this only for a live instance, so advisory diagnostics never launch an
+     * otherwise-unused language server after an edit.
+     */
+    async getDiagnostics(source, languageId, waitMs, signal) {
+        if (this.disposed)
+            throw new LspError('LSP instance was disposed', 'LSP_DISPOSED');
+        if (signal?.aborted)
+            throw abortError(signal);
+        await abortable(this.ready, signal);
+        const capabilities = this.capabilities;
+        if (capabilities === undefined || !supportsTransientOpen(capabilities.textDocumentSync))
+            return [];
+        const uri = source.fileUrl;
+        const version = this.nextDocumentVersion(uri);
+        const previousRevision = this.diagnosticsByUri.get(uri)?.revision ?? 0;
+        let opened = false;
+        try {
+            try {
+                await abortable(this.connection.notify('textDocument/didOpen', {
+                    textDocument: { uri, languageId, version, text: source.text },
+                }), signal);
+            }
+            catch (error) {
+                await this.startTeardown();
+                throw error;
+            }
+            opened = true;
+            return await this.waitForDiagnostics(uri, previousRevision, version, waitMs, signal);
+        }
+        finally {
+            if (opened && !this.dead) {
+                try {
+                    await this.connection.notify('textDocument/didClose', { textDocument: { uri } });
+                }
+                catch {
+                    try {
+                        await this.startTeardown();
+                    }
+                    catch {
+                        // Diagnostics are advisory; preserve the already-settled wait outcome.
+                    }
+                }
+            }
+        }
+    }
+    nextDocumentVersion(uri) {
+        const previous = this.documentVersions.get(uri);
+        // Keep this LRU bounded: long-lived workspaces may query thousands of different documents.
+        if (previous === undefined && this.documentVersions.size >= MAX_TRACKED_DOCUMENT_VERSIONS) {
+            const oldest = this.documentVersions.keys().next().value;
+            if (oldest !== undefined)
+                this.documentVersions.delete(oldest);
+        }
+        this.documentVersions.delete(uri);
+        const version = (previous ?? 0) + 1;
+        this.documentVersions.set(uri, version);
+        return version;
+    }
+    acceptServerNotification(method, params) {
+        if (method !== 'textDocument/publishDiagnostics' || !isRecord(params))
+            return;
+        const uri = params.uri;
+        const rawDiagnostics = params.diagnostics;
+        if (typeof uri !== 'string' || uri.length === 0 || !Array.isArray(rawDiagnostics))
+            return;
+        const version = typeof params.version === 'number' && Number.isInteger(params.version)
+            ? params.version
+            : undefined;
+        const currentVersion = this.documentVersions.get(uri);
+        if (version !== undefined && currentVersion !== undefined && version < currentVersion)
+            return;
+        const diagnostics = rawDiagnostics
+            .slice(0, MAX_CACHED_DIAGNOSTICS)
+            .flatMap(normalizeDiagnostic);
+        const revision = (this.diagnosticsByUri.get(uri)?.revision ?? 0) + 1;
+        // Refresh insertion order for a small per-file LRU so a long-lived server cannot retain every
+        // file the agent has ever touched.
+        this.diagnosticsByUri.delete(uri);
+        this.diagnosticsByUri.set(uri, { diagnostics, revision, ...(version !== undefined ? { version } : {}) });
+        while (this.diagnosticsByUri.size > MAX_DIAGNOSTIC_FILES) {
+            const oldest = this.diagnosticsByUri.keys().next().value;
+            if (oldest === undefined)
+                break;
+            this.diagnosticsByUri.delete(oldest);
+        }
+        const waiting = this.diagnosticWaiters.get(uri);
+        if (waiting === undefined)
+            return;
+        for (const waiter of [...waiting]) {
+            if (revision > waiter.afterRevision && (version === undefined || version >= waiter.minimumVersion)) {
+                waiter.resolve(diagnostics);
+            }
+        }
+    }
+    waitForDiagnostics(uri, afterRevision, minimumVersion, waitMs, signal) {
+        const cached = this.diagnosticsByUri.get(uri);
+        if (cached !== undefined && cached.revision > afterRevision
+            && (cached.version === undefined || cached.version >= minimumVersion)) {
+            return Promise.resolve(cached.diagnostics);
+        }
+        if (signal?.aborted)
+            return Promise.reject(abortError(signal));
+        if (waitMs <= 0)
+            return Promise.resolve([]);
+        return new Promise((resolve, reject) => {
+            const waiting = this.diagnosticWaiters.get(uri) ?? new Set();
+            let timer;
+            const finish = (diagnostics, error) => {
+                if (timer !== undefined)
+                    clearTimeout(timer);
+                signal?.removeEventListener('abort', onAbort);
+                waiting.delete(waiter);
+                if (waiting.size === 0)
+                    this.diagnosticWaiters.delete(uri);
+                if (error !== undefined)
+                    reject(error);
+                else
+                    resolve(diagnostics ?? []);
+            };
+            const onAbort = () => finish(undefined, abortError(signal));
+            const waiter = {
+                afterRevision,
+                minimumVersion,
+                resolve: diagnostics => finish(diagnostics),
+            };
+            waiting.add(waiter);
+            this.diagnosticWaiters.set(uri, waiting);
+            timer = setTimeout(() => finish([]), waitMs);
+            signal?.addEventListener('abort', onAbort, { once: true });
+        });
     }
     async sendRequest(operation, uri, position, signal) {
         const params = {
@@ -289,6 +429,41 @@ export class LspInstance {
             this.connection.waitForProcessTreeExit(),
         ]);
     }
+}
+const MAX_CACHED_DIAGNOSTICS = 100;
+const MAX_DIAGNOSTIC_MESSAGE_CHARS = 1_000;
+const MAX_DIAGNOSTIC_FILES = 128;
+const MAX_TRACKED_DOCUMENT_VERSIONS = 512;
+function isRecord(value) {
+    return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+function normalizeDiagnostic(value) {
+    if (!isRecord(value) || typeof value.message !== 'string' || !isRecord(value.range))
+        return [];
+    const start = normalizePosition(value.range.start);
+    const end = normalizePosition(value.range.end);
+    if (start === undefined || end === undefined)
+        return [];
+    const severity = value.severity === 1 || value.severity === 2 || value.severity === 3 || value.severity === 4
+        ? value.severity
+        : undefined;
+    const code = typeof value.code === 'string' || (typeof value.code === 'number' && Number.isFinite(value.code))
+        ? value.code
+        : undefined;
+    const source = typeof value.source === 'string' ? value.source.slice(0, 100) : undefined;
+    return [{
+            range: { start, end },
+            message: value.message.slice(0, MAX_DIAGNOSTIC_MESSAGE_CHARS),
+            ...(severity !== undefined ? { severity } : {}),
+            ...(code !== undefined ? { code } : {}),
+            ...(source !== undefined ? { source } : {}),
+        }];
+}
+function normalizePosition(value) {
+    if (!isRecord(value) || !Number.isInteger(value.line) || !Number.isInteger(value.character)
+        || value.line < 0 || value.character < 0)
+        return undefined;
+    return { line: value.line, character: value.character };
 }
 /** Server→client request methods this host acknowledges with an empty result (no dynamic registration). */
 const LIFECYCLE_NOOP_METHODS = new Set([

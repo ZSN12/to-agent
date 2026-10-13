@@ -244,7 +244,7 @@ ctx['tool-cache'].clearAll()
 
 ### 配置集成
 - `packages/runtime/host-cli/config/agent-presets/taskweaver-optimized/agent.cordis.yml` - 预设配置
-- `desktop/agent/dsh-host/taskweaver-cordis.patch.yml` - DSH Host 补丁（HMR 禁用）
+- `backend/agent/dsh-host/taskweaver-cordis.patch.yml` - DSH Host 补丁（HMR 禁用）
 
 ### 构建脚本
 - `scripts/build-host-runtime.mjs` - Z Runtime 构建脚本

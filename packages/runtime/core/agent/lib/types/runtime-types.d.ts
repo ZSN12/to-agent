@@ -25,6 +25,8 @@ export interface AgentOptions {
     model?: string;
     /** Maximum output tokens for each conversation-model request. */
     maxTokens?: number;
+    /** Maximum model/tool steps in one turn before the loop fails safely. Defaults to 128. */
+    maxSteps?: number;
 }
 /** Options for {@link Agent.cancel}. */
 export interface CancelOptions {
@@ -279,6 +281,7 @@ declare module '@taskweaver/cordis' {
             provider: string;
             failure: LlmFailure;
             retryPolicy: ResolvedRetryPolicy | undefined;
+            streamStarted: boolean;
             signal: AbortSignal;
         }, next: () => Promise<RequestErrorAction>): Promise<RequestErrorAction>;
         /**

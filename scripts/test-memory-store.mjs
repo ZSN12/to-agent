@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { createMemoryStore, buildMemoryPromptSections, memoryPromptLimits } from '../desktop/backend/memory-store.mjs'
+import { createMemoryStore, buildMemoryPromptSections, memoryPromptLimits } from '../backend/memory-store.mjs'
 
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tw-memory-'))
 try {

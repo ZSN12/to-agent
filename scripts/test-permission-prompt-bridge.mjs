@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import {
   routePermissionPromptResponse,
   waitForRendererPermissionPrompt,
-} from '../desktop/backend/permission-prompt-bridge.mjs'
+} from '../backend/permission-prompt-bridge.mjs'
 
 let localPrompt
 const localDecision = waitForRendererPermissionPrompt({

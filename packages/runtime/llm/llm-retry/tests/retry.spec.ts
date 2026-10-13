@@ -727,7 +727,7 @@ describe('provider-routed retry policy', () => {
     })
   })
 
-  it('caps large finite provider policies at three retries and never replays a timed-out stream in TaskWeaver mode', async () => {
+  it('caps large finite provider policies at three retries', async () => {
     vi.useFakeTimers()
     const adapter = new ScriptedAdapter([
       new LlmError('busy one', 'SERVER'),
@@ -751,7 +751,7 @@ describe('provider-routed retry policy', () => {
     agent.followup(createUserMessage({ content: [{ type: 'text', text: 'keep provider retries finite' }], source: { kind: 'user' } }))
     const firstEvent = await firstRetry
     expect(firstEvent.data).toMatchObject({ mode: 'normal', maxRetries: 3 })
-    expect(firstEvent.data.policyKey).not.toContain('TIMEOUT')
+    expect(firstEvent.data.policyKey).toContain('TIMEOUT')
 
     const idle = waitForIdle(context, agent)
     await vi.runAllTimersAsync()
@@ -762,6 +762,68 @@ describe('provider-routed retry policy', () => {
     expect(agent.session.events.at(-1)).toMatchObject({
       type: 'turn/end',
       data: { reason: { kind: 'error', error: { code: 'SERVER' } } },
+    })
+  })
+
+  it('retries a timeout before the first streamed chunk in TaskWeaver mode', async () => {
+    vi.useFakeTimers()
+    const adapter = new ScriptedAdapter([
+      new LlmError('provider timed out before output', 'TIMEOUT'),
+      textResponse('recovered after a safe retry'),
+    ])
+    ;({ ctx: context } = await harness(adapter, {
+      mock: normalConfig({
+        maxRetries: 2,
+        retryableCodes: ['SERVER', 'TIMEOUT'],
+        backoff: { initialDelayMs: 1, maxDelayMs: 1, jitterRatio: 0 },
+      }),
+    }, undefined, { random: () => 0.5, taskweaverEmbedded: true }))
+    const agent = context.agentLoop.create(SessionId('retry-taskweaver-timeout-before-output'), {
+      provider: 'mock',
+      model: 'mock',
+    })
+    const scheduled = waitForRetry(context, agent, 1)
+    agent.followup(createUserMessage({ content: [{ type: 'text', text: 'retry a safe timeout' }], source: { kind: 'user' } }))
+    const retryEvent = await scheduled
+    expect(retryEvent.data).toMatchObject({
+      mode: 'normal',
+      maxRetries: 2,
+      failure: { code: 'TIMEOUT' },
+    })
+    const idle = waitForIdle(context, agent)
+    await vi.advanceTimersByTimeAsync(1)
+    await idle
+    expect(adapter.requests).toHaveLength(2)
+    expect(agent.session.events.at(-1)).toMatchObject({
+      type: 'turn/end',
+      data: { reason: { kind: 'completed' } },
+    })
+  })
+
+  it('does not retry a timeout after a streamed chunk in TaskWeaver mode', async () => {
+    vi.useFakeTimers()
+    const adapter = new ScriptedAdapter([
+      partialToolFailure(new LlmError('provider timed out after output', 'TIMEOUT')),
+      textResponse('must not replay a partial tool stream'),
+    ])
+    ;({ ctx: context } = await harness(adapter, {
+      mock: normalConfig({
+        maxRetries: 2,
+        retryableCodes: ['SERVER', 'TIMEOUT'],
+        backoff: { initialDelayMs: 1, maxDelayMs: 1, jitterRatio: 0 },
+      }),
+    }, undefined, { random: () => 0.5, taskweaverEmbedded: true }))
+    const agent = context.agentLoop.create(SessionId('retry-taskweaver-timeout-after-output'), {
+      provider: 'mock',
+      model: 'mock',
+    })
+    agent.followup(createUserMessage({ content: [{ type: 'text', text: 'do not duplicate a partial tool call' }], source: { kind: 'user' } }))
+    await waitForIdle(context, agent)
+    expect(adapter.requests).toHaveLength(1)
+    expect(agent.session.events.filter(event => event.type === 'llm/retry')).toHaveLength(0)
+    expect(agent.session.events.at(-1)).toMatchObject({
+      type: 'turn/end',
+      data: { reason: { kind: 'error', error: { code: 'TIMEOUT' } } },
     })
   })
 

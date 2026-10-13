@@ -14,6 +14,7 @@ export { FsSandboxController } from './sandbox.ts';
 export { sessionCwd, sessionResolveOptions } from './session-cwd.ts';
 export { resolveRegularReadTarget } from './read-target.ts';
 export { computeHunkDiffs, diffsFromMeta } from './diff.ts';
+export { parseCodexPatch } from './apply-patch.ts';
 /** Plugin config (all optional — `Config` supplies the defaults). */
 export interface Config {
     /** Register write/edit tools. Disable for genuinely read-only agent compositions. */

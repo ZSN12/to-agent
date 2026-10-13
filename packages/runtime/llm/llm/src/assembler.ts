@@ -187,6 +187,11 @@ export class BlockAssembler {
     return this._finish ?? { kind: 'stop' }
   }
 
+  /** Whether any complete or partial tool-call block was emitted. */
+  get hasToolCall(): boolean {
+    return this.order.some(index => this.mustGet(index).blockType === 'tool-call')
+  }
+
   /**
    * Replay metadata from the terminal finish chunk, if any, with per-block
    * entries pruned in step with {@link blocks}. Undefined when the envelope's

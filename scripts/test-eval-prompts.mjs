@@ -30,6 +30,15 @@ const prompts = await collectPromptSources(root)
 assert.equal(prompts.size, 11, 'all five active presets, four task profiles, planner, and synthesis are snapshotted')
 assert.ok(prompts.get('planner-request').text.includes('只输出纯 JSON'))
 assert.ok(prompts.get('planner-synthesis').text.includes('子任务执行结果'))
+for (const id of ['task-profile.research', 'task-profile.review', 'task-profile.implementation', 'task-profile.test']) {
+  assert.equal(prompts.get(id).sourcePath, 'backend/task-profile.mjs', `${id} must map to the migrated backend source`)
+}
+for (const id of ['planner-request', 'planner-synthesis']) {
+  assert.equal(prompts.get(id).sourcePath, 'backend/orchestration/plan-and-execute.mjs', `${id} must map to the migrated planner source`)
+}
+for (const prompt of prompts.values()) {
+  assert.equal(await fs.stat(path.join(root, prompt.sourcePath)).then((stat) => stat.isFile()), true, `${prompt.id} source path must exist`)
+}
 
 const staticResult = await runStaticEvaluation({ root })
 assert.equal(staticResult.ok, true, staticResult.errors.join('\n'))
@@ -73,8 +82,8 @@ const fixtureRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-prompt-e
 try {
   const fixturePaths = [
     'tests/prompts/cases.json',
-    'desktop/backend/task-profile.mjs',
-    'desktop/backend/orchestration/plan-and-execute.mjs',
+    'backend/task-profile.mjs',
+    'backend/orchestration/plan-and-execute.mjs',
     ...[
       'tw-default',
       'tw-taskweaver-code',
@@ -88,6 +97,15 @@ try {
     await fs.mkdir(path.dirname(destination), { recursive: true })
     await fs.copyFile(path.join(root, relative), destination)
   }
+  const fixtureProfilePath = path.join(fixtureRoot, 'backend/task-profile.mjs')
+  const fixtureProfileSource = await fs.readFile(fixtureProfilePath, 'utf8')
+  await fs.writeFile(fixtureProfilePath, fixtureProfileSource.replace('你是调研子 Agent', 'FIXTURE_PROFILE 你是调研子 Agent'))
+  const fixturePlannerPath = path.join(fixtureRoot, 'backend/orchestration/plan-and-execute.mjs')
+  const fixturePlannerSource = await fs.readFile(fixturePlannerPath, 'utf8')
+  await fs.writeFile(fixturePlannerPath, fixturePlannerSource.replace('你是 TaskWeaver 的多智能体高级任务规划器', 'FIXTURE_PLANNER 你是 TaskWeaver 的多智能体高级任务规划器'))
+  const fixturePrompts = await collectPromptSources(fixtureRoot)
+  assert.ok(fixturePrompts.get('task-profile.research').text.includes('FIXTURE_PROFILE'), 'fixture evaluation must load task profiles from the fixture backend path')
+  assert.ok(fixturePrompts.get('planner-request').text.includes('FIXTURE_PLANNER'), 'fixture evaluation must read planner prompts from the fixture backend path')
   const initial = await runStaticEvaluation({ root: fixtureRoot, update: true })
   assert.equal(initial.ok, true, initial.errors.join('\n'))
   const standardPath = path.join(fixtureRoot, 'packages/runtime/host-cli/config/agent-presets/tw-default/agent.cordis.yml')

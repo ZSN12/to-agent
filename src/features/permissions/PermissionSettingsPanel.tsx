@@ -5,7 +5,7 @@ import type { ApprovalAuditEntry, PermissionMode, PermissionRule } from '../../s
 
 const PROMPT_INJECTION_LIMIT_MIN_KIB = 1
 const PROMPT_INJECTION_LIMIT_MAX_KIB = 128
-const PROMPT_INJECTION_LIMIT_DEFAULT_KIB = 32
+const PROMPT_INJECTION_LIMIT_DEFAULT_KIB = 128
 
 function PermissionModeCard({
   active,
@@ -201,11 +201,13 @@ function AddRuleModal({
 export function PermissionSettingsPanel({
   currentMode = 'ask',
   onModeChange,
+  onPreferMultiAgentChange,
   onToast,
   conversationId = null,
 }: {
   currentMode?: PermissionMode
   onModeChange?: (mode: PermissionMode) => void
+  onPreferMultiAgentChange?: (enabled: boolean) => void
   onToast?: (msg: string) => void
   conversationId?: string | null
 }) {
@@ -249,7 +251,7 @@ export function PermissionSettingsPanel({
         setPromptInjectionLimitKiB(String(boundedLimitKiB))
         setSavedPromptInjectionLimitKiB(boundedLimitKiB)
         setAdaptiveOrchestrationGate(res.data.adaptiveOrchestrationGate !== false)
-        setPreferMultiAgent(res.data.preferMultiAgent !== false)
+        setPreferMultiAgent(res.data.preferMultiAgent === true)
         setPreferDshTranscript(res.data.preferDshTranscript !== false)
       }
     })
@@ -290,10 +292,12 @@ export function PermissionSettingsPanel({
     setPreferMultiAgent(enabled)
     const res = await window.taskweaver?.preferences?.set?.({ preferMultiAgent: enabled })
     if (!res?.ok) {
+      setPreferMultiAgent(!enabled)
       onToast?.(res?.error || '保存失败')
       return
     }
-    onToast?.(enabled ? '已开启：常规消息默认走多 Agent DAG' : '已恢复：常规消息默认单 Agent')
+    onPreferMultiAgentChange?.(enabled)
+    onToast?.(enabled ? '已开启：新会话默认走多 Agent DAG' : '已恢复：新会话默认单 Agent')
   }
 
   const applyInjectionPresetKiB = async (presetKiB: number) => {
@@ -415,7 +419,7 @@ export function PermissionSettingsPanel({
       {/* 三档模式选择卡片 */}
       <div style={{ marginTop: 12 }}>
         <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>全局权限模式</h3>
-        <div role="group" aria-label="全局权限模式" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+        <div className="permission-mode-grid" role="group" aria-label="全局权限模式">
           <PermissionModeCard
             active={mode === 'readonly'}
             icon={<Shield size={16} color="#64748b" aria-hidden="true" />}
@@ -494,7 +498,7 @@ export function PermissionSettingsPanel({
           <label htmlFor="prompt-injection-limit-kib" style={{ display: 'flex', flexDirection: 'column', gap: 4, cursor: 'pointer' }}>
             <strong>每轮系统上下文上限</strong>
             <span style={{ color: 'var(--text-secondary)', fontSize: 11, lineHeight: 1.45 }}>
-              每轮发送前，Prompt Pipeline 注入的系统上下文总字节上限；默认 32 KiB，范围 1–128 KiB。
+              作为系统上下文注入上限，实际预算会随模型上下文窗口按比例缩放；默认上限 128 KiB，范围 1–128 KiB。
             </span>
           </label>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
@@ -536,7 +540,7 @@ export function PermissionSettingsPanel({
           <span>
             <strong>默认启用多 Agent 编排</strong>
             <span style={{ display: 'block', color: 'var(--text-secondary)', fontSize: 11, marginTop: 4, lineHeight: 1.45 }}>
-              常规模式下每条消息走 DAG 规划与子任务；也可在输入框旁单独开关。目标模式 (/goal) 始终多 Agent。
+              只决定新会话的默认模式。关闭后默认单 Agent；选择多 Agent Skill 或目标模式 (/goal) 仍会启用编排，输入框开关只影响当前会话。
             </span>
           </span>
         </label>

@@ -3,8 +3,8 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { createDshChatService } from '../desktop/backend/dsh-chat-service.mjs'
-import { createThreadStore } from '../desktop/backend/thread-store.mjs'
+import { createDshChatService } from '../backend/dsh-chat-service.mjs'
+import { createThreadStore } from '../backend/thread-store.mjs'
 
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tw-transcript-search-'))
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')

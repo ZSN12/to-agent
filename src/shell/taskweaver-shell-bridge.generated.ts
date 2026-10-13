@@ -2,29 +2,93 @@
 
 import type { TaskweaverBridge } from '../shared/ipc-bridge.generated'
 
-let eventSource: EventSource | null = null
+let eventController: AbortController | null = null
+let shellApiToken: string | null = null
 const channelListeners = new Map<string, Set<(payload: unknown) => void>>()
 
-function ensureEventSource(apiBase: string) {
-  if (eventSource) return eventSource
-  eventSource = new EventSource(`${apiBase}/shell/v1/events`)
-  eventSource.addEventListener('message', (event) => {
-    try {
-      const parsed = JSON.parse(String(event.data)) as { channel?: string; payload?: unknown }
-      if (!parsed.channel) return
-      const listeners = channelListeners.get(parsed.channel)
-      if (!listeners) return
-      for (const listener of listeners) listener(parsed.payload)
-    } catch {
-      /* ignore malformed push */
+function shellApiHeaders() {
+  const headers: Record<string, string> = { Accept: 'text/event-stream' }
+  if (shellApiToken) headers['X-TaskWeaver-Shell-Token'] = shellApiToken
+  return headers
+}
+
+function dispatchShellEvent(data: string) {
+  try {
+    const parsed = JSON.parse(data) as { channel?: string; payload?: unknown }
+    if (!parsed.channel) return
+    const listeners = channelListeners.get(parsed.channel)
+    if (!listeners) return
+    for (const listener of listeners) {
+      try { listener(parsed.payload) } catch { /* isolate subscribers */ }
     }
+  } catch {
+    /* ignore malformed push */
+  }
+}
+
+function waitForReconnect(ms: number, signal: AbortSignal) {
+  return new Promise<void>((resolve) => {
+    if (signal.aborted) return resolve()
+    const finish = () => {
+      clearTimeout(timer)
+      signal.removeEventListener('abort', finish)
+      resolve()
+    }
+    const timer = setTimeout(finish, ms)
+    signal.addEventListener('abort', finish, { once: true })
   })
-  return eventSource
+}
+
+async function pumpEvents(apiBase: string, signal: AbortSignal) {
+  let retryDelay = 500
+  while (!signal.aborted) {
+    try {
+      const response = await fetch(apiBase + '/shell/v1/events', {
+        headers: shellApiHeaders(),
+        signal,
+      })
+      if (response.status === 401 || response.status === 403) return
+      if (!response.ok || !response.body) throw new Error('Shell event stream unavailable')
+      retryDelay = 500
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      while (!signal.aborted) {
+        const { value, done } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        let separator = buffer.indexOf('\n\n')
+        while (separator !== -1) {
+          const frame = buffer.slice(0, separator)
+          buffer = buffer.slice(separator + 2)
+          const data = frame.split('\n')
+            .filter((line) => line.startsWith('data:'))
+            .map((line) => line.slice(5).replace(/^ /, ''))
+          if (data.length) dispatchShellEvent(data.join('\n'))
+          separator = buffer.indexOf('\n\n')
+        }
+      }
+      try { await reader.cancel() } catch { /* stream already closed */ }
+    } catch {
+      if (signal.aborted) return
+    }
+    await waitForReconnect(retryDelay, signal)
+    retryDelay = Math.min(retryDelay * 2, 10_000)
+  }
+}
+
+function ensureEventStream(apiBase: string) {
+  if (eventController) return
+  const controller = new AbortController()
+  eventController = controller
+  void pumpEvents(apiBase, controller.signal).finally(() => {
+    if (eventController === controller) eventController = null
+  })
 }
 
 function subscribe(channel: string, listener: (payload: unknown) => void) {
   const apiBase = getShellApiBase()
-  ensureEventSource(apiBase)
+  ensureEventStream(apiBase)
   let set = channelListeners.get(channel)
   if (!set) {
     set = new Set()
@@ -39,7 +103,20 @@ function subscribe(channel: string, listener: (payload: unknown) => void) {
 let shellApiBase: string | null = null
 
 export function setShellApiBase(base: string) {
-  shellApiBase = base.replace(/\/$/, '')
+  const normalized = base.replace(/\/$/, '')
+  if (shellApiBase !== normalized) {
+    eventController?.abort()
+    eventController = null
+  }
+  shellApiBase = normalized
+}
+
+export function setShellApiToken(token: string) {
+  if (shellApiToken !== token) {
+    eventController?.abort()
+    eventController = null
+  }
+  shellApiToken = token
 }
 
 export function getShellApiBase() {
@@ -49,16 +126,18 @@ export function getShellApiBase() {
 
 async function invoke(channel: string, ...args: unknown[]) {
   const apiBase = getShellApiBase()
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (shellApiToken) headers['X-TaskWeaver-Shell-Token'] = shellApiToken
   const response = await fetch(`${apiBase}/shell/v1/invoke`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify({ channel, args }),
   })
   const body = await response.json() as { ok?: boolean; data?: unknown; error?: string }
-  if (!response.ok || body.ok === false) {
+  if (!response.ok) {
     throw new Error(body.error || `Shell invoke failed (${channel})`)
   }
-  return body.data
+  return body
 }
 
 export function createShellTaskweaverBridge(): TaskweaverBridge {
@@ -80,7 +159,9 @@ export function createShellTaskweaverBridge(): TaskweaverBridge {
       setWorkspace: (...args: unknown[]) => invoke("app:setWorkspace", ...args),
       switchThread: (...args: unknown[]) => invoke("app:switchThread", ...args),
       toggleArchiveThread: (...args: unknown[]) => invoke("app:toggleArchiveThread", ...args),
-      togglePinThread: (...args: unknown[]) => invoke("app:togglePinThread", ...args)
+      togglePinThread: (...args: unknown[]) => invoke("app:togglePinThread", ...args),
+      getFirstRunNotice: (...args: unknown[]) => invoke("app:getFirstRunNotice", ...args),
+      dismissFirstRunNotice: (...args: unknown[]) => invoke("app:dismissFirstRunNotice", ...args)
     },
     models: {
       bridgeGetStatus: (...args: unknown[]) => invoke("bridge:getStatus", ...args),
@@ -141,6 +222,7 @@ export function createShellTaskweaverBridge(): TaskweaverBridge {
     chat: {
       cancel: (...args: unknown[]) => invoke("chat:cancel", ...args),
       getDshView: (...args: unknown[]) => invoke("chat:getDshView", ...args),
+      getToolOutput: (...args: unknown[]) => invoke("chat:getToolOutput", ...args),
       getImageAttachment: (...args: unknown[]) => invoke("chat:getImageAttachment", ...args),
       getImageLimits: (...args: unknown[]) => invoke("chat:getImageLimits", ...args),
       getResultAttachment: (...args: unknown[]) => invoke("chat:getResultAttachment", ...args),

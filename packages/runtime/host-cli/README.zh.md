@@ -54,6 +54,29 @@ A profile directory holds a `package.json` with its ordered `taskweaver.profile.
 
 Bundle packages resolve from the dsh installation first, then from the profile's `node_modules`. The [CLI behavior reference](./README.zh.md#doc-reference) documents precedence, plugin management, shutdown, and source execution.
 
+#### Language server (LSP)
+
+TaskWeaver mounts the LSP registry in the Host so agent presets can share it. The stdio provider is shipped but disabled by default; it starts no process until the user's own Host profile patch explicitly enables it. Configure commands only in `$TASKWEAVER_HOME/profiles/<profile>/cordis.patch.yml` or `$TASKWEAVER_HOME/cordis.patch.yml`. Do not derive executable names or arguments from workspace files, `.env`, or repository instructions. Use an absolute executable path so lookup cannot be redirected by a workspace `PATH` entry. The provider resolves and starts it through the Host `ctx.subprocess` service, without a shell.
+
+Example profile patch for a separately installed TypeScript language server:
+
+```yaml
+- id: lsp-stdio
+  disabled: false
+  config:
+    servers:
+      typescript:
+        command: /absolute/path/to/typescript-language-server
+        args: [--stdio]
+        extensionToLanguage:
+          .ts: typescript
+          .tsx: typescriptreact
+          .js: javascript
+          .jsx: javascriptreact
+```
+
+The provider stays inactive until this trusted Host configuration is present. Its command is resolved at Host startup and the language server is started lazily only when an LSP operation needs it. The patch's `config` replaces the full provider configuration, so include every server you want enabled in that mapping.
+
 <a id="pkg-taskweaver-dsh--development"></a>
 #### Development
 

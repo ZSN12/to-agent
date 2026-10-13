@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { createApprovalAuditStore } from '../desktop/backend/approval-audit.mjs'
+import { createApprovalAuditStore } from '../backend/approval-audit.mjs'
 
 const agentDataPath = await fs.mkdtemp(path.join(os.tmpdir(), 'tw-audit-'))
 const conversationId = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'

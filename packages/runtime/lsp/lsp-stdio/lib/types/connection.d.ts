@@ -43,10 +43,13 @@ export interface ConnectionSpec {
 export type ConnectionWriter = (stdin: Writable, message: unknown, done: (error?: Error | null) => void) => void;
 /** Spawn one subprocess for this connection (the provider passes `ctx.subprocess.spawn`). */
 export type ConnectionSpawner = (spec: SubprocessSpawnSpec) => SubprocessHandle;
+/** Receives a server→client notification. Notifications have no response channel. */
+export type ConnectionNotificationHandler = (method: string, params: unknown) => void;
 /** A live JSON-RPC endpoint bound to one child process. */
 export declare class LspConnection {
     private readonly onServerRequest;
     private readonly writer;
+    private readonly onServerNotification;
     private readonly handle;
     private readonly stdin;
     private readonly decoder;
@@ -60,8 +63,9 @@ export declare class LspConnection {
      * @param spawner - the subprocess seam's spawn (the provider passes `ctx.subprocess.spawn`).
      * @param onServerRequest - answers a server→client request; rejects to send an error response.
      * @param writer - message writer; tests inject callback failures without relying on OS pipe races.
+     * @param onServerNotification - receives notifications such as publishDiagnostics.
      */
-    constructor(spec: ConnectionSpec, spawner: ConnectionSpawner, onServerRequest: (method: string, params: unknown) => Promise<unknown>, writer?: ConnectionWriter);
+    constructor(spec: ConnectionSpec, spawner: ConnectionSpawner, onServerRequest: (method: string, params: unknown) => Promise<unknown>, writer?: ConnectionWriter, onServerNotification?: ConnectionNotificationHandler);
     /** The child's pid, or `-1` when the spawn produced no pid (so signalling is a no-op). */
     get pid(): number;
     /** The retained stderr tail, for diagnostics on a failed server. */

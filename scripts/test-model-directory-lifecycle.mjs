@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { createModelDirectoryClient } from '../desktop/backend/model/directory-client.mjs'
+import { createModelDirectoryClient } from '../backend/model/directory-client.mjs'
 
 const ok = (value) => ({ result: { ok: true, value } })
 
@@ -54,6 +54,40 @@ function makeApi({ failFirstProviderRead = false } = {}) {
 }
 
 {
+  const { api, getProviderReads } = makeApi()
+  let state = 'failed'
+  let restartCalls = 0
+  let readyCalls = 0
+  let releaseRestart
+  const restartGate = new Promise((resolve) => { releaseRestart = resolve })
+  const client = createModelDirectoryClient({
+    dshHostManager: {
+      get state() { return state },
+      getDiagnostics: () => 'host is restarting',
+      async restart() {
+        restartCalls += 1
+        await restartGate
+        state = 'ready'
+      },
+      async whenReady() {
+        readyCalls += 1
+        assert.equal(state, 'ready')
+        return { api }
+      },
+    },
+  })
+
+  const requests = Array.from({ length: 5 }, () => client.getDshModelDirectory())
+  assert.equal(restartCalls, 1, 'parallel directory requests share one Host restart')
+  releaseRestart()
+  const directories = await Promise.all(requests)
+
+  assert.ok(directories.every((directory) => directory === directories[0]))
+  assert.equal(readyCalls, 1, 'parallel directory requests share one readiness wait')
+  assert.equal(getProviderReads(), 1, 'parallel directory requests fetch one snapshot')
+}
+
+{
   let readyCalls = 0
   let startCalls = 0
   const client = createModelDirectoryClient({
@@ -69,4 +103,4 @@ function makeApi({ failFirstProviderRead = false } = {}) {
   assert.equal(startCalls, 0)
 }
 
-console.log('Model directory lifecycle checks passed: await Host readiness, one immediate retry, and failed-state diagnostics.')
+console.log('Model directory lifecycle checks passed: await Host readiness, coalesce parallel requests across one Host restart, one immediate retry, and failed-state diagnostics.')

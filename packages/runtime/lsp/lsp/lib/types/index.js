@@ -13,6 +13,8 @@
 import { Service } from '@taskweaver/cordis';
 import { HarnessError } from '@taskweaver/dsh-llm';
 export { LspProviderId } from "./brand.js";
+/** Maximum wait for a language server to publish diagnostics after a document open. */
+export const MAX_DIAGNOSTICS_WAIT_MS = 1_500;
 /**
  * Structured LSP failure. Extends {@link HarnessError} with a stable `code`
  * (`LSP_INVALID_PROVIDER`, `LSP_CONFLICT`, `LSP_UNAVAILABLE`, `LSP_DISPOSED`,
@@ -108,6 +110,49 @@ export class Lsp extends Service {
         }
         return route.provider.query({ ...request, languageId: route.languageId }, signal);
     }
+    async getDiagnostics(request, options = {}) {
+        const route = this.routes.get(finalExtension(request.filePath));
+        if (route === undefined || route.provider.getDiagnostics === undefined)
+            return [];
+        const requestedWait = options.waitMs ?? MAX_DIAGNOSTICS_WAIT_MS;
+        const waitMs = Number.isFinite(requestedWait)
+            ? Math.min(MAX_DIAGNOSTICS_WAIT_MS, Math.max(0, Math.floor(requestedWait)))
+            : MAX_DIAGNOSTICS_WAIT_MS;
+        if (waitMs === 0)
+            return [];
+        // The budget includes host filesystem resolution, queueing behind an LSP request, and the
+        // server's publishDiagnostics wait. Passing only waitMs to a provider leaves those earlier
+        // phases unbounded, so enforce one deadline at the seam as well as inside the stdio provider.
+        const deadline = new AbortController();
+        const timer = setTimeout(() => {
+            deadline.abort(new Error(`LSP diagnostics exceeded its ${waitMs}ms deadline`));
+        }, waitMs);
+        const signal = options.signal === undefined
+            ? deadline.signal
+            : AbortSignal.any([options.signal, deadline.signal]);
+        try {
+            const pending = Promise.resolve().then(() => route.provider.getDiagnostics({ ...request, languageId: route.languageId }, waitMs, signal));
+            return await abortableDiagnostics(pending, signal);
+        }
+        finally {
+            clearTimeout(timer);
+        }
+    }
+}
+/** Let the service deadline bound the result even when a provider ignores its AbortSignal. */
+function abortableDiagnostics(work, signal) {
+    if (signal.aborted)
+        return Promise.reject(diagnosticsAbortError(signal));
+    const canceled = Promise.withResolvers();
+    const onAbort = () => canceled.reject(diagnosticsAbortError(signal));
+    signal.addEventListener('abort', onAbort, { once: true });
+    return Promise.race([work, canceled.promise])
+        .finally(() => signal.removeEventListener('abort', onAbort));
+}
+function diagnosticsAbortError(signal) {
+    if (signal.reason instanceof Error)
+        return signal.reason;
+    return new Error('LSP diagnostics request aborted');
 }
 /** Lowercase an extension and ensure it carries a leading dot; `EXTENSION_PATTERN` rejects the rest. */
 function normalizeExtension(ext) {

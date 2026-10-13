@@ -37,6 +37,7 @@ export function SettingsPage({
   onUpdateShortcuts,
   permissionMode,
   onPermissionModeChange,
+  onPreferMultiAgentChange,
   conversationId = null,
 }: {
   section: SettingsSection
@@ -47,6 +48,7 @@ export function SettingsPage({
   onUpdateShortcuts: (next: ShortcutItem[]) => void
   permissionMode?: PermissionMode
   onPermissionModeChange?: (mode: PermissionMode) => void
+  onPreferMultiAgentChange?: (enabled: boolean) => void
   conversationId?: string | null
 }) {
   const [toastMessage, setToastMessage] = useState('')
@@ -145,6 +147,7 @@ export function SettingsPage({
           <PermissionSettingsPanel
             currentMode={permissionMode}
             onModeChange={onPermissionModeChange}
+            onPreferMultiAgentChange={onPreferMultiAgentChange}
             onToast={toast}
             conversationId={conversationId}
           />

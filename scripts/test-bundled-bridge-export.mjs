@@ -5,8 +5,8 @@ import {
   buildBundledBridgeExportDoc,
   exportDocHasBridgeAgents,
   mergeBridgeExportDocs,
-} from '../desktop/backend/model-sync/bundled-bridge-export.mjs'
-import { bridgeProviderBlocksFromExport } from '../desktop/backend/model-sync/bridge-catalog.mjs'
+} from '../backend/model-sync/bundled-bridge-export.mjs'
+import { bridgeProviderBlocksFromExport } from '../backend/model-sync/bridge-catalog.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const exportDoc = await buildBundledBridgeExportDoc({ appPath: root, userDataPath: null })

@@ -107,6 +107,34 @@ describe('lsp-stdio end to end over a fake server', () => {
     await ctx.fiber.dispose()
   })
 
+  it('refreshes per-file diagnostics through an already-running server without starting one for the hook', async () => {
+    let capturedProvider: LspProvider | undefined
+    const ctx = await mount({
+      LSP_FAKE_DIAGNOSTICS: JSON.stringify([{
+        range: { start: { line: 1, character: 2 }, end: { line: 1, character: 3 } },
+        severity: 1,
+        message: 'missing symbol {{uri}}',
+      }]),
+    }, {}, provider => { capturedProvider = provider })
+    if (capturedProvider === undefined) throw new Error('expected lsp-stdio to register a provider')
+    const instances = (capturedProvider as unknown as {
+      readonly instances: ReadonlyMap<string, unknown>
+    }).instances
+
+    await expect(ctx.lsp.getDiagnostics({ filePath: 'a.ts', workspaceRoot: ws })).resolves.toEqual([])
+    expect(instances.size).toBe(0)
+
+    await ctx.lsp.query(query('hover'))
+    expect(instances.size).toBe(1)
+    await expect(ctx.lsp.getDiagnostics({ filePath: 'a.ts', workspaceRoot: ws })).resolves.toEqual([{
+      range: { start: { line: 1, character: 2 }, end: { line: 1, character: 3 } },
+      severity: 1,
+      message: `missing symbol ${pathToFileURL(join(ws, 'a.ts')).href}`,
+    }])
+    expect(instances.size).toBe(1)
+    await ctx.fiber.dispose()
+  })
+
   it('maps a LocationLink for implementation', async () => {
     const link = { targetUri: pathToFileURL(join(ws, 'a.ts')).href, targetSelectionRange: { start: { line: 1, character: 0 }, end: { line: 1, character: 2 } } }
     const ctx = await mount({ LSP_FAKE_IMPL: JSON.stringify([link]) })

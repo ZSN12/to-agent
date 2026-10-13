@@ -241,6 +241,7 @@ const writeConnectionMessage = (stdin, message, done) => {
 var LspConnection = class {
 	onServerRequest;
 	writer;
+	onServerNotification;
 	handle;
 	stdin;
 	decoder;
@@ -254,10 +255,12 @@ var LspConnection = class {
 	* @param spawner - the subprocess seam's spawn (the provider passes `ctx.subprocess.spawn`).
 	* @param onServerRequest - answers a server→client request; rejects to send an error response.
 	* @param writer - message writer; tests inject callback failures without relying on OS pipe races.
+	* @param onServerNotification - receives notifications such as publishDiagnostics.
 	*/
-	constructor(spec, spawner, onServerRequest, writer = writeConnectionMessage) {
+	constructor(spec, spawner, onServerRequest, writer = writeConnectionMessage, onServerNotification = () => {}) {
 		this.onServerRequest = onServerRequest;
 		this.writer = writer;
+		this.onServerNotification = onServerNotification;
 		this.decoder = new MessageDecoder(spec.maxMessageBytes);
 		this.handle = spawner({
 			argv: [spec.command, ...spec.args],
@@ -406,7 +409,12 @@ var LspConnection = class {
 			this.handleServerRequest(id, method, frame.params).catch(() => {});
 			return;
 		}
-		if (typeof method === "string") return;
+		if (typeof method === "string") {
+			try {
+				this.onServerNotification(method, frame.params);
+			} catch {}
+			return;
+		}
 		if (typeof id === "number") this.handleResponse(id, frame);
 	}
 	async handleServerRequest(id, method, params) {
@@ -710,6 +718,12 @@ var LspInstance = class {
 	teardownPromise;
 	/** Set once the process closes, so the pool can synchronously skip a dead instance. */
 	processClosed = false;
+	/** Latest diagnostics are kept per document URI, as LSP notifications are file-scoped. */
+	diagnosticsByUri = /* @__PURE__ */ new Map();
+	/** Waiters are scoped to one URI and one document version. */
+	diagnosticWaiters = /* @__PURE__ */ new Map();
+	/** Versions sent by this client, kept monotonic for each document URI. */
+	documentVersions = /* @__PURE__ */ new Map();
 	/** Populated once `initialize` succeeds; a failed handshake rejects every query. */
 	ready;
 	/**
@@ -719,7 +733,7 @@ var LspInstance = class {
 	*/
 	constructor(spec, spawner, writer) {
 		this.spec = spec;
-		this.connection = new LspConnection(spec, spawner, (method, params) => this.answerServerRequest(method, params), writer);
+		this.connection = new LspConnection(spec, spawner, (method, params) => this.answerServerRequest(method, params), writer, (method, params) => this.acceptServerNotification(method, params));
 		this.ready = this.initialize();
 		this.ready.catch(() => {});
 		this.connection.closed.then(() => {
@@ -789,10 +803,11 @@ var LspInstance = class {
 			/* v8 ignore next -- guards an abort landing between the ready wait and didOpen; not deterministically reproducible. */
 			if (signal?.aborted) throw abortError(signal);
 			try {
+				const version = this.nextDocumentVersion(uri);
 				await abortable(this.connection.notify("textDocument/didOpen", { textDocument: {
 					uri,
 					languageId: request.languageId,
-					version: 1,
+					version,
 					text: source.text
 				} }), signal);
 			} catch (error) {
@@ -811,6 +826,109 @@ var LspInstance = class {
 				} catch {}
 			}
 		}
+	}
+	/**
+	* Re-open a changed file and wait briefly for its next publishDiagnostics notification.
+	* The provider calls this only for a live instance, so advisory diagnostics never launch an
+	* otherwise-unused language server after an edit.
+	*/
+	async getDiagnostics(source, languageId, waitMs, signal) {
+		if (this.disposed) throw new LspError("LSP instance was disposed", "LSP_DISPOSED");
+		if (signal?.aborted) throw abortError(signal);
+		await abortable(this.ready, signal);
+		const capabilities = this.capabilities;
+		if (capabilities === void 0 || !supportsTransientOpen(capabilities.textDocumentSync)) return [];
+		const uri = source.fileUrl;
+		const version = this.nextDocumentVersion(uri);
+		const previousRevision = this.diagnosticsByUri.get(uri)?.revision ?? 0;
+		let opened = false;
+		try {
+			try {
+				await abortable(this.connection.notify("textDocument/didOpen", { textDocument: {
+					uri,
+					languageId,
+					version,
+					text: source.text
+				} }), signal);
+			} catch (error) {
+				await this.startTeardown();
+				throw error;
+			}
+			opened = true;
+			return await this.waitForDiagnostics(uri, previousRevision, version, waitMs, signal);
+		} finally {
+			if (opened && !this.dead) try {
+				await this.connection.notify("textDocument/didClose", { textDocument: { uri } });
+			} catch {
+				try {
+					await this.startTeardown();
+				} catch {}
+			}
+		}
+	}
+	nextDocumentVersion(uri) {
+		const previous = this.documentVersions.get(uri);
+		if (previous === void 0 && this.documentVersions.size >= MAX_TRACKED_DOCUMENT_VERSIONS) {
+			const oldest = this.documentVersions.keys().next().value;
+			if (oldest !== void 0) this.documentVersions.delete(oldest);
+		}
+		this.documentVersions.delete(uri);
+		const version = (previous ?? 0) + 1;
+		this.documentVersions.set(uri, version);
+		return version;
+	}
+	acceptServerNotification(method, params) {
+		if (method !== "textDocument/publishDiagnostics" || !isRecord(params)) return;
+		const uri = params.uri;
+		const rawDiagnostics = params.diagnostics;
+		if (typeof uri !== "string" || uri.length === 0 || !Array.isArray(rawDiagnostics)) return;
+		const version = typeof params.version === "number" && Number.isInteger(params.version) ? params.version : void 0;
+		const currentVersion = this.documentVersions.get(uri);
+		if (version !== void 0 && currentVersion !== void 0 && version < currentVersion) return;
+		const diagnostics = rawDiagnostics.slice(0, MAX_CACHED_DIAGNOSTICS).flatMap(normalizeDiagnostic);
+		const revision = (this.diagnosticsByUri.get(uri)?.revision ?? 0) + 1;
+		this.diagnosticsByUri.delete(uri);
+		this.diagnosticsByUri.set(uri, {
+			diagnostics,
+			revision,
+			...version !== void 0 ? { version } : {}
+		});
+		while (this.diagnosticsByUri.size > MAX_DIAGNOSTIC_FILES) {
+			const oldest = this.diagnosticsByUri.keys().next().value;
+			if (oldest === void 0) break;
+			this.diagnosticsByUri.delete(oldest);
+		}
+		const waiting = this.diagnosticWaiters.get(uri);
+		if (waiting === void 0) return;
+		for (const waiter of [...waiting]) if (revision > waiter.afterRevision && (version === void 0 || version >= waiter.minimumVersion)) waiter.resolve(diagnostics);
+	}
+	waitForDiagnostics(uri, afterRevision, minimumVersion, waitMs, signal) {
+		const cached = this.diagnosticsByUri.get(uri);
+		if (cached !== void 0 && cached.revision > afterRevision && (cached.version === void 0 || cached.version >= minimumVersion)) return Promise.resolve(cached.diagnostics);
+		if (signal?.aborted) return Promise.reject(abortError(signal));
+		if (waitMs <= 0) return Promise.resolve([]);
+		return new Promise((resolve, reject) => {
+			const waiting = this.diagnosticWaiters.get(uri) ?? /* @__PURE__ */ new Set();
+			let timer;
+			const finish = (diagnostics, error) => {
+				if (timer !== void 0) clearTimeout(timer);
+				signal?.removeEventListener("abort", onAbort);
+				waiting.delete(waiter);
+				if (waiting.size === 0) this.diagnosticWaiters.delete(uri);
+				if (error !== void 0) reject(error);
+				else resolve(diagnostics ?? []);
+			};
+			const onAbort = () => finish(void 0, abortError(signal));
+			const waiter = {
+				afterRevision,
+				minimumVersion,
+				resolve: (diagnostics) => finish(diagnostics)
+			};
+			waiting.add(waiter);
+			this.diagnosticWaiters.set(uri, waiting);
+			timer = setTimeout(() => finish([]), waitMs);
+			signal?.addEventListener("abort", onAbort, { once: true });
+		});
 	}
 	async sendRequest(operation, uri, position, signal) {
 		const params = {
@@ -916,8 +1034,41 @@ var LspInstance = class {
 		await Promise.all([this.connection.closed, this.connection.waitForProcessTreeExit()]);
 	}
 };
+const MAX_CACHED_DIAGNOSTICS = 100;
+const MAX_DIAGNOSTIC_MESSAGE_CHARS = 1e3;
+const MAX_DIAGNOSTIC_FILES = 128;
+const MAX_TRACKED_DOCUMENT_VERSIONS = 512;
+function isRecord(value) {
+	return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+function normalizeDiagnostic(value) {
+	if (!isRecord(value) || typeof value.message !== "string" || !isRecord(value.range)) return [];
+	const start = normalizePosition(value.range.start);
+	const end = normalizePosition(value.range.end);
+	if (start === void 0 || end === void 0) return [];
+	const severity = value.severity === 1 || value.severity === 2 || value.severity === 3 || value.severity === 4 ? value.severity : void 0;
+	const code = typeof value.code === "string" || typeof value.code === "number" && Number.isFinite(value.code) ? value.code : void 0;
+	const source = typeof value.source === "string" ? value.source.slice(0, 100) : void 0;
+	return [{
+		range: {
+			start,
+			end
+		},
+		message: value.message.slice(0, MAX_DIAGNOSTIC_MESSAGE_CHARS),
+		...severity !== void 0 ? { severity } : {},
+		...code !== void 0 ? { code } : {},
+		...source !== void 0 ? { source } : {}
+	}];
+}
+function normalizePosition(value) {
+	if (!isRecord(value) || !Number.isInteger(value.line) || !Number.isInteger(value.character) || value.line < 0 || value.character < 0) return void 0;
+	return {
+		line: value.line,
+		character: value.character
+	};
+}
 /** Server→client request methods this host acknowledges with an empty result (no dynamic registration). */
-const LIFECYCLE_NOOP_METHODS = new Set([
+const LIFECYCLE_NOOP_METHODS = /* @__PURE__ */ new Set([
 	"window/workDoneProgress/create",
 	"client/registerCapability",
 	"client/unregisterCapability"
@@ -1118,6 +1269,40 @@ var LocalLspProvider = class {
 				this.assertActive(querySignal);
 				instance = this.instanceFor(workspaceKey, workspace);
 				return await instance.query(request, source, querySignal);
+			} finally {
+				if (instance.dead) {
+					await instance.dispose();
+					this.evictIfCurrent(workspaceKey, instance);
+				}
+			}
+		});
+	}
+	async getDiagnostics(request, waitMs, signal) {
+		this.assertActive(signal);
+		const querySignal = this.querySignal(signal);
+		const workspaceResult = canonicalizeWorkspace(this.fs, request.workspaceRoot, querySignal);
+		const workspaceLookup = workspaceResult.then(() => void 0, () => void 0);
+		this.workspaceLookups.add(workspaceLookup);
+		let workspace;
+		try {
+			workspace = await workspaceResult;
+		} finally {
+			this.workspaceLookups.delete(workspaceLookup);
+		}
+		this.assertActive(querySignal);
+		const workspaceKey = workspace.target.targetKey;
+		return this.enqueue(workspaceKey, querySignal, async () => {
+			this.assertActive(querySignal);
+			const instance = this.instances.get(workspaceKey);
+			if (instance === void 0) return [];
+			if (instance.dead) {
+				await instance.dispose();
+				this.evictIfCurrent(workspaceKey, instance);
+				return [];
+			}
+			const source = await readHostSource(this.fs, request.filePath, workspace, this.config.maxDocumentBytes, querySignal);
+			try {
+				return await instance.getDiagnostics(source, request.languageId, waitMs, querySignal);
 			} finally {
 				if (instance.dead) {
 					await instance.dispose();

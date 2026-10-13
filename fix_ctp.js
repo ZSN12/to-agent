@@ -1,5 +1,5 @@
 const fs = require('fs');
-let content = fs.readFileSync('desktop/backend/chat-turn-pipeline.mjs', 'utf8');
+let content = fs.readFileSync('backend/chat-turn-pipeline.mjs', 'utf8');
 
 content = content.replace(/const runTurn = async \(\{\n([^}]+)\}\) => \{/m, (match, p1) => {
   if (!p1.includes('attachments')) {
@@ -59,4 +59,4 @@ content = content.replace(/return chat\.send\(\{\n\s*text: assembledCommand,\n([
   return match;
 });
 
-fs.writeFileSync('desktop/backend/chat-turn-pipeline.mjs', content, 'utf8');
+fs.writeFileSync('backend/chat-turn-pipeline.mjs', content, 'utf8');

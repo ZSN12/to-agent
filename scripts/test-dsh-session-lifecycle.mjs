@@ -8,8 +8,8 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { createDshChatService } from '../desktop/backend/dsh-chat-service.mjs'
-import { Z_MAX_TRACKED_SESSIONS } from '../desktop/backend/config.mjs'
+import { createDshChatService } from '../backend/dsh-chat-service.mjs'
+import { Z_MAX_TRACKED_SESSIONS } from '../backend/config.mjs'
 
 const modelService = {
   async getDshModelConfig(modelKey) {
@@ -80,7 +80,16 @@ function createMockRuntime({ turnEndSeqs = [], forkImpl = null, existingSessions
         created.push({ sessionId, cwd, agentPreset })
         const existingPreset = existingSessions[sessionId]
         if (existingPreset && agentPreset && existingPreset !== agentPreset) {
-          return { result: { ok: false, error: { code: 'agent-preset-conflict', message: 'session preset cannot be changed' } } }
+          return {
+            result: {
+              ok: false,
+              error: {
+                code: 'agent-preset-conflict',
+                message: 'session preset cannot be changed',
+                details: { sessionId, requestedPreset: agentPreset, existingPreset },
+              },
+            },
+          }
         }
         const actualPreset = existingPreset || agentPreset || 'standard'
         existingSessions[sessionId] = actualPreset
@@ -386,9 +395,50 @@ try {
     await turn
     const entry = (await readMapFile(home))['old-conversation']
     assert.equal(entry.agentPreset, 'standard', 'Host 的旧预设是权威值，新会话预设不能覆盖它')
-    assert.deepEqual(runtime.created.map((item) => item.agentPreset), ['code', undefined], '检测到 Host 预设冲突后应省略预设并重试附着')
+    assert.deepEqual(runtime.created.map((item) => item.agentPreset), ['code', 'standard'], '检测到 Host 预设冲突后应按 Host 记录的实际预设重试附着')
     await service.stop()
     console.log('✓ 映射丢失时通过 Host 的 preset conflict 安全附着旧会话，并保留 Host 预设')
+  }
+
+  // ============ 6. 映射中的预设过期时以 Host 会话日志为准 ==========
+  {
+    const home = await fs.mkdtemp(path.join(os.tmpdir(), 'tw-lifecycle-preset-stale-map-'))
+    cleanup.push(home)
+    const conversationId = 'stale-map-conversation'
+    const sessionId = `tw-${conversationId}`
+    const runtime = createMockRuntime({ existingSessions: { [sessionId]: 'tw-default' } })
+    await fs.mkdir(path.dirname(mapPathFor(home)), { recursive: true })
+    await fs.writeFile(mapPathFor(home), `${JSON.stringify({
+      version: 1,
+      sessions: {
+        [conversationId]: {
+          sessionId,
+          cwd: home,
+          ownerConversationId: conversationId,
+          agentPreset: 'standard',
+          lastUsedAt: Date.now(),
+        },
+      },
+    }, null, 2)}\n`)
+
+    const service = makeService(home, runtime, home)
+    const turn = service.send({
+      text: '继续旧会话',
+      modelKey: 'test/m1',
+      conversationId,
+      agentPreset: 'standard',
+      webContents,
+    })
+    await waitFor(() => service.isBusy(conversationId), { label: '过期映射修正后进入运行态' })
+    pushAssistantText(runtime, sessionId)
+    runtime.push({ payload: { type: 'session/event', sessionId, event: { type: 'turn/end', data: { reason: { kind: 'completed' } } } } })
+    await turn
+
+    const entry = (await readMapFile(home))[conversationId]
+    assert.equal(entry.agentPreset, 'tw-default', 'Host 记录的预设必须回写到会话映射')
+    assert.deepEqual(runtime.created.map((item) => item.agentPreset), ['standard', 'tw-default'], '应以 Host 返回的预设重试恢复旧会话')
+    await service.stop()
+    console.log('✓ 过期映射中的 agent preset 与 Host 冲突时按 Host 预设恢复并修正映射')
   }
 
   console.log('\nDSH 会话生命周期测试全部通过！')

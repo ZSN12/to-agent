@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { nativeChatCommand } from '../desktop/backend/native-chat-command.mjs'
+import { nativeChatCommand } from '../backend/native-chat-command.mjs'
 import {
   isCompactCommandText,
   shouldSuggestContextCompaction,

@@ -12,7 +12,8 @@ export function endsConversationRun(event: ChatStreamEvent): boolean {
 export function completedStreamMessage(event: ChatStreamEvent, timestamp = Date.now()): ChatMessage | null {
   if ((event.type !== 'done' && event.type !== 'error') || !event.turnId || !event.conversationId) return null
   if ('taskId' in event && event.taskId) return null
-  if (!event.full?.trim() && !event.fullThinking?.trim() && !event.fileChanges?.length && !event.turnActivity) return null
+  if (!event.full?.trim() && !event.fullThinking?.trim() && !event.fileChanges?.length && !event.turnActivity
+    && !(event.type === 'error' && event.code === 'MAX_STEPS')) return null
   return {
     id: `z-turn-${event.turnId}`,
     author: 'orchestrator',
@@ -28,6 +29,7 @@ export function completedStreamMessage(event: ChatStreamEvent, timestamp = Date.
     interrupted: event.type === 'error' || event.interrupted,
     ...(event.type === 'error' ? {
       callout: event.message ? `执行失败：${event.message}（已保留此前输出）` : '执行失败，已保留此前输出。',
+      ...(event.code ? { errorCode: event.code } : {}),
       usage: event.usage,
     } : {}),
   }

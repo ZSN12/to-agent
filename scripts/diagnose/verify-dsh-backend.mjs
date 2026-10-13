@@ -16,7 +16,7 @@ let allPassed = true
 
 // 检查 1: credentialStore 初始化顺序
 console.log('1️⃣  检查 credentialStore 初始化顺序')
-const composeServices = readFileSync(join(rootDir, 'desktop/backend/compose-services.mjs'), 'utf8')
+const composeServices = readFileSync(join(rootDir, 'backend/compose-services.mjs'), 'utf8')
 const lines = composeServices.split('\n')
 
 const credentialStoreLineIdx = lines.findIndex(l => l.includes('const credentialStore = createCredentialStore'))
@@ -68,7 +68,7 @@ if (hasOptionalCallbacks && hasSafetyChecks) {
 // 检查 4: pricing 服务导入导出
 console.log('\n4️⃣  检查 pricing 服务导入导出')
 const pricingService = readFileSync(
-  join(rootDir, 'desktop/backend/pricing-sync-service.mjs'),
+  join(rootDir, 'backend/pricing-sync-service.mjs'),
   'utf8'
 )
 

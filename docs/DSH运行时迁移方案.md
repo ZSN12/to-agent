@@ -45,7 +45,7 @@
 
 ### 阶段 1 — 并行 Host（验证）
 
-- 新增 `desktop/agent/dsh-host/`：
+- 新增 `backend/agent/dsh-host/`：
   - 启动子进程：本机 `dsh` CLI（或 vendored host 入口）+ preset **`code`**（与 DSH 桌面一致）。
   - `dsh-chat-adapter.mjs`：实现与现有 `chat-service.send` 相同的 **事件映射**（`chat:stream` ← Mux `session/*` 帧）。
 - Feature flag：`TASKWEAVER_AGENT_RUNTIME=dsh|pi`（默认 `pi`），仅 **单 Agent 主对话** 走 DSH。

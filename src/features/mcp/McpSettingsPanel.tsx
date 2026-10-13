@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react'
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Check,
   ChevronDown,
@@ -254,7 +254,7 @@ function statusPillClass(status: McpServerStatus['status']) {
 function statusPillLabel(server: McpServerStatus, dshWired: boolean) {
   if (!dshWired && server.status === 'connected') return `已探测连接 · ${server.toolCount} 个工具暂不可供 Agent 使用`
   if (server.status === 'connected') return `设置探测成功 · ${server.toolCount} 个工具`
-  if (server.status === 'connecting') return '正在探测…'
+  if (server.status === 'connecting') return '连接状态待确认'
   if (server.status === 'error') return '探测失败'
   if (!dshWired) return server.enabled ? '已保存启用意向 · Agent 尚不可用' : '已保存 · Agent 尚不可用'
   return server.enabled ? '已启用 · 尚未探测' : '已停用'
@@ -272,6 +272,7 @@ export function McpSettingsPanel({ onToast }: { onToast?: (msg: string) => void 
   const [installingId, setInstallingId] = useState<string | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [runtimeBinding, setRuntimeBinding] = useState<McpDshRuntimeBinding | null>(null)
+  const connectingPollAttempts = useRef(0)
 
   const installedIds = useMemo(() => new Set(servers.map((s) => s.id)), [servers])
   const dshWired = runtimeBinding?.dshWired === true
@@ -288,22 +289,24 @@ export function McpSettingsPanel({ onToast }: { onToast?: (msg: string) => void 
     )
   }, [catalog, templateQuery])
 
-  const loadServers = async () => {
-    if (!window.taskweaver?.mcp) {
-      setLoading(false)
-      return
-    }
-    const res = await window.taskweaver.mcp.list()
-    if (res.ok && res.data) {
-      setServers(res.data)
-      if (res.data.length === 0 || res.data.every((s) => s.status !== 'connected')) {
-        setTemplatesOpen(true)
-      } else {
-        setTemplatesOpen(false)
+  const loadServers = useCallback(async () => {
+    try {
+      if (!window.taskweaver?.mcp) return
+      const res = await window.taskweaver.mcp.list()
+      if (res.ok && res.data) {
+        setServers(res.data)
+        if (res.data.length === 0 || res.data.every((s) => s.status !== 'connected')) {
+          setTemplatesOpen(true)
+        } else {
+          setTemplatesOpen(false)
+        }
       }
+    } catch {
+      // Keep the last known server status; the bounded poll or manual refresh can retry.
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
-  }
+  }, [])
 
   useEffect(() => {
     void loadServers()
@@ -315,7 +318,22 @@ export function McpSettingsPanel({ onToast }: { onToast?: (msg: string) => void 
         if (res.data.entries?.length) setCatalog(res.data.entries.filter((entry) => entry.id !== 'github'))
       }
     })
-  }, [])
+  }, [loadServers])
+
+  useEffect(() => {
+    const hasConnectingServer = servers.some((server) => server.status === 'connecting')
+    if (!hasConnectingServer) {
+      connectingPollAttempts.current = 0
+      return
+    }
+    if (connectingPollAttempts.current >= 15) return
+
+    const timer = window.setTimeout(() => {
+      connectingPollAttempts.current += 1
+      void loadServers()
+    }, 1_000)
+    return () => window.clearTimeout(timer)
+  }, [loadServers, servers])
 
   const openNewFromTemplate = (entry: McpCatalogEntry) => {
     setEditingServer({
@@ -367,6 +385,7 @@ export function McpSettingsPanel({ onToast }: { onToast?: (msg: string) => void 
 
   const handleRefresh = async () => {
     if (!window.taskweaver?.mcp) return
+    connectingPollAttempts.current = 0
     setRefreshing(true)
     const res = await window.taskweaver.mcp.refresh()
     if (res.ok && res.data) {

@@ -238,6 +238,12 @@ export class BasicCompactionEngine extends CompactionEngine {
             return null;
         const policy = resolveTargetPolicy(this.config, target);
         const meter = this.ctx.tokenMeter;
+        // Tool results are pruned at the request boundary, before the next model
+        // sees the current surface. The pruner keeps its source events in the
+        // append-only log and chooses a limit from this session's routed model.
+        const prune = this.ctx.get('toolResultPruner');
+        if (prune !== undefined)
+            await prune.pruneSession(agent.session);
         let measurement = meter.measure(agent.session);
         switch (trigger) {
             case 'context-overflow':
@@ -248,15 +254,7 @@ export class BasicCompactionEngine extends CompactionEngine {
             default:
                 assertNever(trigger, 'compaction trigger');
         }
-        // Pruning is optional so compaction-basic remains independently composable.
-        // Overflow always qualifies; pressure first resolves the routed model's
-        // capacity and checks its target-specific threshold.
-        const prune = this.ctx.get('toolResultPruner');
         if (trigger === 'context-overflow') {
-            if (prune !== undefined) {
-                prune.pruneSession(agent.session);
-                measurement = meter.measure(agent.session);
-            }
             const range = selectCompactableRange(agent.session, measurement, 0);
             if (range === null)
                 return null;
@@ -270,14 +268,6 @@ export class BasicCompactionEngine extends CompactionEngine {
                 + 'configure contextWindow on that adapter model');
         }
         const spec = resolveCompactSpec(policy, context.contextWindow);
-        if (measurement.totalTokens < spec.thresholdTokens)
-            return null;
-        // Once pressure qualifies, land the model-free pass before choosing a
-        // summary range, then remeasure through the singleton replay fold.
-        if (prune !== undefined) {
-            prune.pruneSession(agent.session);
-            measurement = meter.measure(agent.session);
-        }
         if (measurement.totalTokens < spec.thresholdTokens)
             return null;
         let result = null;

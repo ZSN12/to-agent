@@ -11,6 +11,7 @@ import type {} from '@taskweaver/dsh-user-approval'
 import { applyReadTool, READ_LIMIT, STREAM_MIN_SIZE } from './read.ts'
 import { applyWriteTool } from './write.ts'
 import { applyEditTool } from './edit.ts'
+import { applyApplyPatchTool } from './apply-patch.ts'
 import { applyReadImageTool } from './read-image.ts'
 import { READ_MAX_BYTES, READ_MAX_LINE_LENGTH } from './read-render.ts'
 import { FsSandboxController } from './sandbox.ts'
@@ -26,6 +27,7 @@ export { FsSandboxController } from './sandbox.ts'
 export { sessionCwd, sessionResolveOptions } from './session-cwd.ts'
 export { resolveRegularReadTarget } from './read-target.ts'
 export { computeHunkDiffs, diffsFromMeta } from './diff.ts'
+export { parseCodexPatch } from './apply-patch.ts'
 
 /** Plugin config (all optional — `Config` supplies the defaults). */
 export interface Config {
@@ -80,7 +82,7 @@ export function apply(ctx: Context, config: Config): void {
     // view inherits those global definitions. Mask only the inherited
     // capabilities that actually exist; standalone read-only compositions
     // have nothing to restrict.
-    const inheritedMutations = ['write', 'edit'].filter(name => ctx.tools.get(name) !== undefined)
+    const inheritedMutations = ['write', 'edit', 'apply_patch'].filter(name => ctx.tools.get(name) !== undefined)
     if (inheritedMutations.length > 0) ctx.tools.restrict({ deny: inheritedMutations })
   }
   // read_image is composition-conditional: without a mounted attachment store
@@ -96,5 +98,6 @@ export function apply(ctx: Context, config: Config): void {
     const sandbox = new FsSandboxController(ctx)
     applyWriteTool(ctx, sandbox)
     applyEditTool(ctx, sandbox)
+    applyApplyPatchTool(ctx, sandbox)
   }
 }

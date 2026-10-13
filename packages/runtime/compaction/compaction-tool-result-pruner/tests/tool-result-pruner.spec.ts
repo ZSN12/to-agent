@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { Context } from '@taskweaver/cordis'
-import { CallId , createMessage, createToolResultMessage } from '@taskweaver/dsh-llm'
+import LlmRuntime, { CallId, createMessage, createToolResultMessage, LlmAdapter } from '@taskweaver/dsh-llm'
 import type { ContentBlock } from '@taskweaver/dsh-llm'
+import type { LlmResolvedModelInfo, StreamChunk } from '@taskweaver/dsh-llm'
 import SessionStore, {
   Session,
   SessionId,
@@ -27,10 +28,32 @@ const SMALL: ToolResultPruneConfig = {
 
 function service(config: ToolResultPruneConfig = SMALL): ToolResultPruner {
   const ctx = new Context()
+  void new LlmRuntime(ctx)
   // Service constructors self-register, so `ctx.tokenMeter` resolves for the
   // shadow-price pricing without a full plugin boot.
   void new TokenMeter(ctx)
   return new ToolResultPruner(ctx, config)
+}
+
+class ContextWindowAdapter extends LlmAdapter {
+  constructor(private readonly contextWindow: number) { super() }
+
+  override resolveModel(provider: string, model: string): Promise<LlmResolvedModelInfo> {
+    return Promise.resolve({ provider, id: model, name: model, context: { contextWindow: this.contextWindow } })
+  }
+
+  override async *stream(): AsyncIterable<StreamChunk> {
+    yield { type: 'finish', reason: { kind: 'stop' } }
+  }
+}
+
+function modelAwareService(): ToolResultPruner {
+  const ctx = new Context()
+  void new LlmRuntime(ctx)
+  void new TokenMeter(ctx)
+  ctx.llm.registerAdapter(['small-provider'], new ContextWindowAdapter(128_000))
+  ctx.llm.registerAdapter(['large-provider'], new ContextWindowAdapter(1_000_000))
+  return new ToolResultPruner(ctx, { thresholdChars: 4096, headChars: 2048, tailChars: 768 })
 }
 
 /** Pricing oracle mirroring the service's estimator for expectations. */
@@ -159,7 +182,7 @@ describe('ToolResultPruner content transform', () => {
 })
 
 describe('ToolResultPruner session transaction', () => {
-  it('prunes a stable snapshot, preserves all data, and cites the replaced result', () => {
+  it('prunes a stable snapshot, preserves all data, and cites the replaced result', async () => {
     const session = Session.create(SessionId('preserve'))
     const originalSeq = appendToolStep(session, 1, 'one', [{
       type: 'text',
@@ -174,7 +197,7 @@ describe('ToolResultPruner session transaction', () => {
       turn: 2,
     })
 
-    const result = service().pruneSession(session)
+    const result = await service().pruneSession(session)
     expect(result.pruned).toHaveLength(1)
     expect(result.charsRemoved).toBeGreaterThan(0)
     const entry = result.pruned[0]!
@@ -225,7 +248,7 @@ describe('ToolResultPruner session transaction', () => {
     })
   })
 
-  it('prunes multiple results, skips short ones, and converges in one pass', () => {
+  it('prunes multiple results, skips short ones, and converges in one pass', async () => {
     const session = Session.create(SessionId('multiple'))
     appendToolStep(session, 1, 'a', [{ type: 'text', text: 'A'.repeat(100) }])
     appendToolStep(session, 2, 'b', [{ type: 'text', text: 'short' }])
@@ -234,8 +257,8 @@ describe('ToolResultPruner session transaction', () => {
       turn: 4,
     })
     const prune = service()
-    const first = prune.pruneSession(session)
-    const second = prune.pruneSession(session)
+    const first = await prune.pruneSession(session)
+    const second = await prune.pruneSession(session)
     expect(first.pruned.map(entry => entry.callId)).toEqual([CallId('a'), CallId('c')])
     expect(first.charsRemoved).toBe(
       first.pruned.reduce((sum, entry) => sum + entry.charsBefore - entry.charsAfter, 0),
@@ -243,13 +266,13 @@ describe('ToolResultPruner session transaction', () => {
     expect(second).toEqual({ pruned: [], charsRemoved: 0 })
   })
 
-  it('replays to the identical pruned model messages', () => {
+  it('replays to the identical pruned model messages', async () => {
     const session = Session.create(SessionId('replay'))
     appendToolStep(session, 1, 'a', [{ type: 'text', text: 'A'.repeat(100) }])
     session.append('turn/start', {
       turn: 2,
     })
-    service().pruneSession(session)
+    await service().pruneSession(session)
     const replay = Session.create(session.id, [...session.events])
     expect(replay.deriveMessages()).toEqual(session.deriveMessages())
     expect(replay.surface.replaceGeneration).toBe(session.surface.replaceGeneration)
@@ -264,10 +287,33 @@ describe('ToolResultPruner session transaction', () => {
     const prune = new ToolResultPruner(ctx, SMALL)
     const session = ctx.sessions.create(SessionId('invariants'))
     appendToolStep(session, 1, 'a', [{ type: 'text', text: 'A'.repeat(100) }])
-    expect(() => prune.pruneSession(session)).toThrow(/outside any open turn/)
+    await expect(prune.pruneSession(session)).rejects.toThrow(/outside any open turn/)
     session.append('turn/start', {
       turn: 2,
     })
-    expect(() => prune.pruneSession(session)).not.toThrow()
+    await expect(prune.pruneSession(session)).resolves.toMatchObject({ pruned: expect.any(Array) })
+  })
+
+  it('uses isolated tool-output budgets for 128k and 1M model windows', async () => {
+    const prune = modelAwareService()
+    const makeRoutedSession = (id: string, provider: string): Session => {
+      const session = Session.create(SessionId(id))
+      appendToolStep(session, 1, `${id}-call`, [{ type: 'text', text: 'x'.repeat(30_000) }])
+      session.append('turn/start', { turn: 2 })
+      session.append('request/header', {
+        header: { config: { provider, model: 'context-model' } },
+        reason: 'initial',
+      })
+      return session
+    }
+    const small = makeRoutedSession('small-window', 'small-provider')
+    const large = makeRoutedSession('large-window', 'large-provider')
+    const [smallResult, largeResult] = await Promise.all([
+      prune.pruneSession(small),
+      prune.pruneSession(large),
+    ])
+    expect(smallResult.pruned[0]?.charsAfter).toBeLessThanOrEqual(2_800)
+    expect(largeResult.pruned[0]?.charsAfter).toBeLessThanOrEqual(21_875)
+    expect(largeResult.pruned[0]?.charsAfter).toBeGreaterThan(smallResult.pruned[0]?.charsAfter ?? 0)
   })
 })

@@ -21,6 +21,7 @@ import {
   BlockAssembler,
   LlmError,
   createAssistantMessage,
+  createUserMessage,
   deepFreeze,
   errorChain,
   markAgentLoopRequest,
@@ -33,6 +34,7 @@ import { joinContextSections, renderContextSections, renderPrompt } from '@taskw
 import type { PromptAssembly } from '@taskweaver/dsh-system-prompt'
 import type { Context } from '@taskweaver/cordis'
 import { RuntimeContextProjection } from './runtime-context.ts'
+import { DEFAULT_MAX_AGENT_STEPS } from './constants.ts'
 import { executeToolCalls } from './tool-calls.ts'
 
 type Phase =
@@ -45,7 +47,9 @@ type Phase =
   }
   | { kind: 'running'; abort: AbortController; turn: number; step: number; wakeRequested: boolean; outputSchema?: GenerateOptions['outputSchema'] }
 
-type StepEndReason = Extract<TurnEndReason, { kind: 'completed' | 'max-tokens' }>
+type StepEndReason =
+  | { kind: 'completed' }
+  | { kind: 'max-tokens'; truncatedToolCall: boolean }
 
 type PreparedStep =
   | { kind: 'reject' }
@@ -259,10 +263,18 @@ export class ReactLoopAgent implements Agent {
     }
     phase.turn = turn
     let turnEnds: TurnEndReason | null = null
+    let maxTokenRecoveryUsed = false
     let target: InboxTarget = 'next-turn'
     try {
       while (true) {
         signal.throwIfAborted()
+        const maxSteps = this.options.maxSteps ?? DEFAULT_MAX_AGENT_STEPS
+        if (phase.step >= maxSteps) {
+          throw new LlmError(
+            `agent "${this.id}" reached its per-turn step limit (${maxSteps})`,
+            'MAX_STEPS',
+          )
+        }
         const step = phase.step + 1
         const decision = await this.preStep(target, { turn, step })
         if (decision.kind === 'reject') {
@@ -290,9 +302,24 @@ export class ReactLoopAgent implements Agent {
           // max-tokens is sticky: once any step hits the ceiling, later steps
           // that complete normally must not downgrade the turn outcome.
           const stepEnd = await this.step(decision.assembly)
-          // max-tokens stays sticky: a later completed step must not
-          // downgrade the turn outcome.
-          if (turnEnds === null || turnEnds.kind !== 'max-tokens') turnEnds = stepEnd
+          if (stepEnd?.kind === 'max-tokens' && !maxTokenRecoveryUsed) {
+            maxTokenRecoveryUsed = true
+            const continuation = stepEnd.truncatedToolCall
+              ? '模型上一条回复在生成工具调用参数时达到输出上限；不完整的工具调用已丢弃且不会执行。请把计划拆成更小、参数更短的独立工具调用，再继续完成用户任务。'
+              : '模型上一条回复达到输出上限。请从刚才停止的位置继续，不要重复已经完成的内容，继续完成用户任务。'
+            this.inject(createUserMessage({
+              content: [{ type: 'text', text: continuation }],
+              source: {
+                kind: 'plugin',
+                plugin: 'dsh-agent-loop/max-tokens-recovery',
+                form: 'notice',
+                summary: '模型输出达到上限，正在自动安全续写一次。',
+              },
+            }))
+            turnEnds = null
+          } else if (turnEnds === null || turnEnds.kind !== 'max-tokens') {
+            turnEnds = stepEnd?.kind === 'max-tokens' ? { kind: 'max-tokens' } : stepEnd
+          }
         } finally {
           this.session.append('step/end', { turn, step })
         }
@@ -348,12 +375,19 @@ export class ReactLoopAgent implements Agent {
       )
       const assembler = new BlockAssembler()
       const chunkSeqs: number[] = []
+      let streamStarted = false
       try {
         const stream = preparedCall?.stream(request) ?? this.loopCtx.llm.stream(request)
         signal.throwIfAborted()
         for await (const chunk of stream) {
           signal.throwIfAborted()
           chunkSeqs.push(this.session.append('assistant/chunk', { turn, step, chunk }).seq)
+          if (chunk.type === 'block-end'
+            || (chunk.type === 'text-delta' && chunk.text.length > 0)
+            || (chunk.type === 'reasoning-delta' && chunk.text.length > 0)
+            || (chunk.type === 'tool-call-delta' && (Boolean(chunk.name) || chunk.argumentsDelta.length > 0))) {
+            streamStarted = true
+          }
           assembler.push(chunk)
         }
         signal.throwIfAborted()
@@ -384,6 +418,7 @@ export class ReactLoopAgent implements Agent {
             provider: request.provider,
             failure: finish.failure,
             retryPolicy: preparedCall?.retryPolicy,
+            streamStarted,
             signal,
           },
           () => Promise.resolve<RequestErrorAction>(undefined),
@@ -413,7 +448,9 @@ export class ReactLoopAgent implements Agent {
         },
         { surfaceOp: 'append', sourceEventSeqs: chunkSeqs },
       )
-      if (finish.kind === 'max-tokens') return { kind: 'max-tokens' }
+      if (finish.kind === 'max-tokens') {
+        return { kind: 'max-tokens', truncatedToolCall: assembler.hasToolCall }
+      }
 
       const toolCalls = message.content.filter(block => block.type === 'tool-call')
       if (toolCalls.length === 0) return { kind: 'completed' }

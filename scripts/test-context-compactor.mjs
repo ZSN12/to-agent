@@ -3,7 +3,7 @@ import {
   compactToolOutput,
   calculateDynamicContextBudget,
   COMPACTION_LIMITS,
-} from '../desktop/backend/context-compactor.mjs'
+} from '../backend/context-compactor.mjs'
 
 // ============ 1. 短输出不折叠 ============
 const shortText = 'line 1\nline 2\nline 3\nsuccess'
@@ -45,6 +45,15 @@ assert.ok(codeBudget.toolOutputMaxChars > planBudget.toolOutputMaxChars, '代码
 const millionTokenBudget = calculateDynamicContextBudget('code', { modelContextWindow: 1_000_000 })
 assert.ok(millionTokenBudget.repoMapTokens > codeBudget.repoMapTokens, '1M 窗口模型应获得更大的 Repo Map 预算')
 assert.ok(millionTokenBudget.toolOutputMaxChars > codeBudget.toolOutputMaxChars, '工具痕迹显示预算随模型窗口增长')
+assert.equal(millionTokenBudget.workspaceContextBytes, 128 * 1024, '大窗口模型的工作区上下文按比例扩展并受安全上限约束')
+assert.equal(calculateDynamicContextBudget('code', { modelContextWindow: 64_000 }).workspaceContextBytes, 16 * 1024,
+  '小窗口模型按比例缩小工作区上下文预算')
+assert.equal(calculateDynamicContextBudget('code', { modelContextWindow: 256_000 }).workspaceContextBytes, 64 * 1024,
+  '中等窗口模型按窗口比例增长工作区上下文预算')
+assert.equal(calculateDynamicContextBudget('code', { modelContextWindow: 32_000 }).workspaceContextBytes, 8 * 1024,
+  '极小窗口模型不会把工作区注入预算压到不可用的零值')
+assert.equal(calculateDynamicContextBudget('code', { modelContextWindow: Number.NaN }).workspaceContextBytes, 32 * 1024,
+  '无效模型窗口使用默认上下文预算')
 assert.equal(COMPACTION_LIMITS.MAX_TOOL_OUTPUT_CHARS, 3000, '默认工具输出折叠阈值应保持稳定')
 
 console.log('✓ context-compactor 测试用例 100% 通过！')

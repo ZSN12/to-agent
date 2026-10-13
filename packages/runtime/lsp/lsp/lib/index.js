@@ -30,6 +30,8 @@ function LspProviderId(id) {
 * registration order. The seam exposes exactly the four operations and no JSON-RPC escape hatch.
 * @module @taskweaver/dsh-lsp
 */
+/** Maximum wait for a language server to publish diagnostics after a document open. */
+const MAX_DIAGNOSTICS_WAIT_MS = 1500;
 /**
 * Structured LSP failure. Extends {@link HarnessError} with a stable `code`
 * (`LSP_INVALID_PROVIDER`, `LSP_CONFLICT`, `LSP_UNAVAILABLE`, `LSP_DISPOSED`,
@@ -100,11 +102,43 @@ var Lsp = class extends Service {
 			languageId: route.languageId
 		}, signal);
 	}
+	async getDiagnostics(request, options = {}) {
+		const route = this.routes.get(finalExtension(request.filePath));
+		if (route === void 0 || route.provider.getDiagnostics === void 0) return [];
+		const requestedWait = options.waitMs ?? 1500;
+		const waitMs = Number.isFinite(requestedWait) ? Math.min(MAX_DIAGNOSTICS_WAIT_MS, Math.max(0, Math.floor(requestedWait))) : MAX_DIAGNOSTICS_WAIT_MS;
+		if (waitMs === 0) return [];
+		const deadline = new AbortController();
+		const timer = setTimeout(() => {
+			deadline.abort(/* @__PURE__ */ new Error(`LSP diagnostics exceeded its ${waitMs}ms deadline`));
+		}, waitMs);
+		const signal = options.signal === void 0 ? deadline.signal : AbortSignal.any([options.signal, deadline.signal]);
+		try {
+			return await abortableDiagnostics(Promise.resolve().then(() => route.provider.getDiagnostics({
+				...request,
+				languageId: route.languageId
+			}, waitMs, signal)), signal);
+		} finally {
+			clearTimeout(timer);
+		}
+	}
 };
+/** Let the service deadline bound the result even when a provider ignores its AbortSignal. */
+function abortableDiagnostics(work, signal) {
+	if (signal.aborted) return Promise.reject(diagnosticsAbortError(signal));
+	const canceled = Promise.withResolvers();
+	const onAbort = () => canceled.reject(diagnosticsAbortError(signal));
+	signal.addEventListener("abort", onAbort, { once: true });
+	return Promise.race([work, canceled.promise]).finally(() => signal.removeEventListener("abort", onAbort));
+}
+function diagnosticsAbortError(signal) {
+	if (signal.reason instanceof Error) return signal.reason;
+	return /* @__PURE__ */ new Error("LSP diagnostics request aborted");
+}
 /** Lowercase an extension and ensure it carries a leading dot; `EXTENSION_PATTERN` rejects the rest. */
 function normalizeExtension(ext) {
 	const lower = ext.toLowerCase();
 	return lower.startsWith(".") ? lower : `.${lower}`;
 }
 //#endregion
-export { Lsp, Lsp as default, LspError, LspProviderId, finalExtension };
+export { Lsp, Lsp as default, LspError, LspProviderId, MAX_DIAGNOSTICS_WAIT_MS, finalExtension };

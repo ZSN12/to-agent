@@ -231,7 +231,7 @@ This backend owns the compaction policy:
 
 - **Measurement** — the singleton `ctx.tokenMeter` prices the latest canonical logged envelope and current surface at one consumed-log revision. Step-boundary pressure therefore includes the actual system prompt, tools, routing, assistant completion, tool results, buffered context, and steering.
 - **Routed policy** — proactive pressure resolves capacity from the adapter that owns the latest durable provider/model route, then scales the default policy plus an optional exact-target override into concrete token budgets. Model discovery remains advisory and is not consulted.
-- **Model-free pruning** — after pressure or canonical overflow qualifies, the optional [`ctx.toolResultPruner`](./README.zh.md#pkg-taskweaver-dsh-compaction-tool-result-pruner) service rewrites oversized tool results before range selection. Compact-basic remeasures through `ctx.tokenMeter`, skips summarization when pressure becomes safe, and otherwise summarizes the pruned surface. Below-pressure step checks never prune.
+- **Model-free pruning** — at every automatic step boundary, before measuring pressure, the optional [`ctx.toolResultPruner`](./README.zh.md#pkg-taskweaver-dsh-compaction-tool-result-pruner) service bounds oversized tool results for the next model request. Compact-basic then measures the pruned surface, skips summarization when pressure is safe, and otherwise summarizes that surface. A below-pressure step can still prune a large individual result without calling a summarizer.
 - **Retention** — compact the oldest whole surface units while preserving a recent tail and balanced tool-call/result cuts through the [`dsh-compaction` boundary helpers](./README.zh.md#pkg-taskweaver-dsh-compaction--tool-pairing-boundaries). Turn boundaries do not protect old steps inside a runaway turn. An open indivisible tail declines until it closes. The optional pruner can repair an oversized closed tool unit when its text-bearing result is the removable bulk; indivisible non-tool units and non-prunable tool remainders remain out of scope.
 - **Convergence** — retry head-checkpoint compaction up to `compactionRetries`; reject a summary that does not shrink its source, and throw if retries cannot return below threshold.
 - **Summarization** — a direct `llm/stream` call uses the configured provider/model pair and cap, falling back to the latest logged request target and then the agent target, without running the loop-only `agent/request` extension point. The call replays the conversation's own system prompt, tools, and shadowed-region messages verbatim, including image references, and appends the compaction instruction as the final user message, so it reuses the provider's warm prefix cache instead of invalidating it. The selected adapter must resolve or explicitly reject those images. It sets `GenerateOptions.purpose` to `compaction`, which adapters may forward as request attribution (the DeepSeek adapter sends `x-deepseek-harness-compact: 1`) without touching the model-visible body. Only returned text enters the checkpoint, excluding reasoning and tool calls that would leak private reasoning or create an orphaned call; image output fails with `UNSUPPORTED_CONTENT` rather than disappearing.
@@ -411,9 +411,9 @@ This is a concrete companion to [`dsh-compaction-basic`](./README.zh.md#pkg-task
 <a id="pkg-taskweaver-dsh-compaction-tool-result-pruner--service-api"></a>
 #### Service API
 
-`pruneSession(session)` scans one stable snapshot of the current surface. Every over-budget tool result is replaced by one newly appended `tool/result` carrying `{ surfaceOp: { op: 'replace', start: originalSeq, end: originalSeq }, sourceEventSeqs: [originalSeq] }`. The replacement spreads the complete original data and changes only `content`, preserving `turn`, `step`, `callId`, error fields, `meta`, and later data additions. The original event remains available for persistence, replay, and exact-log inspection.
+`pruneSession(session)` asynchronously scans one stable snapshot of the current surface. Every over-budget tool result is replaced by one newly appended `tool/result` carrying `{ surfaceOp: { op: 'replace', start: originalSeq, end: originalSeq }, sourceEventSeqs: [originalSeq] }`. The replacement spreads the complete original data and changes only `content`, preserving `turn`, `step`, `callId`, error fields, `meta`, and later data additions. The original event remains available for persistence, replay, and exact-log inspection.
 
-The method throws synchronously when the session rejects a replacement. Replacements committed earlier in the pass remain durable.
+The promise rejects when the session rejects a replacement. Replacements committed earlier in the pass remain durable. Before each model request, compact-basic awaits this pass even when the token-pressure threshold has not been reached.
 
 `measureContent(blocks)` counts Unicode code points in `text` blocks. `pruneContent(blocks)` returns the bounded replacement or `null` when content is already within the threshold. Non-text blocks are retained at their original relative positions; text slicing never splits a UTF-16 surrogate pair, though it can split a multi-code-point grapheme cluster.
 
@@ -426,9 +426,9 @@ Unrecognized keys fail at plugin construction. Resolved config is detached and d
 
 | Key | Required | Meaning |
 |---|---|---|
-| `thresholdChars` | no (default `8192`) | Prune when combined text exceeds this many Unicode code points. |
-| `headChars` | no (default `4096`) | Leading Unicode code points retained. |
-| `tailChars` | no (default `1024`) | Trailing Unicode code points retained. |
+| `thresholdChars` | no (default `8192`) | Direct `pruneContent()` calls and sessions without a logged model route use this limit. Routed sessions use a model-window budget based on `min(2,800, thresholdChars)`; higher values do not raise the 2,800-character baseline. |
+| `headChars` | no (default `4096`) | Leading Unicode code points retained for direct calls; routed sessions preserve the configured head/tail ratio. |
+| `tailChars` | no (default `1024`) | Trailing Unicode code points retained for direct calls; routed sessions preserve the configured head/tail ratio. |
 
 All values are integers; the threshold is positive and head/tail are non-negative. `headChars + marker + tailChars` must fit within `thresholdChars`, so a valid configuration can prune every over-budget result without growth or repeated rewriting.
 
@@ -453,12 +453,12 @@ export function apply(ctx: Context): void {
 <a id="pkg-taskweaver-dsh-compaction-tool-result-pruner--what-the-model-sees"></a>
 ###### What the model sees
 
-Once a compaction trigger qualifies, future requests see the retained head, `\n\n[... tool result middle pruned ...]\n\n`, and retained tail in place of the removed text. Rich blocks keep their order. The model does not see a second copy of the original.
+The next request sees the retained head, `\n\n[... tool result middle pruned ...]\n\n`, and retained tail in place of removed text. Rich blocks keep their order. The model does not see a second copy of the original. Pruning runs at each automatic step boundary, including below token-pressure, so one oversized result does not have to force a conversation summary.
 
 <a id="pkg-taskweaver-dsh-compaction-tool-result-pruner--token-effect"></a>
 ###### Token effect
 
-Each rewritten tool result has at most `thresholdChars` text code points. Pruning itself makes no model call; compaction-basic skips summarization when the remeasured request falls below pressure, otherwise the summarizer reads the pruned surface.
+Each rewritten tool result has at most the resolved per-session text budget. Pruning itself makes no model call; compaction-basic skips summarization when the remeasured request falls below pressure, otherwise the summarizer reads the pruned surface. The adaptive budget uses 2,800 characters at a 128k context window, scales with the routed model's context window up to 24,000 characters, and falls back to 128k when model metadata is unavailable. A configured `thresholdChars` below 2,800 lowers the baseline; the current limit is derived from the latest logged route, so a route changed only by the upcoming `agent/request` waterfall is not visible to the earlier `agent/pre-step` hook.
 
 <a id="pkg-taskweaver-dsh-compaction-tool-result-pruner--kv-cache-effect"></a>
 ###### KV Cache effect

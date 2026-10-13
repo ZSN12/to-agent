@@ -237,6 +237,45 @@ class LocalLspProvider {
             }
         });
     }
+    async getDiagnostics(request, waitMs, signal) {
+        this.assertActive(signal);
+        const querySignal = this.querySignal(signal);
+        const workspaceResult = canonicalizeWorkspace(this.fs, request.workspaceRoot, querySignal);
+        const workspaceLookup = workspaceResult.then(() => undefined, () => undefined);
+        this.workspaceLookups.add(workspaceLookup);
+        let workspace;
+        try {
+            workspace = await workspaceResult;
+        }
+        finally {
+            this.workspaceLookups.delete(workspaceLookup);
+        }
+        this.assertActive(querySignal);
+        const workspaceKey = workspace.target.targetKey;
+        return this.enqueue(workspaceKey, querySignal, async () => {
+            this.assertActive(querySignal);
+            // Diagnostics are opportunistic: do not start a process after an edit merely to report them.
+            // A language server is live only after this agent has already used its LSP provider.
+            const instance = this.instances.get(workspaceKey);
+            if (instance === undefined)
+                return [];
+            if (instance.dead) {
+                await instance.dispose();
+                this.evictIfCurrent(workspaceKey, instance);
+                return [];
+            }
+            const source = await readHostSource(this.fs, request.filePath, workspace, this.config.maxDocumentBytes, querySignal);
+            try {
+                return await instance.getDiagnostics(source, request.languageId, waitMs, querySignal);
+            }
+            finally {
+                if (instance.dead) {
+                    await instance.dispose();
+                    this.evictIfCurrent(workspaceKey, instance);
+                }
+            }
+        });
+    }
     /** Serialize one complete query lifecycle for a canonical workspace. */
     enqueue(workspace, signal, run) {
         const previous = this.queues.get(workspace) ?? Promise.resolve();

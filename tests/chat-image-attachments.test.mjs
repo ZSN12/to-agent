@@ -8,10 +8,10 @@ import {
   createChatImageAttachmentService,
   detectImageMediaType,
   normalizeImageLimits,
-} from '../desktop/backend/chat-image-attachments.mjs'
-import { rpcValue } from '../desktop/backend/dsh-chat/prelude.mjs'
-import { createDshChatSend } from '../desktop/backend/dsh-chat/chat-send.mjs'
-import { createSerializeDshModel } from '../desktop/backend/model/serialize-model.mjs'
+} from '../backend/chat-image-attachments.mjs'
+import { rpcValue } from '../backend/dsh-chat/prelude.mjs'
+import { createDshChatSend } from '../backend/dsh-chat/chat-send.mjs'
+import { createSerializeDshModel } from '../backend/model/serialize-model.mjs'
 
 const onePixelPng = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC',

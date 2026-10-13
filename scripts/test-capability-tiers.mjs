@@ -8,8 +8,8 @@ import {
   createCapabilityTierService,
   resolveCapabilityTier,
   validateCapabilityTierSnapshot,
-} from '../desktop/backend/capability-tiers.mjs'
-import { createProfileStore } from '../desktop/backend/profile-store.mjs'
+} from '../backend/capability-tiers.mjs'
+import { createProfileStore } from '../backend/profile-store.mjs'
 
 const aliases = JSON.parse(await fs.readFile(new URL('../pricing/model-aliases.json', import.meta.url), 'utf8'))
 const registry = {

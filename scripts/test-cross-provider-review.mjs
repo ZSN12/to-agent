@@ -4,13 +4,13 @@ import os from 'node:os'
 import path from 'node:path'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import { createOrchestrationService } from '../desktop/backend/orchestration-service.mjs'
+import { createOrchestrationService } from '../backend/orchestration-service.mjs'
 import {
   crossProviderReviewRequestOverride,
   prepareCrossProviderReviewTasks,
   resolveCrossProviderReviewEnabled,
   selectCrossProviderReviewRoute,
-} from '../desktop/backend/orchestration/cross-provider-review.mjs'
+} from '../backend/orchestration/cross-provider-review.mjs'
 
 const execFileAsync = promisify(execFile)
 
@@ -35,6 +35,7 @@ assert.equal(prepared.reason, null)
 assert.equal(prepared.task.taskType, 'review')
 assert.deepEqual(prepared.task.dependsOn, ['T1'])
 assert.deepEqual(prepared.task.scopePaths, ['src/widget.js'])
+assert.equal(prepareCrossProviderReviewTasks(baseTasks, { maxNodes: 2 }).tasks.length, 2, 'configured node cap reserves room for the review')
 assert.equal(prepareCrossProviderReviewTasks([{ ...baseTasks[0], writeScopes: [] }]).reason, 'implementation_scope_missing')
 assert.equal(prepareCrossProviderReviewTasks(Array.from({ length: 6 }, (_, index) => ({
   id: `T${index + 1}`,
@@ -42,6 +43,12 @@ assert.equal(prepareCrossProviderReviewTasks(Array.from({ length: 6 }, (_, index
   taskType: 'implementation',
   writeScopes: ['src/widget.js'],
 }))).reason, 'dag_node_limit')
+assert.equal(prepareCrossProviderReviewTasks(Array.from({ length: 7 }, (_, index) => ({
+  id: `L${index + 1}`,
+  title: `实现 ${index + 1}`,
+  taskType: 'implementation',
+  writeScopes: ['src/widget.js'],
+})), { maxNodes: 8 }).tasks.length, 8, 'cross-provider review follows the configured node cap')
 
 const catalog = { models: [
   { key: 'alpha/strong', provider: 'alpha', name: 'Alpha Strong', available: true, profile: { tier: 'strong', enabledForAllocation: true } },

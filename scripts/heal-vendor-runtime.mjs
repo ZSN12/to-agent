@@ -5,7 +5,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { TASKWEAVER_RUNTIME_DEPLOY_DIR } from '../desktop/agent/z-host/resolve-runtime.mjs'
+import { TASKWEAVER_RUNTIME_DEPLOY_DIR } from '../backend/agent/z-host/resolve-runtime.mjs'
 import {
   finalizeRuntimeLayout,
   healDeployPackageClosure,

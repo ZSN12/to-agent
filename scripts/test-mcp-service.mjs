@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { createMcpService, getMcpDshRuntimeBinding } from '../desktop/backend/mcp-service.mjs'
+import { createMcpService, getMcpDshRuntimeBinding } from '../backend/mcp-service.mjs'
 
 const userData = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-mcp-test-'))
 const mockSafeStorage = {
@@ -59,7 +59,7 @@ try {
   assert.ok(Object.values(runtime.environment).includes('secret'))
   assert.ok(Object.keys(runtime.environment).every(name => /^TASKWEAVER_MCP_[A-F0-9]{10}_SECRET$/.test(name)))
 
-  const source = await fs.readFile(new URL('../desktop/backend/mcp-service.mjs', import.meta.url), 'utf8')
+  const source = await fs.readFile(new URL('../backend/mcp-service.mjs', import.meta.url), 'utf8')
   assert.doesNotMatch(source, /@modelcontextprotocol\/client|connectClient|callTool\(/)
   await service.disconnect('local')
   assert.equal((await service.listServers())[0].enabled, false)
@@ -153,9 +153,59 @@ try {
   await fs.writeFile(path.join(insecureMigrationDir, 'taskweaver-mcp.json'), JSON.stringify({
     servers: [{ id: 'leak-srv', command: 'node', args: [], env: { LEAK: 'danger_plain_text' }, enabled: false }],
   }))
-  await createMcpService({ userData: insecureMigrationDir, safeStorage: null }).listServers()
+  const insecureMigration = createMcpService({ userData: insecureMigrationDir, safeStorage: null })
+  const [cleanedStatus] = await insecureMigration.listServers()
+  assert.equal(cleanedStatus.status, 'error')
+  assert.match(cleanedStatus.error, /凭据不可用/)
   const cleaned = await fs.readFile(path.join(insecureMigrationDir, 'taskweaver-mcp.json'), 'utf8')
   assert.equal(cleaned.includes('danger_plain_text'), false)
+  assert.equal((await insecureMigration.listServers())[0].status, 'error', 'missing GitHub/local credentials remain readable after migration')
+
+  const keychain = new Map()
+  const secrets = {
+    async get(key) { return keychain.get(key) ?? null },
+    async set(key, value) { keychain.set(key, String(value)) },
+    async delete(key) { keychain.delete(key) },
+  }
+  const keychainDir = path.join(userData, 'keychain')
+  const keychainService = createMcpService({ userData: keychainDir, secrets })
+  await keychainService.saveServer({ id: 'secure', command: 'node', env: { API_TOKEN: 'keychain-secret' }, enabled: false })
+  const keychainConfigPath = path.join(keychainDir, 'taskweaver-mcp.json')
+  const keychainConfig = await fs.readFile(keychainConfigPath, 'utf8')
+  assert.equal(keychainConfig.includes('keychain-secret'), false)
+  assert.match(keychainConfig, /keychain:mcp:v1:secure:API_TOKEN:/)
+  assert.deepEqual(await keychainService.prepareRuntimeIntegration(), { environment: {}, patchPath: undefined })
+  await keychainService.setEnabled('secure', true)
+  const secureRuntime = await keychainService.prepareRuntimeIntegration()
+  assert.ok(Object.values(secureRuntime.environment).includes('keychain-secret'))
+  const unavailableKeychainService = createMcpService({ userData: keychainDir })
+  assert.equal((await unavailableKeychainService.listServers())[0].status, 'error')
+  assert.equal((await keychainService.listServers())[0].status, 'disconnected', 'a credential can recover when its Keychain service becomes available again')
+  const oldKeychainAccount = [...keychain.keys()][0]
+  await keychainService.saveServer({
+    id: 'secure', command: 'node', env: { API_TOKEN: 'replacement-secret' }, enabled: true,
+  })
+  assert.equal(keychain.has(oldKeychainAccount), false, 'replaced Keychain credentials are removed after config persistence')
+  assert.ok([...keychain.values()].includes('replacement-secret'))
+  await assert.rejects(() => keychainService.saveServer({
+    id: 'foreign-ref', command: 'node', env: { API_TOKEN: 'keychain:model:provider' }, enabled: false,
+  }), /Keychain 引用与服务器不匹配/)
+  await keychainService.removeServer('secure')
+  assert.equal(keychain.size, 0, 'removed MCP entries clean up their Keychain credentials')
+
+  const legacyKeychainDir = path.join(userData, 'legacy-keychain')
+  await fs.mkdir(legacyKeychainDir, { recursive: true })
+  await fs.writeFile(path.join(legacyKeychainDir, 'taskweaver-mcp.json'), JSON.stringify({
+    servers: [{ id: 'legacy-secure', command: 'node', args: [], env: { OLD_KEY: 'old_plain_secret' }, enabled: false }],
+  }))
+  const legacyKeychain = createMcpService({ userData: legacyKeychainDir, secrets })
+  await legacyKeychain.listServers()
+  const migratedKeychainConfig = await fs.readFile(path.join(legacyKeychainDir, 'taskweaver-mcp.json'), 'utf8')
+  assert.equal(migratedKeychainConfig.includes('old_plain_secret'), false)
+  assert.match(migratedKeychainConfig, /keychain:mcp:v1:legacy-secure:OLD_KEY:/)
+  assert.ok([...keychain.values()].includes('old_plain_secret'))
+  await legacyKeychain.removeServer('legacy-secure')
+  assert.equal(keychain.size, 0)
 
   hostTools = null
   const failed = createMcpService({

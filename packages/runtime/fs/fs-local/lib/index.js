@@ -5,7 +5,7 @@ import z from "@taskweaver/schemastery";
 import { FileSystem, FsError, FsTargetKey, FsVersion } from "@taskweaver/dsh-fs";
 import { randomUUID } from "node:crypto";
 import { createReadStream } from "node:fs";
-import { chmod, link, lstat, mkdir, open, readFile, readdir, realpath, rename, rm, stat } from "node:fs/promises";
+import { chmod, link, lstat, mkdir, open, readFile, readdir, realpath, rename, rm, stat, unlink } from "node:fs/promises";
 import { TextDecoder } from "node:util";
 //#region lib/types/win32.js
 /**
@@ -93,7 +93,7 @@ async function replaceFileWin32(replaced, replacement) {
 * @module @taskweaver/dsh-fs-local/fsio
 */
 const BINARY_SAMPLE_BYTES = 8192;
-const DIFF_BASIS_READ_CHUNK_BYTES = 64 * 1024;
+const DIFF_BASIS_READ_CHUNK_BYTES = 65536;
 function isENOENT(error) {
 	return error instanceof Error && "code" in error && error.code === "ENOENT";
 }
@@ -463,8 +463,10 @@ async function writeFileAtomic(absolutePath, content, mode, signal, internals = 
 	const directory = dirname(absolutePath);
 	await mkdir(directory, { recursive: true });
 	throwIfAborted(signal, "write");
-	const stagingDir = join(directory, internals.tempDirName?.(absolutePath) ?? `.${basename(absolutePath)}.${process.pid}.${randomUUID()}.tmpdir`);
-	const tempPath = join(stagingDir, internals.tempName?.(absolutePath) ?? `${basename(absolutePath)}.tmp`);
+	const stagingDirName = internals.tempDirName?.(absolutePath) ?? `.${basename(absolutePath)}.${process.pid}.${randomUUID()}.tmpdir`;
+	const stagingDir = join(directory, stagingDirName);
+	const tempName = internals.tempName?.(absolutePath) ?? `${basename(absolutePath)}.tmp`;
+	const tempPath = join(stagingDir, tempName);
 	const platform = internals.platform ?? process.platform;
 	const copyFileDacl = internals.copyFileDacl ?? copyFileDaclWin32;
 	const replaceFile = internals.replaceFile ?? replaceFileWin32;
@@ -523,6 +525,169 @@ async function writeFileAtomic(absolutePath, content, mode, signal, internals = 
 		if (!stagingCreated) throw failure;
 		return removeStagingDirOrThrow(stagingDir, failure, removeStagingDir);
 	}
+}
+async function maybeLstat(path) {
+	try {
+		return await lstat(path, { bigint: true });
+	} catch (error) {
+		if (isENOENT(error) || isENOTDIR(error)) return void 0;
+		throw error;
+	}
+}
+function sameStableSnapshot(left, right) {
+	return left.dev === right.dev && left.ino === right.ino && left.size === right.size && left.mtimeNs === right.mtimeNs && (left.mode & 511n) === (right.mode & 511n);
+}
+function samePublishedFile(expected, current) {
+	return current.isFile() && expected.dev === current.dev && expected.ino === current.ino && expected.size === current.size && expected.mtimeNs === current.mtimeNs;
+}
+async function cleanupTransactionStages(entries, preserve = /* @__PURE__ */ new Set()) {
+	const failures = [];
+	for (const entry of entries) {
+		if (preserve.has(entry.stagingDir)) continue;
+		try {
+			await rm(entry.stagingDir, {
+				recursive: true,
+				force: true
+			});
+		} catch (error) {
+			failures.push(`${entry.displayPath}: ${errorMessage(error)}`);
+		}
+	}
+	return failures;
+}
+/**
+* Publish multiple full-text files using a private staged file and hard-link
+* recovery copy for each existing target. This is rollback-capable only within
+* the current process: the provider's sorted target locks serialize its own
+* mutations, but local filesystems do not offer an atomic multi-path commit or
+* exclude external writers. The caller/API must not describe this as visibility-
+* atomic or crash-safe. Existing parents and regular non-symlink targets are
+* required; directory creation, deletion, moves, and Windows are rejected.
+*
+* The function validates every target before creating any stage, stages every
+* output and backup before publishing the first member, revalidates the whole
+* set, then publishes in input order. A publication error triggers reverse
+* compensation. Rollback refuses to replace a target whose identity/version
+* no longer matches the file this transaction published; the private recovery
+* copy is retained and FS_TRANSACTION_ROLLBACK_FAILED is raised in that case.
+*/
+async function writeTextFilesTransaction(entries, signal, internals = {}) {
+	if (process.platform === "win32") throw new FsError("rollback-capable text batches are unsupported on this platform", "FS_TRANSACTION_UNSUPPORTED");
+	if (entries.length === 0) return [];
+	if (entries.some((entry) => entry.content.includes("\0"))) throw new FsError("cannot apply a text batch containing NUL bytes", "FS_NOT_TEXT");
+	const seen = /* @__PURE__ */ new Set();
+	const prepared = [];
+	for (const entry of entries) {
+		if (seen.has(entry.absolutePath)) throw new FsError(`text batch contains the same target more than once: "${entry.displayPath}"`, "FS_TRANSACTION_UNSUPPORTED");
+		seen.add(entry.absolutePath);
+		throwIfAborted(signal, "write");
+		let parentInfo;
+		try {
+			parentInfo = await stat(dirname(entry.absolutePath), { bigint: true });
+		} catch (error) {
+			if (isENOENT(error) || isENOTDIR(error)) throw new FsError(`cannot apply patch to "${entry.displayPath}": parent directory must already exist`, "FS_NOT_DIRECTORY", { cause: error });
+			throw error;
+		}
+		if (!parentInfo.isDirectory()) throw new FsError(`cannot apply patch to "${entry.displayPath}": parent is not a directory`, "FS_NOT_DIRECTORY");
+		const current = await maybeLstat(entry.absolutePath);
+		if (current?.isSymbolicLink()) throw new FsError(`cannot apply patch to "${entry.displayPath}": symbolic-link targets are unsupported`, "FS_TRANSACTION_UNSUPPORTED");
+		if (current !== void 0 && !current.isFile()) throw new FsError(`cannot apply patch to "${entry.displayPath}": not a regular file`, "FS_NOT_REGULAR_FILE");
+		if (entry.expectedVersion === void 0) {
+			if (current !== void 0) throw new FsError(`cannot create "${entry.displayPath}": target already exists`, "FS_NOT_OBSERVED");
+		} else if (current === void 0 || versionOf(current) !== entry.expectedVersion) throw new FsError(`cannot update "${entry.displayPath}": file changed since it was read`, "FS_STALE_VERSION");
+		const parent = dirname(entry.absolutePath);
+		const stagingDir = join(parent, `.${basename(entry.absolutePath)}.${process.pid}.${randomUUID()}.tw-batch`);
+		prepared.push({
+			...entry,
+			...current !== void 0 ? { initialStats: current } : {},
+			stagingDir,
+			stagedPath: join(stagingDir, "new-file"),
+			backupPath: join(stagingDir, "original-file"),
+			committed: false
+		});
+	}
+	throwIfAborted(signal, "write");
+	try {
+		for (const entry of prepared) {
+			throwIfAborted(signal, "write");
+			await mkdir(entry.stagingDir, { mode: 448 });
+			await chmod(entry.stagingDir, 448);
+			let handle;
+			try {
+				handle = await open(entry.stagedPath, "wx", 384);
+				await handle.chmod(384);
+				await handle.writeFile(entry.content, {
+					encoding: "utf8",
+					...signal ? { signal } : {}
+				});
+				await handle.sync();
+				if (entry.initialStats !== void 0) await handle.chmod(Number(entry.initialStats.mode & 511n));
+				await handle.close();
+				handle = void 0;
+			} finally {
+				if (handle) await handle.close();
+			}
+			entry.stagedStats = await lstat(entry.stagedPath, { bigint: true });
+		}
+		for (const entry of prepared) if (entry.initialStats !== void 0) try {
+			await link(entry.absolutePath, entry.backupPath);
+		} catch (error) {
+			throw new FsError(`cannot create a safe recovery copy for "${entry.displayPath}"`, "FS_TRANSACTION_UNSUPPORTED", { cause: error });
+		}
+		for (const entry of prepared) {
+			const current = await maybeLstat(entry.absolutePath);
+			if (entry.initialStats === void 0) {
+				if (current !== void 0) throw new FsError(`cannot create "${entry.displayPath}": target appeared during staging`, "FS_NOT_OBSERVED");
+			} else if (current === void 0 || !sameStableSnapshot(entry.initialStats, current)) throw new FsError(`cannot update "${entry.displayPath}": file changed during staging`, "FS_STALE_VERSION");
+			else entry.commitVersion = versionOf(current);
+		}
+		throwIfAborted(signal, "write");
+		for (const [index, entry] of prepared.entries()) {
+			await internals.beforeTransactionPublish?.({
+				index,
+				targetPath: entry.absolutePath
+			});
+			const current = await maybeLstat(entry.absolutePath);
+			if (entry.initialStats === void 0) {
+				if (current !== void 0) throw new FsError(`cannot create "${entry.displayPath}": target appeared before publication`, "FS_NOT_OBSERVED");
+			} else if (current === void 0 || versionOf(current) !== entry.commitVersion) throw new FsError(`cannot update "${entry.displayPath}": file changed before publication`, "FS_STALE_VERSION");
+			if (entry.initialStats === void 0) await link(entry.stagedPath, entry.absolutePath);
+			else await rename(entry.stagedPath, entry.absolutePath);
+			entry.committed = true;
+			const published = await maybeLstat(entry.absolutePath);
+			if (!published || !entry.stagedStats || !samePublishedFile(entry.stagedStats, published)) throw new FsError(`cannot verify publication for "${entry.displayPath}"`, "FS_TRANSACTION_ROLLBACK_FAILED");
+			entry.commitVersion = versionOf(published);
+		}
+	} catch (error) {
+		const recoveryFailures = [];
+		const preserve = /* @__PURE__ */ new Set();
+		for (const entry of [...prepared].reverse()) {
+			if (!entry.committed) continue;
+			try {
+				const current = await maybeLstat(entry.absolutePath);
+				if (!current || !entry.stagedStats || !samePublishedFile(entry.stagedStats, current) || entry.commitVersion !== void 0 && versionOf(current) !== entry.commitVersion) {
+					recoveryFailures.push(`${entry.displayPath}: target changed after publication; it was left untouched`);
+					if (entry.initialStats !== void 0) preserve.add(entry.stagingDir);
+					continue;
+				}
+				if (entry.initialStats === void 0) await unlink(entry.absolutePath);
+				else await rename(entry.backupPath, entry.absolutePath);
+				entry.committed = false;
+			} catch (rollbackError) {
+				recoveryFailures.push(`${entry.displayPath}: ${errorMessage(rollbackError)}`);
+				if (entry.initialStats !== void 0) preserve.add(entry.stagingDir);
+			}
+		}
+		const cleanupFailures = await cleanupTransactionStages(prepared, preserve);
+		recoveryFailures.push(...cleanupFailures.map((message) => `staging cleanup: ${message}`));
+		if (recoveryFailures.length > 0) throw new FsError(`text batch failed and rollback was incomplete: ${recoveryFailures.join("; ")}`, "FS_TRANSACTION_ROLLBACK_FAILED", { cause: error });
+		throw error;
+	}
+	await cleanupTransactionStages(prepared);
+	return prepared.map((entry) => {
+		if (entry.commitVersion === void 0) throw new FsError(`cannot report publication version for "${entry.displayPath}"`, "FS_TRANSACTION_ROLLBACK_FAILED");
+		return { version: entry.commitVersion };
+	});
 }
 /**
 * Collapse CRLF to LF — the canonical in-memory form every edit/diff basis
@@ -634,6 +799,97 @@ async function readTextForDiff(absolutePath, maxBytes, signal) {
 	}
 }
 /**
+* Fuzzy helper: normalize trailing whitespace on each line.
+*/
+function normalizeTrailingSpaces(str) {
+	return str.split("\n").map((line) => line.trimEnd()).join("\n");
+}
+/**
+* Fuzzy helper: find replacement using trimmed lines comparison and indentation alignment.
+*/
+function fuzzyFindAndReplace(content, oldNorm, newNorm) {
+	const contentNoTrailing = normalizeTrailingSpaces(content);
+	const oldNoTrailing = normalizeTrailingSpaces(oldNorm);
+	if (contentNoTrailing.includes(oldNoTrailing)) {
+		if (countOccurrences(contentNoTrailing, oldNoTrailing) === 1) {
+			const cLines = content.split("\n");
+			const oLines = oldNorm.split("\n");
+			for (let i = 0; i <= cLines.length - oLines.length; i++) {
+				let match = true;
+				for (let j = 0; j < oLines.length; j++) if (cLines[i + j]?.trimEnd() !== oLines[j]?.trimEnd()) {
+					match = false;
+					break;
+				}
+				if (match) {
+					const before = cLines.slice(0, i);
+					const after = cLines.slice(i + oLines.length);
+					const newLines = newNorm.split("\n");
+					return {
+						content: [
+							...before,
+							...newLines,
+							...after
+						].join("\n"),
+						replacements: 1
+					};
+				}
+			}
+		}
+	}
+	const oldTrimmed = oldNorm.replace(/^\n+|\n+$/g, "");
+	if (oldTrimmed && oldTrimmed !== oldNorm && content.includes(oldTrimmed)) {
+		if (countOccurrences(content, oldTrimmed) === 1) {
+			const newTrimmed = newNorm.replace(/^\n+|\n+$/g, "");
+			return {
+				content: content.replace(oldTrimmed, newTrimmed),
+				replacements: 1
+			};
+		}
+	}
+	const contentLines = content.split("\n");
+	const oldLines = oldNorm.split("\n");
+	if (oldLines.length > 0) {
+		const strippedOldLines = oldLines.map((l) => l.trimStart());
+		const matches = [];
+		for (let i = 0; i <= contentLines.length - oldLines.length; i++) {
+			let match = true;
+			for (let j = 0; j < oldLines.length; j++) if (contentLines[i + j]?.trim() !== strippedOldLines[j]?.trim()) {
+				match = false;
+				break;
+			}
+			if (match) matches.push(i);
+		}
+		if (matches.length === 1) {
+			const matchStart = matches[0];
+			const firstTargetLine = contentLines[matchStart] || "";
+			const firstOldLine = oldLines[0] || "";
+			const targetIndent = firstTargetLine.match(/^\s*/)?.[0] ?? "";
+			const oldIndent = firstOldLine.match(/^\s*/)?.[0] ?? "";
+			const indentDelta = targetIndent.length - oldIndent.length;
+			const adjustedNewLines = newNorm.split("\n").map((l) => {
+				if (!l.trim()) return l;
+				if (indentDelta > 0) return " ".repeat(indentDelta) + l;
+				if (indentDelta < 0) {
+					const removeCount = Math.min(-indentDelta, l.match(/^\s*/)?.[0].length ?? 0);
+					return l.slice(removeCount);
+				}
+				return l;
+			});
+			const before = contentLines.slice(0, matchStart);
+			const after = contentLines.slice(matchStart + oldLines.length);
+			return {
+				content: [
+					...before,
+					...adjustedNewLines,
+					...after
+				].join("\n"),
+				replacements: 1
+			};
+		}
+	}
+	return null;
+}
+/**
 * Apply a literal replacement to LF-normalized content. Empty or missing search text throws
 * `FS_EDIT_NOT_FOUND`; multiple matches throw `FS_AMBIGUOUS_EDIT` unless `replaceAll` is true.
 * @param content - the current file content, already LF-normalized.
@@ -649,7 +905,13 @@ function applyLiteralEdit(content, oldString, newString, replaceAll, displayPath
 	if (oldNorm.length === 0) throw new FsError("old_string must be a non-empty string", "FS_EDIT_NOT_FOUND");
 	const newNorm = normalizeLineEndings(newString);
 	const replacements = countOccurrences(content, oldNorm);
-	if (replacements === 0) throw new FsError(`old_string was not found in "${displayPath}"`, "FS_EDIT_NOT_FOUND");
+	if (replacements === 0) {
+		if (!replaceAll) {
+			const fuzzyResult = fuzzyFindAndReplace(content, oldNorm, newNorm);
+			if (fuzzyResult) return fuzzyResult;
+		}
+		throw new FsError(`old_string was not found in "${displayPath}"`, "FS_EDIT_NOT_FOUND");
+	}
 	if (!replaceAll && replacements > 1) throw new FsError(`old_string matched ${replacements} times in "${displayPath}"; provide a more specific old_string or set replace_all to true`, "FS_AMBIGUOUS_EDIT");
 	return {
 		content: content.split(oldNorm).join(newNorm),
@@ -663,7 +925,7 @@ function applyLiteralEdit(content, oldString, newString, replaceAll, displayPath
 * share stale guards, and writes through a symlink update its target without replacing the link.
 * @module @taskweaver/dsh-fs-local
 */
-const DEFAULT_DIFF_BASIS_MAX_BYTES = 10 * 1024 * 1024;
+const DEFAULT_DIFF_BASIS_MAX_BYTES = 10485760;
 const MAX_DIFF_BASIS_BYTES = Math.min(constants.MAX_LENGTH, constants.MAX_STRING_LENGTH);
 /**
 * The host-filesystem backend. Reads resolve relative paths from {@link Config.cwd}
@@ -811,6 +1073,56 @@ var LocalFileSystem = class extends FileSystem {
 				before: original.content,
 				after: edited.content
 			};
+		});
+	}
+	/**
+	* Rollback-capable batch for unique regular text files with existing parent
+	* directories. All targets are locked in sorted key order, guards/types/text
+	* are validated before staging, and the fsio transaction stages every target
+	* before publishing. This gives in-process serialization and compensation,
+	* not true multi-path visibility atomicity or protection from external writers.
+	*/
+	async applyTextTransaction(mutations, signal) {
+		if (mutations.length === 0) return [];
+		const keys = mutations.map(({ target }) => String(target.targetKey));
+		if (new Set(keys).size !== keys.length) throw new FsError("text batch contains the same target more than once", "FS_TRANSACTION_UNSUPPORTED");
+		const lockOrder = [...keys].sort((left, right) => left.localeCompare(right));
+		const withLocks = (index, run) => index === lockOrder.length ? run() : this.withLock(lockOrder[index], () => withLocks(index + 1, run));
+		return withLocks(0, async () => {
+			const prepared = [];
+			for (const mutation of mutations) {
+				if (signal?.aborted) throw new FsError("write aborted", "FS_ABORTED");
+				const { target, content, expected } = mutation;
+				const existing = await probe(target.targetKey);
+				if (existing && existing.type !== "file") throw new FsError(`cannot patch "${target.displayPath}": not a regular file`, "FS_NOT_REGULAR_FILE");
+				if (expected.kind === "createIfAbsent") {
+					if (existing) throw new FsError(`cannot create "${target.displayPath}": target already exists`, "FS_NOT_OBSERVED");
+				} else if (!existing || existing.version !== expected.version) throw new FsError(`cannot update "${target.displayPath}": file changed since it was read`, "FS_STALE_VERSION");
+				const before = existing ? normalizeLineEndings(await readWholeText({
+					displayPath: target.displayPath,
+					targetKey: target.targetKey
+				}, signal)) : null;
+				prepared.push({
+					target,
+					content,
+					...expected.kind === "replaceIfVersion" ? { expectedVersion: expected.version } : {},
+					operation: existing ? "update" : "create",
+					before
+				});
+			}
+			const committed = await writeTextFilesTransaction(prepared.map((entry) => ({
+				absolutePath: String(entry.target.targetKey),
+				displayPath: entry.target.displayPath,
+				content: entry.content,
+				...entry.expectedVersion !== void 0 ? { expectedVersion: entry.expectedVersion } : {}
+			})), signal, this.internals);
+			return prepared.map((entry, index) => ({
+				target: entry.target,
+				operation: entry.operation,
+				version: committed[index].version,
+				before: entry.before,
+				after: normalizeLineEndings(entry.content)
+			}));
 		});
 	}
 	/* v8 ignore next 5 -- the post-write probe finding the file absent requires a

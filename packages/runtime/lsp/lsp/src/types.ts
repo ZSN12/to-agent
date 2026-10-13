@@ -72,6 +72,35 @@ export interface LspHover {
   readonly range?: LspRange
 }
 
+/** LSP diagnostic severity: Error=1, Warning=2, Information=3, Hint=4. */
+export type LspDiagnosticSeverity = 1 | 2 | 3 | 4
+
+/** One bounded, normalized diagnostic published by a language server. */
+export interface LspDiagnostic {
+  readonly range: LspRange
+  readonly message: string
+  readonly severity?: LspDiagnosticSeverity
+  readonly code?: string | number
+  readonly source?: string
+}
+
+/** A workspace-scoped request for the latest diagnostics for one file. */
+export interface LspDiagnosticsRequest {
+  readonly filePath: string
+  readonly workspaceRoot: string
+}
+
+/** A diagnostics request after the provider has supplied the mapped language id. */
+export interface LspProviderDiagnosticsRequest extends LspDiagnosticsRequest {
+  readonly languageId: string
+}
+
+/** Bounds for the best-effort diagnostics refresh. The service caps waits at 1500ms. */
+export interface LspDiagnosticsOptions {
+  readonly waitMs?: number
+  readonly signal?: AbortSignal
+}
+
 /**
  * The closed result union. Navigation operations (`goToDefinition`, `findReferences`,
  * `goToImplementation`) normalize to `locations`; `hover` normalizes to content or `null`.
@@ -104,6 +133,15 @@ export interface LspProvider {
    * @returns the normalized, closed-union result.
    */
   query(request: LspProviderQuery, signal?: AbortSignal): Promise<LspQueryResult>
+  /**
+   * Refresh diagnostics for a file when the provider supports notification-backed diagnostics.
+   * Optional so existing providers remain valid; providers without it yield no diagnostics.
+   */
+  getDiagnostics?(
+    request: LspProviderDiagnosticsRequest,
+    waitMs: number,
+    signal?: AbortSignal,
+  ): Promise<readonly LspDiagnostic[]>
 }
 
 /**
@@ -127,4 +165,12 @@ export interface LspService {
    * @returns the normalized, closed-union result.
    */
   query(request: LspQueryRequest, signal?: AbortSignal): Promise<LspQueryResult>
+  /**
+   * Refresh and return the latest diagnostics for one file. Missing providers or providers without
+   * diagnostics support return an empty list. The wait is always capped at 1500ms.
+   */
+  getDiagnostics(
+    request: LspDiagnosticsRequest,
+    options?: LspDiagnosticsOptions,
+  ): Promise<readonly LspDiagnostic[]>
 }

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { runPricingSync } from '../../desktop/backend/pricing/run-sync.mjs'
+import { runPricingSync } from '../../backend/pricing/run-sync.mjs'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
 const dryRun = process.argv.includes('--dry-run')

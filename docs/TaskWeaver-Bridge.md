@@ -10,7 +10,7 @@
 | `google-antigravity` | 进程内 Google CCA（`ocx export` 写入 `baseUrl` / `project`） |
 | `openai-compat-relay` | `relayBaseURL` + `TASKWEAVER_BRIDGE_RELAY_API_KEY`（OpenAI Chat Completions SSE） |
 
-产品名：**扫描本地官方 Agent**（见 `docs/Local-Agent-Integration.md`）。实现上走 `ocx export`（**不**拉起 10100），经 `local-agent-registry` 映射为 `bridge-composer` / `bridge-antigravity` 并同步 Host；成功后会移除 `models.json` 中的 `opencodex` 块。代码在 `desktop/backend/model-sync/`。
+产品名：**扫描本地官方 Agent**（见 `docs/Local-Agent-Integration.md`）。实现上走 `ocx export`（**不**拉起 10100），经 `local-agent-registry` 映射为 `bridge-composer` / `bridge-antigravity` 并同步 Host；成功后会移除 `models.json` 中的 `opencodex` 块。代码在 `backend/model-sync/`。
 
 ### 默认提供方
 
@@ -47,7 +47,7 @@ fork 已从 `packages/runtime` 删除 DSH 浏览器源码（`apps/web`、`packag
 | 2 聊天闭环、扫描 IPC、`bridge:*`、无 10100 默认扫描 | 已交付 |
 | 3 反代 backend、默认去 10100 扫描路径 | 已交付（启动时仅 bridge 用户不再 autostart ocx） |
 | 4 完全移除主路径 `spawnOcxProxy` / 预设迁移 | 已完成（10100 health/自动拉起已删；聊天仅 `bridge-composer/*`） |
-| model-sync 单入口（`desktop/backend/model-sync/`） | 已交付；ocx 仅 CLI export/login |
+| model-sync 单入口（`backend/model-sync/`） | 已交付；ocx 仅 CLI export/login |
 
 ## 验收脚本
 

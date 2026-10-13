@@ -5,10 +5,10 @@ import path from 'node:path'
 import { spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
-import { createZHostManager } from '../../desktop/agent/z-host/index.mjs'
-import { createDshChatService } from '../../desktop/backend/dsh-chat-service.mjs'
-import { createModelService } from '../../desktop/backend/model-service.mjs'
-import { createProfileStore } from '../../desktop/backend/profile-store.mjs'
+import { createZHostManager } from '../../backend/agent/z-host/index.mjs'
+import { createDshChatService } from '../../backend/dsh-chat-service.mjs'
+import { createModelService } from '../../backend/model-service.mjs'
+import { createProfileStore } from '../../backend/profile-store.mjs'
 
 // --inspect reads only a COPIED archive through the native cold-history API.
 // --run makes real provider requests against a fork in the isolated home.

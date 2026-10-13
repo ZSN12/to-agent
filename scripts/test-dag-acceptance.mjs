@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
-import { assessAcceptanceCriteria, assessSubtaskCompletion } from '../desktop/backend/orchestration/evidence.mjs'
-import { parsePlan } from '../desktop/backend/orchestration/planner.mjs'
-import { applyPlanApprovalChanges } from '../desktop/backend/orchestration/plan-approval.mjs'
+import { assessAcceptanceCriteria, assessSubtaskCompletion } from '../backend/orchestration/evidence.mjs'
+import { parsePlan } from '../backend/orchestration/planner.mjs'
+import { applyPlanApprovalChanges } from '../backend/orchestration/plan-approval.mjs'
 
 const criteria = ['调用路径已核实', '异常行为有记录']
 const report = (results) => `<taskweaver-acceptance-v1>${JSON.stringify({ results })}</taskweaver-acceptance-v1>`
@@ -59,5 +59,38 @@ assert.match(assessSubtaskCompletion(implementation, {
   verificationRequired: true,
   verification: { executed: true, passed: false, command: 'pnpm test', exitCode: 1 },
 }).reason, /验证命令/)
+
+const testTask = { id: 'T2', taskType: 'test', acceptance: ['目标测试有结果'] }
+const testReport = `测试结论有结构化报告。\n${report([{ criterion: '目标测试有结果', passed: true, evidence: '目标用例已断言' }])}`
+assert.match(assessSubtaskCompletion(testTask, { text: testReport }).reason, /test\/build\/check/,
+  'a test node cannot complete from its XML report alone')
+assert.equal(assessSubtaskCompletion(testTask, {
+  text: testReport,
+  executionEvidence: { observedToolCalls: [{
+    toolName: 'bash', status: 'done', commandSummary: 'pnpm test',
+    commandOutcome: { exitCode: 0, background: false, timedOut: false, sandboxDenied: false },
+  }] },
+}).complete, true, 'a successful Host-observed test command can verify a test node')
+assert.match(assessSubtaskCompletion(testTask, {
+  text: testReport,
+  executionEvidence: { observedToolCalls: [{
+    toolName: 'bash', status: 'done', commandSummary: 'pnpm test',
+    commandOutcome: { exitCode: 2, background: false, timedOut: false, sandboxDenied: false },
+  }] },
+}).reason, /验证命令未通过/)
+assert.match(assessSubtaskCompletion(testTask, {
+  text: testReport,
+  executionEvidence: { observedToolCalls: [{
+    toolName: 'bash', status: 'done', commandSummary: 'pnpm test',
+  }] },
+}).reason, /缺少验证命令的完成状态或退出码/,
+  'missing exit status must stay unverified rather than treating a done tool event as exit 0')
+assert.match(assessSubtaskCompletion(testTask, {
+  text: testReport,
+  executionEvidence: { observedToolCalls: [{
+    toolName: 'bash', status: 'done', commandSummary: 'pnpm test',
+    commandOutcome: { exitCode: null, background: true, timedOut: false, sandboxDenied: false },
+  }] },
+}).reason, /未通过或未结束/)
 
 console.log('DAG acceptance focused tests passed')

@@ -17,22 +17,7 @@ export function shortStreamActivityLabel(activity: string | null | undefined): s
   return `${text.slice(0, 28)}…`
 }
 
-/** Always give the user a truthful live status, even before the model emits prose. */
-export function visibleStreamStatusLabel({
-  activity,
-  isThinking,
-  hasVisibleText,
-  completedToolCount,
-}: {
-  activity?: string | null
-  isThinking?: boolean
-  hasVisibleText?: boolean
-  completedToolCount?: number
-}): string {
-  const visibleActivity = shortStreamActivityLabel(activity)
-  if (visibleActivity) return visibleActivity
-  if (isThinking) return '模型正在分析下一步'
-  if (hasVisibleText) return '正在生成回复'
-  if ((completedToolCount ?? 0) > 0) return '工具已返回，模型正在继续'
-  return '正在等待模型响应'
+/** Keep the live status short and stable; detailed tool names belong in tool rows. */
+export function visibleStreamStatusLabel({ isCallingTool }: { isCallingTool?: boolean }): string {
+  return isCallingTool ? '模型调用工具' : '模型思考中'
 }

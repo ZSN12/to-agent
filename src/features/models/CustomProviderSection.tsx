@@ -268,7 +268,7 @@ export function CustomProviderSection({
       ) : showCustom ? (
         <>
           {!bridgeReady && (
-            <p className="settings-inline-error">当前为 Web 预览，自定义 API 仅在 Electron 桌面端可用。</p>
+            <p className="settings-inline-error">当前未连接桌面后端，自定义 API 仅在 TaskWeaver 桌面端可用。</p>
           )}
 
           <form className="custom-provider-form" onSubmit={(e) => { void handleSubmit(e) }}>

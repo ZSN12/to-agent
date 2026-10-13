@@ -582,12 +582,21 @@ class LiveCursorTransport implements CursorTransport {
    * told about), so `run()` awaits this before opening the stream. Preparation failures reject the
    * turn instead of silently running with MCP disabled.
    */
-  private prepareMcp(): Promise<void> {
+  private prepareMcp(signal?: AbortSignal): Promise<void> {
     if (!this.mcpManager) return Promise.resolve();
     if (!this.mcpPrepared) {
-      this.mcpPrepared = (async () => {
+      const prepared = (async () => {
         try {
+          // Start the manager with this request's signal before the definition helper
+          // reads the already-connected tool list.
+          await this.mcpManager!.ensureConnected(signal);
           const mcpToolDefs = await buildMcpToolDefinitions(this.mcpManager!);
+          if (signal?.aborted) {
+            if (signal.reason instanceof Error) throw signal.reason;
+            const error = new Error(typeof signal.reason === "string" ? signal.reason : "Cursor MCP preparation was aborted");
+            error.name = "AbortError";
+            throw error;
+          }
           this.releaseMcpObservation?.();
           this.releaseMcpObservation = this.translatorBudget.observeExternallyCapped(
             "mcp_payload",
@@ -601,9 +610,20 @@ class LiveCursorTransport implements CursorTransport {
             unsafeAllowNativeLocalExec: effectiveCursorNativeExecAllow(this.input.provider, this.input.requestDeclaresFullAccess === true),
           };
         } catch (err) {
+          if (signal?.aborted) {
+            if (signal.reason instanceof Error) throw signal.reason;
+            const error = new Error(typeof signal.reason === "string" ? signal.reason : "Cursor MCP preparation was aborted");
+            error.name = "AbortError";
+            throw error;
+          }
           throw new Error(`Cursor MCP preparation failed: ${err instanceof Error ? err.message : String(err)}`, { cause: err });
         }
       })();
+      this.mcpPrepared = prepared;
+      // Allow an aborted/failed preparation to be retried if this transport is reused.
+      void prepared.catch(() => {
+        if (this.mcpPrepared === prepared) this.mcpPrepared = undefined;
+      });
     }
     return this.mcpPrepared;
   }
@@ -671,7 +691,7 @@ class LiveCursorTransport implements CursorTransport {
     };
 
     // Advertise MCP tools before the stream opens — the server only calls tools it was told about.
-    await this.prepareMcp();
+    await this.prepareMcp(signal);
     // JPEG soft-cap rewrite for active-turn data: images before encode. Rebuild text
     // messages from the prepared raw channel so omission markers replace stale
     // pre-rewrite content that activePromptText and the tool filter would otherwise see.

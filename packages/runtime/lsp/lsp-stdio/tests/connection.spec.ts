@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { fileURLToPath } from 'node:url'
 import { LspConnection } from '@taskweaver/dsh-lsp-stdio'
-import type { ConnectionWriter } from '@taskweaver/dsh-lsp-stdio/src/connection.ts'
+import type { ConnectionNotificationHandler, ConnectionWriter } from '@taskweaver/dsh-lsp-stdio/src/connection.ts'
 import { scrubbedParentEnv } from '@taskweaver/dsh-subprocess'
 import { spawnSubprocess } from '@taskweaver/dsh-subprocess-local/src/spawn.ts'
 
@@ -25,6 +25,7 @@ function connect(
   env: Record<string, string>,
   onServerRequest: (method: string, params: unknown) => Promise<unknown> = () => Promise.resolve(null),
   seen?: SeenRequest[],
+  onServerNotification?: ConnectionNotificationHandler,
 ): LspConnection {
   const conn = new LspConnection({
     command: process.execPath,
@@ -38,7 +39,7 @@ function connect(
   }, spawnSubprocess, (method, params) => {
     seen?.push({ method, params })
     return onServerRequest(method, params)
-  })
+  }, undefined, onServerNotification)
   open.push(conn)
   return conn
 }
@@ -97,6 +98,26 @@ describe('LspConnection', () => {
     await conn.notify('textDocument/didOpen', { textDocument: { uri: 'file:///x', languageId: 'ts', version: 1, text: '' } })
     // No throw and the connection stays usable.
     await expect(conn.request('textDocument/hover', {})).resolves.toBeDefined()
+  })
+
+  it('forwards publishDiagnostics notifications to the instance callback', async () => {
+    const notifications: Array<{ method: string; params: unknown }> = []
+    const conn = connect({
+      LSP_FAKE_DIAGNOSTICS: JSON.stringify([{ message: 'broken', severity: 1 }]),
+    }, () => Promise.resolve(null), undefined, (method, params) => notifications.push({ method, params }))
+    await conn.request('initialize', { capabilities: {} })
+    await conn.notify('textDocument/didOpen', {
+      textDocument: { uri: 'file:///x.ts', languageId: 'typescript', version: 3, text: '' },
+    })
+    await waitFor(() => notifications.length > 0)
+    expect(notifications).toEqual([{
+      method: 'textDocument/publishDiagnostics',
+      params: {
+        uri: 'file:///x.ts',
+        version: 3,
+        diagnostics: [{ message: 'broken', severity: 1 }],
+      },
+    }])
   })
 
   it('sends an error response when the server-request handler rejects', async () => {

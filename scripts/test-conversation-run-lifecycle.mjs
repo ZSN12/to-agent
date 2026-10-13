@@ -70,6 +70,22 @@ const bridge = {
 const originalWindow = globalThis.window
 globalThis.window = { taskweaver: bridge, setInterval: () => 1, clearInterval() {},
   localStorage: { getItem: () => null, setItem() {} } }
+// A frame elapses on the next microtask, so `flush()` models time passing
+// between IPC events while synchronous bursts still share one frame.
+const originalAnimationFrame = [globalThis.requestAnimationFrame, globalThis.cancelAnimationFrame]
+const frameCallbacks = new Map()
+let nextFrameId = 0
+globalThis.requestAnimationFrame = (callback) => {
+  const id = ++nextFrameId
+  frameCallbacks.set(id, callback)
+  queueMicrotask(() => {
+    const scheduled = frameCallbacks.get(id)
+    frameCallbacks.delete(id)
+    scheduled?.(0)
+  })
+  return id
+}
+globalThis.cancelAnimationFrame = (id) => { frameCallbacks.delete(id) }
 let app
 function render() {
   cursor = 0
@@ -173,6 +189,9 @@ try {
   assert.deepEqual(completedStreamMessage({ type: 'done', turnId: 'files-only', conversationId: 'c1',
     full: '', fullThinking: '', fileChanges: [fileChange] })?.fileChanges, [fileChange],
   'a terminal message with only file-change evidence must still be rendered')
+  const cappedTurn = completedStreamMessage({ type: 'error', turnId: 'max-steps-empty', conversationId: 'c1',
+    full: '', fullThinking: '', message: '本轮已达到安全步数上限，点击“继续”可接着完成。', code: 'MAX_STEPS' })
+  assert.equal(cappedTurn?.errorCode, 'MAX_STEPS', 'a step-limit failure is actionable even without partial text')
   const repeat = [1, 2].map(n => ({ id: `z-turn-repeat-${n}`, author: 'orchestrator', text: '你好', timestamp: n }))
   assert.equal(mergeStoredMessagesWithDshTranscript(repeat,
     [{ role: 'assistant', dshKey: 'repeat', text: '你好', timestamp: 1 }], true).length, 2,
@@ -277,6 +296,17 @@ try {
   await emit({ type: 'done', conversationId: 'c1', turnId: 'uncertain', full: 'uncertain complete', continuing: false })
   assert.equal(app.sending, false)
 
+  await emit({ type: 'start', conversationId: 'c1', turnId: 'burst', startedAt: 2990 })
+  for (const delta of ['a', 'b', 'c']) onStream({ type: 'delta', conversationId: 'c1', delta })
+  assert.equal(app.streamText, '', 'token-rate deltas wait for the next frame instead of rendering per token')
+  await flush()
+  assert.equal(app.streamText, 'abc', 'one frame applies the whole burst in arrival order')
+  onStream({ type: 'delta', conversationId: 'c1', delta: 'd' })
+  await emit({ type: 'done', conversationId: 'c1', turnId: 'burst', full: 'abcd', continuing: false })
+  assert.equal(app.streamText, null, 'a terminal event applies queued copy before it commits the turn')
+  assert.equal(app.messages.filter(message => message.text === 'abcd').length, 1)
+  assert.equal(app.sending, false)
+
   await emit({ type: 'start', conversationId: 'background', startedAt: 3000 })
   await emit({ type: 'done', conversationId: 'background', full: 'background reply', continuing: true, turnId: 'bg' })
   assert.ok(app.runningConversationIds.includes('background'))
@@ -290,6 +320,7 @@ try {
 } finally {
   for (const slot of slots) slot?.cleanup?.()
   globalThis.window = originalWindow
+  ;[globalThis.requestAnimationFrame, globalThis.cancelAnimationFrame] = originalAnimationFrame
   delete globalThis.__taskweaverLifecycleHooks
   delete globalThis.__taskweaverLifecycleProjection
 }

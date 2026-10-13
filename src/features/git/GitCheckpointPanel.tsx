@@ -300,7 +300,7 @@ export function GitCheckpointPanel({
   const uncommittedCount = (status?.staged.length ?? 0) + (status?.unstaged.length ?? 0) + (status?.untracked.length ?? 0)
 
   return (
-    <aside className="side-panel dag-panel" aria-label="Git 状态与检查点快照面板" style={{ width: 440, zIndex: 100 }}>
+    <aside className="side-panel dag-panel git-checkpoint-panel" aria-label="Git 状态与检查点快照面板" style={{ zIndex: 100 }}>
       {/* 顶部标题栏 */}
       <div className="panel-header">
         <div className="panel-heading">

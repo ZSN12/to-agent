@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { createToolOutputStore } from '../desktop/backend/tool-output-store.mjs'
+import { createToolOutputStore } from '../backend/tool-output-store.mjs'
 
 const store = createToolOutputStore({ maxEntries: 2, maxTotalBytes: 64, maxOutputBytes: 32 })
 const first = store.store({ conversationId: 'c1', text: 'first full output' })
@@ -18,4 +18,13 @@ assert.equal(bounded.truncated, true, 'oversized results are bounded')
 assert.equal(store.get({ conversationId: 'c3', outputId: bounded.outputId })?.text.length, 32)
 assert.equal(store.clearConversation('c3'), 1)
 assert.equal(store.get({ conversationId: 'c3', outputId: bounded.outputId }), null)
+
+const redacted = store.store({
+  conversationId: 'c4',
+  text: 'Authorization: Bearer abcdefghijklmnop12345\napi_key=private-fixture-key',
+})
+const safeOutput = store.get({ conversationId: 'c4', outputId: redacted.outputId })
+assert.equal(safeOutput.text.includes('abcdefghijklmnop12345'), false, 'credentials are redacted before storage')
+assert.equal(safeOutput.text.includes('private-fixture-key'), false, 'named secret values are redacted before storage')
+assert.match(safeOutput.text, /已隐藏/)
 console.log('tool output store checks passed: scope, LRU, byte caps, and conversation cleanup')

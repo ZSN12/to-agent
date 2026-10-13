@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
 import { Pencil, RefreshCw, RotateCcw } from 'lucide-react'
 import type { DshProjectedImageRef, DshProjectedToolCall } from '../../shared/app-api'
 import type { ToolTraceItem } from '../../shared/app-api'
@@ -14,7 +14,6 @@ import { TurnActivitySummaryRow } from './TurnActivitySummary'
 import { DeepDivingIndicator } from './DeepDivingIndicator'
 import { formatMessageTime } from './formatMessageTime'
 import { formatDshRunDuration } from './session-usage'
-import { visibleToolActivity } from './visibleToolActivity'
 import { getBridge } from '../app/getBridge'
 import { AttachmentImagePreview } from './AttachmentImagePreview'
 
@@ -119,7 +118,8 @@ function DshUserImageAttachments({
   )
 }
 
-export function Message({
+/** Memoized: settled rows must not re-render on every streamed frame. */
+export const Message = memo(function Message({
   message,
   dshToolRows,
   toolTraceItems,
@@ -187,9 +187,8 @@ export function Message({
       : 0
   const hasTurnUsage = !isUser && message.usage && (billed > 0 || message.usage.outputTokens > 0)
   const activeToolTrace = [...(toolTraceItems ?? [])].reverse().find((item) => item.status === 'running')
-  const visibleActivity = activeToolTrace
-    ? visibleToolActivity(activeToolTrace, workspacePath)
-    : streamActivity
+  const isCallingTool = Boolean(activeToolTrace)
+    || /^正在执行(?:\s|工具)/.test(streamActivity?.trim() ?? '')
 
   return (
     <article
@@ -210,10 +209,7 @@ export function Message({
         {!isUser && isStreaming && (
           <DeepDivingIndicator
             startTime={message.timestamp}
-            activity={visibleActivity}
-            completedToolCount={(toolTraceItems ?? []).filter((item) => item.status !== 'running').length}
-            isThinking={thinkingIsStreaming}
-            hasVisibleText={Boolean(message.text.trim())}
+            isCallingTool={isCallingTool}
           />
         )}
         {!isUser && !message.compaction && (
@@ -286,7 +282,7 @@ export function Message({
             {onRetry && (
               <button type="button" className="dsh-turn-error-retry" onClick={onRetry}>
                 <RefreshCw size={14} />
-                <span>重试</span>
+                <span>{message.errorCode === 'MAX_STEPS' ? '继续' : '重试'}</span>
               </button>
             )}
           </div>
@@ -372,4 +368,4 @@ export function Message({
       )}
     </article>
   )
-}
+})

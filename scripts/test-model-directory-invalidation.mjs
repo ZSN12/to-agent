@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { createModelDirectoryClient } from '../desktop/backend/model/directory-client.mjs'
+import { createModelDirectoryClient } from '../backend/model/directory-client.mjs'
 
 let providerCalls = 0
 let starts = 0

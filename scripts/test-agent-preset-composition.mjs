@@ -69,7 +69,7 @@ async function scanPresetRoot(root, { requireWebSearch = false } = {}) {
       assert.equal(webTool?.name, '@taskweaver/dsh-tool-web', `${path.relative(projectRoot, filePath)} must expose the model-facing web_search tool`)
       assert.notEqual(webTool?.disabled, true, `${path.relative(projectRoot, filePath)} must not disable web_search`)
     }
-    if (['tw-default', 'tw-taskweaver-code', 'tw-taskweaver-readonly', 'tw-taskweaver-planner', 'tw-taskweaver-pi-lite'].includes(entry.name)) {
+    if (['tw-default', 'tw-code', 'tw-taskweaver-code', 'tw-taskweaver-readonly', 'tw-taskweaver-planner', 'tw-taskweaver-pi-lite'].includes(entry.name)) {
       const instructions = rows.find((row) => row.name === '@taskweaver/dsh-agent-instructions')
       assert.ok(instructions, `${path.relative(projectRoot, filePath)} must mount agent-instructions`)
       assert.deepEqual(

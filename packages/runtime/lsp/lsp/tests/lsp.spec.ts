@@ -161,6 +161,61 @@ describe('Lsp registration', () => {
     expect(provider.seenSignals[0]).toBe(controller.signal)
   })
 
+  it('routes diagnostics to the matching provider and caps its wait at 1500ms', async () => {
+    const { lsp } = await mountLsp()
+    const controller = new AbortController()
+    const seen: unknown[] = []
+    const diagnostic = {
+      range: { start: { line: 2, character: 3 }, end: { line: 2, character: 4 } },
+      severity: 1 as const,
+      message: 'missing name',
+    }
+    lsp.registerProvider({
+      id: LspProviderId('diagnostics'),
+      extensionToLanguage: { '.ts': 'typescript' },
+      query: () => Promise.resolve(hover),
+      getDiagnostics(request, waitMs, signal) {
+        seen.push({ request, waitMs, signal })
+        return Promise.resolve([diagnostic])
+      },
+    })
+
+    await expect(lsp.getDiagnostics(
+      { filePath: 'a.ts', workspaceRoot: '/ws' },
+      { waitMs: 20_000, signal: controller.signal },
+    )).resolves.toEqual([diagnostic])
+    expect(seen).toHaveLength(1)
+    expect(seen[0]).toMatchObject({
+      request: { filePath: 'a.ts', workspaceRoot: '/ws', languageId: 'typescript' },
+      waitMs: 1_500,
+    })
+    const providerSignal = (seen[0] as { signal: AbortSignal }).signal
+    expect(providerSignal).not.toBe(controller.signal)
+    controller.abort(new Error('caller canceled'))
+    expect(providerSignal.aborted).toBe(true)
+    await expect(lsp.getDiagnostics({ filePath: 'a.py', workspaceRoot: '/ws' })).resolves.toEqual([])
+  })
+
+  it('enforces the complete diagnostics deadline even if a provider ignores cancellation', async () => {
+    const { lsp } = await mountLsp()
+    let providerSignal: AbortSignal | undefined
+    lsp.registerProvider({
+      id: LspProviderId('slow-diagnostics'),
+      extensionToLanguage: { '.ts': 'typescript' },
+      query: () => Promise.resolve(hover),
+      getDiagnostics(_request, _waitMs, signal) {
+        providerSignal = signal
+        return new Promise(() => {})
+      },
+    })
+
+    await expect(lsp.getDiagnostics(
+      { filePath: 'a.ts', workspaceRoot: '/ws' },
+      { waitMs: 15 },
+    )).rejects.toThrow('LSP diagnostics exceeded its 15ms deadline')
+    expect(providerSignal?.aborted).toBe(true)
+  })
+
   it('fails LSP_UNAVAILABLE when no provider handles the extension', async () => {
     const { lsp } = await mountLsp()
     lsp.registerProvider(makeProvider('ts', { '.ts': 'typescript' }))

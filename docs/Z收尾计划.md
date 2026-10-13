@@ -30,7 +30,7 @@
 | `scripts/sync-dsh-windows-acl.mjs:12` | 默认源改成 `packages/runtime/sandbox/sandbox-windows-acl` |
 | `scripts/diagnose-dsh-host.mjs:3,17` | 改用 `resolveZRuntimeRoot` |
 | `package.json` `test:dsh-apiproxy` | `cd packages/runtime && ...` |
-| `desktop/agent/dsh-host/resolve-runtime.mjs:~162` | 删 `monorepoFallbackSubpath: 'dsh-source'` |
+| `backend/agent/dsh-host/resolve-runtime.mjs:~162` | 删 `monorepoFallbackSubpath: 'dsh-source'` |
 
 完成后：
 
@@ -46,7 +46,7 @@ npm run install:app          # 然后验证 /Applications/TaskWeaver.app 内是 
 ## 阶段 B：合并双轨代码（低风险，约半天）
 
 1. `resolve-runtime.mjs`：删 `useZRuntime`、`deployedRuntimeHasZPackages`、`resolveDshRuntimeRoot`、`resolveDshHostLaunch`、`resolveDshRuntimeNodePath`，只留一套 `resolveRuntimeRoot / resolveHostLaunch / resolveRuntimeNodePath`
-2. 把 `desktop/agent/dsh-host/*` 整体移到 `desktop/agent/z-host/`，删除转发壳。更新 `main.cjs`、`register-ipc.mjs`、`model-service.mjs` 等的 import
+2. 把 `backend/agent/dsh-host/*` 整体移到 `backend/agent/z-host/`，删除转发壳。更新 `main.cjs`、`register-ipc.mjs`、`model-service.mjs` 等的 import
 3. `scripts/build-dsh-runtime.mjs` 改名为 `build-host-runtime.mjs`（合并现有 wrapper），同步 `package.json` scripts
 4. `test-dsh-runtime-resolution.mjs` 删掉 legacy 用例，只测 Z 路径
 

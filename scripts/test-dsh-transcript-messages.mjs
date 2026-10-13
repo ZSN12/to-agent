@@ -3,7 +3,7 @@ import { build } from 'esbuild'
 
 const result = await build({
   stdin: {
-    contents: `export { chatMessagesFromDshTranscript, isDshContextMessage, mergeStoredMessagesWithDshTranscript }
+    contents: `export { chatMessagesFromDshTranscript, dshToolHistoryForMessage, isDshContextMessage, mergeStoredMessagesWithDshTranscript }
       from './src/features/dsh-runtime/dshTranscriptMessages'`,
     resolveDir: process.cwd(),
     loader: 'ts',
@@ -19,7 +19,7 @@ const transcript = [
   { dshKey: 'u1', role: 'user', text: '查看上下文', timestamp: 1_000 },
   { dshKey: 'ctx1', role: 'context', text: 'injected context', plugin: 'time-context', form: 'future-form', timestamp: 1_500 },
   { dshKey: 'ctx2', role: 'context', text: 'opaque context', plugin: 'workspace', timestamp: 1_750 },
-  { dshKey: 'a1', role: 'assistant', text: '处理完成', thinking: 'checked', timestamp: 2_000 },
+  { dshKey: 'a1', role: 'assistant', turn: 7, text: '处理完成', thinking: 'checked', timestamp: 2_000 },
   { dshKey: 'c1', role: 'compaction', summary: 'prior summary', automatic: true, timestamp: 2_500 },
 ]
 const messages = mapper.chatMessagesFromDshTranscript(transcript, { user: 'User', agent: 'Agent' })
@@ -40,6 +40,7 @@ assert.equal(messages[1].thinking, undefined)
 assert.equal(messages[1].callout, undefined)
 assert.equal(messages[1].fileChanges, undefined)
 assert.equal(messages[3].thinking, 'checked')
+assert.equal(messages[3].dshTurn, 7)
 assert.equal(messages[4].compaction.summary, 'prior summary')
 
 // An injected context must neither absorb assistant metadata nor satisfy the
@@ -65,5 +66,18 @@ const assistantTranscript = [{ dshKey: 'assistant-same', role: 'assistant', text
 const mergedAssistant = mapper.mergeStoredMessagesWithDshTranscript([answer], assistantTranscript, true)
 assert.equal(mergedAssistant.length, 1)
 assert.equal(mergedAssistant[0].usage, answer.usage)
+
+const perTurnHistory = mapper.dshToolHistoryForMessage(
+  messages[3],
+  [
+    { callId: 'old-call', toolName: 'read', argsRaw: '{}', status: 'done', turn: 6, step: 1 },
+    { callId: 'this-call', toolName: 'grep', argsRaw: '{}', status: 'done', turn: 7, step: 2 },
+    { callId: 'next-call', toolName: 'bash', argsRaw: '{}', status: 'done', turn: 8, step: 1 },
+  ],
+  [],
+  false,
+)
+assert.deepEqual(perTurnHistory.rows?.map(row => row.callId), ['this-call'],
+  'each assistant transcript row keeps only its own settled tool-call history')
 
 console.log('dsh-transcript-messages smoke passed')

@@ -9,7 +9,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { TASKWEAVER_RUNTIME_DEPLOY_DIR } from '../desktop/agent/z-host/resolve-runtime.mjs'
+import { TASKWEAVER_RUNTIME_DEPLOY_DIR } from '../backend/agent/z-host/resolve-runtime.mjs'
 import { scriptHostNodeExecutable } from './lib/host-node-executable.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')

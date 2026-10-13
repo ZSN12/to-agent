@@ -10,7 +10,7 @@ import { dirname, sep } from "node:path";
 * fallback for alias-equivalent roots such as Windows 8.3 names and casing.
 * @module @taskweaver/dsh-fs-sandbox/containment
 */
-const MISSING_CODES = new Set(["ENOENT", "ENOTDIR"]);
+const MISSING_CODES = /* @__PURE__ */ new Set(["ENOENT", "ENOTDIR"]);
 function isMissing(error) {
 	const code = error.code;
 	return MISSING_CODES.has(code);
@@ -142,6 +142,20 @@ var SandboxedFileSystem = class extends LocalFileSystem {
 	*/
 	async editText(target, edit, expected, signal, sandboxPolicy) {
 		return super.editText(await this.checkedTarget(target, sandboxPolicy), edit, expected, signal);
+	}
+	/**
+	* Check every requested target against the same per-call policy before the
+	* local provider stages or mutates any file. Only after the full permission
+	* pass succeeds are fresh canonical targets delegated to the rollback-capable
+	* batch implementation.
+	*/
+	async applyTextTransaction(mutations, signal, sandboxPolicy) {
+		const checked = [];
+		for (const mutation of mutations) checked.push({
+			...mutation,
+			target: await this.checkedTarget(mutation.target, sandboxPolicy)
+		});
+		return super.applyTextTransaction(checked, signal);
 	}
 	/**
 	* Enforce the per-call policy against `target` and return the EXACT target the

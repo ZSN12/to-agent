@@ -34,7 +34,16 @@ import { Context } from '@taskweaver/cordis'
 import { LocalFileSystem } from '@taskweaver/dsh-fs-local'
 import type { Config as LocalConfig } from '@taskweaver/dsh-fs-local'
 import { FsError } from '@taskweaver/dsh-fs'
-import type { FsEditOutcome, FsEditRequest, FsTarget, FsVersion, FsWriteIntent, FsWriteOutcome } from '@taskweaver/dsh-fs'
+import type {
+  FsEditOutcome,
+  FsEditRequest,
+  FsTarget,
+  FsTextMutation,
+  FsTextMutationOutcome,
+  FsVersion,
+  FsWriteIntent,
+  FsWriteOutcome,
+} from '@taskweaver/dsh-fs'
 import { writableRoots } from '@taskweaver/dsh-sandbox'
 import type { SandboxExecutionPolicy, SandboxMode } from '@taskweaver/dsh-sandbox'
 import type {} from '@taskweaver/dsh-sandbox-policy'
@@ -110,6 +119,27 @@ export class SandboxedFileSystem extends LocalFileSystem {
     sandboxPolicy?: SandboxExecutionPolicy,
   ): Promise<FsEditOutcome> {
     return super.editText(await this.checkedTarget(target, sandboxPolicy), edit, expected, signal)
+  }
+
+  /**
+   * Check every requested target against the same per-call policy before the
+   * local provider stages or mutates any file. Only after the full permission
+   * pass succeeds are fresh canonical targets delegated to the rollback-capable
+   * batch implementation.
+   */
+  override async applyTextTransaction(
+    mutations: readonly FsTextMutation[],
+    signal?: AbortSignal,
+    sandboxPolicy?: SandboxExecutionPolicy,
+  ): Promise<FsTextMutationOutcome[]> {
+    const checked: FsTextMutation[] = []
+    for (const mutation of mutations) {
+      checked.push({
+        ...mutation,
+        target: await this.checkedTarget(mutation.target, sandboxPolicy),
+      })
+    }
+    return super.applyTextTransaction(checked, signal)
   }
 
   /**

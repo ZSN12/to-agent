@@ -7,7 +7,7 @@ import {
   assertTaskWeaverPresetDeployMatches,
   inspectTaskWeaverPresetDeploy,
   TASKWEAVER_RUNTIME_AGENT_PRESETS,
-} from '../desktop/agent/z-host/preset-integrity.mjs'
+} from '../backend/agent/z-host/preset-integrity.mjs'
 
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-preset-integrity-'))
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')

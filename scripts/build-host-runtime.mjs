@@ -14,9 +14,9 @@ import {
   TASKWEAVER_RUNTIME_PACKAGES,
   TASKWEAVER_RUNTIME_DEPLOY_DIR,
   TASKWEAVER_RUNTIME_CLIENT_DIR,
-} from '../desktop/agent/z-host/resolve-runtime.mjs'
+} from '../backend/agent/z-host/resolve-runtime.mjs'
 import { scriptHostNodeExecutable } from './lib/host-node-executable.mjs'
-import { assertTaskWeaverPresetDeployMatches } from '../desktop/agent/z-host/preset-integrity.mjs'
+import { assertTaskWeaverPresetDeployMatches } from '../backend/agent/z-host/preset-integrity.mjs'
 import {
   copyPackageIntoStaging,
   finalizeRuntimeLayout,
@@ -90,6 +90,12 @@ function run(cmd, args, opts = {}) {
 
 function pnpmBin() {
   return process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm'
+}
+
+function pnpmArgs(args) {
+  // Do not let pnpm's pre-run dependency check silently purge an existing
+  // production-only node_modules tree when a local build needs dev tools.
+  return ['--config.verify-deps-before-run=warn', ...args]
 }
 
 async function publishRuntimeBuild(stagingDir, targetDir) {
@@ -415,14 +421,14 @@ async function stageTaskWeaverBridgeTransport(stagingRoot, taskweaverRepoRoot) {
 }
 
 async function stageDshChatRegistry(stagingRoot) {
-  const from = path.join(root, 'electron', 'vendor', 'dsh-chat-registry.mjs')
+  const from = path.join(root, 'backend', 'vendor', 'dsh-chat-registry.mjs')
   if (!fs.existsSync(from)) {
-    throw new Error('缺少 desktop/vendor/dsh-chat-registry.mjs；请先运行 scripts/build-dsh-chat-registry.mjs')
+    throw new Error('缺少 backend/vendor/dsh-chat-registry.mjs；请先运行 scripts/build-dsh-chat-registry.mjs')
   }
   const destRoot = path.join(stagingRoot, 'electron-vendor')
   await fsp.mkdir(destRoot, { recursive: true })
   await fsp.copyFile(from, path.join(destRoot, 'dsh-chat-registry.mjs'))
-  console.log('build-host-runtime: 已打入 electron-vendor/dsh-chat-registry.mjs')
+  console.log('build-host-runtime: 已打入 backend-vendor/dsh-chat-registry.mjs')
 }
 
 async function stageMainProcessSessionManagerLib(stagingRoot, monorepoRoot) {
@@ -517,11 +523,11 @@ async function main() {
   const zTsdown = path.join(zNodeModules, 'tsdown', 'dist', 'run.mjs')
   if (monorepoRoot === zRuntimeSource && (!fs.existsSync(zTsdown) || !fs.existsSync(path.join(zNodeModules, '.bin', 'tsc')))) {
     console.log('build-host-runtime: packages/runtime pnpm install --ignore-scripts …')
-    await run(pnpmBin(), ['install', '--ignore-scripts'], { cwd: monorepoRoot, env: taskweaverBuildEnv })
+    await run(pnpmBin(), pnpmArgs(['install', '--ignore-scripts']), { cwd: monorepoRoot, env: taskweaverBuildEnv })
   }
   if (!skipBuild) {
     console.log('build-host-runtime: 构建 @taskweaver/provider-bridge …')
-    await run(pnpmBin(), ['--dir', path.join(root, 'packages', 'provider-bridge'), 'run', 'build'], {
+    await run(pnpmBin(), pnpmArgs(['--dir', path.join(root, 'packages', 'provider-bridge'), 'run', 'build']), {
       cwd: root,
       env: taskweaverBuildEnv,
     })
@@ -540,7 +546,7 @@ async function main() {
     console.log(`build-host-runtime: pnpm deploy → ${outDir}`)
     if (fs.existsSync(outDir)) throw new Error(`Runtime staging path already exists; refusing to overwrite: ${outDir}`)
     stagingOutputOwned = true
-    await run(pnpmBin(), [
+    await run(pnpmBin(), pnpmArgs([
       '--filter', cliFilter, 'deploy',
       '--legacy', '--prod',
       '--config.node-linker=hoisted',
@@ -548,7 +554,7 @@ async function main() {
       '--config.link-workspace-packages=false',
       '--config.ignore-scripts=true',
       outDir,
-    ], { cwd: monorepoRoot, env: { ...process.env, CI: 'true' } })
+    ]), { cwd: monorepoRoot, env: { ...process.env, CI: 'true' } })
     for (const doc of ['README.md', 'README.zh.md', 'README.i18n.yaml']) {
       await fsp.rm(path.join(outDir, doc), { force: true })
     }

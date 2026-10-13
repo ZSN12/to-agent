@@ -10536,11 +10536,30 @@ var McpPayloadTooLargeError = class extends Error {
 		this.name = "McpPayloadTooLargeError";
 	}
 };
+var McpToolNameCollisionError = class extends Error {
+	constructor(toolName, firstServer, secondServer) {
+		super(`Cursor MCP tool name "${toolName}" is exposed by both "${firstServer}" and "${secondServer}"; configure unique toolPrefix values.`);
+		this.toolName = toolName;
+		this.firstServer = firstServer;
+		this.secondServer = secondServer;
+		this.code = "MCP_TOOL_NAME_COLLISION";
+		this.name = "McpToolNameCollisionError";
+	}
+};
 function stableJson(value) {
 	return JSON.stringify(value, (_key, nested) => nested && typeof nested === "object" && !Array.isArray(nested) ? Object.fromEntries(Object.entries(nested).sort(([left], [right]) => left.localeCompare(right))) : nested);
 }
 function payloadBytes(value) {
 	return utf8.encode(stableJson(value)).byteLength;
+}
+function abortError$1(signal) {
+	if (signal.reason instanceof Error) return signal.reason;
+	const error = new Error(typeof signal.reason === "string" ? signal.reason : "Cursor MCP preparation was aborted");
+	error.name = "AbortError";
+	return error;
+}
+function throwIfAborted(signal) {
+	if (signal?.aborted) throw abortError$1(signal);
 }
 /**
 * Owns the lifecycle of MCP client connections for one Cursor stream. Lazily connects to the
@@ -10566,21 +10585,35 @@ var CursorMcpManager = class {
 		this.maxSchemaBytes = options.maxSchemaBytes ?? CURSOR_MCP_MAX_SCHEMA_BYTES;
 		this.maxResultBytes = options.maxResultBytes ?? CURSOR_MCP_MAX_RESULT_BYTES;
 	}
-	/** Idempotent, lazy connect + tool discovery across all servers. Never throws. */
-	ensureConnected() {
-		if (!this.connected) this.connected = this.connectAll();
+	/** Idempotent lazy discovery; isolates server failures and rejects on cancellation or catalog errors. */
+	ensureConnected(signal) {
+		if (!this.connected) {
+			const attempt = this.connectAll(signal);
+			this.connected = attempt;
+			attempt.catch(() => {
+				if (this.connected === attempt) this.connected = void 0;
+			});
+		}
 		return this.connected;
 	}
-	async connectAll() {
+	async connectAll(signal) {
 		const staged = [];
 		try {
 			for (const server of this.resolved) {
-				const connected = await this.connectOne(server);
+				throwIfAborted(signal);
+				const connected = await this.connectOne(server, signal);
 				if (!connected) continue;
 				staged.push(connected);
 				const toolCount = staged.reduce((sum, row) => sum + row.tools.length, 0);
 				const catalogBytes = staged.reduce((sum, row) => sum + row.bytes, 0);
 				if (toolCount > this.maxTools || catalogBytes > CURSOR_MCP_MAX_CATALOG_BYTES) throw new McpCatalogLimitError();
+			}
+			throwIfAborted(signal);
+			const owners = /* @__PURE__ */ new Map();
+			for (const row of staged) for (const [name, entry] of row.tools) {
+				const owner = owners.get(name);
+				if (owner !== void 0) throw new McpToolNameCollisionError(name, owner, entry.serverName);
+				owners.set(name, entry.serverName);
 			}
 			for (const row of staged) {
 				this.servers.set(row.connection.server.serverName, row.connection);
@@ -10588,23 +10621,26 @@ var CursorMcpManager = class {
 				this.toolCatalogBytes += row.bytes;
 			}
 		} catch (error) {
-			await Promise.all(staged.map((row) => row.connection.client.close().catch(() => {})));
+			const closing = Promise.all(staged.map((row) => row.connection.client.close().catch(() => {})));
+			if (signal?.aborted);
+			else await closing;
 			this.servers.clear();
 			this.toolIndex.clear();
 			this.toolCatalogBytes = 0;
 			throw error;
 		}
 	}
-	async connectOne(server) {
+	async connectOne(server, signal) {
 		let client;
 		try {
+			throwIfAborted(signal);
 			const transport = this.options.transportFactory ? this.options.transportFactory(server) : this.createTransport(server);
 			client = new Client({
 				name: "opencodex",
 				version: "1.0.0"
 			});
-			await this.withTimeout(client.connect(transport), this.connectTimeoutMs, `connect ${server.serverName}`);
-			const indexed = await this.indexTools(server, client);
+			await this.withTimeout(client.connect(transport), this.connectTimeoutMs, `connect ${server.serverName}`, signal);
+			const indexed = await this.indexTools(server, client, signal);
 			return {
 				connection: {
 					server,
@@ -10614,7 +10650,11 @@ var CursorMcpManager = class {
 				bytes: indexed.bytes
 			};
 		} catch (err) {
-			if (client) await client.close().catch(() => {});
+			if (client) {
+				if (signal?.aborted) client.close().catch(() => {});
+				else await client.close().catch(() => {});
+			}
+			if (signal?.aborted) throw abortError$1(signal);
 			this.options.log?.(`[cursor-mcp] server "${server.serverName}" failed to connect: ${errText(err)}`);
 			if (err instanceof McpCatalogLimitError || err instanceof McpPayloadTooLargeError) throw err;
 			return null;
@@ -10630,9 +10670,9 @@ var CursorMcpManager = class {
 		if (server.url) return new StreamableHTTPClientTransport(new URL(server.url), { requestInit: server.headers ? { headers: server.headers } : void 0 });
 		throw new Error(`MCP server "${server.serverName}" has neither command nor url`);
 	}
-	async indexTools(server, client) {
+	async indexTools(server, client, signal) {
 		const prefix = server.toolPrefix ?? "";
-		const { tools } = await this.withTimeout(client.listTools(), this.connectTimeoutMs, `listTools ${server.serverName}`);
+		const { tools } = await this.withTimeout(client.listTools(), this.connectTimeoutMs, `listTools ${server.serverName}`, signal);
 		const additions = [];
 		let catalogBytes = 0;
 		for (const tool of tools ?? []) {
@@ -10746,14 +10786,24 @@ var CursorMcpManager = class {
 			}
 		}));
 	}
-	async withTimeout(promise, ms, label) {
+	async withTimeout(promise, ms, label, signal) {
+		throwIfAborted(signal);
 		let timer;
+		let onAbort;
+		const pending = [promise];
 		try {
-			return await Promise.race([promise, new Promise((_, reject) => {
+			pending.push(new Promise((_, reject) => {
 				timer = setTimeout(() => reject(/* @__PURE__ */ new Error(`MCP ${label} timed out after ${ms}ms`)), ms);
-			})]);
+			}));
+			if (signal) pending.push(new Promise((_, reject) => {
+				onAbort = () => reject(abortError$1(signal));
+				signal.addEventListener("abort", onAbort, { once: true });
+				if (signal.aborted) onAbort();
+			}));
+			return await Promise.race(pending);
 		} finally {
 			if (timer) clearTimeout(timer);
+			if (signal && onAbort) signal.removeEventListener("abort", onAbort);
 		}
 	}
 };
@@ -12058,24 +12108,43 @@ var LiveCursorTransport = class {
 	* told about), so `run()` awaits this before opening the stream. Preparation failures reject the
 	* turn instead of silently running with MCP disabled.
 	*/
-	prepareMcp() {
+	prepareMcp(signal) {
 		if (!this.mcpManager) return Promise.resolve();
-		if (!this.mcpPrepared) this.mcpPrepared = (async () => {
-			try {
-				const mcpToolDefs = await buildMcpToolDefinitions(this.mcpManager);
-				this.releaseMcpObservation?.();
-				this.releaseMcpObservation = this.translatorBudget.observeExternallyCapped("mcp_payload", new TextEncoder().encode(JSON.stringify(mcpToolDefs)).byteLength);
-				this.execContext = {
-					...this.desktopDeps,
-					...mcpDepsFromManager(this.mcpManager),
-					mcpToolDefs,
-					sessionId: this.shellOwnerId,
-					unsafeAllowNativeLocalExec: effectiveCursorNativeExecAllow(this.input.provider, this.input.requestDeclaresFullAccess === true)
-				};
-			} catch (err) {
-				throw new Error(`Cursor MCP preparation failed: ${err instanceof Error ? err.message : String(err)}`, { cause: err });
-			}
-		})();
+		if (!this.mcpPrepared) {
+			const prepared = (async () => {
+				try {
+					await this.mcpManager.ensureConnected(signal);
+					const mcpToolDefs = await buildMcpToolDefinitions(this.mcpManager);
+					if (signal?.aborted) {
+						if (signal.reason instanceof Error) throw signal.reason;
+						const error = new Error(typeof signal.reason === "string" ? signal.reason : "Cursor MCP preparation was aborted");
+						error.name = "AbortError";
+						throw error;
+					}
+					this.releaseMcpObservation?.();
+					this.releaseMcpObservation = this.translatorBudget.observeExternallyCapped("mcp_payload", new TextEncoder().encode(JSON.stringify(mcpToolDefs)).byteLength);
+					this.execContext = {
+						...this.desktopDeps,
+						...mcpDepsFromManager(this.mcpManager),
+						mcpToolDefs,
+						sessionId: this.shellOwnerId,
+						unsafeAllowNativeLocalExec: effectiveCursorNativeExecAllow(this.input.provider, this.input.requestDeclaresFullAccess === true)
+					};
+				} catch (err) {
+					if (signal?.aborted) {
+						if (signal.reason instanceof Error) throw signal.reason;
+						const error = new Error(typeof signal.reason === "string" ? signal.reason : "Cursor MCP preparation was aborted");
+						error.name = "AbortError";
+						throw error;
+					}
+					throw new Error(`Cursor MCP preparation failed: ${err instanceof Error ? err.message : String(err)}`, { cause: err });
+				}
+			})();
+			this.mcpPrepared = prepared;
+			prepared.catch(() => {
+				if (this.mcpPrepared === prepared) this.mcpPrepared = void 0;
+			});
+		}
 		return this.mcpPrepared;
 	}
 	toJSON() {
@@ -12138,7 +12207,7 @@ var LiveCursorTransport = class {
 			});
 			wake();
 		};
-		await this.prepareMcp();
+		await this.prepareMcp(signal);
 		const externalToolImages = isCursorExternalWireModel(request.modelId) && request.rawMessages?.at(-1)?.role === "toolResult";
 		const preparedRaw = await prepareCursorRawMessages(request.rawMessages, signal, { trailingToolImages: externalToolImages });
 		const preparedRawMessages = preparedRaw.messages;

@@ -16,6 +16,9 @@ import { HarnessError } from '@taskweaver/dsh-llm'
 import type { LspProviderId } from './brand.ts'
 import type {
   LspProvider,
+  LspDiagnosticsOptions,
+  LspDiagnosticsRequest,
+  LspDiagnostic,
   LspQueryRequest,
   LspQueryResult,
   LspService,
@@ -23,17 +26,25 @@ import type {
 
 export { LspProviderId } from './brand.ts'
 export type {
+  LspDiagnostic,
+  LspDiagnosticSeverity,
+  LspDiagnosticsOptions,
+  LspDiagnosticsRequest,
   LspHover,
   LspLocation,
   LspOperation,
   LspPosition,
   LspProvider,
+  LspProviderDiagnosticsRequest,
   LspProviderQuery,
   LspQueryRequest,
   LspQueryResult,
   LspRange,
   LspService,
 } from './types.ts'
+
+/** Maximum wait for a language server to publish diagnostics after a document open. */
+export const MAX_DIAGNOSTICS_WAIT_MS = 1_500
 
 declare module '@taskweaver/cordis' {
   interface Context {
@@ -147,6 +158,55 @@ export class Lsp extends Service implements LspService {
     }
     return route.provider.query({ ...request, languageId: route.languageId }, signal)
   }
+
+  async getDiagnostics(
+    request: LspDiagnosticsRequest,
+    options: LspDiagnosticsOptions = {},
+  ): Promise<readonly LspDiagnostic[]> {
+    const route = this.routes.get(finalExtension(request.filePath))
+    if (route === undefined || route.provider.getDiagnostics === undefined) return []
+    const requestedWait = options.waitMs ?? MAX_DIAGNOSTICS_WAIT_MS
+    const waitMs = Number.isFinite(requestedWait)
+      ? Math.min(MAX_DIAGNOSTICS_WAIT_MS, Math.max(0, Math.floor(requestedWait)))
+      : MAX_DIAGNOSTICS_WAIT_MS
+    if (waitMs === 0) return []
+
+    // The budget includes host filesystem resolution, queueing behind an LSP request, and the
+    // server's publishDiagnostics wait. Passing only waitMs to a provider leaves those earlier
+    // phases unbounded, so enforce one deadline at the seam as well as inside the stdio provider.
+    const deadline = new AbortController()
+    const timer = setTimeout(() => {
+      deadline.abort(new Error(`LSP diagnostics exceeded its ${waitMs}ms deadline`))
+    }, waitMs)
+    const signal = options.signal === undefined
+      ? deadline.signal
+      : AbortSignal.any([options.signal, deadline.signal])
+    try {
+      const pending = Promise.resolve().then(() => route.provider.getDiagnostics!(
+        { ...request, languageId: route.languageId },
+        waitMs,
+        signal,
+      ))
+      return await abortableDiagnostics(pending, signal)
+    } finally {
+      clearTimeout(timer)
+    }
+  }
+}
+
+/** Let the service deadline bound the result even when a provider ignores its AbortSignal. */
+function abortableDiagnostics<T>(work: Promise<T>, signal: AbortSignal): Promise<T> {
+  if (signal.aborted) return Promise.reject(diagnosticsAbortError(signal))
+  const canceled = Promise.withResolvers<never>()
+  const onAbort = (): void => canceled.reject(diagnosticsAbortError(signal))
+  signal.addEventListener('abort', onAbort, { once: true })
+  return Promise.race([work, canceled.promise])
+    .finally(() => signal.removeEventListener('abort', onAbort))
+}
+
+function diagnosticsAbortError(signal: AbortSignal): Error {
+  if (signal.reason instanceof Error) return signal.reason
+  return new Error('LSP diagnostics request aborted')
 }
 
 /** Lowercase an extension and ensure it carries a leading dot; `EXTENSION_PATTERN` rejects the rest. */

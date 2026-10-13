@@ -72,17 +72,25 @@ export default function App() {
   const toggleTerminal = useCallback(() => setTerminalOpen((prev) => !prev), [])
   const closeTerminal = useCallback(() => setTerminalOpen(false), [])
   const priorTaskCount = useRef(0)
-  const [multiAgentOrchestration, setMultiAgentOrchestration] = useState(true)
+  const [preferMultiAgentByDefault, setPreferMultiAgentByDefault] = useState(false)
+  const [multiAgentOrchestration, setMultiAgentOrchestration] = useState(false)
 
   useEffect(() => {
     void window.taskweaver?.preferences?.get?.().then((res) => {
-      if (res?.ok && res.data?.preferMultiAgent) setMultiAgentOrchestration(true)
+      if (res?.ok) {
+        const preferMultiAgent = res.data?.preferMultiAgent === true
+        setPreferMultiAgentByDefault(preferMultiAgent)
+        setMultiAgentOrchestration(preferMultiAgent)
+      }
     })
   }, [])
 
   const handleMultiAgentOrchestrationChange = useCallback((enabled: boolean) => {
     setMultiAgentOrchestration(enabled)
-    void window.taskweaver?.preferences?.set?.({ preferMultiAgent: enabled })
+  }, [])
+  const handlePreferMultiAgentDefaultChange = useCallback((enabled: boolean) => {
+    setPreferMultiAgentByDefault(enabled)
+    setMultiAgentOrchestration(enabled)
   }, [])
   const primaryModelMigrationNotified = useRef(false)
   const [dismissedInterruptId, setDismissedInterruptId] = useState<string | null>(null)
@@ -133,7 +141,7 @@ export default function App() {
   const openWorkspacePathForDetails = useCallback(async (relativePath: string) => {
     const bridge = window.taskweaver
     if (!bridge?.workspace?.openPath) {
-      return { ok: false, error: '请在 Electron 桌面端打开文件' }
+      return { ok: false, error: '请在 TaskWeaver 桌面端打开文件' }
     }
     const res = await bridge.workspace.openPath(relativePath)
     if (!res.ok) return { ok: false, error: res.error }
@@ -164,7 +172,13 @@ export default function App() {
   useEffect(() => {
     setDismissedInterruptId(null)
     setSelectedTaskId(null)
+    setDetailsTool(null)
+    setPanel((current) => current === 'details' ? null : current)
   }, [appBackend.currentThreadId])
+
+  useEffect(() => {
+    setMultiAgentOrchestration(preferMultiAgentByDefault)
+  }, [appBackend.currentThreadId, preferMultiAgentByDefault])
 
   const selectedTask = useMemo(
     () => (selectedTaskId ? tasks.find((task) => task.id === selectedTaskId) ?? null : null),
@@ -353,6 +367,7 @@ export default function App() {
         onUpdateShortcuts={handleUpdateShortcuts}
         permissionMode={appBackend.state?.permissionMode}
         onPermissionModeChange={appBackend.setPermissionMode}
+        onPreferMultiAgentChange={handlePreferMultiAgentDefaultChange}
         conversationId={appBackend.state?.conversationId ?? null}
       />
     )
@@ -385,6 +400,7 @@ export default function App() {
         }}
         onOpenSettings={() => setSettingsOpen(true)}
         onNewChat={() => {
+          setMultiAgentOrchestration(preferMultiAgentByDefault)
           void appBackend.clearConversation({ workspacePath: appBackend.workspacePath })
           setPanel(null)
           setMainView('chat')
@@ -483,6 +499,7 @@ export default function App() {
           retryBanner={appBackend.retryBanner}
           toolTraces={appBackend.toolTraces}
           dshToolRows={appBackend.dshToolRows}
+          activeDshTurn={appBackend.activeDshTurn}
           promptQueue={appBackend.promptQueue}
           busyEnterMode={appBackend.busyEnterMode}
           onQueueMutate={(payload) => { void appBackend.mutateQueue(payload) }}
@@ -515,7 +532,7 @@ export default function App() {
           onSend={sendMainMessage}
           multiAgentOrchestration={multiAgentOrchestration}
           onMultiAgentOrchestrationChange={handleMultiAgentOrchestrationChange}
-          conversationId={appBackend.state?.conversationId ?? null}
+          conversationId={appBackend.toolOutputConversationId}
           onCancel={() => { void appBackend.cancelMessage() }}
           onSteer={(text) => { void appBackend.steerMessage(text) }}
           onFollowUp={(text) => { void appBackend.followUpMessage(text) }}
@@ -527,6 +544,9 @@ export default function App() {
           onFork={handleForkThread}
           onResendMessage={(text, precedingAssistantId, modelKey) => {
             void handleResendMessage(text, precedingAssistantId, modelKey)
+          }}
+          onContinueMessage={(modelKey) => {
+            void appBackend.sendMessage('继续', modelKey ?? model?.id ?? undefined)
           }}
           onShowToolDetails={showToolDetails}
           onOpenWorkspacePath={openWorkspacePath}
@@ -554,6 +574,7 @@ export default function App() {
         {panel === 'details' && detailsTool && (
           <DetailsPanel
             item={detailsTool}
+            conversationId={appBackend.toolOutputConversationId}
             workspacePath={appBackend.workspacePath}
             onClose={() => {
               setPanel(null)
@@ -572,7 +593,7 @@ export default function App() {
           <Suspense fallback={null}>
             <OutputLogPanel
               logs={appBackend.toolTraces}
-              conversationId={appBackend.state?.conversationId ?? null}
+              conversationId={appBackend.toolOutputConversationId}
               onClose={() => setPanel(null)}
               onShowToolDetails={showToolDetails}
               onOpenWorkspacePath={openWorkspacePath}

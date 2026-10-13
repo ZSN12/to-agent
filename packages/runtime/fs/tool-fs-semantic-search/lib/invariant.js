@@ -1,7 +1,5 @@
-//#region lib/types/invariant.js
-const name = "tool-fs-semantic-search-invariant";
-const inject = ["invariants"];
-const install = () => {};
-const apply = (ctx) => Promise.resolve(ctx.invariants.register("@taskweaver/dsh-tool-fs-semantic-search", install));
-//#endregion
-export { apply, inject, name };
+export const name = 'tool-fs-semantic-search-invariant';
+export const inject = ['invariants'];
+const install = () => { };
+export const apply = (ctx) => Promise.resolve(ctx.invariants.register('@taskweaver/dsh-tool-fs-semantic-search', install));
+//# sourceMappingURL=invariant.js.map

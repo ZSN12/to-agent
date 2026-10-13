@@ -5,7 +5,7 @@ import path from 'node:path'
 import {
   isPathInside,
   assertSafeWorkspacePath,
-} from '../desktop/backend/security-path.mjs'
+} from '../backend/security-path.mjs'
 
 async function runTests() {
   const testRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'tw-sec-path-'))

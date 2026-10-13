@@ -17,6 +17,8 @@ import type {
   FsInfo,
   FsPathInfo,
   FsTarget,
+  FsTextMutation,
+  FsTextMutationOutcome,
   FsWriteIntent,
   FsWriteOutcome,
 } from '@taskweaver/dsh-fs'
@@ -34,6 +36,7 @@ import {
   restoreLineEndings,
   streamWholeText,
   writeFileAtomic,
+  writeTextFilesTransaction,
 } from './fsio.ts'
 import type { FsIoInternals } from './fsio.ts'
 
@@ -251,6 +254,82 @@ export class LocalFileSystem extends FileSystem {
         before: original.content,
         after: edited.content,
       }
+    })
+  }
+
+  /**
+   * Rollback-capable batch for unique regular text files with existing parent
+   * directories. All targets are locked in sorted key order, guards/types/text
+   * are validated before staging, and the fsio transaction stages every target
+   * before publishing. This gives in-process serialization and compensation,
+   * not true multi-path visibility atomicity or protection from external writers.
+   */
+  override async applyTextTransaction(
+    mutations: readonly FsTextMutation[],
+    signal?: AbortSignal,
+  ): Promise<FsTextMutationOutcome[]> {
+    if (mutations.length === 0) return []
+    const keys = mutations.map(({ target }) => String(target.targetKey))
+    if (new Set(keys).size !== keys.length) {
+      throw new FsError('text batch contains the same target more than once', 'FS_TRANSACTION_UNSUPPORTED')
+    }
+    const lockOrder = [...keys].sort((left, right) => left.localeCompare(right))
+    const withLocks = <T>(index: number, run: () => Promise<T>): Promise<T> => index === lockOrder.length
+      ? run()
+      : this.withLock(lockOrder[index]!, () => withLocks(index + 1, run))
+
+    return withLocks(0, async () => {
+      const prepared = [] as Array<{
+        target: FsTarget
+        content: string
+        expectedVersion?: FsVersion
+        operation: 'create' | 'update'
+        before: string | null
+      }>
+
+      // Complete all provider-level validation and content reads before fsio
+      // stages or publishes any member. The mandatory intent is checked again
+      // inside the transaction helper immediately before its staging phase.
+      for (const mutation of mutations) {
+        if (signal?.aborted) throw new FsError('write aborted', 'FS_ABORTED')
+        const { target, content, expected } = mutation
+        const existing = await probe(target.targetKey)
+        if (existing && existing.type !== 'file') {
+          throw new FsError(`cannot patch "${target.displayPath}": not a regular file`, 'FS_NOT_REGULAR_FILE')
+        }
+        if (expected.kind === 'createIfAbsent') {
+          if (existing) {
+            throw new FsError(`cannot create "${target.displayPath}": target already exists`, 'FS_NOT_OBSERVED')
+          }
+        } else if (!existing || existing.version !== expected.version) {
+          throw new FsError(`cannot update "${target.displayPath}": file changed since it was read`, 'FS_STALE_VERSION')
+        }
+        const before = existing
+          ? normalizeLineEndings(await readWholeText({ displayPath: target.displayPath, targetKey: target.targetKey }, signal))
+          : null
+        prepared.push({
+          target,
+          content,
+          ...(expected.kind === 'replaceIfVersion' ? { expectedVersion: expected.version } : {}),
+          operation: existing ? 'update' : 'create',
+          before,
+        })
+      }
+
+      const committed = await writeTextFilesTransaction(prepared.map(entry => ({
+        absolutePath: String(entry.target.targetKey),
+        displayPath: entry.target.displayPath,
+        content: entry.content,
+        ...(entry.expectedVersion !== undefined ? { expectedVersion: entry.expectedVersion } : {}),
+      })), signal, this.internals)
+
+      return prepared.map((entry, index): FsTextMutationOutcome => ({
+        target: entry.target,
+        operation: entry.operation,
+        version: committed[index]!.version,
+        before: entry.before,
+        after: normalizeLineEndings(entry.content),
+      }))
     })
   }
 
