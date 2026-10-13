@@ -51,13 +51,8 @@ struct TaskWeaverShellApp: App {
 final class ShellSession: ObservableObject {
     @Published var uiURL: URL?
     @Published var errorMessage: String?
-    @Published private(set) var isSettingsPage = false
-    @Published private(set) var conversationTitle = "新对话"
-    @Published private(set) var canGoBack = false
-    @Published private(set) var canGoForward = false
 
     private let launcher = BackendLauncher()
-    weak var webView: WKWebView?
     weak var window: NSWindow?
     private var nativeWindowTitle = "新对话"
 
@@ -66,58 +61,12 @@ final class ShellSession: ObservableObject {
         window.title = nativeWindowTitle
     }
 
-    func attach(_ webView: WKWebView) {
-        self.webView = webView
-        updateNavigationState(canGoBack: webView.canGoBack, canGoForward: webView.canGoForward)
-    }
-
-    func goBack() {
-        if isSettingsPage {
-            clickWebControl(".settings-back-btn")
-        } else {
-            webView?.goBack()
-        }
-    }
-    func goForward() { webView?.goForward() }
-
-    func toggleNavigation() {
-        clickWebControl("[aria-label=\"显示或隐藏导航栏\"]")
-    }
-
-    func toggleGitPanel() {
-        clickWebControl("[aria-label=\"显示或隐藏 Git 快照与版本\"]")
-    }
-
-    func toggleTerminal() {
-        guard let webView else { return }
-        webView.evaluateJavaScript("""
-            [...document.querySelectorAll('button')]
-              .find((button) => /^(显示|隐藏)终端抽屉$/.test(button.getAttribute('aria-label') || ''))
-              ?.click()
-            """)
-    }
-
     func updateWindowTitle(_ title: String?) {
         let cleaned = title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard !cleaned.isEmpty, cleaned != "TaskWeaver" else { return }
 
         nativeWindowTitle = cleaned
         window?.title = cleaned
-        isSettingsPage = cleaned.hasPrefix("设置 · ")
-        if isSettingsPage {
-            conversationTitle = ""
-        } else {
-            conversationTitle = cleaned
-        }
-    }
-
-    func updateNavigationState(canGoBack: Bool, canGoForward: Bool) {
-        self.canGoBack = canGoBack
-        self.canGoForward = canGoForward
-    }
-
-    private func clickWebControl(_ selector: String) {
-        webView?.evaluateJavaScript("document.querySelector('\(selector)')?.click()")
     }
 
     func boot() async {
@@ -219,7 +168,6 @@ struct ShellWebView: NSViewRepresentable {
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = context.coordinator
         context.coordinator.observe(webView)
-        session.attach(webView)
         if url.isFileURL {
             let readAccessRoot = ShellEnvironment.bundledDistRoot ?? url.deletingLastPathComponent()
             webView.loadFileURL(url, allowingReadAccessTo: readAccessRoot)
@@ -240,7 +188,6 @@ struct ShellWebView: NSViewRepresentable {
             style.textContent = [
               '.conversation-header { height: 38px !important; flex-basis: 38px !important; display: flex !important; }',
               '.conversation-header .conversation-title > svg:not(.nav-toggle) { display: none !important; }',
-              '.settings-topbar { height: 38px !important; flex-basis: 38px !important; }'
             ].join(' ');
             (document.head || document.documentElement)?.appendChild(style);
           };
@@ -290,8 +237,6 @@ struct ShellWebView: NSViewRepresentable {
         private let initialURL: URL
         private weak var session: ShellSession?
         private var titleObservation: NSKeyValueObservation?
-        private var backObservation: NSKeyValueObservation?
-        private var forwardObservation: NSKeyValueObservation?
 
         init(initialURL: URL, session: ShellSession) {
             self.initialURL = initialURL
@@ -302,20 +247,6 @@ struct ShellWebView: NSViewRepresentable {
             titleObservation = webView.observe(\.title, options: [.initial, .new]) { [weak session] view, _ in
                 let title = view.title
                 Task { @MainActor in session?.updateWindowTitle(title) }
-            }
-            backObservation = webView.observe(\.canGoBack, options: [.initial, .new]) { [weak session] view, _ in
-                let canGoBack = view.canGoBack
-                let canGoForward = view.canGoForward
-                Task { @MainActor in
-                    session?.updateNavigationState(canGoBack: canGoBack, canGoForward: canGoForward)
-                }
-            }
-            forwardObservation = webView.observe(\.canGoForward, options: [.initial, .new]) { [weak session] view, _ in
-                let canGoBack = view.canGoBack
-                let canGoForward = view.canGoForward
-                Task { @MainActor in
-                    session?.updateNavigationState(canGoBack: canGoBack, canGoForward: canGoForward)
-                }
             }
         }
 
