@@ -6,6 +6,7 @@ import path from 'node:path'
 import { createTerminalService } from '../backend/terminal-service.mjs'
 import { registerTerminalIpc } from '../backend/register-terminal-ipc.mjs'
 import { createShellPlatform, invokeShellChannel } from '../backend/platform/shell-platform.mjs'
+import { shellEventBus } from '../backend/shell/event-bus.mjs'
 
 console.log('--- 开始测试 TerminalService 终端服务 (PTY、尺寸动态调整、中断与进程树清理) ---')
 
@@ -122,16 +123,20 @@ try {
   const outside = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-terminal-outside-'))
   await fs.mkdir(nested)
   const fakeSessions = new Map()
+  const fakeSessionOptions = new Map()
   const killed = []
   const fakeService = {
     async createSession(options) {
+      if (options.id === 'simulated-spawn-failure') throw new Error('simulated spawn failure')
       fakeSessions.set(options.id, { id: options.id, cwd: options.cwd, title: options.title, isPty: true, shell: '/bin/zsh' })
+      fakeSessionOptions.set(options.id, options)
       return fakeSessions.get(options.id)
     },
     write: (id) => fakeSessions.has(id),
     resize: (id) => fakeSessions.has(id),
     killSession(id) {
       killed.push(id)
+      fakeSessionOptions.delete(id)
       return fakeSessions.delete(id)
     },
     listSessions: () => [...fakeSessions.values()],
@@ -179,6 +184,12 @@ try {
   assert.equal(duplicateCreate.ok, false)
   assert.match(duplicateCreate.error, /已被占用/)
 
+  const failedOwner = makeEvent()
+  const failedCreate = await invoke('terminal:create', failedOwner, { id: 'simulated-spawn-failure', cwd: nested })
+  assert.deepEqual(failedCreate, { ok: false, error: 'simulated spawn failure' })
+  assert.deepEqual(await invoke('terminal:list', failedOwner), { ok: true, data: [] })
+  assert.equal(failedOwner.sender.listenerCount('destroyed'), 0, 'failed creation must release its owner listener')
+
   // Shell/RPC senders have stable object identity but no Electron numeric id.
   const ownerC = makeEvent()
   const ownerD = makeEvent()
@@ -202,17 +213,38 @@ try {
     }),
     resolveTerminalPolicy: (context) => ({ mode: 'workspace-write', workspaceRoot: context.workspacePath }),
   })
-  const nativeShellCreated = await invokeShellChannel('terminal:create', { id: 'shell-platform-terminal', cwd: nested })
+  const shellPushes = []
+  const onShellPush = (event) => shellPushes.push(event)
+  shellEventBus.on('push', onShellPush)
+  const nativeShellCreated = await invokeShellChannel('terminal:create', { id: 'shell-output-terminal', cwd: nested })
   assert.equal(nativeShellCreated.ok, true)
   const nativeShellList = await invokeShellChannel('terminal:list')
-  assert.deepEqual(nativeShellList.data.map((row) => row.id), ['shell-platform-terminal'])
+  assert.deepEqual(nativeShellList.data.map((row) => row.id), ['shell-output-terminal'])
+  const nativeShellOptions = fakeSessionOptions.get('shell-output-terminal')
+  nativeShellOptions.onData('shell output')
+  fakeSessions.delete('shell-output-terminal')
+  nativeShellOptions.onExit(0)
+  assert.deepEqual(shellPushes.map(({ channel }) => channel), ['terminal:data', 'terminal:exit'])
+  assert.deepEqual(shellPushes[0].payload, { id: 'shell-output-terminal', data: 'shell output' })
+  assert.deepEqual(shellPushes[1].payload, { id: 'shell-output-terminal', code: 0 })
+
+  const nativeShellKillCreated = await invokeShellChannel('terminal:create', { id: 'shell-kill-terminal', cwd: nested })
+  assert.equal(nativeShellKillCreated.ok, true)
+  assert.deepEqual(await invokeShellChannel('terminal:kill', 'shell-kill-terminal'), { ok: true, data: true })
+  assert.equal(fakeSessions.has('shell-kill-terminal'), false, 'owner should be allowed to stop its own terminal')
+
+  const nativeShellDestroyCreated = await invokeShellChannel('terminal:create', { id: 'shell-destroy-terminal', cwd: nested })
+  assert.equal(nativeShellDestroyCreated.ok, true)
   shellPlatform.BrowserWindow.getFocusedWindow().webContents.destroy()
-  assert.equal(fakeSessions.has('shell-platform-terminal'), false, 'Shell WebContents destruction must clean up its terminal')
+  assert.equal(fakeSessions.has('shell-destroy-terminal'), false, 'Shell WebContents destruction must clean up its terminal')
+  shellEventBus.off('push', onShellPush)
 
   ownerA.sender.destroyed = true
   ownerA.sender.emit('destroyed')
   assert.equal(fakeSessions.has('owned-terminal'), false)
-  assert.deepEqual(killed, ['idless-owned-terminal', 'shell-platform-terminal', 'owned-terminal'])
+  assert.deepEqual(killed, [
+    'idless-owned-terminal', 'shell-kill-terminal', 'shell-destroy-terminal', 'owned-terminal',
+  ])
   await fs.rm(root, { recursive: true, force: true })
   await fs.rm(outside, { recursive: true, force: true })
 
