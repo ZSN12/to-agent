@@ -440,7 +440,7 @@ TaskWeaver 当前是 **macOS 优先的本地桌面 Coding Agent**。本计划遵
 | CA-R03 | P1 | 首次运行提示读写路径可能回退到 `process.cwd()`，而不是应用 user data 目录 | [`register-app-ipc.mjs`](../backend/ipc/register-app-ipc.mjs) 与 IPC 装配路径 | 已修复：显式注入 userDataPath、移除 cwd 回退，并通过路径隔离专项测试；见 §16.6 |
 | CA-R04 | P1 | Planner 输出样例仍含不存在的 `desktop/main.cjs`，配置中也有旧 `desktop/` 路径 | [`plan-and-execute.mjs`](../backend/orchestration/plan-and-execute.mjs)、`.taskweaver/planner-hints.json` | 已修复：示例取当前索引路径；research/review scope 必须匹配索引，索引外路径触发有限修正；见 §16.6 |
 | CA-R05 | P1 | MCP 工具缓存身份仅包含 URL；相同 URL 换认证身份时可能短暂复用旧工具 schema | [`remote-tool-cache.ts`](../packages/runtime/mcp/mcp-client/src/remote-tool-cache.ts)、`connection.ts` | 已复现并修复：缓存身份绑定有效 HTTP headers 的摘要；旧缓存仅临时展示，实时 schema 同步成功前不可执行；见 §16.6 |
-| CA-R06 | P2 | Python PTY 后备模式的 wrapper 与 shell 进程组清理可能不完整 | [`terminal-service.mjs`](../backend/terminal-service.mjs)、[`pty-shim.py`](../backend/pty-shim.py) | 静态推断；必须先复现，不按既定 Bug 修复 |
+| CA-R06 | P2 | Python PTY 后备模式的 wrapper 与 shell 进程组清理可能不完整 | [`terminal-service.mjs`](../backend/terminal-service.mjs)、[`pty-shim.py`](../backend/pty-shim.py) | 已复现：关闭后 shell 与后台任务存活；已修复并专项验证，见 §16.6 |
 | CA-R07 | P2 | Contract API 类型有失效导入、且与 `src/shared/app-api.ts` 漂移；当前检查范围未覆盖该文件 | `contract/types/app-api.ts`、`scripts/gen-ipc-types.mjs`、`tsconfig.app.json` | 源码确认；待决定生成/校验的唯一来源 |
 | CA-R08 | P2 | Node 获取路径默认版本和校验方式不一致 | `scripts/ensure-host-node.mjs` 与 `scripts/macos/fetch-node.sh` | 源码确认；先确认两条构建入口是否都受支持 |
 | CA-R09 | P2 | 若干重要脚本测试未进入默认回归门禁；CI 与 `test:all` 有重复步骤，README/提示词样例有陈旧命令和路径 | 根 `package.json`、`.github/workflows/ci.yml`、`tests/README.md`、`tests/prompts/cases.json` | 源码确认；待梳理后修改 |
@@ -474,7 +474,7 @@ TaskWeaver 当前是 **macOS 优先的本地桌面 Coding Agent**。本计划遵
 - [x] **CA-R03 用户数据路径：**从应用 IPC 装配层显式注入唯一 user data 路径；移除生产回退到 cwd 的路径；覆盖配置路径读取、dismiss 写入、缺失路径与写入失败。
 - [x] **CA-R04 Planner 路径：**提示样例动态取当前索引路径；hints 更新为当前 Shell/Backend 调用链；路径索引扫描深度扩至四层、默认上限调至 2000 项；research/review 的每项 `scopePaths` 必须匹配本轮展示索引，索引外路径触发有限修正，不会进入 DAG 执行。
 - [x] **CA-R05 MCP 缓存：**缓存身份绑定 endpoint 与规范化有效 HTTP headers 的 SHA-256 摘要，不落盘/日志明文凭据；每代连接复用同一份已解析 headers；缓存 schema 只临时展示，旧定义捕获到的调用在实时列表同步后失败；缓存注册和实时同步共用串行队列，旧代同步在提交前复核 generation。覆盖同 URL 换 header/token、刷新失败、并发写入与重连旧代竞态。
-- [ ] **CA-R06 PTY：**先通过取消/关闭测试复现是否遗留 shell；如复现，再定义 macOS 支持范围内的进程组信号、超时和清理语义。
+- [x] **CA-R06 PTY：**真实复现 Python fallback 关闭后 shell 与后台任务仍存活；wrapper 收到 SIGTERM 后清理 shell 私有 session 的全部进程组，先发 SIGTERM、短暂等待后 SIGKILL，并 wait/reap shell。fork 期间屏蔽 SIGTERM 以保留 child PID，父进程初始化也纳入 finally；Node 的 SIGKILL 兜底放宽到 5 秒，避免中断 shim 的进程扫描与回收。专项覆盖忽略 SIGTERM 的后台任务，见 §16.6。
 - [ ] **CA-R07 API 类型：**以 `contract/channels.mjs` 为契约真源，明确 TS API 类型是生成物还是由契约导出；修正无效导入，并让 IPC 检查实际覆盖其类型消费端。
 - [ ] **CA-R08 Node 供应：**清点每条受支持的打包入口，统一版本来源；下载时校验官方摘要，失败需 fail closed。淘汰的旧 builder 应删除或标成不支持入口。
 - [ ] **CA-R11 Shell URL/token（分诊）：**确认 `TASKWEAVER_UI_URL` 是否可由非可信来源注入、loopback 页面由谁控制、fragment token 可被哪些脚本读取、token 可调用哪些 IPC/API；按威胁模型和可达性定优先级，不预设为漏洞。
@@ -558,7 +558,7 @@ Node 构建入口已知分为两条：根 `package.json` 的 `app`/`app:dmg` →
 | ID | 状态 | 当前结论/下一步 |
 |---|---|---|
 | CA-00 | IN PROGRESS | 冻结 worktree、20 项任务集和 headless Host 调用方法已就绪；固定 Runtime 哈希/模型设置并运行仍未完成 |
-| CA-10 | IN PROGRESS | CA-R01–CA-R05 已验证；继续复核/处理 CA-R06–R11 |
+| CA-10 | IN PROGRESS | CA-R01–CA-R06 已验证；继续复核/处理 CA-R07–R11 |
 | CA-20 | TODO | 建立测试入口清单并闭合关键回归门禁 |
 | CA-30 | TODO | 先测 Repo Map/LSP/符号入口，再决定索引改造 |
 | CA-40 | TODO | 审计 DAG 证据、取消、恢复和隔离路径 |
@@ -575,9 +575,9 @@ Node 构建入口已知分为两条：根 `package.json` 的 `app`/`app:dmg` →
 | CA-R01 | VERIFIED | Codex 主 Agent | `94a47fbb0`, `2d659932e` | `node scripts/test-terminal-service.mjs` PASS；`node scripts/test-terminal-output-throttle.mjs` PASS；`pnpm run test:terminal` 在 pnpm 自动依赖检查阶段因无 TTY 中止，未启动测试 | Shell/RPC sender object identity；测试覆盖 actual ShellPlatform 生命周期、隔离、数据推送、stop 与失败清理 |
 | CA-R02 | VERIFIED | Codex 主 Agent | `3b29300a3` | `packages/runtime/node_modules/.bin/vitest run fs/tool-fs/tests/apply-patch.spec.ts --config vitest.config.ts` PASS（6/6） | CRLF/LF 与无末尾换行保留；混合换行失败关闭且磁盘文件不变 |
 | CA-R03 | VERIFIED | Codex 主 Agent | `7c7bdaf74` | `node scripts/test-legacy-secrets.mjs` PASS；覆盖显式 userDataPath、cwd 诱饵目录、缺失路径拒绝与写入失败不回退 | `wireBackendIpc` 显式注入 `userDataPath`；移除 `process.cwd()` 兜底；测试验证只读与 dismiss 标记写入都命中应用目录 |
-| CA-R04 | VERIFIED | Codex 主 Agent | `01594efea` | `node scripts/test-orchestration.mjs` PASS；`node scripts/test-planner-route.mjs` PASS；`node scripts/test-planner-hints.mjs` PASS；`node scripts/test-eval-prompts.mjs` PASS；`node scripts/eval-prompts.mjs` PASS；针对性 ESLint PASS；`pnpm run test:orchestration` 在依赖状态检查阶段因无 TTY 中止，脚本未启动 | 旧 `desktop/` scope 通过有限修正回归确认会被拒绝；当前调用链的 11 个 hints 路径均存在且进入索引；继续处理 CA-R06 |
+| CA-R04 | VERIFIED | Codex 主 Agent | `01594efea` | `node scripts/test-orchestration.mjs` PASS；`node scripts/test-planner-route.mjs` PASS；`node scripts/test-planner-hints.mjs` PASS；`node scripts/test-eval-prompts.mjs` PASS；`node scripts/eval-prompts.mjs` PASS；针对性 ESLint PASS；`pnpm run test:orchestration` 在依赖状态检查阶段因无 TTY 中止，脚本未启动 | 旧 `desktop/` scope 通过有限修正回归确认会被拒绝；当前调用链的 11 个 hints 路径均存在且进入索引；CA-R06 已验证，当前继续处理 CA-R07 |
 | CA-R05 | VERIFIED | Codex 主 Agent | `ccd479bd7` | 在 `packages/runtime` 执行 `./node_modules/.bin/vitest run mcp/mcp-client/tests --config vitest.config.ts` PASS（7 files / 116 tests）；定向 ESLint PASS；`tsc -b mcp/mcp-client` PASS；package-only tsdown Host bundle PASS；`node --check packages/runtime/mcp/mcp-client/lib/index.js` 与 `git diff --check` PASS | 缓存身份含 endpoint 与规范化有效 headers 摘要；摘要不含原凭据；缓存定义仅展示且不能在 live `tools/list` 成功前执行；缓存注册与同步串行，旧 generation 不能提交结果 |
-| CA-R06 | TODO（静态推断） | 未分配 | — | NOT RUN | 先复现 PTY 取消/关闭后是否遗留进程 |
+| CA-R06 | VERIFIED | Codex 主 Agent | `af4c84570` | 先以 forced Python fallback 复现：`killSession()` 后 shell 与后台 child 均存活；修复后 `node scripts/test-terminal-service.mjs` PASS（覆盖忽略 SIGTERM 的后台 child，shell、child、wrapper 均退出）；`node_modules/.bin/eslint backend/terminal-service.mjs scripts/test-terminal-service.mjs --max-warnings 0` PASS；Node `--check`、Python AST parse、`git diff --check` PASS。`pnpm exec eslint ...` 因 pnpm 自动依赖状态检查在无 TTY 环境中止，随后直接运行仓库本地 ESLint 二进制通过 | Python shim 在 SIGTERM 时扫描 shell 私有 session 的 process groups，TERM 后 100ms 再 KILL，wait/reap shell；fork PID 竞态由 pthread signal mask 关闭；Node wrapper 5 秒强杀仅作兜底。复现和验证记录见下方 |
 | CA-R07 | CONFIRMED（静态） | 未分配 | — | NOT RUN | 定义 contract 类型单一来源并扩大真实消费端检查 |
 | CA-R08 | CONFIRMED（静态） | 未分配 | — | NOT RUN | 由 CA-10 决定第二条 builder 的支持状态与统一方案 |
 | CA-R09 | CONFIRMED（静态） | 未分配 | — | NOT RUN | 清点默认 CI、专项、人工诊断与废弃入口 |
@@ -594,6 +594,8 @@ Node 构建入口已知分为两条：根 `package.json` 的 `app`/`app:dmg` →
 
 **CA-R05 执行记录（2026-10-13）：**缓存 schema 版本升至 2；缓存身份包含 URL 与实际送入每代 Streamable HTTP transport 的规范化 headers 摘要，token/header 原文不落盘或日志。缓存工具只临时提供 schema；执行会等待实时 `tools/list` 完整同步，已捕获的 provisional 定义同步后失败关闭。缓存注册与 live sync 统一串行，旧代等待中的 tools/list 返回后会在提交前再次核验 generation。新增鉴权变化、刷新失败、并发原子写、慢连接及旧代通知同步重连覆盖。提交 `ccd479bd7`；MCP Client 全目录 116 项测试通过，定向 ESLint、TypeScript 项目构建、package-only Host bundle、bundle 语法检查与 diff 检查通过。
 
+**CA-R06 执行记录（2026-10-13）：**先强制 `createTerminalService({ nodePty: null })` 走真实 Python PTY fallback，启动 shell 与后台 sleep 后调用 `killSession()`；修复前实测 `shellAliveAfterKillSession=true`、`childAliveAfterKillSession=true`。原因是旧实现向 Python wrapper 的进程组发信号，而 shim 中 shell 调用 `setsid()` 进入独立 session；Node 终止 wrapper 后没有执行 Python 的 shell 清理逻辑。现在 wrapper 捕获 SIGTERM 并统一清理 shell session 中所有 process groups；TERM 后等待 100ms 再 KILL，并 wait/reap shell。fork 周围屏蔽 SIGTERM、父进程设置纳入 finally，避免启动期间退出丢失 child PID；Node 侧 5 秒 SIGKILL 仅作为兜底。回归用忽略 SIGTERM 的后台 Python 进程验证 shell、后台进程与 wrapper 均退出。提交 `af4c84570`。`node scripts/test-terminal-service.mjs`、本地 ESLint、Node 语法检查、Python AST parse、`git diff --check` 全部 PASS。独立只读审查确认 Darwin `/bin/ps -axo pid=` 可运行、无明显 macOS 兼容 blocker；审查建议的启动窗口和兜底超时已在提交前处理。
+
 **CA-00B 执行记录（2026-10-13）：**增加 20 项固定任务集、评分结构与 Host 工具调用运行规程；数据集 SHA-256 `17f2c99fe1cdf0c6fbec0b8009a54ae1143b1077f1e9cbf17e8836bd21f0210f`。headless `on-risk` 与权限审计记录提交 `ff400e532`；任务集/评测规程提交 `0cc724af4`。`node scripts/test-headless-cli.mjs` PASS；JSON 字段、20 个唯一任务、权限模式和 100 分权重通过结构检查。没有调用模型或外部服务；Runtime 哈希、Provider/model 固定与真实运行仍未执行。基线目标仍为冻结提交 `f5624a108`。
 
-**当前续接点：CA-R06。**CA-00B 的任务和执行规程已经落地；真实比较等被测 Runtime 与 Provider 配置固定后进行。所有后续写入继续避开 SettingsPage/CSS 用户改动。
+**当前续接点：CA-R07。**CA-00B 的任务和执行规程已经落地；真实比较等被测 Runtime 与 Provider 配置固定后进行。CA-R06 已通过实际复现和进程清理回归；所有后续写入继续避开 SettingsPage/CSS 用户改动。
