@@ -438,7 +438,7 @@ TaskWeaver 当前是 **macOS 优先的本地桌面 Coding Agent**。本计划遵
 | CA-R01 | P0 | Shell/RPC 终端请求的 sender 缺少终端服务要求的整数窗口 ID；注册 owner 时可能直接失败 | [`register-terminal-ipc.mjs`](../backend/register-terminal-ipc.mjs)；Shell sender 定义见 [`shell-platform.mjs`](../backend/platform/shell-platform.mjs) | 已修复并通过 targeted 验证；见 §16.6 |
 | CA-R02 | P1 | `apply_patch` 把 CRLF 内容归一成 LF 后写回，可能导致整文件换行格式变化 | [`apply-patch.ts`](../packages/runtime/fs/tool-fs/src/apply-patch.ts)；普通 `editText` 会恢复换行格式 | 已修复：统一 CRLF/LF 保留；混合换行明确拒绝；见 §16.6 |
 | CA-R03 | P1 | 首次运行提示读写路径可能回退到 `process.cwd()`，而不是应用 user data 目录 | [`register-app-ipc.mjs`](../backend/ipc/register-app-ipc.mjs) 与 IPC 装配路径 | 已修复：显式注入 userDataPath、移除 cwd 回退，并通过路径隔离专项测试；见 §16.6 |
-| CA-R04 | P1 | Planner 输出样例仍含不存在的 `desktop/main.cjs`，配置中也有旧 `desktop/` 路径 | [`plan-and-execute.mjs`](../backend/orchestration/plan-and-execute.mjs)、`.taskweaver/planner-hints.json` | 源码确认；待改为从当前索引选路径并校验 |
+| CA-R04 | P1 | Planner 输出样例仍含不存在的 `desktop/main.cjs`，配置中也有旧 `desktop/` 路径 | [`plan-and-execute.mjs`](../backend/orchestration/plan-and-execute.mjs)、`.taskweaver/planner-hints.json` | 已修复：示例取当前索引路径；research/review scope 必须匹配索引，索引外路径触发有限修正；见 §16.6 |
 | CA-R05 | P1 | MCP 工具缓存身份仅包含 URL；相同 URL 换认证身份时可能短暂复用旧工具 schema | [`remote-tool-cache.ts`](../packages/runtime/mcp/mcp-client/src/remote-tool-cache.ts)、`connection.ts` | 风险成立；不是已确认的权限绕过；待定义安全缓存语义 |
 | CA-R06 | P2 | Python PTY 后备模式的 wrapper 与 shell 进程组清理可能不完整 | [`terminal-service.mjs`](../backend/terminal-service.mjs)、[`pty-shim.py`](../backend/pty-shim.py) | 静态推断；必须先复现，不按既定 Bug 修复 |
 | CA-R07 | P2 | Contract API 类型有失效导入、且与 `src/shared/app-api.ts` 漂移；当前检查范围未覆盖该文件 | `contract/types/app-api.ts`、`scripts/gen-ipc-types.mjs`、`tsconfig.app.json` | 源码确认；待决定生成/校验的唯一来源 |
@@ -472,7 +472,7 @@ TaskWeaver 当前是 **macOS 优先的本地桌面 Coding Agent**。本计划遵
 - [x] **CA-R01 终端身份：**Electron 继续用真实 `sender.id`；Shell/RPC 使用稳定的 sender 对象身份，不伪造 Electron sender。专项测试覆盖实际 ShellPlatform 无 ID 创建、data/exit 推送、owner stop、sender 销毁、跨 owner 拒绝和创建异常清理。提交见 §16.6。
 - [x] **CA-R02 换行：**`apply_patch` 保留 CRLF/LF 和无末尾换行；混合换行明确拒绝，避免静默重写整文件。专项结果见 §16.6。
 - [x] **CA-R03 用户数据路径：**从应用 IPC 装配层显式注入唯一 user data 路径；移除生产回退到 cwd 的路径；覆盖配置路径读取、dismiss 写入、缺失路径与写入失败。
-- [ ] **CA-R04 Planner 路径：**提示样例和 planner hints 不写死迁移前路径；规划结果必须根据当前工作区索引验证存在性。无效路径应要求修正或报告失败，不得悄悄作为有效 scope 执行。
+- [x] **CA-R04 Planner 路径：**提示样例动态取当前索引路径；hints 更新为当前 Shell/Backend 调用链；路径索引扫描深度扩至四层、默认上限调至 2000 项；research/review 的每项 `scopePaths` 必须匹配本轮展示索引，索引外路径触发有限修正，不会进入 DAG 执行。
 - [ ] **CA-R05 MCP 缓存：**制定缓存身份、工具禁用/替换时序及旧 schema 失效规则。身份指纹不得保存或写日志明文凭据；同 URL 换账号、header/token 变化、刷新失败、并发连接均须可测。新权限工具同步完成前不得把旧 schema 当成新身份的可执行能力。
 - [ ] **CA-R06 PTY：**先通过取消/关闭测试复现是否遗留 shell；如复现，再定义 macOS 支持范围内的进程组信号、超时和清理语义。
 - [ ] **CA-R07 API 类型：**以 `contract/channels.mjs` 为契约真源，明确 TS API 类型是生成物还是由契约导出；修正无效导入，并让 IPC 检查实际覆盖其类型消费端。
@@ -558,7 +558,7 @@ Node 构建入口已知分为两条：根 `package.json` 的 `app`/`app:dmg` →
 | ID | 状态 | 当前结论/下一步 |
 |---|---|---|
 | CA-00 | IN PROGRESS | 冻结 worktree、20 项任务集和 headless Host 调用方法已就绪；固定 Runtime 哈希/模型设置并运行仍未完成 |
-| CA-10 | IN PROGRESS | CA-R01、CA-R02、CA-R03 已验证；继续复核/处理 CA-R04–R11 |
+| CA-10 | IN PROGRESS | CA-R01–CA-R04 已验证；继续复核/处理 CA-R05–R11 |
 | CA-20 | TODO | 建立测试入口清单并闭合关键回归门禁 |
 | CA-30 | TODO | 先测 Repo Map/LSP/符号入口，再决定索引改造 |
 | CA-40 | TODO | 审计 DAG 证据、取消、恢复和隔离路径 |
@@ -575,7 +575,7 @@ Node 构建入口已知分为两条：根 `package.json` 的 `app`/`app:dmg` →
 | CA-R01 | VERIFIED | Codex 主 Agent | `94a47fbb0`, `2d659932e` | `node scripts/test-terminal-service.mjs` PASS；`node scripts/test-terminal-output-throttle.mjs` PASS；`pnpm run test:terminal` 在 pnpm 自动依赖检查阶段因无 TTY 中止，未启动测试 | Shell/RPC sender object identity；测试覆盖 actual ShellPlatform 生命周期、隔离、数据推送、stop 与失败清理 |
 | CA-R02 | VERIFIED | Codex 主 Agent | `3b29300a3` | `packages/runtime/node_modules/.bin/vitest run fs/tool-fs/tests/apply-patch.spec.ts --config vitest.config.ts` PASS（6/6） | CRLF/LF 与无末尾换行保留；混合换行失败关闭且磁盘文件不变 |
 | CA-R03 | VERIFIED | Codex 主 Agent | `7c7bdaf74` | `node scripts/test-legacy-secrets.mjs` PASS；覆盖显式 userDataPath、cwd 诱饵目录、缺失路径拒绝与写入失败不回退 | `wireBackendIpc` 显式注入 `userDataPath`；移除 `process.cwd()` 兜底；测试验证只读与 dismiss 标记写入都命中应用目录 |
-| CA-R04 | CONFIRMED（静态） | 未分配 | — | NOT RUN | 校验 Planner 输出路径存在且属于当前 workspace |
+| CA-R04 | VERIFIED | Codex 主 Agent | `01594efea` | `node scripts/test-orchestration.mjs` PASS；`node scripts/test-planner-route.mjs` PASS；`node scripts/test-planner-hints.mjs` PASS；`node scripts/test-eval-prompts.mjs` PASS；`node scripts/eval-prompts.mjs` PASS；针对性 ESLint PASS；`pnpm run test:orchestration` 在依赖状态检查阶段因无 TTY 中止，脚本未启动 | 旧 `desktop/` scope 通过有限修正回归确认会被拒绝；当前调用链的 11 个 hints 路径均存在并进入索引；继续处理 CA-R05 |
 | CA-R05 | CONFIRMED（风险） | 未分配 | — | NOT RUN | 设计换身份/换凭据/刷新失败与并发失效测试 |
 | CA-R06 | TODO（静态推断） | 未分配 | — | NOT RUN | 先复现 PTY 取消/关闭后是否遗留进程 |
 | CA-R07 | CONFIRMED（静态） | 未分配 | — | NOT RUN | 定义 contract 类型单一来源并扩大真实消费端检查 |
@@ -590,6 +590,8 @@ Node 构建入口已知分为两条：根 `package.json` 的 `app`/`app:dmg` →
 
 **CA-R03 执行记录（2026-10-13）：**首次运行提示 IPC 现在只使用 `wireBackendIpc` 注入的应用 user data 路径，缺失配置在注册期失败；读取提示、dismiss 持久化与写入错误均增加 cwd 隔离覆盖。提交 `7c7bdaf74`；`node scripts/test-legacy-secrets.mjs` PASS。
 
+**CA-R04 执行记录（2026-10-13）：**移除 Planner 样例与 hints 中的旧 `desktop/` 路径；JSON 示例动态引用当前索引项，`.taskweaver/planner-hints.json` 的请求链路覆盖当前 renderer hook、Shell HTTP bridge、IPC、聊天与编排路径。路径索引现在向下扫描四层、默认最多访问 2000 个目录项；模型生成的 research/review `scopePaths` 在有限重试前与实际展示索引做精确比对，索引外路径无法进入 DAG。提交 `01594efea`。`node scripts/test-orchestration.mjs`、`node scripts/test-planner-route.mjs`、`node scripts/test-planner-hints.mjs`、`node scripts/test-eval-prompts.mjs`、`node scripts/eval-prompts.mjs` 与定向 ESLint PASS；`pnpm run test:orchestration` 因 pnpm 在无 TTY 环境尝试依赖状态清理而未启动测试，直接 Node 入口已通过。静态路径核验显示 11 个请求链路 required paths 全部存在且进入索引。
+
 **CA-00B 执行记录（2026-10-13）：**增加 20 项固定任务集、评分结构与 Host 工具调用运行规程；数据集 SHA-256 `17f2c99fe1cdf0c6fbec0b8009a54ae1143b1077f1e9cbf17e8836bd21f0210f`。headless `on-risk` 与权限审计记录提交 `ff400e532`；任务集/评测规程提交 `0cc724af4`。`node scripts/test-headless-cli.mjs` PASS；JSON 字段、20 个唯一任务、权限模式和 100 分权重通过结构检查。没有调用模型或外部服务；Runtime 哈希、Provider/model 固定与真实运行仍未执行。基线目标仍为冻结提交 `f5624a108`。
 
-**当前续接点：CA-R04。**CA-00B 的任务和执行规程已经落地；真实比较等被测 Runtime 与 Provider 配置固定后进行。所有后续写入继续避开 SettingsPage/CSS 用户改动。
+**当前续接点：CA-R05。**CA-00B 的任务和执行规程已经落地；真实比较等被测 Runtime 与 Provider 配置固定后进行。所有后续写入继续避开 SettingsPage/CSS 用户改动。
