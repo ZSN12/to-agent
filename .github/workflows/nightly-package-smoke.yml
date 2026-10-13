@@ -22,12 +22,13 @@ jobs:
           cache-dependency-path: pnpm-lock.yaml
       - name: Install desktop dependencies
         run: pnpm install --frozen-lockfile
-      - name: Check IPC, lint, typecheck, and security
+      - name: Check IPC, lint, Node typecheck, and security
         run: |
           pnpm run check:ipc
           pnpm run lint
-          pnpm run typecheck
+          pnpm run typecheck:node
           pnpm run test:security-hardening
+          pnpm run test:chat-images
       - name: Build deployable runtime
         env:
           CI: 'true'

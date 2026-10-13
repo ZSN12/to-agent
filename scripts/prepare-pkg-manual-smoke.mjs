@@ -8,10 +8,15 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const source = path.join(root, 'release/mac-arm64/TaskWeaver.app')
+const candidates = [
+  process.env.TASKWEAVER_APP_BUNDLE ? path.resolve(process.env.TASKWEAVER_APP_BUNDLE) : null,
+  path.join(root, 'apps/macos/build/TaskWeaver.app'),
+  path.join(root, 'release/mac-arm64/TaskWeaver.app'),
+].filter(Boolean)
+const source = candidates.find((candidate) => fs.existsSync(candidate))
 
-if (!fs.existsSync(source)) {
-  console.error('未找到 release/mac-arm64/TaskWeaver.app')
+if (!source) {
+  console.error(`未找到 TaskWeaver.app。检查路径：${candidates.join(', ')}`)
   console.error('请先执行: pnpm run build:z-runtime && pnpm run app:builder')
   process.exit(1)
 }
@@ -31,7 +36,8 @@ if (fs.existsSync(dest)) {
 
 await fs.promises.cp(source, dest, { recursive: true })
 
-console.log('已复制打包产物到桌面（勿在 release/ 目录直接手测）：')
+console.log('已复制打包产物到桌面（勿在构建 / release 目录直接手测）：')
+console.log(`  来源：${source}`)
 console.log(`  ${dest}`)
 console.log('')
 console.log('打开应用:')

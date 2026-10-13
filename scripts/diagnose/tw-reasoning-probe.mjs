@@ -42,6 +42,8 @@ for (const name of ['settings.yaml', 'cordis.patch.yml']) {
 const host = createZHostManager({
   runtimeRoot,
   userDataPath,
+  home: userDataPath,
+  environment: { ...process.env, TASKWEAVER_HOME: dshHome },
   startTimeoutMs: 90_000,
 })
 const { api } = await host.start()

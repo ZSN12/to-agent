@@ -13,6 +13,8 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const appCandidates = process.argv[2]
   ? [path.resolve(process.argv[2])]
   : [
+      ...(process.env.TASKWEAVER_APP_BUNDLE ? [path.resolve(process.env.TASKWEAVER_APP_BUNDLE)] : []),
+      path.join(root, 'apps/macos/build/TaskWeaver.app'),
       path.join(root, 'release/mac-arm64/TaskWeaver.app'),
       path.join(root, 'release/mac/TaskWeaver.app'),
       path.join(root, 'release/mac-universal/TaskWeaver.app'),

@@ -15,12 +15,10 @@ const { createZConversationHub } = await import(path.join(PROJECT, 'backend', 'z
 
 const runtimeRoot = path.join(PROJECT, 'vendor', 'taskweaver-z-runtime')
 const userDataPath = fs.mkdtempSync(path.join(os.tmpdir(), 'tw-hub-'))
-const host = createZHostManager({ runtimeRoot, userDataPath, startTimeoutMs: 90_000 })
-const { api } = await host.start()
-
 const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'tw-ws-'))
-const sessionId = `hub-test-${Date.now()}`
-await api.sessions.create({ sessionId, cwd, agentPreset: 'code' })
+let host
+let api
+let sessionId
 
 function makeFakeWebContents() {
   const sent = []
@@ -69,15 +67,28 @@ async function runCase(label, coalesceMs) {
   return { label, pushes, N }
 }
 
-const before = await runCase('未合并 (coalesceMs=0)', 0)
-const after = await runCase('已合并 (coalesceMs=16)', 16)
+try {
+  host = createZHostManager({
+    runtimeRoot,
+    userDataPath,
+    home: userDataPath,
+    environment: { ...process.env, TASKWEAVER_HOME: path.join(userDataPath, 'runtime') },
+    startTimeoutMs: 90_000,
+  })
+  const started = await host.start()
+  api = started.api
+  sessionId = `hub-test-${Date.now()}`
+  await api.sessions.create({ sessionId, cwd, agentPreset: 'code' })
 
-console.log('\n=== 结论 ===')
-console.log(`  合并前每帧一推: ${before.pushes} 次`)
-console.log(`  合并后        : ${after.pushes} 次`)
-console.log(`  减少          : ${(((before.pushes - after.pushes) / Math.max(1, before.pushes)) * 100).toFixed(1)}%`)
+  const before = await runCase('未合并 (coalesceMs=0)', 0)
+  const after = await runCase('已合并 (coalesceMs=16)', 16)
 
-await host.stop()
-fs.rmSync(userDataPath, { recursive: true, force: true })
-fs.rmSync(cwd, { recursive: true, force: true })
-process.exit(0)
+  console.log('\n=== 结论 ===')
+  console.log(`  合并前每帧一推: ${before.pushes} 次`)
+  console.log(`  合并后        : ${after.pushes} 次`)
+  console.log(`  减少          : ${(((before.pushes - after.pushes) / Math.max(1, before.pushes)) * 100).toFixed(1)}%`)
+} finally {
+  if (host) await host.stop().catch(() => {})
+  fs.rmSync(userDataPath, { recursive: true, force: true })
+  fs.rmSync(cwd, { recursive: true, force: true })
+}

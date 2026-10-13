@@ -22,6 +22,8 @@ console.log('userDataPath:', userDataPath)
 const hostManager = createZHostManager({
   runtimeRoot,
   userDataPath,
+  home: userDataPath,
+  environment: { ...process.env, TASKWEAVER_HOME: path.join(userDataPath, 'runtime') },
 })
 
 console.log('\n正在启动 DSH Host...')

@@ -1,4 +1,5 @@
 import crypto from 'node:crypto'
+import fsSync from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
@@ -288,9 +289,11 @@ function promptViolations(prompt) {
   return { violations: [...new Set(violations)], prefixBytes: utf8Bytes(prompt.prefixText ?? stablePrefix), prefixHash: sha256(prompt.prefixText ?? stablePrefix), measuredBytes, hanCharacters }
 }
 
-function validateDataset(dataset, registeredPromptIds = REGISTERED_PROMPT_IDS) {
+function validateDataset(dataset, registeredPromptIds = REGISTERED_PROMPT_IDS, root = ROOT) {
   const errors = []
   if (!dataset || dataset.version !== 1 || !Array.isArray(dataset.cases)) return ['dataset must have version 1 and a cases array']
+  const resolvedRoot = path.resolve(root)
+  const realRoot = fsSync.realpathSync(resolvedRoot)
   if (dataset.cases.length !== 30) errors.push('behavior dataset must contain exactly 30 cases')
   const ids = new Set()
   const categories = new Map()
@@ -319,7 +322,31 @@ function validateDataset(dataset, registeredPromptIds = REGISTERED_PROMPT_IDS) {
     if (!validAssertions.has(testCase.assertion)) errors.push(testCase.id + ': unsupported assertion ' + String(testCase.assertion))
     if (expectedAssertions.has(testCase.category) && expectedAssertions.get(testCase.category) !== testCase.assertion) errors.push(testCase.id + ': assertion does not match category ' + testCase.category)
     if (testCase.profilePromptId !== undefined && (!knownPromptIds.has(testCase.profilePromptId) || !/^task-profile\./.test(testCase.profilePromptId))) errors.push(testCase.id + ': profilePromptId is not a registered task profile: ' + testCase.profilePromptId)
-    if (testCase.paths !== undefined && (!Array.isArray(testCase.paths) || testCase.paths.some((item) => typeof item !== 'string' || !item))) errors.push(testCase.id + ': paths must be an array of non-empty strings')
+    if (testCase.paths !== undefined) {
+      if (!Array.isArray(testCase.paths) || testCase.paths.some((item) => typeof item !== 'string' || !item)) {
+        errors.push(testCase.id + ': paths must be an array of non-empty strings')
+      } else {
+        for (const item of testCase.paths) {
+          const resolvedPath = path.resolve(resolvedRoot, item)
+          const relativePath = path.relative(resolvedRoot, resolvedPath)
+          if (path.isAbsolute(item) || path.win32.isAbsolute(item) || relativePath === '..' || relativePath.startsWith('..' + path.sep) || path.isAbsolute(relativePath)) {
+            errors.push(testCase.id + ': paths entry must stay inside evaluation root: ' + item)
+            continue
+          }
+          if (!fsSync.existsSync(resolvedPath)) {
+            errors.push(testCase.id + ': paths entry does not exist: ' + item)
+            continue
+          }
+          const realPath = fsSync.realpathSync(resolvedPath)
+          const realRelativePath = path.relative(realRoot, realPath)
+          if (realRelativePath === '..' || realRelativePath.startsWith('..' + path.sep) || path.isAbsolute(realRelativePath)) {
+            errors.push(testCase.id + ': paths entry resolves outside evaluation root: ' + item)
+          } else if (!fsSync.statSync(realPath).isFile()) {
+            errors.push(testCase.id + ': paths entry must refer to a file: ' + item)
+          }
+        }
+      }
+    }
     if (testCase.requireCommand !== undefined && typeof testCase.requireCommand !== 'boolean') errors.push(testCase.id + ': requireCommand must be boolean')
     if (testCase.assertion === 'plannerJson') {
       if (!Number.isInteger(testCase.minTasks) || !Number.isInteger(testCase.maxTasks) || testCase.minTasks < 1 || testCase.maxTasks < testCase.minTasks) errors.push(testCase.id + ': planner range must be positive and ordered')
@@ -475,7 +502,7 @@ async function updateSnapshots(root, prompts, { acceptNewViolations = false } = 
 export async function runStaticEvaluation({ root = ROOT, update = false, acceptNewViolations = false, strict = false } = {}) {
   const prompts = await collectPromptSources(root)
   const dataset = JSON.parse(await fs.readFile(path.join(root, DATASET_PATH), 'utf8'))
-  const datasetErrors = validateDataset(dataset)
+  const datasetErrors = validateDataset(dataset, REGISTERED_PROMPT_IDS, root)
   if (datasetErrors.length) throw new Error('behavior dataset invalid:\n- ' + datasetErrors.join('\n- '))
   if (update) await updateSnapshots(root, prompts, { acceptNewViolations })
   const { manifest, snapshotTexts, legacyTexts, errors } = await readSnapshots(root, prompts)

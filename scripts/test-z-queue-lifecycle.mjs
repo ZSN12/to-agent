@@ -61,8 +61,8 @@ const server = createServer((request, response) => {
   })
 })
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
-const manager = createZHostManager({ runtimeRoot, userDataPath: home,
-  environment: { ...process.env, TASKWEAVER_QUEUE_TEST_KEY: 'opaque-local-test-key' } })
+const manager = createZHostManager({ runtimeRoot, userDataPath: home, home,
+  environment: { ...process.env, TASKWEAVER_HOME: path.join(home, 'runtime'), TASKWEAVER_QUEUE_TEST_KEY: 'opaque-local-test-key' } })
 let wrappedApi = null
 function wrapApi(api) {
   const sessionApi = new Proxy(api.sessions, {

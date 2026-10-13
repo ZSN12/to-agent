@@ -13,11 +13,14 @@ if (!fs.existsSync(path.join(deploy, 'lib', 'bin.js'))) {
 }
 
 const home = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'tw-bare-base-'))
-const cwd = prepareRuntimeCwd(deploy, home, { useStableMirror: true })
-assert.equal(runtimePackagesResolveSmoke(cwd), true, 'mirror cwd must resolve @taskweaver/dsh-persona')
+try {
+  const cwd = prepareRuntimeCwd(deploy, home, { useStableMirror: true })
+  assert.equal(runtimePackagesResolveSmoke(cwd), true, 'mirror cwd must resolve @taskweaver/dsh-persona')
 
-const expectedBase = `${pathToFileURL(cwd).href}/`
-assert.ok(expectedBase.includes('packaged-runtime'), 'TaskWeaver host cwd should use the stable mirror')
+  const expectedBase = `${pathToFileURL(cwd).href}/`
+  assert.ok(expectedBase.includes('packaged-runtime'), 'TaskWeaver host cwd should use the stable mirror')
+} finally {
+  await fs.promises.rm(home, { recursive: true, force: true })
+}
 
-await fs.promises.rm(home, { recursive: true, force: true })
 console.log('test-taskweaver-bare-module-base: ok')

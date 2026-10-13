@@ -2,6 +2,7 @@ import { spawn as nodeSpawn, execFile, execSync } from 'node:child_process'
 import { promisify } from 'node:util'
 import { createRequire } from 'node:module'
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { createZApiClient } from './z-api-client.mjs'
@@ -445,6 +446,7 @@ export function createZHostManager({
   runtimeRoot,
   opencodexPackageRoot,
   userDataPath,
+  home = os.homedir(),
   spawnProcess = nodeSpawn,
   environment = process.env,
   getMcpRuntimeIntegration,
@@ -509,8 +511,8 @@ export function createZHostManager({
     readTaskWeaverEnvironment(environment, 'TASKWEAVER_EMBEDDED', [
       'Z_TASKWEAVER_EMBEDDED', 'DSH_TASKWEAVER_EMBEDDED',
     ])
-    await removeStaleRetiredRuntimeHomes({ userDataPath }).catch(() => {})
-    const homeMigration = await migrateRuntimeHome({ env: environment, userDataPath })
+    await removeStaleRetiredRuntimeHomes({ home, userDataPath }).catch(() => {})
+    const homeMigration = await migrateRuntimeHome({ env: environment, home, userDataPath })
     const runtimeHome = homeMigration.runtimeHomePath
     if (environment === process.env) {
       // Electron main-process stores (for example native OAuth credentials)

@@ -56,18 +56,14 @@ jobs:
           cache-dependency-path: pnpm-lock.yaml
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      - name: IPC contract
-        run: pnpm run check:ipc
       - name: Typecheck
-        run: pnpm run typecheck
+        run: pnpm run typecheck:node
       - name: Lint
         run: pnpm run lint
-      - name: Security hardening
-        run: pnpm run test:security-hardening
       - name: Unit tests
-        run: pnpm run test:script-targets && pnpm run test:all
-      - name: Live / host deploy tests
-        run: pnpm run test:live
+        run: pnpm run test:all
+      - name: Parity report fixture checks
+        run: pnpm run test:parity-bench
 
   dsh-unit:
     name: DSH unit shard ${{ matrix.shard }}/4
@@ -122,7 +118,7 @@ jobs:
         run: pnpm run build:z-runtime
       - name: Check deployed Host, preset integrity, and composition
         run: pnpm run test:runtime-deploy
-      - name: Run DSH artifact E2E (provider-gated cases report as skipped)
+      - name: Run configured DSH E2E cases (provider-gated cases skip without credentials)
         run: pnpm run test:dsh-e2e
-      - name: Run mock-provider end-to-end deployment smoke (no API secrets)
-        run: pnpm run test:keyless-e2e
+      - name: Run complete mock-provider Host deployment suite
+        run: pnpm run test:z-host-deploy

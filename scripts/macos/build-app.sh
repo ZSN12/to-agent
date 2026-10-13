@@ -175,16 +175,42 @@ cp -R "${STAGE_BACKEND}/runtime" "${BACKEND_RESOURCES_DIR}/runtime"
 cp -R "${NODE_DIR}/." "${RESOURCES_DIR}/host-node/"
 cp -R "${ROOT_DIR}/dist/." "${APP_RESOURCES_DIR}/dist/"
 
-if [ ! -f "${APP_RESOURCES_DIR}/backend/shell/run.mjs" ] \
-    || [ ! -f "${APP_RESOURCES_DIR}/dist/index.html" ] \
-    || [ ! -x "${RESOURCES_DIR}/host-node/bin/node" ] \
-    || [ ! -x "${HELPERS_DIR}/TaskWeaverKeychain" ] \
-    || [ ! -f "${BACKEND_RESOURCES_DIR}/runtime/lib/entry.js" ]; then
-    echo "❌ WebView app bundle is incomplete (backend, UI, Node, Keychain helper, or runtime is missing)." >&2
+# OpenCodex launches as a separate CLI process and needs a real Bun executable.
+# The `bun` npm package normalizes its platform binary to bun.exe on every host.
+BUN_SOURCE=""
+for candidate in "${ROOT_DIR}/node_modules/bun/bin/bun" "${ROOT_DIR}/node_modules/bun/bin/bun.exe"; do
+    if [ -x "${candidate}" ]; then
+        BUN_SOURCE="${candidate}"
+        break
+    fi
+done
+if [ -z "${BUN_SOURCE}" ]; then
+    echo "❌ Bun runtime is missing; install the OpenCodex dependencies before packaging." >&2
+    exit 1
+fi
+if ! BUN_VERSION="$("${BUN_SOURCE}" --version 2>/dev/null)" || [ -z "${BUN_VERSION}" ]; then
+    echo "❌ The installed Bun runtime cannot execute on this build host: ${BUN_SOURCE}" >&2
+    exit 1
+fi
+mkdir -p "${RESOURCES_DIR}/opencodex-runtime"
+cp "${BUN_SOURCE}" "${RESOURCES_DIR}/opencodex-runtime/bun"
+chmod +x "${RESOURCES_DIR}/opencodex-runtime/bun"
+if [ "$(stat -f%z "${RESOURCES_DIR}/opencodex-runtime/bun" 2>/dev/null || stat -c%s "${RESOURCES_DIR}/opencodex-runtime/bun")" -lt 1000000 ]; then
+    echo "❌ Bundled Bun runtime is unexpectedly small." >&2
     exit 1
 fi
 
-echo "  - Bundled React UI, Node backend, Z runtime, and embedded Node."
+if [ ! -f "${APP_RESOURCES_DIR}/backend/shell/run.mjs" ] \
+    || [ ! -f "${APP_RESOURCES_DIR}/dist/index.html" ] \
+    || [ ! -x "${RESOURCES_DIR}/host-node/bin/node" ] \
+    || [ ! -x "${RESOURCES_DIR}/opencodex-runtime/bun" ] \
+    || [ ! -x "${HELPERS_DIR}/TaskWeaverKeychain" ] \
+    || [ ! -f "${BACKEND_RESOURCES_DIR}/runtime/lib/entry.js" ]; then
+    echo "❌ WebView app bundle is incomplete (backend, UI, Node, Bun, Keychain helper, or runtime is missing)." >&2
+    exit 1
+fi
+
+echo "  - Bundled React UI, Node backend, Z runtime, embedded Node, and Bun ${BUN_VERSION}."
 
 # 5. Codesign
 echo "🔏 Executing signing pipeline..."

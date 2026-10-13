@@ -3,21 +3,21 @@
 ## 自动化（CI 同款）
 
 ```bash
-npm run check:ipc
-npm run typecheck
-npm run lint
-npm run test:security-hardening
-npm run test:all
+pnpm run typecheck:node
+pnpm run lint
+pnpm run test:all       # 已包含 check:ipc 与 test:security-hardening
+pnpm run test:parity-bench
 ```
 
 ## 打包（计划 `PKG` 的自动化部分）
 
 ```bash
-npm run build:z-runtime   # 改 preset / z-runtime 后必跑
-npm run app:builder       # 含 test-opencodex-packaging + test-packaged-runtime-layout
+pnpm run build:z-runtime   # CI 部署门禁会构建；改 preset / runtime 后本机也必跑
+pnpm run test:z-host-deploy
+pnpm run app:builder       # 含 layout、OpenCodex/Bun 与本地 mock 对话 smoke
 ```
 
-产物：`release/mac-arm64/TaskWeaver.app`（`app:builder` 含冷启动 `test-packaged-app-launch`）
+默认 `.app`：`apps/macos/build/TaskWeaver.app`；可通过 `TASKWEAVER_APP_BUNDLE` 指定隔离路径。
 
 当前工作树相对 `main` 规模（合并时重跑）：约 `130 files, +2644 / −16775`（`git diff --stat main`）
 

@@ -443,9 +443,10 @@ TaskWeaver 当前是 **macOS 优先的本地桌面 Coding Agent**。本计划遵
 | CA-R06 | P2 | Python PTY 后备模式的 wrapper 与 shell 进程组清理可能不完整 | [`terminal-service.mjs`](../backend/terminal-service.mjs)、[`pty-shim.py`](../backend/pty-shim.py) | 已复现：关闭后 shell 与后台任务存活；已修复并专项验证，见 §16.6 |
 | CA-R07 | P2 | Contract API 类型有失效导入、且与 `src/shared/app-api.ts` 漂移；当前检查范围未覆盖该文件 | `contract/types/app-api.ts`、`contract/types/model-api.ts`、`src/shared/`、`tsconfig.app.json` | 已修复：renderer shared API 是唯一类型定义；contract 类型入口改为 re-export，并纳入 `check:ipc` 的 TypeScript 消费端检查；见 §16.6 |
 | CA-R08 | P2 | 两套 macOS Node 获取/打包入口版本和校验策略不一致 | 旧 `scripts/ensure-host-node.mjs` 与当前 `scripts/macos/fetch-node.sh` | 已确定仅支持 `build-app.sh` 路径；旧 builder、下载器和 npm script 已删除，资源映射及文档已同步；见 §16.6 |
-| CA-R09 | P2 | 若干重要脚本测试未进入默认回归门禁；CI 与 `test:all` 有重复步骤，README/提示词样例有陈旧命令和路径 | 根 `package.json`、`.github/workflows/ci.yml`、`tests/README.md`、`tests/prompts/cases.json` | 源码确认；待梳理后修改 |
+| CA-R09 | P2 | 若干重要脚本测试未进入默认回归门禁；CI 与 `test:all` 有重复步骤，README/提示词样例有陈旧命令和路径 | 根 `package.json`、`.github/workflows/ci.yml`、`tests/README.md`、`tests/prompts/cases.json` | 已完成分诊与本地针对性验证；workflow/打包环境仍待 CI 确认，见 §16.6 |
 | CA-R10 | P3 | OAuth token cache 对 loader 返回对象的 token 字段缺少完整结构校验；并发冷启动也需确认是否会重复刷新 | [`oauth-token-cache.mjs`](../packages/provider-bridge-transport/oauth-token-cache.mjs)；当前内部调用链会提供 token 字符串 | 待分诊；不是已确认的任务阻断问题 |
 | CA-R11 | Triage | 原生 Shell 可从 `TASKWEAVER_UI_URL` 选择受信任的 loopback 页面，再把 Shell API bearer token 放进 URL fragment；需要核清环境来源、页面脚本可控性与 token 能力 | [`TaskWeaverShellApp.swift`](../apps/macos/TaskWeaverShell/Sources/TaskWeaverShell/TaskWeaverShellApp.swift)、[`ShellURLPolicy.swift`](../apps/macos/TaskWeaverShell/Sources/ShellURLPolicy/ShellURLPolicy.swift)、[`bootstrap.ts`](../src/shell/bootstrap.ts) | 条件性风险；未确认漏洞，不得按已证实问题描述 |
+| CA-R12 | P1 | 测试构造 Host 时未把临时 `HOME` 注入 runtime-home migration；一次模型服务测试误把真实 `~/.dsh` 迁移进临时目录，随后源目录与测试临时目录均被清理 | [`spawn-host.mjs`](../backend/agent/z-host/spawn-host.mjs)、[`test-model-service.mjs`](../scripts/test-model-service.mjs)、本次执行记录 | 代码侧隔离缺陷已修复并验证；用户确认不需要恢复数据。真实目录的逐文件清单未留存，不能从 Git 还原 |
 
 已完成的仓库卫生清理：提交 `0668e6562` 删除无调用入口的迁移/打包残留、测试生成文件、旧扩展和临时 `scratch/` 脚本；Swift 壳未接线的导航状态也已删除；Git 不再跟踪 SwiftPM `.build` 缓存。本清理不代表运行时可靠性问题已解决。
 
@@ -476,16 +477,17 @@ TaskWeaver 当前是 **macOS 优先的本地桌面 Coding Agent**。本计划遵
 - [x] **CA-R05 MCP 缓存：**缓存身份绑定 endpoint 与规范化有效 HTTP headers 的 SHA-256 摘要，不落盘/日志明文凭据；每代连接复用同一份已解析 headers；缓存 schema 只临时展示，旧定义捕获到的调用在实时列表同步后失败；缓存注册和实时同步共用串行队列，旧代同步在提交前复核 generation。覆盖同 URL 换 header/token、刷新失败、并发写入与重连旧代竞态。
 - [x] **CA-R06 PTY：**真实复现 Python fallback 关闭后 shell 与后台任务仍存活；wrapper 收到 SIGTERM 后清理 shell 私有 session 的全部进程组，先发 SIGTERM、短暂等待后 SIGKILL，并 wait/reap shell。fork 期间屏蔽 SIGTERM 以保留 child PID，父进程初始化也纳入 finally；Node 的 SIGKILL 兜底放宽到 5 秒，避免中断 shim 的进程扫描与回收。专项覆盖忽略 SIGTERM 的后台任务，见 §16.6。
 - [x] **CA-R07 API 类型：**`contract/channels.mjs` 继续唯一维护 channel、handler 与 bridge 映射；renderer API 类型只在 `src/shared/app-api.ts` / `model-api.ts` 定义，`contract/types/` 改为薄 re-export 入口，不再保存漂移副本。将 `contract/types/**/*.ts` 加入 app TS 项目，并让 `check:ipc` 调用 `tsc --project tsconfig.app.json`，使生成的 IPC bridge 和真实 renderer 消费端进入检查。
-- [ ] **CA-R08 Node 供应：**清点每条受支持的打包入口，统一版本来源；下载时校验官方摘要，失败需 fail closed。淘汰的旧 builder 应删除或标成不支持入口。
+- [x] **CA-R08 Node 供应：**清点每条受支持的打包入口，统一版本来源；下载时校验官方摘要，失败需 fail closed。淘汰的旧 builder 应删除或标成不支持入口。
+- [x] **CA-R12 测试隔离：**`createZHostManager` 显式接收 `home` 并传入迁移/清理逻辑；触发 Host 的测试与手工诊断统一提供临时 `home` 和 `TASKWEAVER_HOME`。针对性验证通过。数据恢复不再执行，按用户答复结案；实际目录内容不作猜测。
 - [ ] **CA-R11 Shell URL/token（分诊）：**确认 `TASKWEAVER_UI_URL` 是否可由非可信来源注入、loopback 页面由谁控制、fragment token 可被哪些脚本读取、token 可调用哪些 IPC/API；按威胁模型和可达性定优先级，不预设为漏洞。
 
 **验收：**CA-R01–CA-R04 的回归门禁通过；CA-R05/06 的安全语义与复现结论有记录；CA-R11 有明确威胁前提与处置结论；关键失败路径可以在不调用真实外部服务的 fixture/mock 中验证。P0/P1 未关闭不得进入发布验收。
 
 #### CA-20：把正确性验证变成默认闭环（3–5 天，可与 CA-10 后半并行）
 
-- [ ] 为 `scripts/` 下已有测试建立清单：默认 CI、PR 必跑、发行必跑、nightly/真实模型、人工诊断、废弃；每项给出责任包和理由。CA-00B 期间可先做只读清点，与 CA-10 后半并行。
-- [ ] 将 P0/P1 边界回归接入适当的 `pnpm` 门禁；评估 `test:z-runtime-build-atomic`、GitHub OAuth、Shell 静态服务等未接线项。专项人工检查不强塞进每次运行。
-- [ ] 移除 CI 中重复执行的等价步骤，修正集成测试 README 命令与遗漏列表、prompt eval 旧路径；生成文件的检查以生成脚本和 `check:ipc` 为准。
+- [x] 为 `scripts/` 下已有测试建立清单：默认 CI、PR 必跑、发行必跑、nightly/真实模型、人工诊断、废弃；每项给出责任包和理由。见 [`taskweaver-test-inventory-2026-10.md`](./taskweaver-test-inventory-2026-10.md)。
+- [x] 将 P0/P1 边界回归接入适当门禁：默认集新增 startup、Shell static entry、model/bridge/chat/usage/MCP 覆盖；Host deploy/runtime build 与 app bundle 检查保留在 CI/发行专用入口。专项人工检查不强塞进每次运行。
+- [x] 移除 CI 中重复执行的等价步骤，修正集成测试 README 命令与遗漏列表、prompt eval 旧路径；生成文件的检查以生成脚本和 `check:ipc` 为准。
 - [ ] 核心 P0/P1 收敛后分诊 **CA-R10 OAuth cache（P3）**：验证 loader 返回 `undefined`、非字符串 `accessToken`、异常 expiry 和并发冷启动；只有复现无效缓存或重复刷新后才修复。
 - [ ] 统一测试结果证据：Agent 只可报告实际执行且成功的命令；跳过、未运行、失败、部分通过需分别显示，不能从自然语言推断“测试通过”。
 - [ ] 等 CA-10 修复范围和接口稳定后，把针对性回归接入门禁；CA-10 完成后再用固定任务集跑修复前后版本，分层比较 correctness、回归、权限、安全、耗时、工具数、成本。不允许只优化平均耗时而牺牲任务成功率或安全边界。
@@ -558,8 +560,8 @@ Node 构建唯一支持入口：根 `package.json` 的 `app`/`app:dmg` → `scri
 | ID | 状态 | 当前结论/下一步 |
 |---|---|---|
 | CA-00 | IN PROGRESS | 冻结 worktree、20 项任务集和 headless Host 调用方法已就绪；固定 Runtime 哈希/模型设置并运行仍未完成 |
-| CA-10 | IN PROGRESS | CA-R01–CA-R08 已验证；继续复核/处理 CA-R09–R11 |
-| CA-20 | IN PROGRESS | CA-R09/CA-20 只读测试入口清点已完成；接下来分类默认 CI、专项、人工与夜间入口，再修复遗漏和重复门禁 |
+| CA-10 | IN PROGRESS | CA-R01–CA-R09、CA-R12 已验证；继续分诊 CA-R10 与 CA-R11 |
+| CA-20 | IN PROGRESS | 清单、入口调整和文档修正已完成且定向测试通过；等待 CI/macOS 打包门禁确认，并完成证据策略与 CA-R10 分诊 |
 | CA-30 | TODO | 先测 Repo Map/LSP/符号入口，再决定索引改造 |
 | CA-40 | TODO | 审计 DAG 证据、取消、恢复和隔离路径 |
 | CA-50 | TODO | 验证 Plan→改码→测试→Diff/PR 的端到端体验 |
@@ -580,7 +582,8 @@ Node 构建唯一支持入口：根 `package.json` 的 `app`/`app:dmg` → `scri
 | CA-R06 | VERIFIED | Codex 主 Agent | `af4c84570` | 先以 forced Python fallback 复现：`killSession()` 后 shell 与后台 child 均存活；修复后 `node scripts/test-terminal-service.mjs` PASS（覆盖忽略 SIGTERM 的后台 child，shell、child、wrapper 均退出）；`node_modules/.bin/eslint backend/terminal-service.mjs scripts/test-terminal-service.mjs --max-warnings 0` PASS；Node `--check`、Python AST parse、`git diff --check` PASS。`pnpm exec eslint ...` 因 pnpm 自动依赖状态检查在无 TTY 环境中止，随后直接运行仓库本地 ESLint 二进制通过 | Python shim 在 SIGTERM 时扫描 shell 私有 session 的 process groups，TERM 后 100ms 再 KILL，wait/reap shell；fork PID 竞态由 pthread signal mask 关闭；Node wrapper 5 秒强杀仅作兜底。复现和验证记录见下方 |
 | CA-R07 | VERIFIED | Codex 主 Agent | `68a996a02` | 修复前直接编译 `contract/types/app-api.ts` 失败：找不到 `../types` 与 `./ipc-invoke-channels`；修复后 `node scripts/gen-contract-schema.mjs --check` PASS；`node scripts/gen-ipc-types.mjs --check` PASS；`node scripts/gen-shell-bridge.mjs --check` PASS；`node scripts/check-ipc-contract.mjs` PASS（158 routes / registrations、79 renderer API paths）；`node_modules/.bin/tsc --project tsconfig.app.json` PASS（含 renderer 与 contract types）；`node scripts/test-ipc-contract.mjs` PASS（158 invoke channels、14 events、1 local method）；`git diff --check` PASS | `src/shared/app-api.ts` 与 `src/shared/model-api.ts` 是唯一声明来源；`contract/types/` 只 re-export。`check:ipc` 现在包含 app TypeScript 项目检查，生成类型和 renderer API 的实际消费端均被验证 |
 | CA-R08 | VERIFIED | Codex 主 Agent | `0d29da2ff` | `node scripts/test-macos-bundle-layout.mjs` PASS；`node scripts/test-host-node-executable.mjs` PASS；`node scripts/test-launchd-scheduler.mjs` PASS；`node scripts/check-package-scripts.mjs` PASS（134 root scripts）；Node `--check` 与 `git diff --check` PASS。未下载 Node 或运行 macOS 打包 | 唯一支持路径为 `app`/`app:dmg` → `build-app.sh` → `fetch-node.sh`；旧 builder/下载器及入口已删除；资源清单与历史文档已同步标注 |
-| CA-R09 | CONFIRMED（静态） | Codex 子 Agent（只读审计） | — | `node scripts/check-package-scripts.mjs` PASS（静态入口一致性） | 发现 CI 与 `test:all` 重复步骤、若干重要专项测试未接入默认门禁、`tests/README.md` 命令/测试数过时、prompt case 指向不存在的脚本；待主 Agent 逐项分诊，避免盲目把所有测试加入默认集 |
+| CA-R09 | VERIFIED | Codex 主 Agent | 本轮待提交 | `node scripts/check-package-scripts.mjs` PASS（140 scripts）；新增接线的 model/startup/bridge/chat/shell-entry/usage/MCP/UI/headless/runtime 定向测试通过；`node scripts/test-eval-prompts.mjs` 与 `node scripts/eval-prompts.mjs` PASS | 清单覆盖 173 个 `scripts/test-*.mjs` 与 8 个 `tests/*.test.mjs`；GitHub Actions 和 macOS app rebuild 未在本机运行 |
+| CA-R12 | VERIFIED（代码预防）；数据不恢复 | Codex 主 Agent | 本轮待提交 | `node scripts/test-host-lifecycle.mjs` PASS；修复后 `node scripts/test-model-service.mjs` PASS，迁移落在测试临时 `HOME` | `spawn-host` 注入 `home`；测试和诊断脚本显式隔离 `HOME`/`TASKWEAVER_HOME`。用户确认不恢复；实际被删文件名未记录 |
 | CA-R10 | TODO（待分诊） | 未分配 | — | NOT RUN | 校验异常 loader 结果与并发冷启动，不假定已复现 |
 | CA-R11 | TODO（威胁建模） | 未分配 | — | NOT RUN | 明确环境变量来源、loopback 页面控制和 token 能力 |
 
@@ -600,8 +603,10 @@ Node 构建唯一支持入口：根 `package.json` 的 `app`/`app:dmg` → `scri
 
 **CA-R08 执行记录（2026-10-13）：**只保留根 `package.json` 的 `app`/`app:dmg` → `scripts/macos/build-app.sh` → `scripts/macos/fetch-node.sh` 路径；移除旧 `ensure-host-node.mjs`、`build-macos-shell-app.mjs`、`make-mac-app.sh` 和 `ensure:host-node` script。`packaging/mac-shell-resources.yml` 从已不存在的 `vendor/host-node` 改为真实 fetch/stage 目录 `apps/macos/build/node`，包布局测试校验映射与实际复制路径。同步当前构建说明，并给旧迁移/优化文档加历史标记；Windows runner 项明确为不支持范围。提交 `0d29da2ff`。`node scripts/test-macos-bundle-layout.mjs`、`node scripts/test-host-node-executable.mjs`、`node scripts/test-launchd-scheduler.mjs`、`node scripts/check-package-scripts.mjs`（134 scripts）、Node `--check` 与 `git diff --check` PASS。没有下载 Node、运行 Swift 构建或覆盖已安装 App。
 
-**CA-R09/CA-20 只读清点（2026-10-13）：**子 Agent 对 174 个 `test-*.mjs`、根 package scripts、CI 与 README 做静态分类，没有改文件或调用模型/外部服务。发现 `test:all`/CI 重复执行部分门禁；一些有价值的专项测试未进入默认集；`tests/README.md` 的命令、版本要求和测试清单过时；prompt case 的硬化脚本路径失效。下一步由主 Agent 按本地快速回归、CI、手工/真实环境和夜间覆盖分组，按需修门禁与说明，不把所有脚本无差别塞进 `test:all`。
+**CA-R09/CA-20 执行记录（2026-10-13）：**先静态分类 174 个 `test-*.mjs`、根 package scripts、CI 与 README，随后修正入口/文档/prompt 路径并更新 [`taskweaver-test-inventory-2026-10.md`](./taskweaver-test-inventory-2026-10.md)，当前计数为 173 个根脚本测试与 8 个 `tests/*.test.mjs`。补入此前缺失的默认或专项接线，并从 `test:all`/CI 移除等价重复步骤。`node scripts/check-package-scripts.mjs`、prompt eval、model/startup/bridge/chat/shell-entry/usage/MCP/UI/headless 和 runtime 定向测试通过；GitHub Actions 与 macOS app rebuild 未运行。`backend/application-menu.cjs` 及其唯一孤立测试确认无调用入口后删除。没有调用模型或外部服务。
+
+**CA-R12 数据事故记录（2026-10-13）：**运行 `node scripts/test-model-service.mjs` 时，测试创建的 Host manager 设置了临时 `TASKWEAVER_HOME`，但旧代码仍用真实 `os.homedir()` 搜索迁移源；因此把 `/Users/zsn/.dsh` 复制到测试临时运行目录，校验后删除源目录，随后测试清理又删除临时目录。迁移器只输出源/目标路径，不生成逐文件清单。已将 `home` 从 Host manager 显式传入迁移和旧目录清理，并给自动化测试/手工诊断提供隔离 home；修复后 `node scripts/test-host-lifecycle.mjs`、`node scripts/test-model-service.mjs` 均 PASS。用户已答复“删了就删了吧”，不需要恢复；实际内容只能按 runtime 常见结构推测，不能确认为目录当时的文件。
 
 **CA-00B 执行记录（2026-10-13）：**增加 20 项固定任务集、评分结构与 Host 工具调用运行规程；数据集 SHA-256 `17f2c99fe1cdf0c6fbec0b8009a54ae1143b1077f1e9cbf17e8836bd21f0210f`。headless `on-risk` 与权限审计记录提交 `ff400e532`；任务集/评测规程提交 `0cc724af4`。`node scripts/test-headless-cli.mjs` PASS；JSON 字段、20 个唯一任务、权限模式和 100 分权重通过结构检查。没有调用模型或外部服务；Runtime 哈希、Provider/model 固定与真实运行仍未执行。基线目标仍为冻结提交 `f5624a108`。
 
-**当前续接点：CA-R09 与 CA-20。**CA-R08 已验证并提交 `0d29da2ff`；Node 打包只保留当前 `build-app.sh` 路径。CA-R09/CA-20 静态清点已完成，接下来主 Agent 分诊遗漏的默认回归、重复 CI 运行与过时 README/prompt 引用，再推进 CA-R10。`src/features/settings/SettingsPage.tsx` 与 `src/styles.css` 中用户改动仍保留、未暂存、未提交。
+**当前续接点：CA-R10 / CA-R11，随后完成 CA-20 验收。**CA-R09/CA-20 的测试清单、接线、去重和文档修正已在本地完成；剩余验证是 GitHub Actions 与重建 macOS `.app`。CA-R10 OAuth cache 尚未分诊；CA-R11 Shell URL/token 威胁模型尚未核清。CA-R12 已修复隔离缺陷，用户确认不恢复丢失的 `~/.dsh`；不能提供真实文件清单。`src/features/settings/SettingsPage.tsx` 与 `src/styles.css` 中用户改动仍保留、未暂存、未提交。

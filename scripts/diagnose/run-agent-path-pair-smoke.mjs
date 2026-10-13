@@ -276,7 +276,7 @@ try {
     await fs.writeFile(isolatedModelsPath, `${JSON.stringify(sanitized, null, 2)}\n`, { mode: 0o600 })
   } catch (error) { if (error.code !== 'ENOENT') throw error }
 
-  hostManager = createZHostManager({ runtimeRoot, userDataPath: hostHome, environment: safeHostEnvironment })
+  hostManager = createZHostManager({ runtimeRoot, userDataPath: hostHome, home: hostHome, environment: safeHostEnvironment })
   let started = await hostManager.start()
   api = started.api
   const sync = await ensureModelsJsonSyncedToDshHost({ hostManager, userDataPath: hostHome, modelsDocOverride: modelDocForSync })

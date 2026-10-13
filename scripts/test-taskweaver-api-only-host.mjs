@@ -80,6 +80,7 @@ await new Promise((resolve, reject) => {
     cwd: runtimeRoot,
     env: {
       ...process.env,
+      HOME: home,
       TASKWEAVER_HOME: path.join(home, 'z'),
       TASKWEAVER_TELEMETRY_DISABLED: '1',
       TASKWEAVER_EMBEDDED: '1',

@@ -25,4 +25,4 @@
 
 - Fork：`backend/fork-turns.mjs`、`backend/dsh-chat-service.mjs`、`backend/register-ipc.mjs`
 - Git 检查点：`backend/git-service.mjs`、`backend/register-workspace-git-ipc.mjs`
-- 回归入口：`npm run test:fork-thread-smoke`、`npm run test:git-checkpoints`
+- 回归入口：`pnpm run test:fork-thread-smoke`、`pnpm run test:git-checkpoints`。完整 `test:all` 通过 `test:integration` glob 运行 fork smoke。

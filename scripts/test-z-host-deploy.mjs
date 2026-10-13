@@ -657,6 +657,7 @@ await fs.writeFile(userReadonlyPresetPath, userReadonlyPreset)
 const manager = createZHostManager({
   runtimeRoot,
   userDataPath: testHome,
+  home: testHome,
   environment: {
     ...process.env,
     TASKWEAVER_HOME: testHome,

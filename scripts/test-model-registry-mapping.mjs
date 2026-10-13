@@ -28,6 +28,7 @@ const hostEnvironment = { ...process.env, TASKWEAVER_HOME: isolatedRuntimeHome }
 const hostManager = createZHostManager({
   runtimeRoot,
   userDataPath: userData,
+  home: userData,
   environment: hostEnvironment,
   startTimeoutMs: 60_000,
 })

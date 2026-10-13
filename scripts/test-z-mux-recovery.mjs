@@ -58,6 +58,7 @@ await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
 const isolatedRuntimeHome = path.join(home, 'z')
 const manager = createZHostManager({ runtimeRoot: resolveTaskWeaverRuntimeRoot({ appPath: process.cwd(), isPackaged: false }),
   userDataPath: home,
+  home,
   environment: { ...process.env, TASKWEAVER_HOME: isolatedRuntimeHome, TASKWEAVER_MUX_TEST_KEY: 'local-only' } })
 let chat
 const waitFor = async (predicate, label) => {

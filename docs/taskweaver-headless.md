@@ -23,7 +23,7 @@
 ## CLI
 
 ```bash
-npm run headless -- --text "<用户提示>" [选项…]
+pnpm run headless -- --text "<用户提示>" [选项…]
 # 等价
 node scripts/taskweaver-headless.mjs --text "<用户提示>" [选项…]
 ```
@@ -101,13 +101,13 @@ headless 会注入 `--local`（隔离临时 userData + 本机起 Host）。下�
 
 ```bash
 # 只读列举（默认 preset）
-npm run headless -- --text "只读列出仓库根目录下的顶层文件"
+pnpm run headless -- --text "只读列出仓库根目录下的顶层文件"
 
 # 指定 preset
-npm run headless -- --text "简述 README 要点" --preset taskweaver-readonly
+pnpm run headless -- --text "简述 README 要点" --preset taskweaver-readonly
 
 # CI 友好：末尾一行摘要
-npm run headless -- --text "ping" --json-summary
+pnpm run headless -- --text "ping" --json-summary
 
 # 查看用法（无需 Host）
 node scripts/taskweaver-headless.mjs --help
@@ -125,7 +125,7 @@ node scripts/taskweaver-headless.mjs --help
 
 ## 相关脚本与测试
 
-- 门禁（无需 Host）：`npm run test:headless-doc` → [`scripts/test-headless-cli.mjs`](../scripts/test-headless-cli.mjs)
+- 门禁（无需 Host）：`pnpm run test:headless-doc` → [`scripts/test-headless-cli.mjs`](../scripts/test-headless-cli.mjs)
 - 完整 smoke（需本机模型 + Host）：`node scripts/diagnose/run-agent-read-smoke.mjs --local --text "…"`
 
 ## 文档索引

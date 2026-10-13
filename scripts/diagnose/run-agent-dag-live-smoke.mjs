@@ -692,6 +692,8 @@ try {
     runtimeRoot,
     opencodexPackageRoot: path.join(root, 'vendor', 'opencodex'),
     userDataPath: reportDir,
+    home: reportDir,
+    environment: { ...process.env, TASKWEAVER_HOME: path.join(reportDir, 'dsh') },
   })
   let { api } = await hostManager.start()
   const sync = await ensureModelsJsonSyncedToDshHost({ hostManager, userDataPath: reportDir, modelsDocOverride: modelsDocForSync })

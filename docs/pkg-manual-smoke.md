@@ -3,16 +3,16 @@
 构建：
 
 ```bash
-npm run build:z-runtime   # 会将 dsh-chat-registry 打入 taskweaver-z-runtime/electron-vendor
-npm run app:builder
+pnpm run build:z-runtime   # 改 preset / runtime 后需要重建部署树
+pnpm run app:builder
 ```
 
-打包后 `test-packaged-runtime-layout` 会校验 `electron-vendor/dsh-chat-registry.mjs`（对话投影 registry）。
+默认产物位于 `apps/macos/build/TaskWeaver.app`；也可以通过 `TASKWEAVER_APP_BUNDLE` 指定隔离输出路径。`app:builder` 会检查 Swift `.app` 布局、runtime、OpenCodex/Bun，以及本地 mock 对话和工作区文件读取。
 
-将 `release/mac-arm64/TaskWeaver.app` 拷到独立路径（**不要**在 `release/` 里直接测）后启动：
+将构建产物拷到独立路径（**不要**在 build / release 目录直接手测）后启动：
 
 ```bash
-npm run pkg:prepare-smoke   # 复制到 ~/Desktop/TaskWeaver-smoke-<日期>.app
+pnpm run pkg:prepare-smoke   # 复制到 ~/Desktop/TaskWeaver-smoke-<日期>.app
 open ~/Desktop/TaskWeaver-smoke-*.app
 ```
 
@@ -27,12 +27,12 @@ open ~/Desktop/TaskWeaver-smoke-*.app
 - [x] 日志面板（若已接入顶栏入口）
 - [x] 退出再开：会话与模型配置仍可用
 
-**手测记录**：2026-10-09，产物 `~/Desktop/TaskWeaver-smoke-2026-10-09.app`（维护者口头确认全部通过）。
+**历史手测记录**：2026-10-09，产物 `~/Desktop/TaskWeaver-smoke-2026-10-09.app`（维护者口头确认当时通过）。本轮未重建 `.app`，该记录不代表当前源码版本的安装包验收。
 
 自动化已覆盖（不等同于本清单）：
 
-- `npm run app:builder` 末尾：`test-opencodex-packaging`、`test-packaged-runtime-layout`、`test-packaged-app-launch`（隔离 `user-data-dir` 冷启动 ≥4s 不崩溃）
-- 单独跑：`npm run test:packaged-app-launch`
-- 2026-10-09 本地：`app:builder` 全绿（`test:all` 同日前亦全绿）
+- `pnpm run app:builder` 末尾：`test-opencodex-packaging`、`test-packaged-runtime-layout`、`test-packaged-app-launch`（隔离 user data，本地 mock provider 完成对话与文件读取）
+- 单独跑：`pnpm run test:packaged-app-launch`
+- 2026-10-09 的 `app:builder` 结果只适用于当时构建的 `.app`；当前源码版本待重建验证。
 
 手测完成后在 `docs/optimization-plan-progress.md` 将 1.12 / 2.13 标为 ✅ 并注明日期。合并 PR 模板见 [`merge-pr-checklist.md`](merge-pr-checklist.md)。

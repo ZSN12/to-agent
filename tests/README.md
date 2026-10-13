@@ -1,74 +1,43 @@
 # Integration Tests
 
-This directory contains integration tests for TaskWeaver's core functionalities.
+Root-level integration tests use Node.js's built-in `node:test` runner. The repository supports Node.js `>=22.18` and uses pnpm `11.7.0`.
 
-## Test Structure
+## Test files
 
-```
+```text
 tests/
 ├── helpers/
-│   └── mock-services.mjs          # Mock services for testing
-├── multi-session-parallel.test.mjs # Multi-session concurrency tests
-├── dsh-reconnect.test.mjs          # DSH reconnection tests
-└── permission-flow.test.mjs        # Permission approval flow tests
+│   └── mock-services.mjs
+├── chat-document-attachments.test.mjs
+├── chat-image-attachments.test.mjs
+├── conversation-id-routing.test.mjs
+├── dsh-reconnect.test.mjs
+├── fork-thread-smoke.test.mjs
+├── multi-session-parallel.test.mjs
+├── permission-flow.test.mjs
+└── ui-accessibility-source.test.mjs
 ```
 
-## Running Tests
+## Run tests
 
-Run all integration tests:
+Run all root-level integration tests:
+
 ```bash
-npm run test:integration
+pnpm run test:integration
 ```
 
-Run specific test suites:
+Run the suites with dedicated package scripts:
+
 ```bash
-npm run test:integration:multi-session   # Multi-session parallel execution
-npm run test:integration:reconnect       # DSH reconnection
-npm run test:integration:permissions     # Permission flow
+pnpm run test:integration:multi-session
+pnpm run test:integration:reconnect
 ```
 
-Run individual test files:
+Run a specific test file directly:
+
 ```bash
-node --test tests/multi-session-parallel.test.mjs
-node --test tests/dsh-reconnect.test.mjs
 node --test tests/permission-flow.test.mjs
+node --test tests/fork-thread-smoke.test.mjs
 ```
 
-## Test Coverage
-
-### Multi-Session Parallel Execution
-Tests concurrent DSH session handling:
-- Tool call isolation between sessions
-- Concurrent file mutation handling
-- Message history separation
-- Independent state transitions
-- Event emission isolation
-
-### DSH Reconnection
-Tests disconnect/reconnect behavior:
-- Disconnection detection
-- Operation rejection during disconnect
-- State restoration after reconnection
-- Session ID preservation
-- Tool call history maintenance
-
-### Permission Flow
-Tests permission request and approval:
-- Pending prompt creation
-- Approval/denial resolution
-- Concurrent permission requests
-- Auto-approve mode
-- Error handling for invalid prompts
-
-## Test Framework
-
-These tests use Node.js built-in test runner (`node:test`), which requires Node.js 18+.
-
-## Mock Services
-
-The `helpers/mock-services.mjs` module provides:
-- `MockDshSession` - Simulates DSH session lifecycle
-- `MockPermissionService` - Simulates permission approval flow
-- `MockOrchestrationService` - Simulates DAG task execution
-- `createMockWorkspace` - Creates test workspace
-- `waitFor` - Utility for async condition waiting
+There is no dedicated permissions package script; use the direct `node --test` command above.

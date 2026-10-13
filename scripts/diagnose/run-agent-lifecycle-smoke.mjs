@@ -113,7 +113,12 @@ try {
       await fs.chmod(target, 0o600)
     } catch (error) { if (error.code !== 'ENOENT') throw error }
   }
-  manager = createZHostManager({ runtimeRoot, userDataPath: reportDir })
+  manager = createZHostManager({
+    runtimeRoot,
+    userDataPath: reportDir,
+    home: reportDir,
+    environment: { ...process.env, TASKWEAVER_HOME: path.join(reportDir, 'dsh') },
+  })
   ;({ api } = await manager.start())
   const profileStore = createProfileStore(originalHome)
   report.modelKey = requestedModelKey ?? await profileStore.getActiveModelKey()

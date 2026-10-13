@@ -62,6 +62,8 @@ try {
   hostManager = createZHostManager({
     runtimeRoot: path.join(root, 'vendor/taskweaver-z-runtime'),
     userDataPath: reportDir,
+    home: reportDir,
+    environment: { ...process.env, TASKWEAVER_HOME: path.join(reportDir, 'dsh') },
   })
   const { api } = await hostManager.start()
   const historyReply = await api.sessions.history({ sessionId: source.entry.sessionId, maxMessages: 100_000 })

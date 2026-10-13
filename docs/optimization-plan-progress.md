@@ -1,5 +1,7 @@
 # 毕设优化计划执行进度
 
+> 历史状态快照，最后更新于 2026-10-10。本文中的 npm 命令与 `release/mac-arm64/TaskWeaver.app` 路径已经过期；当前质量提升状态与验收命令以 [`taskweaver-execution-plan-2026-10.md` §16](taskweaver-execution-plan-2026-10.md#16-面向顶级-coding-agent-的可靠性与能力提升执行计划) 为准。
+
 对照：`/Users/zsn/Downloads/毕设优化计划.md`（2026-10-09）
 
 ## 阶段 1 安全修复

@@ -139,8 +139,8 @@ try {
   }
   const canonicalHome = await fs.realpath(reportDir)
   const profile = `(version 1) (allow default) (deny file-write*) (allow file-write* (subpath ${JSON.stringify(canonicalHome)}) (literal "/dev/null") (literal "/dev/tty"))`
-  manager = createZHostManager({ runtimeRoot, userDataPath: reportDir,
-    environment: { ...process.env, TMPDIR: canonicalHome },
+  manager = createZHostManager({ runtimeRoot, userDataPath: reportDir, home: reportDir,
+    environment: { ...process.env, TASKWEAVER_HOME: path.join(reportDir, 'dsh'), TMPDIR: canonicalHome },
     spawnProcess: (executable, args, options) => spawn('/usr/bin/sandbox-exec', ['-p', profile, executable, ...args], options) })
   const { api } = await manager.start()
   const since = Date.now()

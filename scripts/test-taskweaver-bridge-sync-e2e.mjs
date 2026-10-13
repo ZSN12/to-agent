@@ -32,7 +32,12 @@ try {
   process.exit(0)
 }
 
+const previousTaskweaverHome = process.env.TASKWEAVER_HOME
 const userDataPath = await fs.mkdtemp(path.join(os.tmpdir(), 'tw-bridge-sync-e2e-'))
+let hostManager
+const previousHome = process.env.HOME
+try {
+process.env.HOME = userDataPath
 const taskweaverHome = path.join(userDataPath, 'runtime')
 await fs.mkdir(taskweaverHome, { recursive: true })
 process.env.TASKWEAVER_HOME = taskweaverHome
@@ -41,9 +46,10 @@ await ensureTaskWeaverModelsJson({ userDataPath, appPath: root })
 const defaults = await loadBundledDefaultModelsDoc(root)
 const modelsDocOverride = structuredClone(defaults)
 
-const hostManager = createZHostManager({
+hostManager = createZHostManager({
   runtimeRoot,
   userDataPath,
+  home: userDataPath,
 })
 let restartCount = 0
 const restartHost = hostManager.restart.bind(hostManager)
@@ -120,9 +126,18 @@ assert.equal(
 )
 
 await hostManager.stop()
+hostManager = null
 console.log('test-taskweaver-bridge-sync-e2e: ok', {
   bridgeProviderCount: sync.bridgeProviderCount,
   piProviderCount: sync.piProviderCount,
   activeBridgeRoute: true,
   restartCount,
 })
+} finally {
+  if (hostManager) await hostManager.stop().catch(() => {})
+  if (previousTaskweaverHome === undefined) delete process.env.TASKWEAVER_HOME
+  else process.env.TASKWEAVER_HOME = previousTaskweaverHome
+  if (previousHome === undefined) delete process.env.HOME
+  else process.env.HOME = previousHome
+  await fs.rm(userDataPath, { recursive: true, force: true })
+}

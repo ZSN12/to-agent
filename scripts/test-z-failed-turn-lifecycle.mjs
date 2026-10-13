@@ -47,7 +47,7 @@ const server = createServer((request, response) => {
 })
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
 const manager = createZHostManager({ runtimeRoot: resolveTaskWeaverRuntimeRoot({ appPath: process.cwd(), isPackaged: false }),
-  userDataPath: home, environment: { ...process.env, TASKWEAVER_FAILURE_TEST_KEY: 'local-only' } })
+  userDataPath: home, home, environment: { ...process.env, TASKWEAVER_HOME: path.join(home, 'runtime'), TASKWEAVER_FAILURE_TEST_KEY: 'local-only' } })
 let chat
 const modelKey = 'failure-test/mock-model'
 const id = (await appState.getState()).conversationId

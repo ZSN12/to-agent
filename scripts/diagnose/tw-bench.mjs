@@ -21,6 +21,8 @@ console.log('TASKWEAVER_HOME    :', path.join(userDataPath, 'dsh'))
 const host = createZHostManager({
   runtimeRoot,
   userDataPath,
+  home: userDataPath,
+  environment: { ...process.env, TASKWEAVER_HOME: path.join(userDataPath, 'runtime') },
   startTimeoutMs: 90_000,
 })
 

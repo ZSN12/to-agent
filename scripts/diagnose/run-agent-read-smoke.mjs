@@ -167,7 +167,12 @@ try {
       await fs.mkdir(path.dirname(isolatedModelsPath), { recursive: true })
       await fs.writeFile(isolatedModelsPath, `${JSON.stringify(modelsDoc, null, 2)}\n`, { mode: 0o600 })
     } catch (error) { if (error.code !== 'ENOENT') throw error }
-    hostManager = createZHostManager({ runtimeRoot, userDataPath: reportDir })
+    hostManager = createZHostManager({
+      runtimeRoot,
+      userDataPath: reportDir,
+      home: reportDir,
+      environment: { ...process.env, TASKWEAVER_HOME: path.join(reportDir, 'dsh') },
+    })
     ;({ api } = await hostManager.start())
     const sync = await ensureModelsJsonSyncedToDshHost({
       hostManager,

@@ -26,11 +26,12 @@ const userDataPath = path.join(root, 'user-data')
 await fs.mkdir(runtimeHome, { recursive: true })
 await fs.mkdir(userDataPath, { recursive: true })
 
-function testDependencies({ environment, spawnProcess }) {
+function testDependencies({ environment, spawnProcess, home = root, testUserDataPath = userDataPath }) {
   return {
     runtimeRoot: path.join(root, 'runtime'),
     opencodexPackageRoot: null,
-    userDataPath,
+    userDataPath: testUserDataPath,
+    home,
     environment,
     spawnProcess,
     prepareRuntimeCwdFn: () => path.join(root, 'runtime-cwd'),
@@ -98,6 +99,42 @@ try {
   assert.equal(uiChildEnvironment.Z_HOME, runtimeHome)
   assert.equal(uiChildEnvironment.DSH_HOME, runtimeHome)
   await uiManager.stop()
+
+  const migrationHome = path.join(root, 'migration-home')
+  const decoyHome = path.join(root, 'decoy-home')
+  const migrationTarget = path.join(migrationHome, 'runtime')
+  await fs.mkdir(path.join(migrationHome, '.dsh'), { recursive: true })
+  await fs.mkdir(decoyHome, { recursive: true })
+  await fs.writeFile(path.join(migrationHome, '.dsh', 'fixture.txt'), 'isolated legacy home')
+  const previousHome = process.env.HOME
+  try {
+    process.env.HOME = decoyHome
+    const migrationManager = createZHostManager(testDependencies({
+      home: migrationHome,
+      testUserDataPath: migrationHome,
+      environment: {
+        TASKWEAVER_HOME: migrationTarget,
+        TASKWEAVER_KEEP_LEGACY_RUNTIME_HOME: '1',
+      },
+      spawnProcess() {
+        const child = new FakeHostProcess()
+        setImmediate(() => child.stdout.write('z web: http://127.0.0.1:19994\n'))
+        return child
+      },
+    }))
+    try {
+      await migrationManager.start()
+      assert.equal(await fs.readFile(path.join(migrationTarget, 'fixture.txt'), 'utf8'), 'isolated legacy home',
+        'runtime-home migration must use the explicitly injected home, not the process HOME')
+      assert.equal(await fs.readFile(path.join(migrationHome, '.dsh', 'fixture.txt'), 'utf8'), 'isolated legacy home',
+        'the test fixture must preserve its legacy source')
+    } finally {
+      await migrationManager.stop()
+    }
+  } finally {
+    if (previousHome === undefined) delete process.env.HOME
+    else process.env.HOME = previousHome
+  }
 
   let failedStarts = 0
   const failedManager = createZHostManager(testDependencies({

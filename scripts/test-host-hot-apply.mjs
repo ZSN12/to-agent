@@ -103,6 +103,7 @@ let hostPort = 19995
 const hostManager = createZHostManager({
   runtimeRoot: path.join(tmpRoot, 'runtime'),
   userDataPath,
+  home: tmpRoot,
   environment: {
     ...process.env,
     TASKWEAVER_STARTUP_TRACE: '1',

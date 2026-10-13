@@ -13,6 +13,8 @@ import {
 const candidateApps = process.argv[2]
   ? [path.resolve(process.argv[2])]
   : [
+      ...(process.env.TASKWEAVER_APP_BUNDLE ? [path.resolve(process.env.TASKWEAVER_APP_BUNDLE)] : []),
+      path.resolve('apps/macos/build/TaskWeaver.app'),
       path.resolve('release/mac-arm64/TaskWeaver.app'),
       path.resolve('release/mac/TaskWeaver.app'),
       path.resolve('release/mac-universal/TaskWeaver.app'),
@@ -28,9 +30,10 @@ for (const candidate of candidateApps) {
 assert.ok(resolvedAppPath, `TaskWeaver app bundle not found; checked: ${candidateApps.join(', ')}`)
 
 const resourcesPath = path.join(resolvedAppPath, 'Contents', 'Resources')
-const runtimePackagesPath = path.join(resourcesPath, 'taskweaver-z-runtime', 'runtime-packages')
+const runtimeRoot = path.join(resourcesPath, 'backend', 'runtime')
+const runtimePackagesPath = path.join(runtimeRoot, 'runtime-packages')
 setOcxRuntimeContext({
-  appPath: path.join(resourcesPath, 'app.asar'),
+  appPath: path.join(resourcesPath, 'app'),
   resourcesPath,
   isPackaged: true,
 })
@@ -38,26 +41,13 @@ setOcxRuntimeContext({
 try {
   const ocxPath = resolveOcxExecutable()
   const bunPath = resolveOcxBunExecutable()
-  assert.ok(ocxPath.includes(`${path.sep}app.asar.unpacked${path.sep}node_modules${path.sep}@taskweaver${path.sep}opencodex${path.sep}`),
-    `expected the unpacked TaskWeaver fork, got ${ocxPath}`)
+  assert.ok(ocxPath.includes(`${path.sep}app${path.sep}vendor${path.sep}opencodex${path.sep}bin${path.sep}ocx.mjs`),
+    `expected the bundled TaskWeaver fork, got ${ocxPath}`)
   assert.ok(bunPath, 'packaged Bun runtime is missing')
   assert.ok((await fs.stat(bunPath)).size > 1_000_000, 'packaged Bun file is a placeholder or truncated')
-  const runtimeRoot = path.join(resourcesPath, 'taskweaver-z-runtime')
-  const deployNodeModules = path.join(runtimeRoot, 'node_modules')
-  const deployStat = await fs.lstat(deployNodeModules)
-  assert.ok(deployStat.isSymbolicLink(), 'packaged runtime root node_modules → runtime-packages link is missing')
-  const target = await fs.readlink(deployNodeModules)
-  assert.ok(
-    target === 'runtime-packages' || path.basename(target) === 'runtime-packages',
-    `runtime node_modules must point at runtime-packages, got ${target}`,
-  )
-  const selfLink = path.join(runtimePackagesPath, 'node_modules')
-  const selfStat = await fs.lstat(selfLink).catch(() => null)
-  if (selfStat?.isSymbolicLink()) {
-    const selfTarget = await fs.readlink(selfLink)
-    assert.notEqual(selfTarget, '.', 'runtime-packages/node_modules must not self-link (ELOOP with root node_modules)')
-  }
-  const bridgeTransport = path.join(resourcesPath, 'taskweaver-z-runtime', 'electron-vendor', 'taskweaver-bridge-transport', 'index.mjs')
+  assert.ok((await fs.stat(bunPath)).mode & 0o111, 'packaged Bun runtime is not executable')
+  assert.equal(bunPath, path.join(resourcesPath, 'opencodex-runtime', 'bun'), 'Bun must come from the native app runtime resources')
+  const bridgeTransport = path.join(runtimeRoot, 'electron-vendor', 'taskweaver-bridge-transport', 'index.mjs')
   await fs.access(bridgeTransport)
   await import(pathToFileURL(path.join(
     runtimePackagesPath,

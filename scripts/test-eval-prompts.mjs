@@ -25,6 +25,12 @@ assert.ok(validateDataset(mismatchedCategoryDataset).some((error) => error.inclu
 const unknownCategoryDataset = structuredClone(dataset)
 unknownCategoryDataset.cases[0].category = 'unregistered'
 assert.ok(validateDataset(unknownCategoryDataset).some((error) => error.includes('unsupported category')))
+const missingPathDataset = structuredClone(dataset)
+missingPathDataset.cases[0].paths = ['scripts/__taskweaver_missing_eval_fixture__.mjs']
+assert.ok(validateDataset(missingPathDataset).some((error) => error.includes('paths entry does not exist')))
+const outsidePathDataset = structuredClone(dataset)
+outsidePathDataset.cases[0].paths = ['../outside-evaluation-root.txt']
+assert.ok(validateDataset(outsidePathDataset).some((error) => error.includes('paths entry must stay inside evaluation root')))
 
 const prompts = await collectPromptSources(root)
 assert.equal(prompts.size, 11, 'all five active presets, four task profiles, planner, and synthesis are snapshotted')
@@ -93,6 +99,11 @@ try {
     ].map((id) => 'packages/runtime/host-cli/config/agent-presets/' + id + '/agent.cordis.yml'),
   ]
   for (const relative of fixturePaths) {
+    const destination = path.join(fixtureRoot, relative)
+    await fs.mkdir(path.dirname(destination), { recursive: true })
+    await fs.copyFile(path.join(root, relative), destination)
+  }
+  for (const relative of new Set(dataset.cases.flatMap((testCase) => testCase.paths ?? []))) {
     const destination = path.join(fixtureRoot, relative)
     await fs.mkdir(path.dirname(destination), { recursive: true })
     await fs.copyFile(path.join(root, relative), destination)

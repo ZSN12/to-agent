@@ -16,6 +16,8 @@ const userDataPath = path.join(process.env.HOME, '.taskweaver-dev')
 const hostManager = createZHostManager({
   runtimeRoot,
   userDataPath,
+  home: userDataPath,
+  environment: { ...process.env, TASKWEAVER_HOME: path.join(userDataPath, 'runtime') },
 })
 
 try {

@@ -22,14 +22,18 @@ assert.ok(merged.providers.deepseek)
 assert.ok(merged.providers['bridge-composer'])
 
 const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'tw-models-defaults-'))
-const result = await ensureTaskWeaverModelsJson({ userDataPath: tmp, appPath: root })
-assert.equal(result.created, true)
-assert.ok(result.addedProviderIds.includes('bridge-composer'))
-const onDisk = JSON.parse(await fs.readFile(resolveTaskWeaverModelsPath(tmp), 'utf8'))
-assert.ok(onDisk.providers['bridge-composer'])
+try {
+  const result = await ensureTaskWeaverModelsJson({ userDataPath: tmp, appPath: root })
+  assert.equal(result.created, true)
+  assert.ok(result.addedProviderIds.includes('bridge-composer'))
+  const onDisk = JSON.parse(await fs.readFile(resolveTaskWeaverModelsPath(tmp), 'utf8'))
+  assert.ok(onDisk.providers['bridge-composer'])
 
-const again = await ensureTaskWeaverModelsJson({ userDataPath: tmp, appPath: root })
-assert.equal(again.updated, false)
-assert.deepEqual(again.addedProviderIds, [])
+  const again = await ensureTaskWeaverModelsJson({ userDataPath: tmp, appPath: root })
+  assert.equal(again.updated, false)
+  assert.deepEqual(again.addedProviderIds, [])
+} finally {
+  await fs.rm(tmp, { recursive: true, force: true })
+}
 
 console.log('test-taskweaver-models-defaults: ok')

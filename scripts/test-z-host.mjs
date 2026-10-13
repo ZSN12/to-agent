@@ -19,7 +19,8 @@ const testHome = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-dsh-host-')
 const manager = createZHostManager({
   runtimeRoot,
   userDataPath: testHome,
-  environment: process.env,
+  home: testHome,
+  environment: { ...process.env, TASKWEAVER_HOME: path.join(testHome, 'runtime') },
   startTimeoutMs: 60_000,
 })
 
