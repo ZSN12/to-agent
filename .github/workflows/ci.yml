@@ -25,6 +25,8 @@ jobs:
           cache-dependency-path: pnpm-lock.yaml
       - name: Install desktop dependencies
         run: pnpm install --frozen-lockfile
+      - name: Install Playwright Chromium headless shell
+        run: pnpm --dir packages/runtime/interaction/ui-verify exec playwright-core install --only-shell chromium
       - name: Run isolated shell UI scenarios
         run: pnpm run test:ui
       - name: Upload UI failure evidence
