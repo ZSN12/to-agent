@@ -489,7 +489,7 @@ TaskWeaver 当前是 **macOS 优先的本地桌面 Coding Agent**。本计划遵
 - [x] 将 P0/P1 边界回归接入适当门禁：默认集新增 startup、Shell static entry、model/bridge/chat/usage/MCP 覆盖；Host deploy/runtime build 与 app bundle 检查保留在 CI/发行专用入口。专项人工检查不强塞进每次运行。
 - [x] 移除 CI 中重复执行的等价步骤，修正集成测试 README 命令与遗漏列表、prompt eval 旧路径；生成文件的检查以生成脚本和 `check:ipc` 为准。
 - [x] 核心 P0/P1 收敛后分诊 **CA-R10 OAuth cache（P3）**：验证 loader 返回 `undefined`、非字符串 `accessToken`、异常 expiry 和并发冷启动；空值/非字符串误缓存已复现并修复。并发冷启动会重复启动 Bun helper；OpenCodex 的 refresh coordinator 通过进程内 flight map、跨进程 account lock 和锁内重读凭据避免重复 refresh。未做真实 Provider 调用，见 §16.6。
-- [ ] 统一测试结果证据：Agent 只可报告实际执行且成功的命令；跳过、未运行、失败、部分通过需分别显示，不能从自然语言推断“测试通过”。
+- [x] 统一测试结果证据：Agent 只可报告实际执行且成功的命令；跳过、未运行、失败、部分通过需分别显示，不能从自然语言推断“测试通过”。Shell 输出缺少退出码时改为未确认；DAG 合并 Host 与后端验证器结果，并显示通过、失败、部分通过、未运行、跳过和未完成状态。
 - [ ] 等 CA-10 修复范围和接口稳定后，把针对性回归接入门禁；CA-10 完成后再用固定任务集跑修复前后版本，分层比较 correctness、回归、权限、安全、耗时、工具数、成本。不允许只优化平均耗时而牺牲任务成功率或安全边界。
 
 **验收：**每个 P0/P1 生产路径均有针对性自动验证；默认 CI 对关键路径无重复且无缺口；benchmark 报告包含失败样本、置信限制和真实命令记录。测试清点可提前完成，但修复后比较不得早于 CA-10 完成。
@@ -561,7 +561,7 @@ Node 构建唯一支持入口：根 `package.json` 的 `app`/`app:dmg` → `scri
 |---|---|---|
 | CA-00 | IN PROGRESS | 冻结 worktree、20 项任务集和 headless Host 调用方法已就绪；固定 Runtime 哈希/模型设置并运行仍未完成 |
 | CA-10 | COMPLETE | CA-R01–CA-R12 已完成代码验证或威胁分诊；CA-R11 的启动环境条件性风险留在 deferred 跟踪，不作为已证实远程漏洞 |
-| CA-20 | IN PROGRESS | 清单、默认接线、去重、CA-R10 分诊及文档修正已完成；等待 CI/macOS 打包门禁确认，证据策略与 benchmark 仍未完成 |
+| CA-20 | IN PROGRESS | 测试清单、默认接线、去重、证据状态策略及本地定向回归已完成；GitHub Actions/macOS 打包门禁与固定任务集 benchmark 仍待执行 |
 | CA-30 | TODO | 先测 Repo Map/LSP/符号入口，再决定索引改造 |
 | CA-40 | TODO | 审计 DAG 证据、取消、恢复和隔离路径 |
 | CA-50 | TODO | 验证 Plan→改码→测试→Diff/PR 的端到端体验 |
@@ -613,6 +613,8 @@ Node 构建唯一支持入口：根 `package.json` 的 `app`/`app:dmg` → `scri
 
 提交 `324d78353` 修复 token 的可见持久化路径：bootstrap 读取 fragment 后移除 fragment/query 中的 token 并 `history.replaceState`，删除无生产写入者的 query/meta token fallback；`dev:browser` 改为打印无凭据 `/__taskweaver/dev-ui` 入口，由仅在显式开发模式开放的 no-store 302 将 token 交付到 Vite fragment。新增测试覆盖 token 清理、header 仍携带 token、开发跳转、打包默认拒绝 Vite Origin 及打包时禁止启用开发跳转。`node scripts/test-shell-entry.mjs`、`node scripts/test-shell-http-guard.mjs`、`node scripts/test-shell-ui-static-serving.mjs`、`node scripts/test-shell-webcontents-lifecycle.mjs`、`node scripts/check-desktop-hardening.mjs`、定向 ESLint 和 app TypeScript 检查均 PASS。独立 `swiftc` policy smoke PASS；`swift test --package-path apps/macos/TaskWeaverShell --filter ShellURLPolicyTests` 因本机 Swift 工具链无 XCTest 模块不可运行，且未做 macOS App rebuild。后续如需关闭残余风险，应限制 release 模式的任意 loopback override，或通过 WebKit 原生安全通道提供 token。
 
+**CA-20 测试结果证据策略（2026-10-14，代码提交 `7d3aecdc5`）：**修正 Shell command evidence 在缺少 `[exit code: N]` 终止标记时默认推断退出码 0 的问题；仅自然语言输出 `tests passed` 现在会得到未知退出码，不能通过验收。工作区验证器增加 `passed / failed / not_run` 状态；DAG 将 Host 工具事件和后端最终验证结果按命令合并，同命令以后一次结果为准，汇总为 `passed / failed / partial / not_run / skipped / incomplete`，并在子任务面板显示实际命令、退出码和来源。`node scripts/test-tool-trace.mjs`、`node scripts/test-verification-policy.mjs`、`node scripts/test-dag-acceptance.mjs`、`node scripts/test-orchestration.mjs`、`node scripts/test-dag-run-replay.mjs`、`node_modules/.bin/tsc --project tsconfig.app.json --noEmit`、定向 ESLint 和 `git diff --check` 均 PASS。`pnpm run test:tool-trace`、`pnpm run test:verification`、`pnpm run test:orchestration` 均在 pnpm workspace 依赖状态检查阶段因无 TTY 而中止（`ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY`），对应 Node 测试入口已直接运行通过。GitHub Actions、macOS App rebuild 与 CA-00 固定任务集 benchmark 未运行；没有调用模型或外部服务。
+
 **CA-00B 执行记录（2026-10-13）：**增加 20 项固定任务集、评分结构与 Host 工具调用运行规程；数据集 SHA-256 `17f2c99fe1cdf0c6fbec0b8009a54ae1143b1077f1e9cbf17e8836bd21f0210f`。headless `on-risk` 与权限审计记录提交 `ff400e532`；任务集/评测规程提交 `0cc724af4`。`node scripts/test-headless-cli.mjs` PASS；JSON 字段、20 个唯一任务、权限模式和 100 分权重通过结构检查。没有调用模型或外部服务；Runtime 哈希、Provider/model 固定与真实运行仍未执行。基线目标仍为冻结提交 `f5624a108`。
 
-**当前续接点：CA-20 证据策略与环境门禁。**CA-10 已完成，CA-R11 的本机环境条件性风险已记录为 deferred；CA-R09/CA-20 测试清单、默认接线、去重、CA-R10 分诊和文档修正已完成。剩余验证是 GitHub Actions 与重建 macOS `.app`，benchmark 对比仍须先固定 Runtime 哈希、模型/Provider 和权限配置。CA-R10 代码修复提交 `50c1a6e5a`；并发冷启动可重复启动 helper，但未发现重复 refresh 路径，未运行真实 Provider。CA-R12 隔离缺陷已修复；`/Users/zsn/.dsh` 真实文件清单未记录，Git 中只有独立的测试快照文件。`src/features/settings/SettingsPage.tsx` 与 `src/styles.css` 中用户改动仍保留、未暂存、未提交。
+**当前续接点：CA-20 环境门禁与 CA-00 benchmark。**CA-10 已完成，CA-R11 的本机环境条件性风险已记录为 deferred；CA-R09/CA-20 测试清单、默认接线、去重、证据状态策略、CA-R10 分诊和文档修正已完成。剩余验证是 GitHub Actions 与重建 macOS `.app`；benchmark 对比须先固定 Runtime 哈希、模型/Provider 和权限配置。CA-R10 代码修复提交 `50c1a6e5a`；并发冷启动可重复启动 helper，但未发现重复 refresh 路径，未运行真实 Provider。CA-R12 隔离缺陷已修复；`/Users/zsn/.dsh` 真实文件清单未记录，Git 中只有独立的测试快照文件。`src/features/settings/SettingsPage.tsx` 与 `src/styles.css` 中用户改动仍保留、未暂存、未提交。
