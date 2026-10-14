@@ -10,6 +10,7 @@ import { SandboxedFileSystem } from '@taskweaver/dsh-fs-sandbox'
 import SandboxPolicyService from '@taskweaver/dsh-sandbox-policy'
 import { parseCodexPatch } from '../src/apply-patch.ts'
 import * as ToolFs from '../src/index.ts'
+import * as BundledToolFs from '../lib/index.js'
 
 let base = ''
 let fibers: Array<Awaited<ReturnType<Context['plugin']>>> = []
@@ -21,7 +22,7 @@ afterEach(async () => {
   base = ''
 })
 
-async function boot(): Promise<{ ctx: Context; workspace: string; outside: string }> {
+async function boot(toolPlugin: typeof ToolFs = ToolFs): Promise<{ ctx: Context; workspace: string; outside: string }> {
   base = await mkdtemp(join(homedir(), '.dsh-apply-patch-'))
   const workspace = join(base, 'workspace')
   const outside = join(base, 'outside')
@@ -32,7 +33,7 @@ async function boot(): Promise<{ ctx: Context; workspace: string; outside: strin
   fibers.push(await ctx.plugin(SystemPrompt))
   fibers.push(await ctx.plugin(ToolRuntime))
   fibers.push(await ctx.plugin(SandboxedFileSystem, { cwd: workspace }))
-  fibers.push(await ctx.plugin(ToolFs))
+  fibers.push(await ctx.plugin(toolPlugin))
   return { ctx, workspace, outside }
 }
 
@@ -99,6 +100,25 @@ describe('apply_patch tool', () => {
     const result = await run(ctx, [
       '*** Begin Patch',
       '*** Update File: windows-lines.txt',
+      '@@',
+      ' alpha',
+      '-old',
+      '+new',
+      ' omega',
+      '*** End Patch',
+    ].join('\n'))
+
+    expect(result.isError).toBe(false)
+    expect(await readFile(target, 'utf8')).toBe('alpha\r\nnew\r\nomega\r\n')
+  })
+
+  it.skipIf(process.platform === 'win32')('preserves CRLF through the published package entry', async () => {
+    const { ctx, workspace } = await boot(BundledToolFs as typeof ToolFs)
+    const target = join(workspace, 'packaged-windows-lines.txt')
+    await writeFile(target, 'alpha\r\nold\r\nomega\r\n')
+    const result = await run(ctx, [
+      '*** Begin Patch',
+      '*** Update File: packaged-windows-lines.txt',
       '@@',
       ' alpha',
       '-old',
