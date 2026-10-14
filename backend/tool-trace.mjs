@@ -75,7 +75,9 @@ export function summarizeShellCommandOutcome(toolName, args, outputText, isError
   const timedOut = /\[timed out after \d+ms\]/.test(text)
   const sandboxDenied = /\[sandbox: (?:file access denied under .+ mode|the sandbox runner itself failed)/i.test(text)
   return {
-    exitCode: signal || timedOut || sandboxDenied ? null : (exitMarker ? Number(exitMarker[1]) : 0),
+    // A successful-looking text body is not proof of a successful process exit.
+    // Only the shell's terminal marker carries an authoritative exit code.
+    exitCode: signal || timedOut || sandboxDenied || !exitMarker ? null : Number(exitMarker[1]),
     ...(signal ? { signal } : {}),
     background: false,
     timedOut,

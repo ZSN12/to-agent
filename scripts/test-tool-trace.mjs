@@ -22,11 +22,16 @@ assert.deepEqual(summarizeShellCommandOutcome('bash', { command: 'pnpm test' }, 
   sandboxDenied: false,
 })
 assert.deepEqual(summarizeShellCommandOutcome('bash', { command: 'pnpm test' }, 'tests passed'), {
-  exitCode: 0,
+  exitCode: null,
   background: false,
   timedOut: false,
   sandboxDenied: false,
 })
+assert.equal(
+  summarizeShellCommandOutcome('bash', { command: 'pnpm test' }, 'tests passed\n[exit code: 0]').exitCode,
+  0,
+  'verification requires the shell exit marker even when output text says tests passed',
+)
 assert.equal(summarizeShellCommandOutcome('bash', { command: 'pnpm test' }, 'output\n[timed out after 500ms]').exitCode, null)
 assert.equal(summarizeShellCommandOutcome('bash', { command: 'pnpm test', run_in_background: true }, 'started background job j1').background, true)
 assert.equal(summarizeShellCommandOutcome('bash', { command: 'pnpm test' }, 'output\n[exit code: 0]', true).exitCode, null)

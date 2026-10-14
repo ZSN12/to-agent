@@ -101,8 +101,8 @@ function isVerificationCommand(command) {
   })
 }
 
-/** Summarize only Host-observed foreground verification commands and outcomes. */
-export function summarizeCommandVerification(executionEvidence) {
+/** Summarize Host-observed commands together with the final backend verification run. */
+export function summarizeCommandVerification(executionEvidence, runnerVerification = null) {
   const calls = Array.isArray(executionEvidence?.observedToolCalls)
     ? executionEvidence.observedToolCalls
     : []
@@ -112,30 +112,85 @@ export function summarizeCommandVerification(executionEvidence) {
     const key = String(call.commandSummary).trim().replace(/\s+/g, ' ')
     latestByCommand.set(key, call)
   }
+  const hostObserved = latestByCommand.size > 0
+  const runnerStatus = runnerVerification?.status
+    ?? (runnerVerification?.executed === true
+      ? (runnerVerification.passed === true ? 'passed' : 'failed')
+      : 'not_run')
+  const runnerHasOutcome = typeof runnerVerification?.command === 'string'
+    && runnerVerification.command.trim().length > 0
+    && (runnerVerification.executed === true || runnerStatus === 'failed')
+  if (runnerHasOutcome) {
+    const command = runnerVerification.command.trim().replace(/\s+/g, ' ')
+    const executed = runnerVerification.executed === true
+    latestByCommand.set(command, {
+      toolName: 'verification-runner',
+      status: executed ? 'done' : 'error',
+      commandSummary: command,
+      verificationSource: 'verification-runner',
+      commandOutcome: {
+        exitCode: Number.isInteger(runnerVerification.exitCode) ? runnerVerification.exitCode : null,
+        background: false,
+        timedOut: runnerVerification.timedOut === true,
+        sandboxDenied: false,
+        ...(typeof runnerVerification.signal === 'string' ? { signal: runnerVerification.signal } : {}),
+      },
+    })
+  }
   const observed = [...latestByCommand.values()]
-  const passed = observed.length > 0 && observed.every((call) => call.status === 'done'
+  const callPassed = (call) => call.status === 'done'
     && call.commandOutcome?.background !== true
     && call.commandOutcome?.timedOut !== true
     && call.commandOutcome?.sandboxDenied !== true
     && !call.commandOutcome?.signal
     && Number.isInteger(call.commandOutcome?.exitCode)
-    && call.commandOutcome.exitCode === 0)
-  const failed = observed.find((call) => call.status === 'error'
-    || call.commandOutcome?.background === true
+    && call.commandOutcome.exitCode === 0
+  const passedCount = observed.filter(callPassed).length
+  const passed = observed.length > 0 && passedCount === observed.length
+  const failed = observed.find((call) => (
+    (call.status === 'error' && call.commandOutcome?.sandboxDenied !== true)
     || call.commandOutcome?.timedOut === true
-    || call.commandOutcome?.sandboxDenied === true
     || call.commandOutcome?.signal
-    || (Number.isInteger(call.commandOutcome?.exitCode) && call.commandOutcome.exitCode !== 0))
-  const unknown = observed.find((call) => call.status !== 'done'
-    || !Number.isInteger(call.commandOutcome?.exitCode))
+    || (Number.isInteger(call.commandOutcome?.exitCode) && call.commandOutcome.exitCode !== 0)
+  ))
+  const skipped = observed.find((call) => call.commandOutcome?.sandboxDenied === true || call.status === 'blocked')
+  const unknown = observed.find((call) => call.status === 'running'
+    || call.commandOutcome?.background === true
+    || (!Number.isInteger(call.commandOutcome?.exitCode) && call.status !== 'error'
+      && call.commandOutcome?.sandboxDenied !== true))
+  const status = observed.length === 0
+    ? 'not_run'
+    : passed
+      ? 'passed'
+      : passedCount > 0
+        ? 'partial'
+        : failed
+          ? 'failed'
+          : observed.every((call) => call.commandOutcome?.sandboxDenied === true || call.status === 'blocked')
+            ? 'skipped'
+          : 'incomplete'
+  const source = runnerHasOutcome && hostObserved ? 'combined' : runnerHasOutcome ? 'verification-runner' : 'z-host-tool-events'
+  const sourceLabel = source === 'combined'
+    ? 'Host 工具记录和工作区验证执行器'
+    : source === 'verification-runner'
+      ? '工作区验证执行器'
+      : 'Host 工具记录'
   return {
     observed,
     present: observed.length > 0,
+    source,
+    status,
+    executed: observed.some((call) => call.status === 'done'
+      && call.commandOutcome?.background !== true
+      && call.commandOutcome?.sandboxDenied !== true),
     passed,
     command: observed.at(-1)?.commandSummary ?? null,
     exitCode: observed.at(-1)?.commandOutcome?.exitCode ?? null,
-    ...(failed ? { reason: `Host 工具记录显示验证命令未通过或未结束：${failed.commandSummary}` }
-      : unknown ? { reason: `Host 工具记录缺少验证命令的完成状态或退出码：${unknown.commandSummary}` }
+    ...(status === 'partial'
+      ? { reason: `${sourceLabel}显示部分验证命令通过，另有命令失败或未完成。` }
+      : failed ? { reason: `${sourceLabel}显示验证命令未通过：${failed.commandSummary}` }
+      : status === 'skipped' ? { reason: `Host 工具记录显示验证命令被策略拒绝或跳过：${skipped?.commandSummary ?? ''}` }
+      : unknown ? { reason: `${sourceLabel}显示验证命令未完成或缺少退出码：${unknown.commandSummary}` }
         : observed.length === 0 ? { reason: 'Host 未记录到 test/build/check 验证命令' } : {}),
   }
 }
@@ -150,7 +205,7 @@ export function assessSubtaskCompletion(task, result) {
   const calls = Array.isArray(result?.executionEvidence?.observedToolCalls)
     ? result.executionEvidence.observedToolCalls
     : []
-  const commandVerification = summarizeCommandVerification(result?.executionEvidence)
+  const commandVerification = summarizeCommandVerification(result?.executionEvidence, result?.verification)
   if (task?.taskType === 'research' || task?.taskType === 'review') {
     const scopeDeniedToolCalls = Math.max(0, Number(result?.executionEvidence?.scopeDeniedToolCalls) || 0)
     if (scopeDeniedToolCalls > 0 && explicitlyReportsEvidenceGap(result.text)) {

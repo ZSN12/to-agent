@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { assessAcceptanceCriteria, assessSubtaskCompletion } from '../backend/orchestration/evidence.mjs'
+import { assessAcceptanceCriteria, assessSubtaskCompletion, summarizeCommandVerification } from '../backend/orchestration/evidence.mjs'
 import { parsePlan } from '../backend/orchestration/planner.mjs'
 import { applyPlanApprovalChanges } from '../backend/orchestration/plan-approval.mjs'
 
@@ -62,6 +62,41 @@ assert.match(assessSubtaskCompletion(implementation, {
 
 const testTask = { id: 'T2', taskType: 'test', acceptance: ['目标测试有结果'] }
 const testReport = `测试结论有结构化报告。\n${report([{ criterion: '目标测试有结果', passed: true, evidence: '目标用例已断言' }])}`
+assert.equal(summarizeCommandVerification(null).status, 'not_run')
+assert.equal(summarizeCommandVerification({ observedToolCalls: [{
+  toolName: 'bash', status: 'done', commandSummary: 'pnpm test',
+  commandOutcome: { exitCode: 0, background: false, timedOut: false, sandboxDenied: false },
+}] }).status, 'passed')
+const combinedVerification = summarizeCommandVerification({ observedToolCalls: [{
+  toolName: 'bash', status: 'done', commandSummary: 'pnpm test',
+  commandOutcome: { exitCode: 0, background: false, timedOut: false, sandboxDenied: false },
+}] }, {
+  status: 'failed', executed: true, passed: false, command: 'pnpm lint', exitCode: 1,
+})
+assert.equal(combinedVerification.status, 'partial', 'Host and backend runner outcomes must be combined')
+assert.equal(combinedVerification.source, 'combined')
+assert.deepEqual(combinedVerification.observed.map((call) => call.commandSummary), ['pnpm test', 'pnpm lint'])
+assert.equal(summarizeCommandVerification({ observedToolCalls: [{
+  toolName: 'bash', status: 'done', commandSummary: 'pnpm test',
+  commandOutcome: { exitCode: 1, background: false, timedOut: false, sandboxDenied: false },
+}] }, {
+  status: 'passed', executed: true, passed: true, command: 'pnpm test', exitCode: 0,
+}).status, 'passed', 'the final runner result replaces an earlier result of the same command')
+assert.equal(summarizeCommandVerification({ observedToolCalls: [
+  { toolName: 'bash', status: 'done', commandSummary: 'pnpm test', commandOutcome: { exitCode: 0 } },
+  { toolName: 'bash', status: 'done', commandSummary: 'pnpm lint', commandOutcome: { exitCode: 2 } },
+] }).status, 'partial', 'mixed successful and failed commands must be visible as partial')
+assert.equal(summarizeCommandVerification({ observedToolCalls: [{
+  toolName: 'bash', status: 'done', commandSummary: 'pnpm test',
+}] }).status, 'incomplete', 'a completed tool event without an exit code is not a pass')
+assert.equal(summarizeCommandVerification({ observedToolCalls: [{
+  toolName: 'bash', status: 'done', commandSummary: 'pnpm test',
+  commandOutcome: { exitCode: null, sandboxDenied: true },
+}] }).status, 'skipped', 'a policy denial is not a test failure or a pass')
+assert.equal(summarizeCommandVerification({ observedToolCalls: [{
+  toolName: 'bash', status: 'done', commandSummary: 'pnpm test',
+  commandOutcome: { exitCode: null, background: true },
+}] }).status, 'incomplete', 'a background command is not completed verification')
 assert.match(assessSubtaskCompletion(testTask, { text: testReport }).reason, /test\/build\/check/,
   'a test node cannot complete from its XML report alone')
 assert.equal(assessSubtaskCompletion(testTask, {
@@ -83,7 +118,7 @@ assert.match(assessSubtaskCompletion(testTask, {
   executionEvidence: { observedToolCalls: [{
     toolName: 'bash', status: 'done', commandSummary: 'pnpm test',
   }] },
-}).reason, /缺少验证命令的完成状态或退出码/,
+}).reason, /未完成或缺少退出码/,
   'missing exit status must stay unverified rather than treating a done tool event as exit 0')
 assert.match(assessSubtaskCompletion(testTask, {
   text: testReport,
@@ -91,6 +126,6 @@ assert.match(assessSubtaskCompletion(testTask, {
     toolName: 'bash', status: 'done', commandSummary: 'pnpm test',
     commandOutcome: { exitCode: null, background: true, timedOut: false, sandboxDenied: false },
   }] },
-}).reason, /未通过或未结束/)
+}).reason, /未完成/)
 
 console.log('DAG acceptance focused tests passed')

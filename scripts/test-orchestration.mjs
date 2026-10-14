@@ -768,9 +768,12 @@ try {
     durationMs: 12,
   }, 'DAG Host evidence must retain a shell verification command and its actual exit code')
   assert.deepEqual(stateTasks[1].messages.at(-1).verification, {
-    executed: true, command: 'pnpm test', passed: true, exitCode: 0,
+    status: 'passed', executed: true, command: 'pnpm test', passed: true, exitCode: 0,
     source: 'z-host-tool-events',
-    commands: [{ command: 'pnpm test', status: 'done', exitCode: 0, timedOut: false, sandboxDenied: false }],
+    commands: [{
+      command: 'pnpm test', status: 'done', source: 'z-host-tool-events', exitCode: 0,
+      background: false, timedOut: false, sandboxDenied: false,
+    }],
   }, 'a successful tool command should be persisted as verification evidence')
   assert.equal(stateTasks[0].executionEvidenceSummary.label, 'Host 工具记录：读取 1', '任务状态应展示 Host 实际观测到的文件读取次数')
   assert.equal(stateTasks[0].messages.at(-1).executionEvidenceSummary.successfulReadCount, 1)

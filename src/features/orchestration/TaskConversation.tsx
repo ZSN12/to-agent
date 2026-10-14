@@ -1,11 +1,53 @@
 import { ArrowUp } from 'lucide-react'
-import { FormEvent, useState } from 'react'
-import type { TaskNode } from '../../types'
+import { FormEvent, Fragment, useState } from 'react'
+import type { TaskNode, TaskVerificationEvidence } from '../../types'
 import { Message } from '../chat/Message'
 import { WorktreeMergeActions } from '../worktree/WorktreeMergeActions'
 import { useAutosizeTextarea } from '../../shared/ui-utils'
 import { PanelHeader } from './PanelHeader'
 import { StatusChip } from './DagPanel'
+
+const VERIFICATION_STATUS_LABEL: Record<string, string> = {
+  passed: '验证通过',
+  failed: '验证失败',
+  partial: '部分通过',
+  not_run: '未运行',
+  skipped: '已跳过',
+  incomplete: '结果未确认',
+}
+
+function VerificationEvidence({ evidence }: { evidence: TaskVerificationEvidence }) {
+  const status = evidence.status ?? (evidence.executed ? (evidence.passed ? 'passed' : 'failed') : 'not_run')
+  const commands = evidence.commands?.map((item) => {
+    const outcome = item.sandboxDenied
+      ? '已跳过（策略拒绝）'
+      : item.timedOut
+        ? '超时'
+        : item.signal
+          ? `被信号终止（${item.signal}）`
+        : item.background
+          ? '仍在后台'
+          : item.exitCode === null
+            ? '退出码缺失'
+            : `退出码 ${item.exitCode}`
+    return `${item.command}（${outcome}）`
+  })
+  const details = commands?.length
+    ? [commands.join(' · '), evidence.reason].filter(Boolean).join('；')
+    : evidence.command ?? evidence.reason ?? '未检测到验证命令'
+
+  return (
+    <div className="task-execution-evidence" role="note">
+      <strong>{VERIFICATION_STATUS_LABEL[status] ?? '验证状态未知'}</strong>
+      <p>{details}</p>
+      <small>{evidence.source === 'combined'
+        ? '合并 Host 工具事件与工作区验证执行器记录；Agent 的自然语言声明不计为通过证据。'
+        : evidence.source === 'z-host-tool-events'
+          ? '依据 Host 工具事件和退出码；Agent 的自然语言声明不计为通过证据。'
+          : '依据工作区验证执行器记录。'}</small>
+    </div>
+  )
+}
 
 export function TaskConversation({ task, conversationId = null, onBack, onClose, onSend, onCancel }: { task: TaskNode; conversationId?: string | null; onBack: () => void; onClose: () => void; onSend: (message: string) => void; onCancel: () => void }) {
   const [value, setValue] = useState('')
@@ -51,7 +93,12 @@ export function TaskConversation({ task, conversationId = null, onBack, onClose,
       </div>
       {activeTab === 'execution' ? <>
         <div className="task-thread">
-          {task.messages.map((message) => <Message key={message.id} message={message} />)}
+          {task.messages.map((message) => (
+            <Fragment key={message.id}>
+              <Message message={message} />
+              {message.verification && <VerificationEvidence evidence={message.verification} />}
+            </Fragment>
+          ))}
         </div>
         <form className="task-composer" onSubmit={submit}>
           <textarea ref={textareaRef} rows={1} value={value} onChange={(event) => setValue(event.target.value)} placeholder="给当前 Agent 补充指令…" aria-label="给当前 Agent 补充指令" />

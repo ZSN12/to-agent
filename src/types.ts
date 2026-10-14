@@ -55,6 +55,9 @@ export interface ChatMessage {
   /** Structured reason for a failed turn, used to offer the right recovery action. */
   errorCode?: string
   usage?: ChatUsage
+  /** Host- or runner-observed verification status; never inferred from answer text. */
+  verification?: TaskVerificationEvidence
+  verificationRequired?: boolean
   executionEvidenceSummary?: TaskExecutionEvidenceSummary
   acceptanceAssessment?: TaskAcceptanceAssessment
   behavior?: 'steer' | 'followUp'
@@ -76,6 +79,30 @@ export interface TaskAcceptanceAssessment {
   passed: boolean
   items: Array<{ criterion: string; passed: boolean | null; evidence: string }>
   reason?: string
+}
+
+export type VerificationStatus = 'passed' | 'failed' | 'partial' | 'not_run' | 'skipped' | 'incomplete'
+
+export interface TaskVerificationEvidence {
+  status?: VerificationStatus
+  executed: boolean
+  passed: boolean
+  command: string | null
+  exitCode: number | null
+  durationMs?: number
+  timedOut?: boolean
+  source?: string
+  reason?: string
+  commands?: Array<{
+    command: string
+    status: string
+    source: string
+    exitCode: number | null
+    background: boolean
+    timedOut: boolean
+    sandboxDenied: boolean
+    signal?: string
+  }>
 }
 
 export interface TaskExecutionEvidenceSummary {

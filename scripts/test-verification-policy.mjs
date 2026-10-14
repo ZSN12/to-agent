@@ -161,6 +161,7 @@ try {
   })
   const successRes = await executeVerificationRunner(successDir)
   assert.equal(successRes.executed, true)
+  assert.equal(successRes.status, 'passed')
   assert.equal(successRes.passed, true)
   assert.equal(successRes.exitCode, 0)
 
@@ -169,9 +170,15 @@ try {
   })
   const failRes = await executeVerificationRunner(failDir)
   assert.equal(failRes.executed, true)
+  assert.equal(failRes.status, 'failed')
   assert.equal(failRes.passed, false)
   assert.equal(failRes.exitCode, 1)
   assert.match(failRes.errorSummary || '', /TS2322/)
+
+  const noCommandRes = await executeVerificationRunner(emptyDir)
+  assert.equal(noCommandRes.executed, false)
+  assert.equal(noCommandRes.status, 'not_run')
+  assert.equal(noCommandRes.passed, false, 'absence of a command must never be represented as a pass')
 
   console.log('verification-policy 回归测试全部通过：轻量自检优先、tsconfig 形态、包管理器、测试优先级、多语言识别、自愈执行器。')
 } finally {

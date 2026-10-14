@@ -1138,13 +1138,24 @@ export function createPlanAndExecute({
 
           const hasFileChanges = Array.isArray(result.fileChanges) && result.fileChanges.some((change) => typeof change?.path === 'string' && change.path)
           const verificationPolicy = detectVerificationCommands(execCwd)
-          if (task.taskType === 'implementation' && hasFileChanges && verificationPolicy.primaryCommand) {
-            result.verificationRequired = true
-            if (!runState.workspaceTrusted || permissionMode === 'readonly') {
+          if (task.taskType === 'implementation' && hasFileChanges) {
+            result.verificationRequired = Boolean(verificationPolicy.primaryCommand)
+            if (!verificationPolicy.primaryCommand) {
               result.verification = {
+                status: 'not_run',
+                executed: false,
+                command: null,
+                passed: false,
+                exitCode: null,
+                reason: '工作区未检测到标准验证命令。',
+              }
+            } else if (!runState.workspaceTrusted || permissionMode === 'readonly') {
+              result.verification = {
+                status: 'skipped',
                 executed: false,
                 command: verificationPolicy.primaryCommand,
                 passed: false,
+                exitCode: null,
                 reason: '工作区未受信任或当前为只读权限，未自动运行验证命令。',
               }
             } else {
@@ -1154,6 +1165,7 @@ export function createPlanAndExecute({
                   timeoutMs: 5 * 60 * 1000,
                 })
                 result.verification = {
+                  status: verifyRes.status,
                   executed: verifyRes.executed,
                   command: verifyRes.command,
                   passed: verifyRes.passed,
@@ -1167,9 +1179,11 @@ export function createPlanAndExecute({
                 }
               } catch (error) {
                 result.verification = {
+                  status: 'failed',
                   executed: false,
                   command: verificationPolicy.primaryCommand,
                   passed: false,
+                  exitCode: null,
                   reason: error instanceof Error ? error.message : String(error),
                 }
               }
@@ -1189,6 +1203,7 @@ export function createPlanAndExecute({
             try {
               const verifyRes = await executeVerificationRunner(execCwd, { timeoutMs: 25_000 })
               result.verification = {
+                status: verifyRes.status,
                 executed: verifyRes.executed,
                 command: verifyRes.command,
                 passed: verifyRes.passed,
@@ -1205,20 +1220,22 @@ export function createPlanAndExecute({
             }
           }
 
-          const commandVerification = summarizeCommandVerification(result.executionEvidence)
+          const commandVerification = summarizeCommandVerification(result.executionEvidence, result.verification)
           if (task.taskType === 'test') result.verificationRequired = true
-          if (commandVerification.present && result.verification?.executed !== true) {
+          if (commandVerification.present) {
             result.verification = {
-              executed: commandVerification.observed.every((call) => call.status === 'done'
-                && call.commandOutcome?.background !== true),
+              status: commandVerification.status,
+              executed: commandVerification.executed,
               command: commandVerification.command,
               passed: commandVerification.passed,
               exitCode: commandVerification.exitCode,
-              source: 'z-host-tool-events',
+              source: commandVerification.source,
               commands: commandVerification.observed.map((call) => ({
                 command: call.commandSummary,
                 status: call.status,
+                source: call.verificationSource ?? 'z-host-tool-events',
                 exitCode: call.commandOutcome?.exitCode ?? null,
+                background: call.commandOutcome?.background === true,
                 timedOut: call.commandOutcome?.timedOut === true,
                 sandboxDenied: call.commandOutcome?.sandboxDenied === true,
                 ...(call.commandOutcome?.signal ? { signal: call.commandOutcome.signal } : {}),
@@ -1227,9 +1244,11 @@ export function createPlanAndExecute({
             }
           } else if (task.taskType === 'test' && !result.verification) {
             result.verification = {
+              status: 'not_run',
               executed: false,
               command: null,
               passed: false,
+              exitCode: null,
               source: 'z-host-tool-events',
               reason: 'Host 未记录到 test/build/check 验证命令',
             }
@@ -1237,7 +1256,13 @@ export function createPlanAndExecute({
 
           result.acceptanceAssessment = assessAcceptanceCriteria(task, result.text)
           result.completionAssessment = assessSubtaskCompletion(task, result)
-          if (result.verification && !result.verification.passed) {
+          const verificationStatus = result.verification?.status
+          const verificationBlocksCompletion = result.verification && (
+            ['failed', 'partial', 'incomplete', 'skipped'].includes(verificationStatus)
+            || (result.verificationRequired === true && verificationStatus !== 'passed')
+            || (!verificationStatus && result.verification.passed !== true)
+          )
+          if (verificationBlocksCompletion) {
             result.completionAssessment.complete = false
             result.completionAssessment.reason = result.verification.reason
               || `验证命令 ${result.verification.command} 未通过 (${result.verification.exitCode ?? '未执行'})`
@@ -1291,6 +1316,7 @@ export function createPlanAndExecute({
                   timeoutMs: 5 * 60 * 1000,
                 })
                 runState.integration.verification = {
+                  status: verifyRes.status,
                   executed: verifyRes.executed,
                   command: verifyRes.command,
                   passed: verifyRes.passed,
@@ -1301,9 +1327,11 @@ export function createPlanAndExecute({
                 }
               } else {
                 runState.integration.verification = {
+                  status: 'skipped',
                   executed: false,
                   command: verificationPolicy.primaryCommand,
                   passed: false,
+                  exitCode: null,
                   reason: '工作区未受信任或当前为只读权限，未自动运行集成验证。',
                 }
               }
@@ -1321,6 +1349,16 @@ export function createPlanAndExecute({
                   command: runState.integration.verification.command,
                   durationMs: runState.integration.verification.durationMs,
                 })
+              }
+            }
+            if (!verificationPolicy.primaryCommand) {
+              runState.integration.verification = {
+                status: 'not_run',
+                executed: false,
+                command: null,
+                passed: false,
+                exitCode: null,
+                reason: '集成工作区未检测到标准验证命令。',
               }
             }
             await trace('integration_created', {
@@ -1404,17 +1442,17 @@ export function createPlanAndExecute({
         '请根据下列子任务执行结果，面向用户总结本次工作的最终进展。不要再次执行工具，不要重复改代码。',
         '明确区分已完成、受阻和未完成的工作，并列出真实验证结果。若某子任务失败或被依赖阻塞，要明确说明。',
         '对每个节点的 acceptanceAssessment 逐项报告通过/未通过；不得把节点自述改写成后端未确认的验收结论。',
+        '验证结论必须逐项依据 verification.status：passed 才能报告通过；failed、partial、not_run、skipped、incomplete 必须保留对应状态。不得根据 Agent 自述或输出中出现的“passed/tests passed”文字推断测试成功。',
         runState.integration?.branchName
           ? `隔离执行已生成用户可预览的集成分支 ${runState.integration.branchName}（worktree taskId 为 integration）；不要声称已合并到主工作区。`
           : integrationError
             ? `隔离执行的集成分支未能生成：${integrationError}。不要声称上游改动已经集成。`
             : '',
-        integrationVerificationFailure
-          ? `【集成验证】${integrationVerificationFailure}；验证结果已保存在运行记录中，不能声称集成分支通过验证。`
-          : '',
-        runState.integration?.verification?.passed === true
-          ? `【集成验证】已在集成分支执行 ${runState.integration.verification.command} 并通过。`
-          : '',
+        runState.integration?.verification
+          ? `【集成验证】状态 ${runState.integration.verification.status ?? (runState.integration.verification.passed ? 'passed' : 'failed')}；命令 ${runState.integration.verification.command ?? '无'}；退出码 ${runState.integration.verification.exitCode ?? '无'}；${runState.integration.verification.reason ?? runState.integration.verification.errorSummary ?? '无补充说明'}。`
+          : integrationVerificationFailure
+            ? `【集成验证】${integrationVerificationFailure}；验证结果已保存在运行记录中，不能声称集成分支通过验证。`
+            : '',
         budgetExceededReason ? `【注意】DAG 运行由于${budgetExceededReason}已停止启动新节点，部分后续节点被标记为未完成。请在最终回复中如实说明这一点。` : '',
         '最终回复保持精炼：先给总体结论，再按子任务各列结论与最必要的源码/工具证据，最后说明交叉结果和关键未验证项；不要逐条复述工具过程或重复子任务原文，通常控制在约 800–1500 个中文字符，只有必要信息较多时才超出。失败、证据缺口和未执行的验证必须如实保留。',
         '【证据规则】每个子任务附带的 evidenceAssessment 是后端根据 Z Host 实际观测到的工具调用记录计算的摘要，优先级高于子 Agent 的自述。只能声称调用了记录中出现的工具；没有 read 工具记录就不能声称实际读取并核验了文件，没有测试/构建命令记录就不能声称测试/构建已运行或通过。若子 Agent 自述与记录不符，明确标为“未能从工具记录核实”，不要补造调用、文件或验证结果。无工具记录的依赖汇总可以作为汇总输出，但不得描述成独立核验。',

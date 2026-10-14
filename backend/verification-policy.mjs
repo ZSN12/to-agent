@@ -287,9 +287,10 @@ export function formatVerificationPrompt(workspacePath) {
  *   maxOutputBytes?: number,
  * }} [options]
  * @returns {Promise<{
+ *   status: 'passed' | 'failed' | 'not_run',
  *   executed: boolean,
  *   command: string | null,
- *   exitCode: number,
+ *   exitCode: number | null,
  *   passed: boolean,
  *   stdout: string,
  *   stderr: string,
@@ -307,12 +308,13 @@ export async function executeVerificationRunner(workspacePath, options = {}) {
   if (!command || !workspacePath) {
     return {
       executed: false,
+      status: 'not_run',
       command: null,
-      exitCode: 0,
-      passed: true,
+      exitCode: null,
+      passed: false,
       stdout: '',
       stderr: '',
-      errorSummary: null,
+      errorSummary: '未检测到可执行的验证命令。',
       durationMs: 0,
       timedOut: false,
     }
@@ -375,9 +377,10 @@ export async function executeVerificationRunner(workspacePath, options = {}) {
         if (timer) clearTimeout(timer)
         const durationMs = Date.now() - startTime
         resolve({
-          executed: true,
+          executed: false,
+          status: 'failed',
           command,
-          exitCode: 1,
+          exitCode: null,
           passed: false,
           stdout: stdoutBuffer,
           stderr: (stderrBuffer ? `${stderrBuffer}\n` : '') + String(err.message || err),
@@ -409,6 +412,7 @@ export async function executeVerificationRunner(workspacePath, options = {}) {
 
         resolve({
           executed: true,
+          status: passed ? 'passed' : 'failed',
           command,
           exitCode,
           passed,
@@ -423,9 +427,10 @@ export async function executeVerificationRunner(workspacePath, options = {}) {
       if (timer) clearTimeout(timer)
       const durationMs = Date.now() - startTime
       resolve({
-        executed: true,
+        executed: false,
+        status: 'failed',
         command,
-        exitCode: 1,
+        exitCode: null,
         passed: false,
         stdout: '',
         stderr: String(err.message || err),
