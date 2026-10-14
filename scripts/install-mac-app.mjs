@@ -4,20 +4,6 @@ import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..')
-const releaseDir = path.join(root, 'release')
-
-function findAppBundle(dir) {
-  if (!fs.existsSync(dir)) return null
-  for (const name of fs.readdirSync(dir)) {
-    const full = path.join(dir, name)
-    if (name.endsWith('.app') && fs.statSync(full).isDirectory()) return full
-    if (fs.statSync(full).isDirectory()) {
-      const nested = findAppBundle(full)
-      if (nested) return nested
-    }
-  }
-  return null
-}
 
 function resolveSourceBundle() {
   const configuredBundle = process.env.TASKWEAVER_APP_BUNDLE

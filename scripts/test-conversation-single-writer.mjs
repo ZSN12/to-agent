@@ -39,7 +39,7 @@ const registry = [
   ['backend/chat-turn-pipeline.mjs', 'upsertMessagesToConversation:conversationId,agentEntry', 1, 'IPC assistant projection via chat-turn-pipeline'],
   ['backend/chat-turn-pipeline.mjs', 'upsertMessagesToConversation:conversationId,{', 1, 'handleChatError error patch upsert'],
   ['backend/chat-turn-pipeline.mjs', 'appendMessagesToConversation:conversationId,{', 1, 'handleChatError fallback error message'],
-  ['backend/chat-turn-persistence.mjs', 'upsertMessagesToConversation:conversationId,{', 2, 'native terminal projection + error'],
+  ['backend/chat-turn-persistence.mjs', 'upsertMessagesToConversation:conversationId,{', 1, 'native terminal projection + error share one upsert'],
   ['backend/dsh-chat/chat-send.mjs', 'sessions.prompt:{sessionId:', 2, 'Host prompt admission (queue + turn)'],
   ['backend/dsh-chat/model-config.mjs', 'sessions.prompt:{sessionId:', 1, 'permission-mode command prompt'],
   ['backend/thread-store.mjs', 'store.update:async(current', 2, 'thread json-store.update (transact + updateCurrent)'],

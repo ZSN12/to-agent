@@ -67,8 +67,8 @@ const primaryCodePresetPath = path.resolve('packages/runtime/host-cli/config/age
 const primaryCodePreset = await fs.readFile(primaryCodePresetPath, 'utf8')
 for (const [name, preset] of [['tw-default', standardPreset], ['tw-code', primaryCodePreset]]) {
   assert.match(preset, /user-visible progress sentence in normal assistant text/, `${name} primary preset should emit visible progress before multi-step tool work`)
-  assert.match(preset, /Do not perform more than three tool (?:calls|operations) in a row/, `${name} primary preset should report intermediate checkpoints instead of waiting until final`)
-  assert.match(preset, /checkpoint before continuing|after a batch, report what completed/, `${name} primary preset should report progress between tool batches`)
+  assert.match(preset, /checkpoint at meaningful\s+milestones/, `${name} primary preset should checkpoint at meaningful milestones`)
+  assert.match(preset, /send a one-sentence checkpoint before continuing|report what completed before continuing if substantial work remains/, `${name} primary preset should report progress between substantive tool batches`)
   assert.match(preset, /Never expose private reasoning/, `${name} primary preset must not expose private reasoning as progress`)
 }
 

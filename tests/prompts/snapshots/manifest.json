@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "capturedAt": "2026-10-13T08:10:22.910Z",
+  "capturedAt": "2026-10-14T13:46:27.837Z",
   "prefixProbeBytes": 256,
   "prompts": {
     "standard": {
@@ -235,7 +235,7 @@
         "capturedAt": "2026-10-13T08:10:22.925Z"
       },
       "sourcePath": "backend/orchestration/plan-and-execute.mjs",
-      "sourceSha256": "4ee54b4c33fa553a2ef923abf3cbd13e42067fed8f5164f724600e1ac641711e",
+      "sourceSha256": "7e962292fe29bb66e6838058876f1642bd3c2bf4363dcd0e2c231fbc12d66de4",
       "sha256": "765824c03b486d9c5cb6e6aade2dbd0a7a3207dbc75f3e50d208763d3856ca7c",
       "bytes": 5969,
       "estimatedTokens": 1493,
@@ -254,24 +254,24 @@
       "file": "planner-synthesis.prompt.txt",
       "legacy": {
         "file": "legacy/planner-synthesis.prompt.txt",
-        "sha256": "0078f451409cf648d9045a2ece8edbee11b222024027ad4b37ed3f5f9b73e1e8",
-        "bytes": 1399,
-        "sourceSha256": "f413c1b68144b98bf2e42eee8c36b6f2b33202651a0cee6e6b26962a996fe0ab",
-        "capturedAt": "2026-10-10T03:31:31.718Z"
+        "sha256": "2c9eba6d6d984b0dd1f59838b9d2a2189bf85cb62820e98ac2959b5deb3952ad",
+        "bytes": 1476,
+        "sourceSha256": "4ee54b4c33fa553a2ef923abf3cbd13e42067fed8f5164f724600e1ac641711e",
+        "capturedAt": "2026-10-14T13:46:27.846Z"
       },
       "sourcePath": "backend/orchestration/plan-and-execute.mjs",
-      "sourceSha256": "4ee54b4c33fa553a2ef923abf3cbd13e42067fed8f5164f724600e1ac641711e",
-      "sha256": "2c9eba6d6d984b0dd1f59838b9d2a2189bf85cb62820e98ac2959b5deb3952ad",
-      "bytes": 1476,
-      "estimatedTokens": 369,
-      "staticBytes": 1387,
-      "hanCharacters": 407,
+      "sourceSha256": "7e962292fe29bb66e6838058876f1642bd3c2bf4363dcd0e2c231fbc12d66de4",
+      "sha256": "ee8356f172305d9d269debd8cde59a3784edd0b1efe607444885088468cedf00",
+      "bytes": 1734,
+      "estimatedTokens": 434,
+      "staticBytes": 1645,
+      "hanCharacters": 452,
       "targetMaxBytes": 4096,
       "targetMaxHanCharacters": null,
-      "maxRegressionBytes": 1550,
+      "maxRegressionBytes": 1821,
       "knownViolations": [],
-      "stablePrefixBytes": 420,
-      "stablePrefixSha256": "e8783243018a9b1d6867dfcfb616fe5732a48036662487452f078e88c8713ae9"
+      "stablePrefixBytes": 678,
+      "stablePrefixSha256": "8caea3d8aab252415bb21fe917906419ec37ecfccbd05b65fd1d8806a85411e0"
     }
   }
 }
