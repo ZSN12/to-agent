@@ -447,6 +447,7 @@ TaskWeaver 当前是 **macOS 优先的本地桌面 Coding Agent**。本计划遵
 | CA-R10 | P3 | OAuth token cache 未校验 loader 返回的 access token；`undefined`/非字符串可能被缓存。并发冷启动会启动多个 helper，需区分 helper 重复与真实 token refresh 重复 | [`oauth-token-cache.mjs`](../packages/provider-bridge-transport/oauth-token-cache.mjs)、[`bridge-access.ts`](../vendor/opencodex/src/oauth/bridge-access.ts)、[`store.ts`](../vendor/opencodex/src/oauth/store.ts) | 缓存校验已修复并通过专项测试；源码审查确认真实 refresh 有进程内 single-flight 与跨进程锁/锁内重读。重复 helper 启动仍可能，作为轻量性能开销记录；未运行真实 Provider |
 | CA-R11 | Triage | 原生 Shell 接受进程环境中的 `TASKWEAVER_UI_URL` loopback override，并把 Shell API bearer token 放进 URL fragment；审查环境来源、页面脚本可控性与 token 能力 | [`TaskWeaverShellApp.swift`](../apps/macos/TaskWeaverShell/Sources/TaskWeaverShell/TaskWeaverShellApp.swift)、[`ShellURLPolicy.swift`](../apps/macos/TaskWeaverShell/Sources/ShellURLPolicy/ShellURLPolicy.swift)、[`bootstrap.ts`](../src/shell/bootstrap.ts) | 已确认是有前提的本机环境风险，不是已证实远程漏洞；token 从地址栏/历史项清除，开发日志不再输出 token；loopback override 的残余风险 deferred，见 §16.6 |
 | CA-R12 | P1 | 测试构造 Host 时未把临时 `HOME` 注入 runtime-home migration；一次模型服务测试误把真实 `~/.dsh` 迁移进临时目录，随后源目录与测试临时目录均被清理 | [`spawn-host.mjs`](../backend/agent/z-host/spawn-host.mjs)、[`test-model-service.mjs`](../scripts/test-model-service.mjs)、本次执行记录 | 代码侧隔离缺陷已修复并验证；用户确认不需要恢复数据。真实目录的逐文件清单未留存，不能从 Git 还原 |
+| CA-R13 | P1 | Planner 只读 Agent 的词法 `scopePaths` 检查把 POSIX `\\` 当成分隔符、允许 symlink scope/目标指向工作区外，并漏检 `glob` 的 `target_directory` 搜索根别名 | [`repeat-tool-reminder/src/index.ts`](../packages/runtime/guard/repeat-tool-reminder/src/index.ts)、[`fsio.ts`](../packages/runtime/fs/fs-local/src/fsio.ts)、[`read-target.ts`](../packages/runtime/fs/tool-fs/src/read-target.ts)、[`glob.ts`](../packages/runtime/fs/tool-fs-search/src/glob.ts) | 已修复并回归验证：通过 `ctx.fs.resolve/contains` 同时约束工作区根、scope 根和实际请求/搜索根的规范化身份；见 §16.6 |
 
 已完成的仓库卫生清理：提交 `0668e6562` 删除无调用入口的迁移/打包残留、测试生成文件、旧扩展和临时 `scratch/` 脚本；Swift 壳未接线的导航状态也已删除；Git 不再跟踪 SwiftPM `.build` 缓存。本清理不代表运行时可靠性问题已解决。
 
@@ -559,10 +560,10 @@ Node 构建唯一支持入口：根 `package.json` 的 `app`/`app:dmg` → `scri
 
 | ID | 状态 | 当前结论/下一步 |
 |---|---|---|
-| CA-00 | IN PROGRESS | 冻结 worktree、20 项任务集和 headless Host 调用方法已就绪；固定 Runtime 哈希/模型设置并运行仍未完成 |
-| CA-10 | COMPLETE | CA-R01–CA-R12 已完成代码验证或威胁分诊；CA-R11 的启动环境条件性风险留在 deferred 跟踪，不作为已证实远程漏洞 |
+| CA-00 | IN PROGRESS | 冻结 worktree、20 项任务集和 headless Host 调用方法已就绪；用户另要求比较“实现塔罗牌应用”场景，将作为补充任务单独报告、不改写冻结集分数；Provider/model、限额与运行仍待核对 |
+| CA-10 | COMPLETE | CA-R01–CA-R13 已完成代码验证或威胁分诊；CA-R11 的启动环境条件性风险留在 deferred 跟踪，不作为已证实远程漏洞 |
 | CA-20 | IN PROGRESS | 测试清单、默认接线、去重、证据状态策略、本机 macOS `.app`/DMG 构建和包布局检查已完成；GitHub Actions 与固定任务集 benchmark 仍待执行 |
-| CA-30 | TODO | 先测 Repo Map/LSP/符号入口，再决定索引改造 |
+| CA-30 | IN PROGRESS | Repo Map、文件索引、符号提取、LSP 和 Planner 的只读调用链审计已完成；CA-R13 scope 越界已修复。实测 Repo Map 默认 1000 文件上限在本仓库漏掉全部 228 个 `backend/` 文件（扩大至 10000 时发现 5234 个候选）；同 mtime/size 缓存和外部文件变化后的搜索索引存在条件性陈旧风险；下一步修正覆盖/截断提示与缓存失效并补专项证据 |
 | CA-40 | TODO | 审计 DAG 证据、取消、恢复和隔离路径 |
 | CA-50 | TODO | 验证 Plan→改码→测试→Diff/PR 的端到端体验 |
 | CA-60 | TODO | CA-00 baseline 后按单一变量做模型/路由比较 |
@@ -586,6 +587,7 @@ Node 构建唯一支持入口：根 `package.json` 的 `app`/`app:dmg` → `scri
 | CA-R12 | VERIFIED（代码预防）；数据不恢复 | Codex 主 Agent | `49d9e5aec` | `node scripts/test-host-lifecycle.mjs` PASS；修复后 `node scripts/test-model-service.mjs` PASS，迁移落在测试临时 `HOME` | `spawn-host` 注入 `home`；测试和诊断脚本显式隔离 `HOME`/`TASKWEAVER_HOME`。用户确认不恢复；实际被删文件名未记录 |
 | CA-R10 | VERIFIED（缓存）；refresh 并发源码审查 | Codex 主 Agent | `50c1a6e5a` | 修复前内联 Node 复现：loader 返回 `undefined` 后缓存 `undefined`，第二次 get 未再调用 loader；4 个并发 cold get 调用 loader 4 次。修复后 `node scripts/test-provider-bridge-p12.mjs` PASS，覆盖 undefined/非字符串/空白 token、坏 expiry、过期 token；`node scripts/test-bridge-token-reuse.mjs` PASS；Node `--check` 与 `git diff --check` PASS | 实际 bridge 每次 loader 调用会启动 Bun helper；OpenCodex `bridge-access.ts#refreshAccount` 用 provider/account flight map，且 `createOAuthRefreshIntentLock` 跨进程串行、锁内重读有效 credential，源码路径不会重复 refresh。多个 cold helper 仍有启动开销；未运行真实 OAuth Provider 或跨进程集成实验 |
 | CA-R11 | DEFERRED（分诊完成） | Codex 主 Agent；两位只读审查 Agent | `324d78353` | `node scripts/test-shell-entry.mjs` PASS；`node scripts/test-shell-http-guard.mjs` PASS；`node scripts/test-shell-ui-static-serving.mjs` PASS；`node scripts/test-shell-webcontents-lifecycle.mjs` PASS；`node scripts/check-desktop-hardening.mjs` PASS；定向 ESLint 与 `tsc --project tsconfig.app.json --noEmit` PASS；独立 `swiftc` ShellURLPolicy smoke PASS。Swift XCTest 未能运行：本机 Swift 工具链缺少 XCTest 模块 | 默认打包路径未发现远程可达利用链；未受信任的启动环境若指定攻击者控制的 loopback UI，该页面可在 bootstrap 前读取 fragment 并外传 token。打包 CORS 阻止任意端口页面直接调用 API，但不能阻止页面外传 token；未来可将 release 环境变量 override 限制到内置 UI，或改为原生安全通道传递 token |
+| CA-R13 | VERIFIED | Codex 主 Agent；CA-R04 只读审查 Agent | `a6c391ecc` | `./node_modules/.bin/vitest run guard/repeat-tool-reminder/tests/repeat-tool-reminder.spec.ts --config vitest.config.ts` PASS（33/33；含 POSIX 反斜杠、scope 内 symlink、目录/文件 symlink scope 根、合法及越界 `target_directory`）；`tsc -b guard/repeat-tool-reminder` PASS；定向 ESLint、Host bundle、`node --check` 与 `git diff --check` PASS | pre-execute guard 使用同一个 `ctx.fs` provider 验证 workspace root、scope root 与实际请求/搜索根；Package Host 入口已同步。并发替换 symlink 的 TOCTOU 仍不由此 in-process 检查消除；Planner scope 覆盖继续由 CA-30 跟踪 |
 
 **CA-00A 执行记录（2026-10-13）：**分支 `main`；冻结前 HEAD `f5624a108`；Node `v22.23.1`；pnpm `11.7.0`；已读取根 `AGENTS.md`。当时存在未提交的 `src/features/settings/SettingsPage.tsx` 与 `src/styles.css` 修改，已保留且未纳入 CA-R01 提交。CA-R01 修复提交 `94a47fbb0`，补充专项覆盖提交 `2d659932e`。
 
@@ -623,4 +625,4 @@ Node 构建唯一支持入口：根 `package.json` 的 `app`/`app:dmg` → `scri
 
 **CA-00B 执行记录（2026-10-13）：**增加 20 项固定任务集、评分结构与 Host 工具调用运行规程；数据集 SHA-256 `17f2c99fe1cdf0c6fbec0b8009a54ae1143b1077f1e9cbf17e8836bd21f0210f`。headless `on-risk` 与权限审计记录提交 `ff400e532`；任务集/评测规程提交 `0cc724af4`。`node scripts/test-headless-cli.mjs` PASS；JSON 字段、20 个唯一任务、权限模式和 100 分权重通过结构检查。没有调用模型或外部服务；Runtime 哈希、Provider/model 固定与真实运行仍未执行。基线目标仍为冻结提交 `f5624a108`。
 
-**当前续接点：CA-20 GitHub Actions 与 CA-00 benchmark。**CA-10 已完成，CA-R11 的本机环境条件性风险已记录为 deferred；CA-R09/CA-20 测试清单、默认接线、去重、证据状态策略、CA-R10 分诊、文档修正、本机 `test:all`、parity fixture 与 Runtime Vitest 均已完成。CI UI job 已补入 pinned Playwright headless shell 安装步骤，但该浏览器未在本机下载，因此 UI 场景本地未完成；仍需 GitHub Actions 结果和固定任务集 benchmark。benchmark 对比须先固定 Runtime 哈希、模型/Provider 和权限配置。CA-R10 代码修复提交 `50c1a6e5a`；并发冷启动可重复启动 helper，但未发现重复 refresh 路径，未运行真实 Provider。CA-R12 隔离缺陷已修复；`/Users/zsn/.dsh` 真实文件清单未记录，Git 中只有独立的测试快照文件。`src/features/settings/SettingsPage.tsx` 与 `src/styles.css` 中用户改动仍保留、未暂存、未提交。
+**当前续接点（2026-10-15）：CA-30 Repo Map 覆盖与缓存。**CA-10 已完成，CA-R11 的本机环境条件性风险记为 deferred；CA-20 测试清单、默认接线、去重、证据状态策略、本机 `.app`/DMG、`test:all`、parity fixture 与 Runtime Vitest 已完成。CI UI job 已补入 pinned Playwright headless shell 安装步骤，但本机未下载该浏览器，GitHub Actions 与 UI 场景仍待执行。CA-30 已完成全目录只读调用链检查并修复 CA-R13；下一步先解决 Repo Map 的 1000 文件静默截断和缓存新鲜度，再回到 CA-40。CA-00 冻结的 20 项分数口径保持不变；按用户要求另加相同条件下的“实现塔罗牌应用”补充比较任务。执行真实模型调用前先检查当前 Host 可用 Provider、模型与可执行预算上限，并避免改动用户凭据。CA-R10 修复提交 `50c1a6e5a`；未运行真实 Provider。CA-R12 隔离缺陷已修复；`/Users/zsn/.dsh` 文件清单未记录，Git 中只有独立测试快照。`src/features/settings/SettingsPage.tsx` 与 `src/styles.css` 的用户改动仍保留、未暂存、未提交。
