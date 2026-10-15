@@ -12,6 +12,8 @@ export { activeAtToken, formatFileMention } from '@taskweaver/dsh-file-reference
 export const DEFAULT_FILE_SEARCH_MAX_RESULTS = 20;
 /** Default maximum entries retained in one workspace search index. */
 export const DEFAULT_FILE_SEARCH_MAX_ENTRIES = 10_000;
+/** Completed fuzzy indexes expire so external editor changes become visible. */
+export const DEFAULT_FILE_SEARCH_INDEX_TTL_MS = 5_000;
 /** Directory basenames omitted from traversal unless the deployment overrides them. */
 export const DEFAULT_FILE_SEARCH_EXCLUDED_DIRECTORIES = ['.git', 'node_modules'];
 /**
@@ -72,14 +74,23 @@ export class WorkspaceFileSearch {
         this.invalidate();
     }
     ensureIndex() {
-        if (this.generation !== undefined)
-            return this.generation.promise;
+        if (this.generation !== undefined) {
+            if (this.generation.completedAt === undefined
+                || Date.now() - this.generation.completedAt < DEFAULT_FILE_SEARCH_INDEX_TTL_MS) {
+                return this.generation.promise;
+            }
+            this.invalidate();
+        }
         const controller = new AbortController();
         const generation = {
             controller,
             promise: Promise.resolve([]),
         };
-        generation.promise = this.scanWorkspace(controller.signal).catch((error) => {
+        generation.promise = this.scanWorkspace(controller.signal).then(indexed => {
+            if (this.generation === generation)
+                generation.completedAt = Date.now();
+            return indexed;
+        }).catch((error) => {
             /* v8 ignore next -- every owned abort clears `generation` synchronously; this only protects an unexpected scan failure */
             if (this.generation === generation)
                 this.generation = undefined;

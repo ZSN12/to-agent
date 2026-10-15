@@ -11,6 +11,8 @@ export { activeAtToken, formatFileMention } from '@taskweaver/dsh-file-reference
 export declare const DEFAULT_FILE_SEARCH_MAX_RESULTS = 20;
 /** Default maximum entries retained in one workspace search index. */
 export declare const DEFAULT_FILE_SEARCH_MAX_ENTRIES = 10000;
+/** Completed fuzzy indexes expire so external editor changes become visible. */
+export declare const DEFAULT_FILE_SEARCH_INDEX_TTL_MS = 5000;
 /** Directory basenames omitted from traversal unless the deployment overrides them. */
 export declare const DEFAULT_FILE_SEARCH_EXCLUDED_DIRECTORIES: readonly [".git", "node_modules"];
 /** Resolved limits and exclusions for one workspace index. */

@@ -1,9 +1,10 @@
 import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   activeAtToken,
+  DEFAULT_FILE_SEARCH_INDEX_TTL_MS,
   formatFileMention,
   WorkspaceFileSearch,
 } from '../src/search.ts'
@@ -150,7 +151,7 @@ describe('WorkspaceFileSearch', () => {
     ])
   })
 
-  it('invalidates cached traversal, enforces the entry cap, and settles disposal', async () => {
+  it('expires stale fuzzy indexes, enforces the entry cap, and settles disposal', async () => {
     const root = await workspace()
     const capped = search(root, { maxEntries: 2 })
     const signal = new AbortController().signal
@@ -158,17 +159,22 @@ describe('WorkspaceFileSearch', () => {
       { path: 'README.md', kind: 'file' },
     ])
 
-    const files = search(root)
-    expect(await files.list('fresh-file', signal)).toEqual([])
-    await writeFile(join(root, 'fresh-file.ts'), 'fresh')
-    expect(await files.list('fresh-file', signal)).toEqual([])
-    files.invalidate()
-    expect(await files.list('fresh-file', signal)).toEqual([
-      { path: 'fresh-file.ts', kind: 'file' },
-    ])
-    files.dispose()
-    expect(await files.list('fresh-file', signal)).toEqual([])
-    files.dispose()
+    vi.useFakeTimers()
+    try {
+      const files = search(root)
+      expect(await files.list('fresh-file', signal)).toEqual([])
+      await writeFile(join(root, 'fresh-file.ts'), 'fresh')
+      expect(await files.list('fresh-file', signal)).toEqual([])
+      await vi.advanceTimersByTimeAsync(DEFAULT_FILE_SEARCH_INDEX_TTL_MS + 1)
+      expect(await files.list('fresh-file', signal)).toEqual([
+        { path: 'fresh-file.ts', kind: 'file' },
+      ])
+      files.dispose()
+      expect(await files.list('fresh-file', signal)).toEqual([])
+      files.dispose()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('cancels individual callers, skips missing directories, and validates limits', async () => {

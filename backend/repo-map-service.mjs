@@ -51,9 +51,10 @@ export const TEXT_EXTENSIONS = new Set([
  */
 const fileOutlineCache = new Map()
 const FILE_OUTLINE_CACHE_MAX = 4096
-const REPO_MAP_OUTLINE_CACHE_SCHEMA = 1
+const REPO_MAP_OUTLINE_CACHE_SCHEMA = 2
 const REPO_MAP_OUTLINE_CACHE_MAX_BYTES = 16 * 1024 * 1024
 const persistentRepoMapCaches = new Map()
+const PERSISTENT_REPO_MAP_CACHE_MAX_WORKSPACES = 4
 
 /** 同工作区快照 + 查询 + token 预算的 Repo Map 文本缓存。 */
 const repoMapTextCache = new Map()
@@ -115,7 +116,10 @@ async function loadPersistentOutlineCache(cacheDirectory, workspacePath, cacheVe
   if (!cacheDirectory) return { entries: new Map(), cachePath: null, dirty: false }
   const cachePath = workspaceOutlineCachePath(path.resolve(cacheDirectory), workspacePath, cacheVersion)
   const loaded = persistentRepoMapCaches.get(cachePath)
-  if (loaded) return loaded
+  if (loaded) {
+    touchCacheEntry(persistentRepoMapCaches, cachePath, loaded)
+    return loaded
+  }
 
   const result = { entries: new Map(), cachePath, dirty: false }
   try {
@@ -129,12 +133,15 @@ async function loadPersistentOutlineCache(cacheDirectory, workspacePath, cacheVe
         for (const item of doc.files.slice(0, FILE_OUTLINE_CACHE_MAX)) {
           if (!validRelativeCachePath(item?.relativePath)
             || !Number.isFinite(item.mtimeMs)
+            || typeof item.ctimeNs !== 'string'
+            || !/^-?\d+$/.test(item.ctimeNs)
             || !Number.isFinite(item.size)
             || !Array.isArray(item.symbols)
             || !Array.isArray(item.defs)
             || !Array.isArray(item.refs)) continue
           result.entries.set(item.relativePath, {
             mtimeMs: item.mtimeMs,
+            ctimeNs: item.ctimeNs,
             size: item.size,
             symbols: item.symbols,
             defs: new Set(item.defs.filter((value) => typeof value === 'string')),
@@ -147,6 +154,7 @@ async function loadPersistentOutlineCache(cacheDirectory, workspacePath, cacheVe
     // A corrupt, missing, or inaccessible cache is a cold cache, never a chat error.
   }
   persistentRepoMapCaches.set(cachePath, result)
+  trimCache(persistentRepoMapCaches, PERSISTENT_REPO_MAP_CACHE_MAX_WORKSPACES)
   return result
 }
 
@@ -159,6 +167,7 @@ async function persistOutlineCache(cache) {
     files: [...cache.entries.entries()].slice(-FILE_OUTLINE_CACHE_MAX).map(([relativePath, entry]) => ({
       relativePath,
       mtimeMs: entry.mtimeMs,
+      ctimeNs: entry.ctimeNs,
       size: entry.size,
       symbols: entry.symbols,
       defs: [...entry.defs],
@@ -183,7 +192,10 @@ async function persistOutlineCache(cache) {
 }
 
 function sameFileMetadata(entry, file) {
-  return Boolean(entry && entry.mtimeMs === file.mtimeMs && entry.size === file.size)
+  return Boolean(entry
+    && entry.mtimeMs === file.mtimeMs
+    && entry.ctimeNs === file.ctimeNs
+    && entry.size === file.size)
 }
 
 function tokenizeBm25(value) {
@@ -412,15 +424,26 @@ export function extractDefinedNames(symbols) {
 }
 
 /**
- * 递归收集工作区中的关键源码文件
+ * 按广度优先顺序收集工作区中的关键源码文件，并报告库存是否被文件上限截断。
  */
-export async function scanWorkspaceFiles(workspacePath, { maxFiles = 1000 } = {}) {
+export async function scanWorkspaceFilesDetailed(workspacePath, { maxFiles = 1000, maxEntries = 50_000 } = {}) {
+  if (!Number.isSafeInteger(maxFiles) || maxFiles <= 0) {
+    throw new Error('Repo Map maxFiles must be a positive safe integer')
+  }
+  if (!Number.isSafeInteger(maxEntries) || maxEntries <= 0) {
+    throw new Error('Repo Map maxEntries must be a positive safe integer')
+  }
   const root = await fs.realpath(workspacePath)
   const results = []
-  const stack = [root]
+  const directories = [root]
+  let truncated = false
+  let visitedEntries = 0
 
-  while (stack.length && results.length < maxFiles) {
-    const currentDir = stack.pop()
+  // Breadth-first traversal gives each shallow workspace area a chance to
+  // contribute before a large nested package tree consumes the file cap.
+  // maxEntries also bounds sparse or pathologically wide repositories.
+  for (let cursor = 0; cursor < directories.length && !truncated; cursor += 1) {
+    const currentDir = directories[cursor]
     let entries
     try {
       entries = await fs.readdir(currentDir, { withFileTypes: true })
@@ -431,7 +454,11 @@ export async function scanWorkspaceFiles(workspacePath, { maxFiles = 1000 } = {}
     entries.sort((a, b) => a.name.localeCompare(b.name))
 
     for (const entry of entries) {
-      if (results.length >= maxFiles) break
+      if (visitedEntries >= maxEntries) {
+        truncated = true
+        break
+      }
+      visitedEntries += 1
       if (entry.name.startsWith('.') && entry.name !== '.env') {
         // 忽略绝大多数点开头的隐藏目录与文件
         continue
@@ -443,7 +470,7 @@ export async function scanWorkspaceFiles(workspacePath, { maxFiles = 1000 } = {}
       const fullPath = path.join(currentDir, entry.name)
       let stat
       try {
-        stat = await fs.lstat(fullPath)
+        stat = await fs.lstat(fullPath, { bigint: true })
       } catch {
         continue
       }
@@ -453,18 +480,23 @@ export async function scanWorkspaceFiles(workspacePath, { maxFiles = 1000 } = {}
       }
 
       if (stat.isDirectory()) {
-        stack.push(fullPath)
+        directories.push(fullPath)
       } else if (stat.isFile()) {
         const ext = path.extname(entry.name).toLowerCase()
         if (CODE_EXTENSIONS.has(ext) || TEXT_EXTENSIONS.has(ext)) {
           // 限制单文件大小不超过 512KB，避免解析过大日志或打包产物
-          if (stat.size <= 512 * 1024) {
+          if (stat.size <= 512n * 1024n) {
+            if (results.length >= maxFiles) {
+              truncated = true
+              break
+            }
             const relativePath = path.relative(root, fullPath).split(path.sep).join('/')
             results.push({
               absolutePath: fullPath,
               relativePath,
-              mtimeMs: stat.mtimeMs,
-              size: stat.size,
+              mtimeMs: Number(stat.mtimeNs) / 1_000_000,
+              ctimeNs: stat.ctimeNs.toString(),
+              size: Number(stat.size),
             })
           }
         }
@@ -472,7 +504,12 @@ export async function scanWorkspaceFiles(workspacePath, { maxFiles = 1000 } = {}
     }
   }
 
-  return results
+  return { files: results, truncated }
+}
+
+/** Recursively collect the selected source files without exposing traversal metadata. */
+export async function scanWorkspaceFiles(workspacePath, options) {
+  return (await scanWorkspaceFilesDetailed(workspacePath, options)).files
 }
 
 /**
@@ -592,12 +629,16 @@ function flattenSymbolOutline(symbols) {
  * @param {object} options 配置选项
  * @param {string} [options.query=''] 检索意图/任务 Query
  * @param {number} [options.maxTokens=2000] 最大允许的 Token 预算
+ * @param {number} [options.maxFiles=1000] 索引的最大候选文件数
+ * @param {number} [options.maxEntries=50000] 遍历的最大目录项数
  * @param {object|null} [options.precomputedSymbols=null] 预计算的符号映射 { [relativePath]: symbols }
  * @returns {Promise<string>} 紧凑的 Repo Map 文本树
  */
 export async function generateRepoMap(workspacePath, {
   query = '',
   maxTokens = 2000,
+  maxFiles = 1000,
+  maxEntries = 50_000,
   precomputedSymbols = null,
   cacheDirectory = null,
 } = {}) {
@@ -612,16 +653,24 @@ export async function generateRepoMap(workspacePath, {
   const cacheable = !precomputedSymbols || typeof precomputedSymbols !== 'object'
   const root = await fs.realpath(workspacePath)
   const extractor = await resolveSymbolExtractor()
-  const files = await scanWorkspaceFiles(root)
-  if (files.length === 0 && !precomputedSymbols) return ''
+  const inventory = precomputedSymbols && typeof precomputedSymbols === 'object'
+    ? { files: [], truncated: false }
+    : await scanWorkspaceFilesDetailed(root, { maxFiles, maxEntries })
+  const { files } = inventory
+  const inventoryTruncated = inventory.truncated
+  if (files.length === 0 && !precomputedSymbols) {
+    if (!inventoryTruncated) return ''
+    const notice = '[Repo Map partial: inventory has 0 indexed files.]'
+    return estimateTokens(notice) <= maxTokens ? notice : ''
+  }
 
   // Include the filesystem inventory in the text-cache key. This still costs a
   // bounded directory walk, but avoids stale maps when a file is added,
   // removed, or changed during the short text-cache lifetime.
   const inventorySignature = crypto.createHash('sha256')
-    .update(files.map((file) => `${file.relativePath}\0${file.mtimeMs}\0${file.size}`).join('\n'))
+    .update(files.map((file) => `${file.relativePath}\0${file.mtimeMs}\0${file.ctimeNs}\0${file.size}`).join('\n'))
     .digest('hex')
-  const cacheKey = `${root}\0${maxTokens}\0${String(query)}\0${inventorySignature}\0${cacheVersion}`
+  const cacheKey = `${root}\0${maxFiles}\0${maxEntries}\0${maxTokens}\0${String(query)}\0${inventoryTruncated}\0${inventorySignature}\0${cacheVersion}`
   const cachedMap = cacheable ? repoMapTextCache.get(cacheKey) : null
   if (cachedMap && Date.now() - cachedMap.at < REPO_MAP_TEXT_CACHE_TTL_MS) {
     touchCacheEntry(repoMapTextCache, cacheKey, cachedMap)
@@ -681,6 +730,7 @@ export async function generateRepoMap(workspacePath, {
 
         fileData = {
           mtimeMs: file.mtimeMs,
+          ctimeNs: file.ctimeNs,
           size: file.size,
           symbols,
           defs,
@@ -752,8 +802,10 @@ export async function generateRepoMap(workspacePath, {
   // 6. 贪心筛选与 Token 预算控制
   const selectedLines = []
   let accumulatedTokens = 0
+  let tokenBudgetTruncated = false
 
-  for (const file of scoredFiles) {
+  for (let fileIndex = 0; fileIndex < scoredFiles.length; fileIndex += 1) {
+    const file = scoredFiles[fileIndex]
     const rawOutlines = flattenSymbolOutline(file.symbols)
 
     // 对单文件内部的符号，根据 query 关联度再次排序，把命中的符号置前
@@ -780,6 +832,7 @@ export async function generateRepoMap(workspacePath, {
 
     // 如果加入整行后超出最大预算
     if (accumulatedTokens + lineTokens > maxTokens) {
+      tokenBudgetTruncated = true
       // 尝试仅容纳部分符号
       if (rawOutlines.length > 1) {
         const keptSymbols = []
@@ -820,10 +873,22 @@ export async function generateRepoMap(workspacePath, {
         finalLines.push(line)
         currentTokens += lt
       } else {
+        tokenBudgetTruncated = true
         break
       }
     }
     result = finalLines.join('\n')
+  }
+
+  if (inventoryTruncated || tokenBudgetTruncated) {
+    const partialReasons = []
+    if (inventoryTruncated) partialReasons.push(`inventory has ${files.length} indexed files`)
+    if (tokenBudgetTruncated) partialReasons.push(`output hit the ${maxTokens}-token limit`)
+    const notice = `[Repo Map partial: ${partialReasons.join('; ')}.]`
+    const lines = result ? result.split('\n') : []
+    while (lines.length > 0 && estimateTokens([...lines, notice].join('\n')) > maxTokens) lines.pop()
+    if (estimateTokens(notice) <= maxTokens) lines.push(notice)
+    result = lines.join('\n')
   }
 
   if (cacheable) {

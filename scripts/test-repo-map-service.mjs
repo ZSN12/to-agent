@@ -5,6 +5,7 @@ import path from 'node:path'
 import {
   generateRepoMap,
   scanWorkspaceFiles,
+  scanWorkspaceFilesDetailed,
   computePageRank,
   estimateTokens,
   clearRepoMapCache,
@@ -176,6 +177,36 @@ export class InvoiceManager {
   assert.ok(!relPaths.some((p) => p.includes('.git')), '必须忽略 .git')
   assert.ok(!relPaths.some((p) => p.includes('dist')), '必须忽略 dist')
   assert.ok(!relPaths.some((p) => p.endsWith('.dat')), '必须忽略非代码文件')
+  const completeInventory = await scanWorkspaceFilesDetailed(workspace, { maxFiles: relPaths.length })
+  assert.equal(completeInventory.truncated, false, '恰好到达文件上限时不能误报截断')
+  const partialInventory = await scanWorkspaceFilesDetailed(workspace, { maxFiles: relPaths.length - 1 })
+  assert.equal(partialInventory.files.length, relPaths.length - 1)
+  assert.equal(partialInventory.truncated, true, '发现第一个超限文件时必须标记截断')
+  await assert.rejects(scanWorkspaceFilesDetailed(workspace, { maxFiles: 0 }), /maxFiles/)
+  await assert.rejects(scanWorkspaceFilesDetailed(workspace, { maxEntries: 0 }), /maxEntries/)
+
+  // A large nested branch must not starve a smaller sibling workspace area.
+  const broadWorkspace = path.join(tempRoot, 'broad-repo')
+  await fs.mkdir(path.join(broadWorkspace, 'a-dense', 'nested'), { recursive: true })
+  await fs.mkdir(path.join(broadWorkspace, 'backend'), { recursive: true })
+  await fs.writeFile(path.join(broadWorkspace, 'backend', 'entry.ts'), 'export function backendEntry() {}\n')
+  for (let index = 0; index < 1001; index += 1) {
+    await fs.writeFile(path.join(broadWorkspace, 'a-dense', 'nested', `file-${index}.ts`), 'export const value = 1\n')
+  }
+  const broadInventory = await scanWorkspaceFilesDetailed(broadWorkspace, { maxFiles: 1000 })
+  assert.equal(broadInventory.files.length, 1000, '扫描保留原有文件上限')
+  assert.equal(broadInventory.truncated, true, '检测到额外候选文件后标记截断')
+  assert.ok(broadInventory.files.some((file) => file.relativePath === 'backend/entry.ts'),
+    '广度优先遍历应覆盖其他根目录后再深入密集分支')
+  const entryBoundInventory = await scanWorkspaceFilesDetailed(broadWorkspace, { maxFiles: 100, maxEntries: 1 })
+  assert.equal(entryBoundInventory.files.length, 0)
+  assert.equal(entryBoundInventory.truncated, true, '目录项上限也必须标记未完成的库存扫描')
+  assert.match(await generateRepoMap(broadWorkspace, { maxFiles: 100, maxEntries: 1 }),
+    /Repo Map partial: inventory has 0 indexed files/,
+    '库存截断且尚无候选文件时也必须明确返回部分结果')
+  const repeatedBroadInventory = await scanWorkspaceFilesDetailed(broadWorkspace, { maxFiles: 1000 })
+  assert.deepEqual(repeatedBroadInventory.files.map((file) => file.relativePath),
+    broadInventory.files.map((file) => file.relativePath), '遍历结果应保持确定性')
   console.log('✓ Case 1: 文件扫描及忽略规则验证通过')
 
   // Case 2: 无 Query 基础地图生成与 PageRank 分析
@@ -187,6 +218,15 @@ export class InvoiceManager {
   assert.match(defaultMap, /class PaymentProcessor/, '应提取出 PaymentProcessor')
   assert.match(defaultMap, /class Logger/, '应提取出 Logger')
   assert.ok(!defaultMap.includes('node_modules'), '地图内容绝不能包含 node_modules')
+  assert.doesNotMatch(defaultMap, /Repo Map partial/, '完整且预算充足的地图不应出现截断说明')
+
+  const truncatedMap = await generateRepoMap(workspace, { maxTokens: 100, maxFiles: 3 })
+  assert.match(truncatedMap, /Repo Map partial: inventory has 3 indexed files/)
+  assert.equal(await generateRepoMap(workspace, { maxTokens: 100, maxFiles: 3 }), truncatedMap,
+    'Repo Map 文本缓存命中时必须保留相同截断说明')
+  const tokenTruncatedMap = await generateRepoMap(workspace, { maxTokens: 30 })
+  assert.match(tokenTruncatedMap, /output hit the 30-token limit/)
+  assert.ok(estimateTokens(tokenTruncatedMap) <= 30)
 
   // 验证 PageRank 计算
   const fileNodes = [
@@ -236,7 +276,7 @@ export class InvoiceManager {
   assert.ok(tokens100 >= tokens50, '更大预算应能容纳更多或相同的内容')
   console.log('✓ Case 4: Token 预算严格控制验证通过 (50 / 100 tokens)')
 
-  // Case 5: 内存缓存 (mtime) 验证
+  // Case 5: 内存缓存 freshness 验证
   clearRepoMapCache()
   assert.equal(getRepoMapCacheSize(), 0, '清空缓存后大小为 0')
   await generateRepoMap(workspace)
@@ -247,7 +287,20 @@ export class InvoiceManager {
   await generateRepoMap(workspace)
   assert.equal(getRepoMapCacheSize(), initialCacheSize, '重复调用时不应重复新建无用条目')
 
-  // 修改某个文件内容并重新测试
+  const userModelPath = path.join(workspace, 'src', 'models', 'user.ts')
+  const userModelStat = await fs.stat(userModelPath)
+  const originalUserModel = await fs.readFile(userModelPath, 'utf8')
+  const priorSameQueryMap = await generateRepoMap(workspace, { query: 'UserProfile', maxTokens: 4000 })
+  assert.match(priorSameQueryMap, /UserProfile/)
+  const sameSizeUserModel = originalUserModel.replace('UserProfile', 'UserAccount')
+  assert.equal(Buffer.byteLength(sameSizeUserModel), Buffer.byteLength(originalUserModel), '缓存碰撞夹具必须保持文件大小不变')
+  await fs.writeFile(userModelPath, sameSizeUserModel)
+  await fs.utimes(userModelPath, userModelStat.atime, userModelStat.mtime)
+  const sameSizeUpdatedMap = await generateRepoMap(workspace, { query: 'UserProfile', maxTokens: 4000 })
+  assert.match(sameSizeUpdatedMap, /UserAccount/, 'ctimeNs 应识别同大小且 mtime 恢复后的内容变化')
+  assert.doesNotMatch(sameSizeUpdatedMap, /UserProfile/, '文件清单摘要必须阻止旧查询文本缓存命中')
+
+  // 修改另一个文件内容并重新测试
   await fs.appendFile(path.join(workspace, 'src', 'utils', 'logger.ts'), '\nexport function newLogHelper() {}\n')
   const updatedMap = await generateRepoMap(workspace, { query: 'newLogHelper' })
   assert.match(updatedMap, /newLogHelper/, '修改文件后应刷新缓存并提取新符号')
@@ -267,7 +320,7 @@ export class InvoiceManager {
   const outlineCacheFiles = await fs.readdir(outlineCacheDirectory)
   assert.equal(outlineCacheFiles.length, 1, '每个工作区使用一个有界缓存文件')
   const outlineCacheDoc = JSON.parse(await fs.readFile(path.join(outlineCacheDirectory, outlineCacheFiles[0]), 'utf8'))
-  assert.equal(outlineCacheDoc.schema, 1)
+  assert.equal(outlineCacheDoc.schema, 2)
   assert.ok(outlineCacheDoc.files.length > 0)
   assert.ok(outlineCacheDoc.files.every((item) => !Object.hasOwn(item, 'content')),
     '持久化缓存只保存路径元数据、符号与引用，不保存文件全文')
@@ -277,6 +330,19 @@ export class InvoiceManager {
   const warmDiskMap = await generateRepoMap(workspace, { maxTokens: 4000, cacheDirectory: outlineCacheDirectory })
   assert.equal(persistentExtractorCalls, 0, '清空进程内缓存后应直接复用磁盘中的未变化大纲')
   assert.equal(warmDiskMap, persistentMap, '复用持久化大纲时地图输出保持稳定')
+
+  const loggerPath = path.join(workspace, 'src', 'utils', 'logger.ts')
+  const loggerStat = await fs.stat(loggerPath)
+  const originalLogger = await fs.readFile(loggerPath, 'utf8')
+  const sameSizeLogger = originalLogger.replace('Logger', 'LoggrX')
+  assert.equal(Buffer.byteLength(sameSizeLogger), Buffer.byteLength(originalLogger))
+  await fs.writeFile(loggerPath, sameSizeLogger)
+  await fs.utimes(loggerPath, loggerStat.atime, loggerStat.mtime)
+  clearRepoMapCache()
+  persistentExtractorCalls = 0
+  const sameSizeDiskMap = await generateRepoMap(workspace, { maxTokens: 4000, cacheDirectory: outlineCacheDirectory })
+  assert.match(sameSizeDiskMap, /class LoggrX/, '持久缓存也必须识别同大小且 mtime 恢复后的内容变化')
+  assert.equal(persistentExtractorCalls, 1, '持久缓存只重提取发生变化的文件')
 
   await fs.appendFile(path.join(workspace, 'src', 'utils', 'logger.ts'), '\nexport class PersistentCacheRefresh {}\n')
   clearRepoMapCache()

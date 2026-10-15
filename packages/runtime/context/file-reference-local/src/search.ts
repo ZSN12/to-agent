@@ -16,6 +16,8 @@ export { activeAtToken, formatFileMention } from '@taskweaver/dsh-file-reference
 export const DEFAULT_FILE_SEARCH_MAX_RESULTS = 20
 /** Default maximum entries retained in one workspace search index. */
 export const DEFAULT_FILE_SEARCH_MAX_ENTRIES = 10_000
+/** Completed fuzzy indexes expire so external editor changes become visible. */
+export const DEFAULT_FILE_SEARCH_INDEX_TTL_MS = 5_000
 /** Directory basenames omitted from traversal unless the deployment overrides them. */
 export const DEFAULT_FILE_SEARCH_EXCLUDED_DIRECTORIES = ['.git', 'node_modules'] as const
 
@@ -39,6 +41,7 @@ interface RankedPath {
 interface IndexGeneration {
   controller: AbortController
   promise: Promise<IndexedPath[]>
+  completedAt?: number
 }
 
 /**
@@ -105,13 +108,22 @@ export class WorkspaceFileSearch {
   }
 
   private ensureIndex(): Promise<IndexedPath[]> {
-    if (this.generation !== undefined) return this.generation.promise
+    if (this.generation !== undefined) {
+      if (this.generation.completedAt === undefined
+        || Date.now() - this.generation.completedAt < DEFAULT_FILE_SEARCH_INDEX_TTL_MS) {
+        return this.generation.promise
+      }
+      this.invalidate()
+    }
     const controller = new AbortController()
-    const generation = {
+    const generation: IndexGeneration = {
       controller,
       promise: Promise.resolve([] as IndexedPath[]),
     } satisfies IndexGeneration
-    generation.promise = this.scanWorkspace(controller.signal).catch((error: unknown) => {
+    generation.promise = this.scanWorkspace(controller.signal).then(indexed => {
+      if (this.generation === generation) generation.completedAt = Date.now()
+      return indexed
+    }).catch((error: unknown) => {
       /* v8 ignore next -- every owned abort clears `generation` synchronously; this only protects an unexpected scan failure */
       if (this.generation === generation) this.generation = undefined
       throw error
