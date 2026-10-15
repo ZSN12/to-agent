@@ -36,6 +36,7 @@
   },
   "peerDependencies": {
     "@taskweaver/dsh-agent": "workspace:^",
+    "@taskweaver/dsh-fs": "workspace:^",
     "@taskweaver/dsh-invariants": "workspace:^",
     "@taskweaver/dsh-tools": "workspace:^",
     "@taskweaver/cordis": "workspace:^"
@@ -44,6 +45,8 @@
     "@taskweaver/dsh-agent": "workspace:^",
     "@taskweaver/dsh-agent-loop": "workspace:^",
     "@taskweaver/dsh-agent-loop-testkit": "workspace:^",
+    "@taskweaver/dsh-fs": "workspace:^",
+    "@taskweaver/dsh-fs-local": "workspace:^",
     "@taskweaver/dsh-invariants": "workspace:^",
     "@taskweaver/dsh-llm": "workspace:^",
     "@taskweaver/dsh-session": "workspace:^",

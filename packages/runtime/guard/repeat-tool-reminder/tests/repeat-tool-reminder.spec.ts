@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest'
+import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import { Context } from '@taskweaver/cordis'
 import { createUserMessage, CallId  } from '@taskweaver/dsh-llm'
 import { SessionId, type SessionEvent } from '@taskweaver/dsh-session'
@@ -6,6 +8,7 @@ import { defineContentToolFixture } from '@taskweaver/dsh-tools'
 import type { Agent } from '@taskweaver/dsh-agent'
 import AgentLoop from '@taskweaver/dsh-agent-loop'
 import { mountAgentLoopTestDependencies } from '@taskweaver/dsh-agent-loop-testkit'
+import { LocalFileSystem } from '@taskweaver/dsh-fs-local'
 import * as RepeatToolGuard from '@taskweaver/dsh-repeat-tool-reminder'
 import type { Config } from '@taskweaver/dsh-repeat-tool-reminder'
 import { MockAdapter, textResponse, toolCallResponse } from '../../../core/agent-loop/tests/mock-adapter.ts'
@@ -21,9 +24,10 @@ const testToolSignal = new AbortController().signal
  */
 
 /** Boot the core spine + the guard; the caller registers adapters and extra listeners. */
-async function harness(config: Config = {}): Promise<Context> {
+async function harness(config: Config = {}, filesystemCwd?: string): Promise<Context> {
   const ctx = new Context()
   await mountAgentLoopTestDependencies(ctx)
+  await ctx.plugin(LocalFileSystem, filesystemCwd !== undefined ? { cwd: filesystemCwd } : {})
   await ctx.plugin(AgentLoop, { agents: [] })
   await ctx.plugin(RepeatToolGuard, config)
   ctx.tools.register(defineContentToolFixture({ name: 'probe', description: 'p', parameters: {}, async execute() { return [{ type: 'text', text: 'ok' }] } }))
@@ -487,6 +491,104 @@ describe('TaskWeaver read-only path scopes', () => {
     await waitForIdle(ctx, agent)
     expect(executed).toEqual([])
   })
+
+  it.skipIf(process.platform === 'win32')('denies POSIX backslash paths and symlinks that resolve outside the workspace', async () => {
+    const root = await mkdtemp(join(import.meta.dirname, '.readonly-scope-'))
+    try {
+      const workspace = join(root, 'workspace')
+      const outside = join(root, 'outside')
+      await mkdir(join(workspace, 'src'), { recursive: true })
+      await mkdir(outside)
+      await writeFile(join(workspace, 'src', 'allowed.txt'), 'inside')
+      await writeFile(join(workspace, 'src\\secret.txt'), 'backslash escape')
+      await writeFile(join(outside, 'secret.txt'), 'symlink escape')
+      await symlink(join(outside, 'secret.txt'), join(workspace, 'src', 'leak.txt'))
+      await symlink(outside, join(workspace, 'src-link'))
+      await symlink(join(outside, 'secret.txt'), join(workspace, 'src-file-link'))
+
+      const ctx = await harness({}, workspace)
+      const executed: string[] = []
+      const globExecuted: string[] = []
+      ctx.tools.register(defineContentToolFixture({
+        name: 'read',
+        description: 'read a file through the local filesystem provider',
+        parameters: { file_path: { type: 'string' } },
+        async execute(args, exec) {
+          const target = await ctx.fs.resolve(args.file_path, {
+            ...(exec.agent?.session.header.cwd !== undefined ? { cwd: exec.agent.session.header.cwd } : {}),
+            signal: exec.signal,
+          })
+          const info = await ctx.fs.stat(target, exec.signal)
+          if (!info) throw new Error('not found')
+          const content = await ctx.fs.readText(target, exec.signal)
+          executed.push(args.file_path)
+          return [{ type: 'text', text: content }]
+        },
+      }))
+      ctx.tools.register(defineContentToolFixture({
+        name: 'glob',
+        description: 'record the requested glob root',
+        parameters: {
+          pattern: { type: 'string', required: true },
+          path: { type: 'string' },
+          target_directory: { type: 'string' },
+        },
+        async execute(args) {
+          globExecuted.push(args.path ?? args.target_directory ?? '.')
+          return [{ type: 'text', text: 'matched' }]
+        },
+      }))
+      const adapter = new MockAdapter([
+        toolCallResponse('allowed-read', 'read', { file_path: 'src/allowed.txt' }),
+        toolCallResponse('symlink-read', 'read', { file_path: 'src/leak.txt' }),
+        toolCallResponse('backslash-read', 'read', { file_path: 'src\\secret.txt' }),
+        toolCallResponse('symlink-scope-read', 'read', { file_path: 'src-link/secret.txt' }),
+        toolCallResponse('file-symlink-scope-read', 'read', { file_path: 'src-file-link' }),
+        toolCallResponse('allowed-glob-alias', 'glob', { pattern: '*.txt', target_directory: 'src' }),
+        toolCallResponse('outside-glob-alias', 'glob', { pattern: 'src/allowed.txt', target_directory: '../outside' }),
+        textResponse('Only the assigned in-scope source was read.'),
+      ])
+      ctx.llm.registerAdapter(['mock'], adapter)
+      const agent = ctx.agentLoop.create(
+        SessionId('readonly-canonical-path-scope'),
+        { provider: 'mock', model: 'mock' },
+        { cwd: workspace },
+      )
+      const marker = '<taskweaver-readonly-scope-v1>{"paths":["src","src-link","src-file-link"]}</taskweaver-readonly-scope-v1>'
+      agent.followup(createUserMessage({
+        content: [{ type: 'text', text: `Inspect only the assigned directory.\n${marker}` }],
+        source: { kind: 'user' },
+      }))
+
+      await waitForIdle(ctx, agent)
+      expect(executed).toEqual(['src/allowed.txt'])
+      expect(globExecuted).toEqual(['src'])
+      const results = [...agent.session.events].filter((event): event is SessionEvent<'tool/result'> => event.type === 'tool/result')
+      expect(results).toHaveLength(7)
+      expect(results[1]!.data.message.content[0]!.content[0]).toMatchObject({
+        type: 'text',
+        text: expect.stringContaining('read-only scope denied read at src/leak.txt'),
+      })
+      expect(results[2]!.data.message.content[0]!.content[0]).toMatchObject({
+        type: 'text',
+        text: expect.stringContaining('read-only scope denied read at src/secret.txt'),
+      })
+      expect(results[3]!.data.message.content[0]!.content[0]).toMatchObject({
+        type: 'text',
+        text: expect.stringContaining('read-only scope denied read at src-link/secret.txt'),
+      })
+      expect(results[4]!.data.message.content[0]!.content[0]).toMatchObject({
+        type: 'text',
+        text: expect.stringContaining('read-only scope denied read at src-file-link'),
+      })
+      expect(results[6]!.data.message.content[0]!.content[0]).toMatchObject({
+        type: 'text',
+        text: expect.stringContaining('read-only scope denied glob at (missing or invalid path)'),
+      })
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
 })
 
 describe('chain semantics', () => {
@@ -883,6 +985,7 @@ describe('config validation fails loud', () => {
   async function spine(): Promise<Context> {
     const ctx = new Context()
     await mountAgentLoopTestDependencies(ctx)
+    await ctx.plugin(LocalFileSystem)
     await ctx.plugin(AgentLoop, { agents: [] })
     return ctx
   }

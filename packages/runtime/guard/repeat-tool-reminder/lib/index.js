@@ -168,6 +168,7 @@ const { version } = createRequire(import.meta.url)("../package.json");
 * @module @taskweaver/dsh-repeat-tool-reminder
 */
 const name = "repeat-tool-reminder";
+const inject = ["fs"];
 const Config = z.object({
 	thresholds: z.array(z.number()).default([
 		3,
@@ -188,21 +189,21 @@ const PLUGIN_SOURCE = {
 	plugin: "repeat-tool-reminder"
 };
 /** Only discovery tools participate; this is not a per-task call or time budget. */
-const SEARCH_TOOLS = new Set(["glob", "grep"]);
-const SCOPED_READ_TOOLS = new Set(["read", "read_image"]);
-const SCOPED_SEARCH_TOOLS = new Set([
+const SEARCH_TOOLS = /* @__PURE__ */ new Set(["glob", "grep"]);
+const SCOPED_READ_TOOLS = /* @__PURE__ */ new Set(["read", "read_image"]);
+const SCOPED_SEARCH_TOOLS = /* @__PURE__ */ new Set([
 	"glob",
 	"grep",
 	"find",
 	"ls"
 ]);
-const FOCUS_SEARCH_TOOLS = new Set([
+const FOCUS_SEARCH_TOOLS = /* @__PURE__ */ new Set([
 	"glob",
 	"grep",
 	"find",
 	"ls"
 ]);
-const SEARCH_FOCUS_REMINDER_THRESHOLDS = new Set([2, 4]);
+const SEARCH_FOCUS_REMINDER_THRESHOLDS = /* @__PURE__ */ new Set([2, 4]);
 const READONLY_SCOPE_SEARCH_REMINDER_AT = 6;
 const MAX_READONLY_SCOPE_SEARCH_CALLS = 10;
 const MAX_READONLY_FILE_READ_CALLS = 8;
@@ -210,7 +211,7 @@ const MAX_READONLY_IDENTICAL_READ_CALLS = 3;
 const READONLY_SCOPE_OPEN = "<taskweaver-readonly-scope-v1>";
 const READONLY_SCOPE_CLOSE = "</taskweaver-readonly-scope-v1>";
 const MAX_SEARCH_CYCLE_PERIOD = 8;
-const SEARCH_CYCLE_HISTORY_SIZE = MAX_SEARCH_CYCLE_PERIOD * 2;
+const SEARCH_CYCLE_HISTORY_SIZE = 16;
 /** After a cycle is latched, allow one model step to switch to a narrower action. */
 const MAX_BLOCKED_SCOPE_RETRIES = 1;
 /**
@@ -341,18 +342,46 @@ function readOnlyTaskScope(agent) {
 }
 function scopedToolPath(exec) {
 	const args = exec.arguments !== null && typeof exec.arguments === "object" ? exec.arguments : {};
-	if (exec.name === "glob" && (args.path === void 0 || args.path === ".")) {
+	if (exec.name === "glob" && args.target_directory === void 0 && (args.path === void 0 || args.path === ".")) {
 		const literalPattern = normalizeScopedPath(args.pattern);
 		if (literalPattern) return literalPattern;
 	}
-	const raw = SCOPED_READ_TOOLS.has(exec.name) ? args.file_path : args.path ?? args.directory ?? args.cwd ?? ".";
+	const raw = exec.name === "glob" ? args.path ?? args.target_directory ?? "." : SCOPED_READ_TOOLS.has(exec.name) ? args.file_path : args.path ?? args.directory ?? args.cwd ?? ".";
 	if (typeof raw !== "string" || raw.trim() === "") return void 0;
 	if (raw.trim() === ".") return ".";
 	return normalizeScopedPath(raw);
 }
+/** Preserve the native path spelling for the provider check after lexical normalization. */
+function scopedToolRequestedPath(exec) {
+	const args = exec.arguments !== null && typeof exec.arguments === "object" ? exec.arguments : {};
+	if (exec.name === "glob" && args.target_directory === void 0 && (args.path === void 0 || args.path === ".")) {
+		if (normalizeScopedPath(args.pattern)) return args.pattern;
+	}
+	const raw = exec.name === "glob" ? args.path ?? args.target_directory ?? "." : SCOPED_READ_TOOLS.has(exec.name) ? args.file_path : args.path ?? args.directory ?? args.cwd ?? ".";
+	return typeof raw === "string" && raw.trim() !== "" ? raw : void 0;
+}
 function isInsideReadOnlyScope(target, paths) {
 	if (!target || target === ".") return false;
 	return paths.some((scope) => target === scope || target.startsWith(`${scope}/`));
+}
+/** Confirm scope containment using provider identities, which resolve symlinks and native path semantics. */
+async function isInsideResolvedReadOnlyScope(ctx, exec, requestedPath, scopePaths) {
+	if (!requestedPath || !exec.agent) return false;
+	const fileSystem = ctx.fs;
+	if (!fileSystem) return false;
+	const options = {
+		...exec.agent.session.header.cwd !== void 0 ? { cwd: exec.agent.session.header.cwd } : {},
+		signal: exec.signal
+	};
+	try {
+		const workspaceRoot = await fileSystem.resolve(".", options);
+		const target = await fileSystem.resolve(requestedPath, options);
+		for (const scopePath of scopePaths) {
+			const scopeTarget = await fileSystem.resolve(scopePath, options);
+			if (fileSystem.contains(workspaceRoot, scopeTarget) && fileSystem.contains(scopeTarget, target)) return true;
+		}
+	} catch {}
+	return false;
 }
 function readOnlyScopeDenial(exec, scope, target) {
 	const requested = typeof target === "string" ? target : "(missing or invalid path)";
@@ -587,7 +616,7 @@ function apply(ctx, config) {
 			const scope = readOnlyTaskScope(exec.agent);
 			if (scope) {
 				const target = scopedToolPath(exec);
-				if (scope.invalid || !isInsideReadOnlyScope(target, scope.paths)) return {
+				if (scope.invalid || !isInsideReadOnlyScope(target, scope.paths) || !await isInsideResolvedReadOnlyScope(ctx, exec, scopedToolRequestedPath(exec), scope.paths)) return {
 					kind: "deny",
 					reason: readOnlyScopeDenial(exec, scope, target)
 				};
@@ -715,4 +744,4 @@ function apply(ctx, config) {
 	});
 }
 //#endregion
-export { Config, apply, name };
+export { Config, apply, inject, name };

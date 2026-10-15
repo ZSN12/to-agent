@@ -9,6 +9,7 @@
 import type { Context } from '@taskweaver/cordis';
 import z from '@taskweaver/schemastery';
 export declare const name = "repeat-tool-reminder";
+export declare const inject: string[];
 /**
  * Plugin config, validated by the same-named schemastery schema plus the
  * load-time checks in `apply` (misconfiguration fails loud: an empty

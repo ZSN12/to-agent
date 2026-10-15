@@ -10,12 +10,14 @@
 import type { Context } from '@taskweaver/cordis'
 import z from '@taskweaver/schemastery'
 import type { Agent, PreStepDecision } from '@taskweaver/dsh-agent'
+import type { FileSystem } from '@taskweaver/dsh-fs'
 import { createUserMessage } from '@taskweaver/dsh-llm'
 import type { MessageSource } from '@taskweaver/dsh-llm'
 import type { UserMessage } from '@taskweaver/dsh-session'
 import type { PostToolDecision, PreToolDecision, ToolExecution } from '@taskweaver/dsh-tools'
 
 export const name = 'repeat-tool-reminder'
+export const inject = ['fs']
 
 /**
  * Plugin config, validated by the same-named schemastery schema plus the
@@ -253,21 +255,71 @@ function scopedToolPath(exec: ToolExecution): string | undefined {
   // Models sometimes call glob with only an exact pattern, leaving `path` at
   // the workspace root. Treat that as the named target (not as permission to
   // search the root); wildcard patterns at `.` remain denied below.
-  if (exec.name === 'glob' && (args.path === undefined || args.path === '.')) {
+  if (exec.name === 'glob'
+    && args.target_directory === undefined
+    && (args.path === undefined || args.path === '.')) {
     const literalPattern = normalizeScopedPath(args.pattern)
     if (literalPattern) return literalPattern
   }
-  const raw = SCOPED_READ_TOOLS.has(exec.name)
-    ? args.file_path
-    : args.path ?? args.directory ?? args.cwd ?? '.'
+  const raw = exec.name === 'glob'
+    ? args.path ?? args.target_directory ?? '.'
+    : SCOPED_READ_TOOLS.has(exec.name)
+      ? args.file_path
+      : args.path ?? args.directory ?? args.cwd ?? '.'
   if (typeof raw !== 'string' || raw.trim() === '') return undefined
   if (raw.trim() === '.') return '.'
   return normalizeScopedPath(raw)
 }
 
+/** Preserve the native path spelling for the provider check after lexical normalization. */
+function scopedToolRequestedPath(exec: ToolExecution): string | undefined {
+  const args = exec.arguments !== null && typeof exec.arguments === 'object'
+    ? exec.arguments as Record<string, unknown>
+    : {}
+  if (exec.name === 'glob'
+    && args.target_directory === undefined
+    && (args.path === undefined || args.path === '.')) {
+    if (normalizeScopedPath(args.pattern)) return args.pattern as string
+  }
+  const raw = exec.name === 'glob'
+    ? args.path ?? args.target_directory ?? '.'
+    : SCOPED_READ_TOOLS.has(exec.name)
+      ? args.file_path
+      : args.path ?? args.directory ?? args.cwd ?? '.'
+  return typeof raw === 'string' && raw.trim() !== '' ? raw : undefined
+}
+
 function isInsideReadOnlyScope(target: string | undefined, paths: readonly string[]): boolean {
   if (!target || target === '.') return false
   return paths.some(scope => target === scope || target.startsWith(`${scope}/`))
+}
+
+/** Confirm scope containment using provider identities, which resolve symlinks and native path semantics. */
+async function isInsideResolvedReadOnlyScope(
+  ctx: Context,
+  exec: ToolExecution,
+  requestedPath: string | undefined,
+  scopePaths: readonly string[],
+): Promise<boolean> {
+  if (!requestedPath || !exec.agent) return false
+  const fileSystem = (ctx as unknown as { fs?: FileSystem }).fs
+  if (!fileSystem) return false
+  const options = {
+    ...(exec.agent.session.header.cwd !== undefined ? { cwd: exec.agent.session.header.cwd } : {}),
+    signal: exec.signal,
+  }
+  try {
+    const workspaceRoot = await fileSystem.resolve('.', options)
+    const target = await fileSystem.resolve(requestedPath, options)
+    for (const scopePath of scopePaths) {
+      const scopeTarget = await fileSystem.resolve(scopePath, options)
+      if (fileSystem.contains(workspaceRoot, scopeTarget) && fileSystem.contains(scopeTarget, target)) return true
+    }
+  } catch {
+    // The scope is a permission boundary: an unavailable or unresolvable
+    // canonical path must be denied before the filesystem tool executes.
+  }
+  return false
 }
 
 function readOnlyScopeDenial(exec: ToolExecution, scope: ReadOnlyTaskScope, target: string | undefined): string {
@@ -554,7 +606,9 @@ export function apply(ctx: Context, config: Config): void {
       const scope = readOnlyTaskScope(exec.agent)
       if (scope) {
         const target = scopedToolPath(exec)
-        if (scope.invalid || !isInsideReadOnlyScope(target, scope.paths)) {
+        if (scope.invalid
+          || !isInsideReadOnlyScope(target, scope.paths)
+          || !await isInsideResolvedReadOnlyScope(ctx, exec, scopedToolRequestedPath(exec), scope.paths)) {
           return { kind: 'deny', reason: readOnlyScopeDenial(exec, scope, target) }
         }
         if (SCOPED_READ_TOOLS.has(exec.name) && tracked(exec.name)) {

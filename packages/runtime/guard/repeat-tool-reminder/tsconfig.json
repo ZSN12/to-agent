@@ -21,6 +21,9 @@
       "path": "../../core/tools"
     },
     {
+      "path": "../../fs/fs"
+    },
+    {
       "path": "../../core/agent"
     },
     {
