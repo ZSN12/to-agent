@@ -205,8 +205,11 @@ export function createPlanAndExecute({
         ? null
         : await loadWorkspacePlannerHints(cwd, { disabled: evaluationMode })
       const plannerPathHints = replay
-        ? { paths: [], visitedEntries: 0, truncated: false, workspaceHints: null }
+        ? { paths: [], visitedEntries: 0, truncated: false, truncationMessage: '', workspaceHints: null }
         : await collectPlannerPathHints(cwd, originalText, { workspaceHints: workspacePlannerHints })
+      const plannerPathWarning = plannerPathHints.truncated
+        ? (plannerPathHints.truncationMessage || '达到扫描/展示上限，结果不完整').replace(/。+$/u, '')
+        : ''
       const catalog = await modelService.listCatalog()
       const plannerApi = catalog.models.find((model) => model.key === primaryModelKey)?.api
       const plannerOutputSchema = supportsPlannerOutputSchema(plannerApi)
@@ -266,7 +269,7 @@ export function createPlanAndExecute({
           : `请根据任务规模拆分为 1 到 ${dagNodeLimit} 个职责明确的子任务：简单且目标清晰的变更可以只安排一个 implementation；只有拆分能带来独立并行工作或必要的前置结论时才增加节点。若用户明确给出“ N 项独立研究/调研并行”数量，DAG 必须恰好包含 N 个互相独立的 research 节点，不得增加 review 或汇总节点，也不得让这些 research 节点相互依赖。编排器会在所有子任务结束后自动调用最终汇总，因此不要额外创建只负责“汇总/总结/交叉汇总/综合各研究结果”的 review 子任务；review 只用于有独立审查对象和验收标准的实际审查（例如基于具体 diff 检查风险），不要重复读取 research 已覆盖的文件来代替最终汇总。`,
         '研究/审查任务必须有明确边界：每项只回答一个问题，在 description 中列出允许检查的文件或最多一个窄目录、验收点和停止条件；不要分配“通读整个项目/检查所有代码”这类开放任务。回答函数实现、调用顺序或配置细节必须读取源码文件；grep/glob 只能定位，不能作为代码已核实的证据。优先指定直接相关的文件；路径未知时可先搜索定位，再读取实际源码。对于端到端链路/跨文件调用关系问题，scopePaths 必须覆盖闭合结论所需的每个环节（例如 UI 状态/发送入口、preload、IPC、服务与 Host 调用端），不能只授权入口后再尝试越界读取；若现有候选文件不足，应在规划时纳入必要文件或窄目录。独立任务表示彼此无依赖，不要求文件范围完全不重叠；调用链闭合、证据完整优先于零重叠，必要时允许多个任务读取同一个桥接文件。子任务 description 必须写明按给定文件顺序逐跳核实；大源码文件先对目标符号做一次窄搜索，再读取相关 offset/limit 行段，禁止先整文件读取或反复扩大搜索；已给行号/符号时直接从该位置检查。避免重复探索，只有发现尚未解决的具体事实时才扩大检查。',
         '每个 research/review 节点还必须输出 scopePaths 字符串数组，至少 1 项、最多 12 项，只能使用工作区路径索引中的字面量相对路径；不能写绝对路径、通配符、.. 或工作区根目录。scopePaths 是工具层强制执行的读文件/搜索边界，范围外调用会被 Host 拒绝。',
-        `【工作区路径索引：仅路径名，不含文件正文，也不代表已读取】扫描 ${plannerPathHints.visitedEntries} 个目录项${plannerPathHints.truncated ? '（达到扫描/展示上限，结果不完整）' : ''}。只从下列真实存在的路径中挑选候选文件；不得仅凭路径推断其内容。规划时尽量直接指定少量候选文件，并要求子 Agent 读取它们；只有索引不足时才安排必要的搜索：\n${plannerPathHints.paths.map((item) => `- ${item}`).join('\n') || '(没有发现路径；任务需先搜索定位，再实际读取文件)'}`,
+        `【工作区路径索引：仅路径名，不含文件正文，也不代表已读取】扫描 ${plannerPathHints.visitedEntries} 个目录项${plannerPathWarning ? `（${plannerPathWarning}）` : ''}。只从下列真实存在的路径中挑选候选文件；不得仅凭路径推断其内容。规划时尽量直接指定少量候选文件，并要求子 Agent 读取它们；只有索引不足时才安排必要的搜索：\n${plannerPathHints.paths.map((item) => `- ${item}`).join('\n') || '(没有发现路径；任务需先搜索定位，再实际读取文件)'}`,
         `只输出纯 JSON，不加 Markdown 代码块。格式：{"tasks":[{"id":"T1","title":"短标题","taskType":"research|implementation|test|review","role":"职责名","description":"目标、允许检查的文件/目录、验收点与停止条件","acceptance":["能由结果或 Host 证据逐项核对的验收点"],"scopePaths":[${JSON.stringify(plannerPathHints.paths[0] ?? '从上方路径索引选择的真实路径')}],"writeScopes":["src/features/foo/Bar.tsx"],"dependsOn":[],"reasons":["规划原因"],"route":{"tier_adjust":0,"needs_vision":false,"reason":""}}]}；每个 task 必须有 route，route 中禁止输出 model 字段；acceptance 必须为 1–5 条。writeScopes 只供 implementation 使用，research/review 继续使用 scopePaths。`,
         `工作区：${cwd}`,
         ...(contextLayers && contextLayers.length > 0 ? [

@@ -59,8 +59,9 @@ const PLANNER_INDEX_IGNORES = new Set([
 ])
 const PLANNER_SOURCE_DIR_PRIORITY = new Map([
   ['contract', 0], ['backend', 1], ['src', 2], ['app', 3], ['server', 4],
-  ['lib', 5], ['packages', 6], ['scripts', 7], ['tests', 8], ['vendor', 9], ['docs', 10],
+  ['lib', 5], ['packages', 6], ['scripts', 7], ['tests', 8], ['docs', 10],
 ])
+const PLANNER_INDEX_MAX_DEPTH = 4
 const TYPE_LABELS = {
   research: '调研',
   implementation: '实现',
@@ -499,6 +500,9 @@ export async function collectPlannerPathHints(workspacePath, query, {
   const files = []
   const directories = []
   let visitedEntries = 0
+  let unscannedEntries = false
+  let depthLimitedDirectories = 0
+  let unreadableDirectories = 0
 
   while (queue.length && visitedEntries < visitLimit) {
     const current = queue.shift()
@@ -506,6 +510,7 @@ export async function collectPlannerPathHints(workspacePath, query, {
     try {
       entries = await fs.readdir(current.absolute, { withFileTypes: true })
     } catch {
+      unreadableDirectories += 1
       continue
     }
     entries.sort((a, b) => {
@@ -514,8 +519,14 @@ export async function collectPlannerPathHints(workspacePath, query, {
       return aPriority - bPriority || a.name.localeCompare(b.name)
     })
 
-    for (const entry of entries) {
-      if (visitedEntries++ >= visitLimit) break
+    // Count each entry only when traversal examines it; do not count the first entry left over at the budget boundary.
+    for (let index = 0; index < entries.length; index += 1) {
+      if (visitedEntries >= visitLimit) {
+        unscannedEntries = true
+        break
+      }
+      const entry = entries[index]
+      visitedEntries += 1
       if (entry.name.startsWith('.')
         || PLANNER_INDEX_IGNORES.has(entry.name)
         || workspaceHints.ignoreDirectories.includes(entry.name)
@@ -524,7 +535,11 @@ export async function collectPlannerPathHints(workspacePath, query, {
       const absolute = path.join(current.absolute, entry.name)
       if (entry.isDirectory()) {
         directories.push(relative)
-        if (current.depth < 4) queue.push({ absolute, relative, depth: current.depth + 1 })
+        if (current.depth < PLANNER_INDEX_MAX_DEPTH) {
+          queue.push({ absolute, relative, depth: current.depth + 1 })
+        } else {
+          depthLimitedDirectories += 1
+        }
       } else if (entry.isFile()) {
         files.push(relative)
       }
@@ -562,15 +577,36 @@ export async function collectPlannerPathHints(workspacePath, query, {
     .sort((a, b) => rankPath(b) - rankPath(a) || a.localeCompare(b))
   const configuredFirstPaths = matchedRankingRules.flatMap((rule) => rule.prependPaths)
     .filter((candidate) => files.includes(candidate) || directories.includes(candidate))
-  const selected = []
-  for (const candidate of [...configuredFirstPaths, ...rankedFiles.map(({ candidate }) => candidate), ...preferredDirectories]) {
-    if (!selected.includes(candidate)) selected.push(candidate)
-    if (selected.length >= outputLimit) break
+  const allCandidates = [...new Set([
+    ...configuredFirstPaths,
+    ...rankedFiles.map(({ candidate }) => candidate),
+    ...preferredDirectories,
+  ])]
+  const selected = allCandidates.slice(0, outputLimit)
+  const truncationReasons = []
+  if (unscannedEntries || queue.length > 0) truncationReasons.push('scan-budget')
+  if (depthLimitedDirectories > 0) truncationReasons.push('depth-limit')
+  if (unreadableDirectories > 0) truncationReasons.push('unreadable-directory')
+  if (allCandidates.length > selected.length) truncationReasons.push('display-limit')
+  const truncationMessages = []
+  if (truncationReasons.includes('scan-budget')) {
+    truncationMessages.push('路径索引达到目录项扫描预算，仍有目录项或待扫描目录未检查。')
+  }
+  if (truncationReasons.includes('depth-limit')) {
+    truncationMessages.push(`路径索引受 ${PLANNER_INDEX_MAX_DEPTH} 层目录深度限制，仍有更深目录未扫描。`)
+  }
+  if (truncationReasons.includes('unreadable-directory')) {
+    truncationMessages.push('路径索引中有目录无法读取，目录内容未纳入候选。')
+  }
+  if (truncationReasons.includes('display-limit')) {
+    truncationMessages.push(`路径索引达到 ${outputLimit} 条展示上限，仍有 ${allCandidates.length - selected.length} 个候选未展示。`)
   }
   return {
     paths: selected,
     visitedEntries,
-    truncated: queue.length > 0 || visitedEntries >= visitLimit || files.length + preferredDirectories.length > selected.length,
+    truncated: truncationReasons.length > 0,
+    truncationReasons,
+    truncationMessage: truncationMessages.join(''),
     workspaceHints,
   }
 }

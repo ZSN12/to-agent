@@ -76,6 +76,63 @@ assert.ok(pyClass?.children?.some((c) => c.rawName === 'process_records'))
 const pyFunc = pySymbols.find((s) => s.rawName === 'global_compute')
 assert.equal(pyFunc?.kind, 'function')
 
+const pyNestedCode = `
+class Outer:
+    def run(self):
+        def nested(value):
+            return value
+        class LocalHelper:
+            def clean(self):
+                return None
+        return nested
+
+    async def next(self):
+        pass
+
+def make_service():
+    class Service:
+        def start(self):
+            pass
+    def local_factory():
+        return Service
+    return local_factory
+`
+
+const pyNestedSymbols = extractPythonSymbols(pyNestedCode)
+const outerClass = pyNestedSymbols.find((symbol) => symbol.rawName === 'Outer')
+assert.deepEqual(
+  outerClass?.children?.map((symbol) => [symbol.rawName, symbol.kind]),
+  [['run', 'method'], ['next', 'method']],
+  'Python class methods should only include definitions directly scoped to the class'
+)
+
+const runMethod = outerClass?.children?.find((symbol) => symbol.rawName === 'run')
+assert.deepEqual(
+  runMethod?.children?.map((symbol) => [symbol.rawName, symbol.kind]),
+  [['nested', 'function'], ['LocalHelper', 'class']],
+  'Nested functions and classes should remain attached to their lexical parent'
+)
+assert.equal(
+  runMethod?.children?.find((symbol) => symbol.rawName === 'LocalHelper')?.children?.[0].rawName,
+  'clean',
+  'Methods of nested classes should be retained under that class'
+)
+
+const makeService = pyNestedSymbols.find((symbol) => symbol.rawName === 'make_service')
+assert.deepEqual(
+  makeService?.children?.map((symbol) => [symbol.rawName, symbol.kind]),
+  [['Service', 'class'], ['local_factory', 'function']],
+  'Nested definitions in top-level functions should not leak into the module outline'
+)
+
+const pyTabIndentSymbols = extractPythonSymbols(`class Tabbed:\n\tdef method(self):\n\t\tdef helper():\n\t\t\tpass\n`)
+const tabbedClass = pyTabIndentSymbols.find((symbol) => symbol.rawName === 'Tabbed')
+assert.equal(
+  tabbedClass?.children?.[0].children?.[0].rawName,
+  'helper',
+  'Nested definitions should be scoped correctly when Python uses tabs'
+)
+
 // ============ 3. Rust 测试 ============
 const rsCode = `
 pub struct TaskManager {
@@ -132,5 +189,11 @@ assert.ok(goSymbols.some((s) => s.kind === 'function' && s.rawName === 'Initiali
 // ============ 5. 统一入口测试 ============
 const unified = extractFileSymbols('main.go', goCode)
 assert.equal(unified.length, goSymbols.length)
+
+// TypeScript's Node-specific module extensions use the same AST parser.
+assert.ok(extractFileSymbols('src/entry.mts', 'export function startModule() {}')
+  .some((symbol) => symbol.rawName === 'startModule'))
+assert.ok(extractFileSymbols('src/entry.cts', 'export const startCommonJs = () => true')
+  .some((symbol) => symbol.rawName === 'startCommonJs'))
 
 console.log('✓ symbol-outline-extractor 所有测试用例 100% 通过！')

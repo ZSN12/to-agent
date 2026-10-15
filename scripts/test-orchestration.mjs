@@ -692,6 +692,8 @@ try {
   assert.ok(plannerTurn, '应通过 DSH 调用 planner preset')
   assert.match(plannerTurn.text, /1 到 8 个职责明确的子任务/, 'planner sees the configured node cap')
   assert.match(plannerTurn.text, /工作区路径索引：仅路径名，不含文件正文/)
+  assert.doesNotMatch(plannerTurn.text, /达到扫描\/展示上限|路径索引受 4 层目录深度限制|仍有 \d+ 个候选未展示/,
+    'a complete workspace path index does not add a truncation warning')
   assert.match(plannerTurn.text, /不要额外创建只负责.*汇总.*review 子任务/)
   assert.match(plannerTurn.text, /用户明确给出.*DAG 必须恰好包含 N 个互相独立的 research 节点/)
   assert.match(plannerTurn.text, /端到端链路\/跨文件调用关系问题，scopePaths 必须覆盖闭合结论所需的每个环节/,
@@ -845,6 +847,9 @@ try {
       return { text: `${opts.taskId} verified\n<taskweaver-acceptance-v1>${JSON.stringify({ results: [{ criterion, passed: true, evidence: 'Host read event' }] })}</taskweaver-acceptance-v1>`, usage }
     },
   }
+  const deeperFixtureDirectory = path.join(repo, 'level1', 'level2', 'level3', 'level4', 'level5')
+  await fs.mkdir(deeperFixtureDirectory, { recursive: true })
+  await fs.writeFile(path.join(deeperFixtureDirectory, 'deep.mjs'), 'export const deep = true\n')
   const correctionService = createOrchestrationService({
     modelService: mockModelService,
     appState: mockAppState,
@@ -865,6 +870,8 @@ try {
   assert.equal(correctionTurns.filter((turn) => turn.taskId).length, 2, '必须先校验并重写计划，再启动两个只读子 Agent')
   const correctedPlannerTurns = correctionTurns.filter((turn) => turn.agentPreset === 'tw-taskweaver-planner')
   assert.equal(correctedPlannerTurns.length, 4, '应执行初次规划、最多两次有限修正和最终汇总')
+  assert.match(correctedPlannerTurns[0].text, /路径索引受 4 层目录深度限制，仍有更深目录未扫描/,
+    'a truncated path index gives the planner the concrete depth-limit warning')
   assert.match(correctedPlannerTurns[1].text, /并行研究任务数量不匹配/)
   assert.match(correctedPlannerTurns[1].text, /交叉汇总/, 'retry prompt must include the rejected prior plan as correction context')
   assert.match(correctedPlannerTurns[2].text, /只读子任务范围无效/)

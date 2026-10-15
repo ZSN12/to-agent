@@ -201,19 +201,50 @@ export function extractPythonSymbols(content) {
   const lines = content.split(/\r?\n/)
   /** @type {SymbolEntry[]} */
   const symbols = []
-  let currentClass = null
+  /** @type {{ indent: number, entry: SymbolEntry }[]} */
+  const scopeStack = []
+
+  function getIndentWidth(line) {
+    let width = 0
+    for (const char of line) {
+      if (char === ' ') width += 1
+      else if (char === '\t') width += 8 - (width % 8)
+      else break
+    }
+    return width
+  }
+
+  /**
+   * @param {SymbolEntry} entry
+   * @param {SymbolEntry | null} parent
+   */
+  function addSymbol(entry, parent) {
+    if (parent) {
+      parent.children ??= []
+      parent.children.push(entry)
+    } else {
+      symbols.push(entry)
+    }
+  }
 
   for (let i = 0; i < lines.length; i++) {
     const rawLine = lines[i]
     const trimmed = rawLine.trim()
     if (!trimmed || trimmed.startsWith('#')) continue
 
+    const indent = getIndentWidth(rawLine)
+    while (scopeStack.length > 0 && scopeStack.at(-1).indent >= indent) {
+      scopeStack.pop()
+    }
+    const parent = scopeStack.at(-1)?.entry ?? null
+
     // class Foo(Bar):
-    const classMatch = rawLine.match(/^class\s+([a-zA-Z0-9_]+)(?:\((.*?)\))?\s*:/)
+    const classMatch = trimmed.match(/^class\s+([a-zA-Z0-9_]+)(?:\((.*?)\))?\s*:/)
     if (classMatch) {
       const name = classMatch[1]
       const inherit = classMatch[2] ? `(${classMatch[2]})` : ''
-      currentClass = {
+      /** @type {SymbolEntry} */
+      const entry = {
         name,
         rawName: name,
         kind: 'class',
@@ -222,7 +253,8 @@ export function extractPythonSymbols(content) {
         exported: !name.startsWith('_'),
         children: [],
       }
-      symbols.push(currentClass)
+      addSymbol(entry, parent)
+      scopeStack.push({ indent, entry })
       continue
     }
 
@@ -232,23 +264,19 @@ export function extractPythonSymbols(content) {
       const name = funcMatch[1]
       const rawParams = funcMatch[2].replace(/\s+/g, ' ').trim()
       const params = rawParams ? `(${rawParams.slice(0, 30)})` : '()'
-      const isIndented = rawLine.startsWith(' ') || rawLine.startsWith('\t')
 
+      /** @type {SymbolEntry} */
       const entry = {
         name: `${name}${params}`,
         rawName: name,
-        kind: isIndented ? 'method' : 'function',
+        kind: parent?.kind === 'class' ? 'method' : 'function',
         line: i + 1,
         signature: `def ${name}${params}`,
         exported: !name.startsWith('_'),
       }
 
-      if (isIndented && currentClass && Array.isArray(currentClass.children)) {
-        currentClass.children.push(entry)
-      } else {
-        if (!isIndented) currentClass = null
-        symbols.push(entry)
-      }
+      addSymbol(entry, parent)
+      scopeStack.push({ indent, entry })
     }
   }
 
@@ -408,7 +436,7 @@ export function extractFileSymbols(filePath, content) {
   if (!content || typeof content !== 'string') return []
   const ext = path.extname(filePath).toLowerCase()
 
-  if (['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs'].includes(ext)) {
+  if (['.ts', '.tsx', '.mts', '.cts', '.js', '.jsx', '.mjs', '.cjs'].includes(ext)) {
     return extractTsJsSymbols(filePath, content)
   }
   if (['.py', '.pyi'].includes(ext)) {
