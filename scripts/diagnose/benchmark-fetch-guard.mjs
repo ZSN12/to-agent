@@ -19,6 +19,7 @@ export const BENCHMARK_MODEL = 'gpt-6-luna'
 export const MAX_OUTPUT_TOKENS = 2_048
 export const MAX_ATTEMPTS = 280
 export const MAX_CONTEXT_TOKENS = 272_000
+export const MAX_REQUEST_BODY_BYTES = 64 * 1024 * 1024
 export const INPUT_RESERVE_USD_PER_MILLION = 0.125
 export const OUTPUT_USD_PER_MILLION = 0.50
 export const RESERVED_USD_PER_ATTEMPT = Number((
@@ -29,6 +30,7 @@ export const RESERVED_USD_PER_ATTEMPT = Number((
 const CODEX_HOST = 'chatgpt.com'
 const CODEX_PATH = '/backend-api/codex/responses'
 const INSTALL_MARKER = Symbol.for('taskweaver.benchmark-fetch-guard')
+const WEBSOCKET_INSTALL_MARKER = Symbol.for('taskweaver.benchmark-websocket-guard')
 
 function guardError(reason) {
   return new Error(`benchmark fetch guard: ${reason}`)
@@ -118,13 +120,21 @@ async function guardedExternalRequest(request, options) {
     throw guardError('Codex request must use application/json')
   }
   const contentEncoding = request.headers.get('content-encoding')
-  if (contentEncoding && contentEncoding.toLowerCase() !== 'identity') {
+  const normalizedEncoding = contentEncoding?.trim().toLowerCase()
+  if (normalizedEncoding && normalizedEncoding !== 'identity' && normalizedEncoding !== 'zstd') {
     throw guardError('encoded request bodies are not supported')
   }
 
   let body
   try {
-    body = JSON.parse(await request.clone().text())
+    let bytes = Buffer.from(await request.clone().arrayBuffer())
+    if (bytes.byteLength > MAX_REQUEST_BODY_BYTES) throw new Error('request body is too large')
+    if (normalizedEncoding === 'zstd') {
+      const { zstdDecompressSync } = await import('node:zlib')
+      bytes = zstdDecompressSync(bytes, { maxOutputLength: MAX_REQUEST_BODY_BYTES })
+    }
+    if (bytes.byteLength > MAX_REQUEST_BODY_BYTES) throw new Error('request body is too large')
+    body = JSON.parse(bytes.toString('utf8'))
   } catch {
     throw guardError('Codex request body must be valid JSON')
   }
@@ -142,8 +152,10 @@ async function guardedExternalRequest(request, options) {
 
   body.max_output_tokens = Math.min(body.max_output_tokens ?? MAX_OUTPUT_TOKENS, MAX_OUTPUT_TOKENS)
   const headers = new Headers(request.headers)
-  // The rewritten JSON may have a different byte length.
+  // The rewritten JSON may have a different byte length. Send it uncompressed
+  // so the transport policy can inspect every metered request body.
   headers.delete('content-length')
+  headers.delete('content-encoding')
   let boundedRequest
   try {
     boundedRequest = new Request(request, {
@@ -194,8 +206,47 @@ export function installBenchmarkFetchGuard(options = {}) {
   return guardedFetch
 }
 
+/** Build a WebSocket constructor that permits loopback only. The Codex
+ * benchmark profile forces SSE so every billable generation goes through the
+ * metered fetch path; this rejects an accidental fallback to external WS. */
+export function createBenchmarkWebSocketGuard(WebSocketImpl = globalThis.WebSocket) {
+  if (typeof WebSocketImpl !== 'function') throw new TypeError('WebSocketImpl must be a constructor')
+
+  return class BenchmarkGuardedWebSocket extends WebSocketImpl {
+    constructor(url, ...options) {
+      let parsed
+      try {
+        parsed = new URL(url instanceof URL ? url.href : String(url))
+      } catch {
+        throw guardError('invalid WebSocket URL')
+      }
+      if (parsed.protocol !== 'ws:' && parsed.protocol !== 'wss:') {
+        throw guardError('WebSocket protocol is not allowlisted')
+      }
+      if (!isLoopbackHostname(parsed.hostname)) {
+        throw guardError('external WebSocket transport is disabled')
+      }
+      super(url, ...options)
+    }
+  }
+}
+
+/** Patch the process-global WebSocket used by the Codex adapter. */
+export function installBenchmarkWebSocketGuard(options = {}) {
+  if (globalThis[WEBSOCKET_INSTALL_MARKER]) return globalThis.WebSocket
+  const guardedWebSocket = createBenchmarkWebSocketGuard(options.WebSocketImpl)
+  Object.defineProperty(globalThis, WEBSOCKET_INSTALL_MARKER, { value: true, configurable: true })
+  Object.defineProperty(globalThis, 'WebSocket', {
+    value: guardedWebSocket,
+    writable: true,
+    configurable: true,
+  })
+  return guardedWebSocket
+}
+
 // NODE_OPTIONS --import runs this module before Host application code. The
 // explicit switch prevents an unrelated import from silently changing fetch.
 if (process.env.TASKWEAVER_BENCHMARK_GUARD === '1') {
   installBenchmarkFetchGuard()
+  if (typeof globalThis.WebSocket === 'function') installBenchmarkWebSocketGuard()
 }

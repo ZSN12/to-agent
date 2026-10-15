@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { spawn, spawnSync } from 'node:child_process'
 import fs from 'node:fs/promises'
+import { zstdCompressSync } from 'node:zlib'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -10,6 +11,7 @@ import {
   MAX_OUTPUT_TOKENS,
   RESERVED_USD_PER_ATTEMPT,
   createBenchmarkFetchGuard,
+  installBenchmarkWebSocketGuard,
 } from './benchmark-fetch-guard.mjs'
 
 const modulePath = fileURLToPath(new URL('./benchmark-fetch-guard.mjs', import.meta.url))
@@ -25,6 +27,7 @@ function requestBody(overrides = {}) {
 
 function endpointRequest(body = requestBody(), options = {}) {
   const headers = new Headers({ 'content-type': options.contentType ?? 'application/json' })
+  if (options.contentEncoding) headers.set('content-encoding', options.contentEncoding)
   return new Request(options.url ?? 'https://chatgpt.com/backend-api/codex/responses', {
     method: options.method ?? 'POST',
     headers,
@@ -132,6 +135,28 @@ try {
     assert.ok(sent.every((request) => request.headers.get('content-length') === null))
   }
 
+  // The Codex SSE implementation may compress larger JSON payloads with
+  // zstd. The guard decompresses before inspection and sends the bounded body
+  // uncompressed so it never guesses at model or token fields.
+  {
+    const directory = path.join(tempRoot, 'zstd')
+    const sent = []
+    const guardedFetch = createBenchmarkFetchGuard({ fetchImpl: fixtureFetch(sent), budgetDirectory: directory })
+    const compressed = zstdCompressSync(Buffer.from(JSON.stringify(requestBody({ max_output_tokens: 9_999 }))))
+    const request = new Request('https://chatgpt.com/backend-api/codex/responses', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'content-encoding': 'zstd' },
+      body: compressed,
+    })
+    await guardedFetch(request)
+    const sentBody = JSON.parse(await sent[0].clone().text())
+    assert.equal(sentBody.max_output_tokens, MAX_OUTPUT_TOKENS)
+    assert.equal(sent[0].headers.get('content-encoding'), null)
+    assert.equal(sent[0].headers.get('content-length'), null)
+    await expectRejected(guardedFetch(endpointRequest(requestBody(), { contentEncoding: 'gzip' })), /encoded request bodies/)
+    assert.equal(sent.length, 1)
+  }
+
   // Loopback is allowed for Host IPC and consumes no billable attempt slot.
   {
     const directory = path.join(tempRoot, 'loopback')
@@ -142,6 +167,33 @@ try {
     await guardedFetch(new Request('http://localhost:43123/rpc'))
     assert.equal(sent.length, 3)
     await assert.rejects(fs.readdir(directory), { code: 'ENOENT' })
+  }
+
+  // The Codex client defaults to WebSocket. Benchmarks set the provider profile
+  // to SSE, and the process-global WebSocket guard fails closed if that setting
+  // is ignored; local Host RPC remains available.
+  {
+    const previousDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'WebSocket')
+    const marker = Symbol.for('taskweaver.benchmark-websocket-guard')
+    class FakeWebSocket {
+      constructor(url, options) { this.url = String(url); this.options = options }
+    }
+    try {
+      globalThis.WebSocket = FakeWebSocket
+      const guarded = installBenchmarkWebSocketGuard({ WebSocketImpl: FakeWebSocket })
+      assert.throws(() => new guarded('wss://chatgpt.com/backend-api/codex/responses'), /external WebSocket transport is disabled/)
+      assert.throws(() => new guarded('wss://example.com/socket'), /external WebSocket transport is disabled/)
+      assert.throws(() => new guarded('https://localhost/socket'), /protocol is not allowlisted/)
+      assert.throws(() => new guarded('not a URL'), /invalid WebSocket URL/)
+      const local = new globalThis.WebSocket('ws://127.0.0.1:43123/rpc', { headers: { fixture: 'only' } })
+      assert.equal(local.url, 'ws://127.0.0.1:43123/rpc')
+      assert.deepEqual(local.options, { headers: { fixture: 'only' } })
+      assert.equal(globalThis[marker], true)
+    } finally {
+      if (previousDescriptor) Object.defineProperty(globalThis, 'WebSocket', previousDescriptor)
+      else delete globalThis.WebSocket
+      delete globalThis[marker]
+    }
   }
 
   // Disallowed hosts, paths, protocols, methods, content types, and model ids
