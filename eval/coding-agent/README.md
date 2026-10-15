@@ -42,3 +42,9 @@
 - 当前隔离 baseline worktree 是 detached 的完整冻结 commit，Git 状态干净。
 - Runtime 与 `node_modules` 是 git 忽略的本机依赖；冻结目标工作区暂时没有它们。执行代码类任务前须按固定 lockfile 准备依赖和单独记录的 Runtime，不得静默复用未知版本。
 - 真实模型请求、费用、20 项任务运行和结果打分尚未执行。
+
+## 独立补充任务：塔罗牌应用
+
+`supplemental-tasks.json` 是用户要求增加的“实现一个塔罗牌应用”配对任务。它刻意独立于 `tasks.json`：原 20 项任务数、SHA-256、评分记录和冻结提交均保持不变；塔罗任务的结果单独报告，不并入 20 项分数。
+
+baseline 与 candidate 都从 `f5624a10880efd2841df4f0a45fb0b8eaed5beba` 的全新工作区运行同一提示，使用相同 Provider/model、preset、权限模式、依赖版本和运行资源限制。任务只允许新增 `apps/tarot/` 内容，使用仓库现有前端依赖，不访问网络或真实服务。按任务文件中的类型检查、production build 与确定性抽牌测试验收；另用相同桌面和手机视口检查布局、牌阵和键盘可操作性。一次配对只能说明该任务上的单次结果，不代表整个 Agent 的总体能力。
