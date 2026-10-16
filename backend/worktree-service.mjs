@@ -341,10 +341,101 @@ export async function removeTaskWorktree({ workspacePath, conversationId, runId 
   await assertWorkspaceRoot(workspacePath)
   const target = resolveTaskWorktreeDir(userDataPath, workspacePath, conversationId, taskId, runId)
   if (!fs.existsSync(target)) return { removed: false }
-  const args = ['worktree', 'remove', target]
-  if (force) args.push('--force')
-  await runGit(args, workspacePath)
+  const status = await runGitText(
+    ['status', '--porcelain=v1', '--untracked-files=all', '--ignored=matching', '-z'],
+    target,
+  )
+  if (status.length) {
+    const forceNote = force ? '（force 参数不会跳过此保护）' : ''
+    throw new Error(`worktree 含有已跟踪改动、未跟踪文件或 Git 忽略文件，已保留以避免数据丢失${forceNote}`)
+  }
+  // Never pass --force here: Git's regular removal check protects tracked and
+  // untracked files that could appear after the status preflight.
+  await runGit(['worktree', 'remove', target], workspacePath)
   return { removed: true, path: target }
+}
+
+async function clearMergedWorktreeChanges({ workspacePath, wtPath, changes, targetChanges }) {
+  const selectedByFile = new Map(targetChanges.map((change) => [change.file, change]))
+  if (
+    selectedByFile.size !== changes.length ||
+    changes.some((change) => selectedByFile.get(change.file)?.type !== change.type)
+  ) {
+    throw new Error('仍有未合并或未选中的改动，已保留 worktree')
+  }
+
+  const ignoredStatus = await runGitText(
+    ['status', '--porcelain=v1', '--ignored=matching', '-z'],
+    wtPath,
+  )
+  if (ignoredStatus.split('\0').some((entry) => entry.startsWith('!! '))) {
+    throw new Error('worktree 含有 Git 忽略文件，已保留以避免删除本地数据')
+  }
+
+  const [trackedRaw, untrackedRaw] = await Promise.all([
+    runGitText(['diff', '--name-only', '--no-renames', '-z', 'HEAD'], wtPath),
+    runGitText(['ls-files', '--others', '--exclude-standard', '-z'], wtPath),
+  ])
+  const tracked = trackedRaw.split('\0').filter(Boolean)
+  const untracked = untrackedRaw.split('\0').filter(Boolean)
+  const unexpected = [...new Set([...tracked, ...untracked])].filter((file) => !selectedByFile.has(file))
+  if (unexpected.length) {
+    throw new Error('worktree 在合并后仍有未纳入本次合并的文件，已保留')
+  }
+
+  for (const { file, type } of targetChanges) {
+    const sourcePath = path.join(wtPath, file)
+    const destinationPath = path.join(workspacePath, file)
+    if (type === 'delete') {
+      try {
+        await fsp.lstat(destinationPath)
+        throw new Error(`主工作区中的 ${file} 未按合并结果删除，已保留 worktree`)
+      } catch (error) {
+        if (error?.code !== 'ENOENT') throw error
+      }
+      continue
+    }
+
+    const [sourceStat, destinationStat, sourceBytes, destinationBytes] = await Promise.all([
+      fsp.lstat(sourcePath),
+      fsp.lstat(destinationPath),
+      fsp.readFile(sourcePath),
+      fsp.readFile(destinationPath),
+    ])
+    if (
+      !sourceStat.isFile() ||
+      !destinationStat.isFile() ||
+      (sourceStat.mode & 0o777) !== (destinationStat.mode & 0o777) ||
+      !sourceBytes.equals(destinationBytes)
+    ) {
+      throw new Error(`主工作区中的 ${file} 与 worktree 合并结果不一致，已保留 worktree`)
+    }
+  }
+
+  // Reset only after confirming that every tracked modification is selected
+  // and already copied into the main workspace. Newly created paths after this
+  // point remain visible to the final status check and block removal.
+  await runGit(['reset', '--hard', 'HEAD'], wtPath)
+  const remainingUntracked = (await runGitText(
+    ['ls-files', '--others', '--exclude-standard', '-z'],
+    wtPath,
+  )).split('\0').filter(Boolean)
+  if (remainingUntracked.some((file) => !selectedByFile.has(file))) {
+    throw new Error('worktree 在清理期间出现未合并文件，已保留')
+  }
+  for (const file of remainingUntracked) {
+    const absolute = path.resolve(wtPath, file)
+    if (!isPathInside(wtPath, absolute)) throw new Error('worktree 文件路径无效，已保留')
+    await fsp.rm(absolute, { force: true })
+  }
+
+  const finalStatus = await runGitText(
+    ['status', '--porcelain=v1', '--untracked-files=all', '--ignored=matching', '-z'],
+    wtPath,
+  )
+  if (finalStatus.length) {
+    throw new Error('worktree 清理后仍有本地或忽略文件，已保留')
+  }
 }
 
 export async function listTaskWorktrees({ workspacePath, conversationId, userDataPath }) {
@@ -676,7 +767,8 @@ export async function applyTaskWorktreeMerge({
   let cleanupError = null
   if (removeAfter) {
     try {
-      const removed = await removeTaskWorktree({ workspacePath, conversationId, runId, taskId, userDataPath, force: true })
+      await clearMergedWorktreeChanges({ workspacePath, wtPath, changes, targetChanges })
+      const removed = await removeTaskWorktree({ workspacePath, conversationId, runId, taskId, userDataPath })
       worktreeRemoved = removed.removed
     } catch (err) {
       cleanupError = err instanceof Error ? err.message : String(err)

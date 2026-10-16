@@ -268,7 +268,7 @@ export function RoutingPortfolioSettingsPanel({
   }
 
   const removeWorktree = async (worktree: WorktreeEntry) => {
-    if (!window.confirm(`删除子任务 ${worktree.taskId} 的 worktree？若有未提交改动，Git 会拒绝删除并保留现场。`)) return
+    if (!window.confirm(`删除子任务 ${worktree.taskId} 的 worktree？若包含已跟踪改动、未跟踪或 Git 忽略文件，系统会保留现场。`)) return
     const res = await window.taskweaver?.worktree?.remove(worktree.taskId, false, conversationId, worktree.runId)
     if (!res?.ok) {
       onToast(res?.error ?? '删除 worktree 失败')

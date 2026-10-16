@@ -25,6 +25,11 @@ async function runGit(args, cwd) {
   await execFileAsync('git', args, { cwd, env: { ...process.env, LC_ALL: 'C' } })
 }
 
+async function runGitText(args, cwd) {
+  const { stdout } = await execFileAsync('git', args, { cwd, env: { ...process.env, LC_ALL: 'C' } })
+  return stdout
+}
+
 const base = path.join(os.homedir(), 'Documents', '毕设', '.test-worktree-diff')
 await fs.mkdir(base, { recursive: true })
 const userData = await fs.mkdtemp(path.join(base, 'data-'))
@@ -38,6 +43,7 @@ try {
   await fs.writeFile(path.join(repo, 'README.md'), 'hello\n', 'utf8')
   await runGit(['add', 'README.md'], repo)
   await runGit(['commit', '-m', 'init'], repo)
+  await fs.writeFile(path.join(repo, '.git', 'info', 'exclude'), 'ignored-only.txt\n', 'utf8')
 
   await assert.rejects(
     () =>
@@ -59,7 +65,9 @@ try {
   assert.equal(preview.canApply, true)
   assert.equal(preview.conflict, false)
 
-  await applyTaskWorktreeMerge({ ...wt('T1'), removeAfter: true })
+  const mergedT1 = await applyTaskWorktreeMerge({ ...wt('T1'), removeAfter: true })
+  assert.equal(mergedT1.worktreeRemoved, true, 'fully merged clean task worktrees can still be removed')
+  await assert.rejects(fs.stat(wtPath), { code: 'ENOENT' })
   const mainReadme = await fs.readFile(path.join(repo, 'README.md'), 'utf8')
   assert.match(mainReadme, /hello world/)
 
@@ -83,7 +91,9 @@ try {
   assert.ok(preview2.files.includes('untracked-new.txt'), '必须能检测到未跟踪新增文件')
   assert.ok(preview2.files.includes('to-delete.txt'), '必须能检测到被删除文件')
 
-  await applyTaskWorktreeMerge({ ...wt('T2'), removeAfter: true })
+  const mergedT2 = await applyTaskWorktreeMerge({ ...wt('T2'), removeAfter: true })
+  assert.equal(mergedT2.worktreeRemoved, true, 'merged tracked deletion and untracked addition can be cleaned')
+  await assert.rejects(fs.stat(wtPath2), { code: 'ENOENT' })
   // 检查主工作区：untracked-new.txt 必须存在，to-delete.txt 必须已被删除
   const mainNewFile = await fs.readFile(path.join(repo, 'untracked-new.txt'), 'utf8')
   assert.equal(mainNewFile, 'new content\n')
@@ -127,6 +137,53 @@ try {
   )
   const preservedCritical = await fs.readFile(path.join(repo, 'critical.txt'), 'utf8')
   assert.equal(preservedCritical, 'base content v1 + user edits\n', '用户修改的文件绝不能被误删')
+
+  // Force must not bypass the preflight, including when Git's ordinary status
+  // considers an ignored-only worktree clean.
+  const { path: ignoredOnlyWorktree } = await createTaskWorktree(wt('T5'))
+  await fs.writeFile(path.join(ignoredOnlyWorktree, 'ignored-only.txt'), 'keep this ignored file\n', 'utf8')
+  assert.equal(await runGitText(['status', '--porcelain'], ignoredOnlyWorktree), '')
+  assert.match(await runGitText(['status', '--porcelain', '--ignored=matching'], ignoredOnlyWorktree), /ignored-only\.txt/)
+  await assert.rejects(
+    removeTaskWorktree({ ...wt('T5'), force: true }),
+    /Git 忽略文件.*已保留/,
+  )
+  assert.equal(await fs.readFile(path.join(ignoredOnlyWorktree, 'ignored-only.txt'), 'utf8'), 'keep this ignored file\n')
+  assert.ok((await runGitText(['worktree', 'list', '--porcelain'], repo)).includes(ignoredOnlyWorktree))
+
+  // Tracked and ordinary untracked files are preserved by direct removal too.
+  const { path: dirtyWorktree } = await createTaskWorktree(wt('T6'))
+  await fs.writeFile(path.join(dirtyWorktree, 'README.md'), 'local tracked edit\n', 'utf8')
+  await fs.writeFile(path.join(dirtyWorktree, 'local-untracked.txt'), 'local untracked data\n', 'utf8')
+  await assert.rejects(
+    removeTaskWorktree({ ...wt('T6'), force: true }),
+    /已跟踪改动、未跟踪文件.*已保留/,
+  )
+  assert.equal(await fs.readFile(path.join(dirtyWorktree, 'README.md'), 'utf8'), 'local tracked edit\n')
+  assert.equal(await fs.readFile(path.join(dirtyWorktree, 'local-untracked.txt'), 'utf8'), 'local untracked data\n')
+  assert.ok((await runGitText(['worktree', 'list', '--porcelain'], repo)).includes(dirtyWorktree))
+
+  // A successful merge can remove its worktree only when every selected file
+  // was copied and no ignored side data is present.
+  await fs.writeFile(path.join(repo, 'merge-cleanup.txt'), 'base\n', 'utf8')
+  await runGit(['add', 'merge-cleanup.txt'], repo)
+  await runGit(['commit', '-m', 'add merge cleanup fixture'], repo)
+  const { path: mergeWithIgnoredWorktree } = await createTaskWorktree(wt('T7'))
+  await fs.writeFile(path.join(mergeWithIgnoredWorktree, 'merge-cleanup.txt'), 'merged task edit\n', 'utf8')
+  await fs.writeFile(path.join(mergeWithIgnoredWorktree, 'ignored-only.txt'), 'keep after merge\n', 'utf8')
+  const mergeWithIgnored = await applyTaskWorktreeMerge({ ...wt('T7'), removeAfter: true })
+  assert.equal(mergeWithIgnored.applied, true)
+  assert.equal(mergeWithIgnored.worktreeRemoved, false)
+  assert.equal(mergeWithIgnored.cleanupSuccess, false)
+  assert.match(mergeWithIgnored.cleanupError, /Git 忽略文件.*已保留/)
+  assert.equal(await fs.readFile(path.join(repo, 'merge-cleanup.txt'), 'utf8'), 'merged task edit\n')
+  assert.equal(await fs.readFile(path.join(mergeWithIgnoredWorktree, 'ignored-only.txt'), 'utf8'), 'keep after merge\n')
+  assert.ok((await runGitText(['worktree', 'list', '--porcelain'], repo)).includes(mergeWithIgnoredWorktree))
+
+  const { path: cleanWorktree } = await createTaskWorktree(wt('T8'))
+  const removedClean = await removeTaskWorktree(wt('T8'))
+  assert.equal(removedClean.removed, true)
+  await assert.rejects(fs.stat(cleanWorktree), { code: 'ENOENT' })
 
   const legacyPath = resolveTaskWorktreeDir(userData, repo, conversationId, 'OLD')
   await fs.mkdir(path.dirname(legacyPath), { recursive: true })

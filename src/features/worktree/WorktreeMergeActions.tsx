@@ -77,7 +77,7 @@ export function WorktreeMergeActions({
       return
     }
     if (res.data.cleanupError) {
-      window.alert(`已成功合并到主工作区，但清理 worktree 分支失败（${res.data.cleanupError}）。请稍后手动移除。`)
+      window.alert(`已成功合并到主工作区，但 worktree 未删除并已保留（${res.data.cleanupError}）。`)
     } else {
       window.alert(res.data.worktreeRemoved ? '已合并并删除 worktree' : '已合并到主工作区')
     }
