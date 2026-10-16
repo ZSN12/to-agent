@@ -1,5 +1,6 @@
 import {
   assembleWorkspaceContext,
+  isFirstConversationTurn,
   shouldAttachRepoMap,
   workspaceContextLimits,
 } from './context-assembler.mjs'
@@ -27,35 +28,28 @@ export async function assembleAndComposeUserPrompt({
   conversationMessages = [],
   preferences = {},
   repoMapCacheDirectory = null,
+  workspaceTrusted = false,
+  contextInjectionLedger = null,
+  conversationId = null,
+  hostSessionId = null,
 }) {
   const dynamicBudget = calculateDynamicContextBudget(workMode, { modelContextWindow })
   const injectionByteCap = Math.min(
     preferences.promptInjectionLimitBytes ?? dynamicBudget.workspaceContextBytes,
     dynamicBudget.workspaceContextBytes,
   )
-  const hasNonConversationIntent = analyzeUserIntent(text, workMode) !== USER_INTENTS.CONVERSATION
-  const hasPriorNonConversationIntent = (Array.isArray(conversationMessages) ? conversationMessages : []).some((message) => {
-    if (message?.author !== 'user' && message?.role !== 'user') return false
-    const previousText = typeof message.text === 'string'
-      ? message.text
-      : typeof message.content === 'string' ? message.content : ''
-    return previousText.trim().length > 0
-      && analyzeUserIntent(previousText, workMode) !== USER_INTENTS.CONVERSATION
-  })
-  const isFirstTaskTurn = !hasPriorNonConversationIntent
   const assembled = await assembleWorkspaceContext(text, workspacePath, {
     sandboxContextLine,
     maxInjectionBytes: injectionByteCap,
     inlineSmallFileReferences: preferences.inlineSmallFileReferences === true,
-    // Re-inject the trusted project rules on each task turn. Conversation turns
-    // after a task began keep receiving the rules, so context compaction cannot
-    // silently erase them from the model's working context.
-    includeRules: workMode === 'goal' || hasNonConversationIntent || hasPriorNonConversationIntent,
+    // Always assemble rules when a workspace is selected. The session ledger
+    // below prevents paying their token cost again on unchanged chat turns.
+    includeRules: true,
     rulesTaskWeaverOnly: true,
     includeRepoMap: shouldAttachRepoMap(text, workMode, {
       enableRepoMap: preferences.enableRepoMap !== false,
-      isFirstTurn: isFirstTaskTurn,
-      hasNonConversationIntent,
+      isFirstTurn: isFirstConversationTurn(conversationMessages),
+      workspaceTrusted,
     }),
     repoMapTokens: dynamicBudget.repoMapTokens,
     repoMapCacheDirectory,
@@ -69,6 +63,12 @@ export async function assembleAndComposeUserPrompt({
     selectedSkill,
     workspacePath,
     autoVerifyAfterMutation: preferences.autoVerifyAfterMutation === true,
+    contextInjectionLedger,
+    conversationId,
+    hostSessionId,
+    historyUserTurns: Array.isArray(conversationMessages)
+      ? conversationMessages.filter((message) => message?.author === 'user' || message?.role === 'user').length
+      : 0,
   })
 
   return {
@@ -87,6 +87,10 @@ async function preparePromptByWorkMode({
   selectedSkill,
   workspacePath,
   autoVerifyAfterMutation,
+  contextInjectionLedger,
+  conversationId,
+  hostSessionId,
+  historyUserTurns,
 }) {
   const effectiveOverride = workModeExecutionOverride(workMode)
   const intent = workMode === 'goal' ? null : analyzeUserIntent(text, workMode)
@@ -124,23 +128,47 @@ async function preparePromptByWorkMode({
       priority: intent === USER_INTENTS.CODE_MUTATION ? 10 : 30,
     })
   }
-  const composed = composePromptPipeline({
+  const fullComposed = composePromptPipeline({
     userText: text,
     prefixLayers,
     suffixLayers,
     maxInjectedBytes: injectionByteCap,
   })
+  const contextSelection = contextInjectionLedger?.prepare?.({
+    conversationId,
+    sessionId: hostSessionId,
+    historyUserTurns,
+    prefixLayers,
+    suffixLayers,
+  }) ?? null
+  const composed = contextSelection
+    ? composePromptPipeline({
+      userText: text,
+      prefixLayers: contextSelection.prefixLayers,
+      suffixLayers: contextSelection.suffixLayers,
+      maxInjectedBytes: injectionByteCap,
+    })
+    : fullComposed
   const userBytes = Buffer.byteLength(text, 'utf8')
   const layerBytes = composed.layerBytes
+  const fullLayerBytes = fullComposed.layerBytes
   const promptContextLayers = [...prefixLayers, ...suffixLayers]
-    .filter((layer) => Object.hasOwn(layerBytes, layer.id))
+    .filter((layer) => Object.hasOwn(fullLayerBytes, layer.id))
     .map(({ id, text: layerText }) => ({ id, text: layerText }))
+  const sentPromptLayerIds = [...(contextSelection
+    ? [...contextSelection.prefixLayers, ...contextSelection.suffixLayers]
+    : [...prefixLayers, ...suffixLayers])]
+    .filter((layer) => Object.hasOwn(layerBytes, layer.id))
+    .map((layer) => layer.id)
   const contextBytes = (layerBytes['workspace-context'] ?? 0) + (layerBytes['repo-map'] ?? 0)
   const guidanceBytes = layerBytes['intent-guidance'] ?? 0
   return {
     effectiveOverride,
     effectivePrompt: composed.prompt,
+    fullPrompt: fullComposed.prompt,
     promptContextLayers,
+    sentPromptLayerIds,
+    contextInjectionReceipt: contextSelection?.receipt ?? null,
     promptStats: {
       userBytes,
       contextBytes,

@@ -9,13 +9,15 @@ import { createWorkspaceIndex } from '../backend/workspace-index.mjs'
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-context-'))
 
 try {
-  assert.equal(shouldAttachRepoMap('你好', 'code', { isFirstTurn: true, hasNonConversationIntent: false }), false,
-    'first-turn greetings must not trigger repository indexing')
-  assert.equal(shouldAttachRepoMap('分析这个仓库的结构', 'code', { isFirstTurn: true, hasNonConversationIntent: true }), true,
-    'the first engineering request may receive the bounded repository map')
-  assert.equal(shouldAttachRepoMap('分析这个仓库的结构', 'code', { isFirstTurn: false, hasNonConversationIntent: true }), false,
+  assert.equal(shouldAttachRepoMap('你好', 'code', { isFirstTurn: true, workspaceTrusted: true }), true,
+    'a trusted workspace receives the bounded repository map on the first conversation turn')
+  assert.equal(shouldAttachRepoMap('你好', 'code', { isFirstTurn: true, workspaceTrusted: false }), false,
+    'an untrusted workspace must not trigger repository indexing')
+  assert.equal(shouldAttachRepoMap('分析这个仓库的结构', 'code', { isFirstTurn: true, workspaceTrusted: true }), true,
+    'repo-map inclusion does not depend on intent classification')
+  assert.equal(shouldAttachRepoMap('分析这个仓库的结构', 'code', { isFirstTurn: false, workspaceTrusted: true }), false,
     'later turns do not re-inject the default repository map')
-  assert.equal(shouldAttachRepoMap('读 @file:src/main.ts', 'code', { isFirstTurn: false, hasNonConversationIntent: true }), false,
+  assert.equal(shouldAttachRepoMap('读 @file:src/main.ts', 'code', { isFirstTurn: false, workspaceTrusted: true }), false,
     'later explicit references resolve only the requested context without rebuilding the default repository map')
   assert.equal(isFirstConversationTurn([]), true)
   assert.equal(isFirstConversationTurn([{ author: 'user', text: 'previous turn' }]), false,

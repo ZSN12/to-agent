@@ -47,6 +47,8 @@ const cases = [
   ['refactor the auth module', CODE_MUTATION, '英文重构'],
   ['把这个函数改成 async', CODE_MUTATION, '改成'],
   ['修复这个 bug 并解释原因', CODE_MUTATION, 'mutation 必须优先于只读，否则会漏掉闭环要求'],
+  ['make the tests pass', CODE_MUTATION, '测试通过是明确修改请求'],
+  ['登录页按钮颜色不对，看看怎么回事然后弄好它', CODE_MUTATION, '中文混合诊断与修改'],
 
   // ===== 疑问句里的动词不算修改意图 =====
   ['这个功能是怎么实现的？', READ_ONLY, '「怎么实现」是提问'],
@@ -57,6 +59,9 @@ const cases = [
   ['检查当前代码有什么问题', READ_ONLY, '检查代码默认只读'],
   ['解释一下这个报错', READ_ONLY, '要求解释'],
   ['这样做对吗？', READ_ONLY, '问句结尾'],
+  ['what does the address parser return?', READ_ONLY, 'address 中的 add 不是修改动词'],
+  ['how do I debug this', READ_ONLY, 'debug 中的 bug 不是修改动词'],
+  ['where is the prefix computed', READ_ONLY, 'prefix 中的 fix 不是修改动词'],
 
   // ===== 规划 =====
   ['制定计划', PLANNING, '显式规划'],

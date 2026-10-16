@@ -19,6 +19,7 @@ export const USER_INTENTS = Object.freeze({
 
 const READ_ONLY_PATTERNS = [
   /^(请问|为什么|怎么理解|解释一下|说明一下|分析一下|介绍一下|什么是|如何看待|有什么区别)/i,
+  /^(?:what|why|how|where|when|which|who)\b/i,
   /(什么意思|怎么回事|有什么用|怎么用|用法是|原理是|时间复杂度|空间复杂度|优缺点|哪里定义|在何处)\??$/i,
   /^(查看|查一下|查找|找一下|搜一下|搜索|定位|阅读|检查|审查|帮我看|看下|看看|看一下|帮我找|帮我搜|帮我查|走读|请教|读下|读一下)/i,
   /^只读检查/i,
@@ -41,7 +42,7 @@ const MUTATION_SCAN_MAX_CHARS = 12_000
 const MUTATION_KEYWORDS = [
   '修改', '修复', 'fix', 'bug', '实现', '新增', '添加', '增加', '重构', '编写', '写一个', '创建',
   '优化', '改动', '替换', '删除', '更新', '补充', '接入', '对齐', '解决', '补全',
-  '改成', '改一下', '改掉', '去掉', '加上', '删掉', '修一下', '调一下',
+  '改成', '改一下', '改掉', '去掉', '加上', '删掉', '修一下', '调一下', '弄好',
   '加一个', '加个', '帮我加', '补一个', '写个', '做个',
   'refactor', 'implement', 'add', 'create', 'update', 'remove', 'delete',
 ]
@@ -51,6 +52,12 @@ const INTERROGATIVE_BEFORE = /(怎么|如何|为什么|为啥|什么是|是否|�
 
 /** 紧跟在动词之后的释义问法：如「更新是什么意思」——在问词义，不是在要求更新。 */
 const INTERROGATIVE_AFTER = /^(是什么意思|是啥意思|是什么|指什么|指的是什么|的含义)/
+const ENGLISH_MUTATION_KEYWORDS = new Set([
+  'fix', 'bug', 'refactor', 'implement', 'add', 'create', 'update', 'remove', 'delete',
+])
+const ENGLISH_MUTATION_PATTERNS = [
+  /\bmake\s+(?:the\s+)?(?:tests?|checks?)\s+pass\b/i,
+]
 
 /**
  * 判断是否表达了“要改代码”的意图。
@@ -60,10 +67,19 @@ const INTERROGATIVE_AFTER = /^(是什么意思|是啥意思|是什么|指什么|
  */
 function hasMutationIntent(text) {
   const scanText = text.length > MUTATION_SCAN_MAX_CHARS ? text.slice(0, MUTATION_SCAN_MAX_CHARS) : text
+  if (ENGLISH_MUTATION_PATTERNS.some((pattern) => pattern.test(scanText))) return true
   for (const keyword of MUTATION_KEYWORDS) {
     let from = 0
     while (true) {
-      const index = scanText.indexOf(keyword, from)
+      let index = -1
+      if (ENGLISH_MUTATION_KEYWORDS.has(keyword)) {
+        const match = new RegExp(`\\b${keyword}\\b`, 'ig')
+        match.lastIndex = from
+        const boundaryMatch = match.exec(scanText)
+        index = boundaryMatch?.index ?? -1
+      } else {
+        index = scanText.indexOf(keyword, from)
+      }
       if (index < 0) break
       const before = scanText.slice(Math.max(0, index - 3), index)
       const after = scanText.slice(index + keyword.length)

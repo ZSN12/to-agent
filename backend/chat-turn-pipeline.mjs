@@ -30,6 +30,7 @@ export function createChatTurnPipeline(deps) {
     createGitCheckpoint,
     userDataPath,
     chat,
+    contextInjectionLedger = null,
     orchestration,
     permissions,
     skills,
@@ -395,6 +396,7 @@ export function createChatTurnPipeline(deps) {
     const { modelKey: activeKey } = await validateAndResolveModel(text, modelKey, runtimeContext, attachments, documents)
     const command = nativeChatCommand(text)
     if (command) {
+      contextInjectionLedger?.invalidateConversation?.(conversationId)
       const { messageId, time, userEntry } = await createUserMessage(command, conversationId)
       let result
       try {
@@ -436,7 +438,10 @@ export function createChatTurnPipeline(deps) {
     const {
       effectiveOverride,
       effectivePrompt,
+      fullPrompt,
       promptContextLayers,
+      sentPromptLayerIds,
+      contextInjectionReceipt,
       promptStats,
       assembled,
       dynamicBudget,
@@ -451,6 +456,10 @@ export function createChatTurnPipeline(deps) {
       conversationMessages: conversationState?.messages ?? [],
       preferences: prefs,
       repoMapCacheDirectory: userDataPath ? path.join(userDataPath, 'taskweaver', 'repo-map-cache') : null,
+      workspaceTrusted: runtimeContext.workspaceTrusted === true,
+      contextInjectionLedger,
+      conversationId,
+      hostSessionId: chat.getSessionId?.(conversationId) ?? null,
     })
     logPromptPipelineAccounting(conversationId, promptStats, assembled, { scope: 'chat:send' })
     emitPromptBudget(webContents, promptBudgetSnapshotFromStats(conversationId, promptStats, assembled, 'chat:send'))
@@ -463,7 +472,7 @@ export function createChatTurnPipeline(deps) {
     })
     const execution = { mode: orchestrationPolicy.mode, reason: orchestrationPolicy.reason }
     const orchestrationContext = {
-      text: effectivePrompt,
+      text: fullPrompt,
       rawText: text,
       promptContextLayers,
       primaryModelKey: activeKey,
@@ -502,7 +511,7 @@ export function createChatTurnPipeline(deps) {
       const permissionMode = requiresReadOnlyPlan(text) ? 'readonly' : runtimeContext.permissionMode
       if (orchestrationPolicy.direct) {
         const outcome = await orchestration.planAndExecute({
-          text: effectivePrompt,
+          text: fullPrompt,
           rawText: text,
           contextLayers: promptContextLayers,
           primaryModelKey: activeKey,
@@ -544,6 +553,13 @@ export function createChatTurnPipeline(deps) {
     }
 
     if (result.accepted) return { user: userEntry, accepted: true, queued: result.queued }
+    if (!orchestrationPolicy.direct && !result.cancelled) {
+      contextInjectionLedger?.commit?.(
+        contextInjectionReceipt,
+        sentPromptLayerIds,
+        chat.getSessionId?.(conversationId) ?? null,
+      )
+    }
 
     result = await runSelfHealingLoop({
       webContents,

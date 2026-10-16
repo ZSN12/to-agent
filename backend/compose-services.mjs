@@ -8,6 +8,7 @@ import { createModelRegistryUpdater } from './model-registry-updater.mjs'
 import { createAppStateStore } from './app-state-store.mjs'
 import { createDshChatService } from './dsh-chat-service.mjs'
 import { createChatTurnPersistence } from './chat-turn-persistence.mjs'
+import { createContextInjectionLedger } from './context-injection-ledger.mjs'
 import { createOrchestrationService } from './orchestration-service.mjs'
 import { createSkillService } from './skill-service.mjs'
 import { createPermissionService } from './permission-service.mjs'
@@ -352,6 +353,7 @@ export async function composeBackendServices({ app, dialog, BrowserWindow, safeS
   })
 
   const persistNativeTurn = createChatTurnPersistence({ appState, usageStore })
+  const contextInjectionLedger = createContextInjectionLedger()
   const chat = createDshChatService({
     hostManager,
     conversationHub,
@@ -360,6 +362,7 @@ export async function composeBackendServices({ app, dialog, BrowserWindow, safeS
     profileStore,
     modelService,
     appState,
+    contextInjectionLedger,
     onTurnCompleted: persistNativeTurn,
     logger: console,
     getPermissionMode: async (conversationId) => {
@@ -463,6 +466,7 @@ export async function composeBackendServices({ app, dialog, BrowserWindow, safeS
     withTurnLock, withMcpHostRestartLock, resolveWorktreeContext, workspaceHooksTrusted, resolveIpcConversationId,
     assertNotBusy, withWorkspaceOperation, validateWorkspace, permissions,
     customProviderService, persistNativeTurn, chat, orchestration, scheduledJobsStore,
+    contextInjectionLedger,
     agentDataPath, pricingSync, credentialStore,
   }
 }

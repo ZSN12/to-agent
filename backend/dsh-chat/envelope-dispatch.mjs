@@ -33,6 +33,7 @@ export function createHandleEnvelope(deps) {
     queueSnapshots,
     pendingQuestions,
     conversationHub,
+    contextInjectionLedger = null,
     fanoutMuxFrame,
     registerPendingApproval,
     settleApproval,
@@ -262,6 +263,11 @@ export function createHandleEnvelope(deps) {
     const ownerConversationId = sessionMatch[1]?.ownerConversationId || sessionKey
     const emitTarget = turn.eventConversationId ?? ownerConversationId
     turn.lastEventAt = event.time || Date.now()
+    if ((event?.type === 'compaction/summary' || event?.type === 'compaction/prune')
+      && sessionKey === ownerConversationId
+      && !turn.taskId) {
+      contextInjectionLedger?.invalidateConversation?.(turn.eventConversationId ?? ownerConversationId)
+    }
     if (turn.command) {
       // Manual maintenance has compaction/command brackets, not chat turns.
       // The prompt RPC owns settlement; never consume a chat turn/end here.

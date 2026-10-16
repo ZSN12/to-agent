@@ -284,16 +284,17 @@ function relevanceQueryWithoutReferences(text) {
 }
 
 /**
- * Repo Map 仅在首轮计划/目标或工程任务中注入；显式引用单独解析，不重复生成全局地图。
+ * Repo Map 仅在受信任工作区的首轮注入；显式引用单独解析，不重复生成全局地图。
  * @param {string} text
  * @param {string} [workMode]
- * @param {{ enableRepoMap?: boolean, isFirstTurn?: boolean, hasNonConversationIntent?: boolean }} [options]
+ * @param {{ enableRepoMap?: boolean, isFirstTurn?: boolean, workspaceTrusted?: boolean }} [options]
  */
 export function shouldAttachRepoMap(text, workMode = 'code', options = {}) {
+  void text
+  void workMode
   if (options.enableRepoMap === false) return false
   if (options.isFirstTurn !== true) return false
-  if (workMode === 'plan' || workMode === 'goal') return true
-  return options.hasNonConversationIntent === true
+  return options.workspaceTrusted === true
 }
 
 /** Conversation messages may use either the persisted `author` or API `role` shape. */

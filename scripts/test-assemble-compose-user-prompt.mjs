@@ -7,6 +7,7 @@ import {
   promptBudgetSnapshotFromStats,
 } from '../backend/assemble-and-compose-user-prompt.mjs'
 import { prefetchChatTurnInputs } from '../backend/chat-turn-prefetch.mjs'
+import { createContextInjectionLedger } from '../backend/context-injection-ledger.mjs'
 
 const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'tw-compose-'))
 const workspacePath = path.join(tmp, 'repo')
@@ -29,6 +30,7 @@ const result = await assembleAndComposeUserPrompt({
   modelKey: 'xiaomi/mimo-v2.6-flash',
   selectedSkill: null,
   conversationMessages: [],
+  workspaceTrusted: true,
   preferences: {
     promptInjectionLimitBytes: 32 * 1024,
     enableRepoMap: true,
@@ -145,8 +147,8 @@ const composerGreeting = await assembleAndComposeUserPrompt({
 })
 assert.doesNotMatch(composerGreeting.effectivePrompt, /taskweaver_cursor_tools|read 优先用 file_path/,
   'Cursor tool directions are not injected into a simple greeting')
-assert.doesNotMatch(composerGreeting.effectivePrompt, /TASKWEAVER_LOCAL_RULE_MARKER|CURSOR_LOCAL_RULE_MARKER/,
-  'repository rules do not consume a plain greeting turn')
+assert.match(composerGreeting.effectivePrompt, /TASKWEAVER_LOCAL_RULE_MARKER/,
+  'project rules are assembled independently of intent classification')
 
 const taskAfterGreeting = await assembleAndComposeUserPrompt({
   text: '修复 backend/register-ipc.mjs 的问题',
@@ -162,6 +164,49 @@ assert.doesNotMatch(taskAfterGreeting.effectivePrompt, /taskweaver_cursor_tools|
   'tool directions are supplied by the bridge system prompt, not copied into the user message')
 assert.match(taskAfterGreeting.effectivePrompt, /TASKWEAVER_LOCAL_RULE_MARKER/,
   'the first actual engineering task after a greeting still receives workspace rules')
+
+const contextLedger = createContextInjectionLedger()
+const ledgerInput = {
+  workMode: 'code',
+  workspacePath,
+  workspaceTrusted: true,
+  preferences: { promptInjectionLimitBytes: 32 * 1024, enableRepoMap: false },
+  contextInjectionLedger: contextLedger,
+  conversationId: 'ledger-conversation',
+  hostSessionId: 'host-session-1',
+  sandboxContextLine: 'sandbox policy v1',
+}
+const ledgerFirst = await assembleAndComposeUserPrompt({ ...ledgerInput, text: '你好', conversationMessages: [] })
+assert.match(ledgerFirst.effectivePrompt, /TASKWEAVER_LOCAL_RULE_MARKER/)
+assert.match(ledgerFirst.effectivePrompt, /sandbox policy v1/)
+contextLedger.commit(ledgerFirst.contextInjectionReceipt, ledgerFirst.sentPromptLayerIds, 'host-session-1')
+
+const ledgerSecond = await assembleAndComposeUserPrompt({
+  ...ledgerInput,
+  text: '继续',
+  conversationMessages: [{ author: 'user', text: '你好' }],
+})
+assert.doesNotMatch(ledgerSecond.effectivePrompt, /TASKWEAVER_LOCAL_RULE_MARKER|sandbox policy v1/,
+  'unchanged rules and sandbox policy are not repeated on the same Host session')
+assert.match(ledgerSecond.fullPrompt, /TASKWEAVER_LOCAL_RULE_MARKER/,
+  'the complete context remains available to DAG planning and child prompts')
+assert.ok(ledgerSecond.contextInjectionReceipt)
+contextLedger.commit(ledgerSecond.contextInjectionReceipt, ledgerSecond.sentPromptLayerIds, 'host-session-1')
+
+await fs.writeFile(path.join(workspacePath, '.taskweaver', 'rules.md'), 'UPDATED_RULE_MARKER with changed size\n')
+const ledgerThird = await assembleAndComposeUserPrompt({
+  ...ledgerInput,
+  sandboxContextLine: 'sandbox policy v2',
+  text: '再继续',
+  conversationMessages: [
+    { author: 'user', text: '你好' },
+    { author: 'user', text: '继续' },
+  ],
+})
+assert.match(ledgerThird.effectivePrompt, /UPDATED_RULE_MARKER/)
+assert.match(ledgerThird.effectivePrompt, /sandbox policy v2/)
+assert.doesNotMatch(ledgerThird.effectivePrompt, /TASKWEAVER_LOCAL_RULE_MARKER|sandbox policy v1/,
+  'changed context replaces the previous version instead of duplicating both')
 
 const snapshot = promptBudgetSnapshotFromStats('conv-1', result.promptStats, result.assembled, 'test')
 assert.equal(snapshot.conversationId, 'conv-1')

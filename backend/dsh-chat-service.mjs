@@ -24,6 +24,7 @@ export function createDshChatService({
   getPermissionMode = async () => 'ask',
   getUiVerifyPolicy,
   conversationHub = null,
+  contextInjectionLedger = null,
   onTurnCompleted = null,
   logger = null,
   logApprovalEvent = null,
@@ -109,6 +110,7 @@ export function createDshChatService({
     queueSnapshots,
     pendingQuestions,
     conversationHub,
+    contextInjectionLedger,
     fanoutMuxFrame,
     registerPendingApproval,
     settleApproval,
@@ -195,8 +197,17 @@ export function createDshChatService({
     const { ensureSession, forkConversation } = sessionRegistry
     async function forgetConversation(conversationId) {
       const result = await sessionRegistry.forgetConversation(conversationId)
+      contextInjectionLedger?.invalidateConversation?.(conversationId)
       toolOutputStore.clearConversation(conversationId)
-      for (const removedId of result.removed ?? []) toolOutputStore.clearConversation(removedId)
+      for (const removedId of result.removed ?? []) {
+        contextInjectionLedger?.invalidateConversation?.(removedId)
+        toolOutputStore.clearConversation(removedId)
+      }
+      return result
+    }
+    async function forkConversationWithLedgerReset(options) {
+      const result = await forkConversation(options)
+      if (result?.ok) contextInjectionLedger?.invalidateConversation?.(options?.targetConversationId)
       return result
     }
 
@@ -287,7 +298,7 @@ export function createDshChatService({
     cancelUserQuestion,
     rejectPendingApprovals,
     forgetConversation,
-    forkConversation,
+    forkConversation: forkConversationWithLedgerReset,
     stop,
     isBusy: (id) => running.has(id),
     isBusyAny: () => running.size > 0,
