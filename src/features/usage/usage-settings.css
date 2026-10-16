@@ -1,0 +1,9 @@
+.usage-settings-panel-spaced { margin-bottom: 12px; }
+.usage-record-toggle { display: inline-flex; align-items: center; gap: 8px; color: var(--text); cursor: pointer; }
+.usage-pricing-tools { display: flex; align-items: center; gap: 8px; }
+.usage-pricing-status { color: var(--text-secondary); font-size: 12px; }
+
+@media (max-width: 720px) {
+  .usage-pricing-tools { align-items: flex-start; flex-wrap: wrap; }
+  .usage-pricing-status { flex: 1 1 100%; }
+}

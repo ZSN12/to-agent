@@ -18,6 +18,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import type { McpCatalogEntry, McpDshRuntimeBinding, McpServerConfig, McpServerStatus } from '../../shared/app-api'
+import './mcp-settings-panel.css'
 
 interface EnvEntry {
   key: string
@@ -130,7 +131,7 @@ function McpServerModal({
         if (e.target === e.currentTarget) onClose()
       }}
     >
-      <form className="model-editor" onSubmit={handleSubmit} style={{ maxWidth: 580 }}>
+      <form className="model-editor mcp-server-editor" onSubmit={handleSubmit}>
         <h2>{editing ? '编辑 MCP 服务' : '添加 MCP 服务'}</h2>
         <p>通过 Stdio 连接 MCP 服务器；启用后 Agent 可调用其暴露的工具（需本机已安装 Node / npx）。</p>
 
@@ -169,13 +170,12 @@ function McpServerModal({
           />
         </label>
 
-        <div style={{ marginTop: 12 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-            <span style={{ fontSize: 13, fontWeight: 500 }}>环境变量 (敏感 Token 经本地安全存储加密保护)</span>
+        <div className="mcp-editor-env-section">
+          <div className="mcp-editor-env-heading">
+            <span className="mcp-editor-env-title">环境变量 (敏感 Token 经本地安全存储加密保护)</span>
             <button
               type="button"
-              className="settings-secondary-button"
-              style={{ padding: '3px 8px', fontSize: 12 }}
+              className="settings-secondary-button mcp-editor-add-env"
               onClick={handleAddEnv}
             >
               <Plus size={13} />
@@ -183,29 +183,28 @@ function McpServerModal({
             </button>
           </div>
           {envEntries.length === 0 ? (
-            <div style={{ fontSize: 12, color: 'var(--text-tertiary)', padding: '6px 0' }}>无环境变量</div>
+            <div className="mcp-editor-env-empty">无环境变量</div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div className="mcp-editor-env-list">
               {envEntries.map((entry, idx) => (
-                <div key={idx} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <div key={idx} className="mcp-editor-env-row">
                   <input
                     type="text"
                     placeholder="KEY (如 GITHUB_TOKEN)"
                     value={entry.key}
                     onChange={(e) => handleEnvChange(idx, 'key', e.target.value)}
-                    style={{ flex: 1, fontFamily: 'monospace', fontSize: 12 }}
+                    className="mcp-editor-env-key"
                   />
                   <input
                     type="password"
                     placeholder="VALUE (留空保留原值)"
                     value={entry.value}
                     onChange={(e) => handleEnvChange(idx, 'value', e.target.value)}
-                    style={{ flex: 1.5, fontFamily: 'monospace', fontSize: 12 }}
+                    className="mcp-editor-env-value"
                   />
                   <button
                     type="button"
-                    className="settings-danger-button"
-                    style={{ padding: 6 }}
+                    className="settings-danger-button mcp-editor-remove-env"
                     onClick={() => handleRemoveEnv(idx)}
                     title="移除此项"
                   >
@@ -217,21 +216,21 @@ function McpServerModal({
           )}
         </div>
 
-        <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div className="mcp-editor-enabled-row">
           <input
             type="checkbox"
             id="mcp-enabled-checkbox"
             checked={enabled}
             onChange={(e) => setEnabled(e.target.checked)}
             disabled={!dshWired}
-            style={{ width: 'auto', cursor: 'pointer' }}
+            className="mcp-editor-enabled-checkbox"
           />
-          <label htmlFor="mcp-enabled-checkbox" style={{ margin: 0, cursor: 'pointer', fontSize: 13 }}>
+          <label htmlFor="mcp-enabled-checkbox" className="mcp-editor-enabled-label">
             {dshWired ? '保存后重载 Z Host 并向 Agent 提供工具' : 'Agent 工具接入不可用'}
           </label>
         </div>
 
-        <div className="model-editor-actions" style={{ marginTop: 18 }}>
+        <div className="model-editor-actions mcp-editor-actions">
           <button type="button" className="settings-secondary-button" onClick={onClose}>
             取消
           </button>
@@ -450,7 +449,7 @@ export function McpSettingsPanel({ onToast }: { onToast?: (msg: string) => void 
             管理外部 MCP 服务。设置页状态只表示这里探测到的服务与工具，不代表当前对话的 Z Host 已加载或模型已调用；请以对话中的实际工具调用记录为准。配置变更会重载运行时，运行中的任务无法变更。
           </p>
           {runtimeBinding && !runtimeBinding.dshWired && (
-            <p className="settings-inline-error" style={{ marginTop: 8 }}>
+            <p className="settings-inline-error mcp-settings-error">
               {runtimeBinding.executionNote}
             </p>
           )}
@@ -504,13 +503,13 @@ export function McpSettingsPanel({ onToast }: { onToast?: (msg: string) => void 
             </p>
           ) : (
             servers.map((server) => (
-              <article className="provider-row" key={server.id} style={{ alignItems: 'flex-start' }}>
-                <div className="provider-identity" style={{ flex: 1 }}>
+              <article className="provider-row mcp-server-row" key={server.id}>
+                <div className="provider-identity mcp-server-identity">
                   <span className="provider-logo">
                     <Cpu size={18} />
                   </span>
                   <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <div className="mcp-server-heading">
                       <strong>{server.id}</strong>
                       <span className={statusPillClass(server.status)}>
                         {statusPillLabel(server, dshWired)}
@@ -520,10 +519,10 @@ export function McpSettingsPanel({ onToast }: { onToast?: (msg: string) => void 
                       {server.transport === 'http' ? server.url : `${server.command} ${server.args.join(' ')}`}
                     </code>
                     {server.envKeys.length > 0 && (
-                      <div className="mcp-template-tags" style={{ marginTop: 8 }}>
+                      <div className="mcp-template-tags mcp-server-env-tags">
                         {server.envKeys.map((k) => (
                           <span key={k} className="mcp-template-tag">
-                            <KeyRound size={9} style={{ display: 'inline', marginRight: 3, verticalAlign: -1 }} />
+                            <KeyRound size={9} className="mcp-server-env-icon" />
                             {k}
                           </span>
                         ))}
@@ -535,14 +534,13 @@ export function McpSettingsPanel({ onToast }: { onToast?: (msg: string) => void 
                   </div>
                 </div>
 
-                <div className="provider-actions" style={{ alignItems: 'center', flexWrap: 'wrap' }}>
+                <div className="provider-actions mcp-server-actions">
                   <button
                     type="button"
-                    className="settings-secondary-button"
                     onClick={() => handleToggleEnable(server)}
                     disabled={!dshWired}
                     title={!dshWired ? 'MCP Agent 工具接入不可用' : '变更会重载 Z Host；运行中的任务期间不可操作'}
-                    style={{ minWidth: 64 }}
+                    className="settings-secondary-button mcp-server-toggle"
                   >
                     {dshWired ? (server.enabled ? '停用' : '启用') : '不可用'}
                   </button>
@@ -630,7 +628,7 @@ export function McpSettingsPanel({ onToast }: { onToast?: (msg: string) => void 
                         <span className="mcp-template-icon" aria-hidden>
                           <Icon size={17} />
                         </span>
-                        <div style={{ minWidth: 0 }}>
+                        <div className="mcp-template-card-copy">
                           <h4>{entry.title}</h4>
                           <p>{entry.description}</p>
                         </div>

@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Check, Plus, Shield, ShieldCheck, Trash2 } from 'lucide-react'
 import type { ApprovalAuditEntry, PermissionMode, PermissionRule } from '../../shared/app-api'
+import './permission-settings-panel.css'
 
 const PROMPT_INJECTION_LIMIT_MIN_KIB = 1
 const PROMPT_INJECTION_LIMIT_MAX_KIB = 128
@@ -25,27 +26,16 @@ function PermissionModeCard({
       type="button"
       aria-pressed={active}
       onClick={onSelect}
-      style={{
-        width: '100%',
-        padding: 14,
-        borderRadius: 8,
-        border: `1.5px solid ${active ? 'var(--accent-primary, #3b82f6)' : 'var(--border-color, #e5e7eb)'}`,
-        background: active ? 'rgba(59, 130, 246, 0.05)' : 'var(--bg-secondary)',
-        color: 'var(--text-primary)',
-        fontFamily: 'inherit',
-        textAlign: 'left',
-        cursor: 'pointer',
-        transition: 'all 0.15s ease',
-      }}
+      className={`permission-mode-card ${active ? 'is-active' : ''}`}
     >
-      <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 600, fontSize: 13 }}>
+      <span className="permission-mode-card-head">
+        <span className="permission-mode-card-title">
           {icon}
           {label}
         </span>
-        {active && <Check size={16} color="#3b82f6" aria-hidden="true" />}
+        {active && <Check size={16} className="permission-mode-check" aria-hidden="true" />}
       </span>
-      <span style={{ display: 'block', fontSize: 11, color: 'var(--text-secondary)', marginTop: 6, lineHeight: 1.4 }}>
+      <span className="permission-mode-card-description">
         {description}
       </span>
     </button>
@@ -102,7 +92,7 @@ function AddRuleModal({
         if (e.target === e.currentTarget) onClose()
       }}
     >
-      <form className="model-editor" onSubmit={handleSubmit} style={{ maxWidth: 540 }}>
+      <form className="model-editor permission-rule-editor" onSubmit={handleSubmit}>
         <h2>添加细粒度权限规则</h2>
         <p>配置安全白名单或阻止名单。命令默认按完整文本匹配；只有显式开启通配时，命令中的 * 才匹配任意字符。路径规则仍支持通配。</p>
 
@@ -157,7 +147,7 @@ function AddRuleModal({
           </label>
         )}
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 6 }}>
+        <div className="permission-rule-decision-grid">
           <label>
             执行决策
             <select value={decision} onChange={(e) => setDecision(e.target.value as any)}>
@@ -175,7 +165,7 @@ function AddRuleModal({
           </label>
         </div>
 
-        <label style={{ marginTop: 6 }}>
+        <label className="permission-rule-note">
           规则说明 / 备注 (可选)
           <input
             type="text"
@@ -185,7 +175,7 @@ function AddRuleModal({
           />
         </label>
 
-        <div className="model-editor-actions" style={{ marginTop: 18 }}>
+        <div className="model-editor-actions permission-rule-actions">
           <button type="button" className="settings-secondary-button" onClick={onClose}>
             取消
           </button>
@@ -405,31 +395,31 @@ export function PermissionSettingsPanel({
       </div>
 
       {/* 三档模式选择卡片 */}
-      <div style={{ marginTop: 12 }}>
-        <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>全局权限模式</h3>
+      <div className="permission-settings-mode-section">
+        <h3 className="permission-settings-section-title">全局权限模式</h3>
         <div className="permission-mode-grid" role="group" aria-label="全局权限模式">
           <PermissionModeCard
             active={mode === 'readonly'}
-            icon={<Shield size={16} color="#64748b" aria-hidden="true" />}
+            icon={<Shield size={16} className="permission-mode-icon is-readonly" aria-hidden="true" />}
             label="只读"
             description="Host read-only：文件写入工具不可用；适合计划审阅与纯理解任务。"
             onSelect={() => handleModeSelect('readonly')}
           />
           <PermissionModeCard
             active={mode === 'ask' || mode === 'on-risk'}
-            icon={<Shield size={16} color="#3b82f6" aria-hidden="true" />}
+            icon={<Shield size={16} className="permission-mode-icon is-workspace" aria-hidden="true" />}
             label="工作区可写 (默认)"
             description="Host workspace-write：允许工作区内文件修改与命令；需要扩大沙箱范围时请求审批。"
             onSelect={() => handleModeSelect('ask')}
           />
           <PermissionModeCard
             active={mode === 'full'}
-            icon={<ShieldCheck size={16} color="#22c55e" aria-hidden="true" />}
+            icon={<ShieldCheck size={16} className="permission-mode-icon is-full" aria-hidden="true" />}
             label="完全访问"
             description={(
               <>
-                <span style={{ display: 'block' }}>Host 使用 danger-full-access：关闭文件与命令沙箱约束，默认审批策略为 never。</span>
-                <span style={{ display: 'block', marginTop: 6, fontSize: 10, opacity: 0.9 }}>
+                <span className="permission-description-line">Host 使用 danger-full-access：关闭文件与命令沙箱约束，默认审批策略为 never。</span>
+                <span className="permission-description-line permission-description-secondary">
                   若 Host 仍发出审批请求，桌面端会显示给用户。设置在下一次发送消息时应用；成功回执前不代表 Host 已生效。
                 </span>
               </>
@@ -437,59 +427,59 @@ export function PermissionSettingsPanel({
             onSelect={() => handleModeSelect('full')}
           />
         </div>
-        <div style={{ marginTop: 10, padding: '8px 12px', borderRadius: 6, background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+        <div className="permission-safety-note">
           <strong>安全边界说明：</strong>on-risk 为旧配置，与 ask 同为 workspace-write。工作区可写模式下，macOS Seatbelt 与 Linux bwrap 会阻止命令联网并保留本地 Unix 套接字；只读模式、Linux Landlock、Windows ACL 或未启用沙箱时不限制网络，联网请求按审批策略处理。
         </div>
-        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginTop: 14, fontSize: 12, cursor: 'pointer' }}>
+        <label className="permission-option permission-option-spaced">
           <input
             type="checkbox"
             checked={autoReviewReads}
             onChange={(e) => { void handleAutoReviewReads(e.target.checked) }}
-            style={{ marginTop: 2 }}
+            className="permission-option-checkbox"
           />
           <span>
             <strong>自动放行工作区内只读工具</strong>
-            <span style={{ display: 'block', color: 'var(--text-secondary)', fontSize: 11, marginTop: 4, lineHeight: 1.45 }}>
+            <span className="permission-option-description">
               应用层只读工具确认偏好；Z Host 使用其自身审批策略，此开关不改变 Host 的沙箱权限。
             </span>
           </span>
         </label>
-        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginTop: 10, fontSize: 12, cursor: 'pointer' }}>
+        <label className="permission-option">
           <input
             type="checkbox"
             checked={autoAllowUiVerify}
             onChange={(e) => { void handleAutoAllowUiVerify(e.target.checked) }}
-            style={{ marginTop: 2 }}
+            className="permission-option-checkbox"
           />
           <span>
             <strong>受信任工作区自动允许 UI 自验证</strong>
-            <span style={{ display: 'block', color: 'var(--text-secondary)', fontSize: 11, marginTop: 4, lineHeight: 1.45 }}>
+            <span className="permission-option-description">
               只对已信任的 TaskWeaver 工作区生效；关闭时每个会话首次启动隔离验证实例都需要批准。默认关闭。
             </span>
           </span>
         </label>
-        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginTop: 10, fontSize: 12, cursor: 'pointer' }}>
+        <label className="permission-option">
           <input
             type="checkbox"
             checked={autoVerifyAfterMutation}
             onChange={(e) => { void handleAutoVerifyAfterMutation(e.target.checked) }}
-            style={{ marginTop: 2 }}
+            className="permission-option-checkbox"
           />
           <span>
             <strong>改代码后追加验证指引（Host 外）</strong>
-            <span style={{ display: 'block', color: 'var(--text-secondary)', fontSize: 11, marginTop: 4, lineHeight: 1.45 }}>
+            <span className="permission-option-description">
               默认关闭以对齐 DSH Web；开启后会在修改类请求上提示运行项目验证命令。
             </span>
           </span>
         </label>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginTop: 14, fontSize: 12 }}>
-          <label htmlFor="prompt-injection-limit-kib" style={{ display: 'flex', flexDirection: 'column', gap: 4, cursor: 'pointer' }}>
+        <div className="permission-limit-row">
+          <label htmlFor="prompt-injection-limit-kib" className="permission-limit-description">
             <strong>每轮系统上下文上限</strong>
-            <span style={{ color: 'var(--text-secondary)', fontSize: 11, lineHeight: 1.45 }}>
+            <span className="permission-option-description">
               作为系统上下文注入上限，实际预算会随模型上下文窗口按比例缩放；默认上限 128 KiB，范围 1–128 KiB。
             </span>
           </label>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+          <div className="permission-limit-input-row">
             <input
               id="prompt-injection-limit-kib"
               type="number"
@@ -500,48 +490,47 @@ export function PermissionSettingsPanel({
               onChange={(e) => setPromptInjectionLimitKiB(e.target.value)}
               onBlur={() => { void handlePromptInjectionLimitCommit() }}
               aria-label="每轮系统上下文上限，单位 KiB"
-              style={{ width: 76, padding: '6px 8px', borderRadius: 6, border: '1px solid var(--border-color)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 12 }}
+              className="permission-limit-input"
             />
-            <span style={{ color: 'var(--text-secondary)', fontSize: 11 }}>KiB</span>
+            <span className="permission-limit-unit">KiB</span>
           </div>
         </div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
+        <div className="permission-limit-presets">
           {([16, 32, 48] as const).map((preset) => (
             <button
               key={preset}
               type="button"
-              className={savedPromptInjectionLimitKiB === preset ? 'settings-primary-button' : 'settings-secondary-button'}
-              style={{ fontSize: 12, padding: '6px 12px' }}
+              className={`${savedPromptInjectionLimitKiB === preset ? 'settings-primary-button' : 'settings-secondary-button'} permission-limit-preset`}
               onClick={() => { void applyInjectionPresetKiB(preset) }}
             >
               {preset} KiB{preset === 16 ? ' · 省钱' : preset === 32 ? ' · 默认' : ' · 宽裕'}
             </button>
           ))}
         </div>
-        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginTop: 16, fontSize: 12, cursor: 'pointer' }}>
+        <label className="permission-option permission-option-spaced">
           <input
             type="checkbox"
             checked={preferMultiAgent}
             onChange={(e) => { void handlePreferMultiAgent(e.target.checked) }}
-            style={{ marginTop: 2 }}
+            className="permission-option-checkbox"
           />
           <span>
             <strong>新会话默认把每条任务交给多 Agent 编排</strong>
-            <span style={{ display: 'block', color: 'var(--text-secondary)', fontSize: 11, marginTop: 4, lineHeight: 1.45 }}>
+            <span className="permission-option-description">
               未开启时，Agent 会在任务适合拆分或需要并行调研多个模块时自行调用编排。输入框开关、目标模式（/goal）和多 Agent Skill 仍可明确要求编排。
             </span>
           </span>
         </label>
-        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginTop: 10, fontSize: 12, cursor: 'pointer' }}>
+        <label className="permission-option">
           <input
             type="checkbox"
             checked={preferDshTranscript}
             onChange={(e) => { void handlePreferDshTranscript(e.target.checked) }}
-            style={{ marginTop: 2 }}
+            className="permission-option-checkbox"
           />
           <span>
             <strong>聊天以 DSH 会话 transcript 为准（阶段 C）</strong>
-            <span style={{ display: 'block', color: 'var(--text-secondary)', fontSize: 11, marginTop: 4, lineHeight: 1.45 }}>
+            <span className="permission-option-description">
               开启后列表与 Host 投影对齐；线程库只保留多 Agent callout、错误等扩展行。
             </span>
           </span>
@@ -549,21 +538,20 @@ export function PermissionSettingsPanel({
       </div>
 
       {/* 细粒度规则列表 */}
-      <div style={{ marginTop: 24 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+      <div className="permission-rules-section">
+        <div className="permission-rules-head">
           <div>
-            <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>细粒度规则列表</h3>
-            <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+            <h3 className="permission-rules-title">细粒度规则列表</h3>
+            <span className="permission-rules-count">
               已配置 {rules.length} 条规则 · 拒绝规则优先级最高
             </span>
           </div>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div className="permission-rules-actions">
             {rules.some((r) => r.scope === 'workspace') && (
               <button
                 type="button"
-                className="settings-secondary-button"
                 onClick={handleClearWorkspaceRules}
-                style={{ fontSize: 12 }}
+                className="settings-secondary-button permission-rule-clear-button"
               >
                 清空工作区规则
               </button>
@@ -589,35 +577,18 @@ export function PermissionSettingsPanel({
               const isAllow = rule.decision === 'allow'
               return (
                 <article className="provider-row" key={rule.id}>
-                  <div className="provider-identity" style={{ flex: 1 }}>
-                    <span
-                      style={{
-                        padding: '3px 8px',
-                        borderRadius: 4,
-                        fontSize: 11,
-                        fontWeight: 600,
-                        backgroundColor: isAllow ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-                        color: isAllow ? '#22c55e' : '#ef4444',
-                      }}
-                    >
+                  <div className="provider-identity permission-rule-identity">
+                    <span className={`permission-rule-decision ${isAllow ? 'is-allow' : 'is-deny'}`}>
                       {isAllow ? 'ALLOW' : 'DENY'}
                     </span>
                     <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <strong style={{ fontFamily: 'monospace', fontSize: 13 }}>{rule.pattern}</strong>
-                        <span
-                          style={{
-                            fontSize: 10,
-                            padding: '1px 5px',
-                            borderRadius: 3,
-                            background: 'var(--bg-secondary)',
-                            color: 'var(--text-secondary)',
-                          }}
-                        >
+                      <div className="permission-rule-pattern-row">
+                        <strong className="permission-rule-pattern">{rule.pattern}</strong>
+                        <span className="permission-rule-scope">
                           {rule.scope === 'workspace' ? '工作区专属' : '全局'}
                         </span>
                       </div>
-                      <span style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2, display: 'block' }}>
+                      <span className="permission-rule-description">
                         工具: {rule.tool} · 类型: {rule.type === 'command' ? '命令' : rule.type === 'path' ? '路径' : '工具'}
                         {rule.description ? ` · ${rule.description}` : ''}
                       </span>
@@ -642,22 +613,22 @@ export function PermissionSettingsPanel({
       </div>
 
       {conversationId && (
-        <div style={{ marginTop: 24 }}>
-          <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 8px 0' }}>当前会话审批记录</h3>
-          <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 10px 0' }}>
+        <div className="permission-audit-section">
+          <h3 className="permission-audit-title">当前会话审批记录</h3>
+          <p className="permission-audit-description">
             最近 30 条应用层与 Host 审批事件（JSONL 落盘于会话目录）。
           </p>
           {approvalAudit.length === 0 ? (
-            <p className="settings-list-empty" style={{ margin: 0 }}>暂无审批审计记录。</p>
+            <p className="settings-list-empty permission-audit-empty">暂无审批审计记录。</p>
           ) : (
-            <ul className="provider-list model-catalog-list" style={{ margin: 0 }}>
+            <ul className="provider-list model-catalog-list permission-audit-list">
               {approvalAudit.slice().reverse().map((row, index) => (
-                <li key={`${row.time}-${row.id ?? index}`} className="provider-row" style={{ fontSize: 12 }}>
-                  <span style={{ fontFamily: 'monospace', color: 'var(--text-secondary)', flexShrink: 0 }}>
+                <li key={`${row.time}-${row.id ?? index}`} className="provider-row permission-audit-row">
+                  <span className="permission-audit-time">
                     {row.time ? new Date(row.time).toLocaleString('zh-CN') : '—'}
                   </span>
-                  <span style={{ fontWeight: 600 }}>{row.type}</span>
-                  <span style={{ color: 'var(--text-secondary)' }}>
+                  <span className="permission-audit-type">{row.type}</span>
+                  <span className="permission-audit-details">
                     {row.toolName ? ` · ${row.toolName}` : ''}
                     {row.outcome ? ` · ${row.outcome}` : ''}
                     {row.reason ? ` · ${row.reason}` : ''}
@@ -669,7 +640,7 @@ export function PermissionSettingsPanel({
         </div>
       )}
 
-      <div className="settings-footnote" style={{ marginTop: 24 }}>
+      <div className="settings-footnote permission-settings-footnote">
         <ShieldCheck size={15} />
         <span>
           规则优先级机制：Deny 拒绝规则优先于 Allow 允许规则；命中显式规则时跳过弹窗直接执行判定；未命中时回退到全局三档模式。

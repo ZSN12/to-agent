@@ -849,11 +849,21 @@ try {
     primaryModelKey: 'mock/strong',
     conversationId: randomUUID(),
     webContents: mockWebContents,
+    attachments: [{ name: 'diagram.png', mediaType: 'image/png', data: 'mock-image-data' }],
+    documents: [{ name: 'spec.txt', data: 'mock document text' }],
   })
   assert.equal(correctedPlan.tasks.length, 2, '被拒绝的额外汇总 Agent 不得进入实际 DAG')
   assert.equal(correctionTurns.filter((turn) => turn.taskId).length, 2, '必须先校验并重写计划，再启动两个只读子 Agent')
   const correctedPlannerTurns = correctionTurns.filter((turn) => turn.agentPreset === 'tw-taskweaver-planner')
   assert.equal(correctedPlannerTurns.length, 4, '应执行初次规划、最多两次有限修正和最终汇总')
+  const planningAttempts = correctedPlannerTurns.filter((turn) => !turn.text.includes('子任务执行结果'))
+  assert.equal(planningAttempts.length, 3)
+  for (const turn of planningAttempts) {
+    assert.deepEqual(turn.attachments, [{ name: 'diagram.png', mediaType: 'image/png', data: 'mock-image-data' }],
+      'every planner retry must retain the original image context')
+    assert.deepEqual(turn.documents, [{ name: 'spec.txt', data: 'mock document text' }],
+      'every planner retry must retain the original document context')
+  }
   assert.match(correctedPlannerTurns[0].text, /路径索引受 4 层目录深度限制，仍有更深目录未扫描/,
     'a truncated path index gives the planner the concrete depth-limit warning')
   assert.match(correctedPlannerTurns[1].text, /并行研究任务数量不匹配/)

@@ -1,9 +1,5 @@
 #!/usr/bin/env node
 /** CLI entry: desktop backend + Shell HTTP (Swift / WebView2 / dev browser). */
-import { startDesktopBackend } from '../start-desktop-backend.mjs'
-import { stopOpenCodexProxyForApp } from '../ensure-opencodex-proxy.mjs'
-import { createShellDevUiEntryUrl } from './dev-ui-url.mjs'
-
 if (!process.env.TASKWEAVER_RESOURCES_PATH && process.env.TASKWEAVER_PACKAGED === '1') {
   console.error('[shell] TASKWEAVER_RESOURCES_PATH is required when TASKWEAVER_PACKAGED=1')
   process.exit(1)
@@ -15,6 +11,10 @@ if (process.env.TASKWEAVER_DEV_HTTP !== '1'
   console.error('[shell] HTTP backend is available to the Swift shell or dev:browser only.')
   process.exit(2)
 }
+
+const { startDesktopBackend } = await import('../start-desktop-backend.mjs')
+const { stopOpenCodexProxyForApp } = await import('../ensure-opencodex-proxy.mjs')
+const { createShellDevUiEntryUrl } = await import('./dev-ui-url.mjs')
 
 const { app, http, startup } = await startDesktopBackend({ serveHttp: true })
 

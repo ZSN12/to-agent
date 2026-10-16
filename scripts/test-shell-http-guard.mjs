@@ -1,10 +1,19 @@
 import assert from 'node:assert/strict'
 import { createHmac } from 'node:crypto'
+import { readFile } from 'node:fs/promises'
 import { spawnSync } from 'node:child_process'
 import { request as httpRequest } from 'node:http'
 import { startShellHttpServer } from '../backend/shell/http-server.mjs'
 import { createShellPlatform } from '../backend/platform/shell-platform.mjs'
 import { shellEventBus } from '../backend/shell/event-bus.mjs'
+
+const shellEntrySource = await readFile(new URL('../backend/shell/run.mjs', import.meta.url), 'utf8')
+const shellModeGuard = shellEntrySource.indexOf("if (process.env.TASKWEAVER_DEV_HTTP !== '1'")
+const firstRuntimeImport = shellEntrySource.indexOf("await import('../start-desktop-backend.mjs')")
+assert.ok(shellModeGuard >= 0 && firstRuntimeImport > shellModeGuard,
+  'the explicit Shell mode guard must run before loading desktop backend dependencies')
+assert.doesNotMatch(shellEntrySource, /^import .*\/(?:start-desktop-backend|ensure-opencodex-proxy)\.mjs/m,
+  'guarded Shell entry must not statically load backend dependencies')
 
 const environmentWithoutDevHttp = { ...process.env }
 delete environmentWithoutDevHttp.TASKWEAVER_DEV_HTTP

@@ -8,6 +8,7 @@ import { ProbeModelsModal } from './ProbeModelsModal'
 import { OpenUsageSection } from './OpenUsageSection'
 import { LocalAgentStatusStrip, useLocalAgentBridgeStatus } from './LocalAgentStatusStrip'
 import { useModalFocusTrap } from '../../shared/useModalFocusTrap'
+import './model-settings-panel.css'
 
 type ProviderModelDiscoveryViewResult = {
   providerId: string
@@ -316,10 +317,10 @@ function AddModelModal({
   return (
     <div className="settings-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>
       <div ref={dialogRef} className="model-editor model-editor-wide" role="dialog" aria-modal="true" aria-labelledby="add-model-title" tabIndex={-1}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+        <div className="add-model-modal-heading">
           <div>
             <h2 id="add-model-title">添加模型</h2>
-            <p style={{ marginTop: 4 }}>
+            <p className="add-model-modal-description">
               {modalTab === 'builtin'
                 ? (step === 'provider'
                     ? '选择官方或主流第三方提供方并配置凭据，从本地模型目录中挑选要加入 TaskWeaver 的模型。'
@@ -331,22 +332,13 @@ function AddModelModal({
             type="button"
             onClick={onClose}
             aria-label="关闭"
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: 'var(--text-muted)',
-              cursor: 'pointer',
-              padding: 4,
-              borderRadius: 4,
-              display: 'inline-flex',
-              alignItems: 'center',
-            }}
+            className="add-model-modal-close"
           >
             <X size={18} />
           </button>
         </div>
 
-        <div className="custom-provider-tabs" role="group" aria-label="添加模型方式" style={{ margin: '4px 0 8px' }}>
+        <div className="custom-provider-tabs add-model-modal-tabs" role="group" aria-label="添加模型方式">
           <button
             type="button"
             aria-pressed={modalTab === 'builtin'}
@@ -375,30 +367,20 @@ function AddModelModal({
 
         {modalTab === 'builtin' ? (
           step === 'provider' ? (
-            <form onSubmit={continueToModels} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <div className="model-editor-field" style={{ display: 'flex', flexDirection: 'column' }}>
+            <form onSubmit={continueToModels} className="add-model-form">
+              <div className="model-editor-field add-model-field">
                 <input
                   type="search"
                   placeholder="搜索模型提供方（如 DeepSeek、OpenAI、Anthropic、Google、Qwen…）"
                   value={providerQuery}
                   onChange={(event) => setProviderQuery(event.target.value)}
-                  style={{ width: '100%', marginBottom: 8 }}
+                  className="add-model-search"
                   autoFocus
                 />
                 <div
                   role="group"
                   aria-label="选择模型提供方"
-                  style={{
-                    maxHeight: 220,
-                    overflowY: 'auto',
-                    border: '1px solid rgba(255, 255, 255, 0.08)',
-                    borderRadius: 8,
-                    background: 'rgba(0, 0, 0, 0.2)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 4,
-                    padding: 6,
-                  }}
+                  className="add-model-list add-model-provider-list"
                 >
                   {matchingProviders.length > 0 ? (
                     matchingProviders.map((item) => {
@@ -411,45 +393,22 @@ function AddModelModal({
                           aria-label={`${item.name}（${item.id}）`}
                           onClick={() => setProviderId(item.id)}
                           onDoubleClick={continueToModels}
-                          style={{
-                            appearance: 'none',
-                            width: '100%',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            padding: '8px 12px',
-                            borderRadius: 6,
-                            cursor: 'pointer',
-                            background: isSelected ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
-                            border: isSelected ? '1px solid rgba(16, 185, 129, 0.5)' : '1px solid transparent',
-                            color: 'inherit',
-                            font: 'inherit',
-                            textAlign: 'left',
-                            transition: 'all 0.15s ease',
-                          }}
+                          className={`add-model-option ${isSelected ? 'is-selected' : ''}`}
                         >
-                          <span style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                            <span style={{ fontWeight: 600, color: isSelected ? '#10b981' : '#fff', fontSize: 13 }}>
+                          <span className="add-model-option-copy">
+                            <span className="add-model-option-name">
                               {item.name}
                             </span>
-                            <span style={{ fontSize: 11, color: 'rgba(255, 255, 255, 0.5)' }}>
+                            <span className="add-model-option-id">
                               {item.id}
                             </span>
                           </span>
-                          <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <span
-                              style={{
-                                fontSize: 10.5,
-                                padding: '2px 6px',
-                                borderRadius: 4,
-                                background: item.configured ? 'rgba(16, 185, 129, 0.12)' : 'rgba(255, 255, 255, 0.06)',
-                                color: item.configured ? '#10b981' : 'rgba(255, 255, 255, 0.5)',
-                              }}
-                            >
+                          <span className="add-model-option-meta">
+                            <span className={`add-model-status ${item.configured ? 'is-configured' : ''}`}>
                               {item.configured ? '✓ 已有凭据' : '待配置'}
                             </span>
                             {isSelected && (
-                              <span style={{ color: '#10b981', fontSize: 12, fontWeight: 700 }}>✓ 已选择</span>
+                              <span className="add-model-selected-label">✓ 已选择</span>
                             )}
                           </span>
                         </button>
@@ -480,7 +439,7 @@ function AddModelModal({
               </div>
 
               {needsKey ? (
-                <label style={{ marginTop: 2 }}>
+                <label className="add-model-key-field">
                   <span>{provider?.name ?? providerId} API 密钥</span>
                   <input
                     type="password"
@@ -492,7 +451,7 @@ function AddModelModal({
                   />
                 </label>
               ) : (
-                <p style={{ margin: '2px 0 0', fontSize: 12, color: '#10b981' }}>
+                <p className="add-model-configured-note">
                   ✓ {provider?.name} 已配置可用凭据，点击「选择模型」挑选要添加的模型。
                 </p>
               )}
@@ -501,7 +460,7 @@ function AddModelModal({
                 <div className="settings-inline-error" role="alert">{localError}</div>
               )}
 
-              <div className="model-editor-actions" style={{ paddingTop: 4 }}>
+              <div className="model-editor-actions add-model-actions">
                 <button type="button" className="settings-secondary-button" onClick={onClose}>取消</button>
                 <button
                   type="submit"
@@ -513,17 +472,17 @@ function AddModelModal({
               </div>
             </form>
           ) : (
-            <form onSubmit={addSelectedModels} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <div className="model-editor-field" style={{ display: 'flex', flexDirection: 'column' }}>
+            <form onSubmit={addSelectedModels} className="add-model-form add-model-form-select">
+              <div className="model-editor-field add-model-field">
                 <input
                   type="search"
                   placeholder="搜索模型名称或标识…"
                   value={modelQuery}
                   onChange={(event) => setModelQuery(event.target.value)}
-                  style={{ width: '100%', marginBottom: 10 }}
+                  className="add-model-search"
                   autoFocus
                 />
-                <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+                <div className="add-model-selection-tools">
                   <button
                     type="button"
                     className="settings-secondary-button"
@@ -541,7 +500,7 @@ function AddModelModal({
                     清空选择
                   </button>
                   {selectedModelKeys.size > 0 && (
-                    <span style={{ fontSize: 12, color: 'rgba(255, 255, 255, 0.55)', alignSelf: 'center' }}>
+                    <span className="add-model-selection-count">
                       已选 {selectedModelKeys.size} 个
                     </span>
                   )}
@@ -549,17 +508,7 @@ function AddModelModal({
                 <div
                   role="group"
                   aria-label="选择要添加的模型"
-                  style={{
-                    maxHeight: 280,
-                    overflowY: 'auto',
-                    border: '1px solid rgba(255, 255, 255, 0.08)',
-                    borderRadius: 8,
-                    background: 'rgba(0, 0, 0, 0.2)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 4,
-                    padding: 6,
-                  }}
+                  className="add-model-list add-model-model-list"
                 >
                   {matchingModels.length > 0 ? (
                     matchingModels.map((model) => {
@@ -573,52 +522,37 @@ function AddModelModal({
                           aria-label={`${model.name}（${model.id}）`}
                           onClick={() => toggleModelSelection(model.key)}
                           onDoubleClick={addSelectedModels}
-                          style={{
-                            appearance: 'none',
-                            width: '100%',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            padding: '10px 12px',
-                            borderRadius: 6,
-                            cursor: 'pointer',
-                            background: isSelected ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
-                            border: isSelected ? '1px solid rgba(16, 185, 129, 0.5)' : '1px solid transparent',
-                            color: 'inherit',
-                            font: 'inherit',
-                            textAlign: 'left',
-                            transition: 'all 0.15s ease',
-                          }}
+                          className={`add-model-option ${isSelected ? 'is-selected' : ''}`}
                         >
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                            <span style={{ fontWeight: 600, color: isSelected ? '#10b981' : '#fff', fontSize: 13 }}>
+                          <div className="add-model-option-copy">
+                            <span className="add-model-option-name">
                               {model.name}
                             </span>
-                            <span style={{ fontSize: 11, color: 'rgba(255, 255, 255, 0.5)' }}>
+                            <span className="add-model-option-id">
                               {model.id}
                             </span>
                           </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <div className="add-model-option-meta">
                             {model.contextWindow && (
-                              <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, background: 'rgba(255, 255, 255, 0.06)', color: 'rgba(255, 255, 255, 0.6)' }}>
+                              <span className="add-model-context-badge">
                                 {Math.round(model.contextWindow / 1000)}k 上下文
                               </span>
                             )}
                             {isSelected && (
-                              <span style={{ color: '#10b981', fontSize: 12, fontWeight: 700 }}>✓ 已选择</span>
+                              <span className="add-model-selected-label">✓ 已选择</span>
                             )}
                           </div>
                         </button>
                       )
                     })
                   ) : (
-                    <div style={{ padding: '24px 0', textAlign: 'center', color: 'rgba(255, 255, 255, 0.4)', fontSize: 13 }}>
+                    <div className="add-model-empty-list">
                       {providerModels.length === 0 ? '该提供方暂无可添加模型。保存 API 密钥后点「刷新目录」，将从提供方接口拉取最新模型列表。' : '没有匹配的模型'}
                     </div>
                   )}
                 </div>
               </div>
-              <div className="model-editor-actions" style={{ paddingTop: 4 }}>
+              <div className="model-editor-actions add-model-actions">
                 <button type="button" className="settings-secondary-button" onClick={() => setStep('provider')}>上一步</button>
                 <button type="button" className="settings-secondary-button" onClick={onRefresh} disabled={loading}><RefreshCw size={14} className={loading ? 'spin-icon' : ''} />刷新目录</button>
                 <button type="submit" className="settings-primary-button" disabled={selectedModelKeys.size === 0 || saving}>
@@ -632,11 +566,11 @@ function AddModelModal({
             </form>
           )
         ) : modalTab === 'subscription' ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16, flex: 1 }}>
-            <p style={{ margin: 0, fontSize: 13, color: 'rgba(255, 255, 255, 0.7)' }}>
+          <div className="add-model-subscription">
+            <p className="add-model-subscription-intro">
               通过官方 OAuth 授权接入 Anthropic、GitHub Copilot、OpenAI Codex、Radius、xAI 等订阅服务。
             </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, flex: 1 }}>
+            <div className="add-model-subscription-list">
               {[
                 { id: 'anthropic', name: 'Anthropic', label: 'Claude Pro / Max' },
                 { id: 'github', name: 'GitHub Copilot', label: 'GitHub Copilot 订阅' },
@@ -650,66 +584,31 @@ function AddModelModal({
                     key={p.id}
                     type="button"
                     onClick={() => onStartOAuth?.(p.id)}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '12px 16px',
-                      borderRadius: 8,
-                      background: 'rgba(0, 0, 0, 0.3)',
-                      border: '1px solid rgba(255, 255, 255, 0.08)',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s ease',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = 'rgba(16, 185, 129, 0.1)'
-                      e.currentTarget.style.borderColor = 'rgba(16, 185, 129, 0.3)'
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = 'rgba(0, 0, 0, 0.3)'
-                      e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)'
-                    }}
+                    className="add-model-subscription-option"
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
-                        <span style={{ fontWeight: 600, fontSize: 14, color: '#fff' }}>{p.name}</span>
-                        <span style={{ fontSize: 12, color: 'rgba(255, 255, 255, 0.5)' }}>{p.label}</span>
+                    <div className="add-model-subscription-provider">
+                      <div className="add-model-subscription-copy">
+                        <span className="add-model-subscription-name">{p.name}</span>
+                        <span className="add-model-subscription-label">{p.label}</span>
                       </div>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div className="add-model-option-meta">
                       {configured ? (
-                        <span
-                          style={{
-                            fontSize: 11,
-                            padding: '3px 8px',
-                            borderRadius: 4,
-                            background: 'rgba(16, 185, 129, 0.15)',
-                            color: '#10b981',
-                            fontWeight: 500,
-                          }}
-                        >
+                        <span className="add-model-status is-configured">
                           ✓ 已授权
                         </span>
                       ) : (
-                        <span
-                          style={{
-                            fontSize: 11,
-                            padding: '3px 8px',
-                            borderRadius: 4,
-                            background: 'rgba(255, 255, 255, 0.06)',
-                            color: 'rgba(255, 255, 255, 0.5)',
-                          }}
-                        >
+                        <span className="add-model-status">
                           待授权
                         </span>
                       )}
-                      <ExternalLink size={14} style={{ color: 'rgba(255, 255, 255, 0.5)' }} />
+                      <ExternalLink size={14} className="add-model-external-link" />
                     </div>
                   </button>
                 )
               })}
             </div>
-            <div className="model-editor-actions" style={{ marginTop: 'auto' }}>
+            <div className="model-editor-actions add-model-actions-bottom">
               <button type="button" className="settings-secondary-button" onClick={onClose}>关闭</button>
             </div>
           </div>
@@ -771,7 +670,7 @@ function ProfileModal({
       <form className="model-editor" onSubmit={submit}>
         <h2>分配元数据 · {getCleanModelName(model.key, model.name)}</h2>
         <p>{model.key}</p>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', margin: '10px 0', fontSize: 13 }}>
+        <label className="allocation-modal-toggle">
           <input
             type="checkbox"
             checked={enabledForAllocation}
@@ -890,14 +789,11 @@ function CapabilityTierControl({
     .join('；')
 
   return (
-    <div
-      className="source-model-capability-tier"
-      style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px 10px', marginTop: 7, fontSize: 11 }}
-    >
+    <div className={`source-model-capability-tier ${capability.status === 'unrated' ? 'is-unrated' : ''}`}>
       <strong>能力 {capability.tier}</strong>
-      <span style={{ color: capability.status === 'unrated' ? '#fbbf24' : 'var(--text-secondary)' }}>{sourceLabel}</span>
-      {boardDetails && <span style={{ color: 'var(--text-secondary)' }}>{boardDetails}</span>}
-      <label style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+      <span className="source-model-capability-source">{sourceLabel}</span>
+      {boardDetails && <span className="source-model-capability-source">{boardDetails}</span>}
+      <label className="source-model-capability-override">
         <span>覆盖</span>
         <select
           aria-label={`${model.name}能力档位覆盖`}
@@ -961,10 +857,10 @@ function CapabilityTierStatusCard({
   const displayedChanges = changes.slice(0, 8)
 
   return (
-    <section className="capability-tier-status-card" style={{ margin: '0 0 14px', padding: 12, border: '1px solid var(--border-color)', borderRadius: 9 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+    <section className="capability-tier-status-card">
+      <div className="capability-tier-status-head">
         <strong>模型能力档位 · {status.thresholdsVersion ?? '快照不可用'}</strong>
-        <span style={{ color: status.stale || status.source === 'unavailable' ? '#fbbf24' : 'var(--text-secondary)', fontSize: 12 }}>
+        <span className={`capability-tier-status-label ${status.stale || status.source === 'unavailable' ? 'is-warning' : ''}`}>
           {status.source === 'unavailable'
             ? '暂无快照，模型按 medium / unrated 处理'
             : status.stale
@@ -972,15 +868,15 @@ function CapabilityTierStatusCard({
               : `数据日期 ${refreshedAt} · ${status.source === 'cache' ? '本地缓存' : status.source === 'remote' ? '远端快照' : '打包快照'}`}
         </span>
       </div>
-      <p style={{ margin: '7px 0 0', color: 'var(--text-secondary)', fontSize: 12 }}>
+      <p className="capability-tier-status-description">
         来源：{status.sourceUrl
           ? <a href={status.sourceUrl} target="_blank" rel="noreferrer">LMArena Leaderboard Dataset</a>
           : 'LMArena Leaderboard Dataset'} · CC BY 4.0。新模型默认 medium / unrated，模型档位仅表示能力，不按价格定档。
         {status.attribution && <span> {status.attribution}</span>}
       </p>
-      {status.error && <p role="status" style={{ margin: '6px 0 0', color: 'var(--text-secondary)', fontSize: 12 }}>离线回退已启用：{status.error}</p>}
+      {status.error && <p role="status" className="capability-tier-status-error">离线回退已启用：{status.error}</p>}
       {displayedChanges.length > 0 && (
-        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginTop: 9, fontSize: 12 }}>
+        <div className="capability-tier-status-changes">
           <span>榜单刷新后有 {changes.length} 个未覆盖模型档位变化：</span>
           {displayedChanges.map((change) => (
             <code key={change.canonicalId}>{change.canonicalId} {change.before} → {change.after}</code>
@@ -1566,7 +1462,7 @@ export function ModelSettingsPanel({
       />
 
       {loading && !models ? (
-        <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+        <div className="model-settings-loading">
           <p>正在加载模型目录…</p>
         </div>
       ) : !auth || !models ? (
@@ -1575,7 +1471,7 @@ export function ModelSettingsPanel({
         </div>
       ) : (
         <>
-          <div className="model-settings-toolbar" style={{ marginBottom: 16 }}>
+          <div className="model-settings-toolbar model-settings-toolbar-expanded">
             <input
               type="search"
               placeholder="搜索来源或模型（名称/ID/URL）…"
@@ -1583,7 +1479,7 @@ export function ModelSettingsPanel({
               onChange={(event) => setQuery(event.target.value)}
               aria-label="搜索模型或来源"
             />
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10 }}>
+            <div className="model-settings-toolbar-actions">
               <span className="model-list-count">
                 {sourceGroups.length} 个来源 · {models.length} 个已添加模型
               </span>
@@ -1603,11 +1499,11 @@ export function ModelSettingsPanel({
           </div>
 
           {providerDiscoveryResults && (
-            <section className="model-settings-panel-card" aria-label="可用模型发现结果" style={{ marginBottom: 16 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+            <section className="model-settings-panel-card model-discovery-card" aria-label="可用模型发现结果">
+              <div className="model-discovery-head">
                 <div>
                   <strong>可用模型发现结果</strong>
-                  <p style={{ margin: '4px 0 0', color: 'var(--text-secondary)', fontSize: 12 }}>
+                  <p className="model-discovery-description">
                     来自 pi-ai 内置目录或在线查询；结果仅供查看，没有修改配置。
                   </p>
                 </div>
@@ -1621,10 +1517,10 @@ export function ModelSettingsPanel({
                   关闭
                 </button>
               </div>
-              <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>
+              <div className="model-discovery-results">
                 {providerDiscoveryResults.map((result) => (
-                  <div key={result.providerId} style={{ borderTop: '1px solid var(--border-color, rgba(255,255,255,0.08))', paddingTop: 10 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <div key={result.providerId} className="model-discovery-provider">
+                    <div className="model-discovery-provider-head">
                       <strong>{result.providerName}</strong>
                       <span className={`provider-status-label ${result.source === 'catalog' || result.source === 'online' ? 'ok' : ''}`}>
                         {result.source === 'error' ? '失败' : result.source === 'timeout' ? '超时' : result.source === 'catalog' ? '内置目录' : '在线发现'}
@@ -1634,15 +1530,15 @@ export function ModelSettingsPanel({
                       )}
                     </div>
                     {result.error ? (
-                      <p className="settings-inline-error" style={{ margin: '6px 0 0' }}>{result.error}</p>
+                      <p className="settings-inline-error model-discovery-message">{result.error}</p>
                     ) : result.models.length ? (
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 7 }}>
+                      <div className="model-discovery-models">
                         {result.models.map((model) => (
                           <code key={model.id} title={model.name}>{model.id}</code>
                         ))}
                       </div>
                     ) : (
-                      <p style={{ margin: '6px 0 0', color: 'var(--text-secondary)', fontSize: 12 }}>未返回可用模型。</p>
+                      <p className="model-discovery-message">未返回可用模型。</p>
                     )}
                   </div>
                 ))}
@@ -1653,17 +1549,17 @@ export function ModelSettingsPanel({
       <div className="provider-source-cards-stack">
         {sourceGroups.length === 0 ? (
           <div className="model-settings-panel-card empty-sources-guide">
-            <div style={{ textAlign: 'center', padding: '36px 20px' }}>
-              <Database size={36} style={{ color: 'var(--accent-green)', opacity: 0.8, marginBottom: 12 }} />
-              <h3 style={{ fontSize: 16, fontWeight: 600, color: '#fff', marginBottom: 6 }}>
+            <div className="empty-sources-guide-content">
+              <Database size={36} className="empty-sources-guide-icon" />
+              <h3 className="empty-sources-guide-title">
                 {query.trim() ? '没有匹配的来源或模型' : '还没有添加任何模型来源'}
               </h3>
-              <p style={{ fontSize: 13, color: 'var(--text-secondary)', maxWidth: 440, margin: '0 auto 18px' }}>
+              <p className="empty-sources-guide-description">
                 {query.trim()
                   ? '尝试搜索其他关键词，或点击右上角「添加模型与来源」接入新来源。'
                   : 'TaskWeaver 按来源分类组织管理模型。点击下方按钮添加官方提供商、直连 ChatGPT 订阅，或接入自定义中转站 API。'}
               </p>
-              <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+              <div className="empty-sources-guide-actions">
                 <button
                   type="button"
                   className="settings-primary-button"
@@ -1899,7 +1795,7 @@ export function ModelSettingsPanel({
         )}
       </div>
 
-      <div className="settings-footnote" style={{ marginTop: 24 }}>
+      <div className="settings-footnote model-settings-footnote">
         <ShieldAlert size={15} />
         <span>
           {bridgeReady

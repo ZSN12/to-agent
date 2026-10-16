@@ -1,0 +1,35 @@
+.mcp-server-editor { max-width: 580px; }
+.mcp-editor-env-section { margin-top: 12px; }
+.mcp-editor-env-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
+.mcp-editor-env-title { color: var(--text); font-size: 13px; font-weight: 500; }
+.mcp-editor-add-env { padding: 4px 9px; font-size: 12px; white-space: nowrap; }
+.mcp-editor-env-empty { padding: 7px 0; color: var(--text-secondary); font-size: 12px; }
+.mcp-editor-env-list { display: flex; flex-direction: column; gap: 7px; }
+.mcp-editor-env-row { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.mcp-editor-env-row input { min-width: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+.mcp-editor-env-key { flex: 1; }
+.mcp-editor-env-value { flex: 1.5; }
+.mcp-editor-remove-env { padding: 7px; }
+.mcp-editor-enabled-row { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
+.mcp-editor-enabled-checkbox { width: auto; cursor: pointer; }
+.mcp-editor-enabled-label { margin: 0; color: var(--text); font-size: 13px; cursor: pointer; }
+.mcp-editor-actions { margin-top: 18px; }
+.mcp-settings-error { margin-top: 8px; }
+.mcp-server-row { align-items: flex-start; }
+.mcp-server-identity { flex: 1; }
+.mcp-server-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.mcp-server-env-tags { margin-top: 8px; }
+.mcp-server-env-icon { display: inline; margin-right: 3px; vertical-align: -1px; }
+.mcp-server-actions { align-items: center; flex-wrap: wrap; }
+.mcp-server-toggle { min-width: 64px; }
+.mcp-template-card-copy { min-width: 0; }
+
+@media (max-width: 520px) {
+  .mcp-editor-env-heading { align-items: flex-start; flex-direction: column; }
+  .mcp-editor-env-row { align-items: stretch; flex-wrap: wrap; }
+  .mcp-editor-env-key,
+  .mcp-editor-env-value { flex: 1 1 100%; }
+  .mcp-editor-remove-env { align-self: flex-end; }
+  .mcp-server-row { align-items: stretch; flex-direction: column; }
+  .mcp-server-actions { justify-content: flex-start; }
+}

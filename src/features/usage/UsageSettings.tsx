@@ -1,4 +1,5 @@
 import { Fragment, useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
+import './usage-settings.css'
 
 /** 将整数缩写为中文习惯 (3.7亿 / 4164.4万) */
 function fc(n: number | null | undefined): string {
@@ -56,15 +57,15 @@ interface DshUsageReport {
   overview: {
     totalTokens: number
     peakTokens: number
-    currentStreak: number
-    maxStreak: number
+    currentStreak: number | null
+    maxStreak: number | null
     earliestDate: string | null
   }
   summary: {
     totalTokens: number
     peakTokens: number
-    currentStreak: number
-    maxStreak: number
+    currentStreak: number | null
+    maxStreak: number | null
     requests: number
     costUsd: number
     cacheHitRate: number
@@ -425,15 +426,15 @@ export function UsageSettings() {
           overview: {
             totalTokens: totals.totalTokens,
             peakTokens: totals.totalTokens,
-            currentStreak: 1,
-            maxStreak: 1,
+            currentStreak: null,
+            maxStreak: null,
             earliestDate: statsRes.data.earliestDate ?? null,
           },
           summary: {
             totalTokens: totals.totalTokens,
             peakTokens: totals.totalTokens,
-            currentStreak: 1,
-            maxStreak: 1,
+            currentStreak: null,
+            maxStreak: null,
             requests: totals.totalCalls,
             costUsd: totals.costUsd,
             cacheHitRate: totals.inputTokens + totals.cacheReadTokens > 0 ? totals.cacheReadTokens / (totals.inputTokens + totals.cacheReadTokens) : 0,
@@ -601,10 +602,10 @@ export function UsageSettings() {
 
   return (
     <div className="dsh-root">
-      <div className="dsh-panel" style={{ marginBottom: 12 }}>
+      <div className="dsh-panel usage-settings-panel-spaced">
         <div className="dsh-panel-head">
           <h3><span className="dsh-dot-blue" />用量统计与隐私</h3>
-          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+          <label className="usage-record-toggle">
             <input
               type="checkbox"
               checked={usageEnabled}
@@ -618,11 +619,11 @@ export function UsageSettings() {
         </p>
         {usageSettingError && <p className="dsh-err-sub" role="alert">{usageSettingError}</p>}
       </div>
-      <div className="dsh-panel" style={{ marginBottom: 12 }}>
+      <div className="dsh-panel usage-settings-panel-spaced">
         <div className="dsh-panel-head">
           <h3><span className="dsh-dot-blue" />模型价签</h3>
-          <div className="dsh-tools" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+          <div className="dsh-tools usage-pricing-tools">
+            <span className="usage-pricing-status">
               {pricingStatus?.synced_at
                 ? `更新于 ${new Date(pricingStatus.synced_at).toLocaleString('zh-CN')}${pricingStatus.stale ? '（可能已过期）' : ''} · ${pricingStatus.model_count ?? '—'} 个模型`
                 : '尚未同步价签'}

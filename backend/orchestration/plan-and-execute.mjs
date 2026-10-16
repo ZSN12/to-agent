@@ -314,7 +314,8 @@ export function createPlanAndExecute({
               webContents: plannerProgress.webContents,
               permissionMode: readOnlyRequest ? 'readonly' : permissionMode,
               ...(plannerOutputSchema === undefined ? {} : { outputSchema: plannerOutputSchema }),
-              ...(attempt === 1 ? { attachments, documents } : {}),
+              attachments,
+              documents,
             })
             attemptOutput = String(planResult?.text ?? '')
             planned = validateReadOnlyPlanScopesFromIndex(completeReadOnlyPlanScopes(
