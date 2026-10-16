@@ -44,8 +44,8 @@ export declare function validateEscalationArgs(sandboxPermissions: string | unde
 /**
  * The model-facing denial marker — the one vocabulary both enforcing families
  * teach and report, so the model recognizes a policy denial identically
- * whether the kernel refused a bash file effect or the filesystem provider's
- * fence refused a mutation.
+ * whether the execution runner refused a file or network effect, or the
+ * filesystem provider's fence refused a mutation.
  * @param mode - the mode the denied call ran under.
  * @returns the marker line, exactly as the model sees it.
  */

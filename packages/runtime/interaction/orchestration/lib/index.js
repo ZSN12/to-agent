@@ -35,6 +35,16 @@ export class OrchestrationService extends Service {
             throw new OrchestrationToolError('orchestrate requires a non-empty goal', 'EMPTY_GOAL');
         if (goal.length > 20_000)
             throw new OrchestrationToolError('orchestrate goal exceeds the 20,000-character limit', 'GOAL_TOO_LARGE');
+        if (request.context !== undefined && typeof request.context !== 'string') {
+            throw new OrchestrationToolError('orchestrate context must be text', 'INVALID_CONTEXT');
+        }
+        if (request.context !== undefined && request.context.length > 20_000) {
+            throw new OrchestrationToolError('orchestrate context exceeds the 20,000-character limit', 'CONTEXT_TOO_LARGE');
+        }
+        const context = request.context?.trim();
+        if (request.readOnly !== undefined && typeof request.readOnly !== 'boolean') {
+            throw new OrchestrationToolError('orchestrate readOnly must be a boolean', 'INVALID_READ_ONLY');
+        }
         if (typeof request.callId !== 'string' || !request.callId.trim()) {
             throw new OrchestrationToolError('DAG orchestration requires a tool-call id', 'MISSING_CALLER');
         }
@@ -51,7 +61,17 @@ export class OrchestrationService extends Service {
         }
         if (!this.provider)
             throw new OrchestrationToolError('no DAG orchestration provider is registered', 'NO_PROVIDER');
-        return this.provider.run({ ...request, goal });
+        const result = await this.provider.run({
+            ...request,
+            goal,
+            ...(context ? { context } : {}),
+            readOnly: request.readOnly === true,
+        });
+        return {
+            ...result,
+            taskStatuses: Array.isArray(result.taskStatuses) ? result.taskStatuses : [],
+            changedFiles: Array.isArray(result.changedFiles) ? result.changedFiles : [],
+        };
     }
 }
 export default OrchestrationService;

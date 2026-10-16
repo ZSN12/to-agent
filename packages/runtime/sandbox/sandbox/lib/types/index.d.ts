@@ -83,11 +83,11 @@ export interface ConfinedArgv {
     enforcement: SandboxEnforcement;
     /**
      * The selected backend's denial DIALECT: the case-insensitive stderr
-     * substrings a file effect denied by THIS backend produces (EROFS text
-     * under bwrap's read-only binds, EACCES under Landlock, EPERM under
-     * Seatbelt). A consumer that infers denials from a failed run's stderr
-     * matches against exactly these rather than a cross-backend union — the
-     * union claims denials a given backend never produces.
+     * substrings a policy denial from THIS backend produces (for example,
+     * EROFS under bwrap's read-only binds or EPERM under Seatbelt). A consumer
+     * that infers denials from a failed run's stderr matches against exactly
+     * these rather than a cross-backend union — the union claims denials a
+     * given backend never produces.
      */
     denialSignatures: readonly string[];
     /**
