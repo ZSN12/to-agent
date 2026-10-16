@@ -57,6 +57,7 @@ function retryableWriteError(error) {
 function applyEntryPatches(data, patches, warn) {
 	data = structuredClone(data);
 	if (!patches?.length) return data;
+	patches = structuredClone(patches);
 	const entryMap = /* @__PURE__ */ new Map();
 	const buildMap = (entries) => {
 		for (const entry of entries) {

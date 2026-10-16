@@ -37,6 +37,89 @@ import {
   shouldUpgradeFailedTask,
 } from '../backend/orchestration-policy.mjs'
 
+const runStoreFailureRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-run-store-failure-'))
+try {
+  const blockedDataPath = path.join(runStoreFailureRoot, 'not-a-directory')
+  await fs.writeFile(blockedDataPath, 'file blocks the run store directory')
+  const blockedStore = new RunStore({ agentDataPath: blockedDataPath })
+  await assert.rejects(blockedStore.saveRun(randomUUID(), randomUUID(), { status: 'running', tasks: [] }),
+    (error) => error.code === 'ERUN_STORE_WRITE_FAILED',
+    'a failed run-state write must stop the orchestration instead of being silently ignored')
+
+  const conversationId = randomUUID()
+  const runId = randomUUID()
+  const runDirectory = path.join(runStoreFailureRoot, 'atomic', 'orchestration', conversationId, runId)
+  await fs.mkdir(path.join(runDirectory, 'run.json'), { recursive: true })
+  await fs.writeFile(path.join(runDirectory, 'run.json', 'keep.txt'), 'preserve the blocking path')
+  const atomicStore = new RunStore({ agentDataPath: path.join(runStoreFailureRoot, 'atomic') })
+  await assert.rejects(atomicStore.saveRun(conversationId, runId, { status: 'completed', tasks: [] }),
+    (error) => error.code === 'ERUN_STORE_WRITE_FAILED',
+    'a failed atomic replacement must be reported')
+  const entries = await fs.readdir(runDirectory)
+  assert.deepEqual(entries, ['run.json'], 'failed atomic replacement must remove its temporary file')
+} finally {
+  await fs.rm(runStoreFailureRoot, { recursive: true, force: true })
+}
+
+const startupRecoveryRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-startup-recovery-gate-'))
+const startupRecoveryConversationId = randomUUID()
+let startupRecoveryRun = {
+  runId: randomUUID(),
+  conversationId: startupRecoveryConversationId,
+  status: 'planning',
+  tasks: [{ id: 'T1', runId: 'startup-run', status: 'running', runStatus: 'running' }],
+}
+let releaseStartupRecovery
+let signalStartupRecovery
+const startupRecoveryGate = new Promise((resolve) => { releaseStartupRecovery = resolve })
+const startupRecoveryStarted = new Promise((resolve) => { signalStartupRecovery = resolve })
+let restoredStartupTasks = null
+const delayedRecoveryStore = {
+  async recoverIncompleteRuns() {
+    signalStartupRecovery()
+    await startupRecoveryGate
+    startupRecoveryRun = {
+      ...startupRecoveryRun,
+      status: 'interrupted',
+      tasks: startupRecoveryRun.tasks.map((task) => ({ ...task, status: 'interrupted', runStatus: 'interrupted' })),
+    }
+    return 1
+  },
+  async listConversationIds() { return [startupRecoveryConversationId] },
+  async listRuns() { return [startupRecoveryRun] },
+}
+const startupRecoveryService = createOrchestrationService({
+  modelService: { listCatalog: async () => ({ models: [] }) },
+  appState: {
+    async getConversationState() { return { tasks: [] } },
+    async setTasksForConversation(_conversationId, tasks) { restoredStartupTasks = tasks },
+  },
+  getWorkspacePath: async () => startupRecoveryRoot,
+  agentDataPath: startupRecoveryRoot,
+  userDataPath: startupRecoveryRoot,
+  getAppPreferences: async () => ({}),
+  dshRuntime: { runAgentTurn: async () => { throw new Error('startup recovery fixture must not start an Agent turn') } },
+  runStore: delayedRecoveryStore,
+})
+try {
+  const startupHistoryPromise = startupRecoveryService.listRuns(startupRecoveryConversationId)
+  await startupRecoveryStarted
+  let startupHistorySettled = false
+  startupHistoryPromise.then(
+    () => { startupHistorySettled = true },
+    () => { startupHistorySettled = true },
+  )
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.equal(startupHistorySettled, false, 'run history must wait for interrupted-run recovery to finish')
+  releaseStartupRecovery()
+  const startupHistory = await startupHistoryPromise
+  assert.equal(startupHistory[0]?.status, 'interrupted', 'the first history response must use recovered state')
+  assert.equal(restoredStartupTasks?.[0]?.status, 'interrupted', 'conversation task state must be restored before run history is exposed')
+} finally {
+  releaseStartupRecovery()
+  await fs.rm(startupRecoveryRoot, { recursive: true, force: true })
+}
+
 const timeouts = resolveNodeTimeouts('research')
 assert.equal(timeouts.timeoutMs, 10 * 60 * 1000)
 assert.equal(timeouts.idleTimeoutMs, 3 * 60 * 1000)
@@ -77,6 +160,20 @@ await assert.rejects(
   'stream activity resets the idle timer, then inactivity aborts the attempt',
 )
 idleDeadline.dispose()
+
+const partialAbortController = new AbortController()
+const partialAbortTurn = new Promise((_resolve, reject) => {
+  partialAbortController.signal.addEventListener('abort', () => {
+    const error = new Error('mock turn stopped with partial output')
+    error.partialResult = { usage: { inputTokens: 3, outputTokens: 2 }, text: 'partial response' }
+    reject(error)
+  }, { once: true })
+})
+const partialAbortResult = waitForNodeTurn(partialAbortTurn, partialAbortController.signal)
+partialAbortController.abort()
+await assert.rejects(partialAbortResult, (error) =>
+  error.partialResult?.usage?.inputTokens === 3 && error.partialResult?.text === 'partial response',
+'a quickly settled aborted turn preserves its partial result for evidence and usage accounting')
 
 assert.equal(classifySubtaskFailure(Object.assign(new Error('idle'), { code: 'ETASK_IDLE_TIMEOUT' })).kind, 'timeout')
 assert.equal(shouldUpgradeFailedTask('research', { kind: 'timeout', retryable: true }), true,
@@ -302,6 +399,14 @@ try {
 const recoveryStore = new RunStore({ agentDataPath })
 const recoveryConversationId = randomUUID()
 const recoveryRunId = randomUUID()
+const planningRunId = randomUUID()
+await recoveryStore.saveRun(recoveryConversationId, planningRunId, {
+  status: 'planning',
+  tasks: [],
+})
+assert.equal(await recoveryStore.recoverIncompleteRuns(), 1,
+  'a crash during initial DAG planning is recovered even when no child tasks have been written yet')
+assert.equal((await recoveryStore.loadRun(recoveryConversationId, planningRunId)).status, 'interrupted')
 await recoveryStore.saveRun(recoveryConversationId, recoveryRunId, {
   status: 'paused',
   tasks: [

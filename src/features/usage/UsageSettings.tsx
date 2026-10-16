@@ -1,4 +1,5 @@
 import { Fragment, useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
+import { SettingsLayout } from '../settings/SettingsLayout'
 import './usage-settings.css'
 
 /** 将整数缩写为中文习惯 (3.7亿 / 4164.4万) */
@@ -601,6 +602,11 @@ export function UsageSettings() {
     })
 
   return (
+    <SettingsLayout
+      title="模型用量"
+      description="查看模型调用量、Token 消耗与费用估算；最终费用以服务商账单为准。"
+      className="usage-settings-page"
+    >
     <div className="dsh-root">
       <div className="dsh-panel usage-settings-panel-spaced">
         <div className="dsh-panel-head">
@@ -811,5 +817,6 @@ export function UsageSettings() {
         )}
       </div>
     </div>
+    </SettingsLayout>
   )
 }

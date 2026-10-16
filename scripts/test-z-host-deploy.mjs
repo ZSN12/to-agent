@@ -524,7 +524,7 @@ const mockLlm = createServer((request, response) => {
         tasks: [
           { id: 'T1', title: '独立只读任务一', taskType: 'research', description: '并发读取并总结模块一', acceptance: ['模块一结论有读取证据'], scopePaths: ['package.json'], dependsOn: [] },
           { id: 'T2', title: '独立只读任务二', taskType: 'research', description: '并发读取并总结模块二', acceptance: ['模块二结论有读取证据'], scopePaths: ['backend/dsh-chat-service.mjs'], dependsOn: [] },
-          { id: 'T3', title: '依赖汇总任务', taskType: 'review', description: '等待前两项完成后汇总', acceptance: ['复核结论与上游证据一致'], scopePaths: ['backend/bootstrap.mjs'], dependsOn: ['T1', 'T2'] },
+          { id: 'T3', title: '依赖汇总任务', taskType: 'review', description: '等待前两项完成后汇总', acceptance: ['复核结论与上游证据一致'], scopePaths: ['backend/dsh-chat-service.mjs'], dependsOn: ['T1', 'T2'] },
         ],
       }))
       return
@@ -554,7 +554,7 @@ const mockLlm = createServer((request, response) => {
     }
     if (taskId === 'T3' && !dagReviewReadRequested) {
       dagReviewReadRequested = true
-      respondWithReadCall('dag-read-T3', { file_path: 'backend/bootstrap.mjs', limit: 3 })
+      respondWithReadCall('dag-read-T3', { file_path: 'backend/dsh-chat-service.mjs', limit: 3 })
       return
     }
     respond(acceptanceTaggedText(`completed-${taskId}`))
@@ -603,10 +603,14 @@ const mainCodePresetPath = fsSync.existsSync(path.join(runtimeRoot, 'config', 'a
   : path.join(runtimeRoot, 'config', 'agent-presets', 'code', 'agent.cordis.yml')
 const mainCodePreset = await fs.readFile(mainCodePresetPath, 'utf8')
 assert.match(mainCodePreset, /name: '@taskweaver\/dsh-tool-fs'[\s\S]*?readLimit: 600/, 'deployed primary code preset must use the bounded filesystem reader')
-assert.match(mainCodePreset, /only tool you may call directly is `run_code`[\s\S]*?inside a `run_code` program/, 'deployed primary Code Mode preset must explicitly direct native capabilities through run_code')
+assert.match(mainCodePreset, /This session uses Code Mode\. Use `run_code` for code, filesystem, and ordinary tool operations\.[\s\S]*?call `orchestrate` directly[\s\S]*?Never call individual filesystem or shell tools directly\./,
+  'deployed primary Code Mode preset must route ordinary native work through run_code while preserving direct orchestration')
 const runtimePackagesDir = await fs.stat(path.join(runtimeRoot, 'runtime-packages')).then(() => 'runtime-packages', () => 'node_modules')
 const deployedSearchPlugin = await fs.readFile(path.join(runtimeRoot, runtimePackagesDir, '@taskweaver/dsh-tool-fs-search/lib/index.js'), 'utf8')
 assert.match(deployedSearchPlugin, /excludeDirectories/, 'deployed search plugin must include the current config, not a stale precompiled version')
+const deployedAgentLoop = await fs.readFile(path.join(runtimeRoot, runtimePackagesDir, '@taskweaver/dsh-agent-loop/lib/index.js'), 'utf8')
+assert.match(deployedAgentLoop, /Agent Loop requires a compatible SessionStore/,
+  'deployed Agent Loop must include the current SessionStore guard instead of a stale bundle')
 const deployedRepeatGuard = await fs.readFile(path.join(runtimeRoot, runtimePackagesDir, '@taskweaver/dsh-repeat-tool-reminder/lib/index.js'), 'utf8')
 assert.match(deployedRepeatGuard, /taskweaver-readonly-scope-v1/, 'deployed repeat guard must understand the per-subtask read-only scope marker')
 assert.match(deployedRepeatGuard, /read-only scope denied/, 'deployed repeat guard must enforce the read-only path boundary before tool execution')

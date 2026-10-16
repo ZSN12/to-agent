@@ -1,7 +1,8 @@
 #!/usr/bin/env node
-/** Packaged-app smoke: shell HTTP backend, mock model reads a workspace file. */
+/** Packaged-app smoke: shell HTTP backend, file reads, and a mock-model Bash call. */
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
+import { createHmac, randomBytes } from 'node:crypto'
 import fs from 'node:fs'
 import http from 'node:http'
 import net from 'node:net'
@@ -35,7 +36,11 @@ const userData = path.join(tempRoot, 'userData')
 const workspace = path.join(tempRoot, 'workspace')
 const tracePath = path.join(tempRoot, 'startup-trace.jsonl')
 const marker = 'TASKWEAVER_PACKAGED_FILE_READ_OK'
+const bashMarker = 'TASKWEAVER_PACKAGED_BASH_OK'
 const promptMarker = '[TASKWEAVER_PACKAGED_SMOKE]'
+const bashPromptMarker = '[TASKWEAVER_PACKAGED_BASH_SMOKE]'
+const shellToken = randomBytes(32).toString('hex')
+const healthChallenge = randomBytes(24).toString('hex')
 await fs.promises.mkdir(workspace, { recursive: true })
 await fs.promises.writeFile(path.join(workspace, 'smoke-input.txt'), `${marker}\n`, 'utf8')
 
@@ -67,6 +72,9 @@ function sendToolCall(response, id, name, args) {
 
 let readResultObserved = false
 let finalAnswerObserved = false
+let bashResultObserved = false
+let bashMarkerObserved = false
+let claudeVersionObserved = false
 let mockRequestCount = 0
 const mockServer = http.createServer((request, response) => {
   mockRequestCount += 1
@@ -87,10 +95,23 @@ const mockServer = http.createServer((request, response) => {
     const titleRequest = serialized.includes('Create a concise title for an AI coding-assistant session')
     const toolNames = (payload.tools ?? []).map((tool) => tool.function?.name ?? tool.name)
     const readResult = messages.find((item) => item.role === 'tool' && JSON.stringify(item).includes(marker))
-    if (readResult) {
+    const bashResult = messages.find((item) => item.role === 'tool'
+      && (item.tool_call_id === 'packaged-smoke-bash' || item.toolCallId === 'packaged-smoke-bash' || item.name === 'bash'))
+    if (bashResult) {
+      bashResultObserved = true
+      const resultText = JSON.stringify(bashResult)
+      bashMarkerObserved = resultText.includes(bashMarker)
+      claudeVersionObserved = resultText.includes('Claude Code')
+      sendText(response, `Bash completed: ${bashMarker}`)
+    } else if (readResult) {
       readResultObserved = true
       finalAnswerObserved = true
       sendText(response, `File contents: ${marker}`)
+    } else if (!titleRequest && serialized.includes(bashPromptMarker) && toolNames.includes('bash')) {
+      const command = process.env.TASKWEAVER_TEST_CLAUDE_CLI === '1'
+        ? 'which claude && claude --version'
+        : `printf '${bashMarker}\\n'`
+      sendToolCall(response, 'packaged-smoke-bash', 'bash', { command, description: 'Read-only packaged Bash smoke' })
     } else if (!titleRequest && serialized.includes(promptMarker) && toolNames.includes('read')) {
       sendToolCall(response, 'packaged-smoke-read', 'read', { file_path: 'smoke-input.txt' })
     } else if (!titleRequest && serialized.includes(promptMarker) && toolNames.includes('run_code')) {
@@ -115,6 +136,7 @@ const env = {
   TASKWEAVER_STARTUP_TRACE_FILE: tracePath,
   TASKWEAVER_USER_DATA: userData,
   TASKWEAVER_SHELL_SERVER: '1',
+  TASKWEAVER_SHELL_TOKEN: shellToken,
   TASKWEAVER_SHELL_PORT: String(shellPort),
   TASKWEAVER_SHELL_HOST: '127.0.0.1',
   TASKWEAVER_RESOURCES_PATH: resources,
@@ -133,8 +155,16 @@ async function waitForHealth() {
   while (Date.now() < deadline) {
     if (child.exitCode !== null) throw new Error(`Shell backend exited (${child.exitCode})\n${logs}`)
     try {
-      const response = await fetch(`http://127.0.0.1:${shellPort}/shell/v1/health`, { signal: AbortSignal.timeout(1_500) })
-      if (response.ok) return
+      const response = await fetch(`http://127.0.0.1:${shellPort}/shell/v1/health`, {
+        headers: { 'x-taskweaver-shell-challenge': healthChallenge },
+        signal: AbortSignal.timeout(1_500),
+      })
+      if (response.ok) {
+        const body = await response.json()
+        const expectedProof = createHmac('sha256', shellToken).update(healthChallenge).digest('hex')
+        assert.equal(body.proof, expectedProof, 'packaged health endpoint returned an invalid token proof')
+        return
+      }
     } catch { /* retry */ }
     await new Promise((resolve) => setTimeout(resolve, 250))
   }
@@ -144,7 +174,10 @@ async function waitForHealth() {
 async function invoke(channel, args = []) {
   const response = await fetch(`http://127.0.0.1:${shellPort}/shell/v1/invoke`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: {
+      'content-type': 'application/json',
+      'x-taskweaver-shell-token': shellToken,
+    },
     body: JSON.stringify({ channel, args }),
   })
   const body = await response.json()
@@ -199,6 +232,27 @@ try {
   ])
   assert.ok(readResultObserved, 'mock model never received the file-read result')
   assert.ok(finalAnswerObserved, 'mock model did not return a final answer after reading the file')
+  const bashState = await invoke('app:clearConversation', [{
+    workspacePath: workspace,
+    permissionMode: 'readonly',
+    modelKey: provider.modelKey,
+    title: 'Packaged Bash smoke',
+  }])
+  assert.ok(bashState?.conversationId, 'Bash smoke conversation did not return an ID')
+  await invoke('chat:send', [
+    `${bashPromptMarker} Run the requested read-only Bash command and report its output.`,
+    provider.modelKey,
+    null,
+    'single-agent',
+    'code',
+    bashState.conversationId,
+  ])
+  assert.ok(bashResultObserved, 'mock model never received the Bash tool result')
+  if (process.env.TASKWEAVER_TEST_CLAUDE_CLI === '1') {
+    assert.ok(claudeVersionObserved, 'Bash tool output did not contain the Claude Code version')
+  } else {
+    assert.ok(bashMarkerObserved, 'Bash tool output did not contain its smoke marker')
+  }
   const trace = await fs.promises.readFile(tracePath, 'utf8').catch(() => '')
   const startupEvents = trace.split('\n').filter(Boolean).map((line) => JSON.parse(line))
     .filter((row) => ['ipc:registration-end', 'models:loadBundle-end'].includes(row.event))

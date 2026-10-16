@@ -17,10 +17,12 @@ const doc = {
     opencodex: { name: 'OpenCodex', baseUrl: 'http://127.0.0.1:10100/v1', models: [] },
     'openai-codex': {
       name: 'ChatGPT subscription',
+      compat: { supportsOpenAIGrammarTools: true },
       models: [{
         id: 'gpt-6-luna',
         name: 'GPT-6 Luna',
         api: 'openai-codex-responses',
+        compat: { supportsOpenAIGrammarTools: true, supportsReasoningEffort: true },
         contextWindow: 272_000,
         maxTokens: 2_048,
       }],
@@ -45,14 +47,27 @@ const codexProfile = profilesFromModelsDoc(doc, ['openai-codex'])['openai-codex'
 assert.equal(codexProfile.models[0].id, 'gpt-6-luna')
 assert.equal(Object.hasOwn(codexProfile, 'api'), false,
   'native OAuth protocol must be inherited from the installed provider catalog')
+assert.equal(Object.hasOwn(codexProfile, 'compat'), false,
+  'native OAuth routes must inherit provider compatibility from pi-ai catalog')
+assert.equal(Object.hasOwn(codexProfile.models[0], 'compat'), false,
+  'native OAuth model entries must not forward catalog-owned compatibility flags')
 assert.equal(codexProfile.models[0].contextWindow, 272_000)
 assert.equal(codexProfile.models[0].maxTokens, 2_048)
 assert.equal(Object.hasOwn(codexProfile, 'apiKeyEnv'), false,
   'OAuth-only providers must keep native auth instead of naming a missing API-key reference')
 assert.equal(Object.hasOwn(piProviderBlockToDshProfile('openai-codex', {
   api: 'openai-codex-responses',
-  models: [{ id: 'gpt-6-luna', api: 'openai-codex-responses' }],
+  compat: { supportsOpenAIGrammarTools: true },
+  models: [{ id: 'gpt-6-luna', api: 'openai-codex-responses', compat: { supportsOpenAIGrammarTools: true } }],
 }), 'api'), false, 'matching native provider and model APIs stay on the catalog route')
+const genericCompatProfile = piProviderBlockToDshProfile('custom-gateway', {
+  compat: { supportsReasoningEffort: false },
+  models: [{ id: 'custom-model', compat: { supportsReasoningEffort: false } }],
+})
+assert.deepEqual(genericCompatProfile.compat, { supportsReasoningEffort: false },
+  'custom provider compat settings remain configurable')
+assert.deepEqual(genericCompatProfile.models[0].compat, { supportsReasoningEffort: false },
+  'custom model compat settings remain configurable')
 assert.throws(() => piProviderBlockToDshProfile('openai-codex', {
   models: [{ id: 'model-a', api: 'openai-responses' }],
 }), /必须使用内置 OAuth 协议/)

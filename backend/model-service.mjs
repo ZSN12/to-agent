@@ -17,6 +17,7 @@ import { createModelLiveDiscovery } from './model/live-discovery.mjs'
 import { createProviderCredentialHelpers } from './model/provider-credential-helpers.mjs'
 import { createSerializeDshModel } from './model/serialize-model.mjs'
 import startupTrace from './startup-trace.cjs'
+import { isUiVerifyMockIsolated } from './ui-verify-mock.mjs'
 
 const { traceStartup } = startupTrace
 
@@ -70,6 +71,11 @@ export function createModelService({
   const credentialHelpers = createProviderCredentialHelpers({
     userDataPath,
     directoryClient,
+    isUiVerifyMockModelEnabled: () => isUiVerifyMockIsolated({
+      env: process.env,
+      isPackaged: process.env.TASKWEAVER_PACKAGED === '1' || process.env.TASKWEAVER_PACKAGED === 'true',
+      userDataPath,
+    }),
   })
   const liveDiscovery = createModelLiveDiscovery({
     userDataPath,

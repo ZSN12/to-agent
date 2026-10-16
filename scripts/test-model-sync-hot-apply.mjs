@@ -56,6 +56,12 @@ const modelDoc = (name = 'Composer') => ({
         id: 'gpt-6-luna',
         name: 'GPT-6 Luna',
         api: 'openai-codex-responses',
+        compat: {
+          supportsOpenAIGrammarTools: true,
+          supportsAdditionalTools: true,
+          supportsToolSearch: true,
+          supportsMidConvoSystemMessages: true,
+        },
         contextWindow: 272_000,
         maxTokens: 2_048,
       }],
@@ -80,6 +86,8 @@ try {
   assert.equal(Object.hasOwn(codexProfile, 'api'), false,
     'native OAuth protocol must be inherited from the installed provider catalog')
   assert.equal(codexProfile.models[0].id, 'gpt-6-luna')
+  assert.equal(Object.hasOwn(codexProfile.models[0], 'compat'), false,
+    'native OAuth compatibility flags from models.json must not reach Host settings')
   assert.equal(codexProfile.models[0].contextWindow, 272_000)
   assert.equal(Object.hasOwn(codexProfile, 'apiKeyEnv'), false,
     'native OAuth profiles must not be converted into API-key routes during sync')

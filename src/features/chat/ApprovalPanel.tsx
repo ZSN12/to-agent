@@ -18,7 +18,7 @@ export function ApprovalPanel({
         <strong id="approval-panel-title">需要你的批准</strong>
       </div>
       <p className="approval-panel-reason">TaskWeaver 想要{prompt.reason}。</p>
-      <pre className="approval-panel-detail">{prompt.detail}</pre>
+      <pre className="approval-panel-detail" data-testid="approval-panel-detail">{prompt.detail}</pre>
       <div className="approval-panel-actions">
         <button type="button" className="approval-btn deny" onClick={() => onRespond('deny')}>拒绝</button>
         <button type="button" className="approval-btn allow" data-testid="approval-allow-once" onClick={() => onRespond('allow-once')}>批准一次</button>

@@ -13,14 +13,21 @@ async function assertWorkspaceRoot(workspacePath) {
   await assertSafeWorkspacePath(workspacePath, '.', { mustExist: true })
 }
 
-async function runGit(args, cwd) {
+async function runGit(args, cwd, { signal } = {}) {
   const { stdout, stderr } = await execFileAsync('git', args, {
     cwd,
     timeout: 30_000,
     maxBuffer: 4 * 1024 * 1024,
     env: { ...process.env, LC_ALL: 'C' },
+    ...(signal ? { signal } : {}),
   })
   return (stdout || stderr || '').trim()
+}
+
+function throwIfAborted(signal) {
+  if (signal?.aborted) {
+    throw signal.reason ?? Object.assign(new Error('操作已取消'), { name: 'AbortError', code: 'ABORT_ERR' })
+  }
 }
 
 function isMissingGitIdentityError(error) {
@@ -28,26 +35,27 @@ function isMissingGitIdentityError(error) {
   return /author identity unknown|unable to auto-detect email|empty ident name/i.test(message)
 }
 
-async function runGitWithIdentity(args, cwd) {
+async function runGitWithIdentity(args, cwd, { signal } = {}) {
   try {
-    return await runGit(args, cwd)
+    return await runGit(args, cwd, { signal })
   } catch (error) {
     if (!isMissingGitIdentityError(error)) throw error
     return runGit([
       '-c', 'user.name=TaskWeaver',
       '-c', 'user.email=taskweaver@localhost',
       ...args,
-    ], cwd)
+    ], cwd, { signal })
   }
 }
 
-async function runGitText(args, cwd, { encoding = 'utf8' } = {}) {
+async function runGitText(args, cwd, { encoding = 'utf8', signal } = {}) {
   const { stdout } = await execFileAsync('git', args, {
     cwd,
     timeout: 30_000,
     maxBuffer: 8 * 1024 * 1024,
     encoding,
     env: { ...process.env, LC_ALL: 'C' },
+    ...(signal ? { signal } : {}),
   })
   return Buffer.isBuffer(stdout) ? stdout.toString(encoding) : String(stdout ?? '')
 }
@@ -109,10 +117,11 @@ export async function createTaskWorktree({ workspacePath, conversationId, runId,
 }
 
 /** Read the exact committed baseline used by a DAG run. */
-export async function getWorkspaceHeadCommit(workspacePath) {
+export async function getWorkspaceHeadCommit(workspacePath, { signal } = {}) {
+  throwIfAborted(signal)
   await assertWorkspaceRoot(workspacePath)
   if (!(await isGitRepository(workspacePath))) throw new Error('当前工作区不是 Git 仓库')
-  const commit = await runGit(['rev-parse', '--verify', 'HEAD'], workspacePath)
+  const commit = await runGit(['rev-parse', '--verify', 'HEAD'], workspacePath, { signal })
   if (!commit) throw new Error('Git 仓库尚无基线提交，无法创建 DAG worktree')
   return commit
 }
@@ -135,11 +144,15 @@ function asConflictError(error, { taskId, branches }) {
   return wrapped
 }
 
-async function addBranchWorktree({ workspacePath, target, branchName, baseCommit, mergeFrom = [], taskId }) {
+async function addBranchWorktree({ workspacePath, target, branchName, baseCommit, mergeFrom = [], taskId, signal }) {
+  throwIfAborted(signal)
   const exists = fs.existsSync(target)
   if (exists) {
     let currentBranch = ''
-    try { currentBranch = await runGit(['branch', '--show-current'], target) } catch { /* an invalid old path is handled below */ }
+    try { currentBranch = await runGit(['branch', '--show-current'], target, { signal }) } catch (error) {
+      if (signal?.aborted) throw error
+      /* an invalid old path is handled below */
+    }
     if (currentBranch !== branchName) {
       throw new Error(`任务 ${taskId} 的 worktree 路径已被其他分支占用，拒绝复用`)
     }
@@ -147,32 +160,42 @@ async function addBranchWorktree({ workspacePath, target, branchName, baseCommit
       path: target,
       branchName,
       reused: true,
-      startCommit: await runGit(['rev-parse', '--verify', 'HEAD'], target),
+      startCommit: await runGit(['rev-parse', '--verify', 'HEAD'], target, { signal }),
     }
   }
 
   await fsp.mkdir(path.dirname(target), { recursive: true })
-  await runGit(['worktree', 'add', '-b', branchName, target, baseCommit], workspacePath)
-  const merged = []
+  throwIfAborted(signal)
+  let worktreeAdded = false
   try {
+    await runGit(['worktree', 'add', '-b', branchName, target, baseCommit], workspacePath, { signal })
+    worktreeAdded = true
+    throwIfAborted(signal)
+    const merged = []
     for (const branch of [...new Set(mergeFrom)]) {
+      throwIfAborted(signal)
       if (branch === branchName) continue
-      await runGitWithIdentity(['merge', '--no-ff', '--no-edit', branch], target)
+      await runGitWithIdentity(['merge', '--no-ff', '--no-edit', branch], target, { signal })
       merged.push(branch)
     }
+    throwIfAborted(signal)
+    return {
+      path: target,
+      branchName,
+      reused: false,
+      mergedBranches: merged,
+      startCommit: await runGit(['rev-parse', '--verify', 'HEAD'], target, { signal }),
+    }
   } catch (error) {
-    await runGit(['merge', '--abort'], target).catch(() => {})
-    await runGit(['worktree', 'remove', '--force', target], workspacePath).catch(() => {})
+    if (fs.existsSync(target)) await runGit(['merge', '--abort'], target).catch(() => {})
+    if (worktreeAdded || fs.existsSync(target)) {
+      await runGit(['worktree', 'remove', '--force', target], workspacePath).catch(() => {})
+      await fsp.rm(target, { recursive: true, force: true }).catch(() => {})
+    }
     await runGit(['branch', '-D', branchName], workspacePath).catch(() => {})
+    if (signal?.aborted) throw signal.reason ?? error
     const conflict = asConflictError(error, { taskId, branches: mergeFrom })
     throw conflict
-  }
-  return {
-    path: target,
-    branchName,
-    reused: false,
-    mergedBranches: merged,
-    startCommit: await runGit(['rev-parse', '--verify', 'HEAD'], target),
   }
 }
 
@@ -190,30 +213,34 @@ export async function createNodeWorktree({
   userDataPath,
   baseCommit,
   mergeFrom = [],
+  signal,
 }) {
+  throwIfAborted(signal)
   await assertWorkspaceRoot(workspacePath)
   assertValidRunId(runId)
   const target = resolveTaskWorktreeDir(userDataPath, workspacePath, conversationId, taskId, runId)
   const branchName = nodeBranchName(runId, taskId)
-  const resolvedBase = baseCommit || await getWorkspaceHeadCommit(workspacePath)
-  return addBranchWorktree({ workspacePath, target, branchName, baseCommit: resolvedBase, mergeFrom, taskId })
+  const resolvedBase = baseCommit || await getWorkspaceHeadCommit(workspacePath, { signal })
+  return addBranchWorktree({ workspacePath, target, branchName, baseCommit: resolvedBase, mergeFrom, taskId, signal })
 }
 
 /** Commit a successful writing node so only its DAG descendants can inherit it. */
-export async function commitNodeResult({ workspacePath, conversationId, runId, taskId, userDataPath, summary }) {
+export async function commitNodeResult({ workspacePath, conversationId, runId, taskId, userDataPath, summary, signal }) {
+  throwIfAborted(signal)
   const wtPath = resolveTaskWorktreeDir(userDataPath, workspacePath, conversationId, taskId, runId)
   if (!fs.existsSync(wtPath)) throw new Error(`未找到任务 ${taskId} 的 worktree`)
   const branchName = nodeBranchName(runId, taskId)
-  const currentBranch = await runGit(['branch', '--show-current'], wtPath)
+  const currentBranch = await runGit(['branch', '--show-current'], wtPath, { signal })
   if (currentBranch !== branchName) throw new Error(`任务 ${taskId} 的 worktree 分支不匹配`)
-  const status = await runGit(['status', '--porcelain', '--untracked-files=all'], wtPath)
+  const status = await runGit(['status', '--porcelain', '--untracked-files=all'], wtPath, { signal })
   if (status) {
-    await runGit(['add', '-A'], wtPath)
-    await runGitWithIdentity(['commit', '-m', summary || `TaskWeaver DAG ${taskId}`], wtPath)
+    await runGit(['add', '-A'], wtPath, { signal })
+    await runGitWithIdentity(['commit', '-m', summary || `TaskWeaver DAG ${taskId}`], wtPath, { signal })
   }
+  throwIfAborted(signal)
   return {
     branchName,
-    commit: await runGit(['rev-parse', '--verify', 'HEAD'], wtPath),
+    commit: await runGit(['rev-parse', '--verify', 'HEAD'], wtPath, { signal }),
     changed: Boolean(status),
   }
 }
@@ -226,13 +253,15 @@ export async function createIntegrationWorktree({
   userDataPath,
   baseCommit,
   mergeFrom = [],
+  signal,
 }) {
+  throwIfAborted(signal)
   const taskId = 'integration'
   await assertWorkspaceRoot(workspacePath)
   assertValidRunId(runId)
   const target = resolveTaskWorktreeDir(userDataPath, workspacePath, conversationId, taskId, runId)
   const branchName = nodeBranchName(runId, taskId)
-  const resolvedBase = baseCommit || await getWorkspaceHeadCommit(workspacePath)
+  const resolvedBase = baseCommit || await getWorkspaceHeadCommit(workspacePath, { signal })
   return addBranchWorktree({
     workspacePath,
     target,
@@ -240,6 +269,7 @@ export async function createIntegrationWorktree({
     baseCommit: resolvedBase,
     mergeFrom,
     taskId,
+    signal,
   })
 }
 

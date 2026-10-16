@@ -180,7 +180,28 @@ try {
   assert.equal(noCommandRes.status, 'not_run')
   assert.equal(noCommandRes.passed, false, 'absence of a command must never be represented as a pass')
 
-  console.log('verification-policy 回归测试全部通过：轻量自检优先、tsconfig 形态、包管理器、测试优先级、多语言识别、自愈执行器。')
+  const abortDir = await makeWorkspace({
+    'package.json': pkg({ typecheck: 'node -e "setTimeout(() => {}, 30000)"' }),
+  })
+  const abortController = new AbortController()
+  const cancelTimer = setTimeout(() => abortController.abort(), 100)
+  const cancelledRes = await executeVerificationRunner(abortDir, {
+    timeoutMs: 60_000,
+    signal: abortController.signal,
+  })
+  clearTimeout(cancelTimer)
+  assert.equal(cancelledRes.status, 'cancelled', 'the verification runner must report cancellation separately from failure')
+  assert.equal(cancelledRes.cancelled, true)
+  assert.equal(cancelledRes.executed, true, 'a verification cancelled after launch must retain that it actually started')
+  assert.equal(cancelledRes.passed, false, 'a cancelled verification must never be reported as passed')
+
+  const alreadyAborted = new AbortController()
+  alreadyAborted.abort()
+  const preCancelledRes = await executeVerificationRunner(successDir, { signal: alreadyAborted.signal })
+  assert.equal(preCancelledRes.status, 'cancelled', 'an already-cancelled run must not start the verification command')
+  assert.equal(preCancelledRes.executed, false)
+
+  console.log('verification-policy 回归测试全部通过：轻量自检优先、tsconfig 形态、包管理器、测试优先级、多语言识别、自愈执行器与取消清理。')
 } finally {
   for (const dir of cleanup) await fs.rm(dir, { recursive: true, force: true })
 }

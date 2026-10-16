@@ -18,6 +18,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import type { McpCatalogEntry, McpDshRuntimeBinding, McpServerConfig, McpServerStatus } from '../../shared/app-api'
+import { SettingsLayout } from '../settings/SettingsLayout'
 import './mcp-settings-panel.css'
 
 interface EnvEntry {
@@ -226,7 +227,7 @@ function McpServerModal({
             className="mcp-editor-enabled-checkbox"
           />
           <label htmlFor="mcp-enabled-checkbox" className="mcp-editor-enabled-label">
-            {dshWired ? '保存后重载 Z Host 并向 Agent 提供工具' : 'Agent 工具接入不可用'}
+            {dshWired ? '保存后重载本机运行时并在对话中提供工具' : '对话工具接入不可用'}
           </label>
         </div>
 
@@ -441,20 +442,13 @@ export function McpSettingsPanel({ onToast }: { onToast?: (msg: string) => void 
   }
 
   return (
-    <section className="model-settings mcp-settings">
-      <div className="model-settings-header">
-        <div>
-          <h2>MCP 服务</h2>
-          <p className="mcp-settings-lead">
-            管理外部 MCP 服务。设置页状态只表示这里探测到的服务与工具，不代表当前对话的 Z Host 已加载或模型已调用；请以对话中的实际工具调用记录为准。配置变更会重载运行时，运行中的任务无法变更。
-          </p>
-          {runtimeBinding && !runtimeBinding.dshWired && (
-            <p className="settings-inline-error mcp-settings-error">
-              {runtimeBinding.executionNote}
-            </p>
-          )}
-        </div>
-        <div className="model-settings-header-actions">
+    <SettingsLayout
+      title="MCP 服务"
+      description="管理外部 MCP 服务。页面状态显示本机已发现的服务与工具；是否加载和调用，请以对话中的工具记录为准。配置变更会重载运行时，运行中的任务无法切换。"
+      className="model-settings mcp-settings"
+      actionsClassName="model-settings-header-actions"
+      actions={
+        <>
           {dshWired && (
             <button
               type="button"
@@ -477,8 +471,14 @@ export function McpSettingsPanel({ onToast }: { onToast?: (msg: string) => void 
             <Plus size={14} />
             添加 MCP 服务
           </button>
-        </div>
-      </div>
+        </>
+      }
+    >
+      {runtimeBinding && !runtimeBinding.dshWired && (
+        <p className="settings-inline-error mcp-settings-error">
+          {runtimeBinding.executionNote}
+        </p>
+      )}
 
       <div className="mcp-section">
         <div className="mcp-section-header">
@@ -539,7 +539,7 @@ export function McpSettingsPanel({ onToast }: { onToast?: (msg: string) => void 
                     type="button"
                     onClick={() => handleToggleEnable(server)}
                     disabled={!dshWired}
-                    title={!dshWired ? 'MCP Agent 工具接入不可用' : '变更会重载 Z Host；运行中的任务期间不可操作'}
+                    title={!dshWired ? 'MCP 对话工具接入不可用' : '变更会重载本机运行时；运行中的任务期间不可操作'}
                     className="settings-secondary-button mcp-server-toggle"
                   >
                     {dshWired ? (server.enabled ? '停用' : '启用') : '不可用'}
@@ -716,6 +716,6 @@ export function McpSettingsPanel({ onToast }: { onToast?: (msg: string) => void 
           onSave={handleSave}
         />
       )}
-    </section>
+    </SettingsLayout>
   )
 }

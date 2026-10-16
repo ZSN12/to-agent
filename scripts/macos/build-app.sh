@@ -174,6 +174,7 @@ cp -R "${STAGE_BACKEND}/app/." "${APP_RESOURCES_DIR}/"
 cp -R "${STAGE_BACKEND}/runtime" "${BACKEND_RESOURCES_DIR}/runtime"
 cp -R "${NODE_DIR}/." "${RESOURCES_DIR}/host-node/"
 cp -R "${ROOT_DIR}/dist/." "${APP_RESOURCES_DIR}/dist/"
+cp "${ROOT_DIR}/scripts/run-scheduled-job-cli.mjs" "${RESOURCES_DIR}/taskweaver-scheduled-runner.mjs"
 
 # OpenCodex launches as a separate CLI process and needs a real Bun executable.
 # The `bun` npm package normalizes its platform binary to bun.exe on every host.
@@ -203,6 +204,7 @@ fi
 if [ ! -f "${APP_RESOURCES_DIR}/backend/shell/run.mjs" ] \
     || [ ! -f "${APP_RESOURCES_DIR}/dist/index.html" ] \
     || [ ! -x "${RESOURCES_DIR}/host-node/bin/node" ] \
+    || [ ! -f "${RESOURCES_DIR}/taskweaver-scheduled-runner.mjs" ] \
     || [ ! -x "${RESOURCES_DIR}/opencodex-runtime/bun" ] \
     || [ ! -x "${HELPERS_DIR}/TaskWeaverKeychain" ] \
     || [ ! -f "${BACKEND_RESOURCES_DIR}/runtime/lib/entry.js" ]; then

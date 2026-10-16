@@ -19,13 +19,13 @@ export class RunStore {
   }
 
   async saveRun(conversationId, runId, runState) {
+    assertRunPathSegment(conversationId, '会话 ID')
+    assertRunPathSegment(runId, 'runId')
+    const dir = path.join(this.basePath, conversationId, runId)
+    const file = path.join(dir, 'run.json')
+    const temp = path.join(dir, `run-${Date.now()}-${Math.random().toString(36).slice(2)}.json.tmp`)
     try {
-      assertRunPathSegment(conversationId, '会话 ID')
-      assertRunPathSegment(runId, 'runId')
-      const dir = path.join(this.basePath, conversationId, runId)
       await fs.mkdir(dir, { recursive: true })
-      const file = path.join(dir, 'run.json')
-      const temp = path.join(dir, `run-${Date.now()}-${Math.random().toString(36).slice(2)}.json.tmp`)
       const persisted = {
         ...runState,
         createdAt: runState.createdAt ?? new Date().toISOString(),
@@ -33,8 +33,16 @@ export class RunStore {
       }
       await fs.writeFile(temp, JSON.stringify(persisted, null, 2), 'utf-8')
       await fs.rename(temp, file)
+      return true
     } catch (error) {
-      console.error(`Failed to save run state for ${conversationId}/${runId}:`, error)
+      await fs.rm(temp, { force: true }).catch(() => {})
+      const persistenceError = new Error(
+        '无法保存 DAG 运行记录；已停止运行以避免报告不可恢复的状态。请检查应用数据目录的空间和写入权限。',
+        { cause: error },
+      )
+      persistenceError.name = 'RunStoreWriteError'
+      persistenceError.code = 'ERUN_STORE_WRITE_FAILED'
+      throw persistenceError
     }
   }
 
@@ -98,7 +106,7 @@ export class RunStore {
             const data = await fs.readFile(runFile, 'utf-8')
             const runState = JSON.parse(data)
             let changed = false
-            const interruptedRun = ['running', 'awaiting_approval', 'paused', 'finalizing', 'interrupted'].includes(runState.status)
+            const interruptedRun = ['planning', 'running', 'awaiting_approval', 'paused', 'finalizing', 'interrupted'].includes(runState.status)
             if (interruptedRun && runState.status !== 'interrupted') {
               runState.status = 'interrupted'
               changed = true
@@ -120,8 +128,11 @@ export class RunStore {
               await this.saveRun(conv.name, run.name, runState)
               recoveredCount += 1
             }
-          } catch {
-            // ignore
+          } catch (error) {
+            if (error?.code === 'ERUN_STORE_WRITE_FAILED') {
+              console.error(`Failed to persist recovered DAG run ${conv.name}/${run.name}:`, error.message)
+            }
+            // Ignore unreadable or malformed older run files; write failures are reported.
           }
         }
       }

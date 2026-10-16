@@ -4,7 +4,7 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { Worker } from 'node:worker_threads'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import {
   bridgeTransportChildEnv,
   prepareRuntimeCwd,
@@ -19,6 +19,17 @@ const runtimeRoot = resolveTaskWeaverRuntimeRoot({
   isPackaged: false,
   env: process.env,
 })
+
+const sourceRuntimeRoot = path.join(projectRoot, 'packages/runtime')
+const sourceTransport = path.join(projectRoot, 'packages/provider-bridge-transport/index.mjs')
+const sourceBridgeEnv = bridgeTransportChildEnv(sourceRuntimeRoot, undefined, sourceRuntimeRoot)
+assert.equal(sourceBridgeEnv.TASKWEAVER_BRIDGE_TRANSPORT, pathToFileURL(sourceTransport).href,
+  'development Host must load the checked-out bridge transport when no deploy copy exists')
+assert.equal(
+  bridgeTransportChildEnv(sourceRuntimeRoot, undefined, sourceRuntimeRoot, { packaged: true }).TASKWEAVER_BRIDGE_TRANSPORT,
+  undefined,
+  'packaged Host must not fall back to source-tree bridge transport',
+)
 
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'tw-prepare-cwd-'))
 const dshHome = path.join(tempRoot, 'dsh')

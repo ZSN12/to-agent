@@ -35,10 +35,11 @@ const TASKWEAVER_ALWAYS_RETRYABLE_CODES = Object.freeze([
 	EMPTY_RESPONSE_CODE,
 	"RATE_LIMIT",
 	"SERVER",
+	"TIMEOUT",
 	"TRANSPORT"
 ]);
 function taskweaverBoundedPolicy(policy) {
-	const retryableCodes = policy.mode === "always" ? [...TASKWEAVER_ALWAYS_RETRYABLE_CODES] : policy.retryableCodes.filter((code) => code !== "TIMEOUT");
+	const retryableCodes = policy.mode === "always" ? [...TASKWEAVER_ALWAYS_RETRYABLE_CODES] : [...policy.retryableCodes];
 	return {
 		mode: "normal",
 		maxRetries: policy.mode === "always" ? TASKWEAVER_ALWAYS_RETRY_LIMIT : Math.min(policy.maxRetries, TASKWEAVER_MAX_PROVIDER_RETRIES),
@@ -148,9 +149,10 @@ function apply(ctx, config = {}, internals = {}) {
 		});
 		return { kind: "retry" };
 	}
-	async function recover({ agent, turn, step, provider, failure, retryPolicy: registeredPolicy, signal }, next) {
+	async function recover({ agent, turn, step, provider, failure, retryPolicy: registeredPolicy, streamStarted, signal }, next) {
 		if (registeredPolicy === void 0) return next();
 		const policy = taskweaverEmbedded ? taskweaverBoundedPolicy(registeredPolicy) : registeredPolicy;
+		if (taskweaverEmbedded && failure.code === "TIMEOUT" && streamStarted) return next();
 		if (policy.mode === "always") {
 			if (signal.aborted || lifetime.signal.aborted) return;
 			const fusedSignal = AbortSignal.any([signal, lifetime.signal]);

@@ -13,7 +13,9 @@
 import { existsSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { boot, composeEntries, healProfilesModuleFallback, installFailLoud, loadOptionalPatches, loadOverlayPatches, loadProfile, PROFILE_PATCH_FILENAME, } from '@taskweaver/dsh-app-boot';
+import Hmr from '@taskweaver/cordis-plugin-hmr';
+import Timer from '@taskweaver/cordis-plugin-timer';
+import { boot, composeEntries, healProfilesModuleFallback, installFailLoud, loadOptionalPatches, loadOverlayPatches, loadProfile, PROFILE_PATCH_FILENAME, watchUserPatches, } from '@taskweaver/dsh-app-boot';
 import { resolveRuntimeHome, taskweaverEmbeddedFromEnv } from '@taskweaver/dsh-home-paths';
 /** Shipped agent-preset root: beside this app's own config, in both source and built layouts. */
 const SHIPPED_PRESET_ROOT = fileURLToPath(new URL('../config/agent-presets/', import.meta.url));
@@ -173,6 +175,47 @@ export async function runProfile(options) {
         });
     }, bareModuleBaseUrl);
     app.current = ctx;
+    if (!taskweaverEmbedded() && ctx.get('loader') !== undefined) {
+        try {
+            // User patch watching belongs to the launcher even when the profile
+            // does not mount the app-facing HMR row. Keep module watching empty;
+            // exact config paths are registered after the include settles.
+            if (ctx.get('timer') === undefined)
+                await ctx.plugin(Timer);
+            if (ctx.get('hmr') === undefined) {
+                await ctx.plugin(Hmr, { root: [], ignored: [], debounce: 0 });
+            }
+            const profilePatchPath = composed.profile.patchPath;
+            const sharedHomePatchPath = homePatchPath();
+            await watchUserPatches(ctx, {
+                binName: NAME,
+                filename: profilePatchPath,
+                compose: patches => [
+                    ...composed.bundlePatches,
+                    ...patches,
+                    ...(loadOptionalPatches(NAME, sharedHomePatchPath) ?? []),
+                    ...composed.overlays,
+                ],
+            });
+            if (sharedHomePatchPath !== profilePatchPath) {
+                await watchUserPatches(ctx, {
+                    binName: NAME,
+                    filename: sharedHomePatchPath,
+                    compose: patches => [
+                        ...composed.bundlePatches,
+                        ...(loadOptionalPatches(NAME, profilePatchPath) ?? []),
+                        ...patches,
+                        ...composed.overlays,
+                    ],
+                });
+            }
+        }
+        catch (error) {
+            await ctx.fiber.dispose();
+            delete app.current;
+            throw error;
+        }
+    }
     return { ctx, shutdown };
 }
 //# sourceMappingURL=profile-boot.js.map

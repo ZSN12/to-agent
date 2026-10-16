@@ -17,6 +17,7 @@ import { setOcxRuntimeContext } from '../../backend/opencodex-binary.mjs'
 import { resolvePermissionPrompt } from '../../backend/permission-prompt-bridge.mjs'
 import { summarizeHostStepTimings } from '../host-step-timings.mjs'
 import { assembleWorkspaceContext } from '../../backend/context-assembler.mjs'
+import { parseHeadlessTaskTimeout } from '../headless-run-options.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 function isInsideRoot(candidate) {
@@ -34,6 +35,7 @@ const arg = (name) => {
 const installed = process.argv.includes('--installed')
 const isolated = installed || process.argv.includes('--local')
 const fixture = process.argv.includes('--fixture')
+const taskTimeoutMs = parseHeadlessTaskTimeout(process.argv.slice(2))
 let workspacePath = process.argv.includes('--workspace') ? path.resolve(arg('--workspace')) : root
 setOcxRuntimeContext(installed ? {
   appPath: path.join(installedResourcesPath, 'app.asar'),
@@ -150,8 +152,37 @@ let chat
 let heartbeat
 let modelsDocForSync
 let metrics = {}
+let terminationSignal = null
+let signalCleanup = null
+let resolveSignalInterruption
+const signalInterruption = new Promise((resolve) => { resolveSignalInterruption = resolve })
+const signalHandlers = new Map()
+
+function throwIfInterrupted() {
+  if (!terminationSignal) return
+  const error = new Error(`收到 ${terminationSignal}，本轮任务已取消`)
+  error.signal = terminationSignal
+  throw error
+}
+
+function onProcessSignal(signal) {
+  if (terminationSignal) return
+  terminationSignal = signal
+  resolveSignalInterruption({ kind: 'signal', signal })
+  const shutdown = chat ? chat.stop() : hostManager?.stop()
+  signalCleanup = Promise.resolve(shutdown).catch((error) => {
+    console.error(`收到 ${signal} 后停止 Host 失败：${error instanceof Error ? error.message : String(error)}`)
+  })
+}
+
+for (const signal of ['SIGINT', 'SIGTERM']) {
+  const handler = () => onProcessSignal(signal)
+  signalHandlers.set(signal, handler)
+  process.on(signal, handler)
+}
 
 try {
+  throwIfInterrupted()
   workspacePath = await fs.realpath(workspacePath)
   const workspaceStat = await fs.stat(workspacePath)
   if (!workspaceStat.isDirectory() || workspacePath === path.parse(workspacePath).root) {
@@ -212,7 +243,9 @@ try {
       home: reportDir,
       environment: { ...process.env, TASKWEAVER_HOME: path.join(reportDir, 'dsh') },
     })
+    throwIfInterrupted()
     ;({ api } = await hostManager.start())
+    throwIfInterrupted()
     const sync = await ensureModelsJsonSyncedToDshHost({
       hostManager,
       userDataPath: reportDir,
@@ -223,6 +256,7 @@ try {
     api = await createZApiClient({ runtimeRoot, baseUrl: arg('--base-url') })
     hostManager = { start: async () => ({ api }), stop: async () => {} }
   }
+  throwIfInterrupted()
   const profileStore = createProfileStore(userData)
   if (thinkingOverride) profileStore.getThinkingLevel = async () => thinkingOverride === 'default' ? null : thinkingOverride
   const modelKey = process.argv.includes('--model') ? arg('--model') : await profileStore.getActiveModelKey()
@@ -261,6 +295,7 @@ try {
       userTextBytes: Buffer.byteLength(userText, 'utf8'),
     } : {}),
     conversationId, cwd: workspacePath, runtimeRoot, startedAt,
+    taskTimeoutMs,
     firstThinkingMs: null, firstTextMs: null, reasoningChars: 0, toolEvents: [], permissionEvents: [], retries: [],
   }
   chat = createDshChatService({
@@ -379,75 +414,116 @@ try {
   }
   console.log(JSON.stringify({ status: 'starting', reportDir, ...metrics }))
   heartbeat = setInterval(() => console.log(JSON.stringify({ status: 'running', elapsedMs: Date.now() - startedAt, reasoningChars: metrics.reasoningChars, toolCalls: metrics.toolEvents.filter(e => e.status === 'running').length, firstTextMs: metrics.firstTextMs })), 20_000)
-  const result = await chat.send({
-    conversationId, modelKey, webContents, cwdOverride: workspacePath, agentPreset,
-    text: evaluationPrompt,
-    ...(evaluationMode ? {
-      orchestrationContext: {
-        text: evaluationPrompt,
-        rawText: userText,
-        promptContextLayers: [],
-        primaryModelKey: modelKey,
-        workspacePath,
-        workspaceTrusted: true,
-        permissionMode,
-        dagPlanApprovalOverride: 'never',
-        allowed: evaluationMode !== 'single',
-      },
-    } : {}),
+  let taskDeadlineTimer
+  const taskDeadline = new Promise((resolve) => {
+    taskDeadlineTimer = setTimeout(() => resolve({ kind: 'timeout' }), taskTimeoutMs)
   })
-  const sessionId = chat.getSessionId(conversationId)
-  const reply = await api.sessions.history({ sessionId })
-  const history = reply.result?.value?.events?.map(row => row.event) ?? []
-  const requestHeaders = history.filter(e => e.type === 'request/header').map((event) => {
-    const config = event.data?.header?.config ?? {}
-    return {
-      seq: Number.isInteger(event.seq) ? event.seq : null,
-      reason: typeof event.data?.reason === 'string' ? event.data.reason : null,
-      ...(typeof config.provider === 'string' ? { provider: config.provider } : {}),
-      ...(typeof config.model === 'string' ? { model: config.model } : {}),
-      ...(typeof config.reasoningEffort === 'string' ? { reasoningEffort: config.reasoningEffort } : {}),
+  const task = (async () => {
+    const result = await chat.send({
+      conversationId, modelKey, webContents, cwdOverride: workspacePath, agentPreset,
+      text: evaluationPrompt,
+      ...(evaluationMode ? {
+        orchestrationContext: {
+          text: evaluationPrompt,
+          rawText: userText,
+          promptContextLayers: [],
+          primaryModelKey: modelKey,
+          workspacePath,
+          workspaceTrusted: true,
+          permissionMode,
+          dagPlanApprovalOverride: 'never',
+          allowed: evaluationMode !== 'single',
+        },
+      } : {}),
+    })
+    const sessionId = chat.getSessionId(conversationId)
+    const reply = await api.sessions.history({ sessionId })
+    const history = reply.result?.value?.events?.map(row => row.event) ?? []
+    const requestHeaders = history.filter(e => e.type === 'request/header').map((event) => {
+      const config = event.data?.header?.config ?? {}
+      return {
+        seq: Number.isInteger(event.seq) ? event.seq : null,
+        reason: typeof event.data?.reason === 'string' ? event.data.reason : null,
+        ...(typeof config.provider === 'string' ? { provider: config.provider } : {}),
+        ...(typeof config.model === 'string' ? { model: config.model } : {}),
+        ...(typeof config.reasoningEffort === 'string' ? { reasoningEffort: config.reasoningEffort } : {}),
+      }
+    })
+    const report = {
+      ...metrics,
+      elapsedMs: Date.now() - startedAt,
+      sessionId,
+      result,
+      requestHeaderSnapshots: history.filter(e => e.type === 'request/header').length,
+      steps: history.filter(e => e.type === 'step/start').length,
+      retryScheduledCount: history.filter(e => e.type === 'llm/retry').length,
+      retryStartedCount: history.filter(e => e.type === 'llm/retry-started').length,
+      // Deliberately retain only route/effort metadata. Never persist the full
+      // request/header snapshot, which contains system text and tool schemas.
+      requestHeaders,
+      ...(evaluationMode ? { evaluationMode, orchestrationRuns } : {}),
+      requestAttemptEstimate: history.filter(e => e.type === 'step/start').length
+        + history.filter(e => e.type === 'llm/retry-started').length,
+      hostStepTimings: summarizeHostStepTimings(history, startedAt),
+      toolCalls: history.filter(e => e.type === 'tool/call').map(e => ({ name: e.data?.name, arguments: e.data?.arguments })),
+      nestedToolCalls: history.filter(e => e.type === 'tool/code-dispatch-start').map(e => ({ name: e.data?.name, arguments: e.data?.arguments })),
+      turnEnd: history.findLast(e => e.type === 'turn/end')?.data,
     }
-  })
-  const report = {
-    ...metrics,
-    elapsedMs: Date.now() - startedAt,
-    sessionId,
-    result,
-    requestHeaderSnapshots: history.filter(e => e.type === 'request/header').length,
-    steps: history.filter(e => e.type === 'step/start').length,
-    retryScheduledCount: history.filter(e => e.type === 'llm/retry').length,
-    retryStartedCount: history.filter(e => e.type === 'llm/retry-started').length,
-    // Deliberately retain only route/effort metadata. Never persist the full
-    // request/header snapshot, which contains system text and tool schemas.
-    requestHeaders,
-    ...(evaluationMode ? { evaluationMode, orchestrationRuns } : {}),
-    requestAttemptEstimate: history.filter(e => e.type === 'step/start').length
-      + history.filter(e => e.type === 'llm/retry-started').length,
-    hostStepTimings: summarizeHostStepTimings(history, startedAt),
-    toolCalls: history.filter(e => e.type === 'tool/call').map(e => ({ name: e.data?.name, arguments: e.data?.arguments })),
-    nestedToolCalls: history.filter(e => e.type === 'tool/code-dispatch-start').map(e => ({ name: e.data?.name, arguments: e.data?.arguments })),
-    turnEnd: history.findLast(e => e.type === 'turn/end')?.data,
+    await fs.writeFile(path.join(reportDir, 'report.json'), JSON.stringify(report, null, 2))
+    console.log(JSON.stringify({ status: 'completed', reportPath: path.join(reportDir, 'report.json'), agentPreset, elapsedMs: report.elapsedMs, firstThinkingMs: report.firstThinkingMs, firstTextMs: report.firstTextMs, reasoningChars: report.reasoningChars, toolCalls: report.toolCalls, nestedToolCalls: report.nestedToolCalls, requestAttemptEstimate: report.requestAttemptEstimate, requestHeaderSnapshots: report.requestHeaderSnapshots, requestHeaders: report.requestHeaders, steps: report.steps, text: result.text }))
+  })()
+  const taskOutcome = await Promise.race([
+    task.then(() => ({ kind: 'completed' }), (error) => ({ kind: 'error', error })),
+    taskDeadline,
+    signalInterruption,
+  ])
+  clearTimeout(taskDeadlineTimer)
+  if (taskOutcome.kind === 'timeout') {
+    const error = new Error(`本轮任务超过总时限 ${taskTimeoutMs} 毫秒`)
+    error.code = 'TASK_TIMEOUT'
+    let abortGraceTimer
+    try {
+      await Promise.race([
+        chat.abort(conversationId).catch(() => {}),
+        new Promise((resolve) => { abortGraceTimer = setTimeout(resolve, 2_000) }),
+      ])
+    } finally {
+      clearTimeout(abortGraceTimer)
+    }
+    throw error
   }
-  await fs.writeFile(path.join(reportDir, 'report.json'), JSON.stringify(report, null, 2))
-  console.log(JSON.stringify({ status: 'completed', reportPath: path.join(reportDir, 'report.json'), agentPreset, elapsedMs: report.elapsedMs, firstThinkingMs: report.firstThinkingMs, firstTextMs: report.firstTextMs, reasoningChars: report.reasoningChars, toolCalls: report.toolCalls, nestedToolCalls: report.nestedToolCalls, requestAttemptEstimate: report.requestAttemptEstimate, requestHeaderSnapshots: report.requestHeaderSnapshots, requestHeaders: report.requestHeaders, steps: report.steps, text: result.text }))
+  if (taskOutcome.kind === 'signal') {
+    const error = new Error(`收到 ${taskOutcome.signal}，本轮任务已取消`)
+    error.signal = taskOutcome.signal
+    throw error
+  }
+  if (taskOutcome.kind === 'error') throw taskOutcome.error
 } catch (error) {
   await fs.writeFile(path.join(reportDir, 'failure.json'), JSON.stringify({ ...metrics, elapsedMs: metrics.startedAt ? Date.now() - metrics.startedAt : null, error: error.message, sessionId: chat?.getSessionId(metrics.conversationId) }, null, 2))
   console.error(JSON.stringify({ status: 'failed', reportDir, error: error.message }))
-  process.exitCode = 1
+  const exitSignal = error.signal ?? terminationSignal
+  process.exitCode = error.code === 'TASK_TIMEOUT' ? 124
+    : exitSignal === 'SIGINT' ? 130
+      : exitSignal === 'SIGTERM' ? 143
+        : 1
 } finally {
   clearInterval(heartbeat)
   try {
-    if (chat) await chat.stop()
-    else await hostManager?.stop()
-  } finally {
-    try { await modelService?.dispose() }
-    finally {
-      if (isolated) {
-        for (const file of ['.credentials.yaml', 'settings.yaml']) {
-          await fs.unlink(path.join(reportDir, 'dsh', file)).catch(error => { if (error.code !== 'ENOENT') throw error })
+    try {
+      if (signalCleanup) await signalCleanup
+      if (chat) await chat.stop()
+      else await hostManager?.stop()
+    } finally {
+      try { await modelService?.dispose() }
+      finally {
+        if (isolated) {
+          for (const file of ['.credentials.yaml', 'settings.yaml']) {
+            await fs.unlink(path.join(reportDir, 'dsh', file)).catch(error => { if (error.code !== 'ENOENT') throw error })
+          }
         }
       }
     }
+  } finally {
+    for (const [signal, handler] of signalHandlers) process.removeListener(signal, handler)
   }
 }

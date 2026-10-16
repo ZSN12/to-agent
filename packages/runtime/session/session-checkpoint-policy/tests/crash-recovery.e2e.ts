@@ -11,7 +11,7 @@ import SessionStore, {
 } from '@taskweaver/dsh-session'
 import JsonlSessionPersistence from '@taskweaver/dsh-session-persistence-jsonl'
 
-const repoRoot = fileURLToPath(new URL('../../../../', import.meta.url))
+const repoRoot = fileURLToPath(new URL('../../../../../', import.meta.url))
 const childScript = fileURLToPath(new URL('./fixtures/crash-child.ts', import.meta.url))
 const tsxLoader = fileURLToPath(import.meta.resolve('tsx'))
 const sessionId = SessionId('semantic-checkpoint-crash')

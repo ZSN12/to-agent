@@ -71,6 +71,20 @@ function normalizeMode(value) {
   return PERMISSION_MODES.includes(value) ? value : 'ask'
 }
 
+const RISKY_EXECUTABLES = 'rm|rmdir|find|mkfs|diskutil|dd|truncate|shred|curl|wget|nc|ncat|ssh|scp|sftp|ftp|ping|git|gh|npm|pnpm|yarn|bun|pip3?|sudo|su|doas|chmod|chown'
+
+/**
+ * Normalize command spellings used only for permission risk classification.
+ * Shell accepts escaped command names (`\\rm`) and absolute executable paths
+ * (`/bin/rm`); checking only bare names lets those spellings skip approval.
+ * Keep the original command for execution and audit display.
+ */
+export function normalizeCommandForRiskChecks(command) {
+  return String(command ?? '')
+    .replace(new RegExp(`(^|[\\s;|&()])\\\\(?=(?:${RISKY_EXECUTABLES})(?:\\.exe)?\\b)`, 'gi'), '$1')
+    .replace(new RegExp(`(^|[\\s;|&()])(?:[^\\s;|&()]*[/\\\\])(?=(?:${RISKY_EXECUTABLES})(?:\\.exe)?\\b)`, 'gi'), '$1')
+}
+
 async function isWithinDeclaredWriteScopes(workspacePath, candidate, writeScopes) {
   if (!candidate || !Array.isArray(writeScopes)) return false
   try {
@@ -107,10 +121,11 @@ async function classifyToolCall(event, workspacePath) {
     }
   }
   const command = tool === 'bash' ? String(input.command ?? '') : ''
-  const network = /\b(?:curl|wget|nc|ncat|ssh|scp|sftp|ftp|ping|git\s+(?:clone|fetch|pull|push)|gh\s+(?:api|repo|pr|issue)|(?:npm\s+(?:install|ci|add)|pnpm\s+(?:install|add)|yarn\s+(?:install|add)|bun\s+(?:install|add)|pip3?\s+install))\b|https?:\/\//i.test(command)
-    || /\b(?:node|deno|bun|python(?:3(?:\.\d+)?)?|ruby|perl)\s+(?:-(?:e|c)(?:\s|$)|--(?:eval|command)(?:\s|=))[\s\S]{0,4096}\b(?:fetch\s*\(|(?:http|https)\s*\.\s*(?:get|request|post|put|delete)\s*\(|(?:requests|urllib|httpx|axios|got|socket|tls)\s*(?:\.|::)|createConnection\s*\(|require\s*\(\s*['"](?:node:)?https?['"]\s*\)|from\s+['"](?:node:)?https?['"])/i.test(command)
-  const destructive = /(?:^|[;&|\s])(?:rm\s+-[^\s]*r[^\s]*(?:\s|$)|rmdir\b|mkfs\b|diskutil\b|dd\s+if=|git\s+reset\s+--hard\b|git\s+clean\s+-(?=[^\s]*[fd])[^\s]+|truncate\b|shred\b)/i.test(command)
-  const privileged = /(?:^|[;&|\s])(?:sudo\b|su\s+-|doas\b|chmod\s+(?:-R\s+)?(?:777|\+s)|chown\s+-R\b)/i.test(command)
+  const riskCommand = normalizeCommandForRiskChecks(command)
+  const network = /\b(?:curl|wget|nc|ncat|ssh|scp|sftp|ftp|ping|git\s+(?:clone|fetch|pull|push)|gh\s+(?:api|repo|pr|issue)|(?:npm\s+(?:install|ci|add)|pnpm\s+(?:install|add)|yarn\s+(?:install|add)|bun\s+(?:install|add)|pip3?\s+install))\b|https?:\/\//i.test(riskCommand)
+    || /\b(?:node|deno|bun|python(?:3(?:\.\d+)?)?|ruby|perl)\s+(?:-(?:e|c)(?:\s|$)|--(?:eval|command)(?:\s|=))[\s\S]{0,4096}\b(?:fetch\s*\(|(?:http|https)\s*\.\s*(?:get|request|post|put|delete)\s*\(|(?:requests|urllib|httpx|axios|got|socket|tls)\s*(?:\.|::)|createConnection\s*\(|require\s*\(\s*['"](?:node:)?https?['"]\s*\)|from\s+['"](?:node:)?https?['"])/i.test(riskCommand)
+  const destructive = /(?:^|[;&|\s])(?:rm\s+-[^\s]*r[^\s]*(?:\s|$)|rmdir\b|find\b(?=[\s\S]*\s-delete\b)|mkfs\b|diskutil\b|dd\s+if=|git\s+reset\s+--hard\b|git\s+clean\s+-(?=[^\s]*[fd])[^\s]+|truncate\b|shred\b)/i.test(riskCommand)
+  const privileged = /(?:^|[;&|\s])(?:sudo\b|su\s+-|doas\b|chmod\s+(?:-R\s+)?(?:777|\+s)|chown\s+-R\b)/i.test(riskCommand)
   const mutation = ['edit', 'write'].includes(tool)
   const fileAccess = ['read', 'edit', 'write', 'grep', 'find', 'ls'].includes(tool)
   const mcp = tool.startsWith('mcp__') || tool.startsWith('mcp_')

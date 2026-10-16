@@ -5,6 +5,9 @@ on:
     branches: [main, master]
   pull_request:
 
+env:
+  pnpm_config_verify_deps_before_run: 'false'
+
 jobs:
   ui-verify:
     name: TaskWeaver UI verification
@@ -58,6 +61,8 @@ jobs:
           cache-dependency-path: pnpm-lock.yaml
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      - name: Build retained Host packages for runtime tests
+        run: pnpm run build:host
       - name: Typecheck
         run: pnpm run typecheck:node
       - name: Check IPC contract and renderer types

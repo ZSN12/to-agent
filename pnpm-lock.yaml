@@ -2146,6 +2146,9 @@ importers:
       '@taskweaver/dsh-attachment-local':
         specifier: workspace:^
         version: link:../attachment/attachment-local
+      '@taskweaver/dsh-authorization':
+        specifier: workspace:^
+        version: link:../credentials/authorization
       '@taskweaver/dsh-base':
         specifier: workspace:^
         version: link:../bundle/base
@@ -2260,6 +2263,9 @@ importers:
       '@taskweaver/dsh-llm-taskweaver-bridge':
         specifier: workspace:^
         version: link:../llm/llm-taskweaver-bridge
+      '@taskweaver/dsh-lsp':
+        specifier: workspace:^
+        version: link:../lsp/lsp
       '@taskweaver/dsh-mcp-client':
         specifier: workspace:^
         version: link:../mcp/mcp-client
@@ -2428,6 +2434,9 @@ importers:
       '@taskweaver/dsh-tool-jobs':
         specifier: workspace:^
         version: link:../jobs/tool-jobs
+      '@taskweaver/dsh-tool-lsp':
+        specifier: workspace:^
+        version: link:../lsp/tool-lsp
       '@taskweaver/dsh-tool-orchestrate':
         specifier: workspace:^
         version: link:../interaction/tool-orchestrate
@@ -2437,6 +2446,9 @@ importers:
       '@taskweaver/dsh-tool-ralph':
         specifier: workspace:^
         version: link:../workflow/tool-ralph
+      '@taskweaver/dsh-tool-session-query':
+        specifier: workspace:^
+        version: link:../session-query/tool-session-query
       '@taskweaver/dsh-tool-skill':
         specifier: workspace:^
         version: link:../skill/tool-skill
@@ -2488,6 +2500,9 @@ importers:
       '@taskweaver/provider-bridge':
         specifier: workspace:*
         version: link:../../provider-bridge
+      '@taskweaver/tool-ui-verify':
+        specifier: workspace:^
+        version: link:../interaction/tool-ui-verify
       commander:
         specifier: ^15.0.0
         version: 15.0.0
@@ -6494,10 +6509,12 @@ packages:
 
   '@modelcontextprotocol/server-everything@2026.8.31':
     resolution: {integrity: sha512-5U3OZh8Xq0Li4nA26l6uNvV9/1suMDuWSn+NjLZIhzinhMY6N3A4DCrxVecBGPf2PsNFKTEv5krxGPRwzxc7jQ==}
+    deprecated: 'Date-based versions are no longer published. This package has resumed semantic versioning at 1.0.0: install the latest version.'
     hasBin: true
 
   '@modelcontextprotocol/server-filesystem@2026.8.31':
     resolution: {integrity: sha512-kKaFkyAh6oipvc9+EAbJ552JafnMnOq5nzmzWkp1jJdBhTAAGpmIpWihUG1+rfNhmEFM98gUZDdCHCDD4v6a7Q==}
+    deprecated: 'Date-based versions are no longer published. This package has resumed semantic versioning at 1.0.0: install the latest version.'
     hasBin: true
 
   '@napi-rs/canvas-android-arm64@0.1.100':

@@ -2,7 +2,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { spawn } from 'node:child_process'
 import { resolveOcxExecutable } from './opencodex-binary.mjs'
-import { openCodexEnvironment, runOcx } from './model-sync/ocx-cli.mjs'
+import { ocxInvocation, openCodexEnvironment, runOcx } from './model-sync/ocx-cli.mjs'
 
 /** Per-user OpenCodex state (runtime-port.json, OAuth store) beside Electron userData. */
 export function resolveOpenCodexHome(userDataPath) {
@@ -64,7 +64,8 @@ export async function ensureOpenCodexProxyForExport({
   if (runtime && await proxyHealthy(runtime)) return { home, port: runtime.port }
 
   const ocx = resolveOcxExecutable()
-  const child = spawn(ocx, ['start'], {
+  const invocation = ocxInvocation(ocx, ['start'])
+  const child = spawn(invocation.executable, invocation.args, {
     env,
     detached: true,
     stdio: 'ignore',

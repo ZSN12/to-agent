@@ -58,10 +58,12 @@ const PLANNER_INDEX_IGNORES = new Set([
   '.pnpm-store',
 ])
 const PLANNER_SOURCE_DIR_PRIORITY = new Map([
-  ['contract', 0], ['backend', 1], ['src', 2], ['app', 3], ['server', 4],
+  ['contract', 0], ['backend', 1], ['src', 2], ['app', 3], ['apps', 3], ['sources', 4], ['server', 4],
   ['lib', 5], ['packages', 6], ['scripts', 7], ['tests', 8], ['docs', 10],
 ])
-const PLANNER_INDEX_MAX_DEPTH = 4
+// Include common nested desktop/mobile layouts such as
+// apps/macos/TaskWeaverShell/Sources/Target/File.swift.
+const PLANNER_INDEX_MAX_DEPTH = 6
 const TYPE_LABELS = {
   research: '调研',
   implementation: '实现',
@@ -487,14 +489,14 @@ export function validateReadOnlyPlanScopesFromIndex(tasks, indexedPaths) {
 
 /** Build a bounded paths-only workspace hint for planning; never reads file contents or follows symlinks. */
 export async function collectPlannerPathHints(workspacePath, query, {
-  maxVisited = 2000,
+  maxVisited = 5000,
   limit = 90,
   workspaceHints: suppliedWorkspaceHints,
   disableWorkspaceHints = false,
 } = {}) {
   const root = await fs.realpath(workspacePath)
   const workspaceHints = suppliedWorkspaceHints ?? await loadWorkspacePlannerHints(root, { disabled: disableWorkspaceHints })
-  const visitLimit = Math.max(100, Math.min(5000, Number(maxVisited) || 1200))
+  const visitLimit = Math.max(100, Math.min(5000, Number(maxVisited) || 5000))
   const outputLimit = Math.max(10, Math.min(160, Number(limit) || 90))
   const queue = [{ absolute: root, relative: '', depth: 0 }]
   const files = []
@@ -559,7 +561,7 @@ export async function collectPlannerPathHints(workspacePath, query, {
     const rootFileBonus = depth === 1 ? 3 : 0
     const rootManifestBonus = depth === 1 && /^(package\.json|pnpm-lock\.yaml|package-lock\.json|tsconfig\.json|README(?:\.md)?)$/i.test(candidate) ? 12 : 0
     const codePathBonus = /(^|\/)(main|index|app|server|channels|register-ipc)(\.[^.]+)?$/i.test(candidate) ? 5 : 0
-    const sourceExtensionBonus = /\.(c|m)?(js|jsx|ts|tsx|mjs|cjs|json|py|go|rs)$/i.test(candidate) ? 1 : 0
+    const sourceExtensionBonus = /\.(c|m)?(js|jsx|ts|tsx|mjs|cjs|json|py|go|rs|swift)$/i.test(candidate) ? 1 : 0
     return scoreTextRelevance(query, '', { pathText: candidate })
       + rootFileBonus
       + rootManifestBonus

@@ -315,6 +315,80 @@ try {
   await fs.rm(limitedReasoningHome, { recursive: true, force: true })
 }
 
+const admissionHome = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-queue-admission-race-'))
+const admissionRuntime = createMockRuntime()
+const admissionOutputs = []
+const admissionWebContents = { send(_channel, event) { admissionOutputs.push(event) }, isDestroyed() { return false } }
+let modelConfigCalls = 0
+let releaseModelConfig
+let signalModelConfigStarted
+const modelConfigStarted = new Promise((resolve) => { signalModelConfigStarted = resolve })
+const modelConfigGate = new Promise((resolve) => { releaseModelConfig = resolve })
+let uiPolicyReads = 0
+let signalBothUiPolicyReads
+const bothUiPolicyReads = new Promise((resolve) => { signalBothUiPolicyReads = resolve })
+const admissionService = createDshChatService({
+  hostManager: admissionRuntime.hostManager,
+  userDataPath: admissionHome,
+  getWorkspacePath: () => admissionHome,
+  profileStore,
+  getUiVerifyPolicy() {
+    uiPolicyReads += 1
+    if (uiPolicyReads === 2) signalBothUiPolicyReads()
+    return null
+  },
+  modelService: {
+    ...modelService,
+    async getDshModelConfig(modelKey) {
+      modelConfigCalls += 1
+      if (modelConfigCalls === 1) signalModelConfigStarted()
+      await modelConfigGate
+      return modelService.getDshModelConfig(modelKey)
+    },
+  },
+})
+try {
+  const firstAdmission = admissionService.send({
+    text: 'first turn owns the lifecycle',
+    modelKey: 'test/model-a',
+    conversationId: 'queue-admission-race',
+    webContents: admissionWebContents,
+  })
+  await modelConfigStarted
+  const secondAdmission = admissionService.send({
+    text: 'second message should enter the queue',
+    modelKey: 'test/model-a',
+    conversationId: 'queue-admission-race',
+    behavior: 'followUp',
+    webContents: admissionWebContents,
+  })
+  await bothUiPolicyReads
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.equal(modelConfigCalls, 1, 'a follow-up must wait for first-turn admission instead of configuring the same idle session')
+  releaseModelConfig()
+  const queuedAdmission = await secondAdmission
+  assert.deepEqual(queuedAdmission, { accepted: true, queued: true })
+  await waitFor(() => admissionRuntime.prompts.length === 2, { label: '并发提交的第二条消息已进入 DSH 队列' })
+  const firstPrompt = admissionRuntime.prompts.find((input) => input.content?.[0]?.text === 'first turn owns the lifecycle')
+  const secondPrompt = admissionRuntime.prompts.find((input) => input.content?.[0]?.text === 'second message should enter the queue')
+  assert.ok(firstPrompt && secondPrompt, 'both messages should be admitted exactly once')
+  assert.equal(admissionOutputs.filter((event) => event.type === 'start' && event.conversationId === 'queue-admission-race').length, 1,
+    'only the first prompt should create a turn lifecycle before queued work starts')
+  const admissionSessionId = 'tw-queue-admission-race'
+  pushAssistantText(admissionRuntime, admissionSessionId, 'first reply')
+  admissionRuntime.push({ payload: { type: 'session/event', sessionId: admissionSessionId, event: { type: 'turn/end', data: { reason: { kind: 'completed' } } } } })
+  admissionRuntime.push({ payload: { type: 'session/event', sessionId: admissionSessionId, event: { type: 'turn/start', time: Date.now(), data: { turn: 2 } } } })
+  pushAssistantText(admissionRuntime, admissionSessionId, 'queued reply')
+  admissionRuntime.push({ payload: { type: 'session/event', sessionId: admissionSessionId, event: { type: 'turn/end', data: { reason: { kind: 'completed' } } } } })
+  const firstResult = await firstAdmission
+  assert.equal(firstResult.text, 'first reply')
+  await waitFor(() => !admissionService.isBusy('queue-admission-race'), { label: '准入竞态回归轮次已清理' })
+} finally {
+  releaseModelConfig()
+  await admissionService.stop()
+  await fs.rm(admissionHome, { recursive: true, force: true })
+}
+
 const home = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-dsh-chat-'))
 const runtime = createMockRuntime()
 const outputs = []

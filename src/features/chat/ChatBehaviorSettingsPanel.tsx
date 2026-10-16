@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Check, CornerDownLeft, ListPlus, MessageSquare } from 'lucide-react'
 import type { BusyEnterMode } from '../../shared/app-api'
+import { SettingsLayout } from '../settings/SettingsLayout'
 
 function getBridge() {
   return window.taskweaver
@@ -54,7 +55,7 @@ export function ChatBehaviorSettingsPanel({ onToast }: { onToast?: (msg: string)
       return
     }
     setBusyEnter(res.data)
-    onToast?.(mode === 'followUp' ? '已设为：忙时 Enter 加入排队追问（Z 默认）' : '已设为：忙时 Enter 发送纠偏')
+    onToast?.(mode === 'followUp' ? '已设为：忙时 Enter 加入排队追问' : '已设为：忙时 Enter 发送纠偏')
   }, [onToast])
 
   const saveSelfHealingLoop = useCallback(async () => {
@@ -108,7 +109,7 @@ export function ChatBehaviorSettingsPanel({ onToast }: { onToast?: (msg: string)
       }
       const applied = Number(res.data.compactionThresholdRatio)
       setCompactionThresholdRatio(Number.isFinite(applied) ? applied : 0.8)
-      onToast?.(`DSH 自动压缩阈值已应用：${Math.round((Number.isFinite(applied) ? applied : 0.8) * 100)}%`)
+      onToast?.(`自动压缩阈值已应用：${Math.round((Number.isFinite(applied) ? applied : 0.8) * 100)}%`)
     } finally {
       setSavingCompactionThreshold(false)
     }
@@ -128,11 +129,11 @@ export function ChatBehaviorSettingsPanel({ onToast }: { onToast?: (msg: string)
   }, [onToast])
 
   return (
-    <div className="settings-panel chat-behavior-settings">
-      <header className="chat-behavior-header">
-        <h2>对话行为</h2>
-        <p>配置 Agent 回复期间按 Enter 时的消息行为；工具预设由系统按任务自动选择。</p>
-      </header>
+    <SettingsLayout
+      title="对话行为"
+      description="配置回复期间按 Enter 时的消息行为；工具能力会根据任务自动启用。"
+      className="settings-panel chat-behavior-settings"
+    >
       <section className="chat-enter-section">
         <div className="chat-enter-section-heading">
           <MessageSquare size={16} aria-hidden />
@@ -216,19 +217,18 @@ export function ChatBehaviorSettingsPanel({ onToast }: { onToast?: (msg: string)
           type="button"
           role="switch"
           aria-checked={inlineSmallFileReferences}
-          className={`chat-self-healing-toggle ${inlineSmallFileReferences ? 'is-active' : ''}`}
+          className={`chat-self-healing-toggle ${inlineSmallFileReferences ? 'is-active' : ''} chat-inline-reference-toggle`}
           disabled={preferencesLoading}
           onClick={() => void saveInlineSmallFileReferences()}
-          style={{ marginTop: 8 }}
         >
           <span>{inlineSmallFileReferences ? '小文件内联：开' : '小文件内联：关'}</span>
           <span className="chat-self-healing-toggle-state">{preferencesLoading ? '读取中…' : '切换设置'}</span>
         </button>
-        <p style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--text-muted, #888)' }}>
+        <p className="chat-small-file-hint">
           默认只发送工作区相对路径；开启后仅内联小于 4 KiB 的 UTF-8 文本，并附文件修改时间。
         </p>
-        <label style={{ display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'center', gap: 10, marginTop: 12, fontSize: 12 }}>
-          <span>DSH 自动压缩阈值：{Math.round(compactionThresholdRatio * 100)}%</span>
+        <label className="chat-compaction-setting">
+          <span>自动压缩阈值：{Math.round(compactionThresholdRatio * 100)}%</span>
           <input
             type="range"
             min={0.6}
@@ -237,22 +237,21 @@ export function ChatBehaviorSettingsPanel({ onToast }: { onToast?: (msg: string)
             value={compactionThresholdRatio}
             disabled={preferencesLoading || savingCompactionThreshold}
             onChange={(event) => setCompactionThresholdRatio(Number(event.target.value))}
-            aria-label="DSH 自动压缩阈值"
+            aria-label="自动压缩阈值"
           />
-          <span style={{ gridColumn: '1 / -1', color: 'var(--text-muted, #888)' }}>
-            按当前模型上下文窗口的比例触发；保存后会重启 Host。范围 60%–90%。
+          <span className="chat-compaction-help">
+            按当前模型上下文窗口的比例触发；保存后需要重启本机运行时。范围 60%–90%。
           </span>
         </label>
         <button
           type="button"
-          className="chat-self-healing-toggle"
+          className="chat-self-healing-toggle chat-compaction-save"
           disabled={preferencesLoading || savingCompactionThreshold}
           onClick={() => void saveCompactionThreshold()}
-          style={{ marginTop: 8 }}
         >
           <span>{savingCompactionThreshold ? '正在应用…' : '保存并应用压缩阈值'}</span>
         </button>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 12, fontSize: 12 }}>
+        <label className="chat-retry-setting">
           <span>自愈最多重试（1–3）</span>
           <input
             type="number"
@@ -266,10 +265,10 @@ export function ChatBehaviorSettingsPanel({ onToast }: { onToast?: (msg: string)
               if (Number.isFinite(parsed)) setSelfHealingMaxRetries(parsed)
             }}
             onBlur={() => { void saveSelfHealingMaxRetries(selfHealingMaxRetries) }}
-            style={{ width: 56, padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border-color)' }}
+            className="chat-retry-input"
           />
         </label>
       </section>
-    </div>
+    </SettingsLayout>
   )
 }

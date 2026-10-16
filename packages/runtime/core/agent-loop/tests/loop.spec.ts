@@ -50,6 +50,20 @@ function userTexts(agent: Agent): string[] {
 }
 
 describe('agent loop', () => {
+  it('reports an incompatible session store before reading its prepare method', async () => {
+    const ctx = await harness(new MockAdapter([]))
+    Object.defineProperty(ctx, 'sessions', { value: undefined, configurable: true })
+
+    expect(() => ctx.agentLoop.create(
+      SessionId('missing-session-store'),
+      { provider: 'mock', model: 'mock' },
+    )).toThrow(/compatible SessionStore/)
+    await expect(ctx.agentLoop.createAgent(ctx, {
+      sessionId: SessionId('missing-session-store-owned'),
+    })).rejects.toThrow(/compatible SessionStore/)
+    expect(ctx.agents.list()).toEqual([])
+  })
+
   it.each([0, -1, 1.5, Number.NaN, Number.MAX_SAFE_INTEGER + 1])(
     'rejects invalid AgentOptions.maxTokens %s before publication',
     async (maxTokens) => {

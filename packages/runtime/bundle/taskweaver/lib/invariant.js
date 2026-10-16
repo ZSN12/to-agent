@@ -1,18 +1,16 @@
 //#region lib/types/invariant.js
 /**
-* Package-owned invariant companion for `@taskweaver/dsh-web-app`.
-* @module @taskweaver/dsh-web-app/invariant
+* Package-owned invariant companion for `@taskweaver/dsh-taskweaver`.
+* @module @taskweaver/dsh-taskweaver/invariant
 */
-const PACKAGE_NAME = "@taskweaver/dsh-web-app";
+const PACKAGE_NAME = "@taskweaver/dsh-taskweaver";
 /** Cordis companion plugin name. */
-const name = "web-app-invariant";
+const name = "taskweaver-api-host-invariant";
 /** Service required before the companion can register. */
 const inject = ["invariants"];
 /**
-* No runtime invariant: every contribution (frontend-static child plugin,
-* prompt section, bashEnv registration) is registry-disposed with the fiber,
-* and each owning registry's package carries that relation's invariant; the
-* package holds no mutable state of its own to audit.
+* No runtime invariant: the package owns no mutable state. The WebServer and
+* `/api` route lifecycle invariants belong to their respective packages.
 */
 const install = () => {};
 /**

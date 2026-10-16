@@ -831,7 +831,7 @@ try {
       return { text: `${opts.taskId} verified\n<taskweaver-acceptance-v1>${JSON.stringify({ results: [{ criterion, passed: true, evidence: 'Host read event' }] })}</taskweaver-acceptance-v1>`, usage }
     },
   }
-  const deeperFixtureDirectory = path.join(repo, 'level1', 'level2', 'level3', 'level4', 'level5')
+  const deeperFixtureDirectory = path.join(repo, 'level1', 'level2', 'level3', 'level4', 'level5', 'level6', 'level7')
   await fs.mkdir(deeperFixtureDirectory, { recursive: true })
   await fs.writeFile(path.join(deeperFixtureDirectory, 'deep.mjs'), 'export const deep = true\n')
   const correctionService = createOrchestrationService({
@@ -864,7 +864,7 @@ try {
     assert.deepEqual(turn.documents, [{ name: 'spec.txt', data: 'mock document text' }],
       'every planner retry must retain the original document context')
   }
-  assert.match(correctedPlannerTurns[0].text, /路径索引受 4 层目录深度限制，仍有更深目录未扫描/,
+  assert.match(correctedPlannerTurns[0].text, /路径索引受 6 层目录深度限制，仍有更深目录未扫描/,
     'a truncated path index gives the planner the concrete depth-limit warning')
   assert.match(correctedPlannerTurns[1].text, /并行研究任务数量不匹配/)
   assert.match(correctedPlannerTurns[1].text, /交叉汇总/, 'retry prompt must include the rejected prior plan as correction context')

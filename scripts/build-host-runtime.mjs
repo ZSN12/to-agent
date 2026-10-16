@@ -273,6 +273,7 @@ async function syncHostPackageRuntimeLibs(monorepoRoot) {
     { label: '@taskweaver/dsh-tool-web', libDir: path.join(monorepoRoot, 'web/tool-web/lib') },
     { label: '@taskweaver/dsh-orchestration', libDir: path.join(monorepoRoot, 'interaction/orchestration/lib'), alwaysSyncIndex: true },
     { label: '@taskweaver/dsh-tool-orchestrate', libDir: path.join(monorepoRoot, 'interaction/tool-orchestrate/lib'), alwaysSyncIndex: true },
+    { label: '@taskweaver/ui-verify', libDir: path.join(monorepoRoot, 'interaction/ui-verify/lib') },
     { label: '@taskweaver/tool-ui-verify', libDir: path.join(monorepoRoot, 'interaction/tool-ui-verify/lib') },
     { label: '@taskweaver/dsh-tool-fs-semantic-search', libDir: path.join(monorepoRoot, 'fs/tool-fs-semantic-search/lib') },
   ]
@@ -331,8 +332,10 @@ async function assertTaskWeaverProfileBootBundled(monorepoRoot) {
     const size = text.length
     if (size > worst.size) worst = { name, size, text }
   }
-  if (worst.text.includes('cordis-plugin-hmr') && /mount.*hmr|plugin-hmr/i.test(worst.text)) {
-    throw new Error(`${worst.name} 仍在启动后挂载 cordis-plugin-hmr；请先 pnpm run build:lib:host 或从 vendor 同步无 HMR 的 profile-boot`)
+  const hmrMounts = worst.text.includes('cordis-plugin-hmr') && /ctx\.plugin\(Hmr\b/.test(worst.text)
+  const hmrMountIsEmbeddedGuarded = /if\s*\(\s*!taskweaverEmbedded\(\)\s*&&[\s\S]{0,2000}?ctx\.plugin\(Hmr\b/.test(worst.text)
+  if (hmrMounts && !hmrMountIsEmbeddedGuarded) {
+    throw new Error(`${worst.name} 在没有 TASKWEAVER_EMBEDDED 守卫时挂载 cordis-plugin-hmr`)
   }
 }
 

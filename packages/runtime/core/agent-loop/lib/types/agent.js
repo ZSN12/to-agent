@@ -231,7 +231,10 @@ export class ReactLoopAgent {
                 }
                 const userInputs = decision.messages.filter(message => message.source.kind === 'user');
                 if (phase.step === 0 || userInputs.length > 0) {
-                    phase.outputSchema = userInputs.find(message => message.source.outputSchema !== undefined)?.source.outputSchema;
+                    const schemaSource = userInputs
+                        .map(message => message.source)
+                        .find((source) => source.kind === 'user' && 'outputSchema' in source);
+                    phase.outputSchema = schemaSource?.outputSchema;
                 }
                 if (turnEnds && decision.messages.length === 0)
                     break;

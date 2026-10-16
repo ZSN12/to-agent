@@ -29,6 +29,8 @@ Examples:
   taskweaver-host plugin --profile taskweaver add <package>
                                             install a plugin into the profile
   dsh --profile taskweaver                   legacy alias for taskweaver-host
+  dsh plugin --profile taskweaver add <package>
+                                            manage plugins through the legacy alias
 `;
 /**
  * Resolve a boot or dump invocation from the launcher flags and the leftover

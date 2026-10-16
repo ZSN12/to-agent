@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { spawn, type ChildProcess } from 'node:child_process'
 import net from 'node:net'
-import { mkdir, readFile, realpath } from 'node:fs/promises'
+import { appendFile, mkdir, readFile, realpath, rm } from 'node:fs/promises'
 import path from 'node:path'
 import { chromium } from 'playwright-core'
 import type { AriaRole, Browser, BrowserContext, Locator, Page } from 'playwright-core'
@@ -18,6 +18,8 @@ export interface UiVerifyLaunchOptions {
   root: string
   /** Host-chosen directory for screenshots, trace, and isolated user data. */
   artifactsDir: string
+  /** Explicit deterministic fixture requested by the trusted scenario driver. */
+  scenario?: string
   actionTimeoutMs?: number
   sessionTimeoutMs?: number
   launchTimeoutMs?: number
@@ -134,6 +136,7 @@ export class UiVerifySession {
   readonly artifactsDir: string
   readonly userDataPath: string
   readonly startupTracePath: string
+  readonly approvalFixtureTarget: string
   readonly actionTimeoutMs: number
   readonly sessionTimeoutMs: number
   private readonly startedAt = Date.now()
@@ -143,6 +146,7 @@ export class UiVerifySession {
   private page: Page | null = null
   private readonly errors: string[] = []
   private readonly processLogs: string[] = []
+  private readonly startupId = randomUUID()
   private screenshotCounter = 0
   private closed = false
   private sessionTimeout: ReturnType<typeof setTimeout> | undefined
@@ -153,6 +157,7 @@ export class UiVerifySession {
     this.artifactsDir = path.resolve(options.artifactsDir, `${Date.now()}-${randomUUID()}`)
     this.userDataPath = path.join(this.artifactsDir, 'user-data')
     this.startupTracePath = path.join(this.artifactsDir, 'startup-trace.jsonl')
+    this.approvalFixtureTarget = path.join(path.dirname(root), `.taskweaver-ui-verify-approval-${randomUUID()}.txt`)
     this.actionTimeoutMs = Math.max(1, Math.min(options.actionTimeoutMs ?? ACTION_TIMEOUT_MS, ACTION_TIMEOUT_MS))
     this.sessionTimeoutMs = Math.max(1, Math.min(options.sessionTimeoutMs ?? SESSION_TIMEOUT_MS, SESSION_TIMEOUT_MS))
   }
@@ -172,6 +177,12 @@ export class UiVerifySession {
       path.join(root, 'packages/runtime'),
       session.startupTracePath,
     )
+    if (options.scenario) shellEnv.TASKWEAVER_UI_VERIFY_SCENARIO = options.scenario
+    if (options.scenario === 'approval') {
+      shellEnv.TASKWEAVER_UI_VERIFY_APPROVAL_TARGET = session.approvalFixtureTarget
+    }
+    shellEnv.TASKWEAVER_STARTUP_ID = session.startupId
+    shellEnv.TASKWEAVER_STARTUP_T0_EPOCH_MS = String(session.startedAt)
     shellEnv.TASKWEAVER_SHELL_SERVER = '1'
     shellEnv.TASKWEAVER_SHELL_PORT = String(shellPort)
     shellEnv.TASKWEAVER_SHELL_HOST = '127.0.0.1'
@@ -204,6 +215,16 @@ export class UiVerifySession {
       const shellApi = encodeURIComponent(`http://127.0.0.1:${shellPort}`)
       await page.goto(`http://127.0.0.1:5173/?shellApi=${shellApi}`, { timeout: launchTimeout, waitUntil: 'domcontentloaded' })
       session.page = page
+      await page.getByTestId('app-sidebar').waitFor({ state: 'visible', timeout: launchTimeout })
+      const visibleAtMs = Number((Date.now() - session.startedAt).toFixed(3))
+      await appendFile(session.startupTracePath, `${JSON.stringify({
+        timestamp: new Date().toISOString(),
+        pid: process.pid,
+        startupId: session.startupId,
+        elapsedMs: visibleAtMs,
+        sinceT0Ms: visibleAtMs,
+        event: 'ui:page-visible',
+      })}\n`, { encoding: 'utf8', mode: 0o600 })
       const remaining = session.sessionTimeoutMs - (Date.now() - session.startedAt)
       if (remaining <= 0) throw new Error(`UI verification session exceeded its ${session.sessionTimeoutMs}ms limit during launch`)
       session.sessionTimeout = setTimeout(() => {
@@ -407,6 +428,9 @@ export class UiVerifySession {
       await Promise.race([exited, new Promise<void>((resolve) => setTimeout(resolve, 2_000))])
       if (shellProcess.exitCode === null && shellProcess.signalCode === null) shellProcess.kill('SIGKILL')
     }
+    await rm(this.approvalFixtureTarget, { force: true }).catch((error) => {
+      this.errors.push(`approval fixture cleanup: ${error instanceof Error ? error.message : String(error)}`)
+    })
   }
 }
 

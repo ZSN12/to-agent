@@ -22,6 +22,18 @@ export function openCodexEnvironment(extraEnv = {}) {
 }
 
 /**
+ * The packaged CLI is a Node entrypoint. Invoke `.mjs` files through the
+ * current Host Node instead of relying on `/usr/bin/env node` and whatever
+ * PATH happened to be inherited when the desktop app was opened.
+ */
+export function ocxInvocation(executable, args = []) {
+  if (path.extname(executable).toLowerCase() === '.mjs') {
+    return { executable: process.execPath, args: [executable, ...args] }
+  }
+  return { executable, args }
+}
+
+/**
  * @param {string[]} args
  * @param {{ timeoutMs?: number, env?: NodeJS.ProcessEnv }} [options]
  */
@@ -29,7 +41,8 @@ export function runOcx(args, options = {}) {
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
   return new Promise((resolve, reject) => {
     const ocx = resolveOcxExecutable()
-    const child = spawn(ocx, args, {
+    const invocation = ocxInvocation(ocx, args)
+    const child = spawn(invocation.executable, invocation.args, {
       env: openCodexEnvironment(options.env),
       stdio: ['ignore', 'pipe', 'pipe'],
     })
@@ -105,6 +118,16 @@ function loginLaunchError(error) {
   return new Error('无法启动本地登录流程，请重试或重装应用。')
 }
 
+function safeLoginDiagnostic(stderr) {
+  const value = String(stderr ?? '')
+    .replace(/\u001b\[[0-?]*[ -/]*[@-~]/g, '')
+    .replace(/https?:\/\/[^\s"'<>]+/gi, '[登录链接已隐藏]')
+    .replace(/\b(Bearer\s+)[A-Za-z0-9._~+/-]+=*/gi, '$1[凭据已隐藏]')
+    .replace(/\b(?:(?:access|refresh|id|oauth|api)[_-]?token|client[_-]?secret)\b\s*[:=]\s*(?:"[^"]*"|'[^']*'|[^\s,;]+)/gi, '[凭据字段已隐藏]')
+    .replace(/([?&](?:code|state|challenge|verifier|token)=)[^&\s]+/gi, '$1[已隐藏]')
+  return value.split(/\r?\n/).map(line => line.trim()).filter(Boolean).slice(-4).join(' ').slice(0, 320)
+}
+
 function validateLoginUrl(provider, rawUrl) {
   let url
   try {
@@ -146,7 +169,8 @@ export async function startOcxProviderLogin(provider = 'cursor', options = {}) {
   const stdio = typeof openExternal === 'function' ? ['ignore', 'pipe', 'pipe'] : 'ignore'
   let child
   try {
-    child = spawnImpl(executable, ['login', provider], { detached: true, stdio, env })
+    const invocation = ocxInvocation(executable, ['login', provider])
+    child = spawnImpl(invocation.executable, invocation.args, { detached: true, stdio, env })
   } catch (error) {
     throw loginLaunchError(error)
   }
@@ -168,6 +192,7 @@ export async function startOcxProviderLogin(provider = 'cursor', options = {}) {
     let settled = false
     let urlOpening = false
     let output = ''
+    let diagnostics = ''
     let timer
     const finish = (error, value) => {
       if (settled) return
@@ -218,9 +243,10 @@ export async function startOcxProviderLogin(provider = 'cursor', options = {}) {
     timer.unref?.()
     child.stdout?.setEncoding?.('utf8')
     child.stdout?.on('data', openUrlFromOutput)
-    // Drain diagnostics without storing or exposing process output, which may
-    // contain provider-specific details that do not belong in the UI.
-    child.stderr?.resume?.()
+    child.stderr?.setEncoding?.('utf8')
+    child.stderr?.on('data', (chunk) => {
+      diagnostics = `${diagnostics}${String(chunk)}`.slice(-4096)
+    })
     child.on('error', (error) => {
       if (settled) {
         console.error('[model-sync] 本地登录进程启动后异常退出:', error?.code ?? 'unknown')
@@ -230,7 +256,11 @@ export async function startOcxProviderLogin(provider = 'cursor', options = {}) {
       stopChild()
     })
     child.once('close', (code) => {
-      if (!settled) finish(new Error(`本地登录流程未能打开授权页（退出码 ${code ?? '未知'}）。`))
+      if (settled) return
+      const detail = safeLoginDiagnostic(diagnostics) || safeLoginDiagnostic(output)
+      const status = code === null || code === undefined ? '未知' : String(code)
+      const suffix = detail ? `：${detail}` : '。请检查应用自带的登录组件后重试。'
+      finish(new Error(`本地登录流程未能打开授权页（退出码 ${status}）${suffix}`))
     })
   })
 

@@ -35,6 +35,7 @@ node scripts/taskweaver-headless.mjs --text "<用户提示>" [选项…]
 | `--text <prompt>` | 是* | 本轮用户消息（*`--help` 时不需要）。 |
 | `--help` | 否 | 打印用法到 stderr，退出 `0`。 |
 | `--json-summary` | 否 | 运行结束后在 **stdout 额外** 打印一行 JSON 摘要（见下文）；不影响 smoke 原有 JSON 行。 |
+| `--task-timeout <ms>` | 否 | Agent 本轮任务的总期限，默认 900000ms，范围 1000–3600000ms；到期先取消任务并清理 Host。外层 wrapper 另有独立 watchdog，清理超时后会强制结束 child。 |
 
 ### 透传给 `run-agent-read-smoke.mjs` 的选项
 
@@ -119,6 +120,8 @@ node scripts/taskweaver-headless.mjs --help
 |----|------|
 | `0` | 本轮 Agent 正常结束（`chat.send` 成功且 smoke 未设 `exitCode`）。 |
 | `1` | 缺少 `--text`（headless 用法错误）；或 smoke 异常（`failure.json` 已写）；或子进程非零退出。 |
+| `124` | 总任务时限到期；wrapper 向 smoke 转发 SIGTERM，宽限期后仍未关闭则发送 SIGKILL。 |
+| `130` / `143` | 用户发送 SIGINT / SIGTERM；wrapper 将信号转发给 smoke，并等待其清理。 |
 | 其他 | 来自 Node/子进程信号等，按 shell 惯例传递。 |
 
 `run-scheduled-job-cli` 在 headless 非零退出时会 `markRun` 错误并退出 `1`；任务被禁用时 CLI 退出 `0` 且不调用 headless。

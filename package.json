@@ -124,7 +124,7 @@
     "test:dsh-lifecycle": "node scripts/test-dsh-session-lifecycle.mjs",
     "test:user-intent": "node scripts/test-user-intent.mjs && node scripts/test-taskweaver-pi-lite-preset.mjs",
     "test:scheduled-jobs": "node scripts/test-scheduled-jobs-store.mjs",
-    "test:headless-doc": "node scripts/test-headless-cli.mjs",
+    "test:headless-doc": "node scripts/test-headless-cli.mjs && node scripts/test-headless-runner.mjs",
     "test:ui": "node scripts/test-ui-verify-fixture.mjs && node scripts/ui-verify.mjs all",
     "test:hooks": "node scripts/test-taskweaver-hooks.mjs",
     "test:security-hardening": "node scripts/check-desktop-hardening.mjs && pnpm run test:hooks",

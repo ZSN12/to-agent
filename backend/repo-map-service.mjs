@@ -51,7 +51,7 @@ export const TEXT_EXTENSIONS = new Set([
  */
 const fileOutlineCache = new Map()
 const FILE_OUTLINE_CACHE_MAX = 4096
-const REPO_MAP_OUTLINE_CACHE_SCHEMA = 2
+const REPO_MAP_OUTLINE_CACHE_SCHEMA = 3
 const REPO_MAP_OUTLINE_CACHE_MAX_BYTES = 16 * 1024 * 1024
 const persistentRepoMapCaches = new Map()
 const PERSISTENT_REPO_MAP_CACHE_MAX_WORKSPACES = 4
@@ -213,13 +213,23 @@ function tokenizeBm25(value) {
 function scoreRepoMapBm25(queryTerms, fileNodes) {
   const scores = new Map(fileNodes.map((node) => [node.relativePath, 0]))
   if (!queryTerms.length || !fileNodes.length) return scores
+  const queryTermSet = new Set(queryTerms)
 
   const documents = fileNodes.map((node) => {
     const text = `${node.relativePath} ${flattenSymbolOutline(node.symbols).join(' ')}`
     const tokens = tokenizeBm25(text)
     const termFrequencies = new Map()
     for (const token of tokens) termFrequencies.set(token, (termFrequencies.get(token) ?? 0) + 1)
-    return { relativePath: node.relativePath, length: tokens.length, termFrequencies }
+    // Unsupported source languages still participate in query discovery via
+    // a bounded lexical index. Keep one hit per identifier so large files do
+    // not dominate the outline ranking simply by repeating a local name.
+    if (node.outlineSupported === false) {
+      for (const identifier of node.refs ?? []) {
+        const token = identifier.toLocaleLowerCase()
+        if (queryTermSet.has(token) && !termFrequencies.has(token)) termFrequencies.set(token, 1)
+      }
+    }
+    return { relativePath: node.relativePath, length: tokens.length + (node.outlineSupported === false ? (node.refs?.size ?? 0) : 0), termFrequencies }
   })
   const documentFrequency = new Map()
   for (const term of queryTerms) {
@@ -360,19 +370,35 @@ export function fallbackExtractSymbols(filePath, content) {
  * 尝试动态获取符号提取器
  */
 async function resolveSymbolExtractor() {
-  if (injectedSymbolExtractor) return injectedSymbolExtractor
+  if (injectedSymbolExtractor) return {
+    extract: injectedSymbolExtractor,
+    supports: () => true,
+  }
   try {
     const mod = await import('./symbol-outline-extractor.mjs')
     if (typeof mod.extractFileSymbols === 'function') {
-      return mod.extractFileSymbols
+      return {
+        extract: mod.extractFileSymbols,
+        supports: typeof mod.supportsFileSymbolOutline === 'function'
+          ? mod.supportsFileSymbolOutline
+          : () => true,
+      }
     }
     if (typeof mod.default?.extractFileSymbols === 'function') {
-      return mod.default.extractFileSymbols
+      return {
+        extract: mod.default.extractFileSymbols,
+        supports: typeof mod.default?.supportsFileSymbolOutline === 'function'
+          ? mod.default.supportsFileSymbolOutline
+          : () => true,
+      }
     }
   } catch {
     // 忽略未找到模块的异常，退化为内置提取器
   }
-  return fallbackExtractSymbols
+  return {
+    extract: fallbackExtractSymbols,
+    supports: () => false,
+  }
 }
 
 /**
@@ -426,7 +452,7 @@ export function extractDefinedNames(symbols) {
 /**
  * 按广度优先顺序收集工作区中的关键源码文件，并报告库存是否被文件上限截断。
  */
-export async function scanWorkspaceFilesDetailed(workspacePath, { maxFiles = 1000, maxEntries = 50_000 } = {}) {
+export async function scanWorkspaceFilesDetailed(workspacePath, { maxFiles = 2000, maxEntries = 50_000 } = {}) {
   if (!Number.isSafeInteger(maxFiles) || maxFiles <= 0) {
     throw new Error('Repo Map maxFiles must be a positive safe integer')
   }
@@ -629,7 +655,7 @@ function flattenSymbolOutline(symbols) {
  * @param {object} options 配置选项
  * @param {string} [options.query=''] 检索意图/任务 Query
  * @param {number} [options.maxTokens=2000] 最大允许的 Token 预算
- * @param {number} [options.maxFiles=1000] 索引的最大候选文件数
+ * @param {number} [options.maxFiles=2000] 索引的最大候选文件数
  * @param {number} [options.maxEntries=50000] 遍历的最大目录项数
  * @param {object|null} [options.precomputedSymbols=null] 预计算的符号映射 { [relativePath]: symbols }
  * @returns {Promise<string>} 紧凑的 Repo Map 文本树
@@ -637,7 +663,7 @@ function flattenSymbolOutline(symbols) {
 export async function generateRepoMap(workspacePath, {
   query = '',
   maxTokens = 2000,
-  maxFiles = 1000,
+  maxFiles = 2000,
   maxEntries = 50_000,
   precomputedSymbols = null,
   cacheDirectory = null,
@@ -652,7 +678,7 @@ export async function generateRepoMap(workspacePath, {
   // for the same query cannot hide a caller's precomputed symbol set.
   const cacheable = !precomputedSymbols || typeof precomputedSymbols !== 'object'
   const root = await fs.realpath(workspacePath)
-  const extractor = await resolveSymbolExtractor()
+  const { extract: extractor, supports: supportsSymbols } = await resolveSymbolExtractor()
   const inventory = precomputedSymbols && typeof precomputedSymbols === 'object'
     ? { files: [], truncated: false }
     : await scanWorkspaceFilesDetailed(root, { maxFiles, maxEntries })
@@ -700,6 +726,8 @@ export async function generateRepoMap(workspacePath, {
   } else {
     const presentPaths = new Set(files.map((file) => file.relativePath))
     for (const file of files) {
+      const ext = path.extname(file.relativePath).toLowerCase()
+      const outlineSupported = CODE_EXTENSIONS.has(ext) ? supportsSymbols(file.absolutePath) : null
       const cached = fileOutlineCache.get(file.absolutePath)
       let fileData = cached
       if (!sameFileMetadata(fileData, file)) {
@@ -751,6 +779,7 @@ export async function generateRepoMap(workspacePath, {
         symbols: fileData.symbols,
         defs: fileData.defs,
         refs: fileData.refs,
+          outlineSupported,
       })
     }
 
@@ -790,6 +819,7 @@ export async function generateRepoMap(workspacePath, {
     scoredFiles.push({
       relativePath: node.relativePath,
       symbols: node.symbols,
+      outlineSupported: node.outlineSupported,
       finalScore,
       relevanceScore,
       pr,
@@ -823,7 +853,9 @@ export async function generateRepoMap(workspacePath, {
     // 格式化为单行紧凑形式：path/to/file: sym1 | sym2
     let fileLine = ''
     if (rawOutlines.length === 0) {
-      fileLine = `${file.relativePath}`
+      fileLine = file.outlineSupported === false
+        ? `${file.relativePath}: [符号索引未支持；请用 grep/read 搜索源码]`
+        : `${file.relativePath}`
     } else {
       fileLine = `${file.relativePath}: ${rawOutlines.join(' | ')}`
     }

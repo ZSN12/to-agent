@@ -35,6 +35,7 @@ export function createNodeWorkspaceRegistry({
   userDataPath,
   baseCommit,
   tasks,
+  signal,
   initialWriterBranches = null,
 }) {
   const tasksById = new Map(tasks.map((task) => [task.id, task]))
@@ -56,6 +57,7 @@ export function createNodeWorkspaceRegistry({
         userDataPath,
         baseCommit,
         mergeFrom,
+        signal,
       })
     },
     async commit(task) {
@@ -67,6 +69,7 @@ export function createNodeWorkspaceRegistry({
         taskId: task.id,
         userDataPath,
         summary: `TaskWeaver ${task.taskType} ${task.id}: ${task.title}`,
+        signal,
       })
       writerBranches.set(task.id, result.branchName)
       return result
@@ -80,6 +83,7 @@ export function createNodeWorkspaceRegistry({
         userDataPath,
         baseCommit,
         mergeFrom: orderedIds.map((id) => writerBranches.get(id)).filter(Boolean),
+        signal,
       })
     },
     getWriterBranches() {

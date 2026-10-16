@@ -21,7 +21,7 @@ function boundedProviderRetryPolicy(policy) {
   // failures without an attempt limit. TaskWeaver intentionally keeps every
   // provider route finite, even when an imported models.json requests it.
   const mode = policy.mode === 'always' ? 'normal' : policy.mode
-  const requestedRetries = policy.maxRetries ?? DEFAULT_MAX_PROVIDER_RETRIES
+  const requestedRetries = policy.maxRetries ?? (policy.mode === 'always' ? 1 : DEFAULT_MAX_PROVIDER_RETRIES)
   const maxRetries = Number.isSafeInteger(requestedRetries) && requestedRetries >= 0
     ? Math.min(MAX_PROVIDER_RETRIES, requestedRetries)
     : requestedRetries
@@ -40,7 +40,7 @@ export function taskweaverApiKeyEnvRef(providerId) {
   return `TASKWEAVER_${String(providerId).toUpperCase().replace(/[^A-Z0-9_]/g, '_')}_API_KEY`
 }
 
-function mapModelEntry(entry) {
+function mapModelEntry(entry, { catalogOwnsCompat = false } = {}) {
   if (!entry || typeof entry !== 'object' || !entry.id) return null
   const row = {
     id: String(entry.id),
@@ -71,7 +71,10 @@ function mapModelEntry(entry) {
   } else if (entry.reasoning === false) {
     row.reasoningEfforts = false
   }
-  if (entry.compat && typeof entry.compat === 'object') {
+  // Native OAuth routes inherit protocol behavior from pi-ai's installed
+  // provider catalog. Forwarding catalog-owned switches from models.json can
+  // make the entire route fail validation.
+  if (!catalogOwnsCompat && entry.compat && typeof entry.compat === 'object') {
     row.compat = entry.compat
   }
   return row
@@ -90,8 +93,11 @@ export function piProviderBlockToDshProfile(providerId, block) {
   const displayName = typeof block.name === 'string' && block.name.trim()
     ? block.name.trim()
     : providerId
+  const catalogOwnsCompat = Object.hasOwn(TASKWEAVER_NATIVE_OAUTH, providerId)
   const models = Array.isArray(block.models)
-    ? block.models.filter((m) => m && !m.isTierVariant).map(mapModelEntry).filter(Boolean)
+    ? block.models.filter((m) => m && !m.isTierVariant)
+      .map((entry) => mapModelEntry(entry, { catalogOwnsCompat }))
+      .filter(Boolean)
     : []
   const modelApis = new Set(
     (Array.isArray(block.models) ? block.models : [])
@@ -132,14 +138,14 @@ export function piProviderBlockToDshProfile(providerId, block) {
     streamIdleTimeoutMs: Number.isFinite(block.streamIdleTimeoutMs) && block.streamIdleTimeoutMs > 0
       ? block.streamIdleTimeoutMs
       : 300_000,
-    // Keep billable provider retries bounded. The default is one retry; an
-    // explicit normal policy may request up to three. `always` is normalized
-    // to normal so a provider config cannot create an unbounded retry loop.
+    // Keep billable provider retries bounded. Normal routes default to two
+    // retries; an imported `always` mode is reduced to one unless it sets a
+    // finite limit, and explicit normal policies may request up to three.
     retryPolicy: boundedProviderRetryPolicy(block.retryPolicy),
   }
   if (effectiveApi) profile.api = effectiveApi
   if (baseUrl) profile.baseURL = baseUrl.replace(/\/+$/, '')
-  if (block.compat && typeof block.compat === 'object') {
+  if (!catalogOwnsCompat && block.compat && typeof block.compat === 'object') {
     profile.compat = block.compat
   }
   if (models.length) profile.models = models

@@ -129,6 +129,46 @@ export function createPlanAndExecute({
     const trace = (type, details = {}) => traceStore?.append(conversationId, runId, { type, ...details })
     const plannerSkill = skillAlreadyApplied ? null : skill
     let ledger = null
+    let usage = []
+    const combineRecordedRunUsage = () => {
+      const records = ledger?.getRecords?.()
+      return combineUsage(Array.isArray(records) ? records.map((record) => record.usage) : usage)
+    }
+    const finalizeCancelledRun = async () => {
+      const phase = runState.status
+      const cancelledTasks = (Array.isArray(runState.tasks) ? runState.tasks : []).map((task) => {
+        const terminal = ['done', 'review', 'cancelled', 'failed'].includes(task.status)
+        const status = terminal ? task.status : 'cancelled'
+        return {
+          ...task,
+          status,
+          statusLabel: terminal ? task.statusLabel : '已停止',
+          runStatus: status === 'done' ? 'completed' : ['review', 'failed'].includes(status) ? 'failed' : 'cancelled',
+        }
+      })
+      const failedTaskIds = cancelledTasks.filter((task) => task.status !== 'done').map((task) => task.id)
+      run.schedulerActive = false
+      run.pauseControl.resume()
+      runState.status = 'cancelled'
+      runState.tasks = cancelledTasks
+      run.status = 'cancelled'
+      await runStore?.saveRun(conversationId, runId, runState)
+      if (cancelledTasks.length) await publishTasks(cancelledTasks, webContents, conversationId)
+      await ledger?.flush()
+      await trace('run_cancelled', { phase, failedTaskIds })
+      await traceStore?.flush(conversationId, runId)
+      return {
+        runId,
+        assistant: {
+          text: '多 Agent 任务已停止；已完成的子任务进度保留。',
+          usage: combineRecordedRunUsage(),
+          fileChanges: mergeFileChanges(...cancelledTasks.map((task) => task.messages.map((message) => message.fileChanges))),
+          cancelled: true,
+        },
+        tasks: cancelledTasks,
+        failedTaskIds,
+      }
+    }
     try {
       await runStore?.saveRun(conversationId, runId, runState)
       await trace('run_started')
@@ -365,6 +405,7 @@ export function createPlanAndExecute({
             await runStore?.saveRun(conversationId, runId, runState)
             await trace('planning_attempt', { attempt, accepted: false, rejectionReason: reason })
             ledger.record({ runId, taskId: 'planner', attempt, modelKey: primaryModelKey, usage: attemptUsage, outcome: 'failed' })
+            if (abortController.signal.aborted) throw error
             if (attempt === 3) {
               throw new PlannerFallbackError(reason, { partialUsage: attemptUsage })
             }
@@ -382,7 +423,7 @@ export function createPlanAndExecute({
       })
       plannerSessionId = dshRuntime.getSessionId?.(plannerSessionKey) || undefined
       }
-      const usage = planResult?.usage ? [planResult.usage] : []
+      usage = planResult?.usage ? [planResult.usage] : []
       const routingOptions = await buildRoutingOptions({ userDataPath, openUsageBaseUrl: prefs.openUsageBaseUrl })
       const providerByModelKey = new Map(catalog.models.map((model) => [
         model.key,
@@ -610,6 +651,7 @@ export function createPlanAndExecute({
         userDataPath,
         baseCommit: runBaseCommit,
         tasks,
+        signal: abortController.signal,
         initialWriterBranches,
       })
       runState.baseCommit = runBaseCommit
@@ -1175,7 +1217,11 @@ export function createPlanAndExecute({
                 const verifyRes = await executeVerificationRunner(execCwd, {
                   commandOverride: verificationPolicy.primaryCommand,
                   timeoutMs: 5 * 60 * 1000,
+                  signal: abortController.signal,
                 })
+                if (verifyRes.cancelled || abortController.signal.aborted) {
+                  throw abortController.signal.reason ?? new Error('任务已取消')
+                }
                 result.verification = {
                   status: verifyRes.status,
                   executed: verifyRes.executed,
@@ -1190,6 +1236,7 @@ export function createPlanAndExecute({
                   result.text += `\n\n> [!WARNING]\n> **验收验证未通过**（\`${verifyRes.command}\`，退出码 ${verifyRes.exitCode}）：\n\`\`\`\n${(verifyRes.errorSummary || verifyRes.stderr || verifyRes.stdout).slice(0, 1000)}\n\`\`\``
                 }
               } catch (error) {
+                if (abortController.signal.aborted) throw error
                 result.verification = {
                   status: 'failed',
                   executed: false,
@@ -1213,7 +1260,13 @@ export function createPlanAndExecute({
             execCwd,
           })) {
             try {
-              const verifyRes = await executeVerificationRunner(execCwd, { timeoutMs: 25_000 })
+              const verifyRes = await executeVerificationRunner(execCwd, {
+                timeoutMs: 25_000,
+                signal: abortController.signal,
+              })
+              if (verifyRes.cancelled || abortController.signal.aborted) {
+                throw abortController.signal.reason ?? new Error('任务已取消')
+              }
               result.verification = {
                 status: verifyRes.status,
                 executed: verifyRes.executed,
@@ -1228,6 +1281,7 @@ export function createPlanAndExecute({
                 }
               }
             } catch (err) {
+              if (abortController.signal.aborted) throw err
               // ignore verification error
             }
           }
@@ -1320,12 +1374,14 @@ export function createPlanAndExecute({
               baseCommit: runBaseCommit,
               mergedBranches: integration.mergedBranches ?? [],
             }
+            if (abortController.signal.aborted) throw abortController.signal.reason ?? new Error('任务已取消')
             const verificationPolicy = detectVerificationCommands(integration.path)
             if (verificationPolicy.primaryCommand) {
               if (runState.workspaceTrusted && permissionMode !== 'readonly') {
                 const verifyRes = await executeVerificationRunner(integration.path, {
                   commandOverride: verificationPolicy.primaryCommand,
                   timeoutMs: 5 * 60 * 1000,
+                  signal: abortController.signal,
                 })
                 runState.integration.verification = {
                   status: verifyRes.status,
@@ -1336,6 +1392,9 @@ export function createPlanAndExecute({
                   durationMs: verifyRes.durationMs,
                   timedOut: verifyRes.timedOut,
                   errorSummary: verifyRes.errorSummary,
+                }
+                if (verifyRes.cancelled || abortController.signal.aborted) {
+                  throw abortController.signal.reason ?? new Error('任务已取消')
                 }
               } else {
                 runState.integration.verification = {
@@ -1379,22 +1438,31 @@ export function createPlanAndExecute({
             })
           }
         } catch (error) {
-          integrationError = error instanceof Error ? error.message : String(error)
-          runState.integration = {
-            status: error?.code === 'WORKTREE_MERGE_CONFLICT' ? 'conflict' : 'failed',
-            taskId: 'integration',
-            runId,
-            error: integrationError,
-            branches: error?.branches ?? [],
+          if (abortController.signal.aborted) {
+            runState.integration = runState.integration
+              ? { ...runState.integration, status: 'cancelled', error: '集成阶段已取消。' }
+              : { status: 'cancelled', taskId: 'integration', runId, error: '集成阶段已取消。' }
+            await trace('integration_cancelled', { branchName: runState.integration.branchName ?? null })
+          } else {
+            integrationError = error instanceof Error ? error.message : String(error)
+            runState.integration = {
+              status: error?.code === 'WORKTREE_MERGE_CONFLICT' ? 'conflict' : 'failed',
+              taskId: 'integration',
+              runId,
+              error: integrationError,
+              branches: error?.branches ?? [],
+            }
+            await trace('integration_failed', {
+              status: runState.integration.status,
+              error: integrationError,
+              branches: runState.integration.branches,
+            })
           }
-          await trace('integration_failed', {
-            status: runState.integration.status,
-            error: integrationError,
-            branches: runState.integration.branches,
-          })
           sendChatStreamIfAvailable(webContents, {
             type: 'progress',
-            text: `集成分支创建失败：${integrationError}。各节点 worktree 仍保留供检查。`,
+            text: abortController.signal.aborted
+              ? '集成阶段已停止；已完成的子任务进度保留。'
+              : `集成分支创建失败：${integrationError}。各节点 worktree 仍保留供检查。`,
             conversationId,
           })
         }
@@ -1409,7 +1477,7 @@ export function createPlanAndExecute({
         })
       }
 
-      if (execution.cancelled) {
+      if (execution.cancelled || abortController.signal.aborted) {
         runState.status = 'cancelled'
         run.status = 'cancelled'
         tasks = tasks.map((task) => ({ ...task, runStatus: task.status === 'done' ? 'completed' : 'cancelled' }))
@@ -1423,7 +1491,7 @@ export function createPlanAndExecute({
           runId,
           assistant: {
             text: '多 Agent 任务已停止；已完成的子任务进度保留。',
-            usage: combineUsage(usage),
+            usage: combineRecordedRunUsage(),
             fileChanges: mergeFileChanges(...tasks.map((task) => task.messages.map((message) => message.fileChanges))),
             cancelled: true,
           },
@@ -1492,12 +1560,13 @@ export function createPlanAndExecute({
       let assistant
       try {
         assistant = await synthesizeFn(synthesis)
+        if (abortController.signal.aborted) throw new Error('任务已取消')
         ledger.record({ runId, taskId: 'synthesis', attempt: 1, modelKey: primaryModelKey, usage: assistant.usage ?? {}, outcome: 'success' })
       } catch (error) {
-        if (abortController.signal.aborted) throw error
-        assistant = directExecutionSummary(outcomes, error)
         const partialUsage = error.partialResult?.usage
         ledger.record({ runId, taskId: 'synthesis', attempt: 1, modelKey: primaryModelKey, usage: partialUsage ?? {}, outcome: 'failed' })
+        if (abortController.signal.aborted) throw error
+        assistant = directExecutionSummary(outcomes, error)
         sendChatStreamIfAvailable(webContents, {
           type: 'progress',
           text: '汇总模型调用失败，已按后端保存的子任务状态生成直出汇总。',
@@ -1549,6 +1618,7 @@ export function createPlanAndExecute({
           failedTaskIds: [],
         }
       }
+      if (abortController.signal.aborted) return await finalizeCancelledRun()
       if (runState) {
         runState.status = 'failed'
         run.status = 'failed'

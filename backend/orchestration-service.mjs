@@ -56,15 +56,16 @@ export function createOrchestrationService({
   permissionService = null,
   dshRuntime = null,
   maxSubtaskConcurrency = null,
+  runStore: injectedRunStore = null,
 }) {
   /** @type {Map<string, { inFlight: boolean, abortController: AbortController | null }>} */
   const runs = new Map()
   const memory = createMemoryStore({ agentDataPath })
-  const runStore = new RunStore({ agentDataPath })
+  const runStore = injectedRunStore ?? new RunStore({ agentDataPath })
   const traceStore = new TraceStore({ agentDataPath })
   const pendingApprovals = new Map()
 
-  runStore.recoverIncompleteRuns().then(async () => {
+  const recoveryReady = runStore.recoverIncompleteRuns().then(async () => {
     if (typeof appState.setTasksForConversation !== 'function') return
     for (const conversationId of await runStore.listConversationIds()) {
       const latestRun = (await runStore.listRuns(conversationId))[0]
@@ -238,8 +239,14 @@ export function createOrchestrationService({
     pendingApprovals,
   })
 
+  async function planAndExecuteAfterRecovery(options) {
+    await recoveryReady
+    return planAndExecute(options)
+  }
+
   async function sendTaskMessage({ taskId, text, conversationId, webContents, workspacePath }) {
     if (!conversationId) throw new Error('当前对话标识无效')
+    await recoveryReady
     if (getRun(conversationId)?.inFlight) throw new Error('该对话的多 Agent 任务仍在执行，暂不能向子任务发送消息')
     const abortController = new AbortController()
     const run = { inFlight: true, abortController }
@@ -367,6 +374,7 @@ export function createOrchestrationService({
 
   async function listRuns(conversationId) {
     if (typeof conversationId !== 'string' || !conversationId) return []
+    await recoveryReady
     const runs = await runStore.listRuns(conversationId)
     return runs.slice(0, 20).map((run) => ({
       runId: run.runId,
@@ -380,6 +388,7 @@ export function createOrchestrationService({
 
   async function replayRun({ conversationId, runId, taskId = null, webContents, workspacePath, permissionMode, workspaceTrusted = false }) {
     if (!conversationId || !runId) throw new Error('运行记录恢复请求无效')
+    await recoveryReady
     if (runs.get(conversationId)?.inFlight) throw new Error('该对话已有 DAG 正在执行，暂不能恢复运行记录')
     const source = await runStore.loadRun(conversationId, runId)
     if (!source || source.runId !== runId || source.conversationId !== conversationId) {
@@ -437,5 +446,5 @@ export function createOrchestrationService({
     return true
   }
 
-  return { planAndExecute, sendTaskMessage, abort, cancelTask, pauseRun, resumeRun, listRuns, resumeRunFromCheckpoint, rerunTaskFromRun, isBusy, listRunningConversationIds, approvePlan, rejectPlan }
+  return { planAndExecute: planAndExecuteAfterRecovery, sendTaskMessage, abort, cancelTask, pauseRun, resumeRun, listRuns, resumeRunFromCheckpoint, rerunTaskFromRun, isBusy, listRunningConversationIds, approvePlan, rejectPlan }
 }

@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -59,12 +59,26 @@ async function waitForFile(file: string): Promise<void> {
   }
 }
 
+async function waitForFileText(file: string, expected: string, timeoutMs = 20_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs
+  while (!existsSync(file) || readFileSync(file, 'utf8') !== expected) {
+    if (Date.now() >= deadline) {
+      const actual = existsSync(file) ? readFileSync(file, 'utf8') : '<missing>'
+      throw new Error(`expected ${file} to contain ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`)
+    }
+    await new Promise(resolve => setTimeout(resolve, 20))
+  }
+}
+
+const settleConfigWatch = (): Promise<void> => new Promise(resolve => setTimeout(resolve, 250))
+
 interface ProfileLifecycleFixture {
   home: string
   ready: string
   settled: string
   disposed: string
   interrupt: string
+  events: string
 }
 
 /**
@@ -78,14 +92,17 @@ function createProfileLifecycleFixture(): ProfileLifecycleFixture {
   const settled = join(home, 'settled')
   const disposed = join(home, 'disposed')
   const interrupt = join(home, 'interrupt')
+  const events = join(home, 'events')
   const bundleDir = join(home, 'lifecycle-bundle')
   mkdirSync(bundleDir, { recursive: true })
   writeFileSync(join(bundleDir, 'plugin.mjs'), [
-    "import { existsSync, writeFileSync } from 'node:fs'",
+    "import { appendFileSync, existsSync, writeFileSync } from 'node:fs'",
     "import { join } from 'node:path'",
     "export const name = 'profile-lifecycle-fixture'",
     'export function apply(ctx, config = {}) {',
     '  let active = true',
+    "  appendFileSync(process.env.RAW_EVENTS_FILE, `apply:${config.generation ?? 'bundle-default'}\\n`)",
+    "  const disposeReloadFailure = ctx.root.on('hmr/config-update-failed', (filename, error) => appendFileSync(process.env.RAW_EVENTS_FILE, `reload-failed:${filename}:${error.stack ?? error.message}\\n`))",
     '  // Keep the event loop alive so process lifetime is signal-owned, like a real surface.',
     '  // Windows has no deliverable SIGTERM; the marker emits the same process event there.',
     '  let interrupted = false',
@@ -104,6 +121,8 @@ function createProfileLifecycleFixture(): ProfileLifecycleFixture {
     '  ctx.effect(() => () => {',
     '    active = false',
     '    clearInterval(heartbeat)',
+    '    disposeReloadFailure()',
+    "    appendFileSync(process.env.RAW_EVENTS_FILE, `dispose:${config.generation ?? 'bundle-default'}\\n`)",
     "    writeFileSync(process.env.RAW_DISPOSED_FILE, 'disposed')",
     '  })',
     '}',
@@ -141,7 +160,7 @@ function createProfileLifecycleFixture(): ProfileLifecycleFixture {
   for (const file of ['package.json', 'cordis.patch.yml', 'plugin.mjs']) {
     writeFileSync(join(linkTarget, file), readFileSync(join(bundleDir, file)))
   }
-  return { home, ready, settled, disposed, interrupt }
+  return { home, ready, settled, disposed, interrupt, events }
 }
 
 function startProfileLifecycle(fixture: ProfileLifecycleFixture, args: readonly string[] = []) {
@@ -155,6 +174,7 @@ function startProfileLifecycle(fixture: ProfileLifecycleFixture, args: readonly 
       RAW_SETTLED_FILE: fixture.settled,
       RAW_DISPOSED_FILE: fixture.disposed,
       RAW_INTERRUPT_FILE: fixture.interrupt,
+      RAW_EVENTS_FILE: fixture.events,
     },
   })
 }
@@ -179,14 +199,15 @@ function createEnvironmentProbeProfile(home: string, project: string): void {
     '  void ctx.loader.await().then(async () => {',
     "    let text = ''",
     '    for await (const chunk of ctx.llm.stream({',
-    "      provider: 'deepseek-official',",
-    "      model: 'deepseek-v4-flash',",
+    "      provider: 'deepseek',",
+    "      model: 'deepseek-flash',",
     '      messages: [],',
     '      maxTokens: 32,',
     '    })) {',
+    "      if (chunk.type === 'finish' && chunk.reason.kind !== 'stop') throw new Error(chunk.reason.failure?.message ?? chunk.reason.kind)",
     "      if (chunk.type === 'text-delta') text += chunk.text",
     '    }',
-    '    process.stdout.write(`${text}\\n`)',
+    '    await new Promise(resolve => process.stdout.write(`${text}\\n`, resolve))',
     "    if (process.platform === 'win32') process.emit('SIGTERM')",
     "    else process.kill(process.pid, 'SIGTERM')",
     '  })',
@@ -199,9 +220,15 @@ function createEnvironmentProbeProfile(home: string, project: string): void {
     name: 'dsh-profile-environment-probe',
     private: true,
     dependencies: {},
-    dsh: { profile: { bundles: ['@taskweaver/dsh-base'] } },
+    taskweaver: { profile: { bundles: ['@taskweaver/dsh-base'] } },
   }, undefined, 2))
   writeFileSync(join(profileDir, 'cordis.patch.yml'), [
+    '- id: llm-pi-ai',
+    '  config:',
+    '    providers:',
+    '      deepseek:',
+    '        apiKeyEnv: DEEPSEEK_API_KEY',
+    '        baseURL: !!js process.env.DEEPSEEK_BASE_URL',
     '- insert:',
     '    - id: environment-probe',
     `      name: ${pathToFileURL(pluginFile).href}`,
@@ -388,10 +415,10 @@ describe.skipIf(!existsSync(dshBin))('dsh BUILT bin (node lib/bin.js, no tsx)', 
         result.code,
         `${result.stderr}\nstdout:\n${result.stdout}\nmock requests: ${String(server.requests.length)}`,
       ).toBe(0)
+      expect(server.requests.length, `mock HTTP request count; stdout:\n${result.stdout}\nstderr:\n${result.stderr}`).toBe(1)
       expect(result.stdout).toBe('launching endpoint reached the mock')
       expect(result.stdout).not.toContain(apiKey)
       expect(result.stderr).not.toContain(apiKey)
-      expect(server.requests).toHaveLength(1)
       expect(server.requests[0]?.path).toBe('/chat/completions')
       expect(server.requests[0]?.headers.authorization).toBe(`Bearer ${apiKey}`)
       expect(JSON.stringify(server.requests[0]?.body)).not.toContain(apiKey)
@@ -441,6 +468,10 @@ describe.skipIf(!existsSync(dshBin))('dsh BUILT bin (node lib/bin.js, no tsx)', 
   it('fully settles a custom profile, hot-reloads its patch layer with removal reverting, and disposes on a signal', async () => {
     const fixture = createProfileLifecycleFixture()
     const child = startProfileLifecycle(fixture)
+    const stdout: string[] = []
+    const stderr: string[] = []
+    child.stdout?.on('data', chunk => stdout.push(String(chunk)))
+    child.stderr?.on('data', chunk => stderr.push(String(chunk)))
     const profilePatch = join(fixture.home, 'profiles', 'lifecycle', 'cordis.patch.yml')
     const configFile = join(fixture.home, 'config-echo')
     try {
@@ -451,39 +482,44 @@ describe.skipIf(!existsSync(dshBin))('dsh BUILT bin (node lib/bin.js, no tsx)', 
       // patched row's old fiber — observable as the disposed marker — and
       // mounts the new config, which echoes its generation and re-writes the
       // ready marker).
-      rmSync(fixture.ready)
       writeFileSync(profilePatch, [
         '- id: profile-lifecycle-fixture',
         '  config:',
         '    generation: 2',
         '',
       ].join('\n'))
-      await waitForFile(fixture.ready)
-      expect(readFileSync(configFile, 'utf8')).toBe('2')
+      await waitForFileText(configFile, '2')
+      await settleConfigWatch()
+      expect(readFileSync(fixture.events, 'utf8')).toContain('apply:2')
       // Removal reverts: the bundle's inserted row must return to its own
       // default config, not keep the removed override — the insert-aliasing
       // regression (a shared patch object mutated in place by a former
       // generation would make this impossible).
-      rmSync(fixture.ready)
       writeFileSync(profilePatch, '[]\n')
-      await waitForFile(fixture.ready)
-      expect(readFileSync(configFile, 'utf8')).toBe('bundle-default')
+      await waitForFileText(configFile, 'bundle-default', 5_000)
+      await settleConfigWatch()
       // The home-level user layer ($TASKWEAVER_HOME/cordis.patch.yml) is live too
       // and outranks the per-profile layer.
-      rmSync(fixture.ready)
       writeFileSync(join(fixture.home, 'cordis.patch.yml'), [
         '- id: profile-lifecycle-fixture',
         '  config:',
         '    generation: home',
         '',
       ].join('\n'))
-      await waitForFile(fixture.ready)
-      expect(readFileSync(configFile, 'utf8')).toBe('home')
+      await waitForFileText(configFile, 'home')
+      await settleConfigWatch()
+      expect(readFileSync(fixture.events, 'utf8')).toContain('apply:home')
       requestProfileShutdown(child, fixture)
       const result = await child
       expect(result.exitCode, `${result.stderr}\nstdout:\n${result.stdout}\nsignal: ${String(result.signal)}`).toBe(0)
       expect(result.signal).toBeUndefined()
       expect(existsSync(fixture.disposed)).toBe(true)
+    } catch (error) {
+      requestProfileShutdown(child, fixture)
+      const result = await child
+      const echo = existsSync(configFile) ? readFileSync(configFile, 'utf8') : '<missing>'
+      const events = existsSync(fixture.events) ? readFileSync(fixture.events, 'utf8') : '<missing>'
+      throw new Error(`${String(error)}\necho: ${echo}\nevents:\n${events}\nchild exit: ${String(result.exitCode)} signal: ${String(result.signal)}\nstdout:\n${stdout.join('')}\nstderr:\n${stderr.join('')}`)
     } finally {
       child.kill('SIGKILL')
       rmSync(fixture.home, { recursive: true, force: true })
@@ -630,23 +666,23 @@ describe.skipIf(!existsSync(dshBin))('dsh BUILT bin (node lib/bin.js, no tsx)', 
         name: 'dsh-profile-up',
         private: true,
         dependencies: { 'late-bundle': 'file:./late-bundle' },
-        dsh: { profile: { bundles: ['@taskweaver/dsh-base'] } },
+        taskweaver: { profile: { bundles: ['@taskweaver/dsh-base'] } },
       }))
       writeFileSync(join(profileDir, 'cordis.patch.yml'), '[]\n')
-      // v1: no dsh manifest — a plain dependency.
+      // v1: no TaskWeaver manifest — a plain dependency.
       writeFileSync(join(installed, 'package.json'), JSON.stringify({ name: 'late-bundle', version: '1.0.0' }))
       const first = await runBuiltBin(['plugin', '--profile', 'up', 'root'], { TASKWEAVER_HOME: home })
       expect(first.code).toBe(0)
-      let manifest = JSON.parse(readFileSync(join(profileDir, 'package.json'), 'utf8')) as { dsh: { profile: { bundles: string[] } } }
+      let manifest = JSON.parse(readFileSync(join(profileDir, 'package.json'), 'utf8')) as { taskweaver: { profile: { bundles: string[] } } }
       expect(manifest.taskweaver.profile.bundles).toEqual(['@taskweaver/dsh-base'])
       // v2: the installed package now declares taskweaver.bundle (an update landed).
       writeFileSync(join(installed, 'package.json'), JSON.stringify({
-        name: 'late-bundle', version: '2.0.0', dsh: { bundle: { patch: './cordis.patch.yml' } },
+        name: 'late-bundle', version: '2.0.0', taskweaver: { bundle: { patch: './cordis.patch.yml' } },
       }))
       writeFileSync(join(installed, 'cordis.patch.yml'), '[]\n')
       const second = await runBuiltBin(['plugin', '--profile', 'up', 'root'], { TASKWEAVER_HOME: home })
       expect(second.code).toBe(0)
-      manifest = JSON.parse(readFileSync(join(profileDir, 'package.json'), 'utf8')) as { dsh: { profile: { bundles: string[] } } }
+      manifest = JSON.parse(readFileSync(join(profileDir, 'package.json'), 'utf8')) as { taskweaver: { profile: { bundles: string[] } } }
       expect(manifest.taskweaver.profile.bundles).toEqual(['@taskweaver/dsh-base', 'late-bundle'])
     } finally {
       rmSync(home, { recursive: true, force: true })

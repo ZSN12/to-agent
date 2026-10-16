@@ -553,7 +553,7 @@ var ReactLoopAgent = class {
 					return false;
 				}
 				const userInputs = decision.messages.filter((message) => message.source.kind === "user");
-				if (phase.step === 0 || userInputs.length > 0) phase.outputSchema = userInputs.find((message) => message.source.outputSchema !== void 0)?.source.outputSchema;
+				if (phase.step === 0 || userInputs.length > 0) phase.outputSchema = userInputs.map((message) => message.source).find((source) => source.kind === "user" && "outputSchema" in source)?.outputSchema;
 				if (turnEnds && decision.messages.length === 0) break;
 				if (phase.step === 0 && decision.messages.length === 0) {
 					turnEnds = { kind: "completed" };
@@ -871,6 +871,12 @@ const INACTIVE_STATES = /* @__PURE__ */ new Set([
 	4,
 	3
 ]);
+/** Fail with a version/configuration hint instead of an opaque `.prepare` TypeError. */
+function requireSessionStore(context) {
+	const sessions = context.sessions;
+	if (!sessions || typeof sessions.prepare !== "function") throw new Error("Agent Loop requires a compatible SessionStore; load @taskweaver/dsh-session from the same runtime bundle.");
+	return sessions;
+}
 /** Factory-level ownership: live agent teardowns plus config startup work. */
 var FactoryOwnership = class {
 	fiber;
@@ -1249,7 +1255,8 @@ var AgentLoop = class extends Service {
 			hasError: false
 		};
 		try {
-			const preparation = __addDisposableResource(env_1, SessionPreparation.create(this.runtime.ctx.sessions.prepare(id, { meta })), false);
+			const sessions = requireSessionStore(this.runtime.ctx);
+			const preparation = __addDisposableResource(env_1, SessionPreparation.create(sessions.prepare(id, { meta })), false);
 			const prepared = this.prepare(this.ctx, id, options, preparation.session);
 			try {
 				return prepared.publish("startup").agent;
@@ -1271,7 +1278,8 @@ var AgentLoop = class extends Service {
 	* @returns the published handle.
 	*/
 	async createAgent(ownerCtx, options) {
-		const preparation = SessionPreparation.create(this.runtime.ctx.sessions.prepare(options.sessionId, {
+		const sessions = requireSessionStore(this.runtime.ctx);
+		const preparation = SessionPreparation.create(sessions.prepare(options.sessionId, {
 			...options.seed === void 0 ? {} : { seed: options.seed },
 			...options.meta === void 0 ? {} : { meta: options.meta }
 		}));

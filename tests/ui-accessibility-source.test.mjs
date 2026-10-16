@@ -15,7 +15,8 @@ test('major settings controls expose state without an incomplete ARIA tab patter
     read('../src/features/terminal/TerminalDrawer.tsx'),
   ])
 
-  assert.match(settings, /aria-current=\{section === 'appearance' \? 'page' : undefined\}/)
+  assert.match(settings, /aria-current=\{section === item\.section \? 'page' : undefined\}/)
+  assert.match(settings, /<nav aria-label=\{`\$\{group\.title\}设置`\}>/)
   assert.match(settings, /id="settings-content"/)
   for (const source of [provider, models, logs]) {
     assert.match(source, /role="group"/)

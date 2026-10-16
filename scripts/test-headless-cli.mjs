@@ -18,6 +18,11 @@ const help = spawnSync(process.execPath, [script, '--help'], { encoding: 'utf8' 
 assert.equal(help.status, 0, 'expected exit 0 for --help')
 assert.match(help.stderr, /taskweaver-headless/, 'help should name the wrapper')
 assert.match(help.stderr, /--permission-mode/, 'help should document the bounded permission mode')
+assert.match(help.stderr, /--task-timeout/, 'help should document the total task deadline')
+
+const invalidTimeout = spawnSync(process.execPath, [script, '--text', 'timeout smoke', '--task-timeout', '999'], { encoding: 'utf8' })
+assert.equal(invalidTimeout.status, 1, 'expected invalid task timeout to be rejected before starting a child')
+assert.match(invalidTimeout.stderr, /--task-timeout must be an integer/)
 
 const smokeScript = path.join(root, 'scripts/diagnose/run-agent-read-smoke.mjs')
 const fixture = spawnSync(process.execPath, [smokeScript, '--fixture', '--text', 'permission smoke', '--permission-mode', 'on-risk'], { encoding: 'utf8' })

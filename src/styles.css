@@ -3936,9 +3936,10 @@ button:disabled { cursor: default; opacity: 0.45; }
   color: var(--text);
 }
 .settings-nav-item.active {
-  background: var(--bg-surface-elevated);
+  background: color-mix(in srgb, var(--accent-primary) 10%, var(--bg-surface-elevated));
   color: var(--text);
   font-weight: 600;
+  box-shadow: inset 2px 0 var(--accent-primary);
 }
 .settings-nav-item.active svg {
   color: var(--accent-primary, #10a37f);
@@ -5256,7 +5257,7 @@ button:disabled { cursor: default; opacity: 0.45; }
   border: 1px solid var(--line-strong);
   border-radius: 12px;
   background: var(--bg-surface-elevated);
-  color: #fff;
+  color: var(--text);
   font-size: 12.5px;
   box-shadow: var(--shadow-menu);
   animation: menu-in 0.16s ease-out;
@@ -5363,15 +5364,13 @@ button:disabled { cursor: default; opacity: 0.45; }
   max-width: 1120px;
   margin: 0 auto;
 }
-.routing-portfolio-settings .model-settings-header {
-  display: flex;
+.routing-portfolio-settings .settings-page-heading {
   align-items: center;
-  justify-content: space-between;
   gap: 24px;
+  margin-bottom: 10px;
   padding-bottom: 20px;
-  border-bottom: 1px solid var(--line);
 }
-.routing-portfolio-settings .model-settings-header h2 {
+.routing-portfolio-settings .settings-page-heading h1 {
   margin: 0;
   color: var(--text);
   font-size: 24px;
@@ -5435,50 +5434,11 @@ button:disabled { cursor: default; opacity: 0.45; }
 .routing-settings-card-execution > .routing-card-desc {
   grid-column: 1 / -1;
 }
+.routing-settings-card-execution > .routing-setting-row {
+  grid-column: 1 / -1;
+}
 .routing-settings-card-execution > .routing-card-desc {
   margin-bottom: 4px;
-}
-.routing-setting-row {
-  display: flex;
-  grid-column: 1 / -1;
-  align-items: center;
-  gap: 12px;
-  min-height: 58px;
-  margin: 0;
-  padding: 11px 14px;
-  border: 1px solid var(--line);
-  border-radius: 11px;
-  background: color-mix(in srgb, var(--bg-panel) 72%, transparent);
-  cursor: pointer;
-  font-size: 13px;
-  transition: border-color 140ms ease, background-color 140ms ease;
-}
-.routing-setting-row:hover {
-  border-color: var(--line-strong);
-  background: var(--bg-surface-hover);
-}
-.routing-setting-row input {
-  flex: 0 0 auto;
-  width: 17px;
-  height: 17px;
-  margin: 0;
-  accent-color: var(--accent-green);
-  cursor: pointer;
-}
-.routing-setting-row-text {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 4px;
-}
-.routing-setting-row-label {
-  color: var(--text);
-  line-height: 1.35;
-}
-.routing-setting-row-hint {
-  color: var(--text-secondary);
-  font-size: 11.75px;
-  line-height: 1.4;
 }
 .routing-toggles-stack {
   display: flex;
@@ -5530,6 +5490,15 @@ button:disabled { cursor: default; opacity: 0.45; }
   align-items: stretch;
   gap: 8px;
 }
+.routing-field-label {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+.routing-field-select .settings-layout-segmented { width: 100%; }
+.routing-field-select .settings-layout-segmented button { min-width: 0; padding-inline: 7px; }
 .routing-field-inline select {
   box-sizing: border-box;
   width: 100%;
@@ -5562,8 +5531,8 @@ button:disabled { cursor: default; opacity: 0.45; }
   gap: 14px;
 }
 @media (max-width: 720px) {
-  .routing-portfolio-settings .model-settings-header {
-    align-items: stretch;
+  .routing-portfolio-settings .settings-page-heading {
+    align-items: flex-start;
     flex-direction: column;
     gap: 14px;
   }
@@ -5584,8 +5553,8 @@ button:disabled { cursor: default; opacity: 0.45; }
   }
 }
 @container routing-page (max-width: 680px) {
-  .routing-portfolio-settings .model-settings-header {
-    align-items: stretch;
+  .routing-portfolio-settings .settings-page-heading {
+    align-items: flex-start;
     flex-direction: column;
     gap: 14px;
   }
@@ -6317,25 +6286,14 @@ button:disabled { cursor: default; opacity: 0.45; }
    键盘快捷键设置页 (Codex 风格现代化键位管理)
    ========================================================================== */
 .shortcuts-settings-page {
-  max-width: 860px;
+  max-width: 1000px;
   margin: 0 auto;
-  padding: 32px 32px 48px;
+  padding: 0;
+}
+.shortcuts-settings-page .settings-layout-content {
   display: flex;
   flex-direction: column;
   gap: 20px;
-}
-
-.shortcuts-page-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-}
-.shortcuts-page-header h1 {
-  font-size: 22px;
-  font-weight: 700;
-  color: var(--text);
-  letter-spacing: -0.01em;
 }
 .shortcuts-reset-all-btn {
   height: 32px;
@@ -8106,11 +8064,11 @@ button:disabled { cursor: default; opacity: 0.45; }
   border-right-color: rgba(0, 0, 0, 0.08);
 }
 
-[data-theme="light"] .settings-nav-item.active {
-  background: #ffffff;
+:root[data-theme="light"] .settings-nav-item.active {
+  background: #eaf0fb;
   color: var(--text);
   font-weight: 600;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.04);
+  box-shadow: inset 2px 0 #2563eb;
 }
 
 [data-theme="light"] .shortcuts-card {
@@ -8181,6 +8139,9 @@ button:disabled { cursor: default; opacity: 0.45; }
 
 /* 外观设置面板样式 */
 .appearance-settings-panel {
+  max-width: 1000px;
+}
+.appearance-settings-panel .settings-layout-content {
   display: flex;
   flex-direction: column;
   gap: 24px;
@@ -8243,23 +8204,27 @@ button:disabled { cursor: default; opacity: 0.45; }
 /* 对话行为：用可见的单选卡片表达忙时 Enter 的当前动作 */
 .chat-behavior-settings {
   width: min(100%, 760px);
+}
+.chat-behavior-settings .settings-layout-content {
   display: flex;
   flex-direction: column;
   gap: 26px;
 }
-.chat-behavior-header h2 {
-  margin: 0;
-  color: var(--text);
-  font-size: 20px;
-  font-weight: 650;
-  letter-spacing: -0.02em;
-}
-.chat-behavior-header p {
-  margin: 7px 0 0;
-  color: var(--text-secondary);
-  font-size: 13px;
-  line-height: 1.5;
-}
+.appearance-settings-panel .settings-page-heading,
+.chat-behavior-settings .settings-page-heading { margin-bottom: 20px; }
+.appearance-settings-panel .settings-page-heading h1,
+.chat-behavior-settings .settings-page-heading h1 { font-size: 21px; }
+.chat-inline-reference-toggle,
+.chat-compaction-save { margin-top: 8px; }
+.chat-small-file-hint,
+.chat-compaction-help { color: var(--text-secondary); font-size: 12px; }
+.chat-small-file-hint { margin: 6px 0 0; }
+.chat-compaction-setting,
+.chat-retry-setting { display: grid; align-items: center; gap: 10px; margin-top: 12px; font-size: 12px; }
+.chat-compaction-setting { grid-template-columns: 1fr auto; }
+.chat-compaction-help { grid-column: 1 / -1; }
+.chat-retry-setting { grid-template-columns: 1fr auto; }
+.chat-retry-input { width: 56px; padding: 4px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg-panel); color: var(--text); }
 .chat-enter-section {
   display: flex;
   flex-direction: column;

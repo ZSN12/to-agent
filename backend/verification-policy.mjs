@@ -285,9 +285,10 @@ export function formatVerificationPrompt(workspacePath) {
  *   commandOverride?: string | null,
  *   timeoutMs?: number,
  *   maxOutputBytes?: number,
+ *   signal?: AbortSignal,
  * }} [options]
  * @returns {Promise<{
- *   status: 'passed' | 'failed' | 'not_run',
+ *   status: 'passed' | 'failed' | 'not_run' | 'cancelled',
  *   executed: boolean,
  *   command: string | null,
  *   exitCode: number | null,
@@ -297,13 +298,31 @@ export function formatVerificationPrompt(workspacePath) {
  *   errorSummary: string | null,
  *   durationMs: number,
  *   timedOut: boolean,
+ *   cancelled: boolean,
  * }>}
  */
 export async function executeVerificationRunner(workspacePath, options = {}) {
   const timeoutMs = options.timeoutMs ?? 30_000
   const maxOutputBytes = options.maxOutputBytes ?? 64 * 1024
+  const signal = options.signal
   const policy = detectVerificationCommands(workspacePath)
   const command = options.commandOverride || policy.primaryCommand
+
+  const cancelledResult = (command, durationMs = 0, stdout = '', stderr = '', executed = false) => ({
+    executed,
+    status: 'cancelled',
+    command: command ?? null,
+    exitCode: null,
+    passed: false,
+    stdout,
+    stderr,
+    errorSummary: '验证已取消。',
+    durationMs,
+    timedOut: false,
+    cancelled: true,
+  })
+
+  if (signal?.aborted) return cancelledResult(command)
 
   if (!command || !workspacePath) {
     return {
@@ -317,6 +336,7 @@ export async function executeVerificationRunner(workspacePath, options = {}) {
       errorSummary: '未检测到可执行的验证命令。',
       durationMs: 0,
       timedOut: false,
+      cancelled: false,
     }
   }
 
@@ -328,7 +348,36 @@ export async function executeVerificationRunner(workspacePath, options = {}) {
     let stdoutBuffer = ''
     let stderrBuffer = ''
     let timedOut = false
+    let cancelled = false
     let timer = null
+    let killTimer = null
+    let settled = false
+
+    const finish = (result) => {
+      if (settled) return
+      settled = true
+      if (timer) clearTimeout(timer)
+      if (killTimer) clearTimeout(killTimer)
+      signal?.removeEventListener('abort', onAbort)
+      resolve(result)
+    }
+
+    const killTree = (signalName) => {
+      if (!child || !child.pid) return
+      try {
+        if (process.platform !== 'win32') process.kill(-child.pid, signalName)
+        else child.kill(signalName)
+      } catch {
+        try { child.kill(signalName) } catch { /* process already exited */ }
+      }
+    }
+
+    const onAbort = () => {
+      cancelled = true
+      killTree('SIGTERM')
+      killTimer = setTimeout(() => killTree('SIGKILL'), 1500)
+      killTimer.unref?.()
+    }
 
     try {
       const shell = process.env.SHELL || (process.platform === 'win32' ? process.env.ComSpec || 'powershell.exe' : '/bin/bash')
@@ -338,19 +387,18 @@ export async function executeVerificationRunner(workspacePath, options = {}) {
         cwd: workspacePath,
         env: buildVerificationChildEnv(),
         stdio: ['ignore', 'pipe', 'pipe'],
+        detached: process.platform !== 'win32',
       })
+
+      signal?.addEventListener('abort', onAbort, { once: true })
+      if (signal?.aborted) onAbort()
 
       timer = setTimeout(() => {
         timedOut = true
         if (child && !child.killed) {
-          try {
-            child.kill('SIGTERM')
-            setTimeout(() => {
-              if (child && !child.killed) child.kill('SIGKILL')
-            }, 2000).unref?.()
-          } catch {
-            // ignore kill error
-          }
+          killTree('SIGTERM')
+          killTimer = setTimeout(() => killTree('SIGKILL'), 2000)
+          killTimer.unref?.()
         }
       }, timeoutMs)
       timer.unref?.()
@@ -374,9 +422,10 @@ export async function executeVerificationRunner(workspacePath, options = {}) {
       })
 
       child.on('error', (err) => {
-        if (timer) clearTimeout(timer)
         const durationMs = Date.now() - startTime
-        resolve({
+        finish(cancelled
+          ? cancelledResult(command, durationMs, stdoutBuffer, stderrBuffer)
+          : {
           executed: false,
           status: 'failed',
           command,
@@ -387,12 +436,16 @@ export async function executeVerificationRunner(workspacePath, options = {}) {
           errorSummary: `启动验证命令失败: ${err.message || err}`,
           durationMs,
           timedOut: false,
+          cancelled: false,
         })
       })
 
       child.on('close', (code) => {
-        if (timer) clearTimeout(timer)
         const durationMs = Date.now() - startTime
+        if (cancelled) {
+          finish(cancelledResult(command, durationMs, stdoutBuffer, stderrBuffer, true))
+          return
+        }
         const exitCode = typeof code === 'number' ? code : (timedOut ? 124 : 1)
         const passed = exitCode === 0 && !timedOut
 
@@ -410,7 +463,7 @@ export async function executeVerificationRunner(workspacePath, options = {}) {
           }
         }
 
-        resolve({
+        finish({
           executed: true,
           status: passed ? 'passed' : 'failed',
           command,
@@ -421,12 +474,14 @@ export async function executeVerificationRunner(workspacePath, options = {}) {
           errorSummary,
           durationMs,
           timedOut,
+          cancelled: false,
         })
       })
     } catch (err) {
-      if (timer) clearTimeout(timer)
       const durationMs = Date.now() - startTime
-      resolve({
+      finish(cancelled
+        ? cancelledResult(command, durationMs)
+        : {
         executed: false,
         status: 'failed',
         command,
@@ -437,6 +492,7 @@ export async function executeVerificationRunner(workspacePath, options = {}) {
         errorSummary: `执行验证抛出异常: ${err.message || err}`,
         durationMs,
         timedOut: false,
+        cancelled: false,
       })
     }
   })

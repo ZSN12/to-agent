@@ -6,6 +6,11 @@ import { ensureTaskWeaverModelsJson } from './taskweaver-models-defaults.mjs'
 import { ensureModelsJsonSyncedToDshHost } from './sync-models-json-to-host.mjs'
 import { migrateLegacyOpenCodexRoutes } from './model-sync/migrate-legacy-routes.mjs'
 import { bootstrapModelSyncOnAppReady, pruneLegacyOpenCodexProvider } from './model-sync/index.mjs'
+import {
+  assertUiVerifyMockIsolation,
+  UI_VERIFY_MOCK_MODEL_KEY,
+  uiVerifyMockRequested,
+} from './ui-verify-mock.mjs'
 
 /**
  * 串行化应用启动时的模型/Host 引导，避免多条 void 链竞态。
@@ -60,7 +65,7 @@ function hasBootstrapServices(deps) {
   return Boolean(deps.profileStore && deps.modelService && deps.credentialStore && deps.modelRegistryUpdater)
 }
 
-export const UI_VERIFY_MOCK_MODEL_KEY = 'bridge-composer/cursor/composer-2.5-fast'
+export { UI_VERIFY_MOCK_MODEL_KEY } from './ui-verify-mock.mjs'
 
 /**
  * Select the credential-free bridge fixture only in the isolated development
@@ -73,21 +78,8 @@ export async function activateUiVerifyMockModel({
   profileStore,
   modelService,
 }) {
-  if (env.TASKWEAVER_E2E !== '1' || env.TASKWEAVER_UI_VERIFY !== '1'
-    || env.TASKWEAVER_UI_VERIFY_MOCK !== '1') return { enabled: false }
-  if (isPackaged || env.TASKWEAVER_PACKAGED === '1' || env.TASKWEAVER_PACKAGED === 'true') {
-    throw new Error('UI verification mock model is available only in the unpackaged development app')
-  }
-  const isolatedUserData = env.TASKWEAVER_USER_DATA
-  if (typeof isolatedUserData !== 'string' || !path.isAbsolute(isolatedUserData)
-    || !userDataPath || path.resolve(isolatedUserData) !== path.resolve(userDataPath)) {
-    throw new Error('UI verification mock model requires its exact isolated Electron userData directory')
-  }
-  const isolatedRuntimeHome = path.join(path.resolve(userDataPath), 'runtime-home')
-  if (typeof env.TASKWEAVER_HOME !== 'string' || !path.isAbsolute(env.TASKWEAVER_HOME)
-    || path.resolve(env.TASKWEAVER_HOME) !== isolatedRuntimeHome) {
-    throw new Error('UI verification mock model requires its exact isolated TASKWEAVER_HOME directory')
-  }
+  if (!uiVerifyMockRequested(env)) return { enabled: false }
+  assertUiVerifyMockIsolation({ env, isPackaged, userDataPath })
 
   const bundle = await modelService.loadModelBundle()
   const fixture = bundle.catalog?.candidateModels?.find((model) => model.key === UI_VERIFY_MOCK_MODEL_KEY)

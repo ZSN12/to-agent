@@ -97,6 +97,8 @@ async function bootTaskWeaver(
 const toolNames = (ctx: Context, agent?: Agent): string[] =>
   ctx.tools.schemas(agent).map(schema => schema.name).sort()
 
+const GLOBAL_TOOL_NAMES: string[] = []
+
 function toolParameterNames(ctx: Context, agent: Agent, toolName: string): string[] {
   const schema = ctx.tools.schemas(agent).find(tool => tool.name === toolName)
   if (schema === undefined) throw new Error(`missing tool schema ${toolName}`)
@@ -108,11 +110,16 @@ function toolParameterNames(ctx: Context, agent: Agent, toolName: string): strin
 }
 
 let ctx: Context
-const embeddedEnvKeys = ['TASKWEAVER_EMBEDDED', 'Z_TASKWEAVER_EMBEDDED', 'DSH_TASKWEAVER_EMBEDDED'] as const
-let previousEmbedded: Map<typeof embeddedEnvKeys[number], string | undefined>
+const testEnvironment = new Map([
+  ['TASKWEAVER_EMBEDDED', '1'],
+  // Enables schema registration only; this fixture never calls an embedding
+  // tool, so it cannot send code to a provider.
+  ['JINA_API_KEY', 'taskweaver-e2e-placeholder-no-network'],
+] as const)
+let previousEnvironment: Map<string, string | undefined>
 beforeAll(() => {
-  previousEmbedded = new Map(embeddedEnvKeys.map(key => [key, process.env[key]]))
-  for (const key of embeddedEnvKeys) process.env[key] = '1'
+  previousEnvironment = new Map([...testEnvironment.keys()].map(key => [key, process.env[key]]))
+  for (const [key, value] of testEnvironment) process.env[key] = value
 })
 beforeAll(async () => {
   const settingsFile = join(await mkdtemp(join(tmpdir(), 'taskweaver-presets-')), 'settings.yaml')
@@ -121,8 +128,8 @@ beforeAll(async () => {
 }, 120_000)
 afterAll(async () => {
   await ctx?.fiber.dispose()
-  for (const key of embeddedEnvKeys) {
-    const value = previousEmbedded.get(key)
+  for (const key of testEnvironment.keys()) {
+    const value = previousEnvironment.get(key)
     if (value === undefined) delete process.env[key]
     else process.env[key] = value
   }
@@ -132,10 +139,9 @@ describe('the shipped TaskWeaver composition', () => {
   it('leaves the global tool layer empty', () => {
     // Every model-facing tool belongs to a preset, `ask_user_question`
     // included: a tool in the global layer reaches EVERY agent regardless of
-    // which preset composed it, so a two-tool benchmark surface would really
-    // present three. A regression here means an agent-plane row came back to
-    // the host composition.
-    expect(toolNames(ctx)).toEqual([])
+    // which preset composed it. A regression here means an agent-plane row
+    // came back to the host composition.
+    expect(toolNames(ctx)).toEqual(GLOBAL_TOOL_NAMES)
   })
 
   it('keeps the token meter and its context-meter projections on the host plane', async () => {
@@ -186,11 +192,13 @@ describe('the shipped TaskWeaver composition', () => {
       // layer mounts cleanly and simply contributes nothing. `glob`/`grep` are
       // excluded for the reason the TUI composition e2e excludes them — they
       // depend on ripgrep being present on the machine.
-      expect(toolNames(ctx, handle.agent).filter(name => name !== 'glob' && name !== 'grep')).toEqual([
-        'ask_user_question', 'bash', 'create_goal', 'edit', 'edit_file_inline', 'exit_plan_mode',
-        'get_goal', 'index_project_for_semantic_search', 'job_kill', 'job_list', 'job_output',
-        'orchestrate', 'read', 'read_document', 'read_image', 'semantic_search_code', 'semantic_search_stats', 'skill',
-        'todo_write', 'update_goal', 'write',
+      const fullCatalog = toolNames(ctx, handle.agent).filter(name => name !== 'glob' && name !== 'grep')
+      expect(fullCatalog).toEqual([
+        'apply_patch', 'ask_user_question', 'bash', 'create_goal', 'edit', 'edit_file_inline', 'exit_plan_mode',
+        'get_goal', 'index_project_for_semantic_search', 'job_kill', 'job_list', 'job_output', 'lsp',
+        'orchestrate', 'read', 'read_document', 'read_image', 'semantic_search_code', 'semantic_search_stats',
+        'session_event_read', 'session_event_search', 'session_event_trace', 'session_search', 'session_trace',
+        'skill', 'todo_write', 'update_goal', 'web_fetch', 'web_search', 'write',
       ])
     } finally {
       await handle.dispose()
@@ -236,7 +244,7 @@ describe('the shipped TaskWeaver composition', () => {
 
       // Tearing the read-only session down leaves the full one whole.
       expect(toolNames(ctx, full.agent).length).toBeGreaterThan(10)
-      expect(toolNames(ctx)).toEqual([])
+      expect(toolNames(ctx)).toEqual(GLOBAL_TOOL_NAMES)
     } finally {
       await full.dispose()
     }
@@ -252,12 +260,13 @@ describe('the shipped TaskWeaver composition', () => {
       setup: agentCtx => ctx.agentPresets.mount(agentCtx, 'tw-default').then(() => undefined),
     })
     try {
-      // Ordinary tool calls use the transport; DAG work uses the shared
-      // orchestration entry point directly.
+      // Code Mode presents one transport; the generated SDK keeps the shared
+      // orchestration entry available from inside that transport.
       const assembly = await ctx.systemPrompt.assemble({ scope: coded.agent })
-      expect(assembly.tools.map(tool => tool.name)).toEqual(['orchestrate', 'run_code'])
+      expect(assembly.tools.map(tool => tool.name)).toEqual(['run_code'])
       expect(toolNames(ctx, coded.agent)).not.toContain('str_replace_editor')
       const sdk = assembly.sections.find(section => section.name === 'tools:sdk')?.text ?? ''
+      expect(sdk).toContain('orchestrate')
       expect(sdk).not.toContain('str_replace_editor')
 
       // The presentation is this agent's alone: the deployment default is

@@ -15,6 +15,7 @@ import { runBoundedSelfHealing } from './self-healing-loop.mjs'
 import { prefetchChatTurnInputs } from './chat-turn-prefetch.mjs'
 import { humanizeBridgeTransportError } from './cursor-tool-guidance.mjs'
 import { IPC_ERROR_MESSAGE_MAX_LENGTH } from './config.mjs'
+import { appendChatErrorDiagnostic } from './chat-error-diagnostics.mjs'
 
 /**
  * 聊天回合流水线（阶段 5.3）：send 前校验、执行、错误与自愈。
@@ -96,6 +97,7 @@ export function createChatTurnPipeline(deps) {
   }
 
   const handleChatError = async (error, messageId, time, conversationId, modelKey = null) => {
+    await appendChatErrorDiagnostic({ userDataPath, error, scope: 'chat-turn' })
     if (error?.runContinues) throw error
     if (error?.partialResult?.turnId) {
       if (!error.partialResult.nativePersisted) {

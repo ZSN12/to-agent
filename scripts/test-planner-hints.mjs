@@ -12,12 +12,14 @@ try {
     fs.mkdir(path.join(root, 'src'), { recursive: true }),
     fs.mkdir(path.join(root, 'taskweaver-z-runtime'), { recursive: true }),
     fs.mkdir(path.join(root, 'vendor'), { recursive: true }),
+    fs.mkdir(path.join(root, 'apps', 'macos', 'TaskWeaverShell', 'Sources', 'TaskWeaverShell'), { recursive: true }),
   ])
   await fs.writeFile(path.join(root, 'src', 'protocol.mjs'), 'export const protocol = true\n')
   await fs.mkdir(path.join(root, 'src', 'features', 'app', 'hooks'), { recursive: true })
   await fs.writeFile(path.join(root, 'src', 'features', 'app', 'hooks', 'send.ts'), 'export const send = true\n')
   await fs.writeFile(path.join(root, 'taskweaver-z-runtime', 'secret.mjs'), 'export const generated = true\n')
   await fs.writeFile(path.join(root, 'vendor', 'third-party.mjs'), 'export const vendored = true\n')
+  await fs.writeFile(path.join(root, 'apps', 'macos', 'TaskWeaverShell', 'Sources', 'TaskWeaverShell', 'BackendLauncher.swift'), 'final class BackendLauncher {}\n')
 
   const absent = await loadWorkspacePlannerHints(root)
   assert.deepEqual(absent, {
@@ -27,9 +29,11 @@ try {
     rankingRules: [],
     pathWeights: [],
   }, 'a workspace without planner-hints.json uses no repository-specific hints')
-  const genericIndex = await collectPlannerPathHints(root, 'request chain', { maxVisited: 500, limit: 30, disableWorkspaceHints: true })
+  const genericIndex = await collectPlannerPathHints(root, 'request chain', { limit: 30, disableWorkspaceHints: true })
   assert.ok(genericIndex.paths.includes('taskweaver-z-runtime/secret.mjs'), 'disabled hints do not hide workspace paths')
   assert.ok(genericIndex.paths.includes('src/features/app/hooks/send.ts'), 'the bounded index reaches current nested application hooks')
+  assert.ok(genericIndex.paths.includes('apps/macos/TaskWeaverShell/Sources/TaskWeaverShell/BackendLauncher.swift'),
+    'the bounded index reaches real macOS Swift source paths nested five directories deep')
   assert.ok(!genericIndex.paths.some((item) => item === 'vendor' || item.startsWith('vendor/')),
     'the ignored lowercase vendor directory is not exposed as a path candidate')
 
@@ -131,17 +135,20 @@ try {
   assert.deepEqual(queuedDirectory.truncationReasons, ['scan-budget'], 'a queued directory is incomplete even when the current directory ended exactly at the cap')
 
   const depthLimitedRoot = await makeWorkspace('taskweaver-planner-depth-limit-')
-  const deeperDirectory = path.join(depthLimitedRoot, 'd1', 'd2', 'd3', 'd4', 'd5')
+  const indexedDepthDirectory = path.join(depthLimitedRoot, 'd1', 'd2', 'd3', 'd4', 'd5', 'd6')
+  const deeperDirectory = path.join(indexedDepthDirectory, 'd7')
   await fs.mkdir(deeperDirectory, { recursive: true })
+  await fs.writeFile(path.join(indexedDepthDirectory, 'visible.swift'), 'struct VisibleAtDepthLimit {}\n')
   await fs.writeFile(path.join(deeperDirectory, 'deep.mjs'), 'export const deep = true\n')
   const depthLimited = await collectPlannerPathHints(depthLimitedRoot, 'deep', {
     maxVisited: 500,
     limit: 160,
     disableWorkspaceHints: true,
   })
-  assert.equal(depthLimited.visitedEntries, 5)
+  assert.equal(depthLimited.visitedEntries, 8)
   assert.deepEqual(depthLimited.truncationReasons, ['depth-limit'], 'a directory below the configured traversal depth is reported as incomplete')
-  assert.match(depthLimited.truncationMessage, /4 层目录深度限制.*更深目录未扫描/)
+  assert.ok(depthLimited.paths.includes('d1/d2/d3/d4/d5/d6/visible.swift'), 'files at the configured directory depth remain discoverable')
+  assert.match(depthLimited.truncationMessage, /6 层目录深度限制.*更深目录未扫描/)
 
   const displayLimitRoot = await makeWorkspace('taskweaver-planner-display-limit-')
   await writeFiles(displayLimitRoot, 11)

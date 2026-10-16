@@ -133,7 +133,12 @@ try {
   assert.match(buildScript, /TASKWEAVER_RUNTIME_DEPLOY_DIR/)
   assert.match(buildScript, /TASKWEAVER_RUNTIME_CLIENT_DIR/)
   const hostBuildConfig = JSON.parse(await fs.readFile(path.join(projectRoot, 'packages/runtime/tsconfig.host.taskweaver.json'), 'utf8'))
+  const runtimePackageScripts = JSON.parse(await fs.readFile(path.join(projectRoot, 'packages/runtime/package.json'), 'utf8')).scripts
   assert.ok(hostBuildConfig.references.some((entry) => entry.path === './fs/tool-fs-search'), 'preset-only search plugin must be typecompiled before bundling, not deployed from stale lib/types')
+  assert.ok(hostBuildConfig.references.some((entry) => entry.path === './core/agent-loop'),
+    'the shipped Host Agent Loop must be typecompiled from workspace source before runtime packaging')
+  assert.match(runtimePackageScripts['build:host'], /--filter @taskweaver\/dsh-agent-loop/,
+    'the shipped Host Agent Loop must be bundled from the freshly typecompiled workspace output')
   for (const required of ['./fs/tool-document', './fs/tool-fs-inline-edit', './fs/tool-fs-semantic-search']) {
     assert.ok(
       hostBuildConfig.references.some((entry) => entry.path === required),

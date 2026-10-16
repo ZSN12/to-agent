@@ -1,4 +1,4 @@
-import { i as prepareProfile, n as PROFILE_ROOT_FILENAME, r as homePatchPath } from "./profile-boot-T6EzX98L.js";
+import { i as prepareProfile, n as PROFILE_ROOT_FILENAME, r as homePatchPath } from "./profile-boot-Bf3cgR-3.js";
 import { existsSync } from "node:fs";
 import { loadOptionalPatches, loadOverlayPatches, renderConfigDump } from "@taskweaver/dsh-app-boot";
 import { join, resolve } from "node:path";

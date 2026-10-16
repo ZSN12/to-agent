@@ -71,6 +71,14 @@ const INACTIVE_STATES = new Set([
     4 /* FiberState.DISPOSED */,
     3 /* FiberState.FAILED */,
 ]);
+/** Fail with a version/configuration hint instead of an opaque `.prepare` TypeError. */
+function requireSessionStore(context) {
+    const sessions = context.sessions;
+    if (!sessions || typeof sessions.prepare !== 'function') {
+        throw new Error('Agent Loop requires a compatible SessionStore; load @taskweaver/dsh-session from the same runtime bundle.');
+    }
+    return sessions;
+}
 /** Factory-level ownership: live agent teardowns plus config startup work. */
 class FactoryOwnership {
     fiber;
@@ -517,7 +525,8 @@ export class AgentLoop extends Service {
     create(id, options = {}, meta = {}) {
         const env_1 = { stack: [], error: void 0, hasError: false };
         try {
-            const preparation = __addDisposableResource(env_1, SessionPreparation.create(this.runtime.ctx.sessions.prepare(id, { meta })), false);
+            const sessions = requireSessionStore(this.runtime.ctx);
+            const preparation = __addDisposableResource(env_1, SessionPreparation.create(sessions.prepare(id, { meta })), false);
             const prepared = this.prepare(this.ctx, id, options, preparation.session);
             try {
                 return prepared.publish('startup').agent;
@@ -542,7 +551,8 @@ export class AgentLoop extends Service {
      * @returns the published handle.
      */
     async createAgent(ownerCtx, options) {
-        const preparation = SessionPreparation.create(this.runtime.ctx.sessions.prepare(options.sessionId, {
+        const sessions = requireSessionStore(this.runtime.ctx);
+        const preparation = SessionPreparation.create(sessions.prepare(options.sessionId, {
             ...options.seed === undefined ? {} : { seed: options.seed },
             ...options.meta === undefined ? {} : { meta: options.meta },
         }));

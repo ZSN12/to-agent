@@ -176,14 +176,34 @@ try {
 
   // A synthesis caller opts out of terminal accounting: aggregate DAG usage is
   // still recorded once at the IPC boundary, not aggregate + synthesis twice.
-  const aggregate = { turnId: 'synthesis', text: 'DAG answer', usage: { inputTokens: 100, outputTokens: 20, elapsedMs: 100 } }
+  const aggregate = {
+    turnId: 'synthesis', text: 'DAG answer', multiAgentTaskCount: 2,
+    usage: { inputTokens: 100, outputTokens: 20, elapsedMs: 100 },
+  }
   await createAssistantMessage(aggregate, 'dag', '12:03', activeKey, { mode: 'multi-agent' }, conversationId)
   await createAssistantMessage(aggregate, 'dag', '12:03', activeKey, { mode: 'multi-agent' }, conversationId)
   assert.equal((await readStats()).totals.totalCalls, 3)
   assert.equal((await readStats()).totals.totalTokens, 144)
   messages = (await appState.getConversationState(conversationId)).messages
   assert.equal(messages.filter(message => message.id === 'z-turn-synthesis').length, 1)
-  assert.match(messages.find(message => message.id === 'z-turn-synthesis').callout, /子任务/)
+  assert.equal(messages.find(message => message.id === 'z-turn-synthesis').callout, '由 TaskWeaver 拆分并执行 2 个子任务')
+
+  const diagnosticFailure = Object.assign(new TypeError('Bearer test-secret must never enter diagnostics'), { code: 'TEST_ERROR' })
+  await assert.rejects(
+    handleChatError(diagnosticFailure, 'diagnostic-failure', '12:04', conversationId),
+    candidate => candidate === diagnosticFailure,
+  )
+  const diagnosticPath = path.join(home, 'taskweaver', 'chat-errors.jsonl')
+  const diagnosticText = await fs.readFile(diagnosticPath, 'utf8')
+  const diagnostic = JSON.parse(diagnosticText.trim().split('\n').at(-1))
+  assert.equal(diagnostic.errors[0].name, 'TypeError')
+  assert.equal(diagnostic.errors[0].code, 'TEST_ERROR')
+  assert.ok(diagnostic.errors[0].frames.some(frame => frame.includes('test-chat-turn-persistence.mjs')),
+    'the local diagnostic keeps stack locations for reproduction')
+  assert.doesNotMatch(diagnosticText, /Bearer test-secret/,
+    'diagnostics must not write error messages that can contain credentials')
+  assert.equal((await fs.stat(diagnosticPath)).mode & 0o777, 0o600,
+    'chat diagnostics are readable only by the current user')
   console.log('production IPC turn persistence: stable message IDs, failed partial/error, reported usage dedup and DAG aggregate accounting passed')
 } finally {
   await fs.rm(home, { recursive: true, force: true })

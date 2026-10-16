@@ -24,12 +24,12 @@ export function PermissionSelect({ value, onChange }: { value: PermissionMode; o
   }, [open])
 
   return <div className="permission-select" ref={rootRef}>
-    <button type="button" className="access-button permission-trigger" onClick={() => setOpen((current) => !current)} aria-expanded={open} aria-haspopup="listbox">
+    <button type="button" className="access-button permission-trigger" data-testid="permission-mode-trigger" aria-label="工具审批模式" onClick={() => setOpen((current) => !current)} aria-expanded={open} aria-haspopup="listbox">
       <ShieldAlert size={17} /><span>{selected.title}</span><ChevronDown size={13} />
     </button>
     {open && <div className="permission-menu" role="listbox" aria-label="工具审批模式">
       <div className="permission-menu-heading">工具审批</div>
-      {permissionOptions.map((option) => <button key={option.mode} type="button" role="option" aria-selected={option.mode === value} className="permission-option" onClick={() => { onChange(option.mode); setOpen(false) }}>
+      {permissionOptions.map((option) => <button key={option.mode} type="button" role="option" data-testid={`permission-mode-option-${option.mode}`} aria-selected={option.mode === value} className="permission-option" onClick={() => { onChange(option.mode); setOpen(false) }}>
         <span className="permission-option-copy"><strong>{option.title}</strong><small>{option.description}</small></span>
         {option.mode === value && <Check size={15} />}
       </button>)}

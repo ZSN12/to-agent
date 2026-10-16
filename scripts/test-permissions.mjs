@@ -60,6 +60,14 @@ try {
   assert.match(dangerous.reason, /用户拒绝/)
   assert.match(pendingDialogs.at(-1)[0].message, /删除或重置数据/)
 
+  for (const command of ['/bin/rm -rf ./build', '\\rm -rf ./build', 'find . -delete']) {
+    const normalizedDangerous = await permissions.withExecution('on-risk', contents, () => permissions.authorize({
+      toolName: 'bash', input: { command },
+    }))
+    assert.equal(normalizedDangerous.block, true, `${command} must require approval`)
+    assert.match(pendingDialogs.at(-1)[0].message, /删除或重置数据/)
+  }
+
   const networkInstall = await permissions.withExecution('on-risk', contents, () => permissions.authorize({ toolName: 'bash', input: { command: 'npm install example-package' } }))
   assert.equal(networkInstall.block, true)
   assert.match(pendingDialogs.at(-1)[0].message, /下载项目依赖/)
@@ -87,6 +95,12 @@ try {
   const gitFetch = await permissions.withExecution('ask', contents, () => permissions.authorize({ toolName: 'bash', input: { command: 'git fetch origin' } }))
   assert.equal(gitFetch.block, true)
   assert.match(pendingDialogs.at(-1)[0].message, /远端 Git 仓库同步/)
+
+  const absoluteCurl = await permissions.withExecution('ask', contents, () => permissions.authorize({
+    toolName: 'bash', input: { command: '/usr/bin/curl https://example.com' },
+  }))
+  assert.equal(absoluteCurl.block, true, 'an absolute network executable path must require approval')
+  assert.match(pendingDialogs.at(-1)[0].message, /访问网络或上传数据/)
 
   const outsideRead = await permissions.withExecution('on-risk', contents, () => permissions.authorize({ toolName: 'read', input: { path: 'linked-outside/private.txt' } }))
   assert.equal(outsideRead.block, true)

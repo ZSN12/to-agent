@@ -13,6 +13,7 @@
     { "path": "./interaction/tool-orchestrate" },
     { "path": "./fs/tool-fs-semantic-search" },
     { "path": "./guard/repeat-tool-reminder" },
+    { "path": "./core/agent-loop" },
     { "path": "./llm/llm-retry" },
     { "path": "./bridge/bridge-core" },
     { "path": "./llm/llm-taskweaver-bridge" },

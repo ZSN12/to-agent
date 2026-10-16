@@ -4,7 +4,7 @@ import { createRequire } from 'node:module'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { pathToFileURL } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { createZApiClient } from './z-api-client.mjs'
 import {
   migrateLegacyProfileManifests,
@@ -99,6 +99,11 @@ export function bridgeTransportChildEnv(runtimeCwd, opencodexPackageRoot, runtim
     path.join(runtimeRoot, 'electron-vendor', 'taskweaver-bridge-transport', 'index.mjs'),
     path.join(runtimeCwd, 'electron-vendor', 'taskweaver-bridge-transport', 'index.mjs'),
   ]
+  if (!packaged) {
+    transportCandidates.push(
+      path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../packages/provider-bridge-transport/index.mjs'),
+    )
+  }
   const stagedTransport = transportCandidates.find((candidate) => fs.existsSync(candidate))
   if (stagedTransport) {
     env.TASKWEAVER_BRIDGE_TRANSPORT = pathToFileURL(stagedTransport).href

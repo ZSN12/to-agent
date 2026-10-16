@@ -54,38 +54,67 @@ function isUiVerifyMockMode(env = process.env) {
     && env.TASKWEAVER_PACKAGED !== 'true'
 }
 
-function latestUserText(context) {
-  const messages = context?.options?.messages ?? []
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const message = messages[index]
-    if (message?.role !== 'user') continue
-    if (typeof message.content === 'string') return message.content
-    if (Array.isArray(message.content)) {
-      return message.content
-        .filter((block) => block?.type === 'text' && typeof block.text === 'string')
-        .map((block) => block.text)
-        .join('')
-    }
+export function isUiVerifyApprovalFixture(context, env = process.env) {
+  if (!isUiVerifyMockMode(env) || env.TASKWEAVER_UI_VERIFY_SCENARIO !== 'approval') return false
+  const messages = context?.options?.messages ?? context?.messages
+  if (!Array.isArray(messages)) return false
+  const hasExactFixtureMessage = (value) => {
+    if (typeof value === 'string') return value.trimEnd().endsWith(UI_VERIFY_APPROVAL_FIXTURE)
+    if (Array.isArray(value)) return value.some(hasExactFixtureMessage)
+    if (!value || typeof value !== 'object') return false
+    if (value.type === 'text' && value.text === UI_VERIFY_APPROVAL_FIXTURE) return true
+    return Object.values(value).some(hasExactFixtureMessage)
   }
-  return ''
+  return messages.some((message) => message?.role === 'user' && hasExactFixtureMessage(message.content))
 }
 
-export function isUiVerifyApprovalFixture(context, env = process.env) {
-  return isUiVerifyMockMode(env)
-    && latestUserText(context) === UI_VERIFY_APPROVAL_FIXTURE
+function uiVerifyApprovalPhase(context) {
+  const messages = context?.options?.messages ?? context?.messages
+  let initialAttemptDenied = false
+  let escalatedAttemptFinished = false
+  const visit = (value) => {
+    if (Array.isArray(value)) {
+      for (const item of value) visit(item)
+      return
+    }
+    if (!value || typeof value !== 'object') return
+    if (value.toolCallId === 'ui-verify-approval-retry' || value.callId === 'ui-verify-approval-retry') {
+      escalatedAttemptFinished = true
+    }
+    if (value.toolCallId === 'ui-verify-approval-initial' || value.callId === 'ui-verify-approval-initial') {
+      initialAttemptDenied = true
+    }
+    for (const nested of Object.values(value)) visit(nested)
+  }
+  visit(messages)
+  return escalatedAttemptFinished ? 'complete' : initialAttemptDenied ? 'retry' : 'initial'
 }
 
 function uiVerifyMockStream() {
   return {
     kind: 'cursor',
     async *stream(context) {
-      if (isUiVerifyApprovalFixture(context)) {
-        const id = 'ui-verify-approval-call'
+      const approvalFixture = isUiVerifyApprovalFixture(context)
+      const phase = approvalFixture ? uiVerifyApprovalPhase(context) : 'complete'
+      if (approvalFixture && phase !== 'complete') {
+        const retry = phase === 'retry'
+        const target = process.env.TASKWEAVER_UI_VERIFY_APPROVAL_TARGET
+        if (!target || !path.isAbsolute(target)) {
+          throw bridgeError('UI_VERIFY_APPROVAL_TARGET_MISSING', 'UI approval fixture target is unavailable')
+        }
+        const quotedTarget = `'${target.replaceAll("'", "'\\''")}'`
+        const id = retry ? 'ui-verify-approval-retry' : 'ui-verify-approval-initial'
         const name = 'bash'
         const args = JSON.stringify({
-          command: 'printf UI_VERIFY_APPROVAL_OK',
-          description: 'Print the UI approval fixture marker',
+          command: `printf UI_VERIFY_APPROVAL_OK > ${quotedTarget}`,
+          description: retry
+            ? 'Retry the isolated UI approval marker after sandbox denial'
+            : 'Trigger the isolated UI approval fixture outside the workspace',
           timeoutMs: 5_000,
+          ...(retry ? {
+            sandbox_permissions: 'danger-full-access',
+            justification: 'UI verification writes one temporary marker beside its isolated workspace.',
+          } : {}),
         })
         yield { type: 'block-start', index: 0, blockType: 'tool-call' }
         yield { type: 'tool-call-delta', index: 0, id, name, argumentsDelta: args }
@@ -95,8 +124,9 @@ function uiVerifyMockStream() {
         return
       }
       yield { type: 'block-start', index: 0, blockType: 'text' }
-      yield { type: 'text-delta', index: 0, text: UI_VERIFY_MOCK_REPLY }
-      yield { type: 'block-end', index: 0, block: { type: 'text', text: UI_VERIFY_MOCK_REPLY } }
+      const text = approvalFixture ? 'UI_VERIFY_APPROVAL_OK' : UI_VERIFY_MOCK_REPLY
+      yield { type: 'text-delta', index: 0, text }
+      yield { type: 'block-end', index: 0, block: { type: 'text', text } }
       yield { type: 'usage', usage: { inputTokens: 1, outputTokens: 3, totalTokens: 4 } }
       yield { type: 'finish', reason: { kind: 'stop' } }
     },

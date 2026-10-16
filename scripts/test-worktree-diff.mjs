@@ -215,6 +215,70 @@ try {
       const { stdout } = await execFileAsync('git', ['rev-parse', 'HEAD'], { cwd: branchRepo })
       return stdout.trim()
     })()
+
+    const realGit = (await execFileAsync('which', ['git'])).stdout.trim()
+    const gitShimDir = await fs.mkdtemp(path.join(base, 'git-shim-'))
+    const gitShimPath = path.join(gitShimDir, 'git')
+    const gitStartedPath = path.join(gitShimDir, 'worktree-add-started')
+    await fs.writeFile(gitShimPath, [
+      '#!/bin/sh',
+      'if [ "$1" = "worktree" ] && [ "$2" = "add" ]; then',
+      '  : > "$TASKWEAVER_TEST_GIT_STARTED"',
+      '  sleep 30',
+      '  exit 1',
+      'fi',
+      'exec "$TASKWEAVER_TEST_REAL_GIT" "$@"',
+      '',
+    ].join('\n'), 'utf8')
+    await fs.chmod(gitShimPath, 0o755)
+    const oldPath = process.env.PATH
+    const oldRealGit = process.env.TASKWEAVER_TEST_REAL_GIT
+    const oldGitStarted = process.env.TASKWEAVER_TEST_GIT_STARTED
+    const abortController = new AbortController()
+    try {
+      process.env.PATH = `${gitShimDir}${path.delimiter}${oldPath ?? ''}`
+      process.env.TASKWEAVER_TEST_REAL_GIT = realGit
+      process.env.TASKWEAVER_TEST_GIT_STARTED = gitStartedPath
+      const cancelledWorktreeRunId = randomUUID()
+      const cancelledTarget = resolveTaskWorktreeDir(
+        branchData, branchRepo, branchConversationId, 'T9', cancelledWorktreeRunId,
+      )
+      const pendingCreation = createNodeWorktree({
+        workspacePath: branchRepo,
+        conversationId: branchConversationId,
+        runId: cancelledWorktreeRunId,
+        taskId: 'T9',
+        userDataPath: branchData,
+        baseCommit,
+        signal: abortController.signal,
+      })
+      const markerDeadline = Date.now() + 3000
+      let gitStarted = false
+      while (!gitStarted && Date.now() < markerDeadline) {
+        try {
+          await fs.access(gitStartedPath)
+          gitStarted = true
+        } catch { /* wait until the shim launches */ }
+        if (gitStarted) break
+        await new Promise((resolve) => setTimeout(resolve, 10))
+      }
+      assert.ok(gitStarted, 'the worktree add subprocess should start before cancellation')
+      abortController.abort()
+      await assert.rejects(pendingCreation, (error) => error.name === 'AbortError' || error.code === 'ABORT_ERR')
+      await assert.rejects(fs.stat(cancelledTarget), { code: 'ENOENT' }, 'a cancelled worktree add must remove its partial directory')
+      const cancelledBranch = `tw/${cancelledWorktreeRunId}/T9`
+      const branchProbe = await execFileAsync(realGit, ['branch', '--list', cancelledBranch], { cwd: branchRepo })
+      assert.equal(branchProbe.stdout.trim(), '', 'a cancelled worktree add must remove its partial branch')
+    } finally {
+      if (oldPath === undefined) delete process.env.PATH
+      else process.env.PATH = oldPath
+      if (oldRealGit === undefined) delete process.env.TASKWEAVER_TEST_REAL_GIT
+      else process.env.TASKWEAVER_TEST_REAL_GIT = oldRealGit
+      if (oldGitStarted === undefined) delete process.env.TASKWEAVER_TEST_GIT_STARTED
+      else process.env.TASKWEAVER_TEST_GIT_STARTED = oldGitStarted
+      await fs.rm(gitShimDir, { recursive: true, force: true })
+    }
+
     const registry = createNodeWorkspaceRegistry({
       enabled: true,
       workspacePath: branchRepo,
@@ -339,7 +403,7 @@ try {
     await fs.rm(branchRepo, { recursive: true, force: true })
   }
 
-  console.log('worktree-diff + DAG branches passed: run-scoped paths, branch-chain visibility, integration preview, retry reset evidence, and conflict guards')
+  console.log('worktree-diff + DAG branches passed: run-scoped paths, branch-chain visibility, integration preview, retry reset evidence, conflict guards, and cancellation cleanup')
 } finally {
   await fs.rm(userData, { recursive: true, force: true })
   await fs.rm(repo, { recursive: true, force: true })

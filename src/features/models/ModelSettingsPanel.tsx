@@ -8,6 +8,7 @@ import { ProbeModelsModal } from './ProbeModelsModal'
 import { OpenUsageSection } from './OpenUsageSection'
 import { LocalAgentStatusStrip, useLocalAgentBridgeStatus } from './LocalAgentStatusStrip'
 import { useModalFocusTrap } from '../../shared/useModalFocusTrap'
+import { SettingsLayout } from '../settings/SettingsLayout'
 import './model-settings-panel.css'
 
 type ProviderModelDiscoveryViewResult = {
@@ -68,7 +69,7 @@ function OAuthLoginModal({
     >
       <div ref={dialogRef} className="model-editor oauth-modal" role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}>
         <h2 id={titleId}>{providerLabel} 官方订阅授权</h2>
-        <p>{status?.instructions || `TaskWeaver 将通过 Z Runtime 授权流程打开 ${providerId === 'anthropic' ? 'Anthropic' : 'OpenAI Codex'} 登录页面。凭据由 Z Runtime 安全保存。`}</p>
+        <p>{status?.instructions || `TaskWeaver 将打开 ${providerId === 'anthropic' ? 'Anthropic' : 'OpenAI Codex'} 官方登录页面，并将凭据保存在本机凭据库中。`}</p>
 
         <div className="oauth-status-box">
           <div className="oauth-status-spinner" />
@@ -77,8 +78,8 @@ function OAuthLoginModal({
             <span>
               {status?.error
                 || (status?.status === 'completed'
-                  ? '授权已写入 Z Runtime 凭据库，可在模型列表中使用 Codex 模型。'
-                  : '登录成功后凭据由 Z Runtime 安全保存；若浏览器未自动打开，请使用下方链接。')}
+                  ? '授权已安全保存在本机，可在模型列表中使用 Codex 模型。'
+                  : '登录成功后授权信息会安全保存在本机；若浏览器未自动打开，请使用下方链接。')}
             </span>
           </div>
         </div>
@@ -423,7 +424,7 @@ function AddModelModal({
                           <span>
                             {catalogError
                               ? catalogError
-                              : '暂时无法获取提供方目录。Z Host 可能仍在启动，请稍候再点刷新。'}
+                              : '暂时无法获取提供方目录。应用可能仍在启动，请稍候再刷新。'}
                           </span>
                           <button type="button" className="settings-secondary-button" onClick={onRefresh}>刷新目录</button>
                         </>
@@ -1332,12 +1333,12 @@ export function ModelSettingsPanel({
   }
 
   return (
-    <section className="settings-page-content model-settings-page">
-      <div className="settings-page-heading">
-        <div>
-          <h1>模型与来源</h1>
-        </div>
-        <div className="settings-page-heading-actions">
+    <SettingsLayout
+      title="模型与来源"
+      description="管理模型来源、登录状态和可用模型目录。"
+      className="model-settings-page"
+      actions={(
+        <>
           <button
             type="button"
             className="settings-secondary-button"
@@ -1366,8 +1367,9 @@ export function ModelSettingsPanel({
             <Plus size={17} />
             添加模型与来源
           </button>
-        </div>
-      </div>
+        </>
+      )}
+    >
 
       <OpenUsageSection />
 
@@ -1400,11 +1402,11 @@ export function ModelSettingsPanel({
               </span>
             </div>
             <div className="model-registry-status-meta">
-              使用内置模型目录（跟随 Z Runtime 版本）
+              使用内置模型目录（随应用版本更新）
             </div>
             {updateStatus.runtime && (
               <div className="model-registry-status-meta">
-                Z {updateStatus.runtime.dsh?.version || '未知'} · pi-ai {updateStatus.runtime.piAi?.version || '未知'} · Overlay v{updateStatus.runtime.overlayVersion ?? '未知'}
+              运行时 {updateStatus.runtime.dsh?.version || '未知'} · pi-ai {updateStatus.runtime.piAi?.version || '未知'} · 适配层 v{updateStatus.runtime.overlayVersion ?? '未知'}
               </div>
             )}
             {(updateStatus.changes.added.length > 0
@@ -1743,7 +1745,7 @@ export function ModelSettingsPanel({
                           {!model.available && (
                             <span
                               className="provider-tag"
-                              title="模型目录中存在此项，但当前账号未登录或 Z Host 尚未确认该模型可路由。"
+                              title="模型目录中存在此项，但当前账号未登录或运行时尚未确认此模型可用。"
                             >
                               连接不可用
                             </span>
@@ -1884,6 +1886,6 @@ export function ModelSettingsPanel({
         }}
         onConfirm={handleConfirmImportProbedModels}
       />
-    </section>
+    </SettingsLayout>
   )
 }

@@ -1,8 +1,10 @@
 import { t as ensureDeployNodeModules } from "./deploy-layout-Dmt-qEOj.js";
 import { existsSync, writeFileSync } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { PROFILE_PATCH_FILENAME, boot, composeEntries, healProfilesModuleFallback, installFailLoud, loadOptionalPatches, loadOverlayPatches, loadProfile } from "@taskweaver/dsh-app-boot";
+import { PROFILE_PATCH_FILENAME, boot, composeEntries, healProfilesModuleFallback, installFailLoud, loadOptionalPatches, loadOverlayPatches, loadProfile, watchUserPatches } from "@taskweaver/dsh-app-boot";
 import { join, resolve } from "node:path";
+import Hmr from "@taskweaver/cordis-plugin-hmr";
+import Timer from "@taskweaver/cordis-plugin-timer";
 import { resolveRuntimeHome, taskweaverEmbeddedFromEnv } from "@taskweaver/dsh-home-paths";
 import { TASKWEAVER_LAUNCH_ENVIRONMENT_KEY } from "@taskweaver/dsh-launch-environment";
 import { provideCmdline } from "@taskweaver/dsh-cmdline";
@@ -228,6 +230,40 @@ async function runProfile(options) {
 		});
 	}, bareModuleBaseUrl);
 	app.current = ctx;
+	if (!taskweaverEmbedded() && ctx.get("loader") !== void 0) try {
+		if (ctx.get("timer") === void 0) await ctx.plugin(Timer);
+		if (ctx.get("hmr") === void 0) await ctx.plugin(Hmr, {
+			root: [],
+			ignored: [],
+			debounce: 0
+		});
+		const profilePatchPath = composed.profile.patchPath;
+		const sharedHomePatchPath = homePatchPath();
+		await watchUserPatches(ctx, {
+			binName: NAME,
+			filename: profilePatchPath,
+			compose: (patches) => [
+				...composed.bundlePatches,
+				...patches,
+				...loadOptionalPatches(NAME, sharedHomePatchPath) ?? [],
+				...composed.overlays
+			]
+		});
+		if (sharedHomePatchPath !== profilePatchPath) await watchUserPatches(ctx, {
+			binName: NAME,
+			filename: sharedHomePatchPath,
+			compose: (patches) => [
+				...composed.bundlePatches,
+				...loadOptionalPatches(NAME, profilePatchPath) ?? [],
+				...patches,
+				...composed.overlays
+			]
+		});
+	} catch (error) {
+		await ctx.fiber.dispose();
+		delete app.current;
+		throw error;
+	}
 	return {
 		ctx,
 		shutdown
