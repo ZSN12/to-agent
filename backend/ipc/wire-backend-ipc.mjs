@@ -167,6 +167,7 @@ export function wireBackendIpc({ ipcMain, app, dialog, BrowserWindow, shell, ctx
   registerModelsIpc({
     ipcMain,
     BrowserWindow,
+    shell,
     userDataPath: userData,
     appPath: app.getAppPath(),
     appBootstrap,

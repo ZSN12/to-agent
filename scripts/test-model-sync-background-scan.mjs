@@ -103,6 +103,24 @@ try {
   assert.equal(forceBypassedFreshCalls, 0, 'force: true must bypass isExportSnapshotFresh check')
   assert.equal(forceBypassedProbeCalls, 0, 'force: true must bypass isLegacyOcxProxyAvailable check')
 
+  let loginAttemptFinished = false
+  const loginStartFailure = await scanLocalModels({
+    userDataPath,
+    force: true,
+    loginPolicy: 'open-browser',
+    exportCatalog: async () => exportDoc,
+    fetchLogins: async () => ({ cursor: false }),
+    startProviderLogin: async () => {
+      await Promise.resolve()
+      loginAttemptFinished = true
+      throw new Error('simulated login spawn failure')
+    },
+  })
+  assert.equal(loginAttemptFinished, true, 'scan must await login startup before returning')
+  assert.equal(loginStartFailure.ok, false)
+  assert.equal(loginStartFailure.code, 'cursor-composer-login-start-failed')
+  assert.match(loginStartFailure.error, /simulated login spawn failure/)
+
   // 验证 export 与 status 并行执行及 trace 时间区间重叠
   await resetTrace()
   let exportActive = false

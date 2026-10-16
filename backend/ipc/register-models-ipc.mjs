@@ -26,6 +26,7 @@ const { traceStartup } = startupTrace
  * @param {{
  *   ipcMain: import('electron').IpcMain,
  *   BrowserWindow: typeof import('electron').BrowserWindow,
+ *   shell?: { openExternal?: (url: string) => Promise<void> },
  *   userDataPath: string,
  *   appPath: string,
  *   appBootstrap: { start: () => Promise<unknown> },
@@ -47,6 +48,7 @@ export function registerModelsIpc(ctx) {
   const {
     ipcMain,
     BrowserWindow,
+    shell,
     userDataPath,
     appPath,
     appBootstrap,
@@ -104,6 +106,16 @@ export function registerModelsIpc(ctx) {
     return status
   })
 
+  const startProviderLogin = (provider, loginOptions = {}) => {
+    if (typeof shell?.openExternal !== 'function') {
+      throw new Error('当前桌面 Shell 未提供安全的外部浏览器打开能力。')
+    }
+    return startOcxProviderLogin(provider, {
+      ...loginOptions,
+      openExternal: (url) => shell.openExternal(url),
+    })
+  }
+
   async function invokeScanLocalModels(options = {}) {
     const sync = await scanLocalModels({
       userDataPath,
@@ -115,7 +127,7 @@ export function registerModelsIpc(ctx) {
       enrichModels: (modelsDoc, bridgeProviderIds) =>
         enrichScannedBridgeModels(modelService, modelsDoc, bridgeProviderIds),
       loginPolicy: 'open-browser',
-      startProviderLogin: startOcxProviderLogin,
+      startProviderLogin,
       force: options?.force ?? true,
     })
     return formatScanLocalIpcResult(sync)
@@ -145,14 +157,15 @@ export function registerModelsIpc(ctx) {
   })
 
   ipcHandle(ipcMain, 'bridge:login', async (_event, kind) => {
-    const provider = kind === 'google-antigravity' ? 'google-antigravity' : 'cursor'
-    startOcxProviderLogin(provider, { userDataPath })
+    if (kind !== 'cursor' && kind !== 'google-antigravity') {
+      throw new Error('不支持此本地官方 Agent 登录方式。')
+    }
+    const provider = kind
+    const result = await startProviderLogin(provider, { userDataPath })
     return {
       ok: true,
       provider,
-      message: provider === 'cursor'
-        ? '已在系统浏览器打开 Cursor 登录；完成后点击「扫描本地官方 Agent」。'
-        : '已在系统浏览器打开 Antigravity 登录；完成后点击「扫描本地官方 Agent」。',
+      message: result.message ?? '登录流程已启动；完成授权后刷新状态。',
     }
   })
   ipcHandle(ipcMain, 'models:scanLocal', async (_event, options) => {

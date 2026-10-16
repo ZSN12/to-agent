@@ -165,7 +165,17 @@ export async function scanLocalModels({
   if (missingLogin) {
     const { loginProvider, label, agentId } = missingLogin
     if (loginPolicy === 'open-browser' && startLogin) {
-      startLogin(loginProvider, { userDataPath })
+      try {
+        await startLogin(loginProvider, { userDataPath })
+      } catch (err) {
+        const detail = err instanceof Error ? err.message : String(err)
+        return {
+          ok: false,
+          code: `${agentId}-login-start-failed`,
+          error: `无法启动 ${label} 登录：${detail}`,
+          localAgents: discoverAgentsFromExport(exportDoc, logins),
+        }
+      }
       const cursorLoginStarted = loginProvider === 'cursor'
       const antigravityLoginStarted = loginProvider === 'google-antigravity'
       return {

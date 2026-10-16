@@ -262,13 +262,22 @@ async function login(provider: string, deps: TaskWeaverCliDeps = {}): Promise<vo
   const oauthController: OAuthController = {
     signal: controller.signal,
     onAuth: ({ url, instructions }) => {
-      console.log(`Open this URL to sign in:\n${url}`);
-      if (instructions) console.log(instructions);
-      void (deps.openUrlImpl ?? openUrl)(url).then(result => {
-        if (result.status === "failed") console.error("Could not open a browser; use the URL printed above.");
-      });
+      if (process.env.TASKWEAVER_HOST_OPENS_LOGIN_URL === "1") {
+        // The desktop Host validates and opens this provider-generated URL via
+        // its platform shell capability. Keep this marker private to the
+        // parent process instead of invoking a second, detached OS launcher.
+        console.log(`TASKWEAVER_AUTH_URL ${url}`);
+      } else {
+        console.log(`Open this URL to sign in:\n${url}`);
+        if (instructions) console.log(instructions);
+        void (deps.openUrlImpl ?? openUrl)(url).then(result => {
+          if (result.status === "failed") console.error("Could not open a browser; use the URL printed above.");
+        });
+      }
     },
-    onProgress: message => console.error(message),
+    onProgress: message => {
+      if (process.env.TASKWEAVER_HOST_OPENS_LOGIN_URL !== "1") console.error(message);
+    },
     ...(prompt ? { onManualCodeInput: async () => prompt!.question("Paste the authorization redirect URL or code: ") } : {}),
   };
   try {
@@ -276,7 +285,7 @@ async function login(provider: string, deps: TaskWeaverCliDeps = {}): Promise<vo
       ? await (deps.loginCursorImpl ?? loginCursor)(oauthController)
       : await (deps.loginAntigravityImpl ?? loginAntigravity)(oauthController);
     await (deps.saveCredentialImpl ?? saveCredential)(provider, credential);
-    console.log(`Logged in to ${provider}.`);
+    if (process.env.TASKWEAVER_HOST_OPENS_LOGIN_URL !== "1") console.log(`Logged in to ${provider}.`);
   } finally {
     process.removeListener("SIGINT", abort);
     prompt?.close();

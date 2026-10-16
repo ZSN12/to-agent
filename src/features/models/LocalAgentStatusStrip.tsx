@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { LogIn, RefreshCw } from 'lucide-react'
 import type { LocalAgentBridgeStatus, LocalAgentDiscovery } from '../../shared/model-api'
 
+type LocalAgentLoginResult = { ok: boolean; message?: string; error?: string }
+
 function agentStatusLabel(agent: LocalAgentDiscovery) {
   if (agent.loginRequired) return '需登录'
   if (agent.discovered && agent.modelCount > 0) return `已发现 ${agent.modelCount} 个模型`
@@ -33,13 +35,37 @@ export function LocalAgentStatusStrip({
   status: LocalAgentBridgeStatus | null
   loading?: boolean
   onRefresh: () => void
-  onLogin: (kind: 'cursor' | 'google-antigravity') => Promise<void>
+  onLogin: (kind: 'cursor' | 'google-antigravity') => Promise<LocalAgentLoginResult>
   legacyOpenCodex?: boolean
   onMigrateLegacy?: () => Promise<void>
   migrateLoading?: boolean
 }) {
   const agents = status?.localAgents ?? []
+  const [loginBusy, setLoginBusy] = useState(false)
+  const [loginFeedback, setLoginFeedback] = useState<{ agentId: string; tone: 'success' | 'error'; message: string } | null>(null)
   if (!agents.length && !legacyOpenCodex) return null
+
+  const handleLogin = async (agent: LocalAgentDiscovery, kind: 'cursor' | 'google-antigravity') => {
+    setLoginBusy(true)
+    setLoginFeedback({ agentId: agent.agentId, tone: 'success', message: '正在启动登录并打开默认浏览器…' })
+    try {
+      const result = await onLogin(kind)
+      if (!result.ok) throw new Error(result.error || '登录流程未能启动。')
+      setLoginFeedback({
+        agentId: agent.agentId,
+        tone: 'success',
+        message: result.message || '授权页已打开。完成登录后点击“刷新状态”。',
+      })
+    } catch (error) {
+      setLoginFeedback({
+        agentId: agent.agentId,
+        tone: 'error',
+        message: error instanceof Error ? error.message : String(error),
+      })
+    } finally {
+      setLoginBusy(false)
+    }
+  }
 
   return (
     <div className="local-agent-status-strip" role="region" aria-label="本地官方 Agent 状态">
@@ -68,16 +94,26 @@ export function LocalAgentStatusStrip({
                 <button
                   type="button"
                   className="settings-secondary-button local-agent-login-btn"
-                  onClick={() => void onLogin(loginKind)}
+                  disabled={loginBusy}
+                  onClick={() => void handleLogin(agent, loginKind)}
                 >
-                  <LogIn size={14} />
-                  登录
+                  {loginBusy ? <RefreshCw size={14} className="animate-spin" /> : <LogIn size={14} />}
+                  {loginBusy ? '正在打开…' : '登录'}
                 </button>
               )}
             </li>
           )
         })}
       </ul>
+      {loginFeedback && (
+        <p
+          className={`local-agent-login-feedback ${loginFeedback.tone}`}
+          role={loginFeedback.tone === 'error' ? 'alert' : 'status'}
+          aria-live="polite"
+        >
+          {agents.find((agent) => agent.agentId === loginFeedback.agentId)?.label}：{loginFeedback.message}
+        </p>
+      )}
       {legacyOpenCodex && onMigrateLegacy && (
         <div className="local-agent-legacy-banner">
           <span>检测到遗留的 OpenCodex（10100）模型路由，建议迁移到内置桥。</span>
@@ -118,9 +154,17 @@ export function useLocalAgentBridgeStatus() {
   const login = useCallback(
     async (kind: 'cursor' | 'google-antigravity') => {
       const client = window.taskweaver?.models
-      if (!client?.bridgeLogin) return
-      await client.bridgeLogin(kind)
-      await refresh()
+      if (!client?.bridgeLogin) return { ok: false, error: '当前环境不支持本地官方 Agent 登录，请使用桌面端。' }
+      const result = await client.bridgeLogin(kind)
+      if (!result?.ok) return { ok: false, error: result?.error ?? '登录请求未能发送。' }
+      if (!result.data?.ok) return { ok: false, error: '本地登录流程没有成功启动。' }
+      try {
+        await refresh()
+      } catch {
+        // Login has already started; a status refresh failure should not be
+        // reported as a login launch failure.
+      }
+      return { ok: true, message: result.data.message }
     },
     [refresh],
   )
