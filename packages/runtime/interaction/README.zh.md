@@ -14,8 +14,10 @@
 | 包名 | 目录 | 详细说明 |
 |---|---|---|
 | [`@taskweaver/dsh-commands`](#pkg-taskweaver-dsh-commands) | `interaction/commands` | [接口与限制](#pkg-taskweaver-dsh-commands) |
+| [`@taskweaver/dsh-orchestration`](#pkg-taskweaver-dsh-orchestration) | `interaction/orchestration` | [接口与限制](#pkg-taskweaver-dsh-orchestration) |
 | [`@taskweaver/dsh-permission-presets`](#pkg-taskweaver-dsh-permission-presets) | `interaction/permission-presets` | [接口与限制](#pkg-taskweaver-dsh-permission-presets) |
 | [`@taskweaver/dsh-tool-ask-user`](#pkg-taskweaver-dsh-tool-ask-user) | `interaction/tool-ask-user` | [接口与限制](#pkg-taskweaver-dsh-tool-ask-user) |
+| [`@taskweaver/dsh-tool-orchestrate`](#pkg-taskweaver-dsh-tool-orchestrate) | `interaction/tool-orchestrate` | [接口与限制](#pkg-taskweaver-dsh-tool-orchestrate) |
 | [`@taskweaver/tool-ui-verify`](#pkg-taskweaver-tool-ui-verify) | `interaction/tool-ui-verify` | [接口与限制](#pkg-taskweaver-tool-ui-verify) |
 | [`@taskweaver/ui-verify`](#pkg-taskweaver-ui-verify) | `interaction/ui-verify` | [接口与限制](#pkg-taskweaver-ui-verify) |
 | [`@taskweaver/dsh-user-approval`](#pkg-taskweaver-dsh-user-approval) | `interaction/user-approval` | [接口与限制](#pkg-taskweaver-dsh-user-approval) |
@@ -344,6 +346,26 @@ No direct invalidation; the named consumer owns any request-prefix changes.
 
 - **One provider per context** — there is no routing or fan-out to multiple UIs; a second registration throws `DUPLICATE_PROVIDER`, and with none registered `ask()` throws `NO_PROVIDER` rather than degrading.
 - **The vocabulary is the question-form shape only** — selectable options plus optional custom text; richer interaction shapes (file pickers, diff-preview confirmations) have no seam vocabulary yet.
+
+<a id="pkg-taskweaver-dsh-orchestration"></a>
+### `@taskweaver/dsh-orchestration`
+
+目录：`interaction/orchestration`。
+
+<a id="pkg-taskweaver-dsh-orchestration--service-contract"></a>
+#### Service contract
+
+`ctx.orchestration` is the Host-provided seam for model-requested DAG execution. The desktop Host registers one provider with `registerProvider()`; duplicate providers fail with `DUPLICATE_PROVIDER`, and `run()` without a provider fails with `NO_PROVIDER`. Requests must come from a live root agent and include a tool-call id. Nested orchestration from child agents is rejected. Goals and optional context are trimmed and limited to 20,000 characters; `readOnly` is normalized to `false` when omitted. The request `AbortSignal` is forwarded to the provider so stopping the active turn can cancel the DAG. Results contain a summary, task counts and statuses, cancellation state, and changed file paths.
+
+<a id="pkg-taskweaver-dsh-tool-orchestrate"></a>
+### `@taskweaver/dsh-tool-orchestrate`
+
+目录：`interaction/tool-orchestrate`。
+
+<a id="pkg-taskweaver-dsh-tool-orchestrate--tool-contract"></a>
+#### Tool contract
+
+Registers the model-facing `orchestrate` tool on `ctx.tools`. The required `goal` carries the complete objective and constraints; optional `context` carries facts already gathered by the main agent, and `readOnly` marks work that must not modify files. The tool delegates to `ctx.orchestration`, then returns the DAG summary, per-task states, cancellation status, and changed-file list. Its description directs simple tasks to regular tools and recommends DAG execution for independent parallel work. It does not start a nested DAG from child agents.
 
 <a id="family-interaction"></a>
 ### 原族级说明（迁移保留）
