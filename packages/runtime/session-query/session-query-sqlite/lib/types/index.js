@@ -608,8 +608,15 @@ function queryCanUseTrigram(query) {
 function likePattern(query) {
     return `%${query.replace(/[\\%_]/gu, '\\$&')}%`;
 }
+const liveObservationCache = new WeakMap();
 function observeLive(session) {
-    return observeSession(session.header, session.events);
+    const events = session.events;
+    const cached = liveObservationCache.get(session);
+    if (cached?.events === events)
+        return cached.observation;
+    const observation = observeSession(session.header, events);
+    liveObservationCache.set(session, { events, observation });
+    return observation;
 }
 function observeSession(header, events) {
     const detachedHeader = structuredClone(header);

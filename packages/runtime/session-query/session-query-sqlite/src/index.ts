@@ -873,8 +873,19 @@ function likePattern(query: string): string {
   return `%${query.replace(/[\\%_]/gu, '\\$&')}%`
 }
 
+const liveObservationCache = new WeakMap<Session, {
+  events: readonly SessionEvent[]
+  observation: ObservedSession
+}>()
+
 function observeLive(session: Session): ObservedSession {
-  return observeSession(session.header, session.events)
+  const events = session.events
+  const cached = liveObservationCache.get(session)
+  if (cached?.events === events) return cached.observation
+
+  const observation = observeSession(session.header, events)
+  liveObservationCache.set(session, { events, observation })
+  return observation
 }
 
 function observeSession(header: SessionHeader, events: readonly SessionEvent[]): ObservedSession {
