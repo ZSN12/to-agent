@@ -2,6 +2,7 @@ import { useCallback, type Dispatch, type MutableRefObject, type SetStateAction 
 import type {
   AppState,
   ForkThreadResult,
+  RewindThreadResult,
   PermissionPromptPayload,
   ThreadSearchResult,
   ToolTraceItem,
@@ -243,6 +244,49 @@ export function useThreadActions(options: ThreadActionsOptions) {
     state?.currentThreadId,
   ])
 
+  const rewindThread = useCallback(async (
+    messageId: string,
+    mode: RewindThreadResult['mode'],
+    confirmationToken?: string | null,
+  ): Promise<RewindThreadResult | null> => {
+    const bridge = getBridge()
+    if (!bridge?.app) return null
+    const currentThreadId = state?.currentThreadId
+    if (!currentThreadId) return null
+    const res = await bridge.app.rewindThread(currentThreadId, messageId, mode, confirmationToken)
+    if (!res.ok) {
+      setError(res.error)
+      return null
+    }
+    if (res.data.status === 'done' && res.data.state) {
+      resetTransientConversationState()
+      activeConversationIdRef.current = res.data.state.conversationId
+      setState(res.data.state)
+      setCompletedConversationIds((current) => current.filter((id) => id !== res.data.state?.conversationId))
+      setToolTraces([])
+      setSending(isConversationRunning(res.data.state.conversationId))
+      setStreamStartedAt(conversationStartedAtRef.current.get(res.data.state.conversationId) ?? null)
+      void refreshSkills(res.data.state.workspacePath)
+      void refreshSessionStats()
+    }
+    setError(null)
+    return res.data
+  }, [
+    activeConversationIdRef,
+    conversationStartedAtRef,
+    isConversationRunning,
+    refreshSessionStats,
+    refreshSkills,
+    resetTransientConversationState,
+    setCompletedConversationIds,
+    setSending,
+    setState,
+    setError,
+    setStreamStartedAt,
+    setToolTraces,
+    state?.currentThreadId,
+  ])
+
   return {
     switchThread,
     renameThread,
@@ -251,6 +295,7 @@ export function useThreadActions(options: ThreadActionsOptions) {
     searchThreads,
     deleteThread,
     forkThread,
+    rewindThread,
     clearConversation,
   }
 }

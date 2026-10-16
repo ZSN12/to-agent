@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "TaskWeaverContract",
   "version": "1.0.0",
-  "generatedAt": "2026-10-16T09:30:32.811Z",
+  "generatedAt": "2026-10-16T09:50:07.441Z",
   "channels": [
     {
       "name": "backend:ready",
@@ -46,6 +46,17 @@
         "module": "./types/app-api",
         "interface": "TaskweaverAppApi",
         "method": "forkThread"
+      }
+    },
+    {
+      "name": "app:rewindThread",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "app.rewindThread",
+      "handlerModule": "backend/ipc/register-app-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverAppApi",
+        "method": "rewindThread"
       }
     },
     {

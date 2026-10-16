@@ -18,6 +18,7 @@ export const IPC_CHANNELS = [
     ["app:clearConversation", "app.clearConversation", "import('./types/app-api').TaskweaverAppApi['clearConversation']"],
     ["app:deleteThread", "app.deleteThread", "import('./types/app-api').TaskweaverAppApi['deleteThread']"],
     ["app:forkThread", "app.forkThread", "import('./types/app-api').TaskweaverAppApi['forkThread']"],
+    ["app:rewindThread", "app.rewindThread", "import('./types/app-api').TaskweaverAppApi['rewindThread']"],
     ["app:getState", "app.getState", "import('./types/app-api').TaskweaverAppApi['getState']"],
     ["app:listOutputLogs", "app.listOutputLogs", "import('./types/app-api').TaskweaverAppApi['listOutputLogs']"],
     ["app:listThreads", "app.listThreads", "import('./types/app-api').TaskweaverAppApi['listThreads']"],

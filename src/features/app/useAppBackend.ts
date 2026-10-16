@@ -386,6 +386,7 @@ export function useAppBackend() {
     searchThreads,
     deleteThread,
     forkThread,
+    rewindThread,
     clearConversation,
   } = useThreadActions({
     state,
@@ -536,6 +537,7 @@ export function useAppBackend() {
     searchThreads,
     deleteThread,
     forkThread,
+    rewindThread,
     searchWorkspaceContext,
     createDroppedReference,
     setPermissionMode,

@@ -164,6 +164,7 @@ export function createDshChatSend(deps) {
         webContents,
         eventConversationId,
         taskId,
+        workspacePath: cwdOverride || null,
         toolOutputMaxChars,
         orchestrationContext,
         orchestrationAllowed: orchestrationContext?.allowed === true,

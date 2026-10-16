@@ -1,5 +1,5 @@
 import { memo, useEffect, useRef, useState } from 'react'
-import { Pencil, RefreshCw, RotateCcw } from 'lucide-react'
+import { Pencil, RefreshCw, RotateCcw, Undo2 } from 'lucide-react'
 import type { DshProjectedImageRef, DshProjectedToolCall } from '../../shared/app-api'
 import type { ToolTraceItem } from '../../shared/app-api'
 import type { ChatMessage } from '../../types'
@@ -126,6 +126,7 @@ export const Message = memo(function Message({
   workspacePath,
   conversationId,
   onFork,
+  onRewind,
   onEditAndResend,
   onRegenerate,
   onRetry,
@@ -145,6 +146,7 @@ export const Message = memo(function Message({
   workspacePath?: string | null
   conversationId?: string | null
   onFork?: (messageId: string) => void
+  onRewind?: (messageId: string) => void
   onEditAndResend?: (text: string) => void
   onRegenerate?: () => void
   onRetry?: () => void
@@ -343,6 +345,18 @@ export const Message = memo(function Message({
                 title="分支到新聊天"
               >
                 <IconBranchOutline16 size={14} />
+              </button>
+            )}
+            {onRewind && message.id !== 'streaming-assistant' && (
+              <button
+                className="message-action-btn message-rewind"
+                type="button"
+                onClick={() => onRewind(message.id)}
+                aria-label="回到这里"
+                data-tooltip="回到这里"
+                title="回到这里"
+              >
+                <Undo2 size={14} />
               </button>
             )}
             <time className="message-footer-time">

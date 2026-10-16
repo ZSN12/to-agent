@@ -16,6 +16,7 @@ import { inspectFirstRunSecrets, dismissFirstRunNotice } from '../legacy-secrets
  *   refreshUiSnapshot: () => Promise<void>,
  *   assertNotBusy: (conversationId: string) => void,
  *   validateWorkspace: (workspacePath: string) => Promise<string>,
+   *   withWorkspaceOperation?: (workspacePath: string, operation: () => Promise<unknown>) => Promise<unknown>,
  * }} ctx
  */
 export function registerAppIpc(ctx) {
@@ -34,6 +35,7 @@ export function registerAppIpc(ctx) {
     refreshUiSnapshot,
     assertNotBusy,
     validateWorkspace,
+    withWorkspaceOperation,
   } = ctx
 
   const resolveThreadForkSelection = async (sourceConversationId, messageId) => {
@@ -47,6 +49,64 @@ export function registerAppIpc(ctx) {
       // A local TaskWeaver message ID can still be resolved without a live view.
     }
     return resolveForkSelectionForThread(sourceState.messages, messageId, transcriptRows)
+  }
+
+  async function cleanupFork(state, previousState) {
+    const cleanupErrors = []
+    if (state?.conversationId) {
+      try {
+        await chat.forgetConversation(state.conversationId)
+        conversationHub.detachSession(state.conversationId)
+      } catch (error) {
+        cleanupErrors.push(error instanceof Error ? error.message : String(error))
+      }
+    }
+    try {
+      const beforeRollback = state?.currentThreadId ? await appState.getState() : null
+      const branchWasCurrent = beforeRollback?.currentThreadId === state?.currentThreadId
+      if (state?.currentThreadId) await appState.deleteThread(state.currentThreadId)
+      const remaining = await appState.listThreads()
+      if (branchWasCurrent && previousState?.currentThreadId
+        && remaining.some((thread) => thread.id === previousState.currentThreadId)) {
+        await appState.switchThread(previousState.currentThreadId)
+      }
+      await refreshUiSnapshot()
+    } catch (error) {
+      cleanupErrors.push(error instanceof Error ? error.message : String(error))
+    }
+    return cleanupErrors
+  }
+
+  async function forkThreadAtSelection(threadId, source, forkSelection) {
+    const previousState = await appState.getState()
+    await chat.resetSession()
+    const state = await appState.forkThread(threadId, forkSelection.messageId)
+    try {
+      if (!state?.conversationId) throw new Error('本地分支记录未生成 conversationId')
+      const completedTurns = forkSelection.completedTurns
+      const result = await chat.forkConversation({
+        sourceConversationId: source.conversationId,
+        targetConversationId: state.conversationId,
+        completedTurns,
+      })
+      if (!result?.ok) {
+        const detail = [result?.reason, result?.error].filter(Boolean).join(': ')
+        throw new Error(`Z Host 未能继承源会话上下文${detail ? `（${detail}）` : ''}`)
+      }
+      await refreshUiSnapshot()
+      return {
+        state,
+        completedTurns: completedTurns ?? null,
+        atSeq: Number.isInteger(result.atSeq) ? result.atSeq : null,
+      }
+    } catch (error) {
+      const cleanupErrors = await cleanupFork(state, previousState)
+      const message = error instanceof Error ? error.message : String(error)
+      const cleanupNote = cleanupErrors.length
+        ? `；清理未完成：${cleanupErrors.join('；')}`
+        : '；未完成的分支记录已回滚'
+      throw new Error(`创建会话分支失败：${message}${cleanupNote}`)
+    }
   }
 
   ipcHandle(ipcMain, 'app:getState', async () => {
@@ -153,56 +213,92 @@ export function registerAppIpc(ctx) {
     assertNotBusy(source.conversationId)
     const forkSelection = await resolveThreadForkSelection(source.conversationId, messageId)
     if (!forkSelection) throw new Error('无法在源会话中定位该分支点；为避免意外继承全部历史，已取消分支')
-    const previousState = await appState.getState()
-    await chat.resetSession()
-    const state = await appState.forkThread(threadId, forkSelection.messageId)
-    try {
-      if (!state?.conversationId) throw new Error('本地分支记录未生成 conversationId')
-      const completedTurns = forkSelection.completedTurns
-      const result = await chat.forkConversation({
-        sourceConversationId: source.conversationId,
-        targetConversationId: state.conversationId,
-        completedTurns,
-      })
-      if (!result?.ok) {
-        const detail = [result?.reason, result?.error].filter(Boolean).join(': ')
-        throw new Error(`Z Host 未能继承源会话上下文${detail ? `（${detail}）` : ''}`)
-      }
-      await refreshUiSnapshot()
-      return {
-        state,
-        completedTurns: completedTurns ?? null,
-        atSeq: Number.isInteger(result.atSeq) ? result.atSeq : null,
-      }
-    } catch (error) {
-      const cleanupErrors = []
-      if (state?.conversationId) {
-        try {
-          await chat.forgetConversation(state.conversationId)
-          conversationHub.detachSession(state.conversationId)
-        } catch (cleanupError) {
-          cleanupErrors.push(cleanupError instanceof Error ? cleanupError.message : String(cleanupError))
-        }
-      }
-      try {
-        const beforeRollback = state?.currentThreadId ? await appState.getState() : null
-        const branchWasCurrent = beforeRollback?.currentThreadId === state?.currentThreadId
-        if (state?.currentThreadId) await appState.deleteThread(state.currentThreadId)
-        const remaining = await appState.listThreads()
-        if (branchWasCurrent && previousState?.currentThreadId
-          && remaining.some((thread) => thread.id === previousState.currentThreadId)) {
-          await appState.switchThread(previousState.currentThreadId)
-        }
-        await refreshUiSnapshot()
-      } catch (cleanupError) {
-        cleanupErrors.push(cleanupError instanceof Error ? cleanupError.message : String(cleanupError))
-      }
-      const message = error instanceof Error ? error.message : String(error)
-      const cleanupNote = cleanupErrors.length
-        ? `；清理未完成：${cleanupErrors.join('；')}`
-        : '；未完成的分支记录已回滚'
-      throw new Error(`创建会话分支失败：${message}${cleanupNote}`)
+    return forkThreadAtSelection(threadId, source, forkSelection)
+  })
+
+  ipcHandle(ipcMain, 'app:rewindThread', async (_event, threadId, messageId, mode, confirmationToken = null) => {
+    if (!['code', 'chat', 'both'].includes(mode)) throw new Error('回退方式无效')
+    const source = (await appState.listThreads()).find((thread) => thread.id === threadId)
+    if (!source) throw new Error('找不到要回退的会话')
+    if (!source.conversationId) throw new Error('源会话没有可继承的 Z Host 上下文，无法回退对话')
+    assertNotBusy(source.conversationId)
+    const forkSelection = await resolveThreadForkSelection(source.conversationId, messageId)
+    if (!forkSelection) throw new Error('无法定位所选消息对应的对话轮次')
+    if ((mode === 'code' || mode === 'both') && !source.workspacePath) {
+      throw new Error('当前会话没有工作区，无法回退代码')
     }
+
+    const codeOptions = {
+      conversationId: source.conversationId,
+      workspacePath: source.workspacePath,
+      targetTurn: forkSelection.completedTurns,
+    }
+
+    const execute = async () => {
+      if (mode === 'code' || mode === 'both') {
+        const preview = await chat.previewCodeRewind(codeOptions)
+        if (preview.unavailable?.length) {
+          throw new Error(`以下文件的回退快照不完整，无法安全恢复：${preview.unavailable.join('、')}`)
+        }
+        if (preview.conflicts?.length && confirmationToken !== preview.conflictToken) {
+          return {
+            status: 'conflict',
+            mode,
+            conflicts: preview.conflicts,
+            conflictToken: preview.conflictToken,
+            completedTurns: forkSelection.completedTurns ?? null,
+          }
+        }
+      }
+
+      if (mode === 'chat') {
+        return { status: 'done', mode, ...await forkThreadAtSelection(threadId, source, forkSelection) }
+      }
+
+      if (mode === 'code') {
+        const restored = await chat.restoreCodeRewind({ ...codeOptions, confirmationToken })
+        if (!restored?.ok && restored?.reason === 'conflicts') {
+          return {
+            status: 'conflict', mode, conflicts: restored.conflicts,
+            conflictToken: restored.conflictToken,
+            completedTurns: forkSelection.completedTurns ?? null,
+          }
+        }
+        if (!restored?.ok) throw new Error(`无法回退代码${restored?.unavailable?.length ? `：${restored.unavailable.join('、')}` : ''}`)
+        await refreshUiSnapshot()
+        return { status: 'done', mode, restoredFiles: restored.restoredFiles, completedTurns: forkSelection.completedTurns ?? null }
+      }
+
+      const previousState = await appState.getState()
+      const forked = await forkThreadAtSelection(threadId, source, forkSelection)
+      try {
+        const restored = await chat.restoreCodeRewind({ ...codeOptions, confirmationToken })
+        if (!restored?.ok && restored?.reason === 'conflicts') {
+          const cleanupErrors = await cleanupFork(forked.state, previousState)
+          if (cleanupErrors.length) throw new Error(`回退前发生新冲突，且分支清理未完成：${cleanupErrors.join('；')}`)
+          return {
+            status: 'conflict', mode, conflicts: restored.conflicts,
+            conflictToken: restored.conflictToken,
+            completedTurns: forkSelection.completedTurns ?? null,
+          }
+        }
+        if (!restored?.ok) throw new Error(`无法回退代码${restored?.unavailable?.length ? `：${restored.unavailable.join('、')}` : ''}`)
+        await refreshUiSnapshot()
+        return { status: 'done', mode, ...forked, restoredFiles: restored.restoredFiles }
+      } catch (error) {
+        const cleanupErrors = await cleanupFork(forked.state, previousState)
+        if (cleanupErrors.length) {
+          throw new Error(`${error instanceof Error ? error.message : String(error)}；分支清理未完成：${cleanupErrors.join('；')}`)
+        }
+        throw error
+      }
+    }
+
+    if (mode === 'chat') return execute()
+    if (typeof withWorkspaceOperation === 'function') {
+      return withWorkspaceOperation(source.workspacePath, execute)
+    }
+    return execute()
   })
 
   ipcHandle(ipcMain, 'app:setPermissionMode', async (_event, mode) => {

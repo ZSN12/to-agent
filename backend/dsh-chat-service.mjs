@@ -12,6 +12,7 @@ import { createDshModelConfigHelpers } from './dsh-chat/model-config.mjs'
 import { createDshSessionRegistry } from './dsh-chat/session-registry.mjs'
 import { createDshChatSend } from './dsh-chat/chat-send.mjs'
 import { createToolOutputStore } from './tool-output-store.mjs'
+import { createRewindStore } from './rewind-store.mjs'
 
 /** Bridges TaskWeaver's conversation contract to DSH's typed session API. */
 export function createDshChatService({
@@ -40,6 +41,7 @@ export function createDshChatService({
   const orchestrationRuns = new Map()
   const cancellingSessions = new Set()
   const toolOutputStore = createToolOutputStore()
+  const rewindStore = createRewindStore(userDataPath)
   let stopPromise = null
   let orchestrationHandler = null
   /** @type {Map<string, Set<import('electron').WebContents>>} */
@@ -126,6 +128,7 @@ export function createDshChatService({
     finishTurn,
     recoverSession: (...args) => recoverSession(...args),
     toolOutputStore,
+    rewindStore,
   })
 
   const recovery = createSessionRecovery({
@@ -249,6 +252,8 @@ export function createDshChatService({
 
   return {
     send,
+    previewCodeRewind: (options) => rewindStore.preview(options),
+    restoreCodeRewind: (options) => rewindStore.restore(options),
     setOrchestrationHandler(handler) {
       if (typeof handler !== 'function') throw new TypeError('DAG orchestration handler must be a function')
       orchestrationHandler = handler

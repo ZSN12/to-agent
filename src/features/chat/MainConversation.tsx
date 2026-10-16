@@ -110,6 +110,7 @@ export function MainConversation({
   onSelectPanel,
   onToggleNav,
   onFork,
+  onRewind,
   onResendMessage,
   onContinueMessage,
   onShowToolDetails,
@@ -199,6 +200,7 @@ export function MainConversation({
   onCreateDroppedReference: (file: File) => Promise<WorkspaceReference | null>
   onToggleNav: () => void
   onFork?: (messageId: string) => void
+  onRewind?: (messageId: string) => void
   onResendMessage?: (text: string, precedingAssistantId: string | null, modelKey?: string | null) => void
   onContinueMessage?: (modelKey?: string | null) => void
   onShowToolDetails?: (item: ToolTraceItem) => void
@@ -572,6 +574,13 @@ export function MainConversation({
               // 助手消息仅允许最新一条；用户消息可在任意一轮上分支（保留该轮及其回答）。
               && (message.author === 'user' || message.id === lastAgentMessageId)
               && (promptQueue?.steering?.length ?? 0) === 0
+            const canRewindHere =
+              Boolean(onRewind)
+              && !sending
+              && !message.compaction
+              && !message.callout
+              && !message.id.includes('-error')
+              && (promptQueue?.steering?.length ?? 0) === 0
             const isFocused = index === focusedMessageIndex
             return (
               <Message
@@ -582,6 +591,7 @@ export function MainConversation({
                 workspacePath={workspacePath}
                 conversationId={conversationId}
                 onFork={bindCallback('fork', canForkHere ? onFork : undefined)}
+                onRewind={bindCallback(`${message.id}:rewind`, canRewindHere ? onRewind : undefined)}
                 onEditAndResend={bindCallback(`${message.id}:edit`, mayResend && message.author === 'user' && !message.behavior
                   ? (text: string) => onResendMessage?.(text, previousAssistantId(index), editResponse?.modelKey ?? model?.id)
                   : undefined)}

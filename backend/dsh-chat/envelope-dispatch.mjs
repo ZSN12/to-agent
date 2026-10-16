@@ -46,6 +46,7 @@ export function createHandleEnvelope(deps) {
     finishTurn,
     recoverSession,
     toolOutputStore,
+    rewindStore = null,
   } = deps
 
   async function handleEnvelope(api, envelope) {
@@ -496,6 +497,17 @@ export function createHandleEnvelope(deps) {
       turn.toolCallsById.set(callId, {
         toolName, input, startedAt: event.time || Date.now(), turn: hostTurn, step: hostStep,
       })
+      if (!turn.taskId && (toolName === 'edit' || toolName === 'write')) {
+        await rewindStore?.captureBefore({
+          conversationId: turn.eventConversationId ?? ownerConversationId,
+          workspacePath: turn.workspacePath,
+          turn: hostTurn,
+          sessionId: frame.sessionId,
+          callId,
+          toolName,
+          input,
+        })
+      }
       emit(emitTarget, turn.webContents, {
         type: 'activity',
         phase: 'tools',
@@ -550,6 +562,14 @@ export function createHandleEnvelope(deps) {
       }
       if (call) {
         const fileDiff = extractFileDiff(call.toolName, call.input, result)
+        if (!turn.taskId && (call.toolName === 'edit' || call.toolName === 'write')) {
+          await rewindStore?.markToolResult({
+            conversationId: turn.eventConversationId ?? ownerConversationId,
+            sessionId: frame.sessionId,
+            callId,
+            success: !result.isError && Boolean(fileDiff),
+          })
+        }
         if (fileDiff) recordFileChange(turn, fileDiff)
         recordTurnActivity(turn.turnActivity, call.toolName, call.input, fileDiff, result.isError)
         emit(emitTarget, turn.webContents, {
@@ -659,6 +679,13 @@ export function createHandleEnvelope(deps) {
       return
     }
     if (event?.type === 'turn/end') {
+      if (!turn.taskId && Number.isInteger(event.data?.turn)) {
+        await rewindStore?.finalizeTurn({
+          conversationId: turn.eventConversationId ?? ownerConversationId,
+          workspacePath: turn.workspacePath,
+          turn: event.data.turn,
+        })
+      }
       const reason = event.data?.reason
       finishTurn(sessionKey, turn, emitTarget, {
         reason: reason?.kind,

@@ -12,6 +12,7 @@ export type InvokeChannel =
   | 'app:listThreads'
   | 'app:pickWorkspace'
   | 'app:renameThread'
+  | 'app:rewindThread'
   | 'app:searchThreads'
   | 'app:setModelKey'
   | 'app:setPermissionMode'
@@ -174,6 +175,7 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   'app:listThreads',
   'app:pickWorkspace',
   'app:renameThread',
+  'app:rewindThread',
   'app:searchThreads',
   'app:setModelKey',
   'app:setPermissionMode',

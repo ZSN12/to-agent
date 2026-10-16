@@ -147,6 +147,7 @@ export function createShellTaskweaverBridge(): TaskweaverBridge {
       clearConversation: (...args: unknown[]) => invoke("app:clearConversation", ...args),
       deleteThread: (...args: unknown[]) => invoke("app:deleteThread", ...args),
       forkThread: (...args: unknown[]) => invoke("app:forkThread", ...args),
+      rewindThread: (...args: unknown[]) => invoke("app:rewindThread", ...args),
       getState: (...args: unknown[]) => invoke("app:getState", ...args),
       listOutputLogs: (...args: unknown[]) => invoke("app:listOutputLogs", ...args),
       listThreads: (...args: unknown[]) => invoke("app:listThreads", ...args),

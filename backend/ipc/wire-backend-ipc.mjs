@@ -150,6 +150,7 @@ export function wireBackendIpc({ ipcMain, app, dialog, BrowserWindow, shell, ctx
     refreshUiSnapshot,
     assertNotBusy,
     validateWorkspace,
+    withWorkspaceOperation,
   })
 
   registerWorkspaceIpc({

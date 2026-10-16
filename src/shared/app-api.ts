@@ -163,6 +163,19 @@ export interface ForkThreadResult {
   atSeq: number | null
 }
 
+export interface RewindThreadResult {
+  status: 'done' | 'conflict'
+  mode: 'code' | 'chat' | 'both'
+  /** Newly created branch for chat/both rewinds. */
+  state?: AppState
+  completedTurns: number | null
+  atSeq?: number | null
+  restoredFiles?: string[]
+  conflicts?: string[]
+  /** Binds explicit conflict confirmation to the current file contents. */
+  conflictToken?: string | null
+}
+
 export interface TaskweaverAppApi {
   getState: () => Promise<IpcResult<AppState>>
   listOutputLogs: (options?: { query?: string; status?: ToolTraceItem['status']; limit?: number }) => Promise<IpcResult<OutputLogEntry[]>>
@@ -176,6 +189,7 @@ export interface TaskweaverAppApi {
   searchThreads: (query: string, options?: { workspacePath?: string | null }) => Promise<IpcResult<ThreadSearchResult[]>>
   deleteThread: (threadId: string) => Promise<IpcResult<AppState>>
   forkThread: (threadId: string, messageId: string) => Promise<IpcResult<ForkThreadResult>>
+  rewindThread: (threadId: string, messageId: string, mode: RewindThreadResult['mode'], confirmationToken?: string | null) => Promise<IpcResult<RewindThreadResult>>
   clearConversation: (options?: { workspacePath?: string | null }) => Promise<IpcResult<AppState>>
   setPermissionMode: (mode: PermissionMode) => Promise<IpcResult<AppState>>
   setModelKey: (modelKey: string) => Promise<IpcResult<AppState>>

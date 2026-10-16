@@ -11,7 +11,7 @@ import { TaskConversation } from './features/orchestration/TaskConversation'
 import { useAppKeyboardShortcuts } from './features/app/useAppKeyboardShortcuts'
 import { useInterruptedTurn } from './features/chat/useInterruptedTurn'
 import { DetailsPanel } from './features/chat/DetailsPanel'
-import type { PermissionMode, SkillOption, ThreadSummary, ToolTraceItem, WorkMode } from './shared/app-api'
+import type { PermissionMode, RewindThreadResult, SkillOption, ThreadSummary, ToolTraceItem, WorkMode } from './shared/app-api'
 import type { ModelOption, TaskNode, ThinkingLevel } from './types'
 import {
   loadShortcuts,
@@ -27,6 +27,7 @@ import { AppSidebar } from './features/sidebar/AppSidebar'
 import { DiffReviewCard } from './features/chat/DiffReviewCard'
 import { ConfirmModal } from './shared/ConfirmModal'
 import { MainConversation } from './features/chat/MainConversation'
+import { MessageRewindDialog } from './features/chat/MessageRewindDialog'
 import type { PanelView } from './features/chat/panel-view'
 import { workspaceLabel } from './shared/ui-utils'
 
@@ -94,6 +95,14 @@ export default function App() {
   const primaryModelMigrationNotified = useRef(false)
   const [dismissedInterruptId, setDismissedInterruptId] = useState<string | null>(null)
   const [forkNotice, setForkNotice] = useState('')
+  const [rewindDialog, setRewindDialog] = useState<{
+    messageId: string
+    mode?: RewindThreadResult['mode']
+    conflicts?: string[]
+    confirmationToken?: string | null
+    busy?: boolean
+    error?: string | null
+  } | null>(null)
   const forkNoticeTimer = useRef<number | null>(null)
   const showForkNotice = useCallback((message: string) => {
     if (forkNoticeTimer.current !== null) window.clearTimeout(forkNoticeTimer.current)
@@ -312,6 +321,69 @@ export default function App() {
       const turns = result.completedTurns
       showForkNotice(turns ? `已从第 ${turns} 轮分支` : '已创建分支')
     })
+  }
+
+  const handleChooseRewind = async (mode: RewindThreadResult['mode']) => {
+    if (!rewindDialog || appBackend.sending) return
+    setRewindDialog((current) => current ? { ...current, mode, busy: true, error: null } : current)
+    const result = await appBackend.rewindThread(rewindDialog.messageId, mode)
+    if (!result) {
+      setRewindDialog((current) => current ? { ...current, busy: false, error: '回退失败，请查看页面上方的错误提示。' } : current)
+      return
+    }
+    if (result.status === 'conflict') {
+      setRewindDialog((current) => current ? {
+        ...current,
+        mode,
+        conflicts: result.conflicts ?? [],
+        confirmationToken: result.conflictToken,
+        busy: false,
+        error: null,
+      } : current)
+      return
+    }
+    setRewindDialog(null)
+    if (mode === 'chat' || mode === 'both') {
+      const turns = result.completedTurns
+      const rewindLabel = turns ? `已回到第 ${turns} 轮` : '已回到所选消息'
+      const codeLabel = mode === 'both'
+        ? `，恢复了 ${result.restoredFiles?.length ?? 0} 个文件`
+        : ''
+      showForkNotice(`${rewindLabel}${codeLabel}，新分支已打开`)
+    } else {
+      const turns = result.completedTurns ? `第 ${result.completedTurns} 轮后的状态` : '所选消息后的状态'
+      const files = result.restoredFiles?.length ?? 0
+      showForkNotice(files ? `代码已回退到${turns}，恢复 ${files} 个文件` : `代码已处于${turns}`)
+    }
+  }
+
+  const handleConfirmRewindConflicts = async () => {
+    if (!rewindDialog?.mode || !rewindDialog.confirmationToken || appBackend.sending) return
+    const { messageId, mode, confirmationToken } = rewindDialog
+    setRewindDialog((current) => current ? { ...current, busy: true, error: null } : current)
+    const result = await appBackend.rewindThread(messageId, mode, confirmationToken)
+    if (!result) {
+      setRewindDialog((current) => current ? { ...current, busy: false, error: '回退失败，请查看页面上方的错误提示。' } : current)
+      return
+    }
+    if (result.status === 'conflict') {
+      setRewindDialog((current) => current ? {
+        ...current,
+        conflicts: result.conflicts ?? [],
+        confirmationToken: result.conflictToken,
+        busy: false,
+        error: '文件状态在确认期间又变化了，请核对更新后的冲突列表。',
+      } : current)
+      return
+    }
+    setRewindDialog(null)
+    if (mode === 'chat' || mode === 'both') {
+      const codeLabel = mode === 'both' ? `，恢复了 ${result.restoredFiles?.length ?? 0} 个文件` : ''
+      showForkNotice(`已回到第 ${result.completedTurns ?? ''} 轮${codeLabel}，新分支已打开`)
+    } else {
+      const files = result.restoredFiles?.length ?? 0
+      showForkNotice(files ? `代码已回退，恢复 ${files} 个文件` : '代码已处于所选回退点')
+    }
   }
 
   const handleResendMessage = async (text: string, precedingAssistantId: string | null, modelKey?: string | null) => {
@@ -533,6 +605,7 @@ export default function App() {
           onSelectPanel={setPanel}
           onToggleNav={() => setNavCollapsed((current) => !current)}
           onFork={handleForkThread}
+          onRewind={(messageId) => setRewindDialog({ messageId })}
           onResendMessage={(text, precedingAssistantId, modelKey) => {
             void handleResendMessage(text, precedingAssistantId, modelKey)
           }}
@@ -605,6 +678,19 @@ export default function App() {
             void appBackend.deleteThread(id).then((changed) => { if (changed) setPanel(null) })
           }}
           onCancel={() => setDeleteTargetThread(null)}
+        />
+      )}
+      {rewindDialog && (
+        <MessageRewindDialog
+          mode={rewindDialog.mode}
+          conflicts={rewindDialog.conflicts}
+          confirmationToken={rewindDialog.confirmationToken}
+          canRewindCode={Boolean(appBackend.workspacePath)}
+          busy={rewindDialog.busy}
+          error={rewindDialog.error}
+          onChoose={(mode) => { void handleChooseRewind(mode) }}
+          onConfirmConflicts={() => { void handleConfirmRewindConflicts() }}
+          onCancel={() => { if (!rewindDialog.busy) setRewindDialog(null) }}
         />
       )}
     </div>
