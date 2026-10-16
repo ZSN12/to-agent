@@ -29,7 +29,10 @@ Options:
   --workspace <path>    Workspace directory to bind the headless session to
   --permission-mode <mode>  readonly, ask (default), or on-risk; full is unavailable
   --json-summary        After run, print one JSON summary line on stdout
+  --report-dir <path>   Store the per-run report in this directory
   --fixture             Emit deterministic smoke events without starting Host/model
+  --evaluation-mode <mode>  single, dag-fixed, or dag-routed evaluation execution
+  --eval-secure          Do not copy stored credentials; require dedicated TASKWEAVER_USER_DATA
   --help                Show this help
 
 Passthrough to smoke: --model, --thinking, --idle-timeout, --context-budget

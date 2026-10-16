@@ -5,8 +5,12 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createZApiClient, createZHostManager } from '../../backend/agent/z-host/index.mjs'
 import { createDshChatService } from '../../backend/dsh-chat-service.mjs'
+import { createOrchestrationService } from '../../backend/orchestration-service.mjs'
 import { createModelService } from '../../backend/model-service.mjs'
 import { createProfileStore } from '../../backend/profile-store.mjs'
+import { createAppStateStore } from '../../backend/app-state-store.mjs'
+import { createAppPreferencesStore } from '../../backend/app-preferences.mjs'
+import { createPermissionService } from '../../backend/permission-service.mjs'
 import { resolveTaskWeaverModelsPath } from '../../backend/taskweaver-models-path.mjs'
 import { ensureModelsJsonSyncedToDshHost } from '../../backend/sync-models-json-to-host.mjs'
 import { setOcxRuntimeContext } from '../../backend/opencodex-binary.mjs'
@@ -15,6 +19,10 @@ import { summarizeHostStepTimings } from '../host-step-timings.mjs'
 import { assembleWorkspaceContext } from '../../backend/context-assembler.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
+function isInsideRoot(candidate) {
+  const relative = path.relative(root, path.resolve(candidate))
+  return relative === '' || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative))
+}
 const installedAppRoot = process.env.TASKWEAVER_APP_PATH || '/Applications/TaskWeaver.app'
 const installedResourcesPath = path.join(installedAppRoot, 'Contents', 'Resources')
 const arg = (name) => {
@@ -50,10 +58,18 @@ if (opencodexBaseUrlOverride) {
   }
 }
 const contextBudgetOverride = process.argv.includes('--context-budget') ? Number(arg('--context-budget')) : null
+const reportDirOverride = process.argv.includes('--report-dir') ? path.resolve(arg('--report-dir')) : null
 const agentPreset = process.argv.includes('--preset') ? arg('--preset') : 'taskweaver-readonly'
-if (!['standard', 'code', 'minimal', 'cordis', 'taskweaver-code', 'taskweaver-readonly', 'taskweaver-optimized'].includes(agentPreset)) {
-  throw new Error('--preset must be standard, code, minimal, cordis, taskweaver-code, taskweaver-readonly, or taskweaver-optimized')
+if (!['standard', 'code', 'minimal', 'cordis', 'tw-default', 'taskweaver-code', 'taskweaver-readonly', 'taskweaver-optimized'].includes(agentPreset)) {
+  throw new Error('--preset must be standard, code, minimal, cordis, tw-default, taskweaver-code, taskweaver-readonly, or taskweaver-optimized')
 }
+const evaluationMode = process.argv.includes('--evaluation-mode') ? arg('--evaluation-mode') : null
+if (evaluationMode && !['single', 'dag-fixed', 'dag-routed'].includes(evaluationMode)) {
+  throw new Error('--evaluation-mode must be single, dag-fixed, or dag-routed')
+}
+const evaluationSecure = process.argv.includes('--eval-secure')
+if (evaluationSecure && !evaluationMode) throw new Error('--eval-secure requires --evaluation-mode')
+if (evaluationSecure && !reportDirOverride) throw new Error('--eval-secure requires an explicit per-run --report-dir')
 const idleTimeoutOverride = process.argv.includes('--idle-timeout') ? Number(arg('--idle-timeout')) : null
 if (thinkingOverride && !['default', 'off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'].includes(thinkingOverride)) {
   throw new Error('--thinking must be default, off, minimal, low, medium, high, xhigh, or max')
@@ -109,10 +125,24 @@ if (fixture) {
 const userData = process.env.TASKWEAVER_USER_DATA
   ? path.resolve(process.env.TASKWEAVER_USER_DATA)
   : path.join(os.homedir(), 'Library', 'Application Support', 'taskweaver-desktop')
+if (evaluationSecure && !process.env.TASKWEAVER_USER_DATA) {
+  throw new Error('secure evaluation requires an explicit dedicated TASKWEAVER_USER_DATA directory')
+}
+if (evaluationSecure && isInsideRoot(userData)) throw new Error('secure evaluation user data must be outside the repository')
+if (evaluationSecure && isInsideRoot(reportDirOverride)) throw new Error('secure evaluation reports must be outside the repository')
+if (evaluationSecure && isInsideRoot(await fs.realpath(userData))) {
+  throw new Error('secure evaluation user data resolves inside the repository')
+}
 const runtimeRoot = process.env.TASKWEAVER_RUNTIME
   ? path.resolve(process.env.TASKWEAVER_RUNTIME)
   : installed ? path.join(installedResourcesPath, 'taskweaver-z-runtime') : path.join(root, 'vendor', 'taskweaver-z-runtime')
-const reportDir = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-live-read-'))
+const reportDir = reportDirOverride ?? await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-live-read-'))
+await fs.mkdir(reportDir, { recursive: true, mode: 0o700 })
+if (reportDirOverride && (await fs.readdir(reportDir)).length > 0) {
+  throw new Error('--report-dir must be a new or empty directory')
+}
+if (evaluationSecure && isInsideRoot(await fs.realpath(reportDir))) throw new Error('secure evaluation reports resolve inside the repository')
+await fs.chmod(reportDir, 0o700)
 let api
 let hostManager
 let modelService
@@ -131,7 +161,7 @@ try {
     // Reuse opaque settings/credential files without displaying their contents;
     // no old profile bundle or conversation history enters the clean test home.
     await fs.mkdir(path.join(reportDir, 'dsh'), { recursive: true })
-    for (const file of ['settings.yaml', '.credentials.yaml']) {
+    for (const file of (evaluationSecure ? ['settings.yaml'] : ['settings.yaml', '.credentials.yaml'])) {
       try {
         const dest = path.join(reportDir, 'dsh', file)
         await fs.copyFile(path.join(userData, 'dsh', file), dest)
@@ -144,8 +174,17 @@ try {
     // live in the copied Z credential file.
     try {
       const sourceModelsDoc = JSON.parse(await fs.readFile(resolveTaskWeaverModelsPath(userData), 'utf8'))
+      if (evaluationSecure && Object.values(sourceModelsDoc.providers ?? {}).some((provider) =>
+        provider && typeof provider === 'object' && typeof provider.apiKey === 'string' && provider.apiKey.trim())) {
+        throw new Error('secure evaluation model configuration must not store provider API keys; pass credentials through environment variables')
+      }
       modelsDocForSync = structuredClone(sourceModelsDoc)
       const modelsDoc = structuredClone(sourceModelsDoc)
+      if (evaluationSecure) {
+        for (const provider of Object.values(modelsDocForSync.providers ?? {})) {
+          if (provider && typeof provider === 'object') delete provider.apiKey
+        }
+      }
       if (opencodexBaseUrlOverride) {
         if (!modelsDoc.providers?.opencodex || !modelsDocForSync.providers?.opencodex) {
           throw new Error('Cannot override OpenCodex URL: opencodex provider is missing from models.json')
@@ -202,6 +241,11 @@ try {
     ? null
     : await assembleWorkspaceContext(userText, workspacePath, { maxInjectionBytes: contextBudgetOverride })
   const promptText = assembledContext?.prompt ?? userText
+  const evaluationPrompt = evaluationMode === null
+    ? promptText
+    : `${promptText}\n\n【评测运行约束】${evaluationMode === 'single'
+      ? '本轮评测固定为单 Agent，请直接完成任务，不调用 orchestrate。'
+      : '本轮评测固定走 TaskWeaver DAG，请调用 orchestrate，把完整目标、验收标准和限制交给编排器；不要通过其他子 Agent 机制拆分。'}`
   metrics = {
     modelKey,
     agentPreset,
@@ -223,6 +267,90 @@ try {
     hostManager, userDataPath: reportDir, modelService, profileStore,
     getWorkspacePath: () => workspacePath, getPermissionMode: () => permissionMode,
   })
+  let orchestration = null
+  const orchestrationRuns = []
+  if (evaluationMode === 'dag-fixed' || evaluationMode === 'dag-routed') {
+    const appState = createAppStateStore(reportDir, workspacePath)
+    const appPreferences = createAppPreferencesStore(reportDir)
+    const permissionService = createPermissionService({
+      dialog: { showMessageBox: async () => ({ response: 1 }) },
+      getParentWindow: () => null,
+      getWorkspacePath: async () => workspacePath,
+      getWorkspaceTrusted: async () => true,
+    })
+    let orchestrationModelService = modelService
+    if (evaluationMode === 'dag-fixed') {
+      orchestrationModelService = {
+        async listCatalog() {
+          const catalog = await modelService.listCatalog()
+          const selected = catalog.models.find((model) => model.key === modelKey)
+          if (!selected) throw new Error(`fixed DAG model is missing from the model catalog: ${modelKey}`)
+          return {
+            ...catalog,
+            models: [{
+              ...selected,
+              routeRegistered: selected.routeRegistered !== false,
+              profile: { ...selected.profile, tier: 'strong', enabledForAllocation: true },
+            }],
+          }
+        },
+      }
+    }
+    orchestration = createOrchestrationService({
+      modelService: orchestrationModelService,
+      appState,
+      getWorkspacePath: async () => workspacePath,
+      agentDataPath: path.join(reportDir, 'taskweaver-agent'),
+      userDataPath: reportDir,
+      getAppPreferences: async () => ({
+        ...await appPreferences.get(),
+        worktreeIsolation: true,
+        dagPlanApproval: 'never',
+        dagCrossProviderReview: false,
+        maxSubtaskConcurrency: 2,
+        dagBudgetUsd: Number(process.env.TASKWEAVER_EVAL_DAG_BUDGET_USD) || 1,
+        dagBudgetTokens: Number(process.env.TASKWEAVER_EVAL_DAG_BUDGET_TOKENS) || 200_000,
+      }),
+      dshRuntime: chat,
+      permissionService,
+      maxSubtaskConcurrency: 2,
+    })
+    chat.setOrchestrationHandler(async ({ conversationId: dagConversationId, goal, taskContext, readOnly, context, webContents, signal }) => {
+      const outcome = await orchestration.planAndExecute({
+        text: context.text,
+        rawText: context.rawText,
+        contextLayers: [
+          ...(Array.isArray(context.promptContextLayers) ? context.promptContextLayers : []),
+          ...(typeof taskContext === 'string' && taskContext.trim()
+            ? [{ id: 'primary-agent-known-context', text: taskContext.trim() }]
+            : []),
+          { id: 'primary-agent-dag-goal', text: goal },
+        ],
+        primaryModelKey: context.primaryModelKey,
+        conversationId: dagConversationId,
+        webContents,
+        workspacePath,
+        permissionMode: readOnly === true ? 'readonly' : permissionMode,
+        forceReadOnly: readOnly === true,
+        workspaceTrusted: true,
+        dagPlanApprovalOverride: 'never',
+        signal,
+      })
+      orchestrationRuns.push({
+        runId: outcome.runId ?? null,
+        failedTaskIds: Array.isArray(outcome.failedTaskIds) ? outcome.failedTaskIds : [],
+        usage: outcome.assistant?.usage ?? null,
+        tasks: (outcome.tasks ?? []).map((task) => ({
+          id: task.id,
+          taskType: task.taskType,
+          modelKey: task.modelKey ?? null,
+          status: task.status ?? task.runStatus ?? null,
+          toolCallCount: task.executionEvidence?.observedToolCalls?.length ?? 0,
+        })),
+      })
+      return outcome
+    })
+  }
   const webContents = {
     isDestroyed: () => false,
     send(channel, event) {
@@ -253,7 +381,20 @@ try {
   heartbeat = setInterval(() => console.log(JSON.stringify({ status: 'running', elapsedMs: Date.now() - startedAt, reasoningChars: metrics.reasoningChars, toolCalls: metrics.toolEvents.filter(e => e.status === 'running').length, firstTextMs: metrics.firstTextMs })), 20_000)
   const result = await chat.send({
     conversationId, modelKey, webContents, cwdOverride: workspacePath, agentPreset,
-    text: promptText,
+    text: evaluationPrompt,
+    ...(evaluationMode ? {
+      orchestrationContext: {
+        text: evaluationPrompt,
+        rawText: userText,
+        promptContextLayers: [],
+        primaryModelKey: modelKey,
+        workspacePath,
+        workspaceTrusted: true,
+        permissionMode,
+        dagPlanApprovalOverride: 'never',
+        allowed: evaluationMode !== 'single',
+      },
+    } : {}),
   })
   const sessionId = chat.getSessionId(conversationId)
   const reply = await api.sessions.history({ sessionId })
@@ -280,6 +421,7 @@ try {
     // Deliberately retain only route/effort metadata. Never persist the full
     // request/header snapshot, which contains system text and tool schemas.
     requestHeaders,
+    ...(evaluationMode ? { evaluationMode, orchestrationRuns } : {}),
     requestAttemptEstimate: history.filter(e => e.type === 'step/start').length
       + history.filter(e => e.type === 'llm/retry-started').length,
     hostStepTimings: summarizeHostStepTimings(history, startedAt),
