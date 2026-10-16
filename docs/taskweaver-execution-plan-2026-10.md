@@ -454,6 +454,7 @@ TaskWeaver 当前是 **macOS 优先的本地桌面 Coding Agent**。本计划遵
 | CA-R17 | P2 | Python outline 用单一 `currentClass` 归属嵌套 `def`，嵌套函数/类会被错当成外层类方法；嵌套类方法也会错挂 | [`symbol-outline-extractor.mjs`](../backend/symbol-outline-extractor.mjs)、[`test-symbol-outline-extractor.mjs`](../scripts/test-symbol-outline-extractor.mjs) | 已改用按缩进维护的类/函数作用域栈，并覆盖嵌套函数、嵌套类和 tab 缩进；仍是逐行正则解析，不支持多行签名、完整 Python 语法或多行字符串中的伪定义 |
 | CA-R18 | CONFIRMED | Repo Map 收集的代码扩展名比符号提取器实际支持范围更广；`.mts/.cts` 曾被收集但返回空符号，Vue/Svelte、Swift、Java、C-family、Ruby、PHP、Lua、Shell、SQL、GraphQL、Proto 当前也没有对应提取器；TS 构造器/accessor、Rust/Go 部分成员和多行签名存在覆盖限制 | [`repo-map-service.mjs`](../backend/repo-map-service.mjs)、[`symbol-outline-extractor.mjs`](../backend/symbol-outline-extractor.mjs) | `.mts/.cts` 已转交现有 TypeScript AST 并增加回归；其余语言/语法缺口保持显式，不把路径发现误称为符号索引。下一步按仓库实际语言与价值确定解析器支持矩阵，优先覆盖本仓库 Swift 源码 |
 | CA-R19 | P2 | Planner 路径索引的 `vendor` 忽略规则与排序优先级冲突；遍历计数在刚好到达上限时误报截断，且深度/目录读取失败原因没有传给 Planner | [`planner.mjs`](../backend/orchestration/planner.mjs)、[`plan-and-execute.mjs`](../backend/orchestration/plan-and-execute.mjs)、[`test-planner-hints.mjs`](../scripts/test-planner-hints.mjs) | 已移除不可达的 `vendor` 排序权重；准确区分扫描、深度、不可读目录与展示上限，在真实 Planner prompt 中说明具体不完整原因；隐藏/忽略项仍消耗扫描预算，后续应评估其对候选可发现性的影响 |
+| CA-R20 | P1 | worktree 手动清理和合并后清理可经 `--force` 删除已跟踪改动、普通未跟踪文件或 Git 忽略文件；普通 `git status` 看不到“仅含忽略文件”的现场 | [`worktree-service.mjs`](../backend/worktree-service.mjs)、[`test-worktree-diff.mjs`](../scripts/test-worktree-diff.mjs) | 修复后移除前检查 tracked/untracked/ignored；合并后只清理已全部合并且内容一致的选中文件，忽略文件或剩余改动会保留 worktree；见 §16.6 |
 
 已完成的仓库卫生清理：提交 `0668e6562` 删除无调用入口的迁移/打包残留、测试生成文件、旧扩展和临时 `scratch/` 脚本；Swift 壳未接线的导航状态也已删除；Git 不再跟踪 SwiftPM `.build` 缓存。本清理不代表运行时可靠性问题已解决。
 
@@ -570,7 +571,7 @@ Node 构建唯一支持入口：根 `package.json` 的 `app`/`app:dmg` → `scri
 | CA-10 | COMPLETE | CA-R01–CA-R13 已完成代码验证或威胁分诊；CA-R11 的启动环境条件性风险留在 deferred 跟踪，不作为已证实远程漏洞 |
 | CA-20 | IN PROGRESS | 测试清单、默认接线、去重、证据状态策略、本机 macOS `.app`/DMG 构建和包布局检查已完成；GitHub Actions、UI 场景、CA-EVAL-02/03 的基础设施复跑与剩余 12 项有效配对仍待执行 |
 | CA-30 | IN PROGRESS | CA-R13–R17、CA-R19 已修复/验证并提交；CA-R18 的 `.mts/.cts` dispatch 已补齐，但 Swift 与其他列举语言/语法仍有索引缺口。默认 Repo Map 覆盖全部 228 个 `backend/` 文件与 13 个可见根级目录；继续完成符号矩阵、Planner scope 可发现性与无引用清理候选复核 |
-| CA-40 | TODO | 审计 DAG 证据、取消、恢复和隔离路径 |
+| CA-40 | IN PROGRESS | CA-EVAL-20 暴露的 worktree 清理数据丢失风险已修复并验证；继续审计取消、恢复和其他 DAG 隔离路径 |
 | CA-50 | TODO | 验证 Plan→改码→测试→Diff/PR 的端到端体验 |
 | CA-60 | IN PROGRESS | 已有 6 个有效核心配对与 1 个塔罗补充配对；样本远不足以判定非劣或调整默认路由。先修复 Host 超时/启动稳定性，再完成固定集并报告置信区间 |
 | CA-70 | TODO | 其他阶段验收后完成发布与文档门禁 |
@@ -600,6 +601,7 @@ Node 构建唯一支持入口：根 `package.json` 的 `app`/`app:dmg` → `scri
 | CA-R17 | VERIFIED | Codex 主 Agent；Python 符号修复 Agent | `6db48a17f` | `node scripts/test-symbol-outline-extractor.mjs` PASS（嵌套函数、嵌套类、类方法归属、顶层嵌套定义、tab、`.mts/.cts`）；定向 ESLint 与 `git diff --check` PASS | 逐行正则仍不解析多行签名和完整 Python 语法；更复杂语法进入 CA-R18 支持矩阵 |
 | CA-R18 | CONFIRMED（部分修复已提交） | Codex 主 Agent；CA-30 符号审查 Agent | `6db48a17f` | `.mts/.cts` 的统一入口测试 PASS；审查 `CODE_EXTENSIONS`、实际 dispatch 和 Repo Map 调用链 | `.vue/.svelte` 与 Swift/Java/C-family/Ruby/PHP/Lua/Shell/SQL/GraphQL/Proto 未做符号提取；TS 构造器/accessor、Rust/Go 类型成员与多行定义也不完整。先确定有用语言集合，再决定 parser，而非默默返回空列表 |
 | CA-R19 | VERIFIED | Codex 主 Agent；Planner 路径索引 Agent | `6db48a17f` | `node scripts/test-planner-hints.mjs`、`node scripts/test-orchestration.mjs` PASS；针对性 ESLint、`git diff --check` PASS。覆盖忽略的 `vendor`、精确/超过扫描上限、待扫目录、深度上限、展示上限及真实 Planner prompt 提示 | 隐藏/忽略项仍消耗目录项预算；read-only 候选最多 90 条、scope 最多 12 条，较大仓库的长调用链仍需更多可发现性评估 |
+| CA-R20 | VERIFIED | Codex 主 Agent；worktree 清理只读审查 Agent | `7b639c5a4` | `node scripts/test-worktree-diff.mjs` PASS（tracked/untracked/ignored 保留、ignored-only 普通状态为空、忽略文件阻止合并后删除、干净 worktree 可删除）；`node scripts/test-orchestration-p11.mjs` PASS；定向 ESLint、`tsc --project tsconfig.app.json --noEmit`、`git diff --check` PASS。`pnpm run test:worktree-diff` 未启动：pnpm 因无 TTY 拒绝清理 `node_modules`；直接运行等价 Node 入口通过 | `removeTaskWorktree` 不再让 force 绕过状态保护；合并清理先验证内容已复制、所有改动已选中且无忽略项，再重置/清除已合并内容；取消入口保留现状（不自动删除 worktree） |
 
 **CA-00A 执行记录（2026-10-13）：**分支 `main`；冻结前 HEAD `f5624a108`；Node `v22.23.1`；pnpm `11.7.0`；已读取根 `AGENTS.md`。当时存在未提交的 `src/features/settings/SettingsPage.tsx` 与 `src/styles.css` 修改，已保留且未纳入 CA-R01 提交。CA-R01 修复提交 `94a47fbb0`，补充专项覆盖提交 `2d659932e`。
 
@@ -657,4 +659,6 @@ Node 构建唯一支持入口：根 `package.json` 的 `app`/`app:dmg` → `scri
 
 **CA-30 修复进展（2026-10-15）：**CA-R17 Python outline 已用缩进作用域栈修复嵌套定义归属；CA-R18 已确认 Repo Map 扩展名与符号提取器不一致，并为 `.mts/.cts` 补上 TypeScript AST dispatch，但 Swift 与其余列举语言仍没有符号索引；CA-R19 已修正 Planner 精确扫描上限误报、`vendor` 死排序项和不具体的截断提示。定向测试、ESLint 与 diff 检查通过。塔罗应用任务已写入独立补充任务文件，`tasks.json` 原 20 项与哈希未改。CA-00 选择 `openai-codex/gpt-6-luna`，共享 280 个传输前额度槽；请求输出封顶 2048，按 272k 输入预留的费率表上界约 $9.81。首版守卫仅包裹 `fetch`，漏掉 Codex 默认 WebSocket。第二轮预检出现模型工具事件而额度槽仍为零，说明可能已有未计数 OAuth 请求；请求数无法从该运行恢复，已终止且不纳入评测分数。守卫已补充拒绝外部 WebSocket；后续评测配置必须将 Codex provider `transport` 固定为 `sse`，由全局 fetch 守卫限制具体 host/path、model、output tokens 和共享槽。还需在无网络 fixture 中验证 Host 子进程加载 WebSocket 拒绝器，再先运行一组受控配对并确认槽数与工具报告相符。此协议不能拦截任意子进程的原始 socket，报告必须检查 Host 轨迹中的网络/MCP 工具调用；OAuth 走 Codex 账户额度，费率表名义值不等于账单费用。`node scripts/diagnose/test-benchmark-fetch-guard.mjs`、直接 ESLint 与 `git diff --check` 通过；`pnpm exec eslint` 在依赖状态检查阶段因无 TTY 中止，直接运行本地 ESLint 二进制通过。
 
-**最新续接点（2026-10-16）：**固定任务集只完成 6/20 个有效核心配对，CA-EVAL-02/03 的 Host 长时间无结果或未就绪；塔罗任务单独记录。230/280 槽已消耗，临时 OAuth 副本已删除，因此本批结束后不再发起真实 Provider 请求。下一步先用离线 fixture 诊断并修复 headless Host 启动就绪与超时回收，再恢复 CA-30 剩余符号支持矩阵和无引用候选审查，之后进入 CA-40 DAG 证据/取消/恢复审计；基准完成前不宣称模型非劣，不调整默认路由。主工作区 `src/features/settings/SettingsPage.tsx` 与 `src/styles.css` 的用户改动继续保持未暂存、未提交。
+**CA-R20 worktree 数据保全（2026-10-16）：**CA-EVAL-20 暴露的基线夹具只验证文件仍存在，没有断言 Git 状态，也未覆盖 ignored-only worktree。生产删除路径已改为检查 tracked、untracked 与 ignored 状态，`force` 不再跳过保护；合并后只有所有变更都已合并、源/目标内容与权限一致且无 ignored 文件时才清除已合并内容。否则主工作区合并结果保留，worktree 及其数据保留并在界面显示原因。取消路径本来不会自动删除 worktree。`node scripts/test-worktree-diff.mjs`、`node scripts/test-orchestration-p11.mjs`、定向 ESLint、`tsc --project tsconfig.app.json --noEmit` 与 `git diff --check` PASS；pnpm 脚本未越过无 TTY 依赖清理拦截，改为直接运行等价 Node 入口。无真实 Provider/网络调用。
+
+**最新续接点（2026-10-16）：**固定任务集只完成 6/20 个有效核心配对，CA-EVAL-02/03 的 Host 长时间无结果或未就绪；塔罗任务单独记录。230/280 槽已消耗，临时 OAuth 副本已删除，因此本批结束后不再发起真实 Provider 请求。CA-R20 worktree 数据保全已修复、定向验证并提交。下一步先用离线 fixture 诊断并修复 headless Host 启动就绪与超时回收，再恢复 CA-30 剩余符号支持矩阵和无引用候选审查，之后继续 CA-40 DAG 证据/取消/恢复审计；基准完成前不宣称模型非劣，不调整默认路由。主工作区 `src/features/settings/SettingsPage.tsx` 与 `src/styles.css` 的用户改动继续保持未暂存、未提交。
