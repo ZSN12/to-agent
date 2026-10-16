@@ -458,9 +458,13 @@ export function createZHostManager({
   createApiClient = createZApiClient,
   waitForSettingsReady = waitForModelSettingsReady,
   getSystemProxyConfigFn = getSystemProxyConfig,
+  stopGraceMs = 2_000,
+  killCloseTimeoutMs = 2_000,
 }) {
   let child = null
   let startPromise = null
+  let startController = null
+  let processStopPromise = null
   let api = null
   let hostUrl = null
   let diagnostics = ''
@@ -475,33 +479,75 @@ export function createZHostManager({
     diagnostics = `${diagnostics}${chunk}`.slice(-16_000)
   }
 
+  async function stopChild(current = child) {
+    if (!current) return
+    if (processStopPromise) return processStopPromise
+    let pending
+    pending = new Promise((resolve, reject) => {
+      let finished = false
+      let forceKillTimer
+      let closeDeadlineTimer
+      const finish = (error) => {
+        if (finished) return
+        finished = true
+        clearTimeout(forceKillTimer)
+        clearTimeout(closeDeadlineTimer)
+        current.off('close', onClose)
+        if (!error && child === current) child = null
+        if (error) reject(error)
+        else resolve()
+      }
+      const onClose = () => finish()
+      current.once('close', onClose)
+      const alreadyExited = current.exitCode !== null || current.signalCode !== null
+      if (!alreadyExited) {
+        try { current.kill('SIGTERM') } catch { /* retry with SIGKILL below */ }
+      }
+      forceKillTimer = setTimeout(() => {
+        if (finished) return
+        if (!alreadyExited) {
+          try { current.kill('SIGKILL') } catch { /* final close deadline still applies */ }
+        }
+        if (finished) return
+        closeDeadlineTimer = setTimeout(() => {
+          finish(new Error('Z Host 在 SIGKILL 后仍未退出，已阻止启动替代进程。'))
+        }, killCloseTimeoutMs)
+      }, alreadyExited ? 0 : stopGraceMs)
+    }).finally(() => {
+      if (processStopPromise === pending) processStopPromise = null
+    })
+    processStopPromise = pending
+    return pending
+  }
+
   async function stop() {
     traceStartup('host:stop:begin')
-    const current = child
+    const stoppingStart = startPromise
     if (state !== 'restarting' && state !== 'failed') state = 'stopped'
-    child = null
     api = null
     hostUrl = null
-    if (!current || current.exitCode !== null || current.signalCode !== null) {
-      traceStartup('host:stop:end')
-      return
+    if (startController && !startController.signal.aborted) {
+      startController.abort(new Error('Z Host 启动已取消。'))
     }
-    await new Promise((resolve) => {
-      const forceKill = setTimeout(() => {
-        try { current.kill('SIGKILL') } catch { /* process already exited */ }
-      }, 2_000)
-      forceKill.unref?.()
-      current.once('close', () => {
-        clearTimeout(forceKill)
-        resolve()
-      })
-      try { current.kill('SIGTERM') } catch { resolve() }
-    })
+    try {
+      await Promise.all([
+        stoppingStart?.catch(() => {}),
+        stopChild(),
+      ])
+    } catch (error) {
+      state = 'failed'
+      lastStartError = error instanceof Error ? error : new Error(String(error))
+      throw lastStartError
+    }
+    if (state !== 'restarting' && state !== 'failed') state = 'stopped'
     traceStartup('host:stop:end')
   }
 
-  async function startHostProcess() {
+  async function startHostProcess(signal) {
     traceStartup('host:start:begin')
+    const throwIfAborted = () => {
+      if (signal.aborted) throw signal.reason instanceof Error ? signal.reason : new Error('Z Host 启动已取消。')
+    }
     // Preserve one release of launch-script compatibility, but make old
     // control variables visible in logs so callers can switch to the product
     // namespace before the aliases are removed.
@@ -512,7 +558,9 @@ export function createZHostManager({
       'Z_TASKWEAVER_EMBEDDED', 'DSH_TASKWEAVER_EMBEDDED',
     ])
     await removeStaleRetiredRuntimeHomes({ home, userDataPath }).catch(() => {})
+    throwIfAborted()
     const homeMigration = await migrateRuntimeHome({ env: environment, home, userDataPath })
+    throwIfAborted()
     const runtimeHome = homeMigration.runtimeHomePath
     if (environment === process.env) {
       // Electron main-process stores (for example native OAuth credentials)
@@ -537,12 +585,15 @@ export function createZHostManager({
     const effectiveHome = runtimeHome
     try {
       const migration = await migrateLegacyProfileManifestsOnce(effectiveHome)
+      throwIfAborted()
       if (migration.changed) {
         console.log(`[TaskWeaver] 已迁移旧 profile manifest（${migration.profiles.join(', ')}）`)
       }
     } catch (error) {
+      throwIfAborted()
       console.warn('[TaskWeaver] profile 迁移失败（继续尝试启动）:', error instanceof Error ? error.message : error)
     }
+    throwIfAborted()
     if (api && child && child.exitCode === null && child.signalCode === null) return { api, baseUrl: hostUrl }
     const [mcpIntegration, webSearchIntegration, compactionEnv, compactionRuntimeIntegration] = await Promise.all([
       getMcpRuntimeIntegration?.(),
@@ -550,6 +601,7 @@ export function createZHostManager({
       readCompactionSummarizationEnv(userDataPath),
       getCompactionRuntimeIntegration?.(),
     ])
+    throwIfAborted()
     const proxyEnv = {
       ...environment,
       ...(mcpIntegration?.environment ?? {}),
@@ -561,6 +613,7 @@ export function createZHostManager({
       || !(proxyEnv.HTTPS_PROXY || proxyEnv.https_proxy)
       || !(proxyEnv.NO_PROXY || proxyEnv.no_proxy)
     const systemProxyConfig = needsSystemProxy ? await getSystemProxyConfigFn() : null
+    throwIfAborted()
     return new Promise((resolve, reject) => {
       diagnostics = ''
       let entrypoint
@@ -662,25 +715,14 @@ export function createZHostManager({
       let settled = false
       let urlHandled = false
       let outputBuffer = ''
-      const timer = setTimeout(() => {
-        if (settled) return
-        settled = true
-        state = 'failed'
-        lastStartError = new Error(`Z Host 在 ${configuredStartTimeoutMs}ms 内未就绪。`)
-        void stop()
-        reject(new Error(`${lastStartError.message}${diagnostics ? `\n${diagnostics}` : ''}`))
-      }, configuredStartTimeoutMs)
-      timer.unref?.()
-
       const fail = (error) => {
         if (settled) return
         settled = true
-        clearTimeout(timer)
-        state = 'failed'
-        child = null
+        signal.removeEventListener('abort', onAbort)
         lastStartError = error instanceof Error ? error : new Error(String(error))
         reject(lastStartError)
       }
+      const onAbort = () => fail(signal.reason instanceof Error ? signal.reason : new Error('Z Host 启动已取消。'))
       const inspectOutput = (chunk) => {
         const text = String(chunk)
         appendDiagnostics(text)
@@ -697,12 +739,11 @@ export function createZHostManager({
             await waitForSettingsReady(client)
             if (settled) return
             settled = true
-            clearTimeout(timer)
+            signal.removeEventListener('abort', onAbort)
             api = client
             resolve({ api, baseUrl: hostUrl })
           })
           .catch((error) => {
-            void stop()
             const message = error instanceof Error ? error.message : String(error)
             fail(new Error(`Z Host API 不可访问（${hostUrl}）：${message}${diagnostics ? `\n${diagnostics}` : ''}`))
           })
@@ -723,6 +764,8 @@ export function createZHostManager({
           lastStartError = new Error(`Z Host 意外退出（${signal ?? `退出码 ${code}`}）。${diagnostics ? `\n${diagnostics}` : ''}`)
         }
       })
+      signal.addEventListener('abort', onAbort, { once: true })
+      if (signal.aborted) onAbort()
       })
   }
 
@@ -737,23 +780,54 @@ export function createZHostManager({
     if (startPromise) return startPromise
     const requestedState = state === 'restarting' ? 'restarting' : 'starting'
     state = requestedState
+    const controller = new AbortController()
+    startController = controller
+    let timeout
+    const timeoutError = () => new Error(`Z Host 在 ${configuredStartTimeoutMs}ms 内未就绪。${diagnostics ? `\n${diagnostics}` : ''}`)
+    timeout = setTimeout(() => controller.abort(timeoutError()), configuredStartTimeoutMs)
+    let onAbort
+    const aborted = new Promise((_, reject) => {
+      onAbort = () => reject(controller.signal.reason instanceof Error
+        ? controller.signal.reason
+        : new Error('Z Host 启动已取消。'))
+      controller.signal.addEventListener('abort', onAbort, { once: true })
+      if (controller.signal.aborted) onAbort()
+    })
     let pending
-    pending = startHostProcess()
+    pending = Promise.race([startHostProcess(controller.signal), aborted])
       .then((result) => {
+        if (controller.signal.aborted) {
+          throw controller.signal.reason instanceof Error ? controller.signal.reason : new Error('Z Host 启动已取消。')
+        }
         state = 'ready'
         lastStartError = null
         traceStartup('host:start:ready')
         return result
       })
-      .catch((error) => {
-        state = 'failed'
+      .catch(async (error) => {
         // A failure may occur before the child is spawned (for example while
         // preparing its runtime cwd), so pair it with a trace event here too.
-        traceStartup('host:start:failed', { reason: 'startup' })
-        lastStartError = error instanceof Error ? error : new Error(String(error))
-        throw lastStartError
+        const startError = error instanceof Error ? error : new Error(String(error))
+        const cancelledByStop = controller.signal.aborted && (state === 'stopped' || state === 'restarting')
+        if (!cancelledByStop) {
+          state = 'failed'
+          traceStartup('host:start:failed', { reason: 'startup' })
+          lastStartError = startError
+        }
+        try {
+          await stopChild()
+        } catch (stopError) {
+          const stopFailure = stopError instanceof Error ? stopError : new Error(String(stopError))
+          state = 'failed'
+          lastStartError = new Error(`${startError.message}\nZ Host 停止失败：${stopFailure.message}`, { cause: startError })
+          throw lastStartError
+        }
+        throw startError
       })
       .finally(() => {
+        clearTimeout(timeout)
+        controller.signal.removeEventListener('abort', onAbort)
+        if (startController === controller) startController = null
         if (startPromise === pending) startPromise = null
       })
     startPromise = pending

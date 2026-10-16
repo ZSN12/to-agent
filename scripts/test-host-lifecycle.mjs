@@ -12,10 +12,26 @@ class FakeHostProcess extends EventEmitter {
   exitCode = null
   signalCode = null
 
+  constructor({ termDelayMs = 0, ignoreTerm = false, ignoreAll = false } = {}) {
+    super()
+    this.termDelayMs = termDelayMs
+    this.ignoreTerm = ignoreTerm
+    this.ignoreAll = ignoreAll
+    this.killSignals = []
+    this.closed = false
+  }
+
   kill(signal) {
-    if (this.exitCode !== null || this.signalCode !== null) return true
+    if (this.exitCode !== null || this.closed) return true
+    this.killSignals.push(signal)
     this.signalCode = signal
-    queueMicrotask(() => this.emit('close', null, signal))
+    if (this.ignoreAll || (signal === 'SIGTERM' && this.ignoreTerm)) return true
+    const delay = signal === 'SIGTERM' ? this.termDelayMs : 0
+    setTimeout(() => {
+      if (this.closed) return
+      this.closed = true
+      this.emit('close', null, signal)
+    }, delay)
     return true
   }
 }
@@ -26,7 +42,13 @@ const userDataPath = path.join(root, 'user-data')
 await fs.mkdir(runtimeHome, { recursive: true })
 await fs.mkdir(userDataPath, { recursive: true })
 
-function testDependencies({ environment, spawnProcess, home = root, testUserDataPath = userDataPath }) {
+function testDependencies({
+  environment,
+  spawnProcess,
+  home = root,
+  testUserDataPath = userDataPath,
+  getMcpRuntimeIntegrationFn,
+}) {
   return {
     runtimeRoot: path.join(root, 'runtime'),
     opencodexPackageRoot: null,
@@ -41,7 +63,7 @@ function testDependencies({ environment, spawnProcess, home = root, testUserData
       settings: { describe: async () => ({ result: { ok: true, value: { namespaces: [{ ns: 'llm-pi-ai' }] } } }) },
     }),
     waitForSettingsReady: async () => {},
-    getMcpRuntimeIntegration: async () => null,
+    getMcpRuntimeIntegration: getMcpRuntimeIntegrationFn ?? (async () => null),
     getWebSearchRuntimeIntegration: async () => null,
     getSystemProxyConfigFn: async () => null,
   }
@@ -135,6 +157,85 @@ try {
     if (previousHome === undefined) delete process.env.HOME
     else process.env.HOME = previousHome
   }
+
+  let releasePreparation
+  let preparationStarted = false
+  let preparationFinished
+  const preparationGate = new Promise((resolve) => { releasePreparation = resolve })
+  const preparationDone = new Promise((resolve) => { preparationFinished = resolve })
+  let lateSpawns = 0
+  const stopDuringPreparation = createZHostManager(testDependencies({
+    environment: { TASKWEAVER_HOME: runtimeHome, TASKWEAVER_HOST_START_TIMEOUT_MS: '1000' },
+    getMcpRuntimeIntegrationFn: async () => {
+      preparationStarted = true
+      try { return await preparationGate } finally { preparationFinished() }
+    },
+    spawnProcess() {
+      lateSpawns += 1
+      return new FakeHostProcess()
+    },
+  }))
+  const cancelledStart = stopDuringPreparation.start()
+  while (!preparationStarted) await new Promise((resolve) => setImmediate(resolve))
+  const cancelledStartResult = assert.rejects(cancelledStart, /Z Host 启动已取消/)
+  await stopDuringPreparation.stop()
+  await cancelledStartResult
+  releasePreparation(null)
+  await preparationDone
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.equal(lateSpawns, 0, 'a cancelled pre-spawn preparation must not launch a Host later')
+  assert.equal(stopDuringPreparation.state, 'stopped')
+
+  let timedPreparationSpawns = 0
+  const timeoutDuringPreparation = createZHostManager(testDependencies({
+    environment: { TASKWEAVER_HOME: runtimeHome, TASKWEAVER_HOST_START_TIMEOUT_MS: '30' },
+    getMcpRuntimeIntegrationFn: async () => new Promise(() => {}),
+    spawnProcess() {
+      timedPreparationSpawns += 1
+      return new FakeHostProcess()
+    },
+  }))
+  await assert.rejects(timeoutDuringPreparation.start(), /Z Host 在 30ms 内未就绪/)
+  assert.equal(timedPreparationSpawns, 0, 'the startup deadline includes integrations that resolve before spawn')
+
+  const restartChildren = []
+  const timeoutThenRestart = createZHostManager(testDependencies({
+    environment: { TASKWEAVER_HOME: runtimeHome, TASKWEAVER_HOST_START_TIMEOUT_MS: '200' },
+    spawnProcess() {
+      const child = new FakeHostProcess({ termDelayMs: 30 })
+      restartChildren.push(child)
+      if (restartChildren.length > 1) setImmediate(() => child.stdout.write('z web: http://127.0.0.1:19995\n'))
+      return child
+    },
+  }))
+  await assert.rejects(timeoutThenRestart.start(), /Z Host 在 200ms 内未就绪/)
+  assert.equal(restartChildren[0].closed, true, 'a failed start settles only after the old child closes')
+  const recoveredRestart = timeoutThenRestart.restart()
+  while (restartChildren.length < 2) await new Promise((resolve) => setImmediate(resolve))
+  assert.equal(restartChildren[0].closed, true, 'restart must not overlap an old Host still shutting down')
+  await recoveredRestart
+  await timeoutThenRestart.stop()
+
+  const lingeringChildren = []
+  const boundedStop = createZHostManager({
+    ...testDependencies({
+      environment: { TASKWEAVER_HOME: runtimeHome },
+      spawnProcess() {
+        const child = new FakeHostProcess({ ignoreAll: true })
+        lingeringChildren.push(child)
+        setImmediate(() => child.stdout.write('z web: http://127.0.0.1:19996\n'))
+        return child
+      },
+    }),
+    stopGraceMs: 10,
+    killCloseTimeoutMs: 10,
+  })
+  await boundedStop.start()
+  await assert.rejects(boundedStop.stop(), /SIGKILL 后仍未退出/)
+  assert.deepEqual(lingeringChildren[0].killSignals, ['SIGTERM', 'SIGKILL'])
+  lingeringChildren[0].closed = true
+  lingeringChildren[0].emit('close', null, 'SIGKILL')
+  await boundedStop.stop()
 
   let failedStarts = 0
   const failedManager = createZHostManager(testDependencies({
