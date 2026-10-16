@@ -99,10 +99,14 @@ export function createPlanAndExecute({
   traceStore,
   pendingApprovals,
 }) {
-  async function planAndExecute({ text, rawText, contextLayers, primaryModelKey, conversationId, webContents, skill, skillAlreadyApplied = false, workspacePath, permissionMode, workspaceTrusted = false, attachments, documents, dagPlanApprovalOverride, replay = null }) {
+  async function planAndExecute({ text, rawText, contextLayers, primaryModelKey, conversationId, webContents, skill, skillAlreadyApplied = false, workspacePath, permissionMode, workspaceTrusted = false, attachments, documents, dagPlanApprovalOverride, replay = null, signal: parentSignal = null }) {
     if (!conversationId) throw new Error('当前对话标识无效')
     if (runs.get(conversationId)?.inFlight) throw new Error('该对话的上一条多 Agent 任务仍在处理中')
+    if (parentSignal?.aborted) throw new Error('任务已取消')
     const abortController = new AbortController()
+    const abortFromParent = () => abortController.abort(parentSignal?.reason)
+    parentSignal?.addEventListener('abort', abortFromParent, { once: true })
+    if (parentSignal?.aborted) abortFromParent()
     const pauseControl = createDagPauseControl(abortController.signal)
     const taskAbortControllers = new Map()
     const taskStatuses = new Map()
@@ -111,6 +115,7 @@ export function createPlanAndExecute({
       for (const controller of taskAbortControllers.values()) controller.abort()
     }
     abortController.signal.addEventListener('abort', abortTaskControllers, { once: true })
+    if (abortController.signal.aborted) abortTaskControllers()
     const run = { inFlight: true, abortController, taskAbortControllers, taskStatuses, runId, status: 'planning', pauseControl, onPauseChange: null }
     runs.set(conversationId, run)
     const runState = {
@@ -121,12 +126,12 @@ export function createPlanAndExecute({
       tasks: [],
       ...(replay ? { sourceRunId: replay.source.runId, replayMode: replay.mode } : {}),
     }
-    await runStore?.saveRun(conversationId, runId, runState)
     const trace = (type, details = {}) => traceStore?.append(conversationId, runId, { type, ...details })
-    await trace('run_started')
     const plannerSkill = skillAlreadyApplied ? null : skill
     let ledger = null
     try {
+      await runStore?.saveRun(conversationId, runId, runState)
+      await trace('run_started')
       sendChatStreamIfAvailable(webContents, {
         type: 'progress',
         text: replay ? '正在从运行记录恢复 DAG…' : '正在分析任务并生成 DAG…',
@@ -1411,6 +1416,7 @@ export function createPlanAndExecute({
         await trace('run_cancelled', { failedTaskIds: [...execution.failed] })
         await traceStore?.flush(conversationId, runId)
         return {
+          runId,
           assistant: {
             text: '多 Agent 任务已停止；已完成的子任务进度保留。',
             usage: combineUsage(usage),
@@ -1510,6 +1516,7 @@ export function createPlanAndExecute({
       await traceStore?.flush(conversationId, runId)
 
       return {
+        runId,
         assistant: {
           ...assistant,
           usage: combineUsage(usage),
@@ -1532,6 +1539,7 @@ export function createPlanAndExecute({
         await trace('run_rejected', { usageSummary: ledger?.getSummary() ?? null })
         await traceStore?.flush(conversationId, runId)
         return {
+          runId,
           assistant: { text: '已拒绝此 DAG 计划，未启动任何子任务。' },
           tasks: runState.tasks ?? [],
           failedTaskIds: [],
@@ -1557,6 +1565,7 @@ export function createPlanAndExecute({
       await traceStore?.flush(conversationId, runId)
       throw e
     } finally {
+      parentSignal?.removeEventListener('abort', abortFromParent)
       abortController.signal.removeEventListener('abort', abortTaskControllers)
       taskAbortControllers.clear()
       taskStatuses.clear()

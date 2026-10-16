@@ -58,9 +58,6 @@ export function createScheduledJobRunHandler(deps) {
           conversationId,
           runtimeContext,
         }))
-        if (outcome?.needsOrchestrationChoice) {
-          throw new Error(outcome.reason || '定时任务无法弹出编排模式选择')
-        }
       }, { conversationId })
     } catch (error) {
       await appState.appendMessagesToConversation(conversationId, {

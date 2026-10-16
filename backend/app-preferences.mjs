@@ -49,9 +49,7 @@ const DEFAULT = {
   inlineSmallFileReferences: false,
   /** Prompt Pipeline 注入系统上下文的最大字节数；实际预算还会按模型窗口动态缩放。 */
   promptInjectionLimitBytes: 128 * 1024,
-  /** 灰区任务弹出「是否启用多 Agent」（规则门控，不调用模型） */
-  adaptiveOrchestrationGate: true,
-  /** 开启后常规消息默认走多 Agent DAG；默认关闭。 */
+  /** 开启后每轮强制使用 DAG 编排；默认关闭。 */
   preferMultiAgent: false,
   /** 聊天列表以 DSH session transcript 为准（线程库只保留编排扩展行） */
   preferDshTranscript: true,
@@ -178,7 +176,6 @@ export function createAppPreferencesStore(userDataPath) {
         enableRepoMap: raw.enableRepoMap !== false,
         inlineSmallFileReferences: raw.inlineSmallFileReferences === true,
         promptInjectionLimitBytes: normalizePromptInjectionLimitBytes(raw.promptInjectionLimitBytes),
-        adaptiveOrchestrationGate: raw.adaptiveOrchestrationGate !== false,
         preferMultiAgent: raw.preferMultiAgent === true,
         preferDshTranscript: raw.preferDshTranscript !== false,
         openUsageBaseUrl: normalizeOpenUsageBaseUrl(raw.openUsageBaseUrl) ?? DEFAULT.openUsageBaseUrl,
@@ -256,9 +253,6 @@ export function createAppPreferencesStore(userDataPath) {
           promptInjectionLimitBytes: patch.promptInjectionLimitBytes !== undefined
             ? normalizePromptInjectionLimitBytes(patch.promptInjectionLimitBytes, normalizePromptInjectionLimitBytes(prev.promptInjectionLimitBytes))
             : normalizePromptInjectionLimitBytes(prev.promptInjectionLimitBytes),
-          adaptiveOrchestrationGate: patch.adaptiveOrchestrationGate !== undefined
-            ? patch.adaptiveOrchestrationGate === true
-            : (prev.adaptiveOrchestrationGate !== false),
           preferMultiAgent: patch.preferMultiAgent !== undefined
             ? patch.preferMultiAgent === true
             : (prev.preferMultiAgent === true),

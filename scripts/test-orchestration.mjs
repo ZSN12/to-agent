@@ -2,8 +2,7 @@ import './test-orchestration-p11.mjs'
 import './test-cross-provider-review.mjs'
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
-import { decideExecutionMode, explicitlyDisablesMultiAgent, resolveExecutionMode, selectModelForTask, shouldUpgradeFailedTask, workModeExecutionOverride } from '../backend/orchestration-policy.mjs'
-import { evaluateOrchestrationGate } from '../backend/orchestration-gate.mjs'
+import { explicitlyDisablesMultiAgent, resolveOrchestrationPolicy, selectModelForTask, shouldUpgradeFailedTask, workModeExecutionOverride } from '../backend/orchestration-policy.mjs'
 import { executeDag, validateAndOrderTasks } from '../backend/dag-scheduler.mjs'
 import { getTaskProfile, getToolsForSingleAgent, getToolsForTask } from '../backend/task-profile.mjs'
 import { classifySubtaskFailure, runWithSubtaskRetries } from '../backend/subtask-retry.mjs'
@@ -242,44 +241,32 @@ assert.deepEqual(boundedPlan.map(({ scopePaths }) => scopePaths), boundedPlanInp
 assert.deepEqual(boundedPlan.map(({ description }) => description), boundedPlanInput.map(({ description }) => description),
   'explicit scope and stop instructions must pass through unchanged')
 
-assert.equal(decideExecutionMode('你好').mode, 'single-agent')
-assert.equal(decideExecutionMode('读一下整个项目的代码，梳理目录和主要模块').mode, 'single-agent', '只读仓库走读不应因为涉及多个领域而自动编排')
-assert.equal(decideExecutionMode('请简要概览当前毕设项目的仓库结构：只查看根目录条目，然后阅读 package.json、apps/macos/TaskWeaverShell/Sources/TaskWeaverShell/TaskWeaverShellApp.swift、src/main.tsx，概括主要目录/入口及它们如何连接。只读，不要修改文件、构建或测试。').mode, 'single-agent', '验收 B 的仓库结构概览必须留在单 Agent')
-assert.equal(decideExecutionMode('看看当前代码有哪些前端、后端和测试问题').mode, 'single-agent', '跨领域只读审查仍应保持单 Agent')
-assert.equal(decideExecutionMode('修复一个按钮样式').mode, 'single-agent')
-assert.equal(decideExecutionMode('请使用多智能体处理这个任务').mode, 'multi-agent')
-assert.equal(decideExecutionMode('请使用 multi-agent skill').mode, 'multi-agent')
-assert.equal(decideExecutionMode('不要启用多智能体，即使要实现完整前后端平台和安全、测试、部署').mode, 'single-agent')
+assert.deepEqual(resolveOrchestrationPolicy({ text: '你好' }), {
+  allowed: true, required: false, mode: 'single-agent', reason: '由主 Agent 根据任务需要选择工具',
+})
+assert.equal(resolveOrchestrationPolicy({ text: '请完整审查前后端、安全和测试' }).required, false,
+  'request complexity is left to the model instead of a keyword heuristic')
+assert.equal(resolveOrchestrationPolicy({ text: '请使用多智能体处理这个任务', modeOverrides: ['multi-agent'] }).required, true)
+assert.equal(resolveOrchestrationPolicy({ text: '修复 bug', skillRequiresDag: true }).required, true)
+assert.equal(resolveOrchestrationPolicy({ text: '修复 bug', preferMultiAgent: true }).required, true)
+assert.equal(resolveOrchestrationPolicy({ text: '不要启用多智能体', preferMultiAgent: true }).allowed, false,
+  'an explicit per-request opt-out overrides the saved preference')
+assert.equal(resolveOrchestrationPolicy({ text: '不要启用多智能体', skillRequiresDag: true }).allowed, false,
+  'an explicit per-request opt-out overrides the Skill default')
+assert.equal(resolveOrchestrationPolicy({ text: '请使用 multi-agent skill' }).required, false,
+  'mentioning a keyword alone never triggers orchestration')
 assert.equal(explicitlyDisablesMultiAgent('不要修改 package.json，但修复启动错误'), false,
   'unrelated negation must not disable a user’s prefer-multi-agent setting')
 assert.equal(explicitlyDisablesMultiAgent('不要启用多智能体，先由单 Agent 修改 package.json'), true)
-assert.equal(decideExecutionMode('实现一个完整平台，同时涵盖前端、后端 API、测试、安全和部署').mode, 'single-agent',
-  '任务复杂度本身不应在用户未选择多 Agent 时启动 DAG')
-assert.equal(decideExecutionMode('实现一个前端页面和后端接口').mode, 'single-agent')
-assert.equal(decideExecutionMode('为完整平台实现前端页面与后端 API').mode, 'single-agent',
-  '多领域请求未显式选择多 Agent 时也应默认单 Agent')
+assert.equal(explicitlyDisablesMultiAgent('这次不用 DAG'), true, 'short explicit DAG opt-outs are honored')
 assert.equal(workModeExecutionOverride('goal'), 'multi-agent', 'Goal Composer 模式代表用户明确选择多 Agent')
 assert.equal(workModeExecutionOverride('plan'), 'single-agent')
 assert.equal(workModeExecutionOverride('code'), null, '常规 Composer 模式不覆盖单 Agent 默认')
-const readOnlyDecision = decideExecutionMode('读一下项目结构并概括主要入口')
-assert.equal(resolveExecutionMode(readOnlyDecision, workModeExecutionOverride('code')).mode, 'single-agent',
-  '只读任务在普通 Composer 模式下默认保持单 Agent')
-assert.equal(resolveExecutionMode(readOnlyDecision, workModeExecutionOverride('goal')).mode, 'multi-agent',
-  '用户显式切换到目标/多智能体模式后，即使只读任务也按所选 DAG 模式执行')
-const complexCodeDecision = decideExecutionMode('实现一个完整平台，同时涵盖前端、后端 API、测试、安全和部署')
-assert.equal(resolveExecutionMode(complexCodeDecision, workModeExecutionOverride('code')).mode, 'single-agent')
-assert.equal(resolveExecutionMode(complexCodeDecision, workModeExecutionOverride('goal')).mode, 'multi-agent')
-
-assert.equal(evaluateOrchestrationGate('修复按钮颜色').mode, 'single-agent')
-assert.equal(evaluateOrchestrationGate('只读分析前端与后端目录，不要修改').mode, 'single-agent')
-assert.equal(
-  evaluateOrchestrationGate('实现前端页面与后端 API，要求两项独立并行完成后汇总').mode,
-  'ask-user',
-)
-assert.equal(
-  evaluateOrchestrationGate('为完整平台实现前端页面与后端 API').mode,
-  'ask-user',
-)
+assert.equal(resolveOrchestrationPolicy({ text: '读仓库', workMode: 'code' }).required, false)
+assert.equal(resolveOrchestrationPolicy({ text: '读仓库', workMode: 'goal' }).required, true)
+assert.equal(resolveOrchestrationPolicy({ text: '读仓库', workMode: 'plan' }).allowed, false)
+assert.equal(resolveOrchestrationPolicy({ text: '任务', modeOverrides: ['single-agent', 'multi-agent'] }).allowed, false,
+  'an explicit single-agent constraint wins conflicting mode inputs')
 
 assert.equal(resolveOrchestrationAgentPreset({ noTools: true }), 'tw-taskweaver-planner')
 assert.equal(resolveOrchestrationAgentPreset({ taskType: 'research' }), 'tw-taskweaver-readonly')

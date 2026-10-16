@@ -59,6 +59,7 @@ export type { DownloadsApi } from './downloads.ts';
 export type { McpApi, McpToolView } from './mcp.ts';
 export type { ApprovalResponsePayload } from './approvals.ts';
 export type { QuestionResponsePayload } from './questions.ts';
+export type { OrchestrationResponsePayload } from './orchestration.ts';
 export type { RpcRequest, RpcResponse } from './rpc.ts';
 export type { ClientRequest, ClientResponse, RpcMessage, RpcReceipt, ServerRequest, ServerResponse, } from './rpc.ts';
 export { RpcId, transportError } from './rpc.ts';

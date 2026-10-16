@@ -3,6 +3,8 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 
 export const TASKWEAVER_RUNTIME_AGENT_PRESETS = Object.freeze([
+  'tw-default',
+  'tw-code',
   'tw-taskweaver-readonly',
   'tw-taskweaver-code',
   'tw-taskweaver-planner',

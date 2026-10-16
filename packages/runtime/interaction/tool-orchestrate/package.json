@@ -1,0 +1,26 @@
+{
+  "name": "@taskweaver/dsh-tool-orchestrate",
+  "description": "Model-facing orchestrate tool over TaskWeaver's existing DAG service",
+  "version": "0.1.1-rc.2",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": { "types": "./lib/types/index.d.ts", "default": "./lib/index.js" },
+    "./package.json": "./package.json"
+  },
+  "files": ["lib/index.js", "lib/types/**/*.js", "lib/types/**/*.d.ts"],
+  "license": "MIT",
+  "peerDependencies": {
+    "@taskweaver/cordis": "workspace:^",
+    "@taskweaver/dsh-agent": "workspace:^",
+    "@taskweaver/dsh-orchestration": "workspace:^",
+    "@taskweaver/dsh-tools": "workspace:^"
+  },
+  "devDependencies": {
+    "@taskweaver/cordis": "workspace:^",
+    "@taskweaver/dsh-agent": "workspace:^",
+    "@taskweaver/dsh-orchestration": "workspace:^",
+    "@taskweaver/dsh-tools": "workspace:^"
+  }
+}

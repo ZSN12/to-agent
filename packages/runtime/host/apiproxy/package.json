@@ -72,6 +72,7 @@
     "@taskweaver/dsh-user-approval": "workspace:^",
     "@taskweaver/dsh-web": "workspace:^",
     "@taskweaver/dsh-user-questions": "workspace:^",
+    "@taskweaver/dsh-orchestration": "workspace:^",
     "@taskweaver/dsh-workspace": "workspace:^",
     "@taskweaver/dsh-home-paths": "workspace:^",
     "@taskweaver/schemastery": "workspace:^",

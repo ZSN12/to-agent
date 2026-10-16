@@ -3,7 +3,6 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { createSkillService } from '../backend/skill-service.mjs'
-import { decideExecutionMode } from '../backend/orchestration-policy.mjs'
 import { applySkillInstructions } from '../backend/skill-prompt.mjs'
 
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-skills-'))
@@ -116,9 +115,8 @@ try {
     { source: 'dsh', instructions: '', nativeInvocation: '/dsh-only-skill', instructionSource: 'dsh-native' },
     'DSH-only skills must be passed as a native first-line invocation marker, never represented as locally loaded content',
   )
-  assert.equal(decideExecutionMode('修一个小 bug', orchestration).mode, 'multi-agent')
-  assert.equal(decideExecutionMode('修一个小 bug', skills[0]).mode, 'multi-agent')
-  assert.equal(decideExecutionMode('修一个小 bug').mode, 'single-agent')
+  assert.equal(orchestration.multiAgent, true, 'the selected multi-agent Skill remains explicitly marked for the model')
+  assert.equal(selected.multiAgent, true, 'agent-teams Skill remains available to request DAG orchestration')
   assert.equal(applySkillInstructions('修一个 bug', null), '修一个 bug')
   const injected = applySkillInstructions('修一个 bug', selected)
   assert.match(injected, /用户在 TaskWeaver 中明确选择的 Skill/)

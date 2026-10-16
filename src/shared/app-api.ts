@@ -132,9 +132,6 @@ export interface ChatSendResult {
   queued?: boolean
   user?: ChatMessage
   assistant?: ChatMessage
-  needsOrchestrationChoice?: boolean
-  reason?: string
-  suggestedMode?: 'multi-agent' | 'single-agent'
 }
 
 export interface SkillOption {
@@ -323,14 +320,6 @@ export interface WorkspaceTrustState {
   workspacePath: string
   trusted: boolean
   updatedAt: number | null
-}
-
-export interface OrchestrationChoicePrompt {
-  text: string
-  modelKey?: string
-  skillName?: string
-  reason: string
-  suggestedMode: 'multi-agent' | 'single-agent'
 }
 
 export type WorkMode = 'code' | 'plan' | 'goal'
@@ -1100,9 +1089,7 @@ export interface AppPreferences {
   inlineSmallFileReferences?: boolean
   /** 每轮 Prompt Pipeline 注入的系统上下文最大值，单位为字节；实际预算按模型上下文窗口缩放。 */
   promptInjectionLimitBytes?: number
-  /** 规则门控：灰区是否询问启用多 Agent（不调用模型）。 */
-  adaptiveOrchestrationGate?: boolean
-  /** 开启后常规消息默认走多 Agent DAG；默认关闭。 */
+  /** 开启后每轮强制使用 DAG 编排；默认关闭。 */
   preferMultiAgent?: boolean
   /** 消息列表优先 DSH transcript 投影。 */
   preferDshTranscript?: boolean

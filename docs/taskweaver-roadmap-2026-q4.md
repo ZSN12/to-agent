@@ -33,7 +33,7 @@ npm run test:z-host-deploy   # 本机终端（沙箱外）
 |------|------|
 | `assemble-and-compose-user-prompt.mjs` | 工作区 + repo-map + intent/skill/cursor + pipeline 预算 |
 | `transcript-display-policy` | C 阶段：何时以 DSH transcript 渲染聊天 |
-| `orchestration-gate.mjs` | 多 Agent 灰区规则门控 |
+| `@taskweaver/dsh-tool-orchestrate` | 主 Agent 模型可调用的 DAG 入口；Host 桥接复用现有编排服务 |
 | `scheduled-jobs-*` | D 阶段：应用内定时任务 |
 | `taskweaver-hook-runner.mjs` | E 阶段：before/after turn Shell Hook |
 | `dsh-snapshot-serialize.mjs` | DSH 工具行投影 |

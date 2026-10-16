@@ -71,6 +71,7 @@ export type { McpApi, McpToolView } from './mcp.ts'
 export type { ApprovalResponsePayload } from './approvals.ts'
 
 export type { QuestionResponsePayload } from './questions.ts'
+export type { OrchestrationResponsePayload } from './orchestration.ts'
 
 // ---- Message layer: narrow forms (domain-signature view) ----
 export type { RpcRequest, RpcResponse } from './rpc.ts'

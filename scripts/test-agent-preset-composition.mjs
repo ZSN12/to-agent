@@ -34,6 +34,10 @@ function entryListProblem(rows, at = '') {
   return undefined
 }
 
+function flattenRows(rows) {
+  return rows.flatMap((row) => [row, ...(row.group === true ? flattenRows(row.config) : [])])
+}
+
 const requireFromRuntime = createRequire(
   path.join(projectRoot, 'vendor', 'taskweaver-z-runtime', 'runtime-packages', '@taskweaver', 'dsh-agent-presets', 'package.json'),
 )
@@ -68,6 +72,14 @@ async function scanPresetRoot(root, { requireWebSearch = false } = {}) {
       const webTool = rows.find((row) => row.id === 'tool-web')
       assert.equal(webTool?.name, '@taskweaver/dsh-tool-web', `${path.relative(projectRoot, filePath)} must expose the model-facing web_search tool`)
       assert.notEqual(webTool?.disabled, true, `${path.relative(projectRoot, filePath)} must not disable web_search`)
+    }
+    if (['tw-default', 'tw-code'].includes(entry.name)) {
+      const allRows = flattenRows(rows)
+      assert.equal(rows.find((row) => row.id === 'tool-orchestrate')?.name, '@taskweaver/dsh-tool-orchestrate',
+        `${path.relative(projectRoot, filePath)} must expose the shared orchestrate tool`)
+      assert.equal(allRows.some((row) => typeof row.name === 'string'
+        && (row.name.includes('dsh-tool-subagent') || row.name.includes('dsh-tool-workflow') || row.name.includes('dsh-tool-ralph'))), false,
+      `${path.relative(projectRoot, filePath)} must not expose direct host subagent/workflow tools`)
     }
     if (['tw-default', 'tw-code', 'tw-taskweaver-code', 'tw-taskweaver-readonly', 'tw-taskweaver-planner', 'tw-taskweaver-pi-lite'].includes(entry.name)) {
       const instructions = rows.find((row) => row.name === '@taskweaver/dsh-agent-instructions')

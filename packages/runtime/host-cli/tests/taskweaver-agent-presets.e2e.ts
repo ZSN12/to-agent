@@ -188,9 +188,9 @@ describe('the shipped TaskWeaver composition', () => {
       // depend on ripgrep being present on the machine.
       expect(toolNames(ctx, handle.agent).filter(name => name !== 'glob' && name !== 'grep')).toEqual([
         'ask_user_question', 'bash', 'create_goal', 'edit', 'edit_file_inline', 'exit_plan_mode',
-        'get_goal', 'index_project_for_semantic_search', 'interrupt_agent', 'job_kill', 'job_list', 'job_output', 'list_agents', 'ralph',
-        'read', 'read_document', 'read_image', 'semantic_search_code', 'semantic_search_stats', 'send_message', 'skill', 'subagent', 'subagent_fork',
-        'todo_write', 'update_goal', 'wait_agents', 'workflow', 'write',
+        'get_goal', 'index_project_for_semantic_search', 'job_kill', 'job_list', 'job_output',
+        'orchestrate', 'read', 'read_document', 'read_image', 'semantic_search_code', 'semantic_search_stats', 'skill',
+        'todo_write', 'update_goal', 'write',
       ])
     } finally {
       await handle.dispose()
@@ -252,11 +252,10 @@ describe('the shipped TaskWeaver composition', () => {
       setup: agentCtx => ctx.agentPresets.mount(agentCtx, 'tw-default').then(() => undefined),
     })
     try {
-      // One tool reaches the MODEL: the transport. The registry's catalog for
-      // this agent is unchanged — a code mode collapses the presentation, not
-      // the capabilities — so the assembly is what carries the claim.
+      // Ordinary tool calls use the transport; DAG work uses the shared
+      // orchestration entry point directly.
       const assembly = await ctx.systemPrompt.assemble({ scope: coded.agent })
-      expect(assembly.tools.map(tool => tool.name)).toEqual(['run_code'])
+      expect(assembly.tools.map(tool => tool.name)).toEqual(['orchestrate', 'run_code'])
       expect(toolNames(ctx, coded.agent)).not.toContain('str_replace_editor')
       const sdk = assembly.sections.find(section => section.name === 'tools:sdk')?.text ?? ''
       expect(sdk).not.toContain('str_replace_editor')

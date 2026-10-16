@@ -7,7 +7,6 @@ import { ExploreView } from './features/explore/ExploreView'
 import { PullRequestsPanel } from './features/pull-requests/PullRequestsPanel'
 import { SettingsPage, type SettingsSection } from './features/settings/SettingsPage'
 import { DagPanel } from './features/orchestration/DagPanel'
-import { OrchestrationChoiceOverlay } from './features/orchestration/OrchestrationChoiceOverlay'
 import { TaskConversation } from './features/orchestration/TaskConversation'
 import { useAppKeyboardShortcuts } from './features/app/useAppKeyboardShortcuts'
 import { useInterruptedTurn } from './features/chat/useInterruptedTurn'
@@ -375,14 +374,6 @@ export default function App() {
 
   return (
     <div className={`app-shell ${navCollapsed ? 'nav-collapsed' : ''}`}>
-      {appBackend.orchestrationChoice && (
-        <OrchestrationChoiceOverlay
-          reason={appBackend.orchestrationChoice.reason}
-          onConfirmSingle={() => { void appBackend.confirmOrchestration('single-agent') }}
-          onConfirmMulti={() => { void appBackend.confirmOrchestration('multi-agent') }}
-          onDismiss={appBackend.dismissOrchestrationChoice}
-        />
-      )}
       <div className="window-drag-region" aria-hidden="true" />
       {forkNotice && <div className="settings-toast" role="status" aria-live="polite">{forkNotice}</div>}
       <AppSidebar

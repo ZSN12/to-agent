@@ -397,6 +397,27 @@ export async function composeBackendServices({ app, dialog, BrowserWindow, safeS
     dshRuntime: chat,
     permissionService: permissions,
   })
+  chat.setOrchestrationHandler(async ({ conversationId, goal, context, webContents, signal }) => {
+    if (context?.allowed !== true) throw new Error('当前回合没有启用 DAG 编排权限。')
+    const outcome = await orchestration.planAndExecute({
+      text: context.text,
+      rawText: context.rawText,
+      contextLayers: [{ id: 'primary-agent-dag-goal', text: goal }],
+      primaryModelKey: context.primaryModelKey,
+      conversationId,
+      webContents,
+      skill: context.skill,
+      skillAlreadyApplied: context.skillAlreadyApplied === true,
+      workspacePath: context.workspacePath,
+      permissionMode: context.permissionMode,
+      workspaceTrusted: context.workspaceTrusted === true,
+      attachments: context.attachments,
+      documents: context.documents,
+      dagPlanApprovalOverride: context.dagPlanApprovalOverride,
+      signal,
+    })
+    return outcome
+  })
   const withMcpHostRestartLock = async (operation) => {
     if (mcpHostRestartInProgress) throw new Error('MCP 工具正在重新加载，请稍后重试。')
     if (turnInProgressByConversation.size > 0 || chat.isBusyAny() || orchestration.isBusy()) {

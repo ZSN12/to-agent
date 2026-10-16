@@ -104,6 +104,7 @@
     "@taskweaver/dsh-typert-registry": "workspace:^",
     "@taskweaver/dsh-user-approval": "workspace:^",
     "@taskweaver/dsh-user-questions": "workspace:^",
+    "@taskweaver/dsh-orchestration": "workspace:^",
     "@taskweaver/dsh-web": "workspace:^",
     "@taskweaver/dsh-web-search-deepseek": "workspace:^",
     "@taskweaver/dsh-web-search-taskweaver": "workspace:^",

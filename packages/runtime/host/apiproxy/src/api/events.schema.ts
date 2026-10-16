@@ -50,6 +50,8 @@ export const muxFrameSchema = z.discriminatedUnion('type', [
   // and must fail loud here, not reach the composer.
   z.object({ type: z.literal('question/requested'), sessionId: sessionIdSchema, questions: z.array(askUserQuestionItemSchema).min(1) }),
   z.object({ type: z.literal('question/resolved'), sessionId: sessionIdSchema, questionRpcId: rpcIdSchema, outcome: z.union([z.literal('answered'), z.literal('cancelled')]) }),
+  z.object({ type: z.literal('orchestration/requested'), sessionId: sessionIdSchema, callId: z.string().min(1), goal: z.string().min(1).max(20_000) }),
+  z.object({ type: z.literal('orchestration/cancelled'), sessionId: sessionIdSchema, orchestrationRpcId: rpcIdSchema }),
   z.object({
     type: z.literal('session/queue'),
     sessionId: sessionIdSchema,

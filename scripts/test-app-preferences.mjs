@@ -14,7 +14,10 @@ try {
   assert.equal((await store.set({ inlineSmallFileReferences: 'invalid' })).inlineSmallFileReferences, true,
     'invalid inline-reference preference updates preserve the previous value')
   assert.equal((await store.set({ inlineSmallFileReferences: false })).inlineSmallFileReferences, false)
-  assert.equal((await store.get()).adaptiveOrchestrationGate, true, 'adaptive gate defaults on')
+  const preferences = await store.get()
+  assert.equal(Object.hasOwn(preferences, 'adaptiveOrchestrationGate'), false, 'the removed adaptive gate is absent from the settings contract')
+  await fs.writeFile(path.join(root, 'taskweaver-preferences.json'), JSON.stringify({ adaptiveOrchestrationGate: true }))
+  assert.equal(Object.hasOwn(await store.get(), 'adaptiveOrchestrationGate'), false, 'legacy gate settings are ignored')
   assert.equal((await store.get()).preferMultiAgent, false, 'prefer multi-agent defaults off')
   assert.equal((await store.get()).dagReadOnlyTimeoutMs, 600_000, 'DAG read-only timeout defaults to ten minutes')
   assert.equal((await store.get()).dagWriteTimeoutMs, 1_200_000, 'DAG writer timeout defaults to twenty minutes')

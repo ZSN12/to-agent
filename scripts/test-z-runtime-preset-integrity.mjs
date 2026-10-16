@@ -26,7 +26,7 @@ try {
 
   const matching = await assertTaskWeaverPresetDeployMatches(sourceRoot, deployedRoot)
   assert.equal(matching.status, 'verified')
-  assert.equal(matching.presets.length, 3)
+  assert.equal(matching.presets.length, 5)
 
   const repositoryPresets = await assertTaskWeaverPresetDeployMatches(
     path.join(projectRoot, 'packages', 'runtime', 'host-cli', 'config', 'agent-presets'),

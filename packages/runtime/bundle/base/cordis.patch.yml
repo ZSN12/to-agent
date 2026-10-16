@@ -54,6 +54,9 @@
     - id: user-questions
       name: '@taskweaver/dsh-user-questions'
 
+    - id: orchestration
+      name: '@taskweaver/dsh-orchestration'
+
     - id: agent
       name: '@taskweaver/dsh-agent'
 

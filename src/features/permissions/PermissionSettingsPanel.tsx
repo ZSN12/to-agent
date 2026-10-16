@@ -220,7 +220,6 @@ export function PermissionSettingsPanel({
   const [autoVerifyAfterMutation, setAutoVerifyAfterMutation] = useState(false)
   const [promptInjectionLimitKiB, setPromptInjectionLimitKiB] = useState(String(PROMPT_INJECTION_LIMIT_DEFAULT_KIB))
   const [savedPromptInjectionLimitKiB, setSavedPromptInjectionLimitKiB] = useState(PROMPT_INJECTION_LIMIT_DEFAULT_KIB)
-  const [adaptiveOrchestrationGate, setAdaptiveOrchestrationGate] = useState(true)
   const [preferMultiAgent, setPreferMultiAgent] = useState(false)
   const [preferDshTranscript, setPreferDshTranscript] = useState(true)
   const [approvalAudit, setApprovalAudit] = useState<ApprovalAuditEntry[]>([])
@@ -250,7 +249,6 @@ export function PermissionSettingsPanel({
         const boundedLimitKiB = Math.max(PROMPT_INJECTION_LIMIT_MIN_KIB, Math.min(PROMPT_INJECTION_LIMIT_MAX_KIB, limitKiB))
         setPromptInjectionLimitKiB(String(boundedLimitKiB))
         setSavedPromptInjectionLimitKiB(boundedLimitKiB)
-        setAdaptiveOrchestrationGate(res.data.adaptiveOrchestrationGate !== false)
         setPreferMultiAgent(res.data.preferMultiAgent === true)
         setPreferDshTranscript(res.data.preferDshTranscript !== false)
       }
@@ -278,16 +276,6 @@ export function PermissionSettingsPanel({
     onToast?.(enabled ? '已开启：聊天列表以 DSH 会话为准' : '已关闭：仅使用本地线程消息（不推荐）')
   }
 
-  const handleAdaptiveOrchestrationGate = async (enabled: boolean) => {
-    setAdaptiveOrchestrationGate(enabled)
-    const res = await window.taskweaver?.preferences?.set?.({ adaptiveOrchestrationGate: enabled })
-    if (!res?.ok) {
-      onToast?.(res?.error || '保存失败')
-      return
-    }
-    onToast?.(enabled ? '已开启：灰区任务将询问是否启用多 Agent' : '已关闭：不再弹出多 Agent 确认')
-  }
-
   const handlePreferMultiAgent = async (enabled: boolean) => {
     setPreferMultiAgent(enabled)
     const res = await window.taskweaver?.preferences?.set?.({ preferMultiAgent: enabled })
@@ -297,7 +285,7 @@ export function PermissionSettingsPanel({
       return
     }
     onPreferMultiAgentChange?.(enabled)
-    onToast?.(enabled ? '已开启：新会话默认走多 Agent DAG' : '已恢复：新会话默认单 Agent')
+    onToast?.(enabled ? '已开启：每轮请求强制走多 Agent DAG' : '已关闭：由主 Agent 按任务需要选择是否使用 DAG')
   }
 
   const applyInjectionPresetKiB = async (presetKiB: number) => {
@@ -538,9 +526,9 @@ export function PermissionSettingsPanel({
             style={{ marginTop: 2 }}
           />
           <span>
-            <strong>默认启用多 Agent 编排</strong>
+            <strong>每轮强制使用多 Agent DAG</strong>
             <span style={{ display: 'block', color: 'var(--text-secondary)', fontSize: 11, marginTop: 4, lineHeight: 1.45 }}>
-              只决定新会话的默认模式。关闭后默认单 Agent；选择多 Agent Skill 或目标模式 (/goal) 仍会启用编排，输入框开关只影响当前会话。
+              开启后新请求都会调用 DAG 规划器；关闭后由主 Agent 根据任务复杂度决定。当前回合的输入框开关、目标模式 (/goal) 和多 Agent Skill 仍可明确要求 DAG。
             </span>
           </span>
         </label>
@@ -555,20 +543,6 @@ export function PermissionSettingsPanel({
             <strong>聊天以 DSH 会话 transcript 为准（阶段 C）</strong>
             <span style={{ display: 'block', color: 'var(--text-secondary)', fontSize: 11, marginTop: 4, lineHeight: 1.45 }}>
               开启后列表与 Host 投影对齐；线程库只保留多 Agent callout、错误等扩展行。
-            </span>
-          </span>
-        </label>
-        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginTop: 10, fontSize: 12, cursor: 'pointer' }}>
-          <input
-            type="checkbox"
-            checked={adaptiveOrchestrationGate}
-            onChange={(e) => { void handleAdaptiveOrchestrationGate(e.target.checked) }}
-            style={{ marginTop: 2 }}
-          />
-          <span>
-            <strong>灰区询问多 Agent（规则门控）</strong>
-            <span style={{ display: 'block', color: 'var(--text-secondary)', fontSize: 11, marginTop: 4, lineHeight: 1.45 }}>
-              多模块实现类请求弹出确认；不调用模型做门控，复杂任务也不会自动强开。
             </span>
           </span>
         </label>

@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState, type Dispatch, type MutableRe
 import type {
   AppState,
   ChatStreamEvent,
-  OrchestrationChoicePrompt,
   PromptQueueSnapshot,
   ToolTraceItem,
   WorkMode,
@@ -35,7 +34,6 @@ export type ConversationRunRefs = {
   conversationStartedAtRef: MutableRefObject<Map<string, number>>
   conversationTurnIdRef: MutableRefObject<Map<string, string>>
   conversationStreamRef: MutableRefObject<Map<string, ConversationStreamSnapshot>>
-  orchestrationChoicesRef: MutableRefObject<Map<string, OrchestrationChoicePrompt>>
 }
 
 export type ConversationRunOptions = {
@@ -58,8 +56,6 @@ export type ConversationRunOptions = {
     delayMs?: number
     message?: string
   } | null>>
-  orchestrationChoice: OrchestrationChoicePrompt | null
-  setOrchestrationChoice: Dispatch<SetStateAction<OrchestrationChoicePrompt | null>>
   activeConversationIdRef: MutableRefObject<string | null>
   refreshSessionStats: (expectedConversationId?: string | null) => Promise<void>
   reload: () => Promise<void>
@@ -91,8 +87,6 @@ export function useConversationRun(options: ConversationRunOptions) {
     setToolTraces,
     setPromptQueue,
     setRetryBanner,
-    orchestrationChoice,
-    setOrchestrationChoice,
     activeConversationIdRef,
     refreshSessionStats,
     reload,
@@ -107,7 +101,6 @@ export function useConversationRun(options: ConversationRunOptions) {
   const conversationStartedAtRef = useRef(new Map<string, number>())
   const conversationTurnIdRef = useRef(new Map<string, string>())
   const conversationStreamRef = useRef(new Map<string, ConversationStreamSnapshot>())
-  const orchestrationChoicesRef = useRef(new Map<string, OrchestrationChoicePrompt>())
   const [runningConversationIds, setRunningConversationIds] = useState<string[]>([])
   const [completedConversationIds, setCompletedConversationIds] = useState<string[]>([])
 
@@ -129,7 +122,6 @@ export function useConversationRun(options: ConversationRunOptions) {
     conversationStartedAtRef,
     conversationTurnIdRef,
     conversationStreamRef,
-    orchestrationChoicesRef,
   }
 
   useEffect(() => {
@@ -597,29 +589,7 @@ export function useConversationRun(options: ConversationRunOptions) {
         }
         return false
       }
-      if (res.data.needsOrchestrationChoice) {
-        if (sendConversationId) {
-          runningConversationsRef.current.delete(sendConversationId)
-          syncRunningConversationIds()
-        }
-        if (sendConversationId) conversationStartedAtRef.current.delete(sendConversationId)
-        const choice = {
-          text,
-          modelKey,
-          skillName,
-          reason: res.data.reason ?? '是否启用多 Agent 编排？',
-          suggestedMode: res.data.suggestedMode ?? 'multi-agent',
-        }
-        if (sendConversationId) orchestrationChoicesRef.current.set(sendConversationId, choice)
-        if (activeConversationIdRef.current === sendConversationId) setOrchestrationChoice(choice)
-        if (activeConversationIdRef.current === sendConversationId) setSending(false)
-        if (activeConversationIdRef.current === sendConversationId) setStreamStartedAt(null)
-        if (activeConversationIdRef.current === sendConversationId) setStreamText(null)
-        return false
-      }
-      if (sendConversationId) orchestrationChoicesRef.current.delete(sendConversationId)
       if (activeConversationIdRef.current === sendConversationId) {
-        setOrchestrationChoice(null)
         const committedMessages = [res.data.user, res.data.assistant].filter(
           (message): message is ChatMessage => Boolean(message),
         )
@@ -668,7 +638,6 @@ export function useConversationRun(options: ConversationRunOptions) {
       setStreamActivity,
       setToolTraces,
       setPromptQueue,
-      setOrchestrationChoice,
       setPendingCompactionIds,
     ],
   )
@@ -730,22 +699,6 @@ export function useConversationRun(options: ConversationRunOptions) {
     return true
   }, [activeConversationIdRef, setError, setState])
 
-  const confirmOrchestration = useCallback(
-    async (mode: 'single-agent' | 'multi-agent') => {
-      if (!orchestrationChoice) return false
-      const { text, modelKey, skillName } = orchestrationChoice
-      if (activeConversationIdRef.current) orchestrationChoicesRef.current.delete(activeConversationIdRef.current)
-      setOrchestrationChoice(null)
-      return sendMessage(text, modelKey, skillName, mode)
-    },
-    [orchestrationChoice, sendMessage, activeConversationIdRef, setOrchestrationChoice],
-  )
-
-  const dismissOrchestrationChoice = useCallback(() => {
-    if (activeConversationIdRef.current) orchestrationChoicesRef.current.delete(activeConversationIdRef.current)
-    setOrchestrationChoice(null)
-  }, [activeConversationIdRef, setOrchestrationChoice])
-
   const mutateQueue = useCallback(async (payload: {
     kind: 'steering' | 'followUp'
     index: number
@@ -781,8 +734,6 @@ export function useConversationRun(options: ConversationRunOptions) {
     cancelMessage,
     steerMessage,
     followUpMessage,
-    confirmOrchestration,
-    dismissOrchestrationChoice,
     mutateQueue,
   }
 }

@@ -10,6 +10,7 @@
     { "path": "./fs/tool-document" },
     { "path": "./fs/tool-fs-search" },
     { "path": "./fs/tool-fs-inline-edit" },
+    { "path": "./interaction/tool-orchestrate" },
     { "path": "./fs/tool-fs-semantic-search" },
     { "path": "./guard/repeat-tool-reminder" },
     { "path": "./llm/llm-retry" },

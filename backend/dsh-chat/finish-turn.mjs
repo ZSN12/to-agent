@@ -79,6 +79,7 @@ export function createFinishTurn({
         contextPercent: turnContextPercent,
       },
       cancelled,
+      ...(turn.multiAgentTaskCount > 0 ? { multiAgentTaskCount: turn.multiAgentTaskCount } : {}),
     }
     liveUsage.set(sessionKey, result.usage)
     const persisted = turn.persistTerminal && onTurnCompleted

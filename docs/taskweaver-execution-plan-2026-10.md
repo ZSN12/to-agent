@@ -24,7 +24,7 @@
 | 能力 | 说明 |
 |------|------|
 | 成本路由 | portfolio / 读便宜写贵（设置 + 文档） |
-| DAG / 多 Agent | `orchestration-gate` + orchestration |
+| DAG / 多 Agent | `orchestrate` 模型工具 + Host mux 桥接 + orchestration |
 | Worktree / Git 检查点 | 已有 git-checkpoints 测试链 |
 | 有界注入 + meter | `assemble-and-compose-user-prompt` + `chat:promptBudget` |
 
@@ -243,7 +243,7 @@ npm run install:app
 
 | ID | 任务 | 验收 |
 |----|------|------|
-| D-11 | `orchestration-gate` 可配置默认 | 灰区多 Agent 可关 |
+| D-11 | 统一模型可调用 DAG 入口 | `tw-default` / `tw-code` 共用 `orchestrate`；取消可中止 DAG；不再使用关键词门控与选择弹窗 |
 | D-12 | 成本路由默认策略文档 + 设置 | portfolio 可读 |
 | D-13 | OpenCodex ≥2.79 健康卡 | 失败降级文案 |
 

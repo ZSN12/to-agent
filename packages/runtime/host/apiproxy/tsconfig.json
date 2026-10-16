@@ -90,6 +90,9 @@
       "path": "../../interaction/user-questions"
     },
     {
+      "path": "../../interaction/orchestration"
+    },
+    {
       "path": "../../fs/tool-document"
     },
     {

@@ -47,6 +47,7 @@ export function createDshChatSend(deps) {
     documents = null,
     outputSchema,
     toolOutputMaxChars,
+    orchestrationContext,
   }) {
     if (typeof text !== 'string' || (!text.trim()
       && (!Array.isArray(attachments) || attachments.length === 0)
@@ -164,6 +165,9 @@ export function createDshChatSend(deps) {
         eventConversationId,
         taskId,
         toolOutputMaxChars,
+        orchestrationContext,
+        orchestrationAllowed: orchestrationContext?.allowed === true,
+        multiAgentTaskCount: 0,
         silentText,
         progressOnly: Boolean(progressOnly && silentText),
         plannerPhase: null,

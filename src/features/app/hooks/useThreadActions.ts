@@ -2,7 +2,6 @@ import { useCallback, type Dispatch, type MutableRefObject, type SetStateAction 
 import type {
   AppState,
   ForkThreadResult,
-  OrchestrationChoicePrompt,
   PermissionPromptPayload,
   ThreadSearchResult,
   ToolTraceItem,
@@ -23,14 +22,12 @@ export type ThreadActionsOptions = {
   activeConversationIdRef: MutableRefObject<string | null>
   conversationStartedAtRef: MutableRefObject<Map<string, number>>
   conversationStreamRef: MutableRefObject<Map<string, ConversationStreamSnapshot>>
-  orchestrationChoicesRef: MutableRefObject<Map<string, OrchestrationChoicePrompt>>
   permissionPromptsRef: MutableRefObject<Map<string, PermissionPromptPayload>>
   userQuestionPromptsRef: MutableRefObject<Map<string, UserQuestionPromptPayload[]>>
   setCompletedConversationIds: Dispatch<SetStateAction<string[]>>
   setToolTraces: Dispatch<SetStateAction<ToolTraceItem[]>>
   setSending: Dispatch<SetStateAction<boolean>>
   setStreamStartedAt: Dispatch<SetStateAction<number | null>>
-  setOrchestrationChoice: Dispatch<SetStateAction<OrchestrationChoicePrompt | null>>
   setPermissionPrompt: Dispatch<SetStateAction<PermissionPromptPayload | null>>
   setUserQuestionPrompt: Dispatch<SetStateAction<UserQuestionPromptPayload | null>>
 }
@@ -48,14 +45,12 @@ export function useThreadActions(options: ThreadActionsOptions) {
     activeConversationIdRef,
     conversationStartedAtRef,
     conversationStreamRef,
-    orchestrationChoicesRef,
     permissionPromptsRef,
     userQuestionPromptsRef,
     setCompletedConversationIds,
     setToolTraces,
     setSending,
     setStreamStartedAt,
-    setOrchestrationChoice,
     setPermissionPrompt,
     setUserQuestionPrompt,
   } = options
@@ -78,7 +73,6 @@ export function useThreadActions(options: ThreadActionsOptions) {
     else setToolTraces(res.data.outputLogs ?? [])
     setSending(isConversationRunning(res.data.conversationId))
     setStreamStartedAt(conversationStartedAtRef.current.get(res.data.conversationId) ?? null)
-    setOrchestrationChoice(orchestrationChoicesRef.current.get(res.data.conversationId) ?? null)
     setPermissionPrompt(permissionPromptsRef.current.get(res.data.conversationId) ?? null)
     setUserQuestionPrompt(userQuestionPromptsRef.current.get(res.data.conversationId)?.[0] ?? null)
     setError(null)
@@ -95,7 +89,6 @@ export function useThreadActions(options: ThreadActionsOptions) {
     activeConversationIdRef,
     conversationStartedAtRef,
     conversationStreamRef,
-    orchestrationChoicesRef,
     permissionPromptsRef,
     userQuestionPromptsRef,
     setCompletedConversationIds,
@@ -104,7 +97,6 @@ export function useThreadActions(options: ThreadActionsOptions) {
     setToolTraces,
     setSending,
     setStreamStartedAt,
-    setOrchestrationChoice,
     setPermissionPrompt,
     setUserQuestionPrompt,
   ])

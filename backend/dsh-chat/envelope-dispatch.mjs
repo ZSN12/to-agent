@@ -38,6 +38,8 @@ export function createHandleEnvelope(deps) {
     settleApproval,
     emitPermission,
     emitUserQuestion,
+    orchestrationRuns,
+    runOrchestration,
     getPermissionMode,
     emit,
     finishTurn,
@@ -121,6 +123,102 @@ export function createHandleEnvelope(deps) {
             id: frame.questionRpcId, conversationId: pending.conversationId,
           })
         } catch {}
+      }
+      return
+    }
+    if (frame.type === 'orchestration/requested') {
+      const sessionMatch = [...sessions.entries()].find(([, entry]) => entry.sessionId === frame.sessionId)
+      const sessionKey = sessionMatch?.[0]
+      const conversationId = sessionMatch?.[1]?.ownerConversationId || sessionKey
+      const turn = sessionKey ? running.get(sessionKey) : null
+      const rpcId = envelope.rpcId
+      const respondError = (message, code = 'internal') => {
+        void Promise.resolve(api.respond({
+          type: 'client-response',
+          rpcId,
+          result: { ok: false, error: { code, message: String(message).slice(0, 1_000), details: {} } },
+        })).catch(() => {})
+      }
+      if (!turn || !conversationId || !turn.orchestrationContext) {
+        respondError('本轮上下文已不可用，无法启动 DAG。')
+        return
+      }
+      if (turn.orchestrationAllowed === false) {
+        respondError('当前回合已明确选择单 Agent 或计划模式，不能启动 DAG。')
+        return
+      }
+      if (typeof runOrchestration !== 'function') {
+        respondError('桌面 DAG 编排服务尚未就绪。')
+        return
+      }
+      if (orchestrationRuns.has(rpcId)) return
+
+      const abortController = new AbortController()
+      const pending = { sessionId: frame.sessionId, conversationId, abortController, completion: null }
+      orchestrationRuns.set(rpcId, pending)
+      pending.completion = (async () => {
+        try {
+          const outcome = await runOrchestration({
+            conversationId,
+            callId: frame.callId,
+            goal: frame.goal,
+            context: turn.orchestrationContext,
+            turn,
+            webContents: turn.webContents,
+            signal: abortController.signal,
+          })
+          const tasks = Array.isArray(outcome?.tasks) ? outcome.tasks : []
+          turn.multiAgentTaskCount += tasks.length
+          await api.respond({
+            type: 'client-response',
+            rpcId,
+            result: {
+              ok: true,
+              value: {
+                sessionId: frame.sessionId,
+                summary: String(outcome?.assistant?.text || 'DAG 执行已结束。').slice(0, 20_000),
+                runId: typeof outcome?.runId === 'string' ? outcome.runId : null,
+                taskCount: tasks.length,
+                failedTaskCount: Array.isArray(outcome?.failedTaskIds) ? outcome.failedTaskIds.length : 0,
+                cancelled: outcome?.assistant?.cancelled === true,
+              },
+            },
+          })
+        } catch (error) {
+          await api.respond({
+            type: 'client-response',
+            rpcId,
+            result: {
+              ok: false,
+              error: {
+                code: abortController.signal.aborted ? 'cancelled' : 'internal',
+                message: error instanceof Error ? error.message : String(error),
+                details: {},
+              },
+            },
+          }).catch(() => {})
+        } finally {
+          if (orchestrationRuns.get(rpcId) === pending) orchestrationRuns.delete(rpcId)
+        }
+      })()
+      return
+    }
+    if (frame.type === 'orchestration/cancelled') {
+      const pending = orchestrationRuns.get(frame.orchestrationRpcId)
+      if (pending?.sessionId === frame.sessionId) {
+        pending.abortController.abort(new Error('Calling DSH turn was cancelled'))
+      } else if (pending === undefined && typeof frame.orchestrationRpcId === 'string') {
+        // A reconnect can deliver the cancellation after this desktop process
+        // has already lost the in-memory runner. Echo the stable request id so
+        // Host can retire its replay tombstone instead of replaying forever.
+        await api.respond({
+          type: 'client-response',
+          rpcId: frame.orchestrationRpcId,
+          result: {
+            ok: false,
+            error: { code: 'cancelled', message: 'DAG runner is no longer active', details: {} },
+          },
+        }).catch(() => {})
       }
       return
     }

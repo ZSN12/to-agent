@@ -2,7 +2,7 @@
  * events domain contract: signatures and frame unions for the two logical
  * streams. Four-quadrant: streams yield the narrow form `RpcRequest<Frame>` (server-request
  * view) — rpcId must be exposed to the business layer, because responses to answerable frames
- * (approval/question requested) echo it; for pure pushes it identifies that one push.
+ * (approval/question/orchestration requested) echo it; for pure pushes it identifies that one push.
  * signal is a local stream-control parameter, independent of the request (never on the wire).
  */
 
@@ -64,7 +64,7 @@ export interface EventsApi {
 
 /**
  * Mux stream frames: raw session-event passthrough + control frames +
- * approval/question frames (requested = answerable server-request, the rest are pure pushes).
+ * approval/question/orchestration frames (requested = answerable server-request, the rest are pure pushes).
  */
 export type MuxFrame =
   | { type: 'session/event'; sessionId: SessionId; event: SessionEvent; view?: ToolEventView }
@@ -73,6 +73,8 @@ export type MuxFrame =
   | { type: 'approval/resolved'; sessionId: SessionId; approvalId: ApprovalRequestId; outcome: ApprovalOutcome }
   | { type: 'question/requested'; sessionId: SessionId; questions: AskUserQuestionItem[] }
   | { type: 'question/resolved'; sessionId: SessionId; questionRpcId: RpcId; outcome: 'answered' | 'cancelled' }
+  | { type: 'orchestration/requested'; sessionId: SessionId; callId: CallId; goal: string }
+  | { type: 'orchestration/cancelled'; sessionId: SessionId; orchestrationRpcId: RpcId }
   /**
    * Complete transient inbox state after every enqueue, mutation, claim, or
    * discard. Pending work is not model-visible and therefore has no durable

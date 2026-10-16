@@ -268,10 +268,12 @@ async function syncHostPackageRuntimeLibs(monorepoRoot) {
     { label: '@taskweaver/dsh-web', libDir: path.join(monorepoRoot, 'web/web/lib') },
     { label: '@taskweaver/dsh-web-search-taskweaver', libDir: path.join(monorepoRoot, 'web/web-search-taskweaver/lib') },
     { label: '@taskweaver/dsh-tool-web', libDir: path.join(monorepoRoot, 'web/tool-web/lib') },
+    { label: '@taskweaver/dsh-orchestration', libDir: path.join(monorepoRoot, 'interaction/orchestration/lib'), alwaysSyncIndex: true },
+    { label: '@taskweaver/dsh-tool-orchestrate', libDir: path.join(monorepoRoot, 'interaction/tool-orchestrate/lib'), alwaysSyncIndex: true },
     { label: '@taskweaver/tool-ui-verify', libDir: path.join(monorepoRoot, 'interaction/tool-ui-verify/lib') },
     { label: '@taskweaver/dsh-tool-fs-semantic-search', libDir: path.join(monorepoRoot, 'fs/tool-fs-semantic-search/lib') },
   ]
-  for (const { label, libDir } of packages) {
+  for (const { label, libDir, alwaysSyncIndex = false } of packages) {
     for (const name of ['index', 'invariant']) {
       const from = path.join(libDir, 'types', `${name}.js`)
       const to = path.join(libDir, `${name}.js`)
@@ -283,7 +285,7 @@ async function syncHostPackageRuntimeLibs(monorepoRoot) {
         && source.includes('runtimeHomePath')
         && !destText.includes('runtimeHomePath')
       if (looksCjs && !needsRuntimeHomePath) continue
-      if (!fs.existsSync(to) || needsRuntimeHomePath) {
+      if (!fs.existsSync(to) || needsRuntimeHomePath || (name === 'index' && alwaysSyncIndex)) {
         await fsp.copyFile(from, to)
         console.log(`build-host-runtime: 同步 ${label}/lib/${name}.js`)
       }
@@ -476,6 +478,12 @@ const TASKWEAVER_FS_TOOLS = [
   { ref: './fs/tool-fs-semantic-search', name: '@taskweaver/dsh-tool-fs-semantic-search', id: 'tool-fs-semantic-search' },
 ]
 
+const TASKWEAVER_ORCHESTRATION_TOOL = {
+  ref: './interaction/tool-orchestrate',
+  name: '@taskweaver/dsh-tool-orchestrate',
+  packageDir: 'interaction/tool-orchestrate',
+}
+
 function assertTaskWeaverFsToolsIntegrated(monorepoRoot) {
   const hostTsconfigPath = path.join(monorepoRoot, 'tsconfig.host.taskweaver.json')
   if (!fs.existsSync(hostTsconfigPath)) throw new Error('缺少 TaskWeaver Host TypeScript 配置')
@@ -498,6 +506,26 @@ function assertTaskWeaverFsToolsIntegrated(monorepoRoot) {
       if (!source.includes(`id: ${tool.id}`) || !source.includes(`name: '${tool.name}'`)) {
         throw new Error(`${preset} preset 未挂载 ${tool.name}`)
       }
+    }
+  }
+  const orchestration = TASKWEAVER_ORCHESTRATION_TOOL
+  if (!refs.some((entry) => entry.path === orchestration.ref)) {
+    throw new Error(`tsconfig.host.taskweaver.json 缺少 DAG 编排工具 ${orchestration.ref}`)
+  }
+  if (!cliDependencies[orchestration.name]) {
+    throw new Error(`host-cli/package.json 缺少运行时依赖 ${orchestration.name}`)
+  }
+  if (!fs.existsSync(path.join(monorepoRoot, orchestration.packageDir, 'package.json'))) {
+    throw new Error(`缺少已接入插件包：${orchestration.packageDir}`)
+  }
+  for (const preset of ['tw-default', 'tw-code']) {
+    const presetPath = path.join(monorepoRoot, 'host-cli', 'config', 'agent-presets', preset, 'agent.cordis.yml')
+    const source = fs.readFileSync(presetPath, 'utf8')
+    if (!source.includes('id: tool-orchestrate') || !source.includes(`name: '${orchestration.name}'`)) {
+      throw new Error(`${preset} preset 未挂载 ${orchestration.name}`)
+    }
+    if (source.includes('tool-subagent') || source.includes('tool-workflow') || source.includes('tool-ralph')) {
+      throw new Error(`${preset} preset 仍包含直接子 Agent 工具`)
     }
   }
 }

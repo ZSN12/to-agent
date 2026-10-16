@@ -30,37 +30,44 @@ export function nextTaskTier(taskType, currentTier) {
   return order.find((tier) => TIER_RANK[tier] === rank + 1) ?? null
 }
 
-const MULTI_AGENT_TARGET = '(?:多智能体|多\\s*agent|multi[-\\s]?agent|agent[-\\s]?team|任务\\s*DAG)'
+const MULTI_AGENT_TARGET = '(?:多智能体|多\\s*agent|multi[-\\s]?agent|agent[-\\s]?team|(?:任务\\s*)?DAG)'
 
 export function explicitlyDisablesMultiAgent(text) {
-  const denied = new RegExp(`(?:不要|不需要|无需|禁止|别用|不启用|禁用|关闭|不是|并非)\\s*(?:使用|启用|调用)?\\s*${MULTI_AGENT_TARGET}`, 'i')
+  const denied = new RegExp(`(?:不要|不需要|无需|禁止|别用|不用|不使用|不启用|禁用|关闭|不是|并非)\\s*(?:使用|用|启用|调用)?\\s*${MULTI_AGENT_TARGET}`, 'i')
   return denied.test(String(text ?? ''))
 }
 
-/** Single-agent is the base route; the adaptive backend gate asks before starting a suggested DAG. */
-export function decideExecutionMode(text, selectedSkill = null) {
-  if (selectedSkill?.multiAgent) {
-    return { mode: 'multi-agent', reason: `已选择多 Agent Skill：${selectedSkill.name}` }
-  }
-  if (explicitlyDisablesMultiAgent(text)) return { mode: 'single-agent', reason: '用户明确要求不启用多 Agent' }
-  const explicit = new RegExp(`(?:使用|启用|开启|调用|采用)\\s*${MULTI_AGENT_TARGET}|${MULTI_AGENT_TARGET}\\s*(?:skill|技能)|(?:任务|请求)\\s*.*${MULTI_AGENT_TARGET}`, 'i').test(String(text ?? ''))
-  if (explicit) return { mode: 'multi-agent', reason: '用户明确要求多 Agent 编排' }
-  return { mode: 'single-agent', reason: '未显式选择多 Agent，保持单 Agent 执行' }
-}
-
-export function resolveExecutionMode(decision, override) {
-  if (override === 'single-agent' || override === 'multi-agent') {
-    return { mode: override, reason: override === 'multi-agent' ? '用户确认启用多 Agent' : '用户选择单 Agent 执行' }
-  }
-  if (decision.mode === 'ask-user') return decision
-  return decision
-}
-
-/** Explicit composer modes override task heuristics; ordinary code mode has no override. */
+/** Explicit work modes still steer the model-callable orchestrate tool. */
 export function workModeExecutionOverride(workMode) {
   if (workMode === 'goal') return 'multi-agent'
   if (workMode === 'plan') return 'single-agent'
   return null
+}
+
+/** Resolve explicit user controls; request complexity is intentionally left to the model. */
+export function resolveOrchestrationPolicy({
+  text,
+  modeOverrides = [],
+  workMode,
+  skillRequiresDag = false,
+  preferMultiAgent = false,
+} = {}) {
+  const modes = [...modeOverrides, workModeExecutionOverride(workMode)]
+    .filter((mode) => mode === 'single-agent' || mode === 'multi-agent')
+  const explicitSingle = modes.includes('single-agent')
+  const explicitMulti = modes.includes('multi-agent')
+  const userDisabled = explicitlyDisablesMultiAgent(text)
+  const forced = explicitMulti || (!userDisabled && (skillRequiresDag || preferMultiAgent))
+  const allowed = !explicitSingle && (explicitMulti || !userDisabled)
+  const required = allowed && forced
+  return {
+    allowed,
+    required,
+    mode: required ? 'multi-agent' : 'single-agent',
+    reason: required ? '当前回合要求使用 DAG 编排'
+      : allowed ? '由主 Agent 根据任务需要选择工具'
+        : '当前回合已限制为单 Agent/计划模式',
+  }
 }
 
 /**

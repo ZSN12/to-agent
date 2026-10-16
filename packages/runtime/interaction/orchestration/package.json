@@ -1,0 +1,25 @@
+{
+  "name": "@taskweaver/dsh-orchestration",
+  "description": "Host-provided TaskWeaver DAG orchestration capability for agent tools",
+  "version": "0.1.1-rc.2",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": { "types": "./lib/types/index.d.ts", "default": "./lib/index.js" },
+    "./types": { "types": "./lib/types/types.d.ts", "default": "./lib/types/types.js" },
+    "./package.json": "./package.json"
+  },
+  "files": ["lib/index.js", "lib/types/**/*.js", "lib/types/**/*.d.ts"],
+  "license": "MIT",
+  "peerDependencies": {
+    "@taskweaver/cordis": "workspace:^",
+    "@taskweaver/dsh-agent": "workspace:^",
+    "@taskweaver/dsh-llm": "workspace:^"
+  },
+  "devDependencies": {
+    "@taskweaver/cordis": "workspace:^",
+    "@taskweaver/dsh-agent": "workspace:^",
+    "@taskweaver/dsh-llm": "workspace:^"
+  }
+}

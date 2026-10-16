@@ -7,7 +7,6 @@ import type {
   LiveContextUsage,
   PromptBudgetSnapshot,
   SessionStatsSnapshot,
-  OrchestrationChoicePrompt,
   PermissionMode,
   PermissionPromptPayload,
   PromptQueueSnapshot,
@@ -93,7 +92,6 @@ export function useAppBackend() {
   const { skills, skillsLoading, refreshSkills } = useSkills(workspacePathRef)
   const [toolTraces, setToolTraces] = useState<ToolTraceItem[]>([])
   const [promptQueue, setPromptQueue] = useState<PromptQueueSnapshot>({ steering: [], followUp: [] })
-  const [orchestrationChoice, setOrchestrationChoice] = useState<OrchestrationChoicePrompt | null>(null)
   const [permissionPrompt, setPermissionPrompt] = useState<PermissionPromptPayload | null>(null)
   const [userQuestionPrompt, setUserQuestionPrompt] = useState<UserQuestionPromptPayload | null>(null)
   const userQuestionPromptsRef = useRef(new Map<string, UserQuestionPromptPayload[]>())
@@ -134,7 +132,6 @@ export function useAppBackend() {
     setPromptBudget(null)
     setSessionStats(null)
     setPromptQueue(emptyPromptQueue())
-    setOrchestrationChoice(null)
     setPermissionPrompt(null)
     setUserQuestionPrompt(null)
     setRetryBanner(null)
@@ -216,8 +213,6 @@ export function useAppBackend() {
     cancelMessage,
     steerMessage,
     followUpMessage,
-    confirmOrchestration,
-    dismissOrchestrationChoice,
     mutateQueue,
   } = useConversationRun({
     bridgeReady,
@@ -234,8 +229,6 @@ export function useAppBackend() {
     setToolTraces,
     setPromptQueue,
     setRetryBanner,
-    orchestrationChoice,
-    setOrchestrationChoice,
     activeConversationIdRef,
     refreshSessionStats,
     reload: () => reloadRef.current(),
@@ -249,7 +242,6 @@ export function useAppBackend() {
   const {
     conversationStartedAtRef,
     conversationStreamRef,
-    orchestrationChoicesRef,
   } = conversationRunRefs
 
   const refreshWorkspaceTrust = useCallback(async () => {
@@ -407,14 +399,12 @@ export function useAppBackend() {
     activeConversationIdRef,
     conversationStartedAtRef,
     conversationStreamRef,
-    orchestrationChoicesRef,
     permissionPromptsRef,
     userQuestionPromptsRef,
     setCompletedConversationIds,
     setToolTraces,
     setSending,
     setStreamStartedAt,
-    setOrchestrationChoice,
     setPermissionPrompt,
     setUserQuestionPrompt,
   })
@@ -536,9 +526,6 @@ export function useAppBackend() {
     cancelMessage,
     steerMessage,
     followUpMessage,
-    orchestrationChoice,
-    confirmOrchestration,
-    dismissOrchestrationChoice,
     clearConversation,
     setWorkspace,
     pickWorkspace,

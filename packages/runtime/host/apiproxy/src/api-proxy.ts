@@ -44,7 +44,7 @@ import type {
   ModelCatalogFailure, ModelProviderGroup,
   ModelReasoning, MuxFrame, PromptContentPart, QuestionResponsePayload, SessionListMetadata, SessionProjectionsBlock, SessionSearchItem,
   QueuedInboxItem, SessionSummary, SettingsNamespaceView, SubagentAddress, JobView, ToolEventView,
-  WorkspaceId, WorkspaceView,
+  WorkspaceId, WorkspaceView, OrchestrationResponsePayload,
 } from './api/index.ts'
 import {
   DEFAULT_SESSION_LOG_COMPRESSION_LEVEL,
@@ -95,7 +95,10 @@ import type { ApprovalOutcome, ApprovalRequestId } from '@taskweaver/dsh-user-ap
 // Side-effect type import: resolves the `approval/request` waterfall and
 // `ctx.get('approval')` without a value dependency on the seam (optional composition).
 import type {} from '@taskweaver/dsh-user-approval'
+// Type-only: resolves the root `ctx.orchestration` capability provider.
+import type {} from '@taskweaver/dsh-orchestration'
 import { approvalResponsePayloadSchema } from './api/approvals.schema.ts'
+import { orchestrationResponsePayloadSchema } from './api/orchestration.schema.ts'
 
 interface ApiProxyAuthorizationService {
   list(): Array<{ key: ReturnType<typeof credentialKey>; label: string; methods: Array<{ id: string; label: string }>; inFlight: boolean }>
@@ -125,6 +128,8 @@ import type {
   AskUserQuestionAnswer, AskUserQuestionItem, AskUserQuestionRequest,
 } from '@taskweaver/dsh-user-questions'
 import { UserQuestionError } from '@taskweaver/dsh-user-questions'
+import type { OrchestrationRequest, OrchestrationResult } from '@taskweaver/dsh-orchestration'
+import { OrchestrationToolError } from '@taskweaver/dsh-orchestration'
 import {
   ApiRemoteSessionNotFound as SessionNotFound,
   ApiRemoteSubagentSessionOwnership as SubagentSessionOwnership,
@@ -734,6 +739,20 @@ interface PendingQuestion {
   onAbort?: () => void
 }
 
+/** One model-requested DAG invocation, correlated across the Host mux round-trip. */
+interface PendingOrchestration {
+  rpcId: RpcId
+  sessionId: SessionId
+  callId: CallId
+  goal: string
+  resolve(result: OrchestrationResult): void
+  reject(error: OrchestrationToolError): void
+  signal?: AbortSignal
+  onAbort?: () => void
+  /** The caller has been rejected, but the desktop must still acknowledge cancellation. */
+  cancelled?: boolean
+}
+
 /** Validate one answer batch against the exact question request it resolves. */
 function matchesQuestions(payload: QuestionResponsePayload, pending: PendingQuestion): boolean {
   if (payload.sessionId !== pending.sessionId) return false
@@ -1150,6 +1169,7 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
   /** Serializes path ownership and explicit title checks with Workspace mutations. */
   let workspaceCreationChain = Promise.resolve()
   const pendingQuestions = new Map<RpcId, PendingQuestion>()
+  const pendingOrchestrations = new Map<RpcId, PendingOrchestration>()
   const pendingApprovals = new Map<RpcId, PendingApproval>()
   const authorizationAttempts = new Map<string, { key: ReturnType<typeof credentialKey>; prompts: Map<string, { resolve(value: string): void; reject(error: Error): void }> }>()
   const muxQueues = new Set<FrameQueue<RpcRequest<MuxFrame>>>()
@@ -1389,6 +1409,34 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
     })
   }
 
+  function claimOrchestration(pending: PendingOrchestration): void {
+    pendingOrchestrations.delete(pending.rpcId)
+    if (pending.signal !== undefined && pending.onAbort !== undefined) {
+      pending.signal.removeEventListener('abort', pending.onAbort)
+    }
+  }
+
+  function orchestrationCancellationFrame(pending: PendingOrchestration): RpcRequest<MuxFrame> {
+    return frame({
+      type: 'orchestration/cancelled',
+      sessionId: pending.sessionId,
+      orchestrationRpcId: pending.rpcId,
+    })
+  }
+
+  function cancelOrchestration(pending: PendingOrchestration, message: string): void {
+    if (pending.cancelled) return
+    pending.cancelled = true
+    if (pending.signal !== undefined && pending.onAbort !== undefined) {
+      pending.signal.removeEventListener('abort', pending.onAbort)
+    }
+    // Keep this entry as a cancellation tombstone until the desktop confirms
+    // that its runner stopped. This makes cancellation survive a mux reconnect.
+    const envelope = orchestrationCancellationFrame(pending)
+    for (const queue of muxQueues) queue.push(envelope)
+    pending.reject(new OrchestrationToolError(message, 'ORCHESTRATION_ABORTED'))
+  }
+
   const disposeProvider = ctx.userQuestions.registerProvider({
     ask(request: AskUserQuestionRequest): Promise<AskUserQuestionAnswer> {
       const sessionId = request.agent?.id
@@ -1426,6 +1474,64 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
         'web user-questions provider was disposed', 'ASK_ABORTED'))
     }
   }, 'api-proxy: user-questions provider')
+
+  const orchestrationService = ctx.get('orchestration')
+  if (orchestrationService !== undefined) {
+    const disposeOrchestrationProvider = orchestrationService.registerProvider({
+      run(request: OrchestrationRequest): Promise<OrchestrationResult> {
+        const sessionId = request.agent?.id
+        if (sessionId === undefined || request.callId === undefined) {
+          return Promise.reject(new OrchestrationToolError(
+            'DAG orchestration requires a live agent session and tool-call id', 'MISSING_CALLER'))
+        }
+        return new Promise<OrchestrationResult>((resolve, reject) => {
+          const rpcId = RpcId(randomUUID())
+          const pending: PendingOrchestration = {
+            rpcId,
+            sessionId,
+            callId: CallId(request.callId),
+            goal: request.goal,
+            resolve,
+            reject,
+            ...(request.signal === undefined ? {} : { signal: request.signal }),
+          }
+          const onAbort = (): void => {
+            cancelOrchestration(pending, 'DAG orchestration was cancelled with its calling turn')
+          }
+          pending.onAbort = onAbort
+          pendingOrchestrations.set(rpcId, pending)
+          request.signal?.addEventListener('abort', onAbort, { once: true })
+          if (request.signal?.aborted) {
+            onAbort()
+            return
+          }
+          for (const queue of muxQueues) {
+            queue.push({
+              rpcId,
+              payload: {
+                type: 'orchestration/requested',
+                sessionId,
+                callId: pending.callId,
+                goal: pending.goal,
+              },
+            })
+          }
+        })
+      },
+    })
+    ctx.effect(() => () => {
+      disposeOrchestrationProvider()
+      for (const pending of [...pendingOrchestrations.values()]) {
+        if (!pending.cancelled) {
+          pending.cancelled = true
+          pending.reject(new OrchestrationToolError('DAG orchestration provider was disposed', 'ORCHESTRATION_ABORTED'))
+        }
+        claimOrchestration(pending)
+        const envelope = orchestrationCancellationFrame(pending)
+        for (const queue of muxQueues) queue.push(envelope)
+      }
+    }, 'api-proxy: DAG orchestration provider')
+  }
 
   // --- Approval pending registry ------------------------------------------
   // The proxy is the approval channel for every agent this host owns: an ask
@@ -3626,6 +3732,17 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
             },
           })
         }
+        for (const pending of pendingOrchestrations.values()) {
+          queue.push(pending.cancelled ? orchestrationCancellationFrame(pending) : {
+            rpcId: pending.rpcId,
+            payload: {
+              type: 'orchestration/requested',
+              sessionId: pending.sessionId,
+              callId: pending.callId,
+              goal: pending.goal,
+            },
+          })
+        }
         // Refresh recovery: still-pending approval questions replay with their
         // stable rpcId so a reconnecting client can still answer them.
         for (const pending of pendingApprovals.values()) queue.push(requestedFrame(pending))
@@ -3890,6 +4007,51 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
           return Promise.resolve({ accepted: false, reason: 'bad-response' })
         }
         approval.resolve(parsed.data.outcome)
+        return Promise.resolve({ accepted: true })
+      }
+      const orchestration = pendingOrchestrations.get(message.rpcId)
+      if (orchestration !== undefined) {
+        if (orchestration.cancelled) {
+          // Any terminal response proves the desktop has observed the
+          // cancellation and its runner has settled. A success still needs
+          // correlation validation before it can clear the tombstone.
+          if (message.result.ok) {
+            const parsed = orchestrationResponsePayloadSchema.safeParse(message.result.value)
+            if (!parsed.success || parsed.data.sessionId !== orchestration.sessionId) {
+              return Promise.resolve({ accepted: false, reason: 'bad-response' })
+            }
+          }
+          claimOrchestration(orchestration)
+          return Promise.resolve({ accepted: true })
+        }
+        if (!message.result.ok) {
+          claimOrchestration(orchestration)
+          const cancelled = message.result.error.code === 'cancelled'
+          orchestration.reject(new OrchestrationToolError(
+            message.result.error.message || (cancelled ? 'DAG orchestration was cancelled by the desktop' : 'DAG orchestration failed'),
+            cancelled ? 'ORCHESTRATION_ABORTED' : 'ORCHESTRATION_FAILED'))
+          return Promise.resolve({ accepted: true })
+        }
+        const parsed = orchestrationResponsePayloadSchema.safeParse(message.result.value)
+        if (!parsed.success || parsed.data.sessionId !== orchestration.sessionId) {
+          return Promise.resolve({ accepted: false, reason: 'bad-response' })
+        }
+        const payload: OrchestrationResponsePayload = {
+          sessionId: parsed.data.sessionId,
+          summary: parsed.data.summary,
+          runId: parsed.data.runId,
+          taskCount: parsed.data.taskCount,
+          failedTaskCount: parsed.data.failedTaskCount,
+          cancelled: parsed.data.cancelled,
+        }
+        claimOrchestration(orchestration)
+        orchestration.resolve({
+          summary: payload.summary,
+          runId: payload.runId,
+          taskCount: payload.taskCount,
+          failedTaskCount: payload.failedTaskCount,
+          cancelled: payload.cancelled,
+        })
         return Promise.resolve({ accepted: true })
       }
       const pending = pendingQuestions.get(message.rpcId)

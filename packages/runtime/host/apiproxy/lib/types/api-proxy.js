@@ -32,10 +32,12 @@ import { credentialKey, credentialRef } from '@taskweaver/dsh-credentials';
 import { SessionTitleInvalidError } from '@taskweaver/dsh-session-title';
 import { CallId } from '@taskweaver/dsh-llm';
 import { approvalResponsePayloadSchema } from "./api/approvals.schema.js";
+import { orchestrationResponsePayloadSchema } from "./api/orchestration.schema.js";
 import { imageLimitsProjectionSchema, sessionListMetadataProjectionSchema } from "./api/sessions.schema.js";
 import { questionResponsePayloadSchema } from "./api/questions.schema.js";
 import { RpcId } from "./api/rpc.js";
 import { UserQuestionError } from '@taskweaver/dsh-user-questions';
+import { OrchestrationToolError } from '@taskweaver/dsh-orchestration';
 import { ApiRemoteSessionNotFound as SessionNotFound, ApiRemoteSubagentSessionOwnership as SubagentSessionOwnership, API_REMOTE_FORWARDED_EVENTS, apiRemoteSubagentOwnershipError, createApiRemoteAgentResolver, hasApiRemoteSubagentOwner, inspectApiRemoteSession, } from '@taskweaver/dsh-api-remotes';
 import { canOpenNativePath, openNativePath, openNativeTextFile } from "./native-path-opener.js";
 /** Page size when history is called without maxMessages. */
@@ -897,6 +899,7 @@ export function createApiProxy(ctx, defaults) {
     /** Serializes path ownership and explicit title checks with Workspace mutations. */
     let workspaceCreationChain = Promise.resolve();
     const pendingQuestions = new Map();
+    const pendingOrchestrations = new Map();
     const pendingApprovals = new Map();
     const authorizationAttempts = new Map();
     const muxQueues = new Set();
@@ -1114,6 +1117,33 @@ export function createApiProxy(ctx, defaults) {
             questionRpcId: pending.rpcId, outcome,
         });
     }
+    function claimOrchestration(pending) {
+        pendingOrchestrations.delete(pending.rpcId);
+        if (pending.signal !== undefined && pending.onAbort !== undefined) {
+            pending.signal.removeEventListener('abort', pending.onAbort);
+        }
+    }
+    function orchestrationCancellationFrame(pending) {
+        return frame({
+            type: 'orchestration/cancelled',
+            sessionId: pending.sessionId,
+            orchestrationRpcId: pending.rpcId,
+        });
+    }
+    function cancelOrchestration(pending, message) {
+        if (pending.cancelled)
+            return;
+        pending.cancelled = true;
+        if (pending.signal !== undefined && pending.onAbort !== undefined) {
+            pending.signal.removeEventListener('abort', pending.onAbort);
+        }
+        // Keep this entry as a cancellation tombstone until the desktop confirms
+        // that its runner stopped. This makes cancellation survive a mux reconnect.
+        const envelope = orchestrationCancellationFrame(pending);
+        for (const queue of muxQueues)
+            queue.push(envelope);
+        pending.reject(new OrchestrationToolError(message, 'ORCHESTRATION_ABORTED'));
+    }
     const disposeProvider = ctx.userQuestions.registerProvider({
         ask(request) {
             const sessionId = request.agent?.id;
@@ -1149,6 +1179,63 @@ export function createApiProxy(ctx, defaults) {
             pending.reject(new UserQuestionError('web user-questions provider was disposed', 'ASK_ABORTED'));
         }
     }, 'api-proxy: user-questions provider');
+    const orchestrationService = ctx.get('orchestration');
+    if (orchestrationService !== undefined) {
+        const disposeOrchestrationProvider = orchestrationService.registerProvider({
+            run(request) {
+                const sessionId = request.agent?.id;
+                if (sessionId === undefined || request.callId === undefined) {
+                    return Promise.reject(new OrchestrationToolError('DAG orchestration requires a live agent session and tool-call id', 'MISSING_CALLER'));
+                }
+                return new Promise((resolve, reject) => {
+                    const rpcId = RpcId(randomUUID());
+                    const pending = {
+                        rpcId,
+                        sessionId,
+                        callId: CallId(request.callId),
+                        goal: request.goal,
+                        resolve,
+                        reject,
+                        ...(request.signal === undefined ? {} : { signal: request.signal }),
+                    };
+                    const onAbort = () => {
+                        cancelOrchestration(pending, 'DAG orchestration was cancelled with its calling turn');
+                    };
+                    pending.onAbort = onAbort;
+                    pendingOrchestrations.set(rpcId, pending);
+                    request.signal?.addEventListener('abort', onAbort, { once: true });
+                    if (request.signal?.aborted) {
+                        onAbort();
+                        return;
+                    }
+                    for (const queue of muxQueues) {
+                        queue.push({
+                            rpcId,
+                            payload: {
+                                type: 'orchestration/requested',
+                                sessionId,
+                                callId: pending.callId,
+                                goal: pending.goal,
+                            },
+                        });
+                    }
+                });
+            },
+        });
+        ctx.effect(() => () => {
+            disposeOrchestrationProvider();
+            for (const pending of [...pendingOrchestrations.values()]) {
+                if (!pending.cancelled) {
+                    pending.cancelled = true;
+                    pending.reject(new OrchestrationToolError('DAG orchestration provider was disposed', 'ORCHESTRATION_ABORTED'));
+                }
+                claimOrchestration(pending);
+                const envelope = orchestrationCancellationFrame(pending);
+                for (const queue of muxQueues)
+                    queue.push(envelope);
+            }
+        }, 'api-proxy: DAG orchestration provider');
+    }
     // --- Approval pending registry ------------------------------------------
     // The proxy is the approval channel for every agent this host owns: an ask
     // through `ctx.approval` becomes an answerable server-request on the mux
@@ -3332,6 +3419,17 @@ export function createApiProxy(ctx, defaults) {
                         },
                     });
                 }
+                for (const pending of pendingOrchestrations.values()) {
+                    queue.push(pending.cancelled ? orchestrationCancellationFrame(pending) : {
+                        rpcId: pending.rpcId,
+                        payload: {
+                            type: 'orchestration/requested',
+                            sessionId: pending.sessionId,
+                            callId: pending.callId,
+                            goal: pending.goal,
+                        },
+                    });
+                }
                 // Refresh recovery: still-pending approval questions replay with their
                 // stable rpcId so a reconnecting client can still answer them.
                 for (const pending of pendingApprovals.values())
@@ -3583,6 +3681,49 @@ export function createApiProxy(ctx, defaults) {
                     return Promise.resolve({ accepted: false, reason: 'bad-response' });
                 }
                 approval.resolve(parsed.data.outcome);
+                return Promise.resolve({ accepted: true });
+            }
+            const orchestration = pendingOrchestrations.get(message.rpcId);
+            if (orchestration !== undefined) {
+                if (orchestration.cancelled) {
+                    // Any terminal response proves the desktop has observed the
+                    // cancellation and its runner has settled. A success still needs
+                    // correlation validation before it can clear the tombstone.
+                    if (message.result.ok) {
+                        const parsed = orchestrationResponsePayloadSchema.safeParse(message.result.value);
+                        if (!parsed.success || parsed.data.sessionId !== orchestration.sessionId) {
+                            return Promise.resolve({ accepted: false, reason: 'bad-response' });
+                        }
+                    }
+                    claimOrchestration(orchestration);
+                    return Promise.resolve({ accepted: true });
+                }
+                if (!message.result.ok) {
+                    claimOrchestration(orchestration);
+                    const cancelled = message.result.error.code === 'cancelled';
+                    orchestration.reject(new OrchestrationToolError(message.result.error.message || (cancelled ? 'DAG orchestration was cancelled by the desktop' : 'DAG orchestration failed'), cancelled ? 'ORCHESTRATION_ABORTED' : 'ORCHESTRATION_FAILED'));
+                    return Promise.resolve({ accepted: true });
+                }
+                const parsed = orchestrationResponsePayloadSchema.safeParse(message.result.value);
+                if (!parsed.success || parsed.data.sessionId !== orchestration.sessionId) {
+                    return Promise.resolve({ accepted: false, reason: 'bad-response' });
+                }
+                const payload = {
+                    sessionId: parsed.data.sessionId,
+                    summary: parsed.data.summary,
+                    runId: parsed.data.runId,
+                    taskCount: parsed.data.taskCount,
+                    failedTaskCount: parsed.data.failedTaskCount,
+                    cancelled: parsed.data.cancelled,
+                };
+                claimOrchestration(orchestration);
+                orchestration.resolve({
+                    summary: payload.summary,
+                    runId: payload.runId,
+                    taskCount: payload.taskCount,
+                    failedTaskCount: payload.failedTaskCount,
+                    cancelled: payload.cancelled,
+                });
                 return Promise.resolve({ accepted: true });
             }
             const pending = pendingQuestions.get(message.rpcId);

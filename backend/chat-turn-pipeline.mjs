@@ -1,13 +1,12 @@
 import path from 'node:path'
 import { appendUserChatEntry } from './message-factory.mjs'
-import { PlannerFallbackError, requiresReadOnlyPlan } from './orchestration-service.mjs'
+import { requiresReadOnlyPlan } from './orchestration-service.mjs'
 import {
   assembleAndComposeUserPrompt,
   logPromptPipelineAccounting,
   promptBudgetSnapshotFromStats,
 } from './assemble-and-compose-user-prompt.mjs'
-import { decideExecutionMode, explicitlyDisablesMultiAgent, resolveExecutionMode } from './orchestration-policy.mjs'
-import { evaluateOrchestrationGate } from './orchestration-gate.mjs'
+import { resolveOrchestrationPolicy } from './orchestration-policy.mjs'
 import { resolvePrimaryAgentPreset } from './primary-agent-preset.mjs'
 import { nativeChatCommand } from './native-chat-command.mjs'
 import { loadTaskweaverHooks, runTaskweaverHooks } from './taskweaver-hook-runner.mjs'
@@ -15,7 +14,7 @@ import { executeVerificationRunner } from './verification-policy.mjs'
 import { runBoundedSelfHealing } from './self-healing-loop.mjs'
 import { prefetchChatTurnInputs } from './chat-turn-prefetch.mjs'
 import { humanizeBridgeTransportError } from './cursor-tool-guidance.mjs'
-import { IPC_PLANNER_FALLBACK_HINT_MAX_LENGTH, IPC_ERROR_MESSAGE_MAX_LENGTH } from './config.mjs'
+import { IPC_ERROR_MESSAGE_MAX_LENGTH } from './config.mjs'
 
 /**
  * 聊天回合流水线（阶段 5.3）：send 前校验、执行、错误与自愈。
@@ -47,9 +46,7 @@ export function createChatTurnPipeline(deps) {
   const createAssistantMessage = async (result, messageId, time, activeKey, execution, conversationId) => {
     const subTaskCount = typeof result.multiAgentTaskCount === 'number'
       ? result.multiAgentTaskCount
-      : (execution.mode === 'multi-agent'
-        ? (await appState.getConversationState(conversationId)).tasks.length
-        : null)
+      : null
     const callout = result.callout
       ?? (subTaskCount != null
         ? `由 TaskWeaver 拆分并执行 ${subTaskCount} 个子任务`
@@ -170,52 +167,7 @@ export function createChatTurnPipeline(deps) {
     throw error
   }
 
-  const executeMultiAgent = async (effectivePrompt, primaryAgentPreset, activeKey, selectedSkill, webContents, execution, conversationId, runtimeContext, permissionMode, attachments, documents, dagPlanApprovalOverride, toolOutputMaxChars) => {
-    try {
-      const outcome = await orchestration.planAndExecute({
-        text: effectivePrompt,
-        primaryModelKey: activeKey,
-        conversationId,
-        workspacePath: runtimeContext.workspacePath,
-        permissionMode,
-        workspaceTrusted: runtimeContext.workspaceTrusted === true,
-        webContents,
-        skill: selectedSkill,
-        skillAlreadyApplied: true,
-        attachments,
-        documents,
-        dagPlanApprovalOverride,
-      })
-      return {
-        ...outcome.assistant,
-        multiAgentTaskCount: Array.isArray(outcome.tasks) ? outcome.tasks.length : 0,
-      }
-    } catch (error) {
-      if (error instanceof PlannerFallbackError || error?.code === 'PLANNER_FALLBACK') {
-        const hint = error instanceof Error ? error.message : String(error)
-        const result = await chat.send({
-          text: effectivePrompt,
-          modelKey: activeKey,
-          conversationId,
-          cwdOverride: runtimeContext.workspacePath,
-          webContents,
-          agentPreset: primaryAgentPreset,
-          permissionMode,
-          skill: null,
-          attachments,
-          documents,
-          toolOutputMaxChars,
-        })
-        return {
-          ...result,
-          callout: `多 Agent 规划失败，已自动降级为单 Agent：${hint.slice(0, IPC_PLANNER_FALLBACK_HINT_MAX_LENGTH)}`,
-        }
-      }
-      throw error
-    }
-  }
-
-  const executeSingleAgent = async (effectivePrompt, primaryAgentPreset, activeKey, _selectedSkill, webContents, _execution, conversationId, runtimeContext, permissionMode, attachments, documents, toolOutputMaxChars) => {
+  const executeSingleAgent = async (effectivePrompt, primaryAgentPreset, activeKey, _selectedSkill, webContents, _execution, conversationId, runtimeContext, permissionMode, attachments, documents, toolOutputMaxChars, orchestrationContext = null) => {
     return chat.send({
       text: effectivePrompt,
       modelKey: activeKey,
@@ -228,15 +180,13 @@ export function createChatTurnPipeline(deps) {
       attachments,
       documents,
       toolOutputMaxChars,
+      orchestrationContext,
     })
   }
 
-  const executeChatRequest = async (execution, effectivePrompt, primaryAgentPreset, activeKey, selectedSkill, webContents, conversationId, runtimeContext, permissionMode = runtimeContext.permissionMode, attachments, documents, dagPlanApprovalOverride, toolOutputMaxChars) => {
+  const executeChatRequest = async (execution, effectivePrompt, primaryAgentPreset, activeKey, selectedSkill, webContents, conversationId, runtimeContext, permissionMode = runtimeContext.permissionMode, attachments, documents, dagPlanApprovalOverride, toolOutputMaxChars, orchestrationContext = null) => {
     return permissions.withExecution(permissionMode, webContents, async () => {
-      if (execution.mode === 'multi-agent') {
-        return executeMultiAgent(effectivePrompt, primaryAgentPreset, activeKey, selectedSkill, webContents, execution, conversationId, runtimeContext, permissionMode, attachments, documents, dagPlanApprovalOverride, toolOutputMaxChars)
-      }
-      return executeSingleAgent(effectivePrompt, primaryAgentPreset, activeKey, selectedSkill, webContents, execution, conversationId, runtimeContext, permissionMode, attachments, documents, toolOutputMaxChars)
+      return executeSingleAgent(effectivePrompt, primaryAgentPreset, activeKey, selectedSkill, webContents, execution, conversationId, runtimeContext, permissionMode, attachments, documents, toolOutputMaxChars, orchestrationContext)
     }, { conversationId })
   }
 
@@ -503,29 +453,33 @@ export function createChatTurnPipeline(deps) {
     logPromptPipelineAccounting(conversationId, promptStats, assembled, { scope: 'chat:send' })
     emitPromptBudget(webContents, promptBudgetSnapshotFromStats(conversationId, promptStats, assembled, 'chat:send'))
 
-    const decision = decideExecutionMode(text, selectedSkill)
-    const preferMulti = prefs.preferMultiAgent
-      && !effectiveOverride
-      && !executionModeOverride
-      && !explicitlyDisablesMultiAgent(text)
-    const modeOverride = effectiveOverride || executionModeOverride || (preferMulti ? 'multi-agent' : null)
-    const execution = resolveExecutionMode(decision, modeOverride)
-    if (
-      execution.mode === 'single-agent'
-      && prefs.adaptiveOrchestrationGate
-      && !modeOverride
-      && !explicitlyDisablesMultiAgent(text)
-      && !selectedSkill?.multiAgent
-    ) {
-      const gate = evaluateOrchestrationGate(text)
-      if (gate.mode === 'ask-user') {
-        return {
-          needsOrchestrationChoice: true,
-          reason: gate.reason,
-          suggestedMode: 'multi-agent',
-        }
-      }
+    const orchestrationPolicy = resolveOrchestrationPolicy({
+      text,
+      modeOverrides: [effectiveOverride, executionModeOverride],
+      workMode,
+      skillRequiresDag: selectedSkill?.multiAgent === true,
+      preferMultiAgent: prefs.preferMultiAgent === true,
+    })
+    const execution = { mode: orchestrationPolicy.mode, reason: orchestrationPolicy.reason }
+    const orchestrationContext = {
+      text: effectivePrompt,
+      rawText: text,
+      primaryModelKey: activeKey,
+      workspacePath: runtimeContext.workspacePath,
+      workspaceTrusted: runtimeContext.workspaceTrusted === true,
+      permissionMode: requiresReadOnlyPlan(text) ? 'readonly' : runtimeContext.permissionMode,
+      skill: selectedSkill,
+      skillAlreadyApplied: true,
+      attachments,
+      documents,
+      dagPlanApprovalOverride,
+      allowed: orchestrationPolicy.allowed,
     }
+    const routedPrompt = orchestrationPolicy.required
+      ? `${effectivePrompt}\n\n【TaskWeaver 执行模式】用户已要求使用多 Agent DAG。现在调用 orchestrate 工具，将完整目标和约束交给 DAG 规划器；不要通过 subagent 工具自行拆分。`
+      : !orchestrationPolicy.allowed
+        ? `${effectivePrompt}\n\n【TaskWeaver 执行模式】本回合已限制为单 Agent/计划模式，不得调用 orchestrate。`
+        : effectivePrompt
 
     const hooksWorkspaceTrusted = runtimeContext.workspaceTrusted === true
       && await workspaceHooksTrusted(runtimeContext.workspacePath, true)
@@ -546,7 +500,7 @@ export function createChatTurnPipeline(deps) {
       const permissionMode = requiresReadOnlyPlan(text) ? 'readonly' : runtimeContext.permissionMode
       result = await executeChatRequest(
         execution,
-        effectivePrompt,
+        routedPrompt,
         resolvePrimaryAgentPreset(),
         activeKey,
         selectedSkill,
@@ -558,6 +512,7 @@ export function createChatTurnPipeline(deps) {
         documents,
         dagPlanApprovalOverride,
         dynamicBudget.toolOutputMaxChars,
+        orchestrationContext,
       )
     } catch (error) {
       await handleChatError(error, messageId, time, conversationId, activeKey)

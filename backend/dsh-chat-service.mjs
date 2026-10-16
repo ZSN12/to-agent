@@ -36,9 +36,11 @@ export function createDshChatService({
   const observedSequences = new Map()
   const running = new Map()
   const pendingQuestions = new Map()
+  const orchestrationRuns = new Map()
   const cancellingSessions = new Set()
   const toolOutputStore = createToolOutputStore()
   let stopPromise = null
+  let orchestrationHandler = null
   /** @type {Map<string, Set<import('electron').WebContents>>} */
   const muxWatchers = new Map()
   const { loadSessions, persistSessions } = createDshSessionMap({ mapPath, sessions })
@@ -112,6 +114,11 @@ export function createDshChatService({
     settleApproval,
     emitPermission,
     emitUserQuestion,
+    orchestrationRuns,
+    runOrchestration: (request) => {
+      if (typeof orchestrationHandler !== 'function') throw new Error('桌面 DAG 编排服务尚未就绪')
+      return orchestrationHandler(request)
+    },
     getPermissionMode,
     emit,
     finishTurn,
@@ -214,6 +221,9 @@ export function createDshChatService({
   function stop() {
     if (!stopPromise) {
       stopPromise = Promise.resolve().then(async () => {
+        for (const pending of orchestrationRuns.values()) {
+          pending.abortController.abort(new Error('TaskWeaver is shutting down'))
+        }
         await rejectPendingApprovals({ reason: 'shutdown' })
         await hostMux?.prepareShutdown()
         for (const [id, turn] of running) {
@@ -228,6 +238,10 @@ export function createDshChatService({
 
   return {
     send,
+    setOrchestrationHandler(handler) {
+      if (typeof handler !== 'function') throw new TypeError('DAG orchestration handler must be a function')
+      orchestrationHandler = handler
+    },
     async runAgentTurn({ conversationId, sessionKey, text, modelKey, webContents, cwd, agentPreset = 'tw-default', taskId, signal, parentSessionId, progressOnly = false, permissionMode, attachments, documents, outputSchema }) {
       if (signal?.aborted) throw new Error('任务已停止')
       const onAbort = () => {
