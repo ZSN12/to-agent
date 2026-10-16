@@ -25,7 +25,7 @@ import { createPricingSyncService } from './pricing-sync-service.mjs'
 import { createWebSearchService } from './web-search-service.mjs'
 import { createAppPreferencesStore } from './app-preferences.mjs'
 import { createScheduledJobsStore } from './scheduled-jobs-store.mjs'
-import { ensureWorkspaceHooksApproved } from './taskweaver-hook-runner.mjs'
+import { ensureWorkspaceHooksApproved, loadTaskweaverHooks } from './taskweaver-hook-runner.mjs'
 import { resolveSandboxPolicy } from './sandbox-policy.mjs'
 import { createIpcRuntimeContext } from './ipc/context.mjs'
 import { createSandboxSessionStore } from './sandbox-session-mode.mjs'
@@ -266,6 +266,18 @@ export async function composeBackendServices({ app, dialog, BrowserWindow, safeS
     })
   }
 
+  async function resolveTaskweaverHooks({ conversationId, workspacePath, workspaceTrusted = false } = {}) {
+    let resolvedWorkspacePath = workspacePath || null
+    let trusted = workspaceTrusted === true
+    if (conversationId) {
+      const context = await getConversationRuntimeContext(conversationId)
+      resolvedWorkspacePath ||= context.workspacePath
+      trusted = context.workspaceTrusted === true
+    }
+    const approved = await workspaceHooksTrusted(resolvedWorkspacePath, trusted)
+    return loadTaskweaverHooks(userData, resolvedWorkspacePath, { workspaceTrusted: approved })
+  }
+
   const resolveIpcConversationId = async (requestedConversationId) => {
     const state = requestedConversationId === undefined ? await appState.getState() : null
     return resolveConversationId(
@@ -304,6 +316,7 @@ export async function composeBackendServices({ app, dialog, BrowserWindow, safeS
     dialog,
     getParentWindow: (contents) => BrowserWindow?.fromWebContents(contents) ?? null,
     getWorkspacePath: async (conversationId) => (await getConversationRuntimeContext(conversationId)).workspacePath,
+    getToolHooks: resolveTaskweaverHooks,
     getWorkspaceTrusted: async (conversationId) => {
       const ctx = await getConversationRuntimeContext(conversationId)
       return ctx.workspaceTrusted === true
@@ -359,6 +372,7 @@ export async function composeBackendServices({ app, dialog, BrowserWindow, safeS
     conversationHub,
     userDataPath: userData,
     getWorkspacePath: getWorkspacePathForConversation,
+    resolveToolHooks: resolveTaskweaverHooks,
     profileStore,
     modelService,
     appState,

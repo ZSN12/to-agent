@@ -13,6 +13,7 @@ import { createDshSessionRegistry } from './dsh-chat/session-registry.mjs'
 import { createDshChatSend } from './dsh-chat/chat-send.mjs'
 import { createToolOutputStore } from './tool-output-store.mjs'
 import { createRewindStore } from './rewind-store.mjs'
+import { runTaskweaverHooks } from './taskweaver-hook-runner.mjs'
 
 /** Bridges TaskWeaver's conversation contract to DSH's typed session API. */
 export function createDshChatService({
@@ -23,6 +24,7 @@ export function createDshChatService({
   modelService,
   appState = null,
   getPermissionMode = async () => 'ask',
+  resolveToolHooks = null,
   getUiVerifyPolicy,
   conversationHub = null,
   contextInjectionLedger = null,
@@ -129,6 +131,7 @@ export function createDshChatService({
     recoverSession: (...args) => recoverSession(...args),
     toolOutputStore,
     rewindStore,
+    runTaskweaverHooks,
   })
 
   const recovery = createSessionRecovery({
@@ -231,6 +234,7 @@ export function createDshChatService({
       ensureSessionModelSelection,
       scheduleIdleHistoryReconciliation,
       getUiVerifyPolicy,
+      resolveToolHooks,
     })
   function stop() {
     if (!stopPromise) {

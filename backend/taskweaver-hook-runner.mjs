@@ -23,6 +23,40 @@ function normalizeHookList(value) {
   return value.filter((entry) => entry && typeof entry.command === 'string' && entry.command.trim())
 }
 
+function normalizeToolHookList(config, directKey, claudeKey) {
+  const direct = Array.isArray(config?.[directKey]) ? config[directKey] : []
+  const claude = Array.isArray(config?.hooks?.[claudeKey]) ? config.hooks[claudeKey] : []
+  const normalized = []
+  for (const entry of direct) {
+    if (entry && typeof entry.command === 'string' && entry.command.trim()) {
+      normalized.push({
+        command: entry.command.trim(),
+        ...(typeof entry.matcher === 'string' ? { matcher: entry.matcher } : {}),
+        ...(entry.failClosed === true ? { failClosed: true } : {}),
+      })
+    }
+  }
+  for (const group of claude) {
+    if (!group || typeof group !== 'object') continue
+    const matcher = typeof group.matcher === 'string' ? group.matcher : ''
+    for (const hook of Array.isArray(group.hooks) ? group.hooks : []) {
+      if (hook?.type && hook.type !== 'command') continue
+      if (typeof hook?.command !== 'string' || !hook.command.trim()) continue
+      normalized.push({ command: hook.command.trim(), ...(matcher ? { matcher } : {}) })
+    }
+  }
+  return normalized
+}
+
+function allHooks(config) {
+  return [
+    ...normalizeHookList(config?.beforeTurn),
+    ...normalizeHookList(config?.afterTurn),
+    ...normalizeToolHookList(config, 'preToolUse', 'PreToolUse'),
+    ...normalizeToolHookList(config, 'postToolUse', 'PostToolUse'),
+  ]
+}
+
 /**
  * @param {string} userDataPath
  * @param {string | null} workspacePath
@@ -47,6 +81,14 @@ export async function loadTaskweaverHooks(userDataPath, workspacePath, options =
       ...normalizeHookList(globalHooks?.afterTurn),
       ...normalizeHookList(workspaceHooks?.afterTurn),
     ],
+    preToolUse: [
+      ...normalizeToolHookList(globalHooks, 'preToolUse', 'PreToolUse'),
+      ...normalizeToolHookList(workspaceHooks, 'preToolUse', 'PreToolUse'),
+    ],
+    postToolUse: [
+      ...normalizeToolHookList(globalHooks, 'postToolUse', 'PostToolUse'),
+      ...normalizeToolHookList(workspaceHooks, 'postToolUse', 'PostToolUse'),
+    ],
   }
 }
 
@@ -63,10 +105,7 @@ export async function ensureWorkspaceHooksApproved(userDataPath, workspacePath, 
   const hooksFile = path.join(workspacePath, '.taskweaver', 'hooks.json')
   const workspaceHooks = await readHookFile(hooksFile)
   if (!workspaceHooks) return true
-  const commands = [
-    ...normalizeHookList(workspaceHooks.beforeTurn),
-    ...normalizeHookList(workspaceHooks.afterTurn),
-  ]
+  const commands = allHooks(workspaceHooks)
   if (!commands.length) return true
 
   const hash = hashWorkspaceHooksFile(workspaceHooks)
@@ -155,7 +194,7 @@ function signalProcessTree(child, signal) {
   }
 }
 
-function runCommand(command, cwd, env) {
+function runCommand(command, cwd, env, stdin = '') {
   return new Promise((resolve) => {
     const child = spawn(command, {
       shell: true,
@@ -163,7 +202,7 @@ function runCommand(command, cwd, env) {
       detached: process.platform !== 'win32',
       windowsHide: true,
       env: { ...process.env, ...env },
-      stdio: ['ignore', 'pipe', 'pipe'],
+      stdio: ['pipe', 'pipe', 'pipe'],
     })
     let stdout = ''
     let stderr = ''
@@ -201,6 +240,8 @@ function runCommand(command, cwd, env) {
       stderr = result.value
       stderrTruncated ||= result.truncated
     })
+    child.stdin?.on('error', () => {})
+    child.stdin?.end(stdin)
     child.on('close', (code, signal) => {
       finish({ ok: !timedOut && code === 0, code, signal, ...(timedOut ? { timedOut: true } : {}) })
     })
@@ -211,13 +252,16 @@ function runCommand(command, cwd, env) {
 }
 
 /**
- * @param {'beforeTurn' | 'afterTurn'} phase
+ * @param {'beforeTurn' | 'afterTurn' | 'preToolUse' | 'postToolUse'} phase
  * @param {Awaited<ReturnType<typeof loadTaskweaverHooks>>} hooks
- * @param {{ workspacePath?: string | null, conversationId?: string, text?: string, executionMode?: string }} context
+ * @param {{ workspacePath?: string | null, conversationId?: string, text?: string, executionMode?: string, toolName?: string, toolCallId?: string, input?: unknown, result?: unknown }} context
  */
 export async function runTaskweaverHooks(phase, hooks, context) {
   const list = phase === 'beforeTurn' ? hooks.beforeTurn : hooks.afterTurn
-  if (!list.length) return { ran: 0, failures: [] }
+  const selected = phase === 'preToolUse' ? hooks.preToolUse
+    : phase === 'postToolUse' ? hooks.postToolUse
+      : list
+  if (!selected?.length) return { ran: 0, failures: [], blocked: false }
   const cwd = context.workspacePath && context.workspacePath.trim()
     ? context.workspacePath
     : process.cwd()
@@ -227,18 +271,55 @@ export async function runTaskweaverHooks(phase, hooks, context) {
     TASKWEAVER_PROMPT: context.text ?? '',
     TASKWEAVER_EXECUTION_MODE: context.executionMode ?? '',
   }
+  const matchingHooks = selected.filter((entry) => matchesToolMatcher(entry.matcher, context.toolName))
+  if (!matchingHooks.length) return { ran: 0, failures: [], blocked: false }
+  const hookInput = JSON.stringify({
+    hook_event_name: phase === 'preToolUse' ? 'PreToolUse' : phase === 'postToolUse' ? 'PostToolUse' : phase,
+    session_id: context.conversationId ?? '',
+    cwd,
+    ...(context.toolName ? { tool_name: context.toolName } : {}),
+    ...(context.toolCallId ? { tool_call_id: context.toolCallId } : {}),
+    ...(Object.hasOwn(context, 'input') ? { tool_input: context.input } : {}),
+    ...(Object.hasOwn(context, 'result') ? { tool_response: context.result } : {}),
+  })
   const failures = []
   let ran = 0
-  for (const entry of list) {
+  for (const entry of matchingHooks) {
     ran += 1
-    const result = await runCommand(entry.command.trim(), cwd, env)
+    const result = await runCommand(entry.command.trim(), cwd, env, hookInput)
+    let response = null
+    try {
+      const trimmed = result.stdout.trim()
+      if (trimmed.startsWith('{')) response = JSON.parse(trimmed)
+    } catch { /* Plain text output is diagnostic only. */ }
+    const blocked = phase === 'preToolUse' && (
+      response?.decision === 'block'
+      || result.code === 2
+      || (entry.failClosed === true && !result.ok)
+    )
     if (!result.ok) {
       failures.push({
         command: entry.command,
         ...result,
       })
-      if (entry.failClosed === true) break
+    }
+    if (blocked) {
+      return {
+        ran,
+        failures,
+        blocked: true,
+        reason: typeof response?.reason === 'string' && response.reason.trim()
+          ? response.reason.trim()
+          : (result.stderr || result.stdout || 'PreToolUse hook 拒绝了该工具调用').trim(),
+      }
     }
   }
-  return { ran, failures }
+  return { ran, failures, blocked: false }
+}
+
+function matchesToolMatcher(matcher, toolName) {
+  if (typeof matcher !== 'string' || !matcher.trim() || matcher.trim() === '*') return true
+  if (typeof toolName !== 'string' || !toolName) return false
+  // The supported Claude Code subset is exact tool names and `|` alternatives.
+  return matcher.split('|').some((candidate) => candidate.trim().toLowerCase() === toolName.toLowerCase())
 }

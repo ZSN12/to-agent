@@ -47,6 +47,7 @@ export function createHandleEnvelope(deps) {
     recoverSession,
     toolOutputStore,
     rewindStore = null,
+    runTaskweaverHooks = null,
   } = deps
 
   async function handleEnvelope(api, envelope) {
@@ -551,6 +552,34 @@ export function createHandleEnvelope(deps) {
         meta: event.data?.meta,
         error: event.data?.error?.message || event.data?.error?.code,
       }, { maxChars: turn.toolOutputMaxChars })
+      if (call && turn.toolHooks && typeof runTaskweaverHooks === 'function') {
+        try {
+          const hooksResult = await runTaskweaverHooks('postToolUse', turn.toolHooks, {
+            workspacePath: turn.workspacePath,
+            conversationId: turn.eventConversationId ?? ownerConversationId,
+            toolName: call.toolName,
+            toolCallId: callId,
+            input: call.input,
+            result: {
+              isError: result.isError,
+              output: outputText.slice(0, 64 * 1024),
+            },
+          })
+          if (hooksResult.failures.length) {
+            emit(emitTarget, turn.webContents, {
+              type: 'activity',
+              phase: 'tools',
+              message: `工具后置 Hook 有 ${hooksResult.failures.length} 个执行失败。`,
+            })
+          }
+        } catch (error) {
+          emit(emitTarget, turn.webContents, {
+            type: 'activity',
+            phase: 'tools',
+            message: `工具后置 Hook 执行失败：${error instanceof Error ? error.message : String(error)}`,
+          })
+        }
+      }
       if (result.isError) {
         const resultText = result.content
           .filter((block) => block?.type === 'text' && typeof block.text === 'string')

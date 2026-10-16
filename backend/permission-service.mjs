@@ -13,6 +13,7 @@ import {
 } from './vendor/dsh-sandbox/escalation.mjs'
 import { consumeOneShotSandboxMode, withSandboxEscalation } from './sandbox-escalation-runtime.mjs'
 import { matchPattern, splitShellCommandSegments } from './permission-rules-store.mjs'
+import { runTaskweaverHooks } from './taskweaver-hook-runner.mjs'
 
 export const PERMISSION_MODES = Object.freeze(['readonly', 'ask', 'on-risk', 'full'])
 
@@ -171,6 +172,7 @@ export function createPermissionService({
   dialog,
   getParentWindow,
   getWorkspacePath,
+  getToolHooks = null,
   getFileSandboxPolicy,
   appState,
   rulesStore,
@@ -205,6 +207,9 @@ export function createPermissionService({
         hasAutoCheckpoint: false,
         conversationId: metadata.conversationId ?? null,
         workspacePath: metadata.workspacePath ?? null,
+        workspaceTrusted: metadata.workspaceTrusted === true,
+        toolHooks: metadata.toolHooks ?? null,
+        toolHooksPromise: null,
         writeScopes: Array.isArray(metadata.writeScopes) ? [...metadata.writeScopes] : null,
         taskId: metadata.taskId ?? null,
       }, fn)
@@ -265,6 +270,49 @@ export function createPermissionService({
       const mode = normalizeMode(active?.mode)
       const workspacePath = active?.workspacePath || await Promise.resolve(getWorkspacePath(active?.conversationId))
       const details = await classifyToolCall(event, workspacePath)
+
+      let toolHooks = active?.toolHooks ?? null
+      if (!toolHooks && active && typeof getToolHooks === 'function') {
+        try {
+          active.toolHooksPromise ??= Promise.resolve(getToolHooks({
+            conversationId: active.conversationId,
+            workspacePath,
+            workspaceTrusted: active.workspaceTrusted,
+          }))
+          toolHooks = await active.toolHooksPromise
+          active.toolHooks = toolHooks
+        } catch (error) {
+          const reason = `无法安全加载工具 Hook，已阻止调用：${error instanceof Error ? error.message : String(error)}`
+          await emitPermissionTrace(active, active?.webContents, {
+            id: String(event.toolCallId ?? `${details.tool}-${Date.now()}`),
+            toolName: details.tool || 'tool',
+            status: 'blocked',
+            inputSummary: summarizeToolInput(details.tool, event.input),
+            resultSummary: reason,
+          })
+          return { block: true, reason }
+        }
+      }
+      if (toolHooks) {
+        const hookResult = await runTaskweaverHooks('preToolUse', toolHooks, {
+          workspacePath,
+          conversationId: active?.conversationId,
+          toolName: details.tool,
+          toolCallId: event.toolCallId,
+          input: event.input,
+        })
+        if (hookResult.blocked) {
+          const reason = `PreToolUse Hook 已拒绝 ${details.tool}：${hookResult.reason}`
+          await emitPermissionTrace(active, active?.webContents, {
+            id: String(event.toolCallId ?? `${details.tool}-${Date.now()}`),
+            toolName: details.tool || 'tool',
+            status: 'blocked',
+            inputSummary: summarizeToolInput(details.tool, event.input),
+            resultSummary: reason,
+          })
+          return { block: true, reason }
+        }
+      }
 
       if (mode === 'readonly' && (
         details.mutation

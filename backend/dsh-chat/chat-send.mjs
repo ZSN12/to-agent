@@ -23,6 +23,7 @@ export function createDshChatSend(deps) {
     ensureSessionModelSelection,
     scheduleIdleHistoryReconciliation,
     getUiVerifyPolicy,
+    resolveToolHooks = null,
   } = deps
 
   async function send({
@@ -59,7 +60,8 @@ export function createDshChatSend(deps) {
     const command = nativeChatCommand(text)
     if (cancellingSessions.has(sessionKey)) throw new Error('当前会话正在停止，请稍后再发送')
     // 先做工作区校验再启动 Host：无效请求不该把 DSH 拉起来。
-    assertBindableWorkspace(cwdOverride || (await getWorkspacePath(conversationId)) || process.cwd())
+    const workspacePath = cwdOverride || (await getWorkspacePath(conversationId)) || process.cwd()
+    assertBindableWorkspace(workspacePath)
     const api = await ensureReady()
     const permissionMode = normalizePermissionMode(
       requestedPermissionMode ?? await Promise.resolve(getPermissionMode(conversationId)),
@@ -129,6 +131,10 @@ export function createDshChatSend(deps) {
     }
 
     if (!modelKey) throw new Error('请先选择已配置的模型')
+    let toolHooks = null
+    if (!command && typeof resolveToolHooks === 'function') {
+      toolHooks = await resolveToolHooks({ conversationId, workspacePath })
+    }
     const config = await configureModel(api, modelKey)
     const explicitReasoningEffort = await selectedReasoningEffort(config, modelKey)
     await ensureSessionModelSelection(api, sessionKey, entry, config, explicitReasoningEffort)
@@ -164,7 +170,8 @@ export function createDshChatSend(deps) {
         webContents,
         eventConversationId,
         taskId,
-        workspacePath: cwdOverride || null,
+        workspacePath,
+        toolHooks,
         toolOutputMaxChars,
         orchestrationContext,
         orchestrationAllowed: orchestrationContext?.allowed === true,

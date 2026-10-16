@@ -185,10 +185,15 @@ export function createChatTurnPipeline(deps) {
     })
   }
 
-  const executeChatRequest = async (execution, effectivePrompt, primaryAgentPreset, activeKey, selectedSkill, webContents, conversationId, runtimeContext, permissionMode = runtimeContext.permissionMode, attachments, documents, dagPlanApprovalOverride, toolOutputMaxChars, orchestrationContext = null) => {
+  const executeChatRequest = async (execution, effectivePrompt, primaryAgentPreset, activeKey, selectedSkill, webContents, conversationId, runtimeContext, permissionMode = runtimeContext.permissionMode, attachments, documents, dagPlanApprovalOverride, toolOutputMaxChars, orchestrationContext = null, toolHooks = null) => {
     return permissions.withExecution(permissionMode, webContents, async () => {
       return executeSingleAgent(effectivePrompt, primaryAgentPreset, activeKey, selectedSkill, webContents, execution, conversationId, runtimeContext, permissionMode, attachments, documents, toolOutputMaxChars, orchestrationContext)
-    }, { conversationId })
+    }, {
+      conversationId,
+      workspacePath: runtimeContext.workspacePath,
+      workspaceTrusted: runtimeContext.workspaceTrusted === true,
+      toolHooks,
+    })
   }
 
   const runSelfHealingLoop = async ({
@@ -202,6 +207,7 @@ export function createChatTurnPipeline(deps) {
     runtimeContext,
     result,
     toolOutputMaxChars,
+    toolHooks,
   }) => {
     const prefs = await appPreferences.get()
     const shouldSelfHeal = prefs.selfHealingLoop === true
@@ -273,6 +279,8 @@ export function createChatTurnPipeline(deps) {
             undefined,
             undefined,
             toolOutputMaxChars,
+            null,
+            toolHooks,
           )
           if (healResult && !healResult.accepted) {
             if (healResult.text) result.text = `${result.text}\n\n---\n**[自愈修复第 ${attempt} 轮]**\n${healResult.text}`
@@ -546,6 +554,7 @@ export function createChatTurnPipeline(deps) {
           dagPlanApprovalOverride,
           dynamicBudget.toolOutputMaxChars,
           orchestrationContext,
+          turnHooks,
         )
       }
     } catch (error) {
@@ -572,6 +581,7 @@ export function createChatTurnPipeline(deps) {
       runtimeContext,
       result,
       toolOutputMaxChars: dynamicBudget.toolOutputMaxChars,
+      toolHooks: turnHooks,
     })
 
     const agentEntry = await createAssistantMessage(result, messageId, time, activeKey, execution, conversationId)

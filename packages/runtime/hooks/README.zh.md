@@ -15,6 +15,27 @@
 
 ## API、扩展点与限制
 
+### TaskWeaver 工具级 Hook
+
+TaskWeaver 支持 `preToolUse` 和 `postToolUse` 两类命令 Hook。用户级配置位于 `userData/taskweaver-hooks.json`，受信任且已批准的工作区配置位于 `.taskweaver/hooks.json`。不可信工作区的 Hook 不会加载。
+
+配置可使用 TaskWeaver 简写，或 Claude Code `hooks.json` 的命令 Hook 子集：
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      { "matcher": "Bash|Write|Edit", "hooks": [{ "type": "command", "command": "node scripts/check-tool.js" }] }
+    ],
+    "PostToolUse": [
+      { "matcher": "Write|Edit", "hooks": [{ "type": "command", "command": "node scripts/format-changed-file.js" }] }
+    ]
+  }
+}
+```
+
+`matcher` 支持精确工具名、`*` 和以 `|` 分隔的工具名；命令通过 shell 执行，当前 Hook 事件的 JSON 从 stdin 传入，包含 `hook_event_name`、`tool_name`、`tool_input`，以及工具结果（仅 `PostToolUse`）。`PreToolUse` 命令可输出 `{"decision":"block","reason":"原因"}` 或以退出码 `2` 拒绝调用；也可在配置项上设置 `"failClosed": true`，让命令异常时拒绝调用。工作区 Hook 内容变化后仍须重新确认。
+
 以下内容从原逐包 README 和族级 README 迁入。为了保留接口名、代码片段、错误文本与约束语义，技术细节按原文保存；本页前半部分提供中文目录和边界说明。
 
 <a id="family-hooks"></a>
