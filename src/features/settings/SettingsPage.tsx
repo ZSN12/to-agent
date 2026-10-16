@@ -7,6 +7,7 @@ import {
   GitBranch,
   Keyboard,
   MessageSquare,
+  Search,
   ShieldCheck,
   Sparkles,
   Sun,
@@ -25,8 +26,9 @@ const McpSettingsPanel = lazy(() => import('../mcp/McpSettingsPanel').then((modu
 const PermissionSettingsPanel = lazy(() => import('../permissions/PermissionSettingsPanel').then((module) => ({ default: module.PermissionSettingsPanel })))
 const AppearanceSettingsPanel = lazy(() => import('../appearance/AppearanceSettingsPanel').then((module) => ({ default: module.AppearanceSettingsPanel })))
 const SkillSettingsPanel = lazy(() => import('../skills/SkillSettingsPanel').then((module) => ({ default: module.SkillSettingsPanel })))
+const SemanticSearchSettings = lazy(() => import('./SemanticSearchSettings').then((module) => ({ default: module.SemanticSearchSettings })))
 
-export type SettingsSection = 'appearance' | 'chat' | 'models' | 'skills' | 'routing' | 'mcp' | 'permissions' | 'shortcuts' | 'usage'
+export type SettingsSection = 'appearance' | 'chat' | 'models' | 'skills' | 'routing' | 'mcp' | 'permissions' | 'shortcuts' | 'usage' | 'semantic-search'
 
 export function SettingsPage({
   section,
@@ -80,6 +82,7 @@ export function SettingsPage({
         <button type="button" className={`settings-nav-item ${section === 'permissions' ? 'active' : ''}`} aria-current={section === 'permissions' ? 'page' : undefined} aria-controls="settings-content" onClick={() => onSectionChange('permissions')}><ShieldCheck size={16} /><span>安全与权限</span></button>
         <button type="button" className={`settings-nav-item ${section === 'shortcuts' ? 'active' : ''}`} aria-current={section === 'shortcuts' ? 'page' : undefined} aria-controls="settings-content" onClick={() => onSectionChange('shortcuts')}><Keyboard size={16} /><span>键盘快捷键</span></button>
         <button type="button" className={`settings-nav-item ${section === 'usage' ? 'active' : ''}`} aria-current={section === 'usage' ? 'page' : undefined} aria-controls="settings-content" onClick={() => onSectionChange('usage')}><Activity size={16} /><span>模型用量</span></button>
+        <button type="button" className={`settings-nav-item ${section === 'semantic-search' ? 'active' : ''}`} aria-current={section === 'semantic-search' ? 'page' : undefined} aria-controls="settings-content" onClick={() => onSectionChange('semantic-search')}><Search size={16} /><span>语义搜索</span></button>
       </nav>
       <div className="settings-nav-footer"><span>TaskWeaver · v0.1.0</span></div>
     </aside>
@@ -153,6 +156,8 @@ export function SettingsPage({
           />
         ) : section === 'shortcuts' ? (
           <ShortcutsSettings shortcuts={shortcuts} onUpdateShortcuts={onUpdateShortcuts} onToast={toast} />
+        ) : section === 'semantic-search' ? (
+          <SemanticSearchSettings />
         ) : (
           <UsageSettings />
         )}

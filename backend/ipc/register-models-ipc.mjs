@@ -178,6 +178,10 @@ export function registerModelsIpc(ctx) {
     return { ...result, status: pricingSync.getStatus() }
   })
   ipcHandle(ipcMain, 'models:providersAuth', () => modelService.listProvidersAuth())
+  ipcHandle(ipcMain, 'models:getSemanticSearchSettings', () => modelService.getSemanticSearchSettings())
+  ipcHandle(ipcMain, 'models:saveSemanticSearchSettings', (_event, patch) =>
+    modelService.saveSemanticSearchSettings(patch ?? {}),
+  )
   ipcHandle(ipcMain, 'models:setProviderApiKey', async (_event, providerId, apiKey) =>
     modelService.setProviderApiKey(providerId, apiKey),
   )

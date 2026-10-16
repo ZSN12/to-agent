@@ -1854,12 +1854,21 @@ importers:
       '@taskweaver/cordis':
         specifier: workspace:*
         version: link:../../cordis/cordis
+      '@taskweaver/dsh-credentials':
+        specifier: workspace:^
+        version: link:../../credentials/credentials
       '@taskweaver/dsh-fs':
         specifier: workspace:^
         version: link:../fs
       '@taskweaver/dsh-invariants':
         specifier: workspace:^
         version: link:../../runtime-diagnostics/invariants
+      '@taskweaver/dsh-launch-environment':
+        specifier: workspace:^
+        version: link:../../util/launch-environment
+      '@taskweaver/dsh-settings':
+        specifier: workspace:^
+        version: link:../../settings/settings
       '@taskweaver/dsh-system-prompt':
         specifier: workspace:^
         version: link:../../core/system-prompt

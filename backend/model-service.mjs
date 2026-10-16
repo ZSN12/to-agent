@@ -494,6 +494,8 @@ export function createModelService({
     cancelProviderAuthorization: credentials.cancelProviderAuthorization,
     logoutProvider: credentials.logoutProvider,
     setProviderApiKey: credentials.setProviderApiKey,
+    getSemanticSearchSettings: credentials.getSemanticSearchSettings,
+    saveSemanticSearchSettings: credentials.saveSemanticSearchSettings,
     addModel: credentials.addModel,
     removeModel: credentials.removeModel,
     removeProviderCredentials: credentials.removeProviderCredentials,

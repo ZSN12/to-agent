@@ -160,6 +160,14 @@ export interface ProviderAuthStatus {
   authorizationInFlight?: boolean
 }
 
+export interface SemanticSearchSettings {
+  embeddingProvider: 'jina' | 'openai'
+  credentials: Record<'jina' | 'openai', { configured: boolean; writable: boolean; source: string | null }>
+  enabled: boolean
+  settingsAvailable: boolean
+  settingsWritable: boolean
+}
+
 export type IpcResult<T> =
   | { ok: true; data: T }
   | { ok: false; error: string; turnId?: string; runContinues?: boolean }
@@ -251,6 +259,12 @@ export interface TaskweaverModelsApi {
   bridgeLogin: (kind: 'cursor' | 'google-antigravity') => Promise<IpcResult<{ ok: boolean; message?: string }>>
   migrateLegacyOpenCodexRoutes: () => Promise<IpcResult<MigrateLegacyOpenCodexResult>>
   listProvidersAuth: () => Promise<IpcResult<ProviderAuthStatus[]>>
+  getSemanticSearchSettings: () => Promise<IpcResult<SemanticSearchSettings>>
+  saveSemanticSearchSettings: (patch: {
+    embeddingProvider: 'jina' | 'openai'
+    apiKey?: string
+    clearApiKey?: boolean
+  }) => Promise<IpcResult<SemanticSearchSettings>>
   setProviderApiKey: (
     providerId: string,
     apiKey: string,

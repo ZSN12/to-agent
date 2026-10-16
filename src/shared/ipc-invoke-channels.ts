@@ -75,6 +75,7 @@ export type InvokeChannel =
   | 'models:checkForUpdates'
   | 'models:discoverProviderModels'
   | 'models:getBusyEnterMode'
+  | 'models:getSemanticSearchSettings'
   | 'models:getThinkingLevel'
   | 'models:getUpdateStatus'
   | 'models:list'
@@ -89,6 +90,7 @@ export type InvokeChannel =
   | 'models:removeCustomProvider'
   | 'models:removeProviderCredentials'
   | 'models:rollbackRegistry'
+  | 'models:saveSemanticSearchSettings'
   | 'models:scanLocal'
   | 'models:setActive'
   | 'models:setBusyEnterMode'
@@ -235,6 +237,7 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   'models:checkForUpdates',
   'models:discoverProviderModels',
   'models:getBusyEnterMode',
+  'models:getSemanticSearchSettings',
   'models:getThinkingLevel',
   'models:getUpdateStatus',
   'models:list',
@@ -249,6 +252,7 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   'models:removeCustomProvider',
   'models:removeProviderCredentials',
   'models:rollbackRegistry',
+  'models:saveSemanticSearchSettings',
   'models:scanLocal',
   'models:setActive',
   'models:setBusyEnterMode',

@@ -4,6 +4,7 @@
   "include": ["src"],
   "references": [
     { "path": "../../cordis/cosmokit" }, { "path": "../../cordis/cordis" }, { "path": "../../cordis/schemastery" },
+    { "path": "../../credentials/credentials" }, { "path": "../../util/launch-environment" }, { "path": "../../settings/settings" },
     { "path": "../../core/tools" }, { "path": "../../core/system-prompt" }, { "path": "../fs" }, { "path": "../tool-fs" },
     { "path": "../../runtime-diagnostics/invariants" }
   ]

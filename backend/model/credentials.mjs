@@ -19,6 +19,7 @@ import {
   providerSettings,
   resolveProviderRow,
 } from './shared.mjs'
+import { createSemanticSearchSettingsService } from '../semantic-search-settings.mjs'
 
 /** 凭据、OAuth 与模型增删。 */
 export function createModelCredentials({
@@ -37,6 +38,7 @@ export function createModelCredentials({
     reloadDshHostAfterCredentialChange,
   } = directoryClient
   const { applyRegistryAdditions } = hostSync
+  const semanticSearchSettings = createSemanticSearchSettingsService({ getDirectory: getDshModelDirectory })
   const {
     listCatalog,
     refreshCatalog,
@@ -350,6 +352,8 @@ export function createModelCredentials({
     cancelProviderAuthorization,
     logoutProvider,
     setProviderApiKey,
+    getSemanticSearchSettings: semanticSearchSettings.get,
+    saveSemanticSearchSettings: semanticSearchSettings.save,
     addModel,
     removeProviderCredentials,
     removeModel,

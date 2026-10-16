@@ -18,6 +18,9 @@
   },
   "dependencies": {
     "@taskweaver/cordis": "workspace:*",
+    "@taskweaver/dsh-credentials": "workspace:^",
+    "@taskweaver/dsh-launch-environment": "workspace:^",
+    "@taskweaver/dsh-settings": "workspace:^",
     "@taskweaver/dsh-tools": "workspace:^",
     "@taskweaver/dsh-tool-fs": "workspace:^",
     "@taskweaver/schemastery": "workspace:^",

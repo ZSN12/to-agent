@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "TaskWeaverContract",
   "version": "1.0.0",
-  "generatedAt": "2026-10-11T06:56:14.066Z",
+  "generatedAt": "2026-10-16T09:30:32.811Z",
   "channels": [
     {
       "name": "backend:ready",
@@ -302,6 +302,17 @@
       }
     },
     {
+      "name": "models:getSemanticSearchSettings",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "models.getSemanticSearchSettings",
+      "handlerModule": "backend/ipc/register-models-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/model-api",
+        "interface": "TaskweaverModelsApi",
+        "method": "getSemanticSearchSettings"
+      }
+    },
+    {
       "name": "models:getThinkingLevel",
       "direction": "renderer-to-main/invoke",
       "bridgePath": "models.getThinkingLevel",
@@ -464,6 +475,17 @@
         "module": "./types/model-api",
         "interface": "TaskweaverModelsApi",
         "method": "scanLocal"
+      }
+    },
+    {
+      "name": "models:saveSemanticSearchSettings",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "models.saveSemanticSearchSettings",
+      "handlerModule": "backend/ipc/register-models-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/model-api",
+        "interface": "TaskweaverModelsApi",
+        "method": "saveSemanticSearchSettings"
       }
     },
     {
