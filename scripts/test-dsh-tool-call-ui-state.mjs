@@ -4,6 +4,7 @@ import {
   readDshToolCallUiState,
   saveDshToolCallUiState,
 } from '../src/features/chat/dshToolCallUiState.ts'
+import { dshToolRowPresentation } from '../src/features/chat/dshToolRowModel.ts'
 
 const rows = [{ callId: 'call-1', toolName: 'read', argsRaw: '{}', status: 'done', turn: 7, step: 2 }]
 const keyDuringStreaming = dshToolCallUiStateKey('conversation-1', rows, [])
@@ -32,5 +33,9 @@ assert.deepEqual(readDshToolCallUiState(nextTurnKey), {
   batchExpandedOverride: null,
   stepExpandedOverrides: {},
 }, 'a new turn retains the collapsed-by-default behavior')
+assert.equal(dshToolRowPresentation('orchestrate', '{"goal":"拆分任务"}', null, 'running').title,
+  '正在规划多智能体任务', 'the model-facing orchestration call has a localized title')
+assert.equal(dshToolRowPresentation('orchestrate', '{"goal":"拆分任务"}').title,
+  '多智能体编排', 'the settled orchestration call has a localized title')
 
 console.log('dsh-tool-call-ui-state smoke passed')

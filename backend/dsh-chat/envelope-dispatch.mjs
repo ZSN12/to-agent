@@ -162,12 +162,25 @@ export function createHandleEnvelope(deps) {
             conversationId,
             callId: frame.callId,
             goal: frame.goal,
+            taskContext: frame.context,
+            readOnly: frame.readOnly === true,
             context: turn.orchestrationContext,
             turn,
             webContents: turn.webContents,
             signal: abortController.signal,
           })
           const tasks = Array.isArray(outcome?.tasks) ? outcome.tasks : []
+          const taskStatuses = tasks.slice(0, 50).map((task, index) => ({
+            id: String(task?.id ?? `task-${index + 1}`).slice(0, 128),
+            title: String(task?.title ?? task?.id ?? `子任务 ${index + 1}`).slice(0, 500),
+            status: String(task?.statusLabel ?? task?.status ?? task?.runStatus ?? '状态未知').slice(0, 100),
+          }))
+          const changedFiles = [...new Set((Array.isArray(outcome?.assistant?.fileChanges)
+            ? outcome.assistant.fileChanges
+            : [])
+            .map((change) => typeof change?.path === 'string' ? change.path.trim() : '')
+            .filter(Boolean))]
+            .slice(0, 200)
           turn.multiAgentTaskCount += tasks.length
           await api.respond({
             type: 'client-response',
@@ -181,6 +194,8 @@ export function createHandleEnvelope(deps) {
                 taskCount: tasks.length,
                 failedTaskCount: Array.isArray(outcome?.failedTaskIds) ? outcome.failedTaskIds.length : 0,
                 cancelled: outcome?.assistant?.cancelled === true,
+                taskStatuses,
+                changedFiles,
               },
             },
           })

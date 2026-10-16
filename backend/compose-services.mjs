@@ -397,19 +397,27 @@ export async function composeBackendServices({ app, dialog, BrowserWindow, safeS
     dshRuntime: chat,
     permissionService: permissions,
   })
-  chat.setOrchestrationHandler(async ({ conversationId, goal, context, webContents, signal }) => {
+  chat.setOrchestrationHandler(async ({ conversationId, goal, taskContext, readOnly, context, webContents, signal }) => {
     if (context?.allowed !== true) throw new Error('当前回合没有启用 DAG 编排权限。')
+    const readOnlyRequest = readOnly === true || context.permissionMode === 'readonly'
     const outcome = await orchestration.planAndExecute({
       text: context.text,
       rawText: context.rawText,
-      contextLayers: [{ id: 'primary-agent-dag-goal', text: goal }],
+      contextLayers: [
+        ...(Array.isArray(context.promptContextLayers) ? context.promptContextLayers : []),
+        ...(typeof taskContext === 'string' && taskContext.trim()
+          ? [{ id: 'primary-agent-known-context', text: taskContext.trim() }]
+          : []),
+        { id: 'primary-agent-dag-goal', text: goal },
+      ],
       primaryModelKey: context.primaryModelKey,
       conversationId,
       webContents,
       skill: context.skill,
       skillAlreadyApplied: context.skillAlreadyApplied === true,
       workspacePath: context.workspacePath,
-      permissionMode: context.permissionMode,
+      permissionMode: readOnlyRequest ? 'readonly' : context.permissionMode,
+      forceReadOnly: readOnlyRequest,
       workspaceTrusted: context.workspaceTrusted === true,
       attachments: context.attachments,
       documents: context.documents,

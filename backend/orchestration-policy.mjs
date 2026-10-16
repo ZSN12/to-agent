@@ -30,14 +30,7 @@ export function nextTaskTier(taskType, currentTier) {
   return order.find((tier) => TIER_RANK[tier] === rank + 1) ?? null
 }
 
-const MULTI_AGENT_TARGET = '(?:多智能体|多\\s*agent|multi[-\\s]?agent|agent[-\\s]?team|(?:任务\\s*)?DAG)'
-
-export function explicitlyDisablesMultiAgent(text) {
-  const denied = new RegExp(`(?:不要|不需要|无需|禁止|别用|不用|不使用|不启用|禁用|关闭|不是|并非)\\s*(?:使用|用|启用|调用)?\\s*${MULTI_AGENT_TARGET}`, 'i')
-  return denied.test(String(text ?? ''))
-}
-
-/** Explicit work modes still steer the model-callable orchestrate tool. */
+/** Explicit work modes select direct DAG execution; ordinary requests stay model-decided. */
 export function workModeExecutionOverride(workMode) {
   if (workMode === 'goal') return 'multi-agent'
   if (workMode === 'plan') return 'single-agent'
@@ -46,7 +39,6 @@ export function workModeExecutionOverride(workMode) {
 
 /** Resolve explicit user controls; request complexity is intentionally left to the model. */
 export function resolveOrchestrationPolicy({
-  text,
   modeOverrides = [],
   workMode,
   skillRequiresDag = false,
@@ -56,13 +48,14 @@ export function resolveOrchestrationPolicy({
     .filter((mode) => mode === 'single-agent' || mode === 'multi-agent')
   const explicitSingle = modes.includes('single-agent')
   const explicitMulti = modes.includes('multi-agent')
-  const userDisabled = explicitlyDisablesMultiAgent(text)
-  const forced = explicitMulti || (!userDisabled && (skillRequiresDag || preferMultiAgent))
-  const allowed = !explicitSingle && (explicitMulti || !userDisabled)
+  const forced = explicitMulti || skillRequiresDag || preferMultiAgent
+  const allowed = !explicitSingle
   const required = allowed && forced
+  const direct = required && (explicitMulti || workMode === 'goal' || skillRequiresDag || preferMultiAgent)
   return {
     allowed,
     required,
+    direct,
     mode: required ? 'multi-agent' : 'single-agent',
     reason: required ? '当前回合要求使用 DAG 编排'
       : allowed ? '由主 Agent 根据任务需要选择工具'

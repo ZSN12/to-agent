@@ -204,6 +204,7 @@ export function createChatTurnPipeline(deps) {
   }) => {
     const prefs = await appPreferences.get()
     const shouldSelfHeal = prefs.selfHealingLoop === true
+      && !(Number.isInteger(result.multiAgentTaskCount) && result.multiAgentTaskCount > 0)
       && !requiresReadOnlyPlan(text)
       && !result.cancelled
       && Array.isArray(result.fileChanges)
@@ -435,6 +436,7 @@ export function createChatTurnPipeline(deps) {
     const {
       effectiveOverride,
       effectivePrompt,
+      promptContextLayers,
       promptStats,
       assembled,
       dynamicBudget,
@@ -454,7 +456,6 @@ export function createChatTurnPipeline(deps) {
     emitPromptBudget(webContents, promptBudgetSnapshotFromStats(conversationId, promptStats, assembled, 'chat:send'))
 
     const orchestrationPolicy = resolveOrchestrationPolicy({
-      text,
       modeOverrides: [effectiveOverride, executionModeOverride],
       workMode,
       skillRequiresDag: selectedSkill?.multiAgent === true,
@@ -464,6 +465,7 @@ export function createChatTurnPipeline(deps) {
     const orchestrationContext = {
       text: effectivePrompt,
       rawText: text,
+      promptContextLayers,
       primaryModelKey: activeKey,
       workspacePath: runtimeContext.workspacePath,
       workspaceTrusted: runtimeContext.workspaceTrusted === true,
@@ -498,22 +500,45 @@ export function createChatTurnPipeline(deps) {
     let result
     try {
       const permissionMode = requiresReadOnlyPlan(text) ? 'readonly' : runtimeContext.permissionMode
-      result = await executeChatRequest(
-        execution,
-        routedPrompt,
-        resolvePrimaryAgentPreset(),
-        activeKey,
-        selectedSkill,
-        webContents,
-        conversationId,
-        runtimeContext,
-        permissionMode,
-        attachments,
-        documents,
-        dagPlanApprovalOverride,
-        dynamicBudget.toolOutputMaxChars,
-        orchestrationContext,
-      )
+      if (orchestrationPolicy.direct) {
+        const outcome = await orchestration.planAndExecute({
+          text: effectivePrompt,
+          rawText: text,
+          contextLayers: promptContextLayers,
+          primaryModelKey: activeKey,
+          conversationId,
+          webContents,
+          skill: selectedSkill,
+          skillAlreadyApplied: true,
+          workspacePath: runtimeContext.workspacePath,
+          permissionMode,
+          workspaceTrusted: runtimeContext.workspaceTrusted === true,
+          attachments,
+          documents,
+          dagPlanApprovalOverride,
+        })
+        result = {
+          ...(outcome?.assistant ?? {}),
+          multiAgentTaskCount: Array.isArray(outcome?.tasks) ? outcome.tasks.length : 0,
+        }
+      } else {
+        result = await executeChatRequest(
+          execution,
+          routedPrompt,
+          resolvePrimaryAgentPreset(),
+          activeKey,
+          selectedSkill,
+          webContents,
+          conversationId,
+          runtimeContext,
+          permissionMode,
+          attachments,
+          documents,
+          dagPlanApprovalOverride,
+          dynamicBudget.toolOutputMaxChars,
+          orchestrationContext,
+        )
+      }
     } catch (error) {
       await handleChatError(error, messageId, time, conversationId, activeKey)
     }

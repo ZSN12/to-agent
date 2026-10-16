@@ -7,5 +7,11 @@ export interface OrchestrationResponsePayload {
     taskCount: number;
     failedTaskCount: number;
     cancelled: boolean;
+    taskStatuses: Array<{
+        id: string;
+        title: string;
+        status: string;
+    }>;
+    changedFiles: string[];
 }
 //# sourceMappingURL=orchestration.d.ts.map

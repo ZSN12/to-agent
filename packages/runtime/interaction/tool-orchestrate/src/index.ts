@@ -8,12 +8,20 @@ export const inject = ['tools', 'orchestration']
 export function apply(ctx: Context): void {
   ctx.tools.register(defineTool({
     name: 'orchestrate',
-    description: 'Use this tool when a coding request is large enough to benefit from a planned DAG of independent specialist tasks. TaskWeaver will plan, execute, verify, and summarize the DAG; do not spawn subagents directly. For simple or read-only requests, continue with the regular tools.',
+    description: 'Call this when the task can be split into two or more independent parts, or needs parallel research across modules. TaskWeaver plans, routes, executes, verifies, and summarizes the DAG. For simple tasks, use the regular tools directly.',
     parameters: {
       goal: {
         type: 'string',
         required: true,
         description: 'The user’s complete objective and constraints. Preserve the original acceptance criteria and mention any key focus you identified.',
+      },
+      context: {
+        type: 'string',
+        description: 'Optional facts, findings, or file references already gathered by the main agent.',
+      },
+      readOnly: {
+        type: 'boolean',
+        description: 'Set true when the request must not modify files or run write commands.',
       },
     },
     output: {
@@ -25,9 +33,25 @@ export function apply(ctx: Context): void {
           task_count: { type: 'integer', required: true },
           failed_task_count: { type: 'integer', required: true },
           cancelled: { type: 'boolean', required: true },
+          task_statuses: {
+            type: 'array', required: true,
+            items: { type: 'object', additionalProperties: false, properties: {
+              id: { type: 'string', required: true },
+              title: { type: 'string', required: true },
+              status: { type: 'string', required: true },
+            } },
+          },
+          changed_files: { type: 'array', required: true, items: { type: 'string' } },
         },
       },
-      render: (_args, value) => [{ type: 'text', text: value.summary }],
+      render: (_args, value) => {
+        const lines = [value.summary]
+        if (value.task_statuses.length > 0) {
+          lines.push('', '子任务状态：', ...value.task_statuses.map(task => `- ${task.title}：${task.status}`))
+        }
+        if (value.changed_files.length > 0) lines.push('', '改动文件：', ...value.changed_files.map(file => `- ${file}`))
+        return [{ type: 'text', text: lines.join('\n') }]
+      },
     },
     async execute(args, exec) {
       if (!exec.agent || !exec.callId) {
@@ -35,6 +59,8 @@ export function apply(ctx: Context): void {
       }
       const result = await ctx.orchestration.run({
         goal: args.goal,
+        ...(args.context === undefined ? {} : { context: args.context }),
+        ...(args.readOnly === undefined ? {} : { readOnly: args.readOnly }),
         callId: exec.callId,
         agent: exec.agent,
         signal: exec.signal,
@@ -44,6 +70,8 @@ export function apply(ctx: Context): void {
         task_count: result.taskCount,
         failed_task_count: result.failedTaskCount,
         cancelled: result.cancelled,
+        task_statuses: result.taskStatuses,
+        changed_files: result.changedFiles,
       }
     },
   }))

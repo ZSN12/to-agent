@@ -285,7 +285,7 @@ export function PermissionSettingsPanel({
       return
     }
     onPreferMultiAgentChange?.(enabled)
-    onToast?.(enabled ? '已开启：每轮请求强制走多 Agent DAG' : '已关闭：由主 Agent 按任务需要选择是否使用 DAG')
+    onToast?.(enabled ? '已开启：新会话的每条任务都会进入多 Agent 编排' : '已关闭：由主 Agent 按任务需要选择是否调用编排')
   }
 
   const applyInjectionPresetKiB = async (presetKiB: number) => {
@@ -526,9 +526,9 @@ export function PermissionSettingsPanel({
             style={{ marginTop: 2 }}
           />
           <span>
-            <strong>每轮强制使用多 Agent DAG</strong>
+            <strong>新会话默认把每条任务交给多 Agent 编排</strong>
             <span style={{ display: 'block', color: 'var(--text-secondary)', fontSize: 11, marginTop: 4, lineHeight: 1.45 }}>
-              开启后新请求都会调用 DAG 规划器；关闭后由主 Agent 根据任务复杂度决定。当前回合的输入框开关、目标模式 (/goal) 和多 Agent Skill 仍可明确要求 DAG。
+              未开启时，Agent 会在任务适合拆分或需要并行调研多个模块时自行调用编排。输入框开关、目标模式（/goal）和多 Agent Skill 仍可明确要求编排。
             </span>
           </span>
         </label>

@@ -2,7 +2,7 @@ import './test-orchestration-p11.mjs'
 import './test-cross-provider-review.mjs'
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
-import { explicitlyDisablesMultiAgent, resolveOrchestrationPolicy, selectModelForTask, shouldUpgradeFailedTask, workModeExecutionOverride } from '../backend/orchestration-policy.mjs'
+import { resolveOrchestrationPolicy, selectModelForTask, shouldUpgradeFailedTask, workModeExecutionOverride } from '../backend/orchestration-policy.mjs'
 import { executeDag, validateAndOrderTasks } from '../backend/dag-scheduler.mjs'
 import { getTaskProfile, getToolsForSingleAgent, getToolsForTask } from '../backend/task-profile.mjs'
 import { classifySubtaskFailure, runWithSubtaskRetries } from '../backend/subtask-retry.mjs'
@@ -241,32 +241,29 @@ assert.deepEqual(boundedPlan.map(({ scopePaths }) => scopePaths), boundedPlanInp
 assert.deepEqual(boundedPlan.map(({ description }) => description), boundedPlanInput.map(({ description }) => description),
   'explicit scope and stop instructions must pass through unchanged')
 
-assert.deepEqual(resolveOrchestrationPolicy({ text: '你好' }), {
-  allowed: true, required: false, mode: 'single-agent', reason: '由主 Agent 根据任务需要选择工具',
+assert.deepEqual(resolveOrchestrationPolicy(), {
+  allowed: true, required: false, direct: false, mode: 'single-agent', reason: '由主 Agent 根据任务需要选择工具',
 })
-assert.equal(resolveOrchestrationPolicy({ text: '请完整审查前后端、安全和测试' }).required, false,
-  'request complexity is left to the model instead of a keyword heuristic')
-assert.equal(resolveOrchestrationPolicy({ text: '请使用多智能体处理这个任务', modeOverrides: ['multi-agent'] }).required, true)
-assert.equal(resolveOrchestrationPolicy({ text: '修复 bug', skillRequiresDag: true }).required, true)
-assert.equal(resolveOrchestrationPolicy({ text: '修复 bug', preferMultiAgent: true }).required, true)
-assert.equal(resolveOrchestrationPolicy({ text: '不要启用多智能体', preferMultiAgent: true }).allowed, false,
-  'an explicit per-request opt-out overrides the saved preference')
-assert.equal(resolveOrchestrationPolicy({ text: '不要启用多智能体', skillRequiresDag: true }).allowed, false,
-  'an explicit per-request opt-out overrides the Skill default')
-assert.equal(resolveOrchestrationPolicy({ text: '请使用 multi-agent skill' }).required, false,
-  'mentioning a keyword alone never triggers orchestration')
-assert.equal(explicitlyDisablesMultiAgent('不要修改 package.json，但修复启动错误'), false,
-  'unrelated negation must not disable a user’s prefer-multi-agent setting')
-assert.equal(explicitlyDisablesMultiAgent('不要启用多智能体，先由单 Agent 修改 package.json'), true)
-assert.equal(explicitlyDisablesMultiAgent('这次不用 DAG'), true, 'short explicit DAG opt-outs are honored')
+assert.equal(resolveOrchestrationPolicy({ modeOverrides: ['multi-agent'] }).direct, true,
+  'the composer multi-agent toggle directly invokes the DAG')
+assert.equal(resolveOrchestrationPolicy({ skillRequiresDag: true }).direct, true,
+  'a multi-agent Skill directly invokes the DAG')
+assert.equal(resolveOrchestrationPolicy({ preferMultiAgent: true }).direct, true,
+  'the saved preference directly invokes the DAG')
+assert.equal(resolveOrchestrationPolicy({ modeOverrides: ['single-agent'], preferMultiAgent: true }).allowed, false,
+  'an explicit single-agent control overrides the saved preference')
+assert.equal(resolveOrchestrationPolicy({ modeOverrides: ['single-agent'], skillRequiresDag: true }).allowed, false,
+  'an explicit single-agent control overrides a Skill default')
+assert.equal(resolveOrchestrationPolicy({ modeOverrides: ['single-agent', 'multi-agent'] }).allowed, false,
+  'an explicit single-agent constraint wins conflicting mode inputs')
+assert.equal(resolveOrchestrationPolicy({ modeOverrides: ['single-agent'], preferMultiAgent: true }).direct, false,
+  'a denied DAG is never called directly')
 assert.equal(workModeExecutionOverride('goal'), 'multi-agent', 'Goal Composer 模式代表用户明确选择多 Agent')
 assert.equal(workModeExecutionOverride('plan'), 'single-agent')
 assert.equal(workModeExecutionOverride('code'), null, '常规 Composer 模式不覆盖单 Agent 默认')
-assert.equal(resolveOrchestrationPolicy({ text: '读仓库', workMode: 'code' }).required, false)
-assert.equal(resolveOrchestrationPolicy({ text: '读仓库', workMode: 'goal' }).required, true)
-assert.equal(resolveOrchestrationPolicy({ text: '读仓库', workMode: 'plan' }).allowed, false)
-assert.equal(resolveOrchestrationPolicy({ text: '任务', modeOverrides: ['single-agent', 'multi-agent'] }).allowed, false,
-  'an explicit single-agent constraint wins conflicting mode inputs')
+assert.equal(resolveOrchestrationPolicy({ workMode: 'code' }).required, false)
+assert.equal(resolveOrchestrationPolicy({ workMode: 'goal' }).direct, true)
+assert.equal(resolveOrchestrationPolicy({ workMode: 'plan' }).allowed, false)
 
 assert.equal(resolveOrchestrationAgentPreset({ noTools: true }), 'tw-taskweaver-planner')
 assert.equal(resolveOrchestrationAgentPreset({ taskType: 'research' }), 'tw-taskweaver-readonly')

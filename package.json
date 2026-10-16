@@ -56,7 +56,7 @@
     "test:prompt-eval": "node scripts/test-eval-prompts.mjs && node scripts/eval-prompts.mjs",
     "test:parity-bench": "node scripts/test-run-parity-bench.mjs",
     "test:workspace-trust": "node scripts/test-workspace-trust.mjs",
-    "test:orchestration": "node scripts/test-orchestration.mjs && node scripts/test-planner-route.mjs && node scripts/test-orchestration-p11.mjs && node scripts/test-dsh-orchestration-bridge.mjs",
+    "test:orchestration": "node scripts/test-orchestration.mjs && node scripts/test-planner-route.mjs && node scripts/test-orchestration-p11.mjs && node scripts/test-dsh-orchestration-bridge.mjs && node scripts/test-orchestration-direct-entry.mjs",
     "test:skills": "node scripts/test-skill-service.mjs",
     "test:permissions": "node scripts/test-permissions.mjs && node scripts/test-permission-prompt-bridge.mjs",
     "test:credentials": "node scripts/test-credential-store.mjs",

@@ -18,7 +18,8 @@ function provider(): OrchestrationProvider & { seen: OrchestrationRequest[] } {
     seen,
     async run(request) {
       seen.push(request)
-      return { summary: 'done', runId: 'run-1', taskCount: 2, failedTaskCount: 0, cancelled: false }
+      return { summary: 'done', runId: 'run-1', taskCount: 2, failedTaskCount: 0, cancelled: false,
+        taskStatuses: [], changedFiles: [] }
     },
   }
 }
@@ -40,8 +41,36 @@ describe('OrchestrationService', () => {
     const signal = new AbortController().signal
 
     await expect(ctx.orchestration.run({ goal: '  implement it  ', callId: 'call-1', agent, signal }))
-      .resolves.toEqual({ summary: 'done', runId: 'run-1', taskCount: 2, failedTaskCount: 0, cancelled: false })
-    expect(p.seen).toEqual([{ goal: 'implement it', callId: 'call-1', agent, signal }])
+      .resolves.toEqual({ summary: 'done', runId: 'run-1', taskCount: 2, failedTaskCount: 0, cancelled: false,
+        taskStatuses: [], changedFiles: [] })
+    expect(p.seen).toEqual([{ goal: 'implement it', callId: 'call-1', agent, signal, readOnly: false }])
+  })
+
+  it('validates and forwards optional context and read-only intent', async () => {
+    const ctx = await setup()
+    const p = provider()
+    ctx.orchestration.registerProvider(p)
+    const agent = stubAgent('root')
+    ctx.agents.enter(agent, undefined)
+
+    await ctx.orchestration.run({
+      goal: 'implement it', context: '  known fact  ', readOnly: true,
+      callId: 'call-context', agent,
+    })
+    expect(p.seen[0]).toMatchObject({ goal: 'implement it', context: 'known fact', readOnly: true })
+
+    await expect(ctx.orchestration.run({
+      goal: 'implement it', context: 42 as unknown as string, callId: 'bad-context', agent,
+    })).rejects.toMatchObject({ code: 'INVALID_CONTEXT' })
+    await expect(ctx.orchestration.run({
+      goal: 'implement it', context: 'x'.repeat(20_001), callId: 'large-context', agent,
+    })).rejects.toMatchObject({ code: 'CONTEXT_TOO_LARGE' })
+    await expect(ctx.orchestration.run({
+      goal: 'implement it', context: ' '.repeat(20_001), callId: 'large-whitespace-context', agent,
+    })).rejects.toMatchObject({ code: 'CONTEXT_TOO_LARGE' })
+    await expect(ctx.orchestration.run({
+      goal: 'implement it', readOnly: 'yes' as unknown as boolean, callId: 'bad-read-only', agent,
+    })).rejects.toMatchObject({ code: 'INVALID_READ_ONLY' })
   })
 
   it('rejects malformed goals and missing providers before dispatch', async () => {
@@ -57,7 +86,8 @@ describe('OrchestrationService', () => {
 
   it('rejects stale and delegated agents before reaching the provider', async () => {
     const ctx = await setup()
-    const p = { run: vi.fn(async () => ({ summary: '', runId: null, taskCount: 0, failedTaskCount: 0, cancelled: false })) }
+    const p = { run: vi.fn(async () => ({ summary: '', runId: null, taskCount: 0, failedTaskCount: 0,
+      cancelled: false, taskStatuses: [], changedFiles: [] })) }
     ctx.orchestration.registerProvider(p)
     const root = stubAgent('root')
     const child = stubAgent('child')
@@ -73,7 +103,8 @@ describe('OrchestrationService', () => {
 
   it('does not dispatch a call whose tool signal was already aborted', async () => {
     const ctx = await setup()
-    const p = { run: vi.fn(async () => ({ summary: '', runId: null, taskCount: 0, failedTaskCount: 0, cancelled: false })) }
+    const p = { run: vi.fn(async () => ({ summary: '', runId: null, taskCount: 0, failedTaskCount: 0,
+      cancelled: false, taskStatuses: [], changedFiles: [] })) }
     ctx.orchestration.registerProvider(p)
     const agent = stubAgent('root')
     ctx.agents.enter(agent, undefined)

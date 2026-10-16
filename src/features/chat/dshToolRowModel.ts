@@ -94,9 +94,14 @@ export function dshToolRowPresentation(
     summary = summary.slice(workspacePath.length).replace(/^[/\\]+/, '') || summary
   }
   const titlePair = VARIANT_TITLES[variant]
-  const title = titlePair
-    ? (status === 'running' ? titlePair.running : titlePair.settled)
-    : (variant === 'others' && toolName ? toolName : '执行了工具')
+  let title: string
+  if (toolName === 'orchestrate') {
+    title = status === 'running' ? '正在规划多智能体任务' : '多智能体编排'
+  } else if (titlePair) {
+    title = status === 'running' ? titlePair.running : titlePair.settled
+  } else {
+    title = variant === 'others' && toolName ? toolName : '执行了工具'
+  }
 
   return { variant, title, summary }
 }

@@ -7,7 +7,7 @@ declare module '@taskweaver/cordis' {
         orchestration: OrchestrationService;
     }
 }
-export type { OrchestrationProvider, OrchestrationRequest, OrchestrationResult } from './types.ts';
+export type { OrchestrationProvider, OrchestrationRequest, OrchestrationResult, OrchestrationTaskStatus } from './types.ts';
 export declare class OrchestrationToolError extends HarnessError {
     constructor(message: string, code: string, options?: ErrorOptions);
 }

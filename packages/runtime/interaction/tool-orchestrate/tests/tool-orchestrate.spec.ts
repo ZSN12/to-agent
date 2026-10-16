@@ -31,7 +31,14 @@ describe('orchestrate tool', () => {
     ctx.orchestration.registerProvider({
       async run(request) {
         seen.push(request)
-        return { summary: '完成两项任务', runId: 'run-1', taskCount: 2, failedTaskCount: 0, cancelled: false }
+        return {
+          summary: '完成两项任务', runId: 'run-1', taskCount: 2, failedTaskCount: 0, cancelled: false,
+          taskStatuses: [
+            { id: 'T1', title: '实现功能', status: '已完成' },
+            { id: 'T2', title: '补充测试', status: '已完成' },
+          ],
+          changedFiles: ['src/feature.ts', 'src/feature.test.ts'],
+        }
       },
     })
     const agent = stubAgent('root')
@@ -40,16 +47,25 @@ describe('orchestrate tool', () => {
 
     const result = await ctx.tools.execute({
       callId: CallId('orchestrate-1'), name: 'orchestrate',
-      arguments: { goal: '完成用户目标' }, agent, signal: controller.signal,
+      arguments: { goal: '完成用户目标', context: '已确认入口在 src/main.ts', readOnly: false },
+      agent, signal: controller.signal,
     })
 
     expect(result.isError).toBe(false)
     if (result.isError) throw new Error('expected orchestrate success')
     expect(result.value).toEqual({
       summary: '完成两项任务', task_count: 2, failed_task_count: 0, cancelled: false,
+      task_statuses: [
+        { id: 'T1', title: '实现功能', status: '已完成' },
+        { id: 'T2', title: '补充测试', status: '已完成' },
+      ],
+      changed_files: ['src/feature.ts', 'src/feature.test.ts'],
     })
-    expect(result.content).toEqual([{ type: 'text', text: '完成两项任务' }])
-    expect(seen).toEqual([{ goal: '完成用户目标', callId: 'orchestrate-1', agent, signal: controller.signal }])
+    expect(result.content).toEqual([{ type: 'text', text: '完成两项任务\n\n子任务状态：\n- 实现功能：已完成\n- 补充测试：已完成\n\n改动文件：\n- src/feature.ts\n- src/feature.test.ts' }])
+    expect(seen).toEqual([{
+      goal: '完成用户目标', context: '已确认入口在 src/main.ts', readOnly: false,
+      callId: 'orchestrate-1', agent, signal: controller.signal,
+    }])
     expect(ctx.tools.schemas().map(tool => tool.name)).toContain('orchestrate')
   })
 

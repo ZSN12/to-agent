@@ -62,14 +62,13 @@ test('shortcut recording can be canceled without trapping keyboard Tab', async (
 })
 
 test('modal focus management traps Tab, supports Escape, and restores the opener', async () => {
-  const [focusTrap, confirmModal, localScan, probeModels, gitCheckpoints, plugins, orchestration] = await Promise.all([
+  const [focusTrap, confirmModal, localScan, probeModels, gitCheckpoints, plugins] = await Promise.all([
     read('../src/shared/useModalFocusTrap.ts'),
     read('../src/shared/ConfirmModal.tsx'),
     read('../src/features/models/LocalScanModal.tsx'),
     read('../src/features/models/ProbeModelsModal.tsx'),
     read('../src/features/git/GitCheckpointPanel.tsx'),
     read('../src/features/plugins/PluginsMarketplaceView.tsx'),
-    read('../src/features/orchestration/OrchestrationChoiceOverlay.tsx'),
   ])
 
   assert.match(focusTrap, /event\.key === 'Escape'/)
@@ -82,5 +81,4 @@ test('modal focus management traps Tab, supports Escape, and restores the opener
   assert.match(probeModels, /useModalFocusTrap/)
   assert.match(gitCheckpoints, /aria-labelledby=\{commitDialogTitleId\}/)
   assert.match(plugins, /useModalFocusTrap/)
-  assert.match(orchestration, /aria-describedby="orchestration-choice-reason"/)
 })

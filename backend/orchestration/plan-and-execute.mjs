@@ -99,7 +99,7 @@ export function createPlanAndExecute({
   traceStore,
   pendingApprovals,
 }) {
-  async function planAndExecute({ text, rawText, contextLayers, primaryModelKey, conversationId, webContents, skill, skillAlreadyApplied = false, workspacePath, permissionMode, workspaceTrusted = false, attachments, documents, dagPlanApprovalOverride, replay = null, signal: parentSignal = null }) {
+  async function planAndExecute({ text, rawText, contextLayers, primaryModelKey, conversationId, webContents, skill, skillAlreadyApplied = false, workspacePath, permissionMode, workspaceTrusted = false, attachments, documents, dagPlanApprovalOverride, forceReadOnly = false, replay = null, signal: parentSignal = null }) {
     if (!conversationId) throw new Error('当前对话标识无效')
     if (runs.get(conversationId)?.inFlight) throw new Error('该对话的上一条多 Agent 任务仍在处理中')
     if (parentSignal?.aborted) throw new Error('任务已取消')
@@ -194,7 +194,7 @@ export function createPlanAndExecute({
       const originalText = replay?.source?.originalText || rawText || text
       primaryModelKey = replay?.source?.primaryModelKey || primaryModelKey
       permissionMode = replay?.source?.permissionMode || permissionMode
-      const readOnlyRequest = requiresReadOnlyPlan(originalText)
+      const readOnlyRequest = forceReadOnly === true || requiresReadOnlyPlan(originalText)
       const codeMutationRequest = isCodeMutationRequest(originalText)
       const crossProviderReviewEnabled = replay
         ? replaySettings.dagCrossProviderReview === true
@@ -947,6 +947,9 @@ export function createPlanAndExecute({
             const memoryBlock = buildMemoryPromptSections(projectMemory, task, dependencyResults, { evidenceBundle })
             const parts = [
               profile.preamble,
+              ...(Array.isArray(contextLayers) && contextLayers.length > 0 ? [
+                `【共享的主会话上下文】\n${contextLayers.map(layer => `[${layer.id}]\n${layer.text}`).join('\n\n')}`,
+              ] : []),
               memoryBlock,
               `当前子任务 ${task.id}：${task.title}\n${task.description}`,
               `职责：${task.role}。任务类型：${task.taskType}。工具档：${profile.id}。`,

@@ -98,6 +98,8 @@ export type MuxFrame = {
     sessionId: SessionId;
     callId: CallId;
     goal: string;
+    context?: string;
+    readOnly?: boolean;
 } | {
     type: 'orchestration/cancelled';
     sessionId: SessionId;

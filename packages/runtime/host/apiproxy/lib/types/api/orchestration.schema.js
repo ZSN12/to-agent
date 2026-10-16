@@ -7,5 +7,11 @@ export const orchestrationResponsePayloadSchema = z.object({
     taskCount: z.number().int().nonnegative(),
     failedTaskCount: z.number().int().nonnegative(),
     cancelled: z.boolean(),
+    taskStatuses: z.array(z.object({
+        id: z.string().min(1).max(128),
+        title: z.string().max(500),
+        status: z.string().max(100),
+    })).max(50),
+    changedFiles: z.array(z.string().min(1).max(1_000)).max(200),
 });
 //# sourceMappingURL=orchestration.schema.js.map

@@ -3,7 +3,10 @@ import { createHandleEnvelope } from '../backend/dsh-chat/envelope-dispatch.mjs'
 
 function harness({ allowed = true, runOrchestration }) {
   const turn = {
-    orchestrationContext: { text: 'full prompt', rawText: 'original request', allowed },
+    orchestrationContext: {
+      text: 'full prompt', rawText: 'original request', allowed,
+      promptContextLayers: [{ id: 'workspace-rules', text: 'trusted rules' }],
+    },
     orchestrationAllowed: allowed,
     multiAgentTaskCount: 0,
     webContents: {},
@@ -47,6 +50,7 @@ async function waitFor(predicate) {
 
 const frame = {
   type: 'orchestration/requested', sessionId: 'session', callId: 'tool-call', goal: 'feature goal',
+  context: 'main agent findings', readOnly: true,
 }
 
 {
@@ -55,8 +59,13 @@ const frame = {
     runOrchestration: async (request) => {
       received = request
       return {
-        assistant: { text: 'DAG done' }, runId: 'run-1',
-        tasks: [{ id: 'A' }, { id: 'B' }], failedTaskIds: ['B'],
+        runId: 'run-1',
+        tasks: [
+          { id: 'A', title: '实现', statusLabel: '已完成' },
+          { id: 'B', title: '验证', statusLabel: '失败' },
+        ],
+        failedTaskIds: ['B'],
+        assistant: { text: 'DAG done', fileChanges: [{ path: 'src/main.ts' }, { path: 'src/main.ts' }] },
       }
     },
   })
@@ -65,6 +74,8 @@ const frame = {
   assert.equal(received.conversationId, 'conversation')
   assert.equal(received.callId, 'tool-call')
   assert.equal(received.goal, 'feature goal')
+  assert.equal(received.taskContext, 'main agent findings')
+  assert.equal(received.readOnly, true)
   assert.equal(received.context, bridge.turn.orchestrationContext)
   assert.equal(received.signal.aborted, false)
   assert.equal(bridge.turn.multiAgentTaskCount, 2)
@@ -72,6 +83,11 @@ const frame = {
     type: 'client-response', rpcId: 'rpc-1', result: { ok: true, value: {
       sessionId: 'session', summary: 'DAG done', runId: 'run-1',
       taskCount: 2, failedTaskCount: 1, cancelled: false,
+      taskStatuses: [
+        { id: 'A', title: '实现', status: '已完成' },
+        { id: 'B', title: '验证', status: '失败' },
+      ],
+      changedFiles: ['src/main.ts'],
     } },
   })
 }

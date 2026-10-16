@@ -33,6 +33,8 @@ export function AssistantTurnBody({
   toolTraceItems,
   workspacePath,
   conversationId,
+  dagTaskCount,
+  onOpenDagPanel,
   onShowToolDetails,
   onOpenWorkspacePath,
 }: {
@@ -45,6 +47,8 @@ export function AssistantTurnBody({
   toolTraceItems?: readonly ToolTraceItem[]
   workspacePath?: string | null
   conversationId?: string | null
+  dagTaskCount?: number
+  onOpenDagPanel?: () => void
   onShowToolDetails?: (item: ToolTraceItem) => void
   onOpenWorkspacePath?: (relativePath: string) => void
 }) {
@@ -264,6 +268,8 @@ export function AssistantTurnBody({
                 traces={stepTraces}
                 workspacePath={workspacePath}
                 conversationId={conversationId}
+                dagTaskCount={dagTaskCount}
+                onOpenDagPanel={onOpenDagPanel}
                 onShowToolDetails={onShowToolDetails}
                 onOpenWorkspacePath={onOpenWorkspacePath}
               />

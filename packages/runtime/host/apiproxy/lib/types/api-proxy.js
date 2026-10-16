@@ -1194,6 +1194,8 @@ export function createApiProxy(ctx, defaults) {
                         sessionId,
                         callId: CallId(request.callId),
                         goal: request.goal,
+                        ...(request.context === undefined ? {} : { context: request.context }),
+                        ...(request.readOnly === undefined ? {} : { readOnly: request.readOnly }),
                         resolve,
                         reject,
                         ...(request.signal === undefined ? {} : { signal: request.signal }),
@@ -1216,6 +1218,8 @@ export function createApiProxy(ctx, defaults) {
                                 sessionId,
                                 callId: pending.callId,
                                 goal: pending.goal,
+                                ...(pending.context === undefined ? {} : { context: pending.context }),
+                                ...(pending.readOnly === undefined ? {} : { readOnly: pending.readOnly }),
                             },
                         });
                     }
@@ -3427,6 +3431,8 @@ export function createApiProxy(ctx, defaults) {
                             sessionId: pending.sessionId,
                             callId: pending.callId,
                             goal: pending.goal,
+                            ...(pending.context === undefined ? {} : { context: pending.context }),
+                            ...(pending.readOnly === undefined ? {} : { readOnly: pending.readOnly }),
                         },
                     });
                 }
@@ -3715,6 +3721,8 @@ export function createApiProxy(ctx, defaults) {
                     taskCount: parsed.data.taskCount,
                     failedTaskCount: parsed.data.failedTaskCount,
                     cancelled: parsed.data.cancelled,
+                    taskStatuses: parsed.data.taskStatuses,
+                    changedFiles: parsed.data.changedFiles,
                 };
                 claimOrchestration(orchestration);
                 orchestration.resolve({
@@ -3723,6 +3731,8 @@ export function createApiProxy(ctx, defaults) {
                     taskCount: payload.taskCount,
                     failedTaskCount: payload.failedTaskCount,
                     cancelled: payload.cancelled,
+                    taskStatuses: payload.taskStatuses,
+                    changedFiles: payload.changedFiles,
                 });
                 return Promise.resolve({ accepted: true });
             }

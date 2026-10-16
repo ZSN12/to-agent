@@ -132,11 +132,15 @@ async function preparePromptByWorkMode({
   })
   const userBytes = Buffer.byteLength(text, 'utf8')
   const layerBytes = composed.layerBytes
+  const promptContextLayers = [...prefixLayers, ...suffixLayers]
+    .filter((layer) => Object.hasOwn(layerBytes, layer.id))
+    .map(({ id, text: layerText }) => ({ id, text: layerText }))
   const contextBytes = (layerBytes['workspace-context'] ?? 0) + (layerBytes['repo-map'] ?? 0)
   const guidanceBytes = layerBytes['intent-guidance'] ?? 0
   return {
     effectiveOverride,
     effectivePrompt: composed.prompt,
+    promptContextLayers,
     promptStats: {
       userBytes,
       contextBytes,

@@ -229,6 +229,7 @@ export function MainConversation({
   const [focusedMessageIndex, setFocusedMessageIndex] = useState<number>(-1)
   const bindCallback = useStableCallbacks()
   const stableArray = useStableArrays()
+  const openDagPanel = bindCallback('open-dag-panel', onSelectPanel ? () => onSelectPanel('dag') : undefined)
 
   const lastAgentMessageId = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
@@ -594,6 +595,8 @@ export function MainConversation({
                   : undefined)}
                 onShowToolDetails={bindCallback('show-tool-details', onShowToolDetails)}
                 onOpenWorkspacePath={bindCallback('open-workspace-path', onOpenWorkspacePath)}
+                dagTaskCount={taskCount}
+                onOpenDagPanel={openDagPanel}
                 fallbackModelKey={model?.id ?? model?.name}
                 isFocused={isFocused}
               />
@@ -635,6 +638,8 @@ export function MainConversation({
               isStreaming={true}
               thinkingIsStreaming={streamThinking?.isActive}
               streamActivity={streamActivity}
+              dagTaskCount={taskCount}
+              onOpenDagPanel={openDagPanel}
               onShowToolDetails={onShowToolDetails}
               onOpenWorkspacePath={onOpenWorkspacePath}
             />

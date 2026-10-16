@@ -70,9 +70,15 @@ describe('orchestration provider over the host mux', () => {
     const abort = new AbortController()
     const mux = openMux(api, abort)
     const caller = agent(ctx)
-    const running = ctx.orchestration.run({ goal: 'build feature', callId: 'tool-call-1', agent: caller })
+    const running = ctx.orchestration.run({
+      goal: 'build feature', context: 'entry point is src/main.ts', readOnly: true,
+      callId: 'tool-call-1', agent: caller,
+    })
     const frame = requested(await mux.waitFor('orchestration/requested'))
-    expect(frame).toMatchObject({ sessionId: caller.id, callId: 'tool-call-1', goal: 'build feature' })
+    expect(frame).toMatchObject({
+      sessionId: caller.id, callId: 'tool-call-1', goal: 'build feature',
+      context: 'entry point is src/main.ts', readOnly: true,
+    })
     const envelope = mux.envelopes.find(item => item.payload.type === 'orchestration/requested')!
 
     expect(await api.respond({
@@ -81,10 +87,12 @@ describe('orchestration provider over the host mux', () => {
       result: { ok: true, value: {
         sessionId: caller.id, summary: 'completed', runId: 'run-1',
         taskCount: 3, failedTaskCount: 1, cancelled: false,
+        taskStatuses: [{ id: 'T1', title: '实施', status: 'completed' }], changedFiles: ['src/main.ts'],
       } },
     })).toEqual({ accepted: true })
     await expect(running).resolves.toEqual({
       summary: 'completed', runId: 'run-1', taskCount: 3, failedTaskCount: 1, cancelled: false,
+      taskStatuses: [{ id: 'T1', title: '实施', status: 'completed' }], changedFiles: ['src/main.ts'],
     })
     expect(await api.respond({
       type: 'client-response', rpcId: envelope.rpcId, result: { ok: false, error: { code: 'cancelled', message: 'late', details: {} } },
@@ -112,7 +120,7 @@ describe('orchestration provider over the host mux', () => {
       type: 'client-response', rpcId: requestEnvelope.rpcId,
       result: { ok: true, value: {
         sessionId: replayFrame.sessionId, summary: 'done', runId: null,
-        taskCount: 0, failedTaskCount: 0, cancelled: false,
+        taskCount: 0, failedTaskCount: 0, cancelled: false, taskStatuses: [], changedFiles: [],
       } },
     })
     await expect(running).resolves.toMatchObject({ summary: 'done' })

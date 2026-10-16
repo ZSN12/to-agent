@@ -132,6 +132,8 @@ export const Message = memo(function Message({
   isStreaming = false,
   thinkingIsStreaming,
   streamActivity,
+  dagTaskCount,
+  onOpenDagPanel,
   onShowToolDetails,
   onOpenWorkspacePath,
   fallbackModelKey,
@@ -149,6 +151,8 @@ export const Message = memo(function Message({
   isStreaming?: boolean
   thinkingIsStreaming?: boolean
   streamActivity?: string | null
+  dagTaskCount?: number
+  onOpenDagPanel?: () => void
   onShowToolDetails?: (item: ToolTraceItem) => void
   onOpenWorkspacePath?: (relativePath: string) => void
   fallbackModelKey?: string | null
@@ -223,6 +227,8 @@ export const Message = memo(function Message({
             toolTraceItems={toolTraceItems}
             workspacePath={workspacePath}
             conversationId={conversationId}
+            dagTaskCount={dagTaskCount}
+            onOpenDagPanel={onOpenDagPanel}
             onShowToolDetails={onShowToolDetails}
             onOpenWorkspacePath={onOpenWorkspacePath}
           />

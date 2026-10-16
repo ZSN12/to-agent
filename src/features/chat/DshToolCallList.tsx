@@ -1,4 +1,4 @@
-import { ChevronRight, FileText, Search, Terminal, Pencil, Code2 } from 'lucide-react'
+import { ArrowUpRight, ChevronRight, FileText, Search, Terminal, Pencil, Code2 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   buildDshToolCallTree,
@@ -103,6 +103,8 @@ export function DshToolCallList({
   traces,
   workspacePath,
   conversationId,
+  dagTaskCount = 0,
+  onOpenDagPanel,
   onShowToolDetails,
   onOpenWorkspacePath,
 }: {
@@ -110,6 +112,8 @@ export function DshToolCallList({
   traces?: readonly ToolTraceItem[]
   workspacePath?: string | null
   conversationId?: string | null
+  dagTaskCount?: number
+  onOpenDagPanel?: () => void
   onShowToolDetails?: (item: ToolTraceItem) => void
   onOpenWorkspacePath?: (relativePath: string) => void
 }) {
@@ -219,6 +223,7 @@ export function DshToolCallList({
   const renderNode = (node: ReturnType<typeof buildDshToolCallTree>[number], depth = 0) => {
     const { row, trace: sourceTrace } = node
     const isRunning = row.status === 'running'
+    const isOrchestration = row.toolName === 'orchestrate'
     const { title, summary: rowSummary, variant } = dshToolRowPresentation(row.toolName, row.argsRaw, workspacePath, row.status)
     const fileDiff = sourceTrace.fileDiff
     const filePath = fileDiff?.path
@@ -283,6 +288,19 @@ export function DshToolCallList({
           )}
           <ChevronRight size={14} className={`dsh-tool-summary-chevron ${open ? 'expanded' : ''}`} aria-hidden />
         </button>
+        {isOrchestration && (
+          <div className="dsh-orchestration-tool-action">
+            {isRunning && (
+              <span className="dsh-orchestration-tool-progress" role="status">
+                <DshStateDot state="ongoing" size={7} />
+                {dagTaskCount > 0 ? `DAG 执行中 · ${dagTaskCount} 个任务` : '正在规划任务 DAG'}
+              </span>
+            )}
+            <button type="button" onClick={onOpenDagPanel} disabled={!onOpenDagPanel}>
+              查看任务图 <ArrowUpRight size={13} aria-hidden="true" />
+            </button>
+          </div>
+        )}
         {open && (
           <div className="tool-trace-dropdown dsh-tool-call-expanded">
             <ToolTraceCard
