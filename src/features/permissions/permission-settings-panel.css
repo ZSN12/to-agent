@@ -48,6 +48,16 @@
   font-size: 12px;
   cursor: pointer;
 }
+/* The composer permission picker also uses .permission-option. Keep these
+   settings checkboxes left-aligned when its global menu styles load later. */
+label.permission-option {
+  justify-content: flex-start;
+  min-height: 0;
+  padding: 0;
+  text-align: left;
+  transition: none;
+}
+label.permission-option:hover { background: transparent; }
 .permission-option-spaced { margin-top: 14px; }
 .permission-option-checkbox { flex: 0 0 auto; margin-top: 2px; }
 .permission-option-description { display: block; margin-top: 4px; color: var(--text-secondary); font-size: 11px; line-height: 1.5; }
