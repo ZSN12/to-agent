@@ -45,4 +45,4 @@ jobs:
           CI: 'true'
         run: pnpm run build:z-runtime
       - run: node scripts/test-z-host.mjs
-      - run: pnpm run test:models
+      - run: pnpm --config.verify-deps-before-run=warn run test:models
