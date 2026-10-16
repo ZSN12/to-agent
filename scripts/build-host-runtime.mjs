@@ -263,6 +263,9 @@ async function pruneStaleCliHashedChunks(monorepoRoot) {
 async function syncHostPackageRuntimeLibs(monorepoRoot) {
   const packages = [
     { label: '@taskweaver/dsh-app-boot', libDir: path.join(monorepoRoot, 'boot/app-boot/lib') },
+    { label: '@taskweaver/dsh-subprocess', libDir: path.join(monorepoRoot, 'subprocess/subprocess/lib'), alwaysSyncIndex: true },
+    { label: '@taskweaver/dsh-shell', libDir: path.join(monorepoRoot, 'shell/shell/lib'), alwaysSyncIndex: true },
+    { label: '@taskweaver/dsh-shell-env', libDir: path.join(monorepoRoot, 'shell/shell-env/lib'), alwaysSyncIndex: true },
     { label: '@taskweaver/dsh-home-paths', libDir: path.join(monorepoRoot, 'util/home-paths/lib') },
     { label: '@taskweaver/dsh-launch-environment', libDir: path.join(monorepoRoot, 'util/launch-environment/lib') },
     { label: '@taskweaver/dsh-web', libDir: path.join(monorepoRoot, 'web/web/lib') },
