@@ -21,7 +21,7 @@ export function validateEscalationArgs(sandboxPermissions, justification) {
 }
 
 export function sandboxDenialMarker(mode) {
-  return `[sandbox: file access denied under ${mode} mode]`
+  return `[sandbox: operation denied under ${mode} mode]`
 }
 
 export function escalationHintMarker(subject) {

@@ -106,7 +106,8 @@ async function classifyToolCall(event, workspacePath) {
     }
   }
   const command = tool === 'bash' ? String(input.command ?? '') : ''
-  const network = /\b(curl|wget|nc|ncat|ssh|scp|sftp|ftp|ping|git\s+(?:clone|fetch|pull|push)|gh\s+(?:api|repo|pr|issue)|npm\s+install|pnpm\s+(?:add|install)|yarn\s+add|bun\s+add|pip\s+install)\b|https?:\/\//i.test(command)
+  const network = /\b(?:curl|wget|nc|ncat|ssh|scp|sftp|ftp|ping|git\s+(?:clone|fetch|pull|push)|gh\s+(?:api|repo|pr|issue)|(?:npm\s+(?:install|ci|add)|pnpm\s+(?:install|add)|yarn\s+(?:install|add)|bun\s+(?:install|add)|pip3?\s+install))\b|https?:\/\//i.test(command)
+    || /\b(?:node|deno|bun|python(?:3(?:\.\d+)?)?|ruby|perl)\s+(?:-(?:e|c)(?:\s|$)|--(?:eval|command)(?:\s|=))[\s\S]{0,4096}\b(?:fetch\s*\(|(?:http|https)\s*\.\s*(?:get|request|post|put|delete)\s*\(|(?:requests|urllib|httpx|axios|got|socket|tls)\s*(?:\.|::)|createConnection\s*\(|require\s*\(\s*['"](?:node:)?https?['"]\s*\)|from\s+['"](?:node:)?https?['"])/i.test(command)
   const destructive = /(?:^|[;&|\s])(?:rm\s+-[^\s]*r[^\s]*(?:\s|$)|rmdir\b|mkfs\b|diskutil\b|dd\s+if=|git\s+reset\s+--hard\b|git\s+clean\s+-(?=[^\s]*[fd])[^\s]+|truncate\b|shred\b)/i.test(command)
   const privileged = /(?:^|[;&|\s])(?:sudo\b|su\s+-|doas\b|chmod\s+(?:-R\s+)?(?:777|\+s)|chown\s+-R\b)/i.test(command)
   const mutation = ['edit', 'write'].includes(tool)
@@ -126,6 +127,18 @@ async function classifyToolCall(event, workspacePath) {
     mcp,
     webSearch,
   }
+}
+
+function networkApprovalReason(details) {
+  if (details.webSearch) return '调用联网搜索服务'
+  const command = String(details.command ?? '')
+  if (/\b(?:npm\s+(?:install|ci|add)|pnpm\s+(?:install|add)|yarn\s+(?:install|add)|bun\s+(?:install|add)|pip3?\s+install)\b/i.test(command)) {
+    return '下载项目依赖（需要联网访问包仓库）'
+  }
+  if (/\bgit\s+(?:clone|fetch|pull|push)\b/i.test(command)) {
+    return '与远端 Git 仓库同步代码（需要网络访问）'
+  }
+  return '执行可能访问网络或上传数据的操作'
 }
 
 /** 只读 bash（git status / git log 等）在 ask 模式下免弹窗，避免「Deep diving」长时间等批准。 */
@@ -434,6 +447,7 @@ export function createPermissionService({
         reason = '只读权限模式下运行终端命令'
       } else if (mode === 'ask') {
         if (details.mcp) reason = `调用外部 MCP 工具 ${details.tool}`
+        else if (details.network) reason = networkApprovalReason(details)
         else if (details.tool === 'bash') reason = '运行终端命令'
         else if (details.outsideWorkspace) reason = `${details.tool === 'read' ? '读取' : '修改'}工作区以外的文件`
         else if (!autoReview && isAutoApprovedRead(details)) reason = '读取工作区内文件'
@@ -441,7 +455,7 @@ export function createPermissionService({
         if (details.mcp) reason = `调用外部 MCP 工具 ${details.tool}`
         else if (details.destructive) reason = '执行可能删除或重置数据的命令'
         else if (details.privileged) reason = '执行需要提升系统权限的命令'
-        else if (details.network) reason = '执行可能访问网络或上传数据的命令'
+        else if (details.network) reason = networkApprovalReason(details)
         else if (details.fileAccess && details.outsideWorkspace) {
           reason = `${details.mutation ? '修改' : '读取'}工作区以外的文件`
         }

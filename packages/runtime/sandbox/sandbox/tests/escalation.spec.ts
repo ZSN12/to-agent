@@ -44,8 +44,8 @@ describe('validateEscalationArgs', () => {
 
 describe('the model-facing markers', () => {
   it('the denial marker names the mode', () => {
-    expect(sandboxDenialMarker('read-only')).toBe('[sandbox: file access denied under read-only mode]')
-    expect(sandboxDenialMarker('workspace-write')).toBe('[sandbox: file access denied under workspace-write mode]')
+    expect(sandboxDenialMarker('read-only')).toBe('[sandbox: operation denied under read-only mode]')
+    expect(sandboxDenialMarker('workspace-write')).toBe('[sandbox: operation denied under workspace-write mode]')
   })
 
   it('the hint marker names the family subject', () => {

@@ -63,7 +63,7 @@ export function validateEscalationArgs(sandboxPermissions, justification) {
  * @returns the marker line, exactly as the model sees it.
  */
 export function sandboxDenialMarker(mode) {
-    return `[sandbox: file access denied under ${mode} mode]`;
+    return `[sandbox: operation denied under ${mode} mode]`;
 }
 /**
  * The same-turn escalation hint that rides a denial when the composition

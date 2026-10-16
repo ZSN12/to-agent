@@ -73,7 +73,7 @@ export function summarizeShellCommandOutcome(toolName, args, outputText, isError
   const signal = /\n\[killed by signal: ([^\]\n]+)\]$/.exec(text)?.[1] ?? null
   const exitMarker = /\n\[exit code: (\d+)\]$/.exec(text)
   const timedOut = /\[timed out after \d+ms\]/.test(text)
-  const sandboxDenied = /\[sandbox: (?:file access denied under .+ mode|the sandbox runner itself failed)/i.test(text)
+  const sandboxDenied = /\[sandbox: (?:operation denied under .+ mode|file access denied under .+ mode|the sandbox runner itself failed)/i.test(text)
   return {
     // A successful-looking text body is not proof of a successful process exit.
     // Only the shell's terminal marker carries an authoritative exit code.

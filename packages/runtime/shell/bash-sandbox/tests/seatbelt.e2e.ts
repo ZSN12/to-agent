@@ -3,6 +3,8 @@ import { existsSync, readFileSync } from 'node:fs'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import { createServer } from 'node:http'
+import { once } from 'node:events'
 import { afterEach, describe, expect, it } from 'vitest'
 import { Context } from '@taskweaver/cordis'
 import { LocalSandboxProvider } from '@taskweaver/dsh-sandbox-local'
@@ -74,6 +76,37 @@ describe.skipIf(!seatbeltUsable)('bash-sandbox: real Seatbelt confinement throug
     expect(denied.exitCode).not.toBe(0)
     expect(denied.sandbox).toEqual({ mode: 'workspace-write', denied: true, enforcement: 'full' })
     expect(existsSync(join(outside, 'denied.txt'))).toBe(false)
+  })
+
+  it('marks a denied network call as a sandbox denial, then allows the exact retry after full-access escalation', async () => {
+    const workdir = await tempDir(homedir())
+    const server = createServer((_request, response) => response.end('ok'))
+    server.listen(0, '127.0.0.1')
+    await once(server, 'listening')
+    const address = server.address()
+    if (address === null || typeof address === 'string') throw new Error('expected a TCP listener address')
+    const url = `http://127.0.0.1:${address.port}/`
+    const command = `node -e 'fetch(${JSON.stringify(url)}).then(response=>response.text()).then(console.log)'`
+    try {
+      expect((await fetch(url)).status).toBe(200)
+
+      const bash = await sandboxedBash(workdir, 'workspace-write')
+      const denied = await bash.run(bash.resolve({ command }))
+      expect(denied.exitCode).not.toBe(0)
+      expect(denied.sandbox).toEqual({ mode: 'workspace-write', denied: true, enforcement: 'full' })
+
+      const retried = await bash.run(bash.resolve({
+        command,
+        sandboxPolicy: { mode: 'danger-full-access', workspaceRoot: workdir },
+      }))
+      expect(retried.exitCode).toBe(0)
+      expect(retried.stdout.text.trim()).toBe('ok')
+      expect(retried.sandbox).toEqual({ mode: 'danger-full-access', denied: false })
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        server.close(error => error ? reject(error) : resolve())
+      })
+    }
   })
 
   it('evaluates BASH_ENV only after Seatbelt confines the inner Bash', async () => {

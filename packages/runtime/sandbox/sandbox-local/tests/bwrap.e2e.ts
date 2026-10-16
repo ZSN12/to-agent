@@ -1,8 +1,11 @@
-import { spawnSync } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { existsSync, readFileSync, readlinkSync, rmSync } from 'node:fs'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { createInterface } from 'node:readline'
+import { once } from 'node:events'
+import type { ChildProcess } from 'node:child_process'
 import { afterEach, describe, expect, it } from 'vitest'
 import { Context } from '@taskweaver/cordis'
 import type { SandboxPolicy } from '@taskweaver/dsh-sandbox'
@@ -41,6 +44,28 @@ async function provider(): Promise<LocalSandboxProvider> {
   ctx = new Context()
   await ctx.plugin(LocalSandboxProvider, {})
   return ctx.sandbox as LocalSandboxProvider
+}
+
+async function startBackgroundProcess(script: string, args: string[] = []): Promise<{ child: ChildProcess; ready: string }> {
+  const child = spawn(process.execPath, ['-e', script, ...args], { stdio: ['ignore', 'pipe', 'pipe'] })
+  child.stderr?.resume()
+  const lines = createInterface({ input: child.stdout! })
+  const ready = await new Promise<string>((resolve, reject) => {
+    lines.once('line', resolve)
+    child.once('error', reject)
+    child.once('exit', code => reject(new Error(`background server exited before ready (${code})`)))
+  })
+  return { child, ready }
+}
+
+async function stopBackgroundProcess(child: ChildProcess): Promise<void> {
+  if (child.exitCode !== null || child.signalCode !== null) return
+  child.kill('SIGTERM')
+  await once(child, 'exit')
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replaceAll("'", "'\\''")}'`
 }
 
 /** Confine a shell command under `policy` and run it for real; returns the spawn result and the wrap's facts. */
@@ -141,5 +166,51 @@ describe.skipIf(!bwrapUsable)('sandbox-local: real bwrap confinement', () => {
     expect(result.status).toBe(0)
     expect(result.stdout).toBe('tmp-ok')
     expect(existsSync(target)).toBe(false)
+  })
+
+  it('workspace-write blocks TCP network requests while keeping local Unix sockets available', async () => {
+    const mode = 'workspace-write'
+    const workdir = await tempDir(homedir())
+    const sandbox = await provider()
+    const policy = { mode, workspaceRoot: workdir } as const
+    const http = await startBackgroundProcess(
+      'const s=require("node:http").createServer((_q,r)=>r.end("ok"));s.listen(0,"127.0.0.1",()=>process.stdout.write(String(s.address().port)+"\\n"))',
+    )
+    const url = `http://127.0.0.1:${http.ready}/`
+    try {
+      expect((await fetch(url)).status).toBe(200)
+
+      const hostNetworkNamespace = readlinkSync('/proc/self/ns/net')
+      const networkNamespace = runConfined(sandbox, 'readlink /proc/self/ns/net', policy)
+      expect(networkNamespace.result.status).toBe(0)
+      expect(networkNamespace.result.stdout.trim()).not.toBe(hostNetworkNamespace)
+
+      const fetchScript = `fetch(${JSON.stringify(url)})`
+      const network = runConfined(sandbox, `node -e ${shellQuote(fetchScript)}`, policy)
+      expect(network.result.status).not.toBe(0)
+      expect(network.confined.denialSignatures.some(signature => network.result.stderr.toLowerCase().includes(signature.toLowerCase()))).toBe(true)
+
+      if (spawnSync('curl', ['--version'], { stdio: 'ignore' }).status === 0) {
+        const curl = runConfined(sandbox, `curl --max-time 2 --fail --silent --show-error ${shellQuote(url)}`, policy)
+        expect(curl.result.status).not.toBe(0)
+        expect(curl.confined.denialSignatures.some(signature => curl.result.stderr.toLowerCase().includes(signature.toLowerCase()))).toBe(true)
+      }
+    } finally {
+      await stopBackgroundProcess(http.child)
+    }
+
+    const socketPath = join(workdir, 'local-ipc.sock')
+    const socket = await startBackgroundProcess(
+      'const s=require("node:net").createServer(c=>c.end("ok"));s.listen(process.argv[1],()=>process.stdout.write("ready\\n"))',
+      [socketPath],
+    )
+    try {
+      const socketScript = 'const s=require("node:net").createConnection(process.argv[1]);let d="";s.on("data",c=>d+=c);s.on("end",()=>process.exit(d==="ok"?0:1));s.on("error",()=>process.exit(2))'
+      const localIpc = runConfined(sandbox, `node -e ${shellQuote(socketScript)} ${shellQuote(socketPath)}`, policy)
+      expect(localIpc.result.status).toBe(0)
+      expect(socket.ready).toBe('ready')
+    } finally {
+      await stopBackgroundProcess(socket.child)
+    }
   })
 })

@@ -10,7 +10,9 @@ import { grantArgs as landlockGrantArgs } from './landlock.mjs'
 
 /** @param {{ mode: 'read-only' | 'workspace-write', workspaceRoot: string }} policy */
 export function bwrapProfileArgs(policy) {
-  const args = ['--ro-bind', '/', '/', '--dev', '/dev', '--unshare-pid', '--proc', '/proc', '--die-with-parent']
+  const args = ['--ro-bind', '/', '/', '--dev', '/dev', '--unshare-pid']
+  if (policy.mode === 'workspace-write') args.push('--unshare-net')
+  args.push('--proc', '/proc', '--die-with-parent')
   if (policy.mode === 'workspace-write') {
     args.push('--tmpfs', '/tmp')
     args.push('--bind', policy.workspaceRoot, policy.workspaceRoot)
@@ -48,7 +50,11 @@ function gitMetadataPaths(workspaceRoot) {
 
 /** @param {{ mode: 'read-only' | 'workspace-write', workspaceRoot: string }} policy */
 export function seatbeltProfileArgs(policy) {
-  const forms = ['(version 1)', '(allow default)', '(deny file-write*)', `(allow file-write* (literal ${sbplString('/dev/null')}))`]
+  const forms = ['(version 1)', '(allow default)']
+  if (policy.mode === 'workspace-write') {
+    forms.push('(deny network*)', '(allow network* (remote unix-socket))')
+  }
+  forms.push('(deny file-write*)', `(allow file-write* (literal ${sbplString('/dev/null')}))`)
   const roots = writableRoots(policy)
   if (roots.length > 0) {
     forms.push(`(allow file-write* ${roots.map((root) => `(subpath ${sbplString(root)})`).join(' ')})`)

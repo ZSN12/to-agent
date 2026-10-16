@@ -64,12 +64,26 @@ export function resolveSandboxPolicy(input = {}) {
  * @param {{ mode: ConfinedMode, workspaceRoot: string }} filePolicy
  */
 export function renderFileSandboxContext(filePolicy, workspaceRoot) {
+  const probe = filePolicy.mode === 'workspace-write' ? probeSandboxSupport() : null
+  const networkBlocked = filePolicy.mode === 'workspace-write'
+    && probe !== null
+    && ((probe.platform === 'darwin' && probe.runner === 'seatbelt')
+      || (probe.platform === 'linux' && probe.runner === 'bwrap'))
+  const networkLine = networkBlocked
+    ? ' The OS sandbox blocks network sockets in workspace-write mode; local Unix-domain sockets remain available. If this exact command needs network access, retry it once with sandbox_permissions="danger-full-access" and a justification so the user can approve the one-shot escalation.'
+    : filePolicy.mode === 'off'
+      ? ' No OS file sandbox is active, so network access is not restricted by the sandbox; network and data upload still follow the permission approval policy.'
+      : filePolicy.mode === 'read-only'
+        ? ' The read-only file sandbox does not restrict network access; network and data upload still follow the permission approval policy.'
+        : probe?.available
+          ? ` The ${probe.runner} workspace-write file sandbox does not restrict network access; network and data upload still follow the permission approval policy.`
+          : ' No OS sandbox runner is available, so network access is not restricted by the file sandbox; network and data upload still follow the permission approval policy.'
   switch (filePolicy.mode) {
     case 'read-only':
-      return 'Current TaskWeaver file policy: read-only. File write/edit tools cannot modify files in this mode. If denied, you may request sandbox_permissions escalation (user approval). Bash may be OS-confined when a runner is available.'
+      return `Current TaskWeaver file policy: read-only. File write/edit tools cannot modify files in this mode. If denied, you may request sandbox_permissions escalation (user approval).${networkLine}`
     case 'workspace-write':
-      return `Current TaskWeaver file policy: workspace-write. File write/edit may modify files under the session workspace ${JSON.stringify(workspaceRoot)} and platform temp areas (/tmp, user temp), matching Z sandbox writableRoots. Escalation to danger-full-access requires user approval via sandbox_permissions + justification.`
+      return `Current TaskWeaver file policy: workspace-write. File write/edit may modify files under the session workspace ${JSON.stringify(workspaceRoot)} and platform temp areas (/tmp, user temp), matching Z sandbox writableRoots. Escalation to danger-full-access requires user approval via sandbox_permissions + justification.${networkLine}`
     default:
-      return 'Current TaskWeaver file policy: off (full access at the in-process fence; permission prompts still apply).'
+      return `Current TaskWeaver file policy: off (full access at the in-process fence; permission prompts still apply).${networkLine}`
   }
 }

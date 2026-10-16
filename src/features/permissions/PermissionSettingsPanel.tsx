@@ -438,7 +438,7 @@ export function PermissionSettingsPanel({
           />
         </div>
         <div style={{ marginTop: 10, padding: '8px 12px', borderRadius: 6, background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-          <strong>安全边界说明：</strong>on-risk 为旧配置，与 ask 同为 workspace-write。细粒度规则属于应用层；Host 文件沙箱不等同于网络隔离。
+          <strong>安全边界说明：</strong>on-risk 为旧配置，与 ask 同为 workspace-write。工作区可写模式下，macOS Seatbelt 与 Linux bwrap 会阻止命令联网并保留本地 Unix 套接字；只读模式、Linux Landlock、Windows ACL 或未启用沙箱时不限制网络，联网请求按审批策略处理。
         </div>
         <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginTop: 14, fontSize: 12, cursor: 'pointer' }}>
           <input

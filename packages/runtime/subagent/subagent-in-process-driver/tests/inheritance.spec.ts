@@ -23,7 +23,7 @@ import { startInProcessRun } from '../src/index.ts'
 
 type Script = ConstructorParameters<typeof MockAdapter>[0]
 
-const READ_ONLY_DENIAL = 'file access denied under read-only mode'
+const READ_ONLY_DENIAL = 'operation denied under read-only mode'
 const contexts: Context[] = []
 let workspace: string
 

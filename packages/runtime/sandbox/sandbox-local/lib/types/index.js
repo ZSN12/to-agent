@@ -128,6 +128,21 @@ const DENIAL_SIGNATURES = {
     'windows-acl': ['access is denied', 'access to the path', 'permission denied'],
     runnerCommand: ['read-only file system', 'permission denied'],
 };
+const BWRAP_WORKSPACE_WRITE_DENIAL_SIGNATURES = [
+    ...DENIAL_SIGNATURES.bwrap,
+    'network is unreachable',
+    'enetunreach',
+    'econnrefused',
+    'operation not permitted',
+    'eai_again',
+    'failed to connect',
+];
+const SEATBELT_WORKSPACE_WRITE_DENIAL_SIGNATURES = [
+    ...DENIAL_SIGNATURES.seatbelt,
+    'eperm',
+    'failed to connect',
+    "couldn't connect to server",
+];
 /** The windows-acl runner's documented failure exit. */
 const WINDOWS_ACL_RUNNER_FAILURE_EXIT = 127;
 /**
@@ -229,7 +244,11 @@ export class LocalSandboxProvider extends SandboxProvider {
         return {
             argv: [...runnerArgv, '--', ...argv],
             enforcement: selected.enforcement,
-            denialSignatures: DENIAL_SIGNATURES[selected.runner],
+            denialSignatures: selected.runner === 'bwrap' && policy.mode === 'workspace-write'
+                ? BWRAP_WORKSPACE_WRITE_DENIAL_SIGNATURES
+                : selected.runner === 'seatbelt' && policy.mode === 'workspace-write'
+                    ? SEATBELT_WORKSPACE_WRITE_DENIAL_SIGNATURES
+                    : DENIAL_SIGNATURES[selected.runner],
             runnerFailureRules: RUNNER_FAILURE_RULES[selected.runner],
         };
     }

@@ -935,7 +935,7 @@ describe('sandbox escalation API (write/edit)', () => {
     fs.rejectWith = new FsError('denied', 'FS_SANDBOX_DENIED')
     const result = await call(ctx, 'write', { file_path: 'a.txt', content: 'x' }, escalationAgent())
     expect(result.isError).toBe(true)
-    expect(text(result)).toContain('[sandbox: file access denied under workspace-write mode]')
+    expect(text(result)).toContain('[sandbox: operation denied under workspace-write mode]')
     expect(text(result)).toContain('retry this exact operation once with sandbox_permissions')
   })
 

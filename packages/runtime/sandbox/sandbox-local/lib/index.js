@@ -7,7 +7,7 @@ import z from "@taskweaver/schemastery";
 import { assertNever } from "@taskweaver/dsh-llm";
 import { SandboxProvider, SandboxUnavailableError, canonicalPath, writableRoots } from "@taskweaver/dsh-sandbox";
 import { AclWriteGrant, assertTempRootOutsideWorkspace, tempWriteSid, workspaceWriteSid } from "@taskweaver/dsh-sandbox-windows-acl";
-//#region ../lib/types/profiles.js
+//#region lib/types/profiles.js
 /**
 * Internal platform-profile builders for the local sandbox provider.
 *
@@ -25,11 +25,10 @@ function bwrapProfileArgs(policy) {
 		"/",
 		"--dev",
 		"/dev",
-		"--unshare-pid",
-		"--proc",
-		"/proc",
-		"--die-with-parent"
+		"--unshare-pid"
 	];
+	if (policy.mode === "workspace-write") args.push("--unshare-net");
+	args.push("--proc", "/proc", "--die-with-parent");
 	if (policy.mode === "workspace-write") {
 		args.push("--tmpfs", "/tmp");
 		args.push("--bind", policy.workspaceRoot, policy.workspaceRoot);
@@ -73,12 +72,9 @@ function gitMetadataPaths(workspaceRoot) {
 * @returns sandbox-exec arguments before the trailing separator and command argv.
 */
 function seatbeltProfileArgs(policy) {
-	const forms = [
-		"(version 1)",
-		"(allow default)",
-		"(deny file-write*)",
-		`(allow file-write* (literal ${sbplString("/dev/null")}))`
-	];
+	const forms = ["(version 1)", "(allow default)"];
+	if (policy.mode === "workspace-write") forms.push("(deny network*)", "(allow network* (remote unix-socket))");
+	forms.push("(deny file-write*)", `(allow file-write* (literal ${sbplString("/dev/null")}))`);
 	const roots = writableRoots(policy);
 	if (roots.length > 0) forms.push(`(allow file-write* ${roots.map((root) => `(subpath ${sbplString(root)})`).join(" ")})`);
 	if (policy.mode === "workspace-write") {
@@ -101,7 +97,7 @@ function seatbeltProfileArgs(policy) {
 	return ["-p", forms.join(" ")];
 }
 //#endregion
-//#region ../lib/types/index.js
+//#region lib/types/index.js
 /**
 * Local sandbox backend. It selects the platform runner (Linux bwrap; macOS
 * Seatbelt; Windows the ACL restricted-token runner), functionally probes
@@ -233,6 +229,21 @@ const DENIAL_SIGNATURES = {
 	],
 	runnerCommand: ["read-only file system", "permission denied"]
 };
+const BWRAP_WORKSPACE_WRITE_DENIAL_SIGNATURES = [
+	...DENIAL_SIGNATURES.bwrap,
+	"network is unreachable",
+	"enetunreach",
+	"econnrefused",
+	"operation not permitted",
+	"eai_again",
+	"failed to connect"
+];
+const SEATBELT_WORKSPACE_WRITE_DENIAL_SIGNATURES = [
+	...DENIAL_SIGNATURES.seatbelt,
+	"eperm",
+	"failed to connect",
+	"couldn't connect to server"
+];
 /**
 * Runner-owned fatal diagnostics. Bubblewrap's current fatal paths exit
 * 1 but its public contract does not reserve that status, while sandbox-exec
@@ -327,7 +338,7 @@ var LocalSandboxProvider = class extends SandboxProvider {
 				...argv
 			],
 			enforcement: selected.enforcement,
-			denialSignatures: DENIAL_SIGNATURES[selected.runner],
+			denialSignatures: selected.runner === "bwrap" && policy.mode === "workspace-write" ? BWRAP_WORKSPACE_WRITE_DENIAL_SIGNATURES : selected.runner === "seatbelt" && policy.mode === "workspace-write" ? SEATBELT_WORKSPACE_WRITE_DENIAL_SIGNATURES : DENIAL_SIGNATURES[selected.runner],
 			runnerFailureRules: RUNNER_FAILURE_RULES[selected.runner]
 		};
 	}

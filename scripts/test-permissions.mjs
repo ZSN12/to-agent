@@ -62,7 +62,31 @@ try {
 
   const networkInstall = await permissions.withExecution('on-risk', contents, () => permissions.authorize({ toolName: 'bash', input: { command: 'npm install example-package' } }))
   assert.equal(networkInstall.block, true)
-  assert.match(pendingDialogs.at(-1)[0].message, /网络/)
+  assert.match(pendingDialogs.at(-1)[0].message, /下载项目依赖/)
+
+  const yarnInstall = await permissions.withExecution('ask', contents, () => permissions.authorize({ toolName: 'bash', input: { command: 'yarn install' } }))
+  assert.equal(yarnInstall.block, true)
+  assert.match(pendingDialogs.at(-1)[0].message, /下载项目依赖/)
+
+  const pipInstall = await permissions.withExecution('on-risk', contents, () => permissions.authorize({ toolName: 'bash', input: { command: 'pip3 install package' } }))
+  assert.equal(pipInstall.block, true)
+  assert.match(pendingDialogs.at(-1)[0].message, /下载项目依赖/)
+
+  const nodeFetch = await permissions.withExecution('ask', contents, () => permissions.authorize({
+    toolName: 'bash', input: { command: `node -e "fetch('https://example.com')"` },
+  }))
+  assert.equal(nodeFetch.block, true)
+  assert.match(pendingDialogs.at(-1)[0].message, /访问网络或上传数据/)
+
+  const pythonRequest = await permissions.withExecution('ask', contents, () => permissions.authorize({
+    toolName: 'bash', input: { command: `python3 -c "import requests; requests.get('https://example.com')"` },
+  }))
+  assert.equal(pythonRequest.block, true)
+  assert.match(pendingDialogs.at(-1)[0].message, /访问网络或上传数据/)
+
+  const gitFetch = await permissions.withExecution('ask', contents, () => permissions.authorize({ toolName: 'bash', input: { command: 'git fetch origin' } }))
+  assert.equal(gitFetch.block, true)
+  assert.match(pendingDialogs.at(-1)[0].message, /远端 Git 仓库同步/)
 
   const outsideRead = await permissions.withExecution('on-risk', contents, () => permissions.authorize({ toolName: 'read', input: { path: 'linked-outside/private.txt' } }))
   assert.equal(outsideRead.block, true)

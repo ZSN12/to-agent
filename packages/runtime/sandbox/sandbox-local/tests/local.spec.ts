@@ -65,17 +65,20 @@ const privateReadRoots = [
   join(homedir(), 'Library', 'Keychains'),
 ].map(canonicalPath)
 const SEATBELT_PRIVATE_READ_DENY = `(deny file-read* ${privateReadRoots.map(root => `(subpath "${root}")`).join(' ')})`
-const SEATBELT_BASE_PROFILE = '(version 1) (allow default) (deny file-write*) (allow file-write* (literal "/dev/null"))'
+const SEATBELT_HEADER = '(version 1) (allow default)'
+const SEATBELT_FILE_RULES = '(deny file-write*) (allow file-write* (literal "/dev/null"))'
+const SEATBELT_BASE_PROFILE = `${SEATBELT_HEADER} ${SEATBELT_FILE_RULES}`
+const SEATBELT_NETWORK_RULES = '(deny network*) (allow network* (remote unix-socket))'
 const SEATBELT_RO_PROFILE = `${SEATBELT_BASE_PROFILE} ${SEATBELT_PRIVATE_READ_DENY}`
 
 describe('profile dialects', () => {
-  it('bwrap read-only: whole tree read-only with fresh /dev and private PID-scoped /proc, no writable mounts', () => {
+  it('bwrap read-only: whole tree read-only with fresh /dev and private PID-scoped /proc, no writable mounts or network isolation', () => {
     expect(bwrapProfileArgs(RO)).toEqual(['--ro-bind', '/', '/', '--dev', '/dev', '--unshare-pid', '--proc', '/proc', '--die-with-parent'])
   })
 
-  it('bwrap workspace-write: adds an ephemeral /tmp and rebinds the workspace root', () => {
+  it('bwrap workspace-write: also isolates networking, adds an ephemeral /tmp, and rebinds the workspace root', () => {
     expect(bwrapProfileArgs(WW)).toEqual([
-      '--ro-bind', '/', '/', '--dev', '/dev', '--unshare-pid', '--proc', '/proc', '--die-with-parent',
+      '--ro-bind', '/', '/', '--dev', '/dev', '--unshare-pid', '--unshare-net', '--proc', '/proc', '--die-with-parent',
       '--tmpfs', '/tmp', '--bind', '/ws', '/ws',
     ])
   })
@@ -84,7 +87,7 @@ describe('profile dialects', () => {
     expect(seatbeltProfileArgs(RO)).toEqual(['-p', SEATBELT_RO_PROFILE])
   })
 
-  it('seatbelt workspace-write: one more allow for the canonicalized workspace root, /tmp, and the user temp dir', () => {
+  it('seatbelt workspace-write: network-isolated, with write grants for the canonical workspace and temp roots', () => {
     // `/ws` does not exist, so it is granted as spelled (the canonicalization
     // fallback); `/tmp` and `os.tmpdir()` exist everywhere and are granted
     // CANONICALIZED — Seatbelt matches resolved paths (`/tmp` IS
@@ -93,11 +96,31 @@ describe('profile dialects', () => {
     const roots = [...new Set(['/ws', realpathSync('/tmp'), realpathSync(tmpdir())])]
     const allow = `(allow file-write* ${roots.map(root => `(subpath "${root}")`).join(' ')})`
     const denyGitMetadata = '(deny file-write* (subpath "/ws/.git/hooks") (literal "/ws/.git/config") (literal "/ws/.git/config.worktree"))'
-    expect(seatbeltProfileArgs(WW)).toEqual(['-p', `${SEATBELT_BASE_PROFILE} ${allow} ${denyGitMetadata} ${SEATBELT_PRIVATE_READ_DENY}`])
+    expect(seatbeltProfileArgs(WW)).toEqual(['-p', `${SEATBELT_HEADER} ${SEATBELT_NETWORK_RULES} ${SEATBELT_FILE_RULES} ${allow} ${denyGitMetadata} ${SEATBELT_PRIVATE_READ_DENY}`])
+  })
+
+  it('read-only profiles keep their existing network behavior; only workspace-write adds the network denial', () => {
+    expect(seatbeltProfileArgs(RO)[1]).not.toContain('(deny network*)')
+    expect(seatbeltProfileArgs(WW)[1]).toContain(SEATBELT_NETWORK_RULES)
+    expect(bwrapProfileArgs(RO)).not.toContain('--unshare-net')
+    expect(bwrapProfileArgs(WW)).toContain('--unshare-net')
+  })
+
+  it('adds network-denial signatures only to workspace-write wraps', async () => {
+    const darwin = await setup({}, { platform: 'darwin' })
+    expect(darwin.sandbox.confine(['true'], RO).denialSignatures).toEqual(['operation not permitted'])
+    expect(darwin.sandbox.confine(['true'], WW).denialSignatures).toEqual([
+      'operation not permitted', 'eperm', 'failed to connect', "couldn't connect to server",
+    ])
+
+    const linux = await setup({}, { platform: 'linux', probeBwrap: () => true })
+    expect(linux.sandbox.confine(['true'], RO).denialSignatures).toEqual(['read-only file system'])
+    expect(linux.sandbox.confine(['true'], WW).denialSignatures).toContain('enetunreach')
   })
 
   it('Seatbelt places protected metadata and private-directory denials after writable grants', () => {
     const profile = seatbeltProfileArgs(WW)[1]
+    expect(profile).toContain(SEATBELT_NETWORK_RULES)
     expect(profile.indexOf('(allow file-write* (subpath')).toBeLessThan(profile.indexOf('(deny file-write* (subpath'))
     expect(profile).toContain('(deny file-read*')
     for (const root of privateReadRoots) expect(profile).toContain(root)

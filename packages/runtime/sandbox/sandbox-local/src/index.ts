@@ -183,7 +183,7 @@ function assertPositiveFinite(name: string, value: number): void {
 
 /**
  * The denial dialect each runner's kernel speaks — the case-insensitive stderr substrings a
- * denied file effect produces under it, carried on every wrap (the seam's
+ * policy-denied effect produces under it, carried on every wrap (the seam's
  * `ConfinedArgv.denialSignatures`).
  */
 const DENIAL_SIGNATURES = {
@@ -194,6 +194,23 @@ const DENIAL_SIGNATURES = {
   'windows-acl': ['access is denied', 'access to the path', 'permission denied'],
   runnerCommand: ['read-only file system', 'permission denied'],
 } as const satisfies Record<SelectedRunner['runner'] | 'runnerCommand', readonly string[]>
+
+const BWRAP_WORKSPACE_WRITE_DENIAL_SIGNATURES = [
+  ...DENIAL_SIGNATURES.bwrap,
+  'network is unreachable',
+  'enetunreach',
+  'econnrefused',
+  'operation not permitted',
+  'eai_again',
+  'failed to connect',
+] as const
+
+const SEATBELT_WORKSPACE_WRITE_DENIAL_SIGNATURES = [
+  ...DENIAL_SIGNATURES.seatbelt,
+  'eperm',
+  'failed to connect',
+  "couldn't connect to server",
+] as const
 
 /** The windows-acl runner's documented failure exit. */
 const WINDOWS_ACL_RUNNER_FAILURE_EXIT = 127
@@ -302,7 +319,11 @@ export class LocalSandboxProvider extends SandboxProvider {
     return {
       argv: [...runnerArgv, '--', ...argv],
       enforcement: selected.enforcement,
-      denialSignatures: DENIAL_SIGNATURES[selected.runner],
+      denialSignatures: selected.runner === 'bwrap' && policy.mode === 'workspace-write'
+        ? BWRAP_WORKSPACE_WRITE_DENIAL_SIGNATURES
+        : selected.runner === 'seatbelt' && policy.mode === 'workspace-write'
+          ? SEATBELT_WORKSPACE_WRITE_DENIAL_SIGNATURES
+          : DENIAL_SIGNATURES[selected.runner],
       runnerFailureRules: RUNNER_FAILURE_RULES[selected.runner],
     }
   }
