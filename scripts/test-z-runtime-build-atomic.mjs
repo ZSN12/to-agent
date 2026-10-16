@@ -15,7 +15,7 @@ const marker = path.join(outputDir, 'last-known-good.txt')
 try {
   await fs.mkdir(fakeBin, { recursive: true })
   await fs.writeFile(marker, 'preserve this deploy if pnpm deploy fails\n')
-  await fs.writeFile(fakePnpm, '#!/bin/sh\nprintf "%s\\n" "$*"\nexit 37\n')
+  await fs.writeFile(fakePnpm, '#!/bin/sh\nprintf "%s\\n" "$*"\ncase " $* " in *" deploy "*) exit 37 ;; *) exit 0 ;; esac\n')
   await fs.chmod(fakePnpm, 0o755)
 
   const result = spawnSync(process.execPath, [path.join(root, 'scripts/build-host-runtime.mjs'), '--skip-build'], {
