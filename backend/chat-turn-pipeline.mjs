@@ -310,7 +310,7 @@ export function createChatTurnPipeline(deps) {
           const healResult = await executeChatRequest(
             execution,
             healPrompt,
-            resolvePrimaryAgentPreset(healPrompt, workMode, activeKey),
+            resolvePrimaryAgentPreset(),
             activeKey,
             selectedSkill,
             webContents,
@@ -453,7 +453,7 @@ export function createChatTurnPipeline(deps) {
           conversationId,
           cwdOverride: runtimeContext.workspacePath,
           webContents,
-          agentPreset: resolvePrimaryAgentPreset(command, workMode, activeKey),
+          agentPreset: resolvePrimaryAgentPreset(),
           attachments,
           documents,
         })
@@ -547,7 +547,7 @@ export function createChatTurnPipeline(deps) {
       result = await executeChatRequest(
         execution,
         effectivePrompt,
-        resolvePrimaryAgentPreset(text, workMode, activeKey),
+        resolvePrimaryAgentPreset(),
         activeKey,
         selectedSkill,
         webContents,

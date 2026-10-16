@@ -114,21 +114,21 @@ assert.equal(injectIntentGuidelines('原文', CODE_MUTATION, null), '原文')
 const e2e = injectIntentGuidelines('你好', analyzeUserIntent('你好', 'code'), policy)
 assert.doesNotMatch(e2e, /npm run|npx tsc|pnpm run/, '寒暄的最终 prompt 里不能出现任何构建/自检命令')
 
-// ===== 主会话预设由任务形状自动选择，不暴露给用户 =====
-assert.equal(resolvePrimaryAgentPreset('你好'), 'tw-taskweaver-pi-lite', '寒暄走 Pi 风格短 system 预设')
-assert.equal(resolvePrimaryAgentPreset('读一下 desktop/main.cjs，概述启动流程'), 'tw-default', '单文件检查保持原生工具')
-assert.equal(resolvePrimaryAgentPreset('读一下当前项目结构并简要介绍'), 'tw-default', '广角仓库概览不要误触发批处理模式')
-assert.equal(
-  resolvePrimaryAgentPreset('只阅读 desktop/main.cjs 和 backend/z-conversation-hub.mjs，比较两者的启动与流转职责'),
-  'tw-code',
-  '用户明确列出多个独立文件时自动采用批量工具模式',
-)
-assert.equal(resolvePrimaryAgentPreset('请并行检查多个文件的导入关系'), 'tw-code', '明确的批量只读任务应自动采用批量工具模式')
-assert.equal(
-  resolvePrimaryAgentPreset('请并行检查多个文件的导入关系', 'code', 'opencodex/cursor/composer-2.5'),
-  'tw-default',
-  'Composer 路线与 DSH 一致，不自动切 Code Mode',
-)
-assert.equal(resolvePrimaryAgentPreset('修改 desktop/main.cjs 和 desktop/preload.cjs'), 'tw-default', '写入任务暂不自动切 Code，避免未经验证改变编辑行为')
+// ===== 新会话预设不由首句意图或文件路径猜测 =====
+for (const [text, label] of [
+  ['你好', '闲聊'],
+  ['读一下 desktop/main.cjs，概述启动流程', '只读请求'],
+  ['make the tests pass', '测试修改请求'],
+  ['登录页按钮颜色不对，看看怎么回事然后弄好它', '中文混合诊断与修改'],
+  ['what does the address parser return?', '英文只读问题'],
+  ['how do I debug this?', '英文调试问题'],
+  ['只阅读 desktop/main.cjs 和 backend/z-conversation-hub.mjs，比较两者的启动与流转职责', '多文件只读请求'],
+  ['修改 desktop/main.cjs 和 desktop/preload.cjs', '多文件修改请求'],
+]) {
+  assert.equal(resolvePrimaryAgentPreset(text, 'code', null), 'tw-default', `${label} 新会话都应保留完整工具集`)
+}
+assert.equal(resolvePrimaryAgentPreset('你好'), 'tw-default', '普通新会话默认使用完整工具集')
+assert.equal(resolvePrimaryAgentPreset('/plan 检查架构'), 'tw-default', '斜杠命令继续使用完整工具集')
+assert.equal(resolvePrimaryAgentPreset('hello', 'code', 'opencodex/cursor/composer-2.5'), 'tw-default', 'Cursor 模型继续使用完整工具集')
 
 console.log(`\nuser-intent 回归测试全部通过（${cases.length} 条意图判定 + 注入行为 + 端到端）。`)
