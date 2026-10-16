@@ -631,6 +631,34 @@ describe('tool-call scheduler: abort handling', () => {
 })
 
 describe('tool-call scheduler: failure quiescence', () => {
+  it('reports a missing scheduler as a runtime compatibility error', async () => {
+    const adapter = new MockAdapter([
+      multiCall([{ id: 'c1', name: 'p', args: { id: '1' } }]),
+    ])
+    const ctx = await harness(adapter, 1)
+    ctx.tools.register(defineContentToolFixture({
+      name: 'p',
+      description: 'scheduler probe',
+      parameters: { id: { type: 'string', required: true } },
+      async execute() { return [] },
+    }))
+    expect(Reflect.deleteProperty(ctx.tools, TOOL_RUNTIME_SCHEDULER)).toBe(true)
+    const agent = ctx.agentLoop.create(SessionId('missing-scheduler'), { provider: 'mock', model: 'mock' })
+    const idle = waitForIdle(ctx, agent)
+
+    agent.followup(createUserMessage({ content: [{ type: 'text', text: 'go' }], source: { kind: 'user' } }))
+    await idle
+
+    expect(events(agent).findLast(event => event.type === 'turn/end')).toMatchObject({
+      data: {
+        reason: {
+          kind: 'error',
+          error: { message: 'ToolRuntime scheduler is unavailable; Agent Loop and Tool Runtime must use compatible @taskweaver/dsh-tools modules.' },
+        },
+      },
+    })
+  })
+
   it('stops new dispatches and drains started bodies before surfacing the first failure', async () => {
     const adapter = new MockAdapter([
       multiCall([

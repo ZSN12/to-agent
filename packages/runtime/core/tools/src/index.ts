@@ -465,7 +465,11 @@ export interface ToolRuntimeScheduler {
  * Scheduler entry point omitted from the generated named service API.
  * @internal
  */
-export const TOOL_RUNTIME_SCHEDULER: unique symbol = Symbol('@taskweaver/dsh-tools.scheduler')
+// This internal protocol crosses the Agent Loop / Tool Runtime package edge.
+// A normal `Symbol()` is scoped to one loaded module instance, so a host that
+// loads source and built package copies can install a ToolRuntime instance
+// whose scheduler is invisible to the Agent Loop's copy.
+export const TOOL_RUNTIME_SCHEDULER: unique symbol = Symbol.for('@taskweaver/dsh-tools.scheduler')
 
 /** Canonical error code for cancellation after a tool body was invoked. */
 export const TOOL_ABORTED = 'ABORTED'

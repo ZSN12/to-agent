@@ -54,7 +54,7 @@ export { defineContentToolFixture } from "./testing.js";
  * Scheduler entry point omitted from the generated named service API.
  * @internal
  */
-export const TOOL_RUNTIME_SCHEDULER = Symbol('@taskweaver/dsh-tools.scheduler');
+export const TOOL_RUNTIME_SCHEDULER = Symbol.for('@taskweaver/dsh-tools.scheduler');
 /** Canonical error code for cancellation after a tool body was invoked. */
 export const TOOL_ABORTED = 'ABORTED';
 /** Canonical error code for cancellation before a tool body was invoked. */

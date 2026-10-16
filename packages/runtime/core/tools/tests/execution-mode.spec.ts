@@ -6,6 +6,7 @@ import { CallId } from '@taskweaver/dsh-llm'
 import SystemPrompt from '@taskweaver/dsh-system-prompt'
 import ToolRuntime, {
   defineContentToolFixture,
+  TOOL_RUNTIME_SCHEDULER,
   type ToolDefinition,
   type ToolExecutionInput,
   type ToolExecutionMode,
@@ -25,6 +26,11 @@ function exec(name: string, args: unknown): ToolExecutionInput {
 }
 
 describe('ToolRuntime.executionMode', () => {
+  it('uses a process-stable symbol for the Agent Loop scheduler protocol', () => {
+    expect(Symbol.keyFor(TOOL_RUNTIME_SCHEDULER)).toBe('@taskweaver/dsh-tools.scheduler')
+    expect(TOOL_RUNTIME_SCHEDULER).toBe(Symbol.for('@taskweaver/dsh-tools.scheduler'))
+  })
+
   it('returns parallel only for an explicit true classifier', async () => {
     const ctx = await setup()
     ctx.tools.register(defineContentToolFixture({

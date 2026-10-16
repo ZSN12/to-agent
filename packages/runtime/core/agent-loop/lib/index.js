@@ -169,6 +169,8 @@ function parseArguments(raw) {
 async function runGroup(ctx, turn, step, group, mode, signal, acceptContext) {
 	const { session } = ctx.agents.requireInitiator();
 	const { maxParallelToolCalls } = ctx.agentLoop.config;
+	const scheduler = ctx.tools[TOOL_RUNTIME_SCHEDULER];
+	if (!scheduler || typeof scheduler.prepare !== "function" || typeof scheduler.dispatch !== "function" || typeof scheduler.finalize !== "function" || typeof scheduler.finish !== "function") throw new Error("ToolRuntime scheduler is unavailable; Agent Loop and Tool Runtime must use compatible @taskweaver/dsh-tools modules.");
 	const slots = group.map(() => void 0);
 	const callSeqs = group.map(() => -1);
 	let nextToStart = 0;
@@ -185,7 +187,7 @@ async function runGroup(ctx, turn, step, group, mode, signal, acceptContext) {
 			const slot = slots[committed];
 			if (slot === void 0) break;
 			const call = group[committed];
-			const result = slot.needsPost ? await ctx.tools[TOOL_RUNTIME_SCHEDULER].finalize(slot.exec, slot.result) : ctx.tools[TOOL_RUNTIME_SCHEDULER].finish(slot.exec, slot.result);
+			const result = slot.needsPost ? await scheduler.finalize(slot.exec, slot.result) : scheduler.finish(slot.exec, slot.result);
 			appendToolResult(session, turn, step, call.block, result, callSeqs[committed]);
 			for (const context of result.additionalContexts ?? []) acceptContext(context);
 			concluded ||= result.concludesTurn === true;
@@ -197,11 +199,11 @@ async function runGroup(ctx, turn, step, group, mode, signal, acceptContext) {
 		const call = group[index];
 		callSeqs[index] = appendToolCall(session, turn, step, call.block);
 		started++;
-		const prepared = await ctx.tools[TOOL_RUNTIME_SCHEDULER].prepare(call.exec);
+		const prepared = await scheduler.prepare(call.exec);
 		throwSchedulerFailure();
 		switch (prepared.kind) {
 			case "dispatch": {
-				const promise = ctx.tools[TOOL_RUNTIME_SCHEDULER].dispatch(prepared.exec).then((outcome) => {
+				const promise = scheduler.dispatch(prepared.exec).then((outcome) => {
 					slots[index] = {
 						exec: prepared.exec,
 						result: outcome.result,
