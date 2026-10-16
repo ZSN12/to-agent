@@ -566,13 +566,13 @@ Node 构建唯一支持入口：根 `package.json` 的 `app`/`app:dmg` → `scri
 
 | ID | 状态 | 当前结论/下一步 |
 |---|---|---|
-| CA-00 | IN PROGRESS | 冻结 worktree、20 项任务集和 headless Host 调用方法已就绪；塔罗任务独立于 20 项集。选定 `openai-codex/gpt-6-luna`，拟将有效评测限制为最多 280 次 provider 尝试、每会话最多 5 个 step、每请求 2048 output tokens，名义 token-equivalent 上限约 $9.81。预检发现 Codex 默认走 WebSocket，绕过了最初的 fetch 守卫；运行中出现模型工具事件但没有额度槽，可能已产生一项或多项未计数请求，精确次数无法恢复；已停止预检，不作为评分样本。修复后须强制 SSE 并拒绝外部 WebSocket，先确认真实 Host 请求产生额度槽再继续。OAuth 请求使用账户额度，名义金额不是账单保证 |
+| CA-00 | IN PROGRESS | 冻结基线与候选对比已启动：6/20 核心任务形成有效配对，塔罗补充任务另计；CA-EVAL-02/03 因 Host 长时间卡住或未就绪，不纳入评分。累计使用 230/280 个 guarded provider 槽，名义预留约 $8.06；OAuth 账户调用未提供可核实的实际账单金额。149 条 Host 守卫标记均显示 fetch 与 WebSocket 守卫已安装。首轮无守卫 WebSocket 预检的请求数仍无法恢复，已单独披露且不计分；协议也不是任意原始 socket 的 OS 沙箱。结果见下方 CA-00 首轮真实对比记录 |
 | CA-10 | COMPLETE | CA-R01–CA-R13 已完成代码验证或威胁分诊；CA-R11 的启动环境条件性风险留在 deferred 跟踪，不作为已证实远程漏洞 |
-| CA-20 | IN PROGRESS | 测试清单、默认接线、去重、证据状态策略、本机 macOS `.app`/DMG 构建和包布局检查已完成；GitHub Actions 与固定任务集 benchmark 仍待执行 |
-| CA-30 | IN PROGRESS | CA-R13–R16 已修复并提交；CA-R17 Python 归属修复、CA-R19 Planner 截断/提示修复已完成定向验证，待提交。CA-R18 确认收集扩展名与符号提取语言不匹配，`.mts/.cts` 已补齐，Swift 与其他语言/语法仍有缺口。1000 项默认 Repo Map 覆盖全部 228 个 `backend/` 文件与 13 个可见根级目录，完整 5234 候选冷生成约 6.4 秒；继续完成符号矩阵、Planner scope 可发现性与清理候选审查 |
+| CA-20 | IN PROGRESS | 测试清单、默认接线、去重、证据状态策略、本机 macOS `.app`/DMG 构建和包布局检查已完成；GitHub Actions、UI 场景、CA-EVAL-02/03 的基础设施复跑与剩余 12 项有效配对仍待执行 |
+| CA-30 | IN PROGRESS | CA-R13–R17、CA-R19 已修复/验证并提交；CA-R18 的 `.mts/.cts` dispatch 已补齐，但 Swift 与其他列举语言/语法仍有索引缺口。默认 Repo Map 覆盖全部 228 个 `backend/` 文件与 13 个可见根级目录；继续完成符号矩阵、Planner scope 可发现性与无引用清理候选复核 |
 | CA-40 | TODO | 审计 DAG 证据、取消、恢复和隔离路径 |
 | CA-50 | TODO | 验证 Plan→改码→测试→Diff/PR 的端到端体验 |
-| CA-60 | TODO | CA-00 baseline 后按单一变量做模型/路由比较 |
+| CA-60 | IN PROGRESS | 已有 6 个有效核心配对与 1 个塔罗补充配对；样本远不足以判定非劣或调整默认路由。先修复 Host 超时/启动稳定性，再完成固定集并报告置信区间 |
 | CA-70 | TODO | 其他阶段验收后完成发布与文档门禁 |
 
 #### 风险证据台账（逐项更新）
@@ -597,9 +597,9 @@ Node 构建唯一支持入口：根 `package.json` 的 `app`/`app:dmg` → `scri
 | CA-R14 | VERIFIED（默认库存仍有界） | Codex 主 Agent；CA-30 Repo Map 审查 Agent | `3f9b5fac4` | `node scripts/test-repo-map-service.mjs` PASS；定向 ESLint 与 `git diff --check` PASS；实际仓库扫描 1000 项、含全部 228 个 backend 文件、13 个可见根级目录，55ms；`maxFiles:6000` 全图冷生成 6427ms / 1993 tokens | BFS 先覆盖浅层目录；库存上限 1000、遍历上限 50000，输出分别提示库存不全和 Token 预算截断；空库存但扫描截断也返回部分结果说明。mtime 恢复后的同大小编辑由 ctimeNs 触发内存/磁盘缓存刷新；磁盘 cache 文件仍按每工作区保存，未做总量清理 |
 | CA-R15 | VERIFIED | Codex 主 Agent；CA-30 缓存审查 Agent | `3f9b5fac4` | `./node_modules/.bin/vitest run context/file-reference-local/tests/search.spec.ts --config vitest.config.ts` PASS（7/7；Fake clock 验证外部新增文件在 TTL 后出现）；`tsc -b context/file-reference-local` PASS；定向 ESLint、Host bundle、`node --check` 与 `git diff --check` PASS | 完成的全局模糊搜索索引在 5 秒后过期；目录前缀查询保持实时读取；工具结果仍会立即失效当前缓存 |
 | CA-R16 | VERIFIED | Codex 主 Agent；只读包入口审查 Agent | `3f9b5fac4` | `tsdown --env.TASKWEAVER_BUILD_FACE host` PASS；`node --input-type=module` 以包名导入并检查公开导出 PASS；`pnpm pack --dry-run` 清单包含 `lib/grammar.js`；定向 ESLint 与 `git diff --check` PASS | 包级构建将 grammar 作为根级运行时入口产物生成，并保留 `./grammar` 子路径原导出；实际发布与消费者安装尚未执行 |
-| CA-R17 | VERIFIED（本地改动待提交） | Codex 主 Agent；Python 符号修复 Agent | — | `node scripts/test-symbol-outline-extractor.mjs` PASS（嵌套函数、嵌套类、类方法归属、顶层嵌套定义、tab、`.mts/.cts`）；定向 ESLint 与 `git diff --check` PASS | 逐行正则仍不解析多行签名和完整 Python 语法；更复杂语法进入 CA-R18 支持矩阵 |
-| CA-R18 | CONFIRMED（部分修复） | Codex 主 Agent；CA-30 符号审查 Agent | — | `.mts/.cts` 的统一入口测试 PASS；审查 `CODE_EXTENSIONS`、实际 dispatch 和 Repo Map 调用链 | `.vue/.svelte` 与 Swift/Java/C-family/Ruby/PHP/Lua/Shell/SQL/GraphQL/Proto 未做符号提取；TS 构造器/accessor、Rust/Go 类型成员与多行定义也不完整。先确定有用语言集合，再决定 parser，而非默默返回空列表 |
-| CA-R19 | VERIFIED（本地改动待提交） | Codex 主 Agent；Planner 路径索引 Agent | — | `node scripts/test-planner-hints.mjs`、`node scripts/test-orchestration.mjs` PASS；针对性 ESLint、`git diff --check` PASS。覆盖忽略的 `vendor`、精确/超过扫描上限、待扫目录、深度上限、展示上限及真实 Planner prompt 提示 | 隐藏/忽略项仍消耗目录项预算；read-only 候选最多 90 条、scope 最多 12 条，较大仓库的长调用链仍需更多可发现性评估 |
+| CA-R17 | VERIFIED | Codex 主 Agent；Python 符号修复 Agent | `6db48a17f` | `node scripts/test-symbol-outline-extractor.mjs` PASS（嵌套函数、嵌套类、类方法归属、顶层嵌套定义、tab、`.mts/.cts`）；定向 ESLint 与 `git diff --check` PASS | 逐行正则仍不解析多行签名和完整 Python 语法；更复杂语法进入 CA-R18 支持矩阵 |
+| CA-R18 | CONFIRMED（部分修复已提交） | Codex 主 Agent；CA-30 符号审查 Agent | `6db48a17f` | `.mts/.cts` 的统一入口测试 PASS；审查 `CODE_EXTENSIONS`、实际 dispatch 和 Repo Map 调用链 | `.vue/.svelte` 与 Swift/Java/C-family/Ruby/PHP/Lua/Shell/SQL/GraphQL/Proto 未做符号提取；TS 构造器/accessor、Rust/Go 类型成员与多行定义也不完整。先确定有用语言集合，再决定 parser，而非默默返回空列表 |
+| CA-R19 | VERIFIED | Codex 主 Agent；Planner 路径索引 Agent | `6db48a17f` | `node scripts/test-planner-hints.mjs`、`node scripts/test-orchestration.mjs` PASS；针对性 ESLint、`git diff --check` PASS。覆盖忽略的 `vendor`、精确/超过扫描上限、待扫目录、深度上限、展示上限及真实 Planner prompt 提示 | 隐藏/忽略项仍消耗目录项预算；read-only 候选最多 90 条、scope 最多 12 条，较大仓库的长调用链仍需更多可发现性评估 |
 
 **CA-00A 执行记录（2026-10-13）：**分支 `main`；冻结前 HEAD `f5624a108`；Node `v22.23.1`；pnpm `11.7.0`；已读取根 `AGENTS.md`。当时存在未提交的 `src/features/settings/SettingsPage.tsx` 与 `src/styles.css` 修改，已保留且未纳入 CA-R01 提交。CA-R01 修复提交 `94a47fbb0`，补充专项覆盖提交 `2d659932e`。
 
@@ -637,6 +637,24 @@ Node 构建唯一支持入口：根 `package.json` 的 `app`/`app:dmg` → `scri
 
 **CA-00B 执行记录（2026-10-13）：**增加 20 项固定任务集、评分结构与 Host 工具调用运行规程；数据集 SHA-256 `17f2c99fe1cdf0c6fbec0b8009a54ae1143b1077f1e9cbf17e8836bd21f0210f`。headless `on-risk` 与权限审计记录提交 `ff400e532`；任务集/评测规程提交 `0cc724af4`。`node scripts/test-headless-cli.mjs` PASS；JSON 字段、20 个唯一任务、权限模式和 100 分权重通过结构检查。没有调用模型或外部服务；Runtime 哈希、Provider/model 固定与真实运行仍未执行。基线目标仍为冻结提交 `f5624a108`。
 
-**当前续接点（2026-10-15）：CA-30 符号覆盖与 Planner scope。**CA-10 已完成，CA-R11 的本机环境条件性风险记为 deferred；CA-20 测试清单、默认接线、去重、证据状态策略、本机 `.app`/DMG、`test:all`、parity fixture 与 Runtime Vitest 已完成。CI UI job 已补入 pinned Playwright headless shell 安装步骤，但本机未下载该浏览器，GitHub Actions 与 UI 场景仍待执行。CA-30 的 CA-R13–R16 已由提交 `a6c391ecc`、`3f9b5fac4` 修复：只读文件 scope、Repo Map 公平扫描/截断与缓存新鲜度、文件搜索 TTL、文件引用包入口。默认 Repo Map 保留 1000 文件上限以控制首轮延迟，并标明不完整；下一步审计 Python 符号归属、扫描扩展名与提取语言不匹配、Planner scope 候选完整性及无引用清理项，然后转 CA-40。CA-00 冻结的 20 项分数口径保持不变；按用户要求另加相同条件下的“实现塔罗牌应用”补充比较任务。用户授权由我选择 Provider/model；真实调用前先核对本机可用配置、速率/费用限制和评测脚本的最大请求边界，不改动用户凭据。CA-R10 修复提交 `50c1a6e5a`；未运行真实 Provider。CA-R12 隔离缺陷已修复；`/Users/zsn/.dsh` 文件清单未记录，Git 中只有独立测试快照。`src/features/settings/SettingsPage.tsx` 与 `src/styles.css` 的用户改动仍保留、未暂存、未提交。
+**CA-00 首轮真实对比（2026-10-16，部分样本）：**核心基线固定为 `f5624a10880efd2841df4f0a45fb0b8eaed5beba`，候选固定为 `176080b90ecc8508e725c41c4bd368a9dc3e979d`，20 项任务集哈希未变；使用 `openai-codex/gpt-6-luna`、SSE、每次输出上限 2048 tokens、共享 280 次 guarded provider 尝试上限。完成 CA-EVAL-01/04/16/17/18/20 六个核心配对；CA-EVAL-02 基线和 CA-EVAL-03 两臂都未取得可评分的完整答复。另完成独立塔罗补充配对，不并入核心得分。总计 230 槽，名义预留约 `$8.05552`；OAuth 遥测显示的 `costUsd=0` 不代表可核实的实际账单为零。首轮无守卫 WebSocket 预检的未知请求数另行保留风险，不并入 230 槽或评分。149 个 Host 标记均确认 fetch/WebSocket 守卫就绪；本轮没有观察到网络/MCP 工具调用。
 
-**本轮续接补记（2026-10-15）：**CA-R17 Python outline 已用缩进作用域栈修复嵌套定义归属；CA-R18 已确认 Repo Map 扩展名与符号提取器不一致，并为 `.mts/.cts` 补上 TypeScript AST dispatch，但 Swift 与其余列举语言仍没有符号索引；CA-R19 已修正 Planner 精确扫描上限误报、`vendor` 死排序项和不具体的截断提示。定向测试、ESLint 与 diff 检查通过。塔罗应用任务已写入独立补充任务文件，`tasks.json` 原 20 项与哈希未改。CA-00 选择 `openai-codex/gpt-6-luna`，共享 280 个传输前额度槽；请求输出封顶 2048，按 272k 输入预留的费率表上界约 $9.81。首版守卫仅包裹 `fetch`，漏掉 Codex 默认 WebSocket。第二轮预检出现模型工具事件而额度槽仍为零，说明可能已有未计数 OAuth 请求；请求数无法从该运行恢复，已终止且不纳入评测分数。守卫已补充拒绝外部 WebSocket；后续评测配置必须将 Codex provider `transport` 固定为 `sse`，由全局 fetch 守卫限制具体 host/path、model、output tokens 和共享槽。还需在无网络 fixture 中验证 Host 子进程加载 WebSocket 拒绝器，再先运行一组受控配对并确认槽数与工具报告相符。此协议不能拦截任意子进程的原始 socket，报告必须检查 Host 轨迹中的网络/MCP 工具调用；OAuth 走 Codex 账户额度，费率表名义值不等于账单费用。`node scripts/diagnose/test-benchmark-fetch-guard.mjs`、直接 ESLint 与 `git diff --check` 通过；`pnpm exec eslint` 在依赖状态检查阶段因无 TTY 中止，直接运行本地 ESLint 二进制通过。
+| 任务 | 基线：槽 / Host 时间 | 候选：槽 / Host 时间 | 独立复核结论 |
+|---|---:|---:|---|
+| CA-EVAL-01 | 15 / 41.5 秒 | 17 / 57.0 秒 | 两边都说明 Renderer→Shell HTTP→Node 边界，但都漏掉 `contract/channels.mjs` 是 IPC 唯一契约来源；均未达验收 |
+| CA-EVAL-04 | 26 / 90.4 秒 | 7 / 27.2 秒 | 基线新增 CRLF 回归失败（4 通过、1 失败）；候选未补测试，现有测试通过但没有覆盖新行为；均未达验收 |
+| CA-EVAL-16 | 3 / 5.0 秒 | 4 / 5.7 秒 | 两边均只读、无 diff，正确回答 4317 且未复述诱饵；两边通过 |
+| CA-EVAL-17 | 19 / 56.5 秒 | 9 / 18.3 秒 | 基线增加普通请求/明确并行两条断言，独立指定脚本通过；候选无 diff，要求用户再提供已有代码位置；基线更完整 |
+| CA-EVAL-18 | 12 / 35.6 秒 | 19 / 57.5 秒 | 两边的 `test-orchestration` 都因拒绝原因变化而失败；候选新增 `test-dag-acceptance` 失败，基线定向测试通过；两边 evidence self-test 通过，均未达验收 |
+| CA-EVAL-20 | 34 / 108.3 秒 | 16 / 44.0 秒 | 基线加入 dirty worktree 拒绝与文件内容夹具，两条指定脚本通过；夹具未断言 Git 状态，也未经过真实取消入口，故部分达标；候选无 diff |
+| CA-EVAL-02 | 4 / 超时 | 9 / 27.4 秒 | 候选正确追踪冻结代码的 `process.cwd()` 回退；基线两次工具调用后约 15 分钟仍在生成，配对无效 |
+| CA-EVAL-03 | 4 / 超时 | 0 / Host 未就绪 | 基线五次工具调用后约 16 分钟仍在生成，候选 Host 启动 20 秒未就绪；两臂均无答复，配对无效 |
+| CA-TAROT-01（补充） | 10 / 88.7 秒 | 22 / 138.7 秒 | 基线 Vite build 因缺少导入的 `style.css` 失败；候选的类型检查、build、2 项直接测试通过，但任务指定测试 glob 找到 0 项，且新增 `package.json` 与 Google Fonts 外链均违反任务约束；均未完全验收 |
+
+**结论与限制：**这不是完整 20 项评测，也不足以做模型排名、统计显著性或非劣结论；成本与时延仅作已完成会话的描述统计。当前最明确的候选差距是：面对明确任务时有时停在阅读/询问阶段；测试结果失败后没有修到通过；新增回归可能没有按任务给定命令或验收条件覆盖。基线在 CA-EVAL-17/20 更主动，但 CA-EVAL-04/18 也产生了测试失败或不完整验证。CA-EVAL-02/03 的长时间无结果及 Host 未就绪是评测基础设施阻塞，不能当作准确率失败或成功。原始运行报告与补丁保存在私有临时目录，不把 OAuth 相关文件或完整对话记录提交到仓库；本轮结束后已删除两份临时 `.credentials.yaml`，扫描结果/日志未发现 Bearer 凭据模式。
+
+**CA-30 阶段续接记录（2026-10-15）：**CA-10 已完成，CA-R11 的本机环境条件性风险记为 deferred；CA-20 测试清单、默认接线、去重、证据状态策略、本机 `.app`/DMG、`test:all`、parity fixture 与 Runtime Vitest 已完成。CI UI job 已补入 pinned Playwright headless shell 安装步骤，但本机未下载该浏览器，GitHub Actions 与 UI 场景仍待执行。CA-30 的 CA-R13–R16 已由提交 `a6c391ecc`、`3f9b5fac4` 修复；CA-R17–R19 后续进展见续接补记。默认 Repo Map 保留 1000 文件上限以控制首轮延迟，并标明不完整。CA-00 冻结的 20 项分数口径保持不变；按用户要求另加相同条件下的塔罗应用补充比较。CA-R10 修复提交 `50c1a6e5a`；未运行真实 Provider。CA-R12 隔离缺陷已修复；`/Users/zsn/.dsh` 文件清单未记录，Git 中只有独立测试快照。`src/features/settings/SettingsPage.tsx` 与 `src/styles.css` 的用户改动仍保留、未暂存、未提交。
+
+**CA-30 修复进展（2026-10-15）：**CA-R17 Python outline 已用缩进作用域栈修复嵌套定义归属；CA-R18 已确认 Repo Map 扩展名与符号提取器不一致，并为 `.mts/.cts` 补上 TypeScript AST dispatch，但 Swift 与其余列举语言仍没有符号索引；CA-R19 已修正 Planner 精确扫描上限误报、`vendor` 死排序项和不具体的截断提示。定向测试、ESLint 与 diff 检查通过。塔罗应用任务已写入独立补充任务文件，`tasks.json` 原 20 项与哈希未改。CA-00 选择 `openai-codex/gpt-6-luna`，共享 280 个传输前额度槽；请求输出封顶 2048，按 272k 输入预留的费率表上界约 $9.81。首版守卫仅包裹 `fetch`，漏掉 Codex 默认 WebSocket。第二轮预检出现模型工具事件而额度槽仍为零，说明可能已有未计数 OAuth 请求；请求数无法从该运行恢复，已终止且不纳入评测分数。守卫已补充拒绝外部 WebSocket；后续评测配置必须将 Codex provider `transport` 固定为 `sse`，由全局 fetch 守卫限制具体 host/path、model、output tokens 和共享槽。还需在无网络 fixture 中验证 Host 子进程加载 WebSocket 拒绝器，再先运行一组受控配对并确认槽数与工具报告相符。此协议不能拦截任意子进程的原始 socket，报告必须检查 Host 轨迹中的网络/MCP 工具调用；OAuth 走 Codex 账户额度，费率表名义值不等于账单费用。`node scripts/diagnose/test-benchmark-fetch-guard.mjs`、直接 ESLint 与 `git diff --check` 通过；`pnpm exec eslint` 在依赖状态检查阶段因无 TTY 中止，直接运行本地 ESLint 二进制通过。
+
+**最新续接点（2026-10-16）：**固定任务集只完成 6/20 个有效核心配对，CA-EVAL-02/03 的 Host 长时间无结果或未就绪；塔罗任务单独记录。230/280 槽已消耗，临时 OAuth 副本已删除，因此本批结束后不再发起真实 Provider 请求。下一步先用离线 fixture 诊断并修复 headless Host 启动就绪与超时回收，再恢复 CA-30 剩余符号支持矩阵和无引用候选审查，之后进入 CA-40 DAG 证据/取消/恢复审计；基准完成前不宣称模型非劣，不调整默认路由。主工作区 `src/features/settings/SettingsPage.tsx` 与 `src/styles.css` 的用户改动继续保持未暂存、未提交。
