@@ -50,6 +50,16 @@ const modelDoc = (name = 'Composer') => ({
       bridgeKind: 'cursor',
       models: [{ id: 'cursor/composer-2.5', name: 'Composer 2.5' }],
     },
+    'openai-codex': {
+      name: 'ChatGPT subscription',
+      models: [{
+        id: 'gpt-6-luna',
+        name: 'GPT-6 Luna',
+        api: 'openai-codex-responses',
+        contextWindow: 272_000,
+        maxTokens: 2_048,
+      }],
+    },
   },
 })
 
@@ -65,6 +75,14 @@ try {
   assert.equal(first.synced, true)
   assert.equal(first.restarted, false, 'provider settings apply without restarting the Host')
   assert.deepEqual(mutations.map(({ ns }) => ns).sort(), ['llm-pi-ai', 'llm-taskweaver-bridge'])
+  const piProfiles = mutations.find(({ ns }) => ns === 'llm-pi-ai').ops
+  const codexProfile = piProfiles.find(({ path: profilePath }) => profilePath[1] === 'openai-codex').value
+  assert.equal(Object.hasOwn(codexProfile, 'api'), false,
+    'native OAuth protocol must be inherited from the installed provider catalog')
+  assert.equal(codexProfile.models[0].id, 'gpt-6-luna')
+  assert.equal(codexProfile.models[0].contextWindow, 272_000)
+  assert.equal(Object.hasOwn(codexProfile, 'apiKeyEnv'), false,
+    'native OAuth profiles must not be converted into API-key routes during sync')
   assert.equal(credentialWrites.length, 1)
   const statePath = path.join(userDataPath, 'taskweaver', 'host-model-sync-state.json')
   const stateText = await fs.readFile(statePath, 'utf8')

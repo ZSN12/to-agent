@@ -5,3 +5,8 @@ export const TASKWEAVER_NATIVE_OAUTH = {
     instructions: '已在浏览器打开 OpenAI 授权页面，完成授权后将自动连接到 TaskWeaver。',
   },
 }
+
+/** Native OAuth catalog routes whose protocol must be inherited from pi-ai. */
+export const TASKWEAVER_NATIVE_OAUTH_APIS = Object.freeze({
+  'openai-codex': 'openai-codex-responses',
+})

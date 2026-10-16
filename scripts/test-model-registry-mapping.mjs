@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url'
 import { createProfileStore } from '../backend/profile-store.mjs'
 import { createModelService } from '../backend/model-service.mjs'
 import { createModelRegistryUpdater } from '../backend/model-registry-updater.mjs'
+import { ensureModelsJsonSyncedToDshHost } from '../backend/sync-models-json-to-host.mjs'
 import { createZHostManager, resolveTaskWeaverRuntimeRoot } from '../backend/agent/z-host/index.mjs'
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -53,6 +54,29 @@ const modelService = createModelService({
 try {
   await hostManager.start()
   await modelService.validateRegistryMapping(bundledRegistry)
+
+  const oauthRouteSync = await ensureModelsJsonSyncedToDshHost({
+    hostManager,
+    userDataPath: userData,
+    modelsDocOverride: {
+      providers: {
+        'openai-codex': {
+          name: 'ChatGPT subscription',
+          models: [{
+            id: 'gpt-6-luna',
+            name: 'GPT-6 Luna',
+            api: 'openai-codex-responses',
+            contextWindow: 272_000,
+            maxTokens: 2_048,
+          }],
+        },
+      },
+    },
+  })
+  assert.equal(oauthRouteSync.synced, true, 'native OAuth provider profiles must sync into the isolated Host')
+  const oauthConfig = await modelService.getDshModelConfig('openai-codex/gpt-6-luna')
+  assert.equal(oauthConfig.provider, 'openai-codex')
+  assert.equal(oauthConfig.id, 'gpt-6-luna', 'model API metadata must materialize the route in Host llm.models')
 
   const invalidProviderRegistry = {
     ...bundledRegistry,

@@ -2,6 +2,8 @@
  * Map pi `models.json` provider blocks to DSH `llm-pi-ai.providers.<id>` profiles.
  */
 
+import { TASKWEAVER_NATIVE_OAUTH, TASKWEAVER_NATIVE_OAUTH_APIS } from './model/constants.mjs'
+
 const DEFAULT_RETRYABLE_CODES = Object.freeze(['EMPTY_RESPONSE', 'RATE_LIMIT', 'SERVER', 'TIMEOUT', 'TRANSPORT'])
 const DEFAULT_MAX_PROVIDER_RETRIES = 2
 const MAX_PROVIDER_RETRIES = 3
@@ -91,10 +93,39 @@ export function piProviderBlockToDshProfile(providerId, block) {
   const models = Array.isArray(block.models)
     ? block.models.filter((m) => m && !m.isTierVariant).map(mapModelEntry).filter(Boolean)
     : []
+  const modelApis = new Set(
+    (Array.isArray(block.models) ? block.models : [])
+      .filter((model) => model && typeof model === 'object' && model.id && !model.isTierVariant)
+      .map((model) => typeof model.api === 'string' ? model.api.trim() : '')
+      .filter(Boolean),
+  )
+  const nativeOAuthApi = Object.hasOwn(TASKWEAVER_NATIVE_OAUTH_APIS, providerId)
+    ? TASKWEAVER_NATIVE_OAUTH_APIS[providerId]
+    : undefined
+  if (api && [...modelApis].some((modelApi) => modelApi !== api)) {
+    throw new Error(`提供方 ${providerId} 的模型 API 与提供方 API 冲突；当前 profile 不支持逐模型 API。`)
+  }
+  if (!api && modelApis.size > 1) {
+    throw new Error(`提供方 ${providerId} 包含多个模型 API；当前 profile 不支持逐模型 API。`)
+  }
+  if (nativeOAuthApi && ((api && api !== nativeOAuthApi)
+    || [...modelApis].some((modelApi) => modelApi !== nativeOAuthApi))) {
+    throw new Error(`提供方 ${providerId} 必须使用内置 OAuth 协议 ${nativeOAuthApi}。`)
+  }
+  // The generic profile schema intentionally excludes provider-specific OAuth
+  // protocols. Keep the built-in route intact; its installed model catalog
+  // supplies the protocol for models it has not learned by name yet.
+  const effectiveApi = nativeOAuthApi && (!api || api === nativeOAuthApi)
+    ? undefined
+    : api || [...modelApis][0]
 
   const profile = {
     displayName,
-    apiKeyEnv: taskweaverApiKeyEnvRef(providerId),
+    // OAuth-only routes must leave apiKeyEnv unset so pi-ai can use the
+    // provider-native credential store instead of failing on a missing ref.
+    ...(Object.hasOwn(TASKWEAVER_NATIVE_OAUTH, providerId)
+      ? {}
+      : { apiKeyEnv: taskweaverApiKeyEnvRef(providerId) }),
     // Match Z Runtime's pi-ai default so long reasoning turns are not cut off
     // by an application-only shorter timeout. Explicit per-provider timeouts
     // in models.json still win; pre-output timeouts can be retried safely.
@@ -106,7 +137,7 @@ export function piProviderBlockToDshProfile(providerId, block) {
     // to normal so a provider config cannot create an unbounded retry loop.
     retryPolicy: boundedProviderRetryPolicy(block.retryPolicy),
   }
-  if (api) profile.api = api
+  if (effectiveApi) profile.api = effectiveApi
   if (baseUrl) profile.baseURL = baseUrl.replace(/\/+$/, '')
   if (block.compat && typeof block.compat === 'object') {
     profile.compat = block.compat

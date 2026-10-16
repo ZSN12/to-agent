@@ -2,6 +2,8 @@
  * Parse `api: taskweaver-bridge` blocks from taskweaver/models.json.
  */
 
+import { TASKWEAVER_NATIVE_OAUTH } from './model/constants.mjs'
+
 export const TASKWEAVER_BRIDGE_API = 'taskweaver-bridge'
 
 export function isTaskWeaverBridgeProviderBlock(block) {
@@ -54,6 +56,7 @@ export function splitModelsDocProviders(modelsDoc) {
   for (const [id, block] of Object.entries(modelsDoc?.providers ?? {})) {
     if (!block || typeof block !== 'object') continue
     if (isTaskWeaverBridgeProviderBlock(block)) { bridgeIds.push(id); continue }
+    if (Object.hasOwn(TASKWEAVER_NATIVE_OAUTH, id)) { piAiIds.push(id); continue }
     if (id === 'opencodex' || id === 'custom-gateway' || id.startsWith('custom-')) { piAiIds.push(id); continue }
     if (typeof block.baseUrl === 'string' && block.baseUrl.trim()) piAiIds.push(id)
   }
