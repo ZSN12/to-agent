@@ -11,7 +11,6 @@ import {
   ShieldCheck,
   Sparkles,
   Sun,
-  X,
 } from 'lucide-react'
 import type { PermissionMode } from '../../shared/app-api'
 import type { ShortcutItem } from '../../shared/shortcuts'
@@ -87,12 +86,6 @@ export function SettingsPage({
       <div className="settings-nav-footer"><span>TaskWeaver · v0.1.0</span></div>
     </aside>
     <main className="settings-main" aria-label="设置内容" data-testid="settings-content">
-      <header className="settings-topbar">
-        <div className="settings-topbar-drag" />
-        <button className="settings-close-btn" onClick={onClose} aria-label="关闭设置" title="返回对话 (Esc)">
-          <X size={16} />
-        </button>
-      </header>
       <div className="settings-content" id="settings-content" key={section}>
         <Suspense fallback={<div className="settings-loading" role="status">正在加载设置…</div>}>
         {section === 'appearance' ? (
