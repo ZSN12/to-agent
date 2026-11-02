@@ -4,12 +4,14 @@ import {
   extractFileDiff,
   extractToolOutputText,
   normalizeToolResult,
+  redactToolOutput,
   summarizeShellCommand,
   summarizeShellCommandOutcome,
   summarizeToolInput,
   summarizeToolResult,
 } from '../tool-trace.mjs'
 import { recordTurnActivity } from '../turn-activity.mjs'
+import { mergeSubagentOutputs, subagentOutputsFromTasks } from '../orchestration/subagent-output.mjs'
 import {
   assistantTextStepKey,
   setAssistantStepText,
@@ -23,6 +25,69 @@ import {
   recordFileChange,
   resumeThinkingSegment,
 } from './prelude.mjs'
+
+function compactAuditText(value, maxLength = 360) {
+  return typeof value === 'string' ? value.replace(/\s+/g, ' ').trim().slice(0, maxLength) : ''
+}
+
+function getOrCreateStepBlock(turn, blockId, hostStep, kind, initialText = '') {
+  turn.stepBlocksMap ??= new Map()
+  let block = turn.stepBlocksMap.get(blockId)
+  if (!block) {
+    block = { id: blockId, step: hostStep, kind, text: initialText }
+    turn.stepBlocksMap.set(blockId, block)
+    turn.stepBlocks = [...turn.stepBlocksMap.values()]
+  }
+  return block
+}
+
+function summarizeBackendTaskAudit(tasks) {
+  const lines = []
+  let outputLength = 0
+  for (const [index, task] of tasks.slice(0, 50).entries()) {
+    const lastAgentMessage = Array.isArray(task?.messages)
+      ? [...task.messages].reverse().find((message) => message?.author === 'agent')
+      : null
+    const acceptance = task?.acceptanceAssessment ?? lastAgentMessage?.acceptanceAssessment ?? null
+    const evidence = task?.executionEvidenceSummary ?? lastAgentMessage?.executionEvidenceSummary ?? null
+    const verification = task?.verification ?? lastAgentMessage?.verification ?? null
+    if (!acceptance && !evidence && !verification) continue
+
+    const id = compactAuditText(task?.id, 64) || `task-${index + 1}`
+    const title = compactAuditText(task?.title ?? task?.id, 180) || `子任务 ${index + 1}`
+    const status = compactAuditText(task?.statusLabel ?? task?.status ?? task?.runStatus, 64) || '状态未知'
+    const acceptanceItems = Array.isArray(acceptance?.items) ? acceptance.items : []
+    const passedItems = acceptanceItems.filter((item) => item?.passed === true).length
+    const acceptanceLabel = !acceptance
+      ? '无结构化验收记录'
+      : acceptance.required === 0
+        ? '无验收点'
+        : `${acceptance.passed === true ? '通过' : '未通过'}${Number.isFinite(acceptance.required) ? ` ${passedItems}/${acceptance.required}` : ''}${acceptance.reason ? `（${compactAuditText(acceptance.reason, 160)}）` : ''}`
+    const addLine = (line) => {
+      if (outputLength >= 5_500) return false
+      lines.push(line)
+      outputLength += line.length + 1
+      return true
+    }
+    addLine(`- ${id} ${title}｜任务状态：${status}｜后端验收记录：${acceptanceLabel}`)
+
+    for (const item of acceptanceItems.slice(0, 6)) {
+      const verdict = item?.passed === true ? '通过' : item?.passed === false ? '未通过' : '未确认'
+      const criterion = compactAuditText(item?.criterion, 220)
+      const basis = compactAuditText(item?.evidence, 260)
+      if (criterion) addLine(`  - ${verdict}：${criterion}${basis ? `；记录依据：${basis}` : ''}`)
+    }
+    const evidenceLabel = compactAuditText(evidence?.label, 240)
+    if (evidenceLabel) addLine(`  - ${evidence?.source === 'z-host-tool-events' ? 'Host 工具证据' : '工具证据摘要'}：${evidenceLabel}`)
+    if (typeof verification?.status === 'string') {
+      const command = compactAuditText(verification.command, 180)
+      addLine(`  - 验证状态：${compactAuditText(verification.status, 48)}${command ? `；命令：${command}` : ''}${Number.isInteger(verification.exitCode) ? `；退出码：${verification.exitCode}` : ''}`)
+    }
+    if (outputLength >= 5_500) break
+  }
+  if (lines.length === 0) return ''
+  return `【TaskWeaver 后端保存的子任务核验记录】\n${lines.join('\n')}`.slice(0, 5_700)
+}
 
 /** Mux envelope dispatch (session events + top-level frame types). */
 export function createHandleEnvelope(deps) {
@@ -83,8 +148,9 @@ export function createHandleEnvelope(deps) {
       const sessionKey = sessionMatch?.[0]
       const conversationId = sessionMatch?.[1]?.ownerConversationId || sessionKey
       const id = `dsh-approval-${frame.sessionId}-${frame.approvalId}`
+      const turn = running.get(sessionKey)
       const permissionMode = normalizePermissionMode(
-        conversationId ? await Promise.resolve(getPermissionMode(conversationId)) : 'ask',
+        turn?.permissionMode ?? (conversationId ? await Promise.resolve(getPermissionMode(conversationId)) : 'ask'),
       )
       if (!conversationId) {
         const registered = registerPendingApproval(id, {
@@ -97,7 +163,6 @@ export function createHandleEnvelope(deps) {
         await settleApproval(id, { action: 'deny' })
         return
       }
-      const turn = running.get(sessionKey)
       emitPermission(
         turn?.eventConversationId ?? conversationId,
         turn?.webContents,
@@ -173,6 +238,7 @@ export function createHandleEnvelope(deps) {
             signal: abortController.signal,
           })
           const tasks = Array.isArray(outcome?.tasks) ? outcome.tasks : []
+          const subagentOutputs = subagentOutputsFromTasks(tasks, outcome?.runId)
           const taskStatuses = tasks.slice(0, 50).map((task, index) => ({
             id: String(task?.id ?? `task-${index + 1}`).slice(0, 128),
             title: String(task?.title ?? task?.id ?? `子任务 ${index + 1}`).slice(0, 500),
@@ -184,7 +250,15 @@ export function createHandleEnvelope(deps) {
             .map((change) => typeof change?.path === 'string' ? change.path.trim() : '')
             .filter(Boolean))]
             .slice(0, 200)
+          const assistantSummary = String(outcome?.assistant?.text || 'DAG 执行已结束。')
+          const backendAudit = summarizeBackendTaskAudit(tasks)
+          const summary = backendAudit
+            ? `${assistantSummary.slice(0, 14_000)}\n\n${backendAudit}`.slice(0, 20_000)
+            : assistantSummary.slice(0, 20_000)
           turn.multiAgentTaskCount += tasks.length
+          if (subagentOutputs.length > 0) {
+            turn.subagentOutputs = mergeSubagentOutputs(turn.subagentOutputs, subagentOutputs)
+          }
           await api.respond({
             type: 'client-response',
             rpcId,
@@ -192,7 +266,7 @@ export function createHandleEnvelope(deps) {
               ok: true,
               value: {
                 sessionId: frame.sessionId,
-                summary: String(outcome?.assistant?.text || 'DAG 执行已结束。').slice(0, 20_000),
+                summary,
                 runId: typeof outcome?.runId === 'string' ? outcome.runId : null,
                 taskCount: tasks.length,
                 failedTaskCount: Array.isArray(outcome?.failedTaskIds) ? outcome.failedTaskIds.length : 0,
@@ -293,6 +367,7 @@ export function createHandleEnvelope(deps) {
       turn.currentTextStepKey = null
       turn.currentStep = 1
       turn.stepBlocks = []
+      turn.stepBlocksMap = new Map()
       turn.thinking = ''
       turn.thinkingStartedAt = null
       turn.thinkingEndedAt = null
@@ -371,13 +446,8 @@ export function createHandleEnvelope(deps) {
           emit(emitTarget, turn.webContents, { type: 'planner_phase', phase: 'text' })
         }
 
-        turn.stepBlocks ??= []
         const textBlockId = `step-${hostStep}-text`
-        let textBlock = turn.stepBlocks.find((b) => b.id === textBlockId)
-        if (!textBlock) {
-          textBlock = { id: textBlockId, step: hostStep, kind: 'text', text: '' }
-          turn.stepBlocks.push(textBlock)
-        }
+        const textBlock = getOrCreateStepBlock(turn, textBlockId, hostStep, 'text')
         textBlock.text += chunk.text
 
         // Keep the incremental chat stream as the authoritative live-text path.
@@ -405,13 +475,8 @@ export function createHandleEnvelope(deps) {
         turn.thinking += chunk.text
         const thinkingDurationMs = activeThinkingDurationMs(turn, now)
 
-        turn.stepBlocks ??= []
         const thinkBlockId = `step-${hostStep}-thinking`
-        let thinkBlock = turn.stepBlocks.find((b) => b.id === thinkBlockId)
-        if (!thinkBlock) {
-          thinkBlock = { id: thinkBlockId, step: hostStep, kind: 'thinking', text: '' }
-          turn.stepBlocks.push(thinkBlock)
-        }
+        const thinkBlock = getOrCreateStepBlock(turn, thinkBlockId, hostStep, 'thinking')
         thinkBlock.text += chunk.text
 
         if (!turn.silentText) {
@@ -442,15 +507,9 @@ export function createHandleEnvelope(deps) {
             emit(emitTarget, turn.webContents, { type: 'planner_phase', phase: 'text' })
           }
 
-          turn.stepBlocks ??= []
           const textBlockId = `step-${hostStep}-text`
-          let textBlock = turn.stepBlocks.find((b) => b.id === textBlockId)
-          if (!textBlock) {
-            textBlock = { id: textBlockId, step: hostStep, kind: 'text', text: finalText }
-            turn.stepBlocks.push(textBlock)
-          } else {
-            textBlock.text = finalText
-          }
+          const textBlock = getOrCreateStepBlock(turn, textBlockId, hostStep, 'text', finalText)
+          textBlock.text = finalText
 
           // Some adapters expose no token chunks (sourceEventSeqs: []). Their
           // assembled assistant/message is still available before turn/end, so
@@ -600,7 +659,20 @@ export function createHandleEnvelope(deps) {
           })
         }
         if (fileDiff) recordFileChange(turn, fileDiff)
-        recordTurnActivity(turn.turnActivity, call.toolName, call.input, fileDiff, result.isError)
+        const inputSummary = summarizeToolInput(call.toolName, call.input)
+        const resultSummary = summarizeToolResult(result, result.isError, { maxChars: turn.toolOutputMaxChars })
+        const durationMs = Math.max(0, (event.time || Date.now()) - call.startedAt)
+        recordTurnActivity(turn.turnActivity, call.toolName, call.input, fileDiff, result.isError, {
+          id: callId,
+          inputSummary,
+          resultSummary,
+          ...(commandSummary ? { commandSummary } : {}),
+          ...(commandOutcome ? { commandOutcome } : {}),
+          ...(commandSummary && outputText ? { commandOutputTail: redactToolOutput(outputText).slice(-1_200) } : {}),
+          ...(fileDiff?.diff ? { fileDiff } : {}),
+          ...(outputRef?.outputId ? { outputId: outputRef.outputId } : {}),
+          durationMs,
+        })
         emit(emitTarget, turn.webContents, {
           type: 'tool',
           id: callId,
@@ -608,12 +680,12 @@ export function createHandleEnvelope(deps) {
           ...(call.step !== undefined ? { step: call.step } : {}),
           toolName: call.toolName,
           status: result.isError ? 'error' : 'done',
-          inputSummary: summarizeToolInput(call.toolName, call.input),
+          inputSummary,
           ...(commandSummary ? { commandSummary } : {}),
           ...(commandOutcome ? { commandOutcome } : {}),
-          resultSummary: summarizeToolResult(result, result.isError, { maxChars: turn.toolOutputMaxChars }),
+          resultSummary,
           ...(outputRef ? { outputId: outputRef.outputId, outputTruncated: outputRef.truncated } : {}),
-          durationMs: Math.max(0, (event.time || Date.now()) - call.startedAt),
+          durationMs,
           fileDiff,
           ...(turn.taskId ? { taskId: turn.taskId } : {}),
         })
@@ -685,7 +757,20 @@ export function createHandleEnvelope(deps) {
           : null
         const fileDiff = extractFileDiff(toolName, input, result)
         if (fileDiff) recordFileChange(turn, fileDiff)
-        recordTurnActivity(turn.turnActivity, toolName, input, fileDiff, result.isError)
+        const inputSummary = summarizeToolInput(toolName, input)
+        const resultSummary = summarizeToolResult(result, result.isError, { maxChars: turn.toolOutputMaxChars })
+        const durationMs = Math.max(0, (event.time || Date.now()) - call.startedAt)
+        recordTurnActivity(turn.turnActivity, toolName, input, fileDiff, result.isError, {
+          id: callId,
+          inputSummary,
+          resultSummary,
+          ...(commandSummary ? { commandSummary } : {}),
+          ...(commandOutcome ? { commandOutcome } : {}),
+          ...(commandSummary && outputText ? { commandOutputTail: redactToolOutput(outputText).slice(-1_200) } : {}),
+          ...(fileDiff?.diff ? { fileDiff } : {}),
+          ...(outputRef?.outputId ? { outputId: outputRef.outputId } : {}),
+          durationMs,
+        })
         emit(emitTarget, turn.webContents, {
           type: 'tool',
           id: callId,
@@ -694,12 +779,12 @@ export function createHandleEnvelope(deps) {
           ...(Number.isInteger(data.step) ? { step: data.step } : call.step !== undefined ? { step: call.step } : {}),
           toolName,
           status: result.isError ? 'error' : 'done',
-          inputSummary: summarizeToolInput(toolName, input),
+          inputSummary,
           ...(commandSummary ? { commandSummary } : {}),
           ...(commandOutcome ? { commandOutcome } : {}),
-          resultSummary: summarizeToolResult(result, result.isError, { maxChars: turn.toolOutputMaxChars }),
+          resultSummary,
           ...(outputRef ? { outputId: outputRef.outputId, outputTruncated: outputRef.truncated } : {}),
-          durationMs: Math.max(0, (event.time || Date.now()) - call.startedAt),
+          durationMs,
           fileDiff,
           ...(turn.taskId ? { taskId: turn.taskId } : {}),
         })

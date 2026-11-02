@@ -1,4 +1,4 @@
-import { ArrowUpRight, ChevronRight, FileText, Search, Terminal, Pencil, Code2 } from 'lucide-react'
+import { ArrowUpRight, ChevronRight, FileText, Search, Terminal, Pencil, Code2, CheckCircle2, PanelRightOpen } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   buildDshToolCallTree,
@@ -47,6 +47,74 @@ function fileName(path: string): string {
   return path.replace(/\\/g, '/').split('/').filter(Boolean).at(-1) ?? path
 }
 
+function isTreeNodeFullySuccessful(node: DshToolCallTreeNode): boolean {
+  if (node.row.status !== 'done') return false
+  for (const child of node.children) {
+    if (!isTreeNodeFullySuccessful(child)) return false
+  }
+  return true
+}
+
+function countTreeNodeCalls(node: DshToolCallTreeNode): number {
+  let count = 1
+  for (const child of node.children) {
+    count += countTreeNodeCalls(child)
+  }
+  return count
+}
+
+const TOOL_BATCH_PRESENTATION: Record<string, {
+  singular: string
+  plural?: (count: number) => string
+  running: string
+  failed: string
+  countEditedPaths?: boolean
+}> = {
+  edit: { singular: '编辑了文件', plural: (count) => `编辑了 ${count} 个文件`, running: '正在编辑文件', failed: '文件修改失败', countEditedPaths: true },
+  write: { singular: '写入了文件', plural: (count) => `写入了 ${count} 个文件`, running: '正在编辑文件', failed: '文件修改失败', countEditedPaths: true },
+  bash: { singular: '运行了命令', plural: (count) => `运行了 ${count} 条命令`, running: '正在运行命令', failed: '命令执行失败' },
+  read: { singular: '查看了文件', plural: (count) => `查看了 ${count} 个文件`, running: '正在读取文件', failed: '文件读取失败' },
+  search: { singular: '搜索了内容', plural: (count) => `搜索了 ${count} 次`, running: '正在搜索', failed: '工具执行失败' },
+  code: { singular: '运行了代码', plural: (count) => `运行了 ${count} 段代码`, running: '正在执行代码', failed: '工具执行失败' },
+}
+
+const RESULT_IMAGE_CACHE_LIMIT = 12
+
+function getCachedResultImageRequest(
+  cache: Map<string, Promise<CodeOutputImage | null>>,
+  key: string,
+): Promise<CodeOutputImage | null> | undefined {
+  const request = cache.get(key)
+  if (!request) return undefined
+  cache.delete(key)
+  cache.set(key, request)
+  return request
+}
+
+function cacheResultImageRequest(
+  cache: Map<string, Promise<CodeOutputImage | null>>,
+  key: string,
+  request: Promise<CodeOutputImage | null>,
+): void {
+  cache.delete(key)
+  cache.set(key, request)
+  while (cache.size > RESULT_IMAGE_CACHE_LIMIT) {
+    const oldestKey = cache.keys().next().value
+    if (oldestKey === undefined) break
+    cache.delete(oldestKey)
+  }
+}
+
+function forgetFailedResultImageRequest(
+  cache: Map<string, Promise<CodeOutputImage | null>>,
+  key: string,
+  request: Promise<CodeOutputImage | null>,
+): void {
+  void request.then((image) => {
+    if (image === null && cache.get(key) === request) cache.delete(key)
+  })
+}
+
 function summarizeToolBatch(
   calls: readonly DshProjectedToolCall[],
   nodesById: ReadonlyMap<string, DshToolCallTreeNode>,
@@ -61,38 +129,26 @@ function summarizeToolBatch(
     else countsForVariant.done += 1
     counts.set(variant, countsForVariant)
     const path = nodesById.get(call.callId)?.trace.fileDiff?.path
-    if ((variant === 'edit' || variant === 'write') && path) editedPaths.add(path)
+    if (TOOL_BATCH_PRESENTATION[variant]?.countEditedPaths && path) editedPaths.add(path)
   }
 
   const labels: string[] = []
-  const addLabel = (variant: string, singular: string, plural?: (count: number) => string) => {
+  const addLabel = (variant: string, presentation: (typeof TOOL_BATCH_PRESENTATION)[string]) => {
     const value = counts.get(variant)
     if (!value) return
     if (value.done > 0) {
-      const count = variant === 'edit' || variant === 'write'
+      const count = presentation.countEditedPaths
         ? Math.max(value.done, editedPaths.size)
         : value.done
-      labels.push(plural && count > 1 ? plural(count) : singular)
+      labels.push(presentation.plural && count > 1 ? presentation.plural(count) : presentation.singular)
     }
-    if (value.running > 0) {
-      labels.push(variant === 'bash' ? '正在运行命令'
-        : variant === 'edit' || variant === 'write' ? '正在编辑文件'
-          : variant === 'read' ? '正在读取文件'
-            : variant === 'search' ? '正在搜索' : '正在执行代码')
-    }
-    if (value.failed > 0 && value.done === 0 && value.running === 0) {
-      labels.push(variant === 'bash' ? '命令执行失败'
-        : variant === 'edit' || variant === 'write' ? '文件修改失败'
-          : variant === 'read' ? '文件读取失败' : '工具执行失败')
-    }
+    if (value.running > 0) labels.push(presentation.running)
+    if (value.failed > 0 && value.done === 0 && value.running === 0) labels.push(presentation.failed)
   }
 
-  addLabel('edit', '编辑了文件', (count) => `编辑了 ${count} 个文件`)
-  addLabel('write', '写入了文件', (count) => `写入了 ${count} 个文件`)
-  addLabel('bash', '运行了命令', (count) => `运行了 ${count} 条命令`)
-  addLabel('read', '查看了文件', (count) => `查看了 ${count} 个文件`)
-  addLabel('search', '搜索了内容', (count) => `搜索了 ${count} 次`)
-  addLabel('code', '运行了代码', (count) => `运行了 ${count} 段代码`)
+  for (const [variant, presentation] of Object.entries(TOOL_BATCH_PRESENTATION)) {
+    addLabel(variant, presentation)
+  }
   const otherCount = counts.get('others')
   if (otherCount) labels.push(otherCount.running > 0 ? '正在调用工具' : '调用了工具')
   return labels.join(' · ') || `${calls.length} 个工具调用`
@@ -132,6 +188,10 @@ export function DshToolCallList({
   const [resultImages, setResultImages] = useState<CodeOutputImage[]>([])
   const [resultImagesLoading, setResultImagesLoading] = useState(false)
   const resultImageCache = useRef(new Map<string, Promise<CodeOutputImage | null>>())
+  useEffect(() => {
+    resultImageCache.current.clear()
+    return () => resultImageCache.current.clear()
+  }, [conversationId])
   const batchExpandedOverride = uiState.batchExpandedOverride
 
   const tree = useMemo(() => buildDshToolCallTree(rows, traces), [rows, traces])
@@ -175,7 +235,7 @@ export function DshToolCallList({
     setResultImagesLoading(true)
     const pending = attachmentIds.map((attachmentId) => {
       const cacheKey = `${conversationId}\n${attachmentId}`
-      const cached = resultImageCache.current.get(cacheKey)
+      const cached = getCachedResultImageRequest(resultImageCache.current, cacheKey)
       if (cached) return cached
       const request = (async (): Promise<CodeOutputImage | null> => {
         const load = window.taskweaver?.chat.getResultAttachment
@@ -196,7 +256,8 @@ export function DshToolCallList({
           return null
         }
       })()
-      resultImageCache.current.set(cacheKey, request)
+      cacheResultImageRequest(resultImageCache.current, cacheKey, request)
+      forgetFailedResultImageRequest(resultImageCache.current, cacheKey, request)
       return request
     })
     void Promise.all(pending).then((images) => {
@@ -213,6 +274,13 @@ export function DshToolCallList({
 
   const runningCall = [...calls].reverse().find((row) => row.status === 'running')
   const batchExpanded = isDshToolCallBatchExpanded(batchExpandedOverride)
+  const singleCall = calls.length === 1 ? calls[0] : null
+  const singleCallPresentation = singleCall
+    ? dshToolRowPresentation(singleCall.toolName, singleCall.argsRaw, workspacePath, singleCall.status)
+    : null
+  const SingleCallIcon = singleCallPresentation ? rowIcon(singleCallPresentation.variant) : null
+  const singleCallOpen = Boolean(singleCall && openId === singleCall.callId)
+  const detailsExpanded = singleCall ? singleCallOpen : batchExpanded
   const errorCount = calls.filter((row) => row.status === 'error').length
   const stoppedCount = calls.filter((row) => row.status === 'stopped').length
   const failedCount = errorCount + stoppedCount
@@ -220,7 +288,35 @@ export function DshToolCallList({
     ? dshToolRowPresentation(runningCall.toolName, runningCall.argsRaw, workspacePath, 'running')
     : null
 
-  const renderNode = (node: ReturnType<typeof buildDshToolCallTree>[number], depth = 0) => {
+  const showAllHistory = Boolean(uiState.showAllHistory)
+
+  const { activeOrRecentNodes, earlyCallCount } = useMemo(() => {
+    if (calls.length <= 15) {
+      return { activeOrRecentNodes: tree, earlyCallCount: 0 }
+    }
+    const visibleNodes: DshToolCallTreeNode[] = []
+    let earlyCount = 0
+    const recentThreshold = Math.max(0, tree.length - 5)
+
+    for (let i = 0; i < tree.length; i++) {
+      const node = tree[i]
+      const isRecent = i >= recentThreshold
+      const isSuccess = isTreeNodeFullySuccessful(node)
+
+      if (!isRecent && isSuccess) {
+        earlyCount += countTreeNodeCalls(node)
+      } else {
+        visibleNodes.push(node)
+      }
+    }
+
+    return {
+      activeOrRecentNodes: visibleNodes,
+      earlyCallCount: earlyCount,
+    }
+  }, [calls.length, tree])
+
+  const renderNode = (node: ReturnType<typeof buildDshToolCallTree>[number], depth = 0, omitSummary = false) => {
     const { row, trace: sourceTrace } = node
     const isRunning = row.status === 'running'
     const isOrchestration = row.toolName === 'orchestrate'
@@ -246,48 +342,71 @@ export function DshToolCallList({
     }
 
     return (
-      <div key={row.callId} className={`dsh-tool-call-list-item${depth === 0 ? ' is-root' : ' is-nested'}`}>
-        <button
-          type="button"
-          className={`dsh-tool-summary-row ${isRunning ? 'is-running' : ''} ${open ? 'is-open' : ''}`}
-          onClick={() => updateUiState((current) => ({
-            ...current,
-            openId: current.openId === row.callId ? null : row.callId,
-          }))}
-          aria-expanded={open}
-        >
-          <span className="dsh-tool-summary-leading">
-            {row.status === 'error' || row.status === 'stopped' ? (
-              <DshStateDot state={dotState(row.status)} size={10} />
-            ) : (
-              <Icon size={14} aria-hidden className="dsh-tool-summary-icon" />
+      <div key={row.callId} className={`dsh-tool-call-list-item${depth === 0 ? ' is-root' : ' is-nested'}${open ? ' is-open' : ''}${isShell ? ' is-shell-call' : ''}`}>
+        {!omitSummary && (
+          <button
+            type="button"
+            className={`dsh-tool-summary-row ${isRunning ? 'is-running' : ''} ${open ? 'is-open' : ''}`}
+            onClick={() => updateUiState((current) => ({
+              ...current,
+              openId: current.openId === row.callId ? null : row.callId,
+            }))}
+            aria-expanded={open}
+          >
+            <span className="dsh-tool-summary-leading">
+              {row.status === 'error' || row.status === 'stopped' ? (
+                <DshStateDot state={dotState(row.status)} size={10} />
+              ) : (
+                <Icon size={14} aria-hidden className="dsh-tool-summary-icon" />
+              )}
+            </span>
+            <span className="dsh-tool-summary-title">{title}</span>
+            {failure ? (
+              <>
+                <span className="dsh-tool-summary-sep" aria-hidden />
+                <span className="dsh-tool-summary-text dsh-tool-summary-failure" title={failure}>{failure}</span>
+              </>
+            ) : !isShell && summary ? (
+              <>
+                <span className="dsh-tool-summary-sep" aria-hidden />
+                <span className="dsh-tool-summary-text" title={filePath ?? summary}>{summary}</span>
+              </>
+            ) : null}
+            {!failure && fileDiff && (
+              <span className="dsh-tool-diff-counts" aria-label={`新增 ${fileDiff.addedLines ?? 0} 行，删除 ${fileDiff.deletedLines ?? 0} 行`}>
+                {typeof fileDiff.addedLines === 'number' && <span className="dsh-tool-diff-added">+{fileDiff.addedLines}</span>}
+                {typeof fileDiff.deletedLines === 'number' && <span className="dsh-tool-diff-deleted">−{fileDiff.deletedLines}</span>}
+              </span>
             )}
-          </span>
-          <span className="dsh-tool-summary-title">{title}</span>
-          {failure ? (
-            <>
-              <span className="dsh-tool-summary-sep" aria-hidden />
-              <span className="dsh-tool-summary-text dsh-tool-summary-failure" title={failure}>{failure}</span>
-            </>
-          ) : !isShell && summary ? (
-            <>
-              <span className="dsh-tool-summary-sep" aria-hidden />
-              <span className="dsh-tool-summary-text" title={filePath ?? summary}>{summary}</span>
-            </>
-          ) : null}
-          {!failure && fileDiff && (
-            <span className="dsh-tool-diff-counts" aria-label={`新增 ${fileDiff.addedLines ?? 0} 行，删除 ${fileDiff.deletedLines ?? 0} 行`}>
-              {typeof fileDiff.addedLines === 'number' && <span className="dsh-tool-diff-added">+{fileDiff.addedLines}</span>}
-              {typeof fileDiff.deletedLines === 'number' && <span className="dsh-tool-diff-deleted">−{fileDiff.deletedLines}</span>}
-            </span>
-          )}
-          {typeof row.durationMs === 'number' && row.durationMs > 0 && !isRunning && (
-            <span className="dsh-tool-summary-duration">
-              {formatToolDuration(row.durationMs)}
-            </span>
-          )}
-          <ChevronRight size={14} className={`dsh-tool-summary-chevron ${open ? 'expanded' : ''}`} aria-hidden />
-        </button>
+            {typeof row.durationMs === 'number' && row.durationMs > 0 && !isRunning && (
+              <span className="dsh-tool-summary-duration">
+                {formatToolDuration(row.durationMs)}
+              </span>
+            )}
+            {onShowToolDetails && (
+              <span
+                role="button"
+                tabIndex={0}
+                className="dsh-tool-summary-action-btn"
+                title="在工作台详情中查看"
+                aria-label="在工作台详情中查看"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onShowToolDetails(detailTrace)
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.stopPropagation()
+                    onShowToolDetails(detailTrace)
+                  }
+                }}
+              >
+                <PanelRightOpen size={13} aria-hidden />
+              </span>
+            )}
+            <ChevronRight size={14} className={`dsh-tool-summary-chevron ${open ? 'expanded' : ''}`} aria-hidden />
+          </button>
+        )}
         {isOrchestration && (
           <div className="dsh-orchestration-tool-action">
             {isRunning && (
@@ -324,54 +443,116 @@ export function DshToolCallList({
     )
   }
 
-  // 单工具调用场景：直接平铺内联渲染该工具单行，杜绝多余的「工具调用 1」外层黑框
-  if (calls.length === 1 && tree.length === 1 && tree[0].children.length === 0) {
-    return (
-      <div className="tool-trace-compact dsh-tool-call-list dsh-tool-call-single">
-        {renderNode(tree[0], 0)}
-      </div>
-    )
-  }
-
-  // 多工具调用场景：计算语义化工具摘要（如 "read, bash" 或 "read · 2 个文件"）
+  // Keep one-call and multi-call output in the same compact layout. Calls arrive
+  // incrementally, so rendering a detail row for the first call makes it jump
+  // into a collapsed batch as soon as the second call arrives.
   const batchSummary = summarizeToolBatch(calls, nodesById)
+  const singleCallFailure = singleCall
+    ? failureHint(singleCall.status, singleCall.resultPreview)
+    : null
+  const singleCallIsShell = singleCallPresentation?.variant === 'bash'
 
   return (
-    <div className={`tool-trace-compact dsh-tool-call-list dsh-tool-call-batch${batchExpanded ? ' is-expanded' : ''}`}>
+    <div className={`tool-trace-compact dsh-tool-call-list dsh-tool-call-batch${batchExpanded || singleCallOpen ? ' is-expanded' : ''}`}>
       <button
         type="button"
         className={`dsh-tool-batch-toggle${runningCall ? ' is-running' : ''}${failedCount > 0 && !runningCall ? ' has-errors' : ''}`}
-        aria-expanded={batchExpanded}
-        aria-label={`${batchExpanded ? '收起' : '展开'} ${calls.length} 个工具调用${failedCount ? `，${failedCount} 个未成功` : ''}`}
-        onClick={() => updateUiState((current) => ({
-          ...current,
-          batchExpandedOverride: !isDshToolCallBatchExpanded(current.batchExpandedOverride),
-        }))}
+        aria-expanded={detailsExpanded}
+        aria-label={`${detailsExpanded ? '收起' : '展开'} ${calls.length} 个工具调用${failedCount ? `，${failedCount} 个未成功` : ''}`}
+        onClick={() => updateUiState((current) => singleCall
+          ? { ...current, openId: current.openId === singleCall.callId ? null : singleCall.callId }
+          : { ...current, batchExpandedOverride: !isDshToolCallBatchExpanded(current.batchExpandedOverride) })}
       >
         <span className="dsh-tool-batch-leading">
           {runningCall ? (
             <DshStateDot state="ongoing" size={10} />
+          ) : singleCall && (singleCall.status === 'error' || singleCall.status === 'stopped') ? (
+            <DshStateDot state={dotState(singleCall.status)} size={10} />
+          ) : SingleCallIcon ? (
+            <SingleCallIcon size={14} aria-hidden className="dsh-tool-summary-icon" />
           ) : (
             <Terminal size={13} aria-hidden className="dsh-tool-batch-icon" />
           )}
         </span>
         <span className="dsh-tool-batch-title">
-          <span className="dsh-tool-batch-label">{batchSummary}</span>
+          <span className="dsh-tool-batch-label">
+            {singleCallPresentation?.title ?? batchSummary}
+          </span>
         </span>
-        {runningCall && runningPresentation?.summary && classifyDshTool(runningCall.toolName) !== 'bash' && (
-          <span className="dsh-tool-batch-inline-summary" title={runningPresentation.summary}>{runningPresentation.summary}</span>
+        {singleCallFailure ? (
+          <span className="dsh-tool-batch-meta" title={singleCallFailure}>{singleCallFailure}</span>
+        ) : singleCall && !singleCallIsShell && singleCallPresentation?.summary ? (
+          <span className="dsh-tool-batch-inline-summary" title={singleCallPresentation.summary}>
+            {singleCallPresentation.summary}
+          </span>
+        ) : runningCall && runningPresentation?.summary && classifyDshTool(runningCall.toolName) !== 'bash' ? (
+          <span className="dsh-tool-batch-inline-summary" title={runningPresentation.summary}>
+            {runningPresentation.summary}
+          </span>
+        ) : null}
+        {singleCall && typeof singleCall.durationMs === 'number' && singleCall.durationMs > 0 && singleCall.status !== 'running' && (
+          <span className="dsh-tool-summary-duration">{formatToolDuration(singleCall.durationMs)}</span>
         )}
-        {failedCount > 0 && !runningCall && (
+        {!singleCall && failedCount > 0 && !runningCall && (
           <span className="dsh-tool-batch-meta">
             <DshStateDot state={errorCount > 0 ? 'error' : 'warning'} size={6} />
             {failedCount} 项异常
           </span>
         )}
-        <ChevronRight size={13} aria-hidden className={`dsh-tool-batch-chevron${batchExpanded ? ' expanded' : ''}`} />
+        <ChevronRight size={13} aria-hidden className={`dsh-tool-batch-chevron${detailsExpanded ? ' expanded' : ''}`} />
       </button>
-      {batchExpanded && (
+      {singleCall?.toolName === 'orchestrate' && !singleCallOpen && (
+        <div className="dsh-orchestration-tool-action">
+          {singleCall.status === 'running' && (
+            <span className="dsh-orchestration-tool-progress" role="status">
+              <DshStateDot state="ongoing" size={7} />
+              {dagTaskCount > 0 ? `DAG 执行中 · ${dagTaskCount} 个任务` : '正在规划任务 DAG'}
+            </span>
+          )}
+          <button type="button" onClick={onOpenDagPanel} disabled={!onOpenDagPanel}>
+            查看任务图 <ArrowUpRight size={13} aria-hidden="true" />
+          </button>
+        </div>
+      )}
+      {singleCallOpen && (
         <div className="dsh-tool-call-batch-body">
-          {tree.map((node) => renderNode(node))}
+          {tree.map((node) => renderNode(node, 0, true))}
+        </div>
+      )}
+      {!singleCall && batchExpanded && (
+        <div className="dsh-tool-call-batch-body">
+          {earlyCallCount > 0 && !showAllHistory && (
+            <div className="dsh-tool-history-strip">
+              <button
+                type="button"
+                className="dsh-tool-history-toggle"
+                onClick={() => updateUiState((current) => ({ ...current, showAllHistory: true }))}
+                title="展开早期成功的工具调用"
+              >
+                <CheckCircle2 size={13} className="dsh-tool-history-icon" />
+                <span className="dsh-tool-history-text">
+                  已成功执行 {earlyCallCount} 项工具调用，点击展开
+                </span>
+                <span className="dsh-tool-history-btn-label">展开全部</span>
+              </button>
+            </div>
+          )}
+          {earlyCallCount > 0 && showAllHistory && (
+            <div className="dsh-tool-history-strip is-expanded">
+              <div className="dsh-tool-history-info">
+                <CheckCircle2 size={13} className="dsh-tool-history-icon" />
+                <span>已展开全部工具调用（共 {calls.length} 项，其中 {earlyCallCount} 项早期已完成）</span>
+              </div>
+              <button
+                type="button"
+                className="dsh-tool-history-action-btn"
+                onClick={() => updateUiState((current) => ({ ...current, showAllHistory: false }))}
+              >
+                折叠历史
+              </button>
+            </div>
+          )}
+          {(showAllHistory || earlyCallCount === 0 ? tree : activeOrRecentNodes).map((node) => renderNode(node))}
         </div>
       )}
     </div>

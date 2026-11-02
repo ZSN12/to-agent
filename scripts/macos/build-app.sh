@@ -31,6 +31,12 @@ if [ "${CREATE_ZIP}" != "0" ] && [ "${CREATE_ZIP}" != "1" ]; then
     exit 1
 fi
 
+CREATE_DMG="${TASKWEAVER_CREATE_DMG:-1}"
+if [ "${CREATE_DMG}" != "0" ] && [ "${CREATE_DMG}" != "1" ]; then
+    echo "❌ TASKWEAVER_CREATE_DMG must be 0 or 1." >&2
+    exit 1
+fi
+
 BUILD_STAMP="$(date +%Y%m%d%H%M%S)-$$"
 PACKAGE_STAGE_ROOT=""
 if [ -n "${TASKWEAVER_STAGE_DIR:-}" ]; then
@@ -157,9 +163,19 @@ chmod +x "${HELPERS_DIR}/TaskWeaverKeychain"
 
 # Copy Info.plist
 cp "${ROOT_DIR}/apps/macos/TaskWeaver/Info.plist" "${CONTENTS_DIR}/Info.plist"
+APP_VERSION="$(node -p 'require(process.argv[1]).version' "${ROOT_DIR}/package.json")"
+# Bundle versions must be up to three period-separated integers; drop any
+# semver pre-release or build suffix (1.3.0-beta.1 → 1.3.0).
+BUNDLE_VERSION="${APP_VERSION%%[-+]*}"
+if [[ ! "${BUNDLE_VERSION}" =~ ^[0-9]+(\.[0-9]+){0,2}$ ]]; then
+  echo "package.json version '${APP_VERSION}' cannot be used as a macOS bundle version" >&2
+  exit 1
+fi
 /usr/libexec/PlistBuddy -c 'Set :CFBundleExecutable TaskWeaver' "${CONTENTS_DIR}/Info.plist"
 /usr/libexec/PlistBuddy -c 'Set :CFBundleIdentifier com.taskweaver.desktop' "${CONTENTS_DIR}/Info.plist"
 /usr/libexec/PlistBuddy -c 'Set :CFBundleName TaskWeaver' "${CONTENTS_DIR}/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${BUNDLE_VERSION}" "${CONTENTS_DIR}/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${BUNDLE_VERSION}" "${CONTENTS_DIR}/Info.plist"
 /usr/libexec/PlistBuddy -c 'Set :LSMinimumSystemVersion 14.4' "${CONTENTS_DIR}/Info.plist"
 /usr/libexec/PlistBuddy -c 'Add :CFBundleIconFile string AppIcon.icns' "${CONTENTS_DIR}/Info.plist"
 plutil -lint "${CONTENTS_DIR}/Info.plist"
@@ -174,6 +190,7 @@ cp -R "${STAGE_BACKEND}/app/." "${APP_RESOURCES_DIR}/"
 cp -R "${STAGE_BACKEND}/runtime" "${BACKEND_RESOURCES_DIR}/runtime"
 cp -R "${NODE_DIR}/." "${RESOURCES_DIR}/host-node/"
 cp -R "${ROOT_DIR}/dist/." "${APP_RESOURCES_DIR}/dist/"
+cp "${ROOT_DIR}/scripts/run-scheduled-job-cli.mjs" "${RESOURCES_DIR}/taskweaver-scheduled-runner.mjs"
 
 # OpenCodex launches as a separate CLI process and needs a real Bun executable.
 # The `bun` npm package normalizes its platform binary to bun.exe on every host.
@@ -202,7 +219,9 @@ fi
 
 if [ ! -f "${APP_RESOURCES_DIR}/backend/shell/run.mjs" ] \
     || [ ! -f "${APP_RESOURCES_DIR}/dist/index.html" ] \
+    || [ ! -f "${RESOURCES_DIR}/taskweaver-scheduled-runner.mjs" ] \
     || [ ! -x "${RESOURCES_DIR}/host-node/bin/node" ] \
+    || [ ! -f "${RESOURCES_DIR}/taskweaver-scheduled-runner.mjs" ] \
     || [ ! -x "${RESOURCES_DIR}/opencodex-runtime/bun" ] \
     || [ ! -x "${HELPERS_DIR}/TaskWeaverKeychain" ] \
     || [ ! -f "${BACKEND_RESOURCES_DIR}/runtime/lib/entry.js" ]; then
@@ -224,11 +243,15 @@ if [ "${CREATE_ZIP}" = "1" ]; then
     ditto -c -k --keepParent "${APP_BUNDLE}" "${ZIP_PATH}"
 fi
 
-echo "📦 Creating DMG volume: ${DMG_PATH}..."
-hdiutil create -volname "TaskWeaver" -srcfolder "${APP_BUNDLE}" -format UDZO "${DMG_PATH}" >/dev/null
+if [ "${CREATE_DMG}" = "1" ]; then
+    echo "📦 Creating DMG volume: ${DMG_PATH}..."
+    hdiutil create -ov -volname "TaskWeaver" -srcfolder "${APP_BUNDLE}" -format UDZO "${DMG_PATH}" >/dev/null
+    DMG_SIZE=$(du -sh "${DMG_PATH}" | cut -f1)
+else
+    DMG_SIZE="skipped"
+fi
 
 APP_SIZE=$(du -sh "${APP_BUNDLE}" | cut -f1)
-DMG_SIZE=$(du -sh "${DMG_PATH}" | cut -f1)
 if [ "${CREATE_ZIP}" = "1" ]; then ZIP_SIZE=$(du -sh "${ZIP_PATH}" | cut -f1); fi
 
 echo ""

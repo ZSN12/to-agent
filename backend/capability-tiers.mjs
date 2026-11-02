@@ -11,7 +11,6 @@ const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 
 const DEFAULT_BUNDLED_SNAPSHOT_PATH = path.join(PROJECT_ROOT, 'pricing', 'capability-tiers.json')
 const DEFAULT_ALIASES_PATH = path.join(PROJECT_ROOT, 'pricing', 'model-aliases.json')
 const DEFAULT_SNAPSHOT_URL = 'https://raw.githubusercontent.com/ZSN12/to-agent/main/pricing/capability-tiers.json'
-const TIER_RANK = Object.freeze({ weak: 0, medium: 1, strong: 2 })
 
 function isRecord(value) {
   return Boolean(value && typeof value === 'object' && !Array.isArray(value))

@@ -86,9 +86,13 @@ let PluginInventoryGateway = (() => {
                     continue;
                 entries.push({
                     entryId: pluginEntryId(entry.id),
-                    moduleName: entry.options.name,
+                    // Loader accepts expression-valued names for generated configs; when
+                    // no literal module specifier exists, keep the stable entry identity.
+                    moduleName: typeof entry.options.name === 'string' ? entry.options.name : entry.id,
                     enabled: !entry.disabled,
-                    fiberPhase: entry.fiber === undefined ? null : FIBER_PHASE[entry.fiber.state],
+                    fiberPhase: entry.fiber === undefined || typeof entry.fiber.state !== 'number'
+                        ? null
+                        : FIBER_PHASE[entry.fiber.state],
                 });
             }
             return { entries };

@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 460" width="100%" height="100%">
+  <defs>
+    <linearGradient id="gradBar1" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#94a3b8"/>
+      <stop offset="100%" stop-color="#64748b"/>
+    </linearGradient>
+    <linearGradient id="gradBar2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#0284c7"/>
+    </linearGradient>
+    <linearGradient id="gradBar3" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#d97706"/>
+    </linearGradient>
+    <filter id="shadow" x="-5%" y="-5%" width="110%" height="110%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-opacity="0.15"/>
+    </filter>
+  </defs>
+
+  <!-- 背景框 -->
+  <rect width="900" height="460" rx="16" fill="#0f172a" stroke="#1e293b" stroke-width="2"/>
+
+  <!-- 标题与副标题 -->
+  <text x="40" y="50" font-family="system-ui, sans-serif" font-size="22" font-weight="700" fill="#f8fafc">任务完成成功率与执行耗时对比 (E2E Benchmark)</text>
+  <text x="40" y="76" font-family="system-ui, sans-serif" font-size="13" fill="#94a3b8">基于 5 类不同难度工程任务、各执行 5 轮抽样评测的标准统计结果</text>
+
+  <!-- 左图：成功率对比 -->
+  <g transform="translate(60, 110)">
+    <text x="130" y="25" font-family="system-ui, sans-serif" font-size="16" font-weight="600" fill="#e2e8f0" text-anchor="middle">任务完成率 (%)</text>
+    <line x1="30" y1="260" x2="270" y2="260" stroke="#334155" stroke-width="2"/>
+
+    <!-- Bar 1: Single Agent -->
+    <rect x="50" y="145.6" width="50" height="114.4" rx="6" fill="url(#gradBar1)" filter="url(#shadow)"/>
+    <text x="75" y="135.6" font-family="system-ui, sans-serif" font-size="13" font-weight="700" fill="#cbd5e1" text-anchor="middle">52%</text>
+    <text x="75" y="285" font-family="system-ui, sans-serif" font-size="12" fill="#94a3b8" text-anchor="middle">单 Agent</text>
+
+    <!-- Bar 2: Multi Agent Static -->
+    <rect x="125" y="145.6" width="50" height="114.4" rx="6" fill="url(#gradBar2)" filter="url(#shadow)"/>
+    <text x="150" y="135.6" font-family="system-ui, sans-serif" font-size="13" font-weight="700" fill="#38bdf8" text-anchor="middle">52%</text>
+    <text x="150" y="285" font-family="system-ui, sans-serif" font-size="12" fill="#94a3b8" text-anchor="middle">多 Agent 无路由</text>
+
+    <!-- Bar 3: TaskWeaver -->
+    <rect x="200" y="128" width="50" height="132" rx="6" fill="url(#gradBar3)" filter="url(#shadow)"/>
+    <text x="225" y="118" font-family="system-ui, sans-serif" font-size="14" font-weight="800" fill="#fbbf24" text-anchor="middle">60%</text>
+    <text x="225" y="285" font-family="system-ui, sans-serif" font-size="12" font-weight="600" fill="#fbbf24" text-anchor="middle">TaskWeaver</text>
+  </g>
+
+  <!-- 右图：平均耗时对比 -->
+  <g transform="translate(500, 110)">
+    <text x="150" y="25" font-family="system-ui, sans-serif" font-size="16" font-weight="600" fill="#e2e8f0" text-anchor="middle">端到端平均完成耗时 (秒)</text>
+    <line x1="30" y1="260" x2="310" y2="260" stroke="#334155" stroke-width="2"/>
+
+    <!-- Bar 1: Single Agent -->
+    <rect x="60" y="19.039999999999992" width="55" height="240.96" rx="6" fill="url(#gradBar1)" filter="url(#shadow)"/>
+    <text x="87" y="9.039999999999992" font-family="system-ui, sans-serif" font-size="13" font-weight="700" fill="#cbd5e1" text-anchor="middle">75.3s</text>
+    <text x="87" y="285" font-family="system-ui, sans-serif" font-size="12" fill="#94a3b8" text-anchor="middle">单 Agent</text>
+
+    <!-- Bar 2: Multi Agent Static -->
+    <rect x="145" y="154.72" width="55" height="105.28" rx="6" fill="url(#gradBar2)" filter="url(#shadow)"/>
+    <text x="172" y="144.72" font-family="system-ui, sans-serif" font-size="13" font-weight="700" fill="#38bdf8" text-anchor="middle">32.9s</text>
+    <text x="172" y="285" font-family="system-ui, sans-serif" font-size="12" fill="#94a3b8" text-anchor="middle">多 Agent 无路由</text>
+
+    <!-- Bar 3: TaskWeaver -->
+    <rect x="230" y="190.56" width="55" height="69.44" rx="6" fill="url(#gradBar3)" filter="url(#shadow)"/>
+    <text x="257" y="180.56" font-family="system-ui, sans-serif" font-size="14" font-weight="800" fill="#fbbf24" text-anchor="middle">21.7s</text>
+    <text x="257" y="285" font-family="system-ui, sans-serif" font-size="12" font-weight="600" fill="#fbbf24" text-anchor="middle">TaskWeaver</text>
+  </g>
+
+  <!-- 底部说明标签 -->
+  <text x="450" y="425" font-family="system-ui, sans-serif" font-size="12" fill="#64748b" text-anchor="middle">图 5-1 单 Agent 与 TaskWeaver 多智能体协同在执行成功率与端到端延迟维度的定量对比</text>
+</svg>

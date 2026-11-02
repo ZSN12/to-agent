@@ -1,19 +1,20 @@
 /**
- * TaskWeaver in-process bridge transport (Cursor backend for Node smoke / Host).
+ * TaskWeaver in-process provider bridge transports for Node smoke / Host.
  */
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { createRequire } from 'node:module'
-import { spawn } from 'node:child_process'
 import { existsSync, statSync, appendFileSync } from 'node:fs'
 import {
   createCursorTranslatorBudget as createPackageCursorTranslatorBudget,
   loadCreateCursorAdapter,
 } from './cursor-adapter-loader.mjs'
-import { loadCreateGoogleAdapter } from './google-adapter-loader.mjs'
+import { loadCreateGoogleAdapter, resolveAntigravityModelRoute } from './google-adapter-loader.mjs'
 import { createOAuthTokenCache, isUnauthorizedError } from './oauth-token-cache.mjs'
+import { runOAuthTokenHelper } from './oauth-token-helper-process.mjs'
 
 const oauthTokenCache = createOAuthTokenCache()
+const ANTIGRAVITY_BASE_URL = 'https://daily-cloudcode-pa.googleapis.com'
 
 function traceTokenHelper(ms, provider) {
   if (process.env.TASKWEAVER_STARTUP_TRACE !== '1') return
@@ -54,38 +55,67 @@ function isUiVerifyMockMode(env = process.env) {
     && env.TASKWEAVER_PACKAGED !== 'true'
 }
 
-function latestUserText(context) {
-  const messages = context?.options?.messages ?? []
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const message = messages[index]
-    if (message?.role !== 'user') continue
-    if (typeof message.content === 'string') return message.content
-    if (Array.isArray(message.content)) {
-      return message.content
-        .filter((block) => block?.type === 'text' && typeof block.text === 'string')
-        .map((block) => block.text)
-        .join('')
-    }
+export function isUiVerifyApprovalFixture(context, env = process.env) {
+  if (!isUiVerifyMockMode(env) || env.TASKWEAVER_UI_VERIFY_SCENARIO !== 'approval') return false
+  const messages = context?.options?.messages ?? context?.messages
+  if (!Array.isArray(messages)) return false
+  const hasExactFixtureMessage = (value) => {
+    if (typeof value === 'string') return value.includes(UI_VERIFY_APPROVAL_FIXTURE)
+    if (Array.isArray(value)) return value.some(hasExactFixtureMessage)
+    if (!value || typeof value !== 'object') return false
+    if (value.type === 'text' && typeof value.text === 'string' && value.text.includes(UI_VERIFY_APPROVAL_FIXTURE)) return true
+    return Object.values(value).some(hasExactFixtureMessage)
   }
-  return ''
+  return messages.some((message) => message?.role === 'user' && hasExactFixtureMessage(message.content))
 }
 
-export function isUiVerifyApprovalFixture(context, env = process.env) {
-  return isUiVerifyMockMode(env)
-    && latestUserText(context) === UI_VERIFY_APPROVAL_FIXTURE
+function uiVerifyApprovalPhase(context) {
+  const messages = context?.options?.messages ?? context?.messages
+  let initialAttemptDenied = false
+  let escalatedAttemptFinished = false
+  const visit = (value) => {
+    if (Array.isArray(value)) {
+      for (const item of value) visit(item)
+      return
+    }
+    if (!value || typeof value !== 'object') return
+    if (value.toolCallId === 'ui-verify-approval-retry' || value.callId === 'ui-verify-approval-retry') {
+      escalatedAttemptFinished = true
+    }
+    if (value.toolCallId === 'ui-verify-approval-initial' || value.callId === 'ui-verify-approval-initial') {
+      initialAttemptDenied = true
+    }
+    for (const nested of Object.values(value)) visit(nested)
+  }
+  visit(messages)
+  return escalatedAttemptFinished ? 'complete' : initialAttemptDenied ? 'retry' : 'initial'
 }
 
 function uiVerifyMockStream() {
   return {
     kind: 'cursor',
     async *stream(context) {
-      if (isUiVerifyApprovalFixture(context)) {
-        const id = 'ui-verify-approval-call'
+      const approvalFixture = isUiVerifyApprovalFixture(context)
+      const phase = approvalFixture ? uiVerifyApprovalPhase(context) : 'complete'
+      if (approvalFixture && phase !== 'complete') {
+        const retry = phase === 'retry'
+        const target = process.env.TASKWEAVER_UI_VERIFY_APPROVAL_TARGET
+        if (!target || !path.isAbsolute(target)) {
+          throw bridgeError('UI_VERIFY_APPROVAL_TARGET_MISSING', 'UI approval fixture target is unavailable')
+        }
+        const quotedTarget = `'${target.replaceAll("'", "'\\''")}'`
+        const id = retry ? 'ui-verify-approval-retry' : 'ui-verify-approval-initial'
         const name = 'bash'
         const args = JSON.stringify({
-          command: 'printf UI_VERIFY_APPROVAL_OK',
-          description: 'Print the UI approval fixture marker',
+          command: `printf UI_VERIFY_APPROVAL_OK > ${quotedTarget}`,
+          description: retry
+            ? 'Retry the isolated UI approval marker after sandbox denial'
+            : 'Trigger the isolated UI approval fixture outside the workspace',
           timeoutMs: 5_000,
+          ...(retry ? {
+            sandbox_permissions: 'danger-full-access',
+            justification: 'UI verification writes one temporary marker beside its isolated workspace.',
+          } : {}),
         })
         yield { type: 'block-start', index: 0, blockType: 'tool-call' }
         yield { type: 'tool-call-delta', index: 0, id, name, argumentsDelta: args }
@@ -95,8 +125,9 @@ function uiVerifyMockStream() {
         return
       }
       yield { type: 'block-start', index: 0, blockType: 'text' }
-      yield { type: 'text-delta', index: 0, text: UI_VERIFY_MOCK_REPLY }
-      yield { type: 'block-end', index: 0, block: { type: 'text', text: UI_VERIFY_MOCK_REPLY } }
+      const text = approvalFixture ? 'UI_VERIFY_APPROVAL_OK' : UI_VERIFY_MOCK_REPLY
+      yield { type: 'text-delta', index: 0, text }
+      yield { type: 'block-end', index: 0, block: { type: 'text', text } }
       yield { type: 'usage', usage: { inputTokens: 1, outputTokens: 3, totalTokens: 4 } }
       yield { type: 'finish', reason: { kind: 'stop' } }
     },
@@ -164,14 +195,20 @@ export function resolveRuntimeRootOverride(env = process.env) {
   return canonical || fallback
 }
 
-function resolveBunBinary() {
+export function resolveBunBinary(env = process.env, provider = 'cursor') {
   const openCodexRoot = resolveOpenCodexRoot()
   const binaryNames = ['bun.exe', 'bun']
   const candidates = [
-    process.env.OPENCODEX_BUN_PATH?.trim(),
-    process.env.OCX_BUN_RUNTIME_PATH?.trim(),
+    env.OPENCODEX_BUN_PATH?.trim(),
+    env.OCX_BUN_RUNTIME_PATH?.trim(),
   ].filter(Boolean)
-  const runtimeRoot = resolveRuntimeRootOverride()
+  const resourcesPath = env.TASKWEAVER_RESOURCES_PATH?.trim()
+  if (resourcesPath) {
+    for (const name of binaryNames) {
+      candidates.push(path.join(resourcesPath, 'opencodex-runtime', name))
+    }
+  }
+  const runtimeRoot = resolveRuntimeRootOverride(env)
   if (runtimeRoot) {
     for (const name of binaryNames) {
       candidates.push(path.join(runtimeRoot, 'runtime-packages', 'bun', 'bin', name))
@@ -188,6 +225,12 @@ function resolveBunBinary() {
 
   const binary = candidates.find(isRealBunBinary)
   if (binary) return binary
+  if (provider === 'google-antigravity') {
+    throw bridgeError(
+      'BRIDGE_ANTIGRAVITY_OAUTH_RUNTIME_MISSING',
+      'Google Antigravity OAuth token helper requires the bundled OpenCodex Bun runtime.',
+    )
+  }
   throw bridgeError(
     'BRIDGE_CURSOR_BUN_RUNTIME_MISSING',
     'Cursor OAuth bridge requires the OpenCodex bundled Bun runtime.',
@@ -197,105 +240,144 @@ function resolveBunBinary() {
 function openCodexOAuthTokenProgram(provider) {
   const oauthModule = path.join(resolveOpenCodexRoot(), 'src', 'oauth', 'index.ts')
   const moduleUrl = pathToFileURL(oauthModule).href
+  const oauthStoreModule = path.join(resolveOpenCodexRoot(), 'src', 'oauth', 'store.ts')
+  const oauthStoreModuleUrl = pathToFileURL(oauthStoreModule).href
   return [
     "const {writeSync}=await import('node:fs')",
     'try {',
     `  const {getValidAccessToken}=await import(${JSON.stringify(moduleUrl)})`,
+    ...(provider === 'google-antigravity' ? [
+      `  const {getAccountSet}=await import(${JSON.stringify(oauthStoreModuleUrl)})`,
+      `  const getSelection=()=>{const set=getAccountSet(${JSON.stringify(provider)});return set?{accountId:set.activeAccountId,revision:set.selectionRevision??null}:null}`,
+      '  const selectionBefore=getSelection()',
+      "  if(!selectionBefore?.accountId)throw new Error('missing-account-selection')",
+    ] : []),
     `  const token=await getValidAccessToken(${JSON.stringify(provider)})`,
     "  if(typeof token!=='string'||!token)throw new Error('empty-token')",
+    ...(provider === 'google-antigravity' ? [
+      `  const accountSet=getAccountSet(${JSON.stringify(provider)})`,
+      '  const selectionAfter=accountSet?{accountId:accountSet.activeAccountId,revision:accountSet.selectionRevision??null}:null',
+      "  if(!selectionAfter||selectionBefore.accountId!==selectionAfter.accountId||selectionBefore.revision!==selectionAfter.revision){const error=new Error('active account changed during token lookup');error.name='OAuthAccountChangedError';throw error}",
+      '  const account=accountSet?.accounts?.find(row=>row.id===accountSet.activeAccountId)',
+      '  const projectId=typeof account?.credential?.projectId===\'string\'?account.credential.projectId.trim():\'\'',
+    ] : ['  const projectId=undefined']),
     "  const parts=token.split('.')",
     "  let expiresAtMs=null",
     "  if(parts.length===3&&parts[1]){try{const p=JSON.parse(Buffer.from(parts[1],'base64url').toString('utf8'));const exp=Number(p?.exp);if(Number.isFinite(exp)&&exp>0)expiresAtMs=exp<1e12?exp*1000:exp}catch{}}",
-    "  writeSync(3,Buffer.from('T:'+JSON.stringify({accessToken:token,expiresAtMs})))",
+    "  writeSync(3,Buffer.from('T:'+JSON.stringify({accessToken:token,expiresAtMs,projectId})))",
     '} catch (error) {',
-    "  const kind=error?.name==='OAuthLoginRequiredError'?'missing':error?.name==='OAuthAccountPausedError'?'paused':'unavailable'",
+    "  const kind=error?.name==='OAuthAccountChangedError'?'account-changed':error?.name==='OAuthLoginRequiredError'?'missing':error?.name==='OAuthAccountPausedError'?'paused':'unavailable'",
     "  writeSync(3,Buffer.from('E:'+kind))",
     '  process.exitCode=2',
     '}',
   ].join('\n')
 }
 
-function acquireOpenCodexAccessTokenUncached(provider, signal) {
-  const startAt = process.hrtime.bigint()
-  const bun = resolveBunBinary()
-  const source = openCodexOAuthTokenProgram(provider)
-  return new Promise((resolve, reject) => {
-    if (signal?.aborted) {
-      reject(signal.reason ?? bridgeError('BRIDGE_CURSOR_STREAM_ERROR', 'Cursor OAuth request was aborted.'))
-      return
+/** Provider-specific entrypoints keep OAuth account selection scoped to one provider. */
+export function buildCursorOAuthTokenProgram() {
+  return openCodexOAuthTokenProgram('cursor')
+}
+
+export function buildGoogleAntigravityOAuthTokenProgram() {
+  return openCodexOAuthTokenProgram('google-antigravity')
+}
+
+const OAUTH_HELPER_ENV_NAMES = [
+  'HOME', 'USERPROFILE', 'USER', 'LOGNAME', 'PATH', 'TMPDIR', 'TMP', 'TEMP',
+  'LANG', 'LC_ALL', 'LC_CTYPE', 'TZ',
+  'HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'NO_PROXY',
+  'http_proxy', 'https_proxy', 'all_proxy', 'no_proxy',
+  'SSL_CERT_FILE', 'SSL_CERT_DIR', 'CURL_CA_BUNDLE', 'NODE_EXTRA_CA_CERTS',
+  'OPENCODEX_HOME', 'OPENCODEX_BUN_PATH', 'OCX_BUN_RUNTIME_PATH',
+  'TASKWEAVER_OPENCODEX_ROOT', 'TASKWEAVER_RESOURCES_PATH', 'TASKWEAVER_RUNTIME',
+]
+
+/** Keep token helpers' environment small and scope Google client secrets to Google only. */
+export function buildProviderOAuthHelperEnvironment(provider, env = process.env, providerSecrets = {}) {
+  if (provider !== 'cursor' && provider !== 'google-antigravity') {
+    throw new TypeError(`Unsupported OAuth helper provider: ${provider}`)
+  }
+  const childEnv = {}
+  for (const name of OAUTH_HELPER_ENV_NAMES) {
+    const value = env[name]
+    if (typeof value === 'string' && value.length > 0) childEnv[name] = value
+  }
+  if (provider === 'google-antigravity') {
+    const clientId = providerSecrets.GOOGLE_ANTIGRAVITY_CLIENT_ID
+    const clientSecret = providerSecrets.GOOGLE_ANTIGRAVITY_CLIENT_SECRET
+    if (typeof clientId === 'string' && clientId.length > 0) childEnv.GOOGLE_ANTIGRAVITY_CLIENT_ID = clientId
+    if (typeof clientSecret === 'string' && clientSecret.length > 0) childEnv.GOOGLE_ANTIGRAVITY_CLIENT_SECRET = clientSecret
+  }
+  return childEnv
+}
+
+async function resolveGoogleAntigravityOAuthClientEnvironment() {
+  try {
+    const configuredBackendRoot = process.env.TASKWEAVER_BACKEND_ROOT?.trim()
+    const sourceBackendRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../backend')
+    const openCodexRoot = path.resolve(resolveOpenCodexRoot())
+    const backendCandidates = [configuredBackendRoot, sourceBackendRoot]
+    for (let directory = openCodexRoot; ; directory = path.dirname(directory)) {
+      backendCandidates.push(path.join(directory, 'backend'))
+      const parent = path.dirname(directory)
+      if (parent === directory) break
     }
-    const child = spawn(bun, ['-e', source], {
-      cwd: resolveOpenCodexRoot(),
+    const backendRoot = backendCandidates.find((candidate) =>
+      typeof candidate === 'string'
+      && path.isAbsolute(candidate)
+      && existsSync(path.join(candidate, 'model-sync', 'antigravity-oauth-settings.mjs'))
+      && existsSync(path.join(candidate, 'platform', 'keychain-secrets.mjs')))
+    if (!backendRoot) throw new Error('TaskWeaver backend modules are unavailable')
+    const settingsPath = path.join(backendRoot, 'model-sync', 'antigravity-oauth-settings.mjs')
+    const secretsPath = path.join(backendRoot, 'platform', 'keychain-secrets.mjs')
+    const [settings, keychain] = await Promise.all([
+      import(pathToFileURL(settingsPath).href),
+      import(pathToFileURL(secretsPath).href),
+    ])
+    const helperPath = keychain.resolveKeychainHelperPath({
       env: process.env,
-      stdio: ['ignore', 'ignore', 'ignore', 'pipe'],
+      resourcesPath: process.env.TASKWEAVER_RESOURCES_PATH,
+      repoRoot: path.resolve(backendRoot, '..'),
     })
-    const tokenChunks = []
-    let receivedBytes = 0
-    let settled = false
-    let timedOut = false
-    const finish = (fn, value) => {
-      if (settled) return
-      settled = true
-      clearTimeout(timer)
-      signal?.removeEventListener('abort', abort)
-      const elapsedMs = Number(process.hrtime.bigint() - startAt) / 1e6
-      traceTokenHelper(elapsedMs, provider)
-      fn(value)
+    const secrets = process.platform === 'darwin' && helperPath && existsSync(helperPath)
+      ? keychain.createKeychainSecrets({ helperPath, platformName: 'darwin' })
+      : null
+    const credentials = await settings.getAntigravityOAuthCredentials(secrets)
+    return {
+      GOOGLE_ANTIGRAVITY_CLIENT_ID: credentials.clientId,
+      GOOGLE_ANTIGRAVITY_CLIENT_SECRET: credentials.clientSecret,
     }
-    const abort = () => {
-      child.kill()
-      finish(reject, signal.reason ?? bridgeError('BRIDGE_CURSOR_STREAM_ERROR', 'Cursor OAuth request was aborted.'))
-    }
-    const timer = setTimeout(() => {
-      timedOut = true
-      child.kill()
-    }, 60_000)
-    timer.unref?.()
-    signal?.addEventListener('abort', abort, { once: true })
-    child.stdio[3].on('data', chunk => {
-      receivedBytes += chunk.length
-      if (receivedBytes > 64 * 1024) {
-        child.kill()
-        finish(reject, bridgeError('BRIDGE_CURSOR_STREAM_ERROR', 'Cursor OAuth token helper returned an invalid response.'))
-        return
-      }
-      tokenChunks.push(chunk)
-    })
-    child.once('error', () => {
-      finish(reject, bridgeError('BRIDGE_CURSOR_BUN_RUNTIME_MISSING', 'Cursor OAuth helper could not start.'))
-    })
-    child.once('close', code => {
-      if (settled) return
-      if (timedOut) {
-        finish(reject, bridgeError('BRIDGE_CURSOR_STREAM_ERROR', 'Cursor OAuth lookup timed out.'))
-        return
-      }
-      const payload = Buffer.concat(tokenChunks).toString('utf8')
-      if (code === 0 && payload.startsWith('T:') && payload.length > 2) {
-        try {
-          finish(resolve, JSON.parse(payload.slice(2)))
-        } catch {
-          finish(reject, bridgeError('BRIDGE_CURSOR_STREAM_ERROR', 'OpenCodex returned an invalid OAuth token envelope.'))
-        }
-        return
-      }
-      const reason = payload === 'E:missing'
-        ? 'BRIDGE_CURSOR_CREDENTIAL_MISSING'
-        : payload === 'E:paused'
-          ? 'BRIDGE_CURSOR_ACCOUNT_PAUSED'
-          : 'BRIDGE_CURSOR_STREAM_ERROR'
-      const message = reason === 'BRIDGE_CURSOR_CREDENTIAL_MISSING'
-        ? 'Cursor bridge requires configured Cursor OAuth (Host/OpenCodex); no active credential is available.'
-        : reason === 'BRIDGE_CURSOR_ACCOUNT_PAUSED'
-          ? 'The active Cursor OAuth account is paused.'
-          : 'OpenCodex could not resolve the active Cursor OAuth credential.'
-      finish(reject, bridgeError(reason, message))
-    })
+  } catch {
+    throw bridgeError(
+      'BRIDGE_ANTIGRAVITY_OAUTH_CLIENT_CREDENTIALS_UNAVAILABLE',
+      'Google Antigravity OAuth client credentials could not be read from its settings or Keychain.',
+    )
+  }
+}
+
+function acquireOpenCodexAccessTokenUncached(provider, signal, providerSecrets = {}) {
+  const bun = resolveBunBinary(process.env, provider)
+  const source = openCodexOAuthTokenProgram(provider)
+  return runOAuthTokenHelper({
+    provider,
+    bun,
+    source,
+    cwd: resolveOpenCodexRoot(),
+    env: buildProviderOAuthHelperEnvironment(provider, process.env, providerSecrets),
+    signal,
+    onDuration: (elapsedMs) => traceTokenHelper(elapsedMs, provider),
   })
 }
 
-function acquireOpenCodexAccessToken(provider, signal) {
-  return oauthTokenCache.get(provider, () => acquireOpenCodexAccessTokenUncached(provider, signal))
+function acquireCursorOAuthAccessToken(signal) {
+  return oauthTokenCache.get('cursor',
+    (lookupSignal) => acquireOpenCodexAccessTokenUncached('cursor', lookupSignal), { signal })
+}
+
+function acquireGoogleAntigravityOAuthSnapshot(signal) {
+  // Keep Google OAuth and its account-scoped project snapshot independent from Cursor state.
+  return resolveGoogleAntigravityOAuthClientEnvironment().then((providerSecrets) =>
+    acquireOpenCodexAccessTokenUncached('google-antigravity', signal, providerSecrets))
 }
 
 export function invalidateOpenCodexAccessToken(provider) {
@@ -336,6 +418,37 @@ function blocksToUserContent(blocks) {
   return parts
 }
 
+function googleThoughtSignatureFromReplay(message, blockIndex, target) {
+  if (!target || message?.role !== 'assistant') return undefined
+  const source = message.source
+  if (source?.kind !== 'model'
+    || source.provider !== target.providerId
+    || source.model !== target.modelId) return undefined
+
+  const replay = source.replayState
+  const response = replay?.response
+  if (!response || typeof response !== 'object' || Array.isArray(response)
+    || response.kind !== 'taskweaver-google-antigravity'
+    || response.version !== 1
+    || response.providerId !== target.providerId
+    || response.modelId !== target.modelId
+    || typeof response.wireModelId !== 'string'
+    || !response.wireModelId.trim()
+    || !Array.isArray(replay.blocks)
+    || replay.blocks.length !== message.content?.length) return undefined
+
+  const block = replay.blocks[blockIndex]
+  if (!block || typeof block !== 'object' || block.type !== 'tool-call') return undefined
+  const signature = block.thoughtSignature
+  if (typeof signature !== 'string' || signature.length < 16 || Buffer.byteLength(signature, 'utf8') > 64 * 1024) {
+    return undefined
+  }
+  if (signature === 'skip_thought_signature_validator'
+    || /^(fc|ctc|tsc|call|msg|rs|resp|reasoning|item|ws|toolu|tool|func|function)[-_]/i.test(signature)
+    || !/^[A-Za-z0-9+/_=-]+$/.test(signature)) return undefined
+  return { signature, wireModelId: response.wireModelId }
+}
+
 function toolResultToOcxContent(block) {
   const inner = block?.content ?? []
   const text = inner
@@ -361,7 +474,7 @@ function findToolName(messages, toolCallId) {
 /**
  * Map Harness GenerateOptions messages into OpenCodex wire messages (no flattening).
  */
-export function harnessMessagesToOcxContext(messages, system) {
+export function harnessMessagesToOcxContext(messages, system, googleReplayTarget) {
   const systemPrompt = []
   if (typeof system === 'string' && system.trim()) systemPrompt.push(system.trim())
 
@@ -402,7 +515,7 @@ export function harnessMessagesToOcxContext(messages, system) {
 
     if (message?.role === 'assistant') {
       const content = []
-      for (const block of message.content ?? []) {
+      for (const [blockIndex, block] of (message.content ?? []).entries()) {
         if (block?.type === 'text' && typeof block.text === 'string') {
           content.push({ type: 'text', text: block.text })
         } else if (block?.type === 'reasoning' && typeof block.text === 'string') {
@@ -414,11 +527,18 @@ export function harnessMessagesToOcxContext(messages, system) {
           } catch {
             args = {}
           }
+          const googleThoughtSignature = googleThoughtSignatureFromReplay(message, blockIndex, googleReplayTarget)
           content.push({
             type: 'toolCall',
             id: String(block.id ?? ''),
             name: block.name ?? '',
             arguments: args,
+            ...googleThoughtSignature
+              ? {
+                  thoughtSignature: googleThoughtSignature.signature,
+                  thoughtSignatureModelId: googleThoughtSignature.wireModelId,
+                }
+              : {},
           })
         }
       }
@@ -442,9 +562,11 @@ export function harnessToolsToOcx(tools) {
   }))
 }
 
-export function resolveCursorReasoningOption(options, profile) {
+export function resolveProviderReasoningOption(options, profile) {
   const modelId = options?.model
-  const entry = profile?.models?.find((m) => m.id === modelId)
+  const normalizedModelId = String(modelId ?? '').trim().replace(/^google-antigravity\//, '')
+  const entry = profile?.models?.find((m) => m.id === modelId
+    || String(m?.id ?? '').trim().replace(/^google-antigravity\//, '') === normalizedModelId)
   const effort = options?.reasoningEffort
   const map = entry?.thinkingLevelMap
   if (effort != null && map && typeof map === 'object' && effort in map) {
@@ -468,11 +590,12 @@ function finishReasonFromStop(stopReason, sawToolCalls) {
 }
 
 /**
- * Incremental Cursor adapter events → TaskWeaver StreamChunk mapping.
+ * Incremental provider adapter events → TaskWeaver StreamChunk mapping.
  */
-export function createAdapterEventChunkMapper() {
+export function createAdapterEventChunkMapper({ errorCode = 'BRIDGE_CURSOR_STREAM_ERROR', replayIdentity } = {}) {
   let nextIndex = 0
   const open = new Map()
+  const replayBlocks = []
   let activeToolKey = null
   let sawToolCalls = false
 
@@ -480,6 +603,7 @@ export function createAdapterEventChunkMapper() {
     if (open.has(key)) return []
     const index = nextIndex++
     open.set(key, { index, blockType, textBuf: '', argsBuf: '' })
+    if (replayIdentity) replayBlocks.push({ type: blockType })
     return [{ type: 'block-start', index, blockType }]
   }
 
@@ -526,12 +650,14 @@ export function createAdapterEventChunkMapper() {
     if (!usage) return []
     const inputTokens = usage.inputTokens ?? usage.input_tokens ?? 0
     const outputTokens = usage.outputTokens ?? usage.output_tokens ?? 0
+    const cacheReadTokens = usage.cacheReadTokens ?? usage.cache_read_tokens ?? 0
     return [{
       type: 'usage',
       usage: {
         inputTokens,
         outputTokens,
-        totalTokens: inputTokens + outputTokens,
+        cacheReadTokens,
+        totalTokens: inputTokens + cacheReadTokens + outputTokens,
       },
     }]
   }
@@ -556,6 +682,13 @@ export function createAdapterEventChunkMapper() {
         const key = `tool:${event.id}`
         activeToolKey = key
         const index = nextIndex++
+        const thoughtSignature = event.thoughtSignature
+        if (replayIdentity) {
+          replayBlocks.push({
+            type: 'tool-call',
+            ...(typeof thoughtSignature === 'string' ? { thoughtSignature } : {}),
+          })
+        }
         open.set(key, {
           index,
           blockType: 'tool-call',
@@ -586,9 +719,25 @@ export function createAdapterEventChunkMapper() {
       } else if (event.type === 'done') {
         out.push(...closeAll())
         out.push(...mapUsage(event.usage))
-        out.push({ type: 'finish', reason: finishReasonFromStop(event.stopReason, sawToolCalls) })
+        const replayState = replayIdentity && replayBlocks.some(block => block.type === 'tool-call')
+          ? {
+              response: {
+                kind: 'taskweaver-google-antigravity',
+                version: 1,
+                providerId: replayIdentity.providerId,
+                modelId: replayIdentity.modelId,
+                wireModelId: replayIdentity.wireModelId,
+              },
+              blocks: replayBlocks,
+            }
+          : undefined
+        out.push({
+          type: 'finish',
+          reason: finishReasonFromStop(event.stopReason, sawToolCalls),
+          ...(replayState ? { replayState } : {}),
+        })
       } else if (event.type === 'error') {
-        throw bridgeError('BRIDGE_CURSOR_STREAM_ERROR', event.message || 'cursor bridge error')
+        throw bridgeError(errorCode, event.message || 'provider bridge error')
       }
       return out
     },
@@ -601,16 +750,20 @@ export function createAdapterEventChunkMapper() {
 async function acquireCursorProviderApiKey(signal) {
   // Let OpenCodex resolve its existing OPENCODEX_HOME (or ~/.opencodex default).
   // DSH_HOME is a separate profile and must not redirect OAuth storage.
-  return acquireOpenCodexAccessToken('cursor', signal)
+  return acquireCursorOAuthAccessToken(signal)
 }
 
-export function buildCursorParsedRequest(context) {
+export function buildProviderParsedRequest(context, { googleReplay = false } = {}) {
+  const googleReplayTarget = googleReplay
+    ? { providerId: context.providerId, modelId: context.options.model }
+    : undefined
   const { systemPrompt, messages } = harnessMessagesToOcxContext(
     context.options.messages,
     context.options.system,
+    googleReplayTarget,
   )
   const tools = harnessToolsToOcx(context.options.tools)
-  const reasoning = resolveCursorReasoningOption(context.options, context.profile)
+  const reasoning = resolveProviderReasoningOption(context.options, context.profile)
   const options = {
     ...(context.options.maxTokens != null ? { maxOutputTokens: context.options.maxTokens } : {}),
     ...(context.options.temperature != null ? { temperature: context.options.temperature } : {}),
@@ -674,7 +827,7 @@ export function createCursorBackend() {
         apiKey,
       }
       const adapter = createCursorAdapter(provider)
-      const parsed = buildCursorParsedRequest(context)
+      const parsed = buildProviderParsedRequest(context)
       const mapper = createAdapterEventChunkMapper()
       const translatorBudget = await createPackageCursorTranslatorBudget()
 
@@ -864,13 +1017,15 @@ export function createOpenAiCompatRelayBackend() {
 }
 
 async function acquireAntigravityProvider(context) {
-  const token = await acquireOpenCodexAccessToken('google-antigravity', context.options.signal)
-  const baseUrl = context.profile?.baseUrl?.trim()
-  const project = context.profile?.project?.trim()
-  if (!baseUrl || !project) {
+  // Keep the OAuth token and its account-scoped project together in one helper
+  // snapshot. The helper fails closed if account selection changes mid-lookup.
+  const snapshot = await acquireGoogleAntigravityOAuthSnapshot(context.options.signal)
+  const baseUrl = context.profile?.baseUrl?.trim() || ANTIGRAVITY_BASE_URL
+  const project = context.profile?.project?.trim() || snapshot.projectId
+  if (!project) {
     throw bridgeError(
       'BRIDGE_ANTIGRAVITY_MISCONFIGURED',
-      'google-antigravity bridge requires baseUrl and project on the provider profile (refresh内置模型桥).',
+      'Google Antigravity OAuth is active, but its Cloud Code Assist project could not be read. Re-scan the built-in model bridge after login.',
     )
   }
   return {
@@ -880,7 +1035,7 @@ async function acquireAntigravityProvider(context) {
     baseUrl,
     project,
     authMode: 'oauth',
-    apiKey: token,
+    apiKey: snapshot.accessToken,
   }
 }
 
@@ -893,14 +1048,24 @@ export function createGoogleAntigravityBackend() {
       const createGoogleAdapter = await loadCreateGoogleAdapter()
       const provider = await acquireAntigravityProvider(context)
       const adapter = createGoogleAdapter(provider)
-      const parsed = buildCursorParsedRequest(context)
-      parsed.modelId = context.options.model
+      const parsed = buildProviderParsedRequest(context, { googleReplay: true })
+      const modelRoute = resolveAntigravityModelRoute(parsed, context.profile)
+      parsed.modelId = modelRoute.modelId
+      if (modelRoute.reasoning === undefined) delete parsed.options.reasoning
+      else parsed.options.reasoning = modelRoute.reasoning
       const request = await adapter.buildRequest(parsed, {
         headers: new Headers(),
         translatorBudget: {},
         abortSignal: context.options.signal,
       })
-      const mapper = createAdapterEventChunkMapper()
+      const mapper = createAdapterEventChunkMapper({
+        errorCode: 'BRIDGE_ANTIGRAVITY_STREAM_ERROR',
+        replayIdentity: {
+          providerId: context.providerId,
+          modelId: context.options.model,
+          wireModelId: modelRoute.modelId,
+        },
+      })
       const response = await fetch(request.url, {
         method: request.method,
         headers: request.headers,

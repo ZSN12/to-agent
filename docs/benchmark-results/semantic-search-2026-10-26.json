@@ -1,0 +1,150 @@
+{
+  "generatedAt": "2026-10-26T15:31:25.217Z",
+  "node": "v22.23.1",
+  "platform": "darwin-arm64",
+  "documents": 12000,
+  "averageTokensPerDocument": 292,
+  "candidatesPerQuery": 30,
+  "queriesPerSample": 100,
+  "bm25ScoreCallsPerSample": 3000,
+  "samples": 7,
+  "scenarios": {
+    "repeatedCandidates": {
+      "indexBuildMs": 490.38,
+      "cacheWarmupMs": 0.0005,
+      "coldFirstQueryMs": 0.6229,
+      "baseline": {
+        "medianTotalMs": 74.04,
+        "medianPerQueryMs": 0.7404,
+        "medianPerCandidateUs": 24.68,
+        "samplesMs": [
+          73.37,
+          73.59,
+          73.86,
+          74.04,
+          74.28,
+          74.35,
+          74.73
+        ]
+      },
+      "optimized": {
+        "medianTotalMs": 0.56,
+        "medianPerQueryMs": 0.0056,
+        "medianPerCandidateUs": 0.19,
+        "samplesMs": [
+          0.44,
+          0.47,
+          0.55,
+          0.56,
+          0.57,
+          0.58,
+          0.72
+        ]
+      },
+      "speedup": 132.98
+    },
+    "rotatingCandidatesAcrossSamples": {
+      "indexBuildMs": 480.84,
+      "cacheWarmupMs": 0.0005,
+      "coldFirstQueryMs": 0.5718,
+      "baseline": {
+        "medianTotalMs": 78.62,
+        "medianPerQueryMs": 0.7862,
+        "medianPerCandidateUs": 26.21,
+        "samplesMs": [
+          77.76,
+          77.8,
+          78.04,
+          78.62,
+          78.64,
+          78.72,
+          78.91
+        ]
+      },
+      "optimized": {
+        "medianTotalMs": 60.62,
+        "medianPerQueryMs": 0.6062,
+        "medianPerCandidateUs": 20.21,
+        "samplesMs": [
+          59.56,
+          60.56,
+          60.59,
+          60.62,
+          60.68,
+          60.75,
+          60.84
+        ]
+      },
+      "speedup": 1.3
+    },
+    "lateHotAfter512ColdDocuments": {
+      "indexBuildMs": 476.49,
+      "cacheWarmupMs": 11.2314,
+      "coldFirstQueryMs": 0.5675,
+      "baseline": {
+        "medianTotalMs": 73.55,
+        "medianPerQueryMs": 0.7355,
+        "medianPerCandidateUs": 24.52,
+        "samplesMs": [
+          72.93,
+          73.01,
+          73.04,
+          73.55,
+          74.49,
+          74.5,
+          74.73
+        ]
+      },
+      "optimized": {
+        "medianTotalMs": 0.45,
+        "medianPerQueryMs": 0.0045,
+        "medianPerCandidateUs": 0.15,
+        "samplesMs": [
+          0.43,
+          0.45,
+          0.45,
+          0.45,
+          0.45,
+          0.46,
+          0.6
+        ]
+      },
+      "speedup": 164.09
+    },
+    "uniqueCandidatesSinglePassWithFreshCache": {
+      "indexBuildMs": 479.25,
+      "cacheWarmupMs": 0,
+      "coldFirstQueryMs": 0.6077,
+      "baseline": {
+        "medianTotalMs": 79.88,
+        "medianPerQueryMs": 0.7988,
+        "medianPerCandidateUs": 26.63,
+        "samplesMs": [
+          79.01,
+          79.4,
+          79.46,
+          79.88,
+          80.45,
+          80.76,
+          80.91
+        ]
+      },
+      "optimized": {
+        "medianTotalMs": 62.39,
+        "medianPerQueryMs": 0.6239,
+        "medianPerCandidateUs": 20.8,
+        "samplesMs": [
+          60.47,
+          60.95,
+          62.03,
+          62.39,
+          62.98,
+          63.05,
+          63.46
+        ]
+      },
+      "speedup": 1.28
+    }
+  },
+  "interpretation": "本机微基准；前后算法分数经过逐项相等断言，不同设备的耗时不可直接比较。"
+}

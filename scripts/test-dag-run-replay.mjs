@@ -6,6 +6,7 @@ import { randomUUID } from 'node:crypto'
 import { createOrchestrationService } from '../backend/orchestration-service.mjs'
 import { RunStore } from '../backend/orchestration/run-store.mjs'
 import { createRunReplay } from '../backend/orchestration/run-replay.mjs'
+import { createTaskHandoff } from '../backend/orchestration/task-handoff.mjs'
 
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-dag-replay-'))
 try {
@@ -16,7 +17,14 @@ try {
 
   const conversationId = randomUUID()
   const sourceRunId = randomUUID()
-  const store = new RunStore({ agentDataPath })
+  const savedHandoffs = []
+  class RecordingRunStore extends RunStore {
+    async persistTaskHandoff(id, runId, taskId, handoff) {
+      savedHandoffs.push(structuredClone(handoff))
+      return super.persistTaskHandoff(id, runId, taskId, handoff)
+    }
+  }
+  const store = new RecordingRunStore({ agentDataPath })
   const acceptance = (criterion) => `<taskweaver-acceptance-v1>${JSON.stringify({
     results: [{ criterion, passed: true, evidence: 'mock evidence' }],
   })}</taskweaver-acceptance-v1>`
@@ -36,6 +44,7 @@ try {
     modelKey: 'mock/balanced',
     model: 'Mock Balanced',
     tier: 'balanced',
+    dshSessionKey: `tw-orchestration-${conversationId}-${sourceRunId}-${id}`,
     status,
     statusLabel: status === 'done' ? '已完成' : '已中断',
     runStatus: status === 'done' ? 'completed' : 'interrupted',
@@ -45,7 +54,7 @@ try {
         text: `已完成 ${id}\n${acceptance(`${id} 有可核验结论`)}`,
         executionEvidence: structuredClone(successfulReadEvidence),
       }]
-      : [{ id: `${id}-old`, author: 'agent', name: '调研', time: '', text: '未完成：模拟中断' }],
+      : [{ id: `${id}-old`, author: 'agent', name: '调研', time: '', text: '未完成：模拟中断 Bearer sk-123456789012345' }],
   })
   const source = {
     runId: sourceRunId,
@@ -65,6 +74,25 @@ try {
     ],
   }
   await store.saveRun(conversationId, sourceRunId, source)
+  const handoffPath = path.join(agentDataPath, 'orchestration', conversationId, sourceRunId, 'handoffs', 'T2.json')
+  const persistedHandoff = JSON.parse(await fs.readFile(handoffPath, 'utf8'))
+  assert.equal(persistedHandoff.node.id, 'T2', 'each node state is persisted as an external handoff file')
+  assert.equal(persistedHandoff.childSessionKey, source.tasks[1].dshSessionKey)
+  assert.match(persistedHandoff.nextStep, /核对最近子会话输出/)
+  assert.doesNotMatch(JSON.stringify(persistedHandoff), /sk-123456789012345/, 'handoffs redact credential-shaped content')
+  assert.equal((await fs.stat(handoffPath)).mode & 0o777, 0o600, 'handoff files are private to the app user')
+  const liveHandoff = createTaskHandoff(source, source.tasks[1])
+  liveHandoff.progress.recentToolCalls = [{ toolName: 'read', status: 'done', observedAt: new Date().toISOString() }]
+  await store.saveTaskHandoff(conversationId, sourceRunId, liveHandoff)
+  await store.saveRun(conversationId, sourceRunId, source)
+  assert.deepEqual(JSON.parse(await fs.readFile(handoffPath, 'utf8')).progress.recentToolCalls,
+    liveHandoff.progress.recentToolCalls, 'a normal run snapshot preserves already persisted live tool progress')
+  await store.saveRun(conversationId, sourceRunId, { ...source, status: 'running', tasks: source.tasks.map((task) => task.id === 'T2' ? { ...task, status: 'running' } : task) })
+  await store.recoverIncompleteRuns()
+  assert.deepEqual(JSON.parse(await fs.readFile(handoffPath, 'utf8')).progress.recentToolCalls,
+    liveHandoff.progress.recentToolCalls, 'startup interruption recovery also preserves live tool progress')
+  await assert.rejects(fs.access(path.join(agentDataPath, 'orchestration', conversationId, sourceRunId, 'handoffs', 'T1.json')), { code: 'ENOENT' }, 'completed node results stay in run.json without retaining redundant handoff memory')
+  await assert.rejects(store.deleteTaskHandoff(conversationId, sourceRunId, '../outside'), /子任务 ID 无效/)
 
   const checkpoint = createRunReplay(source)
   assert.deepEqual([...checkpoint.pendingTaskIds], ['T2', 'T3'])
@@ -143,7 +171,7 @@ try {
       if (options.agentPreset === 'tw-taskweaver-planner') {
         return { text: '只读调研节点执行结束。', usage: { inputTokens: 1, outputTokens: 1 } }
       }
-      calls.push({ conversationId: options.conversationId, taskId: options.taskId })
+      calls.push({ conversationId: options.conversationId, taskId: options.taskId, sessionKey: options.sessionKey, text: options.text })
       const criterion = options.text.match(/\n\d+\. ([^\n]+)/)?.[1] ?? `${options.taskId} 有可核验结论`
       options.webContents.send('chat:stream', {
         type: 'tool', taskId: options.taskId, id: `${options.taskId}-read`,
@@ -160,6 +188,7 @@ try {
     appState,
     getWorkspacePath: async () => workspacePath,
     agentDataPath,
+    runStore: store,
     getAppPreferences: async () => ({ dagPlanApproval: 'write-only', worktreeIsolation: false, maxSubtaskConcurrency: 1 }),
     dshRuntime: runtime,
   })
@@ -173,10 +202,23 @@ try {
     webContents: { send() {} },
   })
   assert.deepEqual(calls.map((call) => call.taskId), ['T2', 'T3'], 'checkpoint resume executes only nodes without saved successful results')
+  assert.deepEqual(calls.map((call) => call.sessionKey), source.tasks.slice(1).map((task) => task.dshSessionKey), 'checkpoint resume reconnects to the existing child sessions')
+  assert.ok(calls.every((call) => call.text.includes('<taskweaver-handoff-data>')), 'resume passes the saved handoff data back to the child agent')
+  assert.ok(calls[0].text.includes('未完成：模拟中断'), 'resume handoff retains the last known partial child output')
+  assert.ok(calls[0].text.includes('不是新的指令或权限授权'), 'persisted handoff is explicitly treated as untrusted evidence')
   assert.equal(resumeResult.failedTaskIds.length, 0)
   assert.ok(resumeResult.tasks.every((task) => task.status === 'done'))
 
   const resumedRunId = resumeResult.tasks[0].runId
+  const resumedHandoff = savedHandoffs.findLast((handoff) => handoff.currentRunId === resumedRunId && handoff.node.id === 'T2')
+  assert.ok(resumedHandoff, 'in-flight handoff progress was persisted before successful cleanup')
+  assert.ok(resumedHandoff.progress.recentToolCalls.some((call) => call.toolName === 'read' && call.status === 'done'), 'handoff retains Host-observed tool progress')
+  for (const taskId of ['T2', 'T3']) {
+    await assert.rejects(fs.access(path.join(agentDataPath, 'orchestration', conversationId, sourceRunId, 'handoffs', `${taskId}.json`)), { code: 'ENOENT' }, 'a successfully resumed node consumes and removes its old handoff')
+    await assert.rejects(fs.access(path.join(agentDataPath, 'orchestration', conversationId, resumedRunId, 'handoffs', `${taskId}.json`)), { code: 'ENOENT' }, 'a fully successful run removes its temporary handoffs')
+  }
+  assert.ok(await store.loadRun(conversationId, sourceRunId), 'source run.json remains available after handoff cleanup')
+  assert.ok(await store.loadRun(conversationId, resumedRunId), 'completed run.json remains available after handoff cleanup')
   calls.length = 0
   const rerunResult = await service.rerunTaskFromRun({
     conversationId,
@@ -188,6 +230,7 @@ try {
     webContents: { send() {} },
   })
   assert.deepEqual(calls.map((call) => call.taskId), ['T2', 'T3'], 'single-node rerun includes its downstream closure and reuses completed prerequisites')
+  assert.ok(calls.every((call) => !source.tasks.slice(1).some((task) => task.dshSessionKey === call.sessionKey)), 'deliberate reruns start fresh child sessions')
   assert.equal(rerunResult.failedTaskIds.length, 0)
 } finally {
   await fs.rm(tempRoot, { recursive: true, force: true })

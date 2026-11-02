@@ -194,26 +194,32 @@ export class SessionQueryEngine extends Service {
         return this._readEvent(sessionId, seq, before, after, signal);
     }
     async _readEvent(sessionId, seq, before, after, signal) {
-        const loaded = await this._corpus.load(sessionId, signal);
-        signal?.throwIfAborted();
-        const target = loaded.events[seq];
-        if (target === undefined || target.seq !== seq) {
-            throw new SessionQueryError(`session "${sessionId}" has no event at seq ${seq}`, 'SESSION_QUERY_EVENT_NOT_FOUND');
-        }
-        const startSeq = Math.max(0, seq - before);
-        const endSeq = Math.min(loaded.events.length - 1, seq + after);
-        const targetSnapshot = snapshotSessionEvent(target);
-        const events = loaded.events.slice(startSeq, endSeq + 1)
-            .map(event => event === target
-            ? targetSnapshot
-            : snapshotSessionEvent(event));
-        return {
-            session: structuredClone(loaded.header),
-            target: targetSnapshot,
-            events,
-            startSeq,
-            endSeq,
-        };
+        const results = await this._corpus.projectMany([sessionId], (source) => {
+            const target = source.events[seq];
+            if (target === undefined || target.seq !== seq) {
+                throw new SessionQueryError(`session "${sessionId}" has no event at seq ${seq}`, 'SESSION_QUERY_EVENT_NOT_FOUND');
+            }
+            const startSeq = Math.max(0, seq - before);
+            const endSeq = Math.min(source.events.length - 1, seq + after);
+            const targetSnapshot = snapshotSessionEvent(target);
+            const events = source.events.slice(startSeq, endSeq + 1)
+                .map(event => event === target
+                ? targetSnapshot
+                : snapshotSessionEvent(event));
+            return {
+                session: structuredClone(source.header),
+                target: targetSnapshot,
+                events,
+                startSeq,
+                endSeq,
+            };
+        }, signal);
+        const result = results[0];
+        if (result === undefined)
+            throw new Error('session-query: event projection returned no result');
+        if (result.status === 'rejected')
+            throw result.reason;
+        return result.value;
     }
     _readWindow(name, value) {
         if (value === undefined)

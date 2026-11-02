@@ -1,0 +1,6 @@
+documents,dimensions,topK,referenceMedianMs,minHeapMedianMs,speedup,scoreOrderExact,referenceScoreEntries,minHeapScoreEntries,vectorScalarCount,approxVectorPayloadBytes
+1000,64,30,0.157,0.112,1.402,true,1000,30,64000,512000
+5000,64,30,0.89,0.834,1.067,true,5000,30,320000,2560000
+10000,64,30,2.003,1.796,1.115,true,10000,30,640000,5120000
+25000,64,30,5.639,4.426,1.274,true,25000,30,1600000,12800000
+50000,64,30,13.916,10.434,1.334,true,50000,30,3200000,25600000

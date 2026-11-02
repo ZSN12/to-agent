@@ -31,6 +31,7 @@ export function createModelCredentials({
   catalogApi,
   resolveDshCredentialRef,
   getBridgeProviderAuthorization = async () => null,
+  syncWorkBuddyModels = null,
 }) {
   const {
     getDshModelDirectory,
@@ -258,6 +259,18 @@ export function createModelCredentials({
   async function addModel(modelKey) {
     let catalog = await listCatalog()
     let model = catalog.candidateModels.find((candidate) => candidate.key === modelKey)
+    if (!model && typeof modelKey === 'string' && modelKey.startsWith('workbuddy/') && syncWorkBuddyModels) {
+      // Reuse the startup sync so the WorkBuddy key goes to the credential
+      // store and a user-configured WorkBuddy provider is never overwritten.
+      const sync = await syncWorkBuddyModels()
+      if (sync?.reason === 'user-configured') {
+        throw new Error('WorkBuddy 提供方由你手动配置，TaskWeaver 不会自动改写；请在该提供方的配置中添加此模型。')
+      }
+      if (sync?.warning) throw new Error(sync.warning)
+      if (sync?.error) throw new Error(`同步 WorkBuddy 模型失败：${sync.error}`)
+      catalog = await listCatalog()
+      model = catalog.candidateModels.find((candidate) => candidate.key === modelKey)
+    }
     if (!model) throw new Error('Z 模型目录中不存在该模型；请先刷新目录')
     const auth = await listProvidersAuth()
     if (!auth.find((provider) => provider.id === model.provider)?.configured) {

@@ -11,13 +11,15 @@ import {
   ShieldCheck,
   Sparkles,
   Sun,
+  X,
 } from 'lucide-react'
 import type { PermissionMode } from '../../shared/app-api'
 import type { ShortcutItem } from '../../shared/shortcuts'
 import { useModelCatalog } from '../models/useModelCatalog'
-import { ChatBehaviorSettingsPanel } from '../chat/ChatBehaviorSettingsPanel'
-import { ShortcutsSettings } from './ShortcutsSettings'
-import { UsageSettings } from '../usage/UsageSettings'
+import { SettingsLoadingFallback } from './SettingsLoadingFallback'
+import './settings-layout.css'
+
+export { SettingsLoadingFallback }
 
 const ModelSettingsPanel = lazy(() => import('../models/ModelSettingsPanel').then((module) => ({ default: module.ModelSettingsPanel })))
 const RoutingPortfolioSettingsPanel = lazy(() => import('../models/RoutingPortfolioSettingsPanel').then((module) => ({ default: module.RoutingPortfolioSettingsPanel })))
@@ -26,8 +28,32 @@ const PermissionSettingsPanel = lazy(() => import('../permissions/PermissionSett
 const AppearanceSettingsPanel = lazy(() => import('../appearance/AppearanceSettingsPanel').then((module) => ({ default: module.AppearanceSettingsPanel })))
 const SkillSettingsPanel = lazy(() => import('../skills/SkillSettingsPanel').then((module) => ({ default: module.SkillSettingsPanel })))
 const SemanticSearchSettings = lazy(() => import('./SemanticSearchSettings').then((module) => ({ default: module.SemanticSearchSettings })))
+const ChatBehaviorSettingsPanel = lazy(() => import('../chat/ChatBehaviorSettingsPanel').then((module) => ({ default: module.ChatBehaviorSettingsPanel })))
+const ShortcutsSettings = lazy(() => import('./ShortcutsSettings').then((module) => ({ default: module.ShortcutsSettings })))
+const UsageSettings = lazy(() => import('../usage/UsageSettings').then((module) => ({ default: module.UsageSettings })))
 
 export type SettingsSection = 'appearance' | 'chat' | 'models' | 'skills' | 'routing' | 'mcp' | 'permissions' | 'shortcuts' | 'usage' | 'semantic-search'
+
+const SETTINGS_GROUPS: Array<{ title: string; items: Array<{ section: SettingsSection; label: string; icon: typeof Sun }> }> = [
+  { title: '偏好', items: [
+    { section: 'appearance', label: '外观', icon: Sun },
+    { section: 'chat', label: '对话', icon: MessageSquare },
+    { section: 'shortcuts', label: '键盘快捷键', icon: Keyboard },
+  ] },
+  { title: '模型', items: [
+    { section: 'models', label: '模型', icon: Database },
+    { section: 'routing', label: '路由与扩展', icon: GitBranch },
+    { section: 'usage', label: '模型用量', icon: Activity },
+  ] },
+  { title: '工具与服务', items: [
+    { section: 'skills', label: 'Skill', icon: Sparkles },
+    { section: 'mcp', label: 'MCP 服务', icon: Cpu },
+    { section: 'semantic-search', label: '语义搜索', icon: Search },
+  ] },
+  { title: '安全', items: [
+    { section: 'permissions', label: '安全与权限', icon: ShieldCheck },
+  ] },
+]
 
 export function SettingsPage({
   section,
@@ -53,41 +79,80 @@ export function SettingsPage({
   conversationId?: string | null
 }) {
   const [toastMessage, setToastMessage] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
   const toast = (message: string) => { setToastMessage(message); window.setTimeout(() => setToastMessage(''), 2600) }
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
+      if (event.key === 'Escape') {
+        if (document.activeElement?.matches('.settings-nav-search input') && searchQuery) {
+          setSearchQuery('')
+          return
+        }
+        onClose()
+      }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [onClose])
+  }, [onClose, searchQuery])
+
+  const normalizedQuery = searchQuery.trim().toLocaleLowerCase()
+  const visibleGroups = SETTINGS_GROUPS.map((group) => ({
+    ...group,
+    items: group.items.filter((item) => !normalizedQuery
+      || group.title.toLocaleLowerCase().includes(normalizedQuery)
+      || item.label.toLocaleLowerCase().includes(normalizedQuery)),
+  })).filter((group) => group.items.length > 0)
 
   return <div className="settings-screen" data-testid="settings-page">
     <aside className="settings-nav">
       <div className="settings-drag-space" />
       <button type="button" className="settings-back-btn" onClick={onClose} title="返回应用 (Esc)">
-        <ArrowLeft size={15} />
+        <ArrowLeft size={14} />
         <span>返回应用</span>
+        <kbd className="settings-back-kbd">Esc</kbd>
       </button>
       <div className="settings-nav-section-title">设置分类</div>
-      <nav aria-label="设置导航">
-        <button type="button" className={`settings-nav-item ${section === 'appearance' ? 'active' : ''}`} aria-current={section === 'appearance' ? 'page' : undefined} aria-controls="settings-content" onClick={() => onSectionChange('appearance')}><Sun size={16} /><span>外观</span></button>
-        <button type="button" className={`settings-nav-item ${section === 'chat' ? 'active' : ''}`} aria-current={section === 'chat' ? 'page' : undefined} aria-controls="settings-content" onClick={() => onSectionChange('chat')}><MessageSquare size={16} /><span>对话</span></button>
-        <button type="button" className={`settings-nav-item ${section === 'models' ? 'active' : ''}`} aria-current={section === 'models' ? 'page' : undefined} aria-controls="settings-content" onClick={() => onSectionChange('models')}><Database size={16} /><span>模型</span></button>
-        <button type="button" className={`settings-nav-item ${section === 'skills' ? 'active' : ''}`} aria-current={section === 'skills' ? 'page' : undefined} aria-controls="settings-content" onClick={() => onSectionChange('skills')}><Sparkles size={16} /><span>Skill</span></button>
-        <button type="button" className={`settings-nav-item ${section === 'routing' ? 'active' : ''}`} aria-current={section === 'routing' ? 'page' : undefined} aria-controls="settings-content" onClick={() => onSectionChange('routing')}><GitBranch size={16} /><span>路由作品集</span></button>
-        <button type="button" className={`settings-nav-item ${section === 'mcp' ? 'active' : ''}`} aria-current={section === 'mcp' ? 'page' : undefined} aria-controls="settings-content" onClick={() => onSectionChange('mcp')}><Cpu size={16} /><span>MCP 服务</span></button>
-        <button type="button" className={`settings-nav-item ${section === 'permissions' ? 'active' : ''}`} aria-current={section === 'permissions' ? 'page' : undefined} aria-controls="settings-content" onClick={() => onSectionChange('permissions')}><ShieldCheck size={16} /><span>安全与权限</span></button>
-        <button type="button" className={`settings-nav-item ${section === 'shortcuts' ? 'active' : ''}`} aria-current={section === 'shortcuts' ? 'page' : undefined} aria-controls="settings-content" onClick={() => onSectionChange('shortcuts')}><Keyboard size={16} /><span>键盘快捷键</span></button>
-        <button type="button" className={`settings-nav-item ${section === 'usage' ? 'active' : ''}`} aria-current={section === 'usage' ? 'page' : undefined} aria-controls="settings-content" onClick={() => onSectionChange('usage')}><Activity size={16} /><span>模型用量</span></button>
-        <button type="button" className={`settings-nav-item ${section === 'semantic-search' ? 'active' : ''}`} aria-current={section === 'semantic-search' ? 'page' : undefined} aria-controls="settings-content" onClick={() => onSectionChange('semantic-search')}><Search size={16} /><span>语义搜索</span></button>
-      </nav>
+      <div className="settings-nav-search">
+        <Search size={15} aria-hidden="true" />
+        <input
+          type="search"
+          value={searchQuery}
+          onChange={(event) => setSearchQuery(event.target.value)}
+          placeholder="搜索设置"
+          aria-label="搜索设置"
+          aria-controls="settings-nav-results"
+        />
+        {searchQuery && <button type="button" className="settings-nav-search-clear" aria-label="清除设置搜索" onClick={() => setSearchQuery('')}><X size={14} /></button>}
+      </div>
+      <div className="settings-nav-list" id="settings-nav-results">
+        {visibleGroups.length ? visibleGroups.map((group) => (
+          <section className="settings-nav-group" key={group.title} aria-label={group.title}>
+            <span className="settings-nav-group-title">{group.title}</span>
+            <nav aria-label={`${group.title}设置`}>
+              {group.items.map((item) => {
+                const Icon = item.icon
+                return <button
+                  key={item.section}
+                  type="button"
+                  className={`settings-nav-item ${section === item.section ? 'active' : ''}`}
+                  aria-current={section === item.section ? 'page' : undefined}
+                  aria-controls="settings-content"
+                  onClick={() => onSectionChange(item.section)}
+                >
+                  <Icon size={16} aria-hidden="true" />
+                  <span>{item.label}</span>
+                </button>
+              })}
+            </nav>
+          </section>
+        )) : <p className="settings-nav-empty" role="status">没有匹配的设置项。试试“模型”或“安全”。</p>}
+      </div>
       <div className="settings-nav-footer"><span>TaskWeaver · v0.1.0</span></div>
     </aside>
     <main className="settings-main" aria-label="设置内容" data-testid="settings-content">
       <div className="settings-content" id="settings-content" key={section}>
-        <Suspense fallback={<div className="settings-loading" role="status">正在加载设置…</div>}>
+        <Suspense fallback={<SettingsLoadingFallback />}>
         {section === 'appearance' ? (
           <AppearanceSettingsPanel onToast={toast} />
         ) : section === 'chat' ? (
@@ -100,7 +165,6 @@ export function SettingsPage({
             loading={modelCatalog.loading}
             bridgeReady={modelCatalog.bridgeReady}
             catalogStale={modelCatalog.catalogStale}
-            capabilityTierStatus={modelCatalog.catalog?.capabilityTierStatus}
             error={modelCatalog.error}
             oauthStatus={modelCatalog.oauthStatus}
             updateStatus={modelCatalog.updateStatus}
@@ -113,7 +177,7 @@ export function SettingsPage({
                   return
                 }
                 if (result.providerCount === 0) {
-                  toast('模型目录已刷新，但 Z Runtime 未返回任何提供方。请稍候再试或重启应用（Z Host 可能仍在启动）。')
+                  toast('模型目录已刷新，但本机运行时尚未返回任何提供方。请稍候再试或重启应用。')
                   return
                 }
                 toast('模型目录已同步。')

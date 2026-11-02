@@ -9,11 +9,19 @@ const execFileAsync = promisify(execFile)
 
 async function runGit(args, cwd, extraEnv = {}, { timeout = 10000, trimOutput = true } = {}) {
   try {
+    const gitEnv = { ...process.env, LC_ALL: 'C', ...extraEnv }
+    for (const key of Object.keys(gitEnv)) {
+      if (/(?:api[_-]?key|secret|password|session_token)/i.test(key)) {
+        if (!Object.prototype.hasOwnProperty.call(extraEnv, key)) {
+          delete gitEnv[key]
+        }
+      }
+    }
     const { stdout } = await execFileAsync('git', args, {
       cwd,
       timeout,
       maxBuffer: 4 * 1024 * 1024,
-      env: { ...process.env, LC_ALL: 'C', ...extraEnv },
+      env: gitEnv,
     })
     return { ok: true, stdout: trimOutput ? stdout.trim() : stdout }
   } catch (err) {
@@ -456,6 +464,67 @@ export async function getGitStatus(workspacePath, { checkpoint = false, excludeT
   }
 }
 
+function normalizeGitBranchName(branchName) {
+  if (typeof branchName !== 'string') throw new Error('分支名称无效')
+  const normalized = branchName.trim()
+  if (!normalized) throw new Error('请输入分支名称')
+  if (normalized.length > 240) throw new Error('分支名称不能超过 240 个字符')
+  return normalized
+}
+
+async function assertValidGitBranchName(workspacePath, branchName) {
+  const normalized = normalizeGitBranchName(branchName)
+  if (normalized.startsWith('-')) throw new Error(`分支名称不合法：${normalized}`)
+  const result = await runGit(['check-ref-format', `refs/heads/${normalized}`], workspacePath)
+  if (!result.ok) throw new Error(`分支名称不合法：${normalized}`)
+  return normalized
+}
+
+/** List local branches and the checked-out branch for the active workspace. */
+export async function listGitBranches(workspacePath) {
+  if (!(await isGitRepository(workspacePath))) throw new Error('当前工作区不是 Git 仓库')
+  const [branchesRes, currentRes] = await Promise.all([
+    runGit(['for-each-ref', '--sort=refname', '--format=%(refname:short)', 'refs/heads'], workspacePath),
+    runGit(['branch', '--show-current'], workspacePath),
+  ])
+  if (!branchesRes.ok) throw new Error(`读取本地分支失败：${branchesRes.error}`)
+  if (!currentRes.ok) throw new Error(`读取当前分支失败：${currentRes.error}`)
+  return {
+    branches: branchesRes.stdout ? branchesRes.stdout.split('\n').filter(Boolean) : [],
+    currentBranch: currentRes.stdout || null,
+  }
+}
+
+/** Create and check out a branch at the current HEAD, preserving working-tree changes. */
+export async function createGitBranch(workspacePath, branchName) {
+  if (!(await isGitRepository(workspacePath))) throw new Error('当前工作区不是 Git 仓库')
+  const normalized = await assertValidGitBranchName(workspacePath, branchName)
+  const { branches } = await listGitBranches(workspacePath)
+  if (branches.includes(normalized)) throw new Error(`本地分支已存在：${normalized}`)
+  const result = await runGit(['switch', '-c', normalized], workspacePath)
+  if (!result.ok) throw new Error(`创建并切换分支失败：${result.error}`)
+  return { branch: normalized }
+}
+
+/** Switch to an existing local branch only when the worktree and index are clean. */
+export async function switchGitBranch(workspacePath, branchName) {
+  if (!(await isGitRepository(workspacePath))) throw new Error('当前工作区不是 Git 仓库')
+  const normalized = await assertValidGitBranchName(workspacePath, branchName)
+  const { branches, currentBranch } = await listGitBranches(workspacePath)
+  if (!branches.includes(normalized)) throw new Error(`找不到本地分支：${normalized}`)
+  if (currentBranch === normalized) return { branch: normalized, unchanged: true }
+
+  const status = await runGit(['status', '--porcelain=v1'], workspacePath)
+  if (!status.ok) throw new Error(`检查工作区状态失败：${status.error}`)
+  if (status.stdout) {
+    throw new Error('工作区有未提交改动。请先提交或暂存后再切换分支；新建分支会保留这些改动。')
+  }
+
+  const result = await runGit(['switch', normalized], workspacePath)
+  if (!result.ok) throw new Error(`切换分支失败：${result.error}`)
+  return { branch: normalized, unchanged: false }
+}
+
 /**
  * 根据变更文件推导智能 Commit Message 建议
  * @param {string} workspacePath 
@@ -883,13 +952,20 @@ export async function getGitCheckpointDiff(workspacePath, checkpointId, { conver
 
   const target = cp.commitSha || cp.stashCommit || cp.headCommit
   const targetRef = target === 'EMPTY_REPO' ? EMPTY_TREE_SHA : target
-  const diffRes = await runGit(['diff', targetRef], workspacePath)
-  const statRes = await runGit(['diff', '--stat', targetRef], workspacePath)
+  // Compare complete trees instead of `git diff <ref>` so newly-created
+  // untracked files are included. captureWorkspaceTree uses a private index and
+  // never stages files or changes the user's real index.
+  const currentHeadRes = await runCheckpointGit(['rev-parse', 'HEAD'], workspacePath)
+  const currentHead = currentHeadRes.ok ? currentHeadRes.stdout : null
+  const { treeSha: currentTreeSha } = await captureWorkspaceTree(workspacePath, currentHead)
+  const diffRes = await runCheckpointGit(['diff', targetRef, currentTreeSha], workspacePath)
+  const statRes = await runCheckpointGit(['diff', '--stat', targetRef, currentTreeSha], workspacePath)
 
   return {
     checkpoint: cp,
     diff: diffRes.ok ? diffRes.stdout : '',
     stat: statRes.ok ? statRes.stdout : '',
+    includesUntrackedFiles: true,
   }
 }
 

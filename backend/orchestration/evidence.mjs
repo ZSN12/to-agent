@@ -54,7 +54,12 @@ export function assessAcceptanceCriteria(task, text) {
 
   let report
   try {
-    report = JSON.parse(source.slice(start + ACCEPTANCE_REPORT_START.length, end).trim())
+    const rawContent = source.slice(start + ACCEPTANCE_REPORT_START.length, end).trim()
+    const cleanedContent = rawContent
+      .replace(/^```(?:json)?\s*/i, '')
+      .replace(/\s*```$/i, '')
+      .trim()
+    report = JSON.parse(cleanedContent)
   } catch {
     return {
       required: criteria.length,

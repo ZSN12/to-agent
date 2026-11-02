@@ -1,0 +1,127 @@
+{
+  "generatedAt": "2026-10-26T15:31:13.394Z",
+  "node": "v22.23.1",
+  "platform": "darwin-arm64",
+  "samples": 7,
+  "tokenEstimate": {
+    "textUtf16Units": 67462,
+    "legacyPerRun": {
+      "samplesMs": [
+        0.962,
+        0.853,
+        1.23,
+        0.868,
+        1.057,
+        0.934,
+        0.901
+      ],
+      "medianMs": 0.934,
+      "p95Ms": 1.23
+    },
+    "optimizedPerRun": {
+      "samplesMs": [
+        0.616,
+        0.447,
+        0.408,
+        0.4,
+        0.63,
+        0.407,
+        0.486
+      ],
+      "medianMs": 0.447,
+      "p95Ms": 0.63
+    }
+  },
+  "repoMapTailFit": {
+    "inputLines": 2400,
+    "maxTokens": 20000,
+    "outputLines": 919,
+    "legacyPerRun": {
+      "samplesMs": [
+        62.02,
+        62.408,
+        65.907,
+        57.128,
+        57.432
+      ],
+      "medianMs": 62.02,
+      "p95Ms": 65.907
+    },
+    "optimizedPerRun": {
+      "samplesMs": [
+        0.092,
+        0.092,
+        0.1,
+        0.091,
+        0.091
+      ],
+      "medianMs": 0.092,
+      "p95Ms": 0.1
+    }
+  },
+  "pageRank": {
+    "uniform-cycle": {
+      "nodes": 1200,
+      "fixed20": {
+        "samplesMs": [
+          2.685,
+          2.804,
+          2.524,
+          2.087,
+          2.42,
+          2.444,
+          2.354
+        ],
+        "medianMs": 2.444,
+        "p95Ms": 2.804
+      },
+      "earlyStop": {
+        "samplesMs": [
+          0.663,
+          0.507,
+          0.494,
+          0.571,
+          0.502,
+          0.482,
+          0.581
+        ],
+        "medianMs": 0.507,
+        "p95Ms": 0.663
+      },
+      "maxRankDelta": 0,
+      "speedup": 4.82
+    },
+    "sparse-directed": {
+      "nodes": 1200,
+      "fixed20": {
+        "samplesMs": [
+          3.208,
+          3.115,
+          3.145,
+          3.135,
+          3.256,
+          3.112,
+          3.172
+        ],
+        "medianMs": 3.145,
+        "p95Ms": 3.256
+      },
+      "earlyStop": {
+        "samplesMs": [
+          2.625,
+          2.652,
+          2.614,
+          2.588,
+          2.587,
+          2.767,
+          2.641
+        ],
+        "medianMs": 2.625,
+        "p95Ms": 2.767
+      },
+      "maxRankDelta": 3.149e-9,
+      "speedup": 1.2
+    }
+  },
+  "interpretation": "Local microbenchmark only. Compare runs on the same device/runtime; no cross-device latency claim is implied."
+}

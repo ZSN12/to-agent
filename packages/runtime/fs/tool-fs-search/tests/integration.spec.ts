@@ -68,6 +68,7 @@ describe('search tools over the real subprocess service + the packaged rg', () =
   })
 
   afterEach(async () => {
+    await ctx.fiber.dispose()
     await rm(dir, { recursive: true, force: true })
   })
 

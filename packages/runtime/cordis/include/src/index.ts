@@ -62,6 +62,10 @@ export function applyEntryPatches(
 ): EntryOptions[] {
   data = structuredClone(data)
   if (!patches?.length) return data
+  // Insert patches contribute entries directly to `data`. The override pass
+  // below mutates those entries, so it must not share the inserted objects
+  // with the cached bundle patch list used by a later recomposition.
+  patches = structuredClone(patches)
 
   const entryMap = new Map<string, EntryOptions>()
   const buildMap = (entries: EntryOptions[]) => {

@@ -8,7 +8,7 @@ import { Service } from '@taskweaver/cordis';
 import z from '@taskweaver/schemastery';
 import SessionQueryEngine, { SESSION_QUERY_DEFAULT_PERSISTED_INSPECT_CONCURRENCY, SESSION_QUERY_READ_WINDOW_MAX, SessionQueryError, SessionSearchCursor, assertSessionHeadersCompatible, buildSessionEventSearchDocuments, } from '@taskweaver/dsh-session-query';
 import { openSearchDatabase, } from "./schema.js";
-import { FTS_HIGHLIGHT_END, FTS_HIGHLIGHT_START, assertFts5OuterPredicateCount, assertPortableBindingCount, buildEventWhere, buildSessionWhere, makeSnippet, normalizeEventRequest, normalizeSessionRequest, quoteFtsData, requestFingerprint, sanitizeFtsText, SQLITE_MAX_PAGE_LIMIT, } from "./query.js";
+import { FTS_HIGHLIGHT_END, FTS_HIGHLIGHT_START, assertFts5OuterPredicateCount, assertPortableBindingCount, buildEventWhere, buildSessionWhere, diffSearchDocuments, makeSnippet, normalizeEventRequest, normalizeSessionRequest, quoteFtsData, requestFingerprint, sanitizeFtsText, SQLITE_MAX_PAGE_LIMIT, SQLITE_PORTABLE_VARIABLE_LIMIT, } from "./query.js";
 export { SESSION_QUERY_SQLITE_APPLICATION_ID, SESSION_QUERY_SQLITE_SCHEMA_VERSION, } from "./schema.js";
 /** Boot-context slot for a launcher-owned absolute path to this process's derived query index. */
 export const SESSION_QUERY_SQLITE_PATH_KEY = 'launcherSessionQueryPath';
@@ -231,12 +231,18 @@ export class SqliteSessionQueryEngine extends SessionQueryEngine {
         let nextLocalGeneration = this._localGeneration;
         if (persistentChanges.length > 0 || persistentDeletes.length > 0)
             nextMainGeneration += 1;
+        const liveObservationsById = new Map(observation.liveObservations.map(item => [item.observation.header.id, item]));
         const liveReplacements = liveChanges.map((entry) => {
             nextLocalGeneration = Math.max(nextLocalGeneration, nextMainGeneration) + 1;
+            const cached = liveObservationsById.get(entry.header.id)?.previous;
+            const indexed = liveById.get(entry.header.id);
             return {
                 entry,
                 generation: nextLocalGeneration,
                 persisted: observation.persisted.has(entry.header.id),
+                previousDocuments: cached !== undefined && indexed?.fingerprint === cached.fingerprint
+                    ? cached.documents
+                    : undefined,
             };
         });
         if (hasWrites) {
@@ -257,8 +263,8 @@ export class SqliteSessionQueryEngine extends SessionQueryEngine {
                 }
                 for (const row of liveDeletes)
                     this._deleteSession('live', row.id);
-                for (const { entry, generation, persisted } of liveReplacements) {
-                    this._replaceLiveSession(entry, generation, persisted);
+                for (const { entry, generation, persisted, previousDocuments } of liveReplacements) {
+                    this._replaceLiveSession(entry, generation, persisted, previousDocuments);
                 }
                 db.exec('COMMIT');
             }
@@ -282,6 +288,9 @@ export class SqliteSessionQueryEngine extends SessionQueryEngine {
             this._persistenceEpoch += 1;
         this._localGeneration = nextLocalGeneration;
         this._lastPersistenceIdentity = observation.persistenceBinding.identity;
+        for (const item of observation.liveObservations) {
+            liveObservationCache.set(item.session, { events: item.events, observation: item.observation });
+        }
         return observation.persistenceBinding;
     }
     async _observeStable(indexed, signal) {
@@ -298,6 +307,7 @@ export class SqliteSessionQueryEngine extends SessionQueryEngine {
                     const before = await persistence.listSnapshots(signal);
                     assertNotAborted(signal);
                     persisted = materializePersistenceSnapshots(before);
+                    const inspectCandidates = [];
                     for (const entry of persisted.values()) {
                         if (canReuseIndexed && indexed.get(entry.header.id)?.revision === entry.revision)
                             continue;
@@ -307,12 +317,9 @@ export class SqliteSessionQueryEngine extends SessionQueryEngine {
                         // the returned observation live-preferred.
                         if (initiallyLive.has(entry.header.id) || this.ctx.sessions.get(entry.header.id) !== undefined)
                             continue;
-                        assertNotAborted(signal);
-                        const loaded = await persistence.inspect(entry.header.id, signal);
-                        assertNotAborted(signal);
-                        assertSessionHeadersCompatible(entry.header, loaded.meta);
-                        entry.loaded = observeSession(loaded.meta, loaded.events);
+                        inspectCandidates.push(entry);
                     }
+                    await inspectPersistedCandidates(persistence, inspectCandidates, this.config.persistedInspectConcurrency, signal);
                     assertNotAborted(signal);
                     const afterSnapshots = await persistence.listSnapshots(signal);
                     assertNotAborted(signal);
@@ -336,16 +343,19 @@ export class SqliteSessionQueryEngine extends SessionQueryEngine {
                 }
             }
             const live = new Map();
+            const liveObservations = [];
             for (const session of this.ctx.sessions.list()) {
                 const observed = observeLive(session);
                 const durable = persisted.get(session.id);
-                if (durable !== undefined)
-                    assertSessionHeadersCompatible(observed.header, durable.header);
-                live.set(session.id, observed);
+                if (durable !== undefined) {
+                    assertSessionHeadersCompatible(observed.observation.header, durable.header);
+                }
+                live.set(session.id, observed.observation);
+                liveObservations.push(observed);
             }
             if (!sameSessionIds(initiallyLive, live))
                 continue;
-            return { persistenceBinding, persisted, live };
+            return { persistenceBinding, persisted, live, liveObservations };
         }
         throw new SessionQueryError('session-search persistence observation did not stabilize after one retry', 'SESSION_QUERY_PERSISTENCE_FAILED');
     }
@@ -365,38 +375,87 @@ export class SqliteSessionQueryEngine extends SessionQueryEngine {
         }
     }
     _replacePersistedSession(entry, revision, generation) {
-        this._deleteSession('persisted', entry.header.id);
         const db = this._requireDb();
         db.prepare(`
       INSERT INTO persisted_sessions
         (id, version, created_at, cwd, parent_session, seed_length, delegation_depth, agent_preset, revision, generation)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        version = excluded.version,
+        created_at = excluded.created_at,
+        cwd = excluded.cwd,
+        parent_session = excluded.parent_session,
+        seed_length = excluded.seed_length,
+        delegation_depth = excluded.delegation_depth,
+        agent_preset = excluded.agent_preset,
+        revision = excluded.revision,
+        generation = excluded.generation
     `).run(...headerBindings(entry.header), revision, generation);
-        const insert = db.prepare(`
-      INSERT INTO persisted_docs (text, session_id, seq, type, time, surface, codepoint_length)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `);
-        for (const document of entry.documents) {
-            const text = sanitizeFtsText(document.text);
-            insert.run(text, document.sessionId, document.seq, document.type, document.time, document.surface, Array.from(text).length);
-        }
+        this._syncSearchDocuments('persisted', entry.header.id, entry.documents);
     }
-    _replaceLiveSession(entry, generation, persisted) {
-        this._deleteSession('live', entry.header.id);
+    _replaceLiveSession(entry, generation, persisted, previousDocuments) {
         const db = this._requireDb();
         db.prepare(`
       INSERT INTO temp.live_sessions
         (id, version, created_at, cwd, parent_session, seed_length, delegation_depth, agent_preset, fingerprint, persisted, generation)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        version = excluded.version,
+        created_at = excluded.created_at,
+        cwd = excluded.cwd,
+        parent_session = excluded.parent_session,
+        seed_length = excluded.seed_length,
+        delegation_depth = excluded.delegation_depth,
+        agent_preset = excluded.agent_preset,
+        fingerprint = excluded.fingerprint,
+        persisted = excluded.persisted,
+        generation = excluded.generation
     `).run(...headerBindings(entry.header), entry.fingerprint, persisted ? 1 : 0, generation);
-        const insert = db.prepare(`
-      INSERT INTO temp.live_docs (text, session_id, seq, type, time, surface, codepoint_length)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `);
-        for (const document of entry.documents) {
-            const text = sanitizeFtsText(document.text);
-            insert.run(text, document.sessionId, document.seq, document.type, document.time, document.surface, Array.from(text).length);
+        this._syncSearchDocuments('live', entry.header.id, entry.documents, previousDocuments);
+    }
+    _syncSearchDocuments(source, sessionId, documents, previousDocuments) {
+        const db = this._requireDb();
+        const table = source === 'live' ? 'temp.live_docs' : 'persisted_docs';
+        const next = storedDocuments(documents);
+        const indexed = previousDocuments === undefined
+            ? readIndexedDocuments(db, table, sessionId)
+            : undefined;
+        const previous = previousDocuments === undefined
+            ? indexed?.documents
+            : storedDocuments(previousDocuments);
+        let delta = previous === undefined
+            ? undefined
+            : diffSearchDocuments(previous, next, sessionId);
+        let rowIds = indexed?.rowIds;
+        if (delta !== undefined && previousDocuments !== undefined && delta.deleteSeqs.length > 0) {
+            rowIds = readIndexedRowIds(db, table, sessionId, delta.deleteSeqs);
+            if (rowIds === undefined || delta.deleteSeqs.some(seq => !rowIds?.has(seq)))
+                delta = undefined;
         }
+        if (delta === undefined) {
+            db.prepare(`DELETE FROM ${table} WHERE session_id = ?`).run(sessionId);
+            insertSearchDocuments(db, table, next);
+            return;
+        }
+        if (delta.deleteSeqs.length > 0) {
+            if (rowIds === undefined) {
+                db.prepare(`DELETE FROM ${table} WHERE session_id = ?`).run(sessionId);
+                insertSearchDocuments(db, table, next);
+                return;
+            }
+            const remove = db.prepare(`DELETE FROM ${table} WHERE rowid = ?`);
+            for (const seq of delta.deleteSeqs) {
+                const rowid = rowIds.get(seq);
+                /* v8 ignore next -- a missing row id is handled by the full-rebuild branch above */
+                if (rowid === undefined) {
+                    db.prepare(`DELETE FROM ${table} WHERE session_id = ?`).run(sessionId);
+                    insertSearchDocuments(db, table, next);
+                    return;
+                }
+                remove.run(rowid);
+            }
+        }
+        insertSearchDocuments(db, table, delta.upserts);
     }
     _querySessions(request, offset, persistenceBinding) {
         const useFts = queryCanUseTrigram(request.query);
@@ -524,6 +583,81 @@ function headerBindings(header) {
         header.agentPreset ?? null,
     ];
 }
+function storedDocuments(documents) {
+    return documents.map(document => ({
+        ...document,
+        text: sanitizeFtsText(document.text),
+    }));
+}
+function readIndexedDocuments(db, table, sessionId) {
+    const rows = db.prepare(`
+    SELECT rowid, text, session_id,
+      CAST(seq AS INTEGER) AS seq,
+      type,
+      CAST(time AS INTEGER) AS time,
+      surface,
+      CAST(codepoint_length AS INTEGER) AS codepoint_length
+    FROM ${table}
+    WHERE session_id = ?
+    ORDER BY CAST(seq AS INTEGER), rowid
+  `).all(sessionId);
+    const documents = [];
+    const rowIds = new Map();
+    for (const row of rows) {
+        if (!Number.isSafeInteger(row.rowid)
+            || typeof row.text !== 'string'
+            || typeof row.session_id !== 'string'
+            || !Number.isSafeInteger(row.seq)
+            || typeof row.type !== 'string'
+            || !Number.isSafeInteger(row.time)
+            || typeof row.surface !== 'string'
+            || !Number.isSafeInteger(row.codepoint_length)
+            || row.codepoint_length !== Array.from(row.text).length
+            || rowIds.has(row.seq))
+            return undefined;
+        rowIds.set(row.seq, row.rowid);
+        documents.push({
+            sessionId: row.session_id,
+            seq: row.seq,
+            type: row.type,
+            time: row.time,
+            surface: row.surface,
+            text: row.text,
+        });
+    }
+    if (diffSearchDocuments(documents, documents, sessionId) === undefined)
+        return undefined;
+    return { documents, rowIds };
+}
+function readIndexedRowIds(db, table, sessionId, seqs) {
+    if (seqs.length + 1 > SQLITE_PORTABLE_VARIABLE_LIMIT)
+        return undefined;
+    const placeholders = seqs.map(() => '?').join(', ');
+    const rows = db.prepare(`
+    SELECT rowid, CAST(seq AS INTEGER) AS seq
+    FROM ${table}
+    WHERE session_id = ? AND CAST(seq AS INTEGER) IN (${placeholders})
+  `).all(sessionId, ...seqs);
+    const rowIds = new Map();
+    for (const row of rows) {
+        if (!Number.isSafeInteger(row.rowid) || !Number.isSafeInteger(row.seq) || rowIds.has(row.seq)) {
+            return undefined;
+        }
+        rowIds.set(row.seq, row.rowid);
+    }
+    return rowIds;
+}
+function insertSearchDocuments(db, table, documents) {
+    if (documents.length === 0)
+        return;
+    const insert = db.prepare(`
+    INSERT INTO ${table} (text, session_id, seq, type, time, surface, codepoint_length)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `);
+    for (const document of documents) {
+        insert.run(document.text, document.sessionId, document.seq, document.type, document.time, document.surface, Array.from(document.text).length);
+    }
+}
 function selectedDocumentsSql(useFts) {
     const persistedSearch = useFts
         ? 'persisted_docs MATCH ?'
@@ -612,11 +746,16 @@ const liveObservationCache = new WeakMap();
 function observeLive(session) {
     const events = session.events;
     const cached = liveObservationCache.get(session);
-    if (cached?.events === events)
-        return cached.observation;
+    if (cached?.events === events) {
+        return { session, events, observation: cached.observation, previous: cached.observation };
+    }
     const observation = observeSession(session.header, events);
-    liveObservationCache.set(session, { events, observation });
-    return observation;
+    return {
+        session,
+        events,
+        observation,
+        ...cached === undefined ? {} : { previous: cached.observation },
+    };
 }
 function observeSession(header, events) {
     const detachedHeader = structuredClone(header);
@@ -628,6 +767,39 @@ function observeSession(header, events) {
             .update(JSON.stringify({ header: detachedHeader, events: detachedEvents }))
             .digest('base64url'),
     };
+}
+async function inspectPersistedCandidates(persistence, candidates, concurrency, signal) {
+    let cursor = 0;
+    let stopDispatching = false;
+    let hasFailure = false;
+    let failure;
+    const worker = async () => {
+        while (!stopDispatching) {
+            try {
+                assertNotAborted(signal);
+                const entry = candidates[cursor];
+                if (entry === undefined)
+                    return;
+                cursor += 1;
+                const loaded = await persistence.inspect(entry.header.id, signal);
+                assertNotAborted(signal);
+                assertSessionHeadersCompatible(entry.header, loaded.meta);
+                entry.loaded = observeSession(loaded.meta, loaded.events);
+            }
+            catch (error) {
+                if (!hasFailure) {
+                    hasFailure = true;
+                    failure = error;
+                }
+                stopDispatching = true;
+                return;
+            }
+        }
+    };
+    const workerCount = Math.min(concurrency, candidates.length);
+    await Promise.all(Array.from({ length: workerCount }, () => worker()));
+    if (hasFailure)
+        throw failure;
 }
 function materializePersistenceSnapshots(snapshots) {
     if (!isRuntimeArray(snapshots))

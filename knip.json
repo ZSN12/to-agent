@@ -1,0 +1,72 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "workspaces": {
+    ".": {
+      "entry": [
+        "backend/shell/run.mjs",
+        "src/main.tsx",
+        "contract/types/*.ts",
+        "scripts/**/*.{mjs,cjs,js,ts}",
+        "tests/**/*.mjs",
+        "e2e/**/*.{mjs,ts}",
+        "eval/**/*.mjs"
+      ],
+      "project": [
+        "backend/**/*.{mjs,cjs,js}",
+        "src/**/*.{ts,tsx}",
+        "contract/**/*.{mjs,ts}",
+        "scripts/**/*.{mjs,cjs,js,ts}"
+      ],
+      "ignore": [
+        "backend/vendor/**",
+        "src/**/*.generated.ts"
+      ],
+      "ignoreDependencies": [
+        "electron",
+        "katex"
+      ]
+    },
+    "packages/provider-bridge": {
+      "project": [
+        "src/**/*.ts"
+      ]
+    },
+    "packages/provider-bridge-transport": {
+      "project": [
+        "*.mjs"
+      ]
+    },
+    "packages/runtime/credentials/authorization": {
+      "entry": [
+        "tests/**/*.{ts,tsx,js}"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx,js}",
+        "tests/**/*.{ts,tsx,js}"
+      ]
+    },
+    "packages/runtime/spill/spill": {
+      "entry": [
+        "tests/**/*.{ts,tsx,js}"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx,js}",
+        "tests/**/*.{ts,tsx,js}"
+      ]
+    },
+    "packages/runtime/fs/tool-fs": {
+      "entry": [
+        "tests/**/*.{ts,tsx,js}"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx,js}",
+        "tests/**/*.{ts,tsx,js}"
+      ]
+    },
+    "packages/runtime/fs/tool-fs-semantic-search": {
+      "project": [
+        "src/**/*.{ts,tsx,js}"
+      ]
+    }
+  }
+}

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import {
   hostToolToOcxClientWireName,
   humanizeBridgeTransportError,
+  isWorkBuddyModelRoute,
 } from '../backend/cursor-tool-guidance.mjs'
 
 assert.equal(hostToolToOcxClientWireName('read'), 'ocx_client_read')
@@ -38,6 +39,40 @@ const missingExecutor = humanizeBridgeTransportError(
 )
 assert.match(missingExecutor, /没有可用的本地执行端/)
 assert.match(missingExecutor, /不代表工作区文件不可读/)
+
+assert.equal(isWorkBuddyModelRoute('workbuddy/deepseek-v4-flash'), true)
+assert.equal(isWorkBuddyModelRoute('workbuddy-ai/gpt-5.6-sol'), true)
+assert.equal(isWorkBuddyModelRoute('bridge-composer/cursor/composer-2.5'), false)
+
+const rawWbApisix401 = '401: {"message":"<html>\\r\\n<head><title>401 Authorization Required</title></head>\\r\\n<body>\\r\\n<center><h1>401 Authorization Required</h1></center>\\r\\n<hr><center>openresty</center>\\r\\n<p><em>Powered by <a href=\\"https://apisix.apache.org/\\">APISIX</a>.</em></p></body>\\r\\n</html>\\r\\n","type":"upstream_error"}'
+const humanizedApisix = humanizeBridgeTransportError(rawWbApisix401, 'workbuddy/deepseek-v4-flash')
+assert.match(humanizedApisix, /WorkBuddy 授权凭据已过期或失效/)
+assert.match(humanizedApisix, /重新登录账号以自动刷新本地凭据/)
+assert.doesNotMatch(humanizedApisix, /WorkBuddy AI/)
+
+const humanizedWorkBuddyAi401 = humanizeBridgeTransportError(rawWbApisix401, 'workbuddy-ai/gpt-5.6-sol')
+assert.match(humanizedWorkBuddyAi401, /请打开「WorkBuddy AI」桌面客户端/)
+
+const humanizedNoRouteApisix = humanizeBridgeTransportError(rawWbApisix401, null)
+assert.match(humanizedNoRouteApisix, /WorkBuddy 授权凭据已过期或失效/)
+
+const humanizedCli401 = humanizeBridgeTransportError(
+  '401 Authentication required. Please use /login command to sign in to your account',
+  'workbuddy/deepseek-v4-flash',
+)
+assert.match(humanizedCli401, /WorkBuddy 授权凭据已过期或失效/)
+
+const humanizedWbRefused = humanizeBridgeTransportError(
+  'fetch failed (ECONNREFUSED)',
+  'workbuddy/deepseek-v4-flash',
+)
+assert.match(humanizedWbRefused, /无法连接本地 WorkBuddy 中转服务/)
+
+const humanizedWb429 = humanizeBridgeTransportError(
+  '429 Too Many Requests',
+  'workbuddy/deepseek-v4-flash',
+)
+assert.match(humanizedWb429, /WorkBuddy 上游服务请求频率受限/)
 
 import {
   ocxSupportsComposerToolContinuation,

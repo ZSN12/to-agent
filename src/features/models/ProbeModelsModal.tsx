@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Check, Radio, Search, Sparkles, X } from 'lucide-react'
 import type { ProbedModelItem, ProbeModelsResult } from '../../shared/model-api'
 import { useModalFocusTrap } from '../../shared/useModalFocusTrap'
+import { getCleanModelId } from './format'
 
 export function ProbeModelsModal({
   open,
@@ -230,7 +231,9 @@ export function ProbeModelsModal({
                           <span style={{ fontWeight: 600, color: isChecked ? '#10b981' : '#fff', fontSize: 13, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
                             {m.name || m.id}
                           </span>
-                          <code style={{ fontSize: 11, color: 'rgba(255, 255, 255, 0.5)' }}>{m.id}</code>
+                          <code style={{ fontSize: 11, color: 'rgba(255, 255, 255, 0.5)' }}>
+                            {getCleanModelId(m.id, result?.providerId)}
+                          </code>
                         </div>
                       </div>
 

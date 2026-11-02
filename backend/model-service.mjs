@@ -16,7 +16,13 @@ import { createModelHostSync } from './model/host-sync.mjs'
 import { createModelLiveDiscovery } from './model/live-discovery.mjs'
 import { createProviderCredentialHelpers } from './model/provider-credential-helpers.mjs'
 import { createSerializeDshModel } from './model/serialize-model.mjs'
+import {
+  loadWorkBuddyProductCatalogMetadata,
+  scanWorkBuddy,
+  workBuddyMultiplierForModel,
+} from './model-sync/workbuddy-scan.mjs'
 import startupTrace from './startup-trace.cjs'
+import { isUiVerifyMockIsolated } from './ui-verify-mock.mjs'
 
 const { traceStartup } = startupTrace
 
@@ -48,6 +54,7 @@ export function createModelService({
   modelRegistryUpdater = null,
   appVersion = 'unknown',
   capabilityTierService = null,
+  syncWorkBuddyModels = null,
 }) {
   let priceRegistry = loadPriceRegistry(priceRegistryPath)
   let catalogPriceMeta = registryPriceMeta(priceRegistry)
@@ -70,6 +77,11 @@ export function createModelService({
   const credentialHelpers = createProviderCredentialHelpers({
     userDataPath,
     directoryClient,
+    isUiVerifyMockModelEnabled: () => isUiVerifyMockIsolated({
+      env: process.env,
+      isPackaged: process.env.TASKWEAVER_PACKAGED === '1' || process.env.TASKWEAVER_PACKAGED === 'true',
+      userDataPath,
+    }),
   })
   const liveDiscovery = createModelLiveDiscovery({
     userDataPath,
@@ -96,6 +108,7 @@ export function createModelService({
     catalogApi: catalog,
     resolveDshCredentialRef: credentialHelpers.resolveDshCredentialRef,
     getBridgeProviderAuthorization: credentialHelpers.getBridgeProviderAuthorization,
+    syncWorkBuddyModels,
   })
 
   const catalogCache = userDataPath
@@ -110,11 +123,12 @@ export function createModelService({
   let lastPublishedBundle = null
 
   async function readCatalogCacheContext() {
-    const [profiles, activeModelKey, addedModelKeys, activeThinkingLevel] = await Promise.all([
+    const [profiles, activeModelKey, addedModelKeys, activeThinkingLevel, workBuddyProductCatalog] = await Promise.all([
       profileStore.listProfiles(),
       profileStore.getActiveModelKey(),
       profileStore.listAddedModelKeys(),
       profileStore.getThinkingLevel(),
+      loadWorkBuddyProductCatalogMetadata(),
     ])
     let activeRegistry = { registry: null, source: 'bundled' }
     try {
@@ -133,6 +147,7 @@ export function createModelService({
       profileFingerprint,
       registryVersion: activeRegistry?.registry?.registryVersion ?? '',
       registrySource: activeRegistry?.source ?? 'bundled',
+      workBuddyProductCatalogFingerprint: workBuddyProductCatalog.fingerprint,
       registry: activeRegistry?.registry ?? null,
       profiles: profiles ?? {},
       activeModelKey: activeModelKey ?? null,
@@ -155,10 +170,12 @@ export function createModelService({
 
   async function decorateCatalog(catalog) {
     if (!catalog || typeof catalog !== 'object') return catalog
-    const [tierState, aliases, profiles] = await Promise.all([
+    const [tierState, aliases, profiles, workBuddyProductCatalog, taskRoleRoutingEnabled] = await Promise.all([
       capabilityTiers.getState(),
       capabilityTiers.getAliases(),
       profileStore.listProfiles(),
+      loadWorkBuddyProductCatalogMetadata(),
+      profileStore.isTaskRoleRoutingEnabled?.() ?? false,
     ])
     const overrideCanonicalIds = new Set()
     for (const [modelKey, profile] of Object.entries(profiles ?? {})) {
@@ -180,7 +197,7 @@ export function createModelService({
     }
     const decorateModel = (model) => {
       const profile = profiles?.[model.key] ?? model.profile ?? null
-      return {
+      const decorated = {
         ...model,
         profile,
         capabilityTier: resolveCapabilityTier(
@@ -190,12 +207,36 @@ export function createModelService({
           profile?.capabilityTierOverride,
         ),
       }
+      if (model.provider !== 'workbuddy') return decorated
+
+      const multiplier = workBuddyMultiplierForModel(
+        model,
+        workBuddyProductCatalog.multiplierById,
+        workBuddyProductCatalog.multiplierByName,
+      )
+      if (!multiplier) {
+        const withoutMultiplier = { ...decorated }
+        delete withoutMultiplier.workBuddyMultiplier
+        delete withoutMultiplier.workBuddyMultiplierUpdatedAt
+        return { ...withoutMultiplier, workBuddyMultiplierStatus: 'unknown' }
+      }
+      const result = {
+        ...decorated,
+        workBuddyMultiplier: multiplier.multiplier,
+        workBuddyMultiplierStatus: multiplier.status,
+        ...(multiplier.updatedAt ? { workBuddyMultiplierUpdatedAt: multiplier.updatedAt } : {}),
+      }
+      if (multiplier.source === 'product-cache') {
+        result.verificationStatus = 'unverified'
+      }
+      return result
     }
     return {
       ...catalog,
       models: Array.isArray(catalog.models) ? catalog.models.map(decorateModel) : [],
       candidateModels: Array.isArray(catalog.candidateModels) ? catalog.candidateModels.map(decorateModel) : [],
       capabilityTierStatus,
+      taskRoleRoutingEnabled: taskRoleRoutingEnabled === true,
     }
   }
 
@@ -352,6 +393,43 @@ export function createModelService({
       const startedAt = Date.now()
       traceStartup('live-discovery:start', { providerId: options?.providerId ?? null })
       try {
+        if (String(options?.providerId ?? '').trim() === 'workbuddy') {
+          const result = await scanWorkBuddy({
+            probe: false,
+            discoverCatalog: true,
+            timeoutMs: 2500,
+            signal: options?.signal,
+          })
+          if (result.warning) throw new Error(result.warning)
+          if (result.models.length === 0 && result.installations?.length) {
+            throw new Error(
+              `已检测到 ${result.installations.map((app) => app.name).join('、')}，但还没有可接入的模型。请先在 WorkBuddy 中登录并加载模型。`,
+            )
+          }
+          traceStartup('live-discovery:end', {
+            providerId: 'workbuddy',
+            durationMs: Date.now() - startedAt,
+            modelCount: result.models.length,
+          })
+          return result.models.map((model) => ({
+            id: model.id,
+            name: model.name || model.id,
+            contextWindow: model.maxInputTokens,
+            maxTokens: model.maxOutputTokens,
+            ...(model.verificationStatus === 'unverified'
+              ? { verificationStatus: 'unverified' }
+              : {}),
+            ...(typeof model.workBuddyMultiplier === 'string'
+              ? {
+                  workBuddyMultiplier: model.workBuddyMultiplier,
+                  workBuddyMultiplierStatus: model.workBuddyMultiplierStatus ?? 'unknown',
+                  ...(model.workBuddyMultiplierUpdatedAt
+                    ? { workBuddyMultiplierUpdatedAt: model.workBuddyMultiplierUpdatedAt }
+                    : {}),
+                }
+              : { workBuddyMultiplierStatus: model.workBuddyMultiplierStatus ?? 'unknown' }),
+          }))
+        }
         const result = await catalog.discoverProviderModels(options)
         traceStartup('live-discovery:end', {
           providerId: options?.providerId ?? null,

@@ -1,6 +1,7 @@
-import { FileText, Pencil, Search, Terminal, FolderOpen, PanelRightOpen } from 'lucide-react'
+import { FileText, Pencil, Search, Terminal, FolderOpen, PanelRightOpen, Copy, Check, ChevronDown, ChevronUp } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import type { ToolTraceItem } from '../../shared/app-api'
+import { copyTextToClipboard } from '../../shared/clipboard'
 import { CodeExecutionResultCard } from './CodeExecutionResultCard'
 import type { CodeOutputImage } from './codeOutputPresentation'
 import { readToolOutput, type ToolOutputReadState } from './tool-output-reader'
@@ -75,11 +76,16 @@ function ToolOutputDisclosure({
           disabled={outputState.kind === 'loading'}
           aria-expanded={outputState.kind === 'loaded' && expanded}
         >
-          {outputState.kind === 'loading'
-            ? '读取中…'
-            : outputState.kind === 'loaded'
-              ? expanded ? '收起全文' : '展开全文'
-              : outputState.kind === 'failed' ? '重试读取全文' : '展开全文'}
+          {outputState.kind === 'loaded' ? (
+            expanded ? <ChevronUp size={13} aria-hidden="true" /> : <ChevronDown size={13} aria-hidden="true" />
+          ) : null}
+          <span>
+            {outputState.kind === 'loading'
+              ? '读取中…'
+              : outputState.kind === 'loaded'
+                ? expanded ? '收起全文' : '展开全文'
+                : outputState.kind === 'failed' ? '重试读取全文' : '展开全文'}
+          </span>
         </button>
       )}
     </div>
@@ -121,6 +127,17 @@ export function ToolTraceCard({
       : item.toolName === 'edit' ? '编辑文件'
         : item.toolName === 'write' ? '写入文件' : item.toolName
 
+  const [copied, setCopied] = useState(false)
+  const handleCopyCommand = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!item.inputSummary) return
+    const ok = await copyTextToClipboard(item.inputSummary)
+    if (ok) {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1600)
+    }
+  }
+
   return (
     <div className={`tool-trace-card ${item.status}${isShell ? ' tool-trace-shell' : ''}`} data-testid="tool-card" role="group" aria-label={`工具调用：${item.toolName}`}>
       <div className="tool-trace-card-head">
@@ -156,6 +173,15 @@ export function ToolTraceCard({
           <div className="tool-trace-shell-command">
             <span className="tool-trace-shell-prompt" aria-hidden>$</span>
             <pre className="tool-trace-command">{item.inputSummary}</pre>
+            <button
+              type="button"
+              className="tool-trace-copy-btn"
+              title={copied ? '已复制' : '复制命令'}
+              aria-label={copied ? '已复制' : '复制命令'}
+              onClick={handleCopyCommand}
+            >
+              {copied ? <Check size={12} /> : <Copy size={12} />}
+            </button>
           </div>
         ) : <pre className="tool-trace-command">{item.inputSummary}</pre>
       )}

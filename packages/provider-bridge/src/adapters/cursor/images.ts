@@ -36,12 +36,12 @@ export const CURSOR_VISION_SOFT_MAX_BYTES_HIGH = 256 * 1024;
 export const CURSOR_VISION_MAX_EDGE = 2000;
 
 /**
- * Decode bomb: reject images whose sniffed longest edge exceeds this before Bun.Image.
+ * Decode bomb: reject images whose sniffed longest edge exceeds this before decoding.
  * Separate from {@link CURSOR_VISION_MAX_EDGE} (output resize target).
  */
 export const MAX_CURSOR_IMAGE_DECODE_EDGE = 8192;
 
-/** Decode bomb: reject images whose sniffed pixel count exceeds this before Bun.Image. */
+/** Decode bomb: reject images whose sniffed pixel count exceeds this before decoding. */
 export const MAX_CURSOR_IMAGE_PIXELS = 25_000_000;
 
 const CURSOR_VISION_JPEG_QUALITIES_DEFAULT = [85, 70, 55, 40] as const;
@@ -292,7 +292,7 @@ export function cursorImageAttachmentPath(uuid: string, mimeType: string): strin
 }
 
 /**
- * Re-encode toward a JPEG under the soft vision cap when Bun can decode the payload.
+ * Re-encode toward a JPEG under the soft vision cap when the image codec can decode the payload.
  * Unsupported MIME, oversize dimensions/pixels, or undecodable bytes are omitted (fail-closed).
  * After the quality ladder, edges shrink iteratively until the soft byte cap is met
  * (or the min edge floor is hit) so large clipboard PNGs do not leave >softMax JPEGs
@@ -301,7 +301,7 @@ export function cursorImageAttachmentPath(uuid: string, mimeType: string): strin
 export async function prepareCursorImageForWire(
   image: ResolvedCursorImage,
   signal?: AbortSignal,
-  testHooks?: { softMaxBytes?: number },
+  testHooks?: { softMaxBytes?: number; codec?: CursorImageCodec | null },
 ): Promise<PrepareCursorImageOutcome> {
   throwIfImagePhaseAborted(signal);
   const mime = image.mimeType.toLowerCase();
@@ -314,7 +314,7 @@ export async function prepareCursorImageForWire(
   }
 
   const format = sniffCursorImageFormat(image.data);
-  // Peek headers before Bun.Image so huge compressed bombs fail closed cheaply.
+  // Peek headers before decoding so huge compressed bombs fail closed cheaply.
   const sniffed = sniffCursorImageDimensions(image.data);
   if (!sniffed) {
     return { status: "omitted", reason: CURSOR_VISION_IMAGE_OMITTED };
@@ -327,10 +327,16 @@ export async function prepareCursorImageForWire(
 
   const declaredJpeg = mime === "image/jpeg" || mime === "image/jpg";
 
+  // Without a decoder the bytes cannot be validated or shrunk, so they are not sent.
+  const codec = testHooks?.codec !== undefined ? testHooks.codec : await resolveCursorImageCodec();
+  if (!codec) {
+    return { status: "omitted", reason: CURSOR_VISION_IMAGE_OMITTED };
+  }
+
   try {
     throwIfImagePhaseAborted(signal);
-    // metadata() decodes; reuse it as the Anthropic-style validate pass.
-    const meta = await new Bun.Image(image.data).metadata();
+    // decode() reads every pixel; reuse it as the Anthropic-style validate pass.
+    const meta = await codec.decode(image.data);
 
     // Passthrough only after a successful decode, and only when declared MIME
     // matches actual JPEG magic (never PNG-as-JPEG or SOF-only junk).
@@ -357,11 +363,8 @@ export async function prepareCursorImageForWire(
 
     const encodeAt = async (w: number, h: number, quality: number): Promise<Uint8Array> => {
       throwIfImagePhaseAborted(signal);
-      let pipeline = new Bun.Image(image.data);
-      if (w > 0 && h > 0 && (w !== width || h !== height)) {
-        pipeline = pipeline.resize(w, h);
-      }
-      return new Uint8Array(await pipeline.jpeg({ quality }).bytes());
+      const size = w > 0 && h > 0 && (w !== width || h !== height) ? { width: w, height: h } : null;
+      return codec.encodeJpeg(image.data, size, quality);
     };
 
     let best: Uint8Array | undefined;
@@ -424,6 +427,57 @@ export async function prepareCursorImageForWire(
     if (signal?.aborted || (err instanceof Error && err.name === "AbortError")) throw err;
     return { status: "omitted", reason: CURSOR_VISION_IMAGE_OMITTED };
   }
+}
+
+/** Decoder/encoder used to validate and shrink images for the Cursor vision wire. */
+export interface CursorImageCodec {
+  /** Decode every pixel (so corrupt or truncated bytes fail) and report the dimensions. */
+  decode(data: Uint8Array): Promise<{ width?: number; height?: number }>;
+  /** Re-encode as JPEG, resized to exactly `size` when given. */
+  encodeJpeg(data: Uint8Array, size: { width: number; height: number } | null, quality: number): Promise<Uint8Array>;
+}
+
+function bunImageCodec(bun: BunRuntime): CursorImageCodec {
+  return {
+    decode: (data) => new bun.Image(data).metadata(),
+    async encodeJpeg(data, size, quality) {
+      let pipeline = new bun.Image(data);
+      if (size) pipeline = pipeline.resize(size.width, size.height);
+      return new Uint8Array(await pipeline.jpeg({ quality }).bytes());
+    },
+  };
+}
+
+type Sharp = (typeof import("sharp"))["default"];
+
+/** sharp-backed codec for Node, where the TaskWeaver Host runs and Bun.Image does not exist. */
+export function sharpImageCodec(sharp: Sharp): CursorImageCodec {
+  const open = (data: Uint8Array) => sharp(data, { failOn: "error", limitInputPixels: MAX_CURSOR_IMAGE_PIXELS });
+  return {
+    async decode(data) {
+      const { info } = await open(data).raw().toBuffer({ resolveWithObject: true });
+      return { width: info.width, height: info.height };
+    },
+    async encodeJpeg(data, size, quality) {
+      let pipeline = open(data);
+      if (size) pipeline = pipeline.resize(size.width, size.height, { fit: "fill" });
+      // JPEG has no alpha channel; flatten transparent screenshots onto white instead of black.
+      return new Uint8Array(await pipeline.flatten({ background: "#ffffff" }).jpeg({ quality }).toBuffer());
+    },
+  };
+}
+
+let nodeImageCodec: Promise<CursorImageCodec | null> | undefined;
+
+/**
+ * Bun.Image under Bun; under Node the sharp build the Host runtime already ships. Null when
+ * neither is available, in which case images are omitted rather than sent unvalidated.
+ */
+function resolveCursorImageCodec(): Promise<CursorImageCodec | null> {
+  const bun = globalThis.Bun;
+  if (bun) return Promise.resolve(bunImageCodec(bun));
+  nodeImageCodec ??= import("sharp").then((module) => sharpImageCodec(module.default), () => null);
+  return nodeImageCodec;
 }
 
 /**

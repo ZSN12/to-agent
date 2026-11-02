@@ -3,6 +3,7 @@ import type { Dict } from '@taskweaver/cosmokit'
 import { ModuleLoader, type ModuleJob, type ResolveResult } from '@taskweaver/cordis-plugin-loader'
 import type { Include } from '@taskweaver/cordis-plugin-include'
 import { FSWatcher, watch, type ChokidarOptions } from 'chokidar'
+import { statSync } from 'node:fs'
 import { dirname, relative, resolve } from 'node:path'
 import { realpath, stat } from 'node:fs/promises'
 import { handleError } from './error.ts'
@@ -83,6 +84,17 @@ async function findWatchRoot(filename: string): Promise<{ filename: string; root
   }
 }
 
+function configFingerprint(filename: string): string {
+  try {
+    const stats = statSync(filename, { bigint: true })
+    return [stats.dev, stats.ino, stats.mode, stats.size, stats.mtimeNs, stats.ctimeNs].join(':')
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException | null)?.code
+    if (code === 'ENOENT' || code === 'ENOTDIR') return 'missing'
+    return `error:${code ?? 'unknown'}`
+  }
+}
+
 class Hmr extends Service {
   static inject = ['loader', 'timer']
 
@@ -148,14 +160,31 @@ class Hmr extends Service {
     })
     const registration = { watcher }
     this.configs.set(watchFilename, registration)
-    const onChange = (path: string) => {
-      const observed = resolve(path)
-      if (observed !== filename && observed !== watchFilename) return
+    let lastFingerprint = configFingerprint(watchFilename)
+    const initialFileExists = lastFingerprint !== 'missing'
+    let initialAddObserved = false
+    const refreshIfChanged = (force = false) => {
+      const nextFingerprint = configFingerprint(watchFilename)
+      if (!force && nextFingerprint === lastFingerprint) return
+      lastFingerprint = nextFingerprint
       this.refreshConfig(registration, filename, refresh)
     }
-    watcher.on('add', onChange)
-    watcher.on('change', onChange)
-    watcher.on('unlink', onChange)
+    const onChange = (path: string, initialAdd = false) => {
+      const observed = resolve(path)
+      if (observed !== filename && observed !== watchFilename) return
+      const forceInitialRefresh = initialAdd && !initialAddObserved && initialFileExists
+      if (initialAdd) initialAddObserved = true
+      refreshIfChanged(forceInitialRefresh)
+    }
+    watcher.on('add', path => onChange(path, true))
+    watcher.on('change', path => onChange(path))
+    watcher.on('unlink', path => onChange(path))
+    // Chokidar throttles directory rescans for one second. A config created
+    // immediately after an exact watch becomes ready can therefore emit a
+    // native event whose rescan is suppressed. Poll this one exact path as a
+    // low-cost safety net; the fingerprint deduplicates native and poll events.
+    const poll = setInterval(refreshIfChanged, 250)
+    poll.unref()
 
     const ready = Promise.withResolvers<void>()
     let readyState: 'pending' | 'resolved' | 'rejected' = 'pending'
@@ -176,10 +205,12 @@ class Hmr extends Service {
       await ready.promise
       return this.ctx.effect(() => async () => {
         if (this.configs.get(watchFilename) === registration) this.configs.delete(watchFilename)
+        clearInterval(poll)
         await watcher.close()
         await this.configRefreshes.get(registration)?.running
       }, 'hmr.registerConfig()')
     } catch (error) {
+      clearInterval(poll)
       this.configs.delete(watchFilename)
       await watcher.close()
       throw error

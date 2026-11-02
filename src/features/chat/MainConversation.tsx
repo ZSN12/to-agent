@@ -1,18 +1,6 @@
-import {
-  ArrowDown,
-  Folder,
-  GitBranch,
-  ListOrdered,
-  MessageSquare,
-  PanelBottom,
-  PanelLeft,
-  PanelRight,
-  Sparkles,
-  X,
-} from 'lucide-react'
+import { ArrowDown } from 'lucide-react'
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
 import type {
-  BusyEnterMode,
   DshProjectedToolCall,
   HostTodoItem,
   LiveContextUsage,
@@ -20,6 +8,7 @@ import type {
   PermissionPromptPayload,
   PromptBudgetSnapshot,
   PromptQueueSnapshot,
+  RoleDiscussionStrategy,
   SessionStatsSnapshot,
   SkillOption,
   ToolTraceItem,
@@ -28,25 +17,30 @@ import type {
   WorkMode,
   WorkspaceEntry,
   WorkspaceReference,
+  RoleProfile,
 } from '../../shared/app-api'
 import type { AssistantContentBlock, ChatMessage, ModelOption, ThinkingLevel } from '../../types'
 import { Composer } from '../composer/Composer'
-import { dshToolHistoryForMessage, isDshContextMessage } from '../dsh-runtime/dshTranscriptMessages'
-import { ContextInjectionRow } from './ContextInjectionRow'
+import { buildChatMessageNavigation, buildDshToolHistoryIndex, isDshContextMessage } from '../dsh-runtime/dshTranscriptMessages'
 import { Message } from './Message'
+import { WorkStreamingStatus } from './WorkStreamingStatus'
+import { ChangedFilesDock } from './ChangedFilesDock'
+import type { ChangedFileItem } from './changed-files'
 import { PendingSteeringBubble } from './PendingSteeringBubble'
 import { RetryBanner } from './RetryBanner'
-import type { PanelView } from './panel-view'
+import { isFailedTurnMessage } from './turn-message-status'
+import type { WorkbenchTabId } from '../workbench/useWorkbenchSessionState'
 import { useStableCallbacks } from './stable-callbacks'
 import { useStableArrays } from './stable-messages'
 import {
   ALT_MODIFIER_KEY,
-  CONTROL_MODIFIER_KEY,
   matchesKeys,
-  PRIMARY_MODIFIER_KEY,
   type ShortcutItem,
 } from '../../shared/shortcuts'
-import { workspaceLabel } from '../../shared/ui-utils'
+import type { RoleProgressEntry } from '../roles/RoleModeControls'
+import { useConversationStream, useConversationActions } from './context'
+import { ConversationHeader } from './ConversationHeader'
+import { ConversationEmptyState } from './ConversationEmptyState'
 
 const TerminalDrawer = lazy(() =>
   import('../terminal/TerminalDrawer').then((module) => ({ default: module.TerminalDrawer })),
@@ -64,22 +58,20 @@ export function MainConversation({
   permissionMode,
   modelsLoading,
   modelEmptyLabel,
-  sending,
+  sending: propSending,
   compacting,
   compactedSeq,
-  streamText,
-  streamStartedAt,
-  streamActivity,
-  streamThinking,
-  streamBlocks,
-  retryBanner,
-  toolTraces,
-  dshToolRows,
-  activeDshTurn,
+  streamText: propStreamText,
+  streamStartedAt: propStreamStartedAt,
+  streamActivity: propStreamActivity,
+  streamThinking: propStreamThinking,
+  streamBlocks: propStreamBlocks,
+  retryBanner: propRetryBanner,
+  toolTraces: propToolTraces,
+  dshToolRows: propDshToolRows,
+  activeDshTurn: propActiveDshTurn,
   promptQueue,
-  busyEnterMode,
   onQueueMutate,
-  onBusyEnterModeChange,
   liveContext,
   promptBudget,
   sessionStats,
@@ -88,7 +80,8 @@ export function MainConversation({
   backendError,
   threadTitle,
   taskCount,
-  panelOpen,
+  workbenchOpen,
+  workbenchTab,
   workspacePath,
   workspaceTrusted,
   availableProjects,
@@ -101,24 +94,24 @@ export function MainConversation({
   onThinkingLevelChange,
   onPermissionModeChange,
   onSend,
-  onCancel,
-  onSteer,
-  onFollowUp,
-  onSearchContext,
-  onCreateDroppedReference,
-  activePanel,
-  onSelectPanel,
+  onCancel: propOnCancel,
+  onSteer: propOnSteer,
+  onFollowUp: propOnFollowUp,
+  onSearchContext: propOnSearchContext,
+  onCreateDroppedReference: propOnCreateDroppedReference,
+  onOpenWorkbenchTab: propOnOpenWorkbenchTab,
   onToggleNav,
-  onFork,
-  onRewind,
-  onResendMessage,
-  onContinueMessage,
-  onShowToolDetails,
-  onOpenWorkspacePath,
+  onFork: propOnFork,
+  onRewind: propOnRewind,
+  onResendMessage: propOnResendMessage,
+  onContinueMessage: propOnContinueMessage,
+  onShowToolDetails: propOnShowToolDetails,
+  onOpenWorkspacePath: propOnOpenWorkspacePath,
+  onOpenChangedFileReview: propOnOpenChangedFileReview,
   shortcuts,
   terminalOpen,
-  onToggleTerminal,
-  onCloseTerminal,
+  onToggleTerminal: propOnToggleTerminal,
+  onCloseTerminal: propOnCloseTerminal,
   interruptedTurn,
   onDismissInterrupted,
   permissionPrompt,
@@ -128,10 +121,39 @@ export function MainConversation({
   onDiscussPlanReview,
   multiAgentOrchestration,
   onMultiAgentOrchestrationChange,
+  orchestrationChoicePrompt,
+  onRespondOrchestrationChoice,
   conversationId,
+  roleMode = false,
+  roleProfiles = [],
+  selectedRoleIds = [],
+  roleProgress = [],
+  roleDiscussionStrategy = 'relay',
+  roleSummaryEnabled = false,
+  onRoleDiscussionStrategyChange,
+  onRoleSummaryEnabledChange,
+  roleProfileLoadError: _roleProfileLoadError,
+  roleProfilesLoading: _roleProfilesLoading = false,
+  onSelectedRoleIdsChange: _onSelectedRoleIdsChange,
+  onManageRoles,
+  onTransferToWork: propOnTransferToWork,
+  pendingComposerText,
+  onClearPendingComposerText,
 }: {
   currentThreadId?: string | null
   conversationId?: string | null
+  roleMode?: boolean
+  roleProfiles?: RoleProfile[]
+  selectedRoleIds?: string[]
+  roleProgress?: RoleProgressEntry[]
+  roleDiscussionStrategy?: RoleDiscussionStrategy
+  roleSummaryEnabled?: boolean
+  onRoleDiscussionStrategyChange?: (strategy: RoleDiscussionStrategy) => void
+  onRoleSummaryEnabledChange?: (enabled: boolean) => void
+  roleProfileLoadError?: string | null
+  roleProfilesLoading?: boolean
+  onSelectedRoleIdsChange?: (ids: string[]) => void
+  onManageRoles?: () => void
   messages: ChatMessage[]
   model: ModelOption | null
   modelOptions: ModelOption[]
@@ -156,13 +178,11 @@ export function MainConversation({
     delayMs?: number
     message?: string
   } | null
-  toolTraces: ToolTraceItem[]
+  toolTraces?: ToolTraceItem[]
   dshToolRows?: readonly DshProjectedToolCall[]
   activeDshTurn?: number | null
   promptQueue?: PromptQueueSnapshot
-  busyEnterMode?: BusyEnterMode
   onQueueMutate?: (payload: { kind: 'steering' | 'followUp'; index: number; action: 'remove' | 'update'; text?: string }) => void
-  onBusyEnterModeChange?: (mode: BusyEnterMode) => void
   liveContext?: LiveContextUsage | null
   promptBudget?: PromptBudgetSnapshot | null
   sessionStats?: SessionStatsSnapshot | null
@@ -171,9 +191,9 @@ export function MainConversation({
   backendError?: string | null
   threadTitle: string
   taskCount: number
-  panelOpen: boolean
-  activePanel?: PanelView
-  onSelectPanel?: (panel: PanelView) => void
+  workbenchOpen: boolean
+  workbenchTab: WorkbenchTabId
+  onOpenWorkbenchTab?: (tab: WorkbenchTabId) => void
   workspacePath: string | null
   workspaceTrusted?: boolean | null
   availableProjects: { path: string; name: string }[]
@@ -193,18 +213,19 @@ export function MainConversation({
     attachments?: { id: string, mediaType: string, data: string, name: string }[],
     documents?: { id: string, name: string }[],
   ) => void
-  onCancel: () => void
+  onCancel?: () => void
   onSteer?: (text: string) => void
   onFollowUp?: (text: string) => void
-  onSearchContext: (query: string) => Promise<WorkspaceEntry[]>
-  onCreateDroppedReference: (file: File) => Promise<WorkspaceReference | null>
-  onToggleNav: () => void
+  onSearchContext?: (query: string) => Promise<WorkspaceEntry[] | any>
+  onCreateDroppedReference?: (file: File) => Promise<WorkspaceReference | null>
+  onToggleNav?: () => void
   onFork?: (messageId: string) => void
   onRewind?: (messageId: string) => void
   onResendMessage?: (text: string, precedingAssistantId: string | null, modelKey?: string | null) => void
   onContinueMessage?: (modelKey?: string | null) => void
   onShowToolDetails?: (item: ToolTraceItem) => void
   onOpenWorkspacePath?: (relativePath: string) => void
+  onOpenChangedFileReview?: (file: ChangedFileItem) => void
   shortcuts?: ShortcutItem[]
   terminalOpen?: boolean
   onToggleTerminal?: () => void
@@ -221,31 +242,91 @@ export function MainConversation({
   onDiscussPlanReview?: (id: string) => Promise<boolean>
   multiAgentOrchestration?: boolean
   onMultiAgentOrchestrationChange?: (enabled: boolean) => void
+  orchestrationChoicePrompt?: { confidence: number; reasons: string[] } | null
+  onRespondOrchestrationChoice?: (choice: 'single-agent' | 'multi-agent') => Promise<boolean>
+  onTransferToWork?: (text: string) => void
+  pendingComposerText?: string | null
+  onClearPendingComposerText?: () => void
 }) {
+  const contextStream = useConversationStream()
+  const contextActions = useConversationActions()
+
+  const sending = propSending ?? contextStream.sending
+  const streamText = propStreamText !== undefined ? propStreamText : contextStream.streamText
+  const streamStartedAt = propStreamStartedAt !== undefined ? propStreamStartedAt : contextStream.streamStartedAt
+  const streamActivity = propStreamActivity !== undefined ? propStreamActivity : contextStream.streamActivity
+  const streamThinking = propStreamThinking !== undefined ? propStreamThinking : contextStream.streamThinking
+  const streamBlocks = propStreamBlocks ?? contextStream.streamBlocks
+  const retryBanner = propRetryBanner !== undefined ? propRetryBanner : contextStream.retryBanner
+  const toolTraces = propToolTraces ?? contextStream.toolTraces
+  const dshToolRows = propDshToolRows ?? contextStream.dshToolRows
+  const activeDshTurn = propActiveDshTurn !== undefined ? propActiveDshTurn : contextStream.activeDshTurn
+
+  const onOpenWorkbenchTab = propOnOpenWorkbenchTab ?? contextActions.onOpenWorkbenchTab
+  const onCancel = propOnCancel ?? contextActions.onCancel
+  const onSteer = propOnSteer ?? contextActions.onSteer
+  const onFollowUp = propOnFollowUp ?? contextActions.onFollowUp
+  const onSearchContext = propOnSearchContext ?? contextActions.onSearchContext
+  const onCreateDroppedReference = propOnCreateDroppedReference ?? contextActions.onCreateDroppedReference
+  const onFork = propOnFork ?? contextActions.onFork
+  const onRewind = propOnRewind ?? contextActions.onRewind
+  const onResendMessage = propOnResendMessage ?? contextActions.onResendMessage
+  const onContinueMessage = propOnContinueMessage ?? contextActions.onContinueMessage
+  const onShowToolDetails = propOnShowToolDetails ?? contextActions.onShowToolDetails
+  const onOpenWorkspacePath = propOnOpenWorkspacePath ?? contextActions.onOpenWorkspacePath
+  const onOpenChangedFileReview = propOnOpenChangedFileReview ?? contextActions.onOpenChangedFileReview
+  const onToggleTerminal = propOnToggleTerminal ?? contextActions.onToggleTerminal
+  const onCloseTerminal = propOnCloseTerminal ?? contextActions.onCloseTerminal
+  const onTransferToWork = propOnTransferToWork ?? contextActions.onTransferToWork
+
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const scrollPositionsRef = useRef<Map<string, { top: number; atBottom: boolean }>>(new Map())
   const isAtBottomRef = useRef(true)
   const scrollFollowRafRef = useRef<number | null>(null)
   const [showScrollBottomBtn, setShowScrollBottomBtn] = useState(false)
-  const [turnMenuOpen, setTurnMenuOpen] = useState(false)
   const [focusedMessageIndex, setFocusedMessageIndex] = useState<number>(-1)
-  const bindCallback = useStableCallbacks()
-  const stableArray = useStableArrays()
-  const openDagPanel = bindCallback('open-dag-panel', onSelectPanel ? () => onSelectPanel('dag') : undefined)
+  const draftCacheOwnerRef = useRef({})
+  const cacheOwner = currentThreadId ?? conversationId ?? draftCacheOwnerRef.current
+  const activeCacheKeys = useMemo(() => ({
+    callbacks: [
+      'open-dag-panel', 'show-tool-details', 'open-workspace-path', 'open-changed-file-review',
+      ...messages.flatMap((message) => ['fork', 'rewind', 'edit', 'regenerate', 'retry'].map((action) => `${message.id}:${action}`)),
+    ],
+    arrays: messages.flatMap((message) => [`${message.id}:rows`, `${message.id}:traces`]),
+  }), [messages])
+  const bindCallback = useStableCallbacks(cacheOwner, activeCacheKeys.callbacks)
+  const stableArray = useStableArrays(cacheOwner, activeCacheKeys.arrays)
+  const openDagPanel = bindCallback('open-dag-panel', onOpenWorkbenchTab ? () => onOpenWorkbenchTab('tasks') : undefined)
 
-  const lastAgentMessageId = useMemo(() => {
-    for (let i = messages.length - 1; i >= 0; i--) {
-      if (messages[i].author !== 'user' && !messages[i].compaction && !isDshContextMessage(messages[i])) return messages[i].id
-    }
-    return null
-  }, [messages])
-
-  const latestUserMessageIndex = useMemo(() => {
-    for (let i = messages.length - 1; i >= 0; i--) {
-      if (messages[i].author === 'user' && !messages[i].behavior) return i
-    }
-    return -1
-  }, [messages])
+  const navigation = useMemo(() => buildChatMessageNavigation(messages), [messages])
+  // Both modes share one conversation transcript; roleMode changes the composer and
+  // presentation, not which historical messages belong to this conversation.
+  const visibleMessages = messages
+  const { lastAgentMessageId, latestUserMessageIndex, latestAssistantIndex } = navigation
+  const toolHistory = useMemo(() => buildDshToolHistoryIndex(
+    roleMode ? [] : dshToolRows,
+    roleMode && !sending ? [] : toolTraces,
+  ), [dshToolRows, roleMode, sending, toolTraces])
+  const latestAssistant = latestAssistantIndex >= 0 ? messages[latestAssistantIndex] : undefined
+  const latestAssistantTraceHistory = latestAssistant && latestAssistantIndex > latestUserMessageIndex
+    ? toolHistory.forMessage(latestAssistant, !sending)
+    : undefined
+  const activeRoleProgress = roleMode ? roleProgress.find((item) => item.status === 'started') : undefined
+  const activeRoleProfiles = useMemo(() => selectedRoleIds
+    .map((id) => roleProfiles.find((profile) => profile.id === id))
+    .filter((profile): profile is RoleProfile => Boolean(profile)), [selectedRoleIds, roleProfiles])
+  const rolePresence: 'working' | 'blocked' | 'done' | 'idle' = roleProgress.some((item) => item.status === 'started')
+    ? 'working'
+    : roleProgress.some((item) => item.status === 'failed')
+      ? 'blocked'
+      : roleProgress.some((item) => item.status === 'completed')
+        ? 'done'
+        : 'idle'
+  const currentRunHistory = !roleMode && activeDshTurn != null
+    ? toolHistory.forTurn(activeDshTurn)
+    : { rows: [], traces: roleMode && !sending ? [] : toolTraces }
+  const changedFilesTraces = sending ? currentRunHistory.traces : latestAssistantTraceHistory?.traces
+  const changedFilesSummary = sending ? undefined : latestAssistantTraceHistory ? latestAssistant?.fileChanges : undefined
 
   const streamFollowKey = useMemo(() => {
     const traceTail = toolTraces.length ? toolTraces[toolTraces.length - 1]?.id ?? '' : ''
@@ -253,7 +334,7 @@ export function MainConversation({
   }, [messages.length, lastAgentMessageId, streamText, sending, toolTraces])
 
   const userTurns = useMemo(() => {
-    return messages
+    return visibleMessages
       .filter((m) => m.author === 'user')
       .map((m, idx) => ({
         turnNumber: idx + 1,
@@ -261,7 +342,7 @@ export function MainConversation({
         preview: m.text.trim().replace(/\s+/g, ' ').slice(0, 30) + (m.text.trim().length > 30 ? '…' : ''),
         time: m.time,
       }))
-  }, [messages])
+  }, [visibleMessages])
 
   const handleScroll = () => {
     const el = scrollContainerRef.current
@@ -389,7 +470,6 @@ export function MainConversation({
   }, [currentThreadId])
 
   const scrollToTurn = (turnId: string) => {
-    setTurnMenuOpen(false)
     const el = document.getElementById(`msg-${turnId}`)
     if (el) {
       el.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -399,85 +479,25 @@ export function MainConversation({
   }
 
   return (
-    <main className="conversation" aria-label="主控 Agent 对话" data-testid="conversation">
-      <header className="conversation-header">
-        <div className="conversation-title">
-          <button className="header-icon nav-toggle" onClick={onToggleNav} title="显示/隐藏导航栏" aria-label="显示或隐藏导航栏"><PanelLeft size={19} /></button>
-          {workspacePath ? <Folder size={19} /> : <MessageSquare size={19} />}
-          <strong>{threadTitle}</strong>
-        </div>
-        <div className="conversation-actions">
-          {userTurns.length >= 2 && (
-            <div className="turn-navigator-wrapper">
-              <button
-                type="button"
-                className={`header-icon turn-nav-btn ${turnMenuOpen ? 'active' : ''}`}
-                onClick={() => setTurnMenuOpen((prev) => !prev)}
-                title="对话大纲 · 快速定位问答轮次"
-                aria-expanded={turnMenuOpen}
-              >
-                <ListOrdered size={16} />
-                <span>{userTurns.length} 轮问答</span>
-              </button>
-              {turnMenuOpen && (
-                <div className="turn-menu-dropdown">
-                  <div className="turn-menu-head">
-                    <span>对话大纲 · 问答轮次</span>
-                    <button type="button" onClick={() => setTurnMenuOpen(false)} aria-label="关闭大纲">
-                      <X size={13} />
-                    </button>
-                  </div>
-                  <div className="turn-menu-list">
-                    {userTurns.map((turn) => (
-                      <button
-                        key={turn.id}
-                        type="button"
-                        className="turn-menu-item"
-                        onClick={() => scrollToTurn(turn.id)}
-                      >
-                        <span className="turn-badge">第 {turn.turnNumber} 轮</span>
-                        <span className="turn-text">{turn.preview}</span>
-                        <time>{turn.time}</time>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {workspacePath && (
-            <button
-              className={`header-icon sidebar-toggle ${activePanel === 'git' ? 'active' : ''}`}
-              onClick={() => onSelectPanel?.(activePanel === 'git' ? null : 'git')}
-              aria-label="显示或隐藏 Git 快照与版本"
-              title="显示或隐藏 Git 快照与版本面板"
-            >
-              <GitBranch size={17} />
-            </button>
-          )}
-          <button
-            className={`header-icon sidebar-toggle ${terminalOpen ? 'active' : ''}`}
-            onClick={onToggleTerminal}
-            aria-label={terminalOpen ? '隐藏终端抽屉' : '显示终端抽屉'}
-            aria-pressed={terminalOpen}
-            title={'显示或隐藏交互式终端 · ' + CONTROL_MODIFIER_KEY + '`'}
-          >
-            <PanelBottom size={18} />
-          </button>
-          {taskCount > 0 && (
-            <button
-              className={`header-icon sidebar-toggle ${activePanel === 'dag' || activePanel === 'task' ? 'active' : ''}`}
-              onClick={() => onSelectPanel?.(activePanel === 'dag' ? null : 'dag')}
-              aria-label={panelOpen ? '隐藏任务侧边栏' : '显示任务侧边栏'}
-              aria-pressed={panelOpen}
-              title={`显示或隐藏任务 DAG · ${PRIMARY_MODIFIER_KEY}B`}
-            >
-              <PanelRight size={19} /><span>{taskCount}</span>
-            </button>
-          )}
-        </div>
-      </header>
+    <main className={`conversation${roleMode ? ' role-mode-conversation' : ''}`} aria-label={roleMode ? '角色对话' : '主控 Agent 对话'} data-testid="conversation">
+      <ConversationHeader
+        roleMode={roleMode}
+        threadTitle={threadTitle}
+        workspacePath={workspacePath}
+        activeRoleProfiles={activeRoleProfiles}
+        roleProfiles={roleProfiles}
+        modelOptions={modelOptions}
+        rolePresence={rolePresence}
+        userTurns={userTurns}
+        workbenchOpen={workbenchOpen}
+        workbenchTab={workbenchTab}
+        taskCount={taskCount}
+        terminalOpen={terminalOpen}
+        onToggleNav={onToggleNav}
+        onOpenWorkbenchTab={onOpenWorkbenchTab}
+        onToggleTerminal={onToggleTerminal}
+        onScrollToTurn={scrollToTurn}
+      />
       {backendError && <div className="conversation-error" role="alert">{backendError}</div>}
       {interruptedTurn && (
         <div className="conversation-error interrupted-turn-banner" role="status">
@@ -490,81 +510,37 @@ export function MainConversation({
           </button>
         </div>
       )}
+      {/* 登场 Bot 协作席位已迁移至顶部贯通栏，彻底释放主聊天区纵向空间 */}
       <div className="conversation-scroll" ref={scrollContainerRef} onScroll={handleScroll}>
         <div className="transcript" data-dsh-chat data-testid="message-list" role="log" aria-label="消息列表" aria-relevant="additions text">
-          {messages.length === 0 && !sending && (
-            <div className="conversation-empty">
-              <div className="empty-brand-icon"><Sparkles size={24} aria-hidden="true" /></div>
-              <strong>{workspacePath ? `我们应该在${workspaceLabel(workspacePath)}中做些什么？` : '我们今天要做些什么？'}</strong>
-              <span>普通请求由单 Agent 直接执行 · 需要并行协作时可主动启用多智能体模式</span>
-              <div className="empty-hints-grid">
-                <div className="empty-hint-card">
-                  <code>单 Agent 直达</code>
-                  <p>常规需求保持单 Agent 极速交互，零多余协调开销</p>
-                </div>
-                <div className="empty-hint-card">
-                  <code>/ 技能命令</code>
-                  <p>输入 / 选择多智能体 Skill，或在模式菜单中主动切换到目标模式</p>
-                </div>
-                <div className="empty-hint-card">
-                  <code>@ 文件上下文</code>
-                  <p>输入 @ 快速索引并精准注入工作区代码上下文</p>
-                </div>
-              </div>
-            </div>
+          {visibleMessages.length === 0 && !sending && (
+            <ConversationEmptyState
+              roleMode={roleMode}
+              workspacePath={workspacePath}
+              activeRoleProfiles={activeRoleProfiles}
+              roleProfiles={roleProfiles}
+              onSend={onSend}
+              onManageRoles={onManageRoles}
+            />
           )}
           {messages.map((message, index) => {
-            if (isDshContextMessage(message)) {
-              return (
-                <ContextInjectionRow
-                  key={message.id}
-                  plugin={message.dshContext.plugin}
-                  form={message.dshContext.form}
-                  text={message.text}
-                  timestamp={message.timestamp}
-                />
-              )
-            }
+            if (isDshContextMessage(message)) return null
+            const failedTurn = isFailedTurnMessage(message)
             const isLatestAgent = !sending && message.id === lastAgentMessageId && index > latestUserMessageIndex
-            const messageToolHistory = dshToolHistoryForMessage(message, dshToolRows, toolTraces, isLatestAgent)
+            const messageToolHistory = toolHistory.forMessage(message, isLatestAgent)
             const mayResend = Boolean(onResendMessage)
               && !sending
               && (promptQueue?.steering?.length ?? 0) === 0
 
-            const previousAssistantId = (userIndex: number): string | null => {
-              for (let cursor = userIndex - 1; cursor >= 0; cursor--) {
-                const candidate = messages[cursor]
-                if (isDshContextMessage(candidate) || candidate.compaction || candidate.author === 'user') continue
-                return candidate.id
-              }
-              return null
-            }
-            const userIndexBeforeAssistant = (assistantIndex: number): number => {
-              for (let cursor = assistantIndex - 1; cursor >= 0; cursor--) {
-                const candidate = messages[cursor]
-                if (isDshContextMessage(candidate) || candidate.compaction) continue
-                if (candidate.author === 'user' && !candidate.behavior) return cursor
-              }
-              return -1
-            }
-            const responseForUser = (userIndex: number): ChatMessage | undefined => {
-              for (let cursor = userIndex + 1; cursor < messages.length; cursor++) {
-                const candidate = messages[cursor]
-                if (isDshContextMessage(candidate) || candidate.compaction) continue
-                if (candidate.author === 'user' && !candidate.behavior) return undefined
-                if (candidate.author !== 'user') return candidate
-              }
-              return undefined
-            }
             const priorUserIndex = !message.compaction && message.author !== 'user'
-              ? userIndexBeforeAssistant(index)
+              ? navigation.relations[index].previousUserIndex
               : -1
             const priorUserMessage = priorUserIndex >= 0 ? messages[priorUserIndex] : undefined
             const resendText = priorUserMessage?.text
-            const resendAnchor = priorUserIndex >= 0 ? previousAssistantId(priorUserIndex) : null
-            const resendModelKey = message.modelKey ?? (priorUserIndex >= 0 ? responseForUser(priorUserIndex)?.modelKey : undefined) ?? model?.id
+            const resendAnchor = priorUserIndex >= 0 ? navigation.relations[priorUserIndex].previousAssistantId : null
+            const resendModelKey = message.modelKey ?? (priorUserIndex >= 0 ? navigation.relations[priorUserIndex].responseForUser?.modelKey : undefined) ?? model?.id
             const editResponse = message.author === 'user' && !message.behavior
-              ? responseForUser(index)
+              ? navigation.relations[index].responseForUser
               : undefined
             const canForkHere =
               Boolean(onFork)
@@ -578,7 +554,7 @@ export function MainConversation({
               Boolean(onRewind)
               && !sending
               && !message.compaction
-              && !message.callout
+              && !failedTurn
               && !message.id.includes('-error')
               && (promptQueue?.steering?.length ?? 0) === 0
             const isFocused = index === focusedMessageIndex
@@ -586,32 +562,35 @@ export function MainConversation({
               <Message
                 key={message.id}
                 message={message}
+                historySourceLabel={roleMode && message.author !== 'user' && !message.roleMode ? 'KAI Work' : undefined}
                 dshToolRows={stableArray(`${message.id}:rows`, messageToolHistory.rows)}
                 toolTraceItems={stableArray(`${message.id}:traces`, messageToolHistory.traces)}
                 workspacePath={workspacePath}
                 conversationId={conversationId}
-                onFork={bindCallback('fork', canForkHere ? onFork : undefined)}
+                onFork={bindCallback(`${message.id}:fork`, canForkHere ? onFork : undefined)}
                 onRewind={bindCallback(`${message.id}:rewind`, canRewindHere ? onRewind : undefined)}
                 onEditAndResend={bindCallback(`${message.id}:edit`, mayResend && message.author === 'user' && !message.behavior
-                  ? (text: string) => onResendMessage?.(text, previousAssistantId(index), editResponse?.modelKey ?? model?.id)
+                  ? (text: string) => onResendMessage?.(text, navigation.relations[index].previousAssistantId, editResponse?.modelKey ?? model?.id)
                   : undefined)}
-                onRegenerate={bindCallback(`${message.id}:regenerate`, mayResend && isLatestAgent && message.author !== 'user' && !message.callout && resendText
+                onRegenerate={bindCallback(`${message.id}:regenerate`, mayResend && isLatestAgent && message.author !== 'user' && !failedTurn && resendText
                   ? () => onResendMessage?.(resendText, resendAnchor, resendModelKey)
                   : undefined)}
-                onRetry={bindCallback(`${message.id}:retry`, mayResend && message.author !== 'user' && Boolean(message.callout) && resendText
+                onRetry={bindCallback(`${message.id}:retry`, mayResend && message.author !== 'user' && failedTurn && resendText
                   ? message.errorCode === 'MAX_STEPS'
                     ? () => onContinueMessage?.(resendModelKey)
                     : () => onResendMessage?.(resendText, resendAnchor, resendModelKey)
                   : undefined)}
                 onShowToolDetails={bindCallback('show-tool-details', onShowToolDetails)}
                 onOpenWorkspacePath={bindCallback('open-workspace-path', onOpenWorkspacePath)}
+                onOpenChangedFileReview={bindCallback('open-changed-file-review', onOpenChangedFileReview)}
+                onTransferToWork={bindCallback('transfer-to-work', onTransferToWork)}
                 dagTaskCount={taskCount}
                 onOpenDagPanel={openDagPanel}
                 fallbackModelKey={model?.id ?? model?.name}
                 isFocused={isFocused}
               />
             )
-          })}
+            })}
           {sending && (promptQueue?.steering ?? []).map((text, index) => (
             <PendingSteeringBubble key={`pending-steer-${index}-${text.slice(0, 16)}`} text={text} />
           ))}
@@ -629,29 +608,33 @@ export function MainConversation({
               message={{
                 id: 'streaming-assistant',
                 author: 'orchestrator',
-                name: 'TaskWeaver',
+                name: roleMode ? activeRoleProgress?.roleName ?? '角色' : 'TaskWeaver',
                 time: '生成中',
                 timestamp: streamStartedAt ?? undefined,
                 text: streamBlocks?.length ? '' : (streamText || ''),
+                ...(roleMode ? { roleMode: true, speakerId: activeRoleProgress?.roleId } : {}),
                 thinking: streamBlocks?.length ? undefined : streamThinking?.text,
                 thinkingDurationMs: streamThinking?.durationMs,
                 contentBlocks: streamBlocks?.length ? streamBlocks : undefined,
               }}
-              dshToolRows={activeDshTurn != null
-                ? dshToolRows?.filter((row) => row.turn === activeDshTurn || row.turn === 0)
-                : []}
-              toolTraceItems={activeDshTurn != null
-                ? toolTraces.filter((trace) => trace.turn === activeDshTurn || trace.turn == null)
-                : toolTraces}
+              dshToolRows={currentRunHistory.rows}
+              toolTraceItems={currentRunHistory.traces}
               workspacePath={workspacePath}
               conversationId={conversationId}
               isStreaming={true}
+              streamStatus={roleMode ? undefined : (
+                <WorkStreamingStatus
+                  startTime={streamStartedAt ?? undefined}
+                  toolTraceItems={currentRunHistory.traces}
+                  activity={streamActivity}
+                />
+              )}
               thinkingIsStreaming={streamThinking?.isActive}
-              streamActivity={streamActivity}
               dagTaskCount={taskCount}
               onOpenDagPanel={openDagPanel}
               onShowToolDetails={onShowToolDetails}
               onOpenWorkspacePath={onOpenWorkspacePath}
+              onOpenChangedFileReview={onOpenChangedFileReview}
             />
           )}
         </div>
@@ -665,12 +648,20 @@ export function MainConversation({
           aria-label="回到底部最新答案"
         >
           <ArrowDown size={14} className={sending ? 'pulse-icon' : ''} />
-          <span>{sending ? 'TaskWeaver 正在输出 · 定位到底部' : '定位到最新答案'}</span>
+          <span>{sending ? (roleMode ? '角色正在回复 · 定位到底部' : 'TaskWeaver 正在输出 · 定位到底部') : '定位到最新答案'}</span>
         </button>
       )}
+        {onOpenChangedFileReview && (
+          <ChangedFilesDock
+            traces={changedFilesTraces}
+            fileChanges={changedFilesSummary}
+            workspacePath={workspacePath}
+            onOpenReview={onOpenChangedFileReview}
+          />
+        )}
         <Composer
           shortcuts={shortcuts}
-          messages={messages}
+          messages={visibleMessages}
           model={model}
           modelOptions={modelOptions}
           skills={skills}
@@ -683,33 +674,38 @@ export function MainConversation({
           sending={sending}
           compacting={compacting}
           compactedSeq={compactedSeq}
-          promptQueue={promptQueue}
+          promptQueue={roleMode ? undefined : promptQueue}
           workspacePath={workspacePath}
           workspaceTrusted={workspaceTrusted}
           availableProjects={availableProjects}
-          hasMessages={messages.length > 0}
-          sessionStats={sessionStats}
-          liveContext={liveContext}
-          promptBudget={promptBudget}
-          hostPlanModeActive={hostPlanModeActive}
-          hostTodos={hostTodos}
+          hasMessages={visibleMessages.length > 0}
+          sessionStats={roleMode ? null : sessionStats}
+          liveContext={roleMode ? null : liveContext}
+          promptBudget={roleMode ? null : promptBudget}
+          hostPlanModeActive={roleMode ? false : hostPlanModeActive}
+          hostTodos={roleMode ? null : hostTodos}
           onPermissionModeChange={onPermissionModeChange}
           onModelChange={onModelChange}
           thinkingLevel={thinkingLevel}
           onThinkingLevelChange={onThinkingLevelChange}
           onSend={onSend}
+          roleMode={roleMode}
+          selectedRoleCount={selectedRoleIds.length}
+          selectedRoleProfiles={activeRoleProfiles}
+          roleDiscussionStrategy={roleDiscussionStrategy}
+          onRoleDiscussionStrategyChange={onRoleDiscussionStrategyChange}
+          roleSummaryEnabled={roleSummaryEnabled}
+          onRoleSummaryEnabledChange={onRoleSummaryEnabledChange}
           onCancel={onCancel}
           onSteer={onSteer}
-          onFollowUp={onFollowUp}
+          onFollowUp={roleMode ? undefined : onFollowUp}
           onSearchContext={onSearchContext}
           onCreateDroppedReference={onCreateDroppedReference}
           onSelectProject={onSelectProject}
           onPickWorkspace={onPickWorkspace}
           onDetachWorkspace={onDetachWorkspace}
           onSetWorkspaceTrust={onSetWorkspaceTrust}
-          busyEnterMode={busyEnterMode}
-          onBusyEnterModeChange={onBusyEnterModeChange}
-          onQueueMutate={onQueueMutate}
+          onQueueMutate={roleMode ? undefined : onQueueMutate}
           currentThreadId={currentThreadId}
           permissionPrompt={permissionPrompt}
           onRespondPermission={onRespondPermission}
@@ -718,7 +714,11 @@ export function MainConversation({
           onDiscussPlanReview={onDiscussPlanReview}
           multiAgentOrchestration={multiAgentOrchestration}
           onMultiAgentOrchestrationChange={onMultiAgentOrchestrationChange}
+          orchestrationChoicePrompt={orchestrationChoicePrompt}
+          onRespondOrchestrationChoice={onRespondOrchestrationChoice}
           conversationId={conversationId}
+          pendingInitialText={pendingComposerText}
+          onClearPendingInitialText={onClearPendingComposerText}
         />
       {terminalOpen && onCloseTerminal && (
         <Suspense fallback={null}>

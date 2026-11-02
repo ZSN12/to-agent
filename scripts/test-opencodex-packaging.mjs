@@ -4,6 +4,7 @@ import path from 'node:path'
 import { spawn } from 'node:child_process'
 import { pathToFileURL } from 'node:url'
 import { runOcx } from '../backend/model-sync/ocx-cli.mjs'
+import { createBackendStartup } from '../backend/startup.mjs'
 import {
   resolveOcxBunExecutable,
   resolveOcxExecutable,
@@ -39,6 +40,19 @@ setOcxRuntimeContext({
 })
 
 try {
+  // Packaged macOS startup is launched by plain Node from Swift, so
+  // process.resourcesPath is absent and TASKWEAVER_RESOURCES_PATH is canonical.
+  createBackendStartup({
+    app: {
+      isPackaged: true,
+      getAppPath: () => path.join(resourcesPath, 'app'),
+      getPath: () => path.join(resourcesPath, 'test-user-data'),
+    },
+    environment: {
+      TASKWEAVER_PACKAGED: '1',
+      TASKWEAVER_RESOURCES_PATH: resourcesPath,
+    },
+  })
   const ocxPath = resolveOcxExecutable()
   const bunPath = resolveOcxBunExecutable()
   assert.ok(ocxPath.includes(`${path.sep}app${path.sep}vendor${path.sep}opencodex${path.sep}bin${path.sep}ocx.mjs`),

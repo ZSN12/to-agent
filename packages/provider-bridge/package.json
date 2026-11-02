@@ -18,14 +18,18 @@
     "node": ">=22.18"
   },
   "scripts": {
-    "build": "tsdown"
+    "build": "tsdown",
+    "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
     "@bufbuild/protobuf": "^2.14.0",
-    "@modelcontextprotocol/sdk": "^1.30.0"
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "sharp": "^0.35.3"
   },
   "devDependencies": {
-    "tsdown": "^0.22.2"
+    "@types/node": "^22.20.0",
+    "tsdown": "^0.22.2",
+    "typescript": "^5.9.3"
   },
   "license": "MIT"
 }

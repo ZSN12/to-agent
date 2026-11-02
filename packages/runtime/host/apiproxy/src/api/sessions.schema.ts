@@ -304,6 +304,8 @@ export const sessionPromptRequestSchema = z.object({
     autoAllowUiVerify: z.boolean(),
   }).strict().optional(),
   outputSchema: outputSchemaSchema.optional(),
+  rolePersona: z.string().max(12_000).optional(),
+  roleToolCallLimit: z.number().int().min(1).max(12).optional(),
   commandOnly: z.boolean().optional(),
 }) as unknown as z.ZodType<RequestPayload<'session.prompt'>>
 

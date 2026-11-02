@@ -1,7 +1,7 @@
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@taskweaver/cordis'
 import { CallId } from '@taskweaver/dsh-llm'
 import { ShellExecutor } from '@taskweaver/dsh-shell'
@@ -27,6 +27,19 @@ import { renderProcessRead, renderResult } from '../src/render.ts'
 const testToolSignal = new AbortController().signal
 
 const spillDir = mkdtempSync(join(tmpdir(), 'dsh-tool-bash-spec-'))
+const subprocessFibers = new Set<{ dispose: () => Promise<void> }>()
+
+afterEach(async () => {
+  const fibers = [...subprocessFibers]
+  subprocessFibers.clear()
+  await Promise.all(fibers.map(fiber => fiber.dispose()))
+})
+
+async function installSubprocessRuntime(ctx: Context) {
+  const fiber = await ctx.plugin(LocalSubprocessRuntime)
+  subprocessFibers.add(fiber)
+  return fiber
+}
 
 /** Foreground-only harness: no job runtime (backgrounding fails loud here). */
 async function setup() {
@@ -34,7 +47,7 @@ async function setup() {
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
   await ctx.plugin(AgentRegistry)
-  await ctx.plugin(LocalSubprocessRuntime)
+  await installSubprocessRuntime(ctx)
   ;(ctx.subprocess as LocalSubprocessRuntime).internals = { spillDir }
   await ctx.plugin(BashEnvPlugin)
   await ctx.plugin(LocalBashExecutor, { timeoutMs: 10_000, graceMs: 200 })
@@ -50,7 +63,7 @@ async function setupWithTasks() {
   await ctx.plugin(AgentRegistry)
   await ctx.plugin(LocalJobRegistry)
   await ctx.plugin(ToolTasks)
-  await ctx.plugin(LocalSubprocessRuntime)
+  await installSubprocessRuntime(ctx)
   ;(ctx.subprocess as LocalSubprocessRuntime).internals = { spillDir }
   await ctx.plugin(BashEnvPlugin)
   await ctx.plugin(LocalBashExecutor, { timeoutMs: 10_000, graceMs: 200 })
@@ -282,7 +295,7 @@ describe('bash tool', () => {
     const ctx = new Context()
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
-    await ctx.plugin(LocalSubprocessRuntime)
+    await installSubprocessRuntime(ctx)
     ;(ctx.subprocess as LocalSubprocessRuntime).internals = { spillDir }
     await ctx.plugin(LocalBashExecutor, { maxOutputBytes: 100, graceMs: 200 })
     await ctx.plugin(BashEnvPlugin)
@@ -395,7 +408,7 @@ describe('bash tool', () => {
     const ctx = new Context()
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
-    await ctx.plugin(LocalSubprocessRuntime)
+    await installSubprocessRuntime(ctx)
     await ctx.plugin(LocalBashExecutor, {})
     await ctx.plugin(BashEnvPlugin)
     const fiber = await ctx.plugin(ToolBash)
@@ -415,7 +428,7 @@ describe('bash tool', () => {
     await ctx.plugin(BashEnvPlugin)
     await ctx.plugin(ToolBash)
     expect(ctx.tools.schemas()).toHaveLength(0)
-    await ctx.plugin(LocalSubprocessRuntime)
+    await installSubprocessRuntime(ctx)
     await ctx.plugin(LocalBashExecutor, {})
     await new Promise(resolve => setTimeout(resolve, 0))
     expect(ctx.tools.schemas()).toHaveLength(1)
@@ -427,7 +440,7 @@ describe('bash tool', () => {
     const ctx = new Context()
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
-    await ctx.plugin(LocalSubprocessRuntime)
+    await installSubprocessRuntime(ctx)
     await ctx.plugin(LocalBashExecutor, {})
     ToolBash.apply(ctx, {})
     const schema = ctx.tools.schemas()[0]!
@@ -545,7 +558,7 @@ describe('background execution through the job runtime', () => {
     const ctx = new Context()
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
-    await ctx.plugin(LocalSubprocessRuntime)
+    await installSubprocessRuntime(ctx)
     await ctx.plugin(BashEnvPlugin)
     await ctx.plugin(LocalBashExecutor, {})
     await ctx.plugin(ToolBash, { enableRunInBackground: false })

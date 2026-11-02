@@ -185,6 +185,11 @@ async function liveContext(config: ConstructorParameters<typeof SqliteSessionQue
   return ctx
 }
 
+function sqliteTotalChanges(ctx: Context): number {
+  const db = (ctx.sessionQuery as unknown as { _db: DatabaseSync })._db
+  return (db.prepare('SELECT total_changes() AS count').get() as { count: number }).count
+}
+
 describe('SQLite session search', () => {
   it('defaults and validates opening policy and persisted inspection concurrency through its Cordis config', async () => {
     const defaultCtx = await liveContext()
@@ -400,6 +405,65 @@ describe('SQLite session search', () => {
           bestMatch: { snippet: 'visible-answer-marker' },
         }],
       })
+  })
+
+  it('writes only changed live FTS rows for no-text appends and surface replacements', async () => {
+    const ctx = await liveContext()
+    const events: SessionEvent[] = Array.from({ length: 1_000 }, (_, seq) => ({
+      type: 'user/message',
+      seq,
+      time: seq + 1,
+      data: createUserMessage({
+        content: [{ type: 'text', text: seq === 0 ? 'original-marker' : `filler-${seq}` }],
+        source: { kind: 'user' },
+      }),
+      surfaceOp: 'append',
+    }))
+    const session = ctx.sessions.create(SessionId('incremental-live'), { seed: events })
+    await ctx.sessionQuery.searchEvents({ sessionId: session.id, query: 'original-marker' })
+
+    session.append('turn/start', { turn: 1 })
+    const beforeNoTextAppend = sqliteTotalChanges(ctx)
+    await ctx.sessionQuery.searchEvents({ sessionId: session.id, query: 'original-marker' })
+    expect(sqliteTotalChanges(ctx) - beforeNoTextAppend).toBe(1)
+
+    session.append(
+      'user/message',
+      createUserMessage({
+        content: [{ type: 'text', text: 'append-marker' }],
+        source: { kind: 'user' },
+      }),
+      { surfaceOp: 'append' },
+    )
+    const beforeAppend = sqliteTotalChanges(ctx)
+    await expect(ctx.sessionQuery.searchEvents({ sessionId: session.id, query: 'append-marker' }))
+      .resolves.toMatchObject({ items: [{ seq: 1002, surface: 'current' }] })
+    expect(sqliteTotalChanges(ctx) - beforeAppend).toBe(8)
+
+    session.append(
+      'user/message',
+      createUserMessage({
+        content: [{ type: 'text', text: 'replacement-marker' }],
+        source: { kind: 'user' },
+      }),
+      { surfaceOp: { op: 'replace', start: 0, end: 0 }, sourceEventSeqs: [0] },
+    )
+    const beforeReplacement = sqliteTotalChanges(ctx)
+    await expect(ctx.sessionQuery.searchEvents({ sessionId: session.id, query: 'original-marker' }))
+      .resolves.toMatchObject({ items: [{ seq: 0, surface: 'shadowed' }] })
+    const replacementWriteCount = sqliteTotalChanges(ctx) - beforeReplacement
+    expect(replacementWriteCount).toBe(14)
+    await expect(ctx.sessionQuery.searchEvents({ sessionId: session.id, query: 'replacement-marker' }))
+      .resolves.toMatchObject({ items: [{ seq: 1_003, surface: 'current' }] })
+    const db = (ctx.sessionQuery as unknown as { _db: DatabaseSync })._db
+    expect(db.prepare(`
+      SELECT CAST(seq AS INTEGER) AS seq, surface
+      FROM temp.live_docs WHERE session_id = ? AND CAST(seq AS INTEGER) IN (0, 1003)
+      ORDER BY CAST(seq AS INTEGER)
+    `).all(session.id)).toEqual([
+      { seq: 0, surface: 'shadowed' },
+      { seq: 1003, surface: 'current' },
+    ])
   })
 
   it('searches all surfaces by default and applies metadata before ranking', async () => {
@@ -1179,6 +1243,50 @@ describe('SQLite reconciliation and source lifecycle', () => {
     expect(after.has(added.id)).toBe(true)
   })
 
+  it('diffs a changed persisted projection against FTS rows after reopening the database', async () => {
+    const path = await temporaryPath('persistent-delta.db')
+    const durable = header('persistent-delta')
+    const makeEvents = (changedSeq?: number): SessionEvent[] => Array.from({ length: 1_000 }, (_, seq) => ({
+      type: 'user/message',
+      seq,
+      time: seq + 1,
+      data: createUserMessage({
+        content: [{
+          type: 'text',
+          text: seq === changedSeq ? 'changed persisted marker' : `persisted filler ${seq}`,
+        }],
+        source: { kind: 'user' },
+      }),
+      surfaceOp: 'append',
+    }))
+    TestPersistence.reset([{ meta: durable, events: makeEvents(500) }])
+
+    const first = new Context()
+    await first.plugin(SessionStore)
+    const firstPersistence = await first.plugin(TestPersistence)
+    const firstSearch = await first.plugin(SqliteSessionQueryEngine, { path })
+    await first.sessionQuery.searchEvents({ sessionId: durable.id, query: 'persisted filler' })
+    await firstSearch.dispose()
+    await firstPersistence.dispose()
+
+    TestPersistence.set({ meta: durable, events: makeEvents(501) })
+    const second = new Context()
+    await second.plugin(SessionStore)
+    const secondPersistence = await second.plugin(TestPersistence)
+    const secondSearch = await second.plugin(SqliteSessionQueryEngine, { path })
+    const beforeUpdate = sqliteTotalChanges(second)
+    await expect(second.sessionQuery.searchEvents({ sessionId: durable.id, query: 'changed persisted marker' }))
+      .resolves.toMatchObject({ items: [{ seq: 501 }] })
+    expect(sqliteTotalChanges(second) - beforeUpdate).toBe(18)
+    await expect(second.sessionQuery.searchEvents({ sessionId: durable.id, query: 'changed persisted marker' }))
+      .resolves.toMatchObject({ items: [{ seq: 501 }] })
+    await expect(second.sessionQuery.searchEvents({ sessionId: durable.id, query: 'persisted filler 500' }))
+      .resolves.toMatchObject({ items: [{ seq: 500 }] })
+
+    await secondSearch.dispose()
+    await secondPersistence.dispose()
+  })
+
   it('drops connection-local live overlays on reopen and retains persistent bases', async () => {
     const path = await temporaryPath()
     const shared = header('shared', 10)
@@ -1579,26 +1687,34 @@ describe('SQLite schema, cancellation, and real persistence integration', () => 
     await expect(second).resolves.toMatchObject({ items: [{ sessionId: durable.id }] })
   })
 
-  it('awaits an abort-ignoring inspection and starts neither another inspection nor the after-list', async () => {
+  it('drains the bounded in-flight inspections after cancellation without dispatching more work', async () => {
     const first = header('ignored-inspect-first')
     const second = header('ignored-inspect-second')
+    const third = header('ignored-inspect-third')
     TestPersistence.reset([
       { meta: first, events: messageEvents('first needle') },
       { meta: second, events: messageEvents('second needle') },
+      { meta: third, events: messageEvents('third needle') },
     ])
-    const ctx = await liveContext()
+    const ctx = await liveContext({ path: ':memory:', persistedInspectConcurrency: 2 })
     await ctx.plugin(TestPersistence)
-    const started = Promise.withResolvers<AbortSignal>()
-    const cleanup = Promise.withResolvers<undefined>()
-    TestPersistence.inspectEffect = async (_entry, signal) => {
-      TestPersistence.inspectEffect = undefined
+    const started = Promise.withResolvers<void>()
+    const cleanups = new Map([
+      [first.id, Promise.withResolvers<undefined>()],
+      [second.id, Promise.withResolvers<undefined>()],
+    ])
+    const startedIds: SessionIdType[] = []
+    TestPersistence.inspectEffect = async (entry, signal) => {
       if (signal === undefined) throw new Error('expected reconciliation signal')
-      started.resolve(signal)
+      startedIds.push(entry.meta.id)
+      if (startedIds.length === 2) started.resolve(undefined)
+      const cleanup = cleanups.get(entry.meta.id)
+      if (cleanup === undefined) throw new Error(`unexpected inspection of ${entry.meta.id}`)
       await cleanup.promise
     }
     const controller = new AbortController()
     const pending = ctx.sessionQuery.searchSessions({ query: 'needle' }, { signal: controller.signal })
-    expect(await started.promise).toBe(controller.signal)
+    await started.promise
     let settled = false
     void pending.then(
       () => { settled = true },
@@ -1610,12 +1726,14 @@ describe('SQLite schema, cancellation, and real persistence integration', () => 
     expect(settled).toBe(false)
     expect(TestPersistence.snapshotSignals).toEqual([controller.signal])
     expect(TestPersistence.inspections.get(first.id)).toBe(1)
-    expect(TestPersistence.inspections.get(second.id)).toBeUndefined()
+    expect(TestPersistence.inspections.get(second.id)).toBe(1)
+    expect(TestPersistence.inspections.get(third.id)).toBeUndefined()
 
-    cleanup.resolve(undefined)
+    cleanups.get(first.id)?.resolve(undefined)
+    cleanups.get(second.id)?.resolve(undefined)
     await expect(pending).rejects.toThrow(expectCode('SESSION_QUERY_ABORTED'))
     expect(TestPersistence.snapshotSignals).toEqual([controller.signal])
-    expect(TestPersistence.inspections.get(second.id)).toBeUndefined()
+    expect(TestPersistence.inspections.get(third.id)).toBeUndefined()
   })
 
   it('cancels both queued and in-flight source waits without committing them', async () => {

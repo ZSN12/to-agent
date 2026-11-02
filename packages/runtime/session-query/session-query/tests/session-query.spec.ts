@@ -1029,7 +1029,19 @@ describe('session-query exact reads', () => {
     expect(session.header.createdAt).not.toBe(-1)
     expect(session.events[1]?.type === 'user/message' && session.events[1].data.content).toHaveLength(1)
 
+    await expect(ctx.sessionQuery.readEvent({ sessionId: session.id, seq: 0, before: 1, after: 0 }))
+      .resolves.toMatchObject({ startSeq: 0, endSeq: 0, target: { seq: 0 }, events: [{ seq: 0 }] })
+    await expect(ctx.sessionQuery.readEvent({ sessionId: session.id, seq: 3, before: 0, after: 1 }))
+      .resolves.toMatchObject({ startSeq: 3, endSeq: 3, target: { seq: 3 }, events: [{ seq: 3 }] })
+    await expect(ctx.sessionQuery.readEvent({ sessionId: session.id, seq: 2, before: 0, after: 0 }))
+      .resolves.toMatchObject({ startSeq: 2, endSeq: 2, events: [{ seq: 2 }] })
+    await expect(ctx.sessionQuery.readEvent({ sessionId: session.id, seq: -1 }))
+      .rejects.toThrow(expectCode('SESSION_QUERY_EVENT_NOT_FOUND'))
+
     await expect(ctx.sessionQuery.readEvent({ sessionId: session.id, seq: 9 }))
+      .rejects.toThrow(expectCode('SESSION_QUERY_EVENT_NOT_FOUND'))
+    const empty = ctx.sessions.create(SessionId('empty-window'))
+    await expect(ctx.sessionQuery.readEvent({ sessionId: empty.id, seq: 0 }))
       .rejects.toThrow(expectCode('SESSION_QUERY_EVENT_NOT_FOUND'))
     for (const request of [
       { sessionId: session.id, seq: 0, before: -1 },
@@ -1038,6 +1050,48 @@ describe('session-query exact reads', () => {
     ]) {
       await expect(ctx.sessionQuery.readEvent(request)).rejects.toThrow(expectCode('SESSION_QUERY_INVALID_WINDOW'))
     }
+  })
+
+  it('clones only the requested live event window and isolates it from later log changes', async () => {
+    const ctx = await liveContext({ readWindowMax: 2 })
+    const session = ctx.sessions.create(SessionId('window-copy-cost'))
+    for (let index = 0; index < 128; index += 1) {
+      session.append(
+        'user/message',
+        createUserMessage({
+          content: [{ type: 'text', text: `event-${index}` }], source: { kind: 'user' },
+        }),
+        { surfaceOp: 'append' },
+      )
+    }
+
+    const liveEvents = new WeakSet<object>(session.events)
+    const originalClone = globalThis.structuredClone
+    let clonedLiveEvents = 0
+    const cloneSpy = vi.spyOn(globalThis, 'structuredClone').mockImplementation((value, options) => {
+      if (value !== null && typeof value === 'object' && liveEvents.has(value)) clonedLiveEvents += 1
+      return originalClone(value, options)
+    })
+    const result = await (async () => {
+      try {
+        return await ctx.sessionQuery.readEvent({ sessionId: session.id, seq: 64, before: 1, after: 1 })
+      } finally {
+        cloneSpy.mockRestore()
+      }
+    })()
+
+    expect(clonedLiveEvents).toBe(3)
+    expect(result.events.map(event => event.seq)).toEqual([63, 64, 65])
+    session.append(
+      'user/message',
+      createUserMessage({
+        content: [{ type: 'text', text: 'later' }], source: { kind: 'user' },
+      }),
+      { surfaceOp: 'append' },
+    )
+    expect(result.events.map(event => event.seq)).toEqual([63, 64, 65])
+    if (result.events[0]?.type !== 'user/message') throw new Error('expected detached user message')
+    expect(result.events[0].data.content[0]).toMatchObject({ text: 'event-63' })
   })
 
   it('merges authoritative persistence with live precedence and detects conflicts', async () => {
@@ -1137,12 +1191,18 @@ describe('session-query exact reads', () => {
     const ctx = await liveContext()
     await expect(ctx.sessionQuery.listEvents(SessionId('absent')))
       .rejects.toThrow(expectCode('SESSION_QUERY_SESSION_NOT_FOUND'))
+    await expect(ctx.sessionQuery.readEvent({ sessionId: SessionId('absent'), seq: 0 }))
+      .rejects.toThrow(expectCode('SESSION_QUERY_SESSION_NOT_FOUND'))
     await ctx.plugin(TestPersistence)
     await expect(ctx.sessionQuery.listEvents(SessionId('absent')))
+      .rejects.toThrow(expectCode('SESSION_QUERY_SESSION_NOT_FOUND'))
+    await expect(ctx.sessionQuery.readEvent({ sessionId: SessionId('absent'), seq: 0 }))
       .rejects.toThrow(expectCode('SESSION_QUERY_SESSION_NOT_FOUND'))
 
     TestPersistence.inspectFailure = 'raw failure'
     await expect(ctx.sessionQuery.listEvents(durable.id))
+      .rejects.toThrow(expectCode('SESSION_QUERY_PERSISTENCE_FAILED'))
+    await expect(ctx.sessionQuery.readEvent({ sessionId: durable.id, seq: 0 }))
       .rejects.toThrow(expectCode('SESSION_QUERY_PERSISTENCE_FAILED'))
     TestPersistence.inspectFailure = undefined
     const durableEntry = TestPersistence.entries.get(durable.id)!
@@ -1152,6 +1212,9 @@ describe('session-query exact reads', () => {
       listedEntry.meta = { ...listedEntry.meta, cwd: '/changed-during-read' }
     }
     await expect(ctx.sessionQuery.listEvents(durable.id))
+      .rejects.toThrow(expectCode('SESSION_QUERY_SOURCE_CONFLICT'))
+    durableEntry.meta = { ...durableEntry.meta, cwd: '/changed-after-list' }
+    await expect(ctx.sessionQuery.readEvent({ sessionId: durable.id, seq: 0 }))
       .rejects.toThrow(expectCode('SESSION_QUERY_SOURCE_CONFLICT'))
   })
 

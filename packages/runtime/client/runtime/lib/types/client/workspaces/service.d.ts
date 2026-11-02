@@ -1,6 +1,6 @@
 /** WorkspaceRuntime projects the Workspace object manager for UI consumers. */
 import type { Context } from '@taskweaver/cordis';
-import type { DirectoryListing, IApiClient, RpcError, SessionId, WorkspaceId, WorkspaceView } from '@taskweaver/dsh-api-remotes/client';
+import type { IApiClient, RpcError, SessionId, WorkspaceId, WorkspaceView } from '@taskweaver/dsh-api-remotes/client';
 import type { SnapshotStore } from '../contract/store.ts';
 import type { SessionsPort } from '../contract/sessions-port.ts';
 import type { IWorkspaces } from '../contract/workspaces.ts';
@@ -26,11 +26,6 @@ export interface WorkspaceListState {
 }
 /** Structured create failure for UI flows that distinguish Host business errors. */
 export declare class WorkspaceCreateError extends Error {
-    readonly rpcError: RpcError;
-    constructor(rpcError: RpcError);
-}
-/** Structured browse failure so the directory browser can branch on Host business codes. */
-export declare class DirectoryBrowseError extends Error {
     readonly rpcError: RpcError;
     constructor(rpcError: RpcError);
 }
@@ -106,20 +101,6 @@ export declare class WorkspaceRuntime implements IWorkspaces {
      * @returns the selected path, or null when the user cancelled.
      */
     pickDirectory(): Promise<string | null>;
-    /**
-     * List one directory level through the Host's `browse` capability.
-     * @param path - absolute directory to list; absent lists the Host home directory.
-     * @param signal - aborts the wire request (and the Host's scan) when the caller supersedes it.
-     * @returns the level's listing with breadcrumb ancestry.
-     */
-    listDirectory(path?: string, signal?: AbortSignal): Promise<DirectoryListing>;
-    /**
-     * Create one child directory through the Host's `browse` capability.
-     * @param path - absolute existing parent directory.
-     * @param name - single non-blank path segment.
-     * @returns the created directory's absolute path.
-     */
-    createDirectory(path: string, name: string): Promise<string>;
     /**
      * Open a filesystem path with the Host operating system's default application.
      * @param path - absolute or host-resolvable path.

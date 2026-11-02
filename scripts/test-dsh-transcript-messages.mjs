@@ -67,6 +67,67 @@ const mergedAssistant = mapper.mergeStoredMessagesWithDshTranscript([answer], as
 assert.equal(mergedAssistant.length, 1)
 assert.equal(mergedAssistant[0].usage, answer.usage)
 
+// Role sessions are private to each role, so their durable messages are not
+// part of the primary DSH projection. Keep them even when their text happens
+// to match an ordinary assistant turn, and do not duplicate the optimistic
+// role-mode user row while a role response is still running.
+const roleUser = { id: 'role-user-1', author: 'user', name: '你', text: '角色问题', roleMode: true }
+const roleAssistant = { ...answer, id: 'z-turn-role-1', name: '研究员', roleMode: true, speakerId: 'role-1' }
+const roleTranscript = [
+  { dshKey: 'main-user', role: 'user', text: '普通问题', timestamp: 1_000 },
+  { dshKey: 'main-assistant', role: 'assistant', text: 'same words', thinking: '' },
+]
+const mergedRoleMode = mapper.mergeStoredMessagesWithDshTranscript([roleUser, roleAssistant], roleTranscript, true)
+assert.equal(mergedRoleMode.some((message) => message.id === roleUser.id), true)
+assert.equal(mergedRoleMode.some((message) => message.id === roleAssistant.id), true)
+assert.equal(mergedRoleMode.filter((message) => message.author !== 'user' && message.text === 'same words').length, 2)
+const sendingRoleMode = mapper.mergeStoredMessagesWithDshTranscript([roleUser], roleTranscript, true, true)
+assert.equal(sendingRoleMode.filter((message) => message.id === roleUser.id).length, 1)
+
+const cappedAnswer = {
+  ...answer,
+  id: 'z-turn-step-limit',
+  callout: '执行失败：本轮达到安全步数上限（已保留此前输出）',
+  errorCode: 'MAX_STEPS',
+  interrupted: true,
+}
+const mergedCappedAnswer = mapper.mergeStoredMessagesWithDshTranscript([cappedAnswer], assistantTranscript, true)
+assert.equal(mergedCappedAnswer.length, 1)
+assert.equal(mergedCappedAnswer[0].errorCode, 'MAX_STEPS',
+  'Host transcript takeover must preserve the error code used by the continue action')
+assert.equal(mergedCappedAnswer[0].callout, cappedAnswer.callout)
+assert.equal(mergedCappedAnswer[0].interrupted, true)
+
+const errorCodeOnly = mapper.mergeStoredMessagesWithDshTranscript([
+  { id: 'z-turn-error-code-only', author: 'orchestrator', text: 'same words', errorCode: 'MAX_STEPS' },
+], assistantTranscript, true)
+assert.equal(errorCodeOnly[0].errorCode, 'MAX_STEPS',
+  'an error code is preserved even when it is the only stored assistant metadata')
+
+// Automatic verification evidence stored on the final turn survives transcript takeover.
+const verification = { status: 'passed', executed: true, passed: true, command: 'pnpm run typecheck', exitCode: 0, healAttempts: 1 }
+const repairTranscript = [
+  { dshKey: 'u-fix', role: 'user', text: '修复类型错误', timestamp: 1_000 },
+  { dshKey: 'a-fix', role: 'assistant', text: '已修改', thinking: '', timestamp: 2_000 },
+  { dshKey: 'u-auto', role: 'user', text: '[TaskWeaver 自动验证] 第 1/2 轮修复\n错误摘要', timestamp: 3_000 },
+  { dshKey: 'a-repair', role: 'assistant', text: '已修复剩余错误', thinking: '', timestamp: 4_000 },
+]
+const repairStored = [
+  { id: 'u-stored', author: 'user', text: '修复类型错误' },
+  { id: 'z-turn-first', author: 'orchestrator', text: '已修改' },
+  { id: 'z-turn-repair', author: 'orchestrator', text: '已修复剩余错误', verification },
+]
+const mergedRepair = mapper.mergeStoredMessagesWithDshTranscript(repairStored, repairTranscript, true)
+assert.equal(mergedRepair.at(-1).verification, verification, 'verification evidence is merged onto the matching transcript row')
+assert.equal(mergedRepair.find((message) => message.text === '已修改').verification, undefined)
+const subagentOnly = mapper.mergeStoredMessagesWithDshTranscript([
+  { id: 'z-turn-dag', author: 'orchestrator', text: 'same words', subagentOutputs: [{ id: 's1', role: 'r', title: 't', model: 'm', text: 'out' }] },
+], assistantTranscript, true)
+assert.equal(subagentOnly[0].subagentOutputs?.length, 1, 'sub-agent outputs alone are enough to merge stored metadata')
+const sendingRepair = mapper.mergeStoredMessagesWithDshTranscript(repairStored, repairTranscript.slice(0, 3), true, true)
+assert.equal(sendingRepair.filter((message) => message.author === 'user' && message.text === '修复类型错误').length, 1,
+  'an automatic repair prompt does not make the user request reappear while the repair runs')
+
 const perTurnHistory = mapper.dshToolHistoryForMessage(
   messages[3],
   [

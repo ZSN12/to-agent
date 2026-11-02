@@ -1,6 +1,8 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react'
 import { Check, Link2, Plus, Radio, Trash2, Zap } from 'lucide-react'
+import { InlineSelect } from '../../shared/InlineSelect'
 import type { CustomProviderEntry, ProbedModelItem } from '../../shared/model-api'
+import { getCleanModelId } from './format'
 
 type ApiKind = 'openai-completions' | 'openai-responses'
 
@@ -321,38 +323,39 @@ export function CustomProviderSection({
                   autoComplete="new-password"
                 />
               </label>
-              <label>
-                模型 ID
-                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <div className="custom-provider-model-field" role="group" aria-label="模型 ID">
+                <span>模型 ID</span>
+                <div className="custom-provider-model-controls">
                   <input
                     type="text"
+                    aria-label="模型 ID"
                     placeholder="deepseek-chat"
                     value={modelId}
                     onChange={(e) => setModelId(e.target.value)}
-                    style={{ flex: 1 }}
                   />
                   {probedModels.length > 0 && (
-                    <select
-                      style={{ maxWidth: 160, fontSize: 12 }}
-                      onChange={(e) => {
-                        const m = probedModels.find((item) => item.id === e.target.value)
+                    <InlineSelect
+                      className="custom-provider-model-picker"
+                      menuClassName="custom-provider-model-menu"
+                      ariaLabel="快速选择已探测模型"
+                      placeholder={`选择模型 (${probedModels.length})`}
+                      triggerLabel={`选择模型 · ${probedModels.length}`}
+                      searchPlaceholder="搜索已探测模型…"
+                      searchable={probedModels.length > 8}
+                      portalMenu
+                      options={probedModels.map((model) => ({ value: model.id, label: model.name || model.id }))}
+                      onChange={(modelKey) => {
+                        const m = probedModels.find((item) => item.id === modelKey)
                         if (m) {
                           setModelId(m.id)
                           setModelName(m.name)
                         }
                       }}
                       value={modelId}
-                    >
-                      <option value="" disabled>快速选择已探测模型 ({probedModels.length})</option>
-                      {probedModels.map((m) => (
-                        <option key={m.id} value={m.id}>
-                          {m.name || m.id}
-                        </option>
-                      ))}
-                    </select>
+                    />
                   )}
                 </div>
-              </label>
+              </div>
               <label>
                 模型显示名
                 <input
@@ -446,7 +449,7 @@ export function CustomProviderSection({
                             }}
                           >
                             <Plus size={13} />
-                            {m.id}
+                            {getCleanModelId(m.id, entry.id)}
                           </button>
                         ))}
                         <button type="button" className="settings-danger-button" onClick={() => { void handleRemove(entry.id) }}>

@@ -193,6 +193,39 @@ describe('agent scope lifecycle', () => {
     expect(after.sections.find(s => s.name === 'deployment:persona')?.text).toBe('You are the deployment.')
   })
 
+  it('assembles the latest role persona only in the owning Agent system prompt', async () => {
+    const adapter = new MockAdapter([textResponse('one'), textResponse('two')])
+    const ctx = await harness(adapter)
+    const agent = ctx.agentLoop.create(SessionId('role-persona-scope'), { provider: 'mock', model: 'mock' })
+    const firstIdle = waitForIdle(ctx, agent)
+    agent.followup(createUserMessage({
+      content: text('first request'),
+      source: { kind: 'user', rolePersona: 'A careful science teacher.' } as never,
+    }))
+    await firstIdle
+    expect(adapter.requests[0]?.system).toContain('A careful science teacher.')
+
+    let assembly = await ctx.systemPrompt.assemble(assembleContextFor(agent))
+    expect(assembly.sections.find(section => section.name === 'session:role-persona')?.text)
+      .toContain('A careful science teacher.')
+    expect((await ctx.systemPrompt.assemble()).sections.some(section => section.name === 'session:role-persona')).toBe(false)
+
+    const secondIdle = waitForIdle(ctx, agent)
+    agent.followup(createUserMessage({
+      content: text('second request'),
+      source: { kind: 'user', rolePersona: 'A concise travel planner.' } as never,
+    }))
+    await secondIdle
+    expect(adapter.requests[1]?.system).toContain('A concise travel planner.')
+    assembly = await ctx.systemPrompt.assemble(assembleContextFor(agent))
+    expect(assembly.sections.find(section => section.name === 'session:role-persona')?.text)
+      .toContain('A concise travel planner.')
+    expect(assembly.sections.find(section => section.name === 'session:role-persona')?.text)
+      .not.toContain('A careful science teacher.')
+    await agent.whenIdle()
+    await ctx.fiber.dispose()
+  })
+
   it('agent.ctx listeners hear only their own agent (scoped dispatch end to end)', async () => {
     const ctx = await harness(new MockAdapter([textResponse('one'), textResponse('two')]))
     const a = ctx.agentLoop.create(SessionId('a'), { provider: 'mock', model: 'mock' })

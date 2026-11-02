@@ -73,6 +73,15 @@ const incremental2 = applyStreamEventToSnapshot(incremental, {
 })
 assert.equal(incremental2.streamText, 'hello', 'delta without full must append incrementally')
 
+const roleOneOutput = applyStreamEventToSnapshot(incremental2, {
+  type: 'tool', conversationId: 'c1', id: 'role-one-tool', toolName: 'read', status: 'done',
+})
+const roleTwoStart = applyStreamEventToSnapshot(roleOneOutput, {
+  type: 'role_progress', conversationId: 'c1', roleId: 'role-two', roleName: 'Bot 2', status: 'started',
+})
+assert.deepEqual(roleTwoStart, emptyConversationStream(),
+  'each sequential Bot must start with a clean streaming snapshot and tool list')
+
 const block1 = applyStreamEventToSnapshot(inFlight, {
   type: 'block_delta', conversationId: 'c1', id: 'step-1-text', kind: 'text', delta: 'hel',
 })

@@ -136,4 +136,24 @@ assert.equal(approved, true)
 const trustedAfterApproval = await loadTaskweaverHooks(home, ws, { workspaceTrusted: true })
 assert.equal(trustedAfterApproval.beforeTurn.length, 2)
 
+// 验证 Hook 子进程不会继承宿主敏感密钥
+process.env.OPENAI_API_KEY = 'sk-sensitive-token-leak-test'
+process.env.TEST_SECRET_PASSWORD = 'super-secret-password'
+const envDumpHooks = {
+  beforeTurn: [{ command: `node -e "require('fs').writeFileSync('env-dump.json', JSON.stringify(process.env))"` }],
+  afterTurn: [],
+  preToolUse: [],
+  postToolUse: [],
+}
+await runTaskweaverHooks('beforeTurn', envDumpHooks, {
+  conversationId: 'c-test',
+  text: 'test',
+  workspacePath: ws,
+})
+const dumpedEnv = JSON.parse(await fs.readFile(path.join(ws, 'env-dump.json'), 'utf8'))
+assert.equal(dumpedEnv.OPENAI_API_KEY, undefined, 'Hook 子进程绝不能继承 OPENAI_API_KEY')
+assert.equal(dumpedEnv.TEST_SECRET_PASSWORD, undefined, 'Hook 子进程绝不能继承包含 password/secret 的环境变量')
+delete process.env.OPENAI_API_KEY
+delete process.env.TEST_SECRET_PASSWORD
+
 console.log('taskweaver-hook-runner tests passed')

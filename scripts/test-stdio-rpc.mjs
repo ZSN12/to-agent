@@ -12,9 +12,47 @@ import { createStdioJsonRpcServer } from '../backend/rpc/stdio-server.mjs'
 
 console.log('--- 开始测试 stdio JSON-RPC 服务端 ---')
 
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+const testRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-stdio-rpc-'))
+const testHome = path.join(testRoot, 'home')
+const testEnvironment = {
+  PATH: process.env.PATH ?? '',
+  HOME: testHome,
+  TMPDIR: process.env.TMPDIR ?? os.tmpdir(),
+  ...(process.env.LANG ? { LANG: process.env.LANG } : {}),
+  TASKWEAVER_USER_DATA: path.join(testRoot, 'userData'),
+  TASKWEAVER_HOME: path.join(testHome, '.taskweaver', 'runtime'),
+  TASKWEAVER_RUNTIME: path.join(repoRoot, 'vendor', 'taskweaver-z-runtime'),
+  TASKWEAVER_HOST_START_TIMEOUT_MS: '10000',
+}
 const child = spawn(process.execPath, ['backend/app-server.mjs', '--platform=test'], {
   stdio: ['pipe', 'pipe', 'inherit'],
+  env: testEnvironment,
+  detached: process.platform !== 'win32',
 })
+let childExit
+const childClosed = new Promise((resolve) => {
+  child.once('close', (code, signal) => {
+    childExit = { code, signal }
+    resolve(childExit)
+  })
+})
+
+function signalTestProcessTree(signal) {
+  if (!child.pid) return
+  try {
+    if (process.platform === 'win32') child.kill(signal)
+    else process.kill(-child.pid, signal)
+  } catch { /* the test process tree may already be closed */ }
+}
+
+async function waitForChildClose(timeoutMs) {
+  let timer
+  return Promise.race([
+    childClosed,
+    new Promise((resolve) => { timer = setTimeout(() => resolve(null), timeoutMs) }),
+  ]).finally(() => clearTimeout(timer))
+}
 
 const rl = readline.createInterface({ input: child.stdout })
 const incomingLines = []
@@ -43,75 +81,83 @@ async function waitForMessage(predicate, timeoutMs = 5000) {
   throw new Error(`waitForMessage timed out after ${timeoutMs}ms`)
 }
 
-// 1. 测试握手 initialize
-console.log('1. 测试握手 (initialize)...')
-writeMessage({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} })
-const initResp = await waitForMessage((m) => m.id === 1)
-assert.equal(initResp.result.protocolVersion, 1, 'protocolVersion 必须为 1')
-assert.ok(initResp.result.backendVersion, '必须返回 backendVersion')
-console.log('✓ 握手成功:', initResp.result)
+try {
+  // 1. 测试握手 initialize
+  console.log('1. 测试握手 (initialize)...')
+  writeMessage({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} })
+  const initResp = await waitForMessage((m) => m.id === 1)
+  assert.equal(initResp.result.protocolVersion, 1, 'protocolVersion 必须为 1')
+  assert.ok(initResp.result.backendVersion, '必须返回 backendVersion')
+  console.log('✓ 握手成功:', initResp.result)
 
-// 2. 测试普通 invoke: backend:ready
-console.log('2. 测试普通 invoke (backend:ready)...')
-writeMessage({ jsonrpc: '2.0', id: 2, method: 'backend:ready', params: [] })
-const readyResp = await waitForMessage((m) => m.id === 2)
-const isReady = readyResp.result?.data?.ready ?? readyResp.result?.ready
-assert.ok(isReady, 'backend:ready 应返回 ready: true')
-console.log('✓ backend:ready 响应成功:', readyResp.result)
+  // 2. 测试普通 invoke: backend:ready
+  console.log('2. 测试普通 invoke (backend:ready)...')
+  writeMessage({ jsonrpc: '2.0', id: 2, method: 'backend:ready', params: [] })
+  const readyResp = await waitForMessage((m) => m.id === 2)
+  const isReady = readyResp.result?.data?.ready ?? readyResp.result?.ready
+  assert.ok(isReady, 'backend:ready 应返回 ready: true')
+  console.log('✓ backend:ready 响应成功:', readyResp.result)
 
-// 3. 测试不存在的方法 (Method not found: -32601)
-console.log('3. 测试未知方法错误 (-32601)...')
-writeMessage({ jsonrpc: '2.0', id: 3, method: 'nonexistent:channel', params: [] })
-const notFoundResp = await waitForMessage((m) => m.id === 3)
-assert.equal(notFoundResp.error.code, -32601, '未注册通道应返回 -32601')
-console.log('✓ 未知方法错误处理正常')
+  // 3. 测试不存在的方法 (Method not found: -32601)
+  console.log('3. 测试未知方法错误 (-32601)...')
+  writeMessage({ jsonrpc: '2.0', id: 3, method: 'nonexistent:channel', params: [] })
+  const notFoundResp = await waitForMessage((m) => m.id === 3)
+  assert.equal(notFoundResp.error.code, -32601, '未注册通道应返回 -32601')
+  console.log('✓ 未知方法错误处理正常')
 
-// 4. 测试粘包分帧 (两条消息同时发送)
-console.log('4. 测试粘包分帧 (两条消息合并发送)...')
-child.stdin.write(
-  JSON.stringify({ jsonrpc: '2.0', id: 4, method: 'backend:ready', params: [] }) + '\n' +
-  JSON.stringify({ jsonrpc: '2.0', id: 5, method: 'backend:ready', params: [] }) + '\n'
-)
-const msg4 = await waitForMessage((m) => m.id === 4)
-const msg5 = await waitForMessage((m) => m.id === 5)
-const ok4 = msg4.result?.data?.ready ?? msg4.result?.ready
-const ok5 = msg5.result?.data?.ready ?? msg5.result?.ready
-assert.ok(ok4 && ok5, '粘包两条消息均应正确解析并响应')
-console.log('✓ 粘包分帧处理正常')
+  // 4. 测试粘包分帧 (两条消息同时发送)
+  console.log('4. 测试粘包分帧 (两条消息合并发送)...')
+  child.stdin.write(
+    JSON.stringify({ jsonrpc: '2.0', id: 4, method: 'backend:ready', params: [] }) + '\n' +
+    JSON.stringify({ jsonrpc: '2.0', id: 5, method: 'backend:ready', params: [] }) + '\n'
+  )
+  const msg4 = await waitForMessage((m) => m.id === 4)
+  const msg5 = await waitForMessage((m) => m.id === 5)
+  const ok4 = msg4.result?.data?.ready ?? msg4.result?.ready
+  const ok5 = msg5.result?.data?.ready ?? msg5.result?.ready
+  assert.ok(ok4 && ok5, '粘包两条消息均应正确解析并响应')
+  console.log('✓ 粘包分帧处理正常')
 
-// 5. 测试半包分帧 (分次写入)
-console.log('5. 测试半包分帧 (分块写入)...')
-const part1 = '{"jsonrpc":"2.0","id":6,"method":"backend'
-const part2 = ':ready","params":[]}\n'
-child.stdin.write(part1)
-await new Promise((r) => setTimeout(r, 50))
-child.stdin.write(part2)
-const msg6 = await waitForMessage((m) => m.id === 6)
-const ok6 = msg6.result?.data?.ready ?? msg6.result?.ready
-assert.ok(ok6, '半包消息应在收到换行后完整解析')
-console.log('✓ 半包分帧处理正常')
+  // 5. 测试半包分帧 (分次写入)
+  console.log('5. 测试半包分帧 (分块写入)...')
+  const part1 = '{"jsonrpc":"2.0","id":6,"method":"backend'
+  const part2 = ':ready","params":[]}\n'
+  child.stdin.write(part1)
+  await new Promise((r) => setTimeout(r, 50))
+  child.stdin.write(part2)
+  const msg6 = await waitForMessage((m) => m.id === 6)
+  const ok6 = msg6.result?.data?.ready ?? msg6.result?.ready
+  assert.ok(ok6, '半包消息应在收到换行后完整解析')
+  console.log('✓ 半包分帧处理正常')
 
-// 6. 测试超大消息 (超过 8MB)
-console.log('6. 测试超大单帧防护 (超过 8MB 限制)...')
-const hugePadding = 'A'.repeat(8 * 1024 * 1024 + 100)
-child.stdin.write(`{"jsonrpc":"2.0","id":7,"method":"test","params":["${hugePadding}"]}\n`)
-const hugeResp = await waitForMessage((m) => m.error && m.error.code === -32600)
-assert.equal(hugeResp.error.code, -32600, '超大消息应返回 -32600 错误')
-console.log('✓ 超大单帧防护正常')
+  // 6. 测试超大消息 (超过 8MB)
+  console.log('6. 测试超大单帧防护 (超过 8MB 限制)...')
+  const hugePadding = 'A'.repeat(8 * 1024 * 1024 + 100)
+  child.stdin.write(`{"jsonrpc":"2.0","id":7,"method":"test","params":["${hugePadding}"]}\n`)
+  const hugeResp = await waitForMessage((m) => m.error && m.error.code === -32600)
+  assert.equal(hugeResp.error.code, -32600, '超大消息应返回 -32600 错误')
+  console.log('✓ 超大单帧防护正常')
 
-// 7. 测试退出生命周期：关闭 stdin
-console.log('7. 测试 stdin 关闭后进程安全退出...')
-child.stdin.end()
-
-const exitCode = await new Promise((resolve) => {
-  child.on('exit', (code) => resolve(code))
-})
-assert.equal(exitCode, 0, 'stdin 关闭后进程应以 0 状态码优雅退出')
-console.log('✓ 进程优雅退出成功')
+  // 7. 测试退出生命周期：关闭 stdin
+  console.log('7. 测试 stdin 关闭后进程安全退出...')
+  child.stdin.end()
+  const exit = await waitForChildClose(20_000)
+  assert.ok(exit, 'stdin EOF 后进程应在 20 秒内安全退出')
+  assert.equal(exit.code, 0, `stdin 关闭后进程应以 0 状态码优雅退出（signal=${exit.signal}）`)
+  console.log('✓ 进程优雅退出成功')
+} finally {
+  // The app-server may have spawned a Host child in the same detached process
+  // group. Always clean that test-owned tree, including assertion/timeout paths.
+  signalTestProcessTree('SIGTERM')
+  if (!childExit) await waitForChildClose(3_000)
+  await new Promise((resolve) => setTimeout(resolve, 100))
+  signalTestProcessTree('SIGKILL')
+  if (!childExit) await waitForChildClose(3_000)
+  await fs.rm(testRoot, { recursive: true, force: true })
+}
 
 // EOF must stop the Host before the process exits, not just close the RPC loop.
 console.log('7.1 测试 stdin EOF 会回收 Host...')
-const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const cleanupDir = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-rpc-cleanup-'))
 const stopMarker = path.join(cleanupDir, 'shutdown-order.txt')
 const appServerUrl = new URL('../backend/app-server.mjs', import.meta.url).href
@@ -142,7 +188,7 @@ await startAppServer(['--platform=test'], {
 `
 const cleanupChild = spawn(process.execPath, ['--input-type=module', '-e', cleanupProbe], {
   cwd: repoRoot,
-  env: { ...process.env, TASKWEAVER_TEST_HOST_STOP: stopMarker },
+  env: { ...testEnvironment, TASKWEAVER_TEST_HOST_STOP: stopMarker },
   stdio: ['pipe', 'pipe', 'pipe'],
 })
 let cleanupStderr = ''

@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from 'react'
 import type { OpenUsageLimitsSnapshot } from '../../shared/app-api'
 import { DEFAULT_OPENUSAGE_URL, isLikelyLoopbackHttpUrl } from './openusage-limits-summary'
 
+export const OPENUSAGE_AUTO_REFRESH_INTERVAL_MS = 60_000
+
 export function useOpenUsageLimits({ autoFetch = true } = {}) {
   const [snapshot, setSnapshot] = useState<OpenUsageLimitsSnapshot | null>(null)
   const [loading, setLoading] = useState(false)
@@ -66,6 +68,12 @@ export function useOpenUsageLimits({ autoFetch = true } = {}) {
       if (autoFetch) await refresh(false)
     })()
   }, [autoFetch, loadPreferences, refresh])
+
+  useEffect(() => {
+    if (!autoFetch) return
+    const timer = window.setInterval(() => { void refresh(false) }, OPENUSAGE_AUTO_REFRESH_INTERVAL_MS)
+    return () => window.clearInterval(timer)
+  }, [autoFetch, refresh])
 
   const commitBaseUrl = useCallback(async () => {
     const draft = baseUrlDraft.trim()

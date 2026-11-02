@@ -1,4 +1,4 @@
-import type { CodeChunk } from './types'
+import type { CodeChunk } from './types.ts'
 
 export class CodeChunker {
   async chunk(file: string, content: string, language: string): Promise<CodeChunk[]> {
@@ -24,8 +24,9 @@ export class CodeChunker {
   private chunkJavaScript(file: string, content: string): CodeChunk[] {
     const chunks: CodeChunk[] = []
     const lines = content.split('\n')
+    const imports = this.extractImports(content)
 
-    // 简单的正则匹配（生产环境应该使用 Tree-sitter）
+    // The local symbol-outline splitter uses regular expressions.
     const functionRegex = /^(?:export\s+)?(?:async\s+)?function\s+(\w+)/
     const classRegex = /^(?:export\s+)?class\s+(\w+)/
     const methodRegex = /^\s+(?:async\s+)?(\w+)\s*\(/
@@ -100,7 +101,7 @@ export class CodeChunker {
             endLine: i + 1,
             metadata: {
               comments,
-              imports: this.extractImports(content)
+              imports: [...imports]
             }
           })
 
@@ -133,6 +134,33 @@ export class CodeChunker {
       const line = lines[i]
       const indent = line.search(/\S/)
 
+      // 检测块结束（缩进回退）
+      if (blockStart !== -1 && i > blockStart) {
+        if (line.trim() && indent <= blockIndent) {
+          const blockContent = lines.slice(blockStart, i).join('\n')
+          const comments = this.extractComments(lines, blockStart)
+
+          chunks.push({
+            id: `${file}:${blockName}:${blockStart + 1}`,
+            file,
+            language: 'python',
+            type: blockType,
+            name: blockName,
+            content: blockContent,
+            startLine: blockStart + 1,
+            endLine: i,
+            metadata: {
+              comments
+            }
+          })
+
+          blockStart = -1
+          if (blockType !== 'class') {
+            currentClass = null
+          }
+        }
+      }
+
       // 检测函数
       const funcMatch = line.match(functionRegex)
       if (funcMatch && blockStart === -1) {
@@ -160,33 +188,6 @@ export class CodeChunker {
           blockType = 'method'
           blockName = `${currentClass}.${methodMatch[1]}`
           blockIndent = indent
-        }
-      }
-
-      // 检测块结束（缩进回退）
-      if (blockStart !== -1 && i > blockStart) {
-        if (line.trim() && indent <= blockIndent) {
-          const blockContent = lines.slice(blockStart, i).join('\n')
-          const comments = this.extractComments(lines, blockStart)
-
-          chunks.push({
-            id: `${file}:${blockName}:${blockStart + 1}`,
-            file,
-            language: 'python',
-            type: blockType,
-            name: blockName,
-            content: blockContent,
-            startLine: blockStart + 1,
-            endLine: i,
-            metadata: {
-              comments
-            }
-          })
-
-          blockStart = -1
-          if (blockType !== 'class') {
-            currentClass = null
-          }
         }
       }
     }

@@ -262,7 +262,7 @@ export function createDshChatService({
       if (typeof handler !== 'function') throw new TypeError('DAG orchestration handler must be a function')
       orchestrationHandler = handler
     },
-    async runAgentTurn({ conversationId, sessionKey, text, modelKey, webContents, cwd, agentPreset = 'tw-default', taskId, signal, parentSessionId, progressOnly = false, permissionMode, attachments, documents, outputSchema }) {
+    async runAgentTurn({ conversationId, sessionKey, text, textProvider, modelKey, webContents, cwd, agentPreset = 'tw-default', taskId, signal, parentSessionId, progressOnly = false, permissionMode, attachments, documents, outputSchema, rolePersona, roleToolCallLimit, sessionMuxVisible = true, streamToRenderer = false }) {
       if (signal?.aborted) throw new Error('任务已停止')
       const onAbort = () => {
         void abort(sessionKey).catch((error) => {
@@ -277,6 +277,7 @@ export function createDshChatService({
       try {
         const result = await send({
           text,
+          textProvider,
           modelKey,
           conversationId,
           sessionKey,
@@ -287,9 +288,13 @@ export function createDshChatService({
           parentSessionId,
           permissionMode,
           taskId,
-          silentText: true,
+          silentText: !streamToRenderer,
           progressOnly,
           outputSchema,
+          rolePersona,
+          roleToolCallLimit,
+          sessionMuxVisible,
+          signal,
           emitLifecycle: false,
           behavior: 'followUp',
           attachments,

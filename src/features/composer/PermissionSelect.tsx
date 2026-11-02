@@ -1,4 +1,4 @@
-import { Check, ChevronDown, ShieldAlert } from 'lucide-react'
+import { Check, ShieldAlert } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import type { PermissionMode } from '../../shared/app-api'
 
@@ -24,16 +24,24 @@ export function PermissionSelect({ value, onChange }: { value: PermissionMode; o
   }, [open])
 
   return <div className="permission-select" ref={rootRef}>
-    <button type="button" className="access-button permission-trigger" onClick={() => setOpen((current) => !current)} aria-expanded={open} aria-haspopup="listbox">
-      <ShieldAlert size={17} /><span>{selected.title}</span><ChevronDown size={13} />
+    <button
+      type="button"
+      className={`access-button permission-trigger ${value === 'full' ? 'mode-full' : ''}`}
+      data-testid="permission-mode-trigger"
+      aria-label="工具审批模式"
+      onClick={() => setOpen((current) => !current)}
+      aria-expanded={open}
+      aria-haspopup="listbox"
+    >
+      <ShieldAlert size={16} />
+      <span>{selected.title}</span>
     </button>
     {open && <div className="permission-menu" role="listbox" aria-label="工具审批模式">
       <div className="permission-menu-heading">工具审批</div>
-      {permissionOptions.map((option) => <button key={option.mode} type="button" role="option" aria-selected={option.mode === value} className="permission-option" onClick={() => { onChange(option.mode); setOpen(false) }}>
+      {permissionOptions.map((option) => <button key={option.mode} type="button" role="option" data-testid={`permission-mode-option-${option.mode}`} aria-selected={option.mode === value} className="permission-option" onClick={() => { onChange(option.mode); setOpen(false) }}>
         <span className="permission-option-copy"><strong>{option.title}</strong><small>{option.description}</small></span>
         {option.mode === value && <Check size={15} />}
       </button>)}
-      <p className="permission-notice">审批提示不等于操作系统沙箱；完整访问不会限制 Agent 对本机文件或网络的访问。</p>
     </div>}
   </div>
 }

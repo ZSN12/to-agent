@@ -13,9 +13,11 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
+import { DatabaseSync } from 'node:sqlite'
 
 const APP_DATA = path.join(os.homedir(), 'Library', 'Application Support', 'taskweaver-desktop')
-const THREADS_FILE = path.join(APP_DATA, 'taskweaver-threads.json')
+const THREADS_DB = path.join(APP_DATA, 'taskweaver-threads.sqlite')
+const LEGACY_THREADS_FILE = path.join(APP_DATA, 'taskweaver-threads.json')
 const MAP_FILE = path.join(APP_DATA, 'taskweaver', 'dsh-session-map.json')
 const SESSIONS_DIR = path.join(APP_DATA, 'dsh', 'sessions')
 
@@ -28,11 +30,27 @@ const readJson = (file) => {
   }
 }
 
-const threadsRaw = readJson(THREADS_FILE)
 const mapRaw = readJson(MAP_FILE)
-if (!threadsRaw || !mapRaw) process.exit(1)
+if (!mapRaw) process.exit(1)
 
-const threads = Object.values(threadsRaw.threads ?? {})
+let threads
+if (fs.existsSync(THREADS_DB)) {
+  const db = new DatabaseSync(THREADS_DB, { readOnly: true })
+  try {
+    threads = db.prepare(`SELECT conversation_id AS conversationId,
+      workspace_path AS workspacePath, message_count AS messageCount FROM thread_summaries`).all()
+      .map((thread) => ({ ...thread, messageCount: Number(thread.messageCount) }))
+  } finally {
+    db.close()
+  }
+} else {
+  const threadsRaw = readJson(LEGACY_THREADS_FILE)
+  if (!threadsRaw) process.exit(1)
+  threads = Object.values(threadsRaw.threads ?? {}).map((thread) => ({
+    ...thread,
+    messageCount: Array.isArray(thread.messages) ? thread.messages.length : 0,
+  }))
+}
 const mapEntries = mapRaw.sessions ?? {}
 
 const byConversation = new Map()
@@ -84,7 +102,7 @@ const rootBound = Object.entries(mapEntries).filter(([, entry]) => isFsRoot(entr
 console.log(`\n【3】根目录绑定（cwd 是文件系统根，沙箱边界失效）: ${rootBound.length} 条`)
 for (const [conversationId, entry] of rootBound) {
   const thread = byConversation.get(conversationId)
-  const msgs = thread ? (thread.messages ?? []).length : '线程已删除'
+  const msgs = thread ? thread.messageCount : '线程已删除'
   console.log(`    ${conversationId}  cwd=${entry.cwd}  消息数=${msgs}`)
   console.log(`      → DSH 沙箱边界 = 会话 cwd（sandbox-policy: workspaceRoot = session.header.cwd）`)
   problems += 1
@@ -92,12 +110,12 @@ for (const [conversationId, entry] of rootBound) {
 
 const amnesiac = threads.filter((thread) => {
   if (!thread.conversationId) return false
-  if (!(thread.messages ?? []).length) return false
+  if (!thread.messageCount) return false
   return !mapEntries[thread.conversationId]
 })
 console.log(`\n【4】失忆会话（有 UI 消息但无 DSH 会话，模型看不到历史）: ${amnesiac.length} 个`)
 for (const thread of amnesiac) {
-  console.log(`    conv=${thread.conversationId}  消息数=${(thread.messages ?? []).length}  ws=${thread.workspacePath ?? '(未设置)'}`)
+  console.log(`    conv=${thread.conversationId}  消息数=${thread.messageCount}  ws=${thread.workspacePath ?? '(未设置)'}`)
   problems += 1
 }
 

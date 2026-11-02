@@ -7,7 +7,7 @@
  */
 import z from '@taskweaver/schemastery';
 import { readdirSync } from 'node:fs';
-import { open, mkdir, readFile, readdir, realpath, link, rm, stat, truncate } from 'node:fs/promises';
+import { open, mkdir, readFile, readdir, realpath, link, lstat, rm, stat, truncate } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { scheduler } from 'node:timers/promises';
@@ -78,6 +78,9 @@ export class JsonlSessionPersistence extends SessionPersistence {
     compression;
     coordinator;
     rootEncodingCheck;
+    snapshotCatalog;
+    snapshotCatalogGeneration = 0;
+    snapshotCatalogCommittedGeneration = 0;
     constructor(ctx, config) {
         super(ctx);
         this.config = config;
@@ -363,39 +366,87 @@ export class JsonlSessionPersistence extends SessionPersistence {
     }
     /** List valid unique stored sessions' metadata (header line only — no full-log parse). */
     async list(signal) {
-        return (await this.listArtifacts(signal)).map(artifact => artifact.header);
+        return (await this.listArtifacts(signal)).map(artifact => structuredClone(artifact.header));
     }
     /** List metadata plus a stat-derived identity for each append-only log. */
     async listSnapshots(signal) {
-        const snapshots = [];
-        for (const artifact of await this.listArtifacts(signal)) {
+        for (;;) {
+            const snapshots = [];
+            let changedDuringProjection = false;
+            for (const artifact of await this.listArtifacts(signal)) {
+                signal?.throwIfAborted();
+                try {
+                    const identity = await stat(artifact.path, { bigint: true });
+                    signal?.throwIfAborted();
+                    const revision = fileRevision(identity);
+                    if (artifact.revision !== undefined && artifact.revision !== revision) {
+                        changedDuringProjection = true;
+                        break;
+                    }
+                    snapshots.push({ header: structuredClone(artifact.header), revision });
+                }
+                catch (error) {
+                    signal?.throwIfAborted();
+                    if (!isENOENT(error))
+                        throw error;
+                }
+            }
+            if (!changedDuringProjection) {
+                signal?.throwIfAborted();
+                return snapshots;
+            }
             signal?.throwIfAborted();
-            try {
-                const identity = await stat(artifact.path, { bigint: true });
-                signal?.throwIfAborted();
-                snapshots.push({
-                    header: artifact.header,
-                    revision: fileRevision(identity),
-                });
-            }
-            catch (error) {
-                signal?.throwIfAborted();
-                if (!isENOENT(error))
-                    throw error;
-            }
         }
-        signal?.throwIfAborted();
-        return snapshots;
     }
     async listArtifacts(signal) {
         signal?.throwIfAborted();
         await this.ensureRootEncoding();
         signal?.throwIfAborted();
+        const generation = ++this.snapshotCatalogGeneration;
+        const previous = this.snapshotCatalog;
         const artifacts = [];
         const ids = new Set();
-        for (const project of await this.listProjectDirs(signal)) {
+        const projects = new Map();
+        const rootIdentity = await this.statDirectory(this.root, true, signal);
+        const rootRevision = rootIdentity === undefined ? null : fileRevision(rootIdentity);
+        let projectPaths;
+        if (previous !== undefined && previous.rootRevision === rootRevision) {
+            projectPaths = [...previous.projects.keys()];
+        }
+        else if (rootIdentity === undefined) {
+            projectPaths = [];
+        }
+        else {
+            const root = await this.readStableDirectoryEntries(this.root, rootIdentity, true, signal);
+            projectPaths = root === undefined
+                ? []
+                : root.entries.filter(entry => entry.isDirectory()).map(entry => join(this.root, entry.name));
+        }
+        for (const project of projectPaths) {
             signal?.throwIfAborted();
-            for (const dir of await this.listSessionDirs(project, signal)) {
+            const priorProject = previous?.projects.get(project);
+            const discoveredIdentity = await this.statDirectory(project, false, signal);
+            if (discoveredIdentity === undefined)
+                continue;
+            let projectIdentity;
+            let sessionPaths;
+            if (priorProject !== undefined && fileRevision(priorProject.identity) === fileRevision(discoveredIdentity)) {
+                projectIdentity = discoveredIdentity;
+                sessionPaths = [...priorProject.sessions.keys()];
+            }
+            else {
+                const listing = await this.readStableDirectoryEntries(project, discoveredIdentity, false, signal);
+                if (listing === undefined)
+                    continue;
+                projectIdentity = listing.identity;
+                const legacy = listing.entries.find(entry => entry.isFile() && (entry.name.endsWith('.jsonl') || entry.name.endsWith('.jsonl.zstd')));
+                if (legacy !== undefined)
+                    throw this.legacyLayout(join(project, legacy.name));
+                sessionPaths = listing.entries.filter(entry => entry.isDirectory())
+                    .map(entry => join(project, entry.name));
+            }
+            const sessions = new Map();
+            for (const dir of sessionPaths) {
                 signal?.throwIfAborted();
                 const opposite = join(dir, `session${logSuffix(this.oppositeCompression())}`);
                 const oppositeExists = await this.exists(opposite);
@@ -405,29 +456,123 @@ export class JsonlSessionPersistence extends SessionPersistence {
                 const path = join(dir, `session${logSuffix(this.compression)}`);
                 const pathExists = await this.exists(path);
                 signal?.throwIfAborted();
-                if (!pathExists)
-                    continue;
-                // Read only headers so listing scales with session count, not log size.
-                const first = this.compression === 'zstd'
-                    ? await this.readFirstZstdLine(path, signal)
-                    : await this.readFirstLine(path, signal);
-                signal?.throwIfAborted();
-                if (first === undefined)
-                    continue; // empty/half-written file
-                const meta = parseHeaderMeta(first);
-                if (meta === undefined)
-                    continue; // not a session header
-                await this.assertStoredIdentity(path, meta, undefined, signal);
-                signal?.throwIfAborted();
-                if (ids.has(meta.id)) {
-                    throw new Error(`duplicate JSONL session id "${meta.id}" appears in multiple project directories`);
+                const priorSession = priorProject?.sessions.get(dir);
+                let current = {};
+                if (pathExists) {
+                    try {
+                        const identity = await stat(path, { bigint: true });
+                        signal?.throwIfAborted();
+                        if (priorSession?.identity !== undefined
+                            && fileRevision(priorSession.identity) === fileRevision(identity)) {
+                            current = { identity, ...priorSession.header === undefined ? {} : { header: priorSession.header } };
+                        }
+                        else {
+                            current = await this.readStableSnapshotHeader(path, signal);
+                        }
+                    }
+                    catch (error) {
+                        signal?.throwIfAborted();
+                        if (!isENOENT(error))
+                            throw error;
+                    }
                 }
-                ids.add(meta.id);
-                artifacts.push({ header: meta, path });
+                sessions.set(dir, current);
+                if (current.header === undefined || current.identity === undefined)
+                    continue;
+                await this.assertStoredIdentity(path, current.header, undefined, signal);
+                signal?.throwIfAborted();
+                if (ids.has(current.header.id)) {
+                    throw new Error(`duplicate JSONL session id "${current.header.id}" appears in multiple project directories`);
+                }
+                ids.add(current.header.id);
+                artifacts.push({
+                    header: current.header,
+                    path,
+                    revision: fileRevision(current.identity),
+                });
             }
+            projects.set(project, { identity: projectIdentity, sessions });
         }
         signal?.throwIfAborted();
+        const nextCatalog = { rootRevision, projects };
+        if (generation > this.snapshotCatalogCommittedGeneration) {
+            this.snapshotCatalog = nextCatalog;
+            this.snapshotCatalogCommittedGeneration = generation;
+        }
         return artifacts;
+    }
+    /** Read one stable header, retrying if a cross-process writer changes the file mid-read. */
+    async readStableSnapshotHeader(path, signal) {
+        for (;;) {
+            signal?.throwIfAborted();
+            const before = await stat(path, { bigint: true });
+            signal?.throwIfAborted();
+            let first;
+            try {
+                first = this.compression === 'zstd'
+                    ? await this.readFirstZstdLine(path, signal)
+                    : await this.readFirstLine(path, signal);
+            }
+            catch (error) {
+                signal?.throwIfAborted();
+                const afterFailure = await stat(path, { bigint: true });
+                signal?.throwIfAborted();
+                if (fileRevision(before) !== fileRevision(afterFailure))
+                    continue;
+                throw error;
+            }
+            signal?.throwIfAborted();
+            const after = await stat(path, { bigint: true });
+            signal?.throwIfAborted();
+            if (fileRevision(before) !== fileRevision(after))
+                continue;
+            if (first === undefined)
+                return { identity: after };
+            const header = parseHeaderMeta(first);
+            signal?.throwIfAborted();
+            if (header === undefined)
+                return { identity: after };
+            await this.assertStoredIdentity(path, header, undefined, signal);
+            signal?.throwIfAborted();
+            return { identity: after, header };
+        }
+    }
+    async statDirectory(path, followSymlink, signal) {
+        try {
+            const identity = followSymlink
+                ? await stat(path, { bigint: true })
+                : await lstat(path, { bigint: true });
+            signal?.throwIfAborted();
+            if (!identity.isDirectory()) {
+                // The configured root must retain listProjectDirs' ENOTDIR behavior if
+                // another process replaces it after construction.
+                if (followSymlink)
+                    await readdir(path, { withFileTypes: true });
+                signal?.throwIfAborted();
+                return undefined;
+            }
+            return identity;
+        }
+        catch (error) {
+            signal?.throwIfAborted();
+            if (isENOENT(error))
+                return undefined;
+            throw error;
+        }
+    }
+    async readStableDirectoryEntries(path, before, followSymlink, signal) {
+        let currentBefore = before;
+        for (;;) {
+            signal?.throwIfAborted();
+            const entries = await readdir(path, { withFileTypes: true });
+            signal?.throwIfAborted();
+            const after = await this.statDirectory(path, followSymlink, signal);
+            if (after === undefined)
+                return undefined;
+            if (fileRevision(currentBefore) === fileRevision(after))
+                return { identity: after, entries };
+            currentBefore = after;
+        }
     }
     // --- materialization / append / repair (file mechanics) ---
     /** Atomically write the header line + first batch (temp-write, fsync, publish). */

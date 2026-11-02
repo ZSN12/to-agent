@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 440" width="100%" height="100%">
+  <defs>
+    <linearGradient id="costGrad1" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f43f5e"/>
+      <stop offset="100%" stop-color="#be123c"/>
+    </linearGradient>
+    <linearGradient id="costGrad2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fb923c"/>
+      <stop offset="100%" stop-color="#c2410c"/>
+    </linearGradient>
+    <linearGradient id="costGrad3" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#10b981"/>
+      <stop offset="100%" stop-color="#047857"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="900" height="440" rx="16" fill="#0f172a" stroke="#1e293b" stroke-width="2"/>
+  <text x="40" y="50" font-family="system-ui, sans-serif" font-size="22" font-weight="700" fill="#f8fafc">多模型智能路由成本节约分析 (Cost Savings Analysis)</text>
+  <text x="40" y="76" font-family="system-ui, sans-serif" font-size="13" fill="#94a3b8">对比全量旗舰模型基线，智能混合分流降低了 94.2% 的综合 API 调用开销</text>
+
+  <!-- 柱状对比 -->
+  <g transform="translate(80, 110)">
+    <line x1="20" y1="240" x2="480" y2="240" stroke="#334155" stroke-width="2"/>
+
+    <!-- Bar 1 -->
+    <rect x="50" y="50" width="90" height="190" rx="8" fill="url(#costGrad1)"/>
+    <text x="95" y="40" font-family="system-ui, sans-serif" font-size="14" font-weight="700" fill="#fda4af" text-anchor="middle">$4.04</text>
+    <text x="95" y="265" font-family="system-ui, sans-serif" font-size="12" fill="#94a3b8" text-anchor="middle">全量单 Agent</text>
+
+    <!-- Bar 2 -->
+    <rect x="200" y="73.0140712713604" width="90" height="166.9859287286396" rx="8" fill="url(#costGrad2)"/>
+    <text x="245" y="63.01407127136039" font-family="system-ui, sans-serif" font-size="14" font-weight="700" fill="#fdba74" text-anchor="middle">$3.55</text>
+    <text x="245" y="265" font-family="system-ui, sans-serif" font-size="12" fill="#94a3b8" text-anchor="middle">多 Agent 无路由</text>
+
+    <!-- Bar 3 -->
+    <rect x="350" y="229.0709004129881" width="90" height="10.929099587011894" rx="8" fill="url(#costGrad3)"/>
+    <text x="395" y="219.0709004129881" font-family="system-ui, sans-serif" font-size="15" font-weight="800" fill="#6ee7b7" text-anchor="middle">$0.23</text>
+    <text x="395" y="265" font-family="system-ui, sans-serif" font-size="13" font-weight="700" fill="#34d399" text-anchor="middle">TaskWeaver 路由</text>
+  </g>
+
+  <!-- 右侧高亮指标徽章 -->
+  <g transform="translate(610, 130)">
+    <rect width="240" height="180" rx="12" fill="#1e293b" stroke="#334155" stroke-width="1.5"/>
+    <text x="120" y="45" font-family="system-ui, sans-serif" font-size="14" fill="#94a3b8" text-anchor="middle">综合成本节约率</text>
+    <text x="120" y="105" font-family="system-ui, sans-serif" font-size="44" font-weight="800" fill="#10b981" text-anchor="middle">-94.2%</text>
+    <text x="120" y="145" font-family="system-ui, sans-serif" font-size="12" fill="#64748b" text-anchor="middle">轻重分级路由策略生效</text>
+  </g>
+
+  <text x="450" y="410" font-family="system-ui, sans-serif" font-size="12" fill="#64748b" text-anchor="middle">图 5-2 旗舰基线模型与 TaskWeaver 分级智能路由在累计 Token 费用上的定量对比</text>
+</svg>

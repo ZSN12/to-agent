@@ -167,12 +167,12 @@ export function createShellTaskweaverBridge(): TaskweaverBridge {
     models: {
       bridgeGetStatus: (...args: unknown[]) => invoke("bridge:getStatus", ...args),
       bridgeLogin: (...args: unknown[]) => invoke("bridge:login", ...args),
+      bridgeSaveAntigravityOAuthCredentials: (...args: unknown[]) => invoke("bridge:saveAntigravityOAuthCredentials", ...args),
       add: (...args: unknown[]) => invoke("models:add", ...args),
       batchAddCustomModels: (...args: unknown[]) => invoke("models:batchAddCustomModels", ...args),
       cancelOAuth: (...args: unknown[]) => invoke("models:cancelOAuth", ...args),
       checkForUpdates: (...args: unknown[]) => invoke("models:checkForUpdates", ...args),
       discoverProviderModels: (...args: unknown[]) => invoke("models:discoverProviderModels", ...args),
-      getBusyEnterMode: (...args: unknown[]) => invoke("models:getBusyEnterMode", ...args),
       getSemanticSearchSettings: (...args: unknown[]) => invoke("models:getSemanticSearchSettings", ...args),
       getThinkingLevel: (...args: unknown[]) => invoke("models:getThinkingLevel", ...args),
       getUpdateStatus: (...args: unknown[]) => invoke("models:getUpdateStatus", ...args),
@@ -191,7 +191,6 @@ export function createShellTaskweaverBridge(): TaskweaverBridge {
       scanLocal: (...args: unknown[]) => invoke("models:scanLocal", ...args),
       saveSemanticSearchSettings: (...args: unknown[]) => invoke("models:saveSemanticSearchSettings", ...args),
       setActive: (...args: unknown[]) => invoke("models:setActive", ...args),
-      setBusyEnterMode: (...args: unknown[]) => invoke("models:setBusyEnterMode", ...args),
       setProviderApiKey: (...args: unknown[]) => invoke("models:setProviderApiKey", ...args),
       setThinkingLevel: (...args: unknown[]) => invoke("models:setThinkingLevel", ...args),
       startOAuth: (...args: unknown[]) => invoke("models:startOAuth", ...args),
@@ -224,6 +223,7 @@ export function createShellTaskweaverBridge(): TaskweaverBridge {
     },
     chat: {
       cancel: (...args: unknown[]) => invoke("chat:cancel", ...args),
+      classifyOrchestration: (...args: unknown[]) => invoke("chat:classifyOrchestration", ...args),
       getDshView: (...args: unknown[]) => invoke("chat:getDshView", ...args),
       getToolOutput: (...args: unknown[]) => invoke("chat:getToolOutput", ...args),
       getImageAttachment: (...args: unknown[]) => invoke("chat:getImageAttachment", ...args),
@@ -242,6 +242,7 @@ export function createShellTaskweaverBridge(): TaskweaverBridge {
       unsubscribeMux: (...args: unknown[]) => invoke("chat:unsubscribeMux", ...args),
       followUp: (...args: unknown[]) => invoke("chat:followUp", ...args),
       send: (...args: unknown[]) => invoke("chat:send", ...args),
+      sendAsRoles: (...args: unknown[]) => invoke("chat:sendAsRoles", ...args),
       steer: (...args: unknown[]) => invoke("chat:steer", ...args),
       onMux: (listener: (payload: unknown) => void) => subscribe("chat:mux", listener),
       onDshView: (listener: (payload: unknown) => void) => subscribe("chat:dshView", listener),
@@ -261,6 +262,11 @@ export function createShellTaskweaverBridge(): TaskweaverBridge {
       resumeRun: (...args: unknown[]) => invoke("tasks:resumeRun", ...args),
       listRuns: (...args: unknown[]) => invoke("tasks:listRuns", ...args),
       sendMessage: (...args: unknown[]) => invoke("tasks:sendMessage", ...args)
+    },
+    roles: {
+      list: (...args: unknown[]) => invoke("roles:list", ...args),
+      remove: (...args: unknown[]) => invoke("roles:remove", ...args),
+      upsert: (...args: unknown[]) => invoke("roles:upsert", ...args)
     },
     debug: {
       shadowTranscript: (...args: unknown[]) => invoke("debug:shadowTranscript", ...args)
@@ -346,16 +352,19 @@ export function createShellTaskweaverBridge(): TaskweaverBridge {
       remove: (...args: unknown[]) => invoke("worktree:remove", ...args)
     },
     workspace: {
+      createGitBranch: (...args: unknown[]) => invoke("workspace:createGitBranch", ...args),
       createManualGitCommit: (...args: unknown[]) => invoke("workspace:createManualGitCommit", ...args),
       deleteGitCheckpoint: (...args: unknown[]) => invoke("workspace:deleteGitCheckpoint", ...args),
       getGitCheckpointDiff: (...args: unknown[]) => invoke("workspace:getGitCheckpointDiff", ...args),
       gitStatus: (...args: unknown[]) => invoke("workspace:gitStatus", ...args),
       gitSuggestCommit: (...args: unknown[]) => invoke("workspace:gitSuggestCommit", ...args),
+      listGitBranches: (...args: unknown[]) => invoke("workspace:listGitBranches", ...args),
       listGitCheckpoints: (...args: unknown[]) => invoke("workspace:listGitCheckpoints", ...args),
       openPath: (...args: unknown[]) => invoke("workspace:openPath", ...args),
       previewManualGitCommit: (...args: unknown[]) => invoke("workspace:previewManualGitCommit", ...args),
       restoreGitCheckpoint: (...args: unknown[]) => invoke("workspace:restoreGitCheckpoint", ...args),
       revertDiff: (...args: unknown[]) => invoke("workspace:revertDiff", ...args),
+      switchGitBranch: (...args: unknown[]) => invoke("workspace:switchGitBranch", ...args),
       createReference: (...args: unknown[]) => invoke("workspace:createReference", ...args),
       getTrust: (...args: unknown[]) => invoke("workspace:getTrust", ...args),
       listContext: (...args: unknown[]) => invoke("workspace:listContext", ...args),

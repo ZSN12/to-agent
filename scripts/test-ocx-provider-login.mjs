@@ -100,6 +100,27 @@ await assert.rejects(
 )
 
 {
+  const child = mockChild({ afterSpawn: (process) => {
+    process.stdout.end('ERROR: provider login unavailable; access_token=public-test-secret\n')
+    setImmediate(() => child.emit('close', 1, null))
+  } })
+  await assert.rejects(
+    startOcxProviderLogin('cursor', {
+      executable: '/test/ocx',
+      spawnImpl: () => child,
+      openExternal: async () => assert.fail('browser must not open without an authorization URL'),
+      timeoutMs: 250,
+    }),
+    (error) => {
+      assert.match(error.message, /provider login unavailable/)
+      assert.doesNotMatch(error.message, /public-test-secret/)
+      assert.doesNotMatch(error.message, /access_token=/)
+      return true
+    },
+  )
+}
+
+{
   const oldHostOpen = process.env.TASKWEAVER_HOST_OPENS_LOGIN_URL
   const logs = []
   let automaticBrowserOpen = false

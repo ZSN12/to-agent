@@ -511,6 +511,11 @@ describe('JsonlSessionPersistence: default Zstandard encoding', () => {
       await ctx.sessionPersistence.create(header)
       await ctx.sessionPersistence.append(header.id, oneTurnLog())
       await ctx.sessionPersistence.list()
+      // Invalidate the cached header identity so the next listing enters the
+      // asynchronous header-read path exercised by the cancellation spy.
+      await ctx.sessionPersistence.append(header.id, [
+        { type: 'turn/start', seq: 6, time: 7, data: { turn: 2 } },
+      ])
       const path = logPath(root, header.cwd, header.id, compression)
       const probe = await open(path, 'r')
       const prototype = Object.getPrototypeOf(probe) as { read: HeaderRead }

@@ -2223,7 +2223,7 @@ export function createApiProxy(ctx, defaults) {
                 return ok(request, { sessionId: childId });
             },
             async prompt(request) {
-                const { sessionId, mode, content, clientTimeZone, uiVerifyPolicy, outputSchema } = request.payload;
+                const { sessionId, mode, content, clientTimeZone, uiVerifyPolicy, outputSchema, rolePersona, roleToolCallLimit } = request.payload;
                 if (outputSchema !== undefined)
                     assertObjectJsonSchema(outputSchema);
                 const canonicalTimeZone = clientTimeZone === undefined
@@ -2287,6 +2287,8 @@ export function createApiProxy(ctx, defaults) {
                     rpcId: request.rpcId,
                     ...(canonicalTimeZone === undefined ? {} : { clientTimeZone: canonicalTimeZone }),
                     ...(outputSchema === undefined ? {} : { outputSchema }),
+                    ...(rolePersona === undefined ? {} : { rolePersona }),
+                    ...(roleToolCallLimit === undefined ? {} : { roleToolCallLimit }),
                 };
                 const hasImage = content.some(part => part.type === 'image');
                 const admit = async () => {

@@ -85,6 +85,16 @@ try {
   const currentContent = await fs.readFile(path.join(repoDir, 'README.md'), 'utf8')
   assert.ok(currentContent.includes('Version 1.1'))
 
+  // 5a. A checkpoint-based review diff must include files created after the
+  // checkpoint, even when they remain untracked, without staging them.
+  await fs.writeFile(path.join(repoDir, 'after-checkpoint.txt'), 'new untracked implementation file\n')
+  const cp2Diff = await getGitCheckpointDiff(repoDir, cp2Id, { userDataPath: root })
+  assert.match(cp2Diff.diff, /after-checkpoint\.txt/)
+  assert.match(cp2Diff.diff, /new untracked implementation file/)
+  assert.match(cp2Diff.stat, /after-checkpoint\.txt/)
+  assert.deepEqual((await runGit(['diff', '--cached', '--name-only'], repoDir)).stdout.trim().split('\n'), ['new-feature.js'],
+    'diff evidence collection must not stage newly-created files or alter the real index')
+
   // 6. 检查点列表读取与过滤
   const allCps = await listGitCheckpoints(repoDir, { userDataPath: root })
   assert.equal(allCps.length, 2)

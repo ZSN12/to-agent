@@ -13,13 +13,19 @@ export async function commitToHost({
   enrichModels,
 }) {
   await writeExportSnapshot(userDataPath, exportDoc)
-  await hostManager.start()
-  await ensureModelsJsonSyncedToDshHost({
-    hostManager,
-    userDataPath,
-    credentialStore,
-  })
-  await modelService.refreshCatalog()
+  if (hostManager?.start) {
+    await hostManager.start()
+  }
+  if (typeof ensureModelsJsonSyncedToDshHost === 'function') {
+    await ensureModelsJsonSyncedToDshHost({
+      hostManager,
+      userDataPath,
+      credentialStore,
+    })
+  }
+  if (typeof modelService?.refreshCatalog === 'function') {
+    await modelService.refreshCatalog()
+  }
   if (enrichModels) return enrichModels()
   return null
 }

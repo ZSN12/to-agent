@@ -29,7 +29,10 @@ describe('dsh-base bundle', () => {
     )
     expect(rows.length).toBeGreaterThan(50)
     expect(rows.some(row => row.id === 'agent-loop')).toBe(true)
-    expect(rows.some(row => row.id === 'tool-document' && row.name === '@taskweaver/dsh-tool-document')).toBe(true)
+    // Model-facing document and web tools are session-owned by agent presets,
+    // not inherited by every agent from the shared Host composition.
+    expect(rows.some(row => row.id === 'tool-document')).toBe(false)
+    expect(rows.some(row => row.id === 'tool-web')).toBe(false)
     expect(rows.filter(row => [
       'session-telemetry-otel', 'skill-badge', 'command-feedback',
       'tool-str-replace-editor', 'llm-deepseek',

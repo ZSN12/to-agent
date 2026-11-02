@@ -14,6 +14,7 @@ struct TaskWeaverShellApp: App {
                 if let url = session.uiURL {
                     ShellWebView(url: url, session: session)
                         .frame(minWidth: 960, minHeight: 640)
+                        .ignoresSafeArea(.container, edges: .top)
                 } else if let message = session.errorMessage {
                     VStack(spacing: 12) {
                         Text("TaskWeaver 无法启动")
@@ -44,6 +45,7 @@ struct TaskWeaverShellApp: App {
             .onAppear { appDelegate.session = session }
             .preferredColorScheme(.dark)
         }
+        .windowStyle(.hiddenTitleBar)
     }
 }
 
@@ -119,12 +121,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func applyWindowAppearance(_ window: NSWindow) {
         window.appearance = NSAppearance(named: .darkAqua)
         window.titleVisibility = .hidden
-        window.titlebarAppearsTransparent = false
-        window.styleMask.remove(.fullSizeContentView)
-        window.styleMask.formUnion([.titled, .closable, .miniaturizable, .resizable])
+        window.titlebarAppearsTransparent = true
+        window.styleMask.formUnion([.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView])
+        window.isMovable = true
 
-        // Keep the native macOS traffic lights visible while the React header
-        // owns the conversation title and controls inside the content area.
+        // Let the web header occupy the transparent titlebar while retaining
+        // native macOS traffic lights above it. The content is a WKWebView,
+        // so Electron's -webkit-app-region CSS does not provide window dragging.
         for buttonType in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
             guard let button = window.standardWindowButton(buttonType) else { continue }
             button.isHidden = false
@@ -160,13 +163,15 @@ struct ShellWebView: NSViewRepresentable {
     func makeNSView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
         config.preferences.setValue(true, forKey: "developerExtrasEnabled")
+        config.userContentController.add(context.coordinator, name: "taskweaverWindowDrag")
         config.userContentController.addUserScript(WKUserScript(
             source: Self.titleSyncScript,
             injectionTime: .atDocumentStart,
             forMainFrameOnly: true
         ))
-        let webView = WKWebView(frame: .zero, configuration: config)
+        let webView = WindowDraggableWKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = context.coordinator
+        webView.uiDelegate = context.coordinator
         context.coordinator.observe(webView)
         if url.isFileURL {
             let readAccessRoot = ShellEnvironment.bundledDistRoot ?? url.deletingLastPathComponent()
@@ -193,6 +198,63 @@ struct ShellWebView: NSViewRepresentable {
           };
           const syncTitle = () => {
             applyShellLayout();
+          const topbar = document.querySelector('.codex-topbar');
+          const left = topbar?.querySelector('.topbar-left');
+          const titleWrap = topbar?.querySelector('.topbar-title-wrap');
+          const center = topbar?.querySelector('.topbar-center');
+          const right = topbar?.querySelector('.topbar-right');
+          const regions = [];
+          const toRegion = (rect) => ({
+            x: rect.left,
+            y: rect.top,
+            width: rect.width,
+            height: rect.height,
+          });
+          if (titleWrap) {
+            const rect = titleWrap.getBoundingClientRect();
+            if (rect.width > 0 && rect.height > 0) regions.push(toRegion(rect));
+          }
+          if (topbar && left) {
+            const barRect = topbar.getBoundingClientRect();
+            const leftRect = left.getBoundingClientRect();
+            const dividerLeft = left.querySelector('.topbar-divider')?.getBoundingClientRect().left ?? leftRect.right;
+            const controlsRight = Array.from(left.querySelectorAll('button')).reduce((edge, button) => {
+              return Math.max(edge, button.getBoundingClientRect().right);
+            }, leftRect.left);
+            if (dividerLeft - controlsRight > 10 && barRect.height > 0) {
+              regions.push({
+                x: controlsRight,
+                y: barRect.top,
+                width: dividerLeft - controlsRight,
+                height: barRect.height,
+              });
+            }
+          }
+          if (topbar && center && right) {
+            const barRect = topbar.getBoundingClientRect();
+            const rightEdge = right.getBoundingClientRect().left;
+            const contentRight = Array.from(center.children).reduce((edge, child) => {
+              const rect = child.getBoundingClientRect();
+              return Math.max(edge, rect.right);
+            }, center.getBoundingClientRect().left);
+            if (rightEdge - contentRight > 10 && barRect.height > 0) {
+              regions.push({
+                x: contentRight,
+                y: barRect.top,
+                width: rightEdge - contentRight,
+                height: barRect.height,
+              });
+            }
+          }
+          const serializedRegions = JSON.stringify(regions);
+          if (serializedRegions !== lastWindowDragRegions) {
+            lastWindowDragRegions = serializedRegions;
+            window.webkit?.messageHandlers?.taskweaverWindowDrag?.postMessage({
+              regions,
+              viewportWidth: window.innerWidth,
+              viewportHeight: window.innerHeight,
+            });
+          }
             const settingsPage = document.querySelector('.settings-screen');
             if (settingsPage) {
               const sectionTitle = settingsPage.querySelector('#settings-content h1, #settings-content h2')
@@ -207,6 +269,7 @@ struct ShellWebView: NSViewRepresentable {
               ?.textContent?.trim();
             if (title && document.title !== title) document.title = title;
           };
+        let lastWindowDragRegions = '';
           let titleSyncPending = false;
           const scheduleTitleSync = () => {
             if (titleSyncPending) return;
@@ -233,9 +296,10 @@ struct ShellWebView: NSViewRepresentable {
         })();
         """
 
-    final class Coordinator: NSObject, WKNavigationDelegate {
+    final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
         private let initialURL: URL
         private weak var session: ShellSession?
+        private weak var dragAwareWebView: WindowDraggableWKWebView?
         private var titleObservation: NSKeyValueObservation?
 
         init(initialURL: URL, session: ShellSession) {
@@ -243,11 +307,116 @@ struct ShellWebView: NSViewRepresentable {
             self.session = session
         }
 
-        func observe(_ webView: WKWebView) {
+        fileprivate func observe(_ webView: WindowDraggableWKWebView) {
+            dragAwareWebView = webView
             titleObservation = webView.observe(\.title, options: [.initial, .new]) { [weak session] view, _ in
                 let title = view.title
                 Task { @MainActor in session?.updateWindowTitle(title) }
             }
+        }
+
+        func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+            guard message.name == "taskweaverWindowDrag",
+                  let payload = message.body as? [String: Any],
+                  let rawRegions = payload["regions"] as? [[String: Double]],
+                  let webView = dragAwareWebView else { return }
+
+            let viewportWidth = payload["viewportWidth"] as? CGFloat ?? webView.bounds.width
+            let viewportHeight = payload["viewportHeight"] as? CGFloat ?? webView.bounds.height
+            guard viewportWidth > 0, viewportHeight > 0 else { return }
+            let scaleX = webView.bounds.width / viewportWidth
+            let scaleY = webView.bounds.height / viewportHeight
+            webView.windowDragRegions = rawRegions.compactMap { region in
+                guard let x = region["x"], let y = region["y"],
+                      let width = region["width"], let height = region["height"],
+                      width > 0, height > 0 else { return nil }
+                return CGRect(
+                    x: x * scaleX,
+                    y: y * scaleY,
+                    width: width * scaleX,
+                    height: height * scaleY
+                )
+            }
+        }
+
+        func webView(
+            _ webView: WKWebView,
+            runJavaScriptAlertPanelWithMessage message: String,
+            initiatedByFrame frame: WKFrameInfo,
+            completionHandler: @escaping () -> Void
+        ) {
+            let alert = NSAlert()
+            alert.alertStyle = .informational
+            alert.messageText = "TaskWeaver"
+            alert.informativeText = message
+            alert.addButton(withTitle: "好")
+            presentJavaScriptDialog(alert, in: webView) { _ in completionHandler() }
+        }
+
+        func webView(
+            _ webView: WKWebView,
+            runJavaScriptConfirmPanelWithMessage message: String,
+            initiatedByFrame frame: WKFrameInfo,
+            completionHandler: @escaping (Bool) -> Void
+        ) {
+            let alert = NSAlert()
+            alert.alertStyle = .warning
+            alert.messageText = "TaskWeaver"
+            alert.informativeText = message
+            alert.addButton(withTitle: "取消")
+            alert.addButton(withTitle: "确定")
+            presentJavaScriptDialog(alert, in: webView) { response in
+                completionHandler(response == .alertSecondButtonReturn)
+            }
+        }
+
+        func webView(
+            _ webView: WKWebView,
+            runJavaScriptTextInputPanelWithPrompt prompt: String,
+            defaultText: String?,
+            initiatedByFrame frame: WKFrameInfo,
+            completionHandler: @escaping (String?) -> Void
+        ) {
+            let alert = NSAlert()
+            alert.alertStyle = .informational
+            alert.messageText = "TaskWeaver"
+            alert.informativeText = prompt
+
+            let input = NSTextField(string: defaultText ?? "")
+            input.frame = NSRect(x: 0, y: 0, width: 300, height: 24)
+            alert.accessoryView = input
+            alert.addButton(withTitle: "取消")
+            alert.addButton(withTitle: "确定")
+            presentJavaScriptDialog(alert, in: webView) { response in
+                completionHandler(response == .alertSecondButtonReturn ? input.stringValue : nil)
+            }
+        }
+
+        private func presentJavaScriptDialog(
+            _ alert: NSAlert,
+            in webView: WKWebView,
+            completionHandler: @escaping (NSApplication.ModalResponse) -> Void
+        ) {
+            if let window = webView.window {
+                alert.beginSheetModal(for: window, completionHandler: completionHandler)
+            } else {
+                completionHandler(alert.runModal())
+            }
+        }
+
+        func webView(
+            _ webView: WKWebView,
+            createWebViewWith configuration: WKWebViewConfiguration,
+            for navigationAction: WKNavigationAction,
+            windowFeatures: WKWindowFeatures
+        ) -> WKWebView? {
+            guard navigationAction.targetFrame == nil,
+                  let destination = navigationAction.request.url,
+                  ShellURLPolicy.canOpenExternally(destination) else {
+                return nil
+            }
+            NSWorkspace.shared.open(destination)
+            return nil
         }
 
         func webView(
@@ -283,6 +452,66 @@ struct ShellWebView: NSViewRepresentable {
         func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
             NSLog("TaskWeaver UI navigation failed: %@", error.localizedDescription)
         }
+    }
+}
+
+@MainActor
+private final class WindowDraggableWKWebView: WKWebView {
+    var windowDragRegions: [CGRect] = []
+    private var dragStartScreenPoint: NSPoint?
+    private var dragStartWindowFrame: NSRect?
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        // NSView.hitTest receives its point in superview coordinates.
+        // Convert before comparing it with regions reported in web-view coordinates.
+        let localPoint = convert(point, from: superview)
+        let matches = isWindowDragPoint(localPoint)
+        if matches { return self }
+        return super.hitTest(point)
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        let localPoint = convert(event.locationInWindow, from: nil)
+        let matches = isWindowDragPoint(localPoint)
+        guard matches, let window else {
+            super.mouseDown(with: event)
+            return
+        }
+        dragStartScreenPoint = window.convertPoint(toScreen: event.locationInWindow)
+        dragStartWindowFrame = window.frame
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        guard let window,
+              let startScreenPoint = dragStartScreenPoint,
+              let startWindowFrame = dragStartWindowFrame else {
+            super.mouseDragged(with: event)
+            return
+        }
+
+        let screenPoint = window.convertPoint(toScreen: event.locationInWindow)
+        let nextOrigin = NSPoint(
+            x: startWindowFrame.origin.x + screenPoint.x - startScreenPoint.x,
+            y: startWindowFrame.origin.y + screenPoint.y - startScreenPoint.y
+        )
+        window.setFrameOrigin(nextOrigin)
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        if dragStartWindowFrame != nil {
+            dragStartScreenPoint = nil
+            dragStartWindowFrame = nil
+            return
+        }
+        super.mouseUp(with: event)
+    }
+
+    private func isWindowDragPoint(_ point: NSPoint) -> Bool {
+        let topLeftPoint = CGPoint(
+            x: point.x - bounds.minX,
+            y: isFlipped ? point.y - bounds.minY : bounds.maxY - point.y
+        )
+        return windowDragRegions.contains { $0.contains(topLeftPoint) }
     }
 }
 

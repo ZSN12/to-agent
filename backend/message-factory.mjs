@@ -15,9 +15,16 @@ export function clockLabelZh(timestamp = Date.now()) {
 /**
  * @param {string} text
  * @param {string} conversationId
- * @param {{ appState: { appendMessagesToConversation: Function }, behavior?: 'steer' | 'followUp', name?: string }} deps
+ * @param {{ appState: { appendMessagesToConversation: Function }, behavior?: 'steer' | 'followUp', name?: string, roleMode?: boolean, roleDiscussionStrategy?: 'relay' | 'independent', roleSummaryRequested?: boolean }} deps
  */
-export async function appendUserChatEntry(text, conversationId, { appState, behavior, name = '你' }) {
+export async function appendUserChatEntry(text, conversationId, {
+  appState,
+  behavior,
+  name = '你',
+  roleMode = false,
+  roleDiscussionStrategy,
+  roleSummaryRequested = false,
+}) {
   const now = Date.now()
   const time = clockLabelZh(now)
   const messageId = `m-${now}-${Math.random().toString(36).slice(2, 8)}`
@@ -32,6 +39,9 @@ export async function appendUserChatEntry(text, conversationId, { appState, beha
     time,
     timestamp: now,
     text,
+    ...(roleMode ? { roleMode: true } : {}),
+    ...(roleMode && roleDiscussionStrategy ? { roleDiscussionStrategy } : {}),
+    ...(roleMode && roleSummaryRequested ? { roleSummaryRequested: true } : {}),
     ...(behavior ? { behavior } : {}),
   }
   await appState.appendMessagesToConversation(conversationId, userEntry)

@@ -36,6 +36,20 @@ try {
   assert.equal(t2.archived, false)
   assert.equal(t3.archived, false)
 
+  // Sidebar recency must follow chat messages, not frequent state/log writes.
+  const activityBefore = (await store.listThreads()).find((thread) => thread.id === t1.id).updatedAt
+  await store.updateConversation(t1.conversationId, {
+    tasks: [{ id: 'task-1', title: '执行中' }],
+    outputLogs: [{ id: 'log-1', toolName: 'read' }],
+  })
+  assert.equal((await store.listThreads()).find((thread) => thread.id === t1.id).updatedAt, activityBefore,
+    'task and tool-log persistence must not change recent conversation activity')
+  await store.updateConversation(t1.conversationId, {
+    messages: [{ id: 'activity-1', author: 'user', text: '继续处理' }],
+  })
+  assert.equal((await store.listThreads())[0].id, t1.id,
+    'a new chat message should move its conversation to the top')
+
   // 2. 验证置顶功能
   const pinnedList = await store.togglePinThread(t1.id)
   const pinnedT1 = pinnedList.find((t) => t.id === t1.id)

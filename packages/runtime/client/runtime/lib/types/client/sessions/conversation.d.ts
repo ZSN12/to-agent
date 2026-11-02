@@ -198,6 +198,8 @@ export interface ToolResultNode {
  */
 export interface CompactionSummaryNode {
     kind: 'compaction';
+    /** Why this compaction ran; absent on older session records. */
+    trigger?: 'pressure' | 'context-overflow' | 'manual';
     /** Seq of the replacement `user/message` that landed the checkpoint. */
     seq: number;
     /** Unix epoch ms of the checkpoint event. */

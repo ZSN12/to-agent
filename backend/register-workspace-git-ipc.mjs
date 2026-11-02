@@ -2,15 +2,18 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import {
   createGitCheckpoint,
+  createGitBranch,
   createManualGitCommitSnapshot,
   deleteGitCheckpoint,
   getGitCheckpointDiff,
   getGitStatus,
   isGitRepository,
+  listGitBranches,
   listGitCheckpoints,
   previewManualGitCommit,
   restoreGitCheckpoint,
   suggestCommitMessage,
+  switchGitBranch,
 } from './git-service.mjs'
 import { assertSafeWorkspacePath } from './security-path.mjs'
 import { applyReverseDiffEdits, inspectCreatedFileForRevert } from './workspace-diff-revert.mjs'
@@ -28,8 +31,10 @@ export function registerWorkspaceGitIpc({
     try {
       const { realPath, isDirectory } = await assertSafeWorkspacePath(workspacePath, relPath, { mustExist: true })
       const { execFile } = await import('node:child_process')
+      // macOS 上对非目录文件使用 -R (Reveal in Finder) 选中定位文件，杜绝不可信可执行脚本（.sh/.command/.app）被直接激活启动
+      const openArgs = isDirectory ? [realPath] : ['-R', realPath]
       await new Promise((resolve, reject) => {
-        execFile('open', [realPath], (err) => (err ? reject(err) : resolve()))
+        execFile('open', openArgs, (err) => (err ? reject(err) : resolve()))
       })
       return { ok: true, path: relPath, isDirectory: Boolean(isDirectory) }
     } catch (error) {
@@ -95,6 +100,18 @@ export function registerWorkspaceGitIpc({
   ipcHandle(ipcMain, 'workspace:gitStatus', async () => {
     const { workspacePath } = await resolveActiveRuntime()
     return getGitStatus(workspacePath)
+  })
+  ipcHandle(ipcMain, 'workspace:listGitBranches', async () => {
+    const { workspacePath } = await resolveActiveRuntime()
+    return listGitBranches(workspacePath)
+  })
+  ipcHandle(ipcMain, 'workspace:createGitBranch', async (_event, branchName) => {
+    const { workspacePath } = await resolveActiveRuntime()
+    return withWorkspaceOperation(workspacePath, () => createGitBranch(workspacePath, branchName))
+  })
+  ipcHandle(ipcMain, 'workspace:switchGitBranch', async (_event, branchName) => {
+    const { workspacePath } = await resolveActiveRuntime()
+    return withWorkspaceOperation(workspacePath, () => switchGitBranch(workspacePath, branchName))
   })
   ipcHandle(ipcMain, 'workspace:gitSuggestCommit', async () => {
     const { workspacePath } = await resolveActiveRuntime()

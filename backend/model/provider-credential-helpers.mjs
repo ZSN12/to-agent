@@ -2,6 +2,7 @@ import { hasPiAiGrant, resolveRuntimeHome } from '../dsh-pi-ai-credentials.mjs'
 import { fetchOpenCodexProviderLogins } from '../opencodex-service.mjs'
 import { integrationByRouteId } from '../model-sync/local-agent-registry.mjs'
 import { taskweaverApiKeyEnvRef } from '../pi-models-to-dsh-profile.mjs'
+import { UI_VERIFY_MOCK_MODEL_KEY } from '../ui-verify-mock.mjs'
 import {
   TASKWEAVER_NATIVE_OAUTH,
   atPath,
@@ -19,6 +20,7 @@ export function createProviderCredentialHelpers({
   userDataPath,
   directoryClient,
   fetchBridgeLogins = fetchOpenCodexProviderLogins,
+  isUiVerifyMockModelEnabled = () => false,
 }) {
   const { fetchDshModelDirectoryOnce } = directoryClient
   let bridgeLoginCache = null
@@ -147,6 +149,10 @@ export function createProviderCredentialHelpers({
         const model = candidateModels.find((candidate) => candidate.key === key)
         if (key.startsWith(`${row.provider}/`) && model?.routeRegistered) availableKeys.add(key)
       }
+    }
+    if (isUiVerifyMockModelEnabled()) {
+      const mockModel = candidateModels.find((model) => model.key === UI_VERIFY_MOCK_MODEL_KEY)
+      if (mockModel?.routeRegistered) availableKeys.add(mockModel.key)
     }
     for (const model of candidateModels) model.available = model.routeRegistered && availableKeys.has(model.key)
   }

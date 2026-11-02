@@ -3,11 +3,11 @@
  * Shell HTTP bridge (`gen-shell-bridge`) and TS types (`gen-ipc-types`) are generated from this table.
  */
 const typeSchema = (reference) => ({ kind: 'typescript', reference })
-const invokeGroup = (handlerModule, entries) => entries.map(([name, bridgePath, methodType, preloadFactory]) => ({
+const invokeGroup = (handlerModule, entries) => entries.map(([name, bridgePath, methodType]) => ({
   name, direction: 'renderer-to-main/invoke',
   argsSchema: typeSchema(`Parameters<NonNullable<${methodType}>>`),
   resultSchema: typeSchema(`Awaited<ReturnType<NonNullable<${methodType}>>>`),
-  handlerModule, bridgePath, preloadFactory: preloadFactory || ((invoke) => new Function('invoke', `return (...args) => invoke(${JSON.stringify(name)}, ...args)`)(invoke)),
+  handlerModule, bridgePath,
 }))
 
 export const IPC_CHANNELS = [
@@ -38,12 +38,12 @@ export const IPC_CHANNELS = [
   ...invokeGroup("backend/ipc/register-models-ipc.mjs", [
     ["bridge:getStatus", "models.bridgeGetStatus", "import('./types/model-api').TaskweaverModelsApi['bridgeGetStatus']"],
     ["bridge:login", "models.bridgeLogin", "import('./types/model-api').TaskweaverModelsApi['bridgeLogin']"],
+    ["bridge:saveAntigravityOAuthCredentials", "models.bridgeSaveAntigravityOAuthCredentials", "import('./types/model-api').TaskweaverModelsApi['bridgeSaveAntigravityOAuthCredentials']"],
     ["models:add", "models.add", "import('./types/model-api').TaskweaverModelsApi['add']"],
     ["models:batchAddCustomModels", "models.batchAddCustomModels", "import('./types/model-api').TaskweaverModelsApi['batchAddCustomModels']"],
     ["models:cancelOAuth", "models.cancelOAuth", "import('./types/model-api').TaskweaverModelsApi['cancelOAuth']"],
     ["models:checkForUpdates", "models.checkForUpdates", "import('./types/model-api').TaskweaverModelsApi['checkForUpdates']"],
     ["models:discoverProviderModels", "models.discoverProviderModels", "import('./types/model-api').TaskweaverModelsApi['discoverProviderModels']"],
-    ["models:getBusyEnterMode", "models.getBusyEnterMode", "import('./types/model-api').TaskweaverModelsApi['getBusyEnterMode']"],
     ["models:getSemanticSearchSettings", "models.getSemanticSearchSettings", "import('./types/model-api').TaskweaverModelsApi['getSemanticSearchSettings']"],
     ["models:getThinkingLevel", "models.getThinkingLevel", "import('./types/model-api').TaskweaverModelsApi['getThinkingLevel']"],
     ["models:getUpdateStatus", "models.getUpdateStatus", "import('./types/model-api').TaskweaverModelsApi['getUpdateStatus']"],
@@ -62,7 +62,6 @@ export const IPC_CHANNELS = [
     ["models:scanLocal", "models.scanLocal", "import('./types/model-api').TaskweaverModelsApi['scanLocal']"],
     ["models:saveSemanticSearchSettings", "models.saveSemanticSearchSettings", "import('./types/model-api').TaskweaverModelsApi['saveSemanticSearchSettings']"],
     ["models:setActive", "models.setActive", "import('./types/model-api').TaskweaverModelsApi['setActive']"],
-    ["models:setBusyEnterMode", "models.setBusyEnterMode", "import('./types/model-api').TaskweaverModelsApi['setBusyEnterMode']"],
     ["models:setProviderApiKey", "models.setProviderApiKey", "import('./types/model-api').TaskweaverModelsApi['setProviderApiKey']"],
     ["models:setThinkingLevel", "models.setThinkingLevel", "import('./types/model-api').TaskweaverModelsApi['setThinkingLevel']"],
     ["models:startOAuth", "models.startOAuth", "import('./types/model-api').TaskweaverModelsApi['startOAuth']"],
@@ -84,6 +83,7 @@ export const IPC_CHANNELS = [
   ]),
   ...invokeGroup("backend/ipc/register-chat-ipc.mjs", [
     ["chat:cancel", "chat.cancel", "import('./types/app-api').TaskweaverChatApi['cancel']"],
+    ["chat:classifyOrchestration", "chat.classifyOrchestration", "import('./types/app-api').TaskweaverChatApi['classifyOrchestration']"],
     ["chat:getDshView", "chat.getDshView", "import('./types/app-api').TaskweaverChatApi['getDshView']"],
     ["chat:getToolOutput", "chat.getToolOutput", "import('./types/app-api').TaskweaverChatApi['getToolOutput']"],
     ["chat:getImageAttachment", "chat.getImageAttachment", "import('./types/app-api').TaskweaverChatApi['getImageAttachment']"],
@@ -96,16 +96,8 @@ export const IPC_CHANNELS = [
     ["chat:pickAttachments", "chat.pickAttachments", "import('./types/app-api').TaskweaverChatApi['pickAttachments']"],
     ["chat:releaseDocuments", "chat.releaseDocuments", "import('./types/app-api').TaskweaverChatApi['releaseDocuments']"],
     ["chat:queueMutate", "chat.queueMutate", "import('./types/app-api').TaskweaverChatApi['queueMutate']"],
-    ["chat:readDroppedImage", "chat.readDroppedImageFile", "import('./types/app-api').TaskweaverChatApi['readDroppedImageFile']", (invoke) => (file, conversationId) => {
-      const filePath = webUtils.getPathForFile(file)
-      if (!filePath) return Promise.resolve({ ok: false, error: '无法读取拖入文件的路径，请使用图片选择按钮。' })
-      return invoke("chat:readDroppedImage", filePath, conversationId)
-    }],
-    ["chat:stageDroppedDocument", "chat.stageDroppedDocumentFile", "import('./types/app-api').TaskweaverChatApi['stageDroppedDocumentFile']", (invoke) => (file, conversationId) => {
-      const filePath = webUtils.getPathForFile(file)
-      if (!filePath) return Promise.resolve({ ok: false, error: '无法读取拖入文档的路径，请使用附件选择按钮。' })
-      return invoke("chat:stageDroppedDocument", filePath, conversationId)
-    }],
+    ["chat:readDroppedImage", "chat.readDroppedImageFile", "import('./types/app-api').TaskweaverChatApi['readDroppedImageFile']"],
+    ["chat:stageDroppedDocument", "chat.stageDroppedDocumentFile", "import('./types/app-api').TaskweaverChatApi['stageDroppedDocumentFile']"],
     ["chat:subscribeMux", "chat.subscribeMux", "import('./types/app-api').TaskweaverChatApi['subscribeMux']"],
     ["chat:unsubscribeMux", "chat.unsubscribeMux", "import('./types/app-api').TaskweaverChatApi['unsubscribeMux']"],
     ["skills:list", "skills.list", "import('./types/app-api').TaskweaverSkillsApi['list']"],
@@ -122,7 +114,13 @@ export const IPC_CHANNELS = [
   ...invokeGroup("backend/ipc/register-chat-send-ipc.mjs", [
     ["chat:followUp", "chat.followUp", "import('./types/app-api').TaskweaverChatApi['followUp']"],
     ["chat:send", "chat.send", "import('./types/app-api').TaskweaverChatApi['send']"],
+    ["chat:sendAsRoles", "chat.sendAsRoles", "import('./types/app-api').TaskweaverChatApi['sendAsRoles']"],
     ["chat:steer", "chat.steer", "import('./types/app-api').TaskweaverChatApi['steer']"],
+  ]),
+  ...invokeGroup("backend/ipc/register-roles-ipc.mjs", [
+    ["roles:list", "roles.list", "import('./types/app-api').TaskweaverRolesApi['list']"],
+    ["roles:remove", "roles.remove", "import('./types/app-api').TaskweaverRolesApi['remove']"],
+    ["roles:upsert", "roles.upsert", "import('./types/app-api').TaskweaverRolesApi['upsert']"],
   ]),
   ...invokeGroup("backend/ipc/register-debug-ipc.mjs", [
     ["debug:shadowTranscript", "debug.shadowTranscript", "import('./types/app-api').TaskweaverDebugApi['shadowTranscript']"],
@@ -195,16 +193,19 @@ export const IPC_CHANNELS = [
     ["worktree:remove", "worktree.remove", "import('./types/app-api').TaskweaverWorktreeApi['remove']"],
   ]),
   ...invokeGroup("backend/register-workspace-git-ipc.mjs", [
+    ["workspace:createGitBranch", "workspace.createGitBranch", "import('./types/app-api').TaskweaverWorkspaceApi['createGitBranch']"],
     ["workspace:createManualGitCommit", "workspace.createManualGitCommit", "import('./types/app-api').TaskweaverWorkspaceApi['createManualGitCommit']"],
     ["workspace:deleteGitCheckpoint", "workspace.deleteGitCheckpoint", "import('./types/app-api').TaskweaverWorkspaceApi['deleteGitCheckpoint']"],
     ["workspace:getGitCheckpointDiff", "workspace.getGitCheckpointDiff", "import('./types/app-api').TaskweaverWorkspaceApi['getGitCheckpointDiff']"],
     ["workspace:gitStatus", "workspace.gitStatus", "import('./types/app-api').TaskweaverWorkspaceApi['gitStatus']"],
     ["workspace:gitSuggestCommit", "workspace.gitSuggestCommit", "import('./types/app-api').TaskweaverWorkspaceApi['gitSuggestCommit']"],
+    ["workspace:listGitBranches", "workspace.listGitBranches", "import('./types/app-api').TaskweaverWorkspaceApi['listGitBranches']"],
     ["workspace:listGitCheckpoints", "workspace.listGitCheckpoints", "import('./types/app-api').TaskweaverWorkspaceApi['listGitCheckpoints']"],
     ["workspace:openPath", "workspace.openPath", "import('./types/app-api').TaskweaverWorkspaceApi['openPath']"],
     ["workspace:previewManualGitCommit", "workspace.previewManualGitCommit", "import('./types/app-api').TaskweaverWorkspaceApi['previewManualGitCommit']"],
     ["workspace:restoreGitCheckpoint", "workspace.restoreGitCheckpoint", "import('./types/app-api').TaskweaverWorkspaceApi['restoreGitCheckpoint']"],
     ["workspace:revertDiff", "workspace.revertDiff", "import('./types/app-api').TaskweaverWorkspaceApi['revertDiff']"],
+    ["workspace:switchGitBranch", "workspace.switchGitBranch", "import('./types/app-api').TaskweaverWorkspaceApi['switchGitBranch']"],
   ]),
   ...invokeGroup("backend/ipc/register-workspace-ipc.mjs", [
     ["workspace:createReference", "workspace.createReference", "import('./types/app-api').TaskweaverWorkspaceApi['createReference']"],
@@ -216,7 +217,7 @@ export const IPC_CHANNELS = [
 
 export const INVOKE_CHANNELS = IPC_CHANNELS.map(({ name }) => name)
 
-export const OPTIONAL_BRIDGE_NAMESPACES = Object.freeze(['pricing', 'permission', 'userQuestions', 'usage', 'openusage', 'terminal', 'portfolio', 'preferences', 'sandbox', 'webSearch', 'worktree', 'memory', 'jobs', 'github', 'debug'])
+export const OPTIONAL_BRIDGE_NAMESPACES = Object.freeze(['pricing', 'permission', 'userQuestions', 'usage', 'openusage', 'terminal', 'portfolio', 'preferences', 'sandbox', 'webSearch', 'worktree', 'memory', 'jobs', 'github', 'debug', 'roles'])
 
 
 export const PRELOAD_EVENTS = Object.freeze([
@@ -237,7 +238,7 @@ export const PRELOAD_EVENTS = Object.freeze([
 ])
 
 export const PRELOAD_LOCAL_METHODS = Object.freeze([
-  { bridgePath: 'workspace.getDroppedFilePath', create: (webUtils) => (file) => webUtils.getPathForFile(file) },
+  { bridgePath: 'workspace.getDroppedFilePath' },
 ])
 
 export const renderPreloadEventSubscription = (event) => `(listener) => {

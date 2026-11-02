@@ -31,6 +31,7 @@ import { summarizeExecutionEvidence } from './orchestration/evidence.mjs'
 import { createPlanAndExecute } from './orchestration/plan-and-execute.mjs'
 import { createRunReplay } from './orchestration/run-replay.mjs'
 import { resolveTaskWorktreeDir } from './worktree-service.mjs'
+import { decideOrchestrationMode } from './orchestration-gate.mjs'
 
 function nowLabel() {
   return clockLabelZh()
@@ -56,15 +57,16 @@ export function createOrchestrationService({
   permissionService = null,
   dshRuntime = null,
   maxSubtaskConcurrency = null,
+  runStore: injectedRunStore = null,
 }) {
   /** @type {Map<string, { inFlight: boolean, abortController: AbortController | null }>} */
   const runs = new Map()
   const memory = createMemoryStore({ agentDataPath })
-  const runStore = new RunStore({ agentDataPath })
+  const runStore = injectedRunStore ?? new RunStore({ agentDataPath })
   const traceStore = new TraceStore({ agentDataPath })
   const pendingApprovals = new Map()
 
-  runStore.recoverIncompleteRuns().then(async () => {
+  const recoveryReady = runStore.recoverIncompleteRuns().then(async () => {
     if (typeof appState.setTasksForConversation !== 'function') return
     for (const conversationId of await runStore.listConversationIds()) {
       const latestRun = (await runStore.listRuns(conversationId))[0]
@@ -238,8 +240,24 @@ export function createOrchestrationService({
     pendingApprovals,
   })
 
+  async function planAndExecuteAfterRecovery(options) {
+    await recoveryReady
+    return planAndExecute(options)
+  }
+
+  async function classifyExecutionMode({ text, workMode = 'code', executionModeOverride = null, skillRequiresDag = false }) {
+    const preferences = typeof getAppPreferences === 'function' ? await getAppPreferences() : null
+    return decideOrchestrationMode(text, {
+      workMode,
+      executionModeOverride,
+      skillRequiresDag,
+      preferMultiAgent: preferences?.preferMultiAgent === true,
+    })
+  }
+
   async function sendTaskMessage({ taskId, text, conversationId, webContents, workspacePath }) {
     if (!conversationId) throw new Error('当前对话标识无效')
+    await recoveryReady
     if (getRun(conversationId)?.inFlight) throw new Error('该对话的多 Agent 任务仍在执行，暂不能向子任务发送消息')
     const abortController = new AbortController()
     const run = { inFlight: true, abortController }
@@ -256,7 +274,13 @@ export function createOrchestrationService({
     const execCwd = task.execCwd || workspaceRoot
     if (task.worktreeIsolated === true) {
       if (!task.runId || !userDataPath) throw new Error('该隔离子任务缺少 runId 或应用数据目录，无法安全恢复其 worktree 环境')
-      const expectedWorktree = resolveTaskWorktreeDir(userDataPath, workspaceRoot, conversationId, task.id, task.runId)
+      const expectedWorktree = resolveTaskWorktreeDir(
+        userDataPath,
+        workspaceRoot,
+        conversationId,
+        task.id,
+        task.worktreeRunId || task.runId,
+      )
       if (path.resolve(execCwd) !== path.resolve(expectedWorktree)) {
         throw new Error('子任务执行目录与已登记的 worktree 不一致，已拒绝在其他目录继续')
       }
@@ -367,6 +391,7 @@ export function createOrchestrationService({
 
   async function listRuns(conversationId) {
     if (typeof conversationId !== 'string' || !conversationId) return []
+    await recoveryReady
     const runs = await runStore.listRuns(conversationId)
     return runs.slice(0, 20).map((run) => ({
       runId: run.runId,
@@ -375,11 +400,13 @@ export function createOrchestrationService({
       updatedAt: run.updatedAt,
       status: run.status,
       tasks: Array.isArray(run.tasks) ? run.tasks : [],
+      costSavingsSummary: run.costSavingsSummary ?? null,
     }))
   }
 
   async function replayRun({ conversationId, runId, taskId = null, webContents, workspacePath, permissionMode, workspaceTrusted = false }) {
     if (!conversationId || !runId) throw new Error('运行记录恢复请求无效')
+    await recoveryReady
     if (runs.get(conversationId)?.inFlight) throw new Error('该对话已有 DAG 正在执行，暂不能恢复运行记录')
     const source = await runStore.loadRun(conversationId, runId)
     if (!source || source.runId !== runId || source.conversationId !== conversationId) {
@@ -393,6 +420,7 @@ export function createOrchestrationService({
     }
     const mode = taskId ? 'rerun' : 'checkpoint'
     const replay = createRunReplay(source, { mode, taskId })
+    const handoffs = await runStore.loadTaskHandoffs(conversationId, runId, source)
     return planAndExecute({
       text: source.originalText,
       rawText: source.originalText,
@@ -400,10 +428,10 @@ export function createOrchestrationService({
       conversationId,
       webContents,
       workspacePath: source.workspacePath || workspacePath || await getWorkspacePath(conversationId),
-      permissionMode: permissionMode || source.permissionMode || 'ask',
+      permissionMode: permissionMode || 'ask',
       workspaceTrusted: workspaceTrusted === true,
       dagPlanApprovalOverride: 'never',
-      replay: { ...replay, source, mode },
+      replay: { ...replay, source, mode, handoffs },
     })
   }
 
@@ -437,5 +465,5 @@ export function createOrchestrationService({
     return true
   }
 
-  return { planAndExecute, sendTaskMessage, abort, cancelTask, pauseRun, resumeRun, listRuns, resumeRunFromCheckpoint, rerunTaskFromRun, isBusy, listRunningConversationIds, approvePlan, rejectPlan }
+  return { planAndExecute: planAndExecuteAfterRecovery, classifyExecutionMode, sendTaskMessage, abort, cancelTask, pauseRun, resumeRun, listRuns, resumeRunFromCheckpoint, rerunTaskFromRun, isBusy, listRunningConversationIds, approvePlan, rejectPlan }
 }

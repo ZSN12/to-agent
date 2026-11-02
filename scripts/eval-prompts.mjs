@@ -152,6 +152,9 @@ function plannerInterpolation(expression, context) {
   if (value === 'cwd') return context.cwd
   if (value === 'text') return context.userText
   if (value === 'plannerPathHints.visitedEntries') return String(context.visitedEntries)
+  if (value.startsWith('plannerPathWarning ?')) {
+    return context.plannerPathWarning ? `（${context.plannerPathWarning}）` : ''
+  }
   if (value.startsWith('JSON.stringify(plannerPathHints.paths[0]')) {
     return JSON.stringify(context.paths[0] ?? '从上方路径索引选择的真实路径')
   }
@@ -164,7 +167,7 @@ function plannerInterpolation(expression, context) {
 }
 
 function defaultPlannerContext(overrides = {}) {
-  return {
+  const context = {
     cwd: '[[dynamic:cwd]]',
     userText: '[[dynamic:userText]]',
     paths: ['[[dynamic:path-1]]'],
@@ -175,6 +178,8 @@ function defaultPlannerContext(overrides = {}) {
     readOnlyRequest: false,
     ...overrides,
   }
+  context.plannerPathWarning ??= context.truncated ? '达到扫描/展示上限，结果不完整' : ''
+  return context
 }
 
 function renderPlannerArray(sourceText, variableName, context = defaultPlannerContext()) {

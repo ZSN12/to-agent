@@ -19,24 +19,171 @@ export function matchPattern(pattern, target) {
   return false
 }
 
+/** 检查命令中是否包含命令替换语法（`$()`、反引号、`<(...)`），单引号内的纯文本不视为命令替换 */
+export function hasCommandSubstitution(command) {
+  const source = String(command ?? '')
+  let quote = null
+  let escaped = false
+  for (let i = 0; i < source.length; i += 1) {
+    const char = source[i]
+    if (escaped) { escaped = false; continue }
+    if (char === '\\' && quote !== "'") { escaped = true; continue }
+    if (quote === "'") {
+      if (char === "'") quote = null
+      continue
+    }
+    if (quote === '"') {
+      if (char === '"') { quote = null; continue }
+      if (char === '`') return true
+      if (char === '$' && source[i + 1] === '(' && source[i + 2] !== '(') return true
+      continue
+    }
+    if (char === "'" || char === '"') {
+      quote = char
+      continue
+    }
+    if (char === '`') return true
+    if ((char === '$' || char === '<' || char === '>') && source[i + 1] === '(' && source[i + 2] !== '(') return true
+  }
+  return false
+}
+
+/** 提取双引号内或无引号保护的子 Shell 命令，用于级联权限与拒绝规则校验 */
+export function extractSubshellCommands(command) {
+  const source = String(command ?? '')
+  const subshells = []
+  let quote = null
+  let escaped = false
+  for (let i = 0; i < source.length; i += 1) {
+    const char = source[i]
+    if (escaped) { escaped = false; continue }
+    if (char === '\\' && quote !== "'") { escaped = true; continue }
+    if (quote === "'") {
+      if (char === "'") quote = null
+      continue
+    }
+    if (quote === '"') {
+      if (char === '"') { quote = null; continue }
+      if (char === '`') {
+        let end = i + 1
+        let innerEsc = false
+        while (end < source.length) {
+          if (innerEsc) { innerEsc = false; end += 1; continue }
+          if (source[end] === '\\') { innerEsc = true; end += 1; continue }
+          if (source[end] === '`') break
+          end += 1
+        }
+        if (end < source.length) {
+          const inner = source.slice(i + 1, end).trim()
+          if (inner) subshells.push(inner)
+          i = end
+        }
+        continue
+      }
+      if (char === '$' && source[i + 1] === '(' && source[i + 2] !== '(') {
+        let depth = 1
+        let end = i + 2
+        let innerQuote = null
+        let innerEsc = false
+        while (end < source.length && depth > 0) {
+          const c = source[end]
+          if (innerEsc) { innerEsc = false; end += 1; continue }
+          if (c === '\\') { innerEsc = true; end += 1; continue }
+          if (innerQuote) {
+            if (c === innerQuote) innerQuote = null
+          } else if (c === "'" || c === '"') {
+            innerQuote = c
+          } else if (c === '(') {
+            depth += 1
+          } else if (c === ')') {
+            depth -= 1
+            if (depth === 0) break
+          }
+          end += 1
+        }
+        if (depth === 0) {
+          const inner = source.slice(i + 2, end).trim()
+          if (inner) subshells.push(inner)
+          i = end
+        }
+        continue
+      }
+      continue
+    }
+    if (char === "'" || char === '"') {
+      quote = char
+      continue
+    }
+    if (char === '`') {
+      let end = i + 1
+      let innerEsc = false
+      while (end < source.length) {
+        if (innerEsc) { innerEsc = false; end += 1; continue }
+        if (source[end] === '\\') { innerEsc = true; end += 1; continue }
+        if (source[end] === '`') break
+        end += 1
+      }
+      if (end < source.length) {
+        const inner = source.slice(i + 1, end).trim()
+        if (inner) subshells.push(inner)
+        i = end
+      }
+      continue
+    }
+    if ((char === '$' || char === '<' || char === '>') && source[i + 1] === '(' && source[i + 2] !== '(') {
+      let depth = 1
+      let end = i + 2
+      let innerQuote = null
+      let innerEsc = false
+      while (end < source.length && depth > 0) {
+        const c = source[end]
+        if (innerEsc) { innerEsc = false; end += 1; continue }
+        if (c === '\\') { innerEsc = true; end += 1; continue }
+        if (innerQuote) {
+          if (c === innerQuote) innerQuote = null
+        } else if (c === "'" || c === '"') {
+          innerQuote = c
+        } else if (c === '(') {
+          depth += 1
+        } else if (c === ')') {
+          depth -= 1
+          if (depth === 0) break
+        }
+        end += 1
+      }
+      if (depth === 0) {
+        const inner = source.slice(i + 2, end).trim()
+        if (inner) subshells.push(inner)
+        i = end
+      }
+      continue
+    }
+  }
+  return subshells
+}
+
 /** Persistent command rules are exact by default; shell metacharacters never act as globs implicitly. */
 export function matchCommandPattern(pattern, target, { allowWildcards = false } = {}) {
   if (typeof pattern !== 'string' || typeof target !== 'string') return false
   const expected = pattern.trim()
   const actual = target.trim()
-  return allowWildcards && expected.includes('*')
-    ? matchPattern(expected, actual)
-    : expected === actual
+  if (allowWildcards && expected.includes('*')) {
+    // 含有命令替换（$() 或反引号）的目标命令不得被通配符规则放行，杜绝提权与安全旁路
+    if (hasCommandSubstitution(actual)) return false
+    return matchPattern(expected, actual)
+  }
+  return expected === actual
 }
 
 /** Split shell command lists and pipelines outside quotes for per-segment permission evaluation. */
-export function splitShellCommandSegments(command) {
+export function splitShellCommandSegments(command, { includeSubshells = true } = {}) {
   const source = String(command ?? '')
   const segments = []
   let buffer = ''
   let quote = null
   let escaped = false
   let commandRequired = false
+  let subshellDepth = 0
 
   const pushSegment = () => {
     const value = buffer.trim()
@@ -65,6 +212,23 @@ export function splitShellCommandSegments(command) {
     if (char === '"' || char === "'" || char === '`') {
       quote = char
       buffer += char
+      continue
+    }
+
+    if (subshellDepth > 0) {
+      buffer += char
+      if (char === '(') {
+        subshellDepth += 1
+      } else if (char === ')') {
+        subshellDepth -= 1
+      }
+      continue
+    }
+
+    if ((char === '$' || char === '<' || char === '>') && source[i + 1] === '(' && source[i + 2] !== '(') {
+      subshellDepth = 1
+      buffer += char + '('
+      i += 1
       continue
     }
 
@@ -97,9 +261,26 @@ export function splitShellCommandSegments(command) {
     i += width - 1
   }
 
-  if (quote || escaped) return []
+  if (quote || escaped || subshellDepth > 0) return []
   const hadFinalSegment = pushSegment()
   if ((commandRequired && !hadFinalSegment) || (!segments.length && !hadFinalSegment)) return []
+
+  if (includeSubshells) {
+    const subshellSegments = []
+    for (const segment of segments) {
+      const subcommands = extractSubshellCommands(segment)
+      for (const sub of subcommands) {
+        const nested = splitShellCommandSegments(sub, { includeSubshells: true })
+        for (const n of nested) {
+          if (!segments.includes(n) && !subshellSegments.includes(n)) {
+            subshellSegments.push(n)
+          }
+        }
+      }
+    }
+    segments.push(...subshellSegments)
+  }
+
   return segments
 }
 
@@ -143,37 +324,39 @@ export function createPermissionRulesStore({ userDataPath }) {
       ...(type === 'command' && input.allowWildcards === true ? { allowWildcards: true } : {}),
     }
 
-    const data = await store.read()
-    const rules = Array.isArray(data?.rules) ? data.rules : []
-    const updated = [...rules.filter((r) => r.id !== rule.id), rule]
-    await store.write({ rules: updated })
+    // update() 内部按文件串行化读改写，避免并发 add/remove 互相覆盖丢规则
+    await store.update((data) => {
+      const rules = Array.isArray(data?.rules) ? data.rules : []
+      return { ...data, rules: [...rules.filter((r) => r.id !== rule.id), rule] }
+    })
     return rule
   }
 
   async function removeRule(ruleId) {
     if (!ruleId) return false
-    const data = await store.read()
-    const rules = Array.isArray(data?.rules) ? data.rules : []
-    const filtered = rules.filter((r) => r.id !== ruleId)
-    if (filtered.length !== rules.length) {
-      await store.write({ rules: filtered })
-      return true
-    }
-    return false
+    let removed = false
+    await store.update((data) => {
+      const rules = Array.isArray(data?.rules) ? data.rules : []
+      const filtered = rules.filter((r) => r.id !== ruleId)
+      removed = filtered.length !== rules.length
+      return removed ? { ...data, rules: filtered } : data
+    })
+    return removed
   }
 
   async function clearRules({ workspacePath, globalOnly } = {}) {
-    const data = await store.read()
-    const rules = Array.isArray(data?.rules) ? data.rules : []
-    let remaining
-    if (globalOnly) {
-      remaining = rules.filter((r) => r.scope !== 'global')
-    } else if (workspacePath) {
-      remaining = rules.filter((r) => r.workspacePath !== workspacePath)
-    } else {
-      remaining = []
-    }
-    await store.write({ rules: remaining })
+    await store.update((data) => {
+      const rules = Array.isArray(data?.rules) ? data.rules : []
+      let remaining
+      if (globalOnly) {
+        remaining = rules.filter((r) => r.scope !== 'global')
+      } else if (workspacePath) {
+        remaining = rules.filter((r) => r.workspacePath !== workspacePath)
+      } else {
+        remaining = []
+      }
+      return { ...data, rules: remaining }
+    })
     return true
   }
 
@@ -213,8 +396,9 @@ export function createPermissionRulesStore({ userDataPath }) {
         if (!candidatePath) return false
         // 对相对工作区的路径与绝对路径均支持通配匹配
         const normalizedCandidate = candidatePath.replace(/\\/g, '/')
+        // 含路径分隔符的规则只按完整路径匹配，防止精确 allow 规则经 basename 兜底放行任意目录下的同名文件
         return matchPattern(rule.pattern, normalizedCandidate) ||
-               matchPattern(rule.pattern, path.basename(normalizedCandidate))
+               (!rule.pattern.includes('/') && matchPattern(rule.pattern, path.basename(normalizedCandidate)))
       }
       return false
     }

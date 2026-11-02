@@ -37,6 +37,8 @@ export interface ThreadSearchResult extends ThreadSummary {
   searchSnippet?: string
 }
 
+export type RoleDiscussionStrategy = 'relay' | 'independent'
+
 export interface OutputLogEntry extends ToolTraceItem {
   inputSummary: string
   resultSummary: string
@@ -117,6 +119,7 @@ export type ChatStreamEvent =
   | { type: 'tasks'; tasks: TaskNode[] }
   | { type: 'orchestration'; mode: 'single-agent' | 'multi-agent'; reason: string }
   | { type: 'progress'; text: string }
+  | { type: 'role_progress'; roleId: string; roleName: string; status: 'started' | 'completed' | 'failed' | 'cancelled'; message?: string; assistantMessage?: ChatMessage; streamToRenderer?: boolean }
   | { type: 'activity'; message: string; phase?: 'tools' | 'llm' | 'step' }
   | { type: 'connection'; state: 'reconnecting' | 'restored' | 'unavailable'; message: string }
   | { type: 'model_route'; taskType?: string; displayName?: string; reason?: string; reasons?: string[] }
@@ -132,6 +135,53 @@ export interface ChatSendResult {
   queued?: boolean
   user?: ChatMessage
   assistant?: ChatMessage
+  assistants?: ChatMessage[]
+  roleErrors?: Array<{ roleId: string; roleName: string; message: string }>
+  rolePipeline?: {
+    stages: Array<{
+      stage: string
+      stageLabel?: string
+      roleId: string
+      roleName: string
+      attempt: number
+      status: 'completed' | 'cancelled' | 'failed'
+      turnId: string | null
+    }>
+    reviewStatus: 'approved' | 'rejected' | 'unknown' | 'repair_failed' | 'review_failed' | null
+    repairAttempts: number
+    rollbackCheckpoint: { available: boolean; id?: string; reason?: string; blocking?: boolean } | null
+    evidence: { diffSource: string; changedFiles: string[]; testRuns: Array<{ command: string; exitCode: number | null; timedOut: boolean; sandboxDenied: boolean; outputTail: string }> } | null
+  }
+}
+
+export type RoleDuty = 'planner' | 'implementer' | 'reviewer' | 'researcher' | 'specialist' | 'generalist'
+
+export interface RoleProfile {
+  id: string
+  name: string
+  description: string
+  modelKey: string
+  persona: string
+  stylePreset?: 'custom' | 'precise' | 'concise' | 'playful'
+  duty?: RoleDuty
+  createdAt: number
+  updatedAt: number
+}
+
+export interface RoleProfileDraft {
+  id?: string
+  name: string
+  description?: string
+  modelKey: string
+  persona: string
+  stylePreset?: 'custom' | 'precise' | 'concise' | 'playful'
+  duty?: RoleDuty
+}
+
+export interface TaskweaverRolesApi {
+  list: () => Promise<IpcResult<RoleProfile[]>>
+  upsert: (profile: RoleProfileDraft) => Promise<IpcResult<RoleProfile>>
+  remove: (id: string) => Promise<IpcResult<{ removed: boolean }>>
 }
 
 export interface SkillOption {
@@ -183,7 +233,7 @@ export interface TaskweaverAppApi {
   pickWorkspace: () => Promise<IpcResult<{ cancelled: boolean; state: AppState }>>
   listThreads: () => Promise<IpcResult<ThreadSummary[]>>
   switchThread: (threadId: string) => Promise<IpcResult<AppState>>
-  renameThread: (threadId: string, title: string) => Promise<IpcResult<ThreadSummary[]>>
+  renameThread: (threadId: string, title: string, options?: { generated?: boolean }) => Promise<IpcResult<ThreadSummary[]>>
   togglePinThread: (threadId: string) => Promise<IpcResult<ThreadSummary[]>>
   toggleArchiveThread: (threadId: string) => Promise<IpcResult<ThreadSummary[]>>
   searchThreads: (query: string, options?: { workspacePath?: string | null }) => Promise<IpcResult<ThreadSearchResult[]>>
@@ -216,6 +266,9 @@ export interface TaskweaverWorkspaceApi {
   revertDiff: (payload: { path: string; reverseEdits?: Array<{ oldText: string; newText: string }>; originalContent?: string; createdContentSha256?: string }) => Promise<IpcResult<{ success: boolean; message: string; checkpointId?: string | null }>>
   openPath: (relativePath: string) => Promise<IpcResult<{ ok: boolean; error?: string; path?: string; isDirectory?: boolean }>>
   gitStatus: () => Promise<IpcResult<GitStatusResult>>
+  listGitBranches: () => Promise<IpcResult<GitBranchListResult>>
+  createGitBranch: (branchName: string) => Promise<IpcResult<GitBranchOperationResult>>
+  switchGitBranch: (branchName: string) => Promise<IpcResult<GitBranchOperationResult>>
   gitSuggestCommit: () => Promise<IpcResult<GitCommitSuggestion>>
   previewManualGitCommit: () => Promise<IpcResult<ManualGitCommitPreview>>
   createManualGitCommit: (options?: {
@@ -321,6 +374,16 @@ export interface GitStatusResult {
   hasChanges: boolean
 }
 
+export interface GitBranchListResult {
+  branches: string[]
+  currentBranch: string | null
+}
+
+export interface GitBranchOperationResult {
+  branch: string
+  unchanged?: boolean
+}
+
 export interface GitCommitSuggestion {
   message: string
   branch?: string | null
@@ -337,8 +400,6 @@ export interface WorkspaceTrustState {
 }
 
 export type WorkMode = 'code' | 'plan' | 'goal'
-
-export type BusyEnterMode = 'steer' | 'followUp'
 
 export type PermissionPromptPayload = {
   id: string
@@ -517,6 +578,7 @@ export type HostTodoItem = {
 }
 
 export type HostConversationProjections = Record<string, unknown> & {
+  title?: string | null
   plan?: HostPlanProjection
   todos?: HostTodoItem[] | null
 }
@@ -563,6 +625,14 @@ export type DshMuxFramePayload = {
 }
 
 export interface TaskweaverChatApi {
+  /** Rule-only complexity preflight; it does not create a message or start a model call. */
+  classifyOrchestration?: (request: {
+    text: string
+    skillName?: string | null
+    executionModeOverride?: 'single-agent' | 'multi-agent' | null
+    workMode?: WorkMode | null
+    conversationId?: string | null
+  }) => Promise<IpcResult<OrchestrationModeDecision>>
   send: (
     text: string,
     modelKey?: string | null,
@@ -573,6 +643,15 @@ export interface TaskweaverChatApi {
     attachments?: { mediaType: string, data: string, name: string }[] | null,
     documentIds?: string[] | null,
   ) => Promise<IpcResult<ChatSendResult>>
+  sendAsRoles: (payload: {
+    text: string
+    roleIds: string[]
+    conversationId?: string | null
+    discussionStrategy?: RoleDiscussionStrategy
+    summarize?: boolean
+    attachments?: { mediaType: string; data: string; name: string }[] | null
+    documentIds?: string[] | null
+  }) => Promise<IpcResult<ChatSendResult>>
   getImageLimits?: (conversationId?: string | null) => Promise<IpcResult<ImageAttachmentLimits>>
   /** Accepts a file dropped by the user; the desktop bridge resolves its opaque path. */
   readDroppedImageFile?: (file: File, conversationId?: string | null) => Promise<IpcResult<ComposerImageAttachment>>
@@ -612,6 +691,12 @@ export interface TaskweaverChatApi {
   getResultAttachment?: (payload: { conversationId?: string | null; attachmentId: string }) => Promise<IpcResult<CodeOutputAttachment>>
   onDshView?: (listener: (view: DshConversationView) => void) => () => void
   onStream: (listener: (event: ChatStreamEvent) => void) => () => void
+}
+
+export interface OrchestrationModeDecision {
+  mode: 'single-agent' | 'ask-user' | 'multi-agent'
+  confidence: number
+  reasons: string[]
 }
 
 /** Estimated prompt-injection budget for the latest turn in one conversation. */
@@ -700,6 +785,50 @@ export interface DagRunHistoryEntry {
   updatedAt?: string
   status: string
   tasks: TaskNode[]
+  costSavingsSummary?: DagCostSavingsSummary | null
+}
+
+export interface DagCostSavingsSummary {
+  schemaVersion: 1
+  capturedAt: string | null
+  tokenTotals: {
+    inputTokens: number
+    outputTokens: number
+    cacheReadTokens: number
+    cacheWriteTokens: number
+    totalTokens: number
+  }
+  routedCost: {
+    amount: number | null
+    currency: string | null
+    byCurrency: Record<string, number>
+    pricedCalls: number
+    totalCalls: number
+    coverageRatio: number
+    complete: boolean
+  }
+  flagshipBaseline: {
+    amount: number | null
+    currency: string | null
+    byCurrency: Record<string, number>
+    pricedCalls: number
+    totalCalls: number
+    coverageRatio: number
+    complete: boolean
+    modelKey: string | null
+  }
+  savings: { amount: number | null; amountUsd: number | null; percent: number | null; currency: string | null }
+  coverage: {
+    totalCalls: number
+    routedPricedCalls: number
+    routedRatio: number
+    routedComplete: boolean
+    flagshipPricedCalls: number
+    flagshipRatio: number
+    flagshipComplete: boolean
+    complete: boolean
+  }
+  warnings: Array<{ code: string; message: string; modelKey?: string }>
 }
 
 export interface DagPlanApprovalChanges {

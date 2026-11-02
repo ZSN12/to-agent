@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict'
 import { activateUiVerifyMockModel, UI_VERIFY_MOCK_MODEL_KEY } from '../backend/bootstrap.mjs'
+import { isUiVerifyMockIsolated } from '../backend/ui-verify-mock.mjs'
 
 const base = {
   env: {
@@ -13,6 +14,10 @@ const base = {
   isPackaged: false,
   userDataPath: '/tmp/taskweaver-ui-verify/user-data',
 }
+
+assert.equal(isUiVerifyMockIsolated(base), true, 'mock availability requires the exact isolated UI verification environment')
+assert.equal(isUiVerifyMockIsolated({ ...base, isPackaged: true }), false)
+assert.equal(isUiVerifyMockIsolated({ ...base, userDataPath: '/tmp/real-user-data' }), false)
 
 let modelLoads = 0
 const profile = { added: [], active: null }

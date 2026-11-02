@@ -5,6 +5,7 @@
 import { realpath, stat } from 'node:fs/promises'
 import path from 'node:path'
 import { canonicalPath, writableRoots } from './vendor/dsh-sandbox/roots.mjs'
+import { resolveThroughSymlinks } from './security-path.mjs'
 
 const MISSING_CODES = new Set(['ENOENT', 'ENOTDIR'])
 
@@ -80,8 +81,23 @@ export async function checkFileMutationAllowed(filePolicy, workspacePath, candid
   let canonicalTarget
   try {
     canonicalTarget = canonicalPath(await realpath(target))
-  } catch {
-    canonicalTarget = canonicalPath(target)
+  } catch (error) {
+    if (!isMissing(error)) {
+      // 解析失败时无法验证真实位置，fail-closed：拒绝并交给上层升级提示
+      return {
+        allowed: false,
+        reason: `文件沙箱 workspace-write：无法解析目标路径的真实位置（${error?.code ?? error?.message ?? 'unknown'}），已拒绝写入。目标：${canonicalPath(target)}`,
+      }
+    }
+    // 末段尚未创建：仅按已存在父级解析真实路径，防止中间符号链接目录逃逸
+    try {
+      canonicalTarget = canonicalPath(await resolveThroughSymlinks(target))
+    } catch (resolveError) {
+      return {
+        allowed: false,
+        reason: `文件沙箱 workspace-write：无法解析目标路径的父级真实路径（${resolveError?.code ?? resolveError?.message ?? 'unknown'}），已拒绝写入。目标：${canonicalPath(target)}`,
+      }
+    }
   }
 
   const roots = writableRoots({ mode: 'workspace-write', workspaceRoot })

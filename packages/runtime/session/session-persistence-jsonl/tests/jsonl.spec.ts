@@ -397,6 +397,79 @@ describe('JsonlSessionPersistence: durability and crash semantics', () => {
     await otherCtx.fiber.dispose()
   })
 
+  it('reuses unchanged directory and header snapshots while returning detached headers', async () => {
+    const m = meta('snapshot-catalog-reuse', '/work')
+    await ctx.sessionPersistence.create(m)
+    await ctx.sessionPersistence.append(m.id, oneTurnLog())
+    const first = await ctx.sessionPersistence.listSnapshots()
+    expect(first.map(snapshot => snapshot.header.id)).toEqual([m.id])
+
+    const persistence = ctx.sessionPersistence as unknown as {
+      readStableDirectoryEntries(...args: never[]): Promise<unknown>
+      readFirstLine(...args: never[]): Promise<unknown>
+    }
+    const directoryReads = vi.spyOn(persistence, 'readStableDirectoryEntries')
+    const headerReads = vi.spyOn(persistence, 'readFirstLine')
+    const repeated = await ctx.sessionPersistence.listSnapshots()
+
+    expect(repeated[0]?.revision).toBe(first[0]?.revision)
+    expect(directoryReads).not.toHaveBeenCalled()
+    expect(headerReads).not.toHaveBeenCalled()
+    mutableHeader(first[0]!.header).cwd = '/caller-mutated'
+    expect((await ctx.sessionPersistence.listSnapshots())[0]?.header.cwd).toBe('/work')
+  })
+
+  it('detects new, appended, deleted, and oppositely encoded logs from another mount', async () => {
+    const existing = meta('snapshot-catalog-existing', '/work')
+    await ctx.sessionPersistence.create(existing)
+    await ctx.sessionPersistence.append(existing.id, oneTurnLog())
+    const before = await ctx.sessionPersistence.listSnapshots()
+    const oldRevision = before.find(snapshot => snapshot.header.id === existing.id)?.revision
+
+    const otherCtx = new Context()
+    await otherCtx.plugin(SessionStore)
+    const otherFiber = await otherCtx.plugin(JsonlSessionPersistence, { root, compression: 'none' })
+    try {
+      const added = meta('snapshot-catalog-added', '/work')
+      await otherCtx.sessionPersistence.create(added)
+      await otherCtx.sessionPersistence.append(added.id, oneTurnLog())
+      await otherCtx.sessionPersistence.append(existing.id, [{
+        type: 'turn/start', seq: 6, time: 7, data: { turn: 2 },
+      }])
+
+      const afterExternalWrites = await ctx.sessionPersistence.listSnapshots()
+      expect(afterExternalWrites.map(snapshot => snapshot.header.id).sort())
+        .toEqual([added.id, existing.id].sort())
+      expect(afterExternalWrites.find(snapshot => snapshot.header.id === existing.id)?.revision).not.toBe(oldRevision)
+
+      await rm(rawLogPath(root, added.cwd, added.id))
+      expect((await ctx.sessionPersistence.listSnapshots()).map(snapshot => snapshot.header.id)).toEqual([existing.id])
+
+      await writeFile(join(sessionDir(root, existing.cwd, existing.id), 'session.jsonl.zstd'), 'opposite encoding')
+      await expect(ctx.sessionPersistence.listSnapshots()).rejects.toThrow(/uses \.jsonl\.zstd/)
+    } finally {
+      await otherFiber.dispose()
+    }
+  })
+
+  it('retries a changing header read and revalidates cached log identity', async () => {
+    const m = meta('snapshot-catalog-header-race', '/work')
+    await ctx.sessionPersistence.create(m)
+    await ctx.sessionPersistence.append(m.id, oneTurnLog())
+    const persistence = ctx.sessionPersistence as unknown as {
+      readFirstLine(path: string, signal?: AbortSignal): Promise<string | undefined>
+    }
+    const headerRead = vi.spyOn(persistence, 'readFirstLine')
+    statRace.path = rawLogPath(root, m.cwd, m.id)
+
+    await expect(ctx.sessionPersistence.listSnapshots()).resolves.toMatchObject([{ header: { id: m.id } }])
+    expect(statRace.reads).toBe(6)
+    expect(headerRead).toHaveBeenCalledTimes(2)
+
+    await rewriteHeader(rawLogPath(root, m.cwd, m.id), header => { header.cwd = '/elsewhere' })
+    await expect(ctx.sessionPersistence.listSnapshots()).rejects.toThrow(/and cwd identify/)
+  })
+
   it('binds a full stored prefix to the same revision as a lightweight read', async () => {
     const m = meta('stored-prefix-revision')
     await ctx.sessionPersistence.create(m)

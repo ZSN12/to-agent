@@ -10,6 +10,7 @@ vendor/taskweaver-z-runtime/
 vendor/taskweaver-dsh-runtime/
 vendor/.taskweaver-z-runtime.build-*/
 vendor/.taskweaver-z-runtime.previous-*/
+vendor/taskweaver-z-runtime-build-*/
 TaskWeaver.app
 .DS_Store
 *.log
@@ -27,6 +28,7 @@ prototype.html
 .taskweaver-test-home*/
 dsh-source/
 .workbuddy-ai/
+.workbuddy/
 .test-worktree-diff/
 **/.build/
 apps/macos/build/

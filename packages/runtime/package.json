@@ -9,7 +9,7 @@
   },
   "scripts": {
     "build": "tsx scripts/build.ts",
-    "build:host": "tsc -b tsconfig.host.taskweaver.json && tsdown --env.TASKWEAVER_BUILD_FACE host --filter @taskweaver/dsh",
+    "build:host": "tsc -b tsconfig.host.taskweaver.json && tsdown --env.TASKWEAVER_BUILD_FACE host --filter @taskweaver/dsh --filter @taskweaver/dsh-agent-loop --filter @taskweaver/ui-verify --filter @taskweaver/tool-ui-verify",
     "build:lib": "pnpm run build:lib:host && pnpm run build:lib:client",
     "build:lib:host": "tsc -b tsconfig.host.taskweaver.json && tsdown --env.TASKWEAVER_BUILD_FACE host",
     "build:lib:client": "tsc -b tsconfig.client.taskweaver.json && tsdown --env.TASKWEAVER_BUILD_FACE client",

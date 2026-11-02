@@ -6,17 +6,21 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
-const modelKey = process.env.TASKWEAVER_LIVE_MODEL_KEY?.trim() || 'xiaomi/mimo-v2.6-flash'
+const modelKeyOverride = process.env.TASKWEAVER_LIVE_MODEL_KEY?.trim() || null
+let modelKey = modelKeyOverride
+const isPlannerSession = (sessionKey) => /-planner(?:-attempt-\d+|-retry)?$/.test(String(sessionKey ?? ''))
+const fixedPlanRequestText = '只读核对应用启动和聊天请求链路。T1 仅查看 package.json、backend/shell/run.mjs、backend/shell/http-server.mjs；T2 依次核对 src/features/app/hooks/useConversationRun.ts、src/shell/taskweaver-shell-bridge.generated.ts、backend/register-ipc.mjs、backend/ipc/wire-backend-ipc.mjs、backend/ipc/register-chat-send-ipc.mjs、backend/dsh-chat-service.mjs、backend/dsh-chat/chat-send.mjs、backend/shell/http-server.mjs。每个文件各做一次窄搜索和一次覆盖关键符号的窄读取，不改文件、不运行命令。'
 const livePlannerRequestText = '要求两项彼此独立研究任务并行完成，且不得修改文件或运行命令。T1 只读 package.json、apps/macos/TaskWeaverShell/Sources/TaskWeaverShell/TaskWeaverShellApp.swift 和 apps/macos/TaskWeaverShell/Sources/TaskWeaverShell/BackendLauncher.swift，核实原生窗口如何承载 React、开发启动方式和 Node 后端启动边界；T2 只读 backend/dsh-session-model.mjs，核实 sessionModelMatches 在 Host 未回报 reasoningEffort 时如何判定匹配。两项都只回答对应问题，列出实际文件行号，不做目录发现，不扩展范围。'
 const fixedPlan = { tasks: [
-  { id: 'T1', title: '梳理原生应用启动入口', taskType: 'research', role: '应用启动研究', description: '只读研究且范围仅限 package.json、apps/macos/TaskWeaverShell/Sources/TaskWeaverShell/TaskWeaverShellApp.swift、apps/macos/TaskWeaverShell/Sources/TaskWeaverShell/BackendLauncher.swift。仅确认 Swift 窗口如何承载 React、开发启动方式和 Node 后端的启动边界；不要扩展到 IPC 内部或其他模块。直接读取这三个已知文件，不做目录发现；每个文件最多读取一次，用文件名和相关行号支持结论，完成后立即汇报。', scopePaths: ['package.json', 'apps/macos/TaskWeaverShell/Sources/TaskWeaverShell/TaskWeaverShellApp.swift', 'apps/macos/TaskWeaverShell/Sources/TaskWeaverShell/BackendLauncher.swift'], dependsOn: [] },
-  { id: 'T2', title: '梳理 Agent 请求链路', taskType: 'research', role: 'Agent 链路研究', description: '只读研究且范围仅限 src/features/app/hooks/useConversationRun.ts、src/shell/taskweaver-shell-bridge.generated.ts、backend/register-ipc.mjs、backend/ipc/wire-backend-ipc.mjs、backend/compose-services.mjs、backend/ipc/register-chat-send-ipc.mjs、backend/chat-turn-pipeline.mjs、backend/dsh-chat/chat-send.mjs。按调用链核实：useConversationRun bridge.chat.send → bridge invoke("chat:send") → register-ipc composeBackendServices/wireBackendIpc → wire-backend-ipc registerChatSendIpc → chat-turn-pipeline runTurn/executeChatRequest → compose-services 中 createDshChatService 绑定的 chat.send → dsh-chat/chat-send send → api.sessions.prompt。每个文件一次窄 grep（useAppBackend: bridge\\.chat.send；generated bridge: chat:send；register-ipc: composeBackendServices|wireBackendIpc；wire-backend-ipc: registerChatSendIpc；compose-services: createDshChatService；register-chat-send-ipc: chat:send|runTurn；chat-turn-pipeline: executeChatRequest|runTurn；dsh-chat/chat-send: async function send\\(|const reply = rpcValue\\(await api\\.sessions\\.prompt\\()；各文件 read 一次覆盖锚点行。禁止通用 invoke( 搜索与越界路径。', scopePaths: ['src/features/app/hooks/useConversationRun.ts', 'src/shell/taskweaver-shell-bridge.generated.ts', 'backend/register-ipc.mjs', 'backend/ipc/wire-backend-ipc.mjs', 'backend/compose-services.mjs', 'backend/ipc/register-chat-send-ipc.mjs', 'backend/chat-turn-pipeline.mjs', 'backend/dsh-chat/chat-send.mjs'], dependsOn: [] },
+  { id: 'T1', title: '梳理应用启动入口', taskType: 'research', role: '启动链路研究', description: '只读研究且范围仅限 package.json、backend/shell/run.mjs、backend/shell/http-server.mjs。核对开发启动入口、Node 后端启动边界以及 Shell HTTP invoke 服务如何接收请求；每个文件最多一次窄搜索和一次覆盖锚点的读取，给出相关行号后立即完成。', scopePaths: ['package.json', 'backend/shell/run.mjs', 'backend/shell/http-server.mjs'], acceptance: ['说明开发启动入口和 Node 后端的启动边界，并提供源码行号。', '说明 Shell HTTP invoke 的请求入口，并提供源码行号。'], route: { tier_adjust: 0, needs_vision: false, reason: '固定只读烟测计划' }, dependsOn: [] },
+  { id: 'T2', title: '梳理 Agent 请求链路', taskType: 'research', role: 'Agent 链路研究', description: '只读研究且范围仅限 src/features/app/hooks/useConversationRun.ts、src/shell/taskweaver-shell-bridge.generated.ts、backend/register-ipc.mjs、backend/ipc/wire-backend-ipc.mjs、backend/ipc/register-chat-send-ipc.mjs、backend/dsh-chat-service.mjs、backend/dsh-chat/chat-send.mjs、backend/shell/http-server.mjs。按调用顺序核实 bridge.chat.send → HTTP bridge invoke("chat:send") → Shell HTTP server invokeShellChannel → register-ipc/wireBackendIpc → registerChatSendIpc/chatTurnPipeline.runTurn → dsh-chat-service/createDshChatSend → api.sessions.prompt。每个文件仅做一次窄 grep（useConversationRun: bridge\\.chat.*send；generated bridge: chat:send；register-ipc: composeBackendServices|wireBackendIpc；wire-backend-ipc: registerChatSendIpc；register-chat-send-ipc: chat:send|chatTurnPipeline\\.runTurn；dsh-chat-service: createDshChatSend；dsh-chat/chat-send: const reply = rpcValue\\(await api\\.sessions\\.prompt\\(；http-server: shell/v1/invoke|invokeShellChannel），再按相同顺序每个文件只读一次并覆盖关键调用行。禁止宽泛搜索、重复读取、越界路径和命令；禁止通用 invoke( 搜索。', scopePaths: ['src/features/app/hooks/useConversationRun.ts', 'src/shell/taskweaver-shell-bridge.generated.ts', 'backend/register-ipc.mjs', 'backend/ipc/wire-backend-ipc.mjs', 'backend/ipc/register-chat-send-ipc.mjs', 'backend/dsh-chat-service.mjs', 'backend/dsh-chat/chat-send.mjs', 'backend/shell/http-server.mjs'], acceptance: ['按调用顺序说明从前端发送到底层 api.sessions.prompt 的完整链路，并给出源码行号。', '每个指定文件都有 Host 记录的实际读取证据，未使用范围外工具。'], route: { tier_adjust: 0, needs_vision: false, reason: '固定只读烟测计划' }, dependsOn: [] },
 ] }
 const hashPlan = (plan) => createHash('sha256').update(JSON.stringify(plan)).digest('hex')
 const fixedPlanHash = hashPlan(fixedPlan)
 const READ_ONLY_TOOL_ALLOWLIST = new Set(['read', 'grep', 'glob', 'find', 'ls', 'run_code'])
 const KNOWN_TOOL_EVENT_TYPES = new Set(['tool/call', 'tool/result', 'tool/code-dispatch-start', 'tool/code-dispatch'])
-const READONLY_PRESET_RELATIVE_PATH = 'config/agent-presets/taskweaver-readonly/agent.cordis.yml'
+const READONLY_PRESET_ID = 'tw-taskweaver-readonly'
+const READONLY_PRESET_RELATIVE_PATH = `config/agent-presets/${READONLY_PRESET_ID}/agent.cordis.yml`
 
 function inspectReadonlyPresetIntegrity(sourceContent, runtimeContent) {
   if (typeof sourceContent !== 'string' || typeof runtimeContent !== 'string') {
@@ -37,7 +41,7 @@ function inspectReadonlyPresetSessions(tasks, histories) {
   const byTaskId = new Map(histories.map((history) => [history.id, history]))
   const mismatches = readonlyTaskIds.filter((id) => {
     const history = byTaskId.get(id)
-    return !history?.sessionId || history.preset !== 'taskweaver-readonly'
+    return !history?.sessionId || history.preset !== READONLY_PRESET_ID
   })
   return {
     status: readonlyTaskIds.length > 0 && mismatches.length === 0 ? 'verified' : 'failed',
@@ -190,36 +194,37 @@ function auditFixedT2ToolDiscipline(calls) {
     return { name: call.name, args }
   })
   const expectedSearches = new Map([
-    ['src/features/app/hooks/useConversationRun.ts', 'bridge\\.chat\\.send'],
+    ['src/features/app/hooks/useConversationRun.ts', 'bridge\\.chat.*send'],
     ['src/shell/taskweaver-shell-bridge.generated.ts', 'chat:send'],
     ['backend/register-ipc.mjs', 'composeBackendServices|wireBackendIpc'],
     ['backend/ipc/wire-backend-ipc.mjs', 'registerChatSendIpc'],
-    ['backend/compose-services.mjs', 'createDshChatService'],
-    ['backend/ipc/register-chat-send-ipc.mjs', 'chat:send|runTurn'],
-    ['backend/chat-turn-pipeline.mjs', 'executeChatRequest|runTurn'],
-    ['backend/dsh-chat/chat-send.mjs', 'async function send\\(\\{|const reply = rpcValue\\(await api\\.sessions\\.prompt\\('],
+    ['backend/ipc/register-chat-send-ipc.mjs', 'chat:send|chatTurnPipeline\\.runTurn'],
+    ['backend/dsh-chat-service.mjs', 'createDshChatSend'],
+    ['backend/dsh-chat/chat-send.mjs', 'const reply = rpcValue\\(await api\\.sessions\\.prompt\\('],
+    ['backend/shell/http-server.mjs', 'shell/v1/invoke|invokeShellChannel'],
   ])
   const expectedReadCounts = new Map([
     ['src/features/app/hooks/useConversationRun.ts', 1],
     ['src/shell/taskweaver-shell-bridge.generated.ts', 1],
     ['backend/register-ipc.mjs', 1],
     ['backend/ipc/wire-backend-ipc.mjs', 1],
-    ['backend/compose-services.mjs', 1],
     ['backend/ipc/register-chat-send-ipc.mjs', 1],
-    ['backend/chat-turn-pipeline.mjs', 1],
+    ['backend/dsh-chat-service.mjs', 1],
     ['backend/dsh-chat/chat-send.mjs', 1],
+    ['backend/shell/http-server.mjs', 1],
   ])
   const requiredReadAnchors = [
-    ['src/features/app/hooks/useConversationRun.ts', 'bridge.chat.send', /bridge\.chat\.send/],
+    ['src/features/app/hooks/useConversationRun.ts', 'bridge.chat.send', /bridge\.chat!\.send\(/],
     ['src/shell/taskweaver-shell-bridge.generated.ts', 'chat:send bridge', /invoke\(['"]chat:send['"]/],
+    ['backend/register-ipc.mjs', 'composeBackendServices', /composeBackendServices\(/],
     ['backend/register-ipc.mjs', 'wireBackendIpc', /wireBackendIpc\(/],
-    ['backend/ipc/wire-backend-ipc.mjs', 'registerChatSendIpc', /registerChatSendIpc\(/],
-    ['backend/compose-services.mjs', 'createDshChatService binding', /const chat = createDshChatService\(/],
+    ['backend/ipc/wire-backend-ipc.mjs', 'registerChatSendIpc', /registerChatSendIpc\(\{/],
     ['backend/ipc/register-chat-send-ipc.mjs', 'chat:send handler', /ipcHandle\(ipcMain, ['"]chat:send['"]/],
-    ['backend/chat-turn-pipeline.mjs', 'executeChatRequest', /const executeChatRequest = async/],
-    ['backend/chat-turn-pipeline.mjs', 'runTurn', /const runTurn = async/],
-    ['backend/dsh-chat/chat-send.mjs', 'send entry', /async function send\(/],
+    ['backend/ipc/register-chat-send-ipc.mjs', 'chatTurnPipeline.runTurn', /chatTurnPipeline\.runTurn\(/],
+    ['backend/dsh-chat-service.mjs', 'createDshChatSend binding', /const \{ send, abort \} = createDshChatSend\(/],
     ['backend/dsh-chat/chat-send.mjs', 'new-turn sessions.prompt', /const reply = rpcValue\(await api\.sessions\.prompt\(/],
+    ['backend/shell/http-server.mjs', 'Shell HTTP invoke route', /req\.method === 'POST' && url\.pathname === '\/shell\/v1\/invoke'/],
+    ['backend/shell/http-server.mjs', 'invokeShellChannel', /invokeShellChannel\(channel, \.\.\.args\)/],
   ]
   const sourceLinesByPath = new Map()
   for (const [filePath] of requiredReadAnchors) {
@@ -289,10 +294,11 @@ function auditFixedT2ToolDiscipline(calls) {
 
 function runOfflineEvidenceSelfTest() {
   const assertCase = (condition, message) => { if (!condition) throw new Error(`offline evidence test failed: ${message}`) }
+  assertCase(isPlannerSession('tw-orchestration-run-planner-attempt-2'), 'finite planner retries must stay inside the deterministic fixture shim')
   assertCase(inspectReadonlyPresetIntegrity('same preset', 'same preset').status === 'verified', 'matching source/deploy read-only preset must verify')
   assertCase(inspectReadonlyPresetIntegrity('source preset', 'different deploy preset').status === 'failed', 'source/deploy read-only preset drift must fail')
   assertCase(inspectReadonlyPresetIntegrity(null, 'runtime preset').status === 'failed', 'missing read-only preset content must fail')
-  assertCase(inspectReadonlyPresetSessions([{ id: 'T1', taskType: 'research' }], [{ id: 'T1', sessionId: 's1', preset: 'taskweaver-readonly' }]).status === 'verified', 'loaded read-only preset must be checked from Host session metadata')
+  assertCase(inspectReadonlyPresetSessions([{ id: 'T1', taskType: 'research' }], [{ id: 'T1', sessionId: 's1', preset: READONLY_PRESET_ID }]).status === 'verified', 'loaded read-only preset must be checked from Host session metadata')
   assertCase(inspectReadonlyPresetSessions([{ id: 'T1', taskType: 'research' }], [{ id: 'T1', sessionId: 's1', preset: 'code' }]).status === 'failed', 'wrong Host session preset must fail')
   assertCase(inspectReadonlyPresetSessions([{ id: 'T1', taskType: 'research' }], []).status === 'failed', 'missing Host task session must fail read-only preset verification')
   const fixedChainTask = fixedPlan.tasks.find((task) => task.id === 'T2')
@@ -303,18 +309,18 @@ function runOfflineEvidenceSelfTest() {
     }
   }
   assertCase(!/(?:约第\s*\d+\s*行|around line\s+\d+)/i.test(fixedChainTask.description), 'fixed DAG fixture must not embed stale approximate line numbers')
-  assertCase(['bridge.chat.send', 'invoke("chat:send")', 'runTurn', 'executeChatRequest', 'createDshChatService', 'api.sessions.prompt'].every((symbol) => fixedChainTask.description.includes(symbol)), 'fixed DAG fixture must name stable call-chain symbols and adapter binding')
+  assertCase(['bridge.chat.send', 'invoke("chat:send")', 'runTurn', 'createDshChatSend', 'api.sessions.prompt', 'invokeShellChannel'].every((symbol) => fixedChainTask.description.includes(symbol)), 'fixed DAG fixture must name stable call-chain symbols and adapter binding')
   assertCase(/generated bridge: chat:send/.test(fixedChainTask.description) && /禁止通用 invoke\(/.test(fixedChainTask.description), 'fixed DAG fixture must avoid broad invoke searches in preload')
-  assertCase(/dsh-chat\/chat-send: async function send/.test(fixedChainTask.description), 'fixed DAG fixture must name service-layer grep anchors')
+  assertCase(/dsh-chat\/chat-send: const reply = rpcValue/.test(fixedChainTask.description), 'fixed DAG fixture must name service-layer grep anchors')
   const exactSearches = [
-    ['src/features/app/hooks/useConversationRun.ts', 'bridge\\.chat\\.send'],
+    ['src/features/app/hooks/useConversationRun.ts', 'bridge\\.chat.*send'],
     ['src/shell/taskweaver-shell-bridge.generated.ts', 'chat:send'],
     ['backend/register-ipc.mjs', 'composeBackendServices|wireBackendIpc'],
     ['backend/ipc/wire-backend-ipc.mjs', 'registerChatSendIpc'],
-    ['backend/compose-services.mjs', 'createDshChatService'],
-    ['backend/ipc/register-chat-send-ipc.mjs', 'chat:send|runTurn'],
-    ['backend/chat-turn-pipeline.mjs', 'executeChatRequest|runTurn'],
-    ['backend/dsh-chat/chat-send.mjs', 'async function send\\(\\{|const reply = rpcValue\\(await api\\.sessions\\.prompt\\('],
+    ['backend/ipc/register-chat-send-ipc.mjs', 'chat:send|chatTurnPipeline\\.runTurn'],
+    ['backend/dsh-chat-service.mjs', 'createDshChatSend'],
+    ['backend/dsh-chat/chat-send.mjs', 'const reply = rpcValue\\(await api\\.sessions\\.prompt\\('],
+    ['backend/shell/http-server.mjs', 'shell/v1/invoke|invokeShellChannel'],
   ].map(([filePath, pattern]) => ({ name: 'grep', arguments: JSON.stringify({ path: filePath, pattern }) }))
   const readCoveringAnchors = (filePath, patterns, padding = 4) => {
     const absolutePath = path.resolve(root, filePath)
@@ -330,17 +336,14 @@ function runOfflineEvidenceSelfTest() {
     }
   }
   const expectedReads = [
-    readCoveringAnchors('src/features/app/hooks/useConversationRun.ts', [/bridge\.chat\.send/]),
+    readCoveringAnchors('src/features/app/hooks/useConversationRun.ts', [/bridge\.chat!\.send\(/]),
     readCoveringAnchors('src/shell/taskweaver-shell-bridge.generated.ts', [/invoke\(['"]chat:send['"]/]),
-    readCoveringAnchors('backend/register-ipc.mjs', [/wireBackendIpc\(/]),
-    readCoveringAnchors('backend/ipc/wire-backend-ipc.mjs', [/registerChatSendIpc\(/]),
-    readCoveringAnchors('backend/compose-services.mjs', [/const chat = createDshChatService\(/]),
+    readCoveringAnchors('backend/register-ipc.mjs', [/composeBackendServices\(/, /wireBackendIpc\(/]),
+    readCoveringAnchors('backend/ipc/wire-backend-ipc.mjs', [/registerChatSendIpc\(\{/]),
     readCoveringAnchors('backend/ipc/register-chat-send-ipc.mjs', [/ipcHandle\(ipcMain, ['"]chat:send['"]/, /chatTurnPipeline\.runTurn/]),
-    readCoveringAnchors('backend/chat-turn-pipeline.mjs', [/const executeChatRequest = async/, /const runTurn = async/], 6),
-    readCoveringAnchors('backend/dsh-chat/chat-send.mjs', [
-      /async function send\(/,
-      /const reply = rpcValue\(await api\.sessions\.prompt\(/,
-    ], 6),
+    readCoveringAnchors('backend/dsh-chat-service.mjs', [/const \{ send, abort \} = createDshChatSend\(/]),
+    readCoveringAnchors('backend/dsh-chat/chat-send.mjs', [/const reply = rpcValue\(await api\.sessions\.prompt\(/]),
+    readCoveringAnchors('backend/shell/http-server.mjs', [/req\.method === 'POST' && url\.pathname === '\/shell\/v1\/invoke'/, /invokeShellChannel\(channel, \.\.\.args\)/]),
   ]
   const compliantCalls = [...exactSearches, ...expectedReads]
   const serviceRead = expectedReads.at(-1)
@@ -402,6 +405,7 @@ const cliUsage = `Usage: node scripts/diagnose/run-agent-dag-live-smoke.mjs [opt
 Options:
   --real-planner       Ask MiMo to create the DAG plan (otherwise use the fixed safe plan)
   --frozen-plan <path> Replay a previously captured Planner plan without another Planner request
+  --frozen-request <path> Use this original request when replaying a frozen plan
   --serial-fixed-plan  Force DAG execution concurrency=1 for paired benchmarking
   --thinking <level>   Override reasoning profile: low, medium, high, or default
   --self-test-evidence Run focused offline checks for native route/tool evidence
@@ -418,6 +422,7 @@ Environment:
 const cliArgs = process.argv.slice(2)
 let cliThinkingOverride = null
 let frozenPlanPath = null
+let frozenRequestPath = null
 for (let index = 0; index < cliArgs.length; index += 1) {
   const arg = cliArgs[index]
   if (arg === '--thinking') {
@@ -429,6 +434,11 @@ for (let index = 0; index < cliArgs.length; index += 1) {
     const value = cliArgs[index + 1]
     if (!value || value.startsWith('--')) throw new Error('--frozen-plan requires a JSON file path')
     frozenPlanPath = path.resolve(value)
+    index += 1
+  } else if (arg === '--frozen-request') {
+    const value = cliArgs[index + 1]
+    if (!value || value.startsWith('--')) throw new Error('--frozen-request requires a text file path')
+    frozenRequestPath = path.resolve(value)
     index += 1
   } else if (arg.startsWith('--thinking=')) {
     cliThinkingOverride = arg.slice('--thinking='.length)
@@ -445,6 +455,7 @@ if (cliArgs.includes('-h') || cliArgs.includes('--help')) {
 const realPlanner = process.env.TASKWEAVER_LIVE_REAL_PLANNER === '1' || cliArgs.includes('--real-planner')
 const serialFixedPlan = cliArgs.includes('--serial-fixed-plan')
 if (realPlanner && frozenPlanPath) throw new Error('--real-planner and --frozen-plan are mutually exclusive')
+if (frozenRequestPath && !frozenPlanPath) throw new Error('--frozen-request requires --frozen-plan')
 const thinkingOverride = cliThinkingOverride ?? process.env.TASKWEAVER_LIVE_THINKING ?? null
 if (thinkingOverride && !['low', 'medium', 'high', 'default'].includes(thinkingOverride)) {
   throw new Error('TASKWEAVER_LIVE_THINKING must be low, medium, high, or default')
@@ -465,7 +476,7 @@ const [
   { ensureModelsJsonSyncedToDshHost },
 ] = await Promise.all([
   import('../../backend/agent/z-host/index.mjs'),
-  import('../../backend/dsh-chat/chat-send.mjs'),
+  import('../../backend/dsh-chat-service.mjs'),
   import('../../backend/model-service.mjs'),
   import('../../backend/orchestration-service.mjs'),
   import('../../backend/profile-store.mjs'),
@@ -476,15 +487,18 @@ const loadedFrozenPlan = frozenPlanPath ? JSON.parse(await fs.readFile(frozenPla
 if (loadedFrozenPlan && (!Array.isArray(loadedFrozenPlan.tasks) || loadedFrozenPlan.tasks.length === 0)) {
   throw new Error('--frozen-plan must contain a non-empty tasks array')
 }
+const frozenRequestText = frozenRequestPath ? (await fs.readFile(frozenRequestPath, 'utf8')).trim() : null
+if (frozenRequestPath && !frozenRequestText) throw new Error('--frozen-request must contain non-empty request text')
+const plannerRequestText = frozenRequestText ?? (realPlanner || loadedFrozenPlan ? livePlannerRequestText : fixedPlanRequestText)
 const plannerMode = realPlanner ? 'live' : loadedFrozenPlan ? 'frozen-replay' : 'fixed-fixture'
 const userData = path.join(os.homedir(), 'Library', 'Application Support', 'taskweaver-desktop')
 const runtimeOverride = process.env.TASKWEAVER_RUNTIME?.trim()
 const runtimeRoot = runtimeOverride
   ? path.resolve(runtimeOverride)
   : cliArgs.includes('--installed')
-    ? '/Applications/TaskWeaver.app/Contents/Resources/taskweaver-z-runtime'
+    ? '/Applications/TaskWeaver.app/Contents/Resources/backend/runtime'
     : path.join(root, 'vendor', 'taskweaver-z-runtime')
-const sourceReadonlyPresetPath = path.join(root, 'packages', 'runtime', 'apps', 'cli', 'config', 'agent-presets', 'taskweaver-readonly', 'agent.cordis.yml')
+const sourceReadonlyPresetPath = path.join(root, 'packages', 'runtime', 'host-cli', READONLY_PRESET_RELATIVE_PATH)
 const runtimeReadonlyPresetPath = path.join(runtimeRoot, READONLY_PRESET_RELATIVE_PATH)
 const reportDir = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-live-dag-'))
 const frozenPlanArtifactPath = path.join(reportDir, 'frozen-plan.json')
@@ -548,7 +562,7 @@ async function hashWorkspaceSnapshot(plan) {
     }
   }
   for (const relativePath of paths) await collect(relativePath)
-  const presetPath = 'packages/runtime/host-cli/config/agent-presets/taskweaver-readonly/agent.cordis.yml'
+  const presetPath = path.join('packages', 'runtime', 'host-cli', READONLY_PRESET_RELATIVE_PATH)
   try {
     if ((await fs.stat(path.join(root, presetPath))).isFile()) filePaths.add(presetPath)
   } catch (error) {
@@ -643,6 +657,40 @@ try {
     }
   }
 
+  try {
+    await fs.copyFile(path.join(userData, 'taskweaver-model-profiles.json'), isolatedModelProfilesPath)
+    await fs.chmod(isolatedModelProfilesPath, 0o600)
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error
+  }
+  const profileStore = createProfileStore(reportDir)
+  modelKey ??= await profileStore.getActiveModelKey()
+  if (!modelKey) throw new Error('No active model is configured; set TASKWEAVER_LIVE_MODEL_KEY to a routable provider/model key')
+
+  const openCodexProviderId = modelKey.startsWith('bridge-antigravity/google-antigravity/')
+    ? 'google-antigravity'
+    : modelKey.startsWith('bridge-composer/cursor/')
+      ? 'cursor'
+      : modelKey.startsWith('bridge-composer/google-antigravity/')
+        ? 'google-antigravity'
+        : null
+  if (openCodexProviderId) {
+    const sourceAuthPath = path.join(userData, 'opencodex', 'auth.json')
+    const isolatedOpenCodexHome = path.join(reportDir, 'opencodex')
+    const isolatedAuthPath = path.join(isolatedOpenCodexHome, 'auth.json')
+    let auth
+    try {
+      auth = JSON.parse(await fs.readFile(sourceAuthPath, 'utf8'))
+    } catch (error) {
+      if (error.code === 'ENOENT') throw new Error(`No saved ${openCodexProviderId} OpenCodex authorization is available for the isolated Host`)
+      throw error
+    }
+    if (!auth?.[openCodexProviderId]) throw new Error(`No saved ${openCodexProviderId} OpenCodex authorization is available for the isolated Host`)
+    await fs.mkdir(isolatedOpenCodexHome, { recursive: true, mode: 0o700 })
+    await fs.writeFile(isolatedAuthPath, `${JSON.stringify({ [openCodexProviderId]: auth[openCodexProviderId] }, null, 2)}\n`, { mode: 0o600 })
+    await fs.chmod(isolatedAuthPath, 0o600)
+  }
+
   const modelsDoc = JSON.parse(await fs.readFile(resolveTaskWeaverModelsPath(userData), 'utf8'))
   const modelsDocForSync = structuredClone(modelsDoc)
   const bridgeModelPrefix = 'bridge-composer/'
@@ -669,11 +717,6 @@ try {
   await fs.mkdir(path.dirname(isolatedModelsPath), { recursive: true })
   await fs.writeFile(isolatedModelsPath, `${JSON.stringify(modelsDocForSync, null, 2)}\n`, { mode: 0o600 })
   try {
-    await fs.copyFile(
-      path.join(userData, 'taskweaver-model-profiles.json'),
-      isolatedModelProfilesPath,
-    )
-    await fs.chmod(isolatedModelProfilesPath, 0o600)
     if (bridgeModelId) {
       const isolatedProfiles = JSON.parse(await fs.readFile(isolatedModelProfilesPath, 'utf8'))
       const legacyKey = `opencodex/${bridgeModelId}`
@@ -699,7 +742,6 @@ try {
   const sync = await ensureModelsJsonSyncedToDshHost({ hostManager, userDataPath: reportDir, modelsDocOverride: modelsDocForSync })
   if (sync.synced) ({ api } = await hostManager.start())
 
-  const profileStore = createProfileStore(reportDir)
   if (thinkingOverride) {
     // Test-only in-memory override. Never writes the user's model profile.
     profileStore.getThinkingLevel = async () => thinkingOverride === 'default' ? null : thinkingOverride
@@ -713,7 +755,12 @@ try {
   })
   const fullCatalog = await modelService.listCatalog()
   const model = fullCatalog.models.find((candidate) => candidate.key === modelKey)
-  if (!model?.available || model.routeRegistered === false) throw new Error(`${modelKey} is not currently routable`)
+  if (!model?.available || model.routeRegistered === false) {
+    const routableAllocationKeys = fullCatalog.models
+      .filter((candidate) => candidate.available && candidate.routeRegistered !== false && candidate.profile?.enabledForAllocation === true)
+      .map((candidate) => candidate.key)
+    throw new Error(`${modelKey} is not currently routable${routableAllocationKeys.length ? `; routable allocation models: ${routableAllocationKeys.join(', ')}` : '; no routable allocation models were found in the isolated Host'}`)
+  }
   if (model.profile?.enabledForAllocation !== true) throw new Error(`${modelKey} is not enabled for subtask allocation`)
   const singleModelCatalog = { ...fullCatalog, models: [model] }
 
@@ -726,8 +773,7 @@ try {
     getPermissionMode: () => 'ask',
   })
   const plannerSessionId = `live-dag-planner-${crypto.randomUUID()}`
-  const isPlannerSession = (sessionKey) => String(sessionKey ?? '').endsWith('-planner') || String(sessionKey ?? '').endsWith('-planner-retry')
-  const plannerCreated = realPlanner ? null : await api.sessions.create({ sessionId: plannerSessionId, cwd: root, agentPreset: 'taskweaver-planner' })
+  const plannerCreated = realPlanner ? null : await api.sessions.create({ sessionId: plannerSessionId, cwd: root, agentPreset: 'tw-taskweaver-planner' })
   if (!realPlanner && !plannerCreated?.result?.ok) throw new Error(plannerCreated?.result?.error?.message || 'Could not create isolated planner lineage session')
 
   const dshRuntime = {
@@ -812,7 +858,7 @@ try {
     }
   }, 20_000)
   const outcome = await orchestration.planAndExecute({
-    text: realPlanner || loadedFrozenPlan ? livePlannerRequestText : '只读分析当前毕设代码的应用启动入口和 Agent 请求链路，要求两项独立研究并行完成后交叉汇总。不得修改文件。',
+    text: plannerRequestText,
     primaryModelKey: modelKey,
     conversationId,
     webContents,
@@ -911,7 +957,7 @@ try {
   const readonlyPresetSessionEvidence = inspectReadonlyPresetSessions(tasks, histories)
   for (const task of histories) {
     if (!task.sessionId) continue
-    if (task.preset !== 'taskweaver-readonly') throw new Error(`${task.id} did not use taskweaver-readonly (got ${task.preset})`)
+    if (task.preset !== READONLY_PRESET_ID) throw new Error(`${task.id} did not use ${READONLY_PRESET_ID} (got ${task.preset})`)
     if (task.readOnlyToolAudit.status !== 'verified') continue
     const nestedNames = task.readOnlyToolAudit.observed.filter((call) => call.kind === 'code-dispatch').map((call) => call.name)
     const outerNames = task.readOnlyToolAudit.observed.filter((call) => call.kind === 'native').map((call) => call.name)
@@ -983,7 +1029,7 @@ try {
   const taskRouteMetadataConsistent = tasks.every((task) => task.modelKey === modelKey)
   const verificationFailures = [
     ...(readonlyPresetIntegrity.status === 'verified' ? [] : ['source and deployed read-only preset hashes do not match']),
-    ...(readonlyPresetSessionEvidence.status === 'verified' ? [] : [`research/review tasks did not load taskweaver-readonly in distinct Host sessions: ${readonlyPresetSessionEvidence.mismatches.join(', ') || 'no read-only tasks'}`]),
+    ...(readonlyPresetSessionEvidence.status === 'verified' ? [] : [`research/review tasks did not load ${READONLY_PRESET_ID} in distinct Host sessions: ${readonlyPresetSessionEvidence.mismatches.join(', ') || 'no read-only tasks'}`]),
     ...(taskRouteMetadataConsistent ? [] : ['task route metadata does not match the smoke test model']),
     ...(nativeReadOnlyToolCallsVerified ? [] : ['a read-only DAG child used the Code Mode run_code wrapper instead of native tools']),
     ...(plannerSourceStatus !== 'failed' ? [] : ['live Planner source was not proven by Host events and captured plan hash']),
@@ -1040,11 +1086,12 @@ try {
     realPlanner,
     plannerMode,
     plannerPlanHash,
-    plannerRequestHash: createHash('sha256').update(realPlanner || loadedFrozenPlan ? livePlannerRequestText : '只读分析当前毕设代码的应用启动入口和 Agent 请求链路，要求两项独立研究并行完成后交叉汇总。不得修改文件。').digest('hex'),
+    plannerRequestHash: createHash('sha256').update(plannerRequestText).digest('hex'),
     workspaceSnapshotHash: workspaceSnapshot.sha256,
     workspaceSnapshotFileCount: workspaceSnapshot.fileCount,
     plannerArtifactPath: frozenPlanArtifactPath,
     plannerReplaySourcePath: frozenPlanPath,
+    plannerReplayRequestSourcePath: frozenRequestPath,
     plannerInvocationCount: plannerRuns.length,
     plannerWallMs,
     plannerOutputProgressAtMs,
@@ -1157,6 +1204,7 @@ try {
       for (const file of [isolatedModelsPath, isolatedModelProfilesPath]) {
         await fs.unlink(file).catch((error) => { if (error.code !== 'ENOENT') throw error })
       }
+      await fs.rm(path.join(reportDir, 'opencodex'), { recursive: true, force: true })
     }
   }
   if (interrupted) process.exitCode = 130

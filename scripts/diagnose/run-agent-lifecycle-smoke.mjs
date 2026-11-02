@@ -3,9 +3,10 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { createZHostManager } from '../../backend/agent/z-host/index.mjs'
+import { createZHostManager, resolveTaskWeaverRuntimeHome } from '../../backend/agent/z-host/index.mjs'
 import { createDshChatService } from '../../backend/dsh-chat-service.mjs'
 import { createModelService } from '../../backend/model-service.mjs'
+import { resolveTaskWeaverOpenCodexRoot } from '../../backend/opencodex-package-root.mjs'
 import { createProfileStore } from '../../backend/profile-store.mjs'
 import { classifyLifecycleSmokeError, summarizeLifecycleSmokeFailure } from '../lifecycle-smoke-diagnostics.mjs'
 
@@ -16,15 +17,38 @@ if (!process.argv.includes('--installed') && !process.argv.includes('--local')) 
 }
 const focusedOnly = process.argv.includes('--focused-only')
 const cancelOnly = process.argv.includes('--cancel-only')
+const bundleArgIndex = process.argv.indexOf('--bundle')
+const bundlePathArg = bundleArgIndex < 0 ? null : process.argv[bundleArgIndex + 1]
+if (bundleArgIndex >= 0 && (!bundlePathArg || bundlePathArg.startsWith('--'))) {
+  throw new Error('Pass an app bundle path after --bundle')
+}
+const bundleResourcesPath = bundlePathArg ? path.join(path.resolve(bundlePathArg), 'Contents/Resources') : null
+const runtimeRoot = bundleResourcesPath
+  ? path.join(bundleResourcesPath, 'backend/runtime')
+  : process.argv.includes('--installed')
+    ? '/Applications/TaskWeaver.app/Contents/Resources/backend/runtime'
+    : path.join(root, 'vendor/taskweaver-z-runtime')
+const backendRoot = bundleResourcesPath
+  ? path.join(bundleResourcesPath, 'app/backend')
+  : path.join(root, 'backend')
+const opencodexSearchRoot = bundleResourcesPath
+  ? path.join(bundleResourcesPath, 'app')
+  : root
+const opencodexPackageRoot = resolveTaskWeaverOpenCodexRoot(opencodexSearchRoot)
 const modelArgIndex = process.argv.indexOf('--model')
 const requestedModelKey = modelArgIndex < 0 ? null : process.argv[modelArgIndex + 1]
 if (modelArgIndex >= 0 && (!requestedModelKey || requestedModelKey.startsWith('--'))) {
   throw new Error('Pass a model key after --model')
 }
-const runtimeRoot = process.argv.includes('--installed')
-  ? '/Applications/TaskWeaver.app/Contents/Resources/taskweaver-z-runtime'
-  : path.join(root, 'vendor/taskweaver-z-runtime')
 const originalHome = path.join(os.homedir(), 'Library/Application Support/taskweaver-desktop')
+const originalRuntimeHome = resolveTaskWeaverRuntimeHome({ env: process.env, home: os.homedir() })
+const resourcesPath = bundleResourcesPath
+  ?? (process.argv.includes('--installed')
+    ? '/Applications/TaskWeaver.app/Contents/Resources'
+    : process.env.TASKWEAVER_RESOURCES_PATH
+      || await fs.access('/Applications/TaskWeaver.app/Contents/Resources')
+        .then(() => '/Applications/TaskWeaver.app/Contents/Resources')
+        .catch(() => null))
 const reportDir = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-lifecycle-smoke-'))
 const report = { runtimeRoot, cwd: root, startedAt: Date.now(), cases: [], observations: [] }
 const events = []
@@ -58,7 +82,11 @@ function connection(expectedId) {
       events.push(row)
       if (['start', 'done', 'error', 'tool'].includes(event.type)) {
         console.log(JSON.stringify({ conversationId: event.conversationId, type: event.type,
-          tool: event.toolName, status: event.status, busyAtEmission: row.busyAtEmission }))
+          tool: event.toolName, status: event.status,
+          ...(event.type === 'error' && /^[A-Z][A-Z0-9_]{0,95}$/.test(String(event.code ?? ''))
+            ? { errorCode: event.code }
+            : {}),
+          busyAtEmission: row.busyAtEmission }))
       }
     },
   }
@@ -109,17 +137,10 @@ try {
   for (const file of ['settings.yaml', '.credentials.yaml']) {
     const target = path.join(reportDir, 'dsh', file)
     try {
-      await fs.copyFile(path.join(originalHome, 'dsh', file), target)
+      await fs.copyFile(path.join(originalRuntimeHome, file), target)
       await fs.chmod(target, 0o600)
     } catch (error) { if (error.code !== 'ENOENT') throw error }
   }
-  manager = createZHostManager({
-    runtimeRoot,
-    userDataPath: reportDir,
-    home: reportDir,
-    environment: { ...process.env, TASKWEAVER_HOME: path.join(reportDir, 'dsh') },
-  })
-  ;({ api } = await manager.start())
   const profileStore = createProfileStore(originalHome)
   report.modelKey = requestedModelKey ?? await profileStore.getActiveModelKey()
   assert.ok(report.modelKey)
@@ -127,6 +148,27 @@ try {
     assert.ok((await profileStore.listAddedModelKeys()).includes(requestedModelKey),
       `Requested smoke-test model is not added to TaskWeaver: ${requestedModelKey}`)
   }
+  if (report.modelKey.startsWith('bridge-')) {
+    assert.ok(opencodexPackageRoot, 'Bridge smoke tests require the same OpenCodex package root as app startup')
+    const openCodexHome = path.join(originalHome, 'opencodex')
+    await fs.access(openCodexHome)
+    // The DSH runtime and app state stay isolated, while a bridge provider must
+    // use the real OAuth account store so a refresh can be persisted safely.
+    await fs.symlink(openCodexHome, path.join(reportDir, 'opencodex'), 'dir')
+  }
+  manager = createZHostManager({
+    runtimeRoot,
+    opencodexPackageRoot,
+    userDataPath: reportDir,
+    home: reportDir,
+    environment: {
+      ...process.env,
+      TASKWEAVER_BACKEND_ROOT: backendRoot,
+      TASKWEAVER_HOME: path.join(reportDir, 'dsh'),
+      ...(resourcesPath ? { TASKWEAVER_RESOURCES_PATH: resourcesPath } : {}),
+    },
+  })
+  ;({ api } = await manager.start())
   modelService = createModelService({ profileStore, dshHostManager: manager,
     userDataPath: reportDir, dshRuntimeRoot: runtimeRoot, priceRegistryPath: path.join(root, 'pricing/registry.json') })
   chat = createDshChatService({ hostManager: manager, userDataPath: reportDir, modelService, profileStore,
@@ -223,7 +265,7 @@ try {
   await runCase('parallel-independent-sessions', async since => {
     const jobs = [
       { id: `parallel-A-${crypto.randomUUID()}`, marker: `PA_${crypto.randomUUID()}`, file: 'src/main.tsx' },
-      { id: `parallel-B-${crypto.randomUUID()}`, marker: `PB_${crypto.randomUUID()}`, file: 'desktop/main.cjs' },
+      { id: `parallel-B-${crypto.randomUUID()}`, marker: `PB_${crypto.randomUUID()}`, file: 'backend/shell/run.mjs' },
     ]
     const results = await bounded(Promise.all(jobs.map(job => chat.send(options(job.id,
       `只读取 ${job.file} 前80行，用一句中文说明这个入口文件的作用。只读，不检查其他文件。最后另起一行写 ${job.marker}。`)))), 'parallel sessions')
@@ -233,6 +275,8 @@ try {
       assert.ok(result.text.includes(job.marker))
       assert.ok(!result.text.includes(jobs[1 - index].marker), 'other session answer must not leak into this result')
       assert.equal(data.misroutedEvents, 0, 'all stream events must stay on their own connection')
+      assert.deepEqual(data.errors, [], `${job.file} inspection must complete without a tool or provider error`)
+      assert.ok(data.tools.includes('read'), `${job.file} inspection must really use the read tool`)
       return { id: job.id, ...data, text: result.text }
     })
     const starts = jobs.map(job => caseEvents(job.id, since).find(event => event.type === 'start')?.time)
@@ -248,7 +292,7 @@ try {
     const firstMarker = `FIRST_${crypto.randomUUID()}`
     const nextMarker = `NEXT_${crypto.randomUUID()}`
     const firstPromise = bounded(chat.send(options(id,
-      `只读取 src/main.tsx 和 desktop/main.cjs 各前80行，用两句话解释各自作用。只读，末尾写 ${firstMarker}。`)), 'queued first turn')
+      `只读取 src/main.tsx 和 backend/shell/run.mjs 各前80行，用两句话解释各自作用。只读，末尾写 ${firstMarker}。`)), 'queued first turn')
     // Attach a rejection handler before waiting for stream activity.
     firstPromise.catch(() => {})
     await waitFor(() => caseEvents(id, since).some(event => ['activity', 'thinking_delta', 'tool'].includes(event.type)) && chat.isBusy(id), 'first turn activity')
@@ -273,7 +317,9 @@ try {
       report.observations.push({ severity: 'warning', case: 'queued-follow-up-preserves-both-turns',
         message: 'Backend emits done for the first turn while a queued turn is still running, without a continuation flag. Native answers are retained, but consumers treating every done as session completion can clear UI running state early.' })
     }
-    return { ...metrics(id, since), accepted, completedTurns: completed.map(event => ({ text: event.full, turnId: event.turnId, busyAtEmission: event.busyAtEmission, continuing: event.continuing ?? null })) }
+    const data = metrics(id, since)
+    assert.deepEqual(data.errors, [], 'both queued turns must finish without tool or provider errors')
+    return { ...data, accepted, completedTurns: completed.map(event => ({ text: event.full, turnId: event.turnId, busyAtEmission: event.busyAtEmission, continuing: event.continuing ?? null })) }
   })
   }
   }
@@ -295,6 +341,7 @@ try {
       for (const file of ['.credentials.yaml', 'settings.yaml']) {
         await fs.unlink(path.join(reportDir, 'dsh', file)).catch(error => { if (error.code !== 'ENOENT') throw error })
       }
+      await fs.unlink(path.join(reportDir, 'opencodex')).catch(error => { if (error.code !== 'ENOENT') throw error })
       await fs.writeFile(path.join(reportDir, 'report.json'), JSON.stringify(report, null, 2))
     }
   }

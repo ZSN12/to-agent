@@ -35,10 +35,13 @@ export function createSemanticSearchSettingsService({ getDirectory }) {
       const info = credentialData.credentials?.[ref]
       return [provider, { configured: info?.configured === true, writable: info?.writable !== false, source: info?.source ?? null }]
     }))
+    const cloudConfigured = credentials[embeddingProvider].configured
     return {
       embeddingProvider,
       credentials,
-      enabled: credentials[embeddingProvider].configured,
+      enabled: cloudConfigured,
+      builtinLocalAvailable: true,
+      searchMode: cloudConfigured ? 'cloud-vector' : 'builtin-local',
       settingsAvailable: Boolean(namespace),
       settingsWritable: Boolean(settingsData.writable && namespace?.applies === 'live'),
     }

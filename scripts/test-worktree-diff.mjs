@@ -185,6 +185,20 @@ try {
   assert.equal(removedClean.removed, true)
   await assert.rejects(fs.stat(cleanWorktree), { code: 'ENOENT' })
 
+  // Merge reads must reject a worktree symlink instead of copying its target
+  // from outside the repository into the main checkout.
+  const { path: symlinkWorktree } = await createTaskWorktree(wt('T9'))
+  const outsideSentinel = path.join(base, `outside-${randomUUID()}.txt`)
+  await fs.writeFile(outsideSentinel, 'synthetic external data\n', 'utf8')
+  await fs.symlink(outsideSentinel, path.join(symlinkWorktree, 'external-link.txt'))
+  const symlinkPreview = await previewTaskWorktreeMerge(wt('T9'))
+  assert.equal(symlinkPreview.canApply, false, 'worktree symlinks must block merge preview')
+  assert.match(symlinkPreview.reason, /符号链接或特殊文件/)
+  await assert.rejects(applyTaskWorktreeMerge(wt('T9')), /符号链接或特殊文件/)
+  assert.equal(await fs.readFile(outsideSentinel, 'utf8'), 'synthetic external data\n')
+  await assert.rejects(fs.readFile(path.join(repo, 'external-link.txt'), 'utf8'), { code: 'ENOENT' })
+  await fs.rm(outsideSentinel, { force: true })
+
   const legacyPath = resolveTaskWorktreeDir(userData, repo, conversationId, 'OLD')
   await fs.mkdir(path.dirname(legacyPath), { recursive: true })
   await runGit(['worktree', 'add', '--detach', legacyPath, 'HEAD'], repo)
@@ -215,6 +229,70 @@ try {
       const { stdout } = await execFileAsync('git', ['rev-parse', 'HEAD'], { cwd: branchRepo })
       return stdout.trim()
     })()
+
+    const realGit = (await execFileAsync('which', ['git'])).stdout.trim()
+    const gitShimDir = await fs.mkdtemp(path.join(base, 'git-shim-'))
+    const gitShimPath = path.join(gitShimDir, 'git')
+    const gitStartedPath = path.join(gitShimDir, 'worktree-add-started')
+    await fs.writeFile(gitShimPath, [
+      '#!/bin/sh',
+      'if [ "$1" = "worktree" ] && [ "$2" = "add" ]; then',
+      '  : > "$TASKWEAVER_TEST_GIT_STARTED"',
+      '  sleep 30',
+      '  exit 1',
+      'fi',
+      'exec "$TASKWEAVER_TEST_REAL_GIT" "$@"',
+      '',
+    ].join('\n'), 'utf8')
+    await fs.chmod(gitShimPath, 0o755)
+    const oldPath = process.env.PATH
+    const oldRealGit = process.env.TASKWEAVER_TEST_REAL_GIT
+    const oldGitStarted = process.env.TASKWEAVER_TEST_GIT_STARTED
+    const abortController = new AbortController()
+    try {
+      process.env.PATH = `${gitShimDir}${path.delimiter}${oldPath ?? ''}`
+      process.env.TASKWEAVER_TEST_REAL_GIT = realGit
+      process.env.TASKWEAVER_TEST_GIT_STARTED = gitStartedPath
+      const cancelledWorktreeRunId = randomUUID()
+      const cancelledTarget = resolveTaskWorktreeDir(
+        branchData, branchRepo, branchConversationId, 'T9', cancelledWorktreeRunId,
+      )
+      const pendingCreation = createNodeWorktree({
+        workspacePath: branchRepo,
+        conversationId: branchConversationId,
+        runId: cancelledWorktreeRunId,
+        taskId: 'T9',
+        userDataPath: branchData,
+        baseCommit,
+        signal: abortController.signal,
+      })
+      const markerDeadline = Date.now() + 3000
+      let gitStarted = false
+      while (!gitStarted && Date.now() < markerDeadline) {
+        try {
+          await fs.access(gitStartedPath)
+          gitStarted = true
+        } catch { /* wait until the shim launches */ }
+        if (gitStarted) break
+        await new Promise((resolve) => setTimeout(resolve, 10))
+      }
+      assert.ok(gitStarted, 'the worktree add subprocess should start before cancellation')
+      abortController.abort()
+      await assert.rejects(pendingCreation, (error) => error.name === 'AbortError' || error.code === 'ABORT_ERR')
+      await assert.rejects(fs.stat(cancelledTarget), { code: 'ENOENT' }, 'a cancelled worktree add must remove its partial directory')
+      const cancelledBranch = `tw/${cancelledWorktreeRunId}/T9`
+      const branchProbe = await execFileAsync(realGit, ['branch', '--list', cancelledBranch], { cwd: branchRepo })
+      assert.equal(branchProbe.stdout.trim(), '', 'a cancelled worktree add must remove its partial branch')
+    } finally {
+      if (oldPath === undefined) delete process.env.PATH
+      else process.env.PATH = oldPath
+      if (oldRealGit === undefined) delete process.env.TASKWEAVER_TEST_REAL_GIT
+      else process.env.TASKWEAVER_TEST_REAL_GIT = oldRealGit
+      if (oldGitStarted === undefined) delete process.env.TASKWEAVER_TEST_GIT_STARTED
+      else process.env.TASKWEAVER_TEST_GIT_STARTED = oldGitStarted
+      await fs.rm(gitShimDir, { recursive: true, force: true })
+    }
+
     const registry = createNodeWorkspaceRegistry({
       enabled: true,
       workspacePath: branchRepo,
@@ -265,6 +343,35 @@ try {
     })
     assert.notEqual(freshWorktree.path, t1.path, 'same conversation/task in a later run gets a distinct directory')
     await assert.rejects(fs.readFile(path.join(freshWorktree.path, 'a.txt'), 'utf8'), { code: 'ENOENT' }, 'later run starts from its own run baseline')
+
+    const resumableRunId = randomUUID()
+    const resumedTask = { id: 'T-resume', taskType: 'implementation', dependsOn: [] }
+    const interruptedWorktree = await createNodeWorktree({
+      workspacePath: branchRepo,
+      conversationId: branchConversationId,
+      runId: resumableRunId,
+      taskId: resumedTask.id,
+      userDataPath: branchData,
+      baseCommit,
+    })
+    await fs.writeFile(path.join(interruptedWorktree.path, 'partial-resume.txt'), 'preserve this edit\n', 'utf8')
+    const continuationRunId = randomUUID()
+    const continuationRegistry = createNodeWorkspaceRegistry({
+      enabled: true,
+      workspacePath: branchRepo,
+      conversationId: branchConversationId,
+      runId: continuationRunId,
+      userDataPath: branchData,
+      baseCommit,
+      tasks: [resumedTask],
+      resumeTaskRunIds: new Map([[resumedTask.id, resumableRunId]]),
+    })
+    const continuedWorktree = await continuationRegistry.create(resumedTask)
+    assert.equal(continuedWorktree.path, interruptedWorktree.path, 'checkpoint resume reconnects to the interrupted node worktree')
+    assert.equal(continuedWorktree.resumedFromCheckpoint, true)
+    assert.equal(await fs.readFile(path.join(continuedWorktree.path, 'partial-resume.txt'), 'utf8'), 'preserve this edit\n')
+    const resumedCommit = await continuationRegistry.commit(resumedTask)
+    assert.equal(resumedCommit.branchName, `tw/${resumableRunId}/${resumedTask.id}`, 'resumed work remains on the original node branch')
 
     const failedAttempt = await createNodeWorktree({
       workspacePath: branchRepo,
@@ -339,7 +446,7 @@ try {
     await fs.rm(branchRepo, { recursive: true, force: true })
   }
 
-  console.log('worktree-diff + DAG branches passed: run-scoped paths, branch-chain visibility, integration preview, retry reset evidence, and conflict guards')
+  console.log('worktree-diff + DAG branches passed: run-scoped paths, branch-chain visibility, integration preview, retry reset evidence, conflict guards, and cancellation cleanup')
 } finally {
   await fs.rm(userData, { recursive: true, force: true })
   await fs.rm(repo, { recursive: true, force: true })

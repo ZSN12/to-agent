@@ -9,8 +9,11 @@ import { fileURLToPath } from 'node:url'
  * - register-ipc: IPC registration only (no direct transcript writes).
  * - message-factory/chat-turn-pipeline: createUserMessage append.
  * - chat-turn-persistence: native terminal result and failure (same turn ids).
- * - app-state-store -> thread-store -> json-store: durable UI JSON cache;
- *   legacy taskweaver-app-state.json is read/migrated, fork copies UI messages.
+ * - chat-turn-pipeline verification loop: merges verification evidence onto the
+ *   final repair turn's z-turn id; upsert merges with the native write in either order.
+ * - app-state-store -> thread-store -> SQLite: durable UI summary/body store;
+ *   legacy taskweaver-app-state.json and taskweaver-threads.json are read/migrated,
+ *   fork copies UI messages.
  *   This cache contains UI-only/error facts too: it is not wholly rebuildable.
  * - dsh-chat/chat-send + model-config: three sessions.prompt admissions
  *   (permission command, active queue/steer, fresh turn). Host owns events.
@@ -37,18 +40,18 @@ const registry = [
   ['backend/message-factory.mjs', 'appendMessagesToConversation:conversationId,userEntry', 1, 'createUserMessage via chat-turn-pipeline'],
   ['backend/scheduled-job-run.mjs', 'appendMessagesToConversation:conversationId,{', 1, 'scheduled jobs failure append'],
   ['backend/chat-turn-pipeline.mjs', 'upsertMessagesToConversation:conversationId,agentEntry', 1, 'IPC assistant projection via chat-turn-pipeline'],
-  ['backend/chat-turn-pipeline.mjs', 'upsertMessagesToConversation:conversationId,{', 1, 'handleChatError error patch upsert'],
+  ['backend/chat-turn-pipeline.mjs', 'upsertMessagesToConversation:conversationId,{', 2, 'handleChatError error patch upsert; verification evidence merged onto the final repair turn (same z-turn id as native persistence)'],
   ['backend/chat-turn-pipeline.mjs', 'appendMessagesToConversation:conversationId,{', 1, 'handleChatError fallback error message'],
   ['backend/chat-turn-persistence.mjs', 'upsertMessagesToConversation:conversationId,{', 1, 'native terminal projection + error share one upsert'],
   ['backend/dsh-chat/chat-send.mjs', 'sessions.prompt:{sessionId:', 2, 'Host prompt admission (queue + turn)'],
   ['backend/dsh-chat/model-config.mjs', 'sessions.prompt:{sessionId:', 1, 'permission-mode command prompt'],
-  ['backend/thread-store.mjs', 'store.update:async(current', 2, 'thread json-store.update (transact + updateCurrent)'],
   ['backend/json-store.mjs', 'writeFile:temporaryPath,<string>', 1, 'shared atomic JSON sink'],
   ['backend/app-state-store.mjs', 'setCurrent:{messages}', 1, 'replace UI messages'],
   ['backend/app-state-store.mjs', 'updateCurrent:(thread)', 2, 'messages + unrelated output logs'],
   ['backend/app-state-store.mjs', 'updateConversation:conversationId,(', 3, 'append/upsert + output logs'],
   ['backend/app-state-store.mjs', 'updateConversation:conversationId,{', 1, 'task metadata patch'],
-  ['backend/thread-store.mjs', 'fact-store:taskweaver-threads.json', 1, 'UI cache store'],
+  ['backend/thread-store-sqlite.mjs', 'fact-path:taskweaver-threads.sqlite', 1, 'transactional UI thread database'],
+  ['backend/thread-store-sqlite.mjs', 'sqlite-open:filePath', 1, 'single SQLite database connection per store instance'],
   ['backend/app-state-store.mjs', 'fact-store:taskweaver-app-state.json', 1, 'legacy migration input'],
   ['backend/orchestration/trace-store.mjs', 'appendFile:path.join', 1, 'DAG run-scoped trace.jsonl (metadata only, not chat transcript)'],
 ]
@@ -68,7 +71,7 @@ function tokens(source) {
 
 const messageMethods = new Set(['setMessages', 'appendMessages', 'appendMessagesToConversation', 'upsertMessagesToConversation', 'appendMessage', 'appendTurn', 'saveHistory', 'writeHistory', 'saveConversation'])
 const diskMethods = new Set(['writeFile', 'writeFileSync', 'appendFile', 'appendFileSync', 'createWriteStream'])
-const factPath = /(?:taskweaver-(?:threads|app-state)\.json|\.jsonl(?:$|[.'"`])|history\.json)/
+const factPath = /(?:taskweaver-(?:threads|app-state)\.(?:json|sqlite)|\.jsonl(?:$|[.'"`])|history\.json)/
 
 function sites(source, file) {
   const ts = tokens(source)
@@ -90,6 +93,11 @@ function sites(source, file) {
     if (member && messageMethods.has(method)) key = `${method}:${prefix}`
     else if (member && receiver === 'sessions' && method === 'prompt') key = `sessions.prompt:${prefix}`
     else if (member && receiver === 'sessionPersistence' && ['append', 'save', 'create'].includes(method)) key = `sessionPersistence.${method}:${prefix}`
+    else if (!member && method === 'DatabaseSync') key = `sqlite-open:${prefix.replace(/\)+$/, '')}`
+    else if (member && receiver === 'path' && method === 'join') {
+      const literal = args.find((item) => item.string && item.value === "'taskweaver-threads.sqlite'")
+      if (literal) key = `fact-path:${literal.value.slice(1, -1)}`
+    }
     else if (member && ['setCurrent', 'updateCurrent', 'updateConversation'].includes(method) && receiver === 'threadStore') {
       if (method !== 'setCurrent' || args.some((item) => item.value === 'messages')) key = `${method}:${prefix}`
     } else if (member && receiver === 'store' && method === 'update' && file.endsWith('/thread-store.mjs')) key = `store.update:${prefix}`

@@ -3,6 +3,7 @@ import { ChevronDown, Database, GitBranch, RefreshCw, RotateCcw, Save, Shield } 
 import type { BashSandboxPreference, RoutingPortfolio, SandboxProbeResult, WorktreeEntry } from '../../shared/app-api'
 import { WorktreeMergeActions } from '../worktree/WorktreeMergeActions'
 import { RoutingPortfolioForm } from './RoutingPortfolioForm'
+import { SettingsLayout, SettingsSegmented, SettingsSwitch } from '../settings/SettingsLayout'
 
 function getPortfolioApi() {
   return window.taskweaver?.portfolio ?? null
@@ -41,28 +42,6 @@ function validatePortfolioFormShape(value: Record<string, unknown>): string | nu
     if (policyError) return policyError
   }
   return null
-}
-
-function SettingToggle({
-  checked,
-  onChange,
-  label,
-  hint,
-}: {
-  checked: boolean
-  onChange: (next: boolean) => void
-  label: string
-  hint?: string
-}) {
-  return (
-    <label className="routing-setting-row">
-      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
-      <span className="routing-setting-row-text">
-        <span className="routing-setting-row-label">{label}</span>
-        {hint ? <span className="routing-setting-row-hint">{hint}</span> : null}
-      </span>
-    </label>
-  )
 }
 
 export function RoutingPortfolioSettingsPanel({
@@ -281,30 +260,27 @@ export function RoutingPortfolioSettingsPanel({
   const hasMemory = memorySummary.trim().length > 0
 
   return (
-    <section className="model-settings routing-portfolio-settings">
-      <div className="model-settings-header">
-        <div>
-          <h2>路由与扩展</h2>
-          <p className="mcp-settings-lead">
-            主对话模型在 Composer 里由你选定。此处配置多智能体 DAG 的<strong>子任务路由</strong>（能力、订阅、配额）以及执行相关的扩展能力。
-          </p>
-        </div>
-        <div className="model-settings-header-actions">
+    <SettingsLayout
+      title="路由与扩展"
+      description={<span className="mcp-settings-lead">主对话模型在模型选择器中指定。此处配置多智能体任务的<strong>子任务路由</strong>（能力、订阅、配额）以及执行相关的扩展能力。</span>}
+      className="model-settings routing-portfolio-settings"
+      actionsClassName="model-settings-header-actions"
+      actions={
           <button type="button" className="settings-secondary-button" disabled={loading} onClick={() => { void load() }}>
             <RefreshCw size={14} className={loading ? 'spinning' : ''} />
             刷新
           </button>
-        </div>
-      </div>
-
+      }
+    >
       <div className="routing-settings-grid">
         <article className="routing-settings-card routing-settings-card-wide routing-settings-card-execution">
           <h3>执行与 Git</h3>
           <p className="routing-card-desc">多 Agent 编排运行时的检查点与子任务失败策略。</p>
-          <SettingToggle
+          <SettingsSwitch
+            className="routing-setting-row"
             checked={autoSnapshotOnTurn}
             label="每轮发送前创建 Git 检查点"
-            hint="非 Git 仓库时自动跳过"
+            description="非 Git 仓库时自动跳过"
             onChange={(enabled) => {
               void window.taskweaver?.preferences?.set({ autoSnapshotOnTurn: enabled }).then((res) => {
                 if (res?.ok) {
@@ -371,23 +347,22 @@ export function RoutingPortfolioSettingsPanel({
             <span className="routing-field-hint">1–12 个节点，默认 6；较高上限会增加单次任务的规划与执行量</span>
           </div>
           <div className="routing-field-inline routing-field-select">
-            <label>
-              <span>DAG 计划审批</span>
-              <select
-                value={dagPlanApproval}
-                onChange={(event) => {
-                  const value = event.target.value as 'always' | 'write-only' | 'never'
-                  setDagPlanApproval(value)
-                  void window.taskweaver?.preferences?.set({ dagPlanApproval: value }).then((res) => {
-                    if (res?.ok) onToast('已更新 DAG 计划审批策略')
-                  })
-                }}
-              >
-                <option value="write-only">仅含写入节点时审批（推荐）</option>
-                <option value="always">所有计划都审批</option>
-                <option value="never">从不审批</option>
-              </select>
-            </label>
+            <span className="routing-field-label">DAG 计划审批</span>
+            <SettingsSegmented<'always' | 'write-only' | 'never'>
+              label="DAG 计划审批"
+              value={dagPlanApproval}
+              options={[
+                { value: 'write-only', label: '仅写入时', description: '仅包含写入节点的计划需要审批，推荐' },
+                { value: 'always', label: '每次审批', description: '所有计划都需要审批' },
+                { value: 'never', label: '不审批', description: '计划生成后直接执行' },
+              ]}
+              onChange={(value) => {
+                setDagPlanApproval(value)
+                void window.taskweaver?.preferences?.set({ dagPlanApproval: value }).then((res) => {
+                  if (res?.ok) onToast('已更新 DAG 计划审批策略')
+                })
+              }}
+            />
           </div>
           <div className="routing-field-inline routing-field-toggle">
             <label>
@@ -520,16 +495,18 @@ export function RoutingPortfolioSettingsPanel({
           <h3>工具与隔离</h3>
           <p className="routing-card-desc">影响 Agent 可用工具与文件/Bash 执行环境。</p>
           <div className="routing-toggles-stack">
-            <SettingToggle
+            <SettingsSwitch
+              className="routing-setting-row"
               checked={webSearchEnabled}
               label="Web 搜索（web_search）"
-              hint="DuckDuckGo 摘要；默认关闭，启用后联网需批准"
+              description="DuckDuckGo 摘要；默认关闭，启用后联网需批准"
               onChange={(v) => { void toggleWebSearch(v) }}
             />
-            <SettingToggle
+            <SettingsSwitch
+              className="routing-setting-row"
               checked={worktreeIsolation}
               label="Worktree 隔离（实现 / 测试 / 审查子任务）"
-              hint="启用且 Git 工作区干净时，实现节点可安全并行；测试和审查会继承上游分支，结束后生成可预览的集成分支，不会自动合并"
+              description="启用且 Git 工作区干净时，实现节点可安全并行；测试和审查会继承上游分支，结束后生成可预览的集成分支，不会自动合并"
               onChange={(v) => { void toggleWorktree(v) }}
             />
           </div>
@@ -726,6 +703,6 @@ export function RoutingPortfolioSettingsPanel({
           </>
         )}
       </div>
-    </section>
+    </SettingsLayout>
   )
 }

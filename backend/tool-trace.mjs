@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { compactToolOutput, COMPACTION_LIMITS } from './context-compactor.mjs'
+import { compactToolOutput, COMPACTION_LIMITS, resolveModelCompactionLimits } from './context-compactor.mjs'
 
 /** Identifies a created file's exact contents so revert can refuse a later edit. */
 function createdContentSha256(content) {
@@ -7,9 +7,13 @@ function createdContentSha256(content) {
 }
 
 function toolOutputLimit(options) {
-  return Number.isFinite(options?.maxChars) && options.maxChars > 0
-    ? Math.floor(options.maxChars)
-    : COMPACTION_LIMITS.MAX_TOOL_OUTPUT_CHARS
+  if (Number.isFinite(options?.maxChars) && options.maxChars > 0) {
+    return Math.floor(options.maxChars)
+  }
+  if (options?.contextWindow) {
+    return resolveModelCompactionLimits(options.contextWindow).maxChars
+  }
+  return COMPACTION_LIMITS.MAX_TOOL_OUTPUT_CHARS
 }
 
 export function redactToolOutput(text) {
@@ -88,7 +92,9 @@ export function summarizeShellCommandOutcome(toolName, args, outputText, isError
 // Z messages wrap model-facing blocks in tool-result; older adapters return
 // flat blocks. Normalize only this known wrapper, without interpreting text.
 export function normalizeToolResult(result, options = {}) {
+  const modelLimits = options.contextWindow ? resolveModelCompactionLimits(options.contextWindow) : null
   const maxChars = toolOutputLimit(options)
+  const maxLines = options.maxLines ?? modelLimits?.maxLines ?? COMPACTION_LIMITS.MAX_TOOL_OUTPUT_LINES
   const content = []
   let isError = Boolean(result?.isError)
   let details = result?.details
@@ -101,14 +107,15 @@ export function normalizeToolResult(result, options = {}) {
       } else if (block?.type === 'text' && typeof block.text === 'string') {
         const lineCount = block.text.split('\n').length
         const overBudget = block.text.length > maxChars
-          || lineCount > COMPACTION_LIMITS.MAX_TOOL_OUTPUT_LINES
+          || lineCount > maxLines
         if (!overBudget) {
           content.push(block)
           continue
         }
         const compacted = compactToolOutput(block.text, {
+          contextWindow: options.contextWindow,
           maxChars,
-          maxLines: COMPACTION_LIMITS.MAX_TOOL_OUTPUT_LINES,
+          maxLines,
         })
         content.push({
           ...block,

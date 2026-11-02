@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "TaskWeaverContract",
   "version": "1.0.0",
-  "generatedAt": "2026-10-16T09:50:07.441Z",
+  "generatedAt": "2026-11-02T15:59:28.736Z",
   "channels": [
     {
       "name": "backend:ready",
@@ -247,6 +247,17 @@
       }
     },
     {
+      "name": "bridge:saveAntigravityOAuthCredentials",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "models.bridgeSaveAntigravityOAuthCredentials",
+      "handlerModule": "backend/ipc/register-models-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/model-api",
+        "interface": "TaskweaverModelsApi",
+        "method": "bridgeSaveAntigravityOAuthCredentials"
+      }
+    },
+    {
       "name": "models:add",
       "direction": "renderer-to-main/invoke",
       "bridgePath": "models.add",
@@ -299,17 +310,6 @@
         "module": "./types/model-api",
         "interface": "TaskweaverModelsApi",
         "method": "discoverProviderModels"
-      }
-    },
-    {
-      "name": "models:getBusyEnterMode",
-      "direction": "renderer-to-main/invoke",
-      "bridgePath": "models.getBusyEnterMode",
-      "handlerModule": "backend/ipc/register-models-ipc.mjs",
-      "typeInfo": {
-        "module": "./types/model-api",
-        "interface": "TaskweaverModelsApi",
-        "method": "getBusyEnterMode"
       }
     },
     {
@@ -508,17 +508,6 @@
         "module": "./types/model-api",
         "interface": "TaskweaverModelsApi",
         "method": "setActive"
-      }
-    },
-    {
-      "name": "models:setBusyEnterMode",
-      "direction": "renderer-to-main/invoke",
-      "bridgePath": "models.setBusyEnterMode",
-      "handlerModule": "backend/ipc/register-models-ipc.mjs",
-      "typeInfo": {
-        "module": "./types/model-api",
-        "interface": "TaskweaverModelsApi",
-        "method": "setBusyEnterMode"
       }
     },
     {
@@ -728,6 +717,17 @@
         "module": "./types/app-api",
         "interface": "TaskweaverChatApi",
         "method": "cancel"
+      }
+    },
+    {
+      "name": "chat:classifyOrchestration",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "chat.classifyOrchestration",
+      "handlerModule": "backend/ipc/register-chat-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverChatApi",
+        "method": "classifyOrchestration"
       }
     },
     {
@@ -1039,6 +1039,17 @@
       }
     },
     {
+      "name": "chat:sendAsRoles",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "chat.sendAsRoles",
+      "handlerModule": "backend/ipc/register-chat-send-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverChatApi",
+        "method": "sendAsRoles"
+      }
+    },
+    {
       "name": "chat:steer",
       "direction": "renderer-to-main/invoke",
       "bridgePath": "chat.steer",
@@ -1047,6 +1058,39 @@
         "module": "./types/app-api",
         "interface": "TaskweaverChatApi",
         "method": "steer"
+      }
+    },
+    {
+      "name": "roles:list",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "roles.list",
+      "handlerModule": "backend/ipc/register-roles-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverRolesApi",
+        "method": "list"
+      }
+    },
+    {
+      "name": "roles:remove",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "roles.remove",
+      "handlerModule": "backend/ipc/register-roles-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverRolesApi",
+        "method": "remove"
+      }
+    },
+    {
+      "name": "roles:upsert",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "roles.upsert",
+      "handlerModule": "backend/ipc/register-roles-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverRolesApi",
+        "method": "upsert"
       }
     },
     {
@@ -1622,6 +1666,17 @@
       }
     },
     {
+      "name": "workspace:createGitBranch",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "workspace.createGitBranch",
+      "handlerModule": "backend/register-workspace-git-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverWorkspaceApi",
+        "method": "createGitBranch"
+      }
+    },
+    {
       "name": "workspace:createManualGitCommit",
       "direction": "renderer-to-main/invoke",
       "bridgePath": "workspace.createManualGitCommit",
@@ -1677,6 +1732,17 @@
       }
     },
     {
+      "name": "workspace:listGitBranches",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "workspace.listGitBranches",
+      "handlerModule": "backend/register-workspace-git-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverWorkspaceApi",
+        "method": "listGitBranches"
+      }
+    },
+    {
       "name": "workspace:listGitCheckpoints",
       "direction": "renderer-to-main/invoke",
       "bridgePath": "workspace.listGitCheckpoints",
@@ -1729,6 +1795,17 @@
         "module": "./types/app-api",
         "interface": "TaskweaverWorkspaceApi",
         "method": "revertDiff"
+      }
+    },
+    {
+      "name": "workspace:switchGitBranch",
+      "direction": "renderer-to-main/invoke",
+      "bridgePath": "workspace.switchGitBranch",
+      "handlerModule": "backend/register-workspace-git-ipc.mjs",
+      "typeInfo": {
+        "module": "./types/app-api",
+        "interface": "TaskweaverWorkspaceApi",
+        "method": "switchGitBranch"
       }
     },
     {

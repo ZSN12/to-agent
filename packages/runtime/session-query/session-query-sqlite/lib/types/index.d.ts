@@ -103,6 +103,7 @@ export declare class SqliteSessionQueryEngine extends SessionQueryEngine {
     private _deleteSession;
     private _replacePersistedSession;
     private _replaceLiveSession;
+    private _syncSearchDocuments;
     private _querySessions;
     private _queryEvents;
     private _targetObservation;

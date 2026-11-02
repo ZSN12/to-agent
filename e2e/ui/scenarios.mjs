@@ -36,16 +36,16 @@ export const scenarios = {
     assert.ok(!events.some((row) => row.event.startsWith('live-discovery:')),
       'startup must not run provider live discovery')
 
-    const readyToShow = events.find((row) => row.event === 'window:ready-to-show')
+    const firstVisibleUi = events.find((row) => row.event === 'ui:page-visible')
     const firstBundle = bundleEnds[0]
-    assert.ok(readyToShow, 'startup trace should include the first visible window')
+    assert.ok(firstVisibleUi, 'startup trace should include the first visible UI page')
     assert.ok(firstBundle, 'startup trace should include the first model bundle')
     const hasFastSnapshot = events.some((row) => row.event === 'models:catalog-cache-hit'
       || row.event === 'models:catalog-snapshot-hit')
     assert.ok(hasFastSnapshot, 'first screen should have a cached or bundled model catalog')
-    const readyToBundleMs = Math.max(0, firstBundle.elapsedMs - readyToShow.elapsedMs)
+    const readyToBundleMs = Math.max(0, firstBundle.sinceT0Ms - firstVisibleUi.sinceT0Ms)
     assert.ok(readyToBundleMs < 1_000,
-      `cached first model bundle should be available within 1s after first window display (got ${readyToBundleMs.toFixed(1)}ms)`)
+      `cached first model bundle should be available within 1s after first UI display (got ${readyToBundleMs.toFixed(1)}ms)`)
   },
 
   async 'new-session'(session) {
@@ -67,10 +67,12 @@ export const scenarios = {
   },
 
   async approval(session) {
+    await session.click({ testId: 'permission-mode-trigger' })
+    await session.click({ testId: 'permission-mode-option-ask' })
     await session.fill(composer, UI_VERIFY_APPROVAL_FIXTURE)
     await session.click({ testId: 'send-message' })
     await session.expectVisible({ testId: 'approval-panel' })
-    await session.expectText({ testId: 'approval-panel' }, 'printf UI_VERIFY_APPROVAL_OK')
+    await session.expectText({ testId: 'approval-panel-detail' }, 'UI verification writes one temporary marker')
     await session.click({ testId: 'approval-allow-once' })
     await session.waitFor({ testId: 'approval-panel' }, 'hidden')
     await session.expectText(messageList, 'UI_VERIFY_APPROVAL_OK')
@@ -80,8 +82,25 @@ export const scenarios = {
     await session.click({ testId: 'open-settings' })
     await session.expectVisible({ testId: 'settings-page' })
     await session.click({ role: 'button', name: '外观' })
+    await session.expectVisible({ role: 'heading', name: '外观' })
     await session.click({ role: 'button', name: '深色主题' })
     await session.expectText({ testId: 'settings-page' }, '已切换为深色模式')
+    await session.screenshot('settings-dark')
+    const search = { role: 'searchbox', name: '搜索设置' }
+    await session.fill(search, '路由')
+    await session.click({ role: 'button', name: '路由与扩展' })
+    await session.expectVisible({ role: 'heading', name: '路由与扩展' })
+    await session.screenshot('routing-dark')
+
+    await session.fill(search, '')
+    await session.click({ role: 'button', name: '外观' })
+    await session.click({ role: 'button', name: '浅色主题' })
+    await session.expectText({ testId: 'settings-page' }, '已切换为浅色模式')
+    await session.screenshot('settings-light')
+    await session.fill(search, '路由')
+    await session.click({ role: 'button', name: '路由与扩展' })
+    await session.expectVisible({ role: 'heading', name: '路由与扩展' })
+    await session.screenshot('routing-light')
   },
 }
 

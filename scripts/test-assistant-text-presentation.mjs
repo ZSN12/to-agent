@@ -6,7 +6,8 @@ const result = await build({
   stdin: {
     contents: `export { isStructuredThinkingBlock } from './src/features/chat/reasoning-heuristics'
 export { splitMarkdownStableBlocks } from './src/features/chat/markdown-stream-blocks'
-export { highlightCode } from './src/features/chat/highlight-code'`,
+export { highlightCode } from './src/features/chat/highlight-code'
+export { filterDshAssistantToolCalls } from './src/features/chat/dshAssistantToolGroups'`,
     resolveDir: process.cwd(),
     loader: 'ts',
   },
@@ -58,8 +59,28 @@ assert.ok(highlighted.some((token) => token.kind === 'keyword' && token.text ===
 assert.ok(highlighted.some((token) => token.kind === 'string' && token.text === '\"ok\"'))
 assert.ok(highlighted.some((token) => token.kind === 'comment' && token.text === '// keep'))
 
+const callsAcrossSteps = [
+  { callId: 'weather-lookup', toolName: 'bash', step: 1 },
+  { callId: 'retry', toolName: 'pwsh', step: 3 },
+  { callId: 'read-config', toolName: 'read', step: 2 },
+]
+assert.deepEqual(
+  presentation.filterDshAssistantToolCalls(callsAcrossSteps, { steps: [1, 2] }).map((call) => call.callId),
+  ['weather-lookup', 'read-config'],
+  'one tool group collects different tool types across adjacent assistant steps',
+)
+assert.deepEqual(
+  presentation.filterDshAssistantToolCalls(callsAcrossSteps, { step: 2 }).map((call) => call.callId),
+  ['read-config'],
+  'tool calls can still be scoped to one step after a visible assistant response',
+)
+
 const body = await readFile('src/features/chat/AssistantTurnBody.tsx', 'utf8')
 assert.match(body, /isStructuredThinkingBlock\(seg\)/, 'assistant renderer must use structured block type')
+assert.match(body, /filterSteps: pendingToolSteps/,
+  'consecutive tool calls across multiple steps must share one visible batch')
+assert.match(body, /flushPendingToolGroup\(\)\s*items\.push\(\{ kind: 'text'/,
+  'visible assistant text must separate consecutive tool-call groups')
 assert.doesNotMatch(body, /shouldPresentTextAsThinking/, 'prose heuristics must not reclassify assistant text')
 
 const markdown = await readFile('src/features/chat/AgentMessageMarkdown.tsx', 'utf8')

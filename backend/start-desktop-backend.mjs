@@ -1,12 +1,11 @@
 import { registerIpc } from './register-ipc.mjs'
 import { createShellPlatform } from './platform/shell-platform.mjs'
 import { startShellHttpServer } from './shell/http-server.mjs'
-import { isShellBackend } from './platform/runtime-mode.mjs'
 import { createBackendStartup } from './startup.mjs'
 
 /**
  * TaskWeaver desktop backend (Node). Used by Swift/WebView2 shell, headless CLI, and scheduled jobs.
- * UI connects via Shell HTTP when {@link isShellBackend} is set.
+ * UI connects through the Shell HTTP bridge.
  */
 export async function startDesktopBackend({
   host = process.env.TASKWEAVER_SHELL_HOST || '127.0.0.1',

@@ -5,6 +5,7 @@ import {
   formatDshCatalogTokens,
   formatTokensFull,
 } from './session-usage'
+import { displayModelRoute } from '../roles/model-route-label'
 
 function cacheHitLabel(cacheRead: number, billed: number): string | null {
   if (billed <= 0) return null
@@ -89,7 +90,7 @@ export function MessageTurnUsageChip({
             {modelKey ? (
               <div className="message-turn-usage-row">
                 <span>提供方 / 模型</span>
-                <span>{modelKey}</span>
+                <span>{displayModelRoute(modelKey)}</span>
               </div>
             ) : null}
             {hit !== null && (

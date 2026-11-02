@@ -167,6 +167,20 @@ export class FakeApiClient implements IApiClient {
     describe: (payload: unknown) => this.record('host.describe', payload, this.onDescribe(payload)),
     pickDirectory: (payload: unknown) => this.record('host.pickDirectory', payload, this.onPickDirectory(payload)),
     openPath: (payload: unknown) => this.record('host.openPath', payload, this.onOpenPath(payload)),
+    searchWeb: (payload: unknown) => this.record('host.searchWeb', payload, Promise.resolve(ok({ sources: [], truncated: false }))),
+  }
+
+  readonly mcp: IApiClient['mcp'] = {
+    list: (payload: unknown) => this.record('mcp.list', payload, Promise.resolve(ok({ tools: [] }))),
+    call: (payload: unknown) => this.record('mcp.call', payload, Promise.resolve(ok({ isError: false, content: [] }))),
+  }
+
+  readonly authorization: IApiClient['authorization'] = {
+    list: (payload: unknown) => this.record('authorization.list', payload, Promise.resolve(ok({ flows: [] }))),
+    begin: (payload: unknown) => this.record('authorization.begin', payload, Promise.resolve(ok({ status: 'cancelled' as const }))),
+    cancel: (payload: unknown) => this.record('authorization.cancel', payload, Promise.resolve(ok({ cancelled: false }))),
+    answer: (payload: unknown) => this.record('authorization.answer', payload, Promise.resolve(ok({ accepted: false }))),
+    logout: (payload: unknown) => this.record('authorization.logout', payload, Promise.resolve(ok({}))),
   }
 
   // The archive-set field defaults at the binding below so list stubs keep

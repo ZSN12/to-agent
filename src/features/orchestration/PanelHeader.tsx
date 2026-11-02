@@ -5,11 +5,13 @@ export function PanelHeader({
   subtitle,
   onClose,
   back,
+  hideClose = false,
 }: {
   title: string
   subtitle?: string
   onClose: () => void
   back?: () => void
+  hideClose?: boolean
 }) {
   return (
     <div className="panel-header">
@@ -24,9 +26,11 @@ export function PanelHeader({
           {subtitle && <p>{subtitle}</p>}
         </div>
       </div>
-      <button className="panel-icon" onClick={onClose} aria-label="关闭侧栏">
-        <X size={20} />
-      </button>
+      {!hideClose && (
+        <button className="panel-icon" onClick={onClose} aria-label="关闭侧栏">
+          <X size={20} />
+        </button>
+      )}
     </div>
   )
 }

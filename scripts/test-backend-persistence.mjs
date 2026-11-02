@@ -4,21 +4,28 @@ import os from 'node:os'
 import path from 'node:path'
 import { createAppStateStore } from '../backend/app-state-store.mjs'
 import { MAX_OUTPUT_LOGS } from '../backend/config.mjs'
+import { titleFromMessage } from '../backend/thread-title.mjs'
 
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-backend-'))
 
 try {
+  assert.equal(titleFromMessage('请做一项只读故障分析：以这份报告定位问题。'), '只读故障分析')
+  assert.equal(titleFromMessage('请用一句话回答：29 是不是超过阈值？'), '29 是不是超过阈值')
+  assert.ok(Array.from(titleFromMessage('请优化一下这个输入区域并放在一行')).length <= 10)
+
   const legacyDataPath = path.join(tempRoot, 'legacy-app-data')
   await fs.mkdir(legacyDataPath, { recursive: true })
   const legacyConversationId = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee'
-  await fs.writeFile(path.join(legacyDataPath, 'taskweaver-app-state.json'), JSON.stringify({
+  const legacyAppStatePath = path.join(legacyDataPath, 'taskweaver-app-state.json')
+  const legacyAppStateRaw = JSON.stringify({
     workspacePath: path.join(tempRoot, 'legacy-workspace'),
     conversationId: legacyConversationId,
     threadTitle: '旧版本会话',
     permissionMode: 'on-risk',
     messages: [{ id: 'legacy-message', author: 'user', text: '从单会话迁移' }],
     tasks: [{ id: 'T1', title: '旧 DAG' }],
-  }))
+  })
+  await fs.writeFile(legacyAppStatePath, legacyAppStateRaw)
   const migratedStore = createAppStateStore(legacyDataPath, path.join(tempRoot, 'fallback'))
   const migrated = await migratedStore.getState()
   assert.equal(migrated.conversationId, legacyConversationId)
@@ -26,6 +33,20 @@ try {
   assert.equal(migrated.permissionMode, 'on-risk')
   assert.equal(migrated.messages[0].id, 'legacy-message')
   assert.equal(migrated.tasks[0].id, 'T1')
+  assert.equal(await fs.readFile(legacyAppStatePath, 'utf8'), legacyAppStateRaw)
+  assert.equal(await fs.readFile(`${legacyAppStatePath}.pre-sqlite.bak`, 'utf8'), legacyAppStateRaw)
+
+  const autoTitleDataPath = path.join(tempRoot, 'legacy-auto-title-data')
+  await fs.mkdir(autoTitleDataPath, { recursive: true })
+  const autoFirstMessage = '请做一项只读故障分析：以这份报告定位问题。'
+  await fs.writeFile(path.join(autoTitleDataPath, 'taskweaver-app-state.json'), JSON.stringify({
+    conversationId: 'bbbbbbbb-cccc-4ddd-8eee-ffffffffffff',
+    threadTitle: autoFirstMessage,
+    messages: [{ id: 'auto-title-message', author: 'user', text: autoFirstMessage }],
+    tasks: [],
+  }))
+  const autoTitleStore = createAppStateStore(autoTitleDataPath, null)
+  assert.equal((await autoTitleStore.getState()).threadTitle, '只读故障分析', 'legacy automatic titles should migrate to short first-message summaries')
 
   const workspace = path.join(tempRoot, 'workspace')
   const store = createAppStateStore(path.join(tempRoot, 'app-data'), workspace)
@@ -42,6 +63,9 @@ try {
   const firstThread = await store.getState()
   assert.equal(firstThread.messages.length, 1)
   assert.equal(firstThread.threadTitle, '持久化检查')
+  const generatedTitle = await store.renameThread(firstThread.currentThreadId, '持久化检查摘要', { generated: true })
+  assert.equal(generatedTitle.find((thread) => thread.id === firstThread.currentThreadId)?.title, '持久化检查摘要',
+    'a model-generated title may refine the first-message fallback')
   assert.equal(firstThread.outputLogs[0].id, 'trace-1')
   const compactDiff = firstThread.outputLogs.find((entry) => entry.id === 'trace-edit').fileDiff
   assert.equal(compactDiff.path, '/workspace/src/main.ts')
@@ -86,6 +110,9 @@ try {
 
   const renamed = await store.renameThread(firstThread.currentThreadId, '持久化会话')
   assert.equal(renamed.find((thread) => thread.id === firstThread.currentThreadId)?.title, '持久化会话')
+  const generatedAfterManualRename = await store.renameThread(firstThread.currentThreadId, '模型自动摘要', { generated: true })
+  assert.equal(generatedAfterManualRename.find((thread) => thread.id === firstThread.currentThreadId)?.title, '持久化会话',
+    'model-generated titles must not overwrite a user rename')
 
   const switchedWorkspace = await store.setWorkspace(otherWorkspace)
   assert.equal(switchedWorkspace.workspacePath, otherWorkspace)
@@ -93,7 +120,24 @@ try {
   assert.notEqual(switchedWorkspace.conversationId, secondThread.conversationId)
   assert.equal((await store.listThreads()).length, 3, 'changing projects should preserve prior threads')
 
-  const restoredAfterRestart = createAppStateStore(path.join(tempRoot, 'app-data'), workspace)
+  const appDataPath = path.join(tempRoot, 'app-data')
+  const staleLegacyPath = path.join(appDataPath, 'taskweaver-app-state.json')
+  const staleLegacyRaw = JSON.stringify({ messages: [{ id: 'stale', author: 'user', text: 'do not load' }] })
+  await fs.writeFile(staleLegacyPath, staleLegacyRaw)
+  const originalReadFile = fs.readFile
+  let staleLegacyReads = 0
+  fs.readFile = function (target, ...args) {
+    if (path.resolve(String(target)) === path.resolve(staleLegacyPath)) staleLegacyReads += 1
+    return originalReadFile.call(this, target, ...args)
+  }
+  const restoredAfterRestart = createAppStateStore(appDataPath, workspace)
+  try {
+    const restartedState = await restoredAfterRestart.getState()
+    assert.notEqual(restartedState.messages[0]?.id, 'stale')
+    assert.equal(staleLegacyReads, 0, 'initialized SQLite stores must not reread the stale monolithic JSON on startup')
+  } finally {
+    fs.readFile = originalReadFile
+  }
   assert.equal((await restoredAfterRestart.switchThread(firstThread.currentThreadId)).messages[0].id, 'message-1')
   
   // Test forkThread

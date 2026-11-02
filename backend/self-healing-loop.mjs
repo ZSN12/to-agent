@@ -14,7 +14,9 @@ export async function runBoundedSelfHealing({ maxAttempts, verify, repair }) {
   let verification
   while (true) {
     verification = await verify({ attempts })
-    if (!verification?.executed || verification.passed || attempts >= maxAttempts) break
+    // Timeouts, cancellation and sandbox denials say nothing about the code, so
+    // they are reported as-is instead of driving another repair.
+    if (!verification?.executed || verification.passed || verification.repairable === false || attempts >= maxAttempts) break
     attempts += 1
     if (await repair(verification, attempts) === false) break
   }

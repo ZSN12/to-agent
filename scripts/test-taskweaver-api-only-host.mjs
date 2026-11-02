@@ -67,7 +67,12 @@ assert.ok(fs.existsSync(basePatchPath), 'deploy 应包含 @taskweaver/dsh-base/c
 const basePatch = await fsp.readFile(basePatchPath, 'utf8')
 assert.match(basePatch, /id: web\s+name: '@taskweaver\/dsh-web'/)
 assert.match(basePatch, /id: web-search-taskweaver\s+name: '@taskweaver\/dsh-web-search-taskweaver'/)
-assert.match(basePatch, /id: tool-web\s+name: '@taskweaver\/dsh-tool-web'/)
+assert.doesNotMatch(basePatch, /id: tool-web\s+name: '@taskweaver\/dsh-tool-web'/, 'web_search must not be global to every agent')
+assert.doesNotMatch(basePatch, /id: tool-document\s+name: '@taskweaver\/dsh-tool-document'/, 'read_document must not be global to every agent')
+const defaultPresetPath = path.join(runtimeRoot, 'config', 'agent-presets', 'tw-default', 'agent.cordis.yml')
+const defaultPreset = await fsp.readFile(defaultPresetPath, 'utf8')
+assert.match(defaultPreset, /id: tool-web\s+name: '@taskweaver\/dsh-tool-web'/, 'web_search belongs to the agent preset')
+assert.match(defaultPreset, /id: tool-document\s+name: '@taskweaver\/dsh-tool-document'/, 'read_document belongs to the agent preset')
 
 const entry = path.join(runtimeRoot, 'lib', 'entry.js')
 assert.ok(fs.existsSync(entry), `缺少 runtime entry：${entry}`)

@@ -13,14 +13,21 @@ async function assertWorkspaceRoot(workspacePath) {
   await assertSafeWorkspacePath(workspacePath, '.', { mustExist: true })
 }
 
-async function runGit(args, cwd) {
+async function runGit(args, cwd, { signal } = {}) {
   const { stdout, stderr } = await execFileAsync('git', args, {
     cwd,
     timeout: 30_000,
     maxBuffer: 4 * 1024 * 1024,
     env: { ...process.env, LC_ALL: 'C' },
+    ...(signal ? { signal } : {}),
   })
   return (stdout || stderr || '').trim()
+}
+
+function throwIfAborted(signal) {
+  if (signal?.aborted) {
+    throw signal.reason ?? Object.assign(new Error('操作已取消'), { name: 'AbortError', code: 'ABORT_ERR' })
+  }
 }
 
 function isMissingGitIdentityError(error) {
@@ -28,28 +35,62 @@ function isMissingGitIdentityError(error) {
   return /author identity unknown|unable to auto-detect email|empty ident name/i.test(message)
 }
 
-async function runGitWithIdentity(args, cwd) {
+async function runGitWithIdentity(args, cwd, { signal } = {}) {
   try {
-    return await runGit(args, cwd)
+    return await runGit(args, cwd, { signal })
   } catch (error) {
     if (!isMissingGitIdentityError(error)) throw error
     return runGit([
       '-c', 'user.name=TaskWeaver',
       '-c', 'user.email=taskweaver@localhost',
       ...args,
-    ], cwd)
+    ], cwd, { signal })
   }
 }
 
-async function runGitText(args, cwd, { encoding = 'utf8' } = {}) {
+async function runGitText(args, cwd, { encoding = 'utf8', signal } = {}) {
   const { stdout } = await execFileAsync('git', args, {
     cwd,
     timeout: 30_000,
     maxBuffer: 8 * 1024 * 1024,
     encoding,
     env: { ...process.env, LC_ALL: 'C' },
+    ...(signal ? { signal } : {}),
   })
   return Buffer.isBuffer(stdout) ? stdout.toString(encoding) : String(stdout ?? '')
+}
+
+async function readRegularFileNoFollow(filePath) {
+  const noFollow = fs.constants.O_NOFOLLOW
+  if (!Number.isInteger(noFollow) || noFollow === 0) {
+    throw new Error('当前平台不支持安全读取 worktree 文件')
+  }
+  const nonBlocking = fs.constants.O_NONBLOCK || 0
+  const handle = await fsp.open(filePath, fs.constants.O_RDONLY | noFollow | nonBlocking)
+  try {
+    const stat = await handle.stat()
+    if (!stat.isFile()) throw new Error('worktree 合并只允许普通文件，符号链接和特殊文件会被拒绝')
+    return { stat, bytes: await handle.readFile() }
+  } finally {
+    await handle.close()
+  }
+}
+
+async function writeRegularFileNoFollow(filePath, bytes, mode) {
+  const noFollow = fs.constants.O_NOFOLLOW
+  if (!Number.isInteger(noFollow) || noFollow === 0) {
+    throw new Error('当前平台不支持安全写入工作区文件')
+  }
+  const nonBlocking = fs.constants.O_NONBLOCK || 0
+  const handle = await fsp.open(filePath, fs.constants.O_WRONLY | fs.constants.O_CREAT | noFollow | nonBlocking, mode & 0o777)
+  try {
+    if (!(await handle.stat()).isFile()) throw new Error('工作区目标已不是普通文件，拒绝覆盖')
+    await handle.truncate(0)
+    await handle.writeFile(bytes)
+    await handle.chmod(mode & 0o777)
+  } finally {
+    await handle.close()
+  }
 }
 
 function workspaceHash(workspacePath) {
@@ -109,10 +150,11 @@ export async function createTaskWorktree({ workspacePath, conversationId, runId,
 }
 
 /** Read the exact committed baseline used by a DAG run. */
-export async function getWorkspaceHeadCommit(workspacePath) {
+export async function getWorkspaceHeadCommit(workspacePath, { signal } = {}) {
+  throwIfAborted(signal)
   await assertWorkspaceRoot(workspacePath)
   if (!(await isGitRepository(workspacePath))) throw new Error('当前工作区不是 Git 仓库')
-  const commit = await runGit(['rev-parse', '--verify', 'HEAD'], workspacePath)
+  const commit = await runGit(['rev-parse', '--verify', 'HEAD'], workspacePath, { signal })
   if (!commit) throw new Error('Git 仓库尚无基线提交，无法创建 DAG worktree')
   return commit
 }
@@ -135,11 +177,15 @@ function asConflictError(error, { taskId, branches }) {
   return wrapped
 }
 
-async function addBranchWorktree({ workspacePath, target, branchName, baseCommit, mergeFrom = [], taskId }) {
+async function addBranchWorktree({ workspacePath, target, branchName, baseCommit, mergeFrom = [], taskId, signal }) {
+  throwIfAborted(signal)
   const exists = fs.existsSync(target)
   if (exists) {
     let currentBranch = ''
-    try { currentBranch = await runGit(['branch', '--show-current'], target) } catch { /* an invalid old path is handled below */ }
+    try { currentBranch = await runGit(['branch', '--show-current'], target, { signal }) } catch (error) {
+      if (signal?.aborted) throw error
+      /* an invalid old path is handled below */
+    }
     if (currentBranch !== branchName) {
       throw new Error(`任务 ${taskId} 的 worktree 路径已被其他分支占用，拒绝复用`)
     }
@@ -147,32 +193,42 @@ async function addBranchWorktree({ workspacePath, target, branchName, baseCommit
       path: target,
       branchName,
       reused: true,
-      startCommit: await runGit(['rev-parse', '--verify', 'HEAD'], target),
+      startCommit: await runGit(['rev-parse', '--verify', 'HEAD'], target, { signal }),
     }
   }
 
   await fsp.mkdir(path.dirname(target), { recursive: true })
-  await runGit(['worktree', 'add', '-b', branchName, target, baseCommit], workspacePath)
-  const merged = []
+  throwIfAborted(signal)
+  let worktreeAdded = false
   try {
+    await runGit(['worktree', 'add', '-b', branchName, target, baseCommit], workspacePath, { signal })
+    worktreeAdded = true
+    throwIfAborted(signal)
+    const merged = []
     for (const branch of [...new Set(mergeFrom)]) {
+      throwIfAborted(signal)
       if (branch === branchName) continue
-      await runGitWithIdentity(['merge', '--no-ff', '--no-edit', branch], target)
+      await runGitWithIdentity(['merge', '--no-ff', '--no-edit', branch], target, { signal })
       merged.push(branch)
     }
+    throwIfAborted(signal)
+    return {
+      path: target,
+      branchName,
+      reused: false,
+      mergedBranches: merged,
+      startCommit: await runGit(['rev-parse', '--verify', 'HEAD'], target, { signal }),
+    }
   } catch (error) {
-    await runGit(['merge', '--abort'], target).catch(() => {})
-    await runGit(['worktree', 'remove', '--force', target], workspacePath).catch(() => {})
+    if (fs.existsSync(target)) await runGit(['merge', '--abort'], target).catch(() => {})
+    if (worktreeAdded || fs.existsSync(target)) {
+      await runGit(['worktree', 'remove', '--force', target], workspacePath).catch(() => {})
+      await fsp.rm(target, { recursive: true, force: true }).catch(() => {})
+    }
     await runGit(['branch', '-D', branchName], workspacePath).catch(() => {})
+    if (signal?.aborted) throw signal.reason ?? error
     const conflict = asConflictError(error, { taskId, branches: mergeFrom })
     throw conflict
-  }
-  return {
-    path: target,
-    branchName,
-    reused: false,
-    mergedBranches: merged,
-    startCommit: await runGit(['rev-parse', '--verify', 'HEAD'], target),
   }
 }
 
@@ -190,30 +246,34 @@ export async function createNodeWorktree({
   userDataPath,
   baseCommit,
   mergeFrom = [],
+  signal,
 }) {
+  throwIfAborted(signal)
   await assertWorkspaceRoot(workspacePath)
   assertValidRunId(runId)
   const target = resolveTaskWorktreeDir(userDataPath, workspacePath, conversationId, taskId, runId)
   const branchName = nodeBranchName(runId, taskId)
-  const resolvedBase = baseCommit || await getWorkspaceHeadCommit(workspacePath)
-  return addBranchWorktree({ workspacePath, target, branchName, baseCommit: resolvedBase, mergeFrom, taskId })
+  const resolvedBase = baseCommit || await getWorkspaceHeadCommit(workspacePath, { signal })
+  return addBranchWorktree({ workspacePath, target, branchName, baseCommit: resolvedBase, mergeFrom, taskId, signal })
 }
 
 /** Commit a successful writing node so only its DAG descendants can inherit it. */
-export async function commitNodeResult({ workspacePath, conversationId, runId, taskId, userDataPath, summary }) {
+export async function commitNodeResult({ workspacePath, conversationId, runId, taskId, userDataPath, summary, signal }) {
+  throwIfAborted(signal)
   const wtPath = resolveTaskWorktreeDir(userDataPath, workspacePath, conversationId, taskId, runId)
   if (!fs.existsSync(wtPath)) throw new Error(`未找到任务 ${taskId} 的 worktree`)
   const branchName = nodeBranchName(runId, taskId)
-  const currentBranch = await runGit(['branch', '--show-current'], wtPath)
+  const currentBranch = await runGit(['branch', '--show-current'], wtPath, { signal })
   if (currentBranch !== branchName) throw new Error(`任务 ${taskId} 的 worktree 分支不匹配`)
-  const status = await runGit(['status', '--porcelain', '--untracked-files=all'], wtPath)
+  const status = await runGit(['status', '--porcelain', '--untracked-files=all'], wtPath, { signal })
   if (status) {
-    await runGit(['add', '-A'], wtPath)
-    await runGitWithIdentity(['commit', '-m', summary || `TaskWeaver DAG ${taskId}`], wtPath)
+    await runGit(['add', '-A'], wtPath, { signal })
+    await runGitWithIdentity(['commit', '-m', summary || `TaskWeaver DAG ${taskId}`], wtPath, { signal })
   }
+  throwIfAborted(signal)
   return {
     branchName,
-    commit: await runGit(['rev-parse', '--verify', 'HEAD'], wtPath),
+    commit: await runGit(['rev-parse', '--verify', 'HEAD'], wtPath, { signal }),
     changed: Boolean(status),
   }
 }
@@ -226,13 +286,15 @@ export async function createIntegrationWorktree({
   userDataPath,
   baseCommit,
   mergeFrom = [],
+  signal,
 }) {
+  throwIfAborted(signal)
   const taskId = 'integration'
   await assertWorkspaceRoot(workspacePath)
   assertValidRunId(runId)
   const target = resolveTaskWorktreeDir(userDataPath, workspacePath, conversationId, taskId, runId)
   const branchName = nodeBranchName(runId, taskId)
-  const resolvedBase = baseCommit || await getWorkspaceHeadCommit(workspacePath)
+  const resolvedBase = baseCommit || await getWorkspaceHeadCommit(workspacePath, { signal })
   return addBranchWorktree({
     workspacePath,
     target,
@@ -240,6 +302,7 @@ export async function createIntegrationWorktree({
     baseCommit: resolvedBase,
     mergeFrom,
     taskId,
+    signal,
   })
 }
 
@@ -632,16 +695,40 @@ export async function previewTaskWorktreeMerge({ workspacePath, conversationId, 
     const headText = await readHeadFile(workspacePath, file, baseCommit)
     let mainText = null
     try {
-      mainText = await fsp.readFile(path.join(workspacePath, file), 'utf8')
-    } catch {
+      const mainFile = await readRegularFileNoFollow(path.join(workspacePath, file))
+      mainText = mainFile.bytes.toString('utf8')
+    } catch (error) {
+      if (error?.code !== 'ENOENT' && error?.code !== 'ENOTDIR') {
+        return {
+          canApply: false,
+          conflict: true,
+          taskId,
+          stat: diff.stat,
+          files,
+          changes,
+          reason: `检测到主工作区特殊文件，拒绝覆盖：${file}`,
+        }
+      }
       mainText = null
     }
 
     let wtText = null
     if (type !== 'delete') {
       try {
-        wtText = await fsp.readFile(path.join(wtPath, file), 'utf8')
-      } catch {
+        const worktreeFile = await readRegularFileNoFollow(path.join(wtPath, file))
+        wtText = worktreeFile.bytes.toString('utf8')
+      } catch (error) {
+        if (error?.code === 'ELOOP' || /符号链接和特殊文件/.test(String(error?.message))) {
+          return {
+            canApply: false,
+            conflict: true,
+            taskId,
+            stat: diff.stat,
+            files,
+            changes,
+            reason: `检测到 worktree 符号链接或特殊文件，拒绝读取与合并：${file}`,
+          }
+        }
         wtText = null
       }
     }
@@ -728,13 +815,16 @@ export async function applyTaskWorktreeMerge({
       const dest = path.join(workspacePath, file)
       let exists = false
       let originalContent = null
+      let originalMode = 0o644
       try {
-        originalContent = await fsp.readFile(dest)
+        const original = await readRegularFileNoFollow(dest)
+        originalContent = original.bytes
+        originalMode = original.stat.mode & 0o777
         exists = true
       } catch (err) {
         if (err?.code !== 'ENOENT') throw err
       }
-      rollbackBackups.push({ file, dest, exists, originalContent })
+      rollbackBackups.push({ file, dest, exists, originalContent, originalMode })
 
       if (type === 'delete') {
         if (exists) {
@@ -743,7 +833,8 @@ export async function applyTaskWorktreeMerge({
       } else {
         const src = path.join(wtPath, file)
         await fsp.mkdir(path.dirname(dest), { recursive: true })
-        await fsp.copyFile(src, dest)
+        const source = await readRegularFileNoFollow(src)
+        await writeRegularFileNoFollow(dest, source.bytes, source.stat.mode)
       }
     }
   } catch (error) {
@@ -752,7 +843,7 @@ export async function applyTaskWorktreeMerge({
       try {
         if (backup.exists) {
           await fsp.mkdir(path.dirname(backup.dest), { recursive: true })
-          await fsp.writeFile(backup.dest, backup.originalContent)
+          await writeRegularFileNoFollow(backup.dest, backup.originalContent, backup.originalMode)
         } else {
           await fsp.unlink(backup.dest).catch(() => {})
         }
@@ -783,4 +874,233 @@ export async function applyTaskWorktreeMerge({
     cleanupSuccess: removeAfter ? !cleanupError : true,
     cleanupError,
   }
+}
+
+/**
+ * 扫描用户 worktrees 目录并修剪孤立 worktree。
+ *
+ * @param {{
+ *   userDataPath: string,
+ *   workspacePath?: string,
+ *   activeConversationIds?: string[],
+ *   maxAgeMs?: number,
+ * }} options
+ * @returns {Promise<{
+ *   pruned: Array<{ path: string, conversationId?: string, taskId?: string, runId?: string }>,
+ *   skipped: Array<{ path: string, reason: string, ageMs?: number }>,
+ *   errors: Array<{ path: string, error: string }>,
+ * }>}
+ */
+export async function pruneOrphanWorktrees({
+  userDataPath,
+  workspacePath = null,
+  activeConversationIds = [],
+  maxAgeMs = 3 * 86400 * 1000,
+} = {}) {
+  const result = {
+    pruned: [],
+    skipped: [],
+    errors: [],
+  }
+
+  if (!userDataPath) return result
+  const activeSet = new Set(activeConversationIds ?? [])
+  const now = Date.now()
+  const baseDir = path.join(userDataPath, 'taskweaver-worktrees')
+
+  let targetRoots = []
+  if (workspacePath) {
+    try {
+      await assertWorkspaceRoot(workspacePath)
+      if (!(await isGitRepository(workspacePath))) return result
+    } catch {
+      return result
+    }
+    const root = worktreeRoot(userDataPath, workspacePath)
+    if (fs.existsSync(root)) {
+      targetRoots.push({ root, workspacePath })
+    }
+  } else {
+    if (!fs.existsSync(baseDir)) return result
+    try {
+      const hashes = await fsp.readdir(baseDir)
+      for (const h of hashes) {
+        const root = path.join(baseDir, h)
+        try {
+          const stat = await fsp.stat(root)
+          if (stat.isDirectory()) targetRoots.push({ root, workspacePath: null })
+        } catch {}
+      }
+    } catch {
+      return result
+    }
+  }
+
+  const affectedWorkspaces = new Set()
+  if (workspacePath) affectedWorkspaces.add(workspacePath)
+
+  for (const { root, workspacePath: targetWorkspace } of targetRoots) {
+    let conversationDirs = []
+    try {
+      conversationDirs = await fsp.readdir(root)
+    } catch {
+      continue
+    }
+
+    for (const conversationId of conversationDirs) {
+      if (activeSet.has(conversationId)) {
+        continue
+      }
+      const conversationRoot = path.join(root, conversationId)
+      let convStat
+      try {
+        convStat = await fsp.stat(conversationRoot)
+        if (!convStat.isDirectory()) continue
+      } catch {
+        continue
+      }
+
+      const worktreeEntries = []
+      let entries = []
+      try {
+        entries = await fsp.readdir(conversationRoot)
+      } catch {
+        continue
+      }
+
+      for (const entry of entries) {
+        const fullPath = path.join(conversationRoot, entry)
+        let stat
+        try {
+          stat = await fsp.stat(fullPath)
+          if (!stat.isDirectory()) continue
+        } catch {
+          continue
+        }
+
+        if (TASK_ID_RE.test(entry)) {
+          worktreeEntries.push({
+            path: fullPath,
+            conversationId,
+            taskId: entry,
+            runId: null,
+            stat,
+          })
+        } else if (RUN_ID_RE.test(entry)) {
+          const runId = entry
+          let taskEntries = []
+          try {
+            taskEntries = await fsp.readdir(fullPath)
+          } catch {
+            continue
+          }
+          for (const taskId of taskEntries) {
+            if (!TASK_ID_RE.test(taskId)) continue
+            const taskPath = path.join(fullPath, taskId)
+            try {
+              const tStat = await fsp.stat(taskPath)
+              if (tStat.isDirectory()) {
+                worktreeEntries.push({
+                  path: taskPath,
+                  conversationId,
+                  taskId,
+                  runId,
+                  stat: tStat,
+                })
+              }
+            } catch {}
+          }
+        }
+      }
+
+      for (const wt of worktreeEntries) {
+        const ageMs = now - (wt.stat.mtimeMs || wt.stat.ctimeMs || now)
+        if (ageMs < maxAgeMs) {
+          result.skipped.push({ path: wt.path, reason: 'not_expired', ageMs })
+          continue
+        }
+
+        let isClean = false
+        let repoRoot = targetWorkspace
+        try {
+          if (!repoRoot) {
+            try {
+              const commonDir = await runGit(['rev-parse', '--git-common-dir'], wt.path)
+              if (commonDir) {
+                const resolvedCommon = path.resolve(wt.path, commonDir)
+                repoRoot = path.dirname(resolvedCommon)
+                if (await isGitRepository(repoRoot)) {
+                  affectedWorkspaces.add(repoRoot)
+                } else {
+                  repoRoot = null
+                }
+              }
+            } catch {}
+          }
+
+          const status = await runGitText(
+            ['status', '--porcelain=v1', '--untracked-files=all', '--ignored=matching', '-z'],
+            wt.path,
+          )
+          if (status.length > 0) {
+            result.skipped.push({ path: wt.path, reason: 'dirty' })
+            continue
+          }
+          isClean = true
+        } catch (err) {
+          try {
+            const files = await fsp.readdir(wt.path)
+            if (files.length === 0) {
+              await fsp.rmdir(wt.path)
+              result.pruned.push({ path: wt.path, conversationId: wt.conversationId, taskId: wt.taskId, runId: wt.runId })
+              continue
+            }
+          } catch {}
+          result.errors.push({ path: wt.path, error: err instanceof Error ? err.message : String(err) })
+          continue
+        }
+
+        if (isClean) {
+          try {
+            if (repoRoot) {
+              try {
+                await runGit(['worktree', 'remove', wt.path], repoRoot)
+              } catch {
+                await fsp.rm(wt.path, { recursive: true, force: true })
+              }
+            } else {
+              await fsp.rm(wt.path, { recursive: true, force: true })
+            }
+            result.pruned.push({ path: wt.path, conversationId: wt.conversationId, taskId: wt.taskId, runId: wt.runId })
+          } catch (removeErr) {
+            result.errors.push({ path: wt.path, error: removeErr instanceof Error ? removeErr.message : String(removeErr) })
+          }
+        }
+      }
+
+      try {
+        const remainingEntries = await fsp.readdir(conversationRoot)
+        for (const entry of remainingEntries) {
+          const runPath = path.join(conversationRoot, entry)
+          try {
+            const rStat = await fsp.stat(runPath)
+            if (rStat.isDirectory() && RUN_ID_RE.test(entry)) {
+              const runSubs = await fsp.readdir(runPath)
+              if (runSubs.length === 0) await fsp.rmdir(runPath)
+            }
+          } catch {}
+        }
+        const finalEntries = await fsp.readdir(conversationRoot)
+        if (finalEntries.length === 0) await fsp.rmdir(conversationRoot)
+      } catch {}
+    }
+  }
+
+  for (const repo of affectedWorkspaces) {
+    try {
+      await runGit(['worktree', 'prune'], repo)
+    } catch {}
+  }
+
+  return result
 }

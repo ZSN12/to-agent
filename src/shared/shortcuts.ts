@@ -36,8 +36,8 @@ export const DEFAULT_SHORTCUTS: ShortcutItem[] = [
     id: 'steer',
     title: '实时插话纠偏 (Steering)',
     description: '在 Agent 运行中即时注入纠偏指令，实时调整当前执行计划',
-    defaultKeys: ['↩'],
-    keys: ['↩'],
+    defaultKeys: [PRIMARY_MODIFIER_KEY, '↩'],
+    keys: [PRIMARY_MODIFIER_KEY, '↩'],
   },
   {
     id: 'send',
@@ -85,6 +85,20 @@ export const DEFAULT_SHORTCUTS: ShortcutItem[] = [
 
 const STORAGE_KEY = 'taskweaver.shortcuts'
 
+/**
+ * Stored keys that earlier builds used as a default but that no longer work.
+ * Steering used to share bare Enter with send; Enter now always queues a
+ * follow-up while busy, so a stored bare Enter would leave steering unreachable.
+ */
+const RETIRED_DEFAULT_KEYS: Record<string, string[]> = {
+  steer: ['↩'],
+}
+
+function isRetiredDefault(id: string, keys: string[]): boolean {
+  const retired = RETIRED_DEFAULT_KEYS[id]
+  return Boolean(retired && retired.length === keys.length && retired.every((key, index) => key === keys[index]))
+}
+
 export function loadShortcuts(): ShortcutItem[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
@@ -93,9 +107,10 @@ export function loadShortcuts(): ShortcutItem[] {
       // 保持与最新的默认项合并，确保新增项不丢失
       return DEFAULT_SHORTCUTS.map((def) => {
         const found = parsed.find((p) => p.id === def.id)
-        return found
-          ? { ...def, keys: normalizeKeysForPlatform(Array.isArray(found.keys) ? found.keys : def.keys) }
-          : def
+        if (!found || !Array.isArray(found.keys) || isRetiredDefault(def.id, found.keys)) {
+          return { ...def, keys: [...def.defaultKeys] }
+        }
+        return { ...def, keys: normalizeKeysForPlatform(found.keys) }
       })
     }
   } catch {

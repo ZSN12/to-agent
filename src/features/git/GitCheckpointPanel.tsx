@@ -27,6 +27,7 @@ import type {
   GitRestoreResult,
   ManualGitCommitPreview,
 } from '../../shared/app-api'
+import { copyTextToClipboard } from '../../shared/clipboard'
 import { useModalFocusTrap } from '../../shared/useModalFocusTrap'
 
 function isGitCommitSnapshot(cp: GitCheckpoint) {
@@ -37,23 +38,31 @@ export function GitCheckpointPanel({
   workspacePath,
   onClose,
   onToast,
+  embedded = false,
 }: {
   workspacePath: string | null
   onClose: () => void
   onToast?: (msg: string) => void
+  embedded?: boolean
 }) {
   const [status, setStatus] = useState<GitStatusResult | null>(null)
+  const [branches, setBranches] = useState<string[]>([])
+  const [selectedBranch, setSelectedBranch] = useState('')
   const [suggestion, setSuggestion] = useState<GitCommitSuggestion | null>(null)
   const [checkpoints, setCheckpoints] = useState<GitCheckpoint[]>([])
   const [loading, setLoading] = useState(true)
   const [committing, setCommitting] = useState(false)
   const [commitModalData, setCommitModalData] = useState<ManualGitCommitPreview | null>(null)
+  const [commitFeedback, setCommitFeedback] = useState<{ kind: 'info' | 'success' | 'error'; message: string } | null>(null)
   const [commitMessage, setCommitMessage] = useState('')
   const [copiedCommit, setCopiedCommit] = useState(false)
   const [expandedDiffId, setExpandedDiffId] = useState<string | null>(null)
   const [diffData, setDiffData] = useState<Record<string, GitCheckpointDiffResult>>({})
   const [restoringId, setRestoringId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [branchDialogOpen, setBranchDialogOpen] = useState(false)
+  const [branchName, setBranchName] = useState('')
+  const [branchBusy, setBranchBusy] = useState<'create' | 'switch' | null>(null)
 
   // 还原确认弹窗状态
   const [confirmModalData, setConfirmModalData] = useState<{
@@ -62,11 +71,17 @@ export function GitCheckpointPanel({
   } | null>(null)
   const commitDialogTitleId = useId()
   const commitDialogDescriptionId = useId()
+  const branchDialogTitleId = useId()
+  const branchDialogDescriptionId = useId()
   const restoreDialogTitleId = useId()
   const restoreDialogDescriptionId = useId()
   const commitDialogRef = useModalFocusTrap<HTMLDivElement>({
     open: Boolean(commitModalData),
     onEscape: !committing ? () => setCommitModalData(null) : undefined,
+  })
+  const branchDialogRef = useModalFocusTrap<HTMLFormElement>({
+    open: branchDialogOpen,
+    onEscape: !branchBusy ? () => setBranchDialogOpen(false) : undefined,
   })
   const restoreDialogRef = useModalFocusTrap<HTMLDivElement>({
     open: Boolean(confirmModalData),
@@ -85,16 +100,68 @@ export function GitCheckpointPanel({
       return
     }
     setLoading(true)
-    const [statusRes, suggRes, cpRes] = await Promise.all([
+    const [statusRes, branchRes, suggRes, cpRes] = await Promise.all([
       window.taskweaver.workspace.gitStatus(),
+      window.taskweaver.workspace.listGitBranches(),
       window.taskweaver.workspace.gitSuggestCommit(),
       window.taskweaver.workspace.listGitCheckpoints(),
     ])
 
     if (statusRes.ok && statusRes.data) setStatus(statusRes.data)
+    if (branchRes.ok && branchRes.data) {
+      setBranches(branchRes.data.branches)
+      setSelectedBranch(branchRes.data.currentBranch || '')
+    }
     if (suggRes.ok && suggRes.data) setSuggestion(suggRes.data)
     if (cpRes.ok && cpRes.data) setCheckpoints(cpRes.data)
     setLoading(false)
+  }
+
+  const handleSwitchBranch = async () => {
+    if (!selectedBranch || !window.taskweaver?.workspace?.switchGitBranch) return
+    if (status?.hasChanges) {
+      onToast?.('工作区有未提交改动，请先提交或暂存后再切换分支。')
+      return
+    }
+    setBranchBusy('switch')
+    try {
+      const result = await window.taskweaver.workspace.switchGitBranch(selectedBranch)
+      if (!result.ok) {
+        onToast?.(`切换分支失败：${result.error}`)
+        return
+      }
+      onToast?.(result.data.unchanged ? `当前已在 ${result.data.branch} 分支` : `已切换到 ${result.data.branch}`)
+      await loadData()
+    } catch (error) {
+      onToast?.(`切换分支失败：${error instanceof Error ? error.message : String(error)}`)
+    } finally {
+      setBranchBusy(null)
+    }
+  }
+
+  const handleCreateBranch = async () => {
+    if (!window.taskweaver?.workspace?.createGitBranch) return
+    const normalizedName = branchName.trim()
+    if (!normalizedName) {
+      onToast?.('请输入分支名称')
+      return
+    }
+    setBranchBusy('create')
+    try {
+      const result = await window.taskweaver.workspace.createGitBranch(normalizedName)
+      if (!result.ok) {
+        onToast?.(`创建分支失败：${result.error}`)
+        return
+      }
+      setBranchDialogOpen(false)
+      setBranchName('')
+      onToast?.(`已创建并切换到 ${result.data.branch}；未提交改动已保留在新分支。`)
+      await loadData()
+    } catch (error) {
+      onToast?.(`创建分支失败：${error instanceof Error ? error.message : String(error)}`)
+    } finally {
+      setBranchBusy(null)
+    }
   }
 
   useEffect(() => {
@@ -117,41 +184,65 @@ export function GitCheckpointPanel({
       return
     }
     setCommitMessage(preview.defaultMessage || suggestion?.message || 'chore(taskweaver): create workspace snapshot')
+    setCommitFeedback(null)
     setCommitModalData(preview)
   }
 
   const handleConfirmManualCommit = async () => {
-    if (!commitModalData || !window.taskweaver?.workspace?.createManualGitCommit) return
+    if (!commitModalData) return
+    const createManualGitCommit = window.taskweaver?.workspace?.createManualGitCommit
+    if (!createManualGitCommit) {
+      setCommitFeedback({ kind: 'error', message: '桌面 Git 提交接口不可用，请重启应用后重试。' })
+      return
+    }
     setCommitting(true)
-    const res = await window.taskweaver.workspace.createManualGitCommit({
-      message: commitMessage,
-      expectedPreviewFingerprint: commitModalData.stateFingerprint,
-    })
-    setCommitting(false)
-    if (!res.ok) {
-      onToast?.(`提交失败: ${res.error}`)
-      return
-    }
-    const data = res.data
-    if (data.stalePreview && data.preview) {
-      setCommitModalData(data.preview)
-      setCommitMessage(data.preview.defaultMessage || commitMessage)
-      onToast?.('工作区在预览后已变化，请核对文件清单后再次确认')
-      return
-    }
-    if (data.clean) {
-      setCommitModalData(null)
-      onToast?.(data.message || `工作区干净${data.headShortSha ? ` (${data.headShortSha})` : ''}`)
-      await loadData()
-      return
-    }
-    if (data.checkpoint) {
-      setCommitModalData(null)
-      const shortSha = data.commitSha?.slice(0, 7) || data.checkpoint.commitSha?.slice(0, 7)
-      onToast?.(`已创建 Git 提交快照 ${shortSha || ''}，未推送到远程。`)
-      await loadData()
-    } else {
-      onToast?.(`提交失败: ${data.error || '未知错误'}`)
+    setCommitFeedback({ kind: 'info', message: '正在当前分支创建本地提交，请稍候…' })
+    try {
+      const res = await createManualGitCommit({
+        message: commitMessage,
+        expectedPreviewFingerprint: commitModalData.stateFingerprint,
+      })
+      if (!res.ok) {
+        setCommitFeedback({ kind: 'error', message: `提交失败：${res.error || '桌面桥接调用失败'}` })
+        return
+      }
+
+      const data = res.data
+      if (data.stalePreview && data.preview) {
+        setCommitModalData(data.preview)
+        setCommitMessage(data.preview.defaultMessage || commitMessage)
+        setCommitFeedback({ kind: 'info', message: '工作区在预览后发生变化。请核对更新后的文件清单，再次确认提交。' })
+        return
+      }
+      if (!data.ok) {
+        setCommitFeedback({ kind: 'error', message: `提交失败：${data.error || 'Git 未能创建提交'}` })
+        return
+      }
+      if (data.clean) {
+        setCommitFeedback({
+          kind: 'success',
+          message: data.message || `工作区已干净${data.headShortSha ? `（${data.headShortSha}）` : ''}`,
+        })
+        await loadData().catch(() => {})
+        return
+      }
+      if (data.checkpoint) {
+        const shortSha = data.commitSha?.slice(0, 7) || data.checkpoint.commitSha?.slice(0, 7)
+        setCommitFeedback({
+          kind: 'success',
+          message: `已在 ${data.branch || commitModalData.branch || '当前分支'} 创建本地提交 ${shortSha || ''}，未推送到远程。`,
+        })
+        await loadData().catch(() => {})
+        return
+      }
+      setCommitFeedback({ kind: 'error', message: `提交失败：${data.error || 'Git 未返回提交结果'}` })
+    } catch (error) {
+      setCommitFeedback({
+        kind: 'error',
+        message: `提交失败：${error instanceof Error ? error.message : String(error)}`,
+      })
+    } finally {
+      setCommitting(false)
     }
   }
 
@@ -279,6 +370,8 @@ export function GitCheckpointPanel({
           if (!committing) setCommitModalData(null)
         } else if (confirmModalData) {
           setConfirmModalData(null)
+        } else if (branchDialogOpen) {
+          if (!branchBusy) setBranchDialogOpen(false)
         } else {
           onClose()
         }
@@ -286,21 +379,25 @@ export function GitCheckpointPanel({
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [commitModalData, confirmModalData, committing, onClose])
+  }, [commitModalData, confirmModalData, branchDialogOpen, branchBusy, committing, onClose])
 
-  const copyCommitMsg = () => {
-    if (suggestion?.message) {
-      void navigator.clipboard.writeText(suggestion.message)
-      setCopiedCommit(true)
+  const copyCommitMsg = async () => {
+    if (!suggestion?.message) return
+    const didCopy = await copyTextToClipboard(suggestion.message)
+    setCopiedCommit(didCopy)
+    if (didCopy) {
       setTimeout(() => setCopiedCommit(false), 2000)
       onToast?.('Commit 建议已复制到剪贴板。')
+    } else {
+      onToast?.('复制 Commit 建议失败。')
     }
   }
 
   const uncommittedCount = (status?.staged.length ?? 0) + (status?.unstaged.length ?? 0) + (status?.untracked.length ?? 0)
+  const PanelContainer = embedded ? 'section' : 'aside'
 
   return (
-    <aside className="side-panel dag-panel git-checkpoint-panel" aria-label="Git 状态与检查点快照面板" style={{ zIndex: 100 }}>
+    <PanelContainer className={`${embedded ? 'workbench-tab-panel' : 'side-panel'} dag-panel git-checkpoint-panel`} aria-label="Git 状态与检查点快照面板" role={embedded ? 'region' : undefined} style={embedded ? undefined : { zIndex: 100 }}>
       {/* 顶部标题栏 */}
       <div className="panel-header">
         <div className="panel-heading">
@@ -317,18 +414,20 @@ export function GitCheckpointPanel({
           >
             <RefreshCw size={14} className={loading ? 'spinning' : ''} />
           </button>
-          <button
-            type="button"
-            className="panel-close-btn"
-            onClick={(e) => {
-              e.stopPropagation()
-              onClose()
-            }}
-            aria-label="关闭面板"
-            title="关闭面板 (Esc)"
-          >
-            <X size={16} />
-          </button>
+          {!embedded && (
+            <button
+              type="button"
+              className="panel-close-btn"
+              onClick={(e) => {
+                e.stopPropagation()
+                onClose()
+              }}
+              aria-label="关闭面板"
+              title="关闭面板 (Esc)"
+            >
+              <X size={16} />
+            </button>
+          )}
         </div>
       </div>
 
@@ -456,6 +555,51 @@ export function GitCheckpointPanel({
                   <span>{committing ? '准备中…' : '提交当前更改'}</span>
                 </button>
               </div>
+
+              <div role="group" aria-label="分支管理" style={{ display: 'flex', alignItems: 'center', gap: 6, paddingTop: 9, borderTop: '1px solid var(--line)' }}>
+                <label htmlFor="git-branch-select" style={{ fontSize: 11, color: 'var(--text-hint)', whiteSpace: 'nowrap' }}>本地分支</label>
+                <select
+                  id="git-branch-select"
+                  className="settings-text-input"
+                  value={selectedBranch}
+                  onChange={(event) => setSelectedBranch(event.target.value)}
+                  disabled={loading || branchBusy !== null}
+                  style={{ flex: '1 1 auto', minWidth: 0, height: 30, padding: '4px 8px', fontSize: 11.5 }}
+                  aria-label="选择要切换的本地分支"
+                >
+                  {!selectedBranch && <option value="">HEAD（游离状态）</option>}
+                  {status.branch && status.branch !== 'HEAD (detached)' && !branches.includes(status.branch) && (
+                    <option value={status.branch}>{status.branch}</option>
+                  )}
+                  {branches.map((branch) => <option key={branch} value={branch}>{branch}</option>)}
+                </select>
+                <button
+                  type="button"
+                  className="settings-secondary-button"
+                  onClick={() => void handleSwitchBranch()}
+                  disabled={loading || branchBusy !== null || !selectedBranch || selectedBranch === status.branch || status.hasChanges}
+                  title={status.hasChanges ? '先提交或暂存工作区改动，再切换分支' : '切换到所选本地分支'}
+                  style={{ minHeight: 30, padding: '0 9px', fontSize: 11.5 }}
+                >
+                  {branchBusy === 'switch' ? '切换中…' : '切换'}
+                </button>
+                <button
+                  type="button"
+                  className="settings-secondary-button"
+                  onClick={() => { setBranchName(''); setBranchDialogOpen(true) }}
+                  disabled={loading || branchBusy !== null}
+                  title="创建新分支并立即切换过去"
+                  style={{ minHeight: 30, padding: '0 9px', fontSize: 11.5 }}
+                >
+                  <Plus size={12} />
+                  <span>新建</span>
+                </button>
+              </div>
+              {status.hasChanges && (
+                <div style={{ fontSize: 10.5, color: 'var(--text-hint)', marginTop: -5 }}>
+                  切换已有分支前需提交或暂存；新建分支会保留当前未提交改动。
+                </div>
+              )}
 
               {/* Commit 建议 */}
               {suggestion?.message && status.hasChanges && (
@@ -768,20 +912,98 @@ export function GitCheckpointPanel({
         )}
       </div>
 
+      {branchDialogOpen && (
+        <div className="custom-confirm-backdrop" role="presentation" onClick={(event) => { if (event.target === event.currentTarget && !branchBusy) setBranchDialogOpen(false) }}>
+          <form
+            ref={branchDialogRef}
+            className="custom-confirm-card"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={branchDialogTitleId}
+            aria-describedby={branchDialogDescriptionId}
+            tabIndex={-1}
+            style={{ maxWidth: 440 }}
+            onSubmit={(event) => { event.preventDefault(); void handleCreateBranch() }}
+          >
+            <div className="custom-confirm-head">
+              <div className="custom-confirm-icon" style={{ background: 'var(--accent-primary-soft, rgba(16, 163, 127, 0.12))', color: 'var(--accent-primary, #10a37f)' }}>
+                <GitBranch size={20} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <h3 className="custom-confirm-title" id={branchDialogTitleId}>新建 Git 分支</h3>
+                <p className="custom-confirm-desc" id={branchDialogDescriptionId} style={{ fontSize: 12 }}>
+                  创建后会立即切换到新分支。当前未提交改动会保留在新分支中。
+                </p>
+              </div>
+            </div>
+            <label htmlFor="git-new-branch-name" style={{ display: 'block', fontSize: 11, color: 'var(--text-hint)', marginBottom: -12 }}>分支名称</label>
+            <input
+              id="git-new-branch-name"
+              type="text"
+              className="settings-text-input"
+              value={branchName}
+              onChange={(event) => setBranchName(event.target.value)}
+              placeholder="例如 feature/new-ui"
+              autoComplete="off"
+              autoFocus
+            />
+            <div className="custom-confirm-actions">
+              <button type="button" className="settings-secondary-button" disabled={branchBusy !== null} onClick={() => setBranchDialogOpen(false)}>
+                取消
+              </button>
+              <button type="submit" className="settings-primary-button" disabled={branchBusy !== null || !branchName.trim()}>
+                {branchBusy === 'create' ? '创建中…' : '创建并切换'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
       {commitModalData && (
         <div className="custom-confirm-backdrop" role="presentation" onClick={(event) => { if (event.target === event.currentTarget && !committing) setCommitModalData(null) }}>
-          <div ref={commitDialogRef} className="custom-confirm-card" role="dialog" aria-modal="true" aria-labelledby={commitDialogTitleId} aria-describedby={commitDialogDescriptionId} tabIndex={-1} style={{ maxWidth: 520 }}>
+          <div ref={commitDialogRef} className="custom-confirm-card" role="dialog" aria-modal="true" aria-labelledby={commitDialogTitleId} aria-describedby={commitDialogDescriptionId} aria-busy={committing} tabIndex={-1} style={{ maxWidth: 520 }}>
             <div className="custom-confirm-head">
               <div className="custom-confirm-icon" style={{ background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8' }}>
                 <GitBranch size={20} />
               </div>
               <div style={{ flex: 1 }}>
-                <h3 className="custom-confirm-title" id={commitDialogTitleId}>确认提交快照</h3>
+                <h3 className="custom-confirm-title" id={commitDialogTitleId}>
+                  {commitFeedback?.kind === 'success' ? '提交已完成' : '确认提交快照'}
+                </h3>
                 <p className="custom-confirm-desc" id={commitDialogDescriptionId} style={{ fontSize: 12 }}>
-                  将在分支 <strong>{commitModalData.branch || '—'}</strong> 上创建一个本地 Git commit，推进当前分支历史；不会上传到远程。
+                  {commitFeedback?.kind === 'success'
+                    ? <>快照已写入分支 <strong>{commitModalData.branch || '—'}</strong> 的本地历史，不会上传到远程。</>
+                    : <>将在分支 <strong>{commitModalData.branch || '—'}</strong> 上创建一个本地 Git commit，推进当前分支历史；不会上传到远程。</>}
                 </p>
               </div>
             </div>
+
+            {commitFeedback && (
+              <div
+                role={commitFeedback.kind === 'error' ? 'alert' : 'status'}
+                aria-live={commitFeedback.kind === 'error' ? 'assertive' : 'polite'}
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: 8,
+                  margin: '12px 0',
+                  padding: '10px 12px',
+                  borderRadius: 8,
+                  border: `1px solid ${commitFeedback.kind === 'error' ? 'var(--accent-red, #f87171)' : commitFeedback.kind === 'success' ? 'var(--accent-green, #10b981)' : 'var(--line-strong)'}`,
+                  background: commitFeedback.kind === 'error' ? 'var(--accent-red-soft, rgba(248, 113, 113, 0.14))' : commitFeedback.kind === 'success' ? 'var(--accent-green-soft, rgba(16, 185, 129, 0.16))' : 'var(--bg-surface)',
+                  color: commitFeedback.kind === 'error' ? 'var(--accent-red, #f87171)' : commitFeedback.kind === 'success' ? 'var(--accent-green, #10b981)' : 'var(--text-secondary)',
+                  fontSize: 12,
+                  lineHeight: 1.45,
+                }}
+              >
+                {commitFeedback.kind === 'error'
+                  ? <AlertTriangle size={15} aria-hidden="true" style={{ flex: '0 0 auto', marginTop: 1 }} />
+                  : commitFeedback.kind === 'success'
+                    ? <Check size={15} aria-hidden="true" style={{ flex: '0 0 auto', marginTop: 1 }} />
+                    : <RefreshCw size={14} aria-hidden="true" style={{ flex: '0 0 auto', marginTop: 1, animation: committing ? 'spin 1s linear infinite' : undefined }} />}
+                <span>{commitFeedback.message}</span>
+              </div>
+            )}
 
             <div style={{ margin: '12px 0', fontSize: 11.5, color: 'var(--text-hint)' }}>
               已跟踪修改 {commitModalData.stagedCount ?? 0}（含暂存）/ 未暂存 {commitModalData.unstagedCount ?? 0} / 未跟踪{' '}
@@ -794,6 +1016,7 @@ export function GitCheckpointPanel({
               className="settings-text-input"
               value={commitMessage}
               onChange={(e) => setCommitMessage(e.target.value)}
+              disabled={committing || commitFeedback?.kind === 'success'}
               style={{ width: '100%', marginBottom: 10, fontSize: 12 }}
             />
 
@@ -821,10 +1044,18 @@ export function GitCheckpointPanel({
 
             <div className="custom-confirm-actions">
               <button type="button" className="settings-secondary-button" disabled={committing} onClick={() => setCommitModalData(null)}>
-                取消
+                {commitFeedback?.kind === 'success' ? '关闭' : '取消'}
               </button>
-              <button type="button" className="settings-primary-button" disabled={committing} onClick={() => void handleConfirmManualCommit()}>
-                {committing ? '提交中…' : '确认提交'}
+              <button
+                type="button"
+                className="settings-primary-button"
+                disabled={committing}
+                onClick={() => {
+                  if (commitFeedback?.kind === 'success') setCommitModalData(null)
+                  else void handleConfirmManualCommit()
+                }}
+              >
+                {committing ? '提交中…' : commitFeedback?.kind === 'success' ? '完成' : '确认提交'}
               </button>
             </div>
           </div>
@@ -954,6 +1185,6 @@ export function GitCheckpointPanel({
           </div>
         </div>
       )}
-    </aside>
+    </PanelContainer>
   )
 }

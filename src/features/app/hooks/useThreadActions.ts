@@ -1,4 +1,4 @@
-import { useCallback, type Dispatch, type MutableRefObject, type SetStateAction } from 'react'
+import { useCallback, useRef, type Dispatch, type MutableRefObject, type SetStateAction } from 'react'
 import type {
   AppState,
   ForkThreadResult,
@@ -10,11 +10,14 @@ import type {
 } from '../../../shared/app-api'
 import type { ConversationStreamSnapshot } from '../../chat/conversation-stream-buffer'
 import { getBridge } from '../getBridge'
+import { createNavigationQueue } from './navigation-queue'
+import { clearWorkbenchConversationState } from '../../workbench/workbench-file-state'
 
 export type ThreadActionsOptions = {
   state: AppState | null
   setState: Dispatch<SetStateAction<AppState | null>>
   setError: (message: string | null) => void
+  invalidateStateReload?: () => void
   resetTransientConversationState: () => void
   refreshSkills: (workspacePath: string | null | undefined) => void
   refreshSessionStats: () => void
@@ -34,10 +37,12 @@ export type ThreadActionsOptions = {
 }
 
 export function useThreadActions(options: ThreadActionsOptions) {
+  const navigationQueue = useRef(createNavigationQueue())
   const {
     state,
     setState,
     setError,
+    invalidateStateReload,
     resetTransientConversationState,
     refreshSkills,
     refreshSessionStats,
@@ -59,7 +64,14 @@ export function useThreadActions(options: ThreadActionsOptions) {
   const switchThread = useCallback(async (threadId: string) => {
     const bridge = getBridge()
     if (!bridge?.app) return false
-    const res = await bridge.app.switchThread(threadId)
+    invalidateStateReload?.()
+    const result = await navigationQueue.current.run(() => bridge.app.switchThread(threadId))
+    if (!result.current) return false
+    if (!result.ok) {
+      setError(result.error instanceof Error ? result.error.message : '会话操作失败，请重试')
+      return false
+    }
+    const res = result.value
     if (!res.ok) {
       setError(res.error)
       return false
@@ -83,6 +95,7 @@ export function useThreadActions(options: ThreadActionsOptions) {
     }
     return true
   }, [
+    invalidateStateReload,
     applyConversationStreamSnapshot,
     isConversationRunning,
     refreshSkills,
@@ -159,23 +172,64 @@ export function useThreadActions(options: ThreadActionsOptions) {
   const deleteThread = useCallback(async (threadId: string) => {
     const bridge = getBridge()
     if (!bridge?.app) return false
-    const res = await bridge.app.deleteThread(threadId)
+    invalidateStateReload?.()
+    const result = await navigationQueue.current.run(() => bridge.app.deleteThread(threadId))
+    if (!result.current) return false
+    if (!result.ok) {
+      setError(result.error instanceof Error ? result.error.message : '会话操作失败，请重试')
+      return false
+    }
+    const res = result.value
     if (!res.ok) {
       setError(res.error)
       return false
     }
-    resetTransientConversationState()
-    setState(res.data)
-    setToolTraces(res.data.outputLogs ?? [])
+    const deletedThread = state?.threads.find((thread) => thread.id === threadId)
+    if (deletedThread?.conversationId) {
+      const id = deletedThread.conversationId
+      conversationStartedAtRef.current.delete(id)
+      conversationStreamRef.current.delete(id)
+      permissionPromptsRef.current.delete(id)
+      userQuestionPromptsRef.current.delete(id)
+      setCompletedConversationIds((ids) => ids.filter((item) => item !== id))
+      try { clearWorkbenchConversationState(window.localStorage, id) } catch { /* optional view storage */ }
+    }
+    if (state?.currentThreadId === threadId) {
+      resetTransientConversationState()
+      activeConversationIdRef.current = res.data.conversationId
+      setState(res.data)
+      const snapshot = conversationStreamRef.current.get(res.data.conversationId)
+      if (snapshot) applyConversationStreamSnapshot(snapshot)
+      else setToolTraces(res.data.outputLogs ?? [])
+      setSending(isConversationRunning(res.data.conversationId))
+      setStreamStartedAt(conversationStartedAtRef.current.get(res.data.conversationId) ?? null)
+      setPermissionPrompt(permissionPromptsRef.current.get(res.data.conversationId) ?? null)
+      setUserQuestionPrompt(userQuestionPromptsRef.current.get(res.data.conversationId)?.[0] ?? null)
+      void refreshSkills(res.data.workspacePath)
+      void refreshSessionStats()
+    } else {
+      // Deleting a background thread must not reset the active stream.
+      setState((current) => current ? { ...current, threads: res.data.threads } : current)
+    }
     setError(null)
-    void refreshSessionStats()
     return true
-  }, [refreshSessionStats, resetTransientConversationState, setState, setError, setToolTraces])
+  }, [invalidateStateReload, state?.threads, state?.currentThreadId, activeConversationIdRef, conversationStartedAtRef,
+    conversationStreamRef, permissionPromptsRef, userQuestionPromptsRef, setCompletedConversationIds,
+    applyConversationStreamSnapshot, isConversationRunning, refreshSkills, setSending, setStreamStartedAt,
+    setPermissionPrompt, setUserQuestionPrompt, refreshSessionStats, resetTransientConversationState,
+    setState, setError, setToolTraces])
 
   const clearConversation = useCallback(async (options?: { workspacePath?: string | null }) => {
     const bridge = getBridge()
     if (!bridge?.app) return false
-    const res = await bridge.app.clearConversation(options)
+    invalidateStateReload?.()
+    const result = await navigationQueue.current.run(() => bridge.app.clearConversation(options))
+    if (!result.current) return false
+    if (!result.ok) {
+      setError(result.error instanceof Error ? result.error.message : '会话操作失败，请重试')
+      return false
+    }
+    const res = result.value
     if (!res.ok) {
       setError(res.error)
       return false
@@ -191,6 +245,7 @@ export function useThreadActions(options: ThreadActionsOptions) {
     setUserQuestionPrompt(userQuestionPromptsRef.current.get(res.data.conversationId)?.[0] ?? null)
     return true
   }, [
+    invalidateStateReload,
     isConversationRunning,
     refreshSkills,
     resetTransientConversationState,
@@ -212,7 +267,14 @@ export function useThreadActions(options: ThreadActionsOptions) {
     if (!bridge?.app) return null
     const currentThreadId = state?.currentThreadId
     if (!currentThreadId) return null
-    const res = await bridge.app.forkThread(currentThreadId, messageId)
+    invalidateStateReload?.()
+    const result = await navigationQueue.current.run(() => bridge.app.forkThread(currentThreadId, messageId))
+    if (!result.current) return null
+    if (!result.ok) {
+      setError(result.error instanceof Error ? result.error.message : '会话操作失败，请重试')
+      return null
+    }
+    const res = result.value
     if (!res.ok) {
       setError(res.error)
       return null
@@ -229,6 +291,7 @@ export function useThreadActions(options: ThreadActionsOptions) {
     void refreshSessionStats()
     return res.data
   }, [
+    invalidateStateReload,
     activeConversationIdRef,
     conversationStartedAtRef,
     isConversationRunning,
@@ -253,7 +316,14 @@ export function useThreadActions(options: ThreadActionsOptions) {
     if (!bridge?.app) return null
     const currentThreadId = state?.currentThreadId
     if (!currentThreadId) return null
-    const res = await bridge.app.rewindThread(currentThreadId, messageId, mode, confirmationToken)
+    invalidateStateReload?.()
+    const result = await navigationQueue.current.run(() => bridge.app.rewindThread(currentThreadId, messageId, mode, confirmationToken))
+    if (!result.current) return null
+    if (!result.ok) {
+      setError(result.error instanceof Error ? result.error.message : '会话操作失败，请重试')
+      return null
+    }
+    const res = result.value
     if (!res.ok) {
       setError(res.error)
       return null
@@ -272,6 +342,7 @@ export function useThreadActions(options: ThreadActionsOptions) {
     setError(null)
     return res.data
   }, [
+    invalidateStateReload,
     activeConversationIdRef,
     conversationStartedAtRef,
     isConversationRunning,

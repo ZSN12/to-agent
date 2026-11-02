@@ -4,7 +4,7 @@ import { createRequire } from 'node:module'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { pathToFileURL } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { createZApiClient } from './z-api-client.mjs'
 import {
   migrateLegacyProfileManifests,
@@ -93,12 +93,25 @@ function mergeBridgeNoProxy(childEnv) {
  * @param {string} [opencodexPackageRoot] Resolved @taskweaver/opencodex package dir
  * @param {string} [runtimeRoot] Deploy tree (Resources/taskweaver-z-runtime); transport lives here
  */
-export function bridgeTransportChildEnv(runtimeCwd, opencodexPackageRoot, runtimeRoot = runtimeCwd, { packaged = false } = {}) {
+export function bridgeTransportChildEnv(
+  runtimeCwd,
+  opencodexPackageRoot,
+  runtimeRoot = runtimeCwd,
+  { packaged = false, userDataPath } = {},
+) {
   const env = {}
+  if (userDataPath) {
+    env.OPENCODEX_HOME = path.join(path.resolve(userDataPath), 'opencodex')
+  }
   const transportCandidates = [
     path.join(runtimeRoot, 'electron-vendor', 'taskweaver-bridge-transport', 'index.mjs'),
     path.join(runtimeCwd, 'electron-vendor', 'taskweaver-bridge-transport', 'index.mjs'),
   ]
+  if (!packaged) {
+    transportCandidates.push(
+      path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../packages/provider-bridge-transport/index.mjs'),
+    )
+  }
   const stagedTransport = transportCandidates.find((candidate) => fs.existsSync(candidate))
   if (stagedTransport) {
     env.TASKWEAVER_BRIDGE_TRANSPORT = pathToFileURL(stagedTransport).href
@@ -111,6 +124,7 @@ export function bridgeTransportChildEnv(runtimeCwd, opencodexPackageRoot, runtim
   }
   const isPackaged = packaged || process.env.TASKWEAVER_PACKAGED === '1' || process.env.TASKWEAVER_PACKAGED === 'true'
   if (!isPackaged) {
+    env.TASKWEAVER_BACKEND_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
     try {
       const require = createRequire(import.meta.url)
       env.TASKWEAVER_TSX_ROOT = path.dirname(require.resolve('tsx/package.json'))
@@ -500,13 +514,22 @@ export function createZHostManager({
       const onClose = () => finish()
       current.once('close', onClose)
       const alreadyExited = current.exitCode !== null || current.signalCode !== null
+      const sendSignal = (signal) => {
+        if (current.pid && process.platform !== 'win32') {
+          try {
+            process.kill(-current.pid, signal)
+            return
+          } catch { /* fallback to direct kill */ }
+        }
+        try { current.kill(signal) } catch { /* retry with SIGKILL below */ }
+      }
       if (!alreadyExited) {
-        try { current.kill('SIGTERM') } catch { /* retry with SIGKILL below */ }
+        sendSignal('SIGTERM')
       }
       forceKillTimer = setTimeout(() => {
         if (finished) return
         if (!alreadyExited) {
-          try { current.kill('SIGKILL') } catch { /* final close deadline still applies */ }
+          sendSignal('SIGKILL')
         }
         if (finished) return
         closeDeadlineTimer = setTimeout(() => {
@@ -638,6 +661,7 @@ export function createZHostManager({
         ...(compactionRuntimeIntegration?.environment ?? {}),
         ...bridgeTransportChildEnv(processCwd, opencodexPackageRoot, runtimeRoot, {
           packaged: environment.TASKWEAVER_PACKAGED === '1' || environment.TASKWEAVER_PACKAGED === 'true',
+          userDataPath,
         }),
         ...(environment.TASKWEAVER_PACKAGED === '1' || environment.TASKWEAVER_PACKAGED === 'true'
           ? { TASKWEAVER_PACKAGED: '1' }
@@ -709,6 +733,7 @@ export function createZHostManager({
         cwd: processCwd,
         env: childEnv,
         stdio: ['ignore', 'pipe', 'pipe'],
+        detached: process.platform !== 'win32',
         windowsHide: true,
       })
       child = spawned

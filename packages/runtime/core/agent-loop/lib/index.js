@@ -120,11 +120,15 @@ const DEFAULT_MAX_PARALLEL_TOOL_CALLS = 10;
 * @param toolCalls - assistant calls in model order.
 * @param signal - abort signal shared by the step.
 * @param acceptContext - accepts committed result context for the next step boundary.
+* @param maxToolCalls - optional Host-owned cap for dispatched calls in this turn.
 */
-async function executeToolCalls(ctx, turn, step, toolCalls, signal, acceptContext) {
+async function executeToolCalls(ctx, turn, step, toolCalls, signal, acceptContext, maxToolCalls) {
+	if (maxToolCalls !== void 0 && (!Number.isSafeInteger(maxToolCalls) || maxToolCalls < 0)) throw new TypeError("maxToolCalls must be a non-negative safe integer");
 	const agent = ctx.agents.requireInitiator();
 	const { session } = agent;
-	const planned = toolCalls.map((block) => ({
+	const executableBlocks = maxToolCalls === void 0 ? toolCalls : toolCalls.slice(0, maxToolCalls);
+	const overLimitBlocks = maxToolCalls === void 0 ? [] : toolCalls.slice(maxToolCalls);
+	const planned = executableBlocks.map((block) => ({
 		block,
 		exec: {
 			callId: block.id,
@@ -144,10 +148,21 @@ async function executeToolCalls(ctx, turn, step, toolCalls, signal, acceptContex
 		concluded ||= outcome.concluded;
 		if (outcome.aborted) {
 			for (const call of planned.slice(next)) appendSkippedToolCall(session, turn, step, call.block);
-			return { concluded };
+			for (const block of overLimitBlocks) appendSkippedToolCall(session, turn, step, block);
+			return {
+				concluded,
+				toolCallsUsed: planned.length,
+				overLimit: overLimitBlocks.length > 0
+			};
 		}
 	}
-	return { concluded };
+	if (signal.aborted) for (const block of overLimitBlocks) appendSkippedToolCall(session, turn, step, block);
+	else for (const block of overLimitBlocks) appendToolCallLimit(session, turn, step, block, maxToolCalls ?? 0);
+	return {
+		concluded,
+		toolCallsUsed: planned.length,
+		overLimit: overLimitBlocks.length > 0
+	};
 }
 /** Parse model arguments, preserving invalid JSON as text and mapping empty input to `{}`. */
 function parseArguments(raw) {
@@ -297,6 +312,25 @@ function appendSkippedToolCall(session, turn, step, block) {
 		}
 	}, callSeq);
 }
+/** Record a model-requested call rejected by a Host-enforced per-turn budget. */
+function appendToolCallLimit(session, turn, step, block, maxToolCalls) {
+	const callSeq = appendToolCall(session, turn, step, block);
+	const message = `Error: role turn tool-call limit reached (${maxToolCalls}); this call was not dispatched`;
+	appendToolResult(session, turn, step, block, {
+		content: [{
+			type: "text",
+			text: message
+		}],
+		isError: true,
+		error: {
+			message,
+			info: {
+				name: "RoleToolCallLimitError",
+				code: "ROLE_TOOL_CALL_LIMIT"
+			}
+		}
+	}, callSeq);
+}
 /** Append a started call and return the event seq that its result must cite. */
 function appendToolCall(session, turn, step, block) {
 	return session.append("tool/call", {
@@ -357,6 +391,8 @@ var ReactLoopAgent = class {
 	/** Whether this loop instance has appended its initial/resume request anchor. */
 	requestHeaderLogged = false;
 	runtimeContext;
+	/** Latest role guidance carried by a Host-admitted user message for this Agent. */
+	rolePersona;
 	constructor(loopCtx, id, options, session) {
 		this.loopCtx = loopCtx;
 		this.id = id;
@@ -385,6 +421,29 @@ var ReactLoopAgent = class {
 		this.scope = createScope(loopCtx, this);
 		this.ctx = this.scope.ctx.extend({ agent: this });
 		this.runtimeContext = new RuntimeContextProjection(this.ctx, session);
+		this.rolePersona = this.latestRolePersona();
+		const systemPrompt = this.ctx.reflect.get("systemPrompt", false);
+		if (systemPrompt && typeof systemPrompt.section === "function") systemPrompt.section({
+			name: "session:role-persona",
+			order: 10,
+			text: () => {
+				if (!this.rolePersona) return "";
+				return [
+					"The user selected the following conversational role. Apply it as identity, expertise, and communication-style guidance.",
+					"It does not change the Host permissions, available tools, or safety requirements.",
+					"<role-persona>",
+					this.rolePersona,
+					"</role-persona>"
+				].join("\n");
+			}
+		});
+	}
+	/** Read the latest persisted Host role metadata when resuming an Agent. */
+	latestRolePersona() {
+		const event = this.session.events.findLast((candidate) => candidate.type === "user/message" && candidate.data.source.kind === "user");
+		if (event?.type !== "user/message" || !("rolePersona" in event.data.source)) return void 0;
+		const value = event.data.source.rolePersona;
+		return typeof value === "string" && value.trim() ? value : void 0;
 	}
 	get status() {
 		return this.phase.kind === "idle" || this.phase.kind === "maintenance" ? "idle" : "running";
@@ -463,7 +522,8 @@ var ReactLoopAgent = class {
 			turn: this.phase.lastTurn,
 			step: 0,
 			wakeRequested: false,
-			outputSchema: void 0
+			outputSchema: void 0,
+			toolCallsUsed: 0
 		});
 		this.loopCtx.agents.withInitiator(this, () => this.kick()).then(driver.resolve, driver.reject);
 	}
@@ -504,6 +564,10 @@ var ReactLoopAgent = class {
 		if (this.phase.kind !== "running") throw new Error(`agent "${this.id}": pre-step outside running phase`);
 		const signal = this.phase.abort.signal;
 		const claimed = this.inbox.claim(target, position.turn);
+		for (const message of claimed) {
+			if (message.source.kind !== "user") continue;
+			this.rolePersona = "rolePersona" in message.source && typeof message.source.rolePersona === "string" && message.source.rolePersona.trim() ? message.source.rolePersona : void 0;
+		}
 		const assembly = await this.loopCtx.systemPrompt.assemble(assembleContextFor(this, signal));
 		signal.throwIfAborted();
 		const sections = renderContextSections(assembly);
@@ -538,6 +602,8 @@ var ReactLoopAgent = class {
 		let turnEnds = null;
 		let maxTokenRecoveryUsed = false;
 		let target = "next-turn";
+		delete phase.toolCallLimit;
+		phase.toolCallsUsed = 0;
 		try {
 			while (true) {
 				signal.throwIfAborted();
@@ -553,7 +619,13 @@ var ReactLoopAgent = class {
 					return false;
 				}
 				const userInputs = decision.messages.filter((message) => message.source.kind === "user");
-				if (phase.step === 0 || userInputs.length > 0) phase.outputSchema = userInputs.find((message) => message.source.outputSchema !== void 0)?.source.outputSchema;
+				if (phase.step === 0) {
+					const limitSource = [...userInputs].reverse().find((message) => "roleToolCallLimit" in message.source);
+					const candidate = limitSource && "roleToolCallLimit" in limitSource.source ? limitSource.source.roleToolCallLimit : void 0;
+					if (typeof candidate === "number" && Number.isSafeInteger(candidate) && candidate >= 1 && candidate <= 12) phase.toolCallLimit = candidate;
+					else delete phase.toolCallLimit;
+				}
+				if (phase.step === 0 || userInputs.length > 0) phase.outputSchema = userInputs.map((message) => message.source).find((source) => source.kind === "user" && "outputSchema" in source)?.outputSchema;
 				if (turnEnds && decision.messages.length === 0) break;
 				if (phase.step === 0 && decision.messages.length === 0) {
 					turnEnds = { kind: "completed" };
@@ -567,7 +639,8 @@ var ReactLoopAgent = class {
 				phase.step = step;
 				try {
 					for (const message of decision.messages) this.session.append("user/message", message, { surfaceOp: "append" });
-					const stepEnd = await this.step(decision.assembly);
+					const remainingToolCalls = phase.toolCallLimit === void 0 ? void 0 : Math.max(0, phase.toolCallLimit - phase.toolCallsUsed);
+					const stepEnd = await this.step(decision.assembly, remainingToolCalls);
 					if (stepEnd?.kind === "max-tokens" && !maxTokenRecoveryUsed) {
 						maxTokenRecoveryUsed = true;
 						const continuation = stepEnd.truncatedToolCall ? "模型上一条回复在生成工具调用参数时达到输出上限；不完整的工具调用已丢弃且不会执行。请把计划拆成更小、参数更短的独立工具调用，再继续完成用户任务。" : "模型上一条回复达到输出上限。请从刚才停止的位置继续，不要重复已经完成的内容，继续完成用户任务。";
@@ -634,14 +707,14 @@ var ReactLoopAgent = class {
 		phase.step = 0;
 		return true;
 	}
-	async step(assembly) {
+	async step(assembly, remainingToolCalls) {
 		/* v8 ignore next -- private callers establish the running phase before executing a step */
 		if (this.phase.kind !== "running") throw new Error(`agent "${this.id}": step outside running phase`);
 		const { turn, step, abort: { signal } } = this.phase;
 		signal.throwIfAborted();
 		const system = renderPrompt(assembly);
 		while (true) {
-			const { request, preparedCall } = await this.buildRequest(turn, step, assembly.tools, system, this.session.deriveMessages(), signal, this.phase.kind === "running" ? this.phase.outputSchema : void 0);
+			const { request, preparedCall } = await this.buildRequest(turn, step, remainingToolCalls === 0 ? [] : assembly.tools, system, this.session.deriveMessages(), signal, this.phase.kind === "running" ? this.phase.outputSchema : void 0);
 			const assembler = new BlockAssembler();
 			const chunkSeqs = [];
 			let streamStarted = false;
@@ -719,7 +792,9 @@ var ReactLoopAgent = class {
 			};
 			const toolCalls = message.content.filter((block) => block.type === "tool-call");
 			if (toolCalls.length === 0) return { kind: "completed" };
-			const { concluded } = await executeToolCalls(this.loopCtx, turn, step, toolCalls, signal, (context) => this.inbox.splice("next-step", this.inbox.nextStep.length, 0, [context]));
+			const { concluded, toolCallsUsed, overLimit } = await executeToolCalls(this.loopCtx, turn, step, toolCalls, signal, (context) => this.inbox.splice("next-step", this.inbox.nextStep.length, 0, [context]), remainingToolCalls);
+			if (this.phase.kind === "running") this.phase.toolCallsUsed += toolCallsUsed;
+			if (remainingToolCalls === 0 && overLimit) return { kind: "completed" };
 			return concluded ? { kind: "completed" } : null;
 		}
 	}
@@ -871,6 +946,12 @@ const INACTIVE_STATES = /* @__PURE__ */ new Set([
 	4,
 	3
 ]);
+/** Fail with a version/configuration hint instead of an opaque `.prepare` TypeError. */
+function requireSessionStore(context) {
+	const sessions = context.sessions;
+	if (!sessions || typeof sessions.prepare !== "function") throw new Error("Agent Loop requires a compatible SessionStore; load @taskweaver/dsh-session from the same runtime bundle.");
+	return sessions;
+}
 /** Factory-level ownership: live agent teardowns plus config startup work. */
 var FactoryOwnership = class {
 	fiber;
@@ -1249,7 +1330,8 @@ var AgentLoop = class extends Service {
 			hasError: false
 		};
 		try {
-			const preparation = __addDisposableResource(env_1, SessionPreparation.create(this.runtime.ctx.sessions.prepare(id, { meta })), false);
+			const sessions = requireSessionStore(this.runtime.ctx);
+			const preparation = __addDisposableResource(env_1, SessionPreparation.create(sessions.prepare(id, { meta })), false);
 			const prepared = this.prepare(this.ctx, id, options, preparation.session);
 			try {
 				return prepared.publish("startup").agent;
@@ -1271,7 +1353,8 @@ var AgentLoop = class extends Service {
 	* @returns the published handle.
 	*/
 	async createAgent(ownerCtx, options) {
-		const preparation = SessionPreparation.create(this.runtime.ctx.sessions.prepare(options.sessionId, {
+		const sessions = requireSessionStore(this.runtime.ctx);
+		const preparation = SessionPreparation.create(sessions.prepare(options.sessionId, {
 			...options.seed === void 0 ? {} : { seed: options.seed },
 			...options.meta === void 0 ? {} : { meta: options.meta }
 		}));

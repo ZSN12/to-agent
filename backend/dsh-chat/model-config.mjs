@@ -17,7 +17,7 @@ export function createDshModelConfigHelpers({ sessions, persistSessions, profile
     ), { code: 'COMPOSER_PRESET_MIGRATION_REQUIRED' })
   }
 
-  async function alignLegacyComposerPreset(api, conversationId, entry, resolvedPreset, modelKey) {
+  async function alignLegacyComposerPreset(api, conversationId, entry, resolvedPreset, modelKey, signal) {
     const key = String(modelKey ?? '')
     const composerBridgeRoute = key.startsWith('bridge-composer/') || isCursorFamilyModelKey(key)
     const isCodePreset = entry?.agentPreset === 'code' || entry?.agentPreset === 'tw-code'
@@ -32,7 +32,7 @@ export function createDshModelConfigHelpers({ sessions, persistSessions, profile
       const selected = rpcValue(await api.agentPresets.select({
         sessionId: entry.sessionId,
         agentPreset: resolvedPreset,
-      }), '切换 Composer 会话预设')
+      }, signal), '切换 Composer 会话预设')
       // Host accepts this only for a blank session; its own event log remains
       // authoritative, while the local map is updated only after that commit.
       entry.agentPreset = selected?.agentPreset || resolvedPreset
@@ -46,9 +46,9 @@ export function createDshModelConfigHelpers({ sessions, persistSessions, profile
       throw error
     }
   }
-  async function ensureSessionModelSelection(api, sessionKey, entry, config, explicitReasoningEffort) {
+  async function ensureSessionModelSelection(api, sessionKey, entry, config, explicitReasoningEffort, signal) {
     const sessionId = entry.sessionId
-    const directory = rpcValue(await api.sessions.models({ sessionId }), '读取 Z 会话模型')
+    const directory = rpcValue(await api.sessions.models({ sessionId }, signal), '读取 Z 会话模型')
     const current = directory?.current ?? null
     if (sessionModelMatches(current, config, explicitReasoningEffort, entry.lastAppliedModelSelection)) return current
     const payload = {
@@ -57,7 +57,7 @@ export function createDshModelConfigHelpers({ sessions, persistSessions, profile
       model: config.id,
       ...(explicitReasoningEffort ? { reasoningEffort: explicitReasoningEffort } : {}),
     }
-    const selected = rpcValue(await api.sessions.selectModel(payload), '选择 Z 模型')
+    const selected = rpcValue(await api.sessions.selectModel(payload, signal), '选择 Z 模型')
     entry.lastAppliedModelSelection = {
       provider: config.provider,
       model: config.id,
@@ -82,7 +82,7 @@ export function createDshModelConfigHelpers({ sessions, persistSessions, profile
     return requested
   }
 
-  async function ensurePermissionModeApplied(api, sessionKey, entry, mode) {
+  async function ensurePermissionModeApplied(api, sessionKey, entry, mode, signal) {
     const normalizedMode = normalizePermissionMode(mode)
     if (entry.lastAppliedPermissionMode === normalizedMode) return
     const preset = dshPermissionPresetForMode(normalizedMode)
@@ -91,14 +91,14 @@ export function createDshModelConfigHelpers({ sessions, persistSessions, profile
       mode: 'queue',
       content: [{ type: 'text', text: `/permission ${preset}` }],
       clientTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-    }), '应用 Z 权限模式')
+    }, signal), '应用 Z 权限模式')
     if (response.command?.kind !== 'success') {
       throw new Error('Z Host 未确认应用权限模式；为避免以错误权限执行，本次消息已阻止。请检查权限设置后重试。')
     }
     const history = rpcValue(await api.sessions.history({
       sessionId: entry.sessionId,
       maxMessages: 1,
-    }), '核对 Z 权限投影')
+    }, signal), '核对 Z 权限投影')
     if (history?.projections?.values?.permissions?.currentValue !== preset) {
       throw new Error('Z Host 权限投影未确认目标权限；为避免以错误权限执行，本次消息已阻止。')
     }
@@ -107,10 +107,10 @@ export function createDshModelConfigHelpers({ sessions, persistSessions, profile
     await persistSessions()
   }
 
-  async function configureModel(api, modelKey) {
+  async function configureModel(api, modelKey, signal) {
     const config = await modelService.getDshModelConfig(modelKey)
     const [providerList, auth] = await Promise.all([
-      Promise.resolve().then(() => api.llm.providers({}))
+      Promise.resolve().then(() => api.llm.providers({}, signal))
         .then((result) => rpcValue(result, '读取 Z 提供方目录')),
       Promise.resolve().then(() => modelService.listProvidersAuth()),
     ])

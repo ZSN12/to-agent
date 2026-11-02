@@ -49,3 +49,4 @@ assert.equal(promptSections.size, 0)
 
 gate.dispose()
 console.log('test-semantic-search-gating: ok (missing key, provider change, credential add/remove)')
+await import('./test-semantic-search.mjs')

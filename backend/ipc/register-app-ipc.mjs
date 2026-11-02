@@ -176,7 +176,7 @@ export function registerAppIpc(ctx) {
     return state
   })
 
-  ipcHandle(ipcMain, 'app:renameThread', (_event, threadId, title) => appState.renameThread(threadId, title))
+  ipcHandle(ipcMain, 'app:renameThread', (_event, threadId, title, options) => appState.renameThread(threadId, title, options))
   ipcHandle(ipcMain, 'app:togglePinThread', (_event, threadId) => appState.togglePinThread(threadId))
   ipcHandle(ipcMain, 'app:toggleArchiveThread', (_event, threadId) => appState.toggleArchiveThread(threadId))
   ipcHandle(ipcMain, 'app:searchThreads', (_event, query, options) => appState.searchThreads(query, options))
@@ -316,9 +316,8 @@ export function registerAppIpc(ctx) {
   })
 
   ipcHandle(ipcMain, 'app:clearConversation', async (_event, options) => {
-    const current = await appState.getState()
-    assertNotBusy(current.conversationId)
-    await chat.resetSession()
+    // Creating a fresh conversation must not be coupled to the active one.
+    // DSH sessions are conversation-scoped, so leave any in-flight turn alone.
     const state = await appState.createThread(options)
     await refreshUiSnapshot()
     return state

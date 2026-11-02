@@ -59,7 +59,7 @@ try {
       ...options,
     })
     assert.equal(result.assistant.text, '两项子任务已完成')
-    assert.match(result.assistant.callout, /2 个子任务/)
+    assert.match(result.assistant.statusNote, /2 个子任务/)
     assert.equal(seen.length, index + 1, `${name} must invoke the DAG exactly once`)
     assert.equal(seen[index].rawText, `完成 ${name} 的用户目标`)
     assert.equal(seen[index].conversationId, conversationId)

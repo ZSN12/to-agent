@@ -1,5 +1,5 @@
 /**
- * Model-facing read, read_image, write, and edit tools over `ctx.fs`. This package owns schemas, validation,
+ * Model-facing read, read_image, write, edit, and apply_patch tools over `ctx.fs`. This package owns schemas, validation,
  * read windows, formatting, and observation events, never a concrete provider. An optional
  * event policy supplies mutation guards; without one the tools use unconditional provider calls.
  * @module @taskweaver/dsh-tool-fs
@@ -61,7 +61,7 @@ function assertPositiveInteger(name: string, value: number): void {
   }
 }
 
-/** Register the full `read`/`write`/`edit` filesystem tool suite, plus `read_image` while `attachments` is mounted. */
+/** Register the full filesystem tool suite, plus `read_image` while `attachments` is mounted. */
 export function apply(ctx: Context, config: Config): void {
   // schemastery (Config) has already filled every defaulted field.
   const resolved = config as ResolvedConfig
@@ -92,7 +92,7 @@ export function apply(ctx: Context, config: Config): void {
     applyReadImageTool(imageCtx)
   })
   if (resolved.mutations) {
-    // One escalation API shared by both mutating tools: advertisement gating,
+    // One escalation API shared by the mutating tools: advertisement gating,
     // per-call policy resolution, and denial-marker mapping, all keyed off whether
     // the mounted ctx.fs confines (ctx.fs.sandboxMode).
     const sandbox = new FsSandboxController(ctx)

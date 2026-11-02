@@ -8,10 +8,12 @@ import type {
   ScanLocalModelsResult,
   ThinkingLevel,
   ModelUpdateStatus,
+  ModelAddItemResultListener,
 } from '../../shared/model-api'
 import { getModelsClient, isModelsBridgeAvailable } from './client'
-import { catalogModelToOption } from './format'
+import { catalogModelsToOptions } from './format'
 import { singleFlight } from './single-flight'
+import { runSequentialModelAdds } from './model-add-workflow'
 import type { ModelOption } from '../../types'
 export function useModelCatalog() {
   const [catalog, setCatalog] = useState<ModelCatalog | null>(null)
@@ -173,7 +175,7 @@ export function useModelCatalog() {
   )
 
   const composerOptions: ModelOption[] = useMemo(
-    () => availableModels.map(catalogModelToOption),
+    () => catalogModelsToOptions(availableModels),
     [availableModels],
   )
 
@@ -226,34 +228,74 @@ export function useModelCatalog() {
     }
     setError(null)
     setCatalog(res.data ?? null)
-    const authRes = await client.listProvidersAuth()
-    if (authRes.ok) setAuth(authRes.data ?? [])
+    try {
+      const authRes = await client.listProvidersAuth()
+      if (authRes.ok) setAuth(authRes.data ?? [])
+    } catch {
+      // Saving the key already succeeded; a transient auth refresh must not
+      // strand the user on the provider step or imply the save failed.
+    }
     return { ok: true }
+  }, [])
+
+  const executeAddModel = useCallback(async (modelKey: string) => {
+    const client = getModelsClient()
+    if (!client) throw new Error('当前环境无法访问模型服务，请在 TaskWeaver 桌面端重试。')
+    const res = await client.add(modelKey)
+    if (!res.ok) throw new Error(res.error ?? `添加模型 ${modelKey} 失败`)
+    setCatalog(res.data ?? null)
   }, [])
 
   const addModel = useCallback(async (modelKey: string) => {
     const client = getModelsClient()
-    if (!client) return false
-    const res = await client.add(modelKey)
-    if (!res.ok) {
-      setError(res.error ?? '添加模型失败')
+    if (!client) {
+      setError('当前环境无法访问模型服务，请在 TaskWeaver 桌面端重试。')
       return false
     }
-    setCatalog(res.data ?? null)
-    const authRes = await client.listProvidersAuth()
-    if (authRes.ok) setAuth(authRes.data ?? [])
-    return true
+    try {
+      const res = await client.add(modelKey)
+      if (!res.ok) {
+        setError(res.error ?? '添加模型失败')
+        return false
+      }
+      setCatalog(res.data ?? null)
+      setError(null)
+      try {
+        const authRes = await client.listProvidersAuth()
+        if (authRes.ok) setAuth(authRes.data ?? [])
+      } catch {
+        // Model creation succeeded. Leave auth refresh for the next catalog load.
+      }
+      return true
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '添加模型时发生错误')
+      return false
+    }
   }, [])
 
   const addModels = useCallback(
-    async (modelKeys: string[]) => {
-      for (const modelKey of modelKeys) {
-        const ok = await addModel(modelKey)
-        if (!ok) return false
+    async (modelKeys: string[], onItemResult?: ModelAddItemResultListener) => {
+      const results = await runSequentialModelAdds(modelKeys, executeAddModel, onItemResult)
+      const failures = results.filter((result) => !result.ok)
+      if (failures.length) {
+        setError(failures[0].error ?? '添加模型失败')
+      } else {
+        setError(null)
       }
-      return true
+      if (results.some((result) => result.ok)) {
+        const client = getModelsClient()
+        if (client) {
+          try {
+            const authRes = await client.listProvidersAuth()
+            if (authRes.ok) setAuth(authRes.data ?? [])
+          } catch {
+            // A catalog add is already committed; auth refresh can be retried later.
+          }
+        }
+      }
+      return failures.length === 0
     },
-    [addModel],
+    [executeAddModel],
   )
 
   const scanLocalOpenCodex = useCallback(async (): Promise<ScanLocalModelsResult> => {
@@ -320,7 +362,7 @@ export function useModelCatalog() {
       if (!models.length) return null
       const hit = activeKey ? models.find((m) => m.key === activeKey) : undefined
       const model = hit ?? models[0]
-      return catalogModelToOption(model)
+      return catalogModelsToOptions(models).find((option) => option.id === model.key) ?? null
     },
     [],
   )

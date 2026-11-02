@@ -8,8 +8,8 @@
 
 import { Context } from '@taskweaver/cordis'
 import z from '@taskweaver/schemastery'
-import { readdirSync } from 'node:fs'
-import { open, mkdir, readFile, readdir, realpath, link, rm, stat, truncate } from 'node:fs/promises'
+import { readdirSync, type Dirent } from 'node:fs'
+import { open, mkdir, readFile, readdir, realpath, link, lstat, rm, stat, truncate } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { performance } from 'node:perf_hooks'
 import { scheduler } from 'node:timers/promises'
@@ -96,6 +96,34 @@ interface FileRevisionIdentity {
   readonly ctimeNs: bigint
 }
 
+interface CachedSnapshotSession {
+  readonly identity?: FileRevisionIdentity
+  readonly header?: SessionHeader
+}
+
+interface CachedSnapshotProject {
+  readonly identity: FileRevisionIdentity
+  readonly sessions: ReadonlyMap<string, CachedSnapshotSession>
+}
+
+interface SnapshotCatalog {
+  /** `null` records an observed absent root so later creation invalidates it. */
+  readonly rootRevision: PersistenceRevision | null
+  readonly projects: ReadonlyMap<string, CachedSnapshotProject>
+}
+
+interface ListedArtifact {
+  readonly header: SessionHeader
+  readonly path: string
+  /** Present for catalog reads; omitted only by tests that inject discovery results. */
+  readonly revision?: PersistenceRevision
+}
+
+interface StableDirectoryEntries {
+  readonly identity: FileRevisionIdentity
+  readonly entries: Dirent[]
+}
+
 /** Build the source-qualified revision shared by full and lightweight reads. */
 function fileRevision(identity: FileRevisionIdentity): PersistenceRevision {
   return SessionPersistenceRevision([
@@ -144,6 +172,9 @@ export class JsonlSessionPersistence extends SessionPersistence implements Persi
   private compression: JsonlCompression
   private coordinator: PersistenceCoordinator<JsonlTornMarker>
   private rootEncodingCheck: Promise<void> | undefined
+  private snapshotCatalog: SnapshotCatalog | undefined
+  private snapshotCatalogGeneration = 0
+  private snapshotCatalogCommittedGeneration = 0
 
   constructor(ctx: Context, public config: Config) {
     super(ctx)
@@ -445,39 +476,85 @@ export class JsonlSessionPersistence extends SessionPersistence implements Persi
 
   /** List valid unique stored sessions' metadata (header line only — no full-log parse). */
   async list(signal?: AbortSignal): Promise<SessionHeader[]> {
-    return (await this.listArtifacts(signal)).map(artifact => artifact.header)
+    return (await this.listArtifacts(signal)).map(artifact => structuredClone(artifact.header))
   }
 
   /** List metadata plus a stat-derived identity for each append-only log. */
   async listSnapshots(signal?: AbortSignal): Promise<SessionPersistenceSnapshot[]> {
-    const snapshots: SessionPersistenceSnapshot[] = []
-    for (const artifact of await this.listArtifacts(signal)) {
-      signal?.throwIfAborted()
-      try {
-        const identity = await stat(artifact.path, { bigint: true })
+    for (;;) {
+      const snapshots: SessionPersistenceSnapshot[] = []
+      let changedDuringProjection = false
+      for (const artifact of await this.listArtifacts(signal)) {
         signal?.throwIfAborted()
-        snapshots.push({
-          header: artifact.header,
-          revision: fileRevision(identity),
-        })
-      } catch (error: unknown) {
-        signal?.throwIfAborted()
-        if (!isENOENT(error)) throw error
+        try {
+          const identity = await stat(artifact.path, { bigint: true })
+          signal?.throwIfAborted()
+          const revision = fileRevision(identity)
+          if (artifact.revision !== undefined && artifact.revision !== revision) {
+            changedDuringProjection = true
+            break
+          }
+          snapshots.push({ header: structuredClone(artifact.header), revision })
+        } catch (error: unknown) {
+          signal?.throwIfAborted()
+          if (!isENOENT(error)) throw error
+        }
       }
+      if (!changedDuringProjection) {
+        signal?.throwIfAborted()
+        return snapshots
+      }
+      signal?.throwIfAborted()
     }
-    signal?.throwIfAborted()
-    return snapshots
   }
 
-  private async listArtifacts(signal?: AbortSignal): Promise<Array<{ header: SessionHeader; path: string }>> {
+  private async listArtifacts(signal?: AbortSignal): Promise<ListedArtifact[]> {
     signal?.throwIfAborted()
     await this.ensureRootEncoding()
     signal?.throwIfAborted()
-    const artifacts: Array<{ header: SessionHeader; path: string }> = []
+    const generation = ++this.snapshotCatalogGeneration
+    const previous = this.snapshotCatalog
+    const artifacts: ListedArtifact[] = []
     const ids = new Set<SessionId>()
-    for (const project of await this.listProjectDirs(signal)) {
+    const projects = new Map<string, CachedSnapshotProject>()
+    const rootIdentity = await this.statDirectory(this.root, true, signal)
+    const rootRevision = rootIdentity === undefined ? null : fileRevision(rootIdentity)
+    let projectPaths: string[]
+    if (previous !== undefined && previous.rootRevision === rootRevision) {
+      projectPaths = [...previous.projects.keys()]
+    } else if (rootIdentity === undefined) {
+      projectPaths = []
+    } else {
+      const root = await this.readStableDirectoryEntries(this.root, rootIdentity, true, signal)
+      projectPaths = root === undefined
+        ? []
+        : root.entries.filter(entry => entry.isDirectory()).map(entry => join(this.root, entry.name))
+    }
+
+    for (const project of projectPaths) {
       signal?.throwIfAborted()
-      for (const dir of await this.listSessionDirs(project, signal)) {
+      const priorProject = previous?.projects.get(project)
+      const discoveredIdentity = await this.statDirectory(project, false, signal)
+      if (discoveredIdentity === undefined) continue
+
+      let projectIdentity: FileRevisionIdentity
+      let sessionPaths: string[]
+      if (priorProject !== undefined && fileRevision(priorProject.identity) === fileRevision(discoveredIdentity)) {
+        projectIdentity = discoveredIdentity
+        sessionPaths = [...priorProject.sessions.keys()]
+      } else {
+        const listing = await this.readStableDirectoryEntries(project, discoveredIdentity, false, signal)
+        if (listing === undefined) continue
+        projectIdentity = listing.identity
+        const legacy = listing.entries.find(entry =>
+          entry.isFile() && (entry.name.endsWith('.jsonl') || entry.name.endsWith('.jsonl.zstd')))
+        if (legacy !== undefined) throw this.legacyLayout(join(project, legacy.name))
+        sessionPaths = listing.entries.filter(entry => entry.isDirectory())
+          .map(entry => join(project, entry.name))
+      }
+
+      const sessions = new Map<string, CachedSnapshotSession>()
+      for (const dir of sessionPaths) {
         signal?.throwIfAborted()
         const opposite = join(dir, `session${logSuffix(this.oppositeCompression())}`)
         const oppositeExists = await this.exists(opposite)
@@ -486,26 +563,125 @@ export class JsonlSessionPersistence extends SessionPersistence implements Persi
         const path = join(dir, `session${logSuffix(this.compression)}`)
         const pathExists = await this.exists(path)
         signal?.throwIfAborted()
-        if (!pathExists) continue
-        // Read only headers so listing scales with session count, not log size.
-        const first = this.compression === 'zstd'
+        const priorSession = priorProject?.sessions.get(dir)
+        let current: CachedSnapshotSession = {}
+        if (pathExists) {
+          try {
+            const identity = await stat(path, { bigint: true })
+            signal?.throwIfAborted()
+            if (priorSession?.identity !== undefined
+              && fileRevision(priorSession.identity) === fileRevision(identity)) {
+              current = { identity, ...priorSession.header === undefined ? {} : { header: priorSession.header } }
+            } else {
+              current = await this.readStableSnapshotHeader(path, signal)
+            }
+          } catch (error: unknown) {
+            signal?.throwIfAborted()
+            if (!isENOENT(error)) throw error
+          }
+        }
+        sessions.set(dir, current)
+        if (current.header === undefined || current.identity === undefined) continue
+        await this.assertStoredIdentity(path, current.header, undefined, signal)
+        signal?.throwIfAborted()
+        if (ids.has(current.header.id)) {
+          throw new Error(`duplicate JSONL session id "${current.header.id}" appears in multiple project directories`)
+        }
+        ids.add(current.header.id)
+        artifacts.push({
+          header: current.header,
+          path,
+          revision: fileRevision(current.identity),
+        })
+      }
+      projects.set(project, { identity: projectIdentity, sessions })
+    }
+
+    signal?.throwIfAborted()
+    const nextCatalog: SnapshotCatalog = { rootRevision, projects }
+    if (generation > this.snapshotCatalogCommittedGeneration) {
+      this.snapshotCatalog = nextCatalog
+      this.snapshotCatalogCommittedGeneration = generation
+    }
+    return artifacts
+  }
+
+  /** Read one stable header, retrying if a cross-process writer changes the file mid-read. */
+  private async readStableSnapshotHeader(
+    path: string,
+    signal?: AbortSignal,
+  ): Promise<CachedSnapshotSession> {
+    for (;;) {
+      signal?.throwIfAborted()
+      const before = await stat(path, { bigint: true })
+      signal?.throwIfAborted()
+      let first: string | undefined
+      try {
+        first = this.compression === 'zstd'
           ? await this.readFirstZstdLine(path, signal)
           : await this.readFirstLine(path, signal)
+      } catch (error: unknown) {
         signal?.throwIfAborted()
-        if (first === undefined) continue // empty/half-written file
-        const meta = parseHeaderMeta(first)
-        if (meta === undefined) continue // not a session header
-        await this.assertStoredIdentity(path, meta, undefined, signal)
+        const afterFailure = await stat(path, { bigint: true })
         signal?.throwIfAborted()
-        if (ids.has(meta.id)) {
-          throw new Error(`duplicate JSONL session id "${meta.id}" appears in multiple project directories`)
-        }
-        ids.add(meta.id)
-        artifacts.push({ header: meta, path })
+        if (fileRevision(before) !== fileRevision(afterFailure)) continue
+        throw error
       }
+      signal?.throwIfAborted()
+      const after = await stat(path, { bigint: true })
+      signal?.throwIfAborted()
+      if (fileRevision(before) !== fileRevision(after)) continue
+      if (first === undefined) return { identity: after }
+      const header = parseHeaderMeta(first)
+      signal?.throwIfAborted()
+      if (header === undefined) return { identity: after }
+      await this.assertStoredIdentity(path, header, undefined, signal)
+      signal?.throwIfAborted()
+      return { identity: after, header }
     }
-    signal?.throwIfAborted()
-    return artifacts
+  }
+
+  private async statDirectory(
+    path: string,
+    followSymlink: boolean,
+    signal?: AbortSignal,
+  ): Promise<FileRevisionIdentity | undefined> {
+    try {
+      const identity = followSymlink
+        ? await stat(path, { bigint: true })
+        : await lstat(path, { bigint: true })
+      signal?.throwIfAborted()
+      if (!identity.isDirectory()) {
+        // The configured root must retain listProjectDirs' ENOTDIR behavior if
+        // another process replaces it after construction.
+        if (followSymlink) await readdir(path, { withFileTypes: true })
+        signal?.throwIfAborted()
+        return undefined
+      }
+      return identity
+    } catch (error: unknown) {
+      signal?.throwIfAborted()
+      if (isENOENT(error)) return undefined
+      throw error
+    }
+  }
+
+  private async readStableDirectoryEntries(
+    path: string,
+    before: FileRevisionIdentity,
+    followSymlink: boolean,
+    signal?: AbortSignal,
+  ): Promise<StableDirectoryEntries | undefined> {
+    let currentBefore = before
+    for (;;) {
+      signal?.throwIfAborted()
+      const entries = await readdir(path, { withFileTypes: true })
+      signal?.throwIfAborted()
+      const after = await this.statDirectory(path, followSymlink, signal)
+      if (after === undefined) return undefined
+      if (fileRevision(currentBefore) === fileRevision(after)) return { identity: after, entries }
+      currentBefore = after
+    }
   }
 
   // --- materialization / append / repair (file mechanics) ---

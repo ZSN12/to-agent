@@ -1,0 +1,222 @@
+{
+  "generatedAt": "2026-10-26T16:02:50.063Z",
+  "node": "v22.23.1",
+  "platform": "darwin-arm64",
+  "dimensions": 64,
+  "topK": 30,
+  "samples": 7,
+  "implementation": "Production InMemoryVectorStore.search using MinHeap versus a full-sort reference over the same cosine scores.",
+  "results": [
+    {
+      "documents": 1000,
+      "dimensions": 64,
+      "topK": 30,
+      "seed": 1374290920,
+      "setupMs": 1.177,
+      "fullSort": {
+        "medianMs": 0.198,
+        "p95Ms": 0.339,
+        "samplesMs": [
+          0.21,
+          0.243,
+          0.198,
+          0.177,
+          0.162,
+          0.17,
+          0.339
+        ]
+      },
+      "minHeap": {
+        "medianMs": 0.148,
+        "p95Ms": 0.326,
+        "samplesMs": [
+          0.248,
+          0.145,
+          0.326,
+          0.148,
+          0.13,
+          0.139,
+          0.183
+        ]
+      },
+      "speedup": 1.338,
+      "scoreOrderExact": true,
+      "workingSet": {
+        "fullSortScoredEntries": 1000,
+        "minHeapScoredEntries": 30,
+        "vectorScalarCount": 64000,
+        "approxVectorPayloadBytes": 512000,
+        "measuredProcessMemory": false
+      }
+    },
+    {
+      "documents": 5000,
+      "dimensions": 64,
+      "topK": 30,
+      "seed": 1374294920,
+      "setupMs": 1.077,
+      "fullSort": {
+        "medianMs": 0.999,
+        "p95Ms": 1.059,
+        "samplesMs": [
+          0.969,
+          1.059,
+          1.016,
+          0.999,
+          0.979,
+          1.05,
+          0.965
+        ]
+      },
+      "minHeap": {
+        "medianMs": 1.02,
+        "p95Ms": 1.176,
+        "samplesMs": [
+          1.057,
+          1.126,
+          1.176,
+          1.02,
+          0.942,
+          0.977,
+          0.969
+        ]
+      },
+      "speedup": 0.979,
+      "scoreOrderExact": true,
+      "workingSet": {
+        "fullSortScoredEntries": 5000,
+        "minHeapScoredEntries": 30,
+        "vectorScalarCount": 320000,
+        "approxVectorPayloadBytes": 2560000,
+        "measuredProcessMemory": false
+      }
+    },
+    {
+      "documents": 10000,
+      "dimensions": 64,
+      "topK": 30,
+      "seed": 1374299920,
+      "setupMs": 1.05,
+      "fullSort": {
+        "medianMs": 2.277,
+        "p95Ms": 2.578,
+        "samplesMs": [
+          2.277,
+          2.578,
+          2.153,
+          2.549,
+          2.276,
+          2.175,
+          2.456
+        ]
+      },
+      "minHeap": {
+        "medianMs": 1.86,
+        "p95Ms": 1.905,
+        "samplesMs": [
+          1.895,
+          1.86,
+          1.905,
+          1.902,
+          1.828,
+          1.818,
+          1.859
+        ]
+      },
+      "speedup": 1.224,
+      "scoreOrderExact": true,
+      "workingSet": {
+        "fullSortScoredEntries": 10000,
+        "minHeapScoredEntries": 30,
+        "vectorScalarCount": 640000,
+        "approxVectorPayloadBytes": 5120000,
+        "measuredProcessMemory": false
+      }
+    },
+    {
+      "documents": 25000,
+      "dimensions": 64,
+      "topK": 30,
+      "seed": 1374314920,
+      "setupMs": 3.203,
+      "fullSort": {
+        "medianMs": 6.302,
+        "p95Ms": 8.869,
+        "samplesMs": [
+          5.869,
+          6.432,
+          5.907,
+          6.302,
+          8.869,
+          6.506,
+          5.548
+        ]
+      },
+      "minHeap": {
+        "medianMs": 4.534,
+        "p95Ms": 6.217,
+        "samplesMs": [
+          4.534,
+          4.417,
+          6.217,
+          4.48,
+          5.438,
+          4.305,
+          6.08
+        ]
+      },
+      "speedup": 1.39,
+      "scoreOrderExact": true,
+      "workingSet": {
+        "fullSortScoredEntries": 25000,
+        "minHeapScoredEntries": 30,
+        "vectorScalarCount": 1600000,
+        "approxVectorPayloadBytes": 12800000,
+        "measuredProcessMemory": false
+      }
+    },
+    {
+      "documents": 50000,
+      "dimensions": 64,
+      "topK": 30,
+      "seed": 1374339920,
+      "setupMs": 5.422,
+      "fullSort": {
+        "medianMs": 15.133,
+        "p95Ms": 21.598,
+        "samplesMs": [
+          12.897,
+          15.848,
+          21.598,
+          14.625,
+          15.133,
+          14.171,
+          16.61
+        ]
+      },
+      "minHeap": {
+        "medianMs": 9.075,
+        "p95Ms": 11.098,
+        "samplesMs": [
+          9.075,
+          8.637,
+          11.098,
+          8.39,
+          10.363,
+          8.481,
+          9.886
+        ]
+      },
+      "speedup": 1.668,
+      "scoreOrderExact": true,
+      "workingSet": {
+        "fullSortScoredEntries": 50000,
+        "minHeapScoredEntries": 30,
+        "vectorScalarCount": 3200000,
+        "approxVectorPayloadBytes": 25600000,
+        "measuredProcessMemory": false
+      }
+    }
+  ],
+  "interpretation": "Deterministic same-machine microbenchmark. Working-set entries and vector numeric payload are reported; total JavaScript heap/RSS is not measured. Index/vector construction time is reported separately from query latency."
+}

@@ -9,51 +9,64 @@ import { installSettingsSection, settingsNamespace } from '@taskweaver/dsh-setti
 import { sessionResolveOptions } from '@taskweaver/dsh-tool-fs'
 import z from '@taskweaver/schemastery'
 import { createHash } from 'node:crypto'
-import { CodeChunker } from './chunker'
-import { CachedEmbeddingService, JinaEmbeddingService, OpenAIEmbeddingService } from './embedding'
-import { SemanticSearcher } from './searcher'
-import type { CodeChunk, EmbeddingService } from './types'
-import { createSemanticToolGate } from './tool-gate'
-import { InMemoryVectorStore } from './vector-store'
+import { CodeChunker } from './chunker.ts'
+import { BuiltinLocalEmbeddingService, CachedEmbeddingService, JinaEmbeddingService, OpenAIEmbeddingService } from './embedding.ts'
+import { SemanticSearcher } from './searcher.ts'
+import type { CodeChunk, EmbeddingService } from './types.ts'
+import { createSemanticToolGate } from './tool-gate.ts'
+import { InMemoryVectorStore } from './vector-store.ts'
+import { DEFAULT_MAX_INDEXED_WORKSPACES, validateIndexCapacity, WorkspaceIndexCache } from './index-cache.ts'
 
 export const name = 'tool-fs-semantic-search'
 export const inject = ['tools', 'fs', 'systemPrompt']
 
-export type EmbeddingProvider = 'jina' | 'openai'
-export interface Config { embeddingProvider?: EmbeddingProvider; maxFiles?: number; maxFileBytes?: number; maxTotalBytes?: number }
+export type EmbeddingProvider = 'builtin-local' | 'jina' | 'openai'
+export interface Config { embeddingProvider?: EmbeddingProvider; maxFiles?: number; maxFileBytes?: number; maxTotalBytes?: number; maxIndexedWorkspaces?: number }
 export const Config: z<Config> = z.object({
-  embeddingProvider: z.union(['jina', 'openai']).default('jina'),
+  embeddingProvider: z.union(['builtin-local', 'jina', 'openai']).default('builtin-local'),
   maxFiles: z.number().default(500), maxFileBytes: z.number().default(262144), maxTotalBytes: z.number().default(8388608),
+  maxIndexedWorkspaces: z.number().min(1).step(1).default(DEFAULT_MAX_INDEXED_WORKSPACES),
 })
 type ResolvedConfig = Required<Config>
 
 export const SETTINGS_NAMESPACE = settingsNamespace(name)
-const CREDENTIAL_REFS: Record<EmbeddingProvider, ReturnType<typeof credentialRef>> = {
+const CREDENTIAL_REFS: Partial<Record<EmbeddingProvider, ReturnType<typeof credentialRef>>> = {
   jina: credentialRef('JINA_API_KEY'),
   openai: credentialRef('OPENAI_API_KEY'),
 }
-const indexes = new Map<string, Promise<{ root: FsTarget; searcher: SemanticSearcher }>>()
+type SemanticIndex = { root: FsTarget; searcher: SemanticSearcher; files: number; chunks: number }
 const skipDirs = new Set(['.git', '.hg', '.svn', 'node_modules', 'vendor', 'dist', 'build', 'coverage', '.next', '.turbo', '__pycache__', '.venv', 'runtime-packages'])
 const languageByExt: Record<string, string> = { ts: 'typescript', tsx: 'typescript', js: 'javascript', jsx: 'javascript', mjs: 'javascript', cjs: 'javascript', py: 'python' }
 
 function selectedProvider(config: Config): EmbeddingProvider {
-  return config.embeddingProvider === 'openai' ? 'openai' : 'jina'
+  if (config.embeddingProvider === 'openai') return 'openai'
+  if (config.embeddingProvider === 'jina') return 'jina'
+  return 'builtin-local'
 }
 
 async function hasCredential(ctx: Context, provider: EmbeddingProvider): Promise<boolean> {
+  if (provider === 'builtin-local') return true
   const ref = CREDENTIAL_REFS[provider]
+  if (!ref) return false
   const credentials = ctx.get('credentials')
   if (credentials) return (await credentials.describe(ref)).configured
   const ambient = launchEnvironmentOf(ctx).get(ref)
-  return Boolean(ambient?.value.trim())
+  return Boolean(ambient?.value?.trim())
 }
 
 async function embeddingFor(ctx: Context, provider: EmbeddingProvider): Promise<EmbeddingService> {
+  if (provider === 'builtin-local') {
+    return new BuiltinLocalEmbeddingService()
+  }
   const ref = CREDENTIAL_REFS[provider]
+  if (!ref) return new BuiltinLocalEmbeddingService()
   const credentials = ctx.get('credentials')
   const resolved = credentials ? await credentials.resolve(ref) : undefined
   const key = resolved?.value ?? launchEnvironmentOf(ctx).get(ref)?.value
-  if (!key?.trim()) throw new Error(`请先在设置中配置 ${provider === 'jina' ? 'Jina' : 'OpenAI'} Embedding API 密钥`)
+  if (!key?.trim()) {
+    // 平滑降级到内置本地搜索服务，免密可用
+    return new BuiltinLocalEmbeddingService()
+  }
   const service = provider === 'jina' ? new JinaEmbeddingService(key) : new OpenAIEmbeddingService(key)
   return new CachedEmbeddingService(service)
 }
@@ -69,7 +82,9 @@ function indexKey(root: FsTarget): string { return createHash('sha256').update(S
 async function readCode(ctx: Context, root: FsTarget, config: ResolvedConfig, signal?: AbortSignal): Promise<CodeChunk[]> {
   const files: Array<{ target: FsTarget; language: string }> = []
   const visit = async (dir: FsTarget): Promise<void> => {
+    signal?.throwIfAborted()
     for (const entry of await ctx.fs.listDir(dir, signal)) {
+      signal?.throwIfAborted()
       if (files.length >= config.maxFiles) return
       if (!ctx.fs.contains(root, entry.target)) continue
       if (entry.type === 'directory') {
@@ -85,10 +100,12 @@ async function readCode(ctx: Context, root: FsTarget, config: ResolvedConfig, si
   const chunker = new CodeChunker()
   let totalBytes = 0
   for (const file of files) {
+    signal?.throwIfAborted()
     const info = await ctx.fs.stat(file.target, signal)
     if (!info || info.type !== 'file' || (info.size ?? 0) > config.maxFileBytes) continue
     if (totalBytes + (info.size ?? 0) > config.maxTotalBytes) break
     const content = await ctx.fs.readText(file.target, signal)
+    signal?.throwIfAborted()
     const size = new TextEncoder().encode(content).byteLength
     if (size > config.maxFileBytes || totalBytes + size > config.maxTotalBytes) continue
     totalBytes += size
@@ -97,25 +114,15 @@ async function readCode(ctx: Context, root: FsTarget, config: ResolvedConfig, si
   return chunks
 }
 
-async function getIndex(ctx: Context, root: FsTarget, provider: EmbeddingProvider) {
-  const key = indexKey(root)
-  let pending = indexes.get(key)
-  if (!pending) {
-    pending = embeddingFor(ctx, provider).then(embedding => ({
-      root,
-      searcher: new SemanticSearcher(embedding, new InMemoryVectorStore(), new CodeChunker()),
-    }))
-    indexes.set(key, pending)
+async function resolveEffectiveProvider(ctx: Context, provider: EmbeddingProvider): Promise<EmbeddingProvider> {
+  if (provider === 'jina' || provider === 'openai') {
+    const configured = await hasCredential(ctx, provider)
+    if (configured) return provider
   }
-  try {
-    return await pending
-  } catch (error) {
-    if (indexes.get(key) === pending) indexes.delete(key)
-    throw error
-  }
+  return 'builtin-local'
 }
 
-function createTools(ctx: Context, getConfig: () => Config): ToolDefinition[] {
+function createTools(ctx: Context, getConfig: () => Config, indexes: WorkspaceIndexCache<SemanticIndex>): ToolDefinition[] {
   return [
     defineTool({
       name: 'index_project_for_semantic_search', description: 'Create an in-memory semantic index for code in the current session workspace.',
@@ -125,9 +132,19 @@ function createTools(ctx: Context, getConfig: () => Config): ToolDefinition[] {
         const config = getConfig() as ResolvedConfig
         const provider = selectedProvider(config)
         const root = await resolveRoot(ctx, args.workspace ?? exec.agent?.session.header.cwd ?? '.', exec)
-        const chunks = await readCode(ctx, root, config, exec.signal)
-        await (await getIndex(ctx, root, provider)).searcher.indexChunks(chunks)
-        return { files: new Set(chunks.map(c => c.file)).size, chunks: chunks.length, workspace: root.displayPath }
+        const effective = await resolveEffectiveProvider(ctx, provider)
+        const key = `${indexKey(root)}:${effective}`
+        const index = await indexes.replace(key, async signal => {
+          const chunks = await readCode(ctx, root, config, signal)
+          signal.throwIfAborted()
+          const embedding = await embeddingFor(ctx, effective)
+          signal.throwIfAborted()
+          const searcher = new SemanticSearcher(embedding, new InMemoryVectorStore())
+          await searcher.indexChunks(chunks)
+          signal.throwIfAborted()
+          return { root, searcher, files: new Set(chunks.map(c => c.file)).size, chunks: chunks.length }
+        }, exec.signal)
+        return { files: index.files, chunks: index.chunks, workspace: root.displayPath }
       },
     }),
     defineTool({
@@ -141,7 +158,11 @@ function createTools(ctx: Context, getConfig: () => Config): ToolDefinition[] {
       output: { schema: { type: 'string' }, render: (_a, v) => [{ type: 'text', text: v }] },
       async execute(args, exec) {
         const root = await resolveRoot(ctx, args.workspace ?? exec.agent?.session.header.cwd ?? '.', exec)
-        const pending = indexes.get(indexKey(root))
+        const config = getConfig() as ResolvedConfig
+        const provider = selectedProvider(config)
+        const effective = await resolveEffectiveProvider(ctx, provider)
+        const key = `${indexKey(root)}:${effective}`
+        const pending = indexes.get(key)
         if (!pending) throw new Error('Workspace is not indexed; call index_project_for_semantic_search first')
         const index = await pending
         const results = await index.searcher.search(args.query, Math.max(1, Math.min(30, args.top_k ?? 10)), {
@@ -156,7 +177,11 @@ function createTools(ctx: Context, getConfig: () => Config): ToolDefinition[] {
       output: { schema: { type: 'object', additionalProperties: false, properties: { indexed: { type: 'boolean', required: true }, chunks: { type: 'integer', required: true }, workspace: { type: 'string', required: true } } }, render: (_a, v) => [{ type: 'text', text: v.indexed ? `${v.chunks} chunks indexed in ${v.workspace}.` : `No index for ${v.workspace}.` }] },
       async execute(args, exec) {
         const root = await resolveRoot(ctx, args.workspace ?? exec.agent?.session.header.cwd ?? '.', exec)
-        const pending = indexes.get(indexKey(root))
+        const config = getConfig() as ResolvedConfig
+        const provider = selectedProvider(config)
+        const effective = await resolveEffectiveProvider(ctx, provider)
+        const key = `${indexKey(root)}:${effective}`
+        const pending = indexes.get(key)
         const index = pending ? await pending : undefined
         const stats = index ? await index.searcher.getStats() : { totalChunks: 0, cacheSize: 0 }
         return { indexed: Boolean(index), chunks: stats.totalChunks, workspace: root.displayPath }
@@ -170,19 +195,30 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
   for (const [key, value] of Object.entries({ maxFiles: cfg.maxFiles, maxFileBytes: cfg.maxFileBytes, maxTotalBytes: cfg.maxTotalBytes })) {
     if (!Number.isSafeInteger(value) || value < 1) throw new Error(`${key} must be a positive integer`)
   }
+  const indexes = new WorkspaceIndexCache<SemanticIndex>(config.maxIndexedWorkspaces ?? DEFAULT_MAX_INDEXED_WORKSPACES)
 
   let current: () => Config = () => config
+  let effectiveProvider: EmbeddingProvider = 'builtin-local'
+
+  const refreshEffectiveProvider = async () => {
+    indexes.setCapacity(current().maxIndexedWorkspaces ?? DEFAULT_MAX_INDEXED_WORKSPACES)
+    effectiveProvider = await resolveEffectiveProvider(ctx, selectedProvider(current()))
+  }
+
   const gate = createSemanticToolGate({
-    getProvider: () => selectedProvider(current()),
+    getProvider: () => effectiveProvider,
     hasCredential: provider => hasCredential(ctx, provider),
-    mount: () => {
+    mount: (provider) => {
       const disposers: Array<() => void> = []
       try {
-        for (const tool of createTools(ctx, current)) disposers.push(ctx.tools.register(tool))
+        for (const tool of createTools(ctx, current, indexes)) disposers.push(ctx.tools.register(tool))
+        const isCloud = provider === 'jina' || provider === 'openai'
         disposers.push(ctx.systemPrompt.section({
           name: 'tool:semantic_search_code',
           order: 104,
-          text: '语义代码搜索已启用。它会将本地代码片段发送到设置中选择的向量服务，用于生成向量并查找相关代码。需要先建立工作区索引，再调用语义搜索。',
+          text: isCloud
+            ? `语义代码搜索已启用（云端向量增强模式：${provider === 'jina' ? 'Jina AI' : 'OpenAI'}）。代码片段将用于生成向量并查找相关实现。需要先建立工作区索引，再调用语义搜索。`
+            : '代码搜索已启用（内置本地检索模式，基于代码符号大纲与本地切片权重，无需外部网络与 API 密钥）。需要先建立工作区索引，再调用语义搜索。',
         }))
         return disposers
       } catch (error) {
@@ -193,7 +229,10 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
     onReset: () => indexes.clear(),
   })
   const safeSynchronize = () => {
-    void gate.synchronize().catch((error: unknown) => {
+    void (async () => {
+      await refreshEffectiveProvider()
+      await gate.synchronize()
+    })().catch((error: unknown) => {
       ctx.logger.warn('semantic search: failed to update tool availability', error)
     })
   }
@@ -201,12 +240,15 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
   installSettingsSection(ctx, SETTINGS_NAMESPACE, Config, config, {
     setSource: (source) => { current = source },
     onChange: safeSynchronize,
+    validate: value => validateIndexCapacity(value.maxIndexedWorkspaces ?? DEFAULT_MAX_INDEXED_WORKSPACES),
   })
   ctx.on('credentials/reference-updated', (ref) => {
-    if (ref !== CREDENTIAL_REFS[selectedProvider(current())]) return
+    const active = selectedProvider(current())
+    if (active === 'builtin-local' || ref !== CREDENTIAL_REFS[active as 'jina' | 'openai']) return
     indexes.clear()
     safeSynchronize()
   })
-  ctx.effect(() => () => gate.dispose())
+  ctx.effect(() => () => { indexes.dispose(); gate.dispose() })
+  await refreshEffectiveProvider()
   await gate.synchronize()
 }

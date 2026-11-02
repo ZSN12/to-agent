@@ -10,6 +10,7 @@ export function classifySubtaskFailure(error, { signal } = {}) {
   const code = typeof error?.code === 'string' ? error.code.toUpperCase() : ''
   const status = Number(error?.status ?? error?.statusCode)
   const message = safeErrorSummary(error).toLowerCase()
+  if (signal?.aborted) return { kind: 'cancelled', retryable: false, reason: '任务已取消' }
   if (['ETASK_TIMEOUT', 'ETASK_IDLE_TIMEOUT'].includes(code) || error?.kind === 'timeout') {
     return {
       kind: 'timeout',
@@ -37,7 +38,7 @@ export function classifySubtaskFailure(error, { signal } = {}) {
         : 'Agent 本轮没有返回最终文本；避免自动升级模型重复消耗，需人工决定是否继续',
     }
   }
-  if (signal?.aborted || code === 'ABORT_ERR' || code === 'ERR_CANCELED' || /\b(aborted|cancelled|canceled)\b/.test(message)) {
+  if (code === 'ABORT_ERR' || code === 'ERR_CANCELED' || /\b(aborted|cancelled|canceled)\b/.test(message)) {
     return { kind: 'cancelled', retryable: false, reason: '任务已取消' }
   }
   if (
@@ -51,6 +52,14 @@ export function classifySubtaskFailure(error, { signal } = {}) {
     || /invalid api key|incorrect api key|unauthorized|authentication failed|model not found|unsupported model|invalid request/.test(message)
   ) {
     return { kind: 'configuration', retryable: false, reason: '模型或请求配置错误，不通过更换模型盲目重试' }
+  }
+  if (code === 'EVERIFY_FAILED') {
+    return {
+      kind: 'execution',
+      retryable: error?.retryable !== false,
+      failureStage: 'verification',
+      reason: '代码验证未通过，可将命令、退出码和压缩输出交给更高能力模型修复',
+    }
   }
   const tlsHandshakeFailure = /client network socket disconnected|network socket disconnected|tls handshake|secure tls/.test(message)
   if (
@@ -82,18 +91,34 @@ function attachEvidence(error, evidenceBundle) {
   return wrapped
 }
 
-function makeEvidenceBundle(task, attempts, error, failure) {
+function mergeEvidenceList(previous, incoming) {
+  const values = [...(Array.isArray(previous) ? previous : []), ...(Array.isArray(incoming) ? incoming : [])]
+  const seen = new Set()
+  return values.filter((value) => {
+    const key = typeof value === 'string' ? value : JSON.stringify(value)
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
+function makeEvidenceBundle(task, attempts, error, failure, previousBundle = null) {
+  const suppliedBundle = error?.evidenceBundle && typeof error.evidenceBundle === 'object'
+    ? error.evidenceBundle
+    : {}
   return {
+    ...(previousBundle && typeof previousBundle === 'object' ? previousBundle : {}),
+    ...suppliedBundle,
     task_id: task?.id ?? 'unknown',
     task_type: task?.taskType ?? 'unknown',
     title: task?.title ?? '',
-    related_files: [],
-    verified_facts: [],
-    diff: null,
-    failed_tests: [],
+    related_files: mergeEvidenceList(previousBundle?.related_files, suppliedBundle.related_files),
+    verified_facts: mergeEvidenceList(previousBundle?.verified_facts, suppliedBundle.verified_facts),
+    diff: suppliedBundle.diff ?? previousBundle?.diff ?? null,
+    failed_tests: mergeEvidenceList(previousBundle?.failed_tests, suppliedBundle.failed_tests),
     failure_class: failure.kind,
     failure_scope: failure.failoverScope ?? 'model',
-    failure_stage: failure.failureStage ?? 'model-execution',
+    failure_stage: failure.failureStage ?? suppliedBundle.failure_stage ?? 'model-execution',
     error_summary: safeErrorSummary(error),
     attempted_actions: attempts.map(({ modelKey, outcome, errorSummary }) =>
       `${modelKey}: ${outcome}${errorSummary ? ` — ${errorSummary}` : ''}`),
@@ -109,6 +134,7 @@ export async function runWithSubtaskRetries({
   maxRetries = 1,
   canRetry = true,
   run,
+  validate,
   chooseModel,
   prepareRetry,
   onRetry,
@@ -117,9 +143,16 @@ export async function runWithSubtaskRetries({
   let lastError
   const attempts = []
   const excludedModelKeys = new Set([initialModelKey])
+  const executeAttempt = async (modelKey, evidenceBundle, attempt) => {
+    const result = await run(modelKey, evidenceBundle)
+    if (typeof validate === 'function') {
+      await validate(result, { task, modelKey, evidenceBundle, attempt })
+    }
+    return result
+  }
 
   try {
-    return { result: await run(initialModelKey, null), modelKey: initialModelKey, attempts: 0 }
+    return { result: await executeAttempt(initialModelKey, null, 1), modelKey: initialModelKey, attempts: 0 }
   } catch (error) {
     lastError = error
     attempts.push({ modelKey: initialModelKey, outcome: 'failed', errorSummary: safeErrorSummary(error) })
@@ -163,16 +196,25 @@ export async function runWithSubtaskRetries({
       previousError: lastError,
       failure,
       evidenceBundle,
-      attempt,
+      failureCount: attempts.length,
     })
     if (!candidate?.modelKey || excludedModelKeys.has(candidate.modelKey)) {
       throw attachEvidence(lastError, evidenceBundle)
     }
     excludedModelKeys.add(candidate.modelKey)
 
-    await onRetry?.({ ...candidate, attempt, maxRetries: retryLimit, previousError: lastError, failure, evidenceBundle })
+    await onRetry?.({
+      ...candidate,
+      attempt,
+      maxRetries: retryLimit,
+      previousModelKey: attempts.at(-1)?.modelKey ?? initialModelKey,
+      previousError: lastError,
+      failure,
+      evidenceBundle,
+      failureCount: attempts.length,
+    })
     try {
-      const result = await run(candidate.modelKey, evidenceBundle)
+      const result = await executeAttempt(candidate.modelKey, evidenceBundle, attempt + 1)
       return {
         result,
         modelKey: candidate.modelKey,
@@ -185,7 +227,7 @@ export async function runWithSubtaskRetries({
       attempts.push({ modelKey: candidate.modelKey, outcome: 'failed', errorSummary: safeErrorSummary(error) })
       failure = classifySubtaskFailure(error, { signal })
       excludeFailedRouteDomain(candidate.modelKey, failure)
-      evidenceBundle = makeEvidenceBundle(task, attempts, error, failure)
+      evidenceBundle = makeEvidenceBundle(task, attempts, error, failure, evidenceBundle)
       if (!failure.retryable || !retryAllowed(failure, error, attempt + 1)) throw attachEvidence(error, evidenceBundle)
     }
   }

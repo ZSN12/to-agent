@@ -1,0 +1,93 @@
+{
+  "generatedAt": "2026-10-26T15:31:13.105Z",
+  "node": "v22.23.1",
+  "platform": "darwin-arm64",
+  "dagLimits": {
+    "default": 6,
+    "maximum": 12
+  },
+  "scenarios": [
+    {
+      "name": "small",
+      "nodes": 3,
+      "seed": 324508639,
+      "iterations": 1000,
+      "topologicalSort": {
+        "totalMs": 2.2180369999999634,
+        "averageMs": 0.0022180369999999635,
+        "p50Ms": 0.0015000000000000568,
+        "p95Ms": 0.002541999999998268,
+        "operationsPerSecond": 450849.106665045
+      },
+      "transitiveClosure": {
+        "totalMs": 1.01686299999999,
+        "averageMs": 0.00101686299999999,
+        "p50Ms": 0.00079200000000057,
+        "p95Ms": 0.0008750000000006253,
+        "operationsPerSecond": 983416.6451134615
+      },
+      "dagExecution": {
+        "totalMs": 11.39012499999988,
+        "averageMs": 0.01139012499999988,
+        "p50Ms": 0.008416999999994346,
+        "p95Ms": 0.014292000000001082,
+        "operationsPerSecond": 87795.34904138546
+      }
+    },
+    {
+      "name": "default-limit",
+      "nodes": 6,
+      "seed": 610839776,
+      "iterations": 500,
+      "topologicalSort": {
+        "totalMs": 0.9701230000000294,
+        "averageMs": 0.0019402460000000588,
+        "p50Ms": 0.0014169999999964489,
+        "p95Ms": 0.001832999999997753,
+        "operationsPerSecond": 515398.5628626317
+      },
+      "transitiveClosure": {
+        "totalMs": 0.2393979999999587,
+        "averageMs": 0.0004787959999999174,
+        "p50Ms": 0.0004580000000018458,
+        "p95Ms": 0.0005000000000023874,
+        "operationsPerSecond": 2088572.1685230713
+      },
+      "dagExecution": {
+        "totalMs": 11.59386499999998,
+        "averageMs": 0.02318772999999996,
+        "p50Ms": 0.014708999999996308,
+        "p95Ms": 0.05837499999999807,
+        "operationsPerSecond": 43126.256860848465
+      }
+    },
+    {
+      "name": "max-supported",
+      "nodes": 12,
+      "seed": 270544960,
+      "iterations": 250,
+      "topologicalSort": {
+        "totalMs": 0.9201310000000333,
+        "averageMs": 0.0036805240000001333,
+        "p50Ms": 0.0028750000000030695,
+        "p95Ms": 0.003292000000001849,
+        "operationsPerSecond": 271700.44265435135
+      },
+      "transitiveClosure": {
+        "totalMs": 0.3057879999999926,
+        "averageMs": 0.0012231519999999704,
+        "p50Ms": 0.00116599999999778,
+        "p95Ms": 0.0012500000000059686,
+        "operationsPerSecond": 817559.8780854908
+      },
+      "dagExecution": {
+        "totalMs": 9.383172000000052,
+        "averageMs": 0.03753268800000021,
+        "p50Ms": 0.029083999999997445,
+        "p95Ms": 0.07854199999999878,
+        "operationsPerSecond": 26643.44211104716
+      }
+    }
+  ],
+  "interpretation": "本机当前版本测量；图规模受运行时 12 节点上限约束，不构成大规模对照或统计显著性结论。"
+}

@@ -11,6 +11,22 @@ function isBuildFaceClient(value: unknown): boolean {
   throw new Error(`tsdown: --env.TASKWEAVER_BUILD_FACE must be host or client, received ${String(value)}`)
 }
 
+/** Shared entry settings for packages whose emitted modules need bundling. */
+export function hostPackageConfig(env: { TASKWEAVER_BUILD_FACE?: unknown } | undefined) {
+  const client = isBuildFaceClient(env?.TASKWEAVER_BUILD_FACE)
+  return {
+    entry: client ? '' : ['lib/types/{index,invariant,startup}.js'],
+    outDir: 'lib',
+    format: ['esm'],
+    platform: 'node',
+    target: 'es2024',
+    fixedExtension: false,
+    dts: false,
+    clean: false,
+    plugins: client ? [] : [typertPlugin({ mode: 'workspace', faces: ['host'] })],
+  }
+}
+
 /**
  * The ordinary workspace build consumes JavaScript emitted by the Host
  * TypeScript project and runs Typert. The Client pass selects packages that
@@ -18,7 +34,6 @@ function isBuildFaceClient(value: unknown): boolean {
  * their Node loader entry and browser artifact.
  */
 export default defineConfig(({ env, cwd }) => {
-  const client = isBuildFaceClient(env?.TASKWEAVER_BUILD_FACE)
   const workspace = {
     include: ['cordis/*', '*/*', 'host-cli'],
   }
@@ -29,14 +44,6 @@ export default defineConfig(({ env, cwd }) => {
 
   return {
     workspace,
-    entry: client ? '' : ['lib/types/{index,invariant,startup}.js'],
-    outDir: 'lib',
-    format: ['esm'],
-    platform: 'node',
-    target: 'es2024',
-    fixedExtension: false,
-    dts: false,
-    clean: false,
-    plugins: client ? [] : [typertPlugin({ mode: 'workspace', faces: ['host'] })],
+    ...hostPackageConfig(env),
   }
 })

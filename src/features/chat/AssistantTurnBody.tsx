@@ -6,6 +6,7 @@ import { coalesceContentBlocks } from './coalesceContentBlocks'
 import { isDebugBlocksEnabled } from './debug-blocks'
 import { isStructuredThinkingBlock } from './reasoning-heuristics'
 import { DshToolCallList } from './DshToolCallList'
+import { filterDshAssistantToolCalls } from './dshAssistantToolGroups'
 
 const AgentMessageMarkdown = lazy(() => import('./AgentMessageMarkdown').then((module) => ({ default: module.AgentMessageMarkdown })))
 
@@ -28,6 +29,7 @@ export function AssistantTurnBody({
   fallbackThinking,
   fallbackText,
   thinkingIsStreaming,
+  showPendingThinking = false,
   isStreaming = false,
   dshToolRows,
   toolTraceItems,
@@ -42,6 +44,7 @@ export function AssistantTurnBody({
   fallbackThinking?: string
   fallbackText?: string
   thinkingIsStreaming?: boolean
+  showPendingThinking?: boolean
   isStreaming?: boolean
   dshToolRows?: readonly DshProjectedToolCall[]
   toolTraceItems?: readonly ToolTraceItem[]
@@ -63,7 +66,16 @@ export function AssistantTurnBody({
         ]
 
   const hasTools = ((dshToolRows?.length ?? 0) > 0 || (toolTraceItems?.length ?? 0) > 0)
-  if (!rawSegments.length && !hasTools) return null
+  if (!rawSegments.length && !hasTools) {
+    if (!isStreaming || !showPendingThinking) return null
+    return (
+      <div className="assistant-turn-body">
+        <div className="assistant-block-wrap is-thinking">
+          <DshThinkBlock isStreaming />
+        </div>
+      </div>
+    )
+  }
 
   const segments = coalesceContentBlocks(rawSegments)
   const debug = isDebugBlocksEnabled()
@@ -73,7 +85,7 @@ export function AssistantTurnBody({
   type FlowItem =
     | { kind: 'thinking'; id: string; text: string; streamThis: boolean }
     | { kind: 'text'; id: string; text: string }
-    | { kind: 'tools'; id: string; filterStep?: number }
+    | { kind: 'tools'; id: string; filterStep?: number; filterSteps?: readonly number[] }
 
   const flowItems = useMemo<FlowItem[]>(() => {
     const items: FlowItem[] = []
@@ -100,8 +112,21 @@ export function AssistantTurnBody({
               return m ? parseInt(m[1], 10) : 1
             })
             .concat((toolTraceItems ?? []).map((t) => t.step ?? 1))
+            .concat((dshToolRows ?? []).map((row) => row.step || 1))
         )
       ).sort((a, b) => a - b)
+      let toolGroupIndex = 0
+      let pendingToolSteps: number[] = []
+      const flushPendingToolGroup = () => {
+        if (!pendingToolSteps.length) return
+        items.push({
+          kind: 'tools',
+          id: `tools-group-${toolGroupIndex++}`,
+          filterSteps: pendingToolSteps,
+        })
+        pendingToolSteps = []
+        toolsInserted = true
+      }
 
       for (let sIdx = 0; sIdx < stepNumbers.length; sIdx++) {
         const stepNum = stepNumbers[sIdx]
@@ -122,18 +147,20 @@ export function AssistantTurnBody({
         // 该步骤的 text
         for (const seg of stepSegs) {
           if (!isStructuredThinkingBlock(seg) && seg.text?.trim()) {
+            // Visible assistant text closes the current tool run. Tool calls
+            // across steps stay together until the assistant actually speaks.
+            flushPendingToolGroup()
             items.push({ kind: 'text', id: seg.id, text: seg.text })
           }
         }
 
         // 该步骤的工具调用
-        const stepTools = (toolTraceItems ?? []).filter((t) => (t.step ?? 1) === stepNum)
-        if (stepTools.length > 0 || (sIdx === 0 && !toolsInserted && hasTools)) {
-          items.push({ kind: 'tools', id: `tools-step-${stepNum}`, filterStep: stepNum })
-          toolsInserted = true
-        }
+        const stepTraces = filterDshAssistantToolCalls(toolTraceItems, { step: stepNum })
+        const stepRows = filterDshAssistantToolCalls(dshToolRows, { step: stepNum })
+        if (stepTraces.length || stepRows.length) pendingToolSteps.push(stepNum)
       }
 
+      flushPendingToolGroup()
       if (!toolsInserted && hasTools) {
         items.push({ kind: 'tools', id: 'turn-tools' })
       }
@@ -250,12 +277,9 @@ export function AssistantTurnBody({
         }
 
         if (item.kind === 'tools') {
-          const stepTraces = item.filterStep !== undefined
-            ? (toolTraceItems ?? []).filter((t) => (t.step ?? 1) === item.filterStep)
-            : toolTraceItems
-          const stepRows = item.filterStep !== undefined
-            ? (dshToolRows ?? []).filter((r) => (r.step || 1) === item.filterStep)
-            : dshToolRows
+          const callFilter = { step: item.filterStep, steps: item.filterSteps }
+          const stepTraces = filterDshAssistantToolCalls(toolTraceItems, callFilter)
+          const stepRows = filterDshAssistantToolCalls(dshToolRows, callFilter)
 
           if ((stepTraces?.length ?? 0) === 0 && (stepRows?.length ?? 0) === 0) {
             return null

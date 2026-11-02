@@ -95,6 +95,7 @@ assert.deepEqual(createHostEnvironment({ PATH: '/bin', TASKWEAVER_SHELL_TOKEN: '
   resourcesPath: '/app/resources',
 }), {
   PATH: '/bin',
+  TASKWEAVER_BACKEND_ROOT: path.join(root, 'backend'),
   TASKWEAVER_PACKAGED: '1',
   TASKWEAVER_RESOURCES_PATH: '/app/resources',
 }, 'the shell auth token must not propagate into the Host child environment')

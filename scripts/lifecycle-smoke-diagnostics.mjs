@@ -1,8 +1,10 @@
 const ERROR_CATEGORIES = [
   ['provider-billing', /\b402\b|insufficient.?balance|billing|quota exceeded/i],
-  ['provider-auth', /\b401\b|unauthori[sz]ed|invalid[_ ]api[_ ]key/i],
+  ['provider-oauth-timeout', /oauth.{0,80}(?:timeout|timed out)|(?:timeout|timed out).{0,80}oauth/i],
+  ['provider-auth', /\b401\b|unauthori[sz]ed|invalid[_ ]api[_ ]key|BRIDGE_(?:ANTIGRAVITY|CURSOR)_(?:CREDENTIAL_MISSING|ACCOUNT_PAUSED|OAUTH_HELPER_ERROR|OAUTH_CLIENT_CREDENTIALS_UNAVAILABLE)|no active credential is available|could not resolve the active .*OAuth credential/i],
   ['provider-rate-limit', /\b429\b|rate.?limit|too many requests/i],
   ['provider-model-unavailable', /\b404\b|model.{0,24}(not found|unavailable|unsupported)/i],
+  ['provider-configuration', /BRIDGE_ANTIGRAVITY_MISCONFIGURED|Cloud Code Assist project could not be read/i],
   ['timeout', /ETIMEDOUT|timed? ?out|deadline exceeded/i],
   ['network', /ECONN|fetch failed|network error|socket hang.?up/i],
   ['filesystem', /ENOENT|no such file or directory/i],

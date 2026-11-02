@@ -1,5 +1,6 @@
 import { memo, useEffect, useRef, useState } from 'react'
-import { Pencil, RefreshCw, RotateCcw, Undo2 } from 'lucide-react'
+import type { ReactNode } from 'react'
+import { ArrowRightCircle, Pencil, RefreshCw, RotateCcw, Undo2 } from 'lucide-react'
 import type { DshProjectedImageRef, DshProjectedToolCall } from '../../shared/app-api'
 import type { ToolTraceItem } from '../../shared/app-api'
 import type { ChatMessage } from '../../types'
@@ -11,11 +12,16 @@ import { DshStateDot } from './DshStateDot'
 import { IconBranchOutline16, IconCheckOutline16, IconCopyOutline16 } from './DshIcons'
 import { MessageTurnUsageChip } from './MessageTurnUsageChip'
 import { TurnActivitySummaryRow } from './TurnActivitySummary'
-import { DeepDivingIndicator } from './DeepDivingIndicator'
 import { formatMessageTime } from './formatMessageTime'
 import { formatDshRunDuration } from './session-usage'
+import { SubagentOutputList } from './SubagentOutputList'
+import { AutoVerificationPromptRow, TurnVerification } from './TurnVerification'
+import { isAutoVerificationPrompt } from './autoVerification'
+import { isFailedTurnMessage, turnStatusNote } from './turn-message-status'
 import { getBridge } from '../app/getBridge'
 import { AttachmentImagePreview } from './AttachmentImagePreview'
+import type { ChangedFileItem } from './changed-files'
+import { RolePortrait } from '../roles/RolePortrait'
 
 function DshUserImageAttachments({
   images,
@@ -121,6 +127,7 @@ function DshUserImageAttachments({
 /** Memoized: settled rows must not re-render on every streamed frame. */
 export const Message = memo(function Message({
   message,
+  historySourceLabel,
   dshToolRows,
   toolTraceItems,
   workspacePath,
@@ -131,16 +138,19 @@ export const Message = memo(function Message({
   onRegenerate,
   onRetry,
   isStreaming = false,
+  streamStatus,
   thinkingIsStreaming,
-  streamActivity,
   dagTaskCount,
   onOpenDagPanel,
   onShowToolDetails,
   onOpenWorkspacePath,
+  onOpenChangedFileReview,
+  onTransferToWork,
   fallbackModelKey,
   isFocused = false,
 }: {
   message: ChatMessage
+  historySourceLabel?: string
   dshToolRows?: readonly DshProjectedToolCall[]
   toolTraceItems?: readonly ToolTraceItem[]
   workspacePath?: string | null
@@ -151,16 +161,19 @@ export const Message = memo(function Message({
   onRegenerate?: () => void
   onRetry?: () => void
   isStreaming?: boolean
+  streamStatus?: ReactNode
   thinkingIsStreaming?: boolean
-  streamActivity?: string | null
   dagTaskCount?: number
   onOpenDagPanel?: () => void
   onShowToolDetails?: (item: ToolTraceItem) => void
   onOpenWorkspacePath?: (relativePath: string) => void
+  onOpenChangedFileReview?: (file: ChangedFileItem) => void
+  onTransferToWork?: (text: string) => void
   fallbackModelKey?: string | null
   isFocused?: boolean
 }) {
   const isUser = message.author === 'user'
+  const autoVerificationPrompt = isUser && isAutoVerificationPrompt(message.text)
   const [copied, setCopied] = useState(false)
   const [editing, setEditing] = useState(false)
   const [editDraft, setEditDraft] = useState(message.text)
@@ -192,19 +205,34 @@ export const Message = memo(function Message({
       ? (message.usage.inputTokens ?? 0) + (message.usage.cacheReadTokens ?? 0) + (message.usage.cacheWriteTokens ?? 0)
       : 0
   const hasTurnUsage = !isUser && message.usage && (billed > 0 || message.usage.outputTokens > 0)
-  const activeToolTrace = [...(toolTraceItems ?? [])].reverse().find((item) => item.status === 'running')
-  const isCallingTool = Boolean(activeToolTrace)
-    || /^正在执行(?:\s|工具)/.test(streamActivity?.trim() ?? '')
-
+  const failedTurn = isFailedTurnMessage(message)
+  const statusNote = turnStatusNote(message)
   return (
     <article
       id={`msg-${message.id}`}
-      className={`message dsh-flow-item ${isUser ? 'user-message' : 'agent-message'}${message.interrupted ? ' interrupted-turn' : ''}${isStreaming ? ' message-streaming' : ''}${isFocused ? ' message-focused' : ''}`}
+      className={`message dsh-flow-item ${isUser ? 'user-message' : 'agent-message'}${message.roleMode ? ' role-message' : ''}${message.interrupted ? ' interrupted-turn' : ''}${isStreaming ? ' message-streaming' : ''}${isFocused ? ' message-focused' : ''}`}
       data-testid={isUser ? 'user-message' : 'assistant-message'}
-      aria-label={isUser ? '用户消息' : 'TaskWeaver 回复'}
+      aria-label={autoVerificationPrompt ? 'TaskWeaver 自动验证' : isUser ? '用户消息' : historySourceLabel ? `${historySourceLabel} 回复` : message.roleMode ? `${message.name} 的角色回复` : 'TaskWeaver 回复'}
       data-time-hover-root
     >
       <div className="message-content">
+        {historySourceLabel && (
+          <div className="role-work-history-speaker">
+            <span>{historySourceLabel}</span>
+          </div>
+        )}
+        {!isUser && message.roleMode && (
+          <div className="role-message-speaker">
+            <RolePortrait
+              name={message.name || 'Bot'}
+              variant={[...(message.speakerId ?? message.name ?? 'bot')].reduce((sum, char) => sum + char.charCodeAt(0), 0)}
+              size="small"
+              status={isStreaming ? 'working' : 'done'}
+            />
+            <span>{message.name}</span>
+            {message.roleSummary && <span className="role-summary-badge">本轮总结</span>}
+          </div>
+        )}
         {!isUser && message.compaction && (
           <CompactionRow
             automatic={message.compaction.automatic}
@@ -212,18 +240,14 @@ export const Message = memo(function Message({
             tokensBefore={message.compaction.tokensBefore}
           />
         )}
-        {!isUser && isStreaming && (
-          <DeepDivingIndicator
-            startTime={message.timestamp}
-            isCallingTool={isCallingTool}
-          />
-        )}
+        {streamStatus}
         {!isUser && !message.compaction && (
           <AssistantTurnBody
             blocks={message.contentBlocks}
             fallbackThinking={message.thinking}
             fallbackText={message.text}
             thinkingIsStreaming={thinkingIsStreaming}
+            showPendingThinking={Boolean(message.roleMode)}
             isStreaming={isStreaming}
             dshToolRows={dshToolRows}
             toolTraceItems={toolTraceItems}
@@ -235,12 +259,19 @@ export const Message = memo(function Message({
             onOpenWorkspacePath={onOpenWorkspacePath}
           />
         )}
+        {!isUser && !isStreaming && !message.compaction && message.subagentOutputs?.length ? (
+          <SubagentOutputList outputs={message.subagentOutputs} />
+        ) : null}
+        {!isUser && !isStreaming && message.verification ? (
+          <TurnVerification evidence={message.verification} />
+        ) : null}
         {!isUser && (
           <ChangedFilesSummary
             traces={toolTraceItems}
             fileChanges={message.fileChanges}
             workspacePath={workspacePath}
             onOpenWorkspacePath={onOpenWorkspacePath}
+            onOpenReview={onOpenChangedFileReview}
             compactListOnly
           />
         )}
@@ -250,9 +281,13 @@ export const Message = memo(function Message({
             traces={toolTraceItems}
             fileChanges={message.fileChanges}
             isStreaming={isStreaming}
+            conversationId={conversationId}
+            onShowToolDetails={onShowToolDetails}
+            onOpenWorkspacePath={onOpenWorkspacePath}
           />
         )}
-        {isUser && (message.text || message.images?.length) ? (
+        {autoVerificationPrompt ? <AutoVerificationPromptRow text={message.text} /> : null}
+        {isUser && !autoVerificationPrompt && (message.text || message.images?.length) ? (
           <div className="user-message-stack">
             {message.text && (editing ? (
               <div className="user-message-edit">
@@ -280,7 +315,7 @@ export const Message = memo(function Message({
             {Boolean(message.images?.length) && <DshUserImageAttachments images={message.images!} conversationId={conversationId} />}
           </div>
         ) : null}
-        {message.callout ? (
+        {message.callout && failedTurn ? (
           <div className="dsh-turn-error-row" role="status">
             <DshStateDot state="error" size={8} className="dsh-turn-error-dot" />
             <div className="dsh-turn-error-copy">
@@ -294,7 +329,17 @@ export const Message = memo(function Message({
               </button>
             )}
           </div>
-        ) : message.interrupted ? (
+        ) : null}
+        {statusNote && (
+          <div className="dsh-turn-error-row is-info" role="status">
+            <DshStateDot state="done" size={8} />
+            <div className="dsh-turn-error-copy">
+              <span className="dsh-turn-error-title">执行信息</span>
+              <span className="dsh-turn-error-message">{statusNote}</span>
+            </div>
+          </div>
+        )}
+        {message.interrupted && !failedTurn ? (
           <span className="dsh-turn-stopped-badge">已停止</span>
         ) : null}
       </div>
@@ -311,7 +356,7 @@ export const Message = memo(function Message({
             >
               {copied ? <IconCheckOutline16 size={14} /> : <IconCopyOutline16 size={14} />}
             </button>
-            {isUser && onEditAndResend && !message.behavior && (
+            {isUser && onEditAndResend && !message.behavior && !autoVerificationPrompt && (
               <button
                 className="message-action-btn message-edit-resend"
                 type="button"
@@ -357,6 +402,18 @@ export const Message = memo(function Message({
                 title="回到这里"
               >
                 <Undo2 size={14} />
+              </button>
+            )}
+            {onTransferToWork && !isUser && message.roleMode && (
+              <button
+                className="message-action-btn message-transfer-work"
+                type="button"
+                onClick={() => onTransferToWork(message.text)}
+                aria-label="转入 KAI Work 实施"
+                data-tooltip="转入 KAI Work 实施"
+                title="转入 KAI Work 实施"
+              >
+                <ArrowRightCircle size={14} />
               </button>
             )}
             <time className="message-footer-time">

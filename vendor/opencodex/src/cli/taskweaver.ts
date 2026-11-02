@@ -19,13 +19,21 @@ import { slugEquals } from "../providers/slug-codec";
 import { configuredAdminToken } from "../lib/admin-secrets";
 import { probeHostname } from "../lib/probe-hostname";
 import { loadAuthStore, saveCredential } from "../oauth/store";
+import { getValidAccessToken } from "../oauth";
 import { loginCursor } from "../oauth/cursor";
 import { loginAntigravity } from "../oauth/google-antigravity";
+import { antigravityUserAgent } from "../adapters/client-fingerprint";
+import { captureModelCacheGeneration } from "../codex/model-cache";
+import {
+  parseAntigravityAvailableModels,
+  registerAntigravityDiscoveredWireModels,
+} from "../providers/antigravity-models";
 import { openUrl } from "../lib/open-url";
 import type { OAuthController, OAuthCredentials, ProviderAccountSet } from "../oauth/types";
 
 const HELP = `TaskWeaver OpenCodex commands:
   ocx export --client pi --json
+  ocx catalog google-antigravity --json
   ocx login <cursor|google-antigravity>
   ocx status`;
 
@@ -316,6 +324,77 @@ async function exportPi(argv: string[], deps: TaskWeaverCliDeps = {}): Promise<v
   console.log(JSON.stringify(document, null, 2));
 }
 
+const ANTIGRAVITY_CATALOG_BASE_URL = "https://daily-cloudcode-pa.googleapis.com";
+
+/** Discover the account's live CCA catalog without requiring the full proxy server. */
+async function exportAntigravityCatalog(argv: string[], deps: TaskWeaverCliDeps = {}): Promise<void> {
+  const args = [...argv];
+  const provider = args.shift();
+  const json = takeFlag(args, "--json");
+  if (provider !== "google-antigravity" || !json || args.length > 0) {
+    throw new Error("Usage: ocx catalog google-antigravity --json");
+  }
+
+  const loadStore = deps.loadAuthStoreImpl ?? loadAuthStore;
+  const account = activeAccount(loadStore()["google-antigravity"]);
+  if (!account?.credential?.access || account.needsReauth || account.paused) {
+    throw new Error("Google Antigravity has no active, usable OAuth account.");
+  }
+
+  const accessToken = await getValidAccessToken("google-antigravity");
+  const currentAccount = activeAccount(loadStore()["google-antigravity"]);
+  const project = currentAccount?.credential?.projectId?.trim();
+  if (!project) throw new Error("Google Antigravity OAuth has no Cloud Code Assist project.");
+
+  const response = await (deps.fetchImpl ?? fetch)(
+    `${ANTIGRAVITY_CATALOG_BASE_URL}/v1internal:fetchAvailableModels`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: "*/*",
+        "Content-Type": "application/json",
+        "User-Agent": antigravityUserAgent(),
+      },
+      body: JSON.stringify({ project }),
+      signal: AbortSignal.timeout(15_000),
+      redirect: "error",
+    },
+  );
+  if (!response.ok) {
+    throw new Error(`Google Antigravity model discovery failed (HTTP ${response.status}).`);
+  }
+
+  const payload = await response.json().catch(() => null);
+  const models = parseAntigravityAvailableModels(payload);
+  if (!models?.length) throw new Error("Google Antigravity returned an invalid or empty model catalog.");
+
+  registerAntigravityDiscoveredWireModels(ANTIGRAVITY_CATALOG_BASE_URL, models, {
+    provider: "google-antigravity",
+    cacheGeneration: captureModelCacheGeneration("google-antigravity"),
+  });
+
+  console.log(JSON.stringify({
+    providers: {
+      "google-antigravity": {
+        baseUrl: ANTIGRAVITY_CATALOG_BASE_URL,
+        models: models.map(model => ({
+          id: `google-antigravity/${model.id}`,
+          name: model.id,
+          ...(model.contextWindow ? { contextWindow: model.contextWindow } : {}),
+          ...(model.inputModalities ? { inputModalities: model.inputModalities } : {}),
+          ...(model.effortWireModelIds ? {
+            reasoning: true,
+            reasoningEfforts: Object.keys(model.effortWireModelIds),
+            antigravityEffortWireModelIds: model.effortWireModelIds,
+          } : {}),
+          wireModelId: model.wireModelId,
+        })),
+      },
+    },
+  }, null, 2));
+}
+
 export async function runTaskWeaverCli(argv: string[], deps: TaskWeaverCliDeps = {}): Promise<number> {
   const args = [...argv];
   if (args[0]?.startsWith("--ocx-internal-launch-proof=")) args.shift();
@@ -334,6 +413,10 @@ export async function runTaskWeaverCli(argv: string[], deps: TaskWeaverCliDeps =
   }
   if (command === "export") {
     await exportPi(rest, deps);
+    return 0;
+  }
+  if (command === "catalog") {
+    await exportAntigravityCatalog(rest, deps);
     return 0;
   }
   console.error(HELP);

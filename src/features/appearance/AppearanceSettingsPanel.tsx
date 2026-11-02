@@ -9,6 +9,7 @@ import {
   setStoredAccentColor,
   applyTheme,
 } from '../../shared/theme'
+import { SettingsLayout } from '../settings/SettingsLayout'
 
 export function AppearanceSettingsPanel({ onToast }: { onToast?: (msg: string) => void }) {
   const [mode, setMode] = useState<ThemeMode>(getStoredThemeMode)
@@ -29,11 +30,11 @@ export function AppearanceSettingsPanel({ onToast }: { onToast?: (msg: string) =
   }
 
   return (
-    <div className="settings-panel appearance-settings-panel">
-      <header className="settings-panel-header">
-        <h2 className="settings-panel-title">外观</h2>
-        <p className="settings-panel-description">自定义 TaskWeaver 的界面主题、配色与代码显示风格。</p>
-      </header>
+    <SettingsLayout
+      title="外观"
+      description="自定义 TaskWeaver 的界面主题、配色与代码显示风格。"
+      className="settings-panel appearance-settings-panel"
+    >
 
       {/* 主题选择区域 */}
       <section className="appearance-section">
@@ -123,7 +124,7 @@ export function AppearanceSettingsPanel({ onToast }: { onToast?: (msg: string) =
       <section className="appearance-section">
         <div className="appearance-diff-preview">
           <div className="diff-preview-header">
-            <span className="diff-header-tab">主题预览效果 (Diff Preview)</span>
+            <span className="diff-header-tab">主题切换预览</span>
           </div>
           <div className="diff-preview-body">
             {/* 左列（旧值/删除） */}
@@ -178,6 +179,6 @@ export function AppearanceSettingsPanel({ onToast }: { onToast?: (msg: string) =
           </div>
         </div>
       </section>
-    </div>
+    </SettingsLayout>
   )
 }

@@ -12,6 +12,15 @@ assert.deepEqual(classifyLifecycleSmokeError('credential rejected (HTTP 401)'), 
   errorCategory: 'provider-auth',
   httpStatus: 401,
 })
+assert.deepEqual(classifyLifecycleSmokeError('Google Antigravity OAuth lookup timed out.'), {
+  errorCategory: 'provider-oauth-timeout',
+})
+assert.deepEqual(classifyLifecycleSmokeError('Google Antigravity requires a configured Google OAuth account; no active credential is available.'), {
+  errorCategory: 'provider-auth',
+})
+assert.deepEqual(classifyLifecycleSmokeError('Google Antigravity OAuth is active, but its Cloud Code Assist project could not be read.'), {
+  errorCategory: 'provider-configuration',
+})
 
 const privateBody = 'provider body with bearer secret-never-print-this'
 const preflight = summarizeLifecycleSmokeFailure(new Error(privateBody), [])

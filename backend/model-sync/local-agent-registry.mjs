@@ -37,8 +37,22 @@ export const LOCAL_AGENT_INTEGRATIONS = Object.freeze([
     bridgeKind: 'google-antigravity',
     providerDisplayName: 'Antigravity（内置桥）',
     exportProviderIds: ['google-antigravity'],
+    // `ocx export` currently emits Antigravity models in its aggregate `opencodex` block.
+    // Keep this separate from exportProviderIds so bundled defaults do not overwrite Cursor's
+    // aggregate export block.
+    aggregateExportProviderIds: ['opencodex'],
     loginProvider: 'google-antigravity',
     modelNamespace: 'google-antigravity',
+  },
+  {
+    agentId: 'workbuddy',
+    label: 'WorkBuddy',
+    routeId: 'workbuddy',
+    bridgeKind: 'openai-compat',
+    providerDisplayName: 'WorkBuddy',
+    exportProviderIds: ['workbuddy'],
+    loginProvider: null,
+    modelNamespace: 'workbuddy',
   },
 ])
 

@@ -95,7 +95,7 @@ export async function waitForNodeTurn(turn, signal, { abortGraceMs = 250 } = {})
       trackedTurn,
       new Promise((resolve) => setTimeout(() => resolve(null), Math.max(0, abortGraceMs))),
     ])
-    if (settled) return
+    if (settled) return settled
     const reason = signal.reason instanceof Error ? signal.reason : new Error('子任务已中止')
     const unsafeAbort = new Error(reason.message || '子任务已中止', { cause: reason })
     unsafeAbort.name = reason.name || 'Error'
@@ -105,9 +105,17 @@ export async function waitForNodeTurn(turn, signal, { abortGraceMs = 250 } = {})
     unsafeAbort.abortDidNotSettle = true
     throw unsafeAbort
   }
+  const throwAfterAbortSettlement = async () => {
+    const settled = await waitForAbortSettlement()
+    if (settled?.type === 'rejected') throw settled.error
+    const reason = signal.reason instanceof Error ? signal.reason : new Error('子任务已中止')
+    if (settled?.type === 'fulfilled' && !reason.partialResult) {
+      try { reason.partialResult = settled.value } catch { /* Preserve the abort reason if it is immutable. */ }
+    }
+    throw reason
+  }
   if (signal.aborted) {
-    await waitForAbortSettlement()
-    throw signal.reason ?? new Error('子任务已中止')
+    await throwAfterAbortSettlement()
   }
   let removeAbortListener = () => {}
   const aborted = new Promise((_, reject) => {
@@ -121,7 +129,7 @@ export async function waitForNodeTurn(turn, signal, { abortGraceMs = 250 } = {})
     if (outcome.type === 'rejected') throw outcome.error
     return outcome.value
   } catch (error) {
-    if (signal.aborted) await waitForAbortSettlement()
+    if (signal.aborted) await throwAfterAbortSettlement()
     throw error
   } finally {
     removeAbortListener()

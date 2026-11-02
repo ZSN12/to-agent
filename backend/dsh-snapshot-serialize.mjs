@@ -225,7 +225,7 @@ function queueTexts(queue) {
 }
 
 const SERIALIZED_PROJECTION_KEYS = [
-  'tokenUsage', 'sessionStats', 'contextPressure', 'contextBreakdown', 'plan', 'todos',
+  'tokenUsage', 'sessionStats', 'contextPressure', 'contextBreakdown', 'plan', 'todos', 'title',
 ]
 
 function readProjections(projectionStore) {

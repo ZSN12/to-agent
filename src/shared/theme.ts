@@ -30,7 +30,7 @@ export function getStoredAccentColor(): AccentColor {
   } catch {
     // ignore
   }
-  return 'blue'
+  return 'amber'
 }
 
 export function setStoredAccentColor(color: AccentColor): void {
@@ -50,7 +50,7 @@ export function resolveEffectiveTheme(mode: ThemeMode): 'light' | 'dark' {
   return 'dark'
 }
 
-export function applyTheme(mode: ThemeMode, accent: AccentColor = 'blue'): 'light' | 'dark' {
+export function applyTheme(mode: ThemeMode, accent: AccentColor = 'amber'): 'light' | 'dark' {
   const effective = resolveEffectiveTheme(mode)
   if (typeof document !== 'undefined') {
     const root = document.documentElement

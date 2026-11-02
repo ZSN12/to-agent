@@ -261,6 +261,18 @@ describe('sessions domain schemas', () => {
     })
     expect(prompt.mode).toBe('queue')
     expect(prompt.clientTimeZone).toBe('Asia/Shanghai')
+    const rolePrompt = sessionPromptRequestSchema.parse({
+      sessionId: 's1', mode: 'queue', content: [{ type: 'text', text: 'hello' }],
+      rolePersona: 'Patient science teacher.', roleToolCallLimit: 12,
+    })
+    expect(rolePrompt.rolePersona).toBe('Patient science teacher.')
+    expect(rolePrompt.roleToolCallLimit).toBe(12)
+    expect(() => sessionPromptRequestSchema.parse({
+      sessionId: 's1', mode: 'queue', content: [], roleToolCallLimit: 13,
+    })).toThrow()
+    expect(() => sessionPromptRequestSchema.parse({
+      sessionId: 's1', mode: 'queue', content: [], rolePersona: 'x'.repeat(12_001),
+    })).toThrow()
     const outputSchema = {
       type: 'object',
       properties: { ok: { type: 'boolean' } },

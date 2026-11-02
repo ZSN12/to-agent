@@ -1,10 +1,12 @@
-# 本地官方 Agent 集成（自有化设想）
+# 本地 Agent 集成
 
 ## 产品目标
 
-用户在本机已登录的**官方 Agent / 订阅客户端**（如 Cursor Composer、Google Antigravity）应能被 TaskWeaver **发现**，其模型列表进入我们的模型目录，并在对话时经 **内置桥（taskweaver-bridge）** 反代到 **Z Host（DSH）**，与自建 API Key 模型并列使用。
+用户在本机已配置的 Agent / 订阅客户端（如 Cursor Composer、Google Antigravity、WorkBuddy）应能被 TaskWeaver 发现，模型进入模型目录并可在对话中使用。
 
 用户不应感知「OpenCodex 产品」或 10100 本地代理；那是实现细节。
+
+Cursor Composer 和 Antigravity 通过内置桥接入；WorkBuddy 使用独立的 OpenAI 兼容提供方路由，读取其本机模型配置中的地址，不依赖 Cursor 或 Antigravity。
 
 ## 架构分层
 
@@ -15,10 +17,10 @@
                             │ IPC models:scanLocal / bridge:*
 ┌───────────────────────────▼─────────────────────────────┐
 │ model-sync（TaskWeaver 自有）                              │
-│  · local-agent-registry — 支持哪些 Agent、路由 id、桥类型  │
-│  · discover-local-agents — 从发现结果生成 Agent 状态        │
-│  · ocx-cli — 当前 discovery+OAuth 适配器（可替换）         │
-│  · bridge-catalog — 写入 models.json（taskweaver-bridge）  │
+│  · WorkBuddy models.json → llm-pi-ai OpenAI 兼容路由       │
+│  · Cursor / Antigravity → bridge-catalog → 内置桥          │
+│  · local-agent-registry / discover-local-agents 管理发现态  │
+│  · ocx-cli 是 Cursor / Antigravity 的可替换发现适配器       │
 └───────────────────────────┬─────────────────────────────┘
                             │
 ┌───────────────────────────▼─────────────────────────────┐
@@ -38,8 +40,18 @@
 |---------|----------|-----------|------------|--------------|------|
 | `cursor-composer` | Cursor（Composer 订阅） | `bridge-composer` | `cursor` | ocx export → `opencodex` 块 | `ocx login cursor` |
 | `google-antigravity` | Google Antigravity | `bridge-antigravity` | `google-antigravity` | ocx export → `google-antigravity` 块 | `ocx login google-antigravity` |
+| `workbuddy` | WorkBuddy | `workbuddy` | OpenAI 兼容直连 | 启动时读取 WorkBuddy 本机 `models.json` | 使用 WorkBuddy 已保存的 API Key |
 
 新增一种官方 Agent = **在 registry 加一行** + **transport 实现 bridgeKind**（或复用 `openai-compat-relay`）。
+
+## WorkBuddy 自动接入
+
+- TaskWeaver 启动时独立查找 `~/.workbuddy/models.json`，并兼容旧路径 `~/.codebuddy/models.json`。发现有效配置后，会注册提供方、刷新模型候选目录；用户可在模型设置中添加并选择需要的 WorkBuddy 模型，无需先扫描 Cursor / Antigravity。
+- WorkBuddy 模型可以分别使用不同的本机地址；TaskWeaver 保留每个模型的地址。自动发现只读取配置文件，不向模型地址发请求。
+- API Key 写入 TaskWeaver 的加密凭据存储，不复制进 TaskWeaver 的 `models.json`，也不写入日志。多个 WorkBuddy 模型若配置不同 API Key，当前单凭据提供方模型会跳过自动导入并显示原因。
+- 若 TaskWeaver 已有用户自定义的 `workbuddy` 提供方或不同凭据，自动接入会保留现有配置并跳过冲突导入。由 TaskWeaver 自动导入的配置会记录来源，后续启动可安全更新模型和轮换凭据。
+- 手动扫描时只探测 loopback 地址；探测不会跟随重定向，也不会访问配置中的远程地址。
+- 上游： [WorkBuddy 模型配置文档](https://www.workbuddy.cn/docs/workbuddy/From-Beginner-to-Expert-Guide/Function-Description/Model)；[WorkBuddy Open API](https://open.workbuddy.cn/docs/openapi)。
 
 ## 与 OpenCodex 的关系
 
@@ -52,6 +64,7 @@
 - `models:scanLocal`：发现 → 合并 models.json → 同步 Host → 返回可添加模型列表（含可选 `localAgents` 摘要）。
 - `bridge:getStatus`：`localAgents` + 登录状态 + `discoveryAdapter: 'ocx-export'`。
 - `bridge:login`：`cursor` | `google-antigravity`（内部仍调 ocx login）。
+- Antigravity OAuth Client ID / Client Secret 由模型设置页保存到 macOS Keychain；登录子进程仅在 Antigravity 授权时读取并注入。开发者环境变量可作为已配置凭据的备用来源。
 - `models:migrateLegacyOpenCodexRoutes`：`opencodex/*` → `bridge-composer/*`（已添加列表、profile、当前模型）；应用启动时自动尝试一次。
 
 ## UI

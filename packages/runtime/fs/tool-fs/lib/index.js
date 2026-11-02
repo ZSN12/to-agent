@@ -1484,7 +1484,7 @@ var FsSandboxController = class {
 //#endregion
 //#region lib/types/index.js
 /**
-* Model-facing read, read_image, write, and edit tools over `ctx.fs`. This package owns schemas, validation,
+* Model-facing read, read_image, write, edit, and apply_patch tools over `ctx.fs`. This package owns schemas, validation,
 * read windows, formatting, and observation events, never a concrete provider. An optional
 * event policy supplies mutation guards; without one the tools use unconditional provider calls.
 * @module @taskweaver/dsh-tool-fs
@@ -1508,7 +1508,7 @@ const Config = z.object({
 function assertPositiveInteger(name, value) {
 	if (!Number.isInteger(value) || value < 1) throw new Error(`tool-fs: ${name} must be a positive integer`);
 }
-/** Register the full `read`/`write`/`edit` filesystem tool suite, plus `read_image` while `attachments` is mounted. */
+/** Register the full filesystem tool suite, plus `read_image` while `attachments` is mounted. */
 function apply(ctx, config) {
 	const resolved = config;
 	assertPositiveInteger("readLimit", resolved.readLimit);

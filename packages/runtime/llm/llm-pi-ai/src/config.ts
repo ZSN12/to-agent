@@ -290,6 +290,8 @@ const reasoningEfforts = z.dict(
 /** The fields a `models` entry and a `modelOverrides` value share; only the id's home differs. */
 const modelFields = {
   name: z.string(),
+  /** Per-model endpoint override for providers that route models to different gateways. */
+  baseURL: z.string(),
   contextWindow: z.number().step(1).min(1),
   maxTokens: z.number().step(1).min(1),
   // No explicit default, unlike the route's `defaultInput`: schemastery

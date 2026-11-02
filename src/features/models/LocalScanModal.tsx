@@ -1,11 +1,13 @@
 import { FormEvent, useEffect, useId, useMemo, useRef, useState } from 'react'
-import { Check, ScanSearch } from 'lucide-react'
+import { Check, ScanSearch, X } from 'lucide-react'
 import type { ScanLocalModelsResult, ScannedLocalModel } from '../../shared/model-api'
 import { useModalFocusTrap } from '../../shared/useModalFocusTrap'
+import { getCleanModelId } from './format'
 
 const SOURCE_LABELS: Record<string, string> = {
   cursor: 'Cursor',
   'google-antigravity': 'Antigravity',
+  workbuddy: 'WorkBuddy',
   bai: '百炼 / 其他',
   other: '其他',
 }
@@ -38,7 +40,7 @@ export function LocalScanModal({
   const [filter, setFilter] = useState('')
   const dialogRef = useModalFocusTrap<HTMLFormElement>({
     open,
-    onEscape: !loading && !saving ? onClose : undefined,
+    onEscape: !saving ? onClose : undefined,
     getInitialFocus: () => searchInputRef.current ?? cancelButtonRef.current,
   })
 
@@ -99,6 +101,17 @@ export function LocalScanModal({
     )
   }
 
+  const selectWorkBuddyOnly = () => {
+    if (!result) return
+    setSelected(
+      new Set(
+        result.models
+          .filter((m) => m.source === 'workbuddy' && m.available && !m.alreadyAdded)
+          .map((m) => m.key),
+      ),
+    )
+  }
+
   const submit = async (event: FormEvent) => {
     event.preventDefault()
     const keys = [...selected]
@@ -116,7 +129,7 @@ export function LocalScanModal({
       className="settings-modal-backdrop"
       role="presentation"
       onMouseDown={(event) => {
-        if (event.target === event.currentTarget && !loading && !saving) onClose()
+        if (event.target === event.currentTarget && !saving) onClose()
       }}
     >
       <form
@@ -130,12 +143,34 @@ export function LocalScanModal({
         tabIndex={-1}
       >
         <span className="sr-only" id={descriptionId}>选择可用模型后，使用添加所选按钮保存。</span>
-        <h2 id={titleId}>
-          <ScanSearch size={18} aria-hidden="true" />
-          扫描本地官方 Agent
-        </h2>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <h2 id={titleId} style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <ScanSearch size={18} aria-hidden="true" />
+            扫描本地官方 Agent
+          </h2>
+          <button
+            type="button"
+            className="settings-icon-button"
+            onClick={onClose}
+            disabled={saving}
+            aria-label="关闭"
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: 'var(--text-muted, rgba(255,255,255,0.6))',
+              cursor: 'pointer',
+              padding: 4,
+              borderRadius: 4,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <X size={18} />
+          </button>
+        </div>
         {loading && (
-          <p className="local-scan-status">正在发现本机 Cursor / Antigravity 等订阅模型并写入内置反代…</p>
+          <p className="local-scan-status">正在发现本机 Cursor / Antigravity / WorkBuddy 等订阅模型并写入内置反代…</p>
         )}
         {error && !loading && (
           <div className="settings-inline-error" role="alert">{error}</div>
@@ -146,6 +181,11 @@ export function LocalScanModal({
               已发现 {result.models.length} 个可集成模型
               {result.proxyUrl ? `（遗留代理 ${result.proxyUrl}）` : ''}。默认不勾选，请按需选择后加入「已添加模型」。
             </p>
+            {result.discoveryWarnings?.map((warning) => (
+              <div key={warning} className="local-scan-warning" role="status">
+                {warning}
+              </div>
+            ))}
             <div className="local-scan-toolbar">
               <input
                 ref={searchInputRef}
@@ -157,6 +197,9 @@ export function LocalScanModal({
               />
               <button type="button" className="settings-secondary-button" onClick={selectCursorOnly}>
                 仅选 Cursor
+              </button>
+              <button type="button" className="settings-secondary-button" onClick={selectWorkBuddyOnly}>
+                仅选 WorkBuddy
               </button>
               <button type="button" className="settings-secondary-button" onClick={selectAllSelectable}>
                 全选可添加
@@ -192,11 +235,16 @@ export function LocalScanModal({
                       >
                         <div className="local-scan-row-main">
                           <span className="local-scan-name">{model.name}</span>
-                          <span className="local-scan-id">{model.id}</span>
+                          <span className="local-scan-id">{getCleanModelId(model.id, model.provider)}</span>
                         </div>
                         {model.alreadyAdded && <span className="local-scan-tag">已添加</span>}
                         {!model.available && !model.alreadyAdded && (
-                          <span className="local-scan-tag warn">不可用</span>
+                          <span
+                            className="local-scan-tag warn"
+                            title="扫描时没有连通此模型对应的本机 API。确认对应应用或服务已运行后重新扫描。"
+                          >
+                            本地接口未就绪
+                          </span>
                         )}
                         <span className="local-scan-check" aria-hidden="true">
                           {checked ? <Check size={16} strokeWidth={2.5} /> : null}
@@ -213,7 +261,7 @@ export function LocalScanModal({
           </>
         )}
         <div className="model-editor-actions">
-          <button ref={cancelButtonRef} type="button" className="settings-secondary-button" onClick={onClose} disabled={loading || saving}>
+          <button ref={cancelButtonRef} type="button" className="settings-secondary-button" onClick={onClose} disabled={saving}>
             取消
           </button>
           <button

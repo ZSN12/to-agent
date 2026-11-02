@@ -16,6 +16,18 @@ export function isCursorBridgeTransportRoute(modelKey) {
   return isDeprecatedOpenCodexChatRoute(modelKey)
 }
 
+/** WorkBuddy local proxy or relay routes. */
+export function isWorkBuddyModelRoute(modelKey) {
+  const key = String(modelKey ?? '').trim().toLowerCase()
+  return key.startsWith('workbuddy/') || key.startsWith('workbuddy-ai/') || key.includes('workbuddy')
+}
+
+function workBuddyAppLabel(modelKey) {
+  return String(modelKey ?? '').trim().toLowerCase().startsWith('workbuddy-ai/')
+    ? 'WorkBuddy AI'
+    : 'WorkBuddy'
+}
+
 /** OpenCodex advertises Z Host tools on Cursor wire as `ocx_client_<name>` (vendor fork aliases bare names). */
 export const OCX_CLIENT_TOOL_PREFIX = 'ocx_client_'
 
@@ -38,6 +50,36 @@ export function humanizeBridgeTransportError(message, modelKey) {
       '当前 MCP 请求没有可用的本地执行端（executor）；通常是运行环境未提供执行端，或执行端没有挂接到当前会话。这不代表工作区文件不可读，也不代表 TaskWeaver 的其他文件工具不可用。',
       '请检查当前会话实际提供的工具目录，以及承载该 MCP 的本地执行端连接；不要原样重复同一个 MCP 请求。',
       text,
+    ].join(' ')
+  }
+
+  const isWbRoute = isWorkBuddyModelRoute(modelKey)
+  const workBuddyApp = workBuddyAppLabel(modelKey)
+  const isWbApisix401 = /401\s*Authorization\s*Required/i.test(text) && /apisix/i.test(text)
+  const isWbAuthRequired = /Authentication required\. Please use \/login/i.test(text)
+    || /invalid_token/i.test(text)
+    || /WorkBuddy not logged in/i.test(text)
+    || /auth file missing/i.test(text)
+
+  if (isWbApisix401 || isWbAuthRequired || (isWbRoute && (/\b401\b/.test(text) || /unauthorized/i.test(text)))) {
+    return [
+      'WorkBuddy 授权凭据已过期或失效（上游网关返回 401 认证失败）。',
+      `请打开「${workBuddyApp}」桌面客户端重新登录账号以自动刷新本地凭据，然后点击重试。`,
+    ].join(' ')
+  }
+
+  if (isWbRoute && /ECONNREFUSED|fetch failed|ENOTFOUND|EAI_AGAIN/i.test(text)) {
+    return [
+      '无法连接本地 WorkBuddy 中转服务（通常监听在 127.0.0.1:10104 或 10105）。',
+      `请确认「${workBuddyApp}」桌面客户端已启动，并检查对应的本地 Relay 服务状态。`,
+      text.includes('ECONNREFUSED') ? '（底层原因：ECONNREFUSED 连接被拒绝）' : text,
+    ].join(' ')
+  }
+
+  if (isWbRoute && (/\b429\b/.test(text) || /Too Many Requests/i.test(text))) {
+    return [
+      'WorkBuddy 上游服务请求频率受限（429 Too Many Requests）。',
+      '请稍候片刻重试，或切换为其他可用模型。',
     ].join(' ')
   }
 

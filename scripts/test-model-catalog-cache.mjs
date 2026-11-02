@@ -31,6 +31,8 @@ assert.equal(await cache.readCachedCatalog({ ...context, appVersion: '1.2.4' }),
 assert.deepEqual(await cache.readCachedCatalog({ ...context, profileFingerprint: 'profiles-b' }), bundle, 'profile changes do not invalidate cache')
 assert.equal(await cache.readCachedCatalog({ ...context, registryVersion: 'registry-b' }), null, 'registry changes invalidate cache')
 assert.equal(await cache.readCachedCatalog({ ...context, registrySource: 'remote' }), null, 'registry source changes invalidate cache')
+assert.equal(await cache.readCachedCatalog({ ...context, workBuddyProductCatalogFingerprint: 'changed' }), null,
+  'WorkBuddy product metadata changes invalidate cached multipliers')
 
 await fs.writeFile(modelsJsonPath, JSON.stringify({
   providers: { openai: { apiKeyEnv: 'TASKWEAVER_OPENAI_ROTATED' } },

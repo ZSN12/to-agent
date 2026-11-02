@@ -25,7 +25,11 @@ export declare class ReactLoopAgent implements Agent {
     /** Whether this loop instance has appended its initial/resume request anchor. */
     private requestHeaderLogged;
     private readonly runtimeContext;
+    /** Latest role guidance carried by a Host-admitted user message for this Agent. */
+    private rolePersona;
     constructor(loopCtx: Context, id: SessionId, options: AgentOptions, session: Session);
+    /** Read the latest persisted Host role metadata when resuming an Agent. */
+    private latestRolePersona;
     get status(): AgentStatus;
     /** Commit a phase and publish its externally visible status transition. */
     private setPhase;

@@ -1,4 +1,17 @@
 import { Fragment, useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
+import {
+  Activity,
+  Calendar,
+  Coins,
+  Database,
+  Flame,
+  Layers,
+  RefreshCw,
+  ShieldCheck,
+  TrendingUp,
+  Trophy,
+} from 'lucide-react'
+import { SettingsLayout } from '../settings/SettingsLayout'
 import './usage-settings.css'
 
 /** 将整数缩写为中文习惯 (3.7亿 / 4164.4万) */
@@ -327,21 +340,31 @@ function DshTimeRangePicker(props: {
   )
 }
 
-function DshStatCard({ label, value }: { label: string; value: string }) {
+function UsageStatCard({
+  icon: Icon,
+  label,
+  value,
+  sublabel,
+  accent = false,
+}: {
+  icon: React.ComponentType<{ size?: number; className?: string }>
+  label: string
+  value: string
+  sublabel?: string
+  accent?: boolean
+}) {
   return (
-    <div className="dsh-stat">
-      <div className="dsh-stat-val">{value}</div>
-      <div className="dsh-stat-label">{label}</div>
-    </div>
-  )
-}
-
-function DshKpi({ l, v, d }: { l: string; v: string; d: string }) {
-  return (
-    <div className="dsh-kpi">
-      <div className="dsh-kpi-l">{l}</div>
-      <div className="dsh-kpi-v">{v}</div>
-      <div className="dsh-kpi-d">{d}</div>
+    <div className={`usage-stat-card ${accent ? 'is-accent' : ''}`}>
+      <div className="usage-stat-card-head">
+        <span className="usage-stat-card-icon">
+          <Icon size={14} />
+        </span>
+        <span className="usage-stat-card-label">{label}</span>
+      </div>
+      <div className="usage-stat-card-body">
+        <span className="usage-stat-card-val">{value}</span>
+        {sublabel && <span className="usage-stat-card-sub">{sublabel}</span>}
+      </div>
     </div>
   )
 }
@@ -601,58 +624,106 @@ export function UsageSettings() {
     })
 
   return (
+    <SettingsLayout
+      title="模型用量"
+      description="查看模型调用量、Token 消耗与费用估算；最终费用以服务商账单为准。"
+      className="usage-settings-page"
+    >
     <div className="dsh-root">
-      <div className="dsh-panel usage-settings-panel-spaced">
+      <div className="dsh-panel usage-panel usage-settings-panel-spaced">
         <div className="dsh-panel-head">
-          <h3><span className="dsh-dot-blue" />用量统计与隐私</h3>
-          <label className="usage-record-toggle">
-            <input
-              type="checkbox"
-              checked={usageEnabled}
-              onChange={(event) => { void handleUsageEnabledChange(event.target.checked) }}
-            />
-            记录模型用量
+          <h3 className="usage-panel-title">
+            <span className="usage-panel-icon"><ShieldCheck size={16} /></span>
+            用量统计与隐私
+          </h3>
+          <label className="usage-switch-wrap">
+            <span className="usage-switch-label">记录模型用量</span>
+            <div className="usage-switch-control">
+              <input
+                type="checkbox"
+                checked={usageEnabled}
+                onChange={(event) => { void handleUsageEnabledChange(event.target.checked) }}
+              />
+              <span className="usage-switch-slider" />
+            </div>
           </label>
         </div>
-        <p className="dsh-range-info-dim">
-          仅保存日期、模型和 Provider 的日汇总。关闭后停止新增统计；已有汇总会保留，可用“清空统计”永久删除。
+        <p className="usage-panel-desc">
+          仅在本地保存日期、模型与 Provider 的日用量汇总。关闭后停止新增统计；已有汇总会保留，亦可随时在下方清空。
         </p>
         {usageSettingError && <p className="dsh-err-sub" role="alert">{usageSettingError}</p>}
       </div>
-      <div className="dsh-panel usage-settings-panel-spaced">
+
+      <div className="dsh-panel usage-panel usage-settings-panel-spaced">
         <div className="dsh-panel-head">
-          <h3><span className="dsh-dot-blue" />模型价签</h3>
-          <div className="dsh-tools usage-pricing-tools">
-            <span className="usage-pricing-status">
+          <h3 className="usage-panel-title">
+            <span className="usage-panel-icon"><Coins size={16} /></span>
+            模型价签
+          </h3>
+          <div className="usage-pricing-tools">
+            <span className="usage-pricing-status-pill">
+              <span className={`usage-status-dot ${pricingStatus?.synced_at ? 'is-synced' : 'is-stale'}`} />
               {pricingStatus?.synced_at
-                ? `更新于 ${new Date(pricingStatus.synced_at).toLocaleString('zh-CN')}${pricingStatus.stale ? '（可能已过期）' : ''} · ${pricingStatus.model_count ?? '—'} 个模型`
-                : '尚未同步价签'}
+                ? `已更新：${new Date(pricingStatus.synced_at).toLocaleDateString('zh-CN')} ${new Date(pricingStatus.synced_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}${pricingStatus.stale ? ' (需同步)' : ''} · ${pricingStatus.model_count ?? 0} 个模型`
+                : '尚未同步官方价签'}
             </span>
             <button
               type="button"
-              className="settings-secondary-button"
+              className="usage-sync-btn"
               disabled={pricingBusy}
               onClick={() => { void handlePricingSync() }}
             >
-              {pricingBusy ? '同步中…' : '立即同步'}
+              <RefreshCw size={12} className={pricingBusy ? 'is-spinning' : ''} />
+              <span>{pricingBusy ? '同步中…' : '立即同步'}</span>
             </button>
           </div>
         </div>
         {pricingError && <p className="dsh-err-sub" role="alert">{pricingError}</p>}
       </div>
-      {/* 顶部统计栏: 5 个指标横向排列 (全量历史) */}
-      <div className="dsh-stats">
-        <DshStatCard label="累计 Token 数" value={fc(ov.totalTokens)} />
-        <DshStatCard label="单日峰值 Token 数" value={fc(ov.peakTokens)} />
-        <DshStatCard label="统计起始日期" value={ov.earliestDate || '暂无'} />
-        <DshStatCard label="当前连续天数" value={ov.currentStreak != null ? `${ov.currentStreak} 天` : '—'} />
-        <DshStatCard label="最长连续天数" value={ov.maxStreak != null ? `${ov.maxStreak} 天` : '—'} />
+
+      {/* 顶部统计栏: 5 个现代独立 KPI 卡片 (全量历史) */}
+      <div className="usage-overview-grid">
+        <UsageStatCard
+          icon={Database}
+          label="累计 Token 数"
+          value={fc(ov.totalTokens)}
+          sublabel="全历史累计消耗"
+          accent
+        />
+        <UsageStatCard
+          icon={TrendingUp}
+          label="单日峰值 Token 数"
+          value={fc(ov.peakTokens)}
+          sublabel="单日最高用量"
+        />
+        <UsageStatCard
+          icon={Calendar}
+          label="统计起始日期"
+          value={ov.earliestDate || '暂无'}
+          sublabel="本地记录起点"
+        />
+        <UsageStatCard
+          icon={Flame}
+          label="当前连续天数"
+          value={ov.currentStreak != null ? `${ov.currentStreak} 天` : '—'}
+          sublabel="近期活跃天数"
+        />
+        <UsageStatCard
+          icon={Trophy}
+          label="最长连续天数"
+          value={ov.maxStreak != null ? `${ov.maxStreak} 天` : '—'}
+          sublabel="历史最高纪录"
+        />
       </div>
 
       {/* Token 活动 */}
-      <div className="dsh-panel">
+      <div className="dsh-panel usage-panel">
         <div className="dsh-panel-head">
-          <h3><span className="dsh-dot-blue" />Token 活动</h3>
+          <h3 className="usage-panel-title">
+            <span className="usage-panel-icon"><Activity size={16} /></span>
+            Token 活动
+            <span className="usage-panel-badge">已结束请求 · 含缓存读取</span>
+          </h3>
           <div className="dsh-tools">
             <select
               className="dsh-sel"
@@ -677,7 +748,7 @@ export function UsageSettings() {
                     <div
                       key={cell.key}
                       className={`dsh-cell ${cell.future ? 'dsh-cell-future' : `dsh-cell${cellLvl}`}`}
-                      onMouseEnter={showTip(`${cell.label} 使用了 ${fc(cell.t)} 个 Token`)}
+                      onMouseEnter={showTip(`${cell.label} 已结束请求记录 ${fc(cell.t)} 个 Token（含缓存读取）`)}
                       onMouseMove={moveTip}
                       onMouseLeave={hideTip}
                     />
@@ -707,9 +778,12 @@ export function UsageSettings() {
       </div>
 
       {/* 用量明细 */}
-      <div className="dsh-panel">
+      <div className="dsh-panel usage-panel">
         <div className="dsh-panel-head">
-          <h3><span className="dsh-dot-green" />用量明细</h3>
+          <h3 className="usage-panel-title">
+            <span className="usage-panel-icon"><Layers size={16} /></span>
+            用量明细
+          </h3>
           <div className="dsh-tools">
             <DshTimeRangePicker value={range} onChange={setRange} />
             <DshModelSelect
@@ -717,8 +791,11 @@ export function UsageSettings() {
               rows={selectRows}
               onChange={setModel}
             />
-            <button className="dsh-btn" onClick={() => void load()}>⟳ 刷新</button>
-            <button className={`dsh-btn ${auto ? 'dsh-btn-on' : ''}`} onClick={() => setAuto(!auto)}>
+            <button className="dsh-btn usage-toolbar-btn" onClick={() => void load()}>
+              <RefreshCw size={12} />
+              <span>刷新</span>
+            </button>
+            <button className={`dsh-btn usage-toolbar-btn ${auto ? 'dsh-btn-on' : ''}`} onClick={() => setAuto(!auto)}>
               {auto ? <span className="dsh-auto"><span className="dsh-pulse" />5s 自动刷新</span> : '自动刷新关闭'}
             </button>
             <button className="dsh-btn dsh-btn-subtle" onClick={() => void handleClear()} title="清空全部用量统计">
@@ -740,12 +817,28 @@ export function UsageSettings() {
           ) : null}
         </div>
 
-        {/* 4 张 KPI 卡 (无图标，简洁文字) */}
-        <div className="dsh-kpis">
-          <DshKpi l="Token 用量（不含缓存读取）" v={fc(sum.totalTokens)} d="输入+输出+缓存写入；缓存读取单列" />
-          <DshKpi l="总请求数" v={sum.requests != null ? String(sum.requests) : '—'} d="所有模型调用" />
-          <DshKpi l="总成本（USD 估算）" v={sum.costUsd != null ? 'US$' + Number(sum.costUsd).toFixed(2) : '—'} d="按官方公开价估算" />
-          <DshKpi l="缓存命中" v={fc(sum.cacheReadTokens)} d="cache read tokens" />
+        {/* 4 张 KPI 卡片 */}
+        <div className="usage-kpis-grid">
+          <div className="usage-kpi-card">
+            <div className="usage-kpi-label">Token 总用量</div>
+            <div className="usage-kpi-val">{fc(sum.totalTokens)}</div>
+            <div className="usage-kpi-desc">输入 + 缓存读取 + 输出 + 缓存写入</div>
+          </div>
+          <div className="usage-kpi-card">
+            <div className="usage-kpi-label">总请求数</div>
+            <div className="usage-kpi-val">{sum.requests != null ? String(sum.requests) : '—'}</div>
+            <div className="usage-kpi-desc">所有模型调用总次数</div>
+          </div>
+          <div className="usage-kpi-card">
+            <div className="usage-kpi-label">总成本估算 (USD)</div>
+            <div className="usage-kpi-val">US${sum.costUsd != null ? Number(sum.costUsd).toFixed(2) : '0.00'}</div>
+            <div className="usage-kpi-desc">按官方公开价估算</div>
+          </div>
+          <div className="usage-kpi-card">
+            <div className="usage-kpi-label">缓存命中 Token</div>
+            <div className="usage-kpi-val">{fc(sum.cacheReadTokens)}</div>
+            <div className="usage-kpi-desc">Cache read tokens 节约量</div>
+          </div>
         </div>
 
         {/* 缓存命中率 */}
@@ -755,7 +848,7 @@ export function UsageSettings() {
             <span className="dsh-rate-v">{sum.cacheHitRate != null ? (sum.cacheHitRate * 100).toFixed(1) + '%' : '—'}</span>
           </div>
           <div className="dsh-rate-bar">
-            <div className="dsh-rate-fill" style={{ width: Math.min(100, (sum.cacheHitRate ?? 0) * 100) + '%' }} />
+            <div className="dsh-rate-fill usage-rate-fill" style={{ width: Math.min(100, (sum.cacheHitRate ?? 0) * 100) + '%' }} />
           </div>
         </div>
         <p className="dsh-range-info-dim">
@@ -811,5 +904,6 @@ export function UsageSettings() {
         )}
       </div>
     </div>
+    </SettingsLayout>
   )
 }

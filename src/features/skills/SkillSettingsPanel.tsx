@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { skillOptionSourceLabel, type SkillOption } from '../../shared/app-api'
 import { skillDescriptionBlurb } from './skillDescription'
 import { SKILL_CATALOG_EVENT, useEnabledSkills, writeSkillCatalogCache } from './useEnabledSkills'
+import { SettingsLayout } from '../settings/SettingsLayout'
 
 export function SkillSettingsPanel() {
   const [skills, setSkills] = useState<SkillOption[]>([])
@@ -40,13 +41,17 @@ export function SkillSettingsPanel() {
   const { enabledNames, toggleSkill } = useEnabledSkills(skillNames)
 
   return (
-    <section className="model-settings skill-settings-panel">
-      <h2>Skill</h2>
-      <p className="model-editor-note skill-settings-intro">
+    <SettingsLayout
+      title="Skill"
+      description={(
+        <span className="model-editor-note skill-settings-intro">
         开启后，该 Skill 才会出现在 Composer 输入 <code>/</code> 菜单中。主对话与单 Agent 会注入所选 Skill；多智能体 DAG 中仅
         <strong> implementation </strong>
         子任务继承全局 Skill。
-      </p>
+        </span>
+      )}
+      className="model-settings skill-settings-panel"
+    >
       {error && <p className="settings-inline-error">{error}</p>}
       {loading ? (
         <p className="skill-settings-muted">加载中…</p>
@@ -97,6 +102,6 @@ export function SkillSettingsPanel() {
           </ul>
         </div>
       )}
-    </section>
+    </SettingsLayout>
   )
 }

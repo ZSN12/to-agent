@@ -1,6 +1,7 @@
 import type { DshTranscriptChatMessage, DshTranscriptRow } from '../../shared/app-api'
 import type { DshProjectedToolCall, ToolTraceItem } from '../../shared/app-api'
 import { clockLabelZh } from '../../shared/time-label'
+import { isAutoVerificationPrompt } from '../chat/autoVerification'
 import type { ChatMessage } from '../../types'
 
 type DshContextMessage = DshTranscriptChatMessage & {
@@ -18,6 +19,74 @@ export function dshTurnForMessage(message: ChatMessage): number | null {
   return Number.isSafeInteger(turn) && (turn ?? 0) > 0 ? turn ?? null : null
 }
 
+function buildTurnBuckets<T>(
+  items: readonly T[],
+  turnOf: (item: T) => number | null,
+  fallbackTurn: number | null,
+) {
+  const buckets = new Map<number | null, { items: T[]; positions: number[] }>()
+  items.forEach((item, position) => {
+    const turn = turnOf(item)
+    let bucket = buckets.get(turn)
+    if (!bucket) {
+      bucket = { items: [], positions: [] }
+      buckets.set(turn, bucket)
+    }
+    bucket.items.push(item)
+    bucket.positions.push(position)
+  })
+  const merged = new Map<number, readonly T[]>()
+  const empty: readonly T[] = []
+  return (turn: number, includeFallback = false): readonly T[] => {
+    // Map treats NaN as equal to itself, whereas the existing turn predicates
+    // use strict equality and never match a NaN turn.
+    const bucket = Number.isNaN(turn) ? undefined : buckets.get(turn)
+    if (!includeFallback || turn === fallbackTurn) return bucket?.items ?? empty
+    const fallback = buckets.get(fallbackTurn)
+    if (!fallback) return bucket?.items ?? empty
+    if (!bucket) return fallback.items
+    const cached = merged.get(turn)
+    if (cached) return cached
+    const combined: T[] = []
+    let selected = 0, unscoped = 0
+    // Merge positions instead of sorting, preserving projection order when
+    // unscoped rows are interleaved with the active turn.
+    while (selected < bucket.items.length || unscoped < fallback.items.length) {
+      if (unscoped >= fallback.items.length
+        || (selected < bucket.items.length && bucket.positions[selected] < fallback.positions[unscoped])) {
+        combined.push(bucket.items[selected++])
+      } else combined.push(fallback.items[unscoped++])
+    }
+    merged.set(turn, combined)
+    return combined
+  }
+}
+
+/** Build once per projection; message rows only look up their own turn bucket. */
+export function buildDshToolHistoryIndex(
+  rows: readonly DshProjectedToolCall[] | undefined,
+  traces: readonly ToolTraceItem[],
+) {
+  const rowsForTurn = buildTurnBuckets(rows ?? [], (row) => row.turn, 0)
+  const tracesForTurn = buildTurnBuckets(traces, (trace) => trace.turn ?? null, null)
+  return {
+    forMessage(message: ChatMessage, isLatestAgent: boolean): { rows?: readonly DshProjectedToolCall[]; traces?: readonly ToolTraceItem[] } {
+      const turn = dshTurnForMessage(message)
+      if (turn === null) return isLatestAgent ? { rows, traces } : {}
+      return {
+        rows: rows === undefined ? undefined : rowsForTurn(turn, isLatestAgent),
+        ...(isLatestAgent ? { traces: tracesForTurn(turn, true) } : {}),
+      }
+    },
+    forTurn(turn: number) {
+      return {
+        rows: rows === undefined ? undefined : rowsForTurn(turn, true),
+        traces: tracesForTurn(turn, true),
+      }
+    },
+  }
+}
+
 /** Attach settled tool rows to their own assistant turn; live traces belong only to the latest turn. */
 export function dshToolHistoryForMessage(
   message: ChatMessage,
@@ -25,13 +94,45 @@ export function dshToolHistoryForMessage(
   traces: readonly ToolTraceItem[],
   isLatestAgent: boolean,
 ): { rows?: readonly DshProjectedToolCall[]; traces?: readonly ToolTraceItem[] } {
-  const turn = dshTurnForMessage(message)
-  if (turn === null) return isLatestAgent ? { rows, traces } : {}
+  return buildDshToolHistoryIndex(rows, traces).forMessage(message, isLatestAgent)
+}
+
+/** Neighbours used by edit, retry, regenerate and the latest-answer controls. */
+export function buildChatMessageNavigation(messages: readonly ChatMessage[]) {
+  const relations: {
+    previousAssistantId: string | null
+    previousUserIndex: number
+    responseForUser?: ChatMessage
+  }[] = []
+  let previousAssistantId: string | null = null
+  let previousUserIndex = -1
+  let latestAssistantIndex = -1
+  let latestUserMessageIndex = -1
+  for (let index = 0; index < messages.length; index++) {
+    const message = messages[index]
+    relations.push({ previousAssistantId, previousUserIndex })
+    if (message.author === 'user' && !message.behavior) latestUserMessageIndex = index
+    if (isDshContextMessage(message) || message.compaction) continue
+    if (message.author === 'user') {
+      if (!message.behavior) previousUserIndex = index
+    } else {
+      previousAssistantId = message.id
+      latestAssistantIndex = index
+    }
+  }
+  let response: ChatMessage | undefined
+  for (let index = messages.length - 1; index >= 0; index--) {
+    relations[index].responseForUser = response
+    const message = messages[index]
+    if (isDshContextMessage(message) || message.compaction) continue
+    if (message.author !== 'user') response = message
+    else if (!message.behavior) response = undefined
+  }
   return {
-    rows: rows?.filter((row) => row.turn === turn || (isLatestAgent && row.turn === 0)),
-    ...(isLatestAgent
-      ? { traces: traces.filter((trace) => trace.turn === turn || trace.turn == null) }
-      : {}),
+    relations,
+    lastAgentMessageId: previousAssistantId,
+    latestAssistantIndex,
+    latestUserMessageIndex,
   }
 }
 
@@ -104,11 +205,67 @@ export function chatMessagesFromDshTranscript(
   })
 }
 
+const USER_TEXT_MATCH_WINDOW_MS = 10 * 60 * 1000
+const USER_TEXT_BUCKET_MS = 2 * USER_TEXT_MATCH_WINDOW_MS
+
+type StoredUserTextCandidate = {
+  message: ChatMessage
+  index: number
+  text?: string
+}
+
+function buildStoredUserTextCandidates(storedMessages: readonly ChatMessage[]) {
+  const groups = Array.from({ length: 2 }, () => ({
+    all: [] as StoredUserTextCandidate[],
+    untimed: [] as StoredUserTextCandidate[],
+    timed: new Map<number, StoredUserTextCandidate[]>(),
+  }))
+  storedMessages.forEach((message, index) => {
+    if (message.author !== 'user' || message.roleMode) return
+    const candidate = { message, index }
+    const group = groups[message.behavior === 'steer' ? 1 : 0]
+    group.all.push(candidate)
+    if (typeof message.timestamp !== 'number' || !Number.isFinite(message.timestamp)) {
+      group.untimed.push(candidate)
+      return
+    }
+    const bucket = Math.floor(message.timestamp / USER_TEXT_BUCKET_MS)
+    const candidates = group.timed.get(bucket)
+    if (candidates) candidates.push(candidate)
+    else group.timed.set(bucket, [candidate])
+  })
+  return (message: ChatMessage): readonly StoredUserTextCandidate[][] => {
+    const group = groups[message.behavior === 'steer' ? 1 : 0]
+    if (typeof message.timestamp !== 'number' || !Number.isFinite(message.timestamp)) return [group.all]
+    // A window is only half a bucket wide. Include both neighbours, then use
+    // the original exact time predicate below, including fractional boundary
+    // values whose subtraction rounds onto the closed ten-minute limit.
+    const bucket = Math.floor(message.timestamp / USER_TEXT_BUCKET_MS)
+    const buckets = new Set([bucket - 1, bucket, bucket + 1])
+    const lists = [group.untimed]
+    for (const bucket of buckets) {
+      const candidates = group.timed.get(bucket)
+      if (candidates) lists.push(candidates)
+    }
+    return lists
+  }
+}
+
+function firstCandidateAtOrAfter(candidates: readonly StoredUserTextCandidate[], index: number) {
+  let low = 0, high = candidates.length
+  while (low < high) {
+    const middle = low + Math.floor((high - low) / 2)
+    if (candidates[middle].index < index) low = middle + 1
+    else high = middle
+  }
+  return low
+}
+
 function restoreStoredUserText(
   transcriptMessages: DshTranscriptChatMessage[],
   storedMessages: readonly ChatMessage[],
 ): DshTranscriptChatMessage[] {
-  const storedUsers = storedMessages.filter((message) => message.author === 'user')
+  const candidatesForMessage = buildStoredUserTextCandidates(storedMessages)
   let nextStoredIndex = 0
 
   return transcriptMessages.map((message) => {
@@ -116,15 +273,27 @@ function restoreStoredUserText(
     const hostText = message.text.trim()
     if (!hostText) return message
 
-    for (let index = nextStoredIndex; index < storedUsers.length; index += 1) {
-      const candidate = storedUsers[index]
-      const originalText = candidate.text.trim()
-      if (!originalText || !hostText.includes(originalText)) continue
-      if ((message.behavior === 'steer') !== (candidate.behavior === 'steer')) continue
+    const lists = candidatesForMessage(message)
+    const positions = lists.map((list) => firstCandidateAtOrAfter(list, nextStoredIndex))
+    while (true) {
+      let selectedList = -1
+      let selected: StoredUserTextCandidate | undefined
+      for (let listIndex = 0; listIndex < lists.length; listIndex++) {
+        const candidate = lists[listIndex][positions[listIndex]]
+        if (candidate && (!selected || candidate.index < selected.index)) {
+          selected = candidate
+          selectedList = listIndex
+        }
+      }
+      if (!selected) break
+      positions[selectedList]++
+      const candidate = selected.message
       if (typeof message.timestamp === 'number' && typeof candidate.timestamp === 'number'
-        && Math.abs(message.timestamp - candidate.timestamp) > 10 * 60 * 1000) continue
+        && Math.abs(message.timestamp - candidate.timestamp) > USER_TEXT_MATCH_WINDOW_MS) continue
+      const originalText = selected.text ?? (selected.text = candidate.text.trim())
+      if (!originalText || !hostText.includes(originalText)) continue
 
-      nextStoredIndex = index + 1
+      nextStoredIndex = selected.index + 1
       return {
         ...message,
         // The Host transcript stores the fully assembled model prompt. Keep
@@ -158,9 +327,11 @@ export function mergeStoredMessagesWithDshTranscript(
     chatMessagesFromDshTranscript(transcript, { user: '你', agent: 'TaskWeaver' }),
     stored,
   )
-  const storedAssistants = stored.filter((message) => !isDshContextMessage(message)
+  const storedAssistants = stored.filter((message) => !message.roleMode
+    && !isDshContextMessage(message)
     && message.author !== 'user'
-    && (message.usage || message.callout || message.interrupted || message.fileChanges?.length || message.turnActivity))
+    && (message.usage || message.statusNote || message.callout || message.errorCode || message.interrupted
+      || message.fileChanges?.length || message.turnActivity || message.subagentOutputs?.length || message.verification))
   if (storedAssistants.length) {
     const storedIndexesByKey = new Map<string, number[]>()
     storedAssistants.forEach((message, index) => {
@@ -183,7 +354,11 @@ export function mergeStoredMessagesWithDshTranscript(
         ...message,
         usage: message.usage ?? match.usage,
         modelKey: message.modelKey ?? match.modelKey,
+        subagentOutputs: message.subagentOutputs ?? match.subagentOutputs,
+        verification: message.verification ?? match.verification,
+        statusNote: message.statusNote ?? match.statusNote,
         callout: message.callout ?? match.callout,
+        errorCode: message.errorCode ?? match.errorCode,
         interrupted: message.interrupted || match.interrupted,
         fileChanges: message.fileChanges ?? match.fileChanges,
         turnActivity: message.turnActivity ?? match.turnActivity,
@@ -192,7 +367,9 @@ export function mergeStoredMessagesWithDshTranscript(
   }
   if (sending) {
     const lastStoredUser = [...stored].reverse().find((message) => message.author === 'user')
-    const lastDshUser = [...base].reverse().find((message) => message.author === 'user')
+    // Automatic verification repair prompts are sent within the same turn and
+    // never stored; look past them to the user's own latest message.
+    const lastDshUser = [...base].reverse().find((message) => message.author === 'user' && !isAutoVerificationPrompt(message.text))
     if (lastStoredUser && lastStoredUser.text !== lastDshUser?.text) {
       base = [...base, lastStoredUser]
     }
@@ -208,7 +385,11 @@ export function mergeStoredMessagesWithDshTranscript(
     if (message.interrupted) interruptedKeys.add(exactAssistantMatchKey(message.text, message.thinking))
   })
   const nextCompletedIndexByKey = new Map<string, number>()
+  const projectedIds = new Set(base.map((message) => message.id))
   const extras = stored.filter((message) => {
+    // Role sessions are intentionally hidden from the active DSH projection.
+    // Keep their durable user and assistant rows alongside the regular chat.
+    if (message.roleMode) return !projectedIds.has(message.id)
     if (message.id.startsWith('z-turn-')) {
       // The stream commits synchronously; the native projection may lag a turn.
       // Retain that answer until its durable row arrives, matching occurrences
@@ -223,7 +404,7 @@ export function mergeStoredMessagesWithDshTranscript(
     if (message.interrupted && message.author !== 'user') {
       return !interruptedKeys.has(exactAssistantMatchKey(message.text, message.thinking))
     }
-    if (message.callout) return true
+    if (message.callout || message.statusNote) return true
     if (message.id.includes('-error')) return true
     if (message.author === 'orchestrator' && message.text?.startsWith('执行失败')) return true
     return false

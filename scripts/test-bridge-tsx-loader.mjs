@@ -17,22 +17,28 @@ assert.match(cursorSource, /@taskweaver\/provider-bridge/, 'Cursor adapter must 
 
 const googleLoader = path.join(root, 'packages/provider-bridge-transport/google-adapter-loader.mjs')
 const googleSource = fs.readFileSync(googleLoader, 'utf8')
-assert.match(googleSource, /dist', 'cjs', 'api', 'index\.cjs'/, 'transitional Google adapter loader must prefer tsx CJS register')
-
-const workspaceTsx = path.join(root, 'node_modules/tsx')
-assert.ok(fs.existsSync(path.join(workspaceTsx, 'dist/cjs/api/index.cjs')), `missing root workspace tsx package at ${workspaceTsx}`)
+assert.doesNotMatch(googleSource, /tsx|TASKWEAVER_OPENCODEX_ROOT|vendor\/opencodex/i, 'Antigravity adapter must not load vendored TypeScript at runtime')
+assert.match(googleSource, /google-antigravity-adapter\.mjs/, 'Antigravity adapter must load the Node-native implementation')
 
 const nodeBin = scriptHostNodeExecutable()
 const snippet = `
-import { ensureGoogleAdapterLoader } from ${JSON.stringify(googleLoader)};
-ensureGoogleAdapterLoader();
-console.log('tsx-loader-ok');
+import { loadCreateGoogleAdapter } from ${JSON.stringify(googleLoader)};
+const createGoogleAdapter = await loadCreateGoogleAdapter();
+if (typeof createGoogleAdapter !== 'function') throw new Error('native Google adapter export missing');
+const adapter = createGoogleAdapter({ apiKey: 'token-for-test', baseUrl: 'https://example.test', project: 'project-for-test' });
+const request = await adapter.buildRequest({
+  modelId: 'gemini-test', stream: true,
+  context: { systemPrompt: ['system'], messages: [{ role: 'user', content: 'hello' }] },
+  options: {},
+});
+if (!request.url.endsWith('/v1internal:streamGenerateContent?alt=sse')) throw new Error('unexpected CCA request URL');
+console.log('native-google-adapter-ok');
 `
 const result = spawnSync(nodeBin, ['--input-type=module', '-e', snippet], {
   env: process.env,
   encoding: 'utf8',
 })
-assert.equal(result.status, 0, `Host Node tsx loader failed:\n${result.stderr}\n${result.stdout}`)
-assert.match(result.stdout, /tsx-loader-ok/)
+assert.equal(result.status, 0, `Host Node Antigravity adapter load failed:\n${result.stderr}\n${result.stdout}`)
+assert.match(result.stdout, /native-google-adapter-ok/)
 
-console.log('test-bridge-tsx-loader: Cursor package is loader-free; transitional Google loader ok')
+console.log('test-bridge-tsx-loader: Cursor and Antigravity adapters load without runtime TypeScript')

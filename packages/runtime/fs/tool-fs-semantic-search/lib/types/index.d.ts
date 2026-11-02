@@ -2,12 +2,13 @@ import type { Context } from '@taskweaver/cordis';
 import z from '@taskweaver/schemastery';
 export declare const name = "tool-fs-semantic-search";
 export declare const inject: string[];
-export type EmbeddingProvider = 'jina' | 'openai';
+export type EmbeddingProvider = 'builtin-local' | 'jina' | 'openai';
 export interface Config {
     embeddingProvider?: EmbeddingProvider;
     maxFiles?: number;
     maxFileBytes?: number;
     maxTotalBytes?: number;
+    maxIndexedWorkspaces?: number;
 }
 export declare const Config: z<Config>;
 export declare const SETTINGS_NAMESPACE: import("@taskweaver/dsh-settings").SettingsNamespace;

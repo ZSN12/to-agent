@@ -1,17 +1,4 @@
-//#region lib/types/win32-dialog-bindings.js
-/**
-* koffi-backed Win32 bindings for the folder dialog: the COM vtable calls
-* behind {@link Win32DialogBindings} plus the cross-thread window closer the
-* driver uses to service aborts. The module loads on every platform; koffi
-* itself is imported lazily inside each function, so non-Windows processes
-* never load it — the same containment as the repo's other `win32.ts`
-* modules.
-*
-* The COM surface used here (IModalWindow/IFileDialog/IFileOpenDialog and
-* IShellItem vtable order, the GUIDs, `FOS_*` and `SIGDN_FILESYSPATH`) is
-* frozen Windows ABI since Vista; slots are offsets into the vtable at the
-* object's first pointer.
-*/
+//#region src/win32-dialog-bindings.ts
 /**
 * Read a NUL-terminated UTF-16 string at a native address. koffi's
 * `_Out_ void **` out-params surface a raw address, and
@@ -189,7 +176,7 @@ function runFolderDialog(bindings, title, onShowing) {
 	}
 }
 //#endregion
-//#region lib/types/win32-dialog-worker.js
+//#region src/win32-dialog-worker.ts
 /**
 * Child-process entry for the Win32 folder dialog: blocks THIS process
 * inside the modal `Show` so the host event loop stays live, reporting over
@@ -200,8 +187,8 @@ function runFolderDialog(bindings, title, onShowing) {
 * thread id), then exactly one of `{kind:'done',path}` or
 * `{kind:'error',message}`.
 */
-const title = process.env.DSH_DIALOG_TITLE ?? "";
-if (title === "") throw new Error("win32-dialog-worker: DSH_DIALOG_TITLE is required");
+const title = process.env.TASKWEAVER_DIALOG_TITLE ?? "";
+if (title === "") throw new Error("win32-dialog-worker: TASKWEAVER_DIALOG_TITLE is required");
 if (process.send === void 0) throw new Error("win32-dialog-worker must run as a child process with an IPC channel");
 const send = process.send.bind(process);
 const post = (message) => {
@@ -214,19 +201,21 @@ const post = (message) => {
 process.on("disconnect", () => process.exit(0));
 (async () => {
 	try {
+		const path = runFolderDialog(await loadWin32DialogBindings(), title, (threadId) => {
+			post({
+				kind: "showing",
+				threadId
+			});
+		});
 		post({
 			kind: "done",
-			path: runFolderDialog(await loadWin32DialogBindings(), title, (threadId) => {
-				post({
-					kind: "showing",
-					threadId
-				});
-			})
+			path
 		});
 	} catch (error) {
+		const message = error instanceof Error ? error.stack ?? error.message : String(error);
 		post({
 			kind: "error",
-			message: error instanceof Error ? error.stack ?? error.message : String(error)
+			message
 		});
 	}
 })();

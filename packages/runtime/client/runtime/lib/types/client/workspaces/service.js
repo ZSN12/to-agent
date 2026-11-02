@@ -10,15 +10,6 @@ export class WorkspaceCreateError extends Error {
         this.name = 'WorkspaceCreateError';
     }
 }
-/** Structured browse failure so the directory browser can branch on Host business codes. */
-export class DirectoryBrowseError extends Error {
-    rpcError;
-    constructor(rpcError) {
-        super(`directory browse failed: ${rpcError.code}: ${rpcError.message}`);
-        this.rpcError = rpcError;
-        this.name = 'DirectoryBrowseError';
-    }
-}
 /** Real Workspace object layer and Host actions. */
 export class WorkspaceRuntime {
     api;
@@ -186,30 +177,6 @@ export class WorkspaceRuntime {
         if (!response.result.ok) {
             throw new Error(`directory picker failed: ${response.result.error.message}`);
         }
-        return response.result.value.path;
-    }
-    /**
-     * List one directory level through the Host's `browse` capability.
-     * @param path - absolute directory to list; absent lists the Host home directory.
-     * @param signal - aborts the wire request (and the Host's scan) when the caller supersedes it.
-     * @returns the level's listing with breadcrumb ancestry.
-     */
-    async listDirectory(path, signal) {
-        const response = await this.api.host.listDirectory(path === undefined ? {} : { path }, signal);
-        if (!response.result.ok)
-            throw new DirectoryBrowseError(response.result.error);
-        return response.result.value;
-    }
-    /**
-     * Create one child directory through the Host's `browse` capability.
-     * @param path - absolute existing parent directory.
-     * @param name - single non-blank path segment.
-     * @returns the created directory's absolute path.
-     */
-    async createDirectory(path, name) {
-        const response = await this.api.host.createDirectory({ path, name });
-        if (!response.result.ok)
-            throw new DirectoryBrowseError(response.result.error);
         return response.result.value.path;
     }
     /**

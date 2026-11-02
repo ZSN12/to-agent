@@ -3,7 +3,7 @@ import { createJsonStore } from './json-store.mjs'
 import { DEFAULT_OPENUSAGE_URL, normalizeOpenUsageBaseUrl } from './openusage-service.mjs'
 import { DAG_NODE_LIMIT_DEFAULT, normalizeDagNodeLimit } from './orchestration/dag-limits.mjs'
 
-const PREFERENCES_VERSION = 1
+const PREFERENCES_VERSION = 2
 const DEFAULT = {
   version: PREFERENCES_VERSION,
   worktreeIsolation: false,
@@ -39,8 +39,11 @@ const DEFAULT = {
   autoAllowUiVerify: false,
   /** 改代码请求是否在 Host 外追加「运行验证命令」指引；默认关闭以对齐 DSH Web。 */
   autoVerifyAfterMutation: false,
-  /** 代码变更后自动静默运行轻量验证，出错时驱动模型闭环自愈（Self-Healing Loop） */
-  selfHealingLoop: false,
+  /**
+   * 代码变更后自动在工作区运行检查与聚焦测试（与 Agent bash 相同的沙箱），失败时驱动模型
+   * 有限轮修复（Self-Healing Loop）。默认开启；仅在工作区受信任且非只读时运行。
+   */
+  selfHealingLoop: true,
   /** 闭环自愈的最大自动修复重试轮次（1-3，默认 2） */
   selfHealingMaxRetries: 2,
   /** 启用基于 AST 与 PageRank 的全局代码地图感知 (Repo Map) */
@@ -110,6 +113,10 @@ function normalizeCompactionThresholdRatio(value, fallback = DEFAULT.compactionT
 /** Incremental on-disk migrations. Each function advances exactly one version. */
 const PREFERENCE_MIGRATIONS = {
   0: (preferences) => ({ ...preferences, version: 1 }),
+  // v1 always stored `selfHealingLoop: false` because it was the default, so an
+  // explicit opt-out cannot be told apart. Turn verification on once; a later
+  // opt-out is stored under v2 and kept.
+  1: (preferences) => ({ ...preferences, selfHealingLoop: true, version: 2 }),
 }
 
 function migratePreferences(raw) {
@@ -171,7 +178,7 @@ export function createAppPreferencesStore(userDataPath) {
         autoReviewReads: raw.autoReviewReads !== false,
         autoAllowUiVerify: raw.autoAllowUiVerify === true,
         autoVerifyAfterMutation: raw.autoVerifyAfterMutation === true,
-        selfHealingLoop: raw.selfHealingLoop === true,
+        selfHealingLoop: raw.selfHealingLoop !== false,
         selfHealingMaxRetries: Number.isFinite(raw.selfHealingMaxRetries) ? Math.max(1, Math.min(3, raw.selfHealingMaxRetries)) : DEFAULT.selfHealingMaxRetries,
         enableRepoMap: raw.enableRepoMap !== false,
         inlineSmallFileReferences: raw.inlineSmallFileReferences === true,
@@ -238,7 +245,7 @@ export function createAppPreferencesStore(userDataPath) {
             : (prev.autoVerifyAfterMutation === true),
           selfHealingLoop: patch.selfHealingLoop !== undefined
             ? patch.selfHealingLoop === true
-            : (prev.selfHealingLoop === true),
+            : (prev.selfHealingLoop !== false),
           selfHealingMaxRetries: patch.selfHealingMaxRetries !== undefined
             ? Math.max(1, Math.min(3, Number(patch.selfHealingMaxRetries)))
             : (Number.isFinite(prev.selfHealingMaxRetries) ? prev.selfHealingMaxRetries : DEFAULT.selfHealingMaxRetries),

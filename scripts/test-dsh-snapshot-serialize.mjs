@@ -200,12 +200,14 @@ const hostProjection = serializeDshConversationView({ running: false, runningCal
   projections: { values: () => ({
     plan: { active: true, pending: false },
     todos: hostTodos,
+    title: '首条消息摘要',
     secretProjection: { mustNotLeaveHost: true },
   }) },
 })
 assert.equal(hostProjection.conversationId, 'plan-session-a')
 assert.deepEqual(hostProjection.projections.plan, { active: true, pending: false })
 assert.deepEqual(hostProjection.projections.todos, hostTodos)
+assert.equal(hostProjection.projections.title, '首条消息摘要')
 assert.equal('secretProjection' in hostProjection.projections, false, 'serializer must keep the projection allowlist narrow')
 
 const restoredProjection = serializeDshConversationView({ running: false, runningCalls: [], queue: [] }, {

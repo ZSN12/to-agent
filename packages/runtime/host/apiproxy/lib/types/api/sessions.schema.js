@@ -240,6 +240,8 @@ export const sessionPromptRequestSchema = z.object({
         autoAllowUiVerify: z.boolean(),
     }).strict().optional(),
     outputSchema: outputSchemaSchema.optional(),
+    rolePersona: z.string().max(12_000).optional(),
+    roleToolCallLimit: z.number().int().min(1).max(12).optional(),
     commandOnly: z.boolean().optional(),
 });
 /** session.prompt response value (the command slot appears only when the prompt dispatched a slash command). */

@@ -194,6 +194,25 @@ function signalProcessTree(child, signal) {
   }
 }
 
+function sanitizeHookEnv(extraEnv = {}) {
+  const childEnv = { ...process.env, ...extraEnv }
+  for (const key of Object.keys(childEnv)) {
+    if (
+      /(?:api[_-]?key|secret|password|auth_token|access_token|session_token|bearer)/i.test(key)
+      || key.startsWith('TASKWEAVER_')
+      || key.startsWith('ELECTRON_')
+      || key === 'GITHUB_TOKEN'
+      || key === 'GH_TOKEN'
+      || key === 'NPM_TOKEN'
+    ) {
+      if (!Object.prototype.hasOwnProperty.call(extraEnv, key)) {
+        delete childEnv[key]
+      }
+    }
+  }
+  return childEnv
+}
+
 function runCommand(command, cwd, env, stdin = '') {
   return new Promise((resolve) => {
     const child = spawn(command, {
@@ -201,7 +220,7 @@ function runCommand(command, cwd, env, stdin = '') {
       cwd,
       detached: process.platform !== 'win32',
       windowsHide: true,
-      env: { ...process.env, ...env },
+      env: sanitizeHookEnv(env),
       stdio: ['pipe', 'pipe', 'pipe'],
     })
     let stdout = ''

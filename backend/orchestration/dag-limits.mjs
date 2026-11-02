@@ -1,6 +1,8 @@
-export const DAG_NODE_LIMIT_DEFAULT = 6
-export const DAG_NODE_LIMIT_MIN = 1
-export const DAG_NODE_LIMIT_MAX = 12
+import { DAG_CONFIG } from '../config/constants.mjs'
+
+export const DAG_NODE_LIMIT_DEFAULT = DAG_CONFIG.NODE_LIMIT_DEFAULT
+export const DAG_NODE_LIMIT_MIN = DAG_CONFIG.NODE_LIMIT_MIN
+export const DAG_NODE_LIMIT_MAX = DAG_CONFIG.NODE_LIMIT_MAX
 
 export function normalizeDagNodeLimit(value, fallback = DAG_NODE_LIMIT_DEFAULT) {
   if (value === null || value === undefined || value === '') return fallback

@@ -18,6 +18,7 @@ export function createWorkspaceIndex({ getWorkspacePath = null, maxEntries = DEF
   let cachedEntries = null
   let cachedAt = 0
   let cacheGeneration = 0
+  let inFlight = null
 
   async function buildIndex(root) {
     const entries = []
@@ -30,6 +31,9 @@ export function createWorkspaceIndex({ getWorkspacePath = null, maxEntries = DEF
       try {
         children = await fs.readdir(current.absolute, { withFileTypes: true })
       } catch {
+        // Preserve the empty listing on an unreadable root, but let the next
+        // request retry rather than caching a transient I/O failure for the TTL.
+        if (current.relative === '') return null
         continue
       }
       children.sort((a, b) => a.name.localeCompare(b.name))
@@ -63,6 +67,7 @@ export function createWorkspaceIndex({ getWorkspacePath = null, maxEntries = DEF
       cachedEntries = null
       cachedAt = 0
       cacheGeneration++
+      inFlight = null
       return []
     }
     const root = await fs.realpath(workspacePath)
@@ -72,25 +77,39 @@ export function createWorkspaceIndex({ getWorkspacePath = null, maxEntries = DEF
       cachedEntries = null
       cachedAt = 0
       cacheGeneration++
+      inFlight = null
     }
 
     const requestedGeneration = cacheGeneration
     let entries = cachedEntries
     if (!entries || Date.now() - cachedAt >= INDEX_CACHE_TTL_MS) {
-      entries = await buildIndex(root)
-      // A workspace can change while indexing. Keep the result only if no
-      // newer request switched the active root while this build was running.
-      if (requestedGeneration === cacheGeneration && cachedRoot === root) {
-        cachedEntries = entries
-        cachedAt = Date.now()
+      if (!inFlight || inFlight.root !== root || inFlight.generation !== requestedGeneration) {
+        const flight = { root, generation: requestedGeneration, promise: null }
+        flight.promise = buildIndex(root).then((builtEntries) => {
+          // A workspace can change while indexing. Never let an older build
+          // populate a newer root, including a switch away and back again.
+          if (builtEntries !== null && requestedGeneration === cacheGeneration && cachedRoot === root) {
+            cachedEntries = builtEntries
+            cachedAt = Date.now()
+          }
+          return builtEntries ?? []
+        }).finally(() => {
+          if (inFlight === flight) inFlight = null
+        })
+        inFlight = flight
       }
+      entries = await inFlight.promise
     }
 
     const resultLimit = Number.isFinite(limit) ? Math.max(1, Math.min(500, Math.floor(limit))) : 100
-    return entries.filter((entry) =>
-      (includeDirectories || entry.kind !== 'directory')
-      && (!normalizedQuery || entry.path.toLocaleLowerCase().includes(normalizedQuery)),
-    ).slice(0, resultLimit)
+    const results = []
+    for (const entry of entries) {
+      if ((!includeDirectories && entry.kind === 'directory')
+        || (normalizedQuery && !entry.path.toLocaleLowerCase().includes(normalizedQuery))) continue
+      results.push(entry)
+      if (results.length >= resultLimit) break
+    }
+    return results
   }
 
   return { list: walk }

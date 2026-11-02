@@ -1,0 +1,61 @@
+/**
+ * TaskWeaver 全局设计系统 Token 基座
+ * 统一管理色彩、明暗主题、阴影与字体度量，杜绝硬编码
+ */
+
+:root {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "PingFang SC", "Segoe UI", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  color-scheme: dark;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+
+  /* 暖炭人文科技暗色主题 Tokens */
+  --bg-app: #141413;
+  --bg-sidebar: #0f0f0e;
+  --bg-canvas: #141413;
+  --bg-panel: #1a1a18;
+  --bg-surface: #1e1e1b;
+  --bg-surface-elevated: #242421;
+  --bg-surface-hover: rgba(255, 255, 255, 0.045);
+  --bg-bubble-user: #22221f;
+  --bg-bubble-agent: transparent;
+  --bg-header: rgba(20, 20, 19, 0.82);
+
+  --line: rgba(255, 255, 255, 0.055);
+  --line-strong: rgba(255, 255, 255, 0.095);
+  --line-focus: rgba(217, 119, 6, 0.45);
+
+  --text: #ececeb;
+  --text-secondary: #9e9d96;
+  --text-muted: #6b6a65;
+  --text-hint: #4d4c48;
+
+  /* 品牌主强调色：默认琥珀橙 (Amber/Warm Orange) */
+  --accent-primary: #d97706;
+  --accent-primary-hover: #b45309;
+  --accent-primary-soft: rgba(217, 119, 6, 0.14);
+
+  --accent-green: #34d399;
+  --accent-green-hover: #10b981;
+  --accent-green-soft: rgba(52, 211, 153, 0.12);
+  --accent-green-glow: rgba(52, 211, 153, 0.35);
+
+  --accent-blue: #60a5fa;
+  --accent-blue-hover: #3b82f6;
+  --accent-blue-soft: rgba(96, 165, 250, 0.14);
+
+  --accent-purple: #c084fc;
+  --accent-purple-soft: rgba(192, 132, 252, 0.14);
+
+  --accent-amber: #d97706;
+  --accent-amber-soft: rgba(217, 119, 6, 0.14);
+
+  --accent-red: #f87171;
+  --accent-red-soft: rgba(248, 113, 113, 0.14);
+
+  --shadow-floating: 0 24px 60px -12px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.06), inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
+  --shadow-card: 0 4px 20px rgba(0, 0, 0, 0.3), inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
+  --shadow-menu: 0 16px 44px rgba(0, 0, 0, 0.7), inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
+
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+}

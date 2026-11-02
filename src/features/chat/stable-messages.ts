@@ -34,17 +34,34 @@ export function reuseUnchangedMessages(
   return changed ? result : previous as ChatMessage[]
 }
 
-export type StableArrayBinder = <T>(key: string, next: readonly T[] | undefined) => readonly T[] | undefined
+type CacheOwner = string | object
+
+export type StableArrayBinder = {
+  <T>(key: string, next: readonly T[] | undefined): readonly T[] | undefined
+  /** Keep only keys owned by the current conversation/rendered message set. */
+  retain: (owner: CacheOwner, activeKeys: Iterable<string>) => void
+  clear: () => void
+  readonly size: number
+}
 
 /**
- * Per-key arrays that keep their previous identity while their elements are
- * unchanged, for per-row slices derived from a projection that is rebuilt on
- * every push.
+ * Equal slices retain identity only while their owner and key remain active.
+ * A projection rollback/deletion therefore releases its old row/tool arrays.
  */
 export function createStableArrays(): StableArrayBinder {
   const cache = new Map<string, readonly unknown[]>()
-  return <T>(key: string, next: readonly T[] | undefined): readonly T[] | undefined => {
-    if (!next) return undefined
+  let owner: CacheOwner | undefined
+  let activeKeys: Set<string> | undefined
+  const clear = () => {
+    cache.clear()
+    owner = undefined
+    activeKeys = undefined
+  }
+  const bind = <T>(key: string, next: readonly T[] | undefined): readonly T[] | undefined => {
+    if (!next || (activeKeys && !activeKeys.has(key))) {
+      cache.delete(key)
+      return next
+    }
     const previous = cache.get(key) as readonly T[] | undefined
     if (previous && previous.length === next.length && previous.every((item, index) => sameValue(item, next[index]))) {
       return previous
@@ -52,9 +69,19 @@ export function createStableArrays(): StableArrayBinder {
     cache.set(key, next)
     return next
   }
+  return Object.defineProperty(Object.assign(bind, {
+    retain(nextOwner: CacheOwner, nextKeys: Iterable<string>) {
+      if (nextOwner !== owner) clear()
+      owner = nextOwner
+      activeKeys = new Set(nextKeys)
+      for (const key of cache.keys()) if (!activeKeys.has(key)) cache.delete(key)
+    },
+    clear,
+  }), 'size', { get: () => cache.size }) as StableArrayBinder
 }
 
-export function useStableArrays(): StableArrayBinder {
+export function useStableArrays(owner: CacheOwner, activeKeys: Iterable<string>): StableArrayBinder {
   const [bind] = useState(createStableArrays)
+  bind.retain(owner, activeKeys)
   return bind
 }

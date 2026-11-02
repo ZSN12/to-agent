@@ -1,5 +1,5 @@
 /**
- * Model-facing read, read_image, write, and edit tools over `ctx.fs`. This package owns schemas, validation,
+ * Model-facing read, read_image, write, edit, and apply_patch tools over `ctx.fs`. This package owns schemas, validation,
  * read windows, formatting, and observation events, never a concrete provider. An optional
  * event policy supplies mutation guards; without one the tools use unconditional provider calls.
  * @module @taskweaver/dsh-tool-fs
@@ -29,6 +29,6 @@ export interface Config {
     readStreamMinSize?: number;
 }
 export declare const Config: z<Config>;
-/** Register the full `read`/`write`/`edit` filesystem tool suite, plus `read_image` while `attachments` is mounted. */
+/** Register the full filesystem tool suite, plus `read_image` while `attachments` is mounted. */
 export declare function apply(ctx: Context, config: Config): void;
 //# sourceMappingURL=index.d.ts.map

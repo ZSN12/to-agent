@@ -12,7 +12,7 @@ function insertedRows(filePath: string): Array<Record<string, unknown>> {
 }
 
 describe('TaskWeaver web-search wiring', () => {
-  it('keeps the Host provider and model-facing web_search plugin active in the bundle', () => {
+  it('keeps the Host provider active without publishing web_search globally', () => {
     const rows = insertedRows(BASE_PATCH)
     const hostWeb = rows.find(row => row.id === 'web')
     const provider = rows.find(row => row.id === 'web-search-taskweaver')
@@ -21,8 +21,8 @@ describe('TaskWeaver web-search wiring', () => {
     expect(hostWeb?.name).toBe('@taskweaver/dsh-web')
     expect(provider?.name).toBe('@taskweaver/dsh-web-search-taskweaver')
     expect((provider?.config as Record<string, unknown>)?.configPathEnv).toBe('TASKWEAVER_WEB_SEARCH_CONFIG_PATH')
-    expect(tool?.name).toBe('@taskweaver/dsh-tool-web')
-    for (const row of [hostWeb, provider, tool]) expect(row?.disabled).not.toBe(true)
+    expect(tool).toBeUndefined()
+    for (const row of [hostWeb, provider]) expect(row?.disabled).not.toBe(true)
   })
 
   it.each([

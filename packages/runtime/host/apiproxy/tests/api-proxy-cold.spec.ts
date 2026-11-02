@@ -693,12 +693,20 @@ describe('subagent ownership fence', () => {
       mode: 'queue' as const,
       content: [{ type: 'text' as const, text: 'zoned work' }],
       clientTimeZone: alias,
+      rolePersona: 'Act as a patient science teacher.',
+      roleToolCallLimit: 12,
     })
     await expect(api.sessions.prompt(zonedRequest)).resolves.toMatchObject({
       result: { ok: true },
     })
     expect(followup).toHaveBeenNthCalledWith(1, expect.objectContaining({
-      source: { kind: 'user', rpcId: zonedRequest.rpcId, clientTimeZone: canonical },
+      source: {
+        kind: 'user',
+        rpcId: zonedRequest.rpcId,
+        clientTimeZone: canonical,
+        rolePersona: 'Act as a patient science teacher.',
+        roleToolCallLimit: 12,
+      },
     }))
 
     const utcRequest = request({

@@ -3,8 +3,6 @@ import tsPlugin from '@typescript-eslint/eslint-plugin'
 import globals from 'globals'
 import reactHooks from 'eslint-plugin-react-hooks'
 
-const runtimeSource = 'packages/runtime/{apps,packages,scripts}/**/*.{ts,tsx}'
-
 export default [
   {
     ignores: [
@@ -24,7 +22,7 @@ export default [
     linterOptions: { reportUnusedDisableDirectives: 'off' },
   },
   {
-    files: ['desktop/**/*.mjs', 'desktop/**/*.cjs', 'scripts/**/*.mjs', 'packages/**/*.mjs'],
+    files: ['backend/**/*.{js,mjs,cjs}', 'contract/**/*.{js,mjs,cjs}', 'scripts/**/*.{js,mjs,cjs}', 'packages/**/*.{js,mjs,cjs}'],
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'module',
@@ -37,7 +35,7 @@ export default [
     },
   },
   {
-    files: ['src/**/*.{ts,tsx}', 'packages/**/*.ts', 'packages/**/*.tsx', runtimeSource],
+    files: ['src/**/*.{ts,tsx}', 'contract/**/*.ts', 'packages/**/*.{ts,tsx}'],
     languageOptions: {
       parser: tsParser,
       parserOptions: {

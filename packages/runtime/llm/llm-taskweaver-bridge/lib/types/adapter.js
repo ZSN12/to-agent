@@ -1,7 +1,7 @@
 /**
  * @module @taskweaver/dsh-llm-taskweaver-bridge/adapter
  */
-import { LlmAdapter, LlmError } from '@taskweaver/dsh-llm';
+import { LlmAdapter, LlmError, ReasoningEffortId } from '@taskweaver/dsh-llm';
 import { streamThroughBridge } from '@taskweaver/dsh-bridge-core';
 import { resolveRuntimeHome } from '@taskweaver/dsh-home-paths';
 function modelInfo(provider, entry) {
@@ -10,6 +10,27 @@ function modelInfo(provider, entry) {
         id: entry.id,
         name: entry.name ?? entry.id,
         ...entry.contextWindow === undefined ? {} : { contextWindow: entry.contextWindow },
+    };
+}
+function reasoningInfo(entry) {
+    if (entry?.reasoning !== true)
+        return {};
+    const efforts = Object.entries(entry.thinkingLevelMap ?? {})
+        .filter(([id, wireValue]) => id !== 'off' && typeof wireValue === 'string' && wireValue.trim())
+        .map(([id]) => id);
+    if (efforts.length === 0)
+        return {};
+    const defaultEffort = entry.defaultThinkingLevel && efforts.includes(entry.defaultThinkingLevel)
+        ? ReasoningEffortId(entry.defaultThinkingLevel)
+        : undefined;
+    return {
+        reasoning: {
+            efforts: efforts.map((id) => ({
+                id: ReasoningEffortId(id),
+                name: `${id.charAt(0).toUpperCase()}${id.slice(1)}`,
+            })),
+            ...(defaultEffort === undefined ? {} : { defaultEffort }),
+        },
     };
 }
 export class TaskWeaverBridgeAdapter extends LlmAdapter {
@@ -40,6 +61,7 @@ export class TaskWeaverBridgeAdapter extends LlmAdapter {
             id: model,
             name: entry?.name ?? model,
             inputModalities: ['text'],
+            ...reasoningInfo(entry),
             ...contextWindow === undefined ? {} : { context: { contextWindow } },
             ...(entry?.maxTokens === undefined ? {} : { defaultMaxTokens: entry.maxTokens }),
         });

@@ -62,6 +62,13 @@ const providerAuth = createProviderCredentialHelpers({
   },
 })
 
+const mockProviderAuth = createProviderCredentialHelpers({
+  userDataPath: '/tmp/taskweaver-bridge-model-test',
+  directoryClient,
+  fetchBridgeLogins: async () => ({}),
+  isUiVerifyMockModelEnabled: () => true,
+})
+
 const composerRow = directory.providers[0]
 const antigravityRow = directory.providers[1]
 assert.equal(await providerAuth.isProviderCredentialConfigured(directory, composerRow), true)
@@ -97,6 +104,23 @@ await providerAuth.applyCredentialBasedAvailability(
 assert.equal(candidateModels[0].available, true, 'a logged-in local Cursor subscription makes its registered bridge model available')
 assert.equal(candidateModels[1].available, false, 'a registered bridge model must be unavailable after local login expires')
 assert.equal(availableKeys.has(candidateModels[1].key), false, 'an active-looking Host row cannot override a missing local bridge login')
+
+const uiVerifyMock = {
+  key: 'bridge-composer/cursor/composer-2.5-fast',
+  provider: 'bridge-composer',
+  routeRegistered: true,
+  available: false,
+}
+const uiVerifyMockKeys = new Set()
+await mockProviderAuth.applyCredentialBasedAvailability(
+  directory,
+  new Map(),
+  uiVerifyMockKeys,
+  [uiVerifyMock],
+  [uiVerifyMock.key],
+)
+assert.equal(uiVerifyMock.available, true, 'the isolated UI verification fixture remains selectable without a real Cursor login')
+assert.equal(uiVerifyMockKeys.has(uiVerifyMock.key), true)
 
 const credentials = createModelCredentials({
   userDataPath: null,

@@ -1,7 +1,7 @@
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { Context } from '@taskweaver/cordis'
 import { LocalBashExecutor } from '@taskweaver/dsh-bash-local'
 import LocalSubprocessRuntime from '@taskweaver/dsh-subprocess-local'
@@ -9,10 +9,24 @@ import { MAX_TIMER_DELAY_MS } from '@taskweaver/dsh-timeout'
 import type { ShellProcess } from '@taskweaver/dsh-shell'
 
 const spillDir = mkdtempSync(join(tmpdir(), 'dsh-bash-exec-spec-'))
+const subprocessCleanups = new Set<() => Promise<void>>()
+
+afterEach(async () => {
+  const cleanups = [...subprocessCleanups]
+  subprocessCleanups.clear()
+  await Promise.all(cleanups.map(cleanup => cleanup()))
+})
 
 async function setup(config: ConstructorParameters<typeof LocalBashExecutor>[1] = {}) {
   const ctx = new Context()
-  await ctx.plugin(LocalSubprocessRuntime)
+  const managerFiber = await ctx.plugin(LocalSubprocessRuntime)
+  let disposed = false
+  const cleanup = async () => {
+    if (disposed) return
+    disposed = true
+    await managerFiber.dispose()
+  }
+  subprocessCleanups.add(cleanup)
   ;(ctx.subprocess as LocalSubprocessRuntime).internals = { spillDir }
   // A short kill grace via the REAL config path, so escalation tests stay fast.
   await ctx.plugin(LocalBashExecutor, { graceMs: 200, ...config })

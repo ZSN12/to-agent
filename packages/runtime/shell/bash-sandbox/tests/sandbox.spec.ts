@@ -8,7 +8,7 @@
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@taskweaver/cordis'
 import type { ShellRunResult, CollectedOutput } from '@taskweaver/dsh-shell'
 import { SANDBOX_UNAVAILABLE, SandboxProvider, SandboxUnavailableError } from '@taskweaver/dsh-sandbox'
@@ -21,6 +21,13 @@ import { classifyDenial, classifyRunnerFailure, isRunnerSpawnFailure } from '../
 import type { Config } from '@taskweaver/dsh-bash-sandbox'
 
 const spillDir = mkdtempSync(join(tmpdir(), 'dsh-bash-sandbox-spec-'))
+const subprocessFibers = new Set<{ dispose: () => Promise<void> }>()
+
+afterEach(async () => {
+  const fibers = [...subprocessFibers]
+  subprocessFibers.clear()
+  await Promise.all(fibers.map(fiber => fiber.dispose()))
+})
 
 /** One recorded provider call: the argv handed over and the policy it rode with. */
 interface ConfineCall {
@@ -67,7 +74,7 @@ async function setup(
     ...mode !== undefined ? { mode } : {},
     ...workspaceRoot !== undefined ? { workspaceRoot } : {},
   })
-  await ctx.plugin(LocalSubprocessRuntime)
+  subprocessFibers.add(await ctx.plugin(LocalSubprocessRuntime))
   ;(ctx.subprocess as LocalSubprocessRuntime).internals = { spillDir }
   await ctx.plugin(SandboxBashExecutor, { graceMs: 200, ...execConfig })
   const bash = ctx.shell as SandboxBashExecutor

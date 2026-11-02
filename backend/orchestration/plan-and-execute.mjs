@@ -2,19 +2,26 @@ import path from 'node:path'
 import crypto from 'node:crypto'
 import { applySkillInstructions, resolveSkillForSubtask } from '../skill-prompt.mjs'
 import { detectVerificationCommands, executeVerificationRunner } from '../verification-policy.mjs'
+import { verificationSandboxPolicy } from '../sandbox-policy.mjs'
 import { executeDag, validateAndOrderTasks } from '../dag-scheduler.mjs'
-import { modelFailureDomain, nextTaskTier, selectModelForTask, shouldUpgradeFailedTask } from '../orchestration-policy.mjs'
+import {
+  modelFailureDomain,
+  nextTaskTier,
+  recordRouteFailure,
+  recordRouteSuccess,
+  selectModelForTask,
+  shouldUpgradeFailedTask,
+} from '../orchestration-policy.mjs'
 import { buildRoutingOptions } from '../routing-portfolio-service.mjs'
 import { runWithSubtaskRetries } from '../subtask-retry.mjs'
 import { getTaskProfile } from '../task-profile.mjs'
 import { buildMemoryPromptSections } from '../memory-store.mjs'
 import {
-  captureNodeWorktreeFailureEvidence,
   getGitWorkspaceMutationFingerprint,
   getWorkspaceHeadCommit,
   isCleanGitWorkspace,
-  resetNodeWorktree,
 } from '../worktree-service.mjs'
+import { compactToolOutput } from '../context-compactor.mjs'
 import {
   PlannerFallbackError,
   buildPlannerRetryPrompt,
@@ -49,35 +56,41 @@ import {
   assessSubtaskCompletion,
 } from './evidence.mjs'
 import { UsageLedger } from './usage-ledger.mjs'
+import { calculateCostSavings, createRunPricingSnapshot } from './cost-savings.mjs'
 import { createNodeDeadline, resolveNodeTimeouts, waitForNodeTurn } from './node-deadline.mjs'
 import { createNodeWorkspaceRegistry } from './node-workspace.mjs'
 import { normalizeDagNodeLimit } from './dag-limits.mjs'
 import { applyPlanApprovalChanges } from './plan-approval.mjs'
 import { createDagPauseControl } from './pause-control.mjs'
+import { createTaskHandoff, renderTaskHandoffPrompt } from './task-handoff.mjs'
+import { LRUCache } from './performance-utils.mjs'
 import {
   prepareCrossProviderReviewTasks,
   resolveCrossProviderReviewEnabled,
   selectCrossProviderReviewRoute,
 } from './cross-provider-review.mjs'
+import {
+  MODEL_CAPABILITY_RANK,
+  resolveEscalationTier,
+  redactVerificationOutput,
+  isVerificationEnvironmentFailure,
+  verificationFailureOutput,
+  attachVerificationFailure,
+  mapTaskStatus,
+} from './verification-helpers.mjs'
 
 const DEFAULT_DAG_PROVIDER_CONCURRENCY = 2
 
-export function shouldRunSelfHealingVerification({
-  selfHealingEnabled,
-  taskType,
-  hasFileChanges,
-  hasVerification,
-  workspaceTrusted,
-  permissionMode,
-  execCwd,
-}) {
-  return selfHealingEnabled === true
-    && (taskType === 'implementation' || taskType === 'test')
-    && hasFileChanges === true
-    && hasVerification !== true
-    && Boolean(execCwd)
-    && workspaceTrusted === true
-    && permissionMode !== 'readonly'
+import {
+  createVerificationResult,
+  shouldRunSelfHealingVerification,
+  runSelfHealingVerification,
+} from './self-healing-runner.mjs'
+
+export {
+  createVerificationResult,
+  shouldRunSelfHealingVerification,
+  runSelfHealingVerification,
 }
 
 /** 规划 → DAG 执行 → 汇总 三阶段编排。 */
@@ -127,8 +140,90 @@ export function createPlanAndExecute({
       ...(replay ? { sourceRunId: replay.source.runId, replayMode: replay.mode } : {}),
     }
     const trace = (type, details = {}) => traceStore?.append(conversationId, runId, { type, ...details })
+    const cleanupHandoffs = async (targetRunId, taskIds = null) => {
+      if (!targetRunId || typeof runStore?.deleteTaskHandoffs !== 'function') return
+      try {
+        const deletedTaskIds = await runStore.deleteTaskHandoffs(conversationId, targetRunId, taskIds)
+        if (deletedTaskIds.length) {
+          await trace('handoff_memory_cleaned', { sourceRunId: targetRunId, taskCount: deletedTaskIds.length })
+        }
+      } catch (error) {
+        await trace('handoff_memory_cleanup_failed', {
+          sourceRunId: targetRunId,
+          errorCode: error?.code ?? null,
+        })
+      }
+    }
     const plannerSkill = skillAlreadyApplied ? null : skill
     let ledger = null
+    let pricingSnapshot = null
+    let nodeWorkspace = null
+    let usage = []
+    const routeTrialLeases = []
+    const releaseRouteTrialLeases = (taskId = null) => {
+      for (let index = routeTrialLeases.length - 1; index >= 0; index -= 1) {
+        const lease = routeTrialLeases[index]
+        if (taskId !== null && lease.taskId !== taskId) continue
+        routeTrialLeases.splice(index, 1)
+        try {
+          lease.circuitBreaker.releaseTrial(lease.domain, lease.token)
+        } catch {
+          // A completed route outcome may already have cleared the lease.
+        }
+      }
+    }
+    const combineRecordedRunUsage = () => {
+      const records = ledger?.getRecords?.()
+      return combineUsage(Array.isArray(records) ? records.map((record) => record.usage) : usage)
+    }
+    const attachCostSavingsSummary = () => {
+      try {
+        const records = ledger?.getRecords?.()
+        runState.costSavingsSummary = calculateCostSavings(
+          Array.isArray(records) ? records : [],
+          pricingSnapshot ?? {},
+        )
+      } catch {
+        // Cost estimation is advisory and must never make a completed DAG fail.
+        runState.costSavingsSummary = null
+      }
+    }
+    const finalizeCancelledRun = async () => {
+      const phase = runState.status
+      const cancelledTasks = (Array.isArray(runState.tasks) ? runState.tasks : []).map((task) => {
+        const terminal = ['done', 'review', 'cancelled', 'failed'].includes(task.status)
+        const status = terminal ? task.status : 'cancelled'
+        return {
+          ...task,
+          status,
+          statusLabel: terminal ? task.statusLabel : '已停止',
+          runStatus: mapTaskStatus(status, { phase: 'cancelled', preserveFailures: true }),
+        }
+      })
+      const failedTaskIds = cancelledTasks.filter((task) => task.status !== 'done').map((task) => task.id)
+      run.schedulerActive = false
+      run.pauseControl.resume()
+      runState.status = 'cancelled'
+      runState.tasks = cancelledTasks
+      run.status = 'cancelled'
+      attachCostSavingsSummary()
+      await runStore?.saveRun(conversationId, runId, runState)
+      if (cancelledTasks.length) await publishTasks(cancelledTasks, webContents, conversationId)
+      await ledger?.flush()
+      await trace('run_cancelled', { phase, failedTaskIds })
+      await traceStore?.flush(conversationId, runId)
+      return {
+        runId,
+        assistant: {
+          text: '多 Agent 任务已停止；已完成的子任务进度保留。',
+          usage: combineRecordedRunUsage(),
+          fileChanges: mergeFileChanges(...cancelledTasks.map((task) => task.messages.map((message) => message.fileChanges))),
+          cancelled: true,
+        },
+        tasks: cancelledTasks,
+        failedTaskIds,
+      }
+    }
     try {
       await runStore?.saveRun(conversationId, runId, runState)
       await trace('run_started')
@@ -193,7 +288,7 @@ export function createPlanAndExecute({
         : (parallelWorktreeBaselineReady ? await getWorkspaceHeadCommit(cwd) : null)
       const originalText = replay?.source?.originalText || rawText || text
       primaryModelKey = replay?.source?.primaryModelKey || primaryModelKey
-      permissionMode = replay?.source?.permissionMode || permissionMode
+      permissionMode = permissionMode || 'ask'
       const readOnlyRequest = forceReadOnly === true || requiresReadOnlyPlan(originalText)
       const codeMutationRequest = isCodeMutationRequest(originalText)
       const crossProviderReviewEnabled = replay
@@ -216,6 +311,7 @@ export function createPlanAndExecute({
         ? (plannerPathHints.truncationMessage || '达到扫描/展示上限，结果不完整').replace(/。+$/u, '')
         : ''
       const catalog = await modelService.listCatalog()
+      pricingSnapshot = createRunPricingSnapshot(catalog, runState.createdAt)
       const plannerApi = catalog.models.find((model) => model.key === primaryModelKey)?.api
       const plannerOutputSchema = supportsPlannerOutputSchema(plannerApi)
         ? createPlannerOutputSchema()
@@ -365,6 +461,7 @@ export function createPlanAndExecute({
             await runStore?.saveRun(conversationId, runId, runState)
             await trace('planning_attempt', { attempt, accepted: false, rejectionReason: reason })
             ledger.record({ runId, taskId: 'planner', attempt, modelKey: primaryModelKey, usage: attemptUsage, outcome: 'failed' })
+            if (abortController.signal.aborted) throw error
             if (attempt === 3) {
               throw new PlannerFallbackError(reason, { partialUsage: attemptUsage })
             }
@@ -382,18 +479,38 @@ export function createPlanAndExecute({
       })
       plannerSessionId = dshRuntime.getSessionId?.(plannerSessionKey) || undefined
       }
-      const usage = planResult?.usage ? [planResult.usage] : []
+      usage = planResult?.usage ? [planResult.usage] : []
       const routingOptions = await buildRoutingOptions({ userDataPath, openUsageBaseUrl: prefs.openUsageBaseUrl })
       const providerByModelKey = new Map(catalog.models.map((model) => [
         model.key,
         model.provider || String(model.key).split('/')[0] || 'unknown',
       ]))
-      const routeOpts = { ...routingOptions }
+      // All initial route choices for one DAG share the same immutable catalog,
+      // portfolio, quota snapshot, and evaluation time. Keep the cache run-local
+      // so refreshed catalogs and quota data can never reuse stale decisions.
+      const routeOpts = {
+        ...routingOptions,
+        now: new Date(),
+        routeDecisionCache: new LRUCache(64),
+      }
+      const routeOptsForTask = (taskId) => ({
+        ...routeOpts,
+        onTrialReserved: (domain, circuitBreaker, token) => {
+          routeTrialLeases.push({ taskId, domain, circuitBreaker, token })
+        },
+      })
       const allocationCounts = Object.create(null)
       const selected = []
       if (replay) {
         for (const task of planned) {
           const isPending = replay.pendingTaskIds.has(task.id)
+          const reuseChildSession = (!isPending || replay.mode === 'checkpoint')
+            && typeof task.dshSessionKey === 'string'
+          const worktreeRunId = replay.mode === 'checkpoint'
+            && isPending
+            && runWorktreeIsolation
+            ? (task.worktreeRunId || replay.source.runId)
+            : null
           const crossReviewRouting = isPending && task.crossProviderReview === true
             ? selectCrossProviderReviewRoute({
               catalog,
@@ -401,7 +518,7 @@ export function createPlanAndExecute({
               implementationModelKeys: planned
                 .filter((candidate) => candidate.taskType === 'implementation')
                 .map((candidate) => candidate.modelKey),
-              routeOptions: { ...routeOpts, allocationCounts },
+              routeOptions: { ...routeOptsForTask(task.id), allocationCounts },
               needsVision: task.route?.needs_vision === true,
             })
             : null
@@ -443,7 +560,10 @@ export function createPlanAndExecute({
             detail: task.description,
             messages: Array.isArray(task.messages) ? task.messages : [],
             toolProfile: task.toolProfile || getTaskProfile(task.taskType).id,
-            dshSessionKey: `tw-orchestration-${conversationId}-${runId}-${task.id}`,
+            dshSessionKey: reuseChildSession
+              ? task.dshSessionKey
+              : `tw-orchestration-${conversationId}-${runId}-${task.id}`,
+            ...(worktreeRunId ? { worktreeRunId } : {}),
             permissionMode: READ_ONLY_TASK_TYPES.has(task.taskType) ? 'readonly' : permissionMode,
           })
           if (isPending && model) {
@@ -474,11 +594,11 @@ export function createPlanAndExecute({
             implementationModelKeys: selected
               .filter((candidate) => candidate.taskType === 'implementation')
               .map((candidate) => candidate.modelKey),
-            routeOptions: { ...routeOpts, allocationCounts },
+            routeOptions: { ...routeOptsForTask(task.id), allocationCounts },
             needsVision: task.route?.needs_vision === true,
           })
           : selectModelForTask(task.taskType, catalog, primaryModelKey, {
-            ...routeOpts,
+            ...routeOptsForTask(task.id),
             allocationCounts,
             needsVision: task.route?.needs_vision === true,
           })
@@ -602,7 +722,7 @@ export function createPlanAndExecute({
             && task.execBranch)
           .map((task) => [task.id, task.execBranch]))
         : null
-      const nodeWorkspace = createNodeWorkspaceRegistry({
+      nodeWorkspace = createNodeWorkspaceRegistry({
         enabled: parallelWorktreeBaselineReady,
         workspacePath: cwd,
         conversationId,
@@ -610,7 +730,13 @@ export function createPlanAndExecute({
         userDataPath,
         baseCommit: runBaseCommit,
         tasks,
+        signal: abortController.signal,
         initialWriterBranches,
+        resumeTaskRunIds: replay?.mode === 'checkpoint'
+          ? new Map(tasks
+            .filter((task) => replay.pendingTaskIds.has(task.id) && typeof task.worktreeRunId === 'string')
+            .map((task) => [task.id, task.worktreeRunId]))
+          : null,
       })
       runState.baseCommit = runBaseCommit
       const approvalMode = ['always', 'write-only', 'never'].includes(dagPlanApprovalOverride)
@@ -622,7 +748,10 @@ export function createPlanAndExecute({
       } else {
         tasks = tasks.map((task) => ({
           ...task,
-          runStatus: replay && replay.initialResults.has(task.id) ? 'completed' : 'running',
+          runStatus: mapTaskStatus(task.status, {
+            phase: 'initialize',
+            replayed: replay?.initialResults.has(task.id) === true,
+          }),
         }))
       }
       for (const task of tasks) {
@@ -636,7 +765,7 @@ export function createPlanAndExecute({
         run.status = runState.status
         tasks = tasks.map((task) => ({
           ...task,
-          runStatus: task.status === 'done' ? 'completed' : (paused ? 'paused' : 'running'),
+          runStatus: mapTaskStatus(task.status, { phase: 'pause', paused }),
         }))
         runState.tasks = tasks
         await runStore?.saveRun(conversationId, runId, runState)
@@ -707,6 +836,7 @@ export function createPlanAndExecute({
             runState.tasks = tasks
             runState.status = 'rejected'
             run.status = 'rejected'
+            attachCostSavingsSummary()
             await runStore?.saveRun(conversationId, runId, runState)
             await publishTasks(tasks, webContents, conversationId)
             await trace('plan_approval_rejected', { taskCount: tasks.length })
@@ -888,6 +1018,11 @@ export function createPlanAndExecute({
           })
           runState.tasks = tasks
           await runStore?.saveRun(conversationId, runId, runState)
+          if (replay?.mode === 'checkpoint'
+            && changed.status === 'done'
+            && meta?.result?.completionAssessment?.complete === true) {
+            await cleanupHandoffs(replay.source.runId, [changed.id])
+          }
           await publishTasks(tasks, webContents, conversationId)
         },
         execute: async (task, dependencyResults, taskSignal, executionMode = {}) => {
@@ -919,13 +1054,14 @@ export function createPlanAndExecute({
             } else {
               try {
                 const wt = await nodeWorkspace.create(task)
-                if (executionMode.parallelWriteIsolation === true && wt.reused) {
+                if (executionMode.parallelWriteIsolation === true && wt.reused && wt.resumedFromCheckpoint !== true) {
                   throw new Error(`任务 ${task.id} 已有旧 worktree；为避免复用旧代码，不能启动并行实现`)
                 }
                 execCwd = wt.path
                 execBranch = wt.branchName
                 execStartCommit = wt.startCommit
                 worktreeTaskIds.push(task.id)
+                task.worktreeRunId = task.worktreeRunId || runId
                 worktreeNote = `\n\n（在隔离分支 ${wt.branchName} 中执行；仅合并已完成的依赖写节点，最终改动保留在集成分支供预览。）`
               } catch (error) {
                 const message = error instanceof Error ? error.message : String(error)
@@ -942,16 +1078,31 @@ export function createPlanAndExecute({
           task.execStartCommit = execStartCommit
           task.worktreeIsolated = Boolean(execBranch)
           task.permissionMode = READ_ONLY_TASK_TYPES.has(task.taskType) ? 'readonly' : permissionMode
+          tasks = tasks.map((current) => current.id === task.id ? {
+            ...current,
+            execCwd,
+            execBranch,
+            execStartCommit,
+            worktreeIsolated: Boolean(execBranch),
+            ...(execBranch ? { worktreeRunId: task.worktreeRunId || runId } : {}),
+          } : current)
+          runState.tasks = tasks
+          await runStore?.saveRun(conversationId, runId, runState)
+          await publishTasks(tasks, webContents, conversationId)
           const profile = getTaskProfile(task.taskType)
           const subtaskSkill = resolveSkillForSubtask(skill, task.taskType)
           const buildPrompt = (evidenceBundle = null) => {
             const memoryBlock = buildMemoryPromptSections(projectMemory, task, dependencyResults, { evidenceBundle })
+            const handoffBlock = replay?.mode === 'checkpoint'
+              ? renderTaskHandoffPrompt(replay.handoffs?.[task.id])
+              : ''
             const parts = [
               profile.preamble,
               ...(Array.isArray(contextLayers) && contextLayers.length > 0 ? [
                 `【共享的主会话上下文】\n${contextLayers.map(layer => `[${layer.id}]\n${layer.text}`).join('\n\n')}`,
               ] : []),
               memoryBlock,
+              handoffBlock,
               `当前子任务 ${task.id}：${task.title}\n${task.description}`,
               `职责：${task.role}。任务类型：${task.taskType}。工具档：${profile.id}。`,
               Array.isArray(task.acceptance) && task.acceptance.length > 0
@@ -982,6 +1133,7 @@ export function createPlanAndExecute({
             ? await getGitWorkspaceMutationFingerprint(execCwd)
             : null
           let resetPendingRetry = false
+          let lastFailedModelKey = task.modelKey
           const nodeTimeouts = resolveNodeTimeouts(task.taskType, prefs)
           const runSubtask = async (modelKey, evidenceBundle = null) => {
             const attemptNo = evidenceBundle ? evidenceBundle.attempted_actions.length + 1 : 1
@@ -994,6 +1146,33 @@ export function createPlanAndExecute({
                 conversationId,
               }),
             })
+            const liveToolCalls = new Map()
+            let handoffWrites = Promise.resolve()
+            let handoffWriteError = null
+            const handoffWriteFailure = () => {
+              const error = new Error('无法保存子任务交接记忆；已停止该节点以避免丢失恢复进度。', { cause: handoffWriteError })
+              error.code = 'EHANDOFF_WRITE_FAILED'
+              error.kind = 'storage'
+              return error
+            }
+            const observeActivity = (payload) => {
+              deadline.touch()
+              if (payload?.type !== 'tool') return
+              const id = String(payload.id ?? `${payload.toolName ?? 'tool'}-${liveToolCalls.size}`)
+              liveToolCalls.delete(id)
+              liveToolCalls.set(id, {
+                toolName: String(payload.toolName ?? 'tool').slice(0, 80),
+                status: String(payload.status ?? 'unknown').slice(0, 24),
+                durationMs: Number.isFinite(payload.durationMs) ? payload.durationMs : null,
+                observedAt: new Date().toISOString(),
+              })
+              while (liveToolCalls.size > 20) liveToolCalls.delete(liveToolCalls.keys().next().value)
+              const handoff = createTaskHandoff(runState, task)
+              handoff.progress.recentToolCalls = [...liveToolCalls.values()]
+              handoffWrites = handoffWrites.then(() => runStore?.saveTaskHandoff(conversationId, runId, handoff)).catch((error) => {
+                handoffWriteError ??= error
+              })
+            }
             try {
               const turn = runPrompt({
                 modelKey,
@@ -1005,7 +1184,7 @@ export function createPlanAndExecute({
                 taskId: task.id,
                 cwdOverride: execCwd,
                 signal: deadline.signal,
-                onActivity: () => deadline.touch(),
+                onActivity: observeActivity,
                 conversationId,
                 parentSessionId: plannerSessionId,
                 permissionMode: task.permissionMode,
@@ -1018,9 +1197,13 @@ export function createPlanAndExecute({
                   : task.dshSessionKey,
               })
               const res = await waitForNodeTurn(turn, deadline.signal)
+              await handoffWrites
+              if (handoffWriteError) throw handoffWriteFailure()
               ledger.record({ runId, taskId: task.id, attempt: attemptNo, modelKey, usage: res.usage ?? {}, outcome: 'success' })
               return res
             } catch (error) {
+              await handoffWrites
+              if (handoffWriteError && error?.code !== 'EHANDOFF_WRITE_FAILED') error = handoffWriteFailure()
               const timeoutReason = deadline.signal.reason
               if (['ETASK_TIMEOUT', 'ETASK_IDLE_TIMEOUT'].includes(timeoutReason?.code)
                 && !['ETASK_TIMEOUT', 'ETASK_IDLE_TIMEOUT'].includes(error?.code)) {
@@ -1034,9 +1217,143 @@ export function createPlanAndExecute({
               }
               const partialUsage = error.partialResult?.usage
               ledger.record({ runId, taskId: task.id, attempt: attemptNo, modelKey, usage: partialUsage ?? {}, outcome: 'failed' })
+              lastFailedModelKey = modelKey
+              recordRouteFailure(modelKey, error, { catalog })
               throw error
             } finally {
               deadline.dispose()
+              releaseRouteTrialLeases(task.id)
+            }
+          }
+
+          const validateSubtaskAttempt = async (result, { modelKey }) => {
+            const validationSignal = taskSignal ?? abortController.signal
+            if (validationSignal?.aborted || abortController.signal.aborted) {
+              throw validationSignal?.reason ?? abortController.signal.reason ?? new Error('任务已取消')
+            }
+            if (!result || typeof result !== 'object') return
+
+            const hasAttemptFileChanges = Array.isArray(result.fileChanges)
+              && result.fileChanges.some((change) => typeof change?.path === 'string' && change.path)
+            if (task.taskType === 'implementation' && hasAttemptFileChanges) {
+              const verificationPolicy = detectVerificationCommands(execCwd)
+              result.verificationRequired = Boolean(verificationPolicy.primaryCommand)
+              if (!verificationPolicy.primaryCommand) {
+                result.verification = createVerificationResult({
+                  status: 'not_run',
+                  reason: '工作区未检测到标准验证命令。',
+                })
+              } else if (!runState.workspaceTrusted || permissionMode === 'readonly') {
+                result.verification = createVerificationResult({
+                  status: 'skipped',
+                  command: verificationPolicy.primaryCommand,
+                  reason: '工作区未受信任或当前为只读权限，未自动运行验证命令。',
+                })
+              } else {
+                try {
+                  const verifyRes = await executeVerificationRunner(execCwd, {
+                    commandOverride: verificationPolicy.primaryCommand,
+                    timeoutMs: 5 * 60 * 1000,
+                    signal: validationSignal,
+                    sandboxPolicy: verificationSandboxPolicy({ workspacePath: execCwd, permissionMode, bashSandbox: prefs.bashSandbox }),
+                  })
+                  if (verifyRes.cancelled || validationSignal?.aborted || abortController.signal.aborted) {
+                    throw validationSignal?.reason ?? abortController.signal.reason ?? new Error('任务已取消')
+                  }
+                  const modelWindow = catalog?.models?.find((candidate) => candidate.key === modelKey)?.contextWindow || null
+                  const safeCommand = redactVerificationOutput(verifyRes.command).slice(0, 1_000)
+                  const outputSummary = verifyRes.executed && !verifyRes.passed
+                    ? verificationFailureOutput(verifyRes, modelWindow, safeCommand || 'verification')
+                    : undefined
+                  result.verification = createVerificationResult({
+                    status: verifyRes.status,
+                    executed: verifyRes.executed,
+                    command: safeCommand,
+                    passed: verifyRes.passed,
+                    exitCode: verifyRes.exitCode,
+                    durationMs: verifyRes.durationMs,
+                    timedOut: verifyRes.timedOut,
+                    cancelled: verifyRes.cancelled,
+                    sandboxDenied: verifyRes.sandboxDenied,
+                    repairable: verifyRes.repairable,
+                    source: 'verification-runner',
+                    ...(verifyRes.errorSummary ? { errorSummary: redactVerificationOutput(verifyRes.errorSummary).slice(0, 2_000) } : {}),
+                    ...(outputSummary ? { outputSummary } : {}),
+                  })
+                  const repairableFailure = verifyRes.executed === true
+                    && verifyRes.passed !== true
+                    && verifyRes.timedOut !== true
+                    && verifyRes.cancelled !== true
+                    && verifyRes.sandboxDenied !== true
+                    && Number.isInteger(verifyRes.exitCode)
+                    && verifyRes.exitCode !== 0
+                  if (repairableFailure && !isVerificationEnvironmentFailure(`${verifyRes.command}\n${outputSummary}`)) {
+                    throw attachVerificationFailure(result, {
+                      command: verifyRes.command,
+                      exitCode: verifyRes.exitCode,
+                      output: outputSummary,
+                    })
+                  }
+                } catch (error) {
+                  if (validationSignal?.aborted || abortController.signal.aborted || error?.code === 'ABORT_ERR') throw error
+                  if (error?.code === 'EVERIFY_FAILED') throw error
+                  result.verification = createVerificationResult({
+                    status: 'failed',
+                    command: verificationPolicy.primaryCommand,
+                    reason: redactVerificationOutput(error instanceof Error ? error.message : String(error)).slice(0, 2_000),
+                    source: 'verification-runner',
+                  })
+                }
+              }
+            }
+
+            if (task.taskType === 'test') result.verificationRequired = true
+            if (['implementation', 'test'].includes(task.taskType)) {
+              const commandVerification = summarizeCommandVerification(result.executionEvidence, result.verification)
+              if (commandVerification.present) {
+                result.verification = createVerificationResult({
+                  status: commandVerification.status,
+                  executed: commandVerification.executed,
+                  command: redactVerificationOutput(commandVerification.command).slice(0, 1_000),
+                  passed: commandVerification.passed,
+                  exitCode: commandVerification.exitCode,
+                  source: commandVerification.source,
+                  ...(commandVerification.reason ? { reason: commandVerification.reason } : {}),
+                  commands: commandVerification.observed.map((call) => ({
+                    command: redactVerificationOutput(call.commandSummary).slice(0, 1_000),
+                    status: call.status,
+                    source: call.verificationSource ?? 'z-host-tool-events',
+                    exitCode: call.commandOutcome?.exitCode ?? null,
+                    background: call.commandOutcome?.background === true,
+                    timedOut: call.commandOutcome?.timedOut === true,
+                    sandboxDenied: call.commandOutcome?.sandboxDenied === true,
+                    ...(call.commandOutcome?.signal ? { signal: call.commandOutcome.signal } : {}),
+                  })),
+                })
+                const failedCall = commandVerification.observed.find((call) => (
+                  Number.isInteger(call.commandOutcome?.exitCode)
+                  && call.commandOutcome.exitCode !== 0
+                  && call.commandOutcome.background !== true
+                  && call.commandOutcome.timedOut !== true
+                  && call.commandOutcome.sandboxDenied !== true
+                  && !call.commandOutcome.signal
+                ))
+                if (failedCall) {
+                  const modelWindow = catalog?.models?.find((candidate) => candidate.key === modelKey)?.contextWindow || null
+                  const output = verificationFailureOutput({
+                    errorSummary: failedCall.resultSummary,
+                    stderr: failedCall.resultSummary,
+                  }, modelWindow, failedCall.commandSummary || 'host-verification')
+                  if (!isVerificationEnvironmentFailure(`${failedCall.commandSummary}\n${output}`)) {
+                    throw attachVerificationFailure(result, {
+                      command: failedCall.commandSummary,
+                      exitCode: failedCall.commandOutcome.exitCode,
+                      output,
+                      source: 'host-tool-events',
+                    })
+                  }
+                }
+              }
             }
           }
 
@@ -1047,21 +1364,32 @@ export function createPlanAndExecute({
               task,
               initialModelKey: task.modelKey,
               maxRetries: subtaskUpgradeMax,
-              canRetry: ({ failure, attempt }) => {
-                if ((writerTask && failure.kind === 'execution' || failure.kind === 'timeout') && attempt > 1) return false
+              canRetry: ({ failure }) => {
                 return shouldUpgradeFailedTask(task.taskType, failure)
               },
               signal: taskSignal,
               run: runSubtask,
+              validate: validateSubtaskAttempt,
               prepareRetry: async () => {
+                if (budgetExceededReason) return { allowRetry: false }
+                const usageSummary = ledger.getSummary()
+                if (usageSummary.totalTokens > dagBudgetTokens || usageSummary.totalCostUsd > dagBudgetUsd) {
+                  budgetExceededReason = usageSummary.totalTokens > dagBudgetTokens
+                    ? `超出预算（> ${dagBudgetTokens} tokens）`
+                    : `超出预算（> $${dagBudgetUsd}）`
+                  await trace('budget_exceeded', {
+                    budgetTokens: dagBudgetTokens,
+                    budgetUsd: dagBudgetUsd,
+                    totalTokens: usageSummary.totalTokens,
+                    totalCostUsd: usageSummary.totalCostUsd,
+                    taskId: task.id,
+                    retryBlocked: true,
+                  })
+                  return { allowRetry: false }
+                }
                 if (!writerTask) return null
                 if (execBranch) {
-                  const evidence = await captureNodeWorktreeFailureEvidence({
-                    workspacePath: workspaceRoot,
-                    conversationId,
-                    runId,
-                    taskId: task.id,
-                    userDataPath,
+                  const evidence = await nodeWorkspace.captureFailureEvidence(task, {
                     startCommit: execStartCommit,
                   })
                   resetPendingRetry = true
@@ -1086,31 +1414,53 @@ export function createPlanAndExecute({
               chooseModel: async ({ excludeModelKeys, excludeFailureDomains, previousModelKey }) => {
                 const freshCatalog = await modelService.listCatalog()
                 const currentModel = freshCatalog.models.find((candidate) => candidate.key === previousModelKey)
-                const currentTier = currentModel?.profile?.tier ?? 'balanced'
-                const upgrade = selectModelForTask(task.taskType, freshCatalog, primaryModelKey, {
-                  ...routeOpts,
+                const previousTier = resolveEscalationTier(currentModel, freshCatalog)
+                if (!currentModel || !previousTier) return null
+                const higherTierModels = freshCatalog.models.filter((candidate) => {
+                  if (excludeModelKeys.includes(candidate.key)) return false
+                  const candidateTier = resolveEscalationTier(candidate, freshCatalog)
+                  return candidateTier?.source === previousTier.source && candidateTier.rank > previousTier.rank
+                })
+                if (higherTierModels.length === 0) return null
+                const candidateCatalog = { ...freshCatalog, models: higherTierModels }
+                const upgrade = selectModelForTask(task.taskType, candidateCatalog, primaryModelKey, {
+                  ...routeOptsForTask(task.id),
+                  now: new Date(),
                   excludeModelKeys,
                   excludeFailureDomains,
-                  minTier: currentTier,
-                  preferTier: nextTaskTier(task.taskType, currentTier),
+                  preferTier: nextTaskTier(task.taskType, currentModel.profile?.tier ?? 'balanced'),
                   needsVision: task.route?.needs_vision === true,
                 })
                 if (!upgrade.model) return null
+                const nextTier = resolveEscalationTier(upgrade.model, freshCatalog)
+                if (!nextTier || nextTier.source !== previousTier.source || nextTier.rank <= previousTier.rank) return null
+                const escalationReason = `严格能力升档 ${previousTier.tier}→${nextTier.tier}（${previousTier.source}）；${upgrade.reason}`
                 return {
                   modelKey: upgrade.model.key,
                   displayName: upgrade.displayName || upgrade.model.name,
-                  reason: upgrade.reason,
+                  reason: escalationReason,
+                  previousCapabilityTier: previousTier.tier,
+                  capabilityTier: nextTier.tier,
+                  capabilityTierSource: nextTier.source,
                 }
               },
-              onRetry: async ({ modelKey: retryModelKey, displayName, attempt, maxRetries, failure, evidenceBundle }) => {
+              onRetry: async ({
+                modelKey: retryModelKey,
+                displayName,
+                attempt,
+                maxRetries,
+                previousModelKey,
+                failureCount,
+                previousCapabilityTier,
+                capabilityTier,
+                capabilityTierSource,
+                reason,
+                failure,
+                evidenceBundle,
+              }) => {
                 await memory.recordEvidenceBundle(conversationId, evidenceBundle)
                 if (resetPendingRetry && execBranch) {
-                  await resetNodeWorktree({
-                    workspacePath: workspaceRoot,
-                    conversationId,
-                    runId,
-                    taskId: task.id,
-                    userDataPath,
+                  await nodeWorkspace.reset(task, {
                     startCommit: execStartCommit,
                   })
                   resetPendingRetry = false
@@ -1118,9 +1468,14 @@ export function createPlanAndExecute({
                 await trace('node_retry', {
                   taskId: task.id,
                   attempt,
-                  previousModel: task.modelKey,
+                  failureCount,
+                  previousModel: previousModelKey ?? lastFailedModelKey,
                   modelKey: retryModelKey,
                   displayName,
+                  previousCapabilityTier: previousCapabilityTier ?? null,
+                  capabilityTier: capabilityTier ?? null,
+                  capabilityTierSource: capabilityTierSource ?? null,
+                  escalationReason: reason ?? null,
                   failureKind: failure.kind,
                   failureStage: failure.failureStage ?? null,
                 })
@@ -1137,6 +1492,7 @@ export function createPlanAndExecute({
           }
           const { result } = execution
           const modelKey = execution.modelKey
+          recordRouteSuccess(modelKey, { catalog })
           if (execution.attempts > 0) {
             result.upgradedFrom = task.modelKey
             result.upgradedTo = modelKey
@@ -1150,33 +1506,31 @@ export function createPlanAndExecute({
 
           const hasFileChanges = Array.isArray(result.fileChanges) && result.fileChanges.some((change) => typeof change?.path === 'string' && change.path)
           const verificationPolicy = detectVerificationCommands(execCwd)
-          if (task.taskType === 'implementation' && hasFileChanges) {
+          if (task.taskType === 'implementation' && hasFileChanges && result.verification?.source !== 'verification-runner') {
             result.verificationRequired = Boolean(verificationPolicy.primaryCommand)
             if (!verificationPolicy.primaryCommand) {
-              result.verification = {
+              result.verification = createVerificationResult({
                 status: 'not_run',
-                executed: false,
-                command: null,
-                passed: false,
-                exitCode: null,
                 reason: '工作区未检测到标准验证命令。',
-              }
+              })
             } else if (!runState.workspaceTrusted || permissionMode === 'readonly') {
-              result.verification = {
+              result.verification = createVerificationResult({
                 status: 'skipped',
-                executed: false,
                 command: verificationPolicy.primaryCommand,
-                passed: false,
-                exitCode: null,
                 reason: '工作区未受信任或当前为只读权限，未自动运行验证命令。',
-              }
+              })
             } else {
               try {
                 const verifyRes = await executeVerificationRunner(execCwd, {
                   commandOverride: verificationPolicy.primaryCommand,
                   timeoutMs: 5 * 60 * 1000,
+                  signal: abortController.signal,
+                  sandboxPolicy: verificationSandboxPolicy({ workspacePath: execCwd, permissionMode, bashSandbox: prefs.bashSandbox }),
                 })
-                result.verification = {
+                if (verifyRes.cancelled || abortController.signal.aborted) {
+                  throw abortController.signal.reason ?? new Error('任务已取消')
+                }
+                result.verification = createVerificationResult({
                   status: verifyRes.status,
                   executed: verifyRes.executed,
                   command: verifyRes.command,
@@ -1185,19 +1539,23 @@ export function createPlanAndExecute({
                   durationMs: verifyRes.durationMs,
                   timedOut: verifyRes.timedOut,
                   errorSummary: verifyRes.errorSummary,
-                }
+                })
                 if (verifyRes.executed && !verifyRes.passed && result.text) {
-                  result.text += `\n\n> [!WARNING]\n> **验收验证未通过**（\`${verifyRes.command}\`，退出码 ${verifyRes.exitCode}）：\n\`\`\`\n${(verifyRes.errorSummary || verifyRes.stderr || verifyRes.stdout).slice(0, 1000)}\n\`\`\``
+                  const modelWindow = catalog?.models?.find((m) => m.key === modelKey)?.contextWindow || null
+                  const rawError = verifyRes.errorSummary || verifyRes.stderr || verifyRes.stdout || ''
+                  const compacted = compactToolOutput(rawError, {
+                    contextWindow: modelWindow,
+                    toolName: verifyRes.command || 'verification',
+                  })
+                  result.text += `\n\n> [!WARNING]\n> **验收验证未通过**（\`${verifyRes.command}\`，退出码 ${verifyRes.exitCode}）：\n\`\`\`\n${compacted.text}\n\`\`\``
                 }
               } catch (error) {
-                result.verification = {
+                if (abortController.signal.aborted) throw error
+                result.verification = createVerificationResult({
                   status: 'failed',
-                  executed: false,
                   command: verificationPolicy.primaryCommand,
-                  passed: false,
-                  exitCode: null,
                   reason: error instanceof Error ? error.message : String(error),
-                }
+                })
               }
             }
           }
@@ -1213,21 +1571,21 @@ export function createPlanAndExecute({
             execCwd,
           })) {
             try {
-              const verifyRes = await executeVerificationRunner(execCwd, { timeoutMs: 25_000 })
-              result.verification = {
-                status: verifyRes.status,
-                executed: verifyRes.executed,
-                command: verifyRes.command,
-                passed: verifyRes.passed,
-                exitCode: verifyRes.exitCode,
-                durationMs: verifyRes.durationMs,
-              }
-              if (verifyRes.executed && !verifyRes.passed) {
-                if (result.text) {
-                  result.text += `\n\n> [!WARNING]\n> **轻量自检未通过**（\`${verifyRes.command}\`，退出码 ${verifyRes.exitCode}）：\n\`\`\`\n${(verifyRes.errorSummary || verifyRes.stderr || verifyRes.stdout).slice(0, 1000)}\n\`\`\``
-                }
+              const modelWindow = catalog?.models?.find((m) => m.key === modelKey)?.contextWindow || null
+              const healingOutcome = await runSelfHealingVerification({
+                execCwd,
+                signal: abortController.signal,
+                permissionMode,
+                bashSandbox: prefs.bashSandbox,
+                modelContextWindow: modelWindow,
+                modelKey,
+              })
+              result.verification = healingOutcome.verification
+              if (healingOutcome.warningNotice && result.text) {
+                result.text += healingOutcome.warningNotice
               }
             } catch (err) {
+              if (abortController.signal.aborted) throw err
               // ignore verification error
             }
           }
@@ -1235,15 +1593,17 @@ export function createPlanAndExecute({
           const commandVerification = summarizeCommandVerification(result.executionEvidence, result.verification)
           if (task.taskType === 'test') result.verificationRequired = true
           if (commandVerification.present) {
-            result.verification = {
+            result.verification = createVerificationResult({
               status: commandVerification.status,
               executed: commandVerification.executed,
-              command: commandVerification.command,
+              command: commandVerification.command
+                ? redactVerificationOutput(commandVerification.command).slice(0, 1_000)
+                : null,
               passed: commandVerification.passed,
               exitCode: commandVerification.exitCode,
               source: commandVerification.source,
               commands: commandVerification.observed.map((call) => ({
-                command: call.commandSummary,
+                command: redactVerificationOutput(call.commandSummary).slice(0, 1_000),
                 status: call.status,
                 source: call.verificationSource ?? 'z-host-tool-events',
                 exitCode: call.commandOutcome?.exitCode ?? null,
@@ -1253,17 +1613,13 @@ export function createPlanAndExecute({
                 ...(call.commandOutcome?.signal ? { signal: call.commandOutcome.signal } : {}),
               })),
               ...(commandVerification.reason ? { reason: commandVerification.reason } : {}),
-            }
+            })
           } else if (task.taskType === 'test' && !result.verification) {
-            result.verification = {
+            result.verification = createVerificationResult({
               status: 'not_run',
-              executed: false,
-              command: null,
-              passed: false,
-              exitCode: null,
               source: 'z-host-tool-events',
               reason: 'Host 未记录到 test/build/check 验证命令',
-            }
+            })
           }
 
           result.acceptanceAssessment = assessAcceptanceCriteria(task, result.text)
@@ -1299,7 +1655,7 @@ export function createPlanAndExecute({
       run.schedulerActive = false
       run.status = 'finalizing'
       runState.status = 'finalizing'
-      tasks = tasks.map((task) => ({ ...task, runStatus: task.status === 'done' ? 'completed' : 'finalizing' }))
+      tasks = tasks.map((task) => ({ ...task, runStatus: mapTaskStatus(task.status, { phase: 'finalizing' }) }))
       runState.tasks = tasks
       await runStore?.saveRun(conversationId, runId, runState)
       await publishTasks(tasks, webContents, conversationId)
@@ -1320,14 +1676,17 @@ export function createPlanAndExecute({
               baseCommit: runBaseCommit,
               mergedBranches: integration.mergedBranches ?? [],
             }
+            if (abortController.signal.aborted) throw abortController.signal.reason ?? new Error('任务已取消')
             const verificationPolicy = detectVerificationCommands(integration.path)
             if (verificationPolicy.primaryCommand) {
               if (runState.workspaceTrusted && permissionMode !== 'readonly') {
                 const verifyRes = await executeVerificationRunner(integration.path, {
                   commandOverride: verificationPolicy.primaryCommand,
                   timeoutMs: 5 * 60 * 1000,
+                  signal: abortController.signal,
+                  sandboxPolicy: verificationSandboxPolicy({ workspacePath: integration.path, permissionMode, bashSandbox: prefs.bashSandbox }),
                 })
-                runState.integration.verification = {
+                runState.integration.verification = createVerificationResult({
                   status: verifyRes.status,
                   executed: verifyRes.executed,
                   command: verifyRes.command,
@@ -1336,16 +1695,16 @@ export function createPlanAndExecute({
                   durationMs: verifyRes.durationMs,
                   timedOut: verifyRes.timedOut,
                   errorSummary: verifyRes.errorSummary,
+                })
+                if (verifyRes.cancelled || abortController.signal.aborted) {
+                  throw abortController.signal.reason ?? new Error('任务已取消')
                 }
               } else {
-                runState.integration.verification = {
+                runState.integration.verification = createVerificationResult({
                   status: 'skipped',
-                  executed: false,
                   command: verificationPolicy.primaryCommand,
-                  passed: false,
-                  exitCode: null,
                   reason: '工作区未受信任或当前为只读权限，未自动运行集成验证。',
-                }
+                })
               }
               if (!runState.integration.verification.passed) {
                 integrationVerificationFailure = runState.integration.verification.reason
@@ -1364,14 +1723,10 @@ export function createPlanAndExecute({
               }
             }
             if (!verificationPolicy.primaryCommand) {
-              runState.integration.verification = {
+              runState.integration.verification = createVerificationResult({
                 status: 'not_run',
-                executed: false,
-                command: null,
-                passed: false,
-                exitCode: null,
                 reason: '集成工作区未检测到标准验证命令。',
-              }
+              })
             }
             await trace('integration_created', {
               branchName: integration.branchName,
@@ -1379,22 +1734,31 @@ export function createPlanAndExecute({
             })
           }
         } catch (error) {
-          integrationError = error instanceof Error ? error.message : String(error)
-          runState.integration = {
-            status: error?.code === 'WORKTREE_MERGE_CONFLICT' ? 'conflict' : 'failed',
-            taskId: 'integration',
-            runId,
-            error: integrationError,
-            branches: error?.branches ?? [],
+          if (abortController.signal.aborted) {
+            runState.integration = runState.integration
+              ? { ...runState.integration, status: 'cancelled', error: '集成阶段已取消。' }
+              : { status: 'cancelled', taskId: 'integration', runId, error: '集成阶段已取消。' }
+            await trace('integration_cancelled', { branchName: runState.integration.branchName ?? null })
+          } else {
+            integrationError = error instanceof Error ? error.message : String(error)
+            runState.integration = {
+              status: error?.code === 'WORKTREE_MERGE_CONFLICT' ? 'conflict' : 'failed',
+              taskId: 'integration',
+              runId,
+              error: integrationError,
+              branches: error?.branches ?? [],
+            }
+            await trace('integration_failed', {
+              status: runState.integration.status,
+              error: integrationError,
+              branches: runState.integration.branches,
+            })
           }
-          await trace('integration_failed', {
-            status: runState.integration.status,
-            error: integrationError,
-            branches: runState.integration.branches,
-          })
           sendChatStreamIfAvailable(webContents, {
             type: 'progress',
-            text: `集成分支创建失败：${integrationError}。各节点 worktree 仍保留供检查。`,
+            text: abortController.signal.aborted
+              ? '集成阶段已停止；已完成的子任务进度保留。'
+              : `集成分支创建失败：${integrationError}。各节点 worktree 仍保留供检查。`,
             conversationId,
           })
         }
@@ -1409,11 +1773,12 @@ export function createPlanAndExecute({
         })
       }
 
-      if (execution.cancelled) {
+      if (execution.cancelled || abortController.signal.aborted) {
         runState.status = 'cancelled'
         run.status = 'cancelled'
-        tasks = tasks.map((task) => ({ ...task, runStatus: task.status === 'done' ? 'completed' : 'cancelled' }))
+        tasks = tasks.map((task) => ({ ...task, runStatus: mapTaskStatus(task.status, { phase: 'cancelled' }) }))
         runState.tasks = tasks
+        attachCostSavingsSummary()
         await runStore?.saveRun(conversationId, runId, runState)
         await publishTasks(tasks, webContents, conversationId)
         await ledger.flush()
@@ -1423,7 +1788,7 @@ export function createPlanAndExecute({
           runId,
           assistant: {
             text: '多 Agent 任务已停止；已完成的子任务进度保留。',
-            usage: combineUsage(usage),
+            usage: combineRecordedRunUsage(),
             fileChanges: mergeFileChanges(...tasks.map((task) => task.messages.map((message) => message.fileChanges))),
             cancelled: true,
           },
@@ -1492,12 +1857,13 @@ export function createPlanAndExecute({
       let assistant
       try {
         assistant = await synthesizeFn(synthesis)
+        if (abortController.signal.aborted) throw new Error('任务已取消')
         ledger.record({ runId, taskId: 'synthesis', attempt: 1, modelKey: primaryModelKey, usage: assistant.usage ?? {}, outcome: 'success' })
       } catch (error) {
-        if (abortController.signal.aborted) throw error
-        assistant = directExecutionSummary(outcomes, error)
         const partialUsage = error.partialResult?.usage
         ledger.record({ runId, taskId: 'synthesis', attempt: 1, modelKey: primaryModelKey, usage: partialUsage ?? {}, outcome: 'failed' })
+        if (abortController.signal.aborted) throw error
+        assistant = directExecutionSummary(outcomes, error)
         sendChatStreamIfAvailable(webContents, {
           type: 'progress',
           text: '汇总模型调用失败，已按后端保存的子任务状态生成直出汇总。',
@@ -1510,6 +1876,7 @@ export function createPlanAndExecute({
       run.status = 'completed'
       tasks = tasks.map((task) => ({ ...task, runStatus: 'completed' }))
       runState.tasks = tasks
+      attachCostSavingsSummary()
       await runStore?.saveRun(conversationId, runId, runState)
       await publishTasks(tasks, webContents, conversationId)
       await ledger.flush()
@@ -1518,12 +1885,25 @@ export function createPlanAndExecute({
         usageSummary: ledger.getSummary(),
       })
       await traceStore?.flush(conversationId, runId)
+      const allNodesSucceeded = tasks.length > 0
+        && tasks.every((task) => task.status === 'done')
+        && execution.failed.size === 0
+        && !integrationError
+        && !integrationVerificationFailure
+      if (allNodesSucceeded) {
+        await cleanupHandoffs(runId)
+        if (replay?.mode === 'checkpoint') await cleanupHandoffs(replay.source.runId)
+        await traceStore?.flush(conversationId, runId)
+      }
 
       return {
         runId,
         assistant: {
           ...assistant,
-          usage: combineUsage(usage),
+          // Include planner calls and failed/retried attempts as well as each
+          // completed node and synthesis call. Child turns are not persisted
+          // individually, so this aggregate is the durable usage record.
+          usage: combineRecordedRunUsage(),
           fileChanges: mergeFileChanges(
             assistant.fileChanges,
             ...tasks.map((task) => task.messages.map((message) => message.fileChanges)),
@@ -1538,6 +1918,7 @@ export function createPlanAndExecute({
       if (e?.code === 'DAG_PLAN_REJECTED') {
         runState.status = 'rejected'
         run.status = 'rejected'
+        attachCostSavingsSummary()
         await runStore?.saveRun(conversationId, runId, runState)
         await ledger?.flush()
         await trace('run_rejected', { usageSummary: ledger?.getSummary() ?? null })
@@ -1549,16 +1930,18 @@ export function createPlanAndExecute({
           failedTaskIds: [],
         }
       }
+      if (abortController.signal.aborted) return await finalizeCancelledRun()
       if (runState) {
         runState.status = 'failed'
         run.status = 'failed'
         if (Array.isArray(runState.tasks)) {
           runState.tasks = runState.tasks.map((task) => ({
             ...task,
-            runStatus: task.status === 'done' ? 'completed' : 'failed',
+            runStatus: mapTaskStatus(task.status, { phase: 'failed' }),
           }))
           await publishTasks(runState.tasks, webContents, conversationId).catch(() => {})
         }
+        attachCostSavingsSummary()
         await runStore?.saveRun(conversationId, runId, runState).catch(() => {})
       }
       await ledger?.flush()
@@ -1569,6 +1952,19 @@ export function createPlanAndExecute({
       await traceStore?.flush(conversationId, runId)
       throw e
     } finally {
+      releaseRouteTrialLeases()
+      if (nodeWorkspace?.enabled && typeof nodeWorkspace.cleanupAll === 'function') {
+        try {
+          const completedTaskIds = Array.isArray(runState?.tasks)
+            ? runState.tasks.filter((t) => t.status === 'done').map((t) => t.id)
+            : []
+          // Completed DAG worktrees back the task UI's diff/preview/merge actions.
+          // Keep them until the user merges or the orphan-worktree retention policy prunes them.
+          await nodeWorkspace.cleanupAll({ completedTaskIds, preserveTaskIds: completedTaskIds })
+        } catch (cleanupError) {
+          console.warn('[plan-and-execute] 临时 worktree 清理异常:', cleanupError instanceof Error ? cleanupError.message : cleanupError)
+        }
+      }
       parentSignal?.removeEventListener('abort', abortFromParent)
       abortController.signal.removeEventListener('abort', abortTaskControllers)
       taskAbortControllers.clear()

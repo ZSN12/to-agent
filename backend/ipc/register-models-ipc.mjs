@@ -18,6 +18,11 @@ import { migrateLegacyOpenCodexRoutes } from '../model-sync/migrate-legacy-route
 import { resolveTaskWeaverModelsPath } from '../taskweaver-models-path.mjs'
 import { ensureModelsJsonSyncedToDshHost } from '../sync-models-json-to-host.mjs'
 import { createDiscoverProviderModelsHandler } from '../model/discover-provider-models-ipc.mjs'
+import {
+  getAntigravityOAuthCredentials,
+  getAntigravityOAuthStatus,
+  saveAntigravityOAuthCredentials,
+} from '../model-sync/antigravity-oauth-settings.mjs'
 import startupTrace from '../startup-trace.cjs'
 
 const { traceStartup } = startupTrace
@@ -34,6 +39,7 @@ const { traceStartup } = startupTrace
  *   modelService: ReturnType<typeof import('../model-service.mjs').createModelService>,
  *   modelRegistryUpdater: ReturnType<typeof import('../model-registry-updater.mjs').createModelRegistryUpdater>,
  *   credentialStore: ReturnType<typeof import('../credential-store.mjs').createCredentialStore>,
+ *   secrets?: { get: (key: string) => Promise<string | null>, set: (key: string, value: string) => Promise<void> },
  *   hostManager: { isRunning: () => boolean },
  *   profileStore: ReturnType<typeof import('../profile-store.mjs').createProfileStore>,
  *   pricingSync: ReturnType<typeof import('../pricing-sync-service.mjs').createPricingSyncService>,
@@ -56,6 +62,7 @@ export function registerModelsIpc(ctx) {
     modelService,
     modelRegistryUpdater,
     credentialStore,
+    secrets,
     hostManager,
     profileStore,
     pricingSync,
@@ -76,7 +83,30 @@ export function registerModelsIpc(ctx) {
     }
   })
 
+  let misroutedModelMigrationPromise = null
+  function migrateMisroutedLocalAgentModels() {
+    if (typeof profileStore?.migrateMisroutedLocalAgentModels !== 'function') {
+      return Promise.resolve({ changed: false, migrated: [] })
+    }
+    if (!misroutedModelMigrationPromise) {
+      misroutedModelMigrationPromise = profileStore.migrateMisroutedLocalAgentModels().catch((error) => {
+        misroutedModelMigrationPromise = null
+        throw error
+      })
+    }
+    return misroutedModelMigrationPromise
+  }
+
+  async function migrateModelsBeforeCatalogRead() {
+    try {
+      await migrateMisroutedLocalAgentModels()
+    } catch (error) {
+      console.warn('修复本地 Agent 模型来源失败:', error instanceof Error ? error.message : error)
+    }
+  }
+
   ipcHandle(ipcMain, 'models:loadBundle', async (_event, options) => {
+    await migrateModelsBeforeCatalogRead()
     traceStartup('models:loadBundle-start')
     const bootstrap = appBootstrap.start()
     void bootstrap.then(() => startHostModelCatalogEvents?.()).catch(() => {})
@@ -92,8 +122,14 @@ export function registerModelsIpc(ctx) {
     })
     return bundle
   })
-  ipcHandle(ipcMain, 'models:list', async () => modelService.listCatalog())
-  ipcHandle(ipcMain, 'models:refresh', async () => modelService.refreshCatalog())
+  ipcHandle(ipcMain, 'models:list', async () => {
+    await migrateModelsBeforeCatalogRead()
+    return modelService.listCatalog()
+  })
+  ipcHandle(ipcMain, 'models:refresh', async () => {
+    await migrateModelsBeforeCatalogRead()
+    return modelService.refreshCatalog()
+  })
   ipcHandle(ipcMain, 'models:getUpdateStatus', () => modelRegistryUpdater.getStatus())
   ipcHandle(ipcMain, 'models:checkForUpdates', async (_event, options) => {
     const status = await modelRegistryUpdater.checkForUpdates({ force: options?.force === true })
@@ -106,30 +142,59 @@ export function registerModelsIpc(ctx) {
     return status
   })
 
-  const startProviderLogin = (provider, loginOptions = {}) => {
+  const startProviderLogin = async (provider, loginOptions = {}) => {
     if (typeof shell?.openExternal !== 'function') {
       throw new Error('当前桌面 Shell 未提供安全的外部浏览器打开能力。')
     }
+    const options = { ...loginOptions }
+    if (provider === 'google-antigravity') {
+      const credentials = await getAntigravityOAuthCredentials(secrets)
+      if (!credentials) {
+        throw new Error('请先配置 Google Antigravity OAuth Client ID 和 Client Secret，再点击授权。')
+      }
+      options.antigravityOAuthCredentials = credentials
+    }
     return startOcxProviderLogin(provider, {
-      ...loginOptions,
+      ...options,
       openExternal: (url) => shell.openExternal(url),
     })
   }
 
   async function invokeScanLocalModels(options = {}) {
+    const antigravityOAuthCredentials = await getAntigravityOAuthCredentials(secrets)
     const sync = await scanLocalModels({
       userDataPath,
       appPath,
       credentialStore,
       hostManager,
+      antigravityOAuthCredentials,
       modelService,
       ensureModelsJsonSyncedToDshHost,
-      enrichModels: (modelsDoc, bridgeProviderIds) =>
-        enrichScannedBridgeModels(modelService, modelsDoc, bridgeProviderIds),
+      enrichModels: (modelsDoc, bridgeProviderIds, exportDoc, wbResult) =>
+        enrichScannedBridgeModels(modelService, modelsDoc, bridgeProviderIds, exportDoc, wbResult),
       loginPolicy: 'open-browser',
       startProviderLogin,
       force: options?.force ?? true,
     })
+    if (sync.ok) {
+      try {
+        const migration = await migrateMisroutedLocalAgentModels()
+        if (migration.changed) {
+          await modelService.refreshCatalog()
+          const addedKeys = new Set(await profileStore.listAddedModelKeys())
+          sync.models = (sync.models ?? []).map((model) => ({
+            ...model,
+            alreadyAdded: addedKeys.has(model.key),
+          }))
+        }
+      } catch (error) {
+        console.warn('修复本地 Agent 模型来源失败:', error instanceof Error ? error.message : error)
+        sync.discoveryWarnings = [
+          ...(sync.discoveryWarnings ?? []),
+          '扫描成功，但旧版模型来源迁移失败；重启应用后可自动重试。',
+        ]
+      }
+    }
     return formatScanLocalIpcResult(sync)
   }
 
@@ -137,12 +202,19 @@ export function registerModelsIpc(ctx) {
     const modelsPath = resolveTaskWeaverModelsPath(userDataPath)
     const logins = await getBridgeLoginStatus(userDataPath)
     const disk = await readBridgeStatusFromDisk(modelsPath, logins)
+    const antigravityOAuth = await getAntigravityOAuthStatus(secrets)
     return {
       logins,
       ...disk,
+      antigravityOAuthConfigured: antigravityOAuth.configured,
+      antigravityOAuthIsDefault: antigravityOAuth.isDefault,
+      antigravityOAuthCustomConfigured: antigravityOAuth.hasCustomCredentials,
       discoveryAdapter: 'ocx-export',
     }
   })
+  ipcHandle(ipcMain, 'bridge:saveAntigravityOAuthCredentials', async (_event, input) =>
+    saveAntigravityOAuthCredentials(secrets, input),
+  )
   ipcHandle(ipcMain, 'models:migrateLegacyOpenCodexRoutes', async () => {
     const result = await migrateLegacyOpenCodexRoutes({
       profileStore,
@@ -217,8 +289,6 @@ export function registerModelsIpc(ctx) {
     if (uiConversationId && activeKey) await chat.applyComposerModel(uiConversationId, activeKey)
     return res
   })
-  ipcHandle(ipcMain, 'models:getBusyEnterMode', () => profileStore.getBusyEnterMode())
-  ipcHandle(ipcMain, 'models:setBusyEnterMode', (_event, mode) => profileStore.setBusyEnterMode(mode))
 
   const openUsageService = createOpenUsageService({
     resolveBaseUrl: async () => (await appPreferences.get()).openUsageBaseUrl,

@@ -1,4 +1,4 @@
-import type { CodeChunk } from './types';
+import type { CodeChunk } from './types.ts';
 export declare class CodeChunker {
     chunk(file: string, content: string, language: string): Promise<CodeChunk[]>;
     private chunkJavaScript;

@@ -29,7 +29,12 @@ export function createModelCatalogCache({ userDataPath, modelsJsonPath }) {
   }
   const cachePath = path.join(userDataPath, 'model-catalog-cache.json')
 
-  async function identity({ appVersion, registryVersion = '', registrySource = '' }) {
+  async function identity({
+    appVersion,
+    registryVersion = '',
+    registrySource = '',
+    workBuddyProductCatalogFingerprint = '',
+  }) {
     let modelsJsonHash = 'none'
     let credRefs = []
     try {
@@ -46,6 +51,7 @@ export function createModelCatalogCache({ userDataPath, modelsJsonPath }) {
       credRefs,
       registryVersion: String(registryVersion),
       registrySource: String(registrySource),
+      workBuddyProductCatalogFingerprint: String(workBuddyProductCatalogFingerprint),
     })
     return sha256(keyInput)
   }

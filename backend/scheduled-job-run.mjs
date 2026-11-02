@@ -47,7 +47,7 @@ export function createScheduledJobRunHandler(deps) {
     try {
       await permissions.withExecution(permissionMode, null, async () => {
         const runtimeContext = await getConversationRuntimeContext(conversationId)
-        const outcome = await withTurnLock(conversationId, () => chatTurnPipeline.runTurn({
+        await withTurnLock(conversationId, () => chatTurnPipeline.runTurn({
           webContents: null,
           text: job.prompt,
           modelKey,

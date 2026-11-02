@@ -1,8 +1,10 @@
 import path from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { createJsonStore } from './json-store.mjs'
+import { aggregateUsage } from './orchestration/aggregation-utils.mjs'
+import { QUEUE_CONFIG } from './config/constants.mjs'
 
-const STORE_VERSION = 2
+const STORE_VERSION = 3
 
 /**
  * The durable usage format deliberately has no invocation ids, timestamps,
@@ -21,7 +23,7 @@ export function createUsageStore(userDataPath) {
   let migrationPromise = null
   const recentEntryIds = new Map()
   const pendingEntries = new Map()
-  const MAX_RECENT_ENTRY_IDS = 4096
+  const MAX_RECENT_ENTRY_IDS = QUEUE_CONFIG.MAX_RECENT_ENTRY_IDS
 
   function localDateKey(timestamp) {
     const date = new Date(timestamp)
@@ -63,9 +65,9 @@ export function createUsageStore(userDataPath) {
       cacheReadTokens,
       cacheWriteTokens,
       reasoningTokens,
-      // Cache reads are reported separately so they do not inflate billed-use
-      // totals. Reasoning tokens are already included in output tokens.
-      totalTokens: inputTokens + outputTokens + cacheWriteTokens,
+      // Total usage includes all input processing, including cached input.
+      // Reasoning tokens are already included in output tokens.
+      totalTokens: inputTokens + cacheReadTokens + outputTokens + cacheWriteTokens,
       costUsd: finiteNonNegative(record.costUsd),
     }
   }
@@ -74,48 +76,131 @@ export function createUsageStore(userDataPath) {
     return `${bucket.date}\u0000${bucket.provider}\u0000${bucket.model}`
   }
 
-  function mergeBucket(buckets, incoming) {
-    const byKey = new Map(buckets.map(bucket => [bucketKey(bucket), bucket]))
-    const key = bucketKey(incoming)
-    const current = byKey.get(key)
-    if (!current) {
-      byKey.set(key, incoming)
-    } else {
-      current.calls += incoming.calls
-      current.inputTokens += incoming.inputTokens
-      current.outputTokens += incoming.outputTokens
-      current.cacheReadTokens += incoming.cacheReadTokens
-      current.cacheWriteTokens += incoming.cacheWriteTokens
-      current.reasoningTokens += incoming.reasoningTokens
-      current.totalTokens += incoming.totalTokens
-      current.costUsd += incoming.costUsd
-      if (incoming.modelName) current.modelName = incoming.modelName
+  function compareBuckets(a, b) {
+    return a.date.localeCompare(b.date)
+      || a.provider.localeCompare(b.provider)
+      || a.model.localeCompare(b.model)
+  }
+
+  function bucketsAreCanonical(buckets) {
+    const seen = new Set()
+    let previous
+    for (const bucket of buckets) {
+      const key = bucketKey(bucket)
+      if (seen.has(key) || (previous && compareBuckets(previous, bucket) > 0)) return false
+      seen.add(key)
+      previous = bucket
     }
-    return Array.from(byKey.values()).sort((a, b) => a.date.localeCompare(b.date)
-      || a.provider.localeCompare(b.provider) || a.model.localeCompare(b.model))
+    return true
+  }
+
+  function mergeBucket(buckets, incoming) {
+    // Version 3 buckets are kept in the same stable identity order as
+    // aggregateBuckets. Update the existing daily row with a binary search;
+    // only inserting a new identity has to shift the tail of the array.
+    let low = 0
+    let high = buckets.length
+    while (low < high) {
+      const middle = (low + high) >>> 1
+      if (compareBuckets(buckets[middle], incoming) < 0) low = middle + 1
+      else high = middle
+    }
+
+    let insertionIndex = low
+    while (insertionIndex < buckets.length && compareBuckets(buckets[insertionIndex], incoming) === 0) {
+      const existing = buckets[insertionIndex]
+      if (existing.date === incoming.date
+        && existing.provider === incoming.provider
+        && existing.model === incoming.model) {
+        buckets[insertionIndex] = {
+          ...existing,
+          ...(incoming.modelName ? { modelName: incoming.modelName } : {}),
+          calls: (existing.calls ?? 0) + incoming.calls,
+          inputTokens: (existing.inputTokens ?? 0) + incoming.inputTokens,
+          outputTokens: (existing.outputTokens ?? 0) + incoming.outputTokens,
+          cacheReadTokens: (existing.cacheReadTokens ?? 0) + incoming.cacheReadTokens,
+          cacheWriteTokens: (existing.cacheWriteTokens ?? 0) + incoming.cacheWriteTokens,
+          reasoningTokens: (existing.reasoningTokens ?? 0) + incoming.reasoningTokens,
+          totalTokens: (existing.totalTokens ?? 0) + incoming.totalTokens,
+          costUsd: (existing.costUsd ?? 0) + incoming.costUsd,
+        }
+        return buckets
+      }
+      insertionIndex += 1
+    }
+
+    buckets.splice(insertionIndex, 0, incoming)
+    return buckets
+  }
+
+  function aggregateBuckets(buckets) {
+    return aggregateUsage(buckets, bucketKey, (_key, bucket) => ({
+      date: bucket.date,
+      provider: bucket.provider,
+      model: bucket.model,
+    })).map(bucket => ({
+      date: bucket.date,
+      provider: bucket.provider,
+      model: bucket.model,
+      ...(bucket.modelName ? { modelName: bucket.modelName } : {}),
+      calls: bucket.calls,
+      inputTokens: bucket.inputTokens,
+      outputTokens: bucket.outputTokens,
+      cacheReadTokens: bucket.cacheReadTokens,
+      cacheWriteTokens: bucket.cacheWriteTokens,
+      reasoningTokens: bucket.reasoningTokens,
+      totalTokens: bucket.totalTokens,
+      costUsd: bucket.costUsd,
+    })).sort(compareBuckets)
   }
 
   function aggregateLegacyRecords(records) {
-    let buckets = []
+    const buckets = []
     for (const record of records) {
       const timestamp = Number(record?.timestamp)
       if (!record || !Number.isFinite(timestamp) || timestamp <= 0) continue
-      buckets = mergeBucket(buckets, normalizedBucket(record, localDateKey(timestamp)))
+      buckets.push(normalizedBucket(record, localDateKey(timestamp)))
     }
-    return buckets
+    return aggregateBuckets(buckets)
+  }
+
+  function migrateBuckets(buckets) {
+    const normalized = buckets.flatMap(bucket => {
+      if (!bucket || typeof bucket !== 'object') return []
+      const provider = String(bucket.provider || 'default')
+      const model = String(bucket.model || 'unknown')
+      return [normalizedBucket({
+        modelKey: provider === 'default' ? model : `${provider}/${model}`,
+        modelName: bucket.modelName,
+        inputTokens: bucket.inputTokens,
+        outputTokens: bucket.outputTokens,
+        cacheReadTokens: bucket.cacheReadTokens,
+        cacheWriteTokens: bucket.cacheWriteTokens,
+        reasoningTokens: bucket.reasoningTokens,
+        costUsd: bucket.costUsd,
+      }, String(bucket.date || ''), bucket.calls)]
+    })
+    return aggregateBuckets(normalized)
   }
 
   async function ensureMigrated() {
     if (!migrationPromise) {
       migrationPromise = store.update(current => {
-        if (current?.version === STORE_VERSION && Array.isArray(current.buckets)) return current
+        if (current?.version === STORE_VERSION && Array.isArray(current.buckets)) {
+          return bucketsAreCanonical(current.buckets)
+            ? current
+            : { ...current, buckets: aggregateBuckets(current.buckets) }
+        }
         const records = Array.isArray(current?.records) ? current.records : []
+        const buckets = Array.isArray(current?.buckets)
+          ? migrateBuckets(current.buckets)
+          : aggregateLegacyRecords(records)
         return {
           ...emptyDocument({
             enabled: current?.enabled !== false,
             historyImported: current?.historyImported === true || records.length > 0,
           }),
-          buckets: aggregateLegacyRecords(records),
+          buckets,
         }
       }).then(() => undefined).catch(error => {
         migrationPromise = null
@@ -184,88 +269,59 @@ export function createUsageStore(userDataPath) {
   }
 
   function aggregateByModel(buckets) {
-    const byModel = new Map()
-    for (const bucket of buckets) {
-      const rowKey = `${bucket.provider}\u0000${bucket.model}`
-      let row = byModel.get(rowKey)
-      if (!row) {
-        row = {
-          provider: bucket.provider,
-          model: bucket.model,
-          displayName: bucket.modelName || bucket.model,
-          providerDisplayName: bucket.provider,
-          calls: 0,
-          inputTokens: 0,
-          outputTokens: 0,
-          cacheReadTokens: 0,
-          cacheWriteTokens: 0,
-          reasoningTokens: 0,
-          totalTokens: 0,
-          costUsd: 0,
-        }
-        byModel.set(rowKey, row)
-      }
-      row.calls += bucket.calls
-      row.inputTokens += bucket.inputTokens
-      row.outputTokens += bucket.outputTokens
-      row.cacheReadTokens += bucket.cacheReadTokens
-      row.cacheWriteTokens += bucket.cacheWriteTokens
-      row.reasoningTokens += bucket.reasoningTokens || 0
-      row.totalTokens += bucket.totalTokens
-      row.costUsd += bucket.costUsd
-      if (bucket.modelName) row.displayName = bucket.modelName
-    }
-    return Array.from(byModel.values()).sort((a, b) => b.totalTokens - a.totalTokens)
+    return aggregateUsage(
+      buckets,
+      bucket => `${bucket.provider}\u0000${bucket.model}`,
+      (_key, bucket) => ({
+        provider: bucket.provider,
+        model: bucket.model,
+        displayName: bucket.modelName || bucket.model,
+        providerDisplayName: bucket.provider,
+      }),
+    ).map(row => ({
+      provider: row.provider,
+      model: row.model,
+      displayName: row.modelName || row.displayName,
+      providerDisplayName: row.providerDisplayName,
+      calls: row.calls,
+      inputTokens: row.inputTokens,
+      outputTokens: row.outputTokens,
+      cacheReadTokens: row.cacheReadTokens,
+      cacheWriteTokens: row.cacheWriteTokens,
+      reasoningTokens: row.reasoningTokens,
+      totalTokens: row.totalTokens,
+      costUsd: row.costUsd,
+    })).sort((a, b) => b.totalTokens - a.totalTokens)
   }
 
   function aggregateTotals(buckets) {
-    return buckets.reduce((totals, bucket) => {
-      totals.totalCalls += bucket.calls
-      totals.inputTokens += bucket.inputTokens
-      totals.outputTokens += bucket.outputTokens
-      totals.cacheReadTokens += bucket.cacheReadTokens
-      totals.cacheWriteTokens += bucket.cacheWriteTokens
-      totals.reasoningTokens += bucket.reasoningTokens || 0
-      totals.totalTokens += bucket.totalTokens
-      totals.costUsd += bucket.costUsd
-      return totals
-    }, {
-      totalCalls: 0,
-      inputTokens: 0,
-      outputTokens: 0,
-      cacheReadTokens: 0,
-      cacheWriteTokens: 0,
-      reasoningTokens: 0,
-      totalTokens: 0,
-      costUsd: 0,
-    })
+    const totals = aggregateUsage(buckets, () => 'totals')[0]
+    return {
+      totalCalls: totals?.calls ?? 0,
+      inputTokens: totals?.inputTokens ?? 0,
+      outputTokens: totals?.outputTokens ?? 0,
+      cacheReadTokens: totals?.cacheReadTokens ?? 0,
+      cacheWriteTokens: totals?.cacheWriteTokens ?? 0,
+      reasoningTokens: totals?.reasoningTokens ?? 0,
+      totalTokens: totals?.totalTokens ?? 0,
+      costUsd: totals?.costUsd ?? 0,
+    }
   }
 
   function dailyTotals(buckets) {
-    const byDate = new Map()
-    for (const bucket of buckets) {
-      const row = byDate.get(bucket.date) || {
-        date: bucket.date,
-        calls: 0,
-        inputTokens: 0,
-        outputTokens: 0,
-        cacheReadTokens: 0,
-        cacheWriteTokens: 0,
-        reasoningTokens: 0,
-        totalTokens: 0,
-        costUsd: 0,
-      }
-      row.calls += bucket.calls
-      row.inputTokens += bucket.inputTokens
-      row.outputTokens += bucket.outputTokens
-      row.cacheReadTokens += bucket.cacheReadTokens
-      row.cacheWriteTokens += bucket.cacheWriteTokens
-      row.reasoningTokens += bucket.reasoningTokens || 0
-      row.totalTokens += bucket.totalTokens
-      row.costUsd += bucket.costUsd
-      byDate.set(bucket.date, row)
-    }
-    return Array.from(byDate.values()).sort((a, b) => b.date.localeCompare(a.date))
+    return aggregateUsage(buckets, bucket => bucket.date, (_key, bucket) => ({ date: bucket.date }))
+      .map(row => ({
+        date: row.date,
+        calls: row.calls,
+        inputTokens: row.inputTokens,
+        outputTokens: row.outputTokens,
+        cacheReadTokens: row.cacheReadTokens,
+        cacheWriteTokens: row.cacheWriteTokens,
+        reasoningTokens: row.reasoningTokens,
+        totalTokens: row.totalTokens,
+        costUsd: row.costUsd,
+      }))
+      .sort((a, b) => b.date.localeCompare(a.date))
   }
 
   async function getStats() {
@@ -386,7 +442,7 @@ export function createUsageStore(userDataPath) {
         cacheReadTokens: totals.cacheReadTokens,
         reasoningTokens: totals.reasoningTokens,
       },
-      debug: { version: '2026-taskweaver-daily-usage-v2' },
+      debug: { version: '2026-taskweaver-daily-usage-v3' },
     }
   }
 
@@ -414,7 +470,7 @@ export function createUsageStore(userDataPath) {
       if (existing.length > 0) return { ...current, historyImported: true }
       if (current.enabled === false) return { ...current, historyImported: true }
 
-      let buckets = []
+      const importedBuckets = []
       if (Array.isArray(conversationsOrMessages)) {
         for (const message of conversationsOrMessages) {
           if (!message?.usage) continue
@@ -429,7 +485,7 @@ export function createUsageStore(userDataPath) {
           const timestamp = Number.isFinite(message.timestamp) && message.timestamp > 0
             ? message.timestamp
             : message.time ? new Date(message.time).getTime() || Date.now() : Date.now()
-          buckets = mergeBucket(buckets, normalizedBucket({
+          importedBuckets.push(normalizedBucket({
             modelKey: message.modelKey || 'default',
             inputTokens,
             outputTokens,
@@ -440,7 +496,7 @@ export function createUsageStore(userDataPath) {
           }, localDateKey(timestamp)))
         }
       }
-      return { ...current, historyImported: true, buckets }
+      return { ...current, historyImported: true, buckets: aggregateBuckets(importedBuckets) }
     })
   }
 

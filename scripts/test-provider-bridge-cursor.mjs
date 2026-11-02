@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict'
-import { buildCursorParsedRequest } from '../packages/provider-bridge-transport/index.mjs'
+import { buildProviderParsedRequest } from '../packages/provider-bridge-transport/index.mjs'
 import {
   createCursorAdapter,
   createTranslatorBudget,
@@ -12,7 +12,7 @@ const profile = {
 }
 
 function parsedRequest() {
-  return buildCursorParsedRequest({
+  return buildProviderParsedRequest({
     providerId: 'bridge-composer',
     profile,
     options: {

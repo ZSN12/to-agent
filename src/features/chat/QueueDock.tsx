@@ -14,8 +14,9 @@ export function QueueDock({
   onMutate: (payload: { kind: QueueKind; index: number; action: 'remove' | 'update'; text?: string }) => void
 }) {
   const [editing, setEditing] = useState<{ kind: QueueKind; index: number; text: string } | null>(null)
+  const steering = queue.steering ?? []
   const followUp = queue.followUp ?? []
-  if (!sending || followUp.length === 0) return null
+  if (!sending || (steering.length === 0 && followUp.length === 0)) return null
 
   const renderLane = (kind: QueueKind, label: string, items: string[], icon: 'steer' | 'follow') => (
     <div className="queue-dock-lane" key={kind}>
@@ -65,8 +66,9 @@ export function QueueDock({
   )
 
   return (
-    <div className="queue-dock" role="region" aria-label="排队追问">
-      {renderLane('followUp', '排队追问', followUp, 'follow')}
+    <div className="queue-dock" role="region" aria-label="排队消息">
+      {steering.length > 0 && renderLane('steering', '插话纠偏', steering, 'steer')}
+      {followUp.length > 0 && renderLane('followUp', '排队追问', followUp, 'follow')}
     </div>
   )
 }

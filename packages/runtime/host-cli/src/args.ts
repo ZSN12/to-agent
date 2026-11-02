@@ -69,6 +69,8 @@ Examples:
   taskweaver-host plugin --profile taskweaver add <package>
                                             install a plugin into the profile
   dsh --profile taskweaver                   legacy alias for taskweaver-host
+  dsh plugin --profile taskweaver add <package>
+                                            manage plugins through the legacy alias
 `
 
 /**

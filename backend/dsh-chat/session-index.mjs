@@ -12,7 +12,10 @@ export function createDshSessionIndex({
 }) {
   function conversationIdForSession(sessionId) {
     for (const [key, entry] of sessions.entries()) {
-      if (entry.sessionId === sessionId) return entry.ownerConversationId || key
+      if (entry.sessionId === sessionId) {
+        if (entry.muxVisible === false) return null
+        return entry.ownerConversationId || key
+      }
     }
     return null
   }

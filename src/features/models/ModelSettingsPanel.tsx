@@ -1,13 +1,16 @@
-import { useCallback, useEffect, FormEvent, useId, useMemo, useState } from 'react'
-import { Check, Copy, Database, ExternalLink, KeyRound, Link2, LogOut, Pencil, Plus, Radio, RefreshCw, ScanSearch, ShieldAlert, Sparkles, Trash2, X } from 'lucide-react'
-import type { CapabilityTier, CapabilityTierStatus, CatalogModel, CustomProviderEntry, DiscoveredProviderModel, ModelProfilePatch, ProviderAuthStatus, OAuthStatusInfo, ScanLocalModelsResult, ModelUpdateStatus, ProbedModelItem, ProbeModelsResult } from '../../shared/model-api'
-import { formatCostPerMillion, getCleanModelName } from './format'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Database, KeyRound, Link2, LogOut, Pencil, Plus, Radio, ScanSearch, ShieldAlert, SlidersHorizontal, Sparkles, Trash2, X } from 'lucide-react'
+import type { CatalogModel, CustomProviderEntry, DiscoveredProviderModel, ModelAddItemResultListener, ModelProfilePatch, ProviderAuthStatus, OAuthStatusInfo, ScanLocalModelsResult, ModelUpdateStatus, ProbedModelItem, ProbeModelsResult } from '../../shared/model-api'
+import { formatCostPerMillion, getCleanModelId, getCleanModelName } from './format'
 import { LocalScanModal } from './LocalScanModal'
-import { CustomProviderSection } from './CustomProviderSection'
 import { ProbeModelsModal } from './ProbeModelsModal'
 import { OpenUsageSection } from './OpenUsageSection'
 import { LocalAgentStatusStrip, useLocalAgentBridgeStatus } from './LocalAgentStatusStrip'
-import { useModalFocusTrap } from '../../shared/useModalFocusTrap'
+import { SettingsLayout } from '../settings/SettingsLayout'
+import { OAuthLoginModal, ProviderKeyModal } from './components/ModelSettingsModals'
+import { AddModelModal } from './components/AddModelModal'
+import { ModelRoleAssignmentModal } from './components/ModelRoleAssignmentModal'
+import { buildModelSourceGroups } from './utils/model-source-groups'
 import './model-settings-panel.css'
 
 type ProviderModelDiscoveryViewResult = {
@@ -18,884 +21,6 @@ type ProviderModelDiscoveryViewResult = {
   error?: string
 }
 
-function OAuthLoginModal({
-  status,
-  providerId,
-  onClose,
-  onSubmitCode,
-}: {
-  status: OAuthStatusInfo | null
-  providerId: string
-  onClose: () => void
-  onSubmitCode: (code: string) => Promise<boolean>
-}) {
-  const titleId = useId()
-  const dialogRef = useModalFocusTrap<HTMLDivElement>({ open: true, onEscape: onClose })
-  const [code, setCode] = useState('')
-  const [copied, setCopied] = useState(false)
-  const [submitting, setSubmitting] = useState(false)
-  const providerLabel = providerId === 'anthropic' ? 'Claude Pro/Max' : 'ChatGPT Plus/Pro'
-  useEffect(() => {
-    if (status?.status !== 'completed') return
-    const timer = setTimeout(onClose, 700)
-    return () => clearTimeout(timer)
-  }, [onClose, status?.status])
-
-  const copyUrl = () => {
-    if (status?.url) {
-      void navigator.clipboard.writeText(status.url)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    }
-  }
-
-  const submit = async (e: FormEvent) => {
-    e.preventDefault()
-    if (!code.trim()) return
-    setSubmitting(true)
-    const ok = await onSubmitCode(code.trim())
-    setSubmitting(false)
-    if (ok) onClose()
-  }
-
-  return (
-    <div
-      className="settings-modal-backdrop"
-      role="presentation"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onClose()
-      }}
-    >
-      <div ref={dialogRef} className="model-editor oauth-modal" role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}>
-        <h2 id={titleId}>{providerLabel} 官方订阅授权</h2>
-        <p>{status?.instructions || `TaskWeaver 将通过 Z Runtime 授权流程打开 ${providerId === 'anthropic' ? 'Anthropic' : 'OpenAI Codex'} 登录页面。凭据由 Z Runtime 安全保存。`}</p>
-
-        <div className="oauth-status-box">
-          <div className="oauth-status-spinner" />
-          <div className="oauth-status-text">
-            <strong>{status?.status === 'error' ? '授权未完成' : status?.status === 'completed' ? '授权完成' : status?.status === 'prompt' ? status.prompt?.message : '正在等待官方授权完成…'}</strong>
-            <span>
-              {status?.error
-                || (status?.status === 'completed'
-                  ? '授权已写入 Z Runtime 凭据库，可在模型列表中使用 Codex 模型。'
-                  : '登录成功后凭据由 Z Runtime 安全保存；若浏览器未自动打开，请使用下方链接。')}
-            </span>
-          </div>
-        </div>
-
-        {status?.url && (
-          <div className="oauth-fallback-section">
-            <label className="oauth-hint-label">若浏览器未自动打开，可手动复制此授权链接并在浏览器中访问：</label>
-            <div className="oauth-url-row">
-              <input type="text" readOnly value={status.url} className="oauth-url-input" />
-              <button type="button" className="settings-secondary-button" onClick={copyUrl}>
-                {copied ? <Check size={14} /> : <Copy size={14} />}
-                {copied ? '已复制' : '复制链接'}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {status?.status === 'prompt' && status.prompt?.kind === 'select' && status.prompt.options ? (
-          <form onSubmit={submit} className="oauth-manual-form">
-            <label>{status.prompt.message}
-              <select value={code} onChange={(e) => setCode(e.target.value)}>
-                <option value="">请选择…</option>
-                {status.prompt.options.map((option) => <option key={option.id} value={option.id}>{option.label}{option.description ? ` — ${option.description}` : ''}</option>)}
-              </select>
-            </label>
-            <div className="model-editor-actions">
-              <button type="button" className="settings-secondary-button" onClick={onClose}>取消</button>
-              <button className="settings-primary-button" disabled={!code.trim() || submitting}>{submitting ? '正在提交…' : '继续'}</button>
-            </div>
-          </form>
-        ) : null}
-        {(status?.status === 'prompt' && status.prompt?.kind !== 'select') || status?.url || status?.status === 'device_code' ? (
-        <form onSubmit={submit} className="oauth-manual-form">
-          <label>
-            {status?.status === 'prompt' ? status.prompt?.message : '若浏览器未自动回调，可粘贴浏览器最终重定向链接或授权码：'}
-            <input
-              type={status?.prompt?.kind === 'secret' ? 'password' : 'text'}
-              placeholder={status?.prompt?.placeholder || '粘贴授权内容'}
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-            />
-          </label>
-          <div className="model-editor-actions">
-            <button type="button" className="settings-secondary-button" onClick={onClose}>
-              取消
-            </button>
-            <button className="settings-primary-button" disabled={!code.trim() || submitting}>
-              {submitting ? '正在提交…' : status?.status === 'prompt' ? '继续' : '提交授权链接/码'}
-            </button>
-          </div>
-        </form>
-        ) : null}
-      </div>
-    </div>
-  )
-}
-
-function ProviderKeyModal({
-  provider,
-  onClose,
-  onSave,
-}: {
-  provider: ProviderAuthStatus
-  onClose: () => void
-  onSave: (apiKey: string) => Promise<{ ok: boolean; error?: string }>
-}) {
-  const titleId = useId()
-  const dialogRef = useModalFocusTrap<HTMLFormElement>({ open: true, onEscape: onClose })
-  const [apiKey, setApiKey] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [saveError, setSaveError] = useState<string | null>(null)
-
-  const submit = async (event: FormEvent) => {
-    event.preventDefault()
-    if (!apiKey.trim()) return
-    setSaving(true)
-    setSaveError(null)
-    const result = await onSave(apiKey.trim())
-    setSaving(false)
-    if (result.ok) onClose()
-    else setSaveError(result.error ?? '保存失败')
-  }
-
-  return (
-    <div
-      className="settings-modal-backdrop"
-      role="presentation"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose()
-      }}
-    >
-      <form ref={dialogRef} className="model-editor" onSubmit={submit} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}>
-        <h2 id={titleId}>配置 {provider.name} API 密钥</h2>
-        <p>凭据仅保存在 TaskWeaver 的应用数据中。</p>
-        <label>
-          API 密钥
-          <input
-            type="password"
-            value={apiKey}
-            onChange={(event) => setApiKey(event.target.value)}
-            autoComplete="new-password"
-            required
-          />
-        </label>
-        {saveError && <div className="settings-inline-error" role="alert">{saveError}</div>}
-        <div className="model-editor-actions">
-          <button type="button" className="settings-secondary-button" onClick={onClose}>
-            取消
-          </button>
-          <button type="submit" className="settings-primary-button" disabled={!apiKey.trim() || saving}>
-            保存
-          </button>
-        </div>
-      </form>
-    </div>
-  )
-}
-
-function AddModelModal({
-  providers,
-  candidates,
-  loading,
-  bridgeReady,
-  catalogError,
-  onClose,
-  onRefresh,
-  onSetProviderApiKey,
-  onAddModel,
-  onAddModels,
-  onToast,
-  initialProviderId,
-  initialTab,
-  initialCustomEntry,
-  initialCustomMode = 'edit',
-  onStartOAuth,
-}: {
-  providers: ProviderAuthStatus[]
-  candidates: CatalogModel[]
-  loading: boolean
-  bridgeReady: boolean
-  catalogError?: string | null
-  onClose: () => void
-  onRefresh: () => void
-  onSetProviderApiKey: (providerId: string, apiKey: string) => Promise<{ ok: boolean; error?: string }>
-  onAddModel: (modelKey: string) => Promise<boolean>
-  onAddModels: (modelKeys: string[]) => Promise<boolean>
-  onToast?: (msg: string) => void
-  initialProviderId?: string
-  initialTab?: 'builtin' | 'custom'
-  initialCustomEntry?: CustomProviderEntry | null
-  initialCustomMode?: 'edit' | 'add_model'
-  onStartOAuth?: (providerId: string) => Promise<void>
-}) {
-  const dialogRef = useModalFocusTrap<HTMLDivElement>({ open: true, onEscape: onClose })
-  const [modalTab, setModalTab] = useState<'builtin' | 'subscription' | 'custom'>(initialTab ?? (initialCustomEntry ? 'custom' : 'builtin'))
-  const [providerId, setProviderId] = useState(
-    initialProviderId && providers.some((p) => p.id === initialProviderId)
-      ? initialProviderId
-      : (providers.find((provider) => provider.configured)?.id ?? providers[0]?.id ?? ''),
-  )
-  const [apiKey, setApiKey] = useState('')
-  const [selectedModelKeys, setSelectedModelKeys] = useState<Set<string>>(() => new Set())
-  const [modelQuery, setModelQuery] = useState('')
-  const [step, setStep] = useState<'provider' | 'model'>('provider')
-  const [providerQuery, setProviderQuery] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [localError, setLocalError] = useState<string | null>(null)
-  const provider = providers.find((item) => item.id === providerId)
-  const providerModels = candidates.filter((model) => model.provider === providerId)
-  const matchingModels = providerModels.filter((model) => `${model.name} ${model.id} ${model.key}`.toLowerCase().includes(modelQuery.trim().toLowerCase()))
-  const needsKey = provider ? !provider.configured : true
-  const matchingProviders = providers.filter((item) => `${item.name} ${item.id}`.toLowerCase().includes(providerQuery.trim().toLowerCase()))
-
-  useEffect(() => {
-    if (!providers.length || providers.some((item) => item.id === providerId)) return
-    const preferred = initialProviderId && providers.some((item) => item.id === initialProviderId)
-      ? initialProviderId
-      : providers[0].id
-    setProviderId(preferred)
-  }, [initialProviderId, providerId, providers])
-
-  const continueToModels = async (event: FormEvent) => {
-    event.preventDefault()
-    setLocalError(null)
-    if (!provider) {
-      const message = '请先选择模型提供方'
-      setLocalError(message)
-      onToast?.(message)
-      return
-    }
-    setSaving(true)
-    try {
-      if (needsKey) {
-        if (!apiKey.trim()) {
-          setSaving(false)
-          return
-        }
-        const saved = await onSetProviderApiKey(provider.id, apiKey.trim())
-        if (!saved.ok) {
-          const message = saved.error || '保存 API 密钥失败，请检查密钥或稍后重试'
-          setLocalError(message)
-          onToast?.(message)
-          setSaving(false)
-          return
-        }
-        setApiKey('')
-      }
-      setSelectedModelKeys(new Set())
-      setStep('model')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const toggleModelSelection = (key: string) => {
-    setSelectedModelKeys((prev) => {
-      const next = new Set(prev)
-      if (next.has(key)) next.delete(key)
-      else next.add(key)
-      return next
-    })
-  }
-
-  const addSelectedModels = async (event: FormEvent) => {
-    event.preventDefault()
-    if (selectedModelKeys.size === 0) return
-    setSaving(true)
-    const keys = [...selectedModelKeys]
-    const ok = keys.length === 1
-      ? await onAddModel(keys[0])
-      : await onAddModels(keys)
-    setSaving(false)
-    if (ok) onClose()
-  }
-
-  return (
-    <div className="settings-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>
-      <div ref={dialogRef} className="model-editor model-editor-wide" role="dialog" aria-modal="true" aria-labelledby="add-model-title" tabIndex={-1}>
-        <div className="add-model-modal-heading">
-          <div>
-            <h2 id="add-model-title">添加模型</h2>
-            <p className="add-model-modal-description">
-              {modalTab === 'builtin'
-                ? (step === 'provider'
-                    ? '选择官方或主流第三方提供方并配置凭据，从本地模型目录中挑选要加入 TaskWeaver 的模型。'
-                    : `${provider?.name ?? providerId} · 挑选要加入 TaskWeaver 的模型。`)
-                : '连接中转站、自部署网关或其他兼容 OpenAI / Anthropic 协议的接口，直接加入模型。'}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="关闭"
-            className="add-model-modal-close"
-          >
-            <X size={18} />
-          </button>
-        </div>
-
-        <div className="custom-provider-tabs add-model-modal-tabs" role="group" aria-label="添加模型方式">
-          <button
-            type="button"
-            aria-pressed={modalTab === 'builtin'}
-            className={modalTab === 'builtin' ? 'active' : ''}
-            onClick={() => { setModalTab('builtin'); setStep('provider') }}
-          >
-            第三方模型提供商
-          </button>
-          <button
-            type="button"
-            aria-pressed={modalTab === 'subscription'}
-            className={modalTab === 'subscription' ? 'active' : ''}
-            onClick={() => setModalTab('subscription')}
-          >
-            订阅
-          </button>
-          <button
-            type="button"
-            aria-pressed={modalTab === 'custom'}
-            className={modalTab === 'custom' ? 'active' : ''}
-            onClick={() => setModalTab('custom')}
-          >
-            自定义模型 API
-          </button>
-        </div>
-
-        {modalTab === 'builtin' ? (
-          step === 'provider' ? (
-            <form onSubmit={continueToModels} className="add-model-form">
-              <div className="model-editor-field add-model-field">
-                <input
-                  type="search"
-                  placeholder="搜索模型提供方（如 DeepSeek、OpenAI、Anthropic、Google、Qwen…）"
-                  value={providerQuery}
-                  onChange={(event) => setProviderQuery(event.target.value)}
-                  className="add-model-search"
-                  autoFocus
-                />
-                <div
-                  role="group"
-                  aria-label="选择模型提供方"
-                  className="add-model-list add-model-provider-list"
-                >
-                  {matchingProviders.length > 0 ? (
-                    matchingProviders.map((item) => {
-                      const isSelected = item.id === providerId
-                      return (
-                        <button
-                          type="button"
-                          key={item.id}
-                          aria-pressed={isSelected}
-                          aria-label={`${item.name}（${item.id}）`}
-                          onClick={() => setProviderId(item.id)}
-                          onDoubleClick={continueToModels}
-                          className={`add-model-option ${isSelected ? 'is-selected' : ''}`}
-                        >
-                          <span className="add-model-option-copy">
-                            <span className="add-model-option-name">
-                              {item.name}
-                            </span>
-                            <span className="add-model-option-id">
-                              {item.id}
-                            </span>
-                          </span>
-                          <span className="add-model-option-meta">
-                            <span className={`add-model-status ${item.configured ? 'is-configured' : ''}`}>
-                              {item.configured ? '✓ 已有凭据' : '待配置'}
-                            </span>
-                            {isSelected && (
-                              <span className="add-model-selected-label">✓ 已选择</span>
-                            )}
-                          </span>
-                        </button>
-                      )
-                    })
-                  ) : (
-                    <div className="provider-search-empty">
-                      {loading && providers.length === 0 ? (
-                        <span>正在加载提供方目录…</span>
-                      ) : providers.length === 0 ? (
-                        <>
-                          <span>
-                            {catalogError
-                              ? catalogError
-                              : '暂时无法获取提供方目录。Z Host 可能仍在启动，请稍候再点刷新。'}
-                          </span>
-                          <button type="button" className="settings-secondary-button" onClick={onRefresh}>刷新目录</button>
-                        </>
-                      ) : (
-                        <>
-                          <span>没有匹配的提供方</span>
-                          <button type="button" className="settings-secondary-button" onClick={() => setProviderQuery('')}>清除筛选</button>
-                        </>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {needsKey ? (
-                <label className="add-model-key-field">
-                  <span>{provider?.name ?? providerId} API 密钥</span>
-                  <input
-                    type="password"
-                    placeholder="输入该提供方的 API Key (如 sk-...)"
-                    value={apiKey}
-                    onChange={(event) => setApiKey(event.target.value)}
-                    autoComplete="new-password"
-                    required
-                  />
-                </label>
-              ) : (
-                <p className="add-model-configured-note">
-                  ✓ {provider?.name} 已配置可用凭据，点击「选择模型」挑选要添加的模型。
-                </p>
-              )}
-
-              {localError && (
-                <div className="settings-inline-error" role="alert">{localError}</div>
-              )}
-
-              <div className="model-editor-actions add-model-actions">
-                <button type="button" className="settings-secondary-button" onClick={onClose}>取消</button>
-                <button
-                  type="submit"
-                  className="settings-primary-button"
-                  disabled={!provider || (needsKey && !apiKey.trim()) || saving}
-                >
-                  {saving ? '正在配置…' : needsKey ? '保存并继续' : '选择模型'}
-                </button>
-              </div>
-            </form>
-          ) : (
-            <form onSubmit={addSelectedModels} className="add-model-form add-model-form-select">
-              <div className="model-editor-field add-model-field">
-                <input
-                  type="search"
-                  placeholder="搜索模型名称或标识…"
-                  value={modelQuery}
-                  onChange={(event) => setModelQuery(event.target.value)}
-                  className="add-model-search"
-                  autoFocus
-                />
-                <div className="add-model-selection-tools">
-                  <button
-                    type="button"
-                    className="settings-secondary-button"
-                    onClick={() => setSelectedModelKeys(new Set(matchingModels.map((m) => m.key)))}
-                    disabled={matchingModels.length === 0}
-                  >
-                    全选当前列表
-                  </button>
-                  <button
-                    type="button"
-                    className="settings-secondary-button"
-                    onClick={() => setSelectedModelKeys(new Set())}
-                    disabled={selectedModelKeys.size === 0}
-                  >
-                    清空选择
-                  </button>
-                  {selectedModelKeys.size > 0 && (
-                    <span className="add-model-selection-count">
-                      已选 {selectedModelKeys.size} 个
-                    </span>
-                  )}
-                </div>
-                <div
-                  role="group"
-                  aria-label="选择要添加的模型"
-                  className="add-model-list add-model-model-list"
-                >
-                  {matchingModels.length > 0 ? (
-                    matchingModels.map((model) => {
-                      const isSelected = selectedModelKeys.has(model.key)
-                      return (
-                        <button
-                          type="button"
-                          key={model.key}
-                          role="checkbox"
-                          aria-checked={isSelected}
-                          aria-label={`${model.name}（${model.id}）`}
-                          onClick={() => toggleModelSelection(model.key)}
-                          onDoubleClick={addSelectedModels}
-                          className={`add-model-option ${isSelected ? 'is-selected' : ''}`}
-                        >
-                          <div className="add-model-option-copy">
-                            <span className="add-model-option-name">
-                              {model.name}
-                            </span>
-                            <span className="add-model-option-id">
-                              {model.id}
-                            </span>
-                          </div>
-                          <div className="add-model-option-meta">
-                            {model.contextWindow && (
-                              <span className="add-model-context-badge">
-                                {Math.round(model.contextWindow / 1000)}k 上下文
-                              </span>
-                            )}
-                            {isSelected && (
-                              <span className="add-model-selected-label">✓ 已选择</span>
-                            )}
-                          </div>
-                        </button>
-                      )
-                    })
-                  ) : (
-                    <div className="add-model-empty-list">
-                      {providerModels.length === 0 ? '该提供方暂无可添加模型。保存 API 密钥后点「刷新目录」，将从提供方接口拉取最新模型列表。' : '没有匹配的模型'}
-                    </div>
-                  )}
-                </div>
-              </div>
-              <div className="model-editor-actions add-model-actions">
-                <button type="button" className="settings-secondary-button" onClick={() => setStep('provider')}>上一步</button>
-                <button type="button" className="settings-secondary-button" onClick={onRefresh} disabled={loading}><RefreshCw size={14} className={loading ? 'spin-icon' : ''} />刷新目录</button>
-                <button type="submit" className="settings-primary-button" disabled={selectedModelKeys.size === 0 || saving}>
-                  {saving
-                    ? '正在添加…'
-                    : selectedModelKeys.size > 1
-                      ? `添加 ${selectedModelKeys.size} 个模型`
-                      : '添加到模型列表'}
-                </button>
-              </div>
-            </form>
-          )
-        ) : modalTab === 'subscription' ? (
-          <div className="add-model-subscription">
-            <p className="add-model-subscription-intro">
-              通过官方 OAuth 授权接入 Anthropic、GitHub Copilot、OpenAI Codex、Radius、xAI 等订阅服务。
-            </p>
-            <div className="add-model-subscription-list">
-              {[
-                { id: 'anthropic', name: 'Anthropic', label: 'Claude Pro / Max' },
-                { id: 'github', name: 'GitHub Copilot', label: 'GitHub Copilot 订阅' },
-                { id: 'codex', name: 'OpenAI Codex', label: 'ChatGPT Plus / Pro' },
-                { id: 'radius', name: 'Radius', label: 'Radius 订阅' },
-                { id: 'xai', name: 'xAI', label: 'xAI / Grok 订阅' },
-              ].map((p) => {
-                const configured = providers.find((prov) => prov.id === p.id)?.configured ?? false
-                return (
-                  <button
-                    key={p.id}
-                    type="button"
-                    onClick={() => onStartOAuth?.(p.id)}
-                    className="add-model-subscription-option"
-                  >
-                    <div className="add-model-subscription-provider">
-                      <div className="add-model-subscription-copy">
-                        <span className="add-model-subscription-name">{p.name}</span>
-                        <span className="add-model-subscription-label">{p.label}</span>
-                      </div>
-                    </div>
-                    <div className="add-model-option-meta">
-                      {configured ? (
-                        <span className="add-model-status is-configured">
-                          ✓ 已授权
-                        </span>
-                      ) : (
-                        <span className="add-model-status">
-                          待授权
-                        </span>
-                      )}
-                      <ExternalLink size={14} className="add-model-external-link" />
-                    </div>
-                  </button>
-                )
-              })}
-            </div>
-            <div className="model-editor-actions add-model-actions-bottom">
-              <button type="button" className="settings-secondary-button" onClick={onClose}>关闭</button>
-            </div>
-          </div>
-        ) : (
-          <CustomProviderSection
-            bridgeReady={bridgeReady}
-            hideTabs
-            showSavedList={false}
-            initialEntry={initialCustomEntry}
-            initialMode={initialCustomMode}
-            onClose={onClose}
-            onCatalogRefresh={onRefresh}
-            onAddModel={async (key) => {
-              const ok = await onAddModel(key)
-              if (ok) {
-                onToast?.(`已将 ${key} 加入已添加模型列表`)
-                onClose()
-              }
-              return ok
-            }}
-            onToast={(msg) => onToast?.(msg)}
-          />
-        )}
-      </div>
-    </div>
-  )
-}
-
-function ProfileModal({
-  model,
-  onClose,
-  onSave,
-}: {
-  model: CatalogModel
-  onClose: () => void
-  onSave: (patch: ModelProfilePatch) => Promise<boolean>
-}) {
-  const [tier, setTier] = useState(model.profile?.tier ?? 'balanced')
-  const [capabilitySummary, setCapabilitySummary] = useState(model.profile?.capabilitySummary ?? '')
-  const [enabledForAllocation, setEnabledForAllocation] = useState(model.profile?.enabledForAllocation === true)
-  const [saving, setSaving] = useState(false)
-
-  const submit = async (event: FormEvent) => {
-    event.preventDefault()
-    setSaving(true)
-    const ok = await onSave({ tier, capabilitySummary, enabledForAllocation })
-    setSaving(false)
-    if (ok) onClose()
-  }
-
-  return (
-    <div
-      className="settings-modal-backdrop"
-      role="presentation"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose()
-      }}
-    >
-      <form className="model-editor" onSubmit={submit}>
-        <h2>分配元数据 · {getCleanModelName(model.key, model.name)}</h2>
-        <p>{model.key}</p>
-        <label className="allocation-modal-toggle">
-          <input
-            type="checkbox"
-            checked={enabledForAllocation}
-            onChange={(event) => setEnabledForAllocation(event.target.checked)}
-          />
-          <span>参与多 Agent 自动分配（Routing Portfolio 候选）</span>
-        </label>
-        <label>
-          内部能力基线（PolicyGate 先验）
-          <select
-            value={tier}
-            onChange={(event) => {
-              const value = event.target.value
-              if (value === 'cheap' || value === 'balanced' || value === 'strong') setTier(value)
-            }}
-          >
-            <option value="cheap">低成本检索档 (cheap)</option>
-            <option value="balanced">均衡执行档 (balanced)</option>
-            <option value="strong">深度推理/审查档 (strong)</option>
-          </select>
-        </label>
-        <label>
-          能力摘要（供路由/分配参考）
-          <textarea
-            value={capabilitySummary}
-            onChange={(event) => setCapabilitySummary(event.target.value)}
-            rows={3}
-            placeholder="例如：适合代码搜索与机械修改"
-          />
-        </label>
-        <div className="model-editor-actions">
-          <button type="button" className="settings-secondary-button" onClick={onClose}>
-            取消
-          </button>
-          <button type="submit" className="settings-primary-button" disabled={saving}>保存</button>
-        </div>
-      </form>
-    </div>
-  )
-}
-
-function AllocationToggle({
-  model,
-  onChange,
-  onToast,
-}: {
-  model: CatalogModel
-  onChange: (enabled: boolean) => Promise<boolean>
-  onToast?: (message: string) => void
-}) {
-  const enabled = model.profile?.enabledForAllocation === true
-  const [saving, setSaving] = useState(false)
-
-  const toggle = async () => {
-    if (saving) return
-    setSaving(true)
-    try {
-      const ok = await onChange(!enabled)
-      if (!ok) onToast?.('保存子 Agent 路由设置失败，请重试')
-    } catch {
-      onToast?.('保存子 Agent 路由设置失败，请重试')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  return (
-    <button
-      type="button"
-      className={`allocation-toggle ${enabled ? 'enabled' : ''}`}
-      role="switch"
-      aria-checked={enabled}
-      aria-label={`${getCleanModelName(model.key, model.name)}：子 Agent 路由`}
-      aria-busy={saving}
-      title="控制此模型是否可被自动分配给子 Agent；不影响主对话手动选择。"
-      disabled={saving}
-      onClick={() => void toggle()}
-    >
-      <span className="allocation-toggle-label">子 Agent 路由</span>
-      <span className="allocation-switch-track" aria-hidden="true">
-        <span className="allocation-switch-thumb" />
-      </span>
-      <span className="allocation-toggle-state">{saving ? '保存中' : enabled ? '已启用' : '已关闭'}</span>
-    </button>
-  )
-}
-
-function CapabilityTierControl({
-  model,
-  onUpdate,
-  onToast,
-}: {
-  model: CatalogModel
-  onUpdate: (modelKey: string, patch: ModelProfilePatch) => Promise<boolean>
-  onToast?: (message: string) => void
-}) {
-  const capability = model.capabilityTier
-  const [saving, setSaving] = useState(false)
-  if (!capability) return null
-
-  const sourceDate = capability.publishDate ?? '日期未知'
-  const sourceLabel = capability.overridden
-    ? `用户覆盖（榜单默认 ${capability.defaultTier} · ${sourceDate}）`
-    : capability.status === 'unrated'
-      ? 'unrated · 待确认'
-      : capability.status === 'single-board'
-        ? `LMArena · 仅一个榜单 · ${sourceDate}`
-        : `LMArena 默认档位 · ${sourceDate}`
-  const boardDetails = (['webdev', 'text'] as const)
-    .flatMap((board) => {
-      const row = capability.boards?.[board]
-      if (!row) return []
-      const label = board === 'webdev' ? 'WebDev' : 'Text'
-      return [`${label} ${Math.round(row.rating)} (${row.tier}) · ${row.matchedName}`]
-    })
-    .join('；')
-
-  return (
-    <div className={`source-model-capability-tier ${capability.status === 'unrated' ? 'is-unrated' : ''}`}>
-      <strong>能力 {capability.tier}</strong>
-      <span className="source-model-capability-source">{sourceLabel}</span>
-      {boardDetails && <span className="source-model-capability-source">{boardDetails}</span>}
-      <label className="source-model-capability-override">
-        <span>覆盖</span>
-        <select
-          aria-label={`${model.name}能力档位覆盖`}
-          value={capability.overridden ? capability.tier : 'auto'}
-          disabled={saving}
-          onChange={async (event) => {
-            const value = event.currentTarget.value
-            const override = value === 'auto' ? null : value as CapabilityTier
-            setSaving(true)
-            const saved = await onUpdate(model.key, { capabilityTierOverride: override })
-            setSaving(false)
-            if (!saved) onToast?.('保存能力档位覆盖失败。')
-          }}
-        >
-          <option value="auto">自动（榜单）</option>
-          <option value="strong">strong</option>
-          <option value="medium">medium</option>
-          <option value="weak">weak</option>
-        </select>
-      </label>
-    </div>
-  )
-}
-
-function CapabilityTierStatusCard({
-  status,
-  models,
-  onUpsertProfile,
-  onToast,
-}: {
-  status?: CapabilityTierStatus
-  models: CatalogModel[]
-  onUpsertProfile: (modelKey: string, patch: ModelProfilePatch) => Promise<boolean>
-  onToast?: (message: string) => void
-}) {
-  const [pinning, setPinning] = useState(false)
-  if (!status) return null
-  const changes = status.changes ?? []
-  const fixableChanges = changes.filter((change) => models.some((model) =>
-    model.capabilityTier?.canonicalId === change.canonicalId && !model.capabilityTier.overridden,
-  ))
-
-  const pinPreviousTiers = async () => {
-    setPinning(true)
-    let failed = 0
-    for (const change of fixableChanges) {
-      const matchingModels = models.filter((model) =>
-        model.capabilityTier?.canonicalId === change.canonicalId && !model.capabilityTier.overridden,
-      )
-      for (const model of matchingModels) {
-        if (!await onUpsertProfile(model.key, { capabilityTierOverride: change.before })) failed += 1
-      }
-    }
-    setPinning(false)
-    onToast?.(failed === 0 ? '已将旧档位固定为用户覆盖。' : `有 ${failed} 个模型固定失败，请重试。`)
-  }
-
-  const refreshedAt = status.fetchedAt
-    ? new Date(status.fetchedAt).toLocaleDateString('zh-CN')
-    : '未知'
-  const displayedChanges = changes.slice(0, 8)
-
-  return (
-    <section className="capability-tier-status-card">
-      <div className="capability-tier-status-head">
-        <strong>模型能力档位 · {status.thresholdsVersion ?? '快照不可用'}</strong>
-        <span className={`capability-tier-status-label ${status.stale || status.source === 'unavailable' ? 'is-warning' : ''}`}>
-          {status.source === 'unavailable'
-            ? '暂无快照，模型按 medium / unrated 处理'
-            : status.stale
-              ? `档位数据已过期 · ${refreshedAt}`
-              : `数据日期 ${refreshedAt} · ${status.source === 'cache' ? '本地缓存' : status.source === 'remote' ? '远端快照' : '打包快照'}`}
-        </span>
-      </div>
-      <p className="capability-tier-status-description">
-        来源：{status.sourceUrl
-          ? <a href={status.sourceUrl} target="_blank" rel="noreferrer">LMArena Leaderboard Dataset</a>
-          : 'LMArena Leaderboard Dataset'} · CC BY 4.0。新模型默认 medium / unrated，模型档位仅表示能力，不按价格定档。
-        {status.attribution && <span> {status.attribution}</span>}
-      </p>
-      {status.error && <p role="status" className="capability-tier-status-error">离线回退已启用：{status.error}</p>}
-      {displayedChanges.length > 0 && (
-        <div className="capability-tier-status-changes">
-          <span>榜单刷新后有 {changes.length} 个未覆盖模型档位变化：</span>
-          {displayedChanges.map((change) => (
-            <code key={change.canonicalId}>{change.canonicalId} {change.before} → {change.after}</code>
-          ))}
-          {changes.length > displayedChanges.length && <span>另有 {changes.length - displayedChanges.length} 项</span>}
-          <button
-            type="button"
-            className="settings-secondary-button"
-            disabled={pinning || fixableChanges.length === 0}
-            onClick={() => void pinPreviousTiers()}
-          >
-            {pinning ? '固定中…' : `一键固定旧档位 (${fixableChanges.length})`}
-          </button>
-        </div>
-      )}
-    </section>
-  )
-}
-
 export function ModelSettingsPanel({
   auth,
   models,
@@ -903,7 +28,6 @@ export function ModelSettingsPanel({
   loading,
   bridgeReady,
   catalogStale = false,
-  capabilityTierStatus,
   error,
   oauthStatus,
   updateStatus,
@@ -930,7 +54,6 @@ export function ModelSettingsPanel({
   loading: boolean
   bridgeReady: boolean
   catalogStale?: boolean
-  capabilityTierStatus?: CapabilityTierStatus
   error: string | null
   oauthStatus?: OAuthStatusInfo | null
   updateStatus?: ModelUpdateStatus | null
@@ -944,7 +67,7 @@ export function ModelSettingsPanel({
   onLogoutOAuth?: (providerId: string) => Promise<boolean>
   onUpsertProfile: (modelKey: string, patch: ModelProfilePatch) => Promise<boolean>
   onAddModel: (modelKey: string) => Promise<boolean>
-  onAddModels: (modelKeys: string[]) => Promise<boolean>
+  onAddModels: (modelKeys: string[], onItemResult?: ModelAddItemResultListener) => Promise<boolean>
   onScanLocalOpenCodex: () => Promise<ScanLocalModelsResult>
   onRemoveModel: (modelKey: string) => Promise<boolean>
   onRemoveProviderCredentials: (providerId: string) => Promise<boolean>
@@ -953,7 +76,7 @@ export function ModelSettingsPanel({
 }) {
   const [query, setQuery] = useState('')
   const [keyProvider, setKeyProvider] = useState<ProviderAuthStatus | null>(null)
-  const [profileModel, setProfileModel] = useState<CatalogModel | null>(null)
+  const [modelRoleModalOpen, setModelRoleModalOpen] = useState(false)
   const [addingModel, setAddingModel] = useState(false)
   const [targetProviderId, setTargetProviderId] = useState<string | undefined>()
   const [targetTab, setTargetTab] = useState<'builtin' | 'custom'>('builtin')
@@ -966,12 +89,14 @@ export function ModelSettingsPanel({
   const [scanLoading, setScanLoading] = useState(false)
   const [scanError, setScanError] = useState<string | null>(null)
   const [scanResult, setScanResult] = useState<ScanLocalModelsResult | null>(null)
+  const scanRequestIdRef = useRef(0)
+  const scanPromiseRef = useRef<Promise<ScanLocalModelsResult> | null>(null)
   const [checkingUpdates, setCheckingUpdates] = useState(false)
   const [probeOpen, setProbeOpen] = useState(false)
   const [probeLoading, setProbeLoading] = useState(false)
   const [probeError, setProbeError] = useState<string | null>(null)
   const [probeResult, setProbeResult] = useState<ProbeModelsResult | null>(null)
-  const [probeTargetSource, setProbeTargetSource] = useState<{ id: string; name: string; baseUrl?: string } | null>(null)
+  const [probeTargetSource, setProbeTargetSource] = useState<{ id: string; name: string } | null>(null)
   const [providerDiscoveryLoading, setProviderDiscoveryLoading] = useState(false)
   const [providerDiscoveryResults, setProviderDiscoveryResults] = useState<ProviderModelDiscoveryViewResult[] | null>(null)
   const [migrateLoading, setMigrateLoading] = useState(false)
@@ -980,6 +105,7 @@ export function ModelSettingsPanel({
     loading: localAgentLoading,
     refresh: refreshLocalAgentStatus,
     login: loginLocalAgent,
+    saveAntigravityOAuthCredentials,
   } = useLocalAgentBridgeStatus()
 
   const isCodexConfigured = auth?.some((p) => p.id === 'openai-codex' && p.configured) ?? false
@@ -1002,8 +128,8 @@ export function ModelSettingsPanel({
     void loadCustomList()
   }, [loadCustomList])
 
-  const handleProbeForSource = async (source: { id: string; name: string; baseUrl?: string }) => {
-    setProbeTargetSource(source)
+  const handleProbeForSource = async (source: { id: string; name: string; rawCustomEntry?: { baseUrl: string } }) => {
+    setProbeTargetSource({ id: source.id, name: source.name })
     setProbeOpen(true)
     setProbeLoading(true)
     setProbeError(null)
@@ -1011,7 +137,7 @@ export function ModelSettingsPanel({
     try {
       const res = await window.taskweaver?.models?.probeProviderModels({
         providerId: source.id,
-        baseUrl: source.baseUrl,
+        baseUrl: source.rawCustomEntry?.baseUrl,
       })
       if (!res?.ok) {
         setProbeError(res?.error ?? '探测模型失败，请检查网络或提供商地址')
@@ -1022,6 +148,8 @@ export function ModelSettingsPanel({
       }
     } catch (err: any) {
       setProbeError(err?.message || '探测模型失败')
+    } finally {
+      setProbeLoading(false)
     }
   }
 
@@ -1081,135 +209,10 @@ export function ModelSettingsPanel({
     setAddingModel(true)
   }
 
-  const sourceGroups = useMemo(() => {
-    const list: {
-      id: string
-      name: string
-      kind: 'codex' | 'anthropic' | 'custom' | 'builtin'
-      typeLabel: string
-      configured: boolean
-      authType?: string | null
-      writable?: boolean
-      baseUrl?: string
-      api?: string
-      models: CatalogModel[]
-      rawCustomEntry?: CustomProviderEntry
-    }[] = []
-
-    // Safety checks for undefined props
-    if (!auth || !models) return list
-
-    const q = query.trim().toLowerCase()
-    const seenProviderIds = new Set<string>()
-
-    // 1. OpenAI Codex
-    const codexModels = models.filter((m) => m.provider === 'openai-codex')
-    if (isCodexConfigured || codexModels.length > 0) {
-      seenProviderIds.add('openai-codex')
-      const matchedModels = codexModels.filter((m) => !q || `${m.name} ${m.id} ${m.key}`.toLowerCase().includes(q))
-      const matchSource = !q || 'openai codex chatgpt 订阅'.includes(q)
-      if (matchSource || matchedModels.length > 0) {
-        list.push({
-          id: 'openai-codex',
-          name: 'ChatGPT 订阅 (Codex)',
-          kind: 'codex',
-          typeLabel: '官方订阅',
-          configured: isCodexConfigured,
-          models: q && !matchSource ? matchedModels : (q ? matchedModels : codexModels),
-        })
-      }
-    }
-
-    // Anthropic's official Claude Pro/Max subscription uses the DSH/Pi OAuth flow.
-    const anthropic = auth.find((provider) => provider.id === 'anthropic')
-    const anthropicModels = models.filter((model) => model.provider === 'anthropic')
-    if (anthropic && (anthropic.authorizationMethods?.some((method) => method.id === 'oauth') || anthropic.configured || anthropicModels.length > 0)) {
-      seenProviderIds.add('anthropic')
-      const matchedModels = anthropicModels.filter((model) => !q || `${model.name} ${model.id} ${model.key}`.toLowerCase().includes(q))
-      const matchSource = !q || 'anthropic claude 订阅'.includes(q)
-      if (matchSource || matchedModels.length > 0) {
-        list.push({
-          id: 'anthropic', name: 'Claude 订阅 (Anthropic)', kind: 'anthropic', typeLabel: '官方订阅',
-          configured: anthropic.configured,
-          models: q && !matchSource ? matchedModels : (q ? matchedModels : anthropicModels),
-        })
-      }
-    }
-
-    // 2. 自定义网关 (Custom Providers)
-    for (const cp of customList) {
-      seenProviderIds.add(cp.id)
-      const cpModels = models.filter((m) => m.provider === cp.id)
-      const matchedModels = cpModels.filter((m) => !q || `${m.name} ${m.id} ${m.key}`.toLowerCase().includes(q))
-      const matchSource = !q || `${cp.name} ${cp.id} ${cp.baseUrl}`.toLowerCase().includes(q)
-      if (matchSource || matchedModels.length > 0) {
-        list.push({
-          id: cp.id,
-          name: cp.name || cp.id,
-          kind: 'custom',
-          typeLabel: cp.api === 'openai-responses' ? 'OpenAI Responses API' : 'OpenAI 兼容 API',
-          configured: true,
-          baseUrl: cp.baseUrl,
-          api: cp.api,
-          models: q && !matchSource ? matchedModels : (q ? matchedModels : cpModels),
-          rawCustomEntry: cp,
-        })
-      }
-    }
-
-    const usesBuiltInBridge =
-      models.some((m) => m.provider === 'bridge-composer' || m.key.startsWith('bridge-'))
-      || auth.some((p) => p.id === 'bridge-composer')
-
-    // 3. 已配置或已有模型的官方提供商
-    const builtinProviders = auth.filter(
-      (p) => (p.configured || models.some((m) => m.provider === p.id))
-        && p.id !== 'openai-codex'
-        && p.id !== 'anthropic'
-        && !p.id.startsWith('custom-')
-        && !(p.id === 'opencodex' && usesBuiltInBridge && !models.some((m) => m.provider === 'opencodex')),
-    )
-    for (const p of builtinProviders) {
-      seenProviderIds.add(p.id)
-      const pModels = models.filter((m) => m.provider === p.id)
-      const matchedModels = pModels.filter((m) => !q || `${m.name} ${m.id} ${m.key}`.toLowerCase().includes(q))
-      const matchSource = !q || `${p.name} ${p.id}`.toLowerCase().includes(q)
-      if (matchSource || matchedModels.length > 0) {
-        list.push({
-          id: p.id,
-          name: p.name,
-          kind: 'builtin',
-          typeLabel: '官方提供方',
-          configured: p.configured,
-          authType: p.authType,
-          writable: p.writable,
-          models: q && !matchSource ? matchedModels : (q ? matchedModels : pModels),
-        })
-      }
-    }
-
-    // 4. 兜底：models 中如果有属于未被上面捕获的 provider（如本地扫描或外部注入）
-    for (const m of models) {
-      if (!seenProviderIds.has(m.provider)) {
-        seenProviderIds.add(m.provider)
-        const otherModels = models.filter((item) => item.provider === m.provider)
-        const matchedModels = otherModels.filter((item) => !q || `${item.name} ${item.id} ${item.key}`.toLowerCase().includes(q))
-        const matchSource = !q || m.provider.toLowerCase().includes(q)
-        if (matchSource || matchedModels.length > 0) {
-          list.push({
-            id: m.provider,
-            name: m.provider,
-            kind: 'builtin',
-            typeLabel: '本地/外部提供方',
-            configured: true,
-            models: q && !matchSource ? matchedModels : (q ? matchedModels : otherModels),
-          })
-        }
-      }
-    }
-
-    return list
-  }, [auth, customList, isCodexConfigured, models, query])
+  const sourceGroups = useMemo(
+    () => buildModelSourceGroups({ auth, models, customList, query, isCodexConfigured }),
+    [auth, customList, isCodexConfigured, models, query],
+  )
 
   const handleDiscoverAvailableModels = async () => {
     const targets = sourceGroups.filter((source) =>
@@ -1290,18 +293,35 @@ export function ModelSettingsPanel({
   }
 
   const handleScanLocal = async () => {
+    const requestId = ++scanRequestIdRef.current
     setScanOpen(true)
     setScanLoading(true)
     setScanError(null)
     setScanResult(null)
     try {
-      const result = await onScanLocalOpenCodex()
+      let scanPromise = scanPromiseRef.current
+      if (!scanPromise) {
+        scanPromise = onScanLocalOpenCodex()
+        scanPromiseRef.current = scanPromise
+        const startedScan = scanPromise
+        void startedScan.then(
+          () => {
+            if (scanPromiseRef.current === startedScan) scanPromiseRef.current = null
+          },
+          () => {
+            if (scanPromiseRef.current === startedScan) scanPromiseRef.current = null
+          },
+        )
+      }
+      const result = await scanPromise
+      if (requestId !== scanRequestIdRef.current) return
       setScanResult(result)
       await refreshLocalAgentStatus()
     } catch (error) {
+      if (requestId !== scanRequestIdRef.current) return
       setScanError(error instanceof Error ? error.message : String(error))
     } finally {
-      setScanLoading(false)
+      if (requestId === scanRequestIdRef.current) setScanLoading(false)
     }
   }
 
@@ -1325,19 +345,29 @@ export function ModelSettingsPanel({
   }
 
   const closeScanModal = () => {
-    if (scanLoading) return
+    scanRequestIdRef.current += 1
     setScanOpen(false)
+    setScanLoading(false)
     setScanError(null)
     setScanResult(null)
   }
 
   return (
-    <section className="settings-page-content model-settings-page">
-      <div className="settings-page-heading">
-        <div>
-          <h1>模型与来源</h1>
-        </div>
-        <div className="settings-page-heading-actions">
+    <SettingsLayout
+      title="模型与来源"
+      description="管理模型来源、登录状态和可用模型目录。"
+      className="model-settings-page"
+      actions={(
+        <>
+          {updateStatus?.previousVersion && onRollbackRegistry && (
+            <button
+              type="button"
+              className="settings-secondary-button"
+              onClick={() => void onRollbackRegistry()}
+            >
+              回滚目录
+            </button>
+          )}
           <button
             type="button"
             className="settings-secondary-button"
@@ -1366,8 +396,19 @@ export function ModelSettingsPanel({
             <Plus size={17} />
             添加模型与来源
           </button>
-        </div>
-      </div>
+          <button
+            type="button"
+            className="settings-secondary-button"
+            onClick={() => setModelRoleModalOpen(true)}
+            disabled={loading || models.length === 0}
+            title="把已添加模型拖入审查、编写或查询分组"
+          >
+            <SlidersHorizontal size={16} />
+            模型分档设计
+          </button>
+        </>
+      )}
+    >
 
       <OpenUsageSection />
 
@@ -1376,62 +417,11 @@ export function ModelSettingsPanel({
         loading={localAgentLoading}
         onRefresh={refreshLocalAgentStatus}
         onLogin={loginLocalAgent}
+        onSaveAntigravityOAuthCredentials={saveAntigravityOAuthCredentials}
         legacyOpenCodex={Boolean(localAgentStatus?.legacyOpenCodex || hasLegacyOpenCodexModels)}
         onMigrateLegacy={handleMigrateLegacyOpenCodex}
         migrateLoading={migrateLoading}
       />
-
-      {updateStatus && (
-        <div className={`model-registry-status model-registry-status-${updateStatus.state === 'failed' ? 'up-to-date' : updateStatus.state}`}>
-          <div className="model-registry-status-copy">
-            <div className="model-registry-status-title">
-              <span className="model-registry-status-dot" />
-              模型目录 {updateStatus.currentVersion || '内置版'}
-              <span className="model-registry-status-badge">
-                {{
-                  idle: '内置就绪',
-                  checking: '就绪',
-                  'up-to-date': '内置就绪',
-                  updated: '已更新',
-                  cached: '内置就绪',
-                  failed: '内置就绪',
-                  'rolled-back': '已回滚',
-                }[updateStatus.state] || '内置就绪'}
-              </span>
-            </div>
-            <div className="model-registry-status-meta">
-              使用内置模型目录（跟随 Z Runtime 版本）
-            </div>
-            {updateStatus.runtime && (
-              <div className="model-registry-status-meta">
-                Z {updateStatus.runtime.dsh?.version || '未知'} · pi-ai {updateStatus.runtime.piAi?.version || '未知'} · Overlay v{updateStatus.runtime.overlayVersion ?? '未知'}
-              </div>
-            )}
-            {(updateStatus.changes.added.length > 0
-              || updateStatus.changes.deprecated.length > 0
-              || updateStatus.changes.changed.length > 0) && (
-              <div className="model-registry-status-changes">
-                <div>
-                  新增 {updateStatus.changes.added.length} · 弃用 {updateStatus.changes.deprecated.length} · 能力变化 {updateStatus.changes.changed.length}
-                </div>
-                {updateStatus.changes.added.length > 0 && (
-                  <div className="model-registry-status-change-list" title={updateStatus.changes.added.join('\n')}>
-                    新增模型：{updateStatus.changes.added.slice(0, 6).join('、')}
-                    {updateStatus.changes.added.length > 6 ? ` 等 ${updateStatus.changes.added.length} 项` : ''}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-          <div className="model-registry-status-actions">
-            {updateStatus.previousVersion && onRollbackRegistry && (
-              <button type="button" className="settings-secondary-button" onClick={() => void onRollbackRegistry()}>
-                回滚目录
-              </button>
-            )}
-          </div>
-        </div>
-      )}
 
       {error && (
         <div className="settings-inline-error settings-inline-error-dismissible" role="alert">
@@ -1453,13 +443,6 @@ export function ModelSettingsPanel({
           当前显示本地缓存的模型目录，正在后台同步最新状态。
         </div>
       )}
-
-      <CapabilityTierStatusCard
-        status={capabilityTierStatus}
-        models={models ?? []}
-        onUpsertProfile={onUpsertProfile}
-        onToast={onToast}
-      />
 
       {loading && !models ? (
         <div className="model-settings-loading">
@@ -1534,7 +517,19 @@ export function ModelSettingsPanel({
                     ) : result.models.length ? (
                       <div className="model-discovery-models">
                         {result.models.map((model) => (
-                          <code key={model.id} title={model.name}>{model.id}</code>
+                            <span className="model-discovery-model" key={model.id}>
+                              <code title={model.name}>{getCleanModelId(model.id, result.providerId)}</code>
+                              {model.workBuddyMultiplier !== undefined && model.workBuddyMultiplier !== '' && (
+                                <small
+                                  className="source-model-tag multiplier"
+                                  title={model.workBuddyMultiplierUpdatedAt
+                                    ? `WorkBuddy 本机倍率数据更新时间：${model.workBuddyMultiplierUpdatedAt}`
+                                    : undefined}
+                                >
+                                  倍率 {model.workBuddyMultiplier}
+                                </small>
+                              )}
+                            </span>
                         ))}
                       </div>
                     ) : (
@@ -1590,17 +585,12 @@ export function ModelSettingsPanel({
                   <div>
                     <div className="provider-source-title-row">
                       <strong className="provider-source-name">{source.name}</strong>
-                      <span className="provider-source-id">{source.id}</span>
-                      <span className="provider-source-type-pill">{source.typeLabel}</span>
                       <span className={`provider-status-label ${source.configured ? 'ok' : ''}`}>
                         {source.authType === 'local_subscription'
                           ? '订阅已登录'
                           : source.configured ? '凭据可用' : '未配置'}
                       </span>
                     </div>
-                    {source.baseUrl && (
-                      <code className="provider-source-url">{source.baseUrl}</code>
-                    )}
                   </div>
                 </div>
 
@@ -1712,58 +702,45 @@ export function ModelSettingsPanel({
               {/* 下方对应此来源的模型列表 */}
               <div className="provider-source-models">
                 {source.models.length > 0 ? (
-                  source.models.map((model) => (
+                  source.models.map((model) => {
+                    const isWorkBuddyModel = model.provider === 'workbuddy'
+                    const workBuddyMultiplier = model.workBuddyMultiplier?.trim()
+                    return (
                     <article key={model.key} className="provider-source-model-row">
                       <div className="source-model-info">
                         <div className="source-model-title-line">
                           <strong className="source-model-name">{getCleanModelName(model.key, model.name)}</strong>
-                          <code className="source-model-id">{model.id}</code>
                           {model.contextWindow && (
                             <span className="source-model-tag context">
                               {Math.round(model.contextWindow / 1000)}k 上下文
                             </span>
                           )}
-                          <span className="source-model-tag cost">
-                            输出 {formatCostPerMillion(model.costPerMillion.output)}
+                          {!isWorkBuddyModel && model.workBuddyMultiplier !== undefined && model.workBuddyMultiplier !== '' && (
+                            <span
+                              className="source-model-tag multiplier"
+                              title={model.workBuddyMultiplierUpdatedAt
+                                ? `WorkBuddy 本机倍率数据更新时间：${model.workBuddyMultiplierUpdatedAt}`
+                                : undefined}
+                            >
+                              倍率 {model.workBuddyMultiplier}
+                            </span>
+                          )}
+                          <span
+                            className={`source-model-tag ${isWorkBuddyModel ? 'multiplier' : 'cost'}`}
+                            title={isWorkBuddyModel
+                              ? model.workBuddyMultiplierUpdatedAt
+                                ? `WorkBuddy 积分倍率数据更新时间：${model.workBuddyMultiplierUpdatedAt}`
+                                : 'WorkBuddy 本机积分倍率'
+                              : undefined}
+                          >
+                            {isWorkBuddyModel
+                              ? `积分倍率 ${workBuddyMultiplier || '—'}`
+                              : `输出 ${formatCostPerMillion(model.costPerMillion.output)}`}
                           </span>
-                          <AllocationToggle
-                            model={model}
-                            onChange={(enabled) => onUpsertProfile(model.key, { enabledForAllocation: enabled })}
-                            onToast={onToast}
-                          />
                           {model.deprecated && <span className="provider-tag">已弃用</span>}
-                          {model.verificationStatus === 'unverified' && (
-                            <span
-                              className="provider-tag"
-                              title="模型元数据未收录于 TaskWeaver 签名模型目录；此状态不代表连接失败。"
-                            >
-                              未收录官方目录
-                            </span>
-                          )}
-                          {!model.available && (
-                            <span
-                              className="provider-tag"
-                              title="模型目录中存在此项，但当前账号未登录或 Z Host 尚未确认该模型可路由。"
-                            >
-                              连接不可用
-                            </span>
-                          )}
                         </div>
-                        {model.provider !== 'openai-codex' && model.profile?.capabilitySummary && (
-                          <p className="source-model-summary">{model.profile.capabilitySummary}</p>
-                        )}
-                        <CapabilityTierControl model={model} onUpdate={onUpsertProfile} onToast={onToast} />
                       </div>
                       <div className="source-model-actions">
-                        <button
-                          type="button"
-                          className="settings-secondary-button"
-                          onClick={() => setProfileModel(model)}
-                          disabled={!model.available}
-                        >
-                          <Pencil size={13} />
-                          分配元数据
-                        </button>
                         <button
                           type="button"
                           className="settings-danger-button"
@@ -1775,7 +752,8 @@ export function ModelSettingsPanel({
                         </button>
                       </div>
                     </article>
-                  ))
+                    )
+                  })
                 ) : (
                   <div className="provider-source-empty-models">
                     <span>该来源暂未添加模型</span>
@@ -1817,6 +795,7 @@ export function ModelSettingsPanel({
         <AddModelModal
           providers={auth}
           candidates={candidateModels}
+          existingModelKeys={models.map((model) => model.key)}
           loading={loading}
           bridgeReady={bridgeReady}
           catalogError={error}
@@ -1837,14 +816,16 @@ export function ModelSettingsPanel({
           onAddModel={onAddModel}
           onAddModels={onAddModels}
           onToast={(msg) => onToast?.(msg)}
+          onClearCatalogError={onClearCatalogError}
           onStartOAuth={handleStartOAuth}
         />
       )}
-      {profileModel && (
-        <ProfileModal
-          model={profileModel}
-          onClose={() => setProfileModel(null)}
-          onSave={(patch) => onUpsertProfile(profileModel.key, patch)}
+      {modelRoleModalOpen && (
+        <ModelRoleAssignmentModal
+          models={models ?? []}
+          onClose={() => setModelRoleModalOpen(false)}
+          onSaveProfile={onUpsertProfile}
+          onToast={onToast}
         />
       )}
       {showOAuthModal && (
@@ -1884,6 +865,6 @@ export function ModelSettingsPanel({
         }}
         onConfirm={handleConfirmImportProbedModels}
       />
-    </section>
+    </SettingsLayout>
   )
 }

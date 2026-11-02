@@ -3,11 +3,32 @@ import { composePromptPipeline, DEFAULT_PROMPT_BUDGET_BYTES } from '../backend/p
 import { estimateTokens } from '../backend/token-estimate.mjs'
 import { buildSkillPromptPrefix } from '../backend/skill-prompt.mjs'
 
+function referenceEstimateTokens(text) {
+  if (typeof text !== 'string' || text.length === 0) return 0
+  const cjk = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u
+  let cjkCharacters = 0
+  let otherUtf16Units = 0
+  for (const character of text) {
+    if (cjk.test(character)) cjkCharacters += 1
+    else otherUtf16Units += character.length
+  }
+  return cjkCharacters + Math.ceil(otherUtf16Units / 3.5)
+}
+
 assert.equal(estimateTokens(''), 0, 'the shared backend text estimator returns zero for empty text')
 assert.equal(estimateTokens('abcdefgh'), 3, 'Latin text uses the documented conservative density')
 assert.equal(estimateTokens('界'), 1, 'CJK scripts are counted separately from Latin text')
 assert.equal(estimateTokens('🙂'), 1, 'supplementary Unicode characters are handled without splitting surrogate pairs')
 assert.equal(estimateTokens(null), 0, 'non-string input does not produce a misleading token count')
+for (const text of [
+  '中文与 English 混排🙂',
+  'かなカナ한글',
+  '𠀀𠀁 supplementary Han characters',
+  'line one\nline two\t🙂',
+  'a'.repeat(257) + '界'.repeat(113),
+]) {
+  assert.equal(estimateTokens(text), referenceEstimateTokens(text), 'the optimized estimate must preserve legacy results')
+}
 
 // UTF-8 字节预算按编码后的实际字节数计算，不计算连接符。
 const utf8 = composePromptPipeline({

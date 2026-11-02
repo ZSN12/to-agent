@@ -196,6 +196,33 @@ const mockLlm = createServer((request, response) => {
         'data: [DONE]\n\n',
       ].join(''))
     }
+    if (serialized.includes('acting as a compaction engine')) {
+      const allText = (parsedBody.messages ?? []).map((message) => String(message.content ?? '')).join('\n')
+      const markers = allText.match(/\[[A-Z0-9_]+\]/g) ?? []
+      respond([
+        '## Primary Request and Intent',
+        `- Active session task with markers: ${markers.join(' ')}`,
+        '',
+        '## Files and Code',
+        '- (none)',
+        '',
+        '## Errors and Fixes',
+        '- (none)',
+        '',
+        '## Pending Jobs',
+        '- (none)',
+        '',
+        '## Current Work',
+        '- Compacted checkpoint preserving active markers.',
+        '',
+        '## Next Step',
+        '- (none)',
+        '',
+        '## Critical Context',
+        `- Preserved markers: ${markers.join(' ')}`,
+      ].join('\n'))
+      return
+    }
     if (serialized.includes('[SESSION_QUERY_SEED]') && !isTitleRequest) {
       respond('We recorded the prior discussion marker: previous-discussion-marker-20261009.')
       return
@@ -345,10 +372,12 @@ const mockLlm = createServer((request, response) => {
       }
       return
     }
+    const hasMcpFailureInHistory = (parsedBody.messages ?? []).some((message) =>
+      message.role === 'tool' && JSON.stringify(message).includes('synthetic MCP tool failure'))
     const mcpScenario = serialized.includes('[MCP_MAIN_SMOKE]')
       ? 'main'
         : serialized.includes('[MCP_READONLY_SMOKE]') ? 'readonly'
-        : serialized.includes('[MCP_FAILURE_SMOKE]') ? 'failure'
+        : (serialized.includes('[MCP_FAILURE_SMOKE]') || hasMcpFailureInHistory) ? 'failure'
           : mcpCancelScenarioActive && serialized.includes('[MCP_CANCEL_SMOKE]') ? 'cancel' : null
     if (mcpScenario && isTitleRequest) {
       respond('MCP echo smoke')
@@ -524,7 +553,7 @@ const mockLlm = createServer((request, response) => {
         tasks: [
           { id: 'T1', title: '独立只读任务一', taskType: 'research', description: '并发读取并总结模块一', acceptance: ['模块一结论有读取证据'], scopePaths: ['package.json'], dependsOn: [] },
           { id: 'T2', title: '独立只读任务二', taskType: 'research', description: '并发读取并总结模块二', acceptance: ['模块二结论有读取证据'], scopePaths: ['backend/dsh-chat-service.mjs'], dependsOn: [] },
-          { id: 'T3', title: '依赖汇总任务', taskType: 'review', description: '等待前两项完成后汇总', acceptance: ['复核结论与上游证据一致'], scopePaths: ['backend/bootstrap.mjs'], dependsOn: ['T1', 'T2'] },
+          { id: 'T3', title: '依赖汇总任务', taskType: 'review', description: '等待前两项完成后汇总', acceptance: ['复核结论与上游证据一致'], scopePaths: ['backend/dsh-chat-service.mjs'], dependsOn: ['T1', 'T2'] },
         ],
       }))
       return
@@ -554,7 +583,7 @@ const mockLlm = createServer((request, response) => {
     }
     if (taskId === 'T3' && !dagReviewReadRequested) {
       dagReviewReadRequested = true
-      respondWithReadCall('dag-read-T3', { file_path: 'backend/bootstrap.mjs', limit: 3 })
+      respondWithReadCall('dag-read-T3', { file_path: 'backend/dsh-chat-service.mjs', limit: 3 })
       return
     }
     respond(acceptanceTaggedText(`completed-${taskId}`))
@@ -603,10 +632,14 @@ const mainCodePresetPath = fsSync.existsSync(path.join(runtimeRoot, 'config', 'a
   : path.join(runtimeRoot, 'config', 'agent-presets', 'code', 'agent.cordis.yml')
 const mainCodePreset = await fs.readFile(mainCodePresetPath, 'utf8')
 assert.match(mainCodePreset, /name: '@taskweaver\/dsh-tool-fs'[\s\S]*?readLimit: 600/, 'deployed primary code preset must use the bounded filesystem reader')
-assert.match(mainCodePreset, /only tool you may call directly is `run_code`[\s\S]*?inside a `run_code` program/, 'deployed primary Code Mode preset must explicitly direct native capabilities through run_code')
+assert.match(mainCodePreset, /This session uses Code Mode\. Use `run_code` for code, filesystem, shell, and all other tool operations\.[\s\S]*?call `tools\.orchestrate\(\.\.\.\)` from inside `run_code`[\s\S]*?Never call individual tools directly\./,
+  'deployed primary Code Mode preset must route ordinary native work through run_code while preserving direct orchestration')
 const runtimePackagesDir = await fs.stat(path.join(runtimeRoot, 'runtime-packages')).then(() => 'runtime-packages', () => 'node_modules')
 const deployedSearchPlugin = await fs.readFile(path.join(runtimeRoot, runtimePackagesDir, '@taskweaver/dsh-tool-fs-search/lib/index.js'), 'utf8')
 assert.match(deployedSearchPlugin, /excludeDirectories/, 'deployed search plugin must include the current config, not a stale precompiled version')
+const deployedAgentLoop = await fs.readFile(path.join(runtimeRoot, runtimePackagesDir, '@taskweaver/dsh-agent-loop/lib/index.js'), 'utf8')
+assert.match(deployedAgentLoop, /Agent Loop requires a compatible SessionStore/,
+  'deployed Agent Loop must include the current SessionStore guard instead of a stale bundle')
 const deployedRepeatGuard = await fs.readFile(path.join(runtimeRoot, runtimePackagesDir, '@taskweaver/dsh-repeat-tool-reminder/lib/index.js'), 'utf8')
 assert.match(deployedRepeatGuard, /taskweaver-readonly-scope-v1/, 'deployed repeat guard must understand the per-subtask read-only scope marker')
 assert.match(deployedRepeatGuard, /read-only scope denied/, 'deployed repeat guard must enforce the read-only path boundary before tool execution')

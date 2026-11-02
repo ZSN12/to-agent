@@ -282,7 +282,7 @@ export class StdioJsonRpcServer extends EventEmitter {
     this.#isShutdown = true
     this.#flushBatchedNotifications()
 
-    for (const [id, req] of this.#pendingReverseRequests) {
+    for (const req of this.#pendingReverseRequests.values()) {
       clearTimeout(req.timer)
       req.reject(new Error('Server shutdown'))
     }

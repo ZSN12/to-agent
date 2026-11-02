@@ -1,6 +1,13 @@
 import assert from 'node:assert/strict'
-import { readFile } from 'node:fs/promises'
+import { readFile, mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
+import { collectPlannerPathHints } from '../backend/orchestration/planner.mjs'
+import { normalizePlannerHints } from '../backend/orchestration/planner-hints.mjs'
 import { selectModelForTask } from '../backend/orchestration-policy.mjs'
+import { ModelFilter } from '../backend/orchestration/model-filter.mjs'
+import { createModelScorer } from '../backend/orchestration/model-scorer.mjs'
+import { LRUCache } from '../backend/orchestration/performance-utils.mjs'
 import {
   createPlannerOutputSchema,
   normalizePlannerRoute,
@@ -12,6 +19,41 @@ import {
   supportsPlannerOutputSchema,
   taskReferencesImage,
 } from '../backend/orchestration/planner-routing.mjs'
+
+const fullHintBudgetRoot = await mkdtemp(path.join(os.tmpdir(), 'taskweaver-full-hint-budget-'))
+try {
+  const filenames = Array.from({ length: 12 }, (_, index) => `file-${index}.mjs`)
+  await Promise.all(filenames.map((filename) => writeFile(path.join(fullHintBudgetRoot, filename), '')))
+  for (const count of [10, 11]) {
+    const prependPaths = filenames.slice(0, count)
+    const hints = await collectPlannerPathHints(fullHintBudgetRoot, 'full-budget', {
+      limit: 10,
+      workspaceHints: normalizePlannerHints({ rankingRules: [{ queryTermsAny: ['full-budget'], prependPaths }] }),
+    })
+    assert.deepEqual(hints.paths, prependPaths.slice(0, 10), 'zero remaining file slots preserve the configured leading paths without building an empty heap')
+  }
+} finally {
+  await rm(fullHintBudgetRoot, { recursive: true, force: true })
+}
+
+const tiedHintRoot = await mkdtemp(path.join(os.tmpdir(), 'taskweaver-tied-hint-order-'))
+try {
+  // Traversal visits backend and src before apps, while lexical ranking should
+  // still choose the seven smallest paths at the Top-K boundary.
+  for (const directory of ['backend', 'src', 'apps', 'docs']) {
+    const absolute = path.join(tiedHintRoot, directory)
+    await mkdir(absolute, { recursive: true })
+    await Promise.all(['a', 'b', 'c', 'd'].map((name) => writeFile(path.join(absolute, `${name}.ts`), '')))
+  }
+  const hints = await collectPlannerPathHints(tiedHintRoot, 'no-matching-query-term', { limit: 10 })
+  assert.deepEqual(
+    hints.paths.filter((candidate) => candidate.endsWith('.ts')),
+    ['apps/a.ts', 'apps/b.ts', 'apps/c.ts', 'apps/d.ts', 'backend/a.ts', 'backend/b.ts', 'backend/c.ts'],
+    'equal-score paths must use the same lexical Top-K tie-break regardless of traversal order',
+  )
+} finally {
+  await rm(tiedHintRoot, { recursive: true, force: true })
+}
 
 assert.equal(PLANNER_ROUTE_SCHEMA_ID, 'taskweaver/planner-route.v2')
 assert.deepEqual(PLANNER_ROUTE_SCHEMA_REFERENCE, { $ref: PLANNER_ROUTE_SCHEMA_ID })
@@ -156,5 +198,57 @@ const noVisionRoute = selectModelForTask('implementation', {
 }, nonVisionModel.key, { portfolio: routingPortfolio, needsVision: true })
 assert.equal(noVisionRoute.model, null, 'vision-required tasks never fall back to a non-vision model')
 assert.match(noVisionRoute.reason, /视觉模型/)
+
+const tiedModels = ['test/zeta', 'test/alpha', 'test/middle'].map((key) => ({
+  ...nonVisionModel,
+  key,
+  id: key.slice('test/'.length),
+}))
+const tiedScorer = createModelScorer({ taskType: 'implementation', portfolio: routingPortfolio })
+assert.deepEqual(
+  tiedScorer.scoreTopK(tiedModels, 2).map((candidate) => candidate.key),
+  tiedScorer.scoreAll(tiedModels).slice(0, 2).map((candidate) => candidate.key),
+  'bounded route scoring must match the stable full-sort ranking at score ties',
+)
+assert.equal(selectModelForTask('implementation', { models: tiedModels }, null, {
+  portfolio: routingPortfolio,
+  circuitBreaker: { getActiveBreaks: () => [] },
+}).modelKey, 'test/alpha', 'routing keeps lexical tie-breaking when it only scores the top two')
+
+let routeFilterCalls = 0
+const originalModelFilter = ModelFilter.prototype.filter
+try {
+  ModelFilter.prototype.filter = function countedFilter(...args) {
+    routeFilterCalls += 1
+    return originalModelFilter.apply(this, args)
+  }
+  selectModelForTask('implementation', { models: tiedModels }, null, {
+    portfolio: routingPortfolio,
+    circuitBreaker: { getActiveBreaks: () => [] },
+  })
+} finally {
+  ModelFilter.prototype.filter = originalModelFilter
+}
+assert.equal(routeFilterCalls, tiedModels.length,
+  'the route decision should reuse the selector candidate list instead of repeating quota/balance gating')
+
+const routeCache = new LRUCache(4)
+const routeCatalog = { models: [nonVisionModel, visionModel] }
+const routeCacheOptions = {
+  portfolio: routingPortfolio,
+  now: new Date('2026-10-20T12:00:00.000Z'),
+  routeDecisionCache: routeCache,
+}
+const cachedRouteA = selectModelForTask('implementation', routeCatalog, nonVisionModel.key, routeCacheOptions)
+const cachedRouteB = selectModelForTask('implementation', routeCatalog, nonVisionModel.key, routeCacheOptions)
+assert.equal(routeCache.size, 1, 'identical immutable route inputs reuse one bounded cache entry')
+assert.notEqual(cachedRouteA, cachedRouteB, 'callers receive isolated decision objects')
+assert.equal(cachedRouteB.modelKey, cachedRouteA.modelKey)
+selectModelForTask('implementation', routeCatalog, nonVisionModel.key, {
+  ...routeCacheOptions,
+  needsVision: true,
+})
+assert.equal(routeCache.size, 2, 'vision gate changes produce a distinct route cache entry')
+assert.throws(() => new LRUCache(0), /正整数/, 'invalid cache sizes are rejected')
 
 console.log('Planner route assertions passed.')

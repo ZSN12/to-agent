@@ -3,15 +3,16 @@ import {
   loadRoutingPortfolio,
   loadBundledRoutingPortfolio,
   resolveDisplayName,
-  checkSubscription,
-  checkMeteredSurge,
-  isFreeModel,
-  calculateQuotaAdjustment,
-  calculateBalanceAdjustment,
-  isModelQuotaExcluded,
-  isModelBalanceExcluded,
-  matchPattern,
 } from './routing-portfolio-service.mjs'
+import { createModelSelector } from './orchestration/model-selector.mjs'
+import { LRUCache } from './orchestration/performance-utils.mjs'
+import {
+  CircuitState,
+  RouteCircuitBreaker,
+  defaultRouteCircuitBreaker,
+} from './orchestration/circuit-breaker.mjs'
+
+export { CircuitState, RouteCircuitBreaker, defaultRouteCircuitBreaker }
 
 const TASK_TIER_ORDER = {
   research: ['cheap', 'balanced', 'strong'],
@@ -22,6 +23,52 @@ const TASK_TIER_ORDER = {
 }
 
 const TIER_RANK = Object.freeze({ cheap: 0, balanced: 1, strong: 2 })
+const ROUTE_CACHE_OBJECT_IDS = new WeakMap()
+let nextRouteCacheObjectId = 1
+
+function routeCacheObjectId(value) {
+  if (!value || (typeof value !== 'object' && typeof value !== 'function')) return String(value)
+  let id = ROUTE_CACHE_OBJECT_IDS.get(value)
+  if (!id) {
+    id = nextRouteCacheObjectId++
+    ROUTE_CACHE_OBJECT_IDS.set(value, id)
+  }
+  return id
+}
+
+function copyRouteDecision(decision) {
+  return {
+    ...decision,
+    reasons: Array.isArray(decision.reasons) ? [...decision.reasons] : decision.reasons,
+    allocationProviders: Array.isArray(decision.allocationProviders)
+      ? [...decision.allocationProviders]
+      : decision.allocationProviders,
+    costEstimate: decision.costEstimate && typeof decision.costEstimate === 'object'
+      ? { ...decision.costEstimate }
+      : decision.costEstimate,
+  }
+}
+
+function createRouteDecisionCacheKey(taskType, catalog, fallbackModelKey, portfolio, quotaSnapshot, options) {
+  const allocationCounts = Object.entries(options.allocationCounts ?? {})
+    .sort(([left], [right]) => left.localeCompare(right))
+  const now = options.now instanceof Date ? options.now.getTime() : Number(options.now)
+  return JSON.stringify([
+    routeCacheObjectId(catalog),
+    routeCacheObjectId(portfolio),
+    routeCacheObjectId(quotaSnapshot),
+    taskType,
+    fallbackModelKey ?? null,
+    Number.isFinite(now) ? now : null,
+    options.minTier ?? null,
+    options.preferTier ?? null,
+    options.needsVision === true,
+    catalog?.taskRoleRoutingEnabled === true,
+    [...(options.excludeModelKeys ?? [])].sort(),
+    [...(options.excludeFailureDomains ?? [])].sort(),
+    allocationCounts,
+  ])
+}
 
 export function nextTaskTier(taskType, currentTier) {
   const order = TASK_TIER_ORDER[taskType] ?? TASK_TIER_ORDER.implementation
@@ -109,291 +156,87 @@ export function modelFailureDomain(model) {
  * @param {boolean} [options.needsVision] 是否必须支持图片输入
  */
 export function selectModelForTask(taskType, catalog, fallbackModelKey, options = {}) {
+  // 加载 portfolio
   const portfolio = options.portfolio || (options.userDataPath
     ? loadRoutingPortfolio({ userDataPath: options.userDataPath })
     : loadBundledRoutingPortfolio())
-  const now = options.now || new Date()
   const quotaSnapshot = options.quotaSnapshot || null
-  const excludeKeys = new Set(options.excludeModelKeys ?? [])
-  const excludeFailureDomains = new Set(options.excludeFailureDomains ?? [])
-  const minTierRank = TIER_RANK[options.minTier]
-  const needsVision = options.needsVision === true
-  const tierMeetsFloor = (model) => !Number.isFinite(minTierRank)
-    || TIER_RANK[model.profile?.tier ?? 'balanced'] >= minTierRank
-  const supportsRequiredInput = (model) => !needsVision || model.vision === true
-  const isExcluded = (model) => excludeKeys.has(model.key)
-    || excludeFailureDomains.has(modelFailureDomain(model))
+  const now = options.now || new Date()
 
-  const order = TASK_TIER_ORDER[taskType] ?? TASK_TIER_ORDER.implementation
-  const excludedByUsage = new Set((catalog?.models ?? [])
-    .filter((model) => isModelQuotaExcluded(model.key, portfolio, quotaSnapshot, now.getTime())
-      || isModelBalanceExcluded(model.key, portfolio, quotaSnapshot, now.getTime()))
-    .map((model) => model.key))
-
-  // 1. 硬约束过滤 (PolicyGate)
-  const availableModels = (catalog?.models ?? []).filter(
-    (model) => model.available
-      && model.routeRegistered !== false
-      && model.profile?.enabledForAllocation === true
-      && supportsRequiredInput(model)
-      && tierMeetsFloor(model)
-      && !isExcluded(model)
-      && !excludedByUsage.has(model.key),
-  )
-  const allowedModels = filterModelsForTaskType(taskType, availableModels)
-
-  if (allowedModels.length === 0) {
-    const fallbackCandidate = catalog?.models?.find(
-      (model) => model.key === fallbackModelKey
-        && model.available
-        && model.routeRegistered !== false
-        && model.profile?.enabledForAllocation === true
-        && supportsRequiredInput(model)
-        && tierMeetsFloor(model)
-        && !isExcluded(model)
-        && !excludedByUsage.has(model.key),
-    )
-    const fallback = fallbackCandidate
-      ? filterModelsForTaskType(taskType, [fallbackCandidate])[0]
-      : null
-    if (fallback) {
-      return {
-        model: fallback,
-        modelKey: fallback.key,
-        displayName: resolveDisplayName(fallback.key, portfolio),
-        strategy: 'fallback',
-        reasons: ['没有符合门控条件的启用模型，回退到当前主模型'],
-        reason: '没有符合门控条件的启用模型，回退到当前主模型',
-        confidence: 0.5,
-        estimatedCost: null,
-        costEstimate: { status: 'unknown', currency: 'USD', unit: 'USD per million tokens' },
-      }
-    }
-    const fallbackModel = catalog?.models?.find((model) => model.key === fallbackModelKey)
-    const reason = needsVision && !availableModels.some((model) => model.vision === true)
-      ? '没有可用且已鉴权的视觉模型'
-      : excludedByUsage.has(fallbackModelKey)
-      ? '当前匹配的额度或余额策略已耗尽，已停止路由到这些模型'
-      : fallbackModel && excludeFailureDomains.has(modelFailureDomain(fallbackModel))
-        ? '模型传输失败，已排除故障上游路由，当前没有其他可用模型'
-        : '没有可用且已鉴权的模型'
-    return {
-      model: null,
-      modelKey: null,
-      displayName: '无可用模型',
-      strategy: 'none',
-      reasons: [reason],
-      reason,
-      confidence: 0,
-      estimatedCost: null,
-      costEstimate: { status: 'unknown', currency: 'USD', unit: 'USD per million tokens' },
-      allocationProviders: [],
+  // 故障路由自动熔断器：排除 OPEN 及已用尽半开试探名额的 failure domains
+  const circuitBreaker = options.circuitBreaker ?? defaultRouteCircuitBreaker
+  const activeBreaks = circuitBreaker?.getActiveBreaks?.() ?? []
+  const brokenDomains = new Set(activeBreaks.map((item) => item.domain).filter(Boolean))
+  let hasNonClosedCircuit = brokenDomains.size > 0
+  for (const model of catalog?.models ?? []) {
+    const domain = modelFailureDomain(model)
+    if (!domain) continue
+    const state = circuitBreaker?.getState?.(domain)
+    if (state && state !== CircuitState.CLOSED) hasNonClosedCircuit = true
+    if (state === CircuitState.OPEN
+      || (state === CircuitState.HALF_OPEN
+        && (typeof circuitBreaker?.canAttempt !== 'function' || !circuitBreaker.canAttempt(domain)))) {
+      brokenDomains.add(domain)
     }
   }
+  const unavailableDomains = [...brokenDomains]
+  const combinedExcludeDomains = Array.from(new Set([
+    ...(options.excludeFailureDomains ?? []),
+    ...unavailableDomains,
+  ]))
 
-  // 2. 软打分评估 (RuleRouter v1)
-  const candidates = allowedModels.map((model) => {
-    const tier = model.profile?.tier ?? 'balanced'
-    const key = model.key
-    const inputPrice = Number(model.costPerMillion?.input)
-    const outputPrice = Number(model.costPerMillion?.output)
-    const hasValidRates = Number.isFinite(inputPrice) && inputPrice >= 0
-      && Number.isFinite(outputPrice) && outputPrice >= 0
-    const priceMeta = model.priceMeta
-    const priceEvidence = priceMeta?.hasInputPrice === true && priceMeta?.hasOutputPrice === true
-      || ((Boolean(priceMeta?.adapter) || priceMeta?.source === 'taskweaver-remote-registry')
-        && priceMeta?.hasInputPrice !== false
-        && priceMeta?.hasOutputPrice !== false)
-    const freeModel = isFreeModel(key, portfolio, model)
-    const pricingKnown = freeModel || (
-      hasValidRates
-      && priceMeta?.stale !== true
-      && priceMeta?.confidence !== 'low'
-      && (priceEvidence || (!priceMeta && (inputPrice > 0 || outputPrice > 0)))
-    )
-    const costPerMillion = pricingKnown ? inputPrice + outputPrice : null
-    const reasons = []
-    let score = 50 // 基准分
-    if (options.preferTier && tier === options.preferTier) {
-      score += 100
-      reasons.push(`失败重试优先升级至 ${tier} 档`)
-    }
-    const weights = portfolio?.routing_weights ?? {}
-    const weight = (key, fallback) => {
-      const value = Number(weights[key])
-      return Number.isFinite(value) && value >= 0 ? value : fallback
-    }
-
-    // 2.1 任务类型基准档位匹配 (首选 50 分，次选 20 分，末选 0 分)
-    const tierIdx = order.indexOf(tier)
-    if (tierIdx === 0) {
-      score += 50
-    } else if (tierIdx === 1) {
-      score += 20
-    } else {
-      score += 0
-    }
-
-    // 2.2 任务亲和 (task_affinity) 匹配
-    const affinity = portfolio?.task_affinity?.[taskType]
-    if (affinity) {
-      const preferTags = affinity.prefer || []
-      const avoidTags = affinity.avoid || []
-      for (const capName of preferTags) {
-        const cap = portfolio?.capabilities?.[capName]
-        if (cap?.match_model_ids) {
-          const matchId = cap.match_model_ids.some((pat) => matchPattern(pat, key))
-          if (matchId) {
-            score += 35
-            reasons.push(affinity.reason || `任务亲和：优先匹配能力 [${capName}]`)
-            break
-          }
-        }
-      }
-
-      for (const capName of avoidTags) {
-        const cap = portfolio?.capabilities?.[capName]
-        if (cap?.match_model_ids) {
-          const matchId = cap.match_model_ids.some((pat) => matchPattern(pat, key))
-          if (matchId) {
-            score -= 30
-            reasons.push(`规避偏好：降低能力 [${capName}] 权重`)
-            break
-          }
-        }
-      }
-    }
-
-    // 2.3 订阅覆盖加分 (边际成本为 0)
-    const subInfo = checkSubscription(key, portfolio)
-    let marginalCost = costPerMillion
-    if (subInfo.inSubscription) {
-      const subscriptionBonus = weight('subscription_bonus', 20)
-      score += subscriptionBonus
-      marginalCost = Number.isFinite(subInfo.marginalCost) ? Math.max(0, subInfo.marginalCost) : 0
-      reasons.push(`${subInfo.label || '用户订阅'}：按个人配置优先级 +${subscriptionBonus}`)
-    } else if (freeModel) {
-      const freeBonus = weight('free_model_bonus', 20)
-      score += freeBonus
-      marginalCost = 0
-      reasons.push(`当前用户标记的免费渠道：优先低成本路由 +${freeBonus}`)
-    } else {
-      // Known billable routes receive a bounded price penalty. Missing pricing
-      // remains unknown and must not be described as free.
-      if (pricingKnown) {
-        const costPenalty = Math.min(
-          weight('max_cost_penalty', 18),
-          costPerMillion * weight('cost_penalty_per_usd_per_million', 0.8),
-        )
-        score -= costPenalty
-      } else {
-        score -= weight('unknown_price_penalty', 5)
-        reasons.push('当前单价未知；未按免费模型处理，降低路由优先级')
-      }
-      if (pricingKnown && costPerMillion <= 1 && costPerMillion > 0) {
-        reasons.push(`按量单价低廉 ($${costPerMillion.toFixed(2)}/M)`)
-      }
-
-      // 2.5 按量时段加价惩罚 (metered_surge)
-      const surge = checkMeteredSurge(key, portfolio, now)
-      if (surge.inSurge) {
-        score -= weight('surge_penalty', 25)
-        reasons.push(`时段加价：${surge.reason}`)
-      }
-    }
-
-    const quota = calculateQuotaAdjustment(key, portfolio, quotaSnapshot, now.getTime())
-    if (quota.penalty > 0) score -= quota.penalty
-    if (quota.bonus > 0) score += quota.bonus
-    if (quota.reason) reasons.push(quota.reason)
-
-    const balance = calculateBalanceAdjustment(key, portfolio, quotaSnapshot, now.getTime())
-    if (balance.penalty > 0) score -= balance.penalty
-    if (balance.reason) reasons.push(balance.reason)
-
-    const allocationCounts = options.allocationCounts ?? {}
-    const reusePenaltyPerTask = Number(portfolio?.quota_cycles?.dag_allocation_penalty_points ?? 8)
-    const priorAllocations = quota.allocationProviders.reduce(
-      (count, providerId) => count + Math.max(0, Number(allocationCounts[providerId]) || 0),
-      0,
-    )
-    const reusePenalty = Math.min(30, priorAllocations * Math.max(0, reusePenaltyPerTask))
-    if (reusePenalty > 0) {
-      score -= reusePenalty
-      reasons.push(`本 DAG 已向同一额度渠道分配 ${priorAllocations} 个子任务，批内软降权 -${reusePenalty}（不代表实际 token 扣额）`)
-    }
-
-    // 保底原因
-    if (reasons.length === 0) {
-      reasons.push(`任务类型 ${taskType} 匹配 ${tier} 档模型`)
-    }
-
-    return {
-      model,
-      key,
-      tier,
-      score,
-      marginalCost,
-      subInfo,
-      freeModel,
-      pricingKnown,
-      inputPrice,
-      outputPrice,
-      allocationProviders: quota.allocationProviders,
-      reasons,
-    }
-  })
-
-  // 按得分从高到低排序，得分相同按 key 字典序以保证绝对确定性
-  candidates.sort((left, right) => {
-    if (left.score !== right.score) return right.score - left.score
-    return left.key.localeCompare(right.key)
-  })
-
-  const best = candidates[0]
-  const second = candidates[1]
-  const scoreDiff = second ? Math.max(0, best.score - second.score) : 30
-  const confidence = Math.min(1.0, Math.max(0.6, 0.6 + (scoreDiff / 100) * 0.4))
-
-  const routeDecision = {
-    model: best.model,
-    modelKey: best.key,
-    displayName: resolveDisplayName(best.key, portfolio),
-    strategy: 'portfolio-rule',
-    reasons: best.reasons,
-    reason: best.reasons.join('；'),
-    confidence: Number(confidence.toFixed(2)),
-    // Token volume and input/output mix are not known before execution. Keep
-    // unit rates separately instead of mislabeling USD per million as this
-    // task's estimated total cost.
-    estimatedCost: null,
-    costEstimate: {
-      status: best.subInfo.inSubscription
-        ? 'subscription-covered'
-        : best.freeModel
-          ? 'free'
-          : best.pricingKnown
-            ? 'unit-rate'
-            : 'unknown',
-      currency: best.model.priceMeta?.currency ?? 'USD',
-      unit: 'USD per million tokens',
-      inputPerMillion: best.pricingKnown ? best.inputPrice : null,
-      outputPerMillion: best.pricingKnown ? best.outputPrice : null,
-      marginalCostPerMillion: best.subInfo.inSubscription || best.freeModel
-        ? best.marginalCost
-        : best.pricingKnown
-          ? best.marginalCost
-          : null,
-    },
-    score: best.score,
-    allocationProviders: best.allocationProviders,
+  const routeDecisionCache = options.routeDecisionCache
+  // Circuit state can change the eligible model without changing the other
+  // cache inputs. Avoid serving or storing decisions while any catalog route
+  // is OPEN/HALF_OPEN; candidate inspection above is deliberately non-consuming.
+  const cacheEnabled = routeDecisionCache instanceof LRUCache && !hasNonClosedCircuit
+  const cacheKey = cacheEnabled
+    ? createRouteDecisionCacheKey(taskType, catalog, fallbackModelKey, portfolio, quotaSnapshot, {
+      ...options,
+      now,
+      excludeFailureDomains: combinedExcludeDomains,
+    })
+    : null
+  if (cacheEnabled) {
+    const cachedDecision = routeDecisionCache.get(cacheKey)
+    if (cachedDecision) return copyRouteDecision(cachedDecision)
   }
+
+  // 创建模型选择器（集成过滤和打分逻辑）
+  const selector = createModelSelector({
+    taskType,
+    portfolio,
+    quotaSnapshot,
+    now,
+    excludeModelKeys: options.excludeModelKeys,
+    excludeFailureDomains: combinedExcludeDomains,
+    circuitBrokenDomains: unavailableDomains,
+    minTier: options.minTier,
+    preferTier: options.preferTier,
+    needsVision: options.needsVision === true,
+    allocationCounts: options.allocationCounts ?? {},
+    taskRoleRoutingEnabled: catalog?.taskRoleRoutingEnabled === true,
+  })
+
+  // 执行选择
+  const selection = selector.selectWithCandidates(catalog, fallbackModelKey)
+  let routeDecision = selection.decision
+
+  // 如果没有选中模型，直接返回失败决策
+  if (!routeDecision.model) {
+    if (cacheEnabled) routeDecisionCache.set(cacheKey, routeDecision)
+    return copyRouteDecision(routeDecision)
+  }
+
+  // 应用任务类型过滤
+  const allowedModels = filterModelsForTaskType(taskType, selection.availableModels)
 
   // 3. 全局安全门控校验
   // Keep quota- and balance-excluded routes out of the final policy fallback.
-  const gated = applyPolicyToRoute(taskType, routeDecision, { ...catalog, models: availableModels })
+  const gated = applyPolicyToRoute(taskType, routeDecision, { ...catalog, models: allowedModels })
+
   if (gated.model && gated.model.key !== routeDecision.modelKey) {
-    return {
+    routeDecision = {
       ...routeDecision,
       model: gated.model,
       modelKey: gated.model.key,
@@ -401,8 +244,52 @@ export function selectModelForTask(taskType, catalog, fallbackModelKey, options 
       reason: gated.reason ?? routeDecision.reason,
       reasons: [...(routeDecision.reasons ?? []), gated.reason].filter(Boolean),
     }
+  } else if (!gated.model) {
+    routeDecision = gated
   }
-  return gated.model ? routeDecision : gated
+
+  // Candidate enumeration only peeks at half-open capacity. Reserve a trial
+  // once, after all policy gates have produced the final route decision.
+  if (routeDecision.model) {
+    const selectedDomain = modelFailureDomain(routeDecision.model)
+    const selectedState = selectedDomain ? circuitBreaker?.getState?.(selectedDomain) : null
+    let trialToken = null
+    let trialUnavailable = false
+    if (selectedDomain && selectedState === CircuitState.HALF_OPEN) {
+      if (typeof circuitBreaker?.acquireTrial === 'function') {
+        const acquired = circuitBreaker.acquireTrial(selectedDomain)
+        trialToken = typeof acquired === 'string' ? acquired : null
+        trialUnavailable = trialToken === null
+      } else if (typeof circuitBreaker?.tryAcquireTrial === 'function') {
+        trialUnavailable = !circuitBreaker.tryAcquireTrial(selectedDomain)
+      }
+    }
+    if (trialUnavailable) {
+      const reason = `该提供方的半开探测名额已用完（${selectedDomain}）`
+      routeDecision = {
+        model: null,
+        modelKey: null,
+        displayName: '无可用模型',
+        strategy: 'none',
+        reasons: [reason],
+        reason,
+        confidence: 0,
+        estimatedCost: null,
+        costEstimate: { status: 'unknown', currency: 'USD', unit: 'USD per million tokens' },
+        allocationProviders: [],
+      }
+    } else if (trialToken) {
+      try {
+        options.onTrialReserved?.(selectedDomain, circuitBreaker, trialToken)
+      } catch (error) {
+        circuitBreaker.releaseTrial?.(selectedDomain, trialToken)
+        throw error
+      }
+    }
+  }
+
+  if (cacheEnabled) routeDecisionCache.set(cacheKey, routeDecision)
+  return copyRouteDecision(routeDecision)
 }
 
 const UPGRADE_ON_FAILURE_TYPES = new Set(['implementation', 'test', 'review'])
@@ -416,4 +303,58 @@ export function shouldUpgradeFailedTask(taskType, failure = null) {
     return ['transport', 'transient', 'timeout'].includes(failure?.kind) && failure?.retryable === true
   }
   return UPGRADE_ON_FAILURE_TYPES.has(taskType)
+}
+
+/**
+ * 判断错误是否属于网络、传输、服务暂时不可用或超时等路由层故障
+ */
+export function isRouteFailure(error) {
+  if (!error) return false
+  const code = typeof error?.code === 'string' ? error.code.toUpperCase() : ''
+  const status = Number(error?.status ?? error?.statusCode)
+  const message = String(error?.message || error || '').toLowerCase()
+  if (['transport', 'transient', 'timeout'].includes(error?.kind)) return true
+  if (error?.failoverScope === 'route-domain') return true
+  if (['ETIMEDOUT', 'ECONNRESET', 'ECONNREFUSED', 'EAI_AGAIN', 'TRANSPORT', 'ETASK_TIMEOUT', 'ETASK_IDLE_TIMEOUT'].includes(code)) return true
+  if ([408, 425, 429, 500, 502, 503, 504].includes(status)) return true
+  if (/fetch failed|network error|socket hang up|connection reset|tls handshake|timed out|timeout|temporarily unavailable|service unavailable|bad gateway/.test(message)) return true
+  return false
+}
+
+/**
+ * 记录子任务路由调用成功，通知熔断器重置状态
+ */
+export function recordRouteSuccess(modelOrKey, options = {}) {
+  const circuitBreaker = options.circuitBreaker ?? defaultRouteCircuitBreaker
+  let domain = null
+  if (typeof modelOrKey === 'string') {
+    const catalog = options.catalog
+    const model = catalog?.models?.find((m) => m.key === modelOrKey)
+    domain = model ? modelFailureDomain(model) : (modelOrKey.includes('/') ? modelOrKey.split('/')[0] : modelOrKey)
+  } else if (modelOrKey && typeof modelOrKey === 'object') {
+    domain = modelFailureDomain(modelOrKey)
+  }
+  if (domain && typeof circuitBreaker?.recordSuccess === 'function') {
+    circuitBreaker.recordSuccess(domain)
+  }
+}
+
+/**
+ * 记录子任务路由调用失败，在符合传输/服务故障条件时累加熔断器计数
+ */
+export function recordRouteFailure(modelOrKey, error, options = {}) {
+  const circuitBreaker = options.circuitBreaker ?? defaultRouteCircuitBreaker
+  if (options.force !== true && !isRouteFailure(error)) return
+
+  let domain = null
+  if (typeof modelOrKey === 'string') {
+    const catalog = options.catalog
+    const model = catalog?.models?.find((m) => m.key === modelOrKey)
+    domain = model ? modelFailureDomain(model) : (modelOrKey.includes('/') ? modelOrKey.split('/')[0] : modelOrKey)
+  } else if (modelOrKey && typeof modelOrKey === 'object') {
+    domain = modelFailureDomain(modelOrKey)
+  }
+  if (domain && typeof circuitBreaker?.recordFailure === 'function') {
+    circuitBreaker.recordFailure(domain, error)
+  }
 }

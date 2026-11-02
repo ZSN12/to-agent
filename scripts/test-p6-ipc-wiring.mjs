@@ -54,26 +54,78 @@ const handlers = new Map()
 const ipcMain = { handle: (channel, handler) => handlers.set(channel, handler) }
 const calls = []
 globalThis.__taskweaverP6 = { calls }
+const stopOrder = []
 
 const outputRequests = []
+const orchestrationClassifications = []
+const skillRequests = []
 registerChatIpc({
   ipcMain,
+  skills: {
+    async list(request) {
+      skillRequests.push(request)
+      return [{ name: 'dag-skill', multiAgent: true }]
+    },
+  },
+  getConversationRuntimeContext: async (conversationId) => ({
+    workspacePath: `/workspace/${conversationId}`,
+    workspaceTrusted: true,
+  }),
   chat: {
     listRunningConversationIds: () => ['conv-chat', 'conv-shared'],
+    async abort(conversationId) { stopOrder.push(`chat:${conversationId}`); return false },
     getToolOutput: (request) => {
       outputRequests.push(request)
       return { text: 'redacted tool output', truncated: false }
     },
   },
-  orchestration: { listRunningConversationIds: () => ['conv-dag', 'conv-shared'] },
+  roleChatService: {
+    listRunningConversationIds: () => ['conv-role'],
+    abort(conversationId) { stopOrder.push(`role-abort:${conversationId}`); return true },
+    async waitForAbort(conversationId) { stopOrder.push(`role-ack:${conversationId}`) },
+  },
+  orchestration: {
+    listRunningConversationIds: () => ['conv-dag', 'conv-shared'],
+    async abort(conversationId) { stopOrder.push(`dag:${conversationId}`); return false },
+    classifyExecutionMode: async (request) => {
+      orchestrationClassifications.push(request)
+      return { mode: 'multi-agent', confidence: 1, reasons: ['forced by skill'] }
+    },
+  },
   turnInProgressByConversation: new Map([['conv-turn', true], ['conv-idle', false]]),
   resolveIpcConversationId: async (requestedId) => requestedId ? `canonical:${requestedId}` : 'canonical:active',
 })
 
+const preflight = await handlers.get('chat:classifyOrchestration')({}, {
+  text: '梳理完整工作流',
+  skillName: 'dag-skill',
+  workMode: 'code',
+  conversationId: 'conv-preflight',
+})
+assert.deepEqual(preflight, { ok: true, data: { mode: 'multi-agent', confidence: 1, reasons: ['forced by skill'] } })
+assert.deepEqual(skillRequests, [{ workspacePath: '/workspace/canonical:conv-preflight', workspaceTrusted: true }])
+assert.deepEqual(orchestrationClassifications, [{
+  text: '梳理完整工作流',
+  workMode: 'code',
+  executionModeOverride: undefined,
+  skillRequiresDag: true,
+}])
+assert.deepEqual(await handlers.get('chat:classifyOrchestration')({}, { text: 42 }), {
+  ok: false,
+  error: '任务复杂度判定请求无效',
+})
+
 const listRunning = await handlers.get('chat:listRunningConversations')({}, {})
 assert.equal(listRunning.ok, true)
-assert.deepEqual(new Set(listRunning.data), new Set(['conv-chat', 'conv-shared', 'conv-dag', 'conv-turn']),
-  'running status must aggregate chat, DAG and turn locks, deduplicating conversations')
+assert.deepEqual(new Set(listRunning.data), new Set(['conv-chat', 'conv-shared', 'conv-dag', 'conv-role', 'conv-turn']),
+  'running status must aggregate chat, Bot, DAG and turn locks, deduplicating conversations')
+assert.deepEqual(await handlers.get('chat:cancel')({}, 'conv-stop'), { ok: true, data: { stopped: true } })
+assert.deepEqual(stopOrder, [
+  'role-abort:canonical:conv-stop',
+  'role-ack:canonical:conv-stop',
+  'chat:canonical:conv-stop',
+  'dag:canonical:conv-stop',
+], 'Stop waits for the active Bot session to acknowledge before finishing the IPC request')
 assert.deepEqual(await handlers.get('chat:getToolOutput')({}, {
   conversationId: 'conv-a', outputId: 'opaque-output-id',
 }), { ok: true, data: { text: 'redacted tool output', truncated: false } })
@@ -132,4 +184,4 @@ assert.deepEqual(rejectedApply, { ok: false, error: 'conversation is busy' })
 assert.equal(calls.filter(([name]) => name === 'apply').length, 1, 'busy conversations cannot apply a worktree merge')
 
 delete globalThis.__taskweaverP6
-console.log('P6 IPC wiring passed: parallel running-state union, conversation/run-scoped worktree calls, conflict-safe merge gate, and checkpoint ordering')
+console.log('P6 IPC wiring passed: orchestration preflight, parallel running-state union, conversation/run-scoped worktree calls, conflict-safe merge gate, and checkpoint ordering')

@@ -217,6 +217,41 @@ describe('tool-call scheduler: grouping and barriers', () => {
   })
 })
 
+describe('tool-call scheduler: Host-enforced per-turn budget', () => {
+  it('dispatches only the allowed calls, records rejected calls, then asks for a tool-free summary', async () => {
+    const adapter = new MockAdapter([
+      multiCall([
+        { id: 'c1', name: 'read', args: { id: '1' } },
+        { id: 'c2', name: 'read', args: { id: '2' } },
+        { id: 'c3', name: 'read', args: { id: '3' } },
+      ]),
+      textResponse('已基于读取结果完成总结。'),
+    ])
+    const ctx = await harness(adapter)
+    const executed: string[] = []
+    ctx.tools.register(defineContentToolFixture({
+      name: 'read',
+      description: 'read one item',
+      parameters: { id: { type: 'string', required: true } },
+      async execute(args) { executed.push(args.id); return [{ type: 'text', text: `item-${args.id}` }] },
+    }))
+    const agent = ctx.agentLoop.create(SessionId('role-budget'), { provider: 'mock', model: 'mock' })
+    agent.followup(createUserMessage({
+      content: [{ type: 'text', text: 'read and summarize' }],
+      source: { kind: 'user', roleToolCallLimit: 1 } as never,
+    }))
+    await waitForIdle(ctx, agent)
+
+    expect(executed).toEqual(['1'])
+    const calls = events(agent).filter((event): event is Extract<SessionEvent, { type: 'tool/call' }> => event.type === 'tool/call')
+    const results = events(agent).filter((event): event is Extract<SessionEvent, { type: 'tool/result' }> => event.type === 'tool/result')
+    expect(calls).toHaveLength(3)
+    expect(results.filter(event => event.data.error?.code === 'ROLE_TOOL_CALL_LIMIT')).toHaveLength(2)
+    expect(adapter.requests).toHaveLength(2)
+    expect(adapter.requests[1]?.tools).toBeUndefined()
+  })
+})
+
 describe('tool-call scheduler: model-order results despite out-of-order settlement', () => {
   it('commits tool/result in model order even when a later call settles first', async () => {
     const adapter = new MockAdapter([

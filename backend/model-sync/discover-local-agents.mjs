@@ -11,7 +11,10 @@ import { LOCAL_AGENT_INTEGRATIONS } from './local-agent-registry.mjs'
 export function discoverAgentsFromExport(exportDoc, logins = {}) {
   const blocks = bridgeProviderBlocksFromExport(exportDoc)
   return LOCAL_AGENT_INTEGRATIONS.map((spec) => {
-    const block = blocks[spec.routeId]
+    let block = blocks[spec.routeId]
+    if (!block && exportDoc?.providers?.[spec.routeId]) {
+      block = exportDoc.providers[spec.routeId]
+    }
     const modelCount = Array.isArray(block?.models) ? block.models.length : 0
     const needsLogin = Boolean(spec.loginProvider)
     const loggedIn = !needsLogin || logins[spec.loginProvider] === true
@@ -41,7 +44,10 @@ export function discoverAgentsFromModelsDoc(modelsDoc, logins = {}) {
     byRoute.set(row.provider, list)
   }
   return LOCAL_AGENT_INTEGRATIONS.map((spec) => {
-    const models = byRoute.get(spec.routeId) ?? []
+    let models = byRoute.get(spec.routeId) ?? []
+    if (!models.length && Array.isArray(modelsDoc?.providers?.[spec.routeId]?.models)) {
+      models = modelsDoc.providers[spec.routeId].models
+    }
     const needsLogin = Boolean(spec.loginProvider)
     const loggedIn = !needsLogin || logins[spec.loginProvider] === true
     return {

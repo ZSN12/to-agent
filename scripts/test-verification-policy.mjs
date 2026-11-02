@@ -9,7 +9,14 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { detectVerificationCommands, formatVerificationPrompt, executeVerificationRunner } from '../backend/verification-policy.mjs'
+import {
+  autoVerificationSteps,
+  detectVerificationCommands,
+  executeVerificationRunner,
+  formatVerificationPrompt,
+  runAutoVerification,
+} from '../backend/verification-policy.mjs'
+import { probeSandboxSupport } from '../backend/sandbox-service.mjs'
 import { runBoundedSelfHealing } from '../backend/self-healing-loop.mjs'
 
 const cleanup = []
@@ -180,7 +187,117 @@ try {
   assert.equal(noCommandRes.status, 'not_run')
   assert.equal(noCommandRes.passed, false, 'absence of a command must never be represented as a pass')
 
-  console.log('verification-policy 回归测试全部通过：轻量自检优先、tsconfig 形态、包管理器、测试优先级、多语言识别、自愈执行器。')
+  const abortDir = await makeWorkspace({
+    'package.json': pkg({ typecheck: 'node -e "setTimeout(() => {}, 30000)"' }),
+  })
+  const abortController = new AbortController()
+  const cancelTimer = setTimeout(() => abortController.abort(), 100)
+  const cancelledRes = await executeVerificationRunner(abortDir, {
+    timeoutMs: 60_000,
+    signal: abortController.signal,
+  })
+  clearTimeout(cancelTimer)
+  assert.equal(cancelledRes.status, 'cancelled', 'the verification runner must report cancellation separately from failure')
+  assert.equal(cancelledRes.cancelled, true)
+  assert.equal(cancelledRes.executed, true, 'a verification cancelled after launch must retain that it actually started')
+  assert.equal(cancelledRes.passed, false, 'a cancelled verification must never be reported as passed')
+
+  const alreadyAborted = new AbortController()
+  alreadyAborted.abort()
+  const preCancelledRes = await executeVerificationRunner(successDir, { signal: alreadyAborted.signal })
+  assert.equal(preCancelledRes.status, 'cancelled', 'an already-cancelled run must not start the verification command')
+  assert.equal(preCancelledRes.executed, false)
+
+  // ============ 自动验证：可修复判定、步骤选择与串行执行 ============
+  assert.equal(failRes.repairable, true, 'a real non-zero exit is something the model can repair')
+  assert.equal(successRes.repairable, false)
+  assert.equal(cancelledRes.repairable, false, 'cancellation never drives a repair')
+  const timeoutDir = await makeWorkspace({
+    'package.json': pkg({ typecheck: 'node -e "setTimeout(() => {}, 30000)"' }),
+  })
+  const timedOutRes = await executeVerificationRunner(timeoutDir, { timeoutMs: 200 })
+  assert.equal(timedOutRes.timedOut, true)
+  assert.equal(timedOutRes.repairable, false, 'a timeout says nothing about the code and must not trigger a repair')
+
+  let repairsAfterTimeout = 0
+  const stoppedOnTimeout = await runBoundedSelfHealing({
+    maxAttempts: 2,
+    async verify() { return { executed: true, passed: false, repairable: false } },
+    async repair() { repairsAfterTimeout += 1 },
+  })
+  assert.equal(repairsAfterTimeout, 0, 'non-repairable results end the loop without asking the model to change code')
+  assert.equal(stoppedOnTimeout.attempts, 0)
+
+  assert.deepEqual(autoVerificationSteps(detectVerificationCommands(await makeWorkspace({
+    'package.json': pkg({ typecheck: 'tsc', test: 'vitest run', 'test:all': 'run-everything' }),
+    'pnpm-lock.yaml': '',
+  }))).map(({ command, kind }) => ({ command, kind })), [
+    { command: 'pnpm run typecheck', kind: 'check' },
+    { command: 'pnpm run test', kind: 'test' },
+  ], 'a focused test script runs after the light check')
+  assert.deepEqual(autoVerificationSteps(detectVerificationCommands(await makeWorkspace({
+    'package.json': pkg({ typecheck: 'tsc', 'test:all': 'run-everything' }),
+  }))).map((step) => step.command), ['npm run typecheck'],
+  'aggregate suites such as test:all are not run automatically after every change')
+  assert.deepEqual(autoVerificationSteps(detectVerificationCommands(await makeWorkspace({ 'pytest.ini': '' })))
+    .map((step) => step.command), ['pytest -q --maxfail=1'], 'python runs pytest once, not twice')
+  assert.deepEqual(autoVerificationSteps(detectVerificationCommands(await makeWorkspace({ 'go.mod': 'module x' })))
+    .map((step) => step.kind), ['check', 'test'])
+  assert.deepEqual(autoVerificationSteps(null), [])
+
+  const runnerCalls = []
+  const fakeRunner = async (_workspace, { commandOverride }) => {
+    runnerCalls.push(commandOverride)
+    const passed = commandOverride !== 'tests'
+    return {
+      executed: true, status: passed ? 'passed' : 'failed', command: commandOverride, exitCode: passed ? 0 : 3, passed,
+      stdout: '', stderr: '', errorSummary: passed ? null : 'boom', durationMs: 5, timedOut: false, cancelled: false,
+      sandboxed: true, sandboxDenied: false, repairable: !passed,
+    }
+  }
+  const chained = await runAutoVerification(successDir, {
+    runner: fakeRunner,
+    steps: [
+      { command: 'check', kind: 'check', timeoutMs: 1 },
+      { command: 'tests', kind: 'test', timeoutMs: 1 },
+      { command: 'never', kind: 'test', timeoutMs: 1 },
+    ],
+  })
+  assert.deepEqual(runnerCalls, ['check', 'tests'], 'steps run in order and stop at the first failure')
+  assert.equal(chained.command, 'tests')
+  assert.equal(chained.exitCode, 3)
+  assert.equal(chained.repairable, true)
+  assert.equal(chained.durationMs, 10)
+  assert.deepEqual(chained.commands.map((item) => [item.command, item.exitCode]), [['check', 0], ['tests', 3]])
+  const nothingToRun = await runAutoVerification(emptyDir)
+  assert.equal(nothingToRun.status, 'not_run')
+  assert.equal(nothingToRun.repairable, false)
+
+  // ============ 沙箱：与 Agent bash 相同的写入边界 ============
+  if (probeSandboxSupport().available) {
+    const outsideDir = await fs.mkdtemp(path.join(os.homedir(), '.tw-verify-outside-'))
+    cleanup.push(outsideDir)
+    const outsideFile = path.join(outsideDir, 'escaped.txt')
+    const sandboxDir = await makeWorkspace({
+      'package.json': pkg({ typecheck: 'node write.cjs' }),
+      'write.cjs': `const fs = require('fs')\nfs.writeFileSync('inside.txt', 'ok')\nfs.writeFileSync(${JSON.stringify(outsideFile)}, 'x')\n`,
+    })
+    const confined = await executeVerificationRunner(sandboxDir, {
+      sandboxPolicy: { mode: 'workspace-write', workspaceRoot: sandboxDir },
+    })
+    assert.equal(confined.sandboxed, true)
+    assert.equal(confined.passed, false)
+    assert.equal(confined.sandboxDenied, true, 'a write outside the workspace is reported as a sandbox denial')
+    assert.equal(confined.repairable, false, 'sandbox denials do not ask the model to change code')
+    assert.equal(await fs.readFile(path.join(sandboxDir, 'inside.txt'), 'utf8'), 'ok', 'writes inside the workspace are allowed')
+    await assert.rejects(fs.access(outsideFile), 'the sandbox blocked the write outside the workspace')
+    const unconfined = await executeVerificationRunner(successDir, { sandboxPolicy: { mode: 'off' } })
+    assert.equal(unconfined.sandboxed, false)
+  } else {
+    console.log('跳过沙箱用例：当前平台没有可用的 OS 沙箱 runner。')
+  }
+
+  console.log('verification-policy 回归测试全部通过：轻量自检优先、tsconfig 形态、包管理器、测试优先级、多语言识别、自愈执行器与取消清理。')
 } finally {
   for (const dir of cleanup) await fs.rm(dir, { recursive: true, force: true })
 }

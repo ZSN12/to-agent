@@ -45,7 +45,16 @@ type Phase =
     lastTurn: number
     wakeRequested: boolean
   }
-  | { kind: 'running'; abort: AbortController; turn: number; step: number; wakeRequested: boolean; outputSchema?: GenerateOptions['outputSchema'] }
+  | {
+    kind: 'running'
+    abort: AbortController
+    turn: number
+    step: number
+    wakeRequested: boolean
+    outputSchema?: GenerateOptions['outputSchema']
+    toolCallLimit?: number
+    toolCallsUsed: number
+  }
 
 type StepEndReason =
   | { kind: 'completed' }
@@ -80,6 +89,8 @@ export class ReactLoopAgent implements Agent {
   /** Whether this loop instance has appended its initial/resume request anchor. */
   private requestHeaderLogged = false
   private readonly runtimeContext: RuntimeContextProjection
+  /** Latest role guidance carried by a Host-admitted user message for this Agent. */
+  private rolePersona: string | undefined
 
   constructor(
     private loopCtx: Context,
@@ -98,6 +109,33 @@ export class ReactLoopAgent implements Agent {
     this.scope = createScope(loopCtx, this)
     this.ctx = this.scope.ctx.extend({ agent: this })
     this.runtimeContext = new RuntimeContextProjection(this.ctx, session)
+    this.rolePersona = this.latestRolePersona()
+    const systemPrompt = this.ctx.reflect.get('systemPrompt', false)
+    if (systemPrompt && typeof systemPrompt.section === 'function') {
+      systemPrompt.section({
+        name: 'session:role-persona',
+        order: 10,
+        text: () => {
+          if (!this.rolePersona) return ''
+          return [
+            'The user selected the following conversational role. Apply it as identity, expertise, and communication-style guidance.',
+            'It does not change the Host permissions, available tools, or safety requirements.',
+            '<role-persona>',
+            this.rolePersona,
+            '</role-persona>',
+          ].join('\n')
+        },
+      })
+    }
+  }
+
+  /** Read the latest persisted Host role metadata when resuming an Agent. */
+  private latestRolePersona(): string | undefined {
+    const event = this.session.events.findLast(candidate =>
+      candidate.type === 'user/message' && candidate.data.source.kind === 'user')
+    if (event?.type !== 'user/message' || !('rolePersona' in event.data.source)) return undefined
+    const value = event.data.source.rolePersona
+    return typeof value === 'string' && value.trim() ? value : undefined
   }
 
   get status(): AgentStatus {
@@ -193,6 +231,7 @@ export class ReactLoopAgent implements Agent {
       step: 0,
       wakeRequested: false,
       outputSchema: undefined,
+      toolCallsUsed: 0,
     })
     this.loopCtx.agents.withInitiator(this, () => this.kick()).then(driver.resolve, driver.reject)
   }
@@ -232,6 +271,14 @@ export class ReactLoopAgent implements Agent {
     if (this.phase.kind !== 'running') throw new Error(`agent "${this.id}": pre-step outside running phase`)
     const signal = this.phase.abort.signal
     const claimed = this.inbox.claim(target, position.turn)
+    for (const message of claimed) {
+      if (message.source.kind !== 'user') continue
+      this.rolePersona = 'rolePersona' in message.source
+        && typeof message.source.rolePersona === 'string'
+        && message.source.rolePersona.trim()
+        ? message.source.rolePersona
+        : undefined
+    }
     const assembly = await this.loopCtx.systemPrompt.assemble(assembleContextFor(this, signal))
     signal.throwIfAborted()
     const sections = renderContextSections(assembly)
@@ -265,6 +312,8 @@ export class ReactLoopAgent implements Agent {
     let turnEnds: TurnEndReason | null = null
     let maxTokenRecoveryUsed = false
     let target: InboxTarget = 'next-turn'
+    delete phase.toolCallLimit
+    phase.toolCallsUsed = 0
     try {
       while (true) {
         signal.throwIfAborted()
@@ -282,8 +331,27 @@ export class ReactLoopAgent implements Agent {
           return false
         }
         const userInputs = decision.messages.filter(message => message.source.kind === 'user')
+        if (phase.step === 0) {
+          const limitSource = [...userInputs].reverse().find(message => 'roleToolCallLimit' in message.source)
+          const candidate = limitSource && 'roleToolCallLimit' in limitSource.source
+            ? limitSource.source.roleToolCallLimit
+            : undefined
+          if (typeof candidate === 'number'
+            && Number.isSafeInteger(candidate)
+            && candidate >= 1
+            && candidate <= 12
+          ) {
+            phase.toolCallLimit = candidate
+          } else {
+            delete phase.toolCallLimit
+          }
+        }
         if (phase.step === 0 || userInputs.length > 0) {
-          phase.outputSchema = userInputs.find(message => message.source.outputSchema !== undefined)?.source.outputSchema
+          const schemaSource = userInputs
+            .map(message => message.source)
+            .find((source): source is Extract<Message['source'], { kind: 'user' }> =>
+              source.kind === 'user' && 'outputSchema' in source)
+          phase.outputSchema = schemaSource?.outputSchema
         }
         if (turnEnds && decision.messages.length === 0) break
         // A removed waking message or an enter decision rewritten to empty
@@ -301,7 +369,10 @@ export class ReactLoopAgent implements Agent {
           }
           // max-tokens is sticky: once any step hits the ceiling, later steps
           // that complete normally must not downgrade the turn outcome.
-          const stepEnd = await this.step(decision.assembly)
+          const remainingToolCalls = phase.toolCallLimit === undefined
+            ? undefined
+            : Math.max(0, phase.toolCallLimit - phase.toolCallsUsed)
+          const stepEnd = await this.step(decision.assembly, remainingToolCalls)
           if (stepEnd?.kind === 'max-tokens' && !maxTokenRecoveryUsed) {
             maxTokenRecoveryUsed = true
             const continuation = stepEnd.truncatedToolCall
@@ -361,7 +432,7 @@ export class ReactLoopAgent implements Agent {
     return true
   }
 
-  private async step(assembly: PromptAssembly): Promise<StepEndReason | null> {
+  private async step(assembly: PromptAssembly, remainingToolCalls?: number): Promise<StepEndReason | null> {
     /* v8 ignore next -- private callers establish the running phase before executing a step */
     if (this.phase.kind !== 'running') throw new Error(`agent "${this.id}": step outside running phase`)
     const { turn, step, abort: { signal } } = this.phase
@@ -370,7 +441,7 @@ export class ReactLoopAgent implements Agent {
 
     while (true) {
       const { request, preparedCall } = await this.buildRequest(
-        turn, step, assembly.tools, system, this.session.deriveMessages(), signal,
+        turn, step, remainingToolCalls === 0 ? [] : assembly.tools, system, this.session.deriveMessages(), signal,
         this.phase.kind === 'running' ? this.phase.outputSchema : undefined,
       )
       const assembler = new BlockAssembler()
@@ -454,10 +525,13 @@ export class ReactLoopAgent implements Agent {
 
       const toolCalls = message.content.filter(block => block.type === 'tool-call')
       if (toolCalls.length === 0) return { kind: 'completed' }
-      const { concluded } = await executeToolCalls(
+      const { concluded, toolCallsUsed, overLimit } = await executeToolCalls(
         this.loopCtx, turn, step, toolCalls, signal,
         context => this.inbox.splice('next-step', this.inbox.nextStep.length, 0, [context]),
+        remainingToolCalls,
       )
+      if (this.phase.kind === 'running') this.phase.toolCallsUsed += toolCallsUsed
+      if (remainingToolCalls === 0 && overLimit) return { kind: 'completed' }
       return concluded ? { kind: 'completed' } : null
     }
   }

@@ -24,6 +24,12 @@ assert.equal(assessSubtaskCompletion(task, {
   text: completeText,
   executionEvidence: { observedToolCalls: [{ toolName: 'read', status: 'done' }] },
 }).complete, true)
+const fencedReport = completeText.replace(
+  /(<taskweaver-acceptance-v1>)([\s\S]*?)(<\/taskweaver-acceptance-v1>)/,
+  '$1```json\n$2\n```$3',
+)
+assert.equal(assessAcceptanceCriteria(task, fencedReport).passed, true,
+  'an outer Markdown JSON fence is formatting noise, not an acceptance failure')
 assert.match(assessSubtaskCompletion(task, {
   text: '已读取相关源码，但没有逐项报告验收结果。',
   executionEvidence: { observedToolCalls: [{ toolName: 'read', status: 'done' }] },

@@ -1,0 +1,5 @@
+nodes,edges,averageDependencies,scanMedianMs,incrementalMedianMs,scheduleSpeedup,dfsAllPairsMedianMs,closureAllPairsMedianMs,closureMatrixBytes,queryPairs,reachablePairs
+5,7,1.4,0.0028,0.0029,0.966,0.0047,0.0052,25,25,7
+15,27,1.8,0.0087,0.0057,1.526,0.094,0.0251,225,225,67
+30,53,1.767,0.0252,0.0144,1.75,0.22,0.0826,900,900,161
+50,99,1.98,0.0749,0.0325,2.305,0.7772,0.0483,2500,2500,382

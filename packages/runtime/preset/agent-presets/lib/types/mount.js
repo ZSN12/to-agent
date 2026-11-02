@@ -13,7 +13,8 @@
  * same preset collides with the first.
  * @module @taskweaver/dsh-agent-presets/mount
  */
-import { isAbsolute } from 'node:path';
+import { existsSync } from 'node:fs';
+import { isAbsolute, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { Context } from '@taskweaver/cordis';
 import { Include } from '@taskweaver/cordis-plugin-include';
@@ -40,7 +41,14 @@ function taskweaverEmbedded() {
 /** Where preset rows resolve bare package names from. */
 function presetHarnessBaseUrl(agentCtx) {
     if (taskweaverEmbedded()) {
-        return `${pathToFileURL(process.cwd()).href}/`;
+        const runtimeRoot = process.cwd();
+        // In the pnpm source workspace, package links belong to host-cli's
+        // importer. Deployed runtimes keep their flattened node_modules at root.
+        const workspaceHostRoot = join(runtimeRoot, 'host-cli');
+        const resolutionRoot = existsSync(join(workspaceHostRoot, 'node_modules', '@taskweaver'))
+            ? workspaceHostRoot
+            : runtimeRoot;
+        return `${pathToFileURL(resolutionRoot).href}/`;
     }
     return agentCtx.baseUrl;
 }

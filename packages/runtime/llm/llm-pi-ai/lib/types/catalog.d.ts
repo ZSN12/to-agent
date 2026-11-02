@@ -247,6 +247,8 @@ export interface PiAiModelProfile {
     id: string;
     /** Display name for selectors; defaults to the catalog name, then the id. */
     name?: string;
+    /** Model-specific endpoint, taking precedence over the provider endpoint. */
+    baseURL?: string;
     /** Maximum combined request and response context in tokens. */
     contextWindow?: number;
     /**

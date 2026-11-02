@@ -1,3 +1,5 @@
+confirmModulesPurge: false
+
 packages:
   - 'packages/*'
   - 'packages/*/*'
@@ -21,10 +23,6 @@ allowBuilds:
   node-addon-require-builtin: false
   koffi: true
   '@taskweaver/dsh-subprocess-local@file:packages/runtime/subprocess/subprocess-local': true
-  tree-sitter: true
-  tree-sitter-javascript: true
-  tree-sitter-python: true
-  tree-sitter-typescript: true
 minimumReleaseAgeExclude:
   - '@earendil-works/pi-ai@0.82.1'
   - node-addon-native-custom-loader@0.1.4

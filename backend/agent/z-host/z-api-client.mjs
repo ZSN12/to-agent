@@ -23,6 +23,7 @@ export async function createZApiClient({ runtimeRoot, baseUrl }) {
     packagesRoot ? path.join(packagesRoot, '@deepseek-ai/dsh-client-connection', rel) : null,
     path.join(runtimeRoot, TASKWEAVER_RUNTIME_CLIENT_DIR, rel),
     path.join(runtimeRoot, 'taskweaver-dsh-client', rel),
+    path.join(runtimeRoot, 'client/connection', rel),
     path.join(runtimeRoot, 'packages/client/connection', rel),
   ].filter(Boolean)
   let WebApiClient

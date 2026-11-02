@@ -4,6 +4,7 @@ import './test-dag-acceptance.mjs'
 import './test-dag-budget.mjs'
 import './test-dag-run-replay.mjs'
 import './test-dag-writer-retry-safety.mjs'
+import './test-dag-validation-escalation.mjs'
 import './test-planner-hints.mjs'
 import './test-planner-retries.mjs'
 import fs from 'node:fs/promises'
@@ -24,9 +25,10 @@ import { createOrchestrationService } from '../backend/orchestration-service.mjs
 import { createNodeWorktree, removeTaskWorktree } from '../backend/worktree-service.mjs'
 import { TraceStore } from '../backend/orchestration/trace-store.mjs'
 import { RunStore } from '../backend/orchestration/run-store.mjs'
+import { TaskChangeBatcher } from '../backend/orchestration/state-batcher.mjs'
+import { createNodeWorkspaceRegistry } from '../backend/orchestration/node-workspace.mjs'
 import { UsageLedger } from '../backend/orchestration/usage-ledger.mjs'
 import { layoutTasks } from '../backend/orchestration/planner.mjs'
-import { buildOrchestrationTraceCsv } from '../src/features/orchestration/orchestration-trace-csv.mjs'
 import {
   classifySubtaskFailure,
   runWithSubtaskRetries,
@@ -36,6 +38,133 @@ import {
   selectModelForTask,
   shouldUpgradeFailedTask,
 } from '../backend/orchestration-policy.mjs'
+
+const stateWriteError = Object.assign(new Error('mock durable task-state write failed'), { code: 'ERUN_STORE_WRITE_FAILED' })
+const persistenceExecutions = []
+await assert.rejects(executeDag([
+  { id: 'persist-a', title: 'first', description: 'persist before releasing dependency', taskType: 'research', dependsOn: [] },
+  { id: 'persist-b', title: 'dependent', description: 'must not run after persistence failure', taskType: 'research', dependsOn: ['persist-a'] },
+], {
+  execute: async (task) => { persistenceExecutions.push(task.id); return { text: task.id } },
+  onTaskChange: async (task) => { if (task.id === 'persist-a' && task.status === 'done') throw stateWriteError },
+}), (error) => error === stateWriteError, 'a critical state persistence failure rejects the DAG')
+assert.deepEqual(persistenceExecutions, ['persist-a'], 'a dependency cannot start after its predecessor state failed to persist')
+
+let siblingStarted
+const siblingReady = new Promise((resolve) => { siblingStarted = resolve })
+let siblingSettled = false
+let siblingAborted = false
+const independentTaskController = new AbortController()
+await assert.rejects(executeDag([
+  { id: 'persist-source', title: 'source', description: 'fail its final persistence', taskType: 'research', dependsOn: [] },
+  { id: 'persist-sibling', title: 'active sibling', description: 'settle after cancellation', taskType: 'research', dependsOn: [] },
+], {
+  getTaskSignal: () => independentTaskController.signal,
+  execute: async (task, _results, signal) => {
+    if (task.id === 'persist-source') { await siblingReady; return { text: 'completed' } }
+    siblingStarted()
+    await new Promise((resolve) => signal.addEventListener('abort', resolve, { once: true }))
+    siblingAborted = signal.aborted
+    await new Promise((resolve) => setTimeout(resolve, 5))
+    siblingSettled = true
+    throw signal.reason
+  },
+  onTaskChange: async (task) => { if (task.id === 'persist-source' && task.status === 'done') throw stateWriteError },
+}), (error) => error === stateWriteError)
+assert.equal(siblingAborted, true, 'a persistence failure cancels an already-running sibling even with a per-task signal')
+assert.equal(siblingSettled, true, 'the scheduler awaits sibling settlement before rejecting the run')
+assert.equal(independentTaskController.signal.aborted, false, 'internal failure cancellation does not mutate the caller task controller')
+
+const failingBatcher = new TaskChangeBatcher(async () => { throw stateWriteError }, { windowMs: 1 })
+await failingBatcher.dispatch({ id: 'persist-running', status: 'running' })
+await new Promise((resolve) => setTimeout(resolve, 10))
+await assert.rejects(failingBatcher.dispatch({ id: 'persist-later', status: 'running' }), (error) => error === stateWriteError,
+  'a timer-driven persistence failure is retained for later dispatches')
+await assert.rejects(failingBatcher.flush(), (error) => error === stateWriteError)
+failingBatcher.dispose()
+
+const runStoreFailureRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-run-store-failure-'))
+try {
+  const blockedDataPath = path.join(runStoreFailureRoot, 'not-a-directory')
+  await fs.writeFile(blockedDataPath, 'file blocks the run store directory')
+  const blockedStore = new RunStore({ agentDataPath: blockedDataPath })
+  await assert.rejects(blockedStore.saveRun(randomUUID(), randomUUID(), { status: 'running', tasks: [] }),
+    (error) => error.code === 'ERUN_STORE_WRITE_FAILED',
+    'a failed run-state write must stop the orchestration instead of being silently ignored')
+
+  const conversationId = randomUUID()
+  const runId = randomUUID()
+  const runDirectory = path.join(runStoreFailureRoot, 'atomic', 'orchestration', conversationId, runId)
+  await fs.mkdir(path.join(runDirectory, 'run.json'), { recursive: true })
+  await fs.writeFile(path.join(runDirectory, 'run.json', 'keep.txt'), 'preserve the blocking path')
+  const atomicStore = new RunStore({ agentDataPath: path.join(runStoreFailureRoot, 'atomic') })
+  await assert.rejects(atomicStore.saveRun(conversationId, runId, { status: 'completed', tasks: [] }),
+    (error) => error.code === 'ERUN_STORE_WRITE_FAILED',
+    'a failed atomic replacement must be reported')
+  const entries = await fs.readdir(runDirectory)
+  assert.deepEqual(entries, ['run.json'], 'failed atomic replacement must remove its temporary file')
+} finally {
+  await fs.rm(runStoreFailureRoot, { recursive: true, force: true })
+}
+
+const startupRecoveryRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-startup-recovery-gate-'))
+const startupRecoveryConversationId = randomUUID()
+let startupRecoveryRun = {
+  runId: randomUUID(),
+  conversationId: startupRecoveryConversationId,
+  status: 'planning',
+  tasks: [{ id: 'T1', runId: 'startup-run', status: 'running', runStatus: 'running' }],
+}
+let releaseStartupRecovery
+let signalStartupRecovery
+const startupRecoveryGate = new Promise((resolve) => { releaseStartupRecovery = resolve })
+const startupRecoveryStarted = new Promise((resolve) => { signalStartupRecovery = resolve })
+let restoredStartupTasks = null
+const delayedRecoveryStore = {
+  async recoverIncompleteRuns() {
+    signalStartupRecovery()
+    await startupRecoveryGate
+    startupRecoveryRun = {
+      ...startupRecoveryRun,
+      status: 'interrupted',
+      tasks: startupRecoveryRun.tasks.map((task) => ({ ...task, status: 'interrupted', runStatus: 'interrupted' })),
+    }
+    return 1
+  },
+  async listConversationIds() { return [startupRecoveryConversationId] },
+  async listRuns() { return [startupRecoveryRun] },
+}
+const startupRecoveryService = createOrchestrationService({
+  modelService: { listCatalog: async () => ({ models: [] }) },
+  appState: {
+    async getConversationState() { return { tasks: [] } },
+    async setTasksForConversation(_conversationId, tasks) { restoredStartupTasks = tasks },
+  },
+  getWorkspacePath: async () => startupRecoveryRoot,
+  agentDataPath: startupRecoveryRoot,
+  userDataPath: startupRecoveryRoot,
+  getAppPreferences: async () => ({}),
+  dshRuntime: { runAgentTurn: async () => { throw new Error('startup recovery fixture must not start an Agent turn') } },
+  runStore: delayedRecoveryStore,
+})
+try {
+  const startupHistoryPromise = startupRecoveryService.listRuns(startupRecoveryConversationId)
+  await startupRecoveryStarted
+  let startupHistorySettled = false
+  startupHistoryPromise.then(
+    () => { startupHistorySettled = true },
+    () => { startupHistorySettled = true },
+  )
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.equal(startupHistorySettled, false, 'run history must wait for interrupted-run recovery to finish')
+  releaseStartupRecovery()
+  const startupHistory = await startupHistoryPromise
+  assert.equal(startupHistory[0]?.status, 'interrupted', 'the first history response must use recovered state')
+  assert.equal(restoredStartupTasks?.[0]?.status, 'interrupted', 'conversation task state must be restored before run history is exposed')
+} finally {
+  releaseStartupRecovery()
+  await fs.rm(startupRecoveryRoot, { recursive: true, force: true })
+}
 
 const timeouts = resolveNodeTimeouts('research')
 assert.equal(timeouts.timeoutMs, 10 * 60 * 1000)
@@ -78,7 +207,26 @@ await assert.rejects(
 )
 idleDeadline.dispose()
 
+const partialAbortController = new AbortController()
+const partialAbortTurn = new Promise((_resolve, reject) => {
+  partialAbortController.signal.addEventListener('abort', () => {
+    const error = new Error('mock turn stopped with partial output')
+    error.partialResult = { usage: { inputTokens: 3, outputTokens: 2 }, text: 'partial response' }
+    reject(error)
+  }, { once: true })
+})
+const partialAbortResult = waitForNodeTurn(partialAbortTurn, partialAbortController.signal)
+partialAbortController.abort()
+await assert.rejects(partialAbortResult, (error) =>
+  error.partialResult?.usage?.inputTokens === 3 && error.partialResult?.text === 'partial response',
+'a quickly settled aborted turn preserves its partial result for evidence and usage accounting')
+
 assert.equal(classifySubtaskFailure(Object.assign(new Error('idle'), { code: 'ETASK_IDLE_TIMEOUT' })).kind, 'timeout')
+const cancelledTimeout = new AbortController()
+cancelledTimeout.abort()
+assert.equal(classifySubtaskFailure(Object.assign(new Error('cancelled'), { code: 'ETASK_TIMEOUT' }), {
+  signal: cancelledTimeout.signal,
+}).kind, 'cancelled', 'explicit task cancellation takes precedence over timeout retry classification')
 assert.equal(shouldUpgradeFailedTask('research', { kind: 'timeout', retryable: true }), true,
   'read-only nodes can fail over after one timeout')
 
@@ -214,6 +362,57 @@ assert.equal(retryResult.modelKey, 'strong-model')
 assert.equal(retryResult.attempts, 1)
 assert.equal(attemptEvidence.length, 1)
 
+assert.equal(classifySubtaskFailure(Object.assign(new Error('typecheck failed'), {
+  code: 'EVERIFY_FAILED',
+  failureStage: 'verification',
+})).failureStage, 'verification', 'verification failures enter the bounded escalation classifier')
+
+let validationAttempt = 0
+let validationRetryAudit = null
+const validationRetry = await runWithSubtaskRetries({
+  task: { id: 'T-verify', taskType: 'implementation', title: '验证重试' },
+  initialModelKey: 'weak-model',
+  maxRetries: 2,
+  run: async (modelKey) => ({ text: `result from ${modelKey}` }),
+  validate: async (result, { attempt }) => {
+    validationAttempt = attempt
+    if (attempt === 1) {
+      const error = new Error('pnpm run typecheck exited 1: TS2322')
+      error.code = 'EVERIFY_FAILED'
+      error.failureStage = 'verification'
+      error.evidenceBundle = {
+        failed_tests: [{ command: 'pnpm run typecheck', exit_code: 1, output: 'TS2322' }],
+      }
+      error.partialResult = result
+      throw error
+    }
+  },
+  chooseModel: async ({ evidenceBundle, failureCount, previousModelKey }) => {
+    assert.equal(previousModelKey, 'weak-model')
+    assert.equal(failureCount, 1)
+    assert.equal(evidenceBundle.failed_tests[0].command, 'pnpm run typecheck')
+    assert.equal(evidenceBundle.failed_tests[0].exit_code, 1)
+    return { modelKey: 'strong-model', reason: 'strict tier escalation' }
+  },
+  onRetry: async ({ previousModelKey, failureCount }) => {
+    validationRetryAudit = { previousModelKey, failureCount }
+  },
+})
+assert.equal(validationAttempt, 2)
+assert.equal(validationRetry.modelKey, 'strong-model')
+assert.deepEqual(validationRetryAudit, { previousModelKey: 'weak-model', failureCount: 1 })
+
+let nonRetryableValidationRouteCalls = 0
+await assert.rejects(runWithSubtaskRetries({
+  task: { id: 'T-verify-permission', taskType: 'implementation', title: '权限失败' },
+  initialModelKey: 'weak-model',
+  maxRetries: 2,
+  run: async () => ({ text: 'partial' }),
+  validate: async () => { throw Object.assign(new Error('permission denied'), { code: 'EACCES' }) },
+  chooseModel: async () => { nonRetryableValidationRouteCalls += 1; return { modelKey: 'strong-model' } },
+}), (error) => error.code === 'EACCES')
+assert.equal(nonRetryableValidationRouteCalls, 0, 'permission failures from validation never trigger model escalation')
+
 const threeTierCatalog = { models: [
   { key: 'cheap', name: 'Cheap', available: true, profile: { tier: 'cheap', enabledForAllocation: true }, costPerMillion: { input: 0, output: 0 } },
   { key: 'balanced', name: 'Balanced', available: true, profile: { tier: 'balanced', enabledForAllocation: true }, costPerMillion: { input: 0, output: 0 } },
@@ -302,6 +501,14 @@ try {
 const recoveryStore = new RunStore({ agentDataPath })
 const recoveryConversationId = randomUUID()
 const recoveryRunId = randomUUID()
+const planningRunId = randomUUID()
+await recoveryStore.saveRun(recoveryConversationId, planningRunId, {
+  status: 'planning',
+  tasks: [],
+})
+assert.equal(await recoveryStore.recoverIncompleteRuns(), 1,
+  'a crash during initial DAG planning is recovered even when no child tasks have been written yet')
+assert.equal((await recoveryStore.loadRun(recoveryConversationId, planningRunId)).status, 'interrupted')
 await recoveryStore.saveRun(recoveryConversationId, recoveryRunId, {
   status: 'paused',
   tasks: [
@@ -341,6 +548,24 @@ const worktree = await createNodeWorktree({
   userDataPath,
   baseCommit: null,
 })
+const resumedWriter = { id: taskId, taskType: 'implementation', title: 'resumed writer', dependsOn: [] }
+const resumedRegistry = createNodeWorkspaceRegistry({
+  enabled: true,
+  workspacePath: repo,
+  conversationId,
+  runId: randomUUID(),
+  userDataPath,
+  tasks: [resumedWriter],
+  resumeTaskRunIds: new Map([[taskId, runId]]),
+})
+const resumedWorktree = await resumedRegistry.create(resumedWriter)
+assert.equal(resumedWorktree.path, worktree.path, 'checkpoint retry operations use the existing source-run worktree')
+await fs.writeFile(path.join(resumedWorktree.path, 'retry-partial.txt'), 'failed attempt\n')
+const resumedEvidence = await resumedRegistry.captureFailureEvidence(resumedWriter, { startCommit: resumedWorktree.startCommit })
+assert.ok(resumedEvidence.related_files.includes('retry-partial.txt'), 'retry evidence is read from the checkpoint worktree')
+await resumedRegistry.reset(resumedWriter, { startCommit: resumedWorktree.startCommit })
+await assert.rejects(fs.access(path.join(resumedWorktree.path, 'retry-partial.txt')), { code: 'ENOENT' },
+  'retry cleanup resets the checkpoint worktree before the next attempt')
 const taskForFollowup = {
   id: taskId,
   runId,
@@ -445,37 +670,6 @@ assert.equal(layered[0].y, layered[2].y, 'independent nodes share a DAG layer')
 assert.ok(layered[1].y > layered[0].y, 'dependent nodes render below their prerequisites')
 assert.ok(layered[3].y > layered[2].y)
 
-const csv = buildOrchestrationTraceCsv([{
-  id: 'T-csv',
-  runId,
-  title: '=HYPERLINK("https://invalid")',
-  taskType: 'implementation',
-  status: 'done',
-  statusLabel: '已完成',
-  duration: '1.2s',
-  durationMs: 1200,
-  startedAt: '2026-10-10T00:00:00.000Z',
-  endedAt: '2026-10-10T00:00:01.200Z',
-  routeReason: 'strong tier',
-  dependsOn: [],
-  messages: [],
-  usageSummary: {
-    attempts: 2,
-    inputTokens: 16,
-    outputTokens: 14,
-    cacheReadTokens: 0,
-    cacheWriteTokens: 0,
-    costUsd: 0.03,
-    byModel: [
-      { modelKey: 'model-a', attempts: 1, inputTokens: 12, outputTokens: 8, costUsd: 0.02 },
-      { modelKey: 'model-b', attempts: 1, inputTokens: 4, outputTokens: 6, costUsd: 0.01 },
-    ],
-  },
-}])
-assert.equal((csv.match(/T-csv/g) ?? []).length, 2, 'CSV has one row per model cost contribution')
-assert.match(csv, /'=HYPERLINK/)
-assert.match(csv, /"1200"/)
-
 await fs.rm(tempRoot, { recursive: true, force: true })
 
-console.log('P11.3–P11.4 and P11.14 focused checks passed: retries, timeout, run trace, usage totals, layered layout, and CSV export')
+console.log('P11.3–P11.4 and P11.14 focused checks passed: retries, timeout, run trace, usage totals, and layered layout')

@@ -3,6 +3,7 @@ export {
   openCodexEnvironment,
   runOcx,
   exportFromOcx,
+  exportAntigravityCatalogFromOcx,
   exportPiConfigJson,
   modelSourceNamespace,
   startOcxProviderLogin,
@@ -35,9 +36,11 @@ export {
   enrichScannedBridgeModels,
   formatScanLocalIpcResult,
   bootstrapModelSyncOnAppReady,
+  bootstrapWorkBuddyOnAppReady,
   bootstrapBridgeOnAppReady,
   getBridgeLoginStatus,
   readBridgeStatusFromDisk,
   startProviderLogin,
 } from './scan-local.mjs'
 export { BACKGROUND_EXPORT_MAX_AGE_MS, hasFreshExportSnapshot, probeLegacyOcxProxy } from './background-scan-policy.mjs'
+export { detectWorkBuddyInstallations } from './workbuddy-installation.mjs'

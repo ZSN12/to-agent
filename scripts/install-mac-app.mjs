@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
+import { findRunningTaskWeaverPids } from './macos/install-process-guard.mjs'
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -38,6 +39,19 @@ const systemApps = '/Applications/TaskWeaver.app'
 const userApps = path.join(process.env.HOME ?? '', 'Applications', 'TaskWeaver.app')
 
 function installTo(dest) {
+  if (process.platform === 'darwin') {
+    const processList = spawnSync('/bin/ps', ['-axo', 'pid=,command='], { encoding: 'utf8' })
+    if (processList.error || processList.status !== 0) {
+      throw new Error(`无法确认 TaskWeaver 是否仍在运行：${processList.error?.message ?? processList.stderr ?? 'ps failed'}`)
+    }
+    const runningPids = findRunningTaskWeaverPids(processList.stdout)
+    if (runningPids.length) {
+      throw new Error(
+        `检测到 TaskWeaver 仍在运行（PID ${runningPids.join(', ')}）。请先完全退出应用，再重新安装，避免旧后端遗留并占用本地端口。`,
+      )
+    }
+  }
+
   const parent = path.dirname(dest)
   fs.mkdirSync(parent, { recursive: true })
   const stamp = new Date().toISOString().replace(/[-:TZ.]/g, '').slice(0, 14)

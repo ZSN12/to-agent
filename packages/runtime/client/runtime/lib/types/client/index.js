@@ -13,7 +13,7 @@ export { indexSubagentDescendants } from "./sessions/subagent-lineage.js";
 // The channel owns runtime session-data materialization.
 export { SessionProvideChannel } from "./sessions/provide.js";
 export { createScope } from "./agents/scope.js";
-export { DirectoryBrowseError, WorkspaceCreateError, WorkspaceRuntime } from "./workspaces/service.js";
+export { WorkspaceCreateError, WorkspaceRuntime } from "./workspaces/service.js";
 export { abbreviateHomePath, resolveWorkspacePath } from "./workspaces/path.js";
 // Runtime owns the data store and its observable snapshot contract.
 export { createSnapshotStore } from "./contract/store.js";

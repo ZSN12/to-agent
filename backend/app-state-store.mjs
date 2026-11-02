@@ -1,8 +1,8 @@
 import path from 'node:path'
 import { createJsonStore } from './json-store.mjs'
 import { createThreadStore } from './thread-store.mjs'
+import { DEFAULT_THREAD_TITLE, titleFromMessage } from './thread-title.mjs'
 import {
-  MESSAGE_TITLE_MAX_LENGTH,
   LOG_ID_MAX_LENGTH,
   TOOL_NAME_MAX_LENGTH,
   TASK_ID_MAX_LENGTH,
@@ -14,7 +14,7 @@ import {
 const DEFAULT_STATE = () => ({
   workspacePath: null,
   conversationId: null,
-  threadTitle: '新对话',
+  threadTitle: DEFAULT_THREAD_TITLE,
   permissionMode: 'ask',
   messages: [],
   tasks: [],
@@ -37,12 +37,6 @@ function toAppState(threadState) {
   }
 }
 
-function titleFromMessage(text) {
-  const compact = String(text ?? '').replace(/\s+/g, ' ').trim()
-  if (!compact) return '新对话'
-  return compact.length > MESSAGE_TITLE_MAX_LENGTH ? `${compact.slice(0, MESSAGE_TITLE_MAX_LENGTH)}…` : compact
-}
-
 /** App-facing state adapter over a local multi-thread store. */
 export function createAppStateStore(userDataPath, fallbackWorkspace) {
   const legacyStore = createJsonStore(path.join(userDataPath, 'taskweaver-app-state.json'), () => ({
@@ -55,6 +49,10 @@ export function createAppStateStore(userDataPath, fallbackWorkspace) {
   async function ensureInitialized() {
     if (!initialization) {
       initialization = (async () => {
+        if (await threadStore.isInitialized()) {
+          await threadStore.initialize()
+          return
+        }
         const legacy = await legacyStore.read()
         await threadStore.initialize(legacy)
       })()
@@ -91,9 +89,9 @@ export function createAppStateStore(userDataPath, fallbackWorkspace) {
       await ensureInitialized()
       return toAppState(await threadStore.switchThread(threadId))
     },
-    async renameThread(threadId, title) {
+    async renameThread(threadId, title, options) {
       await ensureInitialized()
-      return threadStore.renameThread(threadId, title)
+      return threadStore.renameThread(threadId, title, options)
     },
     async togglePinThread(threadId) {
       await ensureInitialized()
@@ -160,8 +158,8 @@ export function createAppStateStore(userDataPath, fallbackWorkspace) {
       return toAppState(await threadStore.updateCurrent((thread) => {
         const messages = [...thread.messages, ...entries]
         const firstUserMessage = messages.find((message) => message.author === 'user')
-        const title = thread.title === '新对话' && firstUserMessage ? titleFromMessage(firstUserMessage.text) : thread.title
-        return { messages, title }
+        const title = thread.titleSource === 'default' && firstUserMessage ? titleFromMessage(firstUserMessage.text) : thread.title
+        return { messages, title, ...(title !== DEFAULT_THREAD_TITLE ? { titleSource: 'automatic' } : {}) }
       }))
     },
     async appendMessagesToConversation(conversationId, ...entries) {
@@ -169,8 +167,8 @@ export function createAppStateStore(userDataPath, fallbackWorkspace) {
       return toAppState(await threadStore.updateConversation(conversationId, (thread) => {
         const messages = [...thread.messages, ...entries]
         const firstUserMessage = messages.find((message) => message.author === 'user')
-        const title = thread.title === '新对话' && firstUserMessage ? titleFromMessage(firstUserMessage.text) : thread.title
-        return { messages, title }
+        const title = thread.titleSource === 'default' && firstUserMessage ? titleFromMessage(firstUserMessage.text) : thread.title
+        return { messages, title, ...(title !== DEFAULT_THREAD_TITLE ? { titleSource: 'automatic' } : {}) }
       }))
     },
     async upsertMessagesToConversation(conversationId, ...entries) {

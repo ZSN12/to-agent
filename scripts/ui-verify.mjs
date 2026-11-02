@@ -109,7 +109,7 @@ async function runScenario(name, UiVerifySession, artifactsRoot) {
   const artifactsDir = path.join(artifactsRoot, name)
   let session
   try {
-    session = await UiVerifySession.launch({ root, artifactsDir })
+    session = await UiVerifySession.launch({ root, artifactsDir, scenario: name })
   } catch (error) {
     // Keep an uploadable record even when Electron exits before producing a
     // Playwright page. In that case screenshot/ARIA evidence is unavailable,

@@ -315,14 +315,19 @@ try {
   assert.match(atLimit.prompt, /文件引用：at-inline-limit\.txt/)
   assert.doesNotMatch(atLimit.prompt, /b{100}/, 'the 4 KiB boundary is exclusive')
 
-  const composerSource = await fs.readFile(new URL('../src/features/composer/Composer.tsx', import.meta.url), 'utf8')
-  const insertStart = composerSource.indexOf('const insertReference =')
-  const insertEnd = composerSource.indexOf('const openContextMenu =', insertStart)
-  assert.ok(insertStart >= 0 && insertEnd > insertStart, 'Composer provides an @ context completion insertion function')
-  const insertReferenceSource = composerSource.slice(insertStart, insertEnd)
+  const autocompleteSource = await fs.readFile(new URL('../src/features/composer/useComposerAutocomplete.ts', import.meta.url), 'utf8')
+  const insertStart = autocompleteSource.indexOf('const insertReference =')
+  const insertEnd = autocompleteSource.indexOf('const chooseRoleMention =', insertStart)
+  assert.ok(insertStart >= 0 && insertEnd > insertStart, 'the composer autocomplete hook provides an @ context completion insertion function')
+  const insertReferenceSource = autocompleteSource.slice(insertStart, insertEnd)
   assert.match(insertReferenceSource, /reference\.path/)
   assert.doesNotMatch(insertReferenceSource, /readFile|read_document|reference\.content/,
     'Composer @ completion inserts path tokens without reading file bodies')
+  const composerSource = await fs.readFile(new URL('../src/features/composer/Composer.tsx', import.meta.url), 'utf8')
+  assert.match(composerSource, /onChooseContext=\{insertReference\}/,
+    'Composer connects the hook insertion function to the visible @ completion menu')
+  assert.match(composerSource, /onInsertReference: \(ref\) => insertReference\(ref\)/,
+    'document attachment flows reuse the same @ context token insertion function')
   const fileReferencePrompt = await fs.readFile(new URL('../packages/runtime/context/file-reference/src/index.ts', import.meta.url), 'utf8')
   assert.match(fileReferencePrompt, /Use the read tool when their contents are needed/,
     'the DSH file-reference prompt directs models to the sandboxed read tool on demand')

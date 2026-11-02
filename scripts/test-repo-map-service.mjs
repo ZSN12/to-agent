@@ -7,6 +7,7 @@ import {
   scanWorkspaceFiles,
   scanWorkspaceFilesDetailed,
   computePageRank,
+  fitRepoMapLinesToBudget,
   estimateTokens,
   clearRepoMapCache,
   getRepoMapCacheSize,
@@ -63,6 +64,15 @@ function referencePageRank(fileNodes, { damping = 0.85, iterations = 20 } = {}) 
     ranks = nextRanks
   }
   return ranks
+}
+
+function referenceFitRepoMapLinesToBudget(lines, notice, maxTokens) {
+  const keptLines = [...lines]
+  while (keptLines.length > 0 && estimateTokens([...keptLines, notice].join('\n')) > maxTokens) {
+    keptLines.pop()
+  }
+  if (estimateTokens(notice) <= maxTokens) keptLines.push(notice)
+  return keptLines.join('\n')
 }
 
 try {
@@ -198,6 +208,9 @@ export class InvoiceManager {
   assert.equal(broadInventory.truncated, true, '检测到额外候选文件后标记截断')
   assert.ok(broadInventory.files.some((file) => file.relativePath === 'backend/entry.ts'),
     '广度优先遍历应覆盖其他根目录后再深入密集分支')
+  const defaultBroadInventory = await scanWorkspaceFilesDetailed(broadWorkspace)
+  assert.equal(defaultBroadInventory.files.length, 1002, '默认文件预算应覆盖超过旧 1000 上限的工作区')
+  assert.equal(defaultBroadInventory.truncated, false, '默认预算足够时不能误报部分索引')
   const entryBoundInventory = await scanWorkspaceFilesDetailed(broadWorkspace, { maxFiles: 100, maxEntries: 1 })
   assert.equal(entryBoundInventory.files.length, 0)
   assert.equal(entryBoundInventory.truncated, true, '目录项上限也必须标记未完成的库存扫描')
@@ -228,6 +241,16 @@ export class InvoiceManager {
   assert.match(tokenTruncatedMap, /output hit the 30-token limit/)
   assert.ok(estimateTokens(tokenTruncatedMap) <= 30)
 
+  const budgetLines = ['src/auth.ts: AuthService | TokenHelper', 'src/国际化.ts: 用户 | かな | 한글', '', '𠀀: supplementary Han']
+  const budgetNotice = '[Repo Map partial: output hit the token limit.]'
+  for (let maxTokens = 1; maxTokens <= 80; maxTokens += 1) {
+    assert.equal(
+      fitRepoMapLinesToBudget(budgetLines, budgetNotice, maxTokens),
+      referenceFitRepoMapLinesToBudget(budgetLines, budgetNotice, maxTokens),
+      `linear prefix fitting must preserve legacy output at ${maxTokens} tokens`,
+    )
+  }
+
   // 验证 PageRank 计算
   const fileNodes = [
     { relativePath: 'auth.ts', defs: new Set(['AuthService']), refs: new Set(['UserModel', 'TokenHelper', 'Logger']) },
@@ -245,10 +268,19 @@ export class InvoiceManager {
     { relativePath: 'src/tokens.ts', defs: new Set(['TokenStore']), refs: new Set(['Shared']) },
     { relativePath: 'src/isolated.ts', defs: new Set(['Self']), refs: new Set(['Self']) },
   ]
-  const optimizedRanks = computePageRank(graphCases)
+  const fixedIterationRanks = computePageRank(graphCases, { tolerance: 0 })
   const referenceRanks = referencePageRank(graphCases)
   for (const [relativePath, rank] of referenceRanks) {
-    assert.ok(Math.abs(optimizedRanks.get(relativePath) - rank) < 1e-12, `优化后的 PageRank 必须保持 ${relativePath} 的原有结果`)
+    assert.ok(Math.abs(fixedIterationRanks.get(relativePath) - rank) < 1e-12, `禁用早停时 PageRank 必须保持 ${relativePath} 的原有结果`)
+  }
+  const convergedRanks = computePageRank(graphCases)
+  const fixedIterationReference = referencePageRank(graphCases)
+  const highPrecisionReference = referencePageRank(graphCases, { iterations: 200 })
+  for (const [relativePath, rank] of fixedIterationReference) {
+    assert.ok(Math.abs(convergedRanks.get(relativePath) - rank) < 1e-8, `PageRank 早停必须保持 ${relativePath} 的 20 轮结果精度`)
+  }
+  for (const [relativePath, rank] of highPrecisionReference) {
+    assert.ok(Math.abs(convergedRanks.get(relativePath) - rank) < 2e-6, `PageRank 必须保持 ${relativePath} 的原始收敛精度`)
   }
   console.log('✓ Case 2: 基础地图生成与 PageRank 计算验证通过')
 
@@ -320,7 +352,7 @@ export class InvoiceManager {
   const outlineCacheFiles = await fs.readdir(outlineCacheDirectory)
   assert.equal(outlineCacheFiles.length, 1, '每个工作区使用一个有界缓存文件')
   const outlineCacheDoc = JSON.parse(await fs.readFile(path.join(outlineCacheDirectory, outlineCacheFiles[0]), 'utf8'))
-  assert.equal(outlineCacheDoc.schema, 2)
+  assert.equal(outlineCacheDoc.schema, 3)
   assert.ok(outlineCacheDoc.files.length > 0)
   assert.ok(outlineCacheDoc.files.every((item) => !Object.hasOwn(item, 'content')),
     '持久化缓存只保存路径元数据、符号与引用，不保存文件全文')
@@ -379,6 +411,38 @@ export class InvoiceManager {
   // 恢复默认
   setSymbolOutlineExtractor(null)
   console.log('✓ Case 6: 符号提取器注入与 precomputedSymbols 验证通过')
+
+  // Unsupported code languages remain discoverable through identifiers, with
+  // an explicit instruction to switch to grep/read for exact source evidence.
+  const unsupportedWorkspace = path.join(tempRoot, 'unsupported-symbols')
+  await fs.mkdir(path.join(unsupportedWorkspace, 'Sources'), { recursive: true })
+  await fs.writeFile(path.join(unsupportedWorkspace, 'Sources', 'App.swift'), `
+public final class RuntimeController {
+  public func prepare(configuration: RuntimeConfiguration) async throws {}
+}
+`)
+  await fs.writeFile(path.join(unsupportedWorkspace, 'Sources', 'legacy.rb'), `
+def launchFrostedBackend(configuration)
+  configureFrostedBackend(configuration)
+end
+`)
+  await fs.writeFile(path.join(unsupportedWorkspace, 'README.md'), '# Local architecture guide\n')
+  const swiftMap = await generateRepoMap(unsupportedWorkspace, {
+    query: 'RuntimeController prepare',
+    maxTokens: 1000,
+  })
+  assert.match(swiftMap, /Sources\/App\.swift: class RuntimeController/)
+  assert.match(swiftMap, /prepare\(\.\.\.\)/, 'Swift member symbols participate in Repo Map query ranking')
+  assert.doesNotMatch(swiftMap, /Sources\/App\.swift: [^\n]*符号索引未支持/, 'supported Swift files receive a symbol outline')
+
+  const unsupportedMap = await generateRepoMap(unsupportedWorkspace, {
+    query: 'launchFrostedBackend',
+    maxTokens: 1000,
+  })
+  assert.match(unsupportedMap, /Sources\/legacy\.rb/)
+  assert.match(unsupportedMap, /符号索引未支持；请用 grep\/read 搜索源码/)
+  assert.match(unsupportedMap, /README\.md/)
+  assert.doesNotMatch(unsupportedMap, /README\.md: \[符号索引未支持/)
 
   // Case 8: 边界情况（空目录、极端字符、零预算等）
   const emptyDir = path.join(tempRoot, 'empty')

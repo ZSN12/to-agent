@@ -13,6 +13,7 @@ export function registerChatIpc(ctx) {
     dialog,
     skills,
     chat,
+    roleChatService,
     orchestration,
     conversationHub,
     resolveIpcConversationId,
@@ -61,9 +62,12 @@ export function registerChatIpc(ctx) {
   ipcHandle(ipcMain, 'chat:cancel', async (_event, requestedConversationId) => {
     const conversationId = await resolveIpcConversationId(requestedConversationId)
     if (!conversationId) return { stopped: false }
+    const verificationStopped = chatTurnPipeline?.abortVerification?.(conversationId) === true
+    const rolesStopped = roleChatService?.abort?.(conversationId) === true
+    if (rolesStopped) await roleChatService?.waitForAbort?.(conversationId)
     const chatStopped = await chat.abort(conversationId)
     const orchestrationStopped = await orchestration.abort(conversationId)
-    return { stopped: chatStopped || orchestrationStopped }
+    return { stopped: verificationStopped || rolesStopped || chatStopped || orchestrationStopped }
   })
 
   ipcHandle(ipcMain, 'chat:queueMutate', async (event, payload) => {
@@ -119,6 +123,30 @@ export function registerChatIpc(ctx) {
     const id = await resolveIpcConversationId(requestedConversationId)
     if (!id) return null
     return conversationHub.getView(id)
+  })
+
+  ipcHandle(ipcMain, 'chat:classifyOrchestration', async (_event, request) => {
+    if (!request || typeof request !== 'object' || typeof request.text !== 'string') {
+      throw new Error('任务复杂度判定请求无效')
+    }
+    let skillRequiresDag = false
+    const skillName = typeof request.skillName === 'string' ? request.skillName.trim() : ''
+    if (skillName) {
+      const conversationId = await resolveIpcConversationId(request.conversationId)
+      const runtimeContext = await getConversationRuntimeContext(conversationId)
+      const availableSkills = await skills.list({
+        workspacePath: runtimeContext.workspacePath,
+        workspaceTrusted: runtimeContext.workspaceTrusted,
+      })
+      skillRequiresDag = Array.isArray(availableSkills)
+        && availableSkills.some((skill) => skill?.name === skillName && skill?.multiAgent === true)
+    }
+    return orchestration.classifyExecutionMode({
+      text: request.text,
+      workMode: request.workMode,
+      executionModeOverride: request.executionModeOverride,
+      skillRequiresDag,
+    })
   })
 
   ipcHandle(ipcMain, 'chat:getToolOutput', async (_event, payload) => {
@@ -181,6 +209,7 @@ export function registerChatIpc(ctx) {
   ipcHandle(ipcMain, 'chat:listRunningConversations', async () => {
     const ids = new Set([
       ...chat.listRunningConversationIds(),
+      ...(roleChatService?.listRunningConversationIds?.() ?? []),
       ...orchestration.listRunningConversationIds(),
       ...[...turnInProgressByConversation.entries()].filter(([, busy]) => busy).map(([id]) => id),
     ])

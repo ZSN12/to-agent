@@ -65,6 +65,9 @@ export declare class JsonlSessionPersistence extends SessionPersistence implemen
     private compression;
     private coordinator;
     private rootEncodingCheck;
+    private snapshotCatalog;
+    private snapshotCatalogGeneration;
+    private snapshotCatalogCommittedGeneration;
     constructor(ctx: Context, config: Config);
     /** Resolve the absolute target path without touching the filesystem. */
     locate(meta: SessionHeader): SessionLocation;
@@ -127,6 +130,10 @@ export declare class JsonlSessionPersistence extends SessionPersistence implemen
     /** List metadata plus a stat-derived identity for each append-only log. */
     listSnapshots(signal?: AbortSignal): Promise<SessionPersistenceSnapshot[]>;
     private listArtifacts;
+    /** Read one stable header, retrying if a cross-process writer changes the file mid-read. */
+    private readStableSnapshotHeader;
+    private statDirectory;
+    private readStableDirectoryEntries;
     /** Atomically write the header line + first batch (temp-write, fsync, publish). */
     private materialize;
     private materializePosix;

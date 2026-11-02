@@ -46,6 +46,29 @@ export default defineConfig({
   plugins: [react(), electronHtmlPlugin()],
   build: {
     modulePreload: false,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          const normalized = id.replace(/\\/g, '/')
+          if (normalized.includes('/node_modules/')) {
+            if (
+              normalized.includes('/node_modules/react/') ||
+              normalized.includes('/node_modules/react-dom/') ||
+              normalized.includes('/node_modules/scheduler/')
+            ) {
+              return 'vendor-react'
+            }
+            if (normalized.includes('/node_modules/lucide-react/')) {
+              return 'vendor-icons'
+            }
+            if (normalized.includes('/node_modules/@xterm/')) {
+              return 'vendor-terminal'
+            }
+            return 'vendor-ui'
+          }
+        },
+      },
+    },
     ...(configuredOutDir ? { outDir: configuredOutDir, emptyOutDir: false } : {}),
   },
   server: {

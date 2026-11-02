@@ -2,87 +2,25 @@ import { FileCode } from 'lucide-react'
 import { useMemo } from 'react'
 import type { ToolTraceItem } from '../../shared/app-api'
 import type { ModifiedFileSummary } from '../../types'
-import { resolveToolFilePath } from './tool-path'
-
-interface ChangedFile {
-  path: string
-  openPath: string | null
-  addedLines: number
-  deletedLines: number
-  statsComplete: boolean
-  isNewFile: boolean
-}
-
-function workspaceDisplayPath(filePath: string, workspacePath?: string | null): { path: string; openPath: string | null } {
-  const normalized = filePath.replace(/\\/g, '/')
-  const root = workspacePath?.replace(/\\/g, '/').replace(/\/$/, '')
-  if (root && normalized.toLocaleLowerCase().startsWith(`${root}/`.toLocaleLowerCase())) {
-    const relative = normalized.slice(root.length + 1)
-    if (relative.split('/').includes('..')) return { path: normalized, openPath: null }
-    return { path: relative, openPath: relative }
-  }
-  if (/^(?:[A-Za-z]:\/|\/)/.test(normalized)) return { path: normalized, openPath: null }
-  const relative = normalized.replace(/^\.\//, '')
-  return { path: relative, openPath: relative && !relative.split('/').includes('..') ? relative : null }
-}
+import { collectChangedFiles, type ChangedFileItem } from './changed-files'
 
 export function ChangedFilesSummary({
   traces,
   fileChanges,
   workspacePath,
   onOpenWorkspacePath,
+  onOpenReview,
   compactListOnly = false,
 }: {
   traces?: readonly ToolTraceItem[]
   fileChanges?: readonly ModifiedFileSummary[]
   workspacePath?: string | null
   onOpenWorkspacePath?: (relativePath: string) => void
+  onOpenReview?: (file: ChangedFileItem) => void
   /** When true, hide the summary chip (TurnActivitySummaryRow owns the one-liner). */
   compactListOnly?: boolean
 }) {
-  const files = useMemo(() => {
-    const byPath = new Map<string, ChangedFile>()
-    if (fileChanges?.length) {
-      for (const change of fileChanges) {
-        const resolved = workspaceDisplayPath(change.path, workspacePath)
-        byPath.set(resolved.path.toLocaleLowerCase(), {
-          path: resolved.path,
-          openPath: resolved.openPath,
-          addedLines: change.addedLines ?? 0,
-          deletedLines: change.deletedLines ?? 0,
-          statsComplete: typeof change.addedLines === 'number' && typeof change.deletedLines === 'number',
-          isNewFile: change.isNewFile === true,
-        })
-      }
-      return Array.from(byPath.values())
-    }
-    for (const trace of traces ?? []) {
-      if (trace.status !== 'done' || !['edit', 'write', 'str_replace_editor'].includes(trace.toolName) || !trace.fileDiff) continue
-      const fullPath = resolveToolFilePath(trace)
-      if (!fullPath) continue
-      const resolved = workspaceDisplayPath(fullPath, workspacePath)
-      const key = resolved.path.toLocaleLowerCase()
-      const existing = byPath.get(key)
-      const hasCounts = typeof trace.fileDiff?.addedLines === 'number'
-        && typeof trace.fileDiff?.deletedLines === 'number'
-      const file: ChangedFile = existing ?? {
-        path: resolved.path,
-        openPath: resolved.openPath,
-        addedLines: 0,
-        deletedLines: 0,
-        statsComplete: true,
-        isNewFile: false,
-      }
-      file.statsComplete &&= hasCounts
-      if (hasCounts) {
-        file.addedLines += trace.fileDiff!.addedLines!
-        file.deletedLines += trace.fileDiff!.deletedLines!
-      }
-      file.isNewFile ||= trace.fileDiff?.isNewFile === true
-      byPath.set(key, file)
-    }
-    return Array.from(byPath.values())
-  }, [traces, fileChanges, workspacePath])
+  const files = useMemo(() => collectChangedFiles(traces, fileChanges, workspacePath), [traces, fileChanges, workspacePath])
 
   if (!files.length) return null
   const complete = files.every((file) => file.statsComplete)
@@ -106,9 +44,12 @@ export function ChangedFilesSummary({
               <button
                 type="button"
                 className="changed-files-path"
-                disabled={!file.openPath || !onOpenWorkspacePath}
+                disabled={!onOpenReview && (!file.openPath || !onOpenWorkspacePath)}
                 title={file.path}
-                onClick={() => file.openPath && onOpenWorkspacePath?.(file.openPath)}
+                onClick={() => {
+                  if (onOpenReview) onOpenReview(file)
+                  else if (file.openPath) onOpenWorkspacePath?.(file.openPath)
+                }}
               >
                 {file.path}
               </button>
@@ -121,7 +62,6 @@ export function ChangedFilesSummary({
               </div>
             </div>
           ))}
-          <p className="changed-files-note">行数按本轮 edit/write 工具返回的 diff 累计；不等同于 Git 工作区净差异。</p>
         </div>
       </details>
     )
@@ -146,9 +86,12 @@ export function ChangedFilesSummary({
             <button
               type="button"
               className="changed-files-path"
-              disabled={!file.openPath || !onOpenWorkspacePath}
+              disabled={!onOpenReview && (!file.openPath || !onOpenWorkspacePath)}
               title={file.path}
-              onClick={() => file.openPath && onOpenWorkspacePath?.(file.openPath)}
+              onClick={() => {
+                if (onOpenReview) onOpenReview(file)
+                else if (file.openPath) onOpenWorkspacePath?.(file.openPath)
+              }}
             >
               {file.path}
             </button>
@@ -161,7 +104,6 @@ export function ChangedFilesSummary({
             </div>
           </div>
         ))}
-        <p className="changed-files-note">行数按本轮 edit/write 工具返回的 diff 累计；不等同于 Git 工作区净差异。</p>
       </div>
     </details>
   )

@@ -2,13 +2,21 @@
  * Map discovery export into `taskweaver-bridge` entries in taskweaver/models.json.
  */
 import fs from 'node:fs/promises'
-import path from 'node:path'
+import { writeJsonAtomically } from '../atomic-json.mjs'
 import { TASKWEAVER_BRIDGE_API } from '../taskweaver-bridge-models.mjs'
 import { modelSourceNamespace } from './ocx-cli.mjs'
 import { applyOpenCodexDshReasoningOverlay } from './overlay.mjs'
 import { BRIDGE_EXPORT_MAPPINGS, LOCAL_AGENT_INTEGRATIONS } from './local-agent-registry.mjs'
+import { taskweaverApiKeyEnvRef } from '../pi-models-to-dsh-profile.mjs'
 
 export { BRIDGE_EXPORT_MAPPINGS, LOCAL_AGENT_INTEGRATIONS }
+
+// Keep this list aligned with the matching wire model suffixes in the
+// Node-native Antigravity adapter. Tests assert that every exposed level routes.
+const ANTIGRAVITY_MODEL_REASONING = Object.freeze({
+  'gemini-3.8-flash': Object.freeze({ efforts: ['low', 'medium', 'high'], default: 'medium' }),
+  'gemini-3.1-pro': Object.freeze({ efforts: ['low', 'high'], default: 'high' }),
+})
 
 function copyModelEntry(entry) {
   if (!entry || typeof entry !== 'object' || entry.isTierVariant) return null
@@ -18,6 +26,12 @@ function copyModelEntry(entry) {
   if (Number.isInteger(entry.contextWindow) && entry.contextWindow > 0) row.contextWindow = entry.contextWindow
   if (Number.isInteger(entry.maxTokens) && entry.maxTokens > 0) row.maxTokens = entry.maxTokens
   if (entry.reasoning === true) row.reasoning = true
+  if (Array.isArray(entry.reasoningEfforts)) row.reasoningEfforts = [...entry.reasoningEfforts]
+  if (Array.isArray(entry.inputModalities)) row.inputModalities = [...entry.inputModalities]
+  if (entry.antigravityEffortWireModelIds && typeof entry.antigravityEffortWireModelIds === 'object') {
+    row.antigravityEffortWireModelIds = entry.antigravityEffortWireModelIds
+  }
+  if (typeof entry.wireModelId === 'string') row.wireModelId = entry.wireModelId
   if (entry.thinkingLevelMap && typeof entry.thinkingLevelMap === 'object') row.thinkingLevelMap = entry.thinkingLevelMap
   if (typeof entry.defaultThinkingLevel === 'string') row.defaultThinkingLevel = entry.defaultThinkingLevel
   if (entry.compat && typeof entry.compat === 'object') row.compat = entry.compat
@@ -47,6 +61,28 @@ function pickAntigravityExtras(block) {
   return extras
 }
 
+function withAntigravityReasoning(entry, modelId) {
+  const capability = ANTIGRAVITY_MODEL_REASONING[modelId]
+  if (!capability) return entry
+
+  const efforts = capability.efforts
+  const thinkingLevelMap = Object.fromEntries(efforts.map((effort) => {
+    const exportedValue = entry.thinkingLevelMap?.[effort]
+    return [effort, typeof exportedValue === 'string' && exportedValue.trim() ? exportedValue.trim() : effort]
+  }))
+  const exportedDefault = String(entry.defaultThinkingLevel ?? '').trim().toLowerCase()
+  const defaultThinkingLevel = efforts.includes(exportedDefault)
+    ? exportedDefault
+    : capability.default
+
+  return {
+    ...entry,
+    reasoning: true,
+    thinkingLevelMap,
+    defaultThinkingLevel,
+  }
+}
+
 function stableValue(value) {
   if (Array.isArray(value)) return value.map(stableValue)
   if (value && typeof value === 'object') {
@@ -65,12 +101,41 @@ export function bridgeProviderBlocksFromExport(exportDoc) {
   const providers = exportDoc?.providers ?? {}
   const out = {}
   for (const mapping of LOCAL_AGENT_INTEGRATIONS) {
+    if (mapping.bridgeKind === 'openai-compat') {
+      continue
+    }
     const models = []
     const extras = {}
-    for (const exportId of mapping.exportProviderIds) {
+    const exactExportIds = mapping.exportProviderIds ?? []
+    const aggregateExportIds = mapping.aggregateExportProviderIds ?? []
+    const seenModelIds = new Set()
+    for (const exportId of [...exactExportIds, ...aggregateExportIds]) {
       const block = providers[exportId]
       if (!block || typeof block !== 'object') continue
-      models.push(...modelsFromExportBlock(block))
+      const isAggregateExport = aggregateExportIds.includes(exportId)
+      const raw = modelsFromExportBlock(block)
+      const filtered = raw.filter((entry) => {
+        const ns = modelSourceNamespace(entry.id)
+        if (mapping.bridgeKind === 'cursor' || mapping.routeId === 'bridge-composer') {
+          // Cursor 桥仅接收以 cursor/ 为前缀或 cursor 命名空间的模型，杜绝 workbuddy/ 等混入
+          return ns === 'cursor' || entry.id.startsWith('cursor/')
+        }
+        if (mapping.bridgeKind === 'google-antigravity' || mapping.routeId === 'bridge-antigravity') {
+          // The aggregate `opencodex` block contains several vendors; only accept its
+          // Antigravity namespace. The dedicated provider block may contain bare model ids.
+          return isAggregateExport ? ns === 'google-antigravity'
+            : ns === 'google-antigravity' || ns === 'other'
+        }
+        return true
+      })
+      for (const entry of filtered) {
+        const canonicalId = entry.id.replace(/^google-antigravity\//, '')
+        if (seenModelIds.has(canonicalId)) continue
+        seenModelIds.add(canonicalId)
+        models.push(mapping.bridgeKind === 'google-antigravity'
+          ? withAntigravityReasoning(entry, canonicalId)
+          : entry)
+      }
       if (mapping.bridgeKind === 'google-antigravity') {
         Object.assign(extras, pickAntigravityExtras(block))
       }
@@ -85,6 +150,29 @@ export function bridgeProviderBlocksFromExport(exportDoc) {
     }
   }
   return out
+}
+
+/**
+ * 清洗 modelsDoc，剔除 bridge-composer 中误混入的非 cursor 模型
+ * @param {Record<string, unknown>} modelsDoc
+ */
+export function sanitizeModelsDoc(modelsDoc) {
+  if (!modelsDoc || typeof modelsDoc !== 'object') return modelsDoc
+  if (!modelsDoc.providers || typeof modelsDoc.providers !== 'object') return modelsDoc
+  const workbuddy = modelsDoc.providers.workbuddy
+  if (workbuddy && typeof workbuddy === 'object' && !Array.isArray(workbuddy) && typeof workbuddy.apiKey === 'string') {
+    delete workbuddy.apiKey
+    workbuddy.apiKeyEnv = taskweaverApiKeyEnvRef('workbuddy')
+  }
+  const composer = modelsDoc.providers['bridge-composer']
+  if (composer && Array.isArray(composer.models)) {
+    composer.models = composer.models.filter((m) => {
+      const id = String(m?.id ?? '')
+      const ns = modelSourceNamespace(id)
+      return ns === 'cursor' || id.startsWith('cursor/')
+    })
+  }
+  return modelsDoc
 }
 
 /**
@@ -106,33 +194,46 @@ export function mergeBridgeBlocksIntoModelsDoc(modelsDoc, bridgeBlocks, options 
       delete next.providers.opencodex
     }
   }
-  return next
+  return sanitizeModelsDoc(next)
 }
 
 /**
  * @param {string} modelsPath
  * @param {Record<string, unknown>} exportDoc
- * @param {{ migrateAwayOpenCodex?: boolean }} [options]
+ * @param {{ migrateAwayOpenCodex?: boolean, workbuddyBlock?: Record<string, unknown>, removeWorkBuddy?: boolean }} [options]
  */
 export async function writeModelsJsonFromBridgeExport(modelsPath, exportDoc, options = {}) {
   let current = { providers: {} }
+  let sanitizedExistingConfig = false
   try {
     const raw = await fs.readFile(modelsPath, 'utf8')
     const parsed = JSON.parse(raw)
-    if (parsed?.providers && typeof parsed.providers === 'object') current = parsed
+    if (parsed?.providers && typeof parsed.providers === 'object') {
+      const beforeSanitize = JSON.stringify(parsed)
+      current = sanitizeModelsDoc(parsed)
+      sanitizedExistingConfig = beforeSanitize !== JSON.stringify(current)
+    }
   } catch (err) {
     if (err?.code !== 'ENOENT') throw err
   }
   const bridgeBlocks = bridgeProviderBlocksFromExport(exportDoc)
   const merged = mergeBridgeBlocksIntoModelsDoc(current, bridgeBlocks, options)
+  if (options.workbuddyBlock) {
+    merged.providers.workbuddy = options.workbuddyBlock
+  }
+  if (options.removeWorkBuddy) delete merged.providers.workbuddy
+  sanitizeModelsDoc(merged)
   const overlay = applyOpenCodexDshReasoningOverlay(merged)
   const changed = JSON.stringify(stableValue(current)) !== JSON.stringify(stableValue(overlay))
-  if (!changed) {
-    return { modelsDoc: current, bridgeBlocks, bridgeProviderIds: Object.keys(bridgeBlocks), changed: false }
+  const allProviderIds = Object.keys(bridgeBlocks)
+  if (options.workbuddyBlock || overlay.providers?.workbuddy) {
+    if (!allProviderIds.includes('workbuddy')) allProviderIds.push('workbuddy')
   }
-  await fs.mkdir(path.dirname(modelsPath), { recursive: true })
-  await fs.writeFile(modelsPath, `${JSON.stringify(overlay, null, 2)}\n`, { mode: 0o600 })
-  return { modelsDoc: overlay, bridgeBlocks, bridgeProviderIds: Object.keys(bridgeBlocks), changed: true }
+  if (!changed && !sanitizedExistingConfig) {
+    return { modelsDoc: current, bridgeBlocks, bridgeProviderIds: allProviderIds, changed: false }
+  }
+  await writeJsonAtomically(modelsPath, overlay, { mode: 0o600 })
+  return { modelsDoc: overlay, bridgeBlocks, bridgeProviderIds: allProviderIds, changed: true }
 }
 
 /**

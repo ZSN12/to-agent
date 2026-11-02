@@ -10,6 +10,30 @@ import { createModelCatalogCache } from '../backend/model-catalog-cache.mjs'
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-model-service-cache-'))
 const userDataPath = path.join(root, 'user-data')
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+const stableCapabilityTierService = {
+  async getState() {
+    return {
+      snapshot: null,
+      source: 'unavailable',
+      stale: true,
+      fetchedAt: null,
+      thresholdsVersion: null,
+      changes: [],
+    }
+  },
+  async getAliases() { return {} },
+  async refresh() {
+    return {
+      snapshot: null,
+      source: 'unavailable',
+      stale: true,
+      fetchedAt: null,
+      thresholdsVersion: null,
+      changes: [],
+      updated: false,
+    }
+  },
+}
 const api = {
   llm: {
     async providers() { return { providers: [] } },
@@ -28,6 +52,7 @@ const createService = () => createModelService({
   dshHostManager: hostManager,
   userDataPath,
   appVersion: 'test-version',
+  capabilityTierService: stableCapabilityTierService,
 })
 
 async function waitForFile(filePath, timeoutMs = 2000) {

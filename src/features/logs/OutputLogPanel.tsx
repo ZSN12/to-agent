@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Check, Copy, Search, Terminal, X, AlertCircle, CheckCircle2, Clock, Ban } from 'lucide-react'
 import type { ApprovalAuditEntry, ToolTraceItem } from '../../shared/app-api'
+import { copyTextToClipboard } from '../../shared/clipboard'
+import { InlineSelect } from '../../shared/InlineSelect'
 import { ToolTraceCard } from '../chat/ToolTraceCard'
 
 export function OutputLogPanel({
@@ -67,9 +69,10 @@ export function OutputLogPanel({
     return [...ids].sort()
   }, [logs])
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [copyErrorId, setCopyErrorId] = useState<string | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
-  const filteredLogs = useMemo(() => {
+  const allFilteredLogs = useMemo(() => {
     const q = query.trim().toLowerCase()
     return logs
       .filter((log) => {
@@ -82,11 +85,11 @@ export function OutputLogPanel({
         const text = `${log.toolName} ${log.inputSummary ?? ''} ${log.resultSummary ?? ''}`.toLowerCase()
         return text.includes(q)
       })
-      .slice(-150)
+      .slice()
       .reverse() // 最新的在前面
   }, [logs, filterStatus, filterTaskId, query])
 
-  const filteredApprovalRows = useMemo(() => {
+  const allFilteredApprovalRows = useMemo(() => {
     const q = query.trim().toLocaleLowerCase()
     const rows = approvalRowsConversationId === conversationId ? approvalRows : []
     return rows
@@ -94,17 +97,36 @@ export function OutputLogPanel({
       .filter((row) => filterApprovalOutcome === 'all' || row.outcome === filterApprovalOutcome)
       .filter((row) => !q || [row.type, row.toolName, row.reason, row.outcome, row.decision, row.verdict]
         .some((value) => String(value ?? '').toLocaleLowerCase().includes(q)))
-      .slice(-150)
+      .slice()
       .reverse()
   }, [approvalRows, approvalRowsConversationId, conversationId, filterApprovalType, filterApprovalOutcome, query])
 
-  const copyLogText = (log: ToolTraceItem) => {
+  const LOG_PAGE_SIZE = 300
+  const [visibleCount, setVisibleCount] = useState(LOG_PAGE_SIZE)
+
+  useEffect(() => {
+    setVisibleCount(LOG_PAGE_SIZE)
+  }, [filterStatus, filterTaskId, query, activeTab])
+
+  const displayedLogs = useMemo(() => {
+    return allFilteredLogs.slice(0, visibleCount)
+  }, [allFilteredLogs, visibleCount])
+
+  const displayedApprovalRows = useMemo(() => {
+    return allFilteredApprovalRows.slice(0, visibleCount)
+  }, [allFilteredApprovalRows, visibleCount])
+
+  const copyLogText = async (log: ToolTraceItem) => {
     const content = `[${log.status.toUpperCase()}] ${log.toolName} (${log.durationMs ? `${log.durationMs}ms` : '未知耗时'})
 输入: ${log.inputSummary ?? ''}
 结果: ${log.resultSummary ?? ''}`
-    void navigator.clipboard.writeText(content)
-    setCopiedId(log.id)
-    setTimeout(() => setCopiedId(null), 1800)
+    const didCopy = await copyTextToClipboard(content)
+    setCopiedId(didCopy ? log.id : null)
+    setCopyErrorId(didCopy ? null : log.id)
+    setTimeout(() => {
+      setCopiedId((current) => current === log.id ? null : current)
+      setCopyErrorId((current) => current === log.id ? null : current)
+    }, 1800)
   }
 
   const getStatusBadge = (status: ToolTraceItem['status']) => {
@@ -156,7 +178,13 @@ export function OutputLogPanel({
           <Terminal size={17} style={{ marginRight: 6 }} />
           <strong>{activeTab === 'tools' ? 'Trajectory' : '审批审计'}</strong>
           <span style={{ fontSize: 12, color: 'var(--text-tertiary)', marginLeft: 6 }}>
-            最近 {activeTab === 'tools' ? filteredLogs.length : filteredApprovalRows.length} 条
+            {activeTab === 'tools'
+              ? (allFilteredLogs.length > displayedLogs.length
+                  ? `显示最新 ${displayedLogs.length} 条（共 ${allFilteredLogs.length} 条）`
+                  : `共 ${allFilteredLogs.length} 条`)
+              : (allFilteredApprovalRows.length > displayedApprovalRows.length
+                  ? `显示最新 ${displayedApprovalRows.length} 条（共 ${allFilteredApprovalRows.length} 条）`
+                  : `共 ${allFilteredApprovalRows.length} 条`)}
           </span>
         </div>
         <button className="panel-close-btn" onClick={onClose} aria-label="关闭日志面板">
@@ -202,18 +230,19 @@ export function OutputLogPanel({
         </div>
 
         {activeTab === 'tools' && taskIds.length > 0 && (
-          <select
+          <InlineSelect
+            className="output-log-task-filter"
             value={filterTaskId}
-            onChange={(e) => setFilterTaskId(e.target.value)}
-            style={{ fontSize: 11, padding: '4px 8px', borderRadius: 6 }}
-            aria-label="按子任务筛选"
-          >
-            <option value="all">全部 Agent</option>
-            <option value="main">主对话</option>
-            {taskIds.map((id) => (
-              <option key={id} value={id}>子任务 {id}</option>
-            ))}
-          </select>
+            onChange={setFilterTaskId}
+            ariaLabel="按子任务筛选"
+            searchable={taskIds.length > 8}
+            searchPlaceholder="搜索子任务…"
+            options={[
+              { value: 'all', label: '全部 Agent' },
+              { value: 'main', label: '主对话' },
+              ...taskIds.map((id) => ({ value: id, label: `子任务 ${id}` })),
+            ]}
+          />
         )}
 
         {activeTab === 'tools' && <div role="group" aria-label="按执行状态筛选" style={{ display: 'flex', gap: 6, fontSize: 11 }}>
@@ -269,15 +298,38 @@ export function OutputLogPanel({
 
       {/* 日志条目列表 */}
       <div className="dag-scroll" style={{ padding: 12 }}>
-        {activeTab === 'tools' && (filteredLogs.length === 0 ? (
+        {activeTab === 'tools' && (allFilteredLogs.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-tertiary)', fontSize: 13 }}>
             暂无匹配的工具执行日志
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {filteredLogs.map((log) => {
+            {allFilteredLogs.length > displayedLogs.length && (
+              <div className="output-log-load-earlier">
+                <span>当前展示最新 {displayedLogs.length} 条（共 {allFilteredLogs.length} 条）</span>
+                <div className="output-log-load-actions">
+                  <button
+                    type="button"
+                    className="output-log-load-btn"
+                    onClick={() => setVisibleCount((prev) => Math.min(prev + LOG_PAGE_SIZE, allFilteredLogs.length))}
+                  >
+                    加载更早的 {Math.min(LOG_PAGE_SIZE, allFilteredLogs.length - displayedLogs.length)} 行日志
+                  </button>
+                  <button
+                    type="button"
+                    className="output-log-load-btn is-all"
+                    onClick={() => setVisibleCount(allFilteredLogs.length)}
+                  >
+                    展开全部
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {displayedLogs.map((log) => {
               const isExpanded = expandedId === log.id
               const isCopied = copiedId === log.id
+              const copyFailed = copyErrorId === log.id
 
               return (
                 <div
@@ -306,17 +358,17 @@ export function OutputLogPanel({
                     <button
                       type="button"
                       onClick={() => copyLogText(log)}
-                      aria-label={isCopied ? '完整日志已复制' : `复制 ${log.toolName} 完整日志`}
-                      title="复制完整日志"
+                      aria-label={isCopied ? '完整日志已复制' : copyFailed ? '复制完整日志失败' : `复制 ${log.toolName} 完整日志`}
+                      title={copyFailed ? '复制失败' : '复制完整日志'}
                       style={{
                         background: 'transparent',
                         border: 'none',
                         cursor: 'pointer',
                         padding: 3,
-                        color: isCopied ? '#22c55e' : 'var(--text-secondary)',
+                        color: isCopied ? '#22c55e' : copyFailed ? '#ef4444' : 'var(--text-secondary)',
                       }}
                     >
-                      {isCopied ? <Check size={13} /> : <Copy size={13} />}
+                      {isCopied ? <Check size={13} /> : copyFailed ? <AlertCircle size={13} /> : <Copy size={13} />}
                     </button>
                   </div>
 
@@ -343,7 +395,7 @@ export function OutputLogPanel({
                         }}
                       >
                         {log.inputSummary ? `${log.inputSummary} → ` : ''}
-                        {log.resultSummary}
+                        {log.resultSummary.length > 600 ? `${log.resultSummary.slice(0, 600)}…` : log.resultSummary}
                       </div>
                     )
                   )}
@@ -379,19 +431,46 @@ export function OutputLogPanel({
                 </div>
               )
             })}
+
+            {allFilteredLogs.length > displayedLogs.length && (
+              <div className="output-log-load-earlier is-bottom">
+                <span>已加载 {displayedLogs.length} / {allFilteredLogs.length} 条</span>
+                <button
+                  type="button"
+                  className="output-log-load-btn"
+                  onClick={() => setVisibleCount((prev) => Math.min(prev + LOG_PAGE_SIZE, allFilteredLogs.length))}
+                >
+                  加载更早的 {Math.min(LOG_PAGE_SIZE, allFilteredLogs.length - displayedLogs.length)} 行日志
+                </button>
+              </div>
+            )}
           </div>
         ))}
         {activeTab === 'approvals' && (
           !conversationId
             ? <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-tertiary)', fontSize: 13 }}>请先打开一个会话查看审批审计。</div>
-            : approvalLoading && filteredApprovalRows.length === 0
+            : approvalLoading && allFilteredApprovalRows.length === 0
             ? <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-tertiary)', fontSize: 13 }}>正在读取审批审计…</div>
-            : approvalError && filteredApprovalRows.length === 0
+            : approvalError && allFilteredApprovalRows.length === 0
               ? <div role="alert" style={{ textAlign: 'center', padding: '24px 20px', color: '#ef4444', fontSize: 13 }}>{approvalError}</div>
-              : filteredApprovalRows.length === 0
+              : allFilteredApprovalRows.length === 0
                 ? <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-tertiary)', fontSize: 13 }}>暂无匹配的审批审计记录</div>
                 : <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {filteredApprovalRows.map((row, index) => {
+                    {allFilteredApprovalRows.length > displayedApprovalRows.length && (
+                      <div className="output-log-load-earlier">
+                        <span>当前展示最新 {displayedApprovalRows.length} 条（共 {allFilteredApprovalRows.length} 条）</span>
+                        <div className="output-log-load-actions">
+                          <button
+                            type="button"
+                            className="output-log-load-btn"
+                            onClick={() => setVisibleCount((prev) => Math.min(prev + LOG_PAGE_SIZE, allFilteredApprovalRows.length))}
+                          >
+                            加载更早的 {Math.min(LOG_PAGE_SIZE, allFilteredApprovalRows.length - displayedApprovalRows.length)} 项审批
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    {displayedApprovalRows.map((row, index) => {
                       const outcome = row.outcome ?? row.decision ?? row.verdict
                       const time = row.time ? new Date(row.time).toLocaleString('zh-CN') : '时间未知'
                       const isRequest = row.type === 'approval/asked'

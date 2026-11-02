@@ -1,6 +1,7 @@
 /** 与 electron/preload 暴露的模型 API 对齐，供前端类型检查 */
 
 export type ModelTier = 'cheap' | 'balanced' | 'strong'
+export type ModelTaskRole = 'review' | 'writing' | 'query'
 export type CapabilityTier = 'strong' | 'medium' | 'weak'
 export type CapabilityTierSource = 'lmarena' | 'user' | 'unrated'
 export type CapabilityTierBoard = {
@@ -57,6 +58,7 @@ export interface ModelProfilePatch {
   thinkingLevel?: ThinkingLevel
   capabilitySummary?: string
   enabledForAllocation?: boolean
+  taskRoles?: ModelTaskRole[]
   notes?: string
 }
 
@@ -65,6 +67,7 @@ export interface ModelProfile extends ModelProfilePatch {
   thinkingLevel?: ThinkingLevel
   capabilitySummary: string
   enabledForAllocation: boolean
+  taskRoles?: ModelTaskRole[]
   notes: string
 }
 
@@ -133,6 +136,11 @@ export interface CatalogModel {
   verificationStatus?: 'verified' | 'unverified' | 'bundled'
   /** Whether DSH llm.models has confirmed this model is routable. */
   routeRegistered?: boolean
+  /** WorkBuddy native consumption multiplier. This is independent from USD API pricing. */
+  workBuddyMultiplier?: string
+  /** Freshness of the local WorkBuddy cache that supplied the multiplier. */
+  workBuddyMultiplierStatus?: 'fresh' | 'stale' | 'unknown'
+  workBuddyMultiplierUpdatedAt?: string
   /** Ability tier is independent from the legacy cost/allocation profile tier. */
   capabilityTier?: CapabilityTierDetails
 }
@@ -146,6 +154,7 @@ export interface ModelCatalog {
   primaryModelReselectRequired?: boolean
   activeThinkingLevel?: ThinkingLevel
   capabilityTierStatus?: CapabilityTierStatus
+  taskRoleRoutingEnabled?: boolean
 }
 
 export interface ProviderAuthStatus {
@@ -164,6 +173,8 @@ export interface SemanticSearchSettings {
   embeddingProvider: 'jina' | 'openai'
   credentials: Record<'jina' | 'openai', { configured: boolean; writable: boolean; source: string | null }>
   enabled: boolean
+  builtinLocalAvailable?: boolean
+  searchMode?: 'builtin-local' | 'cloud-vector'
   settingsAvailable: boolean
   settingsWritable: boolean
 }
@@ -214,6 +225,9 @@ export interface LocalAgentBridgeStatus {
   legacyOpenCodex?: boolean
   bridgeModelCount?: number
   discoveryAdapter?: string
+  antigravityOAuthConfigured?: boolean
+  antigravityOAuthIsDefault?: boolean
+  antigravityOAuthCustomConfigured?: boolean
 }
 
 export interface ScanLocalModelsResult {
@@ -228,6 +242,8 @@ export interface ScanLocalModelsResult {
   /** 默认走内置桥导出（无 10100）；遗留路径为 false */
   bridgeMode?: boolean
   localAgents?: LocalAgentDiscovery[]
+  /** 在线目录发现失败时的可读诊断，不影响其它来源模型扫描结果。 */
+  discoveryWarnings?: string[]
 }
 
 export interface MigrateLegacyOpenCodexResult {
@@ -257,6 +273,7 @@ export interface TaskweaverModelsApi {
   scanLocal: () => Promise<IpcResult<ScanLocalModelsResult>>
   bridgeGetStatus: () => Promise<IpcResult<LocalAgentBridgeStatus>>
   bridgeLogin: (kind: 'cursor' | 'google-antigravity') => Promise<IpcResult<{ ok: boolean; message?: string }>>
+  bridgeSaveAntigravityOAuthCredentials: (input: { clientId: string; clientSecret: string }) => Promise<IpcResult<{ configured: boolean }>>
   migrateLegacyOpenCodexRoutes: () => Promise<IpcResult<MigrateLegacyOpenCodexResult>>
   listProvidersAuth: () => Promise<IpcResult<ProviderAuthStatus[]>>
   getSemanticSearchSettings: () => Promise<IpcResult<SemanticSearchSettings>>
@@ -275,8 +292,6 @@ export interface TaskweaverModelsApi {
   setActive: (modelKey: string) => Promise<IpcResult<string | null>>
   getThinkingLevel: () => Promise<IpcResult<ThinkingLevel>>
   setThinkingLevel: (level: ThinkingLevel) => Promise<IpcResult<ThinkingLevel>>
-  getBusyEnterMode: () => Promise<IpcResult<'steer' | 'followUp'>>
-  setBusyEnterMode: (mode: 'steer' | 'followUp') => Promise<IpcResult<'steer' | 'followUp'>>
   upsertProfile: (
     modelKey: string,
     patch: ModelProfilePatch,
@@ -311,7 +326,22 @@ export interface DiscoveredProviderModel {
   name: string
   contextWindow?: number
   maxTokens?: number
+  verificationStatus?: 'verified' | 'unverified' | 'bundled'
+  /** WorkBuddy's native consumption multiplier, such as "x0.21". */
+  workBuddyMultiplier?: string
+  workBuddyMultiplierStatus?: 'fresh' | 'stale' | 'unknown'
+  workBuddyMultiplierUpdatedAt?: string
 }
+
+/** Result for one model in a sequential add operation. */
+export interface ModelAddItemResult {
+  modelKey: string
+  ok: boolean
+  error?: string
+}
+
+/** Optional progress callback; older callers may continue to consume only the boolean summary. */
+export type ModelAddItemResultListener = (result: ModelAddItemResult) => void
 
 export type ProviderModelDiscoveryResult =
   | {

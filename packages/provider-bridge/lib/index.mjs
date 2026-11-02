@@ -6041,6 +6041,8 @@ const CURSOR_VISION_SOFT_MAX_BYTES = 102400;
 const CURSOR_VISION_SOFT_MAX_BYTES_HIGH = 262144;
 /** Longest edge after Cursor vision prep (Cursor staff guidance: ≤ 2000 px). */
 const CURSOR_VISION_MAX_EDGE = 2e3;
+/** Decode bomb: reject images whose sniffed pixel count exceeds this before decoding. */
+const MAX_CURSOR_IMAGE_PIXELS = 25e6;
 const CURSOR_VISION_JPEG_QUALITIES_DEFAULT = [
 	85,
 	70,
@@ -6188,7 +6190,7 @@ function cursorImageAttachmentPath(uuid, mimeType) {
 	return `attachment-${uuid}.${normalized === "image/jpeg" || normalized === "image/jpg" ? "jpg" : normalized === "image/gif" ? "gif" : normalized === "image/webp" ? "webp" : "png"}`;
 }
 /**
-* Re-encode toward a JPEG under the soft vision cap when Bun can decode the payload.
+* Re-encode toward a JPEG under the soft vision cap when the image codec can decode the payload.
 * Unsupported MIME, oversize dimensions/pixels, or undecodable bytes are omitted (fail-closed).
 * After the quality ladder, edges shrink iteratively until the soft byte cap is met
 * (or the min edge floor is hit) so large clipboard PNGs do not leave >softMax JPEGs
@@ -6217,9 +6219,14 @@ async function prepareCursorImageForWire(image, signal, testHooks) {
 		reason: CURSOR_VISION_IMAGE_OMITTED
 	};
 	const declaredJpeg = mime === "image/jpeg" || mime === "image/jpg";
+	const codec = testHooks?.codec !== void 0 ? testHooks.codec : await resolveCursorImageCodec();
+	if (!codec) return {
+		status: "omitted",
+		reason: CURSOR_VISION_IMAGE_OMITTED
+	};
 	try {
 		throwIfImagePhaseAborted(signal);
-		const meta = await new Bun.Image(image.data).metadata();
+		const meta = await codec.decode(image.data);
 		if (declaredJpeg && format === "jpeg" && image.data.byteLength <= softMax) return {
 			status: "ready",
 			image
@@ -6242,9 +6249,11 @@ async function prepareCursorImageForWire(image, signal, testHooks) {
 		}
 		const encodeAt = async (w, h, quality) => {
 			throwIfImagePhaseAborted(signal);
-			let pipeline = new Bun.Image(image.data);
-			if (w > 0 && h > 0 && (w !== width || h !== height)) pipeline = pipeline.resize(w, h);
-			return new Uint8Array(await pipeline.jpeg({ quality }).bytes());
+			const size = w > 0 && h > 0 && (w !== width || h !== height) ? {
+				width: w,
+				height: h
+			} : null;
+			return codec.encodeJpeg(image.data, size, quality);
 		};
 		let best;
 		for (const quality of qualities) {
@@ -6310,6 +6319,48 @@ async function prepareCursorImageForWire(image, signal, testHooks) {
 			reason: CURSOR_VISION_IMAGE_OMITTED
 		};
 	}
+}
+function bunImageCodec(bun) {
+	return {
+		decode: (data) => new bun.Image(data).metadata(),
+		async encodeJpeg(data, size, quality) {
+			let pipeline = new bun.Image(data);
+			if (size) pipeline = pipeline.resize(size.width, size.height);
+			return new Uint8Array(await pipeline.jpeg({ quality }).bytes());
+		}
+	};
+}
+/** sharp-backed codec for Node, where the TaskWeaver Host runs and Bun.Image does not exist. */
+function sharpImageCodec(sharp) {
+	const open = (data) => sharp(data, {
+		failOn: "error",
+		limitInputPixels: MAX_CURSOR_IMAGE_PIXELS
+	});
+	return {
+		async decode(data) {
+			const { info } = await open(data).raw().toBuffer({ resolveWithObject: true });
+			return {
+				width: info.width,
+				height: info.height
+			};
+		},
+		async encodeJpeg(data, size, quality) {
+			let pipeline = open(data);
+			if (size) pipeline = pipeline.resize(size.width, size.height, { fit: "fill" });
+			return new Uint8Array(await pipeline.flatten({ background: "#ffffff" }).jpeg({ quality }).toBuffer());
+		}
+	};
+}
+let nodeImageCodec;
+/**
+* Bun.Image under Bun; under Node the sharp build the Host runtime already ships. Null when
+* neither is available, in which case images are omitted rather than sent unvalidated.
+*/
+function resolveCursorImageCodec() {
+	const bun = globalThis.Bun;
+	if (bun) return Promise.resolve(bunImageCodec(bun));
+	nodeImageCodec ??= import("sharp").then((module) => sharpImageCodec(module.default), () => null);
+	return nodeImageCodec;
 }
 /**
 * Sniff PNG/JPEG/GIF/WebP dimensions from raw bytes when the header is present.
@@ -14041,9 +14092,11 @@ var OAuthCallbackFlow = class {
 		}
 	}
 	#createServers(port, expectedState) {
+		const bun = globalThis.Bun;
+		if (!bun) throw new Error("OAuth callback server requires the Bun runtime");
 		const fetch = (req) => this.#handleCallback(req, expectedState);
 		const [primaryHost, ...extraHosts] = loopbackBindHostnames(this.callbackHostname, this.callbackBindHostname);
-		const primary = Bun.serve({
+		const primary = bun.serve({
 			hostname: primaryHost,
 			port,
 			reusePort: false,
@@ -14051,7 +14104,7 @@ var OAuthCallbackFlow = class {
 		});
 		const servers = [primary];
 		for (const host of extraHosts) try {
-			servers.push(Bun.serve({
+			servers.push(bun.serve({
 				hostname: host,
 				port: primary.port,
 				reusePort: false,

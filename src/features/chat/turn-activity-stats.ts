@@ -24,6 +24,7 @@ export function computeTurnActivityFromTraces(
 ): TurnActivitySummary | null {
   const editedPaths = new Set<string>()
   const exploredPaths = new Set<string>()
+  const details: NonNullable<TurnActivitySummary['details']> = []
   let searchCount = 0
   let commandCount = 0
 
@@ -32,6 +33,16 @@ export function computeTurnActivityFromTraces(
     const variant = classifyDshTool(normalizeToolName(trace.toolName))
     const path = pathFromTrace(trace)
     const key = path?.replace(/\\/g, '/').toLocaleLowerCase()
+    if (variant === 'edit' || variant === 'write' || variant === 'read' || variant === 'search' || variant === 'bash' || variant === 'code') {
+      details.push({
+        id: trace.id,
+        toolName: normalizeToolName(trace.toolName),
+        inputSummary: trace.inputSummary ?? '',
+        resultSummary: trace.resultSummary ?? '',
+        ...(trace.outputId ? { outputId: trace.outputId } : {}),
+        ...(typeof trace.durationMs === 'number' ? { durationMs: trace.durationMs } : {}),
+      })
+    }
     if (variant === 'edit' || variant === 'write') {
       if (key) editedPaths.add(key)
       continue
@@ -89,6 +100,7 @@ export function computeTurnActivityFromTraces(
     exploredFileCount,
     searchCount,
     commandCount,
+    ...(details.length ? { details } : {}),
     ...(editedFileCount > 0 && linesComplete ? { addedLines, deletedLines, linesComplete: true } : { linesComplete: false }),
   }
 }
@@ -101,11 +113,16 @@ export function mergeTurnActivity(
   if (!persisted) return live
   if (!live) return persisted
   const lineSource = persisted.linesComplete ? persisted : live.linesComplete ? live : null
+  const detailsById = new Map<string, NonNullable<TurnActivitySummary['details']>[number]>()
+  for (const item of [...(persisted.details ?? []), ...(live.details ?? [])]) detailsById.set(item.id, item)
+  const details = Array.from(detailsById.values())
   return {
     editedFileCount: Math.max(persisted.editedFileCount, live.editedFileCount),
     exploredFileCount: Math.max(persisted.exploredFileCount, live.exploredFileCount),
     searchCount: Math.max(persisted.searchCount, live.searchCount),
     commandCount: Math.max(persisted.commandCount, live.commandCount),
+    ...(details.length ? { details: details.slice(-100) } : {}),
+    ...(persisted.detailsTruncated || live.detailsTruncated ? { detailsTruncated: true } : {}),
     ...(lineSource ? {
       addedLines: lineSource.addedLines ?? 0,
       deletedLines: lineSource.deletedLines ?? 0,

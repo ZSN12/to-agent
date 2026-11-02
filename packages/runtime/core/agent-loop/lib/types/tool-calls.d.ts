@@ -31,8 +31,11 @@ import type { UserMessage } from '@taskweaver/dsh-session';
  * @param toolCalls - assistant calls in model order.
  * @param signal - abort signal shared by the step.
  * @param acceptContext - accepts committed result context for the next step boundary.
+ * @param maxToolCalls - optional Host-owned cap for dispatched calls in this turn.
  */
-export declare function executeToolCalls(ctx: Context, turn: number, step: number, toolCalls: ToolCallBlock[], signal: AbortSignal, acceptContext: (context: UserMessage) => void): Promise<{
+export declare function executeToolCalls(ctx: Context, turn: number, step: number, toolCalls: ToolCallBlock[], signal: AbortSignal, acceptContext: (context: UserMessage) => void, maxToolCalls?: number): Promise<{
     concluded: boolean;
+    toolCallsUsed: number;
+    overLimit: boolean;
 }>;
 //# sourceMappingURL=tool-calls.d.ts.map

@@ -18,6 +18,10 @@ fi
 
 echo "🔏 Signing TaskWeaver bundle at: ${APP_PATH}"
 
+# Files copied from the workspace may carry macOS provenance/resource metadata
+# that codesign rejects as bundle detritus. Packaged app contents do not need it.
+xattr -cr "${APP_PATH}"
+
 # Clean any broken symlinks or .DS_Store that prevent code signing
 find "${APP_PATH}" -name '.DS_Store' -delete || true
 find "${APP_PATH}" -type l ! -exec test -e {} \; -delete || true

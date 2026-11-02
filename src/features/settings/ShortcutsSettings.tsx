@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Command, Pencil, RotateCcw, Search, Trash2 } from 'lucide-react'
 import { DEFAULT_SHORTCUTS, parseEventToKeys, type ShortcutItem } from '../../shared/shortcuts'
+import { SettingsLayout } from './SettingsLayout'
 
 export function ShortcutsSettings({
   shortcuts,
@@ -96,13 +97,15 @@ export function ShortcutsSettings({
   }
 
   return (
-    <section className="settings-page-content shortcuts-settings-page">
-      <div className="shortcuts-page-header">
-        <h1>键盘快捷键</h1>
+    <SettingsLayout
+      title="键盘快捷键"
+      className="shortcuts-settings-page"
+      actions={(
         <button type="button" className="shortcuts-reset-all-btn" onClick={handleResetAll}>
           全部重置为默认值
         </button>
-      </div>
+      )}
+    >
 
       <div className="shortcuts-search-wrap">
         <Search size={15} className="shortcuts-search-icon" />
@@ -224,6 +227,6 @@ export function ShortcutsSettings({
           })
         )}
       </div>
-    </section>
+    </SettingsLayout>
   )
 }

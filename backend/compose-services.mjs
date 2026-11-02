@@ -3,6 +3,7 @@ import { homedir } from 'node:os'
 import fsSync from 'node:fs'
 import fs from 'node:fs/promises'
 import { createProfileStore } from './profile-store.mjs'
+import { createRoleProfileStore } from './role-profile-store.mjs'
 import { createModelService } from './model-service.mjs'
 import { createModelRegistryUpdater } from './model-registry-updater.mjs'
 import { createAppStateStore } from './app-state-store.mjs'
@@ -32,11 +33,13 @@ import { createSandboxSessionStore } from './sandbox-session-mode.mjs'
 import { createCredentialStore } from './credential-store.mjs'
 import { createApprovalAuditStore } from './approval-audit.mjs'
 import { readTaskWeaverEnvironment, resolveTaskWeaverRuntimeHome } from './agent/z-host/migrate-z-home.mjs'
+import { getAppLogger } from './logger-service.mjs'
 import { createMemoryStore } from './memory-store.mjs'
 import { createCustomProviderService } from './custom-provider-service.mjs'
 import { createHostModelCatalogEventPump } from './host-events.mjs'
 import { resolveTaskWeaverModelsPath } from './taskweaver-models-path.mjs'
 import { ensureModelsJsonSyncedToDshHost } from './sync-models-json-to-host.mjs'
+import { bootstrapWorkBuddyOnAppReady } from './model-sync/index.mjs'
 import { resolveConversationId } from './conversation-id-routing.mjs'
 import { createWorkspaceOperationGuard } from './workspace-operation-guard.mjs'
 import { setJsonStoreCorruptionHandler } from './json-store.mjs'
@@ -91,6 +94,7 @@ export async function composeBackendServices({ app, dialog, BrowserWindow, safeS
   }
 
   const profileStore = createProfileStore(userData)
+  const roleProfileStore = createRoleProfileStore(userData)
   const agentDataPath = path.join(userData, 'taskweaver-agent')
   const approvalAudit = createApprovalAuditStore({ agentDataPath })
   const runtimeHomePath = resolveTaskWeaverRuntimeHome()
@@ -172,6 +176,13 @@ export async function composeBackendServices({ app, dialog, BrowserWindow, safeS
     dshRuntimeRoot: runtimeRoot,
     modelRegistryUpdater,
     appVersion: app.getVersion(),
+    syncWorkBuddyModels: () => bootstrapWorkBuddyOnAppReady({
+      userDataPath: userData,
+      credentialStore,
+      hostManager,
+      modelService,
+      ensureModelsJsonSyncedToDshHost,
+    }),
   })
   pricingSync.setAfterSync?.(() => modelService.refreshCapabilityTiers())
   pricingSync.start()
@@ -378,7 +389,7 @@ export async function composeBackendServices({ app, dialog, BrowserWindow, safeS
     appState,
     contextInjectionLedger,
     onTurnCompleted: persistNativeTurn,
-    logger: console,
+    logger: getAppLogger().forTag('ChatService'),
     getPermissionMode: async (conversationId) => {
       const state = conversationId && appState.getConversationState
         ? await appState.getConversationState(conversationId)
@@ -461,9 +472,9 @@ export async function composeBackendServices({ app, dialog, BrowserWindow, safeS
     }
   }
   return {
-    app, dialog, BrowserWindow, safeStorage, net,
+    app, dialog, BrowserWindow, safeStorage, secrets, net,
     userData, fallbackWorkspace,
-    profileStore, approvalAudit, mcp, hostManager, hostNodeExecutable, conversationHub,
+    profileStore, roleProfileStore, approvalAudit, mcp, hostManager, hostNodeExecutable, conversationHub,
     modelRegistryUpdater, modelService, appBootstrap, modelsPath, appState, usageStore,
     startHostModelCatalogEvents: () => hostModelCatalogEvents.start(),
     workspaceTrust, webSearch, appPreferences, permissionRulesStore, sandboxSession,

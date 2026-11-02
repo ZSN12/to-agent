@@ -29,6 +29,69 @@ export function assertFts5OuterPredicateCount(count) {
     }
 }
 /**
+ * Compare two complete, ordered projections and identify only changed FTS rows.
+ *
+ * A `undefined` result means the caller cannot prove a one-row-per-sequence
+ * projection for this session and must rebuild its derived rows. The function
+ * intentionally compares the complete projection, including surface metadata,
+ * because a replacement can shadow older searchable events.
+ *
+ * @param previous - complete previously indexed documents.
+ * @param next - complete documents from the latest source observation.
+ * @param sessionId - session identity shared by both projections.
+ * @returns minimal deletes and upserts, or `undefined` when exact diffing is unsafe.
+ */
+export function diffSearchDocuments(previous, next, sessionId) {
+    if (!isOrderedSessionDocuments(previous, sessionId) || !isOrderedSessionDocuments(next, sessionId)) {
+        return undefined;
+    }
+    const previousBySeq = new Map(previous.map(document => [document.seq, document]));
+    const nextBySeq = new Map(next.map(document => [document.seq, document]));
+    const deleteSeqs = [];
+    const upserts = [];
+    for (const document of previous) {
+        const replacement = nextBySeq.get(document.seq);
+        if (replacement === undefined || !sameSearchDocument(document, replacement)) {
+            deleteSeqs.push(document.seq);
+        }
+    }
+    for (const document of next) {
+        const prior = previousBySeq.get(document.seq);
+        if (prior === undefined || !sameSearchDocument(prior, document))
+            upserts.push(document);
+    }
+    return { deleteSeqs, upserts };
+}
+function isOrderedSessionDocuments(documents, sessionId) {
+    let previousSeq = -1;
+    for (const document of documents) {
+        if (document.sessionId !== sessionId
+            || !Number.isSafeInteger(document.seq)
+            || document.seq < 0
+            || document.seq <= previousSeq
+            || !Number.isSafeInteger(document.time)
+            || typeof document.type !== 'string'
+            || document.type.length === 0
+            || !isSearchSurface(document.surface)
+            || typeof document.text !== 'string'
+            || document.text.length === 0)
+            return false;
+        previousSeq = document.seq;
+    }
+    return true;
+}
+function sameSearchDocument(left, right) {
+    return left.sessionId === right.sessionId
+        && left.seq === right.seq
+        && left.type === right.type
+        && left.time === right.time
+        && left.surface === right.surface
+        && sanitizeFtsText(left.text) === sanitizeFtsText(right.text);
+}
+function isSearchSurface(value) {
+    return value === 'current' || value === 'shadowed' || value === 'log-only';
+}
+/**
  * Validate and canonicalize a cross-session request.
  * @param request - caller-provided query, filters, limit, and cursor.
  * @param limits - configured default and maximum page sizes.

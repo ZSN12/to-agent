@@ -61,6 +61,22 @@ export function resolveSandboxPolicy(input = {}) {
 }
 
 /**
+ * Sandbox for automatic verification: the same bash policy the Agent and the
+ * terminal get. An unavailable runner under `auto` still requests workspace-write
+ * rather than silently running unconfined.
+ */
+export function verificationSandboxPolicy(runtimeContext) {
+  const policy = resolveSandboxPolicy(runtimeContext).bash
+  if (runtimeContext.permissionMode !== 'full'
+    && runtimeContext.sessionSandboxMode !== 'danger-full-access'
+    && (runtimeContext.bashSandbox ?? 'auto') === 'auto'
+    && policy.mode === 'off') {
+    return { mode: 'workspace-write', workspaceRoot: runtimeContext.workspacePath }
+  }
+  return { mode: policy.mode, workspaceRoot: runtimeContext.workspacePath }
+}
+
+/**
  * @param {{ mode: ConfinedMode, workspaceRoot: string }} filePolicy
  */
 export function renderFileSandboxContext(filePolicy, workspaceRoot) {

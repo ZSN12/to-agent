@@ -1,0 +1,76 @@
+/**
+ * TaskWeaver 输入区 (Composer) 专属分域样式
+ * 包含输入容器、附件预览条、斜杠/角色/@上下文菜单、停靠栏
+ */
+
+.composer-shell {
+  position: relative;
+  width: 100%;
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 0 16px 14px;
+}
+
+.composer-attachments {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 12px 2px;
+}
+
+.composer-attachment-item {
+  position: relative;
+  width: 54px;
+  height: 54px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #111;
+}
+
+.composer-attachment-item.has-error {
+  border-color: var(--accent-red, #f87171);
+}
+
+.composer-attachment-item button {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  border: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.composer-document-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text);
+  font-size: 12px;
+}
+
+.composer-document-chip button {
+  background: transparent;
+  border: 0;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.composer-document-chip button:hover {
+  color: var(--text);
+}

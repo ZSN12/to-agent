@@ -20,6 +20,13 @@ export interface SearchResult {
   score: number
 }
 
+export interface SearchFilters {
+  language?: string
+  type?: string
+  /** Case-sensitive file path substring; all specified filters must match. */
+  file?: string
+}
+
 export interface EmbeddingService {
   embed(text: string): Promise<number[]>
   embedBatch(texts: string[]): Promise<number[][]>
@@ -28,48 +35,7 @@ export interface EmbeddingService {
 export interface VectorStore {
   init(): Promise<void>
   add(chunks: CodeChunk[], embeddings: number[][]): Promise<void>
-  search(query: string, queryEmbedding: number[], topK: number): Promise<SearchResult[]>
+  search(query: string, queryEmbedding: number[], topK: number, filters?: SearchFilters): Promise<SearchResult[]>
   clear(): Promise<void>
   count?(): Promise<number>
-}
-
-export interface DiffLine {
-  type: 'addition' | 'deletion' | 'context'
-  oldNumber: number | null
-  newNumber: number | null
-  indicator: string
-  content: string
-}
-
-export interface DiffHunk {
-  oldStart: number
-  oldLines: number
-  newStart: number
-  newLines: number
-  changes: DiffChange[]
-}
-
-export interface DiffChange {
-  type: 'add' | 'delete' | 'context'
-  content: string
-  lineNumber: number
-}
-
-export interface EditResult {
-  success: boolean
-  file: string
-  bytesChanged: number
-  linesChanged: number
-  diff?: {
-    old: string
-    new: string
-    hunks: DiffHunk[]
-  }
-}
-
-export interface InlinePreview {
-  context_before: string[]
-  old_content: string[]
-  new_content: string[]
-  context_after: string[]
 }

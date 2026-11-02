@@ -18,6 +18,7 @@ import {
   readCompactionSummarizationEnv,
   writeCompactionSummarizationTarget,
 } from './taskweaver-compaction-target.mjs'
+import { sanitizeModelsDoc } from './model-sync/bridge-catalog.mjs'
 
 const SYNC_STATE_SCHEMA = 1
 
@@ -73,11 +74,44 @@ function dshValue(response, operation) {
   return result?.value ?? result
 }
 
-async function readModelsDoc(modelsPath) {
+async function migrateLegacyWorkBuddyCredential(credentialStore, key) {
+  if (!credentialStore || !key) return false
+  try {
+    const existing = typeof credentialStore.read === 'function'
+      ? await credentialStore.read('workbuddy')
+      : null
+    if (existing?.key) return true
+    if (typeof credentialStore.modify === 'function') {
+      await credentialStore.modify('workbuddy', async (current) => current ?? ({ type: 'api_key', key }))
+      return true
+    }
+    if (typeof credentialStore.set === 'function') {
+      await credentialStore.set('workbuddy', { type: 'api_key', key })
+      return true
+    }
+  } catch (error) {
+    console.warn('[model-sync] 迁移 WorkBuddy 凭据失败:', error instanceof Error ? error.message : error)
+  }
+  return false
+}
+
+async function readModelsDoc(modelsPath, credentialStore) {
   try {
     const raw = await fs.readFile(modelsPath, 'utf8')
     const doc = JSON.parse(raw)
     if (!doc.providers || typeof doc.providers !== 'object') return { providers: {} }
+    const beforeStr = JSON.stringify(doc)
+    const workbuddy = doc.providers.workbuddy
+    if (workbuddy && typeof workbuddy === 'object' && !Array.isArray(workbuddy) && typeof workbuddy.apiKey === 'string') {
+      const migrated = await migrateLegacyWorkBuddyCredential(credentialStore, workbuddy.apiKey.trim())
+      if (!migrated) delete doc.providers.workbuddy
+    }
+    sanitizeModelsDoc(doc)
+    const afterStr = JSON.stringify(doc)
+    if (beforeStr !== afterStr) {
+      await fs.writeFile(modelsPath, `${JSON.stringify(doc, null, 2)}\n`, { mode: 0o600 })
+      await fs.chmod(modelsPath, 0o600).catch(() => {})
+    }
     return doc
   } catch (err) {
     if (err?.code === 'ENOENT') return { providers: {} }
@@ -149,7 +183,7 @@ export async function ensureModelsJsonSyncedToDshHost({ hostManager, userDataPat
   }
 
   const modelsPath = resolveTaskWeaverModelsPath(userDataPath)
-  const sourceModelsDoc = modelsDocOverride ?? await readModelsDoc(modelsPath)
+  const sourceModelsDoc = modelsDocOverride ?? await readModelsDoc(modelsPath, credentialStore)
   const modelsDoc = applyOpenCodexDshReasoningOverlay(structuredClone(sourceModelsDoc))
   const compactionBeforeSync = await readCompactionSummarizationEnv(userDataPath)
   await writeCompactionSummarizationTarget(userDataPath, modelsDoc, credentialStore)

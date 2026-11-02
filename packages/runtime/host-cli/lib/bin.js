@@ -34,6 +34,8 @@ Examples:
   taskweaver-host plugin --profile taskweaver add <package>
                                             install a plugin into the profile
   dsh --profile taskweaver                   legacy alias for taskweaver-host
+  dsh plugin --profile taskweaver add <package>
+                                            manage plugins through the legacy alias
 `;
 /**
 * Resolve a boot or dump invocation from the launcher flags and the leftover
@@ -124,7 +126,7 @@ function readVersion() {
 const invocation = parseTaskWeaverHostArgs(process.argv.slice(2), readVersion());
 switch (invocation.mode) {
 	case "profile": {
-		const { runProfile } = await import("./profile-boot-Cgg0dmpz.js");
+		const { runProfile } = await import("./profile-boot-DJk942gn.js");
 		await runProfile({
 			environment: loadLayeredEnv("taskweaver-host"),
 			profile: invocation.profile,
@@ -134,12 +136,12 @@ switch (invocation.mode) {
 		break;
 	}
 	case "plugin": {
-		const { runPlugin } = await import("./plugin-COx5y7rf.js");
+		const { runPlugin } = await import("./plugin-2PUKS_XC.js");
 		process.exit(runPlugin(invocation.profile, invocation.args));
 		break;
 	}
 	case "dump-config": {
-		const { runDumpConfig } = await import("./dump-config-Dc6SNlJL.js");
+		const { runDumpConfig } = await import("./dump-config-CUwVCu8A.js");
 		runDumpConfig(invocation.profile, invocation.defaultOnly, invocation.patches);
 		break;
 	}

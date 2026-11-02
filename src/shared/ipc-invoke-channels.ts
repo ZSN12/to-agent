@@ -24,7 +24,9 @@ export type InvokeChannel =
   | 'backend:ready'
   | 'bridge:getStatus'
   | 'bridge:login'
+  | 'bridge:saveAntigravityOAuthCredentials'
   | 'chat:cancel'
+  | 'chat:classifyOrchestration'
   | 'chat:followUp'
   | 'chat:getDshView'
   | 'chat:getImageAttachment'
@@ -40,6 +42,7 @@ export type InvokeChannel =
   | 'chat:readDroppedImage'
   | 'chat:releaseDocuments'
   | 'chat:send'
+  | 'chat:sendAsRoles'
   | 'chat:stageDroppedDocument'
   | 'chat:steer'
   | 'chat:subscribeMux'
@@ -75,7 +78,6 @@ export type InvokeChannel =
   | 'models:cancelOAuth'
   | 'models:checkForUpdates'
   | 'models:discoverProviderModels'
-  | 'models:getBusyEnterMode'
   | 'models:getSemanticSearchSettings'
   | 'models:getThinkingLevel'
   | 'models:getUpdateStatus'
@@ -94,7 +96,6 @@ export type InvokeChannel =
   | 'models:saveSemanticSearchSettings'
   | 'models:scanLocal'
   | 'models:setActive'
-  | 'models:setBusyEnterMode'
   | 'models:setProviderApiKey'
   | 'models:setThinkingLevel'
   | 'models:startOAuth'
@@ -117,6 +118,9 @@ export type InvokeChannel =
   | 'preferences:set'
   | 'pricing:getStatus'
   | 'pricing:sync'
+  | 'roles:list'
+  | 'roles:remove'
+  | 'roles:upsert'
   | 'sandbox:getEffective'
   | 'sandbox:probe'
   | 'sandbox:setSessionMode'
@@ -144,6 +148,7 @@ export type InvokeChannel =
   | 'webSearch:getConfig'
   | 'webSearch:setConfig'
   | 'webSearch:testSearch'
+  | 'workspace:createGitBranch'
   | 'workspace:createManualGitCommit'
   | 'workspace:createReference'
   | 'workspace:deleteGitCheckpoint'
@@ -152,12 +157,14 @@ export type InvokeChannel =
   | 'workspace:gitStatus'
   | 'workspace:gitSuggestCommit'
   | 'workspace:listContext'
+  | 'workspace:listGitBranches'
   | 'workspace:listGitCheckpoints'
   | 'workspace:openPath'
   | 'workspace:previewManualGitCommit'
   | 'workspace:restoreGitCheckpoint'
   | 'workspace:revertDiff'
   | 'workspace:setTrust'
+  | 'workspace:switchGitBranch'
   | 'worktree:applyMerge'
   | 'worktree:diff'
   | 'worktree:list'
@@ -187,7 +194,9 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   'backend:ready',
   'bridge:getStatus',
   'bridge:login',
+  'bridge:saveAntigravityOAuthCredentials',
   'chat:cancel',
+  'chat:classifyOrchestration',
   'chat:followUp',
   'chat:getDshView',
   'chat:getImageAttachment',
@@ -203,6 +212,7 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   'chat:readDroppedImage',
   'chat:releaseDocuments',
   'chat:send',
+  'chat:sendAsRoles',
   'chat:stageDroppedDocument',
   'chat:steer',
   'chat:subscribeMux',
@@ -238,7 +248,6 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   'models:cancelOAuth',
   'models:checkForUpdates',
   'models:discoverProviderModels',
-  'models:getBusyEnterMode',
   'models:getSemanticSearchSettings',
   'models:getThinkingLevel',
   'models:getUpdateStatus',
@@ -257,7 +266,6 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   'models:saveSemanticSearchSettings',
   'models:scanLocal',
   'models:setActive',
-  'models:setBusyEnterMode',
   'models:setProviderApiKey',
   'models:setThinkingLevel',
   'models:startOAuth',
@@ -280,6 +288,9 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   'preferences:set',
   'pricing:getStatus',
   'pricing:sync',
+  'roles:list',
+  'roles:remove',
+  'roles:upsert',
   'sandbox:getEffective',
   'sandbox:probe',
   'sandbox:setSessionMode',
@@ -307,6 +318,7 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   'webSearch:getConfig',
   'webSearch:setConfig',
   'webSearch:testSearch',
+  'workspace:createGitBranch',
   'workspace:createManualGitCommit',
   'workspace:createReference',
   'workspace:deleteGitCheckpoint',
@@ -315,12 +327,14 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   'workspace:gitStatus',
   'workspace:gitSuggestCommit',
   'workspace:listContext',
+  'workspace:listGitBranches',
   'workspace:listGitCheckpoints',
   'workspace:openPath',
   'workspace:previewManualGitCommit',
   'workspace:restoreGitCheckpoint',
   'workspace:revertDiff',
   'workspace:setTrust',
+  'workspace:switchGitBranch',
   'worktree:applyMerge',
   'worktree:diff',
   'worktree:list',

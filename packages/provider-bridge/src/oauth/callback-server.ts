@@ -75,7 +75,7 @@ export interface OAuthCallbackFlowOptions {
   redirectUri?: string;
 }
 
-type BunServer = ReturnType<typeof Bun.serve>;
+type BunServer = BunServerHandle;
 
 export abstract class OAuthCallbackFlow {
   ctrl: OAuthController;
@@ -167,13 +167,15 @@ export abstract class OAuthCallbackFlow {
   }
 
   #createServers(port: number, expectedState: string): BunServer[] {
+    const bun = globalThis.Bun;
+    if (!bun) throw new Error("OAuth callback server requires the Bun runtime");
     const fetch = (req: Request) => this.#handleCallback(req, expectedState);
     const [primaryHost, ...extraHosts] = loopbackBindHostnames(this.callbackHostname, this.callbackBindHostname);
-    const primary = Bun.serve({ hostname: primaryHost, port, reusePort: false, fetch });
+    const primary = bun.serve({ hostname: primaryHost, port, reusePort: false, fetch });
     const servers = [primary];
     for (const host of extraHosts) {
       try {
-        servers.push(Bun.serve({ hostname: host, port: primary.port, reusePort: false, fetch }));
+        servers.push(bun.serve({ hostname: host, port: primary.port, reusePort: false, fetch }));
       } catch (err) {
         // extraHosts is only non-empty when we advertise ambiguous `localhost`. A foreign
         // process HOLDING the IPv6 loopback port could then receive the browser's OAuth

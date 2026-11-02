@@ -33,11 +33,12 @@ assert.equal(presentation.codeOutputImageDataUrl({ mediaType: 'image/png', data:
 assert.equal(presentation.codeOutputImageDataUrl({ mediaType: 'image/png', data: 'aGVsbG8=', bytes: 4 }), null,
   'renderer refuses bytes that disagree with the Host attachment metadata')
 
-const [card, traceCard, toolList, composer, imageComponent] = await Promise.all([
+const [card, traceCard, toolList, composer, composerAttachments, imageComponent] = await Promise.all([
   readFile('src/features/chat/CodeExecutionResultCard.tsx', 'utf8'),
   readFile('src/features/chat/ToolTraceCard.tsx', 'utf8'),
   readFile('src/features/chat/DshToolCallList.tsx', 'utf8'),
   readFile('src/features/composer/Composer.tsx', 'utf8'),
+  readFile('src/features/composer/ComposerAttachmentsPreview.tsx', 'utf8'),
   readFile('src/features/chat/AttachmentImagePreview.tsx', 'utf8'),
 ])
 
@@ -53,7 +54,8 @@ assert.match(toolList, /row\.resultPreview \?\? sourceTrace\.resultSummary/,
 assert.match(toolList, /chat\.getResultAttachment/, 'image bytes are fetched through the session-authorized IPC')
 assert.match(toolList, /setResultImagesLoading\(true\)/, 'image attachment reads wait until the tool row is expanded')
 assert.match(toolList, /openImageIdsKey/, 'project refreshes do not trigger duplicate attachment reads')
-assert.match(composer, /<AttachmentImagePreview/, 'composer image attachments also use the shared preview')
+assert.match(composer, /<ComposerAttachmentsPreview/, 'composer image attachments are rendered by the shared attachment preview')
+assert.match(composerAttachments, /<AttachmentImagePreview/, 'the shared composer attachment preview uses the shared image preview')
 assert.match(imageComponent, /loading="lazy" decoding="async"/, 'shared image previews decode lazily')
 
 console.log('code execution result card source tests passed')

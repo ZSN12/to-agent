@@ -1,13 +1,37 @@
-import { useState } from 'react'
-import { AlertCircle } from 'lucide-react'
-import { DEFAULT_OPENUSAGE_URL, describeResource } from './openusage-limits-summary'
+import { useEffect, useState } from 'react'
+import { DEFAULT_OPENUSAGE_URL } from './openusage-limits-summary'
 import { useOpenUsageLimits } from './useOpenUsageLimits'
 import { OpenUsageQuotaStrip } from './OpenUsageQuotaStrip'
 
+const COLLAPSED_STORAGE_KEY = 'taskweaver.openusage.collapsed'
+
+function readCollapsedPreference(): boolean {
+  if (typeof window === 'undefined') return false
+  try {
+    return window.localStorage.getItem(COLLAPSED_STORAGE_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
 export function OpenUsageSection() {
-  const [detailsOpen, setDetailsOpen] = useState(false)
+  const [collapsed, setCollapsed] = useState(readCollapsedPreference)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const limits = useOpenUsageLimits({ autoFetch: true })
-  const providers = limits.snapshot?.providers ? Object.entries(limits.snapshot.providers) : []
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(COLLAPSED_STORAGE_KEY, collapsed ? '1' : '0')
+    } catch {
+      // Keep the disclosure usable when browser storage is unavailable.
+    }
+  }, [collapsed])
+
+  const toggleCollapsed = () => {
+    const nextCollapsed = !collapsed
+    setCollapsed(nextCollapsed)
+    if (nextCollapsed) setSettingsOpen(false)
+  }
 
   return (
     <div className="openusage-section">
@@ -17,12 +41,17 @@ export function OpenUsageSection() {
         connected={limits.connected}
         hint={limits.hint}
         lastFetchedAt={limits.lastFetchedAt}
-        detailsOpen={detailsOpen}
-        onToggleDetails={() => setDetailsOpen((open) => !open)}
+        collapsed={collapsed}
+        settingsOpen={settingsOpen}
+        onToggleCollapsed={toggleCollapsed}
+        onToggleSettings={() => {
+          if (collapsed) setCollapsed(false)
+          setSettingsOpen((open) => !open)
+        }}
         onRefresh={() => void limits.refresh(true)}
       />
 
-      {detailsOpen && (
+      {!collapsed && settingsOpen && (
         <div className="openusage-panel settings-subsection">
           <label className="portfolio-form-field">
             <span>OpenUsage API 地址</span>
@@ -50,32 +79,6 @@ export function OpenUsageSection() {
               <small className="settings-hint">当前请求：{limits.activeBaseUrl}/v1/limits</small>
             ) : null}
           </label>
-
-          {limits.hint && !providers.length ? (
-            <p className="settings-callout warn" role="status">
-              <AlertCircle size={14} />
-              {limits.hint}
-            </p>
-          ) : null}
-
-          {providers.length > 0 && (
-            <ul className="openusage-compact-list">
-              {providers.map(([providerKey, provider]) => {
-                const title = provider.displayName || providerKey
-                const lines = provider.resources
-                  ? Object.entries(provider.resources).map(([key, res]) => describeResource(key, res))
-                  : []
-                return (
-                  <li key={providerKey}>
-                    <strong>{title}</strong>
-                    {provider.plan ? ` · ${provider.plan}` : ''}
-                    {provider.stale ? ' · 缓存' : ''}
-                    <span className="openusage-compact-metrics">{lines.join(' · ') || '无指标'}</span>
-                  </li>
-                )
-              })}
-            </ul>
-          )}
         </div>
       )}
     </div>

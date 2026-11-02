@@ -12,11 +12,26 @@ export interface ModifiedFileSummary {
 }
 
 /** Cursor-style per-turn tool activity (persisted after Host turn completes). */
+export interface TurnActivityDetail {
+  id: string
+  toolName: string
+  inputSummary: string
+  resultSummary: string
+  commandSummary?: string
+  commandOutcome?: { exitCode: number | null; background: boolean; timedOut: boolean; sandboxDenied: boolean; signal?: string }
+  commandOutputTail?: string
+  fileDiff?: { type: string; path: string; diff: string; isNewFile?: boolean }
+  outputId?: string
+  durationMs?: number
+}
+
 export interface TurnActivitySummary {
   editedFileCount: number
   exploredFileCount: number
   searchCount: number
   commandCount: number
+  details?: TurnActivityDetail[]
+  detailsTruncated?: boolean
   addedLines?: number
   deletedLines?: number
   linesComplete?: boolean
@@ -51,10 +66,25 @@ export interface ChatMessage {
   fileChanges?: ModifiedFileSummary[]
   turnActivity?: TurnActivitySummary
   modelKey?: string
+  /** User-defined role that authored this reply in role mode. */
+  speakerId?: string
+  /** Marks a message sent or produced by the role-mode backend. */
+  roleMode?: boolean
+  /** Strategy used for the Bot discussion turn initiated by this user message. */
+  roleDiscussionStrategy?: 'relay' | 'independent'
+  /** Whether the user requested a final lead-Bot synthesis for this turn. */
+  roleSummaryRequested?: boolean
+  /** Marks a lead-Bot synthesis message at the end of a role discussion. */
+  roleSummary?: boolean
+  /** Informational execution note (for example, multi-agent task count). */
+  statusNote?: string
+  /** Failure-only message shown with retry/recovery actions. */
   callout?: string
   /** Structured reason for a failed turn, used to offer the right recovery action. */
   errorCode?: string
   usage?: ChatUsage
+  /** Final outputs produced by DAG child agents, displayed inside the parent reply. */
+  subagentOutputs?: SubagentOutput[]
   /** Host- or runner-observed verification status; never inferred from answer text. */
   verification?: TaskVerificationEvidence
   verificationRequired?: boolean
@@ -72,6 +102,19 @@ export interface ChatMessage {
   }
   /** 压缩命令等维护操作的用量展示口径（非普通聊天轮次）。 */
   usageKind?: 'compaction'
+}
+
+export interface SubagentOutput {
+  id: string
+  role: string
+  title: string
+  model: string
+  modelKey?: string
+  routeReason?: string
+  durationMs?: number | null
+  status?: string
+  usage?: ChatUsage
+  text: string
 }
 
 export interface TaskAcceptanceAssessment {
@@ -93,6 +136,8 @@ export interface TaskVerificationEvidence {
   timedOut?: boolean
   source?: string
   reason?: string
+  /** Automatic repair rounds run before this result (chat verification loop). */
+  healAttempts?: number
   commands?: Array<{
     command: string
     status: string
@@ -140,6 +185,8 @@ export interface TaskNode {
   id: string
   /** Orchestration run that owns this task's isolated worktree. */
   runId?: string
+  /** Original run that owns a worktree being reused by checkpoint resume. */
+  worktreeRunId?: string
   runStatus?: 'awaiting_approval' | 'running' | 'paused' | 'finalizing' | 'completed' | 'rejected' | 'cancelled' | 'failed' | 'interrupted'
   startedAt?: string
   endedAt?: string

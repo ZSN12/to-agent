@@ -1,6 +1,20 @@
 {
   "checkpoints": [
     {
+      "id": "cp-1793286703788-8a3027",
+      "kind": "internal_protection",
+      "conversationId": null,
+      "taskId": null,
+      "timestamp": 1793286703788,
+      "headCommit": "47a33f2e801b8ccff20bfd931a0376be66c86cec",
+      "stashCommit": "2522b9059b9c549ab10f840dbcec45d53ec7867a",
+      "branch": "codex/taskweaver-improvements",
+      "hasDirtyChanges": true,
+      "changedFilesCount": 258,
+      "summary": "Pre-P6.3 thread store split checkpoint",
+      "gitRef": "refs/taskweaver/checkpoints/cp-1793286703788-8a3027"
+    },
+    {
       "id": "cp-1791562870288-a30d6b",
       "kind": "internal_protection",
       "conversationId": null,

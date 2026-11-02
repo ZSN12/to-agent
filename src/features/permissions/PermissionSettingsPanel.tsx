@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Check, Plus, Shield, ShieldCheck, Trash2 } from 'lucide-react'
 import type { ApprovalAuditEntry, PermissionMode, PermissionRule } from '../../shared/app-api'
+import { SettingsLayout } from '../settings/SettingsLayout'
 import './permission-settings-panel.css'
 
 const PROMPT_INJECTION_LIMIT_MIN_KIB = 1
@@ -263,7 +264,7 @@ export function PermissionSettingsPanel({
       onToast?.(res?.error || '保存失败')
       return
     }
-    onToast?.(enabled ? '已开启：聊天列表以 DSH 会话为准' : '已关闭：仅使用本地线程消息（不推荐）')
+    onToast?.(enabled ? '已开启：聊天列表以本机运行时会话为准' : '已关闭：聊天列表使用本地线程记录')
   }
 
   const handlePreferMultiAgent = async (enabled: boolean) => {
@@ -296,7 +297,7 @@ export function PermissionSettingsPanel({
       onToast?.(res?.error || '保存失败')
       return
     }
-    onToast?.(enabled ? '已开启：改代码请求将追加验证指引' : '已关闭：改代码请求不再追加 Host 外验证指引')
+    onToast?.(enabled ? '已开启：修改请求将附带验证提示' : '已关闭：修改请求不再附带验证提示')
   }
 
   const handleAutoReviewReads = async (enabled: boolean) => {
@@ -347,7 +348,7 @@ export function PermissionSettingsPanel({
       }
       setMode(nextMode)
       onModeChange?.(nextMode)
-      onToast?.('权限偏好已保存；下一条消息由 Host 确认应用。')
+      onToast?.('权限偏好已保存；将在下一条消息时生效。')
     } catch {
       onToast?.('权限设置保存失败，请重试。')
     }
@@ -386,13 +387,11 @@ export function PermissionSettingsPanel({
   }
 
   return (
-    <section className="model-settings">
-      <div className="model-settings-header">
-        <div>
-          <h2>安全策略与权限控制</h2>
-          <p>控制 TaskWeaver 在执行终端命令、文件改动与调用外部工具时的安全门禁与确认策略。</p>
-        </div>
-      </div>
+    <SettingsLayout
+      title="安全策略与权限控制"
+      description="控制 TaskWeaver 在运行终端命令、修改文件和调用外部工具时的权限与确认方式。"
+      className="model-settings permission-settings-panel"
+    >
 
       {/* 三档模式选择卡片 */}
       <div className="permission-settings-mode-section">
@@ -402,14 +401,14 @@ export function PermissionSettingsPanel({
             active={mode === 'readonly'}
             icon={<Shield size={16} className="permission-mode-icon is-readonly" aria-hidden="true" />}
             label="只读"
-            description="Host read-only：文件写入工具不可用；适合计划审阅与纯理解任务。"
+            description="只读模式：不允许通过工具修改文件，适合计划审阅和理解代码。"
             onSelect={() => handleModeSelect('readonly')}
           />
           <PermissionModeCard
             active={mode === 'ask' || mode === 'on-risk'}
             icon={<Shield size={16} className="permission-mode-icon is-workspace" aria-hidden="true" />}
             label="工作区可写 (默认)"
-            description="Host workspace-write：允许工作区内文件修改与命令；需要扩大沙箱范围时请求审批。"
+            description="工作区可写：允许修改当前工作区并运行命令；超出沙箱范围时需要审批。"
             onSelect={() => handleModeSelect('ask')}
           />
           <PermissionModeCard
@@ -418,9 +417,9 @@ export function PermissionSettingsPanel({
             label="完全访问"
             description={(
               <>
-                <span className="permission-description-line">Host 使用 danger-full-access：关闭文件与命令沙箱约束，默认审批策略为 never。</span>
+                <span className="permission-description-line">完全访问会关闭文件与命令沙箱约束。仅在信任当前工作区时使用。</span>
                 <span className="permission-description-line permission-description-secondary">
-                  若 Host 仍发出审批请求，桌面端会显示给用户。设置在下一次发送消息时应用；成功回执前不代表 Host 已生效。
+                  其他权限规则仍可能要求确认。设置会在下一次发送消息时应用；收到成功回执后才算生效。
                 </span>
               </>
             )}
@@ -440,7 +439,7 @@ export function PermissionSettingsPanel({
           <span>
             <strong>自动放行工作区内只读工具</strong>
             <span className="permission-option-description">
-              应用层只读工具确认偏好；Z Host 使用其自身审批策略，此开关不改变 Host 的沙箱权限。
+              仅影响应用内只读工具的确认偏好；终端与文件沙箱仍由运行时策略控制。
             </span>
           </span>
         </label>
@@ -466,9 +465,9 @@ export function PermissionSettingsPanel({
             className="permission-option-checkbox"
           />
           <span>
-            <strong>改代码后追加验证指引（Host 外）</strong>
+            <strong>修改代码后提示运行验证</strong>
             <span className="permission-option-description">
-              默认关闭以对齐 DSH Web；开启后会在修改类请求上提示运行项目验证命令。
+              开启后，修改代码的请求会附带项目验证命令提示。
             </span>
           </span>
         </label>
@@ -529,9 +528,9 @@ export function PermissionSettingsPanel({
             className="permission-option-checkbox"
           />
           <span>
-            <strong>聊天以 DSH 会话 transcript 为准（阶段 C）</strong>
+            <strong>聊天记录以本机运行时会话为准</strong>
             <span className="permission-option-description">
-              开启后列表与 Host 投影对齐；线程库只保留多 Agent callout、错误等扩展行。
+              开启后，聊天列表使用本机运行时的会话记录；应用扩展消息仍会保留。
             </span>
           </span>
         </label>
@@ -616,7 +615,7 @@ export function PermissionSettingsPanel({
         <div className="permission-audit-section">
           <h3 className="permission-audit-title">当前会话审批记录</h3>
           <p className="permission-audit-description">
-            最近 30 条应用层与 Host 审批事件（JSONL 落盘于会话目录）。
+            最近 30 条应用与运行时审批记录。
           </p>
           {approvalAudit.length === 0 ? (
             <p className="settings-list-empty permission-audit-empty">暂无审批审计记录。</p>
@@ -653,6 +652,6 @@ export function PermissionSettingsPanel({
           onSave={handleAddRule}
         />
       )}
-    </section>
+    </SettingsLayout>
   )
 }

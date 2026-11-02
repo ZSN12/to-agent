@@ -30,12 +30,18 @@ import { TOOL_ABORTED_BEFORE_DISPATCH, TOOL_RUNTIME_SCHEDULER } from '@taskweave
  * @param toolCalls - assistant calls in model order.
  * @param signal - abort signal shared by the step.
  * @param acceptContext - accepts committed result context for the next step boundary.
+ * @param maxToolCalls - optional Host-owned cap for dispatched calls in this turn.
  */
-export async function executeToolCalls(ctx, turn, step, toolCalls, signal, acceptContext) {
+export async function executeToolCalls(ctx, turn, step, toolCalls, signal, acceptContext, maxToolCalls) {
+    if (maxToolCalls !== undefined && (!Number.isSafeInteger(maxToolCalls) || maxToolCalls < 0)) {
+        throw new TypeError('maxToolCalls must be a non-negative safe integer');
+    }
     const agent = ctx.agents.requireInitiator();
     const { session } = agent;
+    const executableBlocks = maxToolCalls === undefined ? toolCalls : toolCalls.slice(0, maxToolCalls);
+    const overLimitBlocks = maxToolCalls === undefined ? [] : toolCalls.slice(maxToolCalls);
     // Inputs are distinct because tools/execute wrappers may replace `exec.signal`.
-    const planned = toolCalls.map(block => ({
+    const planned = executableBlocks.map(block => ({
         block,
         exec: {
             callId: block.id,
@@ -59,10 +65,20 @@ export async function executeToolCalls(ctx, turn, step, toolCalls, signal, accep
         if (outcome.aborted) {
             for (const call of planned.slice(next))
                 appendSkippedToolCall(session, turn, step, call.block);
-            return { concluded };
+            for (const block of overLimitBlocks)
+                appendSkippedToolCall(session, turn, step, block);
+            return { concluded, toolCallsUsed: planned.length, overLimit: overLimitBlocks.length > 0 };
         }
     }
-    return { concluded };
+    if (signal.aborted) {
+        for (const block of overLimitBlocks)
+            appendSkippedToolCall(session, turn, step, block);
+    }
+    else {
+        for (const block of overLimitBlocks)
+            appendToolCallLimit(session, turn, step, block, maxToolCalls ?? 0);
+    }
+    return { concluded, toolCallsUsed: planned.length, overLimit: overLimitBlocks.length > 0 };
 }
 /** Parse model arguments, preserving invalid JSON as text and mapping empty input to `{}`. */
 function parseArguments(raw) {
@@ -216,6 +232,19 @@ function appendSkippedToolCall(session, turn, step, block) {
         error: {
             message: 'tool call aborted before dispatch',
             info: { name: 'AbortError', code: TOOL_ABORTED_BEFORE_DISPATCH },
+        },
+    }, callSeq);
+}
+/** Record a model-requested call rejected by a Host-enforced per-turn budget. */
+function appendToolCallLimit(session, turn, step, block, maxToolCalls) {
+    const callSeq = appendToolCall(session, turn, step, block);
+    const message = `Error: role turn tool-call limit reached (${maxToolCalls}); this call was not dispatched`;
+    appendToolResult(session, turn, step, block, {
+        content: [{ type: 'text', text: message }],
+        isError: true,
+        error: {
+            message,
+            info: { name: 'RoleToolCallLimitError', code: 'ROLE_TOOL_CALL_LIMIT' },
         },
     }, callSeq);
 }

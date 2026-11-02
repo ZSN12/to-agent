@@ -61,51 +61,6 @@ export type {
   OcxUsage,
 } from "./types/request";
 
-export type {
-  OcxApiSurfacesConfig,
-  OcxProtocolsConfig,
-  OcxClaudeCodeConfig,
-  OcxClaudeDesktopFamily,
-  OcxClaudeDesktopAssignment,
-  OcxClaudeDesktopProfile,
-  StorageCleanupPolicy,
-  OcxCustomModel,
-  OcxApiKeyEntry,
-  OcxClientIntegrationsConfig,
-  OcxConfigRebaseProvenance,
-  OcxHubConfig,
-  OcxRemoteGuiConfig,
-  OcxConnectedClientId,
-  OcxClientConnectionConfig,
-  OcxConfig,
-  SkillsCatalogRefresh,
-  OcxSkillsConfig,
-  CodexLowQuotaProtectionConfig,
-  OcxAccountPoolRotationStrategy,
-  OcxAccountPoolQuotaWindow,
-  OcxComboCooldownWaitPolicy,
-  OcxComboStrategy,
-  OcxComboDefaultEffort,
-  OcxComboDefaultEffortMode,
-  OcxComboReasoningEffortMode,
-  OcxComboTarget,
-  OcxComboConfig,
-  OcxRoutingUnknownEvidenceMode,
-  OcxRoutingProfileCandidate,
-  OcxRoutingProfileRequirements,
-  OcxRoutingProfileOptimize,
-  OcxRoutingUnknownCostCapMode,
-  OcxRoutingProfileLimits,
-  OcxRoutingProfileUnknownEvidence,
-  OcxRoutingProfileCompatibilitySuite,
-  OcxRoutingProfileCompatibility,
-  OcxRoutingProfileConfig,
-  OcxTokenGuardianConfig,
-  OcxImagesConfig,
-  OcxSearchConfig,
-  OcxVisionSidecarConfig,
-  OcxWebSearchSidecarConfig,
-} from "./types/config";
 
 export type {
   RefreshPolicy,
@@ -129,9 +84,3 @@ export type {
 } from "./types/provider";
 
 export { PROVIDER_WEB_SEARCH_BRIDGE_BACKENDS } from "./types/provider";
-
-export type {
-  CodexAccount,
-  CodexAccountCredentials,
-  CodexAccountCredentialRecord,
-} from "./types/accounts";

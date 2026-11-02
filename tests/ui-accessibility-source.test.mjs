@@ -8,14 +8,15 @@ test('major settings controls expose state without an incomplete ARIA tab patter
   const [settings, provider, models, logs, plugins, permissions, terminal] = await Promise.all([
     read('../src/features/settings/SettingsPage.tsx'),
     read('../src/features/models/CustomProviderSection.tsx'),
-    read('../src/features/models/ModelSettingsPanel.tsx'),
+    read('../src/features/models/components/AddModelModal.tsx'),
     read('../src/features/logs/OutputLogPanel.tsx'),
     read('../src/features/plugins/PluginsMarketplaceView.tsx'),
     read('../src/features/permissions/PermissionSettingsPanel.tsx'),
     read('../src/features/terminal/TerminalDrawer.tsx'),
   ])
 
-  assert.match(settings, /aria-current=\{section === 'appearance' \? 'page' : undefined\}/)
+  assert.match(settings, /aria-current=\{section === item\.section \? 'page' : undefined\}/)
+  assert.match(settings, /<nav aria-label=\{`\$\{group\.title\}设置`\}>/)
   assert.match(settings, /id="settings-content"/)
   for (const source of [provider, models, logs]) {
     assert.match(source, /role="group"/)
@@ -36,7 +37,7 @@ test('major settings controls expose state without an incomplete ARIA tab patter
 
 test('model pickers use keyboard-activatable checkbox buttons', async () => {
   const [models, localScan, focusStyles, parityStyles] = await Promise.all([
-    read('../src/features/models/ModelSettingsPanel.tsx'),
+    read('../src/features/models/components/AddModelModal.tsx'),
     read('../src/features/models/LocalScanModal.tsx'),
     read('../src/styles.css'),
     read('../src/styles-dsh-parity.css'),
@@ -81,4 +82,25 @@ test('modal focus management traps Tab, supports Escape, and restores the opener
   assert.match(probeModels, /useModalFocusTrap/)
   assert.match(gitCheckpoints, /aria-labelledby=\{commitDialogTitleId\}/)
   assert.match(plugins, /useModalFocusTrap/)
+})
+
+test('local scans ignore stale responses and multi-edit files keep every diff visible', async () => {
+  const [modelSettings, reviewPanel] = await Promise.all([
+    read('../src/features/models/ModelSettingsPanel.tsx'),
+    read('../src/features/chat/ChangedFileReviewPanel.tsx'),
+  ])
+
+  assert.match(modelSettings, /const requestId = \+\+scanRequestIdRef\.current/)
+  assert.match(modelSettings, /if \(requestId !== scanRequestIdRef\.current\) return/)
+  assert.match(modelSettings, /scanPromiseRef\.current/)
+  assert.match(reviewPanel, /file\.diffs\.map\(\(diff, index\)/)
+  assert.match(reviewPanel, /<SingleDiffReviewCard fileDiff=\{diff\} defaultExpanded/)
+})
+
+test('DAG task cards expose model routing reasons visibly and to assistive technology', async () => {
+  const dagPanel = await read('../src/features/orchestration/DagPanel.tsx')
+
+  assert.match(dagPanel, /const routeReason = task\.routeReason\?\.trim\(\)/)
+  assert.match(dagPanel, /className="task-card-route" title=\{routeReason\}/)
+  assert.match(dagPanel, /路由依据：\$\{routeReason \|\| '未提供'\}/)
 })

@@ -3,11 +3,17 @@ import type { OpenUsageLimitsSnapshot, OpenUsageResourceData } from '../../share
 export const DEFAULT_OPENUSAGE_URL = 'http://127.0.0.1:6736'
 
 const PROVIDER_LABELS: Record<string, string> = {
-  antigravity: 'Google Antigravity',
-  codex: 'OpenAI Codex',
+  antigravity: 'Antigravity',
+  codex: 'Codex',
   cursor: 'Cursor',
-  claude: 'Anthropic Claude',
+  claude: 'Claude',
   openrouter: 'OpenRouter',
+}
+
+const PROVIDER_RESOURCE_ORDER: Record<string, string[]> = {
+  antigravity: ['geminiSession', 'geminiWeekly', 'nonGeminiSession', 'nonGeminiWeekly'],
+  codex: ['creditValue', 'credits', 'rateLimitResets', 'session', 'weekly'],
+  cursor: ['apiUsage', 'autoUsage', 'grokBot', 'totalUsage'],
 }
 
 const RESOURCE_PRIORITY: Record<string, number> = {
@@ -57,51 +63,12 @@ export function consumptionRemainingRatio(resource: OpenUsageResourceData): numb
   return Math.max(0, Math.min(1, remaining / limit))
 }
 
-export function describeResource(resourceId: string, resource: OpenUsageResourceData): string {
-  const resetHint = formatResetTime(resource.resetsAt ?? resource.resetAt)
-  if (resource.kind === 'balance') {
-    const raw = resource.available ?? resource.remaining
-    const amount = typeof raw === 'number' ? formatQuotaAmount(raw) : raw
-    const unit = resource.unit ? ` ${resource.unit}` : ''
-    const base = `余额 ${amount ?? '—'}${unit}`
-    return resetHint ? `${resourceId}: ${base}（${resetHint}）` : `${resourceId}: ${base}`
-  }
-  const ratio = consumptionRemainingRatio(resource)
-  if (ratio !== null) {
-    const limit = resource.limit ?? resource.max
-    const remaining = resource.remaining
-    const pct = Math.round(ratio * 100)
-    const base = `${resourceId}: 剩余 ${formatQuotaAmount(remaining)}/${formatQuotaAmount(limit)}（${pct}%）`
-    return resetHint ? `${base}，${resetHint}` : base
-  }
-  if (resetHint) return `${resourceId}: ${resetHint}`
-  return `${resourceId}: —`
-}
-
 export type OpenUsageProviderSummary = {
   key: string
   title: string
   plan?: string
   stale?: boolean
-  headline: string
-  worstRatio: number | null
-  resources: { id: string; line: string; ratio: number | null }[]
-}
-
-function pickHeadlineResource(
-  entries: { id: string; line: string; ratio: number | null; priority: number }[],
-): { headline: string; worstRatio: number | null } {
-  if (entries.length === 0) return { headline: '无余额/配额指标', worstRatio: null }
-
-  const consumption = entries.filter((e) => e.ratio !== null)
-  if (consumption.length > 0) {
-    const worst = consumption.reduce((a, b) => (a.ratio! <= b.ratio! ? a : b))
-    const short = worst.line.replace(/^[^:]+:\s*/, '')
-    return { headline: short, worstRatio: worst.ratio }
-  }
-
-  const balance = entries[0]
-  return { headline: balance.line.replace(/^[^:]+:\s*/, ''), worstRatio: null }
+  resources: { id: string; resource: OpenUsageResourceData; ratio: number | null }[]
 }
 
 export function summarizeOpenUsageLimits(snapshot: OpenUsageLimitsSnapshot | null): OpenUsageProviderSummary[] {
@@ -110,20 +77,28 @@ export function summarizeOpenUsageLimits(snapshot: OpenUsageLimitsSnapshot | nul
     const title = provider.displayName || PROVIDER_LABELS[key] || key
     const resources = Object.entries(provider.resources ?? {}).map(([id, res]) => ({
       id,
-      line: describeResource(id, res),
+      resource: res,
       ratio: consumptionRemainingRatio(res),
-      priority: RESOURCE_PRIORITY[id] ?? 0,
     }))
-    resources.sort((a, b) => b.priority - a.priority)
-    const { headline, worstRatio } = pickHeadlineResource(resources)
+    const providerOrder = PROVIDER_RESOURCE_ORDER[key]
+    resources.sort((a, b) => {
+      if (providerOrder) {
+        const aIndex = providerOrder.indexOf(a.id)
+        const bIndex = providerOrder.indexOf(b.id)
+        if (aIndex !== -1 || bIndex !== -1) {
+          if (aIndex === -1) return 1
+          if (bIndex === -1) return -1
+          return aIndex - bIndex
+        }
+      }
+      return (RESOURCE_PRIORITY[b.id] ?? 0) - (RESOURCE_PRIORITY[a.id] ?? 0)
+    })
     return {
       key,
       title,
       plan: provider.plan,
       stale: provider.stale,
-      headline,
-      worstRatio,
-      resources,
+      resources: resources.map(({ id, resource, ratio }) => ({ id, resource, ratio })),
     }
   })
 }
@@ -146,6 +121,15 @@ export function formatFetchedAt(ms: number | null): string {
   if (!ms) return ''
   const diffSec = Math.round((Date.now() - ms) / 1000)
   if (diffSec < 10) return '刚刚更新'
-  if (diffSec < 3600) return `${Math.round(diffSec / 60)} 分钟前更新`
+  if (diffSec < 60) return `${diffSec} 秒前更新`
+  if (diffSec < 3600) return `${Math.max(1, Math.round(diffSec / 60))} 分钟前更新`
   return new Date(ms).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) + ' 更新'
+}
+
+/** Prefer the provider's collection timestamp over the time TaskWeaver read its cached API response. */
+export function openUsageSnapshotFetchedAt(snapshot: OpenUsageLimitsSnapshot | null): number | null {
+  const fetchedAt = Object.values(snapshot?.providers ?? {})
+    .map((provider) => Date.parse(provider.fetchedAt ?? ''))
+    .filter(Number.isFinite)
+  return fetchedAt.length > 0 ? Math.min(...fetchedAt) : null
 }

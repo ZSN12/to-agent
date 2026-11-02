@@ -195,9 +195,6 @@
     - id: tool-fs
       name: '@taskweaver/dsh-tool-fs'
 
-    - id: tool-document
-      name: '@taskweaver/dsh-tool-document'
-
     - id: tool-fs-search
       name: '@taskweaver/dsh-tool-fs-search'
       config:
@@ -367,12 +364,6 @@
       name: '@taskweaver/dsh-web-search-taskweaver'
       config:
         configPathEnv: TASKWEAVER_WEB_SEARCH_CONFIG_PATH
-
-    - id: tool-web
-      name: '@taskweaver/dsh-tool-web'
-      config:
-        fetch: false
-        searchTimeoutMs: 30000
 
     # ── rows every mode mounts, whose values each overlay may state ──────────────
 

@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { SessionId } from '@taskweaver/dsh-session'
 import { SessionSearchCursor, type SessionQueryErrorCode } from '@taskweaver/dsh-session-query'
+import type { SessionEventSearchDocument } from '@taskweaver/dsh-session-query'
 import {
   buildEventWhere,
   buildSessionWhere,
+  diffSearchDocuments,
   FTS_HIGHLIGHT_END,
   FTS_HIGHLIGHT_START,
   makeSnippet,
@@ -258,5 +260,64 @@ describe('SQLite query identity and presentation', () => {
     expect(makeSnippet(`abcde${FTS_HIGHLIGHT_START}f${FTS_HIGHLIGHT_END}`, 5)).toBe('…cdef')
     expect(makeSnippet(`  x—${FTS_HIGHLIGHT_START}café${FTS_HIGHLIGHT_END}\n y  `, 20))
       .toBe('x—café y')
+  })
+})
+
+describe('SQLite FTS document deltas', () => {
+  const sessionId = SessionId('incremental')
+  const document = (
+    seq: number,
+    text: string,
+    surface: SessionEventSearchDocument['surface'] = 'current',
+  ): SessionEventSearchDocument => ({
+    sessionId,
+    seq,
+    type: 'user/message',
+    time: seq + 1,
+    surface,
+    text,
+  })
+
+  it('inserts only a new document for an append and no FTS row for a non-search event', () => {
+    const previous = [document(0, 'first')]
+    expect(diffSearchDocuments(previous, [
+      ...previous,
+      document(2, 'second'),
+    ], sessionId)).toEqual({ deleteSeqs: [], upserts: [document(2, 'second')] })
+    expect(diffSearchDocuments(previous, previous, sessionId)).toEqual({ deleteSeqs: [], upserts: [] })
+  })
+
+  it('updates shadowed surface metadata and inserts a replacement document', () => {
+    const previous = [document(0, 'original'), document(1, 'other')]
+    const next = [
+      document(0, 'original', 'shadowed'),
+      document(1, 'other'),
+      document(2, 'summary'),
+    ]
+
+    expect(diffSearchDocuments(previous, next, sessionId)).toEqual({
+      deleteSeqs: [0],
+      upserts: [document(0, 'original', 'shadowed'), document(2, 'summary')],
+    })
+  })
+
+  it('handles reset and deletion by removing absent sequences and replacing changed rows', () => {
+    const previous = [document(0, 'old zero'), document(1, 'old one'), document(3, 'old three')]
+
+    expect(diffSearchDocuments(previous, [document(0, 'new zero')], sessionId)).toEqual({
+      deleteSeqs: [0, 1, 3],
+      upserts: [document(0, 'new zero')],
+    })
+    expect(diffSearchDocuments(previous, [], sessionId)).toEqual({
+      deleteSeqs: [0, 1, 3],
+      upserts: [],
+    })
+  })
+
+  it('refuses malformed or cross-session projections so callers can rebuild safely', () => {
+    const valid = document(0, 'first')
+    expect(diffSearchDocuments([valid, valid], [valid], sessionId)).toBeUndefined()
+    expect(diffSearchDocuments([valid], [{ ...valid, sessionId: SessionId('other') }], sessionId))
+      .toBeUndefined()
   })
 })

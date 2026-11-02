@@ -17,7 +17,7 @@ export { SessionProvideChannel } from './sessions/provide.ts';
 export type { SessionProvideChannelHost } from './sessions/provide.ts';
 export { createScope } from './agents/scope.ts';
 export type { AgentScopeHandle } from './agents/scope.ts';
-export { DirectoryBrowseError, WorkspaceCreateError, WorkspaceRuntime } from './workspaces/service.ts';
+export { WorkspaceCreateError, WorkspaceRuntime } from './workspaces/service.ts';
 export { abbreviateHomePath, resolveWorkspacePath } from './workspaces/path.ts';
 export type { SettingsScope, SettingsScopeSnapshot, SettingsScopeSpec, } from './contract/settings-scope.ts';
 export type { Session } from './sessions/session.ts';
@@ -29,7 +29,7 @@ export type { SessionListPhase, SessionSearchResultItem, SubagentCatalogSnapshot
 export type { SubagentAddress, JobView } from '@taskweaver/dsh-client-connection/client';
 export type { WorkspaceListPhase } from './workspaces/manager.ts';
 export type { WorkspaceListState } from './workspaces/service.ts';
-export type { DirectoryEntry, DirectoryListing, WorkspaceId, WorkspaceView, } from '@taskweaver/dsh-client-connection/client';
+export type { WorkspaceId, WorkspaceView } from '@taskweaver/dsh-client-connection/client';
 export { createSnapshotStore } from './contract/store.ts';
 export type { ObservableSnapshot, SnapshotStore } from './contract/store.ts';
 export type { SessionMaybeProvideInfo, SessionProvideInfo } from './contract/session-provide.ts';

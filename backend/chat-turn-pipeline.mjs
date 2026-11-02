@@ -1,5 +1,5 @@
 import path from 'node:path'
-import { appendUserChatEntry } from './message-factory.mjs'
+import { appendUserChatEntry, clockLabelZh } from './message-factory.mjs'
 import { requiresReadOnlyPlan } from './orchestration-service.mjs'
 import {
   assembleAndComposeUserPrompt,
@@ -10,11 +10,68 @@ import { resolveOrchestrationPolicy } from './orchestration-policy.mjs'
 import { resolvePrimaryAgentPreset } from './primary-agent-preset.mjs'
 import { nativeChatCommand } from './native-chat-command.mjs'
 import { loadTaskweaverHooks, runTaskweaverHooks } from './taskweaver-hook-runner.mjs'
-import { executeVerificationRunner } from './verification-policy.mjs'
+import { runAutoVerification } from './verification-policy.mjs'
+import { verificationSandboxPolicy } from './sandbox-policy.mjs'
 import { runBoundedSelfHealing } from './self-healing-loop.mjs'
 import { prefetchChatTurnInputs } from './chat-turn-prefetch.mjs'
 import { humanizeBridgeTransportError } from './cursor-tool-guidance.mjs'
 import { IPC_ERROR_MESSAGE_MAX_LENGTH } from './config.mjs'
+import { appendChatErrorDiagnostic } from './chat-error-diagnostics.mjs'
+import { compactToolOutput } from './context-compactor.mjs'
+import { subagentOutputsFromTasks } from './orchestration/subagent-output.mjs'
+
+/**
+ * First line of every repair prompt the verification loop sends. The renderer
+ * matches it to label these turns as automatic rather than as the user's words.
+ */
+export const AUTO_VERIFICATION_PROMPT_MARKER = '[TaskWeaver 自动验证]'
+
+/** Durable verification evidence for the reply; only runner records count as proof. */
+export function verificationEvidence(verification, healAttempts = 0) {
+  if (!verification) return undefined
+  const commands = (verification.commands ?? []).map((item) => ({
+    command: item.command,
+    status: item.status,
+    source: 'workspace-runner',
+    exitCode: item.exitCode,
+    background: false,
+    timedOut: item.timedOut === true,
+    sandboxDenied: item.sandboxDenied === true,
+  }))
+  if (!verification.executed) {
+    return {
+      status: verification.cancelled ? 'incomplete' : 'not_run',
+      executed: false,
+      passed: false,
+      command: verification.command ?? null,
+      exitCode: null,
+      source: 'workspace-runner',
+      reason: verification.errorSummary || '未检测到可执行的验证命令。',
+      commands,
+      healAttempts,
+    }
+  }
+  const status = verification.passed
+    ? 'passed'
+    : verification.repairable === false ? 'incomplete' : 'failed'
+  return {
+    status,
+    executed: true,
+    passed: verification.passed === true,
+    command: verification.command,
+    exitCode: verification.exitCode,
+    durationMs: verification.durationMs,
+    timedOut: verification.timedOut === true,
+    source: 'workspace-runner',
+    ...(status !== 'passed' && verification.errorSummary ? { reason: verification.errorSummary } : {}),
+    commands,
+    healAttempts,
+  }
+}
+
+function hasFailureCallout(message) {
+  return Boolean(message?.errorCode) || /^执行失败/.test(String(message?.callout ?? '').trim())
+}
 
 /**
  * 聊天回合流水线（阶段 5.3）：send 前校验、执行、错误与自愈。
@@ -48,7 +105,7 @@ export function createChatTurnPipeline(deps) {
     const subTaskCount = typeof result.multiAgentTaskCount === 'number'
       ? result.multiAgentTaskCount
       : null
-    const callout = result.callout
+    const statusNote = result.callout
       ?? (subTaskCount != null
         ? `由 TaskWeaver 拆分并执行 ${subTaskCount} 个子任务`
         : undefined)
@@ -64,10 +121,13 @@ export function createChatTurnPipeline(deps) {
       contentBlocks: Array.isArray(result.contentBlocks) ? result.contentBlocks : undefined,
       modelKey: activeKey,
       usage: result.usage,
+      ...(Array.isArray(result.subagentOutputs) && result.subagentOutputs.length > 0
+        ? { subagentOutputs: result.subagentOutputs }
+        : {}),
       fileChanges: result.fileChanges,
       turnActivity: result.turnActivity ?? undefined,
       verification: result.verification,
-      callout,
+      statusNote,
       interrupted: Boolean(result.cancelled),
     }
     await appState.upsertMessagesToConversation(conversationId, agentEntry)
@@ -96,6 +156,7 @@ export function createChatTurnPipeline(deps) {
   }
 
   const handleChatError = async (error, messageId, time, conversationId, modelKey = null) => {
+    await appendChatErrorDiagnostic({ userDataPath, error, scope: 'chat-turn' })
     if (error?.runContinues) throw error
     if (error?.partialResult?.turnId) {
       if (!error.partialResult.nativePersisted) {
@@ -142,10 +203,11 @@ export function createChatTurnPipeline(deps) {
       const messages = currentState?.messages || []
       const lastMsg = messages[messages.length - 1]
       if (lastMsg && lastMsg.author === 'orchestrator' && (lastMsg.callout || lastMsg.interrupted || lastMsg.text?.trim() || lastMsg.id.startsWith('z-turn-'))) {
-        if (!lastMsg.callout) {
+        if (!hasFailureCallout(lastMsg)) {
           await appState.upsertMessagesToConversation(conversationId, {
             ...lastMsg,
             interrupted: true,
+            statusNote: undefined,
             ...(error?.code ? { errorCode: error.code } : {}),
             callout: `执行失败：${message.slice(0, IPC_ERROR_MESSAGE_MAX_LENGTH)}（已保留此前输出）`,
           })
@@ -196,6 +258,27 @@ export function createChatTurnPipeline(deps) {
     })
   }
 
+  /** Abort controllers for automatic verification that is running, by conversation. */
+  const verificationAborts = new Map()
+
+  /** Stop automatic verification for a conversation; returns whether one was running. */
+  const abortVerification = (conversationId) => {
+    const controller = verificationAborts.get(conversationId)
+    if (!controller) return false
+    controller.abort(new Error('验证已取消'))
+    return true
+  }
+
+  const sendVerificationActivity = (webContents, conversationId, phase, message) => {
+    if (!webContents || webContents.isDestroyed?.()) return
+    webContents.send('chat:stream', { type: 'activity', phase, message, conversationId })
+  }
+
+  /**
+   * Verify code changes with the workspace's own check/test commands and let the
+   * model repair real failures a bounded number of times. Runs by default; the
+   * commands use the same OS sandbox as the Agent's bash tool.
+   */
   const runSelfHealingLoop = async ({
     webContents,
     text,
@@ -207,6 +290,7 @@ export function createChatTurnPipeline(deps) {
     runtimeContext,
     result,
     toolOutputMaxChars,
+    modelContextWindow = null,
     toolHooks,
   }) => {
     const prefs = await appPreferences.get()
@@ -223,97 +307,103 @@ export function createChatTurnPipeline(deps) {
 
     if (!shouldSelfHeal) return result
 
+    const sandboxPolicy = verificationSandboxPolicy(runtimeContext)
     const maxSelfHealingAttempts = Math.max(1, Math.min(3, Number(prefs.selfHealingMaxRetries) || 2))
-    const { verification: lastVerification, attempts: healAttempt } = await runBoundedSelfHealing({
-      maxAttempts: maxSelfHealingAttempts,
-      verify: async ({ attempts }) => {
-        if (webContents && !webContents.isDestroyed?.()) {
-          webContents.send('chat:stream', {
-            type: 'activity',
-            phase: 'verification',
-            message: attempts === 0 ? '正在对变更代码执行静默轻量自检…' : `第 ${attempts} 次修复完成，正在复检…`,
-            conversationId,
+    const abortController = new AbortController()
+    verificationAborts.set(conversationId, abortController)
+    let healAttempt = 0
+    let lastVerification = null
+    let lastRepairTurn = null
+    try {
+      const outcome = await runBoundedSelfHealing({
+        maxAttempts: maxSelfHealingAttempts,
+        verify: async ({ attempts }) => {
+          sendVerificationActivity(webContents, conversationId, 'verification', attempts === 0
+            ? '正在运行工作区检查与测试，确认本轮修改…'
+            : `第 ${attempts} 轮修复完成，正在重新验证…`)
+          const verifyRes = await runAutoVerification(runtimeContext.workspacePath, {
+            sandboxPolicy,
+            signal: abortController.signal,
           })
-        }
-        const verifyRes = await executeVerificationRunner(runtimeContext.workspacePath, { timeoutMs: 30_000 })
-        if (verifyRes.executed && verifyRes.passed && webContents && !webContents.isDestroyed?.()) {
-          webContents.send('chat:stream', {
-            type: 'activity',
-            phase: 'verification',
-            message: `轻量自检通过（${verifyRes.command}，耗时 ${verifyRes.durationMs}ms）。`,
-            conversationId,
-          })
-        }
-        return verifyRes
-      },
-      repair: async (verifyRes, attempt) => {
-        const errorDetail = verifyRes.errorSummary || verifyRes.stderr || verifyRes.stdout || '命令执行返回非零状态码'
-        const healPrompt = [
-          `【自动代码自检失败 - 自愈修复请求 (第 ${attempt}/${maxSelfHealingAttempts} 次尝试)】`,
-          `刚刚的代码修改在运行轻量验证命令 \`${verifyRes.command}\` 时未通过，退出码为 ${verifyRes.exitCode}。`,
-          `错误摘要如下：\n\`\`\`\n${errorDetail.slice(0, 1500)}\n\`\`\``,
-          `请立即检查并修复上述错误，不要停止在报错状态。直接使用工具修改引发错误的代码文件。`,
-        ].join('\n\n')
-
-        if (webContents && !webContents.isDestroyed?.()) {
-          webContents.send('chat:stream', {
-            type: 'activity',
-            phase: 'healing',
-            message: `自检发现错误（退出码 ${verifyRes.exitCode}），正在启动静默自愈（${attempt}/${maxSelfHealingAttempts}）…`,
-            conversationId,
-          })
-        }
-
-        try {
-          const healResult = await executeChatRequest(
-            execution,
-            healPrompt,
-            resolvePrimaryAgentPreset(),
-            activeKey,
-            selectedSkill,
-            webContents,
-            conversationId,
-            runtimeContext,
-            runtimeContext.permissionMode,
-            undefined,
-            undefined,
-            undefined,
-            toolOutputMaxChars,
-            null,
-            toolHooks,
-          )
-          if (healResult && !healResult.accepted) {
-            if (healResult.text) result.text = `${result.text}\n\n---\n**[自愈修复第 ${attempt} 轮]**\n${healResult.text}`
-            if (Array.isArray(healResult.fileChanges) && healResult.fileChanges.length > 0) {
-              const existingPaths = new Set(result.fileChanges.map((file) => file.path))
-              for (const fileChange of healResult.fileChanges) {
-                if (!existingPaths.has(fileChange.path)) result.fileChanges.push(fileChange)
-              }
-            }
-            if (healResult.usage && result.usage) {
-              result.usage.inputTokens = (result.usage.inputTokens || 0) + (healResult.usage.inputTokens || 0)
-              result.usage.outputTokens = (result.usage.outputTokens || 0) + (healResult.usage.outputTokens || 0)
-              result.usage.costUsd = (result.usage.costUsd || 0) + (healResult.usage.costUsd || 0)
-            }
+          if (verifyRes.executed && verifyRes.passed) {
+            sendVerificationActivity(webContents, conversationId, 'verification',
+              `验证通过（${verifyRes.commands.map((item) => item.command).join('、')}，耗时 ${verifyRes.durationMs}ms）。`)
           }
-          return true
-        } catch (healError) {
-          console.warn(`[chat-turn-pipeline] 自愈修复执行轮次 ${attempt} 异常:`, healError instanceof Error ? healError.message : healError)
-          return false
-        }
-      },
-    })
+          return verifyRes
+        },
+        repair: async (verifyRes, attempt) => {
+          if (abortController.signal.aborted) return false
+          const errorDetail = verifyRes.errorSummary || verifyRes.stderr || verifyRes.stdout || '命令执行返回非零状态码'
+          const compacted = compactToolOutput(errorDetail, {
+            contextWindow: modelContextWindow,
+            toolName: verifyRes.command || 'verification',
+          })
+          const healPrompt = [
+            `${AUTO_VERIFICATION_PROMPT_MARKER} 第 ${attempt}/${maxSelfHealingAttempts} 轮修复`,
+            `本轮修改后，TaskWeaver 在工作区运行 \`${verifyRes.command}\`，退出码 ${verifyRes.exitCode}，未通过。`,
+            `错误摘要：\n\`\`\`\n${compacted.text}\n\`\`\``,
+            [
+              '请修复导致失败的代码，然后结束本轮；TaskWeaver 会自动重新验证。',
+              '- 如果失败在本轮修改之前就已存在、与本轮修改无关，不要改动无关代码，直接说明。',
+              '- 不要通过删除或跳过测试、放宽断言、关闭检查来让验证通过。',
+            ].join('\n'),
+          ].join('\n\n')
 
-    if (lastVerification && lastVerification.executed) {
-      result.verification = {
-        command: lastVerification.command,
-        passed: lastVerification.passed,
-        exitCode: lastVerification.exitCode,
-        durationMs: lastVerification.durationMs,
-        healed: healAttempt > 0 && lastVerification.passed,
-        healAttempts: healAttempt,
-      }
+          sendVerificationActivity(webContents, conversationId, 'healing',
+            `验证未通过（${verifyRes.command}，退出码 ${verifyRes.exitCode}），正在自动修复（${attempt}/${maxSelfHealingAttempts}）…`)
+          healAttempt = attempt
+
+          try {
+            const healResult = await executeChatRequest(
+              execution,
+              healPrompt,
+              resolvePrimaryAgentPreset(),
+              activeKey,
+              selectedSkill,
+              webContents,
+              conversationId,
+              runtimeContext,
+              runtimeContext.permissionMode,
+              undefined,
+              undefined,
+              undefined,
+              toolOutputMaxChars,
+              null,
+              toolHooks,
+            )
+            // Each repair is its own native turn, persisted and shown with its
+            // own text, usage and file changes; keep the original turn intact.
+            if (healResult?.turnId && !healResult.accepted) lastRepairTurn = healResult
+            return !healResult?.cancelled && !abortController.signal.aborted
+          } catch (healError) {
+            console.warn(`[chat-turn-pipeline] 自动修复第 ${attempt} 轮异常:`, healError instanceof Error ? healError.message : healError)
+            return false
+          }
+        },
+      })
+      lastVerification = outcome.verification
+    } finally {
+      if (verificationAborts.get(conversationId) === abortController) verificationAborts.delete(conversationId)
     }
+
+    const evidence = verificationEvidence(lastVerification, healAttempt)
+    if (!lastRepairTurn) {
+      result.verification = evidence
+      return result
+    }
+    // Report the outcome on the last turn that changed code. Native persistence
+    // writes the same id; upsert merges, so either write may land first.
+    const timestamp = lastRepairTurn.startedAt ?? Date.now()
+    await appState.upsertMessagesToConversation(conversationId, {
+      id: `z-turn-${lastRepairTurn.turnId}`,
+      author: 'orchestrator',
+      name: 'TaskWeaver',
+      time: clockLabelZh(timestamp),
+      timestamp,
+      text: lastRepairTurn.text || '',
+      modelKey: activeKey,
+      verification: evidence,
+    })
     return result
   }
 
@@ -537,6 +627,7 @@ export function createChatTurnPipeline(deps) {
         result = {
           ...(outcome?.assistant ?? {}),
           multiAgentTaskCount: Array.isArray(outcome?.tasks) ? outcome.tasks.length : 0,
+          subagentOutputs: subagentOutputsFromTasks(outcome?.tasks, outcome?.runId),
         }
       } else {
         result = await executeChatRequest(
@@ -581,6 +672,7 @@ export function createChatTurnPipeline(deps) {
       runtimeContext,
       result,
       toolOutputMaxChars: dynamicBudget.toolOutputMaxChars,
+      modelContextWindow,
       toolHooks: turnHooks,
     })
 
@@ -636,5 +728,6 @@ export function createChatTurnPipeline(deps) {
     runQueuedBehavior,
     runTaskMessage,
     runTurn,
+    abortVerification,
   }
 }

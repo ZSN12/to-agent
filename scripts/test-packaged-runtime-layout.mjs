@@ -58,6 +58,13 @@ const cursorLoaderSource = await fs.readFile(cursorLoader, 'utf8')
 assert.match(cursorLoaderSource, /@taskweaver\/provider-bridge/, 'packaged Cursor loader must use compiled @taskweaver/provider-bridge')
 assert.doesNotMatch(cursorLoaderSource, /src\/adapters\/cursor\.ts/, 'packaged Cursor loader must not import OpenCodex TypeScript sources')
 
+const googleLoader = path.join(runtimeRoot, 'electron-vendor', 'taskweaver-bridge-transport', 'google-adapter-loader.mjs')
+const googleAdapter = path.join(runtimeRoot, 'electron-vendor', 'taskweaver-bridge-transport', 'google-antigravity-adapter.mjs')
+const googleLoaderSource = await fs.readFile(googleLoader, 'utf8')
+assert.match(googleLoaderSource, /google-antigravity-adapter\.mjs/, 'packaged Antigravity loader must use the Node-native adapter')
+assert.doesNotMatch(googleLoaderSource, /tsx|TASKWEAVER_OPENCODEX_ROOT|vendor\/opencodex/i, 'packaged Antigravity loader must not depend on the vendored TS runtime')
+await fs.access(googleAdapter)
+
 const providerBridgeLibCandidates = [
   path.join(runtimeRoot, 'runtime-packages', '@taskweaver', 'provider-bridge', 'lib'),
   path.join(runtimeRoot, 'runtime-packages', 'node_modules', '@taskweaver', 'provider-bridge', 'lib'),

@@ -1,0 +1,20 @@
+refactor: split model routing and optimize DAG planning paths
+
+## Implemented
+
+- Split orchestration model routing into filtering, scoring, and selection modules.
+- Use an incremental ready queue in DAG scheduling and account for completed nodes when resuming a checkpoint.
+- Use FastQueue, MinHeap, and transitive-closure lookup in planner paths.
+- Guard the no-fallback model-selection path against missing candidates.
+- Restrict the local DAG benchmark to supported node limits and report current-version measurements only.
+
+## Not included in this completion claim
+
+- Usage aggregation and RunStore queue logic have not been migrated to the new generic utilities.
+- LRU routing score caching is not integrated.
+- React/CSS decomposition, memory audit, and TypeScript migration remain follow-up work.
+- No performance percentage, line-reduction total, coverage delta, or maintainability score is claimed without reproducible measurements.
+
+## Validation
+
+Do not use this draft as evidence that tests or benchmarks passed. Record the actual commands and results after validation.

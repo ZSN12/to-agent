@@ -20,9 +20,9 @@ export function createDshSessionRegistry(deps) {
     rejectPendingApprovals,
   } = deps
 
-  async function createOrResumeSession(api, request, operation) {
+  async function createOrResumeSession(api, request, operation, signal) {
     try {
-      return rpcValue(await api.sessions.create(request), operation)
+      return rpcValue(await api.sessions.create(request, signal), operation)
     } catch (error) {
       const existingPreset = error?.code === 'agent-preset-conflict'
         ? error.details?.existingPreset
@@ -34,7 +34,7 @@ export function createDshSessionRegistry(deps) {
       // agentPreset still resolves to the Host's default (currently
       // `standard`). If a stale/missing local map entry conflicts, retry with
       // the composition recorded in the Host log and let that value win.
-      const resumed = rpcValue(await api.sessions.create({ ...request, agentPreset: existingPreset }), operation)
+      const resumed = rpcValue(await api.sessions.create({ ...request, agentPreset: existingPreset }, signal), operation)
       return {
         ...resumed,
         agentPreset: resumed?.agentPreset || existingPreset,
@@ -49,6 +49,8 @@ export function createDshSessionRegistry(deps) {
     ownerConversationId,
     parentSessionId,
     modelKey = null,
+    sessionMuxVisible = true,
+    signal,
   } = {}) {
     await loadSessions()
       let entry = sessions.get(conversationId)
@@ -63,7 +65,7 @@ export function createDshSessionRegistry(deps) {
         throw new Error('此对话绑定的工作区与当前工作区不同。为保持 Z 会话上下文一致，请在原工作区继续，或新建对话。')
       }
       if (entry) {
-        entry = await alignLegacyComposerPreset(api, conversationId, entry, resolvedPreset, modelKey)
+        entry = await alignLegacyComposerPreset(api, conversationId, entry, resolvedPreset, modelKey, signal)
       }
       if (!entry) {
         const sessionId = sessionIdForKey(conversationId)
@@ -74,21 +76,27 @@ export function createDshSessionRegistry(deps) {
           cwd: requestedCwd,
           agentPreset: resolvedPreset,
           ...(parentSessionId ? { parentSessionId } : {}),
-        }, '创建或恢复 Z 会话')
+        }, '创建或恢复 Z 会话', signal)
         entry = {
           sessionId: created.sessionId || sessionId,
           cwd: requestedCwd,
           agentPreset: created.agentPreset || resolvedPreset,
           ...(parentSessionId ? { parentSessionId } : {}),
           ownerConversationId: ownerConversationId || conversationId,
+          muxVisible: sessionMuxVisible,
           permissionModeAtCreate: mode,
           lastUsedAt: Date.now(),
         }
-        entry = await alignLegacyComposerPreset(api, conversationId, entry, resolvedPreset, modelKey)
+        entry = await alignLegacyComposerPreset(api, conversationId, entry, resolvedPreset, modelKey, signal)
         sessions.set(conversationId, entry)
         evictTrackedSessions({ protectKey: conversationId })
         await persistSessions()
       } else {
+        if (entry.muxVisible !== sessionMuxVisible) {
+          entry.muxVisible = sessionMuxVisible
+          sessions.set(conversationId, entry)
+          await persistSessions()
+        }
         if (!entry.ownerConversationId) {
           entry.ownerConversationId = ownerConversationId || conversationId
           sessions.set(conversationId, entry)
@@ -99,7 +107,7 @@ export function createDshSessionRegistry(deps) {
           sessionId: entry.sessionId,
           cwd: entry.cwd,
           ...(entry.agentPreset ? { agentPreset: entry.agentPreset } : {}),
-        }, '恢复 Z 会话')
+        }, '恢复 Z 会话', signal)
         const actualPreset = resumed?.agentPreset
         const presetChanged = typeof actualPreset === 'string' && actualPreset !== entry.agentPreset
         if (presetChanged) entry.agentPreset = actualPreset

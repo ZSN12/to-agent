@@ -33,6 +33,22 @@ assert.equal(errorRes.compacted, true)
 assert.ok(errorRes.text.includes('TS2304 Cannot find name "Config"'), '中间的关键诊断必须被提取保留')
 assert.ok(errorRes.text.includes('SyntaxError: Unexpected token'), '中间的关键语法错误必须被保留')
 
+// ============ 3.5 单行或微量行数超大文本字符级折叠测试 ============
+const singleHugeLine = 'A'.repeat(50_000)
+const singleRes = compactToolOutput(singleHugeLine, { maxChars: 3000, maxLines: 50 })
+assert.equal(singleRes.compacted, true, '单行超大输出必须被压缩')
+assert.ok(singleRes.compactedLength < singleHugeLine.length, '压缩后长度必须严格小于原始长度')
+assert.ok(singleRes.compactedLength <= 3500, `压缩后长度 (${singleRes.compactedLength}) 必须受限于 maxChars`)
+assert.ok(!singleRes.text.includes('undefined'), 'Banner 中不得出现 undefined')
+assert.ok(singleRes.text.startsWith('A'.repeat(100)), '必须保留头部字符')
+assert.ok(singleRes.text.endsWith('A'.repeat(100)), '必须保留尾部字符')
+
+const twoHugeLines = `${'B'.repeat(30_000)}\n${'C'.repeat(30_000)}`
+const twoRes = compactToolOutput(twoHugeLines, { maxChars: 3000, maxLines: 50 })
+assert.equal(twoRes.compacted, true, '两行超大输出必须被压缩')
+assert.ok(twoRes.compactedLength < twoHugeLines.length)
+assert.ok(twoRes.compactedLength <= 3500)
+
 // ============ 4. 动态上下文预算分配测试 ============
 const planBudget = calculateDynamicContextBudget('plan', { modelContextWindow: 128_000 })
 assert.equal(planBudget.workspaceContextBytes, 32 * 1024, '计划模式工作区注入默认 32KiB')

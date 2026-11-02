@@ -1,3 +1,5 @@
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { createAppBootstrap } from './bootstrap.mjs'
 import {
   createZHostManager,
@@ -6,6 +8,7 @@ import {
 } from './agent/z-host/index.mjs'
 import { resolveTaskWeaverOpenCodexRoot } from './opencodex-package-root.mjs'
 import { setOcxRuntimeContext } from './opencodex-binary.mjs'
+import { pruneOrphanWorktrees } from './worktree-service.mjs'
 
 function deferred() {
   let resolve
@@ -31,17 +34,21 @@ export function createBackendStartup({
   const appPath = app.getAppPath()
   const userData = app.getPath('userData')
   const isPackaged = app.isPackaged === true
+  // The Swift shell launches plain Node, where process.resourcesPath is not
+  // defined. Preserve the resource path that BackendLauncher passes in env so
+  // bundled helpers (notably OpenCodex's Bun runtime) resolve inside the app.
+  const effectiveResourcesPath = resourcesPath ?? environment.TASKWEAVER_RESOURCES_PATH ?? null
   const runtimeRoot = resolveTaskWeaverRuntimeRoot({
     appPath,
-    resourcesPath,
+    resourcesPath: effectiveResourcesPath,
     isPackaged,
     env: environment,
   })
-  const hostNode = resolveHostNodeExecutable({ env: environment, resourcesPath, isPackaged })
+  const hostNode = resolveHostNodeExecutable({ env: environment, resourcesPath: effectiveResourcesPath, isPackaged })
   if (hostNode.source !== 'bundled') {
     console.info(`[TaskWeaver] Z Host 使用 ${hostNode.source} Node：${hostNode.executable}`)
   }
-  setOcxRuntimeContext({ appPath, resourcesPath, isPackaged })
+  setOcxRuntimeContext({ appPath, resourcesPath: effectiveResourcesPath, isPackaged })
 
   const opencodexPackageRoot = resolveTaskWeaverOpenCodexRoot(appPath) ?? undefined
   const integrations = deferred()
@@ -49,7 +56,7 @@ export function createBackendStartup({
   let integrationFailure = null
   void integrations.promise.catch(() => {})
   const waitForIntegrations = async () => integrations.promise
-  const hostEnvironment = createHostEnvironment(environment, { isPackaged, resourcesPath })
+  const hostEnvironment = createHostEnvironment(environment, { isPackaged, resourcesPath: effectiveResourcesPath })
 
   const hostManager = createZHostManager({
     runtimeRoot,
@@ -83,6 +90,10 @@ export function createBackendStartup({
     hostManager,
   })
 
+  if (userData) {
+    scheduleOrphanWorktreePruning({ userDataPath: userData })
+  }
+
   return {
     hostManager,
     bootstrap,
@@ -113,9 +124,36 @@ export function createBackendStartup({
   }
 }
 
+/**
+ * 在应用启动或空闲时，安全调度孤立 worktree 的只读探测与安全修剪。
+ */
+export function scheduleOrphanWorktreePruning({
+  userDataPath,
+  delayMs = 5000,
+  maxAgeMs = 3 * 86400 * 1000,
+} = {}) {
+  if (!userDataPath) return null
+  const timer = setTimeout(async () => {
+    try {
+      const report = await pruneOrphanWorktrees({
+        userDataPath,
+        maxAgeMs,
+      })
+      if (report.pruned?.length) {
+        console.info(`[startup] 已安全清理 ${report.pruned.length} 个过期孤立 worktree`)
+      }
+    } catch (error) {
+      console.warn('[startup] 孤儿 worktree 探测与清理异常 (已忽略):', error instanceof Error ? error.message : String(error))
+    }
+  }, delayMs)
+  if (timer?.unref) timer.unref()
+  return timer
+}
+
 export function createHostEnvironment(environment, { isPackaged = false, resourcesPath = null } = {}) {
   const hostEnvironment = {
     ...environment,
+    TASKWEAVER_BACKEND_ROOT: path.dirname(fileURLToPath(import.meta.url)),
     ...(isPackaged ? { TASKWEAVER_PACKAGED: '1' } : {}),
     ...(isPackaged && resourcesPath ? { TASKWEAVER_RESOURCES_PATH: resourcesPath } : {}),
   }

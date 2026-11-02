@@ -37,10 +37,10 @@ function DshTerminalIcon() {
 }
 
 const XTERM_THEME = {
-  background: '#0d0e11',
+  background: '#111215',
   foreground: '#e2e8f0',
   cursor: '#38bdf8',
-  cursorAccent: '#0d0e11',
+  cursorAccent: '#111215',
   selectionBackground: 'rgba(56, 189, 248, 0.28)',
   black: '#4b5563',
   red: '#ef4444',

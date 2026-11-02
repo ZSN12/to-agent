@@ -57,6 +57,10 @@ declare module '@taskweaver/dsh-llm' {
             clientTimeZone?: string;
             /** Per-turn structured output contract supplied by trusted Host orchestration. */
             outputSchema?: ObjectJsonSchema;
+            /** User-authored role identity guidance, scoped to this Agent's prompt assembly. */
+            rolePersona?: string;
+            /** Hard per-turn tool-call budget for a Host-owned role turn. */
+            roleToolCallLimit?: number;
         };
     }
 }
@@ -389,6 +393,10 @@ export interface SessionsApi {
         };
         /** Object-rooted JSON Schema applied to the model request for this turn. */
         outputSchema?: ObjectJsonSchema;
+        /** User-authored role identity guidance; does not change Host permissions or tools. */
+        rolePersona?: string;
+        /** Hard per-turn tool-call budget for a Host-owned role turn (1–12). */
+        roleToolCallLimit?: number;
         /** Reject rather than enqueue/model-dispatch if no native command handles this input. */
         commandOnly?: boolean;
     }>): Promise<RpcResponse<{

@@ -537,6 +537,24 @@ describe('catalog routes with per-model configuration', () => {
     expect(models.every(model => model.baseUrl === 'https://api.openai.com/v1')).toBe(true)
   })
 
+  it('resolves model-specific endpoints before the provider endpoint', () => {
+    const resolved = resolveProfiles({
+      'workbuddy-local': {
+        api: 'openai-completions',
+        baseURL: 'http://127.0.0.1:10104/v1',
+        models: [
+          { id: 'model-a', baseURL: 'http://127.0.0.1:10105/v1' },
+          { id: 'model-b' },
+        ],
+      },
+    })
+    const models = resolved.get('workbuddy-local')?.piProvider.getModels() ?? []
+    expect(models.map(model => model.baseUrl)).toEqual([
+      'http://127.0.0.1:10105/v1',
+      'http://127.0.0.1:10104/v1',
+    ])
+  })
+
   it('repoints a catalog route at another wire protocol', async () => {
     const server = await mockServer([{ events: textEvents }])
     const ctx = await harness({

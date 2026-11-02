@@ -16,6 +16,7 @@ export interface TaskweaverBridge {
   portfolio?: import('./app-api').TaskweaverPortfolioApi
   preferences?: import('./app-api').TaskweaverPreferencesApi
   pricing?: import('./app-api').TaskweaverPricingApi
+  roles?: import('./app-api').TaskweaverRolesApi
   sandbox?: import('./app-api').TaskweaverSandboxApi
   skills: import('./app-api').TaskweaverSkillsApi
   tasks: import('./app-api').TaskweaverTasksApi

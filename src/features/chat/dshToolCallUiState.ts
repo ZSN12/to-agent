@@ -4,6 +4,7 @@ export interface DshToolCallUiState {
   openId: string | null
   batchExpandedOverride: boolean | null
   stepExpandedOverrides: Record<string, boolean>
+  showAllHistory?: boolean
 }
 
 const EMPTY_STATE: DshToolCallUiState = {
@@ -15,7 +16,7 @@ const EMPTY_STATE: DshToolCallUiState = {
 const MAX_SAVED_SCOPES = 80
 const savedStates = new Map<string, DshToolCallUiState>()
 
-/** Scope accordion state to one conversation turn so a new turn still starts collapsed. */
+/** Scope accordion state to one tool batch so sibling batches in the same turn stay independent. */
 export function dshToolCallUiStateKey(
   conversationId: string | null | undefined,
   rows: readonly DshProjectedToolCall[] = [],
@@ -29,7 +30,10 @@ export function dshToolCallUiStateKey(
   for (const trace of traces) {
     if (Number.isSafeInteger(trace.turn) && (trace.turn ?? 0) > latestTurn) latestTurn = trace.turn ?? 0
   }
-  return JSON.stringify([conversationId, latestTurn || 'legacy'])
+  // The first call is a stable anchor while a live batch grows. It also keeps
+  // separate step-level lists from sharing their expansion state.
+  const batchAnchor = rows[0]?.callId ?? traces[0]?.id ?? 'empty'
+  return JSON.stringify([conversationId, latestTurn || 'legacy', batchAnchor])
 }
 
 /** Read a copy so callers cannot mutate the module's saved UI state in place. */

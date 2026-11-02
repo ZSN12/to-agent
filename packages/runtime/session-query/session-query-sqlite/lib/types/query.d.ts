@@ -1,5 +1,5 @@
 /** Request normalization, parameterized predicates, and result presentation. */
-import type { SessionEventMetadataFilter, SessionEventSearchRequest, SessionResultFilter, SessionSearchCursor, SessionSearchRequest } from '@taskweaver/dsh-session-query';
+import type { SessionEventMetadataFilter, SessionEventSearchRequest, SessionEventSearchDocument, SessionResultFilter, SessionSearchCursor, SessionSearchRequest } from '@taskweaver/dsh-session-query';
 /** Collision-free marker inserted before an FTS5 match by `highlight()`. */
 export declare const FTS_HIGHLIGHT_START = "\uFDD0";
 /** Collision-free marker inserted after an FTS5 match by `highlight()`. */
@@ -52,6 +52,27 @@ export interface SqlWhere {
     /** Number of compiled predicates in `sql`. */
     predicateCount: number;
 }
+/** Exact document-level FTS5 changes for one observed session. */
+export interface SearchDocumentDelta {
+    /** Existing rows to remove, including rows whose projection changed. */
+    deleteSeqs: readonly number[];
+    /** New or changed projected rows to insert after deletion. */
+    upserts: readonly SessionEventSearchDocument[];
+}
+/**
+ * Compare two complete, ordered projections and identify only changed FTS rows.
+ *
+ * A `undefined` result means the caller cannot prove a one-row-per-sequence
+ * projection for this session and must rebuild its derived rows. The function
+ * intentionally compares the complete projection, including surface metadata,
+ * because a replacement can shadow older searchable events.
+ *
+ * @param previous - complete previously indexed documents.
+ * @param next - complete documents from the latest source observation.
+ * @param sessionId - session identity shared by both projections.
+ * @returns minimal deletes and upserts, or `undefined` when exact diffing is unsafe.
+ */
+export declare function diffSearchDocuments(previous: readonly SessionEventSearchDocument[], next: readonly SessionEventSearchDocument[], sessionId: SessionEventSearchDocument['sessionId']): SearchDocumentDelta | undefined;
 /**
  * Validate and canonicalize a cross-session request.
  * @param request - caller-provided query, filters, limit, and cursor.

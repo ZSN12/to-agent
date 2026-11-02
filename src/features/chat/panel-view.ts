@@ -1,1 +1,1 @@
-export type PanelView = 'dag' | 'task' | 'logs' | 'git' | 'details' | null
+export type PanelView = 'task' | 'logs' | 'details' | 'review' | null

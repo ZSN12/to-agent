@@ -66,6 +66,7 @@ function createMockRuntime({
   permissionCommandSupported = true,
   permissionProjectionMismatch = false,
   promptFailure = null,
+  promptGate = null,
   modelsOmitReasoningOnRead = false,
   initialModelSelection = null,
   existingSessionPresets = {},
@@ -183,6 +184,7 @@ function createMockRuntime({
           } } }
         }
         prompts.push(input)
+        await promptGate?.(input)
         if (promptFailure) throw promptFailure(input)
         return { result: { ok: true, value: { accepted: true } } }
       },
@@ -280,6 +282,181 @@ try {
   await fs.rm(noReasoningHome, { recursive: true, force: true })
 }
 
+// A late-bound role prompt must be finalized after DSH reserves the turn slot.
+// This closes the race where a correction arrives during model/session setup:
+// before reservation it is included in the initial prompt; after reservation it
+// can wait for admission and use the active-turn steer path.
+const latePromptHome = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-late-prompt-'))
+const latePromptRuntime = createMockRuntime()
+let releaseLatePromptModel
+let notifyLatePromptModelStarted
+const latePromptModelStarted = new Promise((resolve) => { notifyLatePromptModelStarted = resolve })
+const latePromptModelGate = new Promise((resolve) => { releaseLatePromptModel = resolve })
+let latePromptService
+let busyWhenPromptFinalized = false
+latePromptService = createDshChatService({
+  hostManager: latePromptRuntime.hostManager,
+  userDataPath: latePromptHome,
+  getWorkspacePath: () => latePromptHome,
+  profileStore,
+  modelService: {
+    ...modelService,
+    async getDshModelConfig(modelKey) {
+      notifyLatePromptModelStarted()
+      await latePromptModelGate
+      return modelService.getDshModelConfig(modelKey)
+    },
+  },
+})
+try {
+  const latePromptSessionKey = 'tw-late-prompt-session'
+  const latePromptTurn = latePromptService.runAgentTurn({
+    conversationId: 'late-prompt-conversation',
+    sessionKey: latePromptSessionKey,
+    text: 'initial snapshot',
+    textProvider() {
+      busyWhenPromptFinalized = latePromptService.isBusy(latePromptSessionKey)
+      return 'late-bound role prompt with correction'
+    },
+    modelKey: 'test/late-prompt',
+    webContents,
+    cwd: latePromptHome,
+  })
+  await latePromptModelStarted
+  assert.equal(latePromptService.isBusy(latePromptSessionKey), false,
+    'the DSH session is still preparing while model configuration is held')
+  releaseLatePromptModel()
+  await waitFor(() => latePromptService.isBusy(latePromptSessionKey), { label: 'late-bound prompt turn reserved' })
+  assert.equal(busyWhenPromptFinalized, true,
+    'the prompt provider runs only after DSH registers the turn as active')
+  const latePromptSessionId = latePromptRuntime.created.at(-1).sessionId
+  assert.equal(latePromptRuntime.prompts.find((prompt) => prompt.sessionId === latePromptSessionId)?.content?.[0]?.text,
+    'late-bound role prompt with correction')
+  pushAssistantText(latePromptRuntime, latePromptSessionId, 'late prompt accepted')
+  latePromptRuntime.push({ payload: {
+    type: 'session/event', sessionId: latePromptSessionId,
+    event: { type: 'turn/end', data: { reason: { kind: 'completed' } } },
+  } })
+  await latePromptTurn
+} finally {
+  releaseLatePromptModel()
+  await latePromptService.stop()
+  await fs.rm(latePromptHome, { recursive: true, force: true })
+}
+
+// A steer arriving after turn registration but before the Host acknowledges the
+// initial prompt must wait for the per-session admission slot, then reach that
+// exact live session without replacing its lifecycle.
+const activeAdmissionHome = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-steer-admission-'))
+let releaseInitialPrompt
+let notifyInitialPromptBlocked
+const initialPromptBlocked = new Promise((resolve) => { notifyInitialPromptBlocked = resolve })
+const initialPromptGate = new Promise((resolve) => { releaseInitialPrompt = resolve })
+const activeAdmissionRuntime = createMockRuntime({
+  promptGate: async (input) => {
+    if (input.content?.[0]?.text !== 'initial role prompt') return
+    notifyInitialPromptBlocked()
+    await initialPromptGate
+  },
+})
+const activeAdmissionService = createDshChatService({
+  hostManager: activeAdmissionRuntime.hostManager,
+  userDataPath: activeAdmissionHome,
+  getWorkspacePath: () => activeAdmissionHome,
+  profileStore,
+  modelService,
+})
+try {
+  const activeAdmissionConversationId = 'steer-admission-race'
+  const activeAdmissionSessionKey = 'tw-steer-admission-race'
+  const activeAdmissionTurn = activeAdmissionService.runAgentTurn({
+    conversationId: activeAdmissionConversationId,
+    sessionKey: activeAdmissionSessionKey,
+    text: 'initial role prompt',
+    modelKey: 'test/steer-admission',
+    webContents,
+    cwd: activeAdmissionHome,
+  })
+  await initialPromptBlocked
+  assert.equal(activeAdmissionService.isBusy(activeAdmissionSessionKey), true,
+    'the turn is reserved before Host prompt acknowledgement')
+  const activeAdmissionCorrection = activeAdmissionService.send({
+    conversationId: activeAdmissionConversationId,
+    sessionKey: activeAdmissionSessionKey,
+    text: 'correct the running task',
+    modelKey: 'test/steer-admission',
+    behavior: 'steer',
+    activeOnly: true,
+    sessionMuxVisible: false,
+    webContents,
+  })
+  await sleep(10)
+  assert.equal(activeAdmissionRuntime.prompts.length, 1,
+    'the steer must not overtake or race the initial prompt admission')
+  releaseInitialPrompt()
+  assert.deepEqual(await activeAdmissionCorrection, { accepted: true, queued: false })
+  assert.equal(activeAdmissionRuntime.prompts.length, 2)
+  assert.equal(activeAdmissionRuntime.prompts[1].mode, 'steer')
+  assert.equal(activeAdmissionRuntime.prompts[1].content[0].text, 'correct the running task')
+  const activeAdmissionSessionId = activeAdmissionRuntime.created.at(-1).sessionId
+  pushAssistantText(activeAdmissionRuntime, activeAdmissionSessionId, 'corrected result')
+  activeAdmissionRuntime.push({ payload: {
+    type: 'session/event', sessionId: activeAdmissionSessionId,
+    event: { type: 'turn/end', data: { reason: { kind: 'completed' } } },
+  } })
+  assert.equal((await activeAdmissionTurn).text, 'corrected result')
+} finally {
+  releaseInitialPrompt()
+  await activeAdmissionService.stop()
+  await fs.rm(activeAdmissionHome, { recursive: true, force: true })
+}
+
+// Stop during session/model setup must not let the prompt escape after setup resolves.
+const preflightCancelHome = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-preflight-cancel-'))
+const preflightCancelRuntime = createMockRuntime()
+let releasePreflightModel
+let signalPreflightModel
+const preflightModelStarted = new Promise((resolve) => { signalPreflightModel = resolve })
+const preflightModelGate = new Promise((resolve) => { releasePreflightModel = resolve })
+const preflightCancelService = createDshChatService({
+  hostManager: preflightCancelRuntime.hostManager,
+  userDataPath: preflightCancelHome,
+  getWorkspacePath: () => preflightCancelHome,
+  profileStore,
+  modelService: {
+    ...modelService,
+    async getDshModelConfig(modelKey) {
+      signalPreflightModel()
+      await preflightModelGate
+      return modelService.getDshModelConfig(modelKey)
+    },
+  },
+})
+try {
+  const controller = new AbortController()
+  const pending = preflightCancelService.runAgentTurn({
+    conversationId: 'preflight-cancel',
+    sessionKey: 'tw-preflight-cancel',
+    text: 'must not reach the Host prompt',
+    modelKey: 'test/model-preflight',
+    webContents,
+    cwd: preflightCancelHome,
+    signal: controller.signal,
+  })
+  await preflightModelStarted
+  controller.abort(new Error('preflight stop'))
+  await assert.rejects(pending, /preflight stop/)
+  releasePreflightModel()
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.equal(preflightCancelRuntime.prompts.length, 0,
+    'cancellation before the running record is registered must prevent a late prompt')
+  assert.equal(preflightCancelService.isBusy('tw-preflight-cancel'), false,
+    'cancellation during preflight must release the turn before model setup settles')
+} finally {
+  await preflightCancelService.stop()
+  await fs.rm(preflightCancelHome, { recursive: true, force: true })
+}
+
 const limitedReasoningHome = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-limited-reasoning-model-'))
 const limitedReasoningRuntime = createMockRuntime()
 const limitedReasoningService = createDshChatService({
@@ -313,6 +490,80 @@ try {
 } finally {
   await limitedReasoningService.stop()
   await fs.rm(limitedReasoningHome, { recursive: true, force: true })
+}
+
+const admissionHome = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-queue-admission-race-'))
+const admissionRuntime = createMockRuntime()
+const admissionOutputs = []
+const admissionWebContents = { send(_channel, event) { admissionOutputs.push(event) }, isDestroyed() { return false } }
+let modelConfigCalls = 0
+let releaseModelConfig
+let signalModelConfigStarted
+const modelConfigStarted = new Promise((resolve) => { signalModelConfigStarted = resolve })
+const modelConfigGate = new Promise((resolve) => { releaseModelConfig = resolve })
+let uiPolicyReads = 0
+let signalBothUiPolicyReads
+const bothUiPolicyReads = new Promise((resolve) => { signalBothUiPolicyReads = resolve })
+const admissionService = createDshChatService({
+  hostManager: admissionRuntime.hostManager,
+  userDataPath: admissionHome,
+  getWorkspacePath: () => admissionHome,
+  profileStore,
+  getUiVerifyPolicy() {
+    uiPolicyReads += 1
+    if (uiPolicyReads === 2) signalBothUiPolicyReads()
+    return null
+  },
+  modelService: {
+    ...modelService,
+    async getDshModelConfig(modelKey) {
+      modelConfigCalls += 1
+      if (modelConfigCalls === 1) signalModelConfigStarted()
+      await modelConfigGate
+      return modelService.getDshModelConfig(modelKey)
+    },
+  },
+})
+try {
+  const firstAdmission = admissionService.send({
+    text: 'first turn owns the lifecycle',
+    modelKey: 'test/model-a',
+    conversationId: 'queue-admission-race',
+    webContents: admissionWebContents,
+  })
+  await modelConfigStarted
+  const secondAdmission = admissionService.send({
+    text: 'second message should enter the queue',
+    modelKey: 'test/model-a',
+    conversationId: 'queue-admission-race',
+    behavior: 'followUp',
+    webContents: admissionWebContents,
+  })
+  await bothUiPolicyReads
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.equal(modelConfigCalls, 1, 'a follow-up must wait for first-turn admission instead of configuring the same idle session')
+  releaseModelConfig()
+  const queuedAdmission = await secondAdmission
+  assert.deepEqual(queuedAdmission, { accepted: true, queued: true })
+  await waitFor(() => admissionRuntime.prompts.length === 2, { label: '并发提交的第二条消息已进入 DSH 队列' })
+  const firstPrompt = admissionRuntime.prompts.find((input) => input.content?.[0]?.text === 'first turn owns the lifecycle')
+  const secondPrompt = admissionRuntime.prompts.find((input) => input.content?.[0]?.text === 'second message should enter the queue')
+  assert.ok(firstPrompt && secondPrompt, 'both messages should be admitted exactly once')
+  assert.equal(admissionOutputs.filter((event) => event.type === 'start' && event.conversationId === 'queue-admission-race').length, 1,
+    'only the first prompt should create a turn lifecycle before queued work starts')
+  const admissionSessionId = 'tw-queue-admission-race'
+  pushAssistantText(admissionRuntime, admissionSessionId, 'first reply')
+  admissionRuntime.push({ payload: { type: 'session/event', sessionId: admissionSessionId, event: { type: 'turn/end', data: { reason: { kind: 'completed' } } } } })
+  admissionRuntime.push({ payload: { type: 'session/event', sessionId: admissionSessionId, event: { type: 'turn/start', time: Date.now(), data: { turn: 2 } } } })
+  pushAssistantText(admissionRuntime, admissionSessionId, 'queued reply')
+  admissionRuntime.push({ payload: { type: 'session/event', sessionId: admissionSessionId, event: { type: 'turn/end', data: { reason: { kind: 'completed' } } } } })
+  const firstResult = await firstAdmission
+  assert.equal(firstResult.text, 'first reply')
+  await waitFor(() => !admissionService.isBusy('queue-admission-race'), { label: '准入竞态回归轮次已清理' })
+} finally {
+  releaseModelConfig()
+  await admissionService.stop()
+  await fs.rm(admissionHome, { recursive: true, force: true })
 }
 
 const home = await fs.mkdtemp(path.join(os.tmpdir(), 'taskweaver-dsh-chat-'))
@@ -502,6 +753,20 @@ const service = createDshChatService({
 })
 
 try {
+  const promptsBeforeRejectedRoleSteer = runtime.prompts.length
+  await assert.rejects(service.send({
+    text: 'must not start a second Bot turn',
+    modelKey: 'test/model-a',
+    conversationId: 'role-steer-race',
+    sessionKey: 'tw-role-steer-race',
+    behavior: 'steer',
+    activeOnly: true,
+    webContents: scopedWebContents,
+  }), (error) => error.code === 'SESSION_NOT_ACTIVE')
+  assert.equal(runtime.prompts.length, promptsBeforeRejectedRoleSteer,
+    'a role correction racing with turn completion must never start a standalone DSH turn')
+  assert.equal(service.isBusy('tw-role-steer-race'), false)
+
   const skillInput = '读取中文文件'
   const a = service.send({
     text: skillInput,
@@ -722,7 +987,10 @@ try {
 
   const running = service.send({ text: 'wait-for-cancel', modelKey: 'test/model-c', conversationId: 'conversation-C', webContents: scopedWebContents })
   await waitFor(() => service.isBusy('conversation-C'), { label: 'conversation-C 已进入运行态' })
-  assert.equal(await service.abort('conversation-C'), true)
+  assert.deepEqual(await Promise.all([
+    service.abort('conversation-C'),
+    service.abort('conversation-C'),
+  ]), [true, true], 'concurrent Stop requests share the Host cancellation')
   const cancelled = await running
   assert.equal(cancelled.cancelled, true)
   assert.equal(runtime.getCancelCount(), 1)
@@ -784,6 +1052,8 @@ try {
   assert.equal(taskResult.text, 'task reply')
   assert.equal(outputs.slice(taskTurnOutputStart).some((event) => event.type === 'planner_phase'), false,
     'ordinary silent subagent turns must not emit planner-only phase events')
+  assert.equal(outputs.slice(taskTurnOutputStart).some((event) => event.type === 'delta' || event.type === 'thinking_delta'), false,
+    'internal task turns stay silent unless the caller explicitly streams them to the renderer')
   assert.equal(outputs.find((event) => event.type === 'tool' && event.id === 'task-call-1' && event.status === 'done')?.resultSummary, '执行完成 · 1 个结果块，约 9 字符')
   const editTrace = outputs.find((event) => event.type === 'tool' && event.id === 'task-call-edit' && event.status === 'done')
   assert.deepEqual({ path: editTrace?.fileDiff?.path, added: editTrace?.fileDiff?.addedLines, deleted: editTrace?.fileDiff?.deletedLines }, {
@@ -797,6 +1067,71 @@ try {
   const fullToolFailure = service.getToolOutput({ conversationId: 'conversation-parent', outputId: toolFailure.outputId })
   assert.equal(fullToolFailure.text.includes('hidden-fixture-secret'), false,
     'full tool output retrieval redacts credentials before storage')
+
+  const roleStreamStart = outputs.length
+  const roleStreamTurn = service.runAgentTurn({
+    conversationId: 'role-surface',
+    sessionKey: 'tw-role-surface',
+    text: '以角色身份检查文件并回答',
+    modelKey: 'test/model-role',
+    webContents: scopedWebContents,
+    cwd: home,
+    rolePersona: '你是严谨的测试角色。',
+    roleToolCallLimit: 12,
+    sessionMuxVisible: false,
+    streamToRenderer: true,
+  })
+  await waitFor(() => service.isBusy('tw-role-surface'), { label: 'Bot 角色会话进入运行态' })
+  const roleSessionId = runtime.created.find((item) => item.sessionId.endsWith('role-surface')).sessionId
+  assert.equal(runtime.prompts.find((prompt) => prompt.sessionId === roleSessionId)?.rolePersona, '你是严谨的测试角色。')
+  assert.equal(runtime.prompts.find((prompt) => prompt.sessionId === roleSessionId)?.roleToolCallLimit, 12,
+    'the role tool-call budget reaches the Host prompt contract')
+  runtime.push({ payload: { type: 'session/event', sessionId: roleSessionId, event: {
+    type: 'assistant/chunk', data: { turn: 1, step: 1, chunk: { type: 'reasoning-delta', text: '正在检查证据' } },
+  } } })
+  runtime.push({ payload: { type: 'session/event', sessionId: roleSessionId, event: {
+    type: 'tool/call', data: { turn: 1, step: 1, callId: 'role-read', name: 'read', arguments: '{"path":"README.md"}' },
+  } } })
+  await waitFor(() => outputs.slice(roleStreamStart).some((event) => event.type === 'tool' && event.id === 'role-read' && event.status === 'running'),
+    { label: 'Bot 工具调用实时送达界面' })
+  runtime.push({ payload: { type: 'session/event', sessionId: roleSessionId, event: {
+    type: 'tool/result', data: { message: {
+      source: { callId: 'role-read' },
+      content: [{ type: 'tool-result', toolCallId: 'role-read', content: [{ type: 'text', text: 'read complete' }] }],
+    } },
+  } } })
+  runtime.push({ payload: { type: 'session/event', sessionId: roleSessionId, event: {
+    type: 'tool/call', data: { turn: 1, step: 1, callId: 'role-test', name: 'bash', arguments: JSON.stringify({ command: 'pnpm run test:role-mode' }) },
+  } } })
+  await waitFor(() => outputs.slice(roleStreamStart).some((event) => event.type === 'tool' && event.id === 'role-test' && event.status === 'running'),
+    { label: 'Bot test command is captured as a Host tool call' })
+  runtime.push({ payload: { type: 'session/event', sessionId: roleSessionId, event: {
+    type: 'tool/result', data: { message: {
+      source: { callId: 'role-test' },
+      content: [{ type: 'tool-result', toolCallId: 'role-test', content: [{ type: 'text', text: 'role-mode tests passed\n[exit code: 0]' }] }],
+    } },
+  } } })
+  runtime.push({ payload: { type: 'session/event', sessionId: roleSessionId, event: {
+    type: 'assistant/chunk', data: { turn: 1, step: 2, chunk: { type: 'text-delta', text: '检查结果已确认' } },
+  } } })
+  await waitFor(() => outputs.slice(roleStreamStart).some((event) => event.type === 'delta' && event.delta === '检查结果已确认'),
+    { label: 'Bot 答案在结束前实时送达界面' })
+  const roleStreamEvents = outputs.slice(roleStreamStart).filter((event) => event.conversationId === 'role-surface')
+  assert.ok(roleStreamEvents.some((event) => event.type === 'thinking_delta' && event.delta === '正在检查证据'),
+    'role mode must stream reasoning/activity instead of remaining silent until the full turn ends')
+  assert.ok(roleStreamEvents.some((event) => event.type === 'tool' && event.id === 'role-read' && event.status === 'running'))
+  assert.ok(roleStreamEvents.some((event) => event.type === 'delta' && event.delta === '检查结果已确认'))
+  assert.equal(roleStreamEvents.some((event) => event.type === 'start' || event.type === 'done'), false,
+    'the enclosing role group owns the single run lifecycle')
+  runtime.push({ payload: { type: 'session/event', sessionId: roleSessionId, event: {
+    type: 'turn/end', data: { reason: { kind: 'completed' } },
+  } } })
+  const roleStreamResult = await roleStreamTurn
+  assert.equal(roleStreamResult.text, '检查结果已确认')
+  const capturedTest = roleStreamResult.turnActivity.details.find((detail) => detail.id === 'role-test')
+  assert.equal(capturedTest.commandSummary, 'pnpm run test:role-mode')
+  assert.equal(capturedTest.commandOutcome.exitCode, 0, 'the review evidence uses the Host-parsed terminal exit marker')
+  assert.match(capturedTest.commandOutputTail, /role-mode tests passed/)
 
   const plannerProgressTurn = service.runAgentTurn({
     conversationId: 'conversation-parent',

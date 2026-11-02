@@ -111,6 +111,59 @@ const frame = {
 }
 
 {
+  const bridge = harness({
+    runOrchestration: async () => ({
+      tasks: [
+        {
+          id: 'T1',
+          title: '审查牌库',
+          statusLabel: '已完成',
+          acceptanceAssessment: {
+            required: 1,
+            passed: true,
+            items: [{ criterion: '确认牌库总数为 78 张', passed: true, evidence: 'cards.js:57-72' }],
+          },
+          executionEvidenceSummary: {
+            source: 'z-host-tool-events',
+            label: 'Host 工具记录：读取 4 · 搜索 3',
+          },
+          messages: [],
+        },
+        {
+          id: 'T2',
+          title: '检查构建资源',
+          statusLabel: '待复核',
+          messages: [{
+            author: 'agent',
+            acceptanceAssessment: {
+              required: 1,
+              passed: false,
+              reason: '范围访问被拒绝',
+              items: [{ criterion: '核对离线文件清单', passed: false, evidence: '未能访问额外目录' }],
+            },
+            executionEvidenceSummary: {
+              source: 'z-host-tool-events',
+              label: 'Host 工具记录：读取 5 · 越界拒绝 1',
+            },
+          }],
+        },
+      ],
+      assistant: { text: 'DAG done' },
+      failedTaskIds: ['T2'],
+    }),
+  })
+  await bridge.dispatch(bridge.api, { rpcId: 'rpc-audit', payload: frame })
+  await waitFor(() => bridge.responses.length === 1)
+  const summary = bridge.responses[0].result.value.summary
+  assert.match(summary, /TaskWeaver 后端保存的子任务核验记录/)
+  assert.match(summary, /确认牌库总数为 78 张；记录依据：cards\.js:57-72/)
+  assert.match(summary, /Host 工具记录：读取 4 · 搜索 3/)
+  assert.match(summary, /核对离线文件清单/)
+  assert.match(summary, /范围访问被拒绝/)
+  assert.match(summary, /越界拒绝 1/)
+}
+
+{
   const bridge = harness({ runOrchestration: async () => assert.fail('a stale cancellation must not start a DAG') })
   await bridge.dispatch(bridge.api, {
     rpcId: 'cancel-frame-stale', payload: {

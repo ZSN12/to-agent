@@ -5,6 +5,9 @@ import { analyzeUserIntent, USER_INTENTS } from '../user-intent.mjs'
 import { canRunScopedImplementationTasksConcurrently } from '../task-profile.mjs'
 import { loadWorkspacePlannerHints } from './planner-hints.mjs'
 import { DAG_NODE_LIMIT_DEFAULT } from './dag-limits.mjs'
+import { DAG_CONFIG } from '../config/constants.mjs'
+import { computeTransitiveClosure, canRunInParallel } from './transitive-closure.mjs'
+import { FastQueue, MinHeap } from './performance-utils.mjs'
 
 export class PlannerFallbackError extends Error {
   constructor(message, { partialUsage } = {}) {
@@ -58,10 +61,12 @@ const PLANNER_INDEX_IGNORES = new Set([
   '.pnpm-store',
 ])
 const PLANNER_SOURCE_DIR_PRIORITY = new Map([
-  ['contract', 0], ['backend', 1], ['src', 2], ['app', 3], ['server', 4],
+  ['contract', 0], ['backend', 1], ['src', 2], ['app', 3], ['apps', 3], ['sources', 4], ['server', 4],
   ['lib', 5], ['packages', 6], ['scripts', 7], ['tests', 8], ['docs', 10],
 ])
-const PLANNER_INDEX_MAX_DEPTH = 4
+// Include common nested desktop/mobile layouts such as
+// apps/macos/TaskWeaverShell/Sources/Target/File.swift.
+const PLANNER_INDEX_MAX_DEPTH = DAG_CONFIG.PLANNER_INDEX_MAX_DEPTH
 const TYPE_LABELS = {
   research: '调研',
   implementation: '实现',
@@ -341,19 +346,6 @@ function explicitParallelResearchCount(text) {
   return Number.isInteger(count) ? count : null
 }
 
-function dependsTransitivelyOn(tasksById, task, targetId) {
-  const pending = [...(task.dependsOn ?? [])]
-  const visited = new Set()
-  while (pending.length > 0) {
-    const dependencyId = pending.pop()
-    if (dependencyId === targetId) return true
-    if (visited.has(dependencyId)) continue
-    visited.add(dependencyId)
-    pending.push(...(tasksById.get(dependencyId)?.dependsOn ?? []))
-  }
-  return false
-}
-
 export function validatePlanForRequest(tasks, requestText, {
   requireParallelImplementationScopes = false,
   requireCrossProviderReview = false,
@@ -397,14 +389,18 @@ export function validatePlanForRequest(tasks, requestText, {
 
   if (requireParallelImplementationScopes) {
     const implementations = normalizedTasks.filter((task) => task.taskType === 'implementation')
-    const tasksById = new Map(normalizedTasks.map((task) => [task.id, task]))
+
+    // 优化：预计算传递闭包，避免重复 O(V²) 遍历
+    const closure = computeTransitiveClosure(normalizedTasks)
+
     for (let leftIndex = 0; leftIndex < implementations.length; leftIndex += 1) {
       const left = implementations[leftIndex]
       for (let rightIndex = leftIndex + 1; rightIndex < implementations.length; rightIndex += 1) {
         const right = implementations[rightIndex]
         // Only incomparable nodes can become concurrent in a valid DAG. Nodes
         // with a dependency path between them are intentionally serialized.
-        if (dependsTransitivelyOn(tasksById, left, right.id) || dependsTransitivelyOn(tasksById, right, left.id)) continue
+        if (!canRunInParallel(closure, left.id, right.id)) continue
+
         if (left.writeScopes.length === 0 || right.writeScopes.length === 0) {
           throw new Error(`并行实现写入范围缺失：${left.id} 与 ${right.id} 没有完整的 writeScopes，无法安全并行执行`)
         }
@@ -430,8 +426,35 @@ export function validatePlanForRequest(tasks, requestText, {
 
 /** Close predictable entrypoint and request-chain gaps using only indexed, existing paths. */
 function includesAny(text, terms) {
-  const normalized = String(text ?? '').toLocaleLowerCase()
-  return Array.isArray(terms) && terms.some((term) => normalized.includes(String(term).toLocaleLowerCase()))
+  const normalized = String(text ?? '').toLowerCase()
+  return Array.isArray(terms) && terms.some((term) => normalized.includes(String(term).toLowerCase()))
+}
+
+/**
+ * 使用 Top-K 堆算法筛选候选路径，避免对全部候选完整排序。
+ */
+function selectTopK(items, scoreFn, k) {
+  if (k <= 0) return []
+  if (items.length <= k) {
+    return items
+      .map((candidate) => ({ candidate, score: scoreFn(candidate) }))
+      .sort((a, b) => b.score - a.score || a.candidate.localeCompare(b.candidate))
+  }
+
+  // MinHeap keeps the worst selected candidate at its root. Preserve the
+  // same lexical tie-break as the full-sort branch so the boundary is stable
+  // even when traversal order differs from path order.
+  const heap = new MinHeap(k, (a, b) =>
+    a.score - b.score || b.candidate.localeCompare(a.candidate)
+  )
+
+  for (const candidate of items) {
+    const score = scoreFn(candidate)
+    heap.push({ candidate, score })
+  }
+
+  // toSortedArray 内部会降序排序
+  return heap.toSortedArray()
 }
 
 export function completeReadOnlyPlanScopes(tasks, requestText, indexedPaths, workspaceHints = null) {
@@ -487,16 +510,20 @@ export function validateReadOnlyPlanScopesFromIndex(tasks, indexedPaths) {
 
 /** Build a bounded paths-only workspace hint for planning; never reads file contents or follows symlinks. */
 export async function collectPlannerPathHints(workspacePath, query, {
-  maxVisited = 2000,
-  limit = 90,
+  maxVisited = 5000,
+  limit = DAG_CONFIG.PLANNER_PATH_HINT_LIMIT_DEFAULT,
   workspaceHints: suppliedWorkspaceHints,
   disableWorkspaceHints = false,
 } = {}) {
   const root = await fs.realpath(workspacePath)
   const workspaceHints = suppliedWorkspaceHints ?? await loadWorkspacePlannerHints(root, { disabled: disableWorkspaceHints })
-  const visitLimit = Math.max(100, Math.min(5000, Number(maxVisited) || 1200))
+  const visitLimit = Math.max(100, Math.min(5000, Number(maxVisited) || 5000))
   const outputLimit = Math.max(10, Math.min(160, Number(limit) || 90))
-  const queue = [{ absolute: root, relative: '', depth: 0 }]
+
+  // 使用 FastQueue 替代 Array (避免 shift 的 O(n) 开销)
+  const queue = new FastQueue()
+  queue.enqueue({ absolute: root, relative: '', depth: 0 })
+
   const files = []
   const directories = []
   let visitedEntries = 0
@@ -504,8 +531,18 @@ export async function collectPlannerPathHints(workspacePath, query, {
   let depthLimitedDirectories = 0
   let unreadableDirectories = 0
 
+  // 预先构建小写优先级映射 (避免重复 toLowerCase)
+  const PRIORITY_CACHE = new Map(
+    Array.from(PLANNER_SOURCE_DIR_PRIORITY.entries())
+      .map(([key, val]) => [key.toLowerCase(), val])
+  )
+  const getPriority = (name) => {
+    const lower = name.toLowerCase()
+    return PRIORITY_CACHE.has(lower) ? PRIORITY_CACHE.get(lower) : 50
+  }
+
   while (queue.length && visitedEntries < visitLimit) {
-    const current = queue.shift()
+    const current = queue.dequeue()
     let entries
     try {
       entries = await fs.readdir(current.absolute, { withFileTypes: true })
@@ -513,10 +550,11 @@ export async function collectPlannerPathHints(workspacePath, query, {
       unreadableDirectories += 1
       continue
     }
+
+    // 优化的排序 - 直接使用缓存的优先级
     entries.sort((a, b) => {
-      const aPriority = PLANNER_SOURCE_DIR_PRIORITY.get(a.name.toLocaleLowerCase()) ?? 50
-      const bPriority = PLANNER_SOURCE_DIR_PRIORITY.get(b.name.toLocaleLowerCase()) ?? 50
-      return aPriority - bPriority || a.name.localeCompare(b.name)
+      const diff = getPriority(a.name) - getPriority(b.name)
+      return diff !== 0 ? diff : a.name.localeCompare(b.name)
     })
 
     // Count each entry only when traversal examines it; do not count the first entry left over at the budget boundary.
@@ -536,7 +574,7 @@ export async function collectPlannerPathHints(workspacePath, query, {
       if (entry.isDirectory()) {
         directories.push(relative)
         if (current.depth < PLANNER_INDEX_MAX_DEPTH) {
-          queue.push({ absolute, relative, depth: current.depth + 1 })
+          queue.enqueue({ absolute, relative, depth: current.depth + 1 })
         } else {
           depthLimitedDirectories += 1
         }
@@ -547,47 +585,59 @@ export async function collectPlannerPathHints(workspacePath, query, {
   }
 
   const matchedRankingRules = workspaceHints.rankingRules.filter((rule) => includesAny(query, rule.queryTermsAny))
-  const configuredPathWeights = new Map(workspaceHints.pathWeights.map(({ path: candidate, weight }) => [candidate.toLocaleLowerCase(), weight]))
+  const configuredPathWeights = new Map(workspaceHints.pathWeights.map(({ path: candidate, weight }) => [candidate.toLowerCase(), weight]))
   const configuredBoosts = new Map()
   for (const rule of matchedRankingRules) {
     for (const { path: candidate, weight } of rule.boostPaths) {
-      configuredBoosts.set(candidate.toLocaleLowerCase(), Math.max(configuredBoosts.get(candidate.toLocaleLowerCase()) ?? 0, weight))
+      const key = candidate.toLowerCase()
+      configuredBoosts.set(key, Math.max(configuredBoosts.get(key) ?? 0, weight))
     }
   }
+
   const rankPath = (candidate) => {
     const depth = candidate.split('/').length
     const rootFileBonus = depth === 1 ? 3 : 0
     const rootManifestBonus = depth === 1 && /^(package\.json|pnpm-lock\.yaml|package-lock\.json|tsconfig\.json|README(?:\.md)?)$/i.test(candidate) ? 12 : 0
     const codePathBonus = /(^|\/)(main|index|app|server|channels|register-ipc)(\.[^.]+)?$/i.test(candidate) ? 5 : 0
-    const sourceExtensionBonus = /\.(c|m)?(js|jsx|ts|tsx|mjs|cjs|json|py|go|rs)$/i.test(candidate) ? 1 : 0
+    const sourceExtensionBonus = /\.(c|m)?(js|jsx|ts|tsx|mjs|cjs|json|py|go|rs|swift)$/i.test(candidate) ? 1 : 0
+    const lower = candidate.toLowerCase()
     return scoreTextRelevance(query, '', { pathText: candidate })
       + rootFileBonus
       + rootManifestBonus
       + codePathBonus
       + sourceExtensionBonus
-      + (configuredPathWeights.get(candidate.toLocaleLowerCase()) ?? 0)
-      + (configuredBoosts.get(candidate.toLocaleLowerCase()) ?? 0)
+      + (configuredPathWeights.get(lower) ?? 0)
+      + (configuredBoosts.get(lower) ?? 0)
   }
-  const rankedFiles = files
-    .map((candidate) => ({ candidate, score: rankPath(candidate) }))
-    .sort((a, b) => b.score - a.score || a.candidate.localeCompare(b.candidate))
+
   const preferredDirectories = directories
     .filter((candidate) => candidate.split('/').length <= 2
-      || matchedRankingRules.some((rule) => rule.preferredDirectories.some((preferred) => preferred.toLocaleLowerCase() === candidate.toLocaleLowerCase())))
+      || matchedRankingRules.some((rule) => rule.preferredDirectories.some((preferred) => preferred.toLowerCase() === candidate.toLowerCase())))
     .sort((a, b) => rankPath(b) - rankPath(a) || a.localeCompare(b))
-  const configuredFirstPaths = matchedRankingRules.flatMap((rule) => rule.prependPaths)
-    .filter((candidate) => files.includes(candidate) || directories.includes(candidate))
+
+  const configuredFirstPaths = [...new Set(matchedRankingRules.flatMap((rule) => rule.prependPaths)
+    .filter((candidate) => files.includes(candidate) || directories.includes(candidate)))]
+  const configuredFirstSet = new Set(configuredFirstPaths)
+  const unlistedFiles = files.filter((candidate) => !configuredFirstSet.has(candidate))
+  const unlistedDirectories = preferredDirectories.filter((candidate) => !configuredFirstSet.has(candidate))
+  // Reserve up to 30% of the display for directory entry points, but use all
+  // available slots for files when a workspace has few or no directories.
+  const directorySlots = Math.min(unlistedDirectories.length, Math.ceil(outputLimit * 0.3))
+  const fileSlots = Math.max(0, outputLimit - configuredFirstPaths.length - directorySlots)
+  const topFiles = selectTopK(unlistedFiles, rankPath, fileSlots)
+
   const allCandidates = [...new Set([
     ...configuredFirstPaths,
-    ...rankedFiles.map(({ candidate }) => candidate),
+    ...topFiles.map(({ candidate }) => candidate),
     ...preferredDirectories,
   ])]
   const selected = allCandidates.slice(0, outputLimit)
+  const candidateCount = new Set([...configuredFirstPaths, ...files, ...preferredDirectories]).size
   const truncationReasons = []
   if (unscannedEntries || queue.length > 0) truncationReasons.push('scan-budget')
   if (depthLimitedDirectories > 0) truncationReasons.push('depth-limit')
   if (unreadableDirectories > 0) truncationReasons.push('unreadable-directory')
-  if (allCandidates.length > selected.length) truncationReasons.push('display-limit')
+  if (candidateCount > selected.length) truncationReasons.push('display-limit')
   const truncationMessages = []
   if (truncationReasons.includes('scan-budget')) {
     truncationMessages.push('路径索引达到目录项扫描预算，仍有目录项或待扫描目录未检查。')
@@ -599,7 +649,7 @@ export async function collectPlannerPathHints(workspacePath, query, {
     truncationMessages.push('路径索引中有目录无法读取，目录内容未纳入候选。')
   }
   if (truncationReasons.includes('display-limit')) {
-    truncationMessages.push(`路径索引达到 ${outputLimit} 条展示上限，仍有 ${allCandidates.length - selected.length} 个候选未展示。`)
+    truncationMessages.push(`路径索引达到 ${outputLimit} 条展示上限，仍有 ${candidateCount - selected.length} 个候选未展示。`)
   }
   return {
     paths: selected,
@@ -647,7 +697,6 @@ function layoutTasks(tasks) {
   const positionInLevel = new Map()
   return tasks.map((task) => {
     const level = levels.get(task.id) ?? 0
-    const group = tasksByLevel.get(level) ?? []
     const index = positionInLevel.get(level) ?? 0
     positionInLevel.set(level, index + 1)
     return {

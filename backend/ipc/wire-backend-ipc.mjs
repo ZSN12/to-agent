@@ -8,7 +8,7 @@ import { createScheduledJobsRunner } from '../scheduled-jobs-runner.mjs'
 import { probeSandboxSupport } from '../sandbox-service.mjs'
 import { resolveSandboxPolicy } from '../sandbox-policy.mjs'
 import { listGithubPullRequests } from '../github-pull-requests.mjs'
-import { createGitCheckpoint } from '../git-service.mjs'
+import { createGitCheckpoint, getGitCheckpointDiff } from '../git-service.mjs'
 import { registerWorktreeIpc } from './register-worktree-ipc.mjs'
 import { registerPreferencesIpc } from './register-preferences-ipc.mjs'
 import { registerMemoryIpc } from './register-memory-ipc.mjs'
@@ -21,7 +21,9 @@ import { registerModelsIpc } from './register-models-ipc.mjs'
 import { registerPermissionsIpc } from './register-permissions-ipc.mjs'
 import { registerChatIpc } from './register-chat-ipc.mjs'
 import { registerChatSendIpc } from './register-chat-send-ipc.mjs'
+import { registerRolesIpc } from './register-roles-ipc.mjs'
 import { createChatTurnPipeline } from '../chat-turn-pipeline.mjs'
+import { createRoleChatService } from '../role-chat-service.mjs'
 import { createScheduledJobRunHandler } from '../scheduled-job-run.mjs'
 import { createChatDocumentAttachmentService } from '../chat-document-attachments.mjs'
 
@@ -32,8 +34,8 @@ import { createChatDocumentAttachmentService } from '../chat-document-attachment
 export function wireBackendIpc({ ipcMain, app, dialog, BrowserWindow, shell, ctx }) {
   const {
     userData,
-    fallbackWorkspace,
     profileStore,
+    roleProfileStore,
     approvalAudit,
     mcp,
     hostManager,
@@ -77,6 +79,7 @@ export function wireBackendIpc({ ipcMain, app, dialog, BrowserWindow, shell, ctx
     scheduledJobsStore,
     pricingSync,
     credentialStore,
+    secrets,
   } = ctx
 
   const resolveActiveRuntime = async (requestedConversationId) => {
@@ -102,6 +105,18 @@ export function wireBackendIpc({ ipcMain, app, dialog, BrowserWindow, shell, ctx
     persistNativeTurn,
     workspaceHooksTrusted,
     sandboxContextLineForContext,
+  })
+  const roleChatService = createRoleChatService({
+    roleProfileStore,
+    profileStore,
+    resolveModelKeyForChat,
+    chat,
+    appState,
+    permissions,
+    persistNativeTurn,
+    createGitCheckpoint,
+    getGitCheckpointDiff,
+    userDataPath: userData,
   })
 
   const scheduledJobsRunner = createScheduledJobsRunner({
@@ -137,6 +152,8 @@ export function wireBackendIpc({ ipcMain, app, dialog, BrowserWindow, shell, ctx
   }
 
   registerMcpIpc({ ipcMain, dialog, BrowserWindow, shell, mcp, assertMcpHostRestartSafe, reloadMcpRuntime, withMcpHostRestartLock })
+
+  registerRolesIpc({ ipcMain, roleProfileStore, profileStore })
 
   registerAppIpc({
     ipcMain,
@@ -175,6 +192,7 @@ export function wireBackendIpc({ ipcMain, app, dialog, BrowserWindow, shell, ctx
     modelService,
     modelRegistryUpdater,
     credentialStore,
+    secrets,
     hostManager,
     profileStore,
     pricingSync,
@@ -279,6 +297,7 @@ export function wireBackendIpc({ ipcMain, app, dialog, BrowserWindow, shell, ctx
     turnInProgressByConversation,
     withTurnLock,
     chatTurnPipeline,
+    roleChatService,
     chatDocumentAttachments,
   })
 
@@ -289,6 +308,7 @@ export function wireBackendIpc({ ipcMain, app, dialog, BrowserWindow, shell, ctx
     getConversationRuntimeContext,
     withTurnLock,
     chatTurnPipeline,
+    roleChatService,
     chatDocumentAttachments,
   })
 
@@ -318,6 +338,7 @@ export function wireBackendIpc({ ipcMain, app, dialog, BrowserWindow, shell, ctx
   return {
     modelService,
     profileStore,
+    roleProfileStore,
     appState,
     chatService: chat,
     orchestrationService: orchestration,

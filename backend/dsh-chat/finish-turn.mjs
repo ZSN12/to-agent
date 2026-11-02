@@ -80,6 +80,9 @@ export function createFinishTurn({
       },
       cancelled,
       ...(turn.multiAgentTaskCount > 0 ? { multiAgentTaskCount: turn.multiAgentTaskCount } : {}),
+      ...(Array.isArray(turn.subagentOutputs) && turn.subagentOutputs.length > 0
+        ? { subagentOutputs: turn.subagentOutputs }
+        : {}),
     }
     liveUsage.set(sessionKey, result.usage)
     const persisted = turn.persistTerminal && onTurnCompleted

@@ -25,13 +25,32 @@ export function createOAuthTokenCache({
   refreshSkewMs = OAUTH_TOKEN_CACHE_REFRESH_SKEW_MS,
 } = {}) {
   const tokens = new Map()
+  const inFlight = new Map()
 
-  return {
-    async get(provider, loadToken) {
-      const cached = tokens.get(provider)
-      if (cached && cached.expiresAtMs > now() + refreshSkewMs) return cached.accessToken
+  function abortReason(signal) {
+    return signal?.reason ?? new DOMException('OAuth token lookup was aborted.', 'AbortError')
+  }
 
-      const loaded = await loadToken()
+  function cancelFlight(provider, flight) {
+    if (inFlight.get(provider) === flight) inFlight.delete(provider)
+    flight.controller.abort()
+  }
+
+  function startFlight(provider, loadToken) {
+    const controller = new AbortController()
+    const flight = { controller, consumers: 0, settled: false, promise: null }
+    inFlight.set(provider, flight)
+    // The helper belongs to the shared lookup, never to its first consumer.
+    // Also settle if a loader ignores cancellation; its late value cannot cache.
+    const loadedToken = new Promise((resolve, reject) => {
+      const abort = () => reject(abortReason(controller.signal))
+      controller.signal.addEventListener('abort', abort, { once: true })
+      Promise.resolve().then(() => {
+        if (controller.signal.aborted) throw abortReason(controller.signal)
+        return loadToken(controller.signal)
+      }).then(resolve, reject).finally(() => controller.signal.removeEventListener('abort', abort))
+    })
+    flight.promise = loadedToken.then((loaded) => {
       const accessToken = typeof loaded === 'string' ? loaded : loaded?.accessToken
       if (typeof accessToken !== 'string' || accessToken.trim().length === 0) {
         throw new TypeError('OAuth token loader must return a non-empty access token string.')
@@ -46,18 +65,51 @@ export function createOAuthTokenCache({
         throw new TypeError('OAuth token loader returned an expired access token.')
       }
       const effectiveExpiry = expiresAtMs ?? currentTimeMs + FALLBACK_TTL_MS + refreshSkewMs
-      if (effectiveExpiry > currentTimeMs + refreshSkewMs) {
-        tokens.set(provider, { accessToken, expiresAtMs: effectiveExpiry })
-      } else {
-        tokens.delete(provider)
+      if (inFlight.get(provider) === flight && !controller.signal.aborted) {
+        if (effectiveExpiry > currentTimeMs + refreshSkewMs) {
+          tokens.set(provider, { accessToken, expiresAtMs: effectiveExpiry })
+        } else {
+          tokens.delete(provider)
+        }
       }
       return accessToken
+    }).finally(() => {
+      flight.settled = true
+      if (inFlight.get(provider) === flight) inFlight.delete(provider)
+    })
+    return flight
+  }
+
+  return {
+    async get(provider, loadToken, { signal } = {}) {
+      if (signal?.aborted) throw abortReason(signal)
+      const cached = tokens.get(provider)
+      if (cached && cached.expiresAtMs > now() + refreshSkewMs) return cached.accessToken
+      const flight = inFlight.get(provider) ?? startFlight(provider, loadToken)
+      flight.consumers++
+      return new Promise((resolve, reject) => {
+        let settled = false
+        const finish = (settle, value) => {
+          if (settled) return
+          settled = true
+          signal?.removeEventListener('abort', abort)
+          flight.consumers--
+          if (!flight.settled && flight.consumers === 0) cancelFlight(provider, flight)
+          settle(value)
+        }
+        const abort = () => finish(reject, abortReason(signal))
+        signal?.addEventListener('abort', abort, { once: true })
+        flight.promise.then((token) => finish(resolve, token), (error) => finish(reject, error))
+      })
     },
     invalidate(provider) {
       tokens.delete(provider)
+      const flight = inFlight.get(provider)
+      if (flight) cancelFlight(provider, flight)
     },
     clear() {
       tokens.clear()
+      for (const [provider, flight] of inFlight) cancelFlight(provider, flight)
     },
   }
 }

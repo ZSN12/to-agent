@@ -1,117 +1,11 @@
-import type { VectorStore, CodeChunk, SearchResult } from './types'
-
-export class ChromaVectorStore implements VectorStore {
-  private client: any
-  private collection: any
-  private collectionName: string
-  private host: string
-  private port: number
-
-  constructor(collectionName: string, host: string = 'localhost', port: number = 8000) {
-    this.collectionName = collectionName
-    this.host = host
-    this.port = port
-  }
-
-  async init(): Promise<void> {
-    try {
-      // 动态导入 chromadb
-      const { ChromaClient } = await import('chromadb')
-      this.client = new ChromaClient({
-        path: `http://${this.host}:${this.port}`
-      })
-
-      this.collection = await this.client.getOrCreateCollection({
-        name: this.collectionName,
-        metadata: { 'hnsw:space': 'cosine' }
-      })
-    } catch (error) {
-      console.error('Failed to initialize ChromaDB:', error)
-      throw new Error('ChromaDB initialization failed. Make sure ChromaDB server is running.')
-    }
-  }
-
-  async add(chunks: CodeChunk[], embeddings: number[][]): Promise<void> {
-    if (chunks.length !== embeddings.length) {
-      throw new Error('Chunks and embeddings length mismatch')
-    }
-
-    const ids = chunks.map(c => c.id)
-    const documents = chunks.map(c => c.content)
-    const metadatas = chunks.map(c => ({
-      file: c.file,
-      language: c.language,
-      type: c.type,
-      name: c.name,
-      startLine: c.startLine,
-      endLine: c.endLine,
-      imports: JSON.stringify(c.metadata.imports || []),
-      exports: JSON.stringify(c.metadata.exports || []),
-      comments: c.metadata.comments || ''
-    }))
-
-    await this.collection.add({
-      ids,
-      embeddings,
-      documents,
-      metadatas
-    })
-  }
-
-  async search(_query: string, queryEmbedding: number[], topK: number): Promise<SearchResult[]> {
-    const results = await this.collection.query({
-      queryEmbeddings: [queryEmbedding],
-      nResults: topK,
-      include: ['documents', 'metadatas', 'distances']
-    })
-
-    if (!results.ids || !results.ids[0]) {
-      return []
-    }
-
-    return results.ids[0].map((id: string, i: number) => ({
-      chunk: {
-        id,
-        file: results.metadatas[0][i].file,
-        language: results.metadatas[0][i].language,
-        type: results.metadatas[0][i].type,
-        name: results.metadatas[0][i].name,
-        content: results.documents[0][i],
-        startLine: results.metadatas[0][i].startLine,
-        endLine: results.metadatas[0][i].endLine,
-        metadata: {
-          imports: JSON.parse(results.metadatas[0][i].imports || '[]'),
-          exports: JSON.parse(results.metadatas[0][i].exports || '[]'),
-          comments: results.metadatas[0][i].comments
-        }
-      },
-      score: 1 - (results.distances[0][i] || 0)  // 余弦距离转相似度
-    }))
-  }
-
-  async clear(): Promise<void> {
-    try {
-      await this.client.deleteCollection(this.collectionName)
-      await this.init()
-    } catch (error) {
-      console.error('Failed to clear collection:', error)
-    }
-  }
-
-  async count(): Promise<number> {
-    try {
-      const count = await this.collection.count()
-      return count
-    } catch (error) {
-      return 0
-    }
-  }
-}
+import type { VectorStore, CodeChunk, SearchResult, SearchFilters } from './types.ts'
+import { MinHeap } from './performance-utils.ts'
 
 // 内存向量存储（用于测试或小型项目）
 export class InMemoryVectorStore implements VectorStore {
   private chunks: CodeChunk[] = []
   private embeddings: number[][] = []
+  private norms: number[] = []  // 预计算的向量范数
 
   async init(): Promise<void> {
     // No-op for in-memory store
@@ -120,21 +14,35 @@ export class InMemoryVectorStore implements VectorStore {
   async add(chunks: CodeChunk[], embeddings: number[][]): Promise<void> {
     this.chunks.push(...chunks)
     this.embeddings.push(...embeddings)
+
+    // 预计算每个向量的范数
+    for (const emb of embeddings) {
+      this.norms.push(this.computeNorm(emb))
+    }
   }
 
-  async search(_query: string, queryEmbedding: number[], topK: number): Promise<SearchResult[]> {
-    // 计算余弦相似度
-    const scores = this.embeddings.map(embedding =>
-      this.cosineSimilarity(queryEmbedding, embedding)
-    )
+  async search(_query: string, queryEmbedding: number[], topK: number, filters?: SearchFilters): Promise<SearchResult[]> {
+    if (!Number.isFinite(topK) || topK <= 0 || this.chunks.length === 0) return []
+    const resultLimit = Math.min(this.chunks.length, Math.max(1, Math.floor(topK)))
+    // 使用 MinHeap 进行 Top-K 选择，O(n log k) 替代 O(n log n)。At equal
+    // scores, the later insertion is worse, including at the cutoff.
+    const heap = new MinHeap<{ score: number; index: number }>(resultLimit, (a, b) => a.score - b.score || b.index - a.index)
 
-    // 排序并取 topK
-    const indices = scores
-      .map((score, index) => ({ score, index }))
-      .sort((a, b) => b.score - a.score)
-      .slice(0, topK)
+    const queryNorm = this.computeNorm(queryEmbedding)
+    if (!Number.isFinite(queryNorm) || queryNorm <= 0) return []
 
-    return indices.map(({ score, index }) => ({
+    // 遍历所有向量，维护 topK
+    for (let i = 0; i < this.embeddings.length; i++) {
+      const chunk = this.chunks[i]
+      if ((filters?.language && chunk.language !== filters.language)
+        || (filters?.type && chunk.type !== filters.type)
+        || (filters?.file && !chunk.file.includes(filters.file))) continue
+      const score = this.cosineSimilarity(queryEmbedding, this.embeddings[i], queryNorm, this.norms[i])
+      if (Number.isFinite(score)) heap.push({ score, index: i })
+    }
+
+    // 提取结果并按分数降序排列
+    return heap.toSortedArray().map(({ score, index }) => ({
       chunk: this.chunks[index],
       score
     }))
@@ -143,21 +51,41 @@ export class InMemoryVectorStore implements VectorStore {
   async clear(): Promise<void> {
     this.chunks = []
     this.embeddings = []
+    this.norms = []
   }
 
   async count(): Promise<number> { return this.chunks.length }
 
-  private cosineSimilarity(a: number[], b: number[]): number {
-    let dotProduct = 0
-    let normA = 0
-    let normB = 0
+  /**
+   * 计算向量范数
+   */
+  private computeNorm(vec: number[]): number {
+    let sum = 0
+    for (let i = 0; i < vec.length; i++) {
+      sum += vec[i] * vec[i]
+    }
+    return Math.sqrt(sum)
+  }
 
+  /**
+   * 优化的余弦相似度计算 - 使用预计算的范数
+   * 对于归一化向量（norm = 1），直接返回点积
+   */
+  private cosineSimilarity(a: number[], b: number[], normA: number, normB: number): number {
+    if (!Number.isFinite(normA) || !Number.isFinite(normB) || normA <= 0 || normB <= 0) return 0
+    let dotProduct = 0
     for (let i = 0; i < a.length; i++) {
+      if (!Number.isFinite(a[i]) || !Number.isFinite(b[i])) return 0
       dotProduct += a[i] * b[i]
-      normA += a[i] * a[i]
-      normB += b[i] * b[i]
+    }
+    if (!Number.isFinite(dotProduct)) return 0
+
+    // 如果两个向量都已归一化（如 BuiltinLocalEmbeddingService 的输出）
+    if (Math.abs(normA - 1.0) < 0.001 && Math.abs(normB - 1.0) < 0.001) {
+      return Math.max(-1, Math.min(1, dotProduct))  // 点积 = 余弦相似度
     }
 
-    return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB))
+    const similarity = dotProduct / (normA * normB)
+    return Number.isFinite(similarity) ? Math.max(-1, Math.min(1, similarity)) : 0
   }
 }

@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import { confineArgv } from './sandbox-service.mjs'
 
 const VERIFICATION_ENV_ALLOWLIST = new Set([
   'PATH',
@@ -280,14 +281,20 @@ export function formatVerificationPrompt(workspacePath) {
  * 执行轻量自检验证命令，返回结构化执行结果。
  * 供自愈闭环（Self-Healing Loop）在代码修改后进行静默验证使用。
  *
+ * 传入 `sandboxPolicy` 时，命令会用与 Host bash 相同的 Seatbelt/bwrap/Landlock 配置运行，
+ * 写入范围限制在工作区与临时目录内。`repairable` 只在命令真正执行并因代码问题失败时为 true；
+ * 超时、取消或被沙箱拒绝都不应驱动模型去改代码。
+ *
  * @param {string} workspacePath 工作区根目录
  * @param {{
  *   commandOverride?: string | null,
  *   timeoutMs?: number,
  *   maxOutputBytes?: number,
+ *   signal?: AbortSignal,
+ *   sandboxPolicy?: { mode: string, workspaceRoot?: string } | null,
  * }} [options]
  * @returns {Promise<{
- *   status: 'passed' | 'failed' | 'not_run',
+ *   status: 'passed' | 'failed' | 'not_run' | 'cancelled',
  *   executed: boolean,
  *   command: string | null,
  *   exitCode: number | null,
@@ -297,13 +304,46 @@ export function formatVerificationPrompt(workspacePath) {
  *   errorSummary: string | null,
  *   durationMs: number,
  *   timedOut: boolean,
+ *   cancelled: boolean,
+ *   sandboxed: boolean,
+ *   sandboxDenied: boolean,
+ *   repairable: boolean,
  * }>}
  */
 export async function executeVerificationRunner(workspacePath, options = {}) {
+  const result = await runVerificationCommand(workspacePath, options)
+  return {
+    sandboxed: false,
+    sandboxDenied: false,
+    ...result,
+    repairable: result.executed && !result.passed && !result.timedOut && !result.cancelled && !result.sandboxDenied,
+  }
+}
+
+const SANDBOX_DENIAL_PATTERN = /operation not permitted|\bEPERM\b|sandbox-exec:|bwrap:|landlock/i
+
+async function runVerificationCommand(workspacePath, options = {}) {
   const timeoutMs = options.timeoutMs ?? 30_000
   const maxOutputBytes = options.maxOutputBytes ?? 64 * 1024
+  const signal = options.signal
   const policy = detectVerificationCommands(workspacePath)
   const command = options.commandOverride || policy.primaryCommand
+
+  const cancelledResult = (command, durationMs = 0, stdout = '', stderr = '', executed = false) => ({
+    executed,
+    status: 'cancelled',
+    command: command ?? null,
+    exitCode: null,
+    passed: false,
+    stdout,
+    stderr,
+    errorSummary: '验证已取消。',
+    durationMs,
+    timedOut: false,
+    cancelled: true,
+  })
+
+  if (signal?.aborted) return cancelledResult(command)
 
   if (!command || !workspacePath) {
     return {
@@ -317,6 +357,7 @@ export async function executeVerificationRunner(workspacePath, options = {}) {
       errorSummary: '未检测到可执行的验证命令。',
       durationMs: 0,
       timedOut: false,
+      cancelled: false,
     }
   }
 
@@ -328,29 +369,67 @@ export async function executeVerificationRunner(workspacePath, options = {}) {
     let stdoutBuffer = ''
     let stderrBuffer = ''
     let timedOut = false
+    let cancelled = false
     let timer = null
+    let killTimer = null
+    let settled = false
+    let sandboxed = false
+
+    const finish = (result) => {
+      if (settled) return
+      settled = true
+      result.sandboxed = sandboxed
+      if (timer) clearTimeout(timer)
+      if (killTimer) clearTimeout(killTimer)
+      signal?.removeEventListener('abort', onAbort)
+      resolve(result)
+    }
+
+    const killTree = (signalName) => {
+      if (!child || !child.pid) return
+      try {
+        if (process.platform !== 'win32') process.kill(-child.pid, signalName)
+        else child.kill(signalName)
+      } catch {
+        try { child.kill(signalName) } catch { /* process already exited */ }
+      }
+    }
+
+    const onAbort = () => {
+      cancelled = true
+      killTree('SIGTERM')
+      killTimer = setTimeout(() => killTree('SIGKILL'), 1500)
+      killTimer.unref?.()
+    }
 
     try {
       const shell = process.env.SHELL || (process.platform === 'win32' ? process.env.ComSpec || 'powershell.exe' : '/bin/bash')
       const shellArgs = process.platform === 'win32' ? ['/d', '/s', '/c', command] : ['-c', command]
+      const sandboxMode = options.sandboxPolicy?.mode
+      const argv = sandboxMode === 'workspace-write' || sandboxMode === 'read-only'
+        ? confineArgv([shell, ...shellArgs], {
+          mode: sandboxMode,
+          workspaceRoot: options.sandboxPolicy.workspaceRoot || workspacePath,
+        })
+        : [shell, ...shellArgs]
+      sandboxed = argv[0] !== shell
 
-      child = spawn(shell, shellArgs, {
+      child = spawn(argv[0], argv.slice(1), {
         cwd: workspacePath,
         env: buildVerificationChildEnv(),
         stdio: ['ignore', 'pipe', 'pipe'],
+        detached: process.platform !== 'win32',
       })
+
+      signal?.addEventListener('abort', onAbort, { once: true })
+      if (signal?.aborted) onAbort()
 
       timer = setTimeout(() => {
         timedOut = true
         if (child && !child.killed) {
-          try {
-            child.kill('SIGTERM')
-            setTimeout(() => {
-              if (child && !child.killed) child.kill('SIGKILL')
-            }, 2000).unref?.()
-          } catch {
-            // ignore kill error
-          }
+          killTree('SIGTERM')
+          killTimer = setTimeout(() => killTree('SIGKILL'), 2000)
+          killTimer.unref?.()
         }
       }, timeoutMs)
       timer.unref?.()
@@ -374,9 +453,10 @@ export async function executeVerificationRunner(workspacePath, options = {}) {
       })
 
       child.on('error', (err) => {
-        if (timer) clearTimeout(timer)
         const durationMs = Date.now() - startTime
-        resolve({
+        finish(cancelled
+          ? cancelledResult(command, durationMs, stdoutBuffer, stderrBuffer)
+          : {
           executed: false,
           status: 'failed',
           command,
@@ -387,19 +467,26 @@ export async function executeVerificationRunner(workspacePath, options = {}) {
           errorSummary: `启动验证命令失败: ${err.message || err}`,
           durationMs,
           timedOut: false,
+          cancelled: false,
         })
       })
 
       child.on('close', (code) => {
-        if (timer) clearTimeout(timer)
         const durationMs = Date.now() - startTime
+        if (cancelled) {
+          finish(cancelledResult(command, durationMs, stdoutBuffer, stderrBuffer, true))
+          return
+        }
         const exitCode = typeof code === 'number' ? code : (timedOut ? 124 : 1)
         const passed = exitCode === 0 && !timedOut
+        const sandboxDenied = !passed && sandboxed && SANDBOX_DENIAL_PATTERN.test(`${stderrBuffer}\n${stdoutBuffer}`)
 
         let errorSummary = null
         if (!passed) {
           if (timedOut) {
             errorSummary = `验证命令运行超时（超过 ${Math.round(timeoutMs / 1000)} 秒）`
+          } else if (sandboxDenied) {
+            errorSummary = '验证命令被沙箱拒绝（可能需要网络或写入工作区外的目录），结果无法说明代码是否正确。'
           } else {
             // 提取关键错误行（优先 stderr，若 stderr 为空则提取 stdout 中含 error/TS/fail 的行）
             const errLines = (stderrBuffer || stdoutBuffer)
@@ -410,7 +497,7 @@ export async function executeVerificationRunner(workspacePath, options = {}) {
           }
         }
 
-        resolve({
+        finish({
           executed: true,
           status: passed ? 'passed' : 'failed',
           command,
@@ -421,12 +508,15 @@ export async function executeVerificationRunner(workspacePath, options = {}) {
           errorSummary,
           durationMs,
           timedOut,
+          cancelled: false,
+          sandboxDenied,
         })
       })
     } catch (err) {
-      if (timer) clearTimeout(timer)
       const durationMs = Date.now() - startTime
-      resolve({
+      finish(cancelled
+        ? cancelledResult(command, durationMs)
+        : {
         executed: false,
         status: 'failed',
         command,
@@ -437,7 +527,97 @@ export async function executeVerificationRunner(workspacePath, options = {}) {
         errorSummary: `执行验证抛出异常: ${err.message || err}`,
         durationMs,
         timedOut: false,
+        cancelled: false,
       })
     }
   })
+}
+
+const AUTO_CHECK_TIMEOUT_MS = 120_000
+const AUTO_TEST_TIMEOUT_MS = 180_000
+/** Node test scripts focused enough to run after every code change; `test:all` and the like are left to the Agent. */
+const FOCUSED_NODE_TEST_SCRIPTS = new Set(['test:unit', 'test'])
+const FOCUSED_TEST_PROJECT_TYPES = new Set(['python', 'rust', 'go'])
+
+/**
+ * Commands the automatic verification loop runs after a code change: the light
+ * check first, then a focused test command when the project has one.
+ * @param {VerificationPolicy | null | undefined} policy
+ * @returns {Array<{ command: string, kind: 'check' | 'test', timeoutMs: number }>}
+ */
+export function autoVerificationSteps(policy) {
+  /** @type {Array<{ command: string, kind: 'check' | 'test', timeoutMs: number }>} */
+  const steps = []
+  const add = (command, kind, timeoutMs) => {
+    if (command && !steps.some((step) => step.command === command)) steps.push({ command, kind, timeoutMs })
+  }
+  add(policy?.primaryCommand, 'check', AUTO_CHECK_TIMEOUT_MS)
+  const testCommand = policy?.testCommand
+  if (testCommand) {
+    const nodeScript = /^(?:npm|pnpm|yarn|bun) run (\S+)$/.exec(testCommand)?.[1]
+    const focused = nodeScript
+      ? FOCUSED_NODE_TEST_SCRIPTS.has(nodeScript)
+      : FOCUSED_TEST_PROJECT_TYPES.has(policy.projectType)
+    if (focused) add(testCommand, 'test', AUTO_TEST_TIMEOUT_MS)
+  }
+  return steps
+}
+
+/**
+ * Run the automatic verification steps in order, stopping at the first one that
+ * does not pass. The result describes that step (or the last one) and lists
+ * every command that ran.
+ * @param {string | null} workspacePath
+ * @param {{
+ *   sandboxPolicy?: { mode: string, workspaceRoot?: string } | null,
+ *   signal?: AbortSignal,
+ *   steps?: Array<{ command: string, kind: 'check' | 'test', timeoutMs: number }>,
+ *   runner?: typeof executeVerificationRunner,
+ * }} [options]
+ */
+export async function runAutoVerification(workspacePath, options = {}) {
+  const runner = options.runner ?? executeVerificationRunner
+  const steps = options.steps ?? autoVerificationSteps(detectVerificationCommands(workspacePath))
+  if (!workspacePath || steps.length === 0) {
+    return {
+      executed: false,
+      status: 'not_run',
+      command: null,
+      exitCode: null,
+      passed: false,
+      stdout: '',
+      stderr: '',
+      errorSummary: '未检测到可执行的验证命令。',
+      durationMs: 0,
+      timedOut: false,
+      cancelled: false,
+      sandboxed: false,
+      sandboxDenied: false,
+      repairable: false,
+      commands: [],
+    }
+  }
+  const commands = []
+  let durationMs = 0
+  let last = null
+  for (const step of steps) {
+    last = await runner(workspacePath, {
+      commandOverride: step.command,
+      timeoutMs: step.timeoutMs,
+      sandboxPolicy: options.sandboxPolicy,
+      signal: options.signal,
+    })
+    durationMs += last.durationMs
+    commands.push({
+      command: step.command,
+      kind: step.kind,
+      status: last.status,
+      exitCode: last.exitCode,
+      durationMs: last.durationMs,
+      timedOut: last.timedOut,
+      sandboxDenied: last.sandboxDenied === true,
+    })
+    if (!last.passed) break
+  }
+  return { ...last, durationMs, commands }
 }

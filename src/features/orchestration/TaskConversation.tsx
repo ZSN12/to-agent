@@ -1,4 +1,4 @@
-import { ArrowUp } from 'lucide-react'
+import { ArrowUp, RotateCcw } from 'lucide-react'
 import { FormEvent, Fragment, useState } from 'react'
 import type { TaskNode, TaskVerificationEvidence } from '../../types'
 import { Message } from '../chat/Message'
@@ -52,6 +52,8 @@ function VerificationEvidence({ evidence }: { evidence: TaskVerificationEvidence
 export function TaskConversation({ task, conversationId = null, onBack, onClose, onSend, onCancel }: { task: TaskNode; conversationId?: string | null; onBack: () => void; onClose: () => void; onSend: (message: string) => void; onCancel: () => void }) {
   const [value, setValue] = useState('')
   const [activeTab, setActiveTab] = useState<'execution' | 'route'>('execution')
+  const [rerunning, setRerunning] = useState(false)
+  const [rerunError, setRerunError] = useState('')
   const textareaRef = useAutosizeTextarea(value, 34, 96)
   const submit = (event: FormEvent) => {
     event.preventDefault()
@@ -61,14 +63,44 @@ export function TaskConversation({ task, conversationId = null, onBack, onClose,
     setValue('')
   }
 
+  const handleRerun = async () => {
+    const targetRunId = task.runId || task.worktreeRunId
+    if (!targetRunId || !conversationId) return
+    setRerunning(true)
+    setRerunError('')
+    try {
+      const result = await window.taskweaver?.tasks?.rerunDownstream?.(targetRunId, task.id, conversationId)
+      if (!result?.ok) {
+        setRerunError(result?.error ?? '重试节点失败')
+      }
+    } catch (err) {
+      setRerunError(err instanceof Error ? err.message : '重试节点失败')
+    } finally {
+      setRerunning(false)
+    }
+  }
+
   return (
     <aside className="side-panel task-panel" aria-label={`${task.title} 子任务对话`}>
       <PanelHeader title={`${task.id} · ${task.title}`} subtitle={`${task.role} · ${task.model}`} onClose={onClose} back={onBack} />
       <div className="task-summary">
         <StatusChip status={task.status} />
-        {(task.status === 'running' || task.status === 'queued') && (
+        {(task.status === 'running' || task.status === 'queued') ? (
           <button className="task-cancel-button" type="button" onClick={onCancel}>停止此子任务</button>
-        )}
+        ) : (task.runId || task.worktreeRunId) ? (
+          <div className="task-rerun-row">
+            <button
+              className="task-rerun-button"
+              type="button"
+              disabled={rerunning}
+              onClick={() => { void handleRerun() }}
+            >
+              <RotateCcw size={12} />
+              {rerunning ? '正在调度重试…' : '单独重试此节点及下游'}
+            </button>
+            {rerunError && <span className="task-rerun-error" role="alert">{rerunError}</span>}
+          </div>
+        ) : null}
         <div className="task-summary-row"><span>任务目标</span><p>{task.description}</p></div>
         {task.executionEvidenceSummary && (
           <div className="task-execution-evidence" role="note">
@@ -83,7 +115,7 @@ export function TaskConversation({ task, conversationId = null, onBack, onClose,
             <p className="model-editor-note" style={{ margin: '8px 0 4px', fontSize: 12 }}>
               本子任务在独立 worktree 中执行，改动未自动合并到主工作区。
             </p>
-            <WorktreeMergeActions taskId={task.id} conversationId={conversationId} runId={task.runId} />
+            <WorktreeMergeActions taskId={task.id} conversationId={conversationId} runId={task.worktreeRunId || task.runId} />
           </div>
         )}
       </div>

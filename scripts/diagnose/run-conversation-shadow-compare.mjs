@@ -1,7 +1,9 @@
 import fs from 'node:fs/promises'
+import { existsSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { DatabaseSync } from 'node:sqlite'
 import { createZHostManager } from '../../backend/agent/z-host/index.mjs'
 import {
   createTaskWeaverConversationRuntime,
@@ -19,20 +21,52 @@ const userDataPath = process.argv.find((arg) => arg.startsWith('--user-data='))?
   ?? path.join(os.homedir(), 'Library/Application Support/taskweaver-desktop')
 const requestedConversationId = process.argv.find((arg) => arg.startsWith('--conversation='))?.slice('--conversation='.length)
 const includeTimeline = process.argv.includes('--timeline')
-const threadsPath = path.join(userDataPath, 'taskweaver-threads.json')
+const threadsDbPath = path.join(userDataPath, 'taskweaver-threads.sqlite')
+const legacyThreadsPath = path.join(userDataPath, 'taskweaver-threads.json')
 const mapPath = path.join(userDataPath, 'taskweaver/dsh-session-map.json')
 const sessionRoot = path.join(userDataPath, 'dsh/sessions')
-const [threadState, sessionMap] = await Promise.all([
-  fs.readFile(threadsPath, 'utf8').then(JSON.parse),
-  fs.readFile(mapPath, 'utf8').then(JSON.parse),
-])
-const threads = Array.isArray(threadState.threads) ? threadState.threads : []
-const candidates = Object.entries(sessionMap.sessions ?? {}).flatMap(([conversationId, entry]) => {
-  const thread = threads.find((row) => row.conversationId === conversationId)
+const sessionMap = JSON.parse(await fs.readFile(mapPath, 'utf8'))
+let threadDb
+let threads
+let readThreadBody
+if (existsSync(threadsDbPath)) {
+  threadDb = new DatabaseSync(threadsDbPath, { readOnly: true })
+  threadDb.exec('BEGIN')
+  threads = threadDb.prepare(`SELECT id, conversation_id AS conversationId,
+    workspace_path AS workspacePath, title, message_count AS messageCount
+    FROM thread_summaries`).all()
+  readThreadBody = (summary) => {
+    const row = threadDb.prepare('SELECT body_json AS bodyJson FROM thread_bodies WHERE thread_id = ?').get(summary.id)
+    if (!row) throw new Error(`SQLite thread body missing: ${summary.id}`)
+    return { ...summary, ...JSON.parse(row.bodyJson) }
+  }
+} else {
+  const threadState = JSON.parse(await fs.readFile(legacyThreadsPath, 'utf8'))
+  threads = Array.isArray(threadState.threads) ? threadState.threads : []
+  readThreadBody = async (summary) => {
+    if (Array.isArray(summary.messages)) return summary
+    const detailPath = path.join(userDataPath, 'threads', `${summary.id}.json`)
+    return { ...summary, ...JSON.parse(await fs.readFile(detailPath, 'utf8')) }
+  }
+}
+const summariesByConversation = new Map(threads.map((thread) => [thread.conversationId, thread]))
+const candidateSummaries = Object.entries(sessionMap.sessions ?? {}).flatMap(([conversationId, entry]) => {
+  const thread = summariesByConversation.get(conversationId)
   if (!thread || (requestedConversationId && conversationId !== requestedConversationId)) return []
   if (!requestedConversationId && thread.workspacePath !== root) return []
-  return [{ conversationId, entry, thread }]
+  return [{ conversationId, entry, summary: thread }]
 })
+const candidates = []
+try {
+  for (const candidate of candidateSummaries) {
+    candidates.push({ ...candidate, thread: await readThreadBody(candidate.summary) })
+  }
+} finally {
+  if (threadDb) {
+    threadDb.exec('COMMIT')
+    threadDb.close()
+  }
+}
 const workspaces = await fs.readdir(sessionRoot)
 const artifacts = []
 for (const candidate of candidates) {

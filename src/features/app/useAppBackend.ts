@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ThinkingLevel } from '../../shared/model-api'
 import type {
   AppState,
-  BusyEnterMode,
   DshConversationRunningCall,
   LiveContextUsage,
   PromptBudgetSnapshot,
@@ -99,7 +98,6 @@ export function useAppBackend() {
   const [promptBudget, setPromptBudget] = useState<PromptBudgetSnapshot | null>(null)
   const [sessionStats, setSessionStats] = useState<SessionStatsSnapshot | null>(null)
   const sessionStatsRequestVersionRef = useRef(0)
-  const [busyEnterMode, setBusyEnterMode] = useState<BusyEnterMode>('followUp')
   const activeConversationIdRef = useRef<string | null>(null)
   const permissionPromptsRef = useRef(new Map<string, PermissionPromptPayload>())
   const [retryBanner, setRetryBanner] = useState<{
@@ -142,6 +140,44 @@ export function useAppBackend() {
     bridgeReady ? state?.conversationId : null,
   )
   const activeDshView = matchDshConversationView(dshView, state?.conversationId)
+  const projectedSessionTitle = typeof activeDshView?.projections.title === 'string'
+    ? activeDshView.projections.title.trim()
+    : ''
+  const sessionTitleUpdateVersionsRef = useRef(new Map<string, number>())
+  useEffect(() => {
+    const threadId = state?.currentThreadId
+    const title = projectedSessionTitle
+    const app = getBridge()?.app
+    if (!threadId || !title || !app || state?.threadTitle === title) return
+
+    const titleAtRequestStart = state?.threadTitle
+    const requestVersion = (sessionTitleUpdateVersionsRef.current.get(threadId) ?? 0) + 1
+    sessionTitleUpdateVersionsRef.current.set(threadId, requestVersion)
+    void app.renameThread(threadId, title, { generated: true }).then((res) => {
+      if (!res.ok || sessionTitleUpdateVersionsRef.current.get(threadId) !== requestVersion) return
+      sessionTitleUpdateVersionsRef.current.delete(threadId)
+      setState((current) => {
+        if (!current) return current
+        const updated = res.data.find((thread) => thread.id === threadId)
+        const preserveNewerLocalTitle = current.currentThreadId === threadId
+          && current.threadTitle !== titleAtRequestStart
+        const currentTitle = preserveNewerLocalTitle ? current.threadTitle : updated?.title ?? title
+        const threads = updated
+          ? current.threads.map((thread) => thread.id === threadId ? updated : thread)
+          : current.threads
+        return {
+          ...current,
+          ...(current.currentThreadId === threadId ? { threadTitle: currentTitle } : {}),
+          threads,
+        }
+      })
+    }).catch(() => {
+      if (sessionTitleUpdateVersionsRef.current.get(threadId) === requestVersion) {
+        sessionTitleUpdateVersionsRef.current.delete(threadId)
+      }
+      // A background title update must not interrupt the active conversation.
+    })
+  }, [projectedSessionTitle, state?.conversationId, state?.currentThreadId])
   const [preferDshTranscriptPref, setPreferDshTranscriptPref] = useState(true)
   useEffect(() => {
     void window.taskweaver?.preferences?.get?.().then((res) => {
@@ -200,16 +236,25 @@ export function useAppBackend() {
     if (contextRes?.ok) setLiveContext(contextRes.data)
   }, [])
 
-  const reloadRef = useRef<() => Promise<void>>(async () => {})
+  const reloadRef = useRef<() => Promise<boolean>>(async () => false)
+  const reloadRequestVersionRef = useRef(0)
+  const invalidateStateReload = useCallback(() => {
+    reloadRequestVersionRef.current += 1
+    setLoading(false)
+  }, [])
 
   const {
     refs: conversationRunRefs,
     runningConversationIds,
+    runningStatusReady,
     completedConversationIds,
     setCompletedConversationIds,
     isConversationRunning,
     syncRunningConversationsFromBackend,
     sendMessage,
+    orchestrationChoicePrompt,
+    respondToOrchestrationChoice,
+    sendAsRoles,
     cancelMessage,
     steerMessage,
     followUpMessage,
@@ -252,44 +297,60 @@ export function useAppBackend() {
   }, [])
 
   const reload = useCallback(async () => {
+    const requestVersion = ++reloadRequestVersionRef.current
     const bridge = getBridge()
     if (!bridge?.app) {
       setLoading(false)
       setError('请在 TaskWeaver 桌面应用中运行以加载后端状态。')
-      return
+      return false
     }
     const requestedConversationId = activeConversationIdRef.current
     setLoading(true)
-    const res = await bridge.app.getState()
-    if (!res.ok) {
-      setError(res.error)
-      setLoading(false)
-      return
+    let refreshedConversationId: string
+    try {
+      const res = await bridge.app.getState()
+      if (requestVersion !== reloadRequestVersionRef.current
+        || requestedConversationId !== activeConversationIdRef.current) return false
+      if (!res.ok) {
+        setError(res.error)
+        return false
+      }
+      if (requestedConversationId && res.data.conversationId !== requestedConversationId) return false
+      refreshedConversationId = res.data.conversationId
+      activeConversationIdRef.current = refreshedConversationId
+      setState(res.data)
+      setToolTraces(res.data.outputLogs ?? [])
+      setError(null)
+      void refreshSkills(res.data.workspacePath)
+      void refreshWorkspaceTrust().catch(() => {})
+    } catch (error) {
+      if (requestVersion === reloadRequestVersionRef.current
+        && requestedConversationId === activeConversationIdRef.current) {
+        setError(error instanceof Error ? error.message : '加载后端状态失败，请重试。')
+      }
+      throw error
+    } finally {
+      if (requestVersion === reloadRequestVersionRef.current) setLoading(false)
     }
-    if (requestedConversationId && res.data.conversationId !== requestedConversationId) {
-      setLoading(false)
-      return
+    try {
+      await refreshSessionStats(refreshedConversationId)
+      const runningRes = await bridge.chat?.listRunningConversations?.()
+      if (requestVersion === reloadRequestVersionRef.current
+        && activeConversationIdRef.current === refreshedConversationId
+        && runningRes?.ok && Array.isArray(runningRes.data)) {
+        syncRunningConversationsFromBackend(runningRes.data)
+      }
+    } catch {
+      // The durable transcript loaded successfully. Auxiliary status failures
+      // are retried by their own polls and must not hide that successful read.
     }
-    activeConversationIdRef.current = res.data.conversationId
-    setState(res.data)
-    setToolTraces(res.data.outputLogs ?? [])
-    setError(null)
-    setLoading(false)
-    void refreshSkills(res.data.workspacePath)
-    void refreshWorkspaceTrust()
-    const enterMode = await bridge.models?.getBusyEnterMode?.()
-    if (enterMode?.ok) setBusyEnterMode(enterMode.data)
-    await refreshSessionStats()
-    const runningRes = await bridge.chat?.listRunningConversations?.()
-    if (runningRes?.ok && Array.isArray(runningRes.data)) {
-      syncRunningConversationsFromBackend(runningRes.data)
-    }
+    return true
   }, [refreshSessionStats, refreshSkills, refreshWorkspaceTrust, syncRunningConversationsFromBackend])
 
   reloadRef.current = reload
 
   useEffect(() => {
-    void reload()
+    void reload().catch(() => {})
   }, [reload])
 
   useEffect(() => {
@@ -392,6 +453,7 @@ export function useAppBackend() {
     state,
     setState,
     setError,
+    invalidateStateReload,
     resetTransientConversationState,
     refreshSkills,
     refreshSessionStats,
@@ -421,18 +483,6 @@ export function useAppBackend() {
 
   const { sendTaskMessage, cancelTask } = useTaskActions(activeConversationIdRef, setError)
 
-
-  const setBusyEnterModePref = useCallback(async (mode: BusyEnterMode) => {
-    const bridge = getBridge()
-    if (!bridge?.models?.setBusyEnterMode) return false
-    const res = await bridge.models.setBusyEnterMode(mode)
-    if (!res.ok) {
-      setError(res.error)
-      return false
-    }
-    setBusyEnterMode(res.data)
-    return true
-  }, [])
 
   const setPermissionMode = useCallback(async (mode: PermissionMode) => {
     const bridge = getBridge()
@@ -505,8 +555,6 @@ export function useAppBackend() {
     hostPlanModeActive,
     hostTodos,
     refreshSessionStats,
-    busyEnterMode,
-    setBusyEnterMode: setBusyEnterModePref,
     mutateQueue,
     retryBanner,
     toolTraces,
@@ -521,9 +569,13 @@ export function useAppBackend() {
     // DSH's projected owner/event id is the source of truth for transient tool-output references.
     toolOutputConversationId: activeDshView?.conversationId ?? state?.conversationId ?? null,
     runningConversationIds,
+    runningStatusReady,
     completedConversationIds,
     reload,
     sendMessage,
+    orchestrationChoicePrompt,
+    respondToOrchestrationChoice,
+    sendAsRoles,
     cancelMessage,
     steerMessage,
     followUpMessage,

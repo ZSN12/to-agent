@@ -1,12 +1,13 @@
-import { Bot, Check, Clock3, Download, Pause, Play, Trash2, X } from 'lucide-react'
+import { Bot, Check, Clock3, Pause, Play, RotateCcw, Trash2, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { TaskNode, TaskStatus } from '../../types'
-import type { DagPlanApprovalChanges, DagRunHistoryEntry } from '../../shared/app-api'
+import type { DagPlanApprovalChanges, DagReplayResult, DagRunHistoryEntry } from '../../shared/app-api'
 import type { ModelOption } from '../../types'
 import { statusMeta } from '../../shared/ui-utils'
+import { InlineSelect } from '../../shared/InlineSelect'
 import { SubagentSessionTree } from './SubagentSessionTree'
 import { PanelHeader } from './PanelHeader'
-import { buildOrchestrationTraceCsv } from './orchestration-trace-csv.mjs'
+import { CostSavingsCard } from './CostSavingsCard'
 
 export function StatusChip({ status }: { status: TaskStatus }) {
   const meta = statusMeta[status]
@@ -49,6 +50,67 @@ function DagRunControls({ tasks, conversationId }: { tasks: TaskNode[]; conversa
       </button>
       {error && <span role="alert">{error}</span>}
       {paused && <span>当前节点继续收尾，调度器不会启动新节点。</span>}
+    </div>
+  )
+}
+
+function DagResumeControl({ conversationId, activeRunId }: { conversationId: string | null; activeRunId?: string }) {
+  const [candidate, setCandidate] = useState<{ runId: string; completed: number; pending: number } | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    let disposed = false
+    setCandidate(null)
+    setError('')
+    if (!conversationId || activeRunId) return () => { disposed = true }
+    void (async () => {
+      try {
+        const response = await window.taskweaver?.tasks?.listRuns?.(conversationId)
+        if (!response?.ok || !Array.isArray(response.data) || disposed) return
+        const latest = response.data[0] as DagRunHistoryEntry | undefined
+        if (!latest || !['cancelled', 'interrupted', 'failed'].includes(latest.status)) return
+        const completed = latest.tasks.filter((task) => task.status === 'done').length
+        const pending = latest.tasks.length - completed
+        if (pending > 0) setCandidate({ runId: latest.runId, completed, pending })
+      } catch {
+        if (!disposed) setError('读取上次 DAG 进度失败')
+      }
+    })()
+    return () => { disposed = true }
+  }, [conversationId, activeRunId])
+
+  if (!candidate && !error) return null
+
+  const resume = async () => {
+    if (!candidate || !conversationId) return
+    setBusy(true)
+    setError('')
+    try {
+      const response = await window.taskweaver?.tasks?.resumeCheckpoint?.(candidate.runId, conversationId)
+      if (!response?.ok) setError(response?.error ?? '继续上次 DAG 失败')
+      else {
+        const result = response.data as DagReplayResult
+        if (!Array.isArray(result?.tasks) || result.tasks.length === 0) setError('没有可继续的子任务')
+        else setCandidate(null)
+      }
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : '继续上次 DAG 失败')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="dag-resume-card">
+      {candidate && <div>
+        <strong>检测到未完成的 DAG</strong>
+        <span>已完成 {candidate.completed} 个节点，待继续 {candidate.pending} 个。恢复时会沿用原子 Agent 会话和已保存的工作区进度。</span>
+      </div>}
+      {candidate && <button type="button" disabled={busy} onClick={() => { void resume() }}>
+        <Play size={14} />{busy ? '正在恢复…' : '继续上次任务'}
+      </button>}
+      {error && <span role="alert">{error}</span>}
     </div>
   )
 }
@@ -134,6 +196,10 @@ function PlanApprovalCard({
       <div className="dag-approval-tasks">
         {tasks.map((task) => {
           const draft = drafts[task.id] ?? { description: task.description, acceptanceText: (task.acceptance ?? []).join('\n'), modelKey: task.modelKey ?? '', dependenciesText: (task.dependsOn ?? []).join('\n') }
+          const modelChoices = modelOptions.map((model) => ({ value: model.id, label: model.displayName || model.name }))
+          if (!modelOptions.some((model) => model.id === draft.modelKey)) {
+            modelChoices.unshift({ value: draft.modelKey, label: task.model })
+          }
           const removed = deletedTaskIds.includes(task.id)
           return (
             <article className={`dag-approval-task${removed ? ' is-deleted' : ''}`} key={task.id}>
@@ -149,10 +215,19 @@ function PlanApprovalCard({
                 <label>任务描述<textarea value={draft.description} disabled={busy} rows={3} onChange={(event) => updateDraft(task.id, { description: event.target.value })} /></label>
                 <label>验收点（每行一条）<textarea value={draft.acceptanceText} disabled={busy} rows={2} onChange={(event) => updateDraft(task.id, { acceptanceText: event.target.value })} placeholder="可选；每行填写一个可检查的结果" /></label>
                 <label>前置依赖（节点 ID，每行一项）<textarea value={draft.dependenciesText} disabled={busy} rows={2} onChange={(event) => updateDraft(task.id, { dependenciesText: event.target.value })} placeholder="无依赖时留空" /></label>
-                <label>执行模型<select value={draft.modelKey} disabled={busy} onChange={(event) => updateDraft(task.id, { modelKey: event.target.value })}>
-                  {!modelOptions.some((model) => model.id === draft.modelKey) && <option value={draft.modelKey}>{task.model}</option>}
-                  {modelOptions.map((model) => <option key={model.id} value={model.id}>{model.displayName || model.name}</option>)}
-                </select></label>
+                <div className="dag-approval-field">
+                  <span>执行模型</span>
+                  <InlineSelect
+                  className="dag-model-inline-select"
+                  value={draft.modelKey}
+                  options={modelChoices}
+                  onChange={(modelKey) => updateDraft(task.id, { modelKey })}
+                  ariaLabel={`任务 ${task.title} 的执行模型`}
+                  searchable={modelChoices.length > 8}
+                  searchPlaceholder="搜索模型名称…"
+                  disabled={busy}
+                  />
+                </div>
               </>}
             </article>
           )
@@ -167,63 +242,63 @@ function PlanApprovalCard({
   )
 }
 
-function DagReplayControls({ run, tasks, conversationId }: {
-  run: DagRunHistoryEntry
-  tasks: TaskNode[]
-  conversationId: string | null
+function TaskCard({
+  task,
+  onClick,
+  canRerun,
+  onRerun,
+}: {
+  task: TaskNode
+  onClick: () => void
+  canRerun?: boolean
+  onRerun?: (task: TaskNode) => void
 }) {
-  const [taskId, setTaskId] = useState(tasks[0]?.id ?? '')
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState('')
-  useEffect(() => setTaskId(tasks[0]?.id ?? ''), [run.runId, tasks])
-
-  const resume = async () => {
-    setBusy(true)
-    setError('')
-    try {
-      const result = await window.taskweaver?.tasks?.resumeCheckpoint?.(run.runId, conversationId)
-      if (!result?.ok) setError(result?.error ?? '从断点继续失败')
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : '从断点继续失败')
-    } finally {
-      setBusy(false)
-    }
-  }
-  const rerun = async () => {
-    if (!taskId) return
-    setBusy(true)
-    setError('')
-    try {
-      const result = await window.taskweaver?.tasks?.rerunDownstream?.(run.runId, taskId, conversationId)
-      if (!result?.ok) setError(result?.error ?? '重跑节点及下游失败')
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : '重跑节点及下游失败')
-    } finally {
-      setBusy(false)
-    }
-  }
-  const hasUnfinished = tasks.some((task) => task.status !== 'done' && task.statusLabel !== '已完成')
-  const resumable = ['interrupted', 'failed', 'cancelled'].includes(run.status) && hasUnfinished
-
-  return <section className="dag-run-controls" aria-label="恢复或重跑 DAG">
-    {resumable && <button type="button" disabled={busy} onClick={() => { void resume() }}><Play size={14} />从断点继续</button>}
-    <label>选择节点及其下游
-      <select value={taskId} disabled={busy || tasks.length === 0} onChange={(event) => setTaskId(event.target.value)}>
-        {tasks.map((task) => <option key={task.id} value={task.id}>{task.id} · {task.title}</option>)}
-      </select>
-    </label>
-    <button type="button" disabled={busy || !taskId} onClick={() => { void rerun() }}><Play size={14} />重跑节点及下游</button>
-    {error && <span role="alert">{error}</span>}
-  </section>
-}
-
-function TaskCard({ task, onClick, readOnly = false }: { task: TaskNode; onClick: () => void; readOnly?: boolean }) {
+  const routeReason = task.routeReason?.trim()
+  const isFailedOrInterrupted = task.status === 'interrupted' || task.status === 'cancelled' || (task.status as string) === 'failed' || (task.status as string) === 'blocked'
   return (
-    <button className={`task-card ${task.status}`} onClick={onClick} disabled={readOnly} style={{ left: `${task.x}%`, top: `${task.y}%` }} aria-label={readOnly ? `${task.id} ${task.title} 历史任务` : `打开 ${task.id} ${task.title} 的对话`}>
-      <div className="task-card-head"><span className="task-id">{task.id}</span><strong>{task.title}</strong></div>
-      <div className="task-card-status"><StatusChip status={task.status} /></div>
+    <div
+      className={`task-card ${task.status}`}
+      role="button"
+      tabIndex={0}
+      onClick={onClick}
+      onKeyDown={(event) => {
+        if (event.target !== event.currentTarget) return
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault()
+          onClick()
+        }
+      }}
+      style={{ left: `${task.x}%`, top: `${task.y}%` }}
+      aria-label={`打开 ${task.id} ${task.title} 的对话；执行模型：${task.model}；路由依据：${routeReason || '未提供'}`}
+    >
+      <div className="task-card-head">
+        <span className="task-id">{task.id}</span>
+        <strong title={task.title}>{task.title}</strong>
+        <div className="task-card-head-actions">
+          {canRerun && isFailedOrInterrupted && (
+            <button
+              type="button"
+              className="task-card-retry-btn"
+              title="单独重试此失败节点及下游"
+              onClick={(e) => {
+                e.stopPropagation()
+                onRerun?.(task)
+              }}
+            >
+              <RotateCcw size={10} /> 重试
+            </button>
+          )}
+          <span className="task-card-status"><StatusChip status={task.status} /></span>
+        </div>
+      </div>
       <div className="task-card-meta"><Bot size={14} /><span>{task.role}</span><span className={`tier ${task.tier}`}>{task.tier === 'low' ? '轻量' : task.tier === 'high' ? '高能力' : task.tier === 'balanced' ? '均衡' : '程序执行'}</span></div>
       <p>{task.description}</p>
+      {routeReason && (
+        <div className="task-card-route" title={routeReason}>
+          <span className="task-card-route-label">路由依据</span>
+          <span>{routeReason}</span>
+        </div>
+      )}
       <div className="task-card-foot">
         <span>{task.dependsOn?.length ? `依赖 ${task.dependsOn.join('、')}` : '无前置依赖'}</span>
         {task.toolProfile && <span className="task-tool-profile">{task.toolProfile}</span>}
@@ -231,75 +306,55 @@ function TaskCard({ task, onClick, readOnly = false }: { task: TaskNode; onClick
         {task.duration && <span className="task-duration" title={task.startedAt && task.endedAt ? `${task.startedAt} → ${task.endedAt}` : undefined}><Clock3 size={11} />{task.duration}</span>}
         <span>{task.model}</span>
       </div>
-    </button>
+    </div>
   )
 }
 
-export function DagPanel({ tasks, onTask, onClose, conversationId, modelOptions = [] }: { tasks: TaskNode[]; onTask: (task: TaskNode) => void; onClose: () => void; conversationId: string | null; modelOptions?: ModelOption[] }) {
-  const liveRunId = tasks.find((task) => task.runId)?.runId ?? null
-  const [historyRuns, setHistoryRuns] = useState<DagRunHistoryEntry[]>([])
-  const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
-  useEffect(() => setSelectedRunId(null), [conversationId, liveRunId])
-  useEffect(() => {
-    let active = true
-    const loadHistory = async () => {
-      const result = await window.taskweaver?.tasks?.listRuns?.(conversationId)
-      if (active && result?.ok) setHistoryRuns(result.data)
+export function DagPanel({ tasks, onTask, onClose, conversationId, modelOptions = [], embedded = false }: { tasks: TaskNode[]; onTask: (task: TaskNode) => void; onClose: () => void; conversationId: string | null; modelOptions?: ModelOption[]; embedded?: boolean }) {
+  const canvasHeight = Math.max(640, ((Math.max(0, ...tasks.map((task) => task.y)) + 30) / 100) * 640)
+  const activeRunId = tasks.find((task) => ['running', 'paused', 'awaiting_approval', 'finalizing'].includes(task.runStatus ?? ''))?.runId
+  const latestRunId = tasks.find((task) => task.runId)?.runId ?? null
+  const canRerun = !activeRunId && Boolean(latestRunId)
+  const Container = embedded ? 'section' : 'aside'
+
+  const handleRerun = async (targetTask: TaskNode) => {
+    const runId = targetTask.runId || latestRunId
+    if (!runId || !conversationId) return
+    try {
+      await window.taskweaver?.tasks?.rerunDownstream?.(runId, targetTask.id, conversationId)
+    } catch {
+      // 错误由对话流处理
     }
-    if (conversationId) void loadHistory()
-    else setHistoryRuns([])
-    return () => { active = false }
-  }, [conversationId, liveRunId, tasks[0]?.runStatus])
-  const selectedRun = historyRuns.find((run) => run.runId === selectedRunId)
-  const viewingHistory = Boolean(selectedRun)
-  const displayTasks = selectedRun?.tasks ?? tasks
-  const canvasHeight = Math.max(640, ((Math.max(0, ...displayTasks.map((task) => task.y)) + 30) / 100) * 640)
-  const exportTrace = () => {
-    const csv = buildOrchestrationTraceCsv(displayTasks)
-    const url = URL.createObjectURL(new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' }))
-    const anchor = document.createElement('a')
-    const runId = displayTasks.find((task) => task.runId)?.runId ?? 'dag'
-    anchor.href = url
-    anchor.download = `taskweaver-${runId}-trace.csv`
-    anchor.click()
-    URL.revokeObjectURL(url)
   }
 
   return (
-    <aside className="side-panel dag-panel" aria-label="任务 DAG">
+    <Container className={`${embedded ? 'workbench-tab-panel' : 'side-panel'} dag-panel`} aria-label="任务 DAG" role={embedded ? 'region' : undefined}>
       <PanelHeader
         title="任务 DAG"
         subtitle={tasks.length > 0 ? `${tasks.length} 个子任务` : '多智能体编排启用后显示'}
         onClose={onClose}
+        hideClose={embedded}
       />
-      {tasks.length === 0 && historyRuns.length === 0 ? (
-        <div className="dag-empty-state">
-          <Bot size={22} aria-hidden="true" />
-          <strong>暂无编排任务</strong>
-          <span>普通请求继续由单 Agent 处理；明确要求多 Agent 或复杂任务适合拆解时，这里会展示实际执行的任务图。</span>
-        </div>
+      {tasks.length === 0 ? (
+        <>
+          <DagResumeControl conversationId={conversationId} activeRunId={activeRunId} />
+          <div className="dag-empty-state">
+            <Bot size={22} aria-hidden="true" />
+            <strong>暂无编排任务</strong>
+            <span>普通请求继续由单 Agent 处理；明确要求多 Agent 或复杂任务适合拆解时，这里会展示实际执行的任务图。</span>
+          </div>
+        </>
       ) : (
         <div className="dag-scroll">
-          {historyRuns.length > 0 && <label className="dag-history-picker">运行记录
-            <select value={selectedRunId ?? ''} onChange={(event) => setSelectedRunId(event.target.value || null)}>
-              <option value="">当前运行</option>
-              {historyRuns.filter((run) => run.runId !== liveRunId).map((run) => <option key={run.runId} value={run.runId}>
-                {run.createdAt ? run.createdAt.slice(0, 19).replace('T', ' ') : '未知时间'} · {run.status} · {run.tasks.length} 个节点
-              </option>)}
-            </select>
-          </label>}
-          {!viewingHistory && <DagRunControls tasks={tasks} conversationId={conversationId} />}
-          {!viewingHistory && <PlanApprovalCard tasks={tasks} conversationId={conversationId} modelOptions={modelOptions} />}
-          {viewingHistory && selectedRun && <DagReplayControls run={selectedRun} tasks={displayTasks} conversationId={conversationId} />}
-          <button className="dag-export-button" onClick={exportTrace}>
-            <Download size={14} aria-hidden="true" />
-            导出{viewingHistory ? '此历史运行' : '时间线与用量'} CSV
-          </button>
-          {displayTasks.length === 0 ? <div className="dag-empty-state"><strong>此运行没有保存节点</strong></div> : <SubagentSessionTree tasks={displayTasks} />}
+          <DagResumeControl conversationId={conversationId} activeRunId={activeRunId} />
+          <DagRunControls tasks={tasks} conversationId={conversationId} />
+          <CostSavingsCard conversationId={conversationId} runId={latestRunId} active={Boolean(activeRunId)} />
+          <PlanApprovalCard tasks={tasks} conversationId={conversationId} modelOptions={modelOptions} />
+          <SubagentSessionTree tasks={tasks} />
           <div className="dag-canvas" style={{ height: `${canvasHeight}px` }}>
             <svg className="dag-lines" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-              {displayTasks.flatMap((task) => (task.dependsOn ?? []).flatMap((dependencyId) => {
-                const dependency = displayTasks.find((candidate) => candidate.id === dependencyId)
+              {tasks.flatMap((task) => (task.dependsOn ?? []).flatMap((dependencyId) => {
+                const dependency = tasks.find((candidate) => candidate.id === dependencyId)
                 if (!dependency) return []
                 const startX = dependency.x + 14.5
                 const startY = dependency.y + 23
@@ -308,10 +363,18 @@ export function DagPanel({ tasks, onTask, onClose, conversationId, modelOptions 
                 return <path key={`${dependency.id}-${task.id}`} d={`M ${startX} ${startY} C ${startX} ${(startY + endY) / 2}, ${endX} ${(startY + endY) / 2}, ${endX} ${endY}`} />
               }))}
             </svg>
-            {displayTasks.map((task) => <TaskCard key={task.id} task={task} readOnly={viewingHistory} onClick={() => { if (!viewingHistory) onTask(task) }} />)}
+            {tasks.map((task) => (
+              <TaskCard
+                key={task.id}
+                task={task}
+                onClick={() => onTask(task)}
+                canRerun={canRerun}
+                onRerun={handleRerun}
+              />
+            ))}
           </div>
         </div>
       )}
-    </aside>
+    </Container>
   )
 }
